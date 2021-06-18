@@ -1,0 +1,46 @@
+[lattice]
+
+dimension       = 2
+
+lattice_vectors = [[1.0, 0.0],
+                   [0.5, 0.8660254037844386]]
+
+basis_vectors   = [[0.0, 0.0],
+                   [0.5, 0.0],
+                   [0.25, 0.4330127018922193]]
+
+lattice_size    = [5, 5]
+
+
+[model]
+
+# Nearest neighbor pair interaction
+[[model.pair]]
+strength = 2.0
+dist     = 1
+
+# Next-nearest neighbor pair interaction
+# [[model.pair]]
+# strength = -1.0
+# dist     = 2
+
+# Next-next-nearest neighbor pair interaction
+# (This is the one that needs to be hop tie-broken)
+# [[model.pair]]
+# strength = 0.5
+# dist     = 3
+# neighbor = 2
+
+# [[model.pair]]
+# strength = -0.25
+# dist     = 3
+# neighbor = 3
+
+# External field along z axis
+[[model.field]]
+strength = 2.0
+
+# Easy axis along the x axis
+[[model.easyaxis]]
+strength = -4.0
+axis     = 1
