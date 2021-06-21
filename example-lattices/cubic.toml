@@ -1,0 +1,11 @@
+[lattice]
+
+dimension       = 3
+
+lattice_vectors = [[1.0, 0.0, 0.0],
+                   [0.0, 1.0, 0.0],
+                   [0.0, 0.0, 1.0]]
+
+basis_vectors   = [[0.0, 0.0, 0.0]]
+
+lattice_size    = [5, 5, 5]

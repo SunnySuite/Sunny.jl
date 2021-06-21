@@ -196,8 +196,15 @@ function ChargeSystem(lat::Lattice)
     return ChargeSystem(lat, sites)
 end
 
+"Sets charges to random values uniformly drawn from [-1, 1]"
 function randn!(sys::ChargeSystem)
-    sys.sites = 2 .* rand(Float64, size(sys.sites)) .- 1.
+    sys.sites .= 2 .* rand(Float64, size(sys.sites)) .- 1.
+end
+
+"Sets charges to random values uniformly drawn from [-1, 1], then shifted to charge-neutrality"
+function randn_neutral!(sys::ChargeSystem)
+    sys.sites .= 2 .* rand(Float64, size(sys.sites)) .- 1.
+    sys.sites .-= sum(sys.sites) / length(sys.sites)
 end
 
 function SpinSystem(lat::Lattice, ints::Vector{Interaction})

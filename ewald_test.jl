@@ -6,11 +6,11 @@ includet("Lattice.jl")
 includet("Systems.jl")
 includet("Ewald.jl")
 
-config = TOML.tryparsefile("cubic.toml")
+config = TOML.tryparsefile("example-lattices/small-cubic.toml")
 lat = _parse_lattice(config["lattice"])
 
 sys = ChargeSystem(lat)
-randn!(sys)
+randn_neutral!(sys)
 
 # Ready for ewald_sum_monopole(sys)
 # ewald_sum_monopole(sys)
