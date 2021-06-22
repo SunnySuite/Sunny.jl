@@ -23,6 +23,10 @@ function brav_indices(lat::Lattice) :: CartesianIndices
     return CartesianIndices(Tuple(lat.size))
 end
 
+function basis_vectors(lat::Lattice)
+    
+end
+
 "Produces an iterator over all (j, k, l, basis) indexes for the lattice"
 function indices(lat::Lattice) :: CartesianIndices
     nb = length(lat.basis_vecs)
