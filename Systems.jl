@@ -1,5 +1,6 @@
 using TOML
 using LinearAlgebra
+import Base.size
 
 include("Lattice.jl")
 
@@ -227,6 +228,16 @@ function SpinSystem(lat::Lattice, ints::Vector{Interaction})
     end
 
     return SpinSystem(lat, ints, sites, pair_offsets, filtered_offsets)
+end
+
+"Sets spins randomly sampled on the unit sphere."
+function randn!(sys::SpinSystem)
+    sys.sites .= randn(Float64, size(sys.sites))
+    sys.sites ./= sqrt.(sum(sys.sites .^ 2, dims=ndims(sys.sites)))
+end
+
+function Base.size(sys::T) where {T <: AbstractSystem}
+    return size(sys.lattice)
 end
 
 function _parse_interactions(config::Dict{String, Any}) :: Vector{Interaction}

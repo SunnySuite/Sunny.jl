@@ -1,16 +1,17 @@
 using TOML
 using StaticArrays
 using LinearAlgebra
+import Base.size
 
 """Defines lattice/basis vectors, and number of unit cells.
-   Note this struct does *not* hold the degrees of freedom,
+   Note this struct does not hold the degrees of freedom,
      but just simply sets the geometry of the underlying
      lattice.
 """
 struct Lattice{D, L}
-    lat_vecs     :: SMatrix{D, D, Float64, L}       # Columns of these are the lat/basis vectors
-    basis_vecs   :: Vector{SVector{D, Float64}}
-    size         :: SVector{D, Int}
+    lat_vecs     :: SMatrix{D, D, Float64, L}       # Columns are lattice vectors
+    basis_vecs   :: Vector{SVector{D, Float64}}     # Each SVector gives a basis vector
+    size         :: SVector{D, Int}                 # Number of cells along each dimension
 end
 
 "Calculate the total volume of the lattice (unit cell volume × num cells)"
@@ -23,14 +24,19 @@ function brav_indices(lat::Lattice) :: CartesianIndices
     return CartesianIndices(Tuple(lat.size))
 end
 
-function basis_vectors(lat::Lattice)
+# function basis_vectors(lat::Lattice)
     
-end
+# end
 
 "Produces an iterator over all (j, k, l, basis) indexes for the lattice"
 function indices(lat::Lattice) :: CartesianIndices
     nb = length(lat.basis_vecs)
     return CartesianIndices((lat.size..., nb))
+end
+
+function Base.size(lat::Lattice)
+    nb = length(lat.basis_vecs)
+    return (lat.size..., nb)
 end
 
 # "An iterator over physical positions in a lattice"
