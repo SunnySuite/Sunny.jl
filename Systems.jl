@@ -32,6 +32,17 @@ struct DMInteraction <: Interaction
 end
 
 
+""" Hacky workaround of the puzzling default behavior of zeros, which is to share memory
+     for each element initialized using zeros(T, dims...) for types which allocate their own mem.
+"""
+function zeros_sepmem(T, dims...)
+    arr = Array{T, length(dims)}(undef, dims)
+    for i in eachindex(arr)
+        arr[i] = zero(T)
+    end
+    return arr
+end
+
 "Defines the degree of freedom at each lattice site"
 SpinSite = SVector{3, Float64}
 
@@ -175,10 +186,9 @@ end
 abstract type AbstractSystem end
 
 struct SpinSystem{D, L} <: AbstractSystem
-    lattice       :: Lattice{D, L}
-    interactions  :: Vector{Interaction}
-    # sites        :: Array{SpinSite}
-    sites         :: Array{Float64}
+    lattice        :: Lattice{D, L}
+    interactions   :: Vector{Interaction}
+    sites          :: Array{SVector{3, Float64}}
     _pair_offsets  :: Vector{NeighborOffsets}
     _fpair_offsets :: Vector{NeighborOffsets}
 end
@@ -197,21 +207,16 @@ function ChargeSystem(lat::Lattice)
     return ChargeSystem(lat, sites)
 end
 
-"Sets charges to random values uniformly drawn from [-1, 1]"
-function randn!(sys::ChargeSystem)
-    sys.sites .= 2 .* rand(Float64, size(sys.sites)) .- 1.
-end
-
 "Sets charges to random values uniformly drawn from [-1, 1], then shifted to charge-neutrality"
-function randn_neutral!(sys::ChargeSystem)
+function randn!(sys::ChargeSystem)
     sys.sites .= 2 .* rand(Float64, size(sys.sites)) .- 1.
     sys.sites .-= sum(sys.sites) / length(sys.sites)
 end
 
 function SpinSystem(lat::Lattice, ints::Vector{Interaction})
     # Initialize sites based on lattice geometry
-    sites_size = (lat.size..., length(lat.basis_vecs), 3)
-    sites = zeros(sites_size)
+    sites_size = (lat.size..., length(lat.basis_vecs))
+    sites = zeros(SVector{3, Float64}, sites_size)
 
     # Set up all the offset lists for PairInteractions
     pair_offsets = Vector{NeighborOffsets}()
@@ -230,10 +235,14 @@ function SpinSystem(lat::Lattice, ints::Vector{Interaction})
     return SpinSystem(lat, ints, sites, pair_offsets, filtered_offsets)
 end
 
+function SpinSystem(lat::Lattice)
+    return SpinSystem(lat, Vector{Interaction}())
+end
+
 "Sets spins randomly sampled on the unit sphere."
 function randn!(sys::SpinSystem)
-    sys.sites .= randn(Float64, size(sys.sites))
-    sys.sites ./= sqrt.(sum(sys.sites .^ 2, dims=ndims(sys.sites)))
+    sys.sites .= randn(SVector{3, Float64}, size(sys.sites))
+    @. sys.sites /= norm(sys.sites)
 end
 
 function Base.size(sys::T) where {T <: AbstractSystem}

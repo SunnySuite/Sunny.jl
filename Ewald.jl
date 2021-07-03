@@ -6,6 +6,7 @@ using SpecialFunctions
 using Parameters
 
 include("Lattice.jl")
+include("Systems.jl")
 
 # @doc raw"""
 #     ewald_sum_monopole(sys::ChargeSystem; η=1.0, extent=10)
@@ -33,7 +34,7 @@ function ewald_sum_monopole(sys::ChargeSystem{D}; η=1.0, extent=5) :: Float64 w
     @unpack sites, lattice = sys
     dim = length(lattice.size)
 
-    recip = get_recip(lattice)
+    recip = gen_reciprocal(lattice)
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
@@ -195,12 +196,13 @@ function ewald_sum_dipole(sys::SpinSystem{D}; extent=2, η=1.0) :: Float64 where
 
     @unpack sites, lattice = sys
 
-    recip = get_recip(lattice)
+    recip = gen_reciprocal(lattice)
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
 
-    dip_square_term = -2η^3 / (3 * √π) * (sys.sites |> x->x.^2 |> sum)
+    # dip_square_term = -2η^3 / (3 * √π) * (sys.sites |> x->x.^2 |> sum)
+    dip_square_term = -2η^3 / (3 * √π) * sum(norm.(sys.sites).^2)
 
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum = 0.0
@@ -217,14 +219,14 @@ function ewald_sum_dipole(sys::SpinSystem{D}; extent=2, η=1.0) :: Float64 where
         mul!(rᵢ, lattice.lat_vecs, jkl1_vec)            # Site i
         for (b1, bvec1) in enumerate(lattice.basis_vecs)
             rᵢ .+= bvec1
-            pᵢ = sys.sites[jkl1, b1, 1:3]                    # Allocates (?)
+            pᵢ = sys.sites[jkl1, b1]
 
             for jkl2 in brav_indices(lattice)
                 jkl2_vec = convert(SVector, jkl2)
                 mul!(rⱼ, lattice.lat_vecs, jkl2_vec) # Site j
                 for (b2, bvec2) in enumerate(lattice.basis_vecs)
                     rⱼ .+= bvec2
-                    pⱼ = sys.sites[jkl2, b2, 1:3]            # Allocates (?)
+                    pⱼ = sys.sites[jkl2, b2]
 
                     pᵢ_dot_pⱼ = pᵢ ⋅ pⱼ
 
@@ -259,7 +261,6 @@ function ewald_sum_dipole(sys::SpinSystem{D}; extent=2, η=1.0) :: Float64 where
                     # Reciprocal-space sum
                     for JKL in extent_ixs
                         JKL = convert(SVector, JKL)
-                        # k .= recip.lat_vecs * JKL
                         mul!(k, recip.lat_vecs, JKL)
 
                         k2 = norm(k)^2
@@ -288,14 +289,11 @@ function _precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: A
 
     dim = length(lattice.size)
 
-    recip = get_recip(lattice)
+    recip = gen_reciprocal(lattice)
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
-
-    # tot_charge_term = -π / (2 * vol * η^2) * sum(sys.sites)^2
-    # charge_square_term = -η / √π * (sys.sites |> x->x.^2 |> sum)
-
+    
     # Handle total charge term by adding to all elements
     # Put charge_square term on the diagonal
     for jklb1 in indices(lattice)
@@ -349,7 +347,6 @@ function _precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: A
                     recip_site_sum = 0.0
                     for JKL in extent_ixs
                         JKL = convert(SVector, JKL)
-                        # k .= recip.lat_vecs * JKL
                         mul!(k, recip.lat_vecs, JKL)
 
                         k2 = norm(k) ^ 2
@@ -390,20 +387,23 @@ function _contract_monopole(sys::ChargeSystem, A::Array{Float64}) :: Float64
     return U
 end
 
-# TODO: Change to column-major ordering
-function _precompute_dipole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Array{Float64} where {D}
-    A = zeros(size(lattice)..., size(lattice)..., 3, 3)
+function _precompute_dipole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Array{SMatrix{3, 3, Float64, 9}} where {D}
+    A = zeros(SMatrix{3, 3, Float64, 9}, size(lattice)..., size(lattice)...)
+    N = prod(size(lattice))
     extent_ixs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
 
-    recip = get_recip(lattice)
+    recip = gen_reciprocal(lattice)
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
 
+    iden = SMatrix{3, 3, Float64, 9}(diagm(ones(3)))
+
+    # Indexing into this reshape avoids a ton of allocations from CartesianIndex nonsense
+    A_N = reshape(A, N, N)
     # Put the dipole-squared term on the diagonal
-    # dip_square_term = -2η^3 / (3 * √π) * (sys.sites |> x->x.^2 |> sum)
-    for jklb1 in indices(lattice)
-        A[jklb1, jklb1, 1:3, 1:3] += -2η^3 / (3 * √π) * I
+    for i in 1:N
+        @inbounds A_N[i, i] = A_N[i, i] .+ -2η^2 / (3 * √π) * iden
     end
 
     real_space_sum, recip_space_sum = 0.0, 0.0
@@ -418,22 +418,28 @@ function _precompute_dipole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Arr
     real_tensor = @MMatrix zeros(3, 3)
     recip_tensor = @MMatrix zeros(3, 3)
 
-    for jkl1 in brav_indices(lattice)
+    lat_inds = brav_indices(lattice)
+    lin_inds = LinearIndices(indices(lattice))
+
+    for jkl1 in lat_inds
         jkl1_vec = convert(SVector, jkl1)
         mul!(rᵢ, lattice.lat_vecs, jkl1_vec)            # Site i
         for (b1, bvec1) in enumerate(lattice.basis_vecs)
             rᵢ .+= bvec1
+            i = lin_inds[jkl1, b1]
 
-            for jkl2 in brav_indices(lattice)
+            for jkl2 in lat_inds
                 jkl2_vec = convert(SVector, jkl2)
-                mul!(rⱼ, lattice.lat_vecs, jkl2_vec) # Site j
+                mul!(rⱼ, lattice.lat_vecs, jkl2_vec)    # Site j
                 for (b2, bvec2) in enumerate(lattice.basis_vecs)
                     rⱼ .+= bvec2
+                    j = lin_inds[jkl2, b2]
 
                     @. rᵢⱼ = rⱼ - rᵢ
 
                     # TODO: Either merge into one sum, or separately control extents
                     # Real-space sum over unit cells
+                    real_site_sum = 0.0
                     fill!(real_tensor, 0.0)
                     for JKL in extent_ixs
                         JKL = convert(SVector, JKL)
@@ -454,16 +460,16 @@ function _precompute_dipole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Arr
                         
                         # Calculating terms from Eq. 80 + 81 of Beck
                         prefactor = -3 * ((2η^2 * dist^2 / 3 + 1) * exp_term + erfc_term) / dist^5
-                        real_tensor .+= prefactor * (rᵢⱼ_n * rᵢⱼ_n')
+                        @. real_tensor += prefactor * (rᵢⱼ_n * rᵢⱼ_n')
                     end
-                    real_tensor += real_site_sum * I
-                    A[jkl1, b1, jkl2, b2, 1:3, 1:3] .+= 0.5 * real_tensor
+                    @inbounds real_tensor .+= real_site_sum * iden
+                    @inbounds A_N[i, j] = A_N[i, j] .+ 0.5 * real_tensor
+
 
                     # Reciprocal-space sum
                     fill!(recip_tensor, 0.0)
                     for JKL in extent_ixs
                         JKL = convert(SVector, JKL)
-                        # k .= recip.lat_vecs * JKL
                         mul!(k, recip.lat_vecs, JKL)
 
                         k2 = norm(k)^2
@@ -472,9 +478,9 @@ function _precompute_dipole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Arr
                         end
 
                         prefactor = exp(-k2 / 4η^4) * cos(k ⋅ rᵢⱼ) / k2
-                        recip_tensor .+= prefactor * (k * k')
+                        @. recip_tensor += prefactor * (k * k')
                     end
-                    A[jkl1, b1, jkl2, b2, 1:3, 1:3] .+= 2π / vol * recip_tensor
+                    @inbounds A_N[i, j] = A_N[i, j] .+ 2π / vol * recip_tensor
 
                     # Prepare for next b2 loop
                     rⱼ .-= bvec2
@@ -489,21 +495,28 @@ function _precompute_dipole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Arr
     return A
 end
 
-function _contract_dipole(sys::SpinSystem, A::Array{Float64}) :: Float64
+function _contract_dipole(sys::SpinSystem, A::Array{SMatrix{3, 3, Float64, 9}}) :: Float64
     # Check A has the right shape
-    @assert size(A) == (size(sys)..., size(sys)..., 3, 3)
+    @assert size(A) == (size(sys)..., size(sys)...)
+    N = prod(size(sys))
+    A_N = reshape(A, N, N)
 
     U = 0.0
-    for jklb1 in indices(sys.lattice)
-        pᵢ = view(sys.sites, jklb1, 1:3)
-        for jklb2 in indices(sys.lattice)
-            pⱼ = view(sys.sites, jklb2, 1:3)
+    for i in 1:N
+        @inbounds pᵢ = sys.sites[i]              # *** Allocates ***
+        for j in 1:N
+            @inbounds pⱼ = sys.sites[j]          # *** Allocates ***
 
-            U += pᵢ' * A[jklb1, jklb2, 1:3, 1:3] * pⱼ
+            @inbounds U += pᵢ' * A_N[j, i] * pⱼ
         end
     end
 
     return U
+end
+
+function _contract_dipole_einsum(sys::SpinSystem, A::Array{Float64}) :: Float64
+    #
+    @assert size(A) == (size(sys)..., size(sys)..., 3, 3)
 end
 
 """Approximates a dipolar `SpinSystem` by generating a monopolar `ChargeSystem` consisting of
@@ -556,59 +569,4 @@ end
 function dipole_self_energy(; p::Float64=1.0, ϵ::Float64=0.1)
     d, q = 2ϵ, p/2ϵ
     return -q^2 / d
-end
-
-"""
-Tests that `ewald_sum_monopole` and `ewald_sum_dipole` give consistent results
- up to approximation error.
-TODO: This version uses existing functions, but suffers from catastrophic
- cancellation issues due to the self-energy exploding. Should write a 
- separate monopole ewald which skips these self-energy interactions.
-"""
-function test_mono_dip_consistent()
-    lat_vecs = SA[1.0 0   0;
-                  0   1.0 0;
-                  0   0   1.0]
-    b_vecs = [SA[0.,  0.,  0.],
-              SA[0.5, 0.5, 0.5]]
-    latsize = SA[1, 1, 1]
-    lattice = Lattice(lat_vecs, b_vecs, latsize)
-    sys = SpinSystem(lattice, Vector{Interaction}())
-    randn!(sys)
-
-    dip_ewald = ewald_sum_dipole(sys; extent=50)
-
-    csys = approx_dip_as_mono(sys; ϵ=0.001)
-    mono_ewald = ewald_sum_monopole(csys; extent=50)
-    dip_self_en = dipole_self_energy(; ϵ=0.001)
-
-    println("Dipole Ewald Energy: $(dip_ewald)")
-    println("Monopole Ewald Energy: $(mono_ewald - dip_self_en)")
-    @assert isapprox(dip_ewald, mono_ewald - dip_self_en; rtol=1e-4)
-end
-
-# Beck claims this should be independent of η, and converge to -2.837297
-# I find that it only does for large η?
-function test_ξ_sum(;extent=2, η=1.0) :: Float64
-    extent_ixs = CartesianIndices(ntuple(_->-extent:extent, Val(3)))
-
-    real_space_sum = 0.0
-    recip_space_sum = 0.0
-
-    for JKL in extent_ixs
-        JKL = convert(SVector, JKL)
-        k = 2π * JKL
-
-        if all(JKL .== 0)
-            continue
-        end
-
-        dist = norm(JKL)
-        kdist = 2π * dist
-
-        real_space_sum += erfc(η * dist) / dist
-        recip_space_sum += exp(-kdist^2 / (4η^2)) / kdist^2
-    end
-
-    return real_space_sum + 4π * recip_space_sum - 2η/√π - π/η^2
 end

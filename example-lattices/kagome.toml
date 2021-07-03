@@ -19,28 +19,16 @@ lattice_size    = [5, 5]
 strength = 2.0
 dist     = 1
 
-# Next-nearest neighbor pair interaction
-# [[model.pair]]
-# strength = -1.0
-# dist     = 2
-
-# Next-next-nearest neighbor pair interaction
-# (This is the one that needs to be hop tie-broken)
-# [[model.pair]]
-# strength = 0.5
-# dist     = 3
-# neighbor = 2
-
-# [[model.pair]]
-# strength = -0.25
-# dist     = 3
-# neighbor = 3
+# Three-hop next-next-nearest neighbor pair interaction
+[[model.pair]]
+strength = 0.5
+dist     = 3
+class    = 2
 
 # External field along z axis
 [[model.field]]
-strength = 2.0
+strength = -2.0
 
-# Easy axis along the x axis
-[[model.easyaxis]]
-strength = -4.0
-axis     = 1
+# Long-range dipole interaction
+[[model.dipole]]
+strength = 4.0

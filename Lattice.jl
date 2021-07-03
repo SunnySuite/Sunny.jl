@@ -15,47 +15,35 @@ struct Lattice{D, L}
 end
 
 "Calculate the total volume of the lattice (unit cell volume × num cells)"
-function volume(lat::Lattice) :: Float64
+@inline function volume(lat::Lattice) :: Float64
     abs(det(lat.lat_vecs)) * prod(lat.size)
 end
 
 "Produces an iterator over all (j, k, l) indexes for the lattice"
-function brav_indices(lat::Lattice) :: CartesianIndices
+@inline function brav_indices(lat::Lattice{D}) :: CartesianIndices where {D}
     return CartesianIndices(Tuple(lat.size))
 end
 
-# function basis_vectors(lat::Lattice)
-    
-# end
-
 "Produces an iterator over all (j, k, l, basis) indexes for the lattice"
-function indices(lat::Lattice) :: CartesianIndices
+@inline function indices(lat::Lattice{D}) :: CartesianIndices where {D}
     nb = length(lat.basis_vecs)
     return CartesianIndices((lat.size..., nb))
 end
 
-function Base.size(lat::Lattice)
+@inline function Base.size(lat::Lattice)
     nb = length(lat.basis_vecs)
     return (lat.size..., nb)
 end
 
-# "An iterator over physical positions in a lattice"
-# struct VectorIterator
-#     lat :: Lattice
-#     idx :: 
-# end
+#=== Indexing returns absolute coordinates of lattice points ===#
 
-# "Produces an iterator over all physical position vectors for the lattice"
-# function vectors(lat::Lattice)
+@inline function Base.getindex(lat::Lattice{D}, brav::CartesianIndex{D}, b::Int64) where {D}
+    return lat.lat_vecs * convert(SVector{D, Float64}, brav) + lat.basis_vecs[b]
+end
 
-# end
-
-"""Returns an iterator which produces tuples of (CartesianIndex, Vector)
-    iterating over the indices and positions of a lattice.
-"""
-# function ind_vectors(lat::Lattices)
-
-# end
+@inline function Base.getindex(lat::Lattice{D}, brav::NTuple{D, Int64}, b::Int64) where {D}
+    return lat.lat_vecs * convert(SVector{D, Float64}, brav) + lat.basis_vecs[b]
+end
 
 struct ReciprocalLattice{D, L}
     lat_vecs     :: SMatrix{D, D, Float64, L}     # Columns of this are the reciprocal lattice vectors
@@ -67,17 +55,9 @@ function indices(lat::ReciprocalLattice) :: CartesianIndices
 end
 
 "Generates a reciprocal lattice from a real-space Lattice"
-function get_recip(lat::Lattice) :: ReciprocalLattice
+function gen_reciprocal(lat::Lattice) :: ReciprocalLattice
     recip_vecs = 2π * transpose(inv(lat.lat_vecs)) ./ lat.size
     return ReciprocalLattice(recip_vecs, lat.size)
-end
-
-"Returns the physical position of a site at a given multiindex"
-function get_vec(lat::Lattice, ind) :: Vector{Float64}
-    ind = Tuple(ind)
-    (jkl, b) = collect(ind[1:end-1]), ind[end]
-
-    return lat.lat_vecs * jkl + lat.basis_vecs[1:end, b]
 end
 
 struct ValidateError <: Exception end

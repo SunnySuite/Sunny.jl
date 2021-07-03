@@ -1,21 +1,8 @@
 using Revise
-using TOML
-using Profile
 
 includet("Lattice.jl")
 includet("Systems.jl")
 includet("Ewald.jl")
-
-# config = TOML.tryparsefile("example-lattices/small-cubic.toml")
-# lat = _parse_lattice(config["lattice"])
-
-# sys = ChargeSystem(lat)
-# randn_neutral!(sys)
-
-# Ready for ewald_sum_monopole(sys)
-# ewald_sum_monopole(sys)
-# Profile.clear_malloc_data()
-# ewald_sum_monopole(sys)
 
 function test_ewald_NaCl()
     lat_vecs = @SMatrix [1.0 0   0;
