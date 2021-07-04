@@ -120,13 +120,13 @@ function test_mono_dip_consistent()
     latsize = SA[1, 1, 1]
     lattice = Lattice(lat_vecs, b_vecs, latsize)
     sys = SpinSystem(lattice)
-    randn!(sys)
+    rand!(sys)
 
     dip_ewald = ewald_sum_dipole(sys; extent=50)
 
-    csys = approx_dip_as_mono(sys; ϵ=0.001)
+    csys = _approx_dip_as_mono(sys; ϵ=0.001)
     mono_ewald = ewald_sum_monopole(csys; extent=50)
-    dip_self_en = dipole_self_energy(; ϵ=0.001)
+    dip_self_en = _dipole_self_energy(; ϵ=0.001)
 
     println("Dipole Ewald Energy: $(dip_ewald)")
     println("Monopole Ewald Energy: $(mono_ewald - dip_self_en)")

@@ -50,13 +50,14 @@ end
     return lat.lat_vecs * convert(SVector{D, Float64}, brav) + lat.basis_vecs[b]
 end
 
+# TODO: Should just be another Lattice
 "Defines a reciprocal lattice structure"
 struct ReciprocalLattice{D, L}
     lat_vecs     :: SMatrix{D, D, Float64, L}     # Columns of this are the reciprocal lattice vectors
     size         :: SVector{D, Int}
 end
 
-function indices(lat::ReciprocalLattice) :: CartesianIndices
+function Base.eachindex(lat::ReciprocalLattice) :: CartesianIndices
     return CartesianIndices(Tuple(lat.size))
 end
 

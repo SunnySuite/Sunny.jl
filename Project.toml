@@ -1,0 +1,11 @@
+name = "FastDipole"
+uuid = "2b9f05ca-ae3a-4b54-96e6-2173aeb01345"
+version = "0.0.1"
+authors = ["Cole Miles <cmm572@cornell.edu>"]
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"

@@ -2,8 +2,6 @@ using TOML
 using LinearAlgebra
 import Base.size
 
-include("Lattice.jl")
-
 "Tolerance on determining distances for pairwise interactions"
 const INTER_TOL_DIGITS = 3
 const INTER_TOL = 10. ^ -INTER_TOL_DIGITS
@@ -210,7 +208,7 @@ function ChargeSystem(lat::Lattice)
 end
 
 "Sets charges to random values uniformly drawn from [-1, 1], then shifted to charge-neutrality"
-function randn!(sys::ChargeSystem)
+function rand!(sys::ChargeSystem)
     sys.sites .= 2 .* rand(Float64, size(sys.sites)) .- 1.
     sys.sites .-= sum(sys.sites) / length(sys.sites)
 end
@@ -242,7 +240,7 @@ function SpinSystem(lat::Lattice)
 end
 
 "Sets spins randomly sampled on the unit sphere."
-function randn!(sys::SpinSystem)
+function rand!(sys::SpinSystem)
     sys.sites .= randn(SVector{3, Float64}, size(sys.sites))
     @. sys.sites /= norm(sys.sites)
 end

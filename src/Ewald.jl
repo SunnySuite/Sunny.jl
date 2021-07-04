@@ -5,9 +5,6 @@ import Base.Cartesian.@ntuple
 using SpecialFunctions
 using Parameters
 
-include("Lattice.jl")
-include("Systems.jl")
-
 @doc raw"""
     ewald_sum_monopole(sys::ChargeSystem; η=1.0, extent=10)
 
@@ -315,7 +312,7 @@ function _precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: A
     return A
 end
 
-function _contract_monopole(sys::ChargeSystem, A::Array{Float64}) :: Float64
+function contract_monopole(sys::ChargeSystem, A::Array{Float64}) :: Float64
     # Check A has the right shape
     @assert size(A) == (size(sys)..., size(sys)...)
     N = prod(size(sys))
@@ -333,7 +330,7 @@ function _contract_monopole(sys::ChargeSystem, A::Array{Float64}) :: Float64
     return U
 end
 
-function _precompute_dipole_ewald(lattice::Lattice{D, L, Db}; extent=10, η=1.0) :: Array{SMatrix{3, 3, Float64, 9}} where {D, L, Db}
+function precompute_dipole_ewald(lattice::Lattice{D, L, Db}; extent=10, η=1.0) :: Array{SMatrix{3, 3, Float64, 9}} where {D, L, Db}
     A = zeros(SMatrix{3, 3, Float64, 9}, size(lattice)..., size(lattice)...)
     N = prod(size(lattice))
     extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
@@ -421,7 +418,7 @@ function _precompute_dipole_ewald(lattice::Lattice{D, L, Db}; extent=10, η=1.0)
     return A
 end
 
-function _contract_dipole(sys::SpinSystem, A::Array{SMatrix{3, 3, Float64, 9}}) :: Float64
+function contract_dipole(sys::SpinSystem, A::Array{SMatrix{3, 3, Float64, 9}}) :: Float64
     # Check A has the right shape
     @assert size(A) == (size(sys)..., size(sys)...)
     N = prod(size(sys))
@@ -443,7 +440,7 @@ end
     opposite charges Q = ±1/(2ϵ) separated by displacements d = 2ϵp centered on the original
     lattice sites.
 """
-function approx_dip_as_mono(sys::SpinSystem{D, L, Db}; ϵ::Float64=0.1) :: ChargeSystem{D, L, Db} where {D, L, Db}
+function _approx_dip_as_mono(sys::SpinSystem{D, L, Db}; ϵ::Float64=0.1) :: ChargeSystem{D, L, Db} where {D, L, Db}
     @unpack sites, lattice = sys
 
     # Need to expand the underlying unit cell to the entire system size
@@ -477,7 +474,7 @@ function approx_dip_as_mono(sys::SpinSystem{D, L, Db}; ϵ::Float64=0.1) :: Charg
 end
 
 "Self-energy of a physical dipole with moment p, and displacement d=2ϵ"
-function dipole_self_energy(; p::Float64=1.0, ϵ::Float64=0.1)
+function _dipole_self_energy(; p::Float64=1.0, ϵ::Float64=0.1)
     d, q = 2ϵ, p/2ϵ
     return -q^2 / d
 end
