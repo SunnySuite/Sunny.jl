@@ -119,7 +119,7 @@ function test_mono_dip_consistent()
               SA[0.5, 0.5, 0.5]]
     latsize = SA[1, 1, 1]
     lattice = Lattice(lat_vecs, b_vecs, latsize)
-    sys = SpinSystem(lattice, Vector{Interaction}())
+    sys = SpinSystem(lattice)
     randn!(sys)
 
     dip_ewald = ewald_sum_dipole(sys; extent=50)

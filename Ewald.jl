@@ -8,31 +8,30 @@ using Parameters
 include("Lattice.jl")
 include("Systems.jl")
 
-# @doc raw"""
-#     ewald_sum_monopole(sys::ChargeSystem; η=1.0, extent=10)
+@doc raw"""
+    ewald_sum_monopole(sys::ChargeSystem; η=1.0, extent=10)
 
-# Performs ewald summation to calculate the potential energy of a 
-# system of monopoles with PBC.
+Performs ewald summation to calculate the potential energy of a 
+system of monopoles with PBC.
 
-# Specifically, computes:
-# ```math
-#     U = \frac{1}{2} \sum_{i,j} q_i q_j \left\{
-#         \sum_{\boldsymbol{n}}^{'} \frac{\mathrm{erfc}(η|\boldsymbol{r}_{ij}
-#             + \boldsymbol{n}|)}{|\boldsymbol{r}_{ij} + \boldsymbol{n}|}
-#       + \frac{4π}{V} \sum_{\boldsymbol{k} \ne 0} \frac{e^{-k^2/4η^2}}{k^2}
-#             e^{i\boldsymbol{k}\cdot\boldsymbol{r}_{ij}} \right\}
-#       - \frac{π}{2Vη^2}Q^2 - \frac{η}{\sqrt{π}} \sum_{i} q_i^2
-# ```
-# """
-function ewald_sum_monopole(sys::ChargeSystem{D}; η=1.0, extent=5) :: Float64 where {D}
+Specifically, computes:
+```math
+    U = \frac{1}{2} \sum_{i,j} q_i q_j \left\{
+        \sum_{\boldsymbol{n}}^{'} \frac{\mathrm{erfc}(η|\boldsymbol{r}_{ij}
+            + \boldsymbol{n}|)}{|\boldsymbol{r}_{ij} + \boldsymbol{n}|}
+      + \frac{4π}{V} \sum_{\boldsymbol{k} \ne 0} \frac{e^{-k^2/4η^2}}{k^2}
+            e^{i\boldsymbol{k}\cdot\boldsymbol{r}_{ij}} \right\}
+      - \frac{π}{2Vη^2}Q^2 - \frac{η}{\sqrt{π}} \sum_{i} q_i^2
+```
+"""
+function ewald_sum_monopole(sys::ChargeSystem{D, L, Db}; η=1.0, extent=5) :: Float64 where {D, L, Db}
     # This needs to be generated for type-stability in the inner loops
     # Probably exists a better way...
     # For example, in 3D, with extent=2, this should evaluate to:
     #    CartesianIndices((-2:2, -2:2, -2:2))
-    extent_ixs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
+    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
 
     @unpack sites, lattice = sys
-    dim = length(lattice.size)
 
     recip = gen_reciprocal(lattice)
     vol = volume(lattice)
@@ -45,66 +44,47 @@ function ewald_sum_monopole(sys::ChargeSystem{D}; η=1.0, extent=5) :: Float64 w
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum, recip_site_sum = 0.0, 0.0
 
-    rᵢ = @MVector zeros(D)
-    rⱼ = @MVector zeros(D)
-    rᵢⱼ = @MVector zeros(D)
     n = @MVector zeros(D)
     k = @MVector zeros(D)
 
-    for jkl1 in brav_indices(lattice)
-        jkl1_vec = convert(SVector, jkl1)
-        mul!(rᵢ, lattice.lat_vecs, jkl1_vec)            # Site i
-        for (b1, bvec1) in enumerate(lattice.basis_vecs)
-            rᵢ .+= bvec1
-            qᵢ = sys.sites[jkl1, b1]                    # Allocates (?)
+    for idx1 in eachindex(lattice)
+        rᵢ = lattice[idx1]
+        qᵢ = sys.sites[idx1]
+        for idx2 in eachindex(lattice)
+            rⱼ = lattice[idx2]
+            qⱼ = sys.sites[idx2]
+            rᵢⱼ = rⱼ - rᵢ
 
-            for jkl2 in brav_indices(lattice)
-                jkl2_vec = convert(SVector, jkl2)
-                mul!(rⱼ, lattice.lat_vecs, jkl2_vec) # Site j
-                for (b2, bvec2) in enumerate(lattice.basis_vecs)
-                    rⱼ .+= bvec2
-                    qⱼ = sys.sites[jkl2, b2]            # Allocates (?)
+            # TODO: Either merge into one sum, or separately control extents
+            # Real-space sum over unit cells
+            real_site_sum = 0.0
+            for cell_idx in extent_idxs
+                cell_idx = convert(SVector, cell_idx)
+                mul!(n, superlat_vecs, cell_idx)
 
-                    @. rᵢⱼ = rⱼ - rᵢ
-
-                    # TODO: Either merge into one sum, or separately control extents
-                    # Real-space sum over unit cells
-                    real_site_sum = 0.0
-                    for JKL in extent_ixs
-                        JKL = convert(SVector, JKL)
-                        mul!(n, superlat_vecs, JKL)
-
-                        if all(rᵢⱼ .== 0) && all(n .== 0)
-                            continue
-                        end
-
-                        dist = norm(rᵢⱼ + n)
-                        real_site_sum += erfc(η * dist) / dist
-                    end
-                    real_space_sum += qᵢ * qⱼ * real_site_sum
-
-                    # Reciprocal-space sum
-                    recip_site_sum = 0.0
-                    for JKL in extent_ixs
-                        JKL = convert(SVector, JKL)
-                        # k .= recip.lat_vecs * JKL
-                        mul!(k, recip.lat_vecs, JKL)
-
-                        k2 = norm(k) ^ 2
-                        if k2 ≈ 0
-                            continue
-                        end
-                        recip_site_sum += exp(-k2 / 4η^2) * exp(im * (k ⋅ rᵢⱼ)) / k2
-                    end
-                    recip_space_sum += qᵢ * qⱼ * recip_site_sum
-
-                    # Prepare for next b2 loop
-                    rⱼ .-= bvec2
+                if all(rᵢⱼ .== 0) && all(n .== 0)
+                    continue
                 end
-            end
 
-            # Prepare for the next b1 loop
-            rᵢ .-= bvec1
+                dist = norm(rᵢⱼ + n)
+                real_site_sum += erfc(η * dist) / dist
+            end
+            real_space_sum += qᵢ * qⱼ * real_site_sum
+
+            # Reciprocal-space sum
+            recip_site_sum = 0.0
+            for cell_idx in extent_idxs
+                cell_idx = convert(SVector, cell_idx)
+                # k .= recip.lat_vecs * cell_idx
+                mul!(k, recip.lat_vecs, cell_idx)
+
+                k2 = norm(k) ^ 2
+                if k2 ≈ 0
+                    continue
+                end
+                recip_site_sum += exp(-k2 / 4η^2) * exp(im * (k ⋅ rᵢⱼ)) / k2
+            end
+            recip_space_sum += qᵢ * qⱼ * recip_site_sum
         end
     end
 
@@ -112,7 +92,7 @@ function ewald_sum_monopole(sys::ChargeSystem{D}; η=1.0, extent=5) :: Float64 w
 end
 
 function direct_sum_monopole(sys::ChargeSystem{D}; s=0.0, extent=5) :: Float64 where {D}
-    extent_ixs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
+    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
 
     @unpack sites, lattice = sys
     dim = length(lattice.size)
@@ -130,14 +110,14 @@ function direct_sum_monopole(sys::ChargeSystem{D}; s=0.0, extent=5) :: Float64 w
     rᵢⱼ = @MVector zeros(D)
     n = @MVector zeros(D)
 
-    for jkl1 in brav_indices(lattice)
+    for jkl1 in bravindexes(lattice)
         jkl1_vec = convert(SVector, jkl1)
         mul!(rᵢ, lattice.lat_vecs, jkl1_vec)     # Site i
         for (b1, bvec1) in enumerate(lattice.basis_vecs)
             rᵢ .+= bvec1
             qᵢ = sys.sites[jkl1, b1]                # Allocates (?)
 
-            for jkl2 in brav_indices(lattice)
+            for jkl2 in bravindexes(lattice)
                 jkl2_vec = convert(SVector, jkl2)
                 mul!(rⱼ, lattice.lat_vecs, jkl2_vec) # Site j
                 for (b2, bvec2) in enumerate(lattice.basis_vecs)
@@ -148,9 +128,9 @@ function direct_sum_monopole(sys::ChargeSystem{D}; s=0.0, extent=5) :: Float64 w
 
                     # Real-space sum over unit cells
                     real_site_sum = 0.0
-                    for JKL in extent_ixs
-                        JKL = convert(SVector, JKL)
-                        mul!(n, superlat_vecs, JKL)
+                    for cell_idx in extent_idxs
+                        cell_idx = convert(SVector, cell_idx)
+                        mul!(n, superlat_vecs, cell_idx)
 
                         if all(rᵢⱼ .== 0) && all(n .== 0) || norm(n) > extent
                             continue
@@ -177,22 +157,18 @@ function direct_sum_monopole(sys::ChargeSystem{D}; s=0.0, extent=5) :: Float64 w
     return real_space_sum
 end
 
-# @doc raw"""
-#     ewald_sum_dipole(sys::SpinSystem; η=1.0, extent=10)
+@doc raw"""
+    ewald_sum_dipole(sys::SpinSystem; η=1.0, extent=10)
 
-# Performs ewald summation to calculate the potential energy of a 
-# system of dipoles with PBC.
-
-# Equation is probably too long to include here.
-
-# TODO: These lattice sums over n can be precomputed once at beginning of simulation.
-# """
-function ewald_sum_dipole(sys::SpinSystem{D}; extent=2, η=1.0) :: Float64 where {D}
+Performs ewald summation to calculate the potential energy of a 
+system of dipoles with PBC.
+"""
+function ewald_sum_dipole(sys::SpinSystem{D, L, Db}; extent=2, η=1.0) :: Float64 where {D, L, Db}
     # This needs to be generated for type-stability in the inner loops
     # Probably exists a better way...
     # For example, in 3D, with extent=2, this should evaluate to:
     #    CartesianIndices((-2:2, -2:2, -2:2))
-    extent_ixs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
+    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
 
     @unpack sites, lattice = sys
 
@@ -207,76 +183,58 @@ function ewald_sum_dipole(sys::SpinSystem{D}; extent=2, η=1.0) :: Float64 where
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum = 0.0
 
-    rᵢ = @MVector zeros(D)
-    rⱼ = @MVector zeros(D)
-    rᵢⱼ = @MVector zeros(D)
     n = @MVector zeros(D)
-    rᵢⱼ_n = @MVector zeros(D)
     k = @MVector zeros(D)
 
-    for jkl1 in brav_indices(lattice)
-        jkl1_vec = convert(SVector, jkl1)
-        mul!(rᵢ, lattice.lat_vecs, jkl1_vec)            # Site i
-        for (b1, bvec1) in enumerate(lattice.basis_vecs)
-            rᵢ .+= bvec1
-            pᵢ = sys.sites[jkl1, b1]
+    for idx1 in eachindex(lattice)
+        @inbounds rᵢ = lattice[idx1]
+        @inbounds pᵢ = sys.sites[idx1]
 
-            for jkl2 in brav_indices(lattice)
-                jkl2_vec = convert(SVector, jkl2)
-                mul!(rⱼ, lattice.lat_vecs, jkl2_vec) # Site j
-                for (b2, bvec2) in enumerate(lattice.basis_vecs)
-                    rⱼ .+= bvec2
-                    pⱼ = sys.sites[jkl2, b2]
+        for idx2 in eachindex(lattice)
+            @inbounds rⱼ = lattice[idx2]
+            @inbounds pⱼ = sys.sites[idx2]
+            pᵢ_dot_pⱼ = pᵢ ⋅ pⱼ
 
-                    pᵢ_dot_pⱼ = pᵢ ⋅ pⱼ
+            rᵢⱼ = rⱼ - rᵢ
 
-                    @. rᵢⱼ = rⱼ - rᵢ
+            # TODO: Either merge into one sum, or separately control extents
+            # Real-space sum over unit cells
+            real_site_sum = 0.0
+            for cell_idx in extent_idxs
+                cell_idx = convert(SVector, cell_idx)
+                mul!(n, superlat_vecs, cell_idx)
 
-                    # TODO: Either merge into one sum, or separately control extents
-                    # Real-space sum over unit cells
-                    real_site_sum = 0.0
-                    for JKL in extent_ixs
-                        JKL = convert(SVector, JKL)
-                        mul!(n, superlat_vecs, JKL)
+                rᵢⱼ_n = rᵢⱼ + n
 
-                        @. rᵢⱼ_n = rᵢⱼ + n
-
-                        if all(rᵢⱼ_n .== 0)
-                            continue
-                        end
-
-                        dist = norm(rᵢⱼ_n)
-                        exp_term = 2η / √π * dist * exp(-η^2 * dist^2)
-                        erfc_term = erfc(η * dist)
-
-                        # Terms from Eq. 79 of Beck
-                        real_site_sum += (exp_term + erfc_term) / dist^3
-                        
-                        # Calculating terms from Eq. 80 + 81 of Beck
-                        prefactor = -3 * (pᵢ ⋅ rᵢⱼ_n) * (pⱼ ⋅ rᵢⱼ_n) / dist^5
-                        real_space_sum += prefactor * ((2η^2 * dist^2 / 3 + 1) * exp_term + erfc_term)
-                    end
-                    real_space_sum += (pᵢ ⋅ pⱼ) * real_site_sum
-
-                    # Reciprocal-space sum
-                    for JKL in extent_ixs
-                        JKL = convert(SVector, JKL)
-                        mul!(k, recip.lat_vecs, JKL)
-
-                        k2 = norm(k)^2
-                        if k2 == 0
-                            continue
-                        end
-                        recip_space_sum += exp(-k2 / 4η^2) * cos(k ⋅ rᵢⱼ) * (pᵢ ⋅ k) * (pⱼ ⋅ k) / k2
-                    end
-
-                    # Prepare for next b2 loop
-                    rⱼ .-= bvec2
+                if all(rᵢⱼ_n .== 0)
+                    continue
                 end
+
+                dist = norm(rᵢⱼ_n)
+                exp_term = 2η / √π * dist * exp(-η^2 * dist^2)
+                erfc_term = erfc(η * dist)
+
+                # Terms from Eq. 79 of Beck
+                real_site_sum += (exp_term + erfc_term) / dist^3
+                
+                # Calculating terms from Eq. 80 + 81 of Beck
+                prefactor = -3 * (pᵢ ⋅ rᵢⱼ_n) * (pⱼ ⋅ rᵢⱼ_n) / dist^5
+                real_space_sum += prefactor * ((2η^2 * dist^2 / 3 + 1) * exp_term + erfc_term)
+            end
+            real_space_sum += (pᵢ ⋅ pⱼ) * real_site_sum
+
+            # Reciprocal-space sum
+            for cell_idx in extent_idxs
+                cell_idx = convert(SVector, cell_idx)
+                mul!(k, recip.lat_vecs, cell_idx)
+
+                k2 = norm(k)^2
+                if k2 == 0
+                    continue
+                end
+                recip_space_sum += exp(-k2 / 4η^2) * cos(k ⋅ rᵢⱼ) * (pᵢ ⋅ k) * (pⱼ ⋅ k) / k2
             end
 
-            # Prepare for the next b1 loop
-            rᵢ .-= bvec1
         end
     end
 
@@ -285,7 +243,8 @@ end
 
 function _precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Array{Float64} where {D}
     A = zeros(size(lattice)..., size(lattice)..., 1, 1)
-    extent_ixs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
+    N = prod(size(lattice))
+    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
 
     dim = length(lattice.size)
 
@@ -293,77 +252,63 @@ function _precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: A
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
-    
-    # Handle total charge term by adding to all elements
-    # Put charge_square term on the diagonal
-    for jklb1 in indices(lattice)
-        A[jklb1, jklb1, 1, 1] += -η / √π
-        for jklb2 in indices(lattice)
-            A[jklb1, jklb2, 1, 1] += -π / (2 * vol * η^2)
+
+     # Indexing into this reshape avoids a ton of allocations from CartesianIndex nonsense
+    A_N = reshape(A, N, N)
+    # Put the dipole-squared term on the diagonal
+    for i in 1:N
+        @inbounds A_N[i, i, 1, 1] += -η / √π
+        for j in 1:N
+            @inbounds A_N[i, j, 1, 1] += -π / (2 * vol * η^2)
         end
     end
 
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum, recip_site_sum = 0.0, 0.0
 
-    rᵢ = @MVector zeros(D)
-    rⱼ = @MVector zeros(D)
-    rᵢⱼ = @MVector zeros(D)
     n = @MVector zeros(D)
     k = @MVector zeros(D)
 
-    for jkl1 in brav_indices(lattice)
-        jkl1_vec = convert(SVector, jkl1)
-        mul!(rᵢ, lattice.lat_vecs, jkl1_vec)            # Site i
-        for (b1, bvec1) in enumerate(lattice.basis_vecs)
-            rᵢ .+= bvec1
+    lin_inds = LinearIndices(lattice)
 
-            for jkl2 in brav_indices(lattice)
-                jkl2_vec = convert(SVector, jkl2)
-                mul!(rⱼ, lattice.lat_vecs, jkl2_vec)    # Site j
-                for (b2, bvec2) in enumerate(lattice.basis_vecs)
-                    rⱼ .+= bvec2
+    for idx1 in eachindex(lattice)
+        @inbounds rᵢ = lattice[idx1]
+        @inbounds i = lin_inds[idx1]
+        for idx2 in eachindex(lattice)
+            @inbounds rⱼ = lattice[idx2]
+            @inbounds j = lin_inds[idx2]
+            rᵢⱼ = rⱼ - rᵢ
 
-                    @. rᵢⱼ = rⱼ - rᵢ
+            # TODO: Either merge into one sum, or separately control extents
+            # Real-space sum over unit cells
+            real_site_sum = 0.0
+            for cell_idx in extent_idxs
+                cell_idx = convert(SVector, cell_idx)
+                mul!(n, superlat_vecs, cell_idx)
 
-                    # TODO: Either merge into one sum, or separately control extents
-                    # Real-space sum over unit cells
-                    real_site_sum = 0.0
-                    for JKL in extent_ixs
-                        JKL = convert(SVector, JKL)
-                        mul!(n, superlat_vecs, JKL)
-
-                        if all(rᵢⱼ .== 0) && all(n .== 0)
-                            continue
-                        end
-
-                        dist = norm(rᵢⱼ + n)
-                        real_site_sum += erfc(η * dist) / dist
-                    end
-                    # real_space_sum += qᵢ * qⱼ * real_site_sum
-                    A[jkl1, b1, jkl2, b2, 1, 1] += 0.5 * real_site_sum
-
-                    # Reciprocal-space sum
-                    recip_site_sum = 0.0
-                    for JKL in extent_ixs
-                        JKL = convert(SVector, JKL)
-                        mul!(k, recip.lat_vecs, JKL)
-
-                        k2 = norm(k) ^ 2
-                        if k2 ≈ 0
-                            continue
-                        end
-                        recip_site_sum += exp(-k2 / 4η^2) * cos(k ⋅ rᵢⱼ) / k2
-                    end
-                    A[jkl1, b1, jkl2, b2, 1, 1] += 2π / vol * recip_site_sum
-
-                    # Prepare for next b2 loop
-                    rⱼ .-= bvec2
+                if all(rᵢⱼ .== 0) && all(n .== 0)
+                    continue
                 end
-            end
 
-            # Prepare for the next b1 loop
-            rᵢ .-= bvec1
+                dist = norm(rᵢⱼ + n)
+                real_site_sum += erfc(η * dist) / dist
+            end
+            # real_space_sum += qᵢ * qⱼ * real_site_sum
+            @inbounds A_N[i, j, 1, 1] += 0.5 * real_site_sum
+
+            # Reciprocal-space sum
+            recip_site_sum = 0.0
+            for cell_idx in extent_idxs
+                cell_idx = convert(SVector, cell_idx)
+                mul!(k, recip.lat_vecs, cell_idx)
+
+                k2 = norm(k) ^ 2
+                if k2 ≈ 0
+                    continue
+                end
+                recip_site_sum += exp(-k2 / 4η^2) * cos(k ⋅ rᵢⱼ) / k2
+            end
+            @inbounds A_N[i, j, 1, 1] += 2π / vol * recip_site_sum
         end
     end
 
@@ -372,25 +317,26 @@ end
 
 function _contract_monopole(sys::ChargeSystem, A::Array{Float64}) :: Float64
     # Check A has the right shape
-    @assert size(A) == (size(sys)..., size(sys)..., 1, 1)
+    @assert size(A) == (size(sys)..., size(sys)...)
+    N = prod(size(sys))
+    A_N = reshape(A, N, N)
 
     U = 0.0
-    for jklb1 in indices(sys.lattice)
-        qᵢ = sys.sites[jklb1, 1]
-        for jklb2 in indices(sys.lattice)
-            qⱼ = sys.sites[jklb2, 1]
-
-            U += qᵢ * A[jklb1, jklb2, 1, 1] * qⱼ
+    for i in 1:N
+        @inbounds qᵢ = sys.sites[i]
+        for j in 1:N
+            @inbounds qⱼ = sys.sites[j]
+            @inbounds U += qᵢ * A[i, j] * qⱼ
         end
     end
 
     return U
 end
 
-function _precompute_dipole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Array{SMatrix{3, 3, Float64, 9}} where {D}
+function _precompute_dipole_ewald(lattice::Lattice{D, L, Db}; extent=10, η=1.0) :: Array{SMatrix{3, 3, Float64, 9}} where {D, L, Db}
     A = zeros(SMatrix{3, 3, Float64, 9}, size(lattice)..., size(lattice)...)
     N = prod(size(lattice))
-    extent_ixs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
+    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
 
     recip = gen_reciprocal(lattice)
     vol = volume(lattice)
@@ -409,86 +355,66 @@ function _precompute_dipole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Arr
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum = 0.0
 
-    rᵢ = @MVector zeros(D)
-    rⱼ = @MVector zeros(D)
-    rᵢⱼ = @MVector zeros(D)
     n = @MVector zeros(D)
-    rᵢⱼ_n = @MVector zeros(D)
     k = @MVector zeros(D)
     real_tensor = @MMatrix zeros(3, 3)
     recip_tensor = @MMatrix zeros(3, 3)
 
-    lat_inds = brav_indices(lattice)
-    lin_inds = LinearIndices(indices(lattice))
+    lin_inds = LinearIndices(lattice)
 
-    for jkl1 in lat_inds
-        jkl1_vec = convert(SVector, jkl1)
-        mul!(rᵢ, lattice.lat_vecs, jkl1_vec)            # Site i
-        for (b1, bvec1) in enumerate(lattice.basis_vecs)
-            rᵢ .+= bvec1
-            i = lin_inds[jkl1, b1]
+    for idx1 in eachindex(lattice)
+        @inbounds rᵢ = lattice[idx1]
+        @inbounds i = lin_inds[idx1] 
+        for idx2 in eachindex(lattice)
+            @inbounds rⱼ = lattice[idx2]
+            @inbounds j = lin_inds[idx2]
 
-            for jkl2 in lat_inds
-                jkl2_vec = convert(SVector, jkl2)
-                mul!(rⱼ, lattice.lat_vecs, jkl2_vec)    # Site j
-                for (b2, bvec2) in enumerate(lattice.basis_vecs)
-                    rⱼ .+= bvec2
-                    j = lin_inds[jkl2, b2]
+            rᵢⱼ = rⱼ - rᵢ
 
-                    @. rᵢⱼ = rⱼ - rᵢ
+            # TODO: Either merge into one sum, or separately control extents
+            # Real-space sum over unit cells
+            real_site_sum = 0.0
+            fill!(real_tensor, 0.0)
+            for cell_idx in extent_idxs
+                cell_idx = convert(SVector, cell_idx)
+                mul!(n, superlat_vecs, cell_idx)
 
-                    # TODO: Either merge into one sum, or separately control extents
-                    # Real-space sum over unit cells
-                    real_site_sum = 0.0
-                    fill!(real_tensor, 0.0)
-                    for JKL in extent_ixs
-                        JKL = convert(SVector, JKL)
-                        mul!(n, superlat_vecs, JKL)
+                rᵢⱼ_n = rᵢⱼ + n
 
-                        @. rᵢⱼ_n = rᵢⱼ + n
-
-                        if all(rᵢⱼ_n .== 0)
-                            continue
-                        end
-
-                        dist = norm(rᵢⱼ_n)
-                        exp_term = 2η / √π * dist * exp(-η^2 * dist^2)
-                        erfc_term = erfc(η * dist)
-
-                        # Terms from Eq. 79 of Beck
-                        real_site_sum += (exp_term + erfc_term) / dist^3
-                        
-                        # Calculating terms from Eq. 80 + 81 of Beck
-                        prefactor = -3 * ((2η^2 * dist^2 / 3 + 1) * exp_term + erfc_term) / dist^5
-                        @. real_tensor += prefactor * (rᵢⱼ_n * rᵢⱼ_n')
-                    end
-                    @inbounds real_tensor .+= real_site_sum * iden
-                    @inbounds A_N[i, j] = A_N[i, j] .+ 0.5 * real_tensor
-
-
-                    # Reciprocal-space sum
-                    fill!(recip_tensor, 0.0)
-                    for JKL in extent_ixs
-                        JKL = convert(SVector, JKL)
-                        mul!(k, recip.lat_vecs, JKL)
-
-                        k2 = norm(k)^2
-                        if k2 == 0
-                            continue
-                        end
-
-                        prefactor = exp(-k2 / 4η^4) * cos(k ⋅ rᵢⱼ) / k2
-                        @. recip_tensor += prefactor * (k * k')
-                    end
-                    @inbounds A_N[i, j] = A_N[i, j] .+ 2π / vol * recip_tensor
-
-                    # Prepare for next b2 loop
-                    rⱼ .-= bvec2
+                if all(rᵢⱼ_n .== 0)
+                    continue
                 end
-            end
 
-            # Prepare for the next b1 loop
-            rᵢ .-= bvec1
+                dist = norm(rᵢⱼ_n)
+                exp_term = 2η / √π * dist * exp(-η^2 * dist^2)
+                erfc_term = erfc(η * dist)
+
+                # Terms from Eq. 79 of Beck
+                real_site_sum += (exp_term + erfc_term) / dist^3
+                
+                # Calculating terms from Eq. 80 + 81 of Beck
+                prefactor = -3 * ((2η^2 * dist^2 / 3 + 1) * exp_term + erfc_term) / dist^5
+                @. real_tensor += prefactor * (rᵢⱼ_n * rᵢⱼ_n')
+            end
+            @inbounds real_tensor .+= real_site_sum * iden
+            @inbounds A_N[i, j] = A_N[i, j] .+ 0.5 * real_tensor
+
+
+            # Reciprocal-space sum
+            fill!(recip_tensor, 0.0)
+            for cell_idx in extent_idxs
+                cell_idx = convert(SVector, cell_idx)
+                mul!(k, recip.lat_vecs, cell_idx)
+
+                k2 = norm(k)^2
+                if k2 == 0
+                    continue
+                end
+
+                prefactor = exp(-k2 / 4η^4) * cos(k ⋅ rᵢⱼ) / k2
+                @. recip_tensor += prefactor * (k * k')
+            end
+            @inbounds A_N[i, j] = A_N[i, j] .+ 2π / vol * recip_tensor
         end
     end
 
@@ -506,7 +432,6 @@ function _contract_dipole(sys::SpinSystem, A::Array{SMatrix{3, 3, Float64, 9}}) 
         @inbounds pᵢ = sys.sites[i]              # *** Allocates ***
         for j in 1:N
             @inbounds pⱼ = sys.sites[j]          # *** Allocates ***
-
             @inbounds U += pᵢ' * A_N[j, i] * pⱼ
         end
     end
@@ -514,55 +439,41 @@ function _contract_dipole(sys::SpinSystem, A::Array{SMatrix{3, 3, Float64, 9}}) 
     return U
 end
 
-function _contract_dipole_einsum(sys::SpinSystem, A::Array{Float64}) :: Float64
-    #
-    @assert size(A) == (size(sys)..., size(sys)..., 3, 3)
-end
-
 """Approximates a dipolar `SpinSystem` by generating a monopolar `ChargeSystem` consisting of
     opposite charges Q = ±1/(2ϵ) separated by displacements d = 2ϵp centered on the original
     lattice sites.
 """
-function approx_dip_as_mono(sys::SpinSystem{D}; ϵ::Float64=0.1) :: ChargeSystem{D} where {D}
+function approx_dip_as_mono(sys::SpinSystem{D, L, Db}; ϵ::Float64=0.1) :: ChargeSystem{D, L, Db} where {D, L, Db}
     @unpack sites, lattice = sys
 
     # Need to expand the underlying unit cell to the entire system size
     new_lat_vecs = lattice.size' .* lattice.lat_vecs
     new_latsize = @SVector ones(Int, D)
 
-    # TODO: Check correct shape
-    orig_lsize = size(sites)[1:end-2]
-    orig_bsize = size(sites, D+1)
-    new_sites = zeros(1, 1, 1, 2 * prod(orig_lsize) * orig_bsize, 1)
+    new_nbasis = 2 * prod(size(sites))
+    new_sites = zeros(new_nbasis, 1, 1, 1)
     new_basis = Vector{SVector{D, Float64}}()
+    sizehint!(new_basis, new_nbasis)
 
-    r = @MVector zeros(D)
     ib = 1
-    for jkl in brav_indices(lattice)
-        jkl_vec = convert(SVector, jkl)
-        mul!(r, lattice.lat_vecs, jkl_vec)
-        for (b, bvec) in enumerate(lattice.basis_vecs)
-            r .+= bvec
+    for idx in eachindex(lattice)
+        @inbounds r = lattice[idx]
+        @inbounds p = sites[idx]
 
-            p = sites[jkl, b, 1:3]
+        # Add new charges as additional basis vectors
+        push!(new_basis, SVector{3}(r .+ ϵ * p))
+        push!(new_basis, SVector{3}(r .- ϵ * p))
 
-            # Add new charges as additional basis vectors
-            push!(new_basis, SVector{3}(r .+ ϵ * p))
-            push!(new_basis, SVector{3}(r .- ϵ * p))
+        # Set these charges to ±1/2ϵ
+        new_sites[1, 1, 1, ib]   =  1 / 2ϵ
+        new_sites[1, 1, 1, ib+1] = -1 / 2ϵ
 
-            # Set these charges to ±1/2ϵ
-            new_sites[1, 1, 1, ib]   =  1 / 2ϵ
-            new_sites[1, 1, 1, ib+1] = -1 / 2ϵ
-
-            # Prepare for the next b loop
-            r .-= bvec
-            ib += 2
-        end
+        ib += 2
     end
 
     new_lattice = Lattice(new_lat_vecs, new_basis, new_latsize)
 
-    return ChargeSystem{D, D*D}(new_lattice, new_sites)
+    return ChargeSystem{D, L, Db}(new_lattice, new_sites)
 end
 
 "Self-energy of a physical dipole with moment p, and displacement d=2ϵ"

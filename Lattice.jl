@@ -7,11 +7,18 @@ import Base.size
    Note this struct does not hold the degrees of freedom,
      but just simply sets the geometry of the underlying
      lattice.
+   Because of typing headaches, L = D^2, and Db = D + 1
+    are needed in the definition, but can be automatically
+    inferred by the constructor.
 """
-struct Lattice{D, L}
+struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
     lat_vecs     :: SMatrix{D, D, Float64, L}       # Columns are lattice vectors
     basis_vecs   :: Vector{SVector{D, Float64}}     # Each SVector gives a basis vector
     size         :: SVector{D, Int}                 # Number of cells along each dimension
+end
+
+function Lattice(lat_vecs::SMatrix{D, D, Float64}, basis_vecs::Vector{SVector{D, Float64}}, size::SVector{D, Int}) where {D}
+    return Lattice{D, D * D, D+1}(lat_vecs, basis_vecs, size)
 end
 
 "Calculate the total volume of the lattice (unit cell volume × num cells)"
@@ -20,31 +27,30 @@ end
 end
 
 "Produces an iterator over all (j, k, l) indexes for the lattice"
-@inline function brav_indices(lat::Lattice{D}) :: CartesianIndices where {D}
+@inline function bravindexes(lat::Lattice{D}) :: CartesianIndices where {D}
     return CartesianIndices(Tuple(lat.size))
-end
-
-"Produces an iterator over all (j, k, l, basis) indexes for the lattice"
-@inline function indices(lat::Lattice{D}) :: CartesianIndices where {D}
-    nb = length(lat.basis_vecs)
-    return CartesianIndices((lat.size..., nb))
 end
 
 @inline function Base.size(lat::Lattice)
     nb = length(lat.basis_vecs)
-    return (lat.size..., nb)
+    return (nb, lat.size...)
 end
 
 #=== Indexing returns absolute coordinates of lattice points ===#
 
-@inline function Base.getindex(lat::Lattice{D}, brav::CartesianIndex{D}, b::Int64) where {D}
+@inline function Base.getindex(lat::Lattice{D}, b::Int64, brav::CartesianIndex{D}) where {D}
     return lat.lat_vecs * convert(SVector{D, Float64}, brav) + lat.basis_vecs[b]
 end
 
-@inline function Base.getindex(lat::Lattice{D}, brav::NTuple{D, Int64}, b::Int64) where {D}
+@inline function Base.getindex(lat::Lattice{D}, b::Int64, brav::NTuple{D, Int64}) where {D}
     return lat.lat_vecs * convert(SVector{D, Float64}, brav) + lat.basis_vecs[b]
 end
 
+@inline function Base.getindex(lat::Lattice{D}, b::Int64, brav::Vararg{Int64, D}) where {D}
+    return lat.lat_vecs * convert(SVector{D, Float64}, brav) + lat.basis_vecs[b]
+end
+
+"Defines a reciprocal lattice structure"
 struct ReciprocalLattice{D, L}
     lat_vecs     :: SMatrix{D, D, Float64, L}     # Columns of this are the reciprocal lattice vectors
     size         :: SVector{D, Int}
@@ -81,7 +87,7 @@ function _parse_lattice(config::Dict{String, Any}) :: Lattice
         # basis_vecs = hcat(basis_vecs...
         lattice_size = SVector{dim}(lattice_size)
 
-        return Lattice{dim, dim*dim}(lat_vecs, basis_vecs, lattice_size) 
+        return Lattice{dim, dim*dim, dim+1}(lat_vecs, basis_vecs, lattice_size) 
     catch err
         if isa(err, KeyError)
             throw(ValidateError("lattice config missing mandatory key: $(err.key)"))

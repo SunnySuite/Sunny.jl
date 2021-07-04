@@ -183,25 +183,27 @@ function _graph_prune_neighbor_offsets(lat::Lattice, offsets::NeighborOffsets, n
     return filt_offsets
 end
 
-abstract type AbstractSystem end
+# abstract type AbstractSystem{T, D, L, Db} <: AbstractArray{T, Db}
+abstract type AbstractSystem{D, L, Db} end
+# struct SpinSystem{D, L, Db} <: AbstractSystem{SVector{3, Float64}, D, L, Db}
 
-struct SpinSystem{D, L} <: AbstractSystem
-    lattice        :: Lattice{D, L}
+struct SpinSystem{D, L, Db} <: AbstractSystem{D, L, Db}
+    lattice        :: Lattice{D, L, Db}
     interactions   :: Vector{Interaction}
-    sites          :: Array{SVector{3, Float64}}
+    sites          :: Array{SVector{3, Float64}, Db}
     _pair_offsets  :: Vector{NeighborOffsets}
     _fpair_offsets :: Vector{NeighborOffsets}
 end
 
 
-mutable struct ChargeSystem{D, L} <: AbstractSystem
-    lattice       :: Lattice{D, L}
-    sites         :: Array{Float64}
+mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{D, L, Db}
+    lattice       :: Lattice{D, L, Db}
+    sites         :: Array{Float64, Db}
 end
 
 
 function ChargeSystem(lat::Lattice)
-    sites_size = (lat.size..., length(lat.basis_vecs))
+    sites_size = (length(lat.basis_vecs), lat.size...)
     sites = zeros(sites_size)
 
     return ChargeSystem(lat, sites)
@@ -215,7 +217,7 @@ end
 
 function SpinSystem(lat::Lattice, ints::Vector{Interaction})
     # Initialize sites based on lattice geometry
-    sites_size = (lat.size..., length(lat.basis_vecs))
+    sites_size = (length(lat.basis_vecs), lat.size...)
     sites = zeros(SVector{3, Float64}, sites_size)
 
     # Set up all the offset lists for PairInteractions
@@ -245,9 +247,29 @@ function randn!(sys::SpinSystem)
     @. sys.sites /= norm(sys.sites)
 end
 
-function Base.size(sys::T) where {T <: AbstractSystem}
+@inline function Base.size(sys::T) where {T <: AbstractSystem}
     return size(sys.lattice)
 end
+
+@inline function Base.getindex(sys::AbstractSystem, idx)
+    return sys.sites[idx]
+end
+
+@inline function Base.getindex(sys::AbstractSystem, idx...)
+    return sys.sites[idx...]
+end
+
+# @inline function Base.getindex(sys::AbstractSystem{D, L, Db}, idx::CartesianIndex{Db}) where {D, L, Db}
+#     return sys.sites[idx]
+# end
+
+# @inline function Base.getindex(sys::AbstractSystem{D, L, Db}, idx::NTuple{Db, Int64}) where {D, L, Db}
+#     return sys.sites[idx]
+# end
+
+# @inline function Base.getindex(lat::AbstractSystem{D, L, Db}, b_brav::Vararg{Int64, Db}) where {D, L, Db}
+#     return sys.sites[b_brav...]
+# end
 
 function _parse_interactions(config::Dict{String, Any}) :: Vector{Interaction}
     interactions = Vector{Interaction}()
