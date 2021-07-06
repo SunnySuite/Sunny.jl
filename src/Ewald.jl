@@ -22,10 +22,6 @@ Specifically, computes:
 ```
 """
 function ewald_sum_monopole(sys::ChargeSystem{D, L, Db}; η=1.0, extent=5) :: Float64 where {D, L, Db}
-    # This needs to be generated for type-stability in the inner loops
-    # Probably exists a better way...
-    # For example, in 3D, with extent=2, this should evaluate to:
-    #    CartesianIndices((-2:2, -2:2, -2:2))
     extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
 
     @unpack sites, lattice = sys
@@ -72,7 +68,6 @@ function ewald_sum_monopole(sys::ChargeSystem{D, L, Db}; η=1.0, extent=5) :: Fl
             recip_site_sum = 0.0
             for cell_idx in extent_idxs
                 cell_idx = convert(SVector, cell_idx)
-                # k .= recip.lat_vecs * cell_idx
                 mul!(k, recip.lat_vecs, cell_idx)
 
                 k2 = norm(k) ^ 2
@@ -102,52 +97,33 @@ function direct_sum_monopole(sys::ChargeSystem{D}; s=0.0, extent=5) :: Float64 w
     real_space_sum = 0.0
     real_site_sum = 0.0
 
-    rᵢ = @MVector zeros(D)
-    rⱼ = @MVector zeros(D)
-    rᵢⱼ = @MVector zeros(D)
     n = @MVector zeros(D)
 
-    for jkl1 in bravindexes(lattice)
-        jkl1_vec = convert(SVector, jkl1)
-        mul!(rᵢ, lattice.lat_vecs, jkl1_vec)     # Site i
-        for (b1, bvec1) in enumerate(lattice.basis_vecs)
-            rᵢ .+= bvec1
-            qᵢ = sys.sites[jkl1, b1]                # Allocates (?)
+    for idx1 in eachindex(lattice)
+        rᵢ = lattice[idx1]
+        qᵢ = sys.sites[idx1]
+        for idx2 in eachindex(lattice)
+            rⱼ = lattice[idx2]
+            qⱼ = sys.sites[idx2]
+            rᵢⱼ = rⱼ - rᵢ
 
-            for jkl2 in bravindexes(lattice)
-                jkl2_vec = convert(SVector, jkl2)
-                mul!(rⱼ, lattice.lat_vecs, jkl2_vec) # Site j
-                for (b2, bvec2) in enumerate(lattice.basis_vecs)
-                    rⱼ .+= bvec2
-                    qⱼ = sys.sites[jkl2, b2]            # Allocates (?)
+            # Real-space sum over unit cells
+            real_site_sum = 0.0
+            for cell_idx in extent_idxs
+                cell_idx = convert(SVector, cell_idx)
+                mul!(n, superlat_vecs, cell_idx)
 
-                    @. rᵢⱼ = rⱼ - rᵢ
-
-                    # Real-space sum over unit cells
-                    real_site_sum = 0.0
-                    for cell_idx in extent_idxs
-                        cell_idx = convert(SVector, cell_idx)
-                        mul!(n, superlat_vecs, cell_idx)
-
-                        if all(rᵢⱼ .== 0) && all(n .== 0) || norm(n) > extent
-                            continue
-                        end
-
-                        # prefactor = all(n .== 0) ? 0.5 : 1.0
-                        prefactor = 0.5
-
-                        dist = norm(rᵢⱼ + n)
-                        real_site_sum += prefactor / dist * exp(-s * norm(n)^2)
-                    end
-                    real_space_sum += qᵢ * qⱼ * real_site_sum
-
-                    # Prepare for next b2 loop
-                    rⱼ .-= bvec2
+                if all(rᵢⱼ .== 0) && all(n .== 0) || norm(n) > extent
+                    continue
                 end
-            end
 
-            # Prepare for the next b1 loop
-            rᵢ .-= bvec1
+                # prefactor = all(n .== 0) ? 0.5 : 1.0
+                prefactor = 0.5
+
+                dist = norm(rᵢⱼ + n)
+                real_site_sum += prefactor / dist * exp(-s * norm(n)^2)
+            end
+            real_space_sum += qᵢ * qⱼ * real_site_sum
         end
     end
 
@@ -161,10 +137,6 @@ Performs ewald summation to calculate the potential energy of a
 system of dipoles with PBC.
 """
 function ewald_sum_dipole(sys::SpinSystem{D, L, Db}; extent=2, η=1.0) :: Float64 where {D, L, Db}
-    # This needs to be generated for type-stability in the inner loops
-    # Probably exists a better way...
-    # For example, in 3D, with extent=2, this should evaluate to:
-    #    CartesianIndices((-2:2, -2:2, -2:2))
     extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
 
     @unpack sites, lattice = sys
@@ -174,7 +146,6 @@ function ewald_sum_dipole(sys::SpinSystem{D, L, Db}; extent=2, η=1.0) :: Float6
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
 
-    # dip_square_term = -2η^3 / (3 * √π) * (sys.sites |> x->x.^2 |> sum)
     dip_square_term = -2η^3 / (3 * √π) * sum(norm.(sys.sites).^2)
 
     real_space_sum, recip_space_sum = 0.0, 0.0
@@ -290,7 +261,6 @@ function _precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: A
                 dist = norm(rᵢⱼ + n)
                 real_site_sum += erfc(η * dist) / dist
             end
-            # real_space_sum += qᵢ * qⱼ * real_site_sum
             @inbounds A_N[i, j, 1, 1] += 0.5 * real_site_sum
 
             # Reciprocal-space sum

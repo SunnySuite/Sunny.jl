@@ -15,7 +15,7 @@ end
 struct PairInteraction <: Interaction
     strength :: Float64
     dist     :: Int
-    neighbor :: Union{Nothing, Int}
+    class    :: Union{Nothing, Int}
 end
 
 struct EasyAxis <: Interaction
@@ -26,23 +26,8 @@ end
 struct DMInteraction <: Interaction
     strength :: Float64
     dist     :: Int
-    neighbor :: Union{Nothing, Int}    # In case of distance tie-breaks, use this number of nn hops to break tie
+    class    :: Union{Nothing, Int}
 end
-
-
-""" Hacky workaround of the puzzling default behavior of zeros, which is to share memory
-     for each element initialized using zeros(T, dims...) for types which allocate their own mem.
-"""
-function zeros_sepmem(T, dims...)
-    arr = Array{T, length(dims)}(undef, dims)
-    for i in eachindex(arr)
-        arr[i] = zero(T)
-    end
-    return arr
-end
-
-"Defines the degree of freedom at each lattice site"
-SpinSite = SVector{3, Float64}
 
 # Should maybe make this a real struct, can hold both sets (full and filtered)
 NeighborOffsets = Vector{Vector{CartesianIndex}}
@@ -139,7 +124,7 @@ end
 
 """ Prunes a list of neighbor offset indexes to only keep those which connect
      sites that are the given number of nearest-neighbor hops in the lattice
-     apart.
+     apart. TODO: This should really be separated by symmetry class.
 """
 function _graph_prune_neighbor_offsets(lat::Lattice, offsets::NeighborOffsets, num_hops::Int) :: NeighborOffsets
     filt_offsets = []
@@ -181,11 +166,9 @@ function _graph_prune_neighbor_offsets(lat::Lattice, offsets::NeighborOffsets, n
     return filt_offsets
 end
 
-# abstract type AbstractSystem{T, D, L, Db} <: AbstractArray{T, Db}
-abstract type AbstractSystem{D, L, Db} end
-# struct SpinSystem{D, L, Db} <: AbstractSystem{SVector{3, Float64}, D, L, Db}
+abstract type AbstractSystem{T, D, L, Db} <: AbstractArray{T, Db} end
 
-struct SpinSystem{D, L, Db} <: AbstractSystem{D, L, Db}
+struct SpinSystem{D, L, Db} <: AbstractSystem{SVector{3, Float64}, D, L, Db}
     lattice        :: Lattice{D, L, Db}
     interactions   :: Vector{Interaction}
     sites          :: Array{SVector{3, Float64}, Db}
@@ -194,7 +177,7 @@ struct SpinSystem{D, L, Db} <: AbstractSystem{D, L, Db}
 end
 
 
-mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{D, L, Db}
+mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{Float64, D, L, Db}
     lattice       :: Lattice{D, L, Db}
     sites         :: Array{Float64, Db}
 end
@@ -256,18 +239,6 @@ end
 @inline function Base.getindex(sys::AbstractSystem, idx...)
     return sys.sites[idx...]
 end
-
-# @inline function Base.getindex(sys::AbstractSystem{D, L, Db}, idx::CartesianIndex{Db}) where {D, L, Db}
-#     return sys.sites[idx]
-# end
-
-# @inline function Base.getindex(sys::AbstractSystem{D, L, Db}, idx::NTuple{Db, Int64}) where {D, L, Db}
-#     return sys.sites[idx]
-# end
-
-# @inline function Base.getindex(lat::AbstractSystem{D, L, Db}, b_brav::Vararg{Int64, Db}) where {D, L, Db}
-#     return sys.sites[b_brav...]
-# end
 
 function _parse_interactions(config::Dict{String, Any}) :: Vector{Interaction}
     interactions = Vector{Interaction}()
