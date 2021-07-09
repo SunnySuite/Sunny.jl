@@ -1,5 +1,11 @@
 # This file is machine-generated - editing it directly is not advised
 
+[[Adapt]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "84918055d15b3114ede17ac6a7182f68870c16f7"
+uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+version = "3.3.1"
+
 [[ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 
@@ -105,6 +111,12 @@ uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 
 [[NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
+
+[[OffsetArrays]]
+deps = ["Adapt"]
+git-tree-sha1 = "2bf78c5fd7fa56d2bbf1efbadd45c1b8789e6f57"
+uuid = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
+version = "1.10.2"
 
 [[OpenSpecFun_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Pkg"]

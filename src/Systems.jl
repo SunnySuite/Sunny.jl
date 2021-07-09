@@ -166,7 +166,13 @@ function _graph_prune_neighbor_offsets(lat::Lattice, offsets::NeighborOffsets, n
     return filt_offsets
 end
 
+
 abstract type AbstractSystem{T, D, L, Db} <: AbstractArray{T, Db} end
+
+mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{Float64, D, L, Db}
+    lattice       :: Lattice{D, L, Db}
+    sites         :: Array{Float64, Db}
+end
 
 struct SpinSystem{D, L, Db} <: AbstractSystem{SVector{3, Float64}, D, L, Db}
     lattice        :: Lattice{D, L, Db}
@@ -174,12 +180,6 @@ struct SpinSystem{D, L, Db} <: AbstractSystem{SVector{3, Float64}, D, L, Db}
     sites          :: Array{SVector{3, Float64}, Db}
     _pair_offsets  :: Vector{NeighborOffsets}
     _fpair_offsets :: Vector{NeighborOffsets}
-end
-
-
-mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{Float64, D, L, Db}
-    lattice       :: Lattice{D, L, Db}
-    sites         :: Array{Float64, Db}
 end
 
 
