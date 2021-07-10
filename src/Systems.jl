@@ -1,5 +1,3 @@
-using TOML
-using LinearAlgebra
 import Base.size
 
 "Tolerance on determining distances for pairwise interactions"

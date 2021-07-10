@@ -1,6 +1,3 @@
-using TOML
-using StaticArrays
-using LinearAlgebra
 import Base.size
 
 """Defines lattice/basis vectors, and number of unit cells.
@@ -19,6 +16,10 @@ end
 
 function Lattice(lat_vecs::SMatrix{D, D, Float64}, basis_vecs::Vector{SVector{D, Float64}}, size::SVector{D, Int}) where {D}
     return Lattice{D, D * D, D+1}(lat_vecs, basis_vecs, size)
+end
+
+@inline function nbasis(lat::Lattice) :: Int
+    length(lat.basis_vecs)
 end
 
 "Calculate the total volume of the lattice (unit cell volume × num cells)"
