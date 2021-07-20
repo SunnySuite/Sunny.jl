@@ -4,182 +4,31 @@ import Base.size
 const INTER_TOL_DIGITS = 3
 const INTER_TOL = 10. ^ -INTER_TOL_DIGITS
 
-abstract type Interaction end
-
-struct ExternalField <: Interaction
-    strength :: Float64
-end
-
-struct PairInteraction <: Interaction
-    strength :: Float64
-    dist     :: Int
-    class    :: Union{Nothing, Int}
-end
-
-struct EasyAxis <: Interaction
-    strength :: Float64
-    axis     :: Int64
-end
-
-struct DMInteraction <: Interaction
-    strength :: Float64
-    dist     :: Int
-    class    :: Union{Nothing, Int}
-end
-
-# Should maybe make this a real struct, can hold both sets (full and filtered)
-NeighborOffsets = Vector{Vector{CartesianIndex}}
-""" Given a Lattice and an integer defining what nearest-neighbor we want to
-     locate, returns the index offsets needed to perform this hop, one per site
-     in the unit cell.
-    Outputs a list of lists, each inner list giving all the delta-indexes needed
-     for a specific site within a unit cell (one outer list per site).
-"""
-function _find_neighbor_offsets(lat::Lattice, nn::Int) :: NeighborOffsets
-    basis_len = length(lat.basis_vecs)
-    dim = length(lat.size)
-
-    # For now, do this in two passes. Can definitely be done in one.
-    # The first pass finds what absolute distance the requested neighbor is.
-
-    dists = Vector{Float64}()
-
-    # Progresses in "layers" until we've seen enough unique distances. First,
-    #  looks at all sites that can be accessed within a one unit-cell layer
-    #  from each basis site. If not enough unique distances are found, look
-    #  at the second layer, and so on.
-    x = [0., 0., 0.]
-    layer = 1
-    while length(dists) < nn + 1
-        # "Fixed" basis vector we're measuring distances to
-        for bvec in eachcol(lat.basis_vecs)
-
-            # Kind of gross... anything better?
-            for jkl in Iterators.product((-layer:layer for _ in 1:dim)...)
-                # Convert Tuple -> Vector
-                jkl = collect(jkl)
-                # Unit cell lattice vector
-                lvec = lat.lat_vecs * jkl
-                # Basis vectors within that displaced unit cell
-                for bvec2 in eachcol(lat.basis_vecs)
-                    dist = norm(lvec + bvec2 - bvec)
-                    push!(dists, dist)
-                end
-            end
-        end
-
-        sort!(dists)
-        unique!(d -> round(d, digits=INTER_TOL_DIGITS), dists)
-    end
-
-    # Dists will have a 0, so index by nn+1
-    nn_dist = dists[nn + 1]
-
-    # Given this distance, the second pass computes all the delta indexes
-    #  which produce neighbors of this distance. (Need to repeat once per
-    #  basis site.)
-    basis_offsets = Vector{Vector{CartesianIndex}}()
-    for (b, bvec) in enumerate(eachcol(lat.basis_vecs))
-        offsets = Vector{CartesianIndex}()
-
-        for jkl in Iterators.product((-layer:layer for _ in 1:dim)...)
-            jkl = collect(jkl)
-            lvec = lat.lat_vecs * jkl
-            for (b2, bvec2) in enumerate(eachcol(lat.basis_vecs))
-                dist = norm(lvec + bvec2 - bvec)
-                if isapprox(dist, nn_dist)
-                    push!(offsets, CartesianIndex(jkl..., b2 - b))
-                end
-            end
-        end
-
-        push!(basis_offsets, offsets)
-    end
-
-    return basis_offsets
-end
-
-"""Prunes a list of neighbor offset indexes to only keep those necessary to
-    catch all unique pairs on lattice iteration.
-   I.e. arbitrarily remove one of any pair of offsets which sum to zero
-"""
-function _iter_prune_neighbor_offsets(offsets::NeighborOffsets) :: NeighborOffsets
-    dim = length(first(Iterators.flatten(offsets)))
-    zeroidx = CartesianIndex(zeros(Int, dim)...)
-    filt_offsets = [Vector{CartesianIndex}() for _ in offsets]
-
-    for (b, offset_list) in enumerate(offsets)
-        for offset in offset_list
-            anyzero = any(map(o -> offset + o == zeroidx, Iterators.flatten(filt_offsets)))
-            if !anyzero
-                push!(filt_offsets[b], offset)
-            end
-        end
-    end
-
-    return filt_offsets
-end
-
-""" Prunes a list of neighbor offset indexes to only keep those which connect
-     sites that are the given number of nearest-neighbor hops in the lattice
-     apart. TODO: This should really be separated by symmetry class.
-"""
-function _graph_prune_neighbor_offsets(lat::Lattice, offsets::NeighborOffsets, num_hops::Int) :: NeighborOffsets
-    filt_offsets = []
-    (dim, num_basis) = size(lat.basis_vecs)
-
-    # Find all the nearest-neighbor hops
-    nn_hops = _find_neighbor_offsets(lat, 1)
-
-    # For each basis site, generate all sites reachable after the given number of hops,
-    #   then prune the original offsets list to only keep those appearing
-    for b in 1:size(lat.basis_vecs, 2)
-        zero_offset = CartesianIndex(zeros(Int, dim + 1)...)
-        start_site = CartesianIndex(zeros(Int, dim)..., b)
-        start_vec = lat.basis_vecs[1:end, b]
-        cur_offsets, next_offsets = [zero_offset], []
-        for _ in 1:num_hops
-            for offset in cur_offsets
-                # Initial basis site and vector
-                siteb = b + offset[dim + 1]
-                site_vec = get_vec(lat, start_site + offset)
-                for hop in nn_hops[siteb]
-                    hopped_offset = offset + hop
-                    hopped_vec = get_vec(lat, start_site + hopped_offset)
-                    # Only keep the hopped site if it's further away than the original
-                    if norm(hopped_vec - start_vec) > norm(site_vec - start_vec) + INTER_TOL
-                        push!(next_offsets, hopped_offset)
-                    end
-                end
-            end
-
-            cur_offsets = next_offsets
-            next_offsets = []
-        end
-
-        accept_offsets = filter(o -> o ∈ cur_offsets, offsets[b])
-        push!(filt_offsets, accept_offsets)
-    end
-
-    return filt_offsets
-end
-
-
 abstract type AbstractSystem{T, D, L, Db} <: AbstractArray{T, Db} end
+
+@inline function Base.size(sys::T) where {T <: AbstractSystem}
+    return size(sys.lattice)
+end
+
+@inline function Base.getindex(sys::AbstractSystem, idx)
+    return sys.sites[idx]
+end
+
+@inline function Base.getindex(sys::AbstractSystem, idx...)
+    return sys.sites[idx...]
+end
 
 mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{Float64, D, L, Db}
     lattice       :: Lattice{D, L, Db}
     sites         :: Array{Float64, Db}
 end
 
-struct SpinSystem{D, L, Db} <: AbstractSystem{SVector{3, Float64}, D, L, Db}
+# TODO: Comments, explicit examples
+mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
     lattice        :: Lattice{D, L, Db}
     interactions   :: Vector{Interaction}
-    sites          :: Array{SVector{3, Float64}, Db}
-    _pair_offsets  :: Vector{NeighborOffsets}
-    _fpair_offsets :: Vector{NeighborOffsets}
+    sites          :: Array{Vec3, Db}
 end
-
 
 function ChargeSystem(lat::Lattice)
     sites_size = (length(lat.basis_vecs), lat.size...)
@@ -195,25 +44,11 @@ function rand!(sys::ChargeSystem)
 end
 
 function SpinSystem(lat::Lattice, ints::Vector{Interaction})
-    # Initialize sites based on lattice geometry
+    # Initialize sites based on lattice geometry - initialized to all spins along +z
     sites_size = (length(lat.basis_vecs), lat.size...)
-    sites = zeros(SVector{3, Float64}, sites_size)
+    sites = fill(SA[0.0, 0.0, 1.0], sites_size)
 
-    # Set up all the offset lists for PairInteractions
-    pair_offsets = Vector{NeighborOffsets}()
-    filtered_offsets = Vector{NeighborOffsets}()
-    for int in ints
-        if isa(int, PairInteraction)
-            offsets = _find_neighbor_offsets(lat, int.dist)
-            if !isnothing(int.neighbor)
-                offsets = _graph_prune_neighbor_offsets(lat, offsets, int.neighbor)
-            end
-            push!(pair_offsets, offsets)
-            push!(filtered_offsets, _iter_prune_neighbor_offsets(offsets))
-        end
-    end
-
-    return SpinSystem(lat, ints, sites, pair_offsets, filtered_offsets)
+    return SpinSystem(lat, ints, sites)
 end
 
 function SpinSystem(lat::Lattice)
@@ -222,62 +57,76 @@ end
 
 "Sets spins randomly sampled on the unit sphere."
 function rand!(sys::SpinSystem)
-    sys.sites .= randn(SVector{3, Float64}, size(sys.sites))
+    sys.sites .= randn(Vec3, size(sys.sites))
     @. sys.sites /= norm(sys.sites)
 end
 
-@inline function Base.size(sys::T) where {T <: AbstractSystem}
-    return size(sys.lattice)
+function energy(sys::SpinSystem) :: Float64
+    # Dispatch out to all of the interaction types present
+    sum(map(energy, Base.Iterators.repeated(sys), sys.interactions))
 end
 
-@inline function Base.getindex(sys::AbstractSystem, idx)
-    return sys.sites[idx]
+function energy(sys::SpinSystem, field::ExternalField)
+    B = field.B
+    E = 0.0
+    for S in sys
+        E += S ⋅ B
+    end
+    return E
 end
 
-@inline function Base.getindex(sys::AbstractSystem, idx...)
-    return sys.sites[idx...]
-end
-
-function _parse_interactions(config::Dict{String, Any}) :: Vector{Interaction}
-    interactions = Vector{Interaction}()
-    if haskey(config, "field")
-        for field_int in config["field"]
-            push!(interactions, ExternalField(field_int["strength"]))
+function energy(sys::SpinSystem, pairint::PairInteraction)
+    J = pairint.strength
+    offsets = pairint._fpair_offsets
+    syssize = size(sys)
+    E = 0.0
+    for idx in eachindex(sys)
+        Sᵢ = sys[idx]
+        b = idx[1]  # Basis (sublattice) index
+        for offset in offsets[b]
+            Sⱼ = sys[modc1(idx + offset, syssize)]
+            E += J * (Sᵢ ⋅ Sⱼ)
         end
     end
-
-    if haskey(config, "pair")
-        for pair_int in config["pair"]
-            neigh = haskey(pair_int, "neighbor") ? pair_int["neighbor"] : nothing
-            push!(interactions, PairInteraction(
-                pair_int["strength"],
-                pair_int["dist"],
-                neigh
-            ))
-        end
-    end
-
-    if haskey(config, "easyaxis")
-        for easy_ax in config["easyaxis"]
-            push!(interactions, EasyAxis(
-                easy_ax["strength"],
-                easy_ax["axis"]
-            ))
-        end
-    end
-    return interactions
+    return E
 end
 
-function parse_config(filename::String) :: SpinSystem
-    try
-        config = TOML.tryparsefile(filename)
-        lattice = _parse_lattice(config["lattice"])
-        interactions = _parse_interactions(config["model"])
+# TODO: This is costing duplicating the lattice loop logic times the number of interactions
+# However, if I invert the loop order, then I pay the dispatch cost once per lattice site.
+@inline function field!(H::Array{Vec3}, sys::SpinSystem)
+    fill!(H, SA[0.0, 0.0, 0.0])
+    for interaction in sys.interactions
+        _accum_field!(H, sys.sites, interaction)
+    end
+end
 
-        return SpinSystem(lattice, interactions)
-    catch err
-        if isa(err, TOML.ParserError)
-            println("Parse error on line $(err.line), column $(err.column) of $(filename).")
+@inline function field!(H::Array{Vec3}, spins::Array{Vec3}, interactions::Vector{Interaction})
+    fill!(H, SA[0.0, 0.0, 0.0])
+    for interaction in interactions
+        _accum_field!(H, spins, interaction)
+    end
+end
+
+@inline function field(sys::SpinSystem)
+    H = zero(sys.sites)
+    field!(H, sys)
+    return H
+end
+
+"Accumulates the local field coming from the external field"
+@inline function _accum_field!(H::Array{Vec3}, spins::Array{Vec3}, field::ExternalField)
+    for idx in eachindex(H)
+        H[idx] = H[idx] + field.B
+    end
+end
+
+"Accumulates the local field coming from pairwise interactions"
+@inline function _accum_field!(H::Array{Vec3}, spins::Array{Vec3}, pairint::PairInteraction)
+    syssize = size(spins)
+    for idx in CartesianIndices(spins)
+        b = idx[1]
+        for offset in pairint._pair_offsets[b]
+            H[idx] = H[idx] + pairint.strength * spins[modc1(idx + offset, syssize)]
         end
     end
 end

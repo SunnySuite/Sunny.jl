@@ -1,13 +1,13 @@
 "Functions for computing energies in Fourier space. All functions expect ±-compressed interaction tensors."
 
 "Reinterprets an array of 3x3 SMatrix to an equivalent array of Float64"
-function _reinterpret_dipole_tensor(A::OffsetArray{SMatrix{3, 3, Float64, 9}}) :: Array{Float64}
+function _reinterpret_dipole_tensor(A::OffsetArray{Mat3}) :: Array{Float64}
     Ar = reinterpret(reshape, Float64, parent(A))
     return reshape(Ar, 3, 3, size(A)...)
 end
 
 "Computes the Fourier transform of a (spatially compressed) dipole interaction matrix"
-function _rfft_dipole_tensor(A::OffsetArray{SMatrix{3, 3, Float64, 9}}) :: Array{Complex{Float64}}
+function _rfft_dipole_tensor(A::OffsetArray{Mat3}) :: Array{Complex{Float64}}
     A = _reinterpret_dipole_tensor(A)
     rfft(A, 5:ndims(A))
 end
@@ -19,7 +19,7 @@ function _rfft_dipole_sys(sys::SpinSystem{D}) :: Array{Complex{Float64}} where {
 end
 
 "Computes the field ϕᵢ = ∑ⱼ Aᵢⱼ Sᵢ using Fourier transforms"
-function compute_field_ft(sys::SpinSystem{D}, A::OffsetArray{SMatrix{3, 3, Float64, 9}}) :: Array{SVector{3, Float64}} where {D}
+function compute_field_ft(sys::SpinSystem{D}, A::OffsetArray{Mat3}) :: Array{Vec3} where {D}
     FS = _rfft_dipole_sys(sys)
     FA = _rfft_dipole_tensor(A)
     nb = nbasis(sys.lattice)
@@ -41,12 +41,12 @@ function compute_field_ft(sys::SpinSystem{D}, A::OffsetArray{SMatrix{3, 3, Float
     end
 
     ϕ = irfft(ϕhat, size(A, 3), 3:ndims(ϕhat))
-    ϕ = reinterpret(reshape, SVector{3, Float64}, ϕ)
+    ϕ = reinterpret(reshape, Vec3, ϕ)
     return ϕ
 end
 
 "Computes the field ϕᵢ = ∑ⱼ Aᵢⱼ Sⱼ using real space sums"
-function compute_field(sys::SpinSystem{D}, A::OffsetArray{SMatrix{3, 3, Float64, 9}}) :: Array{SVector{3, Float64}} where {D}
+function compute_field(sys::SpinSystem{D}, A::OffsetArray{Mat3}) :: Array{Vec3} where {D}
     ϕ = zero(sys)
     nb = length(sys.lattice.basis_vecs)
     for ib in 1:nb
@@ -61,7 +61,7 @@ function compute_field(sys::SpinSystem{D}, A::OffsetArray{SMatrix{3, 3, Float64,
     return ϕ
 end
 
-function fourier_energy(sys::SpinSystem, A::OffsetArray{SMatrix{3, 3, Float64, 9}}) :: Float64
+function fourier_energy(sys::SpinSystem, A::OffsetArray{Mat3}) :: Float64
     FS = _rfft_dipole_sys(sys)
     FA = _rfft_dipole_tensor(A)
     nb = nbasis(sys.lattice)
@@ -92,7 +92,7 @@ function fourier_energy(sys::SpinSystem, A::OffsetArray{SMatrix{3, 3, Float64, 9
 end
 
 "Computes the energy given the local fields and the local spins"
-function field_energy(ϕ::Array{SVector{3, Float64}}, sys::SpinSystem{D}) :: Float64 where {D}
+function field_energy(ϕ::Array{Vec3}, sys::SpinSystem{D}) :: Float64 where {D}
     sum(dot.(sys.sites, ϕ))
 end
 

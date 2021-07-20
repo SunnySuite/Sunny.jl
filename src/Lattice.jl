@@ -15,7 +15,41 @@ struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
 end
 
 function Lattice(lat_vecs::SMatrix{D, D, Float64}, basis_vecs::Vector{SVector{D, Float64}}, size::SVector{D, Int}) where {D}
-    return Lattice{D, D * D, D+1}(lat_vecs, basis_vecs, size)
+    return Lattice{D, D*D, D+1}(lat_vecs, basis_vecs, size)
+end
+
+function Lattice(lat_vecs::Array{Float64, 2}, basis_vecs::Vector{Vector{Float64}}, latsize::Vector{Int})
+    D = size(lat_vecs, 1)
+    @assert all(map(s->s==D, size(lat_vecs)))
+    @assert all(map(v->length(v)==D, basis_vecs))
+    @assert length(latsize) == D
+
+    lat_vecs = SMatrix{D, D}(lat_vecs)
+    basis_vecs = map(v->SVector{D}(v), basis_vecs)
+    latsize = SVector{D, Int}(latsize)
+
+    return Lattice{D, D*D, D+1}(lat_vecs, basis_vecs, latsize)
+end
+
+# Calculation taken from the _cell function of the TRI class of:
+#  https://wiki.fysik.dtu.dk/ase/_modules/ase/lattice.html#BravaisLattice
+"Specify a 3D Bravais Lattice by the lattice vector lengths and angles"
+function Lattice(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64, size::Vector{Int})
+    @assert all(map(x->0 < x ≤ π/2, (α, β, γ)))
+
+    sγ, cγ = sin(γ), cos(γ)
+    cβ, cα = cos(β), cos(α)
+    v1 = [a, 0.0, 0.0]
+    v2 = [b * cγ, b * sγ, 0.0]
+    v3x = c * cγ
+    v3y = c / sγ * (cα - cβ * cγ)
+    v3z = c / sγ * √(sγ^2 - cα^2 - cβ^2 + 2 * cα * cβ * cγ)
+    v3 = [v3x, v3y, v3z]
+
+    lat_vecs = SMatrix{3, 3}([v1 v2 v3])
+    basis_vecs = [SVector{3, Float64}([0.0, 0.0, 0.0])]
+    size = SVector{3, Int}(size)
+    return Lattice{3, 9, 4}(lat_vecs, basis_vecs, size)
 end
 
 @inline function nbasis(lat::Lattice) :: Int
@@ -66,36 +100,4 @@ end
 function gen_reciprocal(lat::Lattice) :: ReciprocalLattice
     recip_vecs = 2π * transpose(inv(lat.lat_vecs)) ./ lat.size
     return ReciprocalLattice(recip_vecs, lat.size)
-end
-
-struct ValidateError <: Exception end
-Base.showerror(io::IO, e::ValidateError) = print(io, e)
-
-"Checks if a config for a lattice is consistent / properly formatted"
-function _parse_lattice(config::Dict{String, Any}) :: Lattice
-    try
-        dim = config["dimension"]
-        lat_vecs = config["lattice_vectors"]
-        basis_vecs = config["basis_vectors"]
-        lattice_size = config["lattice_size"]
-
-        @assert length(lat_vecs) == dim
-        @assert all(v -> length(v) == dim, lat_vecs)
-        @assert all(v -> length(v) == dim, basis_vecs)
-        @assert length(lattice_size) == dim
-
-        lat_vecs = SMatrix{dim, dim, Float64, dim*dim}(hcat(lat_vecs...))
-        basis_vecs = [SVector{dim}(bv) for bv in basis_vecs]
-        # basis_vecs = hcat(basis_vecs...
-        lattice_size = SVector{dim}(lattice_size)
-
-        return Lattice{dim, dim*dim, dim+1}(lat_vecs, basis_vecs, lattice_size) 
-    catch err
-        if isa(err, KeyError)
-            throw(ValidateError("lattice config missing mandatory key: $(err.key)"))
-        else
-            # Re-raise all other kinds of errors
-            throw(err)
-        end
-    end
 end
