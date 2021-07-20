@@ -114,10 +114,10 @@ function PairInteraction(J::Float64, dist::Int, class::Union{Nothing, Int}, lat:
     offsets = _find_neighbor_offsets(lat, dist)
     filtered_offsets = _iter_prune_neighbor_offsets(offsets)
 
-    PairInteraction(J, dist, class, offsets, filtered_offsets)
+    PairInteraction{Db}(J, dist, class, offsets, filtered_offsets)
 end
 
-PairInteraction(J::Float64, dist::Int, lat::Lattice{D}) where {D} = PairInteraction(D, dist, nothing, lat)
+PairInteraction(J::Float64, dist::Int, lat::Lattice) = PairInteraction(J, dist, nothing, lat)
 
 
 struct EasyAxis <: Interaction
