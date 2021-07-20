@@ -101,3 +101,12 @@ function gen_reciprocal(lat::Lattice) :: ReciprocalLattice
     recip_vecs = 2π * transpose(inv(lat.lat_vecs)) ./ lat.size
     return ReciprocalLattice(recip_vecs, lat.size)
 end
+
+"Returns just the underlying Bravais lattice"
+function brav_lattice(lat::Lattice{D}) :: Lattice{D} where {D}
+    return Lattice(
+        lat.lat_vecs,
+        [@SVector zeros(D)],
+        lat.size
+    )
+end

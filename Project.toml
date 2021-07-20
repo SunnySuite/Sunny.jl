@@ -1,10 +1,11 @@
 name = "FastDipole"
 uuid = "2b9f05ca-ae3a-4b54-96e6-2173aeb01345"
 authors = ["Cole Miles <cmm572@cornell.edu>"]
-version = "0.0.1"
+version = "0.0.2"
 
 [deps]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"

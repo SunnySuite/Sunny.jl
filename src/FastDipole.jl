@@ -35,4 +35,7 @@ export SpinHeunP, evolve!
 include("Parsing.jl")
 export parse_config
 
+include("Plotting.jl")
+export plot_lattice
+
 end
