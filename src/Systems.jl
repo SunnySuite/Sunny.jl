@@ -43,11 +43,11 @@ function rand!(sys::ChargeSystem)
     sys.sites .-= sum(sys.sites) / length(sys.sites)
 end
 
-function SpinSystem(lat::Lattice, ints::Vector{Interaction})
+function SpinSystem(lat::Lattice, ints::Vector{I}) where {I <: Interaction}
     # Initialize sites based on lattice geometry - initialized to all spins along +z
     sites_size = (length(lat.basis_vecs), lat.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
-
+    ints = convert(Vector{Interaction}, ints)
     return SpinSystem(lat, ints, sites)
 end
 

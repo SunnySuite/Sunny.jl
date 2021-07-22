@@ -36,6 +36,6 @@ include("Parsing.jl")
 export parse_config
 
 include("Plotting.jl")
-export plot_lattice, plot_spins, anim_integration, line_integration
+export plot_lattice, plot_spins, anim_integration, live_integration
 
 end

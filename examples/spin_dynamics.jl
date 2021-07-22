@@ -22,8 +22,7 @@ const lattice = Lattice(
 const J = 2.0
 const field = ExternalField([0.0, 0.0, 1.0])
 const pair_int = PairInteraction(J, 1, nothing, lattice)
-# const interactions = [pair_int, field]
-const interactions = [pair_int]
+const interactions = [pair_int, field]
 
 # Instantiate the system
 system = SpinSystem(lattice, interactions)
@@ -38,12 +37,14 @@ energies = Vector{Float64}()
 integrator = SpinHeunP(system)
 for it in 1:NITERS
     evolve!(integrator, Δt)
-
     # Compute the energy
     push!(energies, energy(system))
 end
 
-using Plots
-pyplot()
+# Check that the energy hasn't fluctuated much
+ΔE = maximum(energies) - minimum(energies)
+println("After $(NITERS) iterations with Δt = $(Δt), observed ΔE = $(ΔE).")
 
-plot(energies)
+println("Animating further integration...")
+live_integration(system, 100, Δt)
+
