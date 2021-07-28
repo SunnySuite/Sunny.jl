@@ -186,7 +186,7 @@ function anim_integration(
     display(fig)
 
     framerate = 30
-    integrator = SpinHeunP(sys)
+    integrator = HeunP(sys)
 
     GLMakie.record(fig, fname, 1:nframes; framerate=framerate) do frame
         for step in 1:steps_per_frame
@@ -221,7 +221,7 @@ function anim_integration(
     display(fig)
 
     framerate = 30
-    integrator = SpinHeunP(sys)
+    integrator = HeunP(sys)
 
     GLMakie.record(fig, fname, 1:nframes; framerate=framerate) do frame
         for step in 1:steps_per_frame
@@ -256,7 +256,7 @@ function live_integration(
     display(fig)
 
     framerate = 30
-    integrator = SpinHeunP(sys)
+    integrator = HeunP(sys)
 
     while true
         for step in 1:steps_per_frame
@@ -292,7 +292,7 @@ function live_integration(
     display(fig)
 
     framerate = 30
-    integrator = SpinHeunP(sys)
+    integrator = HeunP(sys)
 
     while true
         for step in 1:steps_per_frame

@@ -86,10 +86,16 @@ end
 end
 
 # TODO: Should just be another Lattice
+# TODO: Potentially confusing. These are the reciprocal lattice vectors
+#        for the whole box, repeating in space. This is what Ewald wants.
+#       However, we want the reciprocal vectors for the underlying (smaller)
+#        bravais cell for structure factor calculations.
+#       These differ just by a scale factor, but need to decide which
+#        convention the struct uses. (Probably the latter.)
 "Defines a reciprocal lattice structure"
 struct ReciprocalLattice{D, L}
-    lat_vecs     :: SMatrix{D, D, Float64, L}     # Columns of this are the reciprocal lattice vectors
-    size         :: SVector{D, Int}
+    lat_vecs  :: SMatrix{D, D, Float64, L}     # Columns of this are the reciprocal lattice vectors
+    size      :: SVector{D, Int}
 end
 
 function Base.eachindex(lat::ReciprocalLattice) :: CartesianIndices
@@ -98,7 +104,7 @@ end
 
 "Generates a reciprocal lattice from a real-space Lattice"
 function gen_reciprocal(lat::Lattice) :: ReciprocalLattice
-    recip_vecs = 2π * transpose(inv(lat.lat_vecs)) ./ lat.size
+    recip_vecs = 2π * transpose(inv(lat.lat_vecs))
     return ReciprocalLattice(recip_vecs, lat.size)
 end
 
@@ -109,4 +115,58 @@ function brav_lattice(lat::Lattice{D}) :: Lattice{D} where {D}
         [@SVector zeros(D)],
         lat.size
     )
+end
+
+""" Some functions which construct common lattices
+"""
+
+function cubic_lattice(::Val{D}, a::Float64, latsize) :: Lattice{D} where {D}
+    lat_vecs = SA[ a  0.0 0.0;
+                  0.0  a  0.0;
+                  0.0 0.0  a ]
+    basis_vecs = [SA[0.0, 0.0, 0.0]]
+    latsize = SVector{D, Int}(latsize)
+    Lattice{D, D*D, D+1}(lat_vecs, basis_vecs, latsize)
+end
+
+function diamond_lattice(a::Float64, latsize) :: Lattice{3, 9, 4}
+    lat_vecs = SA[ 4a 0.0 0.0;
+                  0.0  4a 0.0;
+                  0.0 0.0  4a]
+    basis_vecs = [
+        SA[0.0, 0.0, 0.0],
+        SA[0.0,  2a,  2a],
+        SA[ 2a, 0.0,  2a],
+        SA[ 2a,  2a, 0.0],
+        SA[ 3a,  3a,  3a],
+        SA[ 3a,   a,   a],
+        SA[  a,  3a,   a],
+        SA[  a    a   3a]
+    ]
+    latsize = SVector{3, Int}(latsize)
+    Lattice{3, 9, 4}(lat_vecs, basis_vecs, latsize)
+end
+
+function diamond_lattice2(a::Float64, latsize) :: Lattice{3, 9, 4}
+    lat_vecs = SA[a/2 a/2 0.0;
+                  a/2 0.0 a/2;
+                  0.0 a/2 a/2]
+    basis_vecs = [
+        SA[0.0, 0.0, 0.0],
+        SA[0.25a, 0.25a, 0.25a],
+    ]
+    latsize = SVector{3, Int}(latsize)
+    Lattice{3, 9, 4}(lat_vecs, basis_vecs, latsize)
+end
+
+function kagome_lattice(a::Float64, latsize) :: Lattice{2, 4, 3}
+    lat_vecs = SA[   a  0.0 ;
+                  0.5a √3a/2]
+    basis_vecs = [
+        SA[0.0,     0.0],
+        SA[0.5a,    0.0],
+        SA[0.25a, √3a/4]
+    ]
+    latsize = SVector{2, Int}(latsize)
+    Lattice{2, 4, 3}(lat_vecs, basis_vecs, latsize)
 end

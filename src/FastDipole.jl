@@ -7,6 +7,7 @@ using TOML
 using SpecialFunctions
 using Parameters
 using FFTW
+import Random
 
 include("Util.jl")
 
@@ -30,10 +31,13 @@ export contract_monopole_compressed, contract_dipole_compressed
 include("FourierAccel.jl")
 
 include("Integrators.jl")
-export SpinHeunP, evolve!
+export HeunP, HeunP2, LangevinHeunP, evolve!
 
 include("Parsing.jl")
 export parse_config
+
+include("StructureFactors.jl")
+export diag_structure_factor
 
 include("Plotting.jl")
 export plot_lattice, plot_spins, anim_integration, live_integration

@@ -39,3 +39,14 @@ function rot_matrix(n::Vector{Float64}, θ::Float64)
          [(nz * nx * (1 - cθ) - ny * sθ) (nz * ny * (1 - cθ) + nx * sθ) (cθ + nz * nz * (1 - cθ))]]
     return R
 end
+
+"Reinterprets an array of Vec3 to an equivalent array of Float64"
+@inline function _reinterpret_spin_array(A::Array{Vec3}) :: Array{Float64}
+    Ar = reinterpret(reshape, Float64, A)
+end
+
+"Reinterprets an array of Mat3 to an equivalent array of Float64"
+@inline function _reinterpret_dipole_tensor(A::OffsetArray{Mat3}) :: Array{Float64}
+    Ar = reinterpret(reshape, Float64, parent(A))
+    return reshape(Ar, 3, 3, size(A)...)
+end

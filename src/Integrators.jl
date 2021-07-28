@@ -8,41 +8,101 @@
 
 abstract type Integrator end
 
-mutable struct SpinHeunP{D, L, Db} <: Integrator
+"Integrator for a 2nd-order energy-conserving Heun + projection scheme"
+mutable struct HeunP{D, L, Db} <: Integrator
     sys :: SpinSystem{D, L, Db}
     _S₁ :: Array{Vec3, Db}
     _S₂ :: Array{Vec3, Db}
-    _H₁ :: Array{Vec3, Db}
-    _H₂ :: Array{Vec3, Db}
+    _B  :: Array{Vec3, Db}
     _f₁ :: Array{Vec3, Db}
 end
 
-function SpinHeunP(sys::SpinSystem)
-    return SpinHeunP(
-        sys, zero(sys.sites), zero(sys.sites), zero(sys.sites),
+"Integrator implementing Langevin dynamics using a 2nd-order Heun + projection scheme"
+mutable struct LangevinHeunP{D, L, Db} <: Integrator
+    α   :: Float64                # Normalized damping, α/S
+    D   :: Float64                # Langevin stochastic coefficient
+    sys :: SpinSystem{D, L, Db}
+    _S₁ :: Array{Vec3, Db}        # Intermediate integration variable space
+    _S₂ :: Array{Vec3, Db}
+    _B  :: Array{Vec3, Db}
+    _f₁ :: Array{Vec3, Db}
+    _r₁ :: Array{Vec3, Db}
+    _ξ  :: Array{Vec3, Db}
+end
+
+"""
+    HeunP(sys)
+"""
+function HeunP(sys::SpinSystem)
+    return HeunP(
+        sys, zero(sys.sites), zero(sys.sites),
         zero(sys.sites), zero(sys.sites),
     )
 end
 
+"""
+    LangevinHeunP(sys, kT, α)
 
-function evolve!(integrator::SpinHeunP, Δt::Float64)
-    @unpack sys, _S₁, _S₂, _H₁, _H₂, _f₁ = integrator
+Implements Langevin dynamics on `sys` targetting a temperature `kT`,
+ with a damping coefficient `α`. Provided `α` should not be normalized
+ by the spin magnitude -- this is done internally.
+"""
+function LangevinHeunP(sys::SpinSystem, kT::Float64, α::Float64)
+    # D should also have a factor of 1/S, the magnitude of the spin. Assumed here 1.
+    return LangevinHeunP(
+        α/sys.S, α*kT/((1+α*α)*sys.S), sys,
+        zero(sys.sites), zero(sys.sites), zero(sys.sites),
+        zero(sys.sites), zero(sys.sites), zero(sys.sites)
+    )
+end
+
+
+@inline f(S, B) = -S × B
+@inline f(S, B, α) = -S × (B + α * (S × B))
+
+"""
+    evolve!(integrator, Δt)
+
+Performs a single integrator timestep of size Δt.
+"""
+function evolve!(integrator::HeunP, Δt::Float64)
+    @unpack sys, _S₁, _S₂, _B, _f₁ = integrator
+    S = sys.sites
+    
     # Euler step
-    field!(_H₁, sys.sites, sys.interactions)
-    for idx in eachindex(sys)
-        _f₁[idx] = -sys[idx] × _H₁[idx]
-        _S₁[idx] = sys[idx] + Δt * _f₁[idx]
-    end
+    field!(_B, S, sys.interactions)
+    @. _f₁ = f(S, _B)
+    @. _S₁ = S + Δt * _f₁
 
     # Corrector step
-    field!(_H₂, _S₁, sys.interactions)
-    for idx in eachindex(sys)
-        f₂ = -_S₁[idx] × _H₂[idx]
-        S₂ = sys[idx] + 0.5 * Δt * (_f₁[idx] + f₂)
-        S₂ = S₂ / norm(S₂)
-        _S₂[idx] = S₂
-    end
+    field!(_B, _S₁, sys.interactions)
+    @. _S₂ = S + 0.5 * Δt * (_f₁ + f(_S₁, _B))
+    @. _S₂ /= norm(_S₂)
 
     # Swap buffers
     sys.sites, integrator._S₂ = integrator._S₂, sys.sites
+    nothing
+end
+
+function evolve!(integrator::LangevinHeunP, Δt::Float64)
+    @unpack α, D, sys, _S₁, _S₂, _B, _f₁, _r₁, _ξ = integrator
+    S = sys.sites
+
+    Random.randn!(_ξ)
+    _ξ .*= √(2D)
+
+    # Euler step
+    field!(_B, S, sys.interactions)
+    @. _f₁ = f(S, _B, α)
+    @. _r₁ = f(S, _ξ, α)
+    @. _S₁ = S + Δt * _f₁ + √Δt * _r₁
+
+    # Corrector step
+    field!(_B, _S₁, sys.interactions)
+    @. _S₂ = S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ, α))
+    @. _S₂ /= norm(_S₂)
+
+    # Swap buffers
+    sys.sites, integrator._S₂ = integrator._S₂, sys.sites
+    nothing
 end

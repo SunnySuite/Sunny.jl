@@ -25,6 +25,9 @@ function ewald_sum_monopole(sys::ChargeSystem{D, L, Db}; η=1.0, extent=5) :: Fl
     @unpack sites, lattice = sys
 
     recip = gen_reciprocal(lattice)
+    # Rescale vectors to be reciprocal vectors of entire simulation box
+    recip = ReciprocalLattice(recip.lat_vecs ./ lattice.size', recip.size)
+
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
@@ -140,6 +143,9 @@ function ewald_sum_dipole(sys::SpinSystem{D, L, Db}; extent=2, η=1.0) :: Float6
     @unpack sites, lattice = sys
 
     recip = gen_reciprocal(lattice)
+    # Rescale vectors to be reciprocal vectors of entire simulation box
+    recip = ReciprocalLattice(recip.lat_vecs ./ lattice.size', recip.size)
+    
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
@@ -216,6 +222,8 @@ function precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Of
     delta_idxs = CartesianIndices(ntuple(n->-(lattice.size[n]-1):(lattice.size[n]-1), Val(D)))
 
     recip = gen_reciprocal(lattice)
+    # Rescale vectors to be reciprocal vectors of entire simulation box
+    recip = ReciprocalLattice(recip.lat_vecs ./ lattice.size', recip.size)
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
@@ -313,6 +321,8 @@ function precompute_dipole_ewald(lattice::Lattice{D, L, Db}; extent=10, η=1.0) 
     delta_idxs = CartesianIndices(ntuple(n->-(lattice.size[n]-1):(lattice.size[n]-1), Val(D)))
 
     recip = gen_reciprocal(lattice)
+    # Rescale vectors to be reciprocal vectors of entire simulation box
+    recip = ReciprocalLattice(recip.lat_vecs ./ lattice.size', recip.size)
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
@@ -399,6 +409,8 @@ function precompute_dipole_ewald_c(lattice::Lattice{D, L, Db}; extent=10, η=1.0
     delta_idxs = bravindexes(lattice) .- one(CartesianIndex{D})
 
     recip = gen_reciprocal(lattice)
+    # Rescale vectors to be reciprocal vectors of entire simulation box
+    recip = ReciprocalLattice(recip.lat_vecs ./ lattice.size', recip.size)
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs

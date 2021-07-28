@@ -23,11 +23,11 @@ mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{Float64, D, L, Db}
     sites         :: Array{Float64, Db}
 end
 
-# TODO: Comments, explicit examples
 mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
-    lattice        :: Lattice{D, L, Db}
-    interactions   :: Vector{Interaction}
-    sites          :: Array{Vec3, Db}
+    lattice        :: Lattice{D, L, Db}   # Definition of underlying lattice
+    interactions   :: Vector{Interaction} # List of interactions in ℋ
+    sites          :: Array{Vec3, Db}     # Holds actual spin variables
+    S              :: Rational{Int}       # Spin magnitude
 end
 
 function ChargeSystem(lat::Lattice)
@@ -43,16 +43,20 @@ function rand!(sys::ChargeSystem)
     sys.sites .-= sum(sys.sites) / length(sys.sites)
 end
 
-function SpinSystem(lat::Lattice, ints::Vector{I}) where {I <: Interaction}
+function SpinSystem(lat::Lattice, ints::Vector{I}, S::Rational{Int}) where {I <: Interaction}
     # Initialize sites based on lattice geometry - initialized to all spins along +z
     sites_size = (length(lat.basis_vecs), lat.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
     ints = convert(Vector{Interaction}, ints)
-    return SpinSystem(lat, ints, sites)
+    return SpinSystem(lat, ints, sites, S)
+end
+
+function SpinSystem(lat::Lattice, ints::Vector{I}) where {I <: Interaction}
+    return SpinSystem(lat, ints, 1//1)
 end
 
 function SpinSystem(lat::Lattice)
-    return SpinSystem(lat, Vector{Interaction}())
+    return SpinSystem(lat, Vector{Interaction}(), 1//1)
 end
 
 "Sets spins randomly sampled on the unit sphere."
@@ -72,7 +76,7 @@ function energy(sys::SpinSystem, field::ExternalField)
     for S in sys
         E += S ⋅ B
     end
-    return E
+    return -E
 end
 
 function energy(sys::SpinSystem, pairint::PairInteraction)
@@ -126,7 +130,7 @@ end
     for idx in CartesianIndices(spins)
         b = idx[1]
         for offset in pairint._pair_offsets[b]
-            H[idx] = H[idx] + pairint.strength * spins[modc1(idx + offset, syssize)]
+            H[idx] = H[idx] - pairint.strength * spins[modc1(idx + offset, syssize)]
         end
     end
 end

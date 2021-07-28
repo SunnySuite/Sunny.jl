@@ -34,7 +34,7 @@ const NITERS = 10000
 const Δt     = 0.001
 energies = Vector{Float64}()
 
-integrator = SpinHeunP(system)
+integrator = HeunP(system)
 for it in 1:NITERS
     evolve!(integrator, Δt)
     # Compute the energy

@@ -1,11 +1,5 @@
 "Functions for computing energies in Fourier space. All functions expect ±-compressed interaction tensors."
 
-"Reinterprets an array of 3x3 SMatrix to an equivalent array of Float64"
-function _reinterpret_dipole_tensor(A::OffsetArray{Mat3}) :: Array{Float64}
-    Ar = reinterpret(reshape, Float64, parent(A))
-    return reshape(Ar, 3, 3, size(A)...)
-end
-
 "Computes the Fourier transform of a (spatially compressed) dipole interaction matrix"
 function _rfft_dipole_tensor(A::OffsetArray{Mat3}) :: Array{Complex{Float64}}
     A = _reinterpret_dipole_tensor(A)
