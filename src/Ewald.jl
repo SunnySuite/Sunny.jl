@@ -1,4 +1,4 @@
-""" Implements Ewald summation rules for monopoles and dipoles on lattices
+""" Implements Ewald summation rules for monopoles and dipoles on 3D lattices
 """
 
 import Base.Cartesian.@ntuple
@@ -19,8 +19,8 @@ Specifically, computes:
       - \frac{π}{2Vη^2}Q^2 - \frac{η}{\sqrt{π}} \sum_{i} q_i^2
 ```
 """
-function ewald_sum_monopole(sys::ChargeSystem{D, L, Db}; η=1.0, extent=5) :: Float64 where {D, L, Db}
-    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
+function ewald_sum_monopole(sys::ChargeSystem{3}; η=1.0, extent=5) :: Float64
+    extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
 
     @unpack sites, lattice = sys
 
@@ -38,8 +38,8 @@ function ewald_sum_monopole(sys::ChargeSystem{D, L, Db}; η=1.0, extent=5) :: Fl
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum, recip_site_sum = 0.0, 0.0
 
-    n = @MVector zeros(D)
-    k = @MVector zeros(D)
+    n = @MVector zeros(3)
+    k = @MVector zeros(3)
 
     for idx1 in eachindex(lattice)
         rᵢ = lattice[idx1]
@@ -84,21 +84,18 @@ function ewald_sum_monopole(sys::ChargeSystem{D, L, Db}; η=1.0, extent=5) :: Fl
     return 0.5 * real_space_sum + 2π / vol * real(recip_space_sum) + tot_charge_term + charge_square_term
 end
 
-function direct_sum_monopole(sys::ChargeSystem{D}; s=0.0, extent=5) :: Float64 where {D}
-    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
+function direct_sum_monopole(sys::ChargeSystem{3}; s=0.0, extent=5) :: Float64
+    extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
 
     @unpack sites, lattice = sys
-    dim = length(lattice.size)
 
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
 
-    brav_sites = view(sites, fill(:, D)..., 1)
-
     real_space_sum = 0.0
     real_site_sum = 0.0
 
-    n = @MVector zeros(D)
+    n = @MVector zeros(3)
 
     for idx1 in eachindex(lattice)
         rᵢ = lattice[idx1]
@@ -137,8 +134,8 @@ end
 Performs ewald summation to calculate the potential energy of a 
 system of dipoles with PBC.
 """
-function ewald_sum_dipole(sys::SpinSystem{D, L, Db}; extent=2, η=1.0) :: Float64 where {D, L, Db}
-    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
+function ewald_sum_dipole(sys::SpinSystem{3}; extent=2, η=1.0) :: Float64
+    extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
 
     @unpack sites, lattice = sys
 
@@ -155,8 +152,8 @@ function ewald_sum_dipole(sys::SpinSystem{D, L, Db}; extent=2, η=1.0) :: Float6
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum = 0.0
 
-    n = @MVector zeros(D)
-    k = @MVector zeros(D)
+    n = @MVector zeros(3)
+    k = @MVector zeros(3)
 
     for idx1 in eachindex(lattice)
         @inbounds rᵢ = lattice[idx1]
@@ -213,13 +210,13 @@ function ewald_sum_dipole(sys::SpinSystem{D, L, Db}; extent=2, η=1.0) :: Float6
     return 0.5 * real_space_sum + 2π / vol * real(recip_space_sum) + dip_square_term
 end
 
-function precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: OffsetArray{Float64} where {D}
+function precompute_monopole_ewald(lattice::Lattice{3}; extent=10, η=1.0) :: OffsetArray{5, Float64} where {D}
     nb = length(lattice.basis_vecs)
     A = zeros(Float64, nb, nb, map(n->2*(n-1)+1, lattice.size)...)
     A = OffsetArray(A, 1:nb, 1:nb, map(n->-(n-1):n-1, lattice.size)...)
 
-    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
-    delta_idxs = CartesianIndices(ntuple(n->-(lattice.size[n]-1):(lattice.size[n]-1), Val(D)))
+    extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
+    delta_idxs = CartesianIndices(ntuple(n->-(lattice.size[n]-1):(lattice.size[n]-1), Val(3)))
 
     recip = gen_reciprocal(lattice)
     # Rescale vectors to be reciprocal vectors of entire simulation box
@@ -239,14 +236,14 @@ function precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Of
     # Handle charge-squared and total charge terms
     A .+= -π / (2 * vol * η^2)
     for i in 1:nb
-        @inbounds A[i, i, zero(CartesianIndex{D})] += -η / √π
+        @inbounds A[i, i, 0, 0, 0] += -η / √π
     end
 
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum, recip_site_sum = 0.0, 0.0
 
-    n = @MVector zeros(D)
-    k = @MVector zeros(D)
+    n = @MVector zeros(3)
+    k = @MVector zeros(3)
 
     for idx in delta_idxs
         for b1 in 1:nb
@@ -269,7 +266,6 @@ function precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Of
                     dist = norm(rᵢⱼ + n)
                     real_site_sum += erfc(η * dist) / dist
                 end
-                # @inbounds A_N[i, j, 1, 1] += 0.5 * real_site_sum
                 @inbounds A[b2, b1, idx] += 0.5 * real_site_sum
 
                 # Reciprocal-space sum
@@ -284,7 +280,6 @@ function precompute_monopole_ewald(lattice::Lattice{D}; extent=10, η=1.0) :: Of
                     end
                     recip_site_sum += exp(-k2 / 4η^2) * cos(k ⋅ rᵢⱼ) / k2
                 end
-                # @inbounds A_N[i, j, 1, 1] += 2π / vol * recip_site_sum
                 @inbounds A[b2, b1, idx] += 2π / vol * recip_site_sum
             end
         end
@@ -312,13 +307,13 @@ end
 
 
 "Precompute the dipole interaction matrix"
-function precompute_dipole_ewald(lattice::Lattice{D, L, Db}; extent=10, η=1.0) :: OffsetArray{SMatrix{3, 3, Float64, 9}} where {D, L, Db}
+function precompute_dipole_ewald(lattice::Lattice{3}; extent=10, η=1.0) :: OffsetArray{Mat3, 5} where {D, L, Db}
     nb = length(lattice.basis_vecs)
-    A = zeros(SMatrix{3, 3, Float64, 9}, nb, nb, map(n->2*(n-1)+1, lattice.size)...)
+    A = zeros(Mat3, nb, nb, map(n->2*(n-1)+1, lattice.size)...)
     A = OffsetArray(A, 1:nb, 1:nb, map(n->-(n-1):n-1, lattice.size)...)
 
-    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
-    delta_idxs = CartesianIndices(ntuple(n->-(lattice.size[n]-1):(lattice.size[n]-1), Val(D)))
+    extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
+    delta_idxs = CartesianIndices(ntuple(n->-(lattice.size[n]-1):(lattice.size[n]-1), Val(3)))
 
     recip = gen_reciprocal(lattice)
     # Rescale vectors to be reciprocal vectors of entire simulation box
@@ -327,7 +322,7 @@ function precompute_dipole_ewald(lattice::Lattice{D, L, Db}; extent=10, η=1.0) 
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
 
-    iden = SMatrix{3, 3, Float64, 9}(diagm(ones(3)))
+    iden = Mat3(diagm(ones(3)))
 
     # Put the dipole-squared term on the zero-difference matrix
     for i in 1:nb
@@ -337,8 +332,8 @@ function precompute_dipole_ewald(lattice::Lattice{D, L, Db}; extent=10, η=1.0) 
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum = 0.0
 
-    n = @MVector zeros(D)
-    k = @MVector zeros(D)
+    n = @MVector zeros(3)
+    k = @MVector zeros(3)
     real_tensor = @MMatrix zeros(3, 3)
     recip_tensor = @MMatrix zeros(3, 3)
 
@@ -400,13 +395,13 @@ function precompute_dipole_ewald(lattice::Lattice{D, L, Db}; extent=10, η=1.0) 
 end
 
 "Precompute the dipole interaction matrix, in ± compressed form."
-function precompute_dipole_ewald_c(lattice::Lattice{D, L, Db}; extent=10, η=1.0) :: OffsetArray{SMatrix{3, 3, Float64, 9}} where {D, L, Db}
+function precompute_dipole_ewald_c(lattice::Lattice{3}; extent=3, η=1.0) :: OffsetArray{Mat3, 5}
     nb = nbasis(lattice)
-    A = zeros(SMatrix{3, 3, Float64, 9}, nb, nb, lattice.size...)
+    A = zeros(Mat3, nb, nb, lattice.size...)
     A = OffsetArray(A, 1:nb, 1:nb, map(n->0:n-1, lattice.size)...)
 
-    extent_idxs = CartesianIndices(ntuple(_->-extent:extent, Val(D)))
-    delta_idxs = bravindexes(lattice) .- one(CartesianIndex{D})
+    extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
+    delta_idxs = bravindexes(lattice) .- one(CartesianIndex{3})
 
     recip = gen_reciprocal(lattice)
     # Rescale vectors to be reciprocal vectors of entire simulation box
@@ -415,7 +410,7 @@ function precompute_dipole_ewald_c(lattice::Lattice{D, L, Db}; extent=10, η=1.0
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
 
-    iden = SMatrix{3, 3, Float64, 9}(diagm(ones(3)))
+    iden = Mat3(diagm(ones(3)))
 
     # Put the dipole-squared term on the zero-difference matrix
     for i in 1:nb
@@ -425,8 +420,8 @@ function precompute_dipole_ewald_c(lattice::Lattice{D, L, Db}; extent=10, η=1.0
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum = 0.0
 
-    n = @MVector zeros(D)
-    k = @MVector zeros(D)
+    n = @MVector zeros(3)
+    k = @MVector zeros(3)
     real_tensor = @MMatrix zeros(3, 3)
     recip_tensor = @MMatrix zeros(3, 3)
 
@@ -488,7 +483,7 @@ function precompute_dipole_ewald_c(lattice::Lattice{D, L, Db}; extent=10, η=1.0
 end
 
 "Contracts a system of dipoles with a precomputed interaction tensor A"
-function contract_dipole(sys::SpinSystem, A::OffsetArray{SMatrix{3, 3, Float64, 9}}) :: Float64
+function contract_dipole(sys::SpinSystem{3}, A::OffsetArray{Mat3, 5}) :: Float64
     nb = length(sys.lattice.basis_vecs)
     U = 0.0
     for i in bravindexes(sys.lattice)
@@ -506,7 +501,7 @@ function contract_dipole(sys::SpinSystem, A::OffsetArray{SMatrix{3, 3, Float64, 
 end
 
 "Contracts a system of dipoles with a precomputed interaction tensor A, in ± compressed format"
-function contract_dipole_c(sys::SpinSystem, A::OffsetArray{SMatrix{3, 3, Float64, 9}}) :: Float64
+function contract_dipole_c(sys::SpinSystem{3}, A::OffsetArray{Mat3, 5}) :: Float64
     nb = nbasis(sys.lattice)
     U = 0.0
     for i in bravindexes(sys.lattice)
@@ -580,3 +575,40 @@ function test_compression(A, Acomp)
         end
     end
 end
+
+function energy(sys::SpinSystem, dip::DipoleReal)
+    return dip.strength * ewald_sum_dipole(sys; extent=dip.extent, η=dip.η)
+end
+
+function DipoleRealPre(strength::Float64, lattice::Lattice{3}; extent::Int=4, η::Float64=0.5)
+    return DipoleRealPre(strength .* precompute_dipole_ewald_c(lattice; extent=extent, η=η))
+end
+
+function energy(sys::SpinSystem{3}, dip::DipoleRealPre)
+    return contract_dipole_c(sys, dip.int_mat)
+end
+
+function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleRealPre)
+    A = dip.int_mat
+    nb = size(spins, 1)
+    syssize = size(spins)[2:end]
+
+    for j in CartesianIndices(syssize)
+        for jb in 1:nb
+            @inbounds pⱼ = spins[jb, j]
+            for i in CartesianIndices(syssize)
+                for ib in 1:nb
+                    @inbounds H[ib, i] = H[ib, i] - 2 * (A[ib, jb, modc(i - j, syssize)] * pⱼ)
+                end
+            end
+        end
+    end
+end
+
+## Equivalent, but actually slower, at least on small system sizes. Maybe test for larger systems?
+# function _accum_field_tullio!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleRealPre)
+#     A = dip.int_mat
+#     nb = size(spins, 1)
+
+#     @inbounds @tullio grad=false H[b, i, j, k] = H[b, i, j, k] - 2 * A[b, bb, mod(i-ii), mod(j-jj), mod(k-kk)] * spins[bb, ii, jj, kk]
+# end

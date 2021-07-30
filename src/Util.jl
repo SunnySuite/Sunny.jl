@@ -40,9 +40,18 @@ function rot_matrix(n::Vector{Float64}, θ::Float64)
     return R
 end
 
+
+# For efficiency, may need to look into Base.unsafe_wrap
+#   and pointer trickery if we want to stick with Vec3.
+
 "Reinterprets an array of Vec3 to an equivalent array of Float64"
-@inline function _reinterpret_spin_array(A::Array{Vec3}) :: Array{Float64}
+@inline function _reinterpret_from_spin_array(A::Array{Vec3}) :: Array{Float64}
     Ar = reinterpret(reshape, Float64, A)
+end
+
+"Reinterprets an array of Floats with leading dimension 3 to an array of Vec3"
+@inline function _reinterpret_to_spin_array(A::Array{Float64}) :: Array{Vec3}
+    Ar = reinterpret(reshape, Vec3, A)
 end
 
 "Reinterprets an array of Mat3 to an equivalent array of Float64"

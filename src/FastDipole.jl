@@ -7,6 +7,7 @@ using TOML
 using SpecialFunctions
 using Parameters
 using FFTW
+using Tullio
 import Random
 
 include("Util.jl")
@@ -17,6 +18,7 @@ export volume, bravindexes, gen_reciprocal
 
 include("Interactions.jl")
 export ExternalField, PairInteraction, EasyAxis, DMInteraction
+export DipoleReal, DipoleRealPre, DipoleFourier
 
 include("Systems.jl")
 export ChargeSystem, SpinSystem, rand!, energy

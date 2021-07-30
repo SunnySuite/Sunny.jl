@@ -98,10 +98,7 @@ end
 # TODO: This is costing duplicating the lattice loop logic times the number of interactions
 # However, if I invert the loop order, then I pay the dispatch cost once per lattice site.
 @inline function field!(H::Array{Vec3}, sys::SpinSystem)
-    fill!(H, SA[0.0, 0.0, 0.0])
-    for interaction in sys.interactions
-        _accum_field!(H, sys.sites, interaction)
-    end
+    field!(H, sys.sites, sys.interactions)
 end
 
 @inline function field!(H::Array{Vec3}, spins::Array{Vec3}, interactions::Vector{Interaction})

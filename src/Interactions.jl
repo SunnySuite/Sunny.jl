@@ -133,14 +133,33 @@ struct DMInteraction{Db} <: Interaction
     _fpair_offsets :: NeighborOffsets{Db}
 end
 
-# Dipole-dipole interactions computed in real space
+# Dipole-dipole interactions computed in real space,
+#   with no pre-computation of an interaction tensor.
 struct DipoleReal <: Interaction
-    strength :: Float64
+    strength :: Float64     # Coefficient on this interaction
+    extent   :: Int         # How many unit cells to sum outwards in Ewald
+    η        :: Float64     # Ewald parameter η, controlling real-reciprocal tradeoff
 end
 
-# Dipole-dipole interactions computed in Fourier space
+# Dipole-dipole interactions computed in real 3D space,
+#   using a pre-computed interaction tensor.
+struct DipoleRealPre <: Interaction
+    int_mat :: OffsetArray{Mat3, 5, Array{Mat3, 5}}
+end
+
+# FFTW types for various relevant Fourier transform plans
+const FTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
+const BFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
+const IFTPlan = AbstractFFTs.ScaledPlan{ComplexF64, BFTPlan, Float64}
+
+# Dipole-dipole interactions computed in Fourier-space
 struct DipoleFourier <: Interaction
-    strength :: Float64
+    int_mat     :: Array{ComplexF64, 7}
+    _spins_ft   :: Array{ComplexF64, 5}  # Space for Fourier-transforming spins
+    _field_ft   :: Array{ComplexF64, 5}  # Space for holding Fourier-transformed fields
+    _field_real :: Array{Float64, 5}     # Space for holding IFT-transformed fields
+    _plan       :: FTPlan
+    _ift_plan   :: IFTPlan
 end
 
 # TODO: Use a type like this, might play better with dispatch in loops
@@ -150,5 +169,5 @@ struct Hamiltonian{Db}
     pair_ints  :: Union{Nothing, Vector{PairInteraction{Db}}}
     easy_ax    :: Union{Nothing, EasyAxis}
     dm_ints    :: Union{Nothing, Vector{DMInteraction{Db}}}
-    dipole_int :: Union{Nothing, DipoleReal, DipoleFourier}
+    dipole_int :: Union{Nothing, DipoleReal, DipoleRealPre, DipoleFourier}
 end

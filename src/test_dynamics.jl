@@ -3,7 +3,7 @@ using LaTeXStrings
 using Plots
 pyplot()
 
-"Tests that HeunP does indeed conserve energy to certain tolerance."
+"Tests that HeunP does indeed conserve energy for simple forces to a certain tolerance."
 function test_heunp()
     lat_vecs = SA[1.0 0   0;
                   0   1.0 0;
@@ -37,6 +37,72 @@ function test_heunp()
     @assert ΔE < 1e-4
 end
 
+"Tests that HeunP does indeed conserve energy for dipole forces to a certain tolerance."
+function test_heunp_dipole()
+    lat_vecs = SA[1.0 0   0;
+                  0   1.0 0;
+                  0   0   1.0]
+    b_vecs = [SA[0.,  0.,  0.],
+              SA[0.5, 0.5, 0.5]]
+    latsize = SA[5, 5, 5]
+    lattice = Lattice(lat_vecs, b_vecs, latsize)
+
+    J = 0.01
+    dipole = DipoleRealPre(J, lattice)
+    interactions = [dipole]
+
+    sys = SpinSystem(lattice, interactions)
+    rand!(sys)
+
+    NITERS = 10000
+    Δt     = 0.001
+    energies = Vector{Float64}()
+
+    integrator = HeunP(sys)
+    for it in 1:NITERS
+        evolve!(integrator, Δt)
+        # Compute the energy
+        push!(energies, energy(sys))
+    end
+
+    # Check that the energy hasn't fluctuated much
+    ΔE = maximum(energies) - minimum(energies)
+    @assert ΔE < 1e-4
+end
+
+"Tests that HeunP does indeed conserve energy for dipole forces (w/ Fourier) to a certain tolerance."
+function test_heunp_dipole_ft()
+    lat_vecs = SA[1.0 0   0;
+                  0   1.0 0;
+                  0   0   1.0]
+    b_vecs = [SA[0.,  0.,  0.],
+              SA[0.5, 0.5, 0.5]]
+    latsize = SA[5, 5, 5]
+    lattice = Lattice(lat_vecs, b_vecs, latsize)
+
+    J = 1.0
+    dipole = DipoleFourier(J, lattice)
+    interactions = [dipole]
+
+    sys = SpinSystem(lattice, interactions)
+    rand!(sys)
+
+    NITERS = 10000
+    Δt     = 0.001
+    energies = Vector{Float64}()
+
+    integrator = HeunP(sys)
+    for it in 1:NITERS
+        evolve!(integrator, Δt)
+        # Compute the energy
+        push!(energies, energy(sys))
+    end
+
+    # Check that the energy hasn't fluctuated much
+    ΔE = maximum(energies) - minimum(energies)
+    @assert ΔE < 1e-4
+end
+
 "Produces the energy trajectory across LangevinHeunP integration"
 function test_langevin_heunp()
     lat_vecs = SA[1.0 0   0;
@@ -47,7 +113,7 @@ function test_langevin_heunp()
     latsize = SA[5, 5, 5]
     lattice = Lattice(lat_vecs, b_vecs, latsize)
 
-    J = 2.0
+    J = 1.0
     field = ExternalField([0.0, 0.0, 1.0])
     pair_int = PairInteraction(J, 1, nothing, lattice)
     interactions = [pair_int, field]

@@ -28,7 +28,7 @@ function _fft_spin_traj(
 
     # Reinterpret array to add the spin dimension explicitly
     # Now of shape [3, B, D1, ..., Dd, T]
-    spin_traj = _reinterpret_spin_array(spin_traj)
+    spin_traj = _reinterpret_from_spin_array(spin_traj)
 
     # FFT along the D spatial indices, and the T time index
     if isnothing(plan)
@@ -108,7 +108,7 @@ function _fft_spin_traj!(
 end
 
 function _plan_spintraj_fft(spin_traj::Array{Vec3})
-    spin_traj = _reinterpret_spin_array(spin_traj)
+    spin_traj = _reinterpret_from_spin_array(spin_traj)
     return plan_fft(spin_traj, 3:ndims(spin_traj))
 end
 
@@ -161,7 +161,7 @@ function diag_structure_factor(
             evolve!(integrator, measureΔt)
             if t % collect_steps == 1
                 ns = div(t, collect_steps) + 1
-                selectdim(spin_traj, ndims(spin_traj), ns) .= _reinterpret_spin_array(sys.sites)
+                selectdim(spin_traj, ndims(spin_traj), ns) .= _reinterpret_from_spin_array(sys.sites)
             end
         end
 
