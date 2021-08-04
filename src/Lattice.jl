@@ -33,12 +33,12 @@ end
 
 # Calculation taken from the _cell function of the TRI class of:
 #  https://wiki.fysik.dtu.dk/ase/_modules/ase/lattice.html#BravaisLattice
-"Specify a 3D Bravais Lattice by the lattice vector lengths and angles"
+"Specify a 3D Bravais Lattice by the lattice vector lengths and angles (in degrees)"
 function Lattice(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64, size::Vector{Int})
-    @assert all(map(x->0 < x ≤ π/2, (α, β, γ)))
+    @assert all(map(x->0. < x ≤ 180., (α, β, γ)))
 
-    sγ, cγ = sin(γ), cos(γ)
-    cβ, cα = cos(β), cos(α)
+    sγ, cγ = sind(γ), cosd(γ)
+    cβ, cα = cosd(β), cosd(α)
     v1 = [a, 0.0, 0.0]
     v2 = [b * cγ, b * sγ, 0.0]
     v3x = c * cγ
@@ -120,16 +120,24 @@ end
 """ Some functions which construct common lattices
 """
 
-function cubic_lattice(::Val{D}, a::Float64, latsize) :: Lattice{D} where {D}
+function square_lattice(a::Float64, latsize) :: Lattice{2, 4, 3}
+    lat_vecs = SA[ a  0.0;
+                  0.0  a ]
+    basis_vecs = [SA[0.0, 0.0]]
+    latsize = SVector{D, Int}(latsize)
+    Lattice{2, 4, 3}(lat_vecs, basis_vecs, latsize)
+end
+
+function cubic_lattice(a::Float64, latsize) :: Lattice{3, 9, 4}
     lat_vecs = SA[ a  0.0 0.0;
                   0.0  a  0.0;
                   0.0 0.0  a ]
     basis_vecs = [SA[0.0, 0.0, 0.0]]
     latsize = SVector{D, Int}(latsize)
-    Lattice{D, D*D, D+1}(lat_vecs, basis_vecs, latsize)
+    Lattice{2, 4, 3}(lat_vecs, basis_vecs, latsize)
 end
 
-function diamond_lattice(a::Float64, latsize) :: Lattice{3, 9, 4}
+function diamond_conventional(a::Float64, latsize) :: Lattice{3, 9, 4}
     lat_vecs = SA[ 4a 0.0 0.0;
                   0.0  4a 0.0;
                   0.0 0.0  4a]
@@ -147,7 +155,7 @@ function diamond_lattice(a::Float64, latsize) :: Lattice{3, 9, 4}
     Lattice{3, 9, 4}(lat_vecs, basis_vecs, latsize)
 end
 
-function diamond_lattice2(a::Float64, latsize) :: Lattice{3, 9, 4}
+function diamond_primitive(a::Float64, latsize) :: Lattice{3, 9, 4}
     lat_vecs = SA[a/2 a/2 0.0;
                   a/2 0.0 a/2;
                   0.0 a/2 a/2]
@@ -160,8 +168,8 @@ function diamond_lattice2(a::Float64, latsize) :: Lattice{3, 9, 4}
 end
 
 function kagome_lattice(a::Float64, latsize) :: Lattice{2, 4, 3}
-    lat_vecs = SA[   a  0.0 ;
-                  0.5a √3a/2]
+    lat_vecs = SA[  a    0.5a;
+                   0.0  √3a/2]
     basis_vecs = [
         SA[0.0,     0.0],
         SA[0.5a,    0.0],

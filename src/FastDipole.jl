@@ -8,6 +8,8 @@ using SpecialFunctions
 using Parameters
 using FFTW
 using Tullio
+using CrystalInfoFramework
+using FilePaths
 import Random
 
 include("Util.jl")
@@ -36,12 +38,12 @@ include("Integrators.jl")
 export HeunP, HeunP2, LangevinHeunP, evolve!
 
 include("Parsing.jl")
-export parse_config
+export parse_config, CrystalInfo
 
 include("StructureFactors.jl")
 export diag_structure_factor
 
 include("Plotting.jl")
-export plot_lattice, plot_spins, anim_integration, live_integration
+export plot_lattice, plot_spins, plot_bonds, anim_integration, live_integration
 
 end

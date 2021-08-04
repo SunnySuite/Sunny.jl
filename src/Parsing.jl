@@ -1,3 +1,6 @@
+using CrystalInfoFramework
+using FilePaths
+
 struct ValidateError <: Exception end
 Base.showerror(io::IO, e::ValidateError) = print(io, e)
 
@@ -72,4 +75,83 @@ function parse_config(filename::String) :: SpinSystem
             println("Parse error on line $(err.line), column $(err.column) of $(filename).")
         end
     end
+end
+
+"Holds details about a crystal structure, as parsed from a .cif file"
+struct CrystalInfo
+    lattice_vecs   :: Mat3                      # Lattice vectors
+    basis_sites    :: Vector{Vec3}              # Minimal set of basis atoms, in fractional coords
+    basis_types    :: Vector{String}            # Element symbols for each atom
+    basis_labels   :: Vector{String}            # More specific names for each atoms
+    spacegroup_num :: Int                       # Space group international table number
+    sym_ops        :: Vector{Matrix{Float64}}   # Symmetry operations to generate all basis atoms
+end
+
+"Strips trailing uncertainty values from a String, then parses as a Float"
+function _parse_cif_float(str::String) :: Float64
+    i = findfirst('(', str)
+    str = isnothing(i) ? str : str[1:i-1]
+    return parse(Float64, str)
+end
+
+"Parses a symmetry transformation from a String"
+function _parse_op(str::String) :: Matrix{Float64}
+    res = zeros(Float64, 3, 4)
+    for (i, str_row) = enumerate(map(strip, split(str, ",")))
+        (sign, coord, rest) = match(r"(\-?)([xyz])(.*)", str_row).captures
+        (fsign, numer, denom) = isempty(rest) ? ("+", "0", "1") : match(r"([\+\-]+)(\N)/(\N)", rest).captures
+        sign = (sign == "-" ? -1 : +1)
+        fsign = (fsign == "-" ? -1 : +1)
+        coord = Dict("x" => 1, "y" => 2, "z" => 3)[coord]
+        (numer, denom) = parse.(Float64, [numer, denom])
+        res[i, coord] = sign
+        res[i, 4] = fsign * numer/denom
+    end
+    return res
+end
+
+function CrystalInfo(filename::AbstractPath)
+    cif = Cif(filename)
+    # For now, assumes there is only one data collection per .cif
+    cif = cif[first(keys(cif))]
+
+    a = _parse_cif_float(cif["_cell_length_a"][1])
+    b = _parse_cif_float(cif["_cell_length_b"][1])
+    c = _parse_cif_float(cif["_cell_length_c"][1])
+    α = _parse_cif_float(cif["_cell_angle_alpha"][1])
+    β = _parse_cif_float(cif["_cell_angle_beta"][1])
+    γ = _parse_cif_float(cif["_cell_angle_gamma"][1])
+    brav_lat = Lattice(a, b, c, α, β, γ, [1, 1, 1])
+
+    geo_table = get_loop(cif, "_atom_site_fract_x")
+    xs = map(_parse_cif_float, geo_table[!, "_atom_site_fract_x"])
+    ys = map(_parse_cif_float, geo_table[!, "_atom_site_fract_y"])
+    zs = map(_parse_cif_float, geo_table[!, "_atom_site_fract_z"])
+    sitetypes = geo_table[!, "_atom_site_type_symbol"]
+    sitelabels = geo_table[!, "_atom_site_label"]
+    unique_atoms = map(SVector{3, Float64}, zip(xs, ys, zs))
+
+    # By default, assume P1 symmetry
+    symmetries = [ [1. 0. 0. 0.; 0. 1. 0. 0.; 0. 0. 1. 0.] ]
+    # There's two possible headers symmetry operations could be listed under
+    for sym_header in ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
+        if sym_header in keys(cif)
+            sym_table = get_loop(cif, sym_header)
+            symmetries = map(_parse_op, sym_table[!, sym_header])
+        end
+    end
+
+    # By default, assume P1 symmetry
+    groupnum = 1
+    # Two possible headers for symmetry group number
+    for group_header in ("_space_group_it_number", "_symmetry_int_tables_number")
+        if group_header in keys(cif)
+            groupnum = parse(Int, cif[group_header][1])
+        end
+    end
+
+    return CrystalInfo(
+        brav_lat.lat_vecs, unique_atoms, sitetypes, sitelabels,
+        groupnum, symmetries
+    )
 end

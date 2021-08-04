@@ -3,47 +3,148 @@
 
 import GLMakie
 
-function plot_lattice(lattice::Lattice{2}; color=:blue, markersize=20, linecolor=:grey, linewidth=1.0, kwargs...)
-    f = GLMakie.Figure()
-    ax = GLMakie.Axis(f[1, 1])
-    ax.autolimitaspect = 1
-    GLMakie.hidespines!(ax)
-    GLMakie.hidedecorations!(ax)
-
+function plot_lattice!(ax, lattice::Lattice{2}; color=:blue, markersize=20, linecolor=:grey, linewidth=1.0, kwargs...)
     # Plot the unit cell mesh
-    plot_cells!(lattice; color=linecolor, linewidth=linewidth)
+    plot_cells!(ax, lattice; color=linecolor, linewidth=linewidth)
 
     # Plot markers at each site
     sites = reinterpret(reshape, Float64, collect(lattice))
-    xs, ys = vec(sites[1, 1:end, 1:end, 1:end]), vec(sites[2, 1, 1:end, 1:end])
-    GLMakie.scatter!(xs, ys; color=color, markersize=markersize, kwargs...)
-    f
+    xs, ys = vec(sites[1, 1:end, 1:end, 1:end]), vec(sites[2, 1:end, 1:end, 1:end])
+    GLMakie.scatter!(ax, xs, ys; color=color, markersize=markersize, show_axis=false, kwargs...)
 end
 
-# 3D is a bit wonky at the moment - Axis3 doesn't seem to work with scatter!
-# For now, have to plot sites below the unit cell grid
-function plot_lattice(lattice::Lattice{3}; color=:blue, markersize=100, linecolor=:grey, linewidth=1.0, kwargs...)
-    # f = Figure()
-    # ax = Axis3(f[1, 1], viewmode=:fit)
-    # hidespines!(ax)
-    # hidedecorations!(ax)
-
+function plot_lattice!(ax, lattice::Lattice{3}; color=:blue, markersize=200, linecolor=:grey, linewidth=1.0, kwargs...)
     # Plot markers at each site
     sites = reinterpret(reshape, Float64, collect(lattice))
     xs = vec(sites[1, 1:end, 1:end, 1:end, 1:end])
     ys = vec(sites[2, 1:end, 1:end, 1:end, 1:end])
     zs = vec(sites[3, 1:end, 1:end, 1:end, 1:end])
-    f = GLMakie.scatter(xs, ys, zs; color=color, markersize=markersize, show_axis=false, kwargs...)
+    GLMakie.scatter!(ax, xs, ys, zs; color=color, markersize=markersize, show_axis=false, kwargs...)
 
     # For some odd reason, the sites will not appear unless this happens afterwards
     # Plot the unit cell mesh
-    plot_cells!(lattice; color=linecolor, linewidth=linewidth)
+    plot_cells!(ax, lattice; color=linecolor, linewidth=linewidth)
+end
+
+function _setup_2d()
+    f = GLMakie.Figure()
+    ax = GLMakie.Axis(f[1, 1])
+    ax.autolimitaspect = 1
+    GLMakie.hidespines!(ax)
+    GLMakie.hidedecorations!(ax)
+    return f, ax
+end
+
+function _setup_3d()
+    f = GLMakie.Figure()
+    lscene = GLMakie.LScene(f[1, 1], scenekw=(camera=GLMakie.cam3d!, raw=false))
+    return f, lscene
+end
+
+
+function plot_lattice(lattice::Lattice{2}; kwargs...)
+    f, ax = _setup_2d()
+    plot_lattice!(ax, lattice; kwargs...)
+    f
+end
+
+# 3D is a bit wonky at the moment - Axis3 doesn't seem to work with scatter!,
+#   so you need to use LScene
+function plot_lattice(lattice::Lattice{3}; kwargs...)
+    f, lscene = _setup_3d()
+    plot_lattice!(lscene, lattice; kwargs...)
+end
+
+function plot_bonds(lattice::Lattice{2}, bonds::Vector{PairInteraction{3}}; bondwidth=4, kwargs...)
+    f, ax = _setup_2d()
+
+    colors = GLMakie.to_colormap(:Dark2_8, 8)
+    # Sort bonds so that longer bonds are plotted first
+    sort!(bonds, by=b->-b.dist)
+
+    toggles = Vector{GLMakie.Toggle}()
+    labels = Vector{GLMakie.Label}()
+
+    # Plot the lattice
+    plot_lattice!(ax, lattice; kwargs...)
+    # Plot the bonds, all relative to a central atom on the first sublattice
+    cent_idx = CartesianIndex(1, div.(lattice.size .+ 1, 2)...)
+    cent_pt = lattice[cent_idx]
+    for (i, bond) in enumerate(bonds)
+        xs = Vector{Float64}()
+        ys = Vector{Float64}()
+        for offset in bond._pair_offsets[1]
+            bond_pt = lattice[modc1(cent_idx + offset, size(lattice))]
+            push!(xs, cent_pt[1])
+            push!(ys, cent_pt[2])
+            push!(xs, bond_pt[1])
+            push!(ys, bond_pt[2])
+        end
+        bondlabel = "J" * string(bond.dist)
+        if !isnothing(bond.class)
+            bondlabel *= "_" * string(bond.class)
+        end
+        color = colors[mod1(i, 8)]
+        seg = GLMakie.linesegments!(xs, ys; linewidth=bondwidth, label=bondlabel, color=color)
+
+        tog = GLMakie.Toggle(f, active=true)
+        GLMakie.connect!(seg.visible, tog.active)
+        push!(toggles, tog)
+        push!(labels, GLMakie.Label(f, bondlabel))
+    end
+    GLMakie.axislegend()
+    f[1, 2] = GLMakie.grid!(hcat(toggles, labels), tellheight=false)
+    f
+end
+
+function plot_bonds(lattice::Lattice{3}, bonds::Vector{PairInteraction{4}}; bondwidth=4, kwargs...)
+    f, ax = _setup_3d()
+
+    colors = GLMakie.to_colormap(:Dark2_8, 8)
+    # Sort bonds so that longer bonds are plotted first
+    sort!(bonds, by=b->-b.dist)
+
+    toggles = Vector{GLMakie.Toggle}()
+    labels = Vector{GLMakie.Label}()
+
+    # Plot the lattice
+    plot_lattice!(ax, lattice; kwargs...)
+    # Plot the bonds, all relative to a central atom on the first sublattice
+    cent_idx = CartesianIndex(1, div.(lattice.size .+ 1, 2)...)
+    cent_pt = lattice[cent_idx]
+    for (i, bond) in enumerate(bonds)
+        xs = Vector{Float64}()
+        ys = Vector{Float64}()
+        zs = Vector{Float64}()
+        for offset in bond._pair_offsets[1]
+            bond_pt = lattice[modc1(cent_idx + offset, size(lattice))]
+            push!(xs, cent_pt[1])
+            push!(ys, cent_pt[2])
+            push!(zs, cent_pt[3])
+            push!(xs, bond_pt[1])
+            push!(ys, bond_pt[2])
+            push!(zs, bond_pt[3])
+        end
+        bondlabel = "J" * string(bond.dist)
+        if !isnothing(bond.class)
+            bondlabel *= "_" * string(bond.class)
+        end
+        color = colors[mod1(i, 8)]
+        seg = GLMakie.linesegments!(xs, ys, zs; linewidth=bondwidth, label=bondlabel, color=color)
+
+        tog = GLMakie.Toggle(f, active=true)
+        GLMakie.connect!(seg.visible, tog.active)
+        push!(toggles, tog)
+        push!(labels, GLMakie.Label(f, bondlabel))
+    end
+    GLMakie.axislegend()
+    f[1, 2] = GLMakie.grid!(hcat(toggles, labels), tellheight=false)
     f
 end
 
 # TODO: Base.Cartesian could combine these functions
 "Plot the outlines of the unit cells of a lattice"
-function plot_cells!(lattice::Lattice{2}; color=:grey, linewidth=1.0, kwargs...)
+function plot_cells!(ax, lattice::Lattice{2}; color=:grey, linewidth=1.0, kwargs...)
     lattice = brav_lattice(lattice)
 
     xs, ys = Vector{Float64}(), Vector{Float64}()
@@ -63,11 +164,11 @@ function plot_cells!(lattice::Lattice{2}; color=:grey, linewidth=1.0, kwargs...)
         push!(ys, top_pt[2])
     end
 
-    GLMakie.linesegments!(xs, ys; color=color, linewidth=linewidth)
+    GLMakie.linesegments!(ax, xs, ys; color=color, linewidth=linewidth)
 end
 
 "Plot the outlines of the unit cells of a lattice"
-function plot_cells!(lattice::Lattice{3}; color=:grey, linewidth=1.0, kwargs...)
+function plot_cells!(ax, lattice::Lattice{3}; color=:grey, linewidth=1.0, kwargs...)
     lattice = brav_lattice(lattice)
 
     xs, ys, zs = Vector{Float64}(), Vector{Float64}(), Vector{Float64}()
@@ -104,7 +205,7 @@ function plot_cells!(lattice::Lattice{3}; color=:grey, linewidth=1.0, kwargs...)
         end
     end
 
-    GLMakie.linesegments!(xs, ys, zs; color=color, linewidth=linewidth)
+    GLMakie.linesegments!(ax, xs, ys, zs; color=color, linewidth=linewidth)
 end
 
 function plot_spins(sys::SpinSystem{2}; linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.3, kwargs...)

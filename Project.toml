@@ -4,7 +4,9 @@ authors = ["Cole Miles <cmm572@cornell.edu>"]
 version = "0.0.2"
 
 [deps]
+CrystalInfoFramework = "6007d9b0-c6b2-11e8-0510-1d10e825f3f1"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+FilePaths = "8fc22ac5-c921-52a6-82fd-178b2807b824"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"

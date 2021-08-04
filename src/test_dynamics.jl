@@ -103,6 +103,63 @@ function test_heunp_dipole_ft()
     @assert ΔE < 1e-4
 end
 
+"Measure timings for speed disparity between real and fourier-space dipole interactions"
+function time_real_fourier_dipole()
+    lat_vecs = SA[1.0 0   0;
+                  0   1.0 0;
+                  0   0   1.0]
+    b_vecs = [SA[0.,  0.,  0.],
+              SA[0.5, 0.5, 0.5]]
+
+    Ls = [2, 6, 10, 14, 18, 22, 26, 30]
+    real_times = Vector{Float64}()
+    ft_times = Vector{Float64}()
+    for L in Ls
+        println("Measuring L = $L")
+        latsize = SA[L, L, L]
+        lattice = Lattice(lat_vecs, b_vecs, latsize)
+        sys = SpinSystem(lattice)
+
+        if L <= 14
+            println("\tSetting up real-space...")
+            # Since we just want to time integration speed,
+            #  there's no issue filling the interaction tensor
+            #  with garbage.
+            A = randn(Mat3, 2, 2, L, L, L)
+            A = OffsetArray(A, 1:2, 1:2, 0:L-1, 0:L-1, 0:L-1)
+            dipr = DipoleRealPre(A)
+
+            println("\tStarting real-space...")
+            sys.interactions = [dipr]
+            integrator = HeunP(sys)
+            evolve!(integrator, 0.001)
+            _, t, _, _ = @timed for _ in 1:100
+                evolve!(integrator, 0.001)
+            end
+            push!(real_times, t)
+        end
+
+        println("\tSetting up Fourier-space...")
+        A = randn(ComplexF64, 3, 3, 2, 2, div(L,2)+1, L, L)
+        spins_ft = zeros(ComplexF64, 3, 2, div(L,2)+1, L, L)
+        field_ft = zeros(ComplexF64, 3, 2, div(L,2)+1, L, L)
+        field_real = zeros(Float64, 3, 2, L, L, L)
+        plan = plan_rfft(field_real, 3:5; flags=FFTW.MEASURE)
+        ift_plan = plan_irfft(spins_ft, L, 3:5; flags=FFTW.MEASURE)
+        dipf = DipoleFourier(A, spins_ft, field_ft, field_real, plan, ift_plan)
+
+        println("\tStarting Fourier-space...")
+        sys.interactions = [dipf]
+        integrator = HeunP(sys)
+        evolve!(integrator, 0.001)
+        _, t, _, _ = @timed for _ in 1:100
+            evolve!(integrator, 0.001)
+        end
+        push!(ft_times, t)
+    end
+    return real_times, ft_times
+end
+
 "Produces the energy trajectory across LangevinHeunP integration"
 function test_langevin_heunp()
     lat_vecs = SA[1.0 0   0;
