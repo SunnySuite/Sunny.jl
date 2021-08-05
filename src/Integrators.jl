@@ -70,12 +70,12 @@ function evolve!(integrator::HeunP, Δt::Float64)
     S = sys.sites
     
     # Euler step
-    field!(_B, S, sys.interactions)
+    field!(_B, S, sys.hamiltonian)
     @. _f₁ = f(S, _B)
     @. _S₁ = S + Δt * _f₁
 
     # Corrector step
-    field!(_B, _S₁, sys.interactions)
+    field!(_B, _S₁, sys.hamiltonian)
     @. _S₂ = S + 0.5 * Δt * (_f₁ + f(_S₁, _B))
     @. _S₂ /= norm(_S₂)
 
@@ -92,13 +92,13 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
     _ξ .*= √(2D)
 
     # Euler step
-    field!(_B, S, sys.interactions)
+    field!(_B, S, sys.hamiltonian)
     @. _f₁ = f(S, _B, α)
     @. _r₁ = f(S, _ξ, α)
     @. _S₁ = S + Δt * _f₁ + √Δt * _r₁
 
     # Corrector step
-    field!(_B, _S₁, sys.interactions)
+    field!(_B, _S₁, sys.hamiltonian)
     @. _S₂ = S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ, α))
     @. _S₂ /= norm(_S₂)
 

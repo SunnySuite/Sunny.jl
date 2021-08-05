@@ -55,12 +55,15 @@ function plot_lattice(lattice::Lattice{3}; kwargs...)
     plot_lattice!(lscene, lattice; kwargs...)
 end
 
-function plot_bonds(lattice::Lattice{2}, bonds::Vector{PairInteraction{3}}; bondwidth=4, kwargs...)
+# Warning: These functions assume that bondlists have "duplicates". I.e. both
+#            Bond(i, j, n) and Bond(j, i, -n) appear.
+
+function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4, kwargs...)
     f, ax = _setup_2d()
 
     colors = GLMakie.to_colormap(:Dark2_8, 8)
-    # Sort bonds so that longer bonds are plotted first
-    sort!(bonds, by=b->-b.dist)
+    # Sort interactions so that longer bonds are plotted first
+    sort!(ints, by=int->-int.dist)
 
     toggles = Vector{GLMakie.Toggle}()
     labels = Vector{GLMakie.Label}()
@@ -68,23 +71,27 @@ function plot_bonds(lattice::Lattice{2}, bonds::Vector{PairInteraction{3}}; bond
     # Plot the lattice
     plot_lattice!(ax, lattice; kwargs...)
     # Plot the bonds, all relative to a central atom on the first sublattice
-    cent_idx = CartesianIndex(1, div.(lattice.size .+ 1, 2)...)
-    cent_pt = lattice[cent_idx]
-    for (i, bond) in enumerate(bonds)
+    basis_idx = 1
+    cent_cell = CartesianIndex(div.(lattice.size .+ 1, 2)...)
+    cent_pt = lattice[basis_idx, cent_cell]
+    for (n, int) in enumerate(ints)
         xs = Vector{Float64}()
         ys = Vector{Float64}()
-        for offset in bond._pair_offsets[1]
-            bond_pt = lattice[modc1(cent_idx + offset, size(lattice))]
-            push!(xs, cent_pt[1])
-            push!(ys, cent_pt[2])
-            push!(xs, bond_pt[1])
-            push!(ys, bond_pt[2])
+        for bond in int.bonds
+            if bond.i == basis_idx
+                new_cell = modc1(cent_cell + bond.celloffset, lattice.size)
+                bond_pt = lattice[bond.j, new_cell]
+                push!(xs, cent_pt[1])
+                push!(ys, cent_pt[2])
+                push!(xs, bond_pt[1])
+                push!(ys, bond_pt[2])
+            end
         end
-        bondlabel = "J" * string(bond.dist)
-        if !isnothing(bond.class)
-            bondlabel *= "_" * string(bond.class)
+        bondlabel = "J" * string(int.dist)
+        if !isnothing(int.class)
+            bondlabel *= "_" * string(int.class)
         end
-        color = colors[mod1(i, 8)]
+        color = colors[mod1(n, 8)]
         seg = GLMakie.linesegments!(xs, ys; linewidth=bondwidth, label=bondlabel, color=color)
 
         tog = GLMakie.Toggle(f, active=true)
@@ -97,12 +104,12 @@ function plot_bonds(lattice::Lattice{2}, bonds::Vector{PairInteraction{3}}; bond
     f
 end
 
-function plot_bonds(lattice::Lattice{3}, bonds::Vector{PairInteraction{4}}; bondwidth=4, kwargs...)
+function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; bondwidth=4, kwargs...)
     f, ax = _setup_3d()
 
     colors = GLMakie.to_colormap(:Dark2_8, 8)
-    # Sort bonds so that longer bonds are plotted first
-    sort!(bonds, by=b->-b.dist)
+    # Sort interactions so that longer bonds are plotted first
+    sort!(ints, by=int->-int.dist)
 
     toggles = Vector{GLMakie.Toggle}()
     labels = Vector{GLMakie.Label}()
@@ -110,26 +117,30 @@ function plot_bonds(lattice::Lattice{3}, bonds::Vector{PairInteraction{4}}; bond
     # Plot the lattice
     plot_lattice!(ax, lattice; kwargs...)
     # Plot the bonds, all relative to a central atom on the first sublattice
-    cent_idx = CartesianIndex(1, div.(lattice.size .+ 1, 2)...)
-    cent_pt = lattice[cent_idx]
-    for (i, bond) in enumerate(bonds)
+    basis_idx = 1
+    cent_cell = CartesianIndex(div.(lattice.size .+ 1, 2)...)
+    cent_pt = lattice[basis_idx, cent_cell]
+    for (n, int) in enumerate(ints)
         xs = Vector{Float64}()
         ys = Vector{Float64}()
         zs = Vector{Float64}()
-        for offset in bond._pair_offsets[1]
-            bond_pt = lattice[modc1(cent_idx + offset, size(lattice))]
-            push!(xs, cent_pt[1])
-            push!(ys, cent_pt[2])
-            push!(zs, cent_pt[3])
-            push!(xs, bond_pt[1])
-            push!(ys, bond_pt[2])
-            push!(zs, bond_pt[3])
+        for bond in int.bonds
+            if bond.i == basis_idx
+                new_cell = modc1(cent_cell + bond.celloffset, lattice.size)
+                bond_pt = lattice[bond.j, new_cell]
+                push!(xs, cent_pt[1])
+                push!(ys, cent_pt[2])
+                push!(zs, cent_pt[3])
+                push!(xs, bond_pt[1])
+                push!(ys, bond_pt[2])
+                push!(zs, bond_pt[3])
+            end
         end
-        bondlabel = "J" * string(bond.dist)
-        if !isnothing(bond.class)
-            bondlabel *= "_" * string(bond.class)
+        bondlabel = "J" * string(int.dist)
+        if !isnothing(int.class)
+            bondlabel *= "_" * string(int.class)
         end
-        color = colors[mod1(i, 8)]
+        color = colors[mod1(n, 8)]
         seg = GLMakie.linesegments!(xs, ys, zs; linewidth=bondwidth, label=bondlabel, color=color)
 
         tog = GLMakie.Toggle(f, active=true)

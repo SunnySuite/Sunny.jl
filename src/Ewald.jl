@@ -291,10 +291,10 @@ end
 function contract_monopole(sys::ChargeSystem, A::OffsetArray{Float64}) :: Float64
     nb = length(sys.lattice.basis_vecs)
     U = 0.0
-    for i in bravindexes(sys.lattice)
+    for i in eachcellindex(sys.lattice)
         for ib in 1:nb
             @inbounds qᵢ = sys[ib, i]
-            for j in bravindexes(sys.lattice)
+            for j in eachcellindex(sys.lattice)
                 for jb in 1:nb
                     @inbounds qⱼ = sys[jb, j]
                     @inbounds U += qᵢ * A[ib, jb, i - j] * qⱼ
@@ -401,7 +401,7 @@ function precompute_dipole_ewald_c(lattice::Lattice{3}; extent=3, η=1.0) :: Off
     A = OffsetArray(A, 1:nb, 1:nb, map(n->0:n-1, lattice.size)...)
 
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
-    delta_idxs = bravindexes(lattice) .- one(CartesianIndex{3})
+    delta_idxs = eachcellindex(lattice) .- one(CartesianIndex{3})
 
     recip = gen_reciprocal(lattice)
     # Rescale vectors to be reciprocal vectors of entire simulation box
@@ -486,10 +486,10 @@ end
 function contract_dipole(sys::SpinSystem{3}, A::OffsetArray{Mat3, 5}) :: Float64
     nb = length(sys.lattice.basis_vecs)
     U = 0.0
-    for i in bravindexes(sys.lattice)
+    for i in eachcellindex(sys.lattice)
         for ib in 1:nb
             @inbounds pᵢ = sys[ib, i]
-            for j in bravindexes(sys.lattice)
+            for j in eachcellindex(sys.lattice)
                 for jb in 1:nb
                     @inbounds pⱼ = sys[jb, j]
                     @inbounds U += dot(pᵢ, A, pⱼ)
@@ -504,10 +504,10 @@ end
 function contract_dipole_c(sys::SpinSystem{3}, A::OffsetArray{Mat3, 5}) :: Float64
     nb = nbasis(sys.lattice)
     U = 0.0
-    for i in bravindexes(sys.lattice)
+    for i in eachcellindex(sys.lattice)
         for ib in 1:nb
             @inbounds pᵢ = sys[ib, i]
-            for j in bravindexes(sys.lattice)
+            for j in eachcellindex(sys.lattice)
                 for jb in 1:nb
                     @inbounds pⱼ = sys[jb, j]
                     @inbounds U += dot(pᵢ, A[ib, jb, modc(i - j, sys.lattice.size)], pⱼ)
@@ -576,19 +576,15 @@ function test_compression(A, Acomp)
     end
 end
 
-function energy(sys::SpinSystem, dip::DipoleReal)
-    return dip.strength * ewald_sum_dipole(sys; extent=dip.extent, η=dip.η)
+function DipoleReal(strength::Float64, lattice::Lattice{3}; extent::Int=4, η::Float64=0.5)
+    return DipoleReal(strength .* precompute_dipole_ewald_c(lattice; extent=extent, η=η))
 end
 
-function DipoleRealPre(strength::Float64, lattice::Lattice{3}; extent::Int=4, η::Float64=0.5)
-    return DipoleRealPre(strength .* precompute_dipole_ewald_c(lattice; extent=extent, η=η))
-end
-
-function energy(sys::SpinSystem{3}, dip::DipoleRealPre)
+function energy(sys::SpinSystem{3}, dip::DipoleReal)
     return contract_dipole_c(sys, dip.int_mat)
 end
 
-function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleRealPre)
+function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleReal)
     A = dip.int_mat
     nb = size(spins, 1)
     syssize = size(spins)[2:end]
@@ -606,7 +602,7 @@ function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleReal
 end
 
 ## Equivalent, but actually slower, at least on small system sizes. Maybe test for larger systems?
-# function _accum_field_tullio!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleRealPre)
+# function _accum_field_tullio!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleReal)
 #     A = dip.int_mat
 #     nb = size(spins, 1)
 

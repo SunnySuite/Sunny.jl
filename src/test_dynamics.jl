@@ -48,7 +48,7 @@ function test_heunp_dipole()
     lattice = Lattice(lat_vecs, b_vecs, latsize)
 
     J = 0.01
-    dipole = DipoleRealPre(J, lattice)
+    dipole = DipoleReal(J, lattice)
     interactions = [dipole]
 
     sys = SpinSystem(lattice, interactions)
@@ -127,7 +127,7 @@ function time_real_fourier_dipole()
             #  with garbage.
             A = randn(Mat3, 2, 2, L, L, L)
             A = OffsetArray(A, 1:2, 1:2, 0:L-1, 0:L-1, 0:L-1)
-            dipr = DipoleRealPre(A)
+            dipr = DipoleReal(A)
 
             println("\tStarting real-space...")
             sys.interactions = [dipr]

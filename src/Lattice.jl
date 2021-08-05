@@ -62,7 +62,7 @@ end
 end
 
 "Produces an iterator over all (j, k, l) indexes for the lattice"
-@inline function bravindexes(lat::Lattice{D}) :: CartesianIndices where {D}
+@inline function eachcellindex(lat::Lattice{D}) :: CartesianIndices where {D}
     return CartesianIndices(Tuple(lat.size))
 end
 

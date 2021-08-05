@@ -42,7 +42,7 @@ function _fft_spin_traj(
     # Multiply each sublattice by the appropriate phase factors
     #    S_b(q, ω) → exp(-i b ⋅ q) S_b(q, ω)
     wave_vectors = Iterators.product((fftfreq(size(spin_traj, 2+d)) for d in 1:D)...)
-    for (q_idx, q) in zip(bravindexes(lattice), wave_vectors)
+    for (q_idx, q) in zip(eachcellindex(lattice), wave_vectors)
         for (b_idx, b) in enumerate(lattice.basis_vecs)
             fft_space[1:end, b_idx, q_idx, 1:end] .*= exp(-im * (b ⋅ q))
         end
@@ -89,7 +89,7 @@ function _fft_spin_traj!(
     wave_vectors = Iterators.product(
         (fftfreq(spat_size[d]) for d in 1:D)...
     )
-    for q_idx in bravindexes(lattice)
+    for q_idx in eachcellindex(lattice)
         q = recip.lat_vecs * SVector{3, Float64}((Tuple(q_idx) .- 1) ./ spat_size)
         for (b_idx, b) in enumerate(lattice.basis_vecs)
             # WARNING: Cannot replace T with `end` due to Julia's

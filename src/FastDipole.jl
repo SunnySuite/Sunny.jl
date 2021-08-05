@@ -16,11 +16,12 @@ include("Util.jl")
 
 include("Lattice.jl")
 export Lattice, ReciprocalLattice
-export volume, bravindexes, gen_reciprocal
+export volume, eachcellindex, gen_reciprocal
 
 include("Interactions.jl")
-export ExternalField, PairInteraction, EasyAxis, DMInteraction
-export DipoleReal, DipoleRealPre, DipoleFourier
+export ExternalField, Heisenberg, DiagonalCoupling, GeneralCoupling
+export gen_interaction, Hamiltonian
+export DipoleReal, DipoleFourier
 
 include("Systems.jl")
 export ChargeSystem, SpinSystem, rand!, energy

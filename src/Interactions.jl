@@ -1,5 +1,6 @@
 abstract type Interaction end
 
+
 struct ExternalField <: Interaction
     B :: Vec3
 end
@@ -102,50 +103,54 @@ function _iter_prune_neighbor_offsets(offsets::NeighborOffsets{Db}) :: NeighborO
     return filt_offsets
 end
 
-struct PairInteraction{Db} <: Interaction
-    strength       :: Float64
-    dist           :: Int
-    class          :: Union{Nothing, Int}
-    _pair_offsets  :: NeighborOffsets{Db}
-    _fpair_offsets :: NeighborOffsets{Db}
-end
-
-function PairInteraction(J::Float64, dist::Int, class::Union{Nothing, Int}, lat::Lattice{D, L, Db}) where {D, L, Db}
+"Ugly temporary function for generating bond lists -- will be replaced by Kipton's"
+function gen_interaction(::Val{T}, J, dist::Int, lat::Lattice{D}) :: T where {T <: Interaction, D}
     offsets = _find_neighbor_offsets(lat, dist)
-    filtered_offsets = _iter_prune_neighbor_offsets(offsets)
-
-    PairInteraction{Db}(J, dist, class, offsets, filtered_offsets)
-end
-
-PairInteraction(J::Float64, dist::Int, lat::Lattice) = PairInteraction(J, dist, nothing, lat)
-
-
-struct EasyAxis <: Interaction
-    strength :: Float64
-    axis     :: Int
-end
-
-struct DMInteraction{Db} <: Interaction
-    strength :: Float64
-    dist     :: Int
-    class    :: Union{Nothing, Int}
-    _pair_offsets  :: NeighborOffsets{Db}
-    _fpair_offsets :: NeighborOffsets{Db}
-end
-
-# Dipole-dipole interactions computed in real space,
-#   with no pre-computation of an interaction tensor.
-struct DipoleReal <: Interaction
-    strength :: Float64     # Coefficient on this interaction
-    extent   :: Int         # How many unit cells to sum outwards in Ewald
-    η        :: Float64     # Ewald parameter η, controlling real-reciprocal tradeoff
+    bondlist = Vector{Bond{D}}()
+    for (i, offset_list) in enumerate(offsets)
+        for offset in offset_list
+            j = i + offset[1]
+            celloffset = CartesianIndex(Tuple(offset)[2:end])
+            push!(bondlist, Bond{D}(i, j, celloffset))
+        end
+    end
+    return T(J, dist, nothing, bondlist)
 end
 
 # Dipole-dipole interactions computed in real 3D space,
 #   using a pre-computed interaction tensor.
-struct DipoleRealPre <: Interaction
+struct DipoleReal <: Interaction
     int_mat :: OffsetArray{Mat3, 5, Array{Mat3, 5}}
 end
+
+struct Bond{D}
+    i          :: Int
+    j          :: Int
+    celloffset :: CartesianIndex{D}
+end
+
+struct Heisenberg{D} <: Interaction
+    J     :: Float64
+    dist  :: Int
+    class :: Union{Nothing, Int}
+    bonds :: Vector{Bond{D}}
+end
+
+struct DiagonalCoupling{D} <: Interaction
+    J     :: Vec3
+    dist  :: Int
+    class :: Union{Nothing, Int}
+    bonds :: Vector{Bond{D}}
+end
+
+struct GeneralCoupling{D} <: Interaction
+    Js    :: Vector{Mat3}
+    dist  :: Int
+    class :: Union{Nothing, Int}
+    bonds :: Vector{Bond{D}}
+end
+
+const PairInt{D} = Union{Heisenberg{D}, DiagonalCoupling{D}, GeneralCoupling{D}}
 
 # FFTW types for various relevant Fourier transform plans
 const FTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
@@ -162,12 +167,42 @@ struct DipoleFourier <: Interaction
     _ift_plan   :: IFTPlan
 end
 
-# TODO: Use a type like this, might play better with dispatch in loops
-# Currently unused.
-struct Hamiltonian{Db}
-    ext_field  :: Union{Nothing, ExternalField}
-    pair_ints  :: Union{Nothing, Vector{PairInteraction{Db}}}
-    easy_ax    :: Union{Nothing, EasyAxis}
-    dm_ints    :: Union{Nothing, Vector{DMInteraction{Db}}}
-    dipole_int :: Union{Nothing, DipoleReal, DipoleRealPre, DipoleFourier}
+struct Hamiltonian{D}
+    ext_field   :: Union{Nothing, ExternalField}
+    heisenbergs :: Vector{Heisenberg{D}}
+    diag_coups  :: Vector{DiagonalCoupling{D}}
+    pair_ints   :: Vector{GeneralCoupling{D}}
+    dipole_int  :: Union{Nothing, DipoleFourier}
+end
+
+function Hamiltonian{D}() where {D}
+    return Hamiltonian{D}(nothing, [], [], [], nothing)
+end
+
+function Hamiltonian{D}(ints::Vector{I}) where {D, I <: Interaction}
+    ext_field   = nothing
+    heisenbergs = Vector{Heisenberg{D}}()
+    diag_coups  = Vector{DiagonalCoupling{D}}()
+    pair_ints   = Vector{GeneralCoupling{D}}()
+    dipole_int  = nothing
+    for int in ints
+        if isa(int, ExternalField)
+            if !isnothing(ext_field)
+                @warn "Provided multiple external fields. Only using last one."
+            end
+            ext_field = int
+        elseif isa(int, Heisenberg)
+            push!(heisenbergs, int)
+        elseif isa(int, DiagonalCoupling)
+            push!(diag_coups, int)
+        elseif isa(int, GeneralCoupling)
+            push!(pair_ints, int)
+        elseif isa(int, DipoleFourier)
+            if !isnothing(dipole_int)
+                @warn "Provided multiple dipole interactions. Only using last one."
+            end
+            dipole_int = int
+        end
+    end
+    return Hamiltonian{D}(ext_field, heisenbergs, diag_coups, pair_ints, dipole_int)
 end

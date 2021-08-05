@@ -18,6 +18,10 @@ end
     return sys.sites[idx...]
 end
 
+@inline function eachcellindex(sys::AbstractSystem)
+    return eachcellindex(sys.lattice)
+end
+
 mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{Float64, D, L, Db}
     lattice       :: Lattice{D, L, Db}
     sites         :: Array{Float64, Db}
@@ -25,7 +29,7 @@ end
 
 mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
     lattice        :: Lattice{D, L, Db}   # Definition of underlying lattice
-    interactions   :: Vector{Interaction} # List of interactions in ℋ
+    hamiltonian    :: Hamiltonian         # Contains all interactions present
     sites          :: Array{Vec3, Db}     # Holds actual spin variables
     S              :: Rational{Int}       # Spin magnitude
 end
@@ -43,12 +47,12 @@ function rand!(sys::ChargeSystem)
     sys.sites .-= sum(sys.sites) / length(sys.sites)
 end
 
-function SpinSystem(lat::Lattice, ints::Vector{I}, S::Rational{Int}) where {I <: Interaction}
+function SpinSystem(lat::Lattice{D}, ints::Vector{I}, S::Rational{Int}) where {D, I <: Interaction}
     # Initialize sites based on lattice geometry - initialized to all spins along +z
     sites_size = (length(lat.basis_vecs), lat.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
-    ints = convert(Vector{Interaction}, ints)
-    return SpinSystem(lat, ints, sites, S)
+    ℋ = Hamiltonian{D}(ints)
+    return SpinSystem(lat, ℋ, sites, S)
 end
 
 function SpinSystem(lat::Lattice, ints::Vector{I}) where {I <: Interaction}
@@ -65,9 +69,28 @@ function rand!(sys::SpinSystem)
     @. sys.sites /= norm(sys.sites)
 end
 
+# Warning: All functions assume that lists of bonds are "duplicate"
+#  (i, j, n) and (j, i, -n) appear. Otherwise, remove 0.5 from
+#  energy, and add new lines to _accum_field! which update site j
+
 function energy(sys::SpinSystem) :: Float64
-    # Dispatch out to all of the interaction types present
-    sum(map(energy, Base.Iterators.repeated(sys), sys.interactions))
+    ℋ = sys.hamiltonian
+    E = 0.0
+    if !isnothing(ℋ.field)
+        E += energy(E, ℋ.field)
+    end
+    for heisen in ℋ.heisenbergs
+        E += energy(E, heisen)
+    end
+    for diag_coup in ℋ.diag_coups
+        E += energy(E, diag_coup)
+    end
+    for pair_int in ℋ.pair_ints
+        E += energy(E, pair_int)
+    end
+    if !isnothing(ℋ.dipole_int)
+        E += energy(E, ℋ.dipole_int)
+    end
 end
 
 function energy(sys::SpinSystem, field::ExternalField)
@@ -79,32 +102,64 @@ function energy(sys::SpinSystem, field::ExternalField)
     return -E
 end
 
-function energy(sys::SpinSystem, pairint::PairInteraction)
-    J = pairint.strength
-    offsets = pairint._fpair_offsets
-    syssize = size(sys)
+function energy(sys::SpinSystem, heisenberg::Heisenberg)
+    @unpack J, bonds = heisenberg
     E = 0.0
-    for idx in eachindex(sys)
-        Sᵢ = sys[idx]
-        b = idx[1]  # Basis (sublattice) index
-        for offset in offsets[b]
-            Sⱼ = sys[modc1(idx + offset, syssize)]
-            E += J * (Sᵢ ⋅ Sⱼ)
+    for bond in bonds
+        @unpack i, j, celloffset = bond
+        for cell in eachcellindex(sys.lattice)
+            Sᵢ = sys[i, cell]
+            Sⱼ = sys[j, modc1(cell + celloffset, sys.lattice.size)]
+            E += Sᵢ ⋅ Sⱼ
         end
     end
-    return E
+    return 0.5 * J * E
 end
 
-# TODO: This is costing duplicating the lattice loop logic times the number of interactions
-# However, if I invert the loop order, then I pay the dispatch cost once per lattice site.
-@inline function field!(H::Array{Vec3}, sys::SpinSystem)
-    field!(H, sys.sites, sys.interactions)
+function energy(sys::SpinSystem, diag_coup::DiagonalCoupling)
+    @unpack J, bonds = diag_coup
+    E = 0.0
+    for bond in bonds
+        @unpack i, j, celloffset = bond
+        for cell in eachcellindex(sys.lattice)
+            Sᵢ = sys[i, cell]
+            Sⱼ = sys[j, modc1(cell + celloffset, sys.lattice.size)]
+            E += (J .* Sᵢ) ⋅ Sⱼ
+        end
+    end
+    return 0.5 * E
 end
 
-@inline function field!(H::Array{Vec3}, spins::Array{Vec3}, interactions::Vector{Interaction})
-    fill!(H, SA[0.0, 0.0, 0.0])
-    for interaction in interactions
-        _accum_field!(H, spins, interaction)
+function energy(sys::SpinSystem, gen_coup::GeneralCoupling)
+    @unpack Js, bonds = gen_coup
+    E = 0.0
+    for (J, bond) in zip(Js, bonds)
+        @unpack i, j, celloffset = bond
+        for cell in eachcellindex(sys.lattice)
+            Sᵢ = sys[i, cell]
+            Sⱼ = sys[j, modc1(cell + celloffset, sys.lattice.size)]
+            E += dot(Sᵢ, J, Sⱼ)
+        end
+    end
+    return 0.5 * E
+end
+
+function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::Hamiltonian)
+    fill!(B, SA[0.0, 0.0, 0.0])
+    if !isnothing(ℋ.ext_field)
+        _accum_field!(B, ℋ.ext_field)
+    end
+    for heisen in ℋ.heisenbergs
+        _accum_field!(B, spins, heisen)
+    end
+    for diag_coup in ℋ.diag_coups
+        _accum_field!(B, spins, diag_coup)
+    end
+    for pair_int in ℋ.pair_ints
+        _accum_field!(B, spins, pair_int)
+    end
+    if !isnothing(ℋ.dipole_int)
+        _accum_field!(B, spins, ℋ.dipole_int)
     end
 end
 
@@ -115,19 +170,43 @@ end
 end
 
 "Accumulates the local field coming from the external field"
-@inline function _accum_field!(H::Array{Vec3}, spins::Array{Vec3}, field::ExternalField)
-    for idx in eachindex(H)
-        H[idx] = H[idx] + field.B
+@inline function _accum_field!(B::Array{Vec3}, field::ExternalField)
+    for idx in eachindex(B)
+        B[idx] = B[idx] + field.B
     end
 end
 
-"Accumulates the local field coming from pairwise interactions"
-@inline function _accum_field!(H::Array{Vec3}, spins::Array{Vec3}, pairint::PairInteraction)
-    syssize = size(spins)
-    for idx in CartesianIndices(spins)
-        b = idx[1]
-        for offset in pairint._pair_offsets[b]
-            H[idx] = H[idx] - pairint.strength * spins[modc1(idx + offset, syssize)]
+"Accumulates the local field coming from Heisenberg couplins"
+@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, heisen::Heisenberg)
+    syssize = size(spins)[2:end]
+    J = heisen.J
+    for bond in heisen.bonds
+        @unpack i, j, celloffset = bond
+        for cell in CartesianIndices(syssize)
+            B[i, cell] = B[i, cell] - J * spins[j, modc1(cell + celloffset, syssize)]
+        end
+    end
+end
+
+"Accumulates the local field coming from diagonal couplings"
+@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::DiagonalCoupling)
+    syssize = size(spins)[2:end]
+    J = diag_coup.J
+    for bond in diag_coup.bonds
+        @unpack i, j, celloffset = bond
+        for cell in CartesianIndices(syssize)
+            B[i, cell] = B[i, cell] - J .* spins[j, modc1(cell + celloffset, syssize)]
+        end
+    end
+end
+
+"Accumulates the local field coming from general couplings"
+@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCoupling)
+    syssize = size(spins)[2:end]
+    for (J, bond) in zip(diag_coup.Js, diag_coup.bonds)
+        @unpack i, j, celloffset = bond
+        for cell in CartesianIndices(syssize)
+            B[i, cell] = B[i, cell] - J * spins[j, modc1(cell + celloffset, syssize)]
         end
     end
 end
