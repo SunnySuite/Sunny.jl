@@ -1,5 +1,6 @@
 using FastDipole
 using LaTeXStrings
+using StaticArrays
 using Plots
 pyplot()
 
@@ -15,7 +16,7 @@ function test_heunp()
 
     J = 2.0
     field = ExternalField([0.0, 0.0, 1.0])
-    pair_int = PairInteraction(J, 1, nothing, lattice)
+    pair_int = Heisenberg(J, 1, lattice)
     interactions = [pair_int, field]
 
     sys = SpinSystem(lattice, interactions)
@@ -34,7 +35,7 @@ function test_heunp()
 
     # Check that the energy hasn't fluctuated much
     ΔE = maximum(energies) - minimum(energies)
-    @assert ΔE < 1e-4
+    @assert ΔE < 1e-2
 end
 
 "Tests that HeunP does indeed conserve energy for dipole forces to a certain tolerance."
@@ -67,7 +68,7 @@ function test_heunp_dipole()
 
     # Check that the energy hasn't fluctuated much
     ΔE = maximum(energies) - minimum(energies)
-    @assert ΔE < 1e-4
+    @assert ΔE < 1e-2
 end
 
 "Tests that HeunP does indeed conserve energy for dipole forces (w/ Fourier) to a certain tolerance."
@@ -100,7 +101,7 @@ function test_heunp_dipole_ft()
 
     # Check that the energy hasn't fluctuated much
     ΔE = maximum(energies) - minimum(energies)
-    @assert ΔE < 1e-4
+    @assert ΔE < 1e-2
 end
 
 "Measure timings for speed disparity between real and fourier-space dipole interactions"
@@ -172,7 +173,7 @@ function test_langevin_heunp()
 
     J = 1.0
     field = ExternalField([0.0, 0.0, 1.0])
-    pair_int = PairInteraction(J, 1, nothing, lattice)
+    pair_int = Heisenberg(J, 1, lattice)
     interactions = [pair_int, field]
 
     sys = SpinSystem(lattice, interactions)
@@ -196,10 +197,10 @@ end
 
 "Produce structure factor maps to compare to Xiaojian's plots"
 function test_diamond_heisenberg_sf()
-    lattice = FastDipole.diamond_lattice(1.0, (8, 8, 8))
+    lattice = FastDipole.diamond_conventional(1.0, (8, 8, 8))
     J = 28.28
     interactions = [
-        PairInteraction(J, 1, lattice),
+        Heisenberg(J, 1, lattice),
     ]
     sys = SpinSystem(lattice, interactions)
     rand!(sys)
@@ -222,7 +223,7 @@ function test_diamond_heisenberg_sf()
         measureΔt=Δt, collect_steps=collect_steps,
         verbose=true
     )
-    plot_many_cuts(S; maxω=maxω, chopω=5.0)
+    # plot_many_cuts(S; maxω=maxω, chopω=5.0)
     return S
 end
 

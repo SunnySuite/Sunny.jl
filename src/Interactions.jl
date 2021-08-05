@@ -136,6 +136,19 @@ struct Heisenberg{D} <: Interaction
     bonds :: Vector{Bond{D}}
 end
 
+function Heisenberg(J::Float64, dist::Int, lat::Lattice{D}) where {D}
+    offsets = _find_neighbor_offsets(lat, dist)
+    bondlist = Vector{Bond{D}}()
+    for (i, offset_list) in enumerate(offsets)
+        for offset in offset_list
+            j = i + offset[1]
+            celloffset = CartesianIndex(Tuple(offset)[2:end])
+            push!(bondlist, Bond{D}(i, j, celloffset))
+        end
+    end
+    return Heisenberg(J, dist, nothing, bondlist)
+end
+
 struct DiagonalCoupling{D} <: Interaction
     J     :: Vec3
     dist  :: Int

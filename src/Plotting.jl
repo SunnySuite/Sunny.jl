@@ -417,3 +417,43 @@ function live_integration(
         sleep(1/framerate)
     end
 end
+
+"Plots slices of a 3D structure factor. Input array should have shape [3, Lx, Ly, Lz, T]"
+function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz)
+    fig, ax = _setup_3d()
+
+    Sdim, Lx, Ly, Lz, T = size(sfactor)
+    @assert Sdim == 3
+    # Average over Sxx, Syy, Szz - in future give controls to user
+    sfactor = dropdims(sum(sfactor, dims=1) ./ 3, dims=1)
+    # Index out the asked-for slice - in future give controls to user
+    sfactor = sfactor[:, :, iz, :]
+
+    # Nearest-neighbor upsample this to a similar size as the T axis.
+    sampx, sampy = div(T, 2Lx), div(T, 2Ly)
+    sfactor = repeat(sfactor, inner=(sampx, sampy, 1))
+
+    kx = 1:sampx*Lx
+    ky = 1:sampy*Ly
+    ω  = 1:T
+
+    lsgrid = GLMakie.labelslidergrid!(
+        fig,
+        ["kx", "ky", "ω"],
+        [1:sampx*Lx, 1:sampy*Ly, 1:T]
+    )
+    fig[2, 1] = lsgrid.layout
+    volslices = GLMakie.volumeslices!(ax, kx, ky, ω, sfactor)
+
+    # See: http://makie.juliaplots.org/stable/plotting_functions/volumeslices.html
+    sl_yz, sl_xz, sl_xy = lsgrid.sliders
+    GLMakie.on(sl_yz.value) do v; volslices[:update_yz][](v) end
+    GLMakie.on(sl_xz.value) do v; volslices[:update_xz][](v) end
+    GLMakie.on(sl_xy.value) do v; volslices[:update_xy][](v) end
+
+    GLMakie.set_close_to!(sl_yz, .5Lx)
+    GLMakie.set_close_to!(sl_xz, .5Ly)
+    GLMakie.set_close_to!(sl_xy, .5T)
+
+    fig
+end

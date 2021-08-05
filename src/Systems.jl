@@ -76,21 +76,22 @@ end
 function energy(sys::SpinSystem) :: Float64
     ℋ = sys.hamiltonian
     E = 0.0
-    if !isnothing(ℋ.field)
-        E += energy(E, ℋ.field)
+    if !isnothing(ℋ.ext_field)
+        E += energy(sys, ℋ.ext_field)
     end
     for heisen in ℋ.heisenbergs
-        E += energy(E, heisen)
+        E += energy(sys, heisen)
     end
     for diag_coup in ℋ.diag_coups
-        E += energy(E, diag_coup)
+        E += energy(sys, diag_coup)
     end
     for pair_int in ℋ.pair_ints
-        E += energy(E, pair_int)
+        E += energy(sys, pair_int)
     end
     if !isnothing(ℋ.dipole_int)
-        E += energy(E, ℋ.dipole_int)
+        E += energy(sys, ℋ.dipole_int)
     end
+    return E
 end
 
 function energy(sys::SpinSystem, field::ExternalField)
