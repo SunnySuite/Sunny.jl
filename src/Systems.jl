@@ -85,8 +85,8 @@ function energy(sys::SpinSystem) :: Float64
     for diag_coup in ℋ.diag_coups
         E += energy(sys, diag_coup)
     end
-    for pair_int in ℋ.pair_ints
-        E += energy(sys, pair_int)
+    for gen_coup in ℋ.gen_coups
+        E += energy(sys, gen_coup)
     end
     if !isnothing(ℋ.dipole_int)
         E += energy(sys, ℋ.dipole_int)
@@ -107,10 +107,10 @@ function energy(sys::SpinSystem, heisenberg::Heisenberg)
     @unpack J, bonds = heisenberg
     E = 0.0
     for bond in bonds
-        @unpack i, j, celloffset = bond
+        @unpack i, j, n = bond
         for cell in eachcellindex(sys.lattice)
             Sᵢ = sys[i, cell]
-            Sⱼ = sys[j, modc1(cell + celloffset, sys.lattice.size)]
+            Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
             E += Sᵢ ⋅ Sⱼ
         end
     end
@@ -121,10 +121,10 @@ function energy(sys::SpinSystem, diag_coup::DiagonalCoupling)
     @unpack J, bonds = diag_coup
     E = 0.0
     for bond in bonds
-        @unpack i, j, celloffset = bond
+        @unpack i, j, n = bond
         for cell in eachcellindex(sys.lattice)
             Sᵢ = sys[i, cell]
-            Sⱼ = sys[j, modc1(cell + celloffset, sys.lattice.size)]
+            Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
             E += (J .* Sᵢ) ⋅ Sⱼ
         end
     end
@@ -135,10 +135,10 @@ function energy(sys::SpinSystem, gen_coup::GeneralCoupling)
     @unpack Js, bonds = gen_coup
     E = 0.0
     for (J, bond) in zip(Js, bonds)
-        @unpack i, j, celloffset = bond
+        @unpack i, j, n = bond
         for cell in eachcellindex(sys.lattice)
             Sᵢ = sys[i, cell]
-            Sⱼ = sys[j, modc1(cell + celloffset, sys.lattice.size)]
+            Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
             E += dot(Sᵢ, J, Sⱼ)
         end
     end
@@ -156,8 +156,8 @@ function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::Hamiltonian)
     for diag_coup in ℋ.diag_coups
         _accum_field!(B, spins, diag_coup)
     end
-    for pair_int in ℋ.pair_ints
-        _accum_field!(B, spins, pair_int)
+    for gen_coup in ℋ.gen_coups
+        _accum_field!(B, spins, gen_coup)
     end
     if !isnothing(ℋ.dipole_int)
         _accum_field!(B, spins, ℋ.dipole_int)
@@ -182,9 +182,9 @@ end
     syssize = size(spins)[2:end]
     J = heisen.J
     for bond in heisen.bonds
-        @unpack i, j, celloffset = bond
+        @unpack i, j, n = bond
         for cell in CartesianIndices(syssize)
-            B[i, cell] = B[i, cell] - J * spins[j, modc1(cell + celloffset, syssize)]
+            B[i, cell] = B[i, cell] - J * spins[j, offset(cell, n, syssize)]
         end
     end
 end
@@ -194,9 +194,9 @@ end
     syssize = size(spins)[2:end]
     J = diag_coup.J
     for bond in diag_coup.bonds
-        @unpack i, j, celloffset = bond
+        @unpack i, j, n = bond
         for cell in CartesianIndices(syssize)
-            B[i, cell] = B[i, cell] - J .* spins[j, modc1(cell + celloffset, syssize)]
+            B[i, cell] = B[i, cell] - J .* spins[j, offset(cell, n, syssize)]
         end
     end
 end
@@ -205,9 +205,9 @@ end
 @inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCoupling)
     syssize = size(spins)[2:end]
     for (J, bond) in zip(diag_coup.Js, diag_coup.bonds)
-        @unpack i, j, celloffset = bond
+        @unpack i, j, n = bond
         for cell in CartesianIndices(syssize)
-            B[i, cell] = B[i, cell] - J * spins[j, modc1(cell + celloffset, syssize)]
+            B[i, cell] = B[i, cell] - J * spins[j, offset(cell, n, syssize)]
         end
     end
 end

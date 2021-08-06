@@ -18,6 +18,10 @@ include("Lattice.jl")
 export Lattice, ReciprocalLattice
 export volume, eachcellindex, gen_reciprocal
 
+include("Symmetry.jl")
+import .Symmetry: Cell, Bond, canonical_bonds, print_bond_table
+export Cell, Bond, canonical_bonds, print_bond_table
+
 include("Interactions.jl")
 export ExternalField, Heisenberg, DiagonalCoupling, GeneralCoupling
 export gen_interaction, Hamiltonian
@@ -39,7 +43,7 @@ include("Integrators.jl")
 export HeunP, HeunP2, LangevinHeunP, evolve!
 
 include("Parsing.jl")
-export parse_config, CrystalInfo
+export parse_config
 
 include("StructureFactors.jl")
 export diag_structure_factor

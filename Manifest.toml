@@ -882,6 +882,12 @@ git-tree-sha1 = "a50550fa3164a8c46747e62063b4d774ac1bcf49"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
 version = "1.5.1"
 
+[[Spglib]]
+deps = ["StaticArrays", "StructEquality", "UnPack", "spglib_jll"]
+git-tree-sha1 = "c56da1334b2456250b0a25c0751d69afd02d3b8e"
+uuid = "f761d5c5-86db-4880-b97f-9680a7cccfb5"
+version = "0.3.1"
+
 [[StackViews]]
 deps = ["OffsetArrays"]
 git-tree-sha1 = "46e589465204cd0c08b4bd97385e4fa79a0c770c"
@@ -926,6 +932,12 @@ deps = ["Adapt", "DataAPI", "StaticArrays", "Tables"]
 git-tree-sha1 = "000e168f5cc9aded17b6999a560b7c11dda69095"
 uuid = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 version = "0.6.0"
+
+[[StructEquality]]
+deps = ["Compat"]
+git-tree-sha1 = "6e951cd0585cbe8f4ceb1cb09d69332b9484fec9"
+uuid = "6ec83bb0-ed9f-11e9-3b4c-2b04cb4e219c"
+version = "1.1.0"
 
 [[SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
@@ -1140,6 +1152,12 @@ uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 [[p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
+
+[[spglib_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "6d5c2cb4619005487c21a910d168e91b85e72abd"
+uuid = "ac4a9f1e-bdb2-5204-990c-47c8b2f70d4e"
+version = "1.16.1+0"
 
 [[x264_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]

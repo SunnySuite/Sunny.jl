@@ -95,8 +95,10 @@ function _parse_cif_float(str::String) :: Float64
 end
 
 "Parses a symmetry transformation from a String"
-function _parse_op(str::String) :: Matrix{Float64}
+function _parse_op(str::String) :: SymOp
     res = zeros(Float64, 3, 4)
+    R = @SMatrix zeros(3, 3)
+    T = @SVector zeros(3)
     for (i, str_row) = enumerate(map(strip, split(str, ",")))
         (sign, coord, rest) = match(r"(\-?)([xyz])(.*)", str_row).captures
         (fsign, numer, denom) = isempty(rest) ? ("+", "0", "1") : match(r"([\+\-]+)(\N)/(\N)", rest).captures
@@ -104,13 +106,13 @@ function _parse_op(str::String) :: Matrix{Float64}
         fsign = (fsign == "-" ? -1 : +1)
         coord = Dict("x" => 1, "y" => 2, "z" => 3)[coord]
         (numer, denom) = parse.(Float64, [numer, denom])
-        res[i, coord] = sign
-        res[i, 4] = fsign * numer/denom
+        R[i, coord] = sign
+        T[i] = fsign * numer/denom
     end
-    return res
+    return SymOp(R, T)
 end
 
-function CrystalInfo(filename::AbstractPath)
+function Cell(filename::AbstractPath)
     cif = Cif(filename)
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
@@ -129,10 +131,10 @@ function CrystalInfo(filename::AbstractPath)
     zs = map(_parse_cif_float, geo_table[!, "_atom_site_fract_z"])
     sitetypes = geo_table[!, "_atom_site_type_symbol"]
     sitelabels = geo_table[!, "_atom_site_label"]
-    unique_atoms = map(SVector{3, Float64}, zip(xs, ys, zs))
+    unique_atoms = Vec3.(zip(xs, ys, zs))
 
     # By default, assume P1 symmetry
-    symmetries = [ [1. 0. 0. 0.; 0. 1. 0. 0.; 0. 0. 1. 0.] ]
+    symmetries = [ SymOp(I(3), @SVector zeros(3)) ]
     # There's two possible headers symmetry operations could be listed under
     for sym_header in ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
         if sym_header in keys(cif)
@@ -150,8 +152,11 @@ function CrystalInfo(filename::AbstractPath)
         end
     end
 
-    return CrystalInfo(
-        brav_lat.lat_vecs, unique_atoms, sitetypes, sitelabels,
-        groupnum, symmetries
-    )
+    if length(symmetries) == 1
+        # Infer the symmetries automatically
+        return Cell{String}(brav_lat.lat_vecs, unique_atoms, sitetypes)
+    else
+        # Assume all symmetries have been provided
+        return Cell{String}(brav_lat.lat_vecs, unique_atoms, sitetypes, symmetries)
+    end
 end

@@ -223,7 +223,7 @@ function test_diamond_heisenberg_sf()
         measureΔt=Δt, collect_steps=collect_steps,
         verbose=true
     )
-    # plot_many_cuts(S; maxω=maxω, chopω=5.0)
+    plot_many_cuts(S; maxω=maxω, chopω=5.0)
     return S
 end
 

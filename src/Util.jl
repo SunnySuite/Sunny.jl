@@ -8,7 +8,9 @@ end
 @inline function modc1(i::CartesianIndex{D}, m) :: CartesianIndex{D} where {D}
     CartesianIndex(mod1.(Tuple(i), Tuple(m)))
 end
-
+@inline function offset(i::CartesianIndex{D}, n::SVector{D,Int}, m) :: CartesianIndex{D} where {D}
+    CartesianIndex(mod1.(Tuple(i) + n, Tuple(m)))
+end
 
 # Taken from:
 # https://discourse.julialang.org/t/efficient-tuple-concatenation/5398/8

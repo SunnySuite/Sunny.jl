@@ -153,6 +153,13 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; bondwidth=4
     f
 end
 
+function plot_bonds(sys::SpinSystem; kwargs...)
+    lattice = sys.lattice
+    ℋ = sys.hamiltonian
+    pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
+    plot_bonds(lattice, pair_ints; kwargs...)
+end
+
 # TODO: Base.Cartesian could combine these functions
 "Plot the outlines of the unit cells of a lattice"
 function plot_cells!(ax, lattice::Lattice{2}; color=:grey, linewidth=1.0, kwargs...)
