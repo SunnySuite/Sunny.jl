@@ -81,7 +81,6 @@ for x = basis
     display(clean_digits.(x, 4))
 end
 J = basis' * randn(length(basis))
-S.verify_coupling_matrix(cell, bond, J)
 bonds, Js = S.all_symmetry_related_interactions(cell, bond, J)
 
 for (b, J) = zip(bonds, Js)

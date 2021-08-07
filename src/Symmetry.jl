@@ -343,11 +343,10 @@ function canonical_bonds(cell::Cell, max_dist)
     # canonical indices for atoms of each type
     canon_atoms = [findfirst(isequal(t), cell.equiv_atoms) for t = atom_types]
     
-    cbonds = BondRaw[]
+    cbonds = Bond[]
 
     for i in canon_atoms
         for b in all_bonds_for_atom(cell, i, max_dist)
-            b = BondRaw(cell, b)
             if !any(is_equivalent_by_symmetry(cell, b, b′) for b′=cbonds)
                 push!(cbonds, b)
             end
@@ -579,17 +578,22 @@ function basis_for_symmetry_allowed_couplings(cell::Cell, b::BondRaw)
     end
 end
 
+function basis_for_symmetry_allowed_couplings(cell::Cell, b::Bond{3})
+    return basis_for_symmetry_allowed_couplings(cell, BondRaw(cell, b))
+end
+
+
 "Converts a list of basis elements for a J matrix into a nice string summary"
 function pretty_print_coupling_basis(coup_basis)
     nothing
 end
 
 
-function all_symmetry_related_bonds(cell::Cell, b_ref::BondRaw)
+function all_symmetry_related_bonds(cell::Cell, b_ref::Bond{3})
     bs = Bond{3}[]
     for i in eachindex(cell.positions)
         for b in all_bonds_for_atom(cell, i, distance(cell, b_ref))
-            if is_equivalent_by_symmetry(cell, b_ref, BondRaw(cell, b))
+            if is_equivalent_by_symmetry(cell, b_ref, b)
                 push!(bs, b)
             end
         end
@@ -598,15 +602,15 @@ function all_symmetry_related_bonds(cell::Cell, b_ref::BondRaw)
 end
 
 
-function all_symmetry_related_interactions(cell::Cell, b_ref::BondRaw, J_ref::Mat3)
-    verify_coupling_matrix(cell, b_ref, J_ref)
+function all_symmetry_related_interactions(cell::Cell, b_ref::Bond{3}, J_ref::Mat3)
+    verify_coupling_matrix(cell, BondRaw(cell, b_ref), J_ref)
 
     bs = Bond{3}[]
     Js = Mat3[]
 
     for i in eachindex(cell.positions)
         for b in all_bonds_for_atom(cell, i, distance(cell, b_ref))
-            s = find_symmetry_between_bonds(cell, b_ref, BondRaw(cell, b))
+            s = find_symmetry_between_bonds(cell, BondRaw(cell, b_ref), BondRaw(cell, b))
             if !isnothing(s)
                 R = cell.lat_vecs * s.R * inv(cell.lat_vecs)
                 J = R * J_ref * R'
