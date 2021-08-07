@@ -87,13 +87,14 @@ end
 
 
 # Build Cell from explicit set of symmetry operations
-function Cell(lattice, base_positions, species::Vector{T}, symops::Vector{SymOp}; symprec=1e-5) where {T}
+function Cell(lattice, base_positions, base_species::Vector{T}, symops::Vector{SymOp}; symprec=1e-5) where {T}
     is_same_position(x, y) = norm(lattice * rem.(x-y, 1, RoundNearest)) < symprec
 
     lattice = Mat3(lattice)
     base_positions = Vec3.(base_positions)
 
     positions = Vec3[]
+    species = T[]
     equiv_atoms = Int[]
     
     for i = eachindex(base_positions)
@@ -103,6 +104,7 @@ function Cell(lattice, base_positions, species::Vector{T}, symops::Vector{SymOp}
             idx = findfirst(y -> is_same_position(x, y), positions)
             if isnothing(idx)
                 push!(positions, x)
+                push!(species, base_species[i])
                 push!(equiv_atoms, i)
             else
                 j = equiv_atoms[idx]
@@ -113,9 +115,17 @@ function Cell(lattice, base_positions, species::Vector{T}, symops::Vector{SymOp}
         end
     end
 
-    species = [species[i] for i=equiv_atoms]
+    # Get symmetry names
+    rotation = zeros(3, 3, length(symops))
+    translation = zeros(3, length(symops))
+    for (i, s) = enumerate(symops)
+        rotation[:, :, i] = s.R'
+        translation[:, i] = s.T
+    end
+    hall_number = Spglib.get_hall_number_from_symmetry(rotation, translation, length(symops))
+    spg =  Spglib.get_spacegroup_type(hall_number)
 
-    ret = Cell{T}(lattice, positions, equiv_atoms, species, symops, -1, "", -1, "", symprec)
+    ret = Cell{T}(lattice, positions, equiv_atoms, species, symops, spg.number, spg.international, Int(hall_number), spg.hall_symbol, symprec)
     validate(ret)
     return ret
 end
@@ -202,7 +212,7 @@ function find_symmetry_between_bonds(cell::Cell, b1::BondRaw, b2::BondRaw)
     for s = cell.symops
         b2′ = transform(s, b2)
 
-        # Check equivalence of l1 and l2′
+        # Check equivalence of b1 and b2′
         if (is_equivalent_by_translation(cell, b1, b2′) ||
             is_equivalent_by_translation(cell, b1, reverse(b2′)))
             return s
@@ -227,7 +237,7 @@ function symmetries(cell::Cell, b::BondRaw)
     acc = Tuple{SymOp, Bool}[]
     for s = cell.symops
         b′ = transform(s, b)
-        # Check equivalence of l and l′
+        # Check equivalence of b and b′
         if is_equivalent_by_translation(cell, b, b′)
             push!(acc, (s, true))
         elseif is_equivalent_by_translation(cell, b, reverse(b′))
