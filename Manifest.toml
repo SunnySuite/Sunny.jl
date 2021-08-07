@@ -884,7 +884,9 @@ version = "1.5.1"
 
 [[Spglib]]
 deps = ["StaticArrays", "StructEquality", "UnPack", "spglib_jll"]
-git-tree-sha1 = "c56da1334b2456250b0a25c0751d69afd02d3b8e"
+git-tree-sha1 = "48d4c50bf9c85cd80890cfac89cc6e69b30db6d5"
+repo-rev = "master"
+repo-url = "https://github.com/MagSims/Spglib.jl"
 uuid = "f761d5c5-86db-4880-b97f-9680a7cccfb5"
 version = "0.3.1"
 

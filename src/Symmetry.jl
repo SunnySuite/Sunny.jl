@@ -22,10 +22,7 @@ struct Cell{T}
     equiv_atoms          :: Vector{Int}      # Index to equivalent atom type
     species              :: Vector{T}        # Species for each atom
     symops               :: Vector{SymOp}    # Symmetry operations
-    international_number :: Int              # International number for space group
-    international_symbol :: String           # International symbol (H-M)
-    hall_number          :: Int              # Hall number (-1 if unknown)
-    hall_symbol          :: String           # Hall symbol ("" if unknown)
+    hall_number          :: Int              # Hall number
     symprec              :: Float64          # Tolerance to imperfections in symmetry
 end
 
@@ -64,34 +61,22 @@ function Cell(lat_vecs::Mat3, positions::Vector{Vec3}, species::Vector{T}; sympr
     cell = Spglib.Cell(lat_vecs, hcat(positions...), species)
     d = Spglib.get_dataset(cell, symprec)
 
-    Rs = Mat3.(eachslice(d.rotations, dims=3))'
+    Rs = Mat3.(transpose.(eachslice(d.rotations, dims=3)))
     Ts = Vec3.(eachcol(d.translations))
     symops = map(SymOp, Rs, Ts)
     
-    international_number = d.spacegroup_number
-    Cell{T}(Mat3(lat_vecs), Vec3.(positions), d.equivalent_atoms, species, symops, international_number, d.international_symbol, d.hall_number, d.hall_symbol, symprec)
+    Cell{T}(lat_vecs, positions, d.equivalent_atoms, species, symops, d.hall_number, symprec)
 end
 
-
-function transform(s::SymOp, r::Vec3)
-    return s.R*r + s.T
-end
-
-function transform(s::SymOp, b::BondRaw)
-    return BondRaw(transform(s, b.r1), transform(s, b.r2))
-end
-
-function reverse(b::BondRaw)
-    return BondRaw(b.r2, b.r1)
-end
-
-
-# Build Cell from explicit set of symmetry operations
-function Cell(lat_vecs, base_positions, base_species::Vector{T}, symops::Vector{SymOp}; symprec=1e-5) where {T}
+# Build cell using the space group denoted by a unique Hall number. The complete
+# list is given at http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
+function Cell(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, hall_number::Int; symprec=1e-5) where {T}
     is_same_position(x, y) = norm(lat_vecs * rem.(x-y, 1, RoundNearest)) < symprec
 
-    lat_vecs = Mat3(lat_vecs)
-    base_positions = Vec3.(base_positions)
+    rotations, translations = Spglib.get_symmetry_from_database(hall_number)
+    Rs = Mat3.(transpose.(eachslice(rotations, dims=3)))
+    Ts = Vec3.(eachcol(translations))
+    symops = map(SymOp, Rs, Ts)
 
     positions = Vec3[]
     species = T[]
@@ -115,19 +100,82 @@ function Cell(lat_vecs, base_positions, base_species::Vector{T}, symops::Vector{
         end
     end
 
-    # Get symmetry names
+    ret = Cell{T}(lat_vecs, positions, equiv_atoms, species, symops, hall_number, symprec)
+    validate(ret)
+    return ret
+end
+
+# Make best effort to build cell from symbolic representation of spacegroup
+function Cell(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symbol::String; symprec=1e-5) where {T}
+    # See "Complete list of space groups" at Seto's home page:
+    # http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
+    n_space_groups = 530
+
+    cells = Cell{T}[]
+    for hall_number in 1:n_space_groups
+        sgt = Spglib.get_spacegroup_type(hall_number)
+        if symbol in [sgt.hall_symbol, sgt.international, sgt.international_short, sgt.international_full]
+            c = Cell(lat_vecs, base_positions, base_species, hall_number; symprec)
+            push!(cells, c)
+        end
+    end
+
+    if length(cells) == 0
+        error("Could not find symbol '$symbol' in database.")
+    elseif length(cells) == 1
+        return first(cells)
+    else
+        sort!(cells, by = c->length(c.positions))
+
+        println("Warning, the symbol '$symbol' is ambiguous. It could refer to:")
+        for c in cells
+            hall_number = c.hall_number
+            hall_symbol = Spglib.get_spacegroup_type(hall_number).hall_symbol
+            n_atoms     = length(c.positions)
+            println("   Hall group '$hall_symbol' (number $hall_number), which generates $n_atoms atoms")
+        end
+        println()
+        println("I will select Hall group number $(first(cells).hall_number). You may wish to specify")
+        println("an alternative Hall group in place of the symbol '$symbol'.")
+        return first(cells)
+    end
+end
+
+# Build Cell from explicit set of symmetry operations
+function Cell(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symops::Vector{SymOp}; symprec=1e-5) where {T}
     rotation = zeros(3, 3, length(symops))
     translation = zeros(3, length(symops))
     for (i, s) = enumerate(symops)
         rotation[:, :, i] = s.R'
         translation[:, i] = s.T
     end
-    hall_number = Spglib.get_hall_number_from_symmetry(rotation, translation, length(symops))
-    spg =  Spglib.get_spacegroup_type(hall_number)
+    hall_number = Int(Spglib.get_hall_number_from_symmetry(rotation, translation, length(symops)))
+    return Cell(lat_vecs, base_positions, base_species, hall_number; symprec)
+end
 
-    ret = Cell{T}(lat_vecs, positions, equiv_atoms, species, symops, spg.number, spg.international, Int(hall_number), spg.hall_symbol, symprec)
-    validate(ret)
-    return ret
+function display(cell::Cell)
+    printstyled("Cell info\n"; bold=true, color=:underline)
+    sgt = Spglib.get_spacegroup_type(cell.hall_number)
+    println("Hall group '$(sgt.hall_symbol)' (number $(cell.hall_number))")
+    println("International symbol '$(sgt.international)'")
+    println("Unit cell contains:")
+    for s in unique(cell.species)
+        n = count(==(s), cell.species)
+        println("    $n atoms of species '$s'")
+    end
+end
+
+
+function transform(s::SymOp, r::Vec3)
+    return s.R*r + s.T
+end
+
+function transform(s::SymOp, b::BondRaw)
+    return BondRaw(transform(s, b.r1), transform(s, b.r2))
+end
+
+function reverse(b::BondRaw)
+    return BondRaw(b.r2, b.r1)
 end
 
 # Constructors converting Lattice -> Cell, and Cell -> Lattice
