@@ -17,7 +17,7 @@ end
 
 "Holds all of the symmetry information about a crystal's unit cell"
 struct Cell{T}
-    lattice              :: Mat3             # Lattice vectors in columns
+    lat_vecs             :: Mat3             # Lattice vectors as columns
     positions            :: Vector{Vec3}     # Full set of atoms, fractional coords
     equiv_atoms          :: Vector{Int}      # Index to equivalent atom type
     species              :: Vector{T}        # Species for each atom
@@ -47,7 +47,7 @@ function BondRaw(cell::Cell, b::Bond{3})
 end
 
 function distance(cell::Cell, b::BondRaw)
-    return norm(cell.lattice * (b.r1 - b.r2))
+    return norm(cell.lat_vecs * (b.r1 - b.r2))
 end
 
 function distance(cell::Cell, b::Bond{3})
@@ -60,8 +60,8 @@ end
 
 
 # Let Spglib infer the space group
-function Cell(lattice::Mat3, positions::Vector{Vec3}, species::Vector{T}; symprec=1e-5) where {T}
-    cell = Spglib.Cell(lattice, hcat(positions...), species)
+function Cell(lat_vecs::Mat3, positions::Vector{Vec3}, species::Vector{T}; symprec=1e-5) where {T}
+    cell = Spglib.Cell(lat_vecs, hcat(positions...), species)
     d = Spglib.get_dataset(cell, symprec)
 
     Rs = Mat3.(eachslice(d.rotations, dims=3))'
@@ -69,7 +69,7 @@ function Cell(lattice::Mat3, positions::Vector{Vec3}, species::Vector{T}; sympre
     symops = map(SymOp, Rs, Ts)
     
     international_number = d.spacegroup_number
-    Cell{T}(Mat3(lattice), Vec3.(positions), d.equivalent_atoms, species, symops, international_number, d.international_symbol, d.hall_number, d.hall_symbol, symprec)
+    Cell{T}(Mat3(lat_vecs), Vec3.(positions), d.equivalent_atoms, species, symops, international_number, d.international_symbol, d.hall_number, d.hall_symbol, symprec)
 end
 
 
@@ -87,10 +87,10 @@ end
 
 
 # Build Cell from explicit set of symmetry operations
-function Cell(lattice, base_positions, base_species::Vector{T}, symops::Vector{SymOp}; symprec=1e-5) where {T}
-    is_same_position(x, y) = norm(lattice * rem.(x-y, 1, RoundNearest)) < symprec
+function Cell(lat_vecs, base_positions, base_species::Vector{T}, symops::Vector{SymOp}; symprec=1e-5) where {T}
+    is_same_position(x, y) = norm(lat_vecs * rem.(x-y, 1, RoundNearest)) < symprec
 
-    lattice = Mat3(lattice)
+    lat_vecs = Mat3(lat_vecs)
     base_positions = Vec3.(base_positions)
 
     positions = Vec3[]
@@ -125,7 +125,7 @@ function Cell(lattice, base_positions, base_species::Vector{T}, symops::Vector{S
     hall_number = Spglib.get_hall_number_from_symmetry(rotation, translation, length(symops))
     spg =  Spglib.get_spacegroup_type(hall_number)
 
-    ret = Cell{T}(lattice, positions, equiv_atoms, species, symops, spg.number, spg.international, Int(hall_number), spg.hall_symbol, symprec)
+    ret = Cell{T}(lat_vecs, positions, equiv_atoms, species, symops, spg.number, spg.international, Int(hall_number), spg.hall_symbol, symprec)
     validate(ret)
     return ret
 end
@@ -156,8 +156,8 @@ function Cell(lattice::Lattice{2, 4, 3})
 end
 
 function Lattice(cell::Cell{String}, latsize) :: Lattice{3, 9, 4}
-    basis_vecs = map(b -> cell.lattice * b, cell.positions)
-    Lattice{3, 9, 4}(cell.lattice, basis_vecs, cell.species, latsize)
+    basis_vecs = map(b -> cell.lat_vecs * b, cell.positions)
+    Lattice{3, 9, 4}(cell.lat_vecs, basis_vecs, cell.species, latsize)
 end
 
 
@@ -173,14 +173,14 @@ function validate(cell::Cell)
 
     # Check symmetry rotations are orthogonal
     for s = cell.symops
-        R = cell.lattice * s.R * inv(cell.lattice)
+        R = cell.lat_vecs * s.R * inv(cell.lat_vecs)
         @assert norm(R*R' - I) < 1e-12
     end
 
     # TODO: Check that space group is closed and that symops have inverse?
 
     # Check that symmetry elements are present in Spglib-inferred space group
-    cell′ = Cell(cell.lattice, cell.positions, cell.species; cell.symprec)
+    cell′ = Cell(cell.lat_vecs, cell.positions, cell.species; cell.symprec)
     for s = cell.symops
         @assert any(cell′.symops) do s′
             isapprox(s, s′; atol=cell.symprec)
@@ -202,8 +202,8 @@ end
 
 function find_symmetry_between_bonds(cell::Cell, b1::BondRaw, b2::BondRaw)
     # Fail early if two bonds describe different real-space distances
-    d1 = norm(cell.lattice*(b1.r2 - b1.r1))
-    d2 = norm(cell.lattice*(b2.r2 - b2.r1))
+    d1 = norm(cell.lat_vecs*(b1.r2 - b1.r1))
+    d2 = norm(cell.lat_vecs*(b2.r2 - b2.r1))
     if abs(d1 - d2) > cell.symprec
         return nothing
     end
@@ -257,12 +257,12 @@ function all_bonds_for_atom(cell::Cell, i::Int, max_dist::Float64)
     max_dist += 4cell.symprec
 
     # columns are the reciprocal vectors
-    recip_lattice = 2π*inv(cell.lattice)'
+    recip_vecs = 2π*inv(cell.lat_vecs)'
 
     # box_lengths[i] represents the perpendicular distance between two parallel
     # boundary planes spanned by lattice vectors a_j and a_k (where indices j
     # and k differ from i)
-    box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(cell.lattice), eachcol(recip_lattice))]
+    box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(cell.lat_vecs), eachcol(recip_vecs))]
     n_max = round.(Int, max_dist ./ box_lengths, RoundUp)
 
     bonds = Bond{3}[]
@@ -409,7 +409,7 @@ const transpose_op_3x3 = [
 # 1 represents the allowed coupling matrices J.
 function projector_for_symop(cell::Cell, s::SymOp, parity::Bool)
     # Cartesian-space rotation operator corresponding to `s`
-    R = cell.lattice * s.R * inv(cell.lattice)
+    R = cell.lat_vecs * s.R * inv(cell.lat_vecs)
 
     # Constraint is modeled as `F J = 0`
     F = kron(R, R) - (parity ? I : transpose_op_3x3)
@@ -440,7 +440,7 @@ end
 # Check that a coupling matrix J is consistent with symmetries of a bond
 function verify_coupling_matrix(cell::Cell, b::BondRaw, J::Mat3)
     for (s, parity) in symmetries(cell, b)
-        R = cell.lattice * s.R * inv(cell.lattice)
+        R = cell.lat_vecs * s.R * inv(cell.lat_vecs)
         @assert norm(R*J*R' - (parity ? J : J')) < 1e-12
     end
 end
@@ -560,7 +560,7 @@ function all_symmetry_related_interactions(cell::Cell, b_ref::BondRaw, J_ref::Ma
         for b in all_bonds_for_atom(cell, i, distance(cell, b_ref))
             s = find_symmetry_between_bonds(cell, b_ref, BondRaw(cell, b))
             if !isnothing(s)
-                R = cell.lattice * s.R * inv(cell.lattice)
+                R = cell.lat_vecs * s.R * inv(cell.lat_vecs)
                 J = R * J_ref * R'
                 push!(bs, b)
                 push!(Js, J)
