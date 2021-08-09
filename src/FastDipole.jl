@@ -19,11 +19,12 @@ export Lattice, ReciprocalLattice
 export volume, eachcellindex, gen_reciprocal
 
 include("Symmetry.jl")
-import .Symmetry: Cell, Bond, canonical_bonds, print_bond_table
-export Cell, Bond, canonical_bonds, print_bond_table
+import .Symmetry
+import .Symmetry: Crystal, Bond, print_bond_table
+export Crystal, Bond, print_bond_table
 
 include("Interactions.jl")
-export ExternalField, Heisenberg, DiagonalCoupling, GeneralCoupling
+export ExternalField, Heisenberg, OnSite, DiagonalCoupling, GeneralCoupling
 export gen_interaction, Hamiltonian
 export DipoleReal, DipoleFourier
 
@@ -49,6 +50,6 @@ include("StructureFactors.jl")
 export diag_structure_factor
 
 include("Plotting.jl")
-export plot_lattice, plot_spins, plot_bonds, anim_integration, live_integration
+export plot_lattice, plot_spins, plot_bonds, plot_all_bonds, anim_integration, live_integration
 
 end

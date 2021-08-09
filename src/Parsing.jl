@@ -34,6 +34,7 @@ end
 
 function _parse_interactions(config::Dict{String, Any}, lattice::Lattice) :: Vector{Interaction}
     interactions = Vector{Interaction}()
+    crystal = Crystal(lattice)
     if haskey(config, "field")
         for field_int in config["field"]
             push!(interactions, ExternalField(field_int["strength"]))
@@ -42,22 +43,18 @@ function _parse_interactions(config::Dict{String, Any}, lattice::Lattice) :: Vec
 
     if haskey(config, "pair")
         for pair_int in config["pair"]
-            neigh = haskey(pair_int, "neighbor") ? pair_int["neighbor"] : nothing
             push!(interactions, PairInteraction(
                 pair_int["strength"],
+                crystal,
                 pair_int["dist"],
-                neigh,
-                lattice
+                pair_int["class"],
             ))
         end
     end
 
-    if haskey(config, "easyaxis")
-        for easy_ax in config["easyaxis"]
-            push!(interactions, EasyAxis(
-                easy_ax["strength"],
-                easy_ax["axis"]
-            ))
+    if haskey(config, "onsite")
+        for easy_ax in config["onsite"]
+            push!(interactions, OnSite(easy_ax["J"]))
         end
     end
     return interactions
@@ -77,16 +74,6 @@ function parse_config(filename::String) :: SpinSystem
     end
 end
 
-"Holds details about a crystal structure, as parsed from a .cif file"
-struct CrystalInfo
-    lattice_vecs   :: Mat3                      # Lattice vectors
-    basis_sites    :: Vector{Vec3}              # Minimal set of basis atoms, in fractional coords
-    basis_types    :: Vector{String}            # Element symbols for each atom
-    basis_labels   :: Vector{String}            # More specific names for each atoms
-    spacegroup_num :: Int                       # Space group international table number
-    sym_ops        :: Vector{Matrix{Float64}}   # Symmetry operations to generate all basis atoms
-end
-
 "Strips trailing uncertainty values from a String, then parses as a Float"
 function _parse_cif_float(str::String) :: Float64
     i = findfirst('(', str)
@@ -95,10 +82,10 @@ function _parse_cif_float(str::String) :: Float64
 end
 
 "Parses a symmetry transformation from a String"
-function _parse_op(str::String) :: SymOp
+function _parse_op(str::String) :: Symmetry.SymOp
     res = zeros(Float64, 3, 4)
-    R = @SMatrix zeros(3, 3)
-    T = @SVector zeros(3)
+    R = zeros(3, 3)
+    T = zeros(3)
     for (i, str_row) = enumerate(map(strip, split(str, ",")))
         (sign, coord, rest) = match(r"(\-?)([xyz])(.*)", str_row).captures
         (fsign, numer, denom) = isempty(rest) ? ("+", "0", "1") : match(r"([\+\-]+)(\N)/(\N)", rest).captures
@@ -109,10 +96,10 @@ function _parse_op(str::String) :: SymOp
         R[i, coord] = sign
         T[i] = fsign * numer/denom
     end
-    return SymOp(R, T)
+    return Symmetry.SymOp(R, T)
 end
 
-function Cell(filename::AbstractPath)
+function Crystal(filename::AbstractPath)
     cif = Cif(filename)
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
@@ -123,18 +110,19 @@ function Cell(filename::AbstractPath)
     α = _parse_cif_float(cif["_cell_angle_alpha"][1])
     β = _parse_cif_float(cif["_cell_angle_beta"][1])
     γ = _parse_cif_float(cif["_cell_angle_gamma"][1])
-    brav_lat = Lattice(a, b, c, α, β, γ, [1, 1, 1])
+    bravais_lat = Lattice(a, b, c, α, β, γ, [1, 1, 1])
 
     geo_table = get_loop(cif, "_atom_site_fract_x")
     xs = map(_parse_cif_float, geo_table[!, "_atom_site_fract_x"])
     ys = map(_parse_cif_float, geo_table[!, "_atom_site_fract_y"])
     zs = map(_parse_cif_float, geo_table[!, "_atom_site_fract_z"])
     sitetypes = geo_table[!, "_atom_site_type_symbol"]
+    sitetypes = Vector{String}(sitetypes)
     sitelabels = geo_table[!, "_atom_site_label"]
     unique_atoms = Vec3.(zip(xs, ys, zs))
 
     # By default, assume P1 symmetry
-    symmetries = [ SymOp(I(3), @SVector zeros(3)) ]
+    symmetries = [ Symmetry.SymOp(I(3), @SVector zeros(3)) ]
     # There's two possible headers symmetry operations could be listed under
     for sym_header in ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
         if sym_header in keys(cif)
@@ -152,11 +140,20 @@ function Cell(filename::AbstractPath)
         end
     end
 
-    if length(symmetries) == 1
-        # Infer the symmetries automatically
-        return Cell{String}(brav_lat.lat_vecs, unique_atoms, sitetypes)
-    else
+    hall_symbol = nothing
+    hall_header = "_space_group_name_Hall"
+    if hall_header in keys(cif)
+        hall_symbol = cif[hall_header]
+    end
+
+    # Symmetry preferences: Explicit List > Hall Symbol > Infer
+    if length(symmetries) > 1
         # Assume all symmetries have been provided
-        return Cell{String}(brav_lat.lat_vecs, unique_atoms, sitetypes, symmetries)
+        return Crystal(bravais_lat.lat_vecs, unique_atoms, sitetypes, symmetries)
+    elseif !isnothing(hall_symbol)
+        return Crystal(bravais_lat.lat_vecs, unique_atoms, sitetypes, hall_symbol)
+    else
+        # Infer the symmetries automatically
+        return Crystal(bravais_lat.lat_vecs, unique_atoms, sitetypes)
     end
 end

@@ -13,10 +13,11 @@ function test_heunp()
               SA[0.5, 0.5, 0.5]]
     latsize = SA[5, 5, 5]
     lattice = Lattice(lat_vecs, b_vecs, latsize)
+    crystal = Crystal(lattice)
 
     J = 2.0
     field = ExternalField([0.0, 0.0, 1.0])
-    pair_int = Heisenberg(J, 1, lattice)
+    pair_int = Heisenberg(J, crystal, 1, 1)
     interactions = [pair_int, field]
 
     sys = SpinSystem(lattice, interactions)

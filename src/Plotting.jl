@@ -3,23 +3,37 @@
 
 import GLMakie
 
-function plot_lattice!(ax, lattice::Lattice{2}; color=:blue, markersize=20, linecolor=:grey, linewidth=1.0, kwargs...)
+function plot_lattice!(ax, lattice::Lattice{2}; colors=:Set1_9, markersize=20, linecolor=:grey, linewidth=1.0, kwargs...)
     # Plot the unit cell mesh
     plot_cells!(ax, lattice; color=linecolor, linewidth=linewidth)
 
+    unique_species = unique(lattice.basis_species)
+    num_unique = length(unique_species)
+    colors = GLMakie.to_colormap(colors, num_unique)
+
     # Plot markers at each site
     sites = reinterpret(reshape, Float64, collect(lattice))
-    xs, ys = vec(sites[1, 1:end, 1:end, 1:end]), vec(sites[2, 1:end, 1:end, 1:end])
-    GLMakie.scatter!(ax, xs, ys; color=color, markersize=markersize, show_axis=false, kwargs...)
+    for (i, species) in enumerate(unique_species)
+        basis_idxs = findall(isequal(species), lattice.basis_species)
+        xs = vec(sites[1, basis_idxs, 1:end, 1:end])
+        ys = vec(sites[2, basis_idxs, 1:end, 1:end])
+        GLMakie.scatter!(ax, xs, ys; label=species, color=color, markersize=markersize, show_axis=false, kwargs...)
+    end
 end
 
-function plot_lattice!(ax, lattice::Lattice{3}; color=:blue, markersize=200, linecolor=:grey, linewidth=1.0, kwargs...)
+function plot_lattice!(ax, lattice::Lattice{3}; colors=:Set1_9, markersize=200, linecolor=:grey, linewidth=1.0, kwargs...)
+    unique_species = unique(lattice.basis_species)
+    colors = GLMakie.to_colormap(colors, 9)
+
     # Plot markers at each site
     sites = reinterpret(reshape, Float64, collect(lattice))
-    xs = vec(sites[1, 1:end, 1:end, 1:end, 1:end])
-    ys = vec(sites[2, 1:end, 1:end, 1:end, 1:end])
-    zs = vec(sites[3, 1:end, 1:end, 1:end, 1:end])
-    GLMakie.scatter!(ax, xs, ys, zs; color=color, markersize=markersize, show_axis=false, kwargs...)
+    for (i, species) in enumerate(unique_species)
+        basis_idxs = findall(isequal(species), lattice.basis_species)
+        xs = vec(sites[1, basis_idxs, 1:end, 1:end, 1:end])
+        ys = vec(sites[2, basis_idxs, 1:end, 1:end, 1:end])
+        zs = vec(sites[3, basis_idxs, 1:end, 1:end, 1:end])
+        GLMakie.scatter!(ax, xs, ys, zs; label=species, color=colors[i], markersize=markersize, show_axis=false, kwargs...)
+    end
 
     # For some odd reason, the sites will not appear unless this happens afterwards
     # Plot the unit cell mesh
@@ -45,6 +59,7 @@ end
 function plot_lattice(lattice::Lattice{2}; kwargs...)
     f, ax = _setup_2d()
     plot_lattice!(ax, lattice; kwargs...)
+    f[1, 2] = GLMakie.Legend(f, ax, "Species")
     f
 end
 
@@ -53,6 +68,9 @@ end
 function plot_lattice(lattice::Lattice{3}; kwargs...)
     f, lscene = _setup_3d()
     plot_lattice!(lscene, lattice; kwargs...)
+    # TODO: Markers are often way too big.
+    f[1, 2] = GLMakie.Legend(f, lscene, "Species")
+    f
 end
 
 # Warning: These functions assume that bondlists have "duplicates". I.e. both
@@ -63,7 +81,7 @@ function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4
 
     colors = GLMakie.to_colormap(:Dark2_8, 8)
     # Sort interactions so that longer bonds are plotted first
-    sort!(ints, by=int->-int.dist)
+    sort!(ints, by=int->distance(lattice, int.bonds[1]))
 
     toggles = Vector{GLMakie.Toggle}()
     labels = Vector{GLMakie.Label}()
@@ -79,7 +97,7 @@ function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4
         ys = Vector{Float64}()
         for bond in int.bonds
             if bond.i == basis_idx
-                new_cell = modc1(cent_cell + bond.celloffset, lattice.size)
+                new_cell = offset(cent_cell, bond.n, lattice.size)
                 bond_pt = lattice[bond.j, new_cell]
                 push!(xs, cent_pt[1])
                 push!(ys, cent_pt[2])
@@ -87,29 +105,25 @@ function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4
                 push!(ys, bond_pt[2])
             end
         end
-        bondlabel = "J" * string(int.dist)
-        if !isnothing(int.class)
-            bondlabel *= "_" * string(int.class)
-        end
         color = colors[mod1(n, 8)]
-        seg = GLMakie.linesegments!(xs, ys; linewidth=bondwidth, label=bondlabel, color=color)
+        seg = GLMakie.linesegments!(xs, ys; linewidth=bondwidth, label=int.label, color=color)
 
         tog = GLMakie.Toggle(f, active=true)
         GLMakie.connect!(seg.visible, tog.active)
         push!(toggles, tog)
-        push!(labels, GLMakie.Label(f, bondlabel))
+        push!(labels, GLMakie.Label(f, int.label))
     end
     GLMakie.axislegend()
     f[1, 2] = GLMakie.grid!(hcat(toggles, labels), tellheight=false)
     f
 end
 
-function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; bondwidth=4, kwargs...)
+function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; colors=:Dark2_8, bondwidth=4, kwargs...)
     f, ax = _setup_3d()
 
-    colors = GLMakie.to_colormap(:Dark2_8, 8)
+    colors = GLMakie.to_colormap(colors, 8)
     # Sort interactions so that longer bonds are plotted first
-    sort!(ints, by=int->-int.dist)
+    sort!(ints, by=int->Symmetry.distance(lattice, int.bonds[1]))
 
     toggles = Vector{GLMakie.Toggle}()
     labels = Vector{GLMakie.Label}()
@@ -126,7 +140,7 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; bondwidth=4
         zs = Vector{Float64}()
         for bond in int.bonds
             if bond.i == basis_idx
-                new_cell = modc1(cent_cell + bond.celloffset, lattice.size)
+                new_cell = offset(cent_cell, bond.n, lattice.size)
                 bond_pt = lattice[bond.j, new_cell]
                 push!(xs, cent_pt[1])
                 push!(ys, cent_pt[2])
@@ -136,28 +150,37 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; bondwidth=4
                 push!(zs, bond_pt[3])
             end
         end
-        bondlabel = "J" * string(int.dist)
-        if !isnothing(int.class)
-            bondlabel *= "_" * string(int.class)
-        end
         color = colors[mod1(n, 8)]
-        seg = GLMakie.linesegments!(xs, ys, zs; linewidth=bondwidth, label=bondlabel, color=color)
+        seg = GLMakie.linesegments!(xs, ys, zs; linewidth=bondwidth, label=int.label, color=color)
 
         tog = GLMakie.Toggle(f, active=true)
         GLMakie.connect!(seg.visible, tog.active)
         push!(toggles, tog)
-        push!(labels, GLMakie.Label(f, bondlabel))
+        push!(labels, GLMakie.Label(f, int.label))
     end
     GLMakie.axislegend()
     f[1, 2] = GLMakie.grid!(hcat(toggles, labels), tellheight=false)
     f
 end
 
-function plot_bonds(sys::SpinSystem; kwargs...)
-    lattice = sys.lattice
-    ℋ = sys.hamiltonian
-    pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
-    plot_bonds(lattice, pair_ints; kwargs...)
+@inline function plot_bonds(lattice::Lattice{3}, ℋ::Hamiltonian; kwargs...)
+    interactions = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
+    plot_bonds(lattice, interactions; kwargs...)
+end
+
+@inline function plot_bonds(sys::SpinSystem; kwargs...)
+    plot_bonds(sys.lattice, sys.hamiltonian; kwargs...)
+end
+
+function plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
+    crystal = Crystal(lattice)
+    canon_bonds = Symmetry.canonical_bonds(crystal, max_dist)
+    interactions = Vector{Heisenberg{3}}()
+    # First "bond" is always a self-interaction
+    for (i, bond) in enumerate(canon_bonds[2:end])
+        push!(interactions, Heisenberg(1.0, crystal, bond, "J$i"))
+    end
+    plot_bonds(lattice, interactions; kwargs...)
 end
 
 # TODO: Base.Cartesian could combine these functions

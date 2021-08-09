@@ -9,7 +9,7 @@ end
     CartesianIndex(mod1.(Tuple(i), Tuple(m)))
 end
 @inline function offset(i::CartesianIndex{D}, n::SVector{D,Int}, m) :: CartesianIndex{D} where {D}
-    CartesianIndex(mod1.(Tuple(i) + n, Tuple(m)))
+    CartesianIndex(Tuple(mod1.(Tuple(i) .+ n, Tuple(m))))
 end
 
 # Taken from:

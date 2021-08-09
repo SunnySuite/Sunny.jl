@@ -117,6 +117,15 @@ function energy(sys::SpinSystem, heisenberg::Heisenberg)
     return 0.5 * J * E
 end
 
+function energy(sys::SpinSystem, on_site::OnSite)
+    J = on_site.J
+    E = 0.0
+    for S in sys
+        E += dot(S, J, S)
+    end
+    return E
+end
+
 function energy(sys::SpinSystem, diag_coup::DiagonalCoupling)
     @unpack J, bonds = diag_coup
     E = 0.0
@@ -177,7 +186,7 @@ end
     end
 end
 
-"Accumulates the local field coming from Heisenberg couplins"
+"Accumulates the local field coming from Heisenberg couplings"
 @inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, heisen::Heisenberg)
     syssize = size(spins)[2:end]
     J = heisen.J
@@ -186,6 +195,15 @@ end
         for cell in CartesianIndices(syssize)
             B[i, cell] = B[i, cell] - J * spins[j, offset(cell, n, syssize)]
         end
+    end
+end
+
+"Accumulates the local field coming from on-site terms"
+@inline function _accum_field(B::Array{Vec3}, spins::Array{Vec3}, on_site::OnSite)
+    J = on_site.J
+    for idx in eachindex(spins)
+        S = spins[S]
+        B[idx] = B[idx] - 2 * J .* S
     end
 end
 
