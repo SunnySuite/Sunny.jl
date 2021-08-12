@@ -81,26 +81,79 @@ function _parse_cif_float(str::String) :: Float64
     return parse(Float64, str)
 end
 
-"Parses a symmetry transformation from a String"
-function _parse_op(str::String) :: Symmetry.SymOp
-    res = zeros(Float64, 3, 4)
-    R = zeros(3, 3)
-    T = zeros(3)
-    for (i, str_row) = enumerate(map(strip, split(str, ",")))
-        (sign, coord, rest) = match(r"(\-?)([xyz])(.*)", str_row).captures
-        (fsign, numer, denom) = isempty(rest) ? ("+", "0", "1") : match(r"([\+\-]+)(\N)/(\N)", rest).captures
-        sign = (sign == "-" ? -1 : +1)
-        fsign = (fsign == "-" ? -1 : +1)
-        coord = Dict("x" => 1, "y" => 2, "z" => 3)[coord]
-        (numer, denom) = parse.(Float64, [numer, denom])
-        R[i, coord] = sign
-        T[i] = fsign * numer/denom
-    end
-    return Symmetry.SymOp(R, T)
+function _parse_op(s::AbstractString) :: Symmetry.SymOp
+    R, T = xyzt2components(s, Val(3))
+    # Wrap the translations to be within range [0, 1)
+    T = mod.(T, 1)
+    Symmetry.SymOp(R, T)
 end
 
-function Crystal(filename::AbstractPath)
-    cif = Cif(filename)
+# These two functions are from Crystalline.jl
+# TODO: Add licensing info before public release
+function xyzt2components(s::AbstractString, ::Val{D}) where D
+    xyzts = split(s, ',')
+    length(xyzts) == D || throw(DimensionMismatch("incompatible matrix size and string format"))
+
+    # initialize zero'd MArrays for rotation/translation parts (allocation will be elided)
+    W = zero(MMatrix{D, D, Float64}) # rotation
+    w = zero(MVector{D, Float64})    # translation
+    
+    # "fill in" `W` and `w` according to content of `xyzts`
+    xyzt2components!(W, w, xyzts)
+
+    # convert to SArrays (elides allocation since `xyzt2components!` is inlined)
+    return SMatrix(W), SVector(w)
+end
+
+@inline function xyzt2components!(W::MMatrix{D,D,T}, w::MVector{D,T},
+                                  xyzts::AbstractVector{<:AbstractString}) where {D,T<:Real}
+
+    chars = D == 3 ? ('x','y','z') : D == 2 ? ('x','y') : ('x',)
+    @inbounds for (i,s) in enumerate(xyzts)
+        # rotation/inversion/reflection part
+        firstidx = nextidx = firstindex(s)
+        while (idx = findnext(c -> c ∈ chars, s, nextidx)) !== nothing
+            c = s[idx]
+            j = c=='x' ? 1 : (c=='y' ? 2 : 3)
+            
+            if idx == firstidx
+                W[i,j] = one(T)
+            else
+                previdx = prevind(s, idx)
+                while (c′=s[previdx]; isspace(s[previdx]))
+                    previdx = prevind(s, previdx)
+                    previdx ≤ firstidx && break
+                end
+                if c′ == '+' || isspace(c′)
+                    W[i,j] = one(T)
+                elseif c′ == '-'
+                    W[i,j] = -one(T)
+                else
+                    throw(ArgumentError("failed to parse provided string representation"))
+                end
+            end
+            nextidx = nextind(s, idx)
+        end
+
+        # nonsymmorphic part/fractional translation part
+        lastidx = lastindex(s)
+        if nextidx ≤ lastidx # ⇒ stuff "remaining" in `s`; a nonsymmorphic part
+            slashidx = findnext(==('/'), s, nextidx)
+            if slashidx !== nothing # interpret as integer fraction
+                num = SubString(s, nextidx, prevind(s, slashidx))
+                den = SubString(s, nextind(s, slashidx), lastidx)
+                w[i] = convert(T, parse(Int, num)/parse(Int, den))
+            else                    # interpret at number of type `T`
+                w[i] = parse(T, SubString(s, nextidx, lastidx))
+            end
+        end
+    end
+
+    return W, w
+end
+
+function Crystal(filename::AbstractString)
+    cif = Cif(Path(filename))
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
 
@@ -110,7 +163,7 @@ function Crystal(filename::AbstractPath)
     α = _parse_cif_float(cif["_cell_angle_alpha"][1])
     β = _parse_cif_float(cif["_cell_angle_beta"][1])
     γ = _parse_cif_float(cif["_cell_angle_gamma"][1])
-    bravais_lat = Lattice(a, b, c, α, β, γ, [1, 1, 1])
+    lat_vecs = lattice_vectors(a, b, c, α, β, γ)
 
     geo_table = get_loop(cif, "_atom_site_fract_x")
     xs = map(_parse_cif_float, geo_table[!, "_atom_site_fract_x"])
@@ -149,11 +202,11 @@ function Crystal(filename::AbstractPath)
     # Symmetry preferences: Explicit List > Hall Symbol > Infer
     if length(symmetries) > 1
         # Assume all symmetries have been provided
-        return Crystal(bravais_lat.lat_vecs, unique_atoms, sitetypes, symmetries)
+        return Crystal(lat_vecs, unique_atoms, sitetypes, symmetries)
     elseif !isnothing(hall_symbol)
-        return Crystal(bravais_lat.lat_vecs, unique_atoms, sitetypes, hall_symbol)
+        return Crystal(lat_vecs, unique_atoms, sitetypes, hall_symbol)
     else
         # Infer the symmetries automatically
-        return Crystal(bravais_lat.lat_vecs, unique_atoms, sitetypes)
+        return Crystal(lat_vecs, unique_atoms, sitetypes)
     end
 end

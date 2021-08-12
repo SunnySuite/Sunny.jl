@@ -20,8 +20,8 @@ export volume, eachcellindex, gen_reciprocal
 
 include("Symmetry.jl")
 import .Symmetry
-import .Symmetry: Crystal, Bond, print_bond_table
-export Crystal, Bond, print_bond_table
+import .Symmetry: Crystal, Bond, print_bond_table, subcrystal
+export Crystal, Bond, print_bond_table, subcrystal
 
 include("Interactions.jl")
 export ExternalField, Heisenberg, OnSite, DiagonalCoupling, GeneralCoupling

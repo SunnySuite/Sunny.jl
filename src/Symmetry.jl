@@ -6,8 +6,83 @@ using StaticArrays
 using Parameters
 import Spglib
 
-import FastDipole: Vec3, Mat3, Lattice
+import FastDipole: Vec3, Mat3, Lattice, lattice_params, lattice_vectors
 export Crystal, Bond, canonical_bonds, print_bond_table
+
+@enum CellType begin
+    triclinic
+    monoclinic
+    orthorhombic
+    tetragonal
+    trigonal
+    hexagonal
+    cubic
+end
+const rhombohedral = trigonal
+
+"Infer a 3D Bravais lattice cell type from its lattice vectors"
+function cell_type(lat_vecs::Mat3)
+    (a, b, c, α, β, γ) = lattice_params(lat_vecs)
+    p = sortperm([a, b, c])
+    a, b, c = (a, b, c)[p]
+    α, β, γ = (α, β, γ)[p]
+    if a ≈ b ≈ c
+        if α ≈ β ≈ γ ≈ 90.
+            cubic
+        elseif α ≈ β ≈ γ
+            trigonal
+        end
+    elseif a ≈ b
+        if α ≈ β ≈ 90.
+            if γ ≈ 90.
+                tetragonal
+            elseif γ ≈ 120.
+                hexagonal
+            end
+        end
+    elseif b ≈ c
+        if β ≈ γ ≈ 90.
+            if α ≈ 90.
+                tetragonal
+            elseif α ≈ 120.
+                hexagonal
+            end
+        end
+    elseif α ≈ β ≈ γ ≈ 90.
+        orthorhombic
+    elseif α ≈ β ≈ 90. || β ≈ γ ≈ 90. || α ≈ γ ≈ 90.
+        monoclinic
+    else
+        triclinic
+    end
+end
+
+"Return the standard cell convention for a given Hall number"
+function cell_type(hall_number::Int)
+    if 1 <= hall_number <= 2
+        triclinic
+    elseif 3 <= hall_number <= 107
+        monoclinic
+    elseif 108 <= hall_number <= 348
+        orthorhombic
+    elseif 349 <= hall_number <= 429
+        tetragonal
+    elseif 430 <= hall_number <= 461
+        trigonal
+    elseif 462 <= hall_number <= 488
+        hexagonal
+    elseif 489 <= hall_number <= 530
+        cubic
+    else
+        error("Invalid Hall number $hall_number. Allowed range is 1..530")
+    end
+end
+
+function is_standard_form(lat_vecs::Mat3)
+    lat_params = lattice_params(lat_vecs)
+    conventional_lat_vecs = lattice_vectors(lat_params...)
+    return lat_vecs ≈ conventional_lat_vecs
+end
 
 # Rotational and translational parts in fractional coordinates
 struct SymOp
@@ -70,8 +145,8 @@ end
 
 # Let Spglib infer the space group
 function Crystal(lat_vecs::Mat3, positions::Vector{Vec3}, species::Vector{T}; symprec=1e-5) where {T}
-    cryst = Spglib.Cell(lat_vecs, hcat(positions...), species)
-    d = Spglib.get_dataset(cryst, symprec)
+    cell = Spglib.Cell(lat_vecs, hcat(positions...), species)
+    d = Spglib.get_dataset(cell, symprec)
 
     Rs = Mat3.(transpose.(eachslice(d.rotations, dims=3)))
     Ts = Vec3.(eachcol(d.translations))
@@ -85,13 +160,68 @@ end
 function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, hall_number::Int; symprec=1e-5) where {T}
     is_same_position(x, y) = norm(lat_vecs * rem.(x-y, 1, RoundNearest)) < symprec
 
+    hall_cell_type = cell_type(hall_number)
+    @assert cell_type(lat_vecs) == hall_cell_type "Provided unit cell not conventional for provided hall number."
+    @assert is_standard_form(lat_vecs) "Provided lat_vecs matrix not in standard form"
+
     rotations, translations = Spglib.get_symmetry_from_database(hall_number)
     Rs = Mat3.(transpose.(eachslice(rotations, dims=3)))
     Ts = Vec3.(eachcol(translations))
     symops = map(SymOp, Rs, Ts)
 
-    positions = Vec3[]
-    species = T[]
+    return Crystal(lat_vecs, base_positions, base_species, symops; symprec=symprec)
+end
+
+# Make best effort to build cryst from symbolic representation of spacegroup
+function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symbol::String; symprec=1e-5) where {T}
+    # See "Complete list of space groups" at Seto's home page:
+    # http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
+    n_space_groups = 530
+
+    cells = Crystal{T}[]
+    for hall_number in 1:n_space_groups
+        sgt = Spglib.get_spacegroup_type(hall_number)
+        if symbol in [sgt.hall_symbol, sgt.international, sgt.international_short, sgt.international_full]
+            c = Crystal(lat_vecs, base_positions, base_species, hall_number; symprec)
+            push!(cells, c)
+        end
+    end
+
+    if length(cells) == 0
+        error("Could not find symbol '$symbol' in database.")
+    elseif length(cells) == 1
+        return first(cells)
+    else
+        sort!(cells, by=c->length(c.positions))
+
+        println("Warning, the symbol '$symbol' is ambiguous. It could refer to:")
+        for c in cells
+            hall_number = c.hall_number
+            hall_symbol = Spglib.get_spacegroup_type(hall_number).hall_symbol
+            n_atoms     = length(c.positions)
+            println("   Hall group '$hall_symbol' (number $hall_number), which generates $n_atoms atoms")
+        end
+        println()
+        println("I will select Hall group number $(first(cells).hall_number). You may wish to specify")
+        println("an alternative Hall group in place of the symbol '$symbol'.")
+        return first(cells)
+    end
+end
+
+"Build Crystal from explicit set of symmetry operations and a minimal set of positions "
+function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symops::Vector{SymOp}; symprec=1e-5) where {T}
+    rotation = zeros(3, 3, length(symops))
+    translation = zeros(3, length(symops))
+    for (i, s) = enumerate(symops)
+        rotation[:, :, i] = s.R'
+        translation[:, i] = s.T
+    end
+    hall_number = Int(Spglib.get_hall_number_from_symmetry(rotation, translation, length(symops)))
+    
+    is_same_position(x, y) = norm(lat_vecs * rem.(x-y, 1, RoundNearest)) < symprec
+
+    positions = empty(base_positions)
+    species = empty(base_species)
     equiv_atoms = Int[]
     
     for i = eachindex(base_positions)
@@ -117,55 +247,43 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     return ret
 end
 
-# Make best effort to build cryst from symbolic representation of spacegroup
-function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symbol::String; symprec=1e-5) where {T}
-    # See "Complete list of space groups" at Seto's home page:
-    # http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
-    n_space_groups = 530
-
-    cells = Crystal{T}[]
-    for hall_number in 1:n_space_groups
-        sgt = Spglib.get_spacegroup_type(hall_number)
-        if symbol in [sgt.hall_symbol, sgt.international, sgt.international_short, sgt.international_full]
-            c = Crystal(lat_vecs, base_positions, base_species, hall_number; symprec)
-            push!(cells, c)
-        end
+"Select a few sublattices of a Crystal by species, keeping the reduced symmetry group of the original Crystal"
+function subcrystal(cryst::Crystal{T}, species::T) :: Crystal{T} where {T}
+    subindexes = findall(isequal(species), cryst.species)
+    new_positions = cryst.positions[subindexes]
+    new_equiv_atoms = cryst.equiv_atoms[subindexes]
+    # Reduce all of the equivalent atom indexes to count again from 1, 2,...
+    unique_equiv = unique(new_equiv_atoms)
+    for (i, unique) in enumerate(unique_equiv)
+        equiv_sites = findall(isequal(unique), new_equiv_atoms)
+        new_equiv_atoms[equiv_sites] .= i
     end
+    new_species = fill(species, length(subindexes))
 
-    if length(cells) == 0
-        error("Could not find symbol '$symbol' in database.")
-    elseif length(cells) == 1
-        return first(cells)
-    else
-        sort!(cells, by = c->length(c.positions))
-
-        println("Warning, the symbol '$symbol' is ambiguous. It could refer to:")
-        for c in cells
-            hall_number = c.hall_number
-            hall_symbol = Spglib.get_spacegroup_type(hall_number).hall_symbol
-            n_atoms     = length(c.positions)
-            println("   Hall group '$hall_symbol' (number $hall_number), which generates $n_atoms atoms")
-        end
-        println()
-        println("I will select Hall group number $(first(cells).hall_number). You may wish to specify")
-        println("an alternative Hall group in place of the symbol '$symbol'.")
-        return first(cells)
-    end
+    return Crystal{T}(cryst.lat_vecs, new_positions, new_equiv_atoms,
+                      new_species, cryst.symops, cryst.hall_number, cryst.symprec)
 end
 
-# Build Crystal from explicit set of symmetry operations
-function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symops::Vector{SymOp}; symprec=1e-5) where {T}
-    rotation = zeros(3, 3, length(symops))
-    translation = zeros(3, length(symops))
-    for (i, s) = enumerate(symops)
-        rotation[:, :, i] = s.R'
-        translation[:, i] = s.T
+"Select a few sublattices by equivalency indices, keeping the reduced symmetry group of the original Crystal"
+function subcrystal(cryst::Crystal{T}, equiv_idxs::Vector{Int}) :: Crystal{T} where {T}
+    new_positions = empty(cryst.positions)
+    new_species = empty(cryst.species)
+    new_equiv_atoms = empty(cryst.equiv_atoms)
+
+    for (i, equiv_idx) in enumerate(equiv_idxs)
+        subindexes = findall(isequal(equiv_idx), cryst.equiv_atoms)
+        append!(new_positions, cryst.positions[subindexes])
+        append!(new_species, cryst.species[subindexes])
+        append!(new_equiv_atoms, fill(i, length(subindexes)))
     end
-    hall_number = Int(Spglib.get_hall_number_from_symmetry(rotation, translation, length(symops)))
-    return Crystal(lat_vecs, base_positions, base_species, hall_number; symprec)
+
+    return Crystal{T}(cryst.lat_vecs, new_positions, new_equiv_atoms,
+                      new_species, cryst.symops, cryst.hall_number, cryst.symprec)
 end
 
-function display(cryst::Crystal)
+subcrystal(cryst::Crystal{T}, equiv_idx::Int) where {T} = subcrystal(cryst, [equiv_idx])
+
+function Base.display(cryst::Crystal)
     printstyled("Crystal info\n"; bold=true, color=:underline)
     sgt = Spglib.get_spacegroup_type(cryst.hall_number)
     println("Hall group '$(sgt.hall_symbol)' (number $(cryst.hall_number))")
@@ -186,7 +304,7 @@ function transform(s::SymOp, b::BondRaw)
     return BondRaw(transform(s, b.r1), transform(s, b.r2))
 end
 
-function reverse(b::BondRaw)
+function Base.reverse(b::BondRaw)
     return BondRaw(b.r2, b.r1)
 end
 
@@ -223,16 +341,16 @@ end
 
 function validate(cryst::Crystal)
     # Equivalent atoms must have the same species
-    for i = eachindex(cryst.positions)
-        for j = eachindex(cryst.positions)
+    for i in eachindex(cryst.positions)
+        for j in eachindex(cryst.positions)
             if cryst.equiv_atoms[i] == cryst.equiv_atoms[j]
                 @assert cryst.species[i] == cryst.species[j]
             end
         end
     end
 
-    # Check symmetry rotations are orthogonal
-    for s = cryst.symops
+    # Check symmetry rotations are orthogonal, up to periodicity
+    for s in cryst.symops
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
         @assert norm(R*R' - I) < 1e-12
     end
@@ -241,7 +359,7 @@ function validate(cryst::Crystal)
 
     # Check that symmetry elements are present in Spglib-inferred space group
     cryst′ = Crystal(cryst.lat_vecs, cryst.positions, cryst.species; cryst.symprec)
-    for s = cryst.symops
+    for s in cryst.symops
         @assert any(cryst′.symops) do s′
             isapprox(s, s′; atol=cryst.symprec)
         end
@@ -291,7 +409,6 @@ function is_equivalent_by_symmetry(cryst::Crystal, b1::Bond{3}, b2::Bond{3})
     return is_equivalent_by_symmetry(cryst, BondRaw(cryst, b1), BondRaw(cryst, b2))
 end
 
-
 # List of all symmetries for bond, along with parity
 function symmetries(cryst::Crystal, b::BondRaw)
     acc = Tuple{SymOp, Bool}[]
@@ -307,9 +424,9 @@ function symmetries(cryst::Crystal, b::BondRaw)
     return acc
 end
 
-# function symmetries(cryst::Crystal, b::Bond{3})
-#     return symmetries(cryst, BondRaw(cryst, b))
-# end
+function symmetries(cryst::Crystal, b::Bond{3})
+    return symmetries(cryst, BondRaw(cryst, b))
+end
 
 
 function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist::Float64)
@@ -384,9 +501,8 @@ function _print_bond_table_header()
     printstyled(header; bold=true, color=:underline)
 end
 
-
-# Print a nice table of all possible bonds up to a maximum distance, and
-#   the allowed interactions on these bonds.
+# Print a nice table of all possible bond classes to a maximum distance, and
+#   the allowed interactions on the canonical bonds for each class.
 function print_bond_table(cryst::Crystal, max_dist)
     _print_bond_table_header()
 
@@ -609,7 +725,6 @@ end
 function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond{3})
     return basis_for_symmetry_allowed_couplings(cryst, BondRaw(cryst, b))
 end
-
 
 "Removes trailing zeros after a decimal place, and returns empty for 1.0"
 function _strip_decimal_string(str)

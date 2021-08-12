@@ -36,22 +36,42 @@ function Lattice(lat_vecs::Array{Float64, 2}, basis_vecs::Vector{Vector{Float64}
     )
 end
 
-# Calculation taken from the _cell function of the TRI class of:
-#  https://wiki.fysik.dtu.dk/ase/_modules/ase/lattice.html#BravaisLattice
-"Specify a 3D Bravais Lattice by the lattice vector lengths and angles (in degrees)"
-function Lattice(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64, size::Vector{Int})
-    @assert all(map(x->0. < x ≤ 180., (α, β, γ)))
+function lattice_params(lat_vecs::Mat3) :: NTuple{6, Float64}
+    v1, v2, v3 = eachcol(lat_vecs)
+    a, b, c = norm(v1), norm(v2), norm(v3)
+    α = acosd((v2 ⋅ v3) / (b * c))
+    β = acosd((v1 ⋅ v3) / (a * c))
+    γ = acosd((v1 ⋅ v2) / (a * b))
+    return (a, b, c, α, β, γ)
+end
+
+lattice_params(lattice::Lattice{3}) = lattice_params(lattice.lat_vecs)
+
+function lattice_vectors(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64) :: Mat3
+    @assert all(map(x->0. < x < 180., (α, β, γ)))
 
     sγ, cγ = sind(γ), cosd(γ)
     cβ, cα = cosd(β), cosd(α)
     v1 = [a, 0.0, 0.0]
     v2 = [b * cγ, b * sγ, 0.0]
-    v3x = c * cγ
+    v3x = c * cβ
     v3y = c / sγ * (cα - cβ * cγ)
     v3z = c / sγ * √(sγ^2 - cα^2 - cβ^2 + 2 * cα * cβ * cγ)
     v3 = [v3x, v3y, v3z]
 
-    lat_vecs = SMatrix{3, 3}([v1 v2 v3])
+    @assert norm(v1) ≈ a
+    @assert norm(v2) ≈ b
+    @assert norm(v3) ≈ c
+    @assert acosd((v1 ⋅ v2) / (norm(v1) * norm(v2))) ≈ γ
+    @assert acosd((v1 ⋅ v3) / (norm(v1) * norm(v3))) ≈ β
+    @assert acosd((v2 ⋅ v3) / (norm(v2) * norm(v3))) ≈ α
+
+    return Mat3([v1 v2 v3])
+end
+
+"Specify a 3D Bravais Lattice by the lattice vector lengths and angles (in degrees)"
+function Lattice(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64, size::Vector{Int})
+    lat_vecs = lattice_vectors(a, b, c, α, β, γ)
     basis_vecs = [SVector{3, Float64}([0.0, 0.0, 0.0])]
     size = SVector{3, Int}(size)
     return Lattice{3, 9, 4}(lat_vecs, basis_vecs, ["A"], size)
@@ -120,6 +140,54 @@ function brav_lattice(lat::Lattice{D}) :: Lattice{D} where {D}
         [@SVector zeros(D)],
         lat.size
     )
+end
+
+@enum CellType begin
+    triclinic
+    monoclinic
+    orthorhombic
+    tetragonal
+    trigonal
+    hexagonal
+    cubic
+end
+rhombohedral = trigonal
+
+"Infer a 3D Bravais lattice cell type from its lattice vectors"
+function cell_type(lat_vecs::Mat3)
+    (a, b, c, α, β, γ) = lattice_params(lat_vecs)
+    p = sortperm([a, b, c])
+    a, b, c = (a, b, c)[p]
+    α, β, γ = (α, β, γ)[p]
+    if a ≈ b ≈ c
+        if α ≈ β ≈ γ ≈ 90.
+            cubic
+        elseif α ≈ β ≈ γ
+            trigonal
+        end
+    elseif a ≈ b
+        if α ≈ β ≈ 90.
+            if γ ≈ 90.
+                tetragonal
+            elseif γ ≈ 120.
+                hexagonal
+            end
+        end
+    elseif b ≈ c
+        if β ≈ γ ≈ 90.
+            if α ≈ 90.
+                tetragonal
+            elseif α ≈ 120.
+                hexagonal
+            end
+        end
+    elseif α ≈ β ≈ γ ≈ 90.
+        orthorhombic
+    elseif α ≈ β ≈ 90. || β ≈ γ ≈ 90. || α ≈ γ ≈ 90.
+        monoclinic
+    else
+        triclinic
+    end
 end
 
 """ Some functions which construct common lattices
