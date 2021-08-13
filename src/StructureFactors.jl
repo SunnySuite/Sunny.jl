@@ -128,14 +128,13 @@ function diag_structure_factor(
     langevin_steps::Int=10000, measureΔt::Float64=0.01, measure_steps::Int=100,
     collect_steps::Int=10, α::Float64=0.1, verbose::Bool=false,
 ) where {D}
-    num_snaps = div(measure_steps, collect_steps)
+    num_snaps = 1 + div(measure_steps - 1, collect_steps)
     spin_traj = zeros(ComplexF64, 3, size(sys)..., num_snaps)
     fft_spins = zeros(ComplexF64, 3, size(sys)[2:end]..., num_snaps)
     struct_factor = zeros(Float64, 3, size(sys)[2:end]..., num_snaps)
     plan = _plan_spintraj_fft!(spin_traj)
     integrator = HeunP(sys)
     integratorL = LangevinHeunP(sys, kT, α)
-
 
     # Thermalize the system for ten times langevin_steps
     for _ in 1:10*langevin_steps
@@ -157,13 +156,21 @@ function diag_structure_factor(
         end
 
         # Evolve at fixed energy to collect dynamics info
-        for t in 1:measure_steps
-            evolve!(integrator, measureΔt)
-            if t % collect_steps == 1
-                ns = div(t, collect_steps) + 1
-                selectdim(spin_traj, ndims(spin_traj), ns) .= _reinterpret_from_spin_array(sys.sites)
+        selectdim(spin_traj, ndims(spin_traj), 1) .= _reinterpret_from_spin_array(sys.sites)
+        for nsnap in 2:num_snaps
+            for _ in 1:collect_steps
+                evolve!(integrator, measureΔt)
             end
+            selectdim(spin_traj, ndims(spin_traj), nsnap) .= _reinterpret_from_spin_array(sys.sites)
         end
+
+        # for t in 1:measure_steps
+        #     evolve!(integrator, measureΔt)
+        #     if t % collect_steps == 1
+        #         ns = div(t, collect_steps) + 1
+        #         selectdim(spin_traj, ndims(spin_traj), ns) .= _reinterpret_from_spin_array(sys.sites)
+        #     end
+        # end
 
         _fft_spin_traj!(fft_spins, spin_traj, sys.lattice; plan=plan)
         @. struct_factor += real(fft_spins * conj(fft_spins))

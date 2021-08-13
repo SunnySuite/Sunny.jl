@@ -101,21 +101,14 @@ struct Crystal{T}
     symprec              :: Float64          # Tolerance to imperfections in symmetry
 end
 
+"Represents a bond between two sublattice sites, and displaced by some number of unit cells"
 struct Bond{D}
     i :: Int
     j :: Int
     n :: SVector{D, Int}
 end
 
-# Warning: This constructor is most likely type-unstable. Don't use
-#  in production code.
-function Bond(i, j, n)
-    D = length(n)
-    n = SVector{D, Float64}(n)
-    Bond{D}(i, j, n)
-end
-
-# Like Bond3, but with fractional positions instead of atom indices
+"Represents a bond expressed as two fractional coordinates"
 struct BondRaw
     r1::SVector{3, Float64}
     r2::SVector{3, Float64}
@@ -314,7 +307,7 @@ function Crystal(lattice::Lattice{3, 9, 4})
     L = lattice.lat_vecs
     # Convert absolute basis positions to fractional coordinates
     basis_coords = map(b -> inv(L) * b, lattice.basis_vecs)
-    Crystal(L, basis_coords, lattice.basis_species)
+    Crystal(L, basis_coords, lattice.species)
 end
 
 function Crystal(lattice::Lattice{2, 4, 3})
@@ -330,12 +323,12 @@ function Crystal(lattice::Lattice{2, 4, 3})
 
     basis_coords = map(b -> SVector{3}((inv(L) * b)..., 0.), lattice.basis_vecs)
 
-    Crystal(L3, basis_coords, lattice.basis_species)
+    Crystal(L3, basis_coords, lattice.species)
 end
 
 function Lattice(cryst::Crystal{String}, latsize) :: Lattice{3, 9, 4}
     basis_vecs = map(b -> cryst.lat_vecs * b, cryst.positions)
-    Lattice{3, 9, 4}(cryst.lat_vecs, basis_vecs, cryst.species, latsize)
+    Lattice{3}(cryst.lat_vecs, basis_vecs, cryst.species, latsize)
 end
 
 
@@ -528,7 +521,7 @@ function print_bond_table(cryst::Crystal, max_dist)
         print(line)
 
         allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, bond)
-        J_strings = coupling_basis_strings(allowed_J_basis)
+        J_strings = _coupling_basis_strings(allowed_J_basis)
         max_len = maximum(length, J_strings)
         for i in 1:3
             print('|')
@@ -748,7 +741,7 @@ function _strip_decimal_string(str)
 end
 
 "Converts a list of basis elements for a J matrix into a nice string summary"
-function coupling_basis_strings(coup_basis; digits=2, tol=1e-4) :: Matrix{String}
+function _coupling_basis_strings(coup_basis; digits=2, tol=1e-4) :: Matrix{String}
     J = fill("", size(coup_basis[1])...)
     for (letter, basis_mat) in zip('A':'Z', coup_basis)
         for idx in eachindex(basis_mat)
@@ -771,6 +764,11 @@ function coupling_basis_strings(coup_basis; digits=2, tol=1e-4) :: Matrix{String
         end
     end
     return J
+end
+
+function allowed_J(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
+    J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
+    _coupling_basis_strings(J_basis; digits=digits, tol=tol)
 end
 
 

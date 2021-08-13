@@ -11,27 +11,29 @@ import Base.size
 struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
     lat_vecs      :: SMatrix{D, D, Float64, L}       # Columns are lattice vectors
     basis_vecs    :: Vector{SVector{D, Float64}}     # Each SVector gives a basis vector
-    basis_species :: Vector{String}                  # Indices labeling atom types
+    species       :: Vector{String}                  # Indices labeling atom types
     size          :: SVector{D, Int}                 # Number of cells along each dimension
+    function Lattice{D}(lat_vecs, basis_vecs, species, latsize) where {D}
+        @assert all(isequal(D), size(lat_vecs))          "All dims of lat_vecs should be equal size"
+        @assert all(isequal(D), map(length, basis_vecs)) "All basis_vecs should be size $D to match lat_vecs"
+        @assert length(basis_vecs) > 0                   "At least one basis atom required"
+        @assert length(basis_vecs) == length(species)    "Length of basis_vecs and species should match"
+        @assert length(latsize) == D                     "latsize should be size $D to match lat_vecs"
+        lat_vecs = SMatrix{D, D}(lat_vecs)
+        basis_vecs = map(v->SVector{D, Float64}(v), basis_vecs)
+        latsize = SVector{D, Int}(latsize)
+        new{D, D*D, D+1}(lat_vecs, basis_vecs, species, latsize)
+    end
 end
 
-function Lattice(lat_vecs::SMatrix{D, D, Float64}, basis_vecs::Vector{SVector{D, Float64}}, size::SVector{D, Int}) where {D}
-    return Lattice{D, D*D, D+1}(
-        lat_vecs, basis_vecs, fill("A", length(basis_vecs)), size
+function Lattice{D}(lat_vecs, basis_vecs, latsize) where {D}
+    return Lattice{D}(
+        lat_vecs, basis_vecs, fill("A", length(basis_vecs)), latsize
     )
 end
 
-function Lattice(lat_vecs::Array{Float64, 2}, basis_vecs::Vector{Vector{Float64}}, latsize::Vector{Int})
-    D = size(lat_vecs, 1)
-    @assert all(map(s->s==D, size(lat_vecs)))
-    @assert all(map(v->length(v)==D, basis_vecs))
-    @assert length(latsize) == D
-
-    lat_vecs = SMatrix{D, D}(lat_vecs)
-    basis_vecs = map(v->SVector{D}(v), basis_vecs)
-    latsize = SVector{D, Int}(latsize)
-
-    return Lattice{D, D*D, D+1}(
+function Lattice(lat_vecs::SMatrix{D,D}, basis_vecs, latsize) where {D}
+    return Lattice{D}(
         lat_vecs, basis_vecs, fill("A", length(basis_vecs)), latsize
     )
 end
@@ -43,6 +45,12 @@ function lattice_params(lat_vecs::Mat3) :: NTuple{6, Float64}
     β = acosd((v1 ⋅ v3) / (a * c))
     γ = acosd((v1 ⋅ v2) / (a * b))
     return (a, b, c, α, β, γ)
+end
+
+function Base.display(lattice::Lattice)
+    D = length(size(lattice)) - 1
+    println(join(size(lattice), "x"), " Lattice{$D}")
+    # Print out lattice vectors, species, basis?
 end
 
 lattice_params(lattice::Lattice{3}) = lattice_params(lattice.lat_vecs)
@@ -135,9 +143,10 @@ end
 
 "Returns just the underlying Bravais lattice"
 function brav_lattice(lat::Lattice{D}) :: Lattice{D} where {D}
-    return Lattice(
+    return Lattice{D}(
         lat.lat_vecs,
         [@SVector zeros(D)],
+        ["A"],
         lat.size
     )
 end
@@ -199,7 +208,7 @@ function square_lattice(a::Float64, latsize) :: Lattice{2, 4, 3}
     basis_vecs = [SA[0.0, 0.0]]
     basis_labels = ["A"]
     latsize = SVector{D, Int}(latsize)
-    Lattice{2, 4, 3}(lat_vecs, basis_vecs, basis_labels, latsize)
+    Lattice{2}(lat_vecs, basis_vecs, basis_labels, latsize)
 end
 
 function cubic_lattice(a::Float64, latsize) :: Lattice{3, 9, 4}
@@ -209,7 +218,7 @@ function cubic_lattice(a::Float64, latsize) :: Lattice{3, 9, 4}
     basis_vecs = [SA[0.0, 0.0, 0.0]]
     basis_labels = ["A"]
     latsize = SVector{D, Int}(latsize)
-    Lattice{3, 9, 4}(lat_vecs, basis_vecs, basis_labels, latsize)
+    Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
 end
 
 function fcc_conventional(a::Float64, latsize) :: Lattice{3, 9, 4}
@@ -222,7 +231,7 @@ function fcc_conventional(a::Float64, latsize) :: Lattice{3, 9, 4}
                   SA[  0, a/2, a/2]]
     basis_labels = fill("A", 4)
     latsize = SVector{3, Int}(latsize)
-    Lattice{3, 9, 4}(lat_vecs, basis_vecs, basis_labels, latsize)
+    Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
 end
 
 function diamond_conventional(a::Float64, latsize) :: Lattice{3, 9, 4}
@@ -241,7 +250,7 @@ function diamond_conventional(a::Float64, latsize) :: Lattice{3, 9, 4}
     ]
     basis_labels = fill("A", 8)
     latsize = SVector{3, Int}(latsize)
-    Lattice{3, 9, 4}(lat_vecs, basis_vecs, basis_labels, latsize)
+    Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
 end
 
 function diamond_primitive(a::Float64, latsize) :: Lattice{3, 9, 4}
@@ -254,7 +263,7 @@ function diamond_primitive(a::Float64, latsize) :: Lattice{3, 9, 4}
     ]
     basis_labels = ["A", "A"]
     latsize = SVector{3, Int}(latsize)
-    Lattice{3, 9, 4}(lat_vecs, basis_vecs, basis_labels, latsize)
+    Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
 end
 
 function kagome_lattice(a::Float64, latsize) :: Lattice{2, 4, 3}
@@ -267,5 +276,5 @@ function kagome_lattice(a::Float64, latsize) :: Lattice{2, 4, 3}
     ]
     basis_labels = ["A", "A", "A"]
     latsize = SVector{2, Int}(latsize)
-    Lattice{2, 4, 3}(lat_vecs, basis_vecs, basis_labels, latsize)
+    Lattice{2}(lat_vecs, basis_vecs, basis_labels, latsize)
 end

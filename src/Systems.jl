@@ -47,18 +47,18 @@ function rand!(sys::ChargeSystem)
     sys.sites .-= sum(sys.sites) / length(sys.sites)
 end
 
-function SpinSystem(lat::Lattice{D}, ints::Vector{I}, S::Rational{Int}) where {D, I <: Interaction}
-    # Initialize sites based on lattice geometry - initialized to all spins along +z
-    sites_size = (length(lat.basis_vecs), lat.size...)
+function SpinSystem(lattice::Lattice{D}, ℋ::Hamiltonian{D}, S::Rational{Int}=1//1) where {D}
+    # Initialize sites to all spins along +z
+    sites_size = (length(lattice.basis_vecs), lattice.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
-    ℋ = Hamiltonian{D}(ints)
-    return SpinSystem(lat, ℋ, sites, S)
+    SpinSystem{D, D*D, D+1}(lattice, ℋ, sites, S)
 end
 
-function SpinSystem(lat::Lattice, ints::Vector{I}) where {I <: Interaction}
-    return SpinSystem(lat, ints, 1//1)
+function SpinSystem(lat::Lattice{D}, ints::Vector{I}, S::Rational{Int}=1//1) where {D, I <: Interaction}
+    return SpinSystem(lat, Hamiltonian{D}(ints), S)
 end
 
+# Can we remove this too?
 function SpinSystem(lat::Lattice)
     return SpinSystem(lat, Vector{Interaction}(), 1//1)
 end
@@ -174,9 +174,9 @@ function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::Hamiltonian)
 end
 
 @inline function field(sys::SpinSystem)
-    H = zero(sys.sites)
-    field!(H, sys)
-    return H
+    B = zero(sys.sites)
+    field!(B, sys.sites, sys.hamiltonian)
+    return B
 end
 
 "Accumulates the local field coming from the external field"
@@ -199,7 +199,7 @@ end
 end
 
 "Accumulates the local field coming from on-site terms"
-@inline function _accum_field(B::Array{Vec3}, spins::Array{Vec3}, on_site::OnSite)
+@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, on_site::OnSite)
     J = on_site.J
     for idx in eachindex(spins)
         S = spins[S]
@@ -222,7 +222,7 @@ end
 "Accumulates the local field coming from general couplings"
 @inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCoupling)
     syssize = size(spins)[2:end]
-    for (J, bond) in zip(diag_coup.Js, diag_coup.bonds)
+    for (J, bond) in zip(gen_coup.Js, gen_coup.bonds)
         @unpack i, j, n = bond
         for cell in CartesianIndices(syssize)
             B[i, cell] = B[i, cell] - J * spins[j, offset(cell, n, syssize)]

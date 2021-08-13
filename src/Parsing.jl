@@ -152,7 +152,7 @@ end
     return W, w
 end
 
-function Crystal(filename::AbstractString)
+function Crystal(filename::AbstractString; symprec=1e-5)
     cif = Cif(Path(filename))
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
@@ -202,11 +202,11 @@ function Crystal(filename::AbstractString)
     # Symmetry preferences: Explicit List > Hall Symbol > Infer
     if length(symmetries) > 1
         # Assume all symmetries have been provided
-        return Crystal(lat_vecs, unique_atoms, sitetypes, symmetries)
+        return Crystal(lat_vecs, unique_atoms, sitetypes, symmetries; symprec=symprec)
     elseif !isnothing(hall_symbol)
-        return Crystal(lat_vecs, unique_atoms, sitetypes, hall_symbol)
+        return Crystal(lat_vecs, unique_atoms, sitetypes, hall_symbol; symprec=symprec)
     else
         # Infer the symmetries automatically
-        return Crystal(lat_vecs, unique_atoms, sitetypes)
+        return Crystal(lat_vecs, unique_atoms, sitetypes; symprec=symprec)
     end
 end

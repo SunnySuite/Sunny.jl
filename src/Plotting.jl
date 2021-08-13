@@ -7,14 +7,14 @@ function plot_lattice!(ax, lattice::Lattice{2}; colors=:Set1_9, markersize=20, l
     # Plot the unit cell mesh
     plot_cells!(ax, lattice; color=linecolor, linewidth=linewidth)
 
-    unique_species = unique(lattice.basis_species)
+    unique_species = unique(lattice.species)
     num_unique = length(unique_species)
     colors = GLMakie.to_colormap(colors, num_unique)
 
     # Plot markers at each site
     sites = reinterpret(reshape, Float64, collect(lattice))
     for (i, species) in enumerate(unique_species)
-        basis_idxs = findall(isequal(species), lattice.basis_species)
+        basis_idxs = findall(isequal(species), lattice.species)
         xs = vec(sites[1, basis_idxs, 1:end, 1:end])
         ys = vec(sites[2, basis_idxs, 1:end, 1:end])
         GLMakie.scatter!(ax, xs, ys; label=species, color=color, markersize=markersize, show_axis=false, kwargs...)
@@ -22,13 +22,13 @@ function plot_lattice!(ax, lattice::Lattice{2}; colors=:Set1_9, markersize=20, l
 end
 
 function plot_lattice!(ax, lattice::Lattice{3}; colors=:Set1_9, markersize=200, linecolor=:grey, linewidth=1.0, kwargs...)
-    unique_species = unique(lattice.basis_species)
+    unique_species = unique(lattice.species)
     colors = GLMakie.to_colormap(colors, 9)
 
     # Plot markers at each site
     sites = reinterpret(reshape, Float64, collect(lattice))
     for (i, species) in enumerate(unique_species)
-        basis_idxs = findall(isequal(species), lattice.basis_species)
+        basis_idxs = findall(isequal(species), lattice.species)
         xs = vec(sites[1, basis_idxs, 1:end, 1:end, 1:end])
         ys = vec(sites[2, basis_idxs, 1:end, 1:end, 1:end])
         zs = vec(sites[3, basis_idxs, 1:end, 1:end, 1:end])
@@ -150,6 +150,9 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; colors=:Dar
                 push!(zs, bond_pt[3])
             end
         end
+        if length(xs) == 0
+            continue
+        end
         color = colors[mod1(n, 8)]
         seg = GLMakie.linesegments!(xs, ys, zs; linewidth=bondwidth, label=int.label, color=color)
 
@@ -176,9 +179,49 @@ function plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
     crystal = Crystal(lattice)
     canon_bonds = Symmetry.canonical_bonds(crystal, max_dist)
     interactions = Vector{Heisenberg{3}}()
-    # First "bond" is always a self-interaction
-    for (i, bond) in enumerate(canon_bonds[2:end])
-        push!(interactions, Heisenberg(1.0, crystal, bond, "J$i"))
+    
+    prev_dist = 0.0
+    dist = 1
+    class = 1
+    for bond in canon_bonds
+        # Exclude self (on-site) "bonds"
+        if !(bond.i == bond.j && all(isequal(0), bond.n))
+            if Symmetry.distance(crystal, bond) ≈ prev_dist
+                class += 1
+            else
+                dist += 1
+                class = 1
+            end
+            label = "J$(dist)_$(class)"
+            push!(interactions, Heisenberg(1.0, crystal, bond, label))
+        end
+    end
+    plot_bonds(lattice, interactions; kwargs...)
+end
+
+"Plot all bonds between equivalent sites i and j"
+function plot_all_bonds_between(lattice::Lattice{3}, i, j, max_dist; kwargs)
+    crystal = Crystal(lattice)
+    canon_bonds = Symmetry.canonical_bonds(crystal, max_dist)
+    interactions = Vector{Heisenberg{3}}()
+
+    prev_dist = 0.0
+    dist = 1
+    class = 1
+    for bond in canon_bonds
+        # Exclude self (on-site) "bonds"
+        onsite = bond.i == bond.j && all(isequal(0), bond.n)
+        target = bond.i == i && bond.j == j
+        if !onsite && target
+            if Symmetry.distance(crystal, bond) ≈ prev_dist
+                class += 1
+            else
+                dist += 1
+                class = 1
+            end
+            label = "J$(dist)_$(class)"
+            push!(interactions, Heisenberg(1.0, crystal, bond, label))
+        end
     end
     plot_bonds(lattice, interactions; kwargs...)
 end
