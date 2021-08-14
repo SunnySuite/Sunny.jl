@@ -84,13 +84,14 @@ function is_standard_form(lat_vecs::Mat3)
     return lat_vecs ≈ conventional_lat_vecs
 end
 
-# Rotational and translational parts in fractional coordinates
+# A SymOp is composed of a rotation matrix and a translation vector. These are
+# represented in fractional coordinates.
 struct SymOp
     R::Mat3
     T::Vec3
 end
 
-"Holds all of the symmetry information about a crystal's unit cryst"
+"Holds all of the symmetry information about a crystal's unit cell"
 struct Crystal{T}
     lat_vecs             :: Mat3             # Lattice vectors as columns
     positions            :: Vector{Vec3}     # Full set of atoms, fractional coords
@@ -148,7 +149,7 @@ function Crystal(lat_vecs::Mat3, positions::Vector{Vec3}, species::Vector{T}; sy
     Crystal{T}(lat_vecs, positions, d.equivalent_atoms, species, symops, d.hall_number, symprec)
 end
 
-# Build cryst using the space group denoted by a unique Hall number. The complete
+# Build Crystal using the space group denoted by a unique Hall number. The complete
 # list is given at http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
 function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, hall_number::Int; symprec=1e-5) where {T}
     is_same_position(x, y) = norm(lat_vecs * rem.(x-y, 1, RoundNearest)) < symprec
@@ -165,39 +166,39 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     return Crystal(lat_vecs, base_positions, base_species, symops; symprec=symprec)
 end
 
-# Make best effort to build cryst from symbolic representation of spacegroup
+# Make best effort to build Crystal from symbolic representation of spacegroup
 function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symbol::String; symprec=1e-5) where {T}
     # See "Complete list of space groups" at Seto's home page:
     # http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
     n_space_groups = 530
 
-    cells = Crystal{T}[]
+    crysts = Crystal{T}[]
     for hall_number in 1:n_space_groups
         sgt = Spglib.get_spacegroup_type(hall_number)
         if symbol in [sgt.hall_symbol, sgt.international, sgt.international_short, sgt.international_full]
             c = Crystal(lat_vecs, base_positions, base_species, hall_number; symprec)
-            push!(cells, c)
+            push!(crysts, c)
         end
     end
 
-    if length(cells) == 0
+    if length(crysts) == 0
         error("Could not find symbol '$symbol' in database.")
-    elseif length(cells) == 1
-        return first(cells)
+    elseif length(crysts) == 1
+        return first(crysts)
     else
-        sort!(cells, by=c->length(c.positions))
+        sort!(crysts, by=c->length(c.positions))
 
         println("Warning, the symbol '$symbol' is ambiguous. It could refer to:")
-        for c in cells
+        for c in crysts
             hall_number = c.hall_number
             hall_symbol = Spglib.get_spacegroup_type(hall_number).hall_symbol
             n_atoms     = length(c.positions)
             println("   Hall group '$hall_symbol' (number $hall_number), which generates $n_atoms atoms")
         end
         println()
-        println("I will select Hall group number $(first(cells).hall_number). You may wish to specify")
+        println("I will select Hall group number $(first(crysts).hall_number). You may wish to specify")
         println("an alternative Hall group in place of the symbol '$symbol'.")
-        return first(cells)
+        return first(crysts)
     end
 end
 
@@ -240,7 +241,7 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     return ret
 end
 
-"Select a few sublattices of a Crystal by species, keeping the reduced symmetry group of the original Crystal"
+"Filter sublattices of a Crystal by species, keeping the symmetry group of the original Crystal"
 function subcrystal(cryst::Crystal{T}, species::T) :: Crystal{T} where {T}
     subindexes = findall(isequal(species), cryst.species)
     new_positions = cryst.positions[subindexes]
@@ -257,7 +258,7 @@ function subcrystal(cryst::Crystal{T}, species::T) :: Crystal{T} where {T}
                       new_species, cryst.symops, cryst.hall_number, cryst.symprec)
 end
 
-"Select a few sublattices by equivalency indices, keeping the reduced symmetry group of the original Crystal"
+"Filter sublattices by equivalency indices, keeping the symmetry group of the original Crystal"
 function subcrystal(cryst::Crystal{T}, equiv_idxs::Vector{Int}) :: Crystal{T} where {T}
     new_positions = empty(cryst.positions)
     new_species = empty(cryst.species)
