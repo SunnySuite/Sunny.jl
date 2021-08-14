@@ -35,6 +35,11 @@ version = "3.1.18"
 [[Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
+[[AutoHashEquals]]
+git-tree-sha1 = "45bb6705d93be619b81451bb2006b7ee5d4e4453"
+uuid = "15f4f7f2-30c1-5605-9d31-71845cf9641f"
+version = "0.2.0"
+
 [[Automa]]
 deps = ["Printf", "ScanByte", "TranscodingStreams"]
 git-tree-sha1 = "d50976f217489ce799e366d9561d56a98a30d7fe"
@@ -883,12 +888,10 @@ uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
 version = "1.5.1"
 
 [[Spglib]]
-deps = ["StaticArrays", "StructEquality", "UnPack", "spglib_jll"]
-git-tree-sha1 = "48d4c50bf9c85cd80890cfac89cc6e69b30db6d5"
-repo-rev = "master"
-repo-url = "https://github.com/MagSims/Spglib.jl"
+deps = ["AutoHashEquals", "StaticArrays", "UnPack", "spglib_jll"]
+git-tree-sha1 = "7e6217d4031ec935df66883db2990b33f51b7ab4"
 uuid = "f761d5c5-86db-4880-b97f-9680a7cccfb5"
-version = "0.3.1"
+version = "0.4.1"
 
 [[StackViews]]
 deps = ["OffsetArrays"]
@@ -934,12 +937,6 @@ deps = ["Adapt", "DataAPI", "StaticArrays", "Tables"]
 git-tree-sha1 = "000e168f5cc9aded17b6999a560b7c11dda69095"
 uuid = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 version = "0.6.0"
-
-[[StructEquality]]
-deps = ["Compat"]
-git-tree-sha1 = "6e951cd0585cbe8f4ceb1cb09d69332b9484fec9"
-uuid = "6ec83bb0-ed9f-11e9-3b4c-2b04cb4e219c"
-version = "1.1.0"
 
 [[SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
