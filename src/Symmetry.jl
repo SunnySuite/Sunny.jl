@@ -491,7 +491,7 @@ function equivalent_bond_indices(cryst::Crystal, canonical_bonds, bonds)
 end
 
 function _print_bond_table_header()
-    header = "dist  class   i   j   n               allowed J\n"
+    header = "  i   j              n    dist     allowed J\n"
     printstyled(header; bold=true, color=:underline)
 end
 
@@ -501,24 +501,12 @@ function print_bond_table(cryst::Crystal, max_dist)
     _print_bond_table_header()
 
     canon_bonds = canonical_bonds(cryst, max_dist)
-    lengths = map(b->distance(cryst, b), canon_bonds)
-    # Integer orderings of the length of all canon bonds
-    dists = indexin(lengths, unique(lengths)) .- 1
+    dists = map(b->distance(cryst, b), canon_bonds)
 
-    # Enumerate symmetry classes of all canon bonds by seeing
-    #   where dists changes. Kind of ugly.
-    classes = [1]
-    for (i, dist) in enumerate(dists[2:end])
-        if dists[i] == dist
-            push!(classes, classes[i] + 1)
-        else
-            push!(classes, 1)
-        end
-    end
-
-    for (bond, dist, class) in zip(canon_bonds, dists, classes)
+    for (bond, dist) in zip(canon_bonds, dists)
         @unpack i, j, n = bond
-        line = @sprintf "%4i  %5i %3i %3i  [%3i,%3i,%3i]    " dist class i j n[1] n[2] n[3]
+        d = distance(cryst, bond)
+        line = @sprintf "%3i %3i  [%3i,%3i,%3i]    %.2f     " i j n[1] n[2] n[3] d
         print(line)
 
         allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, bond)
@@ -533,7 +521,7 @@ function print_bond_table(cryst::Crystal, max_dist)
             end
             println('|')
             if i != 3
-                print(repeat(' ', 38))
+                print(repeat(' ', 35))
             end
         end
         println()
