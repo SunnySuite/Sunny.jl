@@ -120,6 +120,23 @@ function BondRaw(cryst::Crystal, b::Bond{3})
     return BondRaw(cryst.positions[b.i], cryst.positions[b.j]+b.n)
 end
 
+function Bond(cryst::Crystal, b::BondRaw)
+    i1 = position_to_index(cryst, b.r1)
+    i2 = position_to_index(cryst, b.r2)
+    r1 = cryst.positions[i1]
+    r2 = cryst.positions[i2]
+    n = round.((b.r2-b.r1) - (r2-r1))
+    return Bond(i1, i2, SVector{3, Int}(n))
+end
+
+function is_same_position(x, y; symprec=1e-5)
+    return norm(rem.(x-y, 1, RoundNearest)) < symprec
+end
+
+function position_to_index(cryst::Crystal, r::Vec3)
+    return findfirst(r′ -> is_same_position(r, r′; symprec=cryst.symprec), cryst.positions)
+end
+
 function distance(cryst::Crystal, b::BondRaw)
     return norm(cryst.lat_vecs * (b.r1 - b.r2))
 end
@@ -152,18 +169,17 @@ end
 # Build Crystal using the space group denoted by a unique Hall number. The complete
 # list is given at http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
 function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, hall_number::Int; symprec=1e-5) where {T}
-    is_same_position(x, y) = norm(lat_vecs * rem.(x-y, 1, RoundNearest)) < symprec
-
+    latvec_cell_type = cell_type(lat_vecs)
     hall_cell_type = cell_type(hall_number)
-    @assert cell_type(lat_vecs) == hall_cell_type "Provided unit cell not conventional for provided hall number."
-    @assert is_standard_form(lat_vecs) "Provided lat_vecs matrix not in standard form"
+    @assert latvec_cell_type == hall_cell_type "Hall number $hall_number requires cell type $hall_cell_type; received instead $latvec_cell_type."
+    @assert is_standard_form(lat_vecs) "Lattice vectors must be in standard form. Consider using `lattice_vectors(a, b, c, α, β, γ)`."
 
     rotations, translations = Spglib.get_symmetry_from_database(hall_number)
     Rs = Mat3.(transpose.(eachslice(rotations, dims=3)))
     Ts = Vec3.(eachcol(translations))
     symops = map(SymOp, Rs, Ts)
 
-    return Crystal(lat_vecs, base_positions, base_species, symops; symprec=symprec)
+    return Crystal(lat_vecs, base_positions, base_species, symops; hall_number, symprec)
 end
 
 # Make best effort to build Crystal from symbolic representation of spacegroup
@@ -203,17 +219,23 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
 end
 
 "Build Crystal from explicit set of symmetry operations and a minimal set of positions "
-function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symops::Vector{SymOp}; symprec=1e-5) where {T}
-    rotation = zeros(3, 3, length(symops))
-    translation = zeros(3, length(symops))
-    for (i, s) = enumerate(symops)
-        rotation[:, :, i] = s.R'
-        translation[:, i] = s.T
+function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symops::Vector{SymOp}; hall_number=nothing, symprec=1e-5) where {T}
+    # Spglib can map a Hall number to symops (via `get_symmetry_from_database`)
+    # and can map symops to a Hall number (via `get_hall_number_from_symmetry`).
+    # Unfortunately the round trip is not the identity function. For diamond
+    # cubic (Hall numbers 525 and 526), I observed 526 -> symops -> 525. This
+    # might be a bug in Spglib. For now, allow the caller to pass an explicit
+    # `hall_number`. If `nothing`, then Spglib can infer the Hall number.
+    if isnothing(hall_number)
+        rotation = zeros(3, 3, length(symops))
+        translation = zeros(3, length(symops))
+        for (i, s) = enumerate(symops)
+            rotation[:, :, i] = s.R'
+            translation[:, i] = s.T
+        end
+        hall_number = Int(Spglib.get_hall_number_from_symmetry(rotation, translation, length(symops)))
     end
-    hall_number = Int(Spglib.get_hall_number_from_symmetry(rotation, translation, length(symops)))
     
-    is_same_position(x, y) = norm(lat_vecs * rem.(x-y, 1, RoundNearest)) < symprec
-
     positions = empty(base_positions)
     species = empty(base_species)
     equiv_atoms = Int[]
@@ -222,7 +244,7 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
         for s = symops
             x = transform(s, base_positions[i])
 
-            idx = findfirst(y -> is_same_position(x, y), positions)
+            idx = findfirst(y -> is_same_position(x, y; symprec), positions)
             if isnothing(idx)
                 push!(positions, x)
                 push!(species, base_species[i])
@@ -296,6 +318,10 @@ end
 
 function transform(s::SymOp, b::BondRaw)
     return BondRaw(transform(s, b.r1), transform(s, b.r2))
+end
+
+function transform(cryst::Crystal, s::SymOp, b::Bond{3})
+    return Bond(cryst, transform(s, BondRaw(cryst, b)))
 end
 
 function Base.reverse(b::BondRaw)
@@ -374,9 +400,12 @@ end
 
 function find_symmetry_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     # Fail early if two bonds describe different real-space distances
-    d1 = norm(cryst.lat_vecs*(b1.r2 - b1.r1))
-    d2 = norm(cryst.lat_vecs*(b2.r2 - b2.r1))
-    if abs(d1 - d2) > cryst.symprec
+    # (dimensionless error tolerance is measured relative to the minimum lattice
+    # constant ℓ)
+    ℓ = minimum(norm, eachcol(cryst.lat_vecs))
+    d1 = distance(cryst, b1) / ℓ
+    d2 = distance(cryst, b2) / ℓ
+    if abs(d1-d2) > cryst.symprec
         return nothing
     end
 
@@ -458,26 +487,54 @@ function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist::Float64)
     return bonds
 end
 
-"Produces a list of symmetry equivalence classes, specified by an arbitrary bond."
+
+# Calculate score for a bond. Lower would be preferred.
+function _score_bond(cryst::Crystal, b)
+    # Favor bonds with fewer nonzero elements in basis matrices J
+    Js = basis_for_symmetry_allowed_couplings(cryst, b)
+    nnz = [count(abs.(J) .> 1e-12) for J in Js]
+    score = sum(nnz)
+
+    # Favor bonds with smaller unit cell displacements. Positive
+    # displacements are slightly favored over negative displacements.
+    # Displacements in x are slightly favored over y, etc.
+    score += norm((b.n .- 0.1) .* [0.07, 0.08, 0.09])
+
+    # Favor indices where i < j
+    score += 1e-2 * (b.i < b.j ? -1 : +1)
+
+    return score
+end
+
+"Produces a list of 'canonical' bonds that belong to different symmetry equivalence classes."
 function canonical_bonds(cryst::Crystal, max_dist)
-    # list of distinct atom types
+    # List of distinct atom types
     atom_types = unique(cryst.equiv_atoms)
     
-    # canonical indices for atoms of each type
-    canon_atoms = [findfirst(isequal(t), cryst.equiv_atoms) for t = atom_types]
+    # Atom indices, one for each equivalence class
+    canon_atoms = [findfirst(isequal(t), cryst.equiv_atoms) for t in atom_types]
     
+    # Bonds, one for each equivalent class
     cbonds = Bond[]
-
     for i in canon_atoms
         for b in all_bonds_for_atom(cryst, i, max_dist)
-            if !any(is_equivalent_by_symmetry(cryst, b, b′) for b′=cbonds)
+            if !any(is_equivalent_by_symmetry(cryst, b, b′) for b′ in cbonds)
                 push!(cbonds, b)
             end
         end
     end
 
+    # Sort by distance
     sort!(cbonds, by=b->distance(cryst, b))
-    return cbonds
+
+    # Replace each canonical bond by the "best" equivalent bond
+    return map(cbonds) do cb
+        # Find full set of symmetry equivalent bonds
+        equiv_bonds = unique([transform(cryst, s, cb) for s in cryst.symops])
+        # Take the bond with lowest score
+        scores = [_score_bond(cryst, b) for b in equiv_bonds]
+        return equiv_bonds[findmin(scores)[2]]
+    end
 end
 
 # For each element of `bonds`, return an index into `canonical_bonds` that gives
