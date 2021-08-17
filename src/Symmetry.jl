@@ -310,12 +310,14 @@ subcrystal(cryst::Crystal{T}, equiv_idx::Int) where {T} = subcrystal(cryst, [equ
 function Base.display(cryst::Crystal)
     printstyled("Crystal info\n"; bold=true, color=:underline)
     sgt = Spglib.get_spacegroup_type(cryst.hall_number)
-    println("Hall group '$(sgt.hall_symbol)' (number $(cryst.hall_number))")
-    println("International symbol '$(sgt.international)'")
-    println("Unit cryst contains:")
+    println("Hall group '$(sgt.hall_symbol)' (Hall number $(cryst.hall_number))")
+    println("International symbol '$(sgt.international)' (number $(sgt.number))")
+    println("Unit cell contains:")
     for s in unique(cryst.species)
-        n = count(==(s), cryst.species)
-        println("    $n atoms of species '$s'")
+        idxs = findall(==(s), cryst.species)
+        n = length(idxs)
+        uniq = length(unique(cryst.equiv_atoms[idxs]))
+        println("    $n atoms of species '$s' ($uniq equivalence classes)")
     end
 end
 
