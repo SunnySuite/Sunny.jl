@@ -116,17 +116,24 @@ struct BondRaw
 end
 
 
-function BondRaw(cryst::Crystal, b::Bond{3})
-    return BondRaw(cryst.positions[b.i], cryst.positions[b.j]+b.n)
-end
+"Convenience constructor for a 2D bond"
+Bond2D(i, j, n::Vector{Int}) = Bond{2}(i, j, n)
+
+"Convenience constructor for a 3D bond"
+Bond3D(i, j, n::Vector{Int}) = Bond{3}(i, j, n)
+
 
 function Bond(cryst::Crystal, b::BondRaw)
     i1 = position_to_index(cryst, b.r1)
     i2 = position_to_index(cryst, b.r2)
     r1 = cryst.positions[i1]
     r2 = cryst.positions[i2]
-    n = round.((b.r2-b.r1) - (r2-r1))
-    return Bond(i1, i2, SVector{3, Int}(n))
+    n = round.(Int, (b.r2-b.r1) - (r2-r1))
+    return Bond{3}(i1, i2, n)
+end
+
+function BondRaw(cryst::Crystal, b::Bond{3})
+    return BondRaw(cryst.positions[b.i], cryst.positions[b.j]+b.n)
 end
 
 function is_same_position(x, y; symprec=1e-5)
