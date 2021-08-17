@@ -137,6 +137,12 @@ function position_to_index(cryst::Crystal, r::Vec3)
     return findfirst(r′ -> is_same_position(r, r′; symprec=cryst.symprec), cryst.positions)
 end
 
+# Wrap each coordinate of position r into the range [0,1). To account for finite
+# precision, wrap 1-ϵ to -ϵ, where ϵ=symprec is a tolerance parameter.
+function wrap_to_unit_cell(r::Vec3; symprec=1e-5)
+    return @. mod(r+symprec, 1) - symprec
+end
+
 function distance(cryst::Crystal, b::BondRaw)
     return norm(cryst.lat_vecs * (b.r1 - b.r2))
 end
@@ -156,6 +162,8 @@ end
 
 # Let Spglib infer the space group
 function Crystal(lat_vecs::Mat3, positions::Vector{Vec3}, species::Vector{T}; symprec=1e-5) where {T}
+    positions = wrap_to_unit_cell.(positions; symprec)
+
     cell = Spglib.Cell(lat_vecs, hcat(positions...), species)
     d = Spglib.get_dataset(cell, symprec)
 
@@ -236,13 +244,13 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
         hall_number = Int(Spglib.get_hall_number_from_symmetry(rotation, translation, length(symops)))
     end
     
-    positions = empty(base_positions)
-    species = empty(base_species)
+    positions = Vec3[]
+    species = T[]
     equiv_atoms = Int[]
     
     for i = eachindex(base_positions)
         for s = symops
-            x = transform(s, base_positions[i])
+            x = wrap_to_unit_cell(transform(s, base_positions[i]); symprec)
 
             idx = findfirst(y -> is_same_position(x, y; symprec), positions)
             if isnothing(idx)
