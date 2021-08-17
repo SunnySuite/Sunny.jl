@@ -1,5 +1,5 @@
 import FastDipole: Vec3, Mat3
-import FastDipole.Symmetry: SymOp, Crystal, Bond, canonical_bonds, distance
+import FastDipole.Symmetry: SymOp, Crystal, Bond, canonical_bonds, distance, subcrystal, print_bond_table
 import FastDipole.Symmetry as S
 using LinearAlgebra
 
@@ -49,9 +49,9 @@ dist3 = [distance(cryst, b) for b=cbonds]
 # Using international symbol
 cryst = Crystal(lat_vecs, base_positions, base_species, "F d -3 m")
 cbonds = canonical_bonds(cryst, 2.)
-dist5 = [distance(cryst, b) for b=cbonds]
+dist4 = [distance(cryst, b) for b=cbonds]
 
-@assert dist1 ≈ dist2 ≈ dist3 ≈ dist4 ≈ dist5 
+@assert dist1 ≈ dist2 ≈ dist3 ≈ dist4
 
 
 
@@ -62,24 +62,21 @@ positions = [Vec3(0., 0, 0)]
 species = [1]
 cryst = Crystal(lat_vecs, positions, species)
 
-b1 = Bond{3}(1, 1, Vec3([1, 0, 0]))
-b2 = Bond{3}(1, 1, Vec3([0, 1, 0]))
+b1 = Bond{3}(1, 1, [1, 0, 0])
+b2 = Bond{3}(1, 1, [0, 1, 0])
 @assert S.is_equivalent_by_symmetry(cryst, b1, b2)
 
 cbonds = canonical_bonds(cryst, 2.)
 [distance(cryst, b) for b=cbonds]
 
-# Populate interactions for a random bond
-bond = cbonds[4]
-basis = S.basis_for_symmetry_allowed_couplings(cryst, bond)
-for x = basis
-    display(clean_digits.(x, 4))
-end
-J = basis' * randn(length(basis))
-bonds, Js = S.all_symmetry_related_interactions(cryst, bond, J)
+print_bond_table(cryst, 2.)
 
-for (b, J) = zip(bonds, Js)
-    display(b)
-    display(J)
-end
 
+
+
+### Print bond tables
+
+using StaticArrays
+
+cryst = subcrystal(Crystal("/Users/kbarros/Desktop/FeI2.cif"), "Fe2+")
+print_bond_table(cryst, 10.)
