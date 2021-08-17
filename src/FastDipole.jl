@@ -10,6 +10,7 @@ using FFTW
 using Tullio
 using CrystalInfoFramework
 using FilePaths
+using ProgressMeter
 import Random
 
 include("Util.jl")
@@ -49,7 +50,7 @@ include("Parsing.jl")
 export parse_config
 
 include("StructureFactors.jl")
-export diag_structure_factor
+export diag_structure_factor, full_structure_factor, dipole_form_factor
 
 include("Plotting.jl")
 export plot_lattice, plot_spins, plot_bonds, plot_all_bonds, anim_integration, live_integration

@@ -82,6 +82,9 @@ function energy(sys::SpinSystem) :: Float64
     for heisen in ℋ.heisenbergs
         E += energy(sys, heisen)
     end
+    for on_site in ℋ.on_sites
+        E += energy(sys, on_site)
+    end
     for diag_coup in ℋ.diag_coups
         E += energy(sys, diag_coup)
     end
@@ -121,7 +124,7 @@ function energy(sys::SpinSystem, on_site::OnSite)
     J = on_site.J
     E = 0.0
     for S in sys
-        E += dot(S, J, S)
+        E += S ⋅ (J .* S)
     end
     return E
 end
@@ -161,6 +164,9 @@ function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::Hamiltonian)
     end
     for heisen in ℋ.heisenbergs
         _accum_field!(B, spins, heisen)
+    end
+    for on_site in ℋ.on_sites
+        _accum_field!(B, spins, on_site)
     end
     for diag_coup in ℋ.diag_coups
         _accum_field!(B, spins, diag_coup)
@@ -202,7 +208,7 @@ end
 @inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, on_site::OnSite)
     J = on_site.J
     for idx in eachindex(spins)
-        S = spins[S]
+        S = spins[idx]
         B[idx] = B[idx] - 2 * J .* S
     end
 end

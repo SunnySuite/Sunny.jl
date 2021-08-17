@@ -33,7 +33,8 @@ function test_diamond_heisenberg_sf()
         measureΔt=Δt, collect_steps=collect_steps,
         verbose=true
     )
-    # plot_many_cuts(S; maxω=maxω, chopω=5.0)
+    p = plot_many_cuts(S; maxω=maxω, chopω=5.0)
+    display(p)
     return S
 end
 
@@ -112,9 +113,9 @@ function test_FeI2()
     J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036] / 2, cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
     J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051] / 2, cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
     J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073] / 2, cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
-    J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
-    D = OnSite(SA[2.165/2, 2.165/2, 0.] / 2, "D")
-    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, J2b′, D])
+    # J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
+    D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
+    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
 
     # Produce a Lattice of the target system size (8x8x8)
     lattice = Lattice(cryst, (16, 20, 4))
@@ -123,26 +124,91 @@ function test_FeI2()
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
     TN = 5.0 * kB               # ≈ 5K -> Units of meV
-    kT = 0.86 * TN              # Actual target simulation temp, units of meV
+    kT = 0.20 * TN              # Actual target simulation temp, units of meV
 
-    Δt = 0.02 / (2.165/2)       # Units of 1/meV
+    Δt = 0.01 / (2.165/2)       # Units of 1/meV
     # Highest energy/frequency we actually care about resolving
     target_max_ω = 10.          # Units of meV
-    # Total number of dynamics steps when measuring structure factor of a sampled configuration
-    measure_steps = 10000
     # Interval number of steps of dynamics before collecting a snapshot for FFTs
-    collect_steps = convert(Int, div(2π, (target_max_ω * Δt)))
+    collect_steps = convert(Int, div(2π, (2 * target_max_ω * Δt)))
+    # Total number of dynamics steps when measuring structure factor of a sampled configuration
+    measure_steps = 1000 * collect_steps
 
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
-    S = diag_structure_factor(
+    S = full_structure_factor(
         system, kT;
-        nsamples=20, langevinΔt=Δt, langevin_steps=20000, measureΔt=Δt,
+        nsamples=15, langevinΔt=Δt, langevin_steps=20000, measureΔt=Δt,
         measure_steps=measure_steps, collect_steps=collect_steps, α=0.1, verbose=true
     )
 
     # Save off results for later viewing
-    serialize("../results/FeI2_structure_factor_T086_size8.ser", S)
+    serialize("../results/FeI2_structure_factor_T020.ser", S)
 
-    return S
+    S = dipole_form_factor(S, lattice);
+
+    # Return only the positive-ω part of the spectrum
+    # TODO: Make this easier/faster by using rfft along this dimension
+    return S[:, :, :, 1:div(size(S, 4), 2)]
+end
+
+function test_FeI2_ortho()
+    lat_vecs = FastDipole.lattice_vectors(1.0, √3, 1.6691358024691358, 90., 90., 90.)
+    basis_positions = [
+        SA[0.0, 0.0, 0.0],
+        SA[0.5, 0.5, 0.0],
+        SA[0.0, 1/3, 0.25],
+        SA[0.0, 2/3, 0.75],
+        SA[0.5, 5/6, 0.25],
+        SA[0.5, 1/6, 0.75]
+    ]
+    species = ["Fe", "Fe", "I", "I", "I", "I"]
+    cryst = Crystal(lat_vecs, basis_positions, species)
+    cryst = subcrystal(cryst, "Fe")
+
+    # Set up all interactions (all in units meV)
+    J1mat = SA[-0.397 0 0; 0 -0.075 -0.261; 0 -0.261 -0.236] / 2
+    J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
+    J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113] / 2, cryst, Bond{3}(1, 2, [1, -1, 0]), "J2")
+    J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211] / 2, cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
+    J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036] / 2, cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
+    J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051] / 2, cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073] / 2, cryst, Bond{3}(1, 2, [1, -1, 1]), "J2a′")
+    # J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
+    D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
+    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
+
+    # Produce a Lattice of the target system size (8x8x8)
+    lattice = Lattice(cryst, (16, 10, 4))
+    # Set up the SpinSystem
+    system = SpinSystem(lattice, ℋ)
+
+    kB = 8.61733e-2             # Boltzmann constant, units of meV/K
+    TN = 5.0 * kB               # ≈ 5K -> Units of meV
+    kT = 0.20 * TN              # Actual target simulation temp, units of meV
+
+    Δt = 0.01 / (2.165/2)       # Units of 1/meV
+    # Highest energy/frequency we actually care about resolving
+    target_max_ω = 10.          # Units of meV
+    # Interval number of steps of dynamics before collecting a snapshot for FFTs
+    collect_steps = convert(Int, div(2π, (2 * target_max_ω * Δt)))
+    # Total number of dynamics steps when measuring structure factor of a sampled configuration
+    measure_steps = 1000 * collect_steps
+
+    # Measure the diagonal elements of the spin structure factor
+    println("Starting structure factor measurement...")
+    S = full_structure_factor(
+        system, kT;
+        nsamples=15, langevinΔt=Δt, langevin_steps=20000, measureΔt=Δt,
+        measure_steps=measure_steps, collect_steps=collect_steps, α=0.1, verbose=true
+    )
+
+    # Save off results for later viewing
+    serialize("../results/FeI2_structure_factor_T020.ser", S)
+
+    S = dipole_form_factor(S, lattice);
+
+    # Return only the positive-ω part of the spectrum
+    # TODO: Make this easier/faster by using rfft along this dimension
+    return S[:, :, :, 1:div(size(S, 4), 2)]
 end
