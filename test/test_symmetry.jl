@@ -73,10 +73,32 @@ print_bond_table(cryst, 2.)
 
 
 
+### Triangular lattice, primitive unit cell
+
+lat_vecs = Mat3(1, 0, 0,   1/2, √3/2, 0,   0, 0, 10)
+positions = [Vec3(0., 0, 0)]
+species = [1]
+cryst = Crystal(lat_vecs, positions, species)
+
+print_bond_table(cryst, 5.)
+
+
+### Kagome lattice
+
+lat_vecs = Mat3(1, 0, 0,   1/2, √3/2, 0,   0, 0, 10)
+positions = [Vec3(0, 0, 0), Vec3(0.5, 0, 0), Vec3(0, 0.5, 0)]
+species = [1, 1, 1]
+cryst = Crystal(lat_vecs, positions, species)
+
+print_bond_table(cryst, 3.)
+
 
 ### Print bond tables
 
 using StaticArrays
 
-cryst = subcrystal(Crystal("/Users/kbarros/Desktop/FeI2.cif"), "Fe2+")
+cryst = subcrystal(Crystal("/Users/kbarros/Desktop/cifs/FeI2.cif"), "Fe2+")
 print_bond_table(cryst, 10.)
+
+cryst = Crystal("/Users/kbarros/Desktop/cifs/diamond_Nature1958.cif")
+print_bond_table(cryst, 5.)
