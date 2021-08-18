@@ -162,6 +162,11 @@ function distance(lat::Lattice{D}, b::Bond{D}) where {D}
     return norm(lat.lat_vecs * b.n + (lat.basis_vecs[b.j] - lat.basis_vecs[b.i]))
 end
 
+function midpoint(b::BondRaw)
+    # fractional coordinates
+    return (b.r1 + b.r2) / 2
+end
+
 function Base.isapprox(s1::SymOp, s2::SymOp; atol)
     isapprox(s1.R, s2.R; atol) && isapprox(s1.T, s2.T; atol)
 end
@@ -658,8 +663,7 @@ function projector_for_symop(cryst::Crystal, s::SymOp, parity::Bool)
     F = kron(R, R) - (parity ? I : transpose_op_3x3)
 
     # Orthogonal column vectors that span the null space of F
-    θ = svd(F)
-    v = θ.Vt[findall(x -> abs(x) < 1e-12, θ.S), :]'
+    v = nullspace(F; atol=1e-12)
 
     # Projector onto the null space of F
     P = v * v'
@@ -727,6 +731,27 @@ end
 @assert sym_basis * sym_basis' + asym_basis * asym_basis' ≈ I
 
 
+# Given an m×n matrix A with empty nullspace, linearly combine the n columns to
+# make them sparser.
+function sparsify_columns(A; atol)
+    if size(A, 2) <= 1
+        return A
+    else
+        # By assumption, the n columns of A are linearly independent
+        @assert isempty(nullspace(A; atol))
+        # Since row rank equals column rank, it should be possible to find n
+        # linearly independent rows in A
+        indep_rows = Vector{Float64}[]
+        for row = eachrow(A)
+            # Add `row` to list if linearly independent with existing ones
+            if isempty(nullspace(hcat(indep_rows..., row); atol))
+                push!(indep_rows, row)
+            end
+        end
+        return A * inv(hcat(indep_rows...))'
+    end
+end
+
 # Find a convenient basis for the symmetry allowed couplings on bond b
 function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondRaw)
     P = symmetry_allowed_couplings_operator(cryst, b)
@@ -751,13 +776,13 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondRaw)
 
     # Search for eigenvectors of P_sym with eigenvalue 1. These provide an
     # orthonormal basis for symmetric couplings.
-    θ = svd(P_sym-I)
-    v = θ.Vt[findall(λ -> abs(λ) < 1e-12, θ.S), :]'
+    v = nullspace(P_sym-I; atol=1e-12)
+    v = sparsify_columns(v; atol=1e-12)
     append!(acc, eachcol(v))
 
     # Similarly for antisymmetric couplings.
-    θ = svd(P_asym-I)
-    v = θ.Vt[findall(λ -> abs(λ) < 1e-12, θ.S), :]'
+    v = nullspace(P_asym-I; atol=1e-12)
+    v = sparsify_columns(v; atol=1e-12)
     append!(acc, eachcol(v))
 
     return map(acc) do x
