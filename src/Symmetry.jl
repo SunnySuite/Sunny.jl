@@ -162,10 +162,6 @@ function distance(lat::Lattice{D}, b::Bond{D}) where {D}
     return norm(lat.lat_vecs * b.n + (lat.basis_vecs[b.j] - lat.basis_vecs[b.i]))
 end
 
-function midpoint(b::BondRaw)
-    # fractional coordinates
-    return (b.r1 + b.r2) / 2
-end
 
 function Base.isapprox(s1::SymOp, s2::SymOp; atol)
     isapprox(s1.R, s2.R; atol) && isapprox(s1.T, s2.T; atol)
@@ -524,8 +520,8 @@ function _score_bond(cryst::Crystal, b)
     # Displacements in x are slightly favored over y, etc.
     score += norm((b.n .- 0.1) .* [0.07, 0.08, 0.09])
 
-    # Favor indices where i < j
-    score += 1e-2 * (b.i < b.j ? -1 : +1)
+    # Favor smaller indices and indices where i < j
+    score += 1e-2 * (b.i + b.j) + 1e-2 * (b.i < b.j ? -1 : +1)
 
     return score
 end
@@ -577,26 +573,23 @@ function equivalent_bond_indices(cryst::Crystal, canonical_bonds, bonds)
     end
 end
 
-function _print_bond_table_header()
-    header = "  i   j              n    dist     allowed J\n"
-    printstyled(header; bold=true, color=:underline)
-end
 
-# Print a nice table of all possible bond classes to a maximum distance, and
-#   the allowed interactions on the canonical bonds for each class.
-function print_bond_table(cryst::Crystal, max_dist)
-    _print_bond_table_header()
+function print_bond(cryst::Crystal, b::Bond{3})
+    println("Bond(i=$(b.i), j=$(b.j), n=[$(b.n[1]), $(b.n[2]), $(b.n[3])])")
+    @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) bond_multiplicity(cryst, b)
 
-    canon_bonds = canonical_bonds(cryst, max_dist)
-    dists = map(b->distance(cryst, b), canon_bonds)
+    class_str = if length(unique(cryst.equiv_atoms)) > length(unique(cryst.species))
+        (" class=$(cryst.equiv_atoms[b.i]),", " class=$(cryst.equiv_atoms[b.j]),")
+    else
+        ("", "")
+    end
+    r1 = cryst.positions[b.i]
+    r2 = cryst.positions[b.j]
+    @printf "   - Atom %i has species '%s',%s coords (%.4g, %.4g, %.4g)\n" b.i string(cryst.species[b.i]) class_str[1] r1[1] r1[2] r1[3]
+    @printf "   - Atom %i has species '%s',%s coords (%.4g, %.4g, %.4g)\n" b.j string(cryst.species[b.j]) class_str[2] r2[1] r2[2] r2[3]
 
-    for (bond, dist) in zip(canon_bonds, dists)
-        @unpack i, j, n = bond
-        d = distance(cryst, bond)
-        line = @sprintf "%3i %3i  [%3i,%3i,%3i]    %.2f     " i j n[1] n[2] n[3] d
-        print(line)
-
-        allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, bond)
+    print(  "Allowed exchange:  ")
+    allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
         J_strings = _coupling_basis_strings(allowed_J_basis)
         max_len = maximum(length, J_strings)
         for i in 1:3
@@ -608,10 +601,16 @@ function print_bond_table(cryst::Crystal, max_dist)
             end
             println('|')
             if i != 3
-                print(repeat(' ', 35))
+            print(repeat(' ', 19))
             end
         end
         println()
+end
+
+
+function print_bond_table(cryst::Crystal, max_dist)
+    for b in canonical_bonds(cryst, max_dist)
+        print_bond(cryst, b)
     end
 end
 
