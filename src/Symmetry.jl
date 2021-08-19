@@ -474,9 +474,11 @@ function symmetries(cryst::Crystal, b::Bond{3})
 end
 
 
-function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist::Float64)
-    # be a little generous with the maximum distance
-    max_dist += 4 * cryst.symprec
+function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist::Float64; min_dist=0.0)
+    # be a little generous with the minimum and maximum distances
+    ℓ = minimum(norm, eachcol(cryst.lat_vecs))
+    max_dist += 4 * cryst.symprec * ℓ
+    min_dist -= 4 * cryst.symprec * ℓ
 
     # columns are the reciprocal vectors
     recip_vecs = 2π * inv(cryst.lat_vecs)'
@@ -495,10 +497,10 @@ function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist::Float64)
             for n3 in -n_max[3]:n_max[3]
                 n = SVector(n1, n2, n3)
                 
-                # loop over all atoms within neighboring cryst
+                # loop over all atoms within neighboring cell
                 for j in eachindex(cryst.positions)
                     b = Bond{3}(i, j, n)
-                    if distance(cryst, b) <= max_dist
+                    if min_dist <= distance(cryst, b) <= max_dist
                         push!(bonds, b)
                     end
                 end
@@ -527,6 +529,12 @@ function _score_bond(cryst::Crystal, b)
 
     return score
 end
+
+
+function bond_multiplicity(cryst::Crystal{T}, b::Bond{3}) where T
+    return length(all_symmetry_related_bonds_for_atom(cryst, b.i, b))
+end
+
 
 "Produces a list of 'canonical' bonds that belong to different symmetry equivalence classes."
 function canonical_bonds(cryst::Crystal, max_dist)
@@ -692,7 +700,7 @@ function verify_coupling_matrix(cryst::Crystal, b::BondRaw, J::Mat3)
     end
 end
 
-function verify_coupling_matrix(cryst::Crystal, b::Bond, J::Mat3)
+function verify_coupling_matrix(cryst::Crystal, b::Bond{3}, J::Mat3)
     verify_coupling_matrix(cryst, BondRaw(cryst, b), J)
 end
 
@@ -742,7 +750,7 @@ function sparsify_columns(A; atol)
         # Since row rank equals column rank, it should be possible to find n
         # linearly independent rows in A
         indep_rows = Vector{Float64}[]
-        for row = eachrow(A)
+        for row in eachrow(A)
             # Add `row` to list if linearly independent with existing ones
             if isempty(nullspace(hcat(indep_rows..., row); atol))
                 push!(indep_rows, row)
@@ -860,35 +868,35 @@ function allowed_J(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
 end
 
 
-function all_symmetry_related_bonds(cryst::Crystal, b_ref::Bond{3})
+function all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b_ref::Bond{3})
     bs = Bond{3}[]
-    for i in eachindex(cryst.positions)
-        for b in all_bonds_for_atom(cryst, i, distance(cryst, b_ref))
-            if is_equivalent_by_symmetry(cryst, b_ref, b)
-                push!(bs, b)
-            end
+    dist = distance(cryst, b_ref)
+    for b in all_bonds_for_atom(cryst, i, dist; min_dist=dist)
+        if is_equivalent_by_symmetry(cryst, b_ref, b)
+            push!(bs, b)
         end
     end
     return bs
 end
 
 
+function all_symmetry_related_bonds(cryst::Crystal, b_ref::Bond{3})
+    bs = Bond{3}[]
+    for i in eachindex(cryst.positions)
+        append!(bs, all_symmetry_related_bonds_for_atom(cryst, i, b_ref))
+    end
+    bs
+end
+
+
 function all_symmetry_related_interactions(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3)
     verify_coupling_matrix(cryst, BondRaw(cryst, b_ref), J_ref)
 
-    bs = Bond{3}[]
-    Js = Mat3[]
-
-    for i in eachindex(cryst.positions)
-        for b in all_bonds_for_atom(cryst, i, distance(cryst, b_ref))
-            s = find_symmetry_between_bonds(cryst, BondRaw(cryst, b_ref), BondRaw(cryst, b))
-            if !isnothing(s)
-                R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
-                J = R * J_ref * R'
-                push!(bs, b)
-                push!(Js, J)
-            end
-        end
+    bs = all_symmetry_related_bonds(cryst, b_ref)
+    Js = map(bs) do b
+        s = find_symmetry_between_bonds(cryst, BondRaw(cryst, b_ref), BondRaw(cryst, b))
+        R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
+        return R * J_ref * R'
     end
 
     return (bs, Js)
