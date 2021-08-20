@@ -320,12 +320,19 @@ function Base.display(cryst::Crystal)
     sgt = Spglib.get_spacegroup_type(cryst.hall_number)
     println("Hall group '$(sgt.hall_symbol)' (Hall number $(cryst.hall_number))")
     println("International symbol '$(sgt.international)' (number $(sgt.number))")
-    println("Unit cell contains:")
-    for s in unique(cryst.species)
-        idxs = findall(==(s), cryst.species)
-        n = length(idxs)
-        uniq = length(unique(cryst.equiv_atoms[idxs]))
-        println("    $n atoms of species '$s' ($uniq equivalence classes)")
+
+    if is_standard_form(cryst.lat_vecs)
+        (a, b, c, α, β, γ) = lattice_params(cryst.lat_vecs)
+        @printf "Lattice params a=%.4g, b=%.4g, c=%.4g, α=%.4g°, β=%.4g°, γ=%.4g°\n" a b c α β γ
+    else
+        println("Lattice vectors:")
+        for a in eachcol(cryst.lat_vecs)
+            @printf "   [%.4g %.4g %.4g]\n" a[1] a[2] a[3]
+        end
+    end
+    println("Atoms:")
+    for i in eachindex(cryst.positions)
+        println("   $i. " * atom_string(cryst,i))
     end
 end
 
@@ -573,38 +580,53 @@ function equivalent_bond_indices(cryst::Crystal, canonical_bonds, bonds)
     end
 end
 
+function atom_string(cryst::Crystal, i)
+    species_str = if length(unique(cryst.species)) > 1
+        "species='$(cryst.species[i])', "
+    else
+        ""
+    end
+
+    class_str = if length(unique(cryst.equiv_atoms)) > length(unique(cryst.species))
+        "class=$(cryst.equiv_atoms[i]), "
+    else
+        ""
+    end
+
+    r = cryst.positions[i]
+    coords_str = @sprintf "coords=[%.4g, %.4g, %.4g]" r[1] r[2] r[3]
+
+    return species_str * class_str * coords_str
+end
 
 function print_bond(cryst::Crystal, b::Bond{3})
     println("Bond(i=$(b.i), j=$(b.j), n=[$(b.n[1]), $(b.n[2]), $(b.n[3])])")
     @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) bond_multiplicity(cryst, b)
 
-    class_str = if length(unique(cryst.equiv_atoms)) > length(unique(cryst.species))
-        (" class=$(cryst.equiv_atoms[b.i]),", " class=$(cryst.equiv_atoms[b.j]),")
-    else
-        ("", "")
+    if length(cryst.positions) > 1
+        println("Atom $(b.i): " * atom_string(cryst, b.i))
+        if b.j != b.i
+            println("Atom $(b.j): " * atom_string(cryst, b.j))
+        end
     end
-    r1 = cryst.positions[b.i]
-    r2 = cryst.positions[b.j]
-    @printf "   - Atom %i has species '%s',%s coords (%.4g, %.4g, %.4g)\n" b.i string(cryst.species[b.i]) class_str[1] r1[1] r1[2] r1[3]
-    @printf "   - Atom %i has species '%s',%s coords (%.4g, %.4g, %.4g)\n" b.j string(cryst.species[b.j]) class_str[2] r2[1] r2[2] r2[3]
 
     print(  "Allowed exchange:  ")
     allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
-        J_strings = _coupling_basis_strings(allowed_J_basis)
-        max_len = maximum(length, J_strings)
-        for i in 1:3
-            print('|')
-            for j in 1:3
-                elem = J_strings[i, j]
-                elem = repeat(' ', max_len-length(elem)) * elem
-                print(elem * " ")
-            end
-            println('|')
-            if i != 3
-            print(repeat(' ', 19))
-            end
+    J_strings = _coupling_basis_strings(allowed_J_basis)
+    max_len = maximum(length, J_strings)
+    for i in 1:3
+        print('|')
+        for j in 1:3
+            elem = J_strings[i, j]
+            elem = repeat(' ', max_len-length(elem)) * elem
+            print(elem * " ")
         end
-        println()
+        println('|')
+        if i != 3
+        print(repeat(' ', 19))
+        end
+    end
+    println()
 end
 
 
