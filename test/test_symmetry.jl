@@ -59,18 +59,17 @@ dist4 = [distance(cryst, b) for b=cbonds]
 
 lat_vecs = Mat3(1, 1, 0,   1, 0, 1,   0, 1, 1) / 2
 positions = [Vec3(0., 0, 0)]
-species = [1]
+species = ["A"]
 cryst = Crystal(lat_vecs, positions, species)
-
-b1 = Bond{3}(1, 1, [1, 0, 0])
-b2 = Bond{3}(1, 1, [0, 1, 0])
-@assert S.is_equivalent_by_symmetry(cryst, b1, b2)
-
-cbonds = canonical_bonds(cryst, 2.)
-[distance(cryst, b) for b=cbonds]
-
 print_bond_table(cryst, 2.)
 
+# Calculate interaction table
+cbonds = canonical_bonds(cryst, 2.)
+b = cbonds[2]
+basis = S.basis_for_symmetry_allowed_couplings(cryst, b)
+J = basis' * randn(length(basis))
+(bs, Js) = S.all_symmetry_related_interactions(cryst, b, J)
+@assert length(Js) == S.bond_multiplicity(cryst, b)
 
 
 ### Triangular lattice, primitive unit cell
@@ -87,7 +86,7 @@ print_bond_table(cryst, 5.)
 
 lat_vecs = Mat3(1, 0, 0,   1/2, √3/2, 0,   0, 0, 10)
 positions = [Vec3(0, 0, 0), Vec3(0.5, 0, 0), Vec3(0, 0.5, 0)]
-species = [1, 1, 1]
+species = ["A", "A", "A"]
 cryst = Crystal(lat_vecs, positions, species)
 
 print_bond_table(cryst, 3.)
@@ -98,7 +97,8 @@ print_bond_table(cryst, 3.)
 using StaticArrays
 
 cryst = subcrystal(Crystal("/Users/kbarros/Desktop/cifs/FeI2.cif"), "Fe2+")
-print_bond_table(cryst, 10.)
+display(cryst)
+print_bond_table(cryst, 6.)
 
 cryst = Crystal("/Users/kbarros/Desktop/cifs/diamond_Nature1958.cif")
 print_bond_table(cryst, 5.)
