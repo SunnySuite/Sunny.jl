@@ -106,3 +106,47 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
     sys.sites, integrator._S₂ = integrator._S₂, sys.sites
     nothing
 end
+
+abstract type AbstractSampler end
+
+struct LangevinSampler{D, L, Db} <: AbstractSampler
+    integrator :: LangevinHeunP{D, L, Db}
+    Δt         :: Float64
+    nsteps     :: Int
+end
+
+"""
+    LangevinSampler(sys, kT, α, Δt, nsteps)
+
+Creates a `LangevinSampler` which samples the spin system's Hamiltonian using Langevin
+ dynamics at a temperature `kT`, damping coefficient `α`, and producing a new sample
+ by integrating with `nsteps` timesteps of size `Δt`.
+"""
+function LangevinSampler(sys::SpinSystem{D, L, Db}, kT::Float64, α::Float64, Δt::Float64, nsteps::Int) where {D, L, Db}
+    integrator = LangevinHeunP(sys, kT, α)
+    LangevinSampler{D, L, Db}(integrator, Δt, nsteps)
+end
+
+"Run the Langevin dynamics for a given number of `steps` to equilibrate the system"
+function thermalize!(sampler::LangevinSampler, steps::Int)
+    for _ in 1:steps
+        evolve!(sampler.integrator, sampler.Δt)
+    end
+end
+
+function thermalize!(sampler::LangevinSampler)
+    thermalize!(sampler, 10 * sampler.nsteps)
+end
+
+"Anneal the temperature according to a given temperature schedule"
+function anneal!(sampler::LangevinSampler, temp_schedule::Vector{Float64}, step_schedule::Vector{Int})
+    for (temp, num_steps) in zip(temp_schedule, step_scheudle)
+        sampler.integrator.kT = temp
+        thermalize!(sampler, num_steps)
+    end
+end
+
+"Produce a new sample from a sampler."
+function sample!(sampler::LangevinSampler)
+    thermalize!(sampler, sampler.nsteps)
+end

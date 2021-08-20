@@ -1,7 +1,7 @@
 name = "FastDipole"
 uuid = "2b9f05ca-ae3a-4b54-96e6-2173aeb01345"
-authors = ["Cole Miles <cmm572@cornell.edu>"]
-version = "0.0.2"
+authors = ["Cole Miles <cmm572@cornell.edu>", "Kipton Barros <kbarros@lanl.gov>"]
+version = "0.0.3"
 
 [deps]
 CrystalInfoFramework = "6007d9b0-c6b2-11e8-0510-1d10e825f3f1"

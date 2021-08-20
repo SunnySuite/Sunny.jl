@@ -17,7 +17,7 @@ include("Util.jl")
 
 include("Lattice.jl")
 export Lattice, ReciprocalLattice
-export volume, eachcellindex, gen_reciprocal
+export volume, eachcellindex, gen_reciprocal, lattice_vectors, lattice_params
 
 include("Symmetry.jl")
 import .Symmetry
@@ -45,12 +45,13 @@ include("FourierAccel.jl")
 
 include("Integrators.jl")
 export HeunP, HeunP2, LangevinHeunP, evolve!
+export LangevinSampler, sample!, anneal!, thermalize!
 
 include("Parsing.jl")
 export parse_config
 
 include("StructureFactors.jl")
-export diag_structure_factor, full_structure_factor, dipole_form_factor
+export structure_factor, dipole_form_factor
 
 include("Plotting.jl")
 export plot_lattice, plot_spins, plot_bonds, plot_all_bonds, anim_integration, live_integration

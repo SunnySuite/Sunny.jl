@@ -1,30 +1,32 @@
 """ Functions for computing and manipulating structure factors """
 
-## TODO: Structure factors should be OffsetArrays for a nice interface
 ## TODO: By default, return structure factors with basis indices still
 ##        present, then expose functions which do the phase-weighted
 ##        sum over the sublattices.
 
 """
-    _fft_spin_traj(spin_traj, lattice; [plan, fft_space])
+    _fft_spin_traj(spin_traj, lattice; [bz_size, plan, fft_space])
 
 Takes in an array of spins (Vec3) of shape [B, D1, ..., Dd, T],
  with D1 ... Dd being the spatial dimensions, B the sublattice index,
  and T the time index.
-Computes and returns an array of the shape [3, D1, ..., Dd, T],
- holding spatial and temporal fourier transforms S^α(q, ω), and the 
+Computes and returns an array of the shape [3, Q1, ..., Qd, T],
+ holding spatial and temporal fourier transforms S^α(𝐪, ω), and the 
  phase-weighted sum already performed over the basis index. To get the
  contribution to the structure factor matrix, you want to then perform:
     𝒮^αβ(q, ω) = S^α(q, ω) * S^β(q, ω)∗
 """
-function _fft_spin_traj(
-    spin_traj::Array{Vec3}, lattice::Lattice;
-    plan::Union{Nothing, FFTW.cFFTWPlan}=nothing,
-    fft_space::Union{Nothing, Array{ComplexF64}}=nothing,
-)
+function fft_spin_traj(spin_traj::Array{Vec3},
+                       lattice::Lattice{D};
+                       bz_size=nothing,
+                       plan::Union{Nothing, FFTW.cFFTWPlan}=nothing,
+                       fft_space::Union{Nothing, Array{ComplexF64}}=nothing,) where {D}
     @assert size(spin_traj)[1:end-1] == size(lattice) "Spin trajectory array size not compatible with lattice"
     if !isnothing(fft_space)
         @assert size(fft_space) == tuplejoin(3, size(spin_traj)) "fft_space size not compatible with spin_traj size"
+    end
+    if isnothing(bz_size)
+        bz_size = ones(ndims(lattice)-1)
     end
 
     # Reinterpret array to add the spin dimension explicitly
@@ -40,20 +42,10 @@ function _fft_spin_traj(
         mul!(fft_space, plan, spin_traj)
     end
 
-    # Multiply each sublattice by the appropriate phase factors
-    #    S_b(q, ω) → exp(-i b ⋅ q) S_b(q, ω)
-    wave_vectors = Iterators.product((fftfreq(size(spin_traj, 2+d)) for d in 1:D)...)
-    for (q_idx, q) in zip(eachcellindex(lattice), wave_vectors)
-        for (b_idx, b) in enumerate(lattice.basis_vecs)
-            fft_space[1:end, b_idx, q_idx, 1:end] .*= exp(-im * (b ⋅ q))
-        end
-    end
-
-    # Sum over sublattices b (now with phase factors)
-    fft_spins = dropdims(sum(fft_space; dims=2); dims=2)
-
-    return fft_spins
+    # Combine sublattices, upsample to desired num of Brillouin zones
+    _phase_weight_basis(fft_space, bz_size, lattice)
 end
+
 
 """
     _fft_spin_traj!(fft_spins, spin_traj, lattice; [plan])
@@ -63,14 +55,11 @@ Doubly in-place version of `_fft_spin_traj`. This form requires the spin
 `spin_traj` will be updated with its FFT, and `fft_spins` will be updated
  with the appropriate phase-weighted sum across basis sites.
 """
-function _fft_spin_traj!(
-    fft_spins::Array{ComplexF64}, spin_traj::Array{ComplexF64}, lattice::Lattice{D};
-    plan::Union{Nothing, FFTW.cFFTWPlan}=nothing,
-) where {D}
+function _fft_spin_traj!(fft_spins::OffsetArray{ComplexF64},
+                         spin_traj::Array{ComplexF64},
+                         lattice::Lattice{D};
+                         plan::Union{Nothing, FFTW.cFFTWPlan}=nothing) where {D}
     @assert size(spin_traj)[2:end-1] == size(lattice) "Spin trajectory array size not compatible with lattice"
-    @assert size(fft_spins) == tuplejoin(3, size(spin_traj)[3:end]) "fft_spins size not compatible with spin_traj size"
-
-    recip = gen_reciprocal(lattice)
 
     # FFT along the D spatial indices, and the T time index
     if isnothing(plan)
@@ -79,42 +68,74 @@ function _fft_spin_traj!(
         spin_traj = plan * spin_traj
     end
 
+    # Combine sublattices, upsample to desired num of Brillouin zones
     _phase_weight_basis!(fft_spins, spin_traj, lattice)
     return fft_spins
 end
 
-"""Weight each FFT amplitude by the basis-dependent phase, sum over basis sites,
-    and write the results to `result`. Sizes should be of the form:
-   `result`:       3 × L1 × ⋯ × LN × T
-   `spins_ft`: 3 × B × L1 × ⋯ × LN × T
-"""
-function _phase_weight_basis!(result::Array{ComplexF64}, spin_traj_ft::Array{ComplexF64}, lattice::Lattice{D}) where {D}
-    @assert size(result, 1) == 3 "First dimension of `result` should be length 3"
-    @assert size(spin_traj_ft, 1) == 3 "First dimension of `spin_traj_ft` should be length 3"
-    @assert size(result)[2:end] == size(spin_traj_ft)[3:end] "Sizes of `result` and `spin_traj_ft` don't agree!"
-    recip = gen_reciprocal(lattice)
-    # Total number of timesteps / frequency bins
-    T = size(spin_traj_ft, ndims(spin_traj_ft))
 
-    # Multiply each sublattice by the appropriate phase factors
-    #    S_b(q, ω) → exp(-i b ⋅ q) S_b(q, ω)
-    for q_idx in eachcellindex(lattice)
-        q = recip.lat_vecs * Vec3((Tuple(q_idx) .- 1) ./ lattice.size)
+""" _phase_weight_basis(spin_traj_ft, bz_size, lattice)
+
+Combines the sublattices of `spin_traj_ft` with the appropriate phase factors, producing
+ the quantity S^α(q, ω) within the number of Brillouin zones requested by `bz_size`.
+
+The result is of size `3 × Q1 × ... × QD × T`, with `Qi` being of length
+  `max(1, bz_size[i] * size(lattice)[i+1])`. `T = size(spin_traj_ft)[end]`
+  is the total number of dynamics snapshots provided.
+
+Indexing the result at `(α, q1, ..., qd, w)` gives S^α(𝐪, ω) at
+    `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, `ω = 2π * w / T`.
+
+Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
+ values for the `w` index lie in `0:T-1`.
+"""
+function _phase_weight_basis(spin_traj_ft::Array{ComplexF64},
+                             bz_size,
+                             lattice::Lattice{D}) where {D}
+    bz_size = convert(SVector{D, Int}, bz_size)                  # Number of Brilloin zones along each axis
+    spat_size = lattice.size                                     # Spatial lengths of the system
+    T = size(spin_traj_ft, ndims(spin_traj_ft))                  # Number of timesteps in traj / frequencies in result
+    q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)      # Total number of q-points along each q-axis of result
+    result_size = (3, q_size..., T)
+    min_q_idx = -1 .* div.(q_size .- 1, 2)
+
+    result = zeros(ComplexF64, result_size)
+    result = OffsetArray(result, OffsetArrays.Origin(1, min_q_idx..., 0))
+    _phase_weight_basis2!(result, spin_traj_ft, lattice)
+end
+
+"Like `phase_weight_basis`, but in-place."
+function _phase_weight_basis!(result::OffsetArray{ComplexF64},
+                              spin_traj_ft::Array{ComplexF64},
+                              lattice::Lattice{D}) where {D}
+    # Check that spatial size of spin_traj_ft same as spatial size of lattice
+    spat_size = size(lattice)[2:end]
+    valid_size = size(spin_traj_ft)[3:end-1] == spat_size
+    @assert valid_size "`size(spin_traj_ft)` not compatible with `lattice`"
+    # Check that q_size is elementwise either an integer multiple of spat_size, or is 1.
+    q_size = size(result)[2:end-1]
+    valid_q_size = all(map((qs, ss) -> qs % ss == 0 || qs == 1, q_size, spat_size))
+    @assert valid_q_size "`size(result)` not compatible with `size(spin_traj_ft)`"
+
+    recip = gen_reciprocal(lattice)
+
+    T = size(spin_traj_ft)[end]
+
+    fill!(result, 0.0)
+    for q_idx in CartesianIndices(axes(result)[2:end-1])
+        q = recip.lat_vecs * SVector{D, Float64}(Tuple(q_idx) ./ lattice.size)
+        wrap_q_idx = modc(q_idx, spat_size) + one(CartesianIndex{D})
         for (b_idx, b) in enumerate(lattice.basis_vecs)
-            # WARNING: Cannot replace T with `end` due to Julia's
-            #  mishandling of CartesianIndex and `end`.
-            spin_traj_ft[1:end, b_idx, q_idx, 1:T] .*= exp(-im * (b ⋅ q))
+            phase = exp(-im * (b ⋅ q))
+            # Note: Lots of allocations here. Fix?
+            # Warning: Cannot replace T with 1:end due to Julia issues with end and CartesianIndex
+            @. result[:, q_idx, 0:T-1] += spin_traj_ft[:, b_idx, wrap_q_idx, 1:T] * phase
         end
     end
 
-    # Sum over sublattices b (now with phase factors)
-    # Need to add a singleton dimension to struct_factor matching
-    #  up with the basis index of fft_spins
-    result = reshape(result, 3, 1, size(result)[2:end]...)
-    sum!(result, spin_traj_ft)
-
-    return dropdims(result; dims=2)
+    return result
 end
+
 
 """ Applies the dipole form factor, reducing the structure factor tensor to the
      observable quantities. I.e. performs the contraction:
@@ -122,15 +143,15 @@ end
     `struct_factor` should be of size 3 × 3 × L1 × ⋯ × LN × T
     Returns a real array of size              L1 × ⋯ × LN × T
 """
-function dipole_form_factor(struct_factor::Array{ComplexF64}, lattice::Lattice{D}) where {D}
+function dipole_form_factor(struct_factor::OffsetArray{ComplexF64}, lattice::Lattice{D}) where {D}
     recip = gen_reciprocal(lattice)
-    T = size(struct_factor, ndims(struct_factor))
-    result = zeros(Float64, size(struct_factor)[3:end])
-    for q_idx in eachcellindex(lattice)
-        q = recip.lat_vecs * Vec3((Tuple(q_idx) .- 1) ./ lattice.size)
-        q = q / norm(q)
+    T = size(struct_factor)[end]
+    result = zeros(Float64, axes(struct_factor)[3:end])
+    for q_idx in CartesianIndices(axes(struct_factor)[3:end-1])
+        q = recip.lat_vecs * SVector{D, Float64}(Tuple(q_idx) ./ lattice.size)
+        q = q / (norm(q) + 1e-12)
         dip_factor = reshape(I(D) - q * q', 3, 3, 1)
-        for t in 1:T
+        for t in 0:T-1
             result[q_idx, t] = real(dot(dip_factor, struct_factor[:, :, q_idx, t]))
         end
     end
@@ -147,118 +168,84 @@ function _plan_spintraj_fft!(spin_traj::Array{ComplexF64})
 end
 
 """
-    full_structure_factor(sys, kt; nsamples, langevinΔt, langevin_steps, measureΔt,
-                          measure_steps, collect_steps, α, verbose)
+    structure_factor(sys, sampler; nsamples, dynΔt, meas_rate, num_meas
+                                    bz_size, verbose)
 
-Measures the full structure factor tensor of a spin system.
+Measures the full structure factor tensor of a spin system, for the requested range of 𝐪-space.
 Returns 𝒮^αβ = ⟨S^α(q, ω) S^β(q, ω)∗⟩, which is an array of shape
-    [3, 3, D1, ..., Dd, T]
+    [3, 3, Q1, ..., Qd, T]
+where `Qi = max(1, bz_size_i * L_i)`
+
+`num_samples` sets the number of thermodynamic samples to measure from `sampler`.
+
+The maximum frequency sampled is `ωmax = 2π / (dynΔt * meas_rate)`, and the frequency resolution
+ is set by num_meas (the number of spin snapshots measured during dynamics).
+
+Indexing the result at `(α, β, q1, ..., qd, w)` gives S^αβ(𝐪, ω) at
+    `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, `ω = maxω * w / T`.
+
+Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
+ values for the `w` index lie in `0:T-1`.
 """
-function full_structure_factor(
-    sys::SpinSystem{D}, kT::Float64; nsamples::Int=10, langevinΔt::Float64=0.01,
-    langevin_steps::Int=10000, measureΔt::Float64=0.01, measure_steps::Int=100,
-    collect_steps::Int=10, α::Float64=0.1, verbose::Bool=false,
-) where {D}
-    num_snaps = 1 + div(measure_steps - 1, collect_steps)
+function structure_factor(
+    sys::SpinSystem, sampler::AbstractSampler; num_samples::Int=10, dynΔt::Float64=0.01,
+    meas_rate::Int=10, num_meas::Int=100, bz_size=nothing, verbose::Bool=false, 
+)
+    if isnothing(bz_size)
+        bz_size = ones(ndims(sys) - 1)
+    end
+
     nb = nbasis(sys.lattice)
-    spin_traj = zeros(ComplexF64, 3, size(sys)..., num_snaps)
-    fft_spins = zeros(ComplexF64, 3, size(sys)[2:end]..., num_snaps)
-    struct_factor = zeros(ComplexF64, 3, 3, size(sys)[2:end]..., num_snaps)
+    spat_size = size(sys)[2:end]
+    q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
+    result_size = (3, q_size..., num_meas)
+    min_q_idx = -1 .* div.(q_size .- 1, 2)
+
+    # Memory to hold spin snapshots sampled during dynamics
+    spin_traj = zeros(ComplexF64, 3, nb, spat_size..., num_meas)
+    # FFT of the spin trajectory, with the sum over basis sites performed
+    fft_spins = zeros(ComplexF64, 3, q_size..., num_meas)
+    fft_spins = OffsetArray(fft_spins, OffsetArrays.Origin(1, min_q_idx..., 0))
+    # Final structure factor result
+    struct_factor = zeros(ComplexF64, 3, 3, q_size..., num_meas)
+    struct_factor = OffsetArray(struct_factor, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
     plan = _plan_spintraj_fft!(spin_traj)
     integrator = HeunP(sys)
-    integratorL = LangevinHeunP(sys, kT, α)
 
-    println("Beginning thermalization...")
-
-    # Thermalize the system for five times langevin_steps
-    @showprogress 1 "Initial thermalization " for _ in 1:5*langevin_steps
-        evolve!(integratorL, langevinΔt)
+    if verbose
+        println("Beginning thermalization...")
     end
+
+    # Equilibrate the system
+    thermalize!(sampler)
 
     if verbose
         println("Done thermalizing. Beginning measurements...")
     end
 
-    for n in 1:nsamples
-        printstyled("Obtaining sample $n\n", bold=true)
+    progress = Progress(num_samples; dt=1.0, desc="Sample: ", enabled=verbose)
+    for n in 1:num_samples
+        # Sample a new state
+        sample!(sampler)
 
-        # Evolve under Langevin dynamics to sample a news state
-        @showprogress 1 "Langevin sampling new state " for _ in 1:langevin_steps
-            evolve!(integratorL, langevinΔt)
-        end
-
-        # Evolve at fixed energy to collect dynamics info
+        # Evolve at constant energy to collect dynamics info
         selectdim(spin_traj, ndims(spin_traj), 1) .= _reinterpret_from_spin_array(sys.sites)
-        @showprogress 1 "Measuring structure factor " for nsnap in 2:num_snaps
-            for _ in 1:collect_steps
-                evolve!(integrator, measureΔt)
+        for nsnap in 2:num_meas
+            for _ in 1:meas_rate
+                evolve!(integrator, dynΔt)
             end
             selectdim(spin_traj, ndims(spin_traj), nsnap) .= _reinterpret_from_spin_array(sys.sites)
         end
 
         _fft_spin_traj!(fft_spins, spin_traj, sys.lattice; plan=plan)
-        FSα = reshape(fft_spins, 1, size(fft_spins)...)
-        FSβ = reshape(fft_spins, size(fft_spins, 1), 1, size(fft_spins)[2:end]...)
+        FSα = reshape(fft_spins, 1, axes(fft_spins)...)
+        FSβ = reshape(fft_spins, axes(fft_spins, 1), 1, axes(fft_spins)[2:end]...)
         @. struct_factor += FSα * conj(FSβ)
+
+        next!(progress)
     end
 
-    struct_factor ./= nsamples
-
-    return struct_factor
-end
-
-"""
-    diag_structure_factor(sys, kt; nsamples, langevinΔt, langevin_steps, measureΔt,
-                          measure_steps, collect_steps, α, verbose)
-
-Measures the diagonal elements of the structure factor of a spin system.
-Returns 𝒮^α = ⟨S^α(q, ω) S^α(q, ω)∗⟩, which is an array of shape
-    [3, D1, ..., Dd, T]
-"""
-function diag_structure_factor(
-    sys::SpinSystem{D}, kT::Float64; nsamples::Int=10, langevinΔt::Float64=0.01,
-    langevin_steps::Int=10000, measureΔt::Float64=0.01, measure_steps::Int=100,
-    collect_steps::Int=10, α::Float64=0.1, verbose::Bool=false,
-) where {D}
-    num_snaps = 1 + div(measure_steps - 1, collect_steps)
-    spin_traj = zeros(ComplexF64, 3, size(sys)..., num_snaps)
-    fft_spins = zeros(ComplexF64, 3, size(sys)[2:end]..., num_snaps)
-    struct_factor = zeros(Float64, 3, size(sys)[2:end]..., num_snaps)
-    plan = _plan_spintraj_fft!(spin_traj)
-    integrator = HeunP(sys)
-    integratorL = LangevinHeunP(sys, kT, α)
-
-    # Thermalize the system for ten times langevin_steps
-    @showprogress 1 "Initial thermalization " for _ in 1:10*langevin_steps
-        evolve!(integratorL, langevinΔt)
-    end
-
-    if verbose
-        println("Done thermalizing. Beginning measurements...")
-    end
-
-    for n in 1:nsamples
-        printstyled("Obtaining sample $n\n", bold=true)
-
-        # Evolve under Langevin dynamics to sample a new state
-        @showprogress 1 "Langevin sampling new state " for _ in 1:langevin_steps
-            evolve!(integratorL, langevinΔt)
-        end
-
-        # Evolve at fixed energy to collect dynamics info
-        selectdim(spin_traj, ndims(spin_traj), 1) .= _reinterpret_from_spin_array(sys.sites)
-        @showprogress 1 "Measuring new state structure factor " for nsnap in 2:num_snaps
-            for _ in 1:collect_steps
-                evolve!(integrator, measureΔt)
-            end
-            selectdim(spin_traj, ndims(spin_traj), nsnap) .= _reinterpret_from_spin_array(sys.sites)
-        end
-
-        _fft_spin_traj!(fft_spins, spin_traj, sys.lattice; plan=plan)
-        @. struct_factor += real(fft_spins * conj(fft_spins))
-    end
-
-    struct_factor ./= nsamples
+    struct_factor ./= num_samples
 
     return struct_factor
 end

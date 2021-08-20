@@ -310,16 +310,17 @@ function plot_spins(sys::SpinSystem{2}; linecolor=:grey, arrowcolor=:red, linewi
     )
 end
 
-function plot_spins(sys::SpinSystem{3}; linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.3, kwargs...)
+function plot_spins(sys::SpinSystem{3}; linecolor=:grey, arrowcolor=:red,
+                    linewidth=0.1, arrowsize=0.3, arrowlength=1.0, kwargs...)
     sites = reinterpret(reshape, Float64, collect(sys.lattice))
     spins = 0.2 .* reinterpret(reshape, Float64, collect(sys.sites))
 
     xs = vec(sites[1, 1:end, 1:end, 1:end, 1:end])
     ys = vec(sites[2, 1:end, 1:end, 1:end, 1:end])
     zs = vec(sites[3, 1:end, 1:end, 1:end, 1:end])
-    us = vec(spins[1, 1:end, 1:end, 1:end, 1:end])
-    vs = vec(spins[2, 1:end, 1:end, 1:end, 1:end])
-    ws = vec(spins[3, 1:end, 1:end, 1:end, 1:end])
+    us = arrowlength * vec(spins[1, 1:end, 1:end, 1:end, 1:end])
+    vs = arrowlength * vec(spins[2, 1:end, 1:end, 1:end, 1:end])
+    ws = arrowlength * vec(spins[3, 1:end, 1:end, 1:end, 1:end])
 
     GLMakie.arrows(
         xs, ys, zs, us, vs, ws;
@@ -329,16 +330,17 @@ function plot_spins(sys::SpinSystem{3}; linecolor=:grey, arrowcolor=:red, linewi
 end
 
 "Equivalent to above, but different arguments"
-function plot_spins(lat::Lattice{3}, spins; linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.3, kwargs...)
+function plot_spins(lat::Lattice{3}, spins; linecolor=:grey, arrowcolor=:red,
+                    linewidth=0.1, arrowsize=0.3, arrowlength=1.0, kwargs...)
     sites = reinterpret(reshape, Float64, collect(lat))
     spins = reinterpret(reshape, Float64, spins.val)
 
     xs = vec(sites[1, 1:end, 1:end, 1:end, 1:end])
     ys = vec(sites[2, 1:end, 1:end, 1:end, 1:end])
     zs = vec(sites[3, 1:end, 1:end, 1:end, 1:end])
-    us = vec(spins[1, 1:end, 1:end, 1:end, 1:end])
-    vs = vec(spins[2, 1:end, 1:end, 1:end, 1:end])
-    ws = vec(spins[3, 1:end, 1:end, 1:end, 1:end])
+    us = arrowlength * vec(spins[1, 1:end, 1:end, 1:end, 1:end])
+    vs = arrowlength * vec(spins[2, 1:end, 1:end, 1:end, 1:end])
+    ws = arrowlength * vec(spins[3, 1:end, 1:end, 1:end, 1:end])
 
     GLMakie.arrows(
         xs, ys, zs, us, vs, ws;
@@ -458,7 +460,8 @@ end
 "Endless integration in a live window"
 function live_integration(
     sys::SpinSystem{3}, steps_per_frame, Δt;
-    linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2, kwargs...
+    linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
+    arrowlength=1.0, kwargs...
 )
     sites = reinterpret(reshape, Float64, collect(sys.lattice))
     spins = 0.2 .* reinterpret(reshape, Float64, sys.sites)
@@ -466,9 +469,9 @@ function live_integration(
     xs = vec(sites[1, 1:end, 1:end, 1:end, 1:end])
     ys = vec(sites[2, 1:end, 1:end, 1:end, 1:end])
     zs = vec(sites[3, 1:end, 1:end, 1:end, 1:end])
-    us = GLMakie.Node(vec(spins[1, 1:end, 1:end, 1:end, 1:end]))
-    vs = GLMakie.Node(vec(spins[2, 1:end, 1:end, 1:end, 1:end]))
-    ws = GLMakie.Node(vec(spins[3, 1:end, 1:end, 1:end, 1:end]))
+    us = GLMakie.Node(arrowlength * vec(spins[1, 1:end, 1:end, 1:end, 1:end]))
+    vs = GLMakie.Node(arrowlength * vec(spins[2, 1:end, 1:end, 1:end, 1:end]))
+    ws = GLMakie.Node(arrowlength * vec(spins[3, 1:end, 1:end, 1:end, 1:end]))
     fig, ax, plot = GLMakie.arrows(
         xs, ys, zs, us, vs, ws;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
@@ -484,9 +487,46 @@ function live_integration(
             evolve!(integrator, Δt)
         end
         spins = 0.2 .* reinterpret(reshape, Float64, sys.sites)
-        us[] = vec(spins[1, 1:end, 1:end, 1:end, 1:end])
-        vs[] = vec(spins[2, 1:end, 1:end, 1:end, 1:end])
-        ws[] = vec(spins[3, 1:end, 1:end, 1:end, 1:end])
+        us[] = arrowlength * vec(spins[1, 1:end, 1:end, 1:end, 1:end])
+        vs[] = arrowlength * vec(spins[2, 1:end, 1:end, 1:end, 1:end])
+        ws[] = arrowlength * vec(spins[3, 1:end, 1:end, 1:end, 1:end])
+        sleep(1/framerate)
+    end
+end
+
+"Endless integration in a live window"
+function live_langevin_integration(
+    sys::SpinSystem{3}, steps_per_frame, Δt, kT;
+    linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
+    arrowlength=1.0, α=0.1, kwargs...
+)
+    sites = reinterpret(reshape, Float64, collect(sys.lattice))
+    spins = 0.2 .* reinterpret(reshape, Float64, sys.sites)
+    
+    xs = vec(sites[1, 1:end, 1:end, 1:end, 1:end])
+    ys = vec(sites[2, 1:end, 1:end, 1:end, 1:end])
+    zs = vec(sites[3, 1:end, 1:end, 1:end, 1:end])
+    us = GLMakie.Node(arrowlength * vec(spins[1, 1:end, 1:end, 1:end, 1:end]))
+    vs = GLMakie.Node(arrowlength * vec(spins[2, 1:end, 1:end, 1:end, 1:end]))
+    ws = GLMakie.Node(arrowlength * vec(spins[3, 1:end, 1:end, 1:end, 1:end]))
+    fig, ax, plot = GLMakie.arrows(
+        xs, ys, zs, us, vs, ws;
+        linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
+        show_axis=false, kwargs...    
+    )
+    display(fig)
+
+    framerate = 30
+    integrator = LangevinHeunP(sys, kT, α)
+
+    while true
+        for step in 1:steps_per_frame
+            evolve!(integrator, Δt)
+        end
+        spins = 0.2 .* reinterpret(reshape, Float64, sys.sites)
+        us[] = arrowlength * vec(spins[1, 1:end, 1:end, 1:end, 1:end])
+        vs[] = arrowlength * vec(spins[2, 1:end, 1:end, 1:end, 1:end])
+        ws[] = arrowlength * vec(spins[3, 1:end, 1:end, 1:end, 1:end])
         sleep(1/framerate)
     end
 end

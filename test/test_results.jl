@@ -20,38 +20,40 @@ function test_diamond_heisenberg_sf()
     α  = 0.1
 
     kB = 8.61733e-5     # Units of eV/K
-    collect_steps = 10
+    meas_rate = 10
 
     # Calculate the maximum ω present in our FFT
     # Need to scale by (S+1) with S=3/2 to match the reference,
     #  and then convert to meV.
-    maxω = 1000 * 2π / ((collect_steps * Δt) / kB) / (5/2)
+    maxω = 1000 * 2π / ((meas_rate * Δt) / kB) / (5/2)
 
-    S = diag_structure_factor(
-        sys, kT; nsamples=10, langevinΔt=Δt,
-        langevin_steps=20000, measure_steps=16000,
-        measureΔt=Δt, collect_steps=collect_steps,
-        verbose=true
+    sampler = LangevinSampler(sys, kT, α, Δt, 20000)
+    S = structure_factor(
+        sys, sampler; num_samples=10, dynΔt=Δt, meas_rate=meas_rate,
+        num_meas=1600, bz_size=(1,1,2), verbose=true
     )
-    p = plot_many_cuts(S; maxω=maxω, chopω=5.0)
+    # Just average the diagonals, which are real
+    avgS = zeros(Float64, axes(S)[3:end])
+    for α in 1:3
+        @. avgS += real(S[α, α, :, :, :, :])
+    end
+
+    p = plot_many_cuts(avgS; maxω=maxω, chopω=5.0)
     display(p)
-    return S
+    return avgS
 end
 
 """
-    plot_S_cut(S, iz; max_ω, chop_ω)
+    plot_S_cut(S, qz; max_ω, chop_ω)
 
 Plots cuts through the structure factor:
     (0, 0, qz) -> (π, 0, qz) -> (π, π, qz) -> (0, 0, 0)
-where qz is (c⃰ * iz). Only works on cubic lattices. To get unitful
+where qz is (c⃰ * qz). Only works on cubic lattices. To get unitful
 frequency labels, need to provide max_ω which should be the maximum
 frequency present in S, in units of meV. Providing chop_ω restricts
 to plots to only plot frequencies <= chop_ω.
 """
-function plot_S_cut(S::Array{Float64, 5}, iz; maxω=nothing, chopω=nothing)
-    # Average the Sxx, Syy, Szz components
-    S = dropdims(sum(S, dims=1) / size(S, 1), dims=1)
-
+function plot_S_cut(S, qz; maxω=nothing, chopω=nothing)
     Lx, Ly, Lz, T = size(S)
 
     if !isnothing(chopω) && !isnothing(maxω)
@@ -66,18 +68,18 @@ function plot_S_cut(S::Array{Float64, 5}, iz; maxω=nothing, chopω=nothing)
 
     # Stitch together cuts from
     # (0, 0, qz) → (π, 0, qz) -> (π, π, qz) -> (0, 0, qz)
-    πx, πy, πz = map(l->div(l, 2)+1, (Lx, Ly, Lz))
-    cuts = Array{Float64}(undef, πx+πy+min(πy, πx), cutT)
-    cuts[1:πx, 1:end]        .= S[1:πx, 1,    iz, 1:cutT]
-    cuts[πx+1:πx+πy, 1:end]  .= S[πx,   1:πy, iz, 1:cutT]
-    # Only part that won't work with arbitrary (Lx, Ly, Lz)
-    for i in 1:πx
-        cuts[πx+πy+i, 1:end] .= S[πx-i+1, πx-i+1, iz, 1:cutT]
+    πx, πy, πz = map(l->div(l, 2, RoundUp), (Lx, Ly, Lz))
+    cuts = Array{Float64}(undef, πx+πy+min(πy, πx)+1, cutT)
+    cuts[1:πx+1,       1:end]    .= S[0:πx, 0,    qz, 0:cutT-1]
+    cuts[πx+2:πx+πy+1, 1:end]    .= S[πx,   1:πy, qz, 0:cutT-1]
+    # Doesn't quite reach (0, 0, qz) for πx ≠ πy
+    for i in 1:min(πx,πy)
+        cuts[πx+πy+1+i, 1:end]   .= S[πx-i, πx-i, qz, 0:cutT-1]
     end
 
     heatmap(cuts'; color=:plasma, clim=(0.0, 1.5e7))
     xticks!(
-        [1, 1+πx, 1+πx+πy, πx+πy+min(πx,πy)],
+        [1, 1+πx, 1+πx+πy, πx+πy+min(πx,πy)+1],
         [L"(0, 0)", L"(\pi, 0)", L"(\pi, \pi)", L"(0, 0)"]
     )
     if !isnothing(maxω)
@@ -92,12 +94,12 @@ function plot_S_cut(S::Array{Float64, 5}, iz; maxω=nothing, chopω=nothing)
     plot!()
 end
 
-function plot_many_cuts(S::Array{Float64, 5}; maxω=nothing, chopω=nothing)
+function plot_many_cuts(S; maxω=nothing, chopω=nothing)
     l = @layout [a b ; c d]
-    q0 = plot_S_cut(S, 1; maxω=maxω, chopω=chopω)
-    q1 = plot_S_cut(S, 3; maxω=maxω, chopω=chopω)
-    q2 = plot_S_cut(S, 5; maxω=maxω, chopω=chopω)
-    q3 = plot_S_cut(S, 7; maxω=maxω, chopω=chopω)
+    q0 = plot_S_cut2(S, 0; maxω=maxω, chopω=chopω)
+    q1 = plot_S_cut2(S, 2; maxω=maxω, chopω=chopω)
+    q2 = plot_S_cut2(S, 4; maxω=maxω, chopω=chopω)
+    q3 = plot_S_cut2(S, 6; maxω=maxω, chopω=chopω)
     plot(q0, q1, q2, q3; layout=l)
 end
 
@@ -106,13 +108,15 @@ function test_FeI2()
     cryst = subcrystal(cryst, "Fe2+")
 
     # Set up all interactions (all in units meV)
-    J1mat = SA[-0.397 0 0; 0 -0.075 -0.261; 0 -0.261 -0.236] / 2
+    J1mat = SA[-0.397 0 0;
+                0 -0.075 -0.261;
+                0 -0.261 -0.236]
     J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113] / 2, cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211] / 2, cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036] / 2, cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051] / 2, cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073] / 2, cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+    J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
+    J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
+    J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
+    J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
     # J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
     D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
     ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
@@ -125,21 +129,20 @@ function test_FeI2()
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
     TN = 5.0 * kB               # ≈ 5K -> Units of meV
     kT = 0.20 * TN              # Actual target simulation temp, units of meV
+    α = 0.1
 
     Δt = 0.01 / (2.165/2)       # Units of 1/meV
     # Highest energy/frequency we actually care about resolving
     target_max_ω = 10.          # Units of meV
     # Interval number of steps of dynamics before collecting a snapshot for FFTs
-    collect_steps = convert(Int, div(2π, (2 * target_max_ω * Δt)))
-    # Total number of dynamics steps when measuring structure factor of a sampled configuration
-    measure_steps = 1000 * collect_steps
+    meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
+    sampler = LangevinSampler(system, kT, α, Δt, 20000)
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
-    S = full_structure_factor(
-        system, kT;
-        nsamples=15, langevinΔt=Δt, langevin_steps=20000, measureΔt=Δt,
-        measure_steps=measure_steps, collect_steps=collect_steps, α=0.1, verbose=true
+    S = structure_factor(
+        system, sampler; num_samples=15, meas_rate=meas_rate,
+        num_meas=1000, bz_size=(2,0,0), verbose=true,
     )
 
     # Save off results for later viewing
@@ -147,13 +150,11 @@ function test_FeI2()
 
     S = dipole_form_factor(S, lattice);
 
-    # Return only the positive-ω part of the spectrum
-    # TODO: Make this easier/faster by using rfft along this dimension
-    return S[:, :, :, 1:div(size(S, 4), 2)]
+    return S
 end
 
 function test_FeI2_ortho()
-    lat_vecs = FastDipole.lattice_vectors(1.0, √3, 1.6691358024691358, 90., 90., 90.)
+    lat_vecs = lattice_vectors(1.0, √3, 1.6691358024691358, 90., 90., 90.)
     basis_positions = [
         SA[0.0, 0.0, 0.0],
         SA[0.5, 0.5, 0.0],
@@ -191,24 +192,20 @@ function test_FeI2_ortho()
     # Highest energy/frequency we actually care about resolving
     target_max_ω = 10.          # Units of meV
     # Interval number of steps of dynamics before collecting a snapshot for FFTs
-    collect_steps = convert(Int, div(2π, (2 * target_max_ω * Δt)))
-    # Total number of dynamics steps when measuring structure factor of a sampled configuration
-    measure_steps = 1000 * collect_steps
+    measure_steps = 1000 * meas_rate
 
+    sampler = LangevinSampler(system, kT, α, Δt, 20000)
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
-    S = full_structure_factor(
-        system, kT;
-        nsamples=15, langevinΔt=Δt, langevin_steps=20000, measureΔt=Δt,
-        measure_steps=measure_steps, collect_steps=collect_steps, α=0.1, verbose=true
+    S = structure_factor(
+        system, sampler; num_samples=15, meas_rate=meas_rate,
+        num_meas=1000, bz_size=(2,0,0), verbose=true,
     )
 
     # Save off results for later viewing
-    serialize("../results/FeI2_structure_factor_T020.ser", S)
+    serialize("../results/FeI2_structure_factor_ortho_T020.ser", S)
 
     S = dipole_form_factor(S, lattice);
 
-    # Return only the positive-ω part of the spectrum
-    # TODO: Make this easier/faster by using rfft along this dimension
-    return S[:, :, :, 1:div(size(S, 4), 2)]
+    return S
 end
