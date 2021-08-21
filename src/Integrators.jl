@@ -107,8 +107,6 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
     nothing
 end
 
-abstract type AbstractSampler end
-
 struct LangevinSampler{D, L, Db} <: AbstractSampler
     integrator :: LangevinHeunP{D, L, Db}
     Δt         :: Float64
@@ -127,26 +125,17 @@ function LangevinSampler(sys::SpinSystem{D, L, Db}, kT::Float64, α::Float64, Δ
     LangevinSampler{D, L, Db}(integrator, Δt, nsteps)
 end
 
-"Run the Langevin dynamics for a given number of `steps` to equilibrate the system"
-function thermalize!(sampler::LangevinSampler, steps::Int)
-    for _ in 1:steps
+@inline function set_temp!(sampler::LangevinSampler, kT::Float64)
+    sampler.integrator.kT = kT
+end
+
+"Run the Langevin dynamics for given `nsteps` to sample a new state"
+@inline function sample!(sampler::LangevinSampler)
+    for _ in 1:sampler.nsteps
         evolve!(sampler.integrator, sampler.Δt)
     end
 end
 
-function thermalize!(sampler::LangevinSampler)
-    thermalize!(sampler, 10 * sampler.nsteps)
-end
-
-"Anneal the temperature according to a given temperature schedule"
-function anneal!(sampler::LangevinSampler, temp_schedule::Vector{Float64}, step_schedule::Vector{Int})
-    for (temp, num_steps) in zip(temp_schedule, step_scheudle)
-        sampler.integrator.kT = temp
-        thermalize!(sampler, num_steps)
-    end
-end
-
-"Produce a new sample from a sampler."
-function sample!(sampler::LangevinSampler)
-    thermalize!(sampler, sampler.nsteps)
+@inline function thermalize!(sampler::LangevinSampler)
+    thermalize!(sampler, 10)
 end

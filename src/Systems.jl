@@ -5,20 +5,26 @@ const INTER_TOL_DIGITS = 3
 const INTER_TOL = 10. ^ -INTER_TOL_DIGITS
 
 abstract type AbstractSystem{T, D, L, Db} <: AbstractArray{T, Db} end
+Base.IndexStyle(::Type{<:AbstractSystem}) = IndexLinear()
 
-@inline function Base.size(sys::T) where {T <: AbstractSystem}
-    return size(sys.lattice)
-end
+# @inline function Base.size(sys::T) where {T <: AbstractSystem}
+#     return size(sys.lattice)
+# end
 
-@inline function Base.getindex(sys::AbstractSystem, idx)
-    return sys.sites[idx]
-end
+Base.size(sys::S) where {S <: AbstractSystem} = Base.size(sys.sites)
 
-@inline function Base.getindex(sys::AbstractSystem, idx...)
-    return sys.sites[idx...]
-end
+# @inline function Base.getindex(sys::S, idx) where {S <: AbstractSystem}
+#     return sys.sites[idx]
+# end
 
-@inline function eachcellindex(sys::AbstractSystem)
+# @inline function Base.getindex(sys::S, idx...) where {S <: AbstractSystem}
+#     return sys.sites[idx...]
+# end
+
+Base.getindex(sys::S, i::Int) where {S <: AbstractSystem} = sys.sites[i]
+Base.setindex!(sys::S, v, i::Int) where {S <: AbstractSystem} = Base.setindex!(sys.sites, v, i)
+
+@inline function eachcellindex(sys::S) where {S <: AbstractSystem}
     return eachcellindex(sys.lattice)
 end
 

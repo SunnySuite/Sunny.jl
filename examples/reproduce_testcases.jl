@@ -9,7 +9,7 @@ function test_diamond_heisenberg_sf()
     cryst = Crystal(lattice)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, cryst, 1, 1),
+        Heisenberg(J, cryst, Bond{3}(3, 6, SA[0,0,0])),
     ]
     ℋ = Hamiltonian{3}(interactions)
     sys = SpinSystem(lattice, ℋ)
@@ -96,10 +96,10 @@ end
 
 function plot_many_cuts(S; maxω=nothing, chopω=nothing)
     l = @layout [a b ; c d]
-    q0 = plot_S_cut2(S, 0; maxω=maxω, chopω=chopω)
-    q1 = plot_S_cut2(S, 2; maxω=maxω, chopω=chopω)
-    q2 = plot_S_cut2(S, 4; maxω=maxω, chopω=chopω)
-    q3 = plot_S_cut2(S, 6; maxω=maxω, chopω=chopω)
+    q0 = plot_S_cut(S, 0; maxω=maxω, chopω=chopω)
+    q1 = plot_S_cut(S, 2; maxω=maxω, chopω=chopω)
+    q2 = plot_S_cut(S, 4; maxω=maxω, chopω=chopω)
+    q3 = plot_S_cut(S, 6; maxω=maxω, chopω=chopω)
     plot(q0, q1, q2, q3; layout=l)
 end
 
@@ -138,6 +138,56 @@ function test_FeI2()
     meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
     sampler = LangevinSampler(system, kT, α, Δt, 20000)
+    # Measure the diagonal elements of the spin structure factor
+    println("Starting structure factor measurement...")
+    S = structure_factor(
+        system, sampler; num_samples=15, meas_rate=meas_rate,
+        num_meas=1000, bz_size=(2,0,0), verbose=true,
+    )
+
+    # Save off results for later viewing
+    serialize("../results/FeI2_structure_factor_T020.ser", S)
+
+    S = dipole_form_factor(S, lattice);
+
+    return S
+end
+
+function test_FeI2_MC()
+    cryst = Crystal("../example-lattices/FeI2.cif"; symprec=1e-3)
+    cryst = subcrystal(cryst, "Fe2+")
+
+    # Set up all interactions (all in units meV)
+    J1mat = SA[-0.397 0 0;
+                0 -0.075 -0.261;
+                0 -0.261 -0.236]
+    J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
+    J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
+    J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
+    J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
+    J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+    # J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
+    D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
+    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
+
+    # Produce a Lattice of the target system size (8x8x8)
+    lattice = Lattice(cryst, (16, 20, 4))
+    # Set up the SpinSystem
+    system = SpinSystem(lattice, ℋ)
+
+    kB = 8.61733e-2             # Boltzmann constant, units of meV/K
+    TN = 5.0 * kB               # ≈ 5K -> Units of meV
+    kT = 0.20 * TN              # Actual target simulation temp, units of meV
+    α = 0.1
+
+    Δt = 0.01 / (2.165/2)       # Units of 1/meV
+    # Highest energy/frequency we actually care about resolving
+    target_max_ω = 10.          # Units of meV
+    # Interval number of steps of dynamics before collecting a snapshot for FFTs
+    meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
+
+    sampler = MetropolisSampler(system, kT, 20000)
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     S = structure_factor(

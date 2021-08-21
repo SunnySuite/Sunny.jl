@@ -17,25 +17,6 @@ function Heisenberg(J::Float64, cryst::Crystal, bond::Bond{D}, label::String="He
     return Heisenberg{D}(J, bonds, label)
 end
 
-"Use only for rapid testing, symmetry classes may not be stable between versions."
-function Heisenberg(J::Float64, cryst::Crystal, dist::Int, class::Int)
-    max_dist = dist * maximum(norm, cryst.lat_vecs)
-    canon_bonds = Symmetry.canonical_bonds(cryst, max_dist)
-    lengths = map(b->Symmetry.distance(cryst, b), canon_bonds)
-    # Integer orderings of the length of all canon bonds
-    dists = indexin(lengths, unique(lengths)) .- 1
-
-    target_dist = findfirst(isequal(dist), dists)
-    # Check that this distance actually contains at least `class`
-    #   number of symmetry classes.
-    @assert dists[target_dist + class - 1] == dist
-    bond = canon_bonds[target_dist + class - 1]
-
-    bonds = Symmetry.all_symmetry_related_bonds(cryst, bond)
-    label = "J" * string(dist) * "_" * string(class)
-    return Heisenberg{3}(J, bonds, label)
-end
-
 "Equivalent to DiagonalCoupling with bonds = [(0,0,0)], but faster."
 struct OnSite <: Interaction
     J     :: Vec3
@@ -53,27 +34,6 @@ function DiagonalCoupling(J::Vec3, cryst::Crystal, bond::Bond{D}, label=nothing)
     DiagonalCoupling{D}(J, bonds, label)
 end
 
-"Use only for rapid testing, symmetry classes may not be stable between versions."
-function DiagonalCoupling(J::Vec3, cryst::Crystal, dist::Int, class::Int, label=nothing)
-    max_dist = dist * maximum(norm, cryst.lat_vecs)
-    canon_bonds = Symmetry.canonical_bonds(cryst, max_dist)
-    lengths = map(b->Symmetry.distance(cryst, b), canon_bonds)
-    # Integer orderings of the length of all canon bonds
-    dists = indexin(lengths, unique(lengths)) .- 1
-
-    target_dist = findfirst(isequal(dist), dists)
-    # Check that this distance actually contains at least `class`
-    #   number of symmetry classes.
-    @assert dists[target_dist + class - 1] == dist
-    bond = canon_bonds[target_dist + class - 1]
-
-    bonds = Symmetry.all_symmetry_related_bonds(cryst, bond)
-    if isnothing(label)
-        label = "J" * string(dist) * "_" * string(class)
-    end
-    return DiagonalCoupling{3}(J, bonds, label)
-end
-
 struct GeneralCoupling{D} <: Interaction
     Js    :: Vector{Mat3}
     bonds :: Vector{Bond{D}}
@@ -88,25 +48,6 @@ end
 
 function GeneralCoupling(J::Mat3, cryst::Crystal, bond::Bond{3})
     GeneralCoupling(J, cryst, bond, "GenJ")
-end
-
-"Use only for rapid testing, symmetry classes may not be stable between versions."
-function GeneralCoupling(J::Mat3, cryst::Crystal, dist::Int, class::Int)
-    max_dist = dist * maximum(norm, cryst.lat_vecs)
-    canon_bonds = Symmetry.canonical_bonds(cryst, max_dist)
-    lengths = map(b->Symmetry.distance(cryst, b), canon_bonds)
-    # Integer orderings of the length of all canon bonds
-    dists = indexin(lengths, unique(lengths)) .- 1
-
-    target_dist = findfirst(isequal(dist), dists)
-    # Check that this distance actually contains at least `class`
-    #   number of symmetry classes.
-    @assert dists[target_dist + class - 1] == dist
-    bond = canon_bonds[target_dist + class - 1]
-
-    (bonds, Js) = Symmetry.all_symmetry_related_interactions(cryst, bond, J)
-    label = string(dist) + "_" + string(class)
-    return GeneralCoupling{3}(Js, bonds, label)
 end
 
 const PairInt{D} = Union{Heisenberg{D}, DiagonalCoupling{D}, GeneralCoupling{D}}

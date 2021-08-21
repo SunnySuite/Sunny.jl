@@ -11,6 +11,10 @@ end
 @inline function offset(i::CartesianIndex{D}, n::SVector{D,Int}, m) :: CartesianIndex{D} where {D}
     CartesianIndex(Tuple(mod1.(Tuple(i) .+ n, Tuple(m))))
 end
+"Splits a CartesianIndex into its first index, and the rest"
+@inline function splitidx(i::CartesianIndex{D}) where {D}
+    return (i[1], CartesianIndex(Tuple(i)[2:end]))
+end
 
 # Taken from:
 # https://discourse.julialang.org/t/efficient-tuple-concatenation/5398/8
