@@ -108,9 +108,9 @@ function test_FeI2()
     cryst = subcrystal(cryst, "Fe2+")
 
     # Set up all interactions (all in units meV)
-    J1mat = SA[-0.397 0 0;
-                0 -0.075 -0.261;
-                0 -0.261 -0.236]
+    J1mat = SA[-0.397  0      0    ;
+                0     -0.075 -0.261;
+                0     -0.261 -0.236]
     J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
     J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
     J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")

@@ -6,7 +6,7 @@ using StaticArrays
 using Parameters
 import Spglib
 
-import FastDipole: Vec3, Mat3, Lattice, lattice_params, lattice_vectors
+import FastDipole: Vec3, Mat3, Lattice, lattice_params, lattice_vectors, nbasis, cell_volume
 export Crystal, Bond, canonical_bonds, print_bond_table
 
 @enum CellType begin
@@ -92,15 +92,18 @@ struct SymOp
 end
 
 "Holds all of the symmetry information about a crystal's unit cell"
-struct Crystal{T}
+struct Crystal
     lat_vecs             :: Mat3             # Lattice vectors as columns
     positions            :: Vector{Vec3}     # Full set of atoms, fractional coords
     equiv_atoms          :: Vector{Int}      # Index to equivalent atom type
-    species              :: Vector{T}        # Species for each atom
+    species              :: Vector{String}   # Species for each atom
     symops               :: Vector{SymOp}    # Symmetry operations
     hall_number          :: Int              # Hall number
     symprec              :: Float64          # Tolerance to imperfections in symmetry
 end
+
+nbasis(cryst::Crystal) = length(cryst.positions)
+cell_volume(cryst::Crystal) = abs(det(lat.lat_vecs))
 
 "Represents a bond between two sublattice sites, and displaced by some number of unit cells"
 struct Bond{D}
@@ -169,7 +172,7 @@ end
 
 
 # Let Spglib infer the space group
-function Crystal(lat_vecs::Mat3, positions::Vector{Vec3}, species::Vector{T}; symprec=1e-5) where {T}
+function Crystal(lat_vecs::Mat3, positions::Vector{Vec3}, species::Vector{String}; symprec=1e-5)
     positions = wrap_to_unit_cell.(positions; symprec)
 
     cell = Spglib.Cell(lat_vecs, hcat(positions...), species)
@@ -179,12 +182,12 @@ function Crystal(lat_vecs::Mat3, positions::Vector{Vec3}, species::Vector{T}; sy
     Ts = Vec3.(eachcol(d.translations))
     symops = map(SymOp, Rs, Ts)
     
-    Crystal{T}(lat_vecs, positions, d.equivalent_atoms, species, symops, d.hall_number, symprec)
+    Crystal(lat_vecs, positions, d.equivalent_atoms, species, symops, d.hall_number, symprec)
 end
 
 # Build Crystal using the space group denoted by a unique Hall number. The complete
 # list is given at http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
-function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, hall_number::Int; symprec=1e-5) where {T}
+function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{String}, hall_number::Int; symprec=1e-5)
     latvec_cell_type = cell_type(lat_vecs)
     hall_cell_type = cell_type(hall_number)
     @assert latvec_cell_type == hall_cell_type "Hall number $hall_number requires cell type $hall_cell_type; received instead $latvec_cell_type."
@@ -199,12 +202,12 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
 end
 
 # Make best effort to build Crystal from symbolic representation of spacegroup
-function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symbol::String; symprec=1e-5) where {T}
+function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{String}, symbol::String; symprec=1e-5)
     # See "Complete list of space groups" at Seto's home page:
     # http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
     n_space_groups = 530
 
-    crysts = Crystal{T}[]
+    crysts = Crystal[]
     for hall_number in 1:n_space_groups
         sgt = Spglib.get_spacegroup_type(hall_number)
         if symbol in [sgt.hall_symbol, sgt.international, sgt.international_short, sgt.international_full]
@@ -235,7 +238,7 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
 end
 
 "Build Crystal from explicit set of symmetry operations and a minimal set of positions "
-function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{T}, symops::Vector{SymOp}; hall_number=nothing, symprec=1e-5) where {T}
+function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{String}, symops::Vector{SymOp}; hall_number=nothing, symprec=1e-5)
     # Spglib can map a Hall number to symops (via `get_symmetry_from_database`)
     # and can map symops to a Hall number (via `get_hall_number_from_symmetry`).
     # Unfortunately the round trip is not the identity function. For diamond
@@ -253,7 +256,7 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     end
     
     positions = Vec3[]
-    species = T[]
+    species = String[]
     equiv_atoms = Int[]
     
     for i = eachindex(base_positions)
@@ -274,13 +277,13 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
         end
     end
 
-    ret = Crystal{T}(lat_vecs, positions, equiv_atoms, species, symops, hall_number, symprec)
+    ret = Crystal(lat_vecs, positions, equiv_atoms, species, symops, hall_number, symprec)
     validate(ret)
     return ret
 end
 
 "Filter sublattices of a Crystal by species, keeping the symmetry group of the original Crystal"
-function subcrystal(cryst::Crystal{T}, species::T) :: Crystal{T} where {T}
+function subcrystal(cryst::Crystal, species::String) :: Crystal
     subindexes = findall(isequal(species), cryst.species)
     new_positions = cryst.positions[subindexes]
     new_equiv_atoms = cryst.equiv_atoms[subindexes]
@@ -292,12 +295,12 @@ function subcrystal(cryst::Crystal{T}, species::T) :: Crystal{T} where {T}
     end
     new_species = fill(species, length(subindexes))
 
-    return Crystal{T}(cryst.lat_vecs, new_positions, new_equiv_atoms,
-                      new_species, cryst.symops, cryst.hall_number, cryst.symprec)
+    return Crystal(cryst.lat_vecs, new_positions, new_equiv_atoms,
+                   new_species, cryst.symops, cryst.hall_number, cryst.symprec)
 end
 
 "Filter sublattices by equivalency indices, keeping the symmetry group of the original Crystal"
-function subcrystal(cryst::Crystal{T}, equiv_idxs::Vector{Int}) :: Crystal{T} where {T}
+function subcrystal(cryst::Crystal, equiv_idxs::Vector{Int}) :: Crystal
     new_positions = empty(cryst.positions)
     new_species = empty(cryst.species)
     new_equiv_atoms = empty(cryst.equiv_atoms)
@@ -309,11 +312,11 @@ function subcrystal(cryst::Crystal{T}, equiv_idxs::Vector{Int}) :: Crystal{T} wh
         append!(new_equiv_atoms, fill(i, length(subindexes)))
     end
 
-    return Crystal{T}(cryst.lat_vecs, new_positions, new_equiv_atoms,
-                      new_species, cryst.symops, cryst.hall_number, cryst.symprec)
+    return Crystal(cryst.lat_vecs, new_positions, new_equiv_atoms,
+                   new_species, cryst.symops, cryst.hall_number, cryst.symprec)
 end
 
-subcrystal(cryst::Crystal{T}, equiv_idx::Int) where {T} = subcrystal(cryst, [equiv_idx])
+subcrystal(cryst::Crystal, equiv_idx::Int) = subcrystal(cryst, [equiv_idx])
 
 function Base.display(cryst::Crystal)
     printstyled("Crystal info\n"; bold=true, color=:underline)
@@ -378,7 +381,7 @@ function Crystal(lattice::Lattice{2, 4, 3})
     Crystal(L3, basis_coords, lattice.species)
 end
 
-function Lattice(cryst::Crystal{String}, latsize) :: Lattice{3, 9, 4}
+function Lattice(cryst::Crystal, latsize) :: Lattice{3, 9, 4}
     basis_vecs = map(b -> cryst.lat_vecs * b, cryst.positions)
     Lattice{3}(cryst.lat_vecs, basis_vecs, cryst.species, latsize)
 end
@@ -477,6 +480,7 @@ function symmetries(cryst::Crystal, b::Bond{3})
 end
 
 
+"Returns all bonds in `cryst` for which `bond.i == i`"
 function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist::Float64; min_dist=0.0)
     # be a little generous with the minimum and maximum distances
     ℓ = minimum(norm, eachcol(cryst.lat_vecs))
@@ -534,7 +538,7 @@ function _score_bond(cryst::Crystal, b)
 end
 
 
-function bond_multiplicity(cryst::Crystal{T}, b::Bond{3}) where T
+function bond_multiplicity(cryst::Crystal, b::Bond{3})
     return length(all_symmetry_related_bonds_for_atom(cryst, b.i, b))
 end
 
@@ -600,7 +604,7 @@ function atom_string(cryst::Crystal, i)
 end
 
 function print_bond(cryst::Crystal, b::Bond{3})
-    println("Bond(i=$(b.i), j=$(b.j), n=[$(b.n[1]), $(b.n[2]), $(b.n[3])])")
+    println("Bond{3}(i=$(b.i), j=$(b.j), n=[$(b.n[1]), $(b.n[2]), $(b.n[3])])")
     @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) bond_multiplicity(cryst, b)
 
     if length(cryst.positions) > 1
@@ -630,6 +634,14 @@ function print_bond(cryst::Crystal, b::Bond{3})
 end
 
 
+"""
+    print_bond_table(cryst::Crystal, max_dist)
+
+Pretty-prints a table of all symmetry classes of bonds present in `cryst`, up
+ to a maximum bond length of `max_dist` in absolute coordinates. For each class,
+ a single "canonical" bond is shown, with `i`, `j` being the two sublattices
+ connected, and `n` being the displacement vector in units of the lattice vectors.
+"""
 function print_bond_table(cryst::Crystal, max_dist)
     for b in canonical_bonds(cryst, max_dist)
         print_bond(cryst, b)
@@ -883,6 +895,13 @@ function _coupling_basis_strings(coup_basis; digits=2, tol=1e-4) :: Matrix{Strin
     return J
 end
 
+"""
+    allowed_J(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
+
+Given a `b::Bond{3}`, returns a `Matrix` of strings representing the allowed
+ form of a bilinear exchange interaction matrix on this bond, given the
+ symmetry constraints of `cryst`.
+"""
 function allowed_J(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
     J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
     _coupling_basis_strings(J_basis; digits=digits, tol=tol)
@@ -909,15 +928,30 @@ function all_symmetry_related_bonds(cryst::Crystal, b_ref::Bond{3})
     bs
 end
 
-
-function all_symmetry_related_interactions(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3)
+function all_symmetry_related_interactions_for_atom(cryst::Crystal, i::Int, b_ref::Bond{3}, J_ref::Mat3)
     verify_coupling_matrix(cryst, BondRaw(cryst, b_ref), J_ref)
 
-    bs = all_symmetry_related_bonds(cryst, b_ref)
-    Js = map(bs) do b
+    bs = Bond{3}[]
+    Js = Mat3[]
+
+    for b in all_symmetry_related_bonds_for_atom(cryst, i, b_ref)
+        push!(bs, b)
         s = find_symmetry_between_bonds(cryst, BondRaw(cryst, b_ref), BondRaw(cryst, b))
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
-        return R * J_ref * R'
+        push!(Js, R * J_ref * R')
+    end
+
+    return (bs, Js)
+end
+
+function all_symmetry_related_interactions(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3)
+    bs = Bond{3}[]
+    Js = Mat3[]
+
+    for i in eachindex(cryst.positions)
+        (bs_i, Js_i) = all_symmetry_related_interactions_for_atom(cryst, i, b_ref, J_ref)
+        append!(bs, bs_i)
+        append!(Js, Js_i)
     end
 
     return (bs, Js)

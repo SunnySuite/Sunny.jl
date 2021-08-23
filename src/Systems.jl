@@ -1,4 +1,5 @@
 import Base.size
+import Random.rand!
 
 "Tolerance on determining distances for pairwise interactions"
 const INTER_TOL_DIGITS = 3
@@ -27,6 +28,9 @@ Base.setindex!(sys::S, v, i::Int) where {S <: AbstractSystem} = Base.setindex!(s
 @inline function eachcellindex(sys::S) where {S <: AbstractSystem}
     return eachcellindex(sys.lattice)
 end
+@inline function nbasis(sys::S) where {S <: AbstractSystem}
+    return nbasis(sys.lattice)
+end
 
 mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{Float64, D, L, Db}
     lattice       :: Lattice{D, L, Db}
@@ -48,7 +52,7 @@ function ChargeSystem(lat::Lattice)
 end
 
 "Sets charges to random values uniformly drawn from [-1, 1], then shifted to charge-neutrality"
-function rand!(sys::ChargeSystem)
+function Random.rand!(sys::ChargeSystem)
     sys.sites .= 2 .* rand(Float64, size(sys.sites)) .- 1.
     sys.sites .-= sum(sys.sites) / length(sys.sites)
 end
@@ -70,7 +74,7 @@ function SpinSystem(lat::Lattice)
 end
 
 "Sets spins randomly sampled on the unit sphere."
-function rand!(sys::SpinSystem)
+function Random.rand!(sys::SpinSystem)
     sys.sites .= randn(Vec3, size(sys.sites))
     @. sys.sites /= norm(sys.sites)
 end
@@ -113,17 +117,19 @@ function energy(sys::SpinSystem, field::ExternalField)
 end
 
 function energy(sys::SpinSystem, heisenberg::Heisenberg)
-    @unpack J, bonds = heisenberg
+    @unpack J, culled_bonds = heisenberg
     E = 0.0
-    for bond in bonds
-        @unpack i, j, n = bond
-        for cell in eachcellindex(sys.lattice)
-            Sᵢ = sys[i, cell]
-            Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
-            E += Sᵢ ⋅ Sⱼ
+    for (i, bonds) in enumerate(culled_bonds)
+        for bond in bonds
+            @unpack j, n = bond
+            for cell in eachcellindex(sys.lattice)
+                Sᵢ = sys[i, cell]
+                Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
+                E += Sᵢ ⋅ Sⱼ
+            end
         end
     end
-    return 0.5 * J * E
+    return J * E
 end
 
 function energy(sys::SpinSystem, on_site::OnSite)
@@ -136,31 +142,35 @@ function energy(sys::SpinSystem, on_site::OnSite)
 end
 
 function energy(sys::SpinSystem, diag_coup::DiagonalCoupling)
-    @unpack J, bonds = diag_coup
+    @unpack J, culled_bonds = diag_coup
     E = 0.0
-    for bond in bonds
-        @unpack i, j, n = bond
-        for cell in eachcellindex(sys.lattice)
-            Sᵢ = sys[i, cell]
-            Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
-            E += (J .* Sᵢ) ⋅ Sⱼ
+    for (i, bonds) in enumerate(culled_bonds)
+        for bond in bonds
+            @unpack j, n = bond
+            for cell in eachcellindex(sys.lattice)
+                Sᵢ = sys[i, cell]
+                Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
+                E += (J .* Sᵢ) ⋅ Sⱼ
+            end
         end
     end
-    return 0.5 * E
+    return E
 end
 
 function energy(sys::SpinSystem, gen_coup::GeneralCoupling)
-    @unpack Js, bonds = gen_coup
+    @unpack culled_Js, culled_bonds = gen_coup
     E = 0.0
-    for (J, bond) in zip(Js, bonds)
-        @unpack i, j, n = bond
-        for cell in eachcellindex(sys.lattice)
-            Sᵢ = sys[i, cell]
-            Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
-            E += dot(Sᵢ, J, Sⱼ)
+    for (i, (Js, bonds)) in enumerate(zip(culled_Js, culled_bonds))
+        for (J, bond) in zip(Js, bonds)
+            @unpack j, n = bond
+            for cell in eachcellindex(sys.lattice)
+                Sᵢ = sys[i, cell]
+                Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
+                E += dot(Sᵢ, J, Sⱼ)
+            end
         end
     end
-    return 0.5 * E
+    return E
 end
 
 function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::Hamiltonian)
@@ -185,10 +195,12 @@ function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::Hamiltonian)
     end
 end
 
+field!(B::Array{Vec3}, sys::SpinSystem) = field!(B, sys.sites, sys.hamiltonian)
+
 @inline function field(sys::SpinSystem)
-    B = zero(sys.sites)
-    field!(B, sys.sites, sys.hamiltonian)
-    return B
+    B = zero(sys)
+    field!(B, sys)
+    B
 end
 
 "Accumulates the local field coming from the external field"
@@ -201,11 +213,15 @@ end
 "Accumulates the local field coming from Heisenberg couplings"
 @inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, heisen::Heisenberg)
     syssize = size(spins)[2:end]
-    J = heisen.J
-    for bond in heisen.bonds
-        @unpack i, j, n = bond
-        for cell in CartesianIndices(syssize)
-            B[i, cell] = B[i, cell] - J * spins[j, offset(cell, n, syssize)]
+    @unpack J, culled_bonds = heisen
+    for (i, bonds) in enumerate(culled_bonds)
+        for bond in bonds
+            @unpack j, n = bond
+            for cell in CartesianIndices(syssize)
+                offsetcell = offset(cell, n, syssize)
+                B[i, cell] = B[i, cell] - J * spins[j, offsetcell]
+                B[j, offsetcell] = B[j, offsetcell] - J * spins[i, cell]
+            end
         end
     end
 end
@@ -222,11 +238,16 @@ end
 "Accumulates the local field coming from diagonal couplings"
 @inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::DiagonalCoupling)
     syssize = size(spins)[2:end]
-    J = diag_coup.J
-    for bond in diag_coup.bonds
-        @unpack i, j, n = bond
-        for cell in CartesianIndices(syssize)
-            B[i, cell] = B[i, cell] - J .* spins[j, offset(cell, n, syssize)]
+
+    @unpack J, culled_bonds = diag_coup
+    for (i, bonds) in enumerate(culled_bonds)
+        for bond in bonds
+            @unpack j, n = bond
+            for cell in CartesianIndices(syssize)
+                offsetcell = offset(cell, n, syssize)
+                B[i, cell] = B[i, cell] - J .* spins[j, offsetcell]
+                B[j, offsetcell] = B[j, offsetcell] - J .* spins[i, cell]
+            end
         end
     end
 end
@@ -234,10 +255,16 @@ end
 "Accumulates the local field coming from general couplings"
 @inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCoupling)
     syssize = size(spins)[2:end]
-    for (J, bond) in zip(gen_coup.Js, gen_coup.bonds)
-        @unpack i, j, n = bond
-        for cell in CartesianIndices(syssize)
-            B[i, cell] = B[i, cell] - J * spins[j, offset(cell, n, syssize)]
+
+    @unpack culled_Js, culled_bonds = gen_coup
+    for (i, (Js, bonds)) in enumerate(zip(culled_Js, culled_bonds))
+        for (J, bond) in zip(Js, bonds)
+            @unpack j, n = bond
+            for cell in CartesianIndices(syssize)
+                offsetcell = offset(cell, n, syssize)
+                B[i, cell] = B[i, cell] - J * spins[j, offsetcell]
+                B[j, offsetcell] = B[j, offsetcell] - J * spins[i, cell]
+            end
         end
     end
 end

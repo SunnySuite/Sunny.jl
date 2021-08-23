@@ -107,6 +107,8 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
     nothing
 end
 
+abstract type AbstractSampler end
+
 struct LangevinSampler{D, L, Db} <: AbstractSampler
     integrator :: LangevinHeunP{D, L, Db}
     Δt         :: Float64

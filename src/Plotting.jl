@@ -73,9 +73,6 @@ function plot_lattice(lattice::Lattice{3}; kwargs...)
     f
 end
 
-# Warning: These functions assume that bondlists have "duplicates". I.e. both
-#            Bond(i, j, n) and Bond(j, i, -n) appear.
-
 function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4, kwargs...)
     f, ax = _setup_2d()
 
@@ -95,15 +92,13 @@ function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4
     for (n, int) in enumerate(ints)
         xs = Vector{Float64}()
         ys = Vector{Float64}()
-        for bond in int.bonds
-            if bond.i == basis_idx
-                new_cell = offset(cent_cell, bond.n, lattice.size)
-                bond_pt = lattice[bond.j, new_cell]
-                push!(xs, cent_pt[1])
-                push!(ys, cent_pt[2])
-                push!(xs, bond_pt[1])
-                push!(ys, bond_pt[2])
-            end
+        for bond in int.bonds[basis_idx]
+            new_cell = offset(cent_cell, bond.n, lattice.size)
+            bond_pt = lattice[bond.j, new_cell]
+            push!(xs, cent_pt[1])
+            push!(ys, cent_pt[2])
+            push!(xs, bond_pt[1])
+            push!(ys, bond_pt[2])
         end
         color = colors[mod1(n, 8)]
         seg = GLMakie.linesegments!(xs, ys; linewidth=bondwidth, label=int.label, color=color)
@@ -121,34 +116,34 @@ end
 function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; colors=:Dark2_8, bondwidth=4, kwargs...)
     f, ax = _setup_3d()
 
+    # Plot the bonds, all relative to a central atom on the first sublattice
+    # TODO: Make selectable in GUI
+    basis_idx = 1
+
     colors = GLMakie.to_colormap(colors, 8)
     # Sort interactions so that longer bonds are plotted first
-    sort!(ints, by=int->Symmetry.distance(lattice, int.bonds[1]))
+    sort!(ints, by=int->Symmetry.distance(lattice, int.bonds[basis_idx][1]))
 
     toggles = Vector{GLMakie.Toggle}()
     labels = Vector{GLMakie.Label}()
 
     # Plot the lattice
     plot_lattice!(ax, lattice; kwargs...)
-    # Plot the bonds, all relative to a central atom on the first sublattice
-    basis_idx = 1
     cent_cell = CartesianIndex(div.(lattice.size .+ 1, 2)...)
     cent_pt = lattice[basis_idx, cent_cell]
     for (n, int) in enumerate(ints)
         xs = Vector{Float64}()
         ys = Vector{Float64}()
         zs = Vector{Float64}()
-        for bond in int.bonds
-            if bond.i == basis_idx
-                new_cell = offset(cent_cell, bond.n, lattice.size)
-                bond_pt = lattice[bond.j, new_cell]
-                push!(xs, cent_pt[1])
-                push!(ys, cent_pt[2])
-                push!(zs, cent_pt[3])
-                push!(xs, bond_pt[1])
-                push!(ys, bond_pt[2])
-                push!(zs, bond_pt[3])
-            end
+        for bond in int.bonds[basis_idx]
+            new_cell = offset(cent_cell, bond.n, lattice.size)
+            bond_pt = lattice[bond.j, new_cell]
+            push!(xs, cent_pt[1])
+            push!(ys, cent_pt[2])
+            push!(zs, cent_pt[3])
+            push!(xs, bond_pt[1])
+            push!(ys, bond_pt[2])
+            push!(zs, bond_pt[3])
         end
         if length(xs) == 0
             continue
@@ -181,7 +176,7 @@ function plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
     interactions = Vector{Heisenberg{3}}()
     
     prev_dist = 0.0
-    dist = 1
+    dist = 0
     class = 1
     for bond in canon_bonds
         # Exclude self (on-site) "bonds"
@@ -196,17 +191,20 @@ function plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
             push!(interactions, Heisenberg(1.0, crystal, bond, label))
         end
     end
+
+    @assert length(interactions) > 0 "No non-self interactions found!"
+
     plot_bonds(lattice, interactions; kwargs...)
 end
 
 "Plot all bonds between equivalent sites i and j"
-function plot_all_bonds_between(lattice::Lattice{3}, i, j, max_dist; kwargs)
+function plot_all_bonds_between(lattice::Lattice{3}, i, j, max_dist; kwargs...)
     crystal = Crystal(lattice)
     canon_bonds = Symmetry.canonical_bonds(crystal, max_dist)
     interactions = Vector{Heisenberg{3}}()
 
     prev_dist = 0.0
-    dist = 1
+    dist = 0
     class = 1
     for bond in canon_bonds
         # Exclude self (on-site) "bonds"
@@ -223,6 +221,9 @@ function plot_all_bonds_between(lattice::Lattice{3}, i, j, max_dist; kwargs)
             push!(interactions, Heisenberg(1.0, crystal, bond, label))
         end
     end
+
+    @assert length(interactions) > 0 "No non-self interactions found!"
+
     plot_bonds(lattice, interactions; kwargs...)
 end
 

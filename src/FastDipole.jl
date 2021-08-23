@@ -22,9 +22,12 @@ export volume, eachcellindex, gen_reciprocal, lattice_vectors, lattice_params
 include("Symmetry.jl")
 import .Symmetry
 import .Symmetry: Crystal, Bond, print_bond_table, subcrystal, allowed_J
-import .Symmetry: all_symmetry_related_bonds
+import .Symmetry: all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
+import .Symmetry: all_symmetry_related_interactions, all_symmetry_related_interactions_for_atom
 export Crystal, Bond, print_bond_table, subcrystal, allowed_J
-export all_symmetry_related_bonds
+export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
+export all_symmetry_related_interactions, all_symmetry_related_interactions_for_atom
+
 
 include("Interactions.jl")
 export ExternalField, Heisenberg, OnSite, DiagonalCoupling, GeneralCoupling

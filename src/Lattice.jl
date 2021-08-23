@@ -47,13 +47,13 @@ function lattice_params(lat_vecs::Mat3) :: NTuple{6, Float64}
     return (a, b, c, α, β, γ)
 end
 
+lattice_params(lattice::Lattice{3}) = lattice_params(lattice.lat_vecs)
+
 function Base.display(lattice::Lattice)
     D = length(size(lattice)) - 1
     println(join(size(lattice), "x"), " Lattice{$D}")
     # Print out lattice vectors, species, basis?
 end
-
-lattice_params(lattice::Lattice{3}) = lattice_params(lattice.lat_vecs)
 
 function lattice_vectors(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64) :: Mat3
     @assert all(map(x->0. < x < 180., (α, β, γ)))
@@ -77,6 +77,8 @@ function lattice_vectors(a::Float64, b::Float64, c::Float64, α::Float64, β::Fl
     return Mat3([v1 v2 v3])
 end
 
+lattice_vectors(lattice::Lattice) = lattice.lat_vecs
+
 "Specify a 3D Bravais Lattice by the lattice vector lengths and angles (in degrees)"
 function Lattice(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64, size::Vector{Int})
     lat_vecs = lattice_vectors(a, b, c, α, β, γ)
@@ -89,10 +91,8 @@ end
     length(lat.basis_vecs)
 end
 
-"Calculate the total volume of the lattice (unit cell volume × num cells)"
-@inline function volume(lat::Lattice) :: Float64
-    abs(det(lat.lat_vecs)) * prod(lat.size)
-end
+@inline cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
+@inline volume(lat::Lattice) = cell_volume(lat) * prod(lat.size)
 
 "Produces an iterator over all (j, k, l) indexes for the lattice"
 @inline function eachcellindex(lat::Lattice{D}) :: CartesianIndices where {D}
@@ -119,12 +119,11 @@ end
 end
 
 # TODO: Should just be another Lattice
-# TODO: Potentially confusing. These are the reciprocal lattice vectors
-#        for the whole box, repeating in space. This is what Ewald wants.
-#       However, we want the reciprocal vectors for the underlying (smaller)
-#        bravais cell for structure factor calculations.
-#       These differ just by a scale factor, but need to decide which
-#        convention the struct uses. (Probably the latter.)
+# TODO: Potentially confusing. `gen_reciprocal` computes the reciprocal lattice
+#        vectors of the unit cell, not the entire simulation box. Most use cases
+#        want the former, but Ewald summations want the latter.
+#       These differ just by a scale factor, which is currently explicitly handled
+#        in Ewald summation calculations.
 "Defines a reciprocal lattice structure"
 struct ReciprocalLattice{D, L}
     lat_vecs  :: SMatrix{D, D, Float64, L}     # Columns of this are the reciprocal lattice vectors
