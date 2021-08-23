@@ -88,6 +88,10 @@ struct OnSite <: Interaction
     label :: String
 end
 
+function OnSite(J::Vec3)
+    OnSite(J, "OnSite")
+end
+
 struct DiagonalCoupling{D} <: Interaction
     J            :: Vec3
     bonds        :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice

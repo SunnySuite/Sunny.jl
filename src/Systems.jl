@@ -39,7 +39,7 @@ end
 
 mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
     lattice        :: Lattice{D, L, Db}   # Definition of underlying lattice
-    hamiltonian    :: Hamiltonian         # Contains all interactions present
+    hamiltonian    :: Hamiltonian{D}      # Contains all interactions present
     sites          :: Array{Vec3, Db}     # Holds actual spin variables
     S              :: Rational{Int}       # Spin magnitude
 end

@@ -125,6 +125,7 @@ function test_FeI2()
     lattice = Lattice(cryst, (16, 20, 4))
     # Set up the SpinSystem
     system = SpinSystem(lattice, ℋ)
+    rand!(system)
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
     TN = 5.0 * kB               # ≈ 5K -> Units of meV
@@ -175,6 +176,7 @@ function test_FeI2_MC()
     lattice = Lattice(cryst, (16, 20, 4))
     # Set up the SpinSystem
     system = SpinSystem(lattice, ℋ)
+    rand!(system)
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
     TN = 5.0 * kB               # ≈ 5K -> Units of meV
@@ -187,7 +189,7 @@ function test_FeI2_MC()
     # Interval number of steps of dynamics before collecting a snapshot for FFTs
     meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
-    sampler = MetropolisSampler(system, kT, 20000)
+    sampler = MetropolisSampler(system, kT, 100)
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     S = structure_factor(
@@ -233,6 +235,7 @@ function test_FeI2_ortho()
     lattice = Lattice(cryst, (16, 10, 4))
     # Set up the SpinSystem
     system = SpinSystem(lattice, ℋ)
+    rand!(system)
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
     TN = 5.0 * kB               # ≈ 5K -> Units of meV
