@@ -47,11 +47,11 @@ export contract_monopole_compressed, contract_dipole_compressed
 include("FourierAccel.jl")
 
 include("Metropolis.jl")
-export MetropolisSampler
+export MetropolisSampler, set_temp!, sample!, thermalize!, anneal!
 
 include("Integrators.jl")
 export HeunP, HeunP2, LangevinHeunP, evolve!
-export LangevinSampler, sample!, anneal!, thermalize!
+export LangevinSampler
 
 include("Parsing.jl")
 export parse_config

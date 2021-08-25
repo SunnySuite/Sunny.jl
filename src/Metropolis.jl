@@ -54,7 +54,7 @@ A simple helper function which `sample!`'s a sampler at a series
     end
 end
 
-struct MetropolisSampler{D, L, Db} <: AbstractSampler
+mutable struct MetropolisSampler{D, L, Db} <: AbstractSampler
     system     :: SpinSystem{D, L, Db}
     β          :: Float64
     nsweeps    :: Int

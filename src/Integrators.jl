@@ -137,7 +137,3 @@ end
         evolve!(sampler.integrator, sampler.Δt)
     end
 end
-
-@inline function thermalize!(sampler::LangevinSampler)
-    thermalize!(sampler, 10)
-end

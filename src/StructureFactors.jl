@@ -189,7 +189,7 @@ Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, an
 """
 function structure_factor(
     sys::SpinSystem, sampler::AbstractSampler; num_samples::Int=10, dynΔt::Float64=0.01,
-    meas_rate::Int=10, num_meas::Int=100, bz_size=nothing, verbose::Bool=false, 
+    meas_rate::Int=10, num_meas::Int=100, bz_size=nothing, verbose::Bool=false, therm_samples=100
 )
     if isnothing(bz_size)
         bz_size = ones(ndims(sys) - 1)
@@ -216,8 +216,8 @@ function structure_factor(
         println("Beginning thermalization...")
     end
 
-    # Equilibrate the system
-    thermalize!(sampler)
+    # Equilibrate the system by sampling from it `therm_samples` times (discarding results)
+    thermalize!(sampler, therm_samples)
 
     if verbose
         println("Done thermalizing. Beginning measurements...")

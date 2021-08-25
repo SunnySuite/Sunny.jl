@@ -1,3 +1,4 @@
+using FastDipole
 using StaticArrays
 using Serialization
 using LaTeXStrings
@@ -189,7 +190,7 @@ function test_FeI2_MC()
     # Interval number of steps of dynamics before collecting a snapshot for FFTs
     meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
-    sampler = MetropolisSampler(system, kT, 100)
+    sampler = MetropolisSampler(system, kT, 1000)
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     S = structure_factor(
@@ -198,11 +199,11 @@ function test_FeI2_MC()
     )
 
     # Save off results for later viewing
-    serialize("../results/FeI2_structure_factor_T020.ser", S)
+    serialize("../results/FeI2_structure_factor_T020_MC.ser", S)
 
     S = dipole_form_factor(S, lattice);
 
-    return S
+    return (S, system)
 end
 
 function test_FeI2_ortho()
@@ -261,4 +262,54 @@ function test_FeI2_ortho()
     S = dipole_form_factor(S, lattice);
 
     return S
+end
+
+function test_FeI2_energy_curve()
+    cryst = Crystal("../example-lattices/FeI2.cif"; symprec=1e-3)
+    cryst = subcrystal(cryst, "Fe2+")
+
+    # Set up all interactions (all in units meV)
+    J1mat = SA[-0.397 0 0;
+                0 -0.075 -0.261;
+                0 -0.261 -0.236]
+    J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
+    J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
+    J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
+    J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
+    J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+    # J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
+    D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
+    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
+
+    # Produce a Lattice of the target system size (8x8x8)
+    lattice = Lattice(cryst, (16, 20, 4))
+    # Set up the SpinSystem
+    system = SpinSystem(lattice, ℋ)
+    sampler = MetropolisSampler(system, 1.0, 10)
+
+    kB = 8.61733e-2             # Boltzmann constant, units of meV/K
+
+    # Units of Kelvin, matching Xiaojian's range
+    temps = 10 .^ (range(0, stop=log10(50), length=50))
+    temps_meV = kB .* temps
+    energies = Float64[]
+
+    for (i, temp) in enumerate(temps_meV)
+        println(i)
+        E = 0.0
+        rand!(system)
+        set_temp!(sampler, temp)
+        thermalize!(sampler, 1000)
+        for _ in 1:1000
+            sample!(sampler)
+            E += energy(system)
+        end
+        push!(energies, E / 1000)
+    end
+
+    # Convert energies into energy / spin, in units of K
+    energies ./= (length(system) * kB)
+
+    return (temps, energies)
 end
