@@ -14,8 +14,7 @@ function test_local_energy_change()
     J3mat = SA[0.5 0.0 0.0; 0.0 0.7 1.3; 0.0 -1.3 2.5]
     J3 = GeneralCoupling(J3mat, cryst, Bond{3}(1, 1, [0, 0, 1]))
     D = OnSite(SA[0.0, 0.0, -2.3])
-    # ℋ = Hamiltonian{3}([B, J1, J2, J3, D])
-    ℋ = Hamiltonian{3}([J3])
+    ℋ = Hamiltonian{3}([B, J1, J2, J3, D])
 
     system = SpinSystem(lattice, ℋ)
 
@@ -34,12 +33,7 @@ function test_local_energy_change()
 
             actual_diff = new_energy - orig_energy
 
-            if !(func_diff ≈ actual_diff)
-                println("Function: $(func_diff)")
-                println("Actual: $(actual_diff)")
-                return randsite, newspin
-            end
-            # @assert func_diff ≈ actual_diff
+            @assert func_diff ≈ actual_diff
         end
     end
 end

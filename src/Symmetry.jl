@@ -442,9 +442,10 @@ function find_symmetry_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
         b2′ = transform(s, b2)
 
         # Check equivalence of b1 and b2′
-        if (is_equivalent_by_translation(cryst, b1, b2′) ||
-            is_equivalent_by_translation(cryst, b1, reverse(b2′)))
-            return s
+        if is_equivalent_by_translation(cryst, b1, b2′)
+            return (s, true)
+        elseif is_equivalent_by_translation(cryst, b1, reverse(b2′))
+            return (s, false)
         end
     end
 
@@ -936,9 +937,9 @@ function all_symmetry_related_interactions_for_atom(cryst::Crystal, i::Int, b_re
 
     for b in all_symmetry_related_bonds_for_atom(cryst, i, b_ref)
         push!(bs, b)
-        s = find_symmetry_between_bonds(cryst, BondRaw(cryst, b_ref), BondRaw(cryst, b))
+        (s, parity) = find_symmetry_between_bonds(cryst, BondRaw(cryst, b_ref), BondRaw(cryst, b))
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
-        push!(Js, R * J_ref * R')
+        push!(Js, R * (parity ? J_ref : J_ref') * R')
     end
 
     return (bs, Js)
