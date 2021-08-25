@@ -143,7 +143,7 @@ function test_FeI2()
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     S = structure_factor(
-        system, sampler; num_samples=15, meas_rate=meas_rate,
+        sampler; num_samples=15, meas_rate=meas_rate,
         num_meas=1000, bz_size=(2,0,0), verbose=true,
     )
 
@@ -194,8 +194,8 @@ function test_FeI2_MC()
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     S = structure_factor(
-        system, sampler; num_samples=15, meas_rate=meas_rate,
-        num_meas=1000, bz_size=(2,0,0), verbose=true,
+        sampler; num_samples=15, meas_rate=meas_rate,
+        num_meas=1000, bz_size=(2,0,0), verbose=true, therm_samples=15
     )
 
     # Save off results for later viewing
@@ -203,7 +203,7 @@ function test_FeI2_MC()
 
     S = dipole_form_factor(S, lattice);
 
-    return (S, system)
+    return (S, sampler.system)
 end
 
 function test_FeI2_ortho()
@@ -252,7 +252,7 @@ function test_FeI2_ortho()
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     S = structure_factor(
-        system, sampler; num_samples=15, meas_rate=meas_rate,
+        sampler; num_samples=15, meas_rate=meas_rate,
         num_meas=1000, bz_size=(2,0,0), verbose=true,
     )
 

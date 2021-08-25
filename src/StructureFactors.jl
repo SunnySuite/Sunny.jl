@@ -188,13 +188,14 @@ Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, an
  values for the `w` index lie in `0:T-1`.
 """
 function structure_factor(
-    sys::SpinSystem, sampler::AbstractSampler; num_samples::Int=10, dynΔt::Float64=0.01,
+    sampler::AbstractSampler; num_samples::Int=10, dynΔt::Float64=0.01,
     meas_rate::Int=10, num_meas::Int=100, bz_size=nothing, verbose::Bool=false, therm_samples=100
 )
     if isnothing(bz_size)
         bz_size = ones(ndims(sys) - 1)
     end
 
+    sys = sampler.system
     nb = nbasis(sys.lattice)
     spat_size = size(sys)[2:end]
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)

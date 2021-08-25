@@ -58,6 +58,10 @@ mutable struct MetropolisSampler{D, L, Db} <: AbstractSampler
     system     :: SpinSystem{D, L, Db}
     β          :: Float64
     nsweeps    :: Int
+    function MetropolisSampler(sys::SpinSystem{D,L,Db}, kT::Float64, nsweeps::Int) where {D,L,Db}
+        @assert kT != 0. "Temperature must be nonzero!"
+        new{D, L, Db}(sys, 1.0 / kT, nsweeps)
+    end
 end
 
 @inline function _random_spin() :: Vec3
