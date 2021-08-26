@@ -440,10 +440,10 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     # (dimensionless error tolerance is measured relative to the minimum lattice
     # constant ℓ)
     if b1 != b2
-    ℓ = minimum(norm, eachcol(cryst.lat_vecs))
-    d1 = distance(cryst, b1) / ℓ
-    d2 = distance(cryst, b2) / ℓ
-    if abs(d1-d2) > cryst.symprec
+        ℓ = minimum(norm, eachcol(cryst.lat_vecs))
+        d1 = distance(cryst, b1) / ℓ
+        d2 = distance(cryst, b2) / ℓ
+        if abs(d1-d2) > cryst.symprec
             return Tuple{SymOp, Bool}[]
         end
     end
@@ -457,7 +457,7 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
         else
             nothing
         end
-end
+    end
 
     ret = (bonds_equiv(s) for s in cryst.symops)
     return Iterators.filter(!isnothing, ret)
@@ -589,17 +589,17 @@ function atom_string(cryst::Crystal, i)
 end
 
 function print_bond(cryst::Crystal, b::Bond{3})
-    println("Bond{3}(i=$(b.i), j=$(b.j), n=[$(b.n[1]), $(b.n[2]), $(b.n[3])])")
+    ri = cryst.positions[b.i]
+    rj = cryst.positions[b.j] + b.n
+    @printf "Bond{3}(%d, %d, [%d, %d, %d])\n" b.i b.j b.n[1] b.n[2] b.n[3]
     @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) bond_multiplicity(cryst, b)
-
-    if length(cryst.positions) > 1
-        println("Atom $(b.i): " * atom_string(cryst, b.i))
-        if b.j != b.i
-            println("Atom $(b.j): " * atom_string(cryst, b.j))
-        end
+    if length(unique(cryst.species)) == 1
+        @printf "Connects [%.4g, %.4g, %.4g] to [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3] rj[1] rj[2] rj[3]
+    else
+        @printf "Connects '%s' at [%.4g, %.4g, %.4g] to '%s' at [%.4g, %.4g, %.4g]\n" cryst.species[b.i] ri[1] ri[2] ri[3] cryst.species[b.j] rj[1] rj[2] rj[3]
     end
 
-    print(  "Allowed exchange:  ")
+    print(  "Allowed coupling:  ")
     allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
     J_strings = _coupling_basis_strings(allowed_J_basis)
     max_len = maximum(length, J_strings)
