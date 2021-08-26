@@ -426,59 +426,43 @@ function is_equivalent_by_translation(cryst::Crystal, b1::BondRaw, b2::BondRaw)
 end
 
 
-function find_symmetry_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
-    # Fail early if two bonds describe different real-space distances
-    # (dimensionless error tolerance is measured relative to the minimum lattice
-    # constant ℓ)
-    ℓ = minimum(norm, eachcol(cryst.lat_vecs))
-    d1 = distance(cryst, b1) / ℓ
-    d2 = distance(cryst, b2) / ℓ
-    if abs(d1-d2) > cryst.symprec
-        return nothing
-    end
-
-    # Check whether any symmetry operation s maps b2 to b1
-    for s = cryst.symops
-        b2′ = transform(s, b2)
-
-        # Check equivalence of b1 and b2′
-        if is_equivalent_by_translation(cryst, b1, b2′)
-            return (s, true)
-        elseif is_equivalent_by_translation(cryst, b1, reverse(b2′))
-            return (s, false)
-        end
-    end
-
-    # No symmetry was found
-    return nothing
-end
-
 function is_equivalent_by_symmetry(cryst::Crystal, b1::BondRaw, b2::BondRaw)
-    return !isnothing(find_symmetry_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw))
+    return !isempty(symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw))
 end
 
 function is_equivalent_by_symmetry(cryst::Crystal, b1::Bond{3}, b2::Bond{3})
     return is_equivalent_by_symmetry(cryst, BondRaw(cryst, b1), BondRaw(cryst, b2))
 end
 
-# List of all symmetries for bond, along with parity
-function symmetries(cryst::Crystal, b::BondRaw)
-    acc = Tuple{SymOp, Bool}[]
-    for s = cryst.symops
-        b′ = transform(s, b)
-        # Check equivalence of b and b′
-        if is_equivalent_by_translation(cryst, b, b′)
-            push!(acc, (s, true))
-        elseif is_equivalent_by_translation(cryst, b, reverse(b′))
-            push!(acc, (s, false))
+# Generate list of all symmetries that transform b2 into b1, along with parity
+function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
+    # Fail early if two bonds describe different real-space distances
+    # (dimensionless error tolerance is measured relative to the minimum lattice
+    # constant ℓ)
+    if b1 != b2
+    ℓ = minimum(norm, eachcol(cryst.lat_vecs))
+    d1 = distance(cryst, b1) / ℓ
+    d2 = distance(cryst, b2) / ℓ
+    if abs(d1-d2) > cryst.symprec
+            return Tuple{SymOp, Bool}[]
         end
     end
-    return acc
+
+    function bonds_equiv(s)
+        b2′ = transform(s, b2)
+        if is_equivalent_by_translation(cryst, b1, b2′)
+            (s, true)
+        elseif is_equivalent_by_translation(cryst, b1, reverse(b2′))
+            (s, false)
+        else
+            nothing
+        end
 end
 
-function symmetries(cryst::Crystal, b::Bond{3})
-    return symmetries(cryst, BondRaw(cryst, b))
+    ret = (bonds_equiv(s) for s in cryst.symops)
+    return Iterators.filter(!isnothing, ret)
 end
+
 
 
 "Returns all bonds in `cryst` for which `bond.i == i`"
@@ -718,7 +702,7 @@ end
 # only if it is an eigenvector of P with eigenvalue 1, i.e., `P x = x`.
 function symmetry_allowed_couplings_operator(cryst::Crystal, b::BondRaw)
     P = I
-    for (s, parity) in symmetries(cryst, b)
+    for (s, parity) in symmetries_between_bonds(cryst, b, b)
         P = P * projector_for_symop(cryst, s, parity)
     end
     # Allowed coupling matrices J are simultaneously eigenvectors for all
@@ -728,7 +712,7 @@ end
 
 # Check that a coupling matrix J is consistent with symmetries of a bond
 function verify_coupling_matrix(cryst::Crystal, b::BondRaw, J::Mat3)
-    for (s, parity) in symmetries(cryst, b)
+    for (s, parity) in symmetries_between_bonds(cryst, b, b)
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
         @assert norm(R*J*R' - (parity ? J : J')) < 1e-12 "Specified J matrix not in allowed space!"
     end
@@ -937,7 +921,7 @@ function all_symmetry_related_interactions_for_atom(cryst::Crystal, i::Int, b_re
 
     for b in all_symmetry_related_bonds_for_atom(cryst, i, b_ref)
         push!(bs, b)
-        (s, parity) = find_symmetry_between_bonds(cryst, BondRaw(cryst, b_ref), BondRaw(cryst, b))
+        (s, parity) = first(symmetries_between_bonds(cryst, BondRaw(cryst, b_ref), BondRaw(cryst, b)))
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
         push!(Js, R * (parity ? J_ref : J_ref') * R')
     end
