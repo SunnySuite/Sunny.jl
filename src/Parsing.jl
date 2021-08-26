@@ -1,5 +1,6 @@
 using CrystalInfoFramework
 using FilePaths
+using Printf
 
 struct ValidateError <: Exception end
 Base.showerror(io::IO, e::ValidateError) = print(io, e)
@@ -157,7 +158,7 @@ end
 
 Parse a `Crystal` from a `.cif` file located at the path of `filename`.
 """
-function Crystal(filename::AbstractString; symprec=1e-5)
+function Crystal(filename::AbstractString; symprec=nothing)
     cif = Cif(Path(filename))
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
@@ -178,6 +179,31 @@ function Crystal(filename::AbstractString; symprec=1e-5)
     sitetypes = Vector{String}(sitetypes)
     sitelabels = geo_table[!, "_atom_site_label"]
     unique_atoms = Vec3.(zip(xs, ys, zs))
+
+    # Try to infer symprec from coordinate strings
+    # TODO: Use uncertainty information if available from .cif
+    if isnothing(symprec)
+        strs = vcat(geo_table[!, "_atom_site_fract_x"], geo_table[!, "_atom_site_fract_y"], geo_table[!, "_atom_site_fract_z"])
+        elems = vcat(xs, ys, zs)
+        # guess fractional errors by assuming each elem is a fraction with simple denominator (2, 3, or 4)
+        errs = map(elems) do x
+            c = 12
+            return abs(rem(x*c, 1, RoundNearest)) / c
+        end
+        (err, i) = findmax(errs)
+        if err < 1e-12
+            println("Warning: You did not specify a precision parameter.")
+            println("All coordinate strings seem to be simple fractions. Setting symprec=1e-12.")
+            symprec = 1e-12
+        elseif 1e-12 < err < 1e-4
+            println("Warning: You did not specify a precision parameter.")
+            symprec = 15err
+            @printf "I will infer that coordinate string '%s' has error %.1e. Setting symprec=%.1e.\n" strs[i] err symprec
+        else
+            println("Error: Please specify an explicit `symprec` parameter to load this file, '$filename'")
+            return Nothing
+        end
+    end
 
     # By default, assume P1 symmetry
     symmetries = [ Symmetry.SymOp(I(3), @SVector zeros(3)) ]
@@ -206,12 +232,13 @@ function Crystal(filename::AbstractString; symprec=1e-5)
 
     # Symmetry preferences: Explicit List > Hall Symbol > Infer
     if length(symmetries) > 1
-        # Assume all symmetries have been provided
-        return Crystal(lat_vecs, unique_atoms, sitetypes, symmetries; symprec=symprec)
+        # Use explicitly provided symmetries
+        return Crystal(lat_vecs, unique_atoms, sitetypes, symmetries; symprec)
     elseif !isnothing(hall_symbol)
-        return Crystal(lat_vecs, unique_atoms, sitetypes, hall_symbol; symprec=symprec)
+        # Read symmetries from database for Hall symbol
+        return Crystal(lat_vecs, unique_atoms, sitetypes, hall_symbol; symprec)
     else
         # Infer the symmetries automatically
-        return Crystal(lat_vecs, unique_atoms, sitetypes; symprec=symprec)
+        return Crystal(lat_vecs, unique_atoms, sitetypes; symprec)
     end
 end
