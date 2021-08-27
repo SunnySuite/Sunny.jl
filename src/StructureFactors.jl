@@ -189,7 +189,7 @@ Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, an
 """
 function structure_factor(
     sampler::AbstractSampler; num_samples::Int=10, dynΔt::Float64=0.01,
-    meas_rate::Int=10, num_meas::Int=100, bz_size=nothing, verbose::Bool=false, therm_samples=100
+    meas_rate::Int=10, num_freqs::Int=100, bz_size=nothing, verbose::Bool=false, therm_samples=100
 )
     if isnothing(bz_size)
         bz_size = ones(ndims(sys) - 1)
@@ -199,16 +199,16 @@ function structure_factor(
     nb = nbasis(sys.lattice)
     spat_size = size(sys)[2:end]
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
-    result_size = (3, q_size..., num_meas)
+    result_size = (3, q_size..., num_freqs)
     min_q_idx = -1 .* div.(q_size .- 1, 2)
 
     # Memory to hold spin snapshots sampled during dynamics
-    spin_traj = zeros(ComplexF64, 3, nb, spat_size..., num_meas)
+    spin_traj = zeros(ComplexF64, 3, nb, spat_size..., num_freqs)
     # FFT of the spin trajectory, with the sum over basis sites performed
-    fft_spins = zeros(ComplexF64, 3, q_size..., num_meas)
+    fft_spins = zeros(ComplexF64, 3, q_size..., num_freqs)
     fft_spins = OffsetArray(fft_spins, OffsetArrays.Origin(1, min_q_idx..., 0))
     # Final structure factor result
-    struct_factor = zeros(ComplexF64, 3, 3, q_size..., num_meas)
+    struct_factor = zeros(ComplexF64, 3, 3, q_size..., num_freqs)
     struct_factor = OffsetArray(struct_factor, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
     plan = _plan_spintraj_fft!(spin_traj)
     integrator = HeunP(sys)
@@ -231,7 +231,7 @@ function structure_factor(
 
         # Evolve at constant energy to collect dynamics info
         selectdim(spin_traj, ndims(spin_traj), 1) .= _reinterpret_from_spin_array(sys.sites)
-        for nsnap in 2:num_meas
+        for nsnap in 2:num_freqs
             for _ in 1:meas_rate
                 evolve!(integrator, dynΔt)
             end

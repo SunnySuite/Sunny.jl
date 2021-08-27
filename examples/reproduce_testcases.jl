@@ -3,6 +3,8 @@ using StaticArrays
 using Serialization
 using LaTeXStrings
 using Plots
+using DelimitedFiles
+using Statistics
 
 "Produce structure factor maps to compare to Xiaojian's plots"
 function test_diamond_heisenberg_sf()
@@ -31,7 +33,7 @@ function test_diamond_heisenberg_sf()
     sampler = LangevinSampler(sys, kT, α, Δt, 20000)
     S = structure_factor(
         sys, sampler; num_samples=10, dynΔt=Δt, meas_rate=meas_rate,
-        num_meas=1600, bz_size=(1,1,2), verbose=true
+        num_freqs=1600, bz_size=(1,1,2), verbose=true
     )
     # Just average the diagonals, which are real
     avgS = zeros(Float64, axes(S)[3:end])
@@ -144,7 +146,7 @@ function test_FeI2()
     println("Starting structure factor measurement...")
     S = structure_factor(
         sampler; num_samples=15, meas_rate=meas_rate,
-        num_meas=1000, bz_size=(2,0,0), verbose=true,
+        num_freqs=1000, bz_size=(2,0,0), verbose=true,
     )
 
     # Save off results for later viewing
@@ -195,7 +197,7 @@ function test_FeI2_MC()
     println("Starting structure factor measurement...")
     S = structure_factor(
         sampler; num_samples=15, meas_rate=meas_rate,
-        num_meas=1000, bz_size=(2,0,0), verbose=true, therm_samples=15
+        num_freqs=1000, bz_size=(2,0,0), verbose=true, therm_samples=15
     )
 
     # Save off results for later viewing
@@ -294,22 +296,126 @@ function test_FeI2_energy_curve()
     temps = 10 .^ (range(0, stop=log10(50), length=50))
     temps_meV = kB .* temps
     energies = Float64[]
+    energy_errors = Float64[]
+    temp_energies = Float64[]
 
-    for (i, temp) in enumerate(temps_meV)
-        println(i)
+    rand!(system)
+    for (i, temp) in enumerate(reverse(temps_meV))
+        println("Temperature $i = $(temp)")
         E = 0.0
-        rand!(system)
+
+        temp_energies = Float64[]
         set_temp!(sampler, temp)
         thermalize!(sampler, 1000)
         for _ in 1:1000
             sample!(sampler)
+            push!(temp_energies)
             E += energy(system)
         end
-        push!(energies, E / 1000)
+        (meanE, stdE) = binned_statistics(temp_energies)
+        push!(energies, meanE)
+        push!(energy_errors, stdE)
     end
+
+    energies = reverse(energies)
+    energy_errors = reverse(energy_errors)
+
+    # Save off the lowest energy system
+    serialize("./results/lowT_FeI2_system.ser", system)
 
     # Convert energies into energy / spin, in units of K
     energies ./= (length(system) * kB)
+    energy_errors ./= (length(system) * kB)
 
-    return (temps, energies)
+    (trueTs, trueEs) = load_FeI2_ET_data()
+    plot_ET_data(temps, energies, energy_errors, trueTs, trueEs)
+
+    return (temps, energies, energy_errors)
+end
+
+function plot_ET_data(ourTs, ourEs, ourEerrors, trueTs, trueEs)
+    pgfplotsx()
+    p = plot(ourTs, ourEs, yerror=ourEerrors, marker=:true, ms=3, label="Ours")
+    plot!(trueTs, trueEs, marker=:true, ms=3, label="Reference")
+    xlabel!(L"$T$ [K]")
+    ylabel!(L"$E$ [K]")
+    display(p)
+    p
+end
+
+function structure_factor_low_T()
+    system = deserialize("./results/lowT_FeI2_system.ser")
+    kB = 8.61733e-2             # Boltzmann constant, units of meV/K
+    TN = 5.0 * kB               # ≈ 5K -> Units of meV
+    kT = 0.20 * TN              # Actual target simulation temp, units of meV
+    sampler = MetropolisSampler(system, kB, 100)
+
+    α = 0.1
+    Δt = 0.01 / (2.165/2)       # Units of 1/meV
+    # Highest energy/frequency we actually care about resolving
+    target_max_ω = 10.          # Units of meV
+    # Interval number of steps of dynamics before collecting a snapshot for FFTs
+    meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
+
+    # Measure the diagonal elements of the spin structure factor
+    println("Starting structure factor measurement...")
+    S = structure_factor(
+        sampler; num_samples=5, meas_rate=meas_rate,
+        num_freqs=1000, bz_size=(2,2,0), verbose=true, therm_samples=15
+    )
+
+    S = dipole_form_factor(S, system.lattice)
+
+    return (system, S)
+end
+
+function load_FeI2_ET_data()
+    data = readdlm("./results/FeI2_energy.dat")
+    Ts = data[:, 1]
+    Es = data[:, 2]
+    return (Ts, Es)
+end
+
+function heatmap_FeI2_S(S)
+    (Lx, _, _, T) = size(S)
+    T = div(T, 2)
+
+    heatmap(parent(S[0, :, 0, 1:T])', xtickfontsize=14, ytickfontsize=14,
+            xguidefontsize=16, yguidefontsize=16)
+    xticks!([1, div(Lx, 4), div(Lx, 2), div(3*Lx, 4), Lx], map(string, [-2, -1, 0, 1, 2]))
+    yticks!([1, div(T, 5), div(2*T, 5), div(3*T, 5), div(4*T, 5), T], map(string, [0, 2, 4, 6, 8, 10]))
+    xlabel!("[0, k, 0]")
+    ylabel!("E [meV]")
+end
+
+
+#= Binned Statistics Routines =#
+
+"""
+Calculates the average and binned standard deviation of a set of data.
+The number of bins used is equal to the length of the preallocated `bins` vector
+passed to the function.
+"""
+function binned_statistics(data::AbstractVector{T}, nbins::Int=10)::Tuple{T,T} where {T<:Number}
+    
+    bins = zeros(T, nbins)
+    avg, stdev = binned_statistics(data, bins)
+    return avg, stdev
+end
+
+function binned_statistics(data::AbstractVector{T}, bins::Vector{T})::Tuple{T,T} where {T<:Number}
+    
+    N = length(data)
+    n = length(bins)
+    @assert length(data)%length(bins) == 0
+    binsize = div(N, n)
+    bins .= 0
+    for bin in 1:n
+        for i in 1:binsize
+            bins[bin] += data[i + (bin-1)*binsize]
+        end
+        bins[bin] /= binsize
+    end
+    avg = mean(bins)
+    return avg, std(bins, corrected=true, mean=avg) / sqrt(n)
 end
