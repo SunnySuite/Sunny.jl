@@ -9,10 +9,10 @@ using Statistics
 "Produce structure factor maps to compare to Xiaojian's plots"
 function test_diamond_heisenberg_sf()
     lattice = FastDipole.diamond_conventional(1.0, (8, 8, 8))
-    cryst = Crystal(lattice)
+    crystal = Crystal(lattice)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, cryst, Bond{3}(3, 6, SA[0,0,0])),
+        Heisenberg(J, crystal, Bond{3}(3, 6, SA[0,0,0])),
     ]
     ℋ = Hamiltonian{3}(interactions)
     sys = SpinSystem(lattice, ℋ)
@@ -21,26 +21,25 @@ function test_diamond_heisenberg_sf()
     Δt = 0.02 / J       # Units of 1/K
     kT = 4.             # Units of K
     α  = 0.1
-
     kB = 8.61733e-5     # Units of eV/K
-    meas_rate = 10
+    nsteps = 20000
+    sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 
-    # Calculate the maximum ω present in our FFT
-    # Need to scale by (S+1) with S=3/2 to match the reference,
-    #  and then convert to meV.
-    maxω = 1000 * 2π / ((meas_rate * Δt) / kB) / (5/2)
-
-    sampler = LangevinSampler(sys, kT, α, Δt, 20000)
     S = structure_factor(
-        sys, sampler; num_samples=10, dynΔt=Δt, meas_rate=meas_rate,
-        num_freqs=1600, bz_size=(1,1,2), verbose=true
+        sys, sampler; num_samples=5, dynΔt=Δt, meas_rate=10,
+        num_freqs=1600, bz_size=(1,1,2), therm_samples=10, verbose=true
     )
+
     # Just average the diagonals, which are real
     avgS = zeros(Float64, axes(S)[3:end])
     for α in 1:3
         @. avgS += real(S[α, α, :, :, :, :])
     end
 
+    # Calculate the maximum ω present in our FFT
+    # Need to scale by (S+1) with S=3/2 to match the reference,
+    #  and then convert to meV.
+    maxω = 1000 * 2π / ((meas_rate * Δt) / kB) / (5/2)
     p = plot_many_cuts(avgS; maxω=maxω, chopω=5.0)
     display(p)
     return avgS
@@ -124,7 +123,7 @@ function test_FeI2()
     D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
     ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
 
-    # Produce a Lattice of the target system size (8x8x8)
+    # Produce a Lattice of the target system size (16x20x4)
     lattice = Lattice(cryst, (16, 20, 4))
     # Set up the SpinSystem
     system = SpinSystem(lattice, ℋ)
@@ -145,7 +144,7 @@ function test_FeI2()
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     S = structure_factor(
-        sampler; num_samples=15, meas_rate=meas_rate,
+        system, sampler; num_samples=15, meas_rate=meas_rate,
         num_freqs=1000, bz_size=(2,0,0), verbose=true,
     )
 
@@ -175,7 +174,7 @@ function test_FeI2_MC()
     D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
     ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
 
-    # Produce a Lattice of the target system size (8x8x8)
+    # Produce a Lattice of the target system size (16x20x4)
     lattice = Lattice(cryst, (16, 20, 4))
     # Set up the SpinSystem
     system = SpinSystem(lattice, ℋ)
@@ -234,7 +233,7 @@ function test_FeI2_ortho()
     D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
     ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
 
-    # Produce a Lattice of the target system size (8x8x8)
+    # Produce a Lattice of the target system size (16x10x4)
     lattice = Lattice(cryst, (16, 10, 4))
     # Set up the SpinSystem
     system = SpinSystem(lattice, ℋ)
@@ -254,7 +253,7 @@ function test_FeI2_ortho()
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     S = structure_factor(
-        sampler; num_samples=15, meas_rate=meas_rate,
+        system, sampler; num_samples=15, meas_rate=meas_rate,
         num_meas=1000, bz_size=(2,0,0), verbose=true,
     )
 
@@ -284,7 +283,7 @@ function test_FeI2_energy_curve()
     D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
     ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
 
-    # Produce a Lattice of the target system size (8x8x8)
+    # Produce a Lattice of the target system size (16x20x4)
     lattice = Lattice(cryst, (16, 20, 4))
     # Set up the SpinSystem
     system = SpinSystem(lattice, ℋ)
@@ -333,6 +332,8 @@ function test_FeI2_energy_curve()
     return (temps, energies, energy_errors)
 end
 
+#= Ignore this block of functions - temporarily here as I test some things =#
+
 function plot_ET_data(ourTs, ourEs, ourEerrors, trueTs, trueEs)
     pgfplotsx()
     p = plot(ourTs, ourEs, yerror=ourEerrors, marker=:true, ms=3, label="Ours")
@@ -360,7 +361,7 @@ function structure_factor_low_T()
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     S = structure_factor(
-        sampler; num_samples=5, meas_rate=meas_rate,
+        system, sampler; num_samples=5, meas_rate=meas_rate,
         num_freqs=1000, bz_size=(2,2,0), verbose=true, therm_samples=15
     )
 

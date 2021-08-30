@@ -109,6 +109,9 @@ end
 
 abstract type AbstractSampler end
 
+"""
+    A sampler which produces new samples using Langevin Landau-Lifshitz dynamics
+"""
 struct LangevinSampler{D, L, Db} <: AbstractSampler
     integrator :: LangevinHeunP{D, L, Db}
     Δt         :: Float64
@@ -131,7 +134,6 @@ end
     sampler.integrator.kT = kT
 end
 
-"Run the Langevin dynamics for given `nsteps` to sample a new state"
 @inline function sample!(sampler::LangevinSampler)
     for _ in 1:sampler.nsteps
         evolve!(sampler.integrator, sampler.Δt)

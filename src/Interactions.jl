@@ -1,5 +1,14 @@
 abstract type Interaction end
 
+"""
+    ExternalField(B::Vec3)
+
+Defines an external field acting on each spin, specifically the term
+
+```math
+    -∑_i 𝐁 ⋅ 𝐒_i
+```
+"""
 struct ExternalField <: Interaction
     B :: Vec3
 end
@@ -64,6 +73,18 @@ function cull_bonds(bonds::Vector{Vector{Bond{D}}}, Js::Vector{Vector{Mat3}}) wh
     (culled_bonds, culled_Js)
 end
 
+"""
+    Heisenberg{D}
+
+Defines a Heisenberg interaction on a `D`-dimensional lattice. Specifically, the term
+
+```math
+    J ∑_{⟨ij⟩} 𝐒_i ⋅ 𝐒_j 
+```
+
+where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
+symmetry equivalence class, with each bond appearing only once.
+"""
 struct Heisenberg{D} <: Interaction
     J            :: Float64
     bonds        :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
@@ -71,7 +92,12 @@ struct Heisenberg{D} <: Interaction
     label        :: String
 end
 
-"Create a Heisenberg interaction of strength `J` on all bonds symmetry-equivalent to `bond`"
+"""
+    Heisenberg(J::Float64, cryst::Crystal, bond::Bond{D}, label="Heisenberg")
+
+Construct a `Heisenberg{D}` interaction of strength `J` acting on all bonds
+symmetry-equivalent to `bond` in `cryst`.
+"""
 function Heisenberg(J::Float64, cryst::Crystal, bond::Bond{D}, label::String="Heisen") where {D}
     sorted_bonds = [
         Symmetry.all_symmetry_related_bonds_for_atom(cryst, i, bond)
@@ -82,7 +108,16 @@ function Heisenberg(J::Float64, cryst::Crystal, bond::Bond{D}, label::String="He
     return Heisenberg{D}(J, sorted_bonds, culled_bonds, label)
 end
 
-"Equivalent to DiagonalCoupling with bonds = [(0,0,0)], but faster."
+"""
+    OnSite(J::Vec3, label="OnSite")
+
+Construct an on-site anisotropy term specified by the vector J. Specifically, the term
+
+```math
+    ∑_i ∑_α J_α S_{i, α}^2
+```
+Equivalent to `DiagonalCoupling` with `bonds = [(0,0,0)]`, but faster.
+"""
 struct OnSite <: Interaction
     J     :: Vec3
     label :: String
@@ -92,6 +127,21 @@ function OnSite(J::Vec3)
     OnSite(J, "OnSite")
 end
 
+"""
+    DiagonalCoupling{D}
+
+Defines a diagonal exchange interaction on a `D`-dimensional lattice. Specifically, the term
+
+```math
+    ∑_{⟨ij⟩} ∑_α J_α S_{i,α} ⋅ S_{j,α} 
+```
+
+where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
+symmetry equivalence class, with each bond appearing only once.
+
+**Warning**: This type currently (and incorrectly) assumes that ``𝐉`` takes
+the same form on every bond within the equivalency class.
+"""
 struct DiagonalCoupling{D} <: Interaction
     J            :: Vec3
     bonds        :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
@@ -99,6 +149,12 @@ struct DiagonalCoupling{D} <: Interaction
     label        :: String
 end
 
+"""
+    DiagonalCoupling(J::Vec3, cryst::Crystal, bond::Bond{D}, label="Heisenberg")
+
+Construct a `DiagonalCoupling{D}` interaction with diagonal elements specified
+by `J`, acting on all bonds symmetry-equivalent to `bond` in `cryst`.
+"""
 function DiagonalCoupling(J::Vec3, cryst::Crystal, bond::Bond{D}, label::String="DiagJ") where {D}
     sorted_bonds = [
         Symmetry.all_symmetry_related_bonds_for_atom(cryst, i, bond)
@@ -109,6 +165,19 @@ function DiagonalCoupling(J::Vec3, cryst::Crystal, bond::Bond{D}, label::String=
     DiagonalCoupling{D}(J, sorted_bonds, culled_bonds, label)
 end
 
+"""
+    GeneralCoupling{D}
+
+Defines a general exchange interaction on a `D`-dimensional lattice. Specifically, the term
+
+```math
+    ∑_{⟨ij⟩} 𝐒_i^⊤ J 𝐒_j
+```
+
+where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
+symmetry equivalence class, with each bond appearing only once. ``J`` is a
+``3 × 3`` matrix which may vary from bond to bond, under symmetry constraints.
+"""
 struct GeneralCoupling{D} <: Interaction
     Js           :: Vector{Vector{Mat3}}
     culled_Js    :: Vector{Vector{Mat3}}
@@ -117,6 +186,13 @@ struct GeneralCoupling{D} <: Interaction
     label        :: String
 end
 
+"""
+    GeneralCoupling(J::Mat3, cryst::Crystal, bond::Bond{D}, label="GenJ")
+
+Construct a `GeneralCoupling{D}` interaction specified by the `J` matrix
+ on the given `bond` in `cryst`. Automatically propagates the correctly
+ transformed exchange matrices to all symmetry-equivalent bonds.
+"""
 function GeneralCoupling(J::Mat3, cryst::Crystal, bond::Bond{D}, label::String="GenJ") where {D}
     sorted_bonds = Vector{Vector{Bond{D}}}()
     sorted_Js = Vector{Vector{Mat3}}()
@@ -132,8 +208,11 @@ end
 
 const PairInt{D} = Union{Heisenberg{D}, DiagonalCoupling{D}, GeneralCoupling{D}}
 
-# Dipole-dipole interactions computed in real 3D space,
-#   using a pre-computed interaction tensor.
+"""
+Dipole-dipole interactions computed in real-space. `DipoleFourier` should
+be preferred in actual simulations, but this type persists as a cross-check
+to test the Fourier-space calculations.
+"""
 struct DipoleReal <: Interaction
     int_mat :: OffsetArray{Mat3, 5, Array{Mat3, 5}}
 end
@@ -143,7 +222,11 @@ const FTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
 const BFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
 const IFTPlan = AbstractFFTs.ScaledPlan{ComplexF64, BFTPlan, Float64}
 
-# Dipole-dipole interactions computed in Fourier-space
+"""
+Dipole-dipole interactions computed in Fourier-space. Should produce
+identical results (up to numerical precision) as `DipoleReal`, but
+is asymptotically faster.
+"""
 struct DipoleFourier <: Interaction
     int_mat     :: Array{ComplexF64, 7}
     _spins_ft   :: Array{ComplexF64, 5}  # Space for Fourier-transforming spins
@@ -153,6 +236,11 @@ struct DipoleFourier <: Interaction
     _ift_plan   :: IFTPlan
 end
 
+"""
+    Hamiltonian{D}
+
+Defines a Hamiltonian for a `D`-dimensional spin system.
+"""
 struct Hamiltonian{D}
     ext_field   :: Union{Nothing, ExternalField}
     heisenbergs :: Vector{Heisenberg{D}}
@@ -166,6 +254,12 @@ function Hamiltonian{D}() where {D}
     return Hamiltonian{D}(nothing, [], [], [], nothing)
 end
 
+"""
+    Hamiltonian{D}(ints)
+    Hamiltonian{D}(ints...)
+
+Construct a `Hamiltonian{D}` from a list of `Interaction`'s.
+"""
 function Hamiltonian{D}(ints) where {D}
     ext_field   = nothing
     heisenbergs = Vector{Heisenberg{D}}()

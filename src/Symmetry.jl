@@ -7,55 +7,8 @@ using Parameters
 import Spglib
 
 import FastDipole: Vec3, Mat3, Lattice, lattice_params, lattice_vectors, nbasis, cell_volume
+import FastDipole: CellType, cell_type
 export Crystal, Bond, canonical_bonds, print_bond_table
-
-@enum CellType begin
-    triclinic
-    monoclinic
-    orthorhombic
-    tetragonal
-    trigonal
-    hexagonal
-    cubic
-end
-const rhombohedral = trigonal
-
-"Infer a 3D Bravais lattice cell type from its lattice vectors"
-function cell_type(lat_vecs::Mat3)
-    (a, b, c, α, β, γ) = lattice_params(lat_vecs)
-    p = sortperm([a, b, c])
-    a, b, c = (a, b, c)[p]
-    α, β, γ = (α, β, γ)[p]
-    if a ≈ b ≈ c
-        if α ≈ β ≈ γ ≈ 90.
-            cubic
-        elseif α ≈ β ≈ γ
-            trigonal
-        end
-    elseif a ≈ b
-        if α ≈ β ≈ 90.
-            if γ ≈ 90.
-                tetragonal
-            elseif γ ≈ 120.
-                hexagonal
-            end
-        end
-    elseif b ≈ c
-        if β ≈ γ ≈ 90.
-            if α ≈ 90.
-                tetragonal
-            elseif α ≈ 120.
-                hexagonal
-            end
-        end
-    elseif α ≈ β ≈ γ ≈ 90.
-        orthorhombic
-    elseif α ≈ β ≈ 90. || β ≈ γ ≈ 90. || α ≈ γ ≈ 90.
-        monoclinic
-    else
-        triclinic
-    end
-end
 
 "Return the standard cell convention for a given Hall number"
 function cell_type(hall_number::Int)
@@ -84,14 +37,22 @@ function is_standard_form(lat_vecs::Mat3)
     return lat_vecs ≈ conventional_lat_vecs
 end
 
-# A SymOp is composed of a rotation matrix and a translation vector. These are
-# represented in fractional coordinates.
+"""
+    SymOp
+
+Defines a symmetry operation belonging to a 3D space group, operating on fractional coordinates.
+"""
 struct SymOp
     R::Mat3
     T::Vec3
 end
 
-"Holds all of the symmetry information about a crystal's unit cell"
+"""
+    Crystal
+
+A type holding all geometry and symmetry information needed to represent
+ a three-dimensional crystal.
+"""
 struct Crystal
     lat_vecs             :: Mat3             # Lattice vectors as columns
     positions            :: Vector{Vec3}     # Full set of atoms, fractional coords
@@ -105,10 +66,18 @@ end
 nbasis(cryst::Crystal) = length(cryst.positions)
 cell_volume(cryst::Crystal) = abs(det(lat.lat_vecs))
 
-"Represents a bond between two sublattice sites, and displaced by some number of unit cells"
+"""
+    Bond{D}
+
+Represents a class of bond between pairs of sites in a `D`-dimensional crystal,
+ separated from each other by a certain vector.
+"""
 struct Bond{D}
+    "The sublattice index of the first site."
     i :: Int
+    "The sublattice index of the second site."
     j :: Int
+    "The displacement vector between sites, in units of lattice vectors."
     n :: SVector{D, Int}
 end
 
@@ -171,7 +140,13 @@ function Base.isapprox(s1::SymOp, s2::SymOp; atol)
 end
 
 
-# Let Spglib infer the space group
+"""
+    Crystal(lat_vecs::Mat3, positions::Vector{Vec3}, species::Vector{String}; symprec=1e-5)
+
+Construct a `Crystal` using explicit geometry information, with all symmetry information
+automatically inferred. `positions` should be a list of site positions (in fractional
+coordinates) within the unit cell defined by lattice vectors which are the columns of `lat_vecs`.
+"""
 function Crystal(lat_vecs::Mat3, positions::Vector{Vec3}, species::Vector{String}; symprec=1e-5)
     positions = wrap_to_unit_cell.(positions; symprec)
 
@@ -282,7 +257,11 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     return ret
 end
 
-"Filter sublattices of a Crystal by species, keeping the symmetry group of the original Crystal"
+"""
+    subcrystal(cryst, species) :: Crystal
+
+Filter sublattices of a `Crystal` by species, keeping the symmetry group of the original `Crystal`.
+"""
 function subcrystal(cryst::Crystal, species::String) :: Crystal
     subindexes = findall(isequal(species), cryst.species)
     new_positions = cryst.positions[subindexes]
@@ -299,7 +278,12 @@ function subcrystal(cryst::Crystal, species::String) :: Crystal
                    new_species, cryst.symops, cryst.hall_number, cryst.symprec)
 end
 
-"Filter sublattices by equivalency indices, keeping the symmetry group of the original Crystal"
+"""
+    subcrystal(cryst, equiv_idxs) :: Crystal
+
+Filter sublattices of a `Crystal` by a list of indexes into `cryst.equiv_atoms`,
+ keeping the symmetry group of the original `Crystal`.
+"""
 function subcrystal(cryst::Crystal, equiv_idxs::Vector{Int}) :: Crystal
     new_positions = empty(cryst.positions)
     new_species = empty(cryst.species)
@@ -358,6 +342,11 @@ end
 
 # Constructors converting Lattice -> Crystal, and Crystal -> Lattice
 
+"""
+    Crystal(lattice::Lattice)
+
+Construct a `Crystal` using geometry information in `lattice`, inferring symmetry information.
+"""
 function Crystal(lattice::Lattice{3, 9, 4})
     L = lattice.lat_vecs
     # Convert absolute basis positions to fractional coordinates
@@ -883,7 +872,7 @@ end
 """
     allowed_J(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
 
-Given a `b::Bond{3}`, returns a `Matrix` of strings representing the allowed
+Given a bond `b`, returns a `Matrix{String}` representing the allowed
  form of a bilinear exchange interaction matrix on this bond, given the
  symmetry constraints of `cryst`.
 """
@@ -904,7 +893,12 @@ function all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b_ref::Bond
     return bs
 end
 
+"""
+    all_symmetry_related_bonds(cryst::Crystal, b_ref::Bond{3}) :: Vector{Bond{3}}
 
+Construct a list of all bonds which are symmetry-equivalent to the reference bond `b_ref`
+ within `cryst.
+"""
 function all_symmetry_related_bonds(cryst::Crystal, b_ref::Bond{3})
     bs = Bond{3}[]
     for i in eachindex(cryst.positions)
@@ -929,6 +923,12 @@ function all_symmetry_related_interactions_for_atom(cryst::Crystal, i::Int, b_re
     return (bs, Js)
 end
 
+"""
+    all_symmetry_related_interactions(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3) :: Tuple{Vector{Bond3}, Vector{Mat3}}
+
+Given a reference bond `b_ref` and exchange matrix `J_ref` on that bond, construct lists of all
+ symmetry-equivalent bonds and their respective transformed exchange matrices.
+"""
 function all_symmetry_related_interactions(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3)
     bs = Bond{3}[]
     Js = Mat3[]

@@ -1,18 +1,36 @@
 import Base.size
 
-"""Defines lattice/basis vectors, and number of unit cells.
-   Note this struct does not hold the degrees of freedom,
-     but just simply sets the geometry of the underlying
-     lattice.
-   Because of typing headaches, L = D^2, and Db = D + 1
-    are needed in the definition, but can be automatically
-    inferred by the constructor.
+"""
+    Lattice{D, L, Db}
+
+A type holding geometry information about a lattice in a simulation box.
+The type parameter `D` represents the dimensionality of the `Lattice`,
+ while the others must satisfy `L = D^2, Db = D + 1`.
+
+These other type parameters must be in the definition for technical reasons,
+ but are inferred without needing them explicitly provided. For example,
+ see the `Lattice{D}` constructor.
 """
 struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
     lat_vecs      :: SMatrix{D, D, Float64, L}       # Columns are lattice vectors
     basis_vecs    :: Vector{SVector{D, Float64}}     # Each SVector gives a basis vector
     species       :: Vector{String}                  # Indices labeling atom types
     size          :: SVector{D, Int}                 # Number of cells along each dimension
+
+    @doc """
+        Lattice{D}(lat_vecs, basis_vecs, species, latsize)
+
+    Construct a `D`-dimensional `Lattice`.
+    # Arguments
+    - `lat_vecs`: A matrix where the lattice vectors form the columns.
+                  Must be `convert`-able into `SMatrix{D, D, Float64, D^2}`.
+    - `basis_vecs`: A `Vector` of basis positions of sites within the unit cell.
+                    Each element must be `convert`-able into `SVector{D, Float64}`.
+    - `species::Vector{String}`: A list of atomic species identifiers for each site.
+                                 Equivalent sites should have the same identifier.
+    - `latsize`: Specifies the number of unit cells extending along each lattice vector.
+                 Must be `convert`-able into `SVector{D, Int}`.
+    """
     function Lattice{D}(lat_vecs, basis_vecs, species, latsize) where {D}
         @assert all(isequal(D), size(lat_vecs))          "All dims of lat_vecs should be equal size"
         @assert all(isequal(D), map(length, basis_vecs)) "All basis_vecs should be size $D to match lat_vecs"
@@ -32,12 +50,23 @@ function Lattice{D}(lat_vecs, basis_vecs, latsize) where {D}
     )
 end
 
+"""
+    Lattice(lat_vecs::SMatrix{D, D}, basis_vecs, latsize)
+
+Construct a `Lattice`, with the dimension inferred by the shape of `lat_vecs`.
+"""
 function Lattice(lat_vecs::SMatrix{D,D}, basis_vecs, latsize) where {D}
     return Lattice{D}(
         lat_vecs, basis_vecs, fill("A", length(basis_vecs)), latsize
     )
 end
 
+"""
+    lattice_params(lat_vecs::Mat3)
+
+Compute the lattice parameters ``(a, b, c, α, β, γ)`` from a set of lattice vectors,
+ which form the columns of `lat_vecs`.
+"""
 function lattice_params(lat_vecs::Mat3) :: NTuple{6, Float64}
     v1, v2, v3 = eachcol(lat_vecs)
     a, b, c = norm(v1), norm(v2), norm(v3)
@@ -47,6 +76,9 @@ function lattice_params(lat_vecs::Mat3) :: NTuple{6, Float64}
     return (a, b, c, α, β, γ)
 end
 
+"""
+    lattice_params(lattice::Lattice{3})
+"""
 lattice_params(lattice::Lattice{3}) = lattice_params(lattice.lat_vecs)
 
 function Base.display(lattice::Lattice)
@@ -55,6 +87,12 @@ function Base.display(lattice::Lattice)
     # Print out lattice vectors, species, basis?
 end
 
+"""
+    lattice_vectors(a, b, c, α, β, γ) :: Mat3
+
+Compute a set of lattice vectors (forming the columns of the result), specified by a given
+ set of lattice parameters ``(a, b, c, α, β, γ)``.
+"""
 function lattice_vectors(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64) :: Mat3
     @assert all(map(x->0. < x < 180., (α, β, γ)))
 
@@ -79,7 +117,11 @@ end
 
 lattice_vectors(lattice::Lattice) = lattice.lat_vecs
 
-"Specify a 3D Bravais Lattice by the lattice vector lengths and angles (in degrees)"
+"""
+    Lattice(a, b, c, α, β, γ)
+
+Specify a 3D Bravais `Lattice` by the lattice vector lengths and angles (in degrees)
+"""
 function Lattice(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64, size::Vector{Int})
     lat_vecs = lattice_vectors(a, b, c, α, β, γ)
     basis_vecs = [SVector{3, Float64}([0.0, 0.0, 0.0])]
@@ -91,10 +133,12 @@ end
     length(lat.basis_vecs)
 end
 
+"Compute the volumne of a unit cell."
 @inline cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
+"Compute the volume of the full simulation box."
 @inline volume(lat::Lattice) = cell_volume(lat) * prod(lat.size)
 
-"Produces an iterator over all (j, k, l) indexes for the lattice"
+"Produce an iterator over all unit cell indices."
 @inline function eachcellindex(lat::Lattice{D}) :: CartesianIndices where {D}
     return CartesianIndices(Tuple(lat.size))
 end
@@ -134,7 +178,7 @@ function Base.eachindex(lat::ReciprocalLattice) :: CartesianIndices
     return CartesianIndices(Tuple(lat.size))
 end
 
-"Generates a reciprocal lattice from a real-space Lattice"
+"Generate a `ReciprocalLattice` for a given `Lattice`"
 function gen_reciprocal(lat::Lattice) :: ReciprocalLattice
     recip_vecs = 2π * transpose(inv(lat.lat_vecs))
     return ReciprocalLattice(recip_vecs, lat.size)
@@ -150,6 +194,11 @@ function brav_lattice(lat::Lattice{D}) :: Lattice{D} where {D}
     )
 end
 
+"""
+    CellType
+
+An enumeration over the different types of 3D Bravais unit cells.
+"""
 @enum CellType begin
     triclinic
     monoclinic
@@ -161,7 +210,12 @@ end
 end
 rhombohedral = trigonal
 
-"Infer a 3D Bravais lattice cell type from its lattice vectors"
+"""
+    cell_type(lat_vecs::Mat3)
+
+Infer the `CellType` of a unit cell from its lattice vectors, which form
+ the columns of `lat_vecs`.
+"""
 function cell_type(lat_vecs::Mat3)
     (a, b, c, α, β, γ) = lattice_params(lat_vecs)
     p = sortperm([a, b, c])
@@ -197,6 +251,8 @@ function cell_type(lat_vecs::Mat3)
         triclinic
     end
 end
+
+cell_type(lattice::Lattice{3}) = cell_type(lattice.lat_vecs)
 
 """ Some functions which construct common lattices
 """

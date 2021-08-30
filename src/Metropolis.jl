@@ -12,8 +12,7 @@ abstract type AbstractSampler end
 """
     thermalize!(sampler, num_samples)
 
-A simple helper function which `sample!`'s a sampler a given
- number of times.
+`sample!` a sampler a given number of times.
 """
 @inline function thermalize!(sampler::S, num_samples::Int) where {S <: AbstractSampler}
     for _ in 1:num_samples
@@ -25,9 +24,8 @@ end
 """
     anneal!(sampler, temp_schedule, step_schedule)
 
-A simple helper function which `sample!`'s a sampler at a series
- of temperatures, staying at each temperature for the number of steps
- in `step_schedule`
+`sample!` a sampler at a series of temperatures, staying at each temperature
+  for the number of steps in `step_schedule`.
 """
 @inline function anneal!(sampler::S,
                          temp_schedule,
@@ -39,11 +37,10 @@ A simple helper function which `sample!`'s a sampler at a series
 end
 
 """
-    anneal!(sampler, temp_function, num_)
+    anneal!(sampler, temp_function, num_samples)
 
-A simple helper function which `sample!`'s a sampler at a series
- of temperature specified by the function `temp_function` which
- should accept an Int specifying the sample number.
+`sample!` a sampler `num_samples` times, with the sample at timestep `n`
+ drawn at a temperature `temp_function(n)`.
 """
 @inline function anneal!(sampler::S,
                          temp_function::Function,
@@ -54,6 +51,16 @@ A simple helper function which `sample!`'s a sampler at a series
     end
 end
 
+"""
+    MetropolisSampler(sys::SpinSystem, kT::Float64, nsweeps::Int)
+
+A sampler which performs the standard Metropolis Monte Carlo algorithm to
+ sample a `SpinSystem` at the requested temperature.
+
+Each single-spin update attempts to move the spin to a random position on
+ the unit sphere. One call to `sample!` will attempt to flip each spin
+ `nsweeps` times.
+"""
 mutable struct MetropolisSampler{D, L, Db} <: AbstractSampler
     system     :: SpinSystem{D, L, Db}
     β          :: Float64
@@ -69,10 +76,21 @@ end
     return n / norm(n)
 end
 
+"""
+    set_temp!(sampler, kT)
+
+Changes the temperature of the sampler to `kT`.
+"""
 function set_temp!(sampler::MetropolisSampler, kT::Float64)
     sampler.β = 1 / kT
 end
 
+"""
+    sample!(sampler)
+
+Samples `sampler.system` to a new state, under the Boltzmann distribution
+ as defined by `sampler.system.hamiltonian`.
+"""
 function sample!(sampler::MetropolisSampler)
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sampler.system)

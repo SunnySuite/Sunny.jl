@@ -5,7 +5,7 @@
 ##        sum over the sublattices.
 
 """
-    _fft_spin_traj(spin_traj, lattice; [bz_size, plan, fft_space])
+    fft_spin_traj(spin_traj, lattice; [bz_size, plan, fft_space])
 
 Takes in an array of spins (Vec3) of shape [B, D1, ..., Dd, T],
  with D1 ... Dd being the spatial dimensions, B the sublattice index,
@@ -137,11 +137,16 @@ function _phase_weight_basis!(result::OffsetArray{ComplexF64},
 end
 
 
-""" Applies the dipole form factor, reducing the structure factor tensor to the
-     observable quantities. I.e. performs the contraction:
-        ∑_αβ (δ_αβ - 𝐪̂_α 𝐪̂_β) 𝒮^αβ(𝐪, ω)
-    `struct_factor` should be of size 3 × 3 × L1 × ⋯ × LN × T
-    Returns a real array of size              L1 × ⋯ × LN × T
+"""
+    dipole_form_factor(struct_factor, lattice)
+
+Applies the dipole form factor, reducing the structure factor tensor to the
+ observable quantities. Specifically, performs the contraction:
+    ``𝒮(𝐪, ω) = ∑_{αβ} (δ_{αβ} - 𝐪̂_α 𝐪̂_β) 𝒮^{αβ}(𝐪, ω)``.
+
+`struct_factor` should be of size `3 × 3 × Q1 × ⋯ × QN × T`
+
+Returns a real array of size              `Q1 × ⋯ × QN × T`
 """
 function dipole_form_factor(struct_factor::OffsetArray{ComplexF64}, lattice::Lattice{D}) where {D}
     recip = gen_reciprocal(lattice)
@@ -168,34 +173,37 @@ function _plan_spintraj_fft!(spin_traj::Array{ComplexF64})
 end
 
 """
-    structure_factor(sys, sampler; nsamples, dynΔt, meas_rate, num_meas
-                                    bz_size, verbose)
+    structure_factor(sys, sampler; num_samples, dynΔt, meas_rate, num_meas
+                                    bz_size, therm_samples, verbose)
 
 Measures the full structure factor tensor of a spin system, for the requested range of 𝐪-space.
-Returns 𝒮^αβ = ⟨S^α(q, ω) S^β(q, ω)∗⟩, which is an array of shape
-    [3, 3, Q1, ..., Qd, T]
+Returns ``𝒮^{αβ}(𝐪, ω) = ⟨S^α(𝐪, ω) S^β(𝐪, ω)^∗⟩``, which is an array of shape
+    `[3, 3, Q1, ..., Qd, T]`
 where `Qi = max(1, bz_size_i * L_i)`
 
-`num_samples` sets the number of thermodynamic samples to measure from `sampler`.
+`num_samples` sets the number of thermodynamic samples to measure and average
+ across from `sampler`. `dynΔt` sets the integrator timestep during dynamics,
+ and `meas_rate` sets how often snapshots are recorded during dynamics. The sampler
+ is sampled `therm_samples` times before any measurements are made.
 
 The maximum frequency sampled is `ωmax = 2π / (dynΔt * meas_rate)`, and the frequency resolution
  is set by num_meas (the number of spin snapshots measured during dynamics).
 
-Indexing the result at `(α, β, q1, ..., qd, w)` gives S^αβ(𝐪, ω) at
-    `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, `ω = maxω * w / T`.
+Indexing the result at `(α, β, q1, ..., qd, w)` gives ``S^{αβ}(𝐪, ω)`` at
+    `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, and `ω = maxω * w / T`, where `a⃰, b⃰, c⃰`
+    are the reciprocal lattice vectors of `sys.lattice`.
 
 Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
  values for the `w` index lie in `0:T-1`.
 """
 function structure_factor(
-    sampler::AbstractSampler; num_samples::Int=10, dynΔt::Float64=0.01,
-    meas_rate::Int=10, num_freqs::Int=100, bz_size=nothing, verbose::Bool=false, therm_samples=100
-)
+    sys::SpinSystem{D}, sampler::S; num_samples::Int=10, dynΔt::Float64=0.01,
+    meas_rate::Int=10, num_freqs::Int=100, bz_size=nothing, therm_samples=10, verbose::Bool=false
+) where {D, S <: AbstractSampler}
     if isnothing(bz_size)
         bz_size = ones(ndims(sys) - 1)
     end
 
-    sys = sampler.system
     nb = nbasis(sys.lattice)
     spat_size = size(sys)[2:end]
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)

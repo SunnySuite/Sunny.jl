@@ -152,6 +152,11 @@ end
     return W, w
 end
 
+"""
+    Crystal(filename::AbstractString; symprec=1e-5)
+
+Parse a `Crystal` from a `.cif` file located at the path of `filename`.
+"""
 function Crystal(filename::AbstractString; symprec=1e-5)
     cif = Cif(Path(filename))
     # For now, assumes there is only one data collection per .cif

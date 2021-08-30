@@ -18,11 +18,19 @@ end
     return nbasis(sys.lattice)
 end
 
+"""
+Defines a collection of charges. Currently primarily used to test ewald
+ summation calculations.
+"""
 mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{Float64, D, L, Db}
-    lattice       :: Lattice{D, L, Db}
-    sites         :: Array{Float64, Db}
+    lattice       :: Lattice{D, L, Db}    # Definition of underlying lattice
+    sites         :: Array{Float64, Db}   # Holds charges at each site
 end
 
+"""
+Defines a collection of spins, as well as the Hamiltonian they interact under.
+ This is the main type to interface with most of the package.
+"""
 mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
     lattice        :: Lattice{D, L, Db}   # Definition of underlying lattice
     hamiltonian    :: Hamiltonian{D}      # Contains all interactions present
@@ -30,6 +38,11 @@ mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
     S              :: Rational{Int}       # Spin magnitude
 end
 
+"""
+    ChargeSystem(lat::Lattice)
+
+Construct a `ChargeSystem` on the given lattice, initialized to all zero charges.
+"""
 function ChargeSystem(lat::Lattice)
     sites_size = (length(lat.basis_vecs), lat.size...)
     sites = zeros(sites_size)
@@ -37,12 +50,24 @@ function ChargeSystem(lat::Lattice)
     return ChargeSystem(lat, sites)
 end
 
-"Sets charges to random values uniformly drawn from [-1, 1], then shifted to charge-neutrality"
+"""
+    rand!(sys::ChargeSystem)
+
+Sets charges to random values uniformly drawn from ``[-1, 1]``,
+then shifted to charge-neutrality.
+"""
 function Random.rand!(sys::ChargeSystem)
     sys.sites .= 2 .* rand(Float64, size(sys.sites)) .- 1.
     sys.sites .-= sum(sys.sites) / length(sys.sites)
 end
 
+"""
+    SpinSystem(lattice::Lattice, ℋ::Hamiltonian, S=1//1)
+
+Construct a `SpinSystem` with spins of magnitude `S` residing on the given `lattice`,
+ and interactions given by `ℋ`. Initialized to all spins pointing along
+ the ``+𝐳̂`` direction.
+"""
 function SpinSystem(lattice::Lattice{D}, ℋ::Hamiltonian{D}, S::Rational{Int}=1//1) where {D}
     # Initialize sites to all spins along +z
     sites_size = (length(lattice.basis_vecs), lattice.size...)
@@ -50,6 +75,9 @@ function SpinSystem(lattice::Lattice{D}, ℋ::Hamiltonian{D}, S::Rational{Int}=1
     SpinSystem{D, D*D, D+1}(lattice, ℋ, sites, S)
 end
 
+"""
+    SpinSystem(lattice, ints::Vector{I}, S=1//1) where {I <: Interaction}
+"""
 function SpinSystem(lat::Lattice{D}, ints::Vector{I}, S::Rational{Int}=1//1) where {D, I <: Interaction}
     return SpinSystem(lat, Hamiltonian{D}(ints), S)
 end
@@ -59,16 +87,21 @@ function SpinSystem(lat::Lattice)
     return SpinSystem(lat, Vector{Interaction}(), 1//1)
 end
 
-"Sets spins randomly sampled on the unit sphere."
+"""
+    rand!(sys::SpinSystem)
+
+Sets spins randomly sampled on the unit sphere.
+"""
 function Random.rand!(sys::SpinSystem)
     sys.sites .= randn(Vec3, size(sys.sites))
     @. sys.sites /= norm(sys.sites)
 end
 
-# Warning: All functions assume that lists of bonds are "duplicate"
-#  (i, j, n) and (j, i, -n) appear. Otherwise, remove 0.5 from
-#  energy, and add new lines to _accum_field! which update site j
+"""
+    energy(sys::SpinSystem)
 
+Computes the energy of the system under `sys.hamiltonian`.
+"""
 function energy(sys::SpinSystem) :: Float64
     ℋ = sys.hamiltonian
     E = 0.0

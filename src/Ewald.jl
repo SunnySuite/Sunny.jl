@@ -7,7 +7,7 @@ import Base.Cartesian.@ntuple
     ewald_sum_monopole(sys::ChargeSystem; η=1.0, extent=10)
 
 Performs ewald summation to calculate the potential energy of a 
-system of monopoles with PBC.
+system of monopoles with periodic boundary conditions.
 
 Specifically, computes:
 ```math
@@ -132,7 +132,7 @@ end
     ewald_sum_dipole(sys::SpinSystem; η=1.0, extent=10)
 
 Performs ewald summation to calculate the potential energy of a 
-system of dipoles with PBC.
+system of dipoles with periodic boundary conditions.
 """
 function ewald_sum_dipole(sys::SpinSystem{3}; extent=2, η=1.0) :: Float64
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))

@@ -55,7 +55,11 @@ function _setup_3d()
     return f, lscene
 end
 
+"""
+    plot_lattice(lattice; kwargs...)
 
+Plot a `Lattice{2}` or `Lattice{3}`. `kwargs` are passed to `GLMakie.scatter!`.
+"""
 function plot_lattice(lattice::Lattice{2}; kwargs...)
     f, ax = _setup_2d()
     plot_lattice!(ax, lattice; kwargs...)
@@ -73,6 +77,12 @@ function plot_lattice(lattice::Lattice{3}; kwargs...)
     f
 end
 
+"""
+    plot_bonds(lattice, ints; bondwidth=4, kwargs...)
+
+Plot a list of pair interactions defined on a `Lattice{2}` or `Lattice{3}`.
+``kwargs`` are passed to `plot_lattice!`.
+"""
 function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4, kwargs...)
     f, ax = _setup_2d()
 
@@ -166,10 +176,22 @@ end
     plot_bonds(lattice, interactions; kwargs...)
 end
 
+"""
+    plot_bonds(sys::SpinSystem; kwargs...)
+
+Plot all pair interactions appearing in `sys.hamiltonian`, on the lattice
+defined by `sys.lattice`.
+"""
 @inline function plot_bonds(sys::SpinSystem; kwargs...)
     plot_bonds(sys.lattice, sys.hamiltonian; kwargs...)
 end
 
+"""
+    plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
+
+Plot all bond equivalency classes present in `lattice` up to a maximum
+bond length of `max_dist`. `kwargs` are passed to `plot_bonds`.
+"""
 function plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
     crystal = Crystal(lattice)
     canon_bonds = Symmetry.canonical_bonds(crystal, max_dist)
@@ -311,8 +333,18 @@ function plot_spins(sys::SpinSystem{2}; linecolor=:grey, arrowcolor=:red, linewi
     )
 end
 
+"""
+    plot_spins(sys::SpinSystem; linecolor=:grey, arrowcolor=:red, linewidth=0.1,
+                                arrowsize=0.3, arrowlength=1.0, kwargs...)
+
+Plot the spin configuration defined by `sys`. `kwargs` are passed to `GLMakie.arrows`.        
+"""
 function plot_spins(sys::SpinSystem{3}; linecolor=:grey, arrowcolor=:red,
                     linewidth=0.1, arrowsize=0.3, arrowlength=1.0, kwargs...)
+    f, ax = _setup_3d()
+    # cam = GLMakie.cameracontrols(ax.scene)
+    # cam.projectiontype[] = GLMakie.Orthographic
+
     sites = reinterpret(reshape, Float64, collect(sys.lattice))
     spins = 0.2 .* reinterpret(reshape, Float64, collect(sys.sites))
 
@@ -330,7 +362,6 @@ function plot_spins(sys::SpinSystem{3}; linecolor=:grey, arrowcolor=:red,
     )
 end
 
-"Equivalent to above, but different arguments"
 function plot_spins(lat::Lattice{3}, spins; linecolor=:grey, arrowcolor=:red,
                     linewidth=0.1, arrowsize=0.3, arrowlength=1.0, kwargs...)
     sites = reinterpret(reshape, Float64, collect(lat))
@@ -352,7 +383,19 @@ end
 
 # No support for higher than 3D visualization, sorry!
 
-"Produce an animation of spin dynamics for the specified length of time"
+"""
+    anim_integration(sys, fname, steps_per_frame, Δt, nframes; kwargs...)
+
+Produce an animation of constant-energy Landau-Lifshitz dynamics of the given `sys`.
+# Arguments:
+- `sys::SpinSystem`: The spin system to integrate.
+- `fname::String`: The path to save the animation to.
+- `steps_per_frame::Int`: The number of integration steps to take per frame.
+- `Δt::Float64`: The integration timestep size.
+- `nframes::Int`: The number of frames to produce in the animation.
+
+Other keyword arguments are passed to `GLMakie.arrows`.
+"""
 function anim_integration(
     sys::SpinSystem{2}, fname, steps_per_frame, Δt, nframes;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2, kwargs...
@@ -387,7 +430,6 @@ function anim_integration(
     end
 end
 
-"Produce an animation of spin dynamics for the specified length of time"
 function anim_integration(
     sys::SpinSystem{3}, fname, steps_per_frame, Δt, nframes;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2, kwargs...
@@ -422,7 +464,12 @@ function anim_integration(
     end
 end
 
-"Endless integration in a live window"
+"""
+    live_integration(sys, steps_per_frame, Δt; kwargs...)
+
+Performs endless live constant-energy Landau-Lifshitz integration
+in an interactive window.
+"""
 function live_integration(
     sys::SpinSystem{2}, steps_per_frame, Δt;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2, kwargs...
@@ -458,7 +505,6 @@ function live_integration(
     end
 end
 
-"Endless integration in a live window"
 function live_integration(
     sys::SpinSystem{3}, steps_per_frame, Δt;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
@@ -495,7 +541,12 @@ function live_integration(
     end
 end
 
-"Endless integration in a live window"
+"""
+    live_langevin_integration(sys, steps_per_frame, Δt, kT; α=0.1, kwargs...)
+
+Performs endless live Langevin Landau-Lifshitz integration
+in an interactive window.
+"""
 function live_langevin_integration(
     sys::SpinSystem{3}, steps_per_frame, Δt, kT;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
