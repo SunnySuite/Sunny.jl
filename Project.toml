@@ -19,3 +19,6 @@ Spglib = "f761d5c5-86db-4880-b97f-9680a7cccfb5"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
+
+[compat]
+julia = "1.6"

@@ -17,7 +17,12 @@ The high-level outline of performing a simulation is:
 
 Defining interactions in step (2) can be aided by our utilities for symmetry analysis, demonstrated at the bottom of this page.
 
-In all examples, we will assume that `FastDipole` and `StaticArrays` have been loaded.
+In all examples, we will assume that `FastDipole` and `StaticArrays` have been loaded:
+
+```julia
+using FastDipole
+using StaticArrays
+```
 
 ## Example 1: Diamond lattice with antiferromagnetic Heisenberg interactions
 
