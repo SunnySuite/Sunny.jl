@@ -82,76 +82,63 @@ function _parse_cif_float(str::String) :: Float64
     return parse(Float64, str)
 end
 
-function _parse_op(s::AbstractString) :: Symmetry.SymOp
-    R, T = xyzt2components(s, Val(3))
-    # Wrap the translations to be within range [0, 1)
-    T = mod.(T, 1)
-    Symmetry.SymOp(R, T)
+
+function parse_number_or_fraction(s)
+    # Parse a number or fraction
+    cnt = count(==('/'), s)
+    if cnt == 0
+        return parse(Float64, s)
+    elseif cnt == 1
+        n, d = parse.(Float64, split(s, '/'))
+        return n/d
+    else
+        error("Cannot parse '$s' as a number.")
+    end
 end
 
-# These two functions are from Crystalline.jl
-# TODO: Add licensing info before public release
-function xyzt2components(s::AbstractString, ::Val{D}) where D
-    xyzts = split(s, ',')
-    length(xyzts) == D || throw(DimensionMismatch("incompatible matrix size and string format"))
 
-    # initialize zero'd MArrays for rotation/translation parts (allocation will be elided)
-    W = zero(MMatrix{D, D, Float64}) # rotation
-    w = zero(MVector{D, Float64})    # translation
-    
-    # "fill in" `W` and `w` according to content of `xyzts`
-    xyzt2components!(W, w, xyzts)
+function _parse_op(str::AbstractString) :: Symmetry.SymOp
+    D = 3
+    R = zeros(D, D)
+    T = zeros(D)
 
-    # convert to SArrays (elides allocation since `xyzt2components!` is inlined)
-    return SMatrix(W), SVector(w)
-end
+    @assert length(split(str, ",")) == D
 
-@inline function xyzt2components!(W::MMatrix{D,D,T}, w::MVector{D,T},
-                                  xyzts::AbstractVector{<:AbstractString}) where {D,T<:Real}
+    # The substring s describes the i'th row of the output
+    for (i, s) in enumerate(split(str, ","))
+        # Remove all spaces
+        s = replace(s, " " => "")
+        # In weird circumstances, double negatives may be generated. Get rid of them.
+        s = replace(s, "--" => "+")
+        # Trick to split on either + or - symbols
+        s = replace(s, "-" => "+-")
 
-    chars = D == 3 ? ('x','y','z') : D == 2 ? ('x','y') : ('x',)
-    @inbounds for (i,s) in enumerate(xyzts)
-        # rotation/inversion/reflection part
-        firstidx = nextidx = firstindex(s)
-        while (idx = findnext(c -> c ∈ chars, s, nextidx)) !== nothing
-            c = s[idx]
-            j = c=='x' ? 1 : (c=='y' ? 2 : 3)
-            
-            if idx == firstidx
-                W[i,j] = one(T)
+        # Each term t describes the numerical value for one element of R or T
+        for t in split(s, '+', keepempty=false)
+            j = findfirst(last(t), "xyz")
+            if isnothing(j)
+                T[i] += parse_number_or_fraction(t)
             else
-                previdx = prevind(s, idx)
-                while (c′=s[previdx]; isspace(s[previdx]))
-                    previdx = prevind(s, previdx)
-                    previdx ≤ firstidx && break
+                coeff = t[begin:end-1]
+                R[i, j] += begin
+                    if coeff == ""
+                        1
+                    elseif coeff == "-"
+                        -1
+                    else
+                        parse_number_or_fraction(coeff)
+                    end
                 end
-                if c′ == '+' || isspace(c′)
-                    W[i,j] = one(T)
-                elseif c′ == '-'
-                    W[i,j] = -one(T)
-                else
-                    throw(ArgumentError("failed to parse provided string representation"))
-                end
-            end
-            nextidx = nextind(s, idx)
-        end
-
-        # nonsymmorphic part/fractional translation part
-        lastidx = lastindex(s)
-        if nextidx ≤ lastidx # ⇒ stuff "remaining" in `s`; a nonsymmorphic part
-            slashidx = findnext(==('/'), s, nextidx)
-            if slashidx !== nothing # interpret as integer fraction
-                num = SubString(s, nextidx, prevind(s, slashidx))
-                den = SubString(s, nextind(s, slashidx), lastidx)
-                w[i] = convert(T, parse(Int, num)/parse(Int, den))
-            else                    # interpret at number of type `T`
-                w[i] = parse(T, SubString(s, nextidx, lastidx))
             end
         end
     end
 
-    return W, w
+    # Wrap translations
+    T = mod.(T, 1)
+
+    return Symmetry.SymOp(R, T)
 end
+
 
 """
     Crystal(filename::AbstractString; symprec=1e-5)
@@ -192,13 +179,13 @@ function Crystal(filename::AbstractString; symprec=nothing)
         end
         (err, i) = findmax(errs)
         if err < 1e-12
-            println("Warning: Precision parameter is unspecified.")
-            println("All coordinate strings seem to be simple fractions. Setting symprec=1e-12.")
+            println("Precision parameter is unspecified, but all coordinates seem to be simple fractions.")
+            println("Setting symprec=1e-12.")
             symprec = 1e-12
         elseif 1e-12 < err < 1e-4
-            println("Warning: Precision parameter is unspecified.")
+            @printf "Precision parameter is unspecified, but coordinate string '%s' seems to have error %.1e.\n" strs[i] err
             symprec = 15err
-            @printf "Inferring that coordinate string '%s' has error %.1e. Setting symprec=%.1e.\n" strs[i] err symprec
+            @printf "Setting symprec=%.1e.\n" symprec
         else
             println("Error: Please specify an explicit `symprec` parameter to load this file, '$filename'")
             return Nothing
