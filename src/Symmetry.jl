@@ -284,6 +284,9 @@ end
 Filter sublattices of a `Crystal` by species, keeping the symmetry group of the original `Crystal`.
 """
 function subcrystal(cryst::Crystal, species::String) :: Crystal
+    if !in(species, cryst.species)
+        error("Species string '$species' is not present in crystal.")
+    end
     subindexes = findall(isequal(species), cryst.species)
     new_positions = cryst.positions[subindexes]
     new_equiv_atoms = cryst.equiv_atoms[subindexes]
@@ -306,6 +309,11 @@ Filter sublattices of a `Crystal` by a list of indexes into `cryst.equiv_atoms`,
  keeping the symmetry group of the original `Crystal`.
 """
 function subcrystal(cryst::Crystal, equiv_idxs::Vector{Int}) :: Crystal
+    for equiv_idx in equiv_idxs
+        if !in(equiv_idx, cryst.equiv_atoms)
+            error("Equivalent index '$equiv_idx' is not present in crystal.")
+        end
+    end
     new_positions = empty(cryst.positions)
     new_species = empty(cryst.species)
     new_equiv_atoms = empty(cryst.equiv_atoms)
