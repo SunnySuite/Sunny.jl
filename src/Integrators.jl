@@ -139,3 +139,5 @@ end
         evolve!(sampler.integrator, sampler.Δt)
     end
 end
+
+@inline energy(sampler::LangevinSampler) = energy(sampler.integrator.system)

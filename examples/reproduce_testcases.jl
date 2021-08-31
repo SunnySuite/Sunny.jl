@@ -301,15 +301,13 @@ function test_FeI2_energy_curve()
     rand!(system)
     for (i, temp) in enumerate(reverse(temps_meV))
         println("Temperature $i = $(temp)")
-        E = 0.0
 
         temp_energies = Float64[]
         set_temp!(sampler, temp)
         thermalize!(sampler, 1000)
         for _ in 1:1000
             sample!(sampler)
-            push!(temp_energies)
-            E += energy(system)
+            push!(temp_energies, energy(sampler))
         end
         (meanE, stdE) = binned_statistics(temp_energies)
         push!(energies, meanE)

@@ -105,6 +105,9 @@ function sample!(sampler::MetropolisSampler)
     end
 end
 
+@inline energy(sampler::MetropolisSampler) = energy(sampler.system)
+
+
 """
     local_energy_change(sys, idx, newspin)
 
