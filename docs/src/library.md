@@ -13,6 +13,7 @@ Crystal(::Lattice{3, 9, 4})
 Crystal(::AbstractString; symprec)
 subcrystal
 Lattice
+Lattice{D}(lat_vecs, basis_vecs, species, latsize) where {D}
 volume
 eachcellindex
 gen_reciprocal
@@ -62,7 +63,7 @@ energy
 ## Sampling
 
 ```@docs
-LangevinSampler
+LangevinSampler(::SpinSystem, ::Float64, ::Float64, ::Float64, ::Int)
 MetropolisSampler
 set_temp!
 sample!

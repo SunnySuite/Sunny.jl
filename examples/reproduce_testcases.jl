@@ -195,7 +195,7 @@ function test_FeI2_MC()
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     S = structure_factor(
-        sampler; num_samples=15, meas_rate=meas_rate,
+        system, sampler; num_samples=15, meas_rate=meas_rate,
         num_freqs=1000, bz_size=(2,0,0), verbose=true, therm_samples=15
     )
 
@@ -210,12 +210,12 @@ end
 function test_FeI2_ortho()
     lat_vecs = lattice_vectors(1.0, √3, 1.6691358024691358, 90., 90., 90.)
     basis_positions = [
-        SA[0.0, 0.0, 0.0],
-        SA[0.5, 0.5, 0.0],
-        SA[0.0, 1/3, 0.25],
-        SA[0.0, 2/3, 0.75],
-        SA[0.5, 5/6, 0.25],
-        SA[0.5, 1/6, 0.75]
+        [0.0, 0.0, 0.0],
+        [0.5, 0.5, 0.0],
+        [0.0, 1/3, 0.25],
+        [0.0, 2/3, 0.75],
+        [0.5, 5/6, 0.25],
+        [0.5, 1/6, 0.75]
     ]
     species = ["Fe", "Fe", "I", "I", "I", "I"]
     cryst = Crystal(lat_vecs, basis_positions, species)

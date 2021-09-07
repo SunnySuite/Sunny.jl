@@ -409,8 +409,7 @@ function Crystal(lattice::Lattice{2, 4, 3})
 end
 
 function Lattice(cryst::Crystal, latsize) :: Lattice{3, 9, 4}
-    basis_vecs = map(b -> cryst.lat_vecs * b, cryst.positions)
-    Lattice{3}(cryst.lat_vecs, basis_vecs, cryst.species, latsize)
+    Lattice{3}(cryst.lat_vecs, cryst.positions, cryst.species, latsize)
 end
 
 

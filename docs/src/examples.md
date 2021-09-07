@@ -35,24 +35,36 @@ within `examples/reproduce_testcases.jl`.
 will be ``8 \times 8 \times 8`` unit cells along each axis. Since we're not thinking about a specific system, we label all of the sites with the arbitrary species label `"A"`.
 
 ```julia
-lat_vecs = SA[4.0 0.0 0.0;
-              0.0 4.0 0.0;
-              0.0 0.0 4.0]
+lat_vecs = [4.0 0.0 0.0;
+            0.0 4.0 0.0;
+            0.0 0.0 4.0]
 basis_vecs = [
-    SA[0.0, 0.0, 0.0],
-    SA[0.0, 2.0, 2.0],
-    SA[2.0, 0.0, 2.0],
-    SA[2.0, 2.0, 0.0],
-    SA[3.0, 3.0, 3.0],
-    SA[3.0, 1.0, 1.0],
-    SA[1.0, 3.0, 1.0],
-    SA[1.0, 1.0, 3.0]
+    [0.0, 0.0, 0.0],
+    [0.0, 1/2, 1/2],
+    [1/2, 0.0, 1/2],
+    [1/2, 1/2, 0.0],
+    [3/4, 3/4, 3/4],
+    [3/4, 1/4, 1/4],
+    [1/4, 3/4, 1/4],
+    [1/4, 1/4, 3/4]
 ]
 basis_labels = fill("A", 8)
-latsize = SA[8, 8, 8]
+latsize = [8, 8, 8]
 lattice = Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
 crystal = Crystal(lattice)
 ```
+
+Here, `Lattice` is a type which holds the geometry of our simulation box. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the absolute position of the selected site will be given. For example, the following gives the position of the second sublattice site in the unit cell which is fifth along each axis: 
+
+```
+julia> lattice[2, 5, 5, 5]
+3-element SVector{3, Float64} with indices SOneTo(3):
+ 20.0
+ 22.0
+ 22.0
+```
+
+(To save a minor amount of arithmetic, the bottom-left corner of the simulation box lives at ``a+b+c`` rather than 0). From this `Lattice`, we created a `Crystal` that infers extra information about the symmetries of the lattice and is needed to define interactions in our system later.
 
 **(2)** In step 1, we ended up already creating our `Lattice`, so all that is left is
 to define our Heisenberg interactions. We want to set up nearest-neighbor antiferromagnetic interactions with a strength of ``J = 28.28~\mathrm{K}``. One nearest-neighbor bond is the one connecting basis site 3 with basis site 6 within a single unit cell. (We can figure this out using our tools for symmetry analysis, at the bottom of this page).
@@ -64,6 +76,7 @@ interactions = [
 ]
 ℋ = Hamiltonian{3}(interactions)
 ```
+Here, the `3` in both `Bond{3}` and `Hamiltonian{3}` indicates that they are defined in the context of a 3-dimensional system.
 
 **(3)** Assembling a `SpinSystem` is straightforward. Then, we will randomize the system so that all spins are randomly placed on the unit sphere.
 
@@ -71,6 +84,18 @@ interactions = [
 sys = SpinSystem(lattice, ℋ)
 rand!(sys)
 ```
+
+The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. The type is indexable in the same way as `Lattice`, by providing a sublattice index alongside indices into the unit cell axes:
+
+```
+sys[2, 5, 5, 5]
+3-element SVector{3, Float64} with indices SOneTo(3):
+  0.22787294226659
+  0.41462045511988654
+ -0.8810015893169237
+```
+
+Now, we are obtaining the actual spin variable living at site `(2, 5, 5, 5)`.
 
 **(4)** We will simulate this system using Langevin dynamics, so we need to create a [`LangevinSampler`](@ref). Note that the units of integration time and temperature are relative to the units implicitly used when setting up the interactions.
 
@@ -83,7 +108,7 @@ nsteps = 20000
 sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 ```
 
-At this point we can call `sample!(sampler)` to produce new samples of the system, which will be reflected in the state of `sys`. Instead, we will proceed to calculate
+At this point we can call `sample!(sampler)` to produce new samples of the system, which will be reflected in the state of `sysc`. Instead, we will proceed to calculate
 the finite-$T$ structure factor using our built-in routines.
 
 **(5)** The full process of calculating a structure factor is handled

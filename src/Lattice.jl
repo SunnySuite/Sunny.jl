@@ -24,7 +24,8 @@ struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
     # Arguments
     - `lat_vecs`: A matrix where the lattice vectors form the columns.
                   Must be `convert`-able into `SMatrix{D, D, Float64, D^2}`.
-    - `basis_vecs`: A `Vector` of basis positions of sites within the unit cell.
+    - `basis_vecs`: A `Vector` of basis positions of sites within the unit cell,
+                     given in fractional coordinates.
                     Each element must be `convert`-able into `SVector{D, Float64}`.
     - `species::Vector{String}`: A list of atomic species identifiers for each site.
                                  Equivalent sites should have the same identifier.
@@ -36,9 +37,10 @@ struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
         @assert all(isequal(D), map(length, basis_vecs)) "All basis_vecs should be size $D to match lat_vecs"
         @assert length(basis_vecs) > 0                   "At least one basis atom required"
         @assert length(basis_vecs) == length(species)    "Length of basis_vecs and species should match"
+        @assert all(v->all(0 .<= v .< 1), basis_vecs)    "All basis_vecs should be given in fractional coordinates [0, 1)"
         @assert length(latsize) == D                     "latsize should be size $D to match lat_vecs"
         lat_vecs = SMatrix{D, D}(lat_vecs)
-        basis_vecs = map(v->SVector{D, Float64}(v), basis_vecs)
+        basis_vecs = map(v->lat_vecs * SVector{D, Float64}(v), basis_vecs)
         latsize = SVector{D, Int}(latsize)
         new{D, D*D, D+1}(lat_vecs, basis_vecs, species, latsize)
     end
@@ -133,7 +135,7 @@ end
     length(lat.basis_vecs)
 end
 
-"Compute the volumne of a unit cell."
+"Compute the volume of a unit cell."
 @inline cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
 "Compute the volume of the full simulation box."
 @inline volume(lat::Lattice) = cell_volume(lat) * prod(lat.size)
@@ -281,9 +283,9 @@ function fcc_conventional(a::Float64, latsize) :: Lattice{3, 9, 4}
                   0.0  a  0.0;
                   0.0 0.0  a ]
     basis_vecs = [SA[ 0.,  0.,  0.],
-                  SA[a/2, a/2, 0.0],
-                  SA[a/2,   0, a/2],
-                  SA[  0, a/2, a/2]]
+                  SA[1/2, 1/2, 0.0],
+                  SA[1/2,   0, 1/2],
+                  SA[  0, 1/2, 1/2]]
     basis_labels = fill("A", 4)
     latsize = SVector{3, Int}(latsize)
     Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
@@ -295,13 +297,13 @@ function diamond_conventional(a::Float64, latsize) :: Lattice{3, 9, 4}
                   0.0 0.0  4a]
     basis_vecs = [
         SA[0.0, 0.0, 0.0],
-        SA[0.0,  2a,  2a],
-        SA[ 2a, 0.0,  2a],
-        SA[ 2a,  2a, 0.0],
-        SA[ 3a,  3a,  3a],
-        SA[ 3a,   a,   a],
-        SA[  a,  3a,   a],
-        SA[  a    a   3a]
+        SA[0.0, 1/2, 1/2],
+        SA[1/2, 0.0, 1/2],
+        SA[1/2, 1/2, 0.0],
+        SA[3/4, 3/4, 3/4],
+        SA[3/4, 1/4, 1/4],
+        SA[1/4, 3/4, 1/4],
+        SA[1/4, 1/4, 3/4]
     ]
     basis_labels = fill("A", 8)
     latsize = SVector{3, Int}(latsize)
@@ -314,7 +316,7 @@ function diamond_primitive(a::Float64, latsize) :: Lattice{3, 9, 4}
                   0.0 a/2 a/2]
     basis_vecs = [
         SA[0.0, 0.0, 0.0],
-        SA[0.25a, 0.25a, 0.25a],
+        SA[1/4, 1/4, 1/4],
     ]
     basis_labels = ["A", "A"]
     latsize = SVector{3, Int}(latsize)
@@ -325,9 +327,9 @@ function kagome_lattice(a::Float64, latsize) :: Lattice{2, 4, 3}
     lat_vecs = SA[  a    0.5a;
                    0.0  √3a/2]
     basis_vecs = [
-        SA[0.0,     0.0],
-        SA[0.5a,    0.0],
-        SA[0.25a, √3a/4]
+        SA[0.0, 0.0],
+        SA[1/2, 0.0],
+        SA[0.0, 1/2]
     ]
     basis_labels = ["A", "A", "A"]
     latsize = SVector{2, Int}(latsize)
