@@ -1,66 +1,47 @@
-# FastDipole.jl
+# FastDipole.jl [Name TBD]
 
 A general-purpose library for performing classical spin simulations.
 
-## Getting started
+## Getting started with Julia
 
-First, you will need an installation of [Julia](https://julialang.org/).
+New Julia users should begin with our [Getting Started](GettingStarted.md) guide.
 
-Our package is not yet uploaded to Julia's central package repository, and so you will need to perform more of a "manual" installation
-of our package.
+## Installation
 
-To do this, open a terminal and navigate to the directory where you'd like the package to reside. This does not need to 
-be where you want to do development of scripts / code that uses the package. Then, clone our repo using:
-
-```bash
-git clone https://github.com/MagSims/FastDipole.git
-```
-
-This will prompt you for your Github username/password to access the code.
-
-After downloading, open a Julia REPL in the same directory, press `]` to access the package manager interface, then `add .`:
-
+FastDipole is evolving rapidly, and early access users are recommended to install the package for development,
 ```
 julia> ]
-(@v1.6) pkg> add .
+pkg> develop https://github.com/MagSims/FastDipole.git
+```
+This command will download (more precisely, `git clone`) the source code to `~/.julia/dev/FastDipole`. Executing the terminal command `git pull` from this directory will retrieve the latest changes from Github.
+
+Check that FastDipole is working properly by running the unit tests,
+```
+pkg> test FastDipole
 ```
 
-If you'd like to modify/develop the package further, replace the second command with
-
+FastDipole works best with some additional packages,
 ```
-(@v1.6) pkg> dev .
-```
-
-which will make it so that all modification to the local code will be reflected when the package is loaded.
-
-If no errors appear, you are done! However, to ensure that our plotting dependencies have installed correctly,
-it is recommended to explicitly add `GLMakie` to your enviroment and run their tests:
-
-```
-julia> ]
-(@v1.6) pkg> add GLMakie
-(@v1.6) pkg> test GLMakie
+pkg> add OffsetArrays
+pkg> add StaticArrays
+pkg> add Plots
+pkg> add GLMakie
 ```
 
-It is also recommended to explicitly add `StaticArrays` and `OffsetArrays` to your enviroment, as our package often accepts and returns types from these
-packages.
+At the time of this writing, GLMakie has some rough edges. Run `test GLMakie` to make sure it is working properly.
 
-```
-julia> ]
-(@v1.6) pkg> add StaticArrays
-(@v1.6) pkg> add OffsetArrays
-```
+To use Jupyter notebooks with Julia, install the [IJulia](https://github.com/JuliaLang/IJulia.jl) package and follow the installation instructions there.
 
 ## Building documentation
 
-Until we decide on how to host our documentation, you will need to locally build it! To do this,
+For now, you will need to build the documentation manually. To do this,
 install the `Documenter` package:
 
 ```
-julia> ]
-(@v1.6) pkg> add Documenter
+pkg> add Documenter
 ```
 
 Then, navigate a new terminal to `docs/` within the package and execute `julia make.jl`. There will be some warnings at the moment, but if successful a new directory `docs/build` should appear.
 
 To view the documentation you just built, simply open up `docs/build/index.html` in your web browser!
+
