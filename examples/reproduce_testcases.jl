@@ -12,7 +12,7 @@ function test_diamond_heisenberg_sf()
     crystal = Crystal(lattice)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, crystal, Bond{3}(3, 6, SA[0,0,0])),
+        Heisenberg(J, crystal, Bond{3}(3, 6, [0,0,0])),
     ]
     ℋ = Hamiltonian{3}(interactions)
     sys = SpinSystem(lattice, ℋ)
@@ -262,6 +262,50 @@ function test_FeI2_ortho()
     S = dipole_factor(S, lattice);
 
     return S
+end
+
+function test_diamond_heisenberg_energy_curve()
+    lattice = FastDipole.diamond_conventional(1.0, (8, 8, 8))
+    crystal = Crystal(lattice)
+    J = 28.28           # Units of K
+    interactions = [
+        Heisenberg(J, crystal, Bond{3}(3, 6, [0,0,0])),
+    ]
+    ℋ = Hamiltonian{3}(interactions)
+    sys = SpinSystem(lattice, ℋ)
+    rand!(sys)
+
+    Δt = 0.02 / J       # Units of 1/K
+    kT = 4.             # Units of K
+    α  = 0.1
+    kB = 8.61733e-5     # Units of eV/K
+    nsteps = 100
+    sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
+
+    # Units of Kelvin, matching Xiaojian's range
+    temps = 10 .^ (range(log10(50), stop=log10(3), length=50))
+    energies = Float64[]
+    energy_errors = Float64[]
+
+    for (i, temp) in enumerate(temps)
+        println("Temperature $i = $(temp)")
+
+        temp_energies = Float64[]
+        set_temp!(sampler, temp)
+        thermalize!(sampler, 100)
+        for _ in 1:1000
+            sample!(sampler) 
+            push!(temp_energies, energy(sampler))
+        end
+        (meanE, stdE) = binned_statistics(temp_energies)
+        push!(energies, meanE)
+        push!(energy_errors, stdE)
+    end
+
+    energies ./= length(sys)
+    energy_errors ./= length(sys)
+
+    return (temps, energies, energy_errors)
 end
 
 function test_FeI2_energy_curve()

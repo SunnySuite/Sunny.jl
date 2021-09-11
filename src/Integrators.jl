@@ -19,8 +19,8 @@ end
 
 "Integrator implementing Langevin dynamics using a 2nd-order Heun + projection scheme"
 mutable struct LangevinHeunP{D, L, Db} <: Integrator
-    α   :: Float64                # Normalized damping, α/S
-    D   :: Float64                # Langevin stochastic coefficient
+    α   :: Float64                # Damping coeff normalized by S
+    D   :: Float64                # Stochastic strength normalized by S
     sys :: SpinSystem{D, L, Db}
     _S₁ :: Array{Vec3, Db}        # Intermediate integration variable space
     _S₂ :: Array{Vec3, Db}
@@ -48,7 +48,6 @@ Implements Langevin dynamics on `sys` targetting a temperature `kT`,
  by the spin magnitude -- this is done internally.
 """
 function LangevinHeunP(sys::SpinSystem, kT::Float64, α::Float64)
-    # D should also have a factor of 1/S, the magnitude of the spin. Assumed here 1.
     return LangevinHeunP(
         α/sys.S, α*kT/((1+α*α)*sys.S), sys,
         zero(sys.sites), zero(sys.sites), zero(sys.sites),
@@ -131,7 +130,10 @@ function LangevinSampler(sys::SpinSystem{D, L, Db}, kT::Float64, α::Float64, Δ
 end
 
 @inline function set_temp!(sampler::LangevinSampler, kT::Float64)
-    sampler.integrator.kT = kT
+    α = sampler.integrator.α
+    S = sampler.integrator.sys.S
+    sampler.integrator.D = α * kT / ((1 + α * α) * S)
+    nothing
 end
 
 @inline function sample!(sampler::LangevinSampler)
@@ -140,4 +142,4 @@ end
     end
 end
 
-@inline energy(sampler::LangevinSampler) = energy(sampler.integrator.system)
+@inline energy(sampler::LangevinSampler) = energy(sampler.integrator.sys)
