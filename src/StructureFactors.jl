@@ -138,9 +138,9 @@ end
 
 
 """
-    dipole_form_factor(struct_factor, lattice)
+    dipole_factor(struct_factor, lattice)
 
-Applies the dipole form factor, reducing the structure factor tensor to the
+Applies the neutron dipole factor, reducing the structure factor tensor to the
  observable quantities. Specifically, performs the contraction:
     ``𝒮(𝐪, ω) = ∑_{αβ} (δ_{αβ} - 𝐪̂_α 𝐪̂_β) 𝒮^{αβ}(𝐪, ω)``.
 
@@ -148,7 +148,7 @@ Applies the dipole form factor, reducing the structure factor tensor to the
 
 Returns a real array of size              `Q1 × ⋯ × QN × T`
 """
-function dipole_form_factor(struct_factor::OffsetArray{ComplexF64}, lattice::Lattice{D}) where {D}
+function dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::Lattice{D}) where {D}
     recip = gen_reciprocal(lattice)
     T = size(struct_factor)[end]
     result = zeros(Float64, axes(struct_factor)[3:end])

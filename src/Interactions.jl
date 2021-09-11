@@ -155,7 +155,8 @@ end
 Construct a `DiagonalCoupling{D}` interaction with diagonal elements specified
 by `J`, acting on all bonds symmetry-equivalent to `bond` in `cryst`.
 """
-function DiagonalCoupling(J::Vec3, cryst::Crystal, bond::Bond{D}, label::String="DiagJ") where {D}
+function DiagonalCoupling(J, cryst::Crystal, bond::Bond{D}, label::String="DiagJ") where {D}
+    J = convert(Vec3, J)
     sorted_bonds = [
         Symmetry.all_symmetry_related_bonds_for_atom(cryst, i, bond)
         for i in 1:nbasis(cryst)
@@ -193,7 +194,8 @@ Construct a `GeneralCoupling{D}` interaction specified by the `J` matrix
  on the given `bond` in `cryst`. Automatically propagates the correctly
  transformed exchange matrices to all symmetry-equivalent bonds.
 """
-function GeneralCoupling(J::Mat3, cryst::Crystal, bond::Bond{D}, label::String="GenJ") where {D}
+function GeneralCoupling(J, cryst::Crystal, bond::Bond{D}, label::String="GenJ") where {D}
+    J = convert(Mat3, J)
     sorted_bonds = Vector{Vector{Bond{D}}}()
     sorted_Js = Vector{Vector{Mat3}}()
     for i in 1:nbasis(cryst)

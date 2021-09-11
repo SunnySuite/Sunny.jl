@@ -57,7 +57,7 @@ include("Parsing.jl")
 export parse_config
 
 include("StructureFactors.jl")
-export structure_factor, dipole_form_factor
+export structure_factor, dipole_factor
 
 include("Plotting.jl")
 export plot_lattice, plot_spins, plot_bonds, plot_all_bonds

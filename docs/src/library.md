@@ -75,7 +75,7 @@ anneal!
 
 ```@docs
 structure_factor
-dipole_form_factor
+dipole_factor
 ```
 
 ## Plotting

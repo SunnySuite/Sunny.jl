@@ -160,17 +160,282 @@ p = plot_many_cuts(avgS; maxω=maxω, chopω=5.0)
 display(p)
 ```
 
-
 ## Example 2: FeI₂ with a complex collection of interactions
 
 In this example, we work through performing a more complicated and realistic
-simulation. While the number of interactions is much larger, the process is
-no more complicated. We will also see how to perform sampling using Metropolis
-Monte Carlo through the [`MetropolisSampler`](@ref) type. The full example is
-contained in the function `test_FeI2_MC()` within
-`examples/reproduce_testcases.jl`.
+simulation of FeI₂. While the number of interactions is much larger, the general
+process will be remarkably similar. We will also see how to perform sampling using
+Metropolis Monte Carlo through the [`MetropolisSampler`](@ref) type. The full example is
+contained in the function `test_FeI2_MC()` within `examples/reproduce_testcases.jl`.
 
-(To be filled out).
+**(1)** As before, the first step is to make a [`Crystal`](@ref). However, this time
+we will load the crystal directly from a common crystallographic file format
+called a `.cif`. You can download the structure file from [this link](https://materials.springer.com/isp/crystallographic/docs/sd_0548497). Then, we can load it as:
+
+```julia
+cryst = Crystal("./FeI2.cif")
+cryst = subcrystal(cryst, "Fe2+")
+```
+
+(Be sure to change `"./FeI2.cif"` to whatever filename you've locally saved the file as.)
+
+As only the Fe atoms are spinful, the second line here is selecting out just them.
+However, the [`subcrystal`](@ref) function critically retains information about
+the symmetry of the crystal structure with the I atoms present, which is
+important for symmetry-constraining allowed interactions between sites.
+
+**(2)** We proceed to define our Hamiltonian similarly as before, however
+this time many more interactions are present. See the documentation on the
+[Interactions](@ref) for extended descriptions of each.
+
+```julia
+
+# All units in meV
+J1mat = [-0.397  0      0    ;
+          0     -0.075 -0.261;
+          0     -0.261 -0.236]
+J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
+J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
+J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
+J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
+J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
+J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+
+D = OnSite([0.0, 0.0, -2.165/2], "D")
+
+ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
+```
+
+Using our `Crystal`, we also need to generate a `Lattice` of some size to run our
+simulation on. In this example, we'll work with a modestly large system of size
+``16\times 20\times 4`` along the ``(a, b, c)`` axes. We choose to make the ``a``
+and ``b`` lengths different to artifically break a sixfold symmetry present in
+the system to help the Monte Carlo find the correct ground state later on.
+
+```julia
+lattice = Lattice(cryst, (16, 20, 4))
+```
+
+To get better insight into the geometry and the long set of pair interactions
+we've defined above, we can take a look at both using the following plotting
+function (you may want to replace `lattice` with something smaller, say ``5 \times 5 \times 3`` to make the bonds easier to see, or adjust `markersize` to make the atoms easier to see):
+
+```julia
+plot_bonds(lattice, ℋ; markersize=500)
+```
+
+**(3)** As with the previous example, the next step is to make a `SpinSystem` and
+randomize it:
+
+```julia
+system = SpinSystem(lattice, ℋ)
+rand!(system)
+```
+
+**(4)** In this example, we'll choose to work with Metropolis Monte Carlo rather
+than Langevin sampling. This is necessary in this system due to a very
+strong on-site anisotropy (the `OnSite` term) making the spins nearly
+Ising-like. Continuous Langevin dyanmics can have ergodicity issues
+in these situations, so we have to turn back to the standard Metropolis
+randomized spin flip proposals.
+
+```julia
+kB = 8.61733e-2  # Boltzmann constant, units of meV/K
+kT = 1.0 * kB    # Target simulation temp, in units of meV
+
+sampler = MetropolisSampler(system, kT, 1000)
+```
+
+`MetropolisSampler` provides a very similar interface to `LangevinSampler`. Calling
+`sample!(sampler)` will perform some number of spin-flip proposals, then return with
+`system` updated to a new set of spin values. The `1000` in our constructor is asking
+the sampler to perform 1000 sweeps through the system before the `sample!` function
+should return.
+
+**(5)**
+As in the previous example, we are going to end with computing a dynamic structure
+factor tensor using the `structure_factor` function. A heuristic for choosing a
+reasonable value of `Δt` using in the Landau-Lifshitz dynamics is `0.01` divided
+by the largest energy scale present in the system. Here, that is the on-site
+anisotropy with a strength of `2.165/2 ` meV.
+
+To make sure we don't do more work than really necessary, we set how
+often `structure_factor` internally stores snapshots (`meas_rate`) to
+target a maximum frequency of `target_max_ω`. We also will only collect
+the structure factor along two Brillouin zones along the first reciprocal axis,
+by passing `bz_size=(2,0,0)`
+
+The following block of code takes about five minutes on
+a test desktop, but if it's taking too long you can
+reduce the time either by reducing the number of sweeps
+`MetropolisSampler` does, or the `num_samples` or
+`num_freqs` in the structure factor computation.
+
+```julia
+Δt = 0.01 / (2.165/2)       # Units of 1/meV
+# Highest energy/frequency we actually care about resolving
+target_max_ω = 10.          # Units of meV
+# Interval number of steps of dynamics before collecting a snapshot for FFTs
+meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
+
+sampler = MetropolisSampler(system, kT, 500)
+println("Starting structure factor measurement...")
+S = structure_factor(
+    system, sampler; num_samples=15, meas_rate=meas_rate,
+    num_freqs=1000, bz_size=(2,0,0), verbose=true, therm_samples=15
+)
+```
+
+Given the full complex-valued ``\mathcal{S}^{\alpha \beta}(\boldsymbol{q}, \omega)``,
+we can reduce it to the real-value experimentally-observable cross section by projection
+each `\mathcal{S}^{\alpha \beta}` using the neutron dipole factor. See the
+[`dipole_factor`](@ref) documentation for more details. (To be truly comparable
+to experiment, a few more steps of processing need to be done which are currently
+unimplemented.)
+
+```julia
+S = dipole_factor(S, lattice)
+```
+
+(Will add info here about plotting when better structure factor plotting functions
+are implemented.)
+
+In the following example, we'll take a closer look at how to make
+some more manual measurements of the system.
+
+## Example 3: Making manual measurements within a Monte Carlo simulation
+
+In this example, we will perform an extended Monte Carlo simulation of the
+same system as in the previous example, but will perform a careful
+thermal annealing down to low temperatures and measure an ``E(T)`` curve
+along the way. To do so, we will need to use the sampling tools a bit
+more manually.
+
+As we're using the same system as before, the setup will be identical. The lines
+are copied below for convenience, but see the previous example for an
+explanation of each step.
+
+```julia
+cryst = Crystal("./FeI2.cif")
+cryst = subcrystal(cryst, "Fe2+")
+
+# All units in meV
+J1mat = [-0.397  0      0    ;
+          0     -0.075 -0.261;
+          0     -0.261 -0.236]
+J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
+J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
+J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
+J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
+J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
+J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+
+D = OnSite([0.0, 0.0, -2.165/2], "D")
+
+ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
+
+lattice = Lattice(cryst, (16, 20, 4))
+
+system = SpinSystem(lattice, ℋ)
+rand!(system)
+
+sampler = MetropolisSampler(system, 1.0, 10)
+```
+
+Now, our goal in the following is to measure an entire ``E(T)`` curve, down
+to relatively low temperatures. To help the system find the ground state
+correctly at low temperatures, we will use the same system throughout and
+slowly "anneal" the temperature from the highest value down to the lowest.
+
+These next few lines are pure Julia which simply sets up the temperatures
+we want to measure along, and initializes some `Vector`'s to store some
+data during the simulations.
+
+```julia
+kB = 8.61733e-2             # Boltzmann constant, units of meV/K
+
+# Units of Kelvin, matching Xiaojian's range
+temps = 10 .^ (range(log10(50), stop=0, length=50))
+temps_meV = kB .* temps
+energies = Float64[]
+energy_errors = Float64[]
+```
+
+We've chosen to measure along a logarithmic temperature grid spanning ``T \in [1, 50]``,
+so that we pack the grid points tighter at lower temperatures where interesting
+things occur. `energies` and `energy_errors` are going to hold our measurements 
+of the mean energy and the errors at each temperature.
+
+Now, we're going to loop over these temperatures (moving from higher to lower temperatures). At each temperature,
+we're going to:
+
+1. Set the temperature of the sampler to the new temperature using `set_temp!`.
+2. Thermalize at the new temperature for a while before collecting
+    measurements using `thermalize!`.
+3. Sample the system 1000 times, and measure the energy of each spin
+    configuration. We'll record all of these energies in `temp_energies`.
+4. Compute the mean energy and its standard error from our 1000 measurements
+5. Push this mean energy and standard error to our `energies` and 
+    `energy_errors` vectors.
+
+For simplicity, here we're just going to use the standard error across
+all energy measurements as the error. See the `binned_statistics`
+function in `examples/reproduce_testcases.jl` to see how to
+measure the error more carefully.
+
+The following block of code takes a few minutes to execute. Feel free to sample a sparser temperature grid, play around with some of the thermalization parameters, or perform fewer measurements to try to get it to execute faster.
+
+```julia
+using Statistics
+
+for (i, temp) in enumerate(temps_meV)
+    println("Temperature $i = $(temp)")
+
+    temp_energies = Float64[]
+    set_temp!(sampler, temp)
+    thermalize!(sampler, 100)
+    for _ in 1:1000
+        sample!(sampler) 
+        push!(temp_energies, energy(sampler))
+    end
+    meanE = mean(temp_energies)
+    errE  = std(temp_energies) / sqrt(length(temp_energies))
+    push!(energies, meanE)
+    push!(energy_errors, errE)
+end
+
+# Convert energies into energy / spin, in units of K
+energies ./= (length(system) * kB)
+energy_errors ./= (length(system) * kB)
+```
+
+Now, we can plot what we've gotten! If you have the Plots.jl library installed you can do this as:
+
+```julia
+using Plots
+
+p = plot(temps, energies, yerror=energy_errors, marker=:true, ms=3, label="Monte Carlo Results")
+xlabel!(L"$T$ [K]")
+ylabel!(L"$E$ [K]")
+p
+```
+
+If all has gone well, you should get a plot that looks
+something like the following:
+
+![FeI₂ Energy Curve](assets/FeI2_ETcurve.png)
+
+We can take a look at the final low-energy spin configuration
+by:
+
+```julia
+plot_spins(system; arrowsize=1.5, arrowlength=3, linewidth=0.5)
+```
+
+You should see antiferromagnetic stripes within each
+``c``-plane, which shift by one lattice site as you
+move up each plane!
+
 
 ## Symmetry analysis
 

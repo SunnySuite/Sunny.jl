@@ -151,7 +151,7 @@ function test_FeI2()
     # Save off results for later viewing
     serialize("../results/FeI2_structure_factor_T020.ser", S)
 
-    S = dipole_form_factor(S, lattice);
+    S = dipole_factor(S, lattice);
 
     return S
 end
@@ -161,17 +161,18 @@ function test_FeI2_MC()
     cryst = subcrystal(cryst, "Fe2+")
 
     # Set up all interactions (all in units meV)
-    J1mat = SA[-0.397 0 0;
-                0 -0.075 -0.261;
-                0 -0.261 -0.236]
+    J1mat = [-0.397  0      0    ;
+              0     -0.075 -0.261;
+              0     -0.261 -0.236]
     J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
-    # J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
-    D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
+    J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
+    J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
+    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
+    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+
+    D = OnSite([0.0, 0.0, -2.165/2], "D")
+
     ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
 
     # Produce a Lattice of the target system size (16x20x4)
@@ -181,9 +182,7 @@ function test_FeI2_MC()
     rand!(system)
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
-    TN = 5.0 * kB               # ≈ 5K -> Units of meV
-    kT = 0.20 * TN              # Actual target simulation temp, units of meV
-    α = 0.1
+    kT = 1.0 * kBN              # Actual target simulation temp, units of meV
 
     Δt = 0.01 / (2.165/2)       # Units of 1/meV
     # Highest energy/frequency we actually care about resolving
@@ -202,7 +201,7 @@ function test_FeI2_MC()
     # Save off results for later viewing
     serialize("../results/FeI2_structure_factor_T020_MC.ser", S)
 
-    S = dipole_form_factor(S, lattice);
+    S = dipole_factor(S, lattice);
 
     return (S, sampler.system)
 end
@@ -260,7 +259,7 @@ function test_FeI2_ortho()
     # Save off results for later viewing
     serialize("../results/FeI2_structure_factor_ortho_T020.ser", S)
 
-    S = dipole_form_factor(S, lattice);
+    S = dipole_factor(S, lattice);
 
     return S
 end
@@ -287,35 +286,33 @@ function test_FeI2_energy_curve()
     lattice = Lattice(cryst, (16, 20, 4))
     # Set up the SpinSystem
     system = SpinSystem(lattice, ℋ)
+    rand!(system)
+
+
     sampler = MetropolisSampler(system, 1.0, 10)
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
 
     # Units of Kelvin, matching Xiaojian's range
-    temps = 10 .^ (range(0, stop=log10(50), length=50))
+    temps = 10 .^ (range(log10(50), stop=0, length=50))
     temps_meV = kB .* temps
     energies = Float64[]
     energy_errors = Float64[]
-    temp_energies = Float64[]
 
-    rand!(system)
-    for (i, temp) in enumerate(reverse(temps_meV))
+    for (i, temp) in enumerate(temps_meV)
         println("Temperature $i = $(temp)")
 
         temp_energies = Float64[]
         set_temp!(sampler, temp)
-        thermalize!(sampler, 1000)
+        thermalize!(sampler, 100)
         for _ in 1:1000
-            sample!(sampler)
+            sample!(sampler) 
             push!(temp_energies, energy(sampler))
         end
         (meanE, stdE) = binned_statistics(temp_energies)
         push!(energies, meanE)
         push!(energy_errors, stdE)
     end
-
-    energies = reverse(energies)
-    energy_errors = reverse(energy_errors)
 
     # Save off the lowest energy system
     serialize("./results/lowT_FeI2_system.ser", system)
@@ -363,7 +360,7 @@ function structure_factor_low_T()
         num_freqs=1000, bz_size=(2,2,0), verbose=true, therm_samples=15
     )
 
-    S = dipole_form_factor(S, system.lattice)
+    S = dipole_factor(S, system.lattice)
 
     return (system, S)
 end
