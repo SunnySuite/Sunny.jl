@@ -6,30 +6,9 @@ using StaticArrays
 using Parameters
 import Spglib
 
-import FastDipole: Vec3, Mat3, Lattice, lattice_params, lattice_vectors, nbasis, cell_volume
-import FastDipole: triclinic, monoclinic, orthorhombic, tetragonal, trigonal, hexagonal, cubic, cell_type
+import FastDipole
+import FastDipole: Vec3, Mat3, Lattice, lattice_params, lattice_vectors, nbasis, cell_volume, cell_type
 export Crystal, Bond, canonical_bonds, print_bond_table
-
-"Return the standard cell convention for a given Hall number"
-function cell_type(hall_number::Int)
-    if 1 <= hall_number <= 2
-        triclinic
-    elseif 3 <= hall_number <= 107
-        monoclinic
-    elseif 108 <= hall_number <= 348
-        orthorhombic
-    elseif 349 <= hall_number <= 429
-        tetragonal
-    elseif 430 <= hall_number <= 461
-        trigonal
-    elseif 462 <= hall_number <= 488
-        hexagonal
-    elseif 489 <= hall_number <= 530
-        cubic
-    else
-        error("Invalid Hall number $hall_number. Allowed range is 1..530")
-    end
-end
 
 function is_standard_form(lat_vecs::Mat3)
     lat_params = lattice_params(lat_vecs)
@@ -197,9 +176,20 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     for hall_number in 1:n_space_groups
         sgt = Spglib.get_spacegroup_type(hall_number)
         if symbol in [sgt.hall_symbol, sgt.international, sgt.international_short, sgt.international_full]
-            # Build crystal using symops for hall_number, read from database
-            c = Crystal(lat_vecs, base_positions, base_species, hall_number; symprec)
-            push!(crysts, c)
+            # In special case of trigonal spacegroups, the cell must be either
+            # hexagonal or rhombohedral according to the Hall number. Skip Hall
+            # numbers that are not consistent with provided lat_vecs.
+            is_compatible_cell = true
+            if FastDipole.is_trigonal_symmetry(hall_number)
+                @assert cell_type(lat_vecs) in [FastDipole.rhombohedral, FastDipole.hexagonal]
+                is_compatible_cell = cell_type(hall_number) == cell_type(lat_vecs)
+            end
+
+            if is_compatible_cell
+                # Build crystal using symops for hall_number, read from database
+                c = Crystal(lat_vecs, base_positions, base_species, hall_number; symprec)
+                push!(crysts, c)
+            end
         end
     end
 

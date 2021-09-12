@@ -206,11 +206,13 @@ An enumeration over the different types of 3D Bravais unit cells.
     monoclinic
     orthorhombic
     tetragonal
-    trigonal
+    # Rhombohedral is a special case. It is a lattice type (a=b=c, α=β=γ) but
+    # not a spacegroup type. Trigonal space groups are conventionally described
+    # using either hexagonal or rhombohedral lattices.
+    rhombohedral
     hexagonal
     cubic
 end
-rhombohedral = trigonal
 
 """
     cell_type(lat_vecs::Mat3)
@@ -227,7 +229,7 @@ function cell_type(lat_vecs::Mat3)
         if α ≈ β ≈ γ ≈ 90.
             cubic
         elseif α ≈ β ≈ γ
-            trigonal
+            rhombohedral
         end
     elseif a ≈ b
         if α ≈ β ≈ 90.
@@ -255,6 +257,36 @@ function cell_type(lat_vecs::Mat3)
 end
 
 cell_type(lattice::Lattice{3}) = cell_type(lattice.lat_vecs)
+
+"Return the standard cell convention for a given Hall number"
+# Using the convention of spglib, listed at
+# http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37
+function cell_type(hall_number::Int)
+    if 1 <= hall_number <= 2
+        triclinic
+    elseif 3 <= hall_number <= 107
+        monoclinic
+    elseif 108 <= hall_number <= 348
+        orthorhombic
+    elseif 349 <= hall_number <= 429
+        tetragonal
+    elseif 430 <= hall_number <= 461 # trigonal spacegroups
+        # These special Hall numbers have "setting" R
+        hall_number in [434, 437, 445, 451, 453, 459, 461] ? rhombohedral : hexagonal
+    elseif 462 <= hall_number <= 488
+        hexagonal
+    elseif 489 <= hall_number <= 530
+        cubic
+    else
+        error("Invalid Hall number $hall_number. Allowed range is 1..530")
+    end
+end
+
+function is_trigonal_symmetry(hall_number::Int)
+    return 430 <= hall_number <= 461
+end
+
+
 
 """ Some functions which construct common lattices
 """
