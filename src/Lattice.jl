@@ -217,43 +217,50 @@ end
 """
     cell_type(lat_vecs::Mat3)
 
-Infer the `CellType` of a unit cell from its lattice vectors, which form
- the columns of `lat_vecs`.
+Infer the `CellType` of a unit cell from its lattice vectors, i.e. the columns
+of `lat_vecs`. Report an error if lattice vectors are not in conventional form.
 """
 function cell_type(lat_vecs::Mat3)
-    (a, b, c, α, β, γ) = lattice_params(lat_vecs)
-    p = sortperm([a, b, c])
-    a, b, c = (a, b, c)[p]
-    α, β, γ = (α, β, γ)[p]
-    if a ≈ b ≈ c
-        if α ≈ β ≈ γ ≈ 90.
-            cubic
-        elseif α ≈ β ≈ γ
-            rhombohedral
-        end
-    elseif a ≈ b
-        if α ≈ β ≈ 90.
-            if γ ≈ 90.
-                tetragonal
-            elseif γ ≈ 120.
-                hexagonal
-            end
-        end
-    elseif b ≈ c
-        if β ≈ γ ≈ 90.
-            if α ≈ 90.
-                tetragonal
-            elseif α ≈ 120.
-                hexagonal
-            end
-        end
-    elseif α ≈ β ≈ γ ≈ 90.
-        orthorhombic
-    elseif α ≈ β ≈ 90. || β ≈ γ ≈ 90. || α ≈ γ ≈ 90.
-        monoclinic
-    else
-        triclinic
+    a, b, c, α, β, γ = lattice_params(lat_vecs)
+
+    if !(lat_vecs ≈ lattice_vectors(a, b, c, α, β, γ))
+        error("Lattice vectors are not in conventional form. Consider using `lattice_vectors(a, b, c, α, β, γ)`.")
     end
+
+    if a ≈ b ≈ c
+        if α ≈ β ≈ γ ≈ 90
+            return cubic
+        elseif α ≈ β ≈ γ
+            return rhombohedral
+        end
+    end
+
+    if α ≈ β ≈ γ ≈ 90
+        if a ≈ b
+            return tetragonal
+        elseif b ≈ c || c ≈ a
+            error("Found a nonconventional tetragonal unit cell. Use `lattice_vectors(a, a, c, 90, 90, 90)` instead.")
+        else
+            return orthorhombic
+        end
+    end
+
+    if (a ≈ b && α ≈ β ≈ 90 && (γ ≈ 60 || γ ≈ 120)) ||
+       (b ≈ c && β ≈ γ ≈ 90 && (α ≈ 60 || α ≈ 120)) ||
+       (c ≈ a && γ ≈ α ≈ 90 && (β ≈ 60 || β ≈ 120))
+        if γ ≈ 120
+            return hexagonal
+        else
+            error("Found a nonconventional hexagonal unit cell. Use `lattice_vectors(a, a, c, 90, 90, 120)` instead.")
+        end
+    end
+
+    # Accept any of three possible permutations for monoclinic unit cell
+    if α ≈ β ≈ 90 || β ≈ γ ≈ 90 || α ≈ γ ≈ 90
+        return monoclinic
+    end
+    
+    return triclinic
 end
 
 cell_type(lattice::Lattice{3}) = cell_type(lattice.lat_vecs)

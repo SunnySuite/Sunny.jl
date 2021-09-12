@@ -155,7 +155,6 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     latvec_cell_type = cell_type(lat_vecs)
     hall_cell_type = cell_type(hall_number)
     @assert latvec_cell_type == hall_cell_type "Hall number $hall_number requires a $hall_cell_type cell, but found $latvec_cell_type."
-    @assert is_standard_form(lat_vecs) "Lattice vectors must be in standard form. Consider using `lattice_vectors(a, b, c, α, β, γ)`."
 
     rotations, translations = Spglib.get_symmetry_from_database(hall_number)
     Rs = Mat3.(transpose.(eachslice(rotations, dims=3)))
@@ -176,13 +175,40 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     for hall_number in 1:n_space_groups
         sgt = Spglib.get_spacegroup_type(hall_number)
         if symbol in [sgt.hall_symbol, sgt.international, sgt.international_short, sgt.international_full]
-            # In special case of trigonal spacegroups, the cell must be either
-            # hexagonal or rhombohedral according to the Hall number. Skip Hall
-            # numbers that are not consistent with provided lat_vecs.
+            # Some Hall numbers may be incompatible with unit cell of provided
+            # lattice vectors; skip them.
             is_compatible_cell = true
+
+            latvec_cell_type = cell_type(lat_vecs)
+            hall_cell_type = cell_type(hall_number)
+
+            # Special handling of trigonal space groups
             if FastDipole.is_trigonal_symmetry(hall_number)
-                @assert cell_type(lat_vecs) in [FastDipole.rhombohedral, FastDipole.hexagonal]
-                is_compatible_cell = cell_type(hall_number) == cell_type(lat_vecs)
+                # Trigonal symmetry must have either hexagonal or rhombohedral
+                # cell, according to the Hall number.
+                is_latvecs_valid = latvec_cell_type in [FastDipole.rhombohedral, FastDipole.hexagonal]
+                @assert is_latvecs_valid "Symbol $symbol requires a rhomobohedral or hexagonal cell, but found $latvec_cell_type."
+                is_compatible_cell = latvec_cell_type == hall_cell_type
+            else
+                # For all other symmetry types, there is a unique cell for each Hall number
+                @assert latvec_cell_type == hall_cell_type "Symbol $symbol requires a $hall_cell_type cell, but found $latvec_cell_type."
+            end
+
+            # Special handling of monoclinic space groups. There are three
+            # possible conventions for the unit cell: a=b, b=c, or c=a.
+            if hall_cell_type == FastDipole.monoclinic
+                a, b, c, _, _, _ = lattice_params(lat_vecs)
+                choice = Spglib.get_spacegroup_type(hall_number).choice
+                x = first(replace(choice, "-" => ""))
+                if x == "a"
+                    is_compatible_cell = b == c
+                elseif x == "b"
+                    is_compatible_cell = c == a
+                elseif x == "c"
+                    is_compatible_cell = a == b
+                else
+                    error()
+                end
             end
 
             if is_compatible_cell
