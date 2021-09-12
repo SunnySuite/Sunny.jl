@@ -95,26 +95,26 @@ end
 Compute a set of lattice vectors (forming the columns of the result), specified by a given
  set of lattice parameters ``(a, b, c, α, β, γ)``.
 """
-function lattice_vectors(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64) :: Mat3
-    @assert all(map(x->0. < x < 180., (α, β, γ)))
+function lattice_vectors(a, b, c, α, β, γ) :: Mat3
+    @assert all(0 < x < 180 for x in (α, β, γ))
 
     sγ, cγ = sind(γ), cosd(γ)
     cβ, cα = cosd(β), cosd(α)
-    v1 = [a, 0.0, 0.0]
-    v2 = [b * cγ, b * sγ, 0.0]
+    v1 = Vec3(a, 0, 0)
+    v2 = Vec3(b * cγ, b * sγ, 0)
     v3x = c * cβ
     v3y = c / sγ * (cα - cβ * cγ)
     v3z = c / sγ * √(sγ^2 - cα^2 - cβ^2 + 2 * cα * cβ * cγ)
-    v3 = [v3x, v3y, v3z]
+    v3 = Vec3(v3x, v3y, v3z)
 
     @assert norm(v1) ≈ a
     @assert norm(v2) ≈ b
     @assert norm(v3) ≈ c
-    @assert acosd((v1 ⋅ v2) / (norm(v1) * norm(v2))) ≈ γ
-    @assert acosd((v1 ⋅ v3) / (norm(v1) * norm(v3))) ≈ β
-    @assert acosd((v2 ⋅ v3) / (norm(v2) * norm(v3))) ≈ α
+    @assert acosd(v1⋅v2 / (a*b)) ≈ γ
+    @assert acosd(v1⋅v3 / (a*c)) ≈ β
+    @assert acosd(v2⋅v3 / (b*c)) ≈ α
 
-    return Mat3([v1 v2 v3])
+    return [v1 v2 v3]
 end
 
 lattice_vectors(lattice::Lattice) = lattice.lat_vecs
