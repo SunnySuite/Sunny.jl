@@ -7,7 +7,7 @@ using Parameters
 import Spglib
 
 import FastDipole: Vec3, Mat3, Lattice, lattice_params, lattice_vectors, nbasis, cell_volume
-import FastDipole: CellType, cell_type
+import FastDipole: triclinic, monoclinic, orthorhombic, tetragonal, trigonal, hexagonal, cubic, cell_type
 export Crystal, Bond, canonical_bonds, print_bond_table
 
 "Return the standard cell convention for a given Hall number"
