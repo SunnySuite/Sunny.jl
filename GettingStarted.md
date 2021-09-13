@@ -75,7 +75,7 @@ Sunny is not yet a registered package, but you can add it directly from its Gith
 pkg> add https://github.com/MagSims/FastDipole.git
 ```
 
-[[**Note**: This will start working once we (hopefully soon) make Sunny a public repository.]]
+**Note**: Sunny is currently a private repository and a Github login in required. Anonymous downloads will be supported when we make Sunny a public repository.
 
 
 On a Unix-based system such as Mac or Linux, Julia stores package information inside the hidden directory `~/.julia`, where "`~`" represents the user home directory. Browse around to see what files Julia created. The file `~/.julia/environments/v1.6/Project.toml` lists all the installed packages for the default Julia 1.6 environment. Another way to get similar information is to enter
@@ -135,15 +135,13 @@ If Jupyter has already been installed on your system, then IJulia will likely fi
 
 *Caution*: To install Jupyter from scratch, the IJulia package will download the entire Anaconda distribution, which requires gigabytes of storage. If an Anaconda installation already exists on your system, it is probably good to have IJulia find it.
 
-Once all the above packages are installed, you will be ready to run and modify the Sunny examples.
-
 # More advanced features for code development
 
-This section describes some more advanced setup that will be useful for those ready to dig deeper into Sunny.
+For beginning users, the previous sections are fully sufficient for running and modifying the Sunny examples. More expert users may eventually want to experiment with changes to Sunny itself. This section describes a more advanced setup for Julia code development.
 
 ## Developing the Sunny source code with Git
 
-Previously, we included Sunny into the Julia environment using the package `add` command. For advanced users, it will be better to use the `develop` command, which allows modifying the Sunny source code. If Sunny has been installed with `add`, remove it using
+Previously, we included Sunny into the Julia environment using the package `add` command. Alternatively, the `develop` command will allow modifying the source code of a package. If Sunny has been installed with `add`, remove it using
 
 ```
 pkg> remove FastDipole
@@ -169,7 +167,7 @@ pkg> add Revise
 
 Revise allows a running Julia process to automatically pick up changes to package source code (i.e., to dynamically replace function behaviors) without requiring a restart. This is very convenient for rapid iteration -- one can avoid most of the wait times associated with reloading (and recompiling) packages.
 
-To enable Revise by default, create (or extend) the file `~/.julia/config/startup.jl`. The content of this file is automatically executed at the start of every Julia REPL sesion. Include the following lines:
+To enable Revise by default, create (or extend) the file `~/.julia/config/startup.jl`. The content of this file is automatically executed at the start of every Julia REPL session. Include the following lines:
 ```
 try
     using Revise
@@ -178,7 +176,7 @@ catch e
 end
 ```
 
-To enable Revise support in Jupyter notebooks, similar lines should be added to `~/.julia/config/startup_ijulia.jl`,
+Users of Jupyter notebooks should add similar lines to `~/.julia/config/startup_ijulia.jl`,
 ```
 try
     @eval using Revise
@@ -187,17 +185,17 @@ catch e
 end
 ```
 
-Revise works great for redefining function definitions. A limitation of Revise is that it does _not_ support redefining `struct` datatypes. In such cases, the Julia process must (unfortunately) be restarted.
+Revise works great for redefining function definitions. A limitation of Revise is that it does _not_ support redefining `struct` datatypes. If a `struct` is modified, then the REPL must be restarted.
 
 ## The Julia extension in VSCode
 
-[VSCode](https://code.visualstudio.com/) is a powerful text editor, and hosts the _de facto_ official [Julia development environment](https://www.julia-vscode.org/). Note that VSCode is [open source](https://github.com/microsoft/vscode), and is entirely unrelated to the commercial Visual Studio product. (It seems Microsoft was deliberately trying create confusion with this naming scheme.)
+[VSCode](https://code.visualstudio.com/) is a powerful text editor, and hosts the _de facto_ official [Julia development environment](https://www.julia-vscode.org/). Note that VSCode is [open source](https://github.com/microsoft/vscode), and entirely unrelated to the commercial Visual Studio product (the related names are unfortunate).
 
 A full introduction to VSCode is outside the scope of this document, but here we can provide a few helpful tips. Much of the power of VSCode comes from extensions. You can download and install these easily through the Extensions panel, accessible by clicking the appropriate icon on the left of the VSCode window (alternatively, by selecting the `View -> Extensions` menu item). Search "julia" to find the Julia extension and click Install. A restart of VSCode may then be required. You'll know the Julia extension is working correctly if you can load a `.jl` file and see syntax highlighting. The blue status bar at the bottom of the window will also print some Julia information. The first launch of the Julia extension may take a while to complete (for example, the "Indexing packages..." step might take a couple minutes). Once the extension has fully loaded, a lot of powerful features become available. To see how it should look, see the [Julia for VSCode](https://www.julia-vscode.org/) landing page. Features include "auto-complete" suggestions while typing, pop-up documentation on mouse-hover, an integrated REPL, an integrated debugger, a plot panel, and more.
 
-VSCode does bring a significant learning curve. The Command Palette can help a lot with discoverability. Access it through the `View -> Command Palette...` menu item (Shift-Command-P on Mac, or Shift-Ctrl-P on Windows). Here you can start typing a command to get a list of suggestions. For example, entering "julia repl" will suggest the `Julia: Start REPL` command. Press Enter to launch a Julia REPL, which will appear at the bottom of the VSCode window. This running Julia process is integrated with other Julia-VSCode features in a powerful way.
+The Command Palette can help to discover VSCode functionality. Access it through the `View -> Command Palette...` menu item (Shift-Command-P on Mac, or Shift-Ctrl-P on Windows). Here you can type keywords to get a list of command suggestions. For example, entering "julia repl" will suggest the `Julia: Start REPL` command. Press Enter to launch a Julia REPL, which will appear at the bottom of the VSCode window. This running Julia process integrates with other Julia-VSCode features in a powerful way.
 
-Again bring up the Command Palette (`View -> Command Palette...`) and type "settings json" to find the command `Preferences: Open Settings (JSON)`. Press enter to and you will an editor for the `Settings.json` file. Add to the bottom of this file the line
+Again bring up the Command Palette and type "settings json" to find the command `Preferences: Open Settings (JSON)`. Press enter to and you will an editor for the `Settings.json` file. Add to the bottom of this file the line
 
 ```
     "julia.execution.resultType": "inline",
@@ -209,18 +207,18 @@ You can interactively evaluate code in any file `.jl` using the Option-Enter (Ma
 
 Every window in VSCode represents a standalone process. In most cases, you will probably want to do all work entirely in a single VSCode window. To develop a package, it is useful to load the directory containing all source files into the VSCode window (e.g., using `File -> Open ...`). You can then navigate the files from within VSCode.
 
-It is frequently useful to launch VSCode from the terminal. On Unix systems, run `Shell Command: Install 'code' command in PATH` using the Command Palette. (For Windows systems, no action is necessary.) As expected, this will create a shell command `code` that can be used to quickly launch VSCode. The usage `code <filename>` and `code <directory>` is also supported.
+It is frequently useful to launch VSCode from the terminal. On Unix systems, run `Shell Command: Install 'code' command in PATH` using the Command Palette. On Windows systems, `code` will be available by default. As expected, this will create a shell command `code` that can be used to quickly launch VSCode. The usage `code <filename>` and `code <directory>` is also supported.
 
 It is convenient to make VSCode the default editor for Julia. On a UNIX system, this is possible by adding the line
 ```bash
 export JULIA_EDITOR=code
 ```
-to the shell startup script (e.g. `.bashrc` or `.bash_profile`). On a Windows system, it [seems the best way](https://discourse.julialang.org/t/windows-command-for-vs-code/29902/9) to configure this environment variable is to add the line `ENV["JULIA_EDITOR"]="code.cmd"` to the `.julia/config/startup.jl` file (note the extra `.cmd` suffix). The file `startup.jl` will not exist in a fresh Julia install; you will need to create it by hand.
+to the shell startup script (e.g. `.bashrc` or `.bash_profile`). On a Windows system, it [seems the best way](https://discourse.julialang.org/t/windows-command-for-vs-code/29902/9) to configure this environment variable is to add the line `ENV["JULIA_EDITOR"]="code.cmd"` to the `.julia/config/startup.jl` file (note the extra `.cmd` suffix). The file `startup.jl` will not exist in a fresh Julia install; you can create it by hand.
 
 Once `JULIA_EDITOR` has been configured, the `@edit` macro can be used to load source code. For example, running
 ```julia
 julia> @edit sort([3, 2, 1])
 ```
-will open the definition of the `sort` function in the VSCode editor. Besides `@edit`, Julia supports several other [interactive utilities](https://docs.julialang.org/en/v1/stdlib/InteractiveUtils/).
+will open the definition of the `sort` function in the VSCode editor. The `@edit` macro is defined in the [`InteractiveUtils` module](https://docs.julialang.org/en/v1/stdlib/InteractiveUtils/). Browse around these docs to see what else is availabe.
 
 Another highly recommended VSCode extension is [Git History](https://marketplace.visualstudio.com/items?itemName=donjayamanne.githistory).
