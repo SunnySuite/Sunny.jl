@@ -16,6 +16,28 @@ function is_standard_form(lat_vecs::Mat3)
     return lat_vecs ≈ conventional_lat_vecs
 end
 
+# Return true if lattice vectors are compatible with a monoclinic space group
+# "setting" for a Hall number.
+function is_compatible_monoclinic_cell(lat_vecs, hall_number)
+    @assert cell_type(hall_number) == FastDipole.monoclinic
+
+    # Special handling of monoclinic space groups. There are three
+    # possible conventions for the unit cell: α≂̸90, β≂̸90, or γ≂̸90
+    _, _, _, α, β, γ = lattice_params(lat_vecs)
+    choice = Spglib.get_spacegroup_type(hall_number).choice
+    x = first(replace(choice, "-" => ""))
+    if x == 'a'
+        return !(α≈90)
+    elseif x == 'b'
+        return !(β≈90)
+    elseif x == 'c'
+        return !(γ≈90)
+    else
+        error()
+    end
+end
+
+
 """
     SymOp
 
@@ -156,6 +178,11 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     hall_cell_type = cell_type(hall_number)
     @assert latvec_cell_type == hall_cell_type "Hall number $hall_number requires a $hall_cell_type cell, but found $latvec_cell_type."
 
+    if hall_cell_type == FastDipole.monoclinic
+        is_compatible = is_compatible_monoclinic_cell(lat_vecs, hall_number)
+        @assert is_compatible "Lattice vectors define a monoclinic cell that is incompatible with Hall number $hall_number."
+    end
+
     rotations, translations = Spglib.get_symmetry_from_database(hall_number)
     Rs = Mat3.(transpose.(eachslice(rotations, dims=3)))
     Ts = Vec3.(eachcol(translations))
@@ -174,10 +201,13 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     crysts = Crystal[]
     for hall_number in 1:n_space_groups
         sgt = Spglib.get_spacegroup_type(hall_number)
-        if symbol in [sgt.hall_symbol, sgt.international, sgt.international_short, sgt.international_full]
+
+        if (replace(symbol, " "=>"") == sgt.international_short || 
+            symbol in [sgt.hall_symbol, sgt.international, sgt.international_full])
+
             # Some Hall numbers may be incompatible with unit cell of provided
             # lattice vectors; skip them.
-            is_compatible_cell = true
+            is_compatible = true
 
             latvec_cell_type = cell_type(lat_vecs)
             hall_cell_type = cell_type(hall_number)
@@ -188,31 +218,18 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
                 # cell, according to the Hall number.
                 is_latvecs_valid = latvec_cell_type in [FastDipole.rhombohedral, FastDipole.hexagonal]
                 @assert is_latvecs_valid "Symbol $symbol requires a rhomobohedral or hexagonal cell, but found $latvec_cell_type."
-                is_compatible_cell = latvec_cell_type == hall_cell_type
+                is_compatible = latvec_cell_type == hall_cell_type
             else
                 # For all other symmetry types, there is a unique cell for each Hall number
                 @assert latvec_cell_type == hall_cell_type "Symbol $symbol requires a $hall_cell_type cell, but found $latvec_cell_type."
             end
 
-            # Special handling of monoclinic space groups. There are three
-            # possible conventions for the unit cell: a=b, b=c, or c=a.
             if hall_cell_type == FastDipole.monoclinic
-                a, b, c, _, _, _ = lattice_params(lat_vecs)
-                choice = Spglib.get_spacegroup_type(hall_number).choice
-                x = first(replace(choice, "-" => ""))
-                if x == "a"
-                    is_compatible_cell = b == c
-                elseif x == "b"
-                    is_compatible_cell = c == a
-                elseif x == "c"
-                    is_compatible_cell = a == b
-                else
-                    error()
-                end
+                is_compatible = is_compatible_monoclinic_cell(lat_vecs, hall_number)
             end
 
-            if is_compatible_cell
-                # Build crystal using symops for hall_number, read from database
+            if is_compatible
+                # Build crystal using symops for hall_number from database
                 c = Crystal(lat_vecs, base_positions, base_species, hall_number; symprec)
                 push!(crysts, c)
             end
@@ -229,9 +246,9 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
         println("Warning, the symbol '$symbol' is ambiguous. It could refer to:")
         for c in crysts
             hall_number = c.hall_number
-            hall_symbol = Spglib.get_spacegroup_type(hall_number).hall_symbol
-            n_atoms     = length(c.positions)
-            println("   Hall group '$hall_symbol' (number $hall_number), which generates $n_atoms atoms")
+            hm_symbol = Spglib.get_spacegroup_type(hall_number).international
+            n_atoms = length(c.positions)
+            println("   HM symbol '$hm_symbol' (Hall number $hall_number), which generates $n_atoms atoms")
         end
         println()
         println("Selecting Hall number $(first(crysts).hall_number). You may wish to specify")
