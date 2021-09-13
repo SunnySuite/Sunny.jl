@@ -97,8 +97,8 @@ print_bond_table(cryst, 3.)
 lat_vecs = lattice_vectors(6, 7, 8, 90, 90, 40)
 basis_atoms = [Vec3(0,0,0)]
 basis_labels = ["A"]
-crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"C 2/c")
-display(crystal)
+cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"C 2/c")
+display(cryst)
 
 
 ### Arbitrary trigonal
@@ -106,17 +106,26 @@ display(crystal)
 lat_vecs = lattice_vectors(5, 5, 6, 90, 90, 120)
 basis_atoms = [Vec3(0,0,0)]
 basis_labels = ["A"]
-crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"P -3")
-crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"I:147") # international number
-crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"147") # international number
-crystal = Crystal(lat_vecs,basis_atoms,basis_labels, 435) # Hall number
+cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"P -3")
+cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"I:147") # international number
+cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"147") # international number
+cryst = Crystal(lat_vecs,basis_atoms,basis_labels, 435) # Hall number
+cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"R -3")
+display(cryst)
 
 
-crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"R -3")
-display(crystal)
+### Arbitrary triclinic
+
+lat_vecs = lattice_vectors(6, 7, 8, 70, 80, 90)
+basis_atoms = [Vec3(0,0,0)]
+basis_labels = ["A"]
+cryst = Crystal(lat_vecs, basis_atoms, basis_labels, "P 1")
+cryst = Crystal(lat_vecs, basis_atoms, basis_labels) # Infers 'P -1'
+display(cryst)
+print_bond_table(cryst, 8.)
 
 
-### Print bond tables
+### Print FeI2 bond tables
 
 using StaticArrays
 

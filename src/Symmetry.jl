@@ -653,7 +653,7 @@ function print_bond(cryst::Crystal, b::Bond{3})
             @printf "'%s' at fractional coordinates [%.4g, %.4g, %.4g]\n" cryst.species[b.i] ri[1] ri[2] ri[3]
         end
         allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
-        allowed_J_basis_sym = filter(J -> !iszero(J + J'), allowed_J_basis)
+        allowed_J_basis_sym = filter(J -> J ≈ J', allowed_J_basis)
         print_allowed_exchange("Allowed on-site anisotropy: ", allowed_J_basis_sym)
         # Antisymmetric terms are relevant to g-tensor. Report these separately.
         if length(allowed_J_basis) > length(allowed_J_basis_sym)
