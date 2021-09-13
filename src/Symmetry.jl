@@ -520,7 +520,7 @@ end
 
 
 "Returns all bonds in `cryst` for which `bond.i == i`"
-function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist::Float64; min_dist=0.0)
+function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
     # be a little generous with the minimum and maximum distances
     ℓ = minimum(norm, eachcol(cryst.lat_vecs))
     max_dist += 4 * cryst.symprec * ℓ
@@ -623,22 +623,12 @@ function equivalent_bond_indices(cryst::Crystal, canonical_bonds, bonds)
     end
 end
 
-function print_bond(cryst::Crystal, b::Bond{3})
-    ri = cryst.positions[b.i]
-    rj = cryst.positions[b.j] + b.n
-    @printf "Bond{3}(%d, %d, [%d, %d, %d])\n" b.i b.j b.n[1] b.n[2] b.n[3]
-    @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) bond_multiplicity(cryst, b)
-    if length(unique(cryst.species)) == 1
-        @printf "Connects [%.4g, %.4g, %.4g] to [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3] rj[1] rj[2] rj[3]
-    else
-        @printf "Connects '%s' at [%.4g, %.4g, %.4g] to '%s' at [%.4g, %.4g, %.4g]\n" cryst.species[b.i] ri[1] ri[2] ri[3] cryst.species[b.j] rj[1] rj[2] rj[3]
-    end
 
-    print(  "Allowed coupling:  ")
-    allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
+function print_allowed_exchange(name::String, allowed_J_basis::Vector{Mat3})
     J_strings = _coupling_basis_strings(allowed_J_basis)
     max_len = maximum(length, J_strings)
     for i in 1:3
+        print(i == 1 ? name : repeat(' ', length(name)))
         print('|')
         for j in 1:3
             elem = J_strings[i, j]
@@ -646,9 +636,38 @@ function print_bond(cryst::Crystal, b::Bond{3})
             print(elem * " ")
         end
         println('|')
-        if i != 3
-        print(repeat(' ', 19))
+    end
+end
+
+function print_bond(cryst::Crystal, b::Bond{3})
+    ri = cryst.positions[b.i]
+    rj = cryst.positions[b.j] + b.n
+
+    @printf "Bond{3}(%d, %d, [%d, %d, %d])\n" b.i b.j b.n[1] b.n[2] b.n[3]
+
+    if b.i == b.j && iszero(b.n)
+        # On site interaction
+        if length(unique(cryst.species)) == 1
+            @printf "At fractional coordinates [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3]
+        else
+            @printf "'%s' at fractional coordinates [%.4g, %.4g, %.4g]\n" cryst.species[b.i] ri[1] ri[2] ri[3]
         end
+        allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
+        allowed_J_basis_sym = filter(J -> !iszero(J + J'), allowed_J_basis)
+        print_allowed_exchange("Allowed on-site anisotropy: ", allowed_J_basis_sym)
+        # Antisymmetric terms are relevant to g-tensor. Report these separately.
+        if length(allowed_J_basis) > length(allowed_J_basis_sym)
+            print_allowed_exchange("Allowed effective g-tensor: ", allowed_J_basis)
+        end
+    else
+        @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) bond_multiplicity(cryst, b)
+        if length(unique(cryst.species)) == 1
+            @printf "Connects [%.4g, %.4g, %.4g] to [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3] rj[1] rj[2] rj[3]
+        else
+            @printf "Connects '%s' at [%.4g, %.4g, %.4g] to '%s' at [%.4g, %.4g, %.4g]\n" cryst.species[b.i] ri[1] ri[2] ri[3] cryst.species[b.j] rj[1] rj[2] rj[3]
+        end
+        allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
+        print_allowed_exchange("Allowed exchange matrix: ", allowed_J_basis)
     end
     println()
 end
