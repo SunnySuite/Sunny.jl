@@ -92,6 +92,25 @@ cryst = Crystal(lat_vecs, positions, species)
 print_bond_table(cryst, 3.)
 
 
+### Arbitrary monoclinic
+
+lat_vecs = lattice_vectors(6, 7, 8 , 90, 90, 40)
+basis_atoms = [Vec3(0,0,0)]
+basis_labels = ["A"]
+crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"C 2/c")
+display(crystal)
+
+
+### Arbitrary trigonal
+
+lat_vecs = lattice_vectors(5, 5, 6 , 90, 90, 120)
+basis_atoms = [Vec3(0,0,0)]
+basis_labels = ["A"]
+crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"P -3")
+crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"R -3")
+display(crystal)
+
+
 ### Print bond tables
 
 using StaticArrays
