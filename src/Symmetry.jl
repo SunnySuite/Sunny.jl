@@ -203,7 +203,7 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
         sgt = Spglib.get_spacegroup_type(hall_number)
 
         if (replace(symbol, " "=>"") == sgt.international_short || 
-            symbol in [sgt.hall_symbol, sgt.international, sgt.international_full])
+            symbol in [sgt.hall_symbol, sgt.international, sgt.international_full, string(sgt.number)])
 
             # Some Hall numbers may be incompatible with unit cell of provided
             # lattice vectors; skip them.
