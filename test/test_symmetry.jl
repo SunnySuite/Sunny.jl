@@ -1,5 +1,5 @@
 import FastDipole: Vec3, Mat3
-import FastDipole.Symmetry: SymOp, Crystal, Bond, canonical_bonds, distance, subcrystal, print_bond_table
+import FastDipole.Symmetry: SymOp, Crystal, Bond, canonical_bonds, distance, subcrystal, print_bond_table, lattice_vectors
 import FastDipole.Symmetry as S
 using LinearAlgebra
 
@@ -94,7 +94,7 @@ print_bond_table(cryst, 3.)
 
 ### Arbitrary monoclinic
 
-lat_vecs = lattice_vectors(6, 7, 8 , 90, 90, 40)
+lat_vecs = lattice_vectors(6, 7, 8, 90, 90, 40)
 basis_atoms = [Vec3(0,0,0)]
 basis_labels = ["A"]
 crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"C 2/c")
@@ -103,10 +103,15 @@ display(crystal)
 
 ### Arbitrary trigonal
 
-lat_vecs = lattice_vectors(5, 5, 6 , 90, 90, 120)
+lat_vecs = lattice_vectors(5, 5, 6, 90, 90, 120)
 basis_atoms = [Vec3(0,0,0)]
 basis_labels = ["A"]
 crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"P -3")
+crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"I:147") # international number
+crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"147") # international number
+crystal = Crystal(lat_vecs,basis_atoms,basis_labels, 435) # Hall number
+
+
 crystal = Crystal(lat_vecs,basis_atoms,basis_labels,"R -3")
 display(crystal)
 
