@@ -7,7 +7,7 @@ using Parameters
 import Spglib
 
 import FastDipole
-import FastDipole: Vec3, Mat3, Lattice, lattice_params, lattice_vectors, nbasis, cell_volume, cell_type
+import FastDipole: Vec3, Mat3, Lattice, lattice_params, lattice_vectors, nbasis, cell_volume, cell_type, all_compatible_cells
 export Crystal, Bond, canonical_bonds, print_bond_table
 
 function is_standard_form(lat_vecs::Mat3)
@@ -21,17 +21,18 @@ end
 function is_compatible_monoclinic_cell(lat_vecs, hall_number)
     @assert cell_type(hall_number) == FastDipole.monoclinic
 
-    # Special handling of monoclinic space groups. There are three
-    # possible conventions for the unit cell: α≂̸90, β≂̸90, or γ≂̸90
+    # Special handling of monoclinic space groups. There are three possible
+    # conventions for the unit cell, depending on which of α, β, or γ is
+    # special.
     _, _, _, α, β, γ = lattice_params(lat_vecs)
     choice = Spglib.get_spacegroup_type(hall_number).choice
     x = first(replace(choice, "-" => ""))
     if x == 'a'
-        return !(α≈90)
+        return β≈90 && γ≈90
     elseif x == 'b'
-        return !(β≈90)
+        return α≈90 && γ≈90
     elseif x == 'c'
-        return !(γ≈90)
+        return α≈90 && β≈90
     else
         error()
     end
@@ -174,11 +175,12 @@ end
 # TODO: Make hall_number a named parameter. But then we have to avoid a conflict
 # with the constructor above. Maybe use unique names for every constructor?
 function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vector{String}, hall_number::Int; symprec=1e-5)
-    latvec_cell_type = cell_type(lat_vecs)
-    hall_cell_type = cell_type(hall_number)
-    @assert latvec_cell_type == hall_cell_type "Hall number $hall_number requires a $hall_cell_type cell, but found $latvec_cell_type."
+    cell = cell_type(lat_vecs)
+    hall_cell = cell_type(hall_number)
+    allowed_cells = all_compatible_cells(hall_cell)
+    @assert cell in allowed_cells "Hall number $hall_number requires a $hall_cell cell, but found $cell."
 
-    if hall_cell_type == FastDipole.monoclinic
+    if hall_cell == FastDipole.monoclinic
         is_compatible = is_compatible_monoclinic_cell(lat_vecs, hall_number)
         @assert is_compatible "Lattice vectors define a monoclinic cell that is incompatible with Hall number $hall_number."
     end
@@ -209,22 +211,23 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
             # lattice vectors; skip them.
             is_compatible = true
 
-            latvec_cell_type = cell_type(lat_vecs)
-            hall_cell_type = cell_type(hall_number)
+            cell = cell_type(lat_vecs)
+            hall_cell = cell_type(hall_number)
+            allowed_cells = all_compatible_cells(hall_cell)
 
             # Special handling of trigonal space groups
             if FastDipole.is_trigonal_symmetry(hall_number)
                 # Trigonal symmetry must have either hexagonal or rhombohedral
                 # cell, according to the Hall number.
-                is_latvecs_valid = latvec_cell_type in [FastDipole.rhombohedral, FastDipole.hexagonal]
-                @assert is_latvecs_valid "Symbol $symbol requires a rhomobohedral or hexagonal cell, but found $latvec_cell_type."
-                is_compatible = latvec_cell_type == hall_cell_type
+                is_latvecs_valid = cell in [FastDipole.rhombohedral, FastDipole.hexagonal]
+                @assert is_latvecs_valid "Symbol $symbol requires a rhomobohedral or hexagonal cell, but found $cell."
+                is_compatible = cell in allowed_cells
             else
                 # For all other symmetry types, there is a unique cell for each Hall number
-                @assert latvec_cell_type == hall_cell_type "Symbol $symbol requires a $hall_cell_type cell, but found $latvec_cell_type."
+                @assert cell in allowed_cells "Symbol $symbol requires a $hall_cell cell, but found $cell."
             end
 
-            if hall_cell_type == FastDipole.monoclinic
+            if hall_cell == FastDipole.monoclinic
                 is_compatible = is_compatible_monoclinic_cell(lat_vecs, hall_number)
             end
 

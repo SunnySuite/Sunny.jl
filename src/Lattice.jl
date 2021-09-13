@@ -277,8 +277,9 @@ function cell_type(hall_number::Int)
         orthorhombic
     elseif 349 <= hall_number <= 429
         tetragonal
-    elseif 430 <= hall_number <= 461 # trigonal spacegroups
-        # These special Hall numbers have "setting" R
+    elseif 430 <= hall_number <= 461
+        # The trigonal space groups require either rhombohedral or hexagonal
+        # cells. The Hall numbers below have "setting" R.
         hall_number in [434, 437, 445, 451, 453, 459, 461] ? rhombohedral : hexagonal
     elseif 462 <= hall_number <= 488
         hexagonal
@@ -286,6 +287,26 @@ function cell_type(hall_number::Int)
         cubic
     else
         error("Invalid Hall number $hall_number. Allowed range is 1..530")
+    end
+end
+
+function all_compatible_cells(cell::CellType)
+    if cell == triclinic
+        [triclinic, monoclinic, orthorhombic, tetragonal, rhombohedral, hexagonal, cubic]
+    elseif cell == monoclinic
+        [monoclinic, orthorhombic, tetragonal, cubic]
+    elseif cell == orthorhombic
+        [orthorhombic, tetragonal, cubic]
+    elseif cell == tetragonal
+        [tetragonal, cubic]
+    elseif cell == rhombohedral
+        [rhombohedral]
+    elseif cell == hexagonal
+        [hexagonal]
+    elseif cell == cubic
+        [cubic]
+    else
+        error()
     end
 end
 
