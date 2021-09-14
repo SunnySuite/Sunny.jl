@@ -192,9 +192,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
         end
     end
 
-    # By default, assume P1 symmetry
-    symmetries = [ Symmetry.SymOp(I(3), @SVector zeros(3)) ]
-    # There's two possible headers symmetry operations could be listed under
+    symmetries = nothing
     for sym_header in ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
         if sym_header in keys(cif)
             sym_table = get_loop(cif, sym_header)
@@ -202,9 +200,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
         end
     end
 
-    # By default, assume P1 symmetry
-    groupnum = 1
-    # Two possible headers for symmetry group number
+    groupnum = nothing
     for group_header in ("_space_group_it_number", "_symmetry_int_tables_number")
         if group_header in keys(cif)
             groupnum = parse(Int, cif[group_header][1])
@@ -212,18 +208,40 @@ function Crystal(filename::AbstractString; symprec=nothing)
     end
 
     hall_symbol = nothing
-    hall_header = "_space_group_name_Hall"
+    hall_header = "_space_group_name_hall"
     if hall_header in keys(cif)
-        hall_symbol = cif[hall_header]
+        hall_symbol = cif[hall_header][1]
     end
 
-    # Symmetry preferences: Explicit List > Hall Symbol > Infer
-    if length(symmetries) > 1
+    hm_symbol = nothing
+    hm_header = "_space_group_name_h-m_alt"
+    if hm_header in keys(cif)
+        hm_symbol = cif[hm_header][1]
+    end
+
+    spacegroup = if !isnothing(hm_symbol)
+        if !isnothing(groupnum)
+            "HM symbol '$hm_symbol' ($groupnum)"
+        else
+            "HM symbol '$hm_symbol'"
+        end
+    else
+        if !isnothing(groupnum)
+            "Spacegroup number $groupnum"
+        else
+            ""
+        end
+    end
+
+    if !isnothing(symmetries)
         # Use explicitly provided symmetries
-        return Crystal(lat_vecs, unique_atoms, sitetypes, symmetries; symprec)
+        return Symmetry.crystal_from_symops(lat_vecs, unique_atoms, sitetypes, symmetries, spacegroup; symprec)
     elseif !isnothing(hall_symbol)
-        # Read symmetries from database for Hall symbol
+        # Use symmetries for Hall symbol
         return Crystal(lat_vecs, unique_atoms, sitetypes, hall_symbol; symprec)
+    elseif !isnothing(groupnum)
+        # Use symmetries for international group number
+        return Crystal(lat_vecs, unique_atoms, sitetypes, groupnum; symprec)
     else
         # Infer the symmetries automatically
         return Crystal(lat_vecs, unique_atoms, sitetypes; symprec)
