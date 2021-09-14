@@ -465,7 +465,9 @@ function validate(cryst::Crystal)
     # Check symmetry rotations are orthogonal, up to periodicity
     for s in cryst.symops
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
-        @assert norm(R*R' - I) < 1e-12
+        # Due to possible imperfections in the lattice vectors, only require
+        # that R is approximately orthogonal
+        @assert norm(R*R' - I) < cryst.symprec "Lattice vectors and symmetry operations are incompatible."
     end
 
     # TODO: Check that space group is closed and that symops have inverse?
