@@ -294,7 +294,7 @@ function all_compatible_cells(cell::CellType)
     if cell == triclinic
         [triclinic, monoclinic, orthorhombic, tetragonal, rhombohedral, hexagonal, cubic]
     elseif cell == monoclinic
-        [monoclinic, orthorhombic, tetragonal, cubic]
+        [monoclinic, orthorhombic, tetragonal, hexagonal, cubic]
     elseif cell == orthorhombic
         [orthorhombic, tetragonal, cubic]
     elseif cell == tetragonal
