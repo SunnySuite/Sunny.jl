@@ -65,9 +65,11 @@ mutable struct MetropolisSampler{D, L, Db} <: AbstractSampler
     system     :: SpinSystem{D, L, Db}
     β          :: Float64
     nsweeps    :: Int
+    E          :: Float64
+    M          :: Vec3
     function MetropolisSampler(sys::SpinSystem{D,L,Db}, kT::Float64, nsweeps::Int) where {D,L,Db}
         @assert kT != 0. "Temperature must be nonzero!"
-        new{D, L, Db}(sys, 1.0 / kT, nsweeps)
+        new{D, L, Db}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys))
     end
 end
 
@@ -99,13 +101,16 @@ function sample!(sampler::MetropolisSampler)
             ΔE = local_energy_change(sampler.system, idx, new_spin)
 
             if rand() < exp(-sampler.β * ΔE)
+                sampler.E += ΔE
+                sampler.M += (new_spin - sampler.system[idx])
                 sampler.system[idx] = new_spin
             end
         end
     end
 end
 
-@inline energy(sampler::MetropolisSampler) = energy(sampler.system)
+@inline running_energy(sampler::MetropolisSampler) = sampler.E
+@inline running_mag(sampler::MetropolisSampler) = sampler.M
 
 
 """
