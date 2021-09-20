@@ -64,24 +64,8 @@ function Lattice(lat_vecs::SMatrix{D,D}, basis_vecs, latsize) where {D}
 end
 
 """
-    lattice_params(lat_vecs::Mat3)
-
-Compute the lattice parameters ``(a, b, c, α, β, γ)`` from a set of lattice vectors,
- which form the columns of `lat_vecs`.
-"""
-function lattice_params(lat_vecs::Mat3) :: NTuple{6, Float64}
-    v1, v2, v3 = eachcol(lat_vecs)
-    a, b, c = norm(v1), norm(v2), norm(v3)
-    α = acosd((v2 ⋅ v3) / (b * c))
-    β = acosd((v1 ⋅ v3) / (a * c))
-    γ = acosd((v1 ⋅ v2) / (a * b))
-    return (a, b, c, α, β, γ)
-end
-
-"""
     lattice_params(lattice::Lattice{3})
 """
-lattice_params(lattice::Lattice{3}) = lattice_params(lattice.lat_vecs)
 
 function Base.display(lattice::Lattice)
     D = length(size(lattice)) - 1
@@ -89,56 +73,48 @@ function Base.display(lattice::Lattice)
     # Print out lattice vectors, species, basis?
 end
 
+# Constructors converting Lattice -> Crystal, and Crystal -> Lattice
+
 """
-    lattice_vectors(a, b, c, α, β, γ) :: Mat3
+    Crystal(lattice::Lattice)
 
-Compute a set of lattice vectors (forming the columns of the result), specified by a given
- set of lattice parameters ``(a, b, c, α, β, γ)``.
+Construct a `Crystal` using geometry information in `lattice`, inferring symmetry information.
 """
-function lattice_vectors(a, b, c, α, β, γ) :: Mat3
-    @assert all(0 < x < 180 for x in (α, β, γ))
-
-    sγ, cγ = sind(γ), cosd(γ)
-    cβ, cα = cosd(β), cosd(α)
-    v1 = Vec3(a, 0, 0)
-    v2 = Vec3(b * cγ, b * sγ, 0)
-    v3x = c * cβ
-    v3y = c / sγ * (cα - cβ * cγ)
-    v3z = c / sγ * √(sγ^2 - cα^2 - cβ^2 + 2 * cα * cβ * cγ)
-    v3 = Vec3(v3x, v3y, v3z)
-
-    @assert norm(v1) ≈ a
-    @assert norm(v2) ≈ b
-    @assert norm(v3) ≈ c
-    @assert acosd(v1⋅v2 / (a*b)) ≈ γ
-    @assert acosd(v1⋅v3 / (a*c)) ≈ β
-    @assert acosd(v2⋅v3 / (b*c)) ≈ α
-
-    return [v1 v2 v3]
+function Crystal(lattice::Lattice{3, 9, 4})
+    L = lattice.lat_vecs
+    # Convert absolute basis positions to fractional coordinates
+    basis_coords = map(b -> inv(L) * b, lattice.basis_vecs)
+    Crystal(L, basis_coords, lattice.species)
 end
 
-lattice_vectors(lattice::Lattice) = lattice.lat_vecs
+function Crystal(lattice::Lattice{2, 4, 3})
+    L = lattice.lat_vecs
 
-"""
-    Lattice(a, b, c, α, β, γ)
+    # Expand the lattice to 3D, with a very long c axis
+    L3 = @MMatrix zeros(3, 3)
+    L3[1:2, 1:2] = L
+    # Make the vertical axis 10x longer than the longest 2D lattice vector
+    max_len = maximum(norm.(eachcol(lattice.lat_vecs)))
+    L3[3, 3] = 10. * max_len
+    L3 = SMatrix(L3)
 
-Specify a 3D Bravais `Lattice` by the lattice vector lengths and angles (in degrees)
-"""
-function Lattice(a::Float64, b::Float64, c::Float64, α::Float64, β::Float64, γ::Float64, size::Vector{Int})
-    lat_vecs = lattice_vectors(a, b, c, α, β, γ)
-    basis_vecs = [SVector{3, Float64}([0.0, 0.0, 0.0])]
-    size = SVector{3, Int}(size)
-    return Lattice{3, 9, 4}(lat_vecs, basis_vecs, ["A"], size)
+    basis_coords = map(b -> SVector{3}((inv(L) * b)..., 0.), lattice.basis_vecs)
+
+    Crystal(L3, basis_coords, lattice.species)
 end
 
-@inline function nbasis(lat::Lattice) :: Int
-    length(lat.basis_vecs)
+function Lattice(cryst::Crystal, latsize) :: Lattice{3, 9, 4}
+    Lattice{3}(cryst.lat_vecs, cryst.positions, cryst.species, latsize)
 end
 
+"Return number of basis sites in Lattice"
+nbasis(lat::Lattice) = length(lat.basis_vecs)
 "Compute the volume of a unit cell."
-@inline cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
+cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
 "Compute the volume of the full simulation box."
-@inline volume(lat::Lattice) = cell_volume(lat) * prod(lat.size)
+volume(lat::Lattice) = cell_volume(lat) * prod(lat.size)
+lattice_vectors(lat::Lattice) = lat.lat_vecs
+lattice_params(lattice::Lattice{3}) = lattice_params(lattice.lat_vecs)
 
 "Produce an iterator over all unit cell indices."
 @inline function eachcellindex(lat::Lattice{D}) :: CartesianIndices where {D}
@@ -196,129 +172,14 @@ function brav_lattice(lat::Lattice{D}) :: Lattice{D} where {D}
     )
 end
 
-"""
-    CellType
-
-An enumeration over the different types of 3D Bravais unit cells.
-"""
-@enum CellType begin
-    triclinic
-    monoclinic
-    orthorhombic
-    tetragonal
-    # Rhombohedral is a special case. It is a lattice type (a=b=c, α=β=γ) but
-    # not a spacegroup type. Trigonal space groups are conventionally described
-    # using either hexagonal or rhombohedral lattices.
-    rhombohedral
-    hexagonal
-    cubic
-end
-
-"""
-    cell_type(lat_vecs::Mat3)
-
-Infer the `CellType` of a unit cell from its lattice vectors, i.e. the columns
-of `lat_vecs`. Report an error if lattice vectors are not in conventional form.
-"""
-function cell_type(lat_vecs::Mat3)
-    a, b, c, α, β, γ = lattice_params(lat_vecs)
-
-    if !(lat_vecs ≈ lattice_vectors(a, b, c, α, β, γ))
-        error("Lattice vectors are not in conventional form. Consider using `lattice_vectors(a, b, c, α, β, γ)`.")
-    end
-
-    if a ≈ b ≈ c
-        if α ≈ β ≈ γ ≈ 90
-            return cubic
-        elseif α ≈ β ≈ γ
-            return rhombohedral
-        end
-    end
-
-    if α ≈ β ≈ γ ≈ 90
-        if a ≈ b
-            return tetragonal
-        elseif b ≈ c || c ≈ a
-            error("Found a nonconventional tetragonal unit cell. Use `lattice_vectors(a, a, c, 90, 90, 90)` instead.")
-        else
-            return orthorhombic
-        end
-    end
-
-    if (a ≈ b && α ≈ β ≈ 90 && (γ ≈ 60 || γ ≈ 120)) ||
-       (b ≈ c && β ≈ γ ≈ 90 && (α ≈ 60 || α ≈ 120)) ||
-       (c ≈ a && γ ≈ α ≈ 90 && (β ≈ 60 || β ≈ 120))
-        if γ ≈ 120
-            return hexagonal
-        else
-            error("Found a nonconventional hexagonal unit cell. Use `lattice_vectors(a, a, c, 90, 90, 120)` instead.")
-        end
-    end
-
-    # Accept any of three possible permutations for monoclinic unit cell
-    if α ≈ β ≈ 90 || β ≈ γ ≈ 90 || α ≈ γ ≈ 90
-        return monoclinic
-    end
-    
-    return triclinic
-end
-
 cell_type(lattice::Lattice{3}) = cell_type(lattice.lat_vecs)
 
-"Return the standard cell convention for a given Hall number"
-# Using the convention of spglib, listed at
-# http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37
-function cell_type(hall_number::Int)
-    if 1 <= hall_number <= 2
-        triclinic
-    elseif 3 <= hall_number <= 107
-        monoclinic
-    elseif 108 <= hall_number <= 348
-        orthorhombic
-    elseif 349 <= hall_number <= 429
-        tetragonal
-    elseif 430 <= hall_number <= 461
-        # The trigonal space groups require either rhombohedral or hexagonal
-        # cells. The Hall numbers below have "setting" R.
-        hall_number in [434, 437, 445, 451, 453, 459, 461] ? rhombohedral : hexagonal
-    elseif 462 <= hall_number <= 488
-        hexagonal
-    elseif 489 <= hall_number <= 530
-        cubic
-    else
-        error("Invalid Hall number $hall_number. Allowed range is 1..530")
-    end
+function distance(lat::Lattice{D}, b::Bond{D}) where {D}
+    return norm(lat.lat_vecs * b.n + (lat.basis_vecs[b.j] - lat.basis_vecs[b.i]))
 end
-
-function all_compatible_cells(cell::CellType)
-    if cell == triclinic
-        [triclinic, monoclinic, orthorhombic, tetragonal, rhombohedral, hexagonal, cubic]
-    elseif cell == monoclinic
-        [monoclinic, orthorhombic, tetragonal, hexagonal, cubic]
-    elseif cell == orthorhombic
-        [orthorhombic, tetragonal, cubic]
-    elseif cell == tetragonal
-        [tetragonal, cubic]
-    elseif cell == rhombohedral
-        [rhombohedral]
-    elseif cell == hexagonal
-        [hexagonal]
-    elseif cell == cubic
-        [cubic]
-    else
-        error()
-    end
-end
-
-function is_trigonal_symmetry(hall_number::Int)
-    return 430 <= hall_number <= 461
-end
-
-
 
 """ Some functions which construct common lattices
 """
-
 function square_lattice(a::Float64, latsize) :: Lattice{2, 4, 3}
     lat_vecs = SA[ a  0.0;
                   0.0  a ]

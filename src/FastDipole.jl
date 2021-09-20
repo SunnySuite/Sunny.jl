@@ -15,18 +15,21 @@ import Random
 
 include("Util.jl")
 
-include("Lattice.jl")
-export Lattice, ReciprocalLattice
-export volume, eachcellindex, gen_reciprocal, lattice_vectors, lattice_params
-
 include("Symmetry.jl")
 import .Symmetry
 import .Symmetry: Crystal, Bond, print_bond_table, subcrystal, allowed_J
 import .Symmetry: all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 import .Symmetry: all_symmetry_related_interactions, all_symmetry_related_interactions_for_atom
+import .Symmetry: lattice_params, lattice_vectors, CellType, cell_type
+import .Symmetry: nbasis, cell_volume
 export Crystal, Bond, print_bond_table, subcrystal, allowed_J
+export volumne, lattice_vectors, lattice_params
 export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 export all_symmetry_related_interactions, all_symmetry_related_interactions_for_atom
+
+include("Lattice.jl")
+export Lattice, ReciprocalLattice
+export eachcellindex, gen_reciprocal
 
 
 include("Interactions.jl")
@@ -48,6 +51,7 @@ include("FourierAccel.jl")
 
 include("Metropolis.jl")
 export MetropolisSampler, set_temp!, sample!, thermalize!, anneal!
+export running_energy, running_mag
 
 include("Integrators.jl")
 export HeunP, LangevinHeunP, evolve!

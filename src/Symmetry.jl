@@ -4,11 +4,58 @@ using Printf
 using LinearAlgebra
 using StaticArrays
 using Parameters
+
 import Spglib
 
-import FastDipole
-import FastDipole: Vec3, Mat3, Lattice, lattice_params, lattice_vectors, nbasis, cell_volume, cell_type, all_compatible_cells
 export Crystal, Bond, canonical_bonds, print_bond_table
+export lattice_params, lattice_vectors, nbasis, cell_volume, CellType, cell_type
+
+const Vec3 = SVector{3, Float64}
+const Mat3 = SMatrix{3, 3, Float64, 9}
+
+
+"""
+    lattice_params(lat_vecs::Mat3)
+
+Compute the lattice parameters ``(a, b, c, α, β, γ)`` from a set of lattice vectors,
+ which form the columns of `lat_vecs`.
+"""
+function lattice_params(lat_vecs::Mat3) :: NTuple{6, Float64}
+    v1, v2, v3 = eachcol(lat_vecs)
+    a, b, c = norm(v1), norm(v2), norm(v3)
+    α = acosd((v2 ⋅ v3) / (b * c))
+    β = acosd((v1 ⋅ v3) / (a * c))
+    γ = acosd((v1 ⋅ v2) / (a * b))
+    return (a, b, c, α, β, γ)
+end
+
+"""
+    lattice_vectors(a, b, c, α, β, γ) :: Mat3
+
+Compute a set of lattice vectors (forming the columns of the result), specified by a given
+ set of lattice parameters ``(a, b, c, α, β, γ)``.
+"""
+function lattice_vectors(a, b, c, α, β, γ) :: Mat3
+    @assert all(0 < x < 180 for x in (α, β, γ))
+
+    sγ, cγ = sind(γ), cosd(γ)
+    cβ, cα = cosd(β), cosd(α)
+    v1 = Vec3(a, 0, 0)
+    v2 = Vec3(b * cγ, b * sγ, 0)
+    v3x = c * cβ
+    v3y = c / sγ * (cα - cβ * cγ)
+    v3z = c / sγ * √(sγ^2 - cα^2 - cβ^2 + 2 * cα * cβ * cγ)
+    v3 = Vec3(v3x, v3y, v3z)
+
+    @assert norm(v1) ≈ a
+    @assert norm(v2) ≈ b
+    @assert norm(v3) ≈ c
+    @assert acosd(v1⋅v2 / (a*b)) ≈ γ
+    @assert acosd(v1⋅v3 / (a*c)) ≈ β
+    @assert acosd(v2⋅v3 / (b*c)) ≈ α
+
+    return [v1 v2 v3]
+end
 
 function is_standard_form(lat_vecs::Mat3)
     lat_params = lattice_params(lat_vecs)
@@ -19,7 +66,7 @@ end
 # Return true if lattice vectors are compatible with a monoclinic space group
 # "setting" for a Hall number.
 function is_compatible_monoclinic_cell(lat_vecs, hall_number)
-    @assert cell_type(hall_number) == FastDipole.monoclinic
+    @assert cell_type(hall_number) == monoclinic
 
     # Special handling of monoclinic space groups. There are three possible
     # conventions for the unit cell, depending on which of α, β, or γ is
@@ -38,6 +85,121 @@ function is_compatible_monoclinic_cell(lat_vecs, hall_number)
     end
 end
 
+"""
+    CellType
+
+An enumeration over the different types of 3D Bravais unit cells.
+"""
+@enum CellType begin
+    triclinic
+    monoclinic
+    orthorhombic
+    tetragonal
+    # Rhombohedral is a special case. It is a lattice type (a=b=c, α=β=γ) but
+    # not a spacegroup type. Trigonal space groups are conventionally described
+    # using either hexagonal or rhombohedral lattices.
+    rhombohedral
+    hexagonal
+    cubic
+end
+
+"""
+    cell_type(lat_vecs::Mat3)
+
+Infer the `CellType` of a unit cell from its lattice vectors, i.e. the columns
+of `lat_vecs`. Report an error if lattice vectors are not in conventional form.
+"""
+function cell_type(lat_vecs::Mat3)
+    a, b, c, α, β, γ = lattice_params(lat_vecs)
+
+    if !(lat_vecs ≈ lattice_vectors(a, b, c, α, β, γ))
+        error("Lattice vectors are not in conventional form. Consider using `lattice_vectors(a, b, c, α, β, γ)`.")
+    end
+
+    if a ≈ b ≈ c
+        if α ≈ β ≈ γ ≈ 90
+            return cubic
+        elseif α ≈ β ≈ γ
+            return rhombohedral
+        end
+    end
+
+    if α ≈ β ≈ γ ≈ 90
+        if a ≈ b
+            return tetragonal
+        elseif b ≈ c || c ≈ a
+            error("Found a nonconventional tetragonal unit cell. Use `lattice_vectors(a, a, c, 90, 90, 90)` instead.")
+        else
+            return orthorhombic
+        end
+    end
+
+    if (a ≈ b && α ≈ β ≈ 90 && (γ ≈ 60 || γ ≈ 120)) ||
+       (b ≈ c && β ≈ γ ≈ 90 && (α ≈ 60 || α ≈ 120)) ||
+       (c ≈ a && γ ≈ α ≈ 90 && (β ≈ 60 || β ≈ 120))
+        if γ ≈ 120
+            return hexagonal
+        else
+            error("Found a nonconventional hexagonal unit cell. Use `lattice_vectors(a, a, c, 90, 90, 120)` instead.")
+        end
+    end
+
+    # Accept any of three possible permutations for monoclinic unit cell
+    if α ≈ β ≈ 90 || β ≈ γ ≈ 90 || α ≈ γ ≈ 90
+        return monoclinic
+    end
+    
+    return triclinic
+end
+
+"Return the standard cell convention for a given Hall number"
+# Using the convention of spglib, listed at
+# http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37
+function cell_type(hall_number::Int)
+    if 1 <= hall_number <= 2
+        triclinic
+    elseif 3 <= hall_number <= 107
+        monoclinic
+    elseif 108 <= hall_number <= 348
+        orthorhombic
+    elseif 349 <= hall_number <= 429
+        tetragonal
+    elseif 430 <= hall_number <= 461
+        # The trigonal space groups require either rhombohedral or hexagonal
+        # cells. The Hall numbers below have "setting" R.
+        hall_number in [434, 437, 445, 451, 453, 459, 461] ? rhombohedral : hexagonal
+    elseif 462 <= hall_number <= 488
+        hexagonal
+    elseif 489 <= hall_number <= 530
+        cubic
+    else
+        error("Invalid Hall number $hall_number. Allowed range is 1..530")
+    end
+end
+
+function all_compatible_cells(cell::CellType)
+    if cell == triclinic
+        [triclinic, monoclinic, orthorhombic, tetragonal, rhombohedral, hexagonal, cubic]
+    elseif cell == monoclinic
+        [monoclinic, orthorhombic, tetragonal, hexagonal, cubic]
+    elseif cell == orthorhombic
+        [orthorhombic, tetragonal, cubic]
+    elseif cell == tetragonal
+        [tetragonal, cubic]
+    elseif cell == rhombohedral
+        [rhombohedral]
+    elseif cell == hexagonal
+        [hexagonal]
+    elseif cell == cubic
+        [cubic]
+    else
+        error()
+    end
+end
+
+function is_trigonal_symmetry(hall_number::Int)
+    return 430 <= hall_number <= 461
+end
 
 """
     SymOp
@@ -67,6 +229,8 @@ end
 
 nbasis(cryst::Crystal) = length(cryst.positions)
 cell_volume(cryst::Crystal) = abs(det(lat.lat_vecs))
+lattice_params(cryst::Crystal) = lattice_params(cryst.lat_vecs)
+lattice_vectors(cryst::Crystal) = cryst.lat_vecs
 
 """
     Bond{D}
@@ -88,7 +252,6 @@ struct BondRaw
     r1::SVector{3, Float64}
     r2::SVector{3, Float64}
 end
-
 
 "Convenience constructor for a 2D bond"
 Bond2D(i, j, n::Vector{Int}) = Bond{2}(i, j, n)
@@ -131,11 +294,6 @@ end
 function distance(cryst::Crystal, b::Bond{3})
     return distance(cryst, BondRaw(cryst, b))
 end
-
-function distance(lat::Lattice{D}, b::Bond{D}) where {D}
-    return norm(lat.lat_vecs * b.n + (lat.basis_vecs[b.j] - lat.basis_vecs[b.i]))
-end
-
 
 function Base.isapprox(s1::SymOp, s2::SymOp; atol)
     isapprox(s1.R, s2.R; atol) && isapprox(s1.T, s2.T; atol)
@@ -180,7 +338,7 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
     allowed_cells = all_compatible_cells(hall_cell)
     @assert cell in allowed_cells "Hall number $hall_number requires a $hall_cell cell, but found $cell."
 
-    if hall_cell == FastDipole.monoclinic
+    if hall_cell == monoclinic
         is_compatible = is_compatible_monoclinic_cell(lat_vecs, hall_number)
         @assert is_compatible "Lattice vectors define a monoclinic cell that is incompatible with Hall number $hall_number."
     end
@@ -216,10 +374,10 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
             allowed_cells = all_compatible_cells(hall_cell)
 
             # Special handling of trigonal space groups
-            if FastDipole.is_trigonal_symmetry(hall_number)
+            if is_trigonal_symmetry(hall_number)
                 # Trigonal symmetry must have either hexagonal or rhombohedral
                 # cell, according to the Hall number.
-                is_latvecs_valid = cell in [FastDipole.rhombohedral, FastDipole.hexagonal]
+                is_latvecs_valid = cell in [rhombohedral, hexagonal]
                 @assert is_latvecs_valid "Symbol $symbol requires a rhomobohedral or hexagonal cell, but found $cell."
                 is_compatible = cell in allowed_cells
             else
@@ -227,7 +385,7 @@ function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_species::Vec
                 @assert cell in allowed_cells "Symbol $symbol requires a $hall_cell cell, but found $cell."
             end
 
-            if hall_cell == FastDipole.monoclinic
+            if hall_cell == monoclinic
                 is_compatible = is_compatible_monoclinic_cell(lat_vecs, hall_number)
             end
 
@@ -414,39 +572,6 @@ function Base.reverse(b::BondRaw)
     return BondRaw(b.r2, b.r1)
 end
 
-# Constructors converting Lattice -> Crystal, and Crystal -> Lattice
-
-"""
-    Crystal(lattice::Lattice)
-
-Construct a `Crystal` using geometry information in `lattice`, inferring symmetry information.
-"""
-function Crystal(lattice::Lattice{3, 9, 4})
-    L = lattice.lat_vecs
-    # Convert absolute basis positions to fractional coordinates
-    basis_coords = map(b -> inv(L) * b, lattice.basis_vecs)
-    Crystal(L, basis_coords, lattice.species)
-end
-
-function Crystal(lattice::Lattice{2, 4, 3})
-    L = lattice.lat_vecs
-
-    # Expand the lattice to 3D, with a very long c axis
-    L3 = @MMatrix zeros(3, 3)
-    L3[1:2, 1:2] = L
-    # Make the vertical axis 100x longer than the longest 2D lattice vector
-    max_len = maximum(norm.(eachcol(lattice.lat_vecs)))
-    L3[3, 3] = 100. * max_len
-    L3 = SMatrix(L3)
-
-    basis_coords = map(b -> SVector{3}((inv(L) * b)..., 0.), lattice.basis_vecs)
-
-    Crystal(L3, basis_coords, lattice.species)
-end
-
-function Lattice(cryst::Crystal, latsize) :: Lattice{3, 9, 4}
-    Lattice{3}(cryst.lat_vecs, cryst.positions, cryst.species, latsize)
-end
 
 
 function validate(cryst::Crystal)
