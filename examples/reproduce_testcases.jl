@@ -12,9 +12,9 @@ function test_diamond_heisenberg_sf()
     crystal = Crystal(lattice)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, crystal, Bond{3}(3, 6, [0,0,0])),
+        Heisenberg(J, crystal, Bond(3, 6, [0,0,0])),
     ]
-    ℋ = Hamiltonian{3}(interactions)
+    ℋ = Hamiltonian(interactions)
     sys = SpinSystem(lattice, ℋ)
     rand!(sys)
 
@@ -113,16 +113,16 @@ function test_FeI2_MC()
     J1mat = [-0.397  0      0    ;
               0     -0.075 -0.261;
               0     -0.261 -0.236]
-    J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+    J1 = GeneralCoupling(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
+    J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond(1, 1, [1, -1, 0]), "J2")
+    J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond(1, 1, [2, 0, 0]), "J3")
+    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond(1, 1, [0, 0, 1]), "J0′")
+    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
 
     D = OnSite([0.0, 0.0, -2.165/2], "D")
 
-    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
+    ℋ = Hamiltonian([J1, J2, J3, J0′, J1′, J2a′, D])
 
     # Produce a Lattice of the target system size (16x20x4)
     lattice = Lattice(cryst, (16, 20, 4))
@@ -160,9 +160,9 @@ function test_diamond_heisenberg_energy_curve()
     crystal = Crystal(lattice)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, crystal, Bond{3}(3, 6, [0,0,0])),
+        Heisenberg(J, crystal, Bond(3, 6, [0,0,0])),
     ]
-    ℋ = Hamiltonian{3}(interactions)
+    ℋ = Hamiltonian(interactions)
     sys = SpinSystem(lattice, ℋ)
     rand!(sys)
 
@@ -204,17 +204,16 @@ function test_FeI2_energy_curve()
     cryst = subcrystal(cryst, "Fe2+")
 
     # Set up all interactions (all in units meV)
-    J1mat = SA[-0.397 0 0;
-                0 -0.075 -0.261;
-                0 -0.261 -0.236]
-    J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
-    # J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
-    D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
+    J1mat = [-0.397 0      0    ;
+              0    -0.075 -0.261;
+              0    -0.261 -0.236]
+    J1 = GeneralCoupling(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
+    J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond(1, 1, [1, -1, 0]), "J2")
+    J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond(1, 1, [2, 0, 0]), "J3")
+    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond(1, 1, [0, 0, 1]), "J0′")
+    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
+    D = OnSite([0.0, 0.0, -2.165/2], "D")
     ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
 
     # Produce a Lattice of the target system size (16x20x4)

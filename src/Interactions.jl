@@ -293,6 +293,53 @@ function Hamiltonian{D}(ints) where {D}
     return Hamiltonian{D}(ext_field, heisenbergs, on_sites, diag_coups, gen_coups, dipole_int)
 end
 
-function Hamiltonian{D}(ints::Vararg{I}) where {D, I <: Interaction}
+function Hamiltonian{D}(ints::Vararg{<:Interaction}) where {D}
     Hamiltonian{D}(ints)
+end
+
+"""
+    Hamiltonian(ints)
+    Hamiltonian(ints...)
+Constructor for a `Hamiltonian` which attempts to infer dimensionality
+from the provided interactions. Will fail if no pair or dipole
+interactions are defined.
+"""
+function Hamiltonian(ints)
+    D = nothing
+    for int in ints
+        if isa(int, PairInt)
+            # Sort of hacky -- is there a better way?
+            intD = typeof(int).parameters[1]
+        elseif isa(int, DipoleFourier)
+            intD = 3
+        else
+            intD = nothing
+        end
+
+        if !isnothing(intD)
+            if isnothing(D)
+                D = intD
+            elseif D != intD
+                error(
+                    """Provided interactions of multiple inconsistent
+                        dimensionalities!
+                    """
+                )
+            end
+        end
+    end
+
+    if isnothing(D)
+        error(
+            """Could not infer dimensionality from arguments.
+               Use explicit constructor Hamiltonian{D}.
+            """
+        )
+    else
+        Hamiltonian{D}(ints)
+    end
+end
+
+function Hamiltonian(ints::Vararg{<:Interaction})
+    Hamiltonian(ints)
 end

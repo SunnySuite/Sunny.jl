@@ -247,18 +247,17 @@ struct Bond{D}
     n :: SVector{D, Int}
 end
 
+function Bond(i, j, n)
+    D = length(n)
+    n = convert(SVector{D, Int}, n)
+    Bond{D}(i, j, n)
+end
+
 "Represents a bond expressed as two fractional coordinates"
 struct BondRaw
     r1::SVector{3, Float64}
     r2::SVector{3, Float64}
 end
-
-"Convenience constructor for a 2D bond"
-Bond2D(i, j, n::Vector{Int}) = Bond{2}(i, j, n)
-
-"Convenience constructor for a 3D bond"
-Bond3D(i, j, n::Vector{Int}) = Bond{3}(i, j, n)
-
 
 function Bond(cryst::Crystal, b::BondRaw)
     i1 = position_to_index(cryst, b.r1)
