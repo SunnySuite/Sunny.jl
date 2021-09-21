@@ -3,34 +3,27 @@ module FastDipole
 using LinearAlgebra
 using StaticArrays
 using OffsetArrays
-using TOML
 using SpecialFunctions
 using Parameters
 using FFTW
 using Tullio
-using CrystalInfoFramework
-using FilePaths
 using ProgressMeter
+using SunnySymmetry
 import Random
 
-include("Util.jl")
+import SunnySymmetry: Crystal, nbasis, cell_volume, lattice_vectors, lattice_params
 
-include("Symmetry.jl")
-import .Symmetry
-import .Symmetry: Crystal, Bond, print_bond_table, subcrystal, allowed_J
-import .Symmetry: all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
-import .Symmetry: all_symmetry_related_interactions, all_symmetry_related_interactions_for_atom
-import .Symmetry: lattice_params, lattice_vectors, CellType, cell_type
-import .Symmetry: nbasis, cell_volume
-export Crystal, Bond, print_bond_table, subcrystal, allowed_J
-export volumne, lattice_vectors, lattice_params
+# Re-export types and functions from SunnySymmetry
+export Crystal, nbasis, cell_volumne, lattice_vectors, lattice_params
+export Bond, print_bond_table, subcrystal, allowed_J
 export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 export all_symmetry_related_interactions, all_symmetry_related_interactions_for_atom
 
+include("Util.jl")
+
 include("Lattice.jl")
 export Lattice, ReciprocalLattice
-export eachcellindex, gen_reciprocal
-
+export eachcellindex, gen_reciprocal, volume
 
 include("Interactions.jl")
 export ExternalField, Heisenberg, OnSite, DiagonalCoupling, GeneralCoupling
@@ -56,9 +49,6 @@ export running_energy, running_mag
 include("Integrators.jl")
 export HeunP, LangevinHeunP, evolve!
 export LangevinSampler
-
-include("Parsing.jl")
-export parse_config
 
 include("StructureFactors.jl")
 export structure_factor, dipole_factor

@@ -100,7 +100,7 @@ symmetry-equivalent to `bond` in `cryst`.
 """
 function Heisenberg(J::Float64, cryst::Crystal, bond::Bond{D}, label::String="Heisen") where {D}
     sorted_bonds = [
-        Symmetry.all_symmetry_related_bonds_for_atom(cryst, i, bond)
+        all_symmetry_related_bonds_for_atom(cryst, i, bond)
         for i in 1:nbasis(cryst)
     ]
     culled_bonds = cull_bonds(sorted_bonds)
@@ -158,7 +158,7 @@ by `J`, acting on all bonds symmetry-equivalent to `bond` in `cryst`.
 function DiagonalCoupling(J, cryst::Crystal, bond::Bond{D}, label::String="DiagJ") where {D}
     J = convert(Vec3, J)
     sorted_bonds = [
-        Symmetry.all_symmetry_related_bonds_for_atom(cryst, i, bond)
+        all_symmetry_related_bonds_for_atom(cryst, i, bond)
         for i in 1:nbasis(cryst)
     ]
     culled_bonds = cull_bonds(sorted_bonds)
@@ -199,7 +199,7 @@ function GeneralCoupling(J, cryst::Crystal, bond::Bond{D}, label::String="GenJ")
     sorted_bonds = Vector{Vector{Bond{D}}}()
     sorted_Js = Vector{Vector{Mat3}}()
     for i in 1:nbasis(cryst)
-        (bs, Js) = Symmetry.all_symmetry_related_interactions_for_atom(cryst, i, bond, J)
+        (bs, Js) = all_symmetry_related_interactions_for_atom(cryst, i, bond, J)
         push!(sorted_bonds, bs)
         push!(sorted_Js, Js)
     end

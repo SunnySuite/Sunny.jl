@@ -14,11 +14,11 @@ These other type parameters must be in the definition for technical reasons,
 struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
     lat_vecs      :: SMatrix{D, D, Float64, L}       # Columns are lattice vectors
     basis_vecs    :: Vector{SVector{D, Float64}}     # Each SVector gives a basis vector
-    species       :: Vector{String}                  # Indices labeling atom types
+    types       :: Vector{String}                  # Indices labeling atom types
     size          :: SVector{D, Int}                 # Number of cells along each dimension
 
     @doc """
-        Lattice{D}(lat_vecs, basis_vecs, species, latsize)
+        Lattice{D}(lat_vecs, basis_vecs, types, latsize)
 
     Construct a `D`-dimensional `Lattice`.
     # Arguments
@@ -27,22 +27,22 @@ struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
     - `basis_vecs`: A `Vector` of basis positions of sites within the unit cell,
                      given in fractional coordinates.
                     Each element must be `convert`-able into `SVector{D, Float64}`.
-    - `species::Vector{String}`: A list of atomic species identifiers for each site.
+    - `types::Vector{String}`: A list of atomic types identifiers for each site.
                                  Equivalent sites should have the same identifier.
     - `latsize`: Specifies the number of unit cells extending along each lattice vector.
                  Must be `convert`-able into `SVector{D, Int}`.
     """
-    function Lattice{D}(lat_vecs, basis_vecs, species, latsize) where {D}
+    function Lattice{D}(lat_vecs, basis_vecs, types, latsize) where {D}
         @assert all(isequal(D), size(lat_vecs))          "All dims of lat_vecs should be equal size"
         @assert all(isequal(D), map(length, basis_vecs)) "All basis_vecs should be size $D to match lat_vecs"
         @assert length(basis_vecs) > 0                   "At least one basis atom required"
-        @assert length(basis_vecs) == length(species)    "Length of basis_vecs and species should match"
+        @assert length(basis_vecs) == length(types)    "Length of basis_vecs and types should match"
         @assert all(v->all(0 .<= v .< 1), basis_vecs)    "All basis_vecs should be given in fractional coordinates [0, 1)"
         @assert length(latsize) == D                     "latsize should be size $D to match lat_vecs"
         lat_vecs = SMatrix{D, D}(lat_vecs)
         basis_vecs = map(v->lat_vecs * SVector{D, Float64}(v), basis_vecs)
         latsize = SVector{D, Int}(latsize)
-        new{D, D*D, D+1}(lat_vecs, basis_vecs, species, latsize)
+        new{D, D*D, D+1}(lat_vecs, basis_vecs, types, latsize)
     end
 end
 
@@ -70,7 +70,7 @@ end
 function Base.display(lattice::Lattice)
     D = length(size(lattice)) - 1
     println(join(size(lattice), "x"), " Lattice{$D}")
-    # Print out lattice vectors, species, basis?
+    # Print out lattice vectors, types, basis?
 end
 
 # Constructors converting Lattice -> Crystal, and Crystal -> Lattice
@@ -84,7 +84,7 @@ function Crystal(lattice::Lattice{3, 9, 4})
     L = lattice.lat_vecs
     # Convert absolute basis positions to fractional coordinates
     basis_coords = map(b -> inv(L) * b, lattice.basis_vecs)
-    Crystal(L, basis_coords, lattice.species)
+    Crystal(L, basis_coords, lattice.types)
 end
 
 function Crystal(lattice::Lattice{2, 4, 3})
@@ -100,21 +100,21 @@ function Crystal(lattice::Lattice{2, 4, 3})
 
     basis_coords = map(b -> SVector{3}((inv(L) * b)..., 0.), lattice.basis_vecs)
 
-    Crystal(L3, basis_coords, lattice.species)
+    Crystal(L3, basis_coords, lattice.types)
 end
 
 function Lattice(cryst::Crystal, latsize) :: Lattice{3, 9, 4}
-    Lattice{3}(cryst.lat_vecs, cryst.positions, cryst.species, latsize)
+    Lattice{3}(cryst.lat_vecs, cryst.positions, cryst.types, latsize)
 end
 
 "Return number of basis sites in Lattice"
-nbasis(lat::Lattice) = length(lat.basis_vecs)
+SunnySymmetry.nbasis(lat::Lattice) = length(lat.basis_vecs)
 "Compute the volume of a unit cell."
-cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
+SunnySymmetry.cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
 "Compute the volume of the full simulation box."
 volume(lat::Lattice) = cell_volume(lat) * prod(lat.size)
-lattice_vectors(lat::Lattice) = lat.lat_vecs
-lattice_params(lattice::Lattice{3}) = lattice_params(lattice.lat_vecs)
+SunnySymmetry.lattice_vectors(lat::Lattice) = lat.lat_vecs
+SunnySymmetry.lattice_params(lattice::Lattice{3}) = lattice_params(lattice.lat_vecs)
 
 "Produce an iterator over all unit cell indices."
 @inline function eachcellindex(lat::Lattice{D}) :: CartesianIndices where {D}
@@ -172,9 +172,9 @@ function brav_lattice(lat::Lattice{D}) :: Lattice{D} where {D}
     )
 end
 
-cell_type(lattice::Lattice{3}) = cell_type(lattice.lat_vecs)
+SunnySymmetry.cell_type(lattice::Lattice{3}) = cell_type(lattice.lat_vecs)
 
-function distance(lat::Lattice{D}, b::Bond{D}) where {D}
+function SunnySymmetry.distance(lat::Lattice{D}, b::Bond{D}) where {D}
     return norm(lat.lat_vecs * b.n + (lat.basis_vecs[b.j] - lat.basis_vecs[b.i]))
 end
 

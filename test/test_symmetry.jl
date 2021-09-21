@@ -76,7 +76,7 @@ J = basis' * randn(length(basis))
 
 lat_vecs = Mat3(1, 0, 0,   1/2, √3/2, 0,   0, 0, 10)
 positions = [Vec3(0., 0, 0)]
-species = [1]
+species = ["A"]
 cryst = Crystal(lat_vecs, positions, species)
 
 print_bond_table(cryst, 5.)
