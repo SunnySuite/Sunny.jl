@@ -340,7 +340,11 @@ function crystal_from_symops(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_
         is_found = any(cryst′.symops) do s′
             isapprox(s, s′; atol=symprec)
         end
-        @assert is_found "User provided symmetry operation could not be inferred by Spglib"
+        if !is_found
+            println("Warning: User provided symmetry operation could not be inferred by Spglib,")
+            println("which likely indicates a non-conventional unit cell.")
+            break
+        end
     end
 
     ret = Crystal(lat_vecs, positions, equiv_atoms, species, symops, spacegroup, symprec)
