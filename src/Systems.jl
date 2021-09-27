@@ -50,6 +50,13 @@ function ChargeSystem(lat::Lattice)
     return ChargeSystem(lat, sites)
 end
 
+function ChargeSystem(cryst::Crystal, latsize)
+    sites = zeros(nbasis(cryst)sites_size)
+    lattice = Lattice(crystal, latsize)
+    return ChargeSystem(lattice)
+end
+
+
 """
     rand!(sys::ChargeSystem)
 
@@ -76,15 +83,37 @@ function SpinSystem(lattice::Lattice{D}, ℋ::Hamiltonian{D}, S::Rational{Int}=1
 end
 
 """
-    SpinSystem(lattice, ints::Vector{I}, S=1//1) where {I <: Interaction}
+    SpinSystem(crystal::Crystal, ℋ::Hamiltonian, latsize, S=1//1)
+
+Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sites
+ of a given `crystal`, interactions given by `ℋ`, and the number of unit cells along
+ each lattice vector specified by latsize. Initialized to all spins pointing along
+ the ``+𝐳̂`` direction.
 """
-function SpinSystem(lat::Lattice{D}, ints::Vector{I}, S::Rational{Int}=1//1) where {D, I <: Interaction}
+function SpinSystem(crystal::Crystal, ℋ::Hamiltonian{D}, latsize, S::Rational{Int}=1//1) where {D}
+    if length(latsize) != 3
+        error("Provided `latsize` should be of length 3")
+    end
+    lattice = Lattice(crystal, latsize)
+    SpinSystem(lattice, ℋ, S)
+end
+
+"""
+    SpinSystem(lattice, ints::Vector{<:Interaction}, latsize, S=1//1)
+"""
+function SpinSystem(lat::Lattice{D}, ints::Vector{<:Interaction}, S::Rational{Int}=1//1) where {D}
     return SpinSystem(lat, Hamiltonian{D}(ints), S)
 end
 
-# Can we remove this too?
-function SpinSystem(lat::Lattice)
-    return SpinSystem(lat, Vector{Interaction}(), 1//1)
+"""
+    SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1//1)
+"""
+function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S::Rational{Int}=1//1) where {D}
+    if length(latsize) != 3
+        error("Provided `latsize` should be of length 3")
+    end
+    lattice = Lattice(crystal, latsize)
+    SpinSystem(lattice, ints, S)
 end
 
 """

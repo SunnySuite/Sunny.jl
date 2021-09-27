@@ -123,7 +123,8 @@ function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4
     f
 end
 
-function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; colors=:Dark2_8, bondwidth=4, kwargs...)
+function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}};
+                    colors=:Dark2_8, bondwidth=4, kwargs...)
     f, ax = _setup_3d()
 
     # Plot the bonds, all relative to a central atom on the first sublattice
@@ -171,29 +172,39 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; colors=:Dar
     f
 end
 
-@inline function plot_bonds(lattice::Lattice{3}, ℋ::Hamiltonian; kwargs...)
+function plot_bonds(cryst::Crystal, ints::Vector{<:PairInt{3}}; ncells=(3,3,3), kwargs...)
+    lattice = Lattice(cryst, ncells)
+    plot_bonds(lattice, ints; kwargs...)
+end
+
+function plot_bonds(lattice::Lattice{3}, ℋ::Hamiltonian; kwargs...)
     interactions = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
-    plot_bonds(lattice, interactions; kwargs...)
+    plot_bonds(lattice, interactions; ncells=ncells, kwargs...)
+end
+
+function plot_bonds(cryst::Crystal, ℋ::Hamiltonian; ncells=(3,3,3), kwargs...)
+    lattice = Lattice(cryst, ncells)
+    plot_bonds(lattice, ℋ; kwrgs)
 end
 
 """
     plot_bonds(sys::SpinSystem; kwargs...)
 
-Plot all pair interactions appearing in `sys.hamiltonian`, on the lattice
-defined by `sys.lattice`.
+Plot all pair interactions appearing in `sys.hamiltonian`, on the
+underlying crystal lattice.
 """
 @inline function plot_bonds(sys::SpinSystem; kwargs...)
     plot_bonds(sys.lattice, sys.hamiltonian; kwargs...)
 end
 
 """
-    plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
+    plot_all_bonds(crystal::Crystal, max_dist; ncells=(3,3,3), kwargs...)
 
-Plot all bond equivalency classes present in `lattice` up to a maximum
-bond length of `max_dist`. `kwargs` are passed to `plot_bonds`.
+Plot all bond equivalency classes present in `crystal` up to a maximum
+bond length of `max_dist`. `ncells` controls how many unit cells are
+plotted along each axis. `kwargs` are passed to `plot_bonds`. 
 """
-function plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
-    crystal = Crystal(lattice)
+function plot_all_bonds(crystal::Crystal, max_dist; ncells=(3,3,3), kwargs...)
     canon_bonds = canonical_bonds(crystal, max_dist)
     interactions = Vector{Heisenberg{3}}()
     
@@ -216,9 +227,9 @@ function plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
 
     @assert length(interactions) > 0 "No non-self interactions found!"
     # Sort interactions so that longer bonds are plotted first
-    sort!(interactions, by=int->distance(lattice, int.bonds[1][1]))
+    sort!(interactions, by=int->distance(crystal, int.bonds[1][1]))
 
-    plot_bonds(lattice, interactions; kwargs...)
+    plot_bonds(crystal, interactions; ncells=(3,3,3), kwargs...)
 end
 
 "Plot all bonds between equivalent sites i and j"

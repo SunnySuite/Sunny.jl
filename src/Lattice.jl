@@ -1,3 +1,12 @@
+"""Definition and functions working with the Lattice type.
+   Lattice is a lightweight wrapper that stores lattice
+    geometry in absolute coordinates for fast site
+    indexing, along with a box size for easy collection
+    of all sites.
+   Lattice is arbitrary-dimensional, but contains no
+    symmetry information.
+"""
+
 import Base.size
 
 """
@@ -8,13 +17,13 @@ The type parameter `D` represents the dimensionality of the `Lattice`,
  while the others must satisfy `L = D^2, Db = D + 1`.
 
 These other type parameters must be in the definition for technical reasons,
- but are inferred without needing them explicitly provided. For example,
+ but can be inferred without needing them explicitly provided. For example,
  see the `Lattice{D}` constructor.
 """
 struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
     lat_vecs      :: SMatrix{D, D, Float64, L}       # Columns are lattice vectors
     basis_vecs    :: Vector{SVector{D, Float64}}     # Each SVector gives a basis vector
-    types       :: Vector{String}                  # Indices labeling atom types
+    types         :: Vector{String}                  # Indices labeling atom types
     size          :: SVector{D, Int}                 # Number of cells along each dimension
 
     @doc """
@@ -36,28 +45,36 @@ struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
         @assert all(isequal(D), size(lat_vecs))          "All dims of lat_vecs should be equal size"
         @assert all(isequal(D), map(length, basis_vecs)) "All basis_vecs should be size $D to match lat_vecs"
         @assert length(basis_vecs) > 0                   "At least one basis atom required"
-        @assert length(basis_vecs) == length(types)    "Length of basis_vecs and types should match"
+        @assert length(basis_vecs) == length(types)      "Length of basis_vecs and types should match"
         @assert all(v->all(0 .<= v .< 1), basis_vecs)    "All basis_vecs should be given in fractional coordinates [0, 1)"
         @assert length(latsize) == D                     "latsize should be size $D to match lat_vecs"
         lat_vecs = SMatrix{D, D}(lat_vecs)
-        basis_vecs = map(v->lat_vecs * SVector{D, Float64}(v), basis_vecs)
+        basis_vecs = SVector{D, Float64}.(basis_vecs)
         latsize = SVector{D, Int}(latsize)
         new{D, D*D, D+1}(lat_vecs, basis_vecs, types, latsize)
     end
 end
 
-function Lattice{D}(lat_vecs, basis_vecs, latsize) where {D}
+"""
+    Lattice(lat_vecs, basis_vecs, types, latsize)
+
+Construct a `Lattice`, with the dimension inferred by the shape of `lat_vecs`.
+"""
+function Lattice(lat_vecs, basis_vecs, types, latsize)
+    D = size(lat_vecs, 1)
     return Lattice{D}(
-        lat_vecs, basis_vecs, fill("A", length(basis_vecs)), latsize
+        lat_vecs, basis_vecs, types, latsize
     )
 end
 
 """
-    Lattice(lat_vecs::SMatrix{D, D}, basis_vecs, latsize)
+    Lattice(lat_vecs, basis_vecs, latsize)
 
-Construct a `Lattice`, with the dimension inferred by the shape of `lat_vecs`.
+Construct a `Lattice`, with the dimension inferred by the shape of `lat_vecs`,
+and all sites assumed to be the same type (labeled `"A"`).
 """
-function Lattice(lat_vecs::SMatrix{D,D}, basis_vecs, latsize) where {D}
+function Lattice(lat_vecs, basis_vecs, latsize)
+    D = size(lat_vecs, 1)
     return Lattice{D}(
         lat_vecs, basis_vecs, fill("A", length(basis_vecs)), latsize
     )
@@ -114,7 +131,7 @@ SunnySymmetry.cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
 "Compute the volume of the full simulation box."
 volume(lat::Lattice) = cell_volume(lat) * prod(lat.size)
 SunnySymmetry.lattice_vectors(lat::Lattice) = lat.lat_vecs
-SunnySymmetry.lattice_params(lattice::Lattice{3}) = lattice_params(lattice.lat_vecs)
+SunnySymmetry.lattice_params(lat::Lattice{3}) = lattice_params(lat.lat_vecs)
 
 "Produce an iterator over all unit cell indices."
 @inline function eachcellindex(lat::Lattice{D}) :: CartesianIndices where {D}

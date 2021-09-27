@@ -124,10 +124,8 @@ function test_FeI2_MC()
 
     ℋ = Hamiltonian([J1, J2, J3, J0′, J1′, J2a′, D])
 
-    # Produce a Lattice of the target system size (16x20x4)
-    lattice = Lattice(cryst, (16, 20, 4))
-    # Set up the SpinSystem
-    system = SpinSystem(lattice, ℋ)
+    # Set up the SpinSystem of size (16x20x4)
+    system = SpinSystem(cryst, ℋ, (16, 20, 4))
     rand!(system)
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
