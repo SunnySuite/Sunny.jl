@@ -125,13 +125,13 @@ function Lattice(cryst::Crystal, latsize) :: Lattice{3, 9, 4}
 end
 
 "Return number of basis sites in Lattice"
-SunnySymmetry.nbasis(lat::Lattice) = length(lat.basis_vecs)
+nbasis(lat::Lattice) = length(lat.basis_vecs)
 "Compute the volume of a unit cell."
-SunnySymmetry.cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
+cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
 "Compute the volume of the full simulation box."
 volume(lat::Lattice) = cell_volume(lat) * prod(lat.size)
-SunnySymmetry.lattice_vectors(lat::Lattice) = lat.lat_vecs
-SunnySymmetry.lattice_params(lat::Lattice{3}) = lattice_params(lat.lat_vecs)
+lattice_vectors(lat::Lattice) = lat.lat_vecs
+lattice_params(lat::Lattice{3}) = lattice_params(lat.lat_vecs)
 
 "Produce an iterator over all unit cell indices."
 @inline function eachcellindex(lat::Lattice{D}) :: CartesianIndices where {D}
@@ -189,9 +189,9 @@ function brav_lattice(lat::Lattice{D}) :: Lattice{D} where {D}
     )
 end
 
-SunnySymmetry.cell_type(lattice::Lattice{3}) = cell_type(lattice.lat_vecs)
+cell_type(lattice::Lattice{3}) = cell_type(lattice.lat_vecs)
 
-function SunnySymmetry.distance(lat::Lattice{D}, b::Bond{D}) where {D}
+function distance(lat::Lattice{D}, b::Bond{D}) where {D}
     return norm(lat.lat_vecs * b.n + (lat.basis_vecs[b.j] - lat.basis_vecs[b.i]))
 end
 

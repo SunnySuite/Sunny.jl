@@ -173,18 +173,19 @@ function _plan_spintraj_fft!(spin_traj::Array{ComplexF64})
 end
 
 """
-    structure_factor(sys, sampler; num_samples, dynΔt, meas_rate, num_meas
+    structure_factor(sys, sampler; num_samples, dynΔt, meas_rate, num_freqs
                                     bz_size, therm_samples, verbose)
 
-Measures the full structure factor tensor of a spin system, for the requested range of 𝐪-space.
-Returns ``𝒮^{αβ}(𝐪, ω) = ⟨S^α(𝐪, ω) S^β(𝐪, ω)^∗⟩``, which is an array of shape
-    `[3, 3, Q1, ..., Qd, T]`
-where `Qi = max(1, bz_size_i * L_i)`
+Measures the full dynamic structure factor tensor of a spin system, for the requested range
+of 𝐪-space and range of frequencies ω. Returns ``𝒮^{αβ}(𝐪, ω) = ⟨S^α(𝐪, ω) S^β(𝐪, ω)^∗⟩``,
+which is an array of shape `[3, 3, Q1, ..., Qd, T]` where `Qi = max(1, bz_size_i * L_i)`
+and `T = num_freqs`.
 
 `num_samples` sets the number of thermodynamic samples to measure and average
  across from `sampler`. `dynΔt` sets the integrator timestep during dynamics,
- and `meas_rate` sets how often snapshots are recorded during dynamics. The sampler
- is sampled `therm_samples` times before any measurements are made.
+ and `meas_rate` sets how often snapshots are recorded during dynamics. `num_freqs`
+ sets the number of frequencies measured. The sampler is thermalized by sampling
+ `therm_samples` times before any measurements are made.
 
 The maximum frequency sampled is `ωmax = 2π / (dynΔt * meas_rate)`, and the frequency resolution
  is set by num_meas (the number of spin snapshots measured during dynamics).
@@ -257,4 +258,12 @@ function structure_factor(
     struct_factor ./= num_samples
 
     return struct_factor
+end
+
+"""
+    static_structure_factor(sys, sampler; num_samples, dynΔt, meas_rate, num_meas
+                                          bz_size, therm_samples, verbose)
+"""
+function static_structure_factor(sys::SpinSystem{D}, sampler::S; kwargs...) where {D, S <: AbstractSampler}
+    structure_factor(sys, sampler; num_freqs=1, kwargs...)
 end

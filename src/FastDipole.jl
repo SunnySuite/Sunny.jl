@@ -8,13 +8,13 @@ using Parameters
 using FFTW
 using Tullio
 using ProgressMeter
-using SunnySymmetry
 import Random
 
-import SunnySymmetry: Crystal, nbasis, cell_volume, lattice_vectors, lattice_params
+const Vec3 = SVector{3, Float64}
+const Mat3 = SMatrix{3, 3, Float64, 9}
 
-# Re-export types and functions from SunnySymmetry
-export Crystal, nbasis, cell_volumne, lattice_vectors, lattice_params
+include("Symmetry/Symmetry.jl")
+export Crystal, nbasis, cell_volume, lattice_vectors, lattice_params
 export Bond, print_bond_table, subcrystal, allowed_J
 export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 export all_symmetry_related_interactions, all_symmetry_related_interactions_for_atom

@@ -977,14 +977,6 @@ version = "0.6.1"
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]
 uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 
-[[SunnySymmetry]]
-deps = ["CrystalInfoFramework", "FilePaths", "LinearAlgebra", "Parameters", "Printf", "Spglib", "StaticArrays"]
-git-tree-sha1 = "97d7f3b926031c875a5ca34baf295c2a783b682f"
-repo-rev = "main"
-repo-url = "https://github.com/MagSims/SunnySymmetry.git"
-uuid = "1ce5744c-be6c-460c-bc9f-a2282b85465c"
-version = "0.1.0"
-
 [[TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"

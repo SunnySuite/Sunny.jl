@@ -210,6 +210,11 @@ end
 
 const PairInt{D} = Union{Heisenberg{D}, DiagonalCoupling{D}, GeneralCoupling{D}}
 
+function initialize_interaction(int::Heisenberg{3}, cryst::Crystal)
+    # TODO
+    nothing
+end
+
 """
 Dipole-dipole interactions computed in real-space. `DipoleFourier` should
 be preferred in actual simulations, but this type persists as a cross-check
