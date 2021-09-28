@@ -107,3 +107,10 @@ print_bond_table(cryst, 8.)
 cryst = Crystal("/Users/kbarros/Desktop/cifs/diamond_Nature1958.cif")
 display(cryst)
 print_bond_table(cryst, 5.)
+
+
+### Test BaCoSiO4
+
+# cryst = Crystal("/Users/kbarros/Desktop/cifs/BaCoSiO4_P63_orth.cif")
+cryst = Crystal("/Users/kbarros/Desktop/cifs/BaCoSiO4_P63_orth.cif"; symprec=1e-3)
+display(cryst)

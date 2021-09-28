@@ -111,7 +111,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
             symprec = 15err
             @printf "Setting symprec=%.1e.\n" symprec
         else
-            println("Error: Please specify an explicit `symprec` parameter to load this file, '$filename'")
+            println("Error: Cannot infer precision. Please provide an explicit `symprec` parameter to load '$filename'")
             return Nothing
         end
     end
