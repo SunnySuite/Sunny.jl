@@ -77,6 +77,7 @@ end
 function print_bond(cryst::Crystal, b::Bond{3})
     ri = cryst.positions[b.i]
     rj = cryst.positions[b.j] + b.n
+    allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
 
     @printf "Bond{3}(%d, %d, [%d, %d, %d])\n" b.i b.j b.n[1] b.n[2] b.n[3]
 
@@ -87,12 +88,10 @@ function print_bond(cryst::Crystal, b::Bond{3})
         else
             @printf "'%s' at fractional coordinates [%.4g, %.4g, %.4g]\n" cryst.types[b.i] ri[1] ri[2] ri[3]
         end
-        allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
-        allowed_J_basis_sym = filter(J -> J ≈ J', allowed_J_basis)
-        print_allowed_exchange("Allowed on-site anisotropy: ", allowed_J_basis_sym)
-        # Antisymmetric terms are relevant to g-tensor. Report these separately.
-        if length(allowed_J_basis) > length(allowed_J_basis_sym)
-            print_allowed_exchange("Allowed effective g-tensor: ", allowed_J_basis)
+        print_allowed_exchange("Allowed single-ion anisotropy or g-tensor: ", allowed_J_basis)
+        if any(J -> !(J ≈ J'), allowed_J_basis)
+            println("""Note: The antisymmetric part is irrelevant to the single-ion anisotropy,
+                       but could contribute meaningfully to the g-tensor.""")
         end
     else
         @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) bond_multiplicity(cryst, b)
@@ -101,7 +100,6 @@ function print_bond(cryst::Crystal, b::Bond{3})
         else
             @printf "Connects '%s' at [%.4g, %.4g, %.4g] to '%s' at [%.4g, %.4g, %.4g]\n" cryst.types[b.i] ri[1] ri[2] ri[3] cryst.types[b.j] rj[1] rj[2] rj[3]
         end
-        allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
         print_allowed_exchange("Allowed exchange matrix: ", allowed_J_basis)
     end
     println()

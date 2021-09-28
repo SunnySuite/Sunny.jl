@@ -1,24 +1,7 @@
-import FastDipole: Vec3, Mat3
-import FastDipole.Symmetry: SymOp, Crystal, Bond, canonical_bonds, distance, subcrystal, print_bond_table, lattice_vectors
-import FastDipole.Symmetry as S
+import FastDipole: Vec3, Mat3, SymOp, Crystal, Bond, canonical_bonds, distance, subcrystal, print_bond_table, lattice_vectors
+import FastDipole as FD
+
 using LinearAlgebra
-
-
-### Utility functions
-
-function clean_digits(x, n_digits)
-    # keep only n_digits past the decimal point
-    x = 10.0^-n_digits * round(10.0^n_digits * x)
-    # map -0 to 0
-    x == -0.0 ? 0.0 : x
-end
-
-# Count the number of symmetries with even/odd parity
-function count_symmetries(sym)
-    n1 = length(filter(x ->  x[2], sym))
-    n2 = length(filter(x -> !x[2], sym))
-    return n1, n2
-end
 
 
 ### Test construction of diamond lattice
@@ -26,28 +9,27 @@ end
 # Spglib inferred symmetry
 lat_vecs = Mat3(1, 1, 0,   1, 0, 1,   0, 1, 1) / 2
 positions = [Vec3(1, 1, 1), Vec3(-1, -1, -1)] / 8
-species = ["C", "C"]
-cryst = Crystal(lat_vecs, positions, species)
+types = ["C", "C"]
+cryst = Crystal(lat_vecs, positions, types)
 cbonds = canonical_bonds(cryst, 2.)
 dist1 = [distance(cryst, b) for b=cbonds]
 
 # Using explicit symops
 base_positions = [Vec3(1, 1, 1) / 8]
-base_species = ["C"]
-cryst = Crystal(lat_vecs, base_positions, base_species, cryst.symops)
+base_types = ["C"]
+cryst = FD.crystal_from_symops(lat_vecs, base_positions, base_types, cryst.symops, cryst.spacegroup)
 cbonds = canonical_bonds(cryst, 2.)
 dist2 = [distance(cryst, b) for b=cbonds]
 
 # Using Hall number
 lat_vecs = Mat3(I) # must switch to standard cubic unit cell
 base_positions = [Vec3(1, 1, 1) / 4]
-@assert cryst.hall_number == 525
-cryst = Crystal(lat_vecs, base_positions, base_species, 525)
+cryst = FD.crystal_from_hall_number(lat_vecs, base_positions, base_types, 525)
 cbonds = canonical_bonds(cryst, 2.)
 dist3 = [distance(cryst, b) for b=cbonds]
 
 # Using international symbol
-cryst = Crystal(lat_vecs, base_positions, base_species, "F d -3 m")
+cryst = Crystal(lat_vecs, base_positions, base_types, "F d -3 m")[1]
 cbonds = canonical_bonds(cryst, 2.)
 dist4 = [distance(cryst, b) for b=cbonds]
 
@@ -59,25 +41,25 @@ dist4 = [distance(cryst, b) for b=cbonds]
 
 lat_vecs = Mat3(1, 1, 0,   1, 0, 1,   0, 1, 1) / 2
 positions = [Vec3(0., 0, 0)]
-species = ["A"]
-cryst = Crystal(lat_vecs, positions, species)
+types = ["A"]
+cryst = Crystal(lat_vecs, positions, types)
 print_bond_table(cryst, 2.)
 
 # Calculate interaction table
 cbonds = canonical_bonds(cryst, 2.)
 b = cbonds[2]
-basis = S.basis_for_symmetry_allowed_couplings(cryst, b)
+basis = FD.basis_for_symmetry_allowed_couplings(cryst, b)
 J = basis' * randn(length(basis))
-(bs, Js) = S.all_symmetry_related_interactions(cryst, b, J)
-@assert length(Js) == S.bond_multiplicity(cryst, b)
+(bs, Js) = FD.all_symmetry_related_interactions(cryst, b, J)
+@assert length(Js) == FD.bond_multiplicity(cryst, b)
 
 
 ### Triangular lattice, primitive unit cell
 
 lat_vecs = Mat3(1, 0, 0,   1/2, √3/2, 0,   0, 0, 10)
 positions = [Vec3(0., 0, 0)]
-species = ["A"]
-cryst = Crystal(lat_vecs, positions, species)
+types = ["A"]
+cryst = Crystal(lat_vecs, positions, types)
 
 print_bond_table(cryst, 5.)
 
@@ -86,8 +68,8 @@ print_bond_table(cryst, 5.)
 
 lat_vecs = Mat3(1, 0, 0,   1/2, √3/2, 0,   0, 0, 10)
 positions = [Vec3(0, 0, 0), Vec3(0.5, 0, 0), Vec3(0, 0.5, 0)]
-species = ["A", "A", "A"]
-cryst = Crystal(lat_vecs, positions, species)
+types = ["A", "A", "A"]
+cryst = Crystal(lat_vecs, positions, types)
 
 print_bond_table(cryst, 3.)
 
@@ -97,7 +79,7 @@ print_bond_table(cryst, 3.)
 lat_vecs = lattice_vectors(6, 7, 8, 90, 90, 40)
 basis_atoms = [Vec3(0,0,0)]
 basis_labels = ["A"]
-cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"C 2/c")
+cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"C 2/c")[1]
 display(cryst)
 
 
@@ -107,10 +89,8 @@ lat_vecs = lattice_vectors(5, 5, 6, 90, 90, 120)
 basis_atoms = [Vec3(0,0,0)]
 basis_labels = ["A"]
 cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"P -3")
-cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"I:147") # international number
-cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"147") # international number
-cryst = Crystal(lat_vecs,basis_atoms,basis_labels, 435) # Hall number
 cryst = Crystal(lat_vecs,basis_atoms,basis_labels,"R -3")
+cryst = Crystal(lat_vecs,basis_atoms,basis_labels, 147) # spacegroup number
 display(cryst)
 
 
@@ -131,7 +111,8 @@ using StaticArrays
 
 cryst = subcrystal(Crystal("/Users/kbarros/Desktop/cifs/FeI2.cif"), "Fe2+")
 display(cryst)
-print_bond_table(cryst, 6.)
+print_bond_table(cryst, 8.)
 
 cryst = Crystal("/Users/kbarros/Desktop/cifs/diamond_Nature1958.cif")
+display(cryst)
 print_bond_table(cryst, 5.)
