@@ -51,17 +51,50 @@ lattice_params(cryst::Crystal) = lattice_params(cryst.lat_vecs)
 lattice_vectors(cryst::Crystal) = cryst.lat_vecs
 
 
-function Crystal(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
+"""
+    Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
+
+Construct a `Crystal` using explicit geometry information, with all symmetry
+information automatically inferred. `positions` should be a list of site
+positions (in fractional coordinates) within the unit cell defined by lattice
+vectors which are the columns of `lat_vecs`.
+"""
+function Crystal(lat_vecs, positions; types::Union{Nothing,Vector{String}}=nothing, symprec=1e-5)
+    lat_vecs = convert(Mat3, lat_vecs)
+    positions = [convert(Vec3, p) for p in positions]
+    if isnothing(types)
+        types = fill("", length(positions))
+    end
     return crystal_from_inferred_symmetry(lat_vecs, positions, types; symprec)
 end
 
-function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_types::Vector{String}, symbol::String; symprec=1e-5)
-    crystal_from_symbol(lat_vecs, base_positions, base_types, symbol; symprec)
+"""
+    Crystal(lat_vecs, positions, symbol::String; types=nothing, symprec=1e-5)
+
+Build `Crystal` by applying operators for a given spacegroup symbol. In case of
+ambiguity, all possible interpretations are reported.
+"""
+function Crystal(lat_vecs::Mat3, base_positions, symbol::String; base_types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+    base_positions = [convert(Vec3, p) for p in base_positions]
+    if isnothing(base_types)
+        base_types = fill("", length(base_positions))
+    end
+    crystal_from_symbol(lat_vecs, base_positions, base_types, symbol; setting, symprec)
 end
 
-function Crystal(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_types::Vector{String}, spacegroup_number::Int; symprec=1e-5)
+"""
+    Crystal(lat_vecs, positions, spacegroup_number; types=nothing, symprec=1e-5)
+
+Build `Crystal` by applying operators for a given international spacegroup
+number. In case of ambiguity, all possible interpretations are reported.
+"""
+function Crystal(lat_vecs::Mat3, base_positions, spacegroup_number::Int; base_types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+    base_positions = [convert(Vec3, p) for p in base_positions]
+    if isnothing(base_types)
+        base_types = fill("", length(base_positions))
+    end
     symbol = international_short_names[spacegroup_number]
-    crystal_from_symbol(lat_vecs, base_positions, base_types, symbol; symprec)
+    crystal_from_symbol(lat_vecs, base_positions, base_types, symbol; setting, symprec)
 end
 
 
@@ -90,13 +123,6 @@ function symops_from_spglib(rotations, translations)
 end
 
 
-"""
-    crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
-
-Construct a `Crystal` using explicit geometry information, with all symmetry information
-automatically inferred. `positions` should be a list of site positions (in fractional
-coordinates) within the unit cell defined by lattice vectors which are the columns of `lat_vecs`.
-"""
 function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
     positions = wrap_to_unit_cell.(positions; symprec)
 
@@ -137,8 +163,7 @@ function crystal_from_hall_number(lat_vecs::Mat3, base_positions::Vector{Vec3}, 
     return crystal_from_symops(lat_vecs, base_positions, base_types, symops, spacegroup; symprec)
 end
 
-# Make best effort to build Crystal from symbolic representation of spacegroup
-function crystal_from_symbol(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_types::Vector{String}, symbol::String; symprec=1e-5)
+function crystal_from_symbol(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_types::Vector{String}, symbol::String; setting=nothing, symprec=1e-5)
     hall_numbers = Int[]
     crysts = Crystal[]
 
@@ -189,6 +214,18 @@ function crystal_from_symbol(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_
     elseif length(crysts) == 1
         return first(crysts)
     else
+        if !isnothing(setting)
+            i = findfirst(hall_numbers) do hall_number
+                sgt = Spglib.get_spacegroup_type(hall_number)
+                setting == sgt.choice
+            end
+            if isnothing(i)
+                error("The symbol '$symbol' is ambiguous, and the specified setting '$setting' is not valid.")
+            else
+                return crysts[i]
+            end
+        end
+
         println("The symbol '$symbol' is ambiguous! Returning all crystals:")
         for (i, (hall_number, c)) in enumerate(zip(hall_numbers, crysts))
             sgt = Spglib.get_spacegroup_type(hall_number)
@@ -196,12 +233,11 @@ function crystal_from_symbol(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_
             choice = sgt.choice
             n_atoms = length(c.positions)
             i_str = @sprintf "%2d" i
-            hall_str = @sprintf "%3d" hall_number
             natoms_str = @sprintf "%2d" n_atoms
-            println("   $i_str. Hall number $hall_str generates $natoms_str atoms ('$hm_symbol' setting '$choice')")
+            println("   $i_str. \"$hm_symbol\", setting=\"$choice\", generates $natoms_str atoms")
         end
         println()
-        println("Note: The constructor `crystal_from_hall_number()` would be unambiguous.")
+        println("Note: To disambiguate, you may pass a named parameter, setting=\"...\".")
         println()
         return crysts
     end
