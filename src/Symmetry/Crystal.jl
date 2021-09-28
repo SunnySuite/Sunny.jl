@@ -55,9 +55,9 @@ lattice_vectors(cryst::Crystal) = cryst.lat_vecs
     Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
 
 Construct a `Crystal` using explicit geometry information, with all symmetry
-information automatically inferred. `positions` should be a list of site
-positions (in fractional coordinates) within the unit cell defined by lattice
-vectors which are the columns of `lat_vecs`.
+information automatically inferred. `positions` should be a complete list of
+site positions (in fractional coordinates) within the unit cell defined by
+lattice vectors `lat_vecs`.
 """
 function Crystal(lat_vecs, positions; types::Union{Nothing,Vector{String}}=nothing, symprec=1e-5)
     lat_vecs = convert(Mat3, lat_vecs)
@@ -71,30 +71,29 @@ end
 """
     Crystal(lat_vecs, positions, symbol::String; types=nothing, symprec=1e-5)
 
-Build `Crystal` by applying operators for a given spacegroup symbol. In case of
-ambiguity, all possible interpretations are reported.
+Build `Crystal` by applying symmetry operators for a given spacegroup symbol.
 """
-function Crystal(lat_vecs::Mat3, base_positions, symbol::String; base_types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
-    base_positions = [convert(Vec3, p) for p in base_positions]
-    if isnothing(base_types)
-        base_types = fill("", length(base_positions))
+function Crystal(lat_vecs::Mat3, positions, symbol::String; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+    positions = [convert(Vec3, p) for p in positions]
+    if isnothing(types)
+        types = fill("", length(positions))
     end
-    crystal_from_symbol(lat_vecs, base_positions, base_types, symbol; setting, symprec)
+    crystal_from_symbol(lat_vecs, positions, types, symbol; setting, symprec)
 end
 
 """
     Crystal(lat_vecs, positions, spacegroup_number; types=nothing, symprec=1e-5)
 
-Build `Crystal` by applying operators for a given international spacegroup
-number. In case of ambiguity, all possible interpretations are reported.
+Build `Crystal` by applying symmetry operators for a given international spacegroup
+number.
 """
-function Crystal(lat_vecs::Mat3, base_positions, spacegroup_number::Int; base_types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
-    base_positions = [convert(Vec3, p) for p in base_positions]
-    if isnothing(base_types)
-        base_types = fill("", length(base_positions))
+function Crystal(lat_vecs::Mat3, positions, spacegroup_number::Int; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+    positions = [convert(Vec3, p) for p in positions]
+    if isnothing(types)
+        types = fill("", length(positions))
     end
     symbol = international_short_names[spacegroup_number]
-    crystal_from_symbol(lat_vecs, base_positions, base_types, symbol; setting, symprec)
+    crystal_from_symbol(lat_vecs, positions, types, symbol; setting, symprec)
 end
 
 
@@ -146,7 +145,7 @@ end
 
 # Build Crystal using the space group denoted by a unique Hall number. The complete
 # list is given at http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
-function crystal_from_hall_number(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_types::Vector{String}, hall_number::Int; symprec=1e-5)
+function crystal_from_hall_number(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, hall_number::Int; symprec=1e-5)
     cell = cell_type(lat_vecs)
     hall_cell = cell_type(hall_number)
     allowed_cells = all_compatible_cells(hall_cell)
@@ -160,10 +159,10 @@ function crystal_from_hall_number(lat_vecs::Mat3, base_positions::Vector{Vec3}, 
     symops = symops_from_spglib(Spglib.get_symmetry_from_database(hall_number)...)
     spacegroup = spacegroup_name(hall_number)
 
-    return crystal_from_symops(lat_vecs, base_positions, base_types, symops, spacegroup; symprec)
+    return crystal_from_symops(lat_vecs, positions, types, symops, spacegroup; symprec)
 end
 
-function crystal_from_symbol(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_types::Vector{String}, symbol::String; setting=nothing, symprec=1e-5)
+function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symbol::String; setting=nothing, symprec=1e-5)
     hall_numbers = Int[]
     crysts = Crystal[]
 
@@ -202,7 +201,7 @@ function crystal_from_symbol(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_
             end
 
             if is_compatible
-                cryst = crystal_from_hall_number(lat_vecs, base_positions, base_types, hall_number; symprec)
+                cryst = crystal_from_hall_number(lat_vecs, positions, types, hall_number; symprec)
                 push!(hall_numbers, hall_number)
                 push!(crysts, cryst)
             end
@@ -244,31 +243,31 @@ function crystal_from_symbol(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_
 end
 
 "Build Crystal from explicit set of symmetry operations and a minimal set of positions "
-function crystal_from_symops(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
-    positions = Vec3[]
-    types = String[]
+function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
+    all_positions = Vec3[]
+    all_types = String[]
     equiv_atoms = Int[]
     
-    for i = eachindex(base_positions)
+    for i = eachindex(positions)
         for s = symops
-            x = wrap_to_unit_cell(transform(s, base_positions[i]); symprec)
+            x = wrap_to_unit_cell(transform(s, positions[i]); symprec)
 
-            idx = findfirst(y -> is_same_position(x, y; symprec), positions)
+            idx = findfirst(y -> is_same_position(x, y; symprec), all_positions)
             if isnothing(idx)
-                push!(positions, x)
-                push!(types, base_types[i])
+                push!(all_positions, x)
+                push!(all_types, types[i])
                 push!(equiv_atoms, i)
             else
                 j = equiv_atoms[idx]
                 if i != j
-                    error("Base positions $(base_positions[i]) and $(base_positions[j]) are symmetry equivalent.")
+                    error("Base positions $(positions[i]) and $(positions[j]) are symmetry equivalent.")
                 end
             end
         end
     end
 
     # Check that symops are present in Spglib-inferred space group
-    cryst′ = crystal_from_inferred_symmetry(lat_vecs, positions, types; symprec)
+    cryst′ = crystal_from_inferred_symmetry(lat_vecs, all_positions, all_types; symprec)
     for s in symops
         is_found = any(cryst′.symops) do s′
             isapprox(s, s′; atol=symprec)
@@ -280,7 +279,7 @@ function crystal_from_symops(lat_vecs::Mat3, base_positions::Vector{Vec3}, base_
         end
     end
 
-    ret = Crystal(lat_vecs, positions, equiv_atoms, types, symops, spacegroup, symprec)
+    ret = Crystal(lat_vecs, all_positions, equiv_atoms, all_types, symops, spacegroup, symprec)
     validate(ret)
     return ret
 end
