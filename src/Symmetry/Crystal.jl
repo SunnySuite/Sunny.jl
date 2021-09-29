@@ -122,22 +122,43 @@ function symops_from_spglib(rotations, translations)
 end
 
 
+# Sort the sites to be contiguous in equivalence class, and within each class,
+# according to fractional coordinates.
+function sort_sites!(cryst::Crystal)
+    function less_than(i, j)
+        eci = cryst.equiv_atoms[i]
+        ecj = cryst.equiv_atoms[j]
+        if eci != ecj
+            return eci < ecj
+        end
+        ri = cryst.positions[i]
+        rj = cryst.positions[j]
+        for k = 3:-1:1
+            if !isapprox(ri[k], rj[k], atol=cryst.symprec)
+                return ri[k] < rj[k]
+            end
+        end
+        error("Positions $i and $j cannot be distinguished.")
+    end
+    perm = sort(eachindex(cryst.positions), lt=less_than)
+    cryst.positions .= cryst.positions[perm]
+    cryst.equiv_atoms .= cryst.equiv_atoms[perm]
+    cryst.types .= cryst.types[perm]
+end
+
+
 function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
     positions = wrap_to_unit_cell.(positions; symprec)
 
     cell = Spglib.Cell(lat_vecs, hcat(positions...), types)
     d = Spglib.get_dataset(cell, symprec)
-    equiv_atoms = d.equivalent_atoms
+    equiv_atoms = d.equivalent_atoms .+ 1
     symops = symops_from_spglib(d.rotations, d.translations)
     spacegroup = spacegroup_name(d.hall_number)
     
-    # Sort atoms so that they are contiguous in equivalence classes
-    p = sortperm(equiv_atoms)
-    positions .= positions[p]
-    types .= types[p]
-
     # Base constructor
     ret = Crystal(lat_vecs, positions, equiv_atoms, types, symops, spacegroup, symprec)
+    sort_sites!(ret)
     validate(ret)
     return ret
 end
@@ -260,7 +281,7 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
             else
                 j = equiv_atoms[idx]
                 if i != j
-                    error("Base positions $(positions[i]) and $(positions[j]) are symmetry equivalent.")
+                    error("Reference positions $(positions[i]) and $(positions[j]) are symmetry equivalent.")
                 end
             end
         end
@@ -280,6 +301,7 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     end
 
     ret = Crystal(lat_vecs, all_positions, equiv_atoms, all_types, symops, spacegroup, symprec)
+    sort_sites!(ret)
     validate(ret)
     return ret
 end
@@ -325,8 +347,10 @@ function subcrystal(cryst::Crystal, equiv_idxs::Vararg{Int, N}) where {N}
         append!(new_equiv_atoms, fill(i, length(idxs)))
     end
 
-    return Crystal(cryst.lat_vecs, new_positions, new_equiv_atoms,
-                   new_types, cryst.symops, cryst.spacegroup, cryst.symprec)
+    ret = Crystal(cryst.lat_vecs, new_positions, new_equiv_atoms,
+                  new_types, cryst.symops, cryst.spacegroup, cryst.symprec)
+    validate(ret)
+    return ret
 end
 
 function Base.display(cryst::Crystal)
@@ -359,8 +383,8 @@ function Base.display(cryst::Crystal)
 end
 
 function validate(cryst::Crystal)
-    # Atoms must be sorted by equivalence class
-    sortperm(cryst.equiv_atoms) == eachindex(cryst.equiv_atoms)
+    # Atoms must be sorted by contiguous equivalence classes: 1, 2, ..., n
+    @assert unique(cryst.equiv_atoms) == 1:maximum(cryst.equiv_atoms)
 
     # Equivalent atoms must have the same types
     for i in eachindex(cryst.positions)
@@ -371,7 +395,7 @@ function validate(cryst::Crystal)
         end
     end
 
-    # Check symmetry rotations are orthogonal, up to periodicity
+    # Rotation matrices in global coordinates must be orthogonal
     for s in cryst.symops
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
         # Due to possible imperfections in the lattice vectors, only require
