@@ -5,7 +5,7 @@ import FastDipole as FD
 ### Test construction of diamond lattice
 
 # Spglib inferred symmetry
-lat_vecs = [1 1 0; 1 0 1; 0 1 1] / 2
+lat_vecs = [1 1 0; 1 0 1; 0 1 1]' / 2
 positions = [[1, 1, 1], [-1, -1, -1]] / 8
 cryst = Crystal(lat_vecs, positions)
 cbonds = canonical_bonds(cryst, 2.)
@@ -39,7 +39,7 @@ dist4 = [distance(cryst, b) for b=cbonds]
 
 ### FCC lattice, primitive unit cell
 
-lat_vecs = [1 1 0; 1 0 1; 0 1 1] / 2
+lat_vecs = [1 1 0; 1 0 1; 0 1 1]' / 2
 positions = [[0., 0, 0]]
 cryst = Crystal(lat_vecs, positions)
 print_bond_table(cryst, 2.)
@@ -55,7 +55,7 @@ J = basis' * randn(length(basis))
 
 ### Triangular lattice, primitive unit cell
 
-lat_vecs = [1 0 0;  1/2 √3/2 0;  0 0 10]
+lat_vecs = [1 0 0;  1/2 √3/2 0;  0 0 10]'
 positions = [[0., 0, 0]]
 cryst = Crystal(lat_vecs, positions)
 print_bond_table(cryst, 5.)
