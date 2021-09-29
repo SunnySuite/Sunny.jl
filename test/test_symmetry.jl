@@ -63,9 +63,10 @@ print_bond_table(cryst, 5.)
 
 ### Kagome lattice
 
-lat_vecs = [1 0 0;  1/2 √3/2 0;  0 0 10]
+lat_vecs = [1 0 0;  1/2 √3/2 0;  0 0 10]'
 positions = [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0]]
 cryst = Crystal(lat_vecs, positions)
+display(cryst)
 print_bond_table(cryst, 3.)
 
 
@@ -100,9 +101,17 @@ print_bond_table(cryst, 8.)
 
 ### Print FeI2 bond tables
 
+cryst = Crystal("/Users/kbarros/Desktop/cifs/FeI2.cif")
+display(cryst)
+print_bond_table(cryst, 8.)
+
 cryst = subcrystal(Crystal("/Users/kbarros/Desktop/cifs/FeI2.cif"), "Fe2+")
 display(cryst)
 print_bond_table(cryst, 8.)
+
+cryst = subcrystal(Crystal("/Users/kbarros/Desktop/cifs/FeI2.cif"), "I1-")
+display(cryst)
+
 
 cryst = Crystal("/Users/kbarros/Desktop/cifs/diamond_Nature1958.cif")
 display(cryst)

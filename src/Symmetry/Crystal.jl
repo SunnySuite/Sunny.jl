@@ -122,8 +122,7 @@ function symops_from_spglib(rotations, translations)
 end
 
 
-# Sort the sites to be contiguous in equivalence class, and within each class,
-# according to fractional coordinates.
+# Sort the sites according to class and fractional coordinates.
 function sort_sites!(cryst::Crystal)
     function less_than(i, j)
         eci = cryst.classes[i]
@@ -158,7 +157,6 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
     
     # Base constructor
     ret = Crystal(lat_vecs, positions, classes, types, symops, spacegroup, symprec)
-    sort_sites!(ret)
     validate(ret)
     return ret
 end
@@ -287,6 +285,9 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
         end
     end
 
+    # Atoms are sorted by contiguous equivalence classes: 1, 2, ..., n
+    @assert unique(classes) == 1:maximum(classes)
+
     # Check that symops are present in Spglib-inferred space group
     cryst′ = crystal_from_inferred_symmetry(lat_vecs, all_positions, all_types; symprec)
     for s in symops
@@ -318,8 +319,8 @@ function subcrystal(cryst::Crystal, types::Vararg{String, N}) where {N}
             error("types string '$s' is not present in crystal.")
         end
     end
-    indxs = findall(in(types), cryst.types)
-    classes = unique(cryst.classes[indxs])
+    idxs = findall(in(types), cryst.types)
+    classes = unique(cryst.classes[idxs])
     return subcrystal(cryst, classes...)
 end
 
@@ -341,9 +342,12 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where {N}
     new_types = cryst.types[idxs]
     new_classes = cryst.classes[idxs]
 
+    if idxs != 1:maximum(idxs)
+        println("Warning, atoms are being renumbered!")
+    end
+
     ret = Crystal(cryst.lat_vecs, new_positions, new_classes,
                   new_types, cryst.symops, cryst.spacegroup, cryst.symprec)
-    validate(ret)
     return ret
 end
 
@@ -361,25 +365,22 @@ function Base.display(cryst::Crystal)
         end
     end
 
-    println("Atoms:")
-    for i in eachindex(cryst.positions)
-        print("   $i. ")
-        if length(unique(cryst.types)) > 1
-            print("Type '$(cryst.types[i])', ")
+    for c in unique(cryst.classes)
+        i = findfirst(==(c), cryst.classes)
+        print("Class $c")
+        if cryst.types[i] != ""
+            print(", type '$(cryst.types[i])'")
         end
-        if length(unique(cryst.classes)) > length(unique(cryst.types))
-            print("Class $(cryst.classes[i]), ")
+        println(":")
+
+        for i in findall(==(c), cryst.classes)
+            r = cryst.positions[i]
+            @printf "   %d. [%.4g, %.4g, %.4g]\n" i r[1] r[2] r[3]
         end
-        r = cryst.positions[i]
-        @printf "Coords [%.4g, %.4g, %.4g]\n" r[1] r[2] r[3]
     end
-    println()
 end
 
 function validate(cryst::Crystal)
-    # Atoms must be sorted by contiguous equivalence classes: 1, 2, ..., n
-    @assert unique(cryst.classes) == 1:maximum(cryst.classes)
-
     # Atoms of the same class must have the same type
     for i in eachindex(cryst.positions)
         for j in eachindex(cryst.positions)
