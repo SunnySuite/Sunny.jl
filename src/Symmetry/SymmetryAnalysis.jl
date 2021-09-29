@@ -111,11 +111,8 @@ end
 
 "Produces a list of 'canonical' bonds that belong to different symmetry equivalence classes."
 function canonical_bonds(cryst::Crystal, max_dist)
-    # List of distinct atom types
-    atom_types = unique(cryst.equiv_atoms)
-    
     # Atom indices, one for each equivalence class
-    canon_atoms = [findfirst(isequal(t), cryst.equiv_atoms) for t in atom_types]
+    canon_atoms = [findfirst(isequal(c), cryst.classes) for c in unique(cryst.classes)]
     
     # Bonds, one for each equivalent class
     cbonds = Bond[]

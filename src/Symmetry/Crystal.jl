@@ -38,7 +38,7 @@ A type holding all geometry and symmetry information needed to represent
 struct Crystal
     lat_vecs             :: Mat3                # Lattice vectors as columns
     positions            :: Vector{Vec3}        # Full set of atoms, fractional coords
-    equiv_atoms          :: Vector{Int}         # Index to equivalent atom type
+    classes              :: Vector{Int}         # Index to equivalent atom type
     types                :: Vector{String}      # Types for each atom
     symops               :: Vector{SymOp}       # Symmetry operations
     spacegroup           :: String              # Description of space group
@@ -126,8 +126,8 @@ end
 # according to fractional coordinates.
 function sort_sites!(cryst::Crystal)
     function less_than(i, j)
-        eci = cryst.equiv_atoms[i]
-        ecj = cryst.equiv_atoms[j]
+        eci = cryst.classes[i]
+        ecj = cryst.classes[j]
         if eci != ecj
             return eci < ecj
         end
@@ -142,7 +142,7 @@ function sort_sites!(cryst::Crystal)
     end
     perm = sort(eachindex(cryst.positions), lt=less_than)
     cryst.positions .= cryst.positions[perm]
-    cryst.equiv_atoms .= cryst.equiv_atoms[perm]
+    cryst.classes .= cryst.classes[perm]
     cryst.types .= cryst.types[perm]
 end
 
@@ -152,12 +152,12 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
 
     cell = Spglib.Cell(lat_vecs, hcat(positions...), types)
     d = Spglib.get_dataset(cell, symprec)
-    equiv_atoms = d.equivalent_atoms .+ 1
+    classes = d.equivalent_atoms .+ 1
     symops = symops_from_spglib(d.rotations, d.translations)
     spacegroup = spacegroup_name(d.hall_number)
     
     # Base constructor
-    ret = Crystal(lat_vecs, positions, equiv_atoms, types, symops, spacegroup, symprec)
+    ret = Crystal(lat_vecs, positions, classes, types, symops, spacegroup, symprec)
     sort_sites!(ret)
     validate(ret)
     return ret
@@ -267,7 +267,7 @@ end
 function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
     all_positions = Vec3[]
     all_types = String[]
-    equiv_atoms = Int[]
+    classes = Int[]
     
     for i = eachindex(positions)
         for s = symops
@@ -277,9 +277,9 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
             if isnothing(idx)
                 push!(all_positions, x)
                 push!(all_types, types[i])
-                push!(equiv_atoms, i)
+                push!(classes, i)
             else
-                j = equiv_atoms[idx]
+                j = classes[idx]
                 if i != j
                     error("Reference positions $(positions[i]) and $(positions[j]) are symmetry equivalent.")
                 end
@@ -300,7 +300,7 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
         end
     end
 
-    ret = Crystal(lat_vecs, all_positions, equiv_atoms, all_types, symops, spacegroup, symprec)
+    ret = Crystal(lat_vecs, all_positions, classes, all_types, symops, spacegroup, symprec)
     sort_sites!(ret)
     validate(ret)
     return ret
@@ -309,7 +309,8 @@ end
 """
     subcrystal(cryst, types) :: Crystal
 
-Filter sublattices of a `Crystal` by types, keeping the symmetry group of the original `Crystal`.
+Filter sublattices of a `Crystal` by atom `types`, keeping the space group
+unchanged.
 """
 function subcrystal(cryst::Crystal, types::Vararg{String, N}) where {N}
     for s in types
@@ -318,36 +319,29 @@ function subcrystal(cryst::Crystal, types::Vararg{String, N}) where {N}
         end
     end
     indxs = findall(in(types), cryst.types)
-    equiv_idxs = unique(cryst.equiv_atoms[indxs])
-    return subcrystal(cryst, equiv_idxs...)
+    classes = unique(cryst.classes[indxs])
+    return subcrystal(cryst, classes...)
 end
 
 """
-    subcrystal(cryst, equiv_idxs) :: Crystal
+    subcrystal(cryst, classes) :: Crystal
 
-Filter sublattices of a `Crystal` by a list of indexes into `cryst.equiv_atoms`,
- keeping the symmetry group of the original `Crystal`.
+Filter sublattices of `Crystal` by equivalence `classes`, keeping the space
+group unchanged.
 """
-function subcrystal(cryst::Crystal, equiv_idxs::Vararg{Int, N}) where {N}
-    for equiv_idx in equiv_idxs
-        if !(equiv_idx in cryst.equiv_atoms)
-            error("Equivalent index '$equiv_idx' is not present in crystal.")
+function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where {N}
+    for c in classes
+        if !(c in cryst.classes)
+            error("Class '$c' is not present in crystal.")
         end
     end
 
-    # Keep only atoms matching given "equivalent indices"
-    new_positions = empty(cryst.positions)
-    new_types = empty(cryst.types)
-    new_equiv_atoms = empty(cryst.equiv_atoms)
+    idxs = findall(in(classes), cryst.classes)
+    new_positions = cryst.positions[idxs]
+    new_types = cryst.types[idxs]
+    new_classes = cryst.classes[idxs]
 
-    for (i, equiv_idx) in enumerate(equiv_idxs)
-        idxs = findall(isequal(equiv_idx), cryst.equiv_atoms)
-        append!(new_positions, cryst.positions[idxs])
-        append!(new_types, cryst.types[idxs])
-        append!(new_equiv_atoms, fill(i, length(idxs)))
-    end
-
-    ret = Crystal(cryst.lat_vecs, new_positions, new_equiv_atoms,
+    ret = Crystal(cryst.lat_vecs, new_positions, new_classes,
                   new_types, cryst.symops, cryst.spacegroup, cryst.symprec)
     validate(ret)
     return ret
@@ -371,10 +365,10 @@ function Base.display(cryst::Crystal)
     for i in eachindex(cryst.positions)
         print("   $i. ")
         if length(unique(cryst.types)) > 1
-            print("Types '$(cryst.types[i])', ")
+            print("Type '$(cryst.types[i])', ")
         end
-        if length(unique(cryst.equiv_atoms)) > length(unique(cryst.types))
-            print("Class $(cryst.equiv_atoms[i]), ")
+        if length(unique(cryst.classes)) > length(unique(cryst.types))
+            print("Class $(cryst.classes[i]), ")
         end
         r = cryst.positions[i]
         @printf "Coords [%.4g, %.4g, %.4g]\n" r[1] r[2] r[3]
@@ -384,12 +378,12 @@ end
 
 function validate(cryst::Crystal)
     # Atoms must be sorted by contiguous equivalence classes: 1, 2, ..., n
-    @assert unique(cryst.equiv_atoms) == 1:maximum(cryst.equiv_atoms)
+    @assert unique(cryst.classes) == 1:maximum(cryst.classes)
 
-    # Equivalent atoms must have the same types
+    # Atoms of the same class must have the same type
     for i in eachindex(cryst.positions)
         for j in eachindex(cryst.positions)
-            if cryst.equiv_atoms[i] == cryst.equiv_atoms[j]
+            if cryst.classes[i] == cryst.classes[j]
                 @assert cryst.types[i] == cryst.types[j]
             end
         end
