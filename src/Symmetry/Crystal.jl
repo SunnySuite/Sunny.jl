@@ -29,6 +29,13 @@ function is_same_position(x, y; symprec=1e-5)
     return norm(rem.(x-y, 1, RoundNearest)) < symprec
 end
 
+struct SiteSymmetry
+    symbol       :: String
+    multiplicity :: Int
+    wyckoff      :: Char
+end
+
+
 """
     Crystal
 
@@ -36,17 +43,18 @@ A type holding all geometry and symmetry information needed to represent
  a three-dimensional crystal.
 """
 struct Crystal
-    lat_vecs             :: Mat3                # Lattice vectors as columns
-    positions            :: Vector{Vec3}        # Full set of atoms, fractional coords
-    classes              :: Vector{Int}         # Index to equivalent atom type
-    types                :: Vector{String}      # Types for each atom
-    symops               :: Vector{SymOp}       # Symmetry operations
-    spacegroup           :: String              # Description of space group
-    symprec              :: Float64             # Tolerance to imperfections in symmetry
+    lat_vecs       :: Mat3                # Lattice vectors as columns
+    positions      :: Vector{Vec3}        # Full set of atoms, fractional coords
+    classes        :: Vector{Int}         # Index to equivalent atom type
+    types          :: Vector{String}      # Types for each atom
+    symops         :: Vector{SymOp}       # Symmetry operations
+    spacegroup     :: String              # Description of space group
+    sitesymmetries :: Union{Nothing, Vector{SiteSymmetry}} # Optional site symmetries, indexed by class
+    symprec        :: Float64             # Tolerance to imperfections in symmetry
 end
 
 nbasis(cryst::Crystal) = length(cryst.positions)
-cell_volume(cryst::Crystal) = abs(det(lat.lat_vecs))
+cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
 lattice_params(cryst::Crystal) = lattice_params(cryst.lat_vecs)
 lattice_vectors(cryst::Crystal) = cryst.lat_vecs
 
@@ -118,7 +126,7 @@ end
 function symops_from_spglib(rotations, translations)
     Rs = Mat3.(transpose.(eachslice(rotations, dims=3)))
     Ts = Vec3.(eachcol(translations))
-    symops = map(SymOp, Rs, Ts)
+    symops = SymOp.(Rs, Ts)
 end
 
 
@@ -154,9 +162,14 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
     classes = d.equivalent_atoms .+ 1
     symops = symops_from_spglib(d.rotations, d.translations)
     spacegroup = spacegroup_name(d.hall_number)
-    
-    # Base constructor
-    ret = Crystal(lat_vecs, positions, classes, types, symops, spacegroup, symprec)
+
+    multiplicities = map(1:d.n_atoms) do i
+        prim_idx = d.mapping_to_primitive[i]
+        count(==(prim_idx), d.std_mapping_to_primitive)
+    end
+    sitesymmetries = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
+
+    ret = Crystal(lat_vecs, positions, classes, types, symops, spacegroup, sitesymmetries, symprec)
     validate(ret)
     return ret
 end
@@ -295,13 +308,15 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
             isapprox(s, s′; atol=symprec)
         end
         if !is_found
-            println("Warning: User provided symmetry operation could not be inferred by Spglib,")
+            println("WARNING: User provided symmetry operation could not be inferred by Spglib,")
             println("which likely indicates a non-conventional unit cell.")
             break
         end
     end
 
-    ret = Crystal(lat_vecs, all_positions, classes, all_types, symops, spacegroup, symprec)
+    # TODO: Extract pointgroups from spglib
+
+    ret = Crystal(lat_vecs, all_positions, classes, all_types, symops, spacegroup, nothing, symprec)
     sort_sites!(ret)
     validate(ret)
     return ret
@@ -343,11 +358,11 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where {N}
     new_classes = cryst.classes[idxs]
 
     if idxs != 1:maximum(idxs)
-        println("Warning, atoms are being renumbered!")
+        println("WARNING, atoms are being renumbered.")
     end
 
-    ret = Crystal(cryst.lat_vecs, new_positions, new_classes,
-                  new_types, cryst.symops, cryst.spacegroup, cryst.symprec)
+    ret = Crystal(cryst.lat_vecs, new_positions, new_classes, new_types,
+                  cryst.symops, cryst.spacegroup, cryst.sitesymmetries, cryst.symprec)
     return ret
 end
 
@@ -365,11 +380,20 @@ function Base.display(cryst::Crystal)
         end
     end
 
+    @printf "Volume %.4g\n" cell_volume(cryst)
+
     for c in unique(cryst.classes)
         i = findfirst(==(c), cryst.classes)
         print("Class $c")
         if cryst.types[i] != ""
             print(", type '$(cryst.types[i])'")
+        end
+        if !isnothing(cryst.sitesymmetries)
+            # TODO: simplify in Julia 1.7
+            symbol = cryst.sitesymmetries[c].symbol
+            multiplicity = cryst.sitesymmetries[c].multiplicity
+            wyckoff = cryst.sitesymmetries[c].wyckoff
+            print(", Site sym. '$symbol', Wyckoff $multiplicity$wyckoff")
         end
         println(":")
 
