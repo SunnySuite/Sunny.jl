@@ -1,6 +1,6 @@
 # Library
 
-Here, we document all publically exposed types and methods in our Module. Developers may be interested is further documentation of the [Internals](@ref).
+Here, we document all publically exposed types and methods in our Module. Developers may be interested in further documentation of the [Internals](@ref).
 
 Our package makes extensive usage of [StaticArrays.jl](https://github.com/JuliaArrays/StaticArrays.jl). In particular, throughout the documentation we make use of aliases `Vec3 = SVector{3, Float64}`, `Mat3 = SMatrix{3, 3, Float64, 9}`. Additionally, some features and internals utilize [OffsetArrays.jl](https://github.com/JuliaArrays/OffsetArrays.jl) for pleasant interfaces.
 
@@ -37,13 +37,9 @@ all_symmetry_related_interactions
 ExternalField
 OnSite
 Heisenberg
-Heisenberg(::Float64, ::Crystal, ::Bond, ::String)
 DiagonalCoupling
-DiagonalCoupling(::SVector{3, Float64}, ::Crystal, ::Bond, ::String)
 GeneralCoupling
-GeneralCoupling(::SMatrix{3, 3, Float64, 9}, ::Crystal, ::Bond, ::String)
-DipoleReal
-DipoleFourier
+DipoleDipole
 Hamiltonian
 Hamiltonian(ints)
 ```
@@ -51,13 +47,11 @@ Hamiltonian(ints)
 ## System definition
 
 ```@docs
-ChargeSystem
-ChargeSystem(::Lattice)
-rand!(::ChargeSystem)
 SpinSystem
-SpinSystem(::Lattice{D}, ::Hamiltonian{D}, ::Rational{Int}) where {D}
+SpinSystem(::Crystal, ::Hamiltonian{D}, latssize, ::Rational{Int}) where {D}
 rand!(::SpinSystem)
 energy
+field
 ```
 
 ## Sampling

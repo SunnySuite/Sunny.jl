@@ -186,3 +186,56 @@ end
 function is_trigonal_symmetry(hall_number::Int)
     return 430 <= hall_number <= 461
 end
+
+#= Definitions of common crystals =#
+
+function cubic_crystal(a::Float64) :: Crystal
+    lat_vecs = SA[ a  0.0 0.0;
+                  0.0  a  0.0;
+                  0.0 0.0  a ]
+    basis_vecs = [SA[0.0, 0.0, 0.0]]
+    basis_types = ["A"]
+    Crystal(lat_vecs, basis_vecs; types=basis_types)
+end
+
+function fcc_crystal(a::Float64) :: Crystal
+    lat_vecs = SA[ a  0.0 0.0;
+                  0.0  a  0.0;
+                  0.0 0.0  a ]
+    basis_vecs = [SA[ 0.,  0.,  0.],
+                  SA[1/2, 1/2, 0.0],
+                  SA[1/2,   0, 1/2],
+                  SA[  0, 1/2, 1/2]]
+    basis_types = fill("A", 4)
+    Crystal(lat_vecs, basis_vecs; types=basis_types)
+end
+
+function diamond_conventional_crystal(a::Float64) :: Crystal
+    lat_vecs = SA[ 4a 0.0 0.0;
+                  0.0  4a 0.0;
+                  0.0 0.0  4a]
+    basis_vecs = [
+        SA[0.0, 0.0, 0.0],
+        SA[0.0, 1/2, 1/2],
+        SA[1/2, 0.0, 1/2],
+        SA[1/2, 1/2, 0.0],
+        SA[3/4, 3/4, 3/4],
+        SA[3/4, 1/4, 1/4],
+        SA[1/4, 3/4, 1/4],
+        SA[1/4, 1/4, 3/4]
+    ]
+    basis_types = fill("A", 8)
+    Crystal(lat_vecs, basis_vecs; types=basis_types)
+end
+
+function diamond_primitive_crystal(a::Float64) :: Crystal
+    lat_vecs = SA[a/2 a/2 0.0;
+                  a/2 0.0 a/2;
+                  0.0 a/2 a/2]
+    basis_vecs = [
+        SA[0.0, 0.0, 0.0],
+        SA[1/4, 1/4, 1/4],
+    ]
+    basis_types = ["A", "A"]
+    Crystal(lat_vecs, basis_vecs; types=basis_types)
+end

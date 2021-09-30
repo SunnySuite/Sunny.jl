@@ -192,7 +192,7 @@ The maximum frequency sampled is `ωmax = 2π / (dynΔt * meas_rate)`, and the f
 
 Indexing the result at `(α, β, q1, ..., qd, w)` gives ``S^{αβ}(𝐪, ω)`` at
     `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, and `ω = maxω * w / T`, where `a⃰, b⃰, c⃰`
-    are the reciprocal lattice vectors of `sys.lattice`.
+    are the reciprocal lattice vectors of the system supercell.
 
 Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
  values for the `w` index lie in `0:T-1`.

@@ -1,10 +1,7 @@
-"""Definition and functions working with the Lattice type.
-   Lattice is a lightweight wrapper that stores lattice
-    geometry in absolute coordinates for fast site
-    indexing, along with a box size for easy collection
-    of all sites.
-   Lattice is arbitrary-dimensional, but contains no
-    symmetry information.
+"""Definition and functions working with the Lattice type. Lattice is a lightweight
+    wrapper that stores lattice geometry in absolute coordinates for fast site indexing,
+    along with a box size for easy collection of all sites.
+   Lattice is arbitrary-dimensional, but contains no symmetry information.
 """
 
 import Base.size
@@ -48,8 +45,8 @@ struct Lattice{D, L, Db} <: AbstractArray{SVector{D, Float64}, Db}
         @assert length(basis_vecs) == length(types)      "Length of basis_vecs and types should match"
         @assert all(v->all(0 .<= v .< 1), basis_vecs)    "All basis_vecs should be given in fractional coordinates [0, 1)"
         @assert length(latsize) == D                     "latsize should be size $D to match lat_vecs"
-        lat_vecs = SMatrix{D, D}(lat_vecs)
-        basis_vecs = SVector{D, Float64}.(basis_vecs)
+        lat_vecs = convert(SMatrix{D, D}, lat_vecs)
+        basis_vecs = [lat_vecs * convert(SVector{D, Float64}, b) for b in basis_vecs]
         latsize = SVector{D, Int}(latsize)
         new{D, D*D, D+1}(lat_vecs, basis_vecs, types, latsize)
     end
@@ -101,7 +98,7 @@ function Crystal(lattice::Lattice{3, 9, 4})
     L = lattice.lat_vecs
     # Convert absolute basis positions to fractional coordinates
     basis_coords = map(b -> inv(L) * b, lattice.basis_vecs)
-    Crystal(L, basis_coords, lattice.types)
+    Crystal(L, basis_coords, types=lattice.types)
 end
 
 function Crystal(lattice::Lattice{2, 4, 3})
@@ -117,7 +114,7 @@ function Crystal(lattice::Lattice{2, 4, 3})
 
     basis_coords = map(b -> SVector{3}((inv(L) * b)..., 0.), lattice.basis_vecs)
 
-    Crystal(L3, basis_coords, lattice.types)
+    Crystal(L3, basis_coords, types=lattice.types)
 end
 
 function Lattice(cryst::Crystal, latsize) :: Lattice{3, 9, 4}
@@ -204,61 +201,6 @@ function square_lattice(a::Float64, latsize) :: Lattice{2, 4, 3}
     basis_labels = ["A"]
     latsize = SVector{D, Int}(latsize)
     Lattice{2}(lat_vecs, basis_vecs, basis_labels, latsize)
-end
-
-function cubic_lattice(a::Float64, latsize) :: Lattice{3, 9, 4}
-    lat_vecs = SA[ a  0.0 0.0;
-                  0.0  a  0.0;
-                  0.0 0.0  a ]
-    basis_vecs = [SA[0.0, 0.0, 0.0]]
-    basis_labels = ["A"]
-    latsize = SVector{D, Int}(latsize)
-    Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
-end
-
-function fcc_conventional(a::Float64, latsize) :: Lattice{3, 9, 4}
-    lat_vecs = SA[ a  0.0 0.0;
-                  0.0  a  0.0;
-                  0.0 0.0  a ]
-    basis_vecs = [SA[ 0.,  0.,  0.],
-                  SA[1/2, 1/2, 0.0],
-                  SA[1/2,   0, 1/2],
-                  SA[  0, 1/2, 1/2]]
-    basis_labels = fill("A", 4)
-    latsize = SVector{3, Int}(latsize)
-    Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
-end
-
-function diamond_conventional(a::Float64, latsize) :: Lattice{3, 9, 4}
-    lat_vecs = SA[ 4a 0.0 0.0;
-                  0.0  4a 0.0;
-                  0.0 0.0  4a]
-    basis_vecs = [
-        SA[0.0, 0.0, 0.0],
-        SA[0.0, 1/2, 1/2],
-        SA[1/2, 0.0, 1/2],
-        SA[1/2, 1/2, 0.0],
-        SA[3/4, 3/4, 3/4],
-        SA[3/4, 1/4, 1/4],
-        SA[1/4, 3/4, 1/4],
-        SA[1/4, 1/4, 3/4]
-    ]
-    basis_labels = fill("A", 8)
-    latsize = SVector{3, Int}(latsize)
-    Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
-end
-
-function diamond_primitive(a::Float64, latsize) :: Lattice{3, 9, 4}
-    lat_vecs = SA[a/2 a/2 0.0;
-                  a/2 0.0 a/2;
-                  0.0 a/2 a/2]
-    basis_vecs = [
-        SA[0.0, 0.0, 0.0],
-        SA[1/4, 1/4, 1/4],
-    ]
-    basis_labels = ["A", "A"]
-    latsize = SVector{3, Int}(latsize)
-    Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
 end
 
 function kagome_lattice(a::Float64, latsize) :: Lattice{2, 4, 3}

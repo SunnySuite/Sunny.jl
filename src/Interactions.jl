@@ -1,4 +1,9 @@
-abstract type Interaction end
+"""Structs for defining various terms in a spin Hamiltonian.
+"""
+
+abstract type Interaction end      # Subtype this for user-facing interfaces
+abstract type InteractionCPU end   # Subtype this for actual internal CPU implementations
+abstract type InteractionGPU end   # Subtype this for actual internal GPU implementations
 
 """
     ExternalField(B::Vec3)
@@ -13,103 +18,28 @@ struct ExternalField <: Interaction
     B :: Vec3
 end
 
-"Presorts a flat list of bonds into a nested list, with the outer list corresponding to `bond.i`"
-function presort_bonds(bonds::Vector{Bond{D}}) :: Vector{Vector{Bond{D}}} where {D}
-    nb = maximum(b->b.i, bonds)
-
-    sorted_bonds = [Bond{D}[] for _ in 1:nb]
-    for bond in bonds
-        push!(sorted_bonds[bond.i], bond)
-    end
-
-    sorted_bonds
-end
-
-"""Culls presorted lists of bonds to keep only those with `bond.i` <= `bond.j`.
-   Bonds with `bond.i == bond.j` need to be further culled to only keep half,
-    removing one from each pair with inverted `bond.n`.
 """
-function cull_bonds(bonds::Vector{Vector{Bond{D}}}) :: Vector{Vector{Bond{D}}} where {D}
-    nb = length(bonds)
-
-    culled_bonds = [Bond{D}[] for _ in 1:nb]
-    for i in 1:nb
-        for bond in bonds[i]
-            if bond.i < bond.j
-                push!(culled_bonds[i], bond)
-            end
-            if bond.i == bond.j
-                neg_bond = Bond{D}(bond.i, bond.j, -bond.n)
-                if !(neg_bond in culled_bonds[i])
-                    push!(culled_bonds[i], bond)
-                end
-            end
-        end
-    end
-
-    culled_bonds
-end
-
-function cull_bonds(bonds::Vector{Vector{Bond{D}}}, Js::Vector{Vector{Mat3}}) where {D}
-    nb = length(bonds)
-
-    culled_bonds = [Bond{D}[] for _ in 1:nb]
-    culled_Js = [Mat3[] for _ in 1:nb]
-    for i in 1:nb
-        for (bond, J) in zip(bonds[i], Js[i])
-            if bond.i < bond.j
-                push!(culled_bonds[i], bond)
-                push!(culled_Js[i], J)
-            end
-            if bond.i == bond.j
-                neg_bond = Bond{D}(bond.i, bond.j, -bond.n)
-                if !(neg_bond in culled_bonds[i])
-                    push!(culled_bonds[i], bond)
-                    push!(culled_Js[i], J)
-                end
-            end
-        end
-    end
-    (culled_bonds, culled_Js)
-end
-
-"""
-    Heisenberg{D}
+    Heisenberg(J, bond::Bond{D}, label::String="Heisen")
 
 Defines a Heisenberg interaction on a `D`-dimensional lattice. Specifically, the term
 
 ```math
-    J ∑_{⟨ij⟩} 𝐒_i ⋅ 𝐒_j 
+    J ∑_{⟨ij⟩} 𝐒_i ⋅ 𝐒_j
 ```
 
 where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
 symmetry equivalence class, with each bond appearing only once.
 """
 struct Heisenberg{D} <: Interaction
-    J            :: Float64
-    bonds        :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
-    culled_bonds :: Vector{Vector{Bond{D}}}  # Like `bonds`, but culled to the minimal 1/2 bonds
-    label        :: String
+    J     :: Float64
+    bond  :: Bond{D}
+    label :: String
 end
 
-"""
-    Heisenberg(J::Float64, cryst::Crystal, bond::Bond{D}, label="Heisenberg")
-
-Construct a `Heisenberg{D}` interaction of strength `J` acting on all bonds
-symmetry-equivalent to `bond` in `cryst`.
-"""
-function Heisenberg(J::Float64, cryst::Crystal, bond::Bond{D}, label::String="Heisen") where {D}
-    sorted_bonds = [
-        all_symmetry_related_bonds_for_atom(cryst, i, bond)
-        for i in 1:nbasis(cryst)
-    ]
-    culled_bonds = cull_bonds(sorted_bonds)
-
-    return Heisenberg{D}(J, sorted_bonds, culled_bonds, label)
-end
+Heisenberg(J, bond::Bond{D}, label::String="Heisen") where {D} = Heisenberg{D}(J, bond, label)
 
 """
-    OnSite(J::Vec3, label="OnSite")
+    OnSite(J, label="OnSite")
 
 Construct an on-site anisotropy term specified by the vector J. Specifically, the term
 
@@ -121,14 +51,13 @@ Equivalent to `DiagonalCoupling` with `bonds = [(0,0,0)]`, but faster.
 struct OnSite <: Interaction
     J     :: Vec3
     label :: String
-end
-
-function OnSite(J::Vec3)
-    OnSite(J, "OnSite")
+    function OnSite(J, label::String="OnSite")
+        new(J, label)
+    end
 end
 
 """
-    DiagonalCoupling{D}
+    DiagonalCoupling(J, bond::Bond{D}, label::String="DiagCoup")
 
 Defines a diagonal exchange interaction on a `D`-dimensional lattice. Specifically, the term
 
@@ -137,37 +66,19 @@ Defines a diagonal exchange interaction on a `D`-dimensional lattice. Specifical
 ```
 
 where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
-symmetry equivalence class, with each bond appearing only once.
-
-**Warning**: This type currently (and incorrectly) assumes that ``𝐉`` takes
-the same form on every bond within the equivalency class.
+symmetry equivalence class, with each bond appearing only once. ``J`` is a
+length-3 vector which may vary from bond to bond, under symmetry constraints.
 """
 struct DiagonalCoupling{D} <: Interaction
-    J            :: Vec3
-    bonds        :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
-    culled_bonds :: Vector{Vector{Bond{D}}}  # Like `bonds`, but culled to the minimal 1/2 bonds
-    label        :: String
+    J     :: Vec3
+    bond  :: Bond{D}
+    label :: String
 end
 
-"""
-    DiagonalCoupling(J::Vec3, cryst::Crystal, bond::Bond{D}, label="Heisenberg")
-
-Construct a `DiagonalCoupling{D}` interaction with diagonal elements specified
-by `J`, acting on all bonds symmetry-equivalent to `bond` in `cryst`.
-"""
-function DiagonalCoupling(J, cryst::Crystal, bond::Bond{D}, label::String="DiagJ") where {D}
-    J = convert(Vec3, J)
-    sorted_bonds = [
-        all_symmetry_related_bonds_for_atom(cryst, i, bond)
-        for i in 1:nbasis(cryst)
-    ]
-    culled_bonds = cull_bonds(sorted_bonds)
-
-    DiagonalCoupling{D}(J, sorted_bonds, culled_bonds, label)
-end
+DiagonalCoupling(J, bond::Bond{D}, label::String="DiagCoup") where {D} = DiagonalCoupling{D}(J, bond, label)
 
 """
-    GeneralCoupling{D}
+    GeneralCoupling(J, bond::Bond{D}, label::String="GenCoup")
 
 Defines a general exchange interaction on a `D`-dimensional lattice. Specifically, the term
 
@@ -180,171 +91,71 @@ symmetry equivalence class, with each bond appearing only once. ``J`` is a
 ``3 × 3`` matrix which may vary from bond to bond, under symmetry constraints.
 """
 struct GeneralCoupling{D} <: Interaction
-    Js           :: Vector{Vector{Mat3}}
-    culled_Js    :: Vector{Vector{Mat3}}
-    bonds        :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
-    culled_bonds :: Vector{Vector{Bond{D}}}  # Like `bonds`, but culled to the minimal 1/2 bonds
-    label        :: String
+    J     :: Mat3
+    bond  :: Bond{D}
+    label :: String
 end
 
-"""
-    GeneralCoupling(J::Mat3, cryst::Crystal, bond::Bond{D}, label="GenJ")
-
-Construct a `GeneralCoupling{D}` interaction specified by the `J` matrix
- on the given `bond` in `cryst`. Automatically propagates the correctly
- transformed exchange matrices to all symmetry-equivalent bonds.
-"""
-function GeneralCoupling(J, cryst::Crystal, bond::Bond{D}, label::String="GenJ") where {D}
-    J = convert(Mat3, J)
-    sorted_bonds = Vector{Vector{Bond{D}}}()
-    sorted_Js = Vector{Vector{Mat3}}()
-    for i in 1:nbasis(cryst)
-        (bs, Js) = all_symmetry_related_interactions_for_atom(cryst, i, bond, J)
-        push!(sorted_bonds, bs)
-        push!(sorted_Js, Js)
-    end
-    (culled_bonds, culled_Js) = cull_bonds(sorted_bonds, sorted_Js)
-
-    return GeneralCoupling{D}(sorted_Js, culled_Js, sorted_bonds, culled_bonds, label)
-end
+GeneralCoupling(J, bond::Bond{D}, label::String="GenCoup") where {D} = GeneralCoupling{D}(J, bond, label)
 
 const PairInt{D} = Union{Heisenberg{D}, DiagonalCoupling{D}, GeneralCoupling{D}}
 
-function initialize_interaction(int::Heisenberg{3}, cryst::Crystal)
-    # TODO
-    nothing
-end
-
 """
-Dipole-dipole interactions computed in real-space. `DipoleFourier` should
-be preferred in actual simulations, but this type persists as a cross-check
-to test the Fourier-space calculations.
+    DipoleDipole(strength, extent::Int=4, η::Float64=0.5)
+
+Defines long-range dipole-dipole interactions under the Ewald summation convention,
+assumed to be on a 3-dimensional lattice. Specifically, the term
+
+```math
+    ∑_{⟨ij⟩}
+```
+evaluated under the Ewald summation convention.
+
+`extent` controls the number of periodic copies of the unit cell summed over in the
+Ewald summation (higher is more accurate, but higher creation-time cost), while `η`
+controls the direct/reciprocal-space tradeoff in the Ewald summation.
 """
-struct DipoleReal <: Interaction
-    int_mat :: OffsetArray{Mat3, 5, Array{Mat3, 5}}
-end
-
-# FFTW types for various relevant Fourier transform plans
-const FTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
-const BFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
-const IFTPlan = AbstractFFTs.ScaledPlan{ComplexF64, BFTPlan, Float64}
-
-"""
-Dipole-dipole interactions computed in Fourier-space. Should produce
-identical results (up to numerical precision) as `DipoleReal`, but
-is asymptotically faster.
-"""
-struct DipoleFourier <: Interaction
-    int_mat     :: Array{ComplexF64, 7}
-    _spins_ft   :: Array{ComplexF64, 5}  # Space for Fourier-transforming spins
-    _field_ft   :: Array{ComplexF64, 5}  # Space for holding Fourier-transformed fields
-    _field_real :: Array{Float64, 5}     # Space for holding IFT-transformed fields
-    _plan       :: FTPlan
-    _ift_plan   :: IFTPlan
-end
-
-"""
-    Hamiltonian{D}
-
-Defines a Hamiltonian for a `D`-dimensional spin system.
-"""
-struct Hamiltonian{D}
-    ext_field   :: Union{Nothing, ExternalField}
-    heisenbergs :: Vector{Heisenberg{D}}
-    on_sites    :: Vector{OnSite}
-    diag_coups  :: Vector{DiagonalCoupling{D}}
-    gen_coups   :: Vector{GeneralCoupling{D}}
-    dipole_int  :: Union{Nothing, DipoleFourier}
-end
-
-function Hamiltonian{D}() where {D}
-    return Hamiltonian{D}(nothing, [], [], [], nothing)
-end
-
-"""
-    Hamiltonian{D}(ints)
-    Hamiltonian{D}(ints...)
-
-Construct a `Hamiltonian{D}` from a list of `Interaction`'s.
-"""
-function Hamiltonian{D}(ints) where {D}
-    ext_field   = nothing
-    heisenbergs = Vector{Heisenberg{D}}()
-    on_sites    = Vector{OnSite}()
-    diag_coups  = Vector{DiagonalCoupling{D}}()
-    gen_coups   = Vector{GeneralCoupling{D}}()
-    dipole_int  = nothing
-    for int in ints
-        if isa(int, ExternalField)
-            if !isnothing(ext_field)
-                @warn "Provided multiple external fields. Only using last one."
-            end
-            ext_field = int
-        elseif isa(int, Heisenberg)
-            push!(heisenbergs, int)
-        elseif isa(int, OnSite)
-            push!(on_sites, int)
-        elseif isa(int, DiagonalCoupling)
-            push!(diag_coups, int)
-        elseif isa(int, GeneralCoupling)
-            push!(gen_coups, int)
-        elseif isa(int, DipoleFourier)
-            if !isnothing(dipole_int)
-                @warn "Provided multiple dipole interactions. Only using last one."
-            end
-            dipole_int = int
-        end
-    end
-    return Hamiltonian{D}(ext_field, heisenbergs, on_sites, diag_coups, gen_coups, dipole_int)
-end
-
-function Hamiltonian{D}(ints::Vararg{<:Interaction}) where {D}
-    Hamiltonian{D}(ints)
-end
-
-"""
-    Hamiltonian(ints)
-    Hamiltonian(ints...)
-Constructor for a `Hamiltonian` which attempts to infer dimensionality
-from the provided interactions. Will fail if no pair or dipole
-interactions are defined.
-"""
-function Hamiltonian(ints)
-    D = nothing
-    for int in ints
-        if isa(int, PairInt)
-            # Sort of hacky -- is there a better way?
-            intD = typeof(int).parameters[1]
-        elseif isa(int, DipoleFourier)
-            intD = 3
-        else
-            intD = nothing
-        end
-
-        if !isnothing(intD)
-            if isnothing(D)
-                D = intD
-            elseif D != intD
-                error(
-                    """Provided interactions of multiple inconsistent
-                        dimensionalities!
-                    """
-                )
-            end
-        end
-    end
-
-    if isnothing(D)
-        error(
-            """Could not infer dimensionality from arguments.
-               Use explicit constructor Hamiltonian{D}.
-            """
-        )
-    else
-        Hamiltonian{D}(ints)
+struct DipoleDipole <: Interaction
+    strength :: Float64
+    extent   :: Int
+    η        :: Float64
+    function DipoleDipole(strength; extent=4, η=0.5)
+        new(strength, extent, η)
     end
 end
 
-function Hamiltonian(ints::Vararg{<:Interaction})
-    Hamiltonian(ints)
+#= Energy and field functions for "simple" interactions that aren't geometry-dependent =#
+
+function energy(spins::Array{Vec3}, field::ExternalField)
+    B = field.B
+    E = 0.0
+    for S in spins
+        E += S ⋅ B
+    end
+    return -E
+end
+
+function energy(spins::Array{Vec3}, on_site::OnSite)
+    J = on_site.J
+    E = 0.0
+    for S in spins
+        E += S ⋅ (J .* S)
+    end
+    return E
+end
+
+"Accumulates the local field coming from the external field"
+@inline function _accum_field!(B::Array{Vec3}, field::ExternalField)
+    for idx in eachindex(B)
+        B[idx] = B[idx] + field.B
+    end
+end
+
+"Accumulates the local field coming from on-site terms"
+@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, on_site::OnSite)
+    J = on_site.J
+    for idx in eachindex(spins)
+        S = spins[idx]
+        B[idx] = B[idx] - 2 * J .* S
+    end
 end

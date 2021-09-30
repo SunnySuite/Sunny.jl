@@ -26,12 +26,10 @@ export Lattice, ReciprocalLattice
 export eachcellindex, gen_reciprocal, volume
 
 include("Interactions.jl")
-export ExternalField, Heisenberg, OnSite, DiagonalCoupling, GeneralCoupling
-export gen_interaction, Hamiltonian
-export DipoleReal, DipoleFourier
+export ExternalField, Heisenberg, OnSite, DiagonalCoupling, GeneralCoupling, DipoleDipole
+export Hamiltonian
 
-include("Systems.jl")
-export ChargeSystem, SpinSystem, rand!, energy
+include("PairInteractions.jl")
 
 include("Ewald.jl")
 export ewald_sum_monopole, ewald_sum_dipole
@@ -41,6 +39,11 @@ export precompute_monopole_ewald_compressed, precompute_dipole_ewald_compressed
 export contract_monopole_compressed, contract_dipole_compressed
 
 include("FourierAccel.jl")
+
+include("Hamiltonian.jl")
+
+include("Systems.jl")
+export ChargeSystem, SpinSystem, rand!, energy, field
 
 include("Metropolis.jl")
 export MetropolisSampler, set_temp!, sample!, thermalize!, anneal!

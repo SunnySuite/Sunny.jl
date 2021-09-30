@@ -33,7 +33,7 @@ Defines a collection of spins, as well as the Hamiltonian they interact under.
 """
 mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
     lattice        :: Lattice{D, L, Db}   # Definition of underlying lattice
-    hamiltonian    :: Hamiltonian{D}      # Contains all interactions present
+    hamiltonian    :: HamiltonianCPU{D}   # Contains all interactions present
     sites          :: Array{Vec3, Db}     # Holds actual spin variables
     S              :: Rational{Int}       # Spin magnitude
 end
@@ -69,13 +69,16 @@ function Random.rand!(sys::ChargeSystem)
 end
 
 """
-    SpinSystem(lattice::Lattice, ℋ::Hamiltonian, S=1//1)
+    SpinSystem(lattice::Lattice, ℋ::HamiltonianCPU, S=1//1)
 
 Construct a `SpinSystem` with spins of magnitude `S` residing on the given `lattice`,
  and interactions given by `ℋ`. Initialized to all spins pointing along
  the ``+𝐳̂`` direction.
+
+(Users should not directly interact with this constructor, instead favoring the constructors
+involving `Crystal`.)
 """
-function SpinSystem(lattice::Lattice{D}, ℋ::Hamiltonian{D}, S::Rational{Int}=1//1) where {D}
+function SpinSystem(lattice::Lattice{D}, ℋ::HamiltonianCPU{D}, S::Rational{Int}=1//1) where {D}
     # Initialize sites to all spins along +z
     sites_size = (length(lattice.basis_vecs), lattice.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
@@ -94,15 +97,9 @@ function SpinSystem(crystal::Crystal, ℋ::Hamiltonian{D}, latsize, S::Rational{
     if length(latsize) != 3
         error("Provided `latsize` should be of length 3")
     end
+    ℋ_CPU = HamiltonianCPU{D}(ℋ, crystal, latsize)
     lattice = Lattice(crystal, latsize)
-    SpinSystem(lattice, ℋ, S)
-end
-
-"""
-    SpinSystem(lattice, ints::Vector{<:Interaction}, latsize, S=1//1)
-"""
-function SpinSystem(lat::Lattice{D}, ints::Vector{<:Interaction}, S::Rational{Int}=1//1) where {D}
-    return SpinSystem(lat, Hamiltonian{D}(ints), S)
+    SpinSystem(lattice, ℋ_CPU, S)
 end
 
 """
@@ -112,8 +109,10 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S::R
     if length(latsize) != 3
         error("Provided `latsize` should be of length 3")
     end
+    ℋ = Hamiltonian(ints)
+    ℋ_CPU = HamiltonianCPU{D}(ℋ, crystal, latsize)
     lattice = Lattice(crystal, latsize)
-    SpinSystem(lattice, ints, S)
+    SpinSystem(lattice, ℋ_CPU, S)
 end
 
 """
@@ -131,188 +130,24 @@ end
 
 Computes the energy of the system under `sys.hamiltonian`.
 """
-function energy(sys::SpinSystem) :: Float64
-    ℋ = sys.hamiltonian
-    E = 0.0
-    if !isnothing(ℋ.ext_field)
-        E += energy(sys, ℋ.ext_field)
-    end
-    for heisen in ℋ.heisenbergs
-        E += energy(sys, heisen)
-    end
-    for on_site in ℋ.on_sites
-        E += energy(sys, on_site)
-    end
-    for diag_coup in ℋ.diag_coups
-        E += energy(sys, diag_coup)
-    end
-    for gen_coup in ℋ.gen_coups
-        E += energy(sys, gen_coup)
-    end
-    if !isnothing(ℋ.dipole_int)
-        E += energy(sys, ℋ.dipole_int)
-    end
-    return E
-end
+energy(sys::SpinSystem) = energy(sys.sites, sys.hamiltonian)
 
-function energy(sys::SpinSystem, field::ExternalField)
-    B = field.B
-    E = 0.0
-    for S in sys
-        E += S ⋅ B
-    end
-    return -E
-end
+"""
+    field!(B::Array{Vec3}, sys::SpinSystem)
 
-function energy(sys::SpinSystem, heisenberg::Heisenberg)
-    @unpack J, culled_bonds = heisenberg
-    E = 0.0
-    for (i, bonds) in enumerate(culled_bonds)
-        for bond in bonds
-            @unpack j, n = bond
-            for cell in eachcellindex(sys.lattice)
-                Sᵢ = sys[i, cell]
-                Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
-                E += Sᵢ ⋅ Sⱼ
-            end
-        end
-    end
-    return J * E
-end
-
-function energy(sys::SpinSystem, on_site::OnSite)
-    J = on_site.J
-    E = 0.0
-    for S in sys
-        E += S ⋅ (J .* S)
-    end
-    return E
-end
-
-function energy(sys::SpinSystem, diag_coup::DiagonalCoupling)
-    @unpack J, culled_bonds = diag_coup
-    E = 0.0
-    for (i, bonds) in enumerate(culled_bonds)
-        for bond in bonds
-            @unpack j, n = bond
-            for cell in eachcellindex(sys.lattice)
-                Sᵢ = sys[i, cell]
-                Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
-                E += (J .* Sᵢ) ⋅ Sⱼ
-            end
-        end
-    end
-    return E
-end
-
-function energy(sys::SpinSystem, gen_coup::GeneralCoupling)
-    @unpack culled_Js, culled_bonds = gen_coup
-    E = 0.0
-    for (i, (Js, bonds)) in enumerate(zip(culled_Js, culled_bonds))
-        for (J, bond) in zip(Js, bonds)
-            @unpack j, n = bond
-            for cell in eachcellindex(sys.lattice)
-                Sᵢ = sys[i, cell]
-                Sⱼ = sys[j, offset(cell, n, sys.lattice.size)]
-                E += dot(Sᵢ, J, Sⱼ)
-            end
-        end
-    end
-    return E
-end
-
-function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::Hamiltonian)
-    fill!(B, SA[0.0, 0.0, 0.0])
-    if !isnothing(ℋ.ext_field)
-        _accum_field!(B, ℋ.ext_field)
-    end
-    for heisen in ℋ.heisenbergs
-        _accum_field!(B, spins, heisen)
-    end
-    for on_site in ℋ.on_sites
-        _accum_field!(B, spins, on_site)
-    end
-    for diag_coup in ℋ.diag_coups
-        _accum_field!(B, spins, diag_coup)
-    end
-    for gen_coup in ℋ.gen_coups
-        _accum_field!(B, spins, gen_coup)
-    end
-    if !isnothing(ℋ.dipole_int)
-        _accum_field!(B, spins, ℋ.dipole_int)
-    end
-end
-
+Updates B in-place to contain the local field at each site in the
+system under `sys.hamiltonian`
+"""
 field!(B::Array{Vec3}, sys::SpinSystem) = field!(B, sys.sites, sys.hamiltonian)
 
+"""
+    field(sys::SpinSystem)
+
+Compute the local field B at each site of the system under
+`sys.hamiltonian`.
+"""
 @inline function field(sys::SpinSystem)
     B = zero(sys)
     field!(B, sys)
     B
-end
-
-"Accumulates the local field coming from the external field"
-@inline function _accum_field!(B::Array{Vec3}, field::ExternalField)
-    for idx in eachindex(B)
-        B[idx] = B[idx] + field.B
-    end
-end
-
-"Accumulates the local field coming from Heisenberg couplings"
-@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, heisen::Heisenberg)
-    syssize = size(spins)[2:end]
-    @unpack J, culled_bonds = heisen
-    for (i, bonds) in enumerate(culled_bonds)
-        for bond in bonds
-            @unpack j, n = bond
-            for cell in CartesianIndices(syssize)
-                offsetcell = offset(cell, n, syssize)
-                B[i, cell] = B[i, cell] - J * spins[j, offsetcell]
-                B[j, offsetcell] = B[j, offsetcell] - J * spins[i, cell]
-            end
-        end
-    end
-end
-
-"Accumulates the local field coming from on-site terms"
-@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, on_site::OnSite)
-    J = on_site.J
-    for idx in eachindex(spins)
-        S = spins[idx]
-        B[idx] = B[idx] - 2 * J .* S
-    end
-end
-
-"Accumulates the local field coming from diagonal couplings"
-@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::DiagonalCoupling)
-    syssize = size(spins)[2:end]
-
-    @unpack J, culled_bonds = diag_coup
-    for (i, bonds) in enumerate(culled_bonds)
-        for bond in bonds
-            @unpack j, n = bond
-            for cell in CartesianIndices(syssize)
-                offsetcell = offset(cell, n, syssize)
-                B[i, cell] = B[i, cell] - J .* spins[j, offsetcell]
-                B[j, offsetcell] = B[j, offsetcell] - J .* spins[i, cell]
-            end
-        end
-    end
-end
-
-"Accumulates the local field coming from general couplings"
-@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCoupling)
-    syssize = size(spins)[2:end]
-
-    @unpack culled_Js, culled_bonds = gen_coup
-    for (i, (Js, bonds)) in enumerate(zip(culled_Js, culled_bonds))
-        for (J, bond) in zip(Js, bonds)
-            @unpack j, n = bond
-            for cell in CartesianIndices(syssize)
-                offsetcell = offset(cell, n, syssize)
-                B[i, cell] = B[i, cell] - J * spins[j, offsetcell]
-                B[j, offsetcell] = B[j, offsetcell] - J * spins[i, cell]
-            end
-        end
-    end
 end

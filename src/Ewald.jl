@@ -19,10 +19,8 @@ Specifically, computes:
       - \frac{π}{2Vη^2}Q^2 - \frac{η}{\sqrt{π}} \sum_{i} q_i^2
 ```
 """
-function ewald_sum_monopole(sys::ChargeSystem{3}; η=1.0, extent=5) :: Float64
+function ewald_sum_monopole(lattice::Lattice{3}, charges::Array{Float64, 4}; η=1.0, extent=5) :: Float64
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
-
-    @unpack sites, lattice = sys
 
     recip = gen_reciprocal(lattice)
     # Rescale vectors to be reciprocal vectors of entire simulation box
@@ -43,10 +41,10 @@ function ewald_sum_monopole(sys::ChargeSystem{3}; η=1.0, extent=5) :: Float64
 
     for idx1 in eachindex(lattice)
         rᵢ = lattice[idx1]
-        qᵢ = sys.sites[idx1]
+        qᵢ = charges[idx1]
         for idx2 in eachindex(lattice)
             rⱼ = lattice[idx2]
-            qⱼ = sys.sites[idx2]
+            qⱼ = charges[idx2]
             rᵢⱼ = rⱼ - rᵢ
 
             # TODO: Either merge into one sum, or separately control extents
@@ -84,10 +82,8 @@ function ewald_sum_monopole(sys::ChargeSystem{3}; η=1.0, extent=5) :: Float64
     return 0.5 * real_space_sum + 2π / vol * real(recip_space_sum) + tot_charge_term + charge_square_term
 end
 
-function direct_sum_monopole(sys::ChargeSystem{3}; s=0.0, extent=5) :: Float64
+function direct_sum_monopole(lattice::Lattice{3}, charges::Array{Float64, 4}; s=0.0, extent=5) :: Float64
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
-
-    @unpack sites, lattice = sys
 
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
@@ -99,10 +95,10 @@ function direct_sum_monopole(sys::ChargeSystem{3}; s=0.0, extent=5) :: Float64
 
     for idx1 in eachindex(lattice)
         rᵢ = lattice[idx1]
-        qᵢ = sys.sites[idx1]
+        qᵢ = charges[idx1]
         for idx2 in eachindex(lattice)
             rⱼ = lattice[idx2]
-            qⱼ = sys.sites[idx2]
+            qⱼ = charges[idx2]
             rᵢⱼ = rⱼ - rᵢ
 
             # Real-space sum over unit cells
@@ -134,10 +130,8 @@ end
 Performs ewald summation to calculate the potential energy of a 
 system of dipoles with periodic boundary conditions.
 """
-function ewald_sum_dipole(sys::SpinSystem{3}; extent=2, η=1.0) :: Float64
+function ewald_sum_dipole(lattice::Lattice{3}, spins::Array{Vec3, 4}; extent=2, η=1.0) :: Float64
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
-
-    @unpack sites, lattice = sys
 
     recip = gen_reciprocal(lattice)
     # Rescale vectors to be reciprocal vectors of entire simulation box
@@ -147,7 +141,7 @@ function ewald_sum_dipole(sys::SpinSystem{3}; extent=2, η=1.0) :: Float64
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
 
-    dip_square_term = -2η^3 / (3 * √π) * sum(norm.(sys.sites).^2)
+    dip_square_term = -2η^3 / (3 * √π) * sum(norm.(spins).^2)
 
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum = 0.0
@@ -157,11 +151,11 @@ function ewald_sum_dipole(sys::SpinSystem{3}; extent=2, η=1.0) :: Float64
 
     for idx1 in eachindex(lattice)
         @inbounds rᵢ = lattice[idx1]
-        @inbounds pᵢ = sys.sites[idx1]
+        @inbounds pᵢ = spins[idx1]
 
         for idx2 in eachindex(lattice)
             @inbounds rⱼ = lattice[idx2]
-            @inbounds pⱼ = sys.sites[idx2]
+            @inbounds pⱼ = spins[idx2]
             pᵢ_dot_pⱼ = pᵢ ⋅ pⱼ
 
             rᵢⱼ = rⱼ - rᵢ
@@ -288,15 +282,16 @@ function precompute_monopole_ewald(lattice::Lattice{3}; extent=10, η=1.0) :: Of
     return A
 end
 
-function contract_monopole(sys::ChargeSystem, A::OffsetArray{Float64}) :: Float64
-    nb = length(sys.lattice.basis_vecs)
+function contract_monopole(charges::Array{Float64, 4}, A::OffsetArray{Float64}) :: Float64
+    nb = size(charges, 1)
+    latsize = size(charges)[2:end]
     U = 0.0
-    for i in eachcellindex(sys.lattice)
+    for i in CartesianIndices(latsize)
         for ib in 1:nb
-            @inbounds qᵢ = sys[ib, i]
-            for j in eachcellindex(sys.lattice)
+            @inbounds qᵢ = charges[ib, i]
+            for j in CartesianIndices(latsize)
                 for jb in 1:nb
-                    @inbounds qⱼ = sys[jb, j]
+                    @inbounds qⱼ = charges[jb, j]
                     @inbounds U += qᵢ * A[ib, jb, i - j] * qⱼ
                 end
             end
@@ -483,16 +478,17 @@ function precompute_dipole_ewald_c(lattice::Lattice{3}; extent=3, η=1.0) :: Off
 end
 
 "Contracts a system of dipoles with a precomputed interaction tensor A"
-function contract_dipole(sys::SpinSystem{3}, A::OffsetArray{Mat3, 5}) :: Float64
-    nb = length(sys.lattice.basis_vecs)
+function contract_dipole(spins::Array{Vec3, 4}, A::OffsetArray{Mat3, 5}) :: Float64
+    nb = size(spins, 1)
+    latsize = size(spins)[2:end]
     U = 0.0
-    for i in eachcellindex(sys.lattice)
+    for i in CartesianIndices(latsize)
         for ib in 1:nb
-            @inbounds pᵢ = sys[ib, i]
-            for j in eachcellindex(sys.lattice)
+            @inbounds pᵢ = spins[ib, i]
+            for j in CartesianIndices(latsize)
                 for jb in 1:nb
-                    @inbounds pⱼ = sys[jb, j]
-                    @inbounds U += dot(pᵢ, A, pⱼ)
+                    @inbounds pⱼ = spins[jb, j]
+                    @inbounds U += dot(pᵢ, A[ib, jb, i - j], pⱼ)
                 end
             end
         end
@@ -501,16 +497,17 @@ function contract_dipole(sys::SpinSystem{3}, A::OffsetArray{Mat3, 5}) :: Float64
 end
 
 "Contracts a system of dipoles with a precomputed interaction tensor A, in ± compressed format"
-function contract_dipole_c(sys::SpinSystem{3}, A::OffsetArray{Mat3, 5}) :: Float64
-    nb = nbasis(sys.lattice)
+function contract_dipole_c(spins::Array{Vec3, 4}, A::OffsetArray{Mat3, 5}) :: Float64
+    nb = size(spins, 1)
+    latsize = size(spins)[2:end]
     U = 0.0
-    for i in eachcellindex(sys.lattice)
+    for i in CartesianIndices(latsize)
         for ib in 1:nb
-            @inbounds pᵢ = sys[ib, i]
-            for j in eachcellindex(sys.lattice)
+            @inbounds pᵢ = spins[ib, i]
+            for j in CartesianIndices(latsize)
                 for jb in 1:nb
-                    @inbounds pⱼ = sys[jb, j]
-                    @inbounds U += dot(pᵢ, A[ib, jb, modc(i - j, sys.lattice.size)], pⱼ)
+                    @inbounds pⱼ = spins[jb, j]
+                    @inbounds U += dot(pᵢ, A[ib, jb, modc(i - j, latsize)], pⱼ)
                 end
             end
         end
@@ -518,83 +515,36 @@ function contract_dipole_c(sys::SpinSystem{3}, A::OffsetArray{Mat3, 5}) :: Float
     return U
 end
 
-"""Approximates a dipolar `SpinSystem` by generating a monopolar `ChargeSystem` consisting of
-    opposite charges Q = ±1/(2ϵ) separated by displacements d = 2ϵp centered on the original
-    lattice sites.
 """
-function _approx_dip_as_mono(sys::SpinSystem{D, L, Db}; ϵ::Float64=0.1) :: ChargeSystem{D, L, Db} where {D, L, Db}
-    @unpack sites, lattice = sys
-
-    # Need to expand the underlying unit cell to the entire system size
-    new_lat_vecs = lattice.size' .* lattice.lat_vecs
-    new_latsize = @SVector ones(Int, D)
-
-    new_nbasis = 2 * prod(size(sites))
-    new_sites = zeros(new_nbasis, 1, 1, 1)
-    new_basis = Vector{SVector{D, Float64}}()
-    sizehint!(new_basis, new_nbasis)
-
-    ib = 1
-    for idx in eachindex(lattice)
-        @inbounds r = lattice[idx]
-        @inbounds p = sites[idx]
-
-        # Add new charges as additional basis vectors
-        push!(new_basis, SVector{3}(r .+ ϵ * p))
-        push!(new_basis, SVector{3}(r .- ϵ * p))
-
-        # Set these charges to ±1/2ϵ
-        new_sites[1, 1, 1, ib]   =  1 / 2ϵ
-        new_sites[1, 1, 1, ib+1] = -1 / 2ϵ
-
-        ib += 2
-    end
-
-    new_lattice = Lattice(new_lat_vecs, new_basis, new_latsize)
-
-    return ChargeSystem{D, L, Db}(new_lattice, new_sites)
+Dipole-dipole interactions computed in real-space. `DipoleFourier` should
+be preferred in actual simulations, but this type persists as a cross-check
+to test the Fourier-space calculations.
+"""
+struct DipoleRealCPU <: InteractionCPU
+    int_mat :: OffsetArray{Mat3, 5, Array{Mat3, 5}}
 end
 
-"Self-energy of a physical dipole with moment p, and displacement d=2ϵ"
-function _dipole_self_energy(; p::Float64=1.0, ϵ::Float64=0.1)
-    d, q = 2ϵ, p/2ϵ
-    return -q^2 / d
+function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize)
+    @unpack strength, extent, η = dip
+    lattice = Lattice(crystal, latsize)
+    return DipoleRealCPU(strength .* precompute_dipole_ewald_c(lattice; extent=extent, η=η))
 end
 
-function test_compression(A, Acomp)
-    ndim = div(ndims(A), 2) - 1
-    nb = size(A, 1)
-    latsize = size(A)[2:1+ndim]
-    for i in CartesianIndices(latsize)
-        for j in CartesianIndices(latsize)
-            for ib in 1:nb
-                for jb in 1:nb
-                    @assert A[ib, i, jb, j] ≈ Acomp[ib, jb, i - j]
-                end
-            end
-        end
-    end
+function energy(spins::Array{Vec3, 4}, dip::DipoleRealCPU)
+    return contract_dipole_c(spins, dip.int_mat)
 end
 
-function DipoleReal(strength::Float64, lattice::Lattice{3}; extent::Int=4, η::Float64=0.5)
-    return DipoleReal(strength .* precompute_dipole_ewald_c(lattice; extent=extent, η=η))
-end
-
-function energy(sys::SpinSystem{3}, dip::DipoleReal)
-    return contract_dipole_c(sys, dip.int_mat)
-end
-
-function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleReal)
+function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleRealCPU)
     A = dip.int_mat
     nb = size(spins, 1)
-    syssize = size(spins)[2:end]
+    latsize = size(spins)[2:end]
 
-    for j in CartesianIndices(syssize)
+    for j in CartesianIndices(latsize)
         for jb in 1:nb
             @inbounds pⱼ = spins[jb, j]
-            for i in CartesianIndices(syssize)
+            for i in CartesianIndices(latsize)
                 for ib in 1:nb
-                    @inbounds H[ib, i] = H[ib, i] - 2 * (A[ib, jb, modc(i - j, syssize)] * pⱼ)
+                    @inbounds H[ib, i] = H[ib, i] - 2 * (A[ib, jb, modc(i - j, latsize)] * pⱼ)
                 end
             end
         end

@@ -8,14 +8,13 @@ using Statistics
 
 "Produce structure factor maps to compare to Xiaojian's plots"
 function test_diamond_heisenberg_sf()
-    lattice = FastDipole.diamond_conventional(1.0, (8, 8, 8))
-    crystal = Crystal(lattice)
+    crystal = FastDipole.diamond_conventional_crystal(1.0)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, crystal, Bond(3, 6, [0,0,0])),
+        Heisenberg(J, Bond(3, 6, [0,0,0])),
     ]
     ℋ = Hamiltonian(interactions)
-    sys = SpinSystem(lattice, ℋ)
+    sys = SpinSystem(crystal, ℋ, (8, 8, 8))
     rand!(sys)
 
     Δt = 0.02 / J       # Units of 1/K
@@ -113,12 +112,12 @@ function test_FeI2_MC()
     J1mat = [-0.397  0      0    ;
               0     -0.075 -0.261;
               0     -0.261 -0.236]
-    J1 = GeneralCoupling(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
+    J1 = GeneralCoupling(J1mat, Bond(1, 1, [1, 0, 0]), "J1")
+    J2 = DiagonalCoupling([0.026, 0.026, 0.113], Bond(1, 1, [1, -1, 0]), "J2")
+    J3 = DiagonalCoupling([0.166, 0.166, 0.211], Bond(1, 1, [2, 0, 0]), "J3")
+    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], Bond(1, 1, [0, 0, 1]), "J0′")
+    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], Bond(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], Bond(1, 1, [1, -1, 1]), "J2a′")
 
     D = OnSite([0.0, 0.0, -2.165/2], "D")
 
@@ -129,7 +128,7 @@ function test_FeI2_MC()
     rand!(system)
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
-    kT = 1.0 * kBN              # Actual target simulation temp, units of meV
+    kT = 1.0 * kB               # Actual target simulation temp, units of meV
 
     Δt = 0.01 / (2.165/2)       # Units of 1/meV
     # Highest energy/frequency we actually care about resolving
@@ -154,14 +153,13 @@ function test_FeI2_MC()
 end
 
 function test_diamond_heisenberg_energy_curve()
-    lattice = FastDipole.diamond_conventional(1.0, (8, 8, 8))
-    crystal = Crystal(lattice)
+    crystal = FastDipole.diamond_conventional_crystal(1.0)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, crystal, Bond(3, 6, [0,0,0])),
+        Heisenberg(J, Bond(3, 6, [0,0,0])),
     ]
     ℋ = Hamiltonian(interactions)
-    sys = SpinSystem(lattice, ℋ)
+    sys = SpinSystem(crystal, ℋ, (8, 8, 8))
     rand!(sys)
 
     Δt = 0.02 / J       # Units of 1/K
@@ -205,21 +203,18 @@ function test_FeI2_energy_curve()
     J1mat = [-0.397 0      0    ;
               0    -0.075 -0.261;
               0    -0.261 -0.236]
-    J1 = GeneralCoupling(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
+    J1 = GeneralCoupling(J1mat, Bond(1, 1, [1, 0, 0]), "J1")
+    J2 = DiagonalCoupling([0.026, 0.026, 0.113], Bond(1, 1, [1, -1, 0]), "J2")
+    J3 = DiagonalCoupling([0.166, 0.166, 0.211], Bond(1, 1, [2, 0, 0]), "J3")
+    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], Bond(1, 1, [0, 0, 1]), "J0′")
+    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], Bond(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], Bond(1, 1, [1, -1, 1]), "J2a′")
     D = OnSite([0.0, 0.0, -2.165/2], "D")
     ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
 
-    # Produce a Lattice of the target system size (16x20x4)
-    lattice = Lattice(cryst, (16, 20, 4))
-    # Set up the SpinSystem
-    system = SpinSystem(lattice, ℋ)
+    # Set up the SpinSystem of size 16×20×4
+    system = SpinSystem(cryst, ℋ, (16, 20, 4))
     rand!(system)
-
 
     sampler = MetropolisSampler(system, 1.0, 10)
 

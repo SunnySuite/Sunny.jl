@@ -8,9 +8,9 @@ The high-level outline of performing a simulation is:
 
 1. Create a [`Crystal`](@ref), either by providing explicit geometry information
     (Example 1), or by loading a `.cif` file (Example 2).
-2. Using the `Crystal`, construct a [`Lattice`](@ref) which specifies the system
-    size, and a collection of [Interactions](@ref) assembled into a [`Hamiltonian`](@ref).
-3. Assemble a [`SpinSystem`](@ref) using the newly created `Lattice` and `Interaction`s.
+2. Using the `Crystal`, construct a collection of [Interactions](@ref) assembled into a [`Hamiltonian`](@ref).
+3. Assemble a [`SpinSystem`](@ref) using the newly created `Crystal` and `Interaction`s,
+   and the size of the simulation box.
 4. Construct a sampler, either a [`LangevinSampler`](@ref) (Example 1), or a 
     [`MetropolisSampler`](@ref) (Example 2).
 5. Use the sampler directly to sample new states, or use it to perform [Structure factor calculations](@ref).
@@ -31,7 +31,7 @@ a spin dynamics simulation, with finite-$T$ statistics obtained by using Langevi
 dynamics. The full example is contained in the function `test_diamond_heisenberg_sf()`
 within `examples/reproduce_testcases.jl`.
 
-**(1)** We construct a diamond lattice by explicitly defining the lattice geometry. We will use the conventional cubic Bravais lattice with an 8-site basis. Our simulation box
+**(1)** We construct a diamond crystal by explicitly defining the lattice geometry. We will use the conventional cubic Bravais lattice with an 8-site basis. Our simulation box
 will be ``8 \times 8 \times 8`` unit cells along each axis. Since we're not thinking about a specific system, we label all of the sites with the arbitrary species label `"A"`.
 
 ```julia
@@ -48,26 +48,19 @@ basis_vecs = [
     [1/4, 3/4, 1/4],
     [1/4, 1/4, 3/4]
 ]
-basis_labels = fill("A", 8)
-latsize = [8, 8, 8]
-lattice = Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
-crystal = Crystal(lattice)
+basis_types = fill("A", 8)
+crystal = Crystal(lat_vecs, basis_vecs; types=basis_types)
 ```
 
-Here, `Lattice` is a type which holds the geometry of our simulation box. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the absolute position of the selected site will be given. For example, the following gives the position of the second sublattice site in the unit cell which is fifth along each axis: 
+You should see some information printed out about the automatically-inferred space group,
+the lattice parameters, and the coordinates of all of the sites in the unit cell in
+fractional coordinates.
 
-```
-julia> lattice[2, 5, 5, 5]
-3-element SVector{3, Float64} with indices SOneTo(3):
- 20.0
- 22.0
- 22.0
-```
-
-(To save a minor amount of arithmetic, the bottom-left corner of the simulation box lives at ``a+b+c`` rather than 0). From this `Lattice`, we created a `Crystal` that infers extra information about the symmetries of the lattice and is needed to define interactions in our system later.
-
-**(2)** In step 1, we ended up already creating our `Lattice`, so all that is left is
-to define our Heisenberg interactions. We want to set up nearest-neighbor antiferromagnetic interactions with a strength of ``J = 28.28~\mathrm{K}``. One nearest-neighbor bond is the one connecting basis site 3 with basis site 6 within a single unit cell. (We can figure this out using our tools for symmetry analysis, at the bottom of this page).
+**(2)** Next, we need to define our Heisenberg interactions. We want to set up
+nearest-neighbor antiferromagnetic interactions with a strength of ``J = 28.28~\mathrm{K}``.
+One nearest-neighbor bond is the one connecting basis site 3 with basis site 6 within a
+single unit cell. (We can figure this out using our tools for symmetry analysis, at the
+bottom of this page).
 
 ```julia
 J = 28.28           # Units of K
@@ -78,14 +71,18 @@ interactions = [
 ```
 Here, the `3` in both `Bond{3}` and `Hamiltonian{3}` indicates that they are defined in the context of a 3-dimensional system.
 
-**(3)** Assembling a `SpinSystem` is straightforward. Then, we will randomize the system so that all spins are randomly placed on the unit sphere.
+**(3)** Assembling a `SpinSystem` is straightforward -- provide the `Crystal` and
+`Hamiltonian` we made, along with the size of the simulation box we want along each
+lattice vector. Then, we will randomize the system so that all spins are randomly
+placed on the unit sphere.
 
 ```julia
-sys = SpinSystem(lattice, ℋ)
+sys = SpinSystem(crystal, ℋ, (8, 8, 8))
 rand!(sys)
 ```
 
-The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. The type is indexable in the same way as `Lattice`, by providing a sublattice index alongside indices into the unit cell axes:
+The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the spin located at the selected site will given. For example, the following gives the spin variable located on the second sublattice in the
+unit cell which is fifth along each axis:
 
 ```
 sys[2, 5, 5, 5]
@@ -94,8 +91,6 @@ sys[2, 5, 5, 5]
   0.41462045511988654
  -0.8810015893169237
 ```
-
-Now, we are obtaining the actual spin variable living at site `(2, 5, 5, 5)`.
 
 **(4)** We will simulate this system using Langevin dynamics, so we need to create a [`LangevinSampler`](@ref). Note that the units of integration time and temperature are relative to the units implicitly used when setting up the interactions.
 
@@ -206,29 +201,19 @@ D = OnSite([0.0, 0.0, -2.165/2], "D")
 ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
 ```
 
-Using our `Crystal`, we also need to generate a `Lattice` of some size to run our
-simulation on. In this example, we'll work with a modestly large system of size
-``16\times 20\times 4`` along the ``(a, b, c)`` axes. We choose to make the ``a``
-and ``b`` lengths different to artifically break a sixfold symmetry present in
-the system to help the Monte Carlo find the correct ground state later on.
-
-```julia
-lattice = Lattice(cryst, (16, 20, 4))
-```
-
 To get better insight into the geometry and the long set of pair interactions
 we've defined above, we can take a look at both using the following plotting
-function (you may want to replace `lattice` with something smaller, say ``5 \times 5 \times 3`` to make the bonds easier to see, or adjust `markersize` to make the atoms easier to see):
+function: (you may want to adjust `markersize` to make the atoms easier to see):
 
 ```julia
-plot_bonds(lattice, ℋ; markersize=500)
+plot_bonds(cryst, ℋ; ncells=(4,4,4), markersize=500)
 ```
 
 **(3)** As with the previous example, the next step is to make a `SpinSystem` and
-randomize it:
+randomize it. We'll simulate a fairly large box of size ``16\times 20\times 4``.
 
 ```julia
-system = SpinSystem(lattice, ℋ)
+system = SpinSystem(cryst, ℋ, (16, 20, 4))
 rand!(system)
 ```
 
@@ -334,9 +319,7 @@ D = OnSite([0.0, 0.0, -2.165/2], "D")
 
 ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
 
-lattice = Lattice(cryst, (16, 20, 4))
-
-system = SpinSystem(lattice, ℋ)
+system = SpinSystem(cryst, ℋ, (16, 20, 4))
 rand!(system)
 
 sampler = MetropolisSampler(system, 1.0, 10)

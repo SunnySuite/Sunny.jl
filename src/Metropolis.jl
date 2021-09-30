@@ -140,8 +140,7 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
         ΔE += newspin ⋅ (on_site.J .* newspin) - oldspin ⋅ (on_site.J .* oldspin)
     end
     for diag_coup in ℋ.diag_coups
-        J = diag_coup.J
-        for bond in diag_coup.bonds[i]
+        for (J, bond) in zip(diag_coup.Js[i], diag_coup.bonds[i])
             Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
             ΔE += (J .* spindiff) ⋅ Sⱼ
         end
