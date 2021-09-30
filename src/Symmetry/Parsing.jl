@@ -83,18 +83,27 @@ function Crystal(filename::AbstractString; symprec=nothing)
     lat_vecs = lattice_vectors(a, b, c, α, β, γ)
 
     geo_table = get_loop(cif, "_atom_site_fract_x")
-    xs = map(_parse_cif_float, geo_table[!, "_atom_site_fract_x"])
-    ys = map(_parse_cif_float, geo_table[!, "_atom_site_fract_y"])
-    zs = map(_parse_cif_float, geo_table[!, "_atom_site_fract_z"])
-    sitetypes = geo_table[!, "_atom_site_type_symbol"]
-    sitetypes = Vector{String}(sitetypes)
-    sitelabels = geo_table[!, "_atom_site_label"]
+    xs = _parse_cif_float.(geo_table[:, "_atom_site_fract_x"])
+    ys = _parse_cif_float.(geo_table[:, "_atom_site_fract_y"])
+    zs = _parse_cif_float.(geo_table[:, "_atom_site_fract_z"])
     unique_atoms = Vec3.(zip(xs, ys, zs))
+
+    sitetypes = String.(geo_table[:, :_atom_site_type_symbol])
+
+    multiplicities = nothing
+    if "_atom_site_symmetry_multiplicity" in names(geo_table)
+        multiplicities = parse.(Int, geo_table[:, "_atom_site_symmetry_multiplicity"])
+    end
+
+    wyckoffs = nothing
+    if "_atom_site_wyckoff_symbol" in names(geo_table)
+        wyckoffs = String.(geo_table[:, "_atom_site_wyckoff_symbol"])
+    end
 
     # Try to infer symprec from coordinate strings
     # TODO: Use uncertainty information if available from .cif
     if isnothing(symprec)
-        strs = vcat(geo_table[!, "_atom_site_fract_x"], geo_table[!, "_atom_site_fract_y"], geo_table[!, "_atom_site_fract_z"])
+        strs = vcat(geo_table[:, "_atom_site_fract_x"], geo_table[:, "_atom_site_fract_y"], geo_table[:, "_atom_site_fract_z"])
         elems = vcat(xs, ys, zs)
         # guess fractional errors by assuming each elem is a fraction with simple denominator (2, 3, or 4)
         errs = map(elems) do x
@@ -120,7 +129,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
     for sym_header in ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
         if sym_header in keys(cif)
             sym_table = get_loop(cif, sym_header)
-            symmetries = map(_parse_op, sym_table[!, sym_header])
+            symmetries = _parse_op.(sym_table[:, sym_header])
         end
     end
 
