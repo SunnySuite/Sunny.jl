@@ -311,22 +311,34 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     # Atoms are sorted by contiguous equivalence classes: 1, 2, ..., n
     @assert unique(classes) == 1:maximum(classes)
 
-    # Check that symops are present in Spglib-inferred space group
-    cryst′ = crystal_from_inferred_symmetry(lat_vecs, all_positions, all_types; symprec)
-    for s in symops
-        is_found = any(cryst′.symops) do s′
+    # Ask Spglib to infer the spacegroup for the given positions and types
+    inferred = crystal_from_inferred_symmetry(lat_vecs, all_positions, all_types; symprec)
+
+    # Compare the inferred symops to the provided ones
+    is_subgroup = all(symops) do s
+        any(inferred.symops) do s′
             isapprox(s, s′; atol=symprec)
         end
-        if !is_found
-            println("WARNING: User provided symmetry operation could not be inferred by Spglib,")
-            println("which likely indicates a non-conventional unit cell.")
-            break
+    end
+    is_supergroup = all(inferred.symops) do s
+        any(symops) do s′
+            isapprox(s, s′; atol=symprec)
         end
     end
 
-    # TODO: Extract pointgroups from spglib
+    if !is_subgroup
+        println("WARNING: User provided symmetry operation could not be inferred by Spglib,")
+        println("which likely indicates a non-conventional unit cell.")
+    end
 
-    ret = Crystal(lat_vecs, all_positions, classes, all_types, symops, spacegroup, nothing, symprec)
+    # If the inferred symops match the provided ones, then we use the inferred
+    # Crystal. Otherwise we must construct a new Crystal and do not have site
+    # symmetry information.
+    ret = if is_subgroup && is_supergroup
+        inferred
+    else
+        Crystal(lat_vecs, all_positions, classes, all_types, symops, spacegroup, nothing, symprec)
+    end
     sort_sites!(ret)
     validate(ret)
     return ret
