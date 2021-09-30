@@ -37,11 +37,18 @@ dist4 = [distance(cryst, b) for b=cbonds]
 
 
 
-### FCC lattice, primitive unit cell
+### FCC lattice, primitive vs. standard unit cell
 
 lat_vecs = [1 1 0; 1 0 1; 0 1 1]' / 2
-positions = [[0., 0, 0]]
+positions = [[0, 0, 0]]
 cryst = Crystal(lat_vecs, positions)
+
+lat_vecs = [1 0 0; 0 1 0; 0 0 1]'
+positions = [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]]
+cryst′ = Crystal(lat_vecs, positions)
+
+@assert cryst.sitesymmetries[1] == cryst′.sitesymmetries[1]
+
 print_bond_table(cryst, 2.)
 
 # Calculate interaction table
@@ -49,14 +56,14 @@ cbonds = canonical_bonds(cryst, 2.)
 b = cbonds[2]
 basis = FD.basis_for_symmetry_allowed_couplings(cryst, b)
 J = basis' * randn(length(basis))
-(bs, Js) = FD.all_symmetry_related_interactions(cryst, b, J)
+(bs, Js) = FD.all_symmetry_related_interactions_for_atom(cryst, b.i, b, J)
 @assert length(Js) == FD.bond_multiplicity(cryst, b)
 
 
 ### Triangular lattice, primitive unit cell
 
 lat_vecs = [1 0 0;  1/2 √3/2 0;  0 0 10]'
-positions = [[0., 0, 0]]
+positions = [[0, 0, 0]]
 cryst = Crystal(lat_vecs, positions)
 print_bond_table(cryst, 5.)
 
@@ -111,6 +118,10 @@ print_bond_table(cryst, 8.)
 
 cryst = subcrystal(Crystal("/Users/kbarros/Desktop/cifs/FeI2.cif"), "I1-")
 display(cryst)
+
+cryst = Crystal("/Users/kbarros/Desktop/cifs/FeI2_orth.cif")
+display(cryst)
+print_bond_table(cryst, 8.)
 
 
 cryst = Crystal("/Users/kbarros/Desktop/cifs/diamond_Nature1958.cif")
