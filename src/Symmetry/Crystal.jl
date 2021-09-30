@@ -155,6 +155,16 @@ end
 
 
 function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
+    for i in 1:length(positions)
+        for j in i+1:length(positions)
+            ri = positions[i]
+            rj = positions[j]
+            if is_same_position(ri, rj; symprec)
+                error("Positions $ri and $rj are symmetry equivalent.")
+            end
+        end
+    end
+
     positions = wrap_to_unit_cell.(positions; symprec)
 
     cell = Spglib.Cell(lat_vecs, hcat(positions...), types)
