@@ -79,7 +79,7 @@ function print_bond(cryst::Crystal, b::Bond{3})
     rj = cryst.positions[b.j] + b.n
     allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
 
-    @printf "Bond{3}(%d, %d, [%d, %d, %d])\n" b.i b.j b.n[1] b.n[2] b.n[3]
+    @printf "Bond(%d, %d, [%d, %d, %d])\n" b.i b.j b.n[1] b.n[2] b.n[3]
 
     if b.i == b.j && iszero(b.n)
         # On site interaction
