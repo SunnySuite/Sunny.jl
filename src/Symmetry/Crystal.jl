@@ -44,12 +44,14 @@ A type holding all geometry and symmetry information needed to represent
 """
 struct Crystal
     lat_vecs       :: Mat3                # Lattice vectors as columns
-    positions      :: Vector{Vec3}        # Full set of atoms, fractional coords
-    classes        :: Vector{Int}         # Index to equivalent atom type
-    types          :: Vector{String}      # Types for each atom
+
+    positions      :: Vector{Vec3}        # Positions in fractional coords
+    types          :: Vector{String}      # Types
+    classes        :: Vector{Int}         # Class indices
+    sitesyms       :: Union{Nothing, Vector{SiteSymmetry}} # Optional site symmetries
+
     symops         :: Vector{SymOp}       # Symmetry operations
     spacegroup     :: String              # Description of space group
-    sitesymmetries :: Union{Nothing, Vector{SiteSymmetry}} # Optional site symmetries, indexed by class
     symprec        :: Float64             # Tolerance to imperfections in symmetry
 end
 
@@ -169,7 +171,8 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
 
     cell = Spglib.Cell(lat_vecs, hcat(positions...), types)
     d = Spglib.get_dataset(cell, symprec)
-    classes = d.crystallographic_orbits .+ 1
+    classes = d.crystallographic_orbits
+    # classes = d.equivalent_atoms
     symops = symops_from_spglib(d.rotations, d.translations)
     spacegroup = spacegroup_name(d.hall_number)
 
@@ -177,21 +180,21 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
     classes = [findfirst(==(c), unique(classes)) for c in classes]
     @assert unique(classes) == 1:maximum(classes)
 
-    # multiplicities for each equivalence class
+    # multiplicities for the equivalence classes
     multiplicities = map(classes) do c
         # indices that belong to class c
         idxs = findall(==(c), classes)
         # indices in the primitive cell that belong to class c
-        idxs = unique(d.mapping_to_primitive[idxs])
+        prim_idxs = unique(d.mapping_to_primitive[idxs])
         # number of atoms in the standard cell that correspond to each primitive index for class c
-        counts = [count(==(i), d.std_mapping_to_primitive) for i in idxs]
+        counts = [count(==(i), d.std_mapping_to_primitive) for i in prim_idxs]
         # sum over all equivalent atoms in the primitive cell
         sum(counts)
     end
 
-    sitesymmetries = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
+    sitesyms = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
 
-    ret = Crystal(lat_vecs, positions, classes, types, symops, spacegroup, sitesymmetries, symprec)
+    ret = Crystal(lat_vecs, positions, types, classes, sitesyms, symops, spacegroup, symprec)
     validate(ret)
     return ret
 end
@@ -349,7 +352,7 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     ret = if is_subgroup && is_supergroup
         inferred
     else
-        Crystal(lat_vecs, all_positions, classes, all_types, symops, spacegroup, nothing, symprec)
+        Crystal(lat_vecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
     end
     sort_sites!(ret)
     validate(ret)
@@ -390,13 +393,14 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where {N}
     new_positions = cryst.positions[idxs]
     new_types = cryst.types[idxs]
     new_classes = cryst.classes[idxs]
+    new_sitesyms = cryst.sitesyms[idxs]
 
     if idxs != 1:maximum(idxs)
         println("WARNING, atoms are being renumbered.")
     end
 
-    ret = Crystal(cryst.lat_vecs, new_positions, new_classes, new_types,
-                  cryst.symops, cryst.spacegroup, cryst.sitesymmetries, cryst.symprec)
+    ret = Crystal(cryst.lat_vecs, new_positions, new_types, new_classes, new_sitesyms,
+                  cryst.symops, cryst.spacegroup, cryst.symprec)
     return ret
 end
 
@@ -422,11 +426,11 @@ function Base.display(cryst::Crystal)
         if cryst.types[i] != ""
             print(", type '$(cryst.types[i])'")
         end
-        if !isnothing(cryst.sitesymmetries)
+        if !isnothing(cryst.sitesyms)
             # TODO: simplify in Julia 1.7
-            symbol = cryst.sitesymmetries[c].symbol
-            multiplicity = cryst.sitesymmetries[c].multiplicity
-            wyckoff = cryst.sitesymmetries[c].wyckoff
+            symbol = cryst.sitesyms[i].symbol
+            multiplicity = cryst.sitesyms[i].multiplicity
+            wyckoff = cryst.sitesyms[i].wyckoff
             print(", Site sym. '$symbol', Wyckoff $multiplicity$wyckoff")
         end
         println(":")

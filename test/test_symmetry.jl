@@ -47,7 +47,7 @@ lat_vecs = [1 0 0; 0 1 0; 0 0 1]'
 positions = [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]]
 cryst′ = Crystal(lat_vecs, positions)
 
-@assert cryst.sitesymmetries[1] == cryst′.sitesymmetries[1]
+@assert cryst.sitesyms[1] == cryst′.sitesyms[1]
 
 print_bond_table(cryst, 2.)
 
@@ -129,7 +129,21 @@ display(cryst)
 print_bond_table(cryst, 5.)
 
 
-### Test BaCoSiO4
+
+### Test other crystals
+
+cryst = Crystal("/Users/kbarros/Desktop/cifs/icsd-BaCoSiO4_P63.cif"; symprec=1e-4)
+display(cryst)
+
+cryst = Crystal("/Users/kbarros/Desktop/cifs/MgCr2O4.cif"; symprec=1e-4)
+display(cryst)
+
+cryst = Crystal("/Users/kbarros/Desktop/cifs/PbCuTe2O6.cif"; symprec=1e-4)
+display(cryst)
+
+cryst = Crystal("/Users/kbarros/Desktop/cifs/Gd3Ga5O12.cif"; symprec=1e-4)
+display(cryst)
+
 
 # cryst = Crystal("/Users/kbarros/Desktop/cifs/BaCoSiO4_P63_orth.cif")
 cryst = Crystal("/Users/kbarros/Desktop/cifs/BaCoSiO4_P63_orth.cif"; symprec=1e-3)
