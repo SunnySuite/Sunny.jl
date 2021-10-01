@@ -133,10 +133,10 @@ end
 # Sort the sites according to class and fractional coordinates.
 function sort_sites!(cryst::Crystal)
     function less_than(i, j)
-        eci = cryst.classes[i]
-        ecj = cryst.classes[j]
-        if eci != ecj
-            return eci < ecj
+        ci = cryst.classes[i]
+        cj = cryst.classes[j]
+        if ci != cj
+            return ci < cj
         end
         ri = cryst.positions[i]
         rj = cryst.positions[j]
@@ -169,14 +169,26 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
 
     cell = Spglib.Cell(lat_vecs, hcat(positions...), types)
     d = Spglib.get_dataset(cell, symprec)
-    classes = d.equivalent_atoms .+ 1
+    classes = d.crystallographic_orbits .+ 1
     symops = symops_from_spglib(d.rotations, d.translations)
     spacegroup = spacegroup_name(d.hall_number)
 
-    multiplicities = map(1:d.n_atoms) do i
-        prim_idx = d.mapping_to_primitive[i]
-        count(==(prim_idx), d.std_mapping_to_primitive)
+    # renumber class indices so that they go from 1:max_class
+    classes = [findfirst(==(c), unique(classes)) for c in classes]
+    @assert unique(classes) == 1:maximum(classes)
+
+    # multiplicities for each equivalence class
+    multiplicities = map(classes) do c
+        # indices that belong to class c
+        idxs = findall(==(c), classes)
+        # indices in the primitive cell that belong to class c
+        idxs = unique(d.mapping_to_primitive[idxs])
+        # number of atoms in the standard cell that correspond to each primitive index for class c
+        counts = [count(==(i), d.std_mapping_to_primitive) for i in idxs]
+        # sum over all equivalent atoms in the primitive cell
+        sum(counts)
     end
+
     sitesymmetries = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
 
     ret = Crystal(lat_vecs, positions, classes, types, symops, spacegroup, sitesymmetries, symprec)
