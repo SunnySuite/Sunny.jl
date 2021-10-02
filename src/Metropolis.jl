@@ -30,7 +30,7 @@ end
 @inline function anneal!(sampler::S,
                          temp_schedule,
                          step_schedule) where {S <: AbstractSampler}
-    for (temp, num_steps) in zip(temp_schedule, step_scheudle)
+    for (temp, num_steps) in zip(temp_schedule, step_schedule)
         set_temp!(sampler, temp)
         thermalize!(sampler, num_steps)
     end

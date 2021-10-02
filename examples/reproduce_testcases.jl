@@ -6,7 +6,11 @@ using Plots
 using DelimitedFiles
 using Statistics
 
-"Produce structure factor maps to compare to Xiaojian's plots"
+"""
+    Creates a 8×8×8 (conventional cell) diamond lattice, and calculates/plots
+    the structure factor at a temperature of 4K using sampling based on
+    Langevin dynamics.
+"""
 function test_diamond_heisenberg_sf()
     crystal = FastDipole.diamond_conventional_crystal(1.0)
     J = 28.28           # Units of K
@@ -24,9 +28,12 @@ function test_diamond_heisenberg_sf()
     nsteps = 20000
     sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 
+    meas_rate = 10      # Number of timesteps between snapshots of LLD to input to FFT
+                        # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
+    num_freqs = 1600    # Total number of frequencies we'd like to resolve
     S = structure_factor(
-        sys, sampler; num_samples=5, dynΔt=Δt, meas_rate=10,
-        num_freqs=1600, bz_size=(1,1,2), therm_samples=10, verbose=true
+        sys, sampler; num_samples=5, dynΔt=Δt, meas_rate=meas_rate,
+        num_freqs=num_freqs, bz_size=(1,1,2), therm_samples=10, verbose=true
     )
 
     # Just average the diagonals, which are real
@@ -35,10 +42,16 @@ function test_diamond_heisenberg_sf()
         @. avgS += real(S[α, α, :, :, :, :])
     end
 
-    # Calculate the maximum ω present in our FFT
-    # Need to scale by (S+1) with S=3/2 to match the reference,
-    #  and then convert to meV.
-    maxω = 1000 * 2π / ((meas_rate * Δt) / kB) / (5/2)
+    # Calculate the maximum ω present in our FFT. Since the time gap between
+    #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
+    #  is 2π / (meas_rate * Δt)
+    # This is implicitly in the same units as the units you use to define
+    #  the interactions in the Hamiltonian. Here, we defined our interactions
+    #  in K, but we want to see ω in units of meV (to compare to a baseline
+    #  solution we have).
+    # We additionally need to scale by (S+1) with S=3/2 to match our reference,
+    #  which is a spin-3/2 model.
+    maxω = 2π / (meas_rate * Δt) * (1000 * kB) / (5/2)
     p = plot_many_cuts(avgS; maxω=maxω, chopω=5.0)
     display(p)
     return avgS
@@ -152,6 +165,11 @@ function test_FeI2_MC()
     return (S, sampler.system)
 end
 
+"""
+    Creates a 8×8×8 (conventional cell) diamond lattice, and performs
+    a slow annealing from 50K down to 3K, collecting the energy at
+    all intermediate temperatures. Then, plots the energy curve!
+"""
 function test_diamond_heisenberg_energy_curve()
     crystal = FastDipole.diamond_conventional_crystal(1.0)
     J = 28.28           # Units of K
@@ -163,13 +181,11 @@ function test_diamond_heisenberg_energy_curve()
     rand!(sys)
 
     Δt = 0.02 / J       # Units of 1/K
-    kT = 4.             # Units of K
     α  = 0.1
-    kB = 8.61733e-5     # Units of eV/K
     nsteps = 100
-    sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
+    sampler = LangevinSampler(sys, 50.0, α, Δt, nsteps)
 
-    # Units of Kelvin, matching Xiaojian's range
+    # A logarithmic grid of 50 temperatures to anneal through, from [3K, 50K]
     temps = 10 .^ (range(log10(50), stop=log10(3), length=50))
     energies = Float64[]
     energy_errors = Float64[]
@@ -177,12 +193,13 @@ function test_diamond_heisenberg_energy_curve()
     for (i, temp) in enumerate(temps)
         println("Temperature $i = $(temp)")
 
-        temp_energies = Float64[]
+        # This will hold the energies of the samples we collect at this temperature
+        temp_energies = Float64[]   # Holds energies of the samples at the current temperature
         set_temp!(sampler, temp)
-        thermalize!(sampler, 100)
-        for _ in 1:1000
-            sample!(sampler) 
-            push!(temp_energies, energy(sampler))
+        thermalize!(sampler, 100)   # Perform 100 "sampling" updates to thermalize.
+        for _ in 1:100              # Collect 100 more samples, actually measuring.
+            sample!(sampler)
+            push!(temp_energies, energy(sys))
         end
         (meanE, stdE) = binned_statistics(temp_energies)
         push!(energies, meanE)
@@ -241,17 +258,22 @@ function test_FeI2_energy_curve()
         push!(energy_errors, stdE)
     end
 
-    # Save off the lowest energy system
-    serialize("./results/lowT_FeI2_system.ser", system)
-
     # Convert energies into energy / spin, in units of K
     energies ./= (length(system) * kB)
     energy_errors ./= (length(system) * kB)
 
-    (trueTs, trueEs) = load_FeI2_ET_data()
-    plot_ET_data(temps, energies, energy_errors, trueTs, trueEs)
+    plot_ET_data(temps, energies, energy_errors)
 
     return (temps, energies, energy_errors)
+end
+
+function plot_ET_data(Ts, Es, Eerrors)
+    pgfplotsx()
+    p = plot(Ts, Es, yerror=Eerrors, marker=:true, ms=3, label="")
+    xlabel!(L"$T$ [K]")
+    ylabel!(L"$E$ [K]")
+    display(p)
+    p
 end
 
 #= Binned Statistics Routines =#
