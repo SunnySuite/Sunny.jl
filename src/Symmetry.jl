@@ -1014,7 +1014,7 @@ function all_symmetry_related_interactions_for_atom(cryst::Crystal, i::Int, b_re
 
     for b in all_symmetry_related_bonds_for_atom(cryst, i, b_ref)
         push!(bs, b)
-        (s, parity) = first(symmetries_between_bonds(cryst, BondRaw(cryst, b_ref), BondRaw(cryst, b)))
+        (s, parity) = first(symmetries_between_bonds(cryst, BondRaw(cryst, b), BondRaw(cryst, b_ref)))
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
         push!(Js, R * (parity ? J_ref : J_ref') * R')
     end
