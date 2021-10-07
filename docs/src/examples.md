@@ -107,7 +107,7 @@ At this point we can call `sample!(sampler)` to produce new samples of the syste
 the finite-$T$ structure factor using our built-in routines.
 
 **(5)** The full process of calculating a structure factor is handled
-by [`structure_factor`](@ref). Internally, this function:
+by [`dynamic_structure_factor`](@ref). Internally, this function:
 
 1. Thermalizes the system for a while
 2. Samples a new thermal spin configuration
@@ -116,7 +116,7 @@ by [`structure_factor`](@ref). Internally, this function:
     factor contribution ``S^{\alpha,\beta}(\boldsymbol{q}, \omega)``.
 4. Repeat steps (2,3), averaging structure factors across samples.
 
-See the documentation of [`structure_factor`](@ref) for details of how
+See the documentation of [`dynamic_structure_factor`](@ref) for details of how
 this process is controlled by the function arguments, and how to properly
 index into the resulting array.
 
@@ -127,9 +127,9 @@ they are all symmetry equivalent in this model.
 
 ```julia
 meas_rate = 10
-S = structure_factor(
-    sys, sampler; num_samples=5, dynΔt=Δt, meas_rate=meas_rate,
-    num_freqs=1600, bz_size=(1,1,2), therm_samples=10, verbose=true
+S = dynamic_structure_factor(
+    sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate=meas_rate,
+    num_meas=1600, bz_size=(1,1,2), thermalize=10, verbose=true
 )
 
 # Retain just the diagonal elements, which we will average across the
@@ -239,13 +239,13 @@ should return.
 
 **(5)**
 As in the previous example, we are going to end with computing a dynamic structure
-factor tensor using the `structure_factor` function. A heuristic for choosing a
+factor tensor using the `dynamic_structure_factor` function. A heuristic for choosing a
 reasonable value of `Δt` using in the Landau-Lifshitz dynamics is `0.01` divided
 by the largest energy scale present in the system. Here, that is the on-site
 anisotropy with a strength of `2.165/2 ` meV.
 
 To make sure we don't do more work than really necessary, we set how
-often `structure_factor` internally stores snapshots (`meas_rate`) to
+often `dynamic_structure_factor` internally stores snapshots (`meas_rate`) to
 target a maximum frequency of `target_max_ω`. We also will only collect
 the structure factor along two Brillouin zones along the first reciprocal axis,
 by passing `bz_size=(2,0,0)`
@@ -254,7 +254,7 @@ The following block of code takes about five minutes on
 a test desktop, but if it's taking too long you can
 reduce the time either by reducing the number of sweeps
 `MetropolisSampler` does, or the `num_samples` or
-`num_freqs` in the structure factor computation.
+`num_meas` in the structure factor computation.
 
 ```julia
 Δt = 0.01 / (2.165/2)       # Units of 1/meV
@@ -265,9 +265,9 @@ meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
 sampler = MetropolisSampler(system, kT, 500)
 println("Starting structure factor measurement...")
-S = structure_factor(
-    system, sampler; num_samples=15, meas_rate=meas_rate,
-    num_freqs=1000, bz_size=(2,0,0), verbose=true, therm_samples=15
+S = dynamic_structure_factor(
+    system, sampler; therm_samples=15, meas_rate=meas_rate,
+    num_meas=1000, bz_size=(2,0,0), verbose=true, thermalize=15
 )
 ```
 
@@ -279,7 +279,7 @@ to experiment, a few more steps of processing need to be done which are currentl
 unimplemented.)
 
 ```julia
-S = dipole_factor(S, lattice)
+S = dipole_factor(S, sys)
 ```
 
 (Will add info here about plotting when better structure factor plotting functions

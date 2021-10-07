@@ -1,15 +1,20 @@
 # Library
 
-Here, we document all publically exposed types and methods in our Module. Developers may be interested in further documentation of the [Internals](@ref).
+Here, we document all publically exposed types and methods in our Module.
+Developers may be interested in further documentation of the [Internals](@ref).
 
-Our package makes extensive usage of [StaticArrays.jl](https://github.com/JuliaArrays/StaticArrays.jl). In particular, throughout the documentation we make use of aliases `Vec3 = SVector{3, Float64}`, `Mat3 = SMatrix{3, 3, Float64, 9}`. Additionally, some features and internals utilize [OffsetArrays.jl](https://github.com/JuliaArrays/OffsetArrays.jl) for pleasant interfaces.
+Our package makes extensive usage of
+[StaticArrays.jl](https://github.com/JuliaArrays/StaticArrays.jl).
+In particular, throughout the documentation we make use of aliases
+`Vec3 = SVector{3, Float64}`, `Mat3 = SMatrix{3, 3, Float64, 9}`. Additionally, some features
+and internals utilize [OffsetArrays.jl](https://github.com/JuliaArrays/OffsetArrays.jl) for
+pleasant indexing. In particular, structure factors are often returned as these.
 
 ## Geometry definition
 
 ```@docs
 Crystal
-Crystal(::SMatrix{3, 3, Float64, 9}, ::Vector{SVector{3, Float64}}, ::Vector{String}; symprec)
-Crystal(::Lattice{3, 9, 4})
+Crystal(lat_vecs, positions; types, symprec)
 Crystal(::AbstractString; symprec)
 subcrystal
 Lattice
@@ -67,8 +72,12 @@ anneal!
 
 ## Structure factor calculations
 
+For extended details on what these functions compute, and how they do it,
+see the page [Structure Factor Calculations](@ref)
+
 ```@docs
-structure_factor
+dynamic_structure_factor
+static_structure_factor
 dipole_factor
 ```
 
@@ -86,9 +95,10 @@ live_integration
 live_langevin_integration
 ```
 
-## Ewald summation
+<!-- ## Ewald summation
 
-These functions are not intended to be used by typical users, who instead should utilize dipole interactions purely through [`DipoleReal`](@ref) and (preferably) [`DipoleFourier`](@ref). However, developers may find the following documentation of the internals useful.
+These functions are not intended to be used by typical users, who instead should utilize dipole interactions purely through [`DipoleDipole`](@ref).
+However, developers may find the following documentation of the internals useful.
 
 ```@docs
 ewald_sum_monopole
@@ -97,7 +107,7 @@ precompute_monopole_ewald_compressed
 precompute_dipole_ewald_compressed
 contract_monopole_compressed
 contract_dipole_compressed
-```
+``` -->
 
 ## Integrators
 

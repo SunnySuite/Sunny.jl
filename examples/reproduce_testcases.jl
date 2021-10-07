@@ -28,12 +28,12 @@ function test_diamond_heisenberg_sf()
     nsteps = 20000
     sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 
-    meas_rate = 10      # Number of timesteps between snapshots of LLD to input to FFT
-                        # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
-    num_freqs = 1600    # Total number of frequencies we'd like to resolve
-    S = structure_factor(
-        sys, sampler; num_samples=5, dynΔt=Δt, meas_rate=meas_rate,
-        num_freqs=num_freqs, bz_size=(1,1,2), therm_samples=10, verbose=true
+    meas_rate = 10     # Number of timesteps between snapshots of LLD to input to FFT
+                       # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
+    num_meas = 1600    # Total number of frequencies we'd like to resolve
+    S = dynamic_structure_factor(
+        sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate=meas_rate,
+        num_meas=num_meas, bz_size=(1,1,2), thermalize=10, verbose=true
     )
 
     # Just average the diagonals, which are real
@@ -45,7 +45,7 @@ function test_diamond_heisenberg_sf()
     # Calculate the maximum ω present in our FFT. Since the time gap between
     #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
     #  is 2π / (meas_rate * Δt)
-    # This is implicitly in the same units as the units you use to define
+    # This is implicitly in the same uAnits as the units you use to define
     #  the interactions in the Hamiltonian. Here, we defined our interactions
     #  in K, but we want to see ω in units of meV (to compare to a baseline
     #  solution we have).
@@ -152,15 +152,15 @@ function test_FeI2_MC()
     sampler = MetropolisSampler(system, kT, 1000)
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
-    S = structure_factor(
-        system, sampler; num_samples=15, meas_rate=meas_rate,
-        num_freqs=1000, bz_size=(2,0,0), verbose=true, therm_samples=15
+    S = dynamic_structure_factor(
+        system, sampler; therm_samples=15, meas_rate=meas_rate,
+        num_meas=1000, bz_size=(2,0,0), verbose=true, thermalize=15
     )
 
     # Save off results for later viewing
     serialize("../results/FeI2_structure_factor_T020_MC.ser", S)
 
-    S = dipole_factor(S, lattice);
+    S = dipole_factor(S, system);
 
     return (S, sampler.system)
 end

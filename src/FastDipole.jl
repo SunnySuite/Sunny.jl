@@ -54,9 +54,13 @@ export HeunP, LangevinHeunP, evolve!
 export LangevinSampler
 
 include("StructureFactors.jl")
-export structure_factor, dipole_factor
+export fft_spin_traj, fft_spin_traj!, phase_weight_basis, phase_weight_basis!
+export phase_weighted_fft, phase_weighted_fft!
+export outerprod_conj, outerprod_conj!
+export dynamic_structure_factor, static_structure_factor, dipole_factor
 
 include("Plotting.jl")
+export plan_spintraj_fft!
 export plot_lattice, plot_spins, plot_bonds, plot_all_bonds
 export anim_integration, live_integration, live_langevin_integration
 
