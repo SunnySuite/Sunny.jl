@@ -76,9 +76,11 @@ For extended details on what these functions compute, and how they do it,
 see the page [Structure Factor Calculations](@ref)
 
 ```@docs
+DynStructFactor
+update!
+apply_dipole_factor
 dynamic_structure_factor
 static_structure_factor
-dipole_factor
 ```
 
 ## Plotting

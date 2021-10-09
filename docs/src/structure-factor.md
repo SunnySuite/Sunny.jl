@@ -52,7 +52,7 @@ the dynamic structure factor:
 
 Note that in typical presentations, the basis indices are not present as they are included
 in the sum/integral over position. However, because spin simulations can resolve basis-dependent
-correlations, we may as well keep them around for now.Neutron scattering experiments, however,
+correlations, we may as well keep them around for now. Neutron scattering experiments, however,
 cannot resolve basis-dependent correlations, instead seeing only:
 
 ```math
@@ -68,7 +68,7 @@ function.
 
 ```math
 𝒮^{αβ}_{jk}(𝐪) = \sum_𝐫 e^{-i𝐪 ⋅ 𝐫} C^{αβ}_{jk}(𝐫, 0)
-               = \int dω 𝒮^{αβ}_{jk}(𝐪, ω)
+               = \frac{1}{\sqrt{2π}} \int dω 𝒮^{αβ}_{jk}(𝐪, ω)
 ```
 
 For both of these structure factors, neutron scattering experiments also do not resolve individual
@@ -89,82 +89,5 @@ A helper function [`static_structure_factor`](@ref) also exists, which computes 
 static structure factor simply by calling `dynamic_structure_factor` with `num_meas=1`,
 and indexing the dummy frequency dimension out for you.
 
-## Low-level functions
+## Manual incremental updates
 
-If you desire finer-grained control over how the structure factor is calculated, or want to
-manually compute a structure factor yourself from saved spin configurations, this section
-details how to utilize the lower-level functions exposed by Sunny for performing each step.
-
-To begin, we will assume you have on hand a large array storing a single spin trajectory. By
-"single spin trajectory", we mean a single trajectory of a full system's worth of spins.
-(If instead, you only have an initial spin _configuration_, then you can either just get the
-static structure factor, or you will first need to perform Landau-Lifshitz dynamics using one of
-the [Integrators](@ref) to construct a trajectory).
-
-We will refer to this array `spin_traj`, which should be an `Array{SVector{3, Float64}}`. The
-size should be `size(spin_traj) == [B, D1, D2, D3, T]` with `B` the number of basis sites,
-`[D1, D2, D3]` the number of unit cells along each axis, and `T` the time axis.
-
-First, we need to perform a standard Fast Fourier Transform along the spatial and time axes.
-You can do this yourself using your favorite FFT library, or this can be done with one of
-the following functions:
-
-```@docs
-fft_spin_traj
-fft_spin_traj!
-```
-
-As the documentation for the functions mentions, you will now have an array of `ComplexF64` of
-size `[3, B, D1, D2, D3, T]`. (The spin component has been unfolded out into the first axis).
-
-This could now be outer-producted with itself to form a contribution to the basis-resolved
-structure factor. In particular, if `spin_traj_ft` is the name of your FFT'd spin trajectory,
-the following function will perform this for you:
-
-```julia
-outerprod_conj(spin_traj_ft, (1, 2))
-```
-
-Which should result in a `ComplexF64` array of size `[3, 3, B, B, D1, D2, D3, T]`.
-The documentation for this function can be seen below:
-
-```@docs
-outerprod_conj
-outerprod_conj!
-```
-
-Alternatively, if you only care about the post-basis-summation structure factor, you would
-first want to instead perform the phase-weighted basis sum. This can be done manually, or
-by using one of the following functions:
-
-```@docs
-phase_weight_basis
-phase_weight_basis!
-```
-
-As documented, this will return an array of `ComplexF64` of size `[3, Q1, ..., Qd, T]`. One can
-also combine the spatial/temporal FFT and the phase-weighted basis sum using the following
-helper functions:
-
-```@docs
-phase_weighted_fft
-phase_weighted_fft!
-```
-
-Note that both of these functions require a [`Lattice`](@ref). This can be obtained from
-your `SpinSystem` as `system.lattice`, or obtained from your `Crystal` as
-`Lattice(Crystal, latsize)` where `latsize` should match `[D1, D2, D3]`.
-
-As before, we can outer product this resulting array with itself to get a contribution to the
-structure factor, now only in the first axis as:
-
-```julia
-outerprod_conj(spin_traj_ft, 1)
-```
-which should result in a `ComplexF64` array of size `[3, 3, D1, D2, D3, T]`
-
-Repeat this entire process for all thermal spin trajectories you have at a given temperature,
-average the result across all of them, and you have a dynamic structure factor! Note that if
-you performed this entire process with an array containing a single spin configuration but
-an extra "dummy" axis of length 1 (i.e. a size `[B, D1, D2, D3, 1]`), you would be left with
-the _static_ structure factor!

@@ -1,5 +1,4 @@
 using FastDipole
-using StaticArrays
 using Serialization
 using LaTeXStrings
 using Plots
@@ -31,12 +30,14 @@ function test_diamond_heisenberg_sf()
     meas_rate = 10     # Number of timesteps between snapshots of LLD to input to FFT
                        # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
     num_meas = 1600    # Total number of frequencies we'd like to resolve
-    S = dynamic_structure_factor(
+    dynsf = dynamic_structure_factor(
         sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate=meas_rate,
-        num_meas=num_meas, bz_size=(1,1,2), thermalize=10, verbose=true
+        num_meas=num_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
+        reduce_basis=true, dipole_factor=false,
     )
 
     # Just average the diagonals, which are real
+    S = dynsf.sfactor
     avgS = zeros(Float64, axes(S)[3:end])
     for α in 1:3
         @. avgS += real(S[α, α, :, :, :, :])
@@ -152,15 +153,15 @@ function test_FeI2_MC()
     sampler = MetropolisSampler(system, kT, 1000)
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
-    S = dynamic_structure_factor(
+    dynsf = dynamic_structure_factor(
         system, sampler; therm_samples=15, meas_rate=meas_rate,
-        num_meas=1000, bz_size=(2,0,0), verbose=true, thermalize=15
+        dipole_factor=true, num_meas=1000, bz_size=(2,0,0), verbose=true,
+        thermalize=15
     )
+    S = dynsf.sfactor
 
     # Save off results for later viewing
     serialize("../results/FeI2_structure_factor_T020_MC.ser", S)
-
-    S = dipole_factor(S, system);
 
     return (S, sampler.system)
 end

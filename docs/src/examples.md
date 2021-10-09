@@ -118,7 +118,7 @@ by [`dynamic_structure_factor`](@ref). Internally, this function:
 
 See the documentation of [`dynamic_structure_factor`](@ref) for details of how
 this process is controlled by the function arguments, and how to properly
-index into the resulting array.
+index into the resulting type [`DynStructFactor`](@ref).
 
 In this example, we will just look at the diagonal elements of this
 matrix along some cuts in reciprocal space. To improve statistics,
@@ -127,13 +127,15 @@ they are all symmetry equivalent in this model.
 
 ```julia
 meas_rate = 10
-S = dynamic_structure_factor(
+dynsf = dynamic_structure_factor(
     sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate=meas_rate,
-    num_meas=1600, bz_size=(1,1,2), thermalize=10, verbose=true
+    num_meas=1600, bz_size=(1,1,2), thermalize=10, verbose=true,
+    reduce_basis=true, dipole_factor=false
 )
 
 # Retain just the diagonal elements, which we will average across the
 #  symmetry-equivalent directions.
+S = dynsf.sfactor
 avgS = zeros(Float64, axes(S)[3:end])
 for α in 1:3
     @. avgS += real(S[α, α, :, :, :, :])
@@ -267,16 +269,16 @@ sampler = MetropolisSampler(system, kT, 500)
 println("Starting structure factor measurement...")
 S = dynamic_structure_factor(
     system, sampler; therm_samples=15, meas_rate=meas_rate,
-    num_meas=1000, bz_size=(2,0,0), verbose=true, thermalize=15
+    num_meas=1000, bz_size=(2,0,0), verbose=true, thermalize=15,
+    reduce_basis=true, dipole_factor=true
 )
 ```
 
-Given the full complex-valued ``\mathcal{S}^{\alpha \beta}(\boldsymbol{q}, \omega)``,
-we can reduce it to the real-value experimentally-observable cross section by projection
-each `\mathcal{S}^{\alpha \beta}` using the neutron dipole factor. See the
-[`dipole_factor`](@ref) documentation for more details. (To be truly comparable
-to experiment, a few more steps of processing need to be done which are currently
-unimplemented.)
+Here, given the full complex-valued ``\mathcal{S}^{\alpha \beta}(\boldsymbol{q}, \omega)``,
+we are asking with `dipole_factor=true` to have this reduced to a single real-value 
+by projecting each `\mathcal{S}^{\alpha \beta}` using the neutron dipole factor.
+(See [Structure factor calculations](@ref). To be truly comparable to experiment, a
+few more steps of processing need to be done which are currently unimplemented.)
 
 ```julia
 S = dipole_factor(S, sys)
@@ -349,8 +351,7 @@ so that we pack the grid points tighter at lower temperatures where interesting
 things occur. `energies` and `energy_errors` are going to hold our measurements 
 of the mean energy and the errors at each temperature.
 
-Now, we're going to loop over these temperatures (moving from higher to lower temperatures). At each temperature,
-we're going to:
+Now, we're going to loop over these temperatures (moving from higher to lower temperatures). At each temperature, we're going to:
 
 1. Set the temperature of the sampler to the new temperature using `set_temp!`.
 2. Thermalize at the new temperature for a while before collecting

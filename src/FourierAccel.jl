@@ -12,10 +12,10 @@ function _rfft_dipole_sys(spins::Array{Vec3}) :: Array{Complex{Float64}}
     rfft(Sr, 3:ndims(Sr))
 end
 
-# FFTW types for various relevant Fourier transform plans
-const FTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
-const BFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
-const IFTPlan = AbstractFFTs.ScaledPlan{ComplexF64, BFTPlan, Float64}
+# FFTW types for various relevant Fourier transform plans using in this file
+const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
+const rBFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
+const rIFTPlan = AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
 
 """
 Dipole-dipole interactions computed in Fourier-space. Should produce
@@ -27,8 +27,8 @@ struct DipoleFourierCPU <: InteractionCPU
     _spins_ft   :: Array{ComplexF64, 5}  # Space for Fourier-transforming spins
     _field_ft   :: Array{ComplexF64, 5}  # Space for holding Fourier-transformed fields
     _field_real :: Array{Float64, 5}     # Space for holding IFT-transformed fields
-    _plan       :: FTPlan
-    _ift_plan   :: IFTPlan
+    _plan       :: rFTPlan
+    _ift_plan   :: rIFTPlan
 end
 
 function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize)

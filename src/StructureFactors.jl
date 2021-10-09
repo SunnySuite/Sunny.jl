@@ -1,12 +1,199 @@
 """ Functions for computing and manipulating structure factors """
 
 # TODO:
-#  1. Allow dynamic_stucture_factor to not be reduced over basis indices
+#  1. Many optimizations + clean-ups still possible in this file.
+#       In particular, still a ton of allocations?
 #  2. Figure out how to best reduce periodic artifacts along the time FFT
-#  3. Make another helper function which combines phase_weighted_fft and
-#       outerprod_conj to directly get a structure factor contribution.
-#       This should actually probably be the only thing exposed to users.
 
+const OffsetArrayC{D} = OffsetArray{ComplexF64, D, Array{ComplexF64, D}}
+const OffsetArrayF{D} = OffsetArray{Float64, D, Array{Float64, D}}
+const DynSFactMat = Union{
+    OffsetArrayC{8},    # Full dynamic structure factor      [3, 3, B, B, Q1, Q2, Q3, T]
+    OffsetArrayC{6},    # Reduced over basis sites           [3, 3, Q1, Q2, Q3, T]
+    OffsetArrayF{6},    # Dipole factor applied              [B, B, Q1, Q2, Q3, T]
+    OffsetArrayF{4},    # Reduced over basis + dipole factor [Q1, Q2, Q3, T]
+}
+
+"""
+    DynStructFactor
+
+Type responsible for computing and updating a dynamic structure factor averaged
+across multiple spin configurations. Currently specialized to 3D.
+(The only thing prohibiting arbitrary dimension is the extremely ugly
+  typing that would be necessary.)
+
+Note that the initial `sys` provided does _not_ enter the structure factor,
+it is purely used to determine the size of various results.
+
+The full dynamic structure factor is
+``𝒮^{αβ}_{jk}(𝐪, ω) = ⟨S^α_j(𝐪, ω) S^β_k(𝐪, ω)^∗⟩``,
+which is an array of shape `[3, 3, B, B, Q1, Q2, Q3, T]`
+where `B = nbasis(sys.lattice)`, `Qi = max(1, bz_size_i * L_i)` and
+`T = num_meas`. By default, `bz_size=ones(d)`.
+
+Indexing the `sfactor` attribute at `(α, β, j, k, q1, q2, q3, w)`
+gives ``𝒮^{αβ}_{jk}(𝐪, ω)`` at `𝐪 = q1 * 𝐛_1 + q2 * 𝐛_2 + q3 * 𝐛_3, and
+`ω = maxω * w / T`, where `𝐛_1, 𝐛_2, 𝐛_3` are the reciprocal lattice vectors
+of the system supercell.
+
+Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
+ values for the `w` index lie in `0:T-1`.
+
+The maximum frequency sampled is `ωmax = 2π / (dynΔt * meas_rate)`, and the frequency resolution
+is set by `num_meas` (the number of spin snapshots measured during dynamics). However, beyond
+increasing the resolution, `num_meas` will also make frequencies become more accurate.
+
+Setting `reduce_basis` performs the phase-weighted sums over the basis/sublattice
+indices, resulting in a size `[3, 3, Q1, Q2, Q3, T]` array.
+
+Setting `dipole_factor` applies the dipole form factor, further reducing the
+array to size `[Q1, Q2, Q3, T]`.
+"""
+struct DynStructFactor
+    sfactor       :: DynSFactMat
+    _spin_ft      :: Array{ComplexF64, 6}                    # Buffer for FT of a spin trajectory
+    _bz_buf       :: Union{OffsetArrayC{5}, OffsetArrayC{6}} # Buffer for phase summation / BZ repeating
+    lattice       :: Lattice{3}
+    reduce_basis  :: Bool                                    # Flag setting basis summation
+    dipole_factor :: Bool                                    # Flag setting dipole form factor
+    bz_size       :: NTuple{3, Int}                          # Num of Brillouin zones along each axis
+    dynΔt         :: Float64                                 # Timestep size in dynamics integrator
+    meas_rate     :: Int                                     # Num timesteps between snapshot saving
+    num_meas      :: Int                                     # Total number of snapshots to FT
+    integrator    :: HeunP{3, 9, 4}
+    plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, UnitRange{Int64}}
+end
+
+function DynStructFactor(sys::SpinSystem{3}; dynΔt::Float64=0.01, meas_rate::Int=10,
+                         num_meas::Int=100, bz_size=nothing, reduce_basis=true,
+                         dipole_factor=false)
+    nb = nbasis(sys.lattice)
+    spat_size = size(sys)[2:end]
+    q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
+    result_size = (3, q_size..., num_meas)
+    min_q_idx = -1 .* div.(q_size .- 1, 2)
+
+    spin_ft = zeros(ComplexF64, 3, nb, spat_size..., num_meas)
+    if reduce_basis
+        bz_buf = zeros(ComplexF64, 3, q_size..., num_meas)
+        bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, min_q_idx..., 0))
+    else
+        bz_buf = zeros(ComplexF64, 3, nb, q_size..., num_meas)
+        bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
+    end
+
+    if reduce_basis
+        if dipole_factor
+            sfactor = zeros(Float64, q_size..., num_meas)
+            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(min_q_idx..., 0))
+        else
+            sfactor = zeros(ComplexF64, 3, 3, q_size..., num_meas)
+            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
+        end
+    else
+        if dipole_factor
+            sfactor = zeros(Float64, nb, nb, q_size..., num_meas)
+            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
+        else
+            sfactor = zeros(ComplexF64, 3, 3, nb, nb, q_size..., num_meas)
+            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, 1, 1, min_q_idx..., 0))
+        end
+    end
+
+    integrator = HeunP(sys)
+    plan = plan_spintraj_fft!(spin_ft)
+
+    DynStructFactor(sfactor, spin_ft, bz_buf, sys.lattice, reduce_basis, dipole_factor,
+                    bz_size, dynΔt, meas_rate, num_meas, integrator, plan)
+end
+
+"""
+    update!(sfactor::DynStructFactor, sys::SpinSystem{3})
+
+Accumulates a contribution to the dynamic structure factor from the spin
+configuration currently in `sys`.
+"""
+function update!(dynsf::DynStructFactor, sys::SpinSystem{3})
+    @unpack sfactor, _spin_ft, _bz_buf = dynsf
+    @unpack reduce_basis, dipole_factor, bz_size = dynsf
+
+    # Evolve the spin state forward in time to form a trajectory
+    dynsys = deepcopy(sys)
+    dynsf.integrator.sys = dynsys
+    selectdim(_spin_ft, ndims(_spin_ft), 1) .= _reinterpret_from_spin_array(dynsys.sites)
+    for nsnap in 2:dynsf.num_meas
+        for _ in 1:dynsf.meas_rate
+            evolve!(dynsf.integrator, dynsf.dynΔt)
+        end
+        selectdim(_spin_ft, ndims(_spin_ft), nsnap) .= _reinterpret_from_spin_array(dynsys.sites)
+    end
+
+    # Fourier transform the trajectory in space + time
+    fft_spin_traj!(_spin_ft, plan=dynsf.plan)
+
+    # Optionally sum over basis sites then accumulate the conjugate outer product into sfactor
+    # Accumulate the conjugate outer product into sfactor, with optionally:
+    #   1) Doing a phase-weighting sum to reduce the basis atom dimensions
+    #   2) Applying the neutron dipole factor to reduce the spin component dimensions
+    if reduce_basis
+        phase_weight_basis!(_bz_buf, _spin_ft, sys.lattice)
+        if dipole_factor
+            accum_dipole_factor!(sfactor, _bz_buf, sys.lattice)
+        else
+            outerprod_conj!(sfactor, _bz_buf, 1)
+        end
+    else
+        expand_bz!(_bz_buf, _spin_ft)
+        if dipole_factor
+            accum_dipole_factor_wbasis!(sfactor, _bz_buf, sys.lattice)
+        else
+            outerprod_conj!(sfactor, _bz_buf, (1, 2))
+        end
+    end
+end
+
+"""
+    zero!(dynsf::DynStructFactor)
+
+Zeros out the accumulated structure factor.
+"""
+function zero!(dynsf::DynStructFactor)
+    dynsf.sfactor .= 0
+end
+
+"""
+    apply_dipole_factor(dynsf::DynStructFactor) :: DynStructFactor
+
+Apply the neutron dipole factor to a dynamic structure factor.
+"""
+function apply_dipole_factor(dynsf::DynStructFactor)
+    if dynsf.dipole_factor == true
+        return dynsf
+    end
+
+    dip_sfactor = apply_dipole_factor(dynsf.sfactor, dynsf.lattice)
+    DynStructFactor(
+        dip_sfactor, copy(dynsf._spin_ft), copy(dynsf._bz_buf), dynsf.lattice,
+        dynsf.reduce_basis, true, dynsf.bz_size, dynsf.dynΔt, dynsf.meas_rate,
+        dynsf.num_meas, dynsf.integrator, dynsf.plan
+    )
+end
+
+function apply_dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::Lattice{D}) where {D}
+    recip = gen_reciprocal(lattice)
+
+    T = size(struct_factor)[end]
+    result = zeros(Float64, axes(struct_factor)[3:end])
+    for q_idx in CartesianIndices(axes(struct_factor)[3:end-1])
+        q = recip.lat_vecs * SVector{D, Float64}(Tuple(q_idx) ./ lattice.size)
+        q = q / (norm(q) + 1e-12)
+        dip_factor = reshape(I(D) - q * q', 3, 3, 1)
+        for t in 0:T-1
+            result[q_idx, t] = real(dot(dip_factor, struct_factor[:, :, q_idx, t]))
+        end
+    end
+    return result
+end
 
 """
     plan_spintraj_fft(spin_traj::Array{Vec3})
@@ -87,20 +274,13 @@ end
 
 Combines the sublattices of `spin_traj_ft` with the appropriate phase factors, producing
  the quantity ``S^α(q, ω)`` within the number of Brillouin zones requested by `bz_size`.
-
-The input `spin_traj_ft` should be of size `[3, B, D1, ..., Dd, T]`, and
- the result is of size `[3, Q1,..., QD, T]`, with `Qi` being of length
- `max(1, bz_size[i] * Di)`.
-
-Indexing the result at `(α, q1, ..., qd, w)` gives ``S^α(𝐪, ω)`` at
-    ``𝐪 = q_1 * a⃰ + q_2 * b⃰ + q_3 * c⃰`` and ``ω = 2π * w / T``,
-    where ``a⃰, b⃰, c⃰`` are the reciprocal lattice of `lattice`.
-
-Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
- values for the `w` index lie in `0:T-1`.
 """
 function phase_weight_basis(spin_traj_ft::Array{ComplexF64},
-                            bz_size, lattice::Lattice{D}) where {D}
+                            lattice::Lattice{D}, bz_size=nothing) where {D}
+    if isnothing(bz_size)
+        bz_size = ones(ndims(lattice) - 1)
+    end
+
     bz_size = convert(SVector{D, Int}, bz_size)                  # Number of Brilloin zones along each axis
     spat_size = lattice.size                                     # Spatial lengths of the system
     T = size(spin_traj_ft, ndims(spin_traj_ft))                  # Number of timesteps in traj / frequencies in result
@@ -149,61 +329,16 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
     return res
 end
 
-"""
-    phase_weighted_fft!(res::OffsetArray{ComplexF64}, spin_traj::Array{ComplexF64},
-                        lattice::Lattice{D}; plan=nothing)
-
-Doubly in-place version of `phase_weighted_fft`. The form requires the spin
- trajectory to be in ComplexF64 eltype to allow in-place FFTs. `spin_traj` will
- be updated with its FFT, and `fft_spins` will be updated with the appropriate
- phase-weighted sum across basis_sites.
-"""
-function phase_weighted_fft!(res::OffsetArray{ComplexF64},
-                             spin_traj::Array{ComplexF64},
-                             lattice::Lattice{D};
-                             plan::Union{Nothing, FFTW.cFFTWPlan}=nothing) where {D}
-    @assert size(spin_traj)[2:end-1] == size(lattice) "Spin trajectory array size not compatible with lattice"
-
-    fft_spin_traj!(spin_traj; plan=plan)
-    phase_weight_basis!(res, spin_traj, lattice)
-end
-
-"""
-    phase_weighted_fft(spin_traj::Array{Vec3}, bz_size, lattice::Lattice{D};
-                       plan=nothing)
-
-Given an array of a spin trajectory `spin_traj` of size `[B, D1, ..., Dd, T]`,
- returns a Fourier-transformed array with the phase-weighted sum over basis sites
- performed, of size `[3, Q1, ..., Qd, T]`, with `Qi` being of length
- `max(1, bz_size[i] * Di)`.
-
-Equivalent to performing `fft_spin_traj(spin_traj; plan=plan)`, then providing
-the result to `phase_weight_basis(spin_traj_ft, lattice; bz_size=bz_size)`.
-"""
-function phase_weighted_fft(spin_traj::Array{Vec3}, bz_size, lattice::Lattice{D};
-                            plan::Union{Nothing, FFTW.cFFTWPlan}=nothing) where {D}
-    nb = nbasis(lattice)
-    spat_size = lattice.size
-    num_meas = size(spin_traj, ndims(spin_traj))
-    @assert size(spin_traj) == (nb, spat_size..., num_meas)
-
-    q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
-    fft_spins = zeros(ComplexF64, 3, q_size..., num_meas)
-    min_q_idx = -1 .* div.(q_size .- 1, 2)
-    fft_spins = OffsetArray(fft_spins, OffsetArrays.Origin(1, min_q_idx..., 0))
-
-    spin_traj = _reinterpret_from_spin_array(spin_traj)
-    complex_spin_traj = similar(spin_traj, ComplexF64)
-    complex_spin_traj .= spin_traj
-
-    phase_weighted_fft!(fft_spins, complex_spin_traj, lattice; plan=plan)
-end
-
 # === Helper functions for outerprod_conj === #
 
+# TODO: Bounds checking
 """ Given `size`, compute a new size tuple where there is an extra `1` before each dim in `dims`.
 """
 function _outersizeα(size, dims)
+    if length(dims) == 0
+        return size
+    end
+
     newsize = tuplejoin(size[1:dims[1]-1], 1)
     for i in 2:length(dims)
         newsize = tuplejoin(newsize, size[dims[i-1]:dims[i]-1], 1)
@@ -212,16 +347,8 @@ function _outersizeα(size, dims)
 end
 
 """ Given `size`, compute a new size tuple where there is an extra `1` after each dim in `dims`.
-
-    Note `_outersizeβ(size, dims) == _outersizeα(size, dims .+ 1)
 """
-function _outersizeβ(size, dims)
-    newsize = tuplejoin(size[1:dims[1]], 1)
-    for i in 2:length(dims)
-        newsize = tuplejoin(newsize, size[dims[i-1]+1:dims[i]], 1)
-    end
-    tuplejoin(newsize, size[dims[end]+1:end])
-end
+_outersizeβ(size, dims) = length(dims) == 0 ? size : _outersizeα(size, dims .+ 1)
 
 # ========================================== #
 
@@ -259,6 +386,77 @@ function outerprod_conj!(res, S, dims=1)
 end
 
 """
+    expand_bz!(res::OffsetArray, S::Array)
+
+Copy S periodically into res, with the periodic boundaries set by the
+spatial axes of S. Assumes that S is of shape [3, B, L1, L2, L3, T], and
+that res is of shape [3, B, Q1, Q2, Q3, T], with all Qi >= Li.
+"""
+function expand_bz!(res::OffsetArray{ComplexF64}, S::Array{ComplexF64})
+    spat_size = size(S)[end-3:end-1]
+    T = size(S, ndims(S))
+
+    for t in 1:T
+        for q_idx in CartesianIndices(axes(res)[end-3:end-1])
+            wrap_q_idx = modc(q_idx, spat_size) + CartesianIndex(1, 1, 1)
+            res[:, :, q_idx, t-1] = S[:, :, wrap_q_idx, t]
+        end
+    end
+end
+
+#= These two "accumulate with dipole factor" functions are so close that it seems
+    like they should be joined, but I cannot think of a clever way to do so.
+=#
+
+"""
+    accum_dipole_factor!(res, S, lattice)
+
+Given complex `S` of size [3, Q1, ..., QD, T] and `res` of size [Q1, ..., QD, T],
+accumulates the structure factor from `S` with the dipole factor applied into `res`.
+"""
+function accum_dipole_factor!(res, S, lattice::Lattice{D}) where {D}
+    recip = gen_reciprocal(lattice)
+    for q_idx in CartesianIndices(axes(res)[end-D:end-1])
+        q = recip.lat_vecs * SVector{D, Float64}(Tuple(q_idx) ./ lattice.size)
+        q = q / (norm(q) + 1e-12)
+        dip_factor = I(D) - q * q'
+
+        for α in 1:3
+            for β in 1:3
+                dip_elem = dip_factor[α, β]
+                @. res[q_idx, :] += dip_elem * real(S[α, q_idx, :] * conj(S[β, q_idx, :]))
+            end
+        end
+    end
+end
+
+"""
+    accum_dipole_factor_wbasis!(res, S, lattice)
+
+Given complex `S` of size [3, B, Q1, ..., QD, T] and real `res` of size [B, B, Q1, ..., QD, T],
+accumulates the structure factor from `S` with the dipole factor applied into `res`.
+"""
+function accum_dipole_factor_wbasis!(res, S, lattice::Lattice{D}) where {D}
+    recip = gen_reciprocal(lattice)
+    nb = nbasis(lattice)
+    Sα = reshape(S, _outersizeα(axes(S), 2))  # Size [3, 1, B, ...]
+    Sβ = reshape(S, _outersizeβ(axes(S), 2))  # Size [3, B, 1, ...]
+
+    for q_idx in CartesianIndices(axes(res)[end-D:end-1])
+        q = recip.lat_vecs * SVector{D, Float64}(Tuple(q_idx) ./ lattice.size)
+        q = q / (norm(q) + 1e-12)
+        dip_factor = I(D) - q * q'
+
+        for α in 1:3
+            for β in 1:3
+                dip_elem = dip_factor[α, β]
+                @. res[:, :, q_idx, :] += dip_elem * real(Sα[α, :, :, q_idx, :] * Sβ[β, :, :, q_idx, :])
+            end
+        end
+    end
+end
+
+"""
     dynamic_structure_factor(sys, sampler; therm_samples=10, dynΔt=0.01, meas_rate=10,
                              num_meas=100, bz_size, thermalize=10, reduce_basis=true,
                              verbose=false)
@@ -293,39 +491,12 @@ Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, an
 function dynamic_structure_factor(
     sys::SpinSystem{D}, sampler::S; therm_samples::Int=10, dynΔt::Float64=0.01,
     meas_rate::Int=10, num_meas::Int=100, bz_size=nothing, thermalize::Int=10,
-    reduce_basis::Bool=true, verbose::Bool=false
+    reduce_basis::Bool=true, dipole_factor::Bool=false, verbose::Bool=false
 ) where {D, S <: AbstractSampler}
-    if isnothing(bz_size)
-        bz_size = ones(ndims(sys) - 1)
-    end
-
-    nb = nbasis(sys.lattice)
-    spat_size = size(sys)[2:end]
-    q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
-    result_size = (3, q_size..., num_meas)
-    min_q_idx = -1 .* div.(q_size .- 1, 2)
-
-    # Memory to hold spin snapshots sampled during dynamics
-    spin_traj = zeros(ComplexF64, 3, nb, spat_size..., num_meas)
-    # FFT of the spin trajectory, with the sum over basis sites performed
-    fft_spins = zeros(ComplexF64, 3, q_size..., num_meas)
-    fft_spins = OffsetArray(fft_spins, OffsetArrays.Origin(1, min_q_idx..., 0))
-    # Final structure factor result
-    struct_factor = zeros(ComplexF64, 3, 3, q_size..., num_meas)
-    struct_factor = OffsetArray(struct_factor, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
-
-    # if
-    # else
-    #     # FFT of the spin trajectory, with the sum over basis sites performed
-    #     fft_spins = zeros(ComplexF64, 3, nb, q_size..., num_meas)
-    #     fft_spins = OffsetArray(fft_spins, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
-    #     struct_factor = zeros(ComplexF64, 3, 3, nb, nb, q_size..., num_meas)
-    #     struct_factor = OffsetArray(struct_factor, OffsetArrays.Origin(1, 1, 1, 1, min_q_idx..., 0))
-    # end
-
-    plan = plan_spintraj_fft!(spin_traj)
-    integrator = HeunP(sys)
-
+    
+    dynsf  = DynStructFactor(sys; dynΔt=dynΔt, meas_rate=meas_rate, num_meas=num_meas,
+                                  bz_size=bz_size, reduce_basis=reduce_basis,
+                                  dipole_factor=dipole_factor)
     if verbose
         println("Beginning thermalization...")
     end
@@ -339,30 +510,12 @@ function dynamic_structure_factor(
 
     progress = Progress(therm_samples; dt=1.0, desc="Sample: ", enabled=verbose)
     for n in 1:therm_samples
-        # Sample a new state
         sample!(sampler)
-
-        # Evolve at constant energy to collect dynamics info
-        selectdim(spin_traj, ndims(spin_traj), 1) .= _reinterpret_from_spin_array(sys.sites)
-        for nsnap in 2:num_meas
-            for _ in 1:meas_rate
-                evolve!(integrator, dynΔt)
-            end
-            selectdim(spin_traj, ndims(spin_traj), nsnap) .= _reinterpret_from_spin_array(sys.sites)
-        end
-
-        phase_weighted_fft!(fft_spins, spin_traj, sys.lattice; plan=plan)
-        outerprod_conj!(struct_factor, fft_spins)
-        # FSα = reshape(fft_spins, 1, axes(fft_spins)...)
-        # FSβ = reshape(fft_spins, axes(fft_spins, 1), 1, axes(fft_spins)[2:end]...)
-        # @. struct_factor += FSα * conj(FSβ)
-
+        update!(dynsf, sys)
         next!(progress)
     end
 
-    struct_factor ./= therm_samples
-
-    return struct_factor
+    return dynsf
 end
 
 """
@@ -387,34 +540,6 @@ Indexing the result at `(α, β, q1, ..., qd)` gives ``𝒮^{αβ}(𝐪)`` at
 Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`.
 """
 function static_structure_factor(sys::SpinSystem{D}, sampler::S; kwargs...) where {D, S <: AbstractSampler}
-    strut_factor = dynamic_structure_factor(sys, sampler; num_meas=1, kwargs...)
+    struct_factor = dynamic_structure_factor(sys, sampler; num_meas=1, kwargs...)
     return selectdim(struct_factor, ndims(struct_factor), 0)
 end
-
-"""
-    dipole_factor(struct_factor, lattice)
-
-Applies the neutron dipole factor, reducing the structure factor tensor to the
- observable quantities. Specifically, performs the contraction:
-    ``𝒮(𝐪, ω) = ∑_{αβ} (δ_{αβ} - 𝐪̂_α 𝐪̂_β) 𝒮^{αβ}(𝐪, ω)``.
-
-`struct_factor` should be of size `3 × 3 × Q1 × ⋯ × QN × T`.
-
-Returns a real array of size `Q1 × ⋯ × QN × T`.
-"""
-function dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::Lattice{D}) where {D}
-    recip = gen_reciprocal(lattice)
-    T = size(struct_factor)[end]
-    result = zeros(Float64, axes(struct_factor)[3:end])
-    for q_idx in CartesianIndices(axes(struct_factor)[3:end-1])
-        q = recip.lat_vecs * SVector{D, Float64}(Tuple(q_idx) ./ lattice.size)
-        q = q / (norm(q) + 1e-12)
-        dip_factor = reshape(I(D) - q * q', 3, 3, 1)
-        for t in 0:T-1
-            result[q_idx, t] = real(dot(dip_factor, struct_factor[:, :, q_idx, t]))
-        end
-    end
-    return result
-end
-
-dipole_factor(struct_factor, sys::SpinSystem) = dipole_factor(struct_factor, sys.lattice)
