@@ -2,8 +2,10 @@
 
 (Still under-complete.)
 
-This page gives information on the dynamical spin structure factor, how to use Sunny's high and
-low-level interfaces for computing it, and what is happening behind the scenes in these functions!
+This page gives information on the static and dynamical spin structure factors, how to use Sunny's high and low-level interfaces for computing it, and what is happening behind the scenes in these functions!
+
+The central type implementing all of the computation behind the scenes is
+[`StructureFactor`](@ref).
 
 ## Background
 
@@ -86,8 +88,47 @@ outlined above for you: [`dynamic_structure_factor`](@ref). The documentation on
 function provides a relatively in-depth explanation of all of the arguments.
 
 A helper function [`static_structure_factor`](@ref) also exists, which computes the
-static structure factor simply by calling `dynamic_structure_factor` with `num_meas=1`,
-and indexing the dummy frequency dimension out for you.
+static structure factor simply by calling `dynamic_structure_factor` with `num_meas=1`.
 
 ## Manual incremental updates
 
+If you are writing the lower-level simulation loop yourself, or have a stack of spin configurations on-hand that you want to compute the structure factor from, there is also an additional direct interface.
+
+If you have a stack of snapshots on hand, then you can directly use them to 
+construct a `StructureFactor`. A "stack of snapshots" can either be
+represented as a `Vector{SpinSystem}` (all of which have the same underlying
+lattice), or a `Vector{Array{Vec3, 4}}` along with a `Crystal` defining
+the geometry.
+
+```julia
+sf = StructureFactor(spin_snaps; )
+```
+
+All of the Fourier transforms and computation
+will be performed at construction time -- this may take considerable
+memory and time! By default, this will produce the static structure factor.
+To obtain the dynamic structure factor, set the `dyn_meas` keyword argument
+to a non-zero value (the number of time-evolved snapshots to Fourier transform), along with proper settings for `dynΔt` and `meas_rate` (the
+evolution timestep size, and how many timesteps are taken between snapshots).
+See the documentation of [`StructureFactor`](@ref) for more details.
+
+Alternatively, you can create a `StructureFactor` at the beginning of
+your simulation by passing a single `SpinSystem`. The spin configuration
+of this first system does not enter the averaged structure factor, as the
+system is purely used to obtain information about the geometry.
+
+Then, during the course of your simulation, call the `update!` function on
+the `StructureFactor` along with your `SpinSystem` -- the current spin
+configuration in the `SpinSystem` will be Fourier transformed and accumulated
+into the structure factor. A bare-bones loop achieving this (assuming that you've already created a `system::SpinSystem` and a `sampler`) would look like:
+
+```julia
+sf = StructureFactor(system)
+for _ in 1:therm_samples
+   sample!(sampler)
+   update!(sf, sys)
+end
+```
+
+(In fact, the code for [`dynamic_structure_factor`](@ref) is not much more complex than this!) At the end of the loop, `sf` will hold the structure factor,
+averaged across all of the thermal spin configurations it was provided.

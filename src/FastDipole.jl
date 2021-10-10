@@ -22,8 +22,6 @@ export all_symmetry_related_interactions, all_symmetry_related_interactions_for_
 include("Util.jl")
 
 include("Lattice.jl")
-export Lattice, ReciprocalLattice
-export eachcellindex, gen_reciprocal, volume
 
 include("Interactions.jl")
 export ExternalField, Heisenberg, OnSite, DiagonalCoupling, GeneralCoupling, DipoleDipole
@@ -32,11 +30,6 @@ export Hamiltonian
 include("PairInteractions.jl")
 
 include("Ewald.jl")
-export ewald_sum_monopole, ewald_sum_dipole
-export precompute_monopole_ewald, precompute_dipole_ewald
-export contract_monopole, contract_dipole
-export precompute_monopole_ewald_compressed, precompute_dipole_ewald_compressed
-export contract_monopole_compressed, contract_dipole_compressed
 
 include("FourierAccel.jl")
 
@@ -54,7 +47,7 @@ export HeunP, LangevinHeunP, evolve!
 export LangevinSampler
 
 include("StructureFactors.jl")
-export DynStructFactor, update!, apply_dipole_factor, zero!
+export StructureFactor, update!, apply_dipole_factor, zero!
 export dynamic_structure_factor, static_structure_factor
 
 include("Plotting.jl")

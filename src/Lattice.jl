@@ -166,6 +166,10 @@ struct ReciprocalLattice{D, L}
     size      :: SVector{D, Int}
 end
 
+function ReciprocalLattice(lat::Lattice{D}) where {D}
+    recip_vecs = 2π * transpose(inv(lat.lat_vecs))
+end
+
 function Base.eachindex(lat::ReciprocalLattice) :: CartesianIndices
     return CartesianIndices(Tuple(lat.size))
 end

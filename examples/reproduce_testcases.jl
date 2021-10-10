@@ -16,8 +16,7 @@ function test_diamond_heisenberg_sf()
     interactions = [
         Heisenberg(J, Bond(3, 6, [0,0,0])),
     ]
-    ℋ = Hamiltonian(interactions)
-    sys = SpinSystem(crystal, ℋ, (8, 8, 8))
+    sys = SpinSystem(crystal, interactions, (8, 8, 8))
     rand!(sys)
 
     Δt = 0.02 / J       # Units of 1/K
@@ -29,10 +28,10 @@ function test_diamond_heisenberg_sf()
 
     meas_rate = 10     # Number of timesteps between snapshots of LLD to input to FFT
                        # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
-    num_meas = 1600    # Total number of frequencies we'd like to resolve
+    dyn_meas = 1600    # Total number of frequencies we'd like to resolve
     dynsf = dynamic_structure_factor(
         sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate=meas_rate,
-        num_meas=num_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
+        dyn_meas=dyn_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
         reduce_basis=true, dipole_factor=false,
     )
 
@@ -134,11 +133,10 @@ function test_FeI2_MC()
     J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], Bond(1, 1, [1, -1, 1]), "J2a′")
 
     D = OnSite([0.0, 0.0, -2.165/2], "D")
-
-    ℋ = Hamiltonian([J1, J2, J3, J0′, J1′, J2a′, D])
+    interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size (16x20x4)
-    system = SpinSystem(cryst, ℋ, (16, 20, 4))
+    system = SpinSystem(cryst, interactions, (16, 20, 4))
     rand!(system)
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
@@ -154,9 +152,10 @@ function test_FeI2_MC()
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     dynsf = dynamic_structure_factor(
-        system, sampler; therm_samples=15, meas_rate=meas_rate,
-        dipole_factor=true, num_meas=1000, bz_size=(2,0,0), verbose=true,
-        thermalize=15
+        system, sampler; bz_size=(2,0,0), thermalize=15,
+        therm_samples=15, dipole_factor=true, dyn_meas=1000,
+        meas_rate=meas_rate, verbose=true,
+        
     )
     S = dynsf.sfactor
 
@@ -177,8 +176,7 @@ function test_diamond_heisenberg_energy_curve()
     interactions = [
         Heisenberg(J, Bond(3, 6, [0,0,0])),
     ]
-    ℋ = Hamiltonian(interactions)
-    sys = SpinSystem(crystal, ℋ, (8, 8, 8))
+    sys = SpinSystem(crystal, interactions, (8, 8, 8))
     rand!(sys)
 
     Δt = 0.02 / J       # Units of 1/K
@@ -228,10 +226,10 @@ function test_FeI2_energy_curve()
     J1′ = DiagonalCoupling([0.013, 0.013, 0.051], Bond(1, 1, [1, 0, 1]), "J1′")
     J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], Bond(1, 1, [1, -1, 1]), "J2a′")
     D = OnSite([0.0, 0.0, -2.165/2], "D")
-    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
+    interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size 16×20×4
-    system = SpinSystem(cryst, ℋ, (16, 20, 4))
+    system = SpinSystem(cryst, interactions, (16, 20, 4))
     rand!(system)
 
     sampler = MetropolisSampler(system, 1.0, 10)

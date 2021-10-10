@@ -77,12 +77,6 @@ function plot_lattice(lattice::Lattice{3}; kwargs...)
     f
 end
 
-"""
-    plot_bonds(lattice, ints; bondwidth=4, kwargs...)
-
-Plot a list of pair interactions defined on a `Lattice{2}` or `Lattice{3}`.
-``kwargs`` are passed to `plot_lattice!`.
-"""
 function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4, kwargs...)
     f, ax = _setup_2d()
 
@@ -172,6 +166,13 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}};
     f
 end
 
+
+"""
+    plot_bonds(cryst::Crystal, ints; kwargs...)
+
+Plot a list of pair interactions defined on a `Crystal`. `kwargs` are
+passed to to `plot_lattice!`.
+"""
 function plot_bonds(cryst::Crystal, ints::Vector{<:PairInt{3}}; ncells=(3,3,3), kwargs...)
     lattice = Lattice(cryst, ncells)
     plot_bonds(lattice, ints; kwargs...)
@@ -181,6 +182,7 @@ function plot_bonds(lattice::Lattice{3}, ℋ::Hamiltonian; kwargs...)
     interactions = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
     plot_bonds(lattice, interactions; ncells=ncells, kwargs...)
 end
+
 
 function plot_bonds(cryst::Crystal, ℋ::Hamiltonian; ncells=(3,3,3), kwargs...)
     lattice = Lattice(cryst, ncells)

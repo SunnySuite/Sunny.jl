@@ -8,9 +8,8 @@ The high-level outline of performing a simulation is:
 
 1. Create a [`Crystal`](@ref), either by providing explicit geometry information
     (Example 1), or by loading a `.cif` file (Example 2).
-2. Using the `Crystal`, construct a collection of [Interactions](@ref) assembled into a [`Hamiltonian`](@ref).
-3. Assemble a [`SpinSystem`](@ref) using the newly created `Crystal` and `Interaction`s,
-   and the size of the simulation box.
+2. Using the `Crystal`, construct a collection of [Interactions](@ref).
+3. Assemble a [`SpinSystem`](@ref) using the newly created `Crystal` and `Interaction`s, and the size of the simulation box.
 4. Construct a sampler, either a [`LangevinSampler`](@ref) (Example 1), or a 
     [`MetropolisSampler`](@ref) (Example 2).
 5. Use the sampler directly to sample new states, or use it to perform [Structure factor calculations](@ref).
@@ -65,19 +64,16 @@ bottom of this page).
 ```julia
 J = 28.28           # Units of K
 interactions = [
-    Heisenberg(J, crystal, Bond{3}(3, 6, SA[0,0,0])),
+    Heisenberg(J, crystal, Bond(3, 6, [0,0,0])),
 ]
-ℋ = Hamiltonian{3}(interactions)
 ```
-Here, the `3` in both `Bond{3}` and `Hamiltonian{3}` indicates that they are defined in the context of a 3-dimensional system.
 
-**(3)** Assembling a `SpinSystem` is straightforward -- provide the `Crystal` and
-`Hamiltonian` we made, along with the size of the simulation box we want along each
-lattice vector. Then, we will randomize the system so that all spins are randomly
-placed on the unit sphere.
+**(3)** Assembling a `SpinSystem` is straightforward -- provide the `Crystal` and the `Vector` of `Interaction`s we made, along with the size of the
+simulation box we want along each lattice vector. Then, we will randomize
+the system so that all spins are randomly placed on the unit sphere.
 
 ```julia
-sys = SpinSystem(crystal, ℋ, (8, 8, 8))
+sys = SpinSystem(crystal, interactions, (8, 8, 8))
 rand!(sys)
 ```
 
@@ -113,12 +109,14 @@ by [`dynamic_structure_factor`](@ref). Internally, this function:
 2. Samples a new thermal spin configuration
 3. Performs constant-energy LL dynamics to obtain a Fourier-transformed
     dynamics trajectory. Use this trajectory to calculate a structure
-    factor contribution ``S^{\alpha,\beta}(\boldsymbol{q}, \omega)``.
+    factor contribution ``S^{α,β}(𝐪, ω)``.
 4. Repeat steps (2,3), averaging structure factors across samples.
 
 See the documentation of [`dynamic_structure_factor`](@ref) for details of how
 this process is controlled by the function arguments, and how to properly
-index into the resulting type [`DynStructFactor`](@ref).
+index into the resulting type [`StructureFactor`](@ref). Currently,
+the main way to interact with this type is to index into its
+`sfactor` attribute, which is a large array storing ``S^{α,β}(𝐪, ω)`` on a grid of ``𝐪`` points and frequencies.
 
 In this example, we will just look at the diagonal elements of this
 matrix along some cuts in reciprocal space. To improve statistics,
@@ -191,16 +189,15 @@ this time many more interactions are present. See the documentation on the
 J1mat = [-0.397  0      0    ;
           0     -0.075 -0.261;
           0     -0.261 -0.236]
-J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+J1 = GeneralCoupling(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
+J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond(1, 1, [1, -1, 0]), "J2")
+J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond(1, 1, [2, 0, 0]), "J3")
+J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond(1, 1, [0, 0, 1]), "J0′")
+J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond(1, 1, [1, 0, 1]), "J1′")
+J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
 
 D = OnSite([0.0, 0.0, -2.165/2], "D")
-
-ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
+interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 ```
 
 To get better insight into the geometry and the long set of pair interactions
@@ -208,14 +205,14 @@ we've defined above, we can take a look at both using the following plotting
 function: (you may want to adjust `markersize` to make the atoms easier to see):
 
 ```julia
-plot_bonds(cryst, ℋ; ncells=(4,4,4), markersize=500)
+plot_bonds(cryst, interactions; ncells=(4,4,4), markersize=500)
 ```
 
 **(3)** As with the previous example, the next step is to make a `SpinSystem` and
 randomize it. We'll simulate a fairly large box of size ``16\times 20\times 4``.
 
 ```julia
-system = SpinSystem(cryst, ℋ, (16, 20, 4))
+system = SpinSystem(cryst, interactions, (16, 20, 4))
 rand!(system)
 ```
 

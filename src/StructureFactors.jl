@@ -15,11 +15,11 @@ const DynSFactMat = Union{
 }
 
 """
-    DynStructFactor
+    StructureFactor
 
-Type responsible for computing and updating a dynamic structure factor averaged
-across multiple spin configurations. Currently specialized to 3D.
-(The only thing prohibiting arbitrary dimension is the extremely ugly
+Type responsible for computing and updating the static/dynamic structure factor
+averaged across multiple spin configurations. Currently specialized to 3D.
+(The only thing prohibiting arbitrary dimension is the ugly
   typing that would be necessary.)
 
 Note that the initial `sys` provided does _not_ enter the structure factor,
@@ -29,10 +29,10 @@ The full dynamic structure factor is
 ``𝒮^{αβ}_{jk}(𝐪, ω) = ⟨S^α_j(𝐪, ω) S^β_k(𝐪, ω)^∗⟩``,
 which is an array of shape `[3, 3, B, B, Q1, Q2, Q3, T]`
 where `B = nbasis(sys.lattice)`, `Qi = max(1, bz_size_i * L_i)` and
-`T = num_meas`. By default, `bz_size=ones(d)`.
+`T = dyn_meas`. By default, `bz_size=ones(d)`.
 
 Indexing the `sfactor` attribute at `(α, β, j, k, q1, q2, q3, w)`
-gives ``𝒮^{αβ}_{jk}(𝐪, ω)`` at `𝐪 = q1 * 𝐛_1 + q2 * 𝐛_2 + q3 * 𝐛_3, and
+gives ``𝒮^{αβ}_{jk}(𝐪, ω)`` at `𝐪 = q1 * 𝐛_1 + q2 * 𝐛_2 + q3 * 𝐛_3`, and
 `ω = maxω * w / T`, where `𝐛_1, 𝐛_2, 𝐛_3` are the reciprocal lattice vectors
 of the system supercell.
 
@@ -40,8 +40,10 @@ Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, an
  values for the `w` index lie in `0:T-1`.
 
 The maximum frequency sampled is `ωmax = 2π / (dynΔt * meas_rate)`, and the frequency resolution
-is set by `num_meas` (the number of spin snapshots measured during dynamics). However, beyond
-increasing the resolution, `num_meas` will also make frequencies become more accurate.
+is set by `dyn_meas` (the number of spin snapshots measured during dynamics). By default,
+`dyn_meas=1`, and the static structure factor is computed. However, beyond
+increasing the frequency resolution, increasing `dyn_meas` will also make frequencies become
+more accurate.
 
 Setting `reduce_basis` performs the phase-weighted sums over the basis/sublattice
 indices, resulting in a size `[3, 3, Q1, Q2, Q3, T]` array.
@@ -49,53 +51,56 @@ indices, resulting in a size `[3, 3, Q1, Q2, Q3, T]` array.
 Setting `dipole_factor` applies the dipole form factor, further reducing the
 array to size `[Q1, Q2, Q3, T]`.
 """
-struct DynStructFactor
-    sfactor       :: DynSFactMat
+struct StructureFactor{A1, A2}
+    sfactor       :: A1
     _spin_ft      :: Array{ComplexF64, 6}                    # Buffer for FT of a spin trajectory
-    _bz_buf       :: Union{OffsetArrayC{5}, OffsetArrayC{6}} # Buffer for phase summation / BZ repeating
+    _bz_buf       :: A2                                      # Buffer for phase summation / BZ repeating
     lattice       :: Lattice{3}
     reduce_basis  :: Bool                                    # Flag setting basis summation
     dipole_factor :: Bool                                    # Flag setting dipole form factor
     bz_size       :: NTuple{3, Int}                          # Num of Brillouin zones along each axis
     dynΔt         :: Float64                                 # Timestep size in dynamics integrator
     meas_rate     :: Int                                     # Num timesteps between snapshot saving
-    num_meas      :: Int                                     # Total number of snapshots to FT
+    dyn_meas      :: Int                                     # Total number of snapshots to FT
     integrator    :: HeunP{3, 9, 4}
     plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, UnitRange{Int64}}
 end
 
-function DynStructFactor(sys::SpinSystem{3}; dynΔt::Float64=0.01, meas_rate::Int=10,
-                         num_meas::Int=100, bz_size=nothing, reduce_basis=true,
-                         dipole_factor=false)
+Base.show(io::IO, sf::StructureFactor) = print(io, join(size(sf.sfactor), "x"),  " StructureFactor")
+Base.summary(io::IO, sf::StructureFactor) = string("StructureFactor: ", summary(sf.sfactor))
+
+function StructureFactor(sys::SpinSystem{3}; bz_size=nothing, reduce_basis=true,
+                         dipole_factor=false, dynΔt::Float64=0.01,
+                         dyn_meas::Int=1, meas_rate::Int=10,)
     nb = nbasis(sys.lattice)
     spat_size = size(sys)[2:end]
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
-    result_size = (3, q_size..., num_meas)
+    result_size = (3, q_size..., dyn_meas)
     min_q_idx = -1 .* div.(q_size .- 1, 2)
 
-    spin_ft = zeros(ComplexF64, 3, nb, spat_size..., num_meas)
+    spin_ft = zeros(ComplexF64, 3, nb, spat_size..., dyn_meas)
     if reduce_basis
-        bz_buf = zeros(ComplexF64, 3, q_size..., num_meas)
+        bz_buf = zeros(ComplexF64, 3, q_size..., dyn_meas)
         bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, min_q_idx..., 0))
     else
-        bz_buf = zeros(ComplexF64, 3, nb, q_size..., num_meas)
+        bz_buf = zeros(ComplexF64, 3, nb, q_size..., dyn_meas)
         bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
     end
 
     if reduce_basis
         if dipole_factor
-            sfactor = zeros(Float64, q_size..., num_meas)
+            sfactor = zeros(Float64, q_size..., dyn_meas)
             sfactor = OffsetArray(sfactor, OffsetArrays.Origin(min_q_idx..., 0))
         else
-            sfactor = zeros(ComplexF64, 3, 3, q_size..., num_meas)
+            sfactor = zeros(ComplexF64, 3, 3, q_size..., dyn_meas)
             sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
         end
     else
         if dipole_factor
-            sfactor = zeros(Float64, nb, nb, q_size..., num_meas)
+            sfactor = zeros(Float64, nb, nb, q_size..., dyn_meas)
             sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
         else
-            sfactor = zeros(ComplexF64, 3, 3, nb, nb, q_size..., num_meas)
+            sfactor = zeros(ComplexF64, 3, 3, nb, nb, q_size..., dyn_meas)
             sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, 1, 1, min_q_idx..., 0))
         end
     end
@@ -103,33 +108,75 @@ function DynStructFactor(sys::SpinSystem{3}; dynΔt::Float64=0.01, meas_rate::In
     integrator = HeunP(sys)
     plan = plan_spintraj_fft!(spin_ft)
 
-    DynStructFactor(sfactor, spin_ft, bz_buf, sys.lattice, reduce_basis, dipole_factor,
-                    bz_size, dynΔt, meas_rate, num_meas, integrator, plan)
+    StructureFactor{typeof(sfactor), typeof(bz_buf)}(
+        sfactor, spin_ft, bz_buf, sys.lattice, reduce_basis, dipole_factor,
+        bz_size, dynΔt, meas_rate, dyn_meas, integrator, plan
+    )
 end
 
 """
-    update!(sfactor::DynStructFactor, sys::SpinSystem{3})
+    StructureFactor(snaps::Vector{SpinSystem{3}}; kwargs...)
+
+Construct a `StructureFactor` from a list of spin configurations.
+All `SpinSystem`s should have the same underlying lattice -- for
+all intents, they should be the "same" system only with different
+spin configs. `kwargs` are passed onto the default `StructureFactor`
+constructor.
+"""
+function StructureFactor(snaps::Vector{SpinSystem{3}}; kwargs...)
+    if length(snaps) == 0
+        error("No snapshots provided, cannot construct StructureFactor")
+    end
+    sf = StructureFactor(snaps[1]; kwargs...)
+    for snap in snaps
+        update!(sf, snap)
+    end
+    sf
+end
+
+"""
+    StructureFactor(snaps::Vector{Array{Vec3, 4}}, crystal; kwargs...)
+
+Construct a `StructureFactor` from a list of spin configurations,
+and a `Crystal` specifying the underlying lattice. `kwargs` are passed
+onto the default `StructureFactor` constructor.
+"""
+function StructureFactor(snaps::Vector{Array{Vec3, 4}}, crystal; kwargs...)
+    if length(snaps) == 0
+        error("No snapshots provided, cannot construct StructureFactor")
+    end
+    sys = SpinSystem(crystal, Vector{Interaction}(), size(snaps[1])[2:end])
+    sf = StructureFactor(sys; kwargs...)
+    for snap in snaps
+        sys.sites .= snap
+        update!(sf, sys)
+    end
+    sf
+end
+
+"""
+    update!(sf::StructureFactor, sys::SpinSystem{3})
 
 Accumulates a contribution to the dynamic structure factor from the spin
 configuration currently in `sys`.
 """
-function update!(dynsf::DynStructFactor, sys::SpinSystem{3})
-    @unpack sfactor, _spin_ft, _bz_buf = dynsf
-    @unpack reduce_basis, dipole_factor, bz_size = dynsf
+function update!(sf::StructureFactor, sys::SpinSystem{3})
+    @unpack sfactor, _spin_ft, _bz_buf = sf
+    @unpack reduce_basis, dipole_factor, bz_size = sf
 
     # Evolve the spin state forward in time to form a trajectory
     dynsys = deepcopy(sys)
-    dynsf.integrator.sys = dynsys
+    sf.integrator.sys = dynsys
     selectdim(_spin_ft, ndims(_spin_ft), 1) .= _reinterpret_from_spin_array(dynsys.sites)
-    for nsnap in 2:dynsf.num_meas
-        for _ in 1:dynsf.meas_rate
-            evolve!(dynsf.integrator, dynsf.dynΔt)
+    for nsnap in 2:sf.dyn_meas
+        for _ in 1:sf.meas_rate
+            evolve!(sf.integrator, sf.dynΔt)
         end
         selectdim(_spin_ft, ndims(_spin_ft), nsnap) .= _reinterpret_from_spin_array(dynsys.sites)
     end
 
     # Fourier transform the trajectory in space + time
-    fft_spin_traj!(_spin_ft, plan=dynsf.plan)
+    fft_spin_traj!(_spin_ft, plan=sf.plan)
 
     # Optionally sum over basis sites then accumulate the conjugate outer product into sfactor
     # Accumulate the conjugate outer product into sfactor, with optionally:
@@ -153,29 +200,29 @@ function update!(dynsf::DynStructFactor, sys::SpinSystem{3})
 end
 
 """
-    zero!(dynsf::DynStructFactor)
+    zero!(sf::StructureFactor)
 
 Zeros out the accumulated structure factor.
 """
-function zero!(dynsf::DynStructFactor)
-    dynsf.sfactor .= 0
+function zero!(sf::StructureFactor)
+    sf.sfactor .= 0
 end
 
 """
-    apply_dipole_factor(dynsf::DynStructFactor) :: DynStructFactor
+    apply_dipole_factor(sf::StructureFactor) :: StructureFactor
 
 Apply the neutron dipole factor to a dynamic structure factor.
 """
-function apply_dipole_factor(dynsf::DynStructFactor)
-    if dynsf.dipole_factor == true
-        return dynsf
+function apply_dipole_factor(sf::StructureFactor)
+    if sf.dipole_factor == true
+        return sf
     end
 
-    dip_sfactor = apply_dipole_factor(dynsf.sfactor, dynsf.lattice)
-    DynStructFactor(
-        dip_sfactor, copy(dynsf._spin_ft), copy(dynsf._bz_buf), dynsf.lattice,
-        dynsf.reduce_basis, true, dynsf.bz_size, dynsf.dynΔt, dynsf.meas_rate,
-        dynsf.num_meas, dynsf.integrator, dynsf.plan
+    dip_sfactor = apply_dipole_factor(sf.sfactor, sf.lattice)
+    StructureFactor(
+        dip_sfactor, copy(sf._spin_ft), copy(sf._bz_buf), sf.lattice,
+        sf.reduce_basis, true, sf.bz_size, sf.dynΔt, sf.meas_rate,
+        sf.dyn_meas, sf.integrator, sf.plan
     )
 end
 
@@ -194,6 +241,97 @@ function apply_dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::La
     end
     return result
 end
+
+"""
+    dynamic_structure_factor(sys, sampler; therm_samples=10, dynΔt=0.01, meas_rate=10,
+                             dyn_meas=100, bz_size, thermalize=10, reduce_basis=true,
+                             verbose=false)
+
+Measures the full dynamic structure factor tensor of a spin system, for the requested range
+of 𝐪-space and range of frequencies ω. Returns ``𝒮^{αβ}(𝐪, ω) = ⟨S^α(𝐪, ω) S^β(𝐪, ω)^∗⟩``,
+which is an array of shape `[3, 3, Q1, ..., Qd, T]`
+where `Qi = max(1, bz_size_i * L_i)` and `T = dyn_meas`. By default, `bz_size=ones(d)`.
+
+Setting `reduce_basis=false` makes it so that the basis/sublattice indices are not
+phase-weighted and summed over, making the shape of the result `[3, 3, B, B, Q1, ..., Qd, T]`
+where `B = nbasis(sys)` is the number of basis sites in the unit cell. *(Not actually
+implemented yet)*.
+
+`therm_samples` sets the number of thermodynamic samples to measure and average
+ across from `sampler`. `dynΔt` sets the integrator timestep during dynamics,
+ and `meas_rate` sets how often snapshots are recorded during dynamics. `dyn_meas`
+ sets the total number snapshots taken. The sampler is thermalized by sampling
+ `thermalize` times before any measurements are made.
+
+The maximum frequency sampled is `ωmax = 2π / (dynΔt * meas_rate)`, and the frequency resolution
+ is set by `dyn_meas` (the number of spin snapshots measured during dynamics). However, beyond
+ increasing the resolution, `dyn_meas` will also make all frequencies become more accurate.
+
+Indexing the result at `(α, β, q1, ..., qd, w)` gives ``S^{αβ}(𝐪, ω)`` at
+    `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, and `ω = maxω * w / T`, where `a⃰, b⃰, c⃰`
+    are the reciprocal lattice vectors of the system supercell.
+
+Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
+ values for the `w` index lie in `0:T-1`.
+"""
+function dynamic_structure_factor(
+    sys::SpinSystem{D}, sampler::S; therm_samples::Int=10, dynΔt::Float64=0.01,
+    meas_rate::Int=10, dyn_meas::Int=100, bz_size=nothing, thermalize::Int=10,
+    reduce_basis::Bool=true, dipole_factor::Bool=false, verbose::Bool=false
+) where {D, S <: AbstractSampler}
+    
+    sf  = StructureFactor(sys; dynΔt=dynΔt, meas_rate=meas_rate, dyn_meas=dyn_meas,
+                                  bz_size=bz_size, reduce_basis=reduce_basis,
+                                  dipole_factor=dipole_factor)
+
+    if verbose
+        println("Beginning thermalization...")
+    end
+
+    # Equilibrate the system by sampling from it `therm_samples` times (discarding results)
+    thermalize!(sampler, thermalize)
+
+    if verbose
+        println("Done thermalizing. Beginning measurements...")
+    end
+
+    progress = Progress(therm_samples; dt=1.0, desc="Sample: ", enabled=verbose)
+    for n in 1:therm_samples
+        sample!(sampler)
+        update!(sf, sys)
+        next!(progress)
+    end
+
+    return sf
+end
+
+"""
+    static_structure_factor(sys, sampler; therm_samples, dynΔt, meas_rate, dyn_meas
+                                          bz_size, thermalize, verbose)
+
+Measures the static structure factor tensor of a spin system, for the requested range
+of 𝐪-space. Returns ``𝒮^{αβ}(𝐪) = ⟨S^α(𝐪) S^β(𝐪)^∗⟩``,
+which is an array of shape `[3, 3, Q1, ..., Qd]` where `Qi = max(1, bz_size_i * L_i)`.
+By default, `bz_size=ones(d)`.
+
+`therm_samples` sets the number of thermodynamic samples to measure and average
+ across from `sampler`. `dynΔt` sets the integrator timestep during dynamics,
+ and `meas_rate` sets how many timesteps are performed between recording snapshots.
+ `dyn_meas` sets the total number snapshots taken. The sampler is thermalized by sampling
+ `thermalize` times before any measurements are made.
+
+Indexing the result at `(α, β, q1, ..., qd)` gives ``𝒮^{αβ}(𝐪)`` at
+    `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, where `a⃰, b⃰, c⃰`
+    are the reciprocal lattice vectors of the system supercell.
+
+Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`.
+"""
+function static_structure_factor(sys::SpinSystem{D}, sampler::S; kwargs...) where {D, S <: AbstractSampler}
+    dynamic_structure_factor(sys, sampler; dyn_meas=1, kwargs...)
+end
+
+
+#= Non-exposed internal functions below =#
 
 """
     plan_spintraj_fft(spin_traj::Array{Vec3})
@@ -454,92 +592,4 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice{D}) where {D}
             end
         end
     end
-end
-
-"""
-    dynamic_structure_factor(sys, sampler; therm_samples=10, dynΔt=0.01, meas_rate=10,
-                             num_meas=100, bz_size, thermalize=10, reduce_basis=true,
-                             verbose=false)
-
-Measures the full dynamic structure factor tensor of a spin system, for the requested range
-of 𝐪-space and range of frequencies ω. Returns ``𝒮^{αβ}(𝐪, ω) = ⟨S^α(𝐪, ω) S^β(𝐪, ω)^∗⟩``,
-which is an array of shape `[3, 3, Q1, ..., Qd, T]`
-where `Qi = max(1, bz_size_i * L_i)` and `T = num_meas`. By default, `bz_size=ones(d)`.
-
-Setting `reduce_basis=false` makes it so that the basis/sublattice indices are not
-phase-weighted and summed over, making the shape of the result `[3, 3, B, B, Q1, ..., Qd, T]`
-where `B = nbasis(sys)` is the number of basis sites in the unit cell. *(Not actually
-implemented yet)*.
-
-`therm_samples` sets the number of thermodynamic samples to measure and average
- across from `sampler`. `dynΔt` sets the integrator timestep during dynamics,
- and `meas_rate` sets how often snapshots are recorded during dynamics. `num_meas`
- sets the total number snapshots taken. The sampler is thermalized by sampling
- `thermalize` times before any measurements are made.
-
-The maximum frequency sampled is `ωmax = 2π / (dynΔt * meas_rate)`, and the frequency resolution
- is set by `num_meas` (the number of spin snapshots measured during dynamics). However, beyond
- increasing the resolution, `num_meas` will also make all frequencies become more accurate.
-
-Indexing the result at `(α, β, q1, ..., qd, w)` gives ``S^{αβ}(𝐪, ω)`` at
-    `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, and `ω = maxω * w / T`, where `a⃰, b⃰, c⃰`
-    are the reciprocal lattice vectors of the system supercell.
-
-Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
- values for the `w` index lie in `0:T-1`.
-"""
-function dynamic_structure_factor(
-    sys::SpinSystem{D}, sampler::S; therm_samples::Int=10, dynΔt::Float64=0.01,
-    meas_rate::Int=10, num_meas::Int=100, bz_size=nothing, thermalize::Int=10,
-    reduce_basis::Bool=true, dipole_factor::Bool=false, verbose::Bool=false
-) where {D, S <: AbstractSampler}
-    
-    dynsf  = DynStructFactor(sys; dynΔt=dynΔt, meas_rate=meas_rate, num_meas=num_meas,
-                                  bz_size=bz_size, reduce_basis=reduce_basis,
-                                  dipole_factor=dipole_factor)
-    if verbose
-        println("Beginning thermalization...")
-    end
-
-    # Equilibrate the system by sampling from it `therm_samples` times (discarding results)
-    thermalize!(sampler, thermalize)
-
-    if verbose
-        println("Done thermalizing. Beginning measurements...")
-    end
-
-    progress = Progress(therm_samples; dt=1.0, desc="Sample: ", enabled=verbose)
-    for n in 1:therm_samples
-        sample!(sampler)
-        update!(dynsf, sys)
-        next!(progress)
-    end
-
-    return dynsf
-end
-
-"""
-    static_structure_factor(sys, sampler; therm_samples, dynΔt, meas_rate, num_meas
-                                          bz_size, thermalize, verbose)
-
-Measures the static structure factor tensor of a spin system, for the requested range
-of 𝐪-space. Returns ``𝒮^{αβ}(𝐪) = ⟨S^α(𝐪) S^β(𝐪)^∗⟩``,
-which is an array of shape `[3, 3, Q1, ..., Qd]` where `Qi = max(1, bz_size_i * L_i)`.
-By default, `bz_size=ones(d)`.
-
-`therm_samples` sets the number of thermodynamic samples to measure and average
- across from `sampler`. `dynΔt` sets the integrator timestep during dynamics,
- and `meas_rate` sets how many timesteps are performed between recording snapshots.
- `num_meas` sets the total number snapshots taken. The sampler is thermalized by sampling
- `thermalize` times before any measurements are made.
-
-Indexing the result at `(α, β, q1, ..., qd)` gives ``𝒮^{αβ}(𝐪)`` at
-    `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, where `a⃰, b⃰, c⃰`
-    are the reciprocal lattice vectors of the system supercell.
-
-Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`.
-"""
-function static_structure_factor(sys::SpinSystem{D}, sampler::S; kwargs...) where {D, S <: AbstractSampler}
-    struct_factor = dynamic_structure_factor(sys, sampler; num_meas=1, kwargs...)
-    return selectdim(struct_factor, ndims(struct_factor), 0)
 end
