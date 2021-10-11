@@ -1,4 +1,6 @@
 using Test
+using Sunny
+using StaticArrays
 
 # Idea taken from StaticArrays.jl
 enabled_tests = lowercase.(ARGS)

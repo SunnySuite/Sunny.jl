@@ -30,8 +30,8 @@ function ewald_sum_monopole(lattice::Lattice{3}, charges::Array{Float64, 4}; η=
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
 
-    tot_charge_term = -π / (2 * vol * η^2) * sum(sys.sites)^2
-    charge_square_term = -η / √π * (sys.sites |> x->x.^2 |> sum)
+    tot_charge_term = -π / (2 * vol * η^2) * sum(charges)^2
+    charge_square_term = -η / √π * (charges |> x->x.^2 |> sum)
 
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum, recip_site_sum = 0.0, 0.0
@@ -133,13 +133,17 @@ system of dipoles with periodic boundary conditions.
 function ewald_sum_dipole(lattice::Lattice{3}, spins::Array{Vec3, 4}; extent=2, η=1.0) :: Float64
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
 
-    recip = gen_reciprocal(lattice)
+    # Vectors spanning the axes of the entire system
+    superlat_vecs = lattice.size' .* lattice.lat_vecs
+    # Rescale lattice vectors to be superlattice
+    # (Not duplicating basis sites does not matter here -- we don't care)
+    superlat = Lattice(superlat_vecs, lattice.basis_vecs, (1,1,1))
+
+    recip = gen_reciprocal(superlat)
     # Rescale vectors to be reciprocal vectors of entire simulation box
     recip = ReciprocalLattice(recip.lat_vecs ./ lattice.size', recip.size)
     
     vol = volume(lattice)
-    # Vectors spanning the axes of the entire system
-    superlat_vecs = lattice.size' .* lattice.lat_vecs
 
     dip_square_term = -2η^3 / (3 * √π) * sum(norm.(spins).^2)
 
@@ -396,7 +400,7 @@ function precompute_dipole_ewald_c(lattice::Lattice{3}; extent=3, η=1.0) :: Off
     A = OffsetArray(A, 1:nb, 1:nb, map(n->0:n-1, lattice.size)...)
 
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
-    delta_idxs = eachcellindex(lattice) .- one(CartesianIndex{3})
+    delta_idxs = eachcellindex(lattice) .- oneunit(CartesianIndex{3})
 
     recip = gen_reciprocal(lattice)
     # Rescale vectors to be reciprocal vectors of entire simulation box
