@@ -1,6 +1,3 @@
-const Vec3 = SVector{3, Float64}
-const Mat3 = SMatrix{3, 3, Float64, 9}
-
 "Mod functions for CartesianIndex"
 @inline function modc(i::CartesianIndex{D}, m) :: CartesianIndex{D} where {D}
     CartesianIndex(mod.(Tuple(i), Tuple(m)))

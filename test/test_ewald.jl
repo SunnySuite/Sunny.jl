@@ -1,8 +1,67 @@
 using Revise
-
 includet("Lattice.jl")
 includet("Systems.jl")
 includet("Ewald.jl")
+
+# Many of these tests will be broken and need re-tooling to new interface
+
+"""Approximates a dipolar `SpinSystem` by generating a monopolar `ChargeSystem` consisting of
+    opposite charges Q = ±1/(2ϵ) separated by displacements d = 2ϵp centered on the original
+    lattice sites.
+"""
+function _approx_dip_as_mono(sys::SpinSystem{D, L, Db}; ϵ::Float64=0.1) :: ChargeSystem{D, L, Db} where {D, L, Db}
+    @unpack sites, lattice = sys
+
+    # Need to expand the underlying unit cell to the entire system size
+    new_lat_vecs = lattice.size' .* lattice.lat_vecs
+    new_latsize = @SVector ones(Int, D)
+
+    new_nbasis = 2 * prod(size(sites))
+    new_sites = zeros(new_nbasis, 1, 1, 1)
+    new_basis = Vector{SVector{D, Float64}}()
+    sizehint!(new_basis, new_nbasis)
+
+    ib = 1
+    for idx in eachindex(lattice)
+        @inbounds r = lattice[idx]
+        @inbounds p = sites[idx]
+
+        # Add new charges as additional basis vectors
+        push!(new_basis, SVector{3}(r .+ ϵ * p))
+        push!(new_basis, SVector{3}(r .- ϵ * p))
+
+        # Set these charges to ±1/2ϵ
+        new_sites[1, 1, 1, ib]   =  1 / 2ϵ
+        new_sites[1, 1, 1, ib+1] = -1 / 2ϵ
+
+        ib += 2
+    end
+
+    new_lattice = Lattice(new_lat_vecs, new_basis, new_latsize)
+
+    return ChargeSystem{D, L, Db}(new_lattice, new_sites)
+end
+
+"Self-energy of a physical dipole with moment p, and displacement d=2ϵ"
+function _dipole_self_energy(; p::Float64=1.0, ϵ::Float64=0.1)
+    d, q = 2ϵ, p/2ϵ
+    return -q^2 / d
+end
+
+function test_compression(A, Acomp)
+    ndim = div(ndims(A), 2) - 1
+    nb = size(A, 1)
+    latsize = size(A)[2:1+ndim]
+    for i in CartesianIndices(latsize)
+        for j in CartesianIndices(latsize)
+            for ib in 1:nb
+                for jb in 1:nb
+                    @assert A[ib, i, jb, j] ≈ Acomp[ib, jb, i - j]
+                end
+            end
+        end
+    end
+end
 
 function test_ewald_NaCl()
     lat_vecs = @SMatrix [1.0 0   0;

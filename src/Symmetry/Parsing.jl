@@ -1,79 +1,4 @@
-using CrystalInfoFramework
-using FilePaths
-using Printf
-
-struct ValidateError <: Exception end
-Base.showerror(io::IO, e::ValidateError) = print(io, e)
-
-function _parse_lattice(config::Dict{String, Any}) :: Lattice
-    try
-        dim = config["dimension"]
-        lat_vecs = config["lattice_vectors"]
-        basis_vecs = config["basis_vectors"]
-        lattice_size = config["lattice_size"]
-
-        @assert length(lat_vecs) == dim
-        @assert all(v -> length(v) == dim, lat_vecs)
-        @assert all(v -> length(v) == dim, basis_vecs)
-        @assert length(lattice_size) == dim
-
-        lat_vecs = SMatrix{dim, dim, Float64, dim*dim}(hcat(lat_vecs...))
-        basis_vecs = [SVector{dim}(bv) for bv in basis_vecs]
-        # basis_vecs = hcat(basis_vecs...
-        lattice_size = SVector{dim}(lattice_size)
-
-        return Lattice{dim, dim*dim, dim+1}(lat_vecs, basis_vecs, lattice_size) 
-    catch err
-        if isa(err, KeyError)
-            throw(ValidateError("lattice config missing mandatory key: $(err.key)"))
-        else
-            # Re-raise all other kinds of errors
-            throw(err)
-        end
-    end
-end
-
-function _parse_interactions(config::Dict{String, Any}, lattice::Lattice) :: Vector{Interaction}
-    interactions = Vector{Interaction}()
-    crystal = Crystal(lattice)
-    if haskey(config, "field")
-        for field_int in config["field"]
-            push!(interactions, ExternalField(field_int["strength"]))
-        end
-    end
-
-    if haskey(config, "pair")
-        for pair_int in config["pair"]
-            push!(interactions, PairInteraction(
-                pair_int["strength"],
-                crystal,
-                pair_int["dist"],
-                pair_int["class"],
-            ))
-        end
-    end
-
-    if haskey(config, "onsite")
-        for easy_ax in config["onsite"]
-            push!(interactions, OnSite(easy_ax["J"]))
-        end
-    end
-    return interactions
-end
-
-function parse_config(filename::String) :: SpinSystem
-    try
-        config = TOML.tryparsefile(filename)
-        lattice = _parse_lattice(config["lattice"])
-        interactions = _parse_interactions(config["model"], lattice)
-
-        return SpinSystem(lattice, interactions)
-    catch err
-        if isa(err, TOML.ParserError)
-            println("Parse error on line $(err.line), column $(err.column) of $(filename).")
-        end
-    end
-end
+"Functions for parsing Crystals / SymOps from text / .cif files"
 
 "Strips trailing uncertainty values from a String, then parses as a Float"
 function _parse_cif_float(str::String) :: Float64
@@ -97,7 +22,7 @@ function parse_number_or_fraction(s)
 end
 
 
-function _parse_op(str::AbstractString) :: Symmetry.SymOp
+function _parse_op(str::AbstractString) :: SymOp
     D = 3
     R = zeros(D, D)
     T = zeros(D)
@@ -136,9 +61,8 @@ function _parse_op(str::AbstractString) :: Symmetry.SymOp
     # Wrap translations
     T = mod.(T, 1)
 
-    return Symmetry.SymOp(R, T)
+    return SymOp(R, T)
 end
-
 
 """
     Crystal(filename::AbstractString; symprec=1e-5)
@@ -159,18 +83,27 @@ function Crystal(filename::AbstractString; symprec=nothing)
     lat_vecs = lattice_vectors(a, b, c, α, β, γ)
 
     geo_table = get_loop(cif, "_atom_site_fract_x")
-    xs = map(_parse_cif_float, geo_table[!, "_atom_site_fract_x"])
-    ys = map(_parse_cif_float, geo_table[!, "_atom_site_fract_y"])
-    zs = map(_parse_cif_float, geo_table[!, "_atom_site_fract_z"])
-    sitetypes = geo_table[!, "_atom_site_type_symbol"]
-    sitetypes = Vector{String}(sitetypes)
-    sitelabels = geo_table[!, "_atom_site_label"]
+    xs = _parse_cif_float.(geo_table[:, "_atom_site_fract_x"])
+    ys = _parse_cif_float.(geo_table[:, "_atom_site_fract_y"])
+    zs = _parse_cif_float.(geo_table[:, "_atom_site_fract_z"])
     unique_atoms = Vec3.(zip(xs, ys, zs))
+
+    sitetypes = String.(geo_table[:, :_atom_site_type_symbol])
+
+    multiplicities = nothing
+    if "_atom_site_symmetry_multiplicity" in names(geo_table)
+        multiplicities = parse.(Int, geo_table[:, "_atom_site_symmetry_multiplicity"])
+    end
+
+    wyckoffs = nothing
+    if "_atom_site_wyckoff_symbol" in names(geo_table)
+        wyckoffs = String.(geo_table[:, "_atom_site_wyckoff_symbol"])
+    end
 
     # Try to infer symprec from coordinate strings
     # TODO: Use uncertainty information if available from .cif
     if isnothing(symprec)
-        strs = vcat(geo_table[!, "_atom_site_fract_x"], geo_table[!, "_atom_site_fract_y"], geo_table[!, "_atom_site_fract_z"])
+        strs = vcat(geo_table[:, "_atom_site_fract_x"], geo_table[:, "_atom_site_fract_y"], geo_table[:, "_atom_site_fract_z"])
         elems = vcat(xs, ys, zs)
         # guess fractional errors by assuming each elem is a fraction with simple denominator (2, 3, or 4)
         errs = map(elems) do x
@@ -187,7 +120,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
             symprec = 15err
             @printf "Setting symprec=%.1e.\n" symprec
         else
-            println("Error: Please specify an explicit `symprec` parameter to load this file, '$filename'")
+            println("Error: Cannot infer precision. Please provide an explicit `symprec` parameter to load '$filename'")
             return Nothing
         end
     end
@@ -196,7 +129,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
     for sym_header in ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
         if sym_header in keys(cif)
             sym_table = get_loop(cif, sym_header)
-            symmetries = map(_parse_op, sym_table[!, sym_header])
+            symmetries = _parse_op.(sym_table[:, sym_header])
         end
     end
 
@@ -235,7 +168,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
 
     if !isnothing(symmetries)
         # Use explicitly provided symmetries
-        return Symmetry.crystal_from_symops(lat_vecs, unique_atoms, sitetypes, symmetries, spacegroup; symprec)
+        return crystal_from_symops(lat_vecs, unique_atoms, sitetypes, symmetries, spacegroup; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
         return Crystal(lat_vecs, unique_atoms, sitetypes, hall_symbol; symprec)

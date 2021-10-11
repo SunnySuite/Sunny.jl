@@ -8,20 +8,21 @@ The high-level outline of performing a simulation is:
 
 1. Create a [`Crystal`](@ref), either by providing explicit geometry information
     (Example 1), or by loading a `.cif` file (Example 2).
-2. Using the `Crystal`, construct a [`Lattice`](@ref) which specifies the system
-    size, and a collection of [Interactions](@ref) assembled into a [`Hamiltonian`](@ref).
-3. Assemble a [`SpinSystem`](@ref) using the newly created `Lattice` and `Interaction`s.
+2. Using the `Crystal`, construct a collection of [Interactions](@ref).
+3. Assemble a [`SpinSystem`](@ref) using the newly created `Crystal` and `Interaction`s, and the size of the simulation box.
 4. Construct a sampler, either a [`LangevinSampler`](@ref) (Example 1), or a 
     [`MetropolisSampler`](@ref) (Example 2).
 5. Use the sampler directly to sample new states, or use it to perform [Structure factor calculations](@ref).
 
 Defining interactions in step (2) can be aided by our utilities for symmetry analysis, demonstrated at the bottom of this page.
 
-In all examples, we will assume that `FastDipole` and `StaticArrays` have been loaded:
+In all examples, we will assume that `Sunny`, `StaticArrays`, and
+`LinearAlgebra` have been loaded:
 
 ```julia
-using FastDipole
+using Sunny
 using StaticArrays
+using LinearAlgebra
 ```
 
 ## Example 1: Diamond lattice with antiferromagnetic Heisenberg interactions
@@ -31,7 +32,7 @@ a spin dynamics simulation, with finite-$T$ statistics obtained by using Langevi
 dynamics. The full example is contained in the function `test_diamond_heisenberg_sf()`
 within `examples/reproduce_testcases.jl`.
 
-**(1)** We construct a diamond lattice by explicitly defining the lattice geometry. We will use the conventional cubic Bravais lattice with an 8-site basis. Our simulation box
+**(1)** We construct a diamond crystal by explicitly defining the lattice geometry. We will use the conventional cubic Bravais lattice with an 8-site basis. Our simulation box
 will be ``8 \times 8 \times 8`` unit cells along each axis. Since we're not thinking about a specific system, we label all of the sites with the arbitrary species label `"A"`.
 
 ```julia
@@ -48,44 +49,38 @@ basis_vecs = [
     [1/4, 3/4, 1/4],
     [1/4, 1/4, 3/4]
 ]
-basis_labels = fill("A", 8)
-latsize = [8, 8, 8]
-lattice = Lattice{3}(lat_vecs, basis_vecs, basis_labels, latsize)
-crystal = Crystal(lattice)
+basis_types = fill("A", 8)
+crystal = Crystal(lat_vecs, basis_vecs; types=basis_types)
 ```
 
-Here, `Lattice` is a type which holds the geometry of our simulation box. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the absolute position of the selected site will be given. For example, the following gives the position of the second sublattice site in the unit cell which is fifth along each axis: 
+You should see some information printed out about the automatically-inferred space group,
+the lattice parameters, and the coordinates of all of the sites in the unit cell in
+fractional coordinates.
 
-```
-julia> lattice[2, 5, 5, 5]
-3-element SVector{3, Float64} with indices SOneTo(3):
- 20.0
- 22.0
- 22.0
-```
-
-(To save a minor amount of arithmetic, the bottom-left corner of the simulation box lives at ``a+b+c`` rather than 0). From this `Lattice`, we created a `Crystal` that infers extra information about the symmetries of the lattice and is needed to define interactions in our system later.
-
-**(2)** In step 1, we ended up already creating our `Lattice`, so all that is left is
-to define our Heisenberg interactions. We want to set up nearest-neighbor antiferromagnetic interactions with a strength of ``J = 28.28~\mathrm{K}``. One nearest-neighbor bond is the one connecting basis site 3 with basis site 6 within a single unit cell. (We can figure this out using our tools for symmetry analysis, at the bottom of this page).
+**(2)** Next, we need to define our Heisenberg interactions. We want to set up
+nearest-neighbor antiferromagnetic interactions with a strength of ``J = 28.28~\mathrm{K}``.
+One nearest-neighbor bond is the one connecting basis site 3 with basis site 6 within a
+single unit cell. (We can figure this out using our tools for symmetry analysis, at the
+bottom of this page).
 
 ```julia
 J = 28.28           # Units of K
 interactions = [
-    Heisenberg(J, crystal, Bond{3}(3, 6, SA[0,0,0])),
+    heisenberg(J, crystal, Bond(3, 6, [0,0,0])),
 ]
-ℋ = Hamiltonian{3}(interactions)
 ```
-Here, the `3` in both `Bond{3}` and `Hamiltonian{3}` indicates that they are defined in the context of a 3-dimensional system.
 
-**(3)** Assembling a `SpinSystem` is straightforward. Then, we will randomize the system so that all spins are randomly placed on the unit sphere.
+**(3)** Assembling a `SpinSystem` is straightforward -- provide the `Crystal` and the `Vector` of `Interaction`s we made, along with the size of the
+simulation box we want along each lattice vector. Then, we will randomize
+the system so that all spins are randomly placed on the unit sphere.
 
 ```julia
-sys = SpinSystem(lattice, ℋ)
+sys = SpinSystem(crystal, interactions, (8, 8, 8))
 rand!(sys)
 ```
 
-The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. The type is indexable in the same way as `Lattice`, by providing a sublattice index alongside indices into the unit cell axes:
+The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the spin located at the selected site will given. For example, the following gives the spin variable located on the second sublattice in the
+unit cell which is fifth along each axis:
 
 ```
 sys[2, 5, 5, 5]
@@ -94,8 +89,6 @@ sys[2, 5, 5, 5]
   0.41462045511988654
  -0.8810015893169237
 ```
-
-Now, we are obtaining the actual spin variable living at site `(2, 5, 5, 5)`.
 
 **(4)** We will simulate this system using Langevin dynamics, so we need to create a [`LangevinSampler`](@ref). Note that the units of integration time and temperature are relative to the units implicitly used when setting up the interactions.
 
@@ -112,18 +105,20 @@ At this point we can call `sample!(sampler)` to produce new samples of the syste
 the finite-$T$ structure factor using our built-in routines.
 
 **(5)** The full process of calculating a structure factor is handled
-by [`structure_factor`](@ref). Internally, this function:
+by [`dynamic_structure_factor`](@ref). Internally, this function:
 
 1. Thermalizes the system for a while
 2. Samples a new thermal spin configuration
 3. Performs constant-energy LL dynamics to obtain a Fourier-transformed
     dynamics trajectory. Use this trajectory to calculate a structure
-    factor contribution ``S^{\alpha,\beta}(\boldsymbol{q}, \omega)``.
+    factor contribution ``S^{α,β}(𝐪, ω)``.
 4. Repeat steps (2,3), averaging structure factors across samples.
 
-See the documentation of [`structure_factor`](@ref) for details of how
+See the documentation of [`dynamic_structure_factor`](@ref) for details of how
 this process is controlled by the function arguments, and how to properly
-index into the resulting array.
+index into the resulting type [`StructureFactor`](@ref). Currently,
+the main way to interact with this type is to index into its
+`sfactor` attribute, which is a large array storing ``S^{α,β}(𝐪, ω)`` on a grid of ``𝐪`` points and frequencies.
 
 In this example, we will just look at the diagonal elements of this
 matrix along some cuts in reciprocal space. To improve statistics,
@@ -132,13 +127,15 @@ they are all symmetry equivalent in this model.
 
 ```julia
 meas_rate = 10
-S = structure_factor(
-    sys, sampler; num_samples=5, dynΔt=Δt, meas_rate=meas_rate,
-    num_freqs=1600, bz_size=(1,1,2), therm_samples=10, verbose=true
+dynsf = dynamic_structure_factor(
+    sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate=meas_rate,
+    num_meas=1600, bz_size=(1,1,2), thermalize=10, verbose=true,
+    reduce_basis=true, dipole_factor=false
 )
 
 # Retain just the diagonal elements, which we will average across the
 #  symmetry-equivalent directions.
+S = dynsf.sfactor
 avgS = zeros(Float64, axes(S)[3:end])
 for α in 1:3
     @. avgS += real(S[α, α, :, :, :, :])
@@ -186,7 +183,9 @@ important for symmetry-constraining allowed interactions between sites.
 
 **(2)** We proceed to define our Hamiltonian similarly as before, however
 this time many more interactions are present. See the documentation on the
-[Interactions](@ref) for extended descriptions of each.
+[Interactions](@ref) for extended descriptions of each. Note that the `diagm`
+function from the `LinearAlgebra` package just makes a diagonal matrix from
+the vector giving the diagonal.
 
 ```julia
 
@@ -194,47 +193,36 @@ this time many more interactions are present. See the documentation on the
 J1mat = [-0.397  0      0    ;
           0     -0.075 -0.261;
           0     -0.261 -0.236]
-J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+J1 = exchange(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
+J2 = exchange(diagm([0.026, 0.026, 0.113]), cryst, Bond(1, 1, [1, -1, 0]), "J2")
+J3 = exchange(diagm([0.166, 0.166, 0.211]), cryst, Bond(1, 1, [2, 0, 0]), "J3")
+J0′ = exchange(diagm([0.037, 0.037, -0.036]), cryst, Bond(1, 1, [0, 0, 1]), "J0′")
+J1′ = exchange(diagm([0.013, 0.013, 0.051]), cryst, Bond(1, 1, [1, 0, 1]), "J1′")
+J2a′ = exchange(diagm([0.068, 0.068, 0.073]), cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
 
-D = OnSite([0.0, 0.0, -2.165/2], "D")
-
-ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
-```
-
-Using our `Crystal`, we also need to generate a `Lattice` of some size to run our
-simulation on. In this example, we'll work with a modestly large system of size
-``16\times 20\times 4`` along the ``(a, b, c)`` axes. We choose to make the ``a``
-and ``b`` lengths different to artifically break a sixfold symmetry present in
-the system to help the Monte Carlo find the correct ground state later on.
-
-```julia
-lattice = Lattice(cryst, (16, 20, 4))
+D = onsite_anisotropy([0.0, 0.0, -2.165/2], "D")
+interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 ```
 
 To get better insight into the geometry and the long set of pair interactions
 we've defined above, we can take a look at both using the following plotting
-function (you may want to replace `lattice` with something smaller, say ``5 \times 5 \times 3`` to make the bonds easier to see, or adjust `markersize` to make the atoms easier to see):
+function: (you may want to adjust `markersize` to make the atoms easier to see):
 
 ```julia
-plot_bonds(lattice, ℋ; markersize=500)
+plot_bonds(cryst, interactions; ncells=(4,4,4), markersize=500)
 ```
 
 **(3)** As with the previous example, the next step is to make a `SpinSystem` and
-randomize it:
+randomize it. We'll simulate a fairly large box of size ``16\times 20\times 4``.
 
 ```julia
-system = SpinSystem(lattice, ℋ)
+system = SpinSystem(cryst, interactions, (16, 20, 4))
 rand!(system)
 ```
 
 **(4)** In this example, we'll choose to work with Metropolis Monte Carlo rather
 than Langevin sampling. This is necessary in this system due to a very
-strong on-site anisotropy (the `OnSite` term) making the spins nearly
+strong on-site anisotropy (the `onsite_anisotropy` term) making the spins nearly
 Ising-like. Continuous Langevin dyanmics can have ergodicity issues
 in these situations, so we have to turn back to the standard Metropolis
 randomized spin flip proposals.
@@ -254,13 +242,13 @@ should return.
 
 **(5)**
 As in the previous example, we are going to end with computing a dynamic structure
-factor tensor using the `structure_factor` function. A heuristic for choosing a
+factor tensor using the `dynamic_structure_factor` function. A heuristic for choosing a
 reasonable value of `Δt` using in the Landau-Lifshitz dynamics is `0.01` divided
 by the largest energy scale present in the system. Here, that is the on-site
 anisotropy with a strength of `2.165/2 ` meV.
 
 To make sure we don't do more work than really necessary, we set how
-often `structure_factor` internally stores snapshots (`meas_rate`) to
+often `dynamic_structure_factor` internally stores snapshots (`meas_rate`) to
 target a maximum frequency of `target_max_ω`. We also will only collect
 the structure factor along two Brillouin zones along the first reciprocal axis,
 by passing `bz_size=(2,0,0)`
@@ -269,7 +257,7 @@ The following block of code takes about five minutes on
 a test desktop, but if it's taking too long you can
 reduce the time either by reducing the number of sweeps
 `MetropolisSampler` does, or the `num_samples` or
-`num_freqs` in the structure factor computation.
+`num_meas` in the structure factor computation.
 
 ```julia
 Δt = 0.01 / (2.165/2)       # Units of 1/meV
@@ -280,22 +268,18 @@ meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
 sampler = MetropolisSampler(system, kT, 500)
 println("Starting structure factor measurement...")
-S = structure_factor(
-    system, sampler; num_samples=15, meas_rate=meas_rate,
-    num_freqs=1000, bz_size=(2,0,0), verbose=true, therm_samples=15
+S = dynamic_structure_factor(
+    system, sampler; therm_samples=15, thermalize=15,
+    bz_size=(2,0,0), reduce_basis=true, dipole_factor=true,
+    dynΔt=Δt, meas_rate=meas_rate, dyn_meas=1000, verbose=true, 
 )
 ```
 
-Given the full complex-valued ``\mathcal{S}^{\alpha \beta}(\boldsymbol{q}, \omega)``,
-we can reduce it to the real-value experimentally-observable cross section by projection
-each `\mathcal{S}^{\alpha \beta}` using the neutron dipole factor. See the
-[`dipole_factor`](@ref) documentation for more details. (To be truly comparable
-to experiment, a few more steps of processing need to be done which are currently
-unimplemented.)
-
-```julia
-S = dipole_factor(S, lattice)
-```
+Here, given the full complex-valued ``\mathcal{S}^{\alpha \beta}(\boldsymbol{q}, \omega)``,
+we are asking with `dipole_factor=true` to have this reduced to a single real-value 
+by projecting each `\mathcal{S}^{\alpha \beta}` using the neutron dipole factor.
+(See [Structure factor calculations](@ref). To be truly comparable to experiment, a
+few more steps of processing need to be done which are currently unimplemented.)
 
 (Will add info here about plotting when better structure factor plotting functions
 are implemented.)
@@ -323,20 +307,17 @@ cryst = subcrystal(cryst, "Fe2+")
 J1mat = [-0.397  0      0    ;
           0     -0.075 -0.261;
           0     -0.261 -0.236]
-J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+J1 = exchange(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
+J2 = exchange(diagm([0.026, 0.026, 0.113]), cryst, Bond(1, 1, [1, -1, 0]), "J2")
+J3 = exchange(diagm([0.166, 0.166, 0.211]), cryst, Bond(1, 1, [2, 0, 0]), "J3")
+J0′ = exchange(diagm([0.037, 0.037, -0.036]), cryst, Bond(1, 1, [0, 0, 1]), "J0′")
+J1′ = exchange(diagm([0.013, 0.013, 0.051]), cryst, Bond(1, 1, [1, 0, 1]), "J1′")
+J2a′ = exchange(diagm([0.068, 0.068, 0.073]), cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
 
-D = OnSite([0.0, 0.0, -2.165/2], "D")
+D = onsite_anisotropy([0.0, 0.0, -2.165/2], "D")
+interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
-ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
-
-lattice = Lattice(cryst, (16, 20, 4))
-
-system = SpinSystem(lattice, ℋ)
+system = SpinSystem(cryst, interactions, (16, 20, 4))
 rand!(system)
 
 sampler = MetropolisSampler(system, 1.0, 10)
@@ -366,8 +347,7 @@ so that we pack the grid points tighter at lower temperatures where interesting
 things occur. `energies` and `energy_errors` are going to hold our measurements 
 of the mean energy and the errors at each temperature.
 
-Now, we're going to loop over these temperatures (moving from higher to lower temperatures). At each temperature,
-we're going to:
+Now, we're going to loop over these temperatures (moving from higher to lower temperatures). At each temperature, we're going to:
 
 1. Set the temperature of the sampler to the new temperature using `set_temp!`.
 2. Thermalize at the new temperature for a while before collecting
@@ -449,7 +429,7 @@ that is confined by the symmetry properties of the underlying crystal.
 To discover all symmetry classes of bonds up to a certain distance while simultaneously learning what the allowed form of the `J` matrix is, construct a `Crystal` then call the function [`print_bond_table`](@ref).
 
 ```
-julia> lattice = FastDipole.diamond_conventional(1.0, (8, 8, 8))
+julia> lattice = Sunny.diamond_conventional(1.0, (8, 8, 8))
 julia> crystal = Crystal(lattice)
 julia> print_bond_table(crystal, 4.0)
 
@@ -496,7 +476,7 @@ matrix on that canonical bond.
 You can also query what the allowed exchange matrix is on a specific bond using [`allowed_J`](@ref).
 
 ```
-julia> allowed_J(crystal, Bond{3}(1, 5, [1,-1,0]))
+julia> allowed_J(crystal, Bond(1, 5, [1,-1,0]))
 
 3×3 Matrix{String}:
  "D"  "A"  "B"

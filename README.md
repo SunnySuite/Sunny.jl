@@ -1,9 +1,9 @@
-# FastDipole.jl [Name TBD]
+# Sunny.jl
 
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://magsims.github.io/FastDipole/stable)
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://magsims.github.io/FastDipole/dev)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://magsims.github.io/Sunny.jl/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://magsims.github.io/Sunny.jl/dev)
 
-A general-purpose library for performing classical spin simulations.
+A general-purpose library for performing generalized SU(N) classical spin simulations.
 
 ## Getting started with Julia
 
@@ -11,19 +11,19 @@ New Julia users should begin with our [Getting Started](GettingStarted.md) guide
 
 ## Installation
 
-FastDipole is evolving rapidly, and early access users are recommended to install the package for development,
+Sunny.jl is evolving rapidly, and early access users are recommended to install the package for development,
 ```
 julia> ]
-pkg> develop https://github.com/MagSims/FastDipole.git
+pkg> develop https://github.com/MagSims/Sunny.jl.git
 ```
-This command will download (more precisely, `git clone`) the source code to `~/.julia/dev/FastDipole`. Executing the terminal command `git pull` from this directory will retrieve the latest changes from Github.
+This command will download (more precisely, `git clone`) the source code to `~/.julia/dev/Sunny.jl`. Executing the terminal command `git pull` from this directory will retrieve the latest changes from Github.
 
-Check that FastDipole is working properly by running the unit tests,
+Check that Sunny.jl is working properly by running the unit tests,
 ```
-pkg> test FastDipole
+pkg> test Sunny
 ```
 
-FastDipole works best with some additional packages,
+Sunny.jl works best with some additional packages,
 ```
 pkg> add OffsetArrays
 pkg> add StaticArrays
@@ -37,4 +37,4 @@ To use Jupyter notebooks with Julia, install the [IJulia](https://github.com/Jul
 
 ## Documentation
 
-See our [full documentation here!](https://magsims.github.io/FastDipole/dev)!
+See our [full documentation here!](https://magsims.github.io/Sunny.jl/dev)!

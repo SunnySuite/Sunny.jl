@@ -7,32 +7,32 @@ function plot_lattice!(ax, lattice::Lattice{2}; colors=:Set1_9, markersize=20, l
     # Plot the unit cell mesh
     plot_cells!(ax, lattice; color=linecolor, linewidth=linewidth)
 
-    unique_species = unique(lattice.species)
-    num_unique = length(unique_species)
+    unique_types = unique(lattice.types)
+    num_unique = length(unique_types)
     colors = GLMakie.to_colormap(colors, num_unique)
 
     # Plot markers at each site
     sites = reinterpret(reshape, Float64, collect(lattice))
-    for (i, species) in enumerate(unique_species)
-        basis_idxs = findall(isequal(species), lattice.species)
+    for (i, type) in enumerate(unique_species)
+        basis_idxs = findall(isequal(type), lattice.types)
         xs = vec(sites[1, basis_idxs, 1:end, 1:end])
         ys = vec(sites[2, basis_idxs, 1:end, 1:end])
-        GLMakie.scatter!(ax, xs, ys; label=species, color=color, markersize=markersize, show_axis=false, kwargs...)
+        GLMakie.scatter!(ax, xs, ys; label=type, color=color, markersize=markersize, show_axis=false, kwargs...)
     end
 end
 
 function plot_lattice!(ax, lattice::Lattice{3}; colors=:Set1_9, markersize=200, linecolor=:grey, linewidth=1.0, kwargs...)
-    unique_species = unique(lattice.species)
+    unique_types = unique(lattice.types)
     colors = GLMakie.to_colormap(colors, 9)
 
     # Plot markers at each site
     sites = reinterpret(reshape, Float64, collect(lattice))
-    for (i, species) in enumerate(unique_species)
-        basis_idxs = findall(isequal(species), lattice.species)
+    for (i, type) in enumerate(unique_types)
+        basis_idxs = findall(isequal(type), lattice.types)
         xs = vec(sites[1, basis_idxs, 1:end, 1:end, 1:end])
         ys = vec(sites[2, basis_idxs, 1:end, 1:end, 1:end])
         zs = vec(sites[3, basis_idxs, 1:end, 1:end, 1:end])
-        GLMakie.scatter!(ax, xs, ys, zs; label=species, color=colors[i], markersize=markersize, show_axis=false, kwargs...)
+        GLMakie.scatter!(ax, xs, ys, zs; label=type, color=colors[i], markersize=markersize, show_axis=false, kwargs...)
     end
 
     # For some odd reason, the sites will not appear unless this happens afterwards
@@ -77,12 +77,6 @@ function plot_lattice(lattice::Lattice{3}; kwargs...)
     f
 end
 
-"""
-    plot_bonds(lattice, ints; bondwidth=4, kwargs...)
-
-Plot a list of pair interactions defined on a `Lattice{2}` or `Lattice{3}`.
-``kwargs`` are passed to `plot_lattice!`.
-"""
 function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4, kwargs...)
     f, ax = _setup_2d()
 
@@ -123,7 +117,8 @@ function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4
     f
 end
 
-function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; colors=:Dark2_8, bondwidth=4, kwargs...)
+function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}};
+                    colors=:Dark2_8, bondwidth=4, kwargs...)
     f, ax = _setup_3d()
 
     # Plot the bonds, all relative to a central atom on the first sublattice
@@ -132,7 +127,7 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; colors=:Dar
 
     colors = GLMakie.to_colormap(colors, 8)
     # Sort interactions so that longer bonds are plotted first
-    sort!(ints, by=int->Symmetry.distance(lattice, int.bonds[basis_idx][1]))
+    sort!(ints, by=int->distance(lattice, int.bonds[basis_idx][1]))
 
     toggles = Vector{GLMakie.Toggle}()
     labels = Vector{GLMakie.Label}()
@@ -171,30 +166,41 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}}; colors=:Dar
     f
 end
 
-@inline function plot_bonds(lattice::Lattice{3}, ℋ::Hamiltonian; kwargs...)
-    interactions = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
-    plot_bonds(lattice, interactions; kwargs...)
+
+"""
+    plot_bonds(cryst::Crystal, ints; kwargs...)
+
+Plot a list of pair interactions defined on a `Crystal`. `kwargs` are
+passed to to `plot_lattice!`.
+"""
+function plot_bonds(cryst::Crystal, ints::Vector{<:Interaction}; ncells=(3,3,3), kwargs...)
+    lattice = Lattice(cryst, ncells)
+    ℋ = HamiltonianCPU(ints, cryst, ncells)
+    pair_ints = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
+    plot_bonds(lattice, pair_ints; kwargs...)
 end
+
 
 """
     plot_bonds(sys::SpinSystem; kwargs...)
 
-Plot all pair interactions appearing in `sys.hamiltonian`, on the lattice
-defined by `sys.lattice`.
+Plot all pair interactions appearing in `sys.hamiltonian`, on the
+underlying crystal lattice. `kwargs` are passed to `plot_lattice!`.
 """
 @inline function plot_bonds(sys::SpinSystem; kwargs...)
-    plot_bonds(sys.lattice, sys.hamiltonian; kwargs...)
+    pair_ints = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
+    plot_bonds(sys.lattice, pair_ints; kwargs...)
 end
 
 """
-    plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
+    plot_all_bonds(crystal::Crystal, max_dist; ncells=(3,3,3), kwargs...)
 
-Plot all bond equivalency classes present in `lattice` up to a maximum
-bond length of `max_dist`. `kwargs` are passed to `plot_bonds`.
+Plot all bond equivalency classes present in `crystal` up to a maximum
+bond length of `max_dist`. `ncells` controls how many unit cells are
+plotted along each axis. `kwargs` are passed to `plot_bonds`. 
 """
-function plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
-    crystal = Crystal(lattice)
-    canon_bonds = Symmetry.canonical_bonds(crystal, max_dist)
+function plot_all_bonds(crystal::Crystal, max_dist; ncells=(3,3,3), kwargs...)
+    canon_bonds = canonical_bonds(crystal, max_dist)
     interactions = Vector{Heisenberg{3}}()
     
     prev_dist = 0.0
@@ -203,7 +209,7 @@ function plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
     for bond in canon_bonds
         # Exclude self (on-site) "bonds"
         if !(bond.i == bond.j && all(isequal(0), bond.n))
-            if Symmetry.distance(crystal, bond) ≈ prev_dist
+            if distance(crystal, bond) ≈ prev_dist
                 class += 1
             else
                 dist += 1
@@ -215,15 +221,16 @@ function plot_all_bonds(lattice::Lattice{3}, max_dist; kwargs...)
     end
 
     @assert length(interactions) > 0 "No non-self interactions found!"
+    # Sort interactions so that longer bonds are plotted first
+    sort!(interactions, by=int->distance(crystal, int.bonds[1][1]))
 
-    plot_bonds(lattice, interactions; kwargs...)
+    plot_bonds(crystal, interactions; ncells=(3,3,3), kwargs...)
 end
 
 "Plot all bonds between equivalent sites i and j"
-function plot_all_bonds_between(lattice::Lattice{3}, i, j, max_dist; kwargs...)
-    crystal = Crystal(lattice)
-    canon_bonds = Symmetry.canonical_bonds(crystal, max_dist)
-    interactions = Vector{Heisenberg{3}}()
+function plot_all_bonds_between(crystal, i, j, max_dist; ncells=(3,3,3), kwargs...)
+    canon_bonds = canonical_bonds(crystal, max_dist)
+    interactions = Vector{HeisenbergCPU{3}}()
 
     prev_dist = 0.0
     dist = 0
@@ -233,20 +240,22 @@ function plot_all_bonds_between(lattice::Lattice{3}, i, j, max_dist; kwargs...)
         onsite = bond.i == bond.j && all(isequal(0), bond.n)
         target = bond.i == i && bond.j == j
         if !onsite && target
-            if Symmetry.distance(crystal, bond) ≈ prev_dist
+            if distance(crystal, bond) ≈ prev_dist
                 class += 1
             else
                 dist += 1
                 class = 1
             end
             label = "J$(dist)_$(class)"
-            push!(interactions, Heisenberg(1.0, crystal, bond, label))
+            push!(interactions, HeisenbergCPU{3}(1.0, crystal, bond, label))
         end
     end
 
     @assert length(interactions) > 0 "No non-self interactions found!"
+    # Sort interactions so that longer bonds are plotted first
+    sort!(interactions, by=int->distance(lattice, int.bonds[1]))
 
-    plot_bonds(lattice, interactions; kwargs...)
+    plot_bonds(crystal, interactions; ncells=ncells, kwargs...)
 end
 
 # TODO: Base.Cartesian could combine these functions
