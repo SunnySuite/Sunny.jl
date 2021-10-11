@@ -1,7 +1,7 @@
-name = "FastDipole"
-uuid = "2b9f05ca-ae3a-4b54-96e6-2173aeb01345"
+name = "Sunny"
+uuid = "2b4a2ac8-8f8b-43e8-abf4-3cb0c45e8736"
 authors = ["Cole Miles <cmm572@cornell.edu>", "Kipton Barros <kbarros@lanl.gov>"]
-version = "0.0.4"
+version = "0.1.0"
 
 [deps]
 CrystalInfoFramework = "6007d9b0-c6b2-11e8-0510-1d10e825f3f1"
@@ -18,6 +18,3 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 Spglib = "f761d5c5-86db-4880-b97f-9680a7cccfb5"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
-
-[compat]
-julia = "1.6"

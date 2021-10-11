@@ -78,8 +78,8 @@ First, we need to perform a standard Fast Fourier Transform along the spatial an
 This is be done with one of the following functions:
 
 ```@docs
-fft_spin_traj
-fft_spin_traj!
+Sunny.fft_spin_traj
+Sunny.fft_spin_traj!
 ```
 
 As the documentation for the functions mentions, you will now have an array of `ComplexF64` of
@@ -98,8 +98,8 @@ Which should result in a `ComplexF64` array of size `[3, 3, B, B, D1, D2, D3, T]
 The documentation for this function can be seen below:
 
 ```@docs
-outerprod_conj
-outerprod_conj!
+Sunny.outerprod_conj
+Sunny.outerprod_conj!
 ```
 
 Alternatively, if you only care about the post-basis-summation structure factor, you would
@@ -107,8 +107,8 @@ first want to instead perform the phase-weighted basis sum. This can be done man
 by using one of the following functions:
 
 ```@docs
-phase_weight_basis
-phase_weight_basis!
+Sunny.phase_weight_basis
+Sunny.phase_weight_basis!
 ```
 
 As documented, this will return an array of `ComplexF64` of size `[3, Q1, ..., Qd, T]`,
@@ -119,7 +119,7 @@ As before, we can outer product this resulting array with itself to get a contri
 structure factor, now only required in the first axis as:
 
 ```julia
-outerprod_conj(spin_traj_ft, 1)
+Sunny.outerprod_conj(spin_traj_ft, 1)
 ```
 which should result in a `ComplexF64` array of size `[3, 3, D1, D2, D3, T]`
 
@@ -134,6 +134,6 @@ applying the neutron dipole form factor to reduce the spin components to a singl
 observable scalar. These are a bit of a mess currently, though.
 
 ```@docs
-accum_dipole_factor!
-accum_dipole_factor_wbasis!
+Sunny.accum_dipole_factor!
+Sunny.accum_dipole_factor_wbasis!
 ```

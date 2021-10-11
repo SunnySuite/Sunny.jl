@@ -11,7 +11,7 @@ To do this, open a terminal and navigate to the directory where you'd like the p
 be where you want to do development of scripts / code that uses the package. Then, clone our repo using:
 
 ```bash
-git clone https://github.com/MagSims/FastDipole.git
+git clone https://github.com/MagSims/Sunny.git
 ```
 
 This will prompt you for your Github username/password to access the code.

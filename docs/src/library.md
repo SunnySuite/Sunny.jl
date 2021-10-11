@@ -48,9 +48,8 @@ DipoleDipole
 
 ```@docs
 SpinSystem
-SpinSystem(::Crystal, ::Vector{<:Interaction}, latsize, ::Rational{Int})
+SpinSystem(::Crystal, ::Vector{<:Sunny.Interaction}, latsize, ::Rational{Int})
 nbasis
-eachcellindex
 rand!(::SpinSystem)
 energy
 field
@@ -74,7 +73,7 @@ For extended details on what these functions compute, and how they do it,
 see the page [Structure Factor Calculations](@ref)
 
 ```@docs
-DynStructFactor
+StructureFactor
 update!
 apply_dipole_factor
 dynamic_structure_factor
@@ -94,20 +93,6 @@ anim_integration
 live_integration
 live_langevin_integration
 ```
-
-<!-- ## Ewald summation
-
-These functions are not intended to be used by typical users, who instead should utilize dipole interactions purely through [`DipoleDipole`](@ref).
-However, developers may find the following documentation of the internals useful.
-
-```@docs
-ewald_sum_monopole
-ewald_sum_dipole
-precompute_monopole_ewald_compressed
-precompute_dipole_ewald_compressed
-contract_monopole_compressed
-contract_dipole_compressed
-``` -->
 
 ## Integrators
 

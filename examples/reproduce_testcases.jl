@@ -1,4 +1,4 @@
-using FastDipole
+using Sunny
 using Serialization
 using LaTeXStrings
 using Plots
@@ -12,7 +12,7 @@ the structure factor at a temperature of 4K using sampling based on
 Langevin dynamics.
 """
 function test_diamond_heisenberg_sf()
-    crystal = FastDipole.diamond_conventional_crystal(1.0)
+    crystal = Sunny.diamond_conventional_crystal(1.0)
     J = 28.28           # Units of K
     interactions = [
         heisenberg(J, Bond(3, 6, [0,0,0])),
@@ -171,7 +171,7 @@ end
     all intermediate temperatures. Then, plots the energy curve!
 """
 function test_diamond_heisenberg_energy_curve()
-    crystal = FastDipole.diamond_conventional_crystal(1.0)
+    crystal = Sunny.diamond_conventional_crystal(1.0)
     J = 28.28           # Units of K
     interactions = [
         heisenberg(J, Bond(3, 6, [0,0,0])),

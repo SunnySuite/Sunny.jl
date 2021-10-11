@@ -1,4 +1,4 @@
-module FastDipole
+module Sunny
 
 using LinearAlgebra
 using StaticArrays

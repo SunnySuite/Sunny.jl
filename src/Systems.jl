@@ -31,7 +31,7 @@ mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
     lattice        :: Lattice{D, L, Db}   # Definition of underlying lattice
     hamiltonian    :: HamiltonianCPU{D}   # Contains all interactions present
     sites          :: Array{Vec3, Db}     # Holds actual spin variables
-    S              :: Float64             # Spin magnitude
+    S              :: Rational{Int}       # Spin magnitude
 end
 
 """
@@ -73,7 +73,7 @@ Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sit
  each lattice vector specified by `latsize`. Initialized to all spins pointing along
  the ``+𝐳̂`` direction.
 """
-function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1)
+function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1//1)
     if length(latsize) != 3
         error("Provided `latsize` should be of length 3")
     end

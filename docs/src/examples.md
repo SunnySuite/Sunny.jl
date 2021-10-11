@@ -16,11 +16,11 @@ The high-level outline of performing a simulation is:
 
 Defining interactions in step (2) can be aided by our utilities for symmetry analysis, demonstrated at the bottom of this page.
 
-In all examples, we will assume that `FastDipole`, `StaticArrays`, and
+In all examples, we will assume that `Sunny`, `StaticArrays`, and
 `LinearAlgebra` have been loaded:
 
 ```julia
-using FastDipole
+using Sunny
 using StaticArrays
 using LinearAlgebra
 ```
@@ -429,7 +429,7 @@ that is confined by the symmetry properties of the underlying crystal.
 To discover all symmetry classes of bonds up to a certain distance while simultaneously learning what the allowed form of the `J` matrix is, construct a `Crystal` then call the function [`print_bond_table`](@ref).
 
 ```
-julia> lattice = FastDipole.diamond_conventional(1.0, (8, 8, 8))
+julia> lattice = Sunny.diamond_conventional(1.0, (8, 8, 8))
 julia> crystal = Crystal(lattice)
 julia> print_bond_table(crystal, 4.0)
 

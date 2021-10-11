@@ -1,6 +1,6 @@
 push!(LOAD_PATH, "../src/")
 
-using Documenter, StaticArrays, FastDipole
+using Documenter, StaticArrays, Sunny
 
 makedocs(
     sitename="SU(N) Spin Simulations",
@@ -9,6 +9,7 @@ makedocs(
         "Getting Started" => "getting-started.md",
         "Examples" => "examples.md",
         "Library" => "library.md",
+        "Structure Factor Calculations" => "structure-factor.md",
         "Internals" => "internals.md", 
     ],
     format = Documenter.HTML(
