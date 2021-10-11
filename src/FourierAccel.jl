@@ -7,12 +7,34 @@ function _rfft_dipole_tensor(A::OffsetArray{Mat3}) :: Array{Complex{Float64}}
 end
 
 "Fourier transforms a dipole system"
-function _rfft_dipole_sys(sys::SpinSystem{D}) :: Array{Complex{Float64}} where {D}
-    Sr = reinterpret(reshape, Float64, sys.sites)
+function _rfft_dipole_sys(spins::Array{Vec3}) :: Array{Complex{Float64}}
+    Sr = reinterpret(reshape, Float64, spins)
     rfft(Sr, 3:ndims(Sr))
 end
 
-function DipoleFourier(strength::Float64, lattice::Lattice{3}; extent::Int=4, η::Float64=0.5)
+# FFTW types for various relevant Fourier transform plans using in this file
+const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
+const rBFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
+const rIFTPlan = AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
+
+"""
+Dipole-dipole interactions computed in Fourier-space. Should produce
+identical results (up to numerical precision) as `DipoleReal`, but
+is asymptotically faster.
+"""
+struct DipoleFourierCPU <: InteractionCPU
+    int_mat     :: Array{ComplexF64, 7}
+    _spins_ft   :: Array{ComplexF64, 5}  # Space for Fourier-transforming spins
+    _field_ft   :: Array{ComplexF64, 5}  # Space for holding Fourier-transformed fields
+    _field_real :: Array{Float64, 5}     # Space for holding IFT-transformed fields
+    _plan       :: rFTPlan
+    _ift_plan   :: rIFTPlan
+end
+
+function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize)
+    @unpack strength, extent, η = dip
+    lattice = Lattice(crystal, latsize)
+
     A = strength .* precompute_dipole_ewald_c(lattice; extent=extent, η=η)
     FA = _rfft_dipole_tensor(A)
     nb = nbasis(lattice)
@@ -24,16 +46,16 @@ function DipoleFourier(strength::Float64, lattice::Lattice{3}; extent::Int=4, η
     mock_spins = zeros(3, size(lattice)...)
     plan = plan_rfft(mock_spins, 3:ndims(mock_spins); flags=FFTW.MEASURE)
     ift_plan = plan_irfft(spins_ft, size(lattice, 2), 3:ndims(mock_spins); flags=FFTW.MEASURE)
-    DipoleFourier(FA, spins_ft, field_ft, field_real, plan, ift_plan)
+    DipoleFourierCPU(FA, spins_ft, field_ft, field_real, plan, ift_plan)
 end
 
-function energy(sys::SpinSystem{3}, dip::DipoleFourier)
+function energy(spins::Array{Vec3, 4}, dip::DipoleFourierCPU)
     FA = dip.int_mat
     FS = dip._spins_ft
-    nb = nbasis(sys.lattice)
+    nb = size(spins, 1)
     Fsize = size(FS)[3:end]
-    spins = _reinterpret_from_spin_array(sys.sites)
-    even_size = sys.lattice.size[1] % 2 == 0
+    spins = _reinterpret_from_spin_array(spins)
+    even_size = size(spins, 2) % 2 == 0
 
     U = 0.0
     mul!(FS, dip._plan, spins)
@@ -46,11 +68,11 @@ function energy(sys::SpinSystem{3}, dip::DipoleFourier)
     @tullio U += real(
         conj(FS[is, ib, j, k, l]) * FA[is, js, ib, jb, j, k, l] * FS[js, jb, j, k, l]
     )
-    return U / prod(sys.lattice.size)
+    return U / prod(size(spins)[2:end])
 end
 
 "Accumulates the local field coming from dipole interactions, using Fourier transforms"
-function _accum_field!(H::Array{Vec3}, spins::Array{Vec3}, dip::DipoleFourier)
+function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleFourierCPU)
     FA = dip.int_mat
     FS = dip._spins_ft
     Fϕ = dip._field_ft
@@ -67,29 +89,4 @@ function _accum_field!(H::Array{Vec3}, spins::Array{Vec3}, dip::DipoleFourier)
     for i in eachindex(H)
         H[i] = H[i] - 2 * ϕ[i]
     end
-end
-
-"Tests these field-using functions give the same answer as `ewald_sum_dipole`"
-function test_energy_consistency(sys::SpinSystem{3})
-    dip_real = DipoleReal(1.0, sys; extent=4, η=0.5)
-    dip_fourier = DipoleFourier(1.0, sys; extent=4, η=0.5)
-
-    direct_energy = ewald_sum_dipole(sys; extent=4, η=0.5)
-    real_energy = energy(sys, dip_real)
-    fourier_energy = energy(sys, dip_fourier)
-
-    @assert direct_energy ≈ real_energy      "`DipoleRealPre` energy not correct!"
-    @assert direct_energy ≈ fourier_energy   "`DipoleFourier` energy not correct!"
-end
-
-function test_field_consistency(sys::SpinSystem{3})
-    dip_real = DipoleReal(1.0, sys; extent=4, η=0.5)
-    dip_fourier = DipoleFourier(1.0, sys; extent=4, η=0.5)
-
-    H1 = zero(sys)
-    H2 = zero(sys)
-    _accum_field!(H1, sys, dip_real)
-    _accum_field!(H2, sys, dip_fourier)
-
-    @assert all(H1 .≈ H2)
 end

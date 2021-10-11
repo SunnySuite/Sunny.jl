@@ -142,4 +142,5 @@ end
     end
 end
 
-@inline energy(sampler::LangevinSampler) = energy(sampler.integrator.sys)
+@inline running_energy(sampler::LangevinSampler) = energy(sampler.integrator.sys)
+@inline running_mag(sampler::LangevinSampler) = sum(sampler.integrator.sys)

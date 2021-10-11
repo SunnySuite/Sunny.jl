@@ -30,7 +30,7 @@ end
 @inline function anneal!(sampler::S,
                          temp_schedule,
                          step_schedule) where {S <: AbstractSampler}
-    for (temp, num_steps) in zip(temp_schedule, step_scheudle)
+    for (temp, num_steps) in zip(temp_schedule, step_schedule)
         set_temp!(sampler, temp)
         thermalize!(sampler, num_steps)
     end
@@ -65,9 +65,11 @@ mutable struct MetropolisSampler{D, L, Db} <: AbstractSampler
     system     :: SpinSystem{D, L, Db}
     β          :: Float64
     nsweeps    :: Int
+    E          :: Float64
+    M          :: Vec3
     function MetropolisSampler(sys::SpinSystem{D,L,Db}, kT::Float64, nsweeps::Int) where {D,L,Db}
         @assert kT != 0. "Temperature must be nonzero!"
-        new{D, L, Db}(sys, 1.0 / kT, nsweeps)
+        new{D, L, Db}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys))
     end
 end
 
@@ -99,13 +101,16 @@ function sample!(sampler::MetropolisSampler)
             ΔE = local_energy_change(sampler.system, idx, new_spin)
 
             if rand() < exp(-sampler.β * ΔE)
+                sampler.E += ΔE
+                sampler.M += (new_spin - sampler.system[idx])
                 sampler.system[idx] = new_spin
             end
         end
     end
 end
 
-@inline energy(sampler::MetropolisSampler) = energy(sampler.system)
+@inline running_energy(sampler::MetropolisSampler) = sampler.E
+@inline running_mag(sampler::MetropolisSampler) = sampler.M
 
 
 """
@@ -131,12 +136,12 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
             ΔE += heisen.J * (spindiff ⋅ Sⱼ)
         end
     end
-    for on_site in ℋ.on_sites
-        ΔE += newspin ⋅ (on_site.J .* newspin) - oldspin ⋅ (on_site.J .* oldspin)
+    if !isnothing(ℋ.on_sites)
+        J = ℋ.on_sites.Js[i]
+        ΔE += newspin ⋅ (J .* newspin) - oldspin ⋅ (J .* oldspin)
     end
     for diag_coup in ℋ.diag_coups
-        J = diag_coup.J
-        for bond in diag_coup.bonds[i]
+        for (J, bond) in zip(diag_coup.Js[i], diag_coup.bonds[i])
             Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
             ΔE += (J .* spindiff) ⋅ Sⱼ
         end

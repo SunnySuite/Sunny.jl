@@ -1,21 +1,23 @@
-using FastDipole
-using StaticArrays
+using Sunny
 using Serialization
 using LaTeXStrings
 using Plots
 using DelimitedFiles
 using Statistics
+using LinearAlgebra
 
-"Produce structure factor maps to compare to Xiaojian's plots"
+"""
+Creates a 8×8×8 (conventional cell) diamond lattice, and calculates/plots
+the structure factor at a temperature of 4K using sampling based on
+Langevin dynamics.
+"""
 function test_diamond_heisenberg_sf()
-    lattice = FastDipole.diamond_conventional(1.0, (8, 8, 8))
-    crystal = Crystal(lattice)
+    crystal = Sunny.diamond_conventional_crystal(1.0)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, crystal, Bond{3}(3, 6, [0,0,0])),
+        heisenberg(J, Bond(3, 6, [0,0,0])),
     ]
-    ℋ = Hamiltonian{3}(interactions)
-    sys = SpinSystem(lattice, ℋ)
+    sys = SpinSystem(crystal, interactions, (8, 8, 8))
     rand!(sys)
 
     Δt = 0.02 / J       # Units of 1/K
@@ -25,21 +27,32 @@ function test_diamond_heisenberg_sf()
     nsteps = 20000
     sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 
-    S = structure_factor(
-        sys, sampler; num_samples=5, dynΔt=Δt, meas_rate=10,
-        num_freqs=1600, bz_size=(1,1,2), therm_samples=10, verbose=true
+    meas_rate = 10     # Number of timesteps between snapshots of LLD to input to FFT
+                       # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
+    dyn_meas = 1600    # Total number of frequencies we'd like to resolve
+    dynsf = dynamic_structure_factor(
+        sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate=meas_rate,
+        dyn_meas=dyn_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
+        reduce_basis=true, dipole_factor=false,
     )
 
     # Just average the diagonals, which are real
+    S = dynsf.sfactor
     avgS = zeros(Float64, axes(S)[3:end])
     for α in 1:3
         @. avgS += real(S[α, α, :, :, :, :])
     end
 
-    # Calculate the maximum ω present in our FFT
-    # Need to scale by (S+1) with S=3/2 to match the reference,
-    #  and then convert to meV.
-    maxω = 1000 * 2π / ((meas_rate * Δt) / kB) / (5/2)
+    # Calculate the maximum ω present in our FFT. Since the time gap between
+    #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
+    #  is 2π / (meas_rate * Δt)
+    # This is implicitly in the same uAnits as the units you use to define
+    #  the interactions in the Hamiltonian. Here, we defined our interactions
+    #  in K, but we want to see ω in units of meV (to compare to a baseline
+    #  solution we have).
+    # We additionally need to scale by (S+1) with S=3/2 to match our reference,
+    #  which is a spin-3/2 model.
+    maxω = 2π / (meas_rate * Δt) * (1000 * kB) / (5/2)
     p = plot_many_cuts(avgS; maxω=maxω, chopω=5.0)
     display(p)
     return avgS
@@ -105,57 +118,6 @@ function plot_many_cuts(S; maxω=nothing, chopω=nothing)
     plot(q0, q1, q2, q3; layout=l)
 end
 
-function test_FeI2()
-    cryst = Crystal("../example-lattices/FeI2.cif"; symprec=1e-3)
-    cryst = subcrystal(cryst, "Fe2+")
-
-    # Set up all interactions (all in units meV)
-    J1mat = SA[-0.397  0      0    ;
-                0     -0.075 -0.261;
-                0     -0.261 -0.236]
-    J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
-    # J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
-    D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
-    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
-
-    # Produce a Lattice of the target system size (16x20x4)
-    lattice = Lattice(cryst, (16, 20, 4))
-    # Set up the SpinSystem
-    system = SpinSystem(lattice, ℋ)
-    rand!(system)
-
-    kB = 8.61733e-2             # Boltzmann constant, units of meV/K
-    TN = 5.0 * kB               # ≈ 5K -> Units of meV
-    kT = 0.20 * TN              # Actual target simulation temp, units of meV
-    α = 0.1
-
-    Δt = 0.01 / (2.165/2)       # Units of 1/meV
-    # Highest energy/frequency we actually care about resolving
-    target_max_ω = 10.          # Units of meV
-    # Interval number of steps of dynamics before collecting a snapshot for FFTs
-    meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
-
-    sampler = LangevinSampler(system, kT, α, Δt, 20000)
-    # Measure the diagonal elements of the spin structure factor
-    println("Starting structure factor measurement...")
-    S = structure_factor(
-        system, sampler; num_samples=15, meas_rate=meas_rate,
-        num_freqs=1000, bz_size=(2,0,0), verbose=true,
-    )
-
-    # Save off results for later viewing
-    serialize("../results/FeI2_structure_factor_T020.ser", S)
-
-    S = dipole_factor(S, lattice);
-
-    return S
-end
-
 function test_FeI2_MC()
     cryst = Crystal("../example-lattices/FeI2.cif"; symprec=1e-3)
     cryst = subcrystal(cryst, "Fe2+")
@@ -164,25 +126,22 @@ function test_FeI2_MC()
     J1mat = [-0.397  0      0    ;
               0     -0.075 -0.261;
               0     -0.261 -0.236]
-    J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+    J1 = exchange(J1mat, Bond(1, 1, [1, 0, 0]), "J1")
+    J2 = exchange(diagm([0.026, 0.026, 0.113]), Bond(1, 1, [1, -1, 0]), "J2")
+    J3 = exchange(diagm([0.166, 0.166, 0.211]), Bond(1, 1, [2, 0, 0]), "J3")
+    J0′ = exchange(diagm([0.037, 0.037, -0.036]), Bond(1, 1, [0, 0, 1]), "J0′")
+    J1′ = exchange(diagm([0.013, 0.013, 0.051]), Bond(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′")
 
-    D = OnSite([0.0, 0.0, -2.165/2], "D")
+    D = onsite_anisotropy([0.0, 0.0, -2.165/2], 1, "D")
+    interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
-    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
-
-    # Produce a Lattice of the target system size (16x20x4)
-    lattice = Lattice(cryst, (16, 20, 4))
-    # Set up the SpinSystem
-    system = SpinSystem(lattice, ℋ)
+    # Set up the SpinSystem of size (16x20x4)
+    system = SpinSystem(cryst, interactions, (16, 20, 4))
     rand!(system)
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
-    kT = 1.0 * kBN              # Actual target simulation temp, units of meV
+    kT = 1.0 * kB               # Actual target simulation temp, units of meV
 
     Δt = 0.01 / (2.165/2)       # Units of 1/meV
     # Highest energy/frequency we actually care about resolving
@@ -190,99 +149,42 @@ function test_FeI2_MC()
     # Interval number of steps of dynamics before collecting a snapshot for FFTs
     meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
-    sampler = MetropolisSampler(system, kT, 1000)
+    sampler = MetropolisSampler(system, kT, 500)
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
-    S = structure_factor(
-        system, sampler; num_samples=15, meas_rate=meas_rate,
-        num_freqs=1000, bz_size=(2,0,0), verbose=true, therm_samples=15
+    dynsf = dynamic_structure_factor(
+        system, sampler; bz_size=(2,0,0), thermalize=15,
+        therm_samples=15, dipole_factor=true, dyn_meas=1000,
+        meas_rate=meas_rate, verbose=true,
     )
+    S = dynsf.sfactor
 
     # Save off results for later viewing
     serialize("../results/FeI2_structure_factor_T020_MC.ser", S)
 
-    S = dipole_factor(S, lattice);
-
     return (S, sampler.system)
 end
 
-function test_FeI2_ortho()
-    lat_vecs = lattice_vectors(1.0, √3, 1.6691358024691358, 90., 90., 90.)
-    basis_positions = [
-        [0.0, 0.0, 0.0],
-        [0.5, 0.5, 0.0],
-        [0.0, 1/3, 0.25],
-        [0.0, 2/3, 0.75],
-        [0.5, 5/6, 0.25],
-        [0.5, 1/6, 0.75]
-    ]
-    species = ["Fe", "Fe", "I", "I", "I", "I"]
-    cryst = Crystal(lat_vecs, basis_positions, species)
-    cryst = subcrystal(cryst, "Fe")
-
-    # Set up all interactions (all in units meV)
-    J1mat = SA[-0.397 0 0; 0 -0.075 -0.261; 0 -0.261 -0.236] / 2
-    J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113] / 2, cryst, Bond{3}(1, 2, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211] / 2, cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036] / 2, cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051] / 2, cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073] / 2, cryst, Bond{3}(1, 2, [1, -1, 1]), "J2a′")
-    # J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
-    D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
-    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
-
-    # Produce a Lattice of the target system size (16x10x4)
-    lattice = Lattice(cryst, (16, 10, 4))
-    # Set up the SpinSystem
-    system = SpinSystem(lattice, ℋ)
-    rand!(system)
-
-    kB = 8.61733e-2             # Boltzmann constant, units of meV/K
-    TN = 5.0 * kB               # ≈ 5K -> Units of meV
-    kT = 0.20 * TN              # Actual target simulation temp, units of meV
-
-    Δt = 0.01 / (2.165/2)       # Units of 1/meV
-    # Highest energy/frequency we actually care about resolving
-    target_max_ω = 10.          # Units of meV
-    # Interval number of steps of dynamics before collecting a snapshot for FFTs
-    measure_steps = 1000 * meas_rate
-
-    sampler = LangevinSampler(system, kT, α, Δt, 20000)
-    # Measure the diagonal elements of the spin structure factor
-    println("Starting structure factor measurement...")
-    S = structure_factor(
-        system, sampler; num_samples=15, meas_rate=meas_rate,
-        num_meas=1000, bz_size=(2,0,0), verbose=true,
-    )
-
-    # Save off results for later viewing
-    serialize("../results/FeI2_structure_factor_ortho_T020.ser", S)
-
-    S = dipole_factor(S, lattice);
-
-    return S
-end
-
+"""
+    Creates a 8×8×8 (conventional cell) diamond lattice, and performs
+    a slow annealing from 50K down to 3K, collecting the energy at
+    all intermediate temperatures. Then, plots the energy curve!
+"""
 function test_diamond_heisenberg_energy_curve()
-    lattice = FastDipole.diamond_conventional(1.0, (8, 8, 8))
-    crystal = Crystal(lattice)
+    crystal = Sunny.diamond_conventional_crystal(1.0)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, crystal, Bond{3}(3, 6, [0,0,0])),
+        heisenberg(J, Bond(3, 6, [0,0,0])),
     ]
-    ℋ = Hamiltonian{3}(interactions)
-    sys = SpinSystem(lattice, ℋ)
+    sys = SpinSystem(crystal, interactions, (8, 8, 8))
     rand!(sys)
 
     Δt = 0.02 / J       # Units of 1/K
-    kT = 4.             # Units of K
     α  = 0.1
-    kB = 8.61733e-5     # Units of eV/K
     nsteps = 100
-    sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
+    sampler = LangevinSampler(sys, 50.0, α, Δt, nsteps)
 
-    # Units of Kelvin, matching Xiaojian's range
+    # A logarithmic grid of 50 temperatures to anneal through, from [3K, 50K]
     temps = 10 .^ (range(log10(50), stop=log10(3), length=50))
     energies = Float64[]
     energy_errors = Float64[]
@@ -290,12 +192,13 @@ function test_diamond_heisenberg_energy_curve()
     for (i, temp) in enumerate(temps)
         println("Temperature $i = $(temp)")
 
-        temp_energies = Float64[]
+        # This will hold the energies of the samples we collect at this temperature
+        temp_energies = Float64[]   # Holds energies of the samples at the current temperature
         set_temp!(sampler, temp)
-        thermalize!(sampler, 100)
-        for _ in 1:1000
-            sample!(sampler) 
-            push!(temp_energies, energy(sampler))
+        thermalize!(sampler, 100)   # Perform 100 "sampling" updates to thermalize.
+        for _ in 1:100              # Collect 100 more samples, actually measuring.
+            sample!(sampler)
+            push!(temp_energies, energy(sys))
         end
         (meanE, stdE) = binned_statistics(temp_energies)
         push!(energies, meanE)
@@ -313,25 +216,22 @@ function test_FeI2_energy_curve()
     cryst = subcrystal(cryst, "Fe2+")
 
     # Set up all interactions (all in units meV)
-    J1mat = SA[-0.397 0 0;
-                0 -0.075 -0.261;
-                0 -0.261 -0.236]
-    J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling(SA[0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling(SA[0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling(SA[0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling(SA[0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling(SA[0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
-    # J2b′ = DiagonalCoupling(SA[0., 0., 0.], cryst, Bond{3}(1, 1, [-1, 1, 1]), "J2b′")
-    D = OnSite(SA[0.0, 0.0, -2.165/2], "D")
-    ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
+    J1mat = [-0.397 0      0    ;
+              0    -0.075 -0.261;
+              0    -0.261 -0.236]
+    J1 = exchange(J1mat, Bond(1, 1, [1, 0, 0]), "J1")
+    J2 = exchange(diagm([0.026, 0.026, 0.113]), Bond(1, 1, [1, -1, 0]), "J2")
+    J3 = exchange(diagm([0.166, 0.166, 0.211]), Bond(1, 1, [2, 0, 0]), "J3")
+    J0′ = exchange(diagm([0.037, 0.037, -0.036]), Bond(1, 1, [0, 0, 1]), "J0′")
+    J1′ = exchange(diagm([0.013, 0.013, 0.051]), Bond(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′")
 
-    # Produce a Lattice of the target system size (16x20x4)
-    lattice = Lattice(cryst, (16, 20, 4))
-    # Set up the SpinSystem
-    system = SpinSystem(lattice, ℋ)
+    D = onsite_anisotropy([0.0, 0.0, -2.165/2], "D")
+    interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
+
+    # Set up the SpinSystem of size 16×20×4
+    system = SpinSystem(cryst, interactions, (16, 20, 4))
     rand!(system)
-
 
     sampler = MetropolisSampler(system, 1.0, 10)
 
@@ -358,76 +258,23 @@ function test_FeI2_energy_curve()
         push!(energy_errors, stdE)
     end
 
-    # Save off the lowest energy system
-    serialize("./results/lowT_FeI2_system.ser", system)
-
     # Convert energies into energy / spin, in units of K
     energies ./= (length(system) * kB)
     energy_errors ./= (length(system) * kB)
 
-    (trueTs, trueEs) = load_FeI2_ET_data()
-    plot_ET_data(temps, energies, energy_errors, trueTs, trueEs)
+    plot_ET_data(temps, energies, energy_errors)
 
     return (temps, energies, energy_errors)
 end
 
-#= Ignore this block of functions - temporarily here as I test some things =#
-
-function plot_ET_data(ourTs, ourEs, ourEerrors, trueTs, trueEs)
+function plot_ET_data(Ts, Es, Eerrors)
     pgfplotsx()
-    p = plot(ourTs, ourEs, yerror=ourEerrors, marker=:true, ms=3, label="Ours")
-    plot!(trueTs, trueEs, marker=:true, ms=3, label="Reference")
+    p = plot(Ts, Es, yerror=Eerrors, marker=:true, ms=3, label="")
     xlabel!(L"$T$ [K]")
     ylabel!(L"$E$ [K]")
     display(p)
     p
 end
-
-function structure_factor_low_T()
-    system = deserialize("./results/lowT_FeI2_system.ser")
-    kB = 8.61733e-2             # Boltzmann constant, units of meV/K
-    TN = 5.0 * kB               # ≈ 5K -> Units of meV
-    kT = 0.20 * TN              # Actual target simulation temp, units of meV
-    sampler = MetropolisSampler(system, kB, 100)
-
-    α = 0.1
-    Δt = 0.01 / (2.165/2)       # Units of 1/meV
-    # Highest energy/frequency we actually care about resolving
-    target_max_ω = 10.          # Units of meV
-    # Interval number of steps of dynamics before collecting a snapshot for FFTs
-    meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
-
-    # Measure the diagonal elements of the spin structure factor
-    println("Starting structure factor measurement...")
-    S = structure_factor(
-        system, sampler; num_samples=5, meas_rate=meas_rate,
-        num_freqs=1000, bz_size=(2,2,0), verbose=true, therm_samples=15
-    )
-
-    S = dipole_factor(S, system.lattice)
-
-    return (system, S)
-end
-
-function load_FeI2_ET_data()
-    data = readdlm("./results/FeI2_energy.dat")
-    Ts = data[:, 1]
-    Es = data[:, 2]
-    return (Ts, Es)
-end
-
-function heatmap_FeI2_S(S)
-    (Lx, _, _, T) = size(S)
-    T = div(T, 2)
-
-    heatmap(parent(S[0, :, 0, 1:T])', xtickfontsize=14, ytickfontsize=14,
-            xguidefontsize=16, yguidefontsize=16)
-    xticks!([1, div(Lx, 4), div(Lx, 2), div(3*Lx, 4), Lx], map(string, [-2, -1, 0, 1, 2]))
-    yticks!([1, div(T, 5), div(2*T, 5), div(3*T, 5), div(4*T, 5), T], map(string, [0, 2, 4, 6, 8, 10]))
-    xlabel!("[0, k, 0]")
-    ylabel!("E [meV]")
-end
-
 
 #= Binned Statistics Routines =#
 
