@@ -1,5 +1,8 @@
 # FastDipole.jl [Name TBD]
 
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://magsims.github.io/FastDipole/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://magsims.github.io/FastDipole/dev)
+
 A general-purpose library for performing classical spin simulations.
 
 ## Getting started with Julia
@@ -32,16 +35,6 @@ At the time of this writing, GLMakie has some rough edges. Run `test GLMakie` to
 
 To use Jupyter notebooks with Julia, install the [IJulia](https://github.com/JuliaLang/IJulia.jl) package and follow the installation instructions there.
 
-## Building documentation
+## Documentation
 
-For now, you will need to build the documentation manually. To do this,
-install the `Documenter` package:
-
-```
-pkg> add Documenter
-```
-
-Then, navigate a new terminal to `docs/` within the package and execute `julia make.jl`. There will be some warnings at the moment, but if successful a new directory `docs/build` should appear.
-
-To view the documentation you just built, simply open up `docs/build/index.html` in your web browser!
-
+See our [full documentation here!](https://magsims.github.io/FastDipole/dev)!
