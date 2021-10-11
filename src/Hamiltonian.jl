@@ -1,37 +1,9 @@
-"""Defines Hamiltonian, a user-facing Hamiltonian-defining type, as well as HamiltonianCPU
-    which maintains the actual internal interaction types and orchestrates energy/field
-    calculations.
+"""
+Defines HamiltonianCPU which maintains the actual internal interaction
+types and orchestrates energy/field calculations.
 """
 
-"""
-    Hamiltonian{D}
-
-Defines a Hamiltonian for a `D`-dimensional spin system.
-"""
-struct Hamiltonian{D}
-    interactions :: Vector{<:Interaction}
-
-    # Inner constructor verifies all interactions have compatible dimensionalities
-    function Hamiltonian{D}(ints) where {D}
-        for int in ints
-            if isa(int, PairInt) && typeof(int).parameters[1] != D
-                error("One of the provided pair interactions is not the correct dimensionality.")
-            elseif isa(int, DipoleDipole) && D != 3
-                error("Dipole-dipole interactions only supported for D = 3.")
-            end
-        end
-        new{D}(collect(ints))
-    end
-end
-
-"""
-    Hamiltonian(ints)
-    Hamiltonian(ints...)
-Constructor for a `Hamiltonian` which attempts to infer dimensionality
-from the provided interactions. Will fail if no pair or dipole
-interactions are defined.
-"""
-function Hamiltonian(ints)
+function infer_dimensionality(ints::Vector{<:Interaction})
     D = nothing
     # Try to infer dimenisonality from interactions
     for int in ints
@@ -60,65 +32,85 @@ function Hamiltonian(ints)
     if isnothing(D)
         error(
             """Could not infer dimensionality from arguments.
-               Use explicit constructor Hamiltonian{D}.
+               Use explicit constructor HamiltonianCPU{D}.
             """
         )
-    else
-        Hamiltonian{D}(ints)
+    end
+    D
+end
+
+function validate_dimensionality(ints::Vector{<:Interaction}, D::Int)
+    for int in ints
+        if isa(int, QuadraticInteraction) && typeof(int).parameters[1] != D
+            error("One of the provided pair interactions is not the correct dimensionality.")
+        elseif isa(int, DipoleDipole) && D != 3
+            error("Dipole-dipole interactions only supported for D = 3.")
+        end
     end
 end
 
-Hamiltonian(ints::Vararg{<:Interaction}) = Hamiltonian(collect(ints))
-
 """
-Like `Hamiltonian{D}`, but stores and orchestrates the types that perform
-the actual implementations of all interactions internally.
+    HamiltonianCPU{D}
+
+Stores and orchestrates the types that perform the actual implementations
+of all interactions internally.
 """
 struct HamiltonianCPU{D}
     ext_field   :: Union{Nothing, ExternalField}
     heisenbergs :: Vector{HeisenbergCPU{D}}
-    on_sites    :: Vector{OnSite}
+    on_sites    :: Vector{OnSiteQuadratic}
     diag_coups  :: Vector{DiagonalCouplingCPU{D}}
     gen_coups   :: Vector{GeneralCouplingCPU{D}}
     dipole_int  :: Union{Nothing, DipoleFourierCPU}
 end
 
 """
-    HamiltonianCPU{D}(ℋ::Hamiltonian, crystal, lattice)
+    HamiltonianCPU(ints::Vector{<:Interaction}, crystal, latsize)
 
-Construct a `HamiltonianCPU{D}` from a `Hamiltonian{D}`, converting
+Construct a `HamiltonianCPU{3}` from a list of interactions, converting
 each of the interactions into the proper backend type specialized
 for the given `crystal` and `latsize`.
 """
-function HamiltonianCPU{D}(ℋ::Hamiltonian{D}, crystal::Crystal, latsize) where {D}
+function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal, latsize)
     ext_field   = nothing
-    heisenbergs = Vector{HeisenbergCPU{D}}()
-    on_sites    = Vector{OnSite}()
-    diag_coups  = Vector{DiagonalCouplingCPU{D}}()
-    gen_coups   = Vector{GeneralCouplingCPU{D}}()
+    heisenbergs = Vector{HeisenbergCPU{3}}()
+    on_sites    = Vector{OnSiteQuadratic}()
+    diag_coups  = Vector{DiagonalCouplingCPU{3}}()
+    gen_coups   = Vector{GeneralCouplingCPU{3}}()
     dipole_int  = nothing
-    for int in ℋ.interactions
+
+    validate_dimensionality(ints, 3)
+
+    for int in ints
         if isa(int, ExternalField)
-            if !isnothing(ext_field)
-                @warn "Provided multiple external fields. Only using last one."
+            if isnothing(ext_field)
+                ext_field = int
+            else
+                ext_field.B = ext_field.B + int.B
             end
-            ext_field = int
-        elseif isa(int, Heisenberg)
-            push!(heisenbergs, HeisenbergCPU(int, crystal))
-        elseif isa(int, OnSite)
+        elseif isa(int, OnSiteQuadratic)
             push!(on_sites, int)
-        elseif isa(int, DiagonalCoupling)
-            push!(diag_coups, DiagonalCouplingCPU(int, crystal))
-        elseif isa(int, GeneralCoupling)
-            push!(gen_coups, GeneralCouplingCPU(int, crystal))
+        elseif isa(int, QuadraticInteraction)
+            int_impl = convert_quadratic(int, crystal)
+            if isa(int_impl, HeisenbergCPU)
+                push!(heisenbergs, int_impl)
+            elseif isa(int_impl, DiagonalCouplingCPU)
+                push!(diag_coups, int_impl)
+            elseif isa(int_impl, GeneralCouplingCPU)
+                push!(gen_coups, int_impl)
+            else
+                error("Quadratic interaction failed to convert to known backend type.")
+            end
         elseif isa(int, DipoleDipole)
             if !isnothing(dipole_int)
                 @warn "Provided multiple dipole interactions. Only using last one."
             end
             dipole_int = DipoleFourierCPU(int, crystal, latsize)
+        else
+            error("$(int) failed to convert to known backend type.")
         end
     end
-    return HamiltonianCPU{D}(
+    return HamiltonianCPU{3}(
         ext_field, heisenbergs, on_sites,
         diag_coups, gen_coups, dipole_int
     )

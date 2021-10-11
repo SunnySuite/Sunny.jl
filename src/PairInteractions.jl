@@ -1,7 +1,8 @@
-"""Structs and functions for implementing various pair interaction energies and fields,
-    given a specific lattice to operate on.
-   Upon creation of a SpinSystem, all pair interactions get converted into their
-    corresponding type here.
+"""
+Structs and functions for implementing various pair interaction energies
+ and fields, given a specific lattice to operate on.
+Upon creation of a SpinSystem, all pair interactions get converted into their
+ corresponding type here.
 """
 
 "Presorts a flat list of bonds into a nested list, with the outer list corresponding to `bond.i`"
@@ -67,7 +68,8 @@ end
 """
     HeisenbergCPU{D}
 
-The type implementing `Heisenberg` on CPU.
+Implements an exchange interaction which is proportional to
+the identity matrix.
 """
 struct HeisenbergCPU{D} <: InteractionCPU
     J            :: Float64
@@ -77,26 +79,10 @@ struct HeisenbergCPU{D} <: InteractionCPU
 end
 
 """
-    HeisenbergCPU(heisen::Heisenberg{D}, cryst::Crystal)
-
-Construct a `Heisenberg{D}` interaction of strength `J` acting on all bonds
-symmetry-equivalent to `bond` in `cryst`.
-"""
-function HeisenbergCPU(heisen::Heisenberg{D}, cryst::Crystal) where {D}
-    @unpack J, bond, label = heisen
-    sorted_bonds = [
-        all_symmetry_related_bonds_for_atom(cryst, i, bond)
-        for i in 1:nbasis(cryst)
-    ]
-    culled_bonds = cull_bonds(sorted_bonds)
-
-    return HeisenbergCPU{D}(J, sorted_bonds, culled_bonds, label)
-end
-
-"""
     DiagonalCouplingCPU{D}
 
-The type implementing `DiagonalCoupling` on CPU.
+Implements an exchange interaction where matrices on all bonds
+are diagonal.
 """
 struct DiagonalCouplingCPU{D} <: InteractionCPU
     Js            :: Vector{Vector{Vec3}}
@@ -106,32 +92,11 @@ struct DiagonalCouplingCPU{D} <: InteractionCPU
     label         :: String
 end
 
-function DiagonalCouplingCPU(diag_coup::DiagonalCoupling{D}, cryst::Crystal; tol=1e-8) where {D}
-    @unpack J, bond, label = diag_coup
-    sorted_bonds = Vector{Vector{Bond{D}}}()
-    sorted_Js = Vector{Vector{Vec3}}()
-    for i in 1:nbasis(cryst)
-        (bs, Js) = all_symmetry_related_interactions_for_atom(cryst, i, bond, diagm(J))
-        # Check that all J matrices are actually diagonal
-        diagJs = Vector{Vec3}()
-        for J in Js
-            if max(abs(J[1,2]), abs(J[1,3]), abs(J[2,3])) > tol
-                error("A symmetry-transformed J in interaction '$(label)' is non-diagonal. Please use GeneralCoupling.")
-            end
-            push!(diagJs, diag(J))
-        end
-        push!(sorted_bonds, bs)
-        push!(sorted_Js, diagJs)
-    end
-    (culled_bonds, culled_Js) = cull_bonds(sorted_bonds, sorted_Js)
-
-    DiagonalCouplingCPU{D}(sorted_Js, culled_Js, sorted_bonds, culled_bonds, label)
-end
-
 """
     GeneralCouplingCPU{D}
 
-The type implementing `GeneralCoupling` on CPU.
+Implements the most generalized interaction, where matrices on
+all bonds are full 3x3 matrices which vary bond-to-bond.
 """
 struct GeneralCouplingCPU{D} <: InteractionCPU
     Js           :: Vector{Vector{Mat3}}
@@ -141,8 +106,18 @@ struct GeneralCouplingCPU{D} <: InteractionCPU
     label        :: String
 end
 
-function GeneralCouplingCPU(gen_coup::GeneralCoupling{D}, cryst::Crystal) where {D}
-    @unpack J, bond, label = gen_coup
+const PairInt{D} = Union{HeisenbergCPU{D}, DiagonalCouplingCPU{D}, GeneralCouplingCPU{D}}
+
+# Helper functions producing predicates checking if a matrix is approximately
+# Heisenberg or diagonal
+isheisen(J, tol) = isapprox(diagm(fill(J[1,1], 3)), J; atol=tol)
+isdiag(J, tol) = isapprox(diagm(diag(J)), J; atol=tol)
+isheisen(tol) = Base.Fix2(isheisen, tol)
+isdiag(tol) = Base.Fix2(isdiag, tol)
+
+# Figures out the correct maximally-efficient backend type for a quadratic interaction
+function convert_quadratic(int::QuadraticInteraction{D}, cryst; tol=1e-6) where {D}
+    @unpack J, bond, label = int
     sorted_bonds = Vector{Vector{Bond{D}}}()
     sorted_Js = Vector{Vector{Mat3}}()
     for i in 1:nbasis(cryst)
@@ -152,10 +127,28 @@ function GeneralCouplingCPU(gen_coup::GeneralCoupling{D}, cryst::Crystal) where 
     end
     (culled_bonds, culled_Js) = cull_bonds(sorted_bonds, sorted_Js)
 
-    return GeneralCouplingCPU{D}(sorted_Js, culled_Js, sorted_bonds, culled_bonds, label)
+    if all(isheisen(tol), Base.Iterators.flatten(culled_Js))
+        return HeisenbergCPU{D}(J[1,1], sorted_bonds, culled_bonds, label)
+    elseif all(isdiag(tol), Base.Iterators.flatten(culled_Js))
+        vec_sorted_Js = [
+            [diag(M) for M in Js]
+            for Js in sorted_Js
+        ]
+        vec_culled_Js = [
+            [diag(M) for M in Js]
+            for Js in culled_Js
+        ]
+        return DiagonalCouplingCPU{D}(
+            vec_sorted_Js, vec_culled_Js,
+            sorted_bonds, culled_bonds, label
+        )
+    else
+        return GeneralCouplingCPU{D}(
+            sorted_Js, culled_Js,
+            sorted_bonds, culled_bonds, label
+        )
+    end
 end
-
-const PairIntCPU{D} = Union{HeisenbergCPU{D}, DiagonalCouplingCPU{D}, GeneralCouplingCPU{D}}
 
 function energy(spins::Array{Vec3}, heisenberg::HeisenbergCPU)
     @unpack J, culled_bonds = heisenberg

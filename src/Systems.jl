@@ -77,8 +77,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1)
     if length(latsize) != 3
         error("Provided `latsize` should be of length 3")
     end
-    ℋ = Hamiltonian{3}(ints)
-    ℋ_CPU = HamiltonianCPU{3}(ℋ, crystal, latsize)
+    ℋ_CPU = HamiltonianCPU(ints, crystal, latsize)
     lattice = Lattice(crystal, latsize)
 
     # Initialize sites to all spins along +z

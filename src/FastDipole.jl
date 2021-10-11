@@ -24,8 +24,8 @@ include("Util.jl")
 include("Lattice.jl")
 
 include("Interactions.jl")
-export ExternalField, Heisenberg, OnSite, DiagonalCoupling, GeneralCoupling, DipoleDipole
-export Hamiltonian
+export ExternalField, QuadraticInteraction, OnSiteQuadratic, DipoleDipole
+export heisenberg, exchange, dm_interaction, onsite_anisotropy
 
 include("PairInteractions.jl")
 
@@ -36,7 +36,7 @@ include("FourierAccel.jl")
 include("Hamiltonian.jl")
 
 include("Systems.jl")
-export ChargeSystem, SpinSystem, rand!, energy, field
+export ChargeSystem, SpinSystem, rand!, energy, field, field!
 
 include("Metropolis.jl")
 export MetropolisSampler, set_temp!, sample!, thermalize!, anneal!

@@ -19,86 +19,111 @@ struct ExternalField <: Interaction
 end
 
 """
-    Heisenberg(J, bond::Bond{D}, label::String="Heisen")
+    QuadraticInteraction{D}
 
-Defines a Heisenberg interaction on a `D`-dimensional lattice. Specifically, the term
-
-```math
-    J ∑_{⟨ij⟩} 𝐒_i ⋅ 𝐒_j
-```
-
-where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
-symmetry equivalence class, with each bond appearing only once.
-"""
-struct Heisenberg{D} <: Interaction
-    J     :: Float64
-    bond  :: Bond{D}
-    label :: String
-end
-
-Heisenberg(J, bond::Bond{D}, label::String="Heisen") where {D} = Heisenberg{D}(J, bond, label)
-
-"""
-    OnSite(J, label="OnSite")
-
-Construct an on-site anisotropy term specified by the vector J. Specifically, the term
+Defines a general quadratic interaction. Specifically, the term
 
 ```math
-    ∑_i ∑_α J_α S_{i, α}^2
-```
-Equivalent to `DiagonalCoupling` with `bonds = [(0,0,0)]`, but faster.
-"""
-struct OnSite <: Interaction
-    J     :: Vec3
-    label :: String
-    function OnSite(J, label::String="OnSite")
-        new(J, label)
-    end
-end
-
-"""
-    DiagonalCoupling(J, bond::Bond{D}, label::String="DiagCoup")
-
-Defines a diagonal exchange interaction on a `D`-dimensional lattice. Specifically, the term
-
-```math
-    ∑_{⟨ij⟩} ∑_α J_α S_{i,α} ⋅ S_{j,α} 
-```
-
-where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
-symmetry equivalence class, with each bond appearing only once. ``J`` is a
-length-3 vector which may vary from bond to bond, under symmetry constraints.
-"""
-struct DiagonalCoupling{D} <: Interaction
-    J     :: Vec3
-    bond  :: Bond{D}
-    label :: String
-end
-
-DiagonalCoupling(J, bond::Bond{D}, label::String="DiagCoup") where {D} = DiagonalCoupling{D}(J, bond, label)
-
-"""
-    GeneralCoupling(J, bond::Bond{D}, label::String="GenCoup")
-
-Defines a general exchange interaction on a `D`-dimensional lattice. Specifically, the term
-
-```math
-    ∑_{⟨ij⟩} 𝐒_i^⊤ J 𝐒_j
+    ∑_{⟨ij⟩} 𝐒_i^⊤ J_{ij} 𝐒_j
 ```
 
 where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
 symmetry equivalence class, with each bond appearing only once. ``J`` is a
 ``3 × 3`` matrix which may vary from bond to bond, under symmetry constraints.
 """
-struct GeneralCoupling{D} <: Interaction
+struct QuadraticInteraction{D} <: Interaction
     J     :: Mat3
     bond  :: Bond{D}
     label :: String
+    function QuadraticInteraction(J, bond::Bond{D}, label::String) where {D}
+        if bond.i == bond.j && all(isequal(0), bond.n)
+            error("This interaction looks on-site. Please use `OnSiteQuadratic`.")
+        end
+        new{D}(J, bond, label)
+    end
 end
 
-GeneralCoupling(J, bond::Bond{D}, label::String="GenCoup") where {D} = GeneralCoupling{D}(J, bond, label)
+"""
+    OnSiteQuadratic
 
-const PairInt{D} = Union{Heisenberg{D}, DiagonalCoupling{D}, GeneralCoupling{D}}
+Defines a general on-site quadratic anisotropy. Specifically, the term
+
+```math
+    ∑_i ∑_α J_α S_{(b, i), α}^2
+```
+
+for a given vector ``𝐉`` and sublattice index ``b``.
+"""
+struct OnSiteQuadratic <: Interaction
+    J     :: Vec3
+    site  :: Int
+    label :: String
+end
+
+"""
+    heisenberg(J, bond::Bond, label::String="Heisen")
+
+Creates a Heisenberg interaction term
+```math
+    J ∑_{⟨ij⟩} 𝐒_i ⋅ 𝐒_j
+```
+where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
+symmetry equivalence class, with each bond appearing only once.
+"""
+heisenberg(J, bond::Bond, label::String="Heisen") = QuadraticInteraction(diagm(fill(J, 3)), bond, label)
+
+
+"""
+    dm_interaction(DMvec, bond::Bond, label::String="DMInt")
+
+Creates a DM Interaction term
+```math
+    ∑_{⟨ij⟩} 𝐃_{ij} ⋅ (𝐒_i × 𝐒_j)
+```
+where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
+symmetry equivalence class, with each bond appearing only once.
+"""
+function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
+    J = SA[     0.0   DMvec[3] -DMvec[2];
+           -DMvec[3]       0.0  DMvec[1];
+            DMvec[2] -DMvec[1]      0.0]
+    QuadraticInteraction(J, bond, label)
+end
+
+
+"""
+    onsite_anisotropy(J, site, label="OnSiteAniso")
+
+Creates an on-site anisotropy term specified by the vector `J`,
+applied to all sites of `site` type in the crystal.
+Specifically, the term
+```math
+    ∑_i ∑_α J_α S_{(b, i), α}^2
+```
+where ``b`` is the `site` index.
+"""
+function onsite_anisotropy(J, site::Int, label::String="OnSiteAniso")
+    OnSiteQuadratic(J, site, label)
+end
+
+"""
+    exchange(J, bond::Bond, label="Exchange")
+
+Defines a general quadratic interaction. Specifically, the term
+
+```math
+    ∑_{⟨ij⟩} 𝐒_i^⊤ J_{ij} 𝐒_j
+```
+
+where ``⟨ij⟩`` indicates a sum over all bonds in the lattice of a certain
+symmetry equivalence class, with each bond appearing only once. ``J`` is a
+``3 × 3`` matrix which may vary from bond to bond, under symmetry constraints.
+`i` and `j` can be the same index, in which case this is an on-site
+anisotropy.
+"""
+function exchange(J, bond::Bond, label::String="Exchange")
+    QuadraticInteraction(J, bond, label)
+end
 
 """
     DipoleDipole(strength, extent::Int=4, η::Float64=0.5)
@@ -135,10 +160,10 @@ function energy(spins::Array{Vec3}, field::ExternalField)
     return -E
 end
 
-function energy(spins::Array{Vec3}, on_site::OnSite)
-    J = on_site.J
+function energy(spins::Array{Vec3}, on_site::OnSiteQuadratic)
+    @unpack J, site = on_site
     E = 0.0
-    for S in spins
+    for S in selectdim(spins, 1, site)
         E += S ⋅ (J .* S)
     end
     return E
@@ -152,10 +177,12 @@ end
 end
 
 "Accumulates the local field coming from on-site terms"
-@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, on_site::OnSite)
-    J = on_site.J
-    for idx in eachindex(spins)
-        S = spins[idx]
-        B[idx] = B[idx] - 2 * J .* S
+@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, on_site::OnSiteQuadratic)
+    @unpack J, site = on_site
+    subspins = selectdim(spins, 1, site)
+    subfields = selectdim(B, 1, site)
+    for idx in eachindex(subfields)
+        S = subspins[idx]
+        subfields[idx] = subfields[idx] - 2 * J .* S
     end
 end

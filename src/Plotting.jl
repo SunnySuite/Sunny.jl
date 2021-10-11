@@ -173,30 +173,23 @@ end
 Plot a list of pair interactions defined on a `Crystal`. `kwargs` are
 passed to to `plot_lattice!`.
 """
-function plot_bonds(cryst::Crystal, ints::Vector{<:PairInt{3}}; ncells=(3,3,3), kwargs...)
+function plot_bonds(cryst::Crystal, ints::Vector{<:Interaction}; ncells=(3,3,3), kwargs...)
     lattice = Lattice(cryst, ncells)
-    plot_bonds(lattice, ints; kwargs...)
+    ℋ = HamiltonianCPU(ints, cryst, ncells)
+    pair_ints = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
+    plot_bonds(lattice, pair_ints; kwargs...)
 end
 
-function plot_bonds(lattice::Lattice{3}, ℋ::Hamiltonian; kwargs...)
-    interactions = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
-    plot_bonds(lattice, interactions; ncells=ncells, kwargs...)
-end
-
-
-function plot_bonds(cryst::Crystal, ℋ::Hamiltonian; ncells=(3,3,3), kwargs...)
-    lattice = Lattice(cryst, ncells)
-    plot_bonds(lattice, ℋ; kwrgs)
-end
 
 """
     plot_bonds(sys::SpinSystem; kwargs...)
 
 Plot all pair interactions appearing in `sys.hamiltonian`, on the
-underlying crystal lattice.
+underlying crystal lattice. `kwargs` are passed to `plot_lattice!`.
 """
 @inline function plot_bonds(sys::SpinSystem; kwargs...)
-    plot_bonds(sys.lattice, sys.hamiltonian; kwargs...)
+    pair_ints = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
+    plot_bonds(sys.lattice, pair_ints; kwargs...)
 end
 
 """
@@ -235,10 +228,9 @@ function plot_all_bonds(crystal::Crystal, max_dist; ncells=(3,3,3), kwargs...)
 end
 
 "Plot all bonds between equivalent sites i and j"
-function plot_all_bonds_between(lattice::Lattice{3}, i, j, max_dist; kwargs...)
-    crystal = Crystal(lattice)
+function plot_all_bonds_between(crystal, i, j, max_dist; ncells=(3,3,3), kwargs...)
     canon_bonds = canonical_bonds(crystal, max_dist)
-    interactions = Vector{Heisenberg{3}}()
+    interactions = Vector{HeisenbergCPU{3}}()
 
     prev_dist = 0.0
     dist = 0
@@ -255,7 +247,7 @@ function plot_all_bonds_between(lattice::Lattice{3}, i, j, max_dist; kwargs...)
                 class = 1
             end
             label = "J$(dist)_$(class)"
-            push!(interactions, Heisenberg(1.0, crystal, bond, label))
+            push!(interactions, HeisenbergCPU{3}(1.0, crystal, bond, label))
         end
     end
 
@@ -263,7 +255,7 @@ function plot_all_bonds_between(lattice::Lattice{3}, i, j, max_dist; kwargs...)
     # Sort interactions so that longer bonds are plotted first
     sort!(interactions, by=int->distance(lattice, int.bonds[1]))
 
-    plot_bonds(lattice, interactions; kwargs...)
+    plot_bonds(crystal, interactions; ncells=ncells, kwargs...)
 end
 
 # TODO: Base.Cartesian could combine these functions

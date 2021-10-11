@@ -4,17 +4,18 @@ using LaTeXStrings
 using Plots
 using DelimitedFiles
 using Statistics
+using LinearAlgebra
 
 """
-    Creates a 8×8×8 (conventional cell) diamond lattice, and calculates/plots
-    the structure factor at a temperature of 4K using sampling based on
-    Langevin dynamics.
+Creates a 8×8×8 (conventional cell) diamond lattice, and calculates/plots
+the structure factor at a temperature of 4K using sampling based on
+Langevin dynamics.
 """
 function test_diamond_heisenberg_sf()
     crystal = FastDipole.diamond_conventional_crystal(1.0)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, Bond(3, 6, [0,0,0])),
+        heisenberg(J, Bond(3, 6, [0,0,0])),
     ]
     sys = SpinSystem(crystal, interactions, (8, 8, 8))
     rand!(sys)
@@ -125,14 +126,14 @@ function test_FeI2_MC()
     J1mat = [-0.397  0      0    ;
               0     -0.075 -0.261;
               0     -0.261 -0.236]
-    J1 = GeneralCoupling(J1mat, Bond(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling([0.026, 0.026, 0.113], Bond(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling([0.166, 0.166, 0.211], Bond(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], Bond(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], Bond(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], Bond(1, 1, [1, -1, 1]), "J2a′")
+    J1 = exchange(J1mat, Bond(1, 1, [1, 0, 0]), "J1")
+    J2 = exchange(diagm([0.026, 0.026, 0.113]), Bond(1, 1, [1, -1, 0]), "J2")
+    J3 = exchange(diagm([0.166, 0.166, 0.211]), Bond(1, 1, [2, 0, 0]), "J3")
+    J0′ = exchange(diagm([0.037, 0.037, -0.036]), Bond(1, 1, [0, 0, 1]), "J0′")
+    J1′ = exchange(diagm([0.013, 0.013, 0.051]), Bond(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′")
 
-    D = OnSite([0.0, 0.0, -2.165/2], "D")
+    D = onsite_anisotropy([0.0, 0.0, -2.165/2], 1, "D")
     interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size (16x20x4)
@@ -148,7 +149,7 @@ function test_FeI2_MC()
     # Interval number of steps of dynamics before collecting a snapshot for FFTs
     meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
-    sampler = MetropolisSampler(system, kT, 1000)
+    sampler = MetropolisSampler(system, kT, 500)
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     dynsf = dynamic_structure_factor(
@@ -174,7 +175,7 @@ function test_diamond_heisenberg_energy_curve()
     crystal = FastDipole.diamond_conventional_crystal(1.0)
     J = 28.28           # Units of K
     interactions = [
-        Heisenberg(J, Bond(3, 6, [0,0,0])),
+        heisenberg(J, Bond(3, 6, [0,0,0])),
     ]
     sys = SpinSystem(crystal, interactions, (8, 8, 8))
     rand!(sys)
@@ -219,13 +220,14 @@ function test_FeI2_energy_curve()
     J1mat = [-0.397 0      0    ;
               0    -0.075 -0.261;
               0    -0.261 -0.236]
-    J1 = GeneralCoupling(J1mat, Bond(1, 1, [1, 0, 0]), "J1")
-    J2 = DiagonalCoupling([0.026, 0.026, 0.113], Bond(1, 1, [1, -1, 0]), "J2")
-    J3 = DiagonalCoupling([0.166, 0.166, 0.211], Bond(1, 1, [2, 0, 0]), "J3")
-    J0′ = DiagonalCoupling([0.037, 0.037, -0.036], Bond(1, 1, [0, 0, 1]), "J0′")
-    J1′ = DiagonalCoupling([0.013, 0.013, 0.051], Bond(1, 1, [1, 0, 1]), "J1′")
-    J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], Bond(1, 1, [1, -1, 1]), "J2a′")
-    D = OnSite([0.0, 0.0, -2.165/2], "D")
+    J1 = exchange(J1mat, Bond(1, 1, [1, 0, 0]), "J1")
+    J2 = exchange(diagm([0.026, 0.026, 0.113]), Bond(1, 1, [1, -1, 0]), "J2")
+    J3 = exchange(diagm([0.166, 0.166, 0.211]), Bond(1, 1, [2, 0, 0]), "J3")
+    J0′ = exchange(diagm([0.037, 0.037, -0.036]), Bond(1, 1, [0, 0, 1]), "J0′")
+    J1′ = exchange(diagm([0.013, 0.013, 0.051]), Bond(1, 1, [1, 0, 1]), "J1′")
+    J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′")
+
+    D = onsite_anisotropy([0.0, 0.0, -2.165/2], "D")
     interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size 16×20×4

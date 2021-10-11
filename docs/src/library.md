@@ -17,11 +17,6 @@ Crystal
 Crystal(lat_vecs, positions; types, symprec)
 Crystal(::AbstractString; symprec)
 subcrystal
-Lattice
-Lattice{D}(lat_vecs, basis_vecs, species, latsize) where {D}
-volume
-eachcellindex
-gen_reciprocal
 lattice_vectors
 lattice_params
 ```
@@ -40,23 +35,25 @@ all_symmetry_related_interactions
 
 ```@docs
 ExternalField
-OnSite
-Heisenberg
-DiagonalCoupling
-GeneralCoupling
+onsite_anisotropy
+heisenberg
+dm_interaction
+exchange
+QuadraticInteraction
 DipoleDipole
-Hamiltonian
-Hamiltonian(ints)
 ```
 
 ## System definition
 
 ```@docs
 SpinSystem
-SpinSystem(::Crystal, ::Hamiltonian{D}, latssize, ::Rational{Int}) where {D}
+SpinSystem(::Crystal, ::Vector{<:Interaction}, latsize, ::Rational{Int})
+nbasis
+eachcellindex
 rand!(::SpinSystem)
 energy
 field
+field!
 ```
 
 ## Sampling
