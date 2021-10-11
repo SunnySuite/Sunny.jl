@@ -5,15 +5,6 @@
 #       In particular, still a ton of allocations?
 #  2. Figure out how to best reduce periodic artifacts along the time FFT
 
-const OffsetArrayC{D} = OffsetArray{ComplexF64, D, Array{ComplexF64, D}}
-const OffsetArrayF{D} = OffsetArray{Float64, D, Array{Float64, D}}
-const DynSFactMat = Union{
-    OffsetArrayC{8},    # Full dynamic structure factor      [3, 3, B, B, Q1, Q2, Q3, T]
-    OffsetArrayC{6},    # Reduced over basis sites           [3, 3, Q1, Q2, Q3, T]
-    OffsetArrayF{6},    # Dipole factor applied              [B, B, Q1, Q2, Q3, T]
-    OffsetArrayF{4},    # Reduced over basis + dipole factor [Q1, Q2, Q3, T]
-}
-
 """
     StructureFactor
 
@@ -69,7 +60,7 @@ end
 Base.show(io::IO, sf::StructureFactor) = print(io, join(size(sf.sfactor), "x"),  " StructureFactor")
 Base.summary(io::IO, sf::StructureFactor) = string("StructureFactor: ", summary(sf.sfactor))
 
-function StructureFactor(sys::SpinSystem{3}; bz_size=nothing, reduce_basis=true,
+function StructureFactor(sys::SpinSystem{3}; bz_size=(1,1,1), reduce_basis=true,
                          dipole_factor=false, dynΔt::Float64=0.01,
                          dyn_meas::Int=1, meas_rate::Int=10,)
     nb = nbasis(sys.lattice)
@@ -275,9 +266,10 @@ Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, an
  values for the `w` index lie in `0:T-1`.
 """
 function dynamic_structure_factor(
-    sys::SpinSystem{D}, sampler::S; therm_samples::Int=10, dynΔt::Float64=0.01,
-    meas_rate::Int=10, dyn_meas::Int=100, bz_size=nothing, thermalize::Int=10,
-    reduce_basis::Bool=true, dipole_factor::Bool=false, verbose::Bool=false
+    sys::SpinSystem{D}, sampler::S; therm_samples::Int=10,
+    thermalize::Int=10, bz_size=(1,1,1), reduce_basis::Bool=true,
+    dipole_factor::Bool=false, dynΔt::Float64=0.01, dyn_meas::Int=100,
+    meas_rate::Int=10, verbose::Bool=false
 ) where {D, S <: AbstractSampler}
     
     sf  = StructureFactor(sys; dynΔt=dynΔt, meas_rate=meas_rate, dyn_meas=dyn_meas,

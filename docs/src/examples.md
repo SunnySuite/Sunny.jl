@@ -16,11 +16,13 @@ The high-level outline of performing a simulation is:
 
 Defining interactions in step (2) can be aided by our utilities for symmetry analysis, demonstrated at the bottom of this page.
 
-In all examples, we will assume that `FastDipole` and `StaticArrays` have been loaded:
+In all examples, we will assume that `FastDipole`, `StaticArrays`, and
+`LinearAlgebra` have been loaded:
 
 ```julia
 using FastDipole
 using StaticArrays
+using LinearAlgebra
 ```
 
 ## Example 1: Diamond lattice with antiferromagnetic Heisenberg interactions
@@ -64,7 +66,7 @@ bottom of this page).
 ```julia
 J = 28.28           # Units of K
 interactions = [
-    Heisenberg(J, crystal, Bond(3, 6, [0,0,0])),
+    heisenberg(J, crystal, Bond(3, 6, [0,0,0])),
 ]
 ```
 
@@ -181,7 +183,9 @@ important for symmetry-constraining allowed interactions between sites.
 
 **(2)** We proceed to define our Hamiltonian similarly as before, however
 this time many more interactions are present. See the documentation on the
-[Interactions](@ref) for extended descriptions of each.
+[Interactions](@ref) for extended descriptions of each. Note that the `diagm`
+function from the `LinearAlgebra` package just makes a diagonal matrix from
+the vector giving the diagonal.
 
 ```julia
 
@@ -189,14 +193,14 @@ this time many more interactions are present. See the documentation on the
 J1mat = [-0.397  0      0    ;
           0     -0.075 -0.261;
           0     -0.261 -0.236]
-J1 = GeneralCoupling(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
-J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond(1, 1, [1, -1, 0]), "J2")
-J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond(1, 1, [2, 0, 0]), "J3")
-J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond(1, 1, [0, 0, 1]), "J0′")
-J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond(1, 1, [1, 0, 1]), "J1′")
-J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
+J1 = exchange(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
+J2 = exchange(diagm([0.026, 0.026, 0.113]), cryst, Bond(1, 1, [1, -1, 0]), "J2")
+J3 = exchange(diagm([0.166, 0.166, 0.211]), cryst, Bond(1, 1, [2, 0, 0]), "J3")
+J0′ = exchange(diagm([0.037, 0.037, -0.036]), cryst, Bond(1, 1, [0, 0, 1]), "J0′")
+J1′ = exchange(diagm([0.013, 0.013, 0.051]), cryst, Bond(1, 1, [1, 0, 1]), "J1′")
+J2a′ = exchange(diagm([0.068, 0.068, 0.073]), cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
 
-D = OnSite([0.0, 0.0, -2.165/2], "D")
+D = onsite_anisotropy([0.0, 0.0, -2.165/2], "D")
 interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 ```
 
@@ -218,7 +222,7 @@ rand!(system)
 
 **(4)** In this example, we'll choose to work with Metropolis Monte Carlo rather
 than Langevin sampling. This is necessary in this system due to a very
-strong on-site anisotropy (the `OnSite` term) making the spins nearly
+strong on-site anisotropy (the `onsite_anisotropy` term) making the spins nearly
 Ising-like. Continuous Langevin dyanmics can have ergodicity issues
 in these situations, so we have to turn back to the standard Metropolis
 randomized spin flip proposals.
@@ -265,9 +269,9 @@ meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 sampler = MetropolisSampler(system, kT, 500)
 println("Starting structure factor measurement...")
 S = dynamic_structure_factor(
-    system, sampler; therm_samples=15, meas_rate=meas_rate,
-    num_meas=1000, bz_size=(2,0,0), verbose=true, thermalize=15,
-    reduce_basis=true, dipole_factor=true
+    system, sampler; therm_samples=15, thermalize=15,
+    bz_size=(2,0,0), reduce_basis=true, dipole_factor=true,
+    dynΔt=Δt, meas_rate=meas_rate, dyn_meas=1000, verbose=true, 
 )
 ```
 
@@ -276,10 +280,6 @@ we are asking with `dipole_factor=true` to have this reduced to a single real-va
 by projecting each `\mathcal{S}^{\alpha \beta}` using the neutron dipole factor.
 (See [Structure factor calculations](@ref). To be truly comparable to experiment, a
 few more steps of processing need to be done which are currently unimplemented.)
-
-```julia
-S = dipole_factor(S, sys)
-```
 
 (Will add info here about plotting when better structure factor plotting functions
 are implemented.)
@@ -307,18 +307,17 @@ cryst = subcrystal(cryst, "Fe2+")
 J1mat = [-0.397  0      0    ;
           0     -0.075 -0.261;
           0     -0.261 -0.236]
-J1 = GeneralCoupling(J1mat, cryst, Bond{3}(1, 1, [1, 0, 0]), "J1")
-J2 = DiagonalCoupling([0.026, 0.026, 0.113], cryst, Bond{3}(1, 1, [1, -1, 0]), "J2")
-J3 = DiagonalCoupling([0.166, 0.166, 0.211], cryst, Bond{3}(1, 1, [2, 0, 0]), "J3")
-J0′ = DiagonalCoupling([0.037, 0.037, -0.036], cryst, Bond{3}(1, 1, [0, 0, 1]), "J0′")
-J1′ = DiagonalCoupling([0.013, 0.013, 0.051], cryst, Bond{3}(1, 1, [1, 0, 1]), "J1′")
-J2a′ = DiagonalCoupling([0.068, 0.068, 0.073], cryst, Bond{3}(1, 1, [1, -1, 1]), "J2a′")
+J1 = exchange(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
+J2 = exchange(diagm([0.026, 0.026, 0.113]), cryst, Bond(1, 1, [1, -1, 0]), "J2")
+J3 = exchange(diagm([0.166, 0.166, 0.211]), cryst, Bond(1, 1, [2, 0, 0]), "J3")
+J0′ = exchange(diagm([0.037, 0.037, -0.036]), cryst, Bond(1, 1, [0, 0, 1]), "J0′")
+J1′ = exchange(diagm([0.013, 0.013, 0.051]), cryst, Bond(1, 1, [1, 0, 1]), "J1′")
+J2a′ = exchange(diagm([0.068, 0.068, 0.073]), cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
 
-D = OnSite([0.0, 0.0, -2.165/2], "D")
+D = onsite_anisotropy([0.0, 0.0, -2.165/2], "D")
+interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
-ℋ = Hamiltonian{3}([J1, J2, J3, J0′, J1′, J2a′, D])
-
-system = SpinSystem(cryst, ℋ, (16, 20, 4))
+system = SpinSystem(cryst, interactions, (16, 20, 4))
 rand!(system)
 
 sampler = MetropolisSampler(system, 1.0, 10)
@@ -477,7 +476,7 @@ matrix on that canonical bond.
 You can also query what the allowed exchange matrix is on a specific bond using [`allowed_J`](@ref).
 
 ```
-julia> allowed_J(crystal, Bond{3}(1, 5, [1,-1,0]))
+julia> allowed_J(crystal, Bond(1, 5, [1,-1,0]))
 
 3×3 Matrix{String}:
  "D"  "A"  "B"

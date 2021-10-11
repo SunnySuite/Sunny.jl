@@ -156,7 +156,6 @@ function test_FeI2_MC()
         system, sampler; bz_size=(2,0,0), thermalize=15,
         therm_samples=15, dipole_factor=true, dyn_meas=1000,
         meas_rate=meas_rate, verbose=true,
-        
     )
     S = dynsf.sfactor
 

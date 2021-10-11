@@ -150,6 +150,49 @@ function convert_quadratic(int::QuadraticInteraction{D}, cryst; tol=1e-6) where 
     end
 end
 
+struct OnSiteQuadraticCPU <: InteractionCPU
+    Js    :: Vector{Vec3}
+    label :: String
+end
+
+function OnSiteQuadraticCPU(on_site::OnSiteQuadratic, crystal::Crystal)
+    @unpack J, site, label = on_site
+    Js = fill(zero(Vec3), nbasis(crystal))
+    site_class = crystal.classes[site]
+    for (i, class) in enumerate(crystal.classes)
+        if class == site_class
+            Js[i] = J
+        end
+    end
+    return OnSiteQuadraticCPU(Js, label)
+end
+
+function energy(spins::Array{Vec3}, on_site::OnSiteQuadraticCPU)
+    Js = on_site.Js
+    E = 0.0
+    latsize = size(spins)[2:end]
+    for (i, J) in enumerate(Js)
+        for cell in CartesianIndices(latsize)
+            S = spins[i, cell]
+            E += S ⋅ (J .* S)
+        end
+    end
+    return E
+end
+
+"Accumulates the local field coming from on-site terms"
+@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, on_site::OnSiteQuadraticCPU)
+    Js = on_site.Js
+    E = 0.0
+    latsize = size(spins)[2:end]
+    for (i, J) in enumerate(Js)
+        for cell in CartesianIndices(latsize)
+            S = spins[i, cell]
+            B[i, cell] = B[i, cell] - 2 * J .* S
+        end
+    end
+end
+
 function energy(spins::Array{Vec3}, heisenberg::HeisenbergCPU)
     @unpack J, culled_bonds = heisenberg
     E = 0.0

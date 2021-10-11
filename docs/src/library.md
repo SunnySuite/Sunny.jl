@@ -40,6 +40,7 @@ heisenberg
 dm_interaction
 exchange
 QuadraticInteraction
+OnSiteQuadratic
 DipoleDipole
 ```
 

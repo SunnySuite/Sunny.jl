@@ -58,7 +58,7 @@ of all interactions internally.
 struct HamiltonianCPU{D}
     ext_field   :: Union{Nothing, ExternalField}
     heisenbergs :: Vector{HeisenbergCPU{D}}
-    on_sites    :: Vector{OnSiteQuadratic}
+    on_sites    :: Union{Nothing, OnSiteQuadraticCPU}
     diag_coups  :: Vector{DiagonalCouplingCPU{D}}
     gen_coups   :: Vector{GeneralCouplingCPU{D}}
     dipole_int  :: Union{Nothing, DipoleFourierCPU}
@@ -74,7 +74,7 @@ for the given `crystal` and `latsize`.
 function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal, latsize)
     ext_field   = nothing
     heisenbergs = Vector{HeisenbergCPU{3}}()
-    on_sites    = Vector{OnSiteQuadratic}()
+    on_sites    = nothing
     diag_coups  = Vector{DiagonalCouplingCPU{3}}()
     gen_coups   = Vector{GeneralCouplingCPU{3}}()
     dipole_int  = nothing
@@ -89,7 +89,14 @@ function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal, latsize)
                 ext_field.B = ext_field.B + int.B
             end
         elseif isa(int, OnSiteQuadratic)
-            push!(on_sites, int)
+            if isnothing(on_sites)
+                on_sites = OnSiteQuadraticCPU(int, crystal)
+            else
+                @warn "Multiple on-sites detected. Merging, keeping only last label."
+                class_on_site = OnSiteQuadraticCPU(int, crystal)
+                newJs = [on_sites.Js[i] + class_on_site.Js[i] for i in 1:nbasis(crystal)]
+                on_sites = OnSiteQuadraticCPU(newJs, class_on_site.label)
+            end
         elseif isa(int, QuadraticInteraction)
             int_impl = convert_quadratic(int, crystal)
             if isa(int_impl, HeisenbergCPU)
@@ -124,8 +131,8 @@ function energy(spins::Array{Vec3}, ℋ::HamiltonianCPU) :: Float64
     for heisen in ℋ.heisenbergs
         E += energy(spins, heisen)
     end
-    for on_site in ℋ.on_sites
-        E += energy(spins, on_site)
+    if !isnothing(ℋ.on_sites)
+        E += energy(spins, ℋ.on_sites)
     end
     for diag_coup in ℋ.diag_coups
         E += energy(spins, diag_coup)
@@ -147,8 +154,8 @@ function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::HamiltonianCPU)
     for heisen in ℋ.heisenbergs
         _accum_field!(B, spins, heisen)
     end
-    for on_site in ℋ.on_sites
-        _accum_field!(B, spins, on_site)
+    if !isnothing(ℋ.on_sites)
+        _accum_field!(B, spins, ℋ.on_sites)
     end
     for diag_coup in ℋ.diag_coups
         _accum_field!(B, spins, diag_coup)

@@ -160,29 +160,9 @@ function energy(spins::Array{Vec3}, field::ExternalField)
     return -E
 end
 
-function energy(spins::Array{Vec3}, on_site::OnSiteQuadratic)
-    @unpack J, site = on_site
-    E = 0.0
-    for S in selectdim(spins, 1, site)
-        E += S ⋅ (J .* S)
-    end
-    return E
-end
-
 "Accumulates the local field coming from the external field"
 @inline function _accum_field!(B::Array{Vec3}, field::ExternalField)
     for idx in eachindex(B)
         B[idx] = B[idx] + field.B
-    end
-end
-
-"Accumulates the local field coming from on-site terms"
-@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, on_site::OnSiteQuadratic)
-    @unpack J, site = on_site
-    subspins = selectdim(spins, 1, site)
-    subfields = selectdim(B, 1, site)
-    for idx in eachindex(subfields)
-        S = subspins[idx]
-        subfields[idx] = subfields[idx] - 2 * J .* S
     end
 end
