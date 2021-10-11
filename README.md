@@ -1,6 +1,6 @@
-# FastDipole.jl [Name TBD]
+# Sunny.jl
 
-A general-purpose library for performing classical spin simulations.
+A general-purpose library for performing generalized SU(N) classical spin simulations.
 
 ## Getting started with Julia
 
@@ -8,19 +8,19 @@ New Julia users should begin with our [Getting Started](GettingStarted.md) guide
 
 ## Installation
 
-FastDipole is evolving rapidly, and early access users are recommended to install the package for development,
+Sunny.jl is evolving rapidly, and early access users are recommended to install the package for development,
 ```
 julia> ]
-pkg> develop https://github.com/MagSims/FastDipole.git
+pkg> develop https://github.com/MagSims/Sunny.jl.git
 ```
-This command will download (more precisely, `git clone`) the source code to `~/.julia/dev/FastDipole`. Executing the terminal command `git pull` from this directory will retrieve the latest changes from Github.
+This command will download (more precisely, `git clone`) the source code to `~/.julia/dev/Sunny.jl`. Executing the terminal command `git pull` from this directory will retrieve the latest changes from Github.
 
-Check that FastDipole is working properly by running the unit tests,
+Check that Sunny.jl is working properly by running the unit tests,
 ```
-pkg> test FastDipole
+pkg> test Sunny
 ```
 
-FastDipole works best with some additional packages,
+Sunny.jl works best with some additional packages,
 ```
 pkg> add OffsetArrays
 pkg> add StaticArrays
@@ -32,16 +32,7 @@ At the time of this writing, GLMakie has some rough edges. Run `test GLMakie` to
 
 To use Jupyter notebooks with Julia, install the [IJulia](https://github.com/JuliaLang/IJulia.jl) package and follow the installation instructions there.
 
-## Building documentation
+## Documentation
 
-For now, you will need to build the documentation manually. To do this,
-install the `Documenter` package:
-
-```
-pkg> add Documenter
-```
-
-Then, navigate a new terminal to `docs/` within the package and execute `julia make.jl`. There will be some warnings at the moment, but if successful a new directory `docs/build` should appear.
-
-To view the documentation you just built, simply open up `docs/build/index.html` in your web browser!
+See our [full documentation here!](https://magsims.github.io/Sunny.jl/dev)!
 
