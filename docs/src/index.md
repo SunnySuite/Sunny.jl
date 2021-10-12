@@ -1,6 +1,6 @@
 # Sunny.jl
 
-This is the documentation for [Sunny.jl](https://github.com/MagSims/Sunny). This package aims to be a general-purpose library for simulating and analyzing classical spin systems obtained as the ``\mathrm{SU(N)}`` classical limit of quantum spin Hamiltonians.
+This is the documentation for [Sunny.jl](https://github.com/MagSims/Sunny.jl). This package aims to be a general-purpose library for simulating and analyzing classical spin systems obtained as the ``\mathrm{SU(N)}`` classical limit of quantum spin Hamiltonians.
 
 **Current Features**
 - ``\mathrm{SU(2)}`` Landau-Lifshitz spin dynamics

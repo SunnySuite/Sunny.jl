@@ -55,11 +55,6 @@ function _setup_3d()
     return f, lscene
 end
 
-"""
-    plot_lattice(lattice; kwargs...)
-
-Plot a `Lattice{2}` or `Lattice{3}`. `kwargs` are passed to `GLMakie.scatter!`.
-"""
 function plot_lattice(lattice::Lattice{2}; kwargs...)
     f, ax = _setup_2d()
     plot_lattice!(ax, lattice; kwargs...)
@@ -74,6 +69,30 @@ function plot_lattice(lattice::Lattice{3}; kwargs...)
     plot_lattice!(lscene, lattice; kwargs...)
     # TODO: Markers are often way too big.
     f[1, 2] = GLMakie.Legend(f, lscene, "Species")
+    f
+end
+
+"""
+    plot_lattice(crystal; ncells=(3,3,3), kwargs...)
+
+Plots a crystal lattice with `ncells` unit cells along each
+lattice vector. Other keyword arguments are:
+
+colors=:Set1_9, markersize=20, linecolor=:grey, linewidth=1.0, kwargs...
+# Arguments
+- `linecolor=:grey`: Sets the colors on the unit cell guide lines
+- `linewidth=1.0`  : Sets the width of the unit cell guide lines
+- `markersize=20`  : Sets the size of the atomic sites
+- `colors=:Set1_9` : Sets the colors used for the atomic sites
+
+Additional keyword arguments are given to `GLMakie.scatter!` which
+draws the points.
+"""
+function plot_lattice(cryst::Crystal; ncells=(3,3,3), kwargs...)
+    f, ax = _setup_3d()
+    lattice = Lattice(cryst, ncells)
+    plot_lattice!(ax, lattice; kwargs...)
+    f[1, 2] = GLMakie.Legend(f, ax, "Species")
     f
 end
 
@@ -127,7 +146,10 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}};
 
     colors = GLMakie.to_colormap(colors, 8)
     # Sort interactions so that longer bonds are plotted first
-    sort!(ints, by=int->distance(lattice, int.bonds[basis_idx][1]))
+    sorted_ints = sort(
+        ints, 
+        by=int->length(int.bonds[basis_idx]) > 0 ? distance(lattice, first(int.bonds[basis_idx])) : Inf
+    )
 
     toggles = Vector{GLMakie.Toggle}()
     labels = Vector{GLMakie.Label}()
@@ -153,16 +175,18 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}};
         if length(xs) == 0
             continue
         end
+
         color = colors[mod1(n, 8)]
         seg = GLMakie.linesegments!(xs, ys, zs; linewidth=bondwidth, label=int.label, color=color)
-
         tog = GLMakie.Toggle(f, active=true)
         GLMakie.connect!(seg.visible, tog.active)
         push!(toggles, tog)
         push!(labels, GLMakie.Label(f, int.label))
     end
     GLMakie.axislegend()
-    f[1, 2] = GLMakie.grid!(hcat(toggles, labels), tellheight=false)
+    if length(toggles) > 0
+        f[1, 2] = GLMakie.grid!(hcat(toggles, labels), tellheight=false)
+    end
     f
 end
 
