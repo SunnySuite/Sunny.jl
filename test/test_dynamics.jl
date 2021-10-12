@@ -1,22 +1,20 @@
+println("test_dynamics")
+
 "Tests that HeunP does indeed conserve energy for simple forces to a certain tolerance."
 function test_heunp()
-    lat_vecs = [1.0 0   0;
-                  0   1.0 0;
-                  0   0   1.0]
-    b_vecs = [[0.,  0.,  0.],
-              [0.5, 0.5, 0.5]]
-    latsize = [5, 5, 5]
-    crystal = Crystal(lattice)
+    lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    positions = [[0, 0, 0], [1, 1, 1]/2]
+    crystal = Crystal(lat_vecs, positions)
 
     J = 2.0
-    field = ExternalField([0.0, 0.0, 1.0])
+    field = external_field([0, 0, 1])
     pair_int = heisenberg(J, Bond(1, 2, [0,0,0]))
     interactions = [pair_int, field]
 
-    sys = SpinSystem(crystal, interactions, latsize)
+    sys = SpinSystem(crystal, interactions, (5, 5, 5))
     rand!(sys)
 
-    NITERS = 10000
+    NITERS = 1000
     Δt     = 0.001
     energies = Vector{Float64}()
 
@@ -34,6 +32,7 @@ end
 
 test_heunp()
 
+#=
 "Tests that HeunP does indeed conserve energy for dipole forces (w/ Fourier) to a certain tolerance."
 function test_heunp_dipole_ft()
     lat_vecs = [1.0 0   0;
@@ -45,8 +44,7 @@ function test_heunp_dipole_ft()
     crystal = Crystal(lat_vecs, b_vecs)
 
     J = 1.0
-    dipdip = DipoleDipole(J)
-    interactions = [dipdip]
+    interactions = [dipole_dipole()]
 
     sys = SpinSystem(crystal, interactions, latsize)
     rand!(sys)
@@ -68,7 +66,7 @@ function test_heunp_dipole_ft()
 end
 
 test_heunp_dipole_ft()
-
+=#
 
 # == These should not be @test-ed, but are for manual inspection == #
 
@@ -140,8 +138,8 @@ function test_langevin_heunp()
     lattice = Lattice(lat_vecs, b_vecs, latsize)
 
     J = 1.0
-    field = ExternalField([0.0, 0.0, 1.0])
-    pair_int = Heisenberg(J, 1, lattice)
+    field = external_field([0.0, 0.0, 1.0])
+    pair_int = heisenberg(J, 1, lattice)
     interactions = [pair_int, field]
 
     sys = SpinSystem(lattice, interactions)

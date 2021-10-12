@@ -133,7 +133,7 @@ function test_FeI2_MC()
     J1′ = exchange(diagm([0.013, 0.013, 0.051]), Bond(1, 1, [1, 0, 1]), "J1′")
     J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′")
 
-    D = onsite_anisotropy([0.0, 0.0, -2.165/2], 1, "D")
+    D = easy_axis(2.165/2, [0, 0, 1], 1, "D")
     interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size (16x20x4)
@@ -226,7 +226,7 @@ function test_FeI2_energy_curve()
     J1′ = exchange(diagm([0.013, 0.013, 0.051]), Bond(1, 1, [1, 0, 1]), "J1′")
     J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′")
 
-    D = onsite_anisotropy([0.0, 0.0, -2.165/2], "D")
+    D = easy_axis(2.165/2, [0, 0, 1], 1, "D")
     interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size 16×20×4

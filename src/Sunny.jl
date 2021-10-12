@@ -14,7 +14,7 @@ const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 
 include("Symmetry/Symmetry.jl")
-export Crystal, nbasis, cell_volume, lattice_vectors, lattice_params
+export Crystal, nbasis, cell_volume, lattice_params, lattice_vectors, dimension
 export Bond, print_bond_table, subcrystal, allowed_J
 export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 export all_symmetry_related_interactions, all_symmetry_related_interactions_for_atom
@@ -24,8 +24,9 @@ include("Util.jl")
 include("Lattice.jl")
 
 include("Interactions.jl")
-export ExternalField, QuadraticInteraction, OnSiteQuadratic, DipoleDipole
-export heisenberg, exchange, dm_interaction, onsite_anisotropy
+export heisenberg, exchange, dm_interaction
+export easy_axis, easy_plane, single_ion_anisotropy
+export external_field, dipole_dipole
 
 include("PairInteractions.jl")
 

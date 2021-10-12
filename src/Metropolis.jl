@@ -132,24 +132,34 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
     for heisen in ℋ.heisenbergs
         J = heisen.J
         for bond in heisen.bonds[i]
-            Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
-            ΔE += heisen.J * (spindiff ⋅ Sⱼ)
+            # TODO: Correctly handle the case where bond.n wraps around to the same site!
+            # (i.e., check for zero after modding bond.n with linear system sizes)
+            if i == bond.j && iszero(bond.n)
+                ΔE += J * (newspin⋅newspin - oldspin⋅oldspin)
+            else
+                Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
+                ΔE += heisen.J * (spindiff ⋅ Sⱼ)
+            end
         end
-    end
-    if !isnothing(ℋ.on_sites)
-        J = ℋ.on_sites.Js[i]
-        ΔE += newspin ⋅ (J .* newspin) - oldspin ⋅ (J .* oldspin)
     end
     for diag_coup in ℋ.diag_coups
         for (J, bond) in zip(diag_coup.Js[i], diag_coup.bonds[i])
-            Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
-            ΔE += (J .* spindiff) ⋅ Sⱼ
+            if i == bond.j && iszero(bond.n)
+                ΔE += newspin⋅(J.*newspin) - oldspin⋅(J.*oldspin)
+            else
+                Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
+                ΔE += (J .* spindiff) ⋅ Sⱼ
+            end
         end
     end
     for gen_coup in ℋ.gen_coups
         for (J, bond) in zip(gen_coup.Js[i], gen_coup.bonds[i])
-            Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
-            ΔE += dot(spindiff, J, Sⱼ)
+            if i == bond.j && iszero(bond.n)
+                ΔE += dot(newspin, J, newspin) - dot(oldspin, J, oldspin)
+            else
+                Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
+                ΔE += dot(spindiff, J, Sⱼ)
+            end
         end
     end
     if !isnothing(ℋ.dipole_int)
