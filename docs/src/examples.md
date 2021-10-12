@@ -416,7 +416,7 @@ that is confined by the symmetry properties of the underlying crystal.
 To discover all symmetry classes of bonds up to a certain distance while simultaneously learning what the allowed form of the `J` matrix is, construct a `Crystal` then call the function [`print_bond_table`](@ref).
 
 ```
-crystal = Sunny.diamond_conventional_crystal(1.0)
+crystal = Sunny.diamond_crystal()
 print_bond_table(crystal, 4.0)
 ```
 
