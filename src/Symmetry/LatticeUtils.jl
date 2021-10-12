@@ -205,10 +205,24 @@ function fcc_crystal(; a=1.0)
 end
 
 function fcc_primitive_crystal(; a=1.0)
-    lat_vecs = [a a 0; a 0 a; 0 a a]' / 2
+    lat_vecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
     basis_vecs = [[0, 0, 0]]
-    cryst = Crystal(lat_vecs, positions)
+    cryst = Crystal(lat_vecs, basis_vecs)
 end
+
+function bcc_crystal(; a=1.0)
+    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    basis_vecs = [[0, 0, 0]/2,
+                  [1, 1, 1]/2,]
+    Crystal(lat_vecs, basis_vecs)
+end
+
+function bcc_primitive_crystal(; a=1.0)
+    lat_vecs = [1 1 -1; 1 -1 1; -1 1 1]' * a/2
+    basis_vecs = [[0, 0, 0]]
+    Crystal(lat_vecs, basis_vecs)
+end
+
 
 function diamond_crystal(; a=1.0)
     lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
@@ -226,7 +240,7 @@ function diamond_crystal(; a=1.0)
 end
 
 function diamond_primitive_crystal(; a=1.0)
-    lat_vecs = [a a 0; a 0 a; 0 a a]' / 2
+    lat_vecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
     basis_vecs = [
         [0, 0, 0]/4,
         [1, 1, 1]/4,

@@ -1,9 +1,11 @@
+println("test_fourier")
+
 "Tests these field-using functions give the same answer as `ewald_sum_dipole`"
 function test_energy_consistency(crystal, latsize)
     sys = SpinSystem(crystal, Sunny.Interaction[], latsize)
     rand!(sys)
 
-    dipdip = DipoleDipole(1.0; extent=4, η=0.5)
+    dipdip = dipole_dipole(; extent=4, η=0.5)
     dip_real = Sunny.DipoleRealCPU(dipdip, crystal, latsize)
     dip_fourier = Sunny.DipoleFourierCPU(dipdip, crystal, latsize)
 
@@ -19,7 +21,7 @@ function test_field_consistency(crystal, latsize)
     sys = SpinSystem(crystal, Sunny.Interaction[], latsize)
     rand!(sys)
     
-    dipdip = DipoleDipole(1.0; extent=4, η=0.5)
+    dipdip = dipole_dipole(; extent=4, η=0.5)
     dip_real = Sunny.DipoleRealCPU(dipdip, crystal, latsize)
     dip_fourier = Sunny.DipoleFourierCPU(dipdip, crystal, latsize)
 

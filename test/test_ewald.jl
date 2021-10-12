@@ -1,3 +1,6 @@
+println("test_ewald")
+
+
 using Parameters
 
 # Many of these tests will be broken and need re-tooling to new interface

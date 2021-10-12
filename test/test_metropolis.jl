@@ -1,3 +1,5 @@
+println("test_metropolis")
+
 function test_local_energy_change()
     lat_vecs = lattice_vectors(1.0, 1.0, 2.0, 90., 90., 120.)
     basis_vecs = [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]
@@ -5,12 +7,12 @@ function test_local_energy_change()
     cryst = Crystal(lat_vecs, basis_vecs)
 
     # Make one of each kind of interaction with some arbitrary numbers
-    B = ExternalField([-2.4, -2.4, 0.])
+    B = external_field([-2.4, -2.4, 0.])
     J1 = heisenberg(1.5, Bond(1, 2, [0, 0, 0]))
     J2 = exchange(diagm([1.2, 2.6, -1.4]), Bond(1, 1, [1, 0, 0]))
     J3mat = [0.5 -1.2 0.0; -1.2 0.7 0.0; 0.0 0.0 2.5]
     J3 = exchange(J3mat, Bond(1, 1, [0, 1, 0]))
-    D = onsite_anisotropy([0.0, 0.0, -2.3], 1)
+    D = easy_axis(2.3, [0, 0, 1], 1)
 
     interactions = [B, J1, J2, J3, D]
 

@@ -89,6 +89,7 @@ nbasis(cryst::Crystal) = length(cryst.positions)
 cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
 lattice_params(cryst::Crystal) = lattice_params(cryst.lat_vecs)
 lattice_vectors(cryst::Crystal) = cryst.lat_vecs
+dimension(cryst::Crystal) = 3
 
 
 """

@@ -187,7 +187,7 @@ J0′ =  exchange(diagm([0.037, 0.037, -0.036]), Bond(1, 1, [0, 0, 1]),  "J0′"
 J1′ =  exchange(diagm([0.013, 0.013, 0.051]),  Bond(1, 1, [1, 0, 1]),  "J1′")
 J2a′ = exchange(diagm([0.068, 0.068, 0.073]),  Bond(1, 1, [1, -1, 1]), "J2a′")
 
-D = onsite_anisotropy([0.0, 0.0, -2.165/2], 1, "D")
+D = easy_axis(2.165/2, [0, 0, 1], 1, "D")
 interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 ```
 
@@ -209,7 +209,7 @@ rand!(system)
 
 **(4)** In this example, we'll choose to work with Metropolis Monte Carlo rather
 than Langevin sampling. This is necessary in this system due to a very
-strong on-site anisotropy (the `onsite_anisotropy` term) making the spins nearly
+strong single-ion anisotropy (the `easy_axis` term) making the spins nearly
 Ising-like. Continuous Langevin dyanmics can have ergodicity issues
 in these situations, so we have to turn back to the standard Metropolis
 randomized spin flip proposals.
@@ -301,7 +301,7 @@ J0′ = exchange(diagm([0.037, 0.037, -0.036]), Bond(1, 1, [0, 0, 1]), "J0′")
 J1′ = exchange(diagm([0.013, 0.013, 0.051]), Bond(1, 1, [1, 0, 1]), "J1′")
 J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′")
 
-D = onsite_anisotropy([0.0, 0.0, -2.165/2], 1, "D")
+D = easy_axis(2.165/2, [0, 0, 1], 1, "D")
 interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
 system = SpinSystem(cryst, interactions, (16, 20, 4))

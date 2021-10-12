@@ -1,3 +1,5 @@
+println("test_symmetry")
+
 using Sunny
 using LinearAlgebra
 
@@ -28,7 +30,7 @@ dist3 = [distance(cryst, b) for b=cbonds]
 
 # Using international symbol
 positions = [[1, 1, 1] / 4]
-cryst = Crystal(lat_vecs, positions, "F d -3 m")
+# cryst = Crystal(lat_vecs, positions, "F d -3 m") # Ambiguous!
 cryst = Crystal(lat_vecs, positions, "F d -3 m"; setting="1")
 cbonds = canonical_bonds(cryst, 2.)
 dist4 = [distance(cryst, b) for b=cbonds]
@@ -81,7 +83,7 @@ cryst = Crystal(lat_vecs, positions)
 
 lat_vecs = lattice_vectors(6, 7, 8, 90, 90, 40)
 positions = [[0,0,0]]
-cryst = Crystal(lat_vecs, positions, "C 2/c")
+# cryst = Crystal(lat_vecs, positions, "C 2/c")
 cryst = Crystal(lat_vecs, positions, "C 2/c", setting="c1")
 # display(cryst)
 

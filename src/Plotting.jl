@@ -225,7 +225,7 @@ plotted along each axis. `kwargs` are passed to `plot_bonds`.
 """
 function plot_all_bonds(crystal::Crystal, max_dist; ncells=(3,3,3), kwargs...)
     canon_bonds = canonical_bonds(crystal, max_dist)
-    interactions = Vector{Heisenberg{3}}()
+    interactions = Interaction[]
     
     prev_dist = 0.0
     dist = 0
@@ -240,7 +240,7 @@ function plot_all_bonds(crystal::Crystal, max_dist; ncells=(3,3,3), kwargs...)
                 class = 1
             end
             label = "J$(dist)_$(class)"
-            push!(interactions, Heisenberg(1.0, crystal, bond, label))
+            push!(interactions, heisenberg(1.0, bond, label))
         end
     end
 
@@ -261,7 +261,7 @@ function plot_all_bonds_between(crystal, i, j, max_dist; ncells=(3,3,3), kwargs.
     class = 1
     for bond in canon_bonds
         # Exclude self (on-site) "bonds"
-        onsite = bond.i == bond.j && all(isequal(0), bond.n)
+        onsite = bond.i == bond.j && iszero(bond.n)
         target = bond.i == i && bond.j == j
         if !onsite && target
             if distance(crystal, bond) ≈ prev_dist

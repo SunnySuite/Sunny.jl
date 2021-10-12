@@ -34,14 +34,14 @@ all_symmetry_related_interactions
 ## Interactions
 
 ```@docs
-ExternalField
-onsite_anisotropy
+easy_axis
+easy_plane
+single_ion_anisotropy
 heisenberg
 dm_interaction
 exchange
-QuadraticInteraction
-OnSiteQuadratic
-DipoleDipole
+external_field
+dipole_dipole
 ```
 
 ## System definition
