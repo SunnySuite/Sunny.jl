@@ -18,6 +18,6 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/MagSims/FastDipole.git",
+    repo = "github.com/MagSims/Sunny.jl.git",
     devbranch = "main",
 )
