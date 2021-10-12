@@ -189,53 +189,47 @@ end
 
 #= Definitions of common crystals =#
 
-function cubic_crystal(a::Float64) :: Crystal
-    lat_vecs = SA[ a  0.0 0.0;
-                  0.0  a  0.0;
-                  0.0 0.0  a ]
-    basis_vecs = [SA[0.0, 0.0, 0.0]]
-    basis_types = ["A"]
-    Crystal(lat_vecs, basis_vecs; types=basis_types)
+function cubic_crystal(; a=1.0)
+    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    basis_vecs = [0, 0, 0]
+    Crystal(lat_vecs, basis_vecs)
 end
 
-function fcc_crystal(a::Float64) :: Crystal
-    lat_vecs = SA[ a  0.0 0.0;
-                  0.0  a  0.0;
-                  0.0 0.0  a ]
-    basis_vecs = [SA[ 0.,  0.,  0.],
-                  SA[1/2, 1/2, 0.0],
-                  SA[1/2,   0, 1/2],
-                  SA[  0, 1/2, 1/2]]
-    basis_types = fill("A", 4)
-    Crystal(lat_vecs, basis_vecs; types=basis_types)
+function fcc_crystal(; a=1.0)
+    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    basis_vecs = [[0, 0, 0]/2,
+                  [1, 1, 0]/2,
+                  [1, 0, 1]/2,
+                  [0, 1, 1]/2]
+    Crystal(lat_vecs, basis_vecs)
 end
 
-function diamond_conventional_crystal(a::Float64) :: Crystal
-    lat_vecs = SA[ 4a 0.0 0.0;
-                  0.0  4a 0.0;
-                  0.0 0.0  4a]
+function fcc_primitive_crystal(; a=1.0)
+    lat_vecs = [a a 0; a 0 a; 0 a a]' / 2
+    basis_vecs = [[0, 0, 0]]
+    cryst = Crystal(lat_vecs, positions)
+end
+
+function diamond_crystal(; a=1.0)
+    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
     basis_vecs = [
-        SA[0.0, 0.0, 0.0],
-        SA[0.0, 1/2, 1/2],
-        SA[1/2, 0.0, 1/2],
-        SA[1/2, 1/2, 0.0],
-        SA[3/4, 3/4, 3/4],
-        SA[3/4, 1/4, 1/4],
-        SA[1/4, 3/4, 1/4],
-        SA[1/4, 1/4, 3/4]
+        [0, 0, 0]/4,
+        [0, 2, 2]/4,
+        [2, 0, 2]/4,
+        [2, 2, 0]/4,
+        [3, 3, 3]/4,
+        [3, 1, 1]/4,
+        [1, 3, 1]/4,
+        [1, 1, 3]/4,
     ]
-    basis_types = fill("A", 8)
-    Crystal(lat_vecs, basis_vecs; types=basis_types)
+    Crystal(lat_vecs, basis_vecs)
 end
 
-function diamond_primitive_crystal(a::Float64) :: Crystal
-    lat_vecs = SA[a/2 a/2 0.0;
-                  a/2 0.0 a/2;
-                  0.0 a/2 a/2]
+function diamond_primitive_crystal(; a=1.0)
+    lat_vecs = [a a 0; a 0 a; 0 a a]' / 2
     basis_vecs = [
-        SA[0.0, 0.0, 0.0],
-        SA[1/4, 1/4, 1/4],
+        [0, 0, 0]/4,
+        [1, 1, 1]/4,
     ]
-    basis_types = ["A", "A"]
-    Crystal(lat_vecs, basis_vecs; types=basis_types)
+    Crystal(lat_vecs, basis_vecs)
 end
