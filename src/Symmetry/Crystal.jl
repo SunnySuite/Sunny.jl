@@ -33,9 +33,9 @@ function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
         if terms[1][1] == '+'
             terms[1] = terms[1][2:end]
         end
-        foreach(print, terms)
+        foreach(t -> print(io, t), terms)
         if i < 3
-            print(",")
+            print(io, ",")
         end
     end
 end
@@ -436,39 +436,39 @@ end
 
 
 function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
-    printstyled("Crystal info\n"; bold=true, color=:underline)
-    println(cryst.spacegroup)
+    printstyled(io, "Crystal\n"; bold=true, color=:underline)
+    println(io, cryst.spacegroup)
 
     if is_standard_form(cryst.lat_vecs)
         (a, b, c, α, β, γ) = lattice_params(cryst.lat_vecs)
-        @printf "Lattice params a=%.4g, b=%.4g, c=%.4g, α=%.4g°, β=%.4g°, γ=%.4g°\n" a b c α β γ
+        @printf io "Lattice params a=%.4g, b=%.4g, c=%.4g, α=%.4g°, β=%.4g°, γ=%.4g°\n" a b c α β γ
     else
-        println("Lattice vectors:")
+        println(io, "Lattice vectors:")
         for a in eachcol(cryst.lat_vecs)
-            @printf "   [%.4g %.4g %.4g]\n" a[1] a[2] a[3]
+            @printf io "   [%.4g %.4g %.4g]\n" a[1] a[2] a[3]
         end
     end
 
-    @printf "Volume %.4g\n" cell_volume(cryst)
+    @printf io "Volume %.4g\n" cell_volume(cryst)
 
     for c in unique(cryst.classes)
         i = findfirst(==(c), cryst.classes)
-        print("Class $c")
+        print(io, "Class $c")
         if cryst.types[i] != ""
-            print(", Type '$(cryst.types[i])'")
+            print(io, ", Type '$(cryst.types[i])'")
         end
         if !isnothing(cryst.sitesyms)
             # TODO: simplify in Julia 1.7
             symbol = cryst.sitesyms[i].symbol
             multiplicity = cryst.sitesyms[i].multiplicity
             wyckoff = cryst.sitesyms[i].wyckoff
-            print(", Site sym '$symbol', Wyckoff $multiplicity$wyckoff")
+            print(io, ", Site sym '$symbol', Wyckoff $multiplicity$wyckoff")
         end
-        println(":")
+        println(io, ":")
 
         for i in findall(==(c), cryst.classes)
             r = cryst.positions[i]
-            @printf "   %d. [%.4g, %.4g, %.4g]\n" i r[1] r[2] r[3]
+            @printf io "   %d. [%.4g, %.4g, %.4g]\n" i r[1] r[2] r[3]
         end
     end
 end
