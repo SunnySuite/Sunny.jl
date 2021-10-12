@@ -21,7 +21,6 @@ In all examples, we will assume that `Sunny`, `StaticArrays`, and
 
 ```julia
 using Sunny
-using StaticArrays
 using LinearAlgebra
 ```
 
@@ -36,21 +35,18 @@ within `examples/reproduce_testcases.jl`.
 will be ``8 \times 8 \times 8`` unit cells along each axis. Since we're not thinking about a specific system, we label all of the sites with the arbitrary species label `"A"`.
 
 ```julia
-lat_vecs = [4.0 0.0 0.0;
-            0.0 4.0 0.0;
-            0.0 0.0 4.0]
+lat_vecs = lattice_vectors(4, 4, 4, 90, 90, 90)
 basis_vecs = [
-    [0.0, 0.0, 0.0],
-    [0.0, 1/2, 1/2],
-    [1/2, 0.0, 1/2],
-    [1/2, 1/2, 0.0],
-    [3/4, 3/4, 3/4],
-    [3/4, 1/4, 1/4],
-    [1/4, 3/4, 1/4],
-    [1/4, 1/4, 3/4]
+    [0, 0, 0]/4,
+    [0, 2, 2]/4,
+    [2, 0, 2]/4,
+    [2, 2, 0]/4,
+    [3, 3, 3]/4,
+    [3, 1, 1]/4,
+    [1, 3, 1]/4,
+    [1, 1, 3]/4,
 ]
-basis_types = fill("A", 8)
-crystal = Crystal(lat_vecs, basis_vecs; types=basis_types)
+crystal = Crystal(lat_vecs, basis_vecs)
 ```
 
 You should see some information printed out about the automatically-inferred space group,
@@ -66,7 +62,7 @@ bottom of this page).
 ```julia
 J = 28.28           # Units of K
 interactions = [
-    heisenberg(J, crystal, Bond(3, 6, [0,0,0])),
+    heisenberg(J, Bond(3, 6, [0,0,0])),
 ]
 ```
 
@@ -79,16 +75,7 @@ sys = SpinSystem(crystal, interactions, (8, 8, 8))
 rand!(sys)
 ```
 
-The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the spin located at the selected site will given. For example, the following gives the spin variable located on the second sublattice in the
-unit cell which is fifth along each axis:
-
-```
-sys[2, 5, 5, 5]
-3-element SVector{3, Float64} with indices SOneTo(3):
-  0.22787294226659
-  0.41462045511988654
- -0.8810015893169237
-```
+The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the spin located at the selected site will given. For example, `sys[2, 5, 5, 5]` gives the spin variable located on the second sublattice in the unit cell, which is fifth along each axis.
 
 **(4)** We will simulate this system using Langevin dynamics, so we need to create a [`LangevinSampler`](@ref). Note that the units of integration time and temperature are relative to the units implicitly used when setting up the interactions.
 
@@ -128,8 +115,8 @@ they are all symmetry equivalent in this model.
 ```julia
 meas_rate = 10
 dynsf = dynamic_structure_factor(
-    sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate=meas_rate,
-    num_meas=1600, bz_size=(1,1,2), thermalize=10, verbose=true,
+    sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate,
+    dyn_meas=1600, bz_size=(1,1,2), thermalize=10, verbose=true,
     reduce_basis=true, dipole_factor=false
 )
 
@@ -190,17 +177,17 @@ the vector giving the diagonal.
 ```julia
 
 # All units in meV
-J1mat = [-0.397  0      0    ;
-          0     -0.075 -0.261;
+J1mat = [-0.397  0      0    
+          0     -0.075 -0.261
           0     -0.261 -0.236]
-J1 = exchange(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
-J2 = exchange(diagm([0.026, 0.026, 0.113]), cryst, Bond(1, 1, [1, -1, 0]), "J2")
-J3 = exchange(diagm([0.166, 0.166, 0.211]), cryst, Bond(1, 1, [2, 0, 0]), "J3")
-J0′ = exchange(diagm([0.037, 0.037, -0.036]), cryst, Bond(1, 1, [0, 0, 1]), "J0′")
-J1′ = exchange(diagm([0.013, 0.013, 0.051]), cryst, Bond(1, 1, [1, 0, 1]), "J1′")
-J2a′ = exchange(diagm([0.068, 0.068, 0.073]), cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
+J1 =   exchange(J1mat,                         Bond(1, 1, [1, 0, 0]),  "J1")
+J2 =   exchange(diagm([0.026, 0.026, 0.113]),  Bond(1, 1, [1, -1, 0]), "J2")
+J3 =   exchange(diagm([0.166, 0.166, 0.211]),  Bond(1, 1, [2, 0, 0]),  "J3")
+J0′ =  exchange(diagm([0.037, 0.037, -0.036]), Bond(1, 1, [0, 0, 1]),  "J0′")
+J1′ =  exchange(diagm([0.013, 0.013, 0.051]),  Bond(1, 1, [1, 0, 1]),  "J1′")
+J2a′ = exchange(diagm([0.068, 0.068, 0.073]),  Bond(1, 1, [1, -1, 1]), "J2a′")
 
-D = onsite_anisotropy([0.0, 0.0, -2.165/2], "D")
+D = onsite_anisotropy([0.0, 0.0, -2.165/2], 1, "D")
 interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 ```
 
@@ -304,17 +291,17 @@ cryst = Crystal("./FeI2.cif")
 cryst = subcrystal(cryst, "Fe2+")
 
 # All units in meV
-J1mat = [-0.397  0      0    ;
-          0     -0.075 -0.261;
+J1mat = [-0.397  0      0    
+          0     -0.075 -0.261
           0     -0.261 -0.236]
-J1 = exchange(J1mat, cryst, Bond(1, 1, [1, 0, 0]), "J1")
-J2 = exchange(diagm([0.026, 0.026, 0.113]), cryst, Bond(1, 1, [1, -1, 0]), "J2")
-J3 = exchange(diagm([0.166, 0.166, 0.211]), cryst, Bond(1, 1, [2, 0, 0]), "J3")
-J0′ = exchange(diagm([0.037, 0.037, -0.036]), cryst, Bond(1, 1, [0, 0, 1]), "J0′")
-J1′ = exchange(diagm([0.013, 0.013, 0.051]), cryst, Bond(1, 1, [1, 0, 1]), "J1′")
-J2a′ = exchange(diagm([0.068, 0.068, 0.073]), cryst, Bond(1, 1, [1, -1, 1]), "J2a′")
+J1 = exchange(J1mat, Bond(1, 1, [1, 0, 0]), "J1")
+J2 = exchange(diagm([0.026, 0.026, 0.113]), Bond(1, 1, [1, -1, 0]), "J2")
+J3 = exchange(diagm([0.166, 0.166, 0.211]), Bond(1, 1, [2, 0, 0]), "J3")
+J0′ = exchange(diagm([0.037, 0.037, -0.036]), Bond(1, 1, [0, 0, 1]), "J0′")
+J1′ = exchange(diagm([0.013, 0.013, 0.051]), Bond(1, 1, [1, 0, 1]), "J1′")
+J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′")
 
-D = onsite_anisotropy([0.0, 0.0, -2.165/2], "D")
+D = onsite_anisotropy([0.0, 0.0, -2.165/2], 1, "D")
 interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
 system = SpinSystem(cryst, interactions, (16, 20, 4))
@@ -429,44 +416,46 @@ that is confined by the symmetry properties of the underlying crystal.
 To discover all symmetry classes of bonds up to a certain distance while simultaneously learning what the allowed form of the `J` matrix is, construct a `Crystal` then call the function [`print_bond_table`](@ref).
 
 ```
-julia> lattice = Sunny.diamond_conventional(1.0, (8, 8, 8))
-julia> crystal = Crystal(lattice)
-julia> print_bond_table(crystal, 4.0)
+crystal = Sunny.diamond_conventional_crystal(1.0)
+print_bond_table(crystal, 4.0)
+```
 
-Bond{3}(1, 1, [0, 0, 0])
-Distance 0, multiplicity 1
-Connects [0, 0, 0] to [0, 0, 0]
-Allowed coupling:  |A 0 0 |
-                   |0 A 0 |
-                   |0 0 A |
+which prints
 
-Bond{3}(3, 6, [0, 0, 0])
+```
+Site index 1
+Coordinates [0, 0, 0]
+Allowed single-ion anisotropy or g-tensor: |A 0 0 |
+                                           |0 A 0 |
+                                           |0 0 A |
+
+Bond(3, 6, [0, 0, 0])
 Distance 1.732, multiplicity 4
 Connects [0.5, 0, 0.5] to [0.75, 0.25, 0.25]
-Allowed coupling:  | A  B -B |
-                   | B  A -B |
-                   |-B -B  A |
+Allowed exchange matrix: | A  B -B |
+                         | B  A -B |
+                         |-B -B  A |
 
-Bond{3}(1, 2, [0, 0, 0])
+Bond(1, 2, [0, 0, 0])
 Distance 2.828, multiplicity 12
 Connects [0, 0, 0] to [0, 0.5, 0.5]
-Allowed coupling:  | B  D  D |
-                   |-D  C  A |
-                   |-D  A  C |
+Allowed exchange matrix: | B -D -D |
+                         | D  C  A |
+                         | D  A  C |
 
-Bond{3}(1, 6, [0, 0, 0])
+Bond(1, 6, [0, 0, 0])
 Distance 3.317, multiplicity 12
 Connects [0, 0, 0] to [0.75, 0.25, 0.25]
-Allowed coupling:  |B C C |
-                   |C D A |
-                   |C A D |
+Allowed exchange matrix: |B C C |
+                         |C D A |
+                         |C A D |
 
-Bond{3}(1, 1, [1, 0, 0])
+Bond(1, 1, [1, 0, 0])
 Distance 4, multiplicity 6
 Connects [0, 0, 0] to [1, 0, 0]
-Allowed coupling:  |A 0 0 |
-                   |0 B 0 |
-                   |0 0 B |
+Allowed exchange matrix: |A 0 0 |
+                         |0 B 0 |
+                         |0 0 B |
 ```
 
 Each block represents one symmetry equivalence class of bonds, along with a single

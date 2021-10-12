@@ -79,14 +79,13 @@ function print_bond(cryst::Crystal, b::Bond{3})
     rj = cryst.positions[b.j] + b.n
     allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
 
-    @printf "Bond(%d, %d, [%d, %d, %d])\n" b.i b.j b.n[1] b.n[2] b.n[3]
-
     if b.i == b.j && iszero(b.n)
         # On site interaction
-        if length(unique(cryst.types)) == 1
-            @printf "At fractional coordinates [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3]
+        @printf "Site index %d\n" b.i
+        if isempty(cryst.types[b.i])
+            @printf "Coordinates [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3]
         else
-            @printf "'%s' at fractional coordinates [%.4g, %.4g, %.4g]\n" cryst.types[b.i] ri[1] ri[2] ri[3]
+            @printf "Type '%s' at coordinates [%.4g, %.4g, %.4g]\n" cryst.types[b.i] ri[1] ri[2] ri[3]
         end
         print_allowed_exchange("Allowed single-ion anisotropy or g-tensor: ", allowed_J_basis)
         if any(J -> !(J ≈ J'), allowed_J_basis)
@@ -94,8 +93,9 @@ function print_bond(cryst::Crystal, b::Bond{3})
                        but could contribute meaningfully to the g-tensor.""")
         end
     else
+        @printf "Bond(%d, %d, [%d, %d, %d])\n" b.i b.j b.n[1] b.n[2] b.n[3]
         @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) bond_multiplicity(cryst, b)
-        if length(unique(cryst.types)) == 1
+        if isempty(cryst.types[b.i]) && isempty(cryst.types[b.j])
             @printf "Connects [%.4g, %.4g, %.4g] to [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3] rj[1] rj[2] rj[3]
         else
             @printf "Connects '%s' at [%.4g, %.4g, %.4g] to '%s' at [%.4g, %.4g, %.4g]\n" cryst.types[b.i] ri[1] ri[2] ri[3] cryst.types[b.j] rj[1] rj[2] rj[3]
