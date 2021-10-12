@@ -10,6 +10,36 @@ struct SymOp
     T::Vec3
 end
 
+function Base.display(s::SymOp)
+    for i in 1:3
+        terms = []
+        for (j, a) in enumerate(["x", "y", "z"])
+            Rij = s.R[i,j]
+            if Rij == 1
+                push!(terms, "+"*a)
+            elseif Rij == -1
+                push!(terms, "-"*a)
+            elseif Rij != 0
+                push!(terms, format_number_or_fraction(Rij) * a)
+            end
+        end
+        Ti = s.T[i]
+        if Ti != 0
+            push!(terms, format_number_or_fraction(Ti))
+        end
+        if isempty(terms)
+            push!(terms, "0")
+        end
+        if terms[1][1] == '+'
+            terms[1] = terms[1][2:end]
+        end
+        foreach(print, terms)
+        if i < 3
+            print(",")
+        end
+    end
+end
+
 function Base.isapprox(s1::SymOp, s2::SymOp; atol)
     return isapprox(s1.R, s2.R; atol) && isapprox(s1.T, s2.T; atol)
 end
@@ -424,14 +454,14 @@ function Base.display(cryst::Crystal)
         i = findfirst(==(c), cryst.classes)
         print("Class $c")
         if cryst.types[i] != ""
-            print(", type '$(cryst.types[i])'")
+            print(", Type '$(cryst.types[i])'")
         end
         if !isnothing(cryst.sitesyms)
             # TODO: simplify in Julia 1.7
             symbol = cryst.sitesyms[i].symbol
             multiplicity = cryst.sitesyms[i].multiplicity
             wyckoff = cryst.sitesyms[i].wyckoff
-            print(", Site sym. '$symbol', Wyckoff $multiplicity$wyckoff")
+            print(", Site sym '$symbol', Wyckoff $multiplicity$wyckoff")
         end
         println(":")
 
