@@ -10,7 +10,7 @@ struct SymOp
     T::Vec3
 end
 
-function Base.display(s::SymOp)
+function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
     for i in 1:3
         terms = []
         for (j, a) in enumerate(["x", "y", "z"])
@@ -434,7 +434,8 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where {N}
     return ret
 end
 
-function Base.display(cryst::Crystal)
+
+function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
     printstyled("Crystal info\n"; bold=true, color=:underline)
     println(cryst.spacegroup)
 

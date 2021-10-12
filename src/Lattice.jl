@@ -81,7 +81,7 @@ end
     lattice_params(lattice::Lattice{3})
 """
 
-function Base.display(lattice::Lattice)
+function Base.show(io::IO, ::MIME"text/plain", lattice::Lattice)
     D = length(size(lattice)) - 1
     println(join(size(lattice), "x"), " Lattice{$D}")
     # Print out lattice vectors, types, basis?
