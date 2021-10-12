@@ -21,6 +21,22 @@ function parse_number_or_fraction(s)
     end
 end
 
+function format_number_or_fraction(x)
+    # check for fraction with denominator 2, 3, 4, 6, or 12
+    c = 12
+    xc′ = round(Int, x*c)
+    if abs(x*c - xc′) < 1e-12
+        frac = xc′ // c
+        if frac.den == 1
+            return @sprintf "%+d" frac.num
+        else
+            return @sprintf "%+d/%d" frac.num frac.den
+        end
+    else
+        return @sprintf "%+.4g" x
+    end
+end
+
 
 function _parse_op(str::AbstractString) :: SymOp
     D = 3
