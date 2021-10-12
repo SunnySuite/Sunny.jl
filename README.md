@@ -23,15 +23,13 @@ Check that Sunny.jl is working properly by running the unit tests,
 pkg> test Sunny
 ```
 
-Sunny.jl works best with some additional packages,
+For plotting, you may also wish to install
 ```
-pkg> add OffsetArrays
-pkg> add StaticArrays
 pkg> add Plots
 pkg> add GLMakie
 ```
 
-At the time of this writing, GLMakie has some rough edges. Run `test GLMakie` to make sure it is working properly.
+At the time of this writing, GLMakie has some rough edges, especially on Mac platforms. Run `test GLMakie` to make sure it is working properly.
 
 To use Jupyter notebooks with Julia, install the [IJulia](https://github.com/JuliaLang/IJulia.jl) package and follow the installation instructions there.
 
