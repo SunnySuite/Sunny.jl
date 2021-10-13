@@ -1,6 +1,6 @@
 "Algorithms for discovering sparse bases for the symmetry-allowed space of exchange couplings."
 
-# Interaction matrix J should be invariant under symmetry operations. For a
+# Coupling matrix J should be invariant under symmetry operations. For a
 # symop involving the orthogonal matrix R, we require either `R J Rᵀ = J` or 
 # `R J Rᵀ = Jᵀ`, depending on the parity of the bond symmetry.
 #
@@ -76,16 +76,20 @@ function symmetry_allowed_couplings_operator(cryst::Crystal, b::BondRaw)
     return P
 end
 
-# Check that a coupling matrix J is consistent with symmetries of a bond
-function verify_coupling_matrix(cryst::Crystal, b::BondRaw, J::Mat3)
+# Check whether a coupling matrix J is consistent with symmetries of a bond
+function is_coupling_valid(cryst::Crystal, b::BondRaw, J::Mat3)
     for (s, parity) in symmetries_between_bonds(cryst, b, b)
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
-        @assert norm(R*J*R' - (parity ? J : J')) < 1e-12 "Specified J matrix not in allowed space!"
+        # TODO use symprec to handle case where matrix R is not precise
+        if norm(R*J*R' - (parity ? J : J')) > 1e-12
+            return false
+        end
     end
+    return true
 end
 
-function verify_coupling_matrix(cryst::Crystal, b::Bond{3}, J::Mat3)
-    verify_coupling_matrix(cryst, BondRaw(cryst, b), J)
+function is_coupling_valid(cryst::Crystal, b::Bond{3}, J::Mat3)
+    return is_coupling_valid(cryst, BondRaw(cryst, b), J)
 end
 
 
@@ -189,7 +193,7 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondRaw)
         x = Mat3(reshape(x, 3, 3))
         
         # Double check that x indeed satifies the necessary symmetries
-        verify_coupling_matrix(cryst, b, x)
+        @assert is_coupling_valid(cryst, b, x)
 
         return x
     end
@@ -199,8 +203,8 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond{3})
     return basis_for_symmetry_allowed_couplings(cryst, BondRaw(cryst, b))
 end
 
-function all_symmetry_related_interactions_for_atom(cryst::Crystal, i::Int, b_ref::Bond{3}, J_ref::Mat3)
-    verify_coupling_matrix(cryst, BondRaw(cryst, b_ref), J_ref)
+function all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, b_ref::Bond{3}, J_ref::Mat3)
+    @assert is_coupling_valid(cryst, b_ref, J_ref)
 
     bs = Bond{3}[]
     Js = Mat3[]
@@ -216,17 +220,17 @@ function all_symmetry_related_interactions_for_atom(cryst::Crystal, i::Int, b_re
 end
 
 """
-    all_symmetry_related_interactions(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3) :: Tuple{Vector{Bond3}, Vector{Mat3}}
+    all_symmetry_related_couplings(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3) :: Tuple{Vector{Bond3}, Vector{Mat3}}
 
 Given a reference bond `b_ref` and exchange matrix `J_ref` on that bond, construct lists of all
  symmetry-equivalent bonds and their respective transformed exchange matrices.
 """
-function all_symmetry_related_interactions(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3)
+function all_symmetry_related_couplings(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3)
     bs = Bond{3}[]
     Js = Mat3[]
 
     for i in eachindex(cryst.positions)
-        (bs_i, Js_i) = all_symmetry_related_interactions_for_atom(cryst, i, b_ref, J_ref)
+        (bs_i, Js_i) = all_symmetry_related_couplings_for_atom(cryst, i, b_ref, J_ref)
         append!(bs, bs_i)
         append!(Js, Js_i)
     end

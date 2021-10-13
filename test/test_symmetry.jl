@@ -58,7 +58,7 @@ cbonds = canonical_bonds(cryst, 2.)
 b = cbonds[2]
 basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
 J = basis' * randn(length(basis))
-(bs, Js) = Sunny.all_symmetry_related_interactions_for_atom(cryst, b.i, b, J)
+(bs, Js) = Sunny.all_symmetry_related_couplings_for_atom(cryst, b.i, b, J)
 @test length(Js) == Sunny.bond_multiplicity(cryst, b)
 
 
