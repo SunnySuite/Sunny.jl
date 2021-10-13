@@ -100,7 +100,7 @@ function convert_quadratic(int::QuadraticInteraction{D}, cryst; tol=1e-6) where 
     sorted_bonds = Vector{Vector{Bond{D}}}()
     sorted_Js = Vector{Vector{Mat3}}()
     for i in 1:nbasis(cryst)
-        (bs, Js) = all_symmetry_related_interactions_for_atom(cryst, i, bond, J)
+        (bs, Js) = all_symmetry_related_couplings_for_atom(cryst, i, bond, J)
         push!(sorted_bonds, bs)
         push!(sorted_Js, Js)
     end

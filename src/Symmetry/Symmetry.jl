@@ -20,7 +20,7 @@ include("SymmetryAnalysis.jl")
 export canonical_bonds, all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 
 include("AllowedCouplings.jl")
-export all_symmetry_related_interactions, all_symmetry_related_interactions_for_atom
+export all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom
 
 include("Parsing.jl")
 

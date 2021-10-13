@@ -28,7 +28,7 @@ Bond
 allowed_J
 print_bond_table
 all_symmetry_related_bonds
-all_symmetry_related_interactions
+all_symmetry_related_couplings
 ```
 
 ## Interactions
