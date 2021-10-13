@@ -1,4 +1,7 @@
-# Sunny.jl
+<div align="center">
+    <img src="https://raw.githubusercontent.com/MagSims/Sunny.jl/master/assets/sunny_logo.jpg" width=70% alt="Sunny.jl">
+</div>
+<p>
 
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://magsims.github.io/Sunny.jl/stable)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://magsims.github.io/Sunny.jl/dev)
