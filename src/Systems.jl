@@ -62,6 +62,7 @@ then shifted to charge-neutrality.
 function Random.rand!(sys::ChargeSystem)
     sys.sites .= 2 .* rand(Float64, size(sys.sites)) .- 1.
     sys.sites .-= sum(sys.sites) / length(sys.sites)
+    return
 end
 
 
@@ -139,6 +140,7 @@ Sets spins randomly sampled on the unit sphere.
 function Random.rand!(sys::SpinSystem)
     sys.sites .= randn(Vec3, size(sys.sites))
     @. sys.sites /= norm(sys.sites)
+    return
 end
 
 """
