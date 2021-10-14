@@ -160,13 +160,13 @@ external_field(B) = ExternalField(Vec3(B))
 Adds long-range dipole-dipole interactions,
 
 ```math
-    -(μ₀/4π) ∑_{ij}  (3 (𝐦_j⋅𝐫̂_{ij})(𝐦_i⋅𝐫̂_{ij}) - 𝐦_i⋅𝐦_j) / |𝐫_{ij}|^3
+    -(μ₀/4π) ∑_{i\\neq j}  (3 (𝐦_j⋅𝐫̂_{ij})(𝐦_i⋅𝐫̂_{ij}) - 𝐦_i⋅𝐦_j) / |𝐫_{ij}|^3
 ```
 
-where the sum is over all pairs ``i \neq j``, singly counted, including
-periodic images, regularized using the Ewald summation convention. The magnetic
-moments are ``𝐦_i = g 𝐬_i`` where ``g`` is in general a tensor and the spin
-magnitude ``|𝐬_i|`` is typically a multiple of 1/2.
+where the sum is over all pairs (singly counted), including periodic images,
+regularized using the Ewald summation convention. The magnetic moments are
+``𝐦_i = g 𝐬_i`` where ``g`` is in general a tensor and the spin magnitude
+``|𝐬_i|`` is typically a multiple of 1/2.
 
 A three-dimensional system is required.
 
