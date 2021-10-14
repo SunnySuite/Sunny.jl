@@ -45,11 +45,6 @@ function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal, latsize)
     validate_dimensionality(ints, D)
 
     for int in ints
-        # Convert OnSiteQuadratic to a QuadraticInteraction, interpreted as a "self interaction"
-        if isa(int, OnSiteQuadratic)
-            int = QuadraticInteraction(int.J, Bond{D}(int.site, int.site, zeros(D)), int.label)
-        end
-
         if isa(int, ExternalField)
             if isnothing(ext_field)
                 ext_field = int

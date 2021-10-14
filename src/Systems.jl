@@ -74,9 +74,48 @@ Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sit
  the ``+𝐳̂`` direction.
 """
 function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1//1)
-    if length(latsize) != 3
-        error("Provided `latsize` should be of length 3")
+    D = length(latsize)
+    if D != 3
+        error("Currently only three-dimensional systems are supported.")
     end
+
+    # Convert OnSiteQuadratic to QuadraticInteraction
+    ints = map(ints) do int
+        if isa(int, OnSiteQuadratic)
+            return QuadraticInteraction(int.J, Bond{D}(int.site, int.site, zeros(D)), int.label)
+        else
+            return int
+        end
+    end
+
+    # Validate all interactions
+    for int in ints
+        if isa(int, QuadraticInteraction)
+            # Verify that the interactions are symmetry-consistent
+            b = int.bond
+            if !is_coupling_valid(crystal, b, int.J)
+                println("Symmetry-violating interaction: $int.")
+                if b.i == b.j && iszero(b.n)
+                    println("Allowed single-ion anisotropy:")
+                else
+                    println("Allowed exchange:")
+                end
+                print_allowed_coupling(crystal, b; prefix="    ")
+                error("Interaction violates symmetry.")
+            end
+
+            # Verify that no bond wraps the entire system
+            bs = all_symmetry_related_bonds(crystal, b)
+            wraps = any(bs) do b
+                any(abs.(b.n) .>= latsize)
+            end
+            if wraps
+                println("Distance-violating interaction: $int.")
+                error("Interaction wraps system.")
+            end
+        end
+    end
+
     ℋ_CPU = HamiltonianCPU(ints, crystal, latsize)
     lattice = Lattice(crystal, latsize)
 
