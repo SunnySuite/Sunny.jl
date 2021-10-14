@@ -22,13 +22,13 @@ function _strip_decimal_string(str)
 end
 
 "Converts a list of basis elements for a J matrix into a nice string summary"
-function _coupling_basis_strings(coup_basis; digits=2, tol=1e-4) :: Matrix{String}
+function _coupling_basis_strings(coup_basis; digits, tol) :: Matrix{String}
     J = fill("", size(coup_basis[1])...)
     for (letter, basis_mat) in zip('A':'Z', coup_basis)
         for idx in eachindex(basis_mat)
             coeff = basis_mat[idx]
             if abs(coeff) > tol
-                coeff = round(coeff; digits=digits)
+                coeff = round(coeff; digits)
                 if J[idx] == ""
                     float_str = @sprintf "%.4f" coeff
                 else
@@ -47,26 +47,13 @@ function _coupling_basis_strings(coup_basis; digits=2, tol=1e-4) :: Matrix{Strin
     return J
 end
 
-"""
-    allowed_J(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
-
-Given a bond `b`, returns a `Matrix{String}` representing the allowed
- form of a bilinear exchange interaction matrix on this bond, given the
- symmetry constraints of `cryst`.
-"""
-function allowed_J(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
-    J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
-    _coupling_basis_strings(J_basis; digits=digits, tol=tol)
-end
-
-function print_allowed_exchange(name::String, allowed_J_basis::Vector{Mat3})
-    J_strings = _coupling_basis_strings(allowed_J_basis)
-    max_len = maximum(length, J_strings)
+function _print_allowed_coupling(basis_strs; prefix)
+    max_len = maximum(length, basis_strs)
     for i in 1:3
-        print(i == 1 ? name : repeat(' ', length(name)))
+        print(i == 1 ? prefix : repeat(' ', length(prefix)))
         print('|')
         for j in 1:3
-            elem = J_strings[i, j]
+            elem = basis_strs[i, j]
             elem = repeat(' ', max_len-length(elem)) * elem
             print(elem * " ")
         end
@@ -74,10 +61,18 @@ function print_allowed_exchange(name::String, allowed_J_basis::Vector{Mat3})
     end
 end
 
-function print_bond(cryst::Crystal, b::Bond{3})
+function print_allowed_coupling(cryst::Crystal, b::Bond{3}; prefix="", digits=2, tol=1e-4)
+    basis = basis_for_symmetry_allowed_couplings(cryst, b)
+    basis_strs = _coupling_basis_strings(basis; digits, tol)
+    _print_allowed_coupling(basis_strs; prefix)
+end
+
+function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
     ri = cryst.positions[b.i]
     rj = cryst.positions[b.j] + b.n
-    allowed_J_basis = basis_for_symmetry_allowed_couplings(cryst, b)
+
+    basis = basis_for_symmetry_allowed_couplings(cryst, b)
+    basis_strs = _coupling_basis_strings(basis; digits, tol)
 
     if b.i == b.j && iszero(b.n)
         # On site interaction
@@ -87,8 +82,9 @@ function print_bond(cryst::Crystal, b::Bond{3})
         else
             @printf "Type '%s' at coordinates [%.4g, %.4g, %.4g]\n" cryst.types[b.i] ri[1] ri[2] ri[3]
         end
-        print_allowed_exchange("Allowed single-ion anisotropy or g-tensor: ", allowed_J_basis)
-        if any(J -> !(J ≈ J'), allowed_J_basis)
+
+        _print_allowed_coupling(basis_strs; prefix="Allowed single-ion anisotropy or g-tensor: ")
+        if any(J -> !(J ≈ J'), basis)
             println("""Note: The antisymmetric part is irrelevant to the single-ion anisotropy,
                        but could contribute meaningfully to the g-tensor.""")
         end
@@ -100,7 +96,7 @@ function print_bond(cryst::Crystal, b::Bond{3})
         else
             @printf "Connects '%s' at [%.4g, %.4g, %.4g] to '%s' at [%.4g, %.4g, %.4g]\n" cryst.types[b.i] ri[1] ri[2] ri[3] cryst.types[b.j] rj[1] rj[2] rj[3]
         end
-        print_allowed_exchange("Allowed exchange matrix: ", allowed_J_basis)
+        _print_allowed_coupling(basis_strs; prefix="Allowed exchange matrix: ")
     end
     println()
 end
@@ -114,8 +110,8 @@ Pretty-prints a table of all symmetry classes of bonds present in `cryst`, up
  a single "canonical" bond is shown, with `i`, `j` being the two sublattices
  connected, and `n` being the displacement vector in units of the lattice vectors.
 """
-function print_bond_table(cryst::Crystal, max_dist)
+function print_bond_table(cryst::Crystal, max_dist; digits=2, tol=1e-4)
     for b in canonical_bonds(cryst, max_dist)
-        print_bond(cryst, b)
+        print_bond(cryst, b; digits, tol)
     end
 end

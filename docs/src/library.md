@@ -25,7 +25,7 @@ lattice_params
 
 ```@docs
 Bond
-allowed_J
+print_bond
 print_bond_table
 all_symmetry_related_bonds
 all_symmetry_related_couplings
