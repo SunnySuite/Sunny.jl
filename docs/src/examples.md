@@ -16,7 +16,7 @@ The high-level outline of performing a simulation is:
 
 Defining interactions in step (2) can be aided by our utilities for symmetry analysis, demonstrated at the bottom of this page.
 
-In all examples, we will assume that `Sunny`, `StaticArrays`, and
+In all examples, we will assume that `Sunny` and
 `LinearAlgebra` have been loaded:
 
 ```julia
@@ -31,51 +31,67 @@ a spin dynamics simulation, with finite-$T$ statistics obtained by using Langevi
 dynamics. The full example is contained in the function `test_diamond_heisenberg_sf()`
 within `examples/reproduce_testcases.jl`.
 
-**(1)** We construct a diamond crystal by explicitly defining the lattice geometry. We will use the conventional cubic Bravais lattice with an 8-site basis. Our simulation box
-will be ``8 \times 8 \times 8`` unit cells along each axis. Since we're not thinking about a specific system, we label all of the sites with the arbitrary species label `"A"`.
+**(1)** We construct a diamond crystal by explicitly defining the eight atom
+positions in the conventional cubic unit cell,
 
 ```julia
-lat_vecs = lattice_vectors(4, 4, 4, 90, 90, 90)
+a = 1.0
+lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
 basis_vecs = [
-    [0, 0, 0]/4,
-    [0, 2, 2]/4,
-    [2, 0, 2]/4,
-    [2, 2, 0]/4,
-    [3, 3, 3]/4,
-    [3, 1, 1]/4,
-    [1, 3, 1]/4,
-    [1, 1, 3]/4,
-]
+    [0, 0, 0],
+    [2, 2, 0],
+    [3, 1, 1],
+    [1, 3, 1],
+    [2, 0, 2],
+    [0, 2, 2],
+    [1, 1, 3],
+    [3, 3, 3],
+] / 4
 crystal = Crystal(lat_vecs, basis_vecs)
 ```
 
-You should see some information printed out about the automatically-inferred space group,
-the lattice parameters, and the coordinates of all of the sites in the unit cell in
-fractional coordinates.
+The terminal will display information about the automatically-inferred symmetry
+information for the cell.
+
+One can optionally enter atom types, which affects the inferred spacegroup. For
+example, `Crystal(lat_vecs, basis_vecs; types=["A", "A", "B", "B", "A", "A",
+"B", "B"])` would produce a crystal with reduced symmetry.
+
+A more concise way to create the diamond crystal is using the space group
+number, which automatically fills in all symmetry equivalent positions,
+
+```julia
+crystal = Crystal(lat_vecs, [[0, 0, 0]], 227; setting="1")
+```
+
+For spacegroup 227 (symbol "F d -3 m"), there are two possible conventions for
+the unit cell origin. Leaving off the `setting` option returns all possible
+crystals.
 
 **(2)** Next, we need to define our Heisenberg interactions. We want to set up
 nearest-neighbor antiferromagnetic interactions with a strength of ``J = 28.28~\mathrm{K}``.
-One nearest-neighbor bond is the one connecting basis site 3 with basis site 6 within a
+One nearest-neighbor bond is the one connecting basis index 1 with basis index 3 within a
 single unit cell. (We can figure this out using our tools for symmetry analysis, at the
 bottom of this page).
 
 ```julia
 J = 28.28           # Units of K
 interactions = [
-    heisenberg(J, Bond(3, 6, [0,0,0])),
+    heisenberg(J, Bond(1, 3, [0,0,0])),
 ]
 ```
 
-**(3)** Assembling a `SpinSystem` is straightforward -- provide the `Crystal` and the `Vector` of `Interaction`s we made, along with the size of the
-simulation box we want along each lattice vector. Then, we will randomize
-the system so that all spins are randomly placed on the unit sphere.
+**(3)** Assembling a `SpinSystem` is straightforward -- provide the `Crystal`,
+the `Interaction`s, along with the dimensions of the simulation box in units of
+the lattice vectors. Then, we will randomize the system so that all spins are
+randomly placed on the unit sphere.
 
 ```julia
 sys = SpinSystem(crystal, interactions, (8, 8, 8))
 rand!(sys)
 ```
 
-The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the spin located at the selected site will given. For example, `sys[2, 5, 5, 5]` gives the spin variable located on the second sublattice in the unit cell, which is fifth along each axis.
+The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the spin located at the  will given. For example, `sys[2, 5, 5, 5]` gives the spin variable located on the second sublattice in the unit cell, which is fifth along each axis.
 
 **(4)** We will simulate this system using Langevin dynamics, so we need to create a [`LangevinSampler`](@ref). Note that the units of integration time and temperature are relative to the units implicitly used when setting up the interactions.
 
@@ -157,8 +173,8 @@ we will load the crystal directly from a common crystallographic file format
 called a `.cif`. You can download the structure file from [this link](https://materials.springer.com/isp/crystallographic/docs/sd_0548497). Then, we can load it as:
 
 ```julia
-cryst = Crystal("./FeI2.cif")
-cryst = subcrystal(cryst, "Fe2+")
+crystal = Crystal("./FeI2.cif")
+crystal = subcrystal(crystal, "Fe2+")
 ```
 
 (Be sure to change `"./FeI2.cif"` to whatever filename you've locally saved the file as.)
@@ -166,7 +182,7 @@ cryst = subcrystal(cryst, "Fe2+")
 As only the Fe atoms are spinful, the second line here is selecting out just them.
 However, the [`subcrystal`](@ref) function critically retains information about
 the symmetry of the crystal structure with the I atoms present, which is
-important for symmetry-constraining allowed interactions between sites.
+important for symmetry-constraining allowed interactions between atoms.
 
 **(2)** We proceed to define our Hamiltonian similarly as before, however
 this time many more interactions are present. See the documentation on the
@@ -180,12 +196,12 @@ the vector giving the diagonal.
 J1mat = [-0.397  0      0    
           0     -0.075 -0.261
           0     -0.261 -0.236]
-J1 =   exchange(J1mat,                         Bond(1, 1, [1, 0, 0]),  "J1")
-J2 =   exchange(diagm([0.026, 0.026, 0.113]),  Bond(1, 1, [1, -1, 0]), "J2")
-J3 =   exchange(diagm([0.166, 0.166, 0.211]),  Bond(1, 1, [2, 0, 0]),  "J3")
-J0′ =  exchange(diagm([0.037, 0.037, -0.036]), Bond(1, 1, [0, 0, 1]),  "J0′")
-J1′ =  exchange(diagm([0.013, 0.013, 0.051]),  Bond(1, 1, [1, 0, 1]),  "J1′")
-J2a′ = exchange(diagm([0.068, 0.068, 0.073]),  Bond(1, 1, [1, -1, 1]), "J2a′")
+J1 = exchange(J1mat, Bond(1, 1, [1, 0, 0]), "J1")
+J2 = exchange(diagm([0.026, 0.026, 0.113]), Bond(1, 1, [1, -1, 0]), "J2")
+J3 = exchange(diagm([0.166, 0.166, 0.211]), Bond(1, 1, [2, 0, 0]), "J3")
+J0′ = exchange(diagm([0.037, 0.037, -0.036]), Bond(1, 1, [0, 0, 1]), "J0′")
+J1′ = exchange(diagm([0.013, 0.013, 0.051]), Bond(1, 1, [1, 0, 1]), "J1′")
+J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′")
 
 D = easy_axis(2.165/2, [0, 0, 1], 1, "D")
 interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
@@ -196,14 +212,14 @@ we've defined above, we can take a look at both using the following plotting
 function: (you may want to adjust `markersize` to make the atoms easier to see):
 
 ```julia
-plot_bonds(cryst, interactions; ncells=(4,4,4), markersize=500)
+plot_bonds(crystal, interactions; ncells=(4,4,4), markersize=500)
 ```
 
 **(3)** As with the previous example, the next step is to make a `SpinSystem` and
 randomize it. We'll simulate a fairly large box of size ``16\times 20\times 4``.
 
 ```julia
-system = SpinSystem(cryst, interactions, (16, 20, 4))
+system = SpinSystem(crystal, interactions, (16, 20, 4))
 rand!(system)
 ```
 
@@ -231,7 +247,7 @@ should return.
 As in the previous example, we are going to end with computing a dynamic structure
 factor tensor using the `dynamic_structure_factor` function. A heuristic for choosing a
 reasonable value of `Δt` using in the Landau-Lifshitz dynamics is `0.01` divided
-by the largest energy scale present in the system. Here, that is the on-site
+by the largest energy scale present in the system. Here, that is the single-ion
 anisotropy with a strength of `2.165/2 ` meV.
 
 To make sure we don't do more work than really necessary, we set how
@@ -287,8 +303,8 @@ are copied below for convenience, but see the previous example for an
 explanation of each step.
 
 ```julia
-cryst = Crystal("./FeI2.cif")
-cryst = subcrystal(cryst, "Fe2+")
+crystal = Crystal("./FeI2.cif")
+crystal = subcrystal(crystal, "Fe2+")
 
 # All units in meV
 J1mat = [-0.397  0      0    
@@ -304,7 +320,7 @@ J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′"
 D = easy_axis(2.165/2, [0, 0, 1], 1, "D")
 interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
-system = SpinSystem(cryst, interactions, (16, 20, 4))
+system = SpinSystem(crystal, interactions, (16, 20, 4))
 rand!(system)
 
 sampler = MetropolisSampler(system, 1.0, 10)
@@ -400,7 +416,7 @@ plot_spins(system; arrowsize=1.5, arrowlength=3, linewidth=0.5)
 ```
 
 You should see antiferromagnetic stripes within each
-``c``-plane, which shift by one lattice site as you
+``c``-plane, which shift by one  as you
 move up each plane!
 
 
@@ -408,69 +424,81 @@ move up each plane!
 
 When defining pair interactions, we are always defining the interactions on
 entire symmetry classes at the same time. To do this, we need to provide the
-exchange matrix ``J`` on a specific reference `Bond`, which is then automatically
-propagated to all symmetry-equivalent bonds. However, on any given bond, the
-exchange matrix must live within a restricted space of ``3 \times 3`` matrices
-that is confined by the symmetry properties of the underlying crystal.
+exchange matrix ``J`` for a specific `Bond`, which is then automatically
+propagated to all symmetry-equivalent bonds. Any given bond has symmetry
+constraints that restrict the allowed space of ``3 \times 3`` coupling matrices.
 
-To discover all symmetry classes of bonds up to a certain distance while simultaneously learning what the allowed form of the `J` matrix is, construct a `Crystal` then call the function [`print_bond_table`](@ref).
+To discover the symmetry allowed couplings for all bonds up to a certain
+distance, we can use the function [`print_bond_table`](@ref).
 
 ```
-crystal = Sunny.diamond_crystal()
-print_bond_table(crystal, 4.0)
+lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+crystal = Crystal(lat_vecs, [[0, 0, 0]], "F d -3 m"; setting="1")
+print_bond_table(crystal, 1.0)
 ```
 
 which prints
 
 ```
-Site index 1
+Atom index 1
 Coordinates [0, 0, 0]
 Allowed single-ion anisotropy or g-tensor: |A 0 0 |
                                            |0 A 0 |
                                            |0 0 A |
 
-Bond(3, 6, [0, 0, 0])
-Distance 1.732, multiplicity 4
-Connects [0.5, 0, 0.5] to [0.75, 0.25, 0.25]
-Allowed exchange matrix: | A  B -B |
-                         | B  A -B |
-                         |-B -B  A |
+Bond(1, 3, [0, 0, 0])
+Distance 0.433, multiplicity 4
+Connects [0, 0, 0] to [0.25, 0.25, 0.25]
+Allowed exchange matrix: |A B B |
+                         |B A B |
+                         |B B A |
 
 Bond(1, 2, [0, 0, 0])
-Distance 2.828, multiplicity 12
-Connects [0, 0, 0] to [0, 0.5, 0.5]
-Allowed exchange matrix: | B -D -D |
-                         | D  C  A |
-                         | D  A  C |
+Distance 0.7071, multiplicity 12
+Connects [0, 0, 0] to [0.5, 0.5, 0]
+Allowed exchange matrix: | C  A  D |
+                         | A  C  D |
+                         |-D -D  B |
 
-Bond(1, 6, [0, 0, 0])
-Distance 3.317, multiplicity 12
-Connects [0, 0, 0] to [0.75, 0.25, 0.25]
-Allowed exchange matrix: |B C C |
-                         |C D A |
-                         |C A D |
+Bond(2, 7, [0, 0, 0])
+Distance 0.8292, multiplicity 12
+Connects [0.5, 0.5, 0] to [0.75, 0.25, 0.75]
+Allowed exchange matrix: | C  A  D |
+                         | A  C -D |
+                         | D -D  B |
 
 Bond(1, 1, [1, 0, 0])
-Distance 4, multiplicity 6
+Distance 1, multiplicity 6
 Connects [0, 0, 0] to [1, 0, 0]
 Allowed exchange matrix: |A 0 0 |
                          |0 B 0 |
                          |0 0 B |
 ```
 
-Each block represents one symmetry equivalence class of bonds, along with a single
-representative ("canonical") `Bond` for that class and the allowed exchange coupling
-matrix on that canonical bond.
-
-You can also query properties of a specific bond using [`print_bond`](@ref).
+Each entry above makes reference to a specific `Bond`, but implicitly refers to
+an entire class of symmetry equivalent bonds. For example, there are 4 symmetry
+equivalent nearest neighbors in the diamond lattice. To find the ones starting
+from atom 2 we can use,
 
 ```
-julia> print_bond(crystal, Bond(1, 5, [1,-1,0]))
+julia> all_symmetry_related_bonds_for_atom(crystal, 2, Bond(1, 3, [0, 0, 0]))
 
-Bond(1, 5, [1, -1, 0])
-Distance 1.92, multiplicity 24
-Connects [0, 0, 0] to [1.75, -0.25, 0.75]
-Allowed exchange matrix: |D A B |
-                         |A E C |
-                         |B C F |
+4-element Vector{Bond{3}}:
+ Bond(2, 7, [0, 0, -1])
+ Bond(2, 8, [0, 0, -1])
+ Bond(2, 3, [0, 0, 0])
+ Bond(2, 4, [0, 0, 0])
+```
+
+You can query properties of a specific bond using [`print_bond`](@ref).
+
+```
+julia> print_bond(crystal, Bond(1, 6, [1,-1,0]))
+
+Bond(1, 6, [1, -1, 0])
+Distance 1.225, multiplicity 24
+Connects [0, 0, 0] to [1, -0.5, 0.5]
+Allowed exchange matrix: |   B  C+E -C-E |
+                         | C-E    D    A |
+                         |-C+E    A    D |
 ```

@@ -205,6 +205,12 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond{3})
     return basis_for_symmetry_allowed_couplings(cryst, BondRaw(cryst, b))
 end
 
+"""
+    all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, bond::Bond, J::Mat3)
+
+Given a reference bond `bond` and coupling matrix `J` on that bond, construct lists of
+symmetry-equivalent bonds from atom `i`, and their respective transformed exchange matrices.
+"""
 function all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, b_ref::Bond{3}, J_ref::Mat3)
     @assert is_coupling_valid(cryst, b_ref, J_ref)
 
@@ -222,9 +228,9 @@ function all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, b_ref::
 end
 
 """
-    all_symmetry_related_couplings(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3) :: Tuple{Vector{Bond3}, Vector{Mat3}}
+    all_symmetry_related_couplings(cryst::Crystal, bond::Bond, J::Mat3)
 
-Given a reference bond `b_ref` and exchange matrix `J_ref` on that bond, construct lists of all
+Given a reference bond `bond` and coupling matrix `J` on that bond, construct lists of all
  symmetry-equivalent bonds and their respective transformed exchange matrices.
 """
 function all_symmetry_related_couplings(cryst::Crystal, b_ref::Bond{3}, J_ref::Mat3)

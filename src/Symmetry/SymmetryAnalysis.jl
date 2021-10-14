@@ -147,6 +147,12 @@ function equivalent_bond_indices(cryst::Crystal, canonical_bonds, bonds)
     end
 end
 
+"""
+    all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b::Bond)
+
+Construct a list of all bonds starting from atom `i` that are
+symmetry-equivalent to the reference bond `b`.
+"""
 function all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b_ref::Bond{3})
     bs = Bond{3}[]
     dist = distance(cryst, b_ref)
