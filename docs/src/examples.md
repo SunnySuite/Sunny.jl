@@ -433,7 +433,7 @@ distance, we can use the function [`print_bond_table`](@ref).
 
 ```
 lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-crystal = Crystal(lat_vecs, [[0, 0, 0]], "F d -3 m"; setting="1")
+crystal = Crystal(lat_vecs, [[0, 0, 0]], 227; setting="1")
 print_bond_table(crystal, 1.0)
 ```
 
@@ -459,6 +459,7 @@ Connects [0, 0, 0] to [0.5, 0.5, 0]
 Allowed exchange matrix: | C  A  D |
                          | A  C  D |
                          |-D -D  B |
+Allowed DM vector: [D -D 0]
 
 Bond(2, 7, [0, 0, 0])
 Distance 0.8292, multiplicity 12
@@ -501,4 +502,5 @@ Connects [0, 0, 0] to [1, -0.5, 0.5]
 Allowed exchange matrix: |   B  C+E -C-E |
                          | C-E    D    A |
                          |-C+E    A    D |
+Allowed DM vector: [0 E E]
 ```
