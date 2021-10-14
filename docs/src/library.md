@@ -19,6 +19,7 @@ Crystal(::AbstractString; symprec)
 subcrystal
 lattice_vectors
 lattice_params
+cell_volume
 ```
 
 ## Symmetry analysis
@@ -28,7 +29,9 @@ Bond
 print_bond
 print_bond_table
 all_symmetry_related_bonds
+all_symmetry_related_bonds_for_atom
 all_symmetry_related_couplings
+all_symmetry_related_couplings_for_atom
 ```
 
 ## Interactions

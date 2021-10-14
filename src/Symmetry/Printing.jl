@@ -67,6 +67,12 @@ function print_allowed_coupling(cryst::Crystal, b::Bond{3}; prefix="", digits=2,
     _print_allowed_coupling(basis_strs; prefix)
 end
 
+"""
+    print_bond(cryst::Crystal, bond::Bond)
+    print_bond(cryst::Crystal, i::Int)
+
+Pretty-prints symmetry information for bond `bond` or atom `i`.
+"""
 function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
     ri = cryst.positions[b.i]
     rj = cryst.positions[b.j] + b.n
@@ -76,7 +82,7 @@ function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
 
     if b.i == b.j && iszero(b.n)
         # On site interaction
-        @printf "Site index %d\n" b.i
+        @printf "Atom index %d\n" b.i
         if isempty(cryst.types[b.i])
             @printf "Coordinates [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3]
         else
@@ -99,6 +105,10 @@ function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
         _print_allowed_coupling(basis_strs; prefix="Allowed exchange matrix: ")
     end
     println()
+end
+
+function print_bond(cryst::Crystal, i::Int; digits=2, tol=1e-4)
+    print_bond(cryst, Bond(i, i, [0, 0, 0]); digits, tol)
 end
 
 
