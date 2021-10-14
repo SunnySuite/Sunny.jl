@@ -33,6 +33,52 @@ struct DipoleDipole <: Interaction
 end
 
 
+function Base.show(io::IO, ::MIME"text/plain", int::OnSiteQuadratic)
+    J = int.J
+    @assert J ≈ J'
+
+    # Check if it is easy-axis or easy-plane
+    λ, V = eigen(J)
+    nonzero_λ = findall(x -> abs(x) > 1e-12, λ)
+    if length(nonzero_λ) == 1
+        i = nonzero_λ[1]
+        dir = V[:, i]
+        if count(<(0.0), dir) >= 2
+            dir = -dir
+        end
+        name, D = λ[i] < 0 ? ("easy_axis", -λ[i]) : ("easy_plane", λ[i])
+        @printf io "%s(%.4g, [%.4g, %.4g, %.4g], %d)" name D dir[1] dir[2] dir[3] int.site
+    else
+        @printf io "single_ion_anisotropy([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %d)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] int.site
+    end
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", int::QuadraticInteraction)
+    if int.bond.i == int.bond.j && iszero(int.bond.n)
+        return show(io, mime, OnSiteQuadratic(int.J, int.bond.i, int.label))
+    end
+
+    b = repr(mime, int.bond)
+    J = int.J
+    if J ≈ -J'
+        x = J[2, 3]
+        y = J[3, 1]
+        z = J[1, 2]
+        @printf io "dm_interaction([%.4g, %.4g, %.4g], %s)" x y z b
+    elseif diagm(fill(J[1,1], 3)) ≈ J
+        @printf io "heisenberg(%.4g, %s)" J[1,1] b
+    elseif diagm(diag(J )) ≈ J
+        @printf io "exchange(diagm([%.4g, %.4g, %.4g]), %s)" J[1,1] J[2,2] J[3,3] b
+    else
+        @printf io "exchange([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %s)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] b
+        # TODO: Figure out how to reenable this depending on context:
+        # @printf io "exchange([%.4f %.4f %.4f\n"   J[1,1] J[1,2] J[1,3]
+        # @printf io "          %.4f %.4f %.4f\n"   J[2,1] J[2,2] J[2,3]
+        # @printf io "          %.4f %.4f %.4f],\n" J[3,1] J[3,2] J[3,3]
+        # @printf io "    %s)" b
+    end
+end
+
 """
     exchange(J, bond::Bond, label="Exchange")
 
@@ -95,6 +141,9 @@ matrix `J` appropriate for ``i``. Without loss of generality, we require that
 `J` is symmetric.
 """
 function single_ion_anisotropy(J, site::Int, label::String="Anisotropy")
+    if !(J ≈ J')
+        error("Single-ion anisotropy must be symmetric.")
+    end
     OnSiteQuadratic(Mat3(J), site, label)
 end
 

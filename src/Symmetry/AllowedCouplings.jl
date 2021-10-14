@@ -128,7 +128,9 @@ end
 
 
 # Given an m×n matrix A with empty nullspace, linearly combine the n columns to
-# make them sparser.
+# make them sparser. Solution was proposed here:
+# https://math.stackexchange.com/q/4227648/660903 . Closely related to finding
+# reduced row echolon form.
 function sparsify_columns(A; atol)
     if size(A, 2) <= 1
         return A
