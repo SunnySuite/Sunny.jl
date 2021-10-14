@@ -40,6 +40,10 @@ function BondRaw(cryst::Crystal, b::Bond{3})
     return BondRaw(cryst.positions[b.i], cryst.positions[b.j]+b.n)
 end
 
+function Base.show(io::IO, mime::MIME"text/plain", bond::Bond{3})
+    print(io, "Bond($(bond.i), $(bond.j), $(bond.n))")
+end
+
 function position_to_index(cryst::Crystal, r::Vec3)
     return findfirst(r′ -> is_same_position(r, r′; symprec=cryst.symprec), cryst.positions)
 end

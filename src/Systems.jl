@@ -94,7 +94,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1/
             # Verify that the interactions are symmetry-consistent
             b = int.bond
             if !is_coupling_valid(crystal, b, int.J)
-                println("Symmetry-violating interaction: $int.")
+                println("Symmetry-violating interaction: $(repr(MIME("text/plain"), int)).")
                 if b.i == b.j && iszero(b.n)
                     println("Allowed single-ion anisotropy:")
                 else
@@ -123,6 +123,12 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1/
     sites_size = (length(lattice.basis_vecs), lattice.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
     SpinSystem{3, 9, 4}(lattice, ℋ_CPU, sites, S)
+end
+
+function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem)
+    printstyled(io, "Spin System\n"; bold=true, color=:underline)
+    sz = size(sys.sites)
+    println(io, "Basis $(sz[1]), Lattice dimensions $(sz[2:end])")
 end
 
 """
