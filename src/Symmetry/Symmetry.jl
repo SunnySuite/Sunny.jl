@@ -26,4 +26,4 @@ include("Parsing.jl")
 
 include("Printing.jl")
 
-export print_bond_table, allowed_J
+export print_bond, print_bond_table

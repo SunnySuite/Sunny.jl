@@ -462,13 +462,15 @@ Each block represents one symmetry equivalence class of bonds, along with a sing
 representative ("canonical") `Bond` for that class and the allowed exchange coupling
 matrix on that canonical bond.
 
-You can also query what the allowed exchange matrix is on a specific bond using [`allowed_J`](@ref).
+You can also query properties of a specific bond using [`print_bond`](@ref).
 
 ```
-julia> allowed_J(crystal, Bond(1, 5, [1,-1,0]))
+julia> print_bond(crystal, Bond(1, 5, [1,-1,0]))
 
-3×3 Matrix{String}:
- "D"  "A"  "B"
- "A"  "E"  "C"
- "B"  "C"  "F"
+Bond(1, 5, [1, -1, 0])
+Distance 1.92, multiplicity 24
+Connects [0, 0, 0] to [1.75, -0.25, 0.75]
+Allowed exchange matrix: |D A B |
+                         |A E C |
+                         |B C F |
 ```

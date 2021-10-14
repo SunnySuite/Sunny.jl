@@ -15,7 +15,7 @@ const Mat3 = SMatrix{3, 3, Float64, 9}
 
 include("Symmetry/Symmetry.jl")
 export Crystal, nbasis, cell_volume, lattice_params, lattice_vectors, dimension
-export Bond, print_bond_table, subcrystal, allowed_J
+export Bond, print_bond, print_bond_table, subcrystal
 export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 export all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom
 
