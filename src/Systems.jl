@@ -97,11 +97,12 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1/
             if !is_coupling_valid(crystal, b, int.J)
                 println("Symmetry-violating interaction: $(repr(MIME("text/plain"), int)).")
                 if b.i == b.j && iszero(b.n)
-                    println("Allowed single-ion anisotropy:")
+                    println("Allowed single-ion anisotropy for this atom:")
                 else
-                    println("Allowed exchange:")
+                    println("Allowed exchange for this bond:")
                 end
                 print_allowed_coupling(crystal, b; prefix="    ")
+                println("Use `print_bond(crystal, bond)` for more information.")
                 error("Interaction violates symmetry.")
             end
 

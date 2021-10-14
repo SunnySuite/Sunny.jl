@@ -23,8 +23,8 @@ end
 
 "Converts a list of basis elements for a J matrix into a nice string summary"
 function _coupling_basis_strings(coup_basis; digits, tol) :: Matrix{String}
-    J = fill("", size(coup_basis[1])...)
-    for (letter, basis_mat) in zip('A':'Z', coup_basis)
+    J = fill("", 3, 3)
+    for (letter, basis_mat) in coup_basis
         for idx in eachindex(basis_mat)
             coeff = basis_mat[idx]
             if abs(coeff) > tol
@@ -63,7 +63,7 @@ end
 
 function print_allowed_coupling(cryst::Crystal, b::Bond{3}; prefix="", digits=2, tol=1e-4)
     basis = basis_for_symmetry_allowed_couplings(cryst, b)
-    basis_strs = _coupling_basis_strings(basis; digits, tol)
+    basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, tol)
     _print_allowed_coupling(basis_strs; prefix)
 end
 
@@ -78,7 +78,7 @@ function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
     rj = cryst.positions[b.j] + b.n
 
     basis = basis_for_symmetry_allowed_couplings(cryst, b)
-    basis_strs = _coupling_basis_strings(basis; digits, tol)
+    basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, tol)
 
     if b.i == b.j && iszero(b.n)
         # On site interaction
@@ -103,6 +103,11 @@ function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
             @printf "Connects '%s' at [%.4g, %.4g, %.4g] to '%s' at [%.4g, %.4g, %.4g]\n" cryst.types[b.i] ri[1] ri[2] ri[3] cryst.types[b.j] rj[1] rj[2] rj[3]
         end
         _print_allowed_coupling(basis_strs; prefix="Allowed exchange matrix: ")
+        antisym_basis_idxs = findall(J -> J ≈ -J', basis)
+        if !isempty(antisym_basis_idxs)
+            antisym_basis_strs = _coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits, tol)
+            println("Allowed DM vector: [$(antisym_basis_strs[2,3]) $(antisym_basis_strs[3,1]) $(antisym_basis_strs[1,2])]")
+        end
     end
     println()
 end
