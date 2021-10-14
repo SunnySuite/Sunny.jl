@@ -93,23 +93,12 @@ function is_coupling_valid(cryst::Crystal, b::Bond{3}, J::Mat3)
 end
 
 
-# Orthonormal basis of 3x3 antisymmetric matrices
-const asym_basis = begin
-    b = [[ 0  1  0
-          -1  0  0
-           0  0  0]/√2,
-         [ 0  0  1
-           0  0  0
-          -1  0  0]/√2,
-         [ 0  0  0
-           0  0  1
-           0 -1  0]/√2]
-    SMatrix{9, 3, Float64}(hcat(reshape.(b, 9)...))
-end
-
 # Orthonormal basis of 3x3 symmetric matrices
 const sym_basis = begin
-    b = [[0 1 0
+    b = [diagm([1, 0, 0]),
+         diagm([0, 1, 0]),
+         diagm([0, 0, 1]),
+         [0 1 0
           1 0 0
           0 0 0]/√2,
          [0 0 1
@@ -117,11 +106,22 @@ const sym_basis = begin
           1 0 0]/√2,
          [0 0 0
           0 0 1
-          0 1 0]/√2,
-         diagm([1, 0, 0]),
-         diagm([0, 1, 0]),
-         diagm([0, 0, 1])]
+          0 1 0]/√2,]
     SMatrix{9, 6, Float64}(hcat(reshape.(b, 9)...))
+end
+
+# Orthonormal basis of 3x3 antisymmetric matrices
+const asym_basis = begin
+    b = [[ 0  1  0
+          -1  0  0
+           0  0  0]/√2,
+         [ 0  0 -1
+           0  0  0
+           1  0  0]/√2,
+         [ 0  0  0
+           0  0  1
+           0 -1  0]/√2]
+    SMatrix{9, 3, Float64}(hcat(reshape.(b, 9)...))
 end
 
 @assert sym_basis * sym_basis' + asym_basis * asym_basis' ≈ I
@@ -150,21 +150,19 @@ function sparsify_columns(A; atol)
     end
 end
 
+
+const _basis_elements_by_priority = [1, 5, 9, 8, 3, 4]
+
+function _score_basis_matrix(J)
+    return findfirst(i -> abs(J[i]) > 1e-12, _basis_elements_by_priority)
+end
+
 # Find a convenient basis for the symmetry allowed couplings on bond b
 function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondRaw)
+    # Expected floating point precision for 9x9 matrix operations
+    atol = 1e-12
+
     P = symmetry_allowed_couplings_operator(cryst, b)
-
-    acc = SVector{9, Float64}[]
-
-    # If any "reference" basis vectors are eigenvalues of P with eigenvalue 1,
-    # use them as outputs, and remove them from P
-    for x in eachcol(hcat(asym_basis, sym_basis))
-        if isapprox(P*x, x; atol=1e-12)
-            push!(acc, x)
-            P = P * (I - x*x')
-        end
-    end
-
     # Any solution to the original symmetry constraints `R J Rᵀ = J` or `R J Rᵀ
     # = Jᵀ` decomposes into purely symmetric/antisymmetric solutions. Therefore
     # we can pick a basis that separates into symmetric and antisymmetric parts.
@@ -172,23 +170,46 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondRaw)
     P_sym  = P *  sym_basis *  sym_basis'
     P_asym = P * asym_basis * asym_basis'
 
+    acc_sym = SVector{9, Float64}[]
+    acc_asym = SVector{9, Float64}[]
+
+    # If any "reference" basis vectors are eigenvalues of P_sym with eigenvalue
+    # 1, use them as outputs, and remove them from P_sym
+    for x in eachcol(sym_basis)
+        if isapprox(P_sym*x, x; atol)
+            push!(acc_sym, x)
+            P_sym = P_sym * (I - x*x')
+        end
+    end
+    # Same for P_asym
+    for x in eachcol(asym_basis)
+        if isapprox(P_asym*x, x; atol)
+            push!(acc_asym, x)
+            P_asym = P_asym * (I - x*x')
+        end
+    end
+    
     # Search for eigenvectors of P_sym with eigenvalue 1. These provide an
     # orthonormal basis for symmetric couplings.
-    v = nullspace(P_sym-I; atol=1e-12)
-    v = sparsify_columns(v; atol=1e-12)
-    append!(acc, eachcol(v))
+    v = nullspace(P_sym-I; atol)
+    v = sparsify_columns(v; atol)
+    append!(acc_sym, eachcol(v))
+    # Same for P_asym
+    v = nullspace(P_asym-I; atol)
+    v = sparsify_columns(v; atol)
+    append!(acc_asym, eachcol(v))
 
-    # Similarly for antisymmetric couplings.
-    v = nullspace(P_asym-I; atol=1e-12)
-    v = sparsify_columns(v; atol=1e-12)
-    append!(acc, eachcol(v))
+    # Sort basis elements according to the indices where the nonzero elements
+    # first appear
+    sort!(acc_sym;  by=_score_basis_matrix)
+    sort!(acc_asym; by=_score_basis_matrix)
 
+    acc = [acc_sym; acc_asym]
     return map(acc) do x
         # Normalize each basis vector so that its maximum component is 1. The
-        # shift by ϵ avoids unnecessary sign change in the case where the
+        # shift by atol avoids unnecessary sign change in the case where the
         # maximum magnitude values of x appear symmetrically as ±c for some c.
-        ϵ = 1e-12
-        _, i = findmax(abs.(x.+ϵ))
+        _, i = findmax(abs.(x.+atol))
         x = x / x[i]
 
         # Reinterpret as 3x3 matrix
