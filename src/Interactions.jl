@@ -12,6 +12,10 @@ struct QuadraticInteraction{D} <: Interaction
     label :: String
 end
 
+# A special case of QuadraticInteraction. Ideally we would never need this type,
+# but sometimes we don't know the dimension D at construction time. As soon as
+# knowledge of D becomes available (through a SpinSystem), every OnSiteQuadratic
+# is converted to QuadraticInteraction{D}.
 struct OnSiteQuadratic <: Interaction
     J     :: Mat3
     site  :: Int

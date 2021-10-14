@@ -132,8 +132,6 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
     for heisen in ℋ.heisenbergs
         J = heisen.J
         for bond in heisen.bonds[i]
-            # TODO: Correctly handle the case where bond.n wraps around to the same site!
-            # (i.e., check for zero after modding bond.n with linear system sizes)
             if i == bond.j && iszero(bond.n)
                 ΔE += J * (newspin⋅newspin - oldspin⋅oldspin)
             else
