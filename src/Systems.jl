@@ -10,6 +10,10 @@ Base.setindex!(sys::S, v, i::Int) where {S <: AbstractSystem} = Base.setindex!(s
 @inline function eachcellindex(sys::S) where {S <: AbstractSystem}
     return eachcellindex(sys.lattice)
 end
+
+"""
+    nbasis(sys::SpinSystem)
+"""
 @inline function nbasis(sys::S) where {S <: AbstractSystem}
     return nbasis(sys.lattice)
 end
@@ -40,14 +44,14 @@ end
 Construct a `ChargeSystem` on the given lattice, initialized to all zero charges.
 """
 function ChargeSystem(lat::Lattice)
-    sites_size = (length(lat.basis_vecs), lat.size...)
+    sites_size = (nbasis(lat), lat.size...)
     sites = zeros(sites_size)
 
     return ChargeSystem(lat, sites)
 end
 
 function ChargeSystem(cryst::Crystal, latsize)
-    sites = zeros(nbasis(cryst)sites_size)
+    sites = zeros(nbasis(cryst), sites_size)
     lattice = Lattice(crystal, latsize)
     return ChargeSystem(lattice)
 end
@@ -122,7 +126,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1/
     lattice = Lattice(crystal, latsize)
 
     # Initialize sites to all spins along +z
-    sites_size = (length(lattice.basis_vecs), lattice.size...)
+    sites_size = (nbasis(lattice), lattice.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
     SpinSystem{3, 9, 4}(lattice, ℋ_CPU, sites, S)
 end

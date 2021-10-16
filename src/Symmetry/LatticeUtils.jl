@@ -16,10 +16,11 @@ function lattice_params(lat_vecs::Mat3) :: NTuple{6, Float64}
 end
 
 """
-    lattice_vectors(a, b, c, α, β, γ) :: Mat3
+    lattice_vectors(a, b, c, α, β, γ)
 
-Compute a set of lattice vectors (forming the columns of the result), specified by a given
- set of lattice parameters ``(a, b, c, α, β, γ)``.
+Return the lattice vectors, as columns of the ``3×3`` output matrix, that
+correspond to the conventional unit cell defined by the lattice constants ``(a,
+b, c)`` and the angles ``(α, β, γ)``.
 """
 function lattice_vectors(a, b, c, α, β, γ) :: Mat3
     @assert all(0 < x < 180 for x in (α, β, γ))

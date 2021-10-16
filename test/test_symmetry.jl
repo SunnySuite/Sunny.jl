@@ -10,30 +10,30 @@ using LinearAlgebra
 lat_vecs = [1 1 0; 1 0 1; 0 1 1]' / 2
 positions = [[1, 1, 1], [-1, -1, -1]] / 8
 cryst = Crystal(lat_vecs, positions)
-cbonds = canonical_bonds(cryst, 2.)
-dist1 = [distance(cryst, b) for b=cbonds]
+ref_bonds = reference_bonds(cryst, 2.)
+dist1 = [distance(cryst, b) for b in ref_bonds]
 
 # Using explicit symops
 lat_vecs = Sunny.Mat3(lat_vecs)
 positions = [Sunny.Vec3(1, 1, 1) / 8]
 types = [""]
 cryst = Sunny.crystal_from_symops(lat_vecs, positions, types, cryst.symops, cryst.spacegroup)
-cbonds = canonical_bonds(cryst, 2.)
-dist2 = [distance(cryst, b) for b=cbonds]
+ref_bonds = reference_bonds(cryst, 2.)
+dist2 = [distance(cryst, b) for b in ref_bonds]
 
 # Using Hall number
 lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
 positions = [Sunny.Vec3(1, 1, 1) / 4]
 cryst = Sunny.crystal_from_hall_number(lat_vecs, positions, types, 525)
-cbonds = canonical_bonds(cryst, 2.)
-dist3 = [distance(cryst, b) for b=cbonds]
+ref_bonds = reference_bonds(cryst, 2.)
+dist3 = [distance(cryst, b) for b in ref_bonds]
 
 # Using international symbol
 positions = [[1, 1, 1] / 4]
 # cryst = Crystal(lat_vecs, positions, "F d -3 m") # Ambiguous!
 cryst = Crystal(lat_vecs, positions, "F d -3 m"; setting="1")
-cbonds = canonical_bonds(cryst, 2.)
-dist4 = [distance(cryst, b) for b=cbonds]
+ref_bonds = reference_bonds(cryst, 2.)
+dist4 = [distance(cryst, b) for b in ref_bonds]
 
 @test dist1 ≈ dist2 ≈ dist3 ≈ dist4
 
@@ -54,12 +54,12 @@ cryst′ = Crystal(lat_vecs, positions)
 # print_bond_table(cryst, 2.)
 
 # Calculate interaction table
-cbonds = canonical_bonds(cryst, 2.)
-b = cbonds[2]
-basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
+ref_bonds = reference_bonds(cryst, 2.)
+b = ref_bonds[2]
+basis = basis_for_symmetry_allowed_couplings(cryst, b)
 J = basis' * randn(length(basis))
-(bs, Js) = Sunny.all_symmetry_related_couplings_for_atom(cryst, b.i, b, J)
-@test length(Js) == Sunny.bond_multiplicity(cryst, b)
+(bs, Js) = all_symmetry_related_couplings_for_atom(cryst, b.i, b, J)
+@test length(Js) == multiplicity(cryst, b)
 
 
 ### Triangular lattice, primitive unit cell

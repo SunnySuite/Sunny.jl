@@ -121,11 +121,11 @@ function Lattice(cryst::Crystal, latsize) :: Lattice{3, 9, 4}
     Lattice{3}(cryst.lat_vecs, cryst.positions, cryst.types, latsize)
 end
 
-"Return number of basis sites in Lattice"
+# Number of sublattices.
 nbasis(lat::Lattice) = length(lat.basis_vecs)
-"Compute the volume of a unit cell."
+# Volume of a unit cell.
 cell_volume(lat::Lattice) = abs(det(lat.lat_vecs))
-"Compute the volume of the full simulation box."
+# Volume of the full simulation box.
 volume(lat::Lattice) = cell_volume(lat) * prod(lat.size)
 lattice_vectors(lat::Lattice) = lat.lat_vecs
 lattice_params(lat::Lattice{3}) = lattice_params(lat.lat_vecs)
@@ -136,8 +136,7 @@ lattice_params(lat::Lattice{3}) = lattice_params(lat.lat_vecs)
 end
 
 @inline function Base.size(lat::Lattice)
-    nb = length(lat.basis_vecs)
-    return (nb, lat.size...)
+    return (nbasis(lat), lat.size...)
 end
 
 #=== Indexing returns absolute coordinates of lattice points ===#
