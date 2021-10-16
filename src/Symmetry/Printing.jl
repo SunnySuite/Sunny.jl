@@ -49,6 +49,11 @@ end
 
 function _print_allowed_coupling(basis_strs; prefix)
     max_len = maximum(length, basis_strs)
+    minus_prefix = any(s -> startswith(s, '-'), basis_strs)
+    if !minus_prefix
+        max_len += 1
+    end
+
     for i in 1:3
         print(i == 1 ? prefix : repeat(' ', length(prefix)))
         print('|')
