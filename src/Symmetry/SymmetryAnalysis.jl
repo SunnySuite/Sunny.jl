@@ -31,19 +31,16 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
         end
     end
 
-    function bonds_equiv(s)
+    ret = Tuple{SymOp, Bool}[]
+    for s in cryst.symops
         b2′ = transform(s, b2)
         if is_equivalent_by_translation(cryst, b1, b2′)
-            (s, true)
+            push!(ret, (s, true))
         elseif is_equivalent_by_translation(cryst, b1, reverse(b2′))
-            (s, false)
-        else
-            nothing
+            push!(ret, (s, false))
         end
     end
-
-    ret = (bonds_equiv(s) for s in cryst.symops)
-    return Iterators.filter(!isnothing, ret)
+    return ret
 end
 
 "Returns all bonds in `cryst` for which `bond.i == i`"
