@@ -113,7 +113,7 @@ function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
 end
 
 function print_bond(cryst::Crystal, i::Int; digits=2, tol=1e-4)
-    print_bond(cryst, Bond(i, i, [0, 0, 0]); digits, tol)
+    print_bond(cryst, Bond{3}(i, i, [0, 0, 0]); digits, tol)
 end
 
 

@@ -86,11 +86,11 @@ end
 
 
 # Calculate score for a bond. Lower would be preferred.
-function _score_bond(cryst::Crystal, b)
+function _score_bond(cryst::Crystal, b::Bond{3})
     # Favor bonds with fewer nonzero elements in basis matrices J
     Js = basis_for_symmetry_allowed_couplings(cryst, b)
     nnz = [count(abs.(J) .> 1e-12) for J in Js]
-    score = sum(nnz)
+    score = Float64(sum(nnz))
 
     # Favor bonds with smaller unit cell displacements. Positive
     # displacements are slightly favored over negative displacements.
@@ -112,10 +112,10 @@ end
 "Produces a list of 'canonical' bonds that belong to different symmetry equivalence classes."
 function canonical_bonds(cryst::Crystal, max_dist)
     # Atom indices, one for each equivalence class
-    canon_atoms = [findfirst(isequal(c), cryst.classes) for c in unique(cryst.classes)]
-    
+    canon_atoms = [findfirst(isequal(c), cryst.classes)::Int for c in unique(cryst.classes)]
+
     # Bonds, one for each equivalent class
-    cbonds = Bond[]
+    cbonds = Bond{3}[]
     for i in canon_atoms
         for b in all_bonds_for_atom(cryst, i, max_dist)
             if !any(is_equivalent_by_symmetry(cryst, b, b′) for b′ in cbonds)
@@ -133,7 +133,9 @@ function canonical_bonds(cryst::Crystal, max_dist)
         equiv_bonds = unique([transform(cryst, s, cb) for s in cryst.symops])
         # Take the bond with lowest score
         scores = [_score_bond(cryst, b) for b in equiv_bonds]
-        return equiv_bonds[findmin(scores)[2]]
+        return equiv_bonds[findmin(scores)[2]::Int]
+        # TODO: In Julia 1.7 the above two lines become
+        #     return argmin(b -> _score_bond(cryst, b), equiv_bonds)
     end
 end
 
