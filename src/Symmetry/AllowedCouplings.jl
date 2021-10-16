@@ -157,7 +157,11 @@ function _score_basis_matrix(J)
     return findfirst(i -> abs(J[i]) > 1e-12, _basis_elements_by_priority)
 end
 
-# Find a convenient basis for the symmetry allowed couplings on bond b
+"""    basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond)
+
+Returns a list of ``3×3`` matrices that form a linear basis for the
+symmetry-allowed coupling matrices associated with bond `b`.
+"""
 function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondRaw)
     # Expected floating point precision for 9x9 matrix operations
     atol = 1e-12
@@ -227,10 +231,11 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond{3})
 end
 
 """
-    all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, bond::Bond, J)
+    all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, b::Bond, J)
 
-Given a reference bond `bond` and coupling matrix `J` on that bond, construct lists of
-symmetry-equivalent bonds from atom `i`, and their respective transformed exchange matrices.
+Given a reference bond `b` and coupling matrix `J` on that bond, return a list
+of symmetry-equivalent bonds (constrained to start from atom `i`), and a
+corresponding list of symmetry-transformed coupling matrices.
 """
 function all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, b_ref::Bond{3}, J_ref)
     J_ref = Mat3(J_ref)
@@ -250,14 +255,15 @@ function all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, b_ref::
 end
 
 """
-    all_symmetry_related_couplings(cryst::Crystal, bond::Bond, J)
+    all_symmetry_related_couplings(cryst::Crystal, b::Bond, J)
 
-Given a reference bond `bond` and coupling matrix `J` on that bond, construct lists of all
- symmetry-equivalent bonds and their respective transformed exchange matrices.
+Given a reference bond `b` and coupling matrix `J` on that bond, return a list
+of symmetry-equivalent bonds and a corresponding list of symmetry-transformed
+coupling matrices.
 """
 function all_symmetry_related_couplings(cryst::Crystal, b_ref::Bond{3}, J_ref)
     J_ref = Mat3(J_ref)
-    
+
     bs = Bond{3}[]
     Js = Mat3[]
 

@@ -83,7 +83,7 @@ end
 """
     Crystal(filename::AbstractString; symprec=1e-5)
 
-Parse a `Crystal` from a `.cif` file located at the path of `filename`.
+Reads the crystal from a `.cif` file located at the path `filename`.
 """
 function Crystal(filename::AbstractString; symprec=nothing)
     cif = Cif(Path(filename))

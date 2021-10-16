@@ -1,6 +1,6 @@
 push!(LOAD_PATH, "../src/")
 
-using Documenter, StaticArrays, Sunny
+using Documenter, Sunny
 
 makedocs(
     sitename="SU(N) Spin Simulations",

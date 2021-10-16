@@ -17,17 +17,23 @@ Crystal
 Crystal(lat_vecs, positions; types, symprec)
 Crystal(::AbstractString; symprec)
 subcrystal
+nbasis
+cell_volume
 lattice_vectors
 lattice_params
-cell_volume
 ```
 
 ## Symmetry analysis
 
 ```@docs
 Bond
+displacement
+distance
+multiplicity
 print_bond
 print_bond_table
+reference_bonds
+basis_for_symmetry_allowed_couplings
 all_symmetry_related_bonds
 all_symmetry_related_bonds_for_atom
 all_symmetry_related_couplings
@@ -52,7 +58,6 @@ dipole_dipole
 ```@docs
 SpinSystem
 SpinSystem(::Crystal, ::Vector{<:Sunny.Interaction}, latsize, ::Rational{Int})
-nbasis
 rand!(::SpinSystem)
 energy
 field

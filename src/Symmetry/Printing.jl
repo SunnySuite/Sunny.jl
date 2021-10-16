@@ -76,7 +76,7 @@ end
     print_bond(cryst::Crystal, bond::Bond)
     print_bond(cryst::Crystal, i::Int)
 
-Pretty-prints symmetry information for bond `bond` or atom `i`.
+Pretty-prints symmetry information for bond `bond` or atom index `i`.
 """
 function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
     ri = cryst.positions[b.i]
@@ -101,7 +101,7 @@ function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
         end
     else
         @printf "Bond(%d, %d, [%d, %d, %d])\n" b.i b.j b.n[1] b.n[2] b.n[3]
-        @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) bond_multiplicity(cryst, b)
+        @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) multiplicity(cryst, b)
         if isempty(cryst.types[b.i]) && isempty(cryst.types[b.j])
             @printf "Connects [%.4g, %.4g, %.4g] to [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3] rj[1] rj[2] rj[3]
         else
@@ -125,13 +125,12 @@ end
 """
     print_bond_table(cryst::Crystal, max_dist)
 
-Pretty-prints a table of all symmetry classes of bonds present in `cryst`, up
- to a maximum bond length of `max_dist` in absolute coordinates. For each class,
- a single "canonical" bond is shown, with `i`, `j` being the two sublattices
- connected, and `n` being the displacement vector in units of the lattice vectors.
+Pretty-prints a table of bonds, one for each symmetry equivalence class, up to a
+maximum bond length of `max_dist`. Equivalent to calling `print_bond(cryst, b)`
+for every bond `b` in `reference_bonds(cryst, max_dist)`.
 """
 function print_bond_table(cryst::Crystal, max_dist; digits=2, tol=1e-4)
-    for b in canonical_bonds(cryst, max_dist)
+    for b in reference_bonds(cryst, max_dist)
         print_bond(cryst, b; digits, tol)
     end
 end

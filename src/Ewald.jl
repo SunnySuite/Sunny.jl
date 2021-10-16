@@ -209,7 +209,7 @@ function ewald_sum_dipole(lattice::Lattice{3}, spins::Array{Vec3, 4}; extent=2, 
 end
 
 function precompute_monopole_ewald(lattice::Lattice{3}; extent=10, η=1.0) :: OffsetArray{5, Float64} where {D}
-    nb = length(lattice.basis_vecs)
+    nb = nbasis(lattice)
     A = zeros(Float64, nb, nb, map(n->2*(n-1)+1, lattice.size)...)
     A = OffsetArray(A, 1:nb, 1:nb, map(n->-(n-1):n-1, lattice.size)...)
 

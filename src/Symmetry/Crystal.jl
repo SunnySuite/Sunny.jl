@@ -85,20 +85,30 @@ struct Crystal
     symprec        :: Float64             # Tolerance to imperfections in symmetry
 end
 
+"""
+    nbasis(crystal::Crystal)
+
+Number of basis positions (sublattices) in the unit cell.
+"""
 nbasis(cryst::Crystal) = length(cryst.positions)
+
+"""
+    cell_volume(crystal::Crystal)
+
+Volume of the crystal unit cell.
+"""
 cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
-lattice_params(cryst::Crystal) = lattice_params(cryst.lat_vecs)
-lattice_vectors(cryst::Crystal) = cryst.lat_vecs
+
+# This will remain 3 for the foreseeable future.
 dimension(cryst::Crystal) = 3
 
 
 """
     Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
 
-Construct a `Crystal` using explicit geometry information, with all symmetry
-information automatically inferred. `positions` should be a complete list of
-site positions (in fractional coordinates) within the unit cell defined by
-lattice vectors `lat_vecs`.
+Constructs a crystal from the complete list of atom positions `positions`,
+representing fractions (between 0 and 1) of the lattice vectors `lat_vecs`. All
+symmetry information is automatically inferred.
 """
 function Crystal(lat_vecs, positions; types::Union{Nothing,Vector{String}}=nothing, symprec=1e-5)
     lat_vecs = convert(Mat3, lat_vecs)
@@ -112,7 +122,8 @@ end
 """
     Crystal(lat_vecs, positions, symbol::String; types=nothing, symprec=1e-5)
 
-Build `Crystal` by applying symmetry operators for a given spacegroup symbol.
+Builds a crystal by applying the symmetry operators for a given spacegroup
+symbol.
 """
 function Crystal(lat_vecs::Mat3, positions, symbol::String; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
     positions = [convert(Vec3, p) for p in positions]
@@ -125,8 +136,8 @@ end
 """
     Crystal(lat_vecs, positions, spacegroup_number; types=nothing, symprec=1e-5)
 
-Build `Crystal` by applying symmetry operators for a given international spacegroup
-number.
+Builds a crystal by applying symmetry operators for a given international
+spacegroup number.
 """
 function Crystal(lat_vecs::Mat3, positions, spacegroup_number::Int; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
     positions = [convert(Vec3, p) for p in positions]
@@ -330,7 +341,7 @@ function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     end
 end
 
-"Build Crystal from explicit set of symmetry operations and a minimal set of positions "
+"Builds a crystal from an explicit set of symmetry operations and a minimal set of positions "
 function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
     all_positions = Vec3[]
     all_types = String[]
@@ -393,7 +404,7 @@ end
 """
     subcrystal(cryst, types) :: Crystal
 
-Filter sublattices of a `Crystal` by atom `types`, keeping the space group
+Filters sublattices of a `Crystal` by atom `types`, keeping the space group
 unchanged.
 """
 function subcrystal(cryst::Crystal, types::Vararg{String, N}) where {N}
@@ -410,7 +421,7 @@ end
 """
     subcrystal(cryst, classes) :: Crystal
 
-Filter sublattices of `Crystal` by equivalence `classes`, keeping the space
+Filters sublattices of `Crystal` by equivalence `classes`, keeping the space
 group unchanged.
 """
 function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where {N}

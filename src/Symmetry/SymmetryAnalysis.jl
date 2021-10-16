@@ -1,7 +1,7 @@
 function is_equivalent_by_translation(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     # Displacements between the two bonds
-    D1 = b2.r1 - b1.r1
-    D2 = b2.r2 - b1.r2
+    D1 = b2.ri - b1.ri
+    D2 = b2.rj - b1.rj
     # Round components of D1 to nearest integers
     n = round.(D1, RoundNearest)
     # If both n ≈ D1 and n ≈ D2, then the bonds are equivalent by translation
@@ -100,8 +100,12 @@ function _score_bond(cryst::Crystal, b::Bond{3})
     return score
 end
 
+"""    multiplicity(cryst::Crystal, b::Bond{3})
 
-function bond_multiplicity(cryst::Crystal, b::Bond{3})
+The number of bonds starting from atom index `b.i` that are symmetry equivalent
+to `b`.
+"""
+function multiplicity(cryst::Crystal, b::Bond{3})
     return length(all_symmetry_related_bonds_for_atom(cryst, b.i, b))
 end
 
@@ -111,25 +115,30 @@ function unique_indices(a)
     map(x->x[1], unique(x->x[2], enumerate(a)))
 end
 
-"Produces a list of 'canonical' bonds that belong to different symmetry equivalence classes."
-function canonical_bonds(cryst::Crystal, max_dist)
+"""    reference_bonds(cryst::Crystal, max_dist)
+
+Returns a full list of bonds, one for each symmetry equivalence class, up to
+distance `max_dist`. The reference bond `b` for each equivalence class is
+selected according to a scoring system that prioritizes simplification of the
+elements in `basis_for_symmetry_allowed_couplings(cryst, b)`."""
+function reference_bonds(cryst::Crystal, max_dist)
     # Bonds, one for each equivalence class
-    cbonds = Bond{3}[]
+    ref_bonds = Bond{3}[]
     for i in unique_indices(cryst.classes)
         for b in all_bonds_for_atom(cryst, i, max_dist)
-            if !any(is_equivalent_by_symmetry(cryst, b, b′) for b′ in cbonds)
-                push!(cbonds, b)
+            if !any(is_equivalent_by_symmetry(cryst, b, b′) for b′ in ref_bonds)
+                push!(ref_bonds, b)
             end
         end
     end
 
     # Sort by distance
-    sort!(cbonds, by=b->distance(cryst, b))
+    sort!(ref_bonds, by=b->distance(cryst, b))
 
     # Replace each canonical bond by the "best" equivalent bond
-    return map(cbonds) do cb
+    return map(ref_bonds) do rb
         # Find full set of symmetry equivalent bonds
-        equiv_bonds = unique([transform(cryst, s, cb) for s in cryst.symops])
+        equiv_bonds = unique([transform(cryst, s, rb) for s in cryst.symops])
         # Take the bond with lowest score
         scores = [_score_bond(cryst, b) for b in equiv_bonds]
         return equiv_bonds[findmin(scores)[2]::Int]
@@ -138,12 +147,12 @@ function canonical_bonds(cryst::Crystal, max_dist)
     end
 end
 
-# For each element of `bonds`, return an index into `canonical_bonds` that gives
+# For each element of `bonds`, return an index into `ref_bonds` that gives
 # the equivalent bond
-function equivalent_bond_indices(cryst::Crystal, canonical_bonds, bonds)
+function equivalent_bond_indices(cryst::Crystal, ref_bonds, bonds)
     map(bonds) do b
-        findfirst(canonical_bonds) do cb
-             is_equivalent_by_symmetry(cryst, b, cb)
+        findfirst(ref_bonds) do rb
+             is_equivalent_by_symmetry(cryst, b, rb)
         end
     end
 end
@@ -151,8 +160,8 @@ end
 """
     all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b::Bond)
 
-Construct a list of all bonds starting from atom `i` that are
-symmetry-equivalent to the reference bond `b`.
+Returns a list of all bonds starting from atom `i` that are symmetry-equivalent
+to the reference bond `b`.
 """
 function all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b_ref::Bond{3})
     bs = Bond{3}[]
@@ -166,10 +175,9 @@ function all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b_ref::Bond
 end
 
 """
-    all_symmetry_related_bonds(cryst::Crystal, b_ref::Bond{3}) :: Vector{Bond{3}}
+    all_symmetry_related_bonds(cryst::Crystal, b::Bond{3}) :: Vector{Bond{3}}
 
-Construct a list of all bonds which are symmetry-equivalent to the reference bond `b_ref`
- within `cryst.
+Return a list of all bonds which are symmetry-equivalent to the reference bond `b`.
 """
 function all_symmetry_related_bonds(cryst::Crystal, b_ref::Bond{3})
     bs = Bond{3}[]
