@@ -442,38 +442,38 @@ which prints
 ```
 Atom index 1
 Coordinates [0, 0, 0]
-Allowed single-ion anisotropy or g-tensor: |A 0 0 |
-                                           |0 A 0 |
-                                           |0 0 A |
+Allowed single-ion anisotropy or g-tensor: | A  0  0 |
+                                           | 0  A  0 |
+                                           | 0  0  A |
 
 Bond(1, 3, [0, 0, 0])
 Distance 0.433, multiplicity 4
 Connects [0, 0, 0] to [0.25, 0.25, 0.25]
-Allowed exchange matrix: |A B B |
-                         |B A B |
-                         |B B A |
+Allowed exchange matrix: | A  B  B |
+                         | B  A  B |
+                         | B  B  A |
 
 Bond(1, 2, [0, 0, 0])
 Distance 0.7071, multiplicity 12
 Connects [0, 0, 0] to [0.5, 0.5, 0]
-Allowed exchange matrix: | C  A  D |
-                         | A  C  D |
-                         |-D -D  B |
-Allowed DM vector: [D -D 0]
+Allowed exchange matrix: | A  C -D |
+                         | C  A -D |
+                         | D  D  B |
+Allowed DM vector: [-D D 0]
 
 Bond(2, 7, [0, 0, 0])
 Distance 0.8292, multiplicity 12
 Connects [0.5, 0.5, 0] to [0.75, 0.25, 0.75]
-Allowed exchange matrix: | C  A  D |
-                         | A  C -D |
-                         | D -D  B |
+Allowed exchange matrix: | A  D  C |
+                         | D  A -C |
+                         | C -C  B |
 
 Bond(1, 1, [1, 0, 0])
 Distance 1, multiplicity 6
 Connects [0, 0, 0] to [1, 0, 0]
-Allowed exchange matrix: |A 0 0 |
-                         |0 B 0 |
-                         |0 0 B |
+Allowed exchange matrix: | A  0  0 |
+                         | 0  B  0 |
+                         | 0  0  B |
 ```
 
 Each entry above makes reference to a specific `Bond`, but implicitly refers to
@@ -499,8 +499,8 @@ julia> print_bond(crystal, Bond(1, 6, [1,-1,0]))
 Bond(1, 6, [1, -1, 0])
 Distance 1.225, multiplicity 24
 Connects [0, 0, 0] to [1, -0.5, 0.5]
-Allowed exchange matrix: |   B  C+E -C-E |
-                         | C-E    D    A |
-                         |-C+E    A    D |
+Allowed exchange matrix: |   A  D+E -D-E |
+                         | D-E    B    C |
+                         |-D+E    C    B |
 Allowed DM vector: [0 E E]
 ```
