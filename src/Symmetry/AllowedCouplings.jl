@@ -29,7 +29,7 @@
 # The allowable J values correspond to the eigenvectors of P with eigenvalue 1.
 # An orthogonal basis for this space can again be calculated with an SVD.
 
-const transpose_op_3x3 = [
+const transpose_op_3x3 = SMatrix{9, 9, Float64}([
     1 0 0  0 0 0  0 0 0
     0 0 0  1 0 0  0 0 0
     0 0 0  0 0 0  1 0 0
@@ -41,7 +41,7 @@ const transpose_op_3x3 = [
     0 0 1  0 0 0  0 0 0
     0 0 0  0 0 1  0 0 0
     0 0 0  0 0 0  0 0 1
-]
+])
 
 
 # Returns a projection operator P that maps to zero any symmetry-unallowed
@@ -52,13 +52,13 @@ function projector_for_symop(cryst::Crystal, s::SymOp, parity::Bool)
     R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
 
     # Constraint is modeled as `F J = 0`
-    F = kron(R, R) - (parity ? I : transpose_op_3x3)
+    F = kron(R, R) - (parity ? SMatrix{9, 9, Float64}(I) : transpose_op_3x3)
 
     # Orthogonal column vectors that span the null space of F
     v = nullspace(F; atol=1e-12)
 
     # Projector onto the null space of F
-    P = v * v'
+    P = SMatrix{9, 9, Float64}(v * v')
     return P
 end
 
@@ -67,7 +67,7 @@ end
 # coupling matrices for bond b. Specifically, x is an allowed coupling if and
 # only if it is an eigenvector of P with eigenvalue 1, i.e., `P x = x`.
 function symmetry_allowed_couplings_operator(cryst::Crystal, b::BondRaw)
-    P = I
+    P = SMatrix{9, 9, Float64}(I)
     for (s, parity) in symmetries_between_bonds(cryst, b, b)
         P = P * projector_for_symop(cryst, s, parity)
     end
