@@ -106,14 +106,16 @@ function bond_multiplicity(cryst::Crystal, b::Bond{3})
 end
 
 
+"Indices of the unique elements in `a`, ordered by their first appearance."
+function unique_indices(a)
+    map(x->x[1], unique(x->x[2], enumerate(a)))
+end
+
 "Produces a list of 'canonical' bonds that belong to different symmetry equivalence classes."
 function canonical_bonds(cryst::Crystal, max_dist)
-    # Atom indices, one for each equivalence class
-    canon_atoms = [findfirst(isequal(c), cryst.classes)::Int for c in unique(cryst.classes)]
-
-    # Bonds, one for each equivalent class
+    # Bonds, one for each equivalence class
     cbonds = Bond{3}[]
-    for i in canon_atoms
+    for i in unique_indices(cryst.classes)
         for b in all_bonds_for_atom(cryst, i, max_dist)
             if !any(is_equivalent_by_symmetry(cryst, b, b′) for b′ in cbonds)
                 push!(cbonds, b)
