@@ -195,14 +195,16 @@ end
 """
     external_field(B::Vec3)
 
-Adds an external field ``𝐁`` and the energy term
+Adds an external field ``𝐁`` with Zeeman coupling,
 
 ```math
     -∑_i 𝐁 ⋅ 𝐦_i.
 ```
 
-The magnetic moments are ``𝐦_i = g 𝐬_i`` where ``g`` is in general a tensor and
-the spin magnitude ``|𝐬_i|`` is typically a multiple of 1/2.
+The magnetic moments are ``𝐦_i = μ_B g 𝐬_i`` where ``g`` is the g-factor or
+g-tensor, and the spin magnitude ``|𝐬_i|`` is typically a multiple of 1/2. The
+Bohr magneton ``μ_B`` is a physical constant, with numerical value determined by
+the unit system.
 """
 external_field(B) = ExternalField(Vec3(B))
 
@@ -210,18 +212,18 @@ external_field(B) = ExternalField(Vec3(B))
 """
     dipole_dipole(; extent::Int=4, η::Float64=0.5)
 
-Adds long-range dipole-dipole interactions,
+Includes long-range dipole-dipole interactions,
 
 ```math
-    -(μ₀/4π) ∑_{i\\neq j}  (3 (𝐦_j⋅𝐫̂_{ij})(𝐦_i⋅𝐫̂_{ij}) - 𝐦_i⋅𝐦_j) / |𝐫_{ij}|^3
+    -(μ₀/4π) ∑_{⟨ij⟩}  (3 (𝐦_j⋅𝐫̂_{ij})(𝐦_i⋅𝐫̂_{ij}) - 𝐦_i⋅𝐦_j) / |𝐫_{ij}|^3
 ```
 
-where the sum is over all pairs (singly counted), including periodic images,
-regularized using the Ewald summation convention. The magnetic moments are
-``𝐦_i = g 𝐬_i`` where ``g`` is in general a tensor and the spin magnitude
-``|𝐬_i|`` is typically a multiple of 1/2.
-
-A three-dimensional system is required.
+where the sum is over all pairs of spins (singly counted), including periodic
+images, regularized using the Ewald summation convention. The magnetic moments
+are ``𝐦_i = μ_B g 𝐬_i`` where ``g`` is the g-factor or g-tensor, and the spin
+magnitude ``|𝐬_i|`` is typically a multiple of 1/2. The Bohr magneton ``μ_B``
+and vacuum permeability ``μ_0`` are physical constants, with numerical values
+determined by the unit system.
 
 `extent` controls the number of periodic copies of the unit cell summed over in
 the Ewald summation (higher is more accurate, but higher creation-time cost),
