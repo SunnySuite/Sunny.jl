@@ -440,7 +440,7 @@ print_bond_table(crystal, 1.0)
 which prints
 
 ```
-Atom 1, coordinates [0, 0, 0], multiplicity 8
+Atom 1, position [0, 0, 0], multiplicity 8
 Allowed single-ion anisotropy or g-tensor: | A  0  0 |
                                            | 0  A  0 |
                                            | 0  0  A |

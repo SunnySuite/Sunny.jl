@@ -18,7 +18,7 @@ include("Symmetry/Symmetry.jl")
 export Crystal, subcrystal, nbasis, cell_volume
 export lattice_vectors, lattice_params
 
-export Bond, displacement, distance, multiplicity
+export Bond, displacement, distance, coordination_number
 export print_bond, print_bond_table
 export reference_bonds, basis_for_symmetry_allowed_couplings
 export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
