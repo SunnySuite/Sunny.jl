@@ -138,15 +138,16 @@ function sparsify_columns(A; atol)
         # By assumption, the n columns of A are linearly independent
         @assert isempty(nullspace(A; atol))
         # Since row rank equals column rank, it should be possible to find n
-        # linearly independent rows in A
-        indep_rows = Vector{Float64}[]
+        # linearly independent rows in A. Store these independent rows of A as
+        # column vectors in indep_rows.
+        indep_rows = zeros(Float64, size(A, 2), 0)
         for row in eachrow(A)
             # Add `row` to list if linearly independent with existing ones
-            if isempty(nullspace(hcat(indep_rows..., row); atol))
-                push!(indep_rows, row)
+            if isempty(nullspace(hcat(indep_rows, row); atol))
+                indep_rows = hcat(indep_rows, row)
             end
         end
-        return A * inv(hcat(indep_rows...))'
+        return A * inv(indep_rows)'
     end
 end
 
