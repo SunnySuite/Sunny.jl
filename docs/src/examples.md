@@ -440,21 +440,20 @@ print_bond_table(crystal, 1.0)
 which prints
 
 ```
-Atom index 1
-Coordinates [0, 0, 0]
+Atom 1, coordinates [0, 0, 0], multiplicity 8
 Allowed single-ion anisotropy or g-tensor: | A  0  0 |
                                            | 0  A  0 |
                                            | 0  0  A |
 
 Bond(1, 3, [0, 0, 0])
-Distance 0.433, multiplicity 4
+Distance 0.433, coordination 4
 Connects [0, 0, 0] to [0.25, 0.25, 0.25]
 Allowed exchange matrix: | A  B  B |
                          | B  A  B |
                          | B  B  A |
 
 Bond(1, 2, [0, 0, 0])
-Distance 0.7071, multiplicity 12
+Distance 0.7071, coordination 12
 Connects [0, 0, 0] to [0.5, 0.5, 0]
 Allowed exchange matrix: | A  C -D |
                          | C  A -D |
@@ -462,14 +461,14 @@ Allowed exchange matrix: | A  C -D |
 Allowed DM vector: [-D D 0]
 
 Bond(2, 7, [0, 0, 0])
-Distance 0.8292, multiplicity 12
+Distance 0.8292, coordination 12
 Connects [0.5, 0.5, 0] to [0.75, 0.25, 0.75]
 Allowed exchange matrix: | A  D  C |
                          | D  A -C |
                          | C -C  B |
 
 Bond(1, 1, [1, 0, 0])
-Distance 1, multiplicity 6
+Distance 1, coordination 6
 Connects [0, 0, 0] to [1, 0, 0]
 Allowed exchange matrix: | A  0  0 |
                          | 0  B  0 |
@@ -478,8 +477,9 @@ Allowed exchange matrix: | A  0  0 |
 
 Each entry above makes reference to a specific `Bond`, but implicitly refers to
 an entire class of symmetry equivalent bonds. For example, there are 4 symmetry
-equivalent nearest neighbors in the diamond lattice. To find the ones starting
-from atom 2 we can use,
+equivalent nearest neighbors in the diamond lattice (coordination number 4). To
+find the ones starting from atom 2 we can use
+[`all_symmetry_related_bonds_for_atom`](@ref),
 
 ```
 julia> all_symmetry_related_bonds_for_atom(crystal, 2, Bond(1, 3, [0, 0, 0]))
@@ -497,7 +497,7 @@ You can query properties of a specific bond using [`print_bond`](@ref).
 julia> print_bond(crystal, Bond(1, 6, [1,-1,0]))
 
 Bond(1, 6, [1, -1, 0])
-Distance 1.225, multiplicity 24
+Distance 1.225, coordination 24
 Connects [0, 0, 0] to [1, -0.5, 0.5]
 Allowed exchange matrix: |   A  D+E -D-E |
                          | D-E    B    C |

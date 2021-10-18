@@ -59,7 +59,7 @@ b = ref_bonds[2]
 basis = basis_for_symmetry_allowed_couplings(cryst, b)
 J = basis' * randn(length(basis))
 (bs, Js) = all_symmetry_related_couplings_for_atom(cryst, b.i, b, J)
-@test length(Js) == multiplicity(cryst, b)
+@test length(Js) == coordination_number(cryst, b.i, b)
 
 
 ### Triangular lattice, primitive unit cell

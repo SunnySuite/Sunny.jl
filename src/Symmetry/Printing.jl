@@ -87,11 +87,12 @@ function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
 
     if b.i == b.j && iszero(b.n)
         # On site interaction
-        @printf "Atom index %d\n" b.i
+        class_i = cryst.classes[b.i]
+        m_i = count(==(class_i), cryst.classes)
         if isempty(cryst.types[b.i])
-            @printf "Coordinates [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3]
+            @printf "Atom %d, position [%.4g, %.4g, %.4g], multiplicity %d\n" b.i ri[1] ri[2] ri[3] m_i
         else
-            @printf "Type '%s' at coordinates [%.4g, %.4g, %.4g]\n" cryst.types[b.i] ri[1] ri[2] ri[3]
+            @printf "Atom %d, type '%s', position [%.4g, %.4g, %.4g], multiplicity %d\n" b.i cryst.types[b.i] ri[1] ri[2] ri[3] m_i
         end
 
         _print_allowed_coupling(basis_strs; prefix="Allowed single-ion anisotropy or g-tensor: ")
@@ -101,7 +102,12 @@ function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
         end
     else
         @printf "Bond(%d, %d, [%d, %d, %d])\n" b.i b.j b.n[1] b.n[2] b.n[3]
-        @printf "Distance %.4g, multiplicity %i\n" distance(cryst, b) multiplicity(cryst, b)
+        (m_i, m_j) = (coordination_number(cryst, b.i, b), coordination_number(cryst, b.j, b))
+        if m_i == m_j
+            @printf "Distance %.4g, coordination %d\n" distance(cryst, b) m_i
+        else
+            @printf "Distance %.4g, coordination %d (from atom %d) and %d (from atom %d)\n" distance(cryst, b) m_i b.i m_j b.j
+        end
         if isempty(cryst.types[b.i]) && isempty(cryst.types[b.j])
             @printf "Connects [%.4g, %.4g, %.4g] to [%.4g, %.4g, %.4g]\n" ri[1] ri[2] ri[3] rj[1] rj[2] rj[3]
         else

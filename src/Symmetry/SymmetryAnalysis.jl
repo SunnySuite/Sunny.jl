@@ -8,15 +8,6 @@ function is_equivalent_by_translation(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     return norm(n - D1) < cryst.symprec && norm(n - D2) < cryst.symprec
 end
 
-
-function is_equivalent_by_symmetry(cryst::Crystal, b1::BondRaw, b2::BondRaw)
-    return !isempty(symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw))
-end
-
-function is_equivalent_by_symmetry(cryst::Crystal, b1::Bond{3}, b2::Bond{3})
-    return is_equivalent_by_symmetry(cryst, BondRaw(cryst, b1), BondRaw(cryst, b2))
-end
-
 # Generate list of all symmetries that transform b2 into b1, along with parity
 function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     # Fail early if two bonds describe different real-space distances
@@ -41,6 +32,15 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
         end
     end
     return ret
+end
+
+"Is there a symmetry operation that transforms `b1` into either `b2` or its reverse?"
+function is_related_by_symmetry(cryst::Crystal, b1::BondRaw, b2::BondRaw)
+    return !isempty(symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw))
+end
+
+function is_related_by_symmetry(cryst::Crystal, b1::Bond{3}, b2::Bond{3})
+    return is_related_by_symmetry(cryst, BondRaw(cryst, b1), BondRaw(cryst, b2))
 end
 
 "Returns all bonds in `cryst` for which `bond.i == i`"
@@ -100,16 +100,6 @@ function _score_bond(cryst::Crystal, b::Bond{3})
     return score
 end
 
-"""    multiplicity(cryst::Crystal, b::Bond{3})
-
-The number of bonds starting from atom index `b.i` that are symmetry equivalent
-to `b`.
-"""
-function multiplicity(cryst::Crystal, b::Bond{3})
-    return length(all_symmetry_related_bonds_for_atom(cryst, b.i, b))
-end
-
-
 "Indices of the unique elements in `a`, ordered by their first appearance."
 function unique_indices(a)
     map(x->x[1], unique(x->x[2], enumerate(a)))
@@ -126,7 +116,7 @@ function reference_bonds(cryst::Crystal, max_dist)
     ref_bonds = Bond{3}[]
     for i in unique_indices(cryst.classes)
         for b in all_bonds_for_atom(cryst, i, max_dist)
-            if !any(is_equivalent_by_symmetry(cryst, b, b′) for b′ in ref_bonds)
+            if !any(is_related_by_symmetry(cryst, b, b′) for b′ in ref_bonds)
                 push!(ref_bonds, b)
             end
         end
@@ -147,27 +137,17 @@ function reference_bonds(cryst::Crystal, max_dist)
     end
 end
 
-# For each element of `bonds`, return an index into `ref_bonds` that gives
-# the equivalent bond
-function equivalent_bond_indices(cryst::Crystal, ref_bonds, bonds)
-    map(bonds) do b
-        findfirst(ref_bonds) do rb
-             is_equivalent_by_symmetry(cryst, b, rb)
-        end
-    end
-end
-
 """
     all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b::Bond)
 
-Returns a list of all bonds starting from atom `i` that are symmetry-equivalent
-to the reference bond `b`.
+Returns a list of all bonds that start at atom `i`, and that are symmetry
+equivalent to bond `b` or its reverse.
 """
 function all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b_ref::Bond{3})
     bs = Bond{3}[]
     dist = distance(cryst, b_ref)
     for b in all_bonds_for_atom(cryst, i, dist; min_dist=dist)
-        if is_equivalent_by_symmetry(cryst, b_ref, b)
+        if is_related_by_symmetry(cryst, b_ref, b)
             push!(bs, b)
         end
     end
@@ -175,9 +155,10 @@ function all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b_ref::Bond
 end
 
 """
-    all_symmetry_related_bonds(cryst::Crystal, b::Bond{3}) :: Vector{Bond{3}}
+    all_symmetry_related_bonds(cryst::Crystal, b::Bond)
 
-Return a list of all bonds which are symmetry-equivalent to the reference bond `b`.
+Returns a list of all bonds that are symmetry-equivalent to bond `b` or its
+reverse.
 """
 function all_symmetry_related_bonds(cryst::Crystal, b_ref::Bond{3})
     bs = Bond{3}[]
@@ -185,4 +166,16 @@ function all_symmetry_related_bonds(cryst::Crystal, b_ref::Bond{3})
         append!(bs, all_symmetry_related_bonds_for_atom(cryst, i, b_ref))
     end
     bs
+end
+
+"""    coordination_number(cryst::Crystal, i::Int, b::Bond)
+
+Returns the number times that atom `i` participates in a bond equivalent to `b`.
+In other words, the count of bonds that begin at atom `i` and that are
+symmetry-equivalent to `b` or its reverse.
+
+Defined as `length(all_symmetry_related_bonds_for_atom(cryst, i, b))`.
+"""
+function coordination_number(cryst::Crystal, i::Int, b::Bond{3})
+    return length(all_symmetry_related_bonds_for_atom(cryst, i, b))
 end

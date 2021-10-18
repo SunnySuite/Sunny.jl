@@ -1,5 +1,3 @@
-"""Defines the Bond type"""
-
 """
     Bond
 
@@ -7,11 +5,8 @@ Represents a bond between atom indices `i` and `j`, with integer displacement of
 `n[1] ... n[D]` unit cells along each dimension.
 """
 struct Bond{D}
-    "The sublattice index of the first site."
     i :: Int
-    "The sublattice index of the second site."
     j :: Int
-    "The displacement vector between sites, in units of lattice vectors."
     n :: SVector{D, Int}
 end
 
@@ -82,6 +77,6 @@ function transform(cryst::Crystal, s::SymOp, b::Bond{3})
     return Bond(cryst, transform(s, BondRaw(cryst, b)))
 end
 
-function Base.reverse(b::BondRaw)
+function reverse(b::BondRaw)
     return BondRaw(b.rj, b.ri)
 end
