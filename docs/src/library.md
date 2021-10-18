@@ -29,7 +29,7 @@ lattice_params
 Bond
 displacement
 distance
-multiplicity
+coordination_number
 print_bond
 print_bond_table
 reference_bonds
