@@ -87,7 +87,7 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
     @unpack α, D, sys, _S₁, _S₂, _B, _f₁, _r₁, _ξ = integrator
     S = sys.sites
 
-    Random.randn!(_ξ)
+    randn!(_ξ)
     _ξ .*= √(2D)
 
     # Euler step
