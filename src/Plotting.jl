@@ -1,8 +1,6 @@
 """Plotting functions for lattices and spins on lattices.
 """
 
-import GLMakie
-
 function plot_lattice!(ax, lattice::Lattice{2}; colors=:Set1_9, markersize=20, linecolor=:grey, linewidth=1.0, kwargs...)
     # Plot the unit cell mesh
     plot_cells!(ax, lattice; color=linecolor, linewidth=linewidth)

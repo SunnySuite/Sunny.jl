@@ -1,5 +1,4 @@
-import Base.size
-import Random.rand!
+import Random # overload Random.rand!
 
 abstract type AbstractSystem{T, D, L, Db} <: AbstractArray{T, Db} end
 Base.IndexStyle(::Type{<:AbstractSystem}) = IndexLinear()

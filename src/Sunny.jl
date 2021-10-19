@@ -1,23 +1,32 @@
+# __precompile__(false)
+
 module Sunny
 
 using LinearAlgebra
 using StaticArrays
 using OffsetArrays
 using SpecialFunctions
-using Parameters
 using FFTW
 using Tullio
 using ProgressMeter
-import Random
+using Printf
+using GLMakie
+using Random: rand!, randn!
+
+# Specific to Symmetry/
+using FilePaths
+using CrystalInfoFramework
+import Spglib
+
+# TODO: Remove in Julia 1.7
+using Parameters: @unpack
 
 const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 
 include("Symmetry/Symmetry.jl")
-
 export Crystal, subcrystal, nbasis, cell_volume
 export lattice_vectors, lattice_params
-
 export Bond, displacement, distance, coordination_number
 export print_bond, print_bond_table
 export reference_bonds, basis_for_symmetry_allowed_couplings

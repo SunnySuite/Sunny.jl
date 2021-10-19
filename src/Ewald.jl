@@ -1,8 +1,6 @@
 """ Implements Ewald summation rules for monopoles and dipoles on 3D lattices
 """
 
-import Base.Cartesian.@ntuple
-
 @doc raw"""
     ewald_sum_monopole(sys::ChargeSystem; η=1.0, extent=10)
 

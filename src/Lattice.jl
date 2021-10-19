@@ -4,8 +4,6 @@
    Lattice is arbitrary-dimensional, but contains no symmetry information.
 """
 
-import Base.size
-
 """
     Lattice{D, L, Db}
 
