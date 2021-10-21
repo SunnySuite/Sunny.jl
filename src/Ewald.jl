@@ -136,13 +136,11 @@ function ewald_sum_dipole(lattice::Lattice{3}, spins::Array{Vec3, 4}; extent=2, 
     # Rescale lattice vectors to be superlattice
     # (Not duplicating basis sites does not matter here -- we don't care)
     superlat = Lattice(superlat_vecs, lattice.basis_vecs, (1,1,1))
-
     recip = gen_reciprocal(superlat)
-    # Rescale vectors to be reciprocal vectors of entire simulation box
-    recip = ReciprocalLattice(recip.lat_vecs ./ lattice.size', recip.size)
     
     vol = volume(lattice)
 
+    # Can drop this term if we ensure all spins are norm 1
     dip_square_term = -2η^3 / (3 * √π) * sum(norm.(spins).^2)
 
     real_space_sum, recip_space_sum = 0.0, 0.0
@@ -158,7 +156,6 @@ function ewald_sum_dipole(lattice::Lattice{3}, spins::Array{Vec3, 4}; extent=2, 
         for idx2 in eachindex(lattice)
             @inbounds rⱼ = lattice[idx2]
             @inbounds pⱼ = spins[idx2]
-            pᵢ_dot_pⱼ = pᵢ ⋅ pⱼ
 
             rᵢⱼ = rⱼ - rᵢ
 
@@ -206,6 +203,7 @@ function ewald_sum_dipole(lattice::Lattice{3}, spins::Array{Vec3, 4}; extent=2, 
     return 0.5 * real_space_sum + 2π / vol * real(recip_space_sum) + dip_square_term
 end
 
+"Precompute the dipole interaction matrix, not yet in ± compressed form."
 function precompute_monopole_ewald(lattice::Lattice{3}; extent=10, η=1.0) :: OffsetArray{5, Float64} where {D}
     nb = nbasis(lattice)
     A = zeros(Float64, nb, nb, map(n->2*(n-1)+1, lattice.size)...)
@@ -220,14 +218,6 @@ function precompute_monopole_ewald(lattice::Lattice{3}; extent=10, η=1.0) :: Of
     vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
-
-    # Put the dipole-squared term on the diagonal
-    # for i in 1:N
-    #     @inbounds A_N[i, i, 1, 1] += -η / √π
-    #     for j in 1:N
-    #         @inbounds A_N[i, j, 1, 1] += -π / (2 * vol * η^2)
-    #     end
-    # end
 
     # Handle charge-squared and total charge terms
     A .+= -π / (2 * vol * η^2)
@@ -302,97 +292,8 @@ function contract_monopole(charges::Array{Float64, 4}, A::OffsetArray{Float64}) 
     return U
 end
 
-
-"Precompute the dipole interaction matrix"
-function precompute_dipole_ewald(lattice::Lattice{3}; extent=10, η=1.0) :: OffsetArray{Mat3, 5} where {D, L, Db}
-    nb = length(lattice.basis_vecs)
-    A = zeros(Mat3, nb, nb, map(n->2*(n-1)+1, lattice.size)...)
-    A = OffsetArray(A, 1:nb, 1:nb, map(n->-(n-1):n-1, lattice.size)...)
-
-    extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
-    delta_idxs = CartesianIndices(ntuple(n->-(lattice.size[n]-1):(lattice.size[n]-1), Val(3)))
-
-    recip = gen_reciprocal(lattice)
-    # Rescale vectors to be reciprocal vectors of entire simulation box
-    recip = ReciprocalLattice(recip.lat_vecs ./ lattice.size', recip.size)
-    vol = volume(lattice)
-    # Vectors spanning the axes of the entire system
-    superlat_vecs = lattice.size' .* lattice.lat_vecs
-
-    iden = Mat3(diagm(ones(3)))
-
-    # Put the dipole-squared term on the zero-difference matrix
-    for i in 1:nb
-        A[i, i, 0, 0, 0] = A[i, i, 0, 0, 0] .+ -2η^2 / (3 * √π) * iden
-    end
-
-    real_space_sum, recip_space_sum = 0.0, 0.0
-    real_site_sum = 0.0
-
-    n = @MVector zeros(3)
-    k = @MVector zeros(3)
-    real_tensor = @MMatrix zeros(3, 3)
-    recip_tensor = @MMatrix zeros(3, 3)
-
-    for idx in delta_idxs
-        for b1 in 1:nb
-            @inbounds rᵢ = lattice.basis_vecs[b1]
-            for b2 in 1:nb
-                @inbounds rⱼ = lattice[b2, idx]
-                rᵢⱼ = rⱼ - rᵢ
-
-                # TODO: Either merge into one sum, or separately control extents
-                # Real-space sum over unit cells
-                real_site_sum = 0.0
-                fill!(real_tensor, 0.0)
-                for cell_idx in extent_idxs
-                    cell_idx = convert(SVector, cell_idx)
-                    mul!(n, superlat_vecs, cell_idx)
-
-                    rᵢⱼ_n = rᵢⱼ + n
-
-                    if all(rᵢⱼ_n .== 0)
-                        continue
-                    end
-
-                    dist = norm(rᵢⱼ_n)
-                    exp_term = 2η / √π * dist * exp(-η^2 * dist^2)
-                    erfc_term = erfc(η * dist)
-
-                    # Terms from Eq. 79 of Beck
-                    real_site_sum += (exp_term + erfc_term) / dist^3
-                    
-                    # Calculating terms from Eq. 80 + 81 of Beck
-                    prefactor = -3 * ((2η^2 * dist^2 / 3 + 1) * exp_term + erfc_term) / dist^5
-                    @. real_tensor += prefactor * (rᵢⱼ_n * rᵢⱼ_n')
-                end
-                @inbounds real_tensor .+= real_site_sum * iden
-                @inbounds A[b2, b1, idx] = A[b2, b1, idx] .+ 0.5 * real_tensor
-
-                # Reciprocal-space sum
-                fill!(recip_tensor, 0.0)
-                for cell_idx in extent_idxs
-                    cell_idx = convert(SVector, cell_idx)
-                    mul!(k, recip.lat_vecs, cell_idx)
-
-                    k2 = norm(k)^2
-                    if k2 == 0
-                        continue
-                    end
-
-                    prefactor = exp(-k2 / 4η^4) * cos(k ⋅ rᵢⱼ) / k2
-                    @. recip_tensor += prefactor * (k * k')
-                end
-                @inbounds A[b2, b1, idx] = A[b2, b1, idx] .+ 2π / vol * recip_tensor
-            end
-        end
-    end
-
-    return A
-end
-
 "Precompute the dipole interaction matrix, in ± compressed form."
-function precompute_dipole_ewald_c(lattice::Lattice{3}; extent=3, η=1.0) :: OffsetArray{Mat3, 5}
+function precompute_dipole_ewald(lattice::Lattice{3}; extent=3, η=1.0) :: OffsetArray{Mat3, 5}
     nb = nbasis(lattice)
     A = zeros(Mat3, nb, nb, lattice.size...)
     A = OffsetArray(A, 1:nb, 1:nb, map(n->0:n-1, lattice.size)...)
@@ -400,18 +301,18 @@ function precompute_dipole_ewald_c(lattice::Lattice{3}; extent=3, η=1.0) :: Off
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
     delta_idxs = eachcellindex(lattice) .- oneunit(CartesianIndex{3})
 
-    recip = gen_reciprocal(lattice)
-    # Rescale vectors to be reciprocal vectors of entire simulation box
-    recip = ReciprocalLattice(recip.lat_vecs ./ lattice.size', recip.size)
-    vol = volume(lattice)
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
+    superlat = Lattice(superlat_vecs, lattice.basis_vecs, (1,1,1))
+    recip = gen_reciprocal(superlat)
+
+    vol = volume(lattice)
 
     iden = Mat3(diagm(ones(3)))
 
     # Put the dipole-squared term on the zero-difference matrix
     for i in 1:nb
-        A[i, i, 0, 0, 0] = A[i, i, 0, 0, 0] .+ -2η^2 / (3 * √π) * iden
+        A[i, i, 0, 0, 0] = A[i, i, 0, 0, 0] .+ -2η^3 / (3 * √π) * iden
     end
 
     real_space_sum, recip_space_sum = 0.0, 0.0
@@ -468,7 +369,7 @@ function precompute_dipole_ewald_c(lattice::Lattice{3}; extent=3, η=1.0) :: Off
                         continue
                     end
 
-                    prefactor = exp(-k2 / 4η^4) * cos(k ⋅ rᵢⱼ) / k2
+                    prefactor = exp(-k2 / 4η^2) * cos(k ⋅ rᵢⱼ) / k2
                     @. recip_tensor += prefactor * (k * k')
                 end
                 @inbounds A[b2, b1, idx] = A[b2, b1, idx] .+ 2π / vol * recip_tensor
@@ -479,27 +380,8 @@ function precompute_dipole_ewald_c(lattice::Lattice{3}; extent=3, η=1.0) :: Off
     return A
 end
 
-"Contracts a system of dipoles with a precomputed interaction tensor A"
-function contract_dipole(spins::Array{Vec3, 4}, A::OffsetArray{Mat3, 5}) :: Float64
-    nb = size(spins, 1)
-    latsize = size(spins)[2:end]
-    U = 0.0
-    for i in CartesianIndices(latsize)
-        for ib in 1:nb
-            @inbounds pᵢ = spins[ib, i]
-            for j in CartesianIndices(latsize)
-                for jb in 1:nb
-                    @inbounds pⱼ = spins[jb, j]
-                    @inbounds U += dot(pᵢ, A[ib, jb, i - j], pⱼ)
-                end
-            end
-        end
-    end
-    return U
-end
-
 "Contracts a system of dipoles with a precomputed interaction tensor A, in ± compressed format"
-function contract_dipole_c(spins::Array{Vec3, 4}, A::OffsetArray{Mat3, 5}) :: Float64
+function contract_dipole(spins::Array{Vec3, 4}, A::OffsetArray{Mat3, 5}) :: Float64
     nb = size(spins, 1)
     latsize = size(spins)[2:end]
     U = 0.0
@@ -529,11 +411,11 @@ end
 function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize)
     @unpack strength, extent, η = dip
     lattice = Lattice(crystal, latsize)
-    return DipoleRealCPU(strength .* precompute_dipole_ewald_c(lattice; extent=extent, η=η))
+    return DipoleRealCPU(strength .* precompute_dipole_ewald(lattice; extent=extent, η=η))
 end
 
 function energy(spins::Array{Vec3, 4}, dip::DipoleRealCPU)
-    return contract_dipole_c(spins, dip.int_mat)
+    return contract_dipole(spins, dip.int_mat)
 end
 
 function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleRealCPU)

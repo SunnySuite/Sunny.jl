@@ -14,8 +14,8 @@ function test_heunp()
     sys = SpinSystem(crystal, interactions, (5, 5, 5))
     rand!(sys)
 
-    NITERS = 1000
-    Δt     = 0.001
+    NITERS = 10000
+    Δt     = 0.0001
     energies = Vector{Float64}()
 
     integrator = Sunny.HeunP(sys)
@@ -27,12 +27,11 @@ function test_heunp()
 
     # Check that the energy hasn't fluctuated much
     ΔE = maximum(energies) - minimum(energies)
-    @test ΔE < 1e-3
+    @test ΔE < 1e-6
 end
 
 test_heunp()
 
-#=
 "Tests that HeunP does indeed conserve energy for dipole forces (w/ Fourier) to a certain tolerance."
 function test_heunp_dipole_ft()
     lat_vecs = [1.0 0   0;
@@ -50,7 +49,7 @@ function test_heunp_dipole_ft()
     rand!(sys)
 
     NITERS = 10000
-    Δt     = 0.001
+    Δt     = 0.0001
     energies = Vector{Float64}()
 
     integrator = Sunny.HeunP(sys)
@@ -62,28 +61,27 @@ function test_heunp_dipole_ft()
 
     # Check that the energy hasn't fluctuated much
     ΔE = maximum(energies) - minimum(energies)
-    @test ΔE < 1e-2
+    @test ΔE < 1e-6
 end
 
 test_heunp_dipole_ft()
-=#
 
 # == These should not be @test-ed, but are for manual inspection == #
 
 "Measure timings for speed disparity between real and fourier-space dipole interactions"
 function time_real_fourier_dipole()
-    lat_vecs = SA[1.0 0   0;
-                  0   1.0 0;
-                  0   0   1.0]
-    b_vecs = [SA[0.,  0.,  0.],
-              SA[0.5, 0.5, 0.5]]
+    lat_vecs = [1.0 0   0;
+                0   1.0 0;
+                0   0   1.0]
+    b_vecs = [[0.,  0.,  0.],
+              [0.5, 0.5, 0.5]]
 
     Ls = [2, 6, 10, 14, 18, 22, 26, 30]
     real_times = Vector{Float64}()
     ft_times = Vector{Float64}()
     for L in Ls
         println("Measuring L = $L")
-        latsize = SA[L, L, L]
+        latsize = [L, L, L]
         lattice = Lattice(lat_vecs, b_vecs, latsize)
         sys = SpinSystem(lattice)
 
@@ -129,12 +127,12 @@ end
 
 "Produces the energy trajectory across LangevinHeunP integration"
 function test_langevin_heunp()
-    lat_vecs = SA[1.0 0   0;
-                  0   1.0 0;
-                  0   0   1.0]
-    b_vecs = [SA[0.,  0.,  0.],
-              SA[0.5, 0.5, 0.5]]
-    latsize = SA[5, 5, 5]
+    lat_vecs = [1.0 0   0;
+                0   1.0 0;
+                0   0   1.0]
+    b_vecs = [[0.,  0.,  0.],
+              [0.5, 0.5, 0.5]]
+    latsize = [5, 5, 5]
     lattice = Lattice(lat_vecs, b_vecs, latsize)
 
     J = 1.0

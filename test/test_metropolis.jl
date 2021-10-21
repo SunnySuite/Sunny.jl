@@ -22,7 +22,7 @@ function test_local_energy_change()
         rand!(system)
         for _ in 1:50
             # Pick a random site, try to set it to a random spin
-            randsite = CartesianIndex(Tuple(mod1.(rand(SVector{4, Int}), size(system))))
+            randsite = CartesianIndex(Tuple(mod1.(rand(Int, 4), size(system))))
             newspin = Sunny._random_spin()
 
             func_diff = Sunny.local_energy_change(system, randsite, newspin)
