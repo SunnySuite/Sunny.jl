@@ -5,11 +5,11 @@ function test_energy_consistency(crystal, latsize)
     sys = SpinSystem(crystal, Sunny.Interaction[], latsize)
     rand!(sys)
 
-    dipdip = dipole_dipole(; extent=4, η=0.5)
+    dipdip = dipole_dipole(; extent=5, η=0.5)
     dip_real = Sunny.DipoleRealCPU(dipdip, crystal, latsize)
     dip_fourier = Sunny.DipoleFourierCPU(dipdip, crystal, latsize)
 
-    direct_energy = Sunny.ewald_sum_dipole(sys.lattice, sys.sites; extent=4, η=0.5)
+    direct_energy = Sunny.ewald_sum_dipole(sys.lattice, sys.sites; extent=5, η=0.5)
     real_energy = Sunny.energy(sys.sites, dip_real)
     fourier_energy = Sunny.energy(sys.sites, dip_fourier)
 
@@ -38,5 +38,5 @@ basis_vecs = [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]]
 latsize = [5, 5, 5]
 crystal = Crystal(lat_vecs, basis_vecs)
 
-test_energy_consistency(crystal, latsize)  # Failing currently?
-test_field_consistency(crystal, latsize)   # But this doesn't?
+test_energy_consistency(crystal, latsize)
+test_field_consistency(crystal, latsize)

@@ -20,7 +20,7 @@ This is the documentation for [Sunny.jl](https://github.com/MagSims/Sunny.jl). T
 - Parallel tempering
 - Generalized ``\mathrm{SU(N)}`` models
 - GPU acceleration
-- Accelerated local MC updates in the presence of long-rage dipole interactions
+- Accelerated local MC updates in the presence of long-range dipole interactions
 
 To start running your first simulations, head over to [Getting Started](@ref) to install the package. Then, see [Examples](@ref) for a set of examples demonstrating various features.
 

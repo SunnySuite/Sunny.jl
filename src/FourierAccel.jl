@@ -35,7 +35,7 @@ function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize)
     @unpack strength, extent, η = dip
     lattice = Lattice(crystal, latsize)
 
-    A = strength .* precompute_dipole_ewald_c(lattice; extent=extent, η=η)
+    A = strength .* precompute_dipole_ewald(lattice; extent=extent, η=η)
     FA = _rfft_dipole_tensor(A)
     nb = nbasis(lattice)
     rftdim = div(size(lattice, 2), 2) + 1
@@ -53,14 +53,15 @@ function energy(spins::Array{Vec3, 4}, dip::DipoleFourierCPU)
     FA = dip.int_mat
     FS = dip._spins_ft
     nb = size(spins, 1)
+    latsize = size(spins)[2:end]
+    even_rft_size = latsize[1] % 2 == 0
     Fsize = size(FS)[3:end]
     spins = _reinterpret_from_spin_array(spins)
-    even_size = size(spins, 2) % 2 == 0
 
     U = 0.0
     mul!(FS, dip._plan, spins)
     # Need to add a normalization factor to some components due to rfft usage
-    if even_size
+    if even_rft_size
         @views FS[:, :, 2:end-1, :, :] .*= √2
     else
         @views FS[:, :, 2:end, :, :] .*= √2
@@ -68,7 +69,7 @@ function energy(spins::Array{Vec3, 4}, dip::DipoleFourierCPU)
     @tullio U += real(
         conj(FS[is, ib, j, k, l]) * FA[is, js, ib, jb, j, k, l] * FS[js, jb, j, k, l]
     )
-    return U / prod(size(spins)[2:end])
+    return U / prod(latsize)
 end
 
 "Accumulates the local field coming from dipole interactions, using Fourier transforms"

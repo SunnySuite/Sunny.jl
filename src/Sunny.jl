@@ -70,10 +70,10 @@ export plan_spintraj_fft!
 export plot_lattice, plot_spins, plot_bonds, plot_all_bonds
 export anim_integration, live_integration, live_langevin_integration
 
-include("wanglandau/BinnedArray.jl")
+include("WangLandau/BinnedArray.jl")
 export BinnedArray, filter_visited, reset!
 
-include("wanglandau/WangLandau.jl")
+include("WangLandau/WangLandau.jl")
 export WangLandau, spherical_cap_update, init_bounded!, run!
 
 end

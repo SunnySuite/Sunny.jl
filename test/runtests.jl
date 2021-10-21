@@ -1,6 +1,8 @@
 using Test
 using Sunny
-using StaticArrays
+using Random
+
+Random.seed!(1111)
 
 # Idea taken from StaticArrays.jl
 enabled_tests = lowercase.(ARGS)
@@ -16,5 +18,5 @@ addtests("test_interactions.jl")
 addtests("test_ewald.jl")
 addtests("test_symmetry.jl")
 addtests("test_metropolis.jl")
-# addtests("test_fourier.jl") # TODO, reenable
+addtests("test_fourier.jl")
 addtests("test_dynamics.jl")
