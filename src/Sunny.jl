@@ -14,7 +14,7 @@ using GLMakie
 using Random: rand!, randn!
 
 # Specific to Symmetry/
-using FilePaths
+using FilePaths: Path
 using CrystalInfoFramework
 import Spglib
 

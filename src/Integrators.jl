@@ -8,16 +8,37 @@
 
 abstract type Integrator end
 
-"Integrator for a 2nd-order energy-conserving Heun + projection scheme"
+"""
+    HeunP(sys::SpinSystem)
+
+Integrates Landau-Lifshitz spin dynamics using the Heun method, with a final
+projection step that exactly constrains |S|=1. The method is locally second
+order accurate.
+"""
 mutable struct HeunP{D, L, Db} <: Integrator
     sys :: SpinSystem{D, L, Db}
     _S₁ :: Array{Vec3, Db}
     _S₂ :: Array{Vec3, Db}
     _B  :: Array{Vec3, Db}
     _f₁ :: Array{Vec3, Db}
+
+    function HeunP(sys::SpinSystem{D, L, Db}) where {D, L, Db}
+        return new{D, L, Db}(
+            sys, zero(sys.sites), zero(sys.sites),
+            zero(sys.sites), zero(sys.sites)
+        )
+    end
 end
 
-"Integrator implementing Langevin dynamics using a 2nd-order Heun + projection scheme"
+"""
+    LangevinHeunP(sys, kT, α)
+
+Implements Langevin dynamics on `sys` targetting a temperature `kT`, with a
+damping coefficient `α`. Provided `α` should not be normalized by the spin
+magnitude -- this is done internally.
+
+Uses the 2nd-order Heun + projection scheme."
+"""
 mutable struct LangevinHeunP{D, L, Db} <: Integrator
     α   :: Float64                # Damping coeff normalized by S
     D   :: Float64                # Stochastic strength normalized by S
@@ -28,32 +49,40 @@ mutable struct LangevinHeunP{D, L, Db} <: Integrator
     _f₁ :: Array{Vec3, Db}
     _r₁ :: Array{Vec3, Db}
     _ξ  :: Array{Vec3, Db}
+
+    function LangevinHeunP(sys::SpinSystem{D, L, Db}, kT::Float64, α::Float64) where {D, L, Db}
+        return new{D, L, Db}(
+            α/sys.S, α*kT/((1+α*α)*sys.S), sys,
+            zero(sys.sites), zero(sys.sites), zero(sys.sites),
+            zero(sys.sites), zero(sys.sites), zero(sys.sites)
+        )
+    end
 end
 
 """
-    HeunP(sys)
+    SphericalMidpoint(sys::SpinSystem; atol=1e-12)
+
+Integrates Landau-Lifshitz spin dynamics using the spherical-midpoint
+integrator, which is symplectic and implicit. Each step is converged to absolute
+tolerance `atol`.
 """
-function HeunP(sys::SpinSystem)
-    return HeunP(
-        sys, zero(sys.sites), zero(sys.sites),
-        zero(sys.sites), zero(sys.sites),
-    )
+mutable struct SphericalMidpoint{D, L, Db} <: Integrator
+    sys :: SpinSystem{D, L, Db}
+    _S̄  :: Array{Vec3, Db}
+    _Ŝ  :: Array{Vec3, Db}
+    _S̄′ :: Array{Vec3, Db}
+    _B  :: Array{Vec3, Db}
+    atol :: Float64
+
+    function SphericalMidpoint(sys::SpinSystem{D, L, Db}; atol=1e-12) where {D, L, Db}
+        return new{D, L, Db}(
+            sys, zero(sys.sites), zero(sys.sites),
+            zero(sys.sites), zero(sys.sites), atol
+        )
+    end    
 end
 
-"""
-    LangevinHeunP(sys, kT, α)
 
-Implements Langevin dynamics on `sys` targetting a temperature `kT`,
- with a damping coefficient `α`. Provided `α` should not be normalized
- by the spin magnitude -- this is done internally.
-"""
-function LangevinHeunP(sys::SpinSystem, kT::Float64, α::Float64)
-    return LangevinHeunP(
-        α/sys.S, α*kT/((1+α*α)*sys.S), sys,
-        zero(sys.sites), zero(sys.sites), zero(sys.sites),
-        zero(sys.sites), zero(sys.sites), zero(sys.sites)
-    )
-end
 
 
 @inline f(S, B) = -S × B
@@ -75,8 +104,7 @@ function evolve!(integrator::HeunP, Δt::Float64)
 
     # Corrector step
     field!(_B, _S₁, sys.hamiltonian)
-    @. _S₂ = S + 0.5 * Δt * (_f₁ + f(_S₁, _B))
-    @. _S₂ /= norm(_S₂)
+    @. _S₂ = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B)))
 
     # Swap buffers
     sys.sites, integrator._S₂ = integrator._S₂, sys.sites
@@ -98,12 +126,47 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
 
     # Corrector step
     field!(_B, _S₁, sys.hamiltonian)
-    @. _S₂ = S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ, α))
-    @. _S₂ /= norm(_S₂)
+    @. _S₂ = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ, α)))
 
     # Swap buffers
     sys.sites, integrator._S₂ = integrator._S₂, sys.sites
     nothing
+end
+
+function evolve!(integrator::SphericalMidpoint, Δt::Float64)
+    @unpack sys, _S̄, _Ŝ, _S̄′, _B, atol = integrator
+    S = sys.sites
+    
+    # Initial guess for midpoint
+    @. _S̄ = S
+
+    max_steps = 100
+    for iter in 1:max_steps
+        # Integration step for current best guess of midpoint _S̄. Produces
+        # improved midpoint estimator _S̄′.
+        @. _Ŝ = normalize(_S̄)
+        field!(_B, _Ŝ, sys.hamiltonian)
+        @. _S̄′ = S + 0.5 * Δt * f(_Ŝ, _B)
+
+        # Convergence is reached if every element of _S̄ and _S̄′ agree to
+        # within tolerance.
+        converged = true
+        for i = 1:length(S)
+            converged = converged && isapprox(_S̄[i], _S̄′[i]; atol)
+        end
+
+        # If converged, then we can return
+        if converged
+            # Normalization here should not be necessary in principle, but it
+            # could be useful in practice for finite `atol`.
+            @. S = normalize(2*_S̄′ - S)
+            return
+        end
+
+        @. _S̄ = _S̄′
+    end
+
+    error("Spherical midpoint method failed to converge to tolerance $tol after $max_iters iterations.")
 end
 
 abstract type AbstractSampler end
