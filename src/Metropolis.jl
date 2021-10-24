@@ -73,9 +73,29 @@ mutable struct MetropolisSampler{D, L, Db} <: AbstractSampler
     end
 end
 
-@inline function _random_spin() :: Vec3
-    n = randn(Vec3)
-    return n / norm(n)
+"""
+    IsingSampler(sys::SpinSystem, kT::Float64, nsweeps::Int)
+
+A sampler which performs the standard Metropolis Monte Carlo algorithm to
+ sample a `SpinSystem` at the requested temperature.
+
+This version differs from `MetropolisSampler` in that each single-spin update
+only attempts to completely flip the spin. One call to `sample!` will attempt
+to flip each spin `nsweeps` times.
+
+Before construting, be sure that your `SpinSystem` is initialized so that each
+spin points along its "Ising-like" axis.
+"""
+mutable struct IsingSampler{D, L, Db} <: AbstractSampler
+    system     :: SpinSystem{D, L, Db}
+    β          :: Float64
+    nsweeps    :: Int
+    E          :: Float64
+    M          :: Vec3
+    function IsingSampler(sys::SpinSystem{D,L,Db}, kT::Float64, nsweeps::Int) where {D,L,Db}
+        @assert kT != 0. "Temperature must be nonzero!"
+        new{D, L, Db}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys))
+    end
 end
 
 """
@@ -83,8 +103,16 @@ end
 
 Changes the temperature of the sampler to `kT`.
 """
-function set_temp!(sampler::MetropolisSampler, kT::Float64)
+function set_temp!(sampler::MetropolisSampler, kT)
     sampler.β = 1 / kT
+end
+function set_temp!(sampler::IsingSampler, kT)
+    sampler.β = 1 / kT
+end
+
+@inline function _random_spin() :: Vec3
+    n = randn(Vec3)
+    return n / norm(n)
 end
 
 """
@@ -97,13 +125,29 @@ function sample!(sampler::MetropolisSampler)
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sampler.system)
             # Try to rotate this spin to somewhere randomly on the unit sphere
-            new_spin = _random_spin()
-            ΔE = local_energy_change(sampler.system, idx, new_spin)
+            newspin = _random_spin()
+            ΔE = local_energy_change(sampler.system, idx, newspin)
 
             if rand() < exp(-sampler.β * ΔE)
                 sampler.E += ΔE
-                sampler.M += (new_spin - sampler.system[idx])
-                sampler.system[idx] = new_spin
+                sampler.M += (newspin - sampler.system[idx])
+                sampler.system[idx] = newspin
+            end
+        end
+    end
+end
+
+function sample!(sampler::IsingSampler)
+    for _ in 1:sampler.nsweeps
+        for idx in CartesianIndices(sampler.system)
+            # Try to completely flip this spin
+            newspin = -sampler.system[idx]
+            ΔE = local_energy_change(sampler.system, idx, newspin)
+
+            if rand() < exp(-sampler.β * ΔE)
+                sampler.E += ΔE
+                sampler.M += 2 * newspin
+                sampler.system[idx] = newspin
             end
         end
     end
@@ -111,6 +155,8 @@ end
 
 @inline running_energy(sampler::MetropolisSampler) = sampler.E
 @inline running_mag(sampler::MetropolisSampler) = sampler.M
+@inline running_energy(sampler::IsingSampler) = sampler.E
+@inline running_mag(sampler::IsingSampler) = sampler.M
 
 
 """

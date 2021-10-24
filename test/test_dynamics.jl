@@ -80,23 +80,34 @@ function time_real_fourier_dipole()
     ft_times = Float64[]
     for L in Ls
         println("Measuring L = $L")
-        interactions = [dipole_dipole()]
+
+        # We'll manually set interactions, since DipoleRealCPU
+        #  isn't actually a create-able force in the current
+        #  SpinSystem/HamiltonianCPU constructor.
+        interactions = Sunny.Interaction[]
         latsize = (L, L, L)
         sys = SpinSystem(crystal, interactions, latsize)
         Random.seed!(0)
+        rand!(sys)
+
+        # Since we just want to time integration speed,
+        #  it's alright for the Ewald summation to be
+        #  very inaccurate (truncated at a single cell)
+        dip_dip = dipole_dipole(;extent=1)
+        empty_h = Sunny.HeisenbergCPU{3}[]
+        empty_d = Sunny.DiagonalCouplingCPU{3}[]
+        empty_g = Sunny.GeneralCouplingCPU{3}[]
 
         if L <= 14
             println("\tSetting up real-space...")
-            # Since we just want to time integration speed,
-            #  there's no issue filling the interaction tensor
-            #  with garbage.
-            A = randn(Sunny.Mat3, 2, 2, L, L, L)
-            A = OffsetArray(A, 1:2, 1:2, 0:L-1, 0:L-1, 0:L-1)
-            dipr = DipoleReal(A)
+            dipr = Sunny.DipoleRealCPU(dip_dip, crystal, latsize)
+            ℋ = Sunny.HamiltonianCPU(
+                nothing, empty_h, empty_d, empty_g, dipr
+            )
+            sys.hamiltonian = ℋ
+            integrator = HeunP(sys)
 
             println("\tStarting real-space...")
-            sys.interactions = [dipr]
-            integrator = HeunP(sys)
             evolve!(integrator, 0.001)
             _, t, _, _ = @timed for _ in 1:100
                 evolve!(integrator, 0.001)
@@ -105,17 +116,14 @@ function time_real_fourier_dipole()
         end
 
         println("\tSetting up Fourier-space...")
-        A = randn(ComplexF64, 3, 3, 2, 2, div(L,2)+1, L, L)
-        spins_ft = zeros(ComplexF64, 3, 2, div(L,2)+1, L, L)
-        field_ft = zeros(ComplexF64, 3, 2, div(L,2)+1, L, L)
-        field_real = zeros(Float64, 3, 2, L, L, L)
-        plan = plan_rfft(field_real, 3:5; flags=FFTW.MEASURE)
-        ift_plan = plan_irfft(spins_ft, L, 3:5; flags=FFTW.MEASURE)
-        dipf = DipoleFourier(A, spins_ft, field_ft, field_real, plan, ift_plan)
+        dipf = Sunny.DipoleFourierCPU(dip_dip, crystal, latsize)
+        ℋ = Sunny.HamiltonianCPU(
+            nothing, empty_h, empty_d, empty_g, dipf
+        )
+        sys.hamiltonian = ℋ
+        integrator = HeunP(sys)
 
         println("\tStarting Fourier-space...")
-        sys.interactions = [dipf]
-        integrator = HeunP(sys)
         evolve!(integrator, 0.001)
         _, t, _, _ = @timed for _ in 1:100
             evolve!(integrator, 0.001)

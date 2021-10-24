@@ -51,10 +51,10 @@ include("FourierAccel.jl")
 include("Hamiltonian.jl")
 
 include("Systems.jl")
-export ChargeSystem, SpinSystem, rand!, energy, field, field!
+export ChargeSystem, SpinSystem, rand!, randflips!, energy, field, field!
 
 include("Metropolis.jl")
-export MetropolisSampler, set_temp!, sample!, thermalize!, anneal!
+export MetropolisSampler, IsingSampler, set_temp!, sample!, thermalize!, anneal!
 export running_energy, running_mag
 
 include("Integrators.jl")

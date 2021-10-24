@@ -24,7 +24,7 @@ struct HamiltonianCPU{D}
     heisenbergs :: Vector{HeisenbergCPU{D}}
     diag_coups  :: Vector{DiagonalCouplingCPU{D}}
     gen_coups   :: Vector{GeneralCouplingCPU{D}}
-    dipole_int  :: Union{Nothing, DipoleFourierCPU}
+    dipole_int  :: Union{Nothing, DipoleRealCPU, DipoleFourierCPU}
 end
 
 """

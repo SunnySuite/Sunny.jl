@@ -12,7 +12,7 @@ the structure factor at a temperature of 4K using sampling based on
 Langevin dynamics.
 """
 function test_diamond_heisenberg_sf()
-    crystal = Sunny.diamond_conventional_crystal(1.0)
+    crystal = Sunny.diamond_crystal()
     J = 28.28           # Units of K
     interactions = [
         heisenberg(J, Bond(3, 6, [0,0,0])),
@@ -46,7 +46,7 @@ function test_diamond_heisenberg_sf()
     # Calculate the maximum ω present in our FFT. Since the time gap between
     #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
     #  is 2π / (meas_rate * Δt)
-    # This is implicitly in the same uAnits as the units you use to define
+    # This is implicitly in the same units as the units you use to define
     #  the interactions in the Hamiltonian. Here, we defined our interactions
     #  in K, but we want to see ω in units of meV (to compare to a baseline
     #  solution we have).
