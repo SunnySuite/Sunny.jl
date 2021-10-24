@@ -140,8 +140,8 @@ function evolve!(integrator::SphericalMidpoint, Δt::Float64)
     # Initial guess for midpoint
     @. _S̄ = S
 
-    max_steps = 100
-    for iter in 1:max_steps
+    max_iters = 100
+    for iter in 1:max_iters
         # Integration step for current best guess of midpoint _S̄. Produces
         # improved midpoint estimator _S̄′.
         @. _Ŝ = normalize(_S̄)
@@ -166,7 +166,7 @@ function evolve!(integrator::SphericalMidpoint, Δt::Float64)
         @. _S̄ = _S̄′
     end
 
-    error("Spherical midpoint method failed to converge to tolerance $tol after $max_iters iterations.")
+    error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
 end
 
 abstract type AbstractSampler end
