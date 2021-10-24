@@ -148,6 +148,16 @@ function Random.rand!(sys::SpinSystem)
 end
 
 """
+    randflips!(sys::SpinSystem)
+
+Sets spins randomly either aligned or anti-aligned
+with their original direction.
+"""
+function randflips!(sys::SpinSystem)
+    sys.sites .*= rand((-1, 1), size(sys))
+end
+
+"""
     energy(sys::SpinSystem)
 
 Computes the energy of the system under `sys.hamiltonian`.
