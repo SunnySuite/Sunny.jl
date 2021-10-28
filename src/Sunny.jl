@@ -10,13 +10,21 @@ using FFTW
 using Tullio
 using ProgressMeter
 using Printf
-using GLMakie
 using Random: rand!, randn!
 
 # Specific to Symmetry/
 using FilePaths: Path
 using CrystalInfoFramework
 import Spglib
+
+# Make best effort to determine if this is a headless machine -- A non-Apple
+# Unix (e.g. Linux) without the DISPLAY environment variable set.
+const _headless = Sys.isunix() && !Sys.isapple() && !haskey(ENV, "DISPLAY")
+@static _headless ? (
+    check_graphics_available() = error("Graphics functions are unavailable on a headless machine.")
+) : (
+    using GLMakie; check_graphics_available() = nothing
+)
 
 # TODO: Remove in Julia 1.7
 using Parameters: @unpack
