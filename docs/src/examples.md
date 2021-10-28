@@ -212,7 +212,7 @@ we've defined above, we can take a look at both using the following plotting
 function: (you may want to adjust `markersize` to make the atoms easier to see):
 
 ```julia
-plot_bonds(crystal, interactions; ncells=(4,4,4), markersize=500)
+plot_bonds(crystal, interactions, (4,4,4); markersize=500)
 ```
 
 **(3)** As with the previous example, the next step is to make a `SpinSystem` and
