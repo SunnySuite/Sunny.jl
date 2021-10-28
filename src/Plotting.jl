@@ -71,9 +71,9 @@ function plot_lattice(lattice::Lattice{3}; kwargs...)
 end
 
 """
-    plot_lattice(crystal; ncells=(3,3,3), kwargs...)
+    plot_lattice(crystal, latsize=(3,3,3); kwargs...)
 
-Plots a crystal lattice with `ncells` unit cells along each
+Plots a crystal lattice with `latsize` unit cells along each
 lattice vector. Other keyword arguments are:
 
 colors=:Set1_9, markersize=20, linecolor=:grey, linewidth=1.0, kwargs...
@@ -86,9 +86,9 @@ colors=:Set1_9, markersize=20, linecolor=:grey, linewidth=1.0, kwargs...
 Additional keyword arguments are given to `GLMakie.scatter!` which
 draws the points.
 """
-function plot_lattice(cryst::Crystal; ncells=(3,3,3), kwargs...)
+function plot_lattice(cryst::Crystal, latsize=(3,3,3); kwargs...)
     f, ax = _setup_3d()
-    lattice = Lattice(cryst, ncells)
+    lattice = Lattice(cryst, latsize)
     plot_lattice!(ax, lattice; kwargs...)
     f[1, 2] = GLMakie.Legend(f, ax, "Species")
     f
@@ -195,9 +195,10 @@ end
 Plot a list of pair interactions defined on a `Crystal`. `kwargs` are
 passed to to `plot_lattice!`.
 """
-function plot_bonds(cryst::Crystal, ints::Vector{<:Interaction}; ncells=(3,3,3), kwargs...)
-    lattice = Lattice(cryst, ncells)
-    ℋ = HamiltonianCPU(ints, cryst, ncells)
+function plot_bonds(cryst::Crystal, ints::Vector{<:Interaction}, latsize=(3,3,3); kwargs...)
+    latsize = collect(Int64.(latsize))
+    lattice = Lattice(cryst, latsize)
+    ℋ = HamiltonianCPU(ints, cryst, latsize)
     pair_ints = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
     plot_bonds(lattice, pair_ints; kwargs...)
 end
@@ -215,13 +216,13 @@ underlying crystal lattice. `kwargs` are passed to `plot_lattice!`.
 end
 
 """
-    plot_all_bonds(crystal::Crystal, max_dist; ncells=(3,3,3), kwargs...)
+    plot_all_bonds(crystal::Crystal, max_dist, latsize=(3,3,3); kwargs...)
 
 Plot all bond equivalency classes present in `crystal` up to a maximum
-bond length of `max_dist`. `ncells` controls how many unit cells are
+bond length of `max_dist`. `latsize` controls how many unit cells are
 plotted along each axis. `kwargs` are passed to `plot_bonds`. 
 """
-function plot_all_bonds(crystal::Crystal, max_dist; ncells=(3,3,3), kwargs...)
+function plot_all_bonds(crystal::Crystal, max_dist, latsize=(3,3,3); kwargs...)
     ref_bonds = reference_bonds(crystal, max_dist)
     interactions = Interaction[]
     
@@ -246,11 +247,11 @@ function plot_all_bonds(crystal::Crystal, max_dist; ncells=(3,3,3), kwargs...)
     # Sort interactions so that longer bonds are plotted first
     sort!(interactions, by=int->distance(crystal, int.bonds[1][1]))
 
-    plot_bonds(crystal, interactions; ncells=(3,3,3), kwargs...)
+    plot_bonds(crystal, interactions, latsize, kwargs...)
 end
 
 "Plot all bonds between equivalent sites i and j"
-function plot_all_bonds_between(crystal, i, j, max_dist; ncells=(3,3,3), kwargs...)
+function plot_all_bonds_between(crystal, i, j, max_dist, latsize=(3,3,3), kwargs...)
     ref_bonds = reference_bonds(crystal, max_dist)
     interactions = Vector{HeisenbergCPU{3}}()
 
@@ -277,7 +278,7 @@ function plot_all_bonds_between(crystal, i, j, max_dist; ncells=(3,3,3), kwargs.
     # Sort interactions so that longer bonds are plotted first
     sort!(interactions, by=int->distance(lattice, int.bonds[1]))
 
-    plot_bonds(crystal, interactions; ncells=ncells, kwargs...)
+    plot_bonds(crystal, interactions, latsize; kwargs...)
 end
 
 # TODO: Base.Cartesian could combine these functions
