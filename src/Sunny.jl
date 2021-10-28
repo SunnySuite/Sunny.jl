@@ -54,8 +54,9 @@ include("Systems.jl")
 export ChargeSystem, SpinSystem, rand!, randflips!, energy, field, field!
 
 include("Metropolis.jl")
-export MetropolisSampler, IsingSampler, set_temp!, sample!, thermalize!, anneal!
-export running_energy, running_mag
+export MetropolisSampler, IsingSampler, set_temp!, get_system
+export sample!, thermalize!, anneal!
+export running_energy, running_mag, reset_running_energy!, reset_running_mag!
 
 include("Integrators.jl")
 export HeunP, LangevinHeunP, evolve!
@@ -64,7 +65,6 @@ export LangevinSampler
 include("StructureFactors.jl")
 export StructureFactor, update!, apply_dipole_factor, zero!
 export dynamic_structure_factor, static_structure_factor
-
 
 include("WangLandau/BinnedArray.jl")
 export BinnedArray, filter_visited, reset!
@@ -75,7 +75,6 @@ export WangLandau, spherical_cap_update, init_bounded!, run!
 function __init__()
     @require GLMakie="e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin
         include("Plotting.jl")
-        export plan_spintraj_fft!
         export plot_lattice, plot_spins, plot_bonds, plot_all_bonds
         export anim_integration, live_integration, live_langevin_integration
     end

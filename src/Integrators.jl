@@ -198,11 +198,10 @@ end
     nothing
 end
 
+get_system(sampler::LangevinSampler) = sampler.integrator.system
+
 @inline function sample!(sampler::LangevinSampler)
     for _ in 1:sampler.nsteps
         evolve!(sampler.integrator, sampler.Δt)
     end
 end
-
-@inline running_energy(sampler::LangevinSampler) = energy(sampler.integrator.sys)
-@inline running_mag(sampler::LangevinSampler) = sum(sampler.integrator.sys)

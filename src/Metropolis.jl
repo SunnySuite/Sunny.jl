@@ -2,12 +2,23 @@
 
 """
     AbstractSampler
+
 All samplers should subtype this, and implement the following methods
     `set_temp!(sampler::MySampler, kT::Float64)`
+    `get_system(sampler::MySampler)
     `sample!(sampler::MySampler)`
+
+    Optionally, can override behavior of these, which by default do full-system
+     recalculations on each call.
+    `running_energy(sampler::MySampler)`
+    `running_mag(sampler::MySampler)`
 """
 abstract type AbstractSampler end
 
+running_energy(sampler::S) where {S <: AbstractSampler} = energy(get_system(sampler))
+running_mag(sampler::S) where {S <: AbstractSampler} = sum(get_system(sampler))
+reset_energy!(sampler::S) where {S <: AbstractSampler} = nothing
+reset_mag!(sampler::S) where {S <: AbstractSampler} = nothing
 
 """
     thermalize!(sampler, num_samples)
@@ -110,6 +121,15 @@ function set_temp!(sampler::IsingSampler, kT)
     sampler.β = 1 / kT
 end
 
+"""
+    get_system(sampler)
+
+Returns the `SpinSystem` being updated by the `sampler`.
+"""
+get_system(sampler::MetropolisSampler) = sampler.system
+get_system(sampler::IsingSampler) = sampler.system
+
+
 @inline function _random_spin() :: Vec3
     n = randn(Vec3)
     return n / norm(n)
@@ -155,8 +175,12 @@ end
 
 @inline running_energy(sampler::MetropolisSampler) = sampler.E
 @inline running_mag(sampler::MetropolisSampler) = sampler.M
+@inline reset_running_energy!(sampler::MetropolisSampler) = (sampler.E = energy(sampler.system); nothing)
+@inline reset_running_mag!(sampler::MetropolisSampler) = (sampler.M = sum(sampler.system); nothing)
 @inline running_energy(sampler::IsingSampler) = sampler.E
 @inline running_mag(sampler::IsingSampler) = sampler.M
+@inline reset_running_energy!(sampler::IsingSampler) = (sampler.E = energy(sampler.system); nothing)
+@inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.system); nothing)
 
 
 """

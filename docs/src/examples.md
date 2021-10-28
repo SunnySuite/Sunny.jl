@@ -373,6 +373,18 @@ measure the error more carefully.
 
 The following block of code takes a few minutes to execute. Feel free to sample a sparser temperature grid, play around with some of the thermalization parameters, or perform fewer measurements to try to get it to execute faster.
 
+Note the use of `running_energy(sampler)`. In some samplers, such as
+`MetropolisSampler`, it is very efficient to maintain the current system energy
+by updating with the local energy changes every time a spin flips. (In other
+samplers, such as `LangevinSampler`, this is not the case and `running_energy`
+simply does a full energy recalculation).
+
+However, the "running" in running energy refers to the fact that if you
+hand-modify the `system`, this running tally may no longer be correct! You can
+restart the tally (by recomputing the full system energy from scratch) using
+`reset_energy!(sampler)`. Similar functions exist for the total magnetization
+(`running_mag(sampler)` and `reset_mag!(sampler)`).
+
 ```julia
 using Statistics
 
@@ -384,7 +396,7 @@ for (i, temp) in enumerate(temps_meV)
     thermalize!(sampler, 100)
     for _ in 1:1000
         sample!(sampler) 
-        push!(temp_energies, energy(sampler))
+        push!(temp_energies, running_energy(sampler))
     end
     meanE = mean(temp_energies)
     errE  = std(temp_energies) / sqrt(length(temp_energies))

@@ -251,7 +251,7 @@ function test_FeI2_energy_curve()
         thermalize!(sampler, 100)
         for _ in 1:1000
             sample!(sampler) 
-            push!(temp_energies, energy(sampler))
+            push!(temp_energies, running_energy(sampler))
         end
         (meanE, stdE) = binned_statistics(temp_energies)
         push!(energies, meanE)
