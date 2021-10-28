@@ -2,7 +2,7 @@
 # interaction types and orchestrates energy/field calculations.
 
 
-function validate_and_clean_interactions(ints::Vector{Interaction}, crystal::Crystal, latsize::Vector{Int64})
+function validate_and_clean_interactions(ints::Vector{<:Interaction}, crystal::Crystal, latsize::Vector{Int64})
     D = dimension(crystal)
 
     # Now that we know dimension D, we can convert every OnSiteQuadratic to
