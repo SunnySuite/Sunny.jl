@@ -13,30 +13,30 @@ Langevin dynamics.
 """
 function test_diamond_heisenberg_sf()
     crystal = Sunny.diamond_crystal()
-    J = 28.28           # Units of K
+    J = 7.5413 * (5/3)   # Units of K -- odd (5/3) factor is to match S(S+1) scaling
     interactions = [
         heisenberg(J, Bond(3, 6, [0,0,0])),
     ]
-    sys = SpinSystem(crystal, interactions, (8, 8, 8))
+    sys = SpinSystem(crystal, interactions, (8, 8, 8), [SiteInfo(1, 3/2, I(3))])
     rand!(sys)
 
-    Δt = 0.02 / J       # Units of 1/K
-    kT = 4.             # Units of K
+    Δt = 0.02 / ((3/2)^2 * J) # Units of 1/K
+    kT = 4.                   # Units of K
     α  = 0.1
-    kB = 8.61733e-5     # Units of eV/K
+    kB = 8.61733e-5           # Units of eV/K
     nsteps = 20000
     sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 
-    meas_rate = 10     # Number of timesteps between snapshots of LLD to input to FFT
+    meas_rate = 40     # Number of timesteps between snapshots of LLD to input to FFT
                        # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
-    dyn_meas = 1600    # Total number of frequencies we'd like to resolve
+    dyn_meas = 400     # Total number of frequencies we'd like to resolve
     dynsf = dynamic_structure_factor(
-        sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate=meas_rate,
+        sys, sampler; therm_samples=10, dynΔt=Δt, meas_rate=meas_rate,
         dyn_meas=dyn_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
         reduce_basis=true, dipole_factor=false,
     )
 
-    # Just average the diagonals, which are real
+    # All spins axes are symmetry-equivalent, average across all S^αα
     S = dynsf.sfactor
     avgS = zeros(Float64, axes(S)[3:end])
     for α in 1:3
@@ -50,10 +50,9 @@ function test_diamond_heisenberg_sf()
     #  the interactions in the Hamiltonian. Here, we defined our interactions
     #  in K, but we want to see ω in units of meV (to compare to a baseline
     #  solution we have).
-    # We additionally need to scale by (S+1) with S=3/2 to match our reference,
-    #  which is a spin-3/2 model.
-    maxω = 2π / (meas_rate * Δt) * (1000 * kB) / (5/2)
-    p = plot_many_cuts(avgS; maxω=maxω, chopω=5.0)
+    # Again, the odd (5/3) factor is to match the baseline's (S+1) scaling
+    maxω = 2π / (meas_rate * Δt) * (1000 * kB) / (5/3)
+    p = plot_many_cuts(avgS; maxω=maxω, chopω=7.5)
     display(p)
     return avgS
 end

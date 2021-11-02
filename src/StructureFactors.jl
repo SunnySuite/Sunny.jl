@@ -17,12 +17,12 @@ Note that the initial `sys` provided does _not_ enter the structure factor,
 it is purely used to determine the size of various results.
 
 The full dynamic structure factor is
-``𝒮^{αβ}_{jk}(𝐪, ω) = ⟨S^α_j(𝐪, ω) S^β_k(𝐪, ω)^∗⟩``,
+``𝒮^{αβ}_{jk}(𝐪, ω) = ⟨M^α_j(𝐪, ω) M^β_k(𝐪, ω)^∗⟩``,
 which is an array of shape `[3, 3, B, B, Q1, Q2, Q3, T]`
 where `B = nbasis(sys.lattice)`, `Qi = max(1, bz_size_i * L_i)` and
 `T = dyn_meas`. By default, `bz_size=ones(d)`.
 
-Indexing the `sfactor` attribute at `(α, β, j, k, q1, q2, q3, w)`
+Indexing the `.sfactor` attribute at `(α, β, j, k, q1, q2, q3, w)`
 gives ``𝒮^{αβ}_{jk}(𝐪, ω)`` at `𝐪 = q1 * 𝐛_1 + q2 * 𝐛_2 + q3 * 𝐛_3`, and
 `ω = maxω * w / T`, where `𝐛_1, 𝐛_2, 𝐛_3` are the reciprocal lattice vectors
 of the system supercell.
@@ -44,7 +44,7 @@ array to size `[Q1, Q2, Q3, T]`.
 """
 struct StructureFactor{A1, A2}
     sfactor       :: A1
-    _spin_ft      :: Array{ComplexF64, 6}                    # Buffer for FT of a spin trajectory
+    _mag_ft       :: Array{ComplexF64, 6}                    # Buffer for FT of a mag trajectory
     _bz_buf       :: A2                                      # Buffer for phase summation / BZ repeating
     lattice       :: Lattice{3}
     reduce_basis  :: Bool                                    # Flag setting basis summation
@@ -53,7 +53,7 @@ struct StructureFactor{A1, A2}
     dynΔt         :: Float64                                 # Timestep size in dynamics integrator
     meas_rate     :: Int                                     # Num timesteps between snapshot saving
     dyn_meas      :: Int                                     # Total number of snapshots to FT
-    integrator    :: HeunP{3, 9, 4}
+    integrator    :: SphericalMidpoint{3, 9, 4}
     plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, UnitRange{Int64}}
 end
 
@@ -96,7 +96,7 @@ function StructureFactor(sys::SpinSystem{3}; bz_size=(1,1,1), reduce_basis=true,
         end
     end
 
-    integrator = HeunP(sys)
+    integrator = SphericalMidpoint(sys)
     plan = plan_spintraj_fft!(spin_ft)
 
     StructureFactor{typeof(sfactor), typeof(bz_buf)}(
@@ -146,42 +146,59 @@ function StructureFactor(snaps::Vector{Array{Vec3, 4}}, crystal; kwargs...)
 end
 
 """
+Updates `M` in-place to hold the magnetization vectors obtained by scaling `s`
+ by the appropriate spin magnitudes and g-tensors in `sites_info`.
+This function assumes `M` has a first index of length 3, which correspond
+ to the magnetization components. (Rather than storing an Array{Vec3}).
+"""
+function _compute_mag!(M, sys::SpinSystem)
+    for b in 1:nbasis(sys)
+        Sg = sys.sites_info[b].S * sys.sites_info[b].g
+        for idx in eachcellindex(sys)
+            M[:, b, idx] .= Sg * sys[b, idx]
+        end
+    end
+end
+
+"""
     update!(sf::StructureFactor, sys::SpinSystem{3})
 
 Accumulates a contribution to the dynamic structure factor from the spin
 configuration currently in `sys`.
 """
 function update!(sf::StructureFactor, sys::SpinSystem{3})
-    @unpack sfactor, _spin_ft, _bz_buf = sf
+    @unpack sfactor, _mag_ft, _bz_buf = sf
     @unpack reduce_basis, dipole_factor, bz_size = sf
 
     # Evolve the spin state forward in time to form a trajectory
+    # Save off the magnetic moments 𝐦_i(t) = g_i S_i 𝐬_i(t) into _mag_ft
     dynsys = deepcopy(sys)
     sf.integrator.sys = dynsys
-    selectdim(_spin_ft, ndims(_spin_ft), 1) .= _reinterpret_from_spin_array(dynsys.sites)
+    T_dim = ndims(_mag_ft)
+    _compute_mag!(selectdim(_mag_ft, T_dim, 1), dynsys)
     for nsnap in 2:sf.dyn_meas
         for _ in 1:sf.meas_rate
             evolve!(sf.integrator, sf.dynΔt)
         end
-        selectdim(_spin_ft, ndims(_spin_ft), nsnap) .= _reinterpret_from_spin_array(dynsys.sites)
+        _compute_mag!(selectdim(_mag_ft, T_dim, nsnap), dynsys)
     end
 
     # Fourier transform the trajectory in space + time
-    fft_spin_traj!(_spin_ft, plan=sf.plan)
+    fft_spin_traj!(_mag_ft, plan=sf.plan)
 
     # Optionally sum over basis sites then accumulate the conjugate outer product into sfactor
     # Accumulate the conjugate outer product into sfactor, with optionally:
     #   1) Doing a phase-weighting sum to reduce the basis atom dimensions
     #   2) Applying the neutron dipole factor to reduce the spin component dimensions
     if reduce_basis
-        phase_weight_basis!(_bz_buf, _spin_ft, sys.lattice)
+        phase_weight_basis!(_bz_buf, _mag_ft, sys.lattice)
         if dipole_factor
             accum_dipole_factor!(sfactor, _bz_buf, sys.lattice)
         else
             outerprod_conj!(sfactor, _bz_buf, 1)
         end
     else
-        expand_bz!(_bz_buf, _spin_ft)
+        expand_bz!(_bz_buf, _mag_ft)
         if dipole_factor
             accum_dipole_factor_wbasis!(sfactor, _bz_buf, sys.lattice)
         else
@@ -211,7 +228,7 @@ function apply_dipole_factor(sf::StructureFactor)
 
     dip_sfactor = apply_dipole_factor(sf.sfactor, sf.lattice)
     StructureFactor(
-        dip_sfactor, copy(sf._spin_ft), copy(sf._bz_buf), sf.lattice,
+        dip_sfactor, copy(sf._mag_ft), copy(sf._bz_buf), sf.lattice,
         sf.reduce_basis, true, sf.bz_size, sf.dynΔt, sf.meas_rate,
         sf.dyn_meas, sf.integrator, sf.plan
     )
@@ -388,7 +405,7 @@ Takes in a `spin_traj` array of spins (Vec3) of shape `[B, D1, ..., Dd, T]`,
  with `D1 ... Dd` being the spatial dimensions, B the sublattice index,
  and `T` the time axis.
 Computes and returns an array of the shape `[3, B, D1, ..., Dd, T]`,
- holding spatial and temporal fourier transforms ``S^α(𝐪, ω)``. The spatial
+ holding spatial and temporal fourier transforms ``S^α_b(𝐪, ω)``. The spatial
  fourier transforms are done periodically, but the temporal axis is
  internally zero-padded to avoid periodic contributions. *(Avoiding
  periodic artifacts not implemented yet)*
@@ -403,7 +420,14 @@ end
     phase_weight_basis(spin_traj_ft, bz_size, lattice)
 
 Combines the sublattices of `spin_traj_ft` with the appropriate phase factors, producing
- the quantity ``S^α(q, ω)`` within the number of Brillouin zones requested by `bz_size`.
+ the quantity ``S^α(𝐪, ω)`` within the number of Brillouin zones requested by `bz_size`.
+Specifically, computes:
+
+``S^α(𝐪, ω) = ∑_b e^{-i𝐫_b ⋅ 𝐪} S^α_b(𝐪, ω)``
+
+where ``b`` is the basis index and ``𝐫_b`` is the associated basis vector.
+``S^α_b(𝐪, ω)`` is periodically repeated past the first Brillouin zone,
+but the resulting ``S^α(𝐪, ω)`` will not necessarily be periodic.
 """
 function phase_weight_basis(spin_traj_ft::Array{ComplexF64},
                             lattice::Lattice{D}, bz_size=nothing) where {D}

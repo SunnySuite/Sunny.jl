@@ -197,21 +197,21 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
     (i, cell) = splitidx(idx)
 
     if !isnothing(ℋ.ext_field)
-        ΔE -= ℋ.ext_field.B ⋅ spindiff
+        ΔE -= ℋ.ext_field.effBs[i] ⋅ spindiff
     end
     for heisen in ℋ.heisenbergs
-        J = heisen.J
+        J = heisen.effJ
         for bond in heisen.bonds[i]
             if i == bond.j && iszero(bond.n)
                 ΔE += J * (newspin⋅newspin - oldspin⋅oldspin)
             else
                 Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
-                ΔE += heisen.J * (spindiff ⋅ Sⱼ)
+                ΔE += J * (spindiff ⋅ Sⱼ)
             end
         end
     end
     for diag_coup in ℋ.diag_coups
-        for (J, bond) in zip(diag_coup.Js[i], diag_coup.bonds[i])
+        for (J, bond) in zip(diag_coup.effJs[i], diag_coup.bonds[i])
             if i == bond.j && iszero(bond.n)
                 ΔE += newspin⋅(J.*newspin) - oldspin⋅(J.*oldspin)
             else
@@ -221,7 +221,7 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
         end
     end
     for gen_coup in ℋ.gen_coups
-        for (J, bond) in zip(gen_coup.Js[i], gen_coup.bonds[i])
+        for (J, bond) in zip(gen_coup.effJs[i], gen_coup.bonds[i])
             if i == bond.j && iszero(bond.n)
                 ΔE += dot(newspin, J, newspin) - dot(oldspin, J, oldspin)
             else

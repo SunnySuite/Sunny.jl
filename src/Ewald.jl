@@ -408,17 +408,29 @@ struct DipoleRealCPU <: InteractionCPU
     int_mat :: OffsetArray{Mat3, 5, Array{Mat3, 5}}
 end
 
-function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize)
+function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info::Vector{SiteInfo})
     @unpack strength, extent, η = dip
     lattice = Lattice(crystal, latsize)
-    return DipoleRealCPU(strength .* precompute_dipole_ewald(lattice; extent=extent, η=η))
+    A = strength .* precompute_dipole_ewald(lattice; extent=extent, η=η)
+    # Conjugate each matrix by the correct g matrices
+    for b1 in 1:nbasis(crystal)
+        S1, g1 = sites_info[b1].S, sites_info[b1].g
+        for b2 in 1:nbasis(crystal)
+            S2, g2 = sites_info[b2].S, sites_info[b2].g
+            for ijk in CartesianIndices(axes(A)[3:end])
+                A[b1, b2, ijk] = g1' * S1 * A[b1, b2, ijk] * S2 * g2
+            end
+        end
+    end
+    return DipoleRealCPU(A)
 end
 
 function energy(spins::Array{Vec3, 4}, dip::DipoleRealCPU)
     return contract_dipole(spins, dip.int_mat)
 end
 
-function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleRealCPU)
+"Accumulates the local -∇ℋ coming from dipole-dipole couplings into `B`"
+function _accum_neggrad!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleRealCPU)
     A = dip.int_mat
     nb = size(spins, 1)
     latsize = size(spins)[2:end]
@@ -436,7 +448,7 @@ function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleReal
 end
 
 ## Equivalent, but actually slower, at least on small system sizes. Maybe test for larger systems?
-# function _accum_field_tullio!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleReal)
+# function _accum_neggrad_tullio!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleReal)
 #     A = dip.int_mat
 #     nb = size(spins, 1)
 

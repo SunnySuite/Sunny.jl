@@ -102,6 +102,13 @@ cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
 # This will remain 3 for the foreseeable future.
 dimension(cryst::Crystal) = 3
 
+"""
+    equiv_sites(crystal::Crystal, b::Int)
+
+Returns a list of all basis indices in the same symmetry equivalency class
+as the provided index `b`.
+"""
+equiv_sites(cryst::Crystal, b::Int) = filter(i->cryst.classes[i]==cryst.classes[b], 1:nbasis(cryst))
 
 """
     Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
