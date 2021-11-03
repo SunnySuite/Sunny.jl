@@ -1,16 +1,44 @@
 "Algorithms for discovering sparse bases for the symmetry-allowed space of exchange couplings."
 
-# Coupling matrix J should be invariant under symmetry operations. For a
-# symop involving the orthogonal matrix R, we require either `R J Rᵀ = J` or 
-# `R J Rᵀ = Jᵀ`, depending on the parity of the bond symmetry.
+# ##### Math behind `basis_for_symmetry_allowed_couplings()` #####
 #
-# Let F denote the linear operator such that `F J = R J Rᵀ - J` or
-# `F J = R J Rᵀ - Jᵀ`. We can view F as a 9x9 matrix. In the first case,
-# F = R⊗R - I. In the second case, we should replace I by the suitable
-# transpose operation, 'transpose_op_3x3'.
+# A spacegroup consists of a set of symmetry operations. A symop is an affine
+# transformation defined by a rotation matrix R and a translation vector T. When
+# applied to each atom position, a symop maps the crystal into itself. Consider
+# some bond b, defined as a link between two atoms, not necessarily in the same
+# crystal unit cell. This bond may carry an exchange interaction of the form `Sᵀ
+# J S`. After applying any symop, the bond b maps to a transformed bond b′.
+# Because spin vectors transform like `S → R S′`, the symmetry-equivalent
+# exchange energy along the transformed bond b′ must be `Sᵀ Rᵀ J R S`. In other
+# words, by symmetry, the exchange matrix on the transformed bond must be `J′ =
+# Rᵀ J R`. So if we specify the exchange matrix J for one bond, we are
+# implicitly specifying the exchange matrices J′ for all symmetry equivalent
+# bonds.
 #
-# Any linear combination "vectors" in the null space of F, i.e. `F J = 0`,
-# satisfy the original constraint . The singular value decomposition
+# Often a symmetry operations will map a bond b into itself, `b′ = b`, or into
+# the same bond but with atom positions reversed, `b′ = reverse(b)`. The
+# existence of such symops constrains the space of allowed exchange matrices J
+# for the bond b. Specifically, we require
+#
+# (1)  R J Rᵀ = J   or   (2)  R J Rᵀ = Jᵀ
+#
+# for every symop `s = (R, T)` that maps `b` into `b` (constraint 1), or into
+# `reverse(b)` (constraint 2). The intersection of all such constraints defines
+# the symmetry-allowed space of exchange matrices J, to be calculated by
+# `basis_for_symmetry_allowed_couplings()`. We can expand the space of
+# symmetry-allowed matrices in a linear basis because all constraints are linear
+# in J.
+#
+# It is convenient to express the constraints (1) or (2) in the form `F J = 0`,
+# where F denotes the linear operator such that `F J = R J Rᵀ - J` or `F J = R J
+# Rᵀ - Jᵀ`. Here, we are viewing the 3×3 matrix J as a flattened 9-dimensional
+# vector, and F as a 9x9 matrix. In the first case, F = R⊗R - I. In the second
+# case, we should replace I by the suitable transpose operation,
+# 'transpose_op_3x3', defined explicitly below.
+#
+# Any linear combination of "vectors" (3x3 matrices) in the null space of F,
+# i.e. `F J = 0`, satisfies the symmetry constraint (1) or (2) for the given
+# symop. The singular value decomposition
 #
 #     F = U Σ Vᵀ
 #
@@ -18,17 +46,20 @@
 # by columns v of V corresponding to the zero singular values. The space spanned
 # by v equivalently represented as a projection matrix,
 #
-#     P_R = v vᵀ
+#     P = v vᵀ
 #
-# When there are multiple constraints (R1, R2, ... Rn) we should take the
-# intersection of the spanned spaces of P_R1, ... P_Rn. To calculate this
+# When there are multiple constraints (F1, F2, ... Fn) we should take the
+# intersection of the spanned spaces of P1, ... Pn. To calculate this
 # intersection, form the product of the projectors:
 #
-#     P = P_R1 P_R2 ... P_Rn
-# 
+#     P = P1 P2 ... Pn
+#
 # The allowable J values correspond to the eigenvectors of P with eigenvalue 1.
 # An orthogonal basis for this space can again be calculated with an SVD.
 
+
+# A 9x9 matrix that, when applied to a flattened 3x3 matrix (viewed as a
+# 9-dimensional vector), generates the transposed 3x3 matrix in flattened form.
 const transpose_op_3x3 = SMatrix{9, 9, Float64}([
     1 0 0  0 0 0  0 0 0
     0 0 0  1 0 0  0 0 0
