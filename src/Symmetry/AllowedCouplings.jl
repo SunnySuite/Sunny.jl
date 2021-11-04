@@ -2,39 +2,51 @@
 
 # ##### Math behind `basis_for_symmetry_allowed_couplings()` #####
 #
-# A spacegroup consists of a set of symmetry operations. A symop is an affine
-# transformation defined by a rotation matrix R and a translation vector T. When
-# applied to each atom position, a symop maps the crystal into itself. Consider
-# some bond b, defined as a link between two atoms, not necessarily in the same
-# crystal unit cell. This bond may carry an exchange interaction of the form `Sᵀ
-# J S`. After applying any symop, the bond b maps to a transformed bond b′.
-# Because spin vectors transform like `S → R S′`, the symmetry-equivalent
-# exchange energy along the transformed bond b′ must be `Sᵀ Rᵀ J R S`. In other
-# words, by symmetry, the exchange matrix on the transformed bond must be `J′ =
-# Rᵀ J R`. So if we specify the exchange matrix J for one bond, we are
-# implicitly specifying the exchange matrices J′ for all symmetry equivalent
-# bonds.
+# A crystal spacegroup consists of a set of symmetry operations. Each symop is
+# defined by an orthogonal (rotation or reflection) matrix R and a translation
+# vector T. The symop transforms every atom position `x` to a new one `x′ = Rx +
+# T`, but leaves the crystal as a whole invariant. Consider some bond b=(i,j),
+# defined as an ordered pair of atoms, not necessarily in the same crystal unit
+# cell. Suppose this bond carries an exchange interaction of the form `S_iᵀ J
+# S_j`. After applying a symop defined by (R, T), the bond b=(i,j) maps to a
+# transformed bond b′=(i′,j′). This new bond must carry an exchange interaction
+# of the form `S_{i′}ᵀ J′ S_{j′}`, where J′ is related to J, as we will now
+# show. Besides mapping the atom j to a new position j′, the symop also
+# transforms its spin vector from `S_j` to `S′_{j′} = R S_j`. Similarly, `S_iᵀ`
+# maps to `S′_{i′}ᵀ = S_iᵀ Rᵀ`. The energy along a bond, however, is invariant
+# under the symmetry transformation, so we require `S_iᵀ J S_j = S′_{i′}ᵀ J′
+# S′_{j′}`, or
 #
-# Often a symmetry operations will map a bond b into itself, `b′ = b`, or into
-# the same bond but with atom positions reversed, `b′ = reverse(b)`. The
-# existence of such symops constrains the space of allowed exchange matrices J
-# for the bond b. Specifically, we require
+#   `S_iᵀ J S_j = S_iᵀ Rᵀ J′ R S_j`.
 #
-# (1)  R J Rᵀ = J   or   (2)  R J Rᵀ = Jᵀ
+# This equation must be valid for arbitrary `S_i` and `S_j`, which implies `J =
+# Rᵀ J′ R`, or equivalently,
+#
+#   J′ = R J Rᵀ
+#
+# because the matrix R is orthogonal. The conclusion is that specifying the
+# exchange matrix J for one bond implicitly constrains the exchange matrices J′
+# for all symmetry equivalent bonds.
+#
+# Often a symmetry operation will map a bond b into itself, or into the same
+# bond but with atom positions reversed. The existence of such symops constrains
+# the space of allowed exchange matrices J for the bond b. Specifically, we
+# require
+#
+#   (1)  J = R J Rᵀ   or   (2)  Jᵀ = R J Rᵀ
 #
 # for every symop `s = (R, T)` that maps `b` into `b` (constraint 1), or into
 # `reverse(b)` (constraint 2). The intersection of all such constraints defines
-# the symmetry-allowed space of exchange matrices J, to be calculated by
-# `basis_for_symmetry_allowed_couplings()`. We can expand the space of
-# symmetry-allowed matrices in a linear basis because all constraints are linear
-# in J.
+# the symmetry-allowed space of exchange matrices J. The allowed matrices can be
+# expressed as a linear combination of basis matrices because all constraints
+# are linear in J.
 #
 # It is convenient to express the constraints (1) or (2) in the form `F J = 0`,
 # where F denotes the linear operator such that `F J = R J Rᵀ - J` or `F J = R J
 # Rᵀ - Jᵀ`. Here, we are viewing the 3×3 matrix J as a flattened 9-dimensional
-# vector, and F as a 9x9 matrix. In the first case, F = R⊗R - I. In the second
-# case, we should replace I by the suitable transpose operation,
-# 'transpose_op_3x3', defined explicitly below.
+# vector, and F as a 9x9 matrix. In the first case, `F = R⊗R - I`. In the second
+# case, we should replace `I` by the suitable transpose operation,
+# `transpose_op_3x3`, defined explicitly below.
 #
 # Any linear combination of "vectors" (3x3 matrices) in the null space of F,
 # i.e. `F J = 0`, satisfies the symmetry constraint (1) or (2) for the given
