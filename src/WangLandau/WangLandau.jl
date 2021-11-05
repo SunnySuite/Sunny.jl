@@ -1,7 +1,7 @@
 import Random # TODO: Move `rng` field up to SpinSystem
 
 """ 
-    mutable struct WangLandau{D, L, Db, F<:Function} <: AbstractSampler
+    mutable struct WangLandau{D, L, Db, F<:Function} 
 
 Wang-Landau sampler. All parameters have default values that can be overwritten,
 but a SpinSystem must be passed during construction. 
@@ -35,7 +35,7 @@ Base.@kwdef mutable struct WangLandau{D, L, Db, F<:Function}
     ln_f_final::Float64 = 1e-6
 
     # termination criterion: stop if MC budget exceeded
-    max_mcs::Int64 = typemax(Int64)
+    max_mcsweeps::Int64 = typemax(Int64)
 
     # random number generator
     rng::Random.AbstractRNG = Random.MersenneTwister(
@@ -55,30 +55,76 @@ Base.@kwdef mutable struct WangLandau{D, L, Db, F<:Function}
     mc_step_size::Float64 = 0.1
 end
 
-
 """ 
-Update a spin within spherical cap bounded by cone w/ axis of spin S, azimuthal
-angle ϕ, and difference btw. cone height and spin length Δz.
+Update a spin `S` by applying a random rotation matrix that has an angle between
+0 and ``θ_{max}``, where ``cos(θ_{max})`` is given by the parameter
+`cos_max_angle`. Within the constrained space, the probability distribution of
+new spin is uniform (with respect to the standard measure on the 2-sphere).
 
-Source: Eqs. 3.60--3.62 from PhD dissertation "On Classical and Quantum
-Mechanical Energy Spectra of Finite Heisenberg Spin Systems", Matthias Exler
-https://www.msuq.physik.uni-osnabrueck.de/ps/Dissertation-Exler.pdf
+Algorithm adapted from Eqs. 3.60--3.62 of the PhD dissertation "On Classical and
+Quantum Mechanical Energy Spectra of Finite Heisenberg Spin Systems", Matthias
+Exler https://www.msuq.physik.uni-osnabrueck.de/ps/Dissertation-Exler.pdf
 """
-function spherical_cap_update(S::Vec3, ϕ::Float64, Δz::Float64)::Vec3
-    z = 1.0 - Δz
-    r = sqrt(1.0 - z^2)
 
-    x = r * cos(ϕ)
-    y = r * sin(ϕ)
+function spherical_cap_update(S::Vec3, cos_max_angle::Float64, rng::Random.AbstractRNG)::Vec3
+    # Step 1: Generate a normalized unit vector [x, y, z] from uniform
+    # distribution, subject to the constraint that the polar angle θ is less
+    # than `max_angle`. Remarkably, this can be achieved by drawing z from a
+    # uniform distribution subject to the polar angle constraint.
 
-    ℓ = sqrt(S[1]^2 + S[2]^2)
+    # Draw random numbers uniformly from [0,1]
+    ξ1 = rand(rng)
+    ξ2 = rand(rng)
 
-    # TODO: Resolve NaN at S=Vec3(0,0,1) by Taylor expansion
-    return Vec3(
-        (S[1]*S[3]*x - S[2]*y) / ℓ + S[1]*z,
-        (S[2]*S[3]*x + S[1]*y) / ℓ + S[2]*z,
-        -ℓ*x + S[3]*z
-    )
+    # Randomized z component subject to constraint on polar angle
+    min_z = cos_max_angle
+    z′ = 1 - ξ1 * (1 - min_z)
+
+    # Random azimuthal angle
+    ϕ = 2π*ξ2
+    sinϕ, cosϕ = sincos(ϕ)
+
+    # Resulting random x and y components
+    ρ = sqrt(1 - z′^2)
+    x′ = ρ * cosϕ
+    y′ = ρ * sinϕ
+
+    # Step 2: Select a reference frame in which S points in the e direction (we
+    # will use either e=z or e=y). Specifically, find some rotation matrix R
+    # that satisfies `S = R e`. Randomly select a new spin S′ (perturbed from e)
+    # in this new reference frame. Then the desired spin update is given by `R
+    # S′`.
+    x, y, z = S
+    if z^2 < 1/2
+        # Spin S is not precisely aligned in the z direction, so we can use e=z
+        # as our reference frame, and there will not be numerical difficulties
+        # in defining the rotation matrix R.
+        r = sqrt(x^2 + y^2)
+        R = SA[ x*z/r   -y/r    x
+                y*z/r    x/r    y
+                   -r      0    z]
+        S′ = Vec3(x′, y′, z′)
+    else
+        # Spin S may be precisely aligned with z, and it is safer to pick a
+        # different reference frame. We can arbitrarily select e=y, effectively
+        # swapping y ↔ z in the code above (also permuting matrix indices).
+        r = sqrt(x^2 + z^2)
+        R = SA[ x*y/r   x  -z/r   
+                   -r   y     0
+                z*y/r   z   x/r ]
+        S′ = Vec3(x′, z′, y′)
+    end
+    return R*S′
+end
+
+"""
+Generate a random unit spin that is normally distributed about the direction
+of the existing spin S. The parameter σ determines the size of the update 
+from the spin S. Pass a normal random vector nv so that WLS.rng is used.
+"""
+function gaussian_spin_update(S::Vec3, σ::Float64, rng::Random.AbstractRNG)::Vec3
+    S += σ * randn(rng, Vec3)
+    return S/norm(S)
 end
 
 
@@ -153,11 +199,11 @@ function init_bounded!(WLS::WangLandau)
     pfac = (WLS.bounds[1] < E_curr) ? 1 : -1
 
     # start init with finite length
-    for mcs_tmp in 1 : WLS.max_mcs 
+    for mcsweeps_tmp in 1 : WLS.max_mcsweeps
 
         for pos in CartesianIndices(WLS.system)
-
-            new_spin = spherical_cap_update(WLS.system[pos], rand(WLS.rng)*2*π, rand(WLS.rng))
+            new_spin = gaussian_spin_update(WLS.system[pos], WLS.mc_step_size, WLS.rng)
+            #new_spin = spherical_cap_update(WLS.system[pos], 1.0-WLS.mc_step_size, WLS.rng)
 
             E_next = E_curr + local_energy_change(WLS.system, pos, new_spin) / ps
 
@@ -176,7 +222,7 @@ function init_bounded!(WLS::WangLandau)
             
                 if (E_curr >= WLS.bounds[1]) && (E_curr <= WLS.bounds[2])
                     println("\nfinish init with E = ", E_curr)
-                    return "SUCCESS"
+                    return :SUCCESS
                 end
             end
 
@@ -184,7 +230,7 @@ function init_bounded!(WLS::WangLandau)
         end
     end
     println("init failed.")
-    return "MCSLIMIT"
+    return :MCSLIMIT
 end
 
 
@@ -196,8 +242,8 @@ function run!(WLS::WangLandau)
     bounded = false
     if length(WLS.bounds) == 2
         bounded = true
-        if init_bounded!(WLS) == "MCSLIMIT"
-            return "INITFAIL"
+        if init_bounded!(WLS) == :MCSLIMIT
+            return :INITFAIL
         end
     end
 
@@ -208,6 +254,7 @@ function run!(WLS::WangLandau)
 
     iteration = 1
     mcs = 0
+    mcsweeps = 0
 
     # set bin sizes
     WLS.hist.bin_size = WLS.bin_size
@@ -221,17 +268,15 @@ function run!(WLS::WangLandau)
     WLS.hist[E_curr] = 1
 
     # start sampling with finite length
-    while (WLS.ln_f > WLS.ln_f_final) && (mcs <= WLS.max_mcs) 
+    while (WLS.ln_f > WLS.ln_f_final) && (mcsweeps < WLS.max_mcsweeps) 
 
         # use MC *sweep* as unit time for histogram check interval
         for i in 1 : WLS.hcheck_interval
             for pos in CartesianIndices(WLS.system)
                 # propose single spin move - random rotation on spherical cap about spin
-                new_spin = spherical_cap_update(
-                    WLS.system[pos], 
-                    rand(WLS.rng) * 2*π,             
-                    rand(WLS.rng) * WLS.mc_step_size
-                )
+                new_spin = gaussian_spin_update(WLS.system[pos], WLS.mc_step_size, WLS.rng)
+                #new_spin = spherical_cap_update(WLS.system[pos], 1.0-WLS.mc_step_size, WLS.rng)
+
                 E_next = E_curr + local_energy_change(WLS.system, pos, new_spin) / ps
                 mcs += 1
 
@@ -264,6 +309,7 @@ function run!(WLS::WangLandau)
                 WLS.hist[E_curr] += 1
             end
         end
+        mcsweeps += WLS.hcheck_interval
 
         # check histogram criterion - start new iteration if satisfied
         if check_hist(WLS.hist; p=WLS.flatness)
@@ -288,7 +334,7 @@ function run!(WLS::WangLandau)
         end
     end
 
-    println("WL sampling complete.")
+    println("WL sampling complete. mcsweeps = ", mcsweeps)
 
-    return ((mcs < WLS.max_mcs) ? "SUCCESS" : "MCSLIMIT")
+    return ((mcsweeps < WLS.max_mcsweeps) ? :SUCCESS : :MCSLIMIT)
 end
