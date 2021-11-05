@@ -61,8 +61,6 @@ Update a spin `S` by applying a random rotation matrix that has an angle between
 `cos_max_angle`. Within the constrained space, the probability distribution of
 new spin is uniform (with respect to the standard measure on the 2-sphere).
 
-Parameters `ξ1` and `ξ2` are two uniformly distributed scalars between 0 and 1.
-
 Algorithm adapted from Eqs. 3.60--3.62 of the PhD dissertation "On Classical and
 Quantum Mechanical Energy Spectra of Finite Heisenberg Spin Systems", Matthias
 Exler https://www.msuq.physik.uni-osnabrueck.de/ps/Dissertation-Exler.pdf
@@ -74,6 +72,7 @@ function spherical_cap_update(S::Vec3, cos_max_angle::Float64, rng::Random.Abstr
     # than `max_angle`. Remarkably, this can be achieved by drawing z from a
     # uniform distribution subject to the polar angle constraint.
 
+    # Draw random numbers uniformly from [0,1]
     ξ1 = rand(rng)
     ξ2 = rand(rng)
 
