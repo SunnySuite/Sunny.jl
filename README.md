@@ -17,7 +17,7 @@ New Julia users should begin with our [Getting Started](GettingStarted.md) guide
 Sunny.jl is evolving rapidly, and early access users are recommended to install the package for development,
 ```
 julia> ]
-pkg> develop https://github.com/MagSims/Sunny.jl.git
+pkg> dev https://github.com/MagSims/Sunny.jl
 ```
 This command will download (more precisely, `git clone`) the source code to `~/.julia/dev/Sunny.jl`. Executing the terminal command `git pull` from this directory will retrieve the latest changes from Github.
 
@@ -38,4 +38,4 @@ To use Jupyter notebooks with Julia, install the [IJulia](https://github.com/Jul
 
 ## Documentation
 
-See our [full documentation here!](https://magsims.github.io/Sunny.jl/dev)!
+[Full documentation available here](https://magsims.github.io/Sunny.jl/dev).

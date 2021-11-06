@@ -73,7 +73,7 @@ There are a lot of interesting Julia packages available. You can browse the _reg
 
 Sunny is not yet a registered package, but you can add it directly from its Github URL,
 ```
-pkg> dev https://github.com/MagSims/Sunny.git
+pkg> dev https://github.com/MagSims/Sunny.jl
 ```
 The `dev` command is like `add`, but also downloads the source code and allows you to make changes. On a Unix-based system such as Mac or Linux, this command will download the Sunny code into `~/.julia/dev/Sunny/`.
 

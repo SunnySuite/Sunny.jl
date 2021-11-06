@@ -2,51 +2,39 @@
 
 ## Installation
 
-First, you will need an installation of [Julia](https://julialang.org/).
+First, [download Julia](https://julialang.org/downloads/).
 
-Our package is not yet uploaded to Julia's central package repository, and so you will need to perform more of a "manual" installation
-of our package.
-
-To do this, open a terminal and navigate to the directory where you'd like the package to reside. This does not need to 
-be where you want to do development of scripts / code that uses the package. Then, clone our repo using:
-
-```bash
-git clone https://github.com/MagSims/Sunny.git
-```
-
-This will prompt you for your Github username/password to access the code.
-
-After downloading, open a Julia REPL in the same directory, press `]` to access the package manager interface, then `add .`:
+Sunny.jl is not yet registered with Julia's central package repository, but you
+can install it directly from Github,
 
 ```
 julia> ]
-(@v1.6) pkg> add .
+pkg> add https://github.com/MagSims/Sunny.jl
 ```
 
-If you'd like to modify/develop the package further, replace the second command with
-
-```
-(@v1.6) pkg> dev .
-```
-
-which will make it so that all modification to the local code will be reflected when the package is loaded.
-
-If no errors appear, you are done! However, to ensure that our plotting dependencies have installed correctly,
-it is recommended to explicitly add `GLMakie` to your enviroment and run their tests:
+Alternatively, for early adaptors, we would encourage installing Sunny for
+development,
 
 ```
 julia> ]
-(@v1.6) pkg> add GLMakie
-(@v1.6) pkg> test GLMakie
+pkg> dev https://github.com/MagSims/Sunny.jl
 ```
 
-It is also recommended to explicitly add `StaticArrays` and `OffsetArrays` to your enviroment, as our package often accepts and returns types from these
-packages.
+This command will effectively `git clone` the package into the local directory
+`~/.julia/dev/Sunny`, and then configure the Julia environment to find it. With
+this `dev` command, you are free to make changes to the source code, and they
+will be picked up by Julia. If you additionally install
+[Revise.jl](https://github.com/timholy/Revise.jl), then source code changes
+will be take effect _while a Julia process is running_.
+
+To enable plotting, you should explicitly install
+[GLMakie.jl](https://github.com/JuliaPlots/GLMakie.jl). As of this writing,
+GLMakie has some rough edges, so it doesn't hurt to also run the tests,
 
 ```
 julia> ]
-(@v1.6) pkg> add StaticArrays
-(@v1.6) pkg> add OffsetArrays
+pkg> add GLMakie
+pkg> test GLMakie
 ```
 
 Next, head over to [Examples](@ref) to start performing your first simulations!
