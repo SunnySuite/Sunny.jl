@@ -2,9 +2,9 @@ import Random # overload Random.rand!
 
 abstract type AbstractSystem{T, D, L, Db} <: AbstractArray{T, Db} end
 Base.IndexStyle(::Type{<:AbstractSystem}) = IndexLinear()
-Base.size(sys::S) where {S <: AbstractSystem} = Base.size(sys.sites)
+Base.size(sys::S) where {S <: AbstractSystem} = size(sys.sites)
 Base.getindex(sys::S, i::Int) where {S <: AbstractSystem} = sys.sites[i]
-Base.setindex!(sys::S, v, i::Int) where {S <: AbstractSystem} = Base.setindex!(sys.sites, v, i)
+Base.setindex!(sys::S, v, i::Int) where {S <: AbstractSystem} = setindex!(sys.sites, v, i)
 
 @inline function eachcellindex(sys::S) where {S <: AbstractSystem}
     return eachcellindex(sys.lattice)

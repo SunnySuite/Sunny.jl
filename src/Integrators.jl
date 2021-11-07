@@ -169,7 +169,6 @@ function evolve!(integrator::SphericalMidpoint, Δt::Float64)
     error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
 end
 
-abstract type AbstractSampler end
 
 """
     A sampler which produces new samples using Langevin Landau-Lifshitz dynamics

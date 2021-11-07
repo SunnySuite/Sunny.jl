@@ -283,7 +283,7 @@ Calculates the average and binned standard deviation of a set of data.
 The number of bins used is equal to the length of the preallocated `bins` vector
 passed to the function.
 """
-function binned_statistics(data::AbstractVector{T}, nbins::Int=10)::Tuple{T,T} where {T<:Number}
+function binned_statistics(data::AbstractVector{T}; nbins::Int=10)::Tuple{T,T} where {T<:Number}
     
     bins = zeros(T, nbins)
     avg, stdev = binned_statistics(data, bins)
