@@ -1,8 +1,11 @@
 # Examples
 
-The examples stepped through here are available in `examples/` as full loadable files containing executable functions. Specifically, we work through here the simulations
-performed in `examples/reproduce_testcases.jl`. All of the plotting code in here
-currently depends on an installation of [Plots.jl](http://docs.juliaplots.org/latest/).
+The examples in this document are available in `examples/` as full loadable
+files containing executable functions. Specifically, we work through here the
+simulations performed in `examples/reproduce_testcases.jl`. The plotting
+functions make use of [Plots.jl](http://docs.juliaplots.org/latest/) and
+[Makie.jl](https://makie.juliaplots.org/stable/), which you should install from
+Julia.
 
 The high-level outline of performing a simulation is:
 
@@ -212,8 +215,11 @@ we've defined above, we can take a look at both using the following plotting
 function: (you may want to adjust `markersize` to make the atoms easier to see):
 
 ```julia
+using GLMakie
 plot_bonds(crystal, interactions, (4,4,4); markersize=500)
 ```
+
+Note that the Sunny plotting functions won't be available until you execute `using GLMakie`. Also keep in mind that GLMakie can be slow to load; it may take a minute or more to bring up the first plot. Subsequent plots should be significantly faster.
 
 **(3)** As with the previous example, the next step is to make a `SpinSystem` and
 randomize it. We'll simulate a fairly large box of size ``16\times 20\times 4``.
@@ -412,6 +418,7 @@ We can take a look at the final low-energy spin configuration
 by:
 
 ```julia
+using GLMakie
 plot_spins(system; arrowsize=1.5, arrowlength=3, linewidth=0.5)
 ```
 

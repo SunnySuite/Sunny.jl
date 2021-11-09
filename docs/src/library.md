@@ -90,7 +90,8 @@ static_structure_factor
 
 ## Plotting
 
-All plotting functions rely on a successful user installation of [GLMakie](https://github.com/JuliaPlots/Makie.jl/tree/master/GLMakie), which is dependent on the correct video drivers being installed on your system. To ensure your installation is working correctly, please press `]` in a Julia REPL to access the package manager, then execute `test GLMakie`.
+To reduce package load times, Sunny plotting functions are initially hidden, and only become available when the user explicitly executes "`using GLMakie`". It is a good idea to check that the [GLMakie](https://github.com/JuliaPlots/Makie.jl/tree/master/GLMakie) installation is working correctly (execute "`] test GLMakie`" from the Julia REPL).
+
 
 ```@docs
 plot_lattice
