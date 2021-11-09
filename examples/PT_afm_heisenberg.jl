@@ -1,4 +1,5 @@
 using Sunny
+using MPI
 
 # run using the command: "mpiexec -n [n_procs] julia --project [PT_afm_heisenberg.jl]"
 

@@ -1,4 +1,3 @@
-using MPI
 
 """ 
 Container for sampler type as there is no deriving from concrete types in Julia
