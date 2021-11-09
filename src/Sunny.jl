@@ -2,6 +2,7 @@
 
 module Sunny
 
+using Requires
 using LinearAlgebra
 using StaticArrays
 using OffsetArrays
@@ -16,15 +17,6 @@ using Random: rand!, randn!
 using FilePaths: Path
 using CrystalInfoFramework
 import Spglib
-
-# Make best effort to determine if this is a headless machine -- A non-Apple
-# Unix (e.g. Linux) without the DISPLAY environment variable set.
-const _headless = Sys.isunix() && !Sys.isapple() && !haskey(ENV, "DISPLAY")
-@static _headless ? (
-    check_graphics_available() = error("Graphics functions are unavailable on a headless machine.")
-) : (
-    using GLMakie; check_graphics_available() = nothing
-)
 
 # TODO: Remove in Julia 1.7
 using Parameters: @unpack
@@ -73,15 +65,20 @@ include("StructureFactors.jl")
 export StructureFactor, update!, apply_dipole_factor, zero!
 export dynamic_structure_factor, static_structure_factor
 
-include("Plotting.jl")
-export plan_spintraj_fft!
-export plot_lattice, plot_spins, plot_bonds, plot_all_bonds
-export anim_integration, live_integration, live_langevin_integration
 
 include("WangLandau/BinnedArray.jl")
 export BinnedArray, filter_visited, reset!
 
 include("WangLandau/WangLandau.jl")
 export WangLandau, spherical_cap_update, init_bounded!, run!
+
+function __init__()
+    @require GLMakie="e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin
+        include("Plotting.jl")
+        export plan_spintraj_fft!
+        export plot_lattice, plot_spins, plot_bonds, plot_all_bonds
+        export anim_integration, live_integration, live_langevin_integration
+    end
+end
 
 end

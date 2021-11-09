@@ -104,9 +104,9 @@ xs = 0.1:0.1:20
 # The 'dot' (broadcast) syntax applies the function to all array elements one-by-one
 plot(xs, sin.(xs) ./ xs) 
 ```
-This should eventually bring up a plotting window. The "time to first plot" should be of order 20 seconds.
+It might take about 20 seconds to bring up the plotting window.
 
-An exciting plotting package, [Makie](https://github.com/JuliaPlots/Makie.jl), is currently under heavy development. It supports interactive 3D graphics and customizable GUI elements like buttons and sliders. Install with
+Sunny makes use of [Makie](https://github.com/JuliaPlots/Makie.jl) for its interactive 3D graphics. Install with
 ```
 pkg> add GLMakie
 pkg> test GLMakie
@@ -142,7 +142,7 @@ For beginning users, the previous sections are fully sufficient for running and 
 
 The [Git version control system](https://git-scm.com/) makes it possible to fearlessly experiment with code modifications. A full introduction to Git is beyond the scope of this document, but here are some basics. Try modifying any file inside the `Sunny` package (it will be located inside `~/.julia/dev/` if you followed the instructions above). Next, open a terminal in the `Sunny/` directory and type `git status`. You should see the name of the file that was changed. Type `git diff` to see the specific changes made. You can revert these changes with the command `git checkout <filename>`. Other useful commands include `git add <filenames>` and `git commit`, which will enter changes into the database (repository) of tracked changes (commits). `git log` will show a history of commits. The commands `git pull` and `git push` will download and upload, respectively, from the "origin" repository (in this case, the one hosted on Github). To have new commits pushed into the team Github repo, we will use a [pull request](https://docs.github.com/en/github/collaborating-with-pull-requests/) workflow. All proposed changes will be submitted as pull requests, where they will be automatically tested and granted code review.
 
-Instead of `git` terminal commands, it's often more convenient to use a graphical user interface. For Julia development, I would highly recommend the VSCode editor, described below. VSCode has some built-in support for Git. It may also be useful to have a dedicated Git GUI such as [SmartGit](https://www.syntevo.com/smartgit/), which free for open source use.
+Instead of `git` terminal commands, it's often more convenient to use a graphical user interface. For Julia development, I would highly recommend the VSCode editor, described below. VSCode has some built-in support for Git, and with the `Git Graph` extension, it becomes a nice interface to Git.
 
 ## Julia development with Revise.jl
 
