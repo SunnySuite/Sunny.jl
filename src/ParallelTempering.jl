@@ -27,11 +27,9 @@ function Replica(s::AbstractSampler)
 
     Random.seed!(round(Int64, time()*1000))
 
-    # even rank exch. down when rex_dir==0, up when rex_dir==1
-    nn_ranks = [
-        rank + 2*(rank%2) - 1,
-        rank + 1 - 2*(rank%2)
-    ]
+    # even rank exch. down when rex_dir==1, up when rex_dir==2
+    nn_ranks = [rank-1, rank+1]
+
     # first and last replicas only exch. in one dir.
     for i in 1:2
         if (nn_ranks[i] < 0) || (nn_ranks[i] >= N_ranks)
@@ -39,7 +37,10 @@ function Replica(s::AbstractSampler)
         end
     end
 
-    return Replica(rank, N_ranks, 1, nn_ranks, [-1,-1], s)
+    # start even ranks exchanging down
+    rex_dir = (rank % 2 == 0) ? 1 : 2
+
+    return Replica(rank, N_ranks, rex_dir, nn_ranks, [-1,-1], s)
 end
 
 
@@ -50,14 +51,12 @@ Propose and accept/reject a replica exchange.
 -> Use deterministic even/odd scheme (irreversible).
 """
 function replica_exchange!(replica::Replica)
-    rex_ID = replica.rex_dir+1
-
     # first and last replicas only exch. in one dir.
-    if replica.nn_ranks[rex_ID] < 0
+    if replica.nn_ranks[replica.rex_dir] < 0
         return false
     end
 
-    rex_rank = replica.nn_ranks[rex_ID]
+    rex_rank = replica.nn_ranks[replica.rex_dir]
     E_curr = [running_energy(replica.sampler)]
     rex_accept = [false]
 
@@ -74,7 +73,7 @@ function replica_exchange!(replica::Replica)
         MPI.Recv!(E_rex, rex_rank, 1, MPI.COMM_WORLD)
 
         # replica exch. acceptance probability
-        P_rex = exp( (replica.nn_βs[rex_ID] - replica.sampler.β)*(E_rex[1] - E_curr[1]) )
+        P_rex = exp( (replica.nn_βs[replica.rex_dir] - replica.sampler.β)*(E_rex[1] - E_curr[1]) )
 
         # acceptance criterion.
         if (P_rex > 1.0) || (rand() <= P_rex)
@@ -94,8 +93,9 @@ function replica_exchange!(replica::Replica)
     MPI.Sendrecv!(replica.sampler.system.sites, rex_rank, 3,
                   replica.sampler.system.sites, rex_rank, 3, MPI.COMM_WORLD)
 
-    # recalculate energy of new state
+    # recalculate energy and magnetization of new state
     replica.sampler.E = energy(replica.sampler.system)
+    replica.sampler.M = sum(replica.sampler.system)
 
     return true
 end
@@ -117,6 +117,10 @@ function run!(replica::Replica, T_sched::Function;
             replica.nn_βs[i] = 1.0 / T_sched(replica.nn_ranks[i]+1, replica.N_ranks)
         end
     end
+
+    # set sampler's energy and magnetization values
+    replica.sampler.E = energy(replica.sampler.system)
+    replica.sampler.M = sum(replica.sampler.system)
 
     # equilibrate replica to it's distribution
     thermalize!(replica.sampler, therm_mcs)
@@ -145,15 +149,15 @@ function run!(replica::Replica, T_sched::Function;
 
         # attempt replica exchange
         if replica_exchange!(replica)
-            rex_accepts[replica.rex_dir+1] += 1
+            rex_accepts[replica.rex_dir] += 1
         end
 
         # alternate up/down pairs of replicas for exchanges
-        replica.rex_dir = 1 - replica.rex_dir
+        replica.rex_dir = 3 - replica.rex_dir
     end
 
     # write replica exchange rates to file for each process
-    f = open(@sprintf("P%03d_rex.dat", replica.rank), "w")
+    f = open(@sprintf("P%03d_rex.dat", replica.rank), "a")
     println(f, "REX accepts (down, up) = (", rex_accepts[1], " ", rex_accepts[2],"), total = ", sum(rex_accepts), " / ", N_rex)
     close(f)
 
