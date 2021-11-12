@@ -82,8 +82,8 @@ function propagate_site_info(crystal::Crystal, sites_info::Vector{SiteInfo})
 
     specified_atoms = Int[]
     for siteinfo in sites_info
-        @unpack basis, S, g = siteinfo
-        (sym_bs, sym_gs) = all_symmetry_related_couplings(crystal, Bond(basis, basis, [0,0,0]), g)
+        @unpack site, S, g = siteinfo
+        (sym_bs, sym_gs) = all_symmetry_related_couplings(crystal, Bond(site, site, [0,0,0]), g)
         for (sym_b, sym_g) in zip(sym_bs, sym_gs)
             sym_atom = sym_b.i
             if sym_atom in specified_atoms

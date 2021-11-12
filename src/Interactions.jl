@@ -33,17 +33,21 @@ struct DipoleDipole <: Interaction
 end
 
 """
-Characterizes the degree of freedom located at a given basis site in a
-`SpinSystem`.
+    SiteInfo(site::Int, S, g)
+
+Characterizes the degree of freedom located at a given `site` index with
+ a spin magnitude `S` and g-tensor `g`. When provided to a `SpinSystem`,
+ this information is automatically propagated to all symmetry-equivalent
+ sites.
 """
 struct SiteInfo
-    basis :: Int      # Basis index
+    site  :: Int      # Site index
     S     :: Float64  # Magnitude of the spin
     g     :: Mat3     # Spin g-tensor
 end
 
 # Helper constructor for scalar g
-SiteInfo(basis::Int, S, g::Number) = SiteInfo(basis, S, Mat3(g * I))
+SiteInfo(site::Int, S, g::Number) = SiteInfo(site, S, Mat3(g * I))
 
 function Base.show(io::IO, ::MIME"text/plain", int::OnSiteQuadratic)
     J = int.J
@@ -220,6 +224,10 @@ the unit system.
 """
 external_field(B) = ExternalField(Vec3(B))
 
+function Base.show(io::IO, ::MIME"text/plain", int::ExternalField)
+    B = int.B
+    @printf io "external_field([%.4g, %.4g, %.4g])" B[1] B[2] B[3]
+end
 
 """
     dipole_dipole(; extent::Int=4, η::Float64=0.5)

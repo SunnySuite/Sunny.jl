@@ -69,6 +69,7 @@ field!
 ```@docs
 LangevinSampler(::SpinSystem, ::Float64, ::Float64, ::Float64, ::Int)
 MetropolisSampler
+IsingSampler
 set_temp!
 sample!
 thermalize!

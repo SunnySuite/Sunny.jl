@@ -25,6 +25,11 @@ function validate_and_clean_interactions(ints::Vector{<:Interaction}, crystal::C
                 error("Interaction $(repr(MIME("text/plain"), int)) inconsistent with crystal dimension $D.")
             end
 
+            # Verify that both basis sites indexed actually exist
+            if !(1 <= b.i <= nbasis(crystal)) || !(1 <= b.j <= nbasis(crystal))
+                error("Provided interaction $(repr(MIME("text/plain"), int)) indexes a non-existent basis site.")
+            end
+
             # Verify that the interactions are symmetry-consistent
             if !is_coupling_valid(crystal, b, int.J)
                 println("Symmetry-violating interaction: $(repr(MIME("text/plain"), int)).")
@@ -160,7 +165,7 @@ Note that all `_accum_neggrad!` functions should return _just_ the
 this function. Likewise, all code which utilizes local fields should
 be calling _this_ function, not the `_accum_neggrad!`'s directly.
 """
-function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::HamiltonianCPU)
+function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::HamiltonianCPU{D}) where {D}
     fill!(B, SA[0.0, 0.0, 0.0])
     if !isnothing(ℋ.ext_field)
         _accum_neggrad!(B, ℋ.ext_field)
@@ -177,8 +182,10 @@ function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::HamiltonianCPU)
     if !isnothing(ℋ.dipole_int)
         _accum_neggrad!(B, spins, ℋ.dipole_int)
     end
+
     # Normalize each gradient by the spin magnitude on that sublattice
-    for b in 1:size(B, 1)
-        selectdim(B, 1, b) ./= ℋ.spin_mags[b]
+    for idx in CartesianIndices(B)
+        S = ℋ.spin_mags[idx[1]]
+        B[idx] /= S
     end
 end

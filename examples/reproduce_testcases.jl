@@ -13,9 +13,9 @@ Langevin dynamics.
 """
 function test_diamond_heisenberg_sf()
     crystal = Sunny.diamond_crystal()
-    J = 7.5413 * (5/3)   # Units of K -- odd (5/3) factor is to match S(S+1) scaling
+    J = 7.5413   # Units of K
     interactions = [
-        heisenberg(J, Bond(3, 6, [0,0,0])),
+        heisenberg(J, Bond(1, 3, [0,0,0])),
     ]
     sys = SpinSystem(crystal, interactions, (8, 8, 8), [SiteInfo(1, 3/2, I(3))])
     rand!(sys)
@@ -49,30 +49,40 @@ function test_diamond_heisenberg_sf()
     # This is implicitly in the same units as the units you use to define
     #  the interactions in the Hamiltonian. Here, we defined our interactions
     #  in K, but we want to see ω in units of meV (to compare to a baseline
-    #  solution we have).
-    # Again, the odd (5/3) factor is to match the baseline's (S+1) scaling
-    maxω = 2π / (meas_rate * Δt) * (1000 * kB) / (5/3)
-    p = plot_many_cuts(avgS; maxω=maxω, chopω=7.5)
+    #  linear spin-wave solution we have).
+    maxω = 2π / (meas_rate * Δt) * (1000 * kB)
+    p = plot_many_cuts_afmdiamond(avgS, 1000 * kB * J, 3/2; maxω=maxω, chopω=5.0)
+
     display(p)
     return avgS
 end
 
+# Result for the NN AFM diamond from linear spin-wave theory
+# `q` should be in fractional coordinates in the conventional recip lattice
+function linear_sw_diamond_heisenberg(q, J, S)
+    exp1 = exp(im * π * (q[1] + q[2]))
+    exp2 = exp(im * π * (q[2] + q[3]))
+    exp3 = exp(im * π * (q[1] + q[3]))
+    return 4 * J * S * √(1 - abs(1 + exp1 + exp2 + exp3)^2 / 16)
+end
+
 """
-    plot_S_cut(S, qz; max_ω, chop_ω)
+    plot_S_cut_afmdiamond(S, qz; max_ω, chop_ω)
 
 Plots cuts through the structure factor:
     (0, 0, qz) -> (π, 0, qz) -> (π, π, qz) -> (0, 0, 0)
-where qz is (c⃰ * qz). Only works on cubic lattices. To get unitful
+where qz is (c⃰ * qz). Assumes that S has 1BZ along (a, b) and
+two BZs along c, and only works on cubic lattices. To get unitful
 frequency labels, need to provide max_ω which should be the maximum
 frequency present in S, in units of meV. Providing chop_ω restricts
 to plots to only plot frequencies <= chop_ω.
 """
-function plot_S_cut(S, qz; maxω=nothing, chopω=nothing)
+function plot_S_cut_afmdiamond(S, qz, J, spin; maxω=nothing, chopω=nothing)
     Lx, Ly, Lz, T = size(S)
+    Lz /= 2 # Assuming we receive 2 BZs along the z axis
 
     if !isnothing(chopω) && !isnothing(maxω)
-        conv_factor = T / maxω
-        cutT = ceil(Int, conv_factor * chopω)
+        cutT = ceil(Int, T * chopω / maxω)
     else
         cutT = T
     end
@@ -82,8 +92,9 @@ function plot_S_cut(S, qz; maxω=nothing, chopω=nothing)
 
     # Stitch together cuts from
     # (0, 0, qz) → (π, 0, qz) -> (π, π, qz) -> (0, 0, qz)
-    πx, πy, πz = map(l->div(l, 2, RoundUp), (Lx, Ly, Lz))
-    cuts = Array{Float64}(undef, πx+πy+min(πy, πx)+1, cutT)
+    πx, πy, πz = map(l->div(l, 2, RoundUp), (Lx, Ly, Lz)) # Indices of (π, π, π)
+    pathlen = πx+πy+min(πy, πx)+1
+    cuts = Array{Float64}(undef, pathlen, cutT)
     cuts[1:πx+1,       1:end]    .= S[0:πx, 0,    qz, 0:cutT-1]
     cuts[πx+2:πx+πy+1, 1:end]    .= S[πx,   1:πy, qz, 0:cutT-1]
     # Doesn't quite reach (0, 0, qz) for πx ≠ πy
@@ -91,29 +102,39 @@ function plot_S_cut(S, qz; maxω=nothing, chopω=nothing)
         cuts[πx+πy+1+i, 1:end]   .= S[πx-i, πx-i, qz, 0:cutT-1]
     end
 
-    heatmap(cuts'; color=:plasma, clim=(0.0, 1.5e7))
+    pathcoords = range(0., 1.; length=pathlen)
+    ωs = range(0., chopω, length=cutT)
+    heatmap(pathcoords, ωs, cuts'; color=:plasma, clim=(0.0, 1.5e7))
+
+    # Plot the analytic linear spin-wave prediction ω(q) on top
+    qs = zeros(Sunny.Vec3, πx+πy+min(πx,πy)+1)
+    for i in 1:πx+1
+        qs[i] = Sunny.Vec3((i-1)/(2πx), 0, qz/(2πz))
+    end
+    for i in 1:πy
+        qs[πx+1+i] = Sunny.Vec3(0.5, i/(2πy), qz/(2πz))
+    end
+    for i in 1:min(πx,πy)
+        qs[πx+πy+1+i] = Sunny.Vec3(0.5-i/(2πx), 0.5-i/(2πy), qz/(2πz))
+    end
+    ωs = linear_sw_diamond_heisenberg.(qs, J, spin)
+    plot!(pathcoords, ωs, lw=3, color=:lightgrey, label="Linear SW")
+
     xticks!(
-        [1, 1+πx, 1+πx+πy, πx+πy+min(πx,πy)+1],
+        [0, (1+πx)/pathlen, (1+πx+πy)/pathlen, 1.0],
         [L"(0, 0)", L"(\pi, 0)", L"(\pi, \pi)", L"(0, 0)"]
     )
-    if !isnothing(maxω)
-        conv_factor = T / maxω
-        cutω = cutT / conv_factor
-        yticks!(
-            collect(conv_factor .* (0.0:0.5:cutω)),
-            map(string, 0.0:0.5:cutω)
-        )
-        ylabel!(L"$\omega$ (meV)")
-    end
+    ylabel!(L"$\omega$ (meV)")
     plot!()
 end
 
-function plot_many_cuts(S; maxω=nothing, chopω=nothing)
+function plot_many_cuts_afmdiamond(S, J, spin; maxω=nothing, chopω=nothing)
     l = @layout [a b ; c d]
-    q0 = plot_S_cut(S, 0; maxω=maxω, chopω=chopω)
-    q1 = plot_S_cut(S, 2; maxω=maxω, chopω=chopω)
-    q2 = plot_S_cut(S, 4; maxω=maxω, chopω=chopω)
-    q3 = plot_S_cut(S, 6; maxω=maxω, chopω=chopω)
+    q0 = plot_S_cut_afmdiamond(S, 0, J, spin; maxω=maxω, chopω=chopω)
+    q1 = plot_S_cut_afmdiamond(S, 2, J, spin; maxω=maxω, chopω=chopω)
+    q2 = plot_S_cut_afmdiamond(S, 4, J, spin; maxω=maxω, chopω=chopω)
+    q3 = plot_S_cut_afmdiamond(S, 6, J, spin; maxω=maxω, chopω=chopω)
+
     plot(q0, q1, q2, q3; layout=l)
 end
 
@@ -273,6 +294,63 @@ function plot_ET_data(Ts, Es, Eerrors)
     ylabel!(L"$E$ [K]")
     display(p)
     p
+end
+
+function test_gtensor_sf()
+    # An orthorhombic crystal, to allow z-component of g-tensor to be distinct
+    crystal = Crystal(
+        [1. 0. 0.; 0. 1. 0.; 0. 0. 2.],
+        [[0., 0., 0.]],
+    )
+    
+    # A ferromagnetic XXZ model, with Jz > Jx = Jy
+    Jx, Jy, Jz = -0.2, -0.2, -1
+    interactions = [
+        exchange(diagm([Jx, Jy, Jz]), Bond(1, 1, [1, 0, 0]))
+        exchange(diagm([Jx, Jy, Jz]), Bond(1, 1, [0, 0, 1]))
+    ]
+    # Only z-component of spin contributes to magnetic moment -- no signal anywhere
+    # sites_info = [
+    #     SiteInfo(1, 1, diagm([0, 0, 1]))
+    # ]
+    # Only xy-component of spin contributes to magnetic moment -- excitation signal in Sxx/Syy
+    sites_info = [
+        SiteInfo(1, 1, diagm([1, 1, 0]))
+    ]
+    sys = SpinSystem(crystal, interactions, (8, 8, 8), sites_info)
+    rand!(sys)
+
+    Δt = 0.02
+    kT = 1.
+    α  = 0.1
+    nsteps = 20000
+    sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
+
+    meas_rate = 20     # Number of timesteps between snapshots of LLD to input to FFT
+                       # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
+    dyn_meas = 800     # Total number of frequencies we'd like to resolve
+    dynsf = dynamic_structure_factor(
+        sys, sampler; therm_samples=10, dynΔt=Δt, meas_rate=meas_rate,
+        dyn_meas=dyn_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
+        reduce_basis=true, dipole_factor=false,
+    )
+
+    # Sxx and Syy are symmetry-equivalent, but Szz is not
+    Sxx = real.(dynsf.sfactor[1, 1, :, :, :, :] .+ dynsf.sfactor[2, 2, :, :, :, :])
+    Szz = real.(dynsf.sfactor[3, 3, :, :, :, :])
+
+    # Calculate the maximum ω present in our FFT. Since the time gap between
+    #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
+    #  is 2π / (meas_rate * Δt)
+    # This is implicitly in the same units as the units you use to define
+    #  the interactions in the Hamiltonian. Here, we defined our interactions
+    #  in K, but we want to see ω in units of meV (to compare to a baseline
+    #  linear spin-wave solution we have).
+    maxω = 2π / (meas_rate * Δt)
+    p = plot_many_cuts_afmdiamond(Sxx, 1.0, 1.; maxω=maxω, chopω=5.0)
+
+    display(p)
+    return Sxx, Szz
 end
 
 #= Binned Statistics Routines =#
