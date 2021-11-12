@@ -480,6 +480,7 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
 
         for i in findall(==(c), cryst.classes)
             r = cryst.positions[i]
+            r = round.(r, digits=12) # very close to zero is probably exactly zero
             @printf io "   %d. [%.4g, %.4g, %.4g]\n" i r[1] r[2] r[3]
         end
     end
