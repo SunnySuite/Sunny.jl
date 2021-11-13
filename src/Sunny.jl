@@ -79,6 +79,11 @@ function __init__()
         export plot_lattice, plot_spins, plot_bonds, plot_all_bonds
         export anim_integration, live_integration, live_langevin_integration
     end
+
+    @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" begin
+        include("ParallelTempering.jl")
+        export Replica, run!
+    end
 end
 
 end
