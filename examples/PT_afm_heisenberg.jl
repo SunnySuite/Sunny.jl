@@ -34,5 +34,5 @@ T_sched(i, N) = (10 .^(range(log10(T_min), log10(T_max), length=N)) )[i]
 replica = Replica(MetropolisSampler(sys, 1.0, 1))
 
 # run PT
-run!(replica, T_sched; therm_mcs=10000, measure_interval=1, rex_interval=100, max_mcs=10000, bin_size=J)
+run!(replica, T_sched; therm_mcs=10000, measure_interval=100, rex_interval=10, max_mcs=100000, bin_size=J, print_hist=true)
 
