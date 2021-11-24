@@ -102,11 +102,37 @@ end
 
 
 """
+Gather data from each process and print to specified filename
+-> only handle 1D data buffer right now
+"""
+function gather_print(replica::Replica, data, fname::String)
+    # have root (rank 0) gather data from all processes
+    data_all = MPI.Gather(data, 0, MPI.COMM_WORLD)
+
+    # write gathered data to file w/ column formatting
+    if replica.rank == 0
+        data_all = reshape(data_all, replica.N_ranks, :)
+
+        f = open(fname, "w")
+        for data_c in eachcol(data_all)
+            for val in data_c 
+                print(f, val, "\t")
+            end
+            print(f, "\n")
+        end
+        close(f)
+    end
+
+    return nothing
+end
+
+
+"""
 Start a parallel tempering (PT) simulation. 
 Run w/ the command "mpiexec -n [n_procs] julia --project [julia_script.jl]".
 """
 function run!(replica::Replica, T_sched::Function;
-                therm_mcs=1000, measure_interval=10, rex_interval=100, max_mcs=500_000, bin_size=1.0)
+                therm_mcs=1000, measure_interval=10, rex_interval=100, max_mcs=500_000, bin_size=1.0, print_hist=false)
     # set replica sampling β using temperature (β = 1.0/(kT)) 
     T = T_sched(replica.rank+1, replica.N_ranks)
     set_temp!(replica.sampler, T)
@@ -125,46 +151,81 @@ function run!(replica::Replica, T_sched::Function;
     # equilibrate replica to it's distribution
     thermalize!(replica.sampler, therm_mcs)
 
-    N_rex = max_mcs / rex_interval
-    N_measure = cld(rex_interval, measure_interval)
-    replica.sampler.nsweeps = measure_interval
+    system_size = length(replica.sampler.system)
 
-    A = BinnedArray{Float64, Int64}(bin_size=bin_size)
+    replica.sampler.nsweeps = 1
+
+    # manually include these basic measurements for now
+    M = zeros(Float64, 3)
+    U = 0.0
+    U2 = 0.0
+    C = 0.0
+
+    N_rex = 0
+    N_measure = 0
+
+    hist = BinnedArray{Float64, Int64}(bin_size=bin_size)
     rex_accepts = zeros(Int64, 2)
 
     # start PT with finite length
-    for i in 1:N_rex
+    for mcs in 1:max_mcs
+        sample!(replica.sampler)
 
-        # measurements between exchanges
-        for j in 1:N_measure
-            # decorrelation steps
-            sample!(replica.sampler)
+        # replica exchanges
+        if mcs % rex_interval == 0 
+            # attempt replica exchange
+            if replica_exchange!(replica)
+                rex_accepts[replica.rex_dir] += 1
+            end
 
-            # add measurements here 
-            #...
+            N_rex += 1
 
-            # histogram for WHAM (TODO)
-            A[running_energy(replica.sampler)] += 1
+            # alternate up/down pairs of replicas for exchanges
+            replica.rex_dir = 3 - replica.rex_dir
         end
 
-        # attempt replica exchange
-        if replica_exchange!(replica)
-            rex_accepts[replica.rex_dir] += 1
-        end
+        # measurements
+        if mcs % measure_interval == 0
+            E = running_energy(replica.sampler)
+            m = running_mag(replica.sampler)
 
-        # alternate up/down pairs of replicas for exchanges
-        replica.rex_dir = 3 - replica.rex_dir
+            U += E
+            U2 += E*E
+            M .+= m
+
+            N_measure += 1
+
+            # histogram for energies
+            hist[E] += 1
+        end
     end
 
-    # write replica exchange rates to file for each process
-    f = open(@sprintf("P%03d_rex.dat", replica.rank), "a")
-    println(f, "REX accepts (down, up) = (", rex_accepts[1], " ", rex_accepts[2],"), total = ", sum(rex_accepts), " / ", N_rex)
-    close(f)
+    # normalize averages
+    U  /= N_measure
+    U2 /= N_measure
+    M ./= N_measure
+    C = 1.0 / T^2 * (U2 - U*U)
+ 
+    # gather and print: temperature, mag. per spin, avg. energy per spin, specific heat   
+    gather_print(
+        replica, 
+        [T, norm(M)/system_size, U/system_size, C/system_size], 
+        "measurements.dat"
+    )
 
-    # write histogram to file for each process
-    f = open(@sprintf("P%03d_hist.dat", replica.rank), "w")
-    println(f, A)
-    close(f)
+    # gather and print: rank, "down" exch. accepts, "up" exch. accepts, acceptance ratio   
+    gather_print(
+        replica, 
+        [replica.rank, rex_accepts[1], rex_accepts[2], sum(rex_accepts)/N_rex], 
+        "replica_exchanges.dat"
+    )
+
+    # write histogram to file for each process if specified
+    if print_hist
+        f = open(@sprintf("P%03d_hist.dat", replica.rank), "w")
+        println(f, hist)
+        close(f)
+    end
 
     return :SUCCESS
 end
