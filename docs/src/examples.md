@@ -194,7 +194,6 @@ function from the `LinearAlgebra` package just makes a diagonal matrix from
 the vector giving the diagonal.
 
 ```julia
-
 # All units in meV
 J1mat = [-0.397  0      0    
           0     -0.075 -0.261
