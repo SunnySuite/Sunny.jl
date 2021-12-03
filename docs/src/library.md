@@ -82,7 +82,7 @@ see the page [Structure Factor Calculations](@ref)
 
 ```@docs
 StructureFactor
-update!
+Sunny.update!
 apply_dipole_factor
 dynamic_structure_factor
 static_structure_factor

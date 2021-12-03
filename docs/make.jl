@@ -1,6 +1,8 @@
 push!(LOAD_PATH, "../src/")
 
 using Documenter, Sunny
+# Need to import libraries which expose functions hidden behind Requires.jl
+using GLMakie
 
 makedocs(
     sitename="SU(N) Spin Simulations",
