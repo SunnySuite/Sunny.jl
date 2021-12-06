@@ -99,14 +99,15 @@ the `Interaction`s, along with the dimensions of the simulation box in units of
 the lattice vectors. We will also take this to be a spin-``3/2`` system with
 a identity ``g``-tensor, which we can specify by providing a `SiteInfo` on a single
 site (as they are all symmetry equivalent). We can also optionally omit this
-information, in which case all sites are assumed to be spin-1 with an identity
-``g``-tensor.
+information, in which case all sites use the default normalization convention
+where ``|s| = 1`` and an identity ``g``-tensor.
 
 Then, we will randomize the system so that all spins are randomly placed on the unit 
 sphere.
 
 ```julia
-sites_info = [SiteInfo(1, 3/2, I(3))]
+S = 3/2
+sites_info = [SiteInfo(1, S, I(3))]
 sys = SpinSystem(crystal, interactions, (8, 8, 8), sites_info)
 rand!(sys)
 ```
@@ -121,15 +122,14 @@ rule of hand is that a reasonable value for integration timestep size is
 ``Δt ≈ 0.02 / (S^2 * J)``.
 
 ```julia
-Δt = 0.02 / ((3/2)^2 * J) # Units of 1/K
+Δt = 0.02 / (S^2 * J) # Units of 1/K
 kT = 4.                   # Units of K
 α  = 0.1
-kB = 8.61733e-5           # Units of eV/K
 nsteps = 20000
 sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 ```
 
-At this point we can call `sample!(sampler)` to produce new samples of the system, which will be reflected in the state of `sysc`. Instead, we will proceed to calculate
+At this point we can call `sample!(sampler)` to produce new samples of the system, which will be reflected in the state of `sys`. Instead, we will proceed to calculate
 the finite-$T$ structure factor using our built-in routines.
 
 **(5)** The full process of calculating a structure factor is handled
@@ -165,10 +165,10 @@ dynsf = dynamic_structure_factor(
 
 # Retain just the diagonal elements, which we will average across the
 #  symmetry-equivalent directions.
-S = dynsf.sfactor
-avgS = zeros(Float64, axes(S)[3:end])
+sfactor = dynsf.sfactor
+avg_sfactor = zeros(Float64, axes(sfactor)[3:end])
 for α in 1:3
-    @. avgS += real(S[α, α, :, :, :, :])
+    @. avg_sfactor += real(sfactor[α, α, :, :, :, :])
 end
 ```
 
@@ -186,8 +186,9 @@ packages, but for details see the script.
 #  the interactions in the Hamiltonian. Here, we defined our interactions
 #  in K, but we want to see ω in units of meV (to compare to a baseline
 #  linear spin-wave solution we have).
+kB = 8.61733e-5           # Units of eV/K
 maxω = 2π / (meas_rate * Δt) * (1000 * kB)
-p = plot_many_cuts_afmdiamond(avgS, 1000 * kB * J, 3/2; maxω=maxω, chopω=5.0)
+p = plot_many_cuts_afmdiamond(avg_sfactor, 1000 * kB * J, 3/2; maxω=maxω, chopω=5.0)
 display(p)
 ```
 
@@ -304,7 +305,7 @@ meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
 sampler = MetropolisSampler(system, kT, 500)
 println("Starting structure factor measurement...")
-S = dynamic_structure_factor(
+dynsf = dynamic_structure_factor(
     system, sampler; therm_samples=15, thermalize=15,
     bz_size=(2,0,0), reduce_basis=true, dipole_factor=true,
     dynΔt=Δt, meas_rate=meas_rate, dyn_meas=1000, verbose=true, 

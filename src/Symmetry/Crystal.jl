@@ -108,7 +108,7 @@ dimension(cryst::Crystal) = 3
 Returns a list of all basis indices in the same symmetry equivalency class
 as the provided index `b`.
 """
-equiv_sites(cryst::Crystal, b::Int) = filter(i->cryst.classes[i]==cryst.classes[b], 1:nbasis(cryst))
+equiv_sites(cryst::Crystal, b::Int) = findall(==(cryst.classes[b]), cryst.classes)
 
 """
     Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)

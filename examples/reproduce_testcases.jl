@@ -17,13 +17,13 @@ function test_diamond_heisenberg_sf()
     interactions = [
         heisenberg(J, Bond(1, 3, [0,0,0])),
     ]
-    sys = SpinSystem(crystal, interactions, (8, 8, 8), [SiteInfo(1, 3/2, I(3))])
+    S = 3/2
+    sys = SpinSystem(crystal, interactions, (8, 8, 8), [SiteInfo(1, S, I(3))])
     rand!(sys)
 
-    Δt = 0.02 / ((3/2)^2 * J) # Units of 1/K
+    Δt = 0.02 / (S^2 * J) # Units of 1/K
     kT = 4.                   # Units of K
     α  = 0.1
-    kB = 8.61733e-5           # Units of eV/K
     nsteps = 20000
     sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 
@@ -37,10 +37,10 @@ function test_diamond_heisenberg_sf()
     )
 
     # All spins axes are symmetry-equivalent, average across all S^αα
-    S = dynsf.sfactor
-    avgS = zeros(Float64, axes(S)[3:end])
+    sfactor = dynsf.sfactor
+    avg_sfactor = zeros(Float64, axes(sfactor)[3:end])
     for α in 1:3
-        @. avgS += real(S[α, α, :, :, :, :])
+        @. avg_sfactor += real(sfactor[α, α, :, :, :, :])
     end
 
     # Calculate the maximum ω present in our FFT. Since the time gap between
@@ -50,11 +50,12 @@ function test_diamond_heisenberg_sf()
     #  the interactions in the Hamiltonian. Here, we defined our interactions
     #  in K, but we want to see ω in units of meV (to compare to a baseline
     #  linear spin-wave solution we have).
+    kB = 8.61733e-5           # Units of eV/K
     maxω = 2π / (meas_rate * Δt) * (1000 * kB)
-    p = plot_many_cuts_afmdiamond(avgS, 1000 * kB * J, 3/2; maxω=maxω, chopω=5.0)
+    p = plot_many_cuts_afmdiamond(avg_sfactor, 1000 * kB * J, 3/2; maxω=maxω, chopω=5.0)
 
     display(p)
-    return avgS
+    return avg_sfactor
 end
 
 # Result for the NN AFM diamond from linear spin-wave theory
@@ -71,11 +72,11 @@ end
 
 Plots cuts through the structure factor:
     (0, 0, qz) -> (π, 0, qz) -> (π, π, qz) -> (0, 0, 0)
-where qz is (c⃰ * qz). Assumes that S has 1BZ along (a, b) and
+where qz is (c∗ * qz). Assumes that S has 1BZ along (a∗, b∗) and
 two BZs along c, and only works on cubic lattices. To get unitful
 frequency labels, need to provide max_ω which should be the maximum
 frequency present in S, in units of meV. Providing chop_ω restricts
-to plots to only plot frequencies <= chop_ω.
+the plots to frequencies <= chop_ω.
 """
 function plot_S_cut_afmdiamond(S, qz, J, spin; maxω=nothing, chopω=nothing)
     Lx, Ly, Lz, T = size(S)

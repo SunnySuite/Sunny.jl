@@ -418,7 +418,7 @@ function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info:
         for b2 in 1:nbasis(crystal)
             S2, g2 = sites_info[b2].S, sites_info[b2].g
             for ijk in CartesianIndices(axes(A)[3:end])
-                A[b1, b2, ijk] = g1' * S1 * A[b1, b2, ijk] * S2 * g2
+                A[b1, b2, ijk] = S1 * g1' * A[b1, b2, ijk] * g2 * S2
             end
         end
     end

@@ -261,6 +261,10 @@ struct ExternalFieldCPU
 end
 
 function ExternalFieldCPU(ext_field::ExternalField, sites_info::Vector{SiteInfo})
+    # As E = -∑_i 𝐁^T g 𝐒_i, we can precompute effB = g^T S B, so that
+    #  we can compute E = -∑_i effB ⋅ 𝐬_i during simulation.
+    # However, S_i may be basis-dependent, so we need to store an effB
+    #  per sublattice.
     effBs = [site.g' * site.S * ext_field.B for site in sites_info]
     ExternalFieldCPU(effBs)
 end
