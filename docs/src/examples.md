@@ -12,7 +12,8 @@ The high-level outline of performing a simulation is:
 1. Create a [`Crystal`](@ref), either by providing explicit geometry information
     (Example 1), or by loading a `.cif` file (Example 2).
 2. Using the `Crystal`, construct a collection of [Interactions](@ref).
-3. Assemble a [`SpinSystem`](@ref) using the newly created `Crystal` and `Interaction`s, and the size of the simulation box.
+3. Assemble a [`SpinSystem`](@ref) using the newly created `Crystal` and `Interaction`s, the size of the simulation box, and optionally information on the spin magnitude
+and ``g``-tensors of each site by passing a list of `SiteInfo`.
 4. Construct a sampler, either a [`LangevinSampler`](@ref) (Example 1), or a 
     [`MetropolisSampler`](@ref) (Example 2).
 5. Use the sampler directly to sample new states, or use it to perform [Structure factor calculations](@ref).
@@ -41,15 +42,15 @@ positions in the conventional cubic unit cell,
 a = 1.0
 lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
 basis_vecs = [
-    [0, 0, 0],
-    [2, 2, 0],
-    [1, 1, 1],
-    [3, 3, 1],
-    [2, 0, 2],
-    [0, 2, 2],
-    [3, 1, 3],
-    [1, 3, 3],
-] / 4
+    [0, 0, 0]/4,
+    [2, 2, 0]/4,
+    [1, 1, 1]/4,
+    [3, 3, 1]/4,
+    [2, 0, 2]/4,
+    [0, 2, 2]/4,
+    [3, 1, 3]/4,
+    [1, 3, 3]/4,
+]
 crystal = Crystal(lat_vecs, basis_vecs)
 ```
 
@@ -70,15 +71,24 @@ crystal = Crystal(lat_vecs, [[0, 0, 0]], 227; setting="1")
 For spacegroup 227 (symbol "F d -3 m"), there are two possible conventions for
 the unit cell origin. Leaving off the `setting` option returns all possible
 crystals.
+**Note**: If you provide the full list of basis sites, their ordering in the crystal will not be changed. Meanwhile, any constructor of `Crystal` which infers sites through symmetry information will sort the basis sites deterministically during
+construction. Be aware of this, and always check the orderings of basis sites in your final `Crystal` when performing the next step.
 
-**(2)** Next, we need to define our Heisenberg interactions. We want to set up
-nearest-neighbor antiferromagnetic interactions with a strength of ``J = 28.28~\mathrm{K}``.
-One nearest-neighbor bond is the one connecting basis index 1 with basis index 3 within a
+**(2)** Next, we need to define our Hamiltonian, which for this example
+will just contain Heisenberg interactions. Specifically, we want to set up
+nearest-neighbor antiferromagnetic interactions with a strength of ``J = 7.5413~\mathrm{K}``.
+
+A powerful feature of Sunny is its ability to perform
+automated symmetry analysis. In general, specifying information on any
+site/bond will automatically propagate that information to all symmetry-equivalent
+sites/bonds. In this system, all nearest-neighbor bonds are symmetry-equivalent,
+so we only need to specify the interaction on a single one of them. One nearest-neighbor bond is the one connecting basis index 1 with basis index 3 within a
 single unit cell. (We can figure this out using our tools for symmetry analysis, at the
-bottom of this page).
+bottom of this page). So, we can create a nearest-neighbor Heisenberg interaction just
+by specifying:
 
 ```julia
-J = 28.28           # Units of K
+J = 7.5413        # Units of K
 interactions = [
     heisenberg(J, Bond(1, 3, [0,0,0])),
 ]
@@ -86,28 +96,40 @@ interactions = [
 
 **(3)** Assembling a `SpinSystem` is straightforward -- provide the `Crystal`,
 the `Interaction`s, along with the dimensions of the simulation box in units of
-the lattice vectors. Then, we will randomize the system so that all spins are
-randomly placed on the unit sphere.
+the lattice vectors. We will also take this to be a spin-``3/2`` system with
+a identity ``g``-tensor, which we can specify by providing a `SiteInfo` on a single
+site (as they are all symmetry equivalent). We can also optionally omit this
+information, in which case all sites use the default normalization convention
+where ``|s| = 1`` and an identity ``g``-tensor.
+
+Then, we will randomize the system so that all spins are randomly placed on the unit 
+sphere.
 
 ```julia
-sys = SpinSystem(crystal, interactions, (8, 8, 8))
+S = 3/2
+sites_info = [SiteInfo(1, S, I(3))]
+sys = SpinSystem(crystal, interactions, (8, 8, 8), sites_info)
 rand!(sys)
 ```
 
 The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the spin located at the  will given. For example, `sys[2, 5, 5, 5]` gives the spin variable located on the second sublattice in the unit cell, which is fifth along each axis.
 
-**(4)** We will simulate this system using Langevin dynamics, so we need to create a [`LangevinSampler`](@ref). Note that the units of integration time and temperature are relative to the units implicitly used when setting up the interactions.
+Note that regardless of the spin magnitudes you specify on each site, indexing `sys`
+will always return a normalized unit vector.
+
+**(4)** We will simulate this system using Langevin dynamics, so we need to create a [`LangevinSampler`](@ref). Note that the units of integration time and temperature are relative to the units implicitly used when setting up the interactions. A rough
+rule of hand is that a reasonable value for integration timestep size is
+``Δt ≈ 0.02 / (S^2 * J)``.
 
 ```julia
-Δt = 0.02 / J       # Units of 1/K
-kT = 4.             # Units of K
+Δt = 0.02 / (S^2 * J) # Units of 1/K
+kT = 4.                   # Units of K
 α  = 0.1
-kB = 8.61733e-5     # Units of eV/K
 nsteps = 20000
 sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 ```
 
-At this point we can call `sample!(sampler)` to produce new samples of the system, which will be reflected in the state of `sysc`. Instead, we will proceed to calculate
+At this point we can call `sample!(sampler)` to produce new samples of the system, which will be reflected in the state of `sys`. Instead, we will proceed to calculate
 the finite-$T$ structure factor using our built-in routines.
 
 **(5)** The full process of calculating a structure factor is handled
@@ -132,34 +154,41 @@ we average these elements across the ``x, y, z`` spin directions since
 they are all symmetry equivalent in this model.
 
 ```julia
-meas_rate = 10
+meas_rate = 40     # Number of timesteps between snapshots of LLD to input to FFT
+                   # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
+dyn_meas = 400     # Total number of frequencies we'd like to resolve
 dynsf = dynamic_structure_factor(
-    sys, sampler; therm_samples=5, dynΔt=Δt, meas_rate,
-    dyn_meas=1600, bz_size=(1,1,2), thermalize=10, verbose=true,
-    reduce_basis=true, dipole_factor=false
+    sys, sampler; therm_samples=10, dynΔt=Δt, meas_rate=meas_rate,
+    dyn_meas=dyn_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
+    reduce_basis=true, dipole_factor=false,
 )
 
 # Retain just the diagonal elements, which we will average across the
 #  symmetry-equivalent directions.
-S = dynsf.sfactor
-avgS = zeros(Float64, axes(S)[3:end])
+sfactor = dynsf.sfactor
+avg_sfactor = zeros(Float64, axes(sfactor)[3:end])
 for α in 1:3
-    @. avgS += real(S[α, α, :, :, :, :])
+    @. avg_sfactor += real(sfactor[α, α, :, :, :, :])
 end
-
 ```
 
-We then plot some cuts using a function `plot_many_cuts` defined within
+We then plot some cuts using a function `plot_many_cuts_afmdiamond` defined within
 the example script. (I.e. this code block will not successfully execute unless
 you `include("examples/reproduce_testcases.jl)`). We omit this code here as it's just
-a large amount of indexing and plotting code, but for details see the script.
+a large amount of indexing and plotting code which depends on some external
+packages, but for details see the script.
 
 ```julia
-# Calculate the maximum ω present in our FFT
-# Need to scale by (S+1) with S=3/2 to match the reference,
-#  and then convert to meV.
-maxω = 1000 * 2π / ((meas_rate * Δt) / kB) / (5/2)
-p = plot_many_cuts(avgS; maxω=maxω, chopω=5.0)
+# Calculate the maximum ω present in our FFT. Since the time gap between
+#  our snapshots is meas_rate * Δt, the maximum frequency we resolve
+#  is 2π / (meas_rate * Δt)
+# This is implicitly in the same units as the units you use to define
+#  the interactions in the Hamiltonian. Here, we defined our interactions
+#  in K, but we want to see ω in units of meV (to compare to a baseline
+#  linear spin-wave solution we have).
+kB = 8.61733e-5           # Units of eV/K
+maxω = 2π / (meas_rate * Δt) * (1000 * kB)
+p = plot_many_cuts_afmdiamond(avg_sfactor, 1000 * kB * J, 3/2; maxω=maxω, chopω=5.0)
 display(p)
 ```
 
@@ -276,7 +305,7 @@ meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
 sampler = MetropolisSampler(system, kT, 500)
 println("Starting structure factor measurement...")
-S = dynamic_structure_factor(
+dynsf = dynamic_structure_factor(
     system, sampler; therm_samples=15, thermalize=15,
     bz_size=(2,0,0), reduce_basis=true, dipole_factor=true,
     dynΔt=Δt, meas_rate=meas_rate, dyn_meas=1000, verbose=true, 
@@ -373,6 +402,18 @@ measure the error more carefully.
 
 The following block of code takes a few minutes to execute. Feel free to sample a sparser temperature grid, play around with some of the thermalization parameters, or perform fewer measurements to try to get it to execute faster.
 
+Note the use of `running_energy(sampler)`. In some samplers, such as
+`MetropolisSampler`, it is very efficient to maintain the current system energy
+by updating with the local energy changes every time a spin flips. (In other
+samplers, such as `LangevinSampler`, this is not the case and `running_energy`
+simply does a full energy recalculation).
+
+However, the "running" in running energy refers to the fact that if you
+hand-modify the `system`, this running tally may no longer be correct! You can
+restart the tally (by recomputing the full system energy from scratch) using
+`reset_energy!(sampler)`. Similar functions exist for the total magnetization
+(`running_mag(sampler)` and `reset_mag!(sampler)`).
+
 ```julia
 using Statistics
 
@@ -384,7 +425,7 @@ for (i, temp) in enumerate(temps_meV)
     thermalize!(sampler, 100)
     for _ in 1:1000
         sample!(sampler) 
-        push!(temp_energies, energy(sampler))
+        push!(temp_energies, running_energy(sampler))
     end
     meanE = mean(temp_energies)
     errE  = std(temp_energies) / sqrt(length(temp_energies))
@@ -439,7 +480,7 @@ distance, we can use the function [`print_bond_table`](@ref).
 
 ```
 lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-crystal = Crystal(lat_vecs, [[0, 0, 0]], 227; setting="1")
+crystal = Sunny.diamond_crystal()
 print_bond_table(crystal, 1.0)
 ```
 
@@ -461,10 +502,10 @@ Allowed exchange matrix: | A  B  B |
 Bond(1, 2, [0, 0, 0])
 Distance 0.7071, coordination 12
 Connects [0, 0, 0] to [0.5, 0.5, 0]
-Allowed exchange matrix: | A  C -D |
-                         | C  A -D |
-                         | D  D  B |
-Allowed DM vector: [-D D 0]
+Allowed exchange matrix: | A  C  D |
+                         | C  A  D |
+                         |-D -D  B |
+Allowed DM vector: [D -D 0]
 
 Bond(2, 7, [0, 0, 0])
 Distance 0.8292, coordination 12
@@ -488,7 +529,7 @@ find the ones starting from atom 2 we can use
 [`all_symmetry_related_bonds_for_atom`](@ref),
 
 ```
-julia> all_symmetry_related_bonds_for_atom(crystal, 2, Bond(1, 3, [0, 0, 0]))
+julia> all_symmetry_related_bonds_for_atom(crystal, 2, Bond(2, 3, [0, 0, 0]))
 
 4-element Vector{Bond{3}}:
  Bond(2, 7, [0, 0, -1])

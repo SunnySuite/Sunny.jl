@@ -2,12 +2,23 @@
 
 """
     AbstractSampler
+
 All samplers should subtype this, and implement the following methods
     `set_temp!(sampler::MySampler, kT::Float64)`
+    `get_system(sampler::MySampler)
     `sample!(sampler::MySampler)`
+
+    Optionally, can override behavior of these, which by default do full-system
+     recalculations on each call.
+    `running_energy(sampler::MySampler)`
+    `running_mag(sampler::MySampler)`
 """
 abstract type AbstractSampler end
 
+running_energy(sampler::S) where {S <: AbstractSampler} = energy(get_system(sampler))
+running_mag(sampler::S) where {S <: AbstractSampler} = sum(get_system(sampler))
+reset_energy!(sampler::S) where {S <: AbstractSampler} = nothing
+reset_mag!(sampler::S) where {S <: AbstractSampler} = nothing
 
 """
     thermalize!(sampler, num_samples)
@@ -110,6 +121,15 @@ function set_temp!(sampler::IsingSampler, kT)
     sampler.β = 1 / kT
 end
 
+"""
+    get_system(sampler)
+
+Returns the `SpinSystem` being updated by the `sampler`.
+"""
+get_system(sampler::MetropolisSampler) = sampler.system
+get_system(sampler::IsingSampler) = sampler.system
+
+
 @inline function _random_spin() :: Vec3
     n = randn(Vec3)
     return n / norm(n)
@@ -155,8 +175,12 @@ end
 
 @inline running_energy(sampler::MetropolisSampler) = sampler.E
 @inline running_mag(sampler::MetropolisSampler) = sampler.M
+@inline reset_running_energy!(sampler::MetropolisSampler) = (sampler.E = energy(sampler.system); nothing)
+@inline reset_running_mag!(sampler::MetropolisSampler) = (sampler.M = sum(sampler.system); nothing)
 @inline running_energy(sampler::IsingSampler) = sampler.E
 @inline running_mag(sampler::IsingSampler) = sampler.M
+@inline reset_running_energy!(sampler::IsingSampler) = (sampler.E = energy(sampler.system); nothing)
+@inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.system); nothing)
 
 
 """
@@ -173,21 +197,21 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
     (i, cell) = splitidx(idx)
 
     if !isnothing(ℋ.ext_field)
-        ΔE -= ℋ.ext_field.B ⋅ spindiff
+        ΔE -= ℋ.ext_field.effBs[i] ⋅ spindiff
     end
     for heisen in ℋ.heisenbergs
-        J = heisen.J
+        J = heisen.effJ
         for bond in heisen.bonds[i]
             if i == bond.j && iszero(bond.n)
                 ΔE += J * (newspin⋅newspin - oldspin⋅oldspin)
             else
                 Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
-                ΔE += heisen.J * (spindiff ⋅ Sⱼ)
+                ΔE += J * (spindiff ⋅ Sⱼ)
             end
         end
     end
     for diag_coup in ℋ.diag_coups
-        for (J, bond) in zip(diag_coup.Js[i], diag_coup.bonds[i])
+        for (J, bond) in zip(diag_coup.effJs[i], diag_coup.bonds[i])
             if i == bond.j && iszero(bond.n)
                 ΔE += newspin⋅(J.*newspin) - oldspin⋅(J.*oldspin)
             else
@@ -197,7 +221,7 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
         end
     end
     for gen_coup in ℋ.gen_coups
-        for (J, bond) in zip(gen_coup.Js[i], gen_coup.bonds[i])
+        for (J, bond) in zip(gen_coup.effJs[i], gen_coup.bonds[i])
             if i == bond.j && iszero(bond.n)
                 ΔE += dot(newspin, J, newspin) - dot(oldspin, J, oldspin)
             else

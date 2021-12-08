@@ -32,6 +32,22 @@ struct DipoleDipole <: Interaction
     η        :: Float64
 end
 
+"""
+    SiteInfo(site::Int, S, g)
+
+Characterizes the degree of freedom located at a given `site` index with
+ a spin magnitude `S` and g-tensor `g`. When provided to a `SpinSystem`,
+ this information is automatically propagated to all symmetry-equivalent
+ sites.
+"""
+struct SiteInfo
+    site  :: Int      # Site index
+    S     :: Float64  # Magnitude of the spin
+    g     :: Mat3     # Spin g-tensor
+end
+
+# Helper constructor for scalar g
+SiteInfo(site::Int, S, g::Number) = SiteInfo(site, S, Mat3(g * I))
 
 function Base.show(io::IO, ::MIME"text/plain", int::OnSiteQuadratic)
     J = int.J
@@ -198,16 +214,20 @@ end
 Adds an external field ``𝐁`` with Zeeman coupling,
 
 ```math
-    -∑_i 𝐁 ⋅ 𝐦_i.
+    -∑_i 𝐁 ⋅ 𝐌_i.
 ```
 
-The magnetic moments are ``𝐦_i = μ_B g 𝐬_i`` where ``g`` is the g-factor or
-g-tensor, and the spin magnitude ``|𝐬_i|`` is typically a multiple of 1/2. The
+The magnetic moments are ``𝐌_i = μ_B g 𝐒_i`` where ``g`` is the g-factor or
+g-tensor, and the spin magnitude ``|𝐒_i|`` is typically a multiple of 1/2. The
 Bohr magneton ``μ_B`` is a physical constant, with numerical value determined by
 the unit system.
 """
 external_field(B) = ExternalField(Vec3(B))
 
+function Base.show(io::IO, ::MIME"text/plain", int::ExternalField)
+    B = int.B
+    @printf io "external_field([%.4g, %.4g, %.4g])" B[1] B[2] B[3]
+end
 
 """
     dipole_dipole(; extent::Int=4, η::Float64=0.5)
@@ -215,13 +235,13 @@ external_field(B) = ExternalField(Vec3(B))
 Includes long-range dipole-dipole interactions,
 
 ```math
-    -(μ₀/4π) ∑_{⟨ij⟩}  (3 (𝐦_j⋅𝐫̂_{ij})(𝐦_i⋅𝐫̂_{ij}) - 𝐦_i⋅𝐦_j) / |𝐫_{ij}|^3
+    -(μ₀/4π) ∑_{⟨ij⟩}  (3 (𝐌_j⋅𝐫̂_{ij})(𝐌_i⋅𝐫̂_{ij}) - 𝐌_i⋅𝐌_j) / |𝐫_{ij}|^3
 ```
 
 where the sum is over all pairs of spins (singly counted), including periodic
 images, regularized using the Ewald summation convention. The magnetic moments
-are ``𝐦_i = μ_B g 𝐬_i`` where ``g`` is the g-factor or g-tensor, and the spin
-magnitude ``|𝐬_i|`` is typically a multiple of 1/2. The Bohr magneton ``μ_B``
+are ``𝐌_i = μ_B g 𝐒_i`` where ``g`` is the g-factor or g-tensor, and the spin
+magnitude ``|𝐒_i|`` is typically a multiple of 1/2. The Bohr magneton ``μ_B``
 and vacuum permeability ``μ_0`` are physical constants, with numerical values
 determined by the unit system.
 
@@ -232,20 +252,40 @@ while `η` controls the direct/reciprocal-space tradeoff in the Ewald summation.
 dipole_dipole(; extent=4, η=0.5) = DipoleDipole(1.0, extent, η)
 
 
-#= Energy and field functions for "simple" interactions that aren't geometry-dependent =#
+#= Energy and field functions for "simple" interactions that aren't geometry-dependent.
+   See Hamiltonian.jl for expectations on `_accum_neggrad!` functions.
+=#
 
-function energy(spins::Array{Vec3}, field::ExternalField)
-    B = field.B
+struct ExternalFieldCPU
+    effBs :: Vector{Vec3}  # |S_b|gᵀB for each basis index b
+end
+
+function ExternalFieldCPU(ext_field::ExternalField, sites_info::Vector{SiteInfo})
+    # As E = -∑_i 𝐁^T g 𝐒_i, we can precompute effB = g^T S B, so that
+    #  we can compute E = -∑_i effB ⋅ 𝐬_i during simulation.
+    # However, S_i may be basis-dependent, so we need to store an effB
+    #  per sublattice.
+    effBs = [site.g' * site.S * ext_field.B for site in sites_info]
+    ExternalFieldCPU(effBs)
+end
+
+function energy(spins::Array{Vec3}, field::ExternalFieldCPU)
     E = 0.0
-    for S in spins
-        E += S ⋅ B
+    for b in 1:size(spins, 1)
+        effB = field.effBs[b]
+        for s in selectdim(spins, 1, b)
+            E += effB ⋅ s
+        end
     end
     return -E
 end
 
-"Accumulates the local field coming from the external field"
-@inline function _accum_field!(B::Array{Vec3}, field::ExternalField)
-    for idx in eachindex(B)
-        B[idx] = B[idx] + field.B
+"Accumulates the negative local Hamiltonian gradient coming from the external field"
+@inline function _accum_neggrad!(B::Array{Vec3}, field::ExternalFieldCPU)
+    for b in 1:size(B, 1)
+        effB = field.effBs[b]
+        for idx in CartesianIndices(size(B)[2:end])
+            B[b, idx] = B[b, idx] + effB
+        end
     end
 end

@@ -34,7 +34,7 @@ mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
     lattice        :: Lattice{D, L, Db}   # Definition of underlying lattice
     hamiltonian    :: HamiltonianCPU{D}   # Contains all interactions present
     sites          :: Array{Vec3, Db}     # Holds actual spin variables
-    S              :: Rational{Int}       # Spin magnitude
+    sites_info     :: Vector{SiteInfo}    # Characterization of each basis site
 end
 
 """
@@ -70,22 +70,57 @@ end
 
 
 """
-    SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1)
+    propagate_site_info(cryst::Crystal, sites_info::Vector{SiteInfo})
+
+Given an incomplete list of site information, propagates spin magnitudes
+and symmetry-transformed g-tensors to all symmetry-equivalent sites. Throws
+an error if two symmetry-equivalent sites are provided in `sites_info`.
+"""
+function propagate_site_info(crystal::Crystal, sites_info::Vector{SiteInfo})
+    # All sites not explicitly provided are by default S = 1, g = 1
+    all_sites_info = [SiteInfo(i, 1, 1) for i in 1:nbasis(crystal)]
+
+    specified_atoms = Int[]
+    for siteinfo in sites_info
+        @unpack site, S, g = siteinfo
+        (sym_bs, sym_gs) = all_symmetry_related_couplings(crystal, Bond(site, site, [0,0,0]), g)
+        for (sym_b, sym_g) in zip(sym_bs, sym_gs)
+            sym_atom = sym_b.i
+            if sym_atom in specified_atoms
+                # Perhaps this should only throw if two _conflicting_ SiteInfo are passed?
+                # Then propagate_site_info can be the identity on an already-filled list.
+                error("Provided two `SiteInfo` which describe symmetry-equivalent sites!")
+            else
+                push!(specified_atoms, sym_atom)
+            end
+
+            all_sites_info[sym_atom] = SiteInfo(sym_atom, S, sym_g)
+        end
+    end
+
+    return all_sites_info
+end
+
+
+"""
+    SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, sites_info::Vector{SiteInfo}=[])
 
 Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sites
  of a given `crystal`, interactions given by `ints`, and the number of unit cells along
  each lattice vector specified by `latsize`. Initialized to all spins pointing along
  the ``+𝐳̂`` direction.
 """
-function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, S=1//1)
+function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, sites_info::Vector{SiteInfo}=SiteInfo[])
     latsize = collect(Int64.(latsize))
-    ℋ_CPU = HamiltonianCPU(ints, crystal, latsize)
     lattice = Lattice(crystal, latsize)
+
+    all_sites_info = propagate_site_info(crystal, sites_info)
+    ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_sites_info)
 
     # Initialize sites to all spins along +z
     sites_size = (nbasis(lattice), lattice.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
-    SpinSystem{3, 9, 4}(lattice, ℋ_CPU, sites, S)
+    SpinSystem{3, 9, 4}(lattice, ℋ_CPU, sites, all_sites_info)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem)
@@ -126,7 +161,12 @@ energy(sys::SpinSystem) = energy(sys.sites, sys.hamiltonian)
     field!(B::Array{Vec3}, sys::SpinSystem)
 
 Updates B in-place to contain the local field at each site in the
-system under `sys.hamiltonian`
+system under `sys.hamiltonian`. The "local field" is defined as
+
+``𝐁_i = -∇_{𝐬_i} ℋ / S_i``
+
+with ``𝐬_i`` the unit-vector variable at site i, and ``S_i`` is
+the magnitude of the associated spin.
 """
 field!(B::Array{Vec3}, sys::SpinSystem) = field!(B, sys.sites, sys.hamiltonian)
 

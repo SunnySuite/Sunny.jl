@@ -51,7 +51,7 @@ Implements an exchange interaction which is proportional to
 the identity matrix.
 """
 struct HeisenbergCPU{D} <: InteractionCPU
-    J            :: Float64
+    effJ         :: Float64                  # S_i J S_j
     bonds        :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
     culled_bonds :: Vector{Vector{Bond{D}}}  # Like `bonds`, but culled to the minimal 1/2 bonds
     label        :: String
@@ -64,8 +64,8 @@ Implements an exchange interaction where matrices on all bonds
 are diagonal.
 """
 struct DiagonalCouplingCPU{D} <: InteractionCPU
-    Js            :: Vector{Vector{Vec3}}
-    culled_Js     :: Vector{Vector{Vec3}}
+    effJs         :: Vector{Vector{Vec3}}     # S_i J S_j for each bond
+    culled_effJs  :: Vector{Vector{Vec3}}
     bonds         :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
     culled_bonds  :: Vector{Vector{Bond{D}}}  # Like `bonds`, but culled to the minimal 1/2 bonds
     label         :: String
@@ -78,8 +78,8 @@ Implements the most generalized interaction, where matrices on
 all bonds are full 3x3 matrices which vary bond-to-bond.
 """
 struct GeneralCouplingCPU{D} <: InteractionCPU
-    Js           :: Vector{Vector{Mat3}}
-    culled_Js    :: Vector{Vector{Mat3}}
+    effJs        :: Vector{Vector{Mat3}}     # S_i J S_j for each bond
+    culled_effJs :: Vector{Vector{Mat3}}
     bonds        :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
     culled_bonds :: Vector{Vector{Bond{D}}}  # Like `bonds`, but culled to the minimal 1/2 bonds
     label        :: String
@@ -95,7 +95,7 @@ isheisen(tol) = Base.Fix2(isheisen, tol)
 isdiag(tol) = Base.Fix2(isdiag, tol)
 
 # Figures out the correct maximally-efficient backend type for a quadratic interaction
-function convert_quadratic(int::QuadraticInteraction{D}, cryst; tol=1e-6) where {D}
+function convert_quadratic(int::QuadraticInteraction{D}, cryst::Crystal, sites_info::Vector{SiteInfo}; tol=1e-6) where {D}
     @unpack J, bond, label = int
     sorted_bonds = Vector{Vector{Bond{D}}}()
     sorted_Js = Vector{Vector{Mat3}}()
@@ -104,10 +104,17 @@ function convert_quadratic(int::QuadraticInteraction{D}, cryst; tol=1e-6) where 
         push!(sorted_bonds, bs)
         push!(sorted_Js, Js)
     end
+
+    # Product S_i S_j between sites connected by the bond -- same for all bonds in a class
+    # To get interactions quadratic in the unit vectors stored by `SpinSystem`, we store
+    #  (Si J Sj) internally.
+    SiSj = sites_info[bond.i].S * sites_info[bond.j].S
+    sorted_Js .*= SiSj
+
     (culled_bonds, culled_Js) = cull_bonds(sorted_bonds, sorted_Js)
 
     if all(isheisen(tol), Base.Iterators.flatten(culled_Js))
-        return HeisenbergCPU{D}(J[1,1], sorted_bonds, culled_bonds, label)
+        return HeisenbergCPU{D}(SiSj * J[1,1], sorted_bonds, culled_bonds, label)
     elseif all(isdiag(tol), Base.Iterators.flatten(culled_Js))
         vec_sorted_Js = [
             [diag(M) for M in Js]
@@ -130,33 +137,33 @@ function convert_quadratic(int::QuadraticInteraction{D}, cryst; tol=1e-6) where 
 end
 
 function energy(spins::Array{Vec3}, heisenberg::HeisenbergCPU)
-    @unpack J, culled_bonds = heisenberg
+    @unpack effJ, culled_bonds = heisenberg
     E = 0.0
     latsize = size(spins)[2:end]
     for (i, bonds) in enumerate(culled_bonds)
         for bond in bonds
             @unpack j, n = bond
             for cell in CartesianIndices(latsize)
-                Sᵢ = spins[i, cell]
-                Sⱼ = spins[j, offset(cell, n, latsize)]
-                E += Sᵢ ⋅ Sⱼ
+                sᵢ = spins[i, cell]
+                sⱼ = spins[j, offset(cell, n, latsize)]
+                E += sᵢ ⋅ sⱼ
             end
         end
     end
-    return J * E
+    return effJ * E
 end
 
 function energy(spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
-    @unpack culled_Js, culled_bonds = diag_coup
+    @unpack culled_effJs, culled_bonds = diag_coup
     E = 0.0
     latsize = size(spins)[2:end]
-    for (i, (Js, bonds)) in enumerate(zip(culled_Js, culled_bonds))
+    for (i, (Js, bonds)) in enumerate(zip(culled_effJs, culled_bonds))
         for (J, bond) in zip(Js, bonds)
             @unpack j, n = bond
             for cell in CartesianIndices(latsize)
-                Sᵢ = spins[i, cell]
-                Sⱼ = spins[j, offset(cell, n, latsize)]
-                E += (J .* Sᵢ) ⋅ Sⱼ
+                sᵢ = spins[i, cell]
+                sⱼ = spins[j, offset(cell, n, latsize)]
+                E += (J .* sᵢ) ⋅ sⱼ
             end
         end
     end
@@ -164,44 +171,44 @@ function energy(spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
 end
 
 function energy(spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
-    @unpack culled_Js, culled_bonds = gen_coup
+    @unpack culled_effJs, culled_bonds = gen_coup
     E = 0.0
     latsize = size(spins)[2:end]
-    for (i, (Js, bonds)) in enumerate(zip(culled_Js, culled_bonds))
+    for (i, (Js, bonds)) in enumerate(zip(culled_effJs, culled_bonds))
         for (J, bond) in zip(Js, bonds)
             @unpack j, n = bond
             for cell in CartesianIndices(latsize)
-                Sᵢ = spins[i, cell]
-                Sⱼ = spins[j, offset(cell, n, latsize)]
-                E += dot(Sᵢ, J, Sⱼ)
+                sᵢ = spins[i, cell]
+                sⱼ = spins[j, offset(cell, n, latsize)]
+                E += dot(sᵢ, J, sⱼ)
             end
         end
     end
     return E
 end
 
-"Accumulates the local field coming from Heisenberg couplings"
-@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, heisen::HeisenbergCPU)
+"Accumulates the local -∇ℋ coming from Heisenberg couplings into `B`"
+@inline function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, heisen::HeisenbergCPU)
     latsize = size(spins)[2:end]
-    @unpack J, culled_bonds = heisen
+    @unpack effJ, culled_bonds = heisen
     for (i, bonds) in enumerate(culled_bonds)
         for bond in bonds
             @unpack j, n = bond
             for cell in CartesianIndices(latsize)
                 offsetcell = offset(cell, n, latsize)
-                B[i, cell] = B[i, cell] - J * spins[j, offsetcell]
-                B[j, offsetcell] = B[j, offsetcell] - J * spins[i, cell]
+                B[i, cell] = B[i, cell] - effJ * spins[j, offsetcell]
+                B[j, offsetcell] = B[j, offsetcell] - effJ * spins[i, cell]
             end
         end
     end
 end
 
-"Accumulates the local field coming from diagonal couplings"
-@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
+"Accumulates the local -∇ℋ coming from diagonal couplings into `B`"
+@inline function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
     latsize = size(spins)[2:end]
 
-    @unpack culled_Js, culled_bonds = diag_coup
-    for (i, (Js, bonds)) in enumerate(zip(culled_Js, culled_bonds))
+    @unpack culled_effJs, culled_bonds = diag_coup
+    for (i, (Js, bonds)) in enumerate(zip(culled_effJs, culled_bonds))
         for (J, bond) in zip(Js, bonds)
             @unpack j, n = bond
             for cell in CartesianIndices(latsize)
@@ -213,12 +220,12 @@ end
     end
 end
 
-"Accumulates the local field coming from general couplings"
-@inline function _accum_field!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
+"Accumulates the local -∇ℋ coming from general couplings into `B`"
+@inline function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
     latsize = size(spins)[2:end]
 
-    @unpack culled_Js, culled_bonds = gen_coup
-    for (i, (Js, bonds)) in enumerate(zip(culled_Js, culled_bonds))
+    @unpack culled_effJs, culled_bonds = gen_coup
+    for (i, (Js, bonds)) in enumerate(zip(culled_effJs, culled_bonds))
         for (J, bond) in zip(Js, bonds)
             @unpack j, n = bond
             for cell in CartesianIndices(latsize)

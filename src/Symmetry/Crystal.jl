@@ -102,6 +102,13 @@ cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
 # This will remain 3 for the foreseeable future.
 dimension(cryst::Crystal) = 3
 
+"""
+    equiv_sites(crystal::Crystal, b::Int)
+
+Returns a list of all basis indices in the same symmetry equivalency class
+as the provided index `b`.
+"""
+equiv_sites(cryst::Crystal, b::Int) = findall(==(cryst.classes[b]), cryst.classes)
 
 """
     Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
@@ -505,4 +512,82 @@ function validate(cryst::Crystal)
     end
 
     # TODO: Check that space group is closed and that symops have inverse?
+end
+
+#= Definitions of common crystals =#
+
+function cubic_crystal(; a=1.0)
+    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    basis_vecs = [0, 0, 0]
+    Crystal(lat_vecs, basis_vecs)
+end
+
+function fcc_crystal(; a=1.0)
+    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    basis_vecs = [[0, 0, 0]/2,
+                  [1, 1, 0]/2,
+                  [1, 0, 1]/2,
+                  [0, 1, 1]/2]
+    cryst = Crystal(lat_vecs, basis_vecs)
+    sort_sites!(cryst)
+    cryst
+end
+
+function fcc_primitive_crystal(; a=1.0)
+    lat_vecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
+    basis_vecs = [[0, 0, 0]]
+    Crystal(lat_vecs, basis_vecs)
+end
+
+function bcc_crystal(; a=1.0)
+    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    basis_vecs = [[0, 0, 0]/2,
+                  [1, 1, 1]/2,]
+    Crystal(lat_vecs, basis_vecs)
+end
+
+function bcc_primitive_crystal(; a=1.0)
+    lat_vecs = [1 1 -1; 1 -1 1; -1 1 1]' * a/2
+    basis_vecs = [[0, 0, 0]]
+    Crystal(lat_vecs, basis_vecs)
+end
+
+
+function diamond_crystal(; a=1.0)
+    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    basis_vecs = [
+        [0, 0, 0]/4,
+        [2, 2, 0]/4,
+        [1, 1, 1]/4,
+        [3, 3, 1]/4,
+        [2, 0, 2]/4,
+        [0, 2, 2]/4,
+        [3, 1, 3]/4,
+        [1, 3, 3]/4,
+    ]
+    cryst = Crystal(lat_vecs, basis_vecs)
+    sort_sites!(cryst)
+    cryst
+end
+
+function diamond_primitive_crystal(; a=1.0)
+    lat_vecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
+    basis_vecs = [
+        [0, 0, 0]/4,
+        [1, 1, 1]/4,
+    ]
+    Crystal(lat_vecs, basis_vecs)
+end
+
+function pyrochlore_lattice(; a=1.0)
+    lat_vecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
+    basis_vecs = [
+        [5, 5, 5]/8,
+        [1, 5, 5]/8,
+        [5, 5, 1]/8,
+        [5, 1, 5]/8
+    ]
+    cryst = Crystal(lat_vecs, basis_vecs)
+    sort_sites!(cryst)
+    cryst
 end
