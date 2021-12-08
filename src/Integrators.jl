@@ -40,8 +40,8 @@ magnitude -- this is done internally.
 Uses the 2nd-order Heun + projection scheme."
 """
 mutable struct LangevinHeunP{D, L, Db} <: Integrator
-    α   :: Float64                # Damping coeff normalized by S
-    D   :: Float64                # Stochastic strength normalized by S
+    α   :: Float64                # Damping coeff
+    D   :: Float64                # Stochastic strength
     sys :: SpinSystem{D, L, Db}
     _S₁ :: Array{Vec3, Db}        # Intermediate integration variable space
     _S₂ :: Array{Vec3, Db}
@@ -52,7 +52,7 @@ mutable struct LangevinHeunP{D, L, Db} <: Integrator
 
     function LangevinHeunP(sys::SpinSystem{D, L, Db}, kT::Float64, α::Float64) where {D, L, Db}
         return new{D, L, Db}(
-            α/sys.S, α*kT/((1+α*α)*sys.S), sys,
+            α, α*kT/(1+α*α), sys,
             zero(sys.sites), zero(sys.sites), zero(sys.sites),
             zero(sys.sites), zero(sys.sites), zero(sys.sites)
         )
@@ -117,6 +117,10 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
 
     randn!(_ξ)
     _ξ .*= √(2D)
+    # Normalize fluctuations by 1/√S
+    for b in 1:nbasis(sys)
+        selectdim(_ξ, 1, b) .*= 1. / sqrt(sys.sites_info[b].S)
+    end
 
     # Euler step
     field!(_B, S, sys.hamiltonian)
@@ -193,16 +197,14 @@ end
 
 @inline function set_temp!(sampler::LangevinSampler, kT::Float64)
     α = sampler.integrator.α
-    S = sampler.integrator.sys.S
-    sampler.integrator.D = α * kT / ((1 + α * α) * S)
+    sampler.integrator.D = α * kT / (1 + α * α)
     nothing
 end
+
+get_system(sampler::LangevinSampler) = sampler.integrator.system
 
 @inline function sample!(sampler::LangevinSampler)
     for _ in 1:sampler.nsteps
         evolve!(sampler.integrator, sampler.Δt)
     end
 end
-
-@inline running_energy(sampler::LangevinSampler) = energy(sampler.integrator.sys)
-@inline running_mag(sampler::LangevinSampler) = sum(sampler.integrator.sys)

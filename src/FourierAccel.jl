@@ -31,11 +31,21 @@ struct DipoleFourierCPU <: InteractionCPU
     _ift_plan   :: rIFTPlan
 end
 
-function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize)
+function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info::Vector{SiteInfo})
     @unpack strength, extent, η = dip
     lattice = Lattice(crystal, latsize)
 
     A = strength .* precompute_dipole_ewald(lattice; extent=extent, η=η)
+    # Conjugate each matrix by the correct g matrices
+    for b1 in 1:nbasis(crystal)
+        S1, g1 = sites_info[b1].S, sites_info[b1].g
+        for b2 in 1:nbasis(crystal)
+            S2, g2 = sites_info[b2].S, sites_info[b2].g
+            for ijk in CartesianIndices(axes(A)[3:end])
+                A[b1, b2, ijk] = g1' * S1 * A[b1, b2, ijk] * S2 * g2
+            end
+        end
+    end
     FA = _rfft_dipole_tensor(A)
     nb = nbasis(lattice)
     rftdim = div(size(lattice, 2), 2) + 1
@@ -72,8 +82,8 @@ function energy(spins::Array{Vec3, 4}, dip::DipoleFourierCPU)
     return U / prod(latsize)
 end
 
-"Accumulates the local field coming from dipole interactions, using Fourier transforms"
-function _accum_field!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleFourierCPU)
+"Accumulates the local -∇ℋ coming from dipole-dipole couplings into `B`"
+function _accum_neggrad!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleFourierCPU)
     FA = dip.int_mat
     FS = dip._spins_ft
     Fϕ = dip._field_ft

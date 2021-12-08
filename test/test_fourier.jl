@@ -6,8 +6,8 @@ function test_energy_consistency(crystal, latsize)
     rand!(sys)
 
     dipdip = dipole_dipole(; extent=5, η=0.5)
-    dip_real = Sunny.DipoleRealCPU(dipdip, crystal, latsize)
-    dip_fourier = Sunny.DipoleFourierCPU(dipdip, crystal, latsize)
+    dip_real = Sunny.DipoleRealCPU(dipdip, crystal, latsize, sys.sites_info)
+    dip_fourier = Sunny.DipoleFourierCPU(dipdip, crystal, latsize, sys.sites_info)
 
     direct_energy = Sunny.ewald_sum_dipole(sys.lattice, sys.sites; extent=5, η=0.5)
     real_energy = Sunny.energy(sys.sites, dip_real)
@@ -22,13 +22,13 @@ function test_field_consistency(crystal, latsize)
     rand!(sys)
     
     dipdip = dipole_dipole(; extent=4, η=0.5)
-    dip_real = Sunny.DipoleRealCPU(dipdip, crystal, latsize)
-    dip_fourier = Sunny.DipoleFourierCPU(dipdip, crystal, latsize)
+    dip_real = Sunny.DipoleRealCPU(dipdip, crystal, latsize, sys.sites_info)
+    dip_fourier = Sunny.DipoleFourierCPU(dipdip, crystal, latsize, sys.sites_info)
 
     H1 = zero(sys)
     H2 = zero(sys)
-    Sunny._accum_field!(H1, sys.sites, dip_real)
-    Sunny._accum_field!(H2, sys.sites, dip_fourier)
+    Sunny._accum_neggrad!(H1, sys.sites, dip_real)
+    Sunny._accum_neggrad!(H2, sys.sites, dip_fourier)
 
     @test all(H1 .≈ H2)
 end

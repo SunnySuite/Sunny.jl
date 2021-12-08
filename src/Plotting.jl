@@ -190,15 +190,17 @@ end
 
 
 """
-    plot_bonds(cryst::Crystal, ints; kwargs...)
+    plot_bonds(cryst::Crystal, ints, latsize=(3,3,3), sites_info=SiteInfo[]; kwargs...)
 
-Plot a list of pair interactions defined on a `Crystal`. `kwargs` are
-passed to to `plot_lattice!`.
+Plot a list of pair interactions defined on a `Crystal`. `latsize` sets how many
+unit cells are plotted, and `kwargs` are passed to to `plot_lattice!`.
 """
-function plot_bonds(cryst::Crystal, ints::Vector{<:Interaction}, latsize=(3,3,3); kwargs...)
+function plot_bonds(cryst::Crystal, ints::Vector{<:Interaction}, latsize=(3,3,3),
+                    sites_info::Vector{SiteInfo}=SiteInfo[]; kwargs...)
     latsize = collect(Int64.(latsize))
     lattice = Lattice(cryst, latsize)
-    ℋ = HamiltonianCPU(ints, cryst, latsize)
+    all_sites_info = propagate_site_info(cryst, sites_info)
+    ℋ = HamiltonianCPU(ints, cryst, latsize, all_sites_info)
     pair_ints = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
     plot_bonds(lattice, pair_ints; kwargs...)
 end
