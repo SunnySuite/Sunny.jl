@@ -15,6 +15,7 @@ end
 
 addtests("test_lattice.jl")
 addtests("test_interactions.jl")
+addtests("test_units.jl")
 addtests("test_ewald.jl")
 addtests("test_symmetry.jl")
 addtests("test_metropolis.jl")

@@ -88,22 +88,24 @@ for the given `crystal` and `latsize`.
 
 Note that `sites_info` must be complete when passed to this constructor.
 """
-function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal, latsize::Vector{Int64}, sites_info::Vector{SiteInfo})
+function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal,
+                        latsize::Vector{Int64}, sites_info::Vector{SiteInfo};
+                        μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
     ext_field   = nothing
     heisenbergs = Vector{HeisenbergCPU{3}}()
     diag_coups  = Vector{DiagonalCouplingCPU{3}}()
     gen_coups   = Vector{GeneralCouplingCPU{3}}()
     dipole_int  = nothing
-    spin_mags = [site.S for site in sites_info]
+    spin_mags   = [site.S for site in sites_info]
 
     ints = validate_and_clean_interactions(ints, crystal, latsize)
 
     for int in ints
         if isa(int, ExternalField)
             if isnothing(ext_field)
-                ext_field = ExternalFieldCPU(int, sites_info)
+                ext_field = ExternalFieldCPU(int, sites_info; μB=μB)
             else
-                ext_field.Bgs .+= ExternalFieldCPU(int, sites_info).Bgs
+                ext_field.Bgs .+= ExternalFieldCPU(int, sites_info; μB=μB).Bgs
             end
         elseif isa(int, QuadraticInteraction)
             int_impl = convert_quadratic(int, crystal, sites_info)
@@ -120,7 +122,7 @@ function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal, latsize::
             if !isnothing(dipole_int)
                 @warn "Provided multiple dipole interactions. Only using last one."
             end
-            dipole_int = DipoleFourierCPU(int, crystal, latsize, sites_info)
+            dipole_int = DipoleFourierCPU(int, crystal, latsize, sites_info; μB=μB, μ0=μ0)
         else
             error("$(int) failed to convert to known backend type.")
         end

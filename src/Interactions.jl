@@ -27,7 +27,6 @@ struct ExternalField <: Interaction
 end
 
 struct DipoleDipole <: Interaction
-    strength :: Float64
     extent   :: Int
     η        :: Float64
 end
@@ -46,8 +45,10 @@ struct SiteInfo
     g     :: Mat3     # Spin g-tensor
 end
 
-# Helper constructor for scalar g
+# Helper constructors
 SiteInfo(site::Int, S, g::Number) = SiteInfo(site, S, Mat3(g * I))
+SiteInfo(site::Int, S) = SiteInfo(site, S, 2.0)
+
 
 function Base.show(io::IO, ::MIME"text/plain", int::OnSiteQuadratic)
     J = int.J
@@ -249,7 +250,7 @@ determined by the unit system.
 the Ewald summation (higher is more accurate, but higher creation-time cost),
 while `η` controls the direct/reciprocal-space tradeoff in the Ewald summation.
 """
-dipole_dipole(; extent=4, η=0.5) = DipoleDipole(1.0, extent, η)
+dipole_dipole(; extent=4, η=0.5) = DipoleDipole(extent, η)
 
 
 #= Energy and field functions for "simple" interactions that aren't geometry-dependent.
@@ -260,12 +261,12 @@ struct ExternalFieldCPU
     effBs :: Vector{Vec3}  # |S_b|gᵀB for each basis index b
 end
 
-function ExternalFieldCPU(ext_field::ExternalField, sites_info::Vector{SiteInfo})
+function ExternalFieldCPU(ext_field::ExternalField, sites_info::Vector{SiteInfo}; μB=BOHR_MAGNETON)
     # As E = -∑_i 𝐁^T g 𝐒_i, we can precompute effB = g^T S B, so that
     #  we can compute E = -∑_i effB ⋅ 𝐬_i during simulation.
     # However, S_i may be basis-dependent, so we need to store an effB
     #  per sublattice.
-    effBs = [site.g' * site.S * ext_field.B for site in sites_info]
+    effBs = [μB * site.g' * site.S * ext_field.B for site in sites_info]
     ExternalFieldCPU(effBs)
 end
 

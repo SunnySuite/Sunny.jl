@@ -140,7 +140,7 @@ function ewald_sum_dipole(lattice::Lattice{3}, spins::Array{Vec3, 4}; extent=2, 
     
     vol = volume(lattice)
 
-    # Can drop this term if we ensure all spins are norm 1
+    # Necessary to handle spins with magnitude not 1
     dip_square_term = -2η^3 / (3 * √π) * sum(norm.(spins).^2)
 
     real_space_sum, recip_space_sum = 0.0, 0.0
@@ -408,17 +408,19 @@ struct DipoleRealCPU <: InteractionCPU
     int_mat :: OffsetArray{Mat3, 5, Array{Mat3, 5}}
 end
 
-function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info::Vector{SiteInfo})
-    @unpack strength, extent, η = dip
+function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info::Vector{SiteInfo};
+                       μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
+    @unpack extent, η = dip
     lattice = Lattice(crystal, latsize)
-    A = strength .* precompute_dipole_ewald(lattice; extent=extent, η=η)
+
+    A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(lattice; extent, η)
     # Conjugate each matrix by the correct g matrices
     for b1 in 1:nbasis(crystal)
         S1, g1 = sites_info[b1].S, sites_info[b1].g
         for b2 in 1:nbasis(crystal)
             S2, g2 = sites_info[b2].S, sites_info[b2].g
             for ijk in CartesianIndices(axes(A)[3:end])
-                A[b1, b2, ijk] = S1 * g1' * A[b1, b2, ijk] * g2 * S2
+                A[b1, b2, ijk] = (S1*S2) * g1' * A[b1, b2, ijk] * g2
             end
         end
     end

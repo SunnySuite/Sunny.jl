@@ -39,7 +39,7 @@ within `examples/reproduce_testcases.jl`.
 positions in the conventional cubic unit cell,
 
 ```julia
-a = 1.0
+a = 1.0     # Length in angstrom
 lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
 basis_vecs = [
     [0, 0, 0]/4,
@@ -88,44 +88,62 @@ bottom of this page). So, we can create a nearest-neighbor Heisenberg interactio
 by specifying:
 
 ```julia
-J = 7.5413        # Units of K
+J = 0.65    # Energy in meV
 interactions = [
     heisenberg(J, Bond(1, 3, [0,0,0])),
 ]
 ```
 
-**(3)** Assembling a `SpinSystem` is straightforward -- provide the `Crystal`,
-the `Interaction`s, along with the dimensions of the simulation box in units of
-the lattice vectors. We will also take this to be a spin-``3/2`` system with
-a identity ``g``-tensor, which we can specify by providing a `SiteInfo` on a single
-site (as they are all symmetry equivalent). We can also optionally omit this
-information, in which case all sites use the default normalization convention
-where ``|s| = 1`` and an identity ``g``-tensor.
+**Note**: By default, Sunny assumes the following units: energy in
+millielectronvolts (meV), field in tesla (T), and distance in angstrom (Å). Time
+is measured in 1/meV, such that ``ħ = 1``. Temperature is measured in meV, such
+that ``k_B = 1``. *It becomes necessary to conform to this unit system when a
+Zeeman or dipole-dipole interaction term is included in the Hamiltonian*. For
+more information, see [Internals](@ref).
 
-Then, we will randomize the system so that all spins are randomly placed on the unit 
-sphere.
 
+**(3)** 
+
+To assemble a `SpinSystem`, we must provide the `Crystal`,
+the interaction list, the dimensions of the simulation box (in units of
+the lattice vectors) and some information about each site,
 ```julia
-S = 3/2
-sites_info = [SiteInfo(1, S, I(3))]
-sys = SpinSystem(crystal, interactions, (8, 8, 8), sites_info)
+dims = (8, 8, 8)
+site_info = [SiteInfo(1, 3/2)]
+sys = SpinSystem(crystal, interactions, dims, site_info)
 rand!(sys)
 ```
+
+The `site_info` parameter is optional. If provided, then it may contain at most
+one `SiteInfo` struct per site equivalence class. In the case of diamond, all 8
+sites in the unit cell are symmetry-equivalent. Generally, `SiteInfo(i, S)`,
+specifies that site `i` and its symmetry equivalent sites each carry a spin with
+angular momentum ``S`` (in units of ħ). One can also provide a ``g``-factor or
+``g``-tensor using `SiteInfo(i, S, g)`. A ``g``-tensor will be covariantly
+propagated by symmetry. If not specified, then by default, `S=1/2` and `g=2`.
+
+The final line, `rand!(sys)`, samples each spin randomly, subject to the
+normalization constraint.
 
 The `SpinSystem` type is the central type used throughout our simulations. Internally, it contains the spin degrees of freedom which evolve during the simulation as well as the Hamiltonian defining how this evolution should occur. This type can be indexed into as an array of size `B×Lx×Ly×Lz`, with the first index selecting the sublattice and the remaining three selecting the unit cell, and the spin located at the  will given. For example, `sys[2, 5, 5, 5]` gives the spin variable located on the second sublattice in the unit cell, which is fifth along each axis.
 
 Note that regardless of the spin magnitudes you specify on each site, indexing `sys`
 will always return a normalized unit vector.
 
-**(4)** We will simulate this system using Langevin dynamics, so we need to create a [`LangevinSampler`](@ref). Note that the units of integration time and temperature are relative to the units implicitly used when setting up the interactions. A rough
-rule of hand is that a reasonable value for integration timestep size is
-``Δt ≈ 0.02 / (S^2 * J)``.
+**(4)** We will simulate this system using Langevin dynamics, so we need to create
+a [`LangevinSampler`](@ref). Note that the units of integration time are relative to
+the units implicitly used when setting up the interactions. A rough rule of hand is
+that a reasonable value for integration timestep size is ``Δt ≈ 0.02 / (S^2 * J)``.
+
+The temperature for the sampler must be provided as ``k_B T`` in units of meV.
+For convenience, the Boltzmann constant ``k_B`` in units of meV/K can be
+accessed as `Sunny.meV_per_K`.
 
 ```julia
-Δt = 0.02 / (S^2 * J) # Units of 1/K
-kT = 4.                   # Units of K
+Δt = 0.02 / (S^2 * J)     # Units of 1/meV
+kT = Sunny.meV_per_K * 4. # 4 kelvin, in units of meV
 α  = 0.1
-nsteps = 20000
+nsteps = 20_000
 sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 ```
 
@@ -146,7 +164,8 @@ See the documentation of [`dynamic_structure_factor`](@ref) for details of how
 this process is controlled by the function arguments, and how to properly
 index into the resulting type [`StructureFactor`](@ref). Currently,
 the main way to interact with this type is to index into its
-`sfactor` attribute, which is a large array storing ``S^{α,β}(𝐪, ω)`` on a grid of ``𝐪`` points and frequencies.
+`sfactor` attribute, which is a large array storing ``S^{α,β}(𝐪, ω)`` on a
+grid of ``𝐪`` points and frequencies.
 
 In this example, we will just look at the diagonal elements of this
 matrix along some cuts in reciprocal space. To improve statistics,
@@ -183,12 +202,10 @@ packages, but for details see the script.
 #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
 #  is 2π / (meas_rate * Δt)
 # This is implicitly in the same units as the units you use to define
-#  the interactions in the Hamiltonian. Here, we defined our interactions
-#  in K, but we want to see ω in units of meV (to compare to a baseline
-#  linear spin-wave solution we have).
-kB = 8.61733e-5           # Units of eV/K
-maxω = 2π / (meas_rate * Δt) * (1000 * kB)
-p = plot_many_cuts_afmdiamond(avg_sfactor, 1000 * kB * J, 3/2; maxω=maxω, chopω=5.0)
+#  the interactions in the Hamiltonian. Since by default interactions
+#  are specified in meV, the frequencies will also be in units of meV.
+maxω = 2π / (meas_rate * Δt)
+p = plot_many_cuts_afmdiamond(avg_sfactor, J, 3/2; maxω=maxω, chopω=5.0)
 display(p)
 ```
 
@@ -253,9 +270,10 @@ Note that the Sunny plotting functions won't be available until you execute `usi
 randomize it. We'll simulate a fairly large box of size ``16\times 20\times 4``.
 
 ```julia
-system = SpinSystem(crystal, interactions, (16, 20, 4))
+system = SpinSystem(crystal, interactions, (16, 20, 4), [SiteInfo(1, 1.0)])
 rand!(system)
 ```
+Note that each Fe site has spin magnitude ``S=1``.
 
 **(4)** In this example, we'll choose to work with Metropolis Monte Carlo rather
 than Langevin sampling. This is necessary in this system due to a very
@@ -265,9 +283,7 @@ in these situations, so we have to turn back to the standard Metropolis
 randomized spin flip proposals.
 
 ```julia
-kB = 8.61733e-2  # Boltzmann constant, units of meV/K
-kT = 1.0 * kB    # Target simulation temp, in units of meV
-
+kT = 1.0 * Sunny.meV_per_K    # Target simulation temp, in units of meV
 sampler = MetropolisSampler(system, kT, 1000)
 ```
 
@@ -354,7 +370,7 @@ J2a′ = exchange(diagm([0.068, 0.068, 0.073]), Bond(1, 1, [1, -1, 1]), "J2a′"
 D = easy_axis(2.165/2, [0, 0, 1], 1, "D")
 interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
-system = SpinSystem(crystal, interactions, (16, 20, 4))
+system = SpinSystem(crystal, interactions, (16, 20, 4), [SiteInfo(1, 1.0)])
 rand!(system)
 
 sampler = MetropolisSampler(system, 1.0, 10)
@@ -370,11 +386,9 @@ we want to measure along, and initializes some `Vector`'s to store some
 data during the simulations.
 
 ```julia
-kB = 8.61733e-2             # Boltzmann constant, units of meV/K
-
-# Units of Kelvin, matching Xiaojian's range
+# Temperature in units of Kelvin on a logarithmic grid spanning [1K, 50K]
 temps = 10 .^ (range(log10(50), stop=0, length=50))
-temps_meV = kB .* temps
+temps_meV = Sunny.meV_per_K .* temps
 energies = Float64[]
 energy_errors = Float64[]
 ```
@@ -434,8 +448,8 @@ for (i, temp) in enumerate(temps_meV)
 end
 
 # Convert energies into energy / spin, in units of K
-energies ./= (length(system) * kB)
-energy_errors ./= (length(system) * kB)
+energies ./= (length(system) * Sunny.meV_per_K)
+energy_errors ./= (length(system) * Sunny.meV_per_K)
 ```
 
 Now, we can plot what we've gotten! If you have the Plots.jl library installed you can do this as:
@@ -463,7 +477,7 @@ plot_spins(system; arrowsize=1.5, arrowlength=3, linewidth=0.5)
 ```
 
 You should see antiferromagnetic stripes within each
-``c``-plane, which shift by one  as you
+``c``-plane, which shift by one as you
 move up each plane!
 
 
