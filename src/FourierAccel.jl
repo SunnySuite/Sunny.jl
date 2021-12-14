@@ -31,18 +31,19 @@ struct DipoleFourierCPU <: InteractionCPU
     _ift_plan   :: rIFTPlan
 end
 
-function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info::Vector{SiteInfo})
-    @unpack strength, extent, η = dip
+function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info::Vector{SiteInfo};
+                          μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
+    @unpack extent, η = dip
     lattice = Lattice(crystal, latsize)
 
-    A = strength .* precompute_dipole_ewald(lattice; extent=extent, η=η)
+    A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(lattice; extent, η)
     # Conjugate each matrix by the correct g matrices
     for b1 in 1:nbasis(crystal)
         S1, g1 = sites_info[b1].S, sites_info[b1].g
         for b2 in 1:nbasis(crystal)
             S2, g2 = sites_info[b2].S, sites_info[b2].g
             for ijk in CartesianIndices(axes(A)[3:end])
-                A[b1, b2, ijk] = g1' * S1 * A[b1, b2, ijk] * S2 * g2
+                A[b1, b2, ijk] = (S1*S2) * g1' * A[b1, b2, ijk] * g2
             end
         end
     end

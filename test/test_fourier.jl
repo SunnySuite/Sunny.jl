@@ -1,15 +1,22 @@
 println("test_fourier")
 
+using LinearAlgebra
+
+
 "Tests these field-using functions give the same answer as `ewald_sum_dipole`"
 function test_energy_consistency(crystal, latsize)
-    sys = SpinSystem(crystal, Sunny.Interaction[], latsize)
+    μB = Sunny.BOHR_MAGNETON
+    μ0 = Sunny.VACUUM_PERM
+    sys = SpinSystem(crystal, Sunny.Interaction[], latsize; μB, μ0)
     rand!(sys)
 
     dipdip = dipole_dipole(; extent=5, η=0.5)
-    dip_real = Sunny.DipoleRealCPU(dipdip, crystal, latsize, sys.sites_info)
-    dip_fourier = Sunny.DipoleFourierCPU(dipdip, crystal, latsize, sys.sites_info)
+    dip_real = Sunny.DipoleRealCPU(dipdip, crystal, latsize, sys.sites_info; μB, μ0)
+    dip_fourier = Sunny.DipoleFourierCPU(dipdip, crystal, latsize, sys.sites_info; μB, μ0)
 
-    direct_energy = Sunny.ewald_sum_dipole(sys.lattice, sys.sites; extent=5, η=0.5)
+    scales = [μB*info.S*info.g for info in sys.sites_info]
+    moments = reshape(scales, nbasis(sys), 1, 1, 1) .* sys.sites
+    direct_energy = (μ0/4π) * Sunny.ewald_sum_dipole(sys.lattice, moments; extent=5, η=0.5)
     real_energy = Sunny.energy(sys.sites, dip_real)
     fourier_energy = Sunny.energy(sys.sites, dip_fourier)
 
@@ -30,7 +37,7 @@ function test_field_consistency(crystal, latsize)
     Sunny._accum_neggrad!(H1, sys.sites, dip_real)
     Sunny._accum_neggrad!(H2, sys.sites, dip_fourier)
 
-    @test all(H1 .≈ H2)
+    @test H1 ≈ H2
 end
 
 lat_vecs = lattice_vectors(1.0, 1.0, 2.0, 90., 90., 120.)

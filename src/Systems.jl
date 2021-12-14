@@ -72,13 +72,14 @@ end
 """
     propagate_site_info(cryst::Crystal, sites_info::Vector{SiteInfo})
 
-Given an incomplete list of site information, propagates spin magnitudes
-and symmetry-transformed g-tensors to all symmetry-equivalent sites. Throws
-an error if two symmetry-equivalent sites are provided in `sites_info`.
+Given an incomplete list of site information, propagates spin magnitudes and
+symmetry-transformed g-tensors to all symmetry-equivalent sites. If SiteInfo is
+not provided for a site, sets S=1/2 and g=2 for that site. Throws an error if
+two symmetry-equivalent sites are provided in `sites_info`.
 """
 function propagate_site_info(crystal::Crystal, sites_info::Vector{SiteInfo})
-    # All sites not explicitly provided are by default S = 1, g = 1
-    all_sites_info = [SiteInfo(i, 1, 1) for i in 1:nbasis(crystal)]
+    # All sites not explicitly provided are by default S = 1/2, g = 2
+    all_sites_info = [SiteInfo(i, 1/2, 2) for i in 1:nbasis(crystal)]
 
     specified_atoms = Int[]
     for siteinfo in sites_info
@@ -103,23 +104,28 @@ end
 
 
 """
-    SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, sites_info::Vector{SiteInfo}=[])
+    SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, sites_info::Vector{SiteInfo}=[];
+               μB, μ0)
 
 Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sites
  of a given `crystal`, interactions given by `ints`, and the number of unit cells along
  each lattice vector specified by `latsize`. Initialized to all spins pointing along
- the ``+𝐳̂`` direction.
+ the ``+𝐳̂`` direction. μB and μ0 set the Bohr magneton and vacuum permeability. By
+ default, these are set so that the unit system is (meV, T, Å).
 """
-function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, sites_info::Vector{SiteInfo}=SiteInfo[])
+function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, sites_info::Vector{SiteInfo}=SiteInfo[];
+                    μB=BOHR_MAGNETON, μ0=VACUUM_PERM)
     latsize = collect(Int64.(latsize))
     lattice = Lattice(crystal, latsize)
 
     all_sites_info = propagate_site_info(crystal, sites_info)
-    ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_sites_info)
+    ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_sites_info; μB, μ0)
 
     # Initialize sites to all spins along +z
     sites_size = (nbasis(lattice), lattice.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
+
+    # Default unit system is (meV, K, Å, T)
     SpinSystem{3, 9, 4}(lattice, ℋ_CPU, sites, all_sites_info)
 end
 

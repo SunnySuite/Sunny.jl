@@ -13,16 +13,17 @@ Langevin dynamics.
 """
 function test_diamond_heisenberg_sf()
     crystal = Sunny.diamond_crystal()
-    J = 7.5413   # Units of K
+    J = 0.65        # Units of meV
     interactions = [
         heisenberg(J, Bond(1, 3, [0,0,0])),
     ]
+    dims = (8, 8, 8)
     S = 3/2
-    sys = SpinSystem(crystal, interactions, (8, 8, 8), [SiteInfo(1, S, I(3))])
+    sys = SpinSystem(crystal, interactions, dims, [SiteInfo(1, S)])
     rand!(sys)
 
-    Δt = 0.02 / (S^2 * J) # Units of 1/K
-    kT = 4.                   # Units of K
+    Δt = 0.02 / (S^2 * J)     # Units of 1/meV
+    kT = Sunny.meV_per_K * 4.     # Units of meV
     α  = 0.1
     nsteps = 20000
     sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
@@ -47,12 +48,10 @@ function test_diamond_heisenberg_sf()
     #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
     #  is 2π / (meas_rate * Δt)
     # This is implicitly in the same units as the units you use to define
-    #  the interactions in the Hamiltonian. Here, we defined our interactions
-    #  in K, but we want to see ω in units of meV (to compare to a baseline
-    #  linear spin-wave solution we have).
-    kB = 8.61733e-5           # Units of eV/K
-    maxω = 2π / (meas_rate * Δt) * (1000 * kB)
-    p = plot_many_cuts_afmdiamond(avg_sfactor, 1000 * kB * J, 3/2; maxω=maxω, chopω=5.0)
+    #  the interactions in the Hamiltonian. Since by default interactions
+    #  are specified in meV, the frequencies will also be in units of meV.
+    maxω = 2π / (meas_rate * Δt)
+    p = plot_many_cuts_afmdiamond(avg_sfactor, J, 3/2; maxω=maxω, chopω=5.0)
 
     display(p)
     return avg_sfactor
@@ -158,7 +157,7 @@ function test_FeI2_MC()
     interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size (16x20x4)
-    system = SpinSystem(cryst, interactions, (16, 20, 4))
+    system = SpinSystem(cryst, interactions, (16, 20, 4), [SiteInfo(1, 1.0)])
     rand!(system)
 
     kB = 8.61733e-2             # Boltzmann constant, units of meV/K
@@ -186,52 +185,6 @@ function test_FeI2_MC()
     return (S, sampler.system)
 end
 
-"""
-    Creates a 8×8×8 (conventional cell) diamond lattice, and performs
-    a slow annealing from 50K down to 3K, collecting the energy at
-    all intermediate temperatures. Then, plots the energy curve!
-"""
-function test_diamond_heisenberg_energy_curve()
-    crystal = Sunny.diamond_conventional_crystal(1.0)
-    J = 28.28           # Units of K
-    interactions = [
-        heisenberg(J, Bond(3, 6, [0,0,0])),
-    ]
-    sys = SpinSystem(crystal, interactions, (8, 8, 8))
-    rand!(sys)
-
-    Δt = 0.02 / J       # Units of 1/K
-    α  = 0.1
-    nsteps = 100
-    sampler = LangevinSampler(sys, 50.0, α, Δt, nsteps)
-
-    # A logarithmic grid of 50 temperatures to anneal through, from [3K, 50K]
-    temps = 10 .^ (range(log10(50), stop=log10(3), length=50))
-    energies = Float64[]
-    energy_errors = Float64[]
-
-    for (i, temp) in enumerate(temps)
-        println("Temperature $i = $(temp)")
-
-        # This will hold the energies of the samples we collect at this temperature
-        temp_energies = Float64[]   # Holds energies of the samples at the current temperature
-        set_temp!(sampler, temp)
-        thermalize!(sampler, 100)   # Perform 100 "sampling" updates to thermalize.
-        for _ in 1:100              # Collect 100 more samples, actually measuring.
-            sample!(sampler)
-            push!(temp_energies, energy(sys))
-        end
-        (meanE, stdE) = binned_statistics(temp_energies)
-        push!(energies, meanE)
-        push!(energy_errors, stdE)
-    end
-
-    energies ./= length(sys)
-    energy_errors ./= length(sys)
-
-    return (temps, energies, energy_errors)
-end
-
 function test_FeI2_energy_curve()
     cryst = Crystal("../example-lattices/FeI2.cif"; symprec=1e-3)
     cryst = subcrystal(cryst, "Fe2+")
@@ -251,16 +204,14 @@ function test_FeI2_energy_curve()
     interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size 16×20×4
-    system = SpinSystem(cryst, interactions, (16, 20, 4))
+    system = SpinSystem(cryst, interactions, (16, 20, 4), [SiteInfo(1, 1.0)])
     rand!(system)
 
     sampler = MetropolisSampler(system, 1.0, 10)
 
-    kB = 8.61733e-2             # Boltzmann constant, units of meV/K
-
     # Units of Kelvin, matching Xiaojian's range
     temps = 10 .^ (range(log10(50), stop=0, length=50))
-    temps_meV = kB .* temps
+    temps_meV = Sunny.meV_per_K .* temps
     energies = Float64[]
     energy_errors = Float64[]
 
@@ -280,8 +231,8 @@ function test_FeI2_energy_curve()
     end
 
     # Convert energies into energy / spin, in units of K
-    energies ./= (length(system) * kB)
-    energy_errors ./= (length(system) * kB)
+    energies ./= (length(system) * Sunny.meV_per_K)
+    energy_errors ./= (length(system) * Sunny.meV_per_K)
 
     plot_ET_data(temps, energies, energy_errors)
 
@@ -315,10 +266,10 @@ function test_gtensor_sf()
     #     SiteInfo(1, 1, diagm([0, 0, 1]))
     # ]
     # Only xy-component of spin contributes to magnetic moment -- excitation signal in Sxx/Syy
-    sites_info = [
+    site_info = [
         SiteInfo(1, 1, diagm([1, 1, 0]))
     ]
-    sys = SpinSystem(crystal, interactions, (8, 8, 8), sites_info)
+    sys = SpinSystem(crystal, interactions, (8, 8, 8), site_info)
     rand!(sys)
 
     Δt = 0.02

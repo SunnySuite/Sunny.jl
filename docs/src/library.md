@@ -57,7 +57,7 @@ dipole_dipole
 
 ```@docs
 SpinSystem
-SpinSystem(::Crystal, ::Vector{<:Sunny.Interaction}, latsize, ::Rational{Int})
+SpinSystem(::Crystal, ::Vector{<:Sunny.Interaction}, latsize, sites_info)
 rand!(::SpinSystem)
 energy
 field

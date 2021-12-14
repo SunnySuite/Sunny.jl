@@ -1,9 +1,7 @@
-""" Structs and methods for dynamics integrators -- attempted to stay as close as possible
-     to the types of David's, but didn't make it parametric over the Float type (T)
-"""
-
-""" Standard (non-damped) Landau-Lifshitz dynamics integrates:
-      dS/dt = -S × H, where H = B + ∑_neigh S_neigh
+""" Structs and methods for dynamics integrators.
+    Standard (non-damped) Landau-Lifshitz dynamics integrates:
+        dS/dt = -S × B,
+    where `B = -∇ H` is the effective field.
 """
 
 abstract type Integrator end
