@@ -30,9 +30,9 @@ end
 Defines a collection of spins, as well as the Hamiltonian they interact under.
  This is the main type to interface with most of the package.
 """
-mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
+mutable struct SpinSystem{D, L, Db, H} <: AbstractSystem{Vec3, D, L, Db}
     lattice        :: Lattice{D, L, Db}   # Definition of underlying lattice
-    hamiltonian    :: HamiltonianCPU      # Hamiltonian type, containing interactions
+    hamiltonian    :: H                   # Hamiltonian type, containing interactions
     sites          :: Array{Vec3, Db}     # Holds actual spin variables
     sites_info     :: Vector{SiteInfo}    # Characterization of each basis site
 end
@@ -124,9 +124,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
     # Initialize sites to all spins along +z
     sites_size = (nbasis(lattice), lattice.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
-
-    # Default unit system is (meV, K, Å, T)
-    SpinSystem{3, 9, 4}(lattice, ℋ_CPU, sites, all_sites_info)
+    SpinSystem{3, 9, 4, HamiltonianCPU{3}}(lattice, ℋ_CPU, sites, all_sites_info)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem)

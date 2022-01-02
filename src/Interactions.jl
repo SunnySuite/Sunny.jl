@@ -3,8 +3,6 @@
 
 abstract type AbstractInteraction end      # Subtype this for user-facing interfaces
 abstract type AbstractInteractionCPU end   # Subtype this for actual internal CPU implementations
-abstract type AbstractInteractionGPU end   # Subtype this for actual internal GPU implementations
-
 
 struct QuadraticInteraction{D} <: AbstractInteraction
     J     :: Mat3
@@ -257,7 +255,7 @@ dipole_dipole(; extent=4, η=0.5) = DipoleDipole(extent, η)
    See Hamiltonian.jl for expectations on `_accum_neggrad!` functions.
 =#
 
-struct ExternalFieldCPU
+struct ExternalFieldCPU <: AbstractInteractionCPU
     effBs :: Vector{Vec3}  # |S_b|gᵀB for each basis index b
 end
 

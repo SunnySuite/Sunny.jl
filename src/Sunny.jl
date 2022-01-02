@@ -93,6 +93,16 @@ function __init__()
         include("ParallelTempering.jl")
         export Replica, run_parallel_temp!
     end
+
+    @require CUDA="052768ef-5323-5732-b1bb-66c8b64840ba" begin
+        include("CUDA/InteractionsCUDA.jl")
+        include("CUDA/PairInteractionsCUDA.jl")
+        include("CUDA/FourierAccelCUDA.jl")
+        include("CUDA/HamiltonianCUDA.jl")
+        include("CUDA/SystemsCUDA.jl")
+        include("CUDA/IntegratorsCUDA.jl")
+        include("CUDA/MetropolisCUDA.jl")
+    end
 end
 
 end

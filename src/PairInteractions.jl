@@ -66,6 +66,7 @@ struct BondTable{D, T}
     end
 end
 
+
 function Base.show(io::IO, ::MIME"text/plain", bondtable::BondTable{D, T}) where {D, T}
     print(io, "$(length(bondtable))-element, $(length(bondtable.basis_indices)-1)-basis BondTable{$D, $T}")
 end
@@ -124,7 +125,8 @@ isheisen(tol) = Base.Fix2(isheisen, tol)
 isdiag(tol) = Base.Fix2(isdiag, tol)
 
 # Figures out the correct maximally-efficient backend type for a quadratic interaction
-function convert_quadratic(int::QuadraticInteraction{D}, cryst::Crystal, sites_info::Vector{SiteInfo}; tol=1e-6) where {D}
+function convert_quadratic(int::QuadraticInteraction{D}, cryst::Crystal, sites_info::Vector{SiteInfo};
+                           tol=1e-6) where {D}
     @unpack J, bond, label = int
     # Bonds and Js on each sublattice
     sorted_bonds = Vector{Vector{Bond{D}}}()
