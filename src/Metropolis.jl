@@ -201,8 +201,8 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
     end
     for heisen in ℋ.heisenbergs
         J = heisen.effJ
-        for bond in heisen.bonds[i]
-            if i == bond.j && iszero(bond.n)
+        for (bond, _) in sublat_bonds(heisen.bondtable, i)
+            if bond.i == bond.j && iszero(bond.n)
                 ΔE += J * (newspin⋅newspin - oldspin⋅oldspin)
             else
                 Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
@@ -211,8 +211,8 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
         end
     end
     for diag_coup in ℋ.diag_coups
-        for (J, bond) in zip(diag_coup.effJs[i], diag_coup.bonds[i])
-            if i == bond.j && iszero(bond.n)
+        for (bond, J) in sublat_bonds(diag_coup.bondtable, i)
+            if bond.i == bond.j && iszero(bond.n)
                 ΔE += newspin⋅(J.*newspin) - oldspin⋅(J.*oldspin)
             else
                 Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
@@ -221,8 +221,8 @@ function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
         end
     end
     for gen_coup in ℋ.gen_coups
-        for (J, bond) in zip(gen_coup.effJs[i], gen_coup.bonds[i])
-            if i == bond.j && iszero(bond.n)
+        for (bond, J) in sublat_bonds(gen_coup.bondtable, i)
+            if bond.i == bond.j && iszero(bond.n)
                 ΔE += dot(newspin, J, newspin) - dot(oldspin, J, oldspin)
             else
                 Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]

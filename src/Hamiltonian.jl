@@ -2,7 +2,7 @@
 # interaction types and orchestrates energy/field calculations.
 
 
-function validate_and_clean_interactions(ints::Vector{<:Interaction}, crystal::Crystal, latsize::Vector{Int64})
+function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, crystal::Crystal, latsize::Vector{Int64})
     D = dimension(crystal)
 
     # Now that we know dimension D, we can convert every OnSiteQuadratic to
@@ -88,7 +88,7 @@ for the given `crystal` and `latsize`.
 
 Note that `sites_info` must be complete when passed to this constructor.
 """
-function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal,
+function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
                         latsize::Vector{Int64}, sites_info::Vector{SiteInfo};
                         μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
     ext_field   = nothing

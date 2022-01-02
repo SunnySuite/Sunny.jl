@@ -1,12 +1,12 @@
 """Structs for defining various terms in a spin Hamiltonian.
 """
 
-abstract type Interaction end      # Subtype this for user-facing interfaces
-abstract type InteractionCPU end   # Subtype this for actual internal CPU implementations
-abstract type InteractionGPU end   # Subtype this for actual internal GPU implementations
+abstract type AbstractInteraction end      # Subtype this for user-facing interfaces
+abstract type AbstractInteractionCPU end   # Subtype this for actual internal CPU implementations
+abstract type AbstractInteractionGPU end   # Subtype this for actual internal GPU implementations
 
 
-struct QuadraticInteraction{D} <: Interaction
+struct QuadraticInteraction{D} <: AbstractInteraction
     J     :: Mat3
     bond  :: Bond{D}
     label :: String
@@ -16,17 +16,17 @@ end
 # but sometimes we don't know the dimension D at construction time. As soon as
 # knowledge of D becomes available (through a SpinSystem), every OnSiteQuadratic
 # is converted to QuadraticInteraction{D}.
-struct OnSiteQuadratic <: Interaction
+struct OnSiteQuadratic <: AbstractInteraction
     J     :: Mat3
     site  :: Int
     label :: String
 end
 
-struct ExternalField <: Interaction
+struct ExternalField <: AbstractInteraction
     B :: Vec3
 end
 
-struct DipoleDipole <: Interaction
+struct DipoleDipole <: AbstractInteraction
     extent   :: Int
     η        :: Float64
 end

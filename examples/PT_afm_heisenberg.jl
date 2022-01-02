@@ -4,35 +4,41 @@ using MPI
 # run using the command: "mpiexec -n [n_procs] julia --project [PT_afm_heisenberg.jl]"
 
 #######################################################
-#   system setup
+#   System setup
+#######################################################
 
-# make lattice
+# Make lattice
 crystal = Sunny.diamond_crystal(a=1.0)
 
-# interactions -- units of K           
-J = 28.28
+# Interactions -- units of K           
+J = Sunny.BOLTZMANN * 7.5413
 interactions = [
-    heisenberg(J, Bond{3}(3, 6, [0,0,0])),
+    heisenberg(J, Bond(1, 3, [0,0,0])),
 ]
 
-# spin system
+# Spin system
 extent = (4,4,4)
-sys = SpinSystem(crystal, interactions, extent)
-sys_size = length(sys)
+S = 3/2
+sys = SpinSystem(crystal, interactions, extent, [SiteInfo(1, 3/2)])
 rand!(sys)
 
 #######################################################
 #   PT setup
+#######################################################
 
-T_min = 22.5
-T_max = 27.5
+kT_min = Sunny.BOLTZMANN * 6
+kT_max = Sunny.BOLTZMANN * 7.33
 
-# temperature schedule: should take index (i) and number of processes (N) and return temperature (T)
-T_sched(i, N) = (10 .^(range(log10(T_min), log10(T_max), length=N)) )[i]
+# Temperature schedule: should take index (i) and number of processes (N) and return temperature (kT)
+kT_sched(i, N) = 10 ^ (range(log10(kT_min), log10(kT_max), length=N))[i]
 
-# make replica for PT
+# Make replica for PT
 replica = Replica(MetropolisSampler(sys, 1.0, 1))
 
-# run PT
-run!(replica, T_sched; therm_mcs=10000, measure_interval=100, rex_interval=10, max_mcs=100000, bin_size=J, print_hist=true)
+# Run PT
+run_parallel_temp!(
+    replica, kT_sched;
+    therm_mcs=10000, measure_interval=100, rex_interval=10,
+    max_mcs=100000, bin_size=J, print_hist=true
+)
 

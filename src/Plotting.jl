@@ -94,26 +94,36 @@ function plot_lattice(cryst::Crystal, latsize=(3,3,3); kwargs...)
     f
 end
 
-function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4, kwargs...)
+function plot_bonds(lattice::Lattice{2}, ints::Vector{<:AbstractPairIntCPU{2}};
+                    colors=:Dark2_8, bondwidth=4, kwargs...)
     f, ax = _setup_2d()
 
-    colors = GLMakie.to_colormap(:Dark2_8, 8)
-    # Sort interactions so that longer bonds are plotted first
-    sort!(ints, by=int->distance(lattice, int.bonds[1]))
+    # Plot the bonds, all relative to a central atom on the first sublattice
+    # TODO: Make selectable in GUI
+    basis_idx = 1
 
-    toggles = Vector{GLMakie.Toggle}()
-    labels = Vector{GLMakie.Label}()
+    colors = GLMakie.to_colormap(colors, 8)
+    # Sort interactions so that longer bonds are plotted first
+    sorted_ints = sort(
+        ints,
+        by=int->(
+            iszero(length(int.bondtable))
+            ? Inf 
+            : distance(lattice, first(all_bonds(int.bondtable))[1])
+        )
+    )
 
     # Plot the lattice
     plot_lattice!(ax, lattice; kwargs...)
-    # Plot the bonds, all relative to a central atom on the first sublattice
-    basis_idx = 1
+
+    toggles = Vector{GLMakie.Toggle}()
+    labels = Vector{GLMakie.Label}()
     cent_cell = CartesianIndex(div.(lattice.size .+ 1, 2)...)
     cent_pt = lattice[basis_idx, cent_cell]
-    for (n, int) in enumerate(ints)
+    for (n, int) in enumerate(sorted_ints)
         xs = Vector{Float64}()
         ys = Vector{Float64}()
-        for bond in int.bonds[basis_idx]
+        for bond, _ in sublat_bonds(int.bondtable, basis_idx)
             new_cell = offset(cent_cell, bond.n, lattice.size)
             bond_pt = lattice[bond.j, new_cell]
             push!(xs, cent_pt[1])
@@ -134,7 +144,7 @@ function plot_bonds(lattice::Lattice{2}, ints::Vector{<:PairInt{2}}; bondwidth=4
     f
 end
 
-function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}};
+function plot_bonds(lattice::Lattice{3}, ints::Vector{<:AbstractPairIntCPU{3}};
                     colors=:Dark2_8, bondwidth=4, kwargs...)
     f, ax = _setup_3d()
 
@@ -146,21 +156,25 @@ function plot_bonds(lattice::Lattice{3}, ints::Vector{<:PairInt{3}};
     # Sort interactions so that longer bonds are plotted first
     sorted_ints = sort(
         ints, 
-        by=int->length(int.bonds[basis_idx]) > 0 ? distance(lattice, first(int.bonds[basis_idx])) : Inf
+        by=int->(
+            iszero(length(int.bondtable))
+            ? Inf 
+            : distance(lattice, first(all_bonds(int.bondtable))[1])
+        )
     )
-
-    toggles = Vector{GLMakie.Toggle}()
-    labels = Vector{GLMakie.Label}()
 
     # Plot the lattice
     plot_lattice!(ax, lattice; kwargs...)
+
+    toggles = Vector{GLMakie.Toggle}()
+    labels = Vector{GLMakie.Label}()
     cent_cell = CartesianIndex(div.(lattice.size .+ 1, 2)...)
     cent_pt = lattice[basis_idx, cent_cell]
-    for (n, int) in enumerate(ints)
+    for (n, int) in enumerate(sorted_ints)
         xs = Vector{Float64}()
         ys = Vector{Float64}()
         zs = Vector{Float64}()
-        for bond in int.bonds[basis_idx]
+        for bond in sublat_bonds(int.bondtable, basis_idx)
             new_cell = offset(cent_cell, bond.n, lattice.size)
             bond_pt = lattice[bond.j, new_cell]
             push!(xs, cent_pt[1])
@@ -201,7 +215,7 @@ function plot_bonds(cryst::Crystal, ints::Vector{<:Interaction}, latsize=(3,3,3)
     lattice = Lattice(cryst, latsize)
     all_sites_info = propagate_site_info(cryst, sites_info)
     ℋ = HamiltonianCPU(ints, cryst, latsize, all_sites_info)
-    pair_ints = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
+    pair_ints = Vector{AbstractPairIntCPU{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
     plot_bonds(lattice, pair_ints; kwargs...)
 end
 
@@ -213,7 +227,7 @@ Plot all pair interactions appearing in `sys.hamiltonian`, on the
 underlying crystal lattice. `kwargs` are passed to `plot_lattice!`.
 """
 @inline function plot_bonds(sys::SpinSystem; kwargs...)
-    pair_ints = Vector{PairInt{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
+    pair_ints = Vector{AbstractPairIntCPU{3}}(vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups))
     plot_bonds(sys.lattice, pair_ints; kwargs...)
 end
 
@@ -244,10 +258,7 @@ function plot_all_bonds(crystal::Crystal, max_dist, latsize=(3,3,3); kwargs...)
             push!(interactions, heisenberg(1.0, bond, label))
         end
     end
-
     @assert length(interactions) > 0 "No non-self interactions found!"
-    # Sort interactions so that longer bonds are plotted first
-    sort!(interactions, by=int->distance(crystal, int.bonds[1][1]))
 
     plot_bonds(crystal, interactions, latsize, kwargs...)
 end
@@ -272,13 +283,10 @@ function plot_all_bonds_between(crystal, i, j, max_dist, latsize=(3,3,3), kwargs
                 class = 1
             end
             label = "J$(dist)_$(class)"
-            push!(interactions, HeisenbergCPU{3}(1.0, crystal, bond, label))
+            push!(interactions, heisenberg(1.0, bond, label))
         end
     end
-
     @assert length(interactions) > 0 "No non-self interactions found!"
-    # Sort interactions so that longer bonds are plotted first
-    sort!(interactions, by=int->distance(lattice, int.bonds[1]))
 
     plot_bonds(crystal, interactions, latsize; kwargs...)
 end
