@@ -4,7 +4,8 @@ using MPI
 # run using the command: "mpiexec -n [n_procs] julia --project [PT_afm_diamond.jl]"
 
 #######################################################
-#   system setup
+#   System setup
+#######################################################
 
 # make lattice
 crystal = Sunny.diamond_crystal()
@@ -24,6 +25,7 @@ rand!(sys)
 
 #######################################################
 #   PT setup
+#######################################################
 
 # make replica for PT
 replica = Replica(MetropolisSampler(sys, 1.0, 1))
