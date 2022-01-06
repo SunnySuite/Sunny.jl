@@ -28,15 +28,13 @@ const Mat3 = SMatrix{3, 3, Float64, 9}
 const meV_per_K = 0.086173332621451774
 
 # Bohr magneton in units of meV / T
-# With Frink: mu_B -> meV / T
 const BOHR_MAGNETON = 0.057883818060738013331
 
 # Vacuum permability in units of T^2 Å^3 / meV
-# With Frink: mu0 -> T^2 Å^3 / meV
 const VACUUM_PERM = 201.33545383470705041
 
 include("Symmetry/Symmetry.jl")
-export Crystal, subcrystal, nbasis, cell_volume
+export Crystal, subcrystal, nbasis, cell_volume, cell_type
 export lattice_vectors, lattice_params
 export Bond, displacement, distance, coordination_number
 export print_bond, print_bond_table

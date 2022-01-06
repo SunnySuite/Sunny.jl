@@ -1,8 +1,4 @@
-println("test_symmetry")
-
-using Sunny
-using LinearAlgebra
-
+@testset "Crystal Construction" begin
 
 ### Test construction of diamond lattice
 
@@ -51,8 +47,6 @@ cryst′ = Crystal(lat_vecs, positions)
 
 @test cryst.sitesyms[1] == cryst′.sitesyms[1]
 
-# print_bond_table(cryst, 2.)
-
 # Calculate interaction table
 ref_bonds = reference_bonds(cryst, 2.)
 b = ref_bonds[2]
@@ -64,88 +58,59 @@ J = basis' * randn(length(basis))
 
 ### Triangular lattice, primitive unit cell
 
-lat_vecs = [1 0 0;  1/2 √3/2 0;  0 0 10]'
+c = 10
+lat_vecs = [1 0 0;  -1/2 √3/2 0;  0 0 c]'
 positions = [[0, 0, 0]]
 cryst = Crystal(lat_vecs, positions)
-# print_bond_table(cryst, 5.)
-
+@test cell_type(cryst) == Sunny.hexagonal
+@test nbasis(cryst) == 1
+@test cell_volume(cryst) ≈ c * √3 / 2 
+@test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
 ### Kagome lattice
 
-lat_vecs = [1 0 0;  1/2 √3/2 0;  0 0 10]'
+lat_vecs = [1 0 0;  -1/2 √3/2 0;  0 0 c]'
 positions = [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0]]
 cryst = Crystal(lat_vecs, positions)
-# display(cryst)
-# print_bond_table(cryst, 3.)
+@test cell_type(cryst) == Sunny.hexagonal
+@test nbasis(cryst) == 3
+@test cell_volume(cryst) ≈ c * √3 / 2 
+@test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
 
 ### Arbitrary monoclinic
 
-lat_vecs = lattice_vectors(6, 7, 8, 90, 90, 40)
+mono_lat_params = (6, 7, 8, 90, 90, 40)
+lat_vecs = lattice_vectors(mono_lat_params...)
 positions = [[0,0,0]]
 # cryst = Crystal(lat_vecs, positions, "C 2/c")
 cryst = Crystal(lat_vecs, positions, "C 2/c", setting="c1")
-# display(cryst)
+@test cell_type(cryst) == Sunny.monoclinic
+@test nbasis(cryst) == 4
+@test all(lattice_params(cryst) .≈ mono_lat_params)
 
 
 ### Arbitrary trigonal
 
 lat_vecs = lattice_vectors(5, 5, 6, 90, 90, 120)
 positions = [[0,0,0]]
-cryst = Crystal(lat_vecs, positions, "P -3")
-cryst = Crystal(lat_vecs, positions, "R -3")
-cryst = Crystal(lat_vecs, positions, 147) # spacegroup number
-# display(cryst)
+cryst1 = Crystal(lat_vecs, positions, "P -3")
+@test nbasis(cryst1) == 1
+@test cell_type(cryst1) == Sunny.hexagonal
+cryst2 = Crystal(lat_vecs, positions, "R -3")
+@test nbasis(cryst2) == 3
+cryst3 = Crystal(lat_vecs, positions, 147) # spacegroup number
+@test cell_type(cryst1) == cell_type(cryst2) == cell_type(cryst3) == Sunny.hexagonal
 
 
 ### Arbitrary triclinic
 
 lat_vecs = lattice_vectors(6, 7, 8, 70, 80, 90)
 positions = [[0,0,0]]
-cryst = Crystal(lat_vecs, positions, "P 1")
-cryst = Crystal(lat_vecs, positions) # Infers 'P -1'
-# display(cryst)
-# print_bond_table(cryst, 8.)
+cryst1 = Crystal(lat_vecs, positions, "P 1")
+@test nbasis(cryst1) == 1
+cryst2 = Crystal(lat_vecs, positions) # Infers 'P -1'
+@test nbasis(cryst1) == nbasis(cryst2) == 1
+@test cell_type(cryst1) == cell_type(cryst2) == Sunny.triclinic
 
-
-### Print FeI2 bond tables
-
-# cryst = Crystal("/Users/kbarros/Desktop/cifs/FeI2.cif")
-# display(cryst)
-# print_bond_table(cryst, 8.)
-
-# cryst = subcrystal(Crystal("/Users/kbarros/Desktop/cifs/FeI2.cif"), "Fe2+")
-# display(cryst)
-# print_bond_table(cryst, 8.)
-
-# cryst = subcrystal(Crystal("/Users/kbarros/Desktop/cifs/FeI2.cif"), "I1-")
-# display(cryst)
-
-# cryst = Crystal("/Users/kbarros/Desktop/cifs/FeI2_orth.cif")
-# display(cryst)
-# print_bond_table(cryst, 8.)
-
-# cryst = Crystal("/Users/kbarros/Desktop/cifs/diamond_Nature1958.cif")
-# display(cryst)
-# print_bond_table(cryst, 5.)
-
-
-
-# ### Test other crystals
-
-# cryst = Crystal("/Users/kbarros/Desktop/cifs/icsd-BaCoSiO4_P63.cif"; symprec=1e-4)
-# display(cryst)
-
-# cryst = Crystal("/Users/kbarros/Desktop/cifs/MgCr2O4.cif"; symprec=1e-4)
-# display(cryst)
-
-# cryst = Crystal("/Users/kbarros/Desktop/cifs/PbCuTe2O6.cif"; symprec=1e-4)
-# display(cryst)
-
-# cryst = Crystal("/Users/kbarros/Desktop/cifs/Gd3Ga5O12.cif"; symprec=1e-4)
-# display(cryst)
-
-
-# # cryst = Crystal("/Users/kbarros/Desktop/cifs/BaCoSiO4_P63_orth.cif")
-# cryst = Crystal("/Users/kbarros/Desktop/cifs/BaCoSiO4_P63_orth.cif"; symprec=1e-3)
-# display(cryst)
+end

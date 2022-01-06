@@ -1,4 +1,4 @@
-println("test_ewald")
+@testset "Ewald Summation" begin
 
 function test_ewald_NaCl()
     lat_vecs = [1.0 0   0;
@@ -170,10 +170,12 @@ function test_mono_dip_consistent()
     dip_self_en = _dipole_self_energy(; ϵ=0.001)
     num_spins = prod(size(sys))
 
-    @assert isapprox(dip_ewald, mono_ewald - num_spins * dip_self_en; rtol=1e-3)
+    @test isapprox(dip_ewald, mono_ewald - num_spins * dip_self_en; rtol=1e-3)
 end
 
 test_mono_dip_consistent()
+
+end
 
 # Beck claims this should be independent of η, and converge to -2.837297
 # I find that it only does for large η?

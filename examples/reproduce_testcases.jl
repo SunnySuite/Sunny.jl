@@ -13,7 +13,7 @@ Langevin dynamics.
 """
 function test_diamond_heisenberg_sf()
     crystal = Sunny.diamond_crystal()
-    J = 0.65        # Units of meV
+    J = Sunny.meV_per_K * 7.5413        # Units of meV
     interactions = [
         heisenberg(J, Bond(1, 3, [0,0,0])),
     ]
@@ -23,7 +23,7 @@ function test_diamond_heisenberg_sf()
     rand!(sys)
 
     Δt = 0.02 / (S^2 * J)     # Units of 1/meV
-    kT = Sunny.meV_per_K * 4.     # Units of meV
+    kT = Sunny.meV_per_K * 4. # Units of meV
     α  = 0.1
     nsteps = 20000
     sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
@@ -160,7 +160,7 @@ function test_FeI2_MC()
     system = SpinSystem(cryst, interactions, (16, 20, 4), [SiteInfo(1, 1.0)])
     rand!(system)
 
-    kB = 8.61733e-2             # Boltzmann constant, units of meV/K
+    kB = 8.61733e-2             # meV_per_K constant, units of meV/K
     kT = 1.0 * kB               # Actual target simulation temp, units of meV
 
     Δt = 0.01 / (2.165/2)       # Units of 1/meV

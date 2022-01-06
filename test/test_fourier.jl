@@ -1,7 +1,4 @@
-println("test_fourier")
-
-using LinearAlgebra
-
+@testset "Fourier Dipole Acceleration" begin
 
 "Tests these field-using functions give the same answer as `ewald_sum_dipole`"
 function test_energy_consistency(crystal, latsize)
@@ -47,3 +44,5 @@ crystal = Crystal(lat_vecs, basis_vecs)
 
 test_energy_consistency(crystal, latsize)
 test_field_consistency(crystal, latsize)
+
+end
