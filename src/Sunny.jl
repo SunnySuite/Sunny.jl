@@ -25,7 +25,7 @@ const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 
 # Boltzmannn factor k_B in units of meV/K
-const meV_per_K = 0.086173332621451774
+const BOLTZMANN = 0.086173332621451774
 
 # Bohr magneton in units of meV / T
 const BOHR_MAGNETON = 0.057883818060738013331

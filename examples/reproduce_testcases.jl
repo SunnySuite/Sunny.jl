@@ -231,8 +231,8 @@ function test_FeI2_energy_curve()
     end
 
     # Convert energies into energy / spin, in units of K
-    energies ./= (length(system) * Sunny.meV_per_K)
-    energy_errors ./= (length(system) * Sunny.meV_per_K)
+    energies ./= (length(system) * Sunny.BOLTZMANN)
+    energy_errors ./= (length(system) * Sunny.BOLTZMANN)
 
     plot_ET_data(temps, energies, energy_errors)
 

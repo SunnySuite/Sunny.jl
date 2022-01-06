@@ -89,7 +89,7 @@ single unit cell. (We can figure this out using our tools for symmetry analysis,
 millielectronvolts (meV), field in tesla (T), and distance in angstrom (Å). Time
 is measured in 1/meV, such that ``ħ = 1``. Temperatures are always provided
 to all components of Sunny as ``k_B T'', in units of meV. For convenience, the 
-meV_per_K constant ``k_B`` in units of meV/K can be accessed as `Sunny.meV_per_K`.
+Boltzmann constant ``k_B`` in units of meV/K can be accessed as `Sunny.meV_per_K`.
 **It becomes necessary to conform to this unit system when a
 Zeeman or dipole-dipole interaction term is included in the Hamiltonian**. For
 more information, see [Internals](@ref).
