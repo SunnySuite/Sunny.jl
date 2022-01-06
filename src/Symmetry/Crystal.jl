@@ -110,6 +110,10 @@ as the provided index `b`.
 """
 equiv_sites(cryst::Crystal, b::Int) = findall(==(cryst.classes[b]), cryst.classes)
 
+cell_type(cryst::Crystal) = cell_type(cryst.lat_vecs)
+lattice_vectors(cryst::Crystal) = cryst.lat_vecs
+lattice_params(cryst::Crystal) = lattice_params(cryst.lat_vecs)
+
 """
     Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
 

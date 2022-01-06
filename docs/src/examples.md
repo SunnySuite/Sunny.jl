@@ -83,24 +83,28 @@ automated symmetry analysis. In general, specifying information on any
 site/bond will automatically propagate that information to all symmetry-equivalent
 sites/bonds. In this system, all nearest-neighbor bonds are symmetry-equivalent,
 so we only need to specify the interaction on a single one of them. One nearest-neighbor bond is the one connecting basis index 1 with basis index 3 within a
-single unit cell. (We can figure this out using our tools for symmetry analysis, at the
-bottom of this page). So, we can create a nearest-neighbor Heisenberg interaction just
-by specifying:
+single unit cell. (We can figure this out using our tools for symmetry analysis, at the bottom of this page).
+
+**Note**: By default, Sunny assumes the following units: energy in
+millielectronvolts (meV), field in tesla (T), and distance in angstrom (Å). Time
+is measured in 1/meV, such that ``ħ = 1``. Temperatures are always provided
+to all components of Sunny as ``k_B T'', in units of meV. For convenience, the 
+meV_per_K constant ``k_B`` in units of meV/K can be accessed as `Sunny.meV_per_K`.
+**It becomes necessary to conform to this unit system when a
+Zeeman or dipole-dipole interaction term is included in the Hamiltonian**. For
+more information, see [Internals](@ref).
+# Seems like the recommended place to look to explain the unit system
+#  should not be Internals -- the idea is that Internals is only for
+#  people who want to hack/develop on Sunny.
+
+So, we can create a nearest-neighbor Heisenberg interaction just by specifying:
 
 ```julia
-J = 0.65    # Energy in meV
+J = Sunny.meV_per_K * 7.5413    # Energy in meV
 interactions = [
     heisenberg(J, Bond(1, 3, [0,0,0])),
 ]
 ```
-
-**Note**: By default, Sunny assumes the following units: energy in
-millielectronvolts (meV), field in tesla (T), and distance in angstrom (Å). Time
-is measured in 1/meV, such that ``ħ = 1``. Temperature is measured in meV, such
-that ``k_B = 1``. *It becomes necessary to conform to this unit system when a
-Zeeman or dipole-dipole interaction term is included in the Hamiltonian*. For
-more information, see [Internals](@ref).
-
 
 **(3)** 
 
@@ -134,10 +138,8 @@ will always return a normalized unit vector.
 a [`LangevinSampler`](@ref). Note that the units of integration time are relative to
 the units implicitly used when setting up the interactions. A rough rule of hand is
 that a reasonable value for integration timestep size is ``Δt ≈ 0.02 / (S^2 * J)``.
-
 The temperature for the sampler must be provided as ``k_B T`` in units of meV.
-For convenience, the Boltzmann constant ``k_B`` in units of meV/K can be
-accessed as `Sunny.meV_per_K`.
+
 
 ```julia
 Δt = 0.02 / (S^2 * J)     # Units of 1/meV

@@ -1,17 +1,13 @@
-println("test_dynamics")
-
-import Random
+@testset "Dynamics" begin
 
 "Tests that SphericalMidpoint conserves energy for simple forces to a certain tolerance."
 function test_spherical_midpoint()
-    lat_vecs = [1 0 0; 0 1 0; 0 0 1]
-    positions = [[0, 0, 0], [1, 1, 1]/2]
-    crystal = Crystal(lat_vecs, positions)
+    crystal = Sunny.diamond_crystal()
 
-    J = 2.0
-    field = external_field([0, 0, 1])
-    pair_int = heisenberg(J, Bond(1, 2, [0,0,0]))
-    interactions = [pair_int, field]
+    interactions = [
+        diamond_test_exchanges()...,
+        external_field([0, 0, 1])
+    ]
 
     sys = SpinSystem(crystal, interactions, (5, 5, 5))
     Random.seed!(0)
@@ -22,7 +18,6 @@ function test_spherical_midpoint()
     energies = Float64[]
 
     integrator = Sunny.SphericalMidpoint(sys)
-    # integrator = Sunny.HeunP(sys)
     for it in 1:NITERS
         evolve!(integrator, Δt)
         # Compute the energy
@@ -40,9 +35,7 @@ test_spherical_midpoint()
 
 "Tests that SphericalMidpoint conserves energy for dipole forces (w/ Fourier) to a certain tolerance."
 function test_dipole_ft()
-    lat_vecs = [1 0 0; 0 1 0; 0 0 1]
-    positions = [[0, 0, 0], [1, 1, 1]/2]
-    crystal = Crystal(lat_vecs, positions)
+    crystal = Sunny.diamond_crystal()
     interactions = [dipole_dipole()]
     sys = SpinSystem(crystal, interactions, (5, 5, 5))
     Random.seed!(0)
@@ -66,6 +59,8 @@ function test_dipole_ft()
 end
 
 test_dipole_ft()
+
+end
 
 # == These should not be @test-ed, but are for manual inspection == #
 
