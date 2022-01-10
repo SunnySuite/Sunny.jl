@@ -31,8 +31,8 @@ T_sched(i, N) = T_min * (T_max/T_min) ^ ((i-1)/(N-1))
 T_opt = run_FBOPT!(
     replica, 
     T_sched; 
-    max_mcs_opt=100_000, 
-    update_interval=20_000, 
+    max_mcs_opt=500_000, 
+    update_interval=100_000, 
     rex_interval=1, 
     print_ranks=Int64[], 
     print_interval=20
