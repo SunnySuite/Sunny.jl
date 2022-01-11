@@ -57,8 +57,9 @@ dipole_dipole
 
 ```@docs
 SpinSystem
-SpinSystem(::Crystal, ::Vector{<:Sunny.Interaction}, latsize, sites_info)
+SpinSystem(::Crystal, ::Vector{<:Sunny.Interaction}, latsize, ::Vector{SiteInfo})
 rand!(::SpinSystem)
+randflips!(::SpinSystem)
 energy
 field
 field!
