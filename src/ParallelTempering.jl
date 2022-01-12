@@ -243,7 +243,7 @@ function feedback_update!(replica::Replica, N_updates::Int64; w::Float64=0.0, dk
 
     if replica.rank == 0
 
-        all_kT_and_f = reshape(gv, :, replica.N_ranks)
+        all_kT_and_f = reshape(all_kT_and_f, :, replica.N_ranks)
         kT = all_kT_and_f[1, :]
         f  = all_kT_and_f[2, :]
 
@@ -573,8 +573,8 @@ function run_PT!(
     U2 /= N_measure
     M  /= N_measure
     M2 /= N_measure
-    C = 1.0/T^2 * (U2 - U^2)
-    X = 1.0/T   * (M2 - M^2)
+    C = 1.0/kT^2 * (U2 - U^2)
+    X = 1.0/kT   * (M2 - M^2)
 
     # acceptance rate between replicas i and i+1
     A = ((replica.rank == replica.N_ranks-1) ? 0.0 : rex_accepts[2]/replica.N_rex)
@@ -627,10 +627,10 @@ function run_PT!(
     print_hist::Bool=false, 
     print_xyz_ranks::Vector{Int64}=Int64[]
 )
-    kT_func(i, N) -> kT_sched[i]
+    kT_func = (i, N)->kT_sched[i]
 
     return run_PT!(
-        replica, T_func; 
+        replica, kT_func; 
         therm_mcs, measure_interval, rex_interval, max_mcs, bin_size, print_hist, print_xyz_ranks
     )
 end
