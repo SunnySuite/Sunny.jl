@@ -9,7 +9,7 @@ using MPI
 # make lattice
 crystal = Sunny.diamond_crystal()
 
-# interactions -- units of meV  
+# interactions -- units of K  
 J = 28.28
 interactions = [
     heisenberg(J, Bond{3}(1, 3, [0,0,0])),
@@ -32,9 +32,8 @@ replica = Replica(MetropolisSampler(sys, 1.0, 1))
 T_min = 3.0
 T_max = 50.0
 
-# units of meV
+# units of K
 T_sched(i, N) = (10 .^(range(log10(T_min), log10(T_max), length=N)) )[i]
-
 
 # run parallel tempering
 run_PT!(

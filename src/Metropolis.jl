@@ -17,8 +17,8 @@ abstract type AbstractSampler end
 
 running_energy(sampler::S) where {S <: AbstractSampler} = energy(get_system(sampler))
 running_mag(sampler::S) where {S <: AbstractSampler} = sum(get_system(sampler))
-reset_energy!(sampler::S) where {S <: AbstractSampler} = nothing
-reset_mag!(sampler::S) where {S <: AbstractSampler} = nothing
+reset_running_energy!(sampler::S) where {S <: AbstractSampler} = nothing
+reset_running_mag!(sampler::S) where {S <: AbstractSampler} = nothing
 
 """
     thermalize!(sampler, num_samples)

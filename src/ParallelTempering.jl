@@ -5,17 +5,44 @@ Replica type for parallel tempering (PT) Monte Carlo. A Sunny sampler type must
 be provided during construction.
 """
 mutable struct Replica{S <: AbstractSampler}
+    # MPI rank of sampler is ∈ [0, N_ranks-1]
     rank::Int64
+
+    # Total number of MPI ranks (samplers, replicas) 
     N_ranks::Int64
+
+    # Count of how many replica exchanges are attempted
     N_rex::Int64
+
+    # The replica's current replica exchange direction ("up"=2, "down"=1)
     rex_dir::Int64
+
+    # MPI ranks of nearest-neighbor samplers (current rank ±1)
+    # Set to -1 no neighbor (for extremal temperatures)
     nn_ranks::Vector{Int64}
+
+    # Inverse temperatures of nearest-neighbor ranks: β = 1/(kT)
     nn_βs::Vector{Float64}
 
+    # Label for replica that tracks it's starting temperature
+    #
+    # Label ∈ ±[1, N_ranks] and starts as (N_ranks + rank+1) until
+    # replica reaches an extremal temperature
+    #
+    # Label is < 0 when higher temperature last visited and > 0 
+    # when lowest temperature last visited
     label::Int64
+
+    # Number of replica exchanges spent with replica having last
+    # visited the lowest temperature (label > 0)
     N_up::Int64
+
+    # Number of replica exchanges spent with replica having last
+    # visited the highest temperature (label < 0)
     N_down::Int64
 
+    # Sunny sampler (e.g. Metropolis) 
+    # contains the system configuration, or "replica"
     sampler::S
 end
 
@@ -110,8 +137,8 @@ function replica_exchange!(replica::Replica)
         MPI.COMM_WORLD
     )
     # recalculate energy and magnetization of new state
-    replica.sampler.E = energy(replica.sampler.system)
-    replica.sampler.M = sum(replica.sampler.system)
+    reset_running_energy!(replica.sampler)
+    reset_running_mag!(replica.sampler)
 
     return true
 end
@@ -184,16 +211,13 @@ end
 Print xyz formatted (Lx, Ly, Lz, Sx, Sy, Sz) configurations to file 
 """
 function xyz_to_file(sys::SpinSystem{3}, output::IOStream)
-    sites = reinterpret(reshape, Float64, collect(sys.lattice))
-    spins = reinterpret(reshape, Float64, collect(sys.sites))
+    sites = reinterpret(reshape, Float64, sys.lattice)
+    spins = reinterpret(reshape, Float64, sys.sites)
+    xyz = vcat(sites, spins)
+    xyz = reshape(xyz, 6, :)
 
-    xyz = hcat(
-        hcat([vec(sites[i,:,:,:,:]) for i in 1:3]...),
-        hcat([vec(spins[i,:,:,:,:]) for i in 1:3]...)
-    )
-
-    for r in eachrow(xyz)
-        @printf(output, "%f\t%f\t%f\t%f\t%f\t%f\n", r...)
+    for c in eachcol(xyz)
+        @printf(output, "%f\t%f\t%f\t%f\t%f\t%f\n", c...)
     end
     println(output, "")
 
@@ -207,21 +231,21 @@ Katzgraber et. al. (https://arxiv.org/pdf/cond-mat/0602085v3.pdf).
 Note: use f(T) that goes from T_max -> T_min instead of original paper
 Note: use (k-1)/(M-1) as target for integral in Eq. 11 instead of k/M 
 """
-function feedback_update!(replica::Replica, N_updates::Int64; w::Float64=0.0, dT′::Float64=1e-4)
+function feedback_update!(replica::Replica, N_updates::Int64; w::Float64=0.0, dkT′::Float64=1e-4)
 
-    T_new = zeros(replica.N_ranks)
+    kT_new = zeros(replica.N_ranks)
 
     N_labeled = (replica.N_up + replica.N_down)    
     f = ((N_labeled > 0) ? replica.N_down/N_labeled : 0.0)
     
     # gather temperatures and replica flow 'f' from all replicas
-    gv = MPI.Gather([1.0/replica.sampler.β, f], 0, MPI.COMM_WORLD)
+    all_kT_and_f = MPI.Gather([1.0/replica.sampler.β, f], 0, MPI.COMM_WORLD)
 
     if replica.rank == 0
 
-        gv = reshape(gv, :, replica.N_ranks)
-        T = gv[1, :]
-        f = gv[2, :]
+        all_kT_and_f = reshape(gv, :, replica.N_ranks)
+        kT = all_kT_and_f[1, :]
+        f  = all_kT_and_f[2, :]
 
         M = replica.N_ranks
         L = collect(range(0, 1.0, length=M))
@@ -233,45 +257,45 @@ function feedback_update!(replica::Replica, N_updates::Int64; w::Float64=0.0, dT
         Δf = fs[2:end] .- fs[1:end-1]
         Δf[Δf .< 0] .= 0
 
-        ΔT =  T[2:end] .-  T[1:end-1]
+        ΔkT = kT[2:end] .- kT[1:end-1]
 
         # calculated normalized density for adjusted temperatures
-        η = sqrt.( (Δf ./ ΔT) ./ ΔT )
-        C = sum(η .* ΔT)
+        η = sqrt.( (Δf ./ ΔkT) ./ ΔkT )
+        C = sum(η .* ΔkT)
         η ./= C
 
         # new temperatures have fixed end points
-        T_new[1] = T[1]
-        T_new[M] = T[M]
+        kT_new[1] = kT[1]
+        kT_new[M] = kT[M]
 
-        T′= T[1]
+        kT′= kT[1]
         cηf = 0.0
-        k = 2
+        pos = 2
 
         # find new temperatures using Eq. 11 from Katzgraber et. al.
         for i in 1:M-1
-            for j in 1:floor(ΔT[i]/dT′)
-                cηf += η[i]*dT′
-                T′ += dT′
+            for j in 1:floor(ΔkT[i]/dkT′)
+                cηf += η[i]*dkT′
+                kT′ += dkT′
 
-                if cηf >= L[k]
-                    T_new[k] = T′
-                    k += 1
+                if cηf >= L[pos]
+                    kT_new[pos] = kT′
+                    pos += 1
                 end
             end
         end
     end
 
     # send new temperatures to all replicas
-    MPI.Bcast!(T_new, 0, MPI.COMM_WORLD)
+    MPI.Bcast!(kT_new, 0, MPI.COMM_WORLD)
 
     # set replica sampler to new temperature
-    set_temp!(replica.sampler, T_new[replica.rank+1])
+    set_temp!(replica.sampler, kT_new[replica.rank+1])
 
     # set replica neighbor β's  
     for i in 1:2
         if replica.nn_ranks[i] != -1
-            replica.nn_βs[i] = 1.0 / T_new[replica.nn_ranks[i]+1]
+            replica.nn_βs[i] = 1.0 / kT_new[replica.nn_ranks[i]+1]
         end
     end
 
@@ -282,33 +306,59 @@ end
 Run a feedback-optimized parallel tempering simulation and return an optimized
 temperature set. No measurements are made, but this is used to diagnose replica
 flow in PT simulations. 
+
+# Arguments
+- `replica::Replica`: Replica type that contains MPI info and system data
+
+- `kT_sched::Function`: Function that takes index i::Int64 and number of
+  temperatures N::Int64 and returns temperature kT::Float64
+
+- `max_mcs_opt::Int64`: Maximum number of MC sweeps to allow during optimization
+
+- `update_interval::Int64`: Number of MC sweeps between feedback updates
+
+- `therm_mcs::Int64`: Number of initial thermalization MC sweeps
+
+- `rex_interval::Int64`: Number of MC sweeps between replica exchange attempts
+
+- `w::Float64`: Damping factor (w ∈ [0,1]) for feedback updates: 0 gives
+  aggresive updates, 1 gives leaves set of kT unchanged
+
+- `dkT′::Float64`: Step size for integration during feedback update
+
+- `print_ranks::Vector{Float64}`: If an MPI rank is in this array, timeseries
+  for the replica starting with this rank will printed to file
+
+- `print_interval::Int64`: Number of replica exchange attempts between printed
+  timeseries points
+
 """
 function run_FBOPT!(
     replica::Replica, 
-    T_sched::Function; 
+    kT_sched::Function; 
     max_mcs_opt::Int64=1_000_000, 
     update_interval::Int64=200_000, 
     therm_mcs::Int64=1000, 
     rex_interval::Int64=1, 
     w::Float64=0.0, 
-    dT′::Float64=1e-4, 
+    dkT′::Float64=1e-4, 
     print_ranks::Vector{Int64}=Int64[], 
     print_interval::Int64=1
 )
     # set replica sampling β using temperature (β = 1.0/(kT)) 
-    T = T_sched(replica.rank+1, replica.N_ranks)
-    set_temp!(replica.sampler, T)
+    kT = kT_sched(replica.rank+1, replica.N_ranks)
+    set_temp!(replica.sampler, kT)
 
     # set replica neighbor β's  
     for i in 1:2
         if replica.nn_ranks[i] != -1
-            replica.nn_βs[i] = 1.0 / T_sched(replica.nn_ranks[i]+1, replica.N_ranks)
+            replica.nn_βs[i] = 1.0 / kT_sched(replica.nn_ranks[i]+1, replica.N_ranks)
         end
     end
 
     # initialize energy and equilibrate replica to it's distribution
-    replica.sampler.E = energy(replica.sampler.system)
-    replica.sampler.M = sum(replica.sampler.system)
+    reset_running_energy!(replica.sampler)
+    reset_running_mag!(replica.sampler)
 
     thermalize!(replica.sampler, therm_mcs)
     
@@ -375,7 +425,7 @@ function run_FBOPT!(
             )
 
             # perform feedback optimization for temperatures
-            feedback_update!(replica, N_updates; w=w, dT′=dT′)
+            feedback_update!(replica, N_updates; w=w, dkT′=dkT′)
 
             N_updates += 1
             rex_accepts[1] = rex_accepts[2] = 0
@@ -401,10 +451,32 @@ Start a parallel tempering (PT) simulation that saves measured averages,
 histograms, minimal energies, and configurations.
 
 Run w/ the command "mpiexec -n [n_procs] julia --project [julia_script.jl]".
+
+# Arguments
+- `replica::Replica`: Replica type that contains MPI info and system data
+
+- `kT_sched::Function`: Function that takes index i::Int64 and number of
+  temperatures N::Int64 and returns temperature kT::Float64
+
+- `therm_mcs::Int64`: Number of initial thermalization MC sweeps
+
+- `measure_interval::Int64`: Number of MC sweeps between measurements
+
+- `rex_interval::Int64`: Number of MC sweeps between replica exchange attempts
+
+- `max_mcs::Int64`: Maximum number of MC sweeps to allow during simulation
+
+- `bin_size::Float64`: Width in energy-space for each histogram bin
+
+- `print_hist::Bool`: Print energy histograms to file for each rank if true
+
+- `print_xyz_ranks::Vector{Float64}`: If an MPI rank is in this array, the xyz
+  coordinates for new minmial energies are printed to file
+
 """
 function run_PT!(
     replica::Replica, 
-    T_sched::Function; 
+    kT_sched::Function; 
     therm_mcs::Int64=1000, 
     measure_interval::Int64=10, 
     rex_interval::Int64=1, 
@@ -414,19 +486,19 @@ function run_PT!(
     print_xyz_ranks::Vector{Int64}=Int64[]
 )
     # set replica sampling β using temperature (β = 1.0/(kT)) 
-    T = T_sched(replica.rank+1, replica.N_ranks)
-    set_temp!(replica.sampler, T)
+    kT = kT_sched(replica.rank+1, replica.N_ranks)
+    set_temp!(replica.sampler, kT)
 
     # set replica neighbor β's  
     for i in 1:2
         if replica.nn_ranks[i] != -1
-            replica.nn_βs[i] = 1.0 / T_sched(replica.nn_ranks[i]+1, replica.N_ranks)
+            replica.nn_βs[i] = 1.0 / kT_sched(replica.nn_ranks[i]+1, replica.N_ranks)
         end
     end
 
     # initialize energy and equilibrate replica to it's distribution
-    replica.sampler.E = energy(replica.sampler.system)
-    replica.sampler.M = sum(replica.sampler.system)
+    reset_running_energy!(replica.sampler)
+    reset_running_mag!(replica.sampler)
 
     thermalize!(replica.sampler, therm_mcs)
     
@@ -444,7 +516,7 @@ function run_PT!(
 
     # record timeseries for minimum energies 
     Emin = typemax(Float64)
-    mcs_Emin = Vector{Vector{Float64}}()
+    mcs_Emin = Vector{Tuple{Int64, Float64}}()
     if replica.rank in print_xyz_ranks
         xyz_output = open(@sprintf("P%03d_Emin.xyz", replica.rank), "w")
     end
@@ -478,7 +550,7 @@ function run_PT!(
 
             # record minimum recorded energies
             if E < Emin
-                push!(mcs_Emin, [mcs, E])
+                push!(mcs_Emin, (mcs, E))
                 Emin = E
                 if replica.rank in print_xyz_ranks
                     xyz_to_file(replica.sampler.system, xyz_output)
@@ -541,4 +613,24 @@ function run_PT!(
     end
 
     return :SUCCESS
+end
+
+# Run PT using kT schedule passed as Vector instead of function
+function run_PT!(
+    replica::Replica, 
+    kT_sched::Vector{Float64}; 
+    therm_mcs::Int64=1000, 
+    measure_interval::Int64=10, 
+    rex_interval::Int64=1, 
+    max_mcs::Int64=1_000_000, 
+    bin_size::Float64=1.0, 
+    print_hist::Bool=false, 
+    print_xyz_ranks::Vector{Int64}=Int64[]
+)
+    kT_func(i, N) -> kT_sched[i]
+
+    return run_PT!(
+        replica, T_func; 
+        therm_mcs, measure_interval, rex_interval, max_mcs, bin_size, print_hist, print_xyz_ranks
+    )
 end
