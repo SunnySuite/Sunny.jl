@@ -5,7 +5,8 @@
 
 All samplers should subtype this, and implement the following methods
     `set_temp!(sampler::MySampler, kT::Float64)`
-    `get_system(sampler::MySampler)
+    `get_temp(sampler::MySampler) :: Float64`
+    `get_system(sampler::MySampler) :: SpinSystem`
     `sample!(sampler::MySampler)`
 
     Optionally, can override behavior of these, which by default do full-system
@@ -120,6 +121,14 @@ end
 function set_temp!(sampler::IsingSampler, kT)
     sampler.β = 1 / kT
 end
+
+"""
+    get_temp(sampler) :: Float64
+
+Returns the temperature of the sampler, as `kT`.
+"""
+get_temp(sampler::MetropolisSampler) = 1 / sampler.β
+get_temp(sampler::IsingSampler) = 1 / sampler.β
 
 """
     get_system(sampler)

@@ -114,7 +114,7 @@ function replica_exchange!(replica::Replica)
         MPI.Recv!(E_rex, rex_rank, 1, MPI.COMM_WORLD)
 
         # replica exch. acceptance probability
-        ln_P_rex = (replica.nn_βs[replica.rex_dir] - replica.sampler.β) * (E_rex[1] - E_curr[1])
+        ln_P_rex = (replica.nn_βs[replica.rex_dir] - 1 / get_temp(replica.sampler)) * (E_rex[1] - E_curr[1])
 
         # acceptance criterion.
         if (ln_P_rex >= 0.0) || (rand() <= exp(ln_P_rex))
@@ -239,7 +239,7 @@ function feedback_update!(replica::Replica, N_updates::Int64; w::Float64=0.0, dk
     f = ((N_labeled > 0) ? replica.N_down/N_labeled : 0.0)
     
     # gather temperatures and replica flow 'f' from all replicas
-    all_kT_and_f = MPI.Gather([1.0/replica.sampler.β, f], 0, MPI.COMM_WORLD)
+    all_kT_and_f = MPI.Gather([get_temp(replica.sampler), f], 0, MPI.COMM_WORLD)
 
     if replica.rank == 0
 
@@ -420,7 +420,7 @@ function run_FBOPT!(
             fname = @sprintf("FBOPT_%03d.dat", N_updates)
             gather_print(
                 replica,
-                [1.0/replica.sampler.β, fs, A],
+                [get_temp(replica.sampler), fs, A],
                 fname
             )
 
@@ -443,7 +443,7 @@ function run_FBOPT!(
         end
     end
 
-    return MPI.Allgather([1.0/replica.sampler.β], MPI.COMM_WORLD)
+    return MPI.Allgather([get_temp(replica.sampler)], MPI.COMM_WORLD)
 end
 
 """
@@ -583,14 +583,14 @@ function run_PT!(
     fname = @sprintf("replica_exchanges.dat")
     gather_print(
         replica, 
-        [1.0/replica.sampler.β, A], 
+        [get_temp(replica.sampler), A], 
         fname
     )
 
     # gather and print thermodynamic measurements
     gather_print(
         replica, 
-        [1.0/replica.sampler.β, M/system_size, X/system_size, U/system_size, C/system_size], 
+        [get_temp(replica.sampler), M/system_size, X/system_size, U/system_size, C/system_size], 
         "measurements.dat"
     )
 
@@ -615,22 +615,7 @@ function run_PT!(
     return :SUCCESS
 end
 
-# Run PT using kT schedule passed as Vector instead of function
-function run_PT!(
-    replica::Replica, 
-    kT_sched::Vector{Float64}; 
-    therm_mcs::Int64=1000, 
-    measure_interval::Int64=10, 
-    rex_interval::Int64=1, 
-    max_mcs::Int64=1_000_000, 
-    bin_size::Float64=1.0, 
-    print_hist::Bool=false, 
-    print_xyz_ranks::Vector{Int64}=Int64[]
-)
-    kT_func = (i, N)->kT_sched[i]
-
-    return run_PT!(
-        replica, kT_func; 
-        therm_mcs, measure_interval, rex_interval, max_mcs, bin_size, print_hist, print_xyz_ranks
-    )
+function run_PT!(replica::Replica, kT_sched::Vector{Float64}; kwargs...)
+    kT_func = (i, N) -> kT_sched[i]
+    return run_PT!(replica, kT_func; kwargs...)
 end
