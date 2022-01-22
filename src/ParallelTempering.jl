@@ -322,7 +322,7 @@ flow in PT simulations.
 - `rex_interval::Int64`: Number of MC sweeps between replica exchange attempts
 
 - `w::Float64`: Damping factor (w ∈ [0,1]) for feedback updates: 0 gives
-  aggresive updates, 1 gives leaves set of kT unchanged
+  aggressive updates, 1 gives leaves set of kT unchanged
 
 - `dkT′::Float64`: Step size for integration during feedback update
 
@@ -466,12 +466,12 @@ Run w/ the command "mpiexec -n [n_procs] julia --project [julia_script.jl]".
 
 - `max_mcs::Int64`: Maximum number of MC sweeps to allow during simulation
 
-- `bin_size::Float64`: Width in energy-space for each histogram bin
+- `bin_size::Float64`: Width in energy space for each histogram bin
 
 - `print_hist::Bool`: Print energy histograms to file for each rank if true
 
 - `print_xyz_ranks::Vector{Float64}`: If an MPI rank is in this array, the xyz
-  coordinates for new minmial energies are printed to file
+  coordinates for new minimal energies are printed to file
 
 """
 function run_PT!(
