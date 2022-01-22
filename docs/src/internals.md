@@ -1,29 +1,32 @@
 # Internals
 
 This page documents various components of how Sunny works internally, and how one
-might be able to extend it with new functionalities. This page is very under-complete.
-Documenting internals as I go.
+might be able to extend it with new functionalities. This page is very under-complete, with internals being documented as we go.
 
 ## Unit systems
 
 By default, Sunny assumes the following units: energy in millielectronvolts
 (meV), field in tesla (T), and distance in angstrom (Å). Time is measured in
-1/meV, such that ``ħ = 1``. Temperature is measured in meV, such that ``k_B =
-1``. It becomes necessary to conform to this unit system when a Zeeman or
-dipole-dipole interaction term is included in the Hamiltonian.
+1/meV, such that ``ħ = 1``. Temperatures should be provided to all
+samplers as ``k_B T``, in units of meV matching the energy scale. It
+becomes particularly necessary to conform to this unit system when a
+Zeeman or dipole-dipole interaction term is included in the Hamiltonian.
 
 To select a different unit system, one may override the dimensionful physical
 constants used by Sunny. At the moment, these are the Bohr magneton ``μ_B`` and
 the vacuum permeability ``μ_0``. The Bohr magneton converts spin angular
 momentum (dimensionless) to magnetic moment (meV/T). The vacuum permeability
 sets the energy scale for dipole-dipole coupling (i.e., interaction between
-pairs of magnetic moments).
+pairs of magnetic moments). Regardless of the unit system chosen, temperatures
+must be provided to samplers as ``k_B T``, in the same energy units as used when
+specifying Hamiltonian coupling parameters.
 
 **The interface for changing units is subject to change**. To select kelvin (instead of meV) as the fundamental energy unit, one may use:
 ```
 # Units: kelvin, tesla, angstrom
 SpinSystem(...; μB=0.67171381563034223582, μ0=17.3497470317891588)
 ```
+
 
 ## Handling `Interaction`s
 

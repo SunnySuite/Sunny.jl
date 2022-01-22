@@ -12,8 +12,7 @@ The high-level outline of performing a simulation is:
 1. Create a [`Crystal`](@ref), either by providing explicit geometry information
     (Example 1), or by loading a `.cif` file (Example 2).
 2. Using the `Crystal`, construct a collection of [Interactions](@ref).
-3. Assemble a [`SpinSystem`](@ref) using the newly created `Crystal` and `Interaction`s, the size of the simulation box, and optionally information on the spin magnitude
-and ``g``-tensors of each site by passing a list of `SiteInfo`.
+3. Assemble a [`SpinSystem`](@ref) using the newly created `Crystal` and `Interaction`s, the size of the simulation box, and optionally information on the spin magnitude and ``g``-tensors of each site by passing a list of `SiteInfo`.
 4. Construct a sampler, either a [`LangevinSampler`](@ref) (Example 1), or a 
     [`MetropolisSampler`](@ref) (Example 2).
 5. Use the sampler directly to sample new states, or use it to perform [Structure factor calculations](@ref).
@@ -35,7 +34,8 @@ a spin dynamics simulation, with finite-$T$ statistics obtained by using Langevi
 dynamics. The full example is contained in the function `test_diamond_heisenberg_sf()`
 within `examples/reproduce_testcases.jl`.
 
-**(1)** We construct a diamond crystal by explicitly defining the eight atom
+#### **(1)**
+We construct a diamond crystal by explicitly defining the eight atom
 positions in the conventional cubic unit cell,
 
 ```julia
@@ -74,7 +74,8 @@ crystals.
 **Note**: If you provide the full list of basis sites, their ordering in the crystal will not be changed. Meanwhile, any constructor of `Crystal` which infers sites through symmetry information will sort the basis sites deterministically during
 construction. Be aware of this, and always check the orderings of basis sites in your final `Crystal` when performing the next step.
 
-**(2)** Next, we need to define our Hamiltonian, which for this example
+#### **(2)**
+Next, we need to define our Hamiltonian, which for this example
 will just contain Heisenberg interactions. Specifically, we want to set up
 nearest-neighbor antiferromagnetic interactions with a strength of ``J = 7.5413~\mathrm{K}``.
 
@@ -88,14 +89,13 @@ single unit cell. (We can figure this out using our tools for symmetry analysis,
 **Note**: By default, Sunny assumes the following units: energy in
 millielectronvolts (meV), field in tesla (T), and distance in angstrom (Å). Time
 is measured in 1/meV, such that ``ħ = 1``. Temperatures are always provided
-to all components of Sunny as ``k_B T'', in units of meV. For convenience, the 
+to all components of Sunny as ``k_B T``, in units of meV. For convenience, the 
 meV_per_K constant ``k_B`` in units of meV/K can be accessed as `Sunny.meV_per_K`.
 **It becomes necessary to conform to this unit system when a
 Zeeman or dipole-dipole interaction term is included in the Hamiltonian**. For
 more information, see [Internals](@ref).
-# Seems like the recommended place to look to explain the unit system
-#  should not be Internals -- the idea is that Internals is only for
-#  people who want to hack/develop on Sunny.
+
+[comment] # Seems like the recommended place to look to explain the unit system should not be Internals -- the idea is that Internals is only for people who want to hack/develop on Sunny.
 
 So, we can create a nearest-neighbor Heisenberg interaction just by specifying:
 
@@ -106,8 +106,7 @@ interactions = [
 ]
 ```
 
-**(3)** 
-
+#### **(3)** 
 To assemble a `SpinSystem`, we must provide the `Crystal`,
 the interaction list, the dimensions of the simulation box (in units of
 the lattice vectors) and some information about each site,
@@ -134,7 +133,8 @@ The `SpinSystem` type is the central type used throughout our simulations. Inter
 Note that regardless of the spin magnitudes you specify on each site, indexing `sys`
 will always return a normalized unit vector.
 
-**(4)** We will simulate this system using Langevin dynamics, so we need to create
+#### **(4)**
+We will simulate this system using Langevin dynamics, so we need to create
 a [`LangevinSampler`](@ref). Note that the units of integration time are relative to
 the units implicitly used when setting up the interactions. A rough rule of hand is
 that a reasonable value for integration timestep size is ``Δt ≈ 0.02 / (S^2 * J)``.
@@ -152,7 +152,8 @@ sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 At this point we can call `sample!(sampler)` to produce new samples of the system, which will be reflected in the state of `sys`. Instead, we will proceed to calculate
 the finite-$T$ structure factor using our built-in routines.
 
-**(5)** The full process of calculating a structure factor is handled
+#### **(5)**
+The full process of calculating a structure factor is handled
 by [`dynamic_structure_factor`](@ref). Internally, this function:
 
 1. Thermalizes the system for a while

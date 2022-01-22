@@ -43,6 +43,18 @@ function diamond_test_exchanges()
     return [heisen, on_site, diag_int, gen_int]
 end
 
+function produce_example_system()
+    cryst = Sunny.diamond_crystal()
+    latsize = [5, 5, 5]
+
+    interactions = [
+        diamond_test_exchanges()...,
+        external_field([0, 0, 1])
+    ]
+
+    return SpinSystem(cryst, interactions, latsize)
+end
+
 @testset verbose=true "Sunny Tests" begin
     addtests("test_lattice.jl")
     addtests("test_pair_interactions.jl")

@@ -64,7 +64,7 @@ include("Systems.jl")
 export ChargeSystem, SpinSystem, rand!, randflips!, energy, field, field!
 
 include("Metropolis.jl")
-export MetropolisSampler, IsingSampler, set_temp!, get_system
+export MetropolisSampler, IsingSampler, set_temp!, get_temp, get_system
 export sample!, thermalize!, anneal!
 export running_energy, running_mag, reset_running_energy!, reset_running_mag!
 
@@ -91,7 +91,7 @@ function __init__()
 
     @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" begin
         include("ParallelTempering.jl")
-        export Replica, run!
+        export Replica, run_PT!, run_FBOPT!
     end
 end
 

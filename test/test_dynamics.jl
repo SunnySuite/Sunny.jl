@@ -60,6 +60,26 @@ end
 
 test_dipole_ft()
 
+"Tests that set_temp!/get_temp behave as expected"
+function test_set_get_temp_langevin()
+    system = produce_example_system()
+    
+    Random.seed!(1111)
+    rand_kTs = rand(100)
+
+    sampler = LangevinSampler(system, 1.0, 1.0, 1.0, 1)
+    for kT in rand_kTs
+        set_temp!(sampler, kT)
+        if get_temp(sampler) != kT
+            return false
+        end
+    end
+
+    return true
+end
+
+@test test_set_get_temp_langevin()
+
 end
 
 # == These should not be @test-ed, but are for manual inspection == #
