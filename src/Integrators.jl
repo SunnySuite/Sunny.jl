@@ -175,8 +175,9 @@ end
 """
     A sampler which produces new samples using Langevin Landau-Lifshitz dynamics
 """
-struct LangevinSampler{D, L, Db} <: AbstractSampler
+mutable struct LangevinSampler{D, L, Db} <: AbstractSampler
     integrator :: LangevinHeunP{D, L, Db}
+    kT         :: Float64
     Δt         :: Float64
     nsteps     :: Int
 end
@@ -190,15 +191,17 @@ Creates a `LangevinSampler` which samples the spin system's Hamiltonian using La
 """
 function LangevinSampler(sys::SpinSystem{D, L, Db}, kT::Float64, α::Float64, Δt::Float64, nsteps::Int) where {D, L, Db}
     integrator = LangevinHeunP(sys, kT, α)
-    LangevinSampler{D, L, Db}(integrator, Δt, nsteps)
+    LangevinSampler{D, L, Db}(integrator, kT, Δt, nsteps)
 end
 
 @inline function set_temp!(sampler::LangevinSampler, kT::Float64)
+    sampler.kT = kT
     α = sampler.integrator.α
     sampler.integrator.D = α * kT / (1 + α * α)
     nothing
 end
 
+get_temp(sampler::LangevinSampler) = sampler.kT
 get_system(sampler::LangevinSampler) = sampler.integrator.system
 
 @inline function sample!(sampler::LangevinSampler)
