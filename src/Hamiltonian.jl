@@ -2,15 +2,6 @@
 # interaction types and orchestrates energy/field calculations.
 
 function validate_and_clean_interactions(ints::Vector{<:Interaction}, crystal::Crystal, latsize::Vector{Int64})
-    # Convert every OnSiteQuadratic to QuadraticInteraction
-    ints = map(ints) do int
-        if isa(int, OnSiteQuadratic)
-            return QuadraticInteraction(int.J, Bond(int.site, int.site, zeros(3)), int.label)
-        else
-            return int
-        end
-    end
-
     # Validate all interactions
     for int in ints
         if isa(int, QuadraticInteraction)

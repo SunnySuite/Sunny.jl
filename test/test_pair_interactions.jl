@@ -31,4 +31,26 @@
 
     test_type_mapping()
 
+    function Base.isapprox(int::Sunny.QuadraticInteraction, int2::Sunny.QuadraticInteraction; kwargs...)
+        exchange_eq = isapprox(int.J, int2.J; kwargs...)
+        bond_eq = int.bond == int2.bond
+        exchange_eq && bond_eq
+    end
+
+    # Test that the output of `show` on pair interactions actually creates the correct interaction again,
+    #   up to truncation error in `show`. (Does not check label on interactions, which isn't printed in `show`)
+    function test_quadratic_shown_info()
+        io = IOBuffer()
+        context = IOContext(io)
+        exchange_ints = diamond_test_exchanges()
+        for int in exchange_ints
+            show(context, "text/plain", int)
+            output = String(take!(io))
+            reparsed_int = eval(Meta.parse(output))
+            @test isapprox(int, reparsed_int; atol=1e-4)
+        end
+    end
+
+    test_quadratic_shown_info()
+
 end
