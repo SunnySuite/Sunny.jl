@@ -180,7 +180,7 @@ meas_rate = 40     # Number of timesteps between snapshots of LLD to input to FF
                    # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
 dyn_meas = 400     # Total number of frequencies we'd like to resolve
 dynsf = dynamic_structure_factor(
-    sys, sampler; therm_samples=10, dynΔt=Δt, meas_rate=meas_rate,
+    sys, sampler; nsamples=10, dynΔt=Δt, meas_rate=meas_rate,
     dyn_meas=dyn_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
     reduce_basis=true, dipole_factor=false,
 )
@@ -325,7 +325,7 @@ meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 sampler = MetropolisSampler(system, kT, 500)
 println("Starting structure factor measurement...")
 dynsf = dynamic_structure_factor(
-    system, sampler; therm_samples=15, thermalize=15,
+    system, sampler; nsamples=15, thermalize=15,
     bz_size=(2,0,0), reduce_basis=true, dipole_factor=true,
     dynΔt=Δt, meas_rate=meas_rate, dyn_meas=1000, verbose=true, 
 )
@@ -496,7 +496,6 @@ To discover the symmetry allowed couplings for all bonds up to a certain
 distance, we can use the function [`print_bond_table`](@ref).
 
 ```
-lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
 crystal = Sunny.diamond_crystal()
 print_bond_table(crystal, 1.0)
 ```
@@ -548,7 +547,7 @@ find the ones starting from atom 2 we can use
 ```
 julia> all_symmetry_related_bonds_for_atom(crystal, 2, Bond(2, 3, [0, 0, 0]))
 
-4-element Vector{Bond{3}}:
+4-element Vector{Bond}:
  Bond(2, 7, [0, 0, -1])
  Bond(2, 8, [0, 0, -1])
  Bond(2, 3, [0, 0, 0])
@@ -563,8 +562,8 @@ julia> print_bond(crystal, Bond(1, 6, [1,-1,0]))
 Bond(1, 6, [1, -1, 0])
 Distance 1.225, coordination 24
 Connects [0, 0, 0] to [1, -0.5, 0.5]
-Allowed exchange matrix: |   A  D+E -D-E |
-                         | D-E    B    C |
-                         |-D+E    C    B |
-Allowed DM vector: [0 E E]
+Allowed exchange matrix: |   A  D-E -D+E |
+                         | D+E    B    C |
+                         |-D-E    C    B |
+Allowed DM vector: [0 -E -E]
 ```

@@ -6,8 +6,8 @@
 Defines a symmetry operation belonging to a 3D space group, operating on fractional coordinates.
 """
 struct SymOp
-    R::Mat3
-    T::Vec3
+    R :: Mat3
+    T :: Vec3
 end
 
 function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
@@ -73,16 +73,14 @@ A type holding all geometry and symmetry information needed to represent
  a three-dimensional crystal.
 """
 struct Crystal
-    lat_vecs       :: Mat3                # Lattice vectors as columns
-
-    positions      :: Vector{Vec3}        # Positions in fractional coords
-    types          :: Vector{String}      # Types
-    classes        :: Vector{Int}         # Class indices
+    lat_vecs       :: Mat3                                 # Lattice vectors as columns
+    positions      :: Vector{Vec3}                         # Positions in fractional coords
+    types          :: Vector{String}                       # Types
+    classes        :: Vector{Int}                          # Class indices
     sitesyms       :: Union{Nothing, Vector{SiteSymmetry}} # Optional site symmetries
-
-    symops         :: Vector{SymOp}       # Symmetry operations
-    spacegroup     :: String              # Description of space group
-    symprec        :: Float64             # Tolerance to imperfections in symmetry
+    symops         :: Vector{SymOp}                        # Symmetry operations
+    spacegroup     :: String                               # Description of space group
+    symprec        :: Float64                              # Tolerance to imperfections in symmetry
 end
 
 """
@@ -98,9 +96,6 @@ nbasis(cryst::Crystal) = length(cryst.positions)
 Volume of the crystal unit cell.
 """
 cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
-
-# This will remain 3 for the foreseeable future.
-dimension(cryst::Crystal) = 3
 
 """
     equiv_sites(crystal::Crystal, b::Int)
@@ -522,7 +517,7 @@ end
 
 function cubic_crystal(; a=1.0)
     lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
-    basis_vecs = [0, 0, 0]
+    basis_vecs = [[0, 0, 0]]
     Crystal(lat_vecs, basis_vecs)
 end
 

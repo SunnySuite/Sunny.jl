@@ -107,7 +107,7 @@ end
     opposite charges Q = ±1/(2ϵ) separated by displacements d = 2ϵp centered on the original
     lattice sites.
 """
-function _approx_dip_as_mono(sys::SpinSystem{3, 9, 4}; ϵ::Float64=0.1) :: ChargeSystem{3, 9, 4}
+function _approx_dip_as_mono(sys::SpinSystem; ϵ::Float64=0.1) :: ChargeSystem
     lattice = sys.lattice
     sites = sys.sites
 
@@ -142,7 +142,7 @@ function _approx_dip_as_mono(sys::SpinSystem{3, 9, 4}; ϵ::Float64=0.1) :: Charg
 
     new_lattice = Sunny.Lattice(new_lat_vecs, new_basis, new_latsize)
 
-    return ChargeSystem{3, 9, 4}(new_lattice, new_sites)
+    return ChargeSystem(new_lattice, new_sites)
 end
 
 """

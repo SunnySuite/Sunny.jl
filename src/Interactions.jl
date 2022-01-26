@@ -6,19 +6,9 @@ abstract type InteractionCPU end   # Subtype this for actual internal CPU implem
 abstract type InteractionGPU end   # Subtype this for actual internal GPU implementations
 
 
-struct QuadraticInteraction{D} <: Interaction
+struct QuadraticInteraction <: Interaction
     J     :: Mat3
-    bond  :: Bond{D}
-    label :: String
-end
-
-# A special case of QuadraticInteraction. Ideally we would never need this type,
-# but sometimes we don't know the dimension D at construction time. As soon as
-# knowledge of D becomes available (through a SpinSystem), every OnSiteQuadratic
-# is converted to QuadraticInteraction{D}.
-struct OnSiteQuadratic <: Interaction
-    J     :: Mat3
-    site  :: Int
+    bond  :: Bond
     label :: String
 end
 
@@ -49,44 +39,35 @@ end
 SiteInfo(site::Int, S, g::Number) = SiteInfo(site, S, Mat3(g * I))
 SiteInfo(site::Int, S) = SiteInfo(site, S, 2.0)
 
-
-function Base.show(io::IO, ::MIME"text/plain", int::OnSiteQuadratic)
-    J = int.J
-    @assert J ≈ J'
-
-    # Check if it is easy-axis or easy-plane
-    λ, V = eigen(J)
-    nonzero_λ = findall(x -> abs(x) > 1e-12, λ)
-    if length(nonzero_λ) == 1
-        i = nonzero_λ[1]
-        dir = V[:, i]
-        if count(<(0.0), dir) >= 2
-            dir = -dir
-        end
-        name, D = λ[i] < 0 ? ("easy_axis", -λ[i]) : ("easy_plane", λ[i])
-        @printf io "%s(%.4g, [%.4g, %.4g, %.4g], %d)" name D dir[1] dir[2] dir[3] int.site
-    else
-        @printf io "single_ion_anisotropy([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %d)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] int.site
-    end
-end
-
 function Base.show(io::IO, mime::MIME"text/plain", int::QuadraticInteraction)
-    if int.bond.i == int.bond.j && iszero(int.bond.n)
-        return show(io, mime, OnSiteQuadratic(int.J, int.bond.i, int.label))
-    end
-
     b = repr(mime, int.bond)
     J = int.J
-    if J ≈ -J'
+    if int.bond.i == int.bond.j && iszero(int.bond.n)  # Catch on-site anisotropies
+        @assert J ≈ J'
+        # Check if it is easy-axis or easy-plane
+        λ, V = eigen(J)
+        nonzero_λ = findall(x -> abs(x) > 1e-12, λ)
+        if length(nonzero_λ) == 1
+            i = nonzero_λ[1]
+            dir = V[:, i]
+            if count(<(0.0), dir) >= 2
+                dir = -dir
+            end
+            name, D = λ[i] < 0 ? ("easy_axis", -λ[i]) : ("easy_plane", λ[i])
+            @printf io "%s(%.4g, [%.4g, %.4g, %.4g], %d)" name D dir[1] dir[2] dir[3] int.bond.i
+        else
+            @printf io "single_ion_anisotropy([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %d)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] int.bond.i
+        end
+    elseif J ≈ -J'                         # Catch purely DM interactions
         x = J[2, 3]
         y = J[3, 1]
         z = J[1, 2]
         @printf io "dm_interaction([%.4g, %.4g, %.4g], %s)" x y z b
-    elseif diagm(fill(J[1,1], 3)) ≈ J
+    elseif diagm(fill(J[1,1], 3)) ≈ J      # Catch Heisenberg interactions
         @printf io "heisenberg(%.4g, %s)" J[1,1] b
-    elseif diagm(diag(J )) ≈ J
+    elseif diagm(diag(J)) ≈ J              # Catch diagonal interactions
         @printf io "exchange(diagm([%.4g, %.4g, %.4g]), %s)" J[1,1] J[2,2] J[3,3] b
-    else
+    else                                   # Rest -- general exchange interactions
         @printf io "exchange([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %s)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] b
         # TODO: Figure out how to reenable this depending on context:
         # @printf io "exchange([%.4f %.4f %.4f\n"   J[1,1] J[1,2] J[1,3]
@@ -161,7 +142,7 @@ function single_ion_anisotropy(J, site::Int, label::String="Anisotropy")
     if !(J ≈ J')
         error("Single-ion anisotropy must be symmetric.")
     end
-    OnSiteQuadratic(Mat3(J), site, label)
+    QuadraticInteraction(Mat3(J), Bond(site, site, [0,0,0]), label)
 end
 
 
@@ -183,7 +164,7 @@ function easy_axis(D, n, site::Int, label::String="EasyAxis")
     if !(norm(n) ≈ 1)
         error("Parameter `n` must be a unit vector. Consider using `normalize(n)`.")
     end
-    OnSiteQuadratic(-D*Mat3(n*n'), site, label)
+    QuadraticInteraction(-D*Mat3(n*n'), Bond(site, site, [0,0,0]), label)
 end
 
 
@@ -205,7 +186,7 @@ function easy_plane(D, n, site::Int, label::String="EasyAxis")
     if !(norm(n) ≈ 1)
         error("Parameter `n` must be a unit vector. Consider using `normalize(n)`.")
     end
-    OnSiteQuadratic(+D*Mat3(n*n'), site, label)
+    QuadraticInteraction(+D*Mat3(n*n'), Bond(site, site, [0,0,0]), label)
 end
 
 
@@ -270,7 +251,7 @@ function ExternalFieldCPU(ext_field::ExternalField, sites_info::Vector{SiteInfo}
     ExternalFieldCPU(effBs)
 end
 
-function energy(spins::Array{Vec3}, field::ExternalFieldCPU)
+function energy(spins::Array{Vec3, 4}, field::ExternalFieldCPU)
     E = 0.0
     for b in 1:size(spins, 1)
         effB = field.effBs[b]
@@ -282,7 +263,7 @@ function energy(spins::Array{Vec3}, field::ExternalFieldCPU)
 end
 
 "Accumulates the negative local Hamiltonian gradient coming from the external field"
-@inline function _accum_neggrad!(B::Array{Vec3}, field::ExternalFieldCPU)
+@inline function _accum_neggrad!(B::Array{Vec3, 4}, field::ExternalFieldCPU)
     for b in 1:size(B, 1)
         effB = field.effBs[b]
         for idx in CartesianIndices(size(B)[2:end])
