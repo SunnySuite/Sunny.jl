@@ -66,7 +66,7 @@ function _print_allowed_coupling(basis_strs; prefix)
     end
 end
 
-function print_allowed_coupling(cryst::Crystal, b::Bond{3}; prefix="", digits=2, tol=1e-4)
+function print_allowed_coupling(cryst::Crystal, b::Bond; prefix="", digits=2, tol=1e-4)
     basis = basis_for_symmetry_allowed_couplings(cryst, b)
     basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, tol)
     _print_allowed_coupling(basis_strs; prefix)
@@ -78,7 +78,7 @@ end
 
 Pretty-prints symmetry information for bond `bond` or atom index `i`.
 """
-function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
+function print_bond(cryst::Crystal, b::Bond; digits=2, tol=1e-4)
     ri = cryst.positions[b.i]
     rj = cryst.positions[b.j] + b.n
 
@@ -124,7 +124,7 @@ function print_bond(cryst::Crystal, b::Bond{3}; digits=2, tol=1e-4)
 end
 
 function print_bond(cryst::Crystal, i::Int; digits=2, tol=1e-4)
-    print_bond(cryst, Bond{3}(i, i, [0, 0, 0]); digits, tol)
+    print_bond(cryst, Bond(i, i, [0, 0, 0]); digits, tol)
 end
 
 

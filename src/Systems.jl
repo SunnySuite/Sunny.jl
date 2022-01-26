@@ -1,6 +1,6 @@
 import Random # overload Random.rand!
 
-abstract type AbstractSystem{T, D, L, Db} <: AbstractArray{T, Db} end
+abstract type AbstractSystem{T} <: AbstractArray{T, 4} end
 Base.IndexStyle(::Type{<:AbstractSystem}) = IndexLinear()
 Base.size(sys::S) where {S <: AbstractSystem} = size(sys.sites)
 Base.getindex(sys::S, i::Int) where {S <: AbstractSystem} = sys.sites[i]
@@ -21,20 +21,20 @@ end
 Defines a collection of charges. Currently primarily used to test ewald
  summation calculations.
 """
-mutable struct ChargeSystem{D, L, Db} <: AbstractSystem{Float64, D, L, Db}
-    lattice       :: Lattice{D, L, Db}    # Definition of underlying lattice
-    sites         :: Array{Float64, Db}   # Holds charges at each site
+mutable struct ChargeSystem <: AbstractSystem{Float64}
+    lattice :: Lattice             # Definition of underlying lattice
+    sites   :: Array{Float64, 4}   # Holds charges at each site
 end
 
 """
 Defines a collection of spins, as well as the Hamiltonian they interact under.
  This is the main type to interface with most of the package.
 """
-mutable struct SpinSystem{D, L, Db} <: AbstractSystem{Vec3, D, L, Db}
-    lattice        :: Lattice{D, L, Db}   # Definition of underlying lattice
-    hamiltonian    :: HamiltonianCPU{D}   # Contains all interactions present
-    sites          :: Array{Vec3, Db}     # Holds actual spin variables
-    sites_info     :: Vector{SiteInfo}    # Characterization of each basis site
+mutable struct SpinSystem <: AbstractSystem{Vec3}
+    lattice     :: Lattice            # Definition of underlying lattice
+    hamiltonian :: HamiltonianCPU     # Contains all interactions present
+    sites       :: Array{Vec3, 4}     # Holds actual spin variables: Axes are [Basis, CellA, CellB, CellC]
+    sites_info  :: Vector{SiteInfo}   # Characterization of each basis site
 end
 
 """
@@ -50,7 +50,6 @@ function ChargeSystem(lat::Lattice)
 end
 
 function ChargeSystem(cryst::Crystal, latsize)
-    sites = zeros(nbasis(cryst), sites_size)
     lattice = Lattice(crystal, latsize)
     return ChargeSystem(lattice)
 end
@@ -126,7 +125,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, site
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
 
     # Default unit system is (meV, K, Å, T)
-    SpinSystem{3, 9, 4}(lattice, ℋ_CPU, sites, all_sites_info)
+    SpinSystem(lattice, ℋ_CPU, sites, all_sites_info)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem)

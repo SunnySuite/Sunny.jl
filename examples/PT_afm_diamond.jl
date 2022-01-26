@@ -12,7 +12,7 @@ crystal = Sunny.diamond_crystal()
 # interactions -- units of K  
 J = 28.28
 interactions = [
-    heisenberg(J, Bond{3}(1, 3, [0,0,0])),
+    heisenberg(J, Bond(1, 3, [0,0,0])),
 ]
 
 # spin system -- setup to use K

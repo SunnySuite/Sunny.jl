@@ -14,10 +14,10 @@ This is the documentation for [Sunny.jl](https://github.com/MagSims/Sunny.jl). T
 - Structure factor calculations
 - Automated symmetry analysis and bond equivalency class discovery
 - Interactive plotting using [Makie.jl](https://github.com/JuliaPlots/Makie.jl)
+- Parallel tempering
 
 **Planned Features**
 - CPU parallelization of dynamics and Monte Carlo simulations
-- Parallel tempering
 - Generalized ``\mathrm{SU(N)}`` models
 - GPU acceleration
 - Accelerated local MC updates in the presence of long-range dipole interactions

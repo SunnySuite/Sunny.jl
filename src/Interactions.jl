@@ -6,9 +6,9 @@ abstract type InteractionCPU end   # Subtype this for actual internal CPU implem
 abstract type InteractionGPU end   # Subtype this for actual internal GPU implementations
 
 
-struct QuadraticInteraction{D} <: Interaction
+struct QuadraticInteraction <: Interaction
     J     :: Mat3
-    bond  :: Bond{D}
+    bond  :: Bond
     label :: String
 end
 
@@ -270,7 +270,7 @@ function ExternalFieldCPU(ext_field::ExternalField, sites_info::Vector{SiteInfo}
     ExternalFieldCPU(effBs)
 end
 
-function energy(spins::Array{Vec3}, field::ExternalFieldCPU)
+function energy(spins::Array{Vec3, 4}, field::ExternalFieldCPU)
     E = 0.0
     for b in 1:size(spins, 1)
         effB = field.effBs[b]
@@ -282,7 +282,7 @@ function energy(spins::Array{Vec3}, field::ExternalFieldCPU)
 end
 
 "Accumulates the negative local Hamiltonian gradient coming from the external field"
-@inline function _accum_neggrad!(B::Array{Vec3}, field::ExternalFieldCPU)
+@inline function _accum_neggrad!(B::Array{Vec3, 4}, field::ExternalFieldCPU)
     for b in 1:size(B, 1)
         effB = field.effBs[b]
         for idx in CartesianIndices(size(B)[2:end])

@@ -1,12 +1,12 @@
 import Random # TODO: Move `rng` field up to SpinSystem
 
 """ 
-    mutable struct WangLandau{D, L, Db, F<:Function} 
+    mutable struct WangLandau{F<:Function} 
 
 Wang-Landau sampler. All parameters have default values that can be overwritten,
 but a SpinSystem must be passed during construction. 
 """
-Base.@kwdef mutable struct WangLandau{D, L, Db, F<:Function}
+Base.@kwdef mutable struct WangLandau{F<:Function}
     # adaptive binned histogram
     hist::BinnedArray{Float64, Int64} = BinnedArray{Float64, Int64}()
 
@@ -43,7 +43,7 @@ Base.@kwdef mutable struct WangLandau{D, L, Db, F<:Function}
     )
 
     # spin system
-    system::SpinSystem{D, L, Db}
+    system::SpinSystem
 
     # minimum energy (not binned) found in simulation
     E_min::Float64 = Inf
