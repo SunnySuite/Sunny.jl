@@ -73,15 +73,15 @@ Each single-spin update attempts to move the spin to a random position on
  the unit sphere. One call to `sample!` will attempt to flip each spin
  `nsweeps` times.
 """
-mutable struct MetropolisSampler{D, L, Db} <: AbstractSampler
-    system     :: SpinSystem{D, L, Db}
+mutable struct MetropolisSampler <: AbstractSampler
+    system     :: SpinSystem
     β          :: Float64
     nsweeps    :: Int
     E          :: Float64
     M          :: Vec3
-    function MetropolisSampler(sys::SpinSystem{D,L,Db}, kT::Float64, nsweeps::Int) where {D,L,Db}
+    function MetropolisSampler(sys::SpinSystem, kT::Float64, nsweeps::Int)
         @assert kT != 0. "Temperature must be nonzero!"
-        new{D, L, Db}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys))
+        new(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys))
     end
 end
 
@@ -98,15 +98,15 @@ to flip each spin `nsweeps` times.
 Before construting, be sure that your `SpinSystem` is initialized so that each
 spin points along its "Ising-like" axis.
 """
-mutable struct IsingSampler{D, L, Db} <: AbstractSampler
-    system     :: SpinSystem{D, L, Db}
+mutable struct IsingSampler <: AbstractSampler
+    system     :: SpinSystem
     β          :: Float64
     nsweeps    :: Int
     E          :: Float64
     M          :: Vec3
-    function IsingSampler(sys::SpinSystem{D,L,Db}, kT::Float64, nsweeps::Int) where {D,L,Db}
+    function IsingSampler(sys::SpinSystem, kT::Float64, nsweeps::Int)
         @assert kT != 0. "Temperature must be nonzero!"
-        new{D, L, Db}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys))
+        new(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys))
     end
 end
 
@@ -198,7 +198,7 @@ end
 Computes the change in energy if we replace the spin at `sys[idx]`
   with `newspin`.
 """
-function local_energy_change(sys::SpinSystem{D}, idx, newspin::Vec3) where {D}
+function local_energy_change(sys::SpinSystem, idx, newspin::Vec3)
     ℋ = sys.hamiltonian
     ΔE = 0.0
     oldspin = sys[idx]

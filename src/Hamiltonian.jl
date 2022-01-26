@@ -1,29 +1,11 @@
 # Functions associated with HamiltonianCPU, which maintains the actual internal
 # interaction types and orchestrates energy/field calculations.
 
-
 function validate_and_clean_interactions(ints::Vector{<:Interaction}, crystal::Crystal, latsize::Vector{Int64})
-    D = dimension(crystal)
-
-    # Now that we know dimension D, we can convert every OnSiteQuadratic to
-    # QuadraticInteraction
-    ints = map(ints) do int
-        if isa(int, OnSiteQuadratic)
-            return QuadraticInteraction(int.J, Bond{D}(int.site, int.site, zeros(D)), int.label)
-        else
-            return int
-        end
-    end
-
     # Validate all interactions
     for int in ints
         if isa(int, QuadraticInteraction)
             b = int.bond
-
-            # Verify that the dimension is correct
-            if length(b.n) != D
-                error("Interaction $(repr(MIME("text/plain"), int)) inconsistent with crystal dimension $D.")
-            end
 
             # Verify that both basis sites indexed actually exist
             if !(1 <= b.i <= nbasis(crystal)) || !(1 <= b.j <= nbasis(crystal))
@@ -52,11 +34,6 @@ function validate_and_clean_interactions(ints::Vector{<:Interaction}, crystal::C
                 println("Distance-violating interaction: $int.")
                 error("Interaction wraps system.")
             end
-
-        elseif isa(int, DipoleDipole)
-            if D != 3
-                error("Dipole-dipole interactions require three dimensions.")
-            end
         end
     end
 
@@ -65,16 +42,16 @@ end
 
 
 """
-    HamiltonianCPU{D}
+    HamiltonianCPU
 
 Stores and orchestrates the types that perform the actual implementations
 of all interactions internally.
 """
-struct HamiltonianCPU{D}
+struct HamiltonianCPU
     ext_field   :: Union{Nothing, ExternalFieldCPU}
-    heisenbergs :: Vector{HeisenbergCPU{D}}
-    diag_coups  :: Vector{DiagonalCouplingCPU{D}}
-    gen_coups   :: Vector{GeneralCouplingCPU{D}}
+    heisenbergs :: Vector{HeisenbergCPU}
+    diag_coups  :: Vector{DiagonalCouplingCPU}
+    gen_coups   :: Vector{GeneralCouplingCPU}
     dipole_int  :: Union{Nothing, DipoleRealCPU, DipoleFourierCPU}
     spin_mags   :: Vector{Float64}
 end
@@ -82,7 +59,7 @@ end
 """
     HamiltonianCPU(ints::Vector{<:Interaction}, crystal, latsize, sites_info::Vector{SiteInfo})
 
-Construct a `HamiltonianCPU{3}` from a list of interactions, converting
+Construct a `HamiltonianCPU` from a list of interactions, converting
 each of the interactions into the proper backend type specialized
 for the given `crystal` and `latsize`.
 
@@ -92,9 +69,9 @@ function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal,
                         latsize::Vector{Int64}, sites_info::Vector{SiteInfo};
                         μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
     ext_field   = nothing
-    heisenbergs = Vector{HeisenbergCPU{3}}()
-    diag_coups  = Vector{DiagonalCouplingCPU{3}}()
-    gen_coups   = Vector{GeneralCouplingCPU{3}}()
+    heisenbergs = Vector{HeisenbergCPU}()
+    diag_coups  = Vector{DiagonalCouplingCPU}()
+    gen_coups   = Vector{GeneralCouplingCPU}()
     dipole_int  = nothing
     spin_mags   = [site.S for site in sites_info]
 
@@ -128,7 +105,7 @@ function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal,
         end
     end
 
-    return HamiltonianCPU{3}(
+    return HamiltonianCPU(
         ext_field, heisenbergs, diag_coups, gen_coups, dipole_int, spin_mags
     )
 end
@@ -167,7 +144,7 @@ Note that all `_accum_neggrad!` functions should return _just_ the
 this function. Likewise, all code which utilizes local fields should
 be calling _this_ function, not the `_accum_neggrad!`'s directly.
 """
-function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::HamiltonianCPU{D}) where {D}
+function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::HamiltonianCPU)
     fill!(B, SA[0.0, 0.0, 0.0])
     if !isnothing(ℋ.ext_field)
         _accum_neggrad!(B, ℋ.ext_field)

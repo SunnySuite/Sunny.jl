@@ -6,10 +6,10 @@ Upon creation of a SpinSystem, all pair interactions get converted into their
 """
 
 "Presorts a flat list of bonds into a nested list, with the outer list corresponding to `bond.i`"
-function presort_bonds(bonds::Vector{Bond{D}}) :: Vector{Vector{Bond{D}}} where {D}
+function presort_bonds(bonds::Vector{Bond}) :: Vector{Vector{Bond}}
     nb = maximum(b->b.i, bonds)
 
-    sorted_bonds = [Bond{D}[] for _ in 1:nb]
+    sorted_bonds = [Bond[] for _ in 1:nb]
     for bond in bonds
         push!(sorted_bonds[bond.i], bond)
     end
@@ -21,10 +21,10 @@ end
    Bonds with `bond.i == bond.j` need to be further culled to only keep half,
     removing one from each pair with inverted `bond.n`.
 """
-function cull_bonds(bonds::Vector{Vector{Bond{D}}}, Js::Vector{Vector{S}}) where {D, S}
+function cull_bonds(bonds::Vector{Vector{Bond}}, Js::Vector{Vector{S}}) where {S}
     nb = length(bonds)
 
-    culled_bonds = [Bond{D}[] for _ in 1:nb]
+    culled_bonds = [Bond[] for _ in 1:nb]
     culled_Js = [S[] for _ in 1:nb]
     for i in 1:nb
         for (bond, J) in zip(bonds[i], Js[i])
@@ -33,7 +33,7 @@ function cull_bonds(bonds::Vector{Vector{Bond{D}}}, Js::Vector{Vector{S}}) where
                 push!(culled_Js[i], J)
             end
             if bond.i == bond.j
-                neg_bond = Bond{D}(bond.i, bond.j, -bond.n)
+                neg_bond = Bond(bond.i, bond.j, -bond.n)
                 if !(neg_bond in culled_bonds[i])
                     push!(culled_bonds[i], bond)
                     push!(culled_Js[i], J)
@@ -45,47 +45,47 @@ function cull_bonds(bonds::Vector{Vector{Bond{D}}}, Js::Vector{Vector{S}}) where
 end
 
 """
-    HeisenbergCPU{D}
+    HeisenbergCPU
 
 Implements an exchange interaction which is proportional to
 the identity matrix.
 """
-struct HeisenbergCPU{D} <: InteractionCPU
-    effJ         :: Float64                  # S_i J S_j
-    bonds        :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
-    culled_bonds :: Vector{Vector{Bond{D}}}  # Like `bonds`, but culled to the minimal 1/2 bonds
+struct HeisenbergCPU <: InteractionCPU
+    effJ         :: Float64                 # S_i J S_j
+    bonds        :: Vector{Vector{Bond}}    # Each outer Vector is bonds on one sublattice
+    culled_bonds :: Vector{Vector{Bond}}    # Like `bonds`, but culled to the minimal 1/2 bonds
     label        :: String
 end
 
 """
-    DiagonalCouplingCPU{D}
+    DiagonalCouplingCPU
 
 Implements an exchange interaction where matrices on all bonds
 are diagonal.
 """
-struct DiagonalCouplingCPU{D} <: InteractionCPU
-    effJs         :: Vector{Vector{Vec3}}     # S_i J S_j for each bond
+struct DiagonalCouplingCPU <: InteractionCPU
+    effJs         :: Vector{Vector{Vec3}}    # S_i J S_j for each bond
     culled_effJs  :: Vector{Vector{Vec3}}
-    bonds         :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
-    culled_bonds  :: Vector{Vector{Bond{D}}}  # Like `bonds`, but culled to the minimal 1/2 bonds
+    bonds         :: Vector{Vector{Bond}}    # Each outer Vector is bonds on one sublattice
+    culled_bonds  :: Vector{Vector{Bond}}    # Like `bonds`, but culled to the minimal 1/2 bonds
     label         :: String
 end
 
 """
-    GeneralCouplingCPU{D}
+    GeneralCouplingCPU
 
 Implements the most generalized interaction, where matrices on
 all bonds are full 3x3 matrices which vary bond-to-bond.
 """
-struct GeneralCouplingCPU{D} <: InteractionCPU
-    effJs        :: Vector{Vector{Mat3}}     # S_i J S_j for each bond
+struct GeneralCouplingCPU <: InteractionCPU
+    effJs        :: Vector{Vector{Mat3}}    # S_i J S_j for each bond
     culled_effJs :: Vector{Vector{Mat3}}
-    bonds        :: Vector{Vector{Bond{D}}}  # Each outer Vector is bonds on one sublattice
-    culled_bonds :: Vector{Vector{Bond{D}}}  # Like `bonds`, but culled to the minimal 1/2 bonds
+    bonds        :: Vector{Vector{Bond}}    # Each outer Vector is bonds on one sublattice
+    culled_bonds :: Vector{Vector{Bond}}    # Like `bonds`, but culled to the minimal 1/2 bonds
     label        :: String
 end
 
-const PairInt{D} = Union{HeisenbergCPU{D}, DiagonalCouplingCPU{D}, GeneralCouplingCPU{D}}
+const PairInt = Union{HeisenbergCPU, DiagonalCouplingCPU, GeneralCouplingCPU}
 
 # Helper functions producing predicates checking if a matrix is approximately
 # Heisenberg or diagonal
@@ -95,9 +95,9 @@ isheisen(tol) = Base.Fix2(isheisen, tol)
 isdiag(tol) = Base.Fix2(isdiag, tol)
 
 # Figures out the correct maximally-efficient backend type for a quadratic interaction
-function convert_quadratic(int::QuadraticInteraction{D}, cryst::Crystal, sites_info::Vector{SiteInfo}; tol=1e-6) where {D}
+function convert_quadratic(int::QuadraticInteraction, cryst::Crystal, sites_info::Vector{SiteInfo}; tol=1e-6)
     @unpack J, bond, label = int
-    sorted_bonds = Vector{Vector{Bond{D}}}()
+    sorted_bonds = Vector{Vector{Bond}}()
     sorted_Js = Vector{Vector{Mat3}}()
     for i in 1:nbasis(cryst)
         (bs, Js) = all_symmetry_related_couplings_for_atom(cryst, i, bond, J)
@@ -114,7 +114,7 @@ function convert_quadratic(int::QuadraticInteraction{D}, cryst::Crystal, sites_i
     (culled_bonds, culled_Js) = cull_bonds(sorted_bonds, sorted_Js)
 
     if all(isheisen(tol), Base.Iterators.flatten(culled_Js))
-        return HeisenbergCPU{D}(SiSj * J[1,1], sorted_bonds, culled_bonds, label)
+        return HeisenbergCPU(SiSj * J[1,1], sorted_bonds, culled_bonds, label)
     elseif all(isdiag(tol), Base.Iterators.flatten(culled_Js))
         vec_sorted_Js = [
             [diag(M) for M in Js]
@@ -124,19 +124,19 @@ function convert_quadratic(int::QuadraticInteraction{D}, cryst::Crystal, sites_i
             [diag(M) for M in Js]
             for Js in culled_Js
         ]
-        return DiagonalCouplingCPU{D}(
+        return DiagonalCouplingCPU(
             vec_sorted_Js, vec_culled_Js,
             sorted_bonds, culled_bonds, label
         )
     else
-        return GeneralCouplingCPU{D}(
+        return GeneralCouplingCPU(
             sorted_Js, culled_Js,
             sorted_bonds, culled_bonds, label
         )
     end
 end
 
-function energy(spins::Array{Vec3}, heisenberg::HeisenbergCPU)
+function energy(spins::Array{Vec3, 4}, heisenberg::HeisenbergCPU)
     @unpack effJ, culled_bonds = heisenberg
     E = 0.0
     latsize = size(spins)[2:end]
@@ -153,7 +153,7 @@ function energy(spins::Array{Vec3}, heisenberg::HeisenbergCPU)
     return effJ * E
 end
 
-function energy(spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
+function energy(spins::Array{Vec3, 4}, diag_coup::DiagonalCouplingCPU)
     @unpack culled_effJs, culled_bonds = diag_coup
     E = 0.0
     latsize = size(spins)[2:end]
@@ -170,7 +170,7 @@ function energy(spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
     return E
 end
 
-function energy(spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
+function energy(spins::Array{Vec3, 4}, gen_coup::GeneralCouplingCPU)
     @unpack culled_effJs, culled_bonds = gen_coup
     E = 0.0
     latsize = size(spins)[2:end]
@@ -188,7 +188,7 @@ function energy(spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
 end
 
 "Accumulates the local -∇ℋ coming from Heisenberg couplings into `B`"
-@inline function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, heisen::HeisenbergCPU)
+@inline function _accum_neggrad!(B::Array{Vec3, 4}, spins::Array{Vec3, 4}, heisen::HeisenbergCPU)
     latsize = size(spins)[2:end]
     @unpack effJ, culled_bonds = heisen
     for (i, bonds) in enumerate(culled_bonds)
@@ -204,7 +204,7 @@ end
 end
 
 "Accumulates the local -∇ℋ coming from diagonal couplings into `B`"
-@inline function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
+@inline function _accum_neggrad!(B::Array{Vec3, 4}, spins::Array{Vec3, 4}, diag_coup::DiagonalCouplingCPU)
     latsize = size(spins)[2:end]
 
     @unpack culled_effJs, culled_bonds = diag_coup
@@ -221,7 +221,7 @@ end
 end
 
 "Accumulates the local -∇ℋ coming from general couplings into `B`"
-@inline function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
+@inline function _accum_neggrad!(B::Array{Vec3, 4}, spins::Array{Vec3, 4}, gen_coup::GeneralCouplingCPU)
     latsize = size(spins)[2:end]
 
     @unpack culled_effJs, culled_bonds = gen_coup

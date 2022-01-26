@@ -4,16 +4,10 @@
 Represents a bond between atom indices `i` and `j`, with integer displacement of
 `n[1] ... n[D]` unit cells along each dimension.
 """
-struct Bond{D}
+struct Bond
     i :: Int
     j :: Int
-    n :: SVector{D, Int}
-end
-
-function Bond(i, j, n)
-    D = length(n)
-    n = convert(SVector{D, Int}, n)
-    Bond{D}(i, j, n)
+    n :: SVector{3, Int}
 end
 
 "Represents a bond expressed as two fractional coordinates"
@@ -28,14 +22,14 @@ function Bond(cryst::Crystal, b::BondRaw)
     ri = cryst.positions[i]
     rj = cryst.positions[j]
     n = round.(Int, (b.rj-b.ri) - (rj-ri))
-    return Bond{3}(i, j, n)
+    return Bond(i, j, n)
 end
 
-function BondRaw(cryst::Crystal, b::Bond{3})
+function BondRaw(cryst::Crystal, b::Bond)
     return BondRaw(cryst.positions[b.i], cryst.positions[b.j]+b.n)
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", bond::Bond{3})
+function Base.show(io::IO, mime::MIME"text/plain", bond::Bond)
     print(io, "Bond($(bond.i), $(bond.j), $(bond.n))")
 end
 
@@ -52,7 +46,7 @@ function displacement(cryst::Crystal, b::BondRaw)
     return cryst.lat_vecs * (b.rj - b.ri)
 end
 
-function displacement(cryst::Crystal, b::Bond{3})
+function displacement(cryst::Crystal, b::Bond)
     return displacement(cryst, BondRaw(cryst, b))
 end
 
@@ -65,7 +59,7 @@ function distance(cryst::Crystal, b::BondRaw)
     return norm(displacement(cryst, b))
 end
 
-function distance(cryst::Crystal, b::Bond{3})
+function distance(cryst::Crystal, b::Bond)
     return norm(displacement(cryst, b))
 end
 
@@ -73,7 +67,7 @@ function transform(s::SymOp, b::BondRaw)
     return BondRaw(transform(s, b.ri), transform(s, b.rj))
 end
 
-function transform(cryst::Crystal, s::SymOp, b::Bond{3})
+function transform(cryst::Crystal, s::SymOp, b::Bond)
     return Bond(cryst, transform(s, BondRaw(cryst, b)))
 end
 

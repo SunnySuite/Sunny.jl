@@ -17,7 +17,7 @@ Specifically, computes:
       - \frac{π}{2Vη^2}Q^2 - \frac{η}{\sqrt{π}} \sum_{i} q_i^2
 ```
 """
-function ewald_sum_monopole(lattice::Lattice{3}, charges::Array{Float64, 4}; η=1.0, extent=5) :: Float64
+function ewald_sum_monopole(lattice::Lattice, charges::Array{Float64, 4}; η=1.0, extent=5) :: Float64
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
 
     recip = gen_reciprocal(lattice)
@@ -80,7 +80,7 @@ function ewald_sum_monopole(lattice::Lattice{3}, charges::Array{Float64, 4}; η=
     return 0.5 * real_space_sum + 2π / vol * real(recip_space_sum) + tot_charge_term + charge_square_term
 end
 
-function direct_sum_monopole(lattice::Lattice{3}, charges::Array{Float64, 4}; s=0.0, extent=5) :: Float64
+function direct_sum_monopole(lattice::Lattice, charges::Array{Float64, 4}; s=0.0, extent=5) :: Float64
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
 
     # Vectors spanning the axes of the entire system
@@ -128,7 +128,7 @@ end
 Performs ewald summation to calculate the potential energy of a 
 system of dipoles with periodic boundary conditions.
 """
-function ewald_sum_dipole(lattice::Lattice{3}, spins::Array{Vec3, 4}; extent=2, η=1.0) :: Float64
+function ewald_sum_dipole(lattice::Lattice, spins::Array{Vec3, 4}; extent=2, η=1.0) :: Float64
     extent_idxs = CartesianIndices((-extent:extent, -extent:extent, -extent:extent))
 
     # Vectors spanning the axes of the entire system
@@ -204,7 +204,7 @@ function ewald_sum_dipole(lattice::Lattice{3}, spins::Array{Vec3, 4}; extent=2, 
 end
 
 "Precompute the dipole interaction matrix, not yet in ± compressed form."
-function precompute_monopole_ewald(lattice::Lattice{3}; extent=10, η=1.0) :: OffsetArray{5, Float64} where {D}
+function precompute_monopole_ewald(lattice::Lattice; extent=10, η=1.0) :: OffsetArray{5, Float64} where {D}
     nb = nbasis(lattice)
     A = zeros(Float64, nb, nb, map(n->2*(n-1)+1, lattice.size)...)
     A = OffsetArray(A, 1:nb, 1:nb, map(n->-(n-1):n-1, lattice.size)...)
@@ -293,7 +293,7 @@ function contract_monopole(charges::Array{Float64, 4}, A::OffsetArray{Float64}) 
 end
 
 "Precompute the dipole interaction matrix, in ± compressed form."
-function precompute_dipole_ewald(lattice::Lattice{3}; extent=3, η=1.0) :: OffsetArray{Mat3, 5}
+function precompute_dipole_ewald(lattice::Lattice; extent=3, η=1.0) :: OffsetArray{Mat3, 5}
     nb = nbasis(lattice)
     A = zeros(Mat3, nb, nb, lattice.size...)
     A = OffsetArray(A, 1:nb, 1:nb, map(n->0:n-1, lattice.size)...)

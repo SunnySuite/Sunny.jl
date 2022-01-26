@@ -50,7 +50,7 @@ end
 Constructor which initializes MPI communicator and sets sampler. -> Use on
 single communicator with no groups for now
 """
-function Replica(sampler::S) where {S<:AbstractSampler}
+function Replica(sampler::S) where {S <: AbstractSampler}
     # initialize MPI communicator and variables
     MPI.Init()
     MPI_COMM_WORLD = MPI.COMM_WORLD
@@ -210,7 +210,7 @@ end
 """
 Print xyz formatted (Lx, Ly, Lz, Sx, Sy, Sz) configurations to file 
 """
-function xyz_to_file(sys::SpinSystem{3}, output::IOStream)
+function xyz_to_file(sys::SpinSystem, output::IOStream)
     sites = reinterpret(reshape, Float64, sys.lattice)
     spins = reinterpret(reshape, Float64, sys.sites)
     xyz = vcat(sites, spins)
@@ -335,7 +335,7 @@ flow in PT simulations.
 """
 function run_FBOPT!(
     replica::Replica, 
-    kT_sched::Function; 
+    kT_sched::Function;
     max_mcs_opt::Int64=1_000_000, 
     update_interval::Int64=200_000, 
     therm_mcs::Int64=1000, 

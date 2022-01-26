@@ -32,7 +32,7 @@ function test_diamond_heisenberg_sf()
                        # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
     dyn_meas = 400     # Total number of frequencies we'd like to resolve
     dynsf = dynamic_structure_factor(
-        sys, sampler; therm_samples=10, dynΔt=Δt, meas_rate=meas_rate,
+        sys, sampler; nsamples=10, dynΔt=Δt, meas_rate=meas_rate,
         dyn_meas=dyn_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
         reduce_basis=true, dipole_factor=false,
     )
@@ -174,7 +174,7 @@ function test_FeI2_MC()
     println("Starting structure factor measurement...")
     dynsf = dynamic_structure_factor(
         system, sampler; bz_size=(2,0,0), thermalize=15,
-        therm_samples=15, dipole_factor=true, dyn_meas=1000,
+        nsamples=15, dipole_factor=true, dyn_meas=1000,
         meas_rate=meas_rate, verbose=true,
     )
     S = dynsf.sfactor
@@ -248,63 +248,6 @@ function plot_ET_data(Ts, Es, Eerrors)
     p
 end
 
-function test_gtensor_sf()
-    # An orthorhombic crystal, to allow z-component of g-tensor to be distinct
-    crystal = Crystal(
-        [1. 0. 0.; 0. 1. 0.; 0. 0. 2.],
-        [[0., 0., 0.]],
-    )
-    
-    # A ferromagnetic XXZ model, with Jz > Jx = Jy
-    Jx, Jy, Jz = -0.2, -0.2, -1
-    interactions = [
-        exchange(diagm([Jx, Jy, Jz]), Bond(1, 1, [1, 0, 0]))
-        exchange(diagm([Jx, Jy, Jz]), Bond(1, 1, [0, 0, 1]))
-    ]
-    # Only z-component of spin contributes to magnetic moment -- no signal anywhere
-    # sites_info = [
-    #     SiteInfo(1, 1, diagm([0, 0, 1]))
-    # ]
-    # Only xy-component of spin contributes to magnetic moment -- excitation signal in Sxx/Syy
-    site_info = [
-        SiteInfo(1, 1, diagm([1, 1, 0]))
-    ]
-    sys = SpinSystem(crystal, interactions, (8, 8, 8), site_info)
-    rand!(sys)
-
-    Δt = 0.02
-    kT = 1.
-    α  = 0.1
-    nsteps = 20000
-    sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
-
-    meas_rate = 20     # Number of timesteps between snapshots of LLD to input to FFT
-                       # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
-    dyn_meas = 800     # Total number of frequencies we'd like to resolve
-    dynsf = dynamic_structure_factor(
-        sys, sampler; therm_samples=10, dynΔt=Δt, meas_rate=meas_rate,
-        dyn_meas=dyn_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
-        reduce_basis=true, dipole_factor=false,
-    )
-
-    # Sxx and Syy are symmetry-equivalent, but Szz is not
-    Sxx = real.(dynsf.sfactor[1, 1, :, :, :, :] .+ dynsf.sfactor[2, 2, :, :, :, :])
-    Szz = real.(dynsf.sfactor[3, 3, :, :, :, :])
-
-    # Calculate the maximum ω present in our FFT. Since the time gap between
-    #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
-    #  is 2π / (meas_rate * Δt)
-    # This is implicitly in the same units as the units you use to define
-    #  the interactions in the Hamiltonian. Here, we defined our interactions
-    #  in K, but we want to see ω in units of meV (to compare to a baseline
-    #  linear spin-wave solution we have).
-    maxω = 2π / (meas_rate * Δt)
-    p = plot_many_cuts_afmdiamond(Sxx, 1.0, 1.; maxω=maxω, chopω=5.0)
-
-    display(p)
-    return Sxx, Szz
-end
-
 #= Binned Statistics Routines =#
 
 """
@@ -312,15 +255,13 @@ Calculates the average and binned standard deviation of a set of data.
 The number of bins used is equal to the length of the preallocated `bins` vector
 passed to the function.
 """
-function binned_statistics(data::AbstractVector{T}; nbins::Int=10)::Tuple{T,T} where {T<:Number}
-    
+function binned_statistics(data::AbstractVector{T}; nbins::Int=10)::Tuple{T,T} where {T<:Number}    
     bins = zeros(T, nbins)
     avg, stdev = binned_statistics(data, bins)
     return avg, stdev
 end
 
 function binned_statistics(data::AbstractVector{T}, bins::Vector{T})::Tuple{T,T} where {T<:Number}
-    
     N = length(data)
     n = length(bins)
     @assert length(data)%length(bins) == 0

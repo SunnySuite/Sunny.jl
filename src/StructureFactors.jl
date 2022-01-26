@@ -9,9 +9,7 @@
     StructureFactor
 
 Type responsible for computing and updating the static/dynamic structure factor
-averaged across multiple spin configurations. Currently specialized to 3D.
-(The only thing prohibiting arbitrary dimension is the ugly
-  typing that would be necessary.)
+averaged across multiple spin configurations.
 
 Note that the initial `sys` provided does _not_ enter the structure factor,
 it is purely used to determine the size of various results.
@@ -46,21 +44,21 @@ struct StructureFactor{A1, A2}
     sfactor       :: A1
     _mag_ft       :: Array{ComplexF64, 6}                    # Buffer for FT of a mag trajectory
     _bz_buf       :: A2                                      # Buffer for phase summation / BZ repeating
-    lattice       :: Lattice{3}
+    lattice       :: Lattice
     reduce_basis  :: Bool                                    # Flag setting basis summation
     dipole_factor :: Bool                                    # Flag setting dipole form factor
     bz_size       :: NTuple{3, Int}                          # Num of Brillouin zones along each axis
     dynΔt         :: Float64                                 # Timestep size in dynamics integrator
     meas_rate     :: Int                                     # Num timesteps between snapshot saving
     dyn_meas      :: Int                                     # Total number of snapshots to FT
-    integrator    :: SphericalMidpoint{3, 9, 4}
+    integrator    :: SphericalMidpoint
     plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, UnitRange{Int64}}
 end
 
 Base.show(io::IO, sf::StructureFactor) = print(io, join(size(sf.sfactor), "x"),  " StructureFactor")
 Base.summary(io::IO, sf::StructureFactor) = string("StructureFactor: ", summary(sf.sfactor))
 
-function StructureFactor(sys::SpinSystem{3}; bz_size=(1,1,1), reduce_basis=true,
+function StructureFactor(sys::SpinSystem; bz_size=(1,1,1), reduce_basis=true,
                          dipole_factor=false, dynΔt::Float64=0.01,
                          dyn_meas::Int=1, meas_rate::Int=10,)
     nb = nbasis(sys.lattice)
@@ -106,7 +104,7 @@ function StructureFactor(sys::SpinSystem{3}; bz_size=(1,1,1), reduce_basis=true,
 end
 
 """
-    StructureFactor(snaps::Vector{SpinSystem{3}}; kwargs...)
+    StructureFactor(snaps::Vector{SpinSystem}; kwargs...)
 
 Construct a `StructureFactor` from a list of spin configurations.
 All `SpinSystem`s should have the same underlying lattice -- for
@@ -114,7 +112,7 @@ all intents, they should be the "same" system only with different
 spin configs. `kwargs` are passed onto the default `StructureFactor`
 constructor.
 """
-function StructureFactor(snaps::Vector{SpinSystem{3}}; kwargs...)
+function StructureFactor(snaps::Vector{SpinSystem}; kwargs...)
     if length(snaps) == 0
         error("No snapshots provided, cannot construct StructureFactor")
     end
@@ -166,7 +164,7 @@ end
 Accumulates a contribution to the dynamic structure factor from the spin
 configuration currently in `sys`.
 """
-function update!(sf::StructureFactor, sys::SpinSystem{3})
+function update!(sf::StructureFactor, sys::SpinSystem)
     @unpack sfactor, _mag_ft, _bz_buf = sf
     @unpack reduce_basis, dipole_factor, bz_size = sf
 
@@ -234,15 +232,15 @@ function apply_dipole_factor(sf::StructureFactor)
     )
 end
 
-function apply_dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::Lattice{D}) where {D}
+function apply_dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::Lattice)
     recip = gen_reciprocal(lattice)
 
     T = size(struct_factor)[end]
     result = zeros(Float64, axes(struct_factor)[3:end])
     for q_idx in CartesianIndices(axes(struct_factor)[3:end-1])
-        q = recip.lat_vecs * SVector{D, Float64}(Tuple(q_idx) ./ lattice.size)
+        q = recip.lat_vecs * SVector{3, Float64}(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
-        dip_factor = reshape(I(D) - q * q', 3, 3, 1)
+        dip_factor = reshape(I(3) - q * q', 3, 3, 1)
         for t in 0:T-1
             result[q_idx, t] = real(dot(dip_factor, struct_factor[:, :, q_idx, t]))
         end
@@ -251,7 +249,7 @@ function apply_dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::La
 end
 
 """
-    dynamic_structure_factor(sys, sampler; therm_samples=10, dynΔt=0.01, meas_rate=10,
+    dynamic_structure_factor(sys, sampler; nsamples=10, dynΔt=0.01, meas_rate=10,
                              dyn_meas=100, bz_size, thermalize=10, reduce_basis=true,
                              verbose=false)
 
@@ -262,10 +260,9 @@ where `Qi = max(1, bz_size_i * L_i)` and `T = dyn_meas`. By default, `bz_size=on
 
 Setting `reduce_basis=false` makes it so that the basis/sublattice indices are not
 phase-weighted and summed over, making the shape of the result `[3, 3, B, B, Q1, ..., Qd, T]`
-where `B = nbasis(sys)` is the number of basis sites in the unit cell. *(Not actually
-implemented yet)*.
+where `B = nbasis(sys)` is the number of basis sites in the unit cell.
 
-`therm_samples` sets the number of thermodynamic samples to measure and average
+`nsamples` sets the number of thermodynamic samples to measure and average
  across from `sampler`. `dynΔt` sets the integrator timestep during dynamics,
  and `meas_rate` sets how often snapshots are recorded during dynamics. `dyn_meas`
  sets the total number snapshots taken. The sampler is thermalized by sampling
@@ -283,29 +280,29 @@ Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, an
  values for the `w` index lie in `0:T-1`.
 """
 function dynamic_structure_factor(
-    sys::SpinSystem{D}, sampler::S; therm_samples::Int=10,
+    sys::SpinSystem, sampler::S; nsamples::Int=10,
     thermalize::Int=10, bz_size=(1,1,1), reduce_basis::Bool=true,
     dipole_factor::Bool=false, dynΔt::Float64=0.01, dyn_meas::Int=100,
     meas_rate::Int=10, verbose::Bool=false
-) where {D, S <: AbstractSampler}
+) where {S <: AbstractSampler}
     
     sf  = StructureFactor(sys; dynΔt=dynΔt, meas_rate=meas_rate, dyn_meas=dyn_meas,
-                                  bz_size=bz_size, reduce_basis=reduce_basis,
-                                  dipole_factor=dipole_factor)
+                               bz_size=bz_size, reduce_basis=reduce_basis,
+                               dipole_factor=dipole_factor)
 
     if verbose
         println("Beginning thermalization...")
     end
 
-    # Equilibrate the system by sampling from it `therm_samples` times (discarding results)
+    # Equilibrate the system by sampling from it `nsamples` times (discarding results)
     thermalize!(sampler, thermalize)
 
     if verbose
         println("Done thermalizing. Beginning measurements...")
     end
 
-    progress = Progress(therm_samples; dt=1.0, desc="Sample: ", enabled=verbose)
-    for n in 1:therm_samples
+    progress = Progress(nsamples; dt=1.0, desc="Sample: ", enabled=verbose)
+    for n in 1:nsamples
         sample!(sampler)
         update!(sf, sys)
         next!(progress)
@@ -315,7 +312,7 @@ function dynamic_structure_factor(
 end
 
 """
-    static_structure_factor(sys, sampler; therm_samples, dynΔt, meas_rate, dyn_meas
+    static_structure_factor(sys, sampler; nsamples, dynΔt, meas_rate, dyn_meas
                                           bz_size, thermalize, verbose)
 
 Measures the static structure factor tensor of a spin system, for the requested range
@@ -323,7 +320,7 @@ of 𝐪-space. Returns ``𝒮^{αβ}(𝐪) = ⟨S^α(𝐪) S^β(𝐪)^∗⟩``,
 which is an array of shape `[3, 3, Q1, ..., Qd]` where `Qi = max(1, bz_size_i * L_i)`.
 By default, `bz_size=ones(d)`.
 
-`therm_samples` sets the number of thermodynamic samples to measure and average
+`nsamples` sets the number of thermodynamic samples to measure and average
  across from `sampler`. `dynΔt` sets the integrator timestep during dynamics,
  and `meas_rate` sets how many timesteps are performed between recording snapshots.
  `dyn_meas` sets the total number snapshots taken. The sampler is thermalized by sampling
@@ -335,7 +332,7 @@ Indexing the result at `(α, β, q1, ..., qd)` gives ``𝒮^{αβ}(𝐪)`` at
 
 Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`.
 """
-function static_structure_factor(sys::SpinSystem{D}, sampler::S; kwargs...) where {D, S <: AbstractSampler}
+function static_structure_factor(sys::SpinSystem, sampler::S; kwargs...) where {S <: AbstractSampler}
     dynamic_structure_factor(sys, sampler; dyn_meas=1, kwargs...)
 end
 
@@ -378,7 +375,7 @@ function fft_spin_traj!(res::Array{ComplexF64}, spin_traj::Array{Vec3};
     # Now of shape [3, B, D1, ..., Dd, T]
     spin_traj = _reinterpret_from_spin_array(spin_traj)
 
-    # FFT along the D spatial indices, and the T time index
+    # FFT along the spatial indices, and the time index
     if isnothing(plan)
         res .= spin_traj
         fft!(res, 3:ndims(spin_traj))
@@ -430,12 +427,12 @@ where ``b`` is the basis index and ``𝐫_b`` is the associated basis vector.
 but the resulting ``S^α(𝐪, ω)`` will not necessarily be periodic.
 """
 function phase_weight_basis(spin_traj_ft::Array{ComplexF64},
-                            lattice::Lattice{D}, bz_size=nothing) where {D}
+                            lattice::Lattice, bz_size=nothing)
     if isnothing(bz_size)
         bz_size = ones(ndims(lattice) - 1)
     end
 
-    bz_size = convert(SVector{D, Int}, bz_size)                  # Number of Brilloin zones along each axis
+    bz_size = convert(SVector{3, Int}, bz_size)                  # Number of Brilloin zones along each axis
     spat_size = lattice.size                                     # Spatial lengths of the system
     T = size(spin_traj_ft, ndims(spin_traj_ft))                  # Number of timesteps in traj / frequencies in result
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)      # Total number of q-points along each q-axis of result
@@ -454,7 +451,7 @@ Like `phase_weight_basis`, but in-place. Infers `bz_size` from `size(res)`.
 """
 function phase_weight_basis!(res::OffsetArray{ComplexF64},
                              spin_traj_ft::Array{ComplexF64},
-                             lattice::Lattice{D}) where {D}
+                             lattice::Lattice)
     # Check that spatial size of spin_traj_ft same as spatial size of lattice
     spat_size = size(lattice)[2:end]
     valid_size = size(spin_traj_ft)[3:end-1] == spat_size
@@ -470,8 +467,8 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
 
     fill!(res, 0.0)
     for q_idx in CartesianIndices(axes(res)[2:end-1])
-        q = recip.lat_vecs * SVector{D, Float64}(Tuple(q_idx) ./ lattice.size)
-        wrap_q_idx = modc(q_idx, spat_size) + one(CartesianIndex{D})
+        q = recip.lat_vecs * SVector{3, Float64}(Tuple(q_idx) ./ lattice.size)
+        wrap_q_idx = modc(q_idx, spat_size) + one(CartesianIndex{3})
         for (b_idx, b) in enumerate(lattice.basis_vecs)
             phase = exp(-im * (b ⋅ q))
             # Note: Lots of allocations here. Fix?
@@ -568,12 +565,12 @@ end
 Given complex `S` of size [3, Q1, ..., QD, T] and `res` of size [Q1, ..., QD, T],
 accumulates the structure factor from `S` with the dipole factor applied into `res`.
 """
-function accum_dipole_factor!(res, S, lattice::Lattice{D}) where {D}
+function accum_dipole_factor!(res, S, lattice::Lattice)
     recip = gen_reciprocal(lattice)
-    for q_idx in CartesianIndices(axes(res)[end-D:end-1])
-        q = recip.lat_vecs * SVector{D, Float64}(Tuple(q_idx) ./ lattice.size)
+    for q_idx in CartesianIndices(axes(res)[end-3:end-1])
+        q = recip.lat_vecs * SVector{3, Float64}(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
-        dip_factor = I(D) - q * q'
+        dip_factor = I(3) - q * q'
 
         for α in 1:3
             for β in 1:3
@@ -590,16 +587,16 @@ end
 Given complex `S` of size [3, B, Q1, ..., QD, T] and real `res` of size [B, B, Q1, ..., QD, T],
 accumulates the structure factor from `S` with the dipole factor applied into `res`.
 """
-function accum_dipole_factor_wbasis!(res, S, lattice::Lattice{D}) where {D}
+function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
     recip = gen_reciprocal(lattice)
     nb = nbasis(lattice)
     Sα = reshape(S, _outersizeα(axes(S), 2))  # Size [3, 1, B, ...]
     Sβ = reshape(S, _outersizeβ(axes(S), 2))  # Size [3, B, 1, ...]
 
-    for q_idx in CartesianIndices(axes(res)[end-D:end-1])
-        q = recip.lat_vecs * SVector{D, Float64}(Tuple(q_idx) ./ lattice.size)
+    for q_idx in CartesianIndices(axes(res)[end-3:end-1])
+        q = recip.lat_vecs * SVector{3, Float64}(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
-        dip_factor = I(D) - q * q'
+        dip_factor = I(3) - q * q'
 
         for α in 1:3
             for β in 1:3

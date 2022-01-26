@@ -13,15 +13,15 @@ Integrates Landau-Lifshitz spin dynamics using the Heun method, with a final
 projection step that exactly constrains |S|=1. The method is locally second
 order accurate.
 """
-mutable struct HeunP{D, L, Db} <: Integrator
-    sys :: SpinSystem{D, L, Db}
-    _S₁ :: Array{Vec3, Db}
-    _S₂ :: Array{Vec3, Db}
-    _B  :: Array{Vec3, Db}
-    _f₁ :: Array{Vec3, Db}
+mutable struct HeunP <: Integrator
+    sys :: SpinSystem
+    _S₁ :: Array{Vec3, 4}
+    _S₂ :: Array{Vec3, 4}
+    _B  :: Array{Vec3, 4}
+    _f₁ :: Array{Vec3, 4}
 
-    function HeunP(sys::SpinSystem{D, L, Db}) where {D, L, Db}
-        return new{D, L, Db}(
+    function HeunP(sys::SpinSystem)
+        return new(
             sys, zero(sys.sites), zero(sys.sites),
             zero(sys.sites), zero(sys.sites)
         )
@@ -37,19 +37,19 @@ magnitude -- this is done internally.
 
 Uses the 2nd-order Heun + projection scheme."
 """
-mutable struct LangevinHeunP{D, L, Db} <: Integrator
-    α   :: Float64                # Damping coeff
-    D   :: Float64                # Stochastic strength
-    sys :: SpinSystem{D, L, Db}
-    _S₁ :: Array{Vec3, Db}        # Intermediate integration variable space
-    _S₂ :: Array{Vec3, Db}
-    _B  :: Array{Vec3, Db}
-    _f₁ :: Array{Vec3, Db}
-    _r₁ :: Array{Vec3, Db}
-    _ξ  :: Array{Vec3, Db}
+mutable struct LangevinHeunP <: Integrator
+    α   :: Float64        # Damping coeff
+    D   :: Float64        # Stochastic strength
+    sys :: SpinSystem
+    _S₁ :: Array{Vec3, 4} # Intermediate integration variable space
+    _S₂ :: Array{Vec3, 4}
+    _B  :: Array{Vec3, 4}
+    _f₁ :: Array{Vec3, 4}
+    _r₁ :: Array{Vec3, 4}
+    _ξ  :: Array{Vec3, 4}
 
-    function LangevinHeunP(sys::SpinSystem{D, L, Db}, kT::Float64, α::Float64) where {D, L, Db}
-        return new{D, L, Db}(
+    function LangevinHeunP(sys::SpinSystem, kT::Float64, α::Float64)
+        return new(
             α, α*kT/(1+α*α), sys,
             zero(sys.sites), zero(sys.sites), zero(sys.sites),
             zero(sys.sites), zero(sys.sites), zero(sys.sites)
@@ -64,16 +64,16 @@ Integrates Landau-Lifshitz spin dynamics using the spherical-midpoint
 integrator, which is symplectic and implicit. Each step is converged to absolute
 tolerance `atol`.
 """
-mutable struct SphericalMidpoint{D, L, Db} <: Integrator
-    sys :: SpinSystem{D, L, Db}
-    _S̄  :: Array{Vec3, Db}
-    _Ŝ  :: Array{Vec3, Db}
-    _S̄′ :: Array{Vec3, Db}
-    _B  :: Array{Vec3, Db}
+mutable struct SphericalMidpoint <: Integrator
+    sys :: SpinSystem
+    _S̄  :: Array{Vec3, 4}
+    _Ŝ  :: Array{Vec3, 4}
+    _S̄′ :: Array{Vec3, 4}
+    _B  :: Array{Vec3, 4}
     atol :: Float64
 
-    function SphericalMidpoint(sys::SpinSystem{D, L, Db}; atol=1e-12) where {D, L, Db}
-        return new{D, L, Db}(
+    function SphericalMidpoint(sys::SpinSystem; atol=1e-12)
+        return new(
             sys, zero(sys.sites), zero(sys.sites),
             zero(sys.sites), zero(sys.sites), atol
         )
@@ -175,8 +175,8 @@ end
 """
     A sampler which produces new samples using Langevin Landau-Lifshitz dynamics
 """
-mutable struct LangevinSampler{D, L, Db} <: AbstractSampler
-    integrator :: LangevinHeunP{D, L, Db}
+mutable struct LangevinSampler <: AbstractSampler
+    integrator :: LangevinHeunP
     kT         :: Float64
     Δt         :: Float64
     nsteps     :: Int
@@ -189,9 +189,9 @@ Creates a `LangevinSampler` which samples the spin system's Hamiltonian using La
  dynamics at a temperature `kT`, damping coefficient `α`, and producing a new sample
  by integrating with `nsteps` timesteps of size `Δt`.
 """
-function LangevinSampler(sys::SpinSystem{D, L, Db}, kT::Float64, α::Float64, Δt::Float64, nsteps::Int) where {D, L, Db}
+function LangevinSampler(sys::SpinSystem, kT::Float64, α::Float64, Δt::Float64, nsteps::Int)
     integrator = LangevinHeunP(sys, kT, α)
-    LangevinSampler{D, L, Db}(integrator, kT, Δt, nsteps)
+    LangevinSampler(integrator, kT, Δt, nsteps)
 end
 
 @inline function set_temp!(sampler::LangevinSampler, kT::Float64)
