@@ -209,7 +209,7 @@ function local_energy_change(sys::SpinSystem, idx, newspin::Vec3)
         ΔE -= ℋ.ext_field.effBs[i] ⋅ spindiff
     end
     for heisen in ℋ.heisenbergs
-        J = heisen.effJ
+        J = first(heisen.bondtable.data)
         for (bond, _) in sublat_bonds(heisen.bondtable, i)
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += J * (newspin⋅newspin - oldspin⋅oldspin)
