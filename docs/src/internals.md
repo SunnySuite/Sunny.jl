@@ -32,7 +32,7 @@ SpinSystem(...; μB=0.67171381563034223582, μ0=17.3497470317891588)
 
 Interactions exist at two levels:
 
-1. The types that the user create and interface with (subtypes of `AbstractInteraction` and
+1. The types that the user creates and interfaces with (subtypes of `AbstractInteraction` and
     living in `Interactions.jl`).
 2. The types that these get converted to behind the scenes upon creating a `SpinSystem`
     (subtypes of `AbstractInteractionCPU`, and which are scattered throughout the codebase).
