@@ -76,12 +76,12 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
     cent_cell = CartesianIndex(div.(lattice.size .+ 1, 2)...)
     cent_pt = lattice[basis_idx, cent_cell]
     for (n, int) in enumerate(sorted_ints)
-        if !isa(int, PairInt)
+        if !isa(int, AbstractPairIntCPU)
             continue
         end
 
         pts = Vector{GLMakie.Point3f}()
-        for bond in sublat_bonds(int.bondtable, basis_idx)
+        for (bond, _) in sublat_bonds(int.bondtable, basis_idx)
             new_cell = offset(cent_cell, bond.n, lattice.size)
             bond_pt = lattice[bond.j, new_cell]
             push!(pts, GLMakie.Point3f(cent_pt))
