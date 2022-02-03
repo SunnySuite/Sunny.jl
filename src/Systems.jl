@@ -103,7 +103,7 @@ end
 
 
 """
-    SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, sites_info::Vector{SiteInfo}=[];
+    SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsize, sites_info::Vector{SiteInfo}=[];
                μB, μ0)
 
 Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sites
@@ -112,8 +112,8 @@ Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sit
  the ``+𝐳̂`` direction. μB and μ0 set the Bohr magneton and vacuum permeability. By
  default, these are set so that the unit system is (meV, T, Å).
 """
-function SpinSystem(crystal::Crystal, ints::Vector{<:Interaction}, latsize, sites_info::Vector{SiteInfo}=SiteInfo[];
-                    μB=BOHR_MAGNETON, μ0=VACUUM_PERM)
+function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsize,
+                    sites_info::Vector{SiteInfo}=SiteInfo[]; μB=BOHR_MAGNETON, μ0=VACUUM_PERM)
     latsize = collect(Int64.(latsize))
     lattice = Lattice(crystal, latsize)
 

@@ -22,7 +22,7 @@ Dipole-dipole interactions computed in Fourier-space. Should produce
 identical results (up to numerical precision) as `DipoleReal`, but
 is asymptotically faster.
 """
-struct DipoleFourierCPU <: InteractionCPU
+struct DipoleFourierCPU <: AbstractInteractionCPU
     int_mat     :: Array{ComplexF64, 7}
     _spins_ft   :: Array{ComplexF64, 5}  # Space for Fourier-transforming spins
     _field_ft   :: Array{ComplexF64, 5}  # Space for holding Fourier-transformed fields

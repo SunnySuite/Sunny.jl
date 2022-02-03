@@ -1,7 +1,7 @@
 # Functions associated with HamiltonianCPU, which maintains the actual internal
 # interaction types and orchestrates energy/field calculations.
 
-function validate_and_clean_interactions(ints::Vector{<:Interaction}, crystal::Crystal, latsize::Vector{Int64})
+function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, crystal::Crystal, latsize::Vector{Int64})
     # Validate all interactions
     for int in ints
         if isa(int, QuadraticInteraction)
@@ -57,7 +57,7 @@ struct HamiltonianCPU
 end
 
 """
-    HamiltonianCPU(ints::Vector{<:Interaction}, crystal, latsize, sites_info::Vector{SiteInfo})
+    HamiltonianCPU(ints, crystal, latsize, sites_info::Vector{SiteInfo})
 
 Construct a `HamiltonianCPU` from a list of interactions, converting
 each of the interactions into the proper backend type specialized
@@ -65,7 +65,7 @@ for the given `crystal` and `latsize`.
 
 Note that `sites_info` must be complete when passed to this constructor.
 """
-function HamiltonianCPU(ints::Vector{<:Interaction}, crystal::Crystal,
+function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
                         latsize::Vector{Int64}, sites_info::Vector{SiteInfo};
                         μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
     ext_field   = nothing
