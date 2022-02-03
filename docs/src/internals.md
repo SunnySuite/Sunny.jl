@@ -28,22 +28,23 @@ SpinSystem(...; μB=0.67171381563034223582, μ0=17.3497470317891588)
 ```
 
 
-## Handling `Interaction`s
+## Handling Interactions
 
 Interactions exist at two levels:
 
-1. The types that the user create and interface with (living in `Interactions.jl`)
-2. The types that this gets converted behind the scenes upon creating a `SpinSystem`
-    (which are scattered throughout the codebase).
+1. The types that the user creates and interfaces with (subtypes of `AbstractInteraction` and
+    living in `Interactions.jl`).
+2. The types that these get converted to behind the scenes upon creating a `SpinSystem`
+    (subtypes of `AbstractInteractionCPU`, and which are scattered throughout the codebase).
 
-To define a new type of `Interaction` which can appear in a Hamiltonian,
+To define a new type of interaction which can appear in a Hamiltonian,
 one must provide both of these types (which may be the same!), a way to convert from
 the first to the second, and a collection of functionalities on the second
 needed for various simulation tasks. We provide the list of required steps below, and for
 explicit examples see the core interactions defined across `src/Interactions.jl`
 and `src/PairInteractions.jl`.
 
-**(1)** Define a new struct which is a subtype of `Interaction`. This is the user-facing
+**(1)** Define a new struct which is a subtype of `AbstractInteraction`. This is the user-facing
          type, which should be the minimal specification needed to specify the
          interaction. As much as possible, instances of this type should be agnostic to
          the final crystal geometry they'll be placed on. We'll refer to this type
@@ -51,14 +52,14 @@ and `src/PairInteractions.jl`.
 
 **(2)** Create _another_ struct which will handle how to actually explicitly compute
          terms arising from your interaction on a specific lattice. We'll refer to this
-         type here as `MyIntInternal <: InteractionCPU`. This should expose a constructor
+         type here as `MyIntInternal <: AbstractInteractionCPU`. This should expose a constructor
          `MyIntInternal(int::MyInt, crystal::Crystal, latsize)`.
 
 **(3)** Provide the following methods:
 
-- `Sunny.energy(sys::SpinSystem, int::MyIntInternal)` which computes the total term in the
+- `Sunny.energy(spins::Array{Vec3, 4}, int::MyIntInternal)` which computes the total term in the
      Hamiltonian given the state of the system.
-- `Sunny._accum_field!(B::Array{Vec3}, spins::Array{Vec3}, int::MyIntInternal)` which
+- `Sunny._accum_field!(B::Array{Vec3, 4}, spins::Array{Vec3, 4}, int::MyIntInternal)` which
     accumulates the local "field" coming from this interaction into `B` given the state
     of the `spins`. Specifically, this function call should perform:
         ``𝐁ᵢ = 𝐁ᵢ - ∇_{𝐒ᵢ} ℋ_I``

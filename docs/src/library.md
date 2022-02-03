@@ -57,7 +57,7 @@ dipole_dipole
 
 ```@docs
 SpinSystem
-SpinSystem(::Crystal, ::Vector{<:Sunny.Interaction}, latsize, ::Vector{SiteInfo})
+SpinSystem(::Crystal, ::Vector{<:Sunny.AbstractInteraction}, latsize, ::Vector{SiteInfo}; μB, μ0)
 rand!(::SpinSystem)
 randflips!(::SpinSystem)
 energy
@@ -114,5 +114,6 @@ integrations.
 ```@docs
 HeunP
 LangevinHeunP
+SphericalMidpoint
 evolve!
 ```

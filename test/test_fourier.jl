@@ -4,7 +4,7 @@
 function test_energy_consistency(crystal, latsize)
     μB = Sunny.BOHR_MAGNETON
     μ0 = Sunny.VACUUM_PERM
-    sys = SpinSystem(crystal, Sunny.Interaction[], latsize; μB, μ0)
+    sys = SpinSystem(crystal, Sunny.AbstractInteraction[], latsize; μB, μ0)
     rand!(sys)
 
     dipdip = dipole_dipole(; extent=5, η=0.5)
@@ -22,7 +22,7 @@ function test_energy_consistency(crystal, latsize)
 end
 
 function test_field_consistency(crystal, latsize)
-    sys = SpinSystem(crystal, Sunny.Interaction[], latsize)
+    sys = SpinSystem(crystal, Sunny.AbstractInteraction[], latsize)
     rand!(sys)
     
     dipdip = dipole_dipole(; extent=4, η=0.5)

@@ -1,22 +1,22 @@
 """Structs for defining various terms in a spin Hamiltonian.
 """
 
-abstract type Interaction end      # Subtype this for user-facing interfaces
-abstract type InteractionCPU end   # Subtype this for actual internal CPU implementations
-abstract type InteractionGPU end   # Subtype this for actual internal GPU implementations
+abstract type AbstractInteraction end      # Subtype this for user-facing interfaces
+abstract type AbstractInteractionCPU end   # Subtype this for actual internal CPU implementations
+abstract type AbstractInteractionGPU end   # Subtype this for actual internal GPU implementations
 
 
-struct QuadraticInteraction <: Interaction
+struct QuadraticInteraction <: AbstractInteraction
     J     :: Mat3
     bond  :: Bond
     label :: String
 end
 
-struct ExternalField <: Interaction
+struct ExternalField <: AbstractInteraction
     B :: Vec3
 end
 
-struct DipoleDipole <: Interaction
+struct DipoleDipole <: AbstractInteraction
     extent   :: Int
     η        :: Float64
 end
