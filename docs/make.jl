@@ -20,6 +20,6 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/MagSims/Sunny.jl.git",
+    repo = "github.com/SunnySuite/Sunny.jl.git",
     devbranch = "main",
 )

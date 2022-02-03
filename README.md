@@ -3,8 +3,8 @@
 </div>
 <p>
 
-[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://magsims.github.io/Sunny.jl/stable)
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://magsims.github.io/Sunny.jl/dev)
+[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://sunnysuite.github.io/Sunny.jl/stable)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
 
 A general-purpose library for performing generalized SU(N) classical spin simulations.
 
@@ -14,14 +14,26 @@ New Julia users should begin with our [Getting Started](GettingStarted.md) guide
 
 ## Installation
 
-Sunny.jl is evolving rapidly, and early access users are recommended to install the package for development,
+Sunny.jl is evolving rapidly, and early access users are recommended to install the package by
+tracking the main branch:
 ```
 julia> ]
-pkg> dev https://github.com/MagSims/Sunny.jl
+pkg> add Sunny#main
 ```
-This command will download (more precisely, `git clone`) the source code to `~/.julia/dev/Sunny.jl`. Executing the terminal command `git pull` from this directory will retrieve the latest changes from Github.
+This command will install the package, tracking the tip of the `main` branch on Github.
 
-Check that Sunny.jl is working properly by running the unit tests,
+Users who want to develop on Sunny are instead recommended to install the package by using the `dev` command:
+```
+julia> ]
+pkg> dev Sunny#main
+```
+
+This will `git clone` the source code to `~/.julia/dev/Sunny.jl`, and install it into your Julia environment. Importantly,
+local changes to the package files will be reflected when you load the `Sunny` package. However, you will be responsible
+for manually keeping `Sunny` up to date using `git` in your local repository -- Julia's package manager will not touch
+any package installed by `dev`.
+
+After installation, check that Sunny.jl is working properly by running the unit tests,
 ```
 pkg> test Sunny
 ```
@@ -38,4 +50,4 @@ To use Jupyter notebooks with Julia, install the [IJulia](https://github.com/Jul
 
 ## Documentation
 
-[Full documentation available here](https://magsims.github.io/Sunny.jl/dev).
+[Full documentation available here](https://sunnysuite.github.io/Sunny.jl/dev).
