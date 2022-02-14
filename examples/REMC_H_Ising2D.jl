@@ -14,29 +14,29 @@ H = collect(range(H_min, H_max, length=N_ranks))[rank+1]
 kT = 1.0
 
 function create_system(α::Float64)
-	# Nearest-neighbor ferromagnetic Ising (z-dir) interactions
-	J = -1.0
-	FM = exchange(diagm([J, J, J]), Bond(1, 1, [1, 0, 0]))
-	H_ext = external_field([0, 0, α])
-	interactions = [FM, H_ext]
+    # Nearest-neighbor ferromagnetic Ising (z-dir) interactions
+    J = -1.0
+    FM = exchange(diagm([J, J, J]), Bond(1, 1, [1, 0, 0]))
+    H_ext = external_field([0, 0, α])
+    interactions = [FM, H_ext]
 
-	# SC lattice -- extend lattice vector in z-direction to emulate 2D
-	lvecs = Sunny.lattice_vectors(1.0, 1.0, 2.0, 90, 90 ,90)
-	bvecs = [[0.0, 0.0, 0.0]]
-	crystal = Crystal(lvecs, bvecs)
+    # SC lattice -- extend lattice vector in z-direction to emulate 2D
+    lvecs = Sunny.lattice_vectors(1.0, 1.0, 2.0, 90, 90 ,90)
+    bvecs = [[0.0, 0.0, 0.0]]
+    crystal = Crystal(lvecs, bvecs)
 
-	# Make system and randomize spins
-	extent = (120, 120, 1)
-	g = 1 / Sunny.BOHR_MAGNETON
-	system = SpinSystem(crystal, interactions, extent, [SiteInfo(1,1,g)])
-	
-	return system
+    # Make system and randomize spins
+    extent = (120, 120, 1)
+    g = 1 / Sunny.BOHR_MAGNETON
+    system = SpinSystem(crystal, interactions, extent, [SiteInfo(1,1,g)])
+    
+    return system
 end
 
 α = H
-system = create_system(α)	
+system = create_system(α)   
 randflips!(system)
-	
+    
 # Make replica for REMC
 replica = Replica(IsingSampler(system, kT, 1), α)
 
@@ -44,11 +44,11 @@ replica = Replica(IsingSampler(system, kT, 1), α)
 #  the sampling distribution or the system
 function set_α!(replica::Replica, α::Float64)
     replica.α = α
-	copy_sites = deepcopy(replica.sampler.system.sites)
-	replica.sampler.system = create_system(α)
-	replica.sampler.system.sites .= copy_sites
-	reset_running_energy!(replica.sampler)
-	reset_running_mag!(replica.sampler)
+    copy_sites = deepcopy(replica.sampler.system.sites)
+    replica.sampler.system = create_system(α)
+    replica.sampler.system.sites .= copy_sites
+    reset_running_energy!(replica.sampler)
+    reset_running_mag!(replica.sampler)
 end
 
 # Run feedback-optimized replica exchange
@@ -56,11 +56,11 @@ end
     replica,
     set_α!;
     max_mcs = 200_000,
-	rex_interval = 1,
+    rex_interval = 1,
     update_interval = 10_000,
-	w = 0.0,
-	#print_ranks_trajectory=[0],
-	#trajectory_interval=10
+    w = 0.0,
+    #print_ranks_trajectory=[0],
+    #trajectory_interval=10
 )
 
 # Run Replica Exchange MC (as PT) using optimized α schedule

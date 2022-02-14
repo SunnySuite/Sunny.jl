@@ -29,7 +29,7 @@ extent = (20, 20, 1)
 g = 1 / Sunny.BOHR_MAGNETON
 system = SpinSystem(crystal, interactions, extent, [SiteInfo(1,1,g)])
 randflips!(system)
-	
+    
 # Make replica for REMC
 α = 1/kT
 replica = Replica(IsingSampler(system, kT, 1), α)
@@ -38,7 +38,7 @@ replica = Replica(IsingSampler(system, kT, 1), α)
 #  the sampling distribution or the system
 function set_α!(replica::Replica, α::Float64)
     replica.α = α
-	set_temp!(replica.sampler, 1/α)
+    set_temp!(replica.sampler, 1/α)
 end
 
 # Run feedback-optimized replica exchange
@@ -46,9 +46,9 @@ end
     replica,
     set_α!;
     max_mcs = 50_000,
-	rex_interval = 1,
+    rex_interval = 1,
     update_interval = 10_000,
-	w = 0.0
+    w = 0.0
 )
 
 # Run Replica Exchange MC (as PT) using optimized α schedule

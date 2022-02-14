@@ -80,10 +80,10 @@ function replica_exchange!(replica::Replica)
     if replica.nn_ranks[replica.rex_dir] < 0
         return false
     end
-	
-	if replica.rex_dir == 2
-    	replica.N_rex_up += 1
-	end
+    
+    if replica.rex_dir == 2
+        replica.N_rex_up += 1
+    end
 
     # Rank of exchange partner
     rex_rank = replica.nn_ranks[replica.rex_dir]
@@ -242,7 +242,7 @@ function feedback_update!(replica::Replica, set_α!::F; w::Float64=0.0, dα′::
         all_α_and_f = reshape(all_α_and_f, :, replica.N_ranks)
         α = all_α_and_f[1, :]
         f = all_α_and_f[2, :]
-		
+        
         M = replica.N_ranks
         L = collect(range(0, 1.0, length=M))
 
@@ -250,8 +250,8 @@ function feedback_update!(replica::Replica, set_α!::F; w::Float64=0.0, dα′::
         fs = (1-w).*f .+ (w .* L)
 
         # Use crude linear approximation for df/dα
-        Δf = fs[2:end] .- fs[1:end-1]	
-		Δf[Δf .< 0] .= 0.0
+        Δf = fs[2:end] .- fs[1:end-1]   
+        Δf[Δf .< 0] .= 0.0
 
         Δα = α[2:end] .- α[1:end-1]
 
@@ -349,7 +349,7 @@ function run_FBO!(
 
     rex_accepts = zeros(Int64, 2)
     N_updates = 0
-	N_rex = 0
+    N_rex = 0
 
     # Start feedback optimization simulation
     for mcs in 1:max_mcs
@@ -361,7 +361,7 @@ function run_FBO!(
 
         # Attempt replica exchange
         if mcs % rex_interval == 0
-			N_rex += 1
+            N_rex += 1
 
             if replica_exchange!(replica)
                 rex_accepts[replica.rex_dir] += 1
@@ -503,7 +503,7 @@ function run_REMC!(
     U  = 0.0
     U² = 0.0
     M⃗  = [0.0, 0.0, 0.0]
-	M  = 0.0
+    M  = 0.0
     M² = 0.0
     C  = 0.0
     X  = 0.0
@@ -514,7 +514,7 @@ function run_REMC!(
     m_hist = BinnedArray{Float64, Int64}(bin_size=1.0)
     rex_accepts = zeros(Int64, 2)
     N_measure = 0
-	N_rex = 0
+    N_rex = 0
 
     # Start PT with finite length
     for mcs in 1:max_mcs
@@ -527,7 +527,7 @@ function run_REMC!(
 
         # Attempt replica exchange
         if mcs % rex_interval == 0 
-			N_rex += 1
+            N_rex += 1
 
             if replica_exchange!(replica)
                 rex_accepts[replica.rex_dir] += 1
@@ -565,7 +565,7 @@ function run_REMC!(
         if mcs % measure_interval == 0
             E = running_energy(replica.sampler)
             m⃗ = running_mag(replica.sampler)
-			m = norm(m⃗)
+            m = norm(m⃗)
 
             # New minimum energy measured
             if E < Emin
@@ -587,7 +587,7 @@ function run_REMC!(
             U  += E
             U² += E^2
             M⃗ .+= m⃗
-			M  += m
+            M  += m
             M² += m^2
             N_measure += 1
 
