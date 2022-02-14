@@ -7,7 +7,7 @@ be provided during construction.
 mutable struct Replica{AS <: AbstractSampler}
     rank::Int64             # MPI rank of sampler is ∈ [0, N_ranks-1]
     N_ranks::Int64          # Total number of MPI ranks (samplers, replicas) 
-    N_rex::Int64            # Count of total number of attempted replica exchanges
+    N_rex_up::Int64         # Count of total number of attempted exchanges btw. replicas (i, i+1)
     rex_dir::Int64          # Replica's current exchange direction ("up"=2, "down"=1)
     α::Float64              # The current value for control parameter
     nn_ranks::Vector{Int64} # MPI ranks of nearest-neighbor samplers, -1 signals no neighbor
@@ -67,7 +67,7 @@ function Replica(sampler::AS, α::Float64) where {AS <: AbstractSampler}
     # Start even ranks exchanging down
     rex_dir = (rank % 2 == 0) ? 1 : 2
 
-    return Replica(rank, N_ranks, 0, rex_dir, α, nn_ranks, label, 0, 0, sampler)
+    return Replica(rank, N_ranks, 0, rex_dir, α, nn_ranks, label, 0, 0, 0, sampler)
 end
 
 """
@@ -80,7 +80,10 @@ function replica_exchange!(replica::Replica)
     if replica.nn_ranks[replica.rex_dir] < 0
         return false
     end
-    replica.N_rex += 1
+	
+	if replica.rex_dir == 2
+    	replica.N_rex_up += 1
+	end
 
     # Rank of exchange partner
     rex_rank = replica.nn_ranks[replica.rex_dir]
@@ -221,77 +224,107 @@ end
 Update α schedule using feedback-optimization scheme from
 Katzgraber et. al. (https://arxiv.org/pdf/cond-mat/0602085v3.pdf).
 
-Note: use f(θ) that goes from θ_max -> θ_min instead of original paper
+Note: use f(α) that goes from fist α → last α instead of original paper
 Note: use (k-1)/(M-1) as target for integral in Eq. 11 instead of k/M 
-
-Integration uses dummy variable for θ = 1/α (e.g. θ ↔ kT)    
 """
-function feedback_update!(replica::Replica, set_α!::F; w::Float64=0.0, dθ′::Float64=1e-5) where {F <: Function}
-    # Storage for updated α
-    α_new = [replica.α]
+function feedback_update!(replica::Replica, set_α!::F; w::Float64=0.0, dα′::Float64=1e-5) where {F <: Function}
+    # Storage for collecting updated α
+    _α = [replica.α]
 
     # Replica flow
     N_labeled = (replica.N_up + replica.N_down)
-    f = ((N_labeled > 0) ? replica.N_down/N_labeled : 0.0)
+    f = (N_labeled > 0) ? replica.N_down/N_labeled : 0.0
 
-    # Gather θ and replica flow 'f' from all replicas
-    all_θ_and_f = MPI.Gather([1/replica.α, f], 0, MPI.COMM_WORLD)
+    # Gather α and replica flow 'f' from all replicas
+    all_α_and_f = MPI.Gather([replica.α, f], 0, MPI.COMM_WORLD)
 
     if replica.rank == 0
-        all_θ_and_f = reshape(all_θ_and_f, :, replica.N_ranks)
-        θ = all_θ_and_f[1, :]
-        f = all_θ_and_f[2, :]
-
+        all_α_and_f = reshape(all_α_and_f, :, replica.N_ranks)
+        α = all_α_and_f[1, :]
+        f = all_α_and_f[2, :]
+		
         M = replica.N_ranks
         L = collect(range(0, 1.0, length=M))
 
         # Use 'smoothed replica flow' from Hamze et. al. (https://arxiv.org/pdf/1004.2840.pdf)
         fs = (1-w).*f .+ (w .* L)
 
-        # Use crude linear approximation for df/dθ
-        Δf = [ ((fs[i+1]-fs[i]) < 0) ? 0 : abs(fs[i+1]-fs[i]) for i in 1:M-1 ]
-        Δθ = abs.(θ[2:end] .- θ[1:end-1])
+        # Use crude linear approximation for df/dα
+        Δf = fs[2:end] .- fs[1:end-1]	
+		Δf[Δf .< 0] .= 0.0
 
-        # Calculated normalized density for adjusted θ's
-        η = sqrt.( (Δf ./ Δθ) ./ Δθ )
-        C = sum(η .* Δθ)
+        Δα = α[2:end] .- α[1:end-1]
+
+        # Calculated normalized density for adjusted α's
+        η = sqrt.( (Δf ./ Δα) ./ Δα )
+        C = sum(η .* Δα)
         η ./= C
 
-        # New θ's (and α's) have fixed end points
-        θ_new = zeros(M)
-        θ_new[1] = θ[1]
-        θ_new[M] = θ[M]
+        # New α's have fixed end points
+        α_new = zeros(M)
+        α_new[1] = α[1]
+        α_new[M] = α[M]
 
-        θ′= θ[1]
+        α′= α[1]
         cηf = 0.0
         pos = 2
 
-        # find new temperatures using Eq. 11 from Katzgraber et. al.
+        # find new α's using Eq. 11 from Katzgraber et. al.
         for i in 1:M-1
-            for j in 1:Int(round(Δθ[i]/dθ′))
-                cηf += η[i]*dθ′
-                θ′ += dθ′
+            for j in 1:Int(round(Δα[i]/dα′))
+                cηf += η[i]*dα′
+                α′+= dα′
 
-                if (pos < M) && (cηf >= L[pos])
-                    θ_new[pos] = θ′
+                if (cηf >= L[pos]) && (pos < M)
+                    α_new[pos] = α′
                     pos += 1
                 end
             end
         end
+
         # Send out updated α to all replicas
-        MPI.Scatter!(MPI.UBuffer(1 ./ θ_new, 1), α_new, 0, MPI.COMM_WORLD)
+        MPI.Scatter!(MPI.UBuffer(α_new, 1), _α, 0, MPI.COMM_WORLD)
     else
-        MPI.Scatter!(nothing, α_new, 0, MPI.COMM_WORLD)
+        MPI.Scatter!(nothing, _α, 0, MPI.COMM_WORLD)
     end
 
     # Assign new value of α and set in replica sampler
     # -> corresponds to update of kT or other Hamiltonian parameter
-    set_α!(replica, α_new[1])
+    set_α!(replica, _α[1])
 
     return nothing
 end
 
 """
+Run a feedback-optimized parallel tempering simulation and return an optimized
+temperature set. No measurements are made, but this is used to diagnose replica
+flow in PT simulations. 
+
+# Arguments
+- `replica::Replica`: Replica type that contains MPI info and system data
+
+- `set_α!::Function`: User-provided function for setting control parameters
+  in the replica's sampler or system. Needs form: set_α!(::Replica, ::Float64)
+
+- `therm_mcs::Int64`: Number of initial thermalization MC sweeps
+
+- `rex_interval::Int64`: Number of MC sweeps between replica exchange attempts
+
+- `max_mcs_opt::Int64`: Maximum number of MC sweeps to allow during optimization
+
+- `update_interval::Int64`: Number of MC sweeps between feedback updates
+
+- `w::Float64`: Damping factor (w ∈ [0,1]) for feedback updates: 0 gives
+  aggressive updates, 1 gives leaves set of α unchanged
+
+- `dα′::Float64`: Step size for integration during feedback update
+
+- `print_ranks_trajectory::Vector{Float64}`: If an MPI rank is in this array, the 
+  timeseries for the replica starting with this rank will printed to file
+
+- `trajectory_interval::Int64`: Number of replica exchange attempts between printed
+  timeseries points
+
 """
 function run_FBO!(
     replica::Replica,
@@ -301,7 +334,7 @@ function run_FBO!(
     max_mcs::Int64=500_000,
     update_interval::Int64=100_000,
     w::Float64=0.0,
-    dθ′::Float64=1e-5,
+    dα′::Float64=1e-5,
     print_ranks_trajectory::Vector{Int64}=Int64[],
     trajectory_interval::Int64=500_000
 ) where {F <: Function}
@@ -316,17 +349,20 @@ function run_FBO!(
 
     rex_accepts = zeros(Int64, 2)
     N_updates = 0
+	N_rex = 0
 
     # Start feedback optimization simulation
     for mcs in 1:max_mcs
         sample!(replica.sampler)
 
         if (replica.rank == 0) && (mcs % 1000 == 0)
-            println("FBOPT ", mcs, " mcs")
+            println("FBO ", mcs, " mcs")
         end
 
         # Attempt replica exchange
         if mcs % rex_interval == 0
+			N_rex += 1
+
             if replica_exchange!(replica)
                 rex_accepts[replica.rex_dir] += 1
 
@@ -344,9 +380,9 @@ function run_FBO!(
             end
 
             # Print out replica exchange timeseries -- inefficient IO
-            if (replica.N_rex % trajectory_interval == 0) && (abs(replica.label)-1 in print_ranks_trajectory)
+            if (N_rex % trajectory_interval == 0) && (abs(replica.label)-1 in print_ranks_trajectory)
                 if replica.label <= replica.N_ranks
-                    fname = @sprintf("P%03d_FBO_trajectory_%03d.dat", abs(replica.label)-1, N_updates)
+                    fname = @sprintf("FBO-update%03d_trajectory%03d.dat", N_updates, abs(replica.label)-1)
                     output = open(fname, "a")
                     println(output, replica.rank)
                     close(output)
@@ -360,14 +396,14 @@ function run_FBO!(
         if mcs % update_interval == 0
             # Replica flow 'f' and smoothed replica flow 'fs'
             N_labeled = (replica.N_up + replica.N_down)
-            f = ((N_labeled > 0) ? replica.N_down/N_labeled : 0.0)
+            f = (N_labeled > 0) ? replica.N_down/N_labeled : 0.0
             fs = (1-w)*f + w*replica.rank/(replica.N_ranks-1)
 
             # Acceptance rate between replicas i and i+1
-            A = ((replica.rank == replica.N_ranks-1) ? 0.0 : rex_accepts[2]/replica.N_rex)
+            A = (replica.rank == replica.N_ranks-1) ? 0.0 : rex_accepts[2]/replica.N_rex_up
 
             # Print out α, replica flow, and acceptance rates for each update
-            fname = @sprintf("FBO_%03d.dat", N_updates)
+            fname = @sprintf("FBO-update%03d.dat", N_updates)
             gather_print(
                 replica,
                 [replica.α, fs, A],
@@ -375,7 +411,7 @@ function run_FBO!(
             )
 
             # Perform feedback optimization for control parameters
-            feedback_update!(replica, set_α!; w=w, dθ′=dθ′)
+            feedback_update!(replica, set_α!; w=w, dα′=dα′)
 
             N_updates += 1
             rex_accepts[1] = rex_accepts[2] = 0
@@ -391,10 +427,11 @@ function run_FBO!(
 end
 
 """
+Reset the exchange statistics and labels stored in replica
 """
 function reset_stats!(replica::Replica)
     replica.N_up = replica.N_down = 0
-    replica.N_rex  = 0
+    replica.N_rex_up = 0
 
     # Reset label
     if replica.rank == 0
@@ -463,18 +500,21 @@ function run_REMC!(
     replica.sampler.nsweeps = 1
 
     # Manually include these basic measurements for now
-    M  = 0.0
-    M2 = 0.0
-    X  = 0.0
     U  = 0.0
-    U2 = 0.0
+    U² = 0.0
+    M⃗  = [0.0, 0.0, 0.0]
+	M  = 0.0
+    M² = 0.0
     C  = 0.0
+    X  = 0.0
 
     system_size = length(replica.sampler.system)
     Emin = typemax(Float64)
-    hist = BinnedArray{Float64, Int64}(bin_size=bin_size)
+    E_hist = BinnedArray{Float64, Int64}(bin_size=bin_size)
+    m_hist = BinnedArray{Float64, Int64}(bin_size=1.0)
     rex_accepts = zeros(Int64, 2)
     N_measure = 0
+	N_rex = 0
 
     # Start PT with finite length
     for mcs in 1:max_mcs
@@ -482,11 +522,13 @@ function run_REMC!(
 
         # Crude progress printing to stdout
         if (replica.rank == 0) && (mcs % 1000 == 0)
-            println("PT ", mcs, " mcs")
+            println("REMC ", mcs, " mcs")
         end
 
         # Attempt replica exchange
         if mcs % rex_interval == 0 
+			N_rex += 1
+
             if replica_exchange!(replica)
                 rex_accepts[replica.rex_dir] += 1
 
@@ -506,9 +548,9 @@ function run_REMC!(
             end
 
             # Print out replica exchange timeseries -- inefficient IO
-            if (replica.N_rex % trajectory_interval == 0) && (abs(replica.label)-1 in print_ranks_trajectory)
+            if (N_rex % trajectory_interval == 0) && (abs(replica.label)-1 in print_ranks_trajectory)
                 if replica.label <= replica.N_ranks
-                    fname = @sprintf("P%03d_trajectory.dat", abs(replica.label)-1)
+                    fname = @sprintf("trajectory%03d.dat", abs(replica.label)-1)
                     rex_output = open(fname, "a")
                     println(rex_output, replica.rank)
                     close(rex_output)
@@ -522,47 +564,51 @@ function run_REMC!(
         # Measurements
         if mcs % measure_interval == 0
             E = running_energy(replica.sampler)
-            m = (running_mag(replica.sampler))[3]
+            m⃗ = running_mag(replica.sampler)
+			m = norm(m⃗)
 
             # New minimum energy measured
             if E < Emin
                 Emin = E
 
                 # Print out evolution of Emin w.r.t MC time
-                f = open(@sprintf("P%03d_Emin.dat", replica.rank), "a")
+                f = open(@sprintf("Emin%03d.dat", replica.rank), "a")
                 println(f, mcs," ",Emin)
                 close(f)
 
                 # Overwrite Emin coordinates in saved file
                 if replica.rank in print_xyz_ranks
-                    xyz_output = open(@sprintf("P%03d_Emin.xyz", replica.rank), "w")
+                    xyz_output = open(@sprintf("Emin%03d.xyz", replica.rank), "w")
                     xyz_to_file(replica.sampler.system, xyz_output)
                     close(xyz_output)
                 end
             end
 
             U  += E
-            U2 += E^2
-            M  += m
-            M2 += m^2
+            U² += E^2
+            M⃗ .+= m⃗
+			M  += m
+            M² += m^2
             N_measure += 1
 
-            # Histogram for energies
-            hist[E] += 1
+            # Histograms for energy and magnetization
+            E_hist[E] += 1
+            m_hist[m] += 1
         end
     end
 
     # Normalize averages
     kT = get_temp(replica.sampler)
     U  /= N_measure
-    U2 /= N_measure
+    U² /= N_measure
+    M⃗ ./= N_measure
     M  /= N_measure
-    M2 /= N_measure
-    C = 1.0/kT^2 * (U2 - U^2)
-    X = 1.0/kT   * (M2 - M^2)
+    M² /= N_measure
+    C = 1.0/kT^2 * (U² - U^2)
+    X = 1.0/kT   * (M² - M^2)
 
     # Acceptance rate between replicas i and i+1
-    A = ((replica.rank == replica.N_ranks-1) ? 0.0 : rex_accepts[2]/replica.N_rex)
+    A = (replica.rank == replica.N_ranks-1) ? 0.0 : rex_accepts[2]/replica.N_rex_up
 
     # Gather and print: rank, "down" exch. accepts, "up" exch. accepts, acceptance ratio   
     gather_print(
@@ -574,21 +620,24 @@ function run_REMC!(
     # Gather and print thermodynamic measurements
     gather_print(
         replica, 
-        [replica.α, M/system_size, X/system_size, U/system_size, C/system_size], 
+        [replica.α, (M⃗ ./ system_size)..., M/system_size, X/system_size, U/system_size, C/system_size], 
         "measurements.dat"
     )
 
     # Write histogram to file for each process if specified
     if print_hist
-        f = open(@sprintf("P%03d_hist.dat", replica.rank), "w")
-        println(f, hist)
+        f = open(@sprintf("E-hist%03d.dat", replica.rank), "w")
+        println(f, E_hist)
+        close(f)
+        f = open(@sprintf("m-hist%03d.dat", replica.rank), "w")
+        println(f, m_hist)
         close(f)
     end
     
     # Print replica flow 'f' to file
     if measure_replica_flow
         N_labeled = (replica.N_up + replica.N_down)    
-        f = ((N_labeled > 0) ? replica.N_down/N_labeled : 0.0)
+        f = (N_labeled > 0) ? replica.N_down/N_labeled : 0.0
 
         gather_print(
             replica,

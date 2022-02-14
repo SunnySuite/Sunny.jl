@@ -91,7 +91,7 @@ function __init__()
 
     @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" begin
         include("ReplicaExchangeMC.jl")
-        export init_MPI, Replica, run_REMC!, run_FBO!
+        export init_MPI, xyz_to_file, Replica, run_REMC!, run_FBO!
     end
 end
 
