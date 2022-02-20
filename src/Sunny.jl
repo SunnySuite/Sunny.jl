@@ -90,8 +90,8 @@ function __init__()
     end
 
     @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" begin
-        include("ParallelTempering.jl")
-        export Replica, run_PT!, run_FBOPT!
+        include("ReplicaExchangeMC.jl")
+        export init_MPI, xyz_to_file, Replica, run_REMC!, run_FBO!
     end
 end
 
