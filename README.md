@@ -8,6 +8,10 @@
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
 
 A general-purpose library for performing generalized SU(N) classical spin simulations.
+    
+**Under construction!** Currently supported features include: Landau-Lifshitz dipole dynamics, symmetry analysis, Monte Carlo sampling, dynamical structure factor measurements. Coming soon: General anisotropy terms, and support for SU(_N_) spins following our recent preprint:
+
+* D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_, [arXiv:2204.07563](https://arxiv.org/abs/2204.07563).
 
 ## Getting started with Julia
 
