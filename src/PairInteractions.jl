@@ -120,13 +120,13 @@ isdiag(tol) = Base.Fix2(isdiag, tol)
 
 # Figures out the correct maximally-efficient backend type for a quadratic interaction, and perform
 #  all of the symmetry propagation.
-function convert_quadratic(int::QuadraticInteraction, cryst::Crystal, sites_info::Vector{SiteInfo}; tol=1e-6)
+function convert_quadratic(int::QuadraticInteraction, cryst::Crystal, site_infos::Vector{SiteInfo}; tol=1e-6)
     @unpack J, bond, label = int
 
     # Product S_i S_j between sites connected by the bond -- same for all bonds in a class
     # To get interactions quadratic in the unit vectors stored by `SpinSystem`, we internally
     #  store effective exchange matrices (Si J Sj).
-    SiSj = sites_info[bond.i].S * sites_info[bond.j].S
+    SiSj = site_infos[bond.i].S * site_infos[bond.j].S
     J *= SiSj
     bondtable = BondTable(cryst, bond, J)
 

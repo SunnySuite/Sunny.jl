@@ -21,6 +21,7 @@ end
 Defines a collection of charges. Currently primarily used to test ewald
  summation calculations.
 """
+## MOVE TO Ewald.jl, or own file
 mutable struct ChargeSystem <: AbstractSystem{Float64}
     lattice :: Lattice             # Definition of underlying lattice
     sites   :: Array{Float64, 4}   # Holds charges at each site
@@ -30,11 +31,28 @@ end
 Defines a collection of spins, as well as the Hamiltonian they interact under.
  This is the main type to interface with most of the package.
 """
-mutable struct SpinSystem <: AbstractSystem{Vec3}
+mutable struct SpinSystem{N}
     lattice     :: Lattice            # Definition of underlying lattice
     hamiltonian :: HamiltonianCPU     # Contains all interactions present
-    sites       :: Array{Vec3, 4}     # Holds actual spin variables: Axes are [Basis, CellA, CellB, CellC]
-    sites_info  :: Vector{SiteInfo}   # Characterization of each basis site
+    s           :: Array{Vec3, 4}     # Holds actual spin variables: Axes are [Basis, CellA, CellB, CellC]
+    Z           :: Array{SVector{N, ComplexF64}, 4} # Coherent state
+    site_infos  :: Vector{SiteInfo}   # Characterization of each basis site
+end
+
+struct DipoleView{N}
+    _s          :: Array{Vec3, 4}
+    _Z          :: Array{SVector{N, ComplexF64}, 4}
+end
+
+# TODO
+# getindex(view, i) = _s[i]
+# setindex!(view, v, i) = update_s_and_Z(...)
+
+dipoles(sys::SpinSystem) = DipoleView(sys.s, sys.Z)
+
+function initialize_from_dipole!(sys::SpinSystem, dipoles::Array{Vec3, 4})
+    # TODO
+    nothing
 end
 
 """
@@ -69,19 +87,19 @@ end
 
 
 """
-    propagate_site_info(cryst::Crystal, sites_info::Vector{SiteInfo})
+    propagate_site_info(cryst::Crystal, site_infos::Vector{SiteInfo})
 
 Given an incomplete list of site information, propagates spin magnitudes and
 symmetry-transformed g-tensors to all symmetry-equivalent sites. If SiteInfo is
 not provided for a site, sets S=1/2 and g=2 for that site. Throws an error if
-two symmetry-equivalent sites are provided in `sites_info`.
+two symmetry-equivalent sites are provided in `site_infos`.
 """
-function propagate_site_info(crystal::Crystal, sites_info::Vector{SiteInfo})
+function propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
     # All sites not explicitly provided are by default S = 1/2, g = 2
-    all_sites_info = [SiteInfo(i, 1/2, 2) for i in 1:nbasis(crystal)]
+    all_site_infos = [SiteInfo(i, 1/2, 2) for i in 1:nbasis(crystal)]
 
     specified_atoms = Int[]
-    for siteinfo in sites_info
+    for siteinfo in site_infos
         @unpack site, S, g = siteinfo
         (sym_bs, sym_gs) = all_symmetry_related_couplings(crystal, Bond(site, site, [0,0,0]), g)
         for (sym_b, sym_g) in zip(sym_bs, sym_gs)
@@ -94,16 +112,18 @@ function propagate_site_info(crystal::Crystal, sites_info::Vector{SiteInfo})
                 push!(specified_atoms, sym_atom)
             end
 
-            all_sites_info[sym_atom] = SiteInfo(sym_atom, S, sym_g)
+            all_site_infos[sym_atom] = SiteInfo(sym_atom, S, sym_g)
         end
     end
 
-    return all_sites_info
+    ## Also has to: upconvert to maximum N
+
+    return all_site_infos
 end
 
 
 """
-    SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsize, sites_info::Vector{SiteInfo}=[];
+    SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsize, site_infos::Vector{SiteInfo}=[];
                μB, μ0)
 
 Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sites
@@ -113,19 +133,19 @@ Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sit
  default, these are set so that the unit system is (meV, T, Å).
 """
 function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsize,
-                    sites_info::Vector{SiteInfo}=SiteInfo[]; μB=BOHR_MAGNETON, μ0=VACUUM_PERM)
+                    site_infos::Vector{SiteInfo}=SiteInfo[]; μB=BOHR_MAGNETON, μ0=VACUUM_PERM)
     latsize = collect(Int64.(latsize))
     lattice = Lattice(crystal, latsize)
 
-    all_sites_info = propagate_site_info(crystal, sites_info)
-    ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_sites_info; μB, μ0)
+    all_site_infos = propagate_site_info(crystal, site_infos)
+    ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_site_infos; μB, μ0)
 
     # Initialize sites to all spins along +z
     sites_size = (nbasis(lattice), lattice.size...)
     sites = fill(SA[0.0, 0.0, 1.0], sites_size)
 
     # Default unit system is (meV, K, Å, T)
-    SpinSystem(lattice, ℋ_CPU, sites, all_sites_info)
+    SpinSystem(lattice, ℋ_CPU, sites, all_site_infos)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem)

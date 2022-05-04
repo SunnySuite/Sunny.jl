@@ -117,7 +117,7 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
     _ξ .*= √(2D)
     # Normalize fluctuations by 1/√S
     for b in 1:nbasis(sys)
-        selectdim(_ξ, 1, b) .*= 1. / sqrt(sys.sites_info[b].S)
+        selectdim(_ξ, 1, b) .*= 1. / sqrt(sys.site_infos[b].S)
     end
 
     # Euler step

@@ -408,7 +408,7 @@ struct DipoleRealCPU <: AbstractInteractionCPU
     int_mat :: OffsetArray{Mat3, 5, Array{Mat3, 5}}
 end
 
-function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info::Vector{SiteInfo};
+function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_infos::Vector{SiteInfo};
                        μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
     @unpack extent, η = dip
     lattice = Lattice(crystal, latsize)
@@ -416,9 +416,9 @@ function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info:
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(lattice; extent, η)
     # Conjugate each matrix by the correct g matrices
     for b1 in 1:nbasis(crystal)
-        S1, g1 = sites_info[b1].S, sites_info[b1].g
+        S1, g1 = site_infos[b1].S, site_infos[b1].g
         for b2 in 1:nbasis(crystal)
-            S2, g2 = sites_info[b2].S, sites_info[b2].g
+            S2, g2 = site_infos[b2].S, site_infos[b2].g
             for ijk in CartesianIndices(axes(A)[3:end])
                 A[b1, b2, ijk] = (S1*S2) * g1' * A[b1, b2, ijk] * g2
             end

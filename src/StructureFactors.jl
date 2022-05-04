@@ -145,13 +145,13 @@ end
 
 """
 Updates `M` in-place to hold the magnetization vectors obtained by scaling `s`
- by the appropriate spin magnitudes and g-tensors in `sites_info`.
+ by the appropriate spin magnitudes and g-tensors in `site_infos`.
 This function assumes `M` has a first index of length 3, which correspond
  to the magnetization components. (Rather than storing an Array{Vec3}).
 """
 function _compute_mag!(M, sys::SpinSystem)
     for b in 1:nbasis(sys)
-        gS = sys.sites_info[b].g * sys.sites_info[b].S
+        gS = sys.site_infos[b].g * sys.site_infos[b].S
         for idx in eachcellindex(sys)
             M[:, b, idx] .= gS * sys[b, idx]
         end
@@ -159,7 +159,7 @@ function _compute_mag!(M, sys::SpinSystem)
 end
 
 """
-    update!(sf::StructureFactor, sys::SpinSystem{3})
+    update!(sf::StructureFactor, sys::SpinSystem)
 
 Accumulates a contribution to the dynamic structure factor from the spin
 configuration currently in `sys`.
