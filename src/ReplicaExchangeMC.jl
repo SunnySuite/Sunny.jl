@@ -92,12 +92,12 @@ function replica_exchange!(replica::Replica)
     S_curr = running_energy(replica.sampler) / get_temp(replica.sampler)
 
     # Backup current configuration
-    backup_sites = deepcopy(replica.sampler.system.sites)
+    backup_sites = deepcopy(replica.sampler.system._dipoles)
 
     # Swap trial configuration with partner
     MPI.Sendrecv!(
-                        backup_sites, rex_rank, 1,
-        replica.sampler.system.sites, rex_rank, 1,
+        backup_sites, rex_rank, 1,
+        replica.sampler.system._dipoles, rex_rank, 1,
         MPI.COMM_WORLD
     )
 
@@ -208,7 +208,7 @@ Print xyz formatted (Lx, Ly, Lz, Sx, Sy, Sz) configurations to file
 """
 function xyz_to_file(sys::SpinSystem, output::IOStream)
     sites = reinterpret(reshape, Float64, sys.lattice)
-    spins = reinterpret(reshape, Float64, sys.sites)
+    spins = reinterpret(reshape, Float64, sys._dipoles)
     xyz = vcat(sites, spins)
     xyz = reshape(xyz, 6, :)
 

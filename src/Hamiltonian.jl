@@ -46,7 +46,15 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
     return ints
 end
 
-function merge_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::Crystal, latsize::Vector)
+function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::Crystal, site_infos::Vector{SiteInfo})
+    # TODO: Given the list of anisos, we need to:
+    #  1. If maximum N in site_infos is > 0, we need to upconvert all QuadraticAnisotropy
+    #         and QuarticAnisotropy to SUNAnisotropy's
+    #  2. [If in dipolar mode] Collect all QuadraticAnisotropy into one DipolarQuadraticAnisotropyCPU
+    #  3. [If in dipolar mode] Collect all QuarticAnisotropy into one DipolarQuarticAnisotropyCPU
+    #  4. Collect all SUNAnisotropy into one SUNAnisotropyCPU
+    #  5. Return (DipolarQuadraticAnisotropyCPU, DipolarQuarticAnisotropyCPU, SUNAnisotropyCPU),
+    #         but with nothing's if there were none.
     return (nothing, nothing, nothing)
 end
 
@@ -63,9 +71,9 @@ struct HamiltonianCPU
     diag_coups      :: Vector{DiagonalCouplingCPU}
     gen_coups       :: Vector{GeneralCouplingCPU}
     dipole_int      :: Union{Nothing, DipoleRealCPU, DipoleFourierCPU}
-    quadratic_aniso :: Union{Nothing, DipolarQuadraticAnisotropiesCPU}
-    quartic_aniso   :: Union{Nothing, DipolarQuarticAnisotropiesCPU}
-    sun_aniso       :: Union{Nothing, SUNAnisotropiesCPU}
+    quadratic_aniso :: Union{Nothing, DipolarQuadraticAnisotropyCPU}
+    quartic_aniso   :: Union{Nothing, DipolarQuarticAnisotropyCPU}
+    sun_aniso       :: Union{Nothing, SUNAnisotropyCPU}
     spin_mags       :: Vector{Float64}
 end
 
@@ -89,11 +97,11 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     quadratic_anisos = nothing
     quartic_anisos = nothing
     sun_anisos = nothing
-    spin_mags   = [site.S for site in site_infos]
+    spin_mags   = [site.κ for site in site_infos]
 
     ints = validate_and_clean_interactions(ints, crystal, latsize)
 
-    anisos = Vector{AbstractInteraction}()
+    anisos = Vector{AbstractAnisotropy}()
     for int in ints
         # TODO: Handle all of the ifs with multiple dispatch instead?
         if isa(int, ExternalField)
@@ -124,7 +132,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
             error("$(int) failed to convert to known backend type.")
         end
     end
-    (quadratic_anisos, quartic_anisos, sun_anisos) = merge_anisos(anisos)
+    (quadratic_anisos, quartic_anisos, sun_anisos) = merge_upconvert_anisos(anisos, crystal, site_infos)
 
     return HamiltonianCPU(
         ext_field, heisenbergs, diag_coups, gen_coups, dipole_int,
@@ -132,22 +140,33 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     )
 end
 
-function energy(spins::Array{Vec3}, ℋ::HamiltonianCPU) :: Float64
+function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU) :: Float64 where {N}
     E = 0.0
+    # NOTE: These are broken up separately due to fears of dispatch costs being large.
+    #        However, this has never been profiled and is maybe worth looking into.
     if !isnothing(ℋ.ext_field)
-        E += energy(spins, ℋ.ext_field)
+        E += energy(dipoles, ℋ.ext_field)
     end
     for heisen in ℋ.heisenbergs
-        E += energy(spins, heisen)
+        E += energy(dipoles, heisen)
     end
     for diag_coup in ℋ.diag_coups
-        E += energy(spins, diag_coup)
+        E += energy(dipoles, diag_coup)
     end
     for gen_coup in ℋ.gen_coups
-        E += energy(spins, gen_coup)
+        E += energy(dipoles, gen_coup)
     end
     if !isnothing(ℋ.dipole_int)
-        E += energy(spins, ℋ.dipole_int)
+        E += energy(dipoles, ℋ.dipole_int)
+    end
+    if !isnothing(ℋ.quadratic_aniso)
+        E += energy(dipoles, ℋ.quadratic_aniso)
+    end
+    if !isnothing(ℋ.quartic_aniso)
+        E += energy(dipoles, ℋ.quartic_aniso)
+    end
+    if !isnothing(ℋ.sun_aniso)
+        E += energy(dipoles, coherents, ℋ.sun_aniso)
     end
     return E
 end
@@ -166,22 +185,33 @@ Note that all `_accum_neggrad!` functions should return _just_ the
 this function. Likewise, all code which utilizes local fields should
 be calling _this_ function, not the `_accum_neggrad!`'s directly.
 """
-function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::HamiltonianCPU)
+function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU) where {N}
     fill!(B, SA[0.0, 0.0, 0.0])
+    # NOTE: These are broken up separately due to fears of dispatch costs being large.
+    #        However, this has never been profiled and is maybe worth looking into.
     if !isnothing(ℋ.ext_field)
         _accum_neggrad!(B, ℋ.ext_field)
     end
     for heisen in ℋ.heisenbergs
-        _accum_neggrad!(B, spins, heisen)
+        _accum_neggrad!(B, dipoles, heisen)
     end
     for diag_coup in ℋ.diag_coups
-        _accum_neggrad!(B, spins, diag_coup)
+        _accum_neggrad!(B, dipoles, diag_coup)
     end
     for gen_coup in ℋ.gen_coups
-        _accum_neggrad!(B, spins, gen_coup)
+        _accum_neggrad!(B, dipoles, gen_coup)
     end
     if !isnothing(ℋ.dipole_int)
-        _accum_neggrad!(B, spins, ℋ.dipole_int)
+        _accum_neggrad!(B, dipoles, ℋ.dipole_int)
+    end
+    if !isnothing(ℋ.quadratic_aniso)
+        _accum_neggrad!(B, dipoles, ℋ.dipole_int)
+    end
+    if !isnothing(ℋ.quartic_aniso)
+        _accum_neggrad!(B, dipoles, ℋ.dipole_int)
+    end
+    if !isnothing(ℋ.sun_aniso)
+        _accum_neggrad!(B, dipoles, coherents, ℋ.dipole_int)
     end
 
     # Normalize each gradient by the spin magnitude on that sublattice

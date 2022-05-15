@@ -224,12 +224,12 @@ function plot_cells!(ax, lattice::Lattice; color=:grey, linewidth=1.0, kwargs...
     GLMakie.linesegments!(ax, pts; color=color, linewidth=linewidth)
 end
 
-function plot_spins(lat::Lattice, spins; linecolor=:grey, arrowcolor=:red,
+function plot_spins(lat::Lattice, dipoles::Array{Vec3, 4}; linecolor=:grey, arrowcolor=:red,
                     linewidth=0.1, arrowsize=0.2, arrowlength=0.2, kwargs...)
     fig, ax = _setup_scene()
 
     pts = GLMakie.Point3f.(vec(lat))
-    vecs = GLMakie.Vec3f.(vec(spins))
+    vecs = GLMakie.Vec3f.(vec(dipoles))
 
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -245,7 +245,7 @@ end
 
 Plot the spin configuration defined by `sys`. `kwargs` are passed to `GLMakie.arrows`.        
 """
-plot_spins(sys::SpinSystem; kwargs...) = plot_spins(sys.lattice, sys.sites; kwargs...)
+plot_spins(sys::SpinSystem; kwargs...) = plot_spins(sys.lattice, sys._dipoles; kwargs...)
 
 # No support for higher than 3D visualization, sorry!
 
@@ -270,7 +270,7 @@ function anim_integration(
     fig, ax = _setup_scene()
 
     pts = GLMakie.Point3f.(vec(sys.lattice))
-    vecs = GLMakie.Observable(GLMakie.Vec3f.(vec(sys)))
+    vecs = GLMakie.Observable(GLMakie.Vec3f.(vec(sys._dipoles)))
     GLMakie.arrows!(
         ax, pts, vecs;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
@@ -285,7 +285,7 @@ function anim_integration(
         for step in 1:steps_per_frame
             evolve!(integrator, Δt)
         end
-        vecs[] = GLMakie.Vec3f.(vec(sys))
+        vecs[] = GLMakie.Vec3f.(vec(sys._dipoles))
     end
 end
 
@@ -303,7 +303,7 @@ function live_integration(
     fig, ax = _setup_scene()
 
     pts = GLMakie.Point3f.(vec(sys.lattice))
-    vecs = GLMakie.Observable(GLMakie.Vec3f.(vec(sys)))
+    vecs = GLMakie.Observable(GLMakie.Vec3f.(vec(sys._dipoles)))
     GLMakie.arrows!(
         ax, pts, vecs;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
@@ -317,7 +317,7 @@ function live_integration(
         for step in 1:steps_per_frame
             evolve!(integrator, Δt)
         end
-        vecs[] = GLMakie.Vec3f.(vec(sys))
+        vecs[] = GLMakie.Vec3f.(vec(sys._dipoles))
         sleep(1/framerate)
     end
 end
@@ -335,7 +335,7 @@ function live_langevin_integration(
 )
     fig, ax = _setup_scene()
     pts = GLMakie.Point3f.(vec(sys.lattice))
-    vecs = GLMakie.Observable(GLMakie.Vec3f.(vec(sys)))
+    vecs = GLMakie.Observable(GLMakie.Vec3f.(vec(sys._dipoles)))
     
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -350,7 +350,7 @@ function live_langevin_integration(
         for step in 1:steps_per_frame
             evolve!(integrator, Δt)
         end
-        vecs[] = GLMakie.Vec3f.(vec(sys))
+        vecs[] = GLMakie.Vec3f.(vec(sys._dipoles))
         sleep(1/framerate)
     end
 end

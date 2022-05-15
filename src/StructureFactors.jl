@@ -151,9 +151,9 @@ This function assumes `M` has a first index of length 3, which correspond
 """
 function _compute_mag!(M, sys::SpinSystem)
     for b in 1:nbasis(sys)
-        gS = sys.site_infos[b].g * sys.site_infos[b].S
+        gS = sys.site_infos[b].g * sys.site_infos[b].κ
         for idx in eachcellindex(sys)
-            M[:, b, idx] .= gS * sys[b, idx]
+            M[:, b, idx] .= gS * sys._dipoles[b, idx]
         end
     end
 end

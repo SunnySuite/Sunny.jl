@@ -6,6 +6,9 @@
 
 abstract type Integrator end
 
+# TODO: These integrators should verify that the system is in
+#        "dipole-mode". Or, is there some nice way to make them
+#        work with both? Using e.g. DipoleView.
 """
     HeunP(sys::SpinSystem)
 
@@ -22,8 +25,8 @@ mutable struct HeunP <: Integrator
 
     function HeunP(sys::SpinSystem)
         return new(
-            sys, zero(sys.sites), zero(sys.sites),
-            zero(sys.sites), zero(sys.sites)
+            sys, zero(sys._dipoles), zero(sys._dipoles),
+            zero(sys._dipoles), zero(sys._dipoles)
         )
     end
 end
@@ -51,8 +54,8 @@ mutable struct LangevinHeunP <: Integrator
     function LangevinHeunP(sys::SpinSystem, kT::Float64, α::Float64)
         return new(
             α, α*kT/(1+α*α), sys,
-            zero(sys.sites), zero(sys.sites), zero(sys.sites),
-            zero(sys.sites), zero(sys.sites), zero(sys.sites)
+            zero(sys._dipoles), zero(sys._dipoles), zero(sys._dipoles),
+            zero(sys._dipoles), zero(sys._dipoles), zero(sys._dipoles)
         )
     end
 end
@@ -74,13 +77,13 @@ mutable struct SphericalMidpoint <: Integrator
 
     function SphericalMidpoint(sys::SpinSystem; atol=1e-12)
         return new(
-            sys, zero(sys.sites), zero(sys.sites),
-            zero(sys.sites), zero(sys.sites), atol
+            sys, zero(sys._dipoles), zero(sys._dipoles),
+            zero(sys._dipoles), zero(sys._dipoles), atol
         )
     end    
 end
 
-
+# TODO: New fancy SU(N) integrators.
 
 
 @inline f(S, B) = -S × B
@@ -93,15 +96,15 @@ Performs a single integrator timestep of size Δt.
 """
 function evolve!(integrator::HeunP, Δt::Float64)
     @unpack sys, _S₁, _S₂, _B, _f₁ = integrator
-    S = sys.sites
+    S, Z = sys._dipoles, sys._coherents
     
     # Euler step
-    field!(_B, S, sys.hamiltonian)
+    field!(_B, S, Z, sys.hamiltonian)
     @. _f₁ = f(S, _B)
     @. _S₁ = S + Δt * _f₁
 
     # Corrector step
-    field!(_B, _S₁, sys.hamiltonian)
+    field!(_B, _S₁, Z, sys.hamiltonian)
     @. _S₂ = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B)))
 
     # Swap buffers
@@ -111,23 +114,23 @@ end
 
 function evolve!(integrator::LangevinHeunP, Δt::Float64)
     @unpack α, D, sys, _S₁, _S₂, _B, _f₁, _r₁, _ξ = integrator
-    S = sys.sites
+    S, Z = sys._dipoles, sys._coherents
 
     randn!(_ξ)
     _ξ .*= √(2D)
     # Normalize fluctuations by 1/√S
     for b in 1:nbasis(sys)
-        selectdim(_ξ, 1, b) .*= 1. / sqrt(sys.site_infos[b].S)
+        selectdim(_ξ, 1, b) .*= 1. / sqrt(sys.site_infos[b].κ)
     end
 
     # Euler step
-    field!(_B, S, sys.hamiltonian)
+    field!(_B, S, Z, sys.hamiltonian)
     @. _f₁ = f(S, _B, α)
     @. _r₁ = f(S, _ξ, α)
     @. _S₁ = S + Δt * _f₁ + √Δt * _r₁
 
     # Corrector step
-    field!(_B, _S₁, sys.hamiltonian)
+    field!(_B, _S₁, Z, sys.hamiltonian)
     @. _S₂ = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ, α)))
 
     # Swap buffers
@@ -137,7 +140,7 @@ end
 
 function evolve!(integrator::SphericalMidpoint, Δt::Float64)
     @unpack sys, _S̄, _Ŝ, _S̄′, _B, atol = integrator
-    S = sys.sites
+    S, Z = sys._dipoles, sys._coherents
     
     # Initial guess for midpoint
     @. _S̄ = S
@@ -147,7 +150,7 @@ function evolve!(integrator::SphericalMidpoint, Δt::Float64)
         # Integration step for current best guess of midpoint _S̄. Produces
         # improved midpoint estimator _S̄′.
         @. _Ŝ = normalize(_S̄)
-        field!(_B, _Ŝ, sys.hamiltonian)
+        field!(_B, _Ŝ, Z, sys.hamiltonian)
         @. _S̄′ = S + 0.5 * Δt * f(_Ŝ, _B)
 
         # Convergence is reached if every element of _S̄ and _S̄′ agree to

@@ -7,8 +7,8 @@ function _rfft_dipole_tensor(A::OffsetArray{Mat3}) :: Array{Complex{Float64}}
 end
 
 "Fourier transforms a dipole system"
-function _rfft_dipole_sys(spins::Array{Vec3}) :: Array{Complex{Float64}}
-    Sr = reinterpret(reshape, Float64, spins)
+function _rfft_dipole_sys(dipoles::Array{Vec3}) :: Array{Complex{Float64}}
+    Sr = reinterpret(reshape, Float64, dipoles)
     rfft(Sr, 3:ndims(Sr))
 end
 
@@ -39,9 +39,9 @@ function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_inf
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(lattice; extent, η)
     # Conjugate each matrix by the correct g matrices
     for b1 in 1:nbasis(crystal)
-        S1, g1 = site_infos[b1].S, site_infos[b1].g
+        S1, g1 = site_infos[b1].κ, site_infos[b1].g
         for b2 in 1:nbasis(crystal)
-            S2, g2 = site_infos[b2].S, site_infos[b2].g
+            S2, g2 = site_infos[b2].κ, site_infos[b2].g
             for ijk in CartesianIndices(axes(A)[3:end])
                 A[b1, b2, ijk] = (S1*S2) * g1' * A[b1, b2, ijk] * g2
             end
@@ -60,14 +60,14 @@ function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_inf
     DipoleFourierCPU(FA, spins_ft, field_ft, field_real, plan, ift_plan)
 end
 
-function energy(spins::Array{Vec3, 4}, dip::DipoleFourierCPU)
+function energy(dipoles::Array{Vec3, 4}, dip::DipoleFourierCPU)
     FA = dip.int_mat
     FS = dip._spins_ft
-    nb = size(spins, 1)
-    latsize = size(spins)[2:end]
+    nb = size(dipoles, 1)
+    latsize = size(dipoles)[2:end]
     even_rft_size = latsize[1] % 2 == 0
     Fsize = size(FS)[3:end]
-    spins = _reinterpret_from_spin_array(spins)
+    spins = _reinterpret_from_spin_array(dipoles)
 
     U = 0.0
     mul!(FS, dip._plan, spins)
@@ -84,19 +84,17 @@ function energy(spins::Array{Vec3, 4}, dip::DipoleFourierCPU)
 end
 
 "Accumulates the local -∇ℋ coming from dipole-dipole couplings into `B`"
-function _accum_neggrad!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleFourierCPU)
-    FA = dip.int_mat
-    FS = dip._spins_ft
-    Fϕ = dip._field_ft
-    ϕ  = dip._field_real
-    nb = size(spins, 1)
-    Fsize = size(FS)[3:end]
+function _accum_neggrad!(H::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, dipdip::DipoleFourierCPU)
+    FA = dipdip.int_mat
+    FS = dipdip._spins_ft
+    Fϕ = dipdip._field_ft
+    ϕ  = dipdip._field_real
 
     fill!(Fϕ, 0.0)
-    spins = _reinterpret_from_spin_array(spins)
-    mul!(FS, dip._plan, spins)
+    spins = _reinterpret_from_spin_array(dipoles)
+    mul!(FS, dipdip._plan, spins)
     @tullio grad=false Fϕ[s1,b1,i,j,k] += FA[s1,s2,b1,b2,i,j,k] * FS[s2,b2,i,j,k]
-    mul!(ϕ, dip._ift_plan, Fϕ)
+    mul!(ϕ, dipdip._ift_plan, Fϕ)
     ϕ = _reinterpret_to_spin_array(ϕ)
     for i in eachindex(H)
         H[i] = H[i] - 2 * ϕ[i]

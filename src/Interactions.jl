@@ -305,15 +305,15 @@ function ExternalFieldCPU(ext_field::ExternalField, site_infos::Vector{SiteInfo}
     #  we can compute E = -∑_i effB ⋅ 𝐬_i during simulation.
     # However, S_i may be basis-dependent, so we need to store an effB
     #  per sublattice.
-    effBs = [μB * site.g' * site.S * ext_field.B for site in site_infos]
+    effBs = [μB * site.g' * site.κ * ext_field.B for site in site_infos]
     ExternalFieldCPU(effBs)
 end
 
-function energy(spins::Array{Vec3, 4}, field::ExternalFieldCPU)
+function energy(dipoles::Array{Vec3, 4}, field::ExternalFieldCPU)
     E = 0.0
-    for b in 1:size(spins, 1)
+    for b in 1:size(dipoles, 1)
         effB = field.effBs[b]
-        for s in selectdim(spins, 1, b)
+        for s in selectdim(dipoles, 1, b)
             E += effB ⋅ s
         end
     end

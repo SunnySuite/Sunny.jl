@@ -126,7 +126,7 @@ function convert_quadratic(int::QuadraticInteraction, cryst::Crystal, site_infos
     # Product S_i S_j between sites connected by the bond -- same for all bonds in a class
     # To get interactions quadratic in the unit vectors stored by `SpinSystem`, we internally
     #  store effective exchange matrices (Si J Sj).
-    SiSj = site_infos[bond.i].S * site_infos[bond.j].S
+    SiSj = site_infos[bond.i].κ * site_infos[bond.j].κ
     J *= SiSj
     bondtable = BondTable(cryst, bond, J)
 
@@ -193,7 +193,7 @@ function energy(spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
 end
 
 "Accumulates the local -∇ℋ coming from Heisenberg couplings into `B`"
-@inline function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, heisen::HeisenbergCPU)
+function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, heisen::HeisenbergCPU)
     bondtable = heisen.bondtable
     effJ = first(bondtable.data)
 
@@ -209,7 +209,7 @@ end
 end
 
 "Accumulates the local -∇ℋ coming from diagonal couplings into `B`"
-@inline function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
+function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
     bondtable = diag_coup.bondtable
 
     latsize = size(spins)[2:end]
@@ -224,7 +224,7 @@ end
 end
 
 "Accumulates the local -∇ℋ coming from general couplings into `B`"
-@inline function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
+function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
     bondtable = gen_coup.bondtable
 
     latsize = size(spins)[2:end]

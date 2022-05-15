@@ -19,7 +19,7 @@ function test_diamond_heisenberg_sf()
     ]
     dims = (8, 8, 8)
     S = 3/2
-    sys = SpinSystem(crystal, interactions, dims, [SiteInfo(1, S)])
+    sys = SpinSystem(crystal, interactions, dims, [SiteInfo(1, 0, 2.0, S)])
     rand!(sys)
 
     Δt = 0.02 / (S^2 * J)     # Units of 1/meV

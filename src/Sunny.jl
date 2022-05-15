@@ -24,6 +24,7 @@ using Parameters: @unpack, @with_kw
 const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 const Quad3 = SArray{Tuple{3,3,3,3}, Float64, 4, 81}
+const CVec{N} = SVector{N, ComplexF64}
 
 # Boltzmannn factor k_B in units of meV/K
 const meV_per_K = 0.086173332621451774
