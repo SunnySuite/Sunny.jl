@@ -53,7 +53,7 @@ function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
     # All sites not explicitly provided are by default N=0, g=2, κ=1
     all_site_infos = [SiteInfo(i, 0, 2, 1.0) for i in 1:nbasis(crystal)]
 
-    maxN = maximum(info->info.N, site_infos)
+    maxN = maximum(info->info.N, all_site_infos)
 
     specified_atoms = Int[]
     for siteinfo in site_infos
@@ -156,7 +156,7 @@ system under `sys.hamiltonian`. The "local field" is defined as
 with ``𝐬_i`` the unit-vector variable at site i, and ``S_i`` is
 the magnitude of the associated spin.
 """
-field!(B::Array{Vec3}, sys::SpinSystem) = field!(B, sys.dipoles_, sys.coherents_, sys.hamiltonian)
+field!(B::Array{Vec3}, sys::SpinSystem) = field!(B, sys._dipoles, sys._coherents, sys.hamiltonian)
 
 """
     field(sys::SpinSystem)
@@ -165,7 +165,7 @@ Compute the local field B at each site of the system under
 `sys.hamiltonian`.
 """
 @inline function field(sys::SpinSystem)
-    B = zero(sys)
+    B = zero(sys._dipoles)
     field!(B, sys)
     B
 end

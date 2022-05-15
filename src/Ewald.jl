@@ -43,8 +43,8 @@ Sets charges to random values uniformly drawn from ``[-1, 1]``,
 then shifted to charge-neutrality.
 """
 function Random.rand!(sys::ChargeSystem)
-    sys.sites .= 2 .* rand(Float64, size(sys.sites)) .- 1.
-    sys.sites .-= sum(sys.sites) / length(sys.sites)
+    sys.charges .= 2 .* rand(Float64, size(sys.charges)) .- 1.
+    sys.charges .-= sum(sys.charges) / length(sys.charges)
     return
 end
 

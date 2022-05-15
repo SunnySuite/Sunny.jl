@@ -13,7 +13,7 @@ function test_local_energy_change()
             func_diff = Sunny.local_energy_change(system, randsite, newspin)
 
             orig_energy = energy(system)
-            system[randsite] = newspin
+            system._dipoles[randsite] = newspin
             new_energy = energy(system)
 
             actual_diff = new_energy - orig_energy

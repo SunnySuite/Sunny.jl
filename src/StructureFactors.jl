@@ -137,7 +137,7 @@ function StructureFactor(snaps::Vector{Array{Vec3, 4}}, crystal; kwargs...)
     sys = SpinSystem(crystal, Vector{Interaction}(), size(snaps[1])[2:end])
     sf = StructureFactor(sys; kwargs...)
     for snap in snaps
-        sys.sites .= snap
+        sys._dipoles .= snap
         update!(sf, sys)
     end
     sf

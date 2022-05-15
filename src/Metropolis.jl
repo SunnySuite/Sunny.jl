@@ -81,7 +81,7 @@ mutable struct MetropolisSampler <: AbstractSampler
     M          :: Vec3
     function MetropolisSampler(sys::SpinSystem, kT::Float64, nsweeps::Int)
         @assert kT != 0. "Temperature must be nonzero!"
-        new(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys))
+        new(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys._dipoles))
     end
 end
 
@@ -106,7 +106,7 @@ mutable struct IsingSampler <: AbstractSampler
     M          :: Vec3
     function IsingSampler(sys::SpinSystem, kT::Float64, nsweeps::Int)
         @assert kT != 0. "Temperature must be nonzero!"
-        new(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys))
+        new(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys._dipoles))
     end
 end
 
@@ -159,8 +159,8 @@ function sample!(sampler::MetropolisSampler)
 
             if rand() < exp(-sampler.β * ΔE)
                 sampler.E += ΔE
-                sampler.M += (newspin - sampler.system[idx])
-                sampler.system[idx] = newspin
+                sampler.M += (newspin - sampler.system._dipoles[idx])
+                sampler.system._dipoles[idx] = newspin
             end
         end
     end
@@ -170,13 +170,13 @@ function sample!(sampler::IsingSampler)
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sampler.system)
             # Try to completely flip this spin
-            newspin = -sampler.system[idx]
+            newspin = -sampler.system._dipoles[idx]
             ΔE = local_energy_change(sampler.system, idx, newspin)
 
             if rand() < exp(-sampler.β * ΔE)
                 sampler.E += ΔE
                 sampler.M += 2 * newspin
-                sampler.system[idx] = newspin
+                sampler.system._dipoles[idx] = newspin
             end
         end
     end
@@ -201,7 +201,7 @@ Computes the change in energy if we replace the spin at `sys[idx]`
 function local_energy_change(sys::SpinSystem, idx, newspin::Vec3)
     ℋ = sys.hamiltonian
     ΔE = 0.0
-    oldspin = sys[idx]
+    oldspin = sys._dipoles[idx]
     spindiff = newspin - oldspin
     (i, cell) = splitidx(idx)
 
@@ -214,7 +214,7 @@ function local_energy_change(sys::SpinSystem, idx, newspin::Vec3)
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += J * (newspin⋅newspin - oldspin⋅oldspin)
             else
-                Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
+                Sⱼ = sys._dipoles[bond.j, offset(cell, bond.n, sys.lattice.size)]
                 ΔE += J * (spindiff ⋅ Sⱼ)
             end
         end
@@ -224,7 +224,7 @@ function local_energy_change(sys::SpinSystem, idx, newspin::Vec3)
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += newspin⋅(J.*newspin) - oldspin⋅(J.*oldspin)
             else
-                Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
+                Sⱼ = sys._dipoles[bond.j, offset(cell, bond.n, sys.lattice.size)]
                 ΔE += (J .* spindiff) ⋅ Sⱼ
             end
         end
@@ -234,7 +234,7 @@ function local_energy_change(sys::SpinSystem, idx, newspin::Vec3)
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += dot(newspin, J, newspin) - dot(oldspin, J, oldspin)
             else
-                Sⱼ = sys[bond.j, offset(cell, bond.n, sys.lattice.size)]
+                Sⱼ = sys._dipoles[bond.j, offset(cell, bond.n, sys.lattice.size)]
                 ΔE += dot(spindiff, J, Sⱼ)
             end
         end

@@ -108,7 +108,7 @@ function evolve!(integrator::HeunP, Δt::Float64)
     @. _S₂ = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B)))
 
     # Swap buffers
-    sys.sites, integrator._S₂ = integrator._S₂, sys.sites
+    sys._dipoles, integrator._S₂ = integrator._S₂, sys._dipoles
     nothing
 end
 
@@ -134,7 +134,7 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
     @. _S₂ = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ, α)))
 
     # Swap buffers
-    sys.sites, integrator._S₂ = integrator._S₂, sys.sites
+    sys._dipoles, integrator._S₂ = integrator._S₂, sys._dipoles
     nothing
 end
 
