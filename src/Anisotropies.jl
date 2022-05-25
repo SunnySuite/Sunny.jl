@@ -17,13 +17,13 @@ struct DipolarQuadraticAnisotropyCPU <: AbstractInteractionCPU
 end
 
 struct DipolarQuarticAnisotropyCPU <: AbstractInteractionCPU
-    Js    :: Vector{Quad3}
+    Js    :: Vector{SparseTensor}
     sites :: Vector{Int}
     label :: String
 end
 
 struct SUNAnisotropyCPU <: AbstractInteractionCPU
-    mats  :: Vector{Matrix{ComplexF64}}
+    Λs    :: Vector{Matrix{ComplexF64}}
     sites :: Vector{Int}
     label :: String
 end
@@ -41,14 +41,29 @@ function energy(dipoles::Array{Vec3, 4}, aniso::DipolarQuadraticAnisotropyCPU)
     return E
 end
 
+
 function energy(dipoles::Array{Vec3, 4}, aniso::DipolarQuarticAnisotropyCPU)
-    # TODO
-    return 0.0
+    E = 0.0
+    latsize = size(dipoles)[2:end]
+    for (site, J) in zip(aniso.sites, aniso.Js)
+        for cell in CartesianIndices(latsize)
+            s = dipoles[site, cell]
+            E += contract(J, s)
+        end
+    end
+    return E
 end
 
-function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, aniso::SUNAnisotropyCPU) where {N}
-    # TODO
-    return 0.0
+function energy(coherents::Array{CVec{N}, 4}, aniso::SUNAnisotropyCPU) where {N}
+    E = 0.0
+    latsize = size(coherents)[2:end]
+    for (site, Λ) in zip(aniso.sites, aniso.Λs)
+        for cell in CartesianIndices(latsize)
+            Z = coherents[site, cell]
+            E += real(Z' * Λ * Z)
+        end
+    end
+    return E
 end
 
 function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::DipolarQuadraticAnisotropyCPU)
@@ -62,11 +77,17 @@ function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::Dipo
 end
 
 function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::DipolarQuarticAnisotropyCPU)
-    # TODO
-    B .= SA[0.0, 0.0, 0.0]
+    latsize = size(dipoles)[2:end]
+    for (site, J) in zip(aniso.sites, aniso.Js)
+        for cell in CartesianIndices(latsize)
+            s = dipoles[site, cell]
+            B[site, cell] = B[site, cell] - grad_contract(J, s) 
+        end
+    end
 end
 
-function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, aniso::SUNAnisotropyCPU) where {N}
-    # TODO
-    B .= SA[0.0, 0.0, 0.0]
-end
+# Not needed, wrapped into construction of ℌ
+# function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, aniso::SUNAnisotropyCPU) where {N}
+#     # TODO
+#     B .= SA[0.0, 0.0, 0.0]
+# end

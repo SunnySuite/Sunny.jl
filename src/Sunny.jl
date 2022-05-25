@@ -11,7 +11,7 @@ using FFTW
 using Tullio
 using ProgressMeter
 using Printf
-using Random: rand!, randn!
+using Random: rand!, randn!, AbstractRNG
 
 # Specific to Symmetry/
 using FilePaths: Path
@@ -75,6 +75,7 @@ export running_energy, running_mag, reset_running_energy!, reset_running_mag!
 
 include("Integrators.jl")
 export HeunP, LangevinHeunP, SphericalMidpoint, evolve!
+export LangevinHeunPSUN, SchrodingerMidpoint
 export LangevinSampler
 
 include("StructureFactors.jl")

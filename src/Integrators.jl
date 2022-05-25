@@ -34,7 +34,7 @@ end
 """
     LangevinHeunP(sys, kT, α)
 
-Implements Langevin dynamics on `sys` targetting a temperature `kT`, with a
+Implements Langevin dynamics on `sys` targeting a temperature `kT`, with a
 damping coefficient `α`. Provided `α` should not be normalized by the spin
 magnitude -- this is done internally.
 
@@ -51,7 +51,7 @@ mutable struct LangevinHeunP <: Integrator
     _r₁ :: Array{Vec3, 4}
     _ξ  :: Array{Vec3, 4}
 
-    function LangevinHeunP(sys::SpinSystem, kT::Float64, α::Float64)
+    function LangevinHeunP(sys::SpinSystem{0}, kT::Float64, α::Float64)
         return new(
             α, α*kT/(1+α*α), sys,
             zero(sys._dipoles), zero(sys._dipoles), zero(sys._dipoles),
@@ -59,6 +59,7 @@ mutable struct LangevinHeunP <: Integrator
         )
     end
 end
+
 
 """
     SphericalMidpoint(sys::SpinSystem; atol=1e-12)
@@ -83,7 +84,73 @@ mutable struct SphericalMidpoint <: Integrator
     end    
 end
 
-# TODO: New fancy SU(N) integrators.
+
+"""
+    LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64)
+
+Implements Langevin dynamics on `sys` targeting a temperature `kT`, with a
+damping coefficient `α`. This integrator is only for Generalized Spin Dynamics.
+If sys has type `SpinSystem{0}`, will revert to the `LangevinHeunP` integrator.
+
+Uses the 2nd-order Heun + projection scheme."
+"""
+mutable struct LangevinHeunPSUN{N} <: Integrator
+    kT  :: Float64
+    α   :: Float64
+    sys :: SpinSystem{N}
+    _ℌZ  :: Array{CVec{N}, 4}
+    _Z′  :: Array{CVec{N}, 4}
+    _ΔZ₁ :: Array{CVec{N}, 4}
+    _ΔZ₂ :: Array{CVec{N}, 4}
+    _ξ   :: Array{CVec{N}, 4}
+    _B   :: Array{Vec3, 4}
+
+    function LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64) where N
+        new{N}(
+            kT, α, sys,
+            zero(sys._coherents), zero(sys._coherents),
+            zero(sys._coherents), zero(sys._coherents),
+            zero(sys._coherents), zero(sys._dipoles)
+        )
+    end
+end
+
+# Constructor so SU(N) integrator can be used with identical interface to LL LangevinHeunP integrator
+function LangevinHeunP(sys::SpinSystem{N}, kT::Float64, α::Float64) where N
+    LangevinHeunPSUN(sys, kT, α)
+end
+
+
+"""
+    SchrodingerMidpoint(sys::SpinSystem{N}) where N
+
+Implements Generalized Spin Dynamics using the Schrodinger Midpoint method. No
+noise or damping. Only works for SU(N) systems (N != 0). Will revert to SphericalMidpoint
+method if sys has a type of `SpinSystem{0}`.
+"""
+mutable struct SchrodingerMidpoint{N} <: Integrator
+    sys :: SpinSystem{N}
+    _ΔZ  :: Array{CVec{N}, 4}
+    _ℌZ  :: Array{CVec{N}, 4}
+    _Zb  :: Array{CVec{N}, 4}
+    _Z′  :: Array{CVec{N}, 4}
+    _Z″  :: Array{CVec{N}, 4}
+    _B   :: Array{Vec3, 4}
+
+    function SchrodingerMidpoint(sys::SpinSystem{N}) where N
+        new{N}(
+            sys, 
+            zero(sys._coherents), zero(sys._coherents),
+            zero(sys._coherents), zero(sys._coherents),
+            zero(sys._coherents), zero(sys._dipoles)
+        )
+    end
+end
+
+function SchrodingerMidpoint(sys::SpinSystem{0})
+    @warn "SchrodingerMidpoint integration is only available for SU(N) systems. Reverting to SphericalMidpoint integrator."
+    SphericalMidpoint(sys)
+end
 
 
 @inline f(S, B) = -S × B
@@ -133,10 +200,14 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
     field!(_B, _S₁, Z, sys.hamiltonian)
     @. _S₂ = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ, α)))
 
-    # Swap buffers
+    # Swap buffers -- this requires SpinSystem to be mutable
     sys._dipoles, integrator._S₂ = integrator._S₂, sys._dipoles
+
     nothing
 end
+
+
+
 
 function evolve!(integrator::SphericalMidpoint, Δt::Float64)
     @unpack sys, _S̄, _Ŝ, _S̄′, _B, atol = integrator
@@ -173,6 +244,114 @@ function evolve!(integrator::SphericalMidpoint, Δt::Float64)
 
     error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
 end
+
+
+""" SU(N) integrators and helper functions.
+"""
+
+# LinearAlgebra's `normalize!` doesn't normalize to 1 on complex vectors
+function normalize!(Z::Array{CVec{N}, 4}) where N
+    for i ∈ eachindex(Z)
+        Z[i] = Z[i] / √(real(Z[i]' * Z[i]))
+    end
+end
+
+
+@inline function _proj(a::T, Z::T)  where T <: CVec
+    (a - ((Z' * a) * Z))  
+end
+
+
+function _apply_ℌ!(rhs, sys, B, Z)
+    aniso = sys.hamiltonian.sun_aniso
+    latsize = size(B)[2:end]
+    for (site, Λ) in zip(aniso.sites, aniso.Λs)
+        for cell ∈ CartesianIndices(latsize)
+             rhs[site, cell] = (-B[site, cell] ⋅ sys.S + Λ) * Z[site, cell] # ∇E = -B
+        end
+    end
+end
+
+
+function _rhs_langevin!(ΔZ, Z, integrator, Δt)
+    (; kT, α, sys, _ℌZ, _ξ, _B) = integrator
+    (; _dipoles) = sys
+
+    set_expected_spins!(_dipoles, Z) # Not needed for Heun as currently written. Keep for safety, consistency? 
+    field!(_B, _dipoles, Z, sys.hamiltonian)
+    _apply_ℌ!(_ℌZ, sys, _B, Z)
+
+    for i ∈ eachindex(Z)
+        ΔZ′ = -im*√(2*Δt*kT*α)*_ξ[i] - Δt*(im+α)*_ℌZ[i]    
+        ΔZ[i] = _proj(ΔZ′, Z[i])
+    end 
+end
+
+
+function _rhs_ll!(ΔZ, Z, integrator, Δt)
+    (; sys, _ℌZ, _B) = integrator
+    (; _dipoles) = sys
+
+    set_expected_spins!(_dipoles, Z) # temporarily de-synchs _dipoles and _coherents
+    field!(_B, _dipoles, Z, sys.hamiltonian)
+    _apply_ℌ!(_ℌZ, sys, _B, Z)
+
+    for i ∈ eachindex(Z)
+        ΔZ[i] = - Δt*im*_ℌZ[i]    
+    end 
+end
+
+
+function evolve!(integrator::LangevinHeunPSUN, Δt::Float64)
+    (; sys, _Z′, _ΔZ₁, _ΔZ₂, _ξ) = integrator
+    (; _coherents) = sys
+    Z = _coherents
+
+    randn!(_ξ)
+
+    # Prediction
+    _rhs_langevin!(_ΔZ₁, Z, integrator, Δt)
+    @. _Z′ = Z + _ΔZ₁
+    normalize!(_Z′)
+
+    # Correction
+    _rhs_langevin!(_ΔZ₂, _Z′, integrator, Δt)
+    @. Z += (_ΔZ₁ + _ΔZ₂)/2
+    normalize!(Z)
+
+    # Coordinate dipole data
+    set_expected_spins!(sys)
+end
+
+
+function evolve!(integrator::SchrodingerMidpoint, Δt::Float64; tol=1e-14, max_iters=100)
+    (; sys, _ΔZ, _Zb, _Z′, _Z″) = integrator
+    (; _coherents) = sys
+    Z = _coherents
+
+    @. _Z′ = Z 
+    @. _Z″ = Z 
+
+    for i ∈ 1:max_iters
+        @. _Zb = (Z + _Z′)/2
+
+        _rhs_ll!(_ΔZ, _Zb, integrator, Δt)
+
+        @. _Z″ = Z + _ΔZ
+
+        if norm(_Z′ - _Z″) < tol
+            @. Z = _Z″
+            set_expected_spins!(sys)
+            return
+        end
+
+        _Z′, _Z″ = _Z″, _Z′
+    end
+
+    error("SchrodingerMidpoint integrator failed to converge in $max_iters iterations.")
+end
+
+
 
 
 """
@@ -212,3 +391,5 @@ get_system(sampler::LangevinSampler) = sampler.integrator.system
         evolve!(sampler.integrator, sampler.Δt)
     end
 end
+
+

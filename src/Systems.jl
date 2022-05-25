@@ -4,23 +4,27 @@ import Random
 Defines a collection of spins, as well as the Hamiltonian they interact under.
  This is the main type to interface with most of the package.
 """
-struct SpinSystem{N}
+mutable struct SpinSystem{N}   ## Note: Changed to mutable so old integrator would work
     lattice     :: Lattice                          # Definition of underlying lattice
     hamiltonian :: HamiltonianCPU                   # Contains all interactions present
     _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
     _coherents  :: Array{SVector{N, ComplexF64}, 4} # Coherent states
     site_infos  :: Vector{SiteInfo}                 # Characterization of each basis site
+    S           :: NTuple{3, Matrix{ComplexF64}}
 end
 
 @inline Base.size(sys::SpinSystem) = size(sys._coherents)
 @inline nbasis(sys::SpinSystem) = nbasis(sys.lattice)
 @inline eachcellindex(sys::SpinSystem) = eachcellindex(sys.lattice)
 
+@inline _get_coherent_from_dipole(dip::Vec3, ::Val{0}) :: CVec{0} = CVec{0}(zeros(0))
 @inline function _get_coherent_from_dipole(dip::Vec3, ::Val{N}) :: CVec{N} where {N} 
-    # TODO: Produce a coherent state of SU(N) agreeing with the given dipole moment.
-    return CVec{N}(zeros(N))
+    S = gen_spin_ops(N) 
+    λs, vs = eigen(dip⋅S)
+    return CVec{N}(vs[:, argmax(real.(λs))])
 end
 
+# Construct an analogous CoherentView?
 struct DipoleView{N} <: AbstractArray{Vec3, 4}
     _dipoles    :: Array{Vec3, 4}
     _coherents  :: Array{SVector{N, ComplexF64}, 4}
@@ -28,9 +32,15 @@ end
 
 Base.IndexStyle(::Type{DipoleView}) = IndexLinear()
 Base.size(dv::DipoleView) = size(dv._dipoles)
-Base.getindex(dv::DipoleView, i) = getindex(dv._dipoles, i)
-function Base.setindex!(dv::DipoleView{N}, v::Vec3, i) where {N}
+Base.getindex(dv::DipoleView, i::Int) = getindex(dv._dipoles, i)
+Base.getindex(dv::DipoleView, I::Vararg{Int, M}) where {M} = getindex(dv._dipoles, I...) # needed for default show
+function Base.setindex!(dv::DipoleView{N}, v::Vec3, i::Int) where {N}
+    setindex!(dv._dipoles, v, i)
     setindex!(dv._coherents, _get_coherent_from_dipole(v, Val(N)), i)
+end
+function Base.setindex!(dv::DipoleView{N}, v::Vec3, I::Vararg{Int, M}) where {N, M}
+    setindex!(dv._dipoles, v, I...)
+    setindex!(dv._coherents, _get_coherent_from_dipole(v, Val(N)), I...)
 end
 
 DipoleView(sys::SpinSystem{N}) where {N} = DipoleView{N}(sys._dipoles, sys._coherents)
@@ -38,6 +48,41 @@ DipoleView(sys::SpinSystem{N}) where {N} = DipoleView{N}(sys._dipoles, sys._cohe
 function init_from_dipoles!(sys::SpinSystem, dipoles::Array{Vec3, 4})
     dipole_view = DipoleView(sys)
     dipole_view .= dipoles
+end
+
+# Probably remove
+@inline function expected_spin(S, Z)
+    (Vec3(real(Z'*S[1]*Z), real(Z'*S[2]*Z), real(Z'*S[3]*Z)))
+end
+
+@generated function expected_spin(Z::CVec{N}) where N
+    S = gen_spin_ops(N)
+    elems_x = SVector{N-1}(diag(S[1], 1))
+    elems_z = SVector{N}(diag(S[3], 0))
+    lo_ind = SVector{N-1}(1:N-1)
+    hi_ind = SVector{N-1}(2:N)
+
+    return quote
+        $(Expr(:meta, :inline))
+        c = Z[$lo_ind]' * ($elems_x .* Z[$hi_ind])
+        nx = 2real(c)
+        ny = 2imag(c)
+        nz = real(Z' * ($elems_z .* Z))
+        Vec3(nx, ny, nz)
+    end
+end
+
+function set_expected_spins!(sys::SpinSystem)
+    (; _dipoles, _coherents) = sys
+    map!(_dipoles, _coherents) do Z
+        expected_spin(Z)
+    end
+end
+
+function set_expected_spins!(dipoles::Array{Vec3, 4}, Zs::Array{CVec{N}, 4}) where N
+    map!(dipoles, Zs) do Z
+        expected_spin(Z)
+    end
 end
 
 
@@ -53,13 +98,13 @@ function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
     # All sites not explicitly provided are by default N=0, g=2, κ=1
     all_site_infos = [SiteInfo(i, 0, 2, 1.0) for i in 1:nbasis(crystal)]
 
-    maxN = maximum(info->info.N, all_site_infos)
+    maxN = length(site_infos) > 0 ? maximum(info->info.N, site_infos) : 0
 
     specified_atoms = Int[]
     for siteinfo in site_infos
         @unpack site, N, g, κ = siteinfo
         if N != maxN
-            @warn "Up-converting N=$N -> N=$maxN on site $site!"
+            @warn "Up-converting N=$N -> N=$maxN on site $(site)!"
         end
         (sym_bs, sym_gs) = all_symmetry_related_couplings(crystal, Bond(site, site, [0,0,0]), g)
         for (sym_b, sym_g) in zip(sym_bs, sym_gs)
@@ -97,6 +142,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
 
     (all_site_infos, N) = _propagate_site_info(crystal, site_infos)
     ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_site_infos; μB, μ0)
+    S = gen_spin_ops(N)
 
     # Initialize sites to all spins along +z
     sys_size = (nbasis(lattice), lattice.size...)
@@ -105,7 +151,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
     coherents = fill(_get_coherent_from_dipole(up, Val(N)), sys_size)
 
     # Default unit system is (meV, K, Å, T)
-    SpinSystem{N}(lattice, ℋ_CPU, dipoles, coherents, all_site_infos)
+    SpinSystem{N}(lattice, ℋ_CPU, dipoles, coherents, all_site_infos, S)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem{N}) where {N}
@@ -120,12 +166,23 @@ end
 
 Sets spins randomly sampled on the unit sphere.
 """
-function Random.rand!(sys::SpinSystem) # TODO: Should this still behave the same way?
+# NOTE: Need strategy for managing RNGs (keep in SpinSystem?)
+function Random.rand!(sys::SpinSystem{0})  
     dip_view = DipoleView(sys)
     dip_view .= randn(Vec3, size(dip_view))
     @. dip_view /= norm(dip_view)
     nothing
 end
+
+function Random.rand!(sys::SpinSystem{N}) where N
+    Zs = sys._coherents
+    randn!(Zs)
+    @. Zs /= norm(Zs)
+    set_expected_spins!(sys)
+    nothing
+end
+
+
 
 """
     randflips!(sys::SpinSystem)

@@ -38,3 +38,82 @@ end
     Ar = reinterpret(reshape, Float64, parent(A))
     return reshape(Ar, 3, 3, size(A)...)
 end
+
+"Generalize dot product so works on vector of operators"
+function LinearAlgebra.dot(a::Vec3, b::NTuple{3, Matrix{ComplexF64}}) where T
+    a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
+end
+
+"Sparse tensor type for quartic anisotropies. (Could be used for quadratic as well.)"
+struct SparseTensor{R,N}
+    indices :: NTuple{N, NTuple{R, Int64}}    
+    counts  :: NTuple{N, NTuple{3, Int64}}
+    vals    :: SVector{N, Float64}
+end
+
+numberof(i, v) = filter(x -> x == i, v) |> length
+counts_from_indices(indices::NTuple{N, Int64}) where N = map(x -> numberof(x, indices), (1,2,3))
+function SparseTensor(tens::T)  where T <: AbstractArray
+    # Find non-zero elements
+    indices = findall(!iszero, tens)
+    vals = tens[indices]
+    if length(indices) < 1
+        @error "Cannot create a tensor with all zero entries"
+    end
+
+    # Determine number of entries and rank of tensor
+    rank = length(size(tens))
+    num_entries = length(vals)
+
+    # Convert to static types
+    indices = map(i -> i.I, indices)
+    indices = NTuple{num_entries, NTuple{rank, Int64}}(indices)
+    vals = SVector{num_entries, Float64}(vals)
+
+    # Get counts of each index for gradient calculations
+    counts = counts_from_indices.(indices)
+
+    SparseTensor{rank, num_entries}(indices, counts, vals)
+end
+
+
+"Conracts a sparse tensor of arbitrary rank R that R vectors (or one vector R times)"
+@generated function contract(T::SparseTensor{R,N}, v...) where {R, N}
+    repeat_vec = length(v) < R ? true : false
+    ex = nothing
+    for n ∈ 1:N
+        prod_ex = :(T.vals[$n])
+        for r ∈ 1:R
+            idx = repeat_vec ? 1 : r
+            prod_ex = :($prod_ex * v[$idx][T.indices[$n][$r]])
+        end
+        ex = n == 1 ? prod_ex : :($ex + $prod_ex)
+    end
+    :(@inbounds $ex)
+end
+
+# Can write generated function to do this that would unroll loop and eliminate calls
+# to pow. Note that it will not be able to the check for zero values, which is kind
+# of an ugly optimization in any case. Will have to benchmark.
+"Calculate the gradient of the tensor contraction, for -∇E calculations in LL dynamics"
+@inline function grad_contract(T::SparseTensor{R,N}, v) where {R,N}
+    result = zero(v)
+    for (counts, val) ∈ zip(T.counts, T.vals)
+        result += SA[counts[1] == zero(v[1]) ? zero(v[1]) : counts[1] * val * (v[1]^(counts[1]-1)) * (v[2]^counts[2])     * (v[3]^counts[3]),
+                     counts[2] == zero(v[1]) ? zero(v[1]) : counts[2] * val * (v[1]^counts[1])     * (v[2]^(counts[2]-1)) * (v[3]^counts[3]),
+                     counts[3] == zero(v[1]) ? zero(v[1]) : counts[3] * val * (v[1]^counts[1])     * (v[2]^counts[2])     * (v[3]^(counts[3]-1))]
+    end
+    result
+end
+
+# Note, this seems to be just as fast as generated function version in most cases.
+# Both this and generated function substantially faster than full contraction on a Quad3.
+"Non-generated version of tensor contraction using SparseTensor type. For comparison."
+@inline function contract_sparse(T::SparseTensor{R,N}, v) where {R, N}
+    result = zero(v[1])
+    @inbounds for (indices, val) ∈ zip(T.indices, T.vals) 
+        i1, i2, i3, i4 = indices
+        result += val*v[i1]*v[i2]*v[i3]*v[i4] 
+    end
+    result
+end

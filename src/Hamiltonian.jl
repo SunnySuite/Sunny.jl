@@ -40,22 +40,108 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
                 println("Use `print_bond(crystal, Bond($site, $site, [0,0,0])` for more information.")
                 error("Interaction violates symmetry.")
             end
+        ## TODO: check validity of quartic anisotropy
         end
     end
 
     return ints
 end
 
+
+# Functions for converting front end anistropy types to back end types. 
+
+function simplify(anisos::Vector{T}) where T <: AbstractAnisotropy 
+    sites = unique([a.site for a ∈ anisos])
+    reduced_anisos = T[]
+    for site ∈ sites
+        anisos_local = filter(a -> a.site == site, anisos)
+        J = sum([a.J for a ∈ anisos_local])
+        push!(reduced_anisos, T(J, site, ""))
+    end
+    reduced_anisos
+end
+
+function upconvert(aniso::QuadraticAnisotropy, N)
+    (; J, site, label) = aniso
+    S = gen_spin_ops(N)
+    Λ = zeros(ComplexF64, 3, 3)
+    for j ∈ 1:3, i ∈ 1:3
+        Λ += J[i,j]*S[i]*S[j]
+    end
+    SUNAnisotropy(Λ, site, label)
+end
+
+function upconvert(aniso::QuarticAnisotropy, N)
+    (; J, site, label) = aniso
+    S = gen_spin_ops(N)
+    Λ = contract(SparseTensor(J), S)
+    SUNAnisotropy(Λ, site, label)
+end
+
+function merge(anisos::Vector{QuadraticAnisotropy}) 
+    (length(anisos) == 0) && (return nothing)
+    DipolarQuadraticAnisotropyCPU([a.J for a ∈ anisos],
+                                  [a.site for a ∈ anisos],
+                                  ""
+    )
+end
+
+function merge(anisos::Vector{QuarticAnisotropy})
+    (length(anisos) == 0) && (return nothing)
+    DipolarQuarticAnisotropyCPU([SparseTensor(a.J) for a ∈ anisos],
+                                [a.site for a ∈ anisos],
+                                ""
+    )
+end
+
+function merge(anisos::Vector{SUNAnisotropy})
+    (length(anisos) == 0) && (return nothing)
+    SUNAnisotropyCPU([a.J for a ∈ anisos],
+                     [a.site for a ∈ anisos],
+                     ""
+    )
+end
+
+
 function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::Crystal, site_infos::Vector{SiteInfo})
-    # TODO: Given the list of anisos, we need to:
-    #  1. If maximum N in site_infos is > 0, we need to upconvert all QuadraticAnisotropy
-    #         and QuarticAnisotropy to SUNAnisotropy's
-    #  2. [If in dipolar mode] Collect all QuadraticAnisotropy into one DipolarQuadraticAnisotropyCPU
-    #  3. [If in dipolar mode] Collect all QuarticAnisotropy into one DipolarQuarticAnisotropyCPU
-    #  4. Collect all SUNAnisotropy into one SUNAnisotropyCPU
-    #  5. Return (DipolarQuadraticAnisotropyCPU, DipolarQuarticAnisotropyCPU, SUNAnisotropyCPU),
-    #         but with nothing's if there were none.
-    return (nothing, nothing, nothing)
+    N = site_infos[1].N     # All should be identical, so just take first
+    num_sites = length(crystal.positions)
+
+    # Seperate out different anisotropy types. If multiple anisotropies (of one type)
+    # are given for a single site, combine linearly (simplify).
+    quadratic_anisos = filter(a -> isa(a, QuadraticAnisotropy), anisos) |>
+                       Vector{QuadraticAnisotropy} |>
+                       simplify
+    quartic_anisos = filter(a -> isa(a, QuarticAnisotropy), anisos) |>
+                     Vector{QuarticAnisotropy} |>
+                     simplify
+    sun_anisos = filter(a -> isa(a, SUNAnisotropy), anisos) |>
+                 Vector{SUNAnisotropy} |>
+                 simplify
+
+    # If in dipole mode, convert to backend types and we're done.
+    if N == 0
+        if length(sun_anisos) != 0
+            @warn "Given a SU(N) anisotropy but running in LL mode. SU(N) anistropies will be ignored."
+        end
+
+        quadratic_aniso = merge(quadratic_anisos)
+        quartic_aniso = merge(quartic_anisos)
+
+        return (quadratic_aniso, quartic_aniso, nothing)
+    end
+
+    # Upconvert all anisotropies to SU(N) anisotropies. Also ensure that Λ is zero (not nothing)
+    # for all sites without any specified anisotropy. 
+    sun_quadratics = map(a -> upconvert(a, N), quadratic_anisos)
+    sun_quartics = map(a -> upconvert(a, N), quartic_anisos)
+    sun_anisos_zeros = [SUNAnisotropy(zeros(ComplexF64, N, N), i, "") for i ∈ 1:num_sites] 
+    combined_sun_anisos = vcat([sun_anisos, sun_anisos_zeros, sun_quadratics, sun_quartics]...) |>
+                          simplify
+
+    sun_aniso = merge(combined_sun_anisos)
+
+    return (nothing, nothing, sun_aniso)
 end
 
 
@@ -166,7 +252,7 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Hami
         E += energy(dipoles, ℋ.quartic_aniso)
     end
     if !isnothing(ℋ.sun_aniso)
-        E += energy(dipoles, coherents, ℋ.sun_aniso)
+        E += energy(coherents, ℋ.sun_aniso)
     end
     return E
 end
@@ -205,14 +291,15 @@ function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, coherents::Array{CVe
         _accum_neggrad!(B, dipoles, ℋ.dipole_int)
     end
     if !isnothing(ℋ.quadratic_aniso)
-        _accum_neggrad!(B, dipoles, ℋ.dipole_int)
+        _accum_neggrad!(B, dipoles, ℋ.quadratic_aniso)
     end
     if !isnothing(ℋ.quartic_aniso)
-        _accum_neggrad!(B, dipoles, ℋ.dipole_int)
+        _accum_neggrad!(B, dipoles, ℋ.quartic_aniso)
     end
-    if !isnothing(ℋ.sun_aniso)
-        _accum_neggrad!(B, dipoles, coherents, ℋ.dipole_int)
-    end
+    ## Part of construction of ℌ
+    # if !isnothing(ℋ.sun_aniso)
+    #     _accum_neggrad!(B, dipoles, coherents, ℋ.dipole_int)
+    # end
 
     # Normalize each gradient by the spin magnitude on that sublattice
     for idx in CartesianIndices(B)
