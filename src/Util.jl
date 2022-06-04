@@ -67,7 +67,6 @@ function SparseTensor(tens::T)  where T <: AbstractArray
     indices = NTuple{num_entries, NTuple{rank, Int64}}(indices)
     vals = SVector{num_entries, Float64}(vals)
 
-    # Get counts of each index for gradient calculations
     SparseTensor{rank, num_entries}(indices, vals)
 end
 
@@ -78,7 +77,7 @@ end
 rank-4 tensors."
 @inline function grad_contract(tens::SparseTensor{4,N}, v::Vec3) where {R,N}
     result = zeros(Float64, 3)
-    @inbounds for (indices, val) ∈ zip(tens.indices, tens.vals)
+    @inbounds for (indices, val) in zip(tens.indices, tens.vals)
         i1, i2, i3, i4 = indices
         result[i1] += val *         v[i2] * v[i3] * v[i4]
         result[i2] += val * v[i1] *         v[i3] * v[i4]
@@ -91,7 +90,7 @@ end
 "Non-generated version of tensor contraction using SparseTensor type. Only for rank-4 tensors."
 @inline function contract(tens::SparseTensor{4,N}, v) where {R, N}
     result = zero(v[1])
-    @inbounds for (indices, val) ∈ zip(tens.indices, tens.vals) 
+    @inbounds for (indices, val) in zip(tens.indices, tens.vals) 
         i1, i2, i3, i4 = indices
         result += val*v[i1]*v[i2]*v[i3]*v[i4] 
     end

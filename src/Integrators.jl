@@ -243,7 +243,7 @@ end
 
 # LinearAlgebra's `normalize!` doesn't normalize to 1 on complex vectors
 function normalize!(Z::Array{CVec{N}, 4}) where N
-    for i ∈ eachindex(Z)
+    for i in eachindex(Z)
         Z[i] = Z[i] / √(real(Z[i]' * Z[i]))
     end
 end
@@ -258,7 +258,7 @@ function _apply_ℌ!(rhs, sys, B, Z)
     aniso = sys.hamiltonian.sun_aniso
     latsize = size(B)[2:end]
     for (site, Λ) in zip(aniso.sites, aniso.Λs)
-        for cell ∈ CartesianIndices(latsize)
+        for cell in CartesianIndices(latsize)
              rhs[site, cell] = (-B[site, cell] ⋅ sys.S + Λ) * Z[site, cell] # ∇E = -B
         end
     end
@@ -273,7 +273,7 @@ function _rhs_langevin!(ΔZ, Z, integrator, Δt)
     field!(_B, _dipoles, Z, sys.hamiltonian)
     _apply_ℌ!(_ℌZ, sys, _B, Z)
 
-    for i ∈ eachindex(Z)
+    for i in eachindex(Z)
         ΔZ′ = -im*√(2*Δt*kT*α)*_ξ[i] - Δt*(im+α)*_ℌZ[i]    
         ΔZ[i] = _proj(ΔZ′, Z[i])
     end 
@@ -288,7 +288,7 @@ function _rhs_ll!(ΔZ, Z, integrator, Δt)
     field!(_B, _dipoles, Z, sys.hamiltonian)
     _apply_ℌ!(_ℌZ, sys, _B, Z)
 
-    for i ∈ eachindex(Z)
+    for i in eachindex(Z)
         ΔZ[i] = - Δt*im*_ℌZ[i]    
     end 
 end
@@ -322,7 +322,7 @@ function evolve!(integrator::SchrodingerMidpoint, Δt::Float64; tol=1e-14, max_i
     @. _Z′ = Z 
     @. _Z″ = Z 
 
-    for i ∈ 1:max_iters
+    for i in 1:max_iters
         @. _Zb = (Z + _Z′)/2
 
         _rhs_ll!(_ΔZ, _Zb, integrator, Δt)

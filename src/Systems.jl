@@ -33,23 +33,39 @@ end
 
 Base.IndexStyle(::Type{DipoleView}) = IndexLinear()
 Base.size(dv::DipoleView) = size(dv._dipoles)
-Base.getindex(dv::DipoleView, i) = getindex(dv._dipoles, i)
-function Base.setindex!(dv::DipoleView{N}, v::Vec3, i) where N
-    setindex!(dv._dipoles, v, i)
-    setindex!(dv._coherents, _get_coherent_from_dipole(v, Val(N)), i)
+Base.getindex(dv::DipoleView, i...) = getindex(dv._dipoles, i...)
+function Base.setindex!(dv::DipoleView{N}, v::Vec3, i...) where N
+    setindex!(dv._dipoles, v, i...)
+    setindex!(dv._coherents, _get_coherent_from_dipole(v, Val(N)), i...)
 end
 
 DipoleView(sys::SpinSystem{N}) where {N} = DipoleView{N}(sys._dipoles, sys._coherents)
 
-function init_from_dipoles!(sys::SpinSystem, dipoles::Array{Vec3, 4})
+function init_from_dipoles!(sys::SpinSystem{N}, dipoles::Array{Vec3, 4}) where N
     dipole_view = DipoleView(sys)
     dipole_view .= dipoles
 end
 
-# Probably remove
-@inline function expected_spin(S, Z)
-    (Vec3(real(Z'*S[1]*Z), real(Z'*S[2]*Z), real(Z'*S[3]*Z)))
+struct KetView{N} <: AbstractArray{CVec{N}, 4}
+    _dipoles    :: Array{Vec3, 4}
+    _coherents  :: Array{SVector{N, ComplexF64}, 4}
 end
+
+Base.IndexStyle(::Type{KetView}) = IndexLinear()
+Base.size(kv::KetView) = size(kv._coherents)
+Base.getindex(kv::KetView, i...) = getindex(kv._coherents, i...)
+function Base.setindex!(kv::KetView{N}, Z::CVec{N}, i...) where N
+    setindex!(kv._coherents, Z, i...)
+    setindex!(kv._dipoles, expected_spin(Z), i...)
+end
+
+KetView(sys::SpinSystem{N}) where N = KetView{N}(sys._dipoles, sys._coherents)
+
+function init_from_coherents(sys::SpinSystem, coherents::Array{CVec{N}, 4}) where N
+    ket_view = KetView(sys)
+    ket_view .= coherents
+end
+
 
 @generated function expected_spin(Z::CVec{N}) where N
     S = gen_spin_ops(N)

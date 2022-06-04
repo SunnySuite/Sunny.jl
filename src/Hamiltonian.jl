@@ -51,24 +51,24 @@ end
 # Functions for converting front end anistropy types to back end types. 
 function merge(anisos::Vector{QuadraticAnisotropy}) 
     (length(anisos) == 0) && (return nothing)
-    DipolarQuadraticAnisotropyCPU([a.J for a ∈ anisos],
-                                  [a.site for a ∈ anisos],
+    DipolarQuadraticAnisotropyCPU([a.J for a in anisos],
+                                  [a.site for a in anisos],
                                   ""
     )
 end
 
 function merge(anisos::Vector{QuarticAnisotropy})
     (length(anisos) == 0) && (return nothing)
-    DipolarQuarticAnisotropyCPU([SparseTensor(a.J) for a ∈ anisos],
-                                [a.site for a ∈ anisos],
+    DipolarQuarticAnisotropyCPU([SparseTensor(a.J) for a in anisos],
+                                [a.site for a in anisos],
                                 ""
     )
 end
 
 function merge(anisos::Vector{SUNAnisotropy})
     (length(anisos) == 0) && (return nothing)
-    SUNAnisotropyCPU([a.Λ for a ∈ anisos],
-                     [a.site for a ∈ anisos],
+    SUNAnisotropyCPU([a.Λ for a in anisos],
+                     [a.site for a in anisos],
                      ""
     )
 end
