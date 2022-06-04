@@ -4,13 +4,14 @@ import Random
 Defines a collection of spins, as well as the Hamiltonian they interact under.
  This is the main type to interface with most of the package.
 """
-mutable struct SpinSystem{N}   ## Note: Changed to mutable so old integrator would work
+struct SpinSystem{N}   ## Note: Changed to mutable so old integrator would work
     lattice     :: Lattice                          # Definition of underlying lattice
     hamiltonian :: HamiltonianCPU                   # Contains all interactions present
     _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
     _coherents  :: Array{SVector{N, ComplexF64}, 4} # Coherent states
     site_infos  :: Vector{SiteInfo}                 # Characterization of each basis site
     S           :: NTuple{3, Matrix{ComplexF64}}
+    rng         :: Random.AbstractRNG
 end
 
 @inline Base.size(sys::SpinSystem) = size(sys._coherents)
@@ -32,15 +33,10 @@ end
 
 Base.IndexStyle(::Type{DipoleView}) = IndexLinear()
 Base.size(dv::DipoleView) = size(dv._dipoles)
-Base.getindex(dv::DipoleView, i::Int) = getindex(dv._dipoles, i)
-Base.getindex(dv::DipoleView, I::Vararg{Int, M}) where {M} = getindex(dv._dipoles, I...) # needed for default show
-function Base.setindex!(dv::DipoleView{N}, v::Vec3, i::Int) where {N}
+Base.getindex(dv::DipoleView, i) = getindex(dv._dipoles, i)
+function Base.setindex!(dv::DipoleView{N}, v::Vec3, i) where N
     setindex!(dv._dipoles, v, i)
     setindex!(dv._coherents, _get_coherent_from_dipole(v, Val(N)), i)
-end
-function Base.setindex!(dv::DipoleView{N}, v::Vec3, I::Vararg{Int, M}) where {N, M}
-    setindex!(dv._dipoles, v, I...)
-    setindex!(dv._coherents, _get_coherent_from_dipole(v, Val(N)), I...)
 end
 
 DipoleView(sys::SpinSystem{N}) where {N} = DipoleView{N}(sys._dipoles, sys._coherents)
@@ -136,7 +132,8 @@ Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sit
  default, these are set so that the unit system is (meV, T, Å).
 """
 function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsize,
-                    site_infos::Vector{SiteInfo}=SiteInfo[]; μB=BOHR_MAGNETON, μ0=VACUUM_PERM)
+                    site_infos::Vector{SiteInfo}=SiteInfo[];
+                    rng=nothing, μB=BOHR_MAGNETON, μ0=VACUUM_PERM)
     latsize = collect(Int64.(latsize))
     lattice = Lattice(crystal, latsize)
 
@@ -150,8 +147,11 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
     dipoles = fill(up, sys_size)
     coherents = fill(_get_coherent_from_dipole(up, Val(N)), sys_size)
 
+    # Set up default RNG if none provided
+    isnothing(rng) && (rng = Random.MersenneTwister())
+
     # Default unit system is (meV, K, Å, T)
-    SpinSystem{N}(lattice, ℋ_CPU, dipoles, coherents, all_site_infos, S)
+    SpinSystem{N}(lattice, ℋ_CPU, dipoles, coherents, all_site_infos, S, rng)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem{N}) where {N}
@@ -169,14 +169,14 @@ Sets spins randomly sampled on the unit sphere.
 # NOTE: Need strategy for managing RNGs (keep in SpinSystem?)
 function Random.rand!(sys::SpinSystem{0})  
     dip_view = DipoleView(sys)
-    dip_view .= randn(Vec3, size(dip_view))
+    dip_view .= randn(sys.rng, Vec3, size(dip_view))
     @. dip_view /= norm(dip_view)
     nothing
 end
 
 function Random.rand!(sys::SpinSystem{N}) where N
     Zs = sys._coherents
-    randn!(Zs)
+    randn!(sys.rng, Zs)
     @. Zs /= norm(Zs)
     set_expected_spins!(sys)
     nothing
@@ -190,9 +190,9 @@ end
 Sets spins randomly either aligned or anti-aligned
 with their original direction.
 """
-function randflips!(sys::SpinSystem) # TODO: Should this still behave the same way?
+function randflips!(sys::SpinSystem{0}) # TODO: Should this still behave the same way?
     dip_view = DipoleView(sys)
-    @. dip_view .*= rand((-1, 1), size(dip_view))
+    @. dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
 end
 
 """

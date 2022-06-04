@@ -3,7 +3,7 @@
 
 function plot_lattice!(ax, lattice::Lattice; colors=:Set1_9, markersize=200, linecolor=:grey, linewidth=1.0, kwargs...)
     unique_types = unique(lattice.types)
-    colors = GLMakie.to_colormap(colors, 9)
+    colors = GLMakie.resample_cmap(colors, 9)
 
     # Plot markers at each site
     pts = GLMakie.Point3f0.(vec(lattice))
@@ -57,7 +57,7 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
     # TODO: Make selectable in GUI
     basis_idx = 1
 
-    colors = GLMakie.to_colormap(colors, 8)
+    colors = GLMakie.resample_cmap(colors, 8)
     # Sort interactions so that longer bonds are plotted first
     sorted_ints = sort(
         ints, 
@@ -116,7 +116,7 @@ function plot_bonds(cryst::Crystal, ints::Vector{<:AbstractInteraction}, latsize
                     kwargs...)
     latsize = collect(Int64.(latsize))
     lattice = Lattice(cryst, latsize)
-    all_site_infos = propagate_site_info(cryst, SiteInfo[])
+    (all_site_infos, _) = _propagate_site_info(cryst, SiteInfo[])
     ℋ = HamiltonianCPU(ints, cryst, latsize, all_site_infos)
     pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
     plot_bonds(lattice, pair_ints; kwargs...)

@@ -1,8 +1,7 @@
 """ Implements Ewald summation rules for monopoles and dipoles on 3D lattices
 """
 
-import Random
-
+# NOTE: Need to determine what RNG to use for ChargeSystem.
 """
 Defines a collection of charges. Currently primarily used to test ewald
  summation calculations.

@@ -11,7 +11,8 @@ using FFTW
 using Tullio
 using ProgressMeter
 using Printf
-using Random: rand!, randn!, AbstractRNG
+using Random: rand!, randn!
+import Random
 
 # Specific to Symmetry/
 using FilePaths: Path

@@ -19,14 +19,12 @@ order accurate.
 mutable struct HeunP <: Integrator
     sys :: SpinSystem
     _S₁ :: Array{Vec3, 4}
-    _S₂ :: Array{Vec3, 4}
     _B  :: Array{Vec3, 4}
     _f₁ :: Array{Vec3, 4}
 
     function HeunP(sys::SpinSystem)
         return new(
-            sys, zero(sys._dipoles), zero(sys._dipoles),
-            zero(sys._dipoles), zero(sys._dipoles)
+            sys, zero(sys._dipoles), zero(sys._dipoles), zero(sys._dipoles)
         )
     end
 end
@@ -45,7 +43,6 @@ mutable struct LangevinHeunP <: Integrator
     D   :: Float64        # Stochastic strength
     sys :: SpinSystem
     _S₁ :: Array{Vec3, 4} # Intermediate integration variable space
-    _S₂ :: Array{Vec3, 4}
     _B  :: Array{Vec3, 4}
     _f₁ :: Array{Vec3, 4}
     _r₁ :: Array{Vec3, 4}
@@ -55,7 +52,7 @@ mutable struct LangevinHeunP <: Integrator
         return new(
             α, α*kT/(1+α*α), sys,
             zero(sys._dipoles), zero(sys._dipoles), zero(sys._dipoles),
-            zero(sys._dipoles), zero(sys._dipoles), zero(sys._dipoles)
+            zero(sys._dipoles), zero(sys._dipoles)
         )
     end
 end
@@ -162,7 +159,7 @@ end
 Performs a single integrator timestep of size Δt.
 """
 function evolve!(integrator::HeunP, Δt::Float64)
-    @unpack sys, _S₁, _S₂, _B, _f₁ = integrator
+    (; sys, _S₁, _B, _f₁) = integrator
     S, Z = sys._dipoles, sys._coherents
     
     # Euler step
@@ -172,18 +169,16 @@ function evolve!(integrator::HeunP, Δt::Float64)
 
     # Corrector step
     field!(_B, _S₁, Z, sys.hamiltonian)
-    @. _S₂ = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B)))
+    @. S = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B)))
 
-    # Swap buffers
-    sys._dipoles, integrator._S₂ = integrator._S₂, sys._dipoles
     nothing
 end
 
 function evolve!(integrator::LangevinHeunP, Δt::Float64)
-    @unpack α, D, sys, _S₁, _S₂, _B, _f₁, _r₁, _ξ = integrator
+    (; α, D, sys, _S₁, _B, _f₁, _r₁, _ξ) = integrator
     S, Z = sys._dipoles, sys._coherents
 
-    randn!(_ξ)
+    randn!(sys.rng, _ξ)
     _ξ .*= √(2D)
     # Normalize fluctuations by 1/√S
     for b in 1:nbasis(sys)
@@ -198,10 +193,7 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
 
     # Corrector step
     field!(_B, _S₁, Z, sys.hamiltonian)
-    @. _S₂ = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ, α)))
-
-    # Swap buffers -- this requires SpinSystem to be mutable
-    sys._dipoles, integrator._S₂ = integrator._S₂, sys._dipoles
+    @. S = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ, α)))
 
     nothing
 end
@@ -277,7 +269,7 @@ function _rhs_langevin!(ΔZ, Z, integrator, Δt)
     (; kT, α, sys, _ℌZ, _ξ, _B) = integrator
     (; _dipoles) = sys
 
-    set_expected_spins!(_dipoles, Z) # Not needed for Heun as currently written. Keep for safety, consistency? 
+    set_expected_spins!(_dipoles, Z) 
     field!(_B, _dipoles, Z, sys.hamiltonian)
     _apply_ℌ!(_ℌZ, sys, _B, Z)
 
@@ -304,10 +296,9 @@ end
 
 function evolve!(integrator::LangevinHeunPSUN, Δt::Float64)
     (; sys, _Z′, _ΔZ₁, _ΔZ₂, _ξ) = integrator
-    (; _coherents) = sys
-    Z = _coherents
+    Z = sys._coherents
 
-    randn!(_ξ)
+    randn!(sys.rng, _ξ)
 
     # Prediction
     _rhs_langevin!(_ΔZ₁, Z, integrator, Δt)
@@ -326,8 +317,7 @@ end
 
 function evolve!(integrator::SchrodingerMidpoint, Δt::Float64; tol=1e-14, max_iters=100)
     (; sys, _ΔZ, _Zb, _Z′, _Z″) = integrator
-    (; _coherents) = sys
-    Z = _coherents
+    Z = sys._coherents
 
     @. _Z′ = Z 
     @. _Z″ = Z 

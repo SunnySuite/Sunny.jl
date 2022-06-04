@@ -43,6 +43,8 @@ function Replica(sampler::AS, α::Float64) where {AS <: AbstractSampler}
     rank = MPI.Comm_rank(MPI.COMM_WORLD)
     N_ranks = MPI.Comm_size(MPI.COMM_WORLD)
 
+    # Will have to come up with strategy for RNGs on MPI that coordinates
+    # with SpinSystem rng.
     Random.seed!(round(Int64, time()*1000))
 
     # Even rank exch. down when rex_dir==1, up when rex_dir==2

@@ -113,7 +113,7 @@ struct QuarticAnisotropy <: AbstractAnisotropy
 end
 
 struct SUNAnisotropy <: AbstractAnisotropy
-    J     :: Matrix{ComplexF64}
+    Λ     :: Matrix{ComplexF64}
     site  :: Int
     label :: String # Maybe remove
 end
