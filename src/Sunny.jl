@@ -70,7 +70,8 @@ include("Systems.jl")
 export ChargeSystem, SpinSystem, rand!, randflips!, energy, field, field!
 
 include("Metropolis.jl")
-export MetropolisSampler, IsingSampler, set_temp!, get_temp, get_system
+export MetropolisSampler, IsingSampler, MeanFieldSampler
+export set_temp!, get_temp, get_system
 export sample!, thermalize!, anneal!
 export running_energy, running_mag, reset_running_energy!, reset_running_mag!
 

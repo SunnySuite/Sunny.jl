@@ -259,14 +259,42 @@ function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, coherents::Array{CVe
     if !isnothing(ℋ.quartic_aniso)
         _accum_neggrad!(B, dipoles, ℋ.quartic_aniso)
     end
-    ## Part of construction of ℌ
-    # if !isnothing(ℋ.sun_aniso)
-    #     _accum_neggrad!(B, dipoles, coherents, ℋ.dipole_int)
-    # end
 
     # Normalize each gradient by the spin magnitude on that sublattice
     for idx in CartesianIndices(B)
         S = ℋ.spin_mags[idx[1]]
         B[idx] /= S
     end
+end
+
+"""
+    As above, but for single spin and non-mutating. Used for mean field sampling.
+"""
+function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, idx) 
+    B = SA[0.0, 0.0, 0.0]
+
+    if !isnothing(ℋ.ext_field)
+        B += ℋ.ext_field.effBs[idx[1]] 
+    end
+    for heisen in ℋ.heisenbergs
+        B += _neggrad(dipoles, heisen, idx)
+    end
+    for diag_coup in ℋ.diag_coups
+        B += _neggrad(dipoles, diag_coup, idx)
+    end
+    for gen_coup in ℋ.gen_coups
+        B += _neggrad(dipoles, gen_coup, idx)
+    end
+    if !isnothing(ℋ.quadratic_aniso)
+        B += _neggrad(dipoles, ℋ.quadratic_aniso, idx)
+    end
+    if !isnothing(ℋ.quartic_aniso)
+        _neggrad(dipoles, ℋ.quartic_aniso, idx)
+    end
+    ## TODO: implement dipole neggrad
+    if !isnothing(ℋ.dipole_int)
+        throw("Local energy changes not implemented yet for dipole interactions")
+    end
+
+    return B
 end

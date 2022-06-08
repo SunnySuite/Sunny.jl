@@ -257,7 +257,7 @@ end
 function _apply_ℌ!(rhs, sys, B, Z)
     aniso = sys.hamiltonian.sun_aniso
     latsize = size(B)[2:end]
-    for (site, Λ) in zip(aniso.sites, aniso.Λs)
+    for (site, Λ) in zip(aniso.sites, aniso.Λs)  # Need to make sure only one aniso per site
         for cell in CartesianIndices(latsize)
              rhs[site, cell] = (-B[site, cell] ⋅ sys.S + Λ) * Z[site, cell] # ∇E = -B
         end

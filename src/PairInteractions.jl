@@ -208,6 +208,21 @@ function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, heisen::HeisenbergC
     end
 end
 
+function _neggrad(dipoles::Array{Vec3}, heisen::HeisenbergCPU, i)
+    bondtable = heisen.bondtable
+    B = Vec3(0,0,0)
+    J = first(bondtable.data)
+
+    latsize = size(dipoles)[2:end]
+    for (bond, _) ∈ sublat_bonds(bondtable, i)
+        (; j, n) = bond
+        offsetcell = offset(cell, n, latsize)
+        B -= J * dipoles[j, offsetcell]
+    end
+
+    return B
+end
+
 "Accumulates the local -∇ℋ coming from diagonal couplings into `B`"
 function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
     bondtable = diag_coup.bondtable
@@ -223,6 +238,21 @@ function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::Diagonal
     end
 end
 
+function _neggrad(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU, i)
+    bondtable = diag_coup.bondtable
+    B = Vec3(0,0,0)
+    (i, cell) = splitidx(i)
+
+    latsize = size(dipoles)[2:end]
+    for (bond, J) ∈ sublat_bonds(bondtable, i)
+        (; j, n) = bond
+        offsetcell = offset(cell, n, latsize)
+        B -= J .* dipoles[j, offsetcell]
+    end
+
+    return B
+end
+
 "Accumulates the local -∇ℋ coming from general couplings into `B`"
 function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
     bondtable = gen_coup.bondtable
@@ -236,4 +266,20 @@ function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCo
             B[j, offsetcell] = B[j, offsetcell] - J * spins[i, cell]
         end
     end
+end
+
+
+function _neggrad(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU, idx)
+    bondtable = gen_coup.bondtable
+    B = Vec3(0,0,0)
+    (i, cell) = splitidx(idx)
+
+    latsize = size(dipoles)[2:end]
+    for (bond, J) ∈ sublat_bonds(bondtable, i)
+        (; j, n) = bond
+        offsetcell = offset(cell, n, latsize)
+        B -= J * dipoles[j, offsetcell]
+    end
+
+    return B
 end

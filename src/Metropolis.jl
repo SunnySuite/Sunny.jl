@@ -95,7 +95,7 @@ This version differs from `MetropolisSampler` in that each single-spin update
 only attempts to completely flip the spin. One call to `sample!` will attempt
 to flip each spin `nsweeps` times.
 
-Before construting, be sure that your `SpinSystem` is initialized so that each
+Before constructing, be sure that your `SpinSystem` is initialized so that each
 spin points along its "Ising-like" axis.
 """
 mutable struct IsingSampler{N} <: AbstractSampler
@@ -105,6 +105,20 @@ mutable struct IsingSampler{N} <: AbstractSampler
     E          :: Float64
     M          :: Vec3
     function IsingSampler(sys::SpinSystem{N}, kT::Float64, nsweeps::Int) where N
+        @assert kT != 0. "Temperature must be nonzero!"
+        new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys._dipoles))
+    end
+end
+
+
+mutable struct MeanFieldSampler{N} <: AbstractSampler
+    system     :: SpinSystem{N}
+    β          :: Float64
+    nsweeps    :: Int
+    E          :: Float64
+    M          :: Vec3
+    function MeanFieldSampler(sys::SpinSystem{N}, kT::Float64, nsweeps::Int) where N
+        @assert N > 0 "Mean field sampling only available for SU(N) systems."
         @assert kT != 0. "Temperature must be nonzero!"
         new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys._dipoles))
     end
@@ -121,6 +135,9 @@ end
 function set_temp!(sampler::IsingSampler, kT)
     sampler.β = 1 / kT
 end
+function set_temp!(sampler::MeanFieldSampler, kT)
+    sampler.β = 1 / kT
+end
 
 """
     get_temp(sampler) :: Float64
@@ -129,6 +146,7 @@ Returns the temperature of the sampler, as `kT`.
 """
 get_temp(sampler::MetropolisSampler) = 1 / sampler.β
 get_temp(sampler::IsingSampler) = 1 / sampler.β
+get_temp(sampler::MeanFieldSampler) = 1 / sampler.β
 
 """
     get_system(sampler)
@@ -149,6 +167,7 @@ It may be more sensible to more completely separate the functions for classical
 LL-type systems and the new SU(N) stuff. Let me know if you prefer this approach.
 """
 
+## For Metropolis sampler
 @inline function _random_spin(rng::Random.AbstractRNG, ::Val{0}) :: Vec3
     n = randn(rng, Vec3)
     return n / norm(n)
@@ -158,14 +177,37 @@ end
     return n / norm(n)
 end
 
-# Non-mutating. Hence "flipped" not "flip"
-@inline function flipped_spin(sys::SpinSystem{0}, idx) :: Vec3
+# For Ising sampler. Non-mutating. Hence "flipped" not "flip"
+@inline function _flipped_spin(sys::SpinSystem{0}, idx) :: Vec3
     -sys._dipoles[idx]
 end
 # Uses time-reversal approach to spin flip -- see Sakurai (3rd ed.), eq. 4.176.
-@inline function flipped_spin(sys::SpinSystem{N}, idx) ::CVec{N} where N
+@inline function _flipped_spin(sys::SpinSystem{N}, idx) ::CVec{N} where N
     exp(-im*π*sys.S[2])*conj(sys._coherents[idx])
 end
+
+# For mean field sampler
+function _local_hamiltonian(sys::SpinSystem{N}, idx) where N
+    aniso = sys.hamiltonian.sun_aniso
+    (i, _) = splitidx(idx)
+
+    B = field(sys._dipoles, sys.hamiltonian, idx)
+    ℌ = zero(SMatrix{N,N,ComplexF64,N*N})
+
+    for (site, Λ) in zip(aniso.sites, aniso.Λs)
+        if site == i
+            ℌ += -B ⋅ sys.S + Λ
+        end
+    end
+    
+    return ℌ
+end
+
+function _rand_mf_spin(sys::SpinSystem{N}, idx) where N
+    ℌ = _local_hamiltonian(sys, idx)
+    Zs = eigvecs(ℌ)
+    return CVec{N}(Zs[:, rand(1:3)])
+end 
 
 ## Since we don't know what type the spin is in the main functions below,
 ## always generate both a ket and a dipole from the spin. (The is trivial
@@ -221,7 +263,29 @@ function sample!(sampler::IsingSampler{N}) where N
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sys._dipoles)
             # Try to completely flip this spin
-            new_spin = flipped_spin(sampler.system, idx)
+            new_spin = _flipped_spin(sampler.system, idx)
+            ΔE = local_energy_change(sampler.system, idx, new_spin)
+
+            if rand(sys.rng) < exp(-sampler.β * ΔE)
+                new_ket = ket(new_spin)
+                new_dipole = dipole(new_spin)
+
+                sampler.E += ΔE
+                sampler.M += 2 * new_dipole   # check this is still sensible...
+
+                sampler.system._dipoles[idx] = new_dipole 
+                sampler.system._coherents[idx] = new_ket
+            end
+        end
+    end
+end
+
+
+function sample!(sampler::MeanFieldSampler{N}) where N
+    sys = sampler.system
+    for _ in 1:sampler.nsweeps
+        for idx in CartesianIndices(sys._dipoles)
+            new_spin = _rand_mf_spin(sampler.system, idx)
             ΔE = local_energy_change(sampler.system, idx, new_spin)
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)

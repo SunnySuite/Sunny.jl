@@ -76,6 +76,19 @@ function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::Dipo
     end
 end
 
+function _neggrad(dipoles::Array{Vec3, 4}, aniso::DipolarQuadraticAnisotropyCPU, idx)
+    B = Vec3(0,0,0)
+    (i, cell) = splitidx(idx) 
+
+    for (site, J) in zip(aniso.sites, aniso.Js)
+        if site == i
+            B -= 2 * J * dipoles[i, cell]
+        end
+    end
+
+    return B
+end
+
 function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::DipolarQuarticAnisotropyCPU)
     latsize = size(dipoles)[2:end]
     for (site, J) in zip(aniso.sites, aniso.Js)
@@ -86,8 +99,15 @@ function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::Dipo
     end
 end
 
-# Not needed, wrapped into construction of ℌ
-# function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, aniso::SUNAnisotropyCPU) where {N}
-#     # TODO
-#     B .= SA[0.0, 0.0, 0.0]
-# end
+function _neggrad(dipoles::Array{Vec3, 4}, aniso::DipolarQuarticAnisotropyCPU, idx)
+    B = Vec3(0,0,0)
+    (i, cell) = splitidx(idx) 
+
+    for (site, J) in zip(aniso.sites, aniso.Js)
+        if site == i
+            B -= grad_contract(J, dipoles[i, cell])
+        end
+    end
+
+    return B
+end
