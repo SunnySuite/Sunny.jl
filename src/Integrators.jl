@@ -50,7 +50,7 @@ mutable struct LangevinHeunP <: Integrator
 
     function LangevinHeunP(sys::SpinSystem{0}, kT::Float64, α::Float64)
         return new(
-            α, α*kT/(1+α*α), sys,
+            α, α*kT, sys,
             zero(sys._dipoles), zero(sys._dipoles), zero(sys._dipoles),
             zero(sys._dipoles), zero(sys._dipoles)
         )
@@ -153,6 +153,18 @@ end
 @inline f(S, B) = -S × B
 @inline f(S, B, α) = -S × (B + α * (S × B))
 
+# Normalize to κ value given in site_infos. For old LL dynamics only.
+function normalize!(S::Array{Vec3, 4}, sys::SpinSystem)
+    for b in 1:size(S, 1)
+        κ = sys.site_infos[b].κ
+        for i in CartesianIndices(size(S)[2:end]) 
+            S[b, i] *= κ/norm(S[b, i])
+        end
+    end
+end
+
+normalize_dipoles!(sys::SpinSystem) = normalize!(sys._dipoles, sys)
+
 """
     evolve!(integrator, Δt)
 
@@ -169,7 +181,8 @@ function evolve!(integrator::HeunP, Δt::Float64)
 
     # Corrector step
     field!(_B, _S₁, Z, sys.hamiltonian)
-    @. S = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B)))
+    @. S = S + 0.5 * Δt * (_f₁ + f(_S₁, _B))
+    normalize!(S, sys)
 
     nothing
 end
@@ -180,20 +193,17 @@ function evolve!(integrator::LangevinHeunP, Δt::Float64)
 
     randn!(sys.rng, _ξ)
     _ξ .*= √(2D)
-    # Normalize fluctuations by 1/√S
-    for b in 1:nbasis(sys)
-        selectdim(_ξ, 1, b) .*= 1. / sqrt(sys.site_infos[b].κ)
-    end
 
     # Euler step
     field!(_B, S, Z, sys.hamiltonian)
     @. _f₁ = f(S, _B, α)
-    @. _r₁ = f(S, _ξ, α)
+    @. _r₁ = f(S, _ξ)   # no absence of α argument -- noise only appears once in rhs.
     @. _S₁ = S + Δt * _f₁ + √Δt * _r₁
 
     # Corrector step
     field!(_B, _S₁, Z, sys.hamiltonian)
-    @. S = normalize(S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ, α)))
+    @. S = S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ))
+    normalize!(S, sys)
 
     nothing
 end
@@ -212,7 +222,8 @@ function evolve!(integrator::SphericalMidpoint, Δt::Float64)
     for iter in 1:max_iters
         # Integration step for current best guess of midpoint _S̄. Produces
         # improved midpoint estimator _S̄′.
-        @. _Ŝ = normalize(_S̄)
+        @. _Ŝ =_S̄
+        normalize!(_Ŝ, sys)
         field!(_B, _Ŝ, Z, sys.hamiltonian)
         @. _S̄′ = S + 0.5 * Δt * f(_Ŝ, _B)
 
@@ -227,7 +238,8 @@ function evolve!(integrator::SphericalMidpoint, Δt::Float64)
         if converged
             # Normalization here should not be necessary in principle, but it
             # could be useful in practice for finite `atol`.
-            @. S = normalize(2*_S̄′ - S)
+            @. S = 2*_S̄′ - S
+            normalize!(S, sys)
             return
         end
 
@@ -257,7 +269,7 @@ end
 function _apply_ℌ!(rhs, sys, B, Z)
     aniso = sys.hamiltonian.sun_aniso
     latsize = size(B)[2:end]
-    for (site, Λ) in zip(aniso.sites, aniso.Λs)  # Need to make sure only one aniso per site
+    for (site, Λ) in zip(aniso.sites, aniso.Λs) # Note: there is one Λ per site 
         for cell in CartesianIndices(latsize)
              rhs[site, cell] = (-B[site, cell] ⋅ sys.S + Λ) * Z[site, cell] # ∇E = -B
         end
@@ -269,7 +281,7 @@ function _rhs_langevin!(ΔZ, Z, integrator, Δt)
     (; kT, α, sys, _ℌZ, _ξ, _B) = integrator
     (; _dipoles) = sys
 
-    set_expected_spins!(_dipoles, Z) 
+    set_expected_spins!(_dipoles, Z, sys) 
     field!(_B, _dipoles, Z, sys.hamiltonian)
     _apply_ℌ!(_ℌZ, sys, _B, Z)
 
@@ -284,7 +296,7 @@ function _rhs_ll!(ΔZ, Z, integrator, Δt)
     (; sys, _ℌZ, _B) = integrator
     (; _dipoles) = sys
 
-    set_expected_spins!(_dipoles, Z) # temporarily de-synchs _dipoles and _coherents
+    set_expected_spins!(_dipoles, Z, sys) # temporarily de-synchs _dipoles and _coherents
     field!(_B, _dipoles, Z, sys.hamiltonian)
     _apply_ℌ!(_ℌZ, sys, _B, Z)
 
@@ -348,7 +360,7 @@ end
     A sampler which produces new samples using Langevin Landau-Lifshitz dynamics
 """
 mutable struct LangevinSampler <: AbstractSampler
-    integrator :: LangevinHeunP
+    integrator :: Union{LangevinHeunP, LangevinHeunPSUN}
     kT         :: Float64
     Δt         :: Float64
     nsteps     :: Int

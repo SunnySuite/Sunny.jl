@@ -310,7 +310,7 @@ function ExternalFieldCPU(ext_field::ExternalField, site_infos::Vector{SiteInfo}
     #  we can compute E = -∑_i effB ⋅ 𝐬_i during simulation.
     # However, S_i may be basis-dependent, so we need to store an effB
     #  per sublattice.
-    effBs = [μB * site.g' * site.κ * ext_field.B for site in site_infos]
+    effBs = [μB * site.g' * ext_field.B for site in site_infos]
     ExternalFieldCPU(effBs)
 end
 

@@ -54,13 +54,13 @@ function energy(dipoles::Array{Vec3, 4}, aniso::DipolarQuarticAnisotropyCPU)
     return E
 end
 
-function energy(coherents::Array{CVec{N}, 4}, aniso::SUNAnisotropyCPU) where {N}
+function energy(coherents::Array{CVec{N}, 4}, aniso::SUNAnisotropyCPU, spin_mags::Vector{Float64}) where {N}
     E = 0.0
     latsize = size(coherents)[2:end]
     for (site, Λ) in zip(aniso.sites, aniso.Λs)
         for cell in CartesianIndices(latsize)
             Z = coherents[site, cell]
-            E += real(Z' * Λ * Z)
+            E += spin_mags[site]*real(Z' * Λ * Z)
         end
     end
     return E

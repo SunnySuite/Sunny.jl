@@ -123,11 +123,6 @@ isdiag(tol) = Base.Fix2(isdiag, tol)
 function convert_quadratic(int::QuadraticInteraction, cryst::Crystal, site_infos::Vector{SiteInfo}; tol=1e-6)
     @unpack J, bond, label = int
 
-    # Product S_i S_j between sites connected by the bond -- same for all bonds in a class
-    # To get interactions quadratic in the unit vectors stored by `SpinSystem`, we internally
-    #  store effective exchange matrices (Si J Sj).
-    SiSj = site_infos[bond.i].κ * site_infos[bond.j].κ
-    J *= SiSj
     bondtable = BondTable(cryst, bond, J)
 
     if all(isheisen(tol), bondtable.culled_data)

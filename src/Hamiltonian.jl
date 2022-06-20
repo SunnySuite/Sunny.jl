@@ -73,6 +73,27 @@ function merge(anisos::Vector{SUNAnisotropy})
     )
 end
 
+# Set Λ to zero matrix for every site and cumulatively add
+# every given SU(N) anistropy matrix according to site. This ensures
+# that there is exactly one Λ for every site.
+function combine_and_pad_sun_anisos(anisos::Vector{SUNAnisotropy}, crystal::Crystal, N::Int)
+    new_anisos = SUNAnisotropy[]
+    for b in 1:nbasis(crystal)
+        Λ′ = zeros(ComplexF64, N, N)
+        site_anisos = filter(a -> a.site == b, anisos)
+        if length(site_anisos) > 0
+            dims = [size(a.Λ)[1] for a ∈ site_anisos]
+            wrong_dims = filter(d -> d != N, dims)
+            if length(wrong_dims) > 0
+                throw("Dimension of one or more anisotropies does not match system N")
+            end
+            Λ′ += sum([a.Λ for a ∈ site_anisos])
+        end
+        push!(new_anisos, SUNAnisotropy(Λ′, b, "Final anisotropy"))
+    end
+    return new_anisos
+end
+
 
 function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::Crystal, site_infos::Vector{SiteInfo})
     N = site_infos[1].N     # All should have been upconverted to maxN
@@ -97,11 +118,12 @@ function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::C
         return (quadratic_aniso, quartic_aniso, nothing)
     end
 
-    # Convert to backend type if in SU(N) mode.
+    # Throw error if given non-SU(N) anisotropy and in SU(N) mode 
     if length(quadratic_anisos) != 0 || length(quartic_anisos) != 0
         @error "Given a Landau-Lifshitz-type anisotropy, but running in SU(N) mode."
     end
 
+    sun_anisos = combine_and_pad_sun_anisos(sun_anisos, crystal, N)
     sun_aniso = merge(sun_anisos)
 
     return (nothing, nothing, sun_aniso)
@@ -123,7 +145,7 @@ struct HamiltonianCPU
     quadratic_aniso :: Union{Nothing, DipolarQuadraticAnisotropyCPU}
     quartic_aniso   :: Union{Nothing, DipolarQuarticAnisotropyCPU}
     sun_aniso       :: Union{Nothing, SUNAnisotropyCPU}
-    spin_mags       :: Vector{Float64}
+    spin_mags       :: Vector{Float64}  # Keeping this for SU(N) aniso scaling
 end
 
 """
@@ -215,7 +237,7 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Hami
         E += energy(dipoles, ℋ.quartic_aniso)
     end
     if !isnothing(ℋ.sun_aniso)
-        E += energy(coherents, ℋ.sun_aniso)
+        E += energy(coherents, ℋ.sun_aniso, ℋ.spin_mags)
     end
     return E
 end
@@ -258,12 +280,6 @@ function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, coherents::Array{CVe
     end
     if !isnothing(ℋ.quartic_aniso)
         _accum_neggrad!(B, dipoles, ℋ.quartic_aniso)
-    end
-
-    # Normalize each gradient by the spin magnitude on that sublattice
-    for idx in CartesianIndices(B)
-        S = ℋ.spin_mags[idx[1]]
-        B[idx] /= S
     end
 end
 

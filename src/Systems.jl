@@ -84,16 +84,23 @@ end
     end
 end
 
+
 function set_expected_spins!(sys::SpinSystem)
     (; _dipoles, _coherents) = sys
-    map!(_dipoles, _coherents) do Z
-        expected_spin(Z)
+    for b in 1:size(_dipoles, 1)
+        κ = sys.site_infos[b].κ
+        for i in CartesianIndices(size(_dipoles)[2:end])
+            _dipoles[b, i] = κ * expected_spin(_coherents[b, i])
+        end
     end
 end
 
-function set_expected_spins!(dipoles::Array{Vec3, 4}, Zs::Array{CVec{N}, 4}) where N
-    map!(dipoles, Zs) do Z
-        expected_spin(Z)
+function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::SpinSystem) where N
+    for b in 1:size(dipoles, 1)
+        κ = sys.site_infos[b].κ
+        for i in CartesianIndices(size(dipoles)[2:end])
+            dipoles[b, i] = κ * expected_spin(coherents[b, i])
+        end
     end
 end
 
@@ -182,11 +189,13 @@ end
 
 Sets spins randomly sampled on the unit sphere.
 """
-# NOTE: Need strategy for managing RNGs (keep in SpinSystem?)
 function Random.rand!(sys::SpinSystem{0})  
     dip_view = DipoleView(sys)
     dip_view .= randn(sys.rng, Vec3, size(dip_view))
     @. dip_view /= norm(dip_view)
+    for b ∈ 1:nbasis(sys)
+        dip_view[b,:,:,:] .*= sys.site_infos[b].κ
+    end
     nothing
 end
 

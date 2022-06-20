@@ -168,13 +168,13 @@ LL-type systems and the new SU(N) stuff. Let me know if you prefer this approach
 """
 
 ## For Metropolis sampler
-@inline function _random_spin(rng::Random.AbstractRNG, ::Val{0}) :: Vec3
+@inline function _random_spin(rng::Random.AbstractRNG, ::Val{0}, κ=1.0) :: Vec3
     n = randn(rng, Vec3)
-    return n / norm(n)
+    return κ * n / norm(n)  # Dipoles are scaled by κ
 end
-@inline function _random_spin(rng::Random.AbstractRNG, ::Val{N}) :: CVec{N} where N
+@inline function _random_spin(rng::Random.AbstractRNG, ::Val{N}, κ=1.0) :: CVec{N} where N
     n = randn(rng, CVec{N})
-    return n / norm(n)
+    return n / norm(n)  # Kets are always normalized to 1.0
 end
 
 # For Ising sampler. Non-mutating. Hence "flipped" not "flip"
@@ -192,11 +192,12 @@ function _local_hamiltonian(sys::SpinSystem{N}, idx) where N
     (i, _) = splitidx(idx)
 
     B = field(sys._dipoles, sys.hamiltonian, idx)
-    ℌ = zero(SMatrix{N,N,ComplexF64,N*N})
+    ℌ = SMatrix{N,N,ComplexF64,N*N}(-B ⋅ sys.S)
 
+    # This is annoying, suggests modifying SUNAnisotropy type on backend
     for (site, Λ) in zip(aniso.sites, aniso.Λs)
         if site == i
-            ℌ += -B ⋅ sys.S + Λ
+            ℌ += Λ
         end
     end
     
@@ -220,11 +221,12 @@ end
 @inline function ket(spin::CVec{N}) :: CVec{N} where N
     spin
 end
-@inline function dipole(spin::Vec3) :: Vec3
+@inline function dipole(spin::Vec3, sys::SpinSystem, idx) :: Vec3
     spin
 end
-@inline function dipole(spin::CVec{N}) :: Vec3 where N
-    expected_spin(spin)
+@inline function dipole(spin::CVec{N}, sys::SpinSystem, idx) :: Vec3 where N
+    b, _ = split_idx(idx)
+    sys.site_infos[b].κ * expected_spin(spin)
 end
 
 
@@ -240,12 +242,13 @@ function sample!(sampler::MetropolisSampler{N}) where N
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sampler.system._dipoles)
             # Try to rotate this spin to somewhere randomly on the unit sphere
-            new_spin = _random_spin(sys.rng, Val(N))
+            b, _ = splitidx(idx)
+            new_spin = _random_spin(sys.rng, Val(N), sys.site_infos[b].κ)
             ΔE = local_energy_change(sampler.system, idx, new_spin)
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)
                 new_ket = ket(new_spin)
-                new_dipole = dipole(new_spin)
+                new_dipole = dipole(new_spin, sys, idx)
 
                 sampler.E += ΔE
                 sampler.M += (new_dipole - sampler.system._dipoles[idx])
@@ -268,7 +271,7 @@ function sample!(sampler::IsingSampler{N}) where N
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)
                 new_ket = ket(new_spin)
-                new_dipole = dipole(new_spin)
+                new_dipole = dipole(new_spin, sys, idx)
 
                 sampler.E += ΔE
                 sampler.M += 2 * new_dipole   # check this is still sensible...
@@ -290,7 +293,7 @@ function sample!(sampler::MeanFieldSampler{N}) where N
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)
                 new_ket = ket(new_spin)
-                new_dipole = dipole(new_spin)
+                new_dipole = dipole(new_spin, sys, idx)
 
                 sampler.E += ΔE
                 sampler.M += 2 * new_dipole   # check this is still sensible...
@@ -321,7 +324,7 @@ Computes the change in energy if we replace the spin at `sys[idx]`
 function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
     ℋ = sys.hamiltonian
     ΔE = 0.0
-    new_dipole = dipole(newspin)
+    new_dipole = dipole(newspin, sys, idx)
     new_ket = ket(newspin)
     old_dipole = sys._dipoles[idx]
     spindiff = new_dipole - old_dipole

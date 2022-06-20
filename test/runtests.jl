@@ -61,4 +61,5 @@ end
     addtests("test_metropolis.jl")
     addtests("test_fourier.jl")
     addtests("test_dynamics.jl")
+    addtests("test_spin_scaling.jl")
 end
