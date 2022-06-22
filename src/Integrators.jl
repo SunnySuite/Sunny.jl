@@ -401,7 +401,7 @@ end
 @inline function set_temp!(sampler::LangevinSamplerLLD, kT::Float64)
     sampler.kT = kT
     α = sampler.integrator.α
-    sampler.integrator.D = α * kT / (1 + α * α)
+    sampler.integrator.D = α * 
     nothing
 end
 @inline function set_temp!(sampler::LangevinSamplerGSD, kT::Float64)
