@@ -38,10 +38,16 @@ end
 """
     SiteInfo(site::Int, N::Int, g::Mat3, κ::Float64)
 
-Characterizes the degree of freedom located at a given `site` index with
- a spin magnitude `S` and g-tensor `g`. When provided to a `SpinSystem`,
- this information is automatically propagated to all symmetry-equivalent
- sites.
+Characterizes the degree of freedom located at a given `site` index with three 
+pieces of information: N (as in SU(N)), characterizing the complex dimension of the
+generalized spins (where N=0 corresponds to traditional, three-component, real
+classical spins); a g-tensor, `g`; and an overall scaling factor for the spin
+magnitude, `κ`. When provided to a `SpinSystem`, this information is automatically
+propagated to all symmetry-equivalent sites. An error will be thrown if multiple
+SiteInfos are given for symmetry-equivalent sites.
+    
+NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverted
+to the largest specified `N`.
 """
 @with_kw struct SiteInfo
     site :: Int                # Index of site
@@ -51,6 +57,9 @@ Characterizes the degree of freedom located at a given `site` index with
 end
 
 SiteInfo(site::Int, N::Int, g::Number, κ=1.0) = SiteInfo(site, N, g*I(3), κ)
+
+# Included for backward compatibility
+SiteInfo(site::Int, κ::Float64) = SiteInfo(site, 0, 2*I(3), κ)
 
 """
     exchange(J, bond::Bond, label="Exchange")

@@ -355,16 +355,31 @@ end
 
 
 
+#= Need to figure out a better way to dispatch on LangevinSamplers. Currently
+use a Union type to avoid code repetition.
+
+One solution, still kind of ugly: parameterize LangevinSampler with N,
+and store N in a dummy variable. Then have the integrator be a Union
+type of LangevinHeunP and LangevinHeunPSUN. =#
 
 """
     A sampler which produces new samples using Langevin Landau-Lifshitz dynamics
 """
-mutable struct LangevinSampler <: AbstractSampler
-    integrator :: Union{LangevinHeunP, LangevinHeunPSUN}
+mutable struct LangevinSamplerLLD <: AbstractSampler
+    integrator :: LangevinHeunP
     kT         :: Float64
     Δt         :: Float64
     nsteps     :: Int
 end
+
+mutable struct LangevinSamplerGSD <: AbstractSampler
+    integrator :: LangevinHeunPSUN
+    kT         :: Float64
+    Δt         :: Float64
+    nsteps     :: Int
+end
+
+LangevinSamplerT = Union{LangevinSamplerLLD, LangevinSamplerGSD}
 
 """
     LangevinSampler(sys, kT, α, Δt, nsteps)
@@ -373,22 +388,31 @@ Creates a `LangevinSampler` which samples the spin system's Hamiltonian using La
  dynamics at a temperature `kT`, damping coefficient `α`, and producing a new sample
  by integrating with `nsteps` timesteps of size `Δt`.
 """
-function LangevinSampler(sys::SpinSystem, kT::Float64, α::Float64, Δt::Float64, nsteps::Int)
+function LangevinSampler(sys::SpinSystem{0}, kT::Float64, α::Float64, Δt::Float64, nsteps::Int)
     integrator = LangevinHeunP(sys, kT, α)
-    LangevinSampler(integrator, kT, Δt, nsteps)
+    LangevinSamplerLLD(integrator, kT, Δt, nsteps)
 end
 
-@inline function set_temp!(sampler::LangevinSampler, kT::Float64)
+function LangevinSampler(sys::SpinSystem{N}, kT::Float64, α::Float64, Δt::Float64, nsteps::Int) where N
+    integrator = LangevinHeunPSUN(sys, kT, α)
+    LangevinSamplerGSD(integrator, kT, Δt, nsteps)
+end
+
+@inline function set_temp!(sampler::LangevinSamplerLLD, kT::Float64)
     sampler.kT = kT
     α = sampler.integrator.α
     sampler.integrator.D = α * kT / (1 + α * α)
     nothing
 end
+@inline function set_temp!(sampler::LangevinSamplerGSD, kT::Float64)
+    sampler.integrator.kT = sampler.kT = kT
+    nothing
+end
 
-get_temp(sampler::LangevinSampler) = sampler.kT
-get_system(sampler::LangevinSampler) = sampler.integrator.system
+get_temp(sampler::LangevinSamplerT)  = sampler.kT
+get_system(sampler::LangevinSamplerT)  = sampler.integrator.system
 
-@inline function sample!(sampler::LangevinSampler)
+@inline function sample!(sampler::LangevinSamplerT) 
     for _ in 1:sampler.nsteps
         evolve!(sampler.integrator, sampler.Δt)
     end

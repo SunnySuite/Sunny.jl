@@ -93,7 +93,7 @@ test_spin_magnitude_stability()
 
 function test_energy_scaling_lld()
     N = 0
-    num_scalings = 3    # number of κs to try
+    num_scalings = 2    # number of κs to try
 
     cryst = Sunny.fcc_crystal()
     dims = (4,4,4)
@@ -132,7 +132,7 @@ test_energy_scaling_lld()
 
 function test_energy_scaling_gsd()
     N = 3
-    num_scalings = 3    # number of κs to try
+    num_scalings = 2    # number of κs to try
 
     cryst = Sunny.fcc_crystal()
     dims = (4,4,4)
@@ -162,6 +162,125 @@ end
 
 test_energy_scaling_gsd()
 
+"""Generates a trajectory for a single spin in the presence of an 
+external magnetic field. Rescales resulting spin magnitude so trajectories
+with different scalings can be directly compared.
+"""
+function generate_scaled_zeeman_trajectory(κ, θ, Δt; N=0, dur=10.0)
+    cryst = Sunny.cubic_crystal()
+    dims = (1,1,1)
+    interactions = [external_field([0.0, 0.0, 10.0])]
+
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1, N, 2*I(3), κ)])
+
+    spin = [0.0, sin(θ), cos(θ)] .* κ
+    dpv = Sunny.DipoleView(sys)
+    dpv[1] = Sunny.Vec3(spin)
+
+    Integrator = N == 0 ? SphericalMidpoint : SchrodingerMidpoint
+    integrator = Integrator(sys)
+
+    numsteps = round(Int, dur/Δt) 
+    ts = (0:numsteps) .* Δt
+    S = zeros(Sunny.Vec3, numsteps+1)
+    S[1] = sys._dipoles[1]
+
+    for i in 1:numsteps
+        evolve!(integrator, Δt)
+        S[i+1] = sys._dipoles[1]
+    end
+
+    return (;
+        xs = [S[1]/κ for S ∈ S],
+        ys = [S[1]/κ for S ∈ S],
+        zs = [S[1]/κ for S ∈ S],
+        ts
+    ) 
+end
+
+"""Tests invariance of spin dynamics under spin rescaling 
+in the presence of a Zeeman term. Tests both LLD and GSD. 
+"""
+function test_scaling_zeeman()
+    Δt = 0.001
+    θ = (π/4 - π/32)*rand() + π/32  # amount to tilt spin in zy-plane
+    κ = 3.0*rand()
+    Ns = [0, 2]
+
+    for N ∈ Ns
+        (; xs) = generate_scaled_zeeman_trajectory(1.0, θ, Δt; N)
+        xs_1 = xs
+        (; xs) = generate_scaled_zeeman_trajectory(κ, θ, Δt; N)
+        xs_2 = xs
+
+        rms = √sum( (xs_2 .- xs_1) .^2 )
+
+        @test rms < 1e-10 
+    end
+end
+
+test_scaling_zeeman()
+
+"""Generate a trajectory for a system with only quadratic interactions. Results are rescaled 
+so results with different spin magnitudes can be compared directly.
+"""
+function generate_scaled_quadratic_trajectory(κ, Δt; N=0, dur=10.0)
+    rng = Random.MersenneTwister(111)
+    cryst = Sunny.cubic_crystal()
+    dims = (4,4,2)
+    interactions = [
+        heisenberg(1.0, Bond(1,1,[1,0,0])),
+        dipole_dipole()
+    ]
+    if N == 0   # "Quadratic anisotropy" only scales quadratically for old dynamics
+        push!(interactions, quadratic_anisotropy(1.0*I(3), 1))
+    end
+
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1, N, 2*I(3), κ)]; rng)
+    rand!(sys)
+
+    Integrator = N == 0 ? SphericalMidpoint : SchrodingerMidpoint
+    integrator = Integrator(sys)
+
+    numsteps = round(Int, dur/Δt) 
+    ts = (0:numsteps) .* Δt
+    S = zeros(Sunny.Vec3, numsteps+1)
+    S[1] = sys._dipoles[1]
+
+    for i in 1:numsteps
+        evolve!(integrator, Δt/κ)
+        S[i+1] = sys._dipoles[1]
+    end
+
+    return (;
+        xs = [S[1]/κ for S ∈ S],
+        ys = [S[1]/κ for S ∈ S],
+        zs = [S[1]/κ for S ∈ S],
+        ts 
+    ) 
+end
+
+"""Test invariance of dynamics (with Hamiltonian that is quadratic in spins) under 
+the rescaling of spin magnitudes.
+"""
+function test_scaling_quadratic()
+    Δt = 0.01
+    κ = 3.0*rand()
+    Ns = [0, 2]
+
+    for N ∈ Ns
+        (; xs) = generate_scaled_quadratic_trajectory(1.0, Δt; N)
+        xs_1 = xs
+        (; xs) = generate_scaled_quadratic_trajectory(κ, Δt; N)
+        xs_2 = xs
+
+        rms = √sum( (xs_2 .- xs_1) .^2 )
+
+        @test rms < 1e-8
+    end
+end
+
+test_scaling_quadratic()
 
 
 end
