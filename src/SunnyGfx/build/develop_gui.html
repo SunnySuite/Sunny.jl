@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Sunny Visuals</title>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+</head>
+
+<body style="
+    margin: 0;
+    overflow: hidden;
+    text-align: center;
+    font-size: 12px;
+    font-family: Sans-Serif;
+    color: #444;
+">
+
+<!-- Might want to copy HTML styles from Jupyter notebook cells here:
+    https://jupyterbook.org/en/stable/interactive/interactive.html
+-->
+<style type="text/css">
+       #scene-container-0{
+              margin-left:0;
+              background:#000000;
+              height:min(85vw, 85vh);
+              width:min(85vw, 85vh);
+       }
+       #scene-container-0 canvas{
+              height:100% !important;
+              width:100% !important;
+       }
+</style>
+
+<h1>Crystal Viewer</h1>
+
+<div id="widget-container-0" style="float: left; background-color: LightGray">
+    <!-- Widgets inserted here at runtime. -->
+</div>
+
+<div id="scene-container-0" style="float: right">
+    <!-- <canvas> inserted here at runtime. -->
+</div>
+
+<script id="data-0" type="application/json">{
+"cellTypes":    ["Er","Er","O","O","Br","Br"],
+"bondLabels":   ["J0","J1","J2","J3","J4","J5","J5'","J5''","J6","J7"],
+"bondTypeIds":  [[0,2],[2,3],[0,4],[2,4],[0,1],[0,0],[2,2],[4,4],[1,4],[4,5]],
+"bondVecs":     [[[0.0,-1.89031,-1.1370772808999998],[-1.89031,0.0,-1.1370772808999998],[0.0,1.89031,-1.1370772808999998],[1.89031,0.0,-1.1370772808999998]],[[-1.89031,-1.89031,0.0],[-1.89031,1.89031,0.0],[1.89031,-1.89031,0.0],[1.89031,1.89031,0.0]],[[-1.89031,-1.89031,1.5725188435],[-1.89031,1.89031,1.5725188435],[1.89031,-1.89031,1.5725188435],[1.89031,1.89031,1.5725188435]],[[0.0,-1.89031,-2.7095961244],[0.0,1.89031,-2.7095961244],[-1.89031,0.0,2.7095961244],[1.89031,0.0,2.7095961244]],[[-1.89031,-1.89031,-2.274154561799999],[-1.89031,1.89031,-2.274154561799999],[1.89031,-1.89031,-2.274154561799999],[1.89031,1.89031,-2.274154561799999]],[[-3.78062,0.0,0.0],[0.0,-3.78062,0.0],[0.0,3.78062,0.0],[3.78062,0.0,0.0]],[[-3.78062,0.0,0.0],[0.0,-3.78062,0.0],[0.0,3.78062,0.0],[3.78062,0.0,0.0]],[[-3.78062,0.0,0.0],[0.0,-3.78062,0.0],[0.0,3.78062,0.0],[3.78062,0.0,0.0]],[[0.0,0.0,3.8466734052999985]],[[-1.89031,-1.89031,2.7688777512000002],[-1.89031,1.89031,2.7688777512000002],[1.89031,-1.89031,2.7688777512000002],[1.89031,1.89031,2.7688777512000002]]],
+"lattVecs":     [[3.78062,0.0,0.0],[0.0,3.78062,0.0],[0.0,0.0,8.18807]],
+"basisVecs":    [[2.835465,2.835465,1.1370772808999998],[0.945155,0.945155,7.0509927191],[2.835465,0.945155,0.0],[0.945155,2.835465,0.0],[0.945155,0.945155,2.7095961244],[2.835465,2.835465,5.4784738756]],
+"lattCells":    [3,3,3],
+"atomsPerCell": 6
+}</script>
+
+<!-- Insert either a link to the Javascript file (development mode) or the
+actual Javascript content (production mode). -->
+<script src='../assets/crystal_viewer.js'></script>
+
+</body>
+</html>
