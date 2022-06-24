@@ -176,15 +176,15 @@ Performs a single integrator timestep of size Δt.
 """
 function evolve!(integrator::HeunP, Δt::Float64)
     (; sys, _S₁, _B, _f₁) = integrator
-    S, Z = sys._dipoles, sys._coherents
+    S, Z, ℋ = sys._dipoles, sys._coherents, sys.hamiltonian
     
     # Euler step
-    field!(_B, S, Z, sys.hamiltonian)
+    field!(_B, S, ℋ)
     @. _f₁ = f(S, _B)
     @. _S₁ = S + Δt * _f₁
 
     # Corrector step
-    field!(_B, _S₁, Z, sys.hamiltonian)
+    field!(_B, _S₁, ℋ)
     @. S = S + 0.5 * Δt * (_f₁ + f(_S₁, _B))
     normalize!(S, sys)
 
@@ -193,19 +193,19 @@ end
 
 function evolve!(integrator::LangevinHeunP, Δt::Float64)
     (; α, D, sys, _S₁, _B, _f₁, _r₁, _ξ) = integrator
-    S, Z = sys._dipoles, sys._coherents
+    S, Z, ℋ = sys._dipoles, sys._coherents, sys.hamiltonian
 
     randn!(sys.rng, _ξ)
     _ξ .*= √(2D)
 
     # Euler step
-    field!(_B, S, Z, sys.hamiltonian)
+    field!(_B, S, ℋ)
     @. _f₁ = f(S, _B, α)
     @. _r₁ = f(S, _ξ)   # no absence of α argument -- noise only appears once in rhs.
     @. _S₁ = S + Δt * _f₁ + √Δt * _r₁
 
     # Corrector step
-    field!(_B, _S₁, Z, sys.hamiltonian)
+    field!(_B, _S₁, ℋ)
     @. S = S + 0.5 * Δt * (_f₁ + f(_S₁, _B, α)) + 0.5 * √Δt * (_r₁ + f(_S₁, _ξ))
     normalize!(S, sys)
 
@@ -217,7 +217,7 @@ end
 
 function evolve!(integrator::SphericalMidpoint, Δt::Float64)
     @unpack sys, _S̄, _Ŝ, _S̄′, _B, atol = integrator
-    S, Z = sys._dipoles, sys._coherents
+    S, Z, ℋ = sys._dipoles, sys._coherents, sys.hamiltonian
     
     # Initial guess for midpoint
     @. _S̄ = S
@@ -228,7 +228,7 @@ function evolve!(integrator::SphericalMidpoint, Δt::Float64)
         # improved midpoint estimator _S̄′.
         @. _Ŝ =_S̄
         normalize!(_Ŝ, sys)
-        field!(_B, _Ŝ, Z, sys.hamiltonian)
+        field!(_B, _Ŝ, ℋ)
         @. _S̄′ = S + 0.5 * Δt * f(_Ŝ, _B)
 
         # Convergence is reached if every element of _S̄ and _S̄′ agree to
@@ -290,7 +290,7 @@ function _rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, integrator
     (; _dipoles) = sys
 
     set_expected_spins!(_dipoles, Z, sys) 
-    field!(_B, _dipoles, Z, sys.hamiltonian)
+    field!(_B, _dipoles, sys.hamiltonian)
     _apply_ℌ!(_ℌZ, sys, _B, Z, _ℌ)
 
     for i in eachindex(Z)
@@ -306,7 +306,7 @@ function _rhs_ll!(ΔZ, Z, integrator, Δt)
     (; _dipoles) = sys
 
     set_expected_spins!(_dipoles, Z, sys) # temporarily de-synchs _dipoles and _coherents
-    field!(_B, _dipoles, Z, sys.hamiltonian)
+    field!(_B, _dipoles, sys.hamiltonian)
     _apply_ℌ!(_ℌZ, sys, _B, Z, _ℌ)
 
     for i in eachindex(Z)

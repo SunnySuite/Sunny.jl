@@ -256,7 +256,7 @@ Note that all `_accum_neggrad!` functions should return _just_ the
 this function. Likewise, all code which utilizes local fields should
 be calling _this_ function, not the `_accum_neggrad!`'s directly.
 """
-function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU) where {N}
+function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     fill!(B, SA[0.0, 0.0, 0.0])
     # NOTE: These are broken up separately due to fears of dispatch costs being large.
     #        However, this has never been profiled and is maybe worth looking into.

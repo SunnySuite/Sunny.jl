@@ -237,7 +237,7 @@ system under `sys.hamiltonian`. The "local field" is defined as
 with ``𝐬_i`` the unit-vector variable at site i, and ``S_i`` is
 the magnitude of the associated spin.
 """
-field!(B::Array{Vec3}, sys::SpinSystem) = field!(B, sys._dipoles, sys._coherents, sys.hamiltonian)
+field!(B::Array{Vec3}, sys::SpinSystem{N}) where N = field!(B, sys._dipoles, sys.hamiltonian)
 
 """
     field(sys::SpinSystem)
@@ -245,7 +245,7 @@ field!(B::Array{Vec3}, sys::SpinSystem) = field!(B, sys._dipoles, sys._coherents
 Compute the local field B at each site of the system under
 `sys.hamiltonian`.
 """
-@inline function field(sys::SpinSystem)
+@inline function field(sys::SpinSystem{N}) where N
     B = zero(sys._dipoles)
     field!(B, sys)
     B

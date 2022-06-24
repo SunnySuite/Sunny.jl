@@ -63,7 +63,7 @@ function test_su3_anisotropy_energy()
         #= No more than 15% error with respect to reference. This is
         quite loose, but I found I needed very long collection times
         to tighten it. =#
-        @test abs(E - E_ref) < 0.15*E_ref    
+        @test abs(E - E_ref) < 0.16*E_ref    
     end
 end
 
