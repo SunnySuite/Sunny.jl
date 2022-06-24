@@ -4,7 +4,7 @@ import Random
 Defines a collection of spins, as well as the Hamiltonian they interact under.
  This is the main type to interface with most of the package.
 """
-struct SpinSystem{N}   ## Note: Changed to mutable so old integrator would work
+struct SpinSystem{N}   
     lattice     :: Lattice                          # Definition of underlying lattice
     hamiltonian :: HamiltonianCPU                   # Contains all interactions present
     _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
@@ -25,7 +25,6 @@ end
     return CVec{N}(vs[:, argmax(real.(λs))])
 end
 
-# Construct an analogous CoherentView?
 struct DipoleView{N} <: AbstractArray{Vec3, 4}
     _dipoles    :: Array{Vec3, 4}
     _coherents  :: Array{SVector{N, ComplexF64}, 4}
@@ -61,7 +60,7 @@ end
 
 KetView(sys::SpinSystem{N}) where N = KetView{N}(sys._dipoles, sys._coherents)
 
-function init_from_coherents(sys::SpinSystem, coherents::Array{CVec{N}, 4}) where N
+function init_from_coherents!(sys::SpinSystem, coherents::Array{CVec{N}, 4}) where N
     ket_view = KetView(sys)
     ket_view .= coherents
 end

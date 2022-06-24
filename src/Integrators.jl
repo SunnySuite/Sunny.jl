@@ -92,22 +92,24 @@ If sys has type `SpinSystem{0}`, will revert to the `LangevinHeunP` integrator.
 Uses the 2nd-order Heun + projection scheme."
 """
 mutable struct LangevinHeunPSUN{N} <: Integrator
-    kT  :: Float64
-    α   :: Float64
-    sys :: SpinSystem{N}
-    _ℌZ  :: Array{CVec{N}, 4}
-    _Z′  :: Array{CVec{N}, 4}
-    _ΔZ₁ :: Array{CVec{N}, 4}
-    _ΔZ₂ :: Array{CVec{N}, 4}
-    _ξ   :: Array{CVec{N}, 4}
-    _B   :: Array{Vec3, 4}
+    kT    :: Float64
+    α     :: Float64
+    sys   :: SpinSystem{N}
+    _ℌZ   :: Array{CVec{N}, 4}
+    _Z′   :: Array{CVec{N}, 4}
+    _ΔZ₁  :: Array{CVec{N}, 4}
+    _ΔZ₂  :: Array{CVec{N}, 4}
+    _ξ    :: Array{CVec{N}, 4}
+    _B    :: Array{Vec3, 4}
+    _ℌ    :: Matrix{ComplexF64}  # Just a buffer
 
     function LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64) where N
         new{N}(
             kT, α, sys,
             zero(sys._coherents), zero(sys._coherents),
             zero(sys._coherents), zero(sys._coherents),
-            zero(sys._coherents), zero(sys._dipoles)
+            zero(sys._coherents), zero(sys._dipoles),
+            zeros(ComplexF64, (N,N))
         )
     end
 end
@@ -133,13 +135,15 @@ mutable struct SchrodingerMidpoint{N} <: Integrator
     _Z′  :: Array{CVec{N}, 4}
     _Z″  :: Array{CVec{N}, 4}
     _B   :: Array{Vec3, 4}
+    _ℌ    :: Matrix{ComplexF64}  # Just a buffer
 
     function SchrodingerMidpoint(sys::SpinSystem{N}) where N
         new{N}(
             sys, 
             zero(sys._coherents), zero(sys._coherents),
             zero(sys._coherents), zero(sys._coherents),
-            zero(sys._coherents), zero(sys._dipoles)
+            zero(sys._coherents), zero(sys._dipoles),
+            zeros(ComplexF64, (N,N))
         )
     end
 end
@@ -266,39 +270,44 @@ end
 end
 
 
-function _apply_ℌ!(rhs, sys, B, Z)
+function _apply_ℌ!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, ℌ) where N
     aniso = sys.hamiltonian.sun_aniso
     latsize = size(B)[2:end]
-    for (site, Λ) in zip(aniso.sites, aniso.Λs) # Note: there is one Λ per site 
+    rhs′ = reinterpret(reshape, ComplexF64, rhs) 
+
+    for (site, Λ) in zip(aniso.sites, aniso.Λs) # There is one Λ per site 
         for cell in CartesianIndices(latsize)
-             rhs[site, cell] = (-B[site, cell] ⋅ sys.S + Λ) * Z[site, cell] # ∇E = -B
+            @. ℌ = Λ - (B[site,cell][1] * sys.S[1] + B[site,cell][2] * sys.S[2] + B[site,cell][3] * sys.S[3])
+            mul!(@view(rhs′[:, site, cell]), ℌ, Z[site, cell])
         end
     end
+    nothing
 end
 
 
-function _rhs_langevin!(ΔZ, Z, integrator, Δt)
-    (; kT, α, sys, _ℌZ, _ξ, _B) = integrator
+function _rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, integrator, Δt::Float64) where N
+    (; kT, α, sys, _ℌZ, _ξ, _B, _ℌ) = integrator
     (; _dipoles) = sys
 
     set_expected_spins!(_dipoles, Z, sys) 
     field!(_B, _dipoles, Z, sys.hamiltonian)
-    _apply_ℌ!(_ℌZ, sys, _B, Z)
+    _apply_ℌ!(_ℌZ, sys, _B, Z, _ℌ)
 
     for i in eachindex(Z)
         ΔZ′ = -im*√(2*Δt*kT*α)*_ξ[i] - Δt*(im+α)*_ℌZ[i]    
         ΔZ[i] = _proj(ΔZ′, Z[i])
     end 
+    nothing
 end
 
 
 function _rhs_ll!(ΔZ, Z, integrator, Δt)
-    (; sys, _ℌZ, _B) = integrator
+    (; sys, _ℌZ, _B, _ℌ) = integrator
     (; _dipoles) = sys
 
     set_expected_spins!(_dipoles, Z, sys) # temporarily de-synchs _dipoles and _coherents
     field!(_B, _dipoles, Z, sys.hamiltonian)
-    _apply_ℌ!(_ℌZ, sys, _B, Z)
+    _apply_ℌ!(_ℌZ, sys, _B, Z, _ℌ)
 
     for i in eachindex(Z)
         ΔZ[i] = - Δt*im*_ℌZ[i]    
