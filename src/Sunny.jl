@@ -18,6 +18,11 @@ using FilePaths: Path
 using CrystalInfoFramework
 import Spglib
 
+# Specific to SunnyGfx
+using JSON
+using Colors
+import Random: randstring, RandomDevice
+
 # TODO: Remove in Julia 1.7
 using Parameters: @unpack
 
@@ -81,6 +86,9 @@ export BinnedArray, filter_visited, reset!
 
 include("WangLandau/WangLandau.jl")
 export WangLandau, spherical_cap_update, init_bounded!, run!
+
+include("SunnyGfx/SunnyGfx.jl")
+export view_crystal
 
 function __init__()
     @require GLMakie="e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin
