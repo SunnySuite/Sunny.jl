@@ -405,13 +405,12 @@
             subLattInnerStr += 
             ` 
             <div>
-                <input type="checkbox" id="${types[i]}" checked="checked">
-                <label for="${types[i]} select" style="color: black">${types[i]}</label>
+                <input type="checkbox" id="${types[i]+key}" checked="checked">
+                <label for="$types[i] select${key}" style="color: black">${types[i]}</label>
             </div>
             `;
         }
         var subLattDiv = document.createElement("DIV");
-        subLattDiv.id = "subLattDiv";
         subLattDiv.innerHTML = 
         `<div style="color: black; text-align: left">
             Sublattices
@@ -422,7 +421,7 @@
         document.getElementById(`widget-container-${key}`).appendChild(subLattDiv);
         var subLattToggles = [];
         for(let i=0; i < types.length; i++){
-            subLattToggles.push(document.getElementById(types[i]));
+            subLattToggles.push(document.getElementById(types[i]+key));
         }
 
         // add bond display options
@@ -430,13 +429,13 @@
         for(let i=0; i < bondLabels.length; i++){
             bondsInnerStr += 
             ` 
-            <div style="background-color: ${toColor(bondColors[i])}" id="${bondLabels[i]} show">
-                <input type="checkbox" id="${bondLabels[i]} select" value="0">
-                <label for="${bondLabels[i]} select" style="color: ${getContrastYIQ(bondColors[i])}">${bondLabels[i]} (${bondTypes[i][0]}, ${bondTypes[i][1]})</label>
+            <div style="background-color: ${toColor(bondColors[i])}" id="${bondLabels[i]+key} show">
+                <input type="checkbox" id="${bondLabels[i]+key} select" value="0">
+                <label for="${bondLabels[i]+key} select" style="color: ${getContrastYIQ(bondColors[i])}">${bondLabels[i]} (${bondTypes[i][0]}, ${bondTypes[i][1]})</label>
 
-                <div style="text-align: left; display: none" id="${bondLabels[i]} options"> 
-                    <input type="button" id="${bondLabels[i]} next" value="${bondVecs[i].length}/${bondVecs[i].length}"/> 
-                    <label for="${bondLabels[i]} all" style=""><input type="checkbox" id="${bondLabels[i]} all">all</label>
+                <div style="text-align: left; display: none" id="${bondLabels[i]+key} options"> 
+                    <input type="button" id="${bondLabels[i]+key} next" value="${bondVecs[i].length}/${bondVecs[i].length}"/> 
+                    <label for="${bondLabels[i]+key} all" style=""><input type="checkbox" id="${bondLabels[i]+key} all">all</label>
                 </div>
             </div>
             `;
@@ -458,10 +457,10 @@
         var nextCount = new Array(bondLabels.length).fill(0);
 
         for(let i=0; i < bondLabels.length; i++){
-            selectOne.push( document.getElementById(`${bondLabels[i]} select`) );
-            bondOptions.push( document.getElementById(`${bondLabels[i]} options`) );
-            selectAll.push( document.getElementById(`${bondLabels[i]} all`) );
-            selectNext.push( document.getElementById(`${bondLabels[i]} next`) );
+            selectOne.push( document.getElementById(`${bondLabels[i]+key} select`) );
+            bondOptions.push( document.getElementById(`${bondLabels[i]+key} options`) );
+            selectAll.push( document.getElementById(`${bondLabels[i]+key} all`) );
+            selectNext.push( document.getElementById(`${bondLabels[i]+key} next`) );
 
             selectAll[i].oninput = function(){
                 if(selectAll[i].checked){
@@ -520,24 +519,24 @@
         `
         <div>
             <div class="row">  
-                <input type="button" id="clear bonds" value="clear bonds"/>
+                <input type="button" id="clear bonds${key}" value="clear bonds"/>
             </div> &nbsp; 
 
             <div class="row" style="background-color: LightGray; text-align: left">  
-                <input type="checkbox" id="axes toggle"/>
-                <label for="axes toggle" style="color: black">Show axes</label>
+                <input type="checkbox" id="axes toggle${key}"/>
+                <label for="axes${key} toggle" style="color: black">Show axes</label>
             </div> &nbsp;
 
             <div class="row" style="background-color: LightGray; text-align: left">  
-                <input type="checkbox" id="lattVecs toggle"/>
-                <label for="lattVecs toggle" style="color: black">Show unit cells</label>
+                <input type="checkbox" id="lattVecs toggle${key}"/>
+                <label for="lattVecs${key} toggle" style="color: black">Show unit cells</label>
             </div> &nbsp;
         </div>
         `;
         document.getElementById(`widget-container-${key}`).appendChild(togglesDiv);
 
         // set clear bonds button functionality
-        var clearBonds = document.getElementById("clear bonds");
+        var clearBonds = document.getElementById("clear bonds"+key);
         clearBonds.onclick = function(){
             for(let i=0; i < bondLines.length; i++){
                 for(let j=0; j < bondLines[i].length; j++){
@@ -551,7 +550,7 @@
         }
 
         // set lattVecs toggle functionality
-        var lattVecsToggle = document.getElementById("lattVecs toggle");
+        var lattVecsToggle = document.getElementById("lattVecs toggle"+key);
 
         lattVecsToggle.oninput = function(){
             if(lattVecsToggle.checked){
@@ -568,7 +567,7 @@
         }
 
         // set axes toggle functionality
-        var axesToggle = document.getElementById("axes toggle");
+        var axesToggle = document.getElementById("axes toggle"+key);
 
         axesToggle.oninput = function(){
             if(axesToggle.checked){
@@ -600,7 +599,7 @@
                             }
                         }
                         if(flag){
-                            document.getElementById(`${bondLabels[j]} show`).style.display = "block";
+                            document.getElementById(`${bondLabels[j]} show`+key).style.display = "block";
                         }
                     }
                 }
@@ -623,7 +622,7 @@
                                 scene.remove(bondLines[j][k]);
                             }
                             bondOptions[j].style.display = "none";
-                            document.getElementById(`${bondLabels[j]} show`).style.display = "none";
+                            document.getElementById(`${bondLabels[j]} show`+key).style.display = "none";
                         }
                     }
                 }
