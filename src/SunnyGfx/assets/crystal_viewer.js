@@ -429,7 +429,7 @@
         for(let i=0; i < bondLabels.length; i++){
             bondsInnerStr += 
             ` 
-            <div style="background-color: ${toColor(bondColors[i])}" id="${bondLabels[i]+key} show">
+            <div style="background-color: ${toColor(bondColors[i])}" id="${bondLabels[i]} show${key}">
                 <input type="checkbox" id="${bondLabels[i]+key} select" value="0">
                 <label for="${bondLabels[i]+key} select" style="color: ${getContrastYIQ(bondColors[i])}">${bondLabels[i]} (${bondTypes[i][0]}, ${bondTypes[i][1]})</label>
 
