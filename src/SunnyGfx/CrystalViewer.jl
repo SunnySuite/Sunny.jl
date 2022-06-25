@@ -19,9 +19,14 @@ function generate_bond_lists(crystal::Crystal, max_dist::Float64)
     pos = 0
 
     for(i, rb) in enumerate(reference_bonds(crystal, max_dist))
-        (rb.i==rb.j && sum(abs.(rb.n)) < 1) && continue
+        dr = distance(crystal, rb)
+        iszero(dr) && continue
 
-        dr = Sunny.distance(crystal, rb)
+        # Replace reference bond `rb` with a new one on a canonical atom.
+        class = crystal.classes[rb.i]
+        atom = findfirst(==(class), crystal.classes)
+        equivalent_bonds = Sunny.all_symmetry_related_bonds_for_atom(crystal, atom, rb)
+        rb = first(equivalent_bonds)
 
         # construct string label for bonds 
         if dr_prev ≈ dr
@@ -42,7 +47,7 @@ function generate_bond_lists(crystal::Crystal, max_dist::Float64)
         push!(bond_displacements, Vector{Float64}[])
         pos += 1
 
-        for b in Sunny.all_symmetry_related_bonds_for_atom(crystal, rb.i, rb) 
+        for b in equivalent_bonds
             # keep track of how many unit cells needed to show bonds
             mask = (abs.(b.n) .> ncells)
             ncells[mask] .= abs.(b.n)[mask]
