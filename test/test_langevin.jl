@@ -120,6 +120,9 @@ end
 
 test_su5_anisotropy_energy()
 
+
+
+
 #= Test energy statistics of a two-site spin chain (LLD and GSD). =#
 
 function cubic_slice_area(α, k)
@@ -182,8 +185,11 @@ end
 for a two-site spin chain."
 function test_spin_chain_energy()
     Ns = [0, 2]
-    κs = [1.0, 2.0]
-    for (N, κ) in zip(Ns, κs)
+    κ = 1.0
+    #= Js below are just for putting into the analytical formula to get appropriate
+       results for SU(2) (S=1/2) case. The actually model always implements J=1.0 =#
+    Js = [1.0, 0.25]    
+    for (N, J) in zip(Ns, Js)
         sys = two_site_spin_chain(; N, κ)
 
         α = 0.1
@@ -195,7 +201,7 @@ function test_spin_chain_energy()
         n_bins = 10  # Number of bins in empirical distribution
 
         # Initialize the Langevin sampler and thermalize the system
-        sampler = LangevinSampler(sys, kT/κ, α, Δt, 1000) # Check the 1/κ!
+        sampler = LangevinSampler(sys, kT, α, Δt, 1000) # Check the 1/κ!
         sample!(sampler)    
         sampler.nsteps = n_decorr
 
@@ -208,7 +214,7 @@ function test_spin_chain_energy()
 
         # Generate empirical distribution and discretize analytical distribution
         (; Ps, boundaries) = empirical_distribution(Es, n_bins)
-        Ps_analytical = discretize_P(boundaries, kT)
+        Ps_analytical = discretize_P(boundaries, kT; J)  # J varies here to get S=1/2 results
 
         # RMS error between empirical distribution and discretized analytical distribution
         rms = sqrt(sum( (Ps .- Ps_analytical) .^ 2))
