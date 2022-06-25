@@ -435,7 +435,7 @@
 
                 <div style="text-align: left; display: none" id="${bondLabels[i]+key} options"> 
                     <input type="button" id="${bondLabels[i]+key} next" value="${bondVecs[i].length}/${bondVecs[i].length}"/> 
-                    <label for="${bondLabels[i]+key} all" style=""><input type="checkbox" id="${bondLabels[i]+key} all">all</label>
+                    <label for="${bondLabels[i]+key} all" style="color: ${getContrastYIQ(bondColors[i])}"><input type="checkbox" id="${bondLabels[i]+key} all">all</label>
                 </div>
             </div>
             `;
