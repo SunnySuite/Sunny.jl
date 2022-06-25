@@ -3,15 +3,37 @@
     
 #= Test energy statistics for an SU(3) single ion problem with anisotropy. (GSD only.) =#
 
-function su3_quadratic_mean_energy(kT, D)
+"Analytical mean energy for SU(3) model with Λ = D*(Sᶻ)^2"
+function su3_mean_energy(kT, D)
     a = D/kT
-    return D * (2 - (2 + 2a + a^2)*exp(-a)) / (a * (1 - (1+a)*exp(-a)))
+    return D * (2 - (2 + 2a + a^2)*exp(-a)) / (a * (1 - (1+a)*exp(-a))) # - Λ₀
 end 
+
+"Analytical mean energy for SU(5) model with Λ = D*((Sᶻ)^2-(1/5)*(Sᶻ)^4)"
+function su5_mean_energy(kT, D)
+    a = 4D/(5kT)
+    return 4D*(exp(-a)*(-a*(a*(a*(a+4)+12)+24)-24)+24) / (5a*(exp(-a)*(-a*(a*(a+3)+6)-6)+6)) # - Λ₀
+end
 
 function su3_anisotropy_model(; L=20, D=1.0)
     N = 3
     Sz = Sunny.gen_spin_ops(N)[3]
     Λ = D*Sz^2
+
+    cryst = Sunny.cubic_crystal()
+    interactions = [SUN_anisotropy(Λ, 1)]
+    dims = (L,1,1)
+
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1, N, 2*I(3), 1.0)])
+    rand!(sys)
+
+    return sys
+end
+
+function su5_anisotropy_model(; L=20, D=1.0)
+    N = 5
+    Sz = Sunny.gen_spin_ops(N)[3]
+    Λ = D*(Sz^2-(1/5)*Sz^4)
 
     cryst = Sunny.cubic_crystal()
     interactions = [SUN_anisotropy(Λ, 1)]
@@ -49,7 +71,7 @@ function test_su3_anisotropy_energy()
     Δt = 0.01
     kTs = [0.125, 0.5]
     thermalize_dur = 10.0
-    collect_dur = 100.0
+    collect_dur = 250.0
 
     sys = su3_anisotropy_model(; D, L)
     integrator = LangevinHeunP(sys, 0.0, α)
@@ -58,18 +80,45 @@ function test_su3_anisotropy_energy()
         integrator.kT = kT
         thermalize(integrator, Δt, thermalize_dur)
         E = calc_mean_energy(integrator, Δt, collect_dur)
-        E_ref = su3_quadratic_mean_energy(kT, D)
+        E_ref = su3_mean_energy(kT, D)
 
         #= No more than 15% error with respect to reference. This is
         quite loose, but I found I needed very long collection times
-        to tighten it. =#
-        @test abs(E - E_ref) < 0.16*E_ref    
+        to tighten it, and the test is already several seconds long. 
+        Longer collection times do reliably
+        produce the correct mean with diminishing variance. =#
+        @test abs(E - E_ref) < 0.15*E_ref    
     end
 end
 
 test_su3_anisotropy_energy()
     
 
+function test_su5_anisotropy_energy()
+    D = 1.0
+    L = 20   # number of (non-interacting) sites
+    α = 0.1
+    Δt = 0.01
+    kTs = [0.125, 0.5]
+    thermalize_dur = 10.0
+    collect_dur = 200.0
+
+    sys = su5_anisotropy_model(; D, L)
+    integrator = LangevinHeunP(sys, 0.0, α)
+
+    for kT ∈ kTs
+        integrator.kT = kT
+        thermalize(integrator, Δt, thermalize_dur)
+        E = calc_mean_energy(integrator, Δt, collect_dur)
+        E_ref = su5_mean_energy(kT, D)
+
+        #= No more than 10% error with respect to reference. There
+        is less variance in the energy than in the SU(3) case. =#
+        @test abs(E - E_ref) < 0.1*E_ref    
+    end
+end
+
+test_su5_anisotropy_energy()
 
 #= Test energy statistics of a two-site spin chain (LLD and GSD). =#
 
