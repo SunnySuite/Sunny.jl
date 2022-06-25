@@ -111,7 +111,7 @@ Create and show crystal viewer.
 Javascript and html code for visualizer is found in the assets/ directory.
 If dev=true, then a html file is made in the build/ directory for development in web browser.
 """
-function CrystalViewer(crystal::Crystal, max_dist::Float64; dev=false)
+function view_crystal(crystal::Crystal, max_dist::Float64; dev=false)
 
     data = system_json(crystal, max_dist)
 
