@@ -409,8 +409,8 @@
         var subLattDiv = document.createElement("DIV");
         subLattDiv.id = "subLattDiv";
         subLattDiv.innerHTML = 
-        `<div style="border: thin solid black; border-radius: 2px; color: black; text-align: left">
-            show sublattices
+        `<div style="color: black; text-align: left">
+            Sublattices
             ${subLattInnerStr}
         </div> &nbsp;
         `;
@@ -440,8 +440,8 @@
         var bondsDiv = document.createElement("DIV");
         bondsDiv.innerHTML = 
         ` 
-        <div class="row" style=" color: black; border: thin solid black; border-radius: 2px; text-align: left">
-            show bonds
+        <div class="row" style=" color: black; text-align: left">
+            Bonds
             ${bondsInnerStr}
         </div> &nbsp;
         `;
@@ -521,12 +521,12 @@
 
             <div class="row" style="background-color: LightGray; text-align: left">  
                 <input type="checkbox" id="axes toggle"/>
-                <label for="axes toggle" style="color: black">show axes</label>
+                <label for="axes toggle" style="color: black">Show axes</label>
             </div> &nbsp;
 
             <div class="row" style="background-color: LightGray; text-align: left">  
                 <input type="checkbox" id="lattVecs toggle"/>
-                <label for="lattVecs toggle" style="color: black">show unit cells</label>
+                <label for="lattVecs toggle" style="color: black">Show unit cells</label>
             </div> &nbsp;
         </div>
         `;
