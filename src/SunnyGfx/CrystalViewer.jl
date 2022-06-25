@@ -117,7 +117,7 @@ function CrystalViewer(crystal::Crystal, max_dist::Float64; dev=false)
 
     if dev
         unique_tag = "0"
-        js_link = "src='assets/crystal_viewer.js'"
+        js_link = "src='../assets/crystal_viewer.js'"
         js_src = ""
     else
         unique_tag = randstring(RandomDevice(), ['0':'9'; 'a':'f'], 12)
@@ -141,7 +141,8 @@ function CrystalViewer(crystal::Crystal, max_dist::Float64; dev=false)
     )
 
     if dev
-        open(joinpath(@__DIR__, "build/develop_gui.html"), "w") do io
+        build_dir = mkpath(joinpath(@__DIR__, "build"))
+        open(joinpath(build_dir, "develop_gui.html"), "w") do io
             write(io, html)
         end
         return nothing
