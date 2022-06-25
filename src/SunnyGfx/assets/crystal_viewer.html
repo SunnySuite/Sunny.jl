@@ -21,26 +21,43 @@
     https://jupyterbook.org/en/stable/interactive/interactive.html
 -->
 <style type="text/css">
-       #scene-container-$UNIQUE_TAG{
-              margin-left:0;
-              background:#000000;
-              height:min(85vw, 85vh);
-              width:min(85vw, 85vh);
-       }
-       #scene-container-$UNIQUE_TAG canvas{
-              height:100% !important;
-              width:100% !important;
-       }
+    #flex-container-$UNIQUE_TAG{
+        display: flex;
+        margin: 10px;
+        min-height: 400px;
+        min-width: 400px;
+        /* max-width: 800px; */
+    }
+    #widget-container-$UNIQUE_TAG {
+        flex: 0.5;
+        background-color: #EEEEEE;
+        max-width: 200px;
+        border: thin solid black;
+    }
+    #widget-container-$UNIQUE_TAG:first-child {
+        margin-right: 10px;
+    }
+    #scene-container-$UNIQUE_TAG{
+        flex: 1.0;
+        margin-left:0;
+        background:#000000;
+        border: thin solid black;
+        align-self: center;
+    }
+    /* For an alternative approach to this, see https://stackoverflow.com/a/45046955/500314 */
+    #scene-container-$UNIQUE_TAG canvas{
+        height:100% !important;
+        width:100% !important;
+    }
 </style>
 
-<h1>Crystal Viewer</h1>
-
-<div id="widget-container-$UNIQUE_TAG" style="float: left; background-color: LightGray">
-    <!-- Widgets inserted here at runtime. -->
-</div>
-
-<div id="scene-container-$UNIQUE_TAG" style="float: right">
-    <!-- <canvas> inserted here at runtime. -->
+<div id="flex-container-$UNIQUE_TAG">
+    <div id="widget-container-$UNIQUE_TAG">
+        <!-- Widgets inserted here at runtime. -->
+    </div>
+    <div id="scene-container-$UNIQUE_TAG">
+        <!-- <canvas> inserted here at runtime. -->
+    </div>
 </div>
 
 <script id="data-$UNIQUE_TAG" type="application/json">$DATA</script>
