@@ -151,6 +151,9 @@
                         var t = types.indexOf(cellTypes[a]);
                         var atomPos = cellPos.map((v,d) => v+basisVecs[a][d]);
 
+                        // TODO: Replace each of these repeated geometries with
+                        // a single InstancedMesh,
+                        // https://threejs.org/docs/#api/en/objects/InstancedMesh.
                         var geometry = new THREE.SphereGeometry(atomRadius, 20, 20);
 
                         // use closest center for alpha center point
@@ -343,19 +346,20 @@
             for(let j=0; j < bondVecs[i].length; j++){
                 var beg = bondCenters[bondTypeIds[i][0]];
                 var end = bondVecs[i][j].map((v,k) => v + beg[k]);
+                // TODO: Might be cleaner to replace with a CylinderGeometry 
                 var geometry = new THREE.TubeGeometry(
                     new THREE.CatmullRomCurve3([ 
                         new THREE.Vector3(...beg),
                         new THREE.Vector3(...end)
                     ]),
-                    512, // path segments
+                    2, // path segments
                     0.025*maxLattUnit, // thickness
-                    20, // roundness
-                    true // closed
+                    12, // roundness
+                    false // closed
                 );
 
-                var material = new THREE.LineBasicMaterial({color: toColor(bondColors[i])});
-                bondLines[i].push( new THREE.Line(geometry, material) );
+                const material = new THREE.MeshStandardMaterial({color: toColor(bondColors[i])});
+                bondLines[i].push( new THREE.Mesh(geometry, material));
             }
         }
 
