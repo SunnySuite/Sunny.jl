@@ -4,15 +4,15 @@
     const THREE = await import("https://cdn.skypack.dev/three@0.132.2");
     const OrbitControls = (await import("https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/OrbitControls.js")).OrbitControls;
 
-    // In development, a default tag string is useful.
-    let tag = "0";
-    // In production, this line will be programmatically rewritten to assign `tag` a
-    // unique string identifier. This uniqueness is important, e.g., to support
-    // multiple visualizations within the same Jupyter notebook.
-    'DEFINE_TAG';
+    // In development, a default key is useful.
+    let key = "0";
+    // In production, this line will be replaced to define `key` as a unique
+    // string identifier. This uniqueness is necessary to support multiple
+    // visualizations within the same web page.
+    'DEFINE_KEY';
 
     // Get a reference to the container element that will hold our scene
-    const container = document.querySelector(`#scene-container-${tag}`);
+    const container = document.querySelector(`#scene-container-${key}`);
 
     function showError(err) {
         container.innerHTML = `<div class="error" style="color:red; font-size:20px;">${err}</div>`;
@@ -25,7 +25,7 @@
         scene.background = new THREE.Color("#EEEEEE");
 
         // read in data from Sunny 
-        const data = JSON.parse(document.getElementById(`data-${tag}`).textContent);
+        const data = JSON.parse(document.getElementById(`data-${key}`).textContent);
         const cellTypes = data.cellTypes;
         const bondColors = data.bondColors;
         const bondLabels = data.bondLabels;
@@ -415,7 +415,7 @@
         </div> &nbsp;
         `;
 
-        document.getElementById(`widget-container-${tag}`).appendChild(subLattDiv);
+        document.getElementById(`widget-container-${key}`).appendChild(subLattDiv);
         var subLattToggles = [];
         for(let i=0; i < types.length; i++){
             subLattToggles.push(document.getElementById(types[i]));
@@ -445,7 +445,7 @@
             ${bondsInnerStr}
         </div> &nbsp;
         `;
-        document.getElementById(`widget-container-${tag}`).appendChild(bondsDiv);
+        document.getElementById(`widget-container-${key}`).appendChild(bondsDiv);
 
         var selectOne = [];
         var selectAll = [];
@@ -530,7 +530,7 @@
             </div> &nbsp;
         </div>
         `;
-        document.getElementById(`widget-container-${tag}`).appendChild(togglesDiv);
+        document.getElementById(`widget-container-${key}`).appendChild(togglesDiv);
 
         // set clear bonds button functionality
         var clearBonds = document.getElementById("clear bonds");

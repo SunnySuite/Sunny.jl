@@ -116,16 +116,16 @@ function CrystalViewer(crystal::Crystal, max_dist::Float64; dev=false)
     data = system_json(crystal, max_dist)
 
     if dev
-        unique_tag = "0"
+        unique_key = "0"
         js_link = "src='../assets/crystal_viewer.js'"
         js_src = ""
     else
-        unique_tag = randstring(RandomDevice(), ['0':'9'; 'a':'f'], 12)
+        unique_key = randstring(RandomDevice(), ['0':'9'; 'a':'f'], 12)
         js_src = open(joinpath(@__DIR__, "assets/crystal_viewer.js"), "r") do io
             read(io, String)
         end
         js_src = replace(js_src,
-            "'DEFINE_TAG';" => "tag = '$unique_tag';"
+            "'DEFINE_KEY';" => "key = '$unique_key';"
         )
         js_link = ""
     end
@@ -134,7 +134,7 @@ function CrystalViewer(crystal::Crystal, max_dist::Float64; dev=false)
         read(io, String)
     end
     html = replace(html,
-        "\$UNIQUE_TAG" => unique_tag,
+        "UNIQUE_KEY" => unique_key,
         "\$DATA" => data,
         "\$JS_LINK" => js_link,
         "\$JS_SRC" => js_src,

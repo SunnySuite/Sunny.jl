@@ -21,23 +21,23 @@
     https://jupyterbook.org/en/stable/interactive/interactive.html
 -->
 <style type="text/css">
-    #flex-container-$UNIQUE_TAG{
+    #flex-container-UNIQUE_KEY{
         display: flex;
         margin: 10px;
         min-height: 400px;
         min-width: 400px;
         /* max-width: 800px; */
     }
-    #widget-container-$UNIQUE_TAG {
+    #widget-container-UNIQUE_KEY {
         flex: 0.5;
         background-color: #EEEEEE;
         max-width: 200px;
         border: thin solid black;
     }
-    #widget-container-$UNIQUE_TAG:first-child {
+    #widget-container-UNIQUE_KEY:first-child {
         margin-right: 10px;
     }
-    #scene-container-$UNIQUE_TAG{
+    #scene-container-UNIQUE_KEY{
         flex: 1.0;
         margin-left:0;
         background:#000000;
@@ -45,22 +45,22 @@
         align-self: center;
     }
     /* For an alternative approach to this, see https://stackoverflow.com/a/45046955/500314 */
-    #scene-container-$UNIQUE_TAG canvas{
+    #scene-container-UNIQUE_KEY canvas{
         height:100% !important;
         width:100% !important;
     }
 </style>
 
-<div id="flex-container-$UNIQUE_TAG">
-    <div id="widget-container-$UNIQUE_TAG">
+<div id="flex-container-UNIQUE_KEY">
+    <div id="widget-container-UNIQUE_KEY">
         <!-- Widgets inserted here at runtime. -->
     </div>
-    <div id="scene-container-$UNIQUE_TAG">
+    <div id="scene-container-UNIQUE_KEY">
         <!-- <canvas> inserted here at runtime. -->
     </div>
 </div>
 
-<script id="data-$UNIQUE_TAG" type="application/json">$DATA</script>
+<script id="data-UNIQUE_KEY" type="application/json">$DATA</script>
 
 <!-- Insert either a link to the Javascript file (development mode) or the
 actual Javascript content (production mode). -->
