@@ -4,21 +4,25 @@ import Random
 Defines a collection of spins, as well as the Hamiltonian they interact under.
  This is the main type to interface with most of the package.
 """
-struct SpinSystem{N}
+struct SpinSystem{N}   
     lattice     :: Lattice                          # Definition of underlying lattice
     hamiltonian :: HamiltonianCPU                   # Contains all interactions present
     _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
     _coherents  :: Array{SVector{N, ComplexF64}, 4} # Coherent states
     site_infos  :: Vector{SiteInfo}                 # Characterization of each basis site
+    S           :: NTuple{3, Matrix{ComplexF64}}
+    rng         :: Random.AbstractRNG
 end
 
 @inline Base.size(sys::SpinSystem) = size(sys._coherents)
 @inline nbasis(sys::SpinSystem) = nbasis(sys.lattice)
 @inline eachcellindex(sys::SpinSystem) = eachcellindex(sys.lattice)
 
+@inline _get_coherent_from_dipole(dip::Vec3, ::Val{0}) :: CVec{0} = CVec{0}(zeros(0))
 @inline function _get_coherent_from_dipole(dip::Vec3, ::Val{N}) :: CVec{N} where {N} 
-    # TODO: Produce a coherent state of SU(N) agreeing with the given dipole moment.
-    return CVec{N}(zeros(N))
+    S = gen_spin_ops(N) 
+    λs, vs = eigen(dip⋅S)
+    return CVec{N}(vs[:, argmax(real.(λs))])
 end
 
 struct DipoleView{N} <: AbstractArray{Vec3, 4}
@@ -28,16 +32,75 @@ end
 
 Base.IndexStyle(::Type{DipoleView}) = IndexLinear()
 Base.size(dv::DipoleView) = size(dv._dipoles)
-Base.getindex(dv::DipoleView, i) = getindex(dv._dipoles, i)
-function Base.setindex!(dv::DipoleView{N}, v::Vec3, i) where {N}
-    setindex!(dv._coherents, _get_coherent_from_dipole(v, Val(N)), i)
+Base.getindex(dv::DipoleView, i...) = getindex(dv._dipoles, i...)
+function Base.setindex!(dv::DipoleView{N}, v::Vec3, i...) where N
+    setindex!(dv._dipoles, v, i...)
+    setindex!(dv._coherents, _get_coherent_from_dipole(v, Val(N)), i...)
 end
 
 DipoleView(sys::SpinSystem{N}) where {N} = DipoleView{N}(sys._dipoles, sys._coherents)
 
-function init_from_dipoles!(sys::SpinSystem, dipoles::Array{Vec3, 4})
+function init_from_dipoles!(sys::SpinSystem{N}, dipoles::Array{Vec3, 4}) where N
     dipole_view = DipoleView(sys)
     dipole_view .= dipoles
+end
+
+struct KetView{N} <: AbstractArray{CVec{N}, 4}
+    _dipoles    :: Array{Vec3, 4}
+    _coherents  :: Array{SVector{N, ComplexF64}, 4}
+end
+
+Base.IndexStyle(::Type{KetView}) = IndexLinear()
+Base.size(kv::KetView) = size(kv._coherents)
+Base.getindex(kv::KetView, i...) = getindex(kv._coherents, i...)
+function Base.setindex!(kv::KetView{N}, Z::CVec{N}, i...) where N
+    setindex!(kv._coherents, Z, i...)
+    setindex!(kv._dipoles, expected_spin(Z), i...)
+end
+
+KetView(sys::SpinSystem{N}) where N = KetView{N}(sys._dipoles, sys._coherents)
+
+function init_from_coherents!(sys::SpinSystem, coherents::Array{CVec{N}, 4}) where N
+    ket_view = KetView(sys)
+    ket_view .= coherents
+end
+
+
+@generated function expected_spin(Z::CVec{N}) where N
+    S = gen_spin_ops(N)
+    elems_x = SVector{N-1}(diag(S[1], 1))
+    elems_z = SVector{N}(diag(S[3], 0))
+    lo_ind = SVector{N-1}(1:N-1)
+    hi_ind = SVector{N-1}(2:N)
+
+    return quote
+        $(Expr(:meta, :inline))
+        c = Z[$lo_ind]' * ($elems_x .* Z[$hi_ind])
+        nx = 2real(c)
+        ny = 2imag(c)
+        nz = real(Z' * ($elems_z .* Z))
+        Vec3(nx, ny, nz)
+    end
+end
+
+
+function set_expected_spins!(sys::SpinSystem)
+    (; _dipoles, _coherents) = sys
+    for b in 1:size(_dipoles, 1)
+        κ = sys.site_infos[b].κ
+        for i in CartesianIndices(size(_dipoles)[2:end])
+            _dipoles[b, i] = κ * expected_spin(_coherents[b, i])
+        end
+    end
+end
+
+function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::SpinSystem) where N
+    for b in 1:size(dipoles, 1)
+        κ = sys.site_infos[b].κ
+        for i in CartesianIndices(size(dipoles)[2:end])
+            dipoles[b, i] = κ * expected_spin(coherents[b, i])
+        end
+    end
 end
 
 
@@ -53,13 +116,13 @@ function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
     # All sites not explicitly provided are by default N=0, g=2, κ=1
     all_site_infos = [SiteInfo(i, 0, 2, 1.0) for i in 1:nbasis(crystal)]
 
-    maxN = maximum(info->info.N, all_site_infos)
+    maxN = length(site_infos) > 0 ? maximum(info->info.N, site_infos) : 0
 
     specified_atoms = Int[]
     for siteinfo in site_infos
         @unpack site, N, g, κ = siteinfo
         if N != maxN
-            @warn "Up-converting N=$N -> N=$maxN on site $site!"
+            @warn "Up-converting N=$N -> N=$maxN on site $(site)!"
         end
         (sym_bs, sym_gs) = all_symmetry_related_couplings(crystal, Bond(site, site, [0,0,0]), g)
         for (sym_b, sym_g) in zip(sym_bs, sym_gs)
@@ -91,12 +154,14 @@ Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sit
  default, these are set so that the unit system is (meV, T, Å).
 """
 function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsize,
-                    site_infos::Vector{SiteInfo}=SiteInfo[]; μB=BOHR_MAGNETON, μ0=VACUUM_PERM)
+                    site_infos::Vector{SiteInfo}=SiteInfo[];
+                    rng=nothing, μB=BOHR_MAGNETON, μ0=VACUUM_PERM)
     latsize = collect(Int64.(latsize))
     lattice = Lattice(crystal, latsize)
 
     (all_site_infos, N) = _propagate_site_info(crystal, site_infos)
     ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_site_infos; μB, μ0)
+    S = gen_spin_ops(N)
 
     # Initialize sites to all spins along +z
     sys_size = (nbasis(lattice), lattice.size...)
@@ -104,8 +169,11 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
     dipoles = fill(up, sys_size)
     coherents = fill(_get_coherent_from_dipole(up, Val(N)), sys_size)
 
+    # Set up default RNG if none provided
+    isnothing(rng) && (rng = Random.MersenneTwister())
+
     # Default unit system is (meV, K, Å, T)
-    SpinSystem{N}(lattice, ℋ_CPU, dipoles, coherents, all_site_infos)
+    SpinSystem{N}(lattice, ℋ_CPU, dipoles, coherents, all_site_infos, S, rng)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem{N}) where {N}
@@ -120,12 +188,25 @@ end
 
 Sets spins randomly sampled on the unit sphere.
 """
-function Random.rand!(sys::SpinSystem) # TODO: Should this still behave the same way?
+function Random.rand!(sys::SpinSystem{0})  
     dip_view = DipoleView(sys)
-    dip_view .= randn(Vec3, size(dip_view))
+    dip_view .= randn(sys.rng, Vec3, size(dip_view))
     @. dip_view /= norm(dip_view)
+    for b ∈ 1:nbasis(sys)
+        dip_view[b,:,:,:] .*= sys.site_infos[b].κ
+    end
     nothing
 end
+
+function Random.rand!(sys::SpinSystem{N}) where N
+    Zs = sys._coherents
+    randn!(sys.rng, Zs)
+    @. Zs /= norm(Zs)
+    set_expected_spins!(sys)
+    nothing
+end
+
+
 
 """
     randflips!(sys::SpinSystem)
@@ -133,9 +214,9 @@ end
 Sets spins randomly either aligned or anti-aligned
 with their original direction.
 """
-function randflips!(sys::SpinSystem) # TODO: Should this still behave the same way?
+function randflips!(sys::SpinSystem{0}) # TODO: Should this still behave the same way?
     dip_view = DipoleView(sys)
-    @. dip_view .*= rand((-1, 1), size(dip_view))
+    @. dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
 end
 
 """
@@ -156,7 +237,7 @@ system under `sys.hamiltonian`. The "local field" is defined as
 with ``𝐬_i`` the unit-vector variable at site i, and ``S_i`` is
 the magnitude of the associated spin.
 """
-field!(B::Array{Vec3}, sys::SpinSystem) = field!(B, sys._dipoles, sys._coherents, sys.hamiltonian)
+field!(B::Array{Vec3}, sys::SpinSystem{N}) where N = field!(B, sys._dipoles, sys.hamiltonian)
 
 """
     field(sys::SpinSystem)
@@ -164,7 +245,7 @@ field!(B::Array{Vec3}, sys::SpinSystem) = field!(B, sys._dipoles, sys._coherents
 Compute the local field B at each site of the system under
 `sys.hamiltonian`.
 """
-@inline function field(sys::SpinSystem)
+@inline function field(sys::SpinSystem{N}) where N
     B = zero(sys._dipoles)
     field!(B, sys)
     B

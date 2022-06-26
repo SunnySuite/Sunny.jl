@@ -38,10 +38,16 @@ end
 """
     SiteInfo(site::Int, N::Int, g::Mat3, κ::Float64)
 
-Characterizes the degree of freedom located at a given `site` index with
- a spin magnitude `S` and g-tensor `g`. When provided to a `SpinSystem`,
- this information is automatically propagated to all symmetry-equivalent
- sites.
+Characterizes the degree of freedom located at a given `site` index with three 
+pieces of information: N (as in SU(N)), characterizing the complex dimension of the
+generalized spins (where N=0 corresponds to traditional, three-component, real
+classical spins); a g-tensor, `g`; and an overall scaling factor for the spin
+magnitude, `κ`. When provided to a `SpinSystem`, this information is automatically
+propagated to all symmetry-equivalent sites. An error will be thrown if multiple
+SiteInfos are given for symmetry-equivalent sites.
+    
+NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverted
+to the largest specified `N`.
 """
 @with_kw struct SiteInfo
     site :: Int                # Index of site
@@ -51,6 +57,9 @@ Characterizes the degree of freedom located at a given `site` index with
 end
 
 SiteInfo(site::Int, N::Int, g::Number, κ=1.0) = SiteInfo(site, N, g*I(3), κ)
+
+# Included for backward compatibility
+SiteInfo(site::Int, κ::Float64) = SiteInfo(site, 0, 2*I(3), κ)
 
 """
     exchange(J, bond::Bond, label="Exchange")
@@ -101,19 +110,19 @@ function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
 end
 
 struct QuadraticAnisotropy <: AbstractAnisotropy
-    mat   :: Mat3
+    J     :: Mat3
     site  :: Int
     label :: String # Maybe remove
 end
 
 struct QuarticAnisotropy <: AbstractAnisotropy
-    tens  :: Quad3
+    J     :: Quad3 
     site  :: Int
     label :: String # Maybe remove
 end
 
 struct SUNAnisotropy <: AbstractAnisotropy
-    op    :: Matrix{ComplexF64}
+    Λ     :: Matrix{ComplexF64}
     site  :: Int
     label :: String # Maybe remove
 end
@@ -211,16 +220,20 @@ Creates a quartic anisotropy.
 function quartic_anisotropy(J, site, label="QuarticAniso")
     # TODO: Basic symmetry checks?
     if (size(J) != (3, 3, 3, 3)) || !(eltype(J) <: Real)
-        error("Parameter `tens` must be a 3x3x3x3 real tensor.")
+        error("Parameter `J` must be a 3x3x3x3 real tensor.")
     end
-    QuarticAnisotropy(tens, site, label)
+    QuarticAnisotropy(J, site, label)
 end
 
 # N-dimensional irreducible matrix representation of 𝔰𝔲(2). Use this only
 #  to give the user the ability to construct generalized anisotropy matrices.
 # Internal code should implicitly use the action of these operators on
 #  N-dimensional complex vectors.
-function gen_spin_ops(N)
+function gen_spin_ops(N::Int) :: NTuple{3, Matrix{ComplexF64}}
+    if N == 0  # Returns wrong type if not checked 
+        return zeros(ComplexF64, 0,0), zeros(ComplexF64, 0,0), zeros(ComplexF64, 0,0)
+    end
+
     s = (N-1)/2
     a = 1:N-1
     off = @. sqrt(2(s+1)*a - a*(a+1)) / 2
@@ -230,6 +243,7 @@ function gen_spin_ops(N)
     Sz = diagm((N-1)/2 .- (0:N-1))
     return Sx, Sy, Sz
 end
+
 
 """
     SUN_anisotropy(mat, site)
@@ -305,7 +319,7 @@ function ExternalFieldCPU(ext_field::ExternalField, site_infos::Vector{SiteInfo}
     #  we can compute E = -∑_i effB ⋅ 𝐬_i during simulation.
     # However, S_i may be basis-dependent, so we need to store an effB
     #  per sublattice.
-    effBs = [μB * site.g' * site.κ * ext_field.B for site in site_infos]
+    effBs = [μB * site.g' * ext_field.B for site in site_infos]
     ExternalFieldCPU(effBs)
 end
 

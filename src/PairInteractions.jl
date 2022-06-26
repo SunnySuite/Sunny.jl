@@ -123,11 +123,6 @@ isdiag(tol) = Base.Fix2(isdiag, tol)
 function convert_quadratic(int::QuadraticInteraction, cryst::Crystal, site_infos::Vector{SiteInfo}; tol=1e-6)
     @unpack J, bond, label = int
 
-    # Product S_i S_j between sites connected by the bond -- same for all bonds in a class
-    # To get interactions quadratic in the unit vectors stored by `SpinSystem`, we internally
-    #  store effective exchange matrices (Si J Sj).
-    SiSj = site_infos[bond.i].κ * site_infos[bond.j].κ
-    J *= SiSj
     bondtable = BondTable(cryst, bond, J)
 
     if all(isheisen(tol), bondtable.culled_data)
@@ -208,6 +203,21 @@ function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, heisen::HeisenbergC
     end
 end
 
+function _neggrad(dipoles::Array{Vec3}, heisen::HeisenbergCPU, i)
+    bondtable = heisen.bondtable
+    B = Vec3(0,0,0)
+    J = first(bondtable.data)
+
+    latsize = size(dipoles)[2:end]
+    for (bond, _) ∈ sublat_bonds(bondtable, i)
+        (; j, n) = bond
+        offsetcell = offset(cell, n, latsize)
+        B -= J * dipoles[j, offsetcell]
+    end
+
+    return B
+end
+
 "Accumulates the local -∇ℋ coming from diagonal couplings into `B`"
 function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
     bondtable = diag_coup.bondtable
@@ -223,6 +233,21 @@ function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, diag_coup::Diagonal
     end
 end
 
+function _neggrad(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU, i)
+    bondtable = diag_coup.bondtable
+    B = Vec3(0,0,0)
+    (i, cell) = splitidx(i)
+
+    latsize = size(dipoles)[2:end]
+    for (bond, J) ∈ sublat_bonds(bondtable, i)
+        (; j, n) = bond
+        offsetcell = offset(cell, n, latsize)
+        B -= J .* dipoles[j, offsetcell]
+    end
+
+    return B
+end
+
 "Accumulates the local -∇ℋ coming from general couplings into `B`"
 function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCouplingCPU)
     bondtable = gen_coup.bondtable
@@ -236,4 +261,20 @@ function _accum_neggrad!(B::Array{Vec3}, spins::Array{Vec3}, gen_coup::GeneralCo
             B[j, offsetcell] = B[j, offsetcell] - J * spins[i, cell]
         end
     end
+end
+
+
+function _neggrad(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU, idx)
+    bondtable = gen_coup.bondtable
+    B = Vec3(0,0,0)
+    (i, cell) = splitidx(idx)
+
+    latsize = size(dipoles)[2:end]
+    for (bond, J) ∈ sublat_bonds(bondtable, i)
+        (; j, n) = bond
+        offsetcell = offset(cell, n, latsize)
+        B -= J * dipoles[j, offsetcell]
+    end
+
+    return B
 end

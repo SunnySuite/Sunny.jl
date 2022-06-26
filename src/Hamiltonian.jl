@@ -40,22 +40,93 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
                 println("Use `print_bond(crystal, Bond($site, $site, [0,0,0])` for more information.")
                 error("Interaction violates symmetry.")
             end
+        ## TODO: check validity of quartic anisotropy
         end
     end
 
     return ints
 end
 
+
+# Functions for converting front end anistropy types to back end types. 
+function merge(anisos::Vector{QuadraticAnisotropy}) 
+    (length(anisos) == 0) && (return nothing)
+    DipolarQuadraticAnisotropyCPU([a.J for a in anisos],
+                                  [a.site for a in anisos],
+                                  ""
+    )
+end
+
+function merge(anisos::Vector{QuarticAnisotropy})
+    (length(anisos) == 0) && (return nothing)
+    DipolarQuarticAnisotropyCPU([SparseTensor(a.J) for a in anisos],
+                                [a.site for a in anisos],
+                                ""
+    )
+end
+
+function merge(anisos::Vector{SUNAnisotropy})
+    (length(anisos) == 0) && (return nothing)
+    SUNAnisotropyCPU([a.Λ for a in anisos],
+                     [a.site for a in anisos],
+                     ""
+    )
+end
+
+# Set Λ to zero matrix for every site and cumulatively add
+# every given SU(N) anistropy matrix according to site. This ensures
+# that there is exactly one Λ for every site.
+function combine_and_pad_sun_anisos(anisos::Vector{SUNAnisotropy}, crystal::Crystal, N::Int)
+    new_anisos = SUNAnisotropy[]
+    for b in 1:nbasis(crystal)
+        Λ′ = zeros(ComplexF64, N, N)
+        site_anisos = filter(a -> a.site == b, anisos)
+        if length(site_anisos) > 0
+            dims = [size(a.Λ)[1] for a ∈ site_anisos]
+            wrong_dims = filter(d -> d != N, dims)
+            if length(wrong_dims) > 0
+                throw("Dimension of one or more anisotropies does not match system N")
+            end
+            Λ′ += sum([a.Λ for a ∈ site_anisos])
+        end
+        push!(new_anisos, SUNAnisotropy(Λ′, b, "Final anisotropy"))
+    end
+    return new_anisos
+end
+
+
 function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::Crystal, site_infos::Vector{SiteInfo})
-    # TODO: Given the list of anisos, we need to:
-    #  1. If maximum N in site_infos is > 0, we need to upconvert all QuadraticAnisotropy
-    #         and QuarticAnisotropy to SUNAnisotropy's
-    #  2. [If in dipolar mode] Collect all QuadraticAnisotropy into one DipolarQuadraticAnisotropyCPU
-    #  3. [If in dipolar mode] Collect all QuarticAnisotropy into one DipolarQuarticAnisotropyCPU
-    #  4. Collect all SUNAnisotropy into one SUNAnisotropyCPU
-    #  5. Return (DipolarQuadraticAnisotropyCPU, DipolarQuarticAnisotropyCPU, SUNAnisotropyCPU),
-    #         but with nothing's if there were none.
-    return (nothing, nothing, nothing)
+    N = site_infos[1].N     # All should have been upconverted to maxN
+
+    # Separate out different anisotropy types. 
+    quadratic_anisos = filter(a -> isa(a, QuadraticAnisotropy), anisos) |>
+                       Vector{QuadraticAnisotropy}
+    quartic_anisos = filter(a -> isa(a, QuarticAnisotropy), anisos) |>
+                     Vector{QuarticAnisotropy}
+    sun_anisos = filter(a -> isa(a, SUNAnisotropy), anisos) |>
+                 Vector{SUNAnisotropy}
+
+    # Convert to backend types if in LL mode.
+    if N == 0
+        if length(sun_anisos) != 0
+            @error "Given a SU(N) anisotropy but running in classic Landau-Lifshitz mode."
+        end
+
+        quadratic_aniso = merge(quadratic_anisos)
+        quartic_aniso = merge(quartic_anisos)
+
+        return (quadratic_aniso, quartic_aniso, nothing)
+    end
+
+    # Throw error if given non-SU(N) anisotropy and in SU(N) mode 
+    if length(quadratic_anisos) != 0 || length(quartic_anisos) != 0
+        @error "Given a Landau-Lifshitz-type anisotropy, but running in SU(N) mode."
+    end
+
+    sun_anisos = combine_and_pad_sun_anisos(sun_anisos, crystal, N)
+    sun_aniso = merge(sun_anisos)
+
+    return (nothing, nothing, sun_aniso)
 end
 
 
@@ -74,7 +145,7 @@ struct HamiltonianCPU
     quadratic_aniso :: Union{Nothing, DipolarQuadraticAnisotropyCPU}
     quartic_aniso   :: Union{Nothing, DipolarQuarticAnisotropyCPU}
     sun_aniso       :: Union{Nothing, SUNAnisotropyCPU}
-    spin_mags       :: Vector{Float64}
+    spin_mags       :: Vector{Float64}  # Keeping this for SU(N) aniso scaling
 end
 
 """
@@ -166,7 +237,7 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Hami
         E += energy(dipoles, ℋ.quartic_aniso)
     end
     if !isnothing(ℋ.sun_aniso)
-        E += energy(dipoles, coherents, ℋ.sun_aniso)
+        E += energy(coherents, ℋ.sun_aniso, ℋ.spin_mags)
     end
     return E
 end
@@ -185,7 +256,7 @@ Note that all `_accum_neggrad!` functions should return _just_ the
 this function. Likewise, all code which utilizes local fields should
 be calling _this_ function, not the `_accum_neggrad!`'s directly.
 """
-function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU) where {N}
+function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     fill!(B, SA[0.0, 0.0, 0.0])
     # NOTE: These are broken up separately due to fears of dispatch costs being large.
     #        However, this has never been profiled and is maybe worth looking into.
@@ -205,18 +276,41 @@ function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, coherents::Array{CVe
         _accum_neggrad!(B, dipoles, ℋ.dipole_int)
     end
     if !isnothing(ℋ.quadratic_aniso)
-        _accum_neggrad!(B, dipoles, ℋ.dipole_int)
+        _accum_neggrad!(B, dipoles, ℋ.quadratic_aniso)
     end
     if !isnothing(ℋ.quartic_aniso)
-        _accum_neggrad!(B, dipoles, ℋ.dipole_int)
+        _accum_neggrad!(B, dipoles, ℋ.quartic_aniso)
     end
-    if !isnothing(ℋ.sun_aniso)
-        _accum_neggrad!(B, dipoles, coherents, ℋ.dipole_int)
+end
+
+"""
+    As above, but for single spin and non-mutating. Used for mean field sampling.
+"""
+function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, idx) 
+    B = SA[0.0, 0.0, 0.0]
+
+    if !isnothing(ℋ.ext_field)
+        B += ℋ.ext_field.effBs[idx[1]] 
+    end
+    for heisen in ℋ.heisenbergs
+        B += _neggrad(dipoles, heisen, idx)
+    end
+    for diag_coup in ℋ.diag_coups
+        B += _neggrad(dipoles, diag_coup, idx)
+    end
+    for gen_coup in ℋ.gen_coups
+        B += _neggrad(dipoles, gen_coup, idx)
+    end
+    if !isnothing(ℋ.quadratic_aniso)
+        B += _neggrad(dipoles, ℋ.quadratic_aniso, idx)
+    end
+    if !isnothing(ℋ.quartic_aniso)
+        _neggrad(dipoles, ℋ.quartic_aniso, idx)
+    end
+    ## TODO: implement dipole neggrad
+    if !isnothing(ℋ.dipole_int)
+        throw("Local energy changes not implemented yet for dipole interactions")
     end
 
-    # Normalize each gradient by the spin magnitude on that sublattice
-    for idx in CartesianIndices(B)
-        S = ℋ.spin_mags[idx[1]]
-        B[idx] /= S
-    end
+    return B
 end
