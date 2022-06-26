@@ -14,7 +14,7 @@ function make_exchange_interactions()
 end
 
 
-function make_test_system_lld(;κ=1.0)
+function make_test_system_lld(; spin_rescaling=1.0)
     cryst = Sunny.fcc_crystal()
 
     # Exchange interactions
@@ -32,12 +32,12 @@ function make_test_system_lld(;κ=1.0)
     return SpinSystem(cryst,
                       interactions_all,
                       dims,
-                      [SiteInfo(1, 0, 2*I(3), κ)]
+                      [SiteInfo(1; spin_rescaling)]
     )
 end
 
 
-function make_test_system_gsd(; κ=1.0, N=2)
+function make_test_system_gsd(; spin_rescaling=1.0, N=2)
     cryst = Sunny.fcc_crystal()
 
     # Exchange interactions
@@ -53,16 +53,16 @@ function make_test_system_gsd(; κ=1.0, N=2)
     return SpinSystem(cryst,
                       interactions_all,
                       dims,
-                      [SiteInfo(1, N, 2*I(3), κ)]
+                      [SiteInfo(1; N, spin_rescaling)]
     )
 end
 
-function spin_magnitude_stability_tester(sys_maker, integrators, num_kappas)
+function spin_magnitude_stability_tester(sys_maker, integrators, num_rescalings)
     Δt = 0.01
-    κs = 3.0 * rand(num_kappas) 
+    spin_rescalings = 3.0 * rand(num_rescalings) 
     for integrator in integrators
-        for κ in κs
-            sys = sys_maker(; κ)
+        for spin_rescaling in spin_rescalings
+            sys = sys_maker(; spin_rescaling)
             int = integrator(sys)
             rand!(sys)
             mags = norm.(sys._dipoles)
@@ -93,7 +93,7 @@ test_spin_magnitude_stability()
 
 function test_energy_scaling_lld()
     N = 0
-    num_scalings = 2    # number of κs to try
+    num_rescalings = 2  
 
     cryst = Sunny.fcc_crystal()
     dims = (4,4,4)
@@ -107,22 +107,22 @@ function test_energy_scaling_lld()
     powers_lld = [2, 2, 4]
 
     for (interaction, power) in zip(interactions_lld, powers_lld)
-        κs = 5.0 * rand(num_scalings)
-        for κ in κs
+        spin_rescalings = 5.0 * rand(num_rescalings)
+        for spin_rescaling in spin_rescalings
 
-            # Get energy for system when κ=1.0
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1, N, 2*I(3), 1.0)])
+            # Get energy for system when spin_rescaling=1.0
+            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N)])
             rand!(sys)
             E₀ = energy(sys)
 
-            # Get energy for same configuration but with κ scaling
+            # Get energy for same configuration but with a spin rescaling 
             S₀ = copy(sys._dipoles)
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1, N, 2*I(3), κ)])
+            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, spin_rescaling)])
             sys._dipoles .= S₀
             Sunny.normalize_dipoles!(sys)
             E₁ = energy(sys)
 
-            @test (E₁/E₀) ≈ κ^power
+            @test (E₁/E₀) ≈ spin_rescaling^power
         end
     end
 end
@@ -132,7 +132,7 @@ test_energy_scaling_lld()
 
 function test_energy_scaling_gsd()
     N = 3
-    num_scalings = 2    # number of κs to try
+    num_rescalings = 2    # number of rescalings to try
 
     cryst = Sunny.fcc_crystal()
     dims = (4,4,4)
@@ -143,19 +143,19 @@ function test_energy_scaling_gsd()
     powers_gsd = [2, 1]
 
     for (interaction, power) in zip(interactions_gsd, powers_gsd)
-        κs = 5.0 * rand(num_scalings)
-        for κ ∈ κs
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1, N, 2*I(3), 1.0)])
+        spin_rescalings = 5.0 * rand(num_rescalings)
+        for spin_rescaling ∈ spin_rescalings
+            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N)])
             rand!(sys)
             E₀ = energy(sys)
 
             Z₀ = copy(sys._coherents)
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1, N, 2*I(3), κ)])
+            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, spin_rescaling)])
             sys._coherents .= Z₀
             Sunny.set_expected_spins!(sys)
             E₁ = energy(sys)
 
-            @test (E₁/E₀) ≈ κ^power
+            @test (E₁/E₀) ≈ spin_rescaling^power
         end
     end
 end
@@ -166,14 +166,14 @@ test_energy_scaling_gsd()
 external magnetic field. Rescales resulting spin magnitude so trajectories
 with different scalings can be directly compared.
 """
-function generate_scaled_zeeman_trajectory(κ, θ, Δt; N=0, dur=10.0)
+function generate_scaled_zeeman_trajectory(spin_rescaling, θ, Δt; N=0, dur=10.0)
     cryst = Sunny.cubic_crystal()
     dims = (1,1,1)
     interactions = [external_field([0.0, 0.0, 10.0])]
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1, N, 2*I(3), κ)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, spin_rescaling)])
 
-    spin = [0.0, sin(θ), cos(θ)] .* κ
+    spin = [0.0, sin(θ), cos(θ)] .* spin_rescaling 
     dpv = Sunny.DipoleView(sys)
     dpv[1] = Sunny.Vec3(spin)
 
@@ -191,9 +191,9 @@ function generate_scaled_zeeman_trajectory(κ, θ, Δt; N=0, dur=10.0)
     end
 
     return (;
-        xs = [S[1]/κ for S ∈ S],
-        ys = [S[1]/κ for S ∈ S],
-        zs = [S[1]/κ for S ∈ S],
+        xs = [S[1]/spin_rescaling for S ∈ S],
+        ys = [S[1]/spin_rescaling for S ∈ S],
+        zs = [S[1]/spin_rescaling for S ∈ S],
         ts
     ) 
 end
@@ -204,13 +204,13 @@ in the presence of a Zeeman term. Tests both LLD and GSD.
 function test_scaling_zeeman()
     Δt = 0.001
     θ = (π/4 - π/32)*rand() + π/32  # amount to tilt spin in zy-plane
-    κ = 3.0*rand()
+    spin_rescaling = 3.0*rand()
     Ns = [0, 2]
 
     for N ∈ Ns
         (; xs) = generate_scaled_zeeman_trajectory(1.0, θ, Δt; N)
         xs_1 = xs
-        (; xs) = generate_scaled_zeeman_trajectory(κ, θ, Δt; N)
+        (; xs) = generate_scaled_zeeman_trajectory(spin_rescaling, θ, Δt; N)
         xs_2 = xs
 
         rms = √sum( (xs_2 .- xs_1) .^2 )
@@ -224,7 +224,7 @@ test_scaling_zeeman()
 """Generate a trajectory for a system with only quadratic interactions. Results are rescaled 
 so results with different spin magnitudes can be compared directly.
 """
-function generate_scaled_quadratic_trajectory(κ, Δt; N=0, dur=10.0)
+function generate_scaled_quadratic_trajectory(spin_rescaling, Δt; N=0, dur=10.0)
     rng = Random.MersenneTwister(111)
     cryst = Sunny.cubic_crystal()
     dims = (4,4,2)
@@ -236,7 +236,7 @@ function generate_scaled_quadratic_trajectory(κ, Δt; N=0, dur=10.0)
         push!(interactions, quadratic_anisotropy(1.0*I(3), 1))
     end
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1, N, 2*I(3), κ)]; rng)
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, spin_rescaling)]; rng)
     rand!(sys)
 
     Integrator = N == 0 ? SphericalMidpoint : SchrodingerMidpoint
@@ -248,14 +248,14 @@ function generate_scaled_quadratic_trajectory(κ, Δt; N=0, dur=10.0)
     S[1] = sys._dipoles[1]
 
     for i in 1:numsteps
-        evolve!(integrator, Δt/κ)
+        evolve!(integrator, Δt/spin_rescaling)
         S[i+1] = sys._dipoles[1]
     end
 
     return (;
-        xs = [S[1]/κ for S ∈ S],
-        ys = [S[1]/κ for S ∈ S],
-        zs = [S[1]/κ for S ∈ S],
+        xs = [S[1]/spin_rescaling for S ∈ S],
+        ys = [S[1]/spin_rescaling for S ∈ S],
+        zs = [S[1]/spin_rescaling for S ∈ S],
         ts 
     ) 
 end
@@ -265,13 +265,13 @@ the rescaling of spin magnitudes.
 """
 function test_scaling_quadratic()
     Δt = 0.01
-    κ = 3.0*rand()
+    spin_rescaling = 3.0*rand()
     Ns = [0, 2]
 
     for N ∈ Ns
         (; xs) = generate_scaled_quadratic_trajectory(1.0, Δt; N)
         xs_1 = xs
-        (; xs) = generate_scaled_quadratic_trajectory(κ, Δt; N)
+        (; xs) = generate_scaled_quadratic_trajectory(spin_rescaling, Δt; N)
         xs_2 = xs
 
         rms = √sum( (xs_2 .- xs_1) .^2 )

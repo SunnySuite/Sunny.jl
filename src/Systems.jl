@@ -87,18 +87,18 @@ end
 function set_expected_spins!(sys::SpinSystem)
     (; _dipoles, _coherents) = sys
     for b in 1:size(_dipoles, 1)
-        κ = sys.site_infos[b].κ
+        spin_rescaling = sys.site_infos[b].spin_rescaling
         for i in CartesianIndices(size(_dipoles)[2:end])
-            _dipoles[b, i] = κ * expected_spin(_coherents[b, i])
+            _dipoles[b, i] = spin_rescaling * expected_spin(_coherents[b, i])
         end
     end
 end
 
 function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::SpinSystem) where N
     for b in 1:size(dipoles, 1)
-        κ = sys.site_infos[b].κ
+        spin_rescaling = sys.site_infos[b].spin_rescaling
         for i in CartesianIndices(size(dipoles)[2:end])
-            dipoles[b, i] = κ * expected_spin(coherents[b, i])
+            dipoles[b, i] = spin_rescaling * expected_spin(coherents[b, i])
         end
     end
 end
@@ -109,18 +109,18 @@ end
 
 Given an incomplete list of site information, propagates spin magnitudes and
 symmetry-transformed g-tensors to all symmetry-equivalent sites. If SiteInfo is
-not provided for a site, sets κ=1 and g=2 for that site. Throws an error if
+not provided for a site, sets N=0, spin_rescaling=1 and g=2 for that site. Throws an error if
 two symmetry-equivalent sites are provided in `site_infos`.
 """
 function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
-    # All sites not explicitly provided are by default N=0, g=2, κ=1
-    all_site_infos = [SiteInfo(i, 0, 2, 1.0) for i in 1:nbasis(crystal)]
+    # All sites not explicitly provided are by default N=0, g=2, spin_rescaling=1
+    all_site_infos = [SiteInfo(i; N=0, g=2*I(3), spin_rescaling=1.0) for i in 1:nbasis(crystal)]
 
     maxN = length(site_infos) > 0 ? maximum(info->info.N, site_infos) : 0
 
     specified_atoms = Int[]
     for siteinfo in site_infos
-        @unpack site, N, g, κ = siteinfo
+        @unpack site, N, g, spin_rescaling = siteinfo
         if N != maxN
             @warn "Up-converting N=$N -> N=$maxN on site $(site)!"
         end
@@ -135,7 +135,7 @@ function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
                 push!(specified_atoms, sym_atom)
             end
 
-            all_site_infos[sym_atom] = SiteInfo(sym_atom, maxN, sym_g, κ)
+            all_site_infos[sym_atom] = SiteInfo(sym_atom; N = maxN, g = sym_g, spin_rescaling)
         end
     end
 
@@ -193,7 +193,7 @@ function Random.rand!(sys::SpinSystem{0})
     dip_view .= randn(sys.rng, Vec3, size(dip_view))
     @. dip_view /= norm(dip_view)
     for b ∈ 1:nbasis(sys)
-        dip_view[b,:,:,:] .*= sys.site_infos[b].κ
+        dip_view[b,:,:,:] .*= sys.site_infos[b].spin_rescaling
     end
     nothing
 end
