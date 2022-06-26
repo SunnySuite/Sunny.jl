@@ -18,11 +18,11 @@ function test_diamond_heisenberg_sf()
         heisenberg(J, Bond(1, 3, [0,0,0])),
     ]
     dims = (8, 8, 8)
-    S = 3/2
-    sys = SpinSystem(crystal, interactions, dims, [SiteInfo(1, S)])
+    spin_rescaling = 3/2
+    sys = SpinSystem(crystal, interactions, dims, [SiteInfo(1; spin_rescaling)])
     rand!(sys)
 
-    Δt = 0.02 / (S^2 * J)     # Units of 1/meV
+    Δt = 0.02 / (spin_rescaling^2 * J)     # Units of 1/meV
     kT = Sunny.meV_per_K * 4. # Units of meV
     α  = 0.1
     nsteps = 20000
@@ -164,7 +164,7 @@ function test_FeI2_MC()
     interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size (16x20x4)
-    system = SpinSystem(cryst, interactions, (16, 20, 4), [SiteInfo(1, 1.0)])
+    system = SpinSystem(cryst, interactions, (16, 20, 4))
     rand!(system)
 
     kB = 8.61733e-2             # meV_per_K constant, units of meV/K
@@ -210,7 +210,7 @@ function test_FeI2_energy_curve()
     interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size 16×20×4
-    system = SpinSystem(cryst, interactions, (16, 20, 4), [SiteInfo(1, 1.0)])
+    system = SpinSystem(cryst, interactions, (16, 20, 4), [SiteInfo(1)])
     rand!(system)
 
     sampler = MetropolisSampler(system, 1.0, 10)

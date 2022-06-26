@@ -168,7 +168,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     quadratic_anisos = nothing
     quartic_anisos = nothing
     sun_anisos = nothing
-    spin_mags   = [site.κ for site in site_infos]
+    spin_mags   = [site.spin_rescaling for site in site_infos]
 
     ints = validate_and_clean_interactions(ints, crystal, latsize)
 

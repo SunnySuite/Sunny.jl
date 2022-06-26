@@ -168,11 +168,11 @@ LL-type systems and the new SU(N) stuff. Let me know if you prefer this approach
 """
 
 ## For Metropolis sampler
-@inline function _random_spin(rng::Random.AbstractRNG, ::Val{0}, κ=1.0) :: Vec3
+@inline function _random_spin(rng::Random.AbstractRNG, ::Val{0}, spin_rescaling = 1.0) :: Vec3
     n = randn(rng, Vec3)
-    return κ * n / norm(n)  # Dipoles are scaled by κ
+    return spin_rescaling * n / norm(n)  
 end
-@inline function _random_spin(rng::Random.AbstractRNG, ::Val{N}, κ=1.0) :: CVec{N} where N
+@inline function _random_spin(rng::Random.AbstractRNG, ::Val{N}, spin_rescaling = 1.0) :: CVec{N} where N
     n = randn(rng, CVec{N})
     return n / norm(n)  # Kets are always normalized to 1.0
 end
@@ -226,7 +226,7 @@ end
 end
 @inline function dipole(spin::CVec{N}, sys::SpinSystem, idx) :: Vec3 where N
     b, _ = split_idx(idx)
-    sys.site_infos[b].κ * expected_spin(spin)
+    sys.site_infos[b].spin_rescaling * expected_spin(spin)
 end
 
 
@@ -243,7 +243,7 @@ function sample!(sampler::MetropolisSampler{N}) where N
         for idx in CartesianIndices(sampler.system._dipoles)
             # Try to rotate this spin to somewhere randomly on the unit sphere
             b, _ = splitidx(idx)
-            new_spin = _random_spin(sys.rng, Val(N), sys.site_infos[b].κ)
+            new_spin = _random_spin(sys.rng, Val(N), sys.site_infos[b].spin_rescaling)
             ΔE = local_energy_change(sampler.system, idx, new_spin)
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)

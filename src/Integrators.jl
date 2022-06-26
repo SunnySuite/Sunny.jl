@@ -160,9 +160,9 @@ end
 # Normalize to κ value given in site_infos. For old LL dynamics only.
 function normalize!(S::Array{Vec3, 4}, sys::SpinSystem)
     for b in 1:size(S, 1)
-        κ = sys.site_infos[b].κ
+        spin_rescaling = sys.site_infos[b].spin_rescaling
         for i in CartesianIndices(size(S)[2:end]) 
-            S[b, i] *= κ/norm(S[b, i])
+            S[b, i] *= spin_rescaling/norm(S[b, i])
         end
     end
 end
@@ -291,9 +291,11 @@ function _apply_ℌ_LD!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec
     rhs′ = reinterpret(reshape, ComplexF64, rhs) 
 
     for (site, Λ) in zip(aniso.sites, aniso.Λs) # There is one Λ per site 
-        κ = sys.site_infos[site].κ
+        spin_rescaling = sys.site_infos[site].spin_rescaling
         for cell in CartesianIndices(latsize)
-            @. ℌ = κ * (Λ - (B[site,cell][1] * sys.S[1] + B[site,cell][2] * sys.S[2] + B[site,cell][3] * sys.S[3]))
+            @. ℌ = spin_rescaling * (Λ - (B[site,cell][1] * sys.S[1] +
+                                          B[site,cell][2] * sys.S[2] +
+                                          B[site,cell][3] * sys.S[3]))
             mul!(@view(rhs′[:, site, cell]), ℌ, Z[site, cell])
         end
     end
