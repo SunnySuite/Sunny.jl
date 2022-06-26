@@ -1,6 +1,52 @@
 """ Implements Ewald summation rules for monopoles and dipoles on 3D lattices
 """
 
+# NOTE: Need to determine what RNG to use for ChargeSystem.
+"""
+Defines a collection of charges. Currently primarily used to test ewald
+ summation calculations.
+"""
+struct ChargeSystem <: AbstractArray{Float64, 4}
+    lattice   :: Lattice             # Definition of underlying lattice
+    charges   :: Array{Float64, 4}   # Holds charges at each site
+end
+Base.IndexStyle(::Type{ChargeSystem}) = IndexLinear()
+Base.size(sys::ChargeSystem) = size(sys.charges)
+Base.getindex(sys::ChargeSystem, i::Int) = sys.charges[i]
+Base.setindex!(sys::ChargeSystem, v, i::Int) = setindex!(sys.charges, v, i)
+
+"""
+    ChargeSystem(lat::Lattice)
+
+Construct a `ChargeSystem` on the given lattice, initialized to all zero charges.
+"""
+function ChargeSystem(lat::Lattice)
+    sites_size = (nbasis(lat), lat.size...)
+    sites = zeros(sites_size)
+
+    return ChargeSystem(lat, sites)
+end
+
+function ChargeSystem(crystal::Crystal, latsize)
+    lattice = Lattice(crystal, latsize)
+    return ChargeSystem(lattice)
+end
+
+@inline nbasis(sys::ChargeSystem) = nbasis(sys.lattice)
+@inline eachcellindex(sys::ChargeSystem) = eachcellindex(sys.lattice)
+
+"""
+    rand!(sys::ChargeSystem)
+
+Sets charges to random values uniformly drawn from ``[-1, 1]``,
+then shifted to charge-neutrality.
+"""
+function Random.rand!(sys::ChargeSystem)
+    sys.charges .= 2 .* rand(Float64, size(sys.charges)) .- 1.
+    sys.charges .-= sum(sys.charges) / length(sys.charges)
+    return
+end
+
 @doc raw"""
     ewald_sum_monopole(sys::ChargeSystem; η=1.0, extent=10)
 
@@ -408,7 +454,7 @@ struct DipoleRealCPU <: AbstractInteractionCPU
     int_mat :: OffsetArray{Mat3, 5, Array{Mat3, 5}}
 end
 
-function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info::Vector{SiteInfo};
+function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_infos::Vector{SiteInfo};
                        μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
     @unpack extent, η = dip
     lattice = Lattice(crystal, latsize)
@@ -416,11 +462,11 @@ function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, sites_info:
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(lattice; extent, η)
     # Conjugate each matrix by the correct g matrices
     for b1 in 1:nbasis(crystal)
-        S1, g1 = sites_info[b1].S, sites_info[b1].g
+        g1 = site_infos[b1].g
         for b2 in 1:nbasis(crystal)
-            S2, g2 = sites_info[b2].S, sites_info[b2].g
+            g2 = site_infos[b2].g
             for ijk in CartesianIndices(axes(A)[3:end])
-                A[b1, b2, ijk] = (S1*S2) * g1' * A[b1, b2, ijk] * g2
+                A[b1, b2, ijk] = g1' * A[b1, b2, ijk] * g2
             end
         end
     end

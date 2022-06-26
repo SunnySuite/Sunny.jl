@@ -26,7 +26,7 @@ function test_spherical_midpoint()
 
     # Check that the energy hasn't fluctuated much. Expected fluctuations should
     # scale like square-root of system size.
-    sqrt_size = sqrt(length(sys.sites))
+    sqrt_size = sqrt(length(sys._dipoles))
     ΔE = (maximum(energies) - minimum(energies)) / sqrt_size
     @test ΔE < 1e-2
 end
@@ -53,7 +53,7 @@ function test_dipole_ft()
     end
 
     # Check that the energy hasn't fluctuated much
-    sqrt_size = sqrt(length(sys.sites))
+    sqrt_size = sqrt(length(sys._dipoles))
     ΔE = (maximum(energies) - minimum(energies)) / sqrt_size
     @test ΔE < 2e-2
 end

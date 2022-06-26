@@ -12,6 +12,7 @@ using Tullio
 using ProgressMeter
 using Printf
 using Random: rand!, randn!
+import Random
 
 # Specific to Symmetry/
 using FilePaths: Path
@@ -24,10 +25,12 @@ using Colors
 import Random: randstring, RandomDevice
 
 # TODO: Remove in Julia 1.7
-using Parameters: @unpack
+using Parameters: @unpack, @with_kw
 
 const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
+const Quad3 = SArray{Tuple{3,3,3,3}, Float64, 4, 81}
+const CVec{N} = SVector{N, ComplexF64}
 
 # Boltzmannn factor k_B in units of meV/K
 const meV_per_K = 0.086173332621451774
@@ -53,11 +56,14 @@ include("Lattice.jl")
 
 include("Interactions.jl")
 export heisenberg, exchange, dm_interaction
-export easy_axis, easy_plane, single_ion_anisotropy
+export easy_axis, easy_plane, quadratic_anisotropy, quartic_anisotropy
+export SUN_anisotropy, gen_spin_ops
 export external_field, dipole_dipole
 export SiteInfo
 
 include("PairInteractions.jl")
+
+include("Anisotropies.jl")
 
 include("Ewald.jl")
 
@@ -69,12 +75,14 @@ include("Systems.jl")
 export ChargeSystem, SpinSystem, rand!, randflips!, energy, field, field!
 
 include("Metropolis.jl")
-export MetropolisSampler, IsingSampler, set_temp!, get_temp, get_system
+export MetropolisSampler, IsingSampler, MeanFieldSampler
+export set_temp!, get_temp, get_system
 export sample!, thermalize!, anneal!
 export running_energy, running_mag, reset_running_energy!, reset_running_mag!
 
 include("Integrators.jl")
 export HeunP, LangevinHeunP, SphericalMidpoint, evolve!
+export LangevinHeunPSUN, SchrodingerMidpoint
 export LangevinSampler
 
 include("StructureFactors.jl")

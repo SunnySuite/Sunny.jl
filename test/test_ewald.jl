@@ -8,9 +8,9 @@ function test_ewald_NaCl()
     latsize = [2, 2, 2]
     lattice = Sunny.Lattice(lat_vecs, b_vecs, latsize)
     sys = ChargeSystem(lattice)
-    sys.sites .= reshape([1, -1, -1, 1, -1, 1, 1, -1], (1, 2, 2, 2))
+    sys.charges .= reshape([1, -1, -1, 1, -1, 1, 1, -1], (1, 2, 2, 2))
 
-    ewald_result = Sunny.ewald_sum_monopole(lattice, sys.sites, extent=30)
+    ewald_result = Sunny.ewald_sum_monopole(lattice, sys.charges, extent=30)
     
     answer = -1.7475645946331822
     @test isapprox(answer, ewald_result / 4; rtol=1e-7)
@@ -27,9 +27,9 @@ function test_ewald_CsCl()
     latsize = [1, 1, 1]
     lattice = Sunny.Lattice(lat_vecs, b_vecs, latsize)
     sys = ChargeSystem(lattice)
-    sys.sites .= reshape([1, -1], (2, 1, 1, 1))
+    sys.charges .= reshape([1, -1], (2, 1, 1, 1))
 
-    ewald_result = Sunny.ewald_sum_monopole(lattice, sys.sites, extent=30)
+    ewald_result = Sunny.ewald_sum_monopole(lattice, sys.charges, extent=30)
     
     # Madelung constants are reported relative to the
     #  nearest-neighbor distance in the crystal
@@ -50,9 +50,9 @@ function test_ewald_ZnS()
     latsize = [1, 1, 1]
     lattice = Sunny.Lattice(lat_vecs, b_vecs, latsize)
     sys = ChargeSystem(lattice)
-    sys.sites .= reshape([1, -1], (2, 1, 1, 1))
+    sys.charges .= reshape([1, -1], (2, 1, 1, 1))
 
-    ewald_result = Sunny.ewald_sum_monopole(lattice, sys.sites, extent=30)
+    ewald_result = Sunny.ewald_sum_monopole(lattice, sys.charges, extent=30)
     
     # Madelung constants are reported relative to the
     #  nearest-neighbor distance in the crystal
@@ -83,9 +83,9 @@ function test_ewald_ZnSB4()
     latsize = [1, 1, 1]
     lattice = Sunny.Lattice(lat_vecs, b_vecs, latsize)
     sys = ChargeSystem(lattice)
-    sys.sites .= reshape([1, 1, -1, -1], (4, 1, 1, 1))
+    sys.charges .= reshape([1, 1, -1, -1], (4, 1, 1, 1))
 
-    ewald_result = Sunny.ewald_sum_monopole(lattice, sys.sites, extent=30)
+    ewald_result = Sunny.ewald_sum_monopole(lattice, sys.charges, extent=30)
     
     # Madelung constants are reported relative to the
     #  nearest-neighbor distance in the crystal
@@ -109,7 +109,7 @@ end
 """
 function _approx_dip_as_mono(sys::SpinSystem; ϵ::Float64=0.1) :: ChargeSystem
     lattice = sys.lattice
-    sites = sys.sites
+    dipoles = sys._dipoles
 
     # Need to expand the underlying unit cell to the entire system size
     new_lat_vecs = lattice.size' .* lattice.lat_vecs
@@ -117,7 +117,7 @@ function _approx_dip_as_mono(sys::SpinSystem; ϵ::Float64=0.1) :: ChargeSystem
 
     frac_transform = inv(new_lat_vecs)
 
-    new_nbasis = 2 * prod(size(sites))
+    new_nbasis = 2 * prod(size(dipoles))
     new_sites = zeros(new_nbasis, 1, 1, 1)
     new_basis = empty(lattice.basis_vecs)
     sizehint!(new_basis, new_nbasis)
@@ -125,7 +125,7 @@ function _approx_dip_as_mono(sys::SpinSystem; ϵ::Float64=0.1) :: ChargeSystem
     ib = 1
     for idx in eachindex(lattice)
         @inbounds r = lattice[idx]
-        @inbounds p = sites[idx]
+        @inbounds p = dipoles[idx]
 
         # Add new charges as additional basis vectors
         push!(new_basis, frac_transform * (r + ϵ * p))
@@ -163,10 +163,10 @@ function test_mono_dip_consistent()
     sys = SpinSystem(cryst, Sunny.AbstractInteraction[], latsize)
     rand!(sys)
 
-    dip_ewald = Sunny.ewald_sum_dipole(sys.lattice, sys.sites; extent=15)
+    dip_ewald = Sunny.ewald_sum_dipole(sys.lattice, sys._dipoles; extent=15)
 
     csys = _approx_dip_as_mono(sys; ϵ=0.001)
-    mono_ewald = Sunny.ewald_sum_monopole(csys.lattice, csys.sites; extent=15)
+    mono_ewald = Sunny.ewald_sum_monopole(csys.lattice, csys.charges; extent=15)
     dip_self_en = _dipole_self_energy(; ϵ=0.001)
     num_spins = prod(size(sys))
 

@@ -15,13 +15,9 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
             # Verify that the interactions are symmetry-consistent
             if !is_coupling_valid(crystal, b, int.J)
                 println("Symmetry-violating interaction: $(repr(MIME("text/plain"), int)).")
-                if b.i == b.j && iszero(b.n)
-                    println("Allowed single-ion anisotropy for this atom:")
-                else
-                    println("Allowed exchange for this bond:")
-                end
+                println("Allowed exchange for this bond:")
                 print_allowed_coupling(crystal, b; prefix="    ")
-                println("Use `print_bond(crystal, bond)` for more information.")
+                println("Use `print_bond(crystal, $b)` for more information.")
                 error("Interaction violates symmetry.")
             end
 
@@ -34,10 +30,103 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
                 println("Distance-violating interaction: $int.")
                 error("Interaction wraps system.")
             end
+        elseif isa(int, QuadraticAnisotropy)
+            site = int.site
+            b = Bond(site, site, [0, 0, 0])
+            if !is_coupling_valid(crystal, b, int.J)
+                println("Symmetry-violating anisotropy: $(repr(MIME("text/plain"), int)).")
+                println("Allowed single-ion anisotropy for this atom:")
+                print_allowed_coupling(crystal, b; prefix="    ")
+                println("Use `print_bond(crystal, Bond($site, $site, [0,0,0])` for more information.")
+                error("Interaction violates symmetry.")
+            end
+        ## TODO: check validity of quartic anisotropy
         end
     end
 
     return ints
+end
+
+
+# Functions for converting front end anistropy types to back end types. 
+function merge(anisos::Vector{QuadraticAnisotropy}) 
+    (length(anisos) == 0) && (return nothing)
+    DipolarQuadraticAnisotropyCPU([a.J for a in anisos],
+                                  [a.site for a in anisos],
+                                  ""
+    )
+end
+
+function merge(anisos::Vector{QuarticAnisotropy})
+    (length(anisos) == 0) && (return nothing)
+    DipolarQuarticAnisotropyCPU([SparseTensor(a.J) for a in anisos],
+                                [a.site for a in anisos],
+                                ""
+    )
+end
+
+function merge(anisos::Vector{SUNAnisotropy})
+    (length(anisos) == 0) && (return nothing)
+    SUNAnisotropyCPU([a.Λ for a in anisos],
+                     [a.site for a in anisos],
+                     ""
+    )
+end
+
+# Set Λ to zero matrix for every site and cumulatively add
+# every given SU(N) anistropy matrix according to site. This ensures
+# that there is exactly one Λ for every site.
+function combine_and_pad_sun_anisos(anisos::Vector{SUNAnisotropy}, crystal::Crystal, N::Int)
+    new_anisos = SUNAnisotropy[]
+    for b in 1:nbasis(crystal)
+        Λ′ = zeros(ComplexF64, N, N)
+        site_anisos = filter(a -> a.site == b, anisos)
+        if length(site_anisos) > 0
+            dims = [size(a.Λ)[1] for a ∈ site_anisos]
+            wrong_dims = filter(d -> d != N, dims)
+            if length(wrong_dims) > 0
+                throw("Dimension of one or more anisotropies does not match system N")
+            end
+            Λ′ += sum([a.Λ for a ∈ site_anisos])
+        end
+        push!(new_anisos, SUNAnisotropy(Λ′, b, "Final anisotropy"))
+    end
+    return new_anisos
+end
+
+
+function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::Crystal, site_infos::Vector{SiteInfo})
+    N = site_infos[1].N     # All should have been upconverted to maxN
+
+    # Separate out different anisotropy types. 
+    quadratic_anisos = filter(a -> isa(a, QuadraticAnisotropy), anisos) |>
+                       Vector{QuadraticAnisotropy}
+    quartic_anisos = filter(a -> isa(a, QuarticAnisotropy), anisos) |>
+                     Vector{QuarticAnisotropy}
+    sun_anisos = filter(a -> isa(a, SUNAnisotropy), anisos) |>
+                 Vector{SUNAnisotropy}
+
+    # Convert to backend types if in LL mode.
+    if N == 0
+        if length(sun_anisos) != 0
+            @error "Given a SU(N) anisotropy but running in classic Landau-Lifshitz mode."
+        end
+
+        quadratic_aniso = merge(quadratic_anisos)
+        quartic_aniso = merge(quartic_anisos)
+
+        return (quadratic_aniso, quartic_aniso, nothing)
+    end
+
+    # Throw error if given non-SU(N) anisotropy and in SU(N) mode 
+    if length(quadratic_anisos) != 0 || length(quartic_anisos) != 0
+        @error "Given a Landau-Lifshitz-type anisotropy, but running in SU(N) mode."
+    end
+
+    sun_anisos = combine_and_pad_sun_anisos(sun_anisos, crystal, N)
+    sun_aniso = merge(sun_anisos)
+
+    return (nothing, nothing, sun_aniso)
 end
 
 
@@ -48,44 +137,52 @@ Stores and orchestrates the types that perform the actual implementations
 of all interactions internally.
 """
 struct HamiltonianCPU
-    ext_field   :: Union{Nothing, ExternalFieldCPU}
-    heisenbergs :: Vector{HeisenbergCPU}
-    diag_coups  :: Vector{DiagonalCouplingCPU}
-    gen_coups   :: Vector{GeneralCouplingCPU}
-    dipole_int  :: Union{Nothing, DipoleRealCPU, DipoleFourierCPU}
-    spin_mags   :: Vector{Float64}
+    ext_field       :: Union{Nothing, ExternalFieldCPU}
+    heisenbergs     :: Vector{HeisenbergCPU}
+    diag_coups      :: Vector{DiagonalCouplingCPU}
+    gen_coups       :: Vector{GeneralCouplingCPU}
+    dipole_int      :: Union{Nothing, DipoleRealCPU, DipoleFourierCPU}
+    quadratic_aniso :: Union{Nothing, DipolarQuadraticAnisotropyCPU}
+    quartic_aniso   :: Union{Nothing, DipolarQuarticAnisotropyCPU}
+    sun_aniso       :: Union{Nothing, SUNAnisotropyCPU}
+    spin_mags       :: Vector{Float64}  # Keeping this for SU(N) aniso scaling
 end
 
 """
-    HamiltonianCPU(ints, crystal, latsize, sites_info::Vector{SiteInfo})
+    HamiltonianCPU(ints, crystal, latsize, site_infos::Vector{SiteInfo})
 
 Construct a `HamiltonianCPU` from a list of interactions, converting
 each of the interactions into the proper backend type specialized
 for the given `crystal` and `latsize`.
 
-Note that `sites_info` must be complete when passed to this constructor.
+Note that `site_infos` must be complete when passed to this constructor.
 """
 function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
-                        latsize::Vector{Int64}, sites_info::Vector{SiteInfo};
+                        latsize::Vector{Int64}, site_infos::Vector{SiteInfo};
                         μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
     ext_field   = nothing
     heisenbergs = Vector{HeisenbergCPU}()
     diag_coups  = Vector{DiagonalCouplingCPU}()
     gen_coups   = Vector{GeneralCouplingCPU}()
     dipole_int  = nothing
-    spin_mags   = [site.S for site in sites_info]
+    quadratic_anisos = nothing
+    quartic_anisos = nothing
+    sun_anisos = nothing
+    spin_mags   = [site.κ for site in site_infos]
 
     ints = validate_and_clean_interactions(ints, crystal, latsize)
 
+    anisos = Vector{AbstractAnisotropy}()
     for int in ints
+        # TODO: Handle all of the ifs with multiple dispatch instead?
         if isa(int, ExternalField)
             if isnothing(ext_field)
-                ext_field = ExternalFieldCPU(int, sites_info; μB=μB)
+                ext_field = ExternalFieldCPU(int, site_infos; μB=μB)
             else
-                ext_field.Bgs .+= ExternalFieldCPU(int, sites_info; μB=μB).Bgs
+                ext_field.Bgs .+= ExternalFieldCPU(int, site_infos; μB=μB).Bgs
             end
         elseif isa(int, QuadraticInteraction)
-            int_impl = convert_quadratic(int, crystal, sites_info)
+            int_impl = convert_quadratic(int, crystal, site_infos)
             if isa(int_impl, HeisenbergCPU)
                 push!(heisenbergs, int_impl)
             elseif isa(int_impl, DiagonalCouplingCPU)
@@ -95,37 +192,52 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
             else
                 error("Quadratic interaction failed to convert to known backend type.")
             end
+        elseif isa(int, AbstractAnisotropy)
+            push!(anisos, int)
         elseif isa(int, DipoleDipole)
             if !isnothing(dipole_int)
                 @warn "Provided multiple dipole interactions. Only using last one."
             end
-            dipole_int = DipoleFourierCPU(int, crystal, latsize, sites_info; μB=μB, μ0=μ0)
+            dipole_int = DipoleFourierCPU(int, crystal, latsize, site_infos; μB=μB, μ0=μ0)
         else
             error("$(int) failed to convert to known backend type.")
         end
     end
+    (quadratic_anisos, quartic_anisos, sun_anisos) = merge_upconvert_anisos(anisos, crystal, site_infos)
 
     return HamiltonianCPU(
-        ext_field, heisenbergs, diag_coups, gen_coups, dipole_int, spin_mags
+        ext_field, heisenbergs, diag_coups, gen_coups, dipole_int,
+        quadratic_anisos, quartic_anisos, sun_anisos, spin_mags
     )
 end
 
-function energy(spins::Array{Vec3}, ℋ::HamiltonianCPU) :: Float64
+function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU) :: Float64 where {N}
     E = 0.0
+    # NOTE: These are broken up separately due to fears of dispatch costs being large.
+    #        However, this has never been profiled and is maybe worth looking into.
     if !isnothing(ℋ.ext_field)
-        E += energy(spins, ℋ.ext_field)
+        E += energy(dipoles, ℋ.ext_field)
     end
     for heisen in ℋ.heisenbergs
-        E += energy(spins, heisen)
+        E += energy(dipoles, heisen)
     end
     for diag_coup in ℋ.diag_coups
-        E += energy(spins, diag_coup)
+        E += energy(dipoles, diag_coup)
     end
     for gen_coup in ℋ.gen_coups
-        E += energy(spins, gen_coup)
+        E += energy(dipoles, gen_coup)
     end
     if !isnothing(ℋ.dipole_int)
-        E += energy(spins, ℋ.dipole_int)
+        E += energy(dipoles, ℋ.dipole_int)
+    end
+    if !isnothing(ℋ.quadratic_aniso)
+        E += energy(dipoles, ℋ.quadratic_aniso)
+    end
+    if !isnothing(ℋ.quartic_aniso)
+        E += energy(dipoles, ℋ.quartic_aniso)
+    end
+    if !isnothing(ℋ.sun_aniso)
+        E += energy(coherents, ℋ.sun_aniso, ℋ.spin_mags)
     end
     return E
 end
@@ -144,27 +256,61 @@ Note that all `_accum_neggrad!` functions should return _just_ the
 this function. Likewise, all code which utilizes local fields should
 be calling _this_ function, not the `_accum_neggrad!`'s directly.
 """
-function field!(B::Array{Vec3}, spins::Array{Vec3}, ℋ::HamiltonianCPU)
+function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     fill!(B, SA[0.0, 0.0, 0.0])
+    # NOTE: These are broken up separately due to fears of dispatch costs being large.
+    #        However, this has never been profiled and is maybe worth looking into.
     if !isnothing(ℋ.ext_field)
         _accum_neggrad!(B, ℋ.ext_field)
     end
     for heisen in ℋ.heisenbergs
-        _accum_neggrad!(B, spins, heisen)
+        _accum_neggrad!(B, dipoles, heisen)
     end
     for diag_coup in ℋ.diag_coups
-        _accum_neggrad!(B, spins, diag_coup)
+        _accum_neggrad!(B, dipoles, diag_coup)
     end
     for gen_coup in ℋ.gen_coups
-        _accum_neggrad!(B, spins, gen_coup)
+        _accum_neggrad!(B, dipoles, gen_coup)
     end
     if !isnothing(ℋ.dipole_int)
-        _accum_neggrad!(B, spins, ℋ.dipole_int)
+        _accum_neggrad!(B, dipoles, ℋ.dipole_int)
+    end
+    if !isnothing(ℋ.quadratic_aniso)
+        _accum_neggrad!(B, dipoles, ℋ.quadratic_aniso)
+    end
+    if !isnothing(ℋ.quartic_aniso)
+        _accum_neggrad!(B, dipoles, ℋ.quartic_aniso)
+    end
+end
+
+"""
+    As above, but for single spin and non-mutating. Used for mean field sampling.
+"""
+function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, idx) 
+    B = SA[0.0, 0.0, 0.0]
+
+    if !isnothing(ℋ.ext_field)
+        B += ℋ.ext_field.effBs[idx[1]] 
+    end
+    for heisen in ℋ.heisenbergs
+        B += _neggrad(dipoles, heisen, idx)
+    end
+    for diag_coup in ℋ.diag_coups
+        B += _neggrad(dipoles, diag_coup, idx)
+    end
+    for gen_coup in ℋ.gen_coups
+        B += _neggrad(dipoles, gen_coup, idx)
+    end
+    if !isnothing(ℋ.quadratic_aniso)
+        B += _neggrad(dipoles, ℋ.quadratic_aniso, idx)
+    end
+    if !isnothing(ℋ.quartic_aniso)
+        _neggrad(dipoles, ℋ.quartic_aniso, idx)
+    end
+    ## TODO: implement dipole neggrad
+    if !isnothing(ℋ.dipole_int)
+        throw("Local energy changes not implemented yet for dipole interactions")
     end
 
-    # Normalize each gradient by the spin magnitude on that sublattice
-    for idx in CartesianIndices(B)
-        S = ℋ.spin_mags[idx[1]]
-        B[idx] /= S
-    end
+    return B
 end

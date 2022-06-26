@@ -11,7 +11,6 @@
         #  [heisenberg, on_site [heisen], diagonal, general]
         correct_types = [
             Sunny.HeisenbergCPU,
-            Sunny.HeisenbergCPU,
             Sunny.DiagonalCouplingCPU,
             Sunny.GeneralCouplingCPU
         ]
