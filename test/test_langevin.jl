@@ -194,7 +194,7 @@ function test_spin_chain_energy()
         Δt = 0.01
 
         n_decorr = 500  # Decorrelation steps between samples
-        n_samples = 1000
+        n_samples = 1500
         n_bins = 10  # Number of bins in empirical distribution
 
         # Initialize the Langevin sampler and thermalize the system
@@ -216,7 +216,7 @@ function test_spin_chain_energy()
         # RMS error between empirical distribution and discretized analytical distribution
         rms = sqrt(sum( (Ps .- Ps_analytical) .^ 2))
 
-        @test rms < 0.05
+        @test rms < 0.075
     end
 end
 
