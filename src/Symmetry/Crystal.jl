@@ -47,12 +47,12 @@ end
 
 # Wrap each coordinate of position r into the range [0,1). To account for finite
 # precision, wrap 1-ϵ to -ϵ, where ϵ=symprec is a tolerance parameter.
-function wrap_to_unit_cell(r::Vec3; symprec=1e-5)
+function wrap_to_unit_cell(r::Vec3; symprec)
     return @. mod(r+symprec, 1) - symprec
 end
 
-function is_same_position(x, y; symprec=1e-5)
-    return norm(rem.(x-y, 1, RoundNearest)) < symprec
+function all_integer(x; symprec)
+    return norm(x - round.(x)) < symprec
 end
 
 struct SiteSymmetry
@@ -197,7 +197,7 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
         for j in i+1:length(positions)
             ri = positions[i]
             rj = positions[j]
-            if is_same_position(ri, rj; symprec)
+            if all_integer(ri-rj; symprec)
                 error("Positions $ri and $rj are symmetry equivalent.")
             end
         end
@@ -345,7 +345,7 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
         for s = symops
             x = wrap_to_unit_cell(transform(s, positions[i]); symprec)
 
-            idx = findfirst(y -> is_same_position(x, y; symprec), all_positions)
+            idx = findfirst(y -> all_integer(x-y; symprec), all_positions)
             if isnothing(idx)
                 push!(all_positions, x)
                 push!(all_types, types[i])

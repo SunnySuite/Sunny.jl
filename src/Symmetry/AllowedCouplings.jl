@@ -170,8 +170,8 @@ end
 @assert sym_basis * sym_basis' + asym_basis * asym_basis' ≈ I
 
 
-# Linearly combine the columns of A to make them sparser. Equivalent to finding
-# the reduced row echolon form, but in column space.
+# Linearly combine the columns of A to make them sparser. Specifically, find
+# reduced row echelon form, but in column space.
 function sparsify_columns(A; atol=1e-12)
     A = rref!(copy(A'), atol)'
     return A

@@ -1,12 +1,9 @@
-function is_equivalent_by_periodicity(cryst::Crystal, r1::Vec3, r2::Vec3)
-    # Round components of displacement vector to nearest integers
-    n = round.(r2-r1, RoundNearest)
-    # If all displacement components are in fact integers, then the two
-    # positions are equivalent up to periodicity of the unit cell
-    return norm(n - (r2-r1)) < cryst.symprec
+# Convenience method
+function is_periodic_copy(cryst::Crystal, r1::Vec3, r2::Vec3)
+    all_integer(r1-r2; cryst.symprec)
 end
 
-function is_equivalent_by_periodicity(cryst::Crystal, b1::BondRaw, b2::BondRaw)
+function is_periodic_copy(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     # Displacements between the two bonds
     D1 = b2.ri - b1.ri
     D2 = b2.rj - b1.rj
@@ -22,12 +19,46 @@ function symmetries_for_pointgroup_of_atom(cryst::Crystal, i::Int)
     r = cryst.positions[i]
     for s in cryst.symops
         r′ = transform(s, r)
-        if is_equivalent_by_periodicity(cryst, r, r′)
+        if is_periodic_copy(cryst, r, r′)
             push!(ret, s)
         end
     end
     return ret
 end
+
+
+# General a list of all symmetries that transform i2 into i1. (Convention for
+# definition of `s` is consistent with symmetries_between_bonds())
+function symmetries_between_atoms(cryst::Crystal, i1::Int, i2::Int)
+    ret = SymOp[]
+    r1 = cryst.positions[i1]
+    r2 = cryst.positions[i2]
+    for s in cryst.symops
+        if is_periodic_copy(cryst, r1, transform(s, r2))
+            push!(ret, s)
+        end
+    end
+    return ret
+end
+
+
+# The list of atoms symmetry-equivalent to i_ref
+function all_symmetry_related_atoms(cryst::Crystal, i_ref::Int)
+    # The result is the set of atoms sharing the symmetry "class"
+    c = cryst.classes[i_ref]
+    ret = findall(==(c), cryst.classes)
+
+    # Calculate the result another way, as a consistency check.
+    equiv_atoms = Int[]
+    r_ref = cryst.positions[i_ref]
+    for s in cryst.symops
+        push!(equiv_atoms, position_to_index(cryst, transform(s, r_ref)))
+    end
+    @assert sort(unique(equiv_atoms)) == ret
+
+    return ret
+end
+
 
 # Generate list of all symmetries that transform b2 into b1, along with parity
 function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
@@ -46,9 +77,9 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     ret = Tuple{SymOp, Bool}[]
     for s in cryst.symops
         b2′ = transform(s, b2)
-        if is_equivalent_by_periodicity(cryst, b1, b2′)
+        if is_periodic_copy(cryst, b1, b2′)
             push!(ret, (s, true))
-        elseif is_equivalent_by_periodicity(cryst, b1, reverse(b2′))
+        elseif is_periodic_copy(cryst, b1, reverse(b2′))
             push!(ret, (s, false))
         end
     end
@@ -132,8 +163,6 @@ Returns a full list of bonds, one for each symmetry equivalence class, up to
 distance `max_dist`. The reference bond `b` for each equivalence class is
 selected according to a scoring system that prioritizes simplification of the
 elements in `basis_for_symmetry_allowed_couplings(cryst, b)`."""
-reference_bonds(cryst::Crystal, max_dist) = reference_bonds(cryst, convert(Float64, max_dist))
-
 function reference_bonds(cryst::Crystal, max_dist::Float64)
     # Bonds, one for each equivalence class
     ref_bonds = Bond[]
@@ -159,6 +188,7 @@ function reference_bonds(cryst::Crystal, max_dist::Float64)
         #     return argmin(b -> _score_bond(cryst, b), equiv_bonds)
     end
 end
+reference_bonds(cryst::Crystal, max_dist) = reference_bonds(cryst, convert(Float64, max_dist))
 
 """
     all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b::Bond)

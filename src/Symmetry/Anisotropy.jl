@@ -497,3 +497,39 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
 
     return Mat3(hcat(x_dir, y_dir, z_dir))
 end
+
+
+"""
+all_symmetry_related_anisotropies(cryst, i_ref, Λ_ref::Matrix{ComplexF64})
+
+Return two lists. The first list contains all atoms `i` that are symmetry
+equivalent to `i_ref`. The second list contains the appropriately transformed
+anisotropy matrices `Λ` for each site `i`.
+"""
+function all_symmetry_related_anisotropies(cryst::Crystal, i_ref::Int, Λ_ref::Matrix{ComplexF64})
+    @assert is_anisotropy_valid(cryst, i_ref, Λ_ref)
+
+    is = all_symmetry_related_atoms(cryst, i_ref)
+    Λs = map(is) do i
+        # Since i is constructed to be symmetry related to i_ref, there must be
+        # some symop s that transforms i_ref into i.
+        s = first(symmetries_between_atoms(cryst, i, i_ref))
+        
+        # Rotation+reflection R corresponds to a pure rotation Q that acts on
+        # pseudo-vector spins.
+        R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
+        Q = det(R) * R
+
+        # Map rotation Q into a unitary U that acts on spins.
+        N = size(Λ_ref, 1)
+        U = unitary_for_rotation(N, Q)
+
+        # The anisotropy energy must be scalar. The unitary U is is defined to
+        # transform states |Z_ref⟩ → |Z⟩ = U |Z_ref⟩. To achieve invariance,
+        # ⟨Z_ref|Λ_ref|Z_ref⟩ = ⟨Z|Λ|Z⟩, we define Λ_ref → Λ = U*Λ_ref*U'. In
+        # other words, Λ_ref transformed by the _inverse_ of the rotation Q.
+        return U*Λ_ref*U'
+    end
+
+    return (is, Λs)
+end

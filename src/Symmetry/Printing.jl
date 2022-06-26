@@ -105,13 +105,13 @@ function _print_allowed_coupling(basis_strs; prefix)
 end
 
 """
-    print_allowed_couplings(cryst::Crystal, bonds; prefix="", digits=4, atol=1e-12)
+    print_mutually_allowed_couplings(cryst::Crystal, bonds; prefix="", digits=4, atol=1e-12)
 
 Prints the allowed coupling matrix for every bond in `bonds`. The coefficient
 parameters `A`, `B`, `C` etc. will have a consistent meaning for each printed
 coupling matrix, and are selected according to the first element of `bonds`.
 """
-function print_allowed_couplings(cryst::Crystal, bonds;  digits=4, atol=1e-12)
+function print_mutually_allowed_couplings(cryst::Crystal, bonds;  digits=4, atol=1e-12)
     isempty(bonds) && return
 
     b_ref = first(bonds)
@@ -205,6 +205,12 @@ function print_bond_table(cryst::Crystal, max_dist; digits=4, atol=1e-12)
 end
 
 
+"""
+print_suggested_frame(cryst, i; digits=4)
+
+Print a suggested reference frame, as a rotation matrix `R`, that can be used as
+input to `stevens_basis_for_symmetry_allowed_anisotropies()`
+"""
 function print_suggested_frame(cryst::Crystal, i::Int; digits=4, atol=1e-12)
     R = suggest_frame_for_atom(cryst, i)
 
@@ -216,6 +222,13 @@ function print_suggested_frame(cryst::Crystal, i::Int; digits=4, atol=1e-12)
     println("     " * join(R_strs[3,:], " "), " ]")
 end
 
+"""
+print_allowed_anisotropy(cryst, i; R=I, digits=4, time_reversal=true)
+
+Print the allowable linear combinations of Stevens operators that are consistent
+with the point group symmetries of site `i`. If `time_reversal` symmetry is
+`false`, then odd-order Stevens operators will also be considered.
+"""
 function print_allowed_anisotropy(cryst::Crystal, i::Int; R=Mat3(I), atol=1e-12, digits=4, time_reversal=true)
     ks = time_reversal ? [2,4,6] : collect(1:6)
     kchars = ['₁', '₂', '₃', '₄', '₅', '₆']
