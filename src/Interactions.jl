@@ -36,13 +36,13 @@ function Base.show(io::IO, mime::MIME"text/plain", int::QuadraticInteraction)
 end
 
 """
-    SiteInfo(site::Int, N::Int, g::Mat3, κ::Float64)
+    SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0)
 
 Characterizes the degree of freedom located at a given `site` index with three 
 pieces of information: N (as in SU(N)), characterizing the complex dimension of the
 generalized spins (where N=0 corresponds to traditional, three-component, real
 classical spins); a g-tensor, `g`; and an overall scaling factor for the spin
-magnitude, `κ`. When provided to a `SpinSystem`, this information is automatically
+magnitude, `spin_rescaling`. When provided to a `SpinSystem`, this information is automatically
 propagated to all symmetry-equivalent sites. An error will be thrown if multiple
 SiteInfos are given for symmetry-equivalent sites.
     
@@ -50,16 +50,17 @@ NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverte
 to the largest specified `N`.
 """
 @with_kw struct SiteInfo
-    site :: Int                # Index of site
-    N    :: Int     = 0        # N in SU(N)
-    g    :: Mat3    = 2*I(3)   # Spin g-tensor
-    κ    :: Float64 = 1.0      # Spin/Ket rescaling factor
+    site              :: Int                # Index of site
+    N                 :: Int     = 0        # N in SU(N)
+    g                 :: Mat3    = 2*I(3)   # Spin g-tensor
+    spin_rescaling    :: Float64 = 1.0      # Spin/Ket rescaling factor
 end
 
-SiteInfo(site::Int, N::Int, g::Number, κ=1.0) = SiteInfo(site, N, g*I(3), κ)
+function SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0)
+    (typeof(g) <: Number) && (g = Float64(g)*I(3))
+    SiteInfo(site, N, g, spin_rescaling)
+end
 
-# Included for backward compatibility
-SiteInfo(site::Int, κ::Float64) = SiteInfo(site, 0, 2*I(3), κ)
 
 """
     exchange(J, bond::Bond, label="Exchange")

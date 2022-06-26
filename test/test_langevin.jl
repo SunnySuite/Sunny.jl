@@ -24,7 +24,7 @@ function su3_anisotropy_model(; L=20, D=1.0)
     interactions = [SUN_anisotropy(Λ, 1)]
     dims = (L,1,1)
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1, N, 2*I(3), 1.0)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, g=2*I(3), spin_rescaling=1.0)])
     rand!(sys)
 
     return sys
@@ -39,7 +39,7 @@ function su5_anisotropy_model(; L=20, D=1.0)
     interactions = [SUN_anisotropy(Λ, 1)]
     dims = (L,1,1)
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1, N, 2*I(3), 1.0)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, g=2, spin_rescaling=1.0)])
     rand!(sys)
 
     return sys
@@ -165,7 +165,7 @@ function discretize_P(boundaries, kT; n=2, J=1.0, Δ = 0.001)
 end
 
 "Generates a two-site spin chain spin system."
-function two_site_spin_chain(; N=0, J=1.0, κ=1.0)
+function two_site_spin_chain(; N=0, J=1.0, spin_rescaling=1.0)
     a = 1.0
     b = 1.1
     c = 1.2
@@ -175,7 +175,7 @@ function two_site_spin_chain(; N=0, J=1.0, κ=1.0)
     cryst = Crystal(lat_vecs, basis_vecs)
     interactions = [heisenberg(J, Bond(1,2,[0,0,0]))]
     dims = (1,1,1)
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1, N, 2*I(3), κ)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, g=2, spin_rescaling)])
     rand!(sys)
 
     return sys
@@ -185,9 +185,9 @@ end
 for a two-site spin chain."
 function test_spin_chain_energy()
     Ns = [0, 2]
-    κs = [1.0, 2.0]
-    for (N, κ) in zip(Ns, κs)
-        sys = two_site_spin_chain(; N, κ)
+    spin_rescalings = [1.0, 2.0]
+    for (N, spin_rescaling) in zip(Ns, spin_rescalings)
+        sys = two_site_spin_chain(; N, spin_rescaling)
 
         α = 0.1
         kT = 0.1
@@ -198,7 +198,7 @@ function test_spin_chain_energy()
         n_bins = 10  # Number of bins in empirical distribution
 
         # Initialize the Langevin sampler and thermalize the system
-        sampler = LangevinSampler(sys, kT, α, Δt, 1000) # Check the 1/κ!
+        sampler = LangevinSampler(sys, kT, α, Δt, 1000) 
         sample!(sampler)    
         sampler.nsteps = n_decorr
 
