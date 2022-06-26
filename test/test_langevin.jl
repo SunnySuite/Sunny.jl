@@ -24,7 +24,7 @@ function su3_anisotropy_model(; L=20, D=1.0)
     interactions = [SUN_anisotropy(Λ, 1)]
     dims = (L,1,1)
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, g=2*I(3), spin_rescaling=1.0)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)])
     rand!(sys)
 
     return sys
@@ -39,7 +39,7 @@ function su5_anisotropy_model(; L=20, D=1.0)
     interactions = [SUN_anisotropy(Λ, 1)]
     dims = (L,1,1)
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, g=2, spin_rescaling=1.0)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)])
     rand!(sys)
 
     return sys
@@ -175,7 +175,7 @@ function two_site_spin_chain(; N=0, J=1.0, spin_rescaling=1.0)
     cryst = Crystal(lat_vecs, basis_vecs)
     interactions = [heisenberg(J, Bond(1,2,[0,0,0]))]
     dims = (1,1,1)
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, g=2, spin_rescaling)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, spin_rescaling)])
     rand!(sys)
 
     return sys

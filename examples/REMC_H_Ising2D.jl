@@ -28,7 +28,7 @@ function create_system(α::Float64)
     # Make system and randomize spins
     extent = (120, 120, 1)
     g = 1 / Sunny.BOHR_MAGNETON
-    system = SpinSystem(crystal, interactions, extent, [SiteInfo(1; spin_rescaling=1.0, g)])
+    system = SpinSystem(crystal, interactions, extent, [SiteInfo(1; g)])
     
     return system
 end

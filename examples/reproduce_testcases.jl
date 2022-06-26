@@ -164,7 +164,7 @@ function test_FeI2_MC()
     interactions = [J1, J2, J3, J0′, J1′, J2a′, D]
 
     # Set up the SpinSystem of size (16x20x4)
-    system = SpinSystem(cryst, interactions, (16, 20, 4), [SiteInfo(1)])
+    system = SpinSystem(cryst, interactions, (16, 20, 4))
     rand!(system)
 
     kB = 8.61733e-2             # meV_per_K constant, units of meV/K

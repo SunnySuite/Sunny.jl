@@ -32,7 +32,7 @@ function make_test_system_lld(; spin_rescaling=1.0)
     return SpinSystem(cryst,
                       interactions_all,
                       dims,
-                      [SiteInfo(1; N=0, g=2, spin_rescaling)]
+                      [SiteInfo(1; spin_rescaling)]
     )
 end
 
@@ -53,7 +53,7 @@ function make_test_system_gsd(; spin_rescaling=1.0, N=2)
     return SpinSystem(cryst,
                       interactions_all,
                       dims,
-                      [SiteInfo(1; N, g=2, spin_rescaling)]
+                      [SiteInfo(1; N, spin_rescaling)]
     )
 end
 
@@ -111,13 +111,13 @@ function test_energy_scaling_lld()
         for spin_rescaling in spin_rescalings
 
             # Get energy for system when spin_rescaling=1.0
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, g=2*I(3), spin_rescaling=1.0)])
+            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N)])
             rand!(sys)
             E₀ = energy(sys)
 
             # Get energy for same configuration but with a spin rescaling 
             S₀ = copy(sys._dipoles)
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, g=2*I(3), spin_rescaling)])
+            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, spin_rescaling)])
             sys._dipoles .= S₀
             Sunny.normalize_dipoles!(sys)
             E₁ = energy(sys)
@@ -145,12 +145,12 @@ function test_energy_scaling_gsd()
     for (interaction, power) in zip(interactions_gsd, powers_gsd)
         spin_rescalings = 5.0 * rand(num_rescalings)
         for spin_rescaling ∈ spin_rescalings
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, g=2*I(3), spin_rescaling=1.0)])
+            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N)])
             rand!(sys)
             E₀ = energy(sys)
 
             Z₀ = copy(sys._coherents)
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, g=2*I(3), spin_rescaling)])
+            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, spin_rescaling)])
             sys._coherents .= Z₀
             Sunny.set_expected_spins!(sys)
             E₁ = energy(sys)
@@ -171,7 +171,7 @@ function generate_scaled_zeeman_trajectory(spin_rescaling, θ, Δt; N=0, dur=10.
     dims = (1,1,1)
     interactions = [external_field([0.0, 0.0, 10.0])]
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, g=2*I(3), spin_rescaling)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, spin_rescaling)])
 
     spin = [0.0, sin(θ), cos(θ)] .* spin_rescaling 
     dpv = Sunny.DipoleView(sys)
@@ -236,7 +236,7 @@ function generate_scaled_quadratic_trajectory(spin_rescaling, Δt; N=0, dur=10.0
         push!(interactions, quadratic_anisotropy(1.0*I(3), 1))
     end
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, g=2*I(3), spin_rescaling)]; rng)
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, spin_rescaling)]; rng)
     rand!(sys)
 
     Integrator = N == 0 ? SphericalMidpoint : SchrodingerMidpoint
