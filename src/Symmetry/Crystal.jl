@@ -11,29 +11,25 @@ struct SymOp
 end
 
 function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
+    atol = 1e-12
+    digits = 2
     for i in 1:3
         terms = []
-        for (j, a) in enumerate(["x", "y", "z"])
-            Rij = s.R[i,j]
-            if Rij == 1
-                push!(terms, "+"*a)
-            elseif Rij == -1
-                push!(terms, "-"*a)
-            elseif Rij != 0
-                push!(terms, format_number_or_fraction(Rij) * a)
+        for (Rij, a) in zip(s.R[i,:], ["x", "y", "z"])
+            if abs(Rij) > atol
+                push!(terms, coefficient_to_math_string(Rij; atol, digits) * a)
             end
         end
         Ti = s.T[i]
         if Ti != 0
-            push!(terms, format_number_or_fraction(Ti))
+            push!(terms, number_to_math_string(Ti; atol, digits))
         end
-        if isempty(terms)
+        terms_str = if isempty(terms)
             push!(terms, "0")
+        else
+            replace(join(terms, "+"), "+-" => "-")
         end
-        if terms[1][1] == '+'
-            terms[1] = terms[1][2:end]
-        end
-        foreach(t -> print(io, t), terms)
+        print(io, terms_str)
         if i < 3
             print(io, ",")
         end
@@ -96,14 +92,6 @@ nbasis(cryst::Crystal) = length(cryst.positions)
 Volume of the crystal unit cell.
 """
 cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
-
-"""
-    equiv_sites(crystal::Crystal, b::Int)
-
-Returns a list of all basis indices in the same symmetry equivalency class
-as the provided index `b`.
-"""
-equiv_sites(cryst::Crystal, b::Int) = findall(==(cryst.classes[b]), cryst.classes)
 
 cell_type(cryst::Crystal) = cell_type(cryst.lat_vecs)
 lattice_vectors(cryst::Crystal) = cryst.lat_vecs
@@ -467,27 +455,25 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
         end
     end
 
-    @printf io "Volume %.4g\n" cell_volume(cryst)
+    @printf io "Cell volume %.4g\n" cell_volume(cryst)
 
     for c in unique(cryst.classes)
         i = findfirst(==(c), cryst.classes)
-        print(io, "Class $c")
+        descr = String[]
         if cryst.types[i] != ""
-            print(io, ", Type '$(cryst.types[i])'")
+            push!(descr, "Type '$(cryst.types[i])'")
         end
         if !isnothing(cryst.sitesyms)
-            # TODO: simplify in Julia 1.7
             symbol = cryst.sitesyms[i].symbol
             multiplicity = cryst.sitesyms[i].multiplicity
             wyckoff = cryst.sitesyms[i].wyckoff
-            print(io, ", Site sym '$symbol', Wyckoff $multiplicity$wyckoff")
+            push!(descr, "Wyckoff $multiplicity$wyckoff (point group '$symbol')")
         end
-        println(io, ":")
+        println(io, join(descr, ", "), ":")
 
         for i in findall(==(c), cryst.classes)
-            r = cryst.positions[i]
-            r = round.(r, digits=12) # very close to zero is probably exactly zero
-            @printf io "   %d. [%.4g, %.4g, %.4g]\n" i r[1] r[2] r[3]
+            pos = atom_pos_to_string(cryst.positions[i])
+            println(io, "   $i. $pos")
         end
     end
 end

@@ -11,7 +11,12 @@ using LinearAlgebra
 
 Random.seed!(1111)
 
-# Idea taken from StaticArrays.jl
+# Hook into Pkg.test so that tests from a single file can be run.  For example,
+# to run only symmetry tests, use:
+#
+#   Pkg.test("Sunny", test_args=["test_symmetry"])
+#
+# (Idea taken from StaticArrays.jl)
 enabled_tests = lowercase.(ARGS)
 function addtests(fname)
     key = lowercase(splitext(fname)[1])

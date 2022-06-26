@@ -1,4 +1,12 @@
-function is_equivalent_by_translation(cryst::Crystal, b1::BondRaw, b2::BondRaw)
+function is_equivalent_by_periodicity(cryst::Crystal, r1::Vec3, r2::Vec3)
+    # Round components of displacement vector to nearest integers
+    n = round.(r2-r1, RoundNearest)
+    # If all displacement components are in fact integers, then the two
+    # positions are equivalent up to periodicity of the unit cell
+    return norm(n - (r2-r1)) < cryst.symprec
+end
+
+function is_equivalent_by_periodicity(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     # Displacements between the two bonds
     D1 = b2.ri - b1.ri
     D2 = b2.rj - b1.rj
@@ -6,6 +14,19 @@ function is_equivalent_by_translation(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     n = round.(D1, RoundNearest)
     # If both n ≈ D1 and n ≈ D2, then the bonds are equivalent by translation
     return norm(n - D1) < cryst.symprec && norm(n - D2) < cryst.symprec
+end
+
+# Generate list of SymOps for the pointgroup of atom i
+function symmetries_for_pointgroup_of_atom(cryst::Crystal, i::Int)
+    ret = SymOp[]
+    r = cryst.positions[i]
+    for s in cryst.symops
+        r′ = transform(s, r)
+        if is_equivalent_by_periodicity(cryst, r, r′)
+            push!(ret, s)
+        end
+    end
+    return ret
 end
 
 # Generate list of all symmetries that transform b2 into b1, along with parity
@@ -25,9 +46,9 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     ret = Tuple{SymOp, Bool}[]
     for s in cryst.symops
         b2′ = transform(s, b2)
-        if is_equivalent_by_translation(cryst, b1, b2′)
+        if is_equivalent_by_periodicity(cryst, b1, b2′)
             push!(ret, (s, true))
-        elseif is_equivalent_by_translation(cryst, b1, reverse(b2′))
+        elseif is_equivalent_by_periodicity(cryst, b1, reverse(b2′))
             push!(ret, (s, false))
         end
     end

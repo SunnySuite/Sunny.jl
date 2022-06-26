@@ -170,28 +170,11 @@ end
 @assert sym_basis * sym_basis' + asym_basis * asym_basis' ≈ I
 
 
-# Given an m×n matrix A with empty nullspace, linearly combine the n columns to
-# make them sparser. Solution was proposed here:
-# https://math.stackexchange.com/q/4227648/660903 . Closely related to finding
-# reduced row echolon form.
-function sparsify_columns(A; atol)
-    if size(A, 2) <= 1
-        return A
-    else
-        # By assumption, the n columns of A are linearly independent
-        @assert isempty(nullspace(A; atol))
-        # Since row rank equals column rank, it should be possible to find n
-        # linearly independent rows in A. Store these independent rows of A as
-        # column vectors in indep_rows.
-        indep_rows = zeros(Float64, size(A, 2), 0)
-        for row in eachrow(A)
-            # Add `row` to list if linearly independent with existing ones
-            if isempty(nullspace(hcat(indep_rows, row); atol))
-                indep_rows = hcat(indep_rows, row)
-            end
-        end
-        return A * inv(indep_rows)'
-    end
+# Linearly combine the columns of A to make them sparser. Equivalent to finding
+# the reduced row echolon form, but in column space.
+function sparsify_columns(A; atol=1e-12)
+    A = rref!(copy(A'), atol)'
+    return A
 end
 
 
