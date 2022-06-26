@@ -8,12 +8,13 @@ function test_local_energy_change()
         for _ in 1:50
             # Pick a random site, try to set it to a random spin
             randsite = CartesianIndex(Tuple(mod1.(rand(Int, 4), size(system))))
-            newspin = Sunny._random_spin()
+            N = system.site_infos[1].N 
+            newspin = Sunny._random_spin(system.rng, Val(N))
 
             func_diff = Sunny.local_energy_change(system, randsite, newspin)
 
             orig_energy = energy(system)
-            system[randsite] = newspin
+            system._dipoles[randsite] = newspin
             new_energy = energy(system)
 
             actual_diff = new_energy - orig_energy

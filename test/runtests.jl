@@ -1,3 +1,9 @@
+""" To run tests, execute `test` in package mode with the Sunny package activated,
+or, in the REPL, execute: `using Pkg; Pkg.test("Sunny")`. To execute only a single
+test from the test suite, execute: `'Pkg.test("Sunny", test_args=["test_symmetry"])`,
+for example, replacing `test_symmetry` with the name of the desired test.
+"""
+
 using Test
 using Sunny
 using Random
@@ -27,9 +33,6 @@ function diamond_test_exchanges()
     # Arbitrary Heisenberg
     heisen = heisenberg(rand(), Bond(1, 3, [0, 0, 0]))
 
-    # On-site on all diamond atoms must be proportional to identity
-    on_site   = single_ion_anisotropy(rand() * I(3), 1)
-
     # This bond has allowed J of form [A A B] along diagonal
     diag_coup_J    = [rand(), 0.0, rand()]
     diag_coup_J[2] = diag_coup_J[1]
@@ -40,7 +43,7 @@ function diamond_test_exchanges()
     gen_coup_J = [A D C; D A C; C C B]
     gen_int = exchange(gen_coup_J, Bond(1, 4, [0, 0, 0]))
 
-    return [heisen, on_site, diag_int, gen_int]
+    return [heisen, diag_int, gen_int]
 end
 
 function produce_example_system()
@@ -64,4 +67,6 @@ end
     addtests("test_metropolis.jl")
     addtests("test_fourier.jl")
     addtests("test_dynamics.jl")
+    addtests("test_langevin.jl")
+    addtests("test_spin_scaling.jl")
 end

@@ -138,9 +138,16 @@ function plot_many_cuts_afmdiamond(S, J, spin; maxω=nothing, chopω=nothing)
     plot(q0, q1, q2, q3; layout=l)
 end
 
+function FeI2_crystal()
+    a = b = 4.05012
+    c = 6.75214
+    lat_vecs = lattice_vectors(a, b, c, 90, 90, 120)
+    basis_vecs = [[0,0,0]]
+    Crystal(lat_vecs, basis_vecs, 164; setting="1")
+end
+
 function test_FeI2_MC()
-    cryst = Crystal("../example-lattices/FeI2.cif"; symprec=1e-3)
-    cryst = subcrystal(cryst, "Fe2+")
+    cryst = FeI2_crystal()
 
     # Set up all interactions (all in units meV)
     J1mat = [-0.397  0      0    ;
@@ -186,8 +193,7 @@ function test_FeI2_MC()
 end
 
 function test_FeI2_energy_curve()
-    cryst = Crystal("../example-lattices/FeI2.cif"; symprec=1e-3)
-    cryst = subcrystal(cryst, "Fe2+")
+    cryst = FeI2_crystal()
 
     # Set up all interactions (all in units meV)
     J1mat = [-0.397 0      0    ;

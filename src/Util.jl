@@ -38,3 +38,61 @@ end
     Ar = reinterpret(reshape, Float64, parent(A))
     return reshape(Ar, 3, 3, size(A)...)
 end
+
+"Generalize dot product so works on vector of operators"
+function LinearAlgebra.dot(a::Vec3, b::NTuple{3, Matrix{ComplexF64}}) where T
+    a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
+end
+
+"Sparse tensor type for quartic anisotropies. (Could be used for quadratic as well.)"
+struct SparseTensor{R,N}
+    indices :: NTuple{N, NTuple{R, Int64}}    
+    vals    :: SVector{N, Float64}
+end
+
+function SparseTensor(tens::T)  where T <: AbstractArray
+    # Find non-zero elements
+    rank = length(size(tens))
+    indices = findall(!iszero, tens)
+    vals = tens[indices]
+    if length(indices) < 1
+        SparseTensor{rank, 0}((), SVector{0, Float64}())
+    end
+
+    # Determine number of entries and rank of tensor
+    num_entries = length(vals)
+
+    # Convert to static types
+    indices = map(i -> i.I, indices)
+    indices = NTuple{num_entries, NTuple{rank, Int64}}(indices)
+    vals = SVector{num_entries, Float64}(vals)
+
+    SparseTensor{rank, num_entries}(indices, vals)
+end
+
+
+# Note that this approach requires a small allocation, since you can't
+# setindex a static array. However, seems to be no slower than old approach.
+"Calculate the gradient of the tensor contraction. Used for -∇E calculations in LL dynamics. Only for
+rank-4 tensors."
+@inline function grad_contract(tens::SparseTensor{4,N}, v::Vec3) where {R,N}
+    result = zeros(Float64, 3)
+    @inbounds for (indices, val) in zip(tens.indices, tens.vals)
+        i1, i2, i3, i4 = indices
+        result[i1] += val *         v[i2] * v[i3] * v[i4]
+        result[i2] += val * v[i1] *         v[i3] * v[i4]
+        result[i3] += val * v[i1] * v[i2] *         v[i4]
+        result[i4] += val * v[i1] * v[i2] * v[i3]
+    end
+    Vec3(result)
+end
+
+"Non-generated version of tensor contraction using SparseTensor type. Only for rank-4 tensors."
+@inline function contract(tens::SparseTensor{4,N}, v) where {R, N}
+    result = zero(v[1])
+    @inbounds for (indices, val) in zip(tens.indices, tens.vals) 
+        i1, i2, i3, i4 = indices
+        result += val*v[i1]*v[i2]*v[i3]*v[i4] 
+    end
+    result
+end

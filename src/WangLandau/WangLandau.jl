@@ -202,8 +202,7 @@ function init_bounded!(WLS::WangLandau)
     for mcsweeps_tmp in 1 : WLS.max_mcsweeps
 
         for pos in CartesianIndices(WLS.system)
-            new_spin = gaussian_spin_update(WLS.system[pos], WLS.mc_step_size, WLS.rng)
-            #new_spin = spherical_cap_update(WLS.system[pos], 1.0-WLS.mc_step_size, WLS.rng)
+            new_spin = gaussian_spin_update(WLS.system_dipoles[pos], WLS.mc_step_size, WLS.rng)
 
             E_next = E_curr + local_energy_change(WLS.system, pos, new_spin) / ps
 
@@ -211,7 +210,7 @@ function init_bounded!(WLS::WangLandau)
 
             if (Δln_g >= 0) || ( rand(WLS.rng) <= exp(Δln_g) )
 
-                WLS.system[pos] = new_spin
+                WLS.system._dipoles[pos] = new_spin
                 E_curr = E_next
 
                 if pfac*E_curr < lim_curr
@@ -274,8 +273,7 @@ function run!(WLS::WangLandau)
         for i in 1 : WLS.hcheck_interval
             for pos in CartesianIndices(WLS.system)
                 # propose single spin move - random rotation on spherical cap about spin
-                new_spin = gaussian_spin_update(WLS.system[pos], WLS.mc_step_size, WLS.rng)
-                #new_spin = spherical_cap_update(WLS.system[pos], 1.0-WLS.mc_step_size, WLS.rng)
+                new_spin = gaussian_spin_update(WLS.system._dipoles[pos], WLS.mc_step_size, WLS.rng)
 
                 E_next = E_curr + local_energy_change(WLS.system, pos, new_spin) / ps
                 mcs += 1
@@ -294,7 +292,7 @@ function run!(WLS::WangLandau)
                     # accept move
                     if (Δln_g >= 0) || ( rand(WLS.rng) <= exp(Δln_g) )
 
-                        WLS.system[pos] = new_spin
+                        WLS.system._dipoles[pos] = new_spin
                         E_curr = E_next
 
                         # record minimum energies

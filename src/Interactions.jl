@@ -4,6 +4,7 @@
 abstract type AbstractInteraction end      # Subtype this for user-facing interfaces
 abstract type AbstractInteractionCPU end   # Subtype this for actual internal CPU implementations
 abstract type AbstractInteractionGPU end   # Subtype this for actual internal GPU implementations
+abstract type AbstractAnisotropy <: AbstractInteraction end
 
 
 struct QuadraticInteraction <: AbstractInteraction
@@ -12,53 +13,10 @@ struct QuadraticInteraction <: AbstractInteraction
     label :: String
 end
 
-struct ExternalField <: AbstractInteraction
-    B :: Vec3
-end
-
-struct DipoleDipole <: AbstractInteraction
-    extent   :: Int
-    η        :: Float64
-end
-
-"""
-    SiteInfo(site::Int, S, g)
-
-Characterizes the degree of freedom located at a given `site` index with
- a spin magnitude `S` and g-tensor `g`. When provided to a `SpinSystem`,
- this information is automatically propagated to all symmetry-equivalent
- sites.
-"""
-struct SiteInfo
-    site  :: Int      # Site index
-    S     :: Float64  # Magnitude of the spin
-    g     :: Mat3     # Spin g-tensor
-end
-
-# Helper constructors
-SiteInfo(site::Int, S, g::Number) = SiteInfo(site, S, Mat3(g * I))
-SiteInfo(site::Int, S) = SiteInfo(site, S, 2.0)
-
 function Base.show(io::IO, mime::MIME"text/plain", int::QuadraticInteraction)
     b = repr(mime, int.bond)
     J = int.J
-    if int.bond.i == int.bond.j && iszero(int.bond.n)  # Catch on-site anisotropies
-        @assert J ≈ J'
-        # Check if it is easy-axis or easy-plane
-        λ, V = eigen(J)
-        nonzero_λ = findall(x -> abs(x) > 1e-12, λ)
-        if length(nonzero_λ) == 1
-            i = nonzero_λ[1]
-            dir = V[:, i]
-            if count(<(0.0), dir) >= 2
-                dir = -dir
-            end
-            name, D = λ[i] < 0 ? ("easy_axis", -λ[i]) : ("easy_plane", λ[i])
-            @printf io "%s(%.4g, [%.4g, %.4g, %.4g], %d)" name D dir[1] dir[2] dir[3] int.bond.i
-        else
-            @printf io "single_ion_anisotropy([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %d)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] int.bond.i
-        end
-    elseif J ≈ -J'                         # Catch purely DM interactions
+    if J ≈ -J'                             # Catch purely DM interactions
         x = J[2, 3]
         y = J[3, 1]
         z = J[1, 2]
@@ -76,6 +34,32 @@ function Base.show(io::IO, mime::MIME"text/plain", int::QuadraticInteraction)
         # @printf io "    %s)" b
     end
 end
+
+"""
+    SiteInfo(site::Int, N::Int, g::Mat3, κ::Float64)
+
+Characterizes the degree of freedom located at a given `site` index with three 
+pieces of information: N (as in SU(N)), characterizing the complex dimension of the
+generalized spins (where N=0 corresponds to traditional, three-component, real
+classical spins); a g-tensor, `g`; and an overall scaling factor for the spin
+magnitude, `κ`. When provided to a `SpinSystem`, this information is automatically
+propagated to all symmetry-equivalent sites. An error will be thrown if multiple
+SiteInfos are given for symmetry-equivalent sites.
+    
+NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverted
+to the largest specified `N`.
+"""
+@with_kw struct SiteInfo
+    site :: Int                # Index of site
+    N    :: Int     = 0        # N in SU(N)
+    g    :: Mat3    = 2*I(3)   # Spin g-tensor
+    κ    :: Float64 = 1.0      # Spin/Ket rescaling factor
+end
+
+SiteInfo(site::Int, N::Int, g::Number, κ=1.0) = SiteInfo(site, N, g*I(3), κ)
+
+# Included for backward compatibility
+SiteInfo(site::Int, κ::Float64) = SiteInfo(site, 0, 2*I(3), κ)
 
 """
     exchange(J, bond::Bond, label="Exchange")
@@ -125,6 +109,42 @@ function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
     QuadraticInteraction(J, bond, label)
 end
 
+struct QuadraticAnisotropy <: AbstractAnisotropy
+    J     :: Mat3
+    site  :: Int
+    label :: String # Maybe remove
+end
+
+struct QuarticAnisotropy <: AbstractAnisotropy
+    J     :: Quad3 
+    site  :: Int
+    label :: String # Maybe remove
+end
+
+struct SUNAnisotropy <: AbstractAnisotropy
+    Λ     :: Matrix{ComplexF64}
+    site  :: Int
+    label :: String # Maybe remove
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", aniso::QuadraticAnisotropy)
+    @unpack J, site, label = aniso
+    @assert J ≈ J'
+    # Check if it is easy-axis or easy-plane
+    λ, V = eigen(J)
+    nonzero_λ = findall(x -> abs(x) > 1e-12, λ)
+    if length(nonzero_λ) == 1
+        i = nonzero_λ[1]
+        dir = V[:, i]
+        if count(<(0.0), dir) >= 2
+            dir = -dir
+        end
+        name, D = λ[i] < 0 ? ("easy_axis", -λ[i]) : ("easy_plane", λ[i])
+        @printf io "%s(%.4g, [%.4g, %.4g, %.4g], %d)" name D dir[1] dir[2] dir[3] site
+    else
+        @printf io "single_ion_anisotropy([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %d)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] site
+    end
+end
 
 """
     single_ion_anisotropy(J, site, label="Anisotropy")
@@ -138,11 +158,11 @@ and ``J^{(i)}`` is the covariant transformation of the ``3 × 3`` anisotropy
 matrix `J` appropriate for ``i``. Without loss of generality, we require that
 `J` is symmetric.
 """
-function single_ion_anisotropy(J, site::Int, label::String="Anisotropy")
+function quadratic_anisotropy(J, site::Int, label::String="Anisotropy")
     if !(J ≈ J')
         error("Single-ion anisotropy must be symmetric.")
     end
-    QuadraticInteraction(Mat3(J), Bond(site, site, [0,0,0]), label)
+    QuadraticAnisotropy(Mat3(J), site, label)
 end
 
 
@@ -164,7 +184,7 @@ function easy_axis(D, n, site::Int, label::String="EasyAxis")
     if !(norm(n) ≈ 1)
         error("Parameter `n` must be a unit vector. Consider using `normalize(n)`.")
     end
-    QuadraticInteraction(-D*Mat3(n*n'), Bond(site, site, [0,0,0]), label)
+    QuadraticAnisotropy(-D*Mat3(n*n'), site, label)
 end
 
 
@@ -186,29 +206,56 @@ function easy_plane(D, n, site::Int, label::String="EasyAxis")
     if !(norm(n) ≈ 1)
         error("Parameter `n` must be a unit vector. Consider using `normalize(n)`.")
     end
-    QuadraticInteraction(+D*Mat3(n*n'), Bond(site, site, [0,0,0]), label)
+    QuadraticAnisotropy(+D*Mat3(n*n'), site, label)
+end
+
+"""
+    quartic_anisotropy(J, site, label="QuarticAniso")
+
+Creates a quartic anisotropy.
+```math
+    ∑_i ∑_{α, β, γ, δ ∈ \\{x, y, z\\}} J_{αβγδ} S_i^α S_i^β S_i^γ S_i^δ
+```
+"""
+function quartic_anisotropy(J, site, label="QuarticAniso")
+    # TODO: Basic symmetry checks?
+    if (size(J) != (3, 3, 3, 3)) || !(eltype(J) <: Real)
+        error("Parameter `J` must be a 3x3x3x3 real tensor.")
+    end
+    QuarticAnisotropy(J, site, label)
+end
+
+# N-dimensional irreducible matrix representation of 𝔰𝔲(2). Use this only
+#  to give the user the ability to construct generalized anisotropy matrices.
+# Internal code should implicitly use the action of these operators on
+#  N-dimensional complex vectors.
+function gen_spin_ops(N::Int) :: NTuple{3, Matrix{ComplexF64}}
+    if N == 0  # Returns wrong type if not checked 
+        return zeros(ComplexF64, 0,0), zeros(ComplexF64, 0,0), zeros(ComplexF64, 0,0)
+    end
+
+    s = (N-1)/2
+    a = 1:N-1
+    off = @. sqrt(2(s+1)*a - a*(a+1)) / 2
+
+    Sx = diagm(1 => off, -1 => off)
+    Sy = diagm(1 => -im*off, -1 => +im*off)
+    Sz = diagm((N-1)/2 .- (0:N-1))
+    return Sx, Sy, Sz
 end
 
 
 """
-    external_field(B::Vec3)
-
-Adds an external field ``𝐁`` with Zeeman coupling,
-
-```math
-    -∑_i 𝐁 ⋅ 𝐌_i.
-```
-
-The magnetic moments are ``𝐌_i = μ_B g 𝐒_i`` where ``g`` is the g-factor or
-g-tensor, and the spin magnitude ``|𝐒_i|`` is typically a multiple of 1/2. The
-Bohr magneton ``μ_B`` is a physical constant, with numerical value determined by
-the unit system.
+    SUN_anisotropy(mat, site)
 """
-external_field(B) = ExternalField(Vec3(B))
+function SUN_anisotropy(mat, site, label="SUNAniso")
+    # TODO: Basic symmetry / validity checks?
+    SUNAnisotropy(mat, site, label)
+end
 
-function Base.show(io::IO, ::MIME"text/plain", int::ExternalField)
-    B = int.B
-    @printf io "external_field([%.4g, %.4g, %.4g])" B[1] B[2] B[3]
+struct DipoleDipole <: AbstractInteraction
+    extent   :: Int
+    η        :: Float64
 end
 
 """
@@ -233,6 +280,31 @@ while `η` controls the direct/reciprocal-space tradeoff in the Ewald summation.
 """
 dipole_dipole(; extent=4, η=0.5) = DipoleDipole(extent, η)
 
+struct ExternalField <: AbstractInteraction
+    B :: Vec3
+end
+
+"""
+    external_field(B::Vec3)
+
+Adds an external field ``𝐁`` with Zeeman coupling,
+
+```math
+    -∑_i 𝐁 ⋅ 𝐌_i.
+```
+
+The magnetic moments are ``𝐌_i = μ_B g 𝐒_i`` where ``g`` is the g-factor or
+g-tensor, and the spin magnitude ``|𝐒_i|`` is typically a multiple of 1/2. The
+Bohr magneton ``μ_B`` is a physical constant, with numerical value determined by
+the unit system.
+"""
+external_field(B) = ExternalField(Vec3(B))
+
+function Base.show(io::IO, ::MIME"text/plain", int::ExternalField)
+    B = int.B
+    @printf io "external_field([%.4g, %.4g, %.4g])" B[1] B[2] B[3]
+end
+
 
 #= Energy and field functions for "simple" interactions that aren't geometry-dependent.
    See Hamiltonian.jl for expectations on `_accum_neggrad!` functions.
@@ -242,20 +314,20 @@ struct ExternalFieldCPU
     effBs :: Vector{Vec3}  # |S_b|gᵀB for each basis index b
 end
 
-function ExternalFieldCPU(ext_field::ExternalField, sites_info::Vector{SiteInfo}; μB=BOHR_MAGNETON)
+function ExternalFieldCPU(ext_field::ExternalField, site_infos::Vector{SiteInfo}; μB=BOHR_MAGNETON)
     # As E = -∑_i 𝐁^T g 𝐒_i, we can precompute effB = g^T S B, so that
     #  we can compute E = -∑_i effB ⋅ 𝐬_i during simulation.
     # However, S_i may be basis-dependent, so we need to store an effB
     #  per sublattice.
-    effBs = [μB * site.g' * site.S * ext_field.B for site in sites_info]
+    effBs = [μB * site.g' * ext_field.B for site in site_infos]
     ExternalFieldCPU(effBs)
 end
 
-function energy(spins::Array{Vec3, 4}, field::ExternalFieldCPU)
+function energy(dipoles::Array{Vec3, 4}, field::ExternalFieldCPU)
     E = 0.0
-    for b in 1:size(spins, 1)
+    for b in 1:size(dipoles, 1)
         effB = field.effBs[b]
-        for s in selectdim(spins, 1, b)
+        for s in selectdim(dipoles, 1, b)
             E += effB ⋅ s
         end
     end

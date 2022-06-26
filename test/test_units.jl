@@ -11,8 +11,8 @@ latsize = (4, 4, 4)
 
 
 function collect_energy_and_field(int, μB, μ0)
-    sys = SpinSystem(crystal, [int], latsize; μB=μB, μ0=μ0)
-    Random.seed!(seed)
+    rng = Random.MersenneTwister(seed)
+    sys = SpinSystem(crystal, [int], latsize; rng, μB, μ0)
     rand!(sys)
     return energy(sys), field(sys)
 end
