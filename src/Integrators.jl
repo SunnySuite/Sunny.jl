@@ -269,8 +269,8 @@ end
     (a - ((Z' * a) * Z))  
 end
 
-
-function _apply_ℌ!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, ℌ) where N
+#= Construct and apply the local Hamiltonian for Landau-Lifshitz (LL) dynamics (no noise) =#
+function _apply_ℌ_LL!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, ℌ) where N
     aniso = sys.hamiltonian.sun_aniso
     latsize = size(B)[2:end]
     rhs′ = reinterpret(reshape, ComplexF64, rhs) 
@@ -284,6 +284,22 @@ function _apply_ℌ!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec3, 
     nothing
 end
 
+#= Construct and apply the local Hamiltonian for Langevin dynamics (LD) (noise) =#
+function _apply_ℌ_LD!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, ℌ) where N
+    aniso = sys.hamiltonian.sun_aniso
+    latsize = size(B)[2:end]
+    rhs′ = reinterpret(reshape, ComplexF64, rhs) 
+
+    for (site, Λ) in zip(aniso.sites, aniso.Λs) # There is one Λ per site 
+        κ = sys.site_infos[site].κ
+        for cell in CartesianIndices(latsize)
+            @. ℌ = κ * (Λ - (B[site,cell][1] * sys.S[1] + B[site,cell][2] * sys.S[2] + B[site,cell][3] * sys.S[3]))
+            mul!(@view(rhs′[:, site, cell]), ℌ, Z[site, cell])
+        end
+    end
+    nothing
+end
+
 
 function _rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, integrator, Δt::Float64) where N
     (; kT, α, sys, _ℌZ, _ξ, _B, _ℌ) = integrator
@@ -291,7 +307,7 @@ function _rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, integrator
 
     set_expected_spins!(_dipoles, Z, sys) 
     field!(_B, _dipoles, sys.hamiltonian)
-    _apply_ℌ!(_ℌZ, sys, _B, Z, _ℌ)
+    _apply_ℌ_LD!(_ℌZ, sys, _B, Z, _ℌ)
 
     for i in eachindex(Z)
         ΔZ′ = -im*√(2*Δt*kT*α)*_ξ[i] - Δt*(im+α)*_ℌZ[i]    
@@ -307,7 +323,7 @@ function _rhs_ll!(ΔZ, Z, integrator, Δt)
 
     set_expected_spins!(_dipoles, Z, sys) # temporarily de-synchs _dipoles and _coherents
     field!(_B, _dipoles, sys.hamiltonian)
-    _apply_ℌ!(_ℌZ, sys, _B, Z, _ℌ)
+    _apply_ℌ_LL!(_ℌZ, sys, _B, Z, _ℌ)
 
     for i in eachindex(Z)
         ΔZ[i] = - Δt*im*_ℌZ[i]    

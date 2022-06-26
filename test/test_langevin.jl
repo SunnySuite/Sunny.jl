@@ -185,11 +185,8 @@ end
 for a two-site spin chain."
 function test_spin_chain_energy()
     Ns = [0, 2]
-    κ = 1.0
-    #= Js below are just for putting into the analytical formula to get appropriate
-       results for SU(2) (S=1/2) case. The actually model always implements J=1.0 =#
-    Js = [1.0, 0.25]    
-    for (N, J) in zip(Ns, Js)
+    κs = [1.0, 2.0]
+    for (N, κ) in zip(Ns, κs)
         sys = two_site_spin_chain(; N, κ)
 
         α = 0.1
@@ -214,7 +211,7 @@ function test_spin_chain_energy()
 
         # Generate empirical distribution and discretize analytical distribution
         (; Ps, boundaries) = empirical_distribution(Es, n_bins)
-        Ps_analytical = discretize_P(boundaries, kT; J)  # J varies here to get S=1/2 results
+        Ps_analytical = discretize_P(boundaries, kT) 
 
         # RMS error between empirical distribution and discretized analytical distribution
         rms = sqrt(sum( (Ps .- Ps_analytical) .^ 2))
