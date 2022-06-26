@@ -37,35 +37,36 @@
         const atomsPerCell = data.atomsPerCell;
 
         // CPKM colors for all atoms
-        var atomColors = new Object();
-        atomColors["H"] = "#FFFFFF";  atomColors["He"] = "#D9FFFF"; atomColors["Li"] = "#CC80FF"; atomColors["Be"] = "#C2FF00";
-        atomColors["B"] = "#FFB5B5";  atomColors["C"] = "#909090";  atomColors["N"] = "#3050F8";  atomColors["O"] = "#FF0D0D";
-        atomColors["F"] = "#90E050";  atomColors["Ne"] = "#B3E3F5"; atomColors["Na"] = "#AB5CF2"; atomColors["Mg"] = "#8AFF00";
-        atomColors["Al"] = "#BFA6A6"; atomColors["Si"] = "#F0C8A0"; atomColors["P"] = "#FF8000";  atomColors["S"] = "#FFFF30";
-        atomColors["Cl"] = "#1FF01F"; atomColors["Ar"] = "#80D1E3"; atomColors["K"] = "#8F40D4";  atomColors["Ca"] = "#3DFF00";
-        atomColors["Sc"] = "#E6E6E6"; atomColors["Ti"] = "#BFC2C7"; atomColors["V"] = "#A6A6AB";  atomColors["Cr"] = "#8A99C7";
-        atomColors["Mn"] = "#9C7AC7"; atomColors["Fe"] = "#E06633"; atomColors["Co"] = "#F090A0"; atomColors["Ni"] = "#50D050";
-        atomColors["Cu"] = "#C88033"; atomColors["Zn"] = "#7D80B0"; atomColors["Ga"] = "#C28F8F"; atomColors["Ge"] = "#668F8F";
-        atomColors["As"] = "#BD80E3"; atomColors["Se"] = "#FFA100"; atomColors["Br"] = "#A62929"; atomColors["Kr"] = "#5CB8D1";
-        atomColors["Rb"] = "#702EB0"; atomColors["Sr"] = "#00FF00"; atomColors["Y"] = "#94FFFF";  atomColors["Zr"] = "#94E0E0";
-        atomColors["Nb"] = "#73C2C9"; atomColors["Mo"] = "#54B5B5"; atomColors["Tc"] = "#3B9E9E"; atomColors["Ru"] = "#248F8F";
-        atomColors["Rh"] = "#0A7D8C"; atomColors["Pd"] = "#006985"; atomColors["Ag"] = "#C0C0C0"; atomColors["Cd"] = "#FFD98F";
-        atomColors["In"] = "#A67573"; atomColors["Sn"] = "#668080"; atomColors["Sb"] = "#9E63B5"; atomColors["Te"] = "#D47A00";
-        atomColors["I"] = "#940094";  atomColors["Xe"] = "#429EB0"; atomColors["Cs"] = "#57178F"; atomColors["Ba"] = "#00C900";
-        atomColors["La"] = "#70D4FF"; atomColors["Ce"] = "#FFFFC7"; atomColors["Pr"] = "#D9FFC7"; atomColors["Nd"] = "#C7FFC7";
-        atomColors["Pm"] = "#A3FFC7"; atomColors["Sm"] = "#8FFFC7"; atomColors["Eu"] = "#61FFC7"; atomColors["Gd"] = "#45FFC7";
-        atomColors["Tb"] = "#30FFC7"; atomColors["Dy"] = "#1FFFC7"; atomColors["Ho"] = "#00FF9C"; atomColors["Er"] = "#00E675";
-        atomColors["Tm"] = "#00D452"; atomColors["Yb"] = "#00BF38"; atomColors["Lu"] = "#00AB24"; atomColors["Hf"] = "#4DC2FF";
-        atomColors["Ta"] = "#4DA6FF"; atomColors["W"] = "#2194D6";  atomColors["Re"] = "#267DAB"; atomColors["Os"] = "#266696";
-        atomColors["Ir"] = "#175487"; atomColors["Pt"] = "#D0D0E0"; atomColors["Au"] = "#FFD123"; atomColors["Hg"] = "#B8B8D0";
-        atomColors["Tl"] = "#A6544D"; atomColors["Pb"] = "#575961"; atomColors["Bi"] = "#9E4FB5"; atomColors["Po"] = "#AB5C00";
-        atomColors["At"] = "#754F45"; atomColors["Rn"] = "#428296"; atomColors["Fr"] = "#420066"; atomColors["Ra"] = "#007D00";
-        atomColors["Ac"] = "#70ABFA"; atomColors["Th"] = "#00BAFF"; atomColors["Pa"] = "#00A1FF"; atomColors["U"] = "#008FFF";
-        atomColors["Np"] = "#0080FF"; atomColors["Pu"] = "#006BFF"; atomColors["Am"] = "#545CF2"; atomColors["Cm"] = "#785CE3";
-        atomColors["Bk"] = "#8A4FE3"; atomColors["Cf"] = "#A136D4"; atomColors["Es"] = "#B31FD4"; atomColors["Fm"] = "#B31FBA";
-        atomColors["Md"] = "#B30DA6"; atomColors["No"] = "#BD0D87"; atomColors["Lr"] = "#C70066"; atomColors["Rf"] = "#CC0059";
-        atomColors["Db"] = "#D1004F"; atomColors["Sg"] = "#D90045"; atomColors["Bh"] = "#E00038"; atomColors["Hs"] = "#E6002E";
-        atomColors["Mt"] = "#EB0026";
+        var atomColors = {
+            "H":"#FFFFFF",  "He":"#D9FFFF", "Li":"#CC80FF", "Be":"#C2FF00",
+            "B":"#FFB5B5",  "C":"#909090",  "N":"#3050F8",  "O":"#FF0D0D",
+            "F":"#90E050",  "Ne":"#B3E3F5", "Na":"#AB5CF2", "Mg":"#8AFF00",
+            "Al":"#BFA6A6", "Si":"#F0C8A0", "P":"#FF8000",  "S":"#FFFF30",
+            "Cl":"#1FF01F", "Ar":"#80D1E3", "K":"#8F40D4",  "Ca":"#3DFF00",
+            "Sc":"#E6E6E6", "Ti":"#BFC2C7", "V":"#A6A6AB",  "Cr":"#8A99C7",
+            "Mn":"#9C7AC7", "Fe":"#E06633", "Co":"#F090A0", "Ni":"#50D050",
+            "Cu":"#C88033", "Zn":"#7D80B0", "Ga":"#C28F8F", "Ge":"#668F8F",
+            "As":"#BD80E3", "Se":"#FFA100", "Br":"#A62929", "Kr":"#5CB8D1",
+            "Rb":"#702EB0", "Sr":"#00FF00", "Y":"#94FFFF",  "Zr":"#94E0E0",
+            "Nb":"#73C2C9", "Mo":"#54B5B5", "Tc":"#3B9E9E", "Ru":"#248F8F",
+            "Rh":"#0A7D8C", "Pd":"#006985", "Ag":"#C0C0C0", "Cd":"#FFD98F",
+            "In":"#A67573", "Sn":"#668080", "Sb":"#9E63B5", "Te":"#D47A00",
+            "I":"#940094",  "Xe":"#429EB0", "Cs":"#57178F", "Ba":"#00C900",
+            "La":"#70D4FF", "Ce":"#FFFFC7", "Pr":"#D9FFC7", "Nd":"#C7FFC7",
+            "Pm":"#A3FFC7", "Sm":"#8FFFC7", "Eu":"#61FFC7", "Gd":"#45FFC7",
+            "Tb":"#30FFC7", "Dy":"#1FFFC7", "Ho":"#00FF9C", "Er":"#00E675",
+            "Tm":"#00D452", "Yb":"#00BF38", "Lu":"#00AB24", "Hf":"#4DC2FF",
+            "Ta":"#4DA6FF", "W":"#2194D6",  "Re":"#267DAB", "Os":"#266696",
+            "Ir":"#175487", "Pt":"#D0D0E0", "Au":"#FFD123", "Hg":"#B8B8D0",
+            "Tl":"#A6544D", "Pb":"#575961", "Bi":"#9E4FB5", "Po":"#AB5C00",
+            "At":"#754F45", "Rn":"#428296", "Fr":"#420066", "Ra":"#007D00",
+            "Ac":"#70ABFA", "Th":"#00BAFF", "Pa":"#00A1FF", "U":"#008FFF",
+            "Np":"#0080FF", "Pu":"#006BFF", "Am":"#545CF2", "Cm":"#785CE3",
+            "Bk":"#8A4FE3", "Cf":"#A136D4", "Es":"#B31FD4", "Fm":"#B31FBA",
+            "Md":"#B30DA6", "No":"#BD0D87", "Lr":"#C70066", "Rf":"#CC0059",
+            "Db":"#D1004F", "Sg":"#D90045", "Bh":"#E00038", "Hs":"#E6002E",
+            "Mt":"#EB0026",
+        };
 
         // get magnitude of vector
         function mag(v){
@@ -160,8 +161,12 @@
                         var dc = bondCenters.map((v,ii) => mag(diff(atomPos, v)));
                         var c = dc.indexOf(Math.min(...dc));
 
+                        var color = atomColors[atomName];
+                        if (color === undefined) {
+                            color = 0xFFFFFF;
+                        }
                         var material = new THREE.MeshPhongMaterial({
-                            color: atomColors[atomName],
+                            color: color,
                             specular: 0x050505,
                             shininess: 100,
                             transparent: true,
