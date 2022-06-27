@@ -8,10 +8,10 @@
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
 
 A general-purpose library for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipole spin moments.
-
+<!-- 
 ## Example notebooks
 
-[**Coming soon**]  To get a feeling for what Sunny can do, we recommend to start by browsing through our Jupyter notebook examples.
+[**Coming soon**]  To get a feeling for what Sunny can do, we recommend to start by browsing through our Jupyter notebook examples. -->
 
 ## What it does
 
