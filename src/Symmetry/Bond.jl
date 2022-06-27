@@ -34,7 +34,7 @@ function Base.show(io::IO, mime::MIME"text/plain", bond::Bond)
 end
 
 function position_to_index(cryst::Crystal, r::Vec3)
-    return findfirst(r′ -> is_same_position(r, r′; symprec=cryst.symprec), cryst.positions)
+    return findfirst(r′ -> is_periodic_copy(cryst, r, r′), cryst.positions)
 end
 
 """    displacement(cryst::Crystal, b::Bond)

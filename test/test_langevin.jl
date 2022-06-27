@@ -15,12 +15,23 @@ function su5_mean_energy(kT, D)
     return 4D*(exp(-a)*(-a*(a*(a*(a+4)+12)+24)-24)+24) / (5a*(exp(-a)*(-a*(a*(a+3)+6)-6)+6)) # - Λ₀
 end
 
+#= Generates an FeI2 cyrstal (Fe+ ions only). This crystal supports
+the anisotropies in the tests below =#
+function FeI2_crystal()
+    a = b = 4.05012
+    c = 6.75214
+    lat_vecs = lattice_vectors(a, b, c, 90, 90, 120)
+    basis_vecs = [[0,0,0]]
+    Crystal(lat_vecs, basis_vecs, 164; setting="1")
+end
+
+
 function su3_anisotropy_model(; L=20, D=1.0)
     N = 3
     Sz = Sunny.gen_spin_ops(N)[3]
     Λ = D*Sz^2
 
-    cryst = Sunny.cubic_crystal()
+    cryst = FeI2_crystal()
     interactions = [SUN_anisotropy(Λ, 1)]
     dims = (L,1,1)
 
@@ -35,7 +46,7 @@ function su5_anisotropy_model(; L=20, D=1.0)
     Sz = Sunny.gen_spin_ops(N)[3]
     Λ = D*(Sz^2-(1/5)*Sz^4)
 
-    cryst = Sunny.cubic_crystal()
+    cryst = FeI2_crystal()
     interactions = [SUN_anisotropy(Λ, 1)]
     dims = (L,1,1)
 

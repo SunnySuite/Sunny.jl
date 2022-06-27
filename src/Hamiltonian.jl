@@ -40,7 +40,16 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
                 println("Use `print_bond(crystal, Bond($site, $site, [0,0,0])` for more information.")
                 error("Interaction violates symmetry.")
             end
-        ## TODO: check validity of quartic anisotropy
+        elseif isa(int, SUNAnisotropy)
+            (; site, Λ) = int
+            b = Bond(site, site, [0,0,0])
+            N = size(Λ)[1]
+            if !is_anisotropy_valid(crystal, site, int.Λ)
+                println("Symmetry-violating anisotropy: $(repr(MIME("text/plain"), int)).")
+                println("Allowed SU(N) single-ion anisotropy for this atom:")
+                print_allowed_anisotropy(crystal, site)
+                error("Specified SU($N) anisotropy either violates symmetry or is of incorrect dimension.")
+            end
         end
     end
 
@@ -73,25 +82,36 @@ function merge(anisos::Vector{SUNAnisotropy})
     )
 end
 
-# Set Λ to zero matrix for every site and cumulatively add
-# every given SU(N) anistropy matrix according to site. This ensures
-# that there is exactly one Λ for every site.
-function combine_and_pad_sun_anisos(anisos::Vector{SUNAnisotropy}, crystal::Crystal, N::Int)
-    new_anisos = SUNAnisotropy[]
-    for b in 1:nbasis(crystal)
-        Λ′ = zeros(ComplexF64, N, N)
-        site_anisos = filter(a -> a.site == b, anisos)
-        if length(site_anisos) > 0
-            dims = [size(a.Λ)[1] for a ∈ site_anisos]
-            wrong_dims = filter(d -> d != N, dims)
-            if length(wrong_dims) > 0
-                throw("Dimension of one or more anisotropies does not match system N")
+
+"""
+    propagate_sun_anisos(crystal::Crystal, anisos::Vector{SUNAnisotropy}, N)
+
+Propagates SU(N) anisotropies to symmetry equivalent sites. If no 
+anisotropy is specified for a given site, the Λ for that site is set to 
+the zero matrix.
+"""
+function propagate_sun_anisos(crystal::Crystal, anisos::Vector{SUNAnisotropy}, N)
+    Λ₀ = zeros(ComplexF64, N, N)
+    all_sun_anisos = [SUNAnisotropy(Λ₀, i, "") for i ∈ 1:nbasis(crystal)]
+    specified_atoms = Int[]
+
+    for aniso ∈ anisos
+        (; Λ, site) = aniso
+        (sym_bs, sym_Λs) = all_symmetry_related_anisotropies(crystal, site, Λ)
+
+        for (sym_atom, sym_Λ) in zip(sym_bs, sym_Λs)
+            if sym_atom in specified_atoms
+                @error "Provided two SU($N) anisotropies for symmetry equivalent sites."
+            elseif size(sym_Λ)[1] != N
+                @error "Provided an SU($(size(sym_Λ)[1])) anisotropy for an SU($N) model!"
+            else
+                push!(specified_atoms, sym_atom)
             end
-            Λ′ += sum([a.Λ for a ∈ site_anisos])
+            all_sun_anisos[sym_atom] = SUNAnisotropy(sym_Λ, sym_atom, "")
         end
-        push!(new_anisos, SUNAnisotropy(Λ′, b, "Final anisotropy"))
     end
-    return new_anisos
+
+    return all_sun_anisos
 end
 
 
@@ -123,7 +143,8 @@ function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::C
         @error "Given a Landau-Lifshitz-type anisotropy, but running in SU(N) mode."
     end
 
-    sun_anisos = combine_and_pad_sun_anisos(sun_anisos, crystal, N)
+    # Propagate SU(N) anisotropies to symmetry equivalent sites
+    sun_anisos = propagate_sun_anisos(crystal, sun_anisos, N)
     sun_aniso = merge(sun_anisos)
 
     return (nothing, nothing, sun_aniso)

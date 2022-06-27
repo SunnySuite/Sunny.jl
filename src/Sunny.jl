@@ -18,6 +18,8 @@ import Random
 using FilePaths: Path
 using CrystalInfoFramework
 import Spglib
+using WignerSymbols: clebschgordan, wigner3j
+using RowEchelon: rref!
 
 # Specific to SunnyGfx
 using JSON
@@ -45,10 +47,12 @@ include("Symmetry/Symmetry.jl")
 export Crystal, subcrystal, nbasis, cell_volume, cell_type
 export lattice_vectors, lattice_params
 export Bond, displacement, distance, coordination_number
-export print_bond, print_bond_table
+export print_bond, print_bond_table, print_mutually_allowed_couplings
 export reference_bonds, basis_for_symmetry_allowed_couplings
 export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 export all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom
+export print_suggested_frame, print_allowed_anisotropy, stevens_operators
+export all_symmetry_related_anisotropies
 
 include("Util.jl")
 

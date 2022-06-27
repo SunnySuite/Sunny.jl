@@ -114,3 +114,148 @@ cryst2 = Crystal(lat_vecs, positions) # Infers 'P -1'
 @test cell_type(cryst1) == cell_type(cryst2) == Sunny.triclinic
 
 end
+
+
+### TODO: Merge this with David's code
+@testset "Spin operators" begin
+    function infer_ket_from_dipole(S, n::Sunny.Vec3)
+        # Find a ket (up to an irrelevant phase) that corresponds to a pure dipole.
+        # TODO, we can do this much faster by using the exponential map of spin
+        # operators, expressed as a polynomial expansion,
+        # http://www.emis.de/journals/SIGMA/2014/084/
+        (evals, evecs) = eigen(n'*S)
+        return normalize(evecs[:, argmax(evals)])
+    end
+    function spin_bilinear(S, Z)
+        return Sunny.Vec3(real(Z'*S[1]*Z), real(Z'*S[2]*Z), real(Z'*S[3]*Z))
+    end
+    
+    # Levi-Civita symbol
+    ϵ = [(i-j)*(j-k)*(k-i)/2 for i=1:3, j=1:3, k=1:3]
+
+    # Kronecker delta
+    δ(i,j) = (i==j) ? 1 : 0
+
+    ### Verify 𝔰𝔲(2) irreps
+    for N = 2:5
+        S₀ = (N-1)/2
+        S = Sunny.spin_operators(N)
+
+        for i=1:3, j=1:3
+            # Test commutation relations
+            @test S[i]*S[j] - S[j]*S[i] ≈ im * sum(ϵ[i,j,k]*S[k] for k=1:3)
+
+            # Test orthonormality
+            @test tr(S[i]*S[j]) ≈ (2/3)*S₀*(S₀+1/2)*(S₀+1)*δ(i,j)
+        end
+
+        # Test magnitude
+        @test sum(S[i]^2 for i=1:3) ≈ S₀*(S₀+1)*I
+
+        # Test dipole -> ket -> dipole round trip
+        n = S₀ * normalize(randn(Sunny.Vec3))
+        ψ = infer_ket_from_dipole(S, n)
+        @test spin_bilinear(S, ψ) ≈ n
+    end    
+end
+
+
+@testset "Spherical tensors" begin
+    # Lie bracket, aka matrix commutator
+    bracket(A, B) = A*B - B*A
+
+    for N=2:7
+        S = Sunny.spin_operators(N)
+        Sp = S[1] + im*S[2]
+        Sm = S[1] - im*S[2]
+        
+        for k = 0:N-1
+            # Spherical tensors acting on N-dimensional Hilbert space
+            T = Sunny.spherical_tensors(N, k)
+
+            # Generators of rotations in the spin-k representation
+            K = Sunny.spin_operators(2k+1)
+
+            # The selected basis is q ∈ [|k⟩, |k-1⟩, ... |-k⟩]. This function
+            # converts from a q value to a 1-based index.
+            idx(q) = k-q+1
+
+            # A random axis-angle
+            θ = randn(3)
+            # Different representations of the same physical rotation
+            D = exp(-im * θ' * K)
+            U = exp(-im * θ' * S)
+
+            for q = -k:k
+                # Racah's commutation relations
+                @test bracket(S[3], T[idx(q)]) ≈ q * T[idx(q)]
+                q < +k && @test bracket(Sp, T[idx(q)]) ≈ sqrt((k-q)*(k+q+1)) * T[idx(q+1)]
+                q > -k && @test bracket(Sm, T[idx(q)]) ≈ sqrt((k+q)*(k-q+1)) * T[idx(q-1)]
+
+                # Wigner D matrix encodes rotation
+                @test U' * T[idx(q)] * U ≈ (conj(D) * T)[idx(q)]
+            end
+        end
+    end
+end
+
+@testset "Stevens operators" begin
+    for N=2:7
+        for k = 0:N-1
+            𝒪 = Sunny.stevens_operators(N, k)
+            T = Sunny.spherical_tensors(N, k)
+
+            # Check that two ways of calculating Stevens operators agree
+            @test 𝒪 ≈ Sunny.stevens_operators_explicit(N, k)
+
+            # Check conversion of coefficients
+            c = randn(2k+1)
+            b = Sunny.transform_spherical_to_stevens_coefficients(k, c)
+            A1 = sum(c[i]*T[i] for i in eachindex(c))
+            A2 = sum(b[q]*𝒪[q] for q in eachindex(b))
+            @test A1 ≈ A2
+        end
+    end
+
+    # Test some inferred anisotropy matrices
+    begin
+        N = 7
+        k = 6
+        i = 1
+        cryst = Sunny.diamond_crystal()
+
+        # print_allowed_anisotropy(cryst, i; k)
+        𝒪 = stevens_operators(N, k)
+        Λ = 𝒪[0]-21𝒪[4]
+        @test Sunny.is_anisotropy_valid(cryst, i, Λ)
+
+        R = hcat(normalize([1, 1, -2]), normalize([-1, 1, 0]), normalize([1, 1, 1]))
+        R = Sunny.Mat3(R)
+        # print_allowed_anisotropy(cryst, i; k, R, digits=14)
+        𝒪 = stevens_operators(N, k; R)
+        Λ = 𝒪[0]-12.37436867076458𝒪[3]+9.625𝒪[6]
+        @test Sunny.is_anisotropy_valid(cryst, i, Λ)
+
+        lat_vecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
+        cryst = Crystal(lat_vecs, [[0., 0., 0.]])
+        # print_allowed_anisotropy(cryst, i; k, digits=14)
+        𝒪 = stevens_operators(N, k)
+        Λ = randn()*(𝒪[0]-21𝒪[4]) + randn()*(𝒪[2]+3.2𝒪[4]+2.2𝒪[6])
+        @test Sunny.is_anisotropy_valid(cryst, i, Λ)
+    end
+end
+
+@testset "Rotations" begin
+    A = randn(3,3)
+    R = exp(A - A')
+    (n, θ) = Sunny.axis_angle(Sunny.Mat3(R))
+    @test 1 + 2cos(θ) ≈ tr(R)
+    @test norm(n) ≈ 1
+    @test R*n ≈ n
+end
+
+
+#=
+using Pkg
+Pkg.test("Sunny", test_args=["test_symmetry"])
+=#
