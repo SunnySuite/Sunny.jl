@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="https://raw.githubusercontent.com/MagSims/Sunny.jl/master/assets/sunny_logo.jpg" width=50% alt="Sunny.jl">
+    <img src="https://raw.githubusercontent.com/MagSims/Sunny.jl/main/assets/sunny_logo.jpg" width=50% alt="Sunny.jl">
 </div>
 <p>
 
@@ -8,10 +8,6 @@
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
 
 A general-purpose library for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipole spin moments.
-
-## API Reference
-
-[Full documentation available here](https://sunnysuite.github.io/Sunny.jl/dev).
 
 ## Example notebooks
 
@@ -46,6 +42,10 @@ pkg> add Sunny#main
 Check that Sunny is working properly by running the unit tests: `pkg> test Sunny`. Please keep up-to-date by periodically running the Julia update command: `pkg> update`.
 
 A good way to interact with Sunny is through the Jupyter notebook interface. This support can be installed through the [IJulia](https://github.com/JuliaLang/IJulia.jl) package.
+
+## API Reference
+
+[Full documentation available here](https://sunnysuite.github.io/Sunny.jl/dev).
 
 ## Contact us
 
