@@ -23,7 +23,7 @@ SU(_N_) spin dynamics was originally proposed in:
 
 * H. Zhang and C. D. Batista, _Classical spin dynamics based on SU(N) coherent states_, Phys. Rev. B 104, 104409 (2021) [[arXiv:2106.14125](https://arxiv.org/abs/2106.14125)].
 
-Sunny implements geometric-preserving numerical integration of this SU(_N_) dynamics:
+Sunny implements geometrically constrained numerical integration of this SU(_N_) dynamics:
 
 * D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_ [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
 
