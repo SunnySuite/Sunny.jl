@@ -27,7 +27,7 @@ function make_test_system_lld(; spin_rescaling=1.0)
     quartic_interactions = [quartic_anisotropy(Jquar, i, "quartic") for i ∈ 1:4]
 
     interactions_all = vcat(exchange_interactions..., quartic_interactions...) 
-    dims = (4,4,4)
+    dims = (2,2,2)
 
     return SpinSystem(cryst,
                       interactions_all,
@@ -45,10 +45,10 @@ function make_test_system_gsd(; spin_rescaling=1.0, N=2)
 
     # Quartic anisotropy
     S = Sunny.gen_spin_ops(N)
-    quartic_sun = [SUN_anisotropy(-S[3]^4, i, "quartic") for i ∈ 1:4]
+    quartic_sun = SUN_anisotropy(-S[3]^4, 1, "quartic") 
 
-    dims = (4,4,4)
-    interactions_all = vcat(exchange_interactions..., quartic_sun...) 
+    dims = (2,2,2)
+    interactions_all = vcat(exchange_interactions..., quartic_sun) 
 
     return SpinSystem(cryst,
                       interactions_all,
@@ -96,7 +96,7 @@ function test_energy_scaling_lld()
     num_rescalings = 2  
 
     cryst = Sunny.fcc_crystal()
-    dims = (4,4,4)
+    dims = (2,2,2)
     J_quad = I(3) 
     J_quar = zeros(3,3,3,3)
     J_quar[3,3,3,3] = 1.0
@@ -131,15 +131,19 @@ test_energy_scaling_lld()
 
 
 function test_energy_scaling_gsd()
-    N = 3
+    N = 5
     num_rescalings = 2    # number of rescalings to try
 
     cryst = Sunny.fcc_crystal()
-    dims = (4,4,4)
+    dims = (2,2,2)
+
+    𝒪₂ = stevens_operators(N, 2)
+    𝒪₄ = stevens_operators(N, 4)
+    Λ = 𝒪₄[0]+5𝒪₄[4]
 
     S = Sunny.gen_spin_ops(N)
     interactions_gsd = [heisenberg(1.0, Bond(1,2,[0,0,0])),
-                        SUN_anisotropy(S[3]^4, 1, "")]
+                        SUN_anisotropy(Λ, 1, "")]
     powers_gsd = [2, 1]
 
     for (interaction, power) in zip(interactions_gsd, powers_gsd)
