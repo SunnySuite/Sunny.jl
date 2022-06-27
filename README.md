@@ -29,6 +29,8 @@ Sunny implements geometrically constrained numerical integration of this SU(_N_)
 
 Sunny additionally implements many new algorithms for efficient equilibrium sampling of SU(_N_) spins.
 
+_Dipole mode_. As a special case, Sunny can be restricted to the dipole-only approximation of spin. In this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/). A key difference is that Sunny does not (currently) employ linear spin wave theory. Advantages are: (1) Applicability to finite temperature measurements and (2) Support for single-ion anisotropies beyond quadratic order.   A disadvantage is that structure factor measurements $\mathcal S(q,\omega)$ have momentum-space ($q$) resolution that is limited by the size of magnetic super cell.
+
 ## Installation
 
 Sunny is implemented in the [Julia programming language](https://julialang.org/). New Julia users may wish to start with our [Getting Started](GettingStarted.md) guide.
