@@ -46,7 +46,7 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
             N = size(Λ)[1]
             if !is_anisotropy_valid(crystal, site, int.Λ)
                 println("Symmetry-violating anisotropy: $(repr(MIME("text/plain"), int)).")
-                println("Allowed SU($N) single-ion anisotropy for this atom:")
+                println("Allowed SU(N) single-ion anisotropy for this atom:")
                 print_allowed_anisotropy(crystal, site)
                 error("Specified SU($N) anisotropy either violates symmetry or is of incorrect dimension.")
             end
