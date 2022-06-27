@@ -143,7 +143,6 @@ function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::C
         @error "Given a Landau-Lifshitz-type anisotropy, but running in SU(N) mode."
     end
 
-    # sun_anisos = combine_and_pad_sun_anisos(sun_anisos, crystal, N)
     # Propagate SU(N) anisotropies to symmetry equivalent sites
     sun_anisos = propagate_sun_anisos(crystal, sun_anisos, N)
     sun_aniso = merge(sun_anisos)
