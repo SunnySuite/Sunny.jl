@@ -43,8 +43,6 @@ function Replica(sampler::AS, α::Float64) where {AS <: AbstractSampler}
     rank = MPI.Comm_rank(MPI.COMM_WORLD)
     N_ranks = MPI.Comm_size(MPI.COMM_WORLD)
 
-    # Will have to come up with strategy for RNGs on MPI that coordinates
-    # with SpinSystem rng.
     Random.seed!(round(Int64, time()*1000))
 
     # Even rank exch. down when rex_dir==1, up when rex_dir==2
@@ -69,7 +67,7 @@ function Replica(sampler::AS, α::Float64) where {AS <: AbstractSampler}
     # Start even ranks exchanging down
     rex_dir = (rank % 2 == 0) ? 1 : 2
 
-    return Replica(rank, N_ranks, 0, rex_dir, α, nn_ranks, label, 0, 0, 0, sampler)
+    return Replica(rank, N_ranks, 0, rex_dir, α, nn_ranks, label, 0, 0, sampler)
 end
 
 """
@@ -94,11 +92,11 @@ function replica_exchange!(replica::Replica)
     S_curr = running_energy(replica.sampler) / get_temp(replica.sampler)
 
     # Backup current configuration
-    backup_sites = deepcopy(replica.sampler.system._dipoles)
+    backup_spins = deepcopy(replica.sampler.system._dipoles)
 
     # Swap trial configuration with partner
     MPI.Sendrecv!(
-        backup_sites, rex_rank, 1,
+                           backup_spins, rex_rank, 1,
         replica.sampler.system._dipoles, rex_rank, 1,
         MPI.COMM_WORLD
     )
@@ -129,7 +127,7 @@ function replica_exchange!(replica::Replica)
 
     # Reject exchange
     if !rex_accept
-        replica.sampler.system.sites .= backup_sites
+        replica.sampler.system._dipoles .= backup_spins
         return false
     end
 
@@ -203,6 +201,66 @@ function gather_print(replica::Replica, data, fname::String)
     end
 
     return nothing
+end
+
+""" 
+Encode an array (of length <= 63) of Ising spins (+/-1) into an integer
+"""
+function spins_to_int(s::Vector{Int64})
+    intval = 0
+    # convert spin array to bit vector
+    bitvec = map(x->cld(x, 2), s .+ 1) .== 1
+
+    # traverse bitvec in reverse order and flag its in intval
+    for i in 0:length(bitvec)-1
+        if bitvec[end-i]
+            intval = intval | (1<<i)
+        end
+    end
+    return intval
+end
+
+"""
+Decode a 64-bit integer into an array of Ising spins (+/-1)
+"""
+function int_to_spins(intval::Int64, N::Int64)
+    return map(x->2*(x-'0')-1, collect(bitstring(intval)))[end-N+1:end]
+end
+
+"""
+Encode ising system spin z-components as 64-bit integers to file
+"""
+function encode_ising_to_file(system::SpinSystem, output::IOStream)
+    Sz = Int64.(vec(reinterpret(reshape, Float64, system._dipoles)[3,1,:,:,:]))
+    N = length(Sz)
+
+    N_ints = cld(N, 63)
+
+    for i in 1:N_ints
+        a = (i-1)*63 + 1
+        b = a + 63-1
+        b = (b > N) ? N : b
+
+        println(output, spins_to_int(Sz[a:b]))
+    end
+    println(output, "\n")
+
+    return nothing
+end
+
+"""
+Decode spin-z components from ints for Ising system
+"""
+function decode_ising(intvals::Vector{Int64}, extent::Tuple{Int64,Int64,Int64})
+    N = prod(extent)
+    N_ints = length(intvals)
+    extra = 63*N_ints - N
+    Sz = Int64[]
+    for i in intvals[1:end-1]
+        push!(Sz, int_to_spins(i, 63)...)
+    end
+    push!(Sz, int_to_spins(intvals[end], 63-extra)...)
+    return Sz
 end
 
 """
@@ -340,14 +398,7 @@ function run_FBO!(
     print_ranks_trajectory::Vector{Int64}=Int64[],
     trajectory_interval::Int64=500_000
 ) where {F <: Function}
-
-    # Initialize energy and equilibrate replica to it's distribution
-    reset_running_energy!(replica.sampler)
-    reset_running_mag!(replica.sampler)
-
-    thermalize!(replica.sampler, therm_mcs)
-
-    replica.sampler.nsweeps = 1
+    init_REMC!(replica, therm_mcs, rex_interval, therm_mcs)
 
     rex_accepts = zeros(Int64, 2)
     N_updates = 0
@@ -447,6 +498,99 @@ function reset_stats!(replica::Replica)
 end
 
 """
+Initialize replicas to their repective distributions using REMC.
+"""
+function init_REMC!(
+    replica::Replica, 
+    therm_mcs::Int64, 
+    rex_interval::Int64, 
+    trajectory_interval::Int64
+)
+    # Initialize energy and equilibrate replica to it's distribution
+    reset_running_energy!(replica.sampler)
+    reset_running_mag!(replica.sampler)
+    replica.sampler.nsweeps = 1
+
+    rex_accepts = zeros(Int64, 2)
+    N_rex = 0
+
+    T = get_temp(replica.sampler) / Sunny.meV_per_K
+    init_output = open(@sprintf("init_T=%f.dat", T), "a")
+
+    for mcs in 1:therm_mcs
+        sample!(replica.sampler)
+
+        # Crude progress printing to stdout
+        if (replica.rank == 0) && (mcs % 1000 == 0)
+            println("init ", mcs, " mcs")
+        end
+
+        E = running_energy(replica.sampler)
+        println(init_output, E)
+
+        # Attempt replica exchange
+        if mcs % rex_interval == 0 
+            N_rex += 1
+
+            if replica_exchange!(replica)
+                rex_accepts[replica.rex_dir] += 1
+
+                # Exchange labels
+                label_exchange!(replica, replica.nn_ranks[replica.rex_dir])
+            end
+
+            # Record replica flow (for quality evaluation) 
+            if replica.nn_ranks[replica.rex_dir] != -1
+                if replica.label < 0
+                    replica.N_down += 1
+                elseif replica.label < replica.N_ranks+1
+                    replica.N_up += 1
+                end
+            end
+
+            # Print out replica exchange timeseries -- inefficient IO
+            if N_rex % trajectory_interval == 0 
+                if replica.label <= replica.N_ranks
+                    fname = @sprintf("init_trajectory%03d.dat", abs(replica.label)-1)
+                    rex_output = open(fname, "a")
+                    println(rex_output, mcs," ",replica.rank," ",E)
+                    close(rex_output)
+                end
+            end
+
+            # Alternate up/down pairs of replicas for exchanges
+            replica.rex_dir = 3 - replica.rex_dir
+        end
+    end
+
+    # Acceptance rate between replicas i and i+1
+    A = (replica.rank == replica.N_ranks-1) ? 0.0 : rex_accepts[2]/replica.N_rex_up
+
+    # Gather and print: rank, "down" exch. accepts, "up" exch. accepts, acceptance ratio
+    gather_print(
+        replica,
+        [replica.α, A],
+        "init_replica-exchanges.dat"
+    )
+
+    # Print replica flow 'f' to file
+    N_labeled = (replica.N_up + replica.N_down)    
+    f = (N_labeled > 0) ? replica.N_down/N_labeled : 0.0
+
+    gather_print(
+        replica,
+        [replica.α, f],
+        "init_replica-flow.dat"
+    )
+
+    close(init_output)
+    
+    reset_stats!(replica)
+
+    return :SUCCESS
+end
+
+"""
 Start a parallel tempering (PT) simulation that saves measured averages,
 histograms, minimal energies, and configurations.
 
@@ -479,6 +623,8 @@ Run w/ the command "mpiexec -n [n_procs] julia --project [julia_script.jl]".
 - `measure_replica_flow::Bool`: If true, then the flux of downward replica flow in 
   α space is measured and printed after the simulation
 
+- `encode_ising_interval`: Number of MC sweeps to wait before writing spin
+  configuration to file as sequence of 64-bit integers
 """
 function run_REMC!(
     replica::Replica; 
@@ -491,15 +637,10 @@ function run_REMC!(
     print_xyz_ranks::Vector{Int64}=Int64[],
     print_ranks_trajectory::Vector{Int64}=Int64[],
     trajectory_interval::Int64=1_000_000,
-    measure_replica_flow::Bool=false
+    measure_replica_flow::Bool=false,
+    encode_ising_interval::Int64=-1
 )
-    # Initialize energy and equilibrate replica to it's distribution
-    reset_running_energy!(replica.sampler)
-    reset_running_mag!(replica.sampler)
-
-    thermalize!(replica.sampler, therm_mcs)
-    
-    replica.sampler.nsweeps = 1
+    init_REMC!(replica, therm_mcs, rex_interval, trajectory_interval)
 
     # Manually include these basic measurements for now
     U  = 0.0
@@ -511,12 +652,16 @@ function run_REMC!(
     X  = 0.0
 
     system_size = length(replica.sampler.system)
-    Emin = typemax(Float64)
     E_hist = BinnedArray{Float64, Int64}(bin_size=bin_size)
     m_hist = BinnedArray{Float64, Int64}(bin_size=1.0)
     rex_accepts = zeros(Int64, 2)
-    N_measure = 0
     N_rex = 0
+    N_measure = 0
+    Emin = typemax(Float64)
+
+    T = get_temp(replica.sampler) / Sunny.meV_per_K
+    E_output = open(@sprintf("energy_T=%f.dat", T), "a")
+    ising_output = open(@sprintf("ising-int_T=%f.dat", T), "a")
 
     # Start PT with finite length
     for mcs in 1:max_mcs
@@ -563,6 +708,10 @@ function run_REMC!(
             replica.rex_dir = 3 - replica.rex_dir
         end
 
+        if (encode_ising_interval > 0) && (mcs % encode_ising_interval == 0)
+            encode_ising_to_file(replica.sampler.system, ising_output)
+        end
+
         # Measurements
         if mcs % measure_interval == 0
             E = running_energy(replica.sampler)
@@ -573,14 +722,11 @@ function run_REMC!(
             if E < Emin
                 Emin = E
 
-                # Print out evolution of Emin w.r.t MC time
-                f = open(@sprintf("Emin%03d.dat", replica.rank), "a")
-                println(f, mcs," ",Emin)
-                close(f)
+                println(E_output, E)
 
                 # Overwrite Emin coordinates in saved file
                 if replica.rank in print_xyz_ranks
-                    xyz_output = open(@sprintf("Emin%03d.xyz", replica.rank), "w")
+                    xyz_output = open(@sprintf("Emin_T=%f.xyz", T), "w")
                     xyz_to_file(replica.sampler.system, xyz_output)
                     close(xyz_output)
                 end
@@ -628,10 +774,10 @@ function run_REMC!(
 
     # Write histogram to file for each process if specified
     if print_hist
-        f = open(@sprintf("E-hist%03d.dat", replica.rank), "w")
+        f = open(@sprintf("E-hist_T=%f.dat", T), "w")
         println(f, E_hist)
         close(f)
-        f = open(@sprintf("m-hist%03d.dat", replica.rank), "w")
+        f = open(@sprintf("m-hist_T=%f.dat", T), "w")
         println(f, m_hist)
         close(f)
     end
@@ -647,6 +793,9 @@ function run_REMC!(
             "replica_flow.dat"
         )
     end
+
+    close(E_output)
+    close(ising_output)
 
     return :SUCCESS
 end
