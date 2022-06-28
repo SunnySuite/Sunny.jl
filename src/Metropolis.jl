@@ -308,11 +308,11 @@ end
 @inline running_energy(sampler::MetropolisSampler) = sampler.E
 @inline running_mag(sampler::MetropolisSampler) = sampler.M
 @inline reset_running_energy!(sampler::MetropolisSampler) = (sampler.E = energy(sampler.system); nothing)
-@inline reset_running_mag!(sampler::MetropolisSampler) = (sampler.M = sum(sampler.system); nothing)
+@inline reset_running_mag!(sampler::MetropolisSampler) = (sampler.M = sum(sampler.system._dipoles); nothing)
 @inline running_energy(sampler::IsingSampler) = sampler.E
 @inline running_mag(sampler::IsingSampler) = sampler.M
 @inline reset_running_energy!(sampler::IsingSampler) = (sampler.E = energy(sampler.system); nothing)
-@inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.system); nothing)
+@inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.system._dipoles); nothing)
 
 
 """

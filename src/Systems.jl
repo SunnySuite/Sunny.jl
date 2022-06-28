@@ -214,9 +214,21 @@ end
 Sets spins randomly either aligned or anti-aligned
 with their original direction.
 """
-function randflips!(sys::SpinSystem{0}) # TODO: Should this still behave the same way?
+function randflips!(sys::SpinSystem{0}) 
     dip_view = DipoleView(sys)
     @. dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
+end
+
+@inline function flip_ket(Z::CVec{N}, S) where N
+    exp(-im*π*S[2])*conj(Z)
+end
+
+function randflips!(sys::SpinSystem{N}) where N
+    Z, S = sys._coherents, sys.S
+    for i in eachindex(Z)
+        rand([true, false]) && (Z[i] = flip_ket(Z[i], S))
+    end
+    set_expected_spins!(sys)
 end
 
 """
