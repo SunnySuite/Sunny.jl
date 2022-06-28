@@ -14,7 +14,8 @@ struct SpinSystem{N}
     rng         :: Random.AbstractRNG
 end
 
-@inline Base.size(sys::SpinSystem) = size(sys._coherents)
+@inline Base.size(sys::SpinSystem) = size(sys._dipoles)
+@inline Base.length(sys::SpinSystem) = length(sys._dipoles)
 @inline nbasis(sys::SpinSystem) = nbasis(sys.lattice)
 @inline eachcellindex(sys::SpinSystem) = eachcellindex(sys.lattice)
 
@@ -214,9 +215,25 @@ end
 Sets spins randomly either aligned or anti-aligned
 with their original direction.
 """
-function randflips!(sys::SpinSystem{0}) # TODO: Should this still behave the same way?
+function randflips!(sys::SpinSystem{0}) 
     dip_view = DipoleView(sys)
-    @. dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
+    dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
+end
+
+@inline function flip_ket(Z::CVec{N}, Sy::Matrix{ComplexF64}) where N
+    exp(-im*π*Sy)*conj(Z)
+end
+
+#= On my computer this takes about 50 μs, whereas the regular randflips!
+takes about 2 μs. I assume most of the cost is matrix exponentiation. Might
+be worth considering alternative approaches.
+=#
+function randflips!(sys::SpinSystem{N}) where N
+    Z, Sy = sys._coherents, sys.S[2]
+    for i in eachindex(Z)
+        rand((true, false)) && (Z[i] = flip_ket(Z[i], Sy))
+    end
+    set_expected_spins!(sys)
 end
 
 """
