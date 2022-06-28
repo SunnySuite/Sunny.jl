@@ -15,7 +15,7 @@ A general-purpose library for simulating classical spin systems, including the L
 
 ## What it does
 
-Sunny simulates the classical interactions between locally quantum spins. A quantum spin of magnitude _S_ is an $N = 2 S + 1$ level system. We call this local state an "SU(_N_) spin." Moving from SU(2) spin dipoles to the more general framework of SU(_N_) allows to capture all quantum entanglement between the local _N_ levels, which is crucial to modeling magnetic compounds with strong local anisotropy.
+Sunny simulates the classical interactions between local quantum spins. A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels. These "SU(_N_) spins," at distinct sites, are coupled through their expectation values. In the special case of SU(2) spins, one obtains the usual Landau-Lifshitz dynamics of spin dipoles. The more general SU(_N_) framework retains all quantum entanglement between the local _N_ levels, and is crucial to modeling magnetic compounds with strong local anisotropy.
 
 Sunny provides Monte Carlo algorithms for sampling SU(_N_) spin configurations from thermal equilibrium, as well as tools for measuring dynamical structure factors that can be compared with experimental neutron scattering data. Sunny provides symmetry analyses to facilitate the design and specification of model Hamiltonians, and interactive tools to visualize 3D crystal structures and (coming soon) structure factor data.
 
