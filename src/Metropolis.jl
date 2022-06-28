@@ -225,7 +225,7 @@ end
     spin
 end
 @inline function dipole(spin::CVec{N}, sys::SpinSystem, idx) :: Vec3 where N
-    b, _ = split_idx(idx)
+    b, _ = splitidx(idx)
     sys.site_infos[b].spin_rescaling * expected_spin(spin)
 end
 

@@ -224,6 +224,10 @@ end
     exp(-im*π*Sy)*conj(Z)
 end
 
+#= On my computer this takes about 50 μs, whereas the regular randflips!
+takes about 2 μs. I assume most of the cost is matrix exponentiation. Might
+be worth considering alternative approaches.
+=#
 function randflips!(sys::SpinSystem{N}) where N
     Z, Sy = sys._coherents, sys.S[2]
     for i in eachindex(Z)
