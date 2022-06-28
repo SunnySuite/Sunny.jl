@@ -14,7 +14,8 @@ struct SpinSystem{N}
     rng         :: Random.AbstractRNG
 end
 
-@inline Base.size(sys::SpinSystem) = size(sys._coherents)
+@inline Base.size(sys::SpinSystem) = size(sys._dipoles)
+@inline Base.length(sys::SpinSystem) = length(sys._dipoles)
 @inline nbasis(sys::SpinSystem) = nbasis(sys.lattice)
 @inline eachcellindex(sys::SpinSystem) = eachcellindex(sys.lattice)
 
@@ -216,17 +217,17 @@ with their original direction.
 """
 function randflips!(sys::SpinSystem{0}) 
     dip_view = DipoleView(sys)
-    @. dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
+    dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
 end
 
-@inline function flip_ket(Z::CVec{N}, S) where N
-    exp(-im*π*S[2])*conj(Z)
+@inline function flip_ket(Z::CVec{N}, Sy::Matrix{ComplexF64}) where N
+    exp(-im*π*Sy)*conj(Z)
 end
 
 function randflips!(sys::SpinSystem{N}) where N
-    Z, S = sys._coherents, sys.S
+    Z, Sy = sys._coherents, sys.S[2]
     for i in eachindex(Z)
-        rand([true, false]) && (Z[i] = flip_ket(Z[i], S))
+        rand((true, false)) && (Z[i] = flip_ket(Z[i], Sy))
     end
     set_expected_spins!(sys)
 end
