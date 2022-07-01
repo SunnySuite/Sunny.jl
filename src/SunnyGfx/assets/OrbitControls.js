@@ -8,6 +8,8 @@
 // on July 1, 2022 (r142)
 
 ( function () {
+	// KMB: Modification to write to global state
+	let THREE = globalThis.SUNNY_THREE;
 
 	// Unlike TrackballControls, it maintains the "up" direction object.up (+Y by default).
 	//

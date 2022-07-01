@@ -17,12 +17,17 @@ function offline_viewers()
         read(io, String)
     end
     html_str = """
-        Installed Javascript modules to enable offline viewers.
+        Installed Javascript dependencies for Jupyter notebooks.
         <script>
         $three_src;
-        let THREE = globalThis.SUNNY_THREE;
         $orbit_controls_src;
         </script>
     """
     SunnyViewer(html_str)
 end
+
+
+# For debugging inside VSCode:
+#   Developer: Toggle Developer Tools
+# For possible webview features:
+#   https://code.visualstudio.com/api/extension-guides/webview

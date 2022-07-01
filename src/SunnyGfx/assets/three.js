@@ -6,9 +6,9 @@
 // Downloaded from:
 // https://github.com/mrdoob/three.js/build/three.js
 // on July 1, 2022 (r142)
-// First six lines modified to store package in `this.SUNNY_THREE`.
 
 (function (global, factory) {
+	// KMB: Modified to store into global state
 	// typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	// typeof define === 'function' && define.amd ? define(['exports'], factory) :
 	// (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.THREE = {}));
