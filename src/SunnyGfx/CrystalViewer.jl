@@ -105,13 +105,6 @@ function system_json(crystal::Crystal, max_dist)
 end
 
 """
-Crystal viewer for visualizing crystal geometry and allowed bonds
-"""
-struct CrystalViewer <: SunnyVisual
-    html_str::String
-end
-
-"""
 Create and show crystal viewer. 
 Javascript and html code for visualizer is found in the assets/ directory.
 If dev=true, then a html file is made in the build/ directory for development in web browser.
@@ -152,6 +145,6 @@ function view_crystal(crystal::Crystal, max_dist::Float64; dev=false)
         end
         return nothing
     else
-        return CrystalViewer(html)
+        return SunnyViewer(html)
     end
 end

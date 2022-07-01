@@ -1,9 +1,6 @@
 'use strict';
 
 (async function () {
-    const THREE = await import("https://cdn.skypack.dev/three@0.132.2");
-    const OrbitControls = (await import("https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/OrbitControls.js")).OrbitControls;
-
     // In development, a default key is useful.
     let key = "0";
     // In production, this line will be replaced to define `key` as a unique
@@ -14,11 +11,33 @@
     // Get a reference to the container element that will hold our scene
     const container = document.querySelector(`#scene-container-${key}`);
 
+    // Show an error in the canvas pane
     function showError(err) {
         container.innerHTML = `<div class="error" style="color:red; font-size:20px;">${err}</div>`;
         throw err;
     }
 
+    let THREE, OrbitControls;
+    // See if three.js has already been loaded via `offline_viewers()`
+    if (globalThis.SUNNY_THREE !== undefined) {
+        THREE = globalThis.SUNNY_THREE;
+        OrbitControls = globalThis.SUNNY_THREE.OrbitControls;
+    }
+    // Otherwise, try to download it
+    else {
+        try {
+            THREE = await import("https://cdn.skypack.dev/three@0.142.0");
+            // TODO: Below we're pinned to an older version of OrbitControls due
+            // to .js module issues. Probably the best path forward is to define
+            // our own OrbitControls every time.
+            OrbitControls = (await import("https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/OrbitControls.js")).OrbitControls;
+        }
+        catch(err) {
+            showError(`Could not load three.js module: ${err}`);
+            return;
+        }
+    }
+        
     try {
         // create a Scene
         const scene = new THREE.Scene();
