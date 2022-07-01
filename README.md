@@ -7,7 +7,7 @@
 
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
 
-A general-purpose library for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipole spin moments.
+A package for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipole spin moments.
 <!-- 
 ## Example notebooks
 
@@ -15,21 +15,18 @@ A general-purpose library for simulating classical spin systems, including the L
 
 ## What it does
 
-Sunny simulates the classical interactions between local quantum spins. A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels. These "SU(_N_) spins," at distinct sites, are coupled through their expectation values. In the special case of SU(2) spins, one obtains the usual Landau-Lifshitz dynamics of spin dipoles. The more general SU(_N_) framework retains all quantum entanglement between the local _N_ levels, and is crucial to modeling magnetic compounds with strong local anisotropy.
+Sunny simulates a classical spin dynamics that resolves local quantum degrees of freedom. This generalization of the usual Landau-Lifshitz spin dynamics is particularly important for modeling magnetic compounds with strong local anisotropy.
 
-Sunny provides Monte Carlo algorithms for sampling SU(_N_) spin configurations from thermal equilibrium, as well as tools for measuring dynamical structure factors that can be compared with experimental neutron scattering data. Sunny provides symmetry analyses to facilitate the design and specification of model Hamiltonians, and interactive tools to visualize 3D crystal structures and (coming soon) structure factor data.
+> _For the experts_: A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves under special unitary transformations, SU(_N_). Local physical observables correspond to expectation values of the $N^2-1$ generators of SU(_N_), which may be interpreted as multipolar spin components. The standard treatment keeps only the expected dipole components, $\langle \hat S^x\rangle,\langle \hat S^y\rangle,\langle \hat S^z\rangle$, yielding the Landau-Lifshitz dynamics. Sunny implements a more general SU(_N_) spin dynamics as described in:
+> * H. Zhang and C. D. Batista, _Classical spin dynamics based on SU(N) coherent states_, Phys. Rev. B 104, 104409 (2021) [[arXiv:2106.14125](https://arxiv.org/abs/2106.14125)].
+> * D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_ [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
 
-SU(_N_) spin dynamics was originally proposed in:
 
-* H. Zhang and C. D. Batista, _Classical spin dynamics based on SU(N) coherent states_, Phys. Rev. B 104, 104409 (2021) [[arXiv:2106.14125](https://arxiv.org/abs/2106.14125)].
+Sunny additionally provides Monte Carlo algorithms for sampling from thermal equilibrium, as well as tools for measuring dynamical structure factors that can be compared with experimental neutron scattering data. Sunny provides symmetry analyses to facilitate the design and specification of model Hamiltonians, and interactive tools to visualize 3D crystal structures and (coming soon) structure factor data.
 
-Sunny implements geometrically constrained numerical integration of this SU(_N_) dynamics:
+## Comparison with other tools
 
-* D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_ [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
-
-Sunny additionally implements many new algorithms for efficient equilibrium sampling of SU(_N_) spins.
-
-_Dipole mode_. As a special case, Sunny can be restricted to the dipole-only approximation of spin. In this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/). A key difference is that Sunny does not (currently) employ linear spin wave theory. Advantages are: (1) Applicability to finite temperature measurements and (2) Support for single-ion anisotropies beyond quadratic order.   A disadvantage is that structure factor measurements $\mathcal S(q,\omega)$ have momentum-space ($q$) resolution that is limited by the size of magnetic super cell.
+A defining feature of Sunny is its support for generalized SU(_N_) spin dynamics. As a special case, however, Sunny can be restricted to the dipole-only approximation of spin. In this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/). A key difference is that Sunny does not (currently) employ linear spin wave theory. Advantages are: (1) Applicability to finite temperature measurements and (2) Support for single-ion anisotropies beyond quadratic order.   A disadvantage is that structure factor measurements $\mathcal S(q,\omega)$ have momentum-space ($q$) resolution that is limited by the size of magnetic super cell.
 
 ## Installation
 
