@@ -7,22 +7,19 @@
 
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
 
-A package for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipole spin moments.
-<!-- 
-## Example notebooks
-
-[**Coming soon**]  To get a feeling for what Sunny can do, we recommend to start by browsing through our Jupyter notebook examples. -->
-
-## What it does
-
-Sunny simulates a classical spin dynamics that resolves local quantum degrees of freedom. This generalization of the usual Landau-Lifshitz spin dynamics is particularly important for modeling magnetic compounds with strong local anisotropy.
-
-> _For the experts_: A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves under special unitary transformations, SU(_N_). Local physical observables correspond to expectation values of the $N^2-1$ generators of SU(_N_), which may be interpreted as multipolar spin components. The standard treatment keeps only the expected dipole components, $\langle \hat S^x\rangle,\langle \hat S^y\rangle,\langle \hat S^z\rangle$, yielding the Landau-Lifshitz dynamics. Sunny implements a more general SU(_N_) spin dynamics as described in:
-> * H. Zhang and C. D. Batista, _Classical spin dynamics based on SU(N) coherent states_, Phys. Rev. B 104, 104409 (2021) [[arXiv:2106.14125](https://arxiv.org/abs/2106.14125)].
-> * D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_ [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
-
+A package for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipolar spin components. In the latter case, Sunny resolves the local quantum structure of individual spins, making it particularly suited for modeling magnetic compounds with strong local anisotropy.
 
 Sunny additionally provides Monte Carlo algorithms for sampling from thermal equilibrium, as well as tools for measuring dynamical structure factors that can be compared with experimental neutron scattering data. Sunny provides symmetry analyses to facilitate the design and specification of model Hamiltonians, and interactive tools to visualize 3D crystal structures and (coming soon) structure factor data.
+
+## Example notebooks
+
+ To get a feeling for what Sunny can do, we recommend to start by browsing some [Jupyter notebook examples](http://nbviewer.org/github/ddahlbom/SunnyTutorials/tree/main/tutorials/).
+
+## Technical description of SU(_N_) spin dynamics.
+
+A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves under the group of special unitary transformations, SU(_N_). Local physical observables correspond to expectation values of the $N^2-1$ generators of SU(_N_), which may be interpreted as multipolar spin components. The standard treatment keeps only the expected dipole components, $\langle \hat S^x\rangle,\langle \hat S^y\rangle,\langle \hat S^z\rangle$, yielding the Landau-Lifshitz dynamics. The "SU(_N_) spin dynamics" naturally generalizes the LL equation by modeling the coupled dynamics of all $N^2-1$ generalized spin components. Note, crucially, that a local SU(_N_) symmetry is never assumed. For more details, please see our papers:
+* H. Zhang and C. D. Batista, _Classical spin dynamics based on SU(N) coherent states_, Phys. Rev. B 104, 104409 (2021) [[arXiv:2106.14125](https://arxiv.org/abs/2106.14125)].
+* D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_ [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
 
 ## Comparison with other tools
 
@@ -44,7 +41,7 @@ A good way to interact with Sunny is through the Jupyter notebook interface. Thi
 
 ## API Reference
 
-[Full documentation available here](https://sunnysuite.github.io/Sunny.jl/dev).
+[Documentation available here](https://sunnysuite.github.io/Sunny.jl/dev).
 
 ## Contact us
 
