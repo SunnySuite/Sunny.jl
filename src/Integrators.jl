@@ -437,7 +437,8 @@ end
 end
 
 get_temp(sampler::LangevinSamplerT)  = sampler.kT
-get_system(sampler::LangevinSamplerT)  = sampler.integrator.system
+get_system(sampler::LangevinSamplerT)  = sampler.integrator.sys
+Random.rand!(sampler::LangevinSamplerT) = rand!(sampler.integrator.sys)
 
 @inline function sample!(sampler::LangevinSamplerT) 
     for _ in 1:sampler.nsteps

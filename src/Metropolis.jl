@@ -156,6 +156,8 @@ Returns the `SpinSystem` being updated by the `sampler`.
 get_system(sampler::MetropolisSampler) = sampler.system
 get_system(sampler::IsingSampler) = sampler.system
 
+Random.rand!(sampler::MetropolisSampler) = rand!(sampler.system)
+Random.rand!(sampler::IsingSampler) = rand!(sampler.system)
 
 
 """ The following functions have been added or modified to permit code reuse
