@@ -22,8 +22,7 @@ using WignerSymbols: clebschgordan, wigner3j
 using RowEchelon: rref!
 
 # Specific to SunnyGfx
-using JSON
-using Colors
+using JSON, Colors, Inflate
 import Random: randstring, RandomDevice
 
 # TODO: Remove in Julia 1.7

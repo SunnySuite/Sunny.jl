@@ -11,17 +11,21 @@ Base.show(io::IO, ::MIME"text/plain", sv::SunnyViewer) = print(io, "SunnyViewer(
 include("CrystalViewer.jl")
 
 function offline_viewers()
-    three_src = open(joinpath(@__DIR__, "assets/three.js"), "r") do io
-        read(io, String)
-    end
-    orbit_controls_src = open(joinpath(@__DIR__, "assets/OrbitControls.js"), "r") do io
-        read(io, String)
-    end
+    three_src = inflate_gzip(joinpath(@__DIR__, "assets/three.js.min-143-dev.gz"))
+    orbit_controls_src = inflate_gzip(joinpath(@__DIR__, "assets/OrbitControls.js-r142.gz"))
     html_str = """
         3D graphics package for Jupyter notebooks has been installed.
         <script>
-        $three_src;
-        $orbit_controls_src;
+        (function() {
+            // Hack to make "three.js" write to `exports`, regardless of the module system.
+            let exports = {}, module = {};
+            $three_src
+            // Hack to make "OrbitControls.js" write to `exports.OrbitControls`.
+            let THREE = exports;
+            $orbit_controls_src
+            // Save library in globalThis.SUNNY_THREE.
+            globalThis.SUNNY_THREE = exports;
+        })();
         </script>
     """
     SunnyViewer(html_str)
