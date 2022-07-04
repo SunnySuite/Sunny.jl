@@ -6,6 +6,7 @@ end
 # https://github.com/JuliaPlots/Makie.jl/blob/master/WGLMakie/src/display.jl#L12
 Base.show(io::IO, ::MIME"juliavscode/html", sv::SunnyViewer) = print(io, sv.html_str)
 Base.show(io::IO, ::MIME"text/html", sv::SunnyViewer) = print(io, sv.html_str)
+Base.show(io::IO, ::MIME"text/plain", sv::SunnyViewer) = print(io, "SunnyViewer(...)")
 
 include("CrystalViewer.jl")
 

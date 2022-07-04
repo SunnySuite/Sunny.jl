@@ -139,6 +139,10 @@ function view_crystal(crystal::Crystal, max_dist::Float64; dev=false)
     )
 
     if dev
+        wrapper = open(joinpath(@__DIR__, "assets/standalone_wrapper.html"), "r") do io
+            read(io, String)
+        end
+        html = replace(wrapper, "\$PAYLOAD" => html)
         build_dir = mkpath(joinpath(@__DIR__, "build"))
         open(joinpath(build_dir, "develop_gui.html"), "w") do io
             write(io, html)
