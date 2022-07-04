@@ -22,8 +22,7 @@ using WignerSymbols: clebschgordan, wigner3j
 using RowEchelon: rref!
 
 # Specific to SunnyGfx
-using JSON
-using Colors
+using JSON, Colors, Inflate
 import Random: randstring, RandomDevice
 
 # TODO: Remove in Julia 1.7
@@ -100,7 +99,7 @@ include("WangLandau/WangLandau.jl")
 export WangLandau, spherical_cap_update, init_bounded!, run!
 
 include("SunnyGfx/SunnyGfx.jl")
-export view_crystal
+export view_crystal, offline_viewers
 
 function __init__()
     @require GLMakie="e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin

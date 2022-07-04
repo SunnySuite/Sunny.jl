@@ -1,5 +1,5 @@
-docs/build/
-src/SunnyGfx/build/
+build/
 examples/results/
 Manifest.toml
 profile.pb.gz
+.DS_Store
