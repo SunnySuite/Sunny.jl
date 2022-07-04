@@ -17,7 +17,7 @@ function offline_viewers()
         read(io, String)
     end
     html_str = """
-        Installed Javascript dependencies for Jupyter notebooks.
+        3D graphics package for Jupyter notebooks has been installed.
         <script>
         $three_src;
         $orbit_controls_src;
