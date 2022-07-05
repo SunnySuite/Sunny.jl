@@ -1,5 +1,6 @@
 <div align="left">
-    <img src="https://raw.githubusercontent.com/MagSims/Sunny.jl/readme_updates/assets/sunny_homes.jpg" width=70% alt="Sunny.jl">
+    <a href="https://github.com/SunnySuite/Sunny.jl/">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/sunny_homes.jpg" alt="Sunny.jl" width="600px">
 </div>
 <p>
 
