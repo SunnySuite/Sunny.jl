@@ -179,9 +179,7 @@ function ewald_sum_dipole(lattice::Lattice, spins::Array{Vec3, 4}; extent=2, η=
 
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
-    # Rescale lattice vectors to be superlattice
-    # (Not duplicating basis sites does not matter here -- we don't care)
-    superlat = Lattice(superlat_vecs, lattice.basis_vecs, (1,1,1))
+    superlat = Lattice(superlat_vecs, [[0.0, 0.0, 0.0]], (1,1,1))
     recip = gen_reciprocal(superlat)
     
     vol = volume(lattice)
@@ -349,7 +347,7 @@ function precompute_dipole_ewald(lattice::Lattice; extent=3, η=1.0) :: OffsetAr
 
     # Vectors spanning the axes of the entire system
     superlat_vecs = lattice.size' .* lattice.lat_vecs
-    superlat = Lattice(superlat_vecs, lattice.basis_vecs, (1,1,1))
+    superlat = Lattice(superlat_vecs, [[0.0, 0.0, 0.0]], (1,1,1))
     recip = gen_reciprocal(superlat)
 
     vol = volume(lattice)
@@ -371,7 +369,7 @@ function precompute_dipole_ewald(lattice::Lattice; extent=3, η=1.0) :: OffsetAr
 
     for idx in delta_idxs
         for b1 in 1:nb
-            @inbounds rᵢ = lattice.basis_vecs[b1]
+            @inbounds rᵢ = lattice[b1, 0, 0, 0]
             for b2 in 1:nb
                 @inbounds rⱼ = lattice[b2, idx]
                 rᵢⱼ = rⱼ - rᵢ

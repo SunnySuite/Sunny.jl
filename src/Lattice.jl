@@ -9,9 +9,9 @@
 
 A type holding geometry information about a 3D lattice in a simulation box.
 """
-struct Lattice <: AbstractArray{SVector{3, Float64}, 4}
-    lat_vecs      :: SMatrix{3, 3, Float64, 9}       # Columns are lattice vectors
-    basis_vecs    :: Vector{SVector{3, Float64}}     # Each SVector gives a basis vector
+struct Lattice <: AbstractArray{Vec3, 4}
+    lat_vecs      :: Mat3                            # Columns are lattice vectors
+    basis_vecs    :: Vector{Vec3}                    # Each SVector gives a basis vector
     types         :: Vector{String}                  # Indices labeling atom types
     size          :: SVector{3, Int}                 # Number of cells along each dimension
 
@@ -37,8 +37,8 @@ struct Lattice <: AbstractArray{SVector{3, Float64}, 4}
         @assert length(basis_vecs) == length(types)      "Length of basis_vecs and types should match"
         @assert all(v->all(0 .<= v .< 1), basis_vecs)    "All basis_vecs should be given in fractional coordinates [0, 1)"
         @assert length(latsize) == 3                     "latsize should be length 3"
-        lat_vecs = convert(SMatrix{3, 3, Float64, 9}, lat_vecs)
-        basis_vecs = [lat_vecs * convert(SVector{3, Float64}, b) for b in basis_vecs]
+        lat_vecs = convert(Mat3, lat_vecs)
+        basis_vecs = [lat_vecs * convert(Vec3, b) for b in basis_vecs]
         latsize = SVector{3, Int}(latsize)
         new(lat_vecs, basis_vecs, types, latsize)
     end
@@ -100,15 +100,15 @@ end
 #=== Indexing returns absolute coordinates of lattice points ===#
 
 @inline function Base.getindex(lat::Lattice, b::Int64, brav::CartesianIndex{3})
-    return lat.lat_vecs * convert(SVector{3, Float64}, brav) + lat.basis_vecs[b]
+    return muladd(lat.lat_vecs, convert(Vec3, brav), lat.basis_vecs[b])
 end
 
 @inline function Base.getindex(lat::Lattice, b::Int64, brav::NTuple{3, Int64})
-    return lat.lat_vecs * convert(SVector{3, Float64}, brav) + lat.basis_vecs[b]
+    return muladd(lat.lat_vecs, convert(Vec3, brav), lat.basis_vecs[b])
 end
 
 @inline function Base.getindex(lat::Lattice, b::Int64, brav::Vararg{Int64, 3})
-    return lat.lat_vecs * convert(SVector{3, Float64}, brav) + lat.basis_vecs[b]
+    return muladd(lat.lat_vecs, convert(Vec3, brav), lat.basis_vecs[b])
 end
 
 # TODO: Should just be another Lattice
