@@ -12,8 +12,8 @@ end
 
 "Represents a bond expressed as two fractional coordinates"
 struct BondRaw
-    ri::SVector{3, Float64}
-    rj::SVector{3, Float64}
+    ri::Vec3
+    rj::Vec3
 end
 
 function Bond(cryst::Crystal, b::BondRaw)
