@@ -1,6 +1,6 @@
 <div align="center">
     <a href="https://github.com/SunnySuite/Sunny.jl/">
-    <img src="assets/sunny_logo.jpg" alt="Sunny.jl" width="400px">
+    <img src="assets/sunny_logo.jpg" alt="Sunny.jl" width="350px">
     </a>
 </div>
 <p>
