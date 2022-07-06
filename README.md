@@ -1,5 +1,7 @@
 <div align="center">
-    <img src="https://raw.githubusercontent.com/MagSims/Sunny.jl/main/assets/sunny_logo.jpg" width=50% alt="Sunny.jl">
+    <a href="https://github.com/SunnySuite/Sunny.jl/">
+    <img src="assets/sunny_logo.jpg" alt="Sunny.jl" width="350px">
+    </a>
 </div>
 <p>
 
@@ -17,7 +19,7 @@ Sunny additionally provides Monte Carlo algorithms for sampling from thermal equ
 
 ## Technical description of SU(_N_) spin dynamics.
 
-A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves under the group of special unitary transformations, SU(_N_). Local physical observables correspond to expectation values of the $N^2-1$ generators of SU(_N_), which may be interpreted as multipolar spin components. The standard treatment keeps only the expected dipole components, $\langle \hat S^x\rangle,\langle \hat S^y\rangle,\langle \hat S^z\rangle$, yielding the Landau-Lifshitz dynamics. The "SU(_N_) spin dynamics" naturally generalizes the LL equation by modeling the coupled dynamics of all $N^2-1$ generalized spin components. Note, crucially, that a local SU(_N_) symmetry is never assumed. For more details, please see our papers:
+A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves under the group of special unitary transformations, SU(_N_). Local physical observables correspond to expectation values of the $N^2-1$ generators of SU(_N_), which may be interpreted as multipolar spin components. The standard treatment keeps only the expected dipole components, $\langle \hat S^x\rangle,\langle \hat S^y\rangle,\langle \hat S^z\rangle$, yielding the Landau-Lifshitz dynamics. The "SU(_N_) spin dynamics" naturally generalizes the LL equation by modeling the coupled dynamics of all $N^2-1$ generalized spin components. For more details, please see our papers:
 * H. Zhang and C. D. Batista, _Classical spin dynamics based on SU(N) coherent states_, Phys. Rev. B 104, 104409 (2021) [[arXiv:2106.14125](https://arxiv.org/abs/2106.14125)].
 * D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_ [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
 
@@ -45,26 +47,17 @@ A good way to interact with Sunny is through the Jupyter notebook interface. Thi
 
 ## Contact us
 
-If you discover bugs, or find Sunny useful, please contact us at kbarros@gmail.com and david.dahlbom@gmail.com.
+Sunny is [developed collaboratively](https://github.com/SunnySuite/Sunny.jl/wiki/Contributors) across many institutions, with leadership from Los Alamos National Lab, U. Tennessee, and Georgia Tech. If you discover bugs, or find Sunny useful, please contact kbarros@lanl.gov and ddahlbom@utk.edu.
 
-<!-- Users who wish to contribute to Sunny source-code development should instead use the `dev` command:
-```
-julia> ]
-pkg> dev Sunny
-```
-
-This will `git clone` the source code to the directory `~/.julia/dev/Sunny`. You can make changes to these files,
-and they will be picked up by Julia.  The package manager will not touch
-any package installed by `dev`, so you will be responsible
-for keeping Sunny up to date, e.g., using the command `git pull` from Sunny package directory. -->
-
-
-<!-- 
-For plotting, you may also wish to install
-```
-pkg> add Plots
-pkg> add GLMakie
-```
-
-At the time of this writing, GLMakie has some rough edges, especially on Mac platforms. Run `test GLMakie` to make sure it is working properly. -->
+<div>
+    <a href="https://www.lanl.gov">
+    <img src="assets/lanl.png" alt="LANL" width="250px">
+    </a>
+    <a href="https://www.utk.edu">
+    <img src="assets/utk.png" alt="U. Tennessee" width="250px">
+    </a>
+    <a href="https://www.gatech.edu/">
+    <img src="assets/gatech.png" alt="Georgia Tech." width="250px">
+    </a>
+</div>
 
