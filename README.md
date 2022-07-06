@@ -1,6 +1,7 @@
-<div align="left">
+<div align="center">
     <a href="https://github.com/SunnySuite/Sunny.jl/">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/sunny_homes.jpg" alt="Sunny.jl" width="600px">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/sunny_logo.jpg" alt="Sunny.jl" width="400px">
+    </a>
 </div>
 <p>
 
@@ -46,26 +47,17 @@ A good way to interact with Sunny is through the Jupyter notebook interface. Thi
 
 ## Contact us
 
-If you discover bugs, or find Sunny useful, please contact us at kbarros@gmail.com and david.dahlbom@gmail.com.
+Sunny is [developed collaboratively](https://github.com/SunnySuite/Sunny.jl/wiki/Contributors) across many institutions, with leadership from Los Alamos National Lab, U. Tennessee Knoxville, and Georgia Tech. If you discover bugs, or find Sunny useful, please contact kbarros@lanl.gov and david.dahlbom@utk.edu.
 
-<!-- Users who wish to contribute to Sunny source-code development should instead use the `dev` command:
-```
-julia> ]
-pkg> dev Sunny
-```
-
-This will `git clone` the source code to the directory `~/.julia/dev/Sunny`. You can make changes to these files,
-and they will be picked up by Julia.  The package manager will not touch
-any package installed by `dev`, so you will be responsible
-for keeping Sunny up to date, e.g., using the command `git pull` from Sunny package directory. -->
-
-
-<!-- 
-For plotting, you may also wish to install
-```
-pkg> add Plots
-pkg> add GLMakie
-```
-
-At the time of this writing, GLMakie has some rough edges, especially on Mac platforms. Run `test GLMakie` to make sure it is working properly. -->
+<div>
+    <a href="https://www.lanl.gov">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/lanl.png" alt="LANL" width="200px">
+    </a>
+    <a href="https://www.utk.edu">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/utk.png" alt="U. Tennessee" width="200px">
+    </a>
+    <a href="https://www.gatech.edu/">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/gatech.png" alt="Georgia Tech." width="200px">
+    </a>
+</div>
 
