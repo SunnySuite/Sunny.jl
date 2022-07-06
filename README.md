@@ -47,7 +47,7 @@ A good way to interact with Sunny is through the Jupyter notebook interface. Thi
 
 ## Contact us
 
-Sunny is [developed collaboratively](https://github.com/SunnySuite/Sunny.jl/wiki/Contributors) across many institutions, with leadership from Los Alamos National Lab, U. Tennessee, and Georgia Tech. If you discover bugs, or find Sunny useful, please contact kbarros@lanl.gov and david.dahlbom@utk.edu.
+Sunny is [developed collaboratively](https://github.com/SunnySuite/Sunny.jl/wiki/Contributors) across many institutions, with leadership from Los Alamos National Lab, U. Tennessee, and Georgia Tech. If you discover bugs, or find Sunny useful, please contact kbarros@lanl.gov and ddahlbom@utk.edu.
 
 <div>
     <a href="https://www.lanl.gov">
