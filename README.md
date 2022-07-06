@@ -51,13 +51,13 @@ Sunny is [developed collaboratively](https://github.com/SunnySuite/Sunny.jl/wiki
 
 <div>
     <a href="https://www.lanl.gov">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/lanl.png" alt="LANL" width="200px">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/lanl.png" alt="LANL" width="250px">
     </a>
     <a href="https://www.utk.edu">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/utk.png" alt="U. Tennessee" width="200px">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/utk.png" alt="U. Tennessee" width="250px">
     </a>
     <a href="https://www.gatech.edu/">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/gatech.png" alt="Georgia Tech." width="200px">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/gatech.png" alt="Georgia Tech." width="250px">
     </a>
 </div>
 
