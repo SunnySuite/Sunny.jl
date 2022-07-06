@@ -213,7 +213,7 @@ end
 """
     quartic_anisotropy(J, site, label="QuarticAniso")
 
-Creates a quartic anisotropy.
+Creates a quartic anisotropy. J is a rank-4 tensor, specified as a 3x3x3x3 array.
 ```math
     ∑_i ∑_{α, β, γ, δ ∈ \\{x, y, z\\}} J_{αβγδ} S_i^α S_i^β S_i^γ S_i^δ
 ```
@@ -248,6 +248,8 @@ end
 
 """
     SUN_anisotropy(mat, site)
+
+Creates an SU(N) anisotropy, specified as an NxN operator, `mat`.
 """
 function SUN_anisotropy(mat, site, label="SUNAniso")
     # TODO: Basic symmetry / validity checks?

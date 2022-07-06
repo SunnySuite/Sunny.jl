@@ -267,15 +267,7 @@ end
 Updates `B` in-place to hold the local field on `spins` under `ℋ`,
 defined as:
 
-``𝐁_i = -∇_{𝐬_i} ℋ / S_i``
-
-with ``𝐬_i`` the unit-vector variable at site i, and ``S_i`` is
-the magnitude of the associated spin.
-
-Note that all `_accum_neggrad!` functions should return _just_ the
-``-∇_{𝐬_i} ℋ`` term, as the scaling by spin magnitude happens in
-this function. Likewise, all code which utilizes local fields should
-be calling _this_ function, not the `_accum_neggrad!`'s directly.
+``𝐁_i = -∇_{𝐬_i} ℋ ``.
 """
 function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     fill!(B, SA[0.0, 0.0, 0.0])
@@ -304,27 +296,33 @@ function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     end
 end
 
-# As above, but for single spin and non-mutating. Used for mean field sampling.
-function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, idx) 
+"""
+Calculates the local field, `Bᵢ`, for a single site, `i`:
+
+``𝐁_i = -∇_{𝐬_i} ℋ ``.
+
+This is useful for some sampling methods.
+"""
+function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i) 
     B = SA[0.0, 0.0, 0.0]
 
     if !isnothing(ℋ.ext_field)
-        B += ℋ.ext_field.effBs[idx[1]] 
+        B += ℋ.ext_field.effBs[i[1]] 
     end
     for heisen in ℋ.heisenbergs
-        B += _neggrad(dipoles, heisen, idx)
+        B += _neggrad(dipoles, heisen, i)
     end
     for diag_coup in ℋ.diag_coups
-        B += _neggrad(dipoles, diag_coup, idx)
+        B += _neggrad(dipoles, diag_coup, i)
     end
     for gen_coup in ℋ.gen_coups
-        B += _neggrad(dipoles, gen_coup, idx)
+        B += _neggrad(dipoles, gen_coup, i)
     end
     if !isnothing(ℋ.quadratic_aniso)
-        B += _neggrad(dipoles, ℋ.quadratic_aniso, idx)
+        B += _neggrad(dipoles, ℋ.quadratic_aniso, i)
     end
     if !isnothing(ℋ.quartic_aniso)
-        _neggrad(dipoles, ℋ.quartic_aniso, idx)
+        _neggrad(dipoles, ℋ.quartic_aniso, i)
     end
     ## TODO: implement dipole neggrad
     if !isnothing(ℋ.dipole_int)
@@ -333,3 +331,4 @@ function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, idx)
 
     return B
 end
+
