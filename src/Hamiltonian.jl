@@ -304,9 +304,7 @@ function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     end
 end
 
-"""
-    As above, but for single spin and non-mutating. Used for mean field sampling.
-"""
+# As above, but for single spin and non-mutating. Used for mean field sampling.
 function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, idx) 
     B = SA[0.0, 0.0, 0.0]
 

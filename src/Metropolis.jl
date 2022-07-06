@@ -66,12 +66,11 @@ end
 """
     MetropolisSampler(sys::SpinSystem, kT::Float64, nsweeps::Int)
 
-A sampler which performs the standard Metropolis Monte Carlo algorithm to
- sample a `SpinSystem` at the requested temperature.
+A sampler which performs the standard Metropolis Monte Carlo algorithm to sample
+ a `SpinSystem` at the requested temperature.
 
-Each single-spin update attempts to move the spin to a random position on
- the unit sphere. One call to `sample!` will attempt to flip each spin
- `nsweeps` times.
+Each single-spin update attempts to completely randomize the spin. One call to
+ `sample!` will attempt to flip each spin `nsweeps` times.
 """
 mutable struct MetropolisSampler{N} <: AbstractSampler
     system     :: SpinSystem{N}
@@ -89,7 +88,7 @@ end
     IsingSampler(sys::SpinSystem, kT::Float64, nsweeps::Int)
 
 A sampler which performs the standard Metropolis Monte Carlo algorithm to
- sample a `SpinSystem` at the requested temperature.
+sample a `SpinSystem` at the requested temperature.
 
 This version differs from `MetropolisSampler` in that each single-spin update
 only attempts to completely flip the spin. One call to `sample!` will attempt
