@@ -13,7 +13,7 @@
 
     // Show an error in the canvas pane
     function showError(err) {
-        container.innerHTML = `<div class="error" style="color:red; font-size:20px;">${err}</div>`;
+        container.innerHTML = `<div style="color:red; font-size:20px;">${err}</div>`;
         throw err;
     }
 
@@ -467,7 +467,7 @@
         var bondsDiv = document.createElement("DIV");
         bondsDiv.innerHTML = 
         ` 
-        <div class="row" style=" color: black; text-align: left">
+        <div style=" color: black; text-align: left">
             Bonds
             ${bondsInnerStr}
         </div> &nbsp;
@@ -542,16 +542,16 @@
         togglesDiv.innerHTML = 
         `
         <div>
-            <div class="row">  
+            <div>  
                 <input type="button" id="clear bonds${key}" value="clear bonds"/>
             </div> &nbsp; 
 
-            <div class="row" style="background-color: LightGray; text-align: left">  
+            <div style="background-color: LightGray; text-align: left">  
                 <input type="checkbox" id="axes toggle${key}"/>
                 <label for="axes${key} toggle" style="color: black">Show axes</label>
             </div> &nbsp;
 
-            <div class="row" style="background-color: LightGray; text-align: left">  
+            <div style="background-color: LightGray; text-align: left">  
                 <input type="checkbox" id="lattVecs toggle${key}"/>
                 <label for="lattVecs${key} toggle" style="color: black">Show unit cells</label>
             </div> &nbsp;
