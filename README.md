@@ -1,6 +1,6 @@
 <div align="center">
     <a href="https://github.com/SunnySuite/Sunny.jl/">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/sunny_logo.jpg" alt="Sunny.jl" width="400px">
+    <img src="assets/sunny_logo.jpg" alt="Sunny.jl" width="400px">
     </a>
 </div>
 <p>
@@ -19,7 +19,7 @@ Sunny additionally provides Monte Carlo algorithms for sampling from thermal equ
 
 ## Technical description of SU(_N_) spin dynamics.
 
-A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves under the group of special unitary transformations, SU(_N_). Local physical observables correspond to expectation values of the $N^2-1$ generators of SU(_N_), which may be interpreted as multipolar spin components. The standard treatment keeps only the expected dipole components, $\langle \hat S^x\rangle,\langle \hat S^y\rangle,\langle \hat S^z\rangle$, yielding the Landau-Lifshitz dynamics. The "SU(_N_) spin dynamics" naturally generalizes the LL equation by modeling the coupled dynamics of all $N^2-1$ generalized spin components. Note, crucially, that a local SU(_N_) symmetry is never assumed. For more details, please see our papers:
+A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves under the group of special unitary transformations, SU(_N_). Local physical observables correspond to expectation values of the $N^2-1$ generators of SU(_N_), which may be interpreted as multipolar spin components. The standard treatment keeps only the expected dipole components, $\langle \hat S^x\rangle,\langle \hat S^y\rangle,\langle \hat S^z\rangle$, yielding the Landau-Lifshitz dynamics. The "SU(_N_) spin dynamics" naturally generalizes the LL equation by modeling the coupled dynamics of all $N^2-1$ generalized spin components. For more details, please see our papers:
 * H. Zhang and C. D. Batista, _Classical spin dynamics based on SU(N) coherent states_, Phys. Rev. B 104, 104409 (2021) [[arXiv:2106.14125](https://arxiv.org/abs/2106.14125)].
 * D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_ [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
 
@@ -51,13 +51,13 @@ Sunny is [developed collaboratively](https://github.com/SunnySuite/Sunny.jl/wiki
 
 <div>
     <a href="https://www.lanl.gov">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/lanl.png" alt="LANL" width="250px">
+    <img src="assets/lanl.png" alt="LANL" width="250px">
     </a>
     <a href="https://www.utk.edu">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/utk.png" alt="U. Tennessee" width="250px">
+    <img src="assets/utk.png" alt="U. Tennessee" width="250px">
     </a>
     <a href="https://www.gatech.edu/">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/readme_updates/assets/gatech.png" alt="Georgia Tech." width="250px">
+    <img src="assets/gatech.png" alt="Georgia Tech." width="250px">
     </a>
 </div>
 
