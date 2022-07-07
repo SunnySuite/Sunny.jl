@@ -185,10 +185,19 @@ function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem{N}) where {N}
 end
 
 """
-    rand!(sys::SpinSystem)
+    rand!(sys::SpinSystem{N}) where N
 
-Sets spins randomly sampled on the unit sphere.
+Randomly sample all spins from CP``^{N-1}``, i.e., from the space of normalized
+``N``-component complex coherent states. In the special case of ``N=0``, randomly
+sample spin dipoles.
 """
+function Random.rand!(sys::SpinSystem{N}) where N
+    Zs = sys._coherents
+    randn!(sys.rng, Zs)
+    @. Zs /= norm(Zs)
+    set_expected_spins!(sys)
+    nothing
+end
 function Random.rand!(sys::SpinSystem{0})  
     dip_view = DipoleView(sys)
     dip_view .= randn(sys.rng, Vec3, size(dip_view))
@@ -199,35 +208,17 @@ function Random.rand!(sys::SpinSystem{0})
     nothing
 end
 
-function Random.rand!(sys::SpinSystem{N}) where N
-    Zs = sys._coherents
-    randn!(sys.rng, Zs)
-    @. Zs /= norm(Zs)
-    set_expected_spins!(sys)
-    nothing
-end
 
 
 
 """
-    randflips!(sys::SpinSystem)
+    randflips!(sys::SpinSystem{N}) where N
 
-Sets spins randomly either aligned or anti-aligned
-with their original direction.
+Randomly "flip" every spin with probability 1/2. In the dipole case (``N=0``), a
+flip corresponds to sign reversal, ``𝐒_i → -𝐒_i``. In the general case
+(``N>0``), flipping the coherent state means complex conjugation followed by
+rotation about the ``y``-axis by π/2.
 """
-function randflips!(sys::SpinSystem{0}) 
-    dip_view = DipoleView(sys)
-    dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
-end
-
-@inline function flip_ket(Z::CVec{N}, Sy::Matrix{ComplexF64}) where N
-    exp(-im*π*Sy)*conj(Z)
-end
-
-#= On my computer this takes about 50 μs, whereas the regular randflips!
-takes about 2 μs. I assume most of the cost is matrix exponentiation. Might
-be worth considering alternative approaches.
-=#
 function randflips!(sys::SpinSystem{N}) where N
     Z, Sy = sys._coherents, sys.S[2]
     for i in eachindex(Z)
@@ -235,6 +226,18 @@ function randflips!(sys::SpinSystem{N}) where N
     end
     set_expected_spins!(sys)
 end
+function randflips!(sys::SpinSystem{0}) 
+    dip_view = DipoleView(sys)
+    dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
+end
+#= On my computer this takes about 50 μs, whereas the regular randflips! takes
+about 2 μs. I assume most of the cost is matrix exponentiation. TODO: Use a
+generated function to cache the matrix exponentiation for each N.
+=#
+@inline function flip_ket(Z::CVec{N}, Sy::Matrix{ComplexF64}) where N
+    exp(-im*π*Sy)*conj(Z)
+end
+
 
 """
     energy(sys::SpinSystem)

@@ -409,7 +409,7 @@ end
 LangevinSamplerT = Union{LangevinSamplerLLD, LangevinSamplerGSD}
 
 """
-    LangevinSampler(sys, kT, α, Δt, nsteps)
+    LangevinSampler(sys::SpinSystem, kT::Float64, α::Float64, Δt::Float64, nsteps::Int)
 
 Creates a `LangevinSampler` which samples the spin system's Hamiltonian using Langevin
  dynamics at a temperature `kT`, damping coefficient `α`, and producing a new sample
@@ -419,7 +419,6 @@ function LangevinSampler(sys::SpinSystem{0}, kT::Float64, α::Float64, Δt::Floa
     integrator = LangevinHeunP(sys, kT, α)
     LangevinSamplerLLD(integrator, kT, Δt, nsteps)
 end
-
 function LangevinSampler(sys::SpinSystem{N}, kT::Float64, α::Float64, Δt::Float64, nsteps::Int) where N
     integrator = LangevinHeunPSUN(sys, kT, α)
     LangevinSamplerGSD(integrator, kT, Δt, nsteps)

@@ -143,12 +143,12 @@ function Base.show(io::IO, mime::MIME"text/plain", aniso::QuadraticAnisotropy)
         name, D = λ[i] < 0 ? ("easy_axis", -λ[i]) : ("easy_plane", λ[i])
         @printf io "%s(%.4g, [%.4g, %.4g, %.4g], %d)" name D dir[1] dir[2] dir[3] site
     else
-        @printf io "single_ion_anisotropy([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %d)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] site
+        @printf io "quadratic_anisotropy([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %d)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] site
     end
 end
 
 """
-    single_ion_anisotropy(J, site, label="Anisotropy")
+    quadratic_anisotropy(J, site, label="Anisotropy")
 
 Creates a quadratic single-ion anisotropy,
 ```math
@@ -213,7 +213,7 @@ end
 """
     quartic_anisotropy(J, site, label="QuarticAniso")
 
-Creates a quartic anisotropy.
+Creates a quartic anisotropy. J is a rank-4 tensor, specified as a 3x3x3x3 array.
 ```math
     ∑_i ∑_{α, β, γ, δ ∈ \\{x, y, z\\}} J_{αβγδ} S_i^α S_i^β S_i^γ S_i^δ
 ```
@@ -248,6 +248,8 @@ end
 
 """
     SUN_anisotropy(mat, site)
+
+Creates an SU(N) anisotropy, specified as an NxN operator, `mat`.
 """
 function SUN_anisotropy(mat, site, label="SUNAniso")
     # TODO: Basic symmetry / validity checks?

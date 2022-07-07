@@ -45,7 +45,7 @@ all_symmetry_related_couplings_for_atom
 ```@docs
 easy_axis
 easy_plane
-single_ion_anisotropy
+quadratic_anisotropy
 heisenberg
 dm_interaction
 exchange
@@ -58,8 +58,8 @@ dipole_dipole
 ```@docs
 SpinSystem
 SpinSystem(::Crystal, ::Vector{<:Sunny.AbstractInteraction}, latsize, ::Vector{SiteInfo}; μB, μ0)
-rand!(::SpinSystem)
-randflips!(::SpinSystem)
+rand!(::SpinSystem{N}) where N
+randflips!
 energy
 field
 field!
@@ -68,7 +68,7 @@ field!
 ## Sampling
 
 ```@docs
-LangevinSampler(::SpinSystem, ::Float64, ::Float64, ::Float64, ::Int)
+LangevinSampler
 MetropolisSampler
 IsingSampler
 set_temp!
