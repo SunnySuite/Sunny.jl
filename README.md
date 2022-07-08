@@ -15,7 +15,7 @@ Sunny additionally provides Monte Carlo algorithms for sampling from thermal equ
 
 ## Example notebooks
 
- To get a feeling for what Sunny can do, we recommend browsing some [Jupyter notebook examples](https://github.com/ddahlbom/SunnyTutorials).
+ To get a feeling for what Sunny can do, we recommend browsing some [Jupyter notebook examples](https://github.com/SunnySuite/SunnyTutorials).
 
 ## Technical description of SU(_N_) spin dynamics.
 
