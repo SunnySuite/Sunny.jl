@@ -184,13 +184,13 @@ end
 end
 # Uses time-reversal approach to spin flip -- see Sakurai (3rd ed.), eq. 4.176.
 @inline function _flipped_spin(sys::SpinSystem{N}, idx) ::CVec{N} where N
-    exp(-im*π*sys.S[2])*conj(sys._coherents[idx])
+    flip_ket(sys._coherents[idx])
 end
 
 # For mean field sampler
 function _local_hamiltonian(sys::SpinSystem{N}, idx) where N
     aniso = sys.hamiltonian.sun_aniso
-    (i, _) = splitidx(idx)
+    _, i = splitidx(idx)
 
     B = field(sys._dipoles, sys.hamiltonian, idx)
     ℌ = SMatrix{N,N,ComplexF64,N*N}(-B ⋅ sys.S)
@@ -226,7 +226,7 @@ end
     spin
 end
 @inline function dipole(spin::CVec{N}, sys::SpinSystem, idx) :: Vec3 where N
-    b, _ = splitidx(idx)
+    _, b = splitidx(idx)
     sys.site_infos[b].spin_rescaling * expected_spin(spin)
 end
 
@@ -243,7 +243,7 @@ function sample!(sampler::MetropolisSampler{N}) where N
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sampler.system._dipoles)
             # Try to rotate this spin to somewhere randomly on the unit sphere
-            b, _ = splitidx(idx)
+            _, b = splitidx(idx)
             new_spin = _random_spin(sys.rng, Val(N), sys.site_infos[b].spin_rescaling)
             ΔE = local_energy_change(sampler.system, idx, new_spin)
 
@@ -297,7 +297,7 @@ function sample!(sampler::MeanFieldSampler{N}) where N
                 new_dipole = dipole(new_spin, sys, idx)
 
                 sampler.E += ΔE
-                sampler.M += 2 * new_dipole   # check this is still sensible...
+                sampler.M += 2 * new_dipole   # assuming 2 is g-factor 
 
                 sampler.system._dipoles[idx] = new_dipole 
                 sampler.system._coherents[idx] = new_ket
@@ -329,7 +329,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
     new_ket = ket(newspin)
     old_dipole = sys._dipoles[idx]
     spindiff = new_dipole - old_dipole
-    (i, cell) = splitidx(idx)
+    cell, i = splitidx(idx)
 
     if !isnothing(ℋ.ext_field)
         ΔE -= ℋ.ext_field.effBs[i] ⋅ spindiff
@@ -340,7 +340,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += J * (new_dipole⋅new_dipole - old_dipole⋅old_dipole)
             else
-                Sⱼ = sys._dipoles[bond.j, offset(cell, bond.n, sys.lattice.size)]
+                Sⱼ = sys._dipoles[offset(cell, bond.n, sys.lattice.size), bond.j]
                 ΔE += J * (spindiff ⋅ Sⱼ)
             end
         end
@@ -350,7 +350,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += new_dipole⋅(J.*new_dipole) - old_dipole⋅(J.*old_dipole)
             else
-                Sⱼ = sys._dipoles[bond.j, offset(cell, bond.n, sys.lattice.size)]
+                Sⱼ = sys._dipoles[offset(cell, bond.n, sys.lattice.size), bond.j]
                 ΔE += (J .* spindiff) ⋅ Sⱼ
             end
         end
@@ -360,7 +360,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += dot(new_dipole, J, new_dipole) - dot(old_dipole, J, old_dipole)
             else
-                Sⱼ = sys._dipoles[bond.j, offset(cell, bond.n, sys.lattice.size)]
+                Sⱼ = sys._dipoles[offset(cell, bond.n, sys.lattice.size), bond.j]
                 ΔE += dot(spindiff, J, Sⱼ)
             end
         end

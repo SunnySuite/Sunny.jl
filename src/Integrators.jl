@@ -159,10 +159,10 @@ end
 
 # Normalize to κ value given in site_infos. For old LL dynamics only.
 function normalize!(S::Array{Vec3, 4}, sys::SpinSystem)
-    for b in 1:size(S, 1)
-        spin_rescaling = sys.site_infos[b].spin_rescaling
-        for i in CartesianIndices(size(S)[2:end]) 
-            S[b, i] *= spin_rescaling/norm(S[b, i])
+    for site in 1:size(S, 4)
+        spin_rescaling = sys.site_infos[site].spin_rescaling
+        for cell in CartesianIndices(size(S)[1:3]) 
+            S[cell, site] *= spin_rescaling/norm(S[cell, site])
         end
     end
 end
@@ -176,7 +176,7 @@ Performs a single integrator timestep of size Δt.
 """
 function evolve!(integrator::HeunP, Δt::Float64)
     (; sys, _S₁, _B, _f₁) = integrator
-    S, Z, ℋ = sys._dipoles, sys._coherents, sys.hamiltonian
+    S, ℋ = sys._dipoles, sys.hamiltonian
     
     # Euler step
     field!(_B, S, ℋ)
@@ -193,7 +193,7 @@ end
 
 function evolve!(integrator::LangevinHeunP, Δt::Float64)
     (; α, D, sys, _S₁, _B, _f₁, _r₁, _ξ) = integrator
-    S, Z, ℋ = sys._dipoles, sys._coherents, sys.hamiltonian
+    S, ℋ = sys._dipoles, sys.hamiltonian
 
     randn!(sys.rng, _ξ)
     _ξ .*= √(2D)
@@ -217,7 +217,7 @@ end
 
 function evolve!(integrator::SphericalMidpoint, Δt::Float64)
     @unpack sys, _S̄, _Ŝ, _S̄′, _B, atol = integrator
-    S, Z, ℋ = sys._dipoles, sys._coherents, sys.hamiltonian
+    S, ℋ = sys._dipoles, sys.hamiltonian
     
     # Initial guess for midpoint
     @. _S̄ = S
@@ -272,13 +272,13 @@ end
 #= Construct and apply the local Hamiltonian for Landau-Lifshitz (LL) dynamics (no noise) =#
 function _apply_ℌ_LL!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, ℌ) where N
     aniso = sys.hamiltonian.sun_aniso
-    latsize = size(B)[2:end]
+    latsize = size(B)[1:3]
     rhs′ = reinterpret(reshape, ComplexF64, rhs) 
 
     for (site, Λ) in zip(aniso.sites, aniso.Λs) # There is one Λ per site 
         for cell in CartesianIndices(latsize)
-            @. ℌ = Λ - (B[site,cell][1] * sys.S[1] + B[site,cell][2] * sys.S[2] + B[site,cell][3] * sys.S[3])
-            mul!(@view(rhs′[:, site, cell]), ℌ, Z[site, cell])
+            @. ℌ = Λ - (B[cell, site][1] * sys.S[1] + B[cell, site][2] * sys.S[2] + B[cell, site][3] * sys.S[3])
+            mul!(@view(rhs′[:, cell, site]), ℌ, Z[cell, site])
         end
     end
     nothing
@@ -287,16 +287,16 @@ end
 #= Construct and apply the local Hamiltonian for Langevin dynamics (LD) (noise) =#
 function _apply_ℌ_LD!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, ℌ) where N
     aniso = sys.hamiltonian.sun_aniso
-    latsize = size(B)[2:end]
+    latsize = size(B)[1:3]
     rhs′ = reinterpret(reshape, ComplexF64, rhs) 
 
     for (site, Λ) in zip(aniso.sites, aniso.Λs) # There is one Λ per site 
         spin_rescaling = sys.site_infos[site].spin_rescaling
         for cell in CartesianIndices(latsize)
-            @. ℌ = spin_rescaling * (Λ - (B[site,cell][1] * sys.S[1] +
-                                          B[site,cell][2] * sys.S[2] +
-                                          B[site,cell][3] * sys.S[3]))
-            mul!(@view(rhs′[:, site, cell]), ℌ, Z[site, cell])
+            @. ℌ = spin_rescaling * (Λ - (B[cell, site][1] * sys.S[1] +
+                                          B[cell, site][2] * sys.S[2] +
+                                          B[cell, site][3] * sys.S[3]))
+            mul!(@view(rhs′[:, cell, site]), ℌ, Z[cell, site])
         end
     end
     nothing
@@ -361,7 +361,7 @@ function evolve!(integrator::SchrodingerMidpoint, Δt::Float64; tol=1e-14, max_i
     @. _Z′ = Z 
     @. _Z″ = Z 
 
-    for i in 1:max_iters
+    for _ in 1:max_iters
         @. _Zb = (Z + _Z′)/2
 
         _rhs_ll!(_ΔZ, _Zb, integrator, Δt)

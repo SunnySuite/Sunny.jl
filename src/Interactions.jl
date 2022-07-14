@@ -252,7 +252,6 @@ end
 Creates an SU(N) anisotropy, specified as an NxN operator, `mat`.
 """
 function SUN_anisotropy(mat, site, label="SUNAniso")
-    # TODO: Basic symmetry / validity checks?
     SUNAnisotropy(mat, site, label)
 end
 
@@ -328,9 +327,9 @@ end
 
 function energy(dipoles::Array{Vec3, 4}, field::ExternalFieldCPU)
     E = 0.0
-    for b in 1:size(dipoles, 1)
-        effB = field.effBs[b]
-        for s in selectdim(dipoles, 1, b)
+    for site in 1:size(dipoles)[end]
+        effB = field.effBs[site]
+        for s in selectdim(dipoles, 4, site)
             E += effB ⋅ s
         end
     end
@@ -339,10 +338,10 @@ end
 
 "Accumulates the negative local Hamiltonian gradient coming from the external field"
 @inline function _accum_neggrad!(B::Array{Vec3, 4}, field::ExternalFieldCPU)
-    for b in 1:size(B, 1)
-        effB = field.effBs[b]
-        for idx in CartesianIndices(size(B)[2:end])
-            B[b, idx] = B[b, idx] + effB
+    for site in 1:size(B)[end]
+        effB = field.effBs[site]
+        for cell in CartesianIndices(size(B)[1:3])
+            B[cell, site] = B[cell, site] + effB
         end
     end
 end

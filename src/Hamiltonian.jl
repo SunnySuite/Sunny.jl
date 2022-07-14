@@ -303,11 +303,12 @@ Calculates the local field, `Bᵢ`, for a single site, `i`:
 
 This is useful for some sampling methods.
 """
-function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i) 
+function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i::CartesianIndex) 
     B = SA[0.0, 0.0, 0.0]
+    site = i[end]
 
     if !isnothing(ℋ.ext_field)
-        B += ℋ.ext_field.effBs[i[1]] 
+        B += ℋ.ext_field.effBs[site] 
     end
     for heisen in ℋ.heisenbergs
         B += _neggrad(dipoles, heisen, i)

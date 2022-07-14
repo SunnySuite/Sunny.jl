@@ -8,7 +8,7 @@ function test_ewald_NaCl()
     latsize = [2, 2, 2]
     lattice = Sunny.Lattice(lat_vecs, b_vecs, latsize)
     sys = ChargeSystem(lattice)
-    sys.charges .= reshape([1, -1, -1, 1, -1, 1, 1, -1], (1, 2, 2, 2))
+    sys.charges .= reshape([1, -1, -1, 1, -1, 1, 1, -1], (2, 2, 2, 1))
 
     ewald_result = Sunny.ewald_sum_monopole(lattice, sys.charges, extent=30)
     
@@ -27,9 +27,10 @@ function test_ewald_CsCl()
     latsize = [1, 1, 1]
     lattice = Sunny.Lattice(lat_vecs, b_vecs, latsize)
     sys = ChargeSystem(lattice)
-    sys.charges .= reshape([1, -1], (2, 1, 1, 1))
+    sys.charges .= reshape([1, -1], (1, 1, 1, 2))
 
     ewald_result = Sunny.ewald_sum_monopole(lattice, sys.charges, extent=30)
+    println(size(ewald_result))
     
     # Madelung constants are reported relative to the
     #  nearest-neighbor distance in the crystal
