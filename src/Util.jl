@@ -44,6 +44,10 @@ function LinearAlgebra.dot(a::Vec3, b::NTuple{3, Matrix{ComplexF64}}) where T
     a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
 end
 
+function LinearAlgebra.dot(a::Vec3, b::NTuple{3, SArray{Tuple{N,N}, ComplexF64, 2, L}}) where {N, L}
+    a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
+end
+
 "Sparse tensor type for quartic anisotropies. (Could be used for quadratic as well.)"
 struct SparseTensor{R,N}
     indices :: NTuple{N, NTuple{R, Int64}}    

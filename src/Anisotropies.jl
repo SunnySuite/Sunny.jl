@@ -31,7 +31,7 @@ end
 function energy(dipoles::Array{Vec3, 4}, aniso::DipolarQuadraticAnisotropyCPU)
     E = 0.0
     latsize = size(dipoles)[1:3]
-    for (site, J) in zip(aniso.sites, aniso.Js)
+    @inbounds for (site, J) in zip(aniso.sites, aniso.Js)
         for cell in CartesianIndices(latsize)
             # NOTE: Investigate alternate loop orders / alternate array layouts for cache speedups
             s = dipoles[cell, site]
@@ -45,7 +45,7 @@ end
 function energy(dipoles::Array{Vec3, 4}, aniso::DipolarQuarticAnisotropyCPU)
     E = 0.0
     latsize = size(dipoles)[1:3]
-    for (site, J) in zip(aniso.sites, aniso.Js)
+    @inbounds for (site, J) in zip(aniso.sites, aniso.Js)
         for cell in CartesianIndices(latsize)
             s = dipoles[cell, site]
             E += contract(J, s)
@@ -57,7 +57,7 @@ end
 function energy(coherents::Array{CVec{N}, 4}, aniso::SUNAnisotropyCPU, spin_mags::Vector{Float64}) where {N}
     E = 0.0
     latsize = size(coherents)[1:3]
-    for (site, Λ) in zip(aniso.sites, aniso.Λs)
+    @inbounds for (site, Λ) in zip(aniso.sites, aniso.Λs)
         for cell in CartesianIndices(latsize)
             Z = coherents[cell, site]
             E += spin_mags[site]*real(Z' * Λ * Z)
@@ -68,7 +68,7 @@ end
 
 function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::DipolarQuadraticAnisotropyCPU)
     latsize = size(dipoles)[1:3]
-    for (site, J) in zip(aniso.sites, aniso.Js)
+    @inbounds for (site, J) in zip(aniso.sites, aniso.Js)
         for cell in CartesianIndices(latsize)
             s = dipoles[cell, site]
             B[cell, site] = B[cell, site] - 2 * J * s
@@ -80,7 +80,7 @@ function _neggrad(dipoles::Array{Vec3, 4}, aniso::DipolarQuadraticAnisotropyCPU,
     B = Vec3(0,0,0)
     cell, i = splitidx(idx) 
 
-    for (site, J) in zip(aniso.sites, aniso.Js)
+    @inbounds for (site, J) in zip(aniso.sites, aniso.Js)
         if site == i
             B -= 2 * J * dipoles[cell, site]
         end
@@ -91,7 +91,7 @@ end
 
 function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::DipolarQuarticAnisotropyCPU)
     latsize = size(dipoles)[1:3]
-    for (site, J) in zip(aniso.sites, aniso.Js)
+    @inbounds for (site, J) in zip(aniso.sites, aniso.Js)
         for cell in CartesianIndices(latsize)
             s = dipoles[cell, site]
             B[cell, site] = B[cell, site] - grad_contract(J, s) 
@@ -103,7 +103,7 @@ function _neggrad(dipoles::Array{Vec3, 4}, aniso::DipolarQuarticAnisotropyCPU, i
     B = Vec3(0,0,0)
     cell, i = splitidx(idx) 
 
-    for (site, J) in zip(aniso.sites, aniso.Js)
+    @inbounds for (site, J) in zip(aniso.sites, aniso.Js)
         if site == i
             B -= grad_contract(J, dipoles[cell, site])
         end

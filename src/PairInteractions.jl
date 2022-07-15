@@ -144,7 +144,7 @@ function energy(dipoles::Array{Vec3}, heisenberg::HeisenbergCPU)
     E = 0.0
 
     latsize = size(dipoles)[1:3]
-    for (bond, _) in culled_bonds(bondtable)
+    @inbounds for (bond, _) in culled_bonds(bondtable)
         @unpack i, j, n = bond
         for cell in CartesianIndices(latsize)
             sᵢ = dipoles[cell, i]
@@ -160,7 +160,7 @@ function energy(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
     E = 0.0
 
     latsize = size(dipoles)[1:3]
-    for (bond, J) in culled_bonds(bondtable)
+    @inbounds for (bond, J) in culled_bonds(bondtable)
         @unpack i, j, n = bond
         for cell in CartesianIndices(latsize)
             sᵢ = dipoles[cell, i]
@@ -176,7 +176,7 @@ function energy(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU)
     E = 0.0
 
     latsize = size(dipoles)[1:3]
-    for (bond, J) in culled_bonds(bondtable)
+    @inbounds for (bond, J) in culled_bonds(bondtable)
         @unpack i, j, n = bond
         for cell in CartesianIndices(latsize)
             sᵢ = dipoles[cell, i]
@@ -193,7 +193,7 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, heisen::Heisenber
     effJ = first(bondtable.data)
 
     latsize = size(dipoles)[1:3]
-    for (bond, _) in culled_bonds(bondtable)
+    @inbounds for (bond, _) in culled_bonds(bondtable)
         @unpack i, j, n = bond
         for cell in CartesianIndices(latsize)
             offsetcell = offset(cell, n, latsize)
@@ -209,7 +209,7 @@ function _neggrad(dipoles::Array{Vec3}, heisen::HeisenbergCPU, i)
     J = first(bondtable.data)
 
     latsize = size(dipoles)[1:3]
-    for (bond, _) in sublat_bonds(bondtable, i)
+    @inbounds for (bond, _) in sublat_bonds(bondtable, i)
         (; j, n) = bond
         offsetcell = offset(cell, n, latsize)
         B -= J * dipoles[offsetcell, j]
@@ -223,7 +223,7 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, diag_coup::Diagon
     bondtable = diag_coup.bondtable
 
     latsize = size(dipoles)[1:3]
-    for (bond, J) in culled_bonds(bondtable)
+    @inbounds for (bond, J) in culled_bonds(bondtable)
         @unpack i, j, n = bond
         for cell in CartesianIndices(latsize)
             offsetcell = offset(cell, n, latsize)
@@ -239,7 +239,7 @@ function _neggrad(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU, i)
     (i, cell) = splitidx(i)
 
     latsize = size(dipoles)[1:3]
-    for (bond, J) ∈ sublat_bonds(bondtable, i)
+    @inbounds for (bond, J) ∈ sublat_bonds(bondtable, i)
         (; j, n) = bond
         offsetcell = offset(cell, n, latsize)
         B -= J .* dipoles[offsetcell, j]
@@ -253,7 +253,7 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, gen_coup::General
     bondtable = gen_coup.bondtable
 
     latsize = size(dipoles)[1:3]
-    for (bond, J) in culled_bonds(bondtable)
+    @inbounds for (bond, J) in culled_bonds(bondtable)
         @unpack i, j, n = bond
         for cell in CartesianIndices(latsize)
             offsetcell = offset(cell, n, latsize)
@@ -270,7 +270,7 @@ function _neggrad(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU, idx)
     (i, cell) = splitidx(idx)
 
     latsize = size(dipoles)[1:3]
-    for (bond, J) ∈ sublat_bonds(bondtable, i)
+    @inbounds for (bond, J) ∈ sublat_bonds(bondtable, i)
         (; j, n) = bond
         offsetcell = offset(cell, n, latsize)
         B -= J * dipoles[offsetcell, j]

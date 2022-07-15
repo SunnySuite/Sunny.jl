@@ -327,7 +327,7 @@ end
 
 function energy(dipoles::Array{Vec3, 4}, field::ExternalFieldCPU)
     E = 0.0
-    for site in 1:size(dipoles)[end]
+    @inbounds for site in 1:size(dipoles)[end]
         effB = field.effBs[site]
         for s in selectdim(dipoles, 4, site)
             E += effB ⋅ s
@@ -338,7 +338,7 @@ end
 
 "Accumulates the negative local Hamiltonian gradient coming from the external field"
 @inline function _accum_neggrad!(B::Array{Vec3, 4}, field::ExternalFieldCPU)
-    for site in 1:size(B)[end]
+    @inbounds for site in 1:size(B)[end]
         effB = field.effBs[site]
         for cell in CartesianIndices(size(B)[1:3])
             B[cell, site] = B[cell, site] + effB

@@ -40,10 +40,10 @@ function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_inf
 
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(lattice; extent, η)
     # Conjugate each matrix by the correct g matrices
-    for b1 in 1:nbasis(crystal)
-        g1 = site_infos[b1].g
-        for b2 in 1:nbasis(crystal)
-            g2 = site_infos[b2].g
+    for b2 in 1:nbasis(crystal)
+        g2 = site_infos[b2].g
+        for b1 in 1:nbasis(crystal)
+            g1 = site_infos[b1].g
             for ijk in CartesianIndices(axes(A)[1:end-2])
                 A[ijk, b1, b2] = g1' * A[ijk, b1, b2] * g2
             end
@@ -56,7 +56,7 @@ function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_inf
     rftdim = div(size(lattice, 1), 2) + 1   
 
     # Since only 3D lattice, size(lattice)[3:end] = size(lattice)[3:4]. This corresponded to y/b and z/c indices. 
-    # Note: Always moving nb after other lattice dims.
+    # Spin components up front (to keep memory layout), by basis indices moved to end.
     spins_ft = Array{ComplexF64, 5}(undef, 3, rftdim, size(lattice)[2:3]..., nb)  
     field_ft = Array{ComplexF64, 5}(undef, 3, rftdim, size(lattice)[2:3]..., nb)
     field_real = Array{Float64, 5}(undef, 3, size(lattice)...)
