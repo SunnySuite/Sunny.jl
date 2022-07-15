@@ -277,7 +277,7 @@ function _apply_ℌ_LL!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec
 
     for (site, Λ) in zip(aniso.sites, aniso.Λs) # There is one Λ per site 
         for cell in CartesianIndices(latsize)
-            @. ℌ = Λ - (B[cell, site][1] * sys.S[1] + B[cell, site][2] * sys.S[2] + B[cell, site][3] * sys.S[3])
+            @. ℌ = Λ - (B[cell, site][1]*sys.S[1] + B[cell, site][2]*sys.S[2] + B[cell, site][3]*sys.S[3])
             mul!(@view(rhs′[:, cell, site]), ℌ, Z[cell, site])
         end
     end
@@ -293,9 +293,9 @@ function _apply_ℌ_LD!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec
     for (site, Λ) in zip(aniso.sites, aniso.Λs) # There is one Λ per site 
         spin_rescaling = sys.site_infos[site].spin_rescaling
         for cell in CartesianIndices(latsize)
-            @. ℌ = spin_rescaling * (Λ - (B[cell, site][1] * sys.S[1] +
-                                          B[cell, site][2] * sys.S[2] +
-                                          B[cell, site][3] * sys.S[3]))
+            @. ℌ = spin_rescaling * (Λ - (B[cell,site][1]*sys.S[1] +
+                                          B[cell,site][2]*sys.S[2] +
+                                          B[cell,site][3]*sys.S[3]))
             mul!(@view(rhs′[:, cell, site]), ℌ, Z[cell, site])
         end
     end
