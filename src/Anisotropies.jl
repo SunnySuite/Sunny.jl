@@ -11,7 +11,7 @@ Upon creation of a SpinSystem, all pair interactions get converted into their
 # Q: Why don't we do the same for pair interactions as well?
 
 struct DipolarQuadraticAnisotropyCPU <: AbstractInteractionCPU
-    Js    :: Vector{Mat3}
+    Js    :: Vector{Mat3}  
     sites :: Vector{Int}
     label :: String
 end
@@ -23,7 +23,7 @@ struct DipolarQuarticAnisotropyCPU <: AbstractInteractionCPU
 end
 
 struct SUNAnisotropyCPU <: AbstractInteractionCPU
-    Λs    :: Vector{Matrix{ComplexF64}}
+    Λs    :: Array{ComplexF64, 3} 
     sites :: Vector{Int}
     label :: String
 end
@@ -57,7 +57,8 @@ end
 function energy(coherents::Array{CVec{N}, 4}, aniso::SUNAnisotropyCPU, spin_mags::Vector{Float64}) where {N}
     E = 0.0
     latsize = size(coherents)[1:3]
-    @inbounds for (site, Λ) in zip(aniso.sites, aniso.Λs)
+    @inbounds for site in aniso.sites
+        Λ = @view(aniso.Λs[:,:,site])
         for cell in CartesianIndices(latsize)
             Z = coherents[cell, site]
             E += spin_mags[site]*real(Z' * Λ * Z)

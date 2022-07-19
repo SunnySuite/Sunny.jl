@@ -187,20 +187,22 @@ end
     flip_ket(sys._coherents[idx])
 end
 
-# For mean field sampler
+# For mean field sampler. Return to this for optimzation.
 function _local_hamiltonian(sys::SpinSystem{N}, idx) where N
     aniso = sys.hamiltonian.sun_aniso
     _, i = splitidx(idx)
 
     B = field(sys._dipoles, sys.hamiltonian, idx)
-    ℌ = SMatrix{N,N,ComplexF64,N*N}(-B ⋅ sys.S)
+    S = reinterpret(SArray{Tuple{N,N}, ComplexF64, 2, N*N}, reshape(sys.S, N*N, 3)) # Make sure this works!
+    ℌ = SMatrix{N,N,ComplexF64,N*N}(-(B[1]*S[1] + B[2]*S[2] + B[3]*S[3]))
+    ℌ += aniso.Λs[:,:,i]
 
     # This is annoying, suggests modifying SUNAnisotropy type on backend
-    for (site, Λ) in zip(aniso.sites, aniso.Λs)
-        if site == i
-            ℌ += Λ
-        end
-    end
+    # for (site, Λ) in zip(aniso.sites, aniso.Λs)
+    #     if site == i
+    #         ℌ += Λ
+    #     end
+    # end
     
     return ℌ
 end
@@ -384,12 +386,15 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
     end
     if !isnothing(ℋ.sun_aniso)
         aniso = ℋ.sun_aniso
-        for (site, Λ) in zip(aniso.sites, aniso.Λs)
-            if site == i
-                old_ket = sys._coherents[idx]
-                ΔE += real(new_ket' * Λ * new_ket) - real(old_ket' * Λ * old_ket)
-            end
-        end
+        old_ket = sys._coherents[idx]
+        Λ = @view(aniso.Λs[:,:,i])
+        ΔE += real(new_ket' * Λ * new_ket) - real(old_ket' * Λ * old_ket)
+        # for (site, Λ) in zip(aniso.sites, aniso.Λs)
+        #     if site == i
+        #         old_ket = sys._coherents[idx]
+        #         ΔE += real(new_ket' * Λ * new_ket) - real(old_ket' * Λ * old_ket)
+        #     end
+        # end
     end
     if !isnothing(ℋ.dipole_int)
         throw("Local energy changes not implemented yet for dipole interactions")

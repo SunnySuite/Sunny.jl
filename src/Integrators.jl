@@ -5,6 +5,7 @@
 """
 
 abstract type Integrator end
+abstract type LangevinIntegrator <: Integrator end
 
 # TODO: These integrators should verify that the system is in
 #        "dipole-mode". Or, is there some nice way to make them
@@ -38,7 +39,7 @@ magnitude -- this is done internally.
 
 Uses the 2nd-order Heun + projection scheme."
 """
-mutable struct LangevinHeunP <: Integrator
+mutable struct LangevinHeunP <: LangevinIntegrator
     α   :: Float64        # Damping coeff
     D   :: Float64        # Stochastic strength
     sys :: SpinSystem
@@ -91,7 +92,7 @@ If sys has type `SpinSystem{0}`, will revert to the `LangevinHeunP` integrator.
 
 Uses the 2nd-order Heun + projection scheme."
 """
-mutable struct LangevinHeunPSUN{N, L} <: Integrator
+mutable struct LangevinHeunPSUN{N} <: LangevinIntegrator
     kT    :: Float64
     α     :: Float64
     sys   :: SpinSystem{N}
@@ -102,28 +103,16 @@ mutable struct LangevinHeunPSUN{N, L} <: Integrator
     _ξ    :: Array{CVec{N}, 4}
     _B    :: Array{Vec3, 4}
     _ℌ    :: Matrix{ComplexF64}  # Just a buffer
-    _Λs   :: Union{Vector{SArray{Tuple{N, N}, ComplexF64, 2, L}}, Nothing}
 end
 
-@generated function LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64) where N
-    # Use StaticArrays for onsite anisotropies if N is 5 or less. Otherwise use regular arrays.
-    L = N*N
-    if N < 6
-        Λs = :( SArray{Tuple{N,N}, ComplexF64, 2, $L}.(sys.hamiltonian.sun_aniso.Λs) ) 
-    else
-        L = 0
-        Λs = :( nothing ) 
-    end
-
-    return quote
-        LangevinHeunPSUN{N, $L}(
-            kT, α, sys,
-            zero(sys._coherents), zero(sys._coherents),
-            zero(sys._coherents), zero(sys._coherents),
-            zero(sys._coherents), zero(sys._dipoles),
-            zeros(ComplexF64, (N,N)), $Λs
-        )
-    end
+function LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64) where N
+    LangevinHeunPSUN{N}(
+        kT, α, sys,
+        zero(sys._coherents), zero(sys._coherents),
+        zero(sys._coherents), zero(sys._coherents),
+        zero(sys._coherents), zero(sys._dipoles),
+        zeros(ComplexF64, (N,N))
+    )
 end
 
 # Constructor so SU(N) integrator can be used with identical interface to LL LangevinHeunP integrator
@@ -139,7 +128,7 @@ Implements Generalized Spin Dynamics using the Schrodinger Midpoint method. No
 noise or damping. Only works for SU(N) systems (N != 0). Will revert to SphericalMidpoint
 method if sys has a type of `SpinSystem{0}`.
 """
-mutable struct SchrodingerMidpoint{N, L} <: Integrator
+mutable struct SchrodingerMidpoint{N} <: Integrator
     sys :: SpinSystem{N}
     _ΔZ  :: Array{CVec{N}, 4}
     _ℌZ  :: Array{CVec{N}, 4}
@@ -148,28 +137,16 @@ mutable struct SchrodingerMidpoint{N, L} <: Integrator
     _Z″  :: Array{CVec{N}, 4}
     _B   :: Array{Vec3, 4}
     _ℌ    :: Matrix{ComplexF64}  # Just a buffer
-    _Λs   :: Union{Vector{SArray{Tuple{N, N}, ComplexF64, 2, L}}, Nothing}
 end
 
-@generated function SchrodingerMidpoint(sys::SpinSystem{N}) where N
-    # Use StaticArrays for onsite anisotropies if N is 5 or less. Otherwise use regular arrays.
-    L = N*N
-    if N < 6
-        Λs = :( SArray{Tuple{N,N}, ComplexF64, 2, $L}.(sys.hamiltonian.sun_aniso.Λs) ) 
-    else
-        L = 0
-        Λs = :( nothing ) 
-    end
-
-    return quote
-        SchrodingerMidpoint{N, $L}(
-            sys, 
-            zero(sys._coherents), zero(sys._coherents),
-            zero(sys._coherents), zero(sys._coherents),
-            zero(sys._coherents), zero(sys._dipoles),
-            zeros(ComplexF64, (N,N)), $Λs
-        )
-    end
+function SchrodingerMidpoint(sys::SpinSystem{N}) where N
+    SchrodingerMidpoint{N}(
+        sys, 
+        zero(sys._coherents), zero(sys._coherents),
+        zero(sys._coherents), zero(sys._coherents),
+        zero(sys._coherents), zero(sys._dipoles),
+        zeros(ComplexF64, (N,N))
+    )
 end
 
 function SchrodingerMidpoint(sys::SpinSystem{0})
@@ -293,22 +270,33 @@ end
     (a - ((Z' * a) * Z))  
 end
 
-#= Construct and apply the local Hamiltonian for Landau-Lifshitz (LL) dynamics (no noise) =#
-# function _apply_ℌ_LL!(rhs::Array{CVec{N}, 4}, sys::SpinSystem{N}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, ℌ) where N
-@generated function _apply_ℌ_LL!(rhs::Array{CVec{N}, 4}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, integrator::SchrodingerMidpoint{N, L}) where {N, L}
+
+@generated function _apply_ℌ!(rhs::Array{CVec{N}, 4}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, integrator)  where {N}
+
+    if integrator <: LangevinIntegrator
+        scale_expr = :(site_infos[s].spin_rescaling)
+    else
+        scale_expr = :(1.0)
+    end
+
     if N < 6 
         S = gen_spin_ops(N) .|> SArray{Tuple{N, N}, ComplexF64, 2, N*N}
 
         return quote
-            (; sys, _Λs) = integrator
-            (; hamiltonian, site_infos) = sys
+            (; sys) = integrator
+            (; hamiltonian, site_infos, lattice) = sys
             sites = hamiltonian.sun_aniso.sites
-            latsize = size(B)[1:3]
+            Λs′ = hamiltonian.sun_aniso.Λs
+            sites = hamiltonian.sun_aniso.sites
+            Λs = reinterpret(SArray{Tuple{N, N}, ComplexF64, 2, N*N},
+                             reshape(Λs′, N*N, length(sites))
+            )
 
-            @inbounds for (site, Λ) in zip(sites, _Λs) 
-                @inbounds for cell in CartesianIndices(latsize)
-                    ℌ = Λ - B[cell,site] ⋅ $(S)
-                    rhs[cell, site] = ℌ*Z[cell, site]
+            @inbounds for s in sites 
+                κ = $scale_expr
+                for c in eachcellindex(lattice)
+                    ℌ = κ * (Λs[s] - B[c,s] ⋅ $(S))
+                    rhs[c, s] = ℌ*Z[c, s]
                 end
             end
             nothing
@@ -320,11 +308,15 @@ end
         (; hamiltonian, site_infos, lattice, S) = sys
         aniso = hamiltonian.sun_aniso
         rhs′ = reinterpret(reshape, ComplexF64, rhs) 
+        # Sˣ, Sʸ, Sᶻ = @view(S[:,:,1]), @view(S[:,:,2]), @view(S[:,:,3]) 
+        Sˣ, Sʸ, Sᶻ = S[:,:,1], S[:,:,2], S[:,:,3] # Cheaper to take the allocations than use views.
 
-        @inbounds for (site, Λ) in zip(aniso.sites, aniso.Λs) # There is one Λ per site 
-            @inbounds for cell in CartesianIndices(lattice.size)
-                _ℌ .= Λ - B[cell,site] ⋅ S
-                mul!(@view(rhs′[:, cell, site]), _ℌ, Z[cell, site])
+        @inbounds for s in aniso.sites
+            κ = $scale_expr 
+            Λ = @view(aniso.Λs[:,:,s])
+            for c in eachcellindex(lattice)
+                @. _ℌ = κ * (Λ - (B[c,s][1]*Sˣ + B[c,s][2]*Sʸ + B[c,s][3]*Sᶻ))
+                mul!(@view(rhs′[:, c, s]), _ℌ, Z[c, s])
             end
         end
         nothing
@@ -332,52 +324,13 @@ end
 end
 
 
-@generated function _apply_ℌ_LD!(rhs::Array{CVec{N}, 4}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, integrator::LangevinHeunPSUN{N, L})  where {N, L}
-    if N < 6 
-        S = gen_spin_ops(N) .|> SArray{Tuple{N, N}, ComplexF64, 2, N*N}
-
-        return quote
-            (; sys, _Λs) = integrator
-            (; hamiltonian, site_infos) = sys
-            sites = hamiltonian.sun_aniso.sites
-            latsize = size(B)[1:3]
-
-            @inbounds for (site, Λ) in zip(sites, _Λs) 
-                spin_rescaling = site_infos[site].spin_rescaling
-                @inbounds for cell in CartesianIndices(latsize)
-                    ℌ = spin_rescaling * (Λ - B[cell,site] ⋅ $(S))
-                    rhs[cell, site] = ℌ*Z[cell, site]
-                end
-            end
-            nothing
-        end
-    end
-
-    return quote
-        (; sys, _ℌ) = integrator
-        (; hamiltonian, site_infos, lattice, S) = sys
-        aniso = hamiltonian.sun_aniso
-        rhs′ = reinterpret(reshape, ComplexF64, rhs) 
-
-        @inbounds for (site, Λ) in zip(aniso.sites, aniso.Λs) # There is one Λ per site 
-            spin_rescaling = site_infos[site].spin_rescaling
-            @inbounds for cell in CartesianIndices(lattice.size)
-                _ℌ .= spin_rescaling * (Λ - B[cell,site] ⋅ S)
-                mul!(@view(rhs′[:, cell, site]), _ℌ, Z[cell, site])
-            end
-        end
-        nothing
-    end
-end
-
-
-function _rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, integrator, Δt::Float64) where N
+function _rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, integrator::LangevinHeunPSUN, Δt::Float64) where N
     (; kT, α, sys, _ℌZ, _ξ, _B, _ℌ) = integrator
     (; _dipoles) = sys
 
     set_expected_spins!(_dipoles, Z, sys) 
     field!(_B, _dipoles, sys.hamiltonian)
-    _apply_ℌ_LD!(_ℌZ, _B, Z, integrator)
+    _apply_ℌ!(_ℌZ, _B, Z, integrator)
 
     @inbounds for i in eachindex(Z)
         ΔZ′ = -im*√(2*Δt*kT*α)*_ξ[i] - Δt*(im+α)*_ℌZ[i]    
@@ -393,7 +346,7 @@ function _rhs_ll!(ΔZ, Z, integrator, Δt)
 
     set_expected_spins!(_dipoles, Z, sys) # temporarily de-synchs _dipoles and _coherents
     field!(_B, _dipoles, sys.hamiltonian)
-    _apply_ℌ_LL!(_ℌZ, _B, Z, integrator)
+    _apply_ℌ!(_ℌZ, _B, Z, integrator)
 
     @inbounds for i in eachindex(Z)
         ΔZ[i] = - Δt*im*_ℌZ[i]    

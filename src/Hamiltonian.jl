@@ -76,8 +76,15 @@ end
 
 function merge(anisos::Vector{SUNAnisotropy})
     (length(anisos) == 0) && (return nothing)
-    SUNAnisotropyCPU([a.Λ for a in anisos],
-                     [a.site for a in anisos],
+    N = size(anisos[1].Λ)[1]
+    sites = Int[]
+    Λs = zeros(ComplexF64, N, N, length(anisos))
+    for (i, aniso) in enumerate(anisos)
+        Λs[:,:,i] .= aniso.Λ
+        push!(sites, aniso.site)
+    end
+    SUNAnisotropyCPU(Λs,
+                     sites,
                      ""
     )
 end

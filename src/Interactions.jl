@@ -245,6 +245,15 @@ function gen_spin_ops(N::Int) :: NTuple{3, Matrix{ComplexF64}}
     return Sx, Sy, Sz
 end
 
+function gen_spin_ops_packed(N::Int) :: Array{ComplexF64, 3}
+    Ss = gen_spin_ops(N)
+    S_packed = zeros(ComplexF64, N, N, 3)
+    for i ∈ 1:3
+        S_packed[:,:,i] .= Ss[i]
+    end
+    S_packed
+end
+
 
 """
     SUN_anisotropy(mat, site)

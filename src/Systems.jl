@@ -10,7 +10,7 @@ struct SpinSystem{N}
     _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
     _coherents  :: Array{SVector{N, ComplexF64}, 4} # Coherent states
     site_infos  :: Vector{SiteInfo}                 # Characterization of each basis site
-    S           :: NTuple{3, Matrix{ComplexF64}}
+    S           :: Array{ComplexF64, 3}    
     rng         :: Random.AbstractRNG
 end
 
@@ -155,7 +155,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
 
     (all_site_infos, N) = _propagate_site_info(crystal, site_infos)
     ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_site_infos; μB, μ0)
-    S = gen_spin_ops(N)
+    S = gen_spin_ops_packed(N)
 
     # Initialize sites to all spins along +z
     sys_size = (lattice.size..., nbasis(lattice))
