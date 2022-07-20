@@ -3,14 +3,12 @@
 "Computes the Fourier transform of a (spatially compressed) dipole interaction matrix"
 function _rfft_dipole_tensor(A::OffsetArray{Mat3}) :: Array{Complex{Float64}}
     A = _reinterpret_dipole_tensor(A)
-    # rfft(A, 5:ndims(A))
     rfft(A, 3:5)
 end
 
 "Fourier transforms a dipole system"
 function _rfft_dipole_sys(dipoles::Array{Vec3}) :: Array{Complex{Float64}}
     Sr = reinterpret(reshape, Float64, dipoles)
-    # rfft(Sr, 3:ndims(Sr))
     rfft(Sr, 2:4)
 end
 
@@ -40,10 +38,10 @@ function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_inf
 
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(lattice; extent, η)
     # Conjugate each matrix by the correct g matrices
-    for b2 in 1:nbasis(crystal)
-        g2 = site_infos[b2].g
-        for b1 in 1:nbasis(crystal)
-            g1 = site_infos[b1].g
+    for b1 in 1:nbasis(crystal)
+        g1 = site_infos[b1].g
+        for b2 in 1:nbasis(crystal)
+            g2 = site_infos[b2].g
             for ijk in CartesianIndices(axes(A)[1:end-2])
                 A[ijk, b1, b2] = g1' * A[ijk, b1, b2] * g2
             end
@@ -52,19 +50,13 @@ function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_inf
     FA = _rfft_dipole_tensor(A)
     nb = nbasis(lattice)
 
-    # Note: size(lattice) ≠ lattice.size. size(lattice, 2) was formerly x/a index. This is now `size(lattice, 1)`
     rftdim = div(size(lattice, 1), 2) + 1   
-
-    # Since only 3D lattice, size(lattice)[3:end] = size(lattice)[3:4]. This corresponded to y/b and z/c indices. 
-    # Spin components up front (to keep memory layout), by basis indices moved to end.
     spins_ft = Array{ComplexF64, 5}(undef, 3, rftdim, size(lattice)[2:3]..., nb)  
     field_ft = Array{ComplexF64, 5}(undef, 3, rftdim, size(lattice)[2:3]..., nb)
     field_real = Array{Float64, 5}(undef, 3, size(lattice)...)
 
     mock_spins = zeros(3, size(lattice)...)
-    # plan = plan_rfft(mock_spins, 3:ndims(mock_spins); flags=FFTW.MEASURE)
     plan = plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
-    # ift_plan = plan_irfft(spins_ft, size(lattice, 2), 3:ndims(mock_spins); flags=FFTW.MEASURE)
     ift_plan = plan_irfft(spins_ft, size(lattice, 1), 2:4; flags=FFTW.MEASURE)
 
     DipoleFourierCPU(FA, spins_ft, field_ft, field_real, plan, ift_plan)
