@@ -86,11 +86,11 @@ end
 
 
 function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::SpinSystem) where N
-    (a, b, c, num_sites)= size(dipoles) 
-    for l in 1:num_sites
-        spin_rescaling = sys.site_infos[l].spin_rescaling
-        for k ∈ 1:c, j ∈ 1:b, i ∈ 1:a
-            dipoles[i,j,k,l] = spin_rescaling * expected_spin(coherents[i,j,k,l])
+    num_sites= size(dipoles)[end]
+    for site in 1:num_sites
+        spin_rescaling = sys.site_infos[site].spin_rescaling
+        for cell in CartesianIndices(size(dipoles)[1:3]) 
+            dipoles[cell,site] = spin_rescaling * expected_spin(coherents[cell,site])
         end
     end
 end

@@ -38,10 +38,10 @@ function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_inf
 
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(lattice; extent, η)
     # Conjugate each matrix by the correct g matrices
-    for b1 in 1:nbasis(crystal)
-        g1 = site_infos[b1].g
-        for b2 in 1:nbasis(crystal)
-            g2 = site_infos[b2].g
+    for b2 in 1:nbasis(crystal)
+        g2 = site_infos[b2].g
+        for b1 in 1:nbasis(crystal)
+            g1 = site_infos[b1].g
             for ijk in CartesianIndices(axes(A)[1:end-2])
                 A[ijk, b1, b2] = g1' * A[ijk, b1, b2] * g2
             end
@@ -78,7 +78,7 @@ function energy(dipoles::Array{Vec3, 4}, dip::DipoleFourierCPU)
         @views FS[:, 2:end, :, :, :] .*= √2
     end
     @tullio U += real(
-        conj(FS[is, j, k, l, ib]) * FA[is, js, j, k, l, ib, jb] * FS[js, j, k, l, jb]  # check jb ib order
+        conj(FS[is, j, k, l, ib]) * FA[is, js, j, k, l, ib, jb] * FS[js, j, k, l, jb]
     )
     return U / prod(latsize)
 end
@@ -93,7 +93,7 @@ function _accum_neggrad!(H::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, dipdip::Dip
     fill!(Fϕ, 0.0)
     spins = _reinterpret_from_spin_array(dipoles)
     mul!(FS, dipdip._plan, spins)
-    @tullio grad=false Fϕ[s1,i,j,k,b1] += FA[s1,s2,i,j,k,b1,b2] * FS[s2,i,j,k,b2] # test b2 b1 order
+    @tullio grad=false Fϕ[s1,i,j,k,b1] += FA[s1,s2,i,j,k,b1,b2] * FS[s2,i,j,k,b2]
     mul!(ϕ, dipdip._ift_plan, Fϕ)
     ϕ = _reinterpret_to_spin_array(ϕ)
     for i in eachindex(H)

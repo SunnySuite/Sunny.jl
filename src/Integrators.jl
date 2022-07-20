@@ -308,7 +308,6 @@ end
         (; hamiltonian, site_infos, lattice, S) = sys
         aniso = hamiltonian.sun_aniso
         rhs′ = reinterpret(reshape, ComplexF64, rhs) 
-        # Sˣ, Sʸ, Sᶻ = @view(S[:,:,1]), @view(S[:,:,2]), @view(S[:,:,3]) 
         Sˣ, Sʸ, Sᶻ = S[:,:,1], S[:,:,2], S[:,:,3] # Cheaper to take the allocations than use views.
 
         @inbounds for s in aniso.sites

@@ -207,9 +207,10 @@ function _neggrad(dipoles::Array{Vec3}, heisen::HeisenbergCPU, i)
     bondtable = heisen.bondtable
     B = Vec3(0,0,0)
     J = first(bondtable.data)
+    _, site = splitidx(i)
 
     latsize = size(dipoles)[1:3]
-    @inbounds for (bond, _) in sublat_bonds(bondtable, i)
+    @inbounds for (bond, _) in sublat_bonds(bondtable, site)
         (; j, n) = bond
         offsetcell = offset(cell, n, latsize)
         B -= J * dipoles[offsetcell, j]
@@ -236,10 +237,10 @@ end
 function _neggrad(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU, i)
     bondtable = diag_coup.bondtable
     B = Vec3(0,0,0)
-    (i, cell) = splitidx(i)
+    cell, site = splitidx(i)
 
     latsize = size(dipoles)[1:3]
-    @inbounds for (bond, J) ∈ sublat_bonds(bondtable, i)
+    @inbounds for (bond, J) ∈ sublat_bonds(bondtable, site)
         (; j, n) = bond
         offsetcell = offset(cell, n, latsize)
         B -= J .* dipoles[offsetcell, j]
@@ -267,10 +268,10 @@ end
 function _neggrad(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU, idx)
     bondtable = gen_coup.bondtable
     B = Vec3(0,0,0)
-    (i, cell) = splitidx(idx)
+    cell, site = splitidx(idx)
 
     latsize = size(dipoles)[1:3]
-    @inbounds for (bond, J) ∈ sublat_bonds(bondtable, i)
+    @inbounds for (bond, J) ∈ sublat_bonds(bondtable, site)
         (; j, n) = bond
         offsetcell = offset(cell, n, latsize)
         B -= J * dipoles[offsetcell, j]

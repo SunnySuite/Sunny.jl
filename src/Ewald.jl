@@ -310,7 +310,7 @@ function precompute_monopole_ewald(lattice::Lattice; extent=10, η=1.0) :: Offse
                     end
                     recip_site_sum += exp(-k2 / 4η^2) * cos(k ⋅ rᵢⱼ) / k2
                 end
-                @inbounds A[idx, b2, b1] += 2π / vol * recip_site_sum  # confirm b1, b2 order
+                @inbounds A[idx, b2, b1] += 2π / vol * recip_site_sum 
             end
         end
     end
@@ -322,13 +322,13 @@ function contract_monopole(charges::Array{Float64, 4}, A::OffsetArray{Float64}) 
     nb = size(charges, 4)
     latsize = size(charges)[1:3]
     U = 0.0
-    for i in CartesianIndices(latsize)
-        for ib in 1:nb
-            @inbounds qᵢ = charges[i, ib]
-            for j in CartesianIndices(latsize)
-                for jb in 1:nb
-                    @inbounds qⱼ = charges[j, jb]
-                    @inbounds U += qᵢ * A[i - j, ib, jb] * qⱼ   # confirm jb, ib order
+    for j in CartesianIndices(latsize)
+        for jb in 1:nb
+            @inbounds qⱼ = charges[j, jb]
+            for i in CartesianIndices(latsize)
+                for ib in 1:nb
+                    @inbounds qᵢ = charges[i, ib]
+                    @inbounds U += qᵢ * A[i - j, ib, jb] * qⱼ   
                 end
             end
         end
@@ -400,7 +400,7 @@ function precompute_dipole_ewald(lattice::Lattice; extent=3, η=1.0) :: OffsetAr
                     @. real_tensor += prefactor * (rᵢⱼ_n * rᵢⱼ_n')
                 end
                 @inbounds real_tensor .+= real_site_sum * iden
-                @inbounds A[idx, b2, b1] = A[idx, b2, b1] .+ 0.5 * real_tensor  # confirm b1, b2 order
+                @inbounds A[idx, b2, b1] = A[idx, b2, b1] .+ 0.5 * real_tensor  
 
                 # Reciprocal-space sum
                 fill!(recip_tensor, 0.0)
@@ -416,7 +416,7 @@ function precompute_dipole_ewald(lattice::Lattice; extent=3, η=1.0) :: OffsetAr
                     prefactor = exp(-k2 / 4η^2) * cos(k ⋅ rᵢⱼ) / k2
                     @. recip_tensor += prefactor * (k * k')
                 end
-                @inbounds A[idx, b2, b1] = A[idx, b2, b1] .+ 2π / vol * recip_tensor # confirm b1, b2 order
+                @inbounds A[idx, b2, b1] = A[idx, b2, b1] .+ 2π / vol * recip_tensor 
             end
         end
     end
@@ -429,12 +429,12 @@ function contract_dipole(spins::Array{Vec3, 4}, A::OffsetArray{Mat3, 5}) :: Floa
     nb = size(spins, 4)
     latsize = size(spins)[1:3]
     U = 0.0
-    for i in CartesianIndices(latsize)
-        for ib in 1:nb
-            @inbounds pᵢ = spins[i, ib]
-            for j in CartesianIndices(latsize)
-                for jb in 1:nb
-                    @inbounds pⱼ = spins[j, jb]
+    for j in CartesianIndices(latsize)
+        for jb in 1:nb
+            @inbounds pⱼ = spins[j, jb]
+            for i in CartesianIndices(latsize)
+                for ib in 1:nb
+                    @inbounds pᵢ = spins[i, ib]
                     @inbounds U += dot(pᵢ, A[modc(i - j, latsize), ib, jb], pⱼ) 
                 end
             end
@@ -459,10 +459,10 @@ function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_infos:
 
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(lattice; extent, η)
     # Conjugate each matrix by the correct g matrices
-    for b1 in 1:nbasis(crystal)
-        g1 = site_infos[b1].g
-        for b2 in 1:nbasis(crystal)
-            g2 = site_infos[b2].g
+    for b2 in 1:nbasis(crystal)
+        g2 = site_infos[b2].g
+        for b1 in 1:nbasis(crystal)
+            g1 = site_infos[b1].g
             for ijk in CartesianIndices(axes(A)[1:3])
                 A[ijk, b1, b2] = g1' * A[ijk, b1, b2] * g2
             end
@@ -486,7 +486,7 @@ function _accum_neggrad!(H::Array{Vec3, 4}, spins::Array{Vec3, 4}, dip::DipoleRe
             @inbounds pⱼ = spins[j, jb]
             for i in CartesianIndices(latsize)
                 for ib in 1:nb
-                    @inbounds H[i, ib] = H[i, ib] - 2 * (A[modc(i - j, latsize), ib, jb] * pⱼ)  # confirm jb, ib order
+                    @inbounds H[i, ib] = H[i, ib] - 2 * (A[modc(i - j, latsize), ib, jb] * pⱼ) 
                 end
             end
         end

@@ -312,7 +312,7 @@ This is useful for some sampling methods.
 """
 function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i::CartesianIndex) 
     B = SA[0.0, 0.0, 0.0]
-    site = i[end]
+    _, site = splitidx(i) 
 
     if !isnothing(ℋ.ext_field)
         B += ℋ.ext_field.effBs[site] 

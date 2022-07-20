@@ -11,7 +11,7 @@ Upon creation of a SpinSystem, all pair interactions get converted into their
 # Q: Why don't we do the same for pair interactions as well?
 
 struct DipolarQuadraticAnisotropyCPU <: AbstractInteractionCPU
-    Js    :: Vector{Mat3}  
+    Js    :: Vector{Mat3}
     sites :: Vector{Int}
     label :: String
 end
@@ -77,7 +77,7 @@ function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::Dipo
     end
 end
 
-function _neggrad(dipoles::Array{Vec3, 4}, aniso::DipolarQuadraticAnisotropyCPU, idx)
+function (dipoles::Array{Vec3, 4}, aniso::DipolarQuadraticAnisotropyCPU, idx)
     B = Vec3(0,0,0)
     cell, i = splitidx(idx) 
 

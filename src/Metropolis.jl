@@ -73,7 +73,7 @@ Each single-spin update attempts to completely randomize the spin. One call to
  `sample!` will attempt to flip each spin `nsweeps` times.
 """
 mutable struct MetropolisSampler{N} <: AbstractSampler
-    system     :: SpinSystem{N}
+    sys     :: SpinSystem{N}
     β          :: Float64
     nsweeps    :: Int
     E          :: Float64
@@ -98,7 +98,7 @@ Before constructing, be sure that your `SpinSystem` is initialized so that each
 spin points along its "Ising-like" axis.
 """
 mutable struct IsingSampler{N} <: AbstractSampler
-    system     :: SpinSystem{N}
+    sys     :: SpinSystem{N}
     β          :: Float64
     nsweeps    :: Int
     E          :: Float64
@@ -111,7 +111,7 @@ end
 
 
 mutable struct MeanFieldSampler{N} <: AbstractSampler
-    system     :: SpinSystem{N}
+    sys     :: SpinSystem{N}
     β          :: Float64
     nsweeps    :: Int
     E          :: Float64
@@ -152,11 +152,13 @@ get_temp(sampler::MeanFieldSampler) = 1 / sampler.β
 
 Returns the `SpinSystem` being updated by the `sampler`.
 """
-get_system(sampler::MetropolisSampler) = sampler.system
-get_system(sampler::IsingSampler) = sampler.system
+get_system(sampler::MetropolisSampler) = sampler.sys
+get_system(sampler::MeanFieldSampler) = sampler.sys
+get_system(sampler::IsingSampler) = sampler.sys
 
-Random.rand!(sampler::MetropolisSampler) = rand!(sampler.system)
-Random.rand!(sampler::IsingSampler) = rand!(sampler.system)
+Random.rand!(sampler::MetropolisSampler) = rand!(sampler.sys)
+Random.rand!(sampler::MeanFieldSampler) = rand!(sampler.sys)
+Random.rand!(sampler::IsingSampler) = rand!(sampler.sys)
 
 
 """ The following functions have been added or modified to permit code reuse
@@ -190,19 +192,12 @@ end
 # For mean field sampler. Return to this for optimzation.
 function _local_hamiltonian(sys::SpinSystem{N}, idx) where N
     aniso = sys.hamiltonian.sun_aniso
-    _, i = splitidx(idx)
+    _, site = splitidx(idx)
 
     B = field(sys._dipoles, sys.hamiltonian, idx)
     S = reinterpret(SArray{Tuple{N,N}, ComplexF64, 2, N*N}, reshape(sys.S, N*N, 3)) # Make sure this works!
     ℌ = SMatrix{N,N,ComplexF64,N*N}(-(B[1]*S[1] + B[2]*S[2] + B[3]*S[3]))
-    ℌ += aniso.Λs[:,:,i]
-
-    # This is annoying, suggests modifying SUNAnisotropy type on backend
-    # for (site, Λ) in zip(aniso.sites, aniso.Λs)
-    #     if site == i
-    #         ℌ += Λ
-    #     end
-    # end
+    ℌ += @view(aniso.Λs[:,:,site])
     
     return ℌ
 end
@@ -237,27 +232,27 @@ end
 """
     sample!(sampler)
 
-Samples `sampler.system` to a new state, under the Boltzmann distribution
- as defined by `sampler.system.hamiltonian`.
+Samples `sampler.sys` to a new state, under the Boltzmann distribution
+ as defined by `sampler.sys.hamiltonian`.
 """
 function sample!(sampler::MetropolisSampler{N}) where N
-    sys = sampler.system
+    sys = sampler.sys
     for _ in 1:sampler.nsweeps
-        for idx in CartesianIndices(sampler.system._dipoles)
+        for idx in CartesianIndices(sys._dipoles)
             # Try to rotate this spin to somewhere randomly on the unit sphere
             _, b = splitidx(idx)
             new_spin = _random_spin(sys.rng, Val(N), sys.site_infos[b].spin_rescaling)
-            ΔE = local_energy_change(sampler.system, idx, new_spin)
+            ΔE = local_energy_change(sys, idx, new_spin)
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)
                 new_ket = ket(new_spin)
                 new_dipole = dipole(new_spin, sys, idx)
 
                 sampler.E += ΔE
-                sampler.M += (new_dipole - sampler.system._dipoles[idx])
+                sampler.M += (new_dipole - sys._dipoles[idx])
 
-                sampler.system._dipoles[idx] = new_dipole 
-                sampler.system._coherents[idx] = new_ket
+                sys._dipoles[idx] = new_dipole 
+                sys._coherents[idx] = new_ket
             end
         end
     end
@@ -265,12 +260,12 @@ end
 
 
 function sample!(sampler::IsingSampler{N}) where N
-    sys = sampler.system
+    sys = sampler.sys
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sys._dipoles)
             # Try to completely flip this spin
-            new_spin = _flipped_spin(sampler.system, idx)
-            ΔE = local_energy_change(sampler.system, idx, new_spin)
+            new_spin = _flipped_spin(sys, idx)
+            ΔE = local_energy_change(sys, idx, new_spin)
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)
                 new_ket = ket(new_spin)
@@ -279,8 +274,8 @@ function sample!(sampler::IsingSampler{N}) where N
                 sampler.E += ΔE
                 sampler.M += 2 * new_dipole   # check this is still sensible...
 
-                sampler.system._dipoles[idx] = new_dipole 
-                sampler.system._coherents[idx] = new_ket
+                sys._dipoles[idx] = new_dipole 
+                sys._coherents[idx] = new_ket
             end
         end
     end
@@ -288,11 +283,11 @@ end
 
 
 function sample!(sampler::MeanFieldSampler{N}) where N
-    sys = sampler.system
+    sys = sampler.sys
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sys._dipoles)
-            new_spin = _rand_mf_spin(sampler.system, idx)
-            ΔE = local_energy_change(sampler.system, idx, new_spin)
+            new_spin = _rand_mf_spin(sys, idx)
+            ΔE = local_energy_change(sys, idx, new_spin)
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)
                 new_ket = ket(new_spin)
@@ -301,8 +296,8 @@ function sample!(sampler::MeanFieldSampler{N}) where N
                 sampler.E += ΔE
                 sampler.M += 2 * new_dipole   # assuming 2 is g-factor 
 
-                sampler.system._dipoles[idx] = new_dipole 
-                sampler.system._coherents[idx] = new_ket
+                sys._dipoles[idx] = new_dipole 
+                sys._coherents[idx] = new_ket
             end
         end
     end
@@ -310,12 +305,12 @@ end
 
 @inline running_energy(sampler::MetropolisSampler) = sampler.E
 @inline running_mag(sampler::MetropolisSampler) = sampler.M
-@inline reset_running_energy!(sampler::MetropolisSampler) = (sampler.E = energy(sampler.system); nothing)
-@inline reset_running_mag!(sampler::MetropolisSampler) = (sampler.M = sum(sampler.system._dipoles); nothing)
+@inline reset_running_energy!(sampler::MetropolisSampler) = (sampler.E = energy(sampler.sys); nothing)
+@inline reset_running_mag!(sampler::MetropolisSampler) = (sampler.M = sum(sampler.sys._dipoles); nothing)
 @inline running_energy(sampler::IsingSampler) = sampler.E
 @inline running_mag(sampler::IsingSampler) = sampler.M
-@inline reset_running_energy!(sampler::IsingSampler) = (sampler.E = energy(sampler.system); nothing)
-@inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.system._dipoles); nothing)
+@inline reset_running_energy!(sampler::IsingSampler) = (sampler.E = energy(sampler.sys); nothing)
+@inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.sys._dipoles); nothing)
 
 
 """
@@ -389,12 +384,6 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
         old_ket = sys._coherents[idx]
         Λ = @view(aniso.Λs[:,:,i])
         ΔE += real(new_ket' * Λ * new_ket) - real(old_ket' * Λ * old_ket)
-        # for (site, Λ) in zip(aniso.sites, aniso.Λs)
-        #     if site == i
-        #         old_ket = sys._coherents[idx]
-        #         ΔE += real(new_ket' * Λ * new_ket) - real(old_ket' * Λ * old_ket)
-        #     end
-        # end
     end
     if !isnothing(ℋ.dipole_int)
         throw("Local energy changes not implemented yet for dipole interactions")
