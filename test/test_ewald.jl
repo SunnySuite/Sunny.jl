@@ -8,7 +8,7 @@ function test_ewald_NaCl()
     latsize = [2, 2, 2]
     lattice = Sunny.Lattice(lat_vecs, b_vecs, latsize)
     sys = ChargeSystem(lattice)
-    sys.charges .= reshape([1, -1, -1, 1, -1, 1, 1, -1], (1, 2, 2, 2))
+    sys.charges .= reshape([1, -1, -1, 1, -1, 1, 1, -1], (2, 2, 2, 1))
 
     ewald_result = Sunny.ewald_sum_monopole(lattice, sys.charges, extent=30)
     
@@ -27,7 +27,7 @@ function test_ewald_CsCl()
     latsize = [1, 1, 1]
     lattice = Sunny.Lattice(lat_vecs, b_vecs, latsize)
     sys = ChargeSystem(lattice)
-    sys.charges .= reshape([1, -1], (2, 1, 1, 1))
+    sys.charges .= reshape([1, -1], (1, 1, 1, 2))
 
     ewald_result = Sunny.ewald_sum_monopole(lattice, sys.charges, extent=30)
     
@@ -50,7 +50,7 @@ function test_ewald_ZnS()
     latsize = [1, 1, 1]
     lattice = Sunny.Lattice(lat_vecs, b_vecs, latsize)
     sys = ChargeSystem(lattice)
-    sys.charges .= reshape([1, -1], (2, 1, 1, 1))
+    sys.charges .= reshape([1, -1], (1, 1, 1, 2))
 
     ewald_result = Sunny.ewald_sum_monopole(lattice, sys.charges, extent=30)
     
@@ -83,7 +83,7 @@ function test_ewald_ZnSB4()
     latsize = [1, 1, 1]
     lattice = Sunny.Lattice(lat_vecs, b_vecs, latsize)
     sys = ChargeSystem(lattice)
-    sys.charges .= reshape([1, 1, -1, -1], (4, 1, 1, 1))
+    sys.charges .= reshape([1, 1, -1, -1], (1, 1, 1, 4))
 
     ewald_result = Sunny.ewald_sum_monopole(lattice, sys.charges, extent=30)
     
@@ -118,7 +118,7 @@ function _approx_dip_as_mono(sys::SpinSystem; ϵ::Float64=0.1) :: ChargeSystem
     frac_transform = inv(new_lat_vecs)
 
     new_nbasis = 2 * prod(size(dipoles))
-    new_sites = zeros(new_nbasis, 1, 1, 1)
+    new_sites = zeros(1, 1, 1, new_nbasis)
     new_basis = empty(lattice.basis_vecs)
     sizehint!(new_basis, new_nbasis)
 
@@ -132,8 +132,8 @@ function _approx_dip_as_mono(sys::SpinSystem; ϵ::Float64=0.1) :: ChargeSystem
         push!(new_basis, frac_transform * (r - ϵ * p))
 
         # Set these charges to ±1/2ϵ
-        new_sites[ib, 1, 1, 1]   =  1 / (2ϵ)
-        new_sites[ib+1, 1, 1, 1] = -1 / (2ϵ)
+        new_sites[1, 1, 1, ib]   =  1 / (2ϵ)
+        new_sites[1, 1, 1, ib+1] = -1 / (2ϵ)
 
         ib += 2
     end

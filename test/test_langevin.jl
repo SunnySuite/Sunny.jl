@@ -65,7 +65,7 @@ end
 
 function calc_mean_energy(integrator, Δt, dur)
     sys = integrator.sys
-    L = size(sys._dipoles)[2]
+    L = size(sys._dipoles)[1]
     numsteps = round(Int, dur/Δt)
     Es = zeros(numsteps)
     for i in 1:numsteps

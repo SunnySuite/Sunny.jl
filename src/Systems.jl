@@ -10,7 +10,7 @@ struct SpinSystem{N}
     _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
     _coherents  :: Array{SVector{N, ComplexF64}, 4} # Coherent states
     site_infos  :: Vector{SiteInfo}                 # Characterization of each basis site
-    S           :: NTuple{3, Matrix{ComplexF64}}
+    S           :: Array{ComplexF64, 3}    
     rng         :: Random.AbstractRNG
 end
 
@@ -85,24 +85,17 @@ end
 end
 
 
-function set_expected_spins!(sys::SpinSystem)
-    (; _dipoles, _coherents) = sys
-    for b in 1:size(_dipoles, 1)
-        spin_rescaling = sys.site_infos[b].spin_rescaling
-        for i in CartesianIndices(size(_dipoles)[2:end])
-            _dipoles[b, i] = spin_rescaling * expected_spin(_coherents[b, i])
+function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::SpinSystem) where N
+    num_sites= size(dipoles)[end]
+    for site in 1:num_sites
+        spin_rescaling = sys.site_infos[site].spin_rescaling
+        for cell in CartesianIndices(size(dipoles)[1:3]) 
+            dipoles[cell,site] = spin_rescaling * expected_spin(coherents[cell,site])
         end
     end
 end
 
-function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::SpinSystem) where N
-    for b in 1:size(dipoles, 1)
-        spin_rescaling = sys.site_infos[b].spin_rescaling
-        for i in CartesianIndices(size(dipoles)[2:end])
-            dipoles[b, i] = spin_rescaling * expected_spin(coherents[b, i])
-        end
-    end
-end
+set_expected_spins!(sys::SpinSystem) = set_expected_spins!(sys._dipoles, sys._coherents, sys)
 
 
 """
@@ -162,10 +155,10 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
 
     (all_site_infos, N) = _propagate_site_info(crystal, site_infos)
     ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_site_infos; μB, μ0)
-    S = gen_spin_ops(N)
+    S = gen_spin_ops_packed(N)
 
     # Initialize sites to all spins along +z
-    sys_size = (nbasis(lattice), lattice.size...)
+    sys_size = (lattice.size..., nbasis(lattice))
     up = SA[0.0, 0.0, 1.0]
     dipoles = fill(up, sys_size)
     coherents = fill(_get_coherent_from_dipole(up, Val(N)), sys_size)
@@ -181,7 +174,7 @@ function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem{N}) where {N}
     sys_type = N > 0 ? "SU($N)" : "Dipolar"
     printstyled(io, "Spin System [$sys_type]\n"; bold=true, color=:underline)
     sz = size(sys)
-    println(io, "Basis $(sz[1]), Lattice dimensions $(sz[2:end])")
+    println(io, "Basis $(sz[end]), Lattice dimensions $(sz[1:3])")
 end
 
 """
@@ -198,12 +191,13 @@ function Random.rand!(sys::SpinSystem{N}) where N
     set_expected_spins!(sys)
     nothing
 end
+
 function Random.rand!(sys::SpinSystem{0})  
     dip_view = DipoleView(sys)
     dip_view .= randn(sys.rng, Vec3, size(dip_view))
     @. dip_view /= norm(dip_view)
     for b ∈ 1:nbasis(sys)
-        dip_view[b,:,:,:] .*= sys.site_infos[b].spin_rescaling
+        dip_view[:,:,:,b] .*= sys.site_infos[b].spin_rescaling
     end
     nothing
 end
@@ -220,9 +214,9 @@ flip corresponds to sign reversal, ``𝐒_i → -𝐒_i``. In the general case
 rotation about the ``y``-axis by π/2.
 """
 function randflips!(sys::SpinSystem{N}) where N
-    Z, Sy = sys._coherents, sys.S[2]
+    Z = sys._coherents
     for i in eachindex(Z)
-        rand((true, false)) && (Z[i] = flip_ket(Z[i], Sy))
+        rand((true, false)) && (Z[i] = flip_ket(Z[i]))
     end
     set_expected_spins!(sys)
 end
@@ -230,12 +224,13 @@ function randflips!(sys::SpinSystem{0})
     dip_view = DipoleView(sys)
     dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
 end
-#= On my computer this takes about 50 μs, whereas the regular randflips! takes
-about 2 μs. I assume most of the cost is matrix exponentiation. TODO: Use a
-generated function to cache the matrix exponentiation for each N.
-=#
-@inline function flip_ket(Z::CVec{N}, Sy::Matrix{ComplexF64}) where N
-    exp(-im*π*Sy)*conj(Z)
+
+@generated function flip_ket(Z::CVec{N}) where N
+    (_, Sʸ, _) = gen_spin_ops(N)
+    op = SMatrix{N, N, ComplexF64, N*N}(exp(-im*π*Sʸ))
+    return quote
+        $op * conj(Z)
+    end
 end
 
 

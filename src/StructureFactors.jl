@@ -62,18 +62,18 @@ function StructureFactor(sys::SpinSystem; bz_size=(1,1,1), reduce_basis=true,
                          dipole_factor=false, dynΔt::Float64=0.01,
                          dyn_meas::Int=1, meas_rate::Int=10,)
     nb = nbasis(sys.lattice)
-    spat_size = size(sys)[2:end]
+    spat_size = size(sys)[1:3]
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
     result_size = (3, q_size..., dyn_meas)
     min_q_idx = -1 .* div.(q_size .- 1, 2)
 
-    spin_ft = zeros(ComplexF64, 3, nb, spat_size..., dyn_meas)
+    spin_ft = zeros(ComplexF64, 3, spat_size..., nb, dyn_meas)
     if reduce_basis
         bz_buf = zeros(ComplexF64, 3, q_size..., dyn_meas)
         bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, min_q_idx..., 0))
     else
-        bz_buf = zeros(ComplexF64, 3, nb, q_size..., dyn_meas)
-        bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
+        bz_buf = zeros(ComplexF64, 3, q_size..., nb, dyn_meas)
+        bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, min_q_idx..., 1, 0))
     end
 
     if reduce_basis
@@ -86,11 +86,11 @@ function StructureFactor(sys::SpinSystem; bz_size=(1,1,1), reduce_basis=true,
         end
     else
         if dipole_factor
-            sfactor = zeros(Float64, nb, nb, q_size..., dyn_meas)
-            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
+            sfactor = zeros(Float64, q_size..., nb, nb, dyn_meas)
+            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(min_q_idx..., 1, 1, 0))
         else
-            sfactor = zeros(ComplexF64, 3, 3, nb, nb, q_size..., dyn_meas)
-            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, 1, 1, min_q_idx..., 0))
+            sfactor = zeros(ComplexF64, 3, 3, q_size..., nb, nb, dyn_meas)
+            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, min_q_idx..., 1, 1, 0))
         end
     end
 
@@ -153,7 +153,7 @@ function _compute_mag!(M, sys::SpinSystem)
     for b in 1:nbasis(sys)
         gS = sys.site_infos[b].g 
         for idx in eachcellindex(sys)
-            M[:, b, idx] .= gS * sys._dipoles[b, idx]
+            M[:, idx, b] .= gS * sys._dipoles[idx, b]
         end
     end
 end
@@ -172,7 +172,7 @@ function update!(sf::StructureFactor, sys::SpinSystem)
     # Save off the magnetic moments 𝐦_i(t) = g_i S_i 𝐬_i(t) into _mag_ft
     dynsys = deepcopy(sys)
     sf.integrator.sys = dynsys
-    T_dim = ndims(_mag_ft)
+    T_dim = ndims(_mag_ft)      # Assuming T_dim is "time dimension", which is last
     _compute_mag!(selectdim(_mag_ft, T_dim, 1), dynsys)
     for nsnap in 2:sf.dyn_meas
         for _ in 1:sf.meas_rate
@@ -219,6 +219,9 @@ end
 
 Apply the neutron dipole factor to a dynamic structure factor.
 """
+# DD: A bit confused here. Indexing make sense for array allocated when
+# dipole_factor is false. But, in that case, presumably wouldn't be Applying
+# the dipole factor.
 function apply_dipole_factor(sf::StructureFactor)
     if sf.dipole_factor == true
         return sf
@@ -454,10 +457,11 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
                              lattice::Lattice)
     # Check that spatial size of spin_traj_ft same as spatial size of lattice
     spat_size = size(lattice)[2:end]
-    valid_size = size(spin_traj_ft)[3:end-1] == spat_size
+    # valid_size = size(spin_traj_ft)[3:end-1] == spat_size
+    valid_size = size(spin_traj_ft)[2:4] == spat_size
     @assert valid_size "`size(spin_traj_ft)` not compatible with `lattice`"
     # Check that q_size is elementwise either an integer multiple of spat_size, or is 1.
-    q_size = size(res)[2:end-1]
+    q_size = size(res)[2:4]
     valid_q_size = all(map((qs, ss) -> qs % ss == 0 || qs == 1, q_size, spat_size))
     @assert valid_q_size "`size(res)` not compatible with `size(spin_traj_ft)`"
 
@@ -473,7 +477,7 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
             phase = exp(-im * (b ⋅ q))
             # Note: Lots of allocations here. Fix?
             # Warning: Cannot replace T with 1:end due to Julia issues with end and CartesianIndex
-            @. res[:, q_idx, 0:T-1] += spin_traj_ft[:, b_idx, wrap_q_idx, 1:T] * phase
+            @. res[:, q_idx, 0:T-1] += spin_traj_ft[:, wrap_q_idx, b_idx, 1:T] * phase
         end
     end
 
@@ -540,17 +544,17 @@ end
     expand_bz!(res::OffsetArray, S::Array)
 
 Copy S periodically into res, with the periodic boundaries set by the
-spatial axes of S. Assumes that S is of shape [3, B, L1, L2, L3, T], and
-that res is of shape [3, B, Q1, Q2, Q3, T], with all Qi >= Li.
+spatial axes of S. Assumes that S is of shape [3, L1, L2, L3, B, T], and
+that res is of shape [3, Q1, Q2, Q3, B, T], with all Qi >= Li.
 """
 function expand_bz!(res::OffsetArray{ComplexF64}, S::Array{ComplexF64})
     spat_size = size(S)[end-3:end-1]
     T = size(S, ndims(S))
 
     for t in 1:T
-        for q_idx in CartesianIndices(axes(res)[end-3:end-1])
+        for q_idx in CartesianIndices(axes(res)[end-4:end-2])
             wrap_q_idx = modc(q_idx, spat_size) + CartesianIndex(1, 1, 1)
-            res[:, :, q_idx, t-1] = S[:, :, wrap_q_idx, t]
+            res[:, q_idx, :, t-1] = S[:, wrap_q_idx, :, t]
         end
     end
 end
@@ -584,7 +588,7 @@ end
 """
     accum_dipole_factor_wbasis!(res, S, lattice)
 
-Given complex `S` of size [3, B, Q1, ..., QD, T] and real `res` of size [B, B, Q1, ..., QD, T],
+Given complex `S` of size [3, Q1, ..., QD, B, T] and real `res` of size [Q1, ..., QD, B, B, T],
 accumulates the structure factor from `S` with the dipole factor applied into `res`.
 """
 function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
@@ -593,7 +597,7 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
     Sα = reshape(S, _outersizeα(axes(S), 2))  # Size [3, 1, B, ...]
     Sβ = reshape(S, _outersizeβ(axes(S), 2))  # Size [3, B, 1, ...]
 
-    for q_idx in CartesianIndices(axes(res)[end-3:end-1])
+    for q_idx in CartesianIndices(axes(res)[1:3])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
         dip_factor = I(3) - q * q'
@@ -601,7 +605,7 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
         for α in 1:3
             for β in 1:3
                 dip_elem = dip_factor[α, β]
-                @. res[:, :, q_idx, :] += dip_elem * real(Sα[α, :, :, q_idx, :] * Sβ[β, :, :, q_idx, :])
+                @. res[q_idx, :, :, :] += dip_elem * real(Sα[α, q_idx, :, :, :] * Sβ[β, q_idx, :, :, :])
             end
         end
     end
