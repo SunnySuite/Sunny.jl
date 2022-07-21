@@ -93,21 +93,25 @@ lattice_params(lat::Lattice) = lattice_params(lat.lat_vecs)
     return CartesianIndices(Tuple(lat.size))
 end
 
+# Perhaps it's confusing to have the Lattice.size field refer to just the Bravais
+# lattice dimensions (3 numbers), but to have size(lat::Lattice) return dimensions 
+# of the whole thing including sites within each unit cell (4 numbers).
 @inline function Base.size(lat::Lattice)
-    return (nbasis(lat), lat.size...)
+    return (lat.size..., nbasis(lat))
 end
 
 #=== Indexing returns absolute coordinates of lattice points ===#
 
-@inline function Base.getindex(lat::Lattice, b::Int64, brav::CartesianIndex{3})
+@inline function Base.getindex(lat::Lattice, brav::CartesianIndex{3}, b::Int64)
     return muladd(lat.lat_vecs, convert(Vec3, brav), lat.basis_vecs[b])
 end
 
-@inline function Base.getindex(lat::Lattice, b::Int64, brav::NTuple{3, Int64})
+@inline function Base.getindex(lat::Lattice, brav::NTuple{3, Int64}, b::Int64)
     return muladd(lat.lat_vecs, convert(Vec3, brav), lat.basis_vecs[b])
 end
 
-@inline function Base.getindex(lat::Lattice, b::Int64, brav::Vararg{Int64, 3})
+@inline function Base.getindex(lat::Lattice, idx::Vararg{Int64, 4})
+    brav, b = idx[1:3], idx[end]
     return muladd(lat.lat_vecs, convert(Vec3, brav), lat.basis_vecs[b])
 end
 

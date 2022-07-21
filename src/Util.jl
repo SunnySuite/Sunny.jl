@@ -6,11 +6,11 @@ end
     CartesianIndex(mod1.(Tuple(i), Tuple(m)))
 end
 @inline function offset(i::CartesianIndex{D}, n::SVector{D,Int}, m) :: CartesianIndex{D} where {D}
-    CartesianIndex(Tuple(mod1.(Tuple(i) .+ n, Tuple(m))))
+    CartesianIndex( Tuple(mod1.(Tuple(i) .+ n, Tuple(m))) )
 end
 "Splits a CartesianIndex into its first index, and the rest"
 @inline function splitidx(i::CartesianIndex{D}) where {D}
-    return (i[1], CartesianIndex(Tuple(i)[2:end]))
+    return (CartesianIndex(Tuple(i)[1:3]), i[4])
 end
 
 # Taken from:
@@ -36,11 +36,15 @@ end
 "Reinterprets an array of Mat3 to an equivalent array of Float64"
 @inline function _reinterpret_dipole_tensor(A::OffsetArray{Mat3}) :: Array{Float64}
     Ar = reinterpret(reshape, Float64, parent(A))
-    return reshape(Ar, 3, 3, size(A)...)
+    return reshape(Ar, 3, 3, size(A)...)    # make sure this doesn't mess up indexing
 end
 
 "Generalize dot product so works on vector of operators"
 function LinearAlgebra.dot(a::Vec3, b::NTuple{3, Matrix{ComplexF64}}) where T
+    a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
+end
+
+function LinearAlgebra.dot(a::Vec3, b::NTuple{3, SArray{Tuple{N,N}, ComplexF64, 2, L}}) where {N, L}
     a[1]*b[1] + a[2]*b[2] + a[3]*b[3]
 end
 

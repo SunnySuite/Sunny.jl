@@ -43,7 +43,7 @@ Base.@kwdef mutable struct WangLandau{F<:Function}
     )
 
     # spin system
-    system::SpinSystem
+    sys::SpinSystem
 
     # minimum energy (not binned) found in simulation
     E_min::Float64 = Inf
@@ -188,10 +188,10 @@ function init_bounded!(WLS::WangLandau)
 
     ln_g_tmp = BinnedArray{Float64, Float64}(bin_size=WLS.bin_size)
 
-    system_size = length(WLS.system)
+    system_size = length(WLS.sys)
     ps = (WLS.per_spin) ? system_size : 1
     
-    E_curr = energy(WLS.system) / ps
+    E_curr = energy(WLS.sys) / ps
 
     ln_g_tmp[E_curr] = 1.0
 
@@ -201,16 +201,16 @@ function init_bounded!(WLS::WangLandau)
     # start init with finite length
     for mcsweeps_tmp in 1 : WLS.max_mcsweeps
 
-        for pos in CartesianIndices(WLS.system)
-            new_spin = gaussian_spin_update(WLS.system_dipoles[pos], WLS.mc_step_size, WLS.rng)
+        for pos in CartesianIndices(WLS.sys)
+            new_spin = gaussian_spin_update(WLS.sys._dipoles[pos], WLS.mc_step_size, WLS.rng)
 
-            E_next = E_curr + local_energy_change(WLS.system, pos, new_spin) / ps
+            E_next = E_curr + local_energy_change(WLS.sys, pos, new_spin) / ps
 
             Δln_g = ln_g_tmp[E_curr] - ln_g_tmp[E_next]
 
             if (Δln_g >= 0) || ( rand(WLS.rng) <= exp(Δln_g) )
 
-                WLS.system._dipoles[pos] = new_spin
+                WLS.sys._dipoles[pos] = new_spin
                 E_curr = E_next
 
                 if pfac*E_curr < lim_curr
@@ -248,7 +248,7 @@ function run!(WLS::WangLandau)
 
     println("begin WL sampling.")
 
-    system_size = length(WLS.system)
+    system_size = length(WLS.sys)
     ps = (WLS.per_spin) ? system_size : 1
 
     iteration = 1
@@ -260,7 +260,7 @@ function run!(WLS::WangLandau)
     WLS.ln_g.bin_size = WLS.bin_size
 
     # initial state
-    E_curr = energy(WLS.system) / ps
+    E_curr = energy(WLS.sys) / ps
 
     # record initial state
     WLS.ln_g[E_curr] = WLS.ln_f
@@ -271,11 +271,11 @@ function run!(WLS::WangLandau)
 
         # use MC *sweep* as unit time for histogram check interval
         for i in 1 : WLS.hcheck_interval
-            for pos in CartesianIndices(WLS.system)
+            for pos in CartesianIndices(WLS.sys)
                 # propose single spin move - random rotation on spherical cap about spin
-                new_spin = gaussian_spin_update(WLS.system._dipoles[pos], WLS.mc_step_size, WLS.rng)
+                new_spin = gaussian_spin_update(WLS.sys._dipoles[pos], WLS.mc_step_size, WLS.rng)
 
-                E_next = E_curr + local_energy_change(WLS.system, pos, new_spin) / ps
+                E_next = E_curr + local_energy_change(WLS.sys, pos, new_spin) / ps
                 mcs += 1
 
                 # enforce bounds if applicable - still update state if rejecting move
@@ -292,7 +292,7 @@ function run!(WLS::WangLandau)
                     # accept move
                     if (Δln_g >= 0) || ( rand(WLS.rng) <= exp(Δln_g) )
 
-                        WLS.system._dipoles[pos] = new_spin
+                        WLS.sys._dipoles[pos] = new_spin
                         E_curr = E_next
 
                         # record minimum energies

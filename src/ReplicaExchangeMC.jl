@@ -92,17 +92,17 @@ function replica_exchange!(replica::Replica)
     S_curr = running_energy(replica.sampler) / get_temp(replica.sampler)
 
     # Backup current configuration
-    backup_spins = deepcopy(replica.sampler.system._dipoles)
+    backup_spins = deepcopy(replica.sampler.sys._dipoles)
 
     # Swap trial configuration with partner
     MPI.Sendrecv!(
                            backup_spins, rex_rank, 1,
-        replica.sampler.system._dipoles, rex_rank, 1,
+        replica.sampler.sys._dipoles, rex_rank, 1,
         MPI.COMM_WORLD
     )
 
     # This rank's action with partner's configuration
-    S_exch = energy(replica.sampler.system) / get_temp(replica.sampler)
+    S_exch = energy(replica.sampler.sys) / get_temp(replica.sampler)
 
     # change in action due to exchange
     ΔS = S_curr - S_exch
@@ -127,7 +127,7 @@ function replica_exchange!(replica::Replica)
 
     # Reject exchange
     if !rex_accept
-        replica.sampler.system._dipoles .= backup_spins
+        replica.sampler.sys._dipoles .= backup_spins
         return false
     end
 
@@ -651,7 +651,7 @@ function run_REMC!(
     C  = 0.0
     X  = 0.0
 
-    system_size = length(replica.sampler.system)
+    system_size = length(replica.sampler.sys)
     E_hist = BinnedArray{Float64, Int64}(bin_size=bin_size)
     m_hist = BinnedArray{Float64, Int64}(bin_size=1.0)
     rex_accepts = zeros(Int64, 2)
@@ -709,7 +709,7 @@ function run_REMC!(
         end
 
         if (encode_ising_interval > 0) && (mcs % encode_ising_interval == 0)
-            encode_ising_to_file(replica.sampler.system, ising_output)
+            encode_ising_to_file(replica.sampler.sys, ising_output)
         end
 
         # Measurements
@@ -727,7 +727,7 @@ function run_REMC!(
                 # Overwrite Emin coordinates in saved file
                 if replica.rank in print_xyz_ranks
                     xyz_output = open(@sprintf("Emin_T=%f.xyz", T), "w")
-                    xyz_to_file(replica.sampler.system, xyz_output)
+                    xyz_to_file(replica.sampler.sys, xyz_output)
                     close(xyz_output)
                 end
             end

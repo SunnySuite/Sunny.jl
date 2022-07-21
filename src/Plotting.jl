@@ -74,7 +74,7 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
     toggles = Vector{GLMakie.Toggle}()
     labels = Vector{GLMakie.Label}()
     cent_cell = CartesianIndex(div.(lattice.size .+ 1, 2)...)
-    cent_pt = lattice[basis_idx, cent_cell]
+    cent_pt = lattice[cent_cell, basis_idx]
     for (n, int) in enumerate(sorted_ints)
         if !isa(int, AbstractPairIntCPU)
             continue
@@ -83,7 +83,7 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
         pts = Vector{GLMakie.Point3f0}()
         for (bond, _) in sublat_bonds(int.bondtable, basis_idx)
             new_cell = offset(cent_cell, bond.n, lattice.size)
-            bond_pt = lattice[bond.j, new_cell]
+            bond_pt = lattice[new_cell, bond.j]
             push!(pts, GLMakie.Point3f0(cent_pt))
             push!(pts, GLMakie.Point3f0(bond_pt))
         end
@@ -203,19 +203,19 @@ function plot_cells!(ax, lattice::Lattice; color=:grey, linewidth=1.0, kwargs...
     nx, ny, nz = lattice.size
     for j in 1:ny
         for k in 1:nz
-            bot_pt, top_pt = lattice[1, 1, j, k], lattice[1, nx, j, k]
+            bot_pt, top_pt = lattice[1, j, k, 1], lattice[nx, j, k, 1]
             push!(pts, GLMakie.Point3f0(bot_pt))
             push!(pts, GLMakie.Point3f0(top_pt))
         end
         for i in 1:nx
-            left_pt, right_pt = lattice[1, i, j, 1], lattice[1, i, j, nz]
+            left_pt, right_pt = lattice[i, j, 1, 1], lattice[i, j, nz, 1]
             push!(pts, GLMakie.Point3f0(left_pt))
             push!(pts, GLMakie.Point3f0(right_pt))
         end
     end
     for k in 1:nz
         for i in 1:nx
-            left_pt, right_pt = lattice[1, i, 1, k], lattice[1, i, ny, k]
+            left_pt, right_pt = lattice[i, 1, k, 1], lattice[i, ny, k, 1]
             push!(pts, GLMakie.Point3f0(left_pt))
             push!(pts, GLMakie.Point3f0(right_pt))
         end

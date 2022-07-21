@@ -76,8 +76,15 @@ end
 
 function merge(anisos::Vector{SUNAnisotropy})
     (length(anisos) == 0) && (return nothing)
-    SUNAnisotropyCPU([a.Λ for a in anisos],
-                     [a.site for a in anisos],
+    N = size(anisos[1].Λ)[1]
+    sites = Int[]
+    Λs = zeros(ComplexF64, N, N, length(anisos))
+    for (i, aniso) in enumerate(anisos)
+        Λs[:,:,i] .= aniso.Λ
+        push!(sites, aniso.site)
+    end
+    SUNAnisotropyCPU(Λs,
+                     sites,
                      ""
     )
 end
@@ -303,11 +310,12 @@ Calculates the local field, `Bᵢ`, for a single site, `i`:
 
 This is useful for some sampling methods.
 """
-function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i) 
+function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i::CartesianIndex) 
     B = SA[0.0, 0.0, 0.0]
+    _, site = splitidx(i) 
 
     if !isnothing(ℋ.ext_field)
-        B += ℋ.ext_field.effBs[i[1]] 
+        B += ℋ.ext_field.effBs[site] 
     end
     for heisen in ℋ.heisenbergs
         B += _neggrad(dipoles, heisen, i)
