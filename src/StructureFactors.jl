@@ -52,7 +52,7 @@ struct StructureFactor{A1, A2}
     meas_rate     :: Int                                     # Num timesteps between snapshot saving
     dyn_meas      :: Int                                     # Total number of snapshots to FT
     integrator    :: SphericalMidpoint
-    plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, UnitRange{Int64}}
+    plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, NTuple{4, Int64}}
 end
 
 Base.show(io::IO, sf::StructureFactor) = print(io, join(size(sf.sfactor), "x"),  " StructureFactor")
@@ -350,7 +350,8 @@ size [B, D1, ..., Dd, T]
 """
 function plan_spintraj_fft(spin_traj::Array{Vec3})
     spin_traj = _reinterpret_from_spin_array(spin_traj)
-    return plan_fft(spin_traj, 3:ndims(spin_traj))
+    # return plan_fft(spin_traj, 2:(ndims(spin_traj)-1))
+    return plan_fft!(spin_traj, (2,3,4,6))
 end
 
 """
@@ -360,7 +361,8 @@ Prepares an in-place FFT plan for a spin trajectory array of
 size [3, B, D1, ..., Dd, T].
 """
 function plan_spintraj_fft!(spin_traj::Array{ComplexF64})
-    return plan_fft!(spin_traj, 3:ndims(spin_traj))
+    # return plan_fft!(spin_traj, 2:(ndims(spin_traj)-1))
+    return plan_fft!(spin_traj, (2,3,4,6))
 end
 
 """
@@ -381,7 +383,8 @@ function fft_spin_traj!(res::Array{ComplexF64}, spin_traj::Array{Vec3};
     # FFT along the spatial indices, and the time index
     if isnothing(plan)
         res .= spin_traj
-        fft!(res, 3:ndims(spin_traj))
+        # fft!(res, 2:(ndims(spin_traj)-1))
+        fft!(spin_traj, (2,3,4,6))
     else
         mul!(res, plan, spin_traj)
     end    
@@ -392,7 +395,8 @@ end
 function fft_spin_traj!(spin_traj::Array{ComplexF64};
                         plan::Union{Nothing, FFTW.cFFTWPlan}=nothing)
     if isnothing(plan)
-        fft!(spin_traj, 3:ndims(spin_traj))
+        # fft!(spin_traj, 2:(ndims(spin_traj)-1))
+        fft!(spin_traj, (2,3,4,6))
     else
         spin_traj = plan * spin_traj
     end
@@ -401,7 +405,7 @@ end
 """
     fft_spin_traj(spin_traj; bz_size, plan=nothing)
 
-Takes in a `spin_traj` array of spins (Vec3) of shape `[B, D1, ..., Dd, T]`,
+Takes in a `spin_traj` array of spins (Vec3) of shape `[B, D1, ..., Dd, T]`,  # Rewrite this
  with `D1 ... Dd` being the spatial dimensions, B the sublattice index,
  and `T` the time axis.
 Computes and returns an array of the shape `[3, B, D1, ..., Dd, T]`,
@@ -456,7 +460,7 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
                              spin_traj_ft::Array{ComplexF64},
                              lattice::Lattice)
     # Check that spatial size of spin_traj_ft same as spatial size of lattice
-    spat_size = size(lattice)[2:end]
+    spat_size = size(lattice)[1:3]
     # valid_size = size(spin_traj_ft)[3:end-1] == spat_size
     valid_size = size(spin_traj_ft)[2:4] == spat_size
     @assert valid_size "`size(spin_traj_ft)` not compatible with `lattice`"
@@ -470,7 +474,7 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
     T = size(spin_traj_ft)[end]
 
     fill!(res, 0.0)
-    for q_idx in CartesianIndices(axes(res)[2:end-1])
+    for q_idx in CartesianIndices(axes(res)[2:4])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
         wrap_q_idx = modc(q_idx, spat_size) + one(CartesianIndex{3})
         for (b_idx, b) in enumerate(lattice.basis_vecs)
@@ -548,11 +552,11 @@ spatial axes of S. Assumes that S is of shape [3, L1, L2, L3, B, T], and
 that res is of shape [3, Q1, Q2, Q3, B, T], with all Qi >= Li.
 """
 function expand_bz!(res::OffsetArray{ComplexF64}, S::Array{ComplexF64})
-    spat_size = size(S)[end-3:end-1]
+    spat_size = size(S)[2:4]
     T = size(S, ndims(S))
 
     for t in 1:T
-        for q_idx in CartesianIndices(axes(res)[end-4:end-2])
+        for q_idx in CartesianIndices(axes(res)[2:4])
             wrap_q_idx = modc(q_idx, spat_size) + CartesianIndex(1, 1, 1)
             res[:, q_idx, :, t-1] = S[:, wrap_q_idx, :, t]
         end
@@ -571,7 +575,7 @@ accumulates the structure factor from `S` with the dipole factor applied into `r
 """
 function accum_dipole_factor!(res, S, lattice::Lattice)
     recip = gen_reciprocal(lattice)
-    for q_idx in CartesianIndices(axes(res)[end-3:end-1])
+    for q_idx in CartesianIndices(axes(res)[end-4:end-2])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
         dip_factor = I(3) - q * q'
@@ -594,8 +598,8 @@ accumulates the structure factor from `S` with the dipole factor applied into `r
 function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
     recip = gen_reciprocal(lattice)
     nb = nbasis(lattice)
-    Sα = reshape(S, _outersizeα(axes(S), 2))  # Size [3, 1, B, ...]
-    Sβ = reshape(S, _outersizeβ(axes(S), 2))  # Size [3, B, 1, ...]
+    Sα = reshape(S, _outersizeα(axes(S), 5))  # Size [3, 1, B, ...] -- nb idx was 2, now 5
+    Sβ = reshape(S, _outersizeβ(axes(S), 5))  # Size [3, B, 1, ...] -- nb idx was 2, now 5
 
     for q_idx in CartesianIndices(axes(res)[1:3])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
