@@ -16,7 +16,7 @@ it is purely used to determine the size of various results.
 
 The full dynamic structure factor is
 ``𝒮^{αβ}_{jk}(𝐪, ω) = ⟨M^α_j(𝐪, ω) M^β_k(𝐪, ω)^∗⟩``,
-which is an array of shape `[3, 3, B, B, Q1, Q2, Q3, T]`
+which is an array of shape `[3, 3, Q1, Q2, Q3, B, B, T]`
 where `B = nbasis(sys.lattice)`, `Qi = max(1, bz_size_i * L_i)` and
 `T = dyn_meas`. By default, `bz_size=ones(d)`.
 
@@ -219,9 +219,6 @@ end
 
 Apply the neutron dipole factor to a dynamic structure factor.
 """
-# DD: A bit confused here. Indexing make sense for array allocated when
-# dipole_factor is false. But, in that case, presumably wouldn't be Applying
-# the dipole factor.
 function apply_dipole_factor(sf::StructureFactor)
     if sf.dipole_factor == true
         return sf
@@ -346,30 +343,28 @@ end
     plan_spintraj_fft(spin_traj::Array{Vec3})
 
 Prepares an out-of-place FFT plan for a spin trajectory array of
-size [B, D1, ..., Dd, T]
+size [D1, ..., Dd, B, T]
 """
 function plan_spintraj_fft(spin_traj::Array{Vec3})
     spin_traj = _reinterpret_from_spin_array(spin_traj)
-    # return plan_fft(spin_traj, 2:(ndims(spin_traj)-1))
-    return plan_fft!(spin_traj, (2,3,4,6))
+    return plan_fft!(spin_traj, (2,3,4,6))  # After reinterpret, indices 2, 3, 4 and 6 correspond to a, b, c and time.
 end
 
 """
     plan_spintraj_fft!(spin_traj::Array{ComplexF64})
 
 Prepares an in-place FFT plan for a spin trajectory array of
-size [3, B, D1, ..., Dd, T].
+size [3, D1, ..., Dd, B, T].
 """
 function plan_spintraj_fft!(spin_traj::Array{ComplexF64})
-    # return plan_fft!(spin_traj, 2:(ndims(spin_traj)-1))
-    return plan_fft!(spin_traj, (2,3,4,6))
+    return plan_fft!(spin_traj, (2,3,4,6))  #Indices 2, 3, 4 and 6 correspond to a, b, c and time.
 end
 
 """
     fft_spin_traj!(res, spin_traj; plan=nothing)
 
 In-place version of `fft_spin_traj`. `res` should be an `Array{ComplexF64}` of size
-`[3, B, D1, ..., Dd, T]` to hold the result, matching the size `[B, D1, ..., Dd, T]`
+`[3, D1, ..., Dd, B, T]` to hold the result, matching the size `[D1, ..., Dd, B, T]`
 of `spin_traj`.
 """
 function fft_spin_traj!(res::Array{ComplexF64}, spin_traj::Array{Vec3};
@@ -377,14 +372,13 @@ function fft_spin_traj!(res::Array{ComplexF64}, spin_traj::Array{Vec3};
     @assert size(res) == tuplejoin(3, size(spin_traj)) "fft_spins size not compatible with spin_traj size"
 
     # Reinterpret array to add the spin dimension explicitly
-    # Now of shape [3, B, D1, ..., Dd, T]
+    # Now of shape [3, D1, ..., Dd, B, T]
     spin_traj = _reinterpret_from_spin_array(spin_traj)
 
     # FFT along the spatial indices, and the time index
     if isnothing(plan)
         res .= spin_traj
-        # fft!(res, 2:(ndims(spin_traj)-1))
-        fft!(spin_traj, (2,3,4,6))
+        fft!(res, (2,3,4,6))
     else
         mul!(res, plan, spin_traj)
     end    
@@ -395,7 +389,6 @@ end
 function fft_spin_traj!(spin_traj::Array{ComplexF64};
                         plan::Union{Nothing, FFTW.cFFTWPlan}=nothing)
     if isnothing(plan)
-        # fft!(spin_traj, 2:(ndims(spin_traj)-1))
         fft!(spin_traj, (2,3,4,6))
     else
         spin_traj = plan * spin_traj
@@ -405,10 +398,10 @@ end
 """
     fft_spin_traj(spin_traj; bz_size, plan=nothing)
 
-Takes in a `spin_traj` array of spins (Vec3) of shape `[B, D1, ..., Dd, T]`,  # Rewrite this
+Takes in a `spin_traj` array of spins (Vec3) of shape `[D1, ..., Dd, B, T]`,  
  with `D1 ... Dd` being the spatial dimensions, B the sublattice index,
  and `T` the time axis.
-Computes and returns an array of the shape `[3, B, D1, ..., Dd, T]`,
+Computes and returns an array of the shape `[3, D1, ..., Dd, B, T]`,
  holding spatial and temporal fourier transforms ``S^α_b(𝐪, ω)``. The spatial
  fourier transforms are done periodically, but the temporal axis is
  internally zero-padded to avoid periodic contributions. *(Avoiding

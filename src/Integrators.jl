@@ -287,7 +287,6 @@ end
             (; hamiltonian, site_infos, lattice) = sys
             sites = hamiltonian.sun_aniso.sites
             Λs′ = hamiltonian.sun_aniso.Λs
-            sites = hamiltonian.sun_aniso.sites
             Λs = reinterpret(SArray{Tuple{N, N}, ComplexF64, 2, N*N},
                              reshape(Λs′, N*N, length(sites))
             )
