@@ -454,7 +454,6 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
                              lattice::Lattice)
     # Check that spatial size of spin_traj_ft same as spatial size of lattice
     spat_size = size(lattice)[1:3]
-    # valid_size = size(spin_traj_ft)[3:end-1] == spat_size
     valid_size = size(spin_traj_ft)[2:4] == spat_size
     @assert valid_size "`size(spin_traj_ft)` not compatible with `lattice`"
     # Check that q_size is elementwise either an integer multiple of spat_size, or is 1.
@@ -591,8 +590,8 @@ accumulates the structure factor from `S` with the dipole factor applied into `r
 function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
     recip = gen_reciprocal(lattice)
     nb = nbasis(lattice)
-    Sα = reshape(S, _outersizeα(axes(S), 5))  # Size [3, 1, B, ...] -- nb idx was 2, now 5
-    Sβ = reshape(S, _outersizeβ(axes(S), 5))  # Size [3, B, 1, ...] -- nb idx was 2, now 5
+    Sα = reshape(S, _outersizeα(axes(S), 5))  # Size [3,..., 1, B, T] 
+    Sβ = reshape(S, _outersizeβ(axes(S), 5))  # Size [3,..., B, 1, T] 
 
     for q_idx in CartesianIndices(axes(res)[1:3])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
