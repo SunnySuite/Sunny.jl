@@ -134,7 +134,7 @@ function StructureFactor(snaps::Vector{Array{Vec3, 4}}, crystal; kwargs...)
     if length(snaps) == 0
         error("No snapshots provided, cannot construct StructureFactor")
     end
-    sys = SpinSystem(crystal, Vector{Interaction}(), size(snaps[1])[2:end])
+    sys = SpinSystem(crystal, Vector{Interaction}(), size(snaps[1])[1:3])
     sf = StructureFactor(sys; kwargs...)
     for snap in snaps
         sys._dipoles .= snap
@@ -237,7 +237,7 @@ function apply_dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::La
 
     T = size(struct_factor)[end]
     result = zeros(Float64, axes(struct_factor)[3:end])
-    for q_idx in CartesianIndices(axes(struct_factor)[3:end-1])
+    for q_idx in CartesianIndices(axes(struct_factor)[3:5])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
         dip_factor = reshape(I(3) - q * q', 3, 3, 1)
@@ -567,7 +567,7 @@ accumulates the structure factor from `S` with the dipole factor applied into `r
 """
 function accum_dipole_factor!(res, S, lattice::Lattice)
     recip = gen_reciprocal(lattice)
-    for q_idx in CartesianIndices(axes(res)[end-4:end-2])
+    for q_idx in CartesianIndices(axes(res)[1:3])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
         dip_factor = I(3) - q * q'
