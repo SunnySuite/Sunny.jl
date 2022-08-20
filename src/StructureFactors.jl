@@ -606,3 +606,72 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
         end
     end
 end
+
+
+
+""" FormFactor(q::Array{Float64,1}, elem::String)
+Magnetic Form-Factor with Gaussian Broadening. 
+Unitss for Q in inverse Angstrom, to match convention in data-table. 
+
+The form factor accounts for the fact that the magnetic moments are not 
+point particles but described by a wave function with some spatial spread. 
+``F(Q)`` is the atomic form factor, ``Q`` is the momentum transfer vector magnitude and ``g`` is the Lande g-factor. 
+        
+There are 2 sets of Gaussian broadening functions.
+``f(s) = A e^{-as^2} + B e^{-bs^2} + Ce^{-cs^2} + D``
+
+``\\tilde{f}(s) = \\Tilde{A} e^{-\\tilde{a}s^2} + \\tilde{B} e^{-\\tilde{b}s^2} + \\tilde{C}e^{-\\tilde{c}s^2} + \\tilde{D} ``
+
+The final expression of the form factor that is returned is 
+``F(s) &= \\frac{2-g}{g} \\left[\\tilde{f}(s) s^2 + f(s)\\right] ``
+
+The different constants are obtained via semi-empirical fits. 
+For transition metals, the form-factor calculations are done using Hartree-Fock method. 
+For rare-earth metals and ions, Dirac-Fock form is used for the calculations.
+
+References
+    - Marshall W and Lovesey S WTheory of thermal neutron scattering Chapter 6 Oxford University Press (1971)
+    - Clementi E and Roetti C Atomic Data and Nuclear Data Tables14 pp 177-478 (1974)
+    - Freeman A J and Descleaux J P J. Magn. Mag. Mater. 12 pp 11-21 (1979)
+    - Descleaux J P and Freeman A J J. Magn. Mag. Mater. 8 pp 119-129 (1978) 
+"""
+function FormFactor(q::Array{Float64,1}, elem::String)
+    # relative path
+    data_path= string(@__DIR__)*"/data/"
+    
+    g = 5/6 
+    s = q ./(4*π) 
+
+    form1 = 0.0
+    form2 = 0.0
+    form_factor = 0.0
+
+    for case in 0:2:2
+        file_name = data_path*"J"*string(case)*".dat"
+        csv_reader = CSV.File(file_name)
+
+        for k in 1:length(csv_reader.Ion) 
+            if elem==csv_reader.Ion[k]
+                A = csv_reader.A[k]
+                a = csv_reader.a[k]
+                B = csv_reader.B[k]
+                b = csv_reader.b[k]
+                C = csv_reader.C[k]
+                c = csv_reader.c[k]
+                D = csv_reader.D[k]
+
+                if case == 0
+                    form1 = A*exp.(-a*(s.^2)) + B*exp.(-b*(s.^2)) + C*exp.(-c*(s.^2)) .+ D
+                elseif case == 2
+                    form2 = A*exp.(-a*(s.^2)) + B*exp.(-b*(s.^2)) + C*exp.(-c*(s.^2)) .+ D
+                    form_factor = form_factor = ((2.0-g)/g) .* (form2.*(s.^2) .+ form1)
+                end 
+                break 
+            end 
+        end 
+        
+    end 
+
+    return form_factor 
+
+end 

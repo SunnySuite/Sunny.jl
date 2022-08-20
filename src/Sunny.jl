@@ -14,6 +14,9 @@ using Printf
 using Random: rand!, randn!
 import Random
 
+# Specific to Powder Averaging
+using CSV
+
 # Specific to Symmetry/
 using FilePaths: Path
 using CrystalInfoFramework
