@@ -15,7 +15,7 @@ using Random: rand!, randn!
 import Random
 
 # Specific to Symmetry/
-using FilePaths: Path
+using FilePathsBase: Path
 using CrystalInfoFramework
 import Spglib
 using WignerSymbols: clebschgordan, wigner3j
@@ -101,6 +101,7 @@ export WangLandau, spherical_cap_update, init_bounded!, run!
 include("SunnyGfx/SunnyGfx.jl")
 export view_crystal, offline_viewers
 
+# GLMakie and MPI are optional dependencies
 function __init__()
     @require GLMakie="e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin
         include("Plotting.jl")
