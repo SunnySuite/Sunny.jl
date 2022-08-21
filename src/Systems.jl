@@ -114,7 +114,7 @@ function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
 
     specified_atoms = Int[]
     for siteinfo in site_infos
-        @unpack site, N, g, spin_rescaling = siteinfo
+        (; site, N, g, spin_rescaling) = siteinfo
         if N != maxN
             @warn "Up-converting N=$N -> N=$maxN on site $(site)!"
         end

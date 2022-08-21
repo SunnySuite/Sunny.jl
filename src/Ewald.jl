@@ -454,7 +454,7 @@ end
 
 function DipoleRealCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_infos::Vector{SiteInfo};
                        μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
-    @unpack extent, η = dip
+    (; extent, η) = dip
     lattice = Lattice(crystal, latsize)
 
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(lattice; extent, η)
