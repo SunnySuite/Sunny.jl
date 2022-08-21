@@ -104,7 +104,7 @@ where ``⟨ij⟩`` runs over all bonds symmetry equivalent to `bond`, and
 appropriate for the bond ``⟨ij⟩``.
 """
 function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
-    J = SA[     0.0   DMvec[3] -DMvec[2]
+    J = SA[      0.0  DMvec[3] -DMvec[2]
            -DMvec[3]       0.0  DMvec[1]
             DMvec[2] -DMvec[1]      0.0]
     QuadraticInteraction(J, bond, label)
