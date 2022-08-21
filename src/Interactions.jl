@@ -49,7 +49,7 @@ SiteInfos are given for symmetry-equivalent sites.
 NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverted
 to the largest specified `N`.
 """
-@with_kw struct SiteInfo
+Base.@kwdef struct SiteInfo
     site              :: Int                # Index of site
     N                 :: Int     = 0        # N in SU(N)
     g                 :: Mat3    = 2*I(3)   # Spin g-tensor
@@ -129,7 +129,7 @@ struct SUNAnisotropy <: AbstractAnisotropy
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", aniso::QuadraticAnisotropy)
-    @unpack J, site, label = aniso
+    (; J, site, label) = aniso
     @assert J ≈ J'
     # Check if it is easy-axis or easy-plane
     λ, V = eigen(J)

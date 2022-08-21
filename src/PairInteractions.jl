@@ -61,14 +61,14 @@ nbasis(bondtable::BondTable) = length(bondtable.basis_indices) - 1
 all_bonds(bondtable::BondTable) = zip(bondtable.bonds, bondtable.data)
 culled_bonds(bondtable::BondTable) = zip(bondtable.culled_bonds, bondtable.culled_data)
 function sublat_bonds(bondtable::BondTable, i::Int)
-    @unpack bonds, data, basis_indices = bondtable
+    (; bonds, data, basis_indices) = bondtable
     @boundscheck checkindex(Bool, 1:length(basis_indices)-1, i) ? nothing : throw(BoundsError(bondtable, i))
     zip(bonds[basis_indices[i]:basis_indices[i+1]-1], data[basis_indices[i]:basis_indices[i+1]-1])
 end
 
 # This method `map`'s only the data within a BondTable, not the bonds themselves.
 function Base.map(f, bondtable::BondTable)
-    @unpack bonds, culled_bonds, data, culled_data, basis_indices = bondtable
+    (; bonds, culled_bonds, data, culled_data, basis_indices) = bondtable
     new_data = map(f, data)
     new_culled_data = map(f, culled_data)
     return BondTable{eltype(new_data)}(
@@ -121,7 +121,7 @@ isdiag(tol) = Base.Fix2(isdiag, tol)
 # Figures out the correct maximally-efficient backend type for a quadratic interaction, and perform
 #  all of the symmetry propagation.
 function convert_quadratic(int::QuadraticInteraction, cryst::Crystal, site_infos::Vector{SiteInfo}; tol=1e-6)
-    @unpack J, bond, label = int
+    (; J, bond, label) = int
 
     bondtable = BondTable(cryst, bond, J)
 
@@ -145,7 +145,7 @@ function energy(dipoles::Array{Vec3}, heisenberg::HeisenbergCPU)
 
     latsize = size(dipoles)[1:3]
     @inbounds for (bond, _) in culled_bonds(bondtable)
-        @unpack i, j, n = bond
+        (; i, j, n) = bond
         for cell in CartesianIndices(latsize)
             sᵢ = dipoles[cell, i]
             sⱼ = dipoles[offset(cell, n, latsize), j]
@@ -161,7 +161,7 @@ function energy(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
 
     latsize = size(dipoles)[1:3]
     @inbounds for (bond, J) in culled_bonds(bondtable)
-        @unpack i, j, n = bond
+        (; i, j, n) = bond
         for cell in CartesianIndices(latsize)
             sᵢ = dipoles[cell, i]
             sⱼ = dipoles[offset(cell, n, latsize), j]
@@ -177,7 +177,7 @@ function energy(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU)
 
     latsize = size(dipoles)[1:3]
     @inbounds for (bond, J) in culled_bonds(bondtable)
-        @unpack i, j, n = bond
+        (; i, j, n) = bond
         for cell in CartesianIndices(latsize)
             sᵢ = dipoles[cell, i]
             sⱼ = dipoles[offset(cell, n, latsize), j]
@@ -194,7 +194,7 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, heisen::Heisenber
 
     latsize = size(dipoles)[1:3]
     @inbounds for (bond, _) in culled_bonds(bondtable)
-        @unpack i, j, n = bond
+        (; i, j, n) = bond
         for cell in CartesianIndices(latsize)
             offsetcell = offset(cell, n, latsize)
             B[cell, i] = B[cell, i] - effJ * dipoles[offsetcell, j]
@@ -225,7 +225,7 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, diag_coup::Diagon
 
     latsize = size(dipoles)[1:3]
     @inbounds for (bond, J) in culled_bonds(bondtable)
-        @unpack i, j, n = bond
+        (; i, j, n) = bond
         for cell in CartesianIndices(latsize)
             offsetcell = offset(cell, n, latsize)
             B[cell, i] = B[cell, i] - J .* dipoles[offsetcell, j]
@@ -255,7 +255,7 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, gen_coup::General
 
     latsize = size(dipoles)[1:3]
     @inbounds for (bond, J) in culled_bonds(bondtable)
-        @unpack i, j, n = bond
+        (; i, j, n) = bond
         for cell in CartesianIndices(latsize)
             offsetcell = offset(cell, n, latsize)
             B[cell, i] = B[cell, i] - J * dipoles[offsetcell, j]

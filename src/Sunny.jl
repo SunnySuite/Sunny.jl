@@ -25,9 +25,6 @@ using RowEchelon: rref!
 using JSON, Colors, Inflate
 import Random: randstring, RandomDevice
 
-# TODO: Remove in Julia 1.7
-using Parameters: @unpack, @with_kw
-
 const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 const Quad3 = SArray{Tuple{3,3,3,3}, Float64, 4, 81}

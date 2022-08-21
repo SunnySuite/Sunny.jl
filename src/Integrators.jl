@@ -217,7 +217,7 @@ end
 
 
 function evolve!(integrator::SphericalMidpoint, Δt::Float64)
-    @unpack sys, _S̄, _Ŝ, _S̄′, _B, atol = integrator
+    (; sys, _S̄, _Ŝ, _S̄′, _B, atol) = integrator
     S, ℋ = sys._dipoles, sys.hamiltonian
     
     # Initial guess for midpoint

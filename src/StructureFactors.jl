@@ -165,8 +165,8 @@ Accumulates a contribution to the dynamic structure factor from the spin
 configuration currently in `sys`.
 """
 function update!(sf::StructureFactor, sys::SpinSystem)
-    @unpack sfactor, _mag_ft, _bz_buf = sf
-    @unpack reduce_basis, dipole_factor, bz_size = sf
+    (; sfactor, _mag_ft, _bz_buf) = sf
+    (; reduce_basis, dipole_factor, bz_size) = sf
 
     # Evolve the spin state forward in time to form a trajectory
     # Save off the magnetic moments 𝐦_i(t) = g_i S_i 𝐬_i(t) into _mag_ft
