@@ -205,7 +205,7 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
 
     positions = wrap_to_unit_cell.(positions; symprec)
 
-    cell = Spglib.Cell(lat_vecs, hcat(positions...), types)
+    cell = Spglib.Cell(lat_vecs, positions, types)
     d = Spglib.get_dataset(cell, symprec)
     classes = d.crystallographic_orbits
     # classes = d.equivalent_atoms
