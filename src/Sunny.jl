@@ -15,8 +15,8 @@ using Random: rand!, randn!
 import Random
 
 # Specific to Symmetry/
-using FilePathsBase: Path
-using CrystalInfoFramework
+import FilePathsBase: Path
+import CrystalInfoFramework as CIF
 import Spglib
 using WignerSymbols: clebschgordan, wigner3j
 using RowEchelon: rref!

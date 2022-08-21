@@ -70,7 +70,7 @@ end
 Reads the crystal from a `.cif` file located at the path `filename`.
 """
 function Crystal(filename::AbstractString; symprec=nothing)
-    cif = Cif(Path(filename))
+    cif = CIF.Cif(Path(filename))
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
 
@@ -82,7 +82,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
     γ = _parse_cif_float(cif["_cell_angle_gamma"][1])
     lat_vecs = lattice_vectors(a, b, c, α, β, γ)
 
-    geo_table = get_loop(cif, "_atom_site_fract_x")
+    geo_table = CIF.get_loop(cif, "_atom_site_fract_x")
     xs = _parse_cif_float.(geo_table[:, "_atom_site_fract_x"])
     ys = _parse_cif_float.(geo_table[:, "_atom_site_fract_y"])
     zs = _parse_cif_float.(geo_table[:, "_atom_site_fract_z"])
@@ -128,7 +128,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
     symmetries = nothing
     for sym_header in ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
         if sym_header in keys(cif)
-            sym_table = get_loop(cif, sym_header)
+            sym_table = CIF.get_loop(cif, sym_header)
             symmetries = _parse_op.(sym_table[:, sym_header])
         end
     end
