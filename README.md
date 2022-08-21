@@ -1,6 +1,6 @@
 <div align="center">
     <a href="https://github.com/SunnySuite/Sunny.jl/">
-    <img src="assets/sunny_logo.jpg" alt="Sunny.jl" width="350px">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/sunny_logo.jpg" alt="Sunny.jl" width="350px">    
     </a>
 </div>
 <p>
@@ -51,13 +51,13 @@ Sunny is [developed collaboratively](https://github.com/SunnySuite/Sunny.jl/wiki
 
 <div>
     <a href="https://www.lanl.gov">
-    <img src="assets/lanl.png" alt="LANL" width="250px">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/lanl.png" alt="LANL" width="250px">
     </a>
     <a href="https://www.utk.edu">
-    <img src="assets/utk.png" alt="U. Tennessee" width="250px">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/utk.png" alt="U. Tennessee" width="250px">
     </a>
     <a href="https://www.gatech.edu/">
-    <img src="assets/gatech.png" alt="Georgia Tech." width="250px">
+    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/gatech.png" alt="Georgia Tech." width="250px">
     </a>
 </div>
 
