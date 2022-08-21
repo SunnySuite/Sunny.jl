@@ -347,7 +347,7 @@ size [D1, ..., Dd, B, T]
 """
 function plan_spintraj_fft(spin_traj::Array{Vec3})
     spin_traj = _reinterpret_from_spin_array(spin_traj)
-    return plan_fft!(spin_traj, (2,3,4,6))  # After reinterpret, indices 2, 3, 4 and 6 correspond to a, b, c and time.
+    return FFTW.plan_fft!(spin_traj, (2,3,4,6))  # After reinterpret, indices 2, 3, 4 and 6 correspond to a, b, c and time.
 end
 
 """
@@ -357,7 +357,7 @@ Prepares an in-place FFT plan for a spin trajectory array of
 size [3, D1, ..., Dd, B, T].
 """
 function plan_spintraj_fft!(spin_traj::Array{ComplexF64})
-    return plan_fft!(spin_traj, (2,3,4,6))  #Indices 2, 3, 4 and 6 correspond to a, b, c and time.
+    return FFTW.plan_fft!(spin_traj, (2,3,4,6))  #Indices 2, 3, 4 and 6 correspond to a, b, c and time.
 end
 
 """
@@ -378,7 +378,7 @@ function fft_spin_traj!(res::Array{ComplexF64}, spin_traj::Array{Vec3};
     # FFT along the spatial indices, and the time index
     if isnothing(plan)
         res .= spin_traj
-        fft!(res, (2,3,4,6))
+        FFTW.fft!(res, (2,3,4,6))
     else
         mul!(res, plan, spin_traj)
     end    
@@ -389,7 +389,7 @@ end
 function fft_spin_traj!(spin_traj::Array{ComplexF64};
                         plan::Union{Nothing, FFTW.cFFTWPlan}=nothing)
     if isnothing(plan)
-        fft!(spin_traj, (2,3,4,6))
+        FFTW.fft!(spin_traj, (2,3,4,6))
     else
         spin_traj = plan * spin_traj
     end

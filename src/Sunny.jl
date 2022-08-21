@@ -7,22 +7,23 @@ using LinearAlgebra
 using StaticArrays
 using OffsetArrays
 using SpecialFunctions
-using FFTW
-using Tullio
-using ProgressMeter
-using Printf
-using Random: rand!, randn!
-import Random
+import FFTW
+import Tullio: @tullio
+import ProgressMeter: Progress
+import Printf: @printf, @sprintf
+import Random: Random, rand!, randn!
 
 # Specific to Symmetry/
 import FilePathsBase: Path
 import CrystalInfoFramework as CIF
 import Spglib
-using WignerSymbols: clebschgordan, wigner3j
-using RowEchelon: rref!
+import WignerSymbols: clebschgordan, wigner3j
+import RowEchelon: rref!
 
 # Specific to SunnyGfx
-using JSON, Colors, Inflate
+import JSON
+import Colors: distinguishable_colors, RGB, Colors
+import Inflate: inflate_gzip
 import Random: randstring, RandomDevice
 
 const Vec3 = SVector{3, Float64}
