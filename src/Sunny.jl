@@ -6,11 +6,11 @@ using LinearAlgebra
 
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA
 import Requires: @require
-import OffsetArrays: OffsetArray
+import OffsetArrays: OffsetArray, Origin
 import SpecialFunctions: erfc
 import FFTW
 import Tullio: @tullio
-import ProgressMeter: Progress
+import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, rand!, randn!
 

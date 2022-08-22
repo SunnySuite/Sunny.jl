@@ -70,27 +70,27 @@ function StructureFactor(sys::SpinSystem; bz_size=(1,1,1), reduce_basis=true,
     spin_ft = zeros(ComplexF64, 3, spat_size..., nb, dyn_meas)
     if reduce_basis
         bz_buf = zeros(ComplexF64, 3, q_size..., dyn_meas)
-        bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, min_q_idx..., 0))
+        bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., 0))
     else
         bz_buf = zeros(ComplexF64, 3, q_size..., nb, dyn_meas)
-        bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, min_q_idx..., 1, 0))
+        bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., 1, 0))
     end
 
     if reduce_basis
         if dipole_factor
             sfactor = zeros(Float64, q_size..., dyn_meas)
-            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(min_q_idx..., 0))
+            sfactor = OffsetArray(sfactor, Origin(min_q_idx..., 0))
         else
             sfactor = zeros(ComplexF64, 3, 3, q_size..., dyn_meas)
-            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
+            sfactor = OffsetArray(sfactor, Origin(1, 1, min_q_idx..., 0))
         end
     else
         if dipole_factor
             sfactor = zeros(Float64, q_size..., nb, nb, dyn_meas)
-            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(min_q_idx..., 1, 1, 0))
+            sfactor = OffsetArray(sfactor, Origin(min_q_idx..., 1, 1, 0))
         else
             sfactor = zeros(ComplexF64, 3, 3, q_size..., nb, nb, dyn_meas)
-            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, min_q_idx..., 1, 1, 0))
+            sfactor = OffsetArray(sfactor, Origin(1, 1, min_q_idx..., 1, 1, 0))
         end
     end
 
@@ -440,7 +440,7 @@ function phase_weight_basis(spin_traj_ft::Array{ComplexF64},
     min_q_idx = -1 .* div.(q_size .- 1, 2)
 
     result = zeros(ComplexF64, result_size)
-    result = OffsetArray(result, OffsetArrays.Origin(1, min_q_idx..., 0))
+    result = OffsetArray(result, Origin(1, min_q_idx..., 0))
     phase_weight_basis!(result, spin_traj_ft, lattice)
 end
 
