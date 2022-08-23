@@ -195,7 +195,8 @@ function _local_hamiltonian(sys::SpinSystem{N}, idx) where N
     _, site = splitidx(idx)
 
     B = field(sys._dipoles, sys.hamiltonian, idx)
-    S = reinterpret(SArray{Tuple{N,N}, ComplexF64, 2, N*N}, reshape(sys.S, N*N, 3)) # Make sure this works!
+    S = reinterpret(SMatrix{N, N, ComplexF64, N*N}, reshape(sys.S, N*N, 3)) # Make sure this works!
+    # TODO: Eliminate this SMatrix constructor
     ℌ = SMatrix{N,N,ComplexF64,N*N}(-(B[1]*S[1] + B[2]*S[2] + B[3]*S[3]))
     ℌ += @view(aniso.Λs[:,:,site])
     

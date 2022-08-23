@@ -2,32 +2,34 @@
 
 module Sunny
 
-using Requires
 using LinearAlgebra
-using StaticArrays
-using OffsetArrays
-using SpecialFunctions
-using FFTW
-using Tullio
-using ProgressMeter
-using Printf
-using Random: rand!, randn!
-import Random
+
+import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA
+import Requires: @require
+import OffsetArrays: OffsetArray, Origin
+import SpecialFunctions: erfc
+import FFTW
+import Tullio: @tullio
+import ProgressMeter: Progress, next!
+import Printf: @printf, @sprintf
+import Random: Random, rand!, randn!
 
 # Specific to Symmetry/
-using FilePathsBase: Path
-using CrystalInfoFramework
+import FilePathsBase: Path
+import CrystalInfoFramework as CIF
 import Spglib
-using WignerSymbols: clebschgordan, wigner3j
-using RowEchelon: rref!
+import WignerSymbols: clebschgordan, wigner3j
+import RowEchelon: rref!
 
 # Specific to SunnyGfx
-using JSON, Colors, Inflate
+import JSON
+import Colors: distinguishable_colors, RGB, Colors
+import Inflate: inflate_gzip
 import Random: randstring, RandomDevice
 
 const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
-const Quad3 = SArray{Tuple{3,3,3,3}, Float64, 4, 81}
+const Quad3 = SArray{Tuple{3,3,3,3}, Float64, 4, 3^4}
 const CVec{N} = SVector{N, ComplexF64}
 
 # Boltzmannn factor k_B in units of meV/K
