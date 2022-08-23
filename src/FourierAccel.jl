@@ -3,19 +3,19 @@
 "Computes the Fourier transform of a (spatially compressed) dipole interaction matrix"
 function _rfft_dipole_tensor(A::OffsetArray{Mat3}) :: Array{Complex{Float64}}
     A = _reinterpret_dipole_tensor(A)
-    rfft(A, 3:5)
+    FFTW.rfft(A, 3:5)
 end
 
 "Fourier transforms a dipole system"
 function _rfft_dipole_sys(dipoles::Array{Vec3}) :: Array{Complex{Float64}}
     Sr = reinterpret(reshape, Float64, dipoles)
-    rfft(Sr, 2:4)
+    FFTW.rfft(Sr, 2:4)
 end
 
 # FFTW types for various relevant Fourier transform plans using in this file
 const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
 const rBFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
-const rIFTPlan = AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
+const rIFTPlan = FFTW.AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
 
 """
 Dipole-dipole interactions computed in Fourier-space. Should produce
@@ -56,8 +56,8 @@ function DipoleFourierCPU(dip::DipoleDipole, crystal::Crystal, latsize, site_inf
     field_real = Array{Float64, 5}(undef, 3, size(lattice)...)
 
     mock_spins = zeros(3, size(lattice)...)
-    plan = plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
-    ift_plan = plan_irfft(spins_ft, size(lattice, 1), 2:4; flags=FFTW.MEASURE)
+    plan = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
+    ift_plan = FFTW.plan_irfft(spins_ft, size(lattice, 1), 2:4; flags=FFTW.MEASURE)
 
     DipoleFourierCPU(FA, spins_ft, field_ft, field_real, plan, ift_plan)
 end

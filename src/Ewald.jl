@@ -80,8 +80,8 @@ function ewald_sum_monopole(lattice::Lattice, charges::Array{Float64, 4}; η=1.0
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum, recip_site_sum = 0.0, 0.0
 
-    n = @MVector zeros(3)
-    k = @MVector zeros(3)
+    n = zero(MVector{3})
+    k = zero(MVector{3})
 
     for idx1 in eachindex(lattice)
         rᵢ = lattice[idx1]
@@ -135,7 +135,7 @@ function direct_sum_monopole(lattice::Lattice, charges::Array{Float64, 4}; s=0.0
     real_space_sum = 0.0
     real_site_sum = 0.0
 
-    n = @MVector zeros(3)
+    n = zero(MVector{3})
 
     for idx1 in eachindex(lattice)
         rᵢ = lattice[idx1]
@@ -190,8 +190,8 @@ function ewald_sum_dipole(lattice::Lattice, spins::Array{Vec3, 4}; extent=2, η=
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum = 0.0
 
-    n = @MVector zeros(3)
-    k = @MVector zeros(3)
+    n = zero(MVector{3})
+    k = zero(MVector{3})
 
     for idx1 in eachindex(lattice)
         @inbounds rᵢ = lattice[idx1]
@@ -272,8 +272,8 @@ function precompute_monopole_ewald(lattice::Lattice; extent=10, η=1.0) :: Offse
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum, recip_site_sum = 0.0, 0.0
 
-    n = @MVector zeros(3)
-    k = @MVector zeros(3)
+    n = zero(MVector{3})
+    k = zero(MVector{3})
 
     for idx in delta_idxs
         for b1 in 1:nb
@@ -362,10 +362,10 @@ function precompute_dipole_ewald(lattice::Lattice; extent=3, η=1.0) :: OffsetAr
     real_space_sum, recip_space_sum = 0.0, 0.0
     real_site_sum = 0.0
 
-    n = @MVector zeros(3)
-    k = @MVector zeros(3)
-    real_tensor = @MMatrix zeros(3, 3)
-    recip_tensor = @MMatrix zeros(3, 3)
+    n = zero(MVector{3})
+    k = zero(MVector{3})
+    real_tensor = zero(MMatrix{3, 3})
+    recip_tensor = zero(MMatrix{3, 3})
 
     for idx in delta_idxs
         for b1 in 1:nb

@@ -280,14 +280,14 @@ end
     end
 
     if N < 6 
-        S = gen_spin_ops(N) .|> SArray{Tuple{N, N}, ComplexF64, 2, N*N}
+        S = gen_spin_ops(N) .|> SMatrix{N, N, ComplexF64, N*N}
 
         return quote
             (; sys) = integrator
             (; hamiltonian, site_infos, lattice) = sys
             sites = hamiltonian.sun_aniso.sites
             Λs′ = hamiltonian.sun_aniso.Λs
-            Λs = reinterpret(SArray{Tuple{N, N}, ComplexF64, 2, N*N},
+            Λs = reinterpret(SMatrix{N, N, ComplexF64, N*N},
                              reshape(Λs′, N*N, length(sites))
             )
 

@@ -277,7 +277,7 @@ defined as:
 ``𝐁_i = -∇_{𝐬_i} ℋ ``.
 """
 function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
-    fill!(B, SA[0.0, 0.0, 0.0])
+    fill!(B, zero(Vec3))
     # NOTE: These are broken up separately due to fears of dispatch costs being large.
     #        However, this has never been profiled and is maybe worth looking into.
     if !isnothing(ℋ.ext_field)
@@ -311,7 +311,7 @@ Calculates the local field, `Bᵢ`, for a single site, `i`:
 This is useful for some sampling methods.
 """
 function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i::CartesianIndex) 
-    B = SA[0.0, 0.0, 0.0]
+    B = zero(Vec3)
     _, site = splitidx(i) 
 
     if !isnothing(ℋ.ext_field)

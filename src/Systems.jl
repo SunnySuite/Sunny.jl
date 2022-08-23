@@ -159,7 +159,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
 
     # Initialize sites to all spins along +z
     sys_size = (lattice.size..., nbasis(lattice))
-    up = SA[0.0, 0.0, 1.0]
+    up = Vec3(0.0, 0.0, 1.0)
     dipoles = fill(up, sys_size)
     coherents = fill(_get_coherent_from_dipole(up, Val(N)), sys_size)
 

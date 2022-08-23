@@ -70,27 +70,27 @@ function StructureFactor(sys::SpinSystem; bz_size=(1,1,1), reduce_basis=true,
     spin_ft = zeros(ComplexF64, 3, spat_size..., nb, dyn_meas)
     if reduce_basis
         bz_buf = zeros(ComplexF64, 3, q_size..., dyn_meas)
-        bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, min_q_idx..., 0))
+        bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., 0))
     else
         bz_buf = zeros(ComplexF64, 3, q_size..., nb, dyn_meas)
-        bz_buf = OffsetArray(bz_buf, OffsetArrays.Origin(1, min_q_idx..., 1, 0))
+        bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., 1, 0))
     end
 
     if reduce_basis
         if dipole_factor
             sfactor = zeros(Float64, q_size..., dyn_meas)
-            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(min_q_idx..., 0))
+            sfactor = OffsetArray(sfactor, Origin(min_q_idx..., 0))
         else
             sfactor = zeros(ComplexF64, 3, 3, q_size..., dyn_meas)
-            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, min_q_idx..., 0))
+            sfactor = OffsetArray(sfactor, Origin(1, 1, min_q_idx..., 0))
         end
     else
         if dipole_factor
             sfactor = zeros(Float64, q_size..., nb, nb, dyn_meas)
-            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(min_q_idx..., 1, 1, 0))
+            sfactor = OffsetArray(sfactor, Origin(min_q_idx..., 1, 1, 0))
         else
             sfactor = zeros(ComplexF64, 3, 3, q_size..., nb, nb, dyn_meas)
-            sfactor = OffsetArray(sfactor, OffsetArrays.Origin(1, 1, min_q_idx..., 1, 1, 0))
+            sfactor = OffsetArray(sfactor, Origin(1, 1, min_q_idx..., 1, 1, 0))
         end
     end
 
@@ -347,7 +347,7 @@ size [D1, ..., Dd, B, T]
 """
 function plan_spintraj_fft(spin_traj::Array{Vec3})
     spin_traj = _reinterpret_from_spin_array(spin_traj)
-    return plan_fft!(spin_traj, (2,3,4,6))  # After reinterpret, indices 2, 3, 4 and 6 correspond to a, b, c and time.
+    return FFTW.plan_fft!(spin_traj, (2,3,4,6))  # After reinterpret, indices 2, 3, 4 and 6 correspond to a, b, c and time.
 end
 
 """
@@ -357,7 +357,7 @@ Prepares an in-place FFT plan for a spin trajectory array of
 size [3, D1, ..., Dd, B, T].
 """
 function plan_spintraj_fft!(spin_traj::Array{ComplexF64})
-    return plan_fft!(spin_traj, (2,3,4,6))  #Indices 2, 3, 4 and 6 correspond to a, b, c and time.
+    return FFTW.plan_fft!(spin_traj, (2,3,4,6))  #Indices 2, 3, 4 and 6 correspond to a, b, c and time.
 end
 
 """
@@ -378,7 +378,7 @@ function fft_spin_traj!(res::Array{ComplexF64}, spin_traj::Array{Vec3};
     # FFT along the spatial indices, and the time index
     if isnothing(plan)
         res .= spin_traj
-        fft!(res, (2,3,4,6))
+        FFTW.fft!(res, (2,3,4,6))
     else
         mul!(res, plan, spin_traj)
     end    
@@ -389,7 +389,7 @@ end
 function fft_spin_traj!(spin_traj::Array{ComplexF64};
                         plan::Union{Nothing, FFTW.cFFTWPlan}=nothing)
     if isnothing(plan)
-        fft!(spin_traj, (2,3,4,6))
+        FFTW.fft!(spin_traj, (2,3,4,6))
     else
         spin_traj = plan * spin_traj
     end
@@ -440,7 +440,7 @@ function phase_weight_basis(spin_traj_ft::Array{ComplexF64},
     min_q_idx = -1 .* div.(q_size .- 1, 2)
 
     result = zeros(ComplexF64, result_size)
-    result = OffsetArray(result, OffsetArrays.Origin(1, min_q_idx..., 0))
+    result = OffsetArray(result, Origin(1, min_q_idx..., 0))
     phase_weight_basis!(result, spin_traj_ft, lattice)
 end
 
