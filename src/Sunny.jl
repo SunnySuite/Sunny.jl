@@ -6,7 +6,7 @@ using LinearAlgebra
 
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA
 import Requires: @require
-import OffsetArrays: OffsetArray, Origin
+import OffsetArrays: OffsetArray, OffsetMatrix, Origin
 import SpecialFunctions: erfc
 import FFTW
 import Tullio: @tullio
