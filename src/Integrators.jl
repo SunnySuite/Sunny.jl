@@ -74,12 +74,17 @@ mutable struct SphericalMidpoint <: Integrator
     _B  :: Array{Vec3, 4}
     atol :: Float64
 
-    function SphericalMidpoint(sys::SpinSystem; atol=1e-12)
+    function SphericalMidpoint(sys::SpinSystem{0}; atol=1e-12)
         return new(
             sys, zero(sys._dipoles), zero(sys._dipoles),
             zero(sys._dipoles), zero(sys._dipoles), atol
         )
     end    
+end
+
+function SphericalMidpoint(sys::SpinSystem{N}; atol=1e-12) where N
+    @warn "SphericalMidpoint integrator is not available for SU(N) systems. Using SchrodingerMidpoint integrator."
+    SchrodingerMidpoint(sys)
 end
 
 
@@ -150,7 +155,7 @@ function SchrodingerMidpoint(sys::SpinSystem{N}) where N
 end
 
 function SchrodingerMidpoint(sys::SpinSystem{0})
-    @warn "SchrodingerMidpoint integration is only available for SU(N) systems. Reverting to SphericalMidpoint integrator."
+    @warn "SchrodingerMidpoint integration is only available for SU(N) systems. Using SphericalMidpoint integrator."
     SphericalMidpoint(sys)
 end
 
