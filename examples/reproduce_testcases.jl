@@ -25,17 +25,19 @@ function test_diamond_heisenberg_sf()
     Δt = 0.02 / (spin_rescaling^2 * J)     # Units of 1/meV
     kT = Sunny.meV_per_K * 4. # Units of meV
     α  = 0.1
-    nsteps = 20000
+    nsteps = 1000  # Number of steps between MC samples
     sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 
-    meas_rate = 40     # Number of timesteps between snapshots of LLD to input to FFT
-                       # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
-    dyn_meas = 400     # Total number of frequencies we'd like to resolve
+    dynΔt = Δt / 8     # Integrator for dynamics can use smaller step size
+    ω_max = 5.5        # Number of timesteps between snapshots of LLD to input to FFT
+                         # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
+    num_ωs = 200       # Total number of frequencies we'd like to resolve
     dynsf = dynamic_structure_factor(
-        sys, sampler; nsamples=10, dynΔt=Δt, meas_rate=meas_rate,
-        dyn_meas=dyn_meas, bz_size=(1,1,2), thermalize=10, verbose=true,
+        sys, sampler; nsamples=10, Δt = dynΔt, ω_max, num_ωs,
+        bz_size=(1,1,2), thermalize=10, verbose=true,
         reduce_basis=true, dipole_factor=false,
     )
+    println(dynsf.meas_period)
 
     # All spins axes are symmetry-equivalent, average across all S^αα
     sfactor = dynsf.sfactor
@@ -46,11 +48,11 @@ function test_diamond_heisenberg_sf()
 
     # Calculate the maximum ω present in our FFT. Since the time gap between
     #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
-    #  is 2π / (meas_rate * Δt)
+    #  is 2π / (meas_period * Δt)
     # This is implicitly in the same units as the units you use to define
     #  the interactions in the Hamiltonian. Since by default interactions
     #  are specified in meV, the frequencies will also be in units of meV.
-    maxω = 2π / (meas_rate * Δt)
+    maxω = 2π / (dynsf.meas_period * dynΔt)  # TODO: Rewrite so user doesn't seem maxω and ω_max
     p = plot_many_cuts_afmdiamond(avg_sfactor, J, 3/2; maxω=maxω, chopω=5.0)
 
     display(p)

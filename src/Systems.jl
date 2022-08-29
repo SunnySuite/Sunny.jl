@@ -122,7 +122,6 @@ function extend_periodically(sys::SpinSystem{0}, mults::NTuple{3, Int64})
     return sys_extended
 end
 
-export extend_periodically
 function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
     dims = size(sys._coherents)
     dims_new = ((dims[1:3] .* mults)..., dims[4])
