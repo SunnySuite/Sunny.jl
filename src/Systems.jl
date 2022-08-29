@@ -8,7 +8,7 @@ struct SpinSystem{N}
     lattice     :: Lattice                          # Definition of underlying lattice
     hamiltonian :: HamiltonianCPU                   # Contains all interactions present
     _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
-    _coherents  :: Array{SVector{N, ComplexF64}, 4} # Coherent states
+    _coherents  :: Array{CVec{N}, 4}                # Coherent states
     site_infos  :: Vector{SiteInfo}                 # Characterization of each basis site
     S           :: Array{ComplexF64, 3}    
     rng         :: Random.AbstractRNG
@@ -97,6 +97,56 @@ end
 
 set_expected_spins!(sys::SpinSystem) = set_expected_spins!(sys._dipoles, sys._coherents, sys)
 
+
+function extend_periodically(sys::SpinSystem{0}, mults::NTuple{3, Int64})
+    dims = size(sys._dipoles)
+    dims_new = ((dims[1:3] .* mults)..., dims[4])
+    dipoles = zeros(Vec3, dims_new)
+    coherents = zeros(CVec{0}, dims_new)
+
+    # Periodic extension
+    for s in 1:dims[4]
+        ref_dipoles = sys._dipoles[:,:,:,s]
+        for k in 1:mults[3], j in 1:mults[2], i in 1:mults[1]
+            i1 = (i-1)*dims[1]+1:i*dims[1]
+            i2 = (j-1)*dims[2]+1:j*dims[2] 
+            i3 = (k-1)*dims[3]+1:k*dims[3] 
+            dipoles[i1, i2, i3, s] .= ref_dipoles
+        end
+    end
+
+    # Construct new SpinSystem
+    lattice = Lattice(sys.lattice.lat_vecs, sys.lattice.basis_vecs, sys.lattice.types, dims_new[1:3])
+    sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles, coherents, copy(sys.site_infos), copy(sys.S), copy(sys.rng))
+
+    return sys_extended
+end
+
+export extend_periodically
+function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
+    dims = size(sys._coherents)
+    dims_new = ((dims[1:3] .* mults)..., dims[4])
+    dipoles = zeros(Vec3, dims_new)
+    coherents = zeros(CVec{N}, dims_new)
+
+    # Periodic extension
+    for s in 1:dims[4]
+        ref_kets = sys._coherents[:,:,:,s]
+        for k in 1:mults[3], j in 1:mults[2], i in 1:mults[1]
+            i1 = (i-1)*dims[1]+1:i*dims[1]
+            i2 = (j-1)*dims[2]+1:j*dims[2] 
+            i3 = (k-1)*dims[3]+1:k*dims[3] 
+            coherents[i1, i2, i3, s] .= ref_kets
+        end
+    end
+
+    # Construct new SpinSystem
+    lattice = Lattice(sys.lattice.lat_vecs, sys.lattice.basis_vecs, sys.lattice.types, dims_new[1:3])
+    sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles, coherents, copy(sys.site_infos), copy(sys.S), copy(sys.rng)) 
+    init_from_coherents!(sys_big, coherents)
+
+    return sys_extended
+end
 
 """
     propagate_site_info(cryst::Crystal, site_infos::Vector{SiteInfo})
