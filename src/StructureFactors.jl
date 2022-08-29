@@ -608,22 +608,22 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
 end
 
 
+""" 
+    FormFactor(q, elem::String, lande::Bool=false)
 
-""" FormFactor(q::Array{Float64,1}, elem::String)
-Magnetic Form-Factor with Gaussian Broadening. 
-Unitss for Q in inverse Angstrom, to match convention in data-table. 
+Compute the form factor for the wave vector `q` measured in inverse Angstroms, and associated with a magnetic ion of species `elem`.
+First order form factor is used if `lande=false` or g-factor for species `elem` is not available. 
 
 The form factor accounts for the fact that the magnetic moments are not 
 point particles but described by a wave function with some spatial spread. 
-``F(Q)`` is the atomic form factor, ``Q`` is the momentum transfer vector magnitude and ``g`` is the Lande g-factor. 
+``F(q)`` is the atomic form factor, ``q`` is the momentum transfer vector. 
         
-There are 2 sets of Gaussian broadening functions.
+There are 2 sets of Gaussian broadening functions for ``s = q/4π``, 
 ``f(s) = A e^{-as^2} + B e^{-bs^2} + Ce^{-cs^2} + D``
-
 ``\\tilde{f}(s) = \\Tilde{A} e^{-\\tilde{a}s^2} + \\tilde{B} e^{-\\tilde{b}s^2} + \\tilde{C}e^{-\\tilde{c}s^2} + \\tilde{D} ``
-
 The final expression of the form factor that is returned is 
 ``F(s) &= \\frac{2-g}{g} \\left[\\tilde{f}(s) s^2 + f(s)\\right] ``
+``g`` is the Lande g-factor.  
 
 The different constants are obtained via semi-empirical fits. 
 For transition metals, the form-factor calculations are done using Hartree-Fock method. 
@@ -635,43 +635,70 @@ References
     - Freeman A J and Descleaux J P J. Magn. Mag. Mater. 12 pp 11-21 (1979)
     - Descleaux J P and Freeman A J J. Magn. Mag. Mater. 8 pp 119-129 (1978) 
 """
-function FormFactor(q::Array{Float64,1}, elem::String)
+function FormFactor(q, elem::String, lande::Bool=false)
     # relative path
     data_path= string(@__DIR__)*"/data/"
+
+    # dictionary for Lande g-factor
+    g_dict = Dict{String,Float64}(
+        "La3"=>0.0,
+        "Ce3"=>6.0/7.0,
+        "Pr3"=>4.0/5.0,
+        "Nd3"=>8.0/11.0, 
+        "Pm3"=>3.0/5.0,
+        "Sm3"=>2.0/7.0,
+        "Eu3"=>0.0,
+        "Gd3"=>2.0, 
+        "Tb3"=>3.0/2.0, 
+        "Dy3"=>4.0/3.0, 
+        "Ho3"=>5.0/4.0, 
+        "Er3"=>6.0/5.0, 
+        "Tm3"=>7.0/6.0, 
+        "Yb3"=>8.0/7.0, 
+        "Lu3"=>0.0, 
+        "Ti3"=>4.0/5.0, 
+        "V4"=>4.0/5.0, 
+        "V3"=>2.0/3.0, 
+        "V2"=>2.0/5.0, 
+        "Cr3"=>2.0/5.0, 
+        "Mn4"=>2.0/5.0, 
+        "Cr2"=>0.0, 
+        "Mn3"=>0.0, 
+        "Mn2"=>2.0, 
+        "Fe3"=>2.0, 
+        "Fe2"=>3.0/2.0, 
+        "Co3"=>3.0/2.0,
+        "Co2"=>4.0/3.0,
+        "Ni2"=>5.0/4.0,
+        "Cu2"=>6.0/5.0,
+        "Zn2"=>0.0
+    )
+
+    g = 2.0 
+    if lande == true ; g = get(g_dict, elem, 2.0) ; end  
     
-    g = 5/6 
     s = q ./(4*π) 
-
-    form1 = 0.0
-    form2 = 0.0
+    form1 = 0.0 ; form2 = 0.0
     form_factor = 0.0
-
+    
     for case in 0:2:2
-        file_name = data_path*"J"*string(case)*".dat"
-        csv_reader = CSV.File(file_name)
+        file_name = data_path*"form_factor_J"*string(case)*".dat"
 
-        for k in 1:length(csv_reader.Ion) 
-            if elem==csv_reader.Ion[k]
-                A = csv_reader.A[k]
-                a = csv_reader.a[k]
-                B = csv_reader.B[k]
-                b = csv_reader.b[k]
-                C = csv_reader.C[k]
-                c = csv_reader.c[k]
-                D = csv_reader.D[k]
-
+        for line in eachline(file_name)
+            (ion, A, a, B, b, C, c, D) = split(line)  
+            if ion == elem 
+                (A, a, B, b, C, c, D) = parse.(Float64, (A, a, B, b, C, c, D))
                 if case == 0
                     form1 = A*exp.(-a*(s.^2)) + B*exp.(-b*(s.^2)) + C*exp.(-c*(s.^2)) .+ D
                 elseif case == 2
                     form2 = A*exp.(-a*(s.^2)) + B*exp.(-b*(s.^2)) + C*exp.(-c*(s.^2)) .+ D
-                    form_factor = form_factor = ((2.0-g)/g) .* (form2.*(s.^2) .+ form1)
+                    form_factor = ((2.0-g)/g) .* (form2.*(s.^2)) .+ form1
                 end 
-                break 
+                break  
             end 
-        end 
-        
+        end         
     end 
 
     return form_factor 
-
 end 
+
