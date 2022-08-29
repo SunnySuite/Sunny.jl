@@ -145,7 +145,7 @@ end
 function brav_lattice(lat::Lattice) :: Lattice
     return Lattice(
         lat.lat_vecs,
-        zero(Vec3),
+        [zero(Vec3)],
         ["A"],
         lat.size
     )

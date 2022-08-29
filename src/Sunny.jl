@@ -75,6 +75,7 @@ include("Hamiltonian.jl")
 
 include("Systems.jl")
 export ChargeSystem, SpinSystem, rand!, randflips!, energy, field, field!
+export extend_periodically
 
 include("Metropolis.jl")
 export MetropolisSampler, IsingSampler, MeanFieldSampler
