@@ -613,3 +613,117 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
         end
     end
 end
+
+
+""" 
+    FormFactor(q::Vector{Float64}, elem::String, lande::Bool=false)
+
+Compute the form factors for a list of momentum space magnitudes `q`, measured
+in inverse angstroms. The result is dependent on the magnetic ion species,
+`elem`. By default, a first order form factor ``f`` is returned. If `lande=true`
+is set, and `elem` is suitable, then a second order form factor ``F`` is
+returned. The form factor accounts for the fact that the magnetic moments are
+perfectly localized at a point, but instead have some spread.
+        
+It is traditional to define the form factors using a sum of Gaussian broadening
+functions in the scalar variable ``s = q/4π``, where ``q`` can be interpreted as
+the magnitude of momentum transfer.
+
+The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form Factors, defines the
+approximation
+
+`` \\langle j_l(s) \\rangle = A e^{-as^2} + B e^{-bs^2} + Ce^{-cs^2} + D, ``
+
+where coefficients ``A, B, C, D, a, b, c`` are obtained from semi-empirical
+fits, depending on the orbital angular momentum index ``l = 0, 2``. For
+transition metals, the form-factors are calculated using the Hartree-Fock
+method. For rare-earth metals and ions, Dirac-Fock form is used for the
+calculations.
+
+A first approximation to the magnetic form factor is
+
+``f(s) = \\langle j_0(s) \\rangle``
+
+A second order correction is given by
+
+``F(s) = \\frac{2-g}{g} \\langle j_2(s) \\rangle s^2 + f(s)``, where ``g`` is
+the Landé g-factor.  
+
+Digital tables are available at:
+
+* https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
+
+Additional references are:
+
+ * Marshall W and Lovesey S W, Theory of thermal neutron scattering Chapter 6
+   Oxford University Press (1971)
+ * Clementi E and Roetti C,  Atomic Data and Nuclear Data Tables, 14 pp 177-478
+   (1974)
+ * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
+ * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
+"""
+function FormFactor(q::Vector{Float64}, elem::String, lande::Bool=false)
+    # Lande g-factors
+    g_dict = Dict{String,Float64}(
+        "La3"=>0,
+        "Ce3"=>6/7,
+        "Pr3"=>4/5,
+        "Nd3"=>8/11, 
+        "Pm3"=>3/5,
+        "Sm3"=>2/7,
+        "Eu3"=>0,
+        "Gd3"=>2, 
+        "Tb3"=>3/2, 
+        "Dy3"=>4/3, 
+        "Ho3"=>5/4, 
+        "Er3"=>6/5, 
+        "Tm3"=>7/6, 
+        "Yb3"=>8/7, 
+        "Lu3"=>0, 
+        "Ti3"=>4/5, 
+        "V4"=>4/5, 
+        "V3"=>2/3, 
+        "V2"=>2/5, 
+        "Cr3"=>2/5, 
+        "Mn4"=>2/5, 
+        "Cr2"=>0, 
+        "Mn3"=>0, 
+        "Mn2"=>2, 
+        "Fe3"=>2, 
+        "Fe2"=>3/2, 
+        "Co3"=>3/2,
+        "Co2"=>4/3,
+        "Ni2"=>5/4,
+        "Cu2"=>6/5,
+        "Zn2"=>0
+    )
+    
+    function calculate_form(elem, datafile, s)
+        path = joinpath(joinpath(@__DIR__, "data"), datafile)
+        lines = collect(eachline(path))
+        matches = filter(line -> startswith(line, elem), lines)
+        if isempty(matches)
+            error("Invalid magnetic ion '$elem'.")
+        end
+        (A, a, B, b, C, c, D) = parse.(Float64, split(matches[1])[2:end])
+        return @. A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
+    end
+
+    s = q/4π 
+    form1 = calculate_form(elem, "form_factor_J0.dat", s)
+    form2 = calculate_form(elem, "form_factor_J2.dat", s)
+
+    if lande
+        if !haskey(g_dict, elem)
+            error("Landé g-factor correction not available for ion '$elem'.")
+        end
+        g = g_dict[elem]
+        if iszero(g)
+            error("Second order form factor is invalid for vanishing Landé g-factor.")
+        end
+        return @. ((2-g)/g) * (form2*s^2) + form1
+    else
+        return form1
+    end
+end
+
