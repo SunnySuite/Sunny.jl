@@ -637,68 +637,61 @@ References
 """
 function FormFactor(q, elem::String, lande::Bool=false)
     # relative path
-    data_path= string(@__DIR__)*"/data/"
+    data_path = joinpath(@__DIR__, "data")
 
     # dictionary for Lande g-factor
     g_dict = Dict{String,Float64}(
-        "La3"=>0.0,
-        "Ce3"=>6.0/7.0,
-        "Pr3"=>4.0/5.0,
-        "Nd3"=>8.0/11.0, 
-        "Pm3"=>3.0/5.0,
-        "Sm3"=>2.0/7.0,
-        "Eu3"=>0.0,
-        "Gd3"=>2.0, 
-        "Tb3"=>3.0/2.0, 
-        "Dy3"=>4.0/3.0, 
-        "Ho3"=>5.0/4.0, 
-        "Er3"=>6.0/5.0, 
-        "Tm3"=>7.0/6.0, 
-        "Yb3"=>8.0/7.0, 
-        "Lu3"=>0.0, 
-        "Ti3"=>4.0/5.0, 
-        "V4"=>4.0/5.0, 
-        "V3"=>2.0/3.0, 
-        "V2"=>2.0/5.0, 
-        "Cr3"=>2.0/5.0, 
-        "Mn4"=>2.0/5.0, 
-        "Cr2"=>0.0, 
-        "Mn3"=>0.0, 
-        "Mn2"=>2.0, 
-        "Fe3"=>2.0, 
-        "Fe2"=>3.0/2.0, 
-        "Co3"=>3.0/2.0,
-        "Co2"=>4.0/3.0,
-        "Ni2"=>5.0/4.0,
-        "Cu2"=>6.0/5.0,
-        "Zn2"=>0.0
+        "La3"=>0,
+        "Ce3"=>6/7,
+        "Pr3"=>4/5,
+        "Nd3"=>8/11, 
+        "Pm3"=>3/5,
+        "Sm3"=>2/7,
+        "Eu3"=>0,
+        "Gd3"=>2, 
+        "Tb3"=>3/2, 
+        "Dy3"=>4/3, 
+        "Ho3"=>5/4, 
+        "Er3"=>6/5, 
+        "Tm3"=>7/6, 
+        "Yb3"=>8/7, 
+        "Lu3"=>0, 
+        "Ti3"=>4/5, 
+        "V4"=>4/5, 
+        "V3"=>2/3, 
+        "V2"=>2/5, 
+        "Cr3"=>2/5, 
+        "Mn4"=>2/5, 
+        "Cr2"=>0, 
+        "Mn3"=>0, 
+        "Mn2"=>2, 
+        "Fe3"=>2, 
+        "Fe2"=>3/2, 
+        "Co3"=>3/2,
+        "Co2"=>4/3,
+        "Ni2"=>5/4,
+        "Cu2"=>6/5,
+        "Zn2"=>0
     )
 
-    g = 2.0 
-    if lande == true ; g = get(g_dict, elem, 2.0) ; end  
+    g = lande ? get(g_dict, elem, 2.0) : 2.0
+    s = q / 4π 
     
-    s = q ./(4*π) 
-    form1 = 0.0 ; form2 = 0.0
-    form_factor = 0.0
-    
-    for case in 0:2:2
-        file_name = data_path*"form_factor_J"*string(case)*".dat"
+    function calculate_form(elem, datafile, s)
+        path = joinpath(data_path, datafile)
+        lines = collect(eachline(path))
+        line = filter(line -> startswith(line, elem), lines)[1]
+        (A, a, B, b, C, c, D) = parse.(Float64, split(line)[2:end])
+        return @. A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
+    end
 
-        for line in eachline(file_name)
-            (ion, A, a, B, b, C, c, D) = split(line)  
-            if ion == elem 
-                (A, a, B, b, C, c, D) = parse.(Float64, (A, a, B, b, C, c, D))
-                if case == 0
-                    form1 = A*exp.(-a*(s.^2)) + B*exp.(-b*(s.^2)) + C*exp.(-c*(s.^2)) .+ D
-                elseif case == 2
-                    form2 = A*exp.(-a*(s.^2)) + B*exp.(-b*(s.^2)) + C*exp.(-c*(s.^2)) .+ D
-                    form_factor = ((2.0-g)/g) .* (form2.*(s.^2)) .+ form1
-                end 
-                break  
-            end 
-        end         
-    end 
+    form1 = calculate_form(elem, "form_factor_J0.dat", s)
+    form2 = calculate_form(elem, "form_factor_J2.dat", s)
 
-    return form_factor 
-end 
+    if lande && haskey(g_dict, elem)
+        return @. ((2-g)/g) * (form2*s^2) + form1
+    else
+        return form1
+    end
+end
 
