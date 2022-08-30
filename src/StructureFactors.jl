@@ -609,43 +609,54 @@ end
 
 
 """ 
-    FormFactor(q, elem::String, lande::Bool=false)
+    FormFactor(q::Vector{Float64}, elem::String, lande::Bool=false)
 
-Compute the form factor for the wave vector `q` measured in inverse Angstroms, and associated with a magnetic ion of species `elem`.
-First order form factor is used if `lande=false` or g-factor for species `elem` is not available. 
-
-The form factor accounts for the fact that the magnetic moments are not 
-point particles but described by a wave function with some spatial spread. 
-``F(q)`` is the atomic form factor, ``q`` is the momentum transfer vector. 
+Compute the form factors for a list of momentum space magnitudes `q`, measured
+in inverse angstroms. The result is dependent on the magnetic ion species,
+`elem`. By default, a first order form factor ``f`` is returned. If `lande=true`
+is set, and `elem` is suitable, then a second order form factor ``F`` is
+returned. The form factor accounts for the fact that the magnetic moments are
+perfectly localized at a point, but instead have some spread.
         
-There are 2 sets of Gaussian broadening functions for ``s = q/4π``. The first one is
+It is traditional to define the form factors using a sum of Gaussian broadening
+functions in the scalar variable ``s = q/4π``, where ``q`` can be interpreted as
+the magnitude of momentum transfer.
 
-``f(s) = A e^{-as^2} + B e^{-bs^2} + Ce^{-cs^2} + D``
+The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form Factors, defines the
+approximation
 
-and the second,
+`` \\langle j_l(s) \\rangle = A e^{-as^2} + B e^{-bs^2} + Ce^{-cs^2} + D, ``
 
-``\\tilde{f}(s) = \\tilde{A} e^{-\\tilde{a}s^2} + \\tilde{B} e^{-\\tilde{b}s^2} + \\tilde{C}e^{-\\tilde{c}s^2} + \\tilde{D}``.
+where coefficients ``A, B, C, D, a, b, c`` are obtained from semi-empirical
+fits, depending on the orbital angular momentum index ``l = 0, 2``. For
+transition metals, the form-factors are calculated using the Hartree-Fock
+method. For rare-earth metals and ions, Dirac-Fock form is used for the
+calculations.
 
-The final expression of the form factor that is returned is 
-``F(s) = \\frac{2-g}{g} \\tilde{f}(s) s^2 + f(s)``,
-where ``g`` is the Landé g-factor.  
+A first approximation to the magnetic form factor is
 
-The different constants are obtained via semi-empirical fits. 
-For transition metals, the form-factor calculations are done using Hartree-Fock method. 
-For rare-earth metals and ions, Dirac-Fock form is used for the calculations.
+``f(s) = \\langle j_0(s) \\rangle``
 
-References:
+A second order correction is given by
 
- * Marshall W and Lovesey S W, Theory of thermal neutron scattering Chapter 6 Oxford University Press (1971)
- * Clementi E and Roetti C,  Atomic Data and Nuclear Data Tables, 14 pp 177-478 (1974)
+``F(s) = \\frac{2-g}{g} \\langle j_2(s) \\rangle s^2 + f(s)``, where ``g`` is
+the Landé g-factor.  
+
+Digital tables are available at:
+
+* https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
+
+Additional references are:
+
+ * Marshall W and Lovesey S W, Theory of thermal neutron scattering Chapter 6
+   Oxford University Press (1971)
+ * Clementi E and Roetti C,  Atomic Data and Nuclear Data Tables, 14 pp 177-478
+   (1974)
  * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
  * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
 """
-function FormFactor(q, elem::String, lande::Bool=false)
-    # relative path
-    data_path = joinpath(@__DIR__, "data")
-
-    # dictionary for Lande g-factor
+function FormFactor(q::Vector{Float64}, elem::String, lande::Bool=false)
+    # Lande g-factors
     g_dict = Dict{String,Float64}(
         "La3"=>0,
         "Ce3"=>6/7,
@@ -681,7 +692,7 @@ function FormFactor(q, elem::String, lande::Bool=false)
     )
     
     function calculate_form(elem, datafile, s)
-        path = joinpath(data_path, datafile)
+        path = joinpath(joinpath(@__DIR__, "data"), datafile)
         lines = collect(eachline(path))
         matches = filter(line -> startswith(line, elem), lines)
         if isempty(matches)
@@ -700,6 +711,9 @@ function FormFactor(q, elem::String, lande::Bool=false)
             error("Landé g-factor correction not available for ion '$elem'.")
         end
         g = g_dict[elem]
+        if iszero(g)
+            error("Second order form factor is invalid for vanishing Landé g-factor.")
+        end
         return @. ((2-g)/g) * (form2*s^2) + form1
     else
         return form1
