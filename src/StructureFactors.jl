@@ -686,15 +686,21 @@ function FormFactor(q, elem::String, lande::Bool=false)
     function calculate_form(elem, datafile, s)
         path = joinpath(data_path, datafile)
         lines = collect(eachline(path))
-        line = filter(line -> startswith(line, elem), lines)[1]
-        (A, a, B, b, C, c, D) = parse.(Float64, split(line)[2:end])
+        matches = filter(line -> startswith(line, elem), lines)
+        if isempty(matches)
+            error("Invalid magnetic ion '$elem'.")
+        end
+        (A, a, B, b, C, c, D) = parse.(Float64, split(matches[1])[2:end])
         return @. A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
     end
 
     form1 = calculate_form(elem, "form_factor_J0.dat", s)
     form2 = calculate_form(elem, "form_factor_J2.dat", s)
 
-    if lande && haskey(g_dict, elem)
+    if lande
+        if !haskey(g_dict, elem)
+            error("Landé g-factor correction not available for ion '$elem'.")
+        end
         return @. ((2-g)/g) * (form2*s^2) + form1
     else
         return form1
