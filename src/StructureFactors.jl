@@ -679,9 +679,6 @@ function FormFactor(q, elem::String, lande::Bool=false)
         "Cu2"=>6/5,
         "Zn2"=>0
     )
-
-    g = lande ? get(g_dict, elem, 2.0) : 2.0
-    s = q / 4π 
     
     function calculate_form(elem, datafile, s)
         path = joinpath(data_path, datafile)
@@ -694,6 +691,7 @@ function FormFactor(q, elem::String, lande::Bool=false)
         return @. A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
     end
 
+    s = q/4π 
     form1 = calculate_form(elem, "form_factor_J0.dat", s)
     form2 = calculate_form(elem, "form_factor_J2.dat", s)
 
@@ -701,6 +699,7 @@ function FormFactor(q, elem::String, lande::Bool=false)
         if !haskey(g_dict, elem)
             error("Landé g-factor correction not available for ion '$elem'.")
         end
+        g = g_dict[elem]
         return @. ((2-g)/g) * (form2*s^2) + form1
     else
         return form1
