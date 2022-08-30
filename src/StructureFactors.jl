@@ -618,22 +618,28 @@ The form factor accounts for the fact that the magnetic moments are not
 point particles but described by a wave function with some spatial spread. 
 ``F(q)`` is the atomic form factor, ``q`` is the momentum transfer vector. 
         
-There are 2 sets of Gaussian broadening functions for ``s = q/4π``, 
+There are 2 sets of Gaussian broadening functions for ``s = q/4π``. The first one is
+
 ``f(s) = A e^{-as^2} + B e^{-bs^2} + Ce^{-cs^2} + D``
-``\\tilde{f}(s) = \\Tilde{A} e^{-\\tilde{a}s^2} + \\tilde{B} e^{-\\tilde{b}s^2} + \\tilde{C}e^{-\\tilde{c}s^2} + \\tilde{D} ``
+
+and the second,
+
+``\\tilde{f}(s) = \\tilde{A} e^{-\\tilde{a}s^2} + \\tilde{B} e^{-\\tilde{b}s^2} + \\tilde{C}e^{-\\tilde{c}s^2} + \\tilde{D}``.
+
 The final expression of the form factor that is returned is 
-``F(s) &= \\frac{2-g}{g} \\left[\\tilde{f}(s) s^2 + f(s)\\right] ``
-``g`` is the Lande g-factor.  
+``F(s) = \\frac{2-g}{g} \\tilde{f}(s) s^2 + f(s)``,
+where ``g`` is the Landé g-factor.  
 
 The different constants are obtained via semi-empirical fits. 
 For transition metals, the form-factor calculations are done using Hartree-Fock method. 
 For rare-earth metals and ions, Dirac-Fock form is used for the calculations.
 
-References
-    - Marshall W and Lovesey S WTheory of thermal neutron scattering Chapter 6 Oxford University Press (1971)
-    - Clementi E and Roetti C Atomic Data and Nuclear Data Tables14 pp 177-478 (1974)
-    - Freeman A J and Descleaux J P J. Magn. Mag. Mater. 12 pp 11-21 (1979)
-    - Descleaux J P and Freeman A J J. Magn. Mag. Mater. 8 pp 119-129 (1978) 
+References:
+
+ * Marshall W and Lovesey S W, Theory of thermal neutron scattering Chapter 6 Oxford University Press (1971)
+ * Clementi E and Roetti C,  Atomic Data and Nuclear Data Tables, 14 pp 177-478 (1974)
+ * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
+ * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
 """
 function FormFactor(q, elem::String, lande::Bool=false)
     # relative path
