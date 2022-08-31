@@ -36,7 +36,7 @@ function test_diamond_heisenberg_sf()
         sys, sampler; nsamples=2, Δt = dynΔt, ω_max, num_ωs,
         bz_size=(1,1,2), thermalize=10, verbose=true,
         reduce_basis=true, dipole_factor=true,
-        ff_elem="Fe2", lande=true,
+        # ff_elem="Fe2", lande=true,
     )
 
     avg_sfactor = dynsf.sfactor

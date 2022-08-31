@@ -756,10 +756,11 @@ end
 q_idcs(sf::StructureFactor) = sf.dipole_factor ? (1:3) : (3:5)
 
 ## Need to figure out nicer way of doing multiple slices, the index of which
-## depend on the type of structure factor calculation.
+## depend on the type of structure factor calculation. Probably can right some
+## tuple-building function.
 
 function apply_form_factor!(res::OffsetArray, sf::StructureFactor, elem::String, lande::Bool=false)
-    @views axs = axes(sf.sfactor)[q_idcs(sf)]
+    axs = axes(sf.sfactor)[q_idcs(sf)]
     qs = [norm(2π .* i.I ./ sf.lattice.size) for i in CartesianIndices(axs)]
     ff = form_factor(qs, elem, lande) 
 
@@ -794,4 +795,78 @@ function apply_form_factor(sf::StructureFactor, elem::String, lande::Bool=false)
     res = similar(sf.sfactor)
     apply_form_factor!(res, sf, elem, lande)
     return res
+end
+
+# Functions for taking slices from structure factors
+
+function q_labels(sf::StructureFactor)
+    axs = axes(sf.sfactor)[q_idcs(sf)]
+    return [map(i -> 2π*i/sf.lattice.size[a], axs[a]) for a in 1:3]
+end
+
+function ω_labels(sf::StructureFactor)
+    (; meas_period, num_ωs, Δt) = sf
+    Δω = 2π/(Δt*meas_period*num_ωs)
+    return map(i -> Δω*i, axes(sf.sfactor)[end])
+end
+
+import Interpolations: interpolate, scale, BSpline, Linear
+
+function wrap(val::Float64, bounds::Tuple{Float64, Float64})
+    offset = bounds[1]
+    bound′ = bounds[2] - offset 
+    val′ = val - offset
+    return rem(val′, bound′) + offset
+end
+
+# Write for reduce_basis=true, dipole_factor=true case first
+function structure_factor_slice(sf::StructureFactor, points::Vector;
+    interp_method = BSpline(Linear(Periodic())), interp_scale = 1,
+)
+    @assert length(size(sf.sfactor)) == 4 "Currently can only take slices from structures factors with reduced basis and dipole_factors"
+
+    sfdata = parent(sf.sfactor)
+    q_vals = q_labels(sf) 
+    ωs = ω_labels(sf)
+    dims = size(sfdata)[q_idcs(sf)]
+
+    q_bounds = [(first(qs), last(qs)) for qs in q_vals] # Upper and lower bounds in momentum space (depends on number of BZs)
+    q_dens = [dims[i]/(2*bounds[2]) for (i, bounds) in enumerate(q_bounds)] # Discrete steps per unit distance in momentum space
+    q_scales = [range(bounds..., length=dims[i]) for (i, bounds) in enumerate(q_bounds)] # Values for scaled interpolation
+    ω_scale = range(first(ωs), last(ωs), length=length(ωs))
+
+    itp = interpolate(sfdata, interp_method)
+    sitp = scale(itp, q_scales..., ω_scale)
+
+    slices = []
+    for i in 1:length(points)-1
+
+        p1, p2 = points[i], points[i+1]
+        v = p2 .- p1
+        steps_coords = v .* q_dens
+        nsteps = round(Int, √sum(steps_coords .^ 2))
+        v = v ./ (nsteps)
+        ps = [p1 .+ k .* v for k in 0:(nsteps-1)]
+        ps[end] = ps[end]
+        ps = map(ps) do p
+            (wrap(p[i], q_bounds[i]) for i in 1:3)
+        end
+
+        slice = zeros(eltype(sf.sfactor), nsteps, length(ωs))
+        for (i, p) in enumerate(ps)
+            slice[i,:] = sitp(p..., ωs)
+        end
+        # push!(slices, i > 1 ? slice[2:end,:] : slice)
+        push!(slices, slice)
+    end
+
+    dims = [size(slice)[1] for slice in slices]
+    start_idcs = [1]
+    for (i, dim) in enumerate(dims)
+        push!(start_idcs, start_idcs[i] + dim)
+    end
+
+    slice = vcat(slices...)
+    
+    return (; slice, start_idcs)
 end
