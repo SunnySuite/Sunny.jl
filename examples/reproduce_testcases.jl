@@ -1,4 +1,4 @@
-using Sunny
+# using Sunny
 using Serialization
 using LaTeXStrings
 using Plots
@@ -33,18 +33,19 @@ function test_diamond_heisenberg_sf()
                          # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
     num_ωs = 200       # Total number of frequencies we'd like to resolve
     dynsf = dynamic_structure_factor(
-        sys, sampler; nsamples=10, Δt = dynΔt, ω_max, num_ωs,
+        sys, sampler; nsamples=2, Δt = dynΔt, ω_max, num_ωs,
         bz_size=(1,1,2), thermalize=10, verbose=true,
-        reduce_basis=true, dipole_factor=false,
+        reduce_basis=true, dipole_factor=true,
+        ff_elem="Fe2", lande=true,
     )
-    println(dynsf.meas_period)
 
+    avg_sfactor = dynsf.sfactor
     # All spins axes are symmetry-equivalent, average across all S^αα
-    sfactor = dynsf.sfactor
-    avg_sfactor = zeros(Float64, axes(sfactor)[3:end])
-    for α in 1:3
-        @. avg_sfactor += real(sfactor[α, α, :, :, :, :])
-    end
+    # sfactor = dynsf.sfactor
+    # avg_sfactor = zeros(Float64, axes(sfactor)[3:end])
+    # for α in 1:3
+    #     @. avg_sfactor += real(sfactor[α, α, :, :, :, :])
+    # end
 
     # Calculate the maximum ω present in our FFT. Since the time gap between
     #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
@@ -55,8 +56,11 @@ function test_diamond_heisenberg_sf()
     maxω = 2π / (dynsf.meas_period * dynΔt)  # TODO: Rewrite so user doesn't seem maxω and ω_max
     p = plot_many_cuts_afmdiamond(avg_sfactor, J, 3/2; maxω=maxω, chopω=5.0)
 
-    display(p)
-    return avg_sfactor
+    # display(p)
+    # return avg_sfactor
+    return (; p, avg_sfactor, dynsf)
+
+    # return dynsf
 end
 
 # Result for the NN AFM diamond from linear spin-wave theory

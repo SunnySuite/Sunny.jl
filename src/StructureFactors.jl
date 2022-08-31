@@ -27,11 +27,13 @@ of the system supercell.
 Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
  values for the `w` index lie in `0:T-1`.
 
-The maximum frequency sampled is `ωmax = 2π / (Δt * meas_period)`, and the frequency resolution
-is set by `num_ωs` (the number of spin snapshots measured during dynamics). By default,
-`num_ωs=1`, and the static structure factor is computed. However, beyond
-increasing the frequency resolution, increasing `num_ωs` will also make frequencies become
-more accurate.
+The maximum frequency captured by the calculation is set with the keyword
+`ω_max``. `ω_max`` must be set to a value equal to, or smaller than, 2π/Δt, where Δt is the 
+time step chosen for the dynamics. If no value is given, `ω_max`` will be taken as 2π/Δt.
+The total number of resolved frequencies is set with `num_ωs` (the number of spin
+snapshots measured during dynamics). By default, `num_ωs=1`, and the static structure
+factor is computed. However, beyond increasing the frequency resolution, increasing
+`num_ωs` will also make frequencies become more accurate.
 
 Setting `reduce_basis` performs the phase-weighted sums over the basis/sublattice
 indices, resulting in a size `[3, 3, Q1, Q2, Q3, T]` array.
@@ -72,31 +74,32 @@ function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
     result_size = (3, q_size..., num_ωs)
     min_q_idx = -1 .* div.(q_size .- 1, 2)
+    min_ω_idx = -1 .* div(num_ωs - 1, 2)
 
     spin_ft = zeros(ComplexF64, 3, spat_size..., nb, num_ωs)
     if reduce_basis
         bz_buf = zeros(ComplexF64, 3, q_size..., num_ωs)
-        bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., 0))
+        bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., min_ω_idx))
     else
         bz_buf = zeros(ComplexF64, 3, q_size..., nb, num_ωs)
-        bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., 1, 0))
+        bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., 1, min_ω_idx  ))
     end
 
     if reduce_basis
         if dipole_factor
             sfactor = zeros(Float64, q_size..., num_ωs)
-            sfactor = OffsetArray(sfactor, Origin(min_q_idx..., 0))
+            sfactor = OffsetArray(sfactor, Origin(min_q_idx..., min_ω_idx))
         else
             sfactor = zeros(ComplexF64, 3, 3, q_size..., num_ωs)
-            sfactor = OffsetArray(sfactor, Origin(1, 1, min_q_idx..., 0))
+            sfactor = OffsetArray(sfactor, Origin(1, 1, min_q_idx..., min_ω_idx))
         end
     else
         if dipole_factor
             sfactor = zeros(Float64, q_size..., nb, nb, num_ωs)
-            sfactor = OffsetArray(sfactor, Origin(min_q_idx..., 1, 1, 0))
+            sfactor = OffsetArray(sfactor, Origin(min_q_idx..., 1, 1, min_ω_idx))
         else
             sfactor = zeros(ComplexF64, 3, 3, q_size..., nb, nb, num_ωs)
-            sfactor = OffsetArray(sfactor, Origin(1, 1, min_q_idx..., 1, 1, 0))
+            sfactor = OffsetArray(sfactor, Origin(1, 1, min_q_idx..., 1, 1, min_ω_idx))
         end
     end
 
@@ -148,6 +151,11 @@ function StructureFactor(snaps::Vector{Array{Vec3, 4}}, crystal; kwargs...)
         update!(sf, sys)
     end
     sf
+end
+
+
+function axis_values(sf::StructureFactor)
+
 end
 
 """
@@ -207,7 +215,7 @@ function update!(sf::StructureFactor, sys::SpinSystem)
         if dipole_factor
             accum_dipole_factor_wbasis!(sfactor, _bz_buf, sys.lattice)
         else
-            outerprod_conj!(sfactor, _bz_buf, (1, 2))
+            outerprod_conj!(sfactor, _bz_buf, (1, 5)) 
         end
     end
 end
@@ -242,14 +250,16 @@ end
 function apply_dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::Lattice)
     recip = gen_reciprocal(lattice)
 
-    T = size(struct_factor)[end]
+    num_ωs = size(spin_traj_ft)[end]
+    min_ω = -1 .* div(num_ωs - 1, 2)
+    max_ω = min_ω + num_ωs - 1
     result = zeros(Float64, axes(struct_factor)[3:end])
     for q_idx in CartesianIndices(axes(struct_factor)[3:5])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
         dip_factor = reshape(I(3) - q * q', 3, 3, 1)
-        for t in 0:T-1
-            result[q_idx, t] = real(dot(dip_factor, struct_factor[:, :, q_idx, t]))
+        for ω in min_ω:max_ω  # Seems like this explicit loop can be avoided. Test alternatives.
+            result[q_idx, ω] = real(dot(dip_factor, struct_factor[:, :, q_idx, ω]))
         end
     end
     return result
@@ -285,17 +295,22 @@ Indexing the result at `(α, β, q1, ..., qd, w)` gives ``S^{αβ}(𝐪, ω)`` a
 
 Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
  values for the `w` index lie in `0:T-1`.
+
+If you you would like the form factor to be applied to the resulting structure factor,
+set the parameter `ff_elem` to the desired element, e.g. `ff_elem="Fe2"`.
+For a list of the available ions and their names, see https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html .
 """
 function dynamic_structure_factor(
     sys::SpinSystem, sampler::S; nsamples::Int=10,
     thermalize::Int=10, bz_size=(1,1,1), reduce_basis::Bool=true,
     dipole_factor::Bool=false, Δt::Float64=0.01, num_ωs::Int=100,
+    ff_elem=nothing, lande=false,
     ω_max=nothing, verbose::Bool=false
 ) where {S <: AbstractSampler}
     
-    sf  = StructureFactor(sys; Δt, num_ωs, ω_max, bz_size,
-                               reduce_basis=reduce_basis,
-                               dipole_factor=dipole_factor)
+    sf  = StructureFactor(sys;
+        Δt, num_ωs, ω_max, bz_size, reduce_basis, dipole_factor
+    )
 
     if verbose
         println("Beginning thermalization...")
@@ -309,10 +324,14 @@ function dynamic_structure_factor(
     end
 
     progress = Progress(nsamples; dt=1.0, desc="Sample: ", enabled=verbose)
-    for n in 1:nsamples
+    for _ in 1:nsamples
         sample!(sampler)
         update!(sf, sys)
         next!(progress)
+    end
+
+    if !isnothing(ff_elem)
+        apply_form_factor!(sf, ff_elem, lande)
     end
 
     return sf
@@ -441,13 +460,14 @@ function phase_weight_basis(spin_traj_ft::Array{ComplexF64},
 
     bz_size = convert(SVector{3, Int}, bz_size)                  # Number of Brilloin zones along each axis
     spat_size = lattice.size                                     # Spatial lengths of the system
-    T = size(spin_traj_ft, ndims(spin_traj_ft))                  # Number of timesteps in traj / frequencies in result
+    num_ωs = size(spin_traj_ft)[end]
+    min_ω = -1 .* div(num_ωs - 1, 2)
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)      # Total number of q-points along each q-axis of result
-    result_size = (3, q_size..., T)
+    result_size = (3, q_size..., num_ωs)
     min_q_idx = -1 .* div.(q_size .- 1, 2)
 
     result = zeros(ComplexF64, result_size)
-    result = OffsetArray(result, Origin(1, min_q_idx..., 0))
+    result = OffsetArray(result, Origin(1, min_q_idx..., min_ω))
     phase_weight_basis!(result, spin_traj_ft, lattice)
 end
 
@@ -470,7 +490,9 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
 
     recip = gen_reciprocal(lattice)
 
-    T = size(spin_traj_ft)[end]
+    num_ωs = size(spin_traj_ft)[end]
+    min_ω = -1 .* div(num_ωs - 1, 2)
+    max_ω = min_ω + num_ωs - 1
 
     fill!(res, 0.0)
     for q_idx in CartesianIndices(axes(res)[2:4])
@@ -480,7 +502,8 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
             phase = exp(-im * (b ⋅ q))
             # Note: Lots of allocations here. Fix?
             # Warning: Cannot replace T with 1:end due to Julia issues with end and CartesianIndex
-            @. res[:, q_idx, 0:T-1] += spin_traj_ft[:, wrap_q_idx, b_idx, 1:T] * phase
+            @. res[:, q_idx, min_ω:-1] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, max_ω+2:num_ωs]) * phase
+            @. res[:, q_idx, 0:max_ω] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, 1:max_ω+1]) * phase
         end
     end
 
@@ -552,12 +575,15 @@ that res is of shape [3, Q1, Q2, Q3, B, T], with all Qi >= Li.
 """
 function expand_bz!(res::OffsetArray{ComplexF64}, S::Array{ComplexF64})
     spat_size = size(S)[2:4]
-    T = size(S, ndims(S))
+    num_ωs  = size(S, ndims(S))
+    min_ω = -1 .* div(num_ωs - 1, 2)
+    max_ω = min_ω + num_ωs - 1
 
-    for t in 1:T
+    for ω in min_ω:max_ω 
         for q_idx in CartesianIndices(axes(res)[2:4])
             wrap_q_idx = modc(q_idx, spat_size) + CartesianIndex(1, 1, 1)
-            res[:, q_idx, :, t-1] = S[:, wrap_q_idx, :, t]
+            ω_no_offset = ω < 0 ? ω + num_ωs : ω + 1
+            res[:, q_idx, :, ω] = S[:, wrap_q_idx, :, ω_no_offset]
         end
     end
 end
@@ -662,7 +688,7 @@ Additional references are:
  * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
  * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
 """
-function FormFactor(q::Vector{Float64}, elem::String, lande::Bool=false)
+function form_factor(q::AbstractArray{Float64}, elem::String, lande::Bool=false)
     # Lande g-factors
     g_dict = Dict{String,Float64}(
         "La3"=>0,
@@ -727,3 +753,45 @@ function FormFactor(q::Vector{Float64}, elem::String, lande::Bool=false)
     end
 end
 
+q_idcs(sf::StructureFactor) = sf.dipole_factor ? (1:3) : (3:5)
+
+## Need to figure out nicer way of doing multiple slices, the index of which
+## depend on the type of structure factor calculation.
+
+function apply_form_factor!(res::OffsetArray, sf::StructureFactor, elem::String, lande::Bool=false)
+    @views axs = axes(sf.sfactor)[q_idcs(sf)]
+    qs = [norm(2π .* i.I ./ sf.lattice.size) for i in CartesianIndices(axs)]
+    ff = form_factor(qs, elem, lande) 
+
+    @inbounds if sf.reduce_basis
+        if sf.dipole_factor
+            for i in CartesianIndices(axs)
+                @. res[i, :] = @views sf.sfactor[i, :] * ff[i]
+            end
+        else
+            for i in CartesianIndices(axs)
+                @. res[:, :, i, :] = @views sf.sfactor[:, :, i, :] * ff[i]
+            end
+        end
+    else
+        if sf.dipole_factor
+            for i in CartesianIndices(axs)
+                @. res[i, :, :, :] = @views sf.sfactor[i, :, :, :] * ff[i]
+            end
+        else
+            for i in CartesianIndices(axs)
+                @. res[:, :, i, :, :, :] = @views sf.sfactor[:, :, i, :, :, :] * ff[i]
+            end
+        end
+    end
+
+    nothing
+end
+
+apply_form_factor!(sf::StructureFactor, elem::String, lande::Bool=false) = apply_form_factor!(sf.sfactor, sf, elem, lande)
+
+function apply_form_factor(sf::StructureFactor, elem::String, lande::Bool=false)
+    res = similar(sf.sfactor)
+    apply_form_factor!(res, sf, elem, lande)
+    return res
+end
