@@ -32,8 +32,7 @@ The maximum frequency captured by the calculation is set with the keyword
 time step chosen for the dynamics. If no value is given, `ω_max`` will be taken as 2π/Δt.
 The total number of resolved frequencies is set with `num_ωs` (the number of spin
 snapshots measured during dynamics). By default, `num_ωs=1`, and the static structure
-factor is computed. However, beyond increasing the frequency resolution, increasing
-`num_ωs` will also make frequencies become more accurate.
+factor is computed. 
 
 Setting `reduce_basis` performs the phase-weighted sums over the basis/sublattice
 indices, resulting in a size `[3, 3, Q1, Q2, Q3, T]` array.
@@ -153,10 +152,6 @@ function StructureFactor(snaps::Vector{Array{Vec3, 4}}, crystal; kwargs...)
     sf
 end
 
-
-function axis_values(sf::StructureFactor)
-
-end
 
 """
 Updates `M` in-place to hold the magnetization vectors obtained by scaling `s`
