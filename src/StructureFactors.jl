@@ -303,7 +303,8 @@ function dynamic_structure_factor(
     ω_max=nothing, verbose::Bool=false
 ) where {S <: AbstractSampler}
 
-    # Check that form factor element is valid before doing calculations
+    # The call to form_factor is made simply to test the validity of
+    # ff_elem before starting calculations. The call will error if ff_elem is not valid.
     !isnothing(ff_elem) && form_factor([π,0,0], ff_elem, lande)
     
     sf  = StructureFactor(sys;
