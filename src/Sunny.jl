@@ -13,7 +13,7 @@ import Tullio: @tullio
 import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, rand!, randn!
-import Interpolations: interpolate, scale, BSpline, Linear
+import Interpolations: interpolate, scale, BSpline, Linear, Periodic
 
 # Specific to Symmetry/
 import FilePathsBase: Path

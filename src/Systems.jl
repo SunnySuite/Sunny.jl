@@ -133,7 +133,7 @@ function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where 
     # Construct new SpinSystem
     lattice = Lattice(sys.lattice.lat_vecs, sys.lattice.basis_vecs, sys.lattice.types, dims_new[1:3])
     sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles, coherents, copy(sys.site_infos), copy(sys.S), copy(sys.rng)) 
-    init_from_coherents!(sys_extended, coherents) # Necessary since we constructed SpinSystem directly
+    set_expected_spins!(sys_extended) 
 
     return sys_extended
 end

@@ -26,7 +26,7 @@ function FeI2_crystal()
 end
 
 
-function su3_anisotropy_model(; L=20, D=1.0)
+function su3_anisotropy_model(; L=20, D=1.0, rng)
     N = 3
     Sz = Sunny.gen_spin_ops(N)[3]
     Λ = D*Sz^2
@@ -35,13 +35,13 @@ function su3_anisotropy_model(; L=20, D=1.0)
     interactions = [SUN_anisotropy(Λ, 1)]
     dims = (L,1,1)
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)]; rng)
     rand!(sys)
 
     return sys
 end
 
-function su5_anisotropy_model(; L=20, D=1.0)
+function su5_anisotropy_model(; L=20, D=1.0, rng)
     N = 5
     Sz = Sunny.gen_spin_ops(N)[3]
     Λ = D*(Sz^2-(1/5)*Sz^4)
@@ -50,7 +50,7 @@ function su5_anisotropy_model(; L=20, D=1.0)
     interactions = [SUN_anisotropy(Λ, 1)]
     dims = (L,1,1)
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)]; rng)
     rand!(sys)
 
     return sys
@@ -78,13 +78,14 @@ end
 function test_su3_anisotropy_energy()
     D = 1.0
     L = 20   # number of (non-interacting) sites
-    α = 0.1
+    α = 1.0
     Δt = 0.01
     kTs = [0.125, 0.5]
     thermalize_dur = 10.0
-    collect_dur = 250.0
+    collect_dur = 100.0
+    rng = Random.MersenneTwister(111)
 
-    sys = su3_anisotropy_model(; D, L)
+    sys = su3_anisotropy_model(; D, L, rng)
     integrator = LangevinHeunP(sys, 0.0, α)
 
     for kT ∈ kTs
@@ -93,12 +94,8 @@ function test_su3_anisotropy_energy()
         E = calc_mean_energy(integrator, Δt, collect_dur)
         E_ref = su3_mean_energy(kT, D)
 
-        #= No more than 15% error with respect to reference. This is
-        quite loose, but I found I needed very long collection times
-        to tighten it, and the test is already several seconds long. 
-        Longer collection times do reliably
-        produce the correct mean with diminishing variance. =#
-        @test abs(E - E_ref) < 0.15*E_ref    
+        #= No more than 5% error with respect to reference. =#
+        @test abs(E - E_ref) < 0.05*E_ref    
     end
 end
 
@@ -112,9 +109,10 @@ function test_su5_anisotropy_energy()
     Δt = 0.01
     kTs = [0.125, 0.5]
     thermalize_dur = 10.0
-    collect_dur = 200.0
+    collect_dur = 100.0
+    rng = Random.MersenneTwister(111)
 
-    sys = su5_anisotropy_model(; D, L)
+    sys = su5_anisotropy_model(; D, L, rng)
     integrator = LangevinHeunP(sys, 0.0, α)
 
     for kT ∈ kTs
@@ -123,9 +121,8 @@ function test_su5_anisotropy_energy()
         E = calc_mean_energy(integrator, Δt, collect_dur)
         E_ref = su5_mean_energy(kT, D)
 
-        #= No more than 10% error with respect to reference. There
-        is less variance in the energy than in the SU(3) case. =#
-        @test abs(E - E_ref) < 0.1*E_ref    
+        #= No more than 5% error with respect to reference. =#
+        @test abs(E - E_ref) < 0.05*E_ref    
     end
 end
 
@@ -176,7 +173,7 @@ function discretize_P(boundaries, kT; n=2, J=1.0, Δ = 0.001)
 end
 
 "Generates a two-site spin chain spin system."
-function two_site_spin_chain(; N=0, J=1.0, spin_rescaling=1.0)
+function two_site_spin_chain(; N=0, J=1.0, spin_rescaling=1.0, rng)
     a = 1.0
     b = 1.1
     c = 1.2
@@ -186,7 +183,7 @@ function two_site_spin_chain(; N=0, J=1.0, spin_rescaling=1.0)
     cryst = Crystal(lat_vecs, basis_vecs)
     interactions = [heisenberg(J, Bond(1,2,[0,0,0]))]
     dims = (1,1,1)
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, spin_rescaling)])
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, spin_rescaling)]; rng)
     rand!(sys)
 
     return sys
@@ -197,15 +194,16 @@ for a two-site spin chain."
 function test_spin_chain_energy()
     Ns = [0, 2]
     spin_rescalings = [1.0, 2.0]
+    rng = Random.MersenneTwister(111)
     for (N, spin_rescaling) in zip(Ns, spin_rescalings)
-        sys = two_site_spin_chain(; N, spin_rescaling)
+        sys = two_site_spin_chain(; N, spin_rescaling, rng)
 
         α = 0.1
         kT = 0.1
         Δt = 0.01
 
         n_decorr = 500  # Decorrelation steps between samples
-        n_samples = 1500
+        n_samples = 1000
         n_bins = 10  # Number of bins in empirical distribution
 
         # Initialize the Langevin sampler and thermalize the system
@@ -227,7 +225,7 @@ function test_spin_chain_energy()
         # RMS error between empirical distribution and discretized analytical distribution
         rms = sqrt(sum( (Ps .- Ps_analytical) .^ 2))
 
-        @test rms < 0.075
+        @test rms < 0.05
     end
 end
 
