@@ -849,15 +849,19 @@ If `interp_scale=1` and the paths are parallel to one of the reciprocal
 lattice vectors (e.g., (0,0,0) -> (π,0,0)), or strictly diagonal
 (e.g., (0,0,0) -> (π,π,0)), then no interpolation is performed. If
 `interp_scale` is set to a value greater than 1, then the function will interpolate
-linearly between data points. For example, setting `interp_scale` to `2`` will
+linearly between data points. For example, setting `interp_scale` to `2` will
 result in a slice that contains twice as many points as could be drawn
 from the structure factor without interpolation.
 
 The interpolation method is linear by default but may be set to
 any scheme provided by the Interpolations.jl package. Simply set
 the keyword `interp_method` to the desired method.
+
+The function currently only works on struture factors with dimensions
+`[Qa, Qb, Qc, ω]`. Such a structure factor results from setting both 
+`reduce_basis` and `dipole_factor` keywords to `true` when calling
+`dynamical_structure_factor`.
 """
-# Write for reduce_basis=true, dipole_factor=true case first
 function sf_slice(sf::StructureFactor, points::Vector;
     interp_method = BSpline(Linear(Periodic())),
     interp_scale = 1, return_idcs=false,
