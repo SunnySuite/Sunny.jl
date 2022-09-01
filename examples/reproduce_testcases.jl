@@ -29,38 +29,19 @@ function test_diamond_heisenberg_sf()
     sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 
     dynΔt = Δt / 8     # Integrator for dynamics can use smaller step size
-    ω_max = 5.5        # Number of timesteps between snapshots of LLD to input to FFT
-                         # The maximum frequency we resolve is set by 2π/(meas_rate * Δt)
+    ω_max = 5.5        # Maximum frequency to resolve. Sunny will downsample
+                       # from trajectories as much as possible while maintaining this limit. 
     num_ωs = 200       # Total number of frequencies we'd like to resolve
     dynsf = dynamic_structure_factor(
-        sys, sampler; nsamples=2, Δt = dynΔt, ω_max, num_ωs,
+        sys, sampler; nsamples=1, Δt = dynΔt, ω_max, num_ωs,
         bz_size=(1,1,2), thermalize=10, verbose=true,
         reduce_basis=true, dipole_factor=true,
-        # ff_elem="Fe2", lande=true,
     )
 
-    avg_sfactor = dynsf.sfactor
-    # All spins axes are symmetry-equivalent, average across all S^αα
-    # sfactor = dynsf.sfactor
-    # avg_sfactor = zeros(Float64, axes(sfactor)[3:end])
-    # for α in 1:3
-    #     @. avg_sfactor += real(sfactor[α, α, :, :, :, :])
-    # end
+    p = plot_many_cuts_afmdiamond(dynsf, J, 3/2; chopω=5.0)
 
-    # Calculate the maximum ω present in our FFT. Since the time gap between
-    #  our snapshots is meas_rate * Δt, the maximum frequency we resolve
-    #  is 2π / (meas_period * Δt)
-    # This is implicitly in the same units as the units you use to define
-    #  the interactions in the Hamiltonian. Since by default interactions
-    #  are specified in meV, the frequencies will also be in units of meV.
-    maxω = 2π / (dynsf.meas_period * dynΔt)  # TODO: Rewrite so user doesn't seem maxω and ω_max
-    p = plot_many_cuts_afmdiamond(avg_sfactor, J, 3/2; maxω=maxω, chopω=5.0)
-
-    # display(p)
-    # return avg_sfactor
-    return (; p, avg_sfactor, dynsf)
-
-    # return dynsf
+    display(p)
+    return dynsf
 end
 
 # Result for the NN AFM diamond from linear spin-wave theory
@@ -77,59 +58,41 @@ end
 
 Plots cuts through the structure factor:
     (0, 0, qz) -> (π, 0, qz) -> (π, π, qz) -> (0, 0, 0)
-where qz is (c∗ * qz). Assumes that S has 1BZ along (a∗, b∗) and
-two BZs along c, and only works on cubic lattices. To get unitful
-frequency labels, need to provide max_ω which should be the maximum
-frequency present in S, in units of meV. Providing chop_ω restricts
-the plots to frequencies <= chop_ω.
+Providing chop_ω restricts the plots to frequencies <= chop_ω.
 """
-function plot_S_cut_afmdiamond(S, qz, J, spin; maxω=nothing, chopω=nothing)
-    Lx, Ly, Lz, T = size(S)
-    Lz /= 2 # Assuming we receive 2 BZs along the z axis
+function plot_S_cut_afmdiamond(sf, qz, J, spin; maxω=nothing, chopω=nothing)
+    
+    # Cuts from
+    points = [(0, 0, qz), (π, 0, qz), (π, π, qz), (0, 0, qz)]
+    (; slice, idcs) = sf_slice(sf, points; return_idcs=true)
 
-    if !isnothing(chopω) && !isnothing(maxω)
-        cutT = ceil(Int, T * chopω / maxω)
-    else
-        cutT = T
-    end
+    ωs = ω_labels(sf)
+    chopω = isnothing(chopω) ? ωs[end] : chopω
+    i_cutoff = findfirst(s -> s > chopω, ωs)
 
-    # For now, only works on Lx == Ly
-    @assert Lx == Ly
+    heatmap(1:size(slice, 1), ωs[0:i_cutoff], slice[:,0:i_cutoff]'; color=:plasma, clim=(0.0, 1.5e7))
 
-    # Stitch together cuts from
-    # (0, 0, qz) → (π, 0, qz) -> (π, π, qz) -> (0, 0, qz)
-    πx, πy, πz = map(l->div(l, 2, RoundUp), (Lx, Ly, Lz)) # Indices of (π, π, π)
-    pathlen = πx+πy+min(πy, πx)+1
-    cuts = Array{Float64}(undef, pathlen, cutT)
-    cuts[1:πx+1,       1:end]    .= S[0:πx, 0,    qz, 0:cutT-1]
-    cuts[πx+2:πx+πy+1, 1:end]    .= S[πx,   1:πy, qz, 0:cutT-1]
-    # Doesn't quite reach (0, 0, qz) for πx ≠ πy
-    for i in 1:min(πx,πy)
-        cuts[πx+πy+1+i, 1:end]   .= S[πx-i, πx-i, qz, 0:cutT-1]
-    end
+    point_labels = map(x -> "($(x[1]), $(x[2]), $(x[3]))", points)
+    xticks!(idcs, point_labels)
 
-    pathcoords = range(0., 1.; length=pathlen)
-    ωs = range(0., chopω, length=cutT)
-    heatmap(pathcoords, ωs, cuts'; color=:plasma, clim=(0.0, 1.5e7))
 
     # Plot the analytic linear spin-wave prediction ω(q) on top
+    Lx, Ly, Lz = round.(Int, size(sf.sfactor)[1:3] ./ sf.bz_size)
+    πx, πy, πz = map(l->div(l, 2, RoundUp), (Lx, Ly, Lz)) # Indices of (π, π, π)
     qs = zeros(Sunny.Vec3, πx+πy+min(πx,πy)+1)
     for i in 1:πx+1
-        qs[i] = Sunny.Vec3((i-1)/(2πx), 0, qz/(2πz))
+        # qs[i] = Sunny.Vec3((i-1)/(2πx), 0, qz/(2πz))
+        qs[i] = Sunny.Vec3((i-1)/(2πx), 0, qz/(2π))
     end
     for i in 1:πy
-        qs[πx+1+i] = Sunny.Vec3(0.5, i/(2πy), qz/(2πz))
+        qs[πx+1+i] = Sunny.Vec3(0.5, i/(2πy), qz/(2π))
     end
     for i in 1:min(πx,πy)
-        qs[πx+πy+1+i] = Sunny.Vec3(0.5-i/(2πx), 0.5-i/(2πy), qz/(2πz))
+        qs[πx+πy+1+i] = Sunny.Vec3(0.5-i/(2πx), 0.5-i/(2πy), qz/(2π))
     end
-    ωs = linear_sw_diamond_heisenberg.(qs, J, spin)
-    plot!(pathcoords, ωs, lw=3, color=:lightgrey, label="Linear SW")
+    ωs_sw = linear_sw_diamond_heisenberg.(qs, J, spin)
+    plot!(1:length(ωs_sw), ωs_sw, lw=3, color=:lightgrey, label="Linear SW")
 
-    xticks!(
-        [0, (1+πx)/pathlen, (1+πx+πy)/pathlen, 1.0],
-        [L"(0, 0)", L"(\pi, 0)", L"(\pi, \pi)", L"(0, 0)"]
-    )
     ylabel!(L"$\omega$ (meV)")
     plot!()
 end
@@ -137,9 +100,9 @@ end
 function plot_many_cuts_afmdiamond(S, J, spin; maxω=nothing, chopω=nothing)
     l = @layout [a b ; c d]
     q0 = plot_S_cut_afmdiamond(S, 0, J, spin; maxω=maxω, chopω=chopω)
-    q1 = plot_S_cut_afmdiamond(S, 2, J, spin; maxω=maxω, chopω=chopω)
-    q2 = plot_S_cut_afmdiamond(S, 4, J, spin; maxω=maxω, chopω=chopω)
-    q3 = plot_S_cut_afmdiamond(S, 6, J, spin; maxω=maxω, chopω=chopω)
+    q1 = plot_S_cut_afmdiamond(S, π/2, J, spin; maxω=maxω, chopω=chopω)
+    q2 = plot_S_cut_afmdiamond(S, π, J, spin; maxω=maxω, chopω=chopω)
+    q3 = plot_S_cut_afmdiamond(S, 3π/2, J, spin; maxω=maxω, chopω=chopω)
 
     plot(q0, q1, q2, q3; layout=l)
 end

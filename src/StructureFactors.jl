@@ -847,7 +847,7 @@ If `return_idcs` is set to `true`, the function will also return the indices
 of the slice that correspond to each point of `points`.
 """
 # Write for reduce_basis=true, dipole_factor=true case first
-function slice(sf::StructureFactor, points::Vector;
+function sf_slice(sf::StructureFactor, points::Vector;
     interp_method = BSpline(Linear(Periodic())),
     interp_scale = 1, return_idcs=false,
 )
@@ -905,18 +905,18 @@ function slice(sf::StructureFactor, points::Vector;
         for (i, p) in enumerate(ps)
             slice[i,:] = sitp(p..., ωs)
         end
-        push!(slices, i > 1 ? slice[2:end,:] : slice)
+        push!(slices, i > 1 ? slice[2:end,:] : slice) # Avoid repeated points
     end
 
     # Stitch slices together
     slice_dims = [size(slice, 1) for slice in slices]
-    boundary_idcs = [1]
+    idcs = [1]
     for (i, dim) in enumerate(slice_dims[1:end])
-        push!(boundary_idcs, boundary_idcs[i] + dim)
+        push!(idcs, idcs[i] + dim)
     end
     slice = OffsetArray(vcat(slices...), Origin(1, ωs.offsets[1] + 1))
 
-    return_idcs && (return (; slice, boundary_idcs))
+    return_idcs && (return (; slice, idcs))
     return slice
 end
 

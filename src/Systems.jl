@@ -115,21 +115,6 @@ function _extend_periodically!(dest::Array{T, 4}, source::Array{T, 4}, mults::NT
     nothing
 end
 
-function extend_periodically(sys::SpinSystem{0}, mults::NTuple{3, Int64})
-    dims = size(sys._dipoles)
-    dims_new = ((dims[1:3] .* mults)..., dims[4])
-    dipoles = zeros(Vec3, dims_new)
-    coherents = zeros(CVec{0}, dims_new)  # Recall this is effectively empty, doesn't need to be set
-
-    _extend_periodically!(dipoles, sys._dipoles, mults)
-
-    # Construct new SpinSystem
-    lattice = Lattice(sys.lattice.lat_vecs, sys.lattice.basis_vecs, sys.lattice.types, dims_new[1:3])
-    sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles, coherents, copy(sys.site_infos), copy(sys.S), copy(sys.rng))
-
-    return sys_extended
-end
-
 @doc raw"""
     extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
 
@@ -152,6 +137,22 @@ function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where 
 
     return sys_extended
 end
+
+function extend_periodically(sys::SpinSystem{0}, mults::NTuple{3, Int64})
+    dims = size(sys._dipoles)
+    dims_new = ((dims[1:3] .* mults)..., dims[4])
+    dipoles = zeros(Vec3, dims_new)
+    coherents = zeros(CVec{0}, dims_new)  # Recall this is effectively empty, doesn't need to be set
+
+    _extend_periodically!(dipoles, sys._dipoles, mults)
+
+    # Construct new SpinSystem
+    lattice = Lattice(sys.lattice.lat_vecs, sys.lattice.basis_vecs, sys.lattice.types, dims_new[1:3])
+    sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles, coherents, copy(sys.site_infos), copy(sys.S), copy(sys.rng))
+
+    return sys_extended
+end
+
 
 """
     propagate_site_info(cryst::Crystal, site_infos::Vector{SiteInfo})
