@@ -118,9 +118,9 @@ end
 @doc raw"""
     extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
 
-Creates a system identical to the system passed to the function but with each dimension multiplied
-by the factors given in `mults`. The original spin configuration is propogated periodically in the
-larger system.
+Creates a new SpinSystem identical to `sys` but with each dimension multiplied
+by the corresponding factor given in the tuple `mults`. The original spin configuration
+is simply repeated periodically.
 """
 function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
     dims = size(sys._coherents)

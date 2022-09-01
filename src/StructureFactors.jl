@@ -840,11 +840,23 @@ end
 
 Returns a slice through the structure factor `sf`. The slice is generated
 along a linear path successively connecting each point in `points`.
-`points` must be a vector containing two points. For example: 
+`points` must be a vector containing at least two points. For example: 
 `points = [(0, 0, 0), (π, 0, 0), (π, π, 0)]`.
 
 If `return_idcs` is set to `true`, the function will also return the indices
 of the slice that correspond to each point of `points`.
+
+If `interp_scale=1` and the paths are parallel to one of the reciprocal
+lattice vectors (e.g., (0,0,0) -> (π,0,0)), or strictly diagonal
+(e.g., (0,0,0) -> (π,π,0)), then no interpolation is performed. If
+`interp_scale` is set to a value greater than 1, then the function will interpolate
+linearly between data points. For example, setting `interp_scale` to `2`` will
+result in a slice that contains twice as many points as could be drawn
+for the structure factor without interpolation.
+
+The interpolation method is linear by default but may be set to
+any scheme provided by the Interpolations.jl package. Simply set
+the keyword `interp_method` to the desired method.
 """
 # Write for reduce_basis=true, dipole_factor=true case first
 function sf_slice(sf::StructureFactor, points::Vector;
