@@ -160,7 +160,8 @@ function test_mono_dip_consistent()
               [0.5, 0.5, 0.5]]
     latsize = [2, 2, 2]
     cryst = Crystal(lat_vecs, b_vecs)
-    sys = SpinSystem(cryst, Sunny.AbstractInteraction[], latsize)
+    rng = Random.MersenneTwister(111)
+    sys = SpinSystem(cryst, Sunny.AbstractInteraction[], latsize; rng)
     rand!(sys)
 
     dip_ewald = Sunny.ewald_sum_dipole(sys.lattice, sys._dipoles; extent=15)
