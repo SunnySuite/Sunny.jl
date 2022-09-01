@@ -640,9 +640,10 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
     end
 end
 
+#========== Form factor ==========#
 
 """ 
-    FormFactor(q::Vector{Float64}, elem::String, lande::Bool=false)
+    form_factor(q::Vector{Float64}, elem::String, lande::Bool=false)
 
 Compute the form factors for a list of momentum space magnitudes `q`, measured
 in inverse angstroms. The result is dependent on the magnetic ion species,
@@ -753,6 +754,7 @@ function form_factor(q::AbstractArray{Float64}, elem::String, lande::Bool=false)
     end
 end
 
+
 q_idcs(sf::StructureFactor) = sf.dipole_factor ? (1:3) : (3:5)
 
 ## Need to figure out nicer way of doing multiple slices, the index of which
@@ -797,7 +799,9 @@ function apply_form_factor(sf::StructureFactor, elem::String, lande::Bool=false)
     return res
 end
 
-# Functions for taking slices from structure factors
+
+
+#========== Structure factor slices ==========#
 
 function q_labels(sf::StructureFactor)
     axs = axes(sf.sfactor)[q_idcs(sf)]
@@ -810,63 +814,75 @@ function ω_labels(sf::StructureFactor)
     return map(i -> Δω*i, axes(sf.sfactor)[end])
 end
 
-import Interpolations: interpolate, scale, BSpline, Linear
 
 function wrap(val::Float64, bounds::Tuple{Float64, Float64})
     offset = bounds[1]
     bound′ = bounds[2] - offset 
     val′ = val - offset
-    return rem(val′, bound′) + offset
+    remainder = rem(val′, bound′)
+    return  remainder < 1e-12 ? bounds[2] : remainder + offset
+end
+
+function path_points(p1::Vec3, p2::Vec3, densities, bounds; interp_scale=1)
+    v = p2 - p1
+    steps_coords = v .* densities # Convert continuous distances into number of discrete steps
+
+    # In terms of a discrete path on cells, the minimal number of steps between two cells
+    # is equal to the maximum difference among the respective coordinates.
+    nsteps = (round(Int, maximum(abs.(steps_coords))) + 1) * interp_scale
+
+    # Create linear series of points between boundaries
+    v = v ./ (nsteps-1) 
+    ps = [p1 + (k * v) for k in 0:nsteps-1]
+
+    # Periodically wrap coordinates that exceed that contained in the SF
+    return map(ps) do p
+        (wrap(p[i], bounds[i]) for i in 1:3)
+    end
 end
 
 # Write for reduce_basis=true, dipole_factor=true case first
-function structure_factor_slice(sf::StructureFactor, points::Vector;
-    interp_method = BSpline(Linear(Periodic())), interp_scale = 1,
+function slice(sf::StructureFactor, points::Vector;
+    interp_method = BSpline(Linear(Periodic())), interp_scale = 1, return_idcs=false,
 )
     @assert length(size(sf.sfactor)) == 4 "Currently can only take slices from structures factors with reduced basis and dipole_factors"
-
     sfdata = parent(sf.sfactor)
+    points = Vec3.(points) # Convert to uniform type
+
+    # Consolidate data necessary for the interpolation
     q_vals = q_labels(sf) 
     ωs = ω_labels(sf)
     dims = size(sfdata)[q_idcs(sf)]
 
     q_bounds = [(first(qs), last(qs)) for qs in q_vals] # Upper and lower bounds in momentum space (depends on number of BZs)
-    q_dens = [dims[i]/(2*bounds[2]) for (i, bounds) in enumerate(q_bounds)] # Discrete steps per unit distance in momentum space
+    q_dens = [dims[i]/(2bounds[2]) for (i, bounds) in enumerate(q_bounds)] # Discrete steps per unit distance in momentum space
     q_scales = [range(bounds..., length=dims[i]) for (i, bounds) in enumerate(q_bounds)] # Values for scaled interpolation
     ω_scale = range(first(ωs), last(ωs), length=length(ωs))
 
+    # Create interpolant
     itp = interpolate(sfdata, interp_method)
     sitp = scale(itp, q_scales..., ω_scale)
 
+    # Pull each partial slice (each leg of the cut) from interpolatant
     slices = []
     for i in 1:length(points)-1
-
-        p1, p2 = points[i], points[i+1]
-        v = p2 .- p1
-        steps_coords = v .* q_dens
-        nsteps = round(Int, √sum(steps_coords .^ 2))
-        v = v ./ (nsteps)
-        ps = [p1 .+ k .* v for k in 0:(nsteps-1)]
-        ps[end] = ps[end]
-        ps = map(ps) do p
-            (wrap(p[i], q_bounds[i]) for i in 1:3)
-        end
-
-        slice = zeros(eltype(sf.sfactor), nsteps, length(ωs))
+        ps = path_points(points[i], points[i+1], q_dens, q_bounds; interp_scale=1)
+        slice = zeros(eltype(sf.sfactor), length(ps), length(ωs))
         for (i, p) in enumerate(ps)
             slice[i,:] = sitp(p..., ωs)
         end
-        # push!(slices, i > 1 ? slice[2:end,:] : slice)
-        push!(slices, slice)
+        push!(slices, i > 1 ? slice[2:end,:] : slice)
     end
 
-    dims = [size(slice)[1] for slice in slices]
+    # Stitch slices together
+    slice_dims = [size(slice, 1) for slice in slices]
     start_idcs = [1]
-    for (i, dim) in enumerate(dims)
+    for (i, dim) in enumerate(slice_dims[1:end-1])
         push!(start_idcs, start_idcs[i] + dim)
     end
-
     slice = vcat(slices...)
-    
-    return (; slice, start_idcs)
+
+    return_idcs && (return (; slice, start_idcs))
+    return slice
 end
+
