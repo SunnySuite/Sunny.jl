@@ -13,6 +13,7 @@ import Tullio: @tullio
 import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, rand!, randn!
+import Interpolations: interpolate, scale, BSpline, Linear, Periodic
 
 # Specific to Symmetry/
 import FilePathsBase: Path
@@ -75,6 +76,7 @@ include("Hamiltonian.jl")
 
 include("Systems.jl")
 export ChargeSystem, SpinSystem, rand!, randflips!, energy, field, field!
+export extend_periodically
 
 include("Metropolis.jl")
 export MetropolisSampler, IsingSampler, MeanFieldSampler
@@ -90,6 +92,7 @@ export LangevinSampler
 include("StructureFactors.jl")
 export StructureFactor, update!, apply_dipole_factor, zero!
 export dynamic_structure_factor, static_structure_factor
+export sf_slice, apply_form_factor, ω_labels, q_labels
 
 include("WangLandau/BinnedArray.jl")
 export BinnedArray, filter_visited, reset!

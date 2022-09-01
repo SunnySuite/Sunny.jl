@@ -8,7 +8,7 @@ struct SpinSystem{N}
     lattice     :: Lattice                          # Definition of underlying lattice
     hamiltonian :: HamiltonianCPU                   # Contains all interactions present
     _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
-    _coherents  :: Array{SVector{N, ComplexF64}, 4} # Coherent states
+    _coherents  :: Array{CVec{N}, 4}                # Coherent states
     site_infos  :: Vector{SiteInfo}                 # Characterization of each basis site
     S           :: Array{ComplexF64, 3}    
     rng         :: Random.AbstractRNG
@@ -96,6 +96,62 @@ function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 
 end
 
 set_expected_spins!(sys::SpinSystem) = set_expected_spins!(sys._dipoles, sys._coherents, sys)
+
+function _extend_periodically!(dest::Array{T, 4}, source::Array{T, 4}, mults::NTuple{3, Int64}) where T 
+    dims = size(source)
+    dims_new = ((dims[1:3] .* mults)..., dims[4])
+    @assert size(dest) == dims_new
+
+    for site in 1:dims[4]
+        ref = source[:,:,:,site]
+        for k in 1:mults[3], j in 1:mults[2], i in 1:mults[1]
+            a = (i-1)*dims[1]+1:i*dims[1]
+            b = (j-1)*dims[2]+1:j*dims[2] 
+            c = (k-1)*dims[3]+1:k*dims[3] 
+            dest[a, b, c, site] .= ref
+        end
+    end
+
+    nothing
+end
+
+@doc raw"""
+    extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
+
+Creates a new SpinSystem identical to `sys` but with each dimension multiplied
+by the corresponding factor given in the tuple `mults`. The original spin configuration
+is simply repeated periodically.
+"""
+function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
+    dims = size(sys._coherents)
+    dims_new = ((dims[1:3] .* mults)..., dims[4])
+    dipoles = zeros(Vec3, dims_new)
+    coherents = zeros(CVec{N}, dims_new)
+
+    _extend_periodically!(coherents, sys._coherents, mults)
+
+    # Construct new SpinSystem
+    lattice = Lattice(sys.lattice.lat_vecs, sys.lattice.basis_vecs, sys.lattice.types, dims_new[1:3])
+    sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles, coherents, copy(sys.site_infos), copy(sys.S), copy(sys.rng)) 
+    set_expected_spins!(sys_extended) 
+
+    return sys_extended
+end
+
+function extend_periodically(sys::SpinSystem{0}, mults::NTuple{3, Int64})
+    dims = size(sys._dipoles)
+    dims_new = ((dims[1:3] .* mults)..., dims[4])
+    dipoles = zeros(Vec3, dims_new)
+    coherents = zeros(CVec{0}, dims_new)  # Recall this is effectively empty, doesn't need to be set
+
+    _extend_periodically!(dipoles, sys._dipoles, mults)
+
+    # Construct new SpinSystem
+    lattice = Lattice(sys.lattice.lat_vecs, sys.lattice.basis_vecs, sys.lattice.types, dims_new[1:3])
+    sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles, coherents, copy(sys.site_infos), copy(sys.S), copy(sys.rng))
+
+    return sys_extended
+end
 
 
 """
