@@ -851,7 +851,7 @@ lattice vectors (e.g., (0,0,0) -> (π,0,0)), or strictly diagonal
 `interp_scale` is set to a value greater than 1, then the function will interpolate
 linearly between data points. For example, setting `interp_scale` to `2`` will
 result in a slice that contains twice as many points as could be drawn
-for the structure factor without interpolation.
+from the structure factor without interpolation.
 
 The interpolation method is linear by default but may be set to
 any scheme provided by the Interpolations.jl package. Simply set
