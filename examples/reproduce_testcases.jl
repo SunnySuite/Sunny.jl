@@ -33,7 +33,7 @@ function test_diamond_heisenberg_sf()
                        # from trajectories as much as possible while maintaining this limit. 
     num_ωs = 200       # Total number of frequencies we'd like to resolve
     dynsf = dynamic_structure_factor(
-        sys, sampler; nsamples=1, Δt = dynΔt, ω_max, num_ωs,
+        sys, sampler; nsamples=10, Δt = dynΔt, ω_max, num_ωs,
         bz_size=(1,1,2), thermalize=10, verbose=true,
         reduce_basis=true, dipole_factor=true,
     )

@@ -302,6 +302,9 @@ function dynamic_structure_factor(
     ff_elem=nothing, lande=false,
     ω_max=nothing, verbose::Bool=false
 ) where {S <: AbstractSampler}
+
+    # Check that form factor element is valid before doing calculations
+    !isnothing(ff_elem) && form_factor([π,0,0], ff_elem, lande)
     
     sf  = StructureFactor(sys;
         Δt, num_ωs, ω_max, bz_size, reduce_basis, dipole_factor
