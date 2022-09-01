@@ -97,23 +97,31 @@ end
 
 set_expected_spins!(sys::SpinSystem) = set_expected_spins!(sys._dipoles, sys._coherents, sys)
 
+function _extend_periodically!(dest::Array{T, 4}, source::Array{T, 4}, mults::NTuple{3, Int64}) where T 
+    dims = size(source)
+    dims_new = ((dims[1:3] .* mults)..., dims[4])
+    @assert size(dest) == dims_new
+
+    for site in 1:dims[4]
+        ref = source[:,:,:,site]
+        for k in 1:mults[3], j in 1:mults[2], i in 1:mults[1]
+            a = (i-1)*dims[1]+1:i*dims[1]
+            b = (j-1)*dims[2]+1:j*dims[2] 
+            c = (k-1)*dims[3]+1:k*dims[3] 
+            dest[a, b, c, site] .= ref
+        end
+    end
+
+    nothing
+end
 
 function extend_periodically(sys::SpinSystem{0}, mults::NTuple{3, Int64})
     dims = size(sys._dipoles)
     dims_new = ((dims[1:3] .* mults)..., dims[4])
     dipoles = zeros(Vec3, dims_new)
-    coherents = zeros(CVec{0}, dims_new)
+    coherents = zeros(CVec{0}, dims_new)  # Recall this is effectively empty, doesn't need to be set
 
-    # Periodic extension
-    for s in 1:dims[4]
-        ref_dipoles = sys._dipoles[:,:,:,s]
-        for k in 1:mults[3], j in 1:mults[2], i in 1:mults[1]
-            i1 = (i-1)*dims[1]+1:i*dims[1]
-            i2 = (j-1)*dims[2]+1:j*dims[2] 
-            i3 = (k-1)*dims[3]+1:k*dims[3] 
-            dipoles[i1, i2, i3, s] .= ref_dipoles
-        end
-    end
+    _extend_periodically!(dipoles, sys._dipoles, mults)
 
     # Construct new SpinSystem
     lattice = Lattice(sys.lattice.lat_vecs, sys.lattice.basis_vecs, sys.lattice.types, dims_new[1:3])
@@ -122,27 +130,25 @@ function extend_periodically(sys::SpinSystem{0}, mults::NTuple{3, Int64})
     return sys_extended
 end
 
+@doc raw"""
+    extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
+
+Creates a system identical to the system passed to the function but with each dimension multiplied
+by the factors given in `mults`. The original spin configuration is propogated periodically in the
+larger system.
+"""
 function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
     dims = size(sys._coherents)
     dims_new = ((dims[1:3] .* mults)..., dims[4])
     dipoles = zeros(Vec3, dims_new)
     coherents = zeros(CVec{N}, dims_new)
 
-    # Periodic extension
-    for s in 1:dims[4]
-        ref_kets = sys._coherents[:,:,:,s]
-        for k in 1:mults[3], j in 1:mults[2], i in 1:mults[1]
-            i1 = (i-1)*dims[1]+1:i*dims[1]
-            i2 = (j-1)*dims[2]+1:j*dims[2] 
-            i3 = (k-1)*dims[3]+1:k*dims[3] 
-            coherents[i1, i2, i3, s] .= ref_kets
-        end
-    end
+    _extend_periodically!(coherents, sys._coherents, mults)
 
     # Construct new SpinSystem
     lattice = Lattice(sys.lattice.lat_vecs, sys.lattice.basis_vecs, sys.lattice.types, dims_new[1:3])
     sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles, coherents, copy(sys.site_infos), copy(sys.S), copy(sys.rng)) 
-    init_from_coherents!(sys_big, coherents)
+    init_from_coherents!(sys_extended, coherents) # Necessary since we constructed SpinSystem directly
 
     return sys_extended
 end

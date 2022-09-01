@@ -92,6 +92,7 @@ export LangevinSampler
 include("StructureFactors.jl")
 export StructureFactor, update!, apply_dipole_factor, zero!
 export dynamic_structure_factor, static_structure_factor
+export slice, apply_form_factor
 
 include("WangLandau/BinnedArray.jl")
 export BinnedArray, filter_visited, reset!

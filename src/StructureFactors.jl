@@ -793,6 +793,12 @@ end
 
 apply_form_factor!(sf::StructureFactor, elem::String, lande::Bool=false) = apply_form_factor!(sf.sfactor, sf, elem, lande)
 
+@doc raw"""
+    apply_form_factor(sf::StructureFactor, elem::String, lande::Bool=false)
+
+Applies the form factor correction to the structure factor `sf`. See `form_fractor`
+for more details.
+"""
 function apply_form_factor(sf::StructureFactor, elem::String, lande::Bool=false)
     res = similar(sf.sfactor)
     apply_form_factor!(res, sf, elem, lande)
@@ -803,11 +809,23 @@ end
 
 #========== Structure factor slices ==========#
 
+@doc raw"""
+    q_labels(sf::StructureFactor)
+
+Returns the coordinates in momentum space corresponding to the three
+Q indices of the structure factor.
+"""
 function q_labels(sf::StructureFactor)
     axs = axes(sf.sfactor)[q_idcs(sf)]
     return [map(i -> 2π*i/sf.lattice.size[a], axs[a]) for a in 1:3]
 end
 
+@doc raw"""
+    ω_labels(sf::StructureFactor)
+
+Returns the energies corresponding to the indices of the ω index. Units will
+will be the same as those used to specify the Hamiltonian parameters (meV by default).
+"""
 function ω_labels(sf::StructureFactor)
     (; meas_period, num_ωs, Δt) = sf
     Δω = 2π/(Δt*meas_period*num_ωs)
@@ -815,36 +833,52 @@ function ω_labels(sf::StructureFactor)
 end
 
 
-function wrap(val::Float64, bounds::Tuple{Float64, Float64})
-    offset = bounds[1]
-    bound′ = bounds[2] - offset 
-    val′ = val - offset
-    remainder = rem(val′, bound′)
-    return  remainder < 1e-12 ? bounds[2] : remainder + offset
-end
+@doc raw"""
+    slice(sf::StructureFactor, points::Vector;
+        interp_method = BSpline(Linear(Periodic())),
+        interp_scale = 1, return_idcs=false)
 
-function path_points(p1::Vec3, p2::Vec3, densities, bounds; interp_scale=1)
-    v = p2 - p1
-    steps_coords = v .* densities # Convert continuous distances into number of discrete steps
+Returns a slice through the structure factor `sf`. The slice is generated
+along a linear path successively connecting each point in `points`.
+`points` must be a vector containing two points. For example: 
+`points = [(0, 0, 0), (π, 0, 0), (π, π, 0)]`.
 
-    # In terms of a discrete path on cells, the minimal number of steps between two cells
-    # is equal to the maximum difference among the respective coordinates.
-    nsteps = (round(Int, maximum(abs.(steps_coords))) + 1) * interp_scale
-
-    # Create linear series of points between boundaries
-    v = v ./ (nsteps-1) 
-    ps = [p1 + (k * v) for k in 0:nsteps-1]
-
-    # Periodically wrap coordinates that exceed that contained in the SF
-    return map(ps) do p
-        (wrap(p[i], bounds[i]) for i in 1:3)
-    end
-end
-
+If `return_idcs` is set to `true`, the function will also return the indices
+of the slice that correspond to each point of `points`.
+"""
 # Write for reduce_basis=true, dipole_factor=true case first
 function slice(sf::StructureFactor, points::Vector;
-    interp_method = BSpline(Linear(Periodic())), interp_scale = 1, return_idcs=false,
+    interp_method = BSpline(Linear(Periodic())),
+    interp_scale = 1, return_idcs=false,
 )
+    function wrap(val::Float64, bounds::Tuple{Float64, Float64})
+        offset = bounds[1]
+        bound′ = bounds[2] - offset 
+        val′ = val - offset
+        remainder = rem(val′, bound′)
+
+        # Avoid artifical wrapping due to floating point arithmetic
+        return  remainder < 1e-12 ? bounds[2] : remainder + offset
+    end
+
+    function path_points(p1::Vec3, p2::Vec3, densities, bounds; interp_scale=1)
+        v = p2 - p1
+        steps_coords = v .* densities # Convert continuous distances into number of discrete steps
+
+        # In terms of a discrete path on cells, the minimal number of steps between two cells
+        # is equal to the maximum of the differences between the respective coordinates.
+        nsteps = (round(Int, maximum(abs.(steps_coords))) + 1) * interp_scale
+
+        # Create linear series of points between boundaries
+        v = v ./ (nsteps-1) 
+        ps = [p1 + (k * v) for k in 0:nsteps-1]
+
+        # Periodically wrap coordinates that exceed that contained in the SF
+        return map(ps) do p
+            (wrap(p[i], bounds[i]) for i in 1:3)
+        end
+    end
+
     @assert length(size(sf.sfactor)) == 4 "Currently can only take slices from structures factors with reduced basis and dipole_factors"
     sfdata = parent(sf.sfactor)
     points = Vec3.(points) # Convert to uniform type
@@ -863,10 +897,10 @@ function slice(sf::StructureFactor, points::Vector;
     itp = interpolate(sfdata, interp_method)
     sitp = scale(itp, q_scales..., ω_scale)
 
-    # Pull each partial slice (each leg of the cut) from interpolatant
+    # Pull each partial slice (each leg of the cut) from interpolant
     slices = []
     for i in 1:length(points)-1
-        ps = path_points(points[i], points[i+1], q_dens, q_bounds; interp_scale=1)
+        ps = path_points(points[i], points[i+1], q_dens, q_bounds; interp_scale)
         slice = zeros(eltype(sf.sfactor), length(ps), length(ωs))
         for (i, p) in enumerate(ps)
             slice[i,:] = sitp(p..., ωs)
@@ -876,13 +910,13 @@ function slice(sf::StructureFactor, points::Vector;
 
     # Stitch slices together
     slice_dims = [size(slice, 1) for slice in slices]
-    start_idcs = [1]
-    for (i, dim) in enumerate(slice_dims[1:end-1])
-        push!(start_idcs, start_idcs[i] + dim)
+    boundary_idcs = [1]
+    for (i, dim) in enumerate(slice_dims[1:end])
+        push!(boundary_idcs, boundary_idcs[i] + dim)
     end
-    slice = vcat(slices...)
+    slice = OffsetArray(vcat(slices...), Origin(1, ωs.offsets[1] + 1))
 
-    return_idcs && (return (; slice, start_idcs))
+    return_idcs && (return (; slice, boundary_idcs))
     return slice
 end
 
