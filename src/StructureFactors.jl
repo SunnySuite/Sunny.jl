@@ -3,6 +3,13 @@
 # TODO:
 #  1. Many optimizations + clean-ups still possible in this file.
 #       In particular, still a ton of allocations?
+#  2. Code is somewhat brittle because the structure factor has 
+#       different number of indices depending on how reduce_basis
+#       and dipole_factor are set. In particular
+#       the indices corresponding to Qi change. Write
+#       some function to make slicing of multiple, arbitrary dimensions
+#       possible and eliminate the need for explicitly writing the slices
+#       in the correct indices.
 
 """
     StructureFactor
@@ -17,21 +24,21 @@ The full dynamic structure factor is
 ``𝒮^{αβ}_{jk}(𝐪, ω) = ⟨M^α_j(𝐪, ω) M^β_k(𝐪, ω)^∗⟩``,
 which is an array of shape `[3, 3, Q1, Q2, Q3, B, B, T]`
 where `B = nbasis(sys.lattice)`, `Qi = max(1, bz_size_i * L_i)` and
-`T = num_ωs`. By default, `bz_size=ones(d)`.
+`T = num_omegas`. By default, `bz_size=ones(d)`.
 
 Indexing the `.sfactor` attribute at `(α, β, q1, q2, q3, j, k, w)`
 gives ``𝒮^{αβ}_{jk}(𝐪, ω)`` at `𝐪 = q1 * 𝐛_1 + q2 * 𝐛_2 + q3 * 𝐛_3`, and
-`ω = maxω * w / T`, where `𝐛_1, 𝐛_2, 𝐛_3` are the reciprocal lattice vectors
+`ω = ω_max * w / T`, where `𝐛_1, 𝐛_2, 𝐛_3` are the reciprocal lattice vectors
 of the system supercell.
 
 Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
  values for the `w` index lie in `0:T-1`.
 
 The maximum frequency captured by the calculation is set with the keyword
-`ω_max``. `ω_max`` must be set to a value equal to, or smaller than, 2π/Δt, where Δt is the 
-time step chosen for the dynamics. If no value is given, `ω_max`` will be taken as 2π/Δt.
-The total number of resolved frequencies is set with `num_ωs` (the number of spin
-snapshots measured during dynamics). By default, `num_ωs=1`, and the static structure
+`omega_max``. `omega_max`` must be set to a value equal to, or smaller than, 2π/dt, where dt is the 
+time step chosen for the dynamics. If no value is given, `omega_max`` will be taken as 2π/dt.
+The total number of resolved frequencies is set with `num_omegas` (the number of spin
+snapshots measured during dynamics). By default, `num_omegas=1`, and the static structure
 factor is computed. 
 
 Setting `reduce_basis` performs the phase-weighted sums over the basis/sublattice
@@ -48,9 +55,9 @@ struct StructureFactor{A1, A2}
     reduce_basis  :: Bool                                    # Flag setting basis summation
     dipole_factor :: Bool                                    # Flag setting dipole form factor
     bz_size       :: NTuple{3, Int}                          # Num of Brillouin zones along each axis
-    Δt            :: Float64                                 # Timestep size in dynamics integrator
+    dt            :: Float64                                 # Timestep size in dynamics integrator
     meas_period   :: Int                                     # Num timesteps between saved snapshots 
-    num_ωs        :: Int                                     # Total number of snapshots to FT
+    num_omegas        :: Int                                     # Total number of snapshots to FT
     integrator    :: Union{SphericalMidpoint, SchrodingerMidpoint}
     plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, NTuple{4, Int64}}
 end
@@ -59,45 +66,45 @@ Base.show(io::IO, sf::StructureFactor) = print(io, join(size(sf.sfactor), "x"), 
 Base.summary(io::IO, sf::StructureFactor) = string("StructureFactor: ", summary(sf.sfactor))
 
 function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
-                         dipole_factor=false, Δt::Float64=0.01,
-                         num_ωs::Int=100, ω_max=nothing,) where N
+                         dipole_factor=false, dt::Float64=0.01,
+                         num_omegas::Int=100, omega_max=nothing,) where N
 
-    if isnothing(ω_max)
+    if isnothing(omega_max)
         meas_period = 10
     else
-        @assert π/Δt > ω_max "Maximum ω with chosen step size is $(π/Δt). Please choose smaller Δt or larger ω_max."
-        meas_period = floor(Int, π/(Δt * ω_max))
+        @assert π/dt > omega_max "Maximum ω with chosen step size is $(π/dt). Please choose smaller dt or larger omega_max."
+        meas_period = floor(Int, π/(dt * omega_max))
     end
     nb = nbasis(sys.lattice)
     spat_size = size(sys)[1:3]
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
-    result_size = (3, q_size..., num_ωs)
+    result_size = (3, q_size..., num_omegas)
     min_q_idx = -1 .* div.(q_size .- 1, 2)
-    min_ω_idx = -1 .* div(num_ωs - 1, 2)
+    min_ω_idx = -1 .* div(num_omegas - 1, 2)
 
-    spin_ft = zeros(ComplexF64, 3, spat_size..., nb, num_ωs)
+    spin_ft = zeros(ComplexF64, 3, spat_size..., nb, num_omegas)
     if reduce_basis
-        bz_buf = zeros(ComplexF64, 3, q_size..., num_ωs)
+        bz_buf = zeros(ComplexF64, 3, q_size..., num_omegas)
         bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., min_ω_idx))
     else
-        bz_buf = zeros(ComplexF64, 3, q_size..., nb, num_ωs)
+        bz_buf = zeros(ComplexF64, 3, q_size..., nb, num_omegas)
         bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., 1, min_ω_idx  ))
     end
 
     if reduce_basis
         if dipole_factor
-            sfactor = zeros(Float64, q_size..., num_ωs)
+            sfactor = zeros(Float64, q_size..., num_omegas)
             sfactor = OffsetArray(sfactor, Origin(min_q_idx..., min_ω_idx))
         else
-            sfactor = zeros(ComplexF64, 3, 3, q_size..., num_ωs)
+            sfactor = zeros(ComplexF64, 3, 3, q_size..., num_omegas)
             sfactor = OffsetArray(sfactor, Origin(1, 1, min_q_idx..., min_ω_idx))
         end
     else
         if dipole_factor
-            sfactor = zeros(Float64, q_size..., nb, nb, num_ωs)
+            sfactor = zeros(Float64, q_size..., nb, nb, num_omegas)
             sfactor = OffsetArray(sfactor, Origin(min_q_idx..., 1, 1, min_ω_idx))
         else
-            sfactor = zeros(ComplexF64, 3, 3, q_size..., nb, nb, num_ωs)
+            sfactor = zeros(ComplexF64, 3, 3, q_size..., nb, nb, num_omegas)
             sfactor = OffsetArray(sfactor, Origin(1, 1, min_q_idx..., 1, 1, min_ω_idx))
         end
     end
@@ -108,7 +115,7 @@ function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
 
     StructureFactor{typeof(sfactor), typeof(bz_buf)}(
         sfactor, spin_ft, bz_buf, sys.lattice, reduce_basis, dipole_factor,
-        bz_size, Δt, meas_period, num_ωs, integrator, plan
+        bz_size, dt, meas_period, num_omegas, integrator, plan
     )
 end
 
@@ -184,9 +191,9 @@ function update!(sf::StructureFactor, sys::SpinSystem)
     sf.integrator.sys = dynsys
     T_dim = ndims(_mag_ft)      # Assuming T_dim is "time dimension", which is last
     _compute_mag!(selectdim(_mag_ft, T_dim, 1), dynsys)
-    for nsnap in 2:sf.num_ωs
+    for nsnap in 2:sf.num_omegas
         for _ in 1:sf.meas_period
-            evolve!(sf.integrator, sf.Δt)
+            evolve!(sf.integrator, sf.dt)
         end
         _compute_mag!(selectdim(_mag_ft, T_dim, nsnap), dynsys)
     end
@@ -237,17 +244,17 @@ function apply_dipole_factor(sf::StructureFactor)
     dip_sfactor = apply_dipole_factor(sf.sfactor, sf.lattice)
     StructureFactor(
         dip_sfactor, copy(sf._mag_ft), copy(sf._bz_buf), sf.lattice,
-        sf.reduce_basis, true, sf.bz_size, sf.Δt, sf.meas_period,
-        sf.num_ωs, sf.integrator, sf.plan
+        sf.reduce_basis, true, sf.bz_size, sf.dt, sf.meas_period,
+        sf.num_omegas, sf.integrator, sf.plan
     )
 end
 
 function apply_dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::Lattice)
     recip = gen_reciprocal(lattice)
 
-    num_ωs = size(spin_traj_ft)[end]
-    min_ω = -1 .* div(num_ωs - 1, 2)
-    max_ω = min_ω + num_ωs - 1
+    num_omegas = size(spin_traj_ft)[end]
+    min_ω = -1 .* div(num_omegas - 1, 2)
+    max_ω = min_ω + num_omegas - 1
     result = zeros(Float64, axes(struct_factor)[3:end])
     for q_idx in CartesianIndices(axes(struct_factor)[3:5])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
@@ -261,28 +268,30 @@ function apply_dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::La
 end
 
 """
-    dynamic_structure_factor(sys, sampler; nsamples=10, Δt=0.01, meas_period=10,
-                             num_ωs=100, bz_size, thermalize=10, reduce_basis=true,
+    dynamic_structure_factor(sys, sampler; nsamples=10, dt=0.01, meas_period=10,
+                             num_omegas=100, bz_size, thermalize=10, reduce_basis=true,
                              verbose=false)
 
 Measures the full dynamic structure factor tensor of a spin system, for the requested range
 of 𝐪-space and range of frequencies ω. Returns ``𝒮^{αβ}(𝐪, ω) = ⟨S^α(𝐪, ω) S^β(𝐪, ω)^∗⟩``,
 which is an array of shape `[3, 3, Q1, ..., Qd, T]`
-where `Qi = max(1, bz_size_i * L_i)` and `T = num_ωs`. By default, `bz_size=ones(d)`.
+where `Qi = max(1, bz_size_i * L_i)` and `T = num_omegas`. By default, `bz_size=ones(d)`.
 
 Setting `reduce_basis=false` makes it so that the basis/sublattice indices are not
 phase-weighted and summed over, making the shape of the result `[3, 3, B, B, Q1, ..., Qd, T]`
 where `B = nbasis(sys)` is the number of basis sites in the unit cell.
 
 `nsamples` sets the number of thermodynamic samples to measure and average
- across from `sampler`. `Δt` sets the integrator timestep during dynamics,
- and `meas_period` sets how often snapshots are recorded during dynamics. `num_ωs`
+ across from `sampler`. `dt` sets the integrator timestep during dynamics,
+ and `meas_period` sets how often snapshots are recorded during dynamics. `num_omegas`
  sets the total number snapshots taken. The sampler is thermalized by sampling
  `thermalize` times before any measurements are made.
 
-The maximum frequency sampled is `ωmax = 2π / (Δt * meas_period)`, and the frequency resolution
- is set by `num_ωs` (the number of spin snapshots measured during dynamics). However, beyond
- increasing the resolution, `num_ωs` will also make all frequencies become more accurate.
+The maximum frequency sampled is `ωmax = 2π / (dt * meas_period)`, and the frequency resolution
+ is set by `num_omegas` (the number of spin snapshots measured during dynamics). However, beyond
+ increasing the resolution, `num_omegas` will also make all frequencies become more accurate. Note
+ that `meas_period` is determined automatically by Sunny based on what the user assigns to `dt` and
+ `omega_max`. If no value is given to `omega_max`, `meas_period` is set to 1.
 
 Indexing the result at `(α, β, q1, ..., qd, w)` gives ``S^{αβ}(𝐪, ω)`` at
     `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, and `ω = maxω * w / T`, where `a⃰, b⃰, c⃰`
@@ -298,9 +307,9 @@ For a list of the available ions and their names, see https://www.ill.eu/sites/c
 function dynamic_structure_factor(
     sys::SpinSystem, sampler::S; nsamples::Int=10,
     thermalize::Int=10, bz_size=(1,1,1), reduce_basis::Bool=true,
-    dipole_factor::Bool=false, Δt::Float64=0.01, num_ωs::Int=100,
+    dipole_factor::Bool=false, dt::Float64=0.01, num_omegas::Int=100,
     ff_elem=nothing, lande=false,
-    ω_max=nothing, verbose::Bool=false
+    omega_max=nothing, verbose::Bool=false
 ) where {S <: AbstractSampler}
 
     # The call to form_factor is made simply to test the validity of
@@ -308,7 +317,7 @@ function dynamic_structure_factor(
     !isnothing(ff_elem) && form_factor([π,0,0], ff_elem, lande)
     
     sf  = StructureFactor(sys;
-        Δt, num_ωs, ω_max, bz_size, reduce_basis, dipole_factor
+        dt, num_omegas, omega_max, bz_size, reduce_basis, dipole_factor
     )
 
     if verbose
@@ -337,7 +346,7 @@ function dynamic_structure_factor(
 end
 
 """
-    static_structure_factor(sys, sampler; nsamples, Δt, meas_period, num_ωs
+    static_structure_factor(sys, sampler; nsamples, dt, meas_period, num_omegas
                                           bz_size, thermalize, verbose)
 
 Measures the static structure factor tensor of a spin system, for the requested range
@@ -346,9 +355,9 @@ which is an array of shape `[3, 3, Q1, ..., Qd]` where `Qi = max(1, bz_size_i * 
 By default, `bz_size=ones(d)`.
 
 `nsamples` sets the number of thermodynamic samples to measure and average
- across from `sampler`. `Δt` sets the integrator timestep during dynamics,
+ across from `sampler`. `dt` sets the integrator timestep during dynamics,
  and `meas_period` sets how many timesteps are performed between recording snapshots.
- `num_ωs` sets the total number snapshots taken. The sampler is thermalized by sampling
+ `num_omegas` sets the total number snapshots taken. The sampler is thermalized by sampling
  `thermalize` times before any measurements are made.
 
 Indexing the result at `(α, β, q1, ..., qd)` gives ``𝒮^{αβ}(𝐪)`` at
@@ -358,7 +367,7 @@ Indexing the result at `(α, β, q1, ..., qd)` gives ``𝒮^{αβ}(𝐪)`` at
 Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`.
 """
 function static_structure_factor(sys::SpinSystem, sampler::S; kwargs...) where {S <: AbstractSampler}
-    dynamic_structure_factor(sys, sampler; num_ωs=1, kwargs...)
+    dynamic_structure_factor(sys, sampler; num_omegas=1, kwargs...)
 end
 
 
@@ -459,10 +468,10 @@ function phase_weight_basis(spin_traj_ft::Array{ComplexF64},
 
     bz_size = convert(SVector{3, Int}, bz_size)                  # Number of Brilloin zones along each axis
     spat_size = lattice.size                                     # Spatial lengths of the system
-    num_ωs = size(spin_traj_ft)[end]
-    min_ω = -1 .* div(num_ωs - 1, 2)
+    num_omegas = size(spin_traj_ft)[end]
+    min_ω = -1 .* div(num_omegas - 1, 2)
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)      # Total number of q-points along each q-axis of result
-    result_size = (3, q_size..., num_ωs)
+    result_size = (3, q_size..., num_omegas)
     min_q_idx = -1 .* div.(q_size .- 1, 2)
 
     result = zeros(ComplexF64, result_size)
@@ -489,9 +498,9 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
 
     recip = gen_reciprocal(lattice)
 
-    num_ωs = size(spin_traj_ft)[end]
-    min_ω = -1 .* div(num_ωs - 1, 2)
-    max_ω = min_ω + num_ωs - 1
+    num_omegas = size(spin_traj_ft)[end]
+    min_ω = -1 .* div(num_omegas - 1, 2)
+    max_ω = min_ω + num_omegas - 1
 
     fill!(res, 0.0)
     for q_idx in CartesianIndices(axes(res)[2:4])
@@ -501,7 +510,7 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
             phase = exp(-im * (b ⋅ q))
             # Note: Lots of allocations here. Fix?
             # Warning: Cannot replace T with 1:end due to Julia issues with end and CartesianIndex
-            @. res[:, q_idx, min_ω:-1] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, max_ω+2:num_ωs]) * phase
+            @. res[:, q_idx, min_ω:-1] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, max_ω+2:num_omegas]) * phase
             @. res[:, q_idx, 0:max_ω] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, 1:max_ω+1]) * phase
         end
     end
@@ -574,14 +583,14 @@ that res is of shape [3, Q1, Q2, Q3, B, T], with all Qi >= Li.
 """
 function expand_bz!(res::OffsetArray{ComplexF64}, S::Array{ComplexF64})
     spat_size = size(S)[2:4]
-    num_ωs  = size(S, ndims(S))
-    min_ω = -1 .* div(num_ωs - 1, 2)
-    max_ω = min_ω + num_ωs - 1
+    num_omegas  = size(S, ndims(S))
+    min_ω = -1 .* div(num_omegas - 1, 2)
+    max_ω = min_ω + num_omegas - 1
 
     for ω in min_ω:max_ω 
         for q_idx in CartesianIndices(axes(res)[2:4])
             wrap_q_idx = modc(q_idx, spat_size) + CartesianIndex(1, 1, 1)
-            ω_no_offset = ω < 0 ? ω + num_ωs : ω + 1
+            ω_no_offset = ω < 0 ? ω + num_omegas : ω + 1
             res[:, q_idx, :, ω] = S[:, wrap_q_idx, :, ω_no_offset]
         end
     end
@@ -820,14 +829,14 @@ function q_labels(sf::StructureFactor)
 end
 
 @doc raw"""
-    ω_labels(sf::StructureFactor)
+    omega_labels(sf::StructureFactor)
 
 Returns the energies corresponding to the indices of the ω index. Units will
 will be the same as those used to specify the Hamiltonian parameters (meV by default).
 """
-function ω_labels(sf::StructureFactor)
-    (; meas_period, num_ωs, Δt) = sf
-    Δω = 2π/(Δt*meas_period*num_ωs)
+function omega_labels(sf::StructureFactor)
+    (; meas_period, num_omegas, dt) = sf
+    Δω = 2π/(dt*meas_period*num_omegas)
     return map(i -> Δω*i, axes(sf.sfactor)[end])
 end
 
@@ -900,7 +909,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
 
     # Consolidate data necessary for the interpolation
     q_vals = q_labels(sf) 
-    ωs = ω_labels(sf)
+    ωs = omega_labels(sf)
     dims = size(sfdata)[q_idcs(sf)]
 
     q_bounds = [(first(qs), last(qs)) for qs in q_vals] # Upper and lower bounds in momentum space (depends on number of BZs)
