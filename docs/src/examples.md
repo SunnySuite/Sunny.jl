@@ -1,6 +1,6 @@
 # Examples
 
-Please take a look at our Jupyter notebook [tutorials].
+Please take a look at our [Jupyter notebook tutorials](https://github.com/SunnySuite/SunnyTutorials).
 
 Additional working examples are available in `examples/` as fully loadable files containing
 executable functions. We will soon update this page with additional information
