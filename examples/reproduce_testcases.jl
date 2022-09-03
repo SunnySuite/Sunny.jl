@@ -1,4 +1,4 @@
-# using Sunny
+using Sunny
 using Serialization
 using LaTeXStrings
 using Plots
@@ -23,17 +23,18 @@ function test_diamond_heisenberg_sf()
     rand!(sys)
 
     Δt = 0.02 / (spin_rescaling^2 * J)     # Units of 1/meV
-    kT = Sunny.meV_per_K * 4. # Units of meV
+    kT = Sunny.meV_per_K * 2. # Units of meV
     α  = 0.1
     nsteps = 1000  # Number of steps between MC samples
     sampler = LangevinSampler(sys, kT, α, Δt, nsteps)
 
-    dynΔt = Δt / 8     # Integrator for dynamics can use smaller step size
-    ω_max = 5.5        # Maximum frequency to resolve. Sunny will downsample
-                       # from trajectories as much as possible while maintaining this limit. 
-    num_ωs = 200       # Total number of frequencies we'd like to resolve
+    dynΔt = Δt * 10        # Integrator step size for dynamics. Works well using larger
+                           # step sizes than the Langevin integrator. 
+    omega_max = 5.5        # Maximum frequency to resolve. Sunny will downsample
+                           # from trajectories as much as possible while staying above this limit. 
+    num_omegas = 200       # Total number of frequencies we'd like to resolve
     dynsf = dynamic_structure_factor(
-        sys, sampler; nsamples=10, Δt = dynΔt, ω_max, num_ωs,
+        sys, sampler; nsamples=10, dt = dynΔt, omega_max, num_omegas,
         bz_size=(1,1,2), thermalize=10, verbose=true,
         reduce_basis=true, dipole_factor=true,
     )
@@ -62,23 +63,26 @@ Providing chop_ω restricts the plots to frequencies <= chop_ω.
 """
 function plot_S_cut_afmdiamond(sf, qz, J, spin; maxω=nothing, chopω=nothing)
     
-    # Cuts from
+    # Cuts from calculated structure factor
     points = [(0, 0, qz), (π, 0, qz), (π, π, qz), (0, 0, qz)]
     (; slice, idcs) = sf_slice(sf, points; return_idcs=true)
 
-    ωs = ω_labels(sf)
+    ωs = omega_labels(sf)
     chopω = isnothing(chopω) ? ωs[end] : chopω
     i_cutoff = findfirst(s -> s > chopω, ωs)
 
-    heatmap(1:size(slice, 1), ωs[0:i_cutoff], slice[:,0:i_cutoff]'; color=:plasma, clim=(0.0, 1.5e7))
+    heatmap(1:size(slice, 1), ωs[0:i_cutoff], slice[:,0:i_cutoff]';
+        color=:plasma, clim=(0.0, 1.5e7), xrotation=20,
+    )
 
-    point_labels = map(x -> "($(x[1]), $(x[2]), $(x[3]))", points)
+    qz_label = qz ≈ 0 ? "0" : qz ≈ π ? "π" : "$(qz/pi)π"
+    point_labels = map(x -> "($(x[1]), $(x[2]), $qz_label)", points)
     xticks!(idcs, point_labels)
 
 
     # Plot the analytic linear spin-wave prediction ω(q) on top
     Lx, Ly, Lz = round.(Int, size(sf.sfactor)[1:3] ./ sf.bz_size)
-    πx, πy, πz = map(l->div(l, 2, RoundUp), (Lx, Ly, Lz)) # Indices of (π, π, π)
+    πx, πy, _ = map(l->div(l, 2, RoundUp), (Lx, Ly, Lz)) # Indices of (π, π, π)
     qs = zeros(Sunny.Vec3, πx+πy+min(πx,πy)+1)
     for i in 1:πx+1
         # qs[i] = Sunny.Vec3((i-1)/(2πx), 0, qz/(2πz))
@@ -141,17 +145,17 @@ function test_FeI2_MC()
 
     Δt = 0.01 / (2.165/2)       # Units of 1/meV
     # Highest energy/frequency we actually care about resolving
-    target_max_ω = 10.          # Units of meV
+    omega_max = 10.          # Units of meV
     # Interval number of steps of dynamics before collecting a snapshot for FFTs
-    meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
+    # meas_rate = convert(Int, div(2π, (2 * target_max_ω * Δt)))
 
     sampler = MetropolisSampler(system, kT, 500)
     # Measure the diagonal elements of the spin structure factor
     println("Starting structure factor measurement...")
     dynsf = dynamic_structure_factor(
         system, sampler; bz_size=(2,0,0), thermalize=15,
-        nsamples=15, dipole_factor=true, dyn_meas=1000,
-        meas_rate=meas_rate, verbose=true,
+        nsamples=15, dipole_factor=true, num_omegas=1000,
+        omega_max, verbose=true,
     )
     S = dynsf.sfactor
 
