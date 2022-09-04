@@ -35,8 +35,39 @@ function Base.show(io::IO, mime::MIME"text/plain", int::QuadraticInteraction)
     end
 end
 
+
+
+struct FormFactorParams
+    J0_params :: NTuple{7, Float64}
+    J2_params :: Union{Nothing, NTuple{7, Float64}}
+    g_lande   :: Union{Nothing, Float64}
+end
+
+function FormFactorParams(elem::String; g_lande=nothing)
+
+    function lookup_ff_params(elem, datafile) :: NTuple{7, Float64}
+        path = joinpath(joinpath(@__DIR__, "data"), datafile)
+        lines = collect(eachline(path))
+        matches = filter(line -> startswith(line, elem), lines)
+        if isempty(matches)
+            error("'ff_elem = $elem' not a valid choice of magnetic ion.")
+        end
+        Tuple(parse.(Float64, split(matches[1])[2:end]))
+    end
+
+    # Look up parameters
+    J0_params = !isnothing(elem) ? lookup_ff_params(elem, "form_factor_J0.dat") : nothing
+    J2_params = !isnothing(g_lande) ? lookup_ff_params(elem, "form_factor_J2.dat") : nothing
+
+    # Ensure type of g_lande
+    g_lande = !isnothing(g_lande) ? Float64(g_lande) : nothing
+
+    FormFactorParams(J0_params, J2_params, g_lande)
+end
+
+
 """
-    SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0)
+    SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0, ff_elem=nothing, ff_lande=nothing)
 
 Characterizes the degree of freedom located at a given `site` index with three 
 pieces of information: N (as in SU(N)), characterizing the complex dimension of the
@@ -50,15 +81,22 @@ NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverte
 to the largest specified `N`.
 """
 Base.@kwdef struct SiteInfo
-    site              :: Int                # Index of site
-    N                 :: Int     = 0        # N in SU(N)
-    g                 :: Mat3    = 2*I(3)   # Spin g-tensor
-    spin_rescaling    :: Float64 = 1.0      # Spin/Ket rescaling factor
+    site            :: Int                 # Index of site
+    N               :: Int     = 0         # N in SU(N)
+    g               :: Mat3    = 2*I(3)    # Spin g-tensor
+    spin_rescaling  :: Float64 = 1.0       # Spin/Ket rescaling factor
+    ff_params       :: Union{Nothing, FormFactorParams}  # Parameters for form factor correction
 end
 
-function SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0)
+
+function SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0, ff_elem=nothing, ff_lande=nothing)
+    # Create diagonal g-tensor from number (if not given full array)
     (typeof(g) <: Number) && (g = Float64(g)*I(3))
-    SiteInfo(site, N, g, spin_rescaling)
+
+    # Read all relevant form factor data if an element name is provided
+    ff_params = !isnothing(ff_elem) ? FormFactorParams(ff_elem; g_lande = ff_lande) : nothing
+
+    SiteInfo(site, N, g, spin_rescaling, ff_params)
 end
 
 
