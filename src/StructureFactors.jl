@@ -50,6 +50,7 @@ array to size `[Q1, Q2, Q3, T]`.
 struct StructureFactor{A1, A2}
     sfactor       :: A1
     _mag_ft       :: Array{ComplexF64, 6}                    # Buffer for FT of a mag trajectory
+    _form_factor  :: Union{Nothing, Array{Float64, 6}}       # Precomputed form-factor correction
     _bz_buf       :: A2                                      # Buffer for phase summation / BZ repeating
     lattice       :: Lattice
     reduce_basis  :: Bool                                    # Flag setting basis summation
@@ -57,7 +58,7 @@ struct StructureFactor{A1, A2}
     bz_size       :: NTuple{3, Int}                          # Num of Brillouin zones along each axis
     dt            :: Float64                                 # Timestep size in dynamics integrator
     meas_period   :: Int                                     # Num timesteps between saved snapshots 
-    num_omegas        :: Int                                     # Total number of snapshots to FT
+    num_omegas    :: Int                                     # Total number of snapshots to FT
     integrator    :: Union{SphericalMidpoint, SchrodingerMidpoint}
     plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, NTuple{4, Int64}}
 end
@@ -83,6 +84,10 @@ function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
     min_ω_idx = -1 .* div(num_omegas - 1, 2)
 
     spin_ft = zeros(ComplexF64, 3, spat_size..., nb, num_omegas)
+
+    # Requiring that form factor data be available for all sites, so only check one
+    ff_correction = !isnothing(sys.site_infos[1].ff_params) ? ff_mask(sys, num_omegas) : nothing
+
     if reduce_basis
         bz_buf = zeros(ComplexF64, 3, q_size..., num_omegas)
         bz_buf = OffsetArray(bz_buf, Origin(1, min_q_idx..., min_ω_idx))
@@ -114,7 +119,7 @@ function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
     plan = plan_spintraj_fft!(spin_ft)
 
     StructureFactor{typeof(sfactor), typeof(bz_buf)}(
-        sfactor, spin_ft, bz_buf, sys.lattice, reduce_basis, dipole_factor,
+        sfactor, spin_ft, ff_correction, bz_buf, sys.lattice, reduce_basis, dipole_factor,
         bz_size, dt, meas_period, num_omegas, integrator, plan
     )
 end
@@ -182,7 +187,7 @@ Accumulates a contribution to the dynamic structure factor from the spin
 configuration currently in `sys`.
 """
 function update!(sf::StructureFactor, sys::SpinSystem)
-    (; sfactor, _mag_ft, _bz_buf) = sf
+    (; sfactor, _mag_ft, _bz_buf, _form_factor) = sf
     (; reduce_basis, dipole_factor, bz_size) = sf
 
     # Evolve the spin state forward in time to form a trajectory
@@ -200,6 +205,11 @@ function update!(sf::StructureFactor, sys::SpinSystem)
 
     # Fourier transform the trajectory in space + time
     fft_spin_traj!(_mag_ft, plan=sf.plan)
+    
+    # Apply form factor correction, if any
+    if !isnothing(_form_factor)
+        _mag_ft .*= _form_factor
+    end
 
     # Optionally sum over basis sites then accumulate the conjugate outer product into sfactor
     # Accumulate the conjugate outer product into sfactor, with optionally:
@@ -308,13 +318,10 @@ function dynamic_structure_factor(
     sys::SpinSystem, sampler::S; nsamples::Int=10,
     thermalize::Int=10, bz_size=(1,1,1), reduce_basis::Bool=true,
     dipole_factor::Bool=false, dt::Float64=0.01, num_omegas::Int=100,
-    ff_elem=nothing, lande=false,
     omega_max=nothing, verbose::Bool=false
 ) where {S <: AbstractSampler}
 
-    # The call to form_factor is made simply to test the validity of
-    # ff_elem before starting calculations. The call will error if ff_elem is not valid.
-    !isnothing(ff_elem) && form_factor([π,0,0], ff_elem, lande)
+    # Precalculate form factor if applicable.
     
     sf  = StructureFactor(sys;
         dt, num_omegas, omega_max, bz_size, reduce_basis, dipole_factor
@@ -336,10 +343,6 @@ function dynamic_structure_factor(
         sample!(sampler)
         update!(sf, sys)
         next!(progress)
-    end
-
-    if !isnothing(ff_elem)
-        apply_form_factor!(sf, ff_elem, lande)
     end
 
     return sf
@@ -697,78 +700,55 @@ Additional references are:
  * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
  * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
 """
-function form_factor(q::AbstractArray{Float64}, elem::String, lande::Bool=false)
-    # Lande g-factors
-    g_dict = Dict{String,Float64}(
-        "La3"=>0,
-        "Ce3"=>6/7,
-        "Pr3"=>4/5,
-        "Nd3"=>8/11, 
-        "Pm3"=>3/5,
-        "Sm3"=>2/7,
-        "Eu3"=>0,
-        "Gd3"=>2, 
-        "Tb3"=>3/2, 
-        "Dy3"=>4/3, 
-        "Ho3"=>5/4, 
-        "Er3"=>6/5, 
-        "Tm3"=>7/6, 
-        "Yb3"=>8/7, 
-        "Lu3"=>0, 
-        "Ti3"=>4/5, 
-        "V4"=>4/5, 
-        "V3"=>2/3, 
-        "V2"=>2/5, 
-        "Cr3"=>2/5, 
-        "Mn4"=>2/5, 
-        "Cr2"=>0, 
-        "Mn3"=>0, 
-        "Mn2"=>2, 
-        "Fe3"=>2, 
-        "Fe2"=>3/2, 
-        "Co3"=>3/2,
-        "Co2"=>4/3,
-        "Ni2"=>5/4,
-        "Cu2"=>6/5,
-        "Zn2"=>0
-    )
-    
-    function calculate_form(elem, datafile, s)
-        path = joinpath(joinpath(@__DIR__, "data"), datafile)
-        lines = collect(eachline(path))
-        matches = filter(line -> startswith(line, elem), lines)
-        if isempty(matches)
-            error("Invalid magnetic ion '$elem'.")
-        end
-        (A, a, B, b, C, c, D) = parse.(Float64, split(matches[1])[2:end])
-        return @. A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
-    end
+function calculate_form(q::Float64, params::FormFactorParams)
+    s = q/4π
 
-    s = q/4π 
-    form1 = calculate_form(elem, "form_factor_J0.dat", s)
-    form2 = calculate_form(elem, "form_factor_J2.dat", s)
-
-    if lande
-        if !haskey(g_dict, elem)
-            error("Landé g-factor correction not available for ion '$elem'.")
-        end
-        g = g_dict[elem]
-        if iszero(g)
-            error("Second order form factor is invalid for vanishing Landé g-factor.")
-        end
-        return @. ((2-g)/g) * (form2*s^2) + form1
-    else
+    # J0 correction
+    (A, a, B, b, C, c, D) = params.J0_params
+    form1 = A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
+    if isnothing(params.g_lande)
         return form1
     end
+
+    # J2 correction
+    g = params.g_lande
+    (A, a, B, b, C, c, D) = params.J2_params
+    form2 = A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
+
+    return ((2-g)/g) * (form2*s^2) + form1
 end
 
+
+#=
+Precalculates the form factor corrections so they can be applied
+simply and quickly by broadcasting in the structure factor loop.
+This approach is a bit wasteful of memory, but it's easy. 
+=#
+function ff_mask(sys::SpinSystem, num_omegas::Int)
+    latdims = sys.lattice.size 
+    q_mins = map(n -> -1 * div(n - 1, 2), latdims)
+    q_maxs = map(n -> div(n, 2), latdims)
+    qa, qb, qc = [q_mins[i]:q_maxs[i] for i ∈ 1:3]
+
+    mask = zeros(3, size(sys)..., num_omegas)
+    for b in 1:nbasis(sys)
+        ff_params = sys.site_infos[b].ff_params
+        if !isnothing(ff_params)
+            for k in 1:latdims[3], j in 1:latdims[2], i in 1:latdims[1]
+                q = 2π .* (qa[i], qb[j], qc[k]) ./ latdims
+                mask[:, i, j, k, b, :] .= calculate_form(norm(q), ff_params)
+            end
+        end
+    end
+
+    return mask
+end
 
 q_idcs(sf::StructureFactor) = sf.dipole_factor ? (1:3) : (3:5)
 
 ## Need to figure out nicer way of doing multiple slices, the index of which
 ## depend on the type of structure factor calculation. Probably can right some
 ## tuple-building function.
-
 function apply_form_factor!(res::OffsetArray, sf::StructureFactor, elem::String, lande::Bool=false)
     axs = axes(sf.sfactor)[q_idcs(sf)]
     qs = [norm(2π .* i.I ./ sf.lattice.size) for i in CartesianIndices(axs)]
@@ -799,7 +779,7 @@ function apply_form_factor!(res::OffsetArray, sf::StructureFactor, elem::String,
     nothing
 end
 
-apply_form_factor!(sf::StructureFactor, elem::String, lande::Bool=false) = apply_form_factor!(sf.sfactor, sf, elem, lande)
+# apply_form_factor!(sf::StructureFactor, elem::String, lande::Bool=false) = apply_form_factor!(sf.sfactor, sf, elem, lande)
 
 @doc raw"""
     apply_form_factor(sf::StructureFactor, elem::String, lande::Bool=false)
@@ -807,11 +787,11 @@ apply_form_factor!(sf::StructureFactor, elem::String, lande::Bool=false) = apply
 Applies the form factor correction to the structure factor `sf`. See `form_fractor`
 for more details.
 """
-function apply_form_factor(sf::StructureFactor, elem::String, lande::Bool=false)
-    res = similar(sf.sfactor)
-    apply_form_factor!(res, sf, elem, lande)
-    return res
-end
+# function apply_form_factor(sf::StructureFactor, elem::String, lande::Bool=false)
+#     res = similar(sf.sfactor)
+#     apply_form_factor!(res, sf, elem, lande)
+#     return res
+# end
 
 
 
