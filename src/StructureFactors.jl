@@ -117,8 +117,7 @@ function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
         end
     end
 
-    integrator_type = N == 0 ? SphericalMidpoint : SchrodingerMidpoint
-    integrator = integrator_type(sys)
+    integrator = ImplicitMidpoint(sys)
     plan = plan_spintraj_fft!(spin_ft)
 
     StructureFactor{typeof(sfactor), typeof(bz_buf)}(
@@ -706,7 +705,7 @@ Additional references are:
  * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
  * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
 """
-function calculate_form(q::Float64, params::FormFactorParams)
+function compute_form(q::Float64, params::FormFactorParams)
     s = q/4π
 
     # J0 correction
@@ -729,7 +728,8 @@ end
 Precalculates the form factor corrections so they can be applied
 simply and quickly by broadcasting in the structure factor loop.
 This approach is a bit wasteful of memory, but it's easy and avoids
-the need to manually write out optimal loops.
+the need to manually write out optimal loops. (Could optimize this
+loop, but it's only called once.)
 =#
 function ff_mask(sys::SpinSystem, num_omegas::Int)
     latdims = sys.lattice.size 
@@ -743,7 +743,7 @@ function ff_mask(sys::SpinSystem, num_omegas::Int)
         if !isnothing(ff_params)
             for k in 1:latdims[3], j in 1:latdims[2], i in 1:latdims[1]
                 q = 2π .* (qa[i], qb[j], qc[k]) ./ latdims
-                mask[:, i, j, k, b, :] .= calculate_form(norm(q), ff_params)
+                mask[:, i, j, k, b, :] .= compute_form(norm(q), ff_params)
             end
         end
     end

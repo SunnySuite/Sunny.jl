@@ -69,11 +69,11 @@ end
 """
     SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0, ff_elem=nothing, ff_lande=nothing)
 
-Characterizes the degree of freedom located at a given `site` index with three 
-pieces of information: N (as in SU(N)), characterizing the complex dimension of the
+Characterizes the degree of freedom located at a given `site` index. 
+`N` (as in SU(N)), specifies the complex dimension of the
 generalized spins (where N=0 corresponds to traditional, three-component, real
-classical spins); a g-tensor, `g`; and an overall scaling factor for the spin
-magnitude, `spin_rescaling`. When provided to a `SpinSystem`, this information is automatically
+classical spins). `g` is the g-tensor. `spin_rescaling` is an overall scaling factor for the spin
+magnitude. When provided to a `SpinSystem`, this information is automatically
 propagated to all symmetry-equivalent sites. An error will be thrown if multiple
 SiteInfos are given for symmetry-equivalent sites.
 
@@ -81,9 +81,9 @@ In order to calculate form factor corrections, `ff_elem` must be given a valid a
 specifying a magnetic ion. A list of valid names is provided in tables available
 at: https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html . To calculate second-order form
 factor corrections, it is also necessary to provide a Lande g-factor (as a numerical
-value) to `ff_lande`. For example: `SiteInfo(1; ff_elem="Fe2", ff_lande=3/2`. Note that
+value) to `ff_lande`. For example: `SiteInfo(1; ff_elem="Fe2", ff_lande=3/2)`. Note that
 for the form factor to be calculated, these keywords must be given values for all
-unique sites in the unit cell. Please see the documentation to `calculate_form` for more
+unique sites in the unit cell. Please see the documentation to `compute_form` for more
 information on the form factor calculation.
     
 NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverted
