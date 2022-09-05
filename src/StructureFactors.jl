@@ -277,9 +277,9 @@ function apply_dipole_factor(struct_factor::OffsetArray{ComplexF64}, lattice::La
 end
 
 """
-    dynamic_structure_factor(sys, sampler; nsamples=10, dt=0.01, meas_period=10,
-                             num_omegas=100, bz_size, thermalize=10, reduce_basis=true,
-                             verbose=false)
+    dynamic_structure_factor(sys::SpinSystem, sampler::S;
+        nsamples::Int=10, thermalize::Int=10, dt::Float64=0.01, num_omegas::Int=100, omega_max=nothing, 
+        bz_size=(1,1,1), reduce_basis::Bool=true, dipole_factor::Bool=false, verbose::Bool=false)
 
 Measures the full dynamic structure factor tensor of a spin system, for the requested range
 of 𝐪-space and range of frequencies ω. Returns ``𝒮^{αβ}(𝐪, ω) = ⟨S^α(𝐪, ω) S^β(𝐪, ω)^∗⟩``,
@@ -297,10 +297,9 @@ where `B = nbasis(sys)` is the number of basis sites in the unit cell.
  `thermalize` times before any measurements are made.
 
 The maximum frequency sampled is `ωmax = 2π / (dt * meas_period)`, and the frequency resolution
- is set by `num_omegas` (the number of spin snapshots measured during dynamics). However, beyond
- increasing the resolution, `num_omegas` will also make all frequencies become more accurate. Note
- that `meas_period` is determined automatically by Sunny based on what the user assigns to `dt` and
- `omega_max`. If no value is given to `omega_max`, `meas_period` is set to 1.
+ is set by `num_omegas` (the number of spin snapshots measured during dynamics). `num_omegas` defaults
+ to 100. Note that `meas_period` is determined automatically by Sunny based on what the user
+ assigns to `dt` and `omega_max`. If no value is given to `omega_max`, `meas_period` is set to 1.
 
 Indexing the result at `(α, β, q1, ..., qd, w)` gives ``S^{αβ}(𝐪, ω)`` at
     `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, and `ω = maxω * w / T`, where `a⃰, b⃰, c⃰`
@@ -321,7 +320,7 @@ function dynamic_structure_factor(
 ) where {S <: AbstractSampler}
 
     if isnothing(omega_max)
-        meas_period = 10    # Reduce maximum resolved energy (determined by dt) by factor of 10 if no cutoff specified
+        meas_period = 1    # If no maximum frequency is specified, don't downsample. 
     else
         @assert π/dt > omega_max "Maximum ω with chosen step size is $(π/dt). Please choose smaller dt or larger omega_max."
         meas_period = floor(Int, π/(dt * omega_max))
@@ -353,7 +352,7 @@ function dynamic_structure_factor(
 end
 
 """
-    static_structure_factor(sys, sampler; nsamples, dt, bz_size, thermalize, verbose)
+    static_structure_factor(sys, sampler; nsamples, bz_size, thermalize, verbose)
 
 Measures the static structure factor tensor of a spin system, for the requested range
 of 𝐪-space. Returns ``𝒮^{αβ}(𝐪) = ⟨S^α(𝐪) S^β(𝐪)^∗⟩``,
