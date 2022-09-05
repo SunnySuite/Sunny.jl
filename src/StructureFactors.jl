@@ -813,8 +813,6 @@ function sf_slice(sf::StructureFactor, points::Vector;
     interp_method = BSpline(Linear(Periodic())),
     interp_scale = 1, return_idcs=false,
 )
-    # Returns a function that takes ps and ωs, returns the correct Indexing
-    # based on type of structure factor.
     function slice_indexer_func(sf::StructureFactor)
         if sf.reduce_basis
             if sf.dipole_factor
@@ -890,6 +888,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
     ωs = omega_labels(sf)
     dims = size(sfdata)[q_idcs(sf)]
 
+    # Scaling information for interpolation
     q_bounds = [(first(qs), last(qs)) for qs in q_vals] # Upper and lower bounds in momentum space (depends on number of BZs)
     q_dens = [dims[i]/(2bounds[2]) for (i, bounds) in enumerate(q_bounds)] # Discrete steps per unit distance in momentum space
     q_scales = [range(bounds..., length=dims[i]) for (i, bounds) in enumerate(q_bounds)] # Values for scaled interpolation
