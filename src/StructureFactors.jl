@@ -15,7 +15,10 @@
     StructureFactor
 
 Type responsible for computing and updating the static/dynamic structure factor
-averaged across multiple spin configurations.
+averaged across multiple spin configurations. In general, the user should not
+create a StructureFactor directly, but instead use the interfaces
+`static_structure_factor` and `dynamic_structure_factor` to have Sunny build one
+for you.
 
 Note that the initial `sys` provided does _not_ enter the structure factor,
 it is purely used to determine the size of various results.
@@ -34,12 +37,12 @@ of the system supercell.
 Allowed values for the `qi` indices lie in `-div(Qi, 2):div(Qi, 2, RoundUp)`, and allowed
  values for the `w` index lie in `0:T-1`.
 
-The maximum frequency captured by the calculation is set with the keyword
-`omega_max``. `omega_max`` must be set to a value equal to, or smaller than, 2π/dt, where dt is the 
-time step chosen for the dynamics. If no value is given, `omega_max`` will be taken as 2π/dt.
+`meas_period` determines how many steps to skip between measurements of dynamical trajectories
+and is set to 1 by default. It determines the maximum resolved frequency, which is 2π/(meas_rate*dt).
 The total number of resolved frequencies is set with `num_omegas` (the number of spin
 snapshots measured during dynamics). By default, `num_omegas=1`, and the static structure
-factor is computed. 
+factor is computed. Note also that that `meas_rate` has no meaning for a static structure
+factor and is ignored.
 
 Setting `reduce_basis` performs the phase-weighted sums over the basis/sublattice
 indices, resulting in a size `[3, 3, Q1, Q2, Q3, T]` array.
@@ -68,14 +71,8 @@ Base.summary(io::IO, sf::StructureFactor) = string("StructureFactor: ", summary(
 
 function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
                          dipole_factor=false, dt::Float64=0.01,
-                         num_omegas::Int=100, omega_max=nothing,) where N
+                         num_omegas::Int=1, meas_period::Int=1,) where N
 
-    if isnothing(omega_max)
-        meas_period = 10
-    else
-        @assert π/dt > omega_max "Maximum ω with chosen step size is $(π/dt). Please choose smaller dt or larger omega_max."
-        meas_period = floor(Int, π/(dt * omega_max))
-    end
     nb = nbasis(sys.lattice)
     spat_size = size(sys)[1:3]
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
@@ -323,8 +320,15 @@ function dynamic_structure_factor(
     omega_max=nothing, verbose::Bool=false
 ) where {S <: AbstractSampler}
 
+    if isnothing(omega_max)
+        meas_period = 10    # Reduce maximum resolved energy (determined by dt) by factor of 10 if no cutoff specified
+    else
+        @assert π/dt > omega_max "Maximum ω with chosen step size is $(π/dt). Please choose smaller dt or larger omega_max."
+        meas_period = floor(Int, π/(dt * omega_max))
+    end
+
     sf  = StructureFactor(sys;
-        dt, num_omegas, omega_max, bz_size, reduce_basis, dipole_factor
+        dt, num_omegas, meas_period, bz_size, reduce_basis, dipole_factor
     )
 
     if verbose
@@ -349,8 +353,7 @@ function dynamic_structure_factor(
 end
 
 """
-    static_structure_factor(sys, sampler; nsamples, dt, meas_period, num_omegas
-                                          bz_size, thermalize, verbose)
+    static_structure_factor(sys, sampler; nsamples, dt, bz_size, thermalize, verbose)
 
 Measures the static structure factor tensor of a spin system, for the requested range
 of 𝐪-space. Returns ``𝒮^{αβ}(𝐪) = ⟨S^α(𝐪) S^β(𝐪)^∗⟩``,
@@ -358,10 +361,8 @@ which is an array of shape `[3, 3, Q1, ..., Qd]` where `Qi = max(1, bz_size_i * 
 By default, `bz_size=ones(d)`.
 
 `nsamples` sets the number of thermodynamic samples to measure and average
- across from `sampler`. `dt` sets the integrator timestep during dynamics,
- and `meas_period` sets how many timesteps are performed between recording snapshots.
- `num_omegas` sets the total number snapshots taken. The sampler is thermalized by sampling
- `thermalize` times before any measurements are made.
+ across from `sampler`. `dt` sets the integrator timestep during dynamics.
+ The sampler is thermalized by sampling `thermalize` times before any measurements are made.
 
 Indexing the result at `(α, β, q1, ..., qd)` gives ``𝒮^{αβ}(𝐪)`` at
     `𝐪 = q1 * a⃰ + q2 * b⃰ + q3 * c⃰`, where `a⃰, b⃰, c⃰`
