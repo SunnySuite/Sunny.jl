@@ -85,7 +85,10 @@ function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
 
     spin_ft = zeros(ComplexF64, 3, spat_size..., nb, num_omegas)
 
-    # Requiring that form factor data be available for all sites, so only check one
+    # Precompute form factor corrections if form factor information is available.
+    # Note that Sunny requires that form factor data be available for all sites if the
+    # correction is to be applied, so it is only necessary to check if the information
+    # is available on one site. 
     ff_correction = !isnothing(sys.site_infos[1].ff_params) ? ff_mask(sys, num_omegas) : nothing
 
     if reduce_basis
@@ -321,8 +324,6 @@ function dynamic_structure_factor(
     omega_max=nothing, verbose::Bool=false
 ) where {S <: AbstractSampler}
 
-    # Precalculate form factor if applicable.
-    
     sf  = StructureFactor(sys;
         dt, num_omegas, omega_max, bz_size, reduce_basis, dipole_factor
     )
@@ -508,7 +509,7 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
     fill!(res, 0.0)
     for q_idx in CartesianIndices(axes(res)[2:4])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
-        wrap_q_idx = modc(q_idx, spat_size) + one(CartesianIndex{3})
+        wrap_q_idx = modc(q_idx, spat_size) + oneunit(q_idx)
         for (b_idx, b) in enumerate(lattice.basis_vecs)
             phase = exp(-im * (b ⋅ q))
             # Note: Lots of allocations here. Fix?
@@ -654,15 +655,20 @@ end
 #========== Form factor ==========#
 
 """ 
-    form_factor(q::Vector{Float64}, elem::String, lande::Bool=false)
+    compute_form(q::Vector{Float64}, params::FormFactorParams)
 
-Compute the form factors for a list of momentum space magnitudes `q`, measured
+**NOTE**: _This is an internal function which the user will likely never call directly.
+It will be called during structure factor calculations if form factor information
+is specified in the `SiteInfo`s for your model. See the documentation for `SiteInfo`
+for details about specifying form factor information. For details about the
+calculation, see below._
+
+Computes the form factor for a momentum space magnitude `q`, measured
 in inverse angstroms. The result is dependent on the magnetic ion species,
-`elem`. By default, a first order form factor ``f`` is returned. If `lande=true`
-is set, and `elem` is suitable, then a second order form factor ``F`` is
-returned. The form factor accounts for the fact that the magnetic moments are
-perfectly localized at a point, but instead have some spread.
-        
+specified with the `ff_elem` keyword of `SiteInfo`. By default, a first order
+form factor ``f`` is returned. If the SiteInfo keyword `ff_lande` is given
+a numerical value, then a second order form factor ``F`` is returned.
+
 It is traditional to define the form factors using a sum of Gaussian broadening
 functions in the scalar variable ``s = q/4π``, where ``q`` can be interpreted as
 the magnitude of momentum transfer.
@@ -722,7 +728,8 @@ end
 #=
 Precalculates the form factor corrections so they can be applied
 simply and quickly by broadcasting in the structure factor loop.
-This approach is a bit wasteful of memory, but it's easy. 
+This approach is a bit wasteful of memory, but it's easy and avoids
+the need to manually write out optimal loops.
 =#
 function ff_mask(sys::SpinSystem, num_omegas::Int)
     latdims = sys.lattice.size 
@@ -745,54 +752,6 @@ function ff_mask(sys::SpinSystem, num_omegas::Int)
 end
 
 q_idcs(sf::StructureFactor) = sf.dipole_factor ? (1:3) : (3:5)
-
-## Need to figure out nicer way of doing multiple slices, the index of which
-## depend on the type of structure factor calculation. Probably can right some
-## tuple-building function.
-function apply_form_factor!(res::OffsetArray, sf::StructureFactor, elem::String, lande::Bool=false)
-    axs = axes(sf.sfactor)[q_idcs(sf)]
-    qs = [norm(2π .* i.I ./ sf.lattice.size) for i in CartesianIndices(axs)]
-    ff = form_factor(qs, elem, lande) 
-
-    @inbounds if sf.reduce_basis
-        if sf.dipole_factor
-            for i in CartesianIndices(axs)
-                @. res[i, :] = @views sf.sfactor[i, :] * ff[i]
-            end
-        else
-            for i in CartesianIndices(axs)
-                @. res[:, :, i, :] = @views sf.sfactor[:, :, i, :] * ff[i]
-            end
-        end
-    else
-        if sf.dipole_factor
-            for i in CartesianIndices(axs)
-                @. res[i, :, :, :] = @views sf.sfactor[i, :, :, :] * ff[i]
-            end
-        else
-            for i in CartesianIndices(axs)
-                @. res[:, :, i, :, :, :] = @views sf.sfactor[:, :, i, :, :, :] * ff[i]
-            end
-        end
-    end
-
-    nothing
-end
-
-# apply_form_factor!(sf::StructureFactor, elem::String, lande::Bool=false) = apply_form_factor!(sf.sfactor, sf, elem, lande)
-
-@doc raw"""
-    apply_form_factor(sf::StructureFactor, elem::String, lande::Bool=false)
-
-Applies the form factor correction to the structure factor `sf`. See `form_fractor`
-for more details.
-"""
-# function apply_form_factor(sf::StructureFactor, elem::String, lande::Bool=false)
-#     res = similar(sf.sfactor)
-#     apply_form_factor!(res, sf, elem, lande)
-#     return res
-# end
-
 
 
 #========== Structure factor slices ==========#

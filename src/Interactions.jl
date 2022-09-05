@@ -76,6 +76,15 @@ classical spins); a g-tensor, `g`; and an overall scaling factor for the spin
 magnitude, `spin_rescaling`. When provided to a `SpinSystem`, this information is automatically
 propagated to all symmetry-equivalent sites. An error will be thrown if multiple
 SiteInfos are given for symmetry-equivalent sites.
+
+In order to calculate form factor corrections, `ff_elem` must be given a valid argument
+specifying a magnetic ion. A list of valid names is provided in tables available
+at: https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html . To calculate second-order form
+factor corrections, it is also necessary to provide a Lande g-factor (as a numerical
+value) to `ff_lande`. For example: `SiteInfo(1; ff_elem="Fe2", ff_lande=3/2`. Note that
+for the form factor to be calculated, these keywords must be given values for all
+unique sites in the unit cell. Please see the documentation to `calculate_form` for more
+information on the form factor calculation.
     
 NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverted
 to the largest specified `N`.
