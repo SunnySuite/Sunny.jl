@@ -751,11 +751,10 @@ function ff_mask(sys::SpinSystem, num_omegas::Int)
     return mask
 end
 
-q_idcs(sf::StructureFactor) = sf.dipole_factor ? (1:3) : (3:5)
 
 
 #========== Structure factor slices ==========#
-
+q_idcs(sf::StructureFactor) = sf.dipole_factor ? (1:3) : (3:5)
 @doc raw"""
     q_labels(sf::StructureFactor)
 
@@ -814,6 +813,46 @@ function sf_slice(sf::StructureFactor, points::Vector;
     interp_method = BSpline(Linear(Periodic())),
     interp_scale = 1, return_idcs=false,
 )
+    # Returns a function that takes ps and ωs, returns the correct Indexing
+    # based on type of structure factor.
+    function slice_indexer_func(sf::StructureFactor)
+        if sf.reduce_basis
+            if sf.dipole_factor
+                indexer = (x, y) -> (x, y) 
+            else
+                indexer = (x, y) -> (1:3, 1:3, x, y)
+            end
+        else
+            if sf.dipole_factor
+                nb = size(sf.sfactor, 4)
+                indexer = (x, y) -> (x, 1:nb, 1:nb, y) 
+            else
+                nb = size(sf.sfactor, 6)
+                indexer = (x, y) -> (1:3, 1:3, x, 1:nb, 1:nb, y)
+            end
+        end
+        indexer
+    end
+    
+    function sf_indexer_func(sf::StructureFactor)
+        if sf.reduce_basis
+            if sf.dipole_factor
+                indexer = (q1, q2, q3, y) -> (q1, q2, q3, y) 
+            else
+                indexer = (q1, q2, q3, y) -> (1:3, 1:3, q1, q2, q3, y)
+            end
+        else
+            if sf.dipole_factor
+                nb = size(sf.sfactor, 4)
+                indexer = (q1, q2, q3, y) -> (q1, q2, q3, 1:nb, 1:nb, y) 
+            else
+                nb = size(sf.sfactor, 6)
+                indexer = (q1, q2, q3, y) -> (1:3, 1:3, q1, q2, q3, 1:nb, 1:nb, y)
+            end
+        end
+        indexer
+    end
+
     function wrap(val::Float64, bounds::Tuple{Float64, Float64})
         offset = bounds[1]
         bound′ = bounds[2] - offset 
@@ -838,11 +877,11 @@ function sf_slice(sf::StructureFactor, points::Vector;
 
         # Periodically wrap coordinates that exceed that contained in the SF
         return map(ps) do p
-            (wrap(p[i], bounds[i]) for i in 1:3)
+            [wrap(p[i], bounds[i]) for i in 1:3]
         end
     end
 
-    @assert length(size(sf.sfactor)) == 4 "Currently can only take slices from structures factors with reduced basis and dipole_factors"
+    # @assert length(size(sf.sfactor)) == 4 "Currently can only take slices from structures factors with reduced basis and dipole_factors"
     sfdata = parent(sf.sfactor)
     points = Vec3.(points) # Convert to uniform type
 
@@ -857,27 +896,36 @@ function sf_slice(sf::StructureFactor, points::Vector;
     ω_scale = range(first(ωs), last(ωs), length=length(ωs))
 
     # Create interpolant
+    slice_idx = slice_indexer_func(sf)
+    sf_idx = sf_indexer_func(sf)
     itp = interpolate(sfdata, interp_method)
-    sitp = scale(itp, q_scales..., ω_scale)
+    sitp = scale(itp, indexer2(q_scales..., ω_scale)...)
 
     # Pull each partial slice (each leg of the cut) from interpolant
     slices = []
     for i in 1:length(points)-1
         ps = path_points(points[i], points[i+1], q_dens, q_bounds; interp_scale)
-        slice = zeros(eltype(sf.sfactor), length(ps), length(ωs))
+        dims = map(maximum, slice_idx(length(ps), length(ωs)))
+        slice = zeros(eltype(sf.sfactor), dims...)
         for (i, p) in enumerate(ps)
-            slice[i,:] = sitp(p..., ωs)
+            slice[slice_idx(i,:)...] = sitp(sf_idx(p..., ωs)...)
         end
-        push!(slices, i > 1 ? slice[2:end,:] : slice) # Avoid repeated points
+        push!(slices, i > 1 ? slice[slice_idx(2:length(ps),:)...] : slice) # Avoid repeated points
     end
 
     # Stitch slices together
-    slice_dims = [size(slice, 1) for slice in slices]
+    q_idx = sf.dipole_factor ? 1 : 3
+    slice_dims = [size(slice, q_idx) for slice in slices]
     idcs = [1]
     for (i, dim) in enumerate(slice_dims[1:end])
         push!(idcs, idcs[i] + dim)
     end
-    slice = OffsetArray(vcat(slices...), Origin(1, ωs.offsets[1] + 1))
+
+    # Set up offsets
+    numones = 5
+    (sf.reduce_basis) && (numones -= 2)
+    (sf.dipole_factor) && (numones -= 2)
+    slice = OffsetArray(cat(slices...; dims=q_idx), Origin(ones(numones)..., ωs.offsets[1] + 1))
 
     return_idcs && (return (; slice, idcs))
     return slice
