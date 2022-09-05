@@ -899,7 +899,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
     slice_idx = slice_indexer_func(sf)
     sf_idx = sf_indexer_func(sf)
     itp = interpolate(sfdata, interp_method)
-    sitp = scale(itp, indexer2(q_scales..., ω_scale)...)
+    sitp = scale(itp, sf_idx(q_scales..., ω_scale)...)
 
     # Pull each partial slice (each leg of the cut) from interpolant
     slices = []
