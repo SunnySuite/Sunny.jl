@@ -851,6 +851,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
         indexer
     end
 
+    # Periodically wrap value within interval specified by bounds
     function wrap(val::Float64, bounds::Tuple{Float64, Float64})
         offset = bounds[1]
         bound′ = bounds[2] - offset 
@@ -861,6 +862,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
         return  remainder < 1e-12 ? bounds[2] : remainder + offset
     end
 
+    # Sample a series of points on a line between p1 and p2
     function path_points(p1::Vec3, p2::Vec3, densities, bounds; interp_scale=1)
         v = p2 - p1
         steps_coords = v .* densities # Convert continuous distances into number of discrete steps
@@ -879,7 +881,6 @@ function sf_slice(sf::StructureFactor, points::Vector;
         end
     end
 
-    # @assert length(size(sf.sfactor)) == 4 "Currently can only take slices from structures factors with reduced basis and dipole_factors"
     sfdata = parent(sf.sfactor)
     points = Vec3.(points) # Convert to uniform type
 
