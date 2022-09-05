@@ -19,9 +19,7 @@ function test_diamond_heisenberg_sf()
     ]
     dims = (8, 8, 8)
     spin_rescaling = 3/2
-    ff_elem = "Fe2"
-    # ff_elem = nothing 
-    sys = SpinSystem(crystal, interactions, dims, [SiteInfo(1; spin_rescaling, ff_elem, ff_lande=5/2)])
+    sys = SpinSystem(crystal, interactions, dims, [SiteInfo(1; spin_rescaling)])
     rand!(sys)
 
     Δt = 0.02 / (spin_rescaling^2 * J)     # Units of 1/meV
@@ -36,7 +34,7 @@ function test_diamond_heisenberg_sf()
                            # from trajectories as much as possible while staying above this limit. 
     num_omegas = 200       # Total number of frequencies we'd like to resolve
     dynsf = dynamic_structure_factor(
-        sys, sampler; nsamples=2, dt = dynΔt, omega_max, num_omegas,
+        sys, sampler; nsamples=10, dt = dynΔt, omega_max, num_omegas,
         bz_size=(1,1,2), thermalize=10, verbose=true,
         reduce_basis=true, dipole_factor=true,
     )

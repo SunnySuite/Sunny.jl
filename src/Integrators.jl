@@ -87,16 +87,21 @@ function SphericalMidpoint(sys::SpinSystem{N}; atol=1e-12) where N
     SchrodingerMidpoint(sys)
 end
 
+@doc raw"""
+    ImplicitMidpoint(sys::SpinSystem{N}; atol=1e-12) where N
 
+Returns an implicit midpoint integrator for any type of `SpinSystem{N}`. If
+`N=0`, it returns a `SphericalMidpoint` integrator, otherwise a `SchrodingerMidpoint`
+integrator. Both integrators are sympletic, i.e. they guarantee that the error
+in the system's energy is bounded.
+
+For dissipative dynamics in a themal bath, use the `LangevinHeunP` integrator.
 """
-    LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64)
+function ImplicitMidpoint(sys::SpinSystem{N}; atol=1e-12) where N
+    N == 0 ? SphericalMidpoint(sys; atol) : SchrodingerMidpoint(sys)
+end
 
-Implements Langevin dynamics on `sys` targeting a temperature `kT`, with a
-damping coefficient `α`. This integrator is only for Generalized Spin Dynamics.
-If sys has type `SpinSystem{0}`, will revert to the `LangevinHeunP` integrator.
 
-Uses the 2nd-order Heun + projection scheme."
-"""
 mutable struct LangevinHeunPSUN{N} <: LangevinIntegrator
     kT    :: Float64
     α     :: Float64
@@ -110,6 +115,15 @@ mutable struct LangevinHeunPSUN{N} <: LangevinIntegrator
     _ℌ    :: Matrix{ComplexF64}  # Just a buffer
 end
 
+"""
+    LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64)
+
+Implements Langevin dynamics on `sys` targeting a temperature `kT`, with a
+damping coefficient `α`. This integrator is only for Generalized Spin Dynamics.
+If sys has type `SpinSystem{0}`, will revert to the `LangevinHeunP` integrator.
+
+Uses the 2nd-order Heun + projection scheme."
+"""
 function LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64) where N
     LangevinHeunPSUN{N}(
         kT, α, sys,
