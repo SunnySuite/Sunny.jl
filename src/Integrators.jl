@@ -83,20 +83,27 @@ mutable struct SphericalMidpoint <: Integrator
 end
 
 function SphericalMidpoint(sys::SpinSystem{N}; atol=1e-12) where N
-    @warn "SphericalMidpoint integrator is not available for SU(N) systems. Using SchrodingerMidpoint integrator."
-    SchrodingerMidpoint(sys)
+    @error "SphericalMidpoint integrator is not available for SU(N) systems. Use ImplicitMidpoint integrator."
+    nothing
+end
+
+@doc raw"""
+    ImplicitMidpoint(sys::SpinSystem{N}) where N
+
+Returns an implicit midpoint integrator a `SpinSystem{N}`, where N may be any integer. If
+`N=0` (traditional Landua-Lifshitz), it returns a `SphericalMidpoint` integrator,
+otherwise a `SchrodingerMidpoint` integrator. Both integrators are sympletic, i.e. they
+guarantee that energy error is bounded.
+
+For dissipative dynamics in a themal bath, use the `LangevinHeunP` integrator.
+"""
+# Not exposing atol option here. If user wants to fiddle with the tolerance, they'LL
+# have to use the actual integrator interface (i.e., SchrodingerMidpoint or SphericalMidpoint.)
+function ImplicitMidpoint(sys::SpinSystem{N}) where N
+    N == 0 ? SphericalMidpoint(sys) : SchrodingerMidpoint(sys)
 end
 
 
-"""
-    LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64)
-
-Implements Langevin dynamics on `sys` targeting a temperature `kT`, with a
-damping coefficient `α`. This integrator is only for Generalized Spin Dynamics.
-If sys has type `SpinSystem{0}`, will revert to the `LangevinHeunP` integrator.
-
-Uses the 2nd-order Heun + projection scheme."
-"""
 mutable struct LangevinHeunPSUN{N} <: LangevinIntegrator
     kT    :: Float64
     α     :: Float64
@@ -110,6 +117,15 @@ mutable struct LangevinHeunPSUN{N} <: LangevinIntegrator
     _ℌ    :: Matrix{ComplexF64}  # Just a buffer
 end
 
+"""
+    LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64)
+
+Implements Langevin dynamics on `sys` targeting a temperature `kT`, with a
+damping coefficient `α`. This integrator is only for Generalized Spin Dynamics.
+If sys has type `SpinSystem{0}`, will revert to the `LangevinHeunP` integrator.
+
+Uses the 2nd-order Heun + projection scheme."
+"""
 function LangevinHeunPSUN(sys::SpinSystem{N}, kT::Float64, α::Float64) where N
     LangevinHeunPSUN{N}(
         kT, α, sys,
@@ -141,22 +157,23 @@ mutable struct SchrodingerMidpoint{N} <: Integrator
     _Z′  :: Array{CVec{N}, 4}
     _Z″  :: Array{CVec{N}, 4}
     _B   :: Array{Vec3, 4}
-    _ℌ    :: Matrix{ComplexF64}  # Just a buffer
+    _ℌ   :: Matrix{ComplexF64}  # Just a buffer
+    atol :: Float64
 end
 
-function SchrodingerMidpoint(sys::SpinSystem{N}) where N
+function SchrodingerMidpoint(sys::SpinSystem{N}; atol=1e-14) where N
     SchrodingerMidpoint{N}(
         sys, 
         zero(sys._coherents), zero(sys._coherents),
         zero(sys._coherents), zero(sys._coherents),
         zero(sys._coherents), zero(sys._dipoles),
-        zeros(ComplexF64, (N,N))
+        zeros(ComplexF64, (N,N)), atol
     )
 end
 
-function SchrodingerMidpoint(sys::SpinSystem{0})
-    @warn "SchrodingerMidpoint integration is only available for SU(N) systems. Using SphericalMidpoint integrator."
-    SphericalMidpoint(sys)
+function SchrodingerMidpoint(sys::SpinSystem{0}; atol=1e-14)
+    @error "SchrodingerMidpoint integration is only available for SU(N) systems. Use ImplicitMidpoint integrator."
+    nothing
 end
 
 
@@ -378,8 +395,8 @@ function evolve!(integrator::LangevinHeunPSUN, Δt::Float64)
 end
 
 
-function evolve!(integrator::SchrodingerMidpoint, Δt::Float64; tol=1e-14, max_iters=100)
-    (; sys, _ΔZ, _Zb, _Z′, _Z″) = integrator
+function evolve!(integrator::SchrodingerMidpoint, Δt::Float64; max_iters=100)
+    (; sys, _ΔZ, _Zb, _Z′, _Z″, atol) = integrator
     Z = sys._coherents
 
     @. _Z′ = Z 
@@ -392,7 +409,7 @@ function evolve!(integrator::SchrodingerMidpoint, Δt::Float64; tol=1e-14, max_i
 
         @. _Z″ = Z + _ΔZ
 
-        if norm(_Z′ - _Z″) < tol    # NOTE: This causes allocations.
+        if norm(_Z′ - _Z″) < atol    # NOTE: This causes allocations.
             @. Z = _Z″
             set_expected_spins!(sys)
             return
