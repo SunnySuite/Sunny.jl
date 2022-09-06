@@ -170,7 +170,7 @@ function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
 
     specified_atoms = Int[]
     for siteinfo in site_infos
-        (; site, N, g, spin_rescaling) = siteinfo
+        (; site, N, g, spin_rescaling, ff_params) = siteinfo
         if N != maxN
             @warn "Up-converting N=$N -> N=$maxN on site $(site)!"
         end
@@ -185,7 +185,15 @@ function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
                 push!(specified_atoms, sym_atom)
             end
 
-            all_site_infos[sym_atom] = SiteInfo(sym_atom; N = maxN, g = sym_g, spin_rescaling)
+            # all_site_infos[sym_atom] = SiteInfo(sym_atom; N = maxN, g = sym_g, spin_rescaling, ff_params)
+            all_site_infos[sym_atom] = SiteInfo(sym_atom, maxN, sym_g, spin_rescaling, ff_params)
+        end
+    end
+
+    with_ff = filter(si -> !isnothing(si.ff_params), all_site_infos)
+    if length(with_ff) > 0
+        if length(with_ff) != length(all_site_infos)
+            @error "Form factor calculations require that the magnetic ion be specified for all unique lattice sites. Please provide a SiteInfo with an explicit ff_elem for all unique sites or for none at all"
         end
     end
 

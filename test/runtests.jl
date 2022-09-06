@@ -74,4 +74,5 @@ end
     addtests("test_dynamics.jl")
     addtests("test_langevin.jl")
     addtests("test_spin_scaling.jl")
+    addtests("test_structure_factors.jl")
 end
