@@ -86,7 +86,7 @@ export running_energy, running_mag, reset_running_energy!, reset_running_mag!
 
 include("Integrators.jl")
 export HeunP, LangevinHeunP, SphericalMidpoint, evolve!
-export LangevinHeunPSUN, SchrodingerMidpoint
+export LangevinHeunPSUN, SchrodingerMidpoint, ImplicitMidpoint
 export LangevinSampler
 
 include("StructureFactors.jl")
