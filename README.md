@@ -31,10 +31,10 @@ A defining feature of Sunny is its support for generalized SU(_N_) spin dynamics
 
 Sunny is implemented in the [Julia programming language](https://julialang.org/). New Julia users may wish to start with our [Getting Started](GettingStarted.md) guide.
 
-From the Julia prompt, one can install Sunny using the built-in package manager. We currently recommend tracking the main branch:
+From the Julia prompt, one can install Sunny using the built-in package manager:
 ```
 julia> ]
-pkg> add Sunny#main
+pkg> add Sunny
 ```
 
 Check that Sunny is working properly by running the unit tests: `pkg> test Sunny`. Please keep up-to-date by periodically running the Julia update command: `pkg> update`.
