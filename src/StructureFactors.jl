@@ -322,7 +322,7 @@ function dynamic_structure_factor(
     if isnothing(omega_max)
         meas_period = 1    # If no maximum frequency is specified, don't downsample. 
     else
-        @assert π/dt > omega_max "Maximum ω with chosen step size is $(π/dt). Please choose smaller dt or larger omega_max."
+        @assert π/dt > omega_max "Maximum ω with chosen step size is $(π/dt). Please choose smaller dt or change omega_max."
         meas_period = floor(Int, π/(dt * omega_max))
     end
 
