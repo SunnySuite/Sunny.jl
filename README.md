@@ -25,7 +25,7 @@ A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves u
 
 ## Comparison with other tools
 
-A defining feature of Sunny is its support for generalized SU(_N_) spin dynamics. As a special case, however, Sunny can be restricted to the dipole-only approximation of spin. In this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/). A key difference is that Sunny does not (currently) employ linear spin wave theory. Advantages are: (1) Applicability to finite temperature measurements and (2) Support for single-ion anisotropies beyond quadratic order.   A disadvantage is that structure factor measurements $\mathcal S(q,\omega)$ have momentum-space ($q$) resolution that is limited by the size of magnetic super cell.
+A defining feature of Sunny is its support for generalized SU(_N_) spin dynamics. Sunny can also be restricted to the dipole-only approximation of spin. When running in this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/). Advantages of Sunny are: (1) Support for finite temperature measurements, and (2) Support for single-ion anisotropies beyond quadratic order. A current **_disadvantage_** is that Sunny does not yet employ linear spin wave theory; this means that the $q$-space resolution of structure factor measurements $\mathcal{S}(q,\omega)$ is limited by the size of magnetic super cell. Sunny is also a newer project, and lacks some of the polish of SpinW.
 
 ## Installation
 
