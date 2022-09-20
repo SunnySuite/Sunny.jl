@@ -1,10 +1,10 @@
-# Getting started with Julia for users of  _Sunny_
+# Getting started with Julia for users of Sunny
 
 ## Julia basics
 
-The first step is to install [Julia](https://julialang.org/). Download the latest stable release (1.6 as of Sept 2021) appropriate to your system from the [downloads page](https://julialang.org/downloads/). Inside the package is a Julia executable `julia` which launches the Julia terminal. Follow the [platform specific instructions](https://julialang.org/downloads/platform/) to make the path to `julia` known to your system.
+You can download the latest stable release of [Julia](https://julialang.org/) from the [downloads page](https://julialang.org/downloads/). Advanced users may wish to first install [`juliaup`](https://github.com/JuliaLang/juliaup), which offers a convenient way to update Julia when new versions are released.
 
-Executing the command `julia` should bring you to a prompt like this:
+Once installed, execute the `julia` command, which should bring you to a prompt like this:
 
 ```
                _
@@ -12,7 +12,7 @@ Executing the command `julia` should bring you to a prompt like this:
   (_)     | (_) (_)    |
    _ _   _| |_  __ _   |  Type "?" for help, "]?" for Pkg help.
   | | | | | | |/ _` |  |
-  | | |_| | | | (_| |  |  Version 1.6.0 (2021-03-24)
+  | | |_| | | | (_| |  |  Version 1.8.0 (2022-08-17)
  _/ |\__'_|_|_|\__'_|  |  Official https://julialang.org/ release
 |__/                   |
 
@@ -26,9 +26,58 @@ julia> exp(π * im)
 ```
 which verifies Euler's identity `e^{π i} = -1` to floating point accuracy, `≈ 10^-16`.
 
-There are many resources online to learn Julia. To see some examples, there is [_Learn X in Y minutes, where X=Julia_](https://learnxinyminutes.com/docs/julia/) and the [Julia Cheat-sheet](https://juliadocs.github.io/Julia-Cheat-Sheet/). There is also the [official Julia documentation](https://docs.julialang.org/), but you don't need to be a Julia expert get started with Sunny.
+There are many resources to learn Julia. Quick tutorials are given in [_Learn X in Y minutes, where X=Julia_](https://learnxinyminutes.com/docs/julia/) and the [Julia Cheat-sheet](https://juliadocs.github.io/Julia-Cheat-Sheet/). There is also the [official Julia documentation](https://docs.julialang.org/), but you don't need to be a Julia expert get started with Sunny.
 
-Julia has built-in help. From the REPL, enter `?` to enter the help mode, and then enter a function or type name to get documentation. For example,
+
+## The built-in Julia package manager
+
+You may be familiar with package managers like `pip` and `anaconda` for Python. In Julia this functionality is built-in.
+
+At the Julia REPL, press the key `]` to enter the "package" mode:
+
+```
+(@v1.8) pkg> 
+```
+
+New packages can be added with the `add` command. To install Sunny, use:
+
+```
+pkg> add Sunny
+```
+
+It will be useful to install two plotting packages:
+```
+pkg> add Plots, GLMakie
+```
+
+Many other packages are available, and can be browsed at [JuliaHub](https://juliahub.com/ui/Packages).
+
+Type `help` to see a list of available commands in package mode. For example, to see the list of currently installed packages, enter `status`. Packages can be removed with the `remove` command, or updated with the `update` command.
+
+The [Backspace] key exits package mode.
+
+## Jupyter notebooks
+
+A common way to interact with Julia is through the Jupyter notebook interface. This can be installed via the IJulia package:
+
+```
+pkg> add IJulia
+```
+
+Now return to the REPL (using [Backspace]) and launch a Julia/Jupyter notebook using:
+```julia
+using IJulia
+notebook()
+```
+
+This command should launch Jupyter in a browser window, which provides an interface to open notebook files. One can download the [Sunny tutorial notebooks](https://github.com/SunnySuite/SunnyTutorials) as a single [zip file](https://github.com/SunnySuite/SunnyTutorials/archive/refs/heads/main.zip), and load them in the Jupyter window.
+
+**What to do if the Julia kernel is out of date**. After updating the Julia installation, it may be necessary to reinstall the Julia kernel files within Jupyter. To do so, enter the package mode and execute `pkg> build IJulia`.
+
+
+## Getting help
+
+Julia has built-in help. From the REPL, enter `?` to enter the help mode, and then enter a function or type name to get documentation. For example:
 ```
 help?> exp
 search: exp exp2 Expr expm1 exp10 export exponent expanduser ExponentialBackOff ldexp frexp nextpow
@@ -39,7 +88,9 @@ search: exp exp2 Expr expm1 exp10 export exponent expanduser ExponentialBackOff 
   ...
 ```
 
-Math symbols can be accessed with Latex-like notation. For example, typing `\pi` and then pressing Tab will produce `π`. If you see a unicode symbol that you don't know how to type, you can copy-paste it into the help prompt.
+Public functions of Sunny should be similarly documented.
+
+Math symbols can be accessed with Latex-like notation. For example, typing `\pi` and then pressing Tab will produce `π`. If you see a unicode symbol that you don't know how to type, you can copy-paste it into the help prompt:
 
 ```
 help?> ≈
@@ -49,133 +100,42 @@ help?> ≈
 
 Although Julia and Matlab have similar surface syntax, there are important differences between the two languages. One crucial thing to know is that simple "for loops" over scalars are _encouraged_ in Julia, and can be used to generate code with C++ or Fortran-like speed. Vectorized style is supported in Julia, but not necessary. Like Matlab and Fortran (but unlike Python or C++), Julia uses 1-based indexing by default, so `my_array[1]` is the first element of `my_array`.
 
-## The built-in Julia package manager
 
-You may be familiar with package managers like `pip` and `anaconda` for Python. In Julia this functionality is built in.
-
-At the Julia REPL, press the key `]` to enter the "package" mode. You will see that the prompt text changes:
-
-```
-(@v1.6) pkg> 
-```
-
-The text `@v1.6` indicates that you are now controlling the package "environment" that is used by default when running Julia version 1.6. Typing `help` will give a list of available commands. 
-
-New packages can be added with the `add` command. For example,
-```
-pkg> add LinearAlgebra
-pkg> add StaticArrays
-pkg> add OffsetArrays
-```
-adds three packages that will be useful for Sunny.
-
-There are a lot of interesting Julia packages available. You can browse the _registered_ packages at [juliapackages.com](https://juliapackages.com/), along with their documentation.
-
-Sunny is not yet a registered package, but you can add it directly from its Github URL,
-```
-pkg> dev https://github.com/MagSims/Sunny.jl
-```
-The `dev` command is like `add`, but also downloads the source code and allows you to make changes. On a Unix-based system such as Mac or Linux, this command will download the Sunny code into `~/.julia/dev/Sunny/`.
-
-You may be interested to browse around `~/.julia` to see what other files Julia created. The file `~/.julia/environments/v1.6/Project.toml` lists all the installed packages for the default Julia 1.6 environment. Another way to get similar information is to enter
-
-```
-pkg> status
-```
-
-Packages can be removed with the `remove` command, or updated with the `update` command.
-
-To leave the package manager and return to the Julia REPL, press the Backspace key.
-
-
-## Plotting
-
-The plotting ecosystem in Julia is still evolving rapidly. For simple tasks, the easiest place to start is [Plots](http://docs.juliaplots.org/latest/). Install it with
-
-```
-pkg> add Plots
-```
-
-Next, return to the REPL by pressing the Backspace key and then enter
-```julia
-using Plots
-# Build a linear array of numbers between [0.1, 20] with step size 0.1
-xs = 0.1:0.1:20
-# The 'dot' (broadcast) syntax applies the function to all array elements one-by-one
-plot(xs, sin.(xs) ./ xs) 
-```
-It might take about 20 seconds to bring up the plotting window.
-
-Sunny makes use of [Makie](https://github.com/JuliaPlots/Makie.jl) for its interactive 3D graphics. Install with
-```
-pkg> add GLMakie
-pkg> test GLMakie
-```
-There are still rough edges in Makie, so it's a good idea to check that these tests pass. As of Sept. 2021, one annoyance is that it time-to-first-plot is about a minute. Important progress will be made in [this refactoring](https://github.com/JuliaPlots/Makie.jl/pull/1085). Beware also some [longstanding bugs on Mac](https://github.com/JuliaPlots/Makie.jl/milestone/4).
-
-For making publication quality plots, it's hard to beat Matplotlib from Python. Some people use Makie. Other Julia options include [PGFPlotsX](https://github.com/KristofferC/PGFPlotsX.jl) (which generates Latex directly) and [VegaLite](https://github.com/queryverse/VegaLite.jl) (a Julia interface to the Javascript library [Vega-Lite](https://vega.github.io/vega-lite/)). There also exists a [Julia interface to Matplotlib](https://github.com/JuliaPy/PyPlot.jl), but it is probably easier to just use Matplot lib directly from Python.
-
-## Notebook environments
-
-Besides the REPL, another way to interact with Julia is through the Jupyter notebook interface, which may be familiar to Python users. One can integrate Julia with the Jupyter notebook system through the [IJulia](https://github.com/JuliaLang/IJulia.jl) package. Install it like usual from the package manager,
-
-```
-pkg> add IJulia
-```
-
-Launching a Julia/Jupyter notebook should be as simple as running
-
-```julia
-using IJulia
-notebook()
-```
-
-If Jupyter has already been installed on your system, then IJulia will likely find and use it. Otherwise, IJulia will try to install Jupyter from scratch.
-
-*Caution*: To install Jupyter from scratch, the IJulia package will download the entire Anaconda distribution, which requires gigabytes of storage. If an Anaconda installation already exists on your system, it is probably good to have IJulia find it.
-
-# More advanced features for code development
+# Advanced features for code development
 
 For beginning users, the previous sections are fully sufficient for running and modifying the Sunny examples. More expert users may eventually want to experiment with changes to Sunny itself. This section describes a more advanced setup for Julia code development.
 
-## Developing the Sunny source code with Git
+## Developing the Sunny source code
 
-The [Git version control system](https://git-scm.com/) makes it possible to fearlessly experiment with code modifications. A full introduction to Git is beyond the scope of this document, but here are some basics. Try modifying any file inside the `Sunny` package (it will be located inside `~/.julia/dev/` if you followed the instructions above). Next, open a terminal in the `Sunny/` directory and type `git status`. You should see the name of the file that was changed. Type `git diff` to see the specific changes made. You can revert these changes with the command `git checkout <filename>`. Other useful commands include `git add <filenames>` and `git commit`, which will enter changes into the database (repository) of tracked changes (commits). `git log` will show a history of commits. The commands `git pull` and `git push` will download and upload, respectively, from the "origin" repository (in this case, the one hosted on Github). To have new commits pushed into the team Github repo, we will use a [pull request](https://docs.github.com/en/github/collaborating-with-pull-requests/) workflow. All proposed changes will be submitted as pull requests, where they will be automatically tested and granted code review.
+The [Git version control system](https://git-scm.com/) makes it possible to fearlessly experiment with code modifications. To get the latest development branch of Sunny, use:
 
-Instead of `git` terminal commands, it's often more convenient to use a graphical user interface. For Julia development, I would highly recommend the VSCode editor, described below. VSCode has some built-in support for Git, and with the `Git Graph` extension, it becomes a nice interface to Git.
+```
+pkg> rm Sunny
+pkg> dev Sunny
+```
+
+This will download (more specifically, `git clone`) the source code for Sunny into the local directory `~/.julia/dev/Sunny/`. Modifications to the files here will be picked up by Julia.
+
+A full introduction to Git is beyond the scope of this document, but here are some basics. Open a terminal in the `~/.julia/dev/Sunny/` directory and type `git status`. You should see that the directory is free of changes, i.e., "clean". Try modifying some source file. Now `git status` will show name of the file that was changed. Type `git diff` to see the specific changes made. You can revert these changes with the command `git checkout <filename>`. Other useful commands include `git add <filenames>` and `git commit`, which will enter changes into the database (repository) of tracked changes (commits). `git log` will show a history of commits. The commands `git pull` and `git push` will download and upload, respectively, from the "origin" repository (in this case, the one hosted on Github). If you actually try this, you will likely find that `git push` reports an error stating that you don't have write access to the main Sunny repository. The recommend workflow is to [fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo) Sunny on Github. The forked version can be checked out using `pkg> dev <GithubURL>`. Changes in a fork can be considered for incorporation into Sunny using a [pull request](https://docs.github.com/en/github/collaborating-with-pull-requests/).
+
+Instead of entering Git commands in the terminal, it's usually more convenient to use a graphical user interface. For Julia development, we recommend the VSCode editor with the Git Graph extension (see below).
 
 ## Julia development with Revise.jl
 
-An extremely important package in the Julia ecosystem is [Revise](https://timholy.github.io/Revise.jl/stable/),
+An extremely important package in the Julia ecosystem is [Revise](https://timholy.github.io/Revise.jl/stable/):
 ```
 pkg> add Revise
 ```
 
-Revise allows a running Julia process to automatically pick up changes to package source code (i.e., to dynamically replace function behaviors) without requiring a restart. This is very convenient for rapid iteration -- one can avoid most of the wait times associated with reloading (and recompiling) packages.
+Revise allows a running Julia process to dynamically pick up changes to package source code (i.e., update function behaviors) without requiring a restart. This is very convenient for rapid iteration -- one can avoid most of the wait times associated with reloading (and recompiling) packages.
 
-To enable Revise by default, create (or extend) the file `~/.julia/config/startup.jl`. The content of this file is automatically executed at the start of every Julia REPL session. Include the following lines:
-```
-try
-    using Revise
-catch e
-    @warn "Error initializing Revise" exception=(e, catch_backtrace())
-end
-```
+Enable Revise by default in every Julia session by [following the instructions here](https://timholy.github.io/Revise.jl/stable/config/).
 
-Users of Jupyter notebooks should add similar lines to `~/.julia/config/startup_ijulia.jl`,
-```
-try
-    @eval using Revise
-catch e
-    @warn "Error initializing Revise" exception=(e, catch_backtrace())
-end
-```
-
-Revise works great for redefining function definitions. A limitation of Revise is that it does _not_ support redefining `struct` datatypes. If a `struct` is modified, then the REPL must be restarted.
+Revise works great for redefining function definitions, but has [some limitations](https://timholy.github.io/Revise.jl/stable/limitations/). In particular, Revise does _not_ support redefining `struct` datatypes. If a `struct` is modified, then the REPL must be restarted.
 
 ## The Julia extension in VSCode
 
-[VSCode](https://code.visualstudio.com/) is a powerful text editor, and hosts the _de facto_ official [Julia development environment](https://www.julia-vscode.org/). Note that VSCode is [open source](https://github.com/microsoft/vscode), and entirely unrelated to the commercial Visual Studio product (the related names are unfortunate).
+[VSCode](https://code.visualstudio.com/) is a powerful text editor, and hosts the _de facto_ official [Julia development environment](https://www.julia-vscode.org/). Note that VSCode is [open source](https://github.com/microsoft/vscode), and fully distinct from the commercial Visual Studio product.
 
 A full introduction to VSCode is outside the scope of this document, but here we can provide a few helpful tips. Much of the power of VSCode comes from extensions. You can download and install these easily through the Extensions panel, accessible by clicking the appropriate icon on the left of the VSCode window (alternatively, by selecting the `View -> Extensions` menu item). Search "julia" to find the Julia extension and click Install. A restart of VSCode may then be required. You'll know the Julia extension is working correctly if you can load a `.jl` file and see syntax highlighting. The blue status bar at the bottom of the window will also print some Julia information. The first launch of the Julia extension may take a while to complete (for example, the "Indexing packages..." step might take a couple minutes). Once the extension has fully loaded, a lot of powerful features become available. To see how it should look, see the [Julia for VSCode](https://www.julia-vscode.org/) landing page. Features include "auto-complete" suggestions while typing, pop-up documentation on mouse-hover, an integrated REPL, an integrated debugger, a plot panel, and more.
 
@@ -189,7 +149,7 @@ Again bring up the Command Palette and type "settings json" to find the command 
 
 Upon saving this settings file, VSCode will immediately adopt the changes.
 
-You can interactively evaluate code in any file `.jl` using the Option-Enter (Mac) or Alt-Enter (Windows/Linux) key command, which maps to `Julia: Execute Code in REPL and Move`. This command will send the Julia expression under the cursor to the running Julia REPL for evaluation. The result of evaluation will be displayed "inline" in the text editor using a distinct color. Effectively, one gets the power and interactivity of a Jupyter notebook, but with the convenience of working with ordinary `.jl` files.
+You can interactively evaluate code in any file `.jl` using the Shift-Enter (Mac), which maps to `Julia: Execute Code in REPL and Move`. This command will send the Julia expression under the cursor to the running Julia REPL for evaluation. The result of evaluation will be displayed "inline" in the text editor using a distinct color. Effectively, one gets the power and interactivity of a Jupyter notebook, but with the convenience of working with ordinary `.jl` files.
 
 Every window in VSCode represents a standalone process. In most cases, you will probably want to do all work entirely in a single VSCode window. To develop a package, it is useful to load the directory containing all source files into the VSCode window (e.g., using `File -> Open ...`). You can then navigate the files from within VSCode.
 
@@ -199,12 +159,10 @@ It is convenient to make VSCode the default editor for Julia. On a UNIX system, 
 ```bash
 export JULIA_EDITOR=code
 ```
-to the shell startup script (e.g. `.bashrc` or `.bash_profile`). On a Windows system, it [seems the best way](https://discourse.julialang.org/t/windows-command-for-vs-code/29902/9) to configure this environment variable is to add the line `ENV["JULIA_EDITOR"]="code.cmd"` to the `.julia/config/startup.jl` file (note the extra `.cmd` suffix). The file `startup.jl` will not exist in a fresh Julia install; you can create it by hand.
+to the shell startup script (e.g. `.bashrc` or similar). On a Windows system, it [seems the best way](https://discourse.julialang.org/t/windows-command-for-vs-code/29902/9) to configure this environment variable is to add the line `ENV["JULIA_EDITOR"]="code.cmd"` to the `.julia/config/startup.jl` file (note the extra `.cmd` suffix). The file `startup.jl` will not exist in a fresh Julia install; you can create it by hand.
 
 Once `JULIA_EDITOR` has been configured, the `@edit` macro can be used to load source code. For example, running
 ```julia
 julia> @edit sort([3, 2, 1])
 ```
 will open the definition of the `sort` function in the VSCode editor. The `@edit` macro is defined in the [`InteractiveUtils` module](https://docs.julialang.org/en/v1/stdlib/InteractiveUtils/). Browse around these docs to see what else is availabe.
-
-Another highly recommended VSCode extension is [Git History](https://marketplace.visualstudio.com/items?itemName=donjayamanne.githistory).
