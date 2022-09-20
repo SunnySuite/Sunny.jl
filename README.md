@@ -19,9 +19,11 @@ Sunny additionally provides Monte Carlo algorithms for sampling from thermal equ
 
 ## Technical description of SU(_N_) spin dynamics.
 
-A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves under the group of special unitary transformations, SU(_N_). Local physical observables correspond to expectation values of the $N^2-1$ generators of SU(_N_), which may be interpreted as multipolar spin components. The standard treatment keeps only the expected dipole components, $\langle \hat S^x\rangle,\langle \hat S^y\rangle,\langle \hat S^z\rangle$, yielding the Landau-Lifshitz dynamics. The "SU(_N_) spin dynamics" naturally generalizes the LL equation by modeling the coupled dynamics of all $N^2-1$ generalized spin components. For more details, please see our papers:
-* H. Zhang and C. D. Batista, _Classical spin dynamics based on SU(N) coherent states_, Phys. Rev. B 104, 104409 (2021) [[arXiv:2106.14125](https://arxiv.org/abs/2106.14125)].
-* D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_ [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
+A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves under the group of special unitary transformations, SU(_N_). Local physical observables correspond to expectation values of the $N^2-1$ generators of SU(_N_), which may be interpreted as multipolar spin components. The standard treatment keeps only the expected dipole components, $\langle \hat S^x\rangle,\langle \hat S^y\rangle,\langle \hat S^z\rangle$, yielding the Landau-Lifshitz dynamics. The "SU(_N_) spin dynamics" naturally generalizes the LL equation by modeling the coupled dynamics of all $N^2-1$ generalized spin components. This formalism was introduced in [[Zhang and Batista, Phys. Rev. B **104**, 104409 (2021)](https://arxiv.org/abs/2106.14125)].
+
+Sunny uses highly efficient algorithms to simulate this SU(_N_) spin dynamics:
+* D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_, Phys. Rev. B **106**, 054423 (2022) [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
+* D. Dahlbom et al., _Langevin dynamics of generalized spins as SU(N) coherent states_ [[arXiv:2209.01265](https://arxiv.org/abs/2209.01265)].
 
 ## Comparison with other tools
 
