@@ -3,8 +3,8 @@
 (async function () {
     // In development, a default key is useful.
     let key = "0";
-    // In production, this line will be replaced to define `key` as a unique
-    // string identifier. This uniqueness is necessary to support multiple
+    // In production, the line below will redefine `key` as a unique string
+    // identifier. This uniqueness is necessary to support multiple
     // visualizations within the same web page.
     'DEFINE_KEY';
 
@@ -21,15 +21,38 @@
     // See if three.js has already been loaded via `offline_viewers()`
     if (globalThis.SUNNY_THREE !== undefined) {
         THREE = globalThis.SUNNY_THREE;
-        OrbitControls = globalThis.SUNNY_THREE.OrbitControls;
+        OrbitControls = THREE.OrbitControls;
     }
     // Otherwise, try to download it
     else {
         try {
-            THREE = await import("https://cdn.skypack.dev/three@0.142.0");
-            // TODO: Below we're pinned to an older version of OrbitControls due
-            // to .js module issues. Probably the best path forward is to define
-            // our own OrbitControls every time.
+            THREE = await import("https://cdn.skypack.dev/three@0.143.0");
+
+            // Notice the strangely downgraded version, 0.132.2, below. This is
+            // due to an apparent incompatibility between Skypack CDN and more
+            // recent versions of OrbitControls.js. Specifically, the module
+            // https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/OrbitControls.js,
+            // is trying to do `export {default}`, but actual OrbitControls.js
+            // source, versions > v1.32.2 ,don't provide this. It's supposed to
+            // look like the very last line here:
+            // https://cdn.skypack.dev/-/three@v0.132.2-dLPTyDAYt6rc6aB18fLm/dist=es2019,mode=imports/unoptimized/examples/jsm/controls/OrbitControls.js
+            //
+            // Possible paths forward:
+            //   - Use an actual JS builder. This is probably "correct", but
+            //     would require a introducing an additional build step to the
+            //     Sunny package.
+            //   - Add more hacks to "copy-paste" the .js code into this file.
+            //   - Do something creative with dynamic loading of a normal .js
+            //     file, e.g. `document.createElement('script');` with a Promise
+            //     that resolves .onload,
+            //     https://gist.github.com/james2doyle/28a59f8692cec6f334773007b31a1523
+            //   - Stick with what we have. One benefit of this is that you get
+            //     an interactive source browser/editor inside of Chrome.
+            //
+            // Eventually we will probably want to define our own .js controls,
+            // at which point we'll probably want the "build" step.  For
+            // example, it would be better to use quaternions as in
+            // TrackballQuaternions, but without the animation loop.
             OrbitControls = (await import("https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/OrbitControls.js")).OrbitControls;
         }
         catch(err) {

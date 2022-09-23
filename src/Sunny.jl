@@ -101,7 +101,7 @@ include("WangLandau/WangLandau.jl")
 export WangLandau, spherical_cap_update, init_bounded!, run!
 
 include("SunnyGfx/SunnyGfx.jl")
-export view_crystal, offline_viewers
+export view_crystal, offline_viewers, browser
 
 # GLMakie and MPI are optional dependencies
 function __init__()
