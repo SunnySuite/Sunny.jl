@@ -68,65 +68,41 @@ Serialize the spin system data to a JSON dict string
 function system_json(crystal::Crystal, max_dist)
     
     ncells, bond_labels, bond_ids, bond_displacements = generate_bond_lists(crystal, max_dist)
-
     lattice = Sunny.Lattice(crystal, ncells)
 
-    lattice.types[lattice.types .== ""] .= "type 1"
-    types = lattice.types
-    bond_colors = ["0x"*Colors.hex(c) for c in distinguishable_colors(length(bond_labels), [RGB(1,1,1), RGB(0,0,0)], dropseed=true)]
-    latt_vecs = [eachcol(lattice.lat_vecs)...]
-    basis_vecs = lattice.basis_vecs
-    latt_cells = lattice.size
-    atoms_per_cell = length(lattice.basis_vecs)
+    # Fill empty types with a placeholder
+    all(isempty, lattice.types) && fill!(lattice.types, "type 1")
 
-    json_str = @sprintf(
-        """{
-        "cellTypes":    %s,
-        "bondColors":   %s,
-        "bondLabels":   %s,
-        "bondTypeIds":  %s,
-        "bondVecs":     %s,
-        "lattVecs":     %s,
-        "basisVecs":    %s,
-        "lattCells":    %s,
-        "atomsPerCell": %s
-        }""",
-        JSON.json(types), 
-        JSON.json(bond_colors),
-        JSON.json(bond_labels),
-        JSON.json(bond_ids),
-        JSON.json(bond_displacements),
-        JSON.json(latt_vecs),
-        JSON.json(basis_vecs),
-        JSON.json(latt_cells),
-        JSON.json(atoms_per_cell)
-    )
-    return json_str
+    bond_colors = ["0x"*Colors.hex(c) for c in distinguishable_colors(length(bond_labels), [RGB(1,1,1), RGB(0,0,0)], dropseed=true)]
+
+    return JSON.json(Dict(
+        :cellTypes    => lattice.types,
+        :bondColors   => bond_colors,
+        :bondLabels   => bond_labels,
+        :bondTypeIds  => bond_ids,
+        :bondVecs     => bond_displacements,
+        :lattVecs     => [eachcol(lattice.lat_vecs)...],
+        :basisVecs    => lattice.basis_vecs,
+        :lattCells    => lattice.size,
+        :atomsPerCell => length(lattice.basis_vecs),
+    ))
 end
 
 """
-Create and show crystal viewer. 
-Javascript and html code for visualizer is found in the assets/ directory.
-If dev=true, then a html file is made in the build/ directory for development in web browser.
+    view_crystal(crystal::Crystal, max_dist::Real)
+
+Create and show crystal viewer in a VSCode or Jupyter notebook environment. The
+result can also be displayed using `browser()`.
 """
-function view_crystal(crystal::Crystal, max_dist::Float64; dev=false)
-
+function view_crystal(crystal::Crystal, max_dist::Real)
     data = system_json(crystal, max_dist)
-
-    if dev
-        unique_key = "0"
-        js_link = "src='../assets/crystal_viewer.js'"
-        js_src = ""
-    else
-        unique_key = randstring(RandomDevice(), ['0':'9'; 'a':'f'], 12)
-        js_src = open(joinpath(@__DIR__, "assets/crystal_viewer.js"), "r") do io
-            read(io, String)
-        end
-        js_src = replace(js_src,
-            "'DEFINE_KEY';" => "key = '$unique_key';"
-        )
-        js_link = ""
+    unique_key = randstring(RandomDevice(), ['0':'9'; 'a':'f'], 12)
+    js_src = open(joinpath(@__DIR__, "assets/crystal_viewer.js"), "r") do io
+        read(io, String)
     end
+    js_src = replace(js_src,
+        "'DEFINE_KEY';" => "key = '$unique_key';"
+    )
 
     html = open(joinpath(@__DIR__, "assets/crystal_viewer.html"), "r") do io
         read(io, String)
@@ -134,21 +110,25 @@ function view_crystal(crystal::Crystal, max_dist::Float64; dev=false)
     html = replace(html,
         "UNIQUE_KEY" => unique_key,
         "\$DATA" => data,
-        "\$JS_LINK" => js_link,
+        "\$JS_LINK" => "",
         "\$JS_SRC" => js_src,
     )
 
-    if dev
-        wrapper = open(joinpath(@__DIR__, "assets/standalone_wrapper.html"), "r") do io
-            read(io, String)
-        end
-        html = replace(wrapper, "\$PAYLOAD" => html)
-        build_dir = mkpath(joinpath(@__DIR__, "build"))
-        open(joinpath(build_dir, "develop_gui.html"), "w") do io
-            write(io, html)
-        end
-        return nothing
-    else
-        return SunnyViewer(html)
+    return SunnyViewer(html)
+end
+
+function view_crystal_dev(crystal::Crystal, max_dist::Real)
+    data = system_json(crystal, max_dist)
+
+    html = open(joinpath(@__DIR__, "assets/crystal_viewer.html"), "r") do io
+        read(io, String)
     end
+    html = replace(html,
+        "UNIQUE_KEY" => "0",
+        "\$DATA" => data,
+        "\$JS_LINK" => "src='$(joinpath(@__DIR__, "assets/crystal_viewer.js"))'",
+        "\$JS_SRC" => "",
+    )
+
+    browser(html)
 end
