@@ -15,11 +15,16 @@ function wrap_html(html::String)
     end
 end
 
-function browser(sv::SunnyViewer)
+"""
+    browser(html)
+
+Launch a system browser to display the provided HTML String or SunnyViewer
+"""
+function browser(html::String)
     tempdir = mktempdir()
     path = joinpath(tempdir, "SunnyGfx.html")
     open(path, "w") do io
-        write(io, wrap_html(sv.html_str))
+        write(io, html)
     end
     try
         if Sys.isapple()
@@ -38,6 +43,10 @@ function browser(sv::SunnyViewer)
         error("Failed to open the generated HTML file $path\n",
               "Error: ", sprint(Base.showerror, e))
     end
+end
+
+function browser(sv::SunnyViewer)
+    browser(wrap_html(sv.html_str))
 end
 
 include("CrystalViewer.jl")

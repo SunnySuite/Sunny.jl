@@ -93,24 +93,15 @@ Create and show crystal viewer.
 Javascript and html code for visualizer is found in the assets/ directory.
 If dev=true, then a html file is made in the build/ directory for development in web browser.
 """
-function view_crystal(crystal::Crystal, max_dist::Float64; dev=false)
-
+function view_crystal(crystal::Crystal, max_dist::Real)
     data = system_json(crystal, max_dist)
-
-    if dev
-        unique_key = "0"
-        js_link = "src='../assets/crystal_viewer.js'"
-        js_src = ""
-    else
-        unique_key = randstring(RandomDevice(), ['0':'9'; 'a':'f'], 12)
-        js_src = open(joinpath(@__DIR__, "assets/crystal_viewer.js"), "r") do io
-            read(io, String)
-        end
-        js_src = replace(js_src,
-            "'DEFINE_KEY';" => "key = '$unique_key';"
-        )
-        js_link = ""
+    unique_key = randstring(RandomDevice(), ['0':'9'; 'a':'f'], 12)
+    js_src = open(joinpath(@__DIR__, "assets/crystal_viewer.js"), "r") do io
+        read(io, String)
     end
+    js_src = replace(js_src,
+        "'DEFINE_KEY';" => "key = '$unique_key';"
+    )
 
     html = open(joinpath(@__DIR__, "assets/crystal_viewer.html"), "r") do io
         read(io, String)
@@ -118,17 +109,25 @@ function view_crystal(crystal::Crystal, max_dist::Float64; dev=false)
     html = replace(html,
         "UNIQUE_KEY" => unique_key,
         "\$DATA" => data,
-        "\$JS_LINK" => js_link,
+        "\$JS_LINK" => "",
         "\$JS_SRC" => js_src,
     )
 
-    if dev
-        build_dir = mkpath(joinpath(@__DIR__, "build"))
-        open(joinpath(build_dir, "develop_gui.html"), "w") do io
-            write(io, wrap_html(html))
-        end
-        return nothing
-    else
-        return SunnyViewer(html)
+    return SunnyViewer(html)
+end
+
+function view_crystal_dev(crystal::Crystal, max_dist::Real)
+    data = system_json(crystal, max_dist)
+
+    html = open(joinpath(@__DIR__, "assets/crystal_viewer.html"), "r") do io
+        read(io, String)
     end
+    html = replace(html,
+        "UNIQUE_KEY" => "0",
+        "\$DATA" => data,
+        "\$JS_LINK" => "src='$(joinpath(@__DIR__, "assets/crystal_viewer.js"))'",
+        "\$JS_SRC" => "",
+    )
+
+    browser(html)
 end
