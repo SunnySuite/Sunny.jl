@@ -89,9 +89,10 @@ function system_json(crystal::Crystal, max_dist)
 end
 
 """
-Create and show crystal viewer. 
-Javascript and html code for visualizer is found in the assets/ directory.
-If dev=true, then a html file is made in the build/ directory for development in web browser.
+    view_crystal(crystal::Crystal, max_dist::Real)
+
+Create and show crystal viewer in a VSCode or Jupyter notebook environment. The
+result can also be displayed using `browser()`.
 """
 function view_crystal(crystal::Crystal, max_dist::Real)
     data = system_json(crystal, max_dist)
