@@ -68,40 +68,24 @@ Serialize the spin system data to a JSON dict string
 function system_json(crystal::Crystal, max_dist)
     
     ncells, bond_labels, bond_ids, bond_displacements = generate_bond_lists(crystal, max_dist)
-
     lattice = Sunny.Lattice(crystal, ncells)
 
-    lattice.types[lattice.types .== ""] .= "type 1"
-    types = lattice.types
-    bond_colors = ["0x"*Colors.hex(c) for c in distinguishable_colors(length(bond_labels), [RGB(1,1,1), RGB(0,0,0)], dropseed=true)]
-    latt_vecs = [eachcol(lattice.lat_vecs)...]
-    basis_vecs = lattice.basis_vecs
-    latt_cells = lattice.size
-    atoms_per_cell = length(lattice.basis_vecs)
+    # Fill empty types with a placeholder
+    all(isempty, lattice.types) && fill!(lattice.types, "type 1")
 
-    json_str = @sprintf(
-        """{
-        "cellTypes":    %s,
-        "bondColors":   %s,
-        "bondLabels":   %s,
-        "bondTypeIds":  %s,
-        "bondVecs":     %s,
-        "lattVecs":     %s,
-        "basisVecs":    %s,
-        "lattCells":    %s,
-        "atomsPerCell": %s
-        }""",
-        JSON.json(types), 
-        JSON.json(bond_colors),
-        JSON.json(bond_labels),
-        JSON.json(bond_ids),
-        JSON.json(bond_displacements),
-        JSON.json(latt_vecs),
-        JSON.json(basis_vecs),
-        JSON.json(latt_cells),
-        JSON.json(atoms_per_cell)
-    )
-    return json_str
+    bond_colors = ["0x"*Colors.hex(c) for c in distinguishable_colors(length(bond_labels), [RGB(1,1,1), RGB(0,0,0)], dropseed=true)]
+
+    return JSON.json(Dict(
+        :cellTypes    => lattice.types,
+        :bondColors   => bond_colors,
+        :bondLabels   => bond_labels,
+        :bondTypeIds  => bond_ids,
+        :bondVecs     => bond_displacements,
+        :lattVecs     => [eachcol(lattice.lat_vecs)...],
+        :basisVecs    => lattice.basis_vecs,
+        :lattCells    => lattice.size,
+        :atomsPerCell => length(lattice.basis_vecs),
+    ))
 end
 
 """
@@ -139,13 +123,9 @@ function view_crystal(crystal::Crystal, max_dist::Float64; dev=false)
     )
 
     if dev
-        wrapper = open(joinpath(@__DIR__, "assets/standalone_wrapper.html"), "r") do io
-            read(io, String)
-        end
-        html = replace(wrapper, "\$PAYLOAD" => html)
         build_dir = mkpath(joinpath(@__DIR__, "build"))
         open(joinpath(build_dir, "develop_gui.html"), "w") do io
-            write(io, html)
+            write(io, wrap_html(html))
         end
         return nothing
     else

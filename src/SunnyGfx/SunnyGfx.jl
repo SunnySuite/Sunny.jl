@@ -8,6 +8,38 @@ Base.show(io::IO, ::MIME"juliavscode/html", sv::SunnyViewer) = print(io, sv.html
 Base.show(io::IO, ::MIME"text/html", sv::SunnyViewer) = print(io, sv.html_str)
 Base.show(io::IO, ::MIME"text/plain", sv::SunnyViewer) = print(io, "SunnyViewer(...)")
 
+function wrap_html(html::String)
+    return open(joinpath(@__DIR__, "assets/standalone_wrapper.html"), "r") do io
+        wrapper = read(io, String)
+        replace(wrapper, "\$PAYLOAD" => html)
+    end
+end
+
+function browser(sv::SunnyViewer)
+    tempdir = mktempdir()
+    path = joinpath(tempdir, "SunnyGfx.html")
+    open(path, "w") do io
+        write(io, wrap_html(sv.html_str))
+    end
+    try
+        if Sys.isapple()
+            run(`open file://$path`)
+        elseif Sys.islinux() || Sys.isbsd()
+            run(`xdg-open file://$path`)
+        elseif Sys.iswindows()
+            # Note the three backslashes `file:///`. It appears unnecessary to swap backslash/slash: \ => /
+            # Source: https://stackoverflow.com/a/18246357/500314
+            # path = replace(path, "\\" => "/")
+            run(`start file:///$path`)
+        else
+            error("Unsupported system.")
+        end
+    catch e
+        error("Failed to open the generated HTML file $path\n",
+              "Error: ", sprint(Base.showerror, e))
+    end
+end
+
 include("CrystalViewer.jl")
 
 function offline_viewers()
