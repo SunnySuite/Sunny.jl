@@ -16,15 +16,23 @@ function wrap_html(html::String)
 end
 
 """
-    browser(html)
+    browser(html_str; dir)
 
-Launch a system browser to display the provided HTML String or SunnyViewer
+Launch a system browser to display the provided HTML string or SunnyViewer. If a
+directory `dir` is provided, an HTML file will be written at that location.
 """
-function browser(html::String)
-    tempdir = mktempdir()
-    path = joinpath(tempdir, "SunnyGfx.html")
+function browser(html_str::String; dir=Nothing)
+    if Sys.islinux() && dir==Nothing
+        println("""If your browser cannot access `/tmp`, consider specifying a directory:
+                       browser(html_str; dir="~")""")
+    end
+
+    is_tempdir = (dir == Nothing)
+    dir = is_tempdir ?  mktempdir() : expanduser(dir)
+    path = joinpath(dir, "SunnyGfx.html")
+    !is_tempdir && println("Writing `$path`.")
     open(path, "w") do io
-        write(io, html)
+        write(io, html_str)
     end
     try
         if Sys.isapple()
@@ -45,8 +53,8 @@ function browser(html::String)
     end
 end
 
-function browser(sv::SunnyViewer)
-    browser(wrap_html(sv.html_str))
+function browser(sv::SunnyViewer; dir=Nothing)
+    browser(wrap_html(sv.html_str); dir)
 end
 
 include("CrystalViewer.jl")
