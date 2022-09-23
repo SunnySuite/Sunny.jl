@@ -1,4 +1,4 @@
-@testset "Fourier Dipole Acceleration" begin
+@testitem "Fourier Dipole Acceleration" begin
 
 "Tests these field-using functions give the same answer as `ewald_sum_dipole`"
 function test_energy_consistency(crystal, latsize)

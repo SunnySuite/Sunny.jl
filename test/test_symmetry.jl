@@ -1,4 +1,6 @@
-@testset "Crystal Construction" begin
+@testitem "Crystal Construction" begin
+include("test_shared.jl")
+
 
 ### Test construction of diamond lattice
 
@@ -117,7 +119,9 @@ end
 
 
 ### TODO: Merge this with David's code
-@testset "Spin operators" begin
+@testitem "Spin operators" begin
+    include("test_shared.jl")
+
     function infer_ket_from_dipole(S, n::Sunny.Vec3)
         # Find a ket (up to an irrelevant phase) that corresponds to a pure dipole.
         # TODO, we can do this much faster by using the exponential map of spin
@@ -160,7 +164,9 @@ end
 end
 
 
-@testset "Spherical tensors" begin
+@testitem "Spherical tensors" begin
+    include("test_shared.jl")
+
     # Lie bracket, aka matrix commutator
     bracket(A, B) = A*B - B*A
 
@@ -199,7 +205,9 @@ end
     end
 end
 
-@testset "Stevens operators" begin
+@testitem "Stevens operators" begin
+    include("test_shared.jl")
+
     for N=2:7
         for k = 0:N-1
             𝒪 = Sunny.stevens_operators(N, k)
@@ -245,7 +253,9 @@ end
     end
 end
 
-@testset "Rotations" begin
+@testitem "Rotations" begin
+    include("test_shared.jl")
+
     A = randn(3,3)
     R = exp(A - A')
     (n, θ) = Sunny.axis_angle(Sunny.Mat3(R))

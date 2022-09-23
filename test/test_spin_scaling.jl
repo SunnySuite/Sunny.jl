@@ -1,4 +1,5 @@
-@testset "Spin Scaling" begin
+@testitem "Spin Scaling" begin
+include("test_shared.jl")
 
 
 function make_exchange_interactions()
