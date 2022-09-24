@@ -1,4 +1,5 @@
-@testset "Ewald Summation" begin
+@testitem "Ewald Summation" begin
+include("test_shared.jl")
 
 function test_ewald_NaCl()
     lat_vecs = [1.0 0   0;
