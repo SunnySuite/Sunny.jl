@@ -5,11 +5,11 @@ using Documenter, Sunny
 using GLMakie
 
 makedocs(
-    sitename="SU(N) Spin Simulations",
+    sitename="Sunny documentation",
     pages = [
-        "index.md",
+        "Overview" => "index.md",
         "Quick Start" => "quick-start.md",
-        "Library" => "library.md",
+        "Library API" => "library.md",
         "Structure Factor Calculations" => "structure-factor.md",
         "Internals" => "internals.md", 
     ],
