@@ -15,7 +15,7 @@ Sunny additionally provides Monte Carlo algorithms for sampling from thermal equ
 
 ## Example notebooks
 
- To get a feeling for what Sunny can do, we recommend browsing some [Jupyter notebook examples](https://github.com/SunnySuite/SunnyTutorials).
+To get a feeling for what Sunny can do, we recommend browsing this [Jupyter notebook example](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials/FeI2/FeI2_tutorial.ipynb), which illustrates how to measure the dynamical structure factor for FeI2. Additional notebook tutorials are [browsable here](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials).
 
 ## Technical description of SU(_N_) spin dynamics.
 
