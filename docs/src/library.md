@@ -1,16 +1,22 @@
 # Library
 
-Here, we document all publically exposed types and methods in our Module.
-Developers may be interested in further documentation of the [Internals](@ref).
+This page describes the public types and functions exported by Sunny. This documentation can be also be accessed using the Julia help system (enter `?` at the Julia command prompt).
 
-Our package makes extensive usage of
-[StaticArrays.jl](https://github.com/JuliaArrays/StaticArrays.jl).
-In particular, throughout the documentation we make use of aliases
-`Vec3 = SVector{3, Float64}`, `Mat3 = SMatrix{3, 3, Float64, 9}`. Additionally, some features
-and internals utilize [OffsetArrays.jl](https://github.com/JuliaArrays/OffsetArrays.jl) for
-pleasant indexing. In particular, structure factors are often returned as these.
+Typical Sunny usage will involve the following steps:
 
-## Geometry definition
+1. Create a [`Crystal`](@ref), either by providing explicit geometry information or by loading a `.cif` file.
+2. Perform using methods such as [`print_bond_table`](@ref) and [`print_allowed_anisotropy`](@ref).
+3. Define a list of [Interactions](@ref), i.e., terms to be included in the Hamiltonian.
+4. Specify information for each site through a [`SiteInfo`](@ref) object that specifies, e.g., local spin magnitude and ``g``-tensor.
+5. Assemble a [`SpinSystem`](@ref) using the crystal, the interactions, the dimensions of the simulation box (in unit cells), and the site information.
+6. Perform some flavor of Monte Carlo simulation, which is used to sample equilibrated spin configurations.
+7. Measure the static or dynamical structure factor. For this, Sunny
+   provides high-level helper functions [`dynamic_structure_factor`](@ref) and
+   [`static_structure_factor`](@ref). For more documentation, see [Structure factor
+   calculations](@ref).
+
+
+## Crystal definition
 
 ```@docs
 Crystal
@@ -38,6 +44,7 @@ all_symmetry_related_bonds
 all_symmetry_related_bonds_for_atom
 all_symmetry_related_couplings
 all_symmetry_related_couplings_for_atom
+print_allowed_anisotropy
 ```
 
 ## Interactions
@@ -58,6 +65,7 @@ dipole_dipole
 ```@docs
 SpinSystem
 SpinSystem(::Crystal, ::Vector{<:Sunny.AbstractInteraction}, latsize, ::Vector{SiteInfo}; μB, μ0)
+SiteInfo
 rand!(::SpinSystem{N}) where N
 randflips!
 energy
@@ -108,7 +116,7 @@ live_langevin_integration
 ## Integrators
 
 These functions are not intended to be used by typical users, who instead
-should instead perform dynamics either using [`LangevinSampler`](@ref) or implicitly in [Structure factor calculations](@ref). However, advanced users and developers may want direct access to an interface to perform dynamics
+should instead perform dynamics either using [`LangevinSampler`](@ref) or implicitly in [Structure Factor Calculations](@ref). However, advanced users and developers may want direct access to an interface to perform dynamics
 integrations.
 
 ```@docs
