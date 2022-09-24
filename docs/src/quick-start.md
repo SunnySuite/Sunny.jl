@@ -93,6 +93,6 @@ Allowed exchange matrix: | A  C -D |
 Allowed DM vector: [-D D 0]
 ```
 
-## Next steps
+## Lots more
 
 Sunny provides many additional features, e.g., to specify and simulate spin Hamiltonians, and to calculate structure factor data. We refer the reader to our [tutorial notebooks](http://nbviewer.org/github/SunnySuite/SunnyTutorials/tree/main/tutorials/).
