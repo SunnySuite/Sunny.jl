@@ -16,7 +16,7 @@ If Sunny has not yet been installed, enter `y` to download and install it.
 Sunny works best with some additional packages and setup as described in our
 [Getting Started
 guide](https://github.com/SunnySuite/Sunny.jl/blob/main/GettingStarted.md). For
-example, many users interact with Sunny through a Jupyter notebook interface.
+example, many users will wish to interact with Sunny through a Jupyter notebook.
 Enter
 ```julia
 using IJulia
