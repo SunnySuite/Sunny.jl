@@ -8,8 +8,7 @@ makedocs(
     sitename="SU(N) Spin Simulations",
     pages = [
         "index.md",
-        "Getting Started" => "getting-started.md",
-        "Examples" => "examples.md",
+        "Quick Start" => "quick-start.md",
         "Library" => "library.md",
         "Structure Factor Calculations" => "structure-factor.md",
         "Internals" => "internals.md", 
