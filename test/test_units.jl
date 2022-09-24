@@ -1,3 +1,6 @@
+@testitem "Unit Scaling" begin
+include("test_shared.jl")
+
 # These tests checks that varying μ0, μB results in the correct scale
 # transformations in various energies / fields. Note:
 # does not check that the actual absolute values are
@@ -37,6 +40,9 @@ function validate_exchanges_scaling(μBs, μ0s)
     end
 end
 
+validate_exchanges_scaling(μBs, μ0s)
+
+
 # Zeeman energies/fields should scale linearly with μB, invariant to μ0
 function validate_field_scaling(μBs, μ0s)
     ref_μB, ref_μ0 = μBs[1], μ0s[1]
@@ -53,6 +59,9 @@ function validate_field_scaling(μBs, μ0s)
     end
     @test pass
 end
+
+validate_field_scaling(μBs, μ0s)
+
 
 # Dipole-dipole interactions should scale linearly with μ0, and
 #  quadratically with μB
@@ -72,15 +81,6 @@ function validate_dipole_scaling(μBs, μ0s)
     @test pass
 end
 
+validate_dipole_scaling(μBs, μ0s)
 
-@testset verbose=true "Unit Scaling" begin
-    @testset "Exchange Scaling" begin
-        validate_exchanges_scaling(μBs, μ0s)
-    end
-    @testset "Zeeman Scaling" begin
-        validate_field_scaling(μBs, μ0s)
-    end
-    @testset "Dipole-Dipole Scaling" begin
-        validate_dipole_scaling(μBs, μ0s)
-    end
 end

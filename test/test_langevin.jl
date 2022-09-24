@@ -1,4 +1,5 @@
-@testset "Langevin Dynamics" begin
+@testitem "Langevin Dynamics" begin
+include("test_shared.jl")
 
     
 #= Test energy statistics for an SU(3) single ion problem with anisotropy. (GSD only.) =#

@@ -1,4 +1,5 @@
-@testset "Metropolis Sampling" begin
+@testitem "Metropolis Sampling" begin
+include("test_shared.jl")
 
 function test_local_energy_change()
     system = produce_example_system()

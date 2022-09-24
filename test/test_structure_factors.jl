@@ -1,4 +1,4 @@
-@testset "Structure Factors" begin
+@testitem "Structure Factors" begin
 
 function diamond_heisenberg_model(; 
     ff_elem=nothing, ff_lande=nothing, spin_rescaling, J

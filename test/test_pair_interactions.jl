@@ -1,4 +1,5 @@
-@testset "Pair Interactions" begin
+@testitem "Pair Interactions" begin
+    include("test_shared.jl")
 
     # Test that each exchange gets mapped to the correct backend type
     function test_type_mapping()
@@ -80,19 +81,18 @@
         return total_iterated == length(bondtable)
     end
 
-    @testset "BondTable" begin
-        cryst = Sunny.diamond_crystal()
-        latsize = (4, 4, 4)
-        exchange_ints = diamond_test_exchanges()
-        sys = SpinSystem(cryst, exchange_ints, (4,4,4))
-        ℋ = sys.hamiltonian
-        pair_ints = [ℋ.heisenbergs..., ℋ.diag_coups..., ℋ.gen_coups...]
+    # Test bond table
+    cryst = Sunny.diamond_crystal()
+    latsize = (4, 4, 4)
+    exchange_ints = diamond_test_exchanges()
+    sys = SpinSystem(cryst, exchange_ints, (4,4,4))
+    ℋ = sys.hamiltonian
+    pair_ints = [ℋ.heisenbergs..., ℋ.diag_coups..., ℋ.gen_coups...]
 
-        for pair_int in pair_ints
-            bondtable = pair_int.bondtable
-            @test no_equivalent_bonds(bondtable.culled_bonds)
-            @test correct_sublat_iteration(bondtable)
-        end
+    for pair_int in pair_ints
+        bondtable = pair_int.bondtable
+        @test no_equivalent_bonds(bondtable.culled_bonds)
+        @test correct_sublat_iteration(bondtable)
     end
 
 end

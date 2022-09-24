@@ -1,2 +1,2 @@
-@testset "Lattice Type" begin
+@testitem "Lattice Type" begin
 end
