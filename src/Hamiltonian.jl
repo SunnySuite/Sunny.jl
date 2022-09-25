@@ -4,37 +4,41 @@
 function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, crystal::Crystal, latsize::Vector{Int64})
     # Validate all interactions
     for int in ints
+        int_str = repr("text/plain", int)
+
         if isa(int, QuadraticInteraction)
             b = int.bond
 
             # Verify that both basis sites indexed actually exist
             if !(1 <= b.i <= nbasis(crystal)) || !(1 <= b.j <= nbasis(crystal))
-                error("Provided interaction $(repr(MIME("text/plain"), int)) indexes a non-existent basis site.")
+                error("Provided interaction $int_str indexes a non-existent basis site.")
             end
 
             # Verify that the interactions are symmetry-consistent
             if !is_coupling_valid(crystal, b, int.J)
-                println("Symmetry-violating interaction: $(repr(MIME("text/plain"), int)).")
+                println("Symmetry-violating interaction: $int_str.")
                 println("Allowed exchange for this bond:")
                 print_allowed_coupling(crystal, b; prefix="    ")
                 println("Use `print_bond(crystal, $b)` for more information.")
                 error("Interaction violates symmetry.")
             end
 
-            # Verify that no bond wraps the entire system
+            # Verify that no bond is long enough to wrap the entire system
             bs = all_symmetry_related_bonds(crystal, b)
-            wraps = any(bs) do b
-                any(abs.(b.n) .>= latsize)
-            end
-            if wraps
-                println("Distance-violating interaction: $int.")
-                error("Interaction wraps system.")
+            for b′ in bs
+                coeffs = crystal.lat_vecs \ displacement(crystal, b′)
+                for i = 1:3
+                    if coeffs[i] >= latsize[i]/2 - 1e-10
+                        println("Interaction $int_str is too long; consider extending system along dimension $i.")
+                        error("Interaction wraps system.")
+                    end
+                end
             end
         elseif isa(int, QuadraticAnisotropy)
             site = int.site
             b = Bond(site, site, [0, 0, 0])
             if !is_coupling_valid(crystal, b, int.J)
-                println("Symmetry-violating anisotropy: $(repr(MIME("text/plain"), int)).")
+                println("Symmetry-violating anisotropy: $int_str.")
                 println("Allowed single-ion anisotropy for this atom:")
                 print_allowed_coupling(crystal, b; prefix="    ")
                 println("Use `print_bond(crystal, Bond($site, $site, [0,0,0])` for more information.")
@@ -45,7 +49,7 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
             b = Bond(site, site, [0,0,0])
             N = size(Λ)[1]
             if !is_anisotropy_valid(crystal, site, int.Λ)
-                println("Symmetry-violating anisotropy: $(repr(MIME("text/plain"), int)).")
+                println("Symmetry-violating anisotropy: $int_str.")
                 println("Allowed SU(N) single-ion anisotropy for this atom:")
                 print_allowed_anisotropy(crystal, site)
                 error("Specified SU($N) anisotropy either violates symmetry or is of incorrect dimension.")

@@ -28,7 +28,7 @@ function make_test_system_lld(; spin_rescaling=1.0)
     quartic_interactions = [quartic_anisotropy(Jquar, i, "quartic") for i ∈ 1:4]
 
     interactions_all = vcat(exchange_interactions..., quartic_interactions...) 
-    dims = (2,2,2)
+    dims = (3,3,3)
 
     return SpinSystem(cryst,
                       interactions_all,
@@ -48,7 +48,7 @@ function make_test_system_gsd(; spin_rescaling=1.0, N=2)
     S = Sunny.gen_spin_ops(N)
     quartic_sun = SUN_anisotropy(-S[3]^4, 1, "quartic") 
 
-    dims = (2,2,2)
+    dims = (3,3,3)
     interactions_all = vcat(exchange_interactions..., quartic_sun) 
 
     return SpinSystem(cryst,
@@ -232,7 +232,7 @@ so results with different spin magnitudes can be compared directly.
 function generate_scaled_quadratic_trajectory(spin_rescaling, Δt; N=0, dur=10.0)
     rng = Random.MersenneTwister(111)
     cryst = Sunny.cubic_crystal()
-    dims = (4,4,2)
+    dims = (4,4,3)
     interactions = [
         heisenberg(1.0, Bond(1,1,[1,0,0])),
         dipole_dipole()
