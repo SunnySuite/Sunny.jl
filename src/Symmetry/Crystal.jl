@@ -114,12 +114,13 @@ function Crystal(lat_vecs, positions; types::Union{Nothing,Vector{String}}=nothi
 end
 
 """
-    Crystal(lat_vecs, positions, symbol::String; types=nothing, symprec=1e-5)
+    Crystal(lat_vecs, positions, symbol::String; types=nothing, setting=nothing, symprec=1e-5)
 
 Builds a crystal by applying the symmetry operators for a given spacegroup
 symbol.
 """
-function Crystal(lat_vecs::Mat3, positions, symbol::String; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+function Crystal(lat_vecs, positions, symbol::String; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+    lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
         types = fill("", length(positions))
@@ -128,32 +129,21 @@ function Crystal(lat_vecs::Mat3, positions, symbol::String; types::Union{Nothing
 end
 
 """
-    Crystal(lat_vecs, positions, spacegroup_number; types=nothing, symprec=1e-5)
+    Crystal(lat_vecs, positions, spacegroup_number; types=nothing, setting=nothing, symprec=1e-5)
 
 Builds a crystal by applying symmetry operators for a given international
 spacegroup number.
 """
-function Crystal(lat_vecs::Mat3, positions, spacegroup_number::Int; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+function Crystal(lat_vecs, positions, spacegroup_number::Int; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+    lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
         types = fill("", length(positions))
     end
-    symbol = international_short_names[spacegroup_number]
+    symbol = string(spacegroup_number)
     crystal_from_symbol(lat_vecs, positions, types, symbol; setting, symprec)
 end
 
-
-const n_hall_numbers = 530
-const n_space_groups = 230
-
-const international_short_names = begin
-    ret = fill("", n_space_groups)
-    for n in 1:n_hall_numbers
-        sgt = Spglib.get_spacegroup_type(n)
-        ret[sgt.number] = sgt.international_short
-    end
-    ret
-end
 
 function spacegroup_name(hall_number::Int)
     # String representation of space group
@@ -164,7 +154,7 @@ end
 function symops_from_spglib(rotations, translations)
     Rs = Mat3.(transpose.(eachslice(rotations, dims=3)))
     Ts = Vec3.(eachcol(translations))
-    symops = SymOp.(Rs, Ts)
+    return SymOp.(Rs, Ts)
 end
 
 
@@ -259,11 +249,12 @@ function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     hall_numbers = Int[]
     crysts = Crystal[]
 
+    n_hall_numbers = 530
     for hall_number in 1:n_hall_numbers
         sgt = Spglib.get_spacegroup_type(hall_number)
 
         if (replace(symbol, " "=>"") == sgt.international_short || 
-            symbol in [sgt.hall_symbol, sgt.international, sgt.international_full])
+            symbol in [string(sgt.number), sgt.hall_symbol, sgt.international, sgt.international_full])
 
             # Some Hall numbers may be incompatible with unit cell of provided
             # lattice vectors; skip them.
@@ -318,7 +309,8 @@ function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
             end
         end
 
-        println("The symbol '$symbol' is ambiguous! Returning all crystals:")
+        println("The spacegroup '$symbol' allows for multiple settings!")
+        println("Returning a list of the possible crystals:")
         for (i, (hall_number, c)) in enumerate(zip(hall_numbers, crysts))
             sgt = Spglib.get_spacegroup_type(hall_number)
             hm_symbol = sgt.international
@@ -326,10 +318,10 @@ function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
             n_atoms = length(c.positions)
             i_str = @sprintf "%2d" i
             natoms_str = @sprintf "%2d" n_atoms
-            println("   $i_str. \"$hm_symbol\", setting=\"$choice\", generates $natoms_str atoms")
+            println("   $i_str. \"$hm_symbol\", setting=\"$choice\", with $natoms_str atoms")
         end
         println()
-        println("Note: To disambiguate, you may pass a named parameter, setting=\"...\".")
+        println("Note: To disambiguate, pass a named parameter, setting=\"...\".")
         println()
         return crysts
     end
