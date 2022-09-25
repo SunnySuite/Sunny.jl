@@ -321,7 +321,7 @@ function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
             println("   $i_str. \"$hm_symbol\", setting=\"$choice\", with $natoms_str atoms")
         end
         println()
-        println("Note: To disambiguate, pass a named parameter, setting=\"...\".")
+        println("Note: To disambiguate, you may pass a named parameter, setting=\"...\".")
         println()
         return crysts
     end
