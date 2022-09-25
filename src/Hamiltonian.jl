@@ -28,7 +28,7 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
             for b′ in bs
                 coeffs = crystal.lat_vecs \ displacement(crystal, b′)
                 for i = 1:3
-                    if coeffs[i] >= latsize[i]/2 - 1e-10
+                    if abs(coeffs[i]) >= latsize[i]/2 - 1e-10
                         println("Interaction $int_str is too long; consider extending system along dimension $i.")
                         error("Interaction wraps system.")
                     end
