@@ -88,7 +88,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
     zs = _parse_cif_float.(geo_table[:, "_atom_site_fract_z"])
     unique_atoms = Vec3.(zip(xs, ys, zs))
 
-    sitetypes = String.(geo_table[:, :_atom_site_type_symbol])
+    sitetypes = String.(geo_table[:, "_atom_site_label"])
 
     multiplicities = nothing
     if "_atom_site_symmetry_multiplicity" in names(geo_table)
