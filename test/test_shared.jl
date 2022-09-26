@@ -1,3 +1,9 @@
+# Currently each @testitem must run in isolation. To share common setup code for
+# tests, the recommended pattern is to `include()` a file such as this one. See:
+# https://discourse.julialang.org/t/prerelease-of-new-testing-framework-and-test-run-ui-in-vs-code/86355/37
+# In the future, TestItemRunner may support a better pattern:
+# https://github.com/julia-vscode/TestItemRunner.jl/issues/11
+
 using Random
 using LinearAlgebra
 
