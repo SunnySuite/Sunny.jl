@@ -37,9 +37,7 @@ struct Lattice <: AbstractArray{Vec3, 4}
         @assert length(basis_vecs) == length(types)      "Length of basis_vecs and types should match"
         @assert all(v->all(0 .<= v .< 1), basis_vecs)    "All basis_vecs should be given in fractional coordinates [0, 1)"
         @assert length(latsize) == 3                     "latsize should be length 3"
-        lat_vecs = convert(Mat3, lat_vecs)
-        basis_vecs = [lat_vecs * convert(Vec3, b) for b in basis_vecs]
-        latsize = SVector{3, Int}(latsize)
+        basis_vecs = Ref(lat_vecs) .* basis_vecs
         new(lat_vecs, basis_vecs, types, latsize)
     end
 end
