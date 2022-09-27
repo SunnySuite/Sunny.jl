@@ -244,8 +244,9 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R=Mat3(I), atol=1e-12,
     end
 
     println()
-    println("# Allowed anisotropies")
+    println("# Allowed anisotropy operator")
 
+    lines = String[]
     for k in ks
         kchar = kchars[k]
         B = stevens_basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
@@ -271,7 +272,8 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R=Mat3(I), atol=1e-12,
                 ops = replace(ops, "+-" => "-")
                 push!(terms, param * kchar * ops)
             end
-            println(join(terms, " + "))
+            push!(lines, join(terms, " + "))
         end
     end
+    println(join(lines, " +\n"))
 end
