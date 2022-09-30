@@ -142,7 +142,7 @@ const stevens_a = begin
     a = OffsetArray(a, 1:6, 0:6)
 end
 
-function stevens_operators(N::Int, k::Int; R=Mat3(I))
+function stevens_ops(N::Int, k::Int; R=Mat3(I))
     k < 0  && error("Require k > 0, received k=$k")
     k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
     k >= N && error("Hilbert space dimension N=$N must exceed operator order k=$k")
@@ -167,128 +167,81 @@ function stevens_operators(N::Int, k::Int; R=Mat3(I))
     return [U'*𝒪*U for 𝒪 in 𝒪s]
 end
 
+function stevens_op_as_polynomial(; Sx, Sy, Sz, S, k::Int, m::Int)
+    I = one(Sx)
+    X = S*(S+1)*I
+    Jz = Sz
+    Jp = Sx + im*Sy
+    Jm = Sx - im*Sy
 
-# An explicit polynomial definition of the Stevens operators. The output must be
-# identical to stevens_operators(N, k) calculated from the spherical tensors.
-function stevens_operators_explicit(N::Int, k::Int)
-    k >= N && error("Hilbert space dimension N=$N must exceed operator order k=$k")
-
-    I = Matrix{ComplexF64}(LinearAlgebra.I, N, N)
-    S = spin_operators(N)
-
-    J = (N-1)/2
-    Jp = S[1] + im*S[2]
-    Jm = S[1] - im*S[2]
-    Jz = S[3]
-    X = J*(J+1)*I
-
-    # Symmetrize
-    sym(x) = (x+x')/2
-
-    ret = if k == 0
-        [
-            I,
-        ]
-    elseif k == 1
-        [
-            sym(-im*(Jp^1-Jm^1))/2, # Jy
-            Jz,
-            sym(Jp^1+Jm^1)/2, # Jx
-        ]
-    elseif k == 2
-        [
-            sym(-im*(Jp^2-Jm^2))/2,
-            sym(-im*(Jp^1-Jm^1)*Jz)/2,
-            3Jz^2 - X,
-            sym((Jp^1+Jm^1)*Jz)/2,
-            sym((Jp^2+Jm^2))/2,
-        ]
-    elseif k == 3
-        [
-            sym(-im*(Jp^3-Jm^3))/2,
-            sym(-im*(Jp^2-Jm^2)*Jz)/2,
-            sym(-im*(Jp^1-Jm^1)*(5Jz^2-X-I/2))/2,
-            5Jz^3-(3X-I)*Jz,
-            sym((Jp^1+Jm^1)*(5Jz^2-X-I/2))/2,
-            sym((Jp^2+Jm^2)*Jz)/2,
-            sym((Jp^3+Jm^3))/2,
-        ]
-    elseif k == 4
-        c = [
-            35Jz^4 - (30X-25I)*Jz^2 + (3X^2-6X),
-            7Jz^3 - (3X+I)*Jz,
-            7Jz^2 - (X+5I),
-            Jz,
-            I,
-        ]
-        [
-            sym(-im*(Jp^4-Jm^4)*c[5])/2,
-            sym(-im*(Jp^3-Jm^3)*c[4])/2,
-            sym(-im*(Jp^2-Jm^2)*c[3])/2,
-            sym(-im*(Jp^1-Jm^1)*c[2])/2,
-            c[1],
-            sym((Jp^1+Jm^1)*c[2])/2,
-            sym((Jp^2+Jm^2)*c[3])/2,
-            sym((Jp^3+Jm^3)*c[4])/2,
-            sym((Jp^4+Jm^4)*c[5])/2,
-        ]
-
-    elseif k == 5
-        c = [
-            63Jz^5 - (70X-105I)*Jz^3 + (15X^2-50X+12I)*Jz,
-            21Jz^4 - 14X*Jz^2 + (X^2-X+(3/2)*I),
-            3Jz^3 - (X+6I)*Jz,
-            9Jz^2 - (X+(33/2)*I),
-            Jz,
-            I,
-        ]
-        [
-            sym(-im*(Jp^5-Jm^5)*c[6])/2,
-            sym(-im*(Jp^4-Jm^4)*c[5])/2,
-            sym(-im*(Jp^3-Jm^3)*c[4])/2,
-            sym(-im*(Jp^2-Jm^2)*c[3])/2,
-            sym(-im*(Jp^1-Jm^1)*c[2])/2,
-            c[1],
-            sym((Jp^1+Jm^1)*c[2])/2,
-            sym((Jp^2+Jm^2)*c[3])/2,
-            sym((Jp^3+Jm^3)*c[4])/2,
-            sym((Jp^4+Jm^4)*c[5])/2,
-            sym((Jp^5+Jm^5)*c[6])/2,
-        ]
-    elseif k == 6
-        c = [
-            231Jz^6 - (315X-735I)Jz^4 + (105X^2-525X+294I)*Jz^2 - (5X^3-40X^2+60X),
-            33Jz^5 - (30X-15I)*Jz^3 + (5X^2-10X+12I)*Jz,
-            33Jz^4 - (18X+123I)Jz^2 + (X^2+10X+102I),
-            11Jz^3 - (3X+59I)*Jz,
-            11Jz^2 - (X+38I),
-            Jz,
-            I
-        ]
-        [
-            sym(-im*(Jp^6-Jm^6)*c[7])/2,
-            sym(-im*(Jp^5-Jm^5)*c[6])/2,
-            sym(-im*(Jp^4-Jm^4)*c[5])/2,
-            sym(-im*(Jp^3-Jm^3)*c[4])/2,
-            sym(-im*(Jp^2-Jm^2)*c[3])/2,
-            sym(-im*(Jp^1-Jm^1)*c[2])/2,
-            c[1],
-            sym((Jp^1+Jm^1)*c[2])/2,
-            sym((Jp^2+Jm^2)*c[3])/2,
-            sym((Jp^3+Jm^3)*c[4])/2,
-            sym((Jp^4+Jm^4)*c[5])/2,
-            sym((Jp^5+Jm^5)*c[6])/2,
-            sym((Jp^6+Jm^6)*c[7])/2,
-        ]
+    A = if -k <= m < 0
+        -(im/2) * (Jp^m - Jm^m)
+    elseif m == 0
+        I
+    elseif 0 < m <= k
+        (1/2) * (Jp^m + Jm^m)
     else
-        # In principle, it should be possible to programmatically generate
-        # arbitrary Stevens operators as polynomials using Eq. (23) of I. D.
-        # Ryabov, J. Magnetic Resonance 140, 141-145 (1999),
-        # https://doi.org/10.1006/jmre.1999.1783
-        error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
+        error("Stevens operators require |m| <= k, received m=$m and k=$k")
     end
 
-    ret = OffsetArray(ret, -k:k)
+    B = if k == 0
+        [I]
+    elseif k == 1
+        [Jz,
+         I]
+    elseif k == 2
+        [3Jz^2 - X,
+         Jz,
+         I]
+    elseif k == 3
+        [5Jz^3-(3X-I)*Jz,
+         5Jz^2-X-I/2,
+         Jz,
+         I]
+    elseif k == 4
+        [35Jz^4 - (30X-25I)*Jz^2 + (3X^2-6X),
+         7Jz^3 - (3X+I)*Jz,
+         7Jz^2 - (X+5I),
+         Jz,
+         I]
+    elseif k == 5
+        [63Jz^5 - (70X-105I)*Jz^3 + (15X^2-50X+12I)*Jz,
+         21Jz^4 - 14X*Jz^2 + (X^2-X+(3/2)*I),
+         3Jz^3 - (X+6I)*Jz,
+         9Jz^2 - (X+(33/2)*I),
+         Jz,
+         I]
+    elseif k == 6
+        [231Jz^6 - (315X-735I)Jz^4 + (105X^2-525X+294I)*Jz^2 - (5X^3-40X^2+60X),
+         33Jz^5 - (30X-15I)*Jz^3 + (5X^2-10X+12I)*Jz,
+         33Jz^4 - (18X+123I)Jz^2 + (X^2+10X+102I),
+         11Jz^3 - (3X+59I)*Jz,
+         11Jz^2 - (X+38I),
+         Jz,
+         I]
+    elseif k > 6
+        # In principle, it should be possible to programmatically generate an
+        # arbitrary polynomial using Eq. (23) of I. D. Ryabov, J. Magnetic
+        # Resonance 140, 141-145 (1999), https://doi.org/10.1006/jmre.1999.1783
+        error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
+    else # k < 0
+        error("Stevens operators require k >= 0, received k=$k")
+    end
+    B = B[abs(m)]
+
+    return (A*B + B*A) / 2
+end
+
+
+
+# An explicit polynomial definition of the Stevens operators. The output must be
+# identical to stevens_ops(N, k) calculated from the spherical tensors.
+function stevens_op_as_matrix(N::Int, k::Int, m::Int) # stevens_ops_explicit
+    k >= N && error("Hilbert space dimension N=$N must exceed operator order k=$k")
+
+    Sx, Sy, Sz = spin_operators(N)
+    S = (N-1)/2
+    return stevens_op_as_polynomial(; Sx, Sy, Sz, S, k, m)
 end
 
 
@@ -355,7 +308,7 @@ end
 
 # Calculate coefficients b that satisfy bᵀ 𝒪 = cᵀ T, where 𝒪 are the Stevens
 # operators, and T are the spherical harmonics. We are effectively inverting the
-# sparse linear map in stevens_operators().
+# sparse linear map in stevens_ops().
 function transform_spherical_to_stevens_coefficients(k, c)
     k == 0 && return OffsetArray(c, 0:0)
 
@@ -487,13 +440,6 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
     end
 
     y_dir = z_dir × x_dir
-
-    # for d in axes_counts
-    #     println("primary: $d")
-    # end
-    # for d in orthogonal_axes_counts
-    #     println("secondary: $d")
-    # end
 
     return Mat3(hcat(x_dir, y_dir, z_dir))
 end

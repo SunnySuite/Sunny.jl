@@ -14,6 +14,7 @@ import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, rand!, randn!
 import Interpolations: interpolate, scale, BSpline, Linear, Periodic
+import DynamicPolynomials: @ncpolyvar, @polyvar, Polynomial
 
 # Specific to Symmetry/
 import FilePathsBase: Path
@@ -59,8 +60,8 @@ include("Lattice.jl")
 
 include("Interactions.jl")
 export heisenberg, exchange, dm_interaction
-export easy_axis, easy_plane, quadratic_anisotropy, quartic_anisotropy
-export SUN_anisotropy, gen_spin_ops
+export easy_axis, easy_plane, quadratic_anisotropy, anisotropy
+export stevens_operators, spin_operators
 export external_field, dipole_dipole
 export SiteInfo
 

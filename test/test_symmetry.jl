@@ -220,11 +220,11 @@ end
 
     for N=2:7
         for k = 0:N-1
-            𝒪 = Sunny.stevens_operators(N, k)
+            𝒪 = Sunny.stevens_ops(N, k)
             T = Sunny.spherical_tensors(N, k)
 
             # Check that two ways of calculating Stevens operators agree
-            @test 𝒪 ≈ Sunny.stevens_operators_explicit(N, k)
+            @test 𝒪 ≈ Sunny.stevens_ops_explicit(N, k)
 
             # Check conversion of coefficients
             c = randn(2k+1)
@@ -243,21 +243,21 @@ end
         cryst = Sunny.diamond_crystal()
 
         # print_allowed_anisotropy(cryst, i; k)
-        𝒪 = stevens_operators(N, k)
+        𝒪 = stevens_ops(N, k)
         Λ = 𝒪[0]-21𝒪[4]
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
 
         R = hcat(normalize([1, 1, -2]), normalize([-1, 1, 0]), normalize([1, 1, 1]))
         R = Sunny.Mat3(R)
         # print_allowed_anisotropy(cryst, i; k, R, digits=14)
-        𝒪 = stevens_operators(N, k; R)
+        𝒪 = stevens_ops(N, k; R)
         Λ = 𝒪[0]-12.37436867076458𝒪[3]+9.625𝒪[6]
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
 
         lat_vecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
         cryst = Crystal(lat_vecs, [[0., 0., 0.]])
         # print_allowed_anisotropy(cryst, i; k, digits=14)
-        𝒪 = stevens_operators(N, k)
+        𝒪 = stevens_ops(N, k)
         Λ = randn()*(𝒪[0]-21𝒪[4]) + randn()*(𝒪[2]+3.2𝒪[4]+2.2𝒪[6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
     end

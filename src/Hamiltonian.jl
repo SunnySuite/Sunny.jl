@@ -43,7 +43,7 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
                 println("Use `print_bond(crystal, Bond($site, $site, [0,0,0])` for more information.")
                 error("Interaction violates symmetry.")
             end
-        elseif isa(int, SUNAnisotropy)
+        elseif isa(int, FIXME_SUNAnisotropy)
             (; site, Λ) = int
             b = Bond(site, site, [0,0,0])
             N = size(Λ)[1]
@@ -77,7 +77,7 @@ function merge(anisos::Vector{QuarticAnisotropy})
     )
 end
 
-function merge(anisos::Vector{SUNAnisotropy})
+function merge(anisos::Vector{FIXME_SUNAnisotropy})
     (length(anisos) == 0) && (return nothing)
     N = size(anisos[1].Λ)[1]
     sites = Int[]
@@ -86,7 +86,7 @@ function merge(anisos::Vector{SUNAnisotropy})
         Λs[:,:,i] .= aniso.Λ
         push!(sites, aniso.site)
     end
-    SUNAnisotropyCPU(Λs,
+    FIXME_SUNAnisotropyCPU(Λs,
                      sites,
                      ""
     )
@@ -94,13 +94,13 @@ end
 
 
 """
-    propagate_sun_anisos(crystal::Crystal, anisos::Vector{SUNAnisotropy}, N)
+    propagate_sun_anisos(crystal::Crystal, anisos::Vector{FIXME_SUNAnisotropy}, N)
 
 Propagates SU(N) anisotropies to symmetry equivalent sites. If no 
 anisotropy is specified for a given site, the Λ for that site is set to 
 the zero matrix.
 """
-function propagate_sun_anisos(crystal::Crystal, anisos::Vector{SUNAnisotropy}, N)
+function propagate_sun_anisos(crystal::Crystal, anisos::Vector{FIXME_SUNAnisotropy}, N)
     Λ₀ = zeros(ComplexF64, N, N)
     all_sun_anisos = [SUNAnisotropy(Λ₀, i, "") for i ∈ 1:nbasis(crystal)]
     specified_atoms = Int[]
@@ -133,8 +133,8 @@ function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::C
                        Vector{QuadraticAnisotropy}
     quartic_anisos = filter(a -> isa(a, QuarticAnisotropy), anisos) |>
                      Vector{QuarticAnisotropy}
-    sun_anisos = filter(a -> isa(a, SUNAnisotropy), anisos) |>
-                 Vector{SUNAnisotropy}
+    sun_anisos = filter(a -> isa(a, FIXME_SUNAnisotropy), anisos) |>
+                 Vector{FIXME_SUNAnisotropy}
 
     # Convert to backend types if in LL mode.
     if N == 0

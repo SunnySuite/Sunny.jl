@@ -138,13 +138,11 @@ function test_energy_scaling_gsd()
     cryst = Sunny.fcc_crystal()
     dims = (2,2,2)
 
-    𝒪₂ = stevens_operators(N, 2)
-    𝒪₄ = stevens_operators(N, 4)
-    Λ = 𝒪₄[0]+5𝒪₄[4]
+    𝒪 = stevens_operators
+    Λ = 𝒪[4][0]+5𝒪[4][4]
 
-    S = Sunny.gen_spin_ops(N)
     interactions_gsd = [heisenberg(1.0, Bond(1,2,[0,0,0])),
-                        SUN_anisotropy(Λ, 1, "")]
+                        anisotropy(Λ, 1, "")]
     powers_gsd = [2, 1]
 
     for (interaction, power) in zip(interactions_gsd, powers_gsd)

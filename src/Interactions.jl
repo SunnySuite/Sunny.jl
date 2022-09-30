@@ -13,8 +13,8 @@ struct QuadraticInteraction <: AbstractInteraction
     label :: String
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", int::QuadraticInteraction)
-    b = repr(mime, int.bond)
+function Base.show(io::IO, ::MIME"text/plain", int::QuadraticInteraction)
+    b = repr("text/plain", int.bond)
     J = int.J
     if J ≈ -J'                             # Catch purely DM interactions
         x = J[2, 3]
@@ -164,6 +164,26 @@ function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
     QuadraticInteraction(J, bond, label)
 end
 
+const spin_expectations = begin
+    @polyvar Sx Sy Sz
+end
+
+const spin_operators = begin
+    @ncpolyvar Sx Sy Sz
+end
+
+const stevens_operators = begin
+    𝒪₀ = OffsetArray(collect(@ncpolyvar 𝒪₀₀), 0:0)
+    𝒪₁ = OffsetArray(collect(@ncpolyvar 𝒪₁₋₁ 𝒪₁₀ 𝒪₁₁), -1:1)
+    𝒪₂ = OffsetArray(collect(@ncpolyvar 𝒪₂₋₂ 𝒪₂₋₁ 𝒪₂₀ 𝒪₂₁ 𝒪₂₂), -2:2)
+    𝒪₃ = OffsetArray(collect(@ncpolyvar 𝒪₃₋₃ 𝒪₃₋₂ 𝒪₃₋₁ 𝒪₃₀ 𝒪₃₁ 𝒪₃₂ 𝒪₃₃), -3:3)
+    𝒪₄ = OffsetArray(collect(@ncpolyvar 𝒪₄₋₄ 𝒪₄₋₃ 𝒪₄₋₂ 𝒪₄₋₁ 𝒪₄₀ 𝒪₄₁ 𝒪₄₂ 𝒪₄₃ 𝒪₄₄), -4:4)
+    𝒪₅ = OffsetArray(collect(@ncpolyvar 𝒪₅₋₅ 𝒪₅₋₄ 𝒪₅₋₃ 𝒪₅₋₂ 𝒪₅₋₁ 𝒪₅₀ 𝒪₅₁ 𝒪₅₂ 𝒪₅₃ 𝒪₅₄ 𝒪₅₋₅), -5:5)
+    𝒪₆ = OffsetArray(collect(@ncpolyvar 𝒪₆₋₆ 𝒪₆₋₅ 𝒪₆₋₄ 𝒪₆₋₃ 𝒪₆₋₂ 𝒪₆₋₁ 𝒪₆₀ 𝒪₆₁ 𝒪₆₂ 𝒪₆₃ 𝒪₆₄ 𝒪₆₋₅ 𝒪₆₋₆), -6:6)
+    OffsetArray([𝒪₀, 𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄], 0:4)
+end
+
+
 struct QuadraticAnisotropy <: AbstractAnisotropy
     J     :: Mat3
     site  :: Int
@@ -176,13 +196,13 @@ struct QuarticAnisotropy <: AbstractAnisotropy
     label :: String # Maybe remove
 end
 
-struct SUNAnisotropy <: AbstractAnisotropy
-    Λ     :: Matrix{ComplexF64}
+struct OperatorAnisotropy <: AbstractAnisotropy
+    Λ     :: Polynomial
     site  :: Int
     label :: String # Maybe remove
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", aniso::QuadraticAnisotropy)
+function Base.show(io::IO, ::MIME"text/plain", aniso::QuadraticAnisotropy)
     (; J, site, label) = aniso
     @assert J ≈ J'
     # Check if it is easy-axis or easy-plane
@@ -310,12 +330,13 @@ end
 
 
 """
-    SUN_anisotropy(mat, site)
+    anisotropy(op, site)
 
-Creates an SU(N) anisotropy, specified as an NxN operator, `mat`.
+Creates a general anisotropy specified as a polynomial of `spin_operators` or
+`stevens_operators`.
 """
-function SUN_anisotropy(mat, site, label="SUNAniso")
-    SUNAnisotropy(mat, site, label)
+function anisotropy(op::Polynomial, site, label="OperatorAniso")
+    OperatorAnisotropy(mat, site, label)
 end
 
 struct DipoleDipole <: AbstractInteraction
