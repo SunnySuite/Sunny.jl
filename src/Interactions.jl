@@ -104,7 +104,9 @@ function SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0, ff_elem=nothing,
 
     # Make sure a valid element is given if a g_lande value is given. 
     if isnothing(ff_elem) && !isnothing(ff_lande)
-        @warn "When creating a SiteInfo, you must provide valid `ff_elem` if you are also assigning a value to `ff_lande`. No form factor corrections will be applied."
+        println("""Warning: When creating a SiteInfo, you must provide valid `ff_elem` if you
+                   are also assigning a value to `ff_lande`. No form factor corrections will be
+                   applied.""")
     end
 
     # Read all relevant form factor data if an element name is provided

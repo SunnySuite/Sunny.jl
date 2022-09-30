@@ -83,7 +83,7 @@ mutable struct SphericalMidpoint <: Integrator
 end
 
 function SphericalMidpoint(sys::SpinSystem{N}; atol=1e-12) where N
-    @error "SphericalMidpoint integrator is not available for SU(N) systems. Use ImplicitMidpoint integrator."
+    error("SphericalMidpoint integrator is not available for SU(N) systems. Use ImplicitMidpoint integrator.")
     nothing
 end
 
@@ -172,7 +172,7 @@ function SchrodingerMidpoint(sys::SpinSystem{N}; atol=1e-14) where N
 end
 
 function SchrodingerMidpoint(sys::SpinSystem{0}; atol=1e-14)
-    @error "SchrodingerMidpoint integration is only available for SU(N) systems. Use ImplicitMidpoint integrator."
+    error("SchrodingerMidpoint integration is only available for SU(N) systems. Use ImplicitMidpoint integrator.")
     nothing
 end
 
