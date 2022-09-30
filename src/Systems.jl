@@ -138,7 +138,7 @@ function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
     for siteinfo in site_infos
         (; site, N, g, spin_rescaling, ff_params) = siteinfo
         if N != maxN
-            @warn "Up-converting N=$N -> N=$maxN on site $(site)!"
+            println("Warning: Up-converting N=$N -> N=$maxN on site $(site)!")
         end
         (sym_bs, sym_gs) = all_symmetry_related_couplings(crystal, Bond(site, site, [0,0,0]), g)
         for (sym_b, sym_g) in zip(sym_bs, sym_gs)
@@ -146,7 +146,7 @@ function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
             if sym_atom in specified_atoms
                 # Perhaps this should only throw if two _conflicting_ SiteInfo are passed?
                 # Then propagate_site_info can be the identity on an already-filled list.
-                @error "Provided two `SiteInfo` which describe symmetry-equivalent sites!"
+                error("Provided two `SiteInfo` which describe symmetry-equivalent sites!")
             else
                 push!(specified_atoms, sym_atom)
             end
@@ -159,7 +159,9 @@ function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
     with_ff = filter(si -> !isnothing(si.ff_params), all_site_infos)
     if length(with_ff) > 0
         if length(with_ff) != length(all_site_infos)
-            @error "Form factor calculations require that the magnetic ion be specified for all unique lattice sites. Please provide a SiteInfo with an explicit ff_elem for all unique sites or for none at all"
+            error("""Form factor calculations require that the magnetic ion be specified for
+                     all unique lattice sites. Please provide a SiteInfo with an explicit
+                     ff_elem for all unique sites or for none at all.""")
         end
     end
 
