@@ -180,7 +180,15 @@ const stevens_operators = begin
     𝒪₄ = OffsetArray(collect(@ncpolyvar 𝒪₄₋₄ 𝒪₄₋₃ 𝒪₄₋₂ 𝒪₄₋₁ 𝒪₄₀ 𝒪₄₁ 𝒪₄₂ 𝒪₄₃ 𝒪₄₄), -4:4)
     𝒪₅ = OffsetArray(collect(@ncpolyvar 𝒪₅₋₅ 𝒪₅₋₄ 𝒪₅₋₃ 𝒪₅₋₂ 𝒪₅₋₁ 𝒪₅₀ 𝒪₅₁ 𝒪₅₂ 𝒪₅₃ 𝒪₅₄ 𝒪₅₋₅), -5:5)
     𝒪₆ = OffsetArray(collect(@ncpolyvar 𝒪₆₋₆ 𝒪₆₋₅ 𝒪₆₋₄ 𝒪₆₋₃ 𝒪₆₋₂ 𝒪₆₋₁ 𝒪₆₀ 𝒪₆₁ 𝒪₆₂ 𝒪₆₃ 𝒪₆₄ 𝒪₆₋₅ 𝒪₆₋₆), -6:6)
-    OffsetArray([𝒪₀, 𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄], 0:4)
+    OffsetArray([𝒪₀, 𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄, 𝒪₅, 𝒪₆], 0:6)
+end
+
+function operator_as_matrix(p; S)
+    N = Int(2S+1)
+    return p(
+        spin_operators => gen_spin_ops(N),
+        [stevens_operators[k] => stevens_ops(N, k) for k=0:6]...
+    )
 end
 
 
@@ -196,8 +204,10 @@ struct QuarticAnisotropy <: AbstractAnisotropy
     label :: String # Maybe remove
 end
 
+struct FIXME_SUNAnisotropy end
+
 struct OperatorAnisotropy <: AbstractAnisotropy
-    Λ     :: Polynomial
+    Λ     :: AbstractPolynomialLike
     site  :: Int
     label :: String # Maybe remove
 end
@@ -304,7 +314,7 @@ end
 #  to give the user the ability to construct generalized anisotropy matrices.
 # Internal code should implicitly use the action of these operators on
 #  N-dimensional complex vectors.
-function gen_spin_ops(N::Int) :: NTuple{3, Matrix{ComplexF64}}
+function gen_spin_ops(N::Int)
     if N == 0  # Returns wrong type if not checked 
         return zeros(ComplexF64, 0,0), zeros(ComplexF64, 0,0), zeros(ComplexF64, 0,0)
     end
@@ -316,8 +326,9 @@ function gen_spin_ops(N::Int) :: NTuple{3, Matrix{ComplexF64}}
     Sx = diagm(1 => off, -1 => off)
     Sy = diagm(1 => -im*off, -1 => +im*off)
     Sz = diagm((N-1)/2 .- (0:N-1))
-    return Sx, Sy, Sz
+    return SVector{3, Matrix{ComplexF64}}(Sx, Sy, Sz)
 end
+
 
 function gen_spin_ops_packed(N::Int) :: Array{ComplexF64, 3}
     Ss = gen_spin_ops(N)
@@ -335,8 +346,8 @@ end
 Creates a general anisotropy specified as a polynomial of `spin_operators` or
 `stevens_operators`.
 """
-function anisotropy(op::Polynomial, site, label="OperatorAniso")
-    OperatorAnisotropy(mat, site, label)
+function anisotropy(op::AbstractPolynomialLike, site, label="OperatorAniso")
+    OperatorAnisotropy(op, site, label)
 end
 
 struct DipoleDipole <: AbstractInteraction

@@ -1,16 +1,3 @@
-# N-dimensional irreducible matrix representation of 𝔰𝔲(2).
-# TODO: Unify with David's code.
-function spin_operators(N)
-    s = (N-1)/2
-    a = 1:N-1
-    off = @. sqrt(2(s+1)*a - a*(a+1)) / 2
-
-    Sx = diagm(1 => off, -1 => off)
-    Sy = diagm(1 => -im*off, -1 => +im*off)
-    Sz = diagm((N-1)/2 .- (0:N-1))
-    return SVector{3, Matrix{ComplexF64}}(Sx, Sy, Sz)
-end
-
 # Return a matrix whose columns are an orthogonal basis for the span of columns
 # in A. Adapted from LinearAlgebra.nullspace().
 function colspace(A::AbstractVecOrMat; atol::Real)
@@ -65,6 +52,15 @@ function axis_angle(R::Mat3)
     return (n, θ)
 end
 
+function unitary_for_rotation(N::Int, R::Mat3)
+    !(R'*R ≈ I)   && error("Not an orthogonal matrix, R = $R.")
+    !(det(R) ≈ 1) && error("Not a rotation matrix, R = $R.")
+    S = gen_spin_ops(N)
+    n, θ = axis_angle(R)
+    return exp(-im*θ*(n'*S))
+end
+
+
 # Spherical tensors that satisfy `norm(T) =  √ tr T† T = 1`.  TODO: Delete,
 # because this function is never used?
 function spherical_tensors_normalized(N, k)
@@ -86,9 +82,8 @@ end
 # T(k,k-1), ... T(k,-k)] for consistency with the standard basis used by the
 # spin operators. The result is ambiguous up to an overall (k,N)-dependent
 # scaling factor. We use the normalization convention of KS/BCS. Note: This
-# function is currently only used to construct the Stevens operators, but those
-# could intead be constructed from an explicit polynomial expansion. In that
-# case, this function would only be needed for testing purposes.
+# function is currently only used to as an alternative path to constructing the
+# Stevens operators, for use in testing.
 function spherical_tensors(N, k)
     j = (N-1)/2
     ret = Matrix{Float64}[]
@@ -120,13 +115,6 @@ function spherical_tensors(N, k)
     return ret
 end
 
-function unitary_for_rotation(N::Int, R::Mat3)
-    !(R'*R ≈ I)   && error("Not an orthogonal matrix, R = $R.")
-    !(det(R) ≈ 1) && error("Not a rotation matrix, R = $R.")
-    S = spin_operators(N)
-    n, θ = axis_angle(R)
-    return exp(-im*θ*(n'*S))
-end
 
 const stevens_a = begin
     # These coefficients for a[k,q] were taken from Table 1 of C. Rudowicz, J.
@@ -142,8 +130,8 @@ const stevens_a = begin
     a = OffsetArray(a, 1:6, 0:6)
 end
 
-function stevens_ops(N::Int, k::Int; R=Mat3(I))
-    k < 0  && error("Require k > 0, received k=$k")
+function stevens_ops_alt(N::Int, k::Int)
+    k < 0  && error("Require k >= 0, received k=$k")
     k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
     k >= N && error("Hilbert space dimension N=$N must exceed operator order k=$k")
 
@@ -153,72 +141,62 @@ function stevens_ops(N::Int, k::Int; R=Mat3(I))
     T = spherical_tensors(N, k)
 
     # Define Stevens operators in standard frame
-    𝒪s = OffsetArray(fill(zeros(ComplexF64, 0, 0), 2k+1), -k:k)
+    𝒪 = OffsetArray(fill(zeros(ComplexF64, 0, 0), 2k+1), -k:k)
     for q=1:k
         Tq = T[begin + (k-q)]
         Tq̄ = T[end   - (k-q)]
-        𝒪s[q]  =      stevens_a[k,q] * (Tq̄ + (-1)^q * Tq)
-        𝒪s[-q] = im * stevens_a[k,q] * (Tq̄ - (-1)^q * Tq)
+        𝒪[q]  =      stevens_a[k,q] * (Tq̄ + (-1)^q * Tq)
+        𝒪[-q] = im * stevens_a[k,q] * (Tq̄ - (-1)^q * Tq)
     end
-    𝒪s[0] = stevens_a[k,0] * T[begin + (k-0)]
-
-    # Return rotated operators
-    U = unitary_for_rotation(N, R)
-    return [U'*𝒪*U for 𝒪 in 𝒪s]
+    𝒪[0] = stevens_a[k,0] * T[begin + (k-0)]
+    return 𝒪
 end
 
-function stevens_op_as_polynomial(; Sx, Sy, Sz, S, k::Int, m::Int)
+function stevens_op_polynomial(; Sx, Sy, Sz, S, k::Int)
+    k < 0  && error("Require k >= 0, received k=$k")
+    k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
+
     I = one(Sx)
     X = S*(S+1)*I
     Jz = Sz
     Jp = Sx + im*Sy
     Jm = Sx - im*Sy
 
-    A = if -k <= m < 0
-        -(im/2) * (Jp^m - Jm^m)
-    elseif m == 0
-        I
-    elseif 0 < m <= k
-        (1/2) * (Jp^m + Jm^m)
-    else
-        error("Stevens operators require |m| <= k, received m=$m and k=$k")
-    end
+    A = [
+        [-(im/2) * (Jp^m - Jm^m) for m=k:-1:1];
+        [I];
+        [+(1/2)  * (Jp^m + Jm^m) for m=1:k]
+    ]
 
     B = if k == 0
-        [I]
+        []
     elseif k == 1
-        [Jz,
-         I]
+        [Jz]
     elseif k == 2
         [3Jz^2 - X,
-         Jz,
-         I]
+        Jz]
     elseif k == 3
         [5Jz^3-(3X-I)*Jz,
-         5Jz^2-X-I/2,
-         Jz,
-         I]
+        5Jz^2-X-I/2,
+        Jz]
     elseif k == 4
         [35Jz^4 - (30X-25I)*Jz^2 + (3X^2-6X),
-         7Jz^3 - (3X+I)*Jz,
-         7Jz^2 - (X+5I),
-         Jz,
-         I]
+        7Jz^3 - (3X+I)*Jz,
+        7Jz^2 - (X+5I),
+        Jz]
     elseif k == 5
         [63Jz^5 - (70X-105I)*Jz^3 + (15X^2-50X+12I)*Jz,
-         21Jz^4 - 14X*Jz^2 + (X^2-X+(3/2)*I),
-         3Jz^3 - (X+6I)*Jz,
-         9Jz^2 - (X+(33/2)*I),
-         Jz,
-         I]
+        21Jz^4 - 14X*Jz^2 + (X^2-X+(3/2)*I),
+        3Jz^3 - (X+6I)*Jz,
+        9Jz^2 - (X+(33/2)*I),
+        Jz]
     elseif k == 6
         [231Jz^6 - (315X-735I)Jz^4 + (105X^2-525X+294I)*Jz^2 - (5X^3-40X^2+60X),
-         33Jz^5 - (30X-15I)*Jz^3 + (5X^2-10X+12I)*Jz,
-         33Jz^4 - (18X+123I)Jz^2 + (X^2+10X+102I),
-         11Jz^3 - (3X+59I)*Jz,
-         11Jz^2 - (X+38I),
-         Jz,
-         I]
+        33Jz^5 - (30X-15I)*Jz^3 + (5X^2-10X+12I)*Jz,
+        33Jz^4 - (18X+123I)Jz^2 + (X^2+10X+102I),
+        11Jz^3 - (3X+59I)*Jz,
+        11Jz^2 - (X+38I),
+        Jz]
     elseif k > 6
         # In principle, it should be possible to programmatically generate an
         # arbitrary polynomial using Eq. (23) of I. D. Ryabov, J. Magnetic
@@ -227,21 +205,24 @@ function stevens_op_as_polynomial(; Sx, Sy, Sz, S, k::Int, m::Int)
     else # k < 0
         error("Stevens operators require k >= 0, received k=$k")
     end
-    B = B[abs(m)]
 
-    return (A*B + B*A) / 2
+    B = [B; [I]; reverse(B)]
+
+    𝒪 = [(A[m]*B[m]+B[m]*A[m])/2 for m = -k:k]
+    return OffsetArray(𝒪, -k:k)
 end
 
 
 
-# An explicit polynomial definition of the Stevens operators. The output must be
-# identical to stevens_ops(N, k) calculated from the spherical tensors.
-function stevens_op_as_matrix(N::Int, k::Int, m::Int) # stevens_ops_explicit
+# Construct Stevens operators as polynomials in the spin operators. The output
+# must be identical to stevens_ops_alt(N, k) calculated from the spherical
+# tensors.
+# TODO: Take S instead of N?
+function stevens_ops(N::Int, k::Int)
     k >= N && error("Hilbert space dimension N=$N must exceed operator order k=$k")
-
-    Sx, Sy, Sz = spin_operators(N)
+    Sx, Sy, Sz = gen_spin_ops(N)
     S = (N-1)/2
-    return stevens_op_as_polynomial(; Sx, Sy, Sz, S, k, m)
+    return stevens_op_polynomial(; Sx, Sy, Sz, S, k)
 end
 
 
