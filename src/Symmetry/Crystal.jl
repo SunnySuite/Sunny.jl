@@ -370,8 +370,8 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     end
 
     if !is_subgroup
-        println("WARNING: User provided symmetry operation could not be inferred by Spglib,")
-        println("which likely indicates a non-conventional unit cell.")
+        println("""Warning: User provided symmetry operation could not be inferred by Spglib,
+                   which likely indicates a non-conventional unit cell.""")
     end
 
     # If the inferred symops match the provided ones, then we use the inferred
@@ -424,7 +424,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where {N}
     new_sitesyms = cryst.sitesyms[idxs]
 
     if idxs != 1:maximum(idxs)
-        println("WARNING, atoms are being renumbered.")
+        println("Warning: atoms are being renumbered.")
     end
 
     ret = Crystal(cryst.lat_vecs, new_positions, new_types, new_classes, new_sitesyms,

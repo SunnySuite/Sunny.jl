@@ -29,8 +29,7 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
                 coeffs = crystal.lat_vecs \ displacement(crystal, b′)
                 for i = 1:3
                     if abs(coeffs[i]) >= latsize[i]/2 - 1e-10
-                        println("Interaction $int_str is too long; consider extending system along dimension $i.")
-                        error("Interaction wraps system.")
+                        println("Warning: Interaction $int_str wraps the system along dimension $i.")
                     end
                 end
             end
@@ -112,9 +111,9 @@ function propagate_sun_anisos(crystal::Crystal, anisos::Vector{SUNAnisotropy}, N
 
         for (sym_atom, sym_Λ) in zip(sym_bs, sym_Λs)
             if sym_atom in specified_atoms
-                @error "Provided two SU($N) anisotropies for symmetry equivalent sites."
+                error("Provided two SU($N) anisotropies for symmetry equivalent sites.")
             elseif size(sym_Λ)[1] != N
-                @error "Provided an SU($(size(sym_Λ)[1])) anisotropy for an SU($N) model!"
+                error("Provided an SU($(size(sym_Λ)[1])) anisotropy for an SU($N) model!")
             else
                 push!(specified_atoms, sym_atom)
             end
@@ -140,7 +139,7 @@ function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::C
     # Convert to backend types if in LL mode.
     if N == 0
         if length(sun_anisos) != 0
-            @error "Given a SU(N) anisotropy but running in classic Landau-Lifshitz mode."
+            error("Given a SU(N) anisotropy but running in classic Landau-Lifshitz mode.")
         end
 
         quadratic_aniso = merge(quadratic_anisos)
@@ -151,7 +150,7 @@ function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::C
 
     # Throw error if given non-SU(N) anisotropy and in SU(N) mode 
     if length(quadratic_anisos) != 0 || length(quartic_anisos) != 0
-        @error "Given a Landau-Lifshitz-type anisotropy, but running in SU(N) mode."
+        error("Given a Landau-Lifshitz-type anisotropy, but running in SU(N) mode.")
     end
 
     # Propagate SU(N) anisotropies to symmetry equivalent sites
@@ -228,7 +227,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
             push!(anisos, int)
         elseif isa(int, DipoleDipole)
             if !isnothing(dipole_int)
-                @warn "Provided multiple dipole interactions. Only using last one."
+                println("Warning: Provided multiple dipole interactions. Only using last one.")
             end
             dipole_int = DipoleFourierCPU(int, crystal, latsize, site_infos; μB=μB, μ0=μ0)
         else
