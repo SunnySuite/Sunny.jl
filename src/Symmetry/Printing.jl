@@ -223,32 +223,26 @@ function print_suggested_frame(cryst::Crystal, i::Int; digits=4, atol=1e-12)
 end
 
 """
-print_allowed_anisotropy(cryst, i; R=I, digits=4, time_reversal=true)
+print_allowed_anisotropy(cryst, i; R=I, digits=4, ks=[2,4,6])
 
 Print the allowable linear combinations of Stevens operators that are consistent
-with the point group symmetries of site `i`. If `time_reversal` symmetry is
-`false`, then odd-order Stevens operators will also be considered.
+with the point group symmetries of site `i`. Elements of `ks` determine the
+allowed polynomial orders. An optional rotation matrix `R` can be provided to
+define the reference frame.
 """
-function print_allowed_anisotropy(cryst::Crystal, i::Int; R=Mat3(I), atol=1e-12, digits=4, time_reversal=true)
-    ks = time_reversal ? [2,4,6] : collect(1:6)
-    kchars = ['₁', '₂', '₃', '₄', '₅', '₆']
+function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3=Mat3(I), atol=1e-12, digits=4, ks=[2,4,6])
+    R = Mat3(R)
+    kchars = ['₁', '₂', '₃', '₄', '₅', '₆'][ks]
 
     println("# Stevens operators at various orders k")
-    for k in ks
-        kchar = kchars[k]
-        if R == Mat3(I)
-            println("𝒪$kchar = stevens_operators(N, $k)")
-        else
-            println("𝒪$kchar = stevens_operators(N, $k; R)")
-        end
-    end
+    𝒪list = join(Ref("𝒪") .* kchars, ", ")
+    klist = join(ks, ",")
+    println("$𝒪list = stevens_operators[[$klist]]")
 
     println()
-    println("# Allowed anisotropy operator")
-
+    println("# Allowed anisotropy operator for site $i")
     lines = String[]
-    for k in ks
-        kchar = kchars[k]
+    for (k, kchar) in zip(ks, kchars)
         B = stevens_basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
 
         if size(B, 2) > 0
@@ -276,4 +270,10 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R=Mat3(I), atol=1e-12,
         end
     end
     println(join(lines, " +\n"))
+
+    if R != I
+        println()
+        println("# Reference frame")
+        println("R = $R")
+    end
 end
