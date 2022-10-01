@@ -60,16 +60,19 @@ function unitary_for_rotation(N::Int, R::Mat3)
     return exp(-im*θ*(n'*S))
 end
 
-function rotate_operator(A, R::Mat3)
+function rotate_operator(A::Matrix, R::Mat3)
     N = size(A, 1)
     U = unitary_for_rotation(N, R)
     return U'*A*U
 end
 
-function rotate_classical_polynomial(P, R::Mat3)
-    J = spin_expectations
-    # Effectively replace each Jₐ with the a'th column of R
-    return P(J => R' * J)
+function rotate_operator(P::AbstractPolynomialLike, R::Mat3)
+    S = spin_expectations
+    if !issubset(variables(P), S)
+        error("P must be a polynomial in the expected spin components.")
+    end
+    # Effectively replace S -> S′ = R S
+    return P(S => R' * S)
 end
 
 # Spherical tensors that satisfy `norm(T) =  √ tr T† T = 1`.  TODO: Delete,
@@ -361,14 +364,12 @@ end
 
 
 function is_anisotropy_valid(cryst::Crystal, i::Int, Λ)
-    N = size(Λ, 1)
     symops = symmetries_for_pointgroup_of_atom(cryst, i)
 
     for s in symops
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
-        Q = det(R) * R
-        U = unitary_for_rotation(N, Q)
-        if !(U'*Λ*U ≈ Λ)
+        Λ′ = rotate_operator(Λ, det(R)*R)
+        if !(Λ′ ≈ Λ)
             return false
         end
     end

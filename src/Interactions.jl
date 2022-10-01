@@ -89,6 +89,7 @@ information on the form factor calculation.
 NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverted
 to the largest specified `N`.
 """
+# TODO: Get read of site field, and replace N -> S, defaulting to 1
 Base.@kwdef struct SiteInfo
     site            :: Int                 # Index of site
     N               :: Int     = 0         # N in SU(N)
@@ -183,8 +184,7 @@ const stevens_operators = begin
     OffsetArray([𝒪₀, 𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄, 𝒪₅, 𝒪₆], 0:6)
 end
 
-function operator_representation(p; S)
-    N = Int(2S+1)
+function operator_to_matrix(p; N)
     rep = p(
         spin_operators => gen_spin_ops(N),
         [stevens_operators[k] => stevens_ops(N, k) for k=0:6]...
@@ -315,21 +315,21 @@ function easy_plane(D, n, site::Int, label::String="EasyAxis")
     QuadraticAnisotropy(+D*Mat3(n*n'), site, label)
 end
 
-"""
-    quartic_anisotropy(J, site, label="QuarticAniso")
+# """
+#     quartic_anisotropy(J, site, label="QuarticAniso")
 
-Creates a quartic anisotropy. J is a rank-4 tensor, specified as a 3x3x3x3 array.
-```math
-    ∑_i ∑_{α, β, γ, δ ∈ \\{x, y, z\\}} J_{αβγδ} S_i^α S_i^β S_i^γ S_i^δ
-```
-"""
-function quartic_anisotropy(J, site, label="QuarticAniso")
-    # TODO: Basic symmetry checks?
-    if (size(J) != (3, 3, 3, 3)) || !(eltype(J) <: Real)
-        error("Parameter `J` must be a 3x3x3x3 real tensor.")
-    end
-    QuarticAnisotropy(J, site, label)
-end
+# Creates a quartic anisotropy. J is a rank-4 tensor, specified as a 3x3x3x3 array.
+# ```math
+#     ∑_i ∑_{α, β, γ, δ ∈ \\{x, y, z\\}} J_{αβγδ} S_i^α S_i^β S_i^γ S_i^δ
+# ```
+# """
+# function quartic_anisotropy(J, site, label="QuarticAniso")
+#     # TODO: Basic symmetry checks?
+#     if (size(J) != (3, 3, 3, 3)) || !(eltype(J) <: Real)
+#         error("Parameter `J` must be a 3x3x3x3 real tensor.")
+#     end
+#     QuarticAnisotropy(J, site, label)
+# end
 
 # N-dimensional irreducible matrix representation of 𝔰𝔲(2). Use this only
 #  to give the user the ability to construct generalized anisotropy matrices.
@@ -337,7 +337,7 @@ end
 #  N-dimensional complex vectors.
 function gen_spin_ops(N::Int)
     if N == 0  # Returns wrong type if not checked 
-        return zeros(ComplexF64, 0,0), zeros(ComplexF64, 0,0), zeros(ComplexF64, 0,0)
+        return zeros(ComplexF64,0,0), zeros(ComplexF64,0,0), zeros(ComplexF64,0,0)
     end
 
     s = (N-1)/2
@@ -347,7 +347,7 @@ function gen_spin_ops(N::Int)
     Sx = diagm(1 => off, -1 => off)
     Sy = diagm(1 => -im*off, -1 => +im*off)
     Sz = diagm((N-1)/2 .- (0:N-1))
-    return SVector{3, Matrix{ComplexF64}}(Sx, Sy, Sz)
+    return SVector{3}(Sx, Sy, Sz)
 end
 
 

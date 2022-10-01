@@ -23,11 +23,10 @@ function make_test_system_lld(; spin_rescaling=1.0)
 
     # Quartic anisotropy
     D = 1.0 
-    Jquar = zeros(3,3,3,3)
-    Jquar[1,1,1,1] = Jquar[2,2,2,2] = Jquar[3,3,3,3] = D
-    quartic_interactions = [quartic_anisotropy(Jquar, i, "quartic") for i ∈ 1:4]
+    S = spin_operators
+    quartic_interactions = [anisotropy(D*(S[1]^4+S[2]^4+S[3]^4), i, "quartic") for i ∈ 1:4]
 
-    interactions_all = vcat(exchange_interactions..., quartic_interactions...) 
+    interactions_all = [exchange_interactions..., quartic_interactions...]
     dims = (3,3,3)
 
     return SpinSystem(cryst,
@@ -45,11 +44,11 @@ function make_test_system_gsd(; spin_rescaling=1.0, N=2)
     exchange_interactions = make_exchange_interactions()
 
     # Quartic anisotropy
-    S = Sunny.gen_spin_ops(N)
-    quartic_sun = SUN_anisotropy(-S[3]^4, 1, "quartic") 
+    S = spin_operators
+    quartic_sun = anisotropy(-S[3]^4, 1, "quartic")
 
     dims = (3,3,3)
-    interactions_all = vcat(exchange_interactions..., quartic_sun) 
+    interactions_all = [exchange_interactions..., quartic_sun]
 
     return SpinSystem(cryst,
                       interactions_all,

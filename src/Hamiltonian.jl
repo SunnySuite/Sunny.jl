@@ -1,7 +1,7 @@
 # Functions associated with HamiltonianCPU, which maintains the actual internal
 # interaction types and orchestrates energy/field calculations.
 
-function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, crystal::Crystal, latsize::Vector{Int64})
+function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, crystal::Crystal, latsize::Vector{Int64}, site_infos::Vector{SiteInfo})
     # Validate all interactions
     for int in ints
         int_str = repr("text/plain", int)
@@ -38,21 +38,20 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
             b = Bond(site, site, [0, 0, 0])
             if !is_coupling_valid(crystal, b, int.J)
                 println("Symmetry-violating anisotropy: $int_str.")
-                println("Allowed single-ion anisotropy for this atom:")
-                print_allowed_coupling(crystal, b; prefix="    ")
-                println("Use `print_bond(crystal, Bond($site, $site, [0,0,0])` for more information.")
+                println("Use `print_bond(crystal, $b)` for more information.")
                 error("Interaction violates symmetry.")
             end
-        elseif isa(int, FIXME_SUNAnisotropy)
+        elseif isa(int, OperatorAnisotropy)
             (; site, Λ) = int
-            b = Bond(site, site, [0,0,0])
-            N = size(Λ)[1]
-            if !is_anisotropy_valid(crystal, site, int.Λ)
-                println("Symmetry-violating anisotropy: $int_str.")
-                println("Allowed SU(N) single-ion anisotropy for this atom:")
-                print_allowed_anisotropy(crystal, site)
-                error("Specified SU($N) anisotropy either violates symmetry or is of incorrect dimension.")
+            N = site_infos[site].N
+            Λ_rep = (N == 0) ? operator_to_classical_polynomial(Λ) : operator_to_matrix(Λ; N)
+            if !is_anisotropy_valid(crystal, site, Λ_rep)
+                println("Symmetry-violating anisotropy: $Λ.")
+                println("Use `print_allowed_anisotropy(crystal, $site)` for more information.")
+                error("Invalid anisotropy.")
             end
+        else
+            error("Unknown interaction type: $int")
         end
     end
 
@@ -60,7 +59,7 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
 end
 
 
-# Functions for converting front end anistropy types to back end types. 
+# Functions for converting front end anisotropy types to back end types. 
 function merge(anisos::Vector{QuadraticAnisotropy}) 
     (length(anisos) == 0) && (return nothing)
     DipolarQuadraticAnisotropyCPU([a.J for a in anisos],
@@ -201,7 +200,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     sun_anisos = nothing
     spin_mags   = [site.spin_rescaling for site in site_infos]
 
-    ints = validate_and_clean_interactions(ints, crystal, latsize)
+    ints = validate_and_clean_interactions(ints, crystal, latsize, site_infos)
 
     anisos = Vector{AbstractAnisotropy}()
     for int in ints
