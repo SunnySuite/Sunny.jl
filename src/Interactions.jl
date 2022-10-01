@@ -165,11 +165,11 @@ function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
 end
 
 const spin_expectations = begin
-    @polyvar Sx Sy Sz
+    SVector{3}(@polyvar sx sy sz)
 end
 
 const spin_operators = begin
-    @ncpolyvar Sx Sy Sz
+    SVector{3}(@ncpolyvar Sx Sy Sz)
 end
 
 const stevens_operators = begin
@@ -183,14 +183,35 @@ const stevens_operators = begin
     OffsetArray([𝒪₀, 𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄, 𝒪₅, 𝒪₆], 0:6)
 end
 
-function operator_as_matrix(p; S)
+function operator_representation(p; S)
     N = Int(2S+1)
-    return p(
+    rep = p(
         spin_operators => gen_spin_ops(N),
         [stevens_operators[k] => stevens_ops(N, k) for k=0:6]...
     )
+    if !(rep ≈ rep')
+        println("Warning: Received non-Hermitian operator '$p'. Using symmetrized operator.")
+    end
+    # Symmetrize in any case for more accuracy
+    return (rep+rep')/2
 end
 
+function operator_to_classical_polynomial(p)
+    return p(
+        spin_operators => spin_expectations,
+        [stevens_operators[k] => stevens_classical(k) for k=0:6]...
+    )
+end
+
+"""
+    function print_operator_as_classical_polynomial(p)
+
+Prints a quantum operator (e.g. linear combination of Stevens operators) as a
+polynomial of spin expectation values in the classical limit.
+"""
+function print_operator_as_classical_polynomial(p)
+    println(operator_to_classical_polynomial(p))
+end
 
 struct QuadraticAnisotropy <: AbstractAnisotropy
     J     :: Mat3

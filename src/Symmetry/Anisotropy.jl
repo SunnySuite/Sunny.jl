@@ -60,6 +60,17 @@ function unitary_for_rotation(N::Int, R::Mat3)
     return exp(-im*θ*(n'*S))
 end
 
+function rotate_operator(A, R::Mat3)
+    N = size(A, 1)
+    U = unitary_for_rotation(N, R)
+    return U'*A*U
+end
+
+function rotate_classical_polynomial(P, R::Mat3)
+    J = spin_expectations
+    # Effectively replace each Jₐ with the a'th column of R
+    return P(J => R' * J)
+end
 
 # Spherical tensors that satisfy `norm(T) =  √ tr T† T = 1`.  TODO: Delete,
 # because this function is never used?
@@ -133,7 +144,6 @@ end
 function stevens_ops_alt(N::Int, k::Int)
     k < 0  && error("Require k >= 0, received k=$k")
     k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
-    k >= N && error("Hilbert space dimension N=$N must exceed operator order k=$k")
 
     k == 0 && return OffsetArray([Matrix{ComplexF64}(I, N, N)], 0:0)
 
@@ -152,15 +162,15 @@ function stevens_ops_alt(N::Int, k::Int)
     return 𝒪
 end
 
-function stevens_op_polynomial(; Sx, Sy, Sz, S, k::Int)
+function stevens_abstract_polynomials(; J, k::Int)
     k < 0  && error("Require k >= 0, received k=$k")
     k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
 
-    I = one(Sx)
-    X = S*(S+1)*I
-    Jz = Sz
-    Jp = Sx + im*Sy
-    Jm = Sx - im*Sy
+    Jx, Jy, Jz = J
+    I = one(Jx)
+    X = Jx^2 + Jy^2 + Jz^2
+    Jp = Jx + im*Jy
+    Jm = Jx - im*Jy
 
     A = [
         [-(im/2) * (Jp^m - Jm^m) for m=k:-1:1];
@@ -169,34 +179,40 @@ function stevens_op_polynomial(; Sx, Sy, Sz, S, k::Int)
     ]
 
     B = if k == 0
-        []
+        [I]
     elseif k == 1
-        [Jz]
+        [Jz,
+        I]
     elseif k == 2
         [3Jz^2 - X,
-        Jz]
+        Jz,
+        I]
     elseif k == 3
         [5Jz^3-(3X-I)*Jz,
         5Jz^2-X-I/2,
-        Jz]
+        Jz,
+        I]
     elseif k == 4
         [35Jz^4 - (30X-25I)*Jz^2 + (3X^2-6X),
         7Jz^3 - (3X+I)*Jz,
         7Jz^2 - (X+5I),
-        Jz]
+        Jz,
+        I]
     elseif k == 5
         [63Jz^5 - (70X-105I)*Jz^3 + (15X^2-50X+12I)*Jz,
         21Jz^4 - 14X*Jz^2 + (X^2-X+(3/2)*I),
         3Jz^3 - (X+6I)*Jz,
         9Jz^2 - (X+(33/2)*I),
-        Jz]
+        Jz,
+        I]
     elseif k == 6
         [231Jz^6 - (315X-735I)Jz^4 + (105X^2-525X+294I)*Jz^2 - (5X^3-40X^2+60X),
         33Jz^5 - (30X-15I)*Jz^3 + (5X^2-10X+12I)*Jz,
         33Jz^4 - (18X+123I)Jz^2 + (X^2+10X+102I),
         11Jz^3 - (3X+59I)*Jz,
         11Jz^2 - (X+38I),
-        Jz]
+        Jz,
+        I]
     elseif k > 6
         # In principle, it should be possible to programmatically generate an
         # arbitrary polynomial using Eq. (23) of I. D. Ryabov, J. Magnetic
@@ -205,26 +221,42 @@ function stevens_op_polynomial(; Sx, Sy, Sz, S, k::Int)
     else # k < 0
         error("Stevens operators require k >= 0, received k=$k")
     end
+    B = [reverse(B); B[2:end]]
 
-    B = [B; [I]; reverse(B)]
-
-    𝒪 = [(A[m]*B[m]+B[m]*A[m])/2 for m = -k:k]
+    𝒪 = [(a*b+b*a)/2 for (a,b) = zip(A,B)]
     return OffsetArray(𝒪, -k:k)
 end
-
 
 
 # Construct Stevens operators as polynomials in the spin operators. The output
 # must be identical to stevens_ops_alt(N, k) calculated from the spherical
 # tensors.
-# TODO: Take S instead of N?
-function stevens_ops(N::Int, k::Int)
-    k >= N && error("Hilbert space dimension N=$N must exceed operator order k=$k")
-    Sx, Sy, Sz = gen_spin_ops(N)
-    S = (N-1)/2
-    return stevens_op_polynomial(; Sx, Sy, Sz, S, k)
+# TODO: Remove R here and below?
+function stevens_ops(N::Int, k::Int; R=Mat3(I))
+    𝒪s = stevens_abstract_polynomials(; J=gen_spin_ops(N), k)
+    return map(𝒪s) do 𝒪
+        rotate_operator(𝒪, R)
+    end
 end
 
+
+# Construct Stevens operators in the classical limit, represented as polynomials
+# of spin expectation values
+function stevens_classical(k::Int; R=Mat3(I))
+    𝒪s = stevens_abstract_polynomials(; J=spin_expectations, k)
+    return map(𝒪s) do 𝒪
+        # In the large-S limit, only leading order terms contribute, yielding a
+        # homogeneous polynomial of degree k
+        𝒪 = sum(t for t in 𝒪 if DynamicPolynomials.degree(t) == k)
+        # Remaining coefficients must be real integers; make this explicit
+        𝒪 = DynamicPolynomials.mapcoefficients(x -> Int(x), 𝒪)
+        # Rotate into provided reference frame
+        if !(R ≈ Mat3(I))
+            𝒪 = rotate_classical_polynomial(𝒪, R)
+        end
+        return 𝒪
+    end
+end
 
 function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R=Mat3(I))
     # The symmetry operations for the point group at atom i. Each one encodes a

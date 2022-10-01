@@ -14,7 +14,7 @@ import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, rand!, randn!
 import Interpolations: interpolate, scale, BSpline, Linear, Periodic
-import DynamicPolynomials: @ncpolyvar, @polyvar, subs, AbstractPolynomialLike
+import DynamicPolynomials: DynamicPolynomials, @ncpolyvar, @polyvar, AbstractPolynomialLike
 
 # Specific to Symmetry/
 import FilePathsBase: Path
@@ -51,7 +51,7 @@ export print_bond, print_bond_table, print_mutually_allowed_couplings
 export reference_bonds, basis_for_symmetry_allowed_couplings
 export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 export all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom
-export print_suggested_frame, print_allowed_anisotropy, stevens_operators
+export print_suggested_frame, print_allowed_anisotropy
 export all_symmetry_related_anisotropies
 
 include("Util.jl")
@@ -61,7 +61,7 @@ include("Lattice.jl")
 include("Interactions.jl")
 export heisenberg, exchange, dm_interaction
 export easy_axis, easy_plane, quadratic_anisotropy, anisotropy
-export stevens_operators, spin_operators
+export stevens_operators, spin_operators, print_operator_as_classical_polynomial
 export external_field, dipole_dipole
 export SiteInfo
 
