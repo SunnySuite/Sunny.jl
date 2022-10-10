@@ -234,20 +234,15 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3=Mat3(I), atol=
     R = Mat3(R)
     kchars = ['₁', '₂', '₃', '₄', '₅', '₆'][ks]
 
-    println("# Stevens operators at various orders k")
-    𝒪list = join(Ref("𝒪") .* kchars, ", ")
-    klist = join(ks, ",")
-    println("$𝒪list = stevens_operators[[$klist]]")
-
-    println()
-    println("# Allowed anisotropy operator for site $i")
+    println("# Allowed anisotropy in Stevens operators 𝒪[k,q]  for site $i.")
     lines = String[]
+
     for (k, kchar) in zip(ks, kchars)
         B = stevens_basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
 
         if size(B, 2) > 0
             terms = String[]
-            for (param, b) in zip('A':'Z', eachcol(B))
+            for (param, b) in zip('A':'Z', reverse(collect(eachcol(B))))
 
                 # rescale column by its minimum nonzero value
                 _, min = findmin(b) do x
@@ -260,7 +255,7 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3=Mat3(I), atol=
                 for (b_q, q) in zip(reverse(b), -k:k)
                     if abs(b_q) > atol
                         coeff = coefficient_to_math_string(b_q; digits, atol)
-                        push!(ops, coeff*"𝒪$kchar[$q]")
+                        push!(ops, coeff*"𝒪[$k,$q]")
                     end
                 end
 

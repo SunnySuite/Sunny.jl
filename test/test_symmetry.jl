@@ -287,22 +287,20 @@ end
         cryst = Sunny.diamond_crystal()
 
         # print_allowed_anisotropy(cryst, i)
-        𝒪₆ = stevens_operators[6]
-        Λ = 𝒪₆[0]-21𝒪₆[4]
+        Λ = 𝒪[6,0]-21𝒪[6,4]
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
 
         R = hcat(normalize([1, 1, -2]), normalize([-1, 1, 0]), normalize([1, 1, 1]))
         R = Sunny.Mat3(R)
         # print_allowed_anisotropy(cryst, i; R)
-        𝒪 = Sunny.stevens_ops(N, k; R)
-        Λ = 𝒪₆[0]-(35/√8)*𝒪₆[3]+(77/8)*𝒪₆[6]
+        Λ = 𝒪[6,0]-(35/√8)*𝒪[6,3]+(77/8)*𝒪[6,6]
         Λ′ = Sunny.rotate_operator(Λ, R')
         @test Sunny.is_anisotropy_valid(cryst, i, Λ′)
 
         lat_vecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
         cryst = Crystal(lat_vecs, [[0., 0., 0.]])
         # print_allowed_anisotropy(cryst, i)
-        Λ = randn()*(𝒪₆[0]-21𝒪₆[4]) + randn()*(𝒪₆[2]+(16/5)*𝒪₆[4]+(11/5)*𝒪₆[6])
+        Λ = randn()*(𝒪[6,0]-21𝒪[6,4]) + randn()*(𝒪[6,2]+(16/5)*𝒪[6,4]+(11/5)*𝒪[6,6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
     end
 end

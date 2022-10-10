@@ -5,25 +5,28 @@
 **1. The interface for specifying anisotropy operators has changed.**
 
 Anisotropy operators can now be specified as either a polynomial in spin
-operators, or a linear combination of Stevens operators. For example:
+operators `𝒮` or a linear combination of Stevens operators `𝒪`. For example:
 ```julia
-Sx, Sy, Sz = spin_operators
-a1 = Sx^4 + Sy^4 + Sz^4
-
-𝒪₄ = stevens_operators[4]
-a2 = 𝒪₄[0] + 5𝒪₄[4]
+a1 = 𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4
+a2 = 𝒪[4,0] + 5𝒪[4,4]
 ```
 
 In the classical limit, spin operators are replaced with expectation values.
 Here, Stevens operators retain only the leading order terms in powers of _S_ and
 become homogeneous polynomials, e.g.
 ```julia
-print_operator_as_classical_polynomial(a2) 
+operator_to_classical_polynomial(a2) 
 # Output: 8sx⁴ - 24sx²sy² - 24sx²sz² + 8sy⁴ - 24sy²sz² + 8sz⁴
 ```
 
-In this example, `a2` corresponds to `a1` up to a rescaling and irrelevant shift
-because `(sx²+sy²+sz²)²` is a constant.
+Similarly, if the spin operators `𝒮` are converted to classical expectation
+values, one can infer the corresponding Stevens expansion,
+```julia
+operator_to_classical_stevens_expansion(a1)
+```
+
+Observe that `a1` corresponds to `a2` up to a rescaling and irrelevant constant
+shift. To make this connection, note that `(sx²+sy²+sz²)²` is a constant.
 
 To get an `Interaction`, use, e.g., `anisotropy(a1, site_index; label)`. This
 interaction can be used in either dipole-only mode or SU(_N_) mode.

@@ -67,36 +67,36 @@ function rotate_operator(A::Matrix, R::Mat3)
 end
 
 function rotate_operator(P::AbstractPolynomialLike, R::Mat3)
-    S = spin_operators
-    𝒪 = stevens_operators_internal
+    local 𝒪 = stevens_operator_symbols
 
     # Effectively substitute:
-    #   S -> R⁻¹ S
+    #   𝒮 -> R⁻¹ 𝒮
     #   T -> D⁻¹ T
     # where D = exp(i n ⋅ J). Note that 𝒪 = α T, so we should substitute
     #   𝒪 -> 𝒪′ = α D⁻¹ α⁻¹ 𝒪
 
-    S′ = R' * S
+    𝒮′ = R' * 𝒮
     𝒪′ = map(𝒪) do 𝒪ₖ
         k = Int((length(𝒪ₖ)-1)/2)
         D = unitary_for_rotation(2k+1, R)
-        # TODO
-        stevens_α[k] * D' * stevens_αinv[k] * 𝒪ₖ
+        D_stevens = stevens_α[k] * D' * stevens_αinv[k]
+        @assert norm(imag(D_stevens)) < 1e-12
+        real(D_stevens) * 𝒪ₖ
     end
-    P′ = P(S => S′, [𝒪[k] => 𝒪′[k] for k=1:6]...)
+    P′ = P(𝒮 => 𝒮′, [𝒪[k] => 𝒪′[k] for k=1:6]...)
     return DynamicPolynomials.mapcoefficients(P′) do c
-        if abs(c) < 1e-12
-            0.0
-        elseif abs(imag(c)) < 1e-12
-            real(c)
-        else
-            c
-        end
+        abs(c) < 1e-12 ? zero(c) : c
     end
 end
 
-# TODO: move inside alpha def
-const stevens_a = begin
+# Coefficients α to convert from spherical tensors to Stevens operators. For
+# each k, the mapping is 𝒪_q = α_{q,q'} T_q'. Spherical tensors T use the
+# normalization convention of Koster and Statz (1959) and Buckmaster et al
+# (1972) operator (KS/BCS). An explicit construction of T is given by
+# spherical_tensors() in test_symmetry.jl . The operators 𝒪 can also be
+# expressed as explicit polynomials of spin operators, as in
+# stevens_abstract_polynomials() below.
+const stevens_α = begin
     # These coefficients for a[k,q] were taken from Table 1 of C. Rudowicz, J.
     # Phys. C: Solid State Phys. 18, 1415 (1985). It appears the general formula
     # could be unraveled from Eq. (21) of I. D. Ryabov, J. Magnetic Resonance
@@ -109,21 +109,11 @@ const stevens_a = begin
          6√14  2√(21/5) √(3/5)   6√(2/5)  2/√5     2√2  0;
          4√231 √22      4√(11/5) 2√(11/5) 4√(11/6) 2/√3 4;]
     a = OffsetArray(a, 0:6, 0:6)
-end
 
-# Coefficients α to convert from spherical tensors to Stevens operators. For
-# each k, the mapping is 𝒪_q = α_{q,q'} T_q'. Spherical tensors T use the
-# normalization convention of Koster and Statz (1959) and Buckmaster et al
-# (1972) operator (KS/BCS). An explicit construction of T is given by
-# spherical_tensors() in test_symmetry.jl . The operators 𝒪 can also be
-# expressed as explicit polynomials of spin operators, as in
-# stevens_abstract_polynomials() below.
-const stevens_α = begin
     ret = Matrix{ComplexF64}[]
     
     for k = 0:6
-        # FIXME TODO WHY LOCAL?
-        local sz = 2k+1
+        sz = 2k+1
         α = zeros(ComplexF64, sz, sz)
 
         for q = 0:k
@@ -134,12 +124,12 @@ const stevens_α = begin
 
             # Fill α_{±q,±q} values
             if q == 0
-                α[qi, qi] = stevens_a[k,q]
+                α[qi, qi] = a[k,q]
             else
-                α[qi, q̄i] =                 stevens_a[k, q]
-                α[qi, qi] =        (-1)^q * stevens_a[k, q]
-                α[q̄i, q̄i] =   im *          stevens_a[k, q]
-                α[q̄i, qi] = - im * (-1)^q * stevens_a[k, q]
+                α[qi, q̄i] =                 a[k, q]
+                α[qi, qi] =        (-1)^q * a[k, q]
+                α[q̄i, q̄i] =   im *          a[k, q]
+                α[q̄i, qi] = - im * (-1)^q * a[k, q]
             end
         end
         push!(ret, α)
@@ -158,25 +148,6 @@ function transform_stevens_to_spherical_coefficients(k, b)
     return transpose(stevens_α[k]) * b
 end
 
-#=
-# Calculate coefficients b that satisfy `bᵀ 𝒪 = cᵀ T`, where 𝒪 are the Stevens
-# operators, and T are the spherical harmonics. We are effectively inverting the
-# sparse linear map in stevens_ops_alt().
-function transform_spherical_to_stevens_coefficients_alt(k, c)
-    k == 0 && return OffsetArray(c, 0:0)
-
-    b = OffsetArray(zeros(ComplexF64, 2k+1), k:-1:-k)
-    for q=1:k
-        cq = c[begin + (k-q)]
-        cq̄ = c[end   - (k-q)]
-        b[ q] =    ((-1)^q * cq + cq̄) / 2stevens_a[k,q]
-        b[-q] = im*((-1)^q * cq - cq̄) / 2stevens_a[k,q]
-    end
-    c0 = c[begin + (k-0)]
-    b[0] = c0 / stevens_a[k,0]
-    return b
-end
-=#
 
 # Calculate coefficients b that satisfy `bᵀ 𝒪 = cᵀ T`, where 𝒪 are the Stevens
 # operators, and T are the spherical harmonics. Using `𝒪 = α T`, we must solve
@@ -273,7 +244,7 @@ end
 # Construct Stevens operators in the classical limit, represented as polynomials
 # of spin expectation values
 function stevens_classical(k::Int; R=Mat3(I))
-    𝒪s = stevens_abstract_polynomials(; J=spin_expectations, k)
+    𝒪s = stevens_abstract_polynomials(; J=spin_classical_symbols, k)
     return map(𝒪s) do 𝒪
         # In the large-S limit, only leading order terms contribute, yielding a
         # homogeneous polynomial of degree k

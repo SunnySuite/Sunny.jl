@@ -1,12 +1,9 @@
-const spin_operators = begin
-    SVector{3}(@ncpolyvar Sx Sy Sz)
-end
 
-const spin_expectations = begin
-    SVector{3}(@polyvar sx sy sz)
-end
-
-const stevens_operators_internal = begin
+# The index q = k...-k appears in descending order for consistency with the
+# basis used for spin matrices (descending order of Jz eigenvalues). Note that
+# the spin operators are used to generate rotations of the Stevens operators via
+# the Wigner D matrices.
+const stevens_operator_symbols = let
     # 𝒪₀ = identity
     𝒪₁ = collect(@ncpolyvar                     𝒪₁₁ 𝒪₁₀ 𝒪₁₋₁)
     𝒪₂ = collect(@ncpolyvar                 𝒪₂₂ 𝒪₂₁ 𝒪₂₀ 𝒪₂₋₁ 𝒪₂₋₂)
@@ -17,22 +14,48 @@ const stevens_operators_internal = begin
     [𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄, 𝒪₅, 𝒪₆]
 end
 
-# OffsetArrays only supports ascending indices, so we reverse order for the
-# public-facing API. All internal functions, however should continue to use the
-# standard ordering, k...-k, for consistency with the spin matrices, which are
-# used to generate rotations via the Wigner D matrix.
-const stevens_operators = begin
-    map(Sunny.stevens_operators_internal) do 𝒪ₖ
-        k = Int((length(𝒪ₖ)-1)/2)
-        OffsetArray(reverse(𝒪ₖ), -k:k)
+const spin_operator_symbols = let
+    SVector{3}(@ncpolyvar 𝒮x 𝒮y 𝒮z)
+end
+
+const spin_classical_symbols = let
+    SVector{3}(@polyvar sx sy sz)
+end
+
+# Convenient accessor for Stevens symbols
+struct StevensOpsAbstract end
+function Base.getindex(::StevensOpsAbstract, k::Int, q::Int)
+    k < 0  && error("Stevens operators 𝒪[k,q] require k >= 0.")
+    k > 6  && error("Stevens operators 𝒪[k,q] currently require k <= 6.")
+    !(-k <= q <= k) && error("Stevens operators 𝒪[k,q] require -k <= q <= k.")
+    if k == 0
+        return 1.0
+    else
+        q_idx = k - q + 1
+        return stevens_operator_symbols[k][q_idx]
     end
 end
 
+"""
+    𝒪[k,q]
+
+Abstract symbols for the Stevens operators. Linear combinations of these can be
+used to specify the single-ion anisotropy.
+"""
+const 𝒪 = StevensOpsAbstract()
+
+"""
+    𝒮[1], 𝒮[2], 𝒮[3]
+
+Abstract symbols for the spin operators. Polynomials of these can be used to
+specify the single-ion anisotropy.
+"""
+const 𝒮 = spin_operator_symbols
 
 function operator_to_matrix(p; N)
     rep = p(
-        spin_operators => gen_spin_ops(N),
-        [stevens_operators_internal[k] => stevens_ops(N, k) for k=1:6]... 
+        𝒮 => gen_spin_ops(N),
+        [stevens_operator_symbols[k] => stevens_ops(N, k) for k=1:6]... 
     )
     if !(rep ≈ rep')
         println("Warning: Received non-Hermitian operator '$p'. Using symmetrized operator.")
@@ -43,12 +66,12 @@ end
 
 function operator_to_classical_polynomial(p)
     return p(
-        spin_operators => spin_expectations,
-        [stevens_operators_internal[k] => stevens_classical(k) for k=1:6]...
+        𝒮 => spin_classical_symbols,
+        [stevens_operator_symbols[k] => stevens_classical(k) for k=1:6]...
     )
 end
 
-function classical_polynomial_to_stevens_expansion(p)
+function operator_to_classical_stevens_expansion(p)
     error("TODO")
 end
 

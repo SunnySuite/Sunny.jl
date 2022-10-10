@@ -23,8 +23,7 @@ function make_test_system_lld(; spin_rescaling=1.0)
 
     # Quartic anisotropy
     D = 1.0 
-    S = spin_operators
-    quartic_interactions = [anisotropy(D*(S[1]^4+S[2]^4+S[3]^4), i, "quartic") for i ∈ 1:4]
+    quartic_interactions = [anisotropy(D*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), i, "quartic") for i ∈ 1:4]
 
     interactions_all = [exchange_interactions..., quartic_interactions...]
     dims = (3,3,3)
@@ -44,8 +43,7 @@ function make_test_system_gsd(; spin_rescaling=1.0, N=2)
     exchange_interactions = make_exchange_interactions()
 
     # Quartic anisotropy
-    S = spin_operators
-    quartic_sun = anisotropy(-S[3]^4, 1, "quartic")
+    quartic_sun = anisotropy(-𝒮[3]^4, 1, "quartic")
 
     dims = (3,3,3)
     interactions_all = [exchange_interactions..., quartic_sun]
