@@ -225,32 +225,6 @@ end
         return ret
     end
 
-    # function stevens_ops_alt(N::Int, k::Int)
-    #     T = spherical_tensors(N, k)
-    #     return Sunny.stevens_α[k] * T
-    # end
-
-    function stevens_ops_alt(N::Int, k::Int)
-        k < 0  && error("Require k >= 0, received k=$k")
-        k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
-
-        k == 0 && return OffsetArray([Matrix{ComplexF64}(I, N, N)], 0:0)
-
-        # Indexing convention for T(k,q) is q = [k, k-1, … , -k]
-        T = spherical_tensors(N, k)
-
-        # Define Stevens operators in standard frame
-        𝒪 = OffsetArray(fill(zeros(ComplexF64, 0, 0), 2k+1), k:-1:-k)
-        for q=1:k
-            Tq = T[begin + (k-q)]
-            Tq̄ = T[end   - (k-q)]
-            𝒪[q]  =      stevens_a[k,q] * (Tq̄ + (-1)^q * Tq)
-            𝒪[-q] = im * stevens_a[k,q] * (Tq̄ - (-1)^q * Tq)
-        end
-        𝒪[0] = stevens_a[k,0] * T[begin + (k-0)]
-        return 𝒪
-    end
-
     # Lie bracket, aka matrix commutator
     bracket(A, B) = A*B - B*A
 
@@ -294,15 +268,14 @@ end
             𝒪 = Sunny.stevens_ops(N, k)
             T = spherical_tensors(N, k)
 
-            # Check that two ways of calculating Stevens operators agree
-            @test 𝒪 ≈ stevens_ops_alt(N, k)
-
+            # Check that Stevens operators are proper linear combination of
+            # spherical tensors
+            @test 𝒪 ≈ Sunny.stevens_α[k] * T
+    
             # Check conversion of coefficients
             c = randn(2k+1)
             b = Sunny.transform_spherical_to_stevens_coefficients(k, c)
-            A1 = sum(c[i]*T[i] for i in eachindex(c))
-            A2 = sum(b[q]*𝒪[q] for q in eachindex(b))
-            @test A1 ≈ A2
+            @test transpose(c)*T ≈ transpose(b)*𝒪
         end
     end
 

@@ -80,6 +80,7 @@ function rotate_operator(P::AbstractPolynomialLike, R::Mat3)
     𝒪′ = map(𝒪) do 𝒪ₖ
         k = Int((length(𝒪ₖ)-1)/2)
         D = unitary_for_rotation(2k+1, R)
+        # TODO
         stevens_α[k] * D' * stevens_αinv[k] * 𝒪ₖ
     end
     P′ = P(S => S′, [𝒪[k] => 𝒪′[k] for k=0:6]...)
@@ -118,12 +119,12 @@ end
 # expressed as explicit polynomials of spin operators, as in
 # stevens_abstract_polynomials() below.
 const stevens_α = begin
-    ret = SparseArrays.SparseMatrixCSC{ComplexF64, Int64}[]
+    ret = Matrix{ComplexF64}[]
     
     for k = 0:6
         # FIXME TODO WHY LOCAL?
         local sz = 2k+1
-        α = spzeros(ComplexF64, sz, sz)
+        α = zeros(ComplexF64, sz, sz)
 
         for q = 0:k
             # Convert q and -q into array indices. The convention is descending
@@ -147,11 +148,7 @@ const stevens_α = begin
     OffsetArray(ret, 0:6)
 end
 
-const stevens_αinv = begin
-    map(stevens_α) do α
-        sparse(inv(collect(α)))
-    end
-end
+const stevens_αinv = map(inv, stevens_α)
 
 
 # Calculate coefficients c that satisfy `bᵀ 𝒪 = cᵀ T`, where 𝒪 are the Stevens

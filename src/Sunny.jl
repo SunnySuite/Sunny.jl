@@ -20,7 +20,6 @@ import DynamicPolynomials: DynamicPolynomials, @ncpolyvar, @polyvar, AbstractPol
 import FilePathsBase: Path
 import CrystalInfoFramework as CIF
 import Spglib
-import WignerSymbols: clebschgordan, wigner3j
 import RowEchelon: rref!
 
 # Specific to SunnyGfx
@@ -34,7 +33,7 @@ const Mat3 = SMatrix{3, 3, Float64, 9}
 const Quad3 = SArray{Tuple{3,3,3,3}, Float64, 4, 3^4}
 const CVec{N} = SVector{N, ComplexF64}
 
-# Boltzmannn factor k_B in units of meV/K
+# Boltzmannn factor k_B in units of meV / K
 const meV_per_K = 0.086173332621451774
 
 # Bohr magneton in units of meV / T
