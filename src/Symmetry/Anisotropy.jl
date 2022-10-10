@@ -83,7 +83,7 @@ function rotate_operator(P::AbstractPolynomialLike, R::Mat3)
         # TODO
         stevens_α[k] * D' * stevens_αinv[k] * 𝒪ₖ
     end
-    P′ = P(S => S′, [𝒪[k] => 𝒪′[k] for k=0:6]...)
+    P′ = P(S => S′, [𝒪[k] => 𝒪′[k] for k=1:6]...)
     return DynamicPolynomials.mapcoefficients(P′) do c
         if abs(c) < 1e-12
             0.0
