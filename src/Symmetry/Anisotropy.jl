@@ -67,104 +67,134 @@ function rotate_operator(A::Matrix, R::Mat3)
 end
 
 function rotate_operator(P::AbstractPolynomialLike, R::Mat3)
-    S = spin_expectations
-    if !issubset(variables(P), S)
-        error("P must be a polynomial in the expected spin components.")
-    end
-    # Effectively replace S -> S′ = R S
-    return P(S => R' * S)
-end
+    S = spin_operators
+    𝒪 = stevens_operators_internal
 
-# Spherical tensors that satisfy `norm(T) =  √ tr T† T = 1`.  TODO: Delete,
-# because this function is never used?
-function spherical_tensors_normalized(N, k)
-    S = (N-1)/2
-    ret = Matrix{Float64}[]
-    for q = k:-1:-k
-        T = zeros(Float64, N, N)
-        for i = 1:N, i′ = 1:N
-            m  = S - i + 1
-            m′ = S - i′+ 1
-            T[i, i′] = clebschgordan(S, m′, k, q, S, m) * sqrt((2k+1)/N)
+    # Effectively substitute:
+    #   S -> R⁻¹ S
+    #   T -> D⁻¹ T
+    # where D = exp(i n ⋅ J). Note that 𝒪 = α T, so we should substitute
+    #   𝒪 -> 𝒪′ = α D⁻¹ α⁻¹ 𝒪
+
+    S′ = R' * S
+    𝒪′ = map(𝒪) do 𝒪ₖ
+        k = Int((length(𝒪ₖ)-1)/2)
+        D = unitary_for_rotation(2k+1, R)
+        stevens_α[k] * D' * stevens_αinv[k] * 𝒪ₖ
+    end
+    P′ = P(S => S′, [𝒪[k] => 𝒪′[k] for k=0:6]...)
+    return DynamicPolynomials.mapcoefficients(P′) do c
+        if abs(c) < 1e-12
+            0.0
+        elseif abs(imag(c)) < 1e-12
+            real(c)
+        else
+            c
         end
-        push!(ret, T)
     end
-    return ret
 end
 
-# Spherical tensors T(k,q) as NxN operators. These are ordered as [T(k,k),
-# T(k,k-1), ... T(k,-k)] for consistency with the standard basis used by the
-# spin operators. The result is ambiguous up to an overall (k,N)-dependent
-# scaling factor. We use the normalization convention of KS/BCS. Note: This
-# function is currently only used to as an alternative path to constructing the
-# Stevens operators, for use in testing.
-function spherical_tensors(N, k)
-    j = (N-1)/2
-    ret = Matrix{Float64}[]
-    for q = k:-1:-k
-        Tq = zeros(Float64, N, N)
-        for i′ = 1:N, i = 1:N
-            m′ = j - i′+ 1
-            m  = j - i + 1
-
-            # By the Wigner-Eckhardt theorem, the spherical tensor T must have
-            # this m and m′ dependence. An overall (j, k)-dependent rescaling
-            # factor is arbitrary, however.
-            Tq[i′, i] = (-1)^(j-m′) * wigner3j(j, k, j, -m′, q, m)
-        end
-
-        # Below we will apply two rescaling factors obtained from Rudowicz and
-        # Chung, J. Phys.: Condens. Matter 16 (2004) 5825–5847.
-
-        # With this rescaling factor, we get the Buckmaster and Smith & Thornley
-        # (BST) operator
-        Tq .*= 2.0^(-k) * sqrt(factorial((N-1)+k+1) / factorial((N-1)-k))
-
-        # With this additional rescaling factor, we get the Koster and Statz
-        # (1959) and Buckmaster et al (1972) operator (KS/BCS)
-        Tq ./= sqrt(factorial(2k) / (2^k * factorial(k)^2))
-
-        push!(ret, Tq)
-    end
-    return ret
-end
-
-
+# TODO: move inside alpha def
 const stevens_a = begin
     # These coefficients for a[k,q] were taken from Table 1 of C. Rudowicz, J.
     # Phys. C: Solid State Phys. 18, 1415 (1985). It appears the general formula
     # could be unraveled from Eq. (21) of I. D. Ryabov, J. Magnetic Resonance
     # 140, 141-145 (1999).
-    a = [1     1/√2     0        0        0        0    0;
+    a = [1     0        0        0        0        0    0;
+         1     1/√2     0        0        0        0    0;
          √6    1/2      1        0        0        0    0;
          √10   √(10/3)  1/√3     √2       0        0    0;
          2√70  √(7/2)   √7       1/√2     2        0    0;
          6√14  2√(21/5) √(3/5)   6√(2/5)  2/√5     2√2  0;
          4√231 √22      4√(11/5) 2√(11/5) 4√(11/6) 2/√3 4;]
-    a = OffsetArray(a, 1:6, 0:6)
+    a = OffsetArray(a, 0:6, 0:6)
 end
 
-function stevens_ops_alt(N::Int, k::Int)
-    k < 0  && error("Require k >= 0, received k=$k")
-    k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
+# Coefficients α to convert from spherical tensors to Stevens operators. For
+# each k, the mapping is 𝒪_q = α_{q,q'} T_q'. Spherical tensors T use the
+# normalization convention of Koster and Statz (1959) and Buckmaster et al
+# (1972) operator (KS/BCS). An explicit construction of T is given by
+# spherical_tensors() in test_symmetry.jl . The operators 𝒪 can also be
+# expressed as explicit polynomials of spin operators, as in
+# stevens_abstract_polynomials() below.
+const stevens_α = begin
+    ret = SparseArrays.SparseMatrixCSC{ComplexF64, Int64}[]
+    
+    for k = 0:6
+        # FIXME TODO WHY LOCAL?
+        local sz = 2k+1
+        α = spzeros(ComplexF64, sz, sz)
 
-    k == 0 && return OffsetArray([Matrix{ComplexF64}(I, N, N)], 0:0)
+        for q = 0:k
+            # Convert q and -q into array indices. The convention is descending
+            # order, q = k...-k.
+            qi = k - (+q) + 1
+            q̄i = k - (-q) + 1
 
-    # Indexing convention for T(k,q) is q = [k, k-1, … , -k]
-    T = spherical_tensors(N, k)
-
-    # Define Stevens operators in standard frame
-    𝒪 = OffsetArray(fill(zeros(ComplexF64, 0, 0), 2k+1), -k:k)
-    for q=1:k
-        Tq = T[begin + (k-q)]
-        Tq̄ = T[end   - (k-q)]
-        𝒪[q]  =      stevens_a[k,q] * (Tq̄ + (-1)^q * Tq)
-        𝒪[-q] = im * stevens_a[k,q] * (Tq̄ - (-1)^q * Tq)
+            # Fill α_{±q,±q} values
+            if q == 0
+                α[qi, qi] = stevens_a[k,q]
+            else
+                α[qi, q̄i] =                 stevens_a[k, q]
+                α[qi, qi] =        (-1)^q * stevens_a[k, q]
+                α[q̄i, q̄i] =   im *          stevens_a[k, q]
+                α[q̄i, qi] = - im * (-1)^q * stevens_a[k, q]
+            end
+        end
+        push!(ret, α)
     end
-    𝒪[0] = stevens_a[k,0] * T[begin + (k-0)]
-    return 𝒪
+
+    OffsetArray(ret, 0:6)
 end
 
+const stevens_αinv = begin
+    map(stevens_α) do α
+        sparse(inv(collect(α)))
+    end
+end
+
+
+# Calculate coefficients c that satisfy `bᵀ 𝒪 = cᵀ T`, where 𝒪 are the Stevens
+# operators, and T are the spherical harmonics. Using `𝒪 = α T`, we must solve
+# bᵀ α = cᵀ, or c = αᵀ b.
+function transform_stevens_to_spherical_coefficients(k, b)
+    return transpose(stevens_α[k]) * b
+end
+
+#=
+# Calculate coefficients b that satisfy `bᵀ 𝒪 = cᵀ T`, where 𝒪 are the Stevens
+# operators, and T are the spherical harmonics. We are effectively inverting the
+# sparse linear map in stevens_ops_alt().
+function transform_spherical_to_stevens_coefficients_alt(k, c)
+    k == 0 && return OffsetArray(c, 0:0)
+
+    b = OffsetArray(zeros(ComplexF64, 2k+1), k:-1:-k)
+    for q=1:k
+        cq = c[begin + (k-q)]
+        cq̄ = c[end   - (k-q)]
+        b[ q] =    ((-1)^q * cq + cq̄) / 2stevens_a[k,q]
+        b[-q] = im*((-1)^q * cq - cq̄) / 2stevens_a[k,q]
+    end
+    c0 = c[begin + (k-0)]
+    b[0] = c0 / stevens_a[k,0]
+    return b
+end
+=#
+
+# Calculate coefficients b that satisfy `bᵀ 𝒪 = cᵀ T`, where 𝒪 are the Stevens
+# operators, and T are the spherical harmonics. Using `𝒪 = α T`, we must solve
+# bᵀ α = cᵀ, or b = α⁻ᵀ c.
+function transform_spherical_to_stevens_coefficients(k, c)
+    return transpose(stevens_αinv[k]) * c
+end
+
+# Note that the Stevens operators 𝒪_q appear in descending order q = k,..-k.
+# This choice is necessary for consistency with the order of spherical tensors
+# T_q. By the Wigner-Eckhardt theorem, there are two equivalent ways of rotating
+# spherical tensors, U' T_q U = D_qq′ T_q′, where D = exp(-i n⋅J), and J is a
+# spin operator in the spin-k representation. Observe that the standard
+# basis-convention for spin operators (eigenbasis of Jz, in descending order)
+# then determines the ordering of T_q and then 𝒪
 function stevens_abstract_polynomials(; J, k::Int)
     k < 0  && error("Require k >= 0, received k=$k")
     k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
@@ -176,9 +206,9 @@ function stevens_abstract_polynomials(; J, k::Int)
     Jm = Jx - im*Jy
 
     A = [
-        [-(im/2) * (Jp^m - Jm^m) for m=k:-1:1];
+        [+(1/2)  * (Jp^m + Jm^m) for m=k:-1:1]
         [I];
-        [+(1/2)  * (Jp^m + Jm^m) for m=1:k]
+        [-(im/2) * (Jp^m - Jm^m) for m=1:k];
     ]
 
     B = if k == 0
@@ -227,7 +257,7 @@ function stevens_abstract_polynomials(; J, k::Int)
     B = [reverse(B); B[2:end]]
 
     𝒪 = [(a*b+b*a)/2 for (a,b) = zip(A,B)]
-    return OffsetArray(𝒪, -k:k)
+    return 𝒪
 end
 
 
@@ -302,12 +332,11 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     # operator 𝒜.
     C = sum(D' for D in Ds)
 
-    # We seek to reexpress the coefficients c → c′ in rotated Stevens operators,
-    # T′ = D* T, where the Wigner D matrix is associated with the rotation R.
-    # That is, we want to return the vectors c′ satisfying c′ᵀ T′ = c T. Note
-    # that c′ᵀ T′ = (c′ᵀ D*) T = (D† c′)ᵀ T. The constraint becomes D† c′ = c.
-    # Since D is unitary, we have c′ = D c. We apply this transformation to each
-    # column c of C.
+    # Transform coefficients c to c′ in rotated Stevens operators, T′ = D* T,
+    # where the Wigner D matrix is associated with the rotation R. That is, find
+    # c′ satisfying c′ᵀ T′ = c T. Recall c′ᵀ T′ = (c′ᵀ D*) T = (D† c′)ᵀ T. The
+    # constraint becomes D† c′ = c. Since D is unitary, we have c′ = D c. We
+    # apply this transformation to each column c of C.
     D = unitary_for_rotation(2k+1, convert(Mat3, R))
     C = D * C
 
@@ -315,29 +344,13 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     # dependent columns.
     C = colspace(C; atol=1e-12)
 
-    # We no longer sparsify here, because it has been empirically observed to
-    # degrade accuracy in stevens_basis_for_symmetry_allowed_anisotropies()
+    # It is tempting to sparsify here to make the ouput look nicer. Don't do
+    # this because (empirically) it is observed to significantly degrade
+    # accuracy in stevens_basis_for_symmetry_allowed_anisotropies().
+
     # C = sparsify_columns(C; atol=1e-12)
 
     return C
-end
-
-# Calculate coefficients b that satisfy bᵀ 𝒪 = cᵀ T, where 𝒪 are the Stevens
-# operators, and T are the spherical harmonics. We are effectively inverting the
-# sparse linear map in stevens_ops().
-function transform_spherical_to_stevens_coefficients(k, c)
-    k == 0 && return OffsetArray(c, 0:0)
-
-    b = OffsetArray(zeros(ComplexF64, 2k+1), -k:k)
-    for q=1:k
-        cq = c[begin + (k-q)]
-        cq̄ = c[end   - (k-q)]
-        b[ q] =    ((-1)^q * cq + cq̄) / 2stevens_a[k,q]
-        b[-q] = im*((-1)^q * cq - cq̄) / 2stevens_a[k,q]
-    end
-    c0 = c[begin + (k-0)]
-    b[0] = c0 / stevens_a[k,0]
-    return b
 end
 
 function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R=Mat3(I))
@@ -358,8 +371,7 @@ function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int;
     @assert norm(imag(B)) < 1e-12
     B = real(B)
 
-    # Return OffsetMatrix with appropriate q-indexing
-    return OffsetMatrix(B, -k:k, :)
+    return B
 end
 
 

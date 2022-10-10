@@ -256,9 +256,9 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3=Mat3(I), atol=
                 b /= scale
                 
                 ops = String[]
-                for q in eachindex(b)
-                    if abs(b[q]) > atol
-                        coeff = coefficient_to_math_string(b[q]; digits, atol)
+                for (b_q, q) in zip(b, k:-1:-k)
+                    if abs(b_q) > atol
+                        coeff = coefficient_to_math_string(b_q; digits, atol)
                         push!(ops, coeff*"𝒪$kchar[$q]")
                     end
                 end

@@ -128,18 +128,16 @@
 end
 
 
-### TODO: Merge this with David's code
 @testitem "Spin operators" begin
     include("test_shared.jl")
 
+    # TODO: replace with _get_coherent_from_dipole(dip::Vec3, ::Val{0})
     function infer_ket_from_dipole(S, n::Sunny.Vec3)
-        # Find a ket (up to an irrelevant phase) that corresponds to a pure dipole.
-        # TODO, we can do this much faster by using the exponential map of spin
-        # operators, expressed as a polynomial expansion,
-        # http://www.emis.de/journals/SIGMA/2014/084/
         (evals, evecs) = eigen(n'*S)
         return normalize(evecs[:, argmax(evals)])
     end
+
+    # TODO: replace this with expected_spin(Z::CVec{N})
     function spin_bilinear(S, Z)
         return Sunny.Vec3(real(Z'*S[1]*Z), real(Z'*S[2]*Z), real(Z'*S[3]*Z))
     end
@@ -177,6 +175,82 @@ end
 @testitem "Spherical tensors" begin
     include("test_shared.jl")
 
+    # Spherical tensors that satisfy `norm(T) =  √ tr T† T = 1`.
+    function spherical_tensors_normalized(N, k)
+        S = (N-1)/2
+        ret = Matrix{Float64}[]
+        for q = k:-1:-k
+            T = zeros(Float64, N, N)
+            for i = 1:N, i′ = 1:N
+                m  = S - i + 1
+                m′ = S - i′+ 1
+                T[i, i′] = clebschgordan(S, m′, k, q, S, m) * sqrt((2k+1)/N)
+            end
+            push!(ret, T)
+        end
+        return ret
+    end
+
+    # Spherical tensors T(k,q) as NxN operators. The result is ambiguous up to an
+    # overall (k,N)-dependent scaling factor. Sunny uses the normalization
+    # convention of KS/BCS.
+    function spherical_tensors(N, k)
+        j = (N-1)/2
+        ret = Matrix{Float64}[]
+        for q = k:-1:-k
+            Tq = zeros(Float64, N, N)
+            for i′ = 1:N, i = 1:N
+                m′ = j - i′+ 1
+                m  = j - i + 1
+
+                # By the Wigner-Eckhardt theorem, the spherical tensor T must have
+                # this m and m′ dependence. An overall (j, k)-dependent rescaling
+                # factor is arbitrary, however.
+                Tq[i′, i] = (-1)^(j-m′) * wigner3j(j, k, j, -m′, q, m)
+            end
+
+            # Below we will apply two rescaling factors obtained from Rudowicz and
+            # Chung, J. Phys.: Condens. Matter 16 (2004) 5825–5847.
+
+            # With this rescaling factor, we get the Buckmaster and Smith & Thornley
+            # (BST) operator
+            Tq .*= 2.0^(-k) * sqrt(factorial((N-1)+k+1) / factorial((N-1)-k))
+
+            # With this additional rescaling factor, we get the Koster and Statz
+            # (1959) and Buckmaster et al (1972) operator (KS/BCS)
+            Tq ./= sqrt(factorial(2k) / (2^k * factorial(k)^2))
+
+            push!(ret, Tq)
+        end
+        return ret
+    end
+
+    # function stevens_ops_alt(N::Int, k::Int)
+    #     T = spherical_tensors(N, k)
+    #     return Sunny.stevens_α[k] * T
+    # end
+
+    function stevens_ops_alt(N::Int, k::Int)
+        k < 0  && error("Require k >= 0, received k=$k")
+        k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
+
+        k == 0 && return OffsetArray([Matrix{ComplexF64}(I, N, N)], 0:0)
+
+        # Indexing convention for T(k,q) is q = [k, k-1, … , -k]
+        T = spherical_tensors(N, k)
+
+        # Define Stevens operators in standard frame
+        𝒪 = OffsetArray(fill(zeros(ComplexF64, 0, 0), 2k+1), k:-1:-k)
+        for q=1:k
+            Tq = T[begin + (k-q)]
+            Tq̄ = T[end   - (k-q)]
+            𝒪[q]  =      stevens_a[k,q] * (Tq̄ + (-1)^q * Tq)
+            𝒪[-q] = im * stevens_a[k,q] * (Tq̄ - (-1)^q * Tq)
+        end
+        𝒪[0] = stevens_a[k,0] * T[begin + (k-0)]
+        return 𝒪
+    end
+
     # Lie bracket, aka matrix commutator
     bracket(A, B) = A*B - B*A
 
@@ -187,7 +261,7 @@ end
         
         for k = 0:N-1
             # Spherical tensors acting on N-dimensional Hilbert space
-            T = Sunny.spherical_tensors(N, k)
+            T = spherical_tensors(N, k)
 
             # Generators of rotations in the spin-k representation
             K = Sunny.gen_spin_ops(2k+1)
@@ -213,18 +287,15 @@ end
             end
         end
     end
-end
 
-@testitem "Stevens operators" begin
-    include("test_shared.jl")
-
+    # Stevens operators
     for N=2:7
         for k = 0:N-1
             𝒪 = Sunny.stevens_ops(N, k)
-            T = Sunny.spherical_tensors(N, k)
+            T = spherical_tensors(N, k)
 
             # Check that two ways of calculating Stevens operators agree
-            @test 𝒪 ≈ Sunny.stevens_ops_alt(N, k)
+            @test 𝒪 ≈ stevens_ops_alt(N, k)
 
             # Check conversion of coefficients
             c = randn(2k+1)
@@ -242,23 +313,23 @@ end
         i = 1
         cryst = Sunny.diamond_crystal()
 
-        # print_allowed_anisotropy(cryst, i; k)
-        𝒪 = Sunny.stevens_ops(N, k)
-        Λ = 𝒪[0]-21𝒪[4]
+        # print_allowed_anisotropy(cryst, i)
+        𝒪₆ = stevens_operators[6]
+        Λ = 𝒪₆[0]-21𝒪₆[4]
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
 
         R = hcat(normalize([1, 1, -2]), normalize([-1, 1, 0]), normalize([1, 1, 1]))
         R = Sunny.Mat3(R)
         # print_allowed_anisotropy(cryst, i; R)
         𝒪 = Sunny.stevens_ops(N, k; R)
-        Λ = 𝒪[0]-(35/√8)*𝒪[3]+(77/8)*𝒪[6]
-        @test Sunny.is_anisotropy_valid(cryst, i, Λ)
+        Λ = 𝒪₆[0]-(35/√8)*𝒪₆[3]+(77/8)*𝒪₆[6]
+        Λ′ = Sunny.rotate_operator(Λ, R')
+        @test Sunny.is_anisotropy_valid(cryst, i, Λ′)
 
         lat_vecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
         cryst = Crystal(lat_vecs, [[0., 0., 0.]])
         # print_allowed_anisotropy(cryst, i)
-        𝒪 = Sunny.stevens_ops(N, k)
-        Λ = randn()*(𝒪[0]-21𝒪[4]) + randn()*(𝒪[2]+(16/5)*𝒪[4]+(11/5)*𝒪[6])
+        Λ = randn()*(𝒪₆[0]-21𝒪₆[4]) + randn()*(𝒪₆[2]+(16/5)*𝒪₆[4]+(11/5)*𝒪₆[6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
     end
 end
