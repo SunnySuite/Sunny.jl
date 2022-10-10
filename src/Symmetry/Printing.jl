@@ -250,18 +250,21 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3=Mat3(I), atol=
             for (param, b) in zip('A':'Z', eachcol(B))
 
                 # rescale column by its minimum nonzero value
-                scale = minimum(b) do x
+                _, min = findmin(b) do x
                     abs(x) < 1e-12 ? Inf : abs(x)
                 end
-                b /= scale
+                b /= b[min]
                 
+                # reverse b elements to print q-components in ascending order, q=-k...k
                 ops = String[]
-                for (b_q, q) in zip(b, k:-1:-k)
+                for (b_q, q) in zip(reverse(b), -k:k)
                     if abs(b_q) > atol
                         coeff = coefficient_to_math_string(b_q; digits, atol)
                         push!(ops, coeff*"𝒪$kchar[$q]")
                     end
                 end
+
+                # clean up printing of term
                 ops = length(ops) == 1 ? ops[1] : "("*join(ops, "+")*")"
                 ops = replace(ops, "+-" => "-")
                 push!(terms, param * kchar * ops)
