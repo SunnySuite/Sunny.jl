@@ -19,10 +19,14 @@ Base.length(sys::SpinSystem) = length(sys._dipoles)
 nbasis(sys::SpinSystem) = nbasis(sys.lattice)
 eachcellindex(sys::SpinSystem) = eachcellindex(sys.lattice)
 
+# Find a ket (up to an irrelevant phase) that corresponds to a pure dipole.
+# TODO, we can do this much faster by using the exponential map of spin
+# operators, expressed as a polynomial expansion,
+# http://www.emis.de/journals/SIGMA/2014/084/
 _get_coherent_from_dipole(dip::Vec3, ::Val{0}) :: CVec{0} = CVec{0}(zeros(0))
 function _get_coherent_from_dipole(dip::Vec3, ::Val{N}) :: CVec{N} where {N} 
     S = gen_spin_ops(N) 
-    λs, vs = eigen(dip⋅S)
+    λs, vs = eigen(dip' * S)
     return CVec{N}(vs[:, argmax(real.(λs))])
 end
 

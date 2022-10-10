@@ -130,17 +130,6 @@ end
 
 @testitem "Spin operators" begin
     include("test_shared.jl")
-
-    # TODO: replace with _get_coherent_from_dipole(dip::Vec3, ::Val{0})
-    function infer_ket_from_dipole(S, n::Sunny.Vec3)
-        (evals, evecs) = eigen(n'*S)
-        return normalize(evecs[:, argmax(evals)])
-    end
-
-    # TODO: replace this with expected_spin(Z::CVec{N})
-    function spin_bilinear(S, Z)
-        return Sunny.Vec3(real(Z'*S[1]*Z), real(Z'*S[2]*Z), real(Z'*S[3]*Z))
-    end
     
     # Levi-Civita symbol
     ϵ = [(i-j)*(j-k)*(k-i)/2 for i=1:3, j=1:3, k=1:3]
@@ -166,8 +155,8 @@ end
 
         # Test dipole -> ket -> dipole round trip
         n = S₀ * normalize(randn(Sunny.Vec3))
-        ψ = infer_ket_from_dipole(S, n)
-        @test spin_bilinear(S, ψ) ≈ n
+        ψ = Sunny._get_coherent_from_dipole(n, Val(N))
+        @test Sunny.expected_spin(ψ) ≈ n
     end    
 end
 
