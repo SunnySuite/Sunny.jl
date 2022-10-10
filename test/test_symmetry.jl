@@ -264,7 +264,7 @@ end
 
     # Stevens operators
     for N=2:7
-        for k = 0:N-1
+        for k = 1:N-1
             𝒪 = Sunny.stevens_ops(N, k)
             T = spherical_tensors(N, k)
 

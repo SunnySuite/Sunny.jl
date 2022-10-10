@@ -96,23 +96,22 @@ end
 # spherical_tensors() in test_symmetry.jl . The operators 𝒪 can also be
 # expressed as explicit polynomials of spin operators, as in
 # stevens_abstract_polynomials() below.
-const stevens_α = begin
+const stevens_α = let
     # These coefficients for a[k,q] were taken from Table 1 of C. Rudowicz, J.
     # Phys. C: Solid State Phys. 18, 1415 (1985). It appears the general formula
     # could be unraveled from Eq. (21) of I. D. Ryabov, J. Magnetic Resonance
     # 140, 141-145 (1999).
-    a = [1     0        0        0        0        0    0;
-         1     1/√2     0        0        0        0    0;
+    a = [1     1/√2     0        0        0        0    0;
          √6    1/2      1        0        0        0    0;
          √10   √(10/3)  1/√3     √2       0        0    0;
          2√70  √(7/2)   √7       1/√2     2        0    0;
          6√14  2√(21/5) √(3/5)   6√(2/5)  2/√5     2√2  0;
          4√231 √22      4√(11/5) 2√(11/5) 4√(11/6) 2/√3 4;]
-    a = OffsetArray(a, 0:6, 0:6)
+    a = OffsetArray(a, 1:6, 0:6)
 
     ret = Matrix{ComplexF64}[]
-    
-    for k = 0:6
+
+    for k = 1:6
         sz = 2k+1
         α = zeros(ComplexF64, sz, sz)
 
@@ -135,7 +134,7 @@ const stevens_α = begin
         push!(ret, α)
     end
 
-    OffsetArray(ret, 0:6)
+    ret
 end
 
 const stevens_αinv = map(inv, stevens_α)
