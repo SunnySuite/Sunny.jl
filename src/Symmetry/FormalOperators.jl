@@ -1,16 +1,17 @@
 
-# The index q = k...-k appears in descending order for consistency with the
-# basis used for spin matrices (descending order of Jz eigenvalues). Note that
-# the spin operators are used to generate rotations of the Stevens operators via
-# the Wigner D matrices.
+# It is convenient to present Stevens operators to the user in ascending order
+# for the index q = -k...k. Internally, however, the symbols must be stored in
+# descending order q = k...-k for consistency with the basis used for spin
+# matrices, Jz = diagm(k, k-1, ..., -k). Note that the spin operators are used
+# to generate rotations of the Stevens operators via the Wigner D matrices.
 const stevens_operator_symbols = let
     # 𝒪₀ = identity
-    𝒪₁ = collect(@ncpolyvar                     𝒪₁₁ 𝒪₁₀ 𝒪₁₋₁)
-    𝒪₂ = collect(@ncpolyvar                 𝒪₂₂ 𝒪₂₁ 𝒪₂₀ 𝒪₂₋₁ 𝒪₂₋₂)
-    𝒪₃ = collect(@ncpolyvar             𝒪₃₃ 𝒪₃₂ 𝒪₃₁ 𝒪₃₀ 𝒪₃₋₁ 𝒪₃₋₂ 𝒪₃₋₃)
-    𝒪₄ = collect(@ncpolyvar         𝒪₄₄ 𝒪₄₃ 𝒪₄₂ 𝒪₄₁ 𝒪₄₀ 𝒪₄₋₁ 𝒪₄₋₂ 𝒪₄₋₃ 𝒪₄₋₄)
-    𝒪₅ = collect(@ncpolyvar     𝒪₅₅ 𝒪₅₄ 𝒪₅₃ 𝒪₅₂ 𝒪₅₁ 𝒪₅₀ 𝒪₅₋₁ 𝒪₅₋₂ 𝒪₅₋₃ 𝒪₅₋₄ 𝒪₅₋₅)
-    𝒪₆ = collect(@ncpolyvar 𝒪₆₆ 𝒪₆₅ 𝒪₆₄ 𝒪₆₃ 𝒪₆₂ 𝒪₆₁ 𝒪₆₀ 𝒪₆₋₁ 𝒪₆₋₂ 𝒪₆₋₃ 𝒪₆₋₄ 𝒪₆₋₅ 𝒪₆₋₆)
+    𝒪₁ = collect(reverse(@ncpolyvar                          𝒪₁₋₁ 𝒪₁₀ 𝒪₁₁))
+    𝒪₂ = collect(reverse(@ncpolyvar                     𝒪₂₋₂ 𝒪₂₋₁ 𝒪₂₀ 𝒪₂₁ 𝒪₂₂))
+    𝒪₃ = collect(reverse(@ncpolyvar                𝒪₃₋₃ 𝒪₃₋₂ 𝒪₃₋₁ 𝒪₃₀ 𝒪₃₁ 𝒪₃₂ 𝒪₃₃))
+    𝒪₄ = collect(reverse(@ncpolyvar           𝒪₄₋₄ 𝒪₄₋₃ 𝒪₄₋₂ 𝒪₄₋₁ 𝒪₄₀ 𝒪₄₁ 𝒪₄₂ 𝒪₄₃ 𝒪₄₄))
+    𝒪₅ = collect(reverse(@ncpolyvar      𝒪₅₋₅ 𝒪₅₋₄ 𝒪₅₋₃ 𝒪₅₋₂ 𝒪₅₋₁ 𝒪₅₀ 𝒪₅₁ 𝒪₅₂ 𝒪₅₃ 𝒪₅₄ 𝒪₅₅))
+    𝒪₆ = collect(reverse(@ncpolyvar 𝒪₆₋₆ 𝒪₆₋₅ 𝒪₆₋₄ 𝒪₆₋₃ 𝒪₆₋₂ 𝒪₆₋₁ 𝒪₆₀ 𝒪₆₁ 𝒪₆₂ 𝒪₆₃ 𝒪₆₄ 𝒪₆₅ 𝒪₆₆))
     [𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄, 𝒪₅, 𝒪₆]
 end
 
