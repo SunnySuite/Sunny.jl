@@ -78,12 +78,16 @@ function rotate_operator(P::AbstractPolynomialLike, R::Mat3)
     𝒮′ = R' * 𝒮
     𝒪′ = map(𝒪) do 𝒪ₖ
         k = Int((length(𝒪ₖ)-1)/2)
-        D = unitary_for_rotation(2k+1, R)
-        D_stevens = stevens_α[k] * D' * stevens_αinv[k]
+        D = conj(unitary_for_rotation(2k+1, R))
+        D_stevens = stevens_α[k] * D * stevens_αinv[k] # TODO: Why not D' in here?
         @assert norm(imag(D_stevens)) < 1e-12
         real(D_stevens) * 𝒪ₖ
     end
+
+    # Perform substitutions
     P′ = P(𝒮 => 𝒮′, [𝒪[k] => 𝒪′[k] for k=1:6]...)
+
+    # Remove terms very near zero
     return DynamicPolynomials.mapcoefficients(P′) do c
         abs(c) < 1e-12 ? zero(c) : c
     end
@@ -228,21 +232,15 @@ function stevens_abstract_polynomials(; J, k::Int)
 end
 
 
-# Construct Stevens operators as polynomials in the spin operators. The output
-# must be identical to stevens_ops_alt(N, k) calculated from the spherical
-# tensors.
-# TODO: Remove R here and below?
-function stevens_ops(N::Int, k::Int; R=Mat3(I))
-    𝒪s = stevens_abstract_polynomials(; J=gen_spin_ops(N), k)
-    return map(𝒪s) do 𝒪
-        rotate_operator(𝒪, R)
-    end
+# Construct Stevens operators as polynomials in the spin operators.
+function stevens_ops(N::Int, k::Int)
+    return stevens_abstract_polynomials(; J=gen_spin_ops(N), k)
 end
 
 
 # Construct Stevens operators in the classical limit, represented as polynomials
 # of spin expectation values
-function stevens_classical(k::Int; R=Mat3(I))
+function stevens_classical(k::Int)
     𝒪s = stevens_abstract_polynomials(; J=spin_classical_symbols, k)
     return map(𝒪s) do 𝒪
         # In the large-S limit, only leading order terms contribute, yielding a

@@ -59,7 +59,7 @@ function operator_to_matrix(p; N)
         [stevens_operator_symbols[k] => stevens_ops(N, k) for k=1:6]... 
     )
     if !(rep ≈ rep')
-        println("Warning: Received non-Hermitian operator '$p'. Using symmetrized operator.")
+        println("Warning: Symmetrizing non-Hermitian operator '$p'.")
     end
     # Symmetrize in any case for more accuracy
     return (rep+rep')/2

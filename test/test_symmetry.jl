@@ -283,7 +283,7 @@ end
         R = Sunny.Mat3(R)
         # print_allowed_anisotropy(cryst, i; R)
         Λ = 𝒪[6,0]-(35/√8)*𝒪[6,3]+(77/8)*𝒪[6,6]
-        Λ′ = Sunny.rotate_operator(Λ, R')
+        Λ′ = Sunny.rotate_operator(Λ, R)
         @test Sunny.is_anisotropy_valid(cryst, i, Λ′)
 
         lat_vecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
@@ -303,4 +303,25 @@ end
     @test 1 + 2cos(θ) ≈ tr(R)
     @test norm(n) ≈ 1
     @test R*n ≈ n
+
+    # Test that Stevens operator symbols transform properly
+    N = 5
+    G = randn(3,3)
+    G = (G - G')/2
+    R = Sunny.Mat3(exp(-G))
+    p = randn(3)' * Sunny.stevens_operator_symbols[1] +
+        randn(5)' * Sunny.stevens_operator_symbols[2] +
+        randn(7)' * Sunny.stevens_operator_symbols[3]
+    @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
+
+    # Test that spin operator symbols transform properly
+    J = randn(3, 3)
+    J = (J+J')/2
+    p = randn(3)' * 𝒮 + 𝒮' * J * 𝒮
+    @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
+
+    # Test that a linear combination transforms properly
+    p = randn(3)' * 𝒮 + randn(5)' * Sunny.stevens_operator_symbols[2]
+    @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
+
 end
