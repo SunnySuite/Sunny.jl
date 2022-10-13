@@ -13,6 +13,14 @@ struct QuadraticInteraction <: AbstractInteraction
     label :: String
 end
 
+#*---------------------Manually added by PJ (221011)----------------------
+struct BiQuadraticInteraction <: AbstractInteraction
+    J     :: Mat3
+    bond  :: Bond
+    label :: String
+end
+#*--------------------------------------------------------------------------
+
 function Base.show(io::IO, mime::MIME"text/plain", int::QuadraticInteraction)
     b = repr(mime, int.bond)
     J = int.J
@@ -104,9 +112,7 @@ function SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0, ff_elem=nothing,
 
     # Make sure a valid element is given if a g_lande value is given. 
     if isnothing(ff_elem) && !isnothing(ff_lande)
-        println("""Warning: When creating a SiteInfo, you must provide valid `ff_elem` if you
-                   are also assigning a value to `ff_lande`. No form factor corrections will be
-                   applied.""")
+        @warn "When creating a SiteInfo, you must provide valid `ff_elem` if you are also assigning a value to `ff_lande`. No form factor corrections will be applied."
     end
 
     # Read all relevant form factor data if an element name is provided
@@ -145,6 +151,20 @@ where ``⟨ij⟩`` runs over all bonds symmetry equivalent to `bond`.
 """
 heisenberg(J, bond::Bond, label::String="Heisen") = QuadraticInteraction(J*Mat3(I), bond, label)
 
+#*---------------------Manually added by PJ (221011)----------------------
+"""
+    Biquadratic(B, bond::Bond, label::String="BHeisen")
+
+Creates a Biquadratic interaction
+```math
+    B ∑_{⟨ij⟩} (𝐒_i ⋅ 𝐒_j)^2
+```
+where ``⟨ij⟩`` runs over all bonds symmetry equivalent to `bond`.
+"""
+function Biquadratic(B, bond::Bond, label::String="BHeisen")
+    BiQuadraticInteraction(B*Mat3(I), bond, label)
+end
+#*--------------------------------------------------------------------------
 
 """
     dm_interaction(DMvec, bond::Bond, label::String="DMInt")

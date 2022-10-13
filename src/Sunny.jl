@@ -58,7 +58,7 @@ include("Util.jl")
 include("Lattice.jl")
 
 include("Interactions.jl")
-export heisenberg, exchange, dm_interaction
+export heisenberg, exchange, Biquadratic, dm_interaction
 export easy_axis, easy_plane, quadratic_anisotropy, quartic_anisotropy
 export SUN_anisotropy, gen_spin_ops
 export external_field, dipole_dipole
@@ -101,7 +101,7 @@ include("WangLandau/WangLandau.jl")
 export WangLandau, spherical_cap_update, init_bounded!, run!
 
 include("SunnyGfx/SunnyGfx.jl")
-export view_crystal, offline_viewers, browser
+export view_crystal, offline_viewers
 
 # GLMakie and MPI are optional dependencies
 function __init__()

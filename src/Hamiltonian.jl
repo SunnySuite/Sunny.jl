@@ -4,40 +4,37 @@
 function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, crystal::Crystal, latsize::Vector{Int64})
     # Validate all interactions
     for int in ints
-        int_str = repr("text/plain", int)
-
         if isa(int, QuadraticInteraction)
             b = int.bond
 
             # Verify that both basis sites indexed actually exist
             if !(1 <= b.i <= nbasis(crystal)) || !(1 <= b.j <= nbasis(crystal))
-                error("Provided interaction $int_str indexes a non-existent basis site.")
+                error("Provided interaction $(repr(MIME("text/plain"), int)) indexes a non-existent basis site.")
             end
 
             # Verify that the interactions are symmetry-consistent
             if !is_coupling_valid(crystal, b, int.J)
-                println("Symmetry-violating interaction: $int_str.")
+                println("Symmetry-violating interaction: $(repr(MIME("text/plain"), int)).")
                 println("Allowed exchange for this bond:")
                 print_allowed_coupling(crystal, b; prefix="    ")
                 println("Use `print_bond(crystal, $b)` for more information.")
                 error("Interaction violates symmetry.")
             end
 
-            # Verify that no bond is long enough to wrap the entire system
+            # Verify that no bond wraps the entire system
             bs = all_symmetry_related_bonds(crystal, b)
-            for b′ in bs
-                coeffs = crystal.lat_vecs \ displacement(crystal, b′)
-                for i = 1:3
-                    if abs(coeffs[i]) >= latsize[i]/2 - 1e-10
-                        println("Warning: Interaction $int_str wraps the system along dimension $i.")
-                    end
-                end
+            wraps = any(bs) do b
+                any(abs.(b.n) .>= latsize)
+            end
+            if wraps
+                println("Distance-violating interaction: $int.")
+                error("Interaction wraps system.")
             end
         elseif isa(int, QuadraticAnisotropy)
             site = int.site
             b = Bond(site, site, [0, 0, 0])
             if !is_coupling_valid(crystal, b, int.J)
-                println("Symmetry-violating anisotropy: $int_str.")
+                println("Symmetry-violating anisotropy: $(repr(MIME("text/plain"), int)).")
                 println("Allowed single-ion anisotropy for this atom:")
                 print_allowed_coupling(crystal, b; prefix="    ")
                 println("Use `print_bond(crystal, Bond($site, $site, [0,0,0])` for more information.")
@@ -48,7 +45,7 @@ function validate_and_clean_interactions(ints::Vector{<:AbstractInteraction}, cr
             b = Bond(site, site, [0,0,0])
             N = size(Λ)[1]
             if !is_anisotropy_valid(crystal, site, int.Λ)
-                println("Symmetry-violating anisotropy: $int_str.")
+                println("Symmetry-violating anisotropy: $(repr(MIME("text/plain"), int)).")
                 println("Allowed SU(N) single-ion anisotropy for this atom:")
                 print_allowed_anisotropy(crystal, site)
                 error("Specified SU($N) anisotropy either violates symmetry or is of incorrect dimension.")
@@ -111,9 +108,9 @@ function propagate_sun_anisos(crystal::Crystal, anisos::Vector{SUNAnisotropy}, N
 
         for (sym_atom, sym_Λ) in zip(sym_bs, sym_Λs)
             if sym_atom in specified_atoms
-                error("Provided two SU($N) anisotropies for symmetry equivalent sites.")
+                @error "Provided two SU($N) anisotropies for symmetry equivalent sites."
             elseif size(sym_Λ)[1] != N
-                error("Provided an SU($(size(sym_Λ)[1])) anisotropy for an SU($N) model!")
+                @error "Provided an SU($(size(sym_Λ)[1])) anisotropy for an SU($N) model!"
             else
                 push!(specified_atoms, sym_atom)
             end
@@ -139,7 +136,7 @@ function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::C
     # Convert to backend types if in LL mode.
     if N == 0
         if length(sun_anisos) != 0
-            error("Given a SU(N) anisotropy but running in classic Landau-Lifshitz mode.")
+            @error "Given a SU(N) anisotropy but running in classic Landau-Lifshitz mode."
         end
 
         quadratic_aniso = merge(quadratic_anisos)
@@ -150,7 +147,7 @@ function merge_upconvert_anisos(anisos::Vector{<:AbstractAnisotropy}, crystal::C
 
     # Throw error if given non-SU(N) anisotropy and in SU(N) mode 
     if length(quadratic_anisos) != 0 || length(quartic_anisos) != 0
-        error("Given a Landau-Lifshitz-type anisotropy, but running in SU(N) mode.")
+        @error "Given a Landau-Lifshitz-type anisotropy, but running in SU(N) mode."
     end
 
     # Propagate SU(N) anisotropies to symmetry equivalent sites
@@ -172,6 +169,7 @@ struct HamiltonianCPU
     heisenbergs     :: Vector{HeisenbergCPU}
     diag_coups      :: Vector{DiagonalCouplingCPU}
     gen_coups       :: Vector{GeneralCouplingCPU}
+    biq_coups       :: Vector{BiquadraticCPU}
     dipole_int      :: Union{Nothing, DipoleRealCPU, DipoleFourierCPU}
     quadratic_aniso :: Union{Nothing, DipolarQuadraticAnisotropyCPU}
     quartic_aniso   :: Union{Nothing, DipolarQuarticAnisotropyCPU}
@@ -195,6 +193,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     heisenbergs = Vector{HeisenbergCPU}()
     diag_coups  = Vector{DiagonalCouplingCPU}()
     gen_coups   = Vector{GeneralCouplingCPU}()
+    biq_coups = Vector{BiquadraticCPU}()
     dipole_int  = nothing
     quadratic_anisos = nothing
     quartic_anisos = nothing
@@ -204,6 +203,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     ints = validate_and_clean_interactions(ints, crystal, latsize)
 
     anisos = Vector{AbstractAnisotropy}()
+
     for int in ints
         # TODO: Handle all of the ifs with multiple dispatch instead?
         if isa(int, ExternalField)
@@ -223,11 +223,14 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
             else
                 error("Quadratic interaction failed to convert to known backend type.")
             end
+        elseif isa(int, BiQuadraticInteraction)
+            int_imp2 = convert_biquadratic(int, crystal, site_infos)
+            push!(biq_coups, int_imp2)
         elseif isa(int, AbstractAnisotropy)
             push!(anisos, int)
         elseif isa(int, DipoleDipole)
             if !isnothing(dipole_int)
-                println("Warning: Provided multiple dipole interactions. Only using last one.")
+                @warn "Provided multiple dipole interactions. Only using last one."
             end
             dipole_int = DipoleFourierCPU(int, crystal, latsize, site_infos; μB=μB, μ0=μ0)
         else
@@ -237,7 +240,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     (quadratic_anisos, quartic_anisos, sun_anisos) = merge_upconvert_anisos(anisos, crystal, site_infos)
 
     return HamiltonianCPU(
-        ext_field, heisenbergs, diag_coups, gen_coups, dipole_int,
+        ext_field, heisenbergs, diag_coups, gen_coups, biq_coups, dipole_int,
         quadratic_anisos, quartic_anisos, sun_anisos, spin_mags
     )
 end
@@ -258,6 +261,9 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Hami
     for gen_coup in ℋ.gen_coups
         E += energy(dipoles, gen_coup)
     end
+    for biq_coup in ℋ.biq_coups
+        E += energy(dipoles, biq_coup)
+    end    
     if !isnothing(ℋ.dipole_int)
         E += energy(dipoles, ℋ.dipole_int)
     end
@@ -295,7 +301,10 @@ function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     for gen_coup in ℋ.gen_coups
         _accum_neggrad!(B, dipoles, gen_coup)
     end
-    if !isnothing(ℋ.dipole_int)
+    for biq_coup in ℋ.biq_coups
+        _accum_neggrad!(B, dipoles, biq_coup)
+    end
+        if !isnothing(ℋ.dipole_int)
         _accum_neggrad!(B, dipoles, ℋ.dipole_int)
     end
     if !isnothing(ℋ.quadratic_aniso)
@@ -329,6 +338,13 @@ function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i::CartesianIndex)
     for gen_coup in ℋ.gen_coups
         B += _neggrad(dipoles, gen_coup, i)
     end
+    ## TODO: implement dipole neggrad
+    if !isnothing(ℋ.biq_coups)
+        throw("function 'field' not implemented yet for biquadratic interaction")
+    end
+    # for biq_coup in ℋ.biq_coups
+        # B += _neggrad(dipoles, biq_coup, i)
+    # end    
     if !isnothing(ℋ.quadratic_aniso)
         B += _neggrad(dipoles, ℋ.quadratic_aniso, i)
     end
