@@ -102,8 +102,8 @@ export sf_slice, apply_form_factor, omega_labels, q_labels
 # * --------------------------------------------------------------------------------
 # * added Quantum-Classical correspondence and hexagonal representation by Chaebin, 2022-10-13
 
-include("CQ_corr.jl")
-export CQ_corr!, hexa_corr!, Cobalt_ff!
+include("QC_corr.jl")
+export QC_corr!, hexa_corr!, Cobalt_ff!
 
 # * ---------------------------------------------------------------------------------
 

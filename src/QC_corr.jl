@@ -2,25 +2,42 @@
 # * Written by Chaebin Kim 09/20/2022
 # * Ref) S. Zhang et al. Physical Review Letters 122, 167203 (2019)
 
-# ? CQ_corr! : Calculating Quantum-Classical correspondence βω
+# ? QC_corr! : Calculating Quantum-Classical correspondence βω
 # ? hexa_corr! : Correcting the momentum space with hexagonal unit cell
 # ? Cobalt_ff! : Calculating magnetic form factor for Co2+ correctly
 # TODO: Currently, the output of hexa_corr cannot replace the MySQWperp due to the different size of OffsetArray...
 # TODO: This could be better than this
 
-function CQ_corr!(MySQWperp, EN, kT, Nω)
+"""
+    QC_corr!(MySQWperp, EN, kT, Nω)
+
+Multiplying the Quantum-Classical Correspondence factor βω as
+'''math
+    S(q,ω)_{Quantum} = βωS(q,ω)_{Classical}
+'''
+where β = 1/kT and ω is energy.
+
+"""
+function QC_corr!(MySQWperp, EN, kT, Nω)
     β = 1 / kT
     βω = reshape(β * EN, 1, 1, 1, Nω) # Correction factor βω
     βω = repeat(βω, outer=[size(MySQWperp.sfactor)[1], size(MySQWperp.sfactor)[2], size(MySQWperp.sfactor)[3], 1])
     Ls = MySQWperp.sfactor.offsets .+ 1
     Le = -1 .* MySQWperp.sfactor.offsets
-    CQ_corr = OffsetArray(βω, Ls[1]:Le[1], Ls[2]:Le[2], Ls[3]:Le[3], Ls[4]:Le[4])
+    QC_corr = OffsetArray(βω, Ls[1]:Le[1], Ls[2]:Le[2], Ls[3]:Le[3], Ls[4]:Le[4])
 
-    MySQWperp.sfactor .= MySQWperp.sfactor .* CQ_corr
+    MySQWperp.sfactor .= MySQWperp.sfactor .* QC_corr
     MySQWperp.sfactor .= MySQWperp.sfactor ./ maximum(MySQWperp.sfactor) # Renormalization!
 
     return MySQWperp
 end
+
+"""
+    hexa_corr!(MySQWperp)
+
+Transformation for hexagonal lattice
+
+"""
 
 function hexa_corr!(MySQWperp)
     A = OffsetArrays.no_offset_view(MySQWperp.sfactor)
