@@ -67,21 +67,36 @@ function rotate_operator(A::Matrix, R::Mat3)
 end
 
 function rotate_operator(P::AbstractPolynomialLike, R::Mat3)
-    local 𝒪 = stevens_operator_symbols
-
-    # Effectively substitute:
-    #   𝒮 -> R⁻¹ 𝒮
-    #   T -> D⁻¹ T
-    # where D = exp(i n ⋅ J). Note that 𝒪 = α T, so we should substitute
-    #   𝒪 -> 𝒪′ = α D⁻¹ α⁻¹ 𝒪
-
+    ### ROTATION OF VECTORS
+    #
+    # Our goal is to rotate all vector components as `v -> R v` for the 3x3
+    # orthogonal matrix R. The full _geometric_ vector is written as a linear
+    # combination, vᵢ Sⁱ, where the Sⁱ are viewed as basis elements. The
+    # rotation `vᵢ Sⁱ -> (Rᵢⱼ vⱼ) Sⁱ` can be written `vᵢ Sⁱ -> vᵢ (Rⱼᵢ Sʲ)`.
+    # Given orthogonality of R, we can view the rotation as an inverse
+    # transformation on the basis elements, `S -> inv(R) S`.
     𝒮′ = R' * 𝒮
+
+    ### ROTATION OF STEVENS OPERATORS
+    #
+    # For a given rotation R described by an axis-angle n⃗, spherical tensors
+    # T_q transform two equivalent ways:
+    #
+    #  1. T_q -> U' T_q U       (with U = exp(-i n⃗⋅S⃗) in dimension N irrep)
+    #  2. T_q -> D*_{q,q′} T_q′ (with D = exp(-i n⃗⋅J⃗) in dimension 2k+1 irrep)
+    #
+    # The second form is the one that applies abstractly, independent of the
+    # representation for T_q. The Stevens operators 𝒪_q are linearly related to
+    # T_q via 𝒪 = α T. Therefore the rotation is implemented as:
+    #
+    #    𝒪 -> 𝒪′ = α conj(D) α⁻¹ 𝒪
+    local 𝒪 = stevens_operator_symbols
     𝒪′ = map(𝒪) do 𝒪ₖ
         k = Int((length(𝒪ₖ)-1)/2)
-        D = conj(unitary_for_rotation(2k+1, R))
-        D_stevens = stevens_α[k] * D * stevens_αinv[k] # TODO: Why not D' in here?
-        @assert norm(imag(D_stevens)) < 1e-12
-        real(D_stevens) * 𝒪ₖ
+        D = unitary_for_rotation(2k+1, R)
+        R_stevens = stevens_α[k] * conj(D) * stevens_αinv[k]
+        @assert norm(imag(R_stevens)) < 1e-12
+        real(R_stevens) * 𝒪ₖ
     end
 
     # Perform substitutions
