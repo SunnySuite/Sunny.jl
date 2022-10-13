@@ -28,10 +28,10 @@ import Colors: distinguishable_colors, RGB, Colors
 import Inflate: inflate_gzip
 import Random: randstring, RandomDevice
 
-const Vec3 = SVector{3, Float64}
-const Mat3 = SMatrix{3, 3, Float64, 9}
-const Quad3 = SArray{Tuple{3,3,3,3}, Float64, 4, 3^4}
-const CVec{N} = SVector{N, ComplexF64}
+const Vec3 = SVector{3,Float64}
+const Mat3 = SMatrix{3,3,Float64,9}
+const Quad3 = SArray{Tuple{3,3,3,3},Float64,4,3^4}
+const CVec{N} = SVector{N,ComplexF64}
 
 # Boltzmannn factor k_B in units of meV/K
 const meV_per_K = 0.086173332621451774
@@ -57,12 +57,17 @@ include("Util.jl")
 
 include("Lattice.jl")
 
+# * --------------------------------------------------------------------------------
+# * added Biquadratic interaction by Pyeongjae, 2022-10-13
+
 include("Interactions.jl")
 export heisenberg, exchange, Biquadratic, dm_interaction
 export easy_axis, easy_plane, quadratic_anisotropy, quartic_anisotropy
 export SUN_anisotropy, gen_spin_ops
 export external_field, dipole_dipole
 export SiteInfo
+
+# * --------------------------------------------------------------------------------
 
 include("PairInteractions.jl")
 
@@ -94,6 +99,14 @@ export StructureFactor, update!, apply_dipole_factor, zero!
 export dynamic_structure_factor, static_structure_factor
 export sf_slice, apply_form_factor, omega_labels, q_labels
 
+# * --------------------------------------------------------------------------------
+# * added Quantum-Classical correspondence and hexagonal representation by Chaebin, 2022-10-13
+
+include("CQ_corr.jl")
+export CQ_corr!, hexa_corr!, Cobalt_ff!
+
+# * ---------------------------------------------------------------------------------
+
 include("WangLandau/BinnedArray.jl")
 export BinnedArray, filter_visited, reset!
 
@@ -105,13 +118,13 @@ export view_crystal, offline_viewers
 
 # GLMakie and MPI are optional dependencies
 function __init__()
-    @require GLMakie="e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin
+    @require GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin
         include("Plotting.jl")
         export plot_lattice, plot_spins, plot_bonds, plot_all_bonds
         export anim_integration, live_integration, live_langevin_integration
     end
 
-    @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" begin
+    @require MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195" begin
         include("ReplicaExchangeMC.jl")
         export init_MPI, xyz_to_file, Replica, run_REMC!, run_FBO!
     end
