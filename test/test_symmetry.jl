@@ -52,7 +52,7 @@
     # Calculate interaction table
     ref_bonds = reference_bonds(cryst, 2.)
     b = ref_bonds[2]
-    basis = basis_for_symmetry_allowed_couplings(cryst, b)
+    basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
     J = basis' * randn(length(basis))
     (bs, Js) = all_symmetry_related_couplings_for_atom(cryst, b.i, b, J)
     @test length(Js) == coordination_number(cryst, b.i, b)
@@ -289,7 +289,7 @@ end
         p = randn(3)' * Sunny.stevens_operator_symbols[1] +
             randn(5)' * Sunny.stevens_operator_symbols[2] +
             randn(7)' * Sunny.stevens_operator_symbols[3]
-        @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
+        @test Sunny.operator_to_matrix(rotate_operator(p, R); N) ≈ rotate_operator(Sunny.operator_to_matrix(p; N), R)
     end
 
     # Test that spin operator symbols transform properly
@@ -297,13 +297,13 @@ end
         J = randn(3, 3)
         J = (J+J')/2
         p = randn(3)'*𝒮 + 𝒮'*J*𝒮
-        @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
+        @test Sunny.operator_to_matrix(rotate_operator(p, R); N) ≈ rotate_operator(Sunny.operator_to_matrix(p; N), R)
     end
 
     # Test that a linear combination transforms properly
     let
         p = randn(3)'*𝒮 + randn(5)'*Sunny.stevens_operator_symbols[2]
-        @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
+        @test Sunny.operator_to_matrix(rotate_operator(p, R); N) ≈ rotate_operator(Sunny.operator_to_matrix(p; N), R)
     end
 
     # Internal conversion between spin and Stevens operators
@@ -324,20 +324,20 @@ end
         i = 1
         cryst = Sunny.diamond_crystal()
 
-        # print_allowed_anisotropy(cryst, i)
+        # print_site(cryst, i)
         Λ = 𝒪[6,0]-21𝒪[6,4]
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
 
         R = hcat(normalize([1, 1, -2]), normalize([-1, 1, 0]), normalize([1, 1, 1]))
         R = Sunny.Mat3(R)
-        # print_allowed_anisotropy(cryst, i; R)
+        # print_site(cryst, i; R)
         Λ = 𝒪[6,0]-(35/√8)*𝒪[6,3]+(77/8)*𝒪[6,6]
-        Λ′ = Sunny.rotate_operator(Λ, R)
+        Λ′ = rotate_operator(Λ, R)
         @test Sunny.is_anisotropy_valid(cryst, i, Λ′)
 
         lat_vecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
         cryst = Crystal(lat_vecs, [[0., 0., 0.]])
-        # print_allowed_anisotropy(cryst, i)
+        # print_site(cryst, i)
         Λ = randn()*(𝒪[6,0]-21𝒪[6,4]) + randn()*(𝒪[6,2]+(16/5)*𝒪[6,4]+(11/5)*𝒪[6,6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
     end

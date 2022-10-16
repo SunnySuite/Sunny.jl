@@ -141,29 +141,18 @@ end
 Pretty-prints symmetry information for bond `bond` or atom index `i`.
 """
 function print_bond(cryst::Crystal, b::Bond; digits=4, atol=1e-12)
-    ri = cryst.positions[b.i]
-    rj = cryst.positions[b.j] + b.n
-
-    basis = basis_for_symmetry_allowed_couplings(cryst, b)
-    basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-
     if b.i == b.j && iszero(b.n)
-        # On site interaction
-        class_i = cryst.classes[b.i]
-        m_i = count(==(class_i), cryst.classes)
-        if isempty(cryst.types[b.i])
-            println("Atom $(b.i), position $(atom_pos_to_string(ri)), multiplicity $m_i")
-        else
-            println("Atom $(b.i), type '$(cryst.types[b.i])', position $(atom_pos_to_string(ri)), multiplicity $m_i")
-        end
-
-        _print_allowed_coupling(basis_strs; prefix="Allowed single-ion anisotropy or g-tensor: ")
-        if any(J -> !(J ≈ J'), basis)
-            println("""Note: The antisymmetric part is irrelevant to the single-ion anisotropy,
-                       but could contribute meaningfully to the g-tensor.""")
-        end
+        print_site(cryst, b.i; digits, atol)
     else
-        println(b) # Print Bond(...)
+        ri = cryst.positions[b.i]
+        rj = cryst.positions[b.j] + b.n
+
+        basis = basis_for_symmetry_allowed_couplings(cryst, b)
+        basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
+
+        # Bond(...)
+        printstyled(stdout, repr(b); bold=true, color=:underline)
+        println()
         (m_i, m_j) = (coordination_number(cryst, b.i, b), coordination_number(cryst, b.j, b))
         dist_str = number_to_simple_string(distance(cryst, b); digits, atol)
         if m_i == m_j
@@ -192,13 +181,13 @@ end
 
 
 """
-    print_bond_table(cryst::Crystal, max_dist)
+    print_symmetry_table(cryst::Crystal, max_dist)
 
 Pretty-prints a table of bonds, one for each symmetry equivalence class, up to a
 maximum bond length of `max_dist`. Equivalent to calling `print_bond(cryst, b)`
 for every bond `b` in `reference_bonds(cryst, max_dist)`.
 """
-function print_bond_table(cryst::Crystal, max_dist; digits=4, atol=1e-12)
+function print_symmetry_table(cryst::Crystal, max_dist; digits=4, atol=1e-12)
     for b in reference_bonds(cryst, max_dist)
         print_bond(cryst, b; digits, atol)
     end
@@ -222,27 +211,60 @@ function print_suggested_frame(cryst::Crystal, i::Int; digits=4, atol=1e-12)
     println("     " * join(R_strs[3,:], " "), " ]")
 end
 
-"""
-print_allowed_anisotropy(cryst, i; R=I, digits=4, ks=[2,4,6])
 
-Print the allowable linear combinations of Stevens operators that are consistent
-with the point group symmetries of site `i`. Elements of `ks` determine the
-allowed polynomial orders. An optional rotation matrix `R` can be provided to
-define the reference frame.
 """
-function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3=Mat3(I), atol=1e-12, digits=4, ks=[2,4,6])
+print_site(cryst, i; R=I, digits=4)
+
+Print symmetry information for the site `i`. Allowed g-tensor is given as matrix
+elements for bilinear form in spin operators.  Allowed anisotropy is given as a
+lienar combination of Stevens operators. An optional rotation matrix `R` can be
+provided to define the reference frame.
+"""
+function print_site(cryst, i; R=I, atol=1e-12, digits=4, ks=[2,4,6])
+    r = cryst.positions[i]
+    class_i = cryst.classes[i]
+    m = count(==(class_i), cryst.classes)
+    printstyled(stdout, "Site $i\n"; bold=true, color=:underline)
+
+    if isempty(cryst.types[i])
+        println("Position $(atom_pos_to_string(r)), multiplicity $m")
+    else
+        println("Type '$(cryst.types[i])', position $(atom_pos_to_string(r)), multiplicity $m")
+    end
+
+    # TODO: Rotate into basis R?
+    basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
+    basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
+    _print_allowed_coupling(basis_strs; prefix="Allowed g-tensor: ")
+
+    print_allowed_anisotropy(cryst, i; R, atol, digits, ks)
+end
+
+function int_to_underscore_string(x::Int)
+    subscripts = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
+    chars = collect(repr(x))
+    if chars[begin] == '-'
+        popfirst!(chars)
+        sign = "-"
+    else
+        sign = ""
+    end
+    digits = map(c -> parse(Int, c), chars)
+    return sign * prod(subscripts[digits.+1])
+end
+
+
+function print_allowed_anisotropy(cryst::Crystal, i::Int; prefix="    ", R=I, atol=1e-12, digits=4, ks=[2,4,6])
     R = Mat3(R)
-    kchars = ['₁', '₂', '₃', '₄', '₅', '₆'][ks]
 
-    println("# Allowed anisotropy in Stevens operators 𝒪[k,q]  for site $i.")
     lines = String[]
-
-    for (k, kchar) in zip(ks, kchars)
+    cnt = 1
+    for k in ks
         B = stevens_basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
 
         if size(B, 2) > 0
             terms = String[]
-            for (param, b) in zip('A':'Z', reverse(collect(eachcol(B))))
+            for b in reverse(collect(eachcol(B)))
 
                 # rescale column by its minimum nonzero value
                 _, min = findmin(b) do x
@@ -262,16 +284,18 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3=Mat3(I), atol=
                 # clean up printing of term
                 ops = length(ops) == 1 ? ops[1] : "("*join(ops, "+")*")"
                 ops = replace(ops, "+-" => "-")
-                push!(terms, param * kchar * ops)
+                push!(terms, "c" * int_to_underscore_string(cnt) * "*" * ops)
+                cnt += 1
             end
-            push!(lines, join(terms, " + "))
+            push!(lines, prefix * join(terms, " + "))
         end
     end
+    println("Allowed anisotropy in Stevens operators 𝒪[k,q]:")
     println(join(lines, " +\n"))
 
     if R != I
         println()
-        println("# Reference frame")
-        println("R = $R")
+        println("Rotate Stevens operators using:")
+        println(prefix*"R = $R")
     end
 end

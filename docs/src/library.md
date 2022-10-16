@@ -5,7 +5,7 @@ This page describes the public types and functions exported by Sunny. This docum
 Typical Sunny usage will involve the following steps:
 
 1. Create a [`Crystal`](@ref), either by providing explicit geometry information or by loading a `.cif` file.
-2. Perform using methods such as [`print_bond_table`](@ref) and [`print_allowed_anisotropy`](@ref).
+2. Perform symmetry analysis using [`print_symmetry_table`](@ref).
 3. Define a list of [Interactions](@ref), i.e., terms to be included in the Hamiltonian.
 4. Specify information for each site through a [`SiteInfo`](@ref) object that specifies, e.g., local spin magnitude and ``g``-tensor.
 5. Assemble a [`SpinSystem`](@ref) using the crystal, the interactions, the dimensions of the simulation box (in unit cells), and the site information.
@@ -36,15 +36,15 @@ Bond
 displacement
 distance
 coordination_number
+print_site
 print_bond
-print_bond_table
+print_symmetry_table
 reference_bonds
-basis_for_symmetry_allowed_couplings
+<!-- basis_for_symmetry_allowed_couplings -->
 all_symmetry_related_bonds
 all_symmetry_related_bonds_for_atom
 all_symmetry_related_couplings
 all_symmetry_related_couplings_for_atom
-print_allowed_anisotropy
 ```
 
 ## Interactions

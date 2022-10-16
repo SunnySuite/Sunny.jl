@@ -1,9 +1,8 @@
-# __precompile__(false)
-
 module Sunny
 
-using LinearAlgebra
+using SnoopPrecompile
 
+using LinearAlgebra
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA
 import Requires: @require
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
@@ -14,7 +13,7 @@ import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, rand!, randn!
 import Interpolations: interpolate, scale, BSpline, Linear, Periodic
-import DynamicPolynomials: DynamicPolynomials, @ncpolyvar, @polyvar, AbstractPolynomialLike
+import DynamicPolynomials: DynamicPolynomials, @ncpolyvar, @polyvar, AbstractPolynomialLike, monomials, coefficients
 
 # Specific to Symmetry/
 import FilePathsBase: Path
@@ -46,12 +45,13 @@ include("Symmetry/Symmetry.jl")
 export Crystal, subcrystal, nbasis, cell_volume, cell_type
 export lattice_vectors, lattice_params
 export Bond, displacement, distance, coordination_number
-export print_bond, print_bond_table, print_mutually_allowed_couplings
-export reference_bonds, basis_for_symmetry_allowed_couplings
+export reference_bonds
 export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 export all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom
-export print_suggested_frame, print_allowed_anisotropy
 export all_symmetry_related_anisotropies
+export 𝒪, 𝒮, rotate_operator
+export print_site, print_bond, print_symmetry_table, print_mutually_allowed_couplings
+export print_suggested_frame, print_anisotropy_as_spins, print_anisotropy_as_stevens
 
 include("Util.jl")
 
@@ -60,7 +60,6 @@ include("Lattice.jl")
 include("Interactions.jl")
 export heisenberg, exchange, dm_interaction
 export easy_axis, easy_plane, quadratic_anisotropy, anisotropy
-export stevens_operators, spin_operators, print_operator_as_classical_polynomial
 export external_field, dipole_dipole
 export SiteInfo
 
@@ -115,6 +114,23 @@ function __init__()
         include("ReplicaExchangeMC.jl")
         export init_MPI, xyz_to_file, Replica, run_REMC!, run_FBO!
     end
+end
+
+@precompile_setup begin
+    # suppress stdout
+    oldstd = stdout
+    redirect_stdout(open("/dev/null", "w"))
+
+    @precompile_all_calls begin
+        # all calls in this block will be precompiled, regardless of whether
+        # they belong to your package or not (on Julia 1.8 and higher)
+        cryst = diamond_crystal()
+        repr(cryst)
+        print_symmetry_table(cryst, 1.0)
+    end
+
+    # restore stdout
+    redirect_stdout(oldstd)
 end
 
 end
