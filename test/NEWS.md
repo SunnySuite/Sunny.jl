@@ -7,29 +7,37 @@
 Anisotropy operators can now be specified as either a polynomial in spin
 operators `𝒮` or a linear combination of Stevens operators `𝒪`. For example:
 ```julia
-a1 = 𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4
+a1 = 20*(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
 a2 = 𝒪[4,0] + 5𝒪[4,4]
 ```
 
-In the classical limit, spin operators are replaced with expectation values.
-Here, Stevens operators retain only the leading order terms in powers of _S_ and
-become homogeneous polynomials, e.g.
+In the classical limit, spin operators are replaced with expectation values. In
+this limit, Stevens operators retain only the leading order terms in powers of
+_S_ and become homogeneous polynomials. 
 ```julia
-operator_to_classical_polynomial(a2) 
-# Output: 8sx⁴ - 24sx²sy² - 24sx²sz² + 8sy⁴ - 24sy²sz² + 8sz⁴
+print_anisotropy_as_spins(a2) 
+# Output: 8𝒮₁⁴ - 24𝒮₁²𝒮₂² - 24𝒮₁²𝒮₃² + 8𝒮₂⁴ - 24𝒮₂²𝒮₃² + 8𝒮₃⁴
 ```
 
-Similarly, if the spin operators `𝒮` are converted to classical expectation
-values, one can infer the corresponding Stevens expansion,
+Conversely, given a classical spin polynomial, Sunny can print the corresponding
+expansion in Stevens operators,
 ```julia
-operator_to_classical_stevens_expansion(a1)
+print_anisotropy_as_stevens(a1)
+# Output: 12X² + 𝒪₄₀ + 5𝒪₄₄
 ```
 
-Observe that `a1` corresponds to `a2` up to a rescaling and irrelevant constant
-shift. To make this connection, note that `(sx²+sy²+sz²)²` is a constant.
+In this case, `a1` and `a2` are the same up to an irrelevant shift. The symbol
+`X` indicates spin magnitude squared.
 
-To get an `Interaction`, use, e.g., `anisotropy(a1, site_index; label)`. This
-interaction can be used in either dipole-only mode or SU(_N_) mode.
+The `anisotropy()` function takes these operators and produces an `Interaction`,
+which can be used in either dipole-only mode or SU(_N_) mode. For example, to
+specify an easy-axis in the `n` direction with magnitude `D`, one may use:
+```julia
+anisotropy((-D*(𝒮⋅n)^2, site_index; label)
+```
+
+Another convenient syntax is `𝒮'*J*𝒮` to produce a general quadratic
+interaction with matrix-elements `J`.
 
 **2. When reading CIF files, the field `_atom_site_label` is now used in place of the field `_atom_site_type_symbol`**
 

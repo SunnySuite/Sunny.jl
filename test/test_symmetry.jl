@@ -180,8 +180,8 @@ end
         return ret
     end
 
-    # Spherical tensors T(k,q) as NxN operators. The result is ambiguous up to an
-    # overall (k,N)-dependent scaling factor. Sunny uses the normalization
+    # Spherical tensors T(k,q) as NxN matrices. The result is ambiguous up to an
+    # overall (k,N)-dependent scaling factor. Here we're using the normalization
     # convention of KS/BCS.
     function spherical_tensors(N, k)
         j = (N-1)/2
@@ -254,7 +254,7 @@ end
     # Stevens operators
     for N=2:7
         for k = 1:N-1
-            𝒪 = Sunny.stevens_ops(N, k)
+            𝒪 = Sunny.stevens_matrices(N, k)
             T = spherical_tensors(N, k)
 
             # Check that Stevens operators are proper linear combination of
@@ -267,9 +267,58 @@ end
             @test transpose(c)*T ≈ transpose(b)*𝒪
         end
     end
+end
+
+@testitem "Local operators" begin
+    include("test_shared.jl")
+
+    A = randn(3,3)
+    R = Sunny.Mat3(exp(A - A'))
+    N = 5
+
+    # Test axis-angle decomposiiton
+    let
+        (n, θ) = Sunny.axis_angle(R)
+        @test 1 + 2cos(θ) ≈ tr(R)
+        @test norm(n) ≈ 1
+        @test R*n ≈ n
+    end
+
+    # Test that Stevens operator symbols transform properly
+    let
+        p = randn(3)' * Sunny.stevens_operator_symbols[1] +
+            randn(5)' * Sunny.stevens_operator_symbols[2] +
+            randn(7)' * Sunny.stevens_operator_symbols[3]
+        @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
+    end
+
+    # Test that spin operator symbols transform properly
+    let
+        J = randn(3, 3)
+        J = (J+J')/2
+        p = randn(3)'*𝒮 + 𝒮'*J*𝒮
+        @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
+    end
+
+    # Test that a linear combination transforms properly
+    let
+        p = randn(3)'*𝒮 + randn(5)'*Sunny.stevens_operator_symbols[2]
+        @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
+    end
+
+    # Internal conversion between spin and Stevens operators
+    let
+        J = randn(3,3)
+        J = J+J'
+        p = randn(3)'*𝒮 + 𝒮'*J*𝒮 +
+            randn(11)' * Sunny.stevens_operator_symbols[5] +
+            randn(13)' * Sunny.stevens_operator_symbols[6]
+        cp = Sunny.operator_to_classical_polynomial(p)
+        @test cp |> Sunny.classical_polynomial_to_classical_stevens |> Sunny.operator_to_classical_polynomial ≈ cp
+    end
 
     # Test some inferred anisotropy matrices
-    begin
+    let
         N = 7
         k = 6
         i = 1
@@ -292,36 +341,4 @@ end
         Λ = randn()*(𝒪[6,0]-21𝒪[6,4]) + randn()*(𝒪[6,2]+(16/5)*𝒪[6,4]+(11/5)*𝒪[6,6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
     end
-end
-
-@testitem "Rotations" begin
-    include("test_shared.jl")
-
-    A = randn(3,3)
-    R = exp(A - A')
-    (n, θ) = Sunny.axis_angle(Sunny.Mat3(R))
-    @test 1 + 2cos(θ) ≈ tr(R)
-    @test norm(n) ≈ 1
-    @test R*n ≈ n
-
-    # Test that Stevens operator symbols transform properly
-    N = 5
-    G = randn(3,3)
-    G = (G - G')/2
-    R = Sunny.Mat3(exp(-G))
-    p = randn(3)' * Sunny.stevens_operator_symbols[1] +
-        randn(5)' * Sunny.stevens_operator_symbols[2] +
-        randn(7)' * Sunny.stevens_operator_symbols[3]
-    @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
-
-    # Test that spin operator symbols transform properly
-    J = randn(3, 3)
-    J = (J+J')/2
-    p = randn(3)' * 𝒮 + 𝒮' * J * 𝒮
-    @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
-
-    # Test that a linear combination transforms properly
-    p = randn(3)' * 𝒮 + randn(5)' * Sunny.stevens_operator_symbols[2]
-    @test Sunny.operator_to_matrix(Sunny.rotate_operator(p, R); N) ≈ Sunny.rotate_operator(Sunny.operator_to_matrix(p; N), R)
-
 end
