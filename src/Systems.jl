@@ -10,7 +10,7 @@ struct SpinSystem{N}
     _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
     _coherents  :: Array{CVec{N}, 4}                # Coherent states
     site_infos  :: Vector{SiteInfo}                 # Characterization of each basis site
-    S           :: Array{ComplexF64, 3}    
+    S           :: Array{ComplexF64, 3}             # TODO -- generate on demand instead
     rng         :: Random.AbstractRNG
 end
 
