@@ -4,7 +4,7 @@
 abstract type AbstractInteraction end      # Subtype this for user-facing interfaces
 abstract type AbstractInteractionCPU end   # Subtype this for actual internal CPU implementations
 abstract type AbstractInteractionGPU end   # Subtype this for actual internal GPU implementations
-abstract type AbstractAnisotropy <: AbstractInteraction end
+# abstract type AbstractAnisotropy <: AbstractInteraction end
 
 
 struct QuadraticInteraction <: AbstractInteraction
@@ -165,91 +165,14 @@ function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
     QuadraticInteraction(J, bond, label)
 end
 
-const spin_expectations = begin
-    SVector{3}(@polyvar sx sy sz)
-end
-
-const spin_operators = begin
-    SVector{3}(@ncpolyvar Sx Sy Sz)
-end
-
-const stevens_operators = begin
-    𝒪₀ = OffsetArray(collect(@ncpolyvar 𝒪₀₀), 0:0)
-    𝒪₁ = OffsetArray(collect(@ncpolyvar 𝒪₁₋₁ 𝒪₁₀ 𝒪₁₁), -1:1)
-    𝒪₂ = OffsetArray(collect(@ncpolyvar 𝒪₂₋₂ 𝒪₂₋₁ 𝒪₂₀ 𝒪₂₁ 𝒪₂₂), -2:2)
-    𝒪₃ = OffsetArray(collect(@ncpolyvar 𝒪₃₋₃ 𝒪₃₋₂ 𝒪₃₋₁ 𝒪₃₀ 𝒪₃₁ 𝒪₃₂ 𝒪₃₃), -3:3)
-    𝒪₄ = OffsetArray(collect(@ncpolyvar 𝒪₄₋₄ 𝒪₄₋₃ 𝒪₄₋₂ 𝒪₄₋₁ 𝒪₄₀ 𝒪₄₁ 𝒪₄₂ 𝒪₄₃ 𝒪₄₄), -4:4)
-    𝒪₅ = OffsetArray(collect(@ncpolyvar 𝒪₅₋₅ 𝒪₅₋₄ 𝒪₅₋₃ 𝒪₅₋₂ 𝒪₅₋₁ 𝒪₅₀ 𝒪₅₁ 𝒪₅₂ 𝒪₅₃ 𝒪₅₄ 𝒪₅₋₅), -5:5)
-    𝒪₆ = OffsetArray(collect(@ncpolyvar 𝒪₆₋₆ 𝒪₆₋₅ 𝒪₆₋₄ 𝒪₆₋₃ 𝒪₆₋₂ 𝒪₆₋₁ 𝒪₆₀ 𝒪₆₁ 𝒪₆₂ 𝒪₆₃ 𝒪₆₄ 𝒪₆₋₅ 𝒪₆₋₆), -6:6)
-    OffsetArray([𝒪₀, 𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄, 𝒪₅, 𝒪₆], 0:6)
-end
-
-function operator_to_matrix(p; N)
-    rep = p(
-        spin_operators => gen_spin_ops(N),
-        [stevens_operators[k] => stevens_ops(N, k) for k=0:6]...
-    )
-    if !(rep ≈ rep')
-        println("Warning: Received non-Hermitian operator '$p'. Using symmetrized operator.")
-    end
-    # Symmetrize in any case for more accuracy
-    return (rep+rep')/2
-end
-
-function operator_to_classical_polynomial(p)
-    return p(
-        spin_operators => spin_expectations,
-        [stevens_operators[k] => stevens_classical(k) for k=0:6]...
-    )
-end
-
-"""
-    function print_operator_as_classical_polynomial(p)
-
-Prints a quantum operator (e.g. linear combination of Stevens operators) as a
-polynomial of spin expectation values in the classical limit.
-"""
-function print_operator_as_classical_polynomial(p)
-    println(operator_to_classical_polynomial(p))
-end
-
-struct QuadraticAnisotropy <: AbstractAnisotropy
-    J     :: Mat3
-    site  :: Int
-    label :: String # Maybe remove
-end
-
-struct QuarticAnisotropy <: AbstractAnisotropy
-    J     :: Quad3 
-    site  :: Int
-    label :: String # Maybe remove
-end
-
-struct FIXME_SUNAnisotropy end
-
-struct OperatorAnisotropy <: AbstractAnisotropy
+struct OperatorAnisotropy
     Λ     :: AbstractPolynomialLike
     site  :: Int
     label :: String # Maybe remove
 end
 
-function Base.show(io::IO, ::MIME"text/plain", aniso::QuadraticAnisotropy)
-    (; J, site, label) = aniso
-    @assert J ≈ J'
-    # Check if it is easy-axis or easy-plane
-    λ, V = eigen(J)
-    nonzero_λ = findall(x -> abs(x) > 1e-12, λ)
-    if length(nonzero_λ) == 1
-        i = nonzero_λ[1]
-        dir = V[:, i]
-        if count(<(0.0), dir) >= 2
-            dir = -dir
-        end
-        name, D = λ[i] < 0 ? ("easy_axis", -λ[i]) : ("easy_plane", λ[i])
-        @printf io "%s(%.4g, [%.4g, %.4g, %.4g], %d)" name D dir[1] dir[2] dir[3] site
-    else
-        @printf io "quadratic_anisotropy([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %d)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] site
-    end
+function anisotropy(Λ, site::Int, label::String="Anisotropy")
+    return OperatorAnisotropy(Λ, site, label)
 end
 
 """
@@ -268,7 +191,7 @@ function quadratic_anisotropy(J, site::Int, label::String="Anisotropy")
     if !(J ≈ J')
         error("Single-ion anisotropy must be symmetric.")
     end
-    QuadraticAnisotropy(Mat3(J), site, label)
+    OperatorAnisotropy(𝒮'*Mat3(J)*𝒮, site, label)
 end
 
 
@@ -290,7 +213,7 @@ function easy_axis(D, n, site::Int, label::String="EasyAxis")
     if !(norm(n) ≈ 1)
         error("Parameter `n` must be a unit vector. Consider using `normalize(n)`.")
     end
-    QuadraticAnisotropy(-D*Mat3(n*n'), site, label)
+    OperatorAnisotropy(-D*(𝒮⋅n)^2, site, label)
 end
 
 
@@ -312,24 +235,8 @@ function easy_plane(D, n, site::Int, label::String="EasyAxis")
     if !(norm(n) ≈ 1)
         error("Parameter `n` must be a unit vector. Consider using `normalize(n)`.")
     end
-    QuadraticAnisotropy(+D*Mat3(n*n'), site, label)
+    OperatorAnisotropy(+D*(𝒮⋅n)^2, site, label)
 end
-
-# """
-#     quartic_anisotropy(J, site, label="QuarticAniso")
-
-# Creates a quartic anisotropy. J is a rank-4 tensor, specified as a 3x3x3x3 array.
-# ```math
-#     ∑_i ∑_{α, β, γ, δ ∈ \\{x, y, z\\}} J_{αβγδ} S_i^α S_i^β S_i^γ S_i^δ
-# ```
-# """
-# function quartic_anisotropy(J, site, label="QuarticAniso")
-#     # TODO: Basic symmetry checks?
-#     if (size(J) != (3, 3, 3, 3)) || !(eltype(J) <: Real)
-#         error("Parameter `J` must be a 3x3x3x3 real tensor.")
-#     end
-#     QuarticAnisotropy(J, site, label)
-# end
 
 # N-dimensional irreducible matrix representation of 𝔰𝔲(2). Use this only
 #  to give the user the ability to construct generalized anisotropy matrices.
@@ -364,8 +271,8 @@ end
 """
     anisotropy(op, site)
 
-Creates a general anisotropy specified as a polynomial of `spin_operators` or
-`stevens_operators`.
+Creates a general anisotropy specified as a polynomial of spin operators `𝒮` or
+Stevens operators `𝒪`.
 """
 function anisotropy(op::AbstractPolynomialLike, site, label="OperatorAniso")
     OperatorAnisotropy(op, site, label)
