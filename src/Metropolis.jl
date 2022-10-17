@@ -387,7 +387,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
         ΔE += real(new_ket' * Λ * new_ket) - real(old_ket' * Λ * old_ket)
     end
     if !isnothing(ℋ.dipole_int)
-        throw("Local energy changes not implemented yet for dipole interactions")
+        error("Local energy changes not implemented yet for dipole interactions")
     end
     return ΔE
 end

@@ -39,7 +39,3 @@ end
     Ar = reinterpret(reshape, Float64, parent(A))
     return reshape(Ar, 3, 3, size(A)...)    # make sure this doesn't mess up indexing
 end
-
-# Enable convenient dot-product syntax for 3-vectors
-LinearAlgebra.dot(a::SVector{3, T}, b) where T = a'*b
-LinearAlgebra.dot(a, b::SVector{3, T}) where T = a'*b
