@@ -128,7 +128,7 @@
 end
 
 
-@testitem "Spin operators" begin
+@testitem "Spin matrices" begin
     include("test_shared.jl")
     
     # Levi-Civita symbol
@@ -269,7 +269,7 @@ end
     end
 end
 
-@testitem "Local operators" begin
+@testitem "Local operator symbols" begin
     include("test_shared.jl")
 
     A = randn(3,3)
@@ -340,5 +340,30 @@ end
         # print_site(cryst, i)
         Λ = randn()*(𝒪[6,0]-21𝒪[6,4]) + randn()*(𝒪[6,2]+(16/5)*𝒪[6,4]+(11/5)*𝒪[6,6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
+    end
+
+    # Test fast evaluation of Stevens operators
+    let
+        import DynamicPolynomials
+
+        s = randn(Sunny.Vec3)
+        p = randn(5)' * Sunny.stevens_operator_symbols[2] + 
+            randn(9)' * Sunny.stevens_operator_symbols[4] +
+            randn(13)' * Sunny.stevens_operator_symbols[6]
+        (_, c2, _, c4, _, c6) = Sunny.operator_to_classical_stevens_coefficients(p)
+
+        p_classical = Sunny.operator_to_classical_polynomial(p)
+        grad_p_classical = DynamicPolynomials.differentiate(p_classical, Sunny.spin_classical_symbols)
+
+        E_ref = p_classical(Sunny.spin_classical_symbols => s)
+
+        gradE_ref = [g(Sunny.spin_classical_symbols => s) for g = grad_p_classical]
+        gradE_ref -= (gradE_ref⋅s)*s / (s⋅s) # Orthogonalize to s
+
+        E, gradE = Sunny.energy_and_gradient_for_classical_anisotropy(s, c2, c4, c6)
+        gradE -= (gradE⋅s)*s / (s⋅s)         # Orthogonalize to s
+
+        @test E ≈ E_ref
+        @test gradE_ref ≈ gradE
     end
 end
