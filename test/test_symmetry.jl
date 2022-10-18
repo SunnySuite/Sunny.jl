@@ -344,16 +344,16 @@ end
 
     # Test fast evaluation of Stevens operators
     let
-        import DynamicPolynomials
+        import DynamicPolynomials as DP
 
         s = randn(Sunny.Vec3)
         p = randn(5)' * Sunny.stevens_operator_symbols[2] + 
             randn(9)' * Sunny.stevens_operator_symbols[4] +
             randn(13)' * Sunny.stevens_operator_symbols[6]
-        (_, c2, _, c4, _, c6) = Sunny.operator_to_classical_stevens_coefficients(p)
+        (_, c2, _, c4, _, c6) = Sunny.operator_to_classical_stevens_coefficients(p, 1.0)
 
         p_classical = Sunny.operator_to_classical_polynomial(p)
-        grad_p_classical = DynamicPolynomials.differentiate(p_classical, Sunny.spin_classical_symbols)
+        grad_p_classical = DP.differentiate(p_classical, Sunny.spin_classical_symbols)
 
         E_ref = p_classical(Sunny.spin_classical_symbols => s)
 

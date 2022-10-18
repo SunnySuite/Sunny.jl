@@ -6,9 +6,9 @@ Upon creation of a SpinSystem, all pair interactions get converted into their
 """
 
 struct DipoleAnisotropyCPU <: AbstractInteractionCPU
-    coeff_2 :: Vector{SVector{5, Float64}}
-    coeff_4 :: Vector{SVector{9, Float64}}
-    coeff_6 :: Vector{SVector{13, Float64}}
+    coeff_2 :: Vector{Vector{Float64}} # length 5 elements
+    coeff_4 :: Vector{Vector{Float64}} # length 9 elements
+    coeff_6 :: Vector{Vector{Float64}} # length 13 elements
     sites :: Vector{Int}
     label :: String
 end

@@ -33,7 +33,7 @@ function merge_upconvert_anisos(anisos::Vector{OperatorAnisotropy}, crystal::Cry
     # TODO: Lift N to the level of SpinSystem?
     @assert allequal(si.N for si = site_infos)
     N = site_infos[1].N
-
+    
     # We always store SU(N) anisotropies, even if empty
     SUN_ops = zeros(ComplexF64, N, N, nbasis(crystal))
     isempty(anisos) && return (nothing, SUN_ops)
@@ -60,14 +60,16 @@ function merge_upconvert_anisos(anisos::Vector{OperatorAnisotropy}, crystal::Cry
     end
 
     if N == 0
-        c2 = SVector{5, Float64}[]
-        c4 = SVector{9, Float64}[]
-        c6 = SVector{13, Float64}[]
-        for op = ops
-            c = operator_to_classical_stevens_coefficients(op)
-            push!(c2, SVector{5}(c[2]))
-            push!(c4, SVector{9}(c[4]))
-            push!(c6, SVector{13}(c[6]))
+        c2 = Vector{Float64}[]
+        c4 = Vector{Float64}[]
+        c6 = Vector{Float64}[]
+        for (site, op) = zip(sites, ops)
+            S = site_infos[site].spin_rescaling
+            # Consider checking for zero and pushing empty arrays?
+            c = operator_to_classical_stevens_coefficients(op, S)
+            push!(c2, c[2])
+            push!(c4, c[4])
+            push!(c6, c[6])
             if !all(iszero.(c[[1,3,5]]))
                 error("Odd-ordered dipole anisotropies not supported.")
             end

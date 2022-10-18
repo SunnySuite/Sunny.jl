@@ -176,14 +176,15 @@ function operator_to_classical_polynomial(p)
     )
 end
 
+# Workaround for https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/118
+function X_pow(d)
+    X = spin_squared_symbol
+    iszero(d) ? 1 : X^Int(d)
+end
+
 # Map from monomials (in classical spin expectation values) to linear
 # combinations of Stevens operators
 const classical_monomial_to_classical_stevens_dict = let
-    X = spin_squared_symbol
-
-    # Workaround for https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/118
-    X_pow(d) = iszero(d) ? 1 : X^Int(d)
-
     ret = Dict()
 
     for order = 1:6
@@ -232,8 +233,9 @@ end
 
 
 # Extract Stevens operator coefficients from spin polynomial
-function operator_to_classical_stevens_coefficients(p)
+function operator_to_classical_stevens_coefficients(p, S)
     p = operator_to_classical_stevens(p)
+    p = subs(p, spin_squared_symbol => S^2)
     return map(stevens_operator_symbols) do 𝒪ₖ
         map(𝒪ₖ) do 𝒪kq
             j = findfirst(==(𝒪kq), monomials(p))
