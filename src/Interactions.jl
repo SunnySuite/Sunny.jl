@@ -89,7 +89,7 @@ information on the form factor calculation.
 NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverted
 to the largest specified `N`.
 """
-# TODO: Get read of site field, and replace N -> S, defaulting to 1
+# TODO: Get rid of site field, and replace N -> S, defaulting to 1
 Base.@kwdef struct SiteInfo
     site            :: Int                 # Index of site
     N               :: Int     = 0         # N in SU(N)
@@ -165,15 +165,23 @@ function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
     QuadraticInteraction(J, bond, label)
 end
 
-struct OperatorAnisotropy
-    Λ     :: AbstractPolynomialLike
+struct OperatorAnisotropy <: AbstractInteraction
+    op    :: AbstractPolynomialLike
     site  :: Int
     label :: String # Maybe remove
 end
 
-function anisotropy(Λ, site::Int, label::String="Anisotropy")
-    return OperatorAnisotropy(Λ, site, label)
+
+"""
+    anisotropy(op, site)
+
+Creates a general anisotropy specified as a polynomial of spin operators `𝒮` or
+Stevens operators `𝒪`.
+"""
+function anisotropy(op::AbstractPolynomialLike, site, label="OperatorAniso")
+    OperatorAnisotropy(op, site, label)
 end
+
 
 """
     quadratic_anisotropy(J, site, label="Anisotropy")
@@ -267,16 +275,6 @@ function gen_spin_ops_packed(N::Int) :: Array{ComplexF64, 3}
     S_packed
 end
 
-
-"""
-    anisotropy(op, site)
-
-Creates a general anisotropy specified as a polynomial of spin operators `𝒮` or
-Stevens operators `𝒪`.
-"""
-function anisotropy(op::AbstractPolynomialLike, site, label="OperatorAniso")
-    OperatorAnisotropy(op, site, label)
-end
 
 struct DipoleDipole <: AbstractInteraction
     extent   :: Int

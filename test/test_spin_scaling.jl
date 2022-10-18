@@ -23,7 +23,7 @@ function make_test_system_lld(; spin_rescaling=1.0)
 
     # Quartic anisotropy
     D = 1.0 
-    quartic_interactions = [anisotropy(D*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), i, "quartic") for i ∈ 1:4]
+    quartic_interactions = [anisotropy(D*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), 1, "quartic")]
 
     interactions_all = [exchange_interactions..., quartic_interactions...]
     dims = (3,3,3)
@@ -135,11 +135,10 @@ function test_energy_scaling_gsd()
     cryst = Sunny.fcc_crystal()
     dims = (2,2,2)
 
-    𝒪 = stevens_operators
-    Λ = 𝒪[4][0]+5𝒪[4][4]
+    Λ = 𝒪[4,0]+5𝒪[4,4]
 
     interactions_gsd = [heisenberg(1.0, Bond(1,2,[0,0,0])),
-                        anisotropy(Λ, 1, "")]
+                        anisotropy(Λ, 1)]
     powers_gsd = [2, 1]
 
     for (interaction, power) in zip(interactions_gsd, powers_gsd)

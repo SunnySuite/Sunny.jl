@@ -99,8 +99,12 @@ function rotate_operator(P::AbstractPolynomialLike, R::Mat3)
         real(R_stevens) * 𝒪ₖ
     end
 
+    # Spin squared as a scalar may be introduced through
+    # operator_to_classical_stevens()
+    X = spin_squared_symbol
+
     # Perform substitutions
-    P′ = P(𝒮 => 𝒮′, [𝒪[k] => 𝒪′[k] for k=1:6]...)
+    P′ = P(𝒮 => 𝒮′, [𝒪[k] => 𝒪′[k] for k=1:6]..., X => X)
 
     # Remove terms very near zero
     return DynamicPolynomials.mapcoefficients(P′) do c
@@ -356,13 +360,13 @@ end
 
 
 """
-all_symmetry_related_anisotropies(cryst, i_ref, Λ_ref::Matrix{ComplexF64})
+    all_symmetry_related_anisotropies(cryst, i_ref, Λ_ref)
 
 Return two lists. The first list contains all atoms `i` that are symmetry
 equivalent to `i_ref`. The second list contains the appropriately transformed
 anisotropy matrices `Λ` for each site `i`.
 """
-function all_symmetry_related_anisotropies(cryst::Crystal, i_ref::Int, Λ_ref::Matrix{ComplexF64})
+function all_symmetry_related_anisotropies(cryst::Crystal, i_ref::Int, Λ_ref)
     @assert is_anisotropy_valid(cryst, i_ref, Λ_ref)
 
     is = all_symmetry_related_atoms(cryst, i_ref)
@@ -376,15 +380,11 @@ function all_symmetry_related_anisotropies(cryst::Crystal, i_ref::Int, Λ_ref::M
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
         Q = det(R) * R
 
-        # Map rotation Q into a unitary U that acts on spins.
-        N = size(Λ_ref, 1)
-        U = unitary_for_rotation(N, Q)
-
-        # The anisotropy energy must be scalar. The unitary U is is defined to
-        # transform states |Z_ref⟩ → |Z⟩ = U |Z_ref⟩. To achieve invariance,
-        # ⟨Z_ref|Λ_ref|Z_ref⟩ = ⟨Z|Λ|Z⟩, we define Λ_ref → Λ = U*Λ_ref*U'. In
-        # other words, Λ_ref transformed by the _inverse_ of the rotation Q.
-        return U*Λ_ref*U'
+        # In moving from site i_ref to i, a spin S_ref rotates to S = Q S_ref.
+        # Transform the anisotropy operator using the inverse rotation so that
+        # the energy remains invariant when applied to the transformed spins.
+        # TODO: TEST!
+        return rotate_operator(Λ_ref, Q')
     end
 
     return (is, Λs)

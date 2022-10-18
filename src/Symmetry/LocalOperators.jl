@@ -181,15 +181,18 @@ end
 const classical_monomial_to_classical_stevens_dict = let
     X = spin_squared_symbol
 
+    # Workaround for https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/118
+    X_pow(d) = iszero(d) ? 1 : X^Int(d)
+
     ret = Dict()
 
     for order = 1:6
         ops = []
         for k = order:-2:0
             if k == 0
-                push!(ops, X^Int(order/2))
+                push!(ops, X_pow(order/2))
             else
-                append!(ops, X^Int((order-k)/2) * stevens_operator_symbols[k])
+                append!(ops, X_pow((order-k)/2) * stevens_operator_symbols[k])
             end
         end
 
