@@ -6,25 +6,25 @@
 # to generate rotations of the Stevens operators via the Wigner D matrices.
 const stevens_operator_symbols = let
     # 𝒪₀ = identity
-    𝒪₁ = collect(reverse(@ncpolyvar                          𝒪₁₋₁ 𝒪₁₀ 𝒪₁₁))
-    𝒪₂ = collect(reverse(@ncpolyvar                     𝒪₂₋₂ 𝒪₂₋₁ 𝒪₂₀ 𝒪₂₁ 𝒪₂₂))
-    𝒪₃ = collect(reverse(@ncpolyvar                𝒪₃₋₃ 𝒪₃₋₂ 𝒪₃₋₁ 𝒪₃₀ 𝒪₃₁ 𝒪₃₂ 𝒪₃₃))
-    𝒪₄ = collect(reverse(@ncpolyvar           𝒪₄₋₄ 𝒪₄₋₃ 𝒪₄₋₂ 𝒪₄₋₁ 𝒪₄₀ 𝒪₄₁ 𝒪₄₂ 𝒪₄₃ 𝒪₄₄))
-    𝒪₅ = collect(reverse(@ncpolyvar      𝒪₅₋₅ 𝒪₅₋₄ 𝒪₅₋₃ 𝒪₅₋₂ 𝒪₅₋₁ 𝒪₅₀ 𝒪₅₁ 𝒪₅₂ 𝒪₅₃ 𝒪₅₄ 𝒪₅₅))
-    𝒪₆ = collect(reverse(@ncpolyvar 𝒪₆₋₆ 𝒪₆₋₅ 𝒪₆₋₄ 𝒪₆₋₃ 𝒪₆₋₂ 𝒪₆₋₁ 𝒪₆₀ 𝒪₆₁ 𝒪₆₂ 𝒪₆₃ 𝒪₆₄ 𝒪₆₅ 𝒪₆₆))
+    𝒪₁ = collect(reverse(DP.@ncpolyvar                          𝒪₁₋₁ 𝒪₁₀ 𝒪₁₁))
+    𝒪₂ = collect(reverse(DP.@ncpolyvar                     𝒪₂₋₂ 𝒪₂₋₁ 𝒪₂₀ 𝒪₂₁ 𝒪₂₂))
+    𝒪₃ = collect(reverse(DP.@ncpolyvar                𝒪₃₋₃ 𝒪₃₋₂ 𝒪₃₋₁ 𝒪₃₀ 𝒪₃₁ 𝒪₃₂ 𝒪₃₃))
+    𝒪₄ = collect(reverse(DP.@ncpolyvar           𝒪₄₋₄ 𝒪₄₋₃ 𝒪₄₋₂ 𝒪₄₋₁ 𝒪₄₀ 𝒪₄₁ 𝒪₄₂ 𝒪₄₃ 𝒪₄₄))
+    𝒪₅ = collect(reverse(DP.@ncpolyvar      𝒪₅₋₅ 𝒪₅₋₄ 𝒪₅₋₃ 𝒪₅₋₂ 𝒪₅₋₁ 𝒪₅₀ 𝒪₅₁ 𝒪₅₂ 𝒪₅₃ 𝒪₅₄ 𝒪₅₅))
+    𝒪₆ = collect(reverse(DP.@ncpolyvar 𝒪₆₋₆ 𝒪₆₋₅ 𝒪₆₋₄ 𝒪₆₋₃ 𝒪₆₋₂ 𝒪₆₋₁ 𝒪₆₀ 𝒪₆₁ 𝒪₆₂ 𝒪₆₃ 𝒪₆₄ 𝒪₆₅ 𝒪₆₆))
     [𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄, 𝒪₅, 𝒪₆]
 end
 
 const spin_operator_symbols = let
-    SVector{3}(@ncpolyvar 𝒮₁ 𝒮₂ 𝒮₃)
+    SVector{3}(DP.@ncpolyvar 𝒮₁ 𝒮₂ 𝒮₃)
 end
 
 const spin_squared_symbol = let
-    (@ncpolyvar X)[1]
+    (DP.@ncpolyvar X)[1]
 end
 
 const spin_classical_symbols = let
-    SVector{3}(@polyvar 𝓈₁ 𝓈₂ 𝓈₃)
+    SVector{3}(DP.@polyvar 𝓈₁ 𝓈₂ 𝓈₃)
 end
 
 # Convenient accessor for Stevens symbols
@@ -144,9 +144,9 @@ function stevens_classical(k::Int)
     return map(𝒪s) do 𝒪
         # In the large-S limit, only leading order terms contribute, yielding a
         # homogeneous polynomial of degree k
-        𝒪 = sum(t for t in 𝒪 if DynamicPolynomials.degree(t) == k)
+        𝒪 = sum(t for t in 𝒪 if DP.degree(t) == k)
         # Remaining coefficients must be real integers; make this explicit
-        𝒪 = DynamicPolynomials.mapcoefficients(x -> Int(x), 𝒪)
+        𝒪 = DP.mapcoefficients(x -> Int(x), 𝒪)
         return 𝒪
     end
 end
@@ -199,11 +199,11 @@ const classical_monomial_to_classical_stevens_dict = let
 
         scaled_stevens_expansions = operator_to_classical_polynomial.(ops)
 
-        all_monomials = reduce(union, map(monomials, scaled_stevens_expansions))
+        all_monomials = reduce(union, map(DP.monomials, scaled_stevens_expansions))
 
         stevens_matrix = zeros(Int, length(scaled_stevens_expansions), length(all_monomials))
         for (i, p) = enumerate(scaled_stevens_expansions)
-            for (c, m) = zip(coefficients(p), monomials(p))
+            for (c, m) = zip(DP.coefficients(p), DP.monomials(p))
                 j = findfirst(==(m), all_monomials)
                 stevens_matrix[i, j] = c
             end
@@ -223,7 +223,7 @@ end
 # Effectively invert the map operator_to_classical_polynomial()
 function classical_polynomial_to_classical_stevens(p)
     d = classical_monomial_to_classical_stevens_dict
-    sum(c*d[m] for (c, m) = zip(coefficients(p), monomials(p)))
+    sum(c*d[m] for (c, m) = zip(DP.coefficients(p), DP.monomials(p)))
 end
 
 # Convert spin polynomial to linear combination of Stevens operators
@@ -235,11 +235,11 @@ end
 # Extract Stevens operator coefficients from spin polynomial
 function operator_to_classical_stevens_coefficients(p, S)
     p = operator_to_classical_stevens(p)
-    p = subs(p, spin_squared_symbol => S^2)
+    p = DP.subs(p, spin_squared_symbol => S^2)
     return map(stevens_operator_symbols) do 𝒪ₖ
         map(𝒪ₖ) do 𝒪kq
-            j = findfirst(==(𝒪kq), monomials(p))
-            isnothing(j) ? 0.0 : coefficients(p)[j]
+            j = findfirst(==(𝒪kq), DP.monomials(p))
+            isnothing(j) ? 0.0 : DP.coefficients(p)[j]
         end
     end
 end

@@ -66,7 +66,7 @@ function rotate_operator(A::Matrix, R::Mat3)
     return U'*A*U
 end
 
-function rotate_operator(P::AbstractPolynomialLike, R::Mat3)
+function rotate_operator(P::DP.AbstractPolynomialLike, R::Mat3)
     ### ROTATION OF VECTORS
     #
     # Our goal is to rotate all vector components as `v -> R v` for the 3x3
@@ -107,7 +107,7 @@ function rotate_operator(P::AbstractPolynomialLike, R::Mat3)
     P′ = P(𝒮 => 𝒮′, [𝒪[k] => 𝒪′[k] for k=1:6]..., X => X)
 
     # Remove terms very near zero
-    return DynamicPolynomials.mapcoefficients(P′) do c
+    return DP.mapcoefficients(P′) do c
         abs(c) < 1e-12 ? zero(c) : c
     end
 end

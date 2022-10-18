@@ -166,7 +166,7 @@ function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
 end
 
 struct OperatorAnisotropy <: AbstractInteraction
-    op    :: AbstractPolynomialLike
+    op    :: DP.AbstractPolynomialLike
     site  :: Int
     label :: String # Maybe remove
 end
@@ -178,7 +178,7 @@ end
 Creates a general anisotropy specified as a polynomial of spin operators `𝒮` or
 Stevens operators `𝒪`.
 """
-function anisotropy(op::AbstractPolynomialLike, site, label="OperatorAniso")
+function anisotropy(op::DP.AbstractPolynomialLike, site, label="OperatorAniso")
     OperatorAnisotropy(op, site, label)
 end
 

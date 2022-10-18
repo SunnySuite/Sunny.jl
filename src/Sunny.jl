@@ -13,7 +13,7 @@ import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, rand!, randn!
 import Interpolations: interpolate, scale, BSpline, Linear, Periodic
-import DynamicPolynomials: DynamicPolynomials, @ncpolyvar, @polyvar, AbstractPolynomialLike, monomials, coefficients, subs
+import DynamicPolynomials as DP
 
 # Specific to Symmetry/
 import FilePathsBase: Path
