@@ -39,7 +39,12 @@ anisotropy((-D*(𝒮⋅n)^2, site_index; label)
 Another convenient syntax is `𝒮'*J*𝒮` to produce a general quadratic
 interaction with matrix-elements `J`.
 
-**2. When reading CIF files, the field `_atom_site_label` is now used in place of the field `_atom_site_type_symbol`**
+**2. The function `print_symmetry_table()` replaces `print_bond_table()`**
+
+This new function describes both symmetry-allowed anisotropies in addition to
+symmetry-allowed interactions on bonds.
+
+**3. When reading CIF files, the field `_atom_site_label` is now used in place of the field `_atom_site_type_symbol`**
 
 This is required for correctness. The field `_atom_site_label` is guaranteed to
 be present, and is guaranteed to be a distinct label for each
