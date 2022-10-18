@@ -1,10 +1,3 @@
-"""
-Structs and functions for implementing various on-site anisotropy energies
- and fields, given a specific lattice to operate on.
-Upon creation of a SpinSystem, all pair interactions get converted into their
- corresponding type here.
-"""
-
 struct DipoleAnisotropyCPU <: AbstractInteractionCPU
     coeff_2 :: Vector{Vector{Float64}} # length 5 elements
     coeff_4 :: Vector{Vector{Float64}} # length 9 elements

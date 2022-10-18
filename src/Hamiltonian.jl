@@ -29,15 +29,18 @@ function validate_quadratic_interaction(int::QuadraticInteraction, crystal::Crys
     end
 end
 
-function merge_upconvert_anisos(anisos::Vector{OperatorAnisotropy}, crystal::Crystal, site_infos::Vector{SiteInfo})
+function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Crystal, site_infos::Vector{SiteInfo})
     # TODO: Lift N to the level of SpinSystem?
     @assert allequal(si.N for si = site_infos)
     N = site_infos[1].N
+
+    # Remove anisotropies that are zero
+    anisos = filter(a -> !iszero(a.op), anisos)
     
-    # We always store SU(N) anisotropies, even if empty
+    # Always store SU(N) anisotropies, even if empty
     SUN_ops = zeros(ComplexF64, N, N, nbasis(crystal))
     isempty(anisos) && return (nothing, SUN_ops)
-
+    
     # Find all symmetry-equivalent anisotropies
     anisos_expanded = map(anisos) do a
         # Concrete representation of anisotropy operator
@@ -154,7 +157,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
         end
     end
 
-    (dipole_anisos, sun_anisos) = merge_upconvert_anisos(anisos, crystal, site_infos)
+    (dipole_anisos, sun_anisos) = convert_anisotropies(anisos, crystal, site_infos)
 
     return HamiltonianCPU(
         ext_field, heisenbergs, diag_coups, gen_coups, dipole_int,
