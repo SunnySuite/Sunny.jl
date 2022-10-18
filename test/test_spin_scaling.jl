@@ -95,14 +95,10 @@ function test_energy_scaling_lld()
 
     cryst = Sunny.fcc_crystal()
     dims = (2,2,2)
-    J_quad = I(3) 
-    J_quar = zeros(3,3,3,3)
-    J_quar[3,3,3,3] = 1.0
 
     interactions_lld = [heisenberg(1.0, Bond(1,2,[0,0,0])),
-                        quadratic_anisotropy(J_quad, 1, ""),
-                        quartic_anisotropy(J_quar, 1, "")]
-    powers_lld = [2, 2, 4]
+                        anisotropy(+𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1, "quartic")]
+    powers_lld = [2, 4]
 
     for (interaction, power) in zip(interactions_lld, powers_lld)
         spin_rescalings = 5.0 * rand(num_rescalings)

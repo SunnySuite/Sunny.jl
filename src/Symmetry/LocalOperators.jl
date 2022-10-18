@@ -274,7 +274,6 @@ end
 # `s`.
 function energy_and_gradient_for_classical_anisotropy(s::Vec3, c2, c4, c6)
     max_k = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
-    println(c2, c4, c6, max_k)
 
     E      = 0.0
     dE_dz  = 0.0
