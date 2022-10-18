@@ -51,7 +51,7 @@ export all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom
 export all_symmetry_related_anisotropies
 export 𝒪, 𝒮, rotate_operator
 export print_site, print_bond, print_symmetry_table, print_mutually_allowed_couplings
-export print_suggested_frame, print_anisotropy_as_spins, print_anisotropy_as_stevens
+export print_suggested_frame, print_anisotropy_as_classical_spins, print_anisotropy_as_stevens
 
 include("Util.jl")
 

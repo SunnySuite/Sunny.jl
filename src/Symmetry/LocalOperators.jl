@@ -246,12 +246,12 @@ end
 
 
 """
-    function print_anisotropy_as_spins(p)
+    function print_anisotropy_as_classical_spins(p)
 
 Prints a quantum operator (e.g. linear combination of Stevens operators) as a
 polynomial of spin expectation values in the classical limit.
 """
-function print_anisotropy_as_spins(p)
+function print_anisotropy_as_classical_spins(p)
     p = operator_to_classical_polynomial(p)
     p = p(spin_classical_symbols => 𝒮)
     display(p)

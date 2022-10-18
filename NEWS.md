@@ -11,23 +11,23 @@ a1 = 20*(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
 a2 = 𝒪[4,0] + 5𝒪[4,4]
 ```
 
-In the classical limit, spin operators are replaced with expectation values. In
-this limit, Stevens operators retain only the leading order terms in powers of
-_S_ and become homogeneous polynomials. 
+One possible classical limit assumes large _S_, which allows to replace spin
+operators by expectation values. In this limit, Stevens operators become
+homogeneous polynomials in the expected spin components,
 ```julia
-print_anisotropy_as_spins(a2) 
+print_anisotropy_as_classical_spins(a2) 
 # Output: 8𝒮₁⁴ - 24𝒮₁²𝒮₂² - 24𝒮₁²𝒮₃² + 8𝒮₂⁴ - 24𝒮₂²𝒮₃² + 8𝒮₃⁴
 ```
 
-Conversely, given a classical spin polynomial, Sunny can print the corresponding
-expansion in Stevens operators,
+Conversely, given a polynomial in classical spins, Sunny can print the
+corresponding expansion in Stevens operators,
 ```julia
 print_anisotropy_as_stevens(a1)
 # Output: 12X² + 𝒪₄₀ + 5𝒪₄₄
 ```
 
-In this case, `a1` and `a2` are the same up to an irrelevant shift. The symbol
-`X` indicates spin magnitude squared.
+Observe that `a1` agrees with `a2` up to an irrelevant shift. The symbol `X`
+indicates spin magnitude squared.
 
 The `anisotropy()` function takes these operators and produces an `Interaction`,
 which can be used in either dipole-only mode or SU(_N_) mode. For example, to
