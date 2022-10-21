@@ -35,7 +35,7 @@ The `anisotropy()` function takes these operators and produces an `Interaction`,
 which can be used in either dipole-only mode or SU(_N_) mode. For example, to
 specify an easy-axis in the `n` direction with magnitude `D`, one may use:
 ```julia
-anisotropy((-D*(𝒮⋅n)^2, site_index; label)
+anisotropy(-D*(𝒮⋅n)^2, site_index; label)
 ```
 
 Another convenient syntax is `𝒮'*J*𝒮` to produce a general quadratic
