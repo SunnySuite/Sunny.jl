@@ -245,6 +245,17 @@ function operator_to_classical_stevens_coefficients(p, S)
 end
 
 
+function pretty_print_operator(p)
+    terms = map(zip(DP.coefficients(p), DP.monomials(p))) do (c, m)
+        coefficient_to_math_string(c) * repr(m)
+    end
+    # Concatenate with plus signs
+    str = join(terms, " + ")
+    # Remove redundant plus signs and print
+    str = replace(str, "+ -" => "- ")
+    println(str)
+end
+
 """
     function print_anisotropy_as_classical_spins(p)
 
@@ -253,8 +264,7 @@ polynomial of spin expectation values in the classical limit.
 """
 function print_anisotropy_as_classical_spins(p)
     p = operator_to_classical_polynomial(p)
-    p = p(spin_classical_symbols => 𝒮)
-    display(p)
+    p(spin_classical_symbols => 𝒮) |> pretty_print_operator
 end
 
 """
@@ -265,8 +275,7 @@ linear combination of Stevens operators in the classical limit. The symbol `X`
 denotes the spin magnitude squared, |𝒮|^2.
 """
 function print_anisotropy_as_stevens(p)
-    p = operator_to_classical_stevens(p)
-    display(p)
+    p |> operator_to_classical_stevens |> pretty_print_operator
 end
 
 

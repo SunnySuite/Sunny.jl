@@ -20,6 +20,9 @@ function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=99) where T
     # Try to return an exact integer
     is_approx_integer(x; atol) && return string(round(Int, x))
 
+    # If already in rational form, print that
+    x isa Rational && return string(x.num)*"/"*string(x.den)
+
     # Try to return an exact rational
     r = rationalize(x; tol=atol)
     r.den <= max_denom && return string(r.num)*"/"*string(r.den)
@@ -45,14 +48,28 @@ function atom_pos_to_string(v; digits=4, atol=1e-12)
     return "["*join(v, ", ")*"]"
 end
 
-"""Like number_to_string(), but outputs a string that can be prefixed to a
+"""Like number_to_math_string(), but outputs a string that can be prefixed to a
 variable name."""
 function coefficient_to_math_string(x::T; digits=4, atol=1e-12) where T <: Real
     abs(x) < atol && error("Coefficient cannot be zero.")
     isapprox(x, 1.0; atol) && return ""
     isapprox(x, -1.0; atol) && return "-"
     ret = number_to_math_string(x; digits, atol)
-    return contains(ret, '/') ? "($ret)" : ret
+
+    # Wrap fractions in parenthesis
+    if contains(ret, '/')
+        # If present, move minus side to left
+        parts = split(ret, '-')
+        if length(parts) == 1
+            return "($ret)"
+        elseif length(parts) == 2 && length(parts[1]) == 0
+            return "-($(parts[2]))"
+        else
+            error("Invalid string")
+        end
+    else
+        return ret
+    end
 end
 
 function _add_padding_to_coefficients(xs)
