@@ -294,8 +294,7 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; prefix="    ", R=I, at
     println(join(lines, " +\n"))
 
     if R != I
-        println()
-        println("Rotate Stevens operators using:")
+        println("Transform anisotropy using rotate_operator(Λ; R) with:")
         println(prefix*"R = $R")
     end
 end

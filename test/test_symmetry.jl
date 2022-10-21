@@ -276,12 +276,21 @@ end
     R = Sunny.Mat3(exp(A - A'))
     N = 5
 
-    # Test axis-angle decomposiiton
+    # Test axis-angle decomposition
     let
         (n, θ) = Sunny.axis_angle(R)
         @test 1 + 2cos(θ) ≈ tr(R)
         @test norm(n) ≈ 1
         @test R*n ≈ n
+
+        # Rodrigues formula
+        δ(i,j) = (i==j) ? 1 : 0
+        ϵ(i,j,k) = (i-j)*(j-k)*(k-i)/2
+        R2 = zeros(3,3)
+        for i=1:3, j=1:3
+            R2[i,j] = δ(i,j)*cos(θ) + (1-cos(θ))*n[i]*n[j] - sin(θ)*sum(ϵ(i,j,k)*n[k] for k=1:3)
+        end
+        @test R2 ≈ R
     end
 
     # Test that Stevens operator symbols transform properly
@@ -328,8 +337,7 @@ end
         Λ = 𝒪[6,0]-21𝒪[6,4]
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
 
-        R = hcat(normalize([1, 1, -2]), normalize([-1, 1, 0]), normalize([1, 1, 1]))
-        R = Sunny.Mat3(R)
+        R = [normalize([1 1 -2]); normalize([-1 1 0]); normalize([1 1 1])]
         # print_site(cryst, i; R)
         Λ = 𝒪[6,0]-(35/√8)*𝒪[6,3]+(77/8)*𝒪[6,6]
         Λ′ = rotate_operator(Λ, R)
@@ -365,5 +373,70 @@ end
 
         @test E ≈ E_ref
         @test gradE_ref ≈ gradE
+    end
+
+    # Test that when operators rotate contravariant to kets, expectation values
+    # are invariant (scalar)
+    let
+        # Dimension N unitary transformation for R
+        N = 5
+        U = Sunny.unitary_for_rotation(N, R)
+
+        # Random spins
+        z = normalize(randn(ComplexF64, N))
+        s = normalize(randn(3))
+
+        # Two random operators
+        p1 = randn(3)' * Sunny.stevens_operator_symbols[1]
+        p2 = randn(3)' * 𝒮
+        for p = [p1, p2]
+            # Inner products are invariant when operators are rotated conversely to kets
+            p_rot = rotate_operator(p, R')
+            z_rot = U*z
+            Λ = Sunny.operator_to_matrix(p; N)
+            Λ_rot = Sunny.operator_to_matrix(p_rot; N)
+            @test z'*Λ*z ≈ z_rot'*Λ_rot*z_rot
+
+            # Same thing, but with spin dipoles
+            q = Sunny.operator_to_classical_polynomial(p)
+            q_rot = Sunny.operator_to_classical_polynomial(p_rot)
+            @test q(Sunny.spin_classical_symbols => s) ≈ q_rot(Sunny.spin_classical_symbols => R*s)
+        end
+    end
+
+    # Test validity of symmetry inferred anisotropies 
+    let
+        latvecs = [1 0 0; 0 1 0; 0 0 10]'
+        basis = [[0.1, 0, 0], [0, 0.1, 0], [0.9, 0, 0], [0, 0.9, 0]]
+        cryst = Crystal(latvecs, basis)
+
+        # Most general allowed anisotropy for this crystal
+        Λ = randn(9)'*[𝒪[2,0], 𝒪[2,2], 𝒪[4,0], 𝒪[4,2], 𝒪[4,4], 𝒪[6,0], 𝒪[6,2], 𝒪[6,4], 𝒪[6,6]]
+
+        # Test anisotropy invariance in "dipole-mode"
+        N = 0
+        sys = SpinSystem(cryst, [anisotropy(Λ, 1)], (1,1,1), [SiteInfo(1; N)])
+        rand!(sys)
+        E1 = energy(sys)
+        # Effectively rotate site positions by π/2 clockwise
+        sys._dipoles .= circshift(sys._dipoles, (0,0,0,1))
+        # Rotate spin vectors correspondingly
+        R = Sunny.Mat3([0 1 0; -1 0 0; 0 0 1])
+        sys._dipoles .= [R*d for d in sys._dipoles]
+        E2 = energy(sys)
+        @test E1 ≈ E2
+
+        # Test anisotropy invariance in "SU(N)-mode"
+        N = 5
+        sys = SpinSystem(cryst, [anisotropy(Λ, 1)], (1,1,1), [SiteInfo(1; N)])
+        rand!(sys)
+        E1 = energy(sys)
+        # Effectively rotate site positions by π/2 clockwise
+        sys._coherents .= circshift(sys._coherents, (0,0,0,1))
+        # Rotate kets correspondingly
+        U = Sunny.unitary_for_rotation(N, R)
+        sys._coherents .= [U*z for z in sys._coherents]
+        E2 = energy(sys)
+        @test E1 ≈ E2
     end
 end

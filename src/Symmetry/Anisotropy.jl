@@ -21,15 +21,15 @@ function axis_angle(R::Mat3)
             t = 1 + m00 - m11 - m22
             q = SA[t, m01+m10, m20+m02, m12-m21]
         else
-            t = 1 - m00 + m11 - m22;
+            t = 1 - m00 + m11 - m22
             q = SA[m01+m10, t, m12+m21, m20-m02]
         end
     else
         if (m00 < -m11)
-            t = 1 - m00 - m11 + m22;
+            t = 1 - m00 - m11 + m22
             q = SA[m20+m02, m12+m21, t, m01-m10]
         else
-            t = 1 + m00 + m11 + m22;
+            t = 1 + m00 + m11 + m22
             q = SA[m12-m21, m20-m02, m01-m10, t]
         end
     end
@@ -49,6 +49,12 @@ function axis_angle(R::Mat3)
         n = q[1:3] / sqrt(1 - q[4]^2)
     end
 
+    # Negate the axis to invert the rotation. This effectively achieves a
+    # transpose in R, which allows us to interpret R as right-multiplication on
+    # column vectors (the note by Mike Day viewed R as left-multiplication on
+    # row vectors).
+    n = -n
+
     return (n, θ)
 end
 
@@ -60,36 +66,30 @@ function unitary_for_rotation(N::Int, R::Mat3)
     return exp(-im*θ*(n'*S))
 end
 
-function rotate_operator(A::Matrix, R::Mat3)
+function rotate_operator(A::Matrix, R)
+    R = convert(Mat3, R)
     N = size(A, 1)
     U = unitary_for_rotation(N, R)
     return U'*A*U
 end
 
-function rotate_operator(P::DP.AbstractPolynomialLike, R::Mat3)
-    ### ROTATION OF VECTORS
-    #
-    # Our goal is to rotate all vector components as `v -> R v` for the 3x3
-    # orthogonal matrix R. The full _geometric_ vector is written as a linear
-    # combination, vᵢ Sⁱ, where the Sⁱ are viewed as basis elements. The
-    # rotation `vᵢ Sⁱ -> (Rᵢⱼ vⱼ) Sⁱ` can be written `vᵢ Sⁱ -> vᵢ (Rⱼᵢ Sʲ)`.
-    # Given orthogonality of R, we can view the rotation as an inverse
-    # transformation on the basis elements, `S -> inv(R) S`.
-    𝒮′ = R' * 𝒮
+function rotate_operator(P::DP.AbstractPolynomialLike, R)
+    R = convert(Mat3, R)
 
-    ### ROTATION OF STEVENS OPERATORS
+    # The spin operator vector rotates two equivalent ways:
+    #  1. S_α -> U' S_α U
+    #  2. S_α -> R_αβ S_β
     #
-    # For a given rotation R described by an axis-angle n⃗, spherical tensors
-    # T_q transform two equivalent ways:
+    # where U = exp(-i θ n⋅S), for the axis-angle rotation (n, θ). Apply the
+    # latter to transform symbolic spin operators.
+    𝒮′ = R * 𝒮
+
+    # Spherical tensors T_q rotate two equivalent ways:
+    #  1. T_q -> U' T_q U       (with U = exp(-i θ n⋅S) in dimension N irrep)
+    #  2. T_q -> D*_{q,q′} T_q′ (with D = exp(-i θ n⋅S) in dimension 2k+1 irrep)
     #
-    #  1. T_q -> U' T_q U       (with U = exp(-i n⃗⋅S⃗) in dimension N irrep)
-    #  2. T_q -> D*_{q,q′} T_q′ (with D = exp(-i n⃗⋅J⃗) in dimension 2k+1 irrep)
-    #
-    # The second form is the one that applies abstractly, independent of the
-    # representation for T_q. The Stevens operators 𝒪_q are linearly related to
-    # T_q via 𝒪 = α T. Therefore the rotation is implemented as:
-    #
-    #    𝒪 -> 𝒪′ = α conj(D) α⁻¹ 𝒪
+    # The Stevens operators 𝒪_q are linearly related to T_q via 𝒪 = α T.
+    # Therefore rotation on Stevens operators is 𝒪 -> α conj(D) α⁻¹ 𝒪.
     local 𝒪 = stevens_operator_symbols
     𝒪′ = map(𝒪) do 𝒪ₖ
         k = Int((length(𝒪ₖ)-1)/2)
@@ -355,6 +355,8 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
 
     y_dir = z_dir × x_dir
 
+    # TODO: Very likely should return instead row vectors: [xdir; ydir; zdir].
+    # Need to test!
     return Mat3(hcat(x_dir, y_dir, z_dir))
 end
 
@@ -383,7 +385,6 @@ function all_symmetry_related_anisotropies(cryst::Crystal, i_ref::Int, Λ_ref)
         # In moving from site i_ref to i, a spin S_ref rotates to S = Q S_ref.
         # Transform the anisotropy operator using the inverse rotation so that
         # the energy remains invariant when applied to the transformed spins.
-        # TODO: TEST!
         return rotate_operator(Λ_ref, Q')
     end
 
