@@ -4,7 +4,7 @@
 abstract type AbstractInteraction end      # Subtype this for user-facing interfaces
 abstract type AbstractInteractionCPU end   # Subtype this for actual internal CPU implementations
 abstract type AbstractInteractionGPU end   # Subtype this for actual internal GPU implementations
-abstract type AbstractAnisotropy <: AbstractInteraction end
+# abstract type AbstractAnisotropy <: AbstractInteraction end
 
 
 struct QuadraticInteraction <: AbstractInteraction
@@ -13,8 +13,8 @@ struct QuadraticInteraction <: AbstractInteraction
     label :: String
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", int::QuadraticInteraction)
-    b = repr(mime, int.bond)
+function Base.show(io::IO, ::MIME"text/plain", int::QuadraticInteraction)
+    b = repr("text/plain", int.bond)
     J = int.J
     if J ≈ -J'                             # Catch purely DM interactions
         x = J[2, 3]
@@ -89,6 +89,7 @@ information on the form factor calculation.
 NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverted
 to the largest specified `N`.
 """
+# TODO: Get rid of site field, and replace N -> S, defaulting to 1
 Base.@kwdef struct SiteInfo
     site            :: Int                 # Index of site
     N               :: Int     = 0         # N in SU(N)
@@ -164,42 +165,23 @@ function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
     QuadraticInteraction(J, bond, label)
 end
 
-struct QuadraticAnisotropy <: AbstractAnisotropy
-    J     :: Mat3
+struct OperatorAnisotropy <: AbstractInteraction
+    op    :: DP.AbstractPolynomialLike
     site  :: Int
     label :: String # Maybe remove
 end
 
-struct QuarticAnisotropy <: AbstractAnisotropy
-    J     :: Quad3 
-    site  :: Int
-    label :: String # Maybe remove
+
+"""
+    anisotropy(op, site)
+
+Creates a general anisotropy specified as a polynomial of spin operators `𝒮` or
+Stevens operators `𝒪`.
+"""
+function anisotropy(op::DP.AbstractPolynomialLike, site, label="OperatorAniso")
+    OperatorAnisotropy(op, site, label)
 end
 
-struct SUNAnisotropy <: AbstractAnisotropy
-    Λ     :: Matrix{ComplexF64}
-    site  :: Int
-    label :: String # Maybe remove
-end
-
-function Base.show(io::IO, mime::MIME"text/plain", aniso::QuadraticAnisotropy)
-    (; J, site, label) = aniso
-    @assert J ≈ J'
-    # Check if it is easy-axis or easy-plane
-    λ, V = eigen(J)
-    nonzero_λ = findall(x -> abs(x) > 1e-12, λ)
-    if length(nonzero_λ) == 1
-        i = nonzero_λ[1]
-        dir = V[:, i]
-        if count(<(0.0), dir) >= 2
-            dir = -dir
-        end
-        name, D = λ[i] < 0 ? ("easy_axis", -λ[i]) : ("easy_plane", λ[i])
-        @printf io "%s(%.4g, [%.4g, %.4g, %.4g], %d)" name D dir[1] dir[2] dir[3] site
-    else
-        @printf io "quadratic_anisotropy([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %d)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] site
-    end
-end
 
 """
     quadratic_anisotropy(J, site, label="Anisotropy")
@@ -217,7 +199,7 @@ function quadratic_anisotropy(J, site::Int, label::String="Anisotropy")
     if !(J ≈ J')
         error("Single-ion anisotropy must be symmetric.")
     end
-    QuadraticAnisotropy(Mat3(J), site, label)
+    OperatorAnisotropy(𝒮'*Mat3(J)*𝒮, site, label)
 end
 
 
@@ -239,7 +221,7 @@ function easy_axis(D, n, site::Int, label::String="EasyAxis")
     if !(norm(n) ≈ 1)
         error("Parameter `n` must be a unit vector. Consider using `normalize(n)`.")
     end
-    QuadraticAnisotropy(-D*Mat3(n*n'), site, label)
+    OperatorAnisotropy(-D*(𝒮⋅n)^2, site, label)
 end
 
 
@@ -261,61 +243,7 @@ function easy_plane(D, n, site::Int, label::String="EasyAxis")
     if !(norm(n) ≈ 1)
         error("Parameter `n` must be a unit vector. Consider using `normalize(n)`.")
     end
-    QuadraticAnisotropy(+D*Mat3(n*n'), site, label)
-end
-
-"""
-    quartic_anisotropy(J, site, label="QuarticAniso")
-
-Creates a quartic anisotropy. J is a rank-4 tensor, specified as a 3x3x3x3 array.
-```math
-    ∑_i ∑_{α, β, γ, δ ∈ \\{x, y, z\\}} J_{αβγδ} S_i^α S_i^β S_i^γ S_i^δ
-```
-"""
-function quartic_anisotropy(J, site, label="QuarticAniso")
-    # TODO: Basic symmetry checks?
-    if (size(J) != (3, 3, 3, 3)) || !(eltype(J) <: Real)
-        error("Parameter `J` must be a 3x3x3x3 real tensor.")
-    end
-    QuarticAnisotropy(J, site, label)
-end
-
-# N-dimensional irreducible matrix representation of 𝔰𝔲(2). Use this only
-#  to give the user the ability to construct generalized anisotropy matrices.
-# Internal code should implicitly use the action of these operators on
-#  N-dimensional complex vectors.
-function gen_spin_ops(N::Int) :: NTuple{3, Matrix{ComplexF64}}
-    if N == 0  # Returns wrong type if not checked 
-        return zeros(ComplexF64, 0,0), zeros(ComplexF64, 0,0), zeros(ComplexF64, 0,0)
-    end
-
-    s = (N-1)/2
-    a = 1:N-1
-    off = @. sqrt(2(s+1)*a - a*(a+1)) / 2
-
-    Sx = diagm(1 => off, -1 => off)
-    Sy = diagm(1 => -im*off, -1 => +im*off)
-    Sz = diagm((N-1)/2 .- (0:N-1))
-    return Sx, Sy, Sz
-end
-
-function gen_spin_ops_packed(N::Int) :: Array{ComplexF64, 3}
-    Ss = gen_spin_ops(N)
-    S_packed = zeros(ComplexF64, N, N, 3)
-    for i ∈ 1:3
-        S_packed[:,:,i] .= Ss[i]
-    end
-    S_packed
-end
-
-
-"""
-    SUN_anisotropy(mat, site)
-
-Creates an SU(N) anisotropy, specified as an NxN operator, `mat`.
-"""
-function SUN_anisotropy(mat, site, label="SUNAniso")
-    SUNAnisotropy(mat, site, label)
+    OperatorAnisotropy(+D*(𝒮⋅n)^2, site, label)
 end
 
 struct DipoleDipole <: AbstractInteraction

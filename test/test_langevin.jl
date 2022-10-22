@@ -29,11 +29,9 @@ end
 
 function su3_anisotropy_model(; L=20, D=1.0, rng)
     N = 3
-    Sz = Sunny.gen_spin_ops(N)[3]
-    Λ = D*Sz^2
-
+    Λ = D*𝒮[3]^2
     cryst = FeI2_crystal()
-    interactions = [SUN_anisotropy(Λ, 1)]
+    interactions = [anisotropy(Λ, 1)]
     dims = (L,1,1)
 
     sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)]; rng)
@@ -44,11 +42,10 @@ end
 
 function su5_anisotropy_model(; L=20, D=1.0, rng)
     N = 5
-    Sz = Sunny.gen_spin_ops(N)[3]
-    Λ = D*(Sz^2-(1/5)*Sz^4)
-
+    Λ = D*(𝒮[3]^2-(1/5)*𝒮[3]^4)
+    
     cryst = FeI2_crystal()
-    interactions = [SUN_anisotropy(Λ, 1)]
+    interactions = [anisotropy(Λ, 1)]
     dims = (L,1,1)
 
     sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)]; rng)

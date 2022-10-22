@@ -65,15 +65,19 @@ This `crystal` can be used as an argument to other Sunny functions. For example,
 to print a list of all symmetry-allowed exchange interactions up to a distance
 of 0.8, use:
 ```julia
-print_bond_table(crystal, 0.8)
+print_symmetry_table(crystal, 0.8)
 ```
 
 which returns:
 ```
-Atom 1, position [0, 0, 0], multiplicity 8
-Allowed single-ion anisotropy or g-tensor: | A  0  0 |
-                                           | 0  A  0 |
-                                           | 0  0  A |
+Site 1
+Position [0, 0, 0], multiplicity 8
+Allowed g-tensor: | A  0  0 |
+                  | 0  A  0 |
+                  | 0  0  A |
+Allowed anisotropy in Stevens operators 𝒪[k,q]:
+    c₁*(𝒪[4,0]+5𝒪[4,4]) +
+    c₂*(𝒪[6,0]-21𝒪[6,4])
 
 Bond(1, 3, [0, 0, 0])
 Distance 0.433, coordination 4

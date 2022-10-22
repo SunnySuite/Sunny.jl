@@ -52,7 +52,7 @@
     # Calculate interaction table
     ref_bonds = reference_bonds(cryst, 2.)
     b = ref_bonds[2]
-    basis = basis_for_symmetry_allowed_couplings(cryst, b)
+    basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
     J = basis' * randn(length(basis))
     (bs, Js) = all_symmetry_related_couplings_for_atom(cryst, b.i, b, J)
     @test length(Js) == coordination_number(cryst, b.i, b)
@@ -128,21 +128,8 @@
 end
 
 
-### TODO: Merge this with David's code
-@testitem "Spin operators" begin
+@testitem "Spin matrices" begin
     include("test_shared.jl")
-
-    function infer_ket_from_dipole(S, n::Sunny.Vec3)
-        # Find a ket (up to an irrelevant phase) that corresponds to a pure dipole.
-        # TODO, we can do this much faster by using the exponential map of spin
-        # operators, expressed as a polynomial expansion,
-        # http://www.emis.de/journals/SIGMA/2014/084/
-        (evals, evecs) = eigen(n'*S)
-        return normalize(evecs[:, argmax(evals)])
-    end
-    function spin_bilinear(S, Z)
-        return Sunny.Vec3(real(Z'*S[1]*Z), real(Z'*S[2]*Z), real(Z'*S[3]*Z))
-    end
     
     # Levi-Civita symbol
     ϵ = [(i-j)*(j-k)*(k-i)/2 for i=1:3, j=1:3, k=1:3]
@@ -153,7 +140,7 @@ end
     ### Verify 𝔰𝔲(2) irreps
     for N = 2:5
         S₀ = (N-1)/2
-        S = Sunny.spin_operators(N)
+        S = Sunny.spin_matrices(N)
 
         for i=1:3, j=1:3
             # Test commutation relations
@@ -168,8 +155,8 @@ end
 
         # Test dipole -> ket -> dipole round trip
         n = S₀ * normalize(randn(Sunny.Vec3))
-        ψ = infer_ket_from_dipole(S, n)
-        @test spin_bilinear(S, ψ) ≈ n
+        ψ = Sunny._get_coherent_from_dipole(n, Val(N))
+        @test Sunny.expected_spin(ψ) ≈ n
     end    
 end
 
@@ -177,20 +164,70 @@ end
 @testitem "Spherical tensors" begin
     include("test_shared.jl")
 
+    # Spherical tensors that satisfy `norm(T) =  √ tr T† T = 1`.
+    function spherical_tensors_normalized(k; N)
+        S = (N-1)/2
+        ret = Matrix{Float64}[]
+        for q = k:-1:-k
+            T = zeros(Float64, N, N)
+            for i = 1:N, i′ = 1:N
+                m  = S - i + 1
+                m′ = S - i′+ 1
+                T[i, i′] = clebschgordan(S, m′, k, q, S, m) * sqrt((2k+1)/N)
+            end
+            push!(ret, T)
+        end
+        return ret
+    end
+
+    # Spherical tensors T(k,q) as NxN matrices. The result is ambiguous up to an
+    # overall (k,N)-dependent scaling factor. Here we're using the normalization
+    # convention of KS/BCS.
+    function spherical_tensors(k; N)
+        j = (N-1)/2
+        ret = Matrix{Float64}[]
+        for q = k:-1:-k
+            Tq = zeros(Float64, N, N)
+            for i′ = 1:N, i = 1:N
+                m′ = j - i′+ 1
+                m  = j - i + 1
+
+                # By the Wigner-Eckhardt theorem, the spherical tensor T must have
+                # this m and m′ dependence. An overall (j, k)-dependent rescaling
+                # factor is arbitrary, however.
+                Tq[i′, i] = (-1)^(j-m′) * wigner3j(j, k, j, -m′, q, m)
+            end
+
+            # Below we will apply two rescaling factors obtained from Rudowicz and
+            # Chung, J. Phys.: Condens. Matter 16 (2004) 5825–5847.
+
+            # With this rescaling factor, we get the Buckmaster and Smith & Thornley
+            # (BST) operator
+            Tq .*= 2.0^(-k) * sqrt(factorial((N-1)+k+1) / factorial((N-1)-k))
+
+            # With this additional rescaling factor, we get the Koster and Statz
+            # (1959) and Buckmaster et al (1972) operator (KS/BCS)
+            Tq ./= sqrt(factorial(2k) / (2^k * factorial(k)^2))
+
+            push!(ret, Tq)
+        end
+        return ret
+    end
+
     # Lie bracket, aka matrix commutator
     bracket(A, B) = A*B - B*A
 
     for N=2:7
-        S = Sunny.spin_operators(N)
+        S = Sunny.spin_matrices(N)
         Sp = S[1] + im*S[2]
         Sm = S[1] - im*S[2]
         
         for k = 0:N-1
             # Spherical tensors acting on N-dimensional Hilbert space
-            T = Sunny.spherical_tensors(N, k)
+            T = spherical_tensors(k; N)
 
             # Generators of rotations in the spin-k representation
-            K = Sunny.spin_operators(2k+1)
+            K = Sunny.spin_matrices(2k+1)
 
             # The selected basis is q ∈ [|k⟩, |k-1⟩, ... |-k⟩]. This function
             # converts from a q value to a 1-based index.
@@ -213,63 +250,201 @@ end
             end
         end
     end
-end
 
-@testitem "Stevens operators" begin
-    include("test_shared.jl")
-
+    # Stevens operators
     for N=2:7
-        for k = 0:N-1
-            𝒪 = Sunny.stevens_operators(N, k)
-            T = Sunny.spherical_tensors(N, k)
+        for k = 1:N-1
+            𝒪 = Sunny.stevens_matrices(k; N)
+            T = spherical_tensors(k; N)
 
-            # Check that two ways of calculating Stevens operators agree
-            @test 𝒪 ≈ Sunny.stevens_operators_explicit(N, k)
-
+            # Check that Stevens operators are proper linear combination of
+            # spherical tensors
+            @test 𝒪 ≈ Sunny.stevens_α[k] * T
+    
             # Check conversion of coefficients
             c = randn(2k+1)
             b = Sunny.transform_spherical_to_stevens_coefficients(k, c)
-            A1 = sum(c[i]*T[i] for i in eachindex(c))
-            A2 = sum(b[q]*𝒪[q] for q in eachindex(b))
-            @test A1 ≈ A2
+            @test transpose(c)*T ≈ transpose(b)*𝒪
         end
+    end
+end
+
+@testitem "Local operator symbols" begin
+    include("test_shared.jl")
+
+    A = randn(3,3)
+    R = Sunny.Mat3(exp(A - A'))
+    N = 5
+
+    # Test axis-angle decomposition
+    let
+        (n, θ) = Sunny.axis_angle(R)
+        @test 1 + 2cos(θ) ≈ tr(R)
+        @test norm(n) ≈ 1
+        @test R*n ≈ n
+
+        # Rodrigues formula
+        δ(i,j) = (i==j) ? 1 : 0
+        ϵ(i,j,k) = (i-j)*(j-k)*(k-i)/2
+        R2 = zeros(3,3)
+        for i=1:3, j=1:3
+            R2[i,j] = δ(i,j)*cos(θ) + (1-cos(θ))*n[i]*n[j] - sin(θ)*sum(ϵ(i,j,k)*n[k] for k=1:3)
+        end
+        @test R2 ≈ R
+    end
+
+    # Test that Stevens operator symbols transform properly
+    let
+        p = randn(3)' * Sunny.stevens_operator_symbols[1] +
+            randn(5)' * Sunny.stevens_operator_symbols[2] +
+            randn(7)' * Sunny.stevens_operator_symbols[3]
+        @test Sunny.operator_to_matrix(rotate_operator(p, R); N) ≈ rotate_operator(Sunny.operator_to_matrix(p; N), R)
+    end
+
+    # Test that spin operator symbols transform properly
+    let
+        J = randn(3, 3)
+        J = (J+J')/2
+        p = randn(3)'*𝒮 + 𝒮'*J*𝒮
+        @test Sunny.operator_to_matrix(rotate_operator(p, R); N) ≈ rotate_operator(Sunny.operator_to_matrix(p; N), R)
+    end
+
+    # Test that a linear combination transforms properly
+    let
+        p = randn(3)'*𝒮 + randn(5)'*Sunny.stevens_operator_symbols[2]
+        @test Sunny.operator_to_matrix(rotate_operator(p, R); N) ≈ rotate_operator(Sunny.operator_to_matrix(p; N), R)
+    end
+
+    # Internal conversion between spin and Stevens operators
+    let
+        J = randn(3,3)
+        J = J+J'
+        p = randn(3)'*𝒮 + 𝒮'*J*𝒮 +
+            randn(11)' * Sunny.stevens_operator_symbols[5] +
+            randn(13)' * Sunny.stevens_operator_symbols[6]
+        cp = Sunny.operator_to_classical_polynomial(p)
+        @test cp |> Sunny.classical_polynomial_to_classical_stevens |> Sunny.operator_to_classical_polynomial ≈ cp
     end
 
     # Test some inferred anisotropy matrices
-    begin
+    let
         N = 7
         k = 6
         i = 1
         cryst = Sunny.diamond_crystal()
 
-        # print_allowed_anisotropy(cryst, i; k)
-        𝒪 = stevens_operators(N, k)
-        Λ = 𝒪[0]-21𝒪[4]
+        # print_site(cryst, i)
+        Λ = 𝒪[6,0]-21𝒪[6,4]
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
 
-        R = hcat(normalize([1, 1, -2]), normalize([-1, 1, 0]), normalize([1, 1, 1]))
-        R = Sunny.Mat3(R)
-        # print_allowed_anisotropy(cryst, i; k, R, digits=14)
-        𝒪 = stevens_operators(N, k; R)
-        Λ = 𝒪[0]-12.37436867076458𝒪[3]+9.625𝒪[6]
-        @test Sunny.is_anisotropy_valid(cryst, i, Λ)
+        R = [normalize([1 1 -2]); normalize([-1 1 0]); normalize([1 1 1])]
+        # print_site(cryst, i; R)
+        Λ = 𝒪[6,0]-(35/√8)*𝒪[6,3]+(77/8)*𝒪[6,6]
+        Λ′ = rotate_operator(Λ, R)
+        @test Sunny.is_anisotropy_valid(cryst, i, Λ′)
 
         lat_vecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
         cryst = Crystal(lat_vecs, [[0., 0., 0.]])
-        # print_allowed_anisotropy(cryst, i; k, digits=14)
-        𝒪 = stevens_operators(N, k)
-        Λ = randn()*(𝒪[0]-21𝒪[4]) + randn()*(𝒪[2]+3.2𝒪[4]+2.2𝒪[6])
+        # print_site(cryst, i)
+        Λ = randn()*(𝒪[6,0]-21𝒪[6,4]) + randn()*(𝒪[6,2]+(16/5)*𝒪[6,4]+(11/5)*𝒪[6,6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
     end
-end
 
-@testitem "Rotations" begin
-    include("test_shared.jl")
+    # Test fast evaluation of Stevens operators
+    let
+        import DynamicPolynomials as DP
 
-    A = randn(3,3)
-    R = exp(A - A')
-    (n, θ) = Sunny.axis_angle(Sunny.Mat3(R))
-    @test 1 + 2cos(θ) ≈ tr(R)
-    @test norm(n) ≈ 1
-    @test R*n ≈ n
+        s = randn(Sunny.Vec3)
+        p = randn(5)' * Sunny.stevens_operator_symbols[2] + 
+            randn(9)' * Sunny.stevens_operator_symbols[4] +
+            randn(13)' * Sunny.stevens_operator_symbols[6]
+        (_, c2, _, c4, _, c6) = Sunny.operator_to_classical_stevens_coefficients(p, 1.0)
+
+        p_classical = Sunny.operator_to_classical_polynomial(p)
+        grad_p_classical = DP.differentiate(p_classical, Sunny.spin_classical_symbols)
+
+        E_ref = p_classical(Sunny.spin_classical_symbols => s)
+        gradE_ref = [g(Sunny.spin_classical_symbols => s) for g = grad_p_classical]
+
+        E, gradE = Sunny.energy_and_gradient_for_classical_anisotropy(s, c2, c4, c6)
+
+        @test E ≈ E_ref
+
+        # Above, when calculating gradE_ref, the value X = |S|^2 is treated
+        # as varying with S, such that dX/dS = 2S. Conversely, when calculating
+        # gradE, the value X is treated as a constant, such that dX/dS = 0. In
+        # practice, gradE will be used to drive spin dynamics, for which |S| is
+        # constant, and the component of gradE parallel to S will be projected
+        # out anyway. Therefore we only need agreement between the parts of
+        # gradE and gradE_ref that are perpendicular to S.
+        gradE_ref -= (gradE_ref⋅s)*s / (s⋅s) # Orthogonalize to s
+        gradE -= (gradE⋅s)*s / (s⋅s)         # Orthogonalize to s
+        @test gradE_ref ≈ gradE
+
+    end
+
+    # Test that when operators rotate contravariant to kets, expectation values
+    # are invariant (scalar)
+    let
+        # Dimension N unitary transformation for R
+        N = 5
+        U = Sunny.unitary_for_rotation(R; N)
+
+        # Random spins
+        z = normalize(randn(ComplexF64, N))
+        s = normalize(randn(3))
+
+        # Two random operators
+        p1 = randn(3)' * Sunny.stevens_operator_symbols[1]
+        p2 = randn(3)' * 𝒮
+        for p = [p1, p2]
+            # Inner products are invariant when operators are rotated conversely to kets
+            p_rot = rotate_operator(p, R')
+            z_rot = U*z
+            Λ = Sunny.operator_to_matrix(p; N)
+            Λ_rot = Sunny.operator_to_matrix(p_rot; N)
+            @test z'*Λ*z ≈ z_rot'*Λ_rot*z_rot
+
+            # Same thing, but with spin dipoles
+            q = Sunny.operator_to_classical_polynomial(p)
+            q_rot = Sunny.operator_to_classical_polynomial(p_rot)
+            @test q(Sunny.spin_classical_symbols => s) ≈ q_rot(Sunny.spin_classical_symbols => R*s)
+        end
+    end
+
+    # Test validity of symmetry inferred anisotropies 
+    let
+        latvecs = [1 0 0; 0 1 0; 0 0 10]'
+        basis = [[0.1, 0, 0], [0, 0.1, 0], [0.9, 0, 0], [0, 0.9, 0]]
+        cryst = Crystal(latvecs, basis)
+
+        # Most general allowed anisotropy for this crystal
+        Λ = randn(9)'*[𝒪[2,0], 𝒪[2,2], 𝒪[4,0], 𝒪[4,2], 𝒪[4,4], 𝒪[6,0], 𝒪[6,2], 𝒪[6,4], 𝒪[6,6]]
+
+        # Test anisotropy invariance in "dipole-mode"
+        N = 0
+        sys = SpinSystem(cryst, [anisotropy(Λ, 1)], (1,1,1), [SiteInfo(1; N)])
+        rand!(sys)
+        E1 = energy(sys)
+        # Effectively rotate site positions by π/2 clockwise
+        sys._dipoles .= circshift(sys._dipoles, (0,0,0,1))
+        # Rotate spin vectors correspondingly
+        R = Sunny.Mat3([0 1 0; -1 0 0; 0 0 1])
+        sys._dipoles .= [R*d for d in sys._dipoles]
+        E2 = energy(sys)
+        @test E1 ≈ E2
+
+        # Test anisotropy invariance in "SU(N)-mode"
+        N = 5
+        sys = SpinSystem(cryst, [anisotropy(Λ, 1)], (1,1,1), [SiteInfo(1; N)])
+        rand!(sys)
+        E1 = energy(sys)
+        # Effectively rotate site positions by π/2 clockwise
+        sys._coherents .= circshift(sys._coherents, (0,0,0,1))
+        # Rotate kets correspondingly
+        U = Sunny.unitary_for_rotation(R; N)
+        sys._coherents .= [U*z for z in sys._coherents]
+        E2 = energy(sys)
+        @test E1 ≈ E2
+    end
 end

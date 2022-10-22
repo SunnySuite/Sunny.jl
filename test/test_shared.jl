@@ -6,6 +6,7 @@
 
 using Random
 using LinearAlgebra
+import WignerSymbols: clebschgordan, wigner3j
 
 Random.seed!(1111)
 
@@ -13,9 +14,6 @@ Random.seed!(1111)
 #  diamond lattice with randomized coupling constants for use
 #  across many tests.
 function diamond_test_exchanges()
-    crystal = Sunny.diamond_crystal()
-    latsize = (4, 4, 4)
-
     # Arbitrary Heisenberg
     heisen = heisenberg(rand(), Bond(1, 3, [0, 0, 0]))
 

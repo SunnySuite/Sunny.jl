@@ -248,7 +248,7 @@ function ewald_sum_dipole(lattice::Lattice, spins::Array{Vec3, 4}; extent=2, η=
 end
 
 "Precompute the dipole interaction matrix, not yet in ± compressed form."
-function precompute_monopole_ewald(lattice::Lattice; extent=10, η=1.0) :: OffsetArray{5, Float64} where {D}
+function precompute_monopole_ewald(lattice::Lattice; extent=10, η=1.0) :: OffsetArray{5, Float64}
     nb = nbasis(lattice)
     A = zeros(Float64, map(n->2*(n-1)+1, lattice.size)..., nb, nb)
     A = OffsetArray(A, map(n->-(n-1):n-1, lattice.size)..., 1:nb, 1:nb)

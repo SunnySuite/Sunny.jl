@@ -195,10 +195,9 @@ function _local_hamiltonian(sys::SpinSystem{N}, idx) where N
     _, site = splitidx(idx)
 
     B = field(sys._dipoles, sys.hamiltonian, idx)
-    S = reinterpret(SMatrix{N, N, ComplexF64, N*N}, reshape(sys.S, N*N, 3)) # Make sure this works!
-    # TODO: Eliminate this SMatrix constructor
-    ℌ = SMatrix{N,N,ComplexF64,N*N}(-(B[1]*S[1] + B[2]*S[2] + B[3]*S[3]))
-    ℌ += @view(aniso.Λs[:,:,site])
+    S = spin_matrices(N)
+    ℌ = -(B[1]*S[1] + B[2]*S[2] + B[3]*S[3])
+    ℌ += @view(aniso[:,:,site])
     
     return ℌ
 end
@@ -363,31 +362,26 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
             end
         end
     end
-    # Having to iterate through the anisotropies is kind of irritating
-    if !isnothing(ℋ.quadratic_aniso)
-        aniso = ℋ.quadratic_aniso
+    if !isnothing(ℋ.dipole_aniso)
+        # TODO: Add tests!
+        aniso = ℋ.dipole_aniso
         for (site, J) in zip(aniso.sites, aniso.Js)
             if site == i
-                ΔE += dot(spindiff, J, spindiff)
+                c2, c4, c6 = aniso.coeff_2[i], aniso.coeff_4[i], aniso.coeff_6[i]
+                E_new, _ = energy_and_gradient_for_classical_anisotropy(new_dipole, c2, c4, c6)
+                E_old, _ = energy_and_gradient_for_classical_anisotropy(old_dipole, c2, c4, c6)
+                ΔE += E_new - E_old
             end
         end
     end
-    if !isnothing(ℋ.quartic_aniso)
-        aniso = ℋ.quartic_aniso
-        for (site, J) in zip(aniso.sites, aniso.Js)
-            if site == i
-                ΔE += contract(J, spindiff) 
-            end
-        end
-    end
-    if !isnothing(ℋ.sun_aniso)
+    if N > 0
         aniso = ℋ.sun_aniso
         old_ket = sys._coherents[idx]
-        Λ = @view(aniso.Λs[:,:,i])
+        Λ = @view(aniso[:,:,i])
         ΔE += real(new_ket' * Λ * new_ket) - real(old_ket' * Λ * old_ket)
     end
     if !isnothing(ℋ.dipole_int)
-        throw("Local energy changes not implemented yet for dipole interactions")
+        error("Local energy changes not implemented yet for dipole interactions")
     end
     return ΔE
 end

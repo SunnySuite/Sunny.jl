@@ -1,6 +1,3 @@
-"""Functions for pretty-printing various objects and results"""
-
-
 function is_approx_integer(x::T; atol) where T <: Real
     abs(round(x) - x) < atol
 end
@@ -13,12 +10,15 @@ function number_to_simple_string(x::T; digits, atol=1e-12) where T <: Real
     end
 end
 
-"Pretty print a number using math formulas."
+# Convert number to string using simple math formulas where possible.
 function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=99) where T <: Real
     sign = x < 0 ? "-" : ""
 
     # Try to return an exact integer
     is_approx_integer(x; atol) && return string(round(Int, x))
+
+    # If already in rational form, print that
+    x isa Rational && return string(x.num)*"/"*string(x.den)
 
     # Try to return an exact rational
     r = rationalize(x; tol=atol)
@@ -39,20 +39,34 @@ function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=99) where T
     number_to_simple_string(x; digits, atol)
 end
 
-"Pretty print a real vector."
+# Convert vector to string using simple math formulas where possible.
 function atom_pos_to_string(v; digits=4, atol=1e-12)
     v = [number_to_simple_string(x; digits, atol) for x in v]
     return "["*join(v, ", ")*"]"
 end
 
-"""Like number_to_string(), but outputs a string that can be prefixed to a
-variable name."""
+# Like number_to_math_string(), but outputs a string that can be prefixed to a
+# variable name.
 function coefficient_to_math_string(x::T; digits=4, atol=1e-12) where T <: Real
     abs(x) < atol && error("Coefficient cannot be zero.")
     isapprox(x, 1.0; atol) && return ""
     isapprox(x, -1.0; atol) && return "-"
     ret = number_to_math_string(x; digits, atol)
-    return contains(ret, '/') ? "($ret)" : ret
+
+    # Wrap fractions in parenthesis
+    if contains(ret, '/')
+        # If present, move minus side to left
+        parts = split(ret, '-')
+        if length(parts) == 1
+            return "($ret)"
+        elseif length(parts) == 2 && length(parts[1]) == 0
+            return "-($(parts[2]))"
+        else
+            error("Invalid string")
+        end
+    else
+        return ret
+    end
 end
 
 function _add_padding_to_coefficients(xs)
@@ -69,8 +83,7 @@ function _add_padding_to_coefficients(xs)
 end
 
 
-"""Converts a list of basis elements for a J matrix into a nice string
-summary"""
+# Converts a list of basis elements for a J matrix into a nice string summary
 function _coupling_basis_strings(coup_basis; digits, atol) :: Matrix{String}
     J = [String[] for _ in 1:3, _ in 1:3]
     for (letter, basis_mat) in coup_basis
@@ -136,34 +149,27 @@ end
 
 """
     print_bond(cryst::Crystal, bond::Bond)
-    print_bond(cryst::Crystal, i::Int)
 
-Pretty-prints symmetry information for bond `bond` or atom index `i`.
+Prints symmetry information for bond `bond`.
 """
-function print_bond(cryst::Crystal, b::Bond; digits=4, atol=1e-12)
-    ri = cryst.positions[b.i]
-    rj = cryst.positions[b.j] + b.n
-
-    basis = basis_for_symmetry_allowed_couplings(cryst, b)
-    basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-
+function print_bond(cryst::Crystal, b::Bond)
+    # Tolerance below which coefficients are dropped
+    atol = 1e-12
+    # How many digits to use in printing coefficients
+    digits = 14
+    
     if b.i == b.j && iszero(b.n)
-        # On site interaction
-        class_i = cryst.classes[b.i]
-        m_i = count(==(class_i), cryst.classes)
-        if isempty(cryst.types[b.i])
-            println("Atom $(b.i), position $(atom_pos_to_string(ri)), multiplicity $m_i")
-        else
-            println("Atom $(b.i), type '$(cryst.types[b.i])', position $(atom_pos_to_string(ri)), multiplicity $m_i")
-        end
-
-        _print_allowed_coupling(basis_strs; prefix="Allowed single-ion anisotropy or g-tensor: ")
-        if any(J -> !(J ≈ J'), basis)
-            println("""Note: The antisymmetric part is irrelevant to the single-ion anisotropy,
-                       but could contribute meaningfully to the g-tensor.""")
-        end
+        print_site(cryst, b.i)
     else
-        println(b) # Print Bond(...)
+        ri = cryst.positions[b.i]
+        rj = cryst.positions[b.j] + b.n
+
+        basis = basis_for_symmetry_allowed_couplings(cryst, b)
+        basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
+
+        # Bond(...)
+        printstyled(stdout, repr(b); bold=true, color=:underline)
+        println()
         (m_i, m_j) = (coordination_number(cryst, b.i, b), coordination_number(cryst, b.j, b))
         dist_str = number_to_simple_string(distance(cryst, b); digits, atol)
         if m_i == m_j
@@ -186,21 +192,18 @@ function print_bond(cryst::Crystal, b::Bond; digits=4, atol=1e-12)
     println()
 end
 
-function print_bond(cryst::Crystal, i::Int; digits=4, atol=1e-12)
-    print_bond(cryst, Bond(i, i, [0, 0, 0]); digits, atol)
-end
-
 
 """
-    print_bond_table(cryst::Crystal, max_dist)
+    print_symmetry_table(cryst::Crystal, max_dist)
 
-Pretty-prints a table of bonds, one for each symmetry equivalence class, up to a
-maximum bond length of `max_dist`. Equivalent to calling `print_bond(cryst, b)`
-for every bond `b` in `reference_bonds(cryst, max_dist)`.
+Print symmetry information for all equivalence classes of sites and bonds, up to
+a maximum bond distance of `max_dist`. Equivalent to calling `print_bond(cryst,
+b)` for every bond `b` in `reference_bonds(cryst, max_dist)`, where
+`Bond(i, i, [0,0,0])` refers to a single site `i`.
 """
-function print_bond_table(cryst::Crystal, max_dist; digits=4, atol=1e-12)
+function print_symmetry_table(cryst::Crystal, max_dist)
     for b in reference_bonds(cryst, max_dist)
-        print_bond(cryst, b; digits, atol)
+        print_bond(cryst, b)
     end
 end
 
@@ -209,12 +212,13 @@ end
 print_suggested_frame(cryst, i; digits=4)
 
 Print a suggested reference frame, as a rotation matrix `R`, that can be used as
-input to `stevens_basis_for_symmetry_allowed_anisotropies()`
+input to `print_site()`. This is useful to simplify the description of allowed
+anisotropies.
 """
-function print_suggested_frame(cryst::Crystal, i::Int; digits=4, atol=1e-12)
+function print_suggested_frame(cryst::Crystal, i::Int)
     R = suggest_frame_for_atom(cryst, i)
 
-    R_strs = [number_to_math_string(x; digits, atol) for x in R]
+    R_strs = [number_to_math_string(x; digits=14, atol=1e-12) for x in R]
     R_strs = _add_padding_to_coefficients(R_strs)
 
     println("R = [" * join(R_strs[1,:], " "))
@@ -222,58 +226,100 @@ function print_suggested_frame(cryst::Crystal, i::Int; digits=4, atol=1e-12)
     println("     " * join(R_strs[3,:], " "), " ]")
 end
 
-"""
-print_allowed_anisotropy(cryst, i; R=I, digits=4, time_reversal=true)
 
-Print the allowable linear combinations of Stevens operators that are consistent
-with the point group symmetries of site `i`. If `time_reversal` symmetry is
-`false`, then odd-order Stevens operators will also be considered.
 """
-function print_allowed_anisotropy(cryst::Crystal, i::Int; R=Mat3(I), atol=1e-12, digits=4, time_reversal=true)
-    ks = time_reversal ? [2,4,6] : collect(1:6)
-    kchars = ['₁', '₂', '₃', '₄', '₅', '₆']
+print_site(cryst, i; R=I)
 
-    println("# Stevens operators at various orders k")
-    for k in ks
-        kchar = kchars[k]
-        if R == Mat3(I)
-            println("𝒪$kchar = stevens_operators(N, $k)")
-        else
-            println("𝒪$kchar = stevens_operators(N, $k; R)")
-        end
+Print symmetry information for the site `i`, including allowed g-tensor and
+allowed anisotropy operator. An optional rotation matrix `R` can be provided to
+define the reference frame for expression of the anisotropy.
+"""
+function print_site(cryst, i; R=Mat3(I), ks=[2,4,6])
+    r = cryst.positions[i]
+    class_i = cryst.classes[i]
+    m = count(==(class_i), cryst.classes)
+    printstyled(stdout, "Site $i\n"; bold=true, color=:underline)
+
+    if isempty(cryst.types[i])
+        println("Position $(atom_pos_to_string(r)), multiplicity $m")
+    else
+        println("Type '$(cryst.types[i])', position $(atom_pos_to_string(r)), multiplicity $m")
     end
 
-    println()
-    println("# Allowed anisotropy operator")
+    # Tolerance below which coefficients are dropped
+    atol = 1e-12
+    # How many digits to use in printing coefficients
+    digits = 14
+
+    # TODO: Rotate into basis R?
+    basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
+    basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
+    _print_allowed_coupling(basis_strs; prefix="Allowed g-tensor: ")
+
+    R = convert(Mat3, R)
+    print_allowed_anisotropy(cryst, i; R, atol, digits, ks)
+end
+
+function int_to_underscore_string(x::Int)
+    subscripts = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
+    chars = collect(repr(x))
+    if chars[begin] == '-'
+        popfirst!(chars)
+        sign = "-"
+    else
+        sign = ""
+    end
+    digits = map(c -> parse(Int, c), chars)
+    return sign * prod(subscripts[digits.+1])
+end
+
+
+function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits, ks)
+    prefix="    "
 
     lines = String[]
+    cnt = 1
     for k in ks
-        kchar = kchars[k]
         B = stevens_basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
 
         if size(B, 2) > 0
             terms = String[]
-            for (param, b) in zip('A':'Z', eachcol(B))
+            for b in reverse(collect(eachcol(B)))
+
+                if any(x -> 1e-12 < abs(x) < 1e-6, b)
+                    println("""Warning: Found a very small but nonzero expansion coefficient.
+                               This may indicate a slightly misaligned reference frame.""")
+                end
 
                 # rescale column by its minimum nonzero value
-                scale = minimum(b) do x
+                _, min = findmin(b) do x
                     abs(x) < 1e-12 ? Inf : abs(x)
                 end
-                b /= scale
+                b /= b[min]
                 
+                # reverse b elements to print q-components in ascending order, q=-k...k
                 ops = String[]
-                for q in eachindex(b)
-                    if abs(b[q]) > atol
-                        coeff = coefficient_to_math_string(b[q]; digits, atol)
-                        push!(ops, coeff*"𝒪$kchar[$q]")
+                for (b_q, q) in zip(reverse(b), -k:k)
+                    if abs(b_q) > atol
+                        coeff = coefficient_to_math_string(b_q; digits, atol)
+                        push!(ops, coeff*"𝒪[$k,$q]")
                     end
                 end
+
+                # clean up printing of term
                 ops = length(ops) == 1 ? ops[1] : "("*join(ops, "+")*")"
                 ops = replace(ops, "+-" => "-")
-                push!(terms, param * kchar * ops)
+                push!(terms, "c" * int_to_underscore_string(cnt) * "*" * ops)
+                cnt += 1
             end
-            push!(lines, join(terms, " + "))
+            push!(lines, prefix * join(terms, " + "))
         end
     end
+    println("Allowed anisotropy in Stevens operators 𝒪[k,q]:")
     println(join(lines, " +\n"))
+
+    if R != I
+        println("Transform anisotropy using rotate_operator(Λ; R) where")
+        println(prefix*"R = $R")
+    end
 end

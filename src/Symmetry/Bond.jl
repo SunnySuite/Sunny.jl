@@ -71,6 +71,6 @@ function transform(cryst::Crystal, s::SymOp, b::Bond)
     return Bond(cryst, transform(s, BondRaw(cryst, b)))
 end
 
-function reverse(b::BondRaw)
+function Base.reverse(b::BondRaw)
     return BondRaw(b.rj, b.ri)
 end
