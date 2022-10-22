@@ -1,9 +1,8 @@
-# __precompile__(false)
-
 module Sunny
 
-using LinearAlgebra
+import SnoopPrecompile: @precompile_setup, @precompile_all_calls
 
+using LinearAlgebra
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA
 import Requires: @require
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
@@ -14,12 +13,12 @@ import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, rand!, randn!
 import Interpolations: interpolate, scale, BSpline, Linear, Periodic
+import DynamicPolynomials as DP
 
 # Specific to Symmetry/
 import FilePathsBase: Path
 import CrystalInfoFramework as CIF
 import Spglib
-import WignerSymbols: clebschgordan, wigner3j
 import RowEchelon: rref!
 
 # Specific to SunnyGfx
@@ -33,7 +32,7 @@ const Mat3 = SMatrix{3, 3, Float64, 9}
 const Quad3 = SArray{Tuple{3,3,3,3}, Float64, 4, 3^4}
 const CVec{N} = SVector{N, ComplexF64}
 
-# Boltzmannn factor k_B in units of meV/K
+# Boltzmannn factor k_B in units of meV / K
 const meV_per_K = 0.086173332621451774
 
 # Bohr magneton in units of meV / T
@@ -46,12 +45,13 @@ include("Symmetry/Symmetry.jl")
 export Crystal, subcrystal, nbasis, cell_volume, cell_type
 export lattice_vectors, lattice_params
 export Bond, displacement, distance, coordination_number
-export print_bond, print_bond_table, print_mutually_allowed_couplings
-export reference_bonds, basis_for_symmetry_allowed_couplings
+export reference_bonds
 export all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom
 export all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom
-export print_suggested_frame, print_allowed_anisotropy, stevens_operators
 export all_symmetry_related_anisotropies
+export 𝒪, 𝒮, rotate_operator
+export print_site, print_bond, print_symmetry_table, print_mutually_allowed_couplings
+export print_suggested_frame, print_anisotropy_as_classical_spins, print_anisotropy_as_stevens
 
 include("Util.jl")
 
@@ -59,8 +59,7 @@ include("Lattice.jl")
 
 include("Interactions.jl")
 export heisenberg, exchange, dm_interaction
-export easy_axis, easy_plane, quadratic_anisotropy, quartic_anisotropy
-export SUN_anisotropy, gen_spin_ops
+export easy_axis, easy_plane, quadratic_anisotropy, anisotropy
 export external_field, dipole_dipole
 export SiteInfo
 
@@ -115,6 +114,23 @@ function __init__()
         include("ReplicaExchangeMC.jl")
         export init_MPI, xyz_to_file, Replica, run_REMC!, run_FBO!
     end
+end
+
+@precompile_setup begin
+    # suppress stdout
+    oldstd = stdout
+    redirect_stdout(open("/dev/null", "w"))
+
+    @precompile_all_calls begin
+        # all calls in this block will be precompiled, regardless of whether
+        # they belong to your package or not (on Julia 1.8 and higher)
+        cryst = diamond_crystal()
+        repr(cryst)
+        print_symmetry_table(cryst, 1.0)
+    end
+
+    # restore stdout
+    redirect_stdout(oldstd)
 end
 
 end
