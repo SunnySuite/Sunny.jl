@@ -131,9 +131,25 @@ function stevens_abstract_polynomials(; J, k::Int)
 end
 
 
+# Construct spin operators, i.e. generators of su(2), of dimension N
+function spin_matrices(N::Int)
+    if N == 0
+        return zeros(ComplexF64,0,0), zeros(ComplexF64,0,0), zeros(ComplexF64,0,0)
+    end
+
+    s = (N-1)/2
+    a = 1:N-1
+    off = @. sqrt(2(s+1)*a - a*(a+1)) / 2
+
+    Sx = diagm(1 => off, -1 => off)
+    Sy = diagm(1 => -im*off, -1 => +im*off)
+    Sz = diagm((N-1)/2 .- (0:N-1))
+    return SVector{3}(Sx, Sy, Sz)
+end
+
 # Construct Stevens operators as polynomials in the spin operators.
 function stevens_matrices(k::Int; N::Int)
-    return stevens_abstract_polynomials(; J=gen_spin_ops(N), k)
+    return stevens_abstract_polynomials(; J=spin_matrices(N), k)
 end
 
 
@@ -154,7 +170,7 @@ end
 # Construct explicit N-dimensional marix representation of operator
 function operator_to_matrix(p; N)
     rep = p(
-        𝒮 => gen_spin_ops(N),
+        𝒮 => spin_matrices(N),
         [stevens_operator_symbols[k] => stevens_matrices(k; N) for k=1:6]... 
     )
     if !(rep ≈ rep')

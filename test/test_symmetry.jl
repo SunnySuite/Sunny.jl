@@ -140,7 +140,7 @@ end
     ### Verify 𝔰𝔲(2) irreps
     for N = 2:5
         S₀ = (N-1)/2
-        S = Sunny.gen_spin_ops(N)
+        S = Sunny.spin_matrices(N)
 
         for i=1:3, j=1:3
             # Test commutation relations
@@ -218,7 +218,7 @@ end
     bracket(A, B) = A*B - B*A
 
     for N=2:7
-        S = Sunny.gen_spin_ops(N)
+        S = Sunny.spin_matrices(N)
         Sp = S[1] + im*S[2]
         Sm = S[1] - im*S[2]
         
@@ -227,7 +227,7 @@ end
             T = spherical_tensors(k; N)
 
             # Generators of rotations in the spin-k representation
-            K = Sunny.gen_spin_ops(2k+1)
+            K = Sunny.spin_matrices(2k+1)
 
             # The selected basis is q ∈ [|k⟩, |k-1⟩, ... |-k⟩]. This function
             # converts from a q value to a 1-based index.

@@ -246,36 +246,6 @@ function easy_plane(D, n, site::Int, label::String="EasyAxis")
     OperatorAnisotropy(+D*(𝒮⋅n)^2, site, label)
 end
 
-# N-dimensional irreducible matrix representation of 𝔰𝔲(2). Use this only
-#  to give the user the ability to construct generalized anisotropy matrices.
-# Internal code should implicitly use the action of these operators on
-#  N-dimensional complex vectors.
-function gen_spin_ops(N::Int)
-    if N == 0  # Returns wrong type if not checked 
-        return zeros(ComplexF64,0,0), zeros(ComplexF64,0,0), zeros(ComplexF64,0,0)
-    end
-
-    s = (N-1)/2
-    a = 1:N-1
-    off = @. sqrt(2(s+1)*a - a*(a+1)) / 2
-
-    Sx = diagm(1 => off, -1 => off)
-    Sy = diagm(1 => -im*off, -1 => +im*off)
-    Sz = diagm((N-1)/2 .- (0:N-1))
-    return SVector{3}(Sx, Sy, Sz)
-end
-
-
-function gen_spin_ops_packed(N::Int) :: Array{ComplexF64, 3}
-    Ss = gen_spin_ops(N)
-    S_packed = zeros(ComplexF64, N, N, 3)
-    for i ∈ 1:3
-        S_packed[:,:,i] .= Ss[i]
-    end
-    S_packed
-end
-
-
 struct DipoleDipole <: AbstractInteraction
     extent   :: Int
     η        :: Float64

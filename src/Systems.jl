@@ -10,7 +10,6 @@ struct SpinSystem{N}
     _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
     _coherents  :: Array{CVec{N}, 4}                # Coherent states
     site_infos  :: Vector{SiteInfo}                 # Characterization of each basis site
-    S           :: Array{ComplexF64, 3}             # TODO -- generate on demand instead
     rng         :: Random.AbstractRNG
 end
 
@@ -25,7 +24,7 @@ eachcellindex(sys::SpinSystem) = eachcellindex(sys.lattice)
 # http://www.emis.de/journals/SIGMA/2014/084/
 _get_coherent_from_dipole(dip::Vec3, ::Val{0}) :: CVec{0} = CVec{0}(zeros(0))
 function _get_coherent_from_dipole(dip::Vec3, ::Val{N}) :: CVec{N} where {N} 
-    S = gen_spin_ops(N) 
+    S = spin_matrices(N) 
     λs, vs = eigen(dip' * S)
     return CVec{N}(vs[:, argmax(real.(λs))])
 end
@@ -72,7 +71,7 @@ end
 
 
 @generated function expected_spin(Z::CVec{N}) where N
-    S = gen_spin_ops(N)
+    S = spin_matrices(N)
     elems_x = SVector{N-1}(diag(S[1], 1))
     elems_z = SVector{N}(diag(S[3], 0))
     lo_ind = SVector{N-1}(1:N-1)
@@ -118,7 +117,7 @@ function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where 
     fractional_basis_vecs = Ref(sys.lattice.lat_vecs) .\ sys.lattice.basis_vecs
     dims_new = mults .* size(sys)[1:3]
     lattice = Lattice(sys.lattice.lat_vecs, fractional_basis_vecs, sys.lattice.types, dims_new)
-    sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles_new, coherents_new, copy(sys.site_infos), copy(sys.S), copy(sys.rng))
+    sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles_new, coherents_new, copy(sys.site_infos), copy(sys.rng))
 
     return sys_extended
 end
@@ -191,7 +190,6 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
 
     (all_site_infos, N) = _propagate_site_info(crystal, site_infos)
     ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_site_infos; μB, μ0)
-    S = gen_spin_ops_packed(N)
 
     # Initialize sites to all spins along +z
     sys_size = (lattice.size..., nbasis(lattice))
@@ -203,7 +201,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
     isnothing(rng) && (rng = Random.MersenneTwister())
 
     # Default unit system is (meV, K, Å, T)
-    SpinSystem{N}(lattice, ℋ_CPU, dipoles, coherents, all_site_infos, S, rng)
+    SpinSystem{N}(lattice, ℋ_CPU, dipoles, coherents, all_site_infos, rng)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem{N}) where {N}
@@ -262,8 +260,8 @@ function randflips!(sys::SpinSystem{0})
 end
 
 @generated function flip_ket(Z::CVec{N}) where N
-    (_, Sʸ, _) = gen_spin_ops(N)
-    op = SMatrix{N, N, ComplexF64, N*N}(exp(-im*π*Sʸ))
+    S = spin_matrices(N)
+    op = SMatrix{N, N, ComplexF64, N*N}(exp(-im*π*S[2]))
     return quote
         $op * conj(Z)
     end

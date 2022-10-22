@@ -302,7 +302,7 @@ end
     end
 
     if N < 6 
-        S = gen_spin_ops(N) .|> SMatrix{N, N, ComplexF64, N*N}
+        S = spin_matrices(N) .|> SMatrix{N, N, ComplexF64, N*N}
 
         return quote
             (; sys) = integrator
