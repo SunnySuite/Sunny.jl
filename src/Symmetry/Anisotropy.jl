@@ -355,9 +355,8 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
 
     y_dir = z_dir × x_dir
 
-    # TODO: Very likely should return instead row vectors: [xdir; ydir; zdir].
-    # Need to test!
-    return Mat3(hcat(x_dir, y_dir, z_dir))
+    # Rows of output matrix are the new reference directions
+    return Mat3([x_dir y_dir z_dir])'
 end
 
 

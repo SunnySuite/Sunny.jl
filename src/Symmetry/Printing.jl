@@ -217,7 +217,7 @@ print_suggested_frame(cryst, i; digits=4)
 Print a suggested reference frame, as a rotation matrix `R`, that can be used as
 input to `stevens_basis_for_symmetry_allowed_anisotropies()`
 """
-function print_suggested_frame(cryst::Crystal, i::Int; digits=4, atol=1e-12)
+function print_suggested_frame(cryst::Crystal, i::Int; digits=14, atol=1e-12)
     R = suggest_frame_for_atom(cryst, i)
 
     R_strs = [number_to_math_string(x; digits, atol) for x in R]
@@ -271,8 +271,9 @@ function int_to_underscore_string(x::Int)
 end
 
 
-function print_allowed_anisotropy(cryst::Crystal, i::Int; prefix="    ", R=I, atol=1e-12, digits=4, ks=[2,4,6])
+function print_allowed_anisotropy(cryst::Crystal, i::Int; R=I, atol=1e-12, digits=4, ks=[2,4,6])
     R = Mat3(R)
+    prefix="    "
 
     lines = String[]
     cnt = 1
@@ -282,6 +283,11 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; prefix="    ", R=I, at
         if size(B, 2) > 0
             terms = String[]
             for b in reverse(collect(eachcol(B)))
+
+                if any(x -> 1e-12 < abs(x) < 1e-6, b)
+                    println("""Warning: Found a very small but nonzero expansion coefficient.
+                               This may indicate a slightly misaligned reference frame.""")
+                end
 
                 # rescale column by its minimum nonzero value
                 _, min = findmin(b) do x
@@ -311,7 +317,7 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; prefix="    ", R=I, at
     println(join(lines, " +\n"))
 
     if R != I
-        println("Transform anisotropy using rotate_operator(Λ; R) with:")
+        println("Transform anisotropy using rotate_operator(Λ; R) where")
         println(prefix*"R = $R")
     end
 end
