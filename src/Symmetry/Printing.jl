@@ -1,6 +1,3 @@
-"""Functions for pretty-printing various objects and results"""
-
-
 function is_approx_integer(x::T; atol) where T <: Real
     abs(round(x) - x) < atol
 end
@@ -13,7 +10,7 @@ function number_to_simple_string(x::T; digits, atol=1e-12) where T <: Real
     end
 end
 
-"Pretty print a number using math formulas."
+# Convert number to string using simple math formulas where possible.
 function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=99) where T <: Real
     sign = x < 0 ? "-" : ""
 
@@ -42,14 +39,14 @@ function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=99) where T
     number_to_simple_string(x; digits, atol)
 end
 
-"Pretty print a real vector."
+# Convert vector to string using simple math formulas where possible.
 function atom_pos_to_string(v; digits=4, atol=1e-12)
     v = [number_to_simple_string(x; digits, atol) for x in v]
     return "["*join(v, ", ")*"]"
 end
 
-"""Like number_to_math_string(), but outputs a string that can be prefixed to a
-variable name."""
+# Like number_to_math_string(), but outputs a string that can be prefixed to a
+# variable name.
 function coefficient_to_math_string(x::T; digits=4, atol=1e-12) where T <: Real
     abs(x) < atol && error("Coefficient cannot be zero.")
     isapprox(x, 1.0; atol) && return ""
@@ -86,8 +83,7 @@ function _add_padding_to_coefficients(xs)
 end
 
 
-"""Converts a list of basis elements for a J matrix into a nice string
-summary"""
+# Converts a list of basis elements for a J matrix into a nice string summary
 function _coupling_basis_strings(coup_basis; digits, atol) :: Matrix{String}
     J = [String[] for _ in 1:3, _ in 1:3]
     for (letter, basis_mat) in coup_basis
@@ -153,13 +149,17 @@ end
 
 """
     print_bond(cryst::Crystal, bond::Bond)
-    print_bond(cryst::Crystal, i::Int)
 
-Pretty-prints symmetry information for bond `bond` or atom index `i`.
+Prints symmetry information for bond `bond`.
 """
-function print_bond(cryst::Crystal, b::Bond; digits=4, atol=1e-12)
+function print_bond(cryst::Crystal, b::Bond)
+    # Tolerance below which coefficients are dropped
+    atol = 1e-12
+    # How many digits to use in printing coefficients
+    digits = 14
+    
     if b.i == b.j && iszero(b.n)
-        print_site(cryst, b.i; digits, atol)
+        print_site(cryst, b.i)
     else
         ri = cryst.positions[b.i]
         rj = cryst.positions[b.j] + b.n
@@ -192,21 +192,18 @@ function print_bond(cryst::Crystal, b::Bond; digits=4, atol=1e-12)
     println()
 end
 
-function print_bond(cryst::Crystal, i::Int; digits=4, atol=1e-12)
-    print_bond(cryst, Bond(i, i, [0, 0, 0]); digits, atol)
-end
-
 
 """
     print_symmetry_table(cryst::Crystal, max_dist)
 
-Pretty-prints a table of bonds, one for each symmetry equivalence class, up to a
-maximum bond length of `max_dist`. Equivalent to calling `print_bond(cryst, b)`
-for every bond `b` in `reference_bonds(cryst, max_dist)`.
+Print symmetry information for all equivalence classes of sites and bonds, up to
+a maximum bond distance of `max_dist`. Equivalent to calling `print_bond(cryst,
+b)` for every bond `b` in `reference_bonds(cryst, max_dist)`, where
+`Bond(i, i, [0,0,0])` refers to a single site `i`.
 """
-function print_symmetry_table(cryst::Crystal, max_dist; digits=4, atol=1e-12)
+function print_symmetry_table(cryst::Crystal, max_dist)
     for b in reference_bonds(cryst, max_dist)
-        print_bond(cryst, b; digits, atol)
+        print_bond(cryst, b)
     end
 end
 
@@ -215,12 +212,13 @@ end
 print_suggested_frame(cryst, i; digits=4)
 
 Print a suggested reference frame, as a rotation matrix `R`, that can be used as
-input to `stevens_basis_for_symmetry_allowed_anisotropies()`
+input to `print_site()`. This is useful to simplify the description of allowed
+anisotropies.
 """
-function print_suggested_frame(cryst::Crystal, i::Int; digits=14, atol=1e-12)
+function print_suggested_frame(cryst::Crystal, i::Int)
     R = suggest_frame_for_atom(cryst, i)
 
-    R_strs = [number_to_math_string(x; digits, atol) for x in R]
+    R_strs = [number_to_math_string(x; digits=14, atol=1e-12) for x in R]
     R_strs = _add_padding_to_coefficients(R_strs)
 
     println("R = [" * join(R_strs[1,:], " "))
@@ -230,14 +228,13 @@ end
 
 
 """
-print_site(cryst, i; R=I, digits=4)
+print_site(cryst, i; R=I)
 
-Print symmetry information for the site `i`. Allowed g-tensor is given as matrix
-elements for bilinear form in spin operators.  Allowed anisotropy is given as a
-lienar combination of Stevens operators. An optional rotation matrix `R` can be
-provided to define the reference frame.
+Print symmetry information for the site `i`, including allowed g-tensor and
+allowed anisotropy operator. An optional rotation matrix `R` can be provided to
+define the reference frame for expression of the anisotropy.
 """
-function print_site(cryst, i; R=I, atol=1e-12, digits=4, ks=[2,4,6])
+function print_site(cryst, i; R=Mat3(I), ks=[2,4,6])
     r = cryst.positions[i]
     class_i = cryst.classes[i]
     m = count(==(class_i), cryst.classes)
@@ -249,11 +246,17 @@ function print_site(cryst, i; R=I, atol=1e-12, digits=4, ks=[2,4,6])
         println("Type '$(cryst.types[i])', position $(atom_pos_to_string(r)), multiplicity $m")
     end
 
+    # Tolerance below which coefficients are dropped
+    atol = 1e-12
+    # How many digits to use in printing coefficients
+    digits = 14
+
     # TODO: Rotate into basis R?
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
     basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
     _print_allowed_coupling(basis_strs; prefix="Allowed g-tensor: ")
 
+    R = convert(Mat3, R)
     print_allowed_anisotropy(cryst, i; R, atol, digits, ks)
 end
 
@@ -271,8 +274,7 @@ function int_to_underscore_string(x::Int)
 end
 
 
-function print_allowed_anisotropy(cryst::Crystal, i::Int; R=I, atol=1e-12, digits=4, ks=[2,4,6])
-    R = Mat3(R)
+function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits, ks)
     prefix="    "
 
     lines = String[]

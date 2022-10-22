@@ -364,15 +364,23 @@ end
         grad_p_classical = DP.differentiate(p_classical, Sunny.spin_classical_symbols)
 
         E_ref = p_classical(Sunny.spin_classical_symbols => s)
-
         gradE_ref = [g(Sunny.spin_classical_symbols => s) for g = grad_p_classical]
-        gradE_ref -= (gradE_ref⋅s)*s / (s⋅s) # Orthogonalize to s
 
         E, gradE = Sunny.energy_and_gradient_for_classical_anisotropy(s, c2, c4, c6)
-        gradE -= (gradE⋅s)*s / (s⋅s)         # Orthogonalize to s
 
         @test E ≈ E_ref
+
+        # Above, when calculating gradE_ref, the value X = |S|^2 is treated
+        # as varying with S, such that dX/dS = 2S. Conversely, when calculating
+        # gradE, the value X is treated as a constant, such that dX/dS = 0. In
+        # practice, gradE will be used to drive spin dynamics, for which |S| is
+        # constant, and the component of gradE parallel to S will be projected
+        # out anyway. Therefore we only need agreement between the parts of
+        # gradE and gradE_ref that are perpendicular to S.
+        gradE_ref -= (gradE_ref⋅s)*s / (s⋅s) # Orthogonalize to s
+        gradE -= (gradE⋅s)*s / (s⋅s)         # Orthogonalize to s
         @test gradE_ref ≈ gradE
+
     end
 
     # Test that when operators rotate contravariant to kets, expectation values

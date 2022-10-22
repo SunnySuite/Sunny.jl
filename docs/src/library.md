@@ -40,7 +40,6 @@ print_site
 print_bond
 print_symmetry_table
 reference_bonds
-<!-- basis_for_symmetry_allowed_couplings -->
 all_symmetry_related_bonds
 all_symmetry_related_bonds_for_atom
 all_symmetry_related_couplings
@@ -50,9 +49,7 @@ all_symmetry_related_couplings_for_atom
 ## Interactions
 
 ```@docs
-easy_axis
-easy_plane
-quadratic_anisotropy
+anisotropy
 heisenberg
 dm_interaction
 exchange

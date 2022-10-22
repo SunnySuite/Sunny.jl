@@ -1,6 +1,6 @@
 module Sunny
 
-using SnoopPrecompile
+import SnoopPrecompile: @precompile_setup, @precompile_all_calls
 
 using LinearAlgebra
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA
