@@ -64,7 +64,7 @@ const 𝒮 = spin_operator_symbols
 # spherical tensors, U' T_q U = D_qq′ T_q′, where D = exp(-i n⋅J), and J is a
 # spin operator in the spin-k representation. Observe that the standard
 # basis-convention for spin operators (eigenbasis of Jz, in descending order)
-# then determines the ordering of T_q and then 𝒪
+# then determines the ordering of T_q and then 𝒪_q
 function stevens_abstract_polynomials(; J, k::Int)
     k < 0  && error("Require k >= 0, received k=$k")
     k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
@@ -132,7 +132,7 @@ end
 
 
 # Construct Stevens operators as polynomials in the spin operators.
-function stevens_matrices(N::Int, k::Int)
+function stevens_matrices(k::Int; N::Int)
     return stevens_abstract_polynomials(; J=gen_spin_ops(N), k)
 end
 
@@ -155,7 +155,7 @@ end
 function operator_to_matrix(p; N)
     rep = p(
         𝒮 => gen_spin_ops(N),
-        [stevens_operator_symbols[k] => stevens_matrices(N, k) for k=1:6]... 
+        [stevens_operator_symbols[k] => stevens_matrices(k; N) for k=1:6]... 
     )
     if !(rep ≈ rep')
         println("Warning: Symmetrizing non-Hermitian operator '$p'.")

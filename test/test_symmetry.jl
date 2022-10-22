@@ -165,7 +165,7 @@ end
     include("test_shared.jl")
 
     # Spherical tensors that satisfy `norm(T) =  √ tr T† T = 1`.
-    function spherical_tensors_normalized(N, k)
+    function spherical_tensors_normalized(k; N)
         S = (N-1)/2
         ret = Matrix{Float64}[]
         for q = k:-1:-k
@@ -183,7 +183,7 @@ end
     # Spherical tensors T(k,q) as NxN matrices. The result is ambiguous up to an
     # overall (k,N)-dependent scaling factor. Here we're using the normalization
     # convention of KS/BCS.
-    function spherical_tensors(N, k)
+    function spherical_tensors(k; N)
         j = (N-1)/2
         ret = Matrix{Float64}[]
         for q = k:-1:-k
@@ -224,7 +224,7 @@ end
         
         for k = 0:N-1
             # Spherical tensors acting on N-dimensional Hilbert space
-            T = spherical_tensors(N, k)
+            T = spherical_tensors(k; N)
 
             # Generators of rotations in the spin-k representation
             K = Sunny.gen_spin_ops(2k+1)
@@ -254,8 +254,8 @@ end
     # Stevens operators
     for N=2:7
         for k = 1:N-1
-            𝒪 = Sunny.stevens_matrices(N, k)
-            T = spherical_tensors(N, k)
+            𝒪 = Sunny.stevens_matrices(k; N)
+            T = spherical_tensors(k; N)
 
             # Check that Stevens operators are proper linear combination of
             # spherical tensors
@@ -380,7 +380,7 @@ end
     let
         # Dimension N unitary transformation for R
         N = 5
-        U = Sunny.unitary_for_rotation(N, R)
+        U = Sunny.unitary_for_rotation(R; N)
 
         # Random spins
         z = normalize(randn(ComplexF64, N))
@@ -434,7 +434,7 @@ end
         # Effectively rotate site positions by π/2 clockwise
         sys._coherents .= circshift(sys._coherents, (0,0,0,1))
         # Rotate kets correspondingly
-        U = Sunny.unitary_for_rotation(N, R)
+        U = Sunny.unitary_for_rotation(R; N)
         sys._coherents .= [U*z for z in sys._coherents]
         E2 = energy(sys)
         @test E1 ≈ E2

@@ -58,7 +58,7 @@ function axis_angle(R::Mat3)
     return (n, θ)
 end
 
-function unitary_for_rotation(N::Int, R::Mat3)
+function unitary_for_rotation(R::Mat3; N::Int)
     !(R'*R ≈ I)   && error("Not an orthogonal matrix, R = $R.")
     !(det(R) ≈ 1) && error("Not a rotation matrix, R = $R.")
     S = gen_spin_ops(N)
@@ -69,7 +69,7 @@ end
 function rotate_operator(A::Matrix, R)
     R = convert(Mat3, R)
     N = size(A, 1)
-    U = unitary_for_rotation(N, R)
+    U = unitary_for_rotation(R; N)
     return U'*A*U
 end
 
@@ -93,7 +93,7 @@ function rotate_operator(P::DP.AbstractPolynomialLike, R)
     local 𝒪 = stevens_operator_symbols
     𝒪′ = map(𝒪) do 𝒪ₖ
         k = Int((length(𝒪ₖ)-1)/2)
-        D = unitary_for_rotation(2k+1, R)
+        D = unitary_for_rotation(R; N=2k+1)
         R_stevens = stevens_α[k] * conj(D) * stevens_αinv[k]
         @assert norm(imag(R_stevens)) < 1e-12
         real(R_stevens) * 𝒪ₖ
@@ -179,7 +179,7 @@ function transform_spherical_to_stevens_coefficients(k, c)
 end
 
 
-function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R=Mat3(I))
+function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R::Mat3)
     # The symmetry operations for the point group at atom i. Each one encodes a
     # rotation/reflection.
     symops = symmetries_for_pointgroup_of_atom(cryst, i)
@@ -204,7 +204,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
 
         # The Wigner D matrix, whose action on a spherical tensor corresponds to
         # the 3x3 rotation Q (see more below).
-        return unitary_for_rotation((2k+1), Q)
+        return unitary_for_rotation(Q; N=2k+1)
     end
     
     # A general operator in the spin-k representation can be decomposed in the
@@ -225,7 +225,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     # c′ satisfying c′ᵀ T′ = c T. Recall c′ᵀ T′ = (c′ᵀ D*) T = (D† c′)ᵀ T. The
     # constraint becomes D† c′ = c. Since D is unitary, we have c′ = D c. We
     # apply this transformation to each column c of C.
-    D = unitary_for_rotation(2k+1, convert(Mat3, R))
+    D = unitary_for_rotation(R; N=2k+1)
     C = D * C
 
     # Find an orthonormal basis for the columns of A, discarding linearly
@@ -241,7 +241,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     return C
 end
 
-function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R=Mat3(I))
+function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R::Mat3)
     # Each column of C represents a coefficient vector c that can be contracted
     # with spherical tensors T to realize an allowed anisotropy, Λ = cᵀ T.
     C = basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
