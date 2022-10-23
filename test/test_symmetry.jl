@@ -322,8 +322,9 @@ end
         p = randn(3)'*𝒮 + 𝒮'*J*𝒮 +
             randn(11)' * Sunny.stevens_operator_symbols[5] +
             randn(13)' * Sunny.stevens_operator_symbols[6]
-        cp = Sunny.operator_to_classical_polynomial(p)
-        @test cp |> Sunny.classical_polynomial_to_classical_stevens |> Sunny.operator_to_classical_polynomial ≈ cp
+        cp1 = p |> Sunny.operator_to_classical_polynomial
+        cp2 = p |> Sunny.operator_to_classical_stevens |> Sunny.operator_to_classical_polynomial
+        @test cp1 ≈ cp2
     end
 
     # Test some inferred anisotropy matrices
