@@ -28,10 +28,10 @@ combination of Stevens operators. To see this expansion, use:
 print_anisotropy_as_stevens(a1; N=0)
 # Output: 12X² + 𝒪₄₀ + 5𝒪₄₄
 ```
-where `N=0` indicates the large-_S_ classical limit, and ``X = |S|^2``.
-Alternatively, for spin operators with finite dimension `N=2S+1`, one may find
-different coefficients in Stevens operators. In our working example, observe
-that `a1` and `a2` agree up to a constant shift, independent of `N`.
+where `N=0` indicates the large-_S_ classical limit, and _X_ is the spin
+magnitude squared. Alternatively, by specifying a finite dimension `N=2S+1` for
+the spin operators, one can find different coefficients in Stevens operators. In
+our working example, observe that `a1` and `a2` agree up to a constant shift.
 
 The `anisotropy()` function takes a symbolic expression such as `a1` or `a2` and
 produces an `Interaction`, which can be used in either dipole-only mode or
