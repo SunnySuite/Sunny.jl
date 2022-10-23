@@ -64,6 +64,7 @@ struct StructureFactor{A1, A2}
     num_omegas    :: Int                                     # Total number of snapshots to FT
     integrator    :: Union{SphericalMidpoint, SchrodingerMidpoint}
     plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, NTuple{4, Int64}}
+    num_samples   :: Int64
 end
 
 Base.show(io::IO, sf::StructureFactor) = print(io, join(size(sf.sfactor), "x"),  " StructureFactor")
@@ -119,7 +120,7 @@ function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
 
     StructureFactor{typeof(sfactor), typeof(bz_buf)}(
         sfactor, spin_ft, ff_correction, bz_buf, sys.lattice, reduce_basis, dipole_factor,
-        bz_size, dt, meas_period, num_omegas, integrator, plan
+        bz_size, dt, meas_period, num_omegas, integrator, plan, 0
     )
 end
 
@@ -420,15 +421,25 @@ function fft_spin_traj!(res::Array{ComplexF64}, spin_traj::Array{Vec3};
         mul!(res, plan, spin_traj)
     end    
 
+    # Normalize FFT to obtain correct intensities
+    _, N1, N2, N3, _, T = size(spin_traj)
+    N = √(N1*N2*N3) * T 
+    res /= N
+
     return res
 end
 
 function fft_spin_traj!(spin_traj::Array{ComplexF64};
                         plan::Union{Nothing, FFTW.cFFTWPlan}=nothing)
+    # Find normalization factor for FFTs
+    _, N1, N2, N3, _, T = size(spin_traj)
+    N = √(N1*N2*N3) * T 
+
     if isnothing(plan)
         FFTW.fft!(spin_traj, (2,3,4,6))
+        spin_traj /= N
     else
-        spin_traj = plan * spin_traj
+        spin_traj = (plan * spin_traj) / N
     end
 end
 
@@ -506,15 +517,15 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
     max_ω = min_ω + num_omegas - 1
 
     fill!(res, 0.0)
-    for q_idx in CartesianIndices(axes(res)[2:4])
-        q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
-        wrap_q_idx = modc(q_idx, spat_size) + oneunit(q_idx)
-        for (b_idx, b) in enumerate(lattice.basis_vecs)
-            phase = exp(-im * (b ⋅ q))
-            # Note: Lots of allocations here. Fix?
-            # Warning: Cannot replace T with 1:end due to Julia issues with end and CartesianIndex
-            @. res[:, q_idx, min_ω:-1] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, max_ω+2:num_omegas]) * phase
-            @. res[:, q_idx, 0:max_ω] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, 1:max_ω+1]) * phase
+    for ω_idx in CartesianIndices(axes(res)[5])
+        wrap_ω_idx = mod(ω_idx.I[1], size(res, 5)) + 1
+        for q_idx in CartesianIndices(axes(res)[2:4])
+            q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
+            wrap_q_idx = modc(q_idx, spat_size) + oneunit(q_idx)
+            for (b_idx, b) in enumerate(lattice.basis_vecs)
+                phase = exp(-im * (b ⋅ q))
+                @. res[:, q_idx, ω_idx] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, wrap_ω_idx]) * phase
+            end
         end
     end
 
@@ -784,6 +795,10 @@ end
         interp_method = BSpline(Linear(Periodic())),
         interp_scale = 1, return_idcs=false)
 
+NOTE: This function is being deprecated. More advanced functionality
+will be available in a forthcoming update to Sunny. For now, restrict
+usage to `StructureFactor`s for which `reduce_basis=true`.
+
 Returns a slice through the structure factor `sf`. The slice is generated
 along a linear path successively connecting each point in `points`.
 `points` must be a vector containing at least two points. For example: 
@@ -803,11 +818,6 @@ from the structure factor without interpolation.
 The interpolation method is linear by default but may be set to
 any scheme provided by the Interpolations.jl package. Simply set
 the keyword `interp_method` to the desired method.
-
-The function currently only works on struture factors with dimensions
-`[Qa, Qb, Qc, ω]`. Such a structure factor results from setting both 
-`reduce_basis` and `dipole_factor` keywords to `true` when calling
-`dynamical_structure_factor`.
 """
 function sf_slice(sf::StructureFactor, points::Vector;
     interp_method = BSpline(Linear(Periodic())),
@@ -881,7 +891,20 @@ function sf_slice(sf::StructureFactor, points::Vector;
         end
     end
 
-    sfdata = parent(sf.sfactor)
+    # Duplicates the structure factor data along any dimensions that has size of 1. For example,
+    # will add one layer to a 2D system to make it into 3D system, with the added layer begin a
+    # simple copy of the original. This just assures that the interpolation algorithm doesn't fail,
+    # as it requires at least two points along each dimension. 
+    #
+    # This is obviously an ugly quick fix to avoid redoing the approach to indexing and interpolation.
+    # Not investing time in a better solution because the need for this entire function will be 
+    # eliminated in the refactor.
+    function expand_singleton_dims(sfdata)
+        outer = map(i -> i == 1 ? 2 : 1, size(sfdata))  # Find dimension to duplicate 
+        repeat(sfdata; outer)
+    end
+
+    sfdata = parent(sf.sfactor) |> expand_singleton_dims
     points = Vec3.(points) # Convert to uniform type
 
     # Consolidate data necessary for the interpolation
