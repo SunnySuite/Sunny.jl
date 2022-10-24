@@ -18,7 +18,10 @@ function validate_quadratic_interaction(int::QuadraticInteraction, crystal::Crys
         error("Interaction violates symmetry.")
     end
 
-    # Verify that no bond is long enough to wrap the entire system
+    # We previously checked whether any interactions wrapped the entire system.
+    # This check is now disabled because it can be useful to set the system size
+    # equal to the magnetic unit cell.
+    #=
     bs = all_symmetry_related_bonds(crystal, b)
     for b′ in bs
         coeffs = crystal.lat_vecs \ displacement(crystal, b′)
@@ -27,6 +30,7 @@ function validate_quadratic_interaction(int::QuadraticInteraction, crystal::Crys
             println("Warning: Interaction $int_str wraps the system along dimension(s) $wrapping.")
         end
     end
+    =#
 end
 
 function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Crystal, site_infos::Vector{SiteInfo})
