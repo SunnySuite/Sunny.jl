@@ -58,6 +58,7 @@ struct StructureFactor{A1, A2}
     lattice       :: Lattice
     reduce_basis  :: Bool                                    # Flag setting basis summation
     dipole_factor :: Bool                                    # Flag setting dipole form factor
+    g_factor      :: Bool
     bz_size       :: NTuple{3, Int}                          # Num of Brillouin zones along each axis
     dt            :: Float64                                 # Timestep size in dynamics integrator
     meas_period   :: Int                                     # Num timesteps between saved snapshots 
@@ -72,12 +73,11 @@ Base.summary(io::IO, sf::StructureFactor) = string("StructureFactor: ", summary(
 
 function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
                          dipole_factor=false, dt::Float64=0.01,
-                         num_omegas::Int=1, meas_period::Int=1,) where N
+                         num_omegas::Int=1, meas_period::Int=1, g_factor=true) where N
 
     nb = nbasis(sys.lattice)
     spat_size = size(sys)[1:3]
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
-    result_size = (3, q_size..., num_omegas)
     min_q_idx = -1 .* div.(q_size .- 1, 2)
     min_ω_idx = -1 .* div(num_omegas - 1, 2)
 
@@ -119,7 +119,7 @@ function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
     plan = plan_spintraj_fft!(spin_ft)
 
     StructureFactor{typeof(sfactor), typeof(bz_buf)}(
-        sfactor, spin_ft, ff_correction, bz_buf, sys.lattice, reduce_basis, dipole_factor,
+        sfactor, spin_ft, ff_correction, bz_buf, sys.lattice, reduce_basis, dipole_factor, g_factor,
         bz_size, dt, meas_period, num_omegas, integrator, plan, 0
     )
 end
@@ -171,11 +171,17 @@ Updates `M` in-place to hold the magnetization vectors obtained by scaling `s`
 This function assumes `M` has a first index of length 3, which correspond
  to the magnetization components. (Rather than storing an Array{Vec3}).
 """
-function _compute_mag!(M, sys::SpinSystem)
-    for b in 1:nbasis(sys)
-        gS = sys.site_infos[b].g 
-        for idx in eachcellindex(sys)
-            M[:, idx, b] .= gS * sys._dipoles[idx, b]
+function _compute_mag!(M, sys::SpinSystem, g_factor = true)
+    if g_factor
+        for b in 1:nbasis(sys)
+            gS = sys.site_infos[b].g 
+            for idx in eachcellindex(sys)
+                M[:, idx, b] .= gS * sys._dipoles[idx, b]
+            end
+        end
+    else
+        for b in 1:nbasis(sys), idx in eachcellindex(sys)
+            M[:, idx, b] .= sys._dipoles[idx, b]
         end
     end
 end
@@ -188,19 +194,20 @@ configuration currently in `sys`.
 """
 function update!(sf::StructureFactor, sys::SpinSystem)
     (; sfactor, _mag_ft, _bz_buf, _form_factor) = sf
-    (; reduce_basis, dipole_factor, bz_size) = sf
+    (; reduce_basis, dipole_factor, g_factor) = sf
 
     # Evolve the spin state forward in time to form a trajectory
     # Save off the magnetic moments 𝐦_i(t) = g_i S_i 𝐬_i(t) into _mag_ft
     dynsys = deepcopy(sys)
     sf.integrator.sys = dynsys
     T_dim = ndims(_mag_ft)      # Assuming T_dim is "time dimension", which is last
-    _compute_mag!(selectdim(_mag_ft, T_dim, 1), dynsys)
+
+    _compute_mag!(selectdim(_mag_ft, T_dim, 1), dynsys, g_factor)
     for nsnap in 2:sf.num_omegas
         for _ in 1:sf.meas_period
             evolve!(sf.integrator, sf.dt)
         end
-        _compute_mag!(selectdim(_mag_ft, T_dim, nsnap), dynsys)
+        _compute_mag!(selectdim(_mag_ft, T_dim, nsnap), dynsys, g_factor)
     end
 
     # Fourier transform the trajectory in space + time
@@ -210,6 +217,10 @@ function update!(sf::StructureFactor, sys::SpinSystem)
     if !isnothing(_form_factor)
         _mag_ft .*= _form_factor
     end
+
+    # Normalize FFT to obtain correct intensities
+    _, N1, N2, N3, B, T = size(_mag_ft)
+    _mag_ft /= √(N1*N2*N3) * T 
 
     # Optionally sum over basis sites then accumulate the conjugate outer product into sfactor
     # Accumulate the conjugate outer product into sfactor, with optionally:
@@ -317,7 +328,7 @@ function dynamic_structure_factor(
     sys::SpinSystem, sampler::S; nsamples::Int=10,
     thermalize::Int=10, bz_size=(1,1,1), reduce_basis::Bool=true,
     dipole_factor::Bool=false, dt::Float64=0.01, num_omegas::Int=100,
-    omega_max=nothing, verbose::Bool=false
+    omega_max=nothing, verbose::Bool=false, g_factor=true
 ) where {S <: AbstractSampler}
 
     if isnothing(omega_max)
@@ -328,7 +339,7 @@ function dynamic_structure_factor(
     end
 
     sf  = StructureFactor(sys;
-        dt, num_omegas, meas_period, bz_size, reduce_basis, dipole_factor
+        dt, num_omegas, meas_period, bz_size, reduce_basis, dipole_factor, g_factor 
     )
 
     if verbose
@@ -421,25 +432,16 @@ function fft_spin_traj!(res::Array{ComplexF64}, spin_traj::Array{Vec3};
         mul!(res, plan, spin_traj)
     end    
 
-    # Normalize FFT to obtain correct intensities
-    _, N1, N2, N3, _, T = size(spin_traj)
-    N = √(N1*N2*N3) * T 
-    res /= N
-
     return res
 end
 
 function fft_spin_traj!(spin_traj::Array{ComplexF64};
                         plan::Union{Nothing, FFTW.cFFTWPlan}=nothing)
-    # Find normalization factor for FFTs
-    _, N1, N2, N3, _, T = size(spin_traj)
-    N = √(N1*N2*N3) * T 
-
     if isnothing(plan)
         FFTW.fft!(spin_traj, (2,3,4,6))
         spin_traj /= N
     else
-        spin_traj = (plan * spin_traj) / N
+        spin_traj = (plan * spin_traj) ./ 1e11
     end
 end
 
@@ -885,7 +887,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
         v = v ./ (nsteps-1) 
         ps = [p1 + (k * v) for k in 0:nsteps-1]
 
-        # Periodically wrap coordinates that exceed that contained in the SF
+        # Periodically wrap coordinates that exceed those contained in the SF
         return map(ps) do p
             [wrap(p[i], bounds[i]) for i in 1:3]
         end
@@ -898,9 +900,9 @@ function sf_slice(sf::StructureFactor, points::Vector;
     #
     # This is obviously an ugly quick fix to avoid redoing the approach to indexing and interpolation.
     # Not investing time in a better solution because the need for this entire function will be 
-    # eliminated in the refactor.
+    # eliminated in the refactor. Note the user will never see this.
     function expand_singleton_dims(sfdata)
-        outer = map(i -> i == 1 ? 2 : 1, size(sfdata))  # Find dimension to duplicate 
+        outer = map(i -> i == 1 ? 2 : 1, size(sfdata))  # Find dimensions to duplicate 
         repeat(sfdata; outer)
     end
 
