@@ -76,9 +76,9 @@ function stevens_abstract_polynomials(; J, k::Int)
     Jm = Jx - im*Jy
 
     A = [
-        [(1/2)  *(Jp^m + Jm^m) for m=k:-1:1]
+        [(1/2)  *(Jp^m + Jm^m) for m=k:-1:1];
         [I];
-        [(1/2im)*(Jp^m - Jm^m) for m=1:k];
+        [(1/2im)*(Jp^m - Jm^m) for m=1:k]
     ]
 
     B = if k == 0
@@ -149,7 +149,11 @@ end
 
 # Construct Stevens operators as polynomials in the spin operators.
 function stevens_matrices(k::Int; N::Int)
-    return stevens_abstract_polynomials(; J=spin_matrices(N), k)
+    if k >= N
+        return fill(zeros(ComplexF64, N, N), 2k+1)
+    else
+        return stevens_abstract_polynomials(; J=spin_matrices(N), k)
+    end
 end
 
 
@@ -167,8 +171,8 @@ function stevens_classical(k::Int)
     end
 end
 
-# Construct explicit N-dimensional marix representation of operator
-function operator_to_matrix(p; N)
+# Construct explicit N-dimensional matrix representation of operator
+function operator_to_matrix(p::DP.AbstractPolynomialLike; N) 
     rep = p(
         𝒮 => spin_matrices(N),
         [stevens_operator_symbols[k] => stevens_matrices(k; N) for k=1:6]... 
@@ -178,6 +182,9 @@ function operator_to_matrix(p; N)
     end
     # Symmetrize in any case for more accuracy
     return (rep+rep')/2
+end
+function operator_to_matrix(p::Number; N)
+    return Matrix(p*I, N, N)
 end
 
 # Convert operator to polynomial in spin expectation values, where Stevens
@@ -236,15 +243,11 @@ const classical_monomial_to_classical_stevens_dict = let
     ret
 end
 
-# Effectively invert the map operator_to_classical_polynomial()
-function classical_polynomial_to_classical_stevens(p)
-    d = classical_monomial_to_classical_stevens_dict
-    sum(c*d[m] for (c, m) = zip(DP.coefficients(p), DP.monomials(p)))
-end
-
 # Convert spin polynomial to linear combination of Stevens operators
 function operator_to_classical_stevens(p)
-    p = classical_polynomial_to_classical_stevens(operator_to_classical_polynomial(p))
+    cp = operator_to_classical_polynomial(p)
+    d = classical_monomial_to_classical_stevens_dict
+    return sum(c*d[m] for (c, m) = zip(DP.coefficients(cp), DP.monomials(cp)))
 end
 
 
@@ -261,9 +264,9 @@ function operator_to_classical_stevens_coefficients(p, S)
 end
 
 
-function pretty_print_operator(p)
+function pretty_print_operator(p::DP.AbstractPolynomialLike)
     terms = map(zip(DP.coefficients(p), DP.monomials(p))) do (c, m)
-        coefficient_to_math_string(c) * repr(m)
+        isone(m) ? number_to_math_string(c) : coefficient_to_math_string(c) * repr(m)
     end
     # Concatenate with plus signs
     str = join(terms, " + ")
@@ -271,6 +274,10 @@ function pretty_print_operator(p)
     str = replace(str, "+ -" => "- ")
     println(str)
 end
+function pretty_print_operator(p::Number)
+    println(number_to_math_string(p))
+end
+
 
 """
     function print_anisotropy_as_classical_spins(p)
@@ -280,18 +287,45 @@ polynomial of spin expectation values in the classical limit.
 """
 function print_anisotropy_as_classical_spins(p)
     p = operator_to_classical_polynomial(p)
-    p(spin_classical_symbols => 𝒮) |> pretty_print_operator
+    p = p(spin_classical_symbols => 𝒮)
+    pretty_print_operator(p)
 end
 
 """
-    function print_anisotropy_as_stevens(p)
+    function print_anisotropy_as_stevens(p; N)
 
 Prints a quantum operator (e.g. a polynomial of the spin operators `𝒮`) as a
 linear combination of Stevens operators in the classical limit. The symbol `X`
 denotes the spin magnitude squared, |𝒮|^2.
 """
-function print_anisotropy_as_stevens(p)
-    p |> operator_to_classical_stevens |> pretty_print_operator
+function print_anisotropy_as_stevens(p; N)
+    if N == 0
+        p′ = operator_to_classical_stevens(p)
+    else
+        Λ = operator_to_matrix(p; N)
+
+        # Stevens operators are orthogonal but not normalized. Pull out
+        # coefficients c one-by-one and accumulate into p′. These must be real
+        # because both Λ and 𝒪 are Hermitian.
+
+        # k = 0 term, for which 𝒪₀₀ = I.
+        p′ = real(tr(Λ)/N)
+
+        # Stevens operators are zero when k >= N
+        for k = 1:min(6, N-1)
+            for (𝒪mat, 𝒪sym) = zip(stevens_matrices(k; N), stevens_operator_symbols[k])
+                c = real(tr(𝒪mat'*Λ) / tr(𝒪mat'*𝒪mat))
+                if abs(c) > 1e-12
+                    p′ += c*𝒪sym
+                end
+            end
+        end
+
+        # p′ should be faithful to p and its matrix representation Λ. This will
+        # fail if the spin polynomial order in p exceeds 6.
+        @assert operator_to_matrix(p′; N) ≈ Λ
+    end
+    pretty_print_operator(p′)
 end
 
 

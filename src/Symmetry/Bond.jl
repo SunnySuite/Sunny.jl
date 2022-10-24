@@ -29,7 +29,7 @@ function BondRaw(cryst::Crystal, b::Bond)
     return BondRaw(cryst.positions[b.i], cryst.positions[b.j]+b.n)
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", bond::Bond)
+function Base.show(io::IO, ::MIME"text/plain", bond::Bond)
     print(io, "Bond($(bond.i), $(bond.j), $(bond.n))")
 end
 

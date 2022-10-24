@@ -11,7 +11,7 @@ function number_to_simple_string(x::T; digits, atol=1e-12) where T <: Real
 end
 
 # Convert number to string using simple math formulas where possible.
-function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=99) where T <: Real
+function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=1000) where T <: Real
     sign = x < 0 ? "-" : ""
 
     # Try to return an exact integer
@@ -39,7 +39,7 @@ function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=99) where T
     number_to_simple_string(x; digits, atol)
 end
 
-# Convert vector to string using simple math formulas where possible.
+# Convert atom position to string using, by default, at most 4 digits
 function atom_pos_to_string(v; digits=4, atol=1e-12)
     v = [number_to_simple_string(x; digits, atol) for x in v]
     return "["*join(v, ", ")*"]"
@@ -251,7 +251,7 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6])
     # How many digits to use in printing coefficients
     digits = 14
 
-    # TODO: Rotate into basis R?
+    # In the future, should we also rotate the g-tensor to the basis of R?
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
     basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
     _print_allowed_coupling(basis_strs; prefix="Allowed g-tensor: ")
