@@ -13,9 +13,11 @@ A package for simulating classical spin systems, including the Landau-Lifshitz d
 
 Sunny additionally provides Monte Carlo algorithms for sampling from thermal equilibrium, as well as tools for measuring dynamical structure factors that can be compared with experimental neutron scattering data. Sunny provides symmetry analyses to facilitate the design and specification of model Hamiltonians, and interactive tools to visualize 3D crystal structures and (coming soon) structure factor data.
 
+Sunny is currently under heavy development. Expect frequent [**breaking changes**](NEWS.md).
+
 ## Example notebooks
 
-To get a feeling for what Sunny can do, we recommend browsing this [Jupyter notebook example](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials/FeI2/FeI2_tutorial.ipynb), which illustrates how to measure the dynamical structure factor for FeI2. Additional notebook tutorials are [browsable here](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials).
+To get a feeling for what Sunny can do, we recommend browsing [Jupyter notebook tutorials](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials). In particular, the [FeI2 tutorial](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials/FeI2/FeI2_tutorial.ipynb) illustrates how to measure to use SU(3) spin dynamics to measure a dynamical structure factor.
 
 ## Technical description of SU(_N_) spin dynamics.
 
@@ -49,7 +51,10 @@ A good way to interact with Sunny is through the Jupyter notebook interface. Thi
 
 ## Contact us
 
-Sunny is [developed collaboratively](https://github.com/SunnySuite/Sunny.jl/wiki/Contributors) across many institutions, with leadership from Los Alamos National Lab, U. Tennessee, and Georgia Tech. If you discover bugs, or find Sunny useful, please contact kbarros@lanl.gov and ddahlbom@utk.edu.
+Please join our [Slack User Community](https://join.slack.com/t/sunny-users/shared_invite/zt-1igulj7gz-_hNqCnOXbAjhH6oG64~PFA)!
+
+Alterantively, contact the [developers](https://github.com/SunnySuite/Sunny.jl/wiki/Contributors) directly.
+    
 
 <div>
     <a href="https://www.lanl.gov">
