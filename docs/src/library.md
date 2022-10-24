@@ -39,6 +39,7 @@ coordination_number
 print_site
 print_bond
 print_symmetry_table
+print_anisotropy_as_stevens
 reference_bonds
 all_symmetry_related_bonds
 all_symmetry_related_bonds_for_atom

@@ -49,10 +49,8 @@ function axis_angle(R::Mat3)
         n = q[1:3] / sqrt(1 - q[4]^2)
     end
 
-    # Negate the axis to invert the rotation. This effectively achieves a
-    # transpose in R, which allows us to interpret R as right-multiplication on
-    # column vectors (the note by Mike Day viewed R as left-multiplication on
-    # row vectors).
+    # Negate the axis to invert the rotation, i.e., transpose R. This is
+    # necessary to view R as right-multiplying a column vector.
     n = -n
 
     return (n, θ)
