@@ -219,7 +219,8 @@ function update!(sf::StructureFactor, sys::SpinSystem)
     end
 
     # Normalize FFT to obtain correct intensities
-    _, N1, N2, N3, B, T = size(_mag_ft)
+    # for comparison with spin wave calcs
+    _, N1, N2, N3, _, T = size(_mag_ft)
     _mag_ft /= √(N1*N2*N3) * T 
 
     # Optionally sum over basis sites then accumulate the conjugate outer product into sfactor
@@ -514,10 +515,6 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
 
     recip = gen_reciprocal(lattice)
 
-    num_omegas = size(spin_traj_ft)[end]
-    min_ω = -1 .* div(num_omegas - 1, 2)
-    max_ω = min_ω + num_omegas - 1
-
     fill!(res, 0.0)
     for ω_idx in CartesianIndices(axes(res)[5])
         wrap_ω_idx = mod(ω_idx.I[1], size(res, 5)) + 1
@@ -599,15 +596,17 @@ that res is of shape [3, Q1, Q2, Q3, B, T], with all Qi >= Li.
 """
 function expand_bz!(res::OffsetArray{ComplexF64}, S::Array{ComplexF64})
     spat_size = size(S)[2:4]
-    num_omegas  = size(S, ndims(S))
-    min_ω = -1 .* div(num_omegas - 1, 2)
-    max_ω = min_ω + num_omegas - 1
+    num_ωs  = size(S, ndims(S))
+    min_ω = -1 .* div(num_ωs - 1, 2)
+    max_ω = min_ω + num_ωs - 1
 
     for ω in min_ω:max_ω 
+    # for ω_idx in CartesianIndices(axes(res)[5])
+        # wrap_ω_idx = mod(ω_idx.I[1], num_ωs) + 1
+        wrap_ω_idx = ω < 0 ? ω + num_ωs + 1 : ω + 1
         for q_idx in CartesianIndices(axes(res)[2:4])
             wrap_q_idx = modc(q_idx, spat_size) + CartesianIndex(1, 1, 1)
-            ω_no_offset = ω < 0 ? ω + num_omegas : ω + 1
-            res[:, q_idx, :, ω] = S[:, wrap_q_idx, :, ω_no_offset]
+            res[:, q_idx, :, ω] = S[:, wrap_q_idx, :, wrap_ω_idx]
         end
     end
 end
