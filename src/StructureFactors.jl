@@ -52,20 +52,20 @@ array to size `[Q1, Q2, Q3, T]`.
 """
 struct StructureFactor{A1, A2}
     sfactor       :: A1
-    _mag_ft       :: Array{ComplexF64, 6}                    # Buffer for FT of a mag trajectory
-    _form_factor  :: Union{Nothing, Array{Float64, 6}}       # Precomputed form-factor correction
-    _bz_buf       :: A2                                      # Buffer for phase summation / BZ repeating
+    _mag_ft       :: Array{ComplexF64, 6}               # Buffer for FT of a mag trajectory
+    _form_factor  :: Union{Nothing, Array{Float64, 6}}  # Precomputed form-factor correction
+    _bz_buf       :: A2                                 # Buffer for phase summation / BZ repeating
     lattice       :: Lattice
-    reduce_basis  :: Bool                                    # Flag setting basis summation
-    dipole_factor :: Bool                                    # Flag setting dipole form factor
+    reduce_basis  :: Bool                               # Flag setting basis summation
+    dipole_factor :: Bool                               # Flag setting dipole form factor
     g_factor      :: Bool
-    bz_size       :: NTuple{3, Int}                          # Num of Brillouin zones along each axis
-    dt            :: Float64                                 # Timestep size in dynamics integrator
-    meas_period   :: Int                                     # Num timesteps between saved snapshots 
-    num_omegas    :: Int                                     # Total number of snapshots to FT
+    bz_size       :: NTuple{3, Int}                     # Num of Brillouin zones along each axis
+    dt            :: Float64                            # Timestep size in dynamics integrator
+    meas_period   :: Int                                # Num timesteps between saved snapshots 
+    num_omegas    :: Int                                # Total number of snapshots to FT
     integrator    :: Union{SphericalMidpoint, SchrodingerMidpoint}
     plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, NTuple{4, Int64}}
-    num_samples   :: Int64
+    num_accumed   :: Vector{Int}                        # Number of accumulated samples (vector so mutable)
 end
 
 Base.show(io::IO, sf::StructureFactor) = print(io, join(size(sf.sfactor), "x"),  " StructureFactor")
@@ -120,7 +120,7 @@ function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
 
     StructureFactor{typeof(sfactor), typeof(bz_buf)}(
         sfactor, spin_ft, ff_correction, bz_buf, sys.lattice, reduce_basis, dipole_factor, g_factor,
-        bz_size, dt, meas_period, num_omegas, integrator, plan, 0
+        bz_size, dt, meas_period, num_omegas, integrator, plan, [0]
     )
 end
 
@@ -223,6 +223,9 @@ function update!(sf::StructureFactor, sys::SpinSystem)
     _, N1, N2, N3, _, T = size(_mag_ft)
     _mag_ft /= √(N1*N2*N3) * T 
 
+    # Advance sample count
+    nsamples = sf.num_accumed[1] += 1
+
     # Optionally sum over basis sites then accumulate the conjugate outer product into sfactor
     # Accumulate the conjugate outer product into sfactor, with optionally:
     #   1) Doing a phase-weighting sum to reduce the basis atom dimensions
@@ -230,16 +233,16 @@ function update!(sf::StructureFactor, sys::SpinSystem)
     if reduce_basis
         phase_weight_basis!(_bz_buf, _mag_ft, sys.lattice)
         if dipole_factor
-            accum_dipole_factor!(sfactor, _bz_buf, sys.lattice)
+            accum_dipole_factor!(sfactor, _bz_buf, sys.lattice, nsamples)
         else
-            outerprod_conj!(sfactor, _bz_buf, 1)
+            accum_outerprod_conj!(sfactor, _bz_buf, 1, nsamples)
         end
     else
         expand_bz!(_bz_buf, _mag_ft)
         if dipole_factor
-            accum_dipole_factor_wbasis!(sfactor, _bz_buf, sys.lattice)
+            accum_dipole_factor_wbasis!(sfactor, _bz_buf, sys.lattice, nsamples)
         else
-            outerprod_conj!(sfactor, _bz_buf, (1, 5)) 
+            accum_outerprod_conj!(sfactor, _bz_buf, (1, 5), nsamples) 
         end
     end
 end
@@ -575,16 +578,16 @@ function outerprod_conj(S, dims=1)
 end
 
 """
-    outerprod_conj!(res, S, [dims=1])
+    accum_outerprod_conj!(res, S, [dims=1])
 
 Like `outerprod_conj`, but accumulates the result in-place into `res`.
 """
-function outerprod_conj!(res, S, dims=1)
+function accum_outerprod_conj!(res, S, dims, nsamples)
     sizeα = _outersizeα(axes(S), dims)
     sizeβ = _outersizeβ(axes(S), dims)
     Sα = reshape(S, sizeα)
     Sβ = reshape(S, sizeβ)
-    @. res += Sα * conj(Sβ)
+    @. res = res + (Sα * conj(Sβ) - res) / nsamples
 end
 
 """
@@ -621,17 +624,19 @@ end
 Given complex `S` of size [3, Q1, ..., QD, T] and `res` of size [Q1, ..., QD, T],
 accumulates the structure factor from `S` with the dipole factor applied into `res`.
 """
-function accum_dipole_factor!(res, S, lattice::Lattice)
+function accum_dipole_factor!(res, S, lattice::Lattice, nsamples::Int)
     recip = gen_reciprocal(lattice)
     for q_idx in CartesianIndices(axes(res)[1:3])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
         dip_factor = I(3) - q * q'
 
+        # OPTIMIZE THIS LOOP ONCE TESTED
         for α in 1:3
             for β in 1:3
                 dip_elem = dip_factor[α, β]
-                @. res[q_idx, :] += dip_elem * real(S[α, q_idx, :] * conj(S[β, q_idx, :]))
+                previous = @view(res[q_idx,:])
+                @. res[q_idx, :] = previous + (dip_elem * real(S[α, q_idx, :] * conj(S[β, q_idx, :])) - previous) / nsamples
             end
         end
     end
@@ -643,12 +648,13 @@ end
 Given complex `S` of size [3, Q1, ..., QD, B, T] and real `res` of size [Q1, ..., QD, B, B, T],
 accumulates the structure factor from `S` with the dipole factor applied into `res`.
 """
-function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
+function accum_dipole_factor_wbasis!(res, S, lattice::Lattice, nsamples::Int)
     recip = gen_reciprocal(lattice)
     nb = nbasis(lattice)
     Sα = reshape(S, _outersizeα(axes(S), 5))  # Size [3,..., 1, B, T] 
     Sβ = reshape(S, _outersizeβ(axes(S), 5))  # Size [3,..., B, 1, T] 
 
+    # OPTIMIZE THIS LOOP ONCE TESTED
     for q_idx in CartesianIndices(axes(res)[1:3])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
@@ -657,7 +663,8 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
         for α in 1:3
             for β in 1:3
                 dip_elem = dip_factor[α, β]
-                @. res[q_idx, :, :, :] += dip_elem * real(Sα[α, q_idx, :, :, :] * Sβ[β, q_idx, :, :, :])
+                previous = @view(res[q_idx,:,:,:])
+                @. res[q_idx, :, :, :] = previous + (dip_elem * real(Sα[α, q_idx, :, :, :] * Sβ[β, q_idx, :, :, :]) - previous) / nsamples
             end
         end
     end
