@@ -604,8 +604,6 @@ function expand_bz!(res::OffsetArray{ComplexF64}, S::Array{ComplexF64})
     max_ω = min_ω + num_ωs - 1
 
     for ω in min_ω:max_ω 
-    # for ω_idx in CartesianIndices(axes(res)[5])
-        # wrap_ω_idx = mod(ω_idx.I[1], num_ωs) + 1
         wrap_ω_idx = ω < 0 ? ω + num_ωs + 1 : ω + 1
         for q_idx in CartesianIndices(axes(res)[2:4])
             wrap_q_idx = modc(q_idx, spat_size) + CartesianIndex(1, 1, 1)
@@ -631,12 +629,11 @@ function accum_dipole_factor!(res, S, lattice::Lattice, nsamples::Int)
         q = q / (norm(q) + 1e-12)
         dip_factor = I(3) - q * q'
 
-        # OPTIMIZE THIS LOOP ONCE TESTED
-        for α in 1:3
-            for β in 1:3
+        for ω in axes(S)[end]
+            for α in 1:3, β in 1:3
                 dip_elem = dip_factor[α, β]
-                previous = @view(res[q_idx,:])
-                @. res[q_idx, :] = previous + (dip_elem * real(S[α, q_idx, :] * conj(S[β, q_idx, :])) - previous) / nsamples
+                prev = res[q_idx,ω]
+                res[q_idx, ω] = prev + (dip_elem * real(S[α, q_idx, ω] * conj(S[β, q_idx, ω])) - prev) / nsamples
             end
         end
     end
@@ -654,18 +651,16 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice, nsamples::Int)
     Sα = reshape(S, _outersizeα(axes(S), 5))  # Size [3,..., 1, B, T] 
     Sβ = reshape(S, _outersizeβ(axes(S), 5))  # Size [3,..., B, 1, T] 
 
-    # OPTIMIZE THIS LOOP ONCE TESTED
     for q_idx in CartesianIndices(axes(res)[1:3])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
         dip_factor = I(3) - q * q'
 
-        for α in 1:3
-            for β in 1:3
-                dip_elem = dip_factor[α, β]
-                previous = @view(res[q_idx, :, :, :])
-                @. res[q_idx, :, :, :] = previous + (dip_elem * real(Sα[α, q_idx, :, :, :] * Sβ[β, q_idx, :, :, :]) - previous) / nsamples
-            end
+        for α in 1:3, β in 1:3
+            dip_elem = dip_factor[α, β]
+            previous = @view(res[q_idx, :, :, :])
+            @. res[q_idx, :, :, :] = previous + 
+                (dip_elem * real(Sα[α, q_idx, :, :, :] * conj(Sβ[β, q_idx, :, :, :])) - previous) / nsamples
         end
     end
 end
