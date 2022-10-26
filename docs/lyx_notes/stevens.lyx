@@ -1,0 +1,529 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Standard
+\begin_inset FormulaMacro
+\newcommand{\hc}{\textrm{h.c.}}
+\end_inset
+
+Stevens operators are denoted 
+\begin_inset Formula $\mathcal{O}_{k,q}$
+\end_inset
+
+ for 
+\begin_inset Formula $k=0,1,\dots$
+\end_inset
+
+ and 
+\begin_inset Formula $q=-k,\dots k$
+\end_inset
+
+.
+ An alternative terminology is to denote these as 
+\begin_inset Quotes eld
+\end_inset
+
+sine/cosine
+\begin_inset Quotes erd
+\end_inset
+
+ operators, which correspond to negative/nonnegative 
+\begin_inset Formula $q$
+\end_inset
+
+ values,
+\begin_inset Formula 
+\[
+\mathcal{O}_{k,q}\equiv\begin{cases}
+\mathcal{O}_{k,|q|}^{s} & (-k\leq q<0)\\
+\mathcal{O}_{k,|q|}^{c} & (0\leq q\leq k)
+\end{cases}.
+\]
+
+\end_inset
+
+The Stevens operators are perhaps best understood as a symmetrization of
+ the spherical tensor operators.
+ By the Wigner-Eckhart theorem, spherical tensors must have matrix elements
+ proportional to the Clebsch Gordon coefficients
+\begin_inset Formula 
+\[
+\left(T_{q}^{k}\right)_{m,m'}\propto\langle jm'kq|jm\rangle,
+\]
+
+\end_inset
+
+involving angular momentum states 
+\begin_inset Formula $|jm\rangle$
+\end_inset
+
+ in the spin-
+\begin_inset Formula $j$
+\end_inset
+
+ representation of SU(2).
+ Equivalently, in terms of the Wigner 3-
+\begin_inset Formula $j$
+\end_inset
+
+ symbol,
+\begin_inset Formula 
+\[
+\left(T_{q}^{k}\right)_{m,m'}\propto(-1)^{-m}\left(\begin{array}{ccc}
+j & k & j\\
+-m & q & m'
+\end{array}\right).
+\]
+
+\end_inset
+
+The proportionality constant depends only on 
+\begin_inset Formula $j$
+\end_inset
+
+ and 
+\begin_inset Formula $k$
+\end_inset
+
+.
+ The indices 
+\begin_inset Formula $m$
+\end_inset
+
+ and 
+\begin_inset Formula $m'$
+\end_inset
+
+ run over 
+\begin_inset Formula $N=2j+1$
+\end_inset
+
+ possible values, {
+\begin_inset Formula $-j,\dots j$
+\end_inset
+
+}.
+ The integer 
+\begin_inset Formula $j$
+\end_inset
+
+ is arbitrary, subject to 
+\begin_inset Formula $k\leq2j$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+In the Koster and Statz (1959) and Buckmaster et al (1972) convention (KS/BCS),
+ one defines
+\begin_inset Formula 
+\[
+\left(T_{q}^{k}\right)_{m,m'}=c_{k,j}(-1)^{j-m}\left(\begin{array}{ccc}
+j & k & j\\
+-m & q & m'
+\end{array}\right),
+\]
+
+\end_inset
+
+where
+\begin_inset Formula 
+\[
+c_{k,j}=k!\left\{ \frac{(2j+k+1)!}{(2k)!(2j-k)!}\right\} ^{1/2}.
+\]
+
+\end_inset
+
+The Stevens operators are then defined as
+\begin_inset Formula 
+\begin{align*}
+\mathcal{O}_{k,q}^{s} & =ia_{k,q}\left[T_{-q}-(-1)^{q}T_{q}\right],\\
+\mathcal{O}_{k,q}^{c} & =a_{k,q}\left[T_{-q}+(-1)^{q}T_{q}\right]
+\end{align*}
+
+\end_inset
+
+The coefficients 
+\begin_inset Formula $a_{k,q}$
+\end_inset
+
+ for 
+\begin_inset Formula $k\leq6$
+\end_inset
+
+ are given in Table 1 of C.
+ Rudowicz, J.
+ Phys.
+ C: Solid State Phys.
+ 18, 1415 (1985),
+\begin_inset Formula 
+\[
+a_{k,q}=\left[\begin{array}{ccccccc}
+1 & \frac{1}{\sqrt{2}}\\
+\sqrt{6} & \frac{1}{2} & 1\\
+\sqrt{10} & \sqrt{\frac{10}{3}} & \frac{1}{\sqrt{3}} & \sqrt{2}\\
+2\sqrt{70} & \sqrt{\frac{7}{2}} & \sqrt{7} & \frac{1}{\sqrt{2}} & 2\\
+6\sqrt{14} & 2\sqrt{\frac{21}{5}} & \sqrt{\frac{3}{5}} & 6\sqrt{\frac{2}{5}} & \frac{2}{\sqrt{5}} & 2\sqrt{2}\\
+4\sqrt{231} & \sqrt{22} & 4\sqrt{\frac{11}{5}} & 2\sqrt{\frac{11}{5}} & 4\sqrt{\frac{11}{6}} & \frac{2}{\sqrt{3}} & 4
+\end{array}\right].
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Alternatively, the same Stevens operators can be expressed as polynomials
+ of the spin-
+\begin_inset Formula $j$
+\end_inset
+
+ operators 
+\begin_inset Formula $J_{x},J_{y},J_{z}$
+\end_inset
+
+.
+ The operators 
+\begin_inset Formula $J_{\alpha}$
+\end_inset
+
+ are generators of SU(2), defined to satisfy the commutation relations 
+\begin_inset Formula $[J_{\alpha},J_{\beta}]=i\epsilon_{\alpha\beta\gamma}J_{\gamma}$
+\end_inset
+
+.
+ Here we are working with an irrep of dimension 
+\begin_inset Formula $N=2j+1$
+\end_inset
+
+.
+ For models with time-reversal symmetry, only even-power Stevens operators
+ can enter the Hamiltonian.
+ 
+\end_layout
+
+\begin_layout Standard
+Below are the Stevens operators for 
+\begin_inset Formula $k\in\{2,4,6\}$
+\end_inset
+
+ using 
+\begin_inset Formula 
+\[
+X=J_{x}^{2}+J_{y}^{2}+J_{z}^{2}=j(j+1),
+\]
+
+\end_inset
+
+and 
+\begin_inset Formula $J_{\pm}=J_{x}\pm iJ_{y}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Comment
+status open
+
+\begin_layout Plain Layout
+\begin_inset Formula $k=0$
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{align*}
+\mathcal{O}_{00} & =1
+\end{align*}
+
+\end_inset
+
+
+\begin_inset Formula $k=1$
+\end_inset
+
+,
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula 
+\begin{align*}
+\mathcal{O}_{1,-1} & =-\frac{i}{4}[J_{+}-J_{-}]+\hc=J_{y}\\
+\mathcal{O}_{1,0} & =J_{z}\\
+\mathcal{O}_{1,1} & =\frac{i}{4}[J_{+}+J_{-}]+\hc=J_{x}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset Formula $k=2$
+\end_inset
+
+:
+\begin_inset Formula 
+\begin{align*}
+\mathcal{O}_{2,-2} & =\frac{1}{4i}(J_{+}^{2}-J_{-}^{2})+\hc\\
+\mathcal{O}_{2,-1} & =\frac{1}{4i}(J_{+}-J_{-})J_{z}+\hc\\
+\mathcal{O}_{2,0} & =3J_{z}^{2}-X\\
+\mathcal{O}_{2,1} & =\frac{1}{4}(J_{+}+J_{-})J_{z}+\hc\\
+\mathcal{O}_{2,2} & =\frac{1}{4}(J_{+}^{2}+J_{-}^{2})+\hc
+\end{align*}
+
+\end_inset
+
+
+\begin_inset Formula $k=4$
+\end_inset
+
+:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\mathcal{O}_{4,-4} & =\frac{1}{4i}(J_{+}^{4}-J_{-}^{4})+\hc\\
+\mathcal{O}_{4,-3} & =\frac{1}{4i}(J_{+}^{3}-J_{-}^{3})J_{z}+\hc\\
+\mathcal{O}_{4,-2} & =\frac{1}{4i}(J_{+}^{2}-J_{-}^{2})(7J_{z}^{2}-(X+5))+\hc\\
+\mathcal{O}_{4,-1} & =\frac{1}{4i}(J_{+}-J_{-})(7J_{z}^{3}-(3X+1)J_{z})+\hc\\
+\mathcal{O}_{4,0} & =35J_{z}^{4}-(30X-25)J_{z}^{2}+(3X^{2}-6X)\\
+\mathcal{O}_{4,1} & =\frac{1}{4}(J_{+}+J_{-})(7J_{z}^{3}-(3X+1)J_{z})+\hc\\
+\mathcal{O}_{4,2} & =\frac{1}{4}(J_{+}^{2}+J_{-}^{2})(7J_{z}^{2}-(X+5))+\hc\\
+\mathcal{O}_{4,3} & =\frac{1}{4}(J_{+}^{3}+J_{-}^{3})J_{z}+\hc\\
+\mathcal{O}_{4,4} & =\frac{1}{4}(J_{+}^{4}+J_{-}^{4})+\hc
+\end{align*}
+
+\end_inset
+
+
+\begin_inset Formula $k=6$
+\end_inset
+
+:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\mathcal{O}_{6,-6} & =\frac{1}{4i}(J_{+}^{6}-J_{-}^{6})+\hc\\
+\mathcal{O}_{6,-5} & =\frac{1}{4i}(J_{+}^{5}-J_{-}^{5})J_{z}+\hc\\
+\mathcal{O}_{6,-4} & =\frac{1}{4i}(J_{+}^{4}-J_{-}^{4})(11J_{z}^{2}-X-38)+\hc\\
+\mathcal{O}_{6,-3} & =\frac{1}{4i}(J_{+}^{3}-J_{-}^{3})(11J_{z}^{3}-(3X+59)J_{z})+\hc\\
+\mathcal{O}_{6,-2} & =\frac{1}{4i}(J_{+}^{2}-J_{-}^{2})(33J_{z}^{4}-(18X+123)J_{z}^{2}+X^{2}+10X+102)+\hc\\
+\mathcal{O}_{6,-1} & =\frac{1}{4i}(J_{+}-J_{-})(33J_{z}^{5}-(30X-15)J_{z}^{3}+(5X^{2}-10X+12)J_{z})+\hc\\
+\mathcal{O}_{6,0} & =231J_{z}^{6}-(315X-735)J_{z}^{4}+(105X^{2}-525X+294)J_{z}^{2}-5X^{3}+40X^{2}-60X\\
+\mathcal{O}_{6,1} & =\frac{1}{4}(J_{+}+J_{-})(33J_{z}^{5}-(30X-15)J_{z}^{3}+(5X^{2}-10X+12)J_{z})+\hc\\
+\mathcal{O}_{6,2} & =\frac{1}{4}(J_{+}^{2}+J_{-}^{2})(33J_{z}^{4}-(18X+123)J_{z}^{2}+X^{2}+10X+102)+\hc\\
+\mathcal{O}_{6,3} & =\frac{1}{4}(J_{+}^{3}+J_{-}^{3})(11J_{z}^{3}-(3X+59)J_{z})+\hc\\
+\mathcal{O}_{6,4} & =\frac{1}{4}(J_{+}^{4}+J_{-}^{4})(11J_{z}^{2}-X-38)+\hc\\
+\mathcal{O}_{6,5} & =\frac{1}{4}(J_{+}^{5}+J_{-}^{5})J_{z}+\hc\\
+\mathcal{O}_{6,6} & =\frac{1}{4}(J_{+}^{6}+J_{-}^{6})+\hc
+\end{align*}
+
+\end_inset
+
+Similar listings for odd 
+\begin_inset Formula $k$
+\end_inset
+
+ can be found in the Sunny source code.
+ These polynomials were obtained from the documentation of the McPhase package
+ [
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://github.com/mducle/mcphase
+\end_layout
+
+\end_inset
+
+].
+ Computer-generated tables of Stevens operators with larger 
+\begin_inset Formula $k$
+\end_inset
+
+ are available from C.
+ Rudowicz and C.
+ Y.
+ Chung, J.
+ Phys.: Condens.
+ Matter 
+\series bold
+16
+\series default
+, 5825 (2004).
+\end_layout
+
+\begin_layout Standard
+One can take the classical limit by formally sending 
+\begin_inset Formula $j\rightarrow\infty$
+\end_inset
+
+ such that the spin operators effectively commute, 
+\begin_inset Formula $[J_{\alpha},J_{\beta}]=0$
+\end_inset
+
+.
+ Then each spin operator may be replaced with its expectation value,
+\begin_inset Formula 
+\[
+J_{\alpha}\rightarrow\langle J_{\alpha}\rangle=s_{\alpha}.
+\]
+
+\end_inset
+
+Correspondly, one should replace 
+\begin_inset Formula 
+\[
+X\rightarrow s_{x}^{2}+s_{y}^{2}+s_{z}^{2}.
+\]
+
+\end_inset
+
+The large 
+\begin_inset Formula $s$
+\end_inset
+
+ limit implies that each Stevens operator 
+\begin_inset Formula $\mathcal{O}_{k,m}$
+\end_inset
+
+ becomes a homogeneous polynomial of order 
+\begin_inset Formula $k$
+\end_inset
+
+; all terms not at leading order should be ignored.
+\end_layout
+
+\begin_layout Standard
+To evaluate gradients, note that
+\begin_inset Formula 
+\begin{align*}
+\frac{d}{dx} & =\frac{d}{ds_{+}}+\frac{d}{ds_{-}}\\
+-i\frac{d}{dy} & =\frac{d}{ds_{+}}-\frac{d}{ds_{-}},
+\end{align*}
+
+\end_inset
+
+where the derivatives on the right are Wirtinger derivatives, and 
+\begin_inset Formula $s_{\pm}=x\pm iy=(s_{\mp})^{\ast}$
+\end_inset
+
+.
+ For a real function 
+\begin_inset Formula $f(s_{+},s_{-})$
+\end_inset
+
+, we have
+\begin_inset Formula 
+\[
+\frac{df}{ds_{-}}=\left(\frac{df}{ds_{+}}\right)^{\ast},
+\]
+
+\end_inset
+
+so that
+\begin_inset Formula 
+\begin{align*}
+\frac{df}{dx} & =\frac{df}{ds_{+}}+\left(\frac{df}{ds_{-}}\right)^{\ast}=2\mathrm{Re}\frac{df}{ds_{+}}\\
+\frac{df}{dy} & =-\frac{1}{i}\left(\frac{df}{ds_{+}}-\left(\frac{df}{ds_{+}}\right)^{\ast}\right)=-2\mathrm{Im}\frac{df}{ds_{+}}.
+\end{align*}
+
+\end_inset
+
+In our applications, we will take
+\begin_inset Formula 
+\begin{align*}
+f_{1} & =\frac{s_{+}^{n}+s_{-}^{n}}{2}=\mathrm{Re}s_{+}^{n}\implies\frac{df_{1}}{ds_{+}}=\frac{n}{2}s_{+}^{n-1}\\
+f_{2} & =\frac{s_{+}^{n}-s_{-}^{n}}{2i}=\mathrm{Im}s_{+}^{n}\implies\frac{df_{2}}{ds_{+}}=\frac{n}{2i}s_{+}^{n-1}.
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
