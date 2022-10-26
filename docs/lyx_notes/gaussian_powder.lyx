@@ -1,0 +1,377 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Gaussian smoothing for powder averaging
+\end_layout
+
+\begin_layout Standard
+Consider structure factor data that is given as a discrete sum over Dirac-deltas
+,
+\begin_inset Formula 
+\begin{equation}
+S(\mathbf{k})=\sum_{i}S_{i}\delta(\mathbf{k}-\mathbf{q}_{i}).
+\end{equation}
+
+\end_inset
+
+Let 
+\begin_inset Formula $W(\mathbf{q})$
+\end_inset
+
+ denote some arbitrary smoothing kernel.
+ The smoothed structure factor data is
+\begin_inset Formula 
+\begin{equation}
+\tilde{S}(\mathbf{k})=(W\ast S)(\mathbf{k})=\sum_{i}S_{i}W(\mathbf{q}_{i}-\mathbf{k}).
+\end{equation}
+
+\end_inset
+
+To derive the above, note that
+\begin_inset Formula 
+\begin{equation}
+(W\ast\delta)(\mathbf{k})=\int d\mathbf{k}'W(\mathbf{k}'-\mathbf{k})\delta(\mathbf{k}')=W(-\mathbf{k}).
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We will do powder averaging on the smoothed structure factor.
+ That is, we wish to calculate
+\begin_inset Formula 
+\[
+P(k)=E_{k}[\tilde{S}],
+\]
+
+\end_inset
+
+where
+\begin_inset Formula 
+\[
+E_{k}[f]=\frac{1}{4\pi k^{2}}\int\mathrm{d}^{3}\mathbf{k}'\,\delta(|\mathbf{k}'|-k)f(\mathbf{k}')
+\]
+
+\end_inset
+
+denotes an average on the surface of the sphere.
+\end_layout
+
+\begin_layout Standard
+Substituting the expansion 
+\begin_inset Formula 
+\begin{align*}
+P(k) & =\sum_{i}S_{i}E_{k}[W_{i}],
+\end{align*}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\[
+W_{i}(\mathbf{k})=W(\mathbf{q}_{i}-\mathbf{k}')
+\]
+
+\end_inset
+
+denotes the 
+\emph on
+shifted
+\emph default
+ kernel function.
+ 
+\end_layout
+
+\begin_layout Standard
+It remains to calculate
+\begin_inset Formula 
+\[
+E_{k}[W_{i}]=\frac{1}{4\pi k^{2}}\int\mathrm{d}^{3}\mathbf{k}'\,\delta(|\mathbf{k}'|-k)W_{i}(\mathbf{k}').
+\]
+
+\end_inset
+
+Now we make some simplifying assumptions.
+ Assume that the kernel 
+\begin_inset Formula $W$
+\end_inset
+
+ is spherically symmetric.
+ By symmetry, we may place 
+\begin_inset Formula $\mathbf{q}_{i}$
+\end_inset
+
+ on the 
+\begin_inset Formula $z$
+\end_inset
+
+-axis, since we are averaging over all 
+\begin_inset Formula $\mathbf{k}'$
+\end_inset
+
+.
+ Further assume the kernel is Gaussian,
+\begin_inset Formula 
+\[
+W_{i}(\mathbf{k})=\frac{1}{c}e^{-|\mathbf{q}_{i}-\mathbf{k}'|^{2}/2\sigma^{2}},
+\]
+
+\end_inset
+
+with normalization 
+\begin_inset Formula 
+\[
+c=\sigma^{3}(2\pi)^{3/2},
+\]
+
+\end_inset
+
+such that 
+\begin_inset Formula $\int W_{i}(\mathbf{k}')d\mathbf{k}'=1$
+\end_inset
+
+.
+ In polar coordinates the surface integral becomes
+\begin_inset Formula 
+\begin{align*}
+\int\mathrm{d}^{3}\mathbf{k}'\,\delta(|\mathbf{k}'|-k) & =k^{2}\int_{0}^{\pi}d\theta\,\sin\theta\int_{0}^{2\pi}d\phi\\
+ & =k^{2}\int_{-1}^{1}d\cos\theta\,\int_{0}^{2\pi}d\phi.
+\end{align*}
+
+\end_inset
+
+Work in components such that 
+\begin_inset Formula $\mathbf{q}_{i}=[0,0,q_{i}]$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{k}'=[x,y,z]$
+\end_inset
+
+, where
+\begin_inset Formula 
+\[
+x=k\sin\theta\cos\phi,\quad k\sin\theta\sin\phi,\quad z=k\cos\theta,
+\]
+
+\end_inset
+
+Using the substitutions,
+\begin_inset Formula 
+\begin{align*}
+\int_{0}^{2\pi}d\phi & =2\pi.\\
+W_{i}(\mathbf{k}') & =\frac{1}{c}e^{-[x^{2}+y^{2}+(q_{i}-z)^{2}]/2\sigma^{2}},
+\end{align*}
+
+\end_inset
+
+we find
+\begin_inset Formula 
+\[
+E_{k}[W_{i}]=\frac{1}{2c}\int_{-1}^{1}e^{-[x^{2}+y^{2}+(q_{i}-z)^{2}]/2\sigma^{2}}d\cos\theta.
+\]
+
+\end_inset
+
+Note that
+\begin_inset Formula 
+\begin{align*}
+x^{2}+y^{2}+(q_{i}-z)^{2} & =k^{2}-2q_{i}z+q_{i}^{2}\\
+ & =k^{2}-2q_{i}k\cos\theta+q_{i}^{2}.
+\end{align*}
+
+\end_inset
+
+Then
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+E_{k}[W_{i}] & =\frac{e^{-(k^{2}+q_{i}^{2})/2\sigma^{2}}}{2c}\int_{-1}^{1}e^{q_{i}k\cos\theta/\sigma^{2}}d\cos\theta.\\
+ & =\frac{e^{-(k^{2}+q_{i}^{2})/2\sigma^{2}}}{2c}\left[\frac{e^{q_{i}k/\sigma^{2}}-e^{-q_{i}k/\sigma^{2}}}{q_{i}k/\sigma^{2}}\right]\\
+ & =\frac{1}{c}e^{-(k^{2}+q_{i}^{2})/2\sigma^{2}}\frac{\sinh(q_{i}k/\sigma^{2})}{q_{k}k/\sigma^{2}}
+\end{align*}
+
+\end_inset
+
+As a consistency check, note that when 
+\begin_inset Formula $q_{i}\gg1/\sigma$
+\end_inset
+
+ the dominant contribution to 
+\begin_inset Formula $S(k)$
+\end_inset
+
+ appears as a Gaussian about 
+\begin_inset Formula $k\approx q_{i}$
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align*}
+E_{k}[W_{i}] & \approx\frac{\sigma^{2}}{2cq_{i}k}e^{-(k^{2}-2q_{i}k+q_{i}^{2})/2\sigma^{2}}\\
+ & =\frac{\sigma^{2}}{2cq_{i}k}e^{-(k-q_{i})^{2}/2\sigma^{2}}.
+\end{align*}
+
+\end_inset
+
+Conversely, when 
+\begin_inset Formula $q_{i}k\ll\sigma^{2}$
+\end_inset
+
+ the relevant behavior is 
+\begin_inset Formula $\sinh(x)\approx x$
+\end_inset
+
+ such that 
+\begin_inset Formula $E_{k}[W_{i}]\approx\frac{1}{c}e^{-(k^{2}+q_{i}^{2})/2\sigma^{2}}$
+\end_inset
+
+.
+ Selecting 
+\begin_inset Formula $k=0$
+\end_inset
+
+ then an exact Gaussian in 
+\begin_inset Formula $q_{i}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+As a check, consider the hypothetical limit where there is a uniform density
+ of 
+\begin_inset Formula $q_{i}$
+\end_inset
+
+ points such that 
+\begin_inset Formula $S(\mathbf{k})=1$
+\end_inset
+
+, independent of 
+\begin_inset Formula $\mathbf{k}$
+\end_inset
+
+.
+ Then we would expect the powder averages to be exactly 
+\begin_inset Formula $P(k)=1$
+\end_inset
+
+ independent of smoothing.
+ Viewed in polar coordinates, the density of 
+\begin_inset Formula $q_{i}$
+\end_inset
+
+ points grows like 
+\begin_inset Formula $4\pi q_{i}^{2}$
+\end_inset
+
+, so we can compute the powder averages as
+\begin_inset Formula 
+\begin{align*}
+P(k) & =4\pi\int dq_{i}q_{i}^{2}E_{k}[W_{i}]\\
+ & =\frac{4\pi}{c}\int dq_{i}q_{i}^{2}e^{-(k^{2}+q_{i}^{2})/2\sigma^{2}}\frac{\sinh(q_{i}k/\sigma^{2})}{q_{k}k/\sigma^{2}}
+\end{align*}
+
+\end_inset
+
+With the help of Mathematica, the integral evaluates to
+\begin_inset Formula 
+\[
+P(k)=\frac{4\pi}{c}\left[\sqrt{\frac{\pi}{2}}\sigma^{3}\right]=\frac{1}{c}(2\pi)^{3/2}\sigma^{3}.
+\]
+
+\end_inset
+
+Substituting the definition of 
+\begin_inset Formula $c$
+\end_inset
+
+, we find exactly 
+\begin_inset Formula $P(k)=1$
+\end_inset
+
+ as expected.
+\end_layout
+
+\end_body
+\end_document
