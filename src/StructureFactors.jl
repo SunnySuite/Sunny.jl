@@ -647,7 +647,6 @@ accumulates the structure factor from `S` with the dipole factor applied into `r
 """
 function accum_dipole_factor_wbasis!(res, S, lattice::Lattice, nsamples::Int)
     recip = gen_reciprocal(lattice)
-    nb = nbasis(lattice)
     Sα = reshape(S, _outersizeα(axes(S), 5))  # Size [3,..., 1, B, T] 
     Sβ = reshape(S, _outersizeβ(axes(S), 5))  # Size [3,..., B, 1, T] 
 

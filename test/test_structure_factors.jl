@@ -58,7 +58,7 @@ end
 
 ## Running these tests takes about 30 seconds. Not tested by default.
 ## Uncomment to run the test.
-test_structure_factors_are_operational()
+# test_structure_factors_are_operational()
 
 # TODO: Add test for correctness of calculation
 
