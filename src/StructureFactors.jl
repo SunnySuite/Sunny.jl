@@ -812,11 +812,13 @@ along a linear path successively connecting each point in `points`.
 
 The three q indices of the structure factor `sf` will be reduced to a
 single index. So, for example, if you pass a structure factor with
-indices [α, β, qa, qb, qc, ω], you will be returned array with
-indices [α, β, q, ω].
+indices [α, β, qa, qb, qc, ω], you will be returned an array with
+indices [α, β, q, ω], where the q index corresponds to linearly spaced
+points along your specified path.
 
 If `return_idcs` is set to `true`, the function will also return the indices
-of the slice that correspond to each point of `points`.
+of the slice that correspond to each point of `points`. This is useful for
+plotting labels.
 
 If `interp_scale=1` and the paths are parallel to one of the reciprocal
 lattice vectors (e.g., (0,0,0) -> (π,0,0)), or strictly diagonal
