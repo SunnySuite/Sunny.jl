@@ -663,7 +663,7 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice, nsamples::Int)
         for α in 1:3
             for β in 1:3
                 dip_elem = dip_factor[α, β]
-                previous = @view(res[q_idx,:,:,:])
+                previous = @view(res[q_idx, :, :, :])
                 @. res[q_idx, :, :, :] = previous + (dip_elem * real(Sα[α, q_idx, :, :, :] * Sβ[β, q_idx, :, :, :]) - previous) / nsamples
             end
         end
@@ -803,14 +803,23 @@ end
         interp_method = BSpline(Linear(Periodic())),
         interp_scale = 1, return_idcs=false)
 
-NOTE: This function is being deprecated. More advanced functionality
+**NOTE**: This function is being deprecated. More advanced functionality
 will be available in a forthcoming update to Sunny. For now, restrict
-usage to `StructureFactor`s for which `reduce_basis=true`.
+usage to `StructureFactor`s for which `reduce_basis=true`. If you pass
+a structure factor with additional basis indices, the function will work,
+but it will be up to the user to use the additional information properly
+to construct a final 2-dimensional slice. This will be automated in
+upcoming revisions.
 
 Returns a slice through the structure factor `sf`. The slice is generated
 along a linear path successively connecting each point in `points`.
 `points` must be a vector containing at least two points. For example: 
 `points = [(0, 0, 0), (π, 0, 0), (π, π, 0)]`.
+
+The three q indices of the structure factor `sf` will be reduced to a
+single index. So, for example, if you pass a structure factor with
+indices [α, β, qa, qb, qc, ω], you will be returned array with
+indices [α, β, q, ω].
 
 If `return_idcs` is set to `true`, the function will also return the indices
 of the slice that correspond to each point of `points`.
@@ -841,9 +850,11 @@ function sf_slice(sf::StructureFactor, points::Vector;
         else
             if sf.dipole_factor
                 nb = size(sf.sfactor, 4)
+                nb = nb == 1 ? 2 : nb  # Artificially expand basis dimension for interpolation
                 indexer = (x, y) -> (x, 1:nb, 1:nb, y) 
             else
                 nb = size(sf.sfactor, 6)
+                nb = nb == 1 ? 2 : nb  # Artificially expand basis dimension for interpolation
                 indexer = (x, y) -> (1:3, 1:3, x, 1:nb, 1:nb, y)
             end
         end
@@ -860,9 +871,11 @@ function sf_slice(sf::StructureFactor, points::Vector;
         else
             if sf.dipole_factor
                 nb = size(sf.sfactor, 4)
+                nb = nb == 1 ? 2 : nb  # Artificially expand basis dimension for interpolation
                 indexer = (q1, q2, q3, y) -> (q1, q2, q3, 1:nb, 1:nb, y) 
             else
                 nb = size(sf.sfactor, 6)
+                nb = nb == 1 ? 2 : nb  # Artificially expand basis dimension for interpolation
                 indexer = (q1, q2, q3, y) -> (1:3, 1:3, q1, q2, q3, 1:nb, 1:nb, y)
             end
         end
@@ -902,9 +915,10 @@ function sf_slice(sf::StructureFactor, points::Vector;
     # Duplicates the structure factor data along any dimensions that has size of 1. For example,
     # will add one layer to a 2D system to make it into 3D system, with the added layer begin a
     # simple copy of the original. This just assures that the interpolation algorithm doesn't fail,
-    # as it requires at least two points along each dimension. 
+    # as Interpolations.jl requires at least two points along each dimension. In particular, this
+    # allows the user to cut paths from 2D systems.
     #
-    # This is obviously an ugly quick fix to avoid redoing the approach to indexing and interpolation.
+    # This is an ugly quick fix to avoid redoing the approach to indexing and interpolation.
     # Not investing time in a better solution because the need for this entire function will be 
     # eliminated in the refactor. Note the user will never see this.
     function expand_singleton_dims(sfdata)
@@ -917,6 +931,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
 
     # Consolidate data necessary for the interpolation
     q_vals = q_labels(sf) 
+    q_vals = map(vals -> length(vals) == 1 ? [0.0, π] : vals, q_vals) # To accomodate dimensional expansion
     ωs = omega_labels(sf)
     dims = size(sfdata)[q_idcs(sf)]
 
@@ -932,7 +947,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
     itp = interpolate(sfdata, interp_method)
     sitp = scale(itp, sf_idx(q_scales..., ω_scale)...)
 
-    # Pull each partial slice (each leg of the cut) from interpolant
+    # Pull each partial slice (each section of the path) from interpolant
     slices = []
     for i in 1:length(points)-1
         ps = path_points(points[i], points[i+1], q_dens, q_bounds; interp_scale)
@@ -957,6 +972,17 @@ function sf_slice(sf::StructureFactor, points::Vector;
     (sf.reduce_basis) && (numones -= 2)
     (sf.dipole_factor) && (numones -= 2)
     slice = OffsetArray(cat(slices...; dims=q_idx), Origin(ones(numones)..., ωs.offsets[1] + 1))
+
+    # If artifically duplicated basis dimensions (i.e. if had size 1), return to original size
+    if !sf.reduce_basis
+        if sf.dipole_factor
+            nb = size(sf.sfactor, 4)
+            slice = slice[:,1:nb,1:nb,:]
+        else
+            nb = size(sf.sfactor, 6)
+            slice = slice[:,:,:,1:nb,1:nb,:]
+        end
+    end
 
     return_idcs && (return (; slice, idcs))
     return slice
