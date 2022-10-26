@@ -840,6 +840,12 @@ function sf_slice(sf::StructureFactor, points::Vector;
     interp_method = BSpline(Linear(Periodic())),
     interp_scale = 1, return_idcs=false,
 )
+    # The following two functions return functions that take q and ω information
+    # and insert it into the correct indices. What the correct indices are will
+    # depend on the configuration of the StructureFactor (i.e., whether coordinate
+    # indices are present, and whether basis indices are present). There should be
+    # a way to combine these functions into a single function, but I ran into so
+    # some issues with splatting. This will all go in the refactor.
     function slice_indexer_func(sf::StructureFactor)
         if sf.reduce_basis
             if sf.dipole_factor
@@ -918,7 +924,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
     # as Interpolations.jl requires at least two points along each dimension. In particular, this
     # allows the user to cut paths from 2D systems.
     #
-    # This is an ugly quick fix to avoid redoing the approach to indexing and interpolation.
+    # This is a quick fix to avoid redoing the approach to indexing and interpolation.
     # Not investing time in a better solution because the need for this entire function will be 
     # eliminated in the refactor. Note the user will never see this.
     function expand_singleton_dims(sfdata)
@@ -967,7 +973,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
         push!(idcs, idcs[i] + dim)
     end
 
-    # Set up offsets
+    # Set up offsets (only on ω axis). 
     numones = 5
     (sf.reduce_basis) && (numones -= 2)
     (sf.dipole_factor) && (numones -= 2)
