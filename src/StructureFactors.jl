@@ -423,7 +423,6 @@ of `spin_traj`.
 function fft_spin_traj!(res::Array{ComplexF64}, spin_traj::Array{Vec3};
                         plan::Union{Nothing, FFTW.cFFTWPlan}=nothing)
     @assert size(res) == tuplejoin(3, size(spin_traj)) "fft_spins size not compatible with spin_traj size"
-    println("here")
 
     # Reinterpret array to add the spin dimension explicitly
     # Now of shape [3, D1, ..., Dd, B, T]
