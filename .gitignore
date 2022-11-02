@@ -3,3 +3,5 @@ examples/results/
 Manifest.toml
 profile.pb.gz
 .DS_Store
+*.lyx~
+*.lyx#

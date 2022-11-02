@@ -80,46 +80,52 @@
 \newcommand{\hc}{\textrm{h.c.}}
 \end_inset
 
-Stevens operators are denoted 
+Extended Stevens operators are denoted 
 \begin_inset Formula $\mathcal{O}_{k,q}$
 \end_inset
 
- for 
-\begin_inset Formula $k=0,1,\dots$
+ for integer 
+\begin_inset Formula $k\geq0$
 \end_inset
 
  and 
-\begin_inset Formula $q=-k,\dots k$
+\begin_inset Formula $-k\leq q\leq k$
 \end_inset
 
 .
- An alternative terminology is to denote these as 
-\begin_inset Quotes eld
-\end_inset
-
-sine/cosine
-\begin_inset Quotes erd
-\end_inset
-
- operators, which correspond to negative/nonnegative 
+ An alternative terminology is to indicate the sign of 
 \begin_inset Formula $q$
 \end_inset
 
- values,
-\begin_inset Formula 
-\[
-\mathcal{O}_{k,q}\equiv\begin{cases}
-\mathcal{O}_{k,|q|}^{s} & (-k\leq q<0)\\
-\mathcal{O}_{k,|q|}^{c} & (0\leq q\leq k)
-\end{cases}.
-\]
-
+ with a 
+\begin_inset Quotes eld
 \end_inset
 
-The Stevens operators are perhaps best understood as a symmetrization of
- the spherical tensor operators.
- By the Wigner-Eckhart theorem, spherical tensors must have matrix elements
- proportional to the Clebsch Gordon coefficients
+cosine
+\begin_inset Quotes erd
+\end_inset
+
+ or 
+\begin_inset Quotes eld
+\end_inset
+
+sine
+\begin_inset Quotes erd
+\end_inset
+
+ superscript, 
+\begin_inset Formula $\mathcal{O}_{k,|q|}^{\{c,s\}}=\mathcal{O}_{k,\pm|q|}.$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+By the Wigner-Eckhart theorem, spherical tensors 
+\begin_inset Formula $T_{q}^{k}$
+\end_inset
+
+ have matrix elements proportional to the Clebsch Gordon coefficients,
 \begin_inset Formula 
 \[
 \left(T_{q}^{k}\right)_{m,m'}\propto\langle jm'kq|jm\rangle,
@@ -209,31 +215,72 @@ c_{k,j}=k!\left\{ \frac{(2j+k+1)!}{(2k)!(2j-k)!}\right\} ^{1/2}.
 
 \end_inset
 
-The Stevens operators are then defined as
+Using these, the Stevens operators are defined as
+\begin_inset Formula 
+\[
+\mathcal{O}_{k,q}=a_{k,|q|}\times\begin{cases}
+\left[T_{-|q|}^{k}+(-1)^{q}T_{|q|}^{k}\right] & (q>0)\\
+T_{0}^{k} & (q=0).\\
+\mathrm{i}\,\left[T_{-|q|}^{k}-(-1)^{q}T_{|q|}^{k}\right] & (q<0)
+\end{cases}
+\]
+
+\end_inset
+
+The inverse mapping is
+\begin_inset Note Comment
+status open
+
+\begin_layout Plain Layout
 \begin_inset Formula 
 \begin{align*}
-\mathcal{O}_{k,q}^{s} & =ia_{k,q}\left[T_{-q}-(-1)^{q}T_{q}\right],\\
-\mathcal{O}_{k,q}^{c} & =a_{k,q}\left[T_{-q}+(-1)^{q}T_{q}\right]
+\mathcal{O}_{k,|q|}+\mathrm{i}\mathcal{O}_{k,-|q|} & =2a_{k,|q|}(-1)^{q}T_{|q|}^{k}\\
+\mathcal{O}_{k,|q|}-\mathrm{i}\mathcal{O}_{k,-|q|} & =2a_{k,|q|}T_{-|q|}^{k}
 \end{align*}
 
 \end_inset
 
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset Formula 
+\[
+T_{q}^{k}=\frac{1}{2a_{k,|q|}}\times\begin{cases}
+(-1)^{q}(\mathcal{O}_{k,|q|}+\mathrm{i}\mathcal{O}_{k,-|q|}) & (q>0)\\
+2\mathcal{O}_{k,0} & (q=0).\\
+(\mathcal{O}_{k,|q|}-\mathrm{i}\mathcal{O}_{k,-|q|}) & (q<0)
+\end{cases}
+\]
+
+\end_inset
+
 The coefficients 
-\begin_inset Formula $a_{k,q}$
+\begin_inset Formula $a_{k,|q|}$
 \end_inset
 
  for 
-\begin_inset Formula $k\leq6$
+\begin_inset Formula $k=0,\dots,6$
 \end_inset
 
- are given in Table 1 of C.
+ and 
+\begin_inset Formula $|q|\leq k$
+\end_inset
+
+ are [C.
  Rudowicz, J.
  Phys.
  C: Solid State Phys.
- 18, 1415 (1985),
+ 18, 1415 (1985)],
+\end_layout
+
+\begin_layout Standard
 \begin_inset Formula 
 \[
-a_{k,q}=\left[\begin{array}{ccccccc}
+a_{k,|q|}=\left[\begin{array}{ccccccc}
+1\\
 1 & \frac{1}{\sqrt{2}}\\
 \sqrt{6} & \frac{1}{2} & 1\\
 \sqrt{10} & \sqrt{\frac{10}{3}} & \frac{1}{\sqrt{3}} & \sqrt{2}\\
@@ -279,23 +326,21 @@ Alternatively, the same Stevens operators can be expressed as polynomials
 \end_layout
 
 \begin_layout Standard
-Below are the Stevens operators for 
-\begin_inset Formula $k\in\{2,4,6\}$
+Below are the Stevens operators for even 
+\begin_inset Formula $k\leq6$
 \end_inset
 
- using 
+ using the definitions
 \begin_inset Formula 
-\[
-X=J_{x}^{2}+J_{y}^{2}+J_{z}^{2}=j(j+1),
-\]
+\begin{align*}
+X & =J_{x}^{2}+J_{y}^{2}+J_{z}^{2}=j(j+1),\\
+J_{\pm} & =J_{x}\pm iJ_{y},\\
+\phi_{+} & =\frac{1}{4},\quad\phi_{-}=\frac{1}{4\mathrm{i}}.
+\end{align*}
 
 \end_inset
 
-and 
-\begin_inset Formula $J_{\pm}=J_{x}\pm iJ_{y}$
-\end_inset
 
-.
 \end_layout
 
 \begin_layout Standard
@@ -303,18 +348,6 @@ and
 status open
 
 \begin_layout Plain Layout
-\begin_inset Formula $k=0$
-\end_inset
-
-,
-\begin_inset Formula 
-\begin{align*}
-\mathcal{O}_{00} & =1
-\end{align*}
-
-\end_inset
-
-
 \begin_inset Formula $k=1$
 \end_inset
 
@@ -337,17 +370,27 @@ status open
 \end_inset
 
 
+\begin_inset Formula $k=0$
+\end_inset
+
+:
+\begin_inset Formula 
+\begin{align*}
+\mathcal{O}_{00} & =1
+\end{align*}
+
+\end_inset
+
+
 \begin_inset Formula $k=2$
 \end_inset
 
 :
 \begin_inset Formula 
 \begin{align*}
-\mathcal{O}_{2,-2} & =\frac{1}{4i}(J_{+}^{2}-J_{-}^{2})+\hc\\
-\mathcal{O}_{2,-1} & =\frac{1}{4i}(J_{+}-J_{-})J_{z}+\hc\\
-\mathcal{O}_{2,0} & =3J_{z}^{2}-X\\
-\mathcal{O}_{2,1} & =\frac{1}{4}(J_{+}+J_{-})J_{z}+\hc\\
-\mathcal{O}_{2,2} & =\frac{1}{4}(J_{+}^{2}+J_{-}^{2})+\hc
+\mathcal{O}_{2,\pm2} & =\phi_{\pm}(J_{+}^{2}\pm J_{-}^{2})+\hc\\
+\mathcal{O}_{2,\pm1} & =\phi_{\pm}(J_{+}\pm J_{-})J_{z}+\hc\\
+\mathcal{O}_{2,0} & =3J_{z}^{2}-X
 \end{align*}
 
 \end_inset
@@ -362,15 +405,11 @@ status open
 \begin_layout Standard
 \begin_inset Formula 
 \begin{align*}
-\mathcal{O}_{4,-4} & =\frac{1}{4i}(J_{+}^{4}-J_{-}^{4})+\hc\\
-\mathcal{O}_{4,-3} & =\frac{1}{4i}(J_{+}^{3}-J_{-}^{3})J_{z}+\hc\\
-\mathcal{O}_{4,-2} & =\frac{1}{4i}(J_{+}^{2}-J_{-}^{2})(7J_{z}^{2}-(X+5))+\hc\\
-\mathcal{O}_{4,-1} & =\frac{1}{4i}(J_{+}-J_{-})(7J_{z}^{3}-(3X+1)J_{z})+\hc\\
-\mathcal{O}_{4,0} & =35J_{z}^{4}-(30X-25)J_{z}^{2}+(3X^{2}-6X)\\
-\mathcal{O}_{4,1} & =\frac{1}{4}(J_{+}+J_{-})(7J_{z}^{3}-(3X+1)J_{z})+\hc\\
-\mathcal{O}_{4,2} & =\frac{1}{4}(J_{+}^{2}+J_{-}^{2})(7J_{z}^{2}-(X+5))+\hc\\
-\mathcal{O}_{4,3} & =\frac{1}{4}(J_{+}^{3}+J_{-}^{3})J_{z}+\hc\\
-\mathcal{O}_{4,4} & =\frac{1}{4}(J_{+}^{4}+J_{-}^{4})+\hc
+\mathcal{O}_{4,\pm4} & =\phi_{\pm}(J_{+}^{4}\pm J_{-}^{4})+\hc\\
+\mathcal{O}_{4,\pm3} & =\phi_{\pm}(J_{+}^{3}\pm J_{-}^{3})J_{z}+\hc\\
+\mathcal{O}_{4,\pm2} & =\phi_{\pm}(J_{+}^{2}\pm J_{-}^{2})(7J_{z}^{2}-(X+5))+\hc\\
+\mathcal{O}_{4,\pm1} & =\phi_{\pm}(J_{+}\pm J_{-})(7J_{z}^{3}-(3X+1)J_{z})+\hc\\
+\mathcal{O}_{4,0} & =35J_{z}^{4}-(30X-25)J_{z}^{2}+(3X^{2}-6X)
 \end{align*}
 
 \end_inset
@@ -385,19 +424,13 @@ status open
 \begin_layout Standard
 \begin_inset Formula 
 \begin{align*}
-\mathcal{O}_{6,-6} & =\frac{1}{4i}(J_{+}^{6}-J_{-}^{6})+\hc\\
-\mathcal{O}_{6,-5} & =\frac{1}{4i}(J_{+}^{5}-J_{-}^{5})J_{z}+\hc\\
-\mathcal{O}_{6,-4} & =\frac{1}{4i}(J_{+}^{4}-J_{-}^{4})(11J_{z}^{2}-X-38)+\hc\\
-\mathcal{O}_{6,-3} & =\frac{1}{4i}(J_{+}^{3}-J_{-}^{3})(11J_{z}^{3}-(3X+59)J_{z})+\hc\\
-\mathcal{O}_{6,-2} & =\frac{1}{4i}(J_{+}^{2}-J_{-}^{2})(33J_{z}^{4}-(18X+123)J_{z}^{2}+X^{2}+10X+102)+\hc\\
-\mathcal{O}_{6,-1} & =\frac{1}{4i}(J_{+}-J_{-})(33J_{z}^{5}-(30X-15)J_{z}^{3}+(5X^{2}-10X+12)J_{z})+\hc\\
-\mathcal{O}_{6,0} & =231J_{z}^{6}-(315X-735)J_{z}^{4}+(105X^{2}-525X+294)J_{z}^{2}-5X^{3}+40X^{2}-60X\\
-\mathcal{O}_{6,1} & =\frac{1}{4}(J_{+}+J_{-})(33J_{z}^{5}-(30X-15)J_{z}^{3}+(5X^{2}-10X+12)J_{z})+\hc\\
-\mathcal{O}_{6,2} & =\frac{1}{4}(J_{+}^{2}+J_{-}^{2})(33J_{z}^{4}-(18X+123)J_{z}^{2}+X^{2}+10X+102)+\hc\\
-\mathcal{O}_{6,3} & =\frac{1}{4}(J_{+}^{3}+J_{-}^{3})(11J_{z}^{3}-(3X+59)J_{z})+\hc\\
-\mathcal{O}_{6,4} & =\frac{1}{4}(J_{+}^{4}+J_{-}^{4})(11J_{z}^{2}-X-38)+\hc\\
-\mathcal{O}_{6,5} & =\frac{1}{4}(J_{+}^{5}+J_{-}^{5})J_{z}+\hc\\
-\mathcal{O}_{6,6} & =\frac{1}{4}(J_{+}^{6}+J_{-}^{6})+\hc
+\mathcal{O}_{6,\pm6} & =\phi_{\pm}(J_{+}^{6}\pm J_{-}^{6})+\hc\\
+\mathcal{O}_{6,\pm5} & =\phi_{\pm}(J_{+}^{5}\pm J_{-}^{5})J_{z}+\hc\\
+\mathcal{O}_{6,\pm4} & =\phi_{\pm}(J_{+}^{4}\pm J_{-}^{4})(11J_{z}^{2}-X-38)+\hc\\
+\mathcal{O}_{6,\pm3} & =\phi_{\pm}(J_{+}^{3}\pm J_{-}^{3})(11J_{z}^{3}-(3X+59)J_{z})+\hc\\
+\mathcal{O}_{6,\pm2} & =\phi_{\pm}(J_{+}^{2}\pm J_{-}^{2})(33J_{z}^{4}-(18X+123)J_{z}^{2}+X^{2}+10X+102)+\hc\\
+\mathcal{O}_{6,\pm1} & =\phi_{\pm}(J_{+}\pm J_{-})(33J_{z}^{5}-(30X-15)J_{z}^{3}+(5X^{2}-10X+12)J_{z})+\hc\\
+\mathcal{O}_{6,0} & =231J_{z}^{6}-(315X-735)J_{z}^{4}+(105X^{2}-525X+294)J_{z}^{2}-5X^{3}+40X^{2}-60X
 \end{align*}
 
 \end_inset

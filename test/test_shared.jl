@@ -41,3 +41,10 @@ function produce_example_system()
 
     return SpinSystem(cryst, interactions, latsize)
 end
+
+# Levi-Civita symbol
+ϵ = [(i-j)*(j-k)*(k-i)/2 for i=1:3, j=1:3, k=1:3]
+
+# Kronecker delta
+δ(i,j) = (i==j) ? 1 : 0
+
