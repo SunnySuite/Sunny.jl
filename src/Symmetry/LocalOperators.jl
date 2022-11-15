@@ -137,15 +137,32 @@ function spin_matrices(N::Int)
         return zeros(ComplexF64,0,0), zeros(ComplexF64,0,0), zeros(ComplexF64,0,0)
     end
 
-    s = (N-1)/2
-    a = 1:N-1
-    off = @. sqrt(2(s+1)*a - a*(a+1)) / 2
+    S = (N-1)/2
+    j = 1:N-1
+    off = @. sqrt(2(S+1)*j - j*(j+1)) / 2
 
     Sx = diagm(1 => off, -1 => off)
     Sy = diagm(1 => -im*off, -1 => +im*off)
-    Sz = diagm((N-1)/2 .- (0:N-1))
+    Sz = diagm(S .- (0:N-1))
     return SVector{3}(Sx, Sy, Sz)
 end
+
+# Accumulates BᵅSᵅ into N×N matrix `acc`.
+function accum_spin_matrices!(acc, B::Sunny.Vec3)
+    N = size(acc, 1)
+    S = (N-1)/2
+
+    for j in 1:N-1
+        off = sqrt(2(S+1)*j - j*(j+1)) / 2
+        acc[j,j+1] += off*(B[1] - im*B[2]) # superdiagonal
+        acc[j,j]   += (S - (j-1))*B[3]     # diagonal
+        acc[j+1,j] += off*(B[1] + im*B[2]) # subdiagonal
+    end
+    acc[N, N] += (S - (N-1))*B[3]
+
+    return nothing
+end
+
 
 # Construct Stevens operators as polynomials in the spin operators.
 function stevens_matrices(k::Int; N::Int)

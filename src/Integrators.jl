@@ -292,7 +292,6 @@ end
     (a - ((Z' * a) * Z))  
 end
 
-
 @generated function _apply_ℌ!(rhs::Array{CVec{N}, 4}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, integrator)  where {N}
 
     if integrator <: LangevinIntegrator
@@ -325,17 +324,17 @@ end
 
     return quote
         (; sys, _ℌ) = integrator
-        (; hamiltonian, site_infos, lattice, S) = sys
+        (; hamiltonian, site_infos, lattice) = sys
         nb = nbasis(lattice)
         Λs = hamiltonian.sun_aniso
         rhs′ = reinterpret(reshape, ComplexF64, rhs) 
-        Sˣ, Sʸ, Sᶻ = S[:,:,1], S[:,:,2], S[:,:,3] # Cheaper to take the allocations than use views.
 
         @inbounds for s in 1:nb
             κ = $scale_expr 
             Λ = @view(Λs[:,:,s])
             for c in eachcellindex(lattice)
-                @. _ℌ = κ * (Λ - (B[c,s][1]*Sˣ + B[c,s][2]*Sʸ + B[c,s][3]*Sᶻ))
+                @. _ℌ = κ * Λ 
+                accum_spin_matrices!(_ℌ, -κ*B[c,s]) 
                 mul!(@view(rhs′[:, c, s]), _ℌ, Z[c, s])
             end
         end

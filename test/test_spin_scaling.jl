@@ -125,7 +125,7 @@ test_energy_scaling_lld()
 
 
 function test_energy_scaling_gsd()
-    N = 5
+    Ns = [5, 6]
     num_rescalings = 2    # number of rescalings to try
 
     cryst = Sunny.fcc_crystal()
@@ -137,20 +137,22 @@ function test_energy_scaling_gsd()
                         anisotropy(Λ, 1)]
     powers_gsd = [2, 1]
 
-    for (interaction, power) in zip(interactions_gsd, powers_gsd)
-        spin_rescalings = 5.0 * rand(num_rescalings)
-        for spin_rescaling ∈ spin_rescalings
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N)])
-            rand!(sys)
-            E₀ = energy(sys)
+    for N in Ns
+        for (interaction, power) in zip(interactions_gsd, powers_gsd)
+            spin_rescalings = 5.0 * rand(num_rescalings)
+            for spin_rescaling in spin_rescalings
+                sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N)])
+                rand!(sys)
+                E₀ = energy(sys)
 
-            Z₀ = copy(sys._coherents)
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, spin_rescaling)])
-            sys._coherents .= Z₀
-            Sunny.set_expected_spins!(sys)
-            E₁ = energy(sys)
+                Z₀ = copy(sys._coherents)
+                sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, spin_rescaling)])
+                sys._coherents .= Z₀
+                Sunny.set_expected_spins!(sys)
+                E₁ = energy(sys)
 
-            @test (E₁/E₀) ≈ spin_rescaling^power
+                @test (E₁/E₀) ≈ spin_rescaling^power
+            end
         end
     end
 end

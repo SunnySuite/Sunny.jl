@@ -160,6 +160,15 @@ end
     end    
 end
 
+@testitem "Sparse B⋅𝐒" begin
+    # Test that action `accum_spin_matrices!(acc, B)` is identical to adding B⋅𝐒 to `acc`
+    for N = 4:6
+        acc = zeros(ComplexF64, N, N)
+        B = randn(Sunny.Vec3)
+        Sunny.accum_spin_matrices!(acc, B)
+        @test acc ≈ sum(Sunny.spin_matrices(N) .* B)
+    end
+end
 
 @testitem "Spherical tensors" begin
     include("test_shared.jl")
