@@ -334,7 +334,7 @@ end
             Λ = @view(Λs[:,:,s])
             for c in eachcellindex(lattice)
                 @. _ℌ = κ * Λ 
-                add_dipolar_field!(_ℌ, -κ*B[c,s]) 
+                accum_spin_matrices!(_ℌ, -κ*B[c,s]) 
                 mul!(@view(rhs′[:, c, s]), _ℌ, Z[c, s])
             end
         end

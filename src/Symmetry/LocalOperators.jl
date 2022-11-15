@@ -148,7 +148,7 @@ function spin_matrices(N::Int)
 end
 
 # Accumulates BᵅSᵅ into N×N matrix `acc`.
-function add_dipolar_field!(acc, B::Sunny.Vec3)
+function accum_spin_matrices!(acc, B::Sunny.Vec3)
     N = size(acc, 1)
     S = (N-1)/2
 
