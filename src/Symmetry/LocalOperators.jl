@@ -155,10 +155,10 @@ function accum_spin_matrices!(acc, B::Sunny.Vec3)
     for j in 1:N-1
         off = sqrt(2(S+1)*j - j*(j+1)) / 2
         acc[j,j+1] += off*(B[1] - im*B[2]) # superdiagonal
-        acc[j,j]   += B[3]*(S - (j-1))     # diagonal
+        acc[j,j]   += (S - (j-1))*B[3]     # diagonal
         acc[j+1,j] += off*(B[1] + im*B[2]) # subdiagonal
     end
-    acc[N, N] += B[3]*(S - (N-1))
+    acc[N, N] += (S - (N-1))*B[3]
 
     return nothing
 end
