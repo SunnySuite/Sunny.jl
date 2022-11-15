@@ -1,6 +1,7 @@
 @testitem "Dynamics" begin
 include("test_shared.jl")
 
+
 "Tests that SphericalMidpoint conserves energy for simple forces to a certain tolerance."
 function test_spherical_midpoint()
     crystal = Sunny.diamond_crystal()
@@ -147,4 +148,16 @@ function time_real_fourier_dipole()
         push!(ft_times, t)
     end
     return real_times, ft_times
+end
+
+
+@testitem "Sparse B⋅𝐒" begin
+    
+    # Test that action `add_dipolar_field!(op, B)` is identical to adding B⋅𝐒 to `op`
+    for N = 4:6
+        op = zeros(ComplexF64, N, N)
+        B = randn(Sunny.Vec3)
+        Sunny.add_dipolar_field!(op, B)
+        @test op ≈ sum(Sunny.spin_matrices(N) .* B)
+    end
 end
