@@ -1,7 +1,6 @@
 @testitem "Dynamics" begin
 include("test_shared.jl")
 
-
 "Tests that SphericalMidpoint conserves energy for simple forces to a certain tolerance."
 function test_spherical_midpoint()
     crystal = Sunny.diamond_crystal()
