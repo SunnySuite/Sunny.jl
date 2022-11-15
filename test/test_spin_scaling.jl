@@ -140,7 +140,7 @@ function test_energy_scaling_gsd()
     for N in Ns
         for (interaction, power) in zip(interactions_gsd, powers_gsd)
             spin_rescalings = 5.0 * rand(num_rescalings)
-            for spin_rescaling ∈ spin_rescalings
+            for spin_rescaling in spin_rescalings
                 sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N)])
                 rand!(sys)
                 E₀ = energy(sys)
