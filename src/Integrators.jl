@@ -292,32 +292,6 @@ end
     (a - ((Z' * a) * Z))  
 end
 
-
-function add_dipolar_field!(op::Array{ComplexF64, 2}, B::Sunny.Vec3)
-    N = size(op, 1)
-    S = (N-1)/2
-
-    # Note indexing by column (hence using conjugate of standard formula)
-    @inbounds for j in 1:N
-        # Subdiagonal
-        if j > 1
-            val = 0.5*√(S*(S + 1) - (S - j + 1)*(S - j + 2))
-            op[j-1,j] += val*(B[1] - im*B[2])
-        end
-
-        # Diagonal
-        op[j,j] += B[3]*(S - j + 1)
-
-        # Superdiagonal
-        if j < N
-            val = 0.5*√(S*(S + 1) - (S - j + 1)*(S - j))
-            op[j+1,j] += val*(B[1] + im*B[2])
-        end
-    end
-
-    nothing
-end
-
 @generated function _apply_ℌ!(rhs::Array{CVec{N}, 4}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, integrator)  where {N}
 
     if integrator <: LangevinIntegrator
