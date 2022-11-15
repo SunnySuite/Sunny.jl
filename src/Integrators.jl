@@ -350,18 +350,15 @@ end
 
     return quote
         (; sys, _ℌ) = integrator
-        # (; hamiltonian, site_infos, lattice, S) = sys
         (; hamiltonian, site_infos, lattice) = sys
         nb = nbasis(lattice)
         Λs = hamiltonian.sun_aniso
         rhs′ = reinterpret(reshape, ComplexF64, rhs) 
-        # Sˣ, Sʸ, Sᶻ = S[:,:,1], S[:,:,2], S[:,:,3] # Cheaper to take the allocations than use views.
 
         @inbounds for s in 1:nb
             κ = $scale_expr 
             Λ = @view(Λs[:,:,s])
             for c in eachcellindex(lattice)
-                # @. _ℌ = κ * (Λ - (B[c,s][1]*Sˣ + B[c,s][2]*Sʸ + B[c,s][3]*Sᶻ))
                 @. _ℌ = κ * Λ 
                 add_dipolar_field!(_ℌ, -κ*B[c,s]) 
                 mul!(@view(rhs′[:, c, s]), _ℌ, Z[c, s])
