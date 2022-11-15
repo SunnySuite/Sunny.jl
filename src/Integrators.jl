@@ -293,6 +293,31 @@ end
 end
 
 
+function add_dipolar_field!(op::Array{ComplexF64, 2}, B::Sunny.Vec3)
+    N = size(op, 1)
+    S = (N-1)/2
+
+    # Note indexing by column (hence using conjugate of standard formula)
+    for j in 1:N
+        # Subdiagonal
+        if j-1 > 0
+            val = 0.5*√(S*(S+1) - (S - j + 1)*(S - j + 2))
+            op[j-1,j] += val*(B[1] - im*B[2])
+        end
+
+        # Diagonal
+        op[j,j] += B[3]*(S - j + 1)
+
+        # Superdiagonal
+        if j + 1 < N+1
+            val = 0.5*√(S*(S+1) - (S - j + 1)*(S - j))
+            op[j+1,j] += val*(B[1] + im*B[2])
+        end
+    end
+
+    nothing
+end
+
 @generated function _apply_ℌ!(rhs::Array{CVec{N}, 4}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, integrator)  where {N}
 
     if integrator <: LangevinIntegrator
@@ -325,17 +350,20 @@ end
 
     return quote
         (; sys, _ℌ) = integrator
-        (; hamiltonian, site_infos, lattice, S) = sys
+        # (; hamiltonian, site_infos, lattice, S) = sys
+        (; hamiltonian, site_infos, lattice) = sys
         nb = nbasis(lattice)
         Λs = hamiltonian.sun_aniso
         rhs′ = reinterpret(reshape, ComplexF64, rhs) 
-        Sˣ, Sʸ, Sᶻ = S[:,:,1], S[:,:,2], S[:,:,3] # Cheaper to take the allocations than use views.
+        # Sˣ, Sʸ, Sᶻ = S[:,:,1], S[:,:,2], S[:,:,3] # Cheaper to take the allocations than use views.
 
         @inbounds for s in 1:nb
             κ = $scale_expr 
             Λ = @view(Λs[:,:,s])
             for c in eachcellindex(lattice)
-                @. _ℌ = κ * (Λ - (B[c,s][1]*Sˣ + B[c,s][2]*Sʸ + B[c,s][3]*Sᶻ))
+                # @. _ℌ = κ * (Λ - (B[c,s][1]*Sˣ + B[c,s][2]*Sʸ + B[c,s][3]*Sᶻ))
+                @. _ℌ = κ * Λ 
+                add_dipolar_field!(_ℌ, -κ*B[c,s]) 
                 mul!(@view(rhs′[:, c, s]), _ℌ, Z[c, s])
             end
         end
