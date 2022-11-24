@@ -1,8 +1,12 @@
-# * Correction for Quantum-Classical Correspondence ver 1
+# * Correction for Quantum-Classical Correspondence
+# *
 # * Written by Chaebin Kim 09/20/2022
+# * revised by Chaebin Kim 11/23/2022
+# *
 # * Ref) S. Zhang et al. Physical Review Letters 122, 167203 (2019)
+# * Ref) E. M. Smith et al. Physical Review X 12, 021015 (2022)
 
-# ? QC_corr! : Calculating Quantum-Classical correspondence βω
+# ? QC_corr! : Calculating Quantum-Classical correspondence
 # ? hexa_corr! : Correcting the momentum space with hexagonal unit cell
 # ? Cobalt_ff! : Calculating magnetic form factor for Co2+ correctly
 # TODO: Currently, the output of hexa_corr cannot replace the MySQWperp due to the different size of OffsetArray...
@@ -11,23 +15,31 @@
 """
     QC_corr!(MySQWperp, EN, kT, Nω)
 
-Multiplying the Quantum-Classical Correspondence factor βω as
+Multiplying the Quantum-Classical Correspondence factor βω/(1-e^(-βω)) as
 '''math
-    S(q,ω)_{Quantum} = βωS(q,ω)_{Classical}
+    S(q,ω)_{Quantum} = βω/(1-e^(-βω))S(q,ω)_{Classical}
 '''
 where β = 1/kT and ω is energy.
 
 """
-function QC_corr!(MySQWperp, EN, kT, Nω)
-    β = 1 / kT
-    βω = reshape(β * EN, 1, 1, 1, Nω) # Correction factor βω
-    βω = repeat(βω, outer=[size(MySQWperp.sfactor)[1], size(MySQWperp.sfactor)[2], size(MySQWperp.sfactor)[3], 1])
+function QC_corr!(MySQWperp, kT)
+    N1, N2, N3, N4 = size(MySQWperp.sfactor)
     Ls = MySQWperp.sfactor.offsets .+ 1
     Le = -1 .* MySQWperp.sfactor.offsets
-    QC_corr = OffsetArray(βω, Ls[1]:Le[1], Ls[2]:Le[2], Ls[3]:Le[3], Ls[4]:Le[4])
 
-    MySQWperp.sfactor .= MySQWperp.sfactor .* QC_corr
-    MySQWperp.sfactor .= MySQWperp.sfactor ./ maximum(MySQWperp.sfactor) # Renormalization!
+    β = 1 / kT
+    wmax = round(2 * pi / (MySQWperp.dt * MySQWperp.meas_period))
+    EN = range(Ls[4], length=N4) * 2 * wmax / N4
+    
+    tmp = β * EN ./ (ones(size(EN)) - exp.(-1 * β * EN))
+    tmp[round(Int, Nω / 2)] = 1.0 # remove divergence value at E = 0
+
+    βω = reshape(tmp, 1, 1, 1, Nω) # Correction factor βω
+    βω = repeat(βω, outer=[N1, N2, N3, 1])
+
+    CQ_corr = OffsetArray(βω, Ls[1]:Le[1], Ls[2]:Le[2], Ls[3]:Le[3], Ls[4]:Le[4])
+
+    MySQWperp.sfactor .= MySQWperp.sfactor .* CQ_corr
 
     return MySQWperp
 end

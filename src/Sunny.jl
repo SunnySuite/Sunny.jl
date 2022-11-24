@@ -69,6 +69,8 @@ include("Anisotropies.jl")
 
 include("Ewald.jl")
 
+include("QC_corr.jl")
+
 include("FourierAccel.jl")
 
 include("Hamiltonian.jl")
