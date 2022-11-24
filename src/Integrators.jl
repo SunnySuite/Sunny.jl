@@ -292,7 +292,6 @@ end
     (a - ((Z' * a) * Z))  
 end
 
-
 @generated function _apply_ℌ!(rhs::Array{CVec{N}, 4}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, integrator)  where {N}
 
     if integrator <: LangevinIntegrator
@@ -302,21 +301,20 @@ end
     end
 
     if N < 6 
-        S = gen_spin_ops(N) .|> SMatrix{N, N, ComplexF64, N*N}
+        S = spin_matrices(N) .|> SMatrix{N, N, ComplexF64, N*N}
 
         return quote
             (; sys) = integrator
             (; hamiltonian, site_infos, lattice) = sys
-            sites = hamiltonian.sun_aniso.sites
-            Λs′ = hamiltonian.sun_aniso.Λs
+            nb = nbasis(lattice)
+            Λs′ = hamiltonian.sun_aniso
             Λs = reinterpret(SMatrix{N, N, ComplexF64, N*N},
-                             reshape(Λs′, N*N, length(sites))
+                             reshape(Λs′, N*N, nb)
             )
-
-            @inbounds for s in sites 
+            @inbounds for s in 1:nb
                 κ = $scale_expr
                 for c in eachcellindex(lattice)
-                    ℌ = κ * (Λs[s] - B[c,s] ⋅ $(S))
+                    ℌ = κ * (Λs[s] - ($S)' * B[c,s])
                     rhs[c, s] = ℌ*Z[c, s]
                 end
             end
@@ -326,16 +324,17 @@ end
 
     return quote
         (; sys, _ℌ) = integrator
-        (; hamiltonian, site_infos, lattice, S) = sys
-        aniso = hamiltonian.sun_aniso
+        (; hamiltonian, site_infos, lattice) = sys
+        nb = nbasis(lattice)
+        Λs = hamiltonian.sun_aniso
         rhs′ = reinterpret(reshape, ComplexF64, rhs) 
-        Sˣ, Sʸ, Sᶻ = S[:,:,1], S[:,:,2], S[:,:,3] # Cheaper to take the allocations than use views.
 
-        @inbounds for s in aniso.sites
+        @inbounds for s in 1:nb
             κ = $scale_expr 
-            Λ = @view(aniso.Λs[:,:,s])
+            Λ = @view(Λs[:,:,s])
             for c in eachcellindex(lattice)
-                @. _ℌ = κ * (Λ - (B[c,s][1]*Sˣ + B[c,s][2]*Sʸ + B[c,s][3]*Sᶻ))
+                @. _ℌ = κ * Λ 
+                accum_spin_matrices!(_ℌ, -κ*B[c,s]) 
                 mul!(@view(rhs′[:, c, s]), _ℌ, Z[c, s])
             end
         end

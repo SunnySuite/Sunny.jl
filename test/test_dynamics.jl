@@ -148,3 +148,4 @@ function time_real_fourier_dipole()
     end
     return real_times, ft_times
 end
+

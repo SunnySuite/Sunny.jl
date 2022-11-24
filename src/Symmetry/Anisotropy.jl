@@ -1,16 +1,3 @@
-# N-dimensional irreducible matrix representation of 𝔰𝔲(2).
-# TODO: Unify with David's code.
-function spin_operators(N)
-    s = (N-1)/2
-    a = 1:N-1
-    off = @. sqrt(2(s+1)*a - a*(a+1)) / 2
-
-    Sx = diagm(1 => off, -1 => off)
-    Sy = diagm(1 => -im*off, -1 => +im*off)
-    Sz = diagm((N-1)/2 .- (0:N-1))
-    return SVector{3, Matrix{ComplexF64}}(Sx, Sy, Sz)
-end
-
 # Return a matrix whose columns are an orthogonal basis for the span of columns
 # in A. Adapted from LinearAlgebra.nullspace().
 function colspace(A::AbstractVecOrMat; atol::Real)
@@ -34,15 +21,15 @@ function axis_angle(R::Mat3)
             t = 1 + m00 - m11 - m22
             q = SA[t, m01+m10, m20+m02, m12-m21]
         else
-            t = 1 - m00 + m11 - m22;
+            t = 1 - m00 + m11 - m22
             q = SA[m01+m10, t, m12+m21, m20-m02]
         end
     else
         if (m00 < -m11)
-            t = 1 - m00 - m11 + m22;
+            t = 1 - m00 - m11 + m22
             q = SA[m20+m02, m12+m21, t, m01-m10]
         else
-            t = 1 + m00 + m11 + m22;
+            t = 1 + m00 + m11 + m22
             q = SA[m12-m21, m20-m02, m01-m10, t]
         end
     end
@@ -62,73 +49,75 @@ function axis_angle(R::Mat3)
         n = q[1:3] / sqrt(1 - q[4]^2)
     end
 
+    # Negate the axis to invert the rotation, i.e., transpose R. This is
+    # necessary to view R as right-multiplying a column vector.
+    n = -n
+
     return (n, θ)
 end
 
-# Spherical tensors that satisfy `norm(T) =  √ tr T† T = 1`.  TODO: Delete,
-# because this function is never used?
-function spherical_tensors_normalized(N, k)
-    S = (N-1)/2
-    ret = Matrix{Float64}[]
-    for q = k:-1:-k
-        T = zeros(Float64, N, N)
-        for i = 1:N, i′ = 1:N
-            m  = S - i + 1
-            m′ = S - i′+ 1
-            T[i, i′] = clebschgordan(S, m′, k, q, S, m) * sqrt((2k+1)/N)
-        end
-        push!(ret, T)
-    end
-    return ret
-end
-
-# Spherical tensors T(k,q) as NxN operators. These are ordered as [T(k,k),
-# T(k,k-1), ... T(k,-k)] for consistency with the standard basis used by the
-# spin operators. The result is ambiguous up to an overall (k,N)-dependent
-# scaling factor. We use the normalization convention of KS/BCS. Note: This
-# function is currently only used to construct the Stevens operators, but those
-# could intead be constructed from an explicit polynomial expansion. In that
-# case, this function would only be needed for testing purposes.
-function spherical_tensors(N, k)
-    j = (N-1)/2
-    ret = Matrix{Float64}[]
-    for q = k:-1:-k
-        Tq = zeros(Float64, N, N)
-        for i′ = 1:N, i = 1:N
-            m′ = j - i′+ 1
-            m  = j - i + 1
-
-            # By the Wigner-Eckhardt theorem, the spherical tensor T must have
-            # this m and m′ dependence. An overall (j, k)-dependent rescaling
-            # factor is arbitrary, however.
-            Tq[i′, i] = (-1)^(j-m′) * wigner3j(j, k, j, -m′, q, m)
-        end
-
-        # Below we will apply two rescaling factors obtained from Rudowicz and
-        # Chung, J. Phys.: Condens. Matter 16 (2004) 5825–5847.
-
-        # With this rescaling factor, we get the Buckmaster and Smith & Thornley
-        # (BST) operator
-        Tq .*= 2.0^(-k) * sqrt(factorial((N-1)+k+1) / factorial((N-1)-k))
-
-        # With this additional rescaling factor, we get the Koster and Statz
-        # (1959) and Buckmaster et al (1972) operator (KS/BCS)
-        Tq ./= sqrt(factorial(2k) / (2^k * factorial(k)^2))
-
-        push!(ret, Tq)
-    end
-    return ret
-end
-
-function unitary_for_rotation(N::Int, R::Mat3)
+function unitary_for_rotation(R::Mat3; N::Int)
     !(R'*R ≈ I)   && error("Not an orthogonal matrix, R = $R.")
     !(det(R) ≈ 1) && error("Not a rotation matrix, R = $R.")
-    S = spin_operators(N)
+    S = spin_matrices(N)
     n, θ = axis_angle(R)
     return exp(-im*θ*(n'*S))
 end
 
-const stevens_a = begin
+function rotate_operator(A::Matrix, R)
+    R = convert(Mat3, R)
+    N = size(A, 1)
+    U = unitary_for_rotation(R; N)
+    return U'*A*U
+end
+
+function rotate_operator(P::DP.AbstractPolynomialLike, R)
+    R = convert(Mat3, R)
+
+    # The spin operator vector rotates two equivalent ways:
+    #  1. S_α -> U' S_α U
+    #  2. S_α -> R_αβ S_β
+    #
+    # where U = exp(-i θ n⋅S), for the axis-angle rotation (n, θ). Apply the
+    # latter to transform symbolic spin operators.
+    𝒮′ = R * 𝒮
+
+    # Spherical tensors T_q rotate two equivalent ways:
+    #  1. T_q -> U' T_q U       (with U = exp(-i θ n⋅S) in dimension N irrep)
+    #  2. T_q -> D*_{q,q′} T_q′ (with D = exp(-i θ n⋅S) in dimension 2k+1 irrep)
+    #
+    # The Stevens operators 𝒪_q are linearly related to T_q via 𝒪 = α T.
+    # Therefore rotation on Stevens operators is 𝒪 -> α conj(D) α⁻¹ 𝒪.
+    local 𝒪 = stevens_operator_symbols
+    𝒪′ = map(𝒪) do 𝒪ₖ
+        k = Int((length(𝒪ₖ)-1)/2)
+        D = unitary_for_rotation(R; N=2k+1)
+        R_stevens = stevens_α[k] * conj(D) * stevens_αinv[k]
+        @assert norm(imag(R_stevens)) < 1e-12
+        real(R_stevens) * 𝒪ₖ
+    end
+
+    # Spin squared as a scalar may be introduced through
+    # operator_to_classical_stevens()
+    X = spin_squared_symbol
+
+    # Perform substitutions
+    P′ = P(𝒮 => 𝒮′, [𝒪[k] => 𝒪′[k] for k=1:6]..., X => X)
+
+    # Remove terms very near zero
+    return DP.mapcoefficients(P′) do c
+        abs(c) < 1e-12 ? zero(c) : c
+    end
+end
+
+# Coefficients α to convert from spherical tensors to Stevens operators. For
+# each k, the mapping is 𝒪_q = α_{q,q'} T_q'. Spherical tensors T use the
+# normalization convention of Koster and Statz (1959) and Buckmaster et al
+# (1972) operator (KS/BCS). An explicit construction of T is given by
+# spherical_tensors() in test_symmetry.jl . The operators 𝒪 can also be
+# expressed as explicit polynomials of spin operators, as in
+# stevens_abstract_polynomials() below.
+const stevens_α = let
     # These coefficients for a[k,q] were taken from Table 1 of C. Rudowicz, J.
     # Phys. C: Solid State Phys. 18, 1415 (1985). It appears the general formula
     # could be unraveled from Eq. (21) of I. D. Ryabov, J. Magnetic Resonance
@@ -140,159 +129,55 @@ const stevens_a = begin
          6√14  2√(21/5) √(3/5)   6√(2/5)  2/√5     2√2  0;
          4√231 √22      4√(11/5) 2√(11/5) 4√(11/6) 2/√3 4;]
     a = OffsetArray(a, 1:6, 0:6)
-end
 
-function stevens_operators(N::Int, k::Int; R=Mat3(I))
-    k < 0  && error("Require k > 0, received k=$k")
-    k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
-    k >= N && error("Hilbert space dimension N=$N must exceed operator order k=$k")
+    ret = Matrix{ComplexF64}[]
 
-    k == 0 && return OffsetArray([Matrix{ComplexF64}(I, N, N)], 0:0)
+    for k = 1:6
+        sz = 2k+1
+        α = zeros(ComplexF64, sz, sz)
 
-    # Indexing convention for T(k,q) is q = [k, k-1, … , -k]
-    T = spherical_tensors(N, k)
+        for q = 0:k
+            # Convert q and -q into array indices. The convention is descending
+            # order, q = k...-k.
+            qi = k - (+q) + 1
+            q̄i = k - (-q) + 1
 
-    # Define Stevens operators in standard frame
-    𝒪s = OffsetArray(fill(zeros(ComplexF64, 0, 0), 2k+1), -k:k)
-    for q=1:k
-        Tq = T[begin + (k-q)]
-        Tq̄ = T[end   - (k-q)]
-        𝒪s[q]  =      stevens_a[k,q] * (Tq̄ + (-1)^q * Tq)
-        𝒪s[-q] = im * stevens_a[k,q] * (Tq̄ - (-1)^q * Tq)
-    end
-    𝒪s[0] = stevens_a[k,0] * T[begin + (k-0)]
-
-    # Return rotated operators
-    U = unitary_for_rotation(N, R)
-    return [U'*𝒪*U for 𝒪 in 𝒪s]
-end
-
-
-# An explicit polynomial definition of the Stevens operators. The output must be
-# identical to stevens_operators(N, k) calculated from the spherical tensors.
-function stevens_operators_explicit(N::Int, k::Int)
-    k >= N && error("Hilbert space dimension N=$N must exceed operator order k=$k")
-
-    I = Matrix{ComplexF64}(LinearAlgebra.I, N, N)
-    S = spin_operators(N)
-
-    J = (N-1)/2
-    Jp = S[1] + im*S[2]
-    Jm = S[1] - im*S[2]
-    Jz = S[3]
-    X = J*(J+1)*I
-
-    # Symmetrize
-    sym(x) = (x+x')/2
-
-    ret = if k == 0
-        [
-            I,
-        ]
-    elseif k == 1
-        [
-            sym(-im*(Jp^1-Jm^1))/2, # Jy
-            Jz,
-            sym(Jp^1+Jm^1)/2, # Jx
-        ]
-    elseif k == 2
-        [
-            sym(-im*(Jp^2-Jm^2))/2,
-            sym(-im*(Jp^1-Jm^1)*Jz)/2,
-            3Jz^2 - X,
-            sym((Jp^1+Jm^1)*Jz)/2,
-            sym((Jp^2+Jm^2))/2,
-        ]
-    elseif k == 3
-        [
-            sym(-im*(Jp^3-Jm^3))/2,
-            sym(-im*(Jp^2-Jm^2)*Jz)/2,
-            sym(-im*(Jp^1-Jm^1)*(5Jz^2-X-I/2))/2,
-            5Jz^3-(3X-I)*Jz,
-            sym((Jp^1+Jm^1)*(5Jz^2-X-I/2))/2,
-            sym((Jp^2+Jm^2)*Jz)/2,
-            sym((Jp^3+Jm^3))/2,
-        ]
-    elseif k == 4
-        c = [
-            35Jz^4 - (30X-25I)*Jz^2 + (3X^2-6X),
-            7Jz^3 - (3X+I)*Jz,
-            7Jz^2 - (X+5I),
-            Jz,
-            I,
-        ]
-        [
-            sym(-im*(Jp^4-Jm^4)*c[5])/2,
-            sym(-im*(Jp^3-Jm^3)*c[4])/2,
-            sym(-im*(Jp^2-Jm^2)*c[3])/2,
-            sym(-im*(Jp^1-Jm^1)*c[2])/2,
-            c[1],
-            sym((Jp^1+Jm^1)*c[2])/2,
-            sym((Jp^2+Jm^2)*c[3])/2,
-            sym((Jp^3+Jm^3)*c[4])/2,
-            sym((Jp^4+Jm^4)*c[5])/2,
-        ]
-
-    elseif k == 5
-        c = [
-            63Jz^5 - (70X-105I)*Jz^3 + (15X^2-50X+12I)*Jz,
-            21Jz^4 - 14X*Jz^2 + (X^2-X+(3/2)*I),
-            3Jz^3 - (X+6I)*Jz,
-            9Jz^2 - (X+(33/2)*I),
-            Jz,
-            I,
-        ]
-        [
-            sym(-im*(Jp^5-Jm^5)*c[6])/2,
-            sym(-im*(Jp^4-Jm^4)*c[5])/2,
-            sym(-im*(Jp^3-Jm^3)*c[4])/2,
-            sym(-im*(Jp^2-Jm^2)*c[3])/2,
-            sym(-im*(Jp^1-Jm^1)*c[2])/2,
-            c[1],
-            sym((Jp^1+Jm^1)*c[2])/2,
-            sym((Jp^2+Jm^2)*c[3])/2,
-            sym((Jp^3+Jm^3)*c[4])/2,
-            sym((Jp^4+Jm^4)*c[5])/2,
-            sym((Jp^5+Jm^5)*c[6])/2,
-        ]
-    elseif k == 6
-        c = [
-            231Jz^6 - (315X-735I)Jz^4 + (105X^2-525X+294I)*Jz^2 - (5X^3-40X^2+60X),
-            33Jz^5 - (30X-15I)*Jz^3 + (5X^2-10X+12I)*Jz,
-            33Jz^4 - (18X+123I)Jz^2 + (X^2+10X+102I),
-            11Jz^3 - (3X+59I)*Jz,
-            11Jz^2 - (X+38I),
-            Jz,
-            I
-        ]
-        [
-            sym(-im*(Jp^6-Jm^6)*c[7])/2,
-            sym(-im*(Jp^5-Jm^5)*c[6])/2,
-            sym(-im*(Jp^4-Jm^4)*c[5])/2,
-            sym(-im*(Jp^3-Jm^3)*c[4])/2,
-            sym(-im*(Jp^2-Jm^2)*c[3])/2,
-            sym(-im*(Jp^1-Jm^1)*c[2])/2,
-            c[1],
-            sym((Jp^1+Jm^1)*c[2])/2,
-            sym((Jp^2+Jm^2)*c[3])/2,
-            sym((Jp^3+Jm^3)*c[4])/2,
-            sym((Jp^4+Jm^4)*c[5])/2,
-            sym((Jp^5+Jm^5)*c[6])/2,
-            sym((Jp^6+Jm^6)*c[7])/2,
-        ]
-    else
-        # In principle, it should be possible to programmatically generate
-        # arbitrary Stevens operators as polynomials using Eq. (23) of I. D.
-        # Ryabov, J. Magnetic Resonance 140, 141-145 (1999),
-        # https://doi.org/10.1006/jmre.1999.1783
-        error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
+            # Fill α_{±q,±q} values
+            if q == 0
+                α[qi, qi] = a[k,q]
+            else
+                α[qi, q̄i] =                 a[k, q]
+                α[qi, qi] =        (-1)^q * a[k, q]
+                α[q̄i, q̄i] =   im *          a[k, q]
+                α[q̄i, qi] = - im * (-1)^q * a[k, q]
+            end
+        end
+        push!(ret, α)
     end
 
-    ret = OffsetArray(ret, -k:k)
+    ret
+end
+
+const stevens_αinv = map(inv, stevens_α)
+
+
+# Calculate coefficients c that satisfy `bᵀ 𝒪 = cᵀ T`, where 𝒪 are the Stevens
+# operators, and T are the spherical harmonics. Using `𝒪 = α T`, we must solve
+# bᵀ α = cᵀ, or c = αᵀ b.
+function transform_stevens_to_spherical_coefficients(k, b)
+    return transpose(stevens_α[k]) * b
 end
 
 
-function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R=Mat3(I))
+# Calculate coefficients b that satisfy `bᵀ 𝒪 = cᵀ T`, where 𝒪 are the Stevens
+# operators, and T are the spherical harmonics. Using `𝒪 = α T`, we must solve
+# bᵀ α = cᵀ, or b = α⁻ᵀ c.
+function transform_spherical_to_stevens_coefficients(k, c)
+    return transpose(stevens_αinv[k]) * c
+end
+
+
+function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R::Mat3)
     # The symmetry operations for the point group at atom i. Each one encodes a
     # rotation/reflection.
     symops = symmetries_for_pointgroup_of_atom(cryst, i)
@@ -317,7 +202,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
 
         # The Wigner D matrix, whose action on a spherical tensor corresponds to
         # the 3x3 rotation Q (see more below).
-        return unitary_for_rotation((2k+1), Q)
+        return unitary_for_rotation(Q; N=2k+1)
     end
     
     # A general operator in the spin-k representation can be decomposed in the
@@ -333,45 +218,28 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     # operator 𝒜.
     C = sum(D' for D in Ds)
 
-    # We seek to reexpress the coefficients c → c′ in rotated Stevens operators,
-    # T′ = D* T, where the Wigner D matrix is associated with the rotation R.
-    # That is, we want to return the vectors c′ satisfying c′ᵀ T′ = c T. Note
-    # that c′ᵀ T′ = (c′ᵀ D*) T = (D† c′)ᵀ T. The constraint becomes D† c′ = c.
-    # Since D is unitary, we have c′ = D c. We apply this transformation to each
-    # column c of C.
-    D = unitary_for_rotation(2k+1, convert(Mat3, R))
+    # Transform coefficients c to c′ in rotated Stevens operators, T′ = D* T,
+    # where the Wigner D matrix is associated with the rotation R. That is, find
+    # c′ satisfying c′ᵀ T′ = c T. Recall c′ᵀ T′ = (c′ᵀ D*) T = (D† c′)ᵀ T. The
+    # constraint becomes D† c′ = c. Since D is unitary, we have c′ = D c. We
+    # apply this transformation to each column c of C.
+    D = unitary_for_rotation(R; N=2k+1)
     C = D * C
 
     # Find an orthonormal basis for the columns of A, discarding linearly
     # dependent columns.
     C = colspace(C; atol=1e-12)
 
-    # We no longer sparsify here, because it has been empirically observed to
-    # degrade accuracy in stevens_basis_for_symmetry_allowed_anisotropies()
+    # It is tempting to sparsify here to make the ouput look nicer. Don't do
+    # this because (empirically) it is observed to significantly degrade
+    # accuracy in stevens_basis_for_symmetry_allowed_anisotropies().
+
     # C = sparsify_columns(C; atol=1e-12)
 
     return C
 end
 
-# Calculate coefficients b that satisfy bᵀ 𝒪 = cᵀ T, where 𝒪 are the Stevens
-# operators, and T are the spherical harmonics. We are effectively inverting the
-# sparse linear map in stevens_operators().
-function transform_spherical_to_stevens_coefficients(k, c)
-    k == 0 && return OffsetArray(c, 0:0)
-
-    b = OffsetArray(zeros(ComplexF64, 2k+1), -k:k)
-    for q=1:k
-        cq = c[begin + (k-q)]
-        cq̄ = c[end   - (k-q)]
-        b[ q] =    ((-1)^q * cq + cq̄) / 2stevens_a[k,q]
-        b[-q] = im*((-1)^q * cq - cq̄) / 2stevens_a[k,q]
-    end
-    c0 = c[begin + (k-0)]
-    b[0] = c0 / stevens_a[k,0]
-    return b
-end
-
-function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R=Mat3(I))
+function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R::Mat3)
     # Each column of C represents a coefficient vector c that can be contracted
     # with spherical tensors T to realize an allowed anisotropy, Λ = cᵀ T.
     C = basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
@@ -389,20 +257,17 @@ function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int;
     @assert norm(imag(B)) < 1e-12
     B = real(B)
 
-    # Return OffsetMatrix with appropriate q-indexing
-    return OffsetMatrix(B, -k:k, :)
+    return B
 end
 
 
 function is_anisotropy_valid(cryst::Crystal, i::Int, Λ)
-    N = size(Λ, 1)
     symops = symmetries_for_pointgroup_of_atom(cryst, i)
 
     for s in symops
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
-        Q = det(R) * R
-        U = unitary_for_rotation(N, Q)
-        if !(U'*Λ*U ≈ Λ)
+        Λ′ = rotate_operator(Λ, det(R)*R)
+        if !(Λ′ ≈ Λ)
             return false
         end
     end
@@ -488,25 +353,19 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
 
     y_dir = z_dir × x_dir
 
-    # for d in axes_counts
-    #     println("primary: $d")
-    # end
-    # for d in orthogonal_axes_counts
-    #     println("secondary: $d")
-    # end
-
-    return Mat3(hcat(x_dir, y_dir, z_dir))
+    # Rows of output matrix are the new reference directions
+    return Mat3([x_dir y_dir z_dir])'
 end
 
 
 """
-all_symmetry_related_anisotropies(cryst, i_ref, Λ_ref::Matrix{ComplexF64})
+    all_symmetry_related_anisotropies(cryst, i_ref, Λ_ref)
 
 Return two lists. The first list contains all atoms `i` that are symmetry
 equivalent to `i_ref`. The second list contains the appropriately transformed
 anisotropy matrices `Λ` for each site `i`.
 """
-function all_symmetry_related_anisotropies(cryst::Crystal, i_ref::Int, Λ_ref::Matrix{ComplexF64})
+function all_symmetry_related_anisotropies(cryst::Crystal, i_ref::Int, Λ_ref)
     @assert is_anisotropy_valid(cryst, i_ref, Λ_ref)
 
     is = all_symmetry_related_atoms(cryst, i_ref)
@@ -520,15 +379,10 @@ function all_symmetry_related_anisotropies(cryst::Crystal, i_ref::Int, Λ_ref::M
         R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
         Q = det(R) * R
 
-        # Map rotation Q into a unitary U that acts on spins.
-        N = size(Λ_ref, 1)
-        U = unitary_for_rotation(N, Q)
-
-        # The anisotropy energy must be scalar. The unitary U is is defined to
-        # transform states |Z_ref⟩ → |Z⟩ = U |Z_ref⟩. To achieve invariance,
-        # ⟨Z_ref|Λ_ref|Z_ref⟩ = ⟨Z|Λ|Z⟩, we define Λ_ref → Λ = U*Λ_ref*U'. In
-        # other words, Λ_ref transformed by the _inverse_ of the rotation Q.
-        return U*Λ_ref*U'
+        # In moving from site i_ref to i, a spin S_ref rotates to S = Q S_ref.
+        # Transform the anisotropy operator using the inverse rotation so that
+        # the energy remains invariant when applied to the transformed spins.
+        return rotate_operator(Λ_ref, Q')
     end
 
     return (is, Λs)

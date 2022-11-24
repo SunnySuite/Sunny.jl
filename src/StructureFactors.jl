@@ -52,18 +52,20 @@ array to size `[Q1, Q2, Q3, T]`.
 """
 struct StructureFactor{A1, A2}
     sfactor       :: A1
-    _mag_ft       :: Array{ComplexF64, 6}                    # Buffer for FT of a mag trajectory
-    _form_factor  :: Union{Nothing, Array{Float64, 6}}       # Precomputed form-factor correction
-    _bz_buf       :: A2                                      # Buffer for phase summation / BZ repeating
+    _mag_ft       :: Array{ComplexF64, 6}               # Buffer for FT of a mag trajectory
+    _form_factor  :: Union{Nothing, Array{Float64, 6}}  # Precomputed form-factor correction
+    _bz_buf       :: A2                                 # Buffer for phase summation / BZ repeating
     lattice       :: Lattice
-    reduce_basis  :: Bool                                    # Flag setting basis summation
-    dipole_factor :: Bool                                    # Flag setting dipole form factor
-    bz_size       :: NTuple{3, Int}                          # Num of Brillouin zones along each axis
-    dt            :: Float64                                 # Timestep size in dynamics integrator
-    meas_period   :: Int                                     # Num timesteps between saved snapshots 
-    num_omegas    :: Int                                     # Total number of snapshots to FT
+    reduce_basis  :: Bool                               # Flag setting basis summation
+    dipole_factor :: Bool                               # Flag setting dipole form factor
+    g_factor      :: Bool
+    bz_size       :: NTuple{3, Int}                     # Num of Brillouin zones along each axis
+    dt            :: Float64                            # Timestep size in dynamics integrator
+    meas_period   :: Int                                # Num timesteps between saved snapshots 
+    num_omegas    :: Int                                # Total number of snapshots to FT
     integrator    :: Union{SphericalMidpoint, SchrodingerMidpoint}
     plan          :: FFTW.cFFTWPlan{ComplexF64, -1, true, 6, NTuple{4, Int64}}
+    num_accumed   :: Vector{Int}                        # Number of accumulated samples (vector so mutable)
 end
 
 Base.show(io::IO, sf::StructureFactor) = print(io, join(size(sf.sfactor), "x"),  " StructureFactor")
@@ -71,12 +73,11 @@ Base.summary(io::IO, sf::StructureFactor) = string("StructureFactor: ", summary(
 
 function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
                          dipole_factor=false, dt::Float64=0.01,
-                         num_omegas::Int=1, meas_period::Int=1,) where N
+                         num_omegas::Int=1, meas_period::Int=1, g_factor=true) where N
 
     nb = nbasis(sys.lattice)
     spat_size = size(sys)[1:3]
     q_size = map(s -> s == 0 ? 1 : s, bz_size .* spat_size)
-    result_size = (3, q_size..., num_omegas)
     min_q_idx = -1 .* div.(q_size .- 1, 2)
     min_ω_idx = -1 .* div(num_omegas - 1, 2)
 
@@ -118,8 +119,8 @@ function StructureFactor(sys::SpinSystem{N}; bz_size=(1,1,1), reduce_basis=true,
     plan = plan_spintraj_fft!(spin_ft)
 
     StructureFactor{typeof(sfactor), typeof(bz_buf)}(
-        sfactor, spin_ft, ff_correction, bz_buf, sys.lattice, reduce_basis, dipole_factor,
-        bz_size, dt, meas_period, num_omegas, integrator, plan
+        sfactor, spin_ft, ff_correction, bz_buf, sys.lattice, reduce_basis, dipole_factor, g_factor,
+        bz_size, dt, meas_period, num_omegas, integrator, plan, [0]
     )
 end
 
@@ -170,11 +171,17 @@ Updates `M` in-place to hold the magnetization vectors obtained by scaling `s`
 This function assumes `M` has a first index of length 3, which correspond
  to the magnetization components. (Rather than storing an Array{Vec3}).
 """
-function _compute_mag!(M, sys::SpinSystem)
-    for b in 1:nbasis(sys)
-        gS = sys.site_infos[b].g 
-        for idx in eachcellindex(sys)
-            M[:, idx, b] .= gS * sys._dipoles[idx, b]
+function _compute_mag!(M, sys::SpinSystem, g_factor = true)
+    if g_factor
+        for b in 1:nbasis(sys)
+            gS = sys.site_infos[b].g 
+            for idx in eachcellindex(sys)
+                M[:, idx, b] .= gS * sys._dipoles[idx, b]
+            end
+        end
+    else
+        for b in 1:nbasis(sys), idx in eachcellindex(sys)
+            M[:, idx, b] .= sys._dipoles[idx, b]
         end
     end
 end
@@ -187,19 +194,20 @@ configuration currently in `sys`.
 """
 function update!(sf::StructureFactor, sys::SpinSystem)
     (; sfactor, _mag_ft, _bz_buf, _form_factor) = sf
-    (; reduce_basis, dipole_factor, bz_size) = sf
+    (; reduce_basis, dipole_factor, g_factor) = sf
 
     # Evolve the spin state forward in time to form a trajectory
     # Save off the magnetic moments 𝐦_i(t) = g_i S_i 𝐬_i(t) into _mag_ft
     dynsys = deepcopy(sys)
     sf.integrator.sys = dynsys
     T_dim = ndims(_mag_ft)      # Assuming T_dim is "time dimension", which is last
-    _compute_mag!(selectdim(_mag_ft, T_dim, 1), dynsys)
+
+    _compute_mag!(selectdim(_mag_ft, T_dim, 1), dynsys, g_factor)
     for nsnap in 2:sf.num_omegas
         for _ in 1:sf.meas_period
             evolve!(sf.integrator, sf.dt)
         end
-        _compute_mag!(selectdim(_mag_ft, T_dim, nsnap), dynsys)
+        _compute_mag!(selectdim(_mag_ft, T_dim, nsnap), dynsys, g_factor)
     end
 
     # Fourier transform the trajectory in space + time
@@ -210,6 +218,14 @@ function update!(sf::StructureFactor, sys::SpinSystem)
         _mag_ft .*= _form_factor
     end
 
+    # Normalize FFT to obtain correct intensities
+    # for comparison with spin wave calcs
+    _, N1, N2, N3, _, T = size(_mag_ft)
+    _mag_ft /= √(N1*N2*N3) * T 
+
+    # Advance sample count
+    nsamples = sf.num_accumed[1] += 1
+
     # Optionally sum over basis sites then accumulate the conjugate outer product into sfactor
     # Accumulate the conjugate outer product into sfactor, with optionally:
     #   1) Doing a phase-weighting sum to reduce the basis atom dimensions
@@ -217,16 +233,16 @@ function update!(sf::StructureFactor, sys::SpinSystem)
     if reduce_basis
         phase_weight_basis!(_bz_buf, _mag_ft, sys.lattice)
         if dipole_factor
-            accum_dipole_factor!(sfactor, _bz_buf, sys.lattice)
+            accum_dipole_factor!(sfactor, _bz_buf, sys.lattice, nsamples)
         else
-            outerprod_conj!(sfactor, _bz_buf, 1)
+            accum_outerprod_conj!(sfactor, _bz_buf, 1, nsamples)
         end
     else
         expand_bz!(_bz_buf, _mag_ft)
         if dipole_factor
-            accum_dipole_factor_wbasis!(sfactor, _bz_buf, sys.lattice)
+            accum_dipole_factor_wbasis!(sfactor, _bz_buf, sys.lattice, nsamples)
         else
-            outerprod_conj!(sfactor, _bz_buf, (1, 5)) 
+            accum_outerprod_conj!(sfactor, _bz_buf, (1, 5), nsamples) 
         end
     end
 end
@@ -316,7 +332,7 @@ function dynamic_structure_factor(
     sys::SpinSystem, sampler::S; nsamples::Int=10,
     thermalize::Int=10, bz_size=(1,1,1), reduce_basis::Bool=true,
     dipole_factor::Bool=false, dt::Float64=0.01, num_omegas::Int=100,
-    omega_max=nothing, verbose::Bool=false
+    omega_max=nothing, verbose::Bool=false, g_factor=true
 ) where {S <: AbstractSampler}
 
     if isnothing(omega_max)
@@ -327,7 +343,7 @@ function dynamic_structure_factor(
     end
 
     sf  = StructureFactor(sys;
-        dt, num_omegas, meas_period, bz_size, reduce_basis, dipole_factor
+        dt, num_omegas, meas_period, bz_size, reduce_basis, dipole_factor, g_factor 
     )
 
     if verbose
@@ -501,20 +517,16 @@ function phase_weight_basis!(res::OffsetArray{ComplexF64},
 
     recip = gen_reciprocal(lattice)
 
-    num_omegas = size(spin_traj_ft)[end]
-    min_ω = -1 .* div(num_omegas - 1, 2)
-    max_ω = min_ω + num_omegas - 1
-
     fill!(res, 0.0)
-    for q_idx in CartesianIndices(axes(res)[2:4])
-        q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
-        wrap_q_idx = modc(q_idx, spat_size) + oneunit(q_idx)
-        for (b_idx, b) in enumerate(lattice.basis_vecs)
-            phase = exp(-im * (b ⋅ q))
-            # Note: Lots of allocations here. Fix?
-            # Warning: Cannot replace T with 1:end due to Julia issues with end and CartesianIndex
-            @. res[:, q_idx, min_ω:-1] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, max_ω+2:num_omegas]) * phase
-            @. res[:, q_idx, 0:max_ω] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, 1:max_ω+1]) * phase
+    for ω_idx in CartesianIndices(axes(res)[5])
+        wrap_ω_idx = mod(ω_idx.I[1], size(res, 5)) + 1
+        for q_idx in CartesianIndices(axes(res)[2:4])
+            q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
+            wrap_q_idx = modc(q_idx, spat_size) + oneunit(q_idx)
+            for (b_idx, b) in enumerate(lattice.basis_vecs)
+                phase = exp(-im * (b ⋅ q))
+                @. res[:, q_idx, ω_idx] += @view(spin_traj_ft[:, wrap_q_idx, b_idx, wrap_ω_idx]) * phase
+            end
         end
     end
 
@@ -565,16 +577,16 @@ function outerprod_conj(S, dims=1)
 end
 
 """
-    outerprod_conj!(res, S, [dims=1])
+    accum_outerprod_conj!(res, S, [dims=1])
 
 Like `outerprod_conj`, but accumulates the result in-place into `res`.
 """
-function outerprod_conj!(res, S, dims=1)
+function accum_outerprod_conj!(res, S, dims, nsamples)
     sizeα = _outersizeα(axes(S), dims)
     sizeβ = _outersizeβ(axes(S), dims)
     Sα = reshape(S, sizeα)
     Sβ = reshape(S, sizeβ)
-    @. res += Sα * conj(Sβ)
+    @. res = res + (Sα * conj(Sβ) - res) / nsamples
 end
 
 """
@@ -586,15 +598,15 @@ that res is of shape [3, Q1, Q2, Q3, B, T], with all Qi >= Li.
 """
 function expand_bz!(res::OffsetArray{ComplexF64}, S::Array{ComplexF64})
     spat_size = size(S)[2:4]
-    num_omegas  = size(S, ndims(S))
-    min_ω = -1 .* div(num_omegas - 1, 2)
-    max_ω = min_ω + num_omegas - 1
+    num_ωs  = size(S, ndims(S))
+    min_ω = -1 .* div(num_ωs - 1, 2)
+    max_ω = min_ω + num_ωs - 1
 
     for ω in min_ω:max_ω 
+        wrap_ω_idx = ω < 0 ? ω + num_ωs + 1 : ω + 1
         for q_idx in CartesianIndices(axes(res)[2:4])
             wrap_q_idx = modc(q_idx, spat_size) + CartesianIndex(1, 1, 1)
-            ω_no_offset = ω < 0 ? ω + num_omegas : ω + 1
-            res[:, q_idx, :, ω] = S[:, wrap_q_idx, :, ω_no_offset]
+            res[:, q_idx, :, ω] = S[:, wrap_q_idx, :, wrap_ω_idx]
         end
     end
 end
@@ -609,17 +621,18 @@ end
 Given complex `S` of size [3, Q1, ..., QD, T] and `res` of size [Q1, ..., QD, T],
 accumulates the structure factor from `S` with the dipole factor applied into `res`.
 """
-function accum_dipole_factor!(res, S, lattice::Lattice)
+function accum_dipole_factor!(res, S, lattice::Lattice, nsamples::Int)
     recip = gen_reciprocal(lattice)
     for q_idx in CartesianIndices(axes(res)[1:3])
         q = recip.lat_vecs * Vec3(Tuple(q_idx) ./ lattice.size)
         q = q / (norm(q) + 1e-12)
         dip_factor = I(3) - q * q'
 
-        for α in 1:3
-            for β in 1:3
+        for ω in axes(S)[end]
+            for α in 1:3, β in 1:3
                 dip_elem = dip_factor[α, β]
-                @. res[q_idx, :] += dip_elem * real(S[α, q_idx, :] * conj(S[β, q_idx, :]))
+                prev = res[q_idx,ω]
+                res[q_idx, ω] = prev + (dip_elem * real(S[α, q_idx, ω] * conj(S[β, q_idx, ω])) - prev) / nsamples
             end
         end
     end
@@ -631,9 +644,8 @@ end
 Given complex `S` of size [3, Q1, ..., QD, B, T] and real `res` of size [Q1, ..., QD, B, B, T],
 accumulates the structure factor from `S` with the dipole factor applied into `res`.
 """
-function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
+function accum_dipole_factor_wbasis!(res, S, lattice::Lattice, nsamples::Int)
     recip = gen_reciprocal(lattice)
-    nb = nbasis(lattice)
     Sα = reshape(S, _outersizeα(axes(S), 5))  # Size [3,..., 1, B, T] 
     Sβ = reshape(S, _outersizeβ(axes(S), 5))  # Size [3,..., B, 1, T] 
 
@@ -642,11 +654,11 @@ function accum_dipole_factor_wbasis!(res, S, lattice::Lattice)
         q = q / (norm(q) + 1e-12)
         dip_factor = I(3) - q * q'
 
-        for α in 1:3
-            for β in 1:3
-                dip_elem = dip_factor[α, β]
-                @. res[q_idx, :, :, :] += dip_elem * real(Sα[α, q_idx, :, :, :] * Sβ[β, q_idx, :, :, :])
-            end
+        for α in 1:3, β in 1:3
+            dip_elem = dip_factor[α, β]
+            previous = @view(res[q_idx, :, :, :])
+            @. res[q_idx, :, :, :] = previous + 
+                (dip_elem * real(Sα[α, q_idx, :, :, :] * conj(Sβ[β, q_idx, :, :, :])) - previous) / nsamples
         end
     end
 end
@@ -784,13 +796,28 @@ end
         interp_method = BSpline(Linear(Periodic())),
         interp_scale = 1, return_idcs=false)
 
+**NOTE**: This function is being deprecated. More advanced functionality
+will be available in a forthcoming update to Sunny. For now, restrict
+usage to `StructureFactor`s for which `reduce_basis=true`. If you pass
+a structure factor with additional basis indices, the function will work,
+but it will be up to the user to use the additional information properly
+to construct a final 2-dimensional slice. This will be automated in
+upcoming revisions.
+
 Returns a slice through the structure factor `sf`. The slice is generated
 along a linear path successively connecting each point in `points`.
 `points` must be a vector containing at least two points. For example: 
 `points = [(0, 0, 0), (π, 0, 0), (π, π, 0)]`.
 
+The three q indices of the structure factor `sf` will be reduced to a
+single index. So, for example, if you pass a structure factor with
+indices [α, β, qa, qb, qc, ω], you will be returned an array with
+indices [α, β, q, ω], where the q index corresponds to linearly spaced
+points along your specified path.
+
 If `return_idcs` is set to `true`, the function will also return the indices
-of the slice that correspond to each point of `points`.
+of the slice that correspond to each point of `points`. This is useful for
+plotting labels.
 
 If `interp_scale=1` and the paths are parallel to one of the reciprocal
 lattice vectors (e.g., (0,0,0) -> (π,0,0)), or strictly diagonal
@@ -803,16 +830,17 @@ from the structure factor without interpolation.
 The interpolation method is linear by default but may be set to
 any scheme provided by the Interpolations.jl package. Simply set
 the keyword `interp_method` to the desired method.
-
-The function currently only works on struture factors with dimensions
-`[Qa, Qb, Qc, ω]`. Such a structure factor results from setting both 
-`reduce_basis` and `dipole_factor` keywords to `true` when calling
-`dynamical_structure_factor`.
 """
 function sf_slice(sf::StructureFactor, points::Vector;
     interp_method = BSpline(Linear(Periodic())),
     interp_scale = 1, return_idcs=false,
 )
+    # The following two functions return functions that take q and ω information
+    # and insert it into the correct indices. What the correct indices are will
+    # depend on the configuration of the StructureFactor (i.e., whether coordinate
+    # indices are present, and whether basis indices are present). There should be
+    # a way to combine these functions into a single function, but I ran into so
+    # some issues with splatting. This will all go in the refactor.
     function slice_indexer_func(sf::StructureFactor)
         if sf.reduce_basis
             if sf.dipole_factor
@@ -823,9 +851,11 @@ function sf_slice(sf::StructureFactor, points::Vector;
         else
             if sf.dipole_factor
                 nb = size(sf.sfactor, 4)
+                nb = nb == 1 ? 2 : nb  # Artificially expand basis dimension for interpolation
                 indexer = (x, y) -> (x, 1:nb, 1:nb, y) 
             else
                 nb = size(sf.sfactor, 6)
+                nb = nb == 1 ? 2 : nb  # Artificially expand basis dimension for interpolation
                 indexer = (x, y) -> (1:3, 1:3, x, 1:nb, 1:nb, y)
             end
         end
@@ -842,9 +872,11 @@ function sf_slice(sf::StructureFactor, points::Vector;
         else
             if sf.dipole_factor
                 nb = size(sf.sfactor, 4)
+                nb = nb == 1 ? 2 : nb  # Artificially expand basis dimension for interpolation
                 indexer = (q1, q2, q3, y) -> (q1, q2, q3, 1:nb, 1:nb, y) 
             else
                 nb = size(sf.sfactor, 6)
+                nb = nb == 1 ? 2 : nb  # Artificially expand basis dimension for interpolation
                 indexer = (q1, q2, q3, y) -> (1:3, 1:3, q1, q2, q3, 1:nb, 1:nb, y)
             end
         end
@@ -875,17 +907,32 @@ function sf_slice(sf::StructureFactor, points::Vector;
         v = v ./ (nsteps-1) 
         ps = [p1 + (k * v) for k in 0:nsteps-1]
 
-        # Periodically wrap coordinates that exceed that contained in the SF
+        # Periodically wrap coordinates that exceed those contained in the SF
         return map(ps) do p
             [wrap(p[i], bounds[i]) for i in 1:3]
         end
     end
 
-    sfdata = parent(sf.sfactor)
+    # Duplicates the structure factor data along any dimensions that has size of 1. For example,
+    # will add one layer to a 2D system to make it into 3D system, with the added layer begin a
+    # simple copy of the original. This just assures that the interpolation algorithm doesn't fail,
+    # as Interpolations.jl requires at least two points along each dimension. In particular, this
+    # allows the user to cut paths from 2D systems.
+    #
+    # This is a quick fix to avoid redoing the approach to indexing and interpolation.
+    # Not investing time in a better solution because the need for this entire function will be 
+    # eliminated in the refactor. Note the user will never see this.
+    function expand_singleton_dims(sfdata)
+        outer = map(i -> i == 1 ? 2 : 1, size(sfdata))  # Find dimensions to duplicate 
+        repeat(sfdata; outer)
+    end
+
+    sfdata = parent(sf.sfactor) |> expand_singleton_dims
     points = Vec3.(points) # Convert to uniform type
 
     # Consolidate data necessary for the interpolation
     q_vals = q_labels(sf) 
+    q_vals = map(vals -> length(vals) == 1 ? [0.0, π] : vals, q_vals) # To accomodate dimensional expansion
     ωs = omega_labels(sf)
     dims = size(sfdata)[q_idcs(sf)]
 
@@ -901,7 +948,7 @@ function sf_slice(sf::StructureFactor, points::Vector;
     itp = interpolate(sfdata, interp_method)
     sitp = scale(itp, sf_idx(q_scales..., ω_scale)...)
 
-    # Pull each partial slice (each leg of the cut) from interpolant
+    # Pull each partial slice (each section of the path) from interpolant
     slices = []
     for i in 1:length(points)-1
         ps = path_points(points[i], points[i+1], q_dens, q_bounds; interp_scale)
@@ -921,11 +968,22 @@ function sf_slice(sf::StructureFactor, points::Vector;
         push!(idcs, idcs[i] + dim)
     end
 
-    # Set up offsets
+    # Set up offsets (only on ω axis). 
     numones = 5
     (sf.reduce_basis) && (numones -= 2)
     (sf.dipole_factor) && (numones -= 2)
     slice = OffsetArray(cat(slices...; dims=q_idx), Origin(ones(numones)..., ωs.offsets[1] + 1))
+
+    # If artifically duplicated basis dimensions (i.e. if had size 1), return to original size
+    if !sf.reduce_basis
+        if sf.dipole_factor
+            nb = size(sf.sfactor, 4)
+            slice = slice[:,1:nb,1:nb,:]
+        else
+            nb = size(sf.sfactor, 6)
+            slice = slice[:,:,:,1:nb,1:nb,:]
+        end
+    end
 
     return_idcs && (return (; slice, idcs))
     return slice

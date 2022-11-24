@@ -29,7 +29,7 @@ function BondRaw(cryst::Crystal, b::Bond)
     return BondRaw(cryst.positions[b.i], cryst.positions[b.j]+b.n)
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", bond::Bond)
+function Base.show(io::IO, ::MIME"text/plain", bond::Bond)
     print(io, "Bond($(bond.i), $(bond.j), $(bond.n))")
 end
 
@@ -71,6 +71,6 @@ function transform(cryst::Crystal, s::SymOp, b::Bond)
     return Bond(cryst, transform(s, BondRaw(cryst, b)))
 end
 
-function reverse(b::BondRaw)
+function Base.reverse(b::BondRaw)
     return BondRaw(b.rj, b.ri)
 end
