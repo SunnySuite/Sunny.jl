@@ -1,6 +1,6 @@
 module Sunny
 
-import SnoopPrecompile: @precompile_setup, @precompile_all_calls
+# import SnoopPrecompile: @precompile_setup, @precompile_all_calls
 
 using LinearAlgebra
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA
@@ -116,21 +116,21 @@ function __init__()
     end
 end
 
-@precompile_setup begin
-    # suppress stdout
-    oldstd = stdout
-    redirect_stdout(open("/dev/null", "w"))
+# @precompile_setup begin
+#     # suppress stdout
+#     oldstd = stdout
+#     redirect_stdout(open("/dev/null", "w"))
 
-    @precompile_all_calls begin
-        # all calls in this block will be precompiled, regardless of whether
-        # they belong to your package or not (on Julia 1.8 and higher)
-        cryst = diamond_crystal()
-        repr(cryst)
-        print_symmetry_table(cryst, 1.0)
-    end
+#     @precompile_all_calls begin
+#         # all calls in this block will be precompiled, regardless of whether
+#         # they belong to your package or not (on Julia 1.8 and higher)
+#         cryst = diamond_crystal()
+#         repr(cryst)
+#         print_symmetry_table(cryst, 1.0)
+#     end
 
-    # restore stdout
-    redirect_stdout(oldstd)
-end
+#     # restore stdout
+#     redirect_stdout(oldstd)
+# end
 
 end
