@@ -70,6 +70,7 @@ include("Anisotropies.jl")
 include("Ewald.jl")
 
 include("QC_corr.jl")
+export QC_corr!, hexa_corr!
 
 include("FourierAccel.jl")
 
