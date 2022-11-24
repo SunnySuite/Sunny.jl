@@ -13,7 +13,7 @@
 # TODO: This could be better than this
 
 """
-    QC_corr!(MySQWperp, EN, kT, Nω)
+    QC_corr!(MySQWperp, kT)
 
 Multiplying the Quantum-Classical Correspondence factor βω/(1-e^(-βω)) as
 '''math
@@ -32,9 +32,9 @@ function QC_corr!(MySQWperp, kT)
     EN = range(Ls[4], length=N4) * 2 * wmax / N4
     
     tmp = β * EN ./ (ones(size(EN)) - exp.(-1 * β * EN))
-    tmp[round(Int, Nω / 2)] = 1.0 # remove divergence value at E = 0
+    tmp[round(Int, N4 / 2)] = 1.0 # remove divergence value at E = 0
 
-    βω = reshape(tmp, 1, 1, 1, Nω) # Correction factor βω
+    βω = reshape(tmp, 1, 1, 1, N4) # Correction factor βω
     βω = repeat(βω, outer=[N1, N2, N3, 1])
 
     CQ_corr = OffsetArray(βω, Ls[1]:Le[1], Ls[2]:Le[2], Ls[3]:Le[3], Ls[4]:Le[4])
