@@ -8,10 +8,19 @@ abstract type AbstractInteractionGPU end   # Subtype this for actual internal GP
 
 
 struct QuadraticInteraction <: AbstractInteraction
-    J     :: Mat3
-    bond  :: Bond
-    label :: String
+    J::Mat3
+    bond::Bond
+    label::String
 end
+
+#*---------------------Manually added by PJ (221011)----------------------
+struct BiQuadraticInteraction <: AbstractInteraction
+    J::Mat3
+    bond::Bond
+    label::String
+end
+#*--------------------------------------------------------------------------
+
 
 function Base.show(io::IO, ::MIME"text/plain", int::QuadraticInteraction)
     b = repr("text/plain", int.bond)
@@ -21,12 +30,12 @@ function Base.show(io::IO, ::MIME"text/plain", int::QuadraticInteraction)
         y = J[3, 1]
         z = J[1, 2]
         @printf io "dm_interaction([%.4g, %.4g, %.4g], %s)" x y z b
-    elseif diagm(fill(J[1,1], 3)) ≈ J      # Catch Heisenberg interactions
-        @printf io "heisenberg(%.4g, %s)" J[1,1] b
+    elseif diagm(fill(J[1, 1], 3)) ≈ J      # Catch Heisenberg interactions
+        @printf io "heisenberg(%.4g, %s)" J[1, 1] b
     elseif diagm(diag(J)) ≈ J              # Catch diagonal interactions
-        @printf io "exchange(diagm([%.4g, %.4g, %.4g]), %s)" J[1,1] J[2,2] J[3,3] b
+        @printf io "exchange(diagm([%.4g, %.4g, %.4g]), %s)" J[1, 1] J[2, 2] J[3, 3] b
     else                                   # Rest -- general exchange interactions
-        @printf io "exchange([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %s)" J[1,1] J[1,2] J[1,3] J[2,1] J[2,2] J[2,3] J[3,1] J[3,2] J[3,3] b
+        @printf io "exchange([%.4g %.4g %.4g; %.4g %.4g %.4g; %.4g %.4g %.4g], %s)" J[1, 1] J[1, 2] J[1, 3] J[2, 1] J[2, 2] J[2, 3] J[3, 1] J[3, 2] J[3, 3] b
         # TODO: Figure out how to reenable this depending on context:
         # @printf io "exchange([%.4f %.4f %.4f\n"   J[1,1] J[1,2] J[1,3]
         # @printf io "          %.4f %.4f %.4f\n"   J[2,1] J[2,2] J[2,3]
@@ -38,14 +47,14 @@ end
 
 
 struct FormFactorParams
-    J0_params :: NTuple{7, Float64}
-    J2_params :: Union{Nothing, NTuple{7, Float64}}
-    g_lande   :: Union{Nothing, Float64}
+    J0_params::NTuple{7,Float64}
+    J2_params::Union{Nothing,NTuple{7,Float64}}
+    g_lande::Union{Nothing,Float64}
 end
 
 function FormFactorParams(elem::String; g_lande=nothing)
 
-    function lookup_ff_params(elem, datafile) :: NTuple{7, Float64}
+    function lookup_ff_params(elem, datafile)::NTuple{7,Float64}
         path = joinpath(joinpath(@__DIR__, "data"), datafile)
         lines = collect(eachline(path))
         matches = filter(line -> startswith(line, elem), lines)
@@ -91,17 +100,17 @@ to the largest specified `N`.
 """
 # TODO: Get rid of site field, and replace N -> S, defaulting to 1
 Base.@kwdef struct SiteInfo
-    site            :: Int                 # Index of site
-    N               :: Int     = 0         # N in SU(N)
-    g               :: Mat3    = 2*I(3)    # Spin g-tensor
-    spin_rescaling  :: Float64 = 1.0       # Spin/Ket rescaling factor
-    ff_params       :: Union{Nothing, FormFactorParams}  # Parameters for form factor correction
+    site::Int                 # Index of site
+    N::Int = 0         # N in SU(N)
+    g::Mat3 = 2 * I(3)    # Spin g-tensor
+    spin_rescaling::Float64 = 1.0       # Spin/Ket rescaling factor
+    ff_params::Union{Nothing,FormFactorParams}  # Parameters for form factor correction
 end
 
 
-function SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0, ff_elem=nothing, ff_lande=nothing)
+function SiteInfo(site::Int; N=0, g=2 * I(3), spin_rescaling=1.0, ff_elem=nothing, ff_lande=nothing)
     # Create diagonal g-tensor from number (if not given full array)
-    (typeof(g) <: Number) && (g = Float64(g)*I(3))
+    (typeof(g) <: Number) && (g = Float64(g) * I(3))
 
     # Make sure a valid element is given if a g_lande value is given. 
     if isnothing(ff_elem) && !isnothing(ff_lande)
@@ -111,7 +120,7 @@ function SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0, ff_elem=nothing,
     end
 
     # Read all relevant form factor data if an element name is provided
-    ff_params = !isnothing(ff_elem) ? FormFactorParams(ff_elem; g_lande = ff_lande) : nothing
+    ff_params = !isnothing(ff_elem) ? FormFactorParams(ff_elem; g_lande=ff_lande) : nothing
 
     SiteInfo(site, N, g, spin_rescaling, ff_params)
 end
@@ -144,7 +153,22 @@ Creates a Heisenberg interaction
 ```
 where ``⟨ij⟩`` runs over all bonds symmetry equivalent to `bond`.
 """
-heisenberg(J, bond::Bond, label::String="Heisen") = QuadraticInteraction(J*Mat3(I), bond, label)
+heisenberg(J, bond::Bond, label::String="Heisen") = QuadraticInteraction(J * Mat3(I), bond, label)
+
+#*---------------------Manually added by PJ (221011)----------------------
+"""
+    Biquadratic(B, bond::Bond, label::String="BHeisen")
+
+Creates a Biquadratic interaction
+```math
+    B ∑_{⟨ij⟩} (𝐒_i ⋅ 𝐒_j)^2
+```
+where ``⟨ij⟩`` runs over all bonds symmetry equivalent to `bond`.
+"""
+function Biquadratic(B, bond::Bond, label::String="BHeisen")
+    BiQuadraticInteraction(B * Mat3(I), bond, label)
+end
+#*--------------------------------------------------------------------------
 
 
 """
@@ -159,16 +183,16 @@ where ``⟨ij⟩`` runs over all bonds symmetry equivalent to `bond`, and
 appropriate for the bond ``⟨ij⟩``.
 """
 function dm_interaction(DMvec, bond::Bond, label::String="DMInt")
-    J = SA[      0.0  DMvec[3] -DMvec[2]
-           -DMvec[3]       0.0  DMvec[1]
-            DMvec[2] -DMvec[1]      0.0]
+    J = SA[0.0 DMvec[3] -DMvec[2]
+        -DMvec[3] 0.0 DMvec[1]
+        DMvec[2] -DMvec[1] 0.0]
     QuadraticInteraction(J, bond, label)
 end
 
 struct OperatorAnisotropy <: AbstractInteraction
-    op    :: DP.AbstractPolynomialLike
-    site  :: Int
-    label :: String # Maybe remove
+    op::DP.AbstractPolynomialLike
+    site::Int
+    label::String # Maybe remove
 end
 
 
@@ -199,7 +223,7 @@ function quadratic_anisotropy(J, site::Int, label::String="Anisotropy")
     if !(J ≈ J')
         error("Single-ion anisotropy must be symmetric.")
     end
-    OperatorAnisotropy(𝒮'*Mat3(J)*𝒮, site, label)
+    OperatorAnisotropy(𝒮' * Mat3(J) * 𝒮, site, label)
 end
 
 
@@ -221,7 +245,7 @@ function easy_axis(D, n, site::Int, label::String="EasyAxis")
     if !(norm(n) ≈ 1)
         error("Parameter `n` must be a unit vector. Consider using `normalize(n)`.")
     end
-    OperatorAnisotropy(-D*(𝒮⋅n)^2, site, label)
+    OperatorAnisotropy(-D * (𝒮 ⋅ n)^2, site, label)
 end
 
 
@@ -243,12 +267,12 @@ function easy_plane(D, n, site::Int, label::String="EasyAxis")
     if !(norm(n) ≈ 1)
         error("Parameter `n` must be a unit vector. Consider using `normalize(n)`.")
     end
-    OperatorAnisotropy(+D*(𝒮⋅n)^2, site, label)
+    OperatorAnisotropy(+D * (𝒮 ⋅ n)^2, site, label)
 end
 
 struct DipoleDipole <: AbstractInteraction
-    extent   :: Int
-    η        :: Float64
+    extent::Int
+    η::Float64
 end
 
 """
@@ -274,7 +298,7 @@ while `η` controls the direct/reciprocal-space tradeoff in the Ewald summation.
 dipole_dipole(; extent=4, η=0.5) = DipoleDipole(extent, η)
 
 struct ExternalField <: AbstractInteraction
-    B :: Vec3
+    B::Vec3
 end
 
 """
@@ -304,7 +328,7 @@ end
 =#
 
 struct ExternalFieldCPU
-    effBs :: Vector{Vec3}  # |S_b|gᵀB for each basis index b
+    effBs::Vector{Vec3}  # |S_b|gᵀB for each basis index b
 end
 
 function ExternalFieldCPU(ext_field::ExternalField, site_infos::Vector{SiteInfo}; μB=BOHR_MAGNETON)
@@ -316,7 +340,7 @@ function ExternalFieldCPU(ext_field::ExternalField, site_infos::Vector{SiteInfo}
     ExternalFieldCPU(effBs)
 end
 
-function energy(dipoles::Array{Vec3, 4}, field::ExternalFieldCPU)
+function energy(dipoles::Array{Vec3,4}, field::ExternalFieldCPU)
     E = 0.0
     @inbounds for site in 1:size(dipoles)[end]
         effB = field.effBs[site]
@@ -328,7 +352,7 @@ function energy(dipoles::Array{Vec3, 4}, field::ExternalFieldCPU)
 end
 
 "Accumulates the negative local Hamiltonian gradient coming from the external field"
-@inline function _accum_neggrad!(B::Array{Vec3, 4}, field::ExternalFieldCPU)
+@inline function _accum_neggrad!(B::Array{Vec3,4}, field::ExternalFieldCPU)
     @inbounds for site in 1:size(B)[end]
         effB = field.effBs[site]
         for cell in CartesianIndices(size(B)[1:3])

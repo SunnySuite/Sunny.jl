@@ -103,6 +103,7 @@ struct HamiltonianCPU
     heisenbergs     :: Vector{HeisenbergCPU}
     diag_coups      :: Vector{DiagonalCouplingCPU}
     gen_coups       :: Vector{GeneralCouplingCPU}
+    biq_coups       :: Vector{BiquadraticCPU}
     dipole_int      :: Union{Nothing, DipoleRealCPU, DipoleFourierCPU}
     dipole_aniso    :: Union{Nothing, DipoleAnisotropyCPU}
     sun_aniso       :: Array{ComplexF64, 3}
@@ -125,6 +126,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     heisenbergs = Vector{HeisenbergCPU}()
     diag_coups  = Vector{DiagonalCouplingCPU}()
     gen_coups   = Vector{GeneralCouplingCPU}()
+    biq_coups   = Vector{BiquadraticCPU}()
     dipole_int  = nothing
     spin_mags   = [site.spin_rescaling for site in site_infos]
 
@@ -149,6 +151,9 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
             else
                 error("Quadratic interaction failed to convert to known backend type.")
             end
+        elseif isa(int, BiQuadraticInteraction)
+            int_imp2 = convert_biquadratic(int, crystal, site_infos)
+            push!(biq_coups, int_imp2)
         elseif isa(int, OperatorAnisotropy)
             push!(anisos, int)
         elseif isa(int, DipoleDipole)
@@ -164,7 +169,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     (dipole_anisos, sun_anisos) = convert_anisotropies(anisos, crystal, site_infos)
 
     return HamiltonianCPU(
-        ext_field, heisenbergs, diag_coups, gen_coups, dipole_int,
+        ext_field, heisenbergs, diag_coups, gen_coups, biq_coups, dipole_int,
         dipole_anisos, sun_anisos, spin_mags
     )
 end
@@ -184,6 +189,9 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Hami
     end
     for gen_coup in ℋ.gen_coups
         E += energy(dipoles, gen_coup)
+    end
+    for biq_coup in ℋ.biq_coups
+        E += energy(dipoles, biq_coup)
     end
     if !isnothing(ℋ.dipole_int)
         E += energy(dipoles, ℋ.dipole_int)
@@ -219,6 +227,9 @@ function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     for gen_coup in ℋ.gen_coups
         _accum_neggrad!(B, dipoles, gen_coup)
     end
+    for biq_coup in ℋ.biq_coups
+        _accum_neggrad!(B, dipoles, biq_coup)
+    end
     if !isnothing(ℋ.dipole_int)
         _accum_neggrad!(B, dipoles, ℋ.dipole_int)
     end
@@ -249,6 +260,10 @@ function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i::CartesianIndex)
     end
     for gen_coup in ℋ.gen_coups
         B += _neggrad(dipoles, gen_coup, i)
+    end
+    ## TODO: implement dipole neggrad
+    if !isnothing(ℋ.biq_coups)
+        throw("function 'field' not implemented yet for biquadratic interaction")
     end
     if !isnothing(ℋ.dipole_aniso)
         error("Calling `field()` for a single site with anisotropy. This is probably an error. Please contact Sunny developers if you have a valid use-case.")

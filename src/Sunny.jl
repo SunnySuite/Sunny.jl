@@ -58,7 +58,7 @@ include("Util.jl")
 include("Lattice.jl")
 
 include("Interactions.jl")
-export heisenberg, exchange, dm_interaction
+export heisenberg, exchange, Biquadratic, dm_interaction
 export easy_axis, easy_plane, quadratic_anisotropy, anisotropy
 export external_field, dipole_dipole
 export SiteInfo
