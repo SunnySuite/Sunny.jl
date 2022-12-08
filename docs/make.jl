@@ -2,7 +2,7 @@ push!(LOAD_PATH, "../src/")
 
 using Documenter, Sunny
 # Need to import libraries which expose functions hidden behind Requires.jl
-using GLMakie
+# using GLMakie
 
 makedocs(
     sitename="Sunny documentation",
