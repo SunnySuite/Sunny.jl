@@ -119,12 +119,17 @@ function symmetry_allowed_couplings_operator(cryst::Crystal, b::BondRaw)
     return P
 end
 
+function transform_coupling_by_symmetry(cryst, J, symop, parity)
+    R = cryst.lat_vecs * symop.R * inv(cryst.lat_vecs)
+    return R * (parity ? J : J') * R'
+end
+
 # Check whether a coupling matrix J is consistent with symmetries of a bond
 function is_coupling_valid(cryst::Crystal, b::BondRaw, J::Mat3)
-    for (s, parity) in symmetries_between_bonds(cryst, b, b)
-        R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
-        # TODO use symprec to handle case where matrix R is not precise
-        if norm(R*J*R' - (parity ? J : J')) > 1e-12
+    for sym in symmetries_between_bonds(cryst, b, b)
+        J′ = transform_coupling_by_symmetry(cryst, J, sym...)
+        # TODO use symprec to handle case where symmetry is inexact
+        if !isapprox(J, J′; atol = 1e-12)
             return false
         end
     end
@@ -257,6 +262,12 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond)
     return basis_for_symmetry_allowed_couplings(cryst, BondRaw(cryst, b))
 end
 
+function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
+    syms = symmetries_between_bonds(cryst, BondRaw(cryst, b), BondRaw(cryst, b_ref))
+    isempty(syms) && error("Bonds $b and $b_ref are not symmetry equivalent.")
+    return transform_coupling_by_symmetry(cryst, J_ref, first(syms)...)
+end
+
 """
     all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, b::Bond, J)
 
@@ -273,9 +284,7 @@ function all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, b_ref::
 
     for b in all_symmetry_related_bonds_for_atom(cryst, i, b_ref)
         push!(bs, b)
-        (s, parity) = first(symmetries_between_bonds(cryst, BondRaw(cryst, b), BondRaw(cryst, b_ref)))
-        R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
-        push!(Js, R * (parity ? J_ref : J_ref') * R')
+        push!(Js, transform_coupling_for_bonds(cryst, b, b_ref, J_ref))
     end
 
     return (bs, Js)
