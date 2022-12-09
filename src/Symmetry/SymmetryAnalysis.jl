@@ -163,11 +163,11 @@ Returns a full list of bonds, one for each symmetry equivalence class, up to
 distance `max_dist`. The reference bond `b` for each equivalence class is
 selected according to a scoring system that prioritizes simplification of the
 elements in `basis_for_symmetry_allowed_couplings(cryst, b)`."""
-function reference_bonds(cryst::Crystal, max_dist::Float64)
+function reference_bonds(cryst::Crystal, max_dist::Float64; min_dist=0.0)
     # Bonds, one for each equivalence class
     ref_bonds = Bond[]
     for i in unique_indices(cryst.classes)
-        for b in all_bonds_for_atom(cryst, i, max_dist)
+        for b in all_bonds_for_atom(cryst, i, max_dist; min_dist)
             if !any(is_related_by_symmetry(cryst, b, b′) for b′ in ref_bonds)
                 push!(ref_bonds, b)
             end
@@ -182,10 +182,7 @@ function reference_bonds(cryst::Crystal, max_dist::Float64)
         # Find full set of symmetry equivalent bonds
         equiv_bonds = unique([transform(cryst, s, rb) for s in cryst.symops])
         # Take the bond with lowest score
-        scores = [_score_bond(cryst, b) for b in equiv_bonds]
-        return equiv_bonds[findmin(scores)[2]::Int]
-        # TODO: In Julia 1.7 the above two lines become
-        #     return argmin(b -> _score_bond(cryst, b), equiv_bonds)
+        return argmin(b -> _score_bond(cryst, b), equiv_bonds)
     end
 end
 reference_bonds(cryst::Crystal, max_dist) = reference_bonds(cryst, convert(Float64, max_dist))
