@@ -141,11 +141,13 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing)
             ref_bonds = reference_bonds(cryst, d; min_dist=d)
             b_ref = only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
         end
-        # Get the coupling basis on reference bond b_ref
-        basis_ref = basis_for_symmetry_allowed_couplings(cryst, b_ref)
-        # Transform to coupling basis on bond b
-        basis = map(basis_ref) do J_ref
-            transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
+        # Get the coupling basis on reference bond `b_ref`
+        basis = basis_for_symmetry_allowed_couplings(cryst, b_ref)
+        # Transform coupling basis from `b_ref` to `b`
+        if b != b_ref
+            basis = map(basis) do J_ref
+                transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
+            end
         end
 
         ri = cryst.positions[b.i]
@@ -188,7 +190,7 @@ b)` for every bond `b` in `reference_bonds(cryst, max_dist)`, where
 """
 function print_symmetry_table(cryst::Crystal, max_dist)
     for b in reference_bonds(cryst, max_dist)
-        print_bond(cryst, b)
+        print_bond(cryst, b; b_ref=b)
     end
 end
 
