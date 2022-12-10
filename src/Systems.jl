@@ -191,16 +191,24 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
     (all_site_infos, N) = _propagate_site_info(crystal, site_infos)
     ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_site_infos; μB, μ0)
 
-    # Initialize sites to all spins along +z
-    sys_size = (lattice.size..., nbasis(lattice))
-    up = Vec3(0.0, 0.0, 1.0)
-    dipoles = fill(up, sys_size)
-    coherents = fill(_get_coherent_from_dipole(up, Val(N)), sys_size)
+    # Initialize all spins in z-polarized state
+    na, nb, nc, natoms = (lattice.size..., nbasis(lattice))
+    dipoles = zeros(Vec3, na, nb, nc, natoms)
+    coherents = zeros(CVec{N}, na, nb, nc, natoms)
+    for atom in 1:natoms
+        spin_rescaling = all_site_infos[atom].spin_rescaling
+        mag = N == 0 ? spin_rescaling : spin_rescaling * (N-1)/2
+        up = Vec3(0, 0, mag)
+        for k in 1:nc, j in 1:nb, i in 1:na
+            dipoles[i,j,k,atom] = up
+            coherents[i,j,k,atom] = _get_coherent_from_dipole(up, Val(N))
+        end
+    end
 
     # Set up default RNG if none provided
     isnothing(rng) && (rng = Random.MersenneTwister())
 
-    # Default unit system is (meV, K, Å, T)
+    # Default unit system is (meV, K, Å, T) 
     SpinSystem{N}(lattice, ℋ_CPU, dipoles, coherents, all_site_infos, rng)
 end
 
