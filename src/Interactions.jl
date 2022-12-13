@@ -13,6 +13,12 @@ struct QuadraticInteraction <: AbstractInteraction
     label :: String
 end
 
+struct BiQuadraticInteraction <: AbstractInteraction
+    J::Mat3
+    bond::Bond
+    label::String
+end
+
 function Base.show(io::IO, ::MIME"text/plain", int::QuadraticInteraction)
     b = repr("text/plain", int.bond)
     J = int.J
@@ -64,6 +70,20 @@ Creates a Heisenberg interaction
 where ``⟨ij⟩`` runs over all bonds symmetry equivalent to `bond`.
 """
 heisenberg(J, bond::Bond, label::String="Heisen") = QuadraticInteraction(J*Mat3(I), bond, label)
+
+
+"""
+    biquadratic(B, bond::Bond, label::String="BHeisen")
+
+Creates a Biquadratic interaction
+```math
+    B ∑_{⟨ij⟩} (𝐒_i ⋅ 𝐒_j)^2
+```
+where ``⟨ij⟩`` runs over all bonds symmetry equivalent to `bond`.
+"""
+function biquadratic(B, bond::Bond, label::String="BHeisen")
+    BiQuadraticInteraction(B * Mat3(I), bond, label)
+end
 
 
 """

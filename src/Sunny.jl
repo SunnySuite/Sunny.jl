@@ -67,7 +67,7 @@ include("SiteInfo.jl")
 export SiteInfo
 
 include("Interactions.jl")
-export heisenberg, exchange, dm_interaction
+export heisenberg, exchange, biquadratic, dm_interaction
 export easy_axis, easy_plane, quadratic_anisotropy, anisotropy
 export external_field, dipole_dipole
 
