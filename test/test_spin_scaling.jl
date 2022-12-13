@@ -85,72 +85,40 @@ end
 test_spin_magnitude_stability()
 
 
-function test_energy_scaling_lld()
-    N = 0
-
-    cryst = Sunny.fcc_crystal()
-    dims = (2,2,2)
-
-    interactions_lld = [heisenberg(1.0, Bond(1,2,[0,0,0])),
-                        anisotropy(+𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1, "quartic")]
-    powers_lld = [2, 4]
-
-    for (interaction, power) in zip(interactions_lld, powers_lld)
-        for spin_rescaling in spin_rescalings
-
-            # Get energy for system when spin_rescaling=1.0
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N)])
-            rand!(sys)
-            E₀ = energy(sys)
-
-            # Get energy for same configuration but with a spin rescaling 
-            S₀ = copy(sys.dipoles)
-            sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, spin_rescaling)])
-            sys.dipoles .= S₀
-            Sunny.normalize_dipoles!(sys)
-            E₁ = energy(sys)
-
-            @test (E₁/E₀) ≈ spin_rescaling^power
-        end
-    end
-end
-
-test_energy_scaling_lld()
-
-
-function test_energy_scaling_gsd()
-    Ns = [5, 6]
+function test_energy_scaling()
+    Ns = [0, 5, 6]
 
     cryst = Sunny.fcc_crystal()
     dims = (2,2,2)
 
     Λ = 𝒪[4,0]+5𝒪[4,4]
 
-    interactions_gsd = [heisenberg(1.0, Bond(1,2,[0,0,0])),
-                        anisotropy(Λ, 1)]
-    powers_gsd = [2, 1]
+    interactions = [heisenberg(1.0, Bond(1,2,[0,0,0])),
+                    biquadratic(1.1, Bond(1,2,[0,0,0])),
+                    anisotropy(Λ, 1)]
 
     for N in Ns
-        for (interaction, power) in zip(interactions_gsd, powers_gsd)
+        # In SU(N) mode, rescaling is applied to expectation values, ⟨A⟩ ->
+        # spin_rescaling ⟨A⟩, for arbitrary operator A.
+        powers = [2, 4, N==0 ? 4 : 1]
+
+        for (interaction, power) in zip(interactions, powers)
             for spin_rescaling in spin_rescalings
-                sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N)])
+                sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N)]; seed=0)
                 rand!(sys)
                 E₀ = energy(sys)
 
-                Z₀ = copy(sys.coherents)
-                sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, spin_rescaling)])
-                for idx = CartesianIndices(sys.coherents)
-                    Sunny.set_coherent!(sys, idx, Z₀[idx])
-                end
+                sys = SpinSystem(cryst, [interaction], dims, [SiteInfo(1; N, spin_rescaling)]; seed=0)
+                rand!(sys)
                 E₁ = energy(sys)
 
-                @test (E₁/E₀) ≈ spin_rescaling^power
+                @test E₁ ≈ spin_rescaling^power * E₀
             end
         end
     end
 end
 
-test_energy_scaling_gsd()
+test_energy_scaling()
 
 """Generates a trajectory for a single spin in the presence of an 
 external magnetic field. Rescales resulting spin magnitude so trajectories

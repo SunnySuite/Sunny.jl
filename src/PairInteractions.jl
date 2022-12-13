@@ -90,6 +90,17 @@ struct HeisenbergCPU <: AbstractPairIntCPU
 end
 
 """
+    BiquadraticCPU <: AbstractPairIntCPU
+
+Implements an Biquadratic exchange interaction which is proportional to
+the identity matrix.
+"""
+struct BiquadraticCPU <: AbstractPairIntCPU
+    bondtable    :: BondTable{Float64}    # Bonds store effective J's = S_i J S_j (all identical)
+    label        :: String
+end
+
+"""
     DiagonalCouplingCPU <: AbstractPairIntCPU
 
 Implements an exchange interaction where matrices on all bonds
@@ -138,6 +149,16 @@ function convert_quadratic(int::QuadraticInteraction, cryst::Crystal, site_infos
     end
 end
 
+
+function convert_biquadratic(int::BiQuadraticInteraction, cryst::Crystal, site_infos::Vector{SiteInfo}; tol=1e-6)
+    (; J, bond, label) = int
+
+    bondtable = BondTable(cryst, bond, J)
+    bondtable = map(J->J[1,1], bondtable)
+        return BiquadraticCPU(bondtable, label)    
+end
+
+
 function energy(dipoles::Array{Vec3}, heisenberg::HeisenbergCPU)
     bondtable = heisenberg.bondtable
     effJ = first(bondtable.data)
@@ -154,6 +175,24 @@ function energy(dipoles::Array{Vec3}, heisenberg::HeisenbergCPU)
     end
     return effJ * E
 end
+
+function energy(dipoles::Array{Vec3}, biq_coup::BiquadraticCPU)
+    bondtable = biq_coup.bondtable
+    effB = first(bondtable.data)
+    E = 0.0
+
+    latsize = size(dipoles)[1:3]
+    @inbounds for (bond, _) in culled_bonds(bondtable)
+        (; i, j, n) = bond
+        for cell in CartesianIndices(latsize)
+            sᵢ = dipoles[cell, i]
+            sⱼ = dipoles[offset(cell, n, latsize), j]
+            E += (sᵢ ⋅ sⱼ)^2
+        end
+    end
+    return effB * E
+end
+
 
 function energy(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
     bondtable = diag_coup.bondtable
@@ -218,6 +257,46 @@ function _neggrad(dipoles::Array{Vec3}, heisen::HeisenbergCPU, i)
 
     return B
 end
+
+
+"Accumulates the local -∇ℋ coming from Biquadratic couplings into `B`"
+function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, biq_coup::BiquadraticCPU)
+    bondtable = biq_coup.bondtable
+    effJ = first(bondtable.data)
+
+    latsize = size(dipoles)[1:3]
+    @inbounds for (bond, _) in culled_bonds(bondtable)
+        (; i, j, n) = bond
+        for cell in CartesianIndices(latsize)
+
+            offsetcell = offset(cell, n, latsize)
+            sᵢ = dipoles[cell, i]
+            sⱼ = dipoles[offsetcell, j]
+
+            B[cell, i] = B[cell, i] - 2 * effJ * sⱼ * (sᵢ ⋅ sⱼ)
+            B[offsetcell, j] = B[offsetcell, j] - 2 * effJ * sᵢ * (sᵢ ⋅ sⱼ)
+        end
+    end
+end
+
+
+function _neggrad(dipoles::Array{Vec3}, biq_coup::BiquadraticCPU, i)
+    error("Not yet implemented.")
+    # bondtable = biq_coup.bondtable
+    # B = Vec3(0,0,0)
+    # J = first(bondtable.data)
+    # _, site = splitidx(i)
+
+    # latsize = size(dipoles)[1:3]
+    # @inbounds for (bond, _) in sublat_bonds(bondtable, site)
+    #     (; j, n) = bond
+    #     offsetcell = offset(cell, n, latsize)
+    #     B -= J * dipoles[offsetcell, j]
+    # end
+
+    # return B
+end
+
 
 "Accumulates the local -∇ℋ coming from diagonal couplings into `B`"
 function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
