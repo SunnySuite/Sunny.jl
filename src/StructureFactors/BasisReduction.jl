@@ -3,8 +3,9 @@ function phase_averaged_elements(q_data, q::Vec3, cryst::Crystal, site_infos::Ve
     nelem = size(q_data, 1)
     elems = zero(SVector{nelem, ComplexF64})
 
-    # Each q index ranges from 0 to 1. Then k (with appropriate periodicity)
-    # lives in the first Brillouin zone.
+    # If the q index ranges from 0 to 2π, then k (with appropriate periodicity)
+    # lives in the first Brillouin zone. (Note that the reciprocal vectors
+    # vectors calculated below do not include the conventional factor of 2π.)
     k = inv(cryst.lat_vecs)' * q
 
     for l in 1:nbasis(cryst)

@@ -163,7 +163,7 @@ end
 begin
     ω = 3.0
     q = [π, π, 0.0]
-    @time intensity = get_intensity(sf, q, ω)
+    @time intensity = get_intensity(sf, q)
 end
 
 # Extract path
@@ -176,3 +176,22 @@ end;
 begin
     heatmap(1:size(intensities, 1), ωs, intensities; colorrange=(0.0, 1.0))
 end
+
+
+begin
+    @time intensities_all = Sunny.get_intensities(sf)
+    size(intensities_all)
+end
+
+
+begin
+    qs = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.1], [π, π, π]]
+    # qs = Sunny.nearest_q.(Ref(sf.sfdata), qs)
+    # qis = [q[2] for q in qs]
+    # sort(qis)
+end
+
+begin
+    @time an_intensity = Sunny.get_intensities(sf, qs[1])
+    # @time some_intensities = Sunny.get_intensities(sf, qs)
+end;
