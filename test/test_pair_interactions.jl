@@ -47,7 +47,7 @@
             show(context, "text/plain", int)
             output = String(take!(io))
             reparsed_int = eval(Meta.parse(output))
-            @test isapprox(int, reparsed_int; atol=1e-4)
+            @test isapprox(int, reparsed_int; atol=1e-3)
         end
     end
 
