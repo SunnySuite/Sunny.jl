@@ -36,7 +36,7 @@ end
 
 function diamond_model(; dims = (2,2,2), SUN=true)
     crystal = Sunny.diamond_crystal()
-    J = Sunny.meV_per_K * 7.5413        # Units of meV
+    J = Sunny.CONSTS_meV.kB * 7.5413        # Units of meV
     interactions = [
         heisenberg(J, Bond(1, 3, [0,0,0])),
     ]
@@ -107,7 +107,7 @@ begin
 end;
 
 begin
-    @time add_trajectory!(sys, sf)
+    @time add_trajectory!(sf, sys)
 end
 
 val = Sunny.get_intensity(sf.sfdata, Sunny.Vec3(π, π, π), 0.0; c2q_temp=0.01)
@@ -125,9 +125,9 @@ begin
     sys = diamond_model(; dims, SUN)
 
     spin_rescaling = 3/2
-    J = Sunny.meV_per_K * 7.5413        # Units of meV
+    J = Sunny.CONSTS_meV.kB * 7.5413        # Units of meV
     Δt_therm = 0.05 / (spin_rescaling^2 * J)     # Units of 1/meV
-    kT = Sunny.meV_per_K * 2. # Units of meV
+    kT = Sunny.CONSTS_meV.kB * 2. # Units of meV
     λ  = 0.1
     nsteps = 1000  # Number of steps between MC samples
     integrator = LangevinHeunP(kT, λ, Δt_therm)

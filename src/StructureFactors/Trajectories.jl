@@ -20,7 +20,7 @@ end
 function expectation_trajectory(sys, integrator, num_snaps, ops; kwargs...)
     num_ops =  size(ops, 3)
 
-    traj_buf = zeros(ComplexF64, num_ops, size(sys)..., num_snaps)
+    traj_buf = zeros(ComplexF64, num_ops, size(sys.coherents)..., num_snaps)
     expectation_trajectory!(traj_buf, sys, integrator, num_snaps, ops; kwargs...)
 
     return traj_buf
@@ -57,7 +57,7 @@ function compute_mag!(M, sys::SpinSystem, g_factor = true)
 end
 
 function dipole_trajectory(sys, integrator, num_snaps; kwargs...)
-    traj_buf = zeros(ComplexF64, 3, size(sys)..., num_snaps)
+    traj_buf = zeros(ComplexF64, 3, size(sys.dipoles)..., num_snaps)
     dipole_trajectory!(traj_buf, sys, integrator, num_snaps; kwargs...)
     return traj_buf
 end

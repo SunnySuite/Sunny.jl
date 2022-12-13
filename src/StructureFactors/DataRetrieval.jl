@@ -10,7 +10,7 @@ function get_intensity(sfd::SFData, q, ω::Float64;
     ωi = round(Int, ω/Δω) + 1  # Could add validity check that this is within bounds
 
     data_point = raw_data_point(sfd, qi, ωi)
-    elems = phase_averaged_elements(data_point, q, lattice, site_infos)
+    elems = phase_averaged_elements(data_point, q, crystal, site_infos)
     intensity = contraction(elems, q, idx_info)
     if !isnothing(c2q_temp)
         intensity *= c2q(Δω*round(Int, ω/Δω), c2q_temp)

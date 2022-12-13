@@ -5,7 +5,7 @@ function phase_averaged_elements(q_data, q::Vec3, cryst::Crystal, site_infos::Ve
 
     # Each q index ranges from 0 to 1. Then k (with appropriate periodicity)
     # lives in the first Brillouin zone.
-    k = inv(crys.lat_vecs)' * q
+    k = inv(cryst.lat_vecs)' * q
 
     for l in 1:nbasis(cryst)
         r = position(cryst, l)
