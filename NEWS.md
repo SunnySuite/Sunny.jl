@@ -38,7 +38,16 @@ interaction with matrix-elements `J`.
 This new function describes both symmetry-allowed anisotropies in addition to
 symmetry-allowed interactions on bonds.
 
-**3. When reading CIF files, the field `_atom_site_label` is now used in place of the field `_atom_site_type_symbol`.**
+**3. New interface for long-range dipole interactions.**
+
+Using the function `enable_dipole_dipole!(sys::System)` to enable these
+interactions. This replaces the function `dipole_dipole()::AbstractInteraction`.
+
+**4. Major revisions to structure factor calculation.**
+
+Please see David's FeI2 notebook for an example of the new usage. 
+
+**5. When reading CIF files, the field `_atom_site_label` is now used in place of the field `_atom_site_type_symbol`.**
 
 This is required for correctness. The field `_atom_site_label` is guaranteed to
 be present, and is guaranteed to be a distinct label for each
