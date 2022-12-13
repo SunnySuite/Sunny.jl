@@ -1,6 +1,13 @@
 """Plotting functions for lattices and spins on lattices.
 """
 
+function _setup_scene(; show_axis=false)
+    fig = GLMakie.Figure()
+    ax = GLMakie.LScene(fig[1, 1], show_axis=show_axis)
+    return fig, ax
+end
+
+#=
 function plot_lattice!(ax, lattice::Lattice; colors=:Set1_9, markersize=200, linecolor=:grey, linewidth=1.0, kwargs...)
     unique_types = unique(lattice.types)
     colors = GLMakie.resample_cmap(colors, 9)
@@ -15,12 +22,6 @@ function plot_lattice!(ax, lattice::Lattice; colors=:Set1_9, markersize=200, lin
     # For some odd reason, the sites will not appear unless this happens afterwards
     # Plot the unit cell mesh
     plot_cells!(ax, lattice; color=linecolor, linewidth=linewidth)
-end
-
-function _setup_scene(; show_axis=false)
-    fig = GLMakie.Figure()
-    ax = GLMakie.LScene(fig[1, 1], show_axis=show_axis)
-    return fig, ax
 end
 
 function plot_lattice(lattice::Lattice; kwargs...)
@@ -48,6 +49,7 @@ Additional keyword arguments are given to `GLMakie.scatter!` which
 draws the points.
 """
 plot_lattice(cryst::Crystal, latsize=(3,3,3); kwargs...) = plot_lattice(Lattice(cryst, latsize); kwargs...)
+
 
 function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
                     colors=:Dark2_8, bondwidth=4, kwargs...)
@@ -116,8 +118,8 @@ function plot_bonds(cryst::Crystal, ints::Vector{<:AbstractInteraction}, latsize
                     kwargs...)
     latsize = collect(Int64.(latsize))
     lattice = Lattice(cryst, latsize)
-    (all_site_infos, _) = _propagate_site_info(cryst, SiteInfo[])
-    ℋ = HamiltonianCPU(ints, cryst, latsize, all_site_infos)
+    (all_site_infos, _) = propagate_site_info!(cryst, SiteInfo[])
+    ℋ = HamiltonianCPU(ints, cryst, all_site_infos)
     pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
     plot_bonds(lattice, pair_ints; kwargs...)
 end
@@ -132,7 +134,7 @@ underlying crystal lattice. `kwargs` are passed to `plot_lattice!`.
 @inline function plot_bonds(sys::SpinSystem; kwargs...)
     ℋ = sys.hamiltonian
     pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
-    plot_bonds(sys.lattice, pair_ints; kwargs...)
+    plot_bonds(sys.crystal, pair_ints; kwargs...)
 end
 
 """
@@ -196,26 +198,26 @@ function plot_all_bonds_between(crystal, i, j, max_dist, latsize=(3,3,3); kwargs
 end
 
 "Plot the outlines of the unit cells of a lattice"
-function plot_cells!(ax, lattice::Lattice; color=:grey, linewidth=1.0, kwargs...)
-    lattice = brav_lattice(lattice)
+function plot_cells!(ax, sys::SpinSystem; color=:grey, linewidth=1.0, kwargs...)
+    lattice(i, j, k) = sys.crystal.lat_vecs * Vec3(i, j, k)
 
     pts = Vector{GLMakie.Point3f0}()
     nx, ny, nz = lattice.size
     for j in 1:ny
         for k in 1:nz
-            bot_pt, top_pt = lattice[1, j, k, 1], lattice[nx, j, k, 1]
+            bot_pt, top_pt = lattice(1, j, k), lattice(nx, j, k)
             push!(pts, GLMakie.Point3f0(bot_pt))
             push!(pts, GLMakie.Point3f0(top_pt))
         end
         for i in 1:nx
-            left_pt, right_pt = lattice[i, j, 1, 1], lattice[i, j, nz, 1]
+            left_pt, right_pt = lattice(i, j, 1), lattice(i, j, nz)
             push!(pts, GLMakie.Point3f0(left_pt))
             push!(pts, GLMakie.Point3f0(right_pt))
         end
     end
     for k in 1:nz
         for i in 1:nx
-            left_pt, right_pt = lattice[i, 1, k, 1], lattice[i, ny, k, 1]
+            left_pt, right_pt = lattice(i, 1, k), lattice(i, ny, k)
             push!(pts, GLMakie.Point3f0(left_pt))
             push!(pts, GLMakie.Point3f0(right_pt))
         end
@@ -223,13 +225,22 @@ function plot_cells!(ax, lattice::Lattice; color=:grey, linewidth=1.0, kwargs...
 
     GLMakie.linesegments!(ax, pts; color=color, linewidth=linewidth)
 end
+=#
 
-function plot_spins(lat::Lattice, dipoles::Array{Vec3, 4}; linecolor=:grey, arrowcolor=:red,
-                    linewidth=0.1, arrowsize=0.2, arrowlength=0.2, kwargs...)
+
+"""
+    plot_spins(sys::SpinSystem; linecolor=:grey, arrowcolor=:red, linewidth=0.1,
+                                arrowsize=0.3, arrowlength=1.0, kwargs...)
+
+Plot the spin configuration defined by `sys`. `kwargs` are passed to `GLMakie.arrows`.        
+"""
+function plot_spins(sys::SpinSystem; linecolor=:grey, arrowcolor=:red,
+    linewidth=0.1, arrowsize=0.2, arrowlength=0.2, kwargs...)
+
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(vec(lat))
-    vecs = GLMakie.Vec3f0.(vec(dipoles))
+    pts = GLMakie.Point3f0.(all_lattice_positions(sys))
+    vecs = GLMakie.Vec3f0.(sys.dipoles)
 
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -238,16 +249,6 @@ function plot_spins(lat::Lattice, dipoles::Array{Vec3, 4}; linecolor=:grey, arro
     )
     fig
 end
-
-"""
-    plot_spins(sys::SpinSystem; linecolor=:grey, arrowcolor=:red, linewidth=0.1,
-                                arrowsize=0.3, arrowlength=1.0, kwargs...)
-
-Plot the spin configuration defined by `sys`. `kwargs` are passed to `GLMakie.arrows`.        
-"""
-plot_spins(sys::SpinSystem; kwargs...) = plot_spins(sys.lattice, sys._dipoles; kwargs...)
-
-# No support for higher than 3D visualization, sorry!
 
 """
     anim_integration(sys, fname, steps_per_frame, Δt, nframes; kwargs...)
@@ -269,8 +270,8 @@ function anim_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(vec(sys.lattice))
-    vecs = GLMakie.Observable(GLMakie.Vec3f0.(vec(sys._dipoles)))
+    pts = GLMakie.Point3f0.(all_lattice_positions(sys))
+    vecs = GLMakie.Observable(GLMakie.Vec3f0.(sys.dipoles))
     GLMakie.arrows!(
         ax, pts, vecs;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
@@ -283,9 +284,9 @@ function anim_integration(
 
     GLMakie.record(fig, fname, 1:nframes; framerate=framerate) do frame
         for step in 1:steps_per_frame
-            evolve!(integrator, Δt)
+            step!(integrator, Δt)
         end
-        vecs[] = GLMakie.Vec3f0.(vec(sys._dipoles))
+        vecs[] = GLMakie.Vec3f0.(sys.dipoles)
     end
 end
 
@@ -302,8 +303,8 @@ function live_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(vec(sys.lattice))
-    vecs = GLMakie.Observable(GLMakie.Vec3f0.(vec(sys._dipoles)))
+    pts = GLMakie.Point3f0.(all_lattice_positions(sys))
+    vecs = GLMakie.Observable(GLMakie.Vec3f0.(sys.dipoles))
     GLMakie.arrows!(
         ax, pts, vecs;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
@@ -315,15 +316,15 @@ function live_integration(
 
     while true
         for step in 1:steps_per_frame
-            evolve!(integrator, Δt)
+            step!(integrator, Δt)
         end
-        vecs[] = GLMakie.Vec3f0.(vec(sys._dipoles))
+        vecs[] = GLMakie.Vec3f0.(sys.dipoles)
         sleep(1/framerate)
     end
 end
 
 """
-    live_langevin_integration(sys, steps_per_frame, Δt, kT; α=0.1, kwargs...)
+    live_langevin_integration(sys, steps_per_frame, Δt, kT; λ=0.1, kwargs...)
 
 Performs endless live Langevin Landau-Lifshitz integration
 in an interactive window.
@@ -331,11 +332,11 @@ in an interactive window.
 function live_langevin_integration(
     sys::SpinSystem, steps_per_frame, Δt, kT;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
-    arrowlength=0.2, α=0.1, framerate=30, kwargs...
+    arrowlength=0.2, λ=0.1, framerate=30, kwargs...
 )
     fig, ax = _setup_scene()
-    pts = GLMakie.Point3f0.(vec(sys.lattice))
-    vecs = GLMakie.Observable(GLMakie.Vec3f0.(vec(sys._dipoles)))
+    pts = GLMakie.Point3f0.(all_lattice_positions(sys))
+    vecs = GLMakie.Observable(GLMakie.Vec3f0.(sys.dipoles))
     
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -344,13 +345,13 @@ function live_langevin_integration(
     )
     display(fig)
 
-    integrator = LangevinHeunP(sys, kT, α)
+    integrator = LangevinHeunP(sys, kT, λ)
 
     while true
         for step in 1:steps_per_frame
-            evolve!(integrator, Δt)
+            step!(integrator, Δt)
         end
-        vecs[] = GLMakie.Vec3f0.(vec(sys._dipoles))
+        vecs[] = GLMakie.Vec3f0.(sys.dipoles)
         sleep(1/framerate)
     end
 end

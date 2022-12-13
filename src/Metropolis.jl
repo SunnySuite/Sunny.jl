@@ -16,8 +16,9 @@ All samplers should subtype this, and implement the following methods
 """
 abstract type AbstractSampler end
 
+# These should be deprecated/rewritten. Won't have a SpinSystem in the sampler going forward.
 running_energy(sampler::S) where {S <: AbstractSampler} = energy(get_system(sampler))
-running_mag(sampler::S) where {S <: AbstractSampler} = sum(get_system(sampler))
+running_mag(sampler::S) where {S <: AbstractSampler} = sum(get_system(sampler)) # Does this apply g-factor?
 reset_running_energy!(sampler::S) where {S <: AbstractSampler} = nothing
 reset_running_mag!(sampler::S) where {S <: AbstractSampler} = nothing
 
@@ -80,7 +81,7 @@ mutable struct MetropolisSampler{N} <: AbstractSampler
     M          :: Vec3
     function MetropolisSampler(sys::SpinSystem{N}, kT::Float64, nsweeps::Int) where N
         @assert kT != 0. "Temperature must be nonzero!"
-        new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys._dipoles))
+        new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys.dipoles))
     end
 end
 
@@ -105,7 +106,7 @@ mutable struct IsingSampler{N} <: AbstractSampler
     M          :: Vec3
     function IsingSampler(sys::SpinSystem{N}, kT::Float64, nsweeps::Int) where N
         @assert kT != 0. "Temperature must be nonzero!"
-        new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys._dipoles))
+        new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys.dipoles))
     end
 end
 
@@ -119,7 +120,7 @@ mutable struct MeanFieldSampler{N} <: AbstractSampler
     function MeanFieldSampler(sys::SpinSystem{N}, kT::Float64, nsweeps::Int) where N
         @assert N > 0 "Mean field sampling only available for SU(N) systems."
         @assert kT != 0. "Temperature must be nonzero!"
-        new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys._dipoles))
+        new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys.dipoles))
     end
 end
 
@@ -182,11 +183,11 @@ end
 
 # For Ising sampler. Non-mutating. Hence "flipped" not "flip"
 @inline function _flipped_spin(sys::SpinSystem{0}, idx) :: Vec3
-    -sys._dipoles[idx]
+    -sys.dipoles[idx]
 end
 # Uses time-reversal approach to spin flip -- see Sakurai (3rd ed.), eq. 4.176.
 @inline function _flipped_spin(sys::SpinSystem{N}, idx) ::CVec{N} where N
-    flip_ket(sys._coherents[idx])
+    flip_ket(sys.coherents[idx])
 end
 
 # For mean field sampler. Return to this for optimzation.
@@ -194,7 +195,7 @@ function _local_hamiltonian(sys::SpinSystem{N}, idx) where N
     aniso = sys.hamiltonian.sun_aniso
     _, site = splitidx(idx)
 
-    B = field(sys._dipoles, sys.hamiltonian, idx)
+    B = field(sys.dipoles, sys.hamiltonian, idx)
     S = spin_matrices(N)
     ℌ = -(B[1]*S[1] + B[2]*S[2] + B[3]*S[3])
     ℌ += @view(aniso[:,:,site])
@@ -238,7 +239,7 @@ Samples `sampler.sys` to a new state, under the Boltzmann distribution
 function sample!(sampler::MetropolisSampler{N}) where N
     sys = sampler.sys
     for _ in 1:sampler.nsweeps
-        for idx in CartesianIndices(sys._dipoles)
+        for idx in CartesianIndices(sys.dipoles)
             # Try to rotate this spin to somewhere randomly on the unit sphere
             _, b = splitidx(idx)
             new_spin = _random_spin(sys.rng, Val(N), sys.site_infos[b].spin_rescaling)
@@ -249,10 +250,10 @@ function sample!(sampler::MetropolisSampler{N}) where N
                 new_dipole = dipole(new_spin, sys, idx)
 
                 sampler.E += ΔE
-                sampler.M += (new_dipole - sys._dipoles[idx])
+                sampler.M += (new_dipole - sys.dipoles[idx])
 
-                sys._dipoles[idx] = new_dipole 
-                sys._coherents[idx] = new_ket
+                sys.dipoles[idx] = new_dipole 
+                sys.coherents[idx] = new_ket
             end
         end
     end
@@ -262,7 +263,7 @@ end
 function sample!(sampler::IsingSampler{N}) where N
     sys = sampler.sys
     for _ in 1:sampler.nsweeps
-        for idx in CartesianIndices(sys._dipoles)
+        for idx in CartesianIndices(sys.dipoles)
             # Try to completely flip this spin
             new_spin = _flipped_spin(sys, idx)
             ΔE = local_energy_change(sys, idx, new_spin)
@@ -274,8 +275,8 @@ function sample!(sampler::IsingSampler{N}) where N
                 sampler.E += ΔE
                 sampler.M += 2 * new_dipole   # check this is still sensible...
 
-                sys._dipoles[idx] = new_dipole 
-                sys._coherents[idx] = new_ket
+                sys.dipoles[idx] = new_dipole 
+                sys.coherents[idx] = new_ket
             end
         end
     end
@@ -285,7 +286,7 @@ end
 function sample!(sampler::MeanFieldSampler{N}) where N
     sys = sampler.sys
     for _ in 1:sampler.nsweeps
-        for idx in CartesianIndices(sys._dipoles)
+        for idx in CartesianIndices(sys.dipoles)
             new_spin = _rand_mf_spin(sys, idx)
             ΔE = local_energy_change(sys, idx, new_spin)
 
@@ -296,8 +297,8 @@ function sample!(sampler::MeanFieldSampler{N}) where N
                 sampler.E += ΔE
                 sampler.M += 2 * new_dipole   # assuming 2 is g-factor 
 
-                sys._dipoles[idx] = new_dipole 
-                sys._coherents[idx] = new_ket
+                sys.dipoles[idx] = new_dipole 
+                sys.coherents[idx] = new_ket
             end
         end
     end
@@ -306,11 +307,11 @@ end
 @inline running_energy(sampler::MetropolisSampler) = sampler.E
 @inline running_mag(sampler::MetropolisSampler) = sampler.M
 @inline reset_running_energy!(sampler::MetropolisSampler) = (sampler.E = energy(sampler.sys); nothing)
-@inline reset_running_mag!(sampler::MetropolisSampler) = (sampler.M = sum(sampler.sys._dipoles); nothing)
+@inline reset_running_mag!(sampler::MetropolisSampler) = (sampler.M = sum(sampler.sys.dipoles); nothing)
 @inline running_energy(sampler::IsingSampler) = sampler.E
 @inline running_mag(sampler::IsingSampler) = sampler.M
 @inline reset_running_energy!(sampler::IsingSampler) = (sampler.E = energy(sampler.sys); nothing)
-@inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.sys._dipoles); nothing)
+@inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.sys.dipoles); nothing)
 
 
 """
@@ -324,7 +325,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
     ΔE = 0.0
     new_dipole = dipole(newspin, sys, idx)
     new_ket = ket(newspin)
-    old_dipole = sys._dipoles[idx]
+    old_dipole = sys.dipoles[idx]
     spindiff = new_dipole - old_dipole
     cell, i = splitidx(idx)
 
@@ -337,7 +338,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += J * (new_dipole⋅new_dipole - old_dipole⋅old_dipole)
             else
-                Sⱼ = sys._dipoles[offset(cell, bond.n, sys.lattice.size), bond.j]
+                Sⱼ = sys.dipoles[offset(cell, bond.n, sys.size), bond.j]
                 ΔE += J * (spindiff ⋅ Sⱼ)
             end
         end
@@ -347,7 +348,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += new_dipole⋅(J.*new_dipole) - old_dipole⋅(J.*old_dipole)
             else
-                Sⱼ = sys._dipoles[offset(cell, bond.n, sys.lattice.size), bond.j]
+                Sⱼ = sys.dipoles[offset(cell, bond.n, sys.size), bond.j]
                 ΔE += (J .* spindiff) ⋅ Sⱼ
             end
         end
@@ -357,7 +358,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += dot(new_dipole, J, new_dipole) - dot(old_dipole, J, old_dipole)
             else
-                Sⱼ = sys._dipoles[offset(cell, bond.n, sys.lattice.size), bond.j]
+                Sⱼ = sys.dipoles[offset(cell, bond.n, sys.size), bond.j]
                 ΔE += dot(spindiff, J, Sⱼ)
             end
         end
@@ -376,7 +377,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
     end
     if N > 0
         aniso = ℋ.sun_aniso
-        old_ket = sys._coherents[idx]
+        old_ket = sys.coherents[idx]
         Λ = @view(aniso[:,:,i])
         ΔE += real(new_ket' * Λ * new_ket) - real(old_ket' * Λ * old_ket)
     end

@@ -27,20 +27,20 @@ function FeI2_crystal()
 end
 
 
-function su3_anisotropy_model(; L=20, D=1.0, rng)
+function su3_anisotropy_model(; L=20, D=1.0, seed)
     N = 3
     Λ = D*𝒮[3]^2
     cryst = FeI2_crystal()
     interactions = [anisotropy(Λ, 1)]
     dims = (L,1,1)
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)]; rng)
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)]; seed)
     rand!(sys)
 
     return sys
 end
 
-function su5_anisotropy_model(; L=20, D=1.0, rng)
+function su5_anisotropy_model(; L=20, D=1.0, seed)
     N = 5
     Λ = D*(𝒮[3]^2-(1/5)*𝒮[3]^4)
     
@@ -48,26 +48,26 @@ function su5_anisotropy_model(; L=20, D=1.0, rng)
     interactions = [anisotropy(Λ, 1)]
     dims = (L,1,1)
 
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)]; rng)
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N)]; seed)
     rand!(sys)
 
     return sys
 end
 
-function thermalize(integrator, Δt, dur)
+function thermalize!(sys, integrator, dur)
+    Δt = integrator.Δt
     numsteps = round(Int, dur/Δt)
     for _ in 1:numsteps
-        evolve!(integrator, Δt)
+        step!(sys, integrator)
     end
 end
 
-function calc_mean_energy(integrator, Δt, dur)
-    sys = integrator.sys
-    L = size(sys._dipoles)[1]
-    numsteps = round(Int, dur/Δt)
+function calc_mean_energy(sys, integrator, dur)
+    L = size(sys.dipoles)[1]
+    numsteps = round(Int, dur/integrator.Δt)
     Es = zeros(numsteps)
     for i in 1:numsteps
-        evolve!(integrator, Δt)
+        step!(sys, integrator)
         Es[i] = energy(sys) / L
     end
     sum(Es)/length(Es) 
@@ -76,20 +76,20 @@ end
 function test_su3_anisotropy_energy()
     D = 1.0
     L = 20   # number of (non-interacting) sites
-    α = 1.0
+    λ = 1.0
     Δt = 0.01
     kTs = [0.125, 0.5]
     thermalize_dur = 10.0
     collect_dur = 100.0
-    rng = Random.MersenneTwister(111)
+    seed = 111
 
-    sys = su3_anisotropy_model(; D, L, rng)
-    integrator = LangevinHeunP(sys, 0.0, α)
+    sys = su3_anisotropy_model(; D, L, seed)
+    integrator = LangevinHeunP(0.0, λ, Δt)
 
     for kT ∈ kTs
         integrator.kT = kT
-        thermalize(integrator, Δt, thermalize_dur)
-        E = calc_mean_energy(integrator, Δt, collect_dur)
+        thermalize!(sys, integrator, thermalize_dur)
+        E = calc_mean_energy(sys, integrator, collect_dur)
         E_ref = su3_mean_energy(kT, D)
 
         #= No more than 5% error with respect to reference. =#
@@ -103,20 +103,20 @@ test_su3_anisotropy_energy()
 function test_su5_anisotropy_energy()
     D = 1.0
     L = 20   # number of (non-interacting) sites
-    α = 0.1
+    λ = 0.1
     Δt = 0.01
     kTs = [0.125, 0.5]
     thermalize_dur = 10.0
     collect_dur = 100.0
-    rng = Random.MersenneTwister(111)
+    seed = 111
 
-    sys = su5_anisotropy_model(; D, L, rng)
-    integrator = LangevinHeunP(sys, 0.0, α)
+    sys = su5_anisotropy_model(; D, L, seed)
+    integrator = LangevinHeunP(0.0, λ, Δt)
 
     for kT ∈ kTs
         integrator.kT = kT
-        thermalize(integrator, Δt, thermalize_dur)
-        E = calc_mean_energy(integrator, Δt, collect_dur)
+        thermalize!(sys, integrator, thermalize_dur)
+        E = calc_mean_energy(sys, integrator, collect_dur)
         E_ref = su5_mean_energy(kT, D)
 
         #= No more than 5% error with respect to reference. =#
@@ -171,7 +171,7 @@ function discretize_P(boundaries, kT; n=2, J=1.0, Δ = 0.001)
 end
 
 "Generates a two-site spin chain spin system."
-function two_site_spin_chain(; N=0, J=1.0, spin_rescaling=1.0, rng)
+function two_site_spin_chain(; N=0, J=1.0, spin_rescaling=1.0, seed)
     a = 1.0
     b = 1.1
     c = 1.2
@@ -181,7 +181,7 @@ function two_site_spin_chain(; N=0, J=1.0, spin_rescaling=1.0, rng)
     cryst = Crystal(lat_vecs, basis_vecs)
     interactions = [heisenberg(J, Bond(1,2,[0,0,0]))]
     dims = (1,1,1)
-    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, spin_rescaling)]; rng)
+    sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, spin_rescaling)]; seed)
     rand!(sys)
 
     return sys
@@ -192,11 +192,11 @@ for a two-site spin chain."
 function test_spin_chain_energy()
     Ns = [0, 2]
     spin_rescalings = [1.0, 2.0]
-    rng = Random.MersenneTwister(111)
+    seed = 111
     for (N, spin_rescaling) in zip(Ns, spin_rescalings)
-        sys = two_site_spin_chain(; N, spin_rescaling, rng)
+        sys = two_site_spin_chain(; N, spin_rescaling, seed)
 
-        α = 0.1
+        λ = 0.1
         kT = 0.1
         Δt = 0.01
 
@@ -205,15 +205,16 @@ function test_spin_chain_energy()
         n_bins = 10  # Number of bins in empirical distribution
 
         # Initialize the Langevin sampler and thermalize the system
-        sampler = LangevinSampler(sys, kT, α, Δt, 1000) 
-        sample!(sampler)    
+        integrator = LangevinHeunP(kT, λ, Δt)
+        sampler = LangevinSampler(integrator, 1000)
+        sample!(sys, sampler)
         sampler.nsteps = n_decorr
 
         # Collect samples of energy
         Es = zeros(n_samples)
         for i ∈ 1:n_samples
-            sample!(sampler)
-            Es[i] = energy(sampler.integrator.sys)
+            sample!(sys, sampler)
+            Es[i] = energy(sys)
         end
 
         # Generate empirical distribution and discretize analytical distribution

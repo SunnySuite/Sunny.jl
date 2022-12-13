@@ -6,81 +6,60 @@ include("test_shared.jl")
 # does not check that the actual absolute values are
 # correct.
 
-seed = 1111
-μBs = [1, 2, 1, 4]
-μ0s = [1, 1, 2, 3]
 crystal = Sunny.diamond_crystal()
 latsize = (4, 4, 4)
 
 
-function collect_energy_and_field(int, μB, μ0)
-    rng = Random.MersenneTwister(seed)
-    sys = SpinSystem(crystal, [int], latsize; rng, μB, μ0)
+consts = [Sunny.CONSTS_meV, Sunny.CONSTS_ONES]
+
+function collect_energy_and_field(ints, dipole_dipole, consts)
+    sys = SpinSystem(crystal, ints, latsize; seed=1111, consts)
+    dipole_dipole && enable_dipole_dipole!(sys)
     rand!(sys)
     return energy(sys), field(sys)
 end
 
-# All exchange interactions should be invariant under μ0, μB changes
-function validate_exchanges_scaling(μBs, μ0s)
-    exchange_ints = diamond_test_exchanges()
-    
-    # Check that for all values of μB, μ0, all energies
-    #  and fields are unchanged compared to first set of values.
-    ref_μB, ref_μ0 = μBs[1], μ0s[1]
-    for int in exchange_ints
-        (ref_E, ref_B) = collect_energy_and_field(int, ref_μB, ref_μ0)
-        
-        pass = true
-        for (μB, μ0) in zip(μBs[2:end], μ0s[2:end])
-            (E, B) = collect_energy_and_field(int, μB, μ0)
-            pass &= E ≈ ref_E
-            pass &= B ≈ ref_B
-        end
-        @test pass
-    end
+# All exchange interactions should be invariant under changes to physical
+# constants
+function validate_exchanges_scaling()
+    ints = diamond_test_exchanges()
+    E1, B1 = collect_energy_and_field(ints, false, consts[1])
+    E2, B2 = collect_energy_and_field(ints, false, consts[2])
+    @test E1 ≈ E2
+    @test B1 ≈ B2
 end
 
-validate_exchanges_scaling(μBs, μ0s)
+validate_exchanges_scaling()
 
 
 # Zeeman energies/fields should scale linearly with μB, invariant to μ0
-function validate_field_scaling(μBs, μ0s)
-    ref_μB, ref_μ0 = μBs[1], μ0s[1]
-
+function validate_field_scaling()
     ext_field = external_field(rand(3))
 
-    (ref_E, ref_B) = collect_energy_and_field(ext_field, ref_μB, ref_μ0)
-    
-    pass = true
-    for (μB, μ0) in zip(μBs[2:end], μ0s[2:end])
-        (E, B) = collect_energy_and_field(ext_field, μB, μ0)
-        pass &= E ≈ (μB / ref_μB) * ref_E
-        pass &= B ≈ (μB / ref_μB) .* ref_B
-    end
-    @test pass
+    E1, B1 = collect_energy_and_field([ext_field], false, consts[1])
+    E2, B2 = collect_energy_and_field([ext_field], false, consts[2])
+
+    @test E1 / consts[1].μB ≈ E2 / consts[2].μB
+    @test B1 / consts[1].μB ≈ B2 / consts[2].μB
 end
 
-validate_field_scaling(μBs, μ0s)
+validate_field_scaling()
 
 
 # Dipole-dipole interactions should scale linearly with μ0, and
 #  quadratically with μB
-function validate_dipole_scaling(μBs, μ0s)
-    ref_μB, ref_μ0 = μBs[1], μ0s[1]
+function validate_dipole_scaling()
+    E1, B1 = collect_energy_and_field(Sunny.AbstractInteraction[], true, consts[1])
+    E2, B2 = collect_energy_and_field(Sunny.AbstractInteraction[], true, consts[2])
 
-    dip_dip = dipole_dipole()
-    
-    (ref_E, ref_B) = collect_energy_and_field(dip_dip, ref_μB, ref_μ0)
-
-    pass = true
-    for (μB, μ0) in zip(μBs[2:end], μ0s[2:end])
-        (E, B) = collect_energy_and_field(dip_dip, μB, μ0)
-        pass &= E ≈ (μ0 / ref_μ0) * (μB / ref_μB)^2 * ref_E
-        pass &= B ≈ (μ0 / ref_μ0) * (μB / ref_μB)^2 .* ref_B
-    end
-    @test pass
+    (; μB, μ0) = consts[1]
+    c1 = μ0*μB^2
+    (; μB, μ0) = consts[2]
+    c2 = μ0*μB^2
+    @test E1 / c1 ≈ E2 / c2
+    @test B1 / c1 ≈ B2 / c2
 end
 
-validate_dipole_scaling(μBs, μ0s)
+validate_dipole_scaling()
 
 end

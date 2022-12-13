@@ -8,8 +8,6 @@ using Random
 using LinearAlgebra
 import WignerSymbols: clebschgordan, wigner3j
 
-Random.seed!(1111)
-
 # Generates a "standard" set of exchange interactions for a
 #  diamond lattice with randomized coupling constants for use
 #  across many tests.
@@ -32,14 +30,14 @@ end
 
 function produce_example_system()
     cryst = Sunny.diamond_crystal()
-    latsize = [5, 5, 5]
+    latsize = (5, 5, 5)
 
     interactions = [
         diamond_test_exchanges()...,
         external_field([0, 0, 1])
     ]
 
-    return SpinSystem(cryst, interactions, latsize)
+    return SpinSystem(cryst, interactions, latsize; seed=1111)
 end
 
 # Levi-Civita symbol
@@ -47,4 +45,3 @@ end
 
 # Kronecker delta
 δ(i,j) = (i==j) ? 1 : 0
-
