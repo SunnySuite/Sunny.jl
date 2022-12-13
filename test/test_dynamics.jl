@@ -10,24 +10,22 @@ function test_spherical_midpoint()
         external_field([0, 0, 1])
     ]
 
-    sys = SpinSystem(crystal, interactions, (5, 5, 5))
-    Random.seed!(0)
+    sys = SpinSystem(crystal, interactions, (5, 5, 5); seed=0)
     rand!(sys)
 
     NITERS = 5_000
     Δt     = 0.01
     energies = Float64[]
 
-    integrator = Sunny.SphericalMidpoint(sys)
-    for it in 1:NITERS
-        evolve!(integrator, Δt)
-        # Compute the energy
+    integrator = ImplicitMidpoint(Δt)
+    for _ in 1:NITERS
+        step!(sys, integrator)
         push!(energies, energy(sys))
     end
 
     # Check that the energy hasn't fluctuated much. Expected fluctuations should
     # scale like square-root of system size.
-    sqrt_size = sqrt(length(sys._dipoles))
+    sqrt_size = sqrt(length(sys.dipoles))
     ΔE = (maximum(energies) - minimum(energies)) / sqrt_size
     @test ΔE < 1e-2
 end
@@ -37,24 +35,24 @@ test_spherical_midpoint()
 "Tests that SphericalMidpoint conserves energy for dipole forces (w/ Fourier) to a certain tolerance."
 function test_dipole_ft()
     crystal = Sunny.diamond_crystal()
-    interactions = [dipole_dipole()]
-    sys = SpinSystem(crystal, interactions, (5, 5, 5))
-    Random.seed!(0)
+    interactions = Sunny.AbstractInteraction[]
+    sys = SpinSystem(crystal, interactions, (5, 5, 5); seed=0)
     rand!(sys)
+    enable_dipole_dipole!(sys)
 
     NITERS = 5_000
     Δt     = 0.01
     energies = Float64[]
 
-    integrator = Sunny.SphericalMidpoint(sys)
-    for it in 1:NITERS
-        evolve!(integrator, Δt)
-        # Compute the energy
+    # TODO: Benchmark and compare with previous versions
+    integrator = ImplicitMidpoint(Δt)
+    for _ in 1:NITERS
+        step!(sys, integrator)
         push!(energies, energy(sys))
     end
 
     # Check that the energy hasn't fluctuated much
-    sqrt_size = sqrt(length(sys._dipoles))
+    sqrt_size = sqrt(length(sys.dipoles))
     ΔE = (maximum(energies) - minimum(energies)) / sqrt_size
     @test ΔE < 2e-2
 end
@@ -63,13 +61,9 @@ test_dipole_ft()
 
 "Tests that set_temp!/get_temp behave as expected"
 function test_set_get_temp_langevin()
-    system = produce_example_system()
-    
-    Random.seed!(1111)
-    rand_kTs = rand(100)
-
-    sampler = LangevinSampler(system, 1.0, 1.0, 1.0, 1)
-    for kT in rand_kTs
+    integrator = LangevinHeunP(1.0, 1.0, 1.0)
+    sampler = LangevinSampler(integrator, 1)
+    for kT in [1.1, 10.3]
         set_temp!(sampler, kT)
         if get_temp(sampler) != kT
             return false
@@ -84,7 +78,7 @@ end
 end
 
 # == These should not be @test-ed, but are for manual inspection == #
-
+#=
 "Measure timings for speed disparity between real and fourier-space dipole interactions"
 function time_real_fourier_dipole()
     lat_vecs = [1 0 0; 0 1 0; 0 0 1]
@@ -102,8 +96,8 @@ function time_real_fourier_dipole()
         #  SpinSystem/HamiltonianCPU constructor.
         interactions = Sunny.Interaction[]
         latsize = (L, L, L)
-        sys = SpinSystem(crystal, interactions, latsize)
-        Random.seed!(0)
+        sys = SpinSystem(crystal, interactions, latsize; seed=0)
+        Δt = 0.001
         rand!(sys)
 
         # Since we just want to time integration speed,
@@ -121,12 +115,12 @@ function time_real_fourier_dipole()
                 nothing, empty_h, empty_d, empty_g, dipr
             )
             sys.hamiltonian = ℋ
-            integrator = HeunP(sys)
+            integrator = LangevinHeunP(0.0, 0.0, Δt)
 
             println("\tStarting real-space...")
-            evolve!(integrator, 0.001)
+            evolve!(sys, integrator)
             _, t, _, _ = @timed for _ in 1:100
-                evolve!(integrator, 0.001)
+                evolve!(sys, integrator)
             end
             push!(real_times, t)
         end
@@ -137,15 +131,15 @@ function time_real_fourier_dipole()
             nothing, empty_h, empty_d, empty_g, dipf
         )
         sys.hamiltonian = ℋ
-        integrator = HeunP(sys)
+        integrator = LangevinHeunP(0.0, 0.0, Δt)
 
         println("\tStarting Fourier-space...")
-        evolve!(integrator, 0.001)
+        evolve!(sys, integrator)
         _, t, _, _ = @timed for _ in 1:100
-            evolve!(integrator, 0.001)
+            evolve!(sys, integrator)
         end
         push!(ft_times, t)
     end
     return real_times, ft_times
 end
-
+=#

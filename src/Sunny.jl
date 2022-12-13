@@ -12,6 +12,7 @@ import Printf: @printf, @sprintf
 import Random: Random, rand!, randn!
 import Interpolations: interpolate, scale, BSpline, Linear, Periodic
 import DynamicPolynomials as DP
+import DataStructures: SortedDict
 
 # Specific to Symmetry/
 import FilePathsBase: Path
@@ -27,17 +28,26 @@ import Random: randstring, RandomDevice
 
 const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
-const Quad3 = SArray{Tuple{3,3,3,3}, Float64, 4, 3^4}
 const CVec{N} = SVector{N, ComplexF64}
 
-# Boltzmannn factor k_B in units of meV / K
-const meV_per_K = 0.086173332621451774
 
-# Bohr magneton in units of meV / T
-const BOHR_MAGNETON = 0.057883818060738013331
+Base.@kwdef struct PhysicalConsts
+    μ0::Float64    # Vacuum permeability
+    μB::Float64    # Bohr magneton 
+    kB::Float64    # Boltzmann's constant
+end
 
-# Vacuum permability in units of T^2 Å^3 / meV
-const VACUUM_PERM = 201.33545383470705041
+const CONSTS_ONES = PhysicalConsts(;
+    μ0 = 1.0,
+    μB = 1.0,
+    kB = 1.0,
+)
+
+const CONSTS_meV = PhysicalConsts(;
+    μ0 = 201.33545383470705041,   # T^2 Å^3 / meV
+    μB = 0.057883818060738013331, # meV / T
+    kB = 0.086173332621451774,    # meV / K
+)
 
 include("Symmetry/Symmetry.jl")
 export Crystal, subcrystal, nbasis, cell_volume, cell_type
@@ -53,13 +63,13 @@ export print_suggested_frame, print_anisotropy_as_stevens
 
 include("Util.jl")
 
-include("Lattice.jl")
+include("SiteInfo.jl")
+export SiteInfo
 
 include("Interactions.jl")
 export heisenberg, exchange, dm_interaction
 export easy_axis, easy_plane, quadratic_anisotropy, anisotropy
 export external_field, dipole_dipole
-export SiteInfo
 
 include("PairInteractions.jl")
 
@@ -67,13 +77,14 @@ include("Anisotropies.jl")
 
 include("Ewald.jl")
 
-include("FourierAccel.jl")
+include("EwaldReference.jl")
 
 include("Hamiltonian.jl")
 
 include("Systems.jl")
 export ChargeSystem, SpinSystem, rand!, randflips!, energy, field, field!
 export extend_periodically
+export enable_dipole_dipole!
 
 include("Metropolis.jl")
 export MetropolisSampler, IsingSampler, MeanFieldSampler
@@ -82,14 +93,13 @@ export sample!, thermalize!, anneal!
 export running_energy, running_mag, reset_running_energy!, reset_running_mag!
 
 include("Integrators.jl")
-export HeunP, LangevinHeunP, SphericalMidpoint, evolve!
+export HeunP, LangevinHeunP, SphericalMidpoint, step!
 export LangevinHeunPSUN, SchrodingerMidpoint, ImplicitMidpoint
 export LangevinSampler
 
-include("StructureFactors.jl")
-export StructureFactor, update!, apply_dipole_factor, zero!
-export dynamic_structure_factor, static_structure_factor
-export sf_slice, apply_form_factor, omega_labels, q_labels
+include("StructureFactors/StructureFactors.jl")
+export StructureFactor, expectation_trajectory, dipole_trajectory
+export new_trajectory!, accum_trajectory!, add_trajectory!, get_intensity
 
 include("WangLandau/BinnedArray.jl")
 export BinnedArray, filter_visited, reset!
@@ -100,6 +110,7 @@ export WangLandau, spherical_cap_update, init_bounded!, run!
 include("SunnyGfx/SunnyGfx.jl")
 export view_crystal, offline_viewers, browser
 
+#=
 # GLMakie and MPI are optional dependencies
 function __init__()
     @require GLMakie="e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin
@@ -113,5 +124,6 @@ function __init__()
         export init_MPI, xyz_to_file, Replica, run_REMC!, run_FBO!
     end
 end
+=#
 
 end

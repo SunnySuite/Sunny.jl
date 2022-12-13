@@ -1,6 +1,8 @@
 @testitem "Crystal Construction" begin
     include("test_shared.jl")
 
+    cell_type(cryst::Crystal) = Sunny.cell_type(cryst.lat_vecs)
+    lattice_params(cryst::Crystal) = Sunny.lattice_params(cryst.lat_vecs)
 
     ### Test construction of diamond lattice
 
@@ -149,7 +151,7 @@ end
 
         # Test dipole -> ket -> dipole round trip
         n = S₀ * normalize(randn(Sunny.Vec3))
-        ψ = Sunny._get_coherent_from_dipole(n, Val(N))
+        ψ = Sunny.get_coherent_from_dipole(n, Val(N))
         @test Sunny.expected_spin(ψ) ≈ n
     end    
 end
@@ -429,10 +431,10 @@ end
         rand!(sys)
         E1 = energy(sys)
         # Effectively rotate site positions by π/2 clockwise
-        sys._dipoles .= circshift(sys._dipoles, (0,0,0,1))
+        sys.dipoles .= circshift(sys.dipoles, (0,0,0,1))
         # Rotate spin vectors correspondingly
         R = Sunny.Mat3([0 1 0; -1 0 0; 0 0 1])
-        sys._dipoles .= [R*d for d in sys._dipoles]
+        sys.dipoles .= [R*d for d in sys.dipoles]
         E2 = energy(sys)
         @test E1 ≈ E2
 
@@ -442,10 +444,10 @@ end
         rand!(sys)
         E1 = energy(sys)
         # Effectively rotate site positions by π/2 clockwise
-        sys._coherents .= circshift(sys._coherents, (0,0,0,1))
+        sys.coherents .= circshift(sys.coherents, (0,0,0,1))
         # Rotate kets correspondingly
         U = Sunny.unitary_for_rotation(R; N)
-        sys._coherents .= [U*z for z in sys._coherents]
+        sys.coherents .= [U*z for z in sys.coherents]
         E2 = energy(sys)
         @test E1 ≈ E2
     end

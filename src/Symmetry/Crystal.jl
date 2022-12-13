@@ -93,9 +93,14 @@ Volume of the crystal unit cell.
 """
 cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
 
-cell_type(cryst::Crystal) = cell_type(cryst.lat_vecs)
-lattice_vectors(cryst::Crystal) = cryst.lat_vecs
-lattice_params(cryst::Crystal) = lattice_params(cryst.lat_vecs)
+"""
+    position(crystal::Crystal, i::Int, cell=(0,0,0))
+
+Position of an atom in global Cartesian coordinates. The optional `cell`
+parameter denotes a displacement in unit cell indices.
+"""
+position(cryst::Crystal, i::Int, cell=(0,0,0)) = cryst.lat_vecs * (convert(Vec3, cell) + cryst.positions[i])
+
 
 """
     Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)

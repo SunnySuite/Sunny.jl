@@ -1,7 +1,84 @@
 # Functions associated with HamiltonianCPU, which maintains the actual internal
 # interaction types and orchestrates energy/field calculations.
 
-function validate_quadratic_interaction(int::QuadraticInteraction, crystal::Crystal, latsize::Vector{Int64})
+
+"""
+HamiltonianCPU
+
+Stores and orchestrates the types that perform the actual implementations
+of all interactions internally.
+"""
+mutable struct HamiltonianCPU
+ext_field       :: Union{Nothing, ExternalFieldCPU}
+# TODO: Merge these three into one
+heisenbergs     :: Vector{HeisenbergCPU}
+diag_coups      :: Vector{DiagonalCouplingCPU}
+gen_coups       :: Vector{GeneralCouplingCPU}
+dipole_int      :: Union{Nothing, DipoleRealCPU, DipoleFourierCPU}
+dipole_aniso    :: Union{Nothing, DipoleAnisotropyCPU}
+sun_aniso       :: Array{ComplexF64, 3}
+spin_mags       :: Vector{Float64}  # Keeping this for SU(N) aniso scaling
+end
+
+"""
+HamiltonianCPU(ints, crystal, site_infos::Vector{SiteInfo})
+
+Construct a `HamiltonianCPU` from a list of interactions, converting
+each of the interactions into the proper backend type specialized
+for the given `crystal` and `latsize`.
+
+Note that `site_infos` must be complete when passed to this constructor.
+"""
+function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
+                    site_infos::Vector{SiteInfo};
+                    consts=PhysicalConsts)
+ext_field   = nothing
+heisenbergs = Vector{HeisenbergCPU}()
+diag_coups  = Vector{DiagonalCouplingCPU}()
+gen_coups   = Vector{GeneralCouplingCPU}()
+dipole_int  = nothing
+spin_mags   = [site.spin_rescaling for site in site_infos]
+
+anisos = Vector{OperatorAnisotropy}()
+for int in ints
+    # TODO: Handle all of the ifs with multiple dispatch instead?
+    if isa(int, ExternalField)
+        if isnothing(ext_field)
+            ext_field = ExternalFieldCPU(int, site_infos; consts.μB)
+        else
+            ext_field.Bgs .+= ExternalFieldCPU(int, site_infos; consts.μB).Bgs
+        end
+    elseif isa(int, QuadraticInteraction)
+        validate_quadratic_interaction(int, crystal)
+        int_impl = convert_quadratic(int, crystal, site_infos)
+        if isa(int_impl, HeisenbergCPU)
+            push!(heisenbergs, int_impl)
+        elseif isa(int_impl, DiagonalCouplingCPU)
+            push!(diag_coups, int_impl)
+        elseif isa(int_impl, GeneralCouplingCPU)
+            push!(gen_coups, int_impl)
+        else
+            error("Quadratic interaction failed to convert to known backend type.")
+        end
+    elseif isa(int, OperatorAnisotropy)
+        push!(anisos, int)       
+    elseif isa(int, DipoleDipole) 
+        error("Handle dipole-dipole differently. FIXME.")
+    else
+        error("$(int) failed to convert to known backend type.")
+    end
+end
+
+(dipole_anisos, sun_anisos) = convert_anisotropies(anisos, crystal, site_infos)
+
+return HamiltonianCPU(
+    ext_field, heisenbergs, diag_coups, gen_coups, dipole_int,
+    dipole_anisos, sun_anisos, spin_mags
+)
+end
+
+
+function validate_quadratic_interaction(int::QuadraticInteraction, crystal::Crystal)
     # Validate all interactions
     int_str = repr("text/plain", int)
     b = int.bond
@@ -90,84 +167,6 @@ function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Cryst
     end
 end
 
-
-"""
-    HamiltonianCPU
-
-Stores and orchestrates the types that perform the actual implementations
-of all interactions internally.
-"""
-struct HamiltonianCPU
-    ext_field       :: Union{Nothing, ExternalFieldCPU}
-    # TODO: Merge these three into one
-    heisenbergs     :: Vector{HeisenbergCPU}
-    diag_coups      :: Vector{DiagonalCouplingCPU}
-    gen_coups       :: Vector{GeneralCouplingCPU}
-    dipole_int      :: Union{Nothing, DipoleRealCPU, DipoleFourierCPU}
-    dipole_aniso    :: Union{Nothing, DipoleAnisotropyCPU}
-    sun_aniso       :: Array{ComplexF64, 3}
-    spin_mags       :: Vector{Float64}  # Keeping this for SU(N) aniso scaling
-end
-
-"""
-    HamiltonianCPU(ints, crystal, latsize, site_infos::Vector{SiteInfo})
-
-Construct a `HamiltonianCPU` from a list of interactions, converting
-each of the interactions into the proper backend type specialized
-for the given `crystal` and `latsize`.
-
-Note that `site_infos` must be complete when passed to this constructor.
-"""
-function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
-                        latsize::Vector{Int64}, site_infos::Vector{SiteInfo};
-                        μB=BOHR_MAGNETON::Float64, μ0=VACUUM_PERM::Float64)
-    ext_field   = nothing
-    heisenbergs = Vector{HeisenbergCPU}()
-    diag_coups  = Vector{DiagonalCouplingCPU}()
-    gen_coups   = Vector{GeneralCouplingCPU}()
-    dipole_int  = nothing
-    spin_mags   = [site.spin_rescaling for site in site_infos]
-
-    anisos = Vector{OperatorAnisotropy}()
-    for int in ints
-        # TODO: Handle all of the ifs with multiple dispatch instead?
-        if isa(int, ExternalField)
-            if isnothing(ext_field)
-                ext_field = ExternalFieldCPU(int, site_infos; μB)
-            else
-                ext_field.Bgs .+= ExternalFieldCPU(int, site_infos; μB).Bgs
-            end
-        elseif isa(int, QuadraticInteraction)
-            validate_quadratic_interaction(int, crystal, latsize)
-            int_impl = convert_quadratic(int, crystal, site_infos)
-            if isa(int_impl, HeisenbergCPU)
-                push!(heisenbergs, int_impl)
-            elseif isa(int_impl, DiagonalCouplingCPU)
-                push!(diag_coups, int_impl)
-            elseif isa(int_impl, GeneralCouplingCPU)
-                push!(gen_coups, int_impl)
-            else
-                error("Quadratic interaction failed to convert to known backend type.")
-            end
-        elseif isa(int, OperatorAnisotropy)
-            push!(anisos, int)
-        elseif isa(int, DipoleDipole)
-            if !isnothing(dipole_int)
-                println("Warning: Provided multiple dipole interactions. Only using last one.")
-            end
-            dipole_int = DipoleFourierCPU(int, crystal, latsize, site_infos; μB, μ0)
-        else
-            error("$(int) failed to convert to known backend type.")
-        end
-    end
-
-    (dipole_anisos, sun_anisos) = convert_anisotropies(anisos, crystal, site_infos)
-
-    return HamiltonianCPU(
-        ext_field, heisenbergs, diag_coups, gen_coups, dipole_int,
-        dipole_anisos, sun_anisos, spin_mags
-    )
-end
 
 function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU) :: Float64 where {N}
     E = 0.0

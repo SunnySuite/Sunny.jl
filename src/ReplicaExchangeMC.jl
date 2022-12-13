@@ -92,12 +92,12 @@ function replica_exchange!(replica::Replica)
     S_curr = running_energy(replica.sampler) / get_temp(replica.sampler)
 
     # Backup current configuration
-    backup_spins = deepcopy(replica.sampler.sys._dipoles)
+    backup_spins = deepcopy(replica.sampler.sys.dipoles)
 
     # Swap trial configuration with partner
     MPI.Sendrecv!(
                            backup_spins, rex_rank, 1,
-        replica.sampler.sys._dipoles, rex_rank, 1,
+        replica.sampler.sys.dipoles, rex_rank, 1,
         MPI.COMM_WORLD
     )
 
@@ -127,7 +127,7 @@ function replica_exchange!(replica::Replica)
 
     # Reject exchange
     if !rex_accept
-        replica.sampler.sys._dipoles .= backup_spins
+        replica.sampler.sys.dipoles .= backup_spins
         return false
     end
 
@@ -231,7 +231,7 @@ end
 Encode ising system spin z-components as 64-bit integers to file
 """
 function encode_ising_to_file(system::SpinSystem, output::IOStream)
-    Sz = Int64.(vec(reinterpret(reshape, Float64, system._dipoles)[3,1,:,:,:]))
+    Sz = Int64.(vec(reinterpret(reshape, Float64, system.dipoles)[3,1,:,:,:]))
     N = length(Sz)
 
     N_ints = cld(N, 63)
@@ -267,8 +267,8 @@ end
 Print xyz formatted (Lx, Ly, Lz, Sx, Sy, Sz) configurations to file 
 """
 function xyz_to_file(sys::SpinSystem, output::IOStream)
-    sites = reinterpret(reshape, Float64, sys.lattice)
-    spins = reinterpret(reshape, Float64, sys._dipoles)
+    sites = reinterpret(reshape, Float64, positions(sys))
+    spins = reinterpret(reshape, Float64, sys.dipoles)
     xyz = vcat(sites, spins)
     xyz = reshape(xyz, 6, :)
 

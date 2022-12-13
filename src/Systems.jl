@@ -1,107 +1,51 @@
 import Random
 
+struct SpinSystem{N}
+    crystal          :: Crystal
+    size             :: NTuple{3, Int}                   # Size of lattice in unit cells
+    hamiltonian      :: HamiltonianCPU                   # All interactions
+    dipoles          :: Array{Vec3, 4}                   # Dipole moments with axes [Basis, CellA, CellB, CellC]
+    coherents        :: Array{CVec{N}, 4}                # Coherent states
+    dipole_buffers   :: Vector{Array{Vec3, 4}}           # Buffers for dynamics routines
+    coherent_buffers :: Vector{Array{CVec{N}, 4}}        # Buffers for dynamics routines
+    ℌ_buffer         :: Matrix{ComplexF64}               # Buffer for local Hamiltonian
+    site_infos       :: Vector{SiteInfo}                 # Characterization of each basis site
+    consts           :: PhysicalConsts
+    rng              :: Random.Xoshiro
+end
+
 """
-Defines a collection of spins, as well as the Hamiltonian they interact under.
- This is the main type to interface with most of the package.
+    SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, size, site_infos::Vector{SiteInfo}=[];
+               consts=CONSTS_meV)
+
+Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice
+sites of a given `crystal`, interactions given by `ints`, and the number of unit
+cells along each lattice vector specified by `size`. Initialized to all spins
+pointing along the ``+𝐳̂`` direction. The unit system can be selected with the
+optional consts parameter; by default, the system is (meV, T, Å).
 """
-struct SpinSystem{N}   
-    lattice     :: Lattice                          # Definition of underlying lattice
-    hamiltonian :: HamiltonianCPU                   # Contains all interactions present
-    _dipoles    :: Array{Vec3, 4}                   # Holds dipole moments: Axes are [Basis, CellA, CellB, CellC]
-    _coherents  :: Array{CVec{N}, 4}                # Coherent states
-    site_infos  :: Vector{SiteInfo}                 # Characterization of each basis site
-    rng         :: Random.AbstractRNG
+function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, size::NTuple{3,Int},
+                    site_infos::Vector{SiteInfo}=SiteInfo[];
+                    consts=CONSTS_meV, seed=nothing)
+    (all_site_infos, N) = propagate_site_info!(crystal, site_infos)
+    ℋ_CPU = HamiltonianCPU(ints, crystal, all_site_infos; consts)
+
+    # Initialize sites to all spins along +z
+    sys_size = (size..., nbasis(crystal))
+    dipoles = fill(zero(Vec3), sys_size)
+    coherents = fill(zero(CVec{N}), sys_size)
+    dipole_buffers = Array{Vec3, 4}[]
+    coherent_buffers = Array{CVec{N}, 4}[]
+    ℌ_buffer = zeros(ComplexF64, N, N)
+    rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
+
+    ret = SpinSystem(crystal, size, ℋ_CPU, dipoles, coherents, dipole_buffers,
+                      coherent_buffers, ℌ_buffer, all_site_infos, consts, rng)
+    polarize_spins!(ret)
+    return ret
 end
 
-Base.size(sys::SpinSystem) = size(sys._dipoles)
-Base.length(sys::SpinSystem) = length(sys._dipoles)
-nbasis(sys::SpinSystem) = nbasis(sys.lattice)
-eachcellindex(sys::SpinSystem) = eachcellindex(sys.lattice)
-
-# Find a ket (up to an irrelevant phase) that corresponds to a pure dipole.
-# TODO, we can do this much faster by using the exponential map of spin
-# operators, expressed as a polynomial expansion,
-# http://www.emis.de/journals/SIGMA/2014/084/
-_get_coherent_from_dipole(dip::Vec3, ::Val{0}) :: CVec{0} = CVec{0}(zeros(0))
-function _get_coherent_from_dipole(dip::Vec3, ::Val{N}) :: CVec{N} where {N} 
-    S = spin_matrices(N) 
-    λs, vs = eigen(dip' * S)
-    return CVec{N}(vs[:, argmax(real.(λs))])
-end
-
-struct DipoleView{N} <: AbstractArray{Vec3, 4}
-    _dipoles    :: Array{Vec3, 4}
-    _coherents  :: Array{SVector{N, ComplexF64}, 4}
-end
-
-Base.IndexStyle(::Type{DipoleView}) = IndexLinear()
-Base.size(dv::DipoleView) = size(dv._dipoles)
-Base.getindex(dv::DipoleView, i...) = getindex(dv._dipoles, i...)
-function Base.setindex!(dv::DipoleView{N}, v::Vec3, i...) where N
-    setindex!(dv._dipoles, v, i...)
-    setindex!(dv._coherents, _get_coherent_from_dipole(v, Val(N)), i...)
-end
-
-DipoleView(sys::SpinSystem{N}) where {N} = DipoleView{N}(sys._dipoles, sys._coherents)
-
-function init_from_dipoles!(sys::SpinSystem{N}, dipoles::Array{Vec3, 4}) where N
-    dipole_view = DipoleView(sys)
-    dipole_view .= dipoles
-end
-
-struct KetView{N} <: AbstractArray{CVec{N}, 4}
-    _dipoles    :: Array{Vec3, 4}
-    _coherents  :: Array{SVector{N, ComplexF64}, 4}
-end
-
-Base.IndexStyle(::Type{KetView}) = IndexLinear()
-Base.size(kv::KetView) = size(kv._coherents)
-Base.getindex(kv::KetView, i...) = getindex(kv._coherents, i...)
-function Base.setindex!(kv::KetView{N}, Z::CVec{N}, i...) where N
-    setindex!(kv._coherents, Z, i...)
-    setindex!(kv._dipoles, expected_spin(Z), i...)
-end
-
-KetView(sys::SpinSystem{N}) where N = KetView{N}(sys._dipoles, sys._coherents)
-
-function init_from_coherents!(sys::SpinSystem, coherents::Array{CVec{N}, 4}) where N
-    ket_view = KetView(sys)
-    ket_view .= coherents
-end
-
-
-@generated function expected_spin(Z::CVec{N}) where N
-    S = spin_matrices(N)
-    elems_x = SVector{N-1}(diag(S[1], 1))
-    elems_z = SVector{N}(diag(S[3], 0))
-    lo_ind = SVector{N-1}(1:N-1)
-    hi_ind = SVector{N-1}(2:N)
-
-    return quote
-        $(Expr(:meta, :inline))
-        c = Z[$lo_ind]' * ($elems_x .* Z[$hi_ind])
-        nx = 2real(c)
-        ny = 2imag(c)
-        nz = real(Z' * ($elems_z .* Z))
-        Vec3(nx, ny, nz)
-    end
-end
-
-
-function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::SpinSystem) where N
-    @assert N > 0
-    num_sites= size(dipoles)[end]
-    for site in 1:num_sites
-        spin_rescaling = sys.site_infos[site].spin_rescaling
-        for cell in CartesianIndices(size(dipoles)[1:3]) 
-            dipoles[cell,site] = spin_rescaling * expected_spin(coherents[cell,site])
-        end
-    end
-end
-
-set_expected_spins!(sys::SpinSystem) = set_expected_spins!(sys._dipoles, sys._coherents, sys)
-
-@doc raw"""
+"""
     extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
 
 Creates a new SpinSystem identical to `sys` but with each dimension multiplied
@@ -110,113 +54,66 @@ is simply repeated periodically.
 """
 function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
     @assert all(>=(1), mults)
-    dipoles_new = repeat(sys._dipoles, mults..., 1)
-    coherents_new = repeat(sys._coherents, mults..., 1)
-
+    size = mults .* sys.size
+    dipoles = repeat(sys.dipoles, mults..., 1)
+    coherents = repeat(sys.coherents, mults..., 1)
+    dipole_buffers = []
+    coherent_buffers = []
     # Construct new SpinSystem
-    fractional_basis_vecs = Ref(sys.lattice.lat_vecs) .\ sys.lattice.basis_vecs
-    dims_new = mults .* size(sys)[1:3]
-    lattice = Lattice(sys.lattice.lat_vecs, fractional_basis_vecs, sys.lattice.types, dims_new)
-    sys_extended = SpinSystem(lattice, sys.hamiltonian, dipoles_new, coherents_new, copy(sys.site_infos), copy(sys.rng))
-
-    return sys_extended
+    return SpinSystem(sys.crystal, size, copy(sys.hamiltonian), dipoles, coherents,
+                    dipole_buffers, coherent_buffers, copy(sys.ℌ_buffer), copy(sys.site_infos), sys.consts, copy(sys.rng))
 end
 
 
-"""
-    propagate_site_info(cryst::Crystal, site_infos::Vector{SiteInfo})
+volume(sys::SpinSystem) = cell_volume(sys.crystal) * prod(sys.size)
 
-Given an incomplete list of site information, propagates spin magnitudes and
-symmetry-transformed g-tensors to all symmetry-equivalent sites. If SiteInfo is
-not provided for a site, sets N=0, spin_rescaling=1 and g=2 for that site. Throws an error if
-two symmetry-equivalent sites are provided in `site_infos`.
-"""
-function _propagate_site_info(crystal::Crystal, site_infos::Vector{SiteInfo})
-    # All sites not explicitly provided are by default N=0, g=2, spin_rescaling=1
-    all_site_infos = [SiteInfo(i; N=0, g=2*I(3), spin_rescaling=1.0) for i in 1:nbasis(crystal)]
+# TODO: possibly treat a different way
+function all_lattice_positions(sys::SpinSystem)
+    [position(cryst, b, c) for c in CartesianIndices(sys.size) for b in nbasis(sys.crystal)]
+end
 
-    maxN = length(site_infos) > 0 ? maximum(info->info.N, site_infos) : 0
+# TODO: think about general indexing
+function set_dipole!(sys::SpinSystem{N}, idx::CartesianIndex{4}, dipole) where N
+    dipole = convert(Vec3, dipole)
+    rescaling = sys.site_infos[idx[4]].spin_rescaling
+    @assert norm(dipole) ≈ rescaling * (N == 0 ? 1 : (N-1)/2)
+    sys.dipoles[idx] = dipole
+    sys.coherents[idx] = get_coherent_from_dipole(dipole, Val(N))
+end
 
-    specified_atoms = Int[]
-    for siteinfo in site_infos
-        (; site, N, g, spin_rescaling, ff_params) = siteinfo
-        if N != maxN
-            println("Warning: Up-converting N=$N -> N=$maxN on site $(site)!")
-        end
-        (sym_bs, sym_gs) = all_symmetry_related_couplings(crystal, Bond(site, site, [0,0,0]), g)
-        for (sym_b, sym_g) in zip(sym_bs, sym_gs)
-            sym_atom = sym_b.i
-            if sym_atom in specified_atoms
-                # Perhaps this should only throw if two _conflicting_ SiteInfo are passed?
-                # Then propagate_site_info can be the identity on an already-filled list.
-                error("Provided two `SiteInfo` which describe symmetry-equivalent sites!")
-            else
-                push!(specified_atoms, sym_atom)
-            end
-
-            # all_site_infos[sym_atom] = SiteInfo(sym_atom; N = maxN, g = sym_g, spin_rescaling, ff_params)
-            all_site_infos[sym_atom] = SiteInfo(sym_atom, maxN, sym_g, spin_rescaling, ff_params)
-        end
-    end
-
-    with_ff = filter(si -> !isnothing(si.ff_params), all_site_infos)
-    if length(with_ff) > 0
-        if length(with_ff) != length(all_site_infos)
-            error("""Form factor calculations require that the magnetic ion be specified for
-                     all unique lattice sites. Please provide a SiteInfo with an explicit
-                     ff_elem for all unique sites or for none at all.""")
-        end
-    end
-
-    return all_site_infos, maxN
+function set_coherent!(sys::SpinSystem{N}, idx::CartesianIndex{4}, Z) where N
+    Z = convert(CVec{N}, Z)
+    rescaling = sys.site_infos[idx[4]].spin_rescaling
+    sys.coherents[idx] = Z
+    sys.dipoles[idx] = rescaling * expected_spin(Z)
 end
 
 
-"""
-    SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsize, site_infos::Vector{SiteInfo}=[];
-               μB, μ0)
-
-Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice sites
- of a given `crystal`, interactions given by `ints`, and the number of unit cells along
- each lattice vector specified by `latsize`. Initialized to all spins pointing along
- the ``+𝐳̂`` direction. μB and μ0 set the Bohr magneton and vacuum permeability. By
- default, these are set so that the unit system is (meV, T, Å).
-"""
-function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsize,
-                    site_infos::Vector{SiteInfo}=SiteInfo[];
-                    rng=nothing, μB=BOHR_MAGNETON, μ0=VACUUM_PERM)
-    latsize = collect(Int64.(latsize))
-    lattice = Lattice(crystal, latsize)
-
-    (all_site_infos, N) = _propagate_site_info(crystal, site_infos)
-    ℋ_CPU = HamiltonianCPU(ints, crystal, latsize, all_site_infos; μB, μ0)
-
-    # Initialize all spins in z-polarized state
-    na, nb, nc, natoms = (lattice.size..., nbasis(lattice))
-    dipoles = zeros(Vec3, na, nb, nc, natoms)
-    coherents = zeros(CVec{N}, na, nb, nc, natoms)
-    for atom in 1:natoms
-        spin_rescaling = all_site_infos[atom].spin_rescaling
-        mag = N == 0 ? spin_rescaling : spin_rescaling * (N-1)/2
-        up = Vec3(0, 0, mag)
-        for k in 1:nc, j in 1:nb, i in 1:na
-            dipoles[i,j,k,atom] = up
-            coherents[i,j,k,atom] = _get_coherent_from_dipole(up, Val(N))
+function get_dipole_buffers(sys::SpinSystem, numrequested)
+    numexisting = length(sys.dipole_buffers)
+    if numexisting < numrequested
+        for _ ∈ 1:(numrequested-numexisting)
+            push!(sys.dipole_buffers, zero(sys.dipoles))
         end
     end
-
-    # Set up default RNG if none provided
-    isnothing(rng) && (rng = Random.MersenneTwister())
-
-    # Default unit system is (meV, K, Å, T) 
-    SpinSystem{N}(lattice, ℋ_CPU, dipoles, coherents, all_site_infos, rng)
+    return sys.dipole_buffers[1:numrequested]
 end
+
+function get_coherent_buffers(sys::SpinSystem, numrequested)
+    numexisting = length(sys.coherent_buffers)
+    if numexisting < numrequested
+        for _ ∈ 1:(numrequested-numexisting)
+            push!(sys.coherent_buffers, zero(sys.coherents))
+        end
+    end
+    return sys.coherent_buffers[1:numrequested]
+end
+
 
 function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem{N}) where {N}
     sys_type = N > 0 ? "SU($N)" : "Dipolar"
     printstyled(io, "Spin System [$sys_type]\n"; bold=true, color=:underline)
-    sz = size(sys)
-    println(io, "Basis $(sz[end]), Lattice dimensions $(sz[1:3])")
+    println(io, "Basis $(nbasis(sys.crystal)), Lattice dimensions $(sys.size)")
 end
 
 """
@@ -227,25 +124,30 @@ Randomly sample all spins from CP``^{N-1}``, i.e., from the space of normalized
 sample spin dipoles.
 """
 function Random.rand!(sys::SpinSystem{N}) where N
-    Zs = sys._coherents
-    randn!(sys.rng, Zs)
-    @. Zs /= norm(Zs)
-    set_expected_spins!(sys)
-    nothing
-end
-
-function Random.rand!(sys::SpinSystem{0})  
-    dip_view = DipoleView(sys)
-    dip_view .= randn(sys.rng, Vec3, size(dip_view))
-    @. dip_view /= norm(dip_view)
-    for b ∈ 1:nbasis(sys)
-        dip_view[:,:,:,b] .*= sys.site_infos[b].spin_rescaling
+    for idx = CartesianIndices(sys.coherents)
+        Z = normalize(randn(sys.rng, CVec{N}))
+        set_coherent!(sys, idx, Z)
     end
     nothing
 end
 
+function Random.rand!(sys::SpinSystem{0})
+    for idx = CartesianIndices(sys.dipoles)
+        rescaling = sys.site_infos[idx[4]].spin_rescaling
+        s = normalize(randn(sys.rng, Vec3))
+        set_dipole!(sys, idx, rescaling*s)
+    end
+    nothing
+end
 
-
+function polarize_spins!(sys::SpinSystem{N}) where N
+    for idx = CartesianIndices(sys.dipoles)
+        rescaling = sys.site_infos[idx[4]].spin_rescaling
+        spin_magnitude = rescaling * ((N == 0) ? 1 : (N-1)/2)
+        set_dipole!(sys, idx, spin_magnitude * Vec3(0, 0, 1))
+    end
+    nothing
+end
 
 """
     randflips!(sys::SpinSystem{N}) where N
@@ -256,22 +158,14 @@ flip corresponds to sign reversal, ``𝐒_i → -𝐒_i``. In the general case
 rotation about the ``y``-axis by π/2.
 """
 function randflips!(sys::SpinSystem{N}) where N
-    Z = sys._coherents
-    for i in eachindex(Z)
-        rand((true, false)) && (Z[i] = flip_ket(Z[i]))
+    for idx = CartesianIndices(sys.coherents)
+        rand((true, false)) && set_coherent!(sys, idx, flip_ket(Z[idx]))
     end
-    set_expected_spins!(sys)
+    nothing
 end
 function randflips!(sys::SpinSystem{0}) 
-    dip_view = DipoleView(sys)
-    dip_view .*= rand(sys.rng, (-1, 1), size(dip_view))
-end
-
-@generated function flip_ket(Z::CVec{N}) where N
-    S = spin_matrices(N)
-    op = SMatrix{N, N, ComplexF64, N*N}(exp(-im*π*S[2]))
-    return quote
-        $op * conj(Z)
+    for idx = CartesianIndices(sys.dipoles)
+        rand((true, false)) && set_dipole!(sys, idx, -sys.dipoles[idx])
     end
 end
 
@@ -281,7 +175,7 @@ end
 
 Computes the energy of the system under `sys.hamiltonian`.
 """
-energy(sys::SpinSystem) = energy(sys._dipoles, sys._coherents, sys.hamiltonian)
+energy(sys::SpinSystem) = energy(sys.dipoles, sys.coherents, sys.hamiltonian)
 
 """
     field!(B::Array{Vec3}, sys::SpinSystem)
@@ -294,7 +188,7 @@ system under `sys.hamiltonian`. The "local field" is defined as
 with ``𝐬_i`` the unit-vector variable at site i, and ``S_i`` is
 the magnitude of the associated spin.
 """
-field!(B::Array{Vec3}, sys::SpinSystem{N}) where N = field!(B, sys._dipoles, sys.hamiltonian)
+field!(B::Array{Vec3}, sys::SpinSystem{N}) where N = field!(B, sys.dipoles, sys.hamiltonian)
 
 """
     field(sys::SpinSystem)
@@ -303,7 +197,32 @@ Compute the local field B at each site of the system under
 `sys.hamiltonian`.
 """
 @inline function field(sys::SpinSystem{N}) where N
-    B = zero(sys._dipoles)
+    B = zero(sys.dipoles)
     field!(B, sys)
     B
+end
+
+
+"""
+    enable_dipole_dipole!(; extent::Int=4, η::Float64=0.5)
+
+Includes long-range dipole-dipole interactions,
+
+```math
+    -(μ₀/4π) ∑_{⟨ij⟩}  (3 (𝐌_j⋅𝐫̂_{ij})(𝐌_i⋅𝐫̂_{ij}) - 𝐌_i⋅𝐌_j) / |𝐫_{ij}|^3
+```
+
+where the sum is over all pairs of spins (singly counted), including periodic
+images, regularized using the Ewald summation convention. The magnetic moments
+are ``𝐌_i = μ_B g 𝐒_i`` where ``g`` is the g-factor or g-tensor, and the spin
+magnitude ``|𝐒_i|`` is typically a multiple of 1/2. The Bohr magneton ``μ_B``
+and vacuum permeability ``μ_0`` are physical constants, with numerical values
+determined by the unit system.
+
+`extent` controls the number of periodic copies of the unit cell summed over in
+the Ewald summation (higher is more accurate, but higher creation-time cost),
+while `η` controls the direct/reciprocal-space tradeoff in the Ewald summation.
+"""
+function enable_dipole_dipole!(sys::SpinSystem; extent=4, η=0.5)
+    sys.hamiltonian.dipole_int = DipoleFourierCPU(sys.crystal, sys.size, sys.site_infos, sys.consts; extent, η)
 end
