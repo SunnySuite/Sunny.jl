@@ -17,7 +17,7 @@ function phase_averaged_elements(q_data, q::Vec3, cryst::Crystal, site_infos::Ve
             ffp2 = site_infos[l′].ff_params
             ff2 = isnothing(ffp2) ? 1.0 : compute_form(norm(q), ffp2)
             phase =  exp(-im*(k ⋅ (r′ - r)))
-            elems += phase * ff1 * ff2 * q_data[:, l, l′] 
+            elems += phase * ff1 * ff2 * @view(q_data[:, l, l′])
         end
     end
     return elems

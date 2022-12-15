@@ -17,21 +17,21 @@ function observable_expectations!(buf, sys::SpinSystem{N}, ops′::Array{Complex
     return nothing
 end
 
-function expectation_trajectory(sys, integrator, num_snaps, ops; kwargs...)
+function expectation_trajectory(sys, integrator, nsnaps, ops; kwargs...)
     num_ops =  size(ops, 3)
 
-    traj_buf = zeros(ComplexF64, num_ops, size(sys.coherents)..., num_snaps)
-    expectation_trajectory!(traj_buf, sys, integrator, num_snaps, ops; kwargs...)
+    traj_buf = zeros(ComplexF64, num_ops, size(sys.coherents)..., nsnaps)
+    expectation_trajectory!(traj_buf, sys, integrator, nsnaps, ops; kwargs...)
 
     return traj_buf
 end
 
-function expectation_trajectory!(buf, sys, integrator, num_snaps, ops; meas_period = 1)
+function expectation_trajectory!(buf, sys, integrator, nsnaps, ops; measperiod = 1)
     @assert size(ops, 3) == size(buf, 1)
 
     observable_expectations!(@view(buf[:,:,:,:,:,1]), sys, ops)
-    for n in 2:num_snaps
-        for _ in 1:meas_period
+    for n in 2:nsnaps
+        for _ in 1:measperiod
             step!(sys, integrator)
         end
         observable_expectations!(@view(buf[:,:,:,:,:,n]), sys, ops)
@@ -41,8 +41,8 @@ function expectation_trajectory!(buf, sys, integrator, num_snaps, ops; meas_peri
 end
 
 
-function compute_mag!(M, sys::SpinSystem, g_factor = true)
-    if g_factor
+function compute_mag!(M, sys::SpinSystem, gfactor = true)
+    if gfactor
         for b in 1:nbasis(sys.crystal)
             gS = sys.site_infos[b].g 
             for idx in CartesianIndices(sys.size)
@@ -56,36 +56,36 @@ function compute_mag!(M, sys::SpinSystem, g_factor = true)
     end
 end
 
-function dipole_trajectory(sys, integrator, num_snaps; kwargs...)
-    traj_buf = zeros(ComplexF64, 3, size(sys.dipoles)..., num_snaps)
-    dipole_trajectory!(traj_buf, sys, integrator, num_snaps; kwargs...)
+function dipole_trajectory(sys, integrator, nsnaps; kwargs...)
+    traj_buf = zeros(ComplexF64, 3, size(sys.dipoles)..., nsnaps)
+    dipole_trajectory!(traj_buf, sys, integrator, nsnaps; kwargs...)
     return traj_buf
 end
 
-function dipole_trajectory!(buf, sys, integrator, num_snaps; meas_period = 1, g_factor = true)
+function dipole_trajectory!(buf, sys, integrator, nsnaps; measperiod = 1, gfactor = true)
     @assert size(buf, 1) == 3
 
-    compute_mag!(@view(buf[:,:,:,:,:,1]), sys, g_factor)
-    for n in 2:num_snaps
-        for _ in 1:meas_period
+    compute_mag!(@view(buf[:,:,:,:,:,1]), sys, gfactor)
+    for n in 2:nsnaps
+        for _ in 1:measperiod
             step!(sys, integrator)
         end
-        compute_mag!(@view(buf[:,:,:,:,:,n]), sys, g_factor)
+        compute_mag!(@view(buf[:,:,:,:,:,n]), sys, gfactor)
     end
 
     return nothing
 end
 
 function new_trajectory!(sftraj::SFTrajectory, sys_original::SpinSystem)
-    (; dipolemode, integrator, traj, meas_period, sys) = sftraj
-    num_snaps = size(traj, 6)
+    (; dipolemode, integrator, traj, measperiod, sys, gfactor) = sftraj
+    nsnaps = size(traj, 6)
     sys.dipoles .= sys_original.dipoles
     sys.coherents .= sys_original.coherents
 
     if dipolemode
-        dipole_trajectory!(traj, sys, integrator, num_snaps; meas_period, g_factor = sftraj.g_factor)
+        dipole_trajectory!(traj, sys, integrator, nsnaps; measperiod, gfactor)
     else
-        expectation_trajectory!(traj, sys, integrator, num_snaps, sftraj.ops; meas_period)
+        expectation_trajectory!(traj, sys, integrator, nsnaps, sftraj.ops; measperiod)
     end
 
     return nothing
@@ -94,8 +94,8 @@ new_trajectory!(sf::StructureFactor, sys::SpinSystem) = new_trajectory!(sf.sftra
 
 
 # TODO: Plan FFTs (put in SFTrajectory)
-function accum_trajectory!(sfdata::SFData, sftraj::SFTrajectory, num_samples::Int64)
-    (; data, idx_info) = sfdata
+function accum_trajectory!(sfdata::SFData, sftraj::SFTrajectory, nsamples::Int64)
+    (; data, idxinfo) = sfdata
     (; traj) = sftraj
     nops, na, nb, nc, ns, nω = size(traj)
 
@@ -104,20 +104,21 @@ function accum_trajectory!(sfdata::SFData, sftraj::SFTrajectory, num_samples::In
     Sα = reshape(traj, (nops, na, nb, nc, 1, ns, nω)) 
     Sβ = reshape(traj, (nops, na, nb, nc, ns, 1, nω)) 
 
-    for ((α, β), idx) in idx_info
+    for (ci, idx) in idxinfo
         # Test if broadcasting eliminates need for views
+        α, β = ci.I
         res = @view(data[idx,:,:,:,:,:,:])
         α = @view(Sα[α,:,:,:,:,:,:])
         β = @view(Sβ[β,:,:,:,:,:,:])
-        @. res = res + (α * conj(β) - res) / num_samples
+        @. res = res + (α * conj(β) - res) / nsamples
     end
 
     return nothing
 end
 
 function accum_trajectory!(sf::StructureFactor)
-    sf.num_samples += 1
-    accum_trajectory!(sf.sfdata, sf.sftraj, sf.num_samples)
+    sf.nsamples += 1
+    accum_trajectory!(sf.sfdata, sf.sftraj, sf.nsamples)
     return nothing
 end
 

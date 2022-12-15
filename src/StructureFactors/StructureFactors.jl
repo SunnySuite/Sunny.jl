@@ -1,53 +1,40 @@
 struct SFData 
-    data        :: Array{ComplexF64, 7}              # Raw SF data for 1st BZ (complex for off-diagonals)
+    data        :: Array{ComplexF64, 7}                    # Raw SF data for 1st BZ 
     crystal     :: Crystal           
-    Δω          :: Float64                           # Energy step size
-    idx_info    :: SortedDict{Tuple{Int, Int}, Int}  # (α, β) to save from 𝒮^{αβ}(q, ω)
-    site_infos  :: Vector{SiteInfo}                  # For form factor information
+    Δω          :: Float64                                 # Energy step size
+    idxinfo     :: SortedDict{CartesianIndex{2}, Int64}    # (α, β) to save from 𝒮^{αβ}(q, ω)
+    site_infos  :: Vector{SiteInfo}                        # For form factor information
 end
 
-struct SFTrajectory
-    sys         :: SpinSystem            # Clone system so original SpinSystem unaltered by trajectory calculation
+struct SFTrajectory{N}
+    sys         :: SpinSystem{N}         # Clone system so original SpinSystem unaltered by trajectory calculation
     traj        :: Array{ComplexF64, 6}  # Trajectory buffer
     ops         :: Array{ComplexF64, 3}  # Operators corresponding to observables
-    meas_period :: Int                   # Steps to skip between saving observables (downsampling)
-    g_factor    :: Bool
+    measperiod  :: Int                   # Steps to skip between saving observables (downsampling)
+    gfactor     :: Bool
     dipolemode  :: Bool                  # Whether considering only dipoles 
     integrator  :: ImplicitMidpoint 
 end
 
-mutable struct StructureFactor
+mutable struct StructureFactor{N}
     sfdata      :: SFData
-    sftraj      :: SFTrajectory
-    num_samples :: Int64
-end
-
-function clone_spin_system(sys::SpinSystem)
-    (; 
-        crystal, size, hamiltonian, dipoles, coherents, dipole_buffers, 
-        coherent_buffers, ℌ_buffer, site_infos, consts, rng
-    ) = sys
-    dipoles_new = copy(dipoles)
-    coherents_new = copy(coherents)
-    return SpinSystem(crystal, size, hamiltonian, dipoles_new, coherents_new,
-        dipole_buffers, coherent_buffers, ℌ_buffer, site_infos, consts, rng)
+    sftraj      :: SFTrajectory{N}
+    nsamples    :: Int64
 end
 
 
-function StructureFactor(sys::SpinSystem{N};
-    Δt = 0.1, num_ωs = 100, ω_max = nothing, g_factor = true,
-    ops = nothing, matrix_elems = nothing
-) where N
-
-    sftraj = SFTrajectory(sys; Δt, num_ωs, ω_max, ops, g_factor)
+function StructureFactor(sys::SpinSystem;
+    Δt = 0.1, numω = 100, ωmax = nothing, gfactor = true, ops = nothing, matrix_elems = nothing,
+)
+    sftraj = SFTrajectory(sys; Δt, numω, ωmax, ops, gfactor)
     sfdata = SFData(sys, sftraj; ops, matrix_elems)
+    numsamps = 0
 
-    return StructureFactor(sfdata, sftraj, 0)
+    return StructureFactor(sfdata, sftraj, numsamps)
 end
-
 
 function SFTrajectory(sys::SpinSystem{N}; 
-    Δt = 0.1, num_ωs = 100, ω_max = nothing, ops = nothing, g_factor = true,
+    Δt = 0.1, numω = 100, ωmax = nothing, ops = nothing, gfactor = true,
 ) where N
     # Default to dipole expectation values if no observables have been given
     dipolemode = false 
@@ -61,29 +48,29 @@ function SFTrajectory(sys::SpinSystem{N};
     end
 
     # Determine meas_period (downsampling factor)
-    if isnothing(ω_max)
-        meas_period = 1
+    if isnothing(ωmax)
+        measperiod = 1
     else
-        @assert π/Δt > ω_max "Maximum ω with chosen step size is $(π/Δt). Choose smaller Δt or change ω_max."
-        meas_period = floor(Int, π/(Δt * ω_max))
+        @assert π/Δt > ωmax "Maximum ω with chosen step size is $(π/Δt). Choose smaller Δt or change ω_max."
+        measperiod = floor(Int, π/(Δt * ωmax))
     end
 
     # Preallocation
     qa, qb, qc, ns = size(sys.dipoles)
     nops = size(ops, 3)
-    traj = zeros(ComplexF64, nops, qa, qb, qc, ns, num_ωs)
+    traj = zeros(ComplexF64, nops, qa, qb, qc, ns, numω)
     integrator = ImplicitMidpoint(Δt)
     sys_new = clone_spin_system(sys)
 
-    return SFTrajectory(sys_new, traj, ops, meas_period, g_factor, dipolemode, integrator)
+    return SFTrajectory(sys_new, traj, ops, measperiod, gfactor, dipolemode, integrator)
 end
 
 
-function SFData(sys::SpinSystem, sftraj::SFTrajectory;
-    ops = nothing, matrix_elems = nothing
+function SFData(sys::SpinSystem, sftraj::SFTrajectory; 
+    ops = nothing, matrix_elems = nothing,
 )
     nops =  isnothing(ops) ? 3 : size(ops, 3) # Assume three observables (spin operators) if none are explicitly given
-    num_ωs = size(sftraj.traj, 6)
+    numω = size(sftraj.traj, 6)
 
     # Save all matrix elements if subset isn't given
     if isnothing(matrix_elems)
@@ -102,14 +89,17 @@ function SFData(sys::SpinSystem, sftraj::SFTrajectory;
         push!(pairs, (α, β) => count)
         count += 1
     end
-    idx_info = SortedDict{Tuple{Int64, Int64}, Int64}(pairs)
+    pairs = map(i -> CartesianIndex(i.first) => i.second, pairs) # Convert to CartesianIndices
+    idxinfo = SortedDict{CartesianIndex{2}, Int64}(pairs)
 
     qa, qb, qc, ns = size(sys.dipoles)
-    data = zeros(ComplexF64, length(matrix_elems), qa, qb, qc, ns, ns, num_ωs)
-    Δω = 2π /(sftraj.integrator.Δt*sftraj.meas_period*num_ωs)
+    data = zeros(ComplexF64, length(matrix_elems), qa, qb, qc, ns, ns, numω)
+    Δω = 2π / (sftraj.integrator.Δt*sftraj.measperiod*numω)
 
-    return SFData(data, sys.crystal, Δω, idx_info, sys.site_infos) 
+    return SFData(data, sys.crystal, Δω, idxinfo, sys.site_infos) 
 end
+
+
 
 
 function Base.getindex(sfd::SFData, α, β, qa, qb, qc, l1, l2, ω)
@@ -119,10 +109,41 @@ end
 Base.getindex(sf::StructureFactor, α, β, qa, qb, qc, l1, l2, ω) = sf.sfdata[α, β, qa, qb, qc, l1, l2, ω]
 
 
+function clone_spin_system(sys::SpinSystem)
+    (; 
+        crystal, size, hamiltonian, dipoles, coherents, dipole_buffers, 
+        coherent_buffers, ℌ_buffer, site_infos, consts, rng
+    ) = sys
+    dipoles_new = copy(dipoles)
+    coherents_new = copy(coherents)
+    return SpinSystem(crystal, size, hamiltonian, dipoles_new, coherents_new,
+        dipole_buffers, coherent_buffers, ℌ_buffer, site_infos, consts, rng)
+end
+
+
+function calculate_structure_factor(sys::SpinSystem, sampler::LangevinSampler;
+    ωmax=10.0, numω=100, numsamps=10, gfactor=true, Δt = nothing,
+    ops = nothing, matrix_elems = nothing
+)
+    # Take a step size twice as large as the sampler step size if none explicitly given
+    isnothing(Δt) && (Δt = 2sampler.integrator.Δt)
+
+    sf = StructureFactor(sys; Δt, numω, ωmax, gfactor, ops, matrix_elems)
+    for _ ∈ 1:numsamps
+        sample!(sys, sampler)
+        add_trajectory!(sf, sys)
+    end
+
+    return sf
+end
+
+
+
 include("SFUtils.jl")
 include("Trajectories.jl")
 include("FormFactor.jl")
 include("ElementContraction.jl")
 include("BasisReduction.jl")
-include("DataRetrieval.jl")
+include("Interpolation.jl")
 include("PowderAveraging.jl")
+include("DataRetrieval.jl")
