@@ -291,17 +291,13 @@ end
 ################################################################################
 # Langevin Sampler 
 ################################################################################
-
-
 @doc raw"""
     LangevinSampler(integrator::LangevinHeunP, nsteps::Int)
 
-Creates a sampler from a Langevin integrator.
-
-
-`nsteps` determines how su3_mean_energy
-times `step!` is called on the integrator. `nsteps` should be selected large enough
-to ensure that the state of the 
+Creates a sampler from a Langevin integrator. `nsteps` determines how many
+times `step!` is called using the integrator. `nsteps` should be selected large
+enough to ensure that the state of the SpinSystem after integration
+is decorrelated with respect to its initial state.
 """
 mutable struct LangevinSampler <: AbstractSampler
     integrator :: LangevinHeunP

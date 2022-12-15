@@ -99,7 +99,9 @@ export LangevinSampler
 
 include("StructureFactors/StructureFactors.jl")
 export StructureFactor, expectation_trajectory, dipole_trajectory
-export new_trajectory!, accum_trajectory!, add_trajectory!, get_intensity
+export new_trajectory!, accum_trajectory!, add_trajectory!, calculate_structure_factor
+export get_intensity, get_intensities, get_intensity_grid, path
+export qvals, ωvals, NoInterp, LinearInterp, trace, depolarize
 
 include("WangLandau/BinnedArray.jl")
 export BinnedArray, filter_visited, reset!
