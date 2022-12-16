@@ -1,4 +1,5 @@
 build/
+backup/
 examples/results/
 Manifest.toml
 profile.pb.gz

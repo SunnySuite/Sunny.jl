@@ -48,7 +48,7 @@ function Element(sf::StructureFactor, pair)
     index = sf.sfdata.idxinfo[CartesianIndex(pair)]
     return Element(index)
 end
-Element(pair) = sf -> Element(sf, pair)
+Element(pair::Tuple{Int64, Int64}) = sf -> Element(sf, pair)
 
 
 
