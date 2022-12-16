@@ -10,7 +10,6 @@ import Tullio: @tullio
 import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, rand!, randn!
-import Interpolations: interpolate, scale, BSpline, Linear, Periodic
 import DynamicPolynomials as DP
 import DataStructures: SortedDict
 
@@ -93,15 +92,14 @@ export sample!, thermalize!, anneal!
 export running_energy, running_mag, reset_running_energy!, reset_running_mag!
 
 include("Integrators.jl")
-export HeunP, LangevinHeunP, SphericalMidpoint, step!
-export LangevinHeunPSUN, SchrodingerMidpoint, ImplicitMidpoint
-export LangevinSampler
+export LangevinHeunP, ImplicitMidpoint, LangevinSampler, step!
 
 include("StructureFactors/StructureFactors.jl")
 export StructureFactor, expectation_trajectory, dipole_trajectory
-export new_trajectory!, accum_trajectory!, add_trajectory!, calculate_structure_factor
-export get_intensity, get_intensities, get_intensity_grid, path
-export qvals, ωvals, NoInterp, LinearInterp, trace, depolarize
+export add_trajectory!, calculate_structure_factor
+export get_intensity, get_intensities, get_static_intensity, get_static_intensities
+export path, intensity_grid, ωvals
+export NoInterp, LinearInterp, Trace, Depolarize, Element
 
 include("WangLandau/BinnedArray.jl")
 export BinnedArray, filter_visited, reset!
