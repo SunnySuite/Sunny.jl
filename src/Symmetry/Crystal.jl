@@ -99,7 +99,7 @@ cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
 Position of an atom in global Cartesian coordinates. The optional `cell`
 parameter denotes a displacement in unit cell indices.
 """
-position(cryst::Crystal, i::Int, cell=(0,0,0)) = cryst.lat_vecs * (convert(Vec3, cell) + cryst.positions[i])
+position(cryst::Crystal, i::Int, offset=(0,0,0)) = cryst.lat_vecs * (convert(Vec3, offset) + cryst.positions[i])
 
 
 """

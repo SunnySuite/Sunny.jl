@@ -1,147 +1,61 @@
-@testitem "Ewald Summation" begin
-include("test_shared.jl")
+@testitem "Ewald for dipole-dipole interactions" begin
+    using LinearAlgebra
 
-function test_ewald_NaCl()
-    lat_vecs = [1.0 0   0;
-                0   1.0 0;
-                0   0   1.0]
-    b_vecs = [[0., 0., 0.]]
-    cryst = Crystal(lat_vecs, b_vecs)
-    charges = reshape(Float64[1, -1, -1, 1, -1, 1, 1, -1], (2, 2, 2, 1))
+    # Long-range energy of single dipole in cubic box with PBC
+    latvecs = lattice_vectors(1,1,1,90,90,90)
+    positions = [[0,0,0]]
+    cryst = Crystal(latvecs, positions)
+    ints = Sunny.AbstractInteraction[]
+    site_infos = [SiteInfo(1; g=1)]
+    sys = SpinSystem(cryst, ints, (1,1,1), site_infos; consts=CONSTS_ONES)
+    enable_dipole_dipole!(sys)
+    # ewalder_energy(sys) == -2.0943951023931944
+    @test isapprox(energy(sys) * 4π, -2.0943951023931944; atol=1e-13)
 
-    ewald_result = Sunny.ewald_sum_monopole(cryst, charges, extent=30)
-    
-    answer = -1.7475645946331822
-    @test isapprox(answer, ewald_result / 4; rtol=1e-7)
-end
+    # Same thing, with multiple unit cells
+    dims = (2,3,4)
+    sys = SpinSystem(cryst, ints, dims, site_infos; consts=CONSTS_ONES)
+    enable_dipole_dipole!(sys)
+    @test isapprox(energy(sys) * 4π, -2.0943951023931944*prod(dims); atol=1e-13)
 
-test_ewald_NaCl()
+    # More complicated box with two dipoles
+    latvecs = lattice_vectors(1.1,0.9,0.8,92,85,95)
+    positions = [[0,0,0], [0.6,0.4,0.75]]
+    cryst = Crystal(latvecs, positions)
+    ints = Sunny.AbstractInteraction[]
+    site_infos = [SiteInfo(1; g=1)]
+    sys = SpinSystem(cryst, ints, (1,1,1), site_infos; consts=CONSTS_ONES)
+    enable_dipole_dipole!(sys)
+    sys.dipoles[1,1,1,1] = Sunny.Vec3(0.4, 0.6, 0.2)
+    sys.dipoles[1,1,1,2] = Sunny.Vec3(1, 0, 0)
+    @test isapprox(energy(sys) * 4π, -6.156152695271215; atol=1e-13)
 
-function test_ewald_CsCl()
-    lat_vecs = [1.0 0   0;
-                0   1.0 0;
-                0   0   1.0]
-    b_vecs = [[0.,  0.,  0.],
-              [0.5, 0.5, 0.5]]
-    cryst = Crystal(lat_vecs, b_vecs)
-    charges = reshape(Float64[1, -1], (1, 1, 1, 2))
-
-    ewald_result = Sunny.ewald_sum_monopole(cryst, charges, extent=30)
-    
-    # Madelung constants are reported relative to the
-    #  nearest-neighbor distance in the crystal
-    ewald_result *= √(3/4)
-
-    answer = -1.76267477307099
-    @test isapprox(answer, ewald_result; rtol=1e-7)
-end
-
-test_ewald_CsCl()
-
-function test_ewald_ZnS()
-    lat_vecs = [0.0 0.5 0.5;
-                0.5 0.0 0.5;
-                0.5 0.5 0.0]
-    b_vecs = [[0.,  0.,  0.],
-              [0.25, 0.25, 0.25]]
-    cryst = Crystal(lat_vecs, b_vecs)
-    charges = reshape(Float64[1, -1], (1, 1, 1, 2))
-
-    ewald_result = Sunny.ewald_sum_monopole(cryst, charges, extent=30)
-    
-    # Madelung constants are reported relative to the
-    #  nearest-neighbor distance in the crystal
-    ewald_result *= √(3/16)
-    
-    answer = -1.63805505338879
-    @test isapprox(answer, ewald_result; rtol=1e-7)
-end
-
-test_ewald_ZnS()
-
-function test_ewald_ZnSB4()
-    a = 1.
-    c = √(8/3) * a
-    u = 3/8
-
-    lat_vecs = [ 0.5a    0.5a    0.0;
-                -0.5*√3a 0.5*√3a 0.0;
-                 0.0     0.0       c]
-    b_vecs = [[1/3, 2/3, 0],
-              [2/3, 1/3, 0.5],
-              [1/3, 2/3, 3/8],
-              [2/3, 1/3, 7/8]]
-    cryst = Crystal(lat_vecs, b_vecs)
-    charges = reshape(Float64[1, 1, -1, -1], (1, 1, 1, 4))
-
-    ewald_result = Sunny.ewald_sum_monopole(cryst, charges, extent=30)
-    
-    # Madelung constants are reported relative to the
-    #  nearest-neighbor distance in the crystal
-    ewald_result *= u * c    
-
-    answer = -1.64132162737
-    @test isapprox(answer, ewald_result / 2; rtol=1e-7)
-end
-
-test_ewald_ZnSB4()
-
-
-#=
-# Beck claims this should be independent of η, and converge to -2.837297
-# I find that it only does for large η?
-function test_ξ_sum(;extent=2, η=1.0) :: Float64
-    extent_ixs = CartesianIndices(ntuple(_->-extent:extent, Val(3)))
-
-    real_space_sum = 0.0
-    recip_space_sum = 0.0
-
-    for JKL in extent_ixs
-        JKL = convert(SVector, JKL)
-        k = 2π * JKL
-
-        if all(JKL .== 0)
-            continue
+    # Calculation of energy as a sum over pairs
+    function ewald_energy_pairs(sys::SpinSystem)
+        E = 0.
+        ci = CartesianIndices(sys.dipoles)
+        for idx1 ∈ ci, idx2 ∈ ci
+            if idx1 <= idx2
+                h = Sunny.pairwise_field(idx1, idx2, sys.dipoles[idx2], sys.hamiltonian.ewald)
+                # In the case that idx1==idx2, we must undo an extra factor of 2
+                # appearing in h = -dE/ds.
+                E -= (idx1==idx2 ? 1/2 : 1) * sys.dipoles[idx1]⋅h
+            end
         end
-
-        dist = norm(JKL)
-        kdist = 2π * dist
-
-        real_space_sum += erfc(η * dist) / dist
-        recip_space_sum += exp(-kdist^2 / (4η^2)) / kdist^2
+        return E
     end
+    @test isapprox(energy(sys), ewald_energy_pairs(sys); atol=1e-13)
 
-    return real_space_sum + 4π * recip_space_sum - 2η/√π - π/η^2
-end
-=#
-
-
-"""
-Tests that `ewald_sum_monopole` and `ewald_sum_dipole` give consistent results
- up to approximation error.
-TODO: This version uses existing functions, but suffers from catastrophic
- cancellation issues due to the self-energy exploding. Should write a 
- separate monopole ewald which skips these self-energy interactions.
-"""
-function test_mono_dip_consistent()
-    lat_vecs = [1 0 0; 0 1 0; 0 0 1]
-    positions = [[0, 0, 0], [1, 1, 1]/2]
-    cryst = Crystal(lat_vecs, positions)
-    sys = SpinSystem(cryst, Sunny.AbstractInteraction[], (2, 2, 2); seed=111)
-    rand!(sys)
-    Sunny.enable_dipole_dipole!(sys)
-
-    # This number can also be obtained by approximating each dipole as a pair
-    # ±d/ϵ charged monopoles, separated by distance ϵ. Care must be taken to
-    # subtract the dipole self-energy. For the original calculation, see
-    # https://github.com/SunnySuite/Sunny.jl/blob/5d753c6f02040d71adee3e5864c8b684fdfee465/test/test_ewald.jl#L111
-    dip_reference  = 2.4543813244706234
-
-    dip_ewald = Sunny.ewald_sum_dipole(sys.crystal, sys.dipoles; extent=15)
-    @test isapprox(dip_ewald, dip_reference; atol=1e-12)
-end
-
-# TODO: FIXME!!
-# test_mono_dip_consistent()
-
+    # Calculation of field as a sum over pairs
+    function ewald_field_pairs(sys::SpinSystem)
+        ci = CartesianIndices(sys.dipoles)
+        return map(ci) do idx1
+            h = zero(Sunny.Vec3)
+            for idx2 ∈ ci
+                h += Sunny.pairwise_field(idx1, idx2, sys.dipoles[idx2], sys.hamiltonian.ewald)
+            end
+            h
+        end
+    end
+    @test isapprox(field(sys), ewald_field_pairs(sys); atol=1e-13)
 end

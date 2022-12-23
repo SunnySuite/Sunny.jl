@@ -4,7 +4,8 @@ struct SpinSystem{N}
     crystal          :: Crystal
     size             :: NTuple{3, Int}                   # Size of lattice in unit cells
     hamiltonian      :: HamiltonianCPU                   # All interactions
-    dipoles          :: Array{Vec3, 4}                   # Dipole moments with axes [Basis, CellA, CellB, CellC]
+    positions        :: Array{Vec3, 4}                   # Lattice positions, dims: (i,j,k,b)
+    dipoles          :: Array{Vec3, 4}                   # Expected dipoles
     coherents        :: Array{CVec{N}, 4}                # Coherent states
     dipole_buffers   :: Vector{Array{Vec3, 4}}           # Buffers for dynamics routines
     coherent_buffers :: Vector{Array{CVec{N}, 4}}        # Buffers for dynamics routines
@@ -32,14 +33,21 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, size:
 
     # Initialize sites to all spins along +z
     sys_size = (size..., nbasis(crystal))
-    dipoles = fill(zero(Vec3), sys_size)
+    positions = fill(zero(Vec3), sys_size)
+    dipoles   = fill(zero(Vec3), sys_size)
     coherents = fill(zero(CVec{N}), sys_size)
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     ℌ_buffer = zeros(ComplexF64, N, N)
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = SpinSystem(crystal, size, ℋ_CPU, dipoles, coherents, dipole_buffers,
+    # Set lattice positions
+    for cell in CartesianIndices(size), b in nbasis(crystal)
+        offset = Tuple(cell) .- (1,1,1)
+        positions[cell, b] = position(crystal, b, offset)
+    end
+
+    ret = SpinSystem(crystal, size, ℋ_CPU, positions, dipoles, coherents, dipole_buffers,
                       coherent_buffers, ℌ_buffer, all_site_infos, consts, rng)
     polarize_spins!(ret)
     return ret
@@ -55,22 +63,18 @@ is simply repeated periodically.
 function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
     @assert all(>=(1), mults)
     size = mults .* sys.size
-    dipoles = repeat(sys.dipoles, mults..., 1)
+    positions = repeat(sys.positions, mults..., 1)
+    dipoles   = repeat(sys.dipoles, mults..., 1)
     coherents = repeat(sys.coherents, mults..., 1)
     dipole_buffers = []
     coherent_buffers = []
-    # Construct new SpinSystem
-    return SpinSystem(sys.crystal, size, copy(sys.hamiltonian), dipoles, coherents,
-                    dipole_buffers, coherent_buffers, copy(sys.ℌ_buffer), copy(sys.site_infos), sys.consts, copy(sys.rng))
+    return SpinSystem(sys.crystal, size, copy(sys.hamiltonian), positions, dipoles, coherents,
+                      dipole_buffers, coherent_buffers, copy(sys.ℌ_buffer), copy(sys.site_infos), sys.consts, copy(sys.rng))
 end
 
 
 volume(sys::SpinSystem) = cell_volume(sys.crystal) * prod(sys.size)
 
-# TODO: possibly treat a different way
-function all_lattice_positions(sys::SpinSystem)
-    [position(cryst, b, c) for c in CartesianIndices(sys.size) for b in nbasis(sys.crystal)]
-end
 
 # TODO: think about general indexing
 function set_dipole!(sys::SpinSystem{N}, idx::CartesianIndex{4}, dipole) where N
@@ -224,5 +228,5 @@ the Ewald summation (higher is more accurate, but higher creation-time cost),
 while `η` controls the direct/reciprocal-space tradeoff in the Ewald summation.
 """
 function enable_dipole_dipole!(sys::SpinSystem; extent=4, η=0.5)
-    sys.hamiltonian.dipole_int = DipoleFourierCPU(sys.crystal, sys.size, sys.site_infos, sys.consts; extent, η)
+    sys.hamiltonian.ewald = EwaldCPU(sys.crystal, sys.size, sys.site_infos, sys.consts)
 end

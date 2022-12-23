@@ -338,7 +338,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += J * (new_dipole⋅new_dipole - old_dipole⋅old_dipole)
             else
-                Sⱼ = sys.dipoles[offset(cell, bond.n, sys.size), bond.j]
+                Sⱼ = sys.dipoles[offsetc(cell, bond.n, sys.size), bond.j]
                 ΔE += J * (spindiff ⋅ Sⱼ)
             end
         end
@@ -348,7 +348,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += new_dipole⋅(J.*new_dipole) - old_dipole⋅(J.*old_dipole)
             else
-                Sⱼ = sys.dipoles[offset(cell, bond.n, sys.size), bond.j]
+                Sⱼ = sys.dipoles[offsetc(cell, bond.n, sys.size), bond.j]
                 ΔE += (J .* spindiff) ⋅ Sⱼ
             end
         end
@@ -358,7 +358,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += dot(new_dipole, J, new_dipole) - dot(old_dipole, J, old_dipole)
             else
-                Sⱼ = sys.dipoles[offset(cell, bond.n, sys.size), bond.j]
+                Sⱼ = sys.dipoles[offsetc(cell, bond.n, sys.size), bond.j]
                 ΔE += dot(spindiff, J, Sⱼ)
             end
         end
@@ -381,7 +381,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
         Λ = @view(aniso[:,:,i])
         ΔE += real(new_ket' * Λ * new_ket) - real(old_ket' * Λ * old_ket)
     end
-    if !isnothing(ℋ.dipole_int)
+    if !isnothing(ℋ.ewald)
         error("Local energy changes not implemented yet for dipole interactions")
     end
     return ΔE
