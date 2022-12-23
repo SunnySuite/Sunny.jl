@@ -111,12 +111,12 @@ Base.getindex(sf::StructureFactor, α, β, qa, qb, qc, l1, l2, ω) = sf.sfdata[�
 
 function clone_spin_system(sys::SpinSystem)
     (; 
-        crystal, size, hamiltonian, dipoles, coherents, dipole_buffers, 
+        crystal, size, hamiltonian, positions, dipoles, coherents, dipole_buffers, 
         coherent_buffers, ℌ_buffer, site_infos, consts, rng
     ) = sys
     dipoles_new = copy(dipoles)
     coherents_new = copy(coherents)
-    return SpinSystem(crystal, size, hamiltonian, dipoles_new, coherents_new,
+    return SpinSystem(crystal, size, hamiltonian, positions, dipoles_new, coherents_new,
         dipole_buffers, coherent_buffers, ℌ_buffer, site_infos, consts, rng)
 end
 

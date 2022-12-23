@@ -24,7 +24,7 @@ sys = SpinSystem(crystal, dims, siteinfos; SUN_mode=false)
 The local Hilbert space information, what we have been calling, `siteinfos` contains: the g-factor, S (the total angular momentum). Note that any information about the ion for form factor corrections will be moved to the StructureFactor portion of the code.
 
 ```julia
-SiteInfo(site::Int; S=1/2, g=2I)
+SiteInfo(site::Int; S=1/2, g=2)
 ```
 
 If `SUN_mode=false`, then the `S` values are used as `spin_rescaling` values. If `SUN_mode=true`, then the largest `S` in the list is converted into an `N`, with `N = 2S + 1` (probably converting to an `Int` with a tolerance check). The resulting `N` will be used for all sites, but the appropriate `spin_rescaling` will be calculated for the remaining sites in case not all sites.

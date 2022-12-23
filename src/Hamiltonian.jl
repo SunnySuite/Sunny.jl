@@ -9,16 +9,16 @@ Stores and orchestrates the types that perform the actual implementations
 of all interactions internally.
 """
 mutable struct HamiltonianCPU
-ext_field       :: Union{Nothing, ExternalFieldCPU}
-# TODO: Merge these three into one
-heisenbergs     :: Vector{HeisenbergCPU}
-diag_coups      :: Vector{DiagonalCouplingCPU}
-gen_coups       :: Vector{GeneralCouplingCPU}
-biq_coups       :: Vector{BiquadraticCPU}
-dipole_int      :: Union{Nothing, DipoleRealCPU, DipoleFourierCPU}
-dipole_aniso    :: Union{Nothing, DipoleAnisotropyCPU}
-sun_aniso       :: Array{ComplexF64, 3}
-spin_mags       :: Vector{Float64}  # Keeping this for SU(N) aniso scaling
+    ext_field       :: Union{Nothing, ExternalFieldCPU}
+    # TODO: Merge these three into one
+    heisenbergs     :: Vector{HeisenbergCPU}
+    diag_coups      :: Vector{DiagonalCouplingCPU}
+    gen_coups       :: Vector{GeneralCouplingCPU}
+    biq_coups       :: Vector{BiquadraticCPU}
+    ewald           :: Union{Nothing, EwaldCPU}
+    dipole_aniso    :: Union{Nothing, DipoleAnisotropyCPU}
+    sun_aniso       :: Array{ComplexF64, 3}
+    spin_mags       :: Vector{Float64}  # Keeping this for SU(N) aniso scaling
 end
 
 """
@@ -33,56 +33,56 @@ Note that `site_infos` must be complete when passed to this constructor.
 function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
                     site_infos::Vector{SiteInfo};
                     consts=PhysicalConsts)
-ext_field   = nothing
-heisenbergs = Vector{HeisenbergCPU}()
-diag_coups  = Vector{DiagonalCouplingCPU}()
-gen_coups   = Vector{GeneralCouplingCPU}()
-biq_coups   = Vector{BiquadraticCPU}()
-dipole_int  = nothing
-spin_mags   = [site.spin_rescaling for site in site_infos]
+    ext_field   = nothing
+    heisenbergs = Vector{HeisenbergCPU}()
+    diag_coups  = Vector{DiagonalCouplingCPU}()
+    gen_coups   = Vector{GeneralCouplingCPU}()
+    biq_coups   = Vector{BiquadraticCPU}()
+    ewald       = nothing
+    spin_mags   = [site.spin_rescaling for site in site_infos]
 
-anisos = Vector{OperatorAnisotropy}()
-for int in ints
-    # TODO: Handle all of the ifs with multiple dispatch instead?
-    if isa(int, ExternalField)
-        if isnothing(ext_field)
-            ext_field = ExternalFieldCPU(int, site_infos; consts.μB)
+    anisos = Vector{OperatorAnisotropy}()
+    for int in ints
+        # TODO: Handle all of the ifs with multiple dispatch instead?
+        if isa(int, ExternalField)
+            if isnothing(ext_field)
+                ext_field = ExternalFieldCPU(int, site_infos; consts.μB)
+            else
+                ext_field.Bgs .+= ExternalFieldCPU(int, site_infos; consts.μB).Bgs
+            end
+        elseif isa(int, QuadraticInteraction)
+            validate_quadratic_interaction(int, crystal)
+            int_impl = convert_quadratic(int, crystal, site_infos)
+            if isa(int_impl, HeisenbergCPU)
+                push!(heisenbergs, int_impl)
+            elseif isa(int_impl, DiagonalCouplingCPU)
+                push!(diag_coups, int_impl)
+            elseif isa(int_impl, GeneralCouplingCPU)
+                push!(gen_coups, int_impl)
+            else
+                error("Quadratic interaction failed to convert to known backend type.")
+            end
+        elseif isa(int, BiQuadraticInteraction)
+            if first(site_infos).N > 0
+                println("FIXME: BiQuadratic interactions are INCORRECT in SU(N) mode.")
+            end
+            int_imp2 = convert_biquadratic(int, crystal, site_infos)
+            push!(biq_coups, int_imp2)
+        elseif isa(int, OperatorAnisotropy)
+            push!(anisos, int)       
+        elseif isa(int, DipoleDipole) 
+            error("Handle dipole-dipole differently. FIXME.")
         else
-            ext_field.Bgs .+= ExternalFieldCPU(int, site_infos; consts.μB).Bgs
+            error("$(int) failed to convert to known backend type.")
         end
-    elseif isa(int, QuadraticInteraction)
-        validate_quadratic_interaction(int, crystal)
-        int_impl = convert_quadratic(int, crystal, site_infos)
-        if isa(int_impl, HeisenbergCPU)
-            push!(heisenbergs, int_impl)
-        elseif isa(int_impl, DiagonalCouplingCPU)
-            push!(diag_coups, int_impl)
-        elseif isa(int_impl, GeneralCouplingCPU)
-            push!(gen_coups, int_impl)
-        else
-            error("Quadratic interaction failed to convert to known backend type.")
-        end
-    elseif isa(int, BiQuadraticInteraction)
-        if first(site_infos).N > 0
-            println("FIXME: BiQuadratic interactions are INCORRECT in SU(N) mode.")
-        end
-        int_imp2 = convert_biquadratic(int, crystal, site_infos)
-        push!(biq_coups, int_imp2)
-    elseif isa(int, OperatorAnisotropy)
-        push!(anisos, int)       
-    elseif isa(int, DipoleDipole) 
-        error("Handle dipole-dipole differently. FIXME.")
-    else
-        error("$(int) failed to convert to known backend type.")
     end
-end
 
-(dipole_anisos, sun_anisos) = convert_anisotropies(anisos, crystal, site_infos)
+    (dipole_anisos, sun_anisos) = convert_anisotropies(anisos, crystal, site_infos)
 
-return HamiltonianCPU(
-    ext_field, heisenbergs, diag_coups, gen_coups, biq_coups, dipole_int,
-    dipole_anisos, sun_anisos, spin_mags
-)
+    return HamiltonianCPU(
+        ext_field, heisenbergs, diag_coups, gen_coups, biq_coups, ewald,
+        dipole_anisos, sun_anisos, spin_mags
+    )
 end
 
 
@@ -195,8 +195,8 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Hami
     for biq_coup in ℋ.biq_coups
         E += energy(dipoles, biq_coup)
     end
-    if !isnothing(ℋ.dipole_int)
-        E += energy(dipoles, ℋ.dipole_int)
+    if !isnothing(ℋ.ewald)
+        E += energy(dipoles, ℋ.ewald)
     end
     if !isnothing(ℋ.dipole_aniso)
         E += energy(dipoles, ℋ.dipole_aniso)
@@ -232,8 +232,8 @@ function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     for biq_coup in ℋ.biq_coups
         _accum_neggrad!(B, dipoles, biq_coup)
     end
-    if !isnothing(ℋ.dipole_int)
-        _accum_neggrad!(B, dipoles, ℋ.dipole_int)
+    if !isnothing(ℋ.ewald)
+        _accum_neggrad!(B, dipoles, ℋ.ewald)
     end
     if !isnothing(ℋ.dipole_aniso)
         _accum_neggrad!(B, dipoles, ℋ.dipole_aniso)
@@ -269,7 +269,7 @@ function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i::CartesianIndex)
     if !isnothing(ℋ.dipole_aniso)
         error("Calling `field()` for a single site with anisotropy. This is probably an error. Please contact Sunny developers if you have a valid use-case.")
     end
-    if !isnothing(ℋ.dipole_int)
+    if !isnothing(ℋ.ewald)
         error("Local energy changes not implemented yet for dipole interactions")
     end
 

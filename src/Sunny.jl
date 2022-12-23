@@ -29,25 +29,6 @@ const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 const CVec{N} = SVector{N, ComplexF64}
 
-
-Base.@kwdef struct PhysicalConsts
-    μ0::Float64    # Vacuum permeability
-    μB::Float64    # Bohr magneton 
-    kB::Float64    # Boltzmann's constant
-end
-
-const CONSTS_ONES = PhysicalConsts(;
-    μ0 = 1.0,
-    μB = 1.0,
-    kB = 1.0,
-)
-
-const CONSTS_meV = PhysicalConsts(;
-    μ0 = 201.33545383470705041,   # T^2 Å^3 / meV
-    μB = 0.057883818060738013331, # meV / T
-    kB = 0.086173332621451774,    # meV / K
-)
-
 include("Symmetry/Symmetry.jl")
 export Crystal, subcrystal, nbasis, cell_volume, cell_type
 export lattice_vectors, lattice_params
@@ -59,6 +40,9 @@ export all_symmetry_related_anisotropies
 export 𝒪, 𝒮, rotate_operator
 export print_site, print_bond, print_symmetry_table, print_mutually_allowed_couplings
 export print_suggested_frame, print_anisotropy_as_stevens
+
+include("Units.jl")
+export meV_per_K, CONSTS_ONES, CONSTS_meV
 
 include("Util.jl")
 
@@ -75,8 +59,6 @@ include("PairInteractions.jl")
 include("Anisotropies.jl")
 
 include("Ewald.jl")
-
-include("EwaldReference.jl")
 
 include("Hamiltonian.jl")
 

@@ -84,7 +84,7 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
 
         pts = Vector{GLMakie.Point3f0}()
         for (bond, _) in sublat_bonds(int.bondtable, basis_idx)
-            new_cell = offset(cent_cell, bond.n, lattice.size)
+            new_cell = offsetc(cent_cell, bond.n, lattice.size)
             bond_pt = lattice[new_cell, bond.j]
             push!(pts, GLMakie.Point3f0(cent_pt))
             push!(pts, GLMakie.Point3f0(bond_pt))
@@ -239,7 +239,7 @@ function plot_spins(sys::SpinSystem; linecolor=:grey, arrowcolor=:red,
 
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(all_lattice_positions(sys))
+    pts = GLMakie.Point3f0.(sys.positions)
     vecs = GLMakie.Vec3f0.(sys.dipoles)
 
     GLMakie.arrows!(
@@ -270,7 +270,7 @@ function anim_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(all_lattice_positions(sys))
+    pts = GLMakie.Point3f0.(sys.positions)
     vecs = GLMakie.Observable(GLMakie.Vec3f0.(sys.dipoles))
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -303,7 +303,7 @@ function live_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(all_lattice_positions(sys))
+    pts = GLMakie.Point3f0.(sys.positions)
     vecs = GLMakie.Observable(GLMakie.Vec3f0.(sys.dipoles))
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -335,7 +335,7 @@ function live_langevin_integration(
     arrowlength=0.2, λ=0.1, framerate=30, kwargs...
 )
     fig, ax = _setup_scene()
-    pts = GLMakie.Point3f0.(all_lattice_positions(sys))
+    pts = GLMakie.Point3f0.(sys.positions)
     vecs = GLMakie.Observable(GLMakie.Vec3f0.(sys.dipoles))
     
     GLMakie.arrows!(
