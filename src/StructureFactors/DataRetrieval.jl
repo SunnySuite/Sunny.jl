@@ -5,12 +5,16 @@ function get_intensity(sf::StructureFactor, q; kwargs...)
     if length(q) != 3
         error("Q point should have three components. If ")
     end
-    get_intensities(sf, [Vec3(q...)]; kwargs...)
+    return get_intensities(sf, [Vec3(q...)]; kwargs...)
 end
 
 function get_static_intensity(sf::StructureFactor, q; kwargs...)
     intensities = get_intensity(sf, q; kwargs...)
     return sum(intensities)
+end
+
+function Base.zeros(::Contraction{T}, args...) where T
+    zeros(T, args...)
 end
 
 function get_intensities(sf::StructureFactor, q_targets::Array;
@@ -20,13 +24,14 @@ function get_intensities(sf::StructureFactor, q_targets::Array;
     nq = length(q_targets)
     ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
     nω = length(ωs) 
+    contractor = contraction(sf)
 
-    intensities = zeros(size(q_targets)..., nω)
+    intensities = zeros(contractor, size(q_targets)..., nω)
     for iω in 1:nω
         for iq ∈ CartesianIndices(q_targets)
             q_target = convert(Vec3, q_targets[iq])
             qs, iqs = stencil_qs(sf.sfdata, q_target, interp)
-            local_intensities = stencil_intensities(sf, qs, iqs, ωs[iω], iω, interp, contraction, temp)
+            local_intensities = stencil_intensities(sf, qs, iqs, ωs[iω], iω, interp, contractor, temp)
             intensities[iq, iω] = interpolated_intensity(sf, q_target, qs, local_intensities, interp)
         end
     end
@@ -56,7 +61,6 @@ function calc_intensity(sf::StructureFactor, q, iq, ω, iω, contractor, temp)
     data_point = SArray{Tuple{nelems, natoms, natoms}, ComplexF64, 3, nelems*natoms*natoms}(
         data[:,iq,:,:,iω]
     )
-    contractor = contractor(sf)
     elems = phase_averaged_elements(data_point, q, crystal, site_infos)
     intensity = contract(elems, q, contractor)
     if !isnothing(temp)
