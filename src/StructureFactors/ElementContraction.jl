@@ -1,20 +1,26 @@
 export trace, depolarize
 
-abstract type Contraction end
+################################################################################
+# Types
+################################################################################
+abstract type Contraction{T} end  # T determines type value returned by the contraction (Float64 or ComplexF64)
 
-struct Trace{N} <: Contraction 
+struct Trace{N} <: Contraction{Float64}
     indices :: SVector{N, Int64}
 end
 
-struct Depolarize <: Contraction
+struct Depolarize <: Contraction{Float64}
     idxinfo :: SortedDict{CartesianIndex{2}, Int64}
 end
 
-struct Element <: Contraction
+struct Element <: Contraction{ComplexF64}
     index :: Int64
 end
 
 
+################################################################################
+# Constructors
+################################################################################
 function Trace(sf::StructureFactor{N}) where N
     # Collect all indices for matrix elements 𝒮^αβ where α=β
     indices = Int64[]
@@ -51,8 +57,9 @@ end
 Element(pair::Tuple{Int64, Int64}) = sf -> Element(sf, pair)
 
 
-
-
+################################################################################
+# Contraction methods
+################################################################################
 function contract(elems, _, traceinfo::Trace)
     intensity = 0.0
     for i in traceinfo.indices
@@ -62,7 +69,7 @@ function contract(elems, _, traceinfo::Trace)
 end
 
 
-function contract(elems::SVector{N, ComplexF64}, q::Vec3, depolar::Depolarize) where N
+function contract(elems, q::Vec3, depolar::Depolarize)
     q /= norm(q) + 1e-12
     dip_factor = SMatrix{3, 3, Float64, 9}(I(3) - q * q')
     intensity = 0.0
@@ -75,6 +82,6 @@ function contract(elems::SVector{N, ComplexF64}, q::Vec3, depolar::Depolarize) w
 end
 
 
-function contract(elems::SVector{N, ComplexF64}, _, elem::Element) where N
-    return abs(elems[elem.index])
+function contract(elems, _, elem::Element)
+    return elems[elem.index]
 end
