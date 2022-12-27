@@ -1,6 +1,72 @@
 ################################################################################
 # Basic functions for retrieving 𝒮(q, ω) values
 ################################################################################
+
+# Function for getting a single 𝒮(q, ω) intensity -- primarily internal
+function calc_intensity(sf::StructureFactor, q, iq, ω, iω, contractor, temp, ffdata)
+    (; crystal, data) = sf.sfdata
+
+    nelems, natoms = size(data, 1), size(data, 5)
+    data_point = SArray{Tuple{nelems, natoms, natoms}, ComplexF64, 3, nelems*natoms*natoms}(
+        data[:,iq,:,:,iω]
+    )
+    elems = phase_averaged_elements(data_point, q, crystal, ffdata)
+    intensity = contract(elems, q, contractor)
+    if !isnothing(temp)
+        intensity *= classical_to_quantum(ω, temp)
+    end
+
+    return intensity
+end
+
+function Base.zeros(::Contraction{T}, args...) where T
+    zeros(T, args...)
+end
+
+# TODO: Add Landé g-factor
+function ff_from_ions(sf::StructureFactor, ioninfos)
+    natoms = size(sf.sfdata.data, 5)
+    ffdata = Vector{Union{FormFactorParams, Nothing}}(nothing, natoms)
+
+    if !isnothing(ioninfos)
+        for ioninfo in ioninfos
+            idx, elem = ioninfo
+            if idx > natoms 
+                error("Form Factor Error: There are only $natoms sites. Can't assign FF information to atom $idx.")
+            end
+            ffdata[idx] = FormFactorParams(elem) 
+        end
+    end
+
+    return ffdata
+end
+
+function get_intensities(sf::StructureFactor, q_targets::Array;
+    interp = NoInterp(), contraction = Depolarize(), temp = nothing,
+    atominfo = nothing, negative_energies = false
+) 
+    nq = length(q_targets)
+    ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
+    nω = length(ωs) 
+    contractor = contraction(sf)
+    ffdata = ff_from_ions(sf, atominfo)
+
+    intensities = zeros(contractor, size(q_targets)..., nω)
+    # Test preallocating all stencil intensities
+    for iω in 1:nω
+        for iq ∈ CartesianIndices(q_targets)
+            q_target = convert(Vec3, q_targets[iq])
+            qs, iqs = stencil_qs(sf.sfdata, q_target, interp)  
+            # TODO: Can check so intensities below are not recalculated unless needed
+            local_intensities = stencil_intensities(sf, qs, iqs, ωs[iω], iω, interp, contractor, temp, ffdata)
+            intensities[iq, iω] = interpolated_intensity(sf, q_target, qs, local_intensities, interp)
+        end
+    end
+
+    return nq == 1 ? reshape(intensities, nω) : intensities
+end
+
+
 function get_intensity(sf::StructureFactor, q; kwargs...) 
     if length(q) != 3
         error("Q point should have three components. If ")
@@ -13,32 +79,6 @@ function get_static_intensity(sf::StructureFactor, q; kwargs...)
     return sum(intensities)
 end
 
-function Base.zeros(::Contraction{T}, args...) where T
-    zeros(T, args...)
-end
-
-function get_intensities(sf::StructureFactor, q_targets::Array;
-    interp = NoInterp(), contraction = Depolarize(), temp = nothing,
-    negative_energies = false
-) 
-    nq = length(q_targets)
-    ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
-    nω = length(ωs) 
-    contractor = contraction(sf)
-
-    intensities = zeros(contractor, size(q_targets)..., nω)
-    for iω in 1:nω
-        for iq ∈ CartesianIndices(q_targets)
-            q_target = convert(Vec3, q_targets[iq])
-            qs, iqs = stencil_qs(sf.sfdata, q_target, interp)
-            local_intensities = stencil_intensities(sf, qs, iqs, ωs[iω], iω, interp, contractor, temp)
-            intensities[iq, iω] = interpolated_intensity(sf, q_target, qs, local_intensities, interp)
-        end
-    end
-
-    return nq == 1 ? reshape(intensities, nω) : intensities
-end
-
 function get_static_intensities(sf::StructureFactor, q_targets::Array; kwargs...)
     dims = size(q_targets)
     if sum(dims) < 2
@@ -46,28 +86,9 @@ function get_static_intensities(sf::StructureFactor, q_targets::Array; kwargs...
     end
     ndims = length(dims)
     intensities = get_intensities(sf, q_targets; kwargs...)
-    println(size(intensities))
     static_intensities = sum(intensities, dims=(ndims+1,))
 
     return reshape(static_intensities, dims)
-end
-
-
-# Internal function for getting a single 𝒮(q, ω) intensity
-function calc_intensity(sf::StructureFactor, q, iq, ω, iω, contractor, temp)
-    (; crystal, site_infos, data) = sf.sfdata
-
-    nelems, natoms = size(data, 1), size(data, 5)
-    data_point = SArray{Tuple{nelems, natoms, natoms}, ComplexF64, 3, nelems*natoms*natoms}(
-        data[:,iq,:,:,iω]
-    )
-    elems = phase_averaged_elements(data_point, q, crystal, site_infos)
-    intensity = contract(elems, q, contractor)
-    if !isnothing(temp)
-        intensity *= classical_to_quantum(ω, temp)
-    end
-
-    return intensity
 end
 
 
