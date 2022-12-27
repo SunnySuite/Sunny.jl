@@ -1,4 +1,4 @@
-# This can be optimized
+# This can be optimized -- note, also accumulates finite complex values where there should be none (on order of 1e-17)
 function phase_averaged_elements(q_data, q::Vec3, cryst::Crystal, site_infos::Vector{SiteInfo})
     nelem = size(q_data, 1)
     elems = zero(SVector{nelem, ComplexF64})
