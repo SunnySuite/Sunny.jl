@@ -2,19 +2,19 @@ abstract type InterpolationScheme{N} end
 struct NoInterp <: InterpolationScheme{1} end
 struct LinearInterp <: InterpolationScheme{8} end
 
-function stencil_intensities(sf::StructureFactor, q, iq, ω, iω, ::InterpolationScheme{1}, contraction::Contraction{T}, temp) where T
-    return SVector{1, T}(calc_intensity(sf, q, iq, ω, iω, contraction, temp))
+function stencil_intensities(sf::StructureFactor, q, iq, ω, iω, ::InterpolationScheme{1}, contraction::Contraction{T}, temp, ffdata) where T
+    return SVector{1, T}(calc_intensity(sf, q, iq, ω, iω, contraction, temp, ffdata))
 end
 
-function stencil_intensities(sf::StructureFactor, qs, iqs, ω, iω, ::InterpolationScheme{N}, contraction::Contraction{T}, temp) where {N, T}
-    return SVector{N, T}(calc_intensity(sf, qs[n], iqs[n], ω, iω, contraction, temp) for n in 1:N)
+function stencil_intensities(sf::StructureFactor, qs, iqs, ω, iω, ::InterpolationScheme{N}, contraction::Contraction{T}, temp, ffdata) where {N, T}
+    return SVector{N, T}(calc_intensity(sf, qs[n], iqs[n], ω, iω, contraction, temp, ffdata) for n in 1:N)
 end
 
 function interpolated_intensity(::StructureFactor, _, _, stencil_intensities, ::NoInterp) 
     return only(stencil_intensities)
 end
 
-function interpolated_intensity(sf::StructureFactor, q_target, qs, stencil_intensities, ::LinearInterp) 
+function interpolated_intensity(::StructureFactor, q_target, qs, stencil_intensities, ::LinearInterp) 
     (; q000, q111) = qs
     c000, c100, c010, c110, c001, c101, c011, c111 = stencil_intensities
     x, y, z = q_target

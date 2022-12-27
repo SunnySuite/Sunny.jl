@@ -80,7 +80,7 @@ function contract(elems, q::Vec3, depolar::Depolarize)
         α, β = ci.I
         # Note, can just take the real part since:
         #   (1) diagonal elements are real by construction, and 
-        #   (2) off diagonal elements have the form x*conj(y) + conj(x)*y = 2real(x*conj(y)).
+        #   (2) pairs of off diagonal contributions have the form x*conj(y) + conj(x)*y = 2real(x*conj(y)).
         factor = α == β ? 1.0 : 2.0 # Double off-diagonal contribution (if ij is in iteration, ji will not be)
         intensity += factor * dip_factor[α, β] * real(elems[idx])  
     end
