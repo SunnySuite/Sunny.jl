@@ -9,7 +9,7 @@ struct Trace{N} <: Contraction{Float64}
     indices :: SVector{N, Int64}
 end
 
-struct Depolarize <: Contraction{Float64}
+struct Depolarize <: Contraction{Float64} 
     idxinfo :: SortedDict{CartesianIndex{2}, Int64}
 end
 
@@ -46,7 +46,10 @@ end
 Trace() = sf -> Trace(sf)
 
 function Depolarize(sf::StructureFactor)
-    return Depolarize(sf.sfdata.idxinfo)
+    if sf.sftraj.dipolemode 
+        return Depolarize(sf.sfdata.idxinfo)
+    end
+    error("Need to be in structure factor dipole mode to calculate depolarization correction.")
 end
 Depolarize() = sf -> Depolarize(sf)
 
@@ -63,7 +66,7 @@ Element(pair::Tuple{Int64, Int64}) = sf -> Element(sf, pair)
 function contract(elems, _, traceinfo::Trace)
     intensity = 0.0
     for i in traceinfo.indices
-        intensity += abs(elems[i])
+        intensity += real(elems[i])
     end
     return intensity
 end
@@ -75,10 +78,13 @@ function contract(elems, q::Vec3, depolar::Depolarize)
     intensity = 0.0
     for (ci, idx) in depolar.idxinfo # Loop from 1 to 6 
         α, β = ci.I
+        # Note, can just take the real part since:
+        #   (1) diagonal elements are real by construction, and 
+        #   (2) off diagonal elements have the form x*conj(y) + conj(x)*y = 2real(x*conj(y)).
         factor = α == β ? 1.0 : 2.0 # Double off-diagonal contribution (if ij is in iteration, ji will not be)
         intensity += factor * dip_factor[α, β] * real(elems[idx])  
     end
-    return abs(intensity)
+    return intensity
 end
 
 
