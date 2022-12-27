@@ -41,15 +41,24 @@ function ff_from_ions(sf::StructureFactor, ioninfos)
     return ffdata
 end
 
+function convert_coordinates(qs, newbasis)
+    return map(qs) do q
+        sum(newbasis .* q)
+    end
+end
+
 function get_intensities(sf::StructureFactor, q_targets::Array;
     interp = NoInterp(), contraction = Depolarize(), temp = nothing,
-    atominfo = nothing, negative_energies = false
+    atominfo = nothing, negative_energies = false, newbasis = nothing,
 ) 
     nq = length(q_targets)
     ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
     nω = length(ωs) 
     contractor = contraction(sf)
     ffdata = ff_from_ions(sf, atominfo)
+    if !isnothing(newbasis)
+        q_targets = convert_coordinates(q_targets, newbasis)
+    end
 
     intensities = zeros(contractor, size(q_targets)..., nω)
     # TODO: Test preallocating all stencil intensities
