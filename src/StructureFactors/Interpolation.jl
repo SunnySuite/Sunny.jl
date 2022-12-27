@@ -41,8 +41,8 @@ function stencil_qs(sfd::SFData, q, ::NoInterp)
     q = convert(Vec3, q)
     data = sfd.data
     Ls = (size(data, 2), size(data, 3), size(data, 4)) # Avoid slice allocation 
-    ls = round.(Int, Ls .* q / 2π)
-    q = @. 2π*ls/Ls
+    ls = round.(Int, Ls .* q)
+    q = @. ls/Ls
     # Below is a bit ugly, but couldn't figure out how to do it in another manner
     # without allocation (e.g., with a comprehension type syntax or map).
     qi = CartesianIndex{3}(  
@@ -58,7 +58,7 @@ function stencil_qs(sfd::SFData, q, ::LinearInterp)
     q = convert(Vec3, q)
     data = sfd.data
     Ls = (size(data, 2), size(data, 3), size(data, 4)) 
-    base = floor.(Int, Ls .* q / 2π)
+    base = floor.(Int, Ls .* q)
     ls = (;
         l000 = base,
         l100 = base + SVector{3, Int64}(1, 0, 0),
@@ -70,14 +70,14 @@ function stencil_qs(sfd::SFData, q, ::LinearInterp)
         l111 = base + SVector{3, Int64}(1, 1, 1), 
     )
     qs = (;
-        q000 = 2π .* ls.l000 ./ Ls,
-        q100 = 2π .* ls.l100 ./ Ls,
-        q010 = 2π .* ls.l010 ./ Ls,
-        q110 = 2π .* ls.l110 ./ Ls,
-        q001 = 2π .* ls.l001 ./ Ls,
-        q101 = 2π .* ls.l101 ./ Ls,
-        q011 = 2π .* ls.l011 ./ Ls,
-        q111 = 2π .* ls.l111 ./ Ls,
+        q000 = ls.l000 ./ Ls,
+        q100 = ls.l100 ./ Ls,
+        q010 = ls.l010 ./ Ls,
+        q110 = ls.l110 ./ Ls,
+        q001 = ls.l001 ./ Ls,
+        q101 = ls.l101 ./ Ls,
+        q011 = ls.l011 ./ Ls,
+        q111 = ls.l111 ./ Ls,
     )
     qis = (;
         qi000 = CartesianIndex{3}(mod(ls.l000[1], Ls[1]) + 1,  mod(ls.l000[2], Ls[2]) + 1,  mod(ls.l000[3], Ls[3]) + 1),

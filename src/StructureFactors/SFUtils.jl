@@ -6,7 +6,7 @@ function qgrid(sf::StructureFactor; bzsize=(1,1,1))
     lo = map(L -> 1 - div(L, 2), up) .- offsets
     qs = zeros(Vec3, up...)
     for (k, lz) in enumerate(lo[3]:hi[3]), (j, ly) in enumerate(lo[2]:hi[2]), (i, lx) in enumerate(lo[1]:hi[1])
-        qs[i,j,k] = Vec3(2π*lx/Ls[1], 2π*ly/Ls[2], 2π*lz/Ls[3]) 
+        qs[i,j,k] = Vec3(lx/Ls[1], ly/Ls[2], lz/Ls[3]) 
     end
     return qs
 end

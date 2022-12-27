@@ -32,7 +32,7 @@ function ff_from_ions(sf::StructureFactor, ioninfos)
         for ioninfo in ioninfos
             idx, elem = ioninfo
             if idx > natoms 
-                error("Form Factor Error: There are only $natoms sites. Can't assign FF information to atom $idx.")
+                error("Form Factor Error: There are only $natoms atoms. Can't assign form factor information to atom $idx.")
             end
             ffdata[idx] = FormFactorParams(elem) 
         end
@@ -52,7 +52,7 @@ function get_intensities(sf::StructureFactor, q_targets::Array;
     ffdata = ff_from_ions(sf, atominfo)
 
     intensities = zeros(contractor, size(q_targets)..., nω)
-    # Test preallocating all stencil intensities
+    # TODO: Test preallocating all stencil intensities
     for iω in 1:nω
         for iq ∈ CartesianIndices(q_targets)
             q_target = convert(Vec3, q_targets[iq])
