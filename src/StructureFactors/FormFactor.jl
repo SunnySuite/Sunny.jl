@@ -1,5 +1,49 @@
+
+#= TODO: Old comments about form factors below. Add to new docs. 
+
+In order to calculate form factor corrections, `ff_elem` must be given a valid argument
+specifying a magnetic ion. A list of valid names is provided in tables available
+at: https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html . To calculate second-order form
+factor corrections, it is also necessary to provide a Lande g-factor (as a numerical
+value) to `ff_lande`. For example: `SiteInfo(1; ff_elem="Fe2", ff_lande=3/2)`. Note that
+for the form factor to be calculated, these keywords must be given values for all
+unique sites in the unit cell. Please see the documentation to `compute_form` for more
+information on the form factor calculation.
+=# 
+    
+
+struct FormFactor
+    atom      :: Int64
+    J0_params :: NTuple{7, Float64}
+    J2_params :: Union{Nothing, NTuple{7, Float64}}
+    g_lande   :: Union{Nothing, Float64}
+end
+
+function FormFactor(atom::Int64, elem::String; g_lande=nothing)
+
+    function lookup_ff_params(elem, datafile) :: NTuple{7, Float64}
+        path = joinpath(joinpath(@__DIR__, "data"), datafile)
+        lines = collect(eachline(path))
+        matches = filter(line -> startswith(line, elem), lines)
+        if isempty(matches)
+            error("'ff_elem = $elem' not a valid choice of magnetic ion.")
+        end
+        Tuple(parse.(Float64, split(matches[1])[2:end]))
+    end
+
+    # Look up parameters
+    J0_params = !isnothing(elem) ? lookup_ff_params(elem, "form_factor_J0.dat") : nothing
+    J2_params = !isnothing(g_lande) ? lookup_ff_params(elem, "form_factor_J2.dat") : nothing
+
+    # Ensure type of g_lande
+    g_lande = !isnothing(g_lande) ? Float64(g_lande) : nothing
+
+    FormFactor(atom, J0_params, J2_params, g_lande)
+end
+
+
 """ 
-    compute_form(q::Vector{Float64}, params::FormFactorParams)
+    compute_form(q::Vector{Float64}, params::FormFactor)
 
 **NOTE**: _This is an internal function which the user will likely never call directly.
 It will be called during structure factor calculations if form factor information
@@ -50,7 +94,7 @@ Additional references are:
  * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
  * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
 """
-function compute_form(q::Float64, params::FormFactorParams)
+function compute_form(q::Float64, params::FormFactor)
     s = q/4π
 
     # J0 correction

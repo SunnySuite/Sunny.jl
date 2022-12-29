@@ -23,25 +23,53 @@ function Base.zeros(::Contraction{T}, args...) where T
     zeros(T, args...)
 end
 
-# TODO: Add Landé g-factor
-function ff_from_ions(sf::StructureFactor, ioninfos)
-    natoms = size(sf.sfdata.data, 5)
-    ffdata = Vector{Union{FormFactorParams, Nothing}}(nothing, natoms)
+# TODO: Add Landé g-factor, add symmetry propagation
+# function ff_from_ions(sf::StructureFactor, ioninfos)
+#     natoms = size(sf.sfdata.data, 5)
+#     ffdata = Vector{Union{FormFactor, Nothing}}(nothing, natoms)
+# 
+#     if !isnothing(ioninfos)
+#         for ioninfo in ioninfos
+#             idx, elem = ioninfo
+#             if idx > natoms 
+#                 error("Form Factor Error: There are only $natoms atoms. Can't assign form factor information to atom $idx.")
+#             end
+#             ffdata[idx] = FormFactor(elem) 
+#         end
+#     end
+# 
+#     return ffdata
+# end
 
-    if !isnothing(ioninfos)
-        for ioninfo in ioninfos
-            idx, elem = ioninfo
-            if idx > natoms 
-                error("Form Factor Error: There are only $natoms atoms. Can't assign form factor information to atom $idx.")
+function propagate_form_factors(sf::StructureFactor, form_factors)
+    sys = sf.sftraj.sys
+    natoms = size(sys.dipoles, 4)
+    all_form_factors = Vector{Union{FormFactor, Nothing}}(nothing, natoms)
+    if !isnothing(form_factors)
+        specified_atoms = Int[]
+        for form_factor in form_factors 
+            atom = form_factor.atom
+            # Using all_symmetry_related_couplings for convenience -- don't need transformed gs
+            (sym_bonds, sym_gs) = all_symmetry_related_couplings(
+                sys.crystal,
+                Bond(atom, atom, [0,0,0]),
+                2*I(3)  # This is irrelevant -- see note above call to this function
+            )
+            for (sym_bond, _) in zip(sym_bonds, sym_gs)
+                sym_atom = sym_bond.i
+                if sym_atom in specified_atoms
+                    error("Provided `FormFactor` information for two symmetry equivalent sites!")
+                else
+                    push!(specified_atoms, sym_atom)
+                end
+                all_form_factors[sym_atom] = form_factor
             end
-            ffdata[idx] = FormFactorParams(elem) 
         end
     end
-
-    return ffdata
+    return all_form_factors
 end
 
-function convert_coordinates(qs, newbasis)
+function change_basis(qs, newbasis)
     return map(qs) do q
         sum(newbasis .* q)
     end
@@ -49,15 +77,15 @@ end
 
 function get_intensities(sf::StructureFactor, q_targets::Array;
     interp = NoInterp(), contraction = Depolarize(), temp = nothing,
-    atominfo = nothing, negative_energies = false, newbasis = nothing,
+    formfactors = nothing, negative_energies = false, newbasis = nothing,
 ) 
     nq = length(q_targets)
     ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
     nω = length(ωs) 
     contractor = contraction(sf)
-    ffdata = ff_from_ions(sf, atominfo)
+    ffdata = propagate_form_factors(sf, formfactors)
     if !isnothing(newbasis)
-        q_targets = convert_coordinates(q_targets, newbasis)
+        q_targets = change_basis(q_targets, newbasis)
     end
 
     intensities = zeros(contractor, size(q_targets)..., nω)
@@ -137,10 +165,10 @@ end
 
 function path(sf::StructureFactor, points::Vector; 
     density = 10, interp=Sunny.NoInterp(), contraction=Sunny.depolarize, temp=nothing,
-    index_labels=false
+    index_labels=false, kwargs...
 )
     qpoints = path_points(points, density)
-    intensities = Sunny.get_intensities(sf, qpoints; interp, contraction, temp) 
+    intensities = Sunny.get_intensities(sf, qpoints; interp, contraction, temp, kwargs...) 
 
     if index_labels
         ωs = ωvals(sf)

@@ -95,7 +95,7 @@ include("Integrators.jl")
 export LangevinHeunP, ImplicitMidpoint, LangevinSampler, step!
 
 include("StructureFactors/StructureFactors.jl")
-export StructureFactor, expectation_trajectory, dipole_trajectory
+export StructureFactor, FormFactor, expectation_trajectory, dipole_trajectory
 export add_trajectory!, calculate_structure_factor
 export get_intensity, get_intensities, get_static_intensity, get_static_intensities
 export path, intensity_grid, ωvals
