@@ -365,7 +365,7 @@ function local_energy_change(sys::SpinSystem{N}, idx, newspin) where N
     if !isnothing(ℋ.dipole_aniso)
         # TODO: Add tests!
         aniso = ℋ.dipole_aniso
-        for (site, J) in zip(aniso.sites, aniso.Js)
+        for site in aniso.sites
             if site == i
                 c2, c4, c6 = aniso.coeff_2[i], aniso.coeff_4[i], aniso.coeff_6[i]
                 E_new, _ = energy_and_gradient_for_classical_anisotropy(new_dipole, c2, c4, c6)

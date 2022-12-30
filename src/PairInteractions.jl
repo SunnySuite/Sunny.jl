@@ -310,7 +310,7 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, diag_coup::Diagon
         for cell in CartesianIndices(latsize)
             offsetcell = offset(cell, n, latsize)
             B[cell, i] = B[cell, i] - J .* dipoles[offsetcell, j]
-            B[offsetcell, j] = B[offsetcell, j] - J .* dipoles[cell, i]
+            B[offsetcell, j] = B[offsetcell, j] - J' .* dipoles[cell, i]
         end
     end
 end

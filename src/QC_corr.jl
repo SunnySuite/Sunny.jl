@@ -24,12 +24,11 @@ where β = 1/kT and ω is energy.
 """
 function QC_corr!(MySQWperp, kT)
     N1, N2, N3, N4 = size(MySQWperp.sfactor)
-    Ls = MySQWperp.sfactor.offsets .+ 1
-    Le = -1 .* MySQWperp.sfactor.offsets
+    L_min = -1 .* div.(size(MySQWperp.sfactor).-1, 2)
 
     β = 1 / kT
     wmax = round(2 * pi / (MySQWperp.dt * MySQWperp.meas_period))
-    EN = range(Ls[4], length=N4) * 2 * wmax / N4
+    EN = range(L_min[4], length=N4) * 2 * wmax / N4
     
     tmp = β * EN ./ (ones(size(EN)) - exp.(-1 * β * EN))
     tmp[round(Int, N4 / 2)] = 1.0 # remove divergence value at E = 0
@@ -37,8 +36,7 @@ function QC_corr!(MySQWperp, kT)
     βω = reshape(tmp, 1, 1, 1, N4) # Correction factor βω
     βω = repeat(βω, outer=[N1, N2, N3, 1])
 
-    CQ_corr = OffsetArray(βω, Ls[1]:Le[1], Ls[2]:Le[2], Ls[3]:Le[3], Ls[4]:Le[4])
-
+    CQ_corr = OffsetArray(βω, OffsetArrays.Origin(L_min...))
     MySQWperp.sfactor .= MySQWperp.sfactor .* CQ_corr
 
     return MySQWperp
@@ -50,33 +48,25 @@ end
 Transformation for hexagonal lattice
 
 """
-
 function hexa_corr!(MySQWperp)
     A = OffsetArrays.no_offset_view(MySQWperp.sfactor)
     Lx, Ly, Lz, T = size(A)
-    epsil = 1e-6 # infinitesimal number for correct round function
-
+    
     New = zeros(round(Int, 3Lx / 2), Ly, Lz, T)
-    for i = 1:Lx
-        for j = 1:Ly
-            y_pot = round(Int, (i + 2 * j) / 2 + epsil)
+    for i = 1:Lx, j = 1:Ly
+            y_pot = div(i + 2 * j, 2, RoundUp)
             New[y_pot, i, :, :] .= A[j, i, :, :]
-        end
     end
-
-    Ls = MySQWperp.sfactor.offsets .+ 1
-    Le = -1 .* MySQWperp.sfactor.offsets
-    L1s = -1 * round(Int, size(New, 1) / 2) + 1
-    L1e = round(Int, size(New, 1) / 2)
-    New_OSA = OffsetArray(New, L1s:L1e, Ls[2]:Le[2], Ls[3]:Le[3], Ls[4]:Le[4])
-
+    
+    L_min = -1 .* div.(size(New).-1, 2) 
+    New_OSA = OffsetArray(New, OffsetArrays.Origin(L_min...))
     # MySQWperp.sfactor .= New_OSA
 
     return New_OSA
 end
 
 function Cobalt_ff!(SQW, Q1, Q2, Q3)
-    A = OffsetArrays.no_offset_view(SQW)
+    A = no_offset_view(SQW)
     Lx, Ly, Lz, T = size(A)
 
     # Magnetic form factor for cobalt 2+
