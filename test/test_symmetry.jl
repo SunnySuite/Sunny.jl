@@ -131,12 +131,6 @@ end
 @testitem "Spin matrices" begin
     include("test_shared.jl")
     
-    # Levi-Civita symbol
-    ϵ = [(i-j)*(j-k)*(k-i)/2 for i=1:3, j=1:3, k=1:3]
-
-    # Kronecker delta
-    δ(i,j) = (i==j) ? 1 : 0
-
     ### Verify 𝔰𝔲(2) irreps
     for N = 2:5
         S₀ = (N-1)/2
@@ -293,11 +287,9 @@ end
         @test R*n ≈ n
 
         # Rodrigues formula
-        δ(i,j) = (i==j) ? 1 : 0
-        ϵ(i,j,k) = (i-j)*(j-k)*(k-i)/2
         R2 = zeros(3,3)
         for i=1:3, j=1:3
-            R2[i,j] = δ(i,j)*cos(θ) + (1-cos(θ))*n[i]*n[j] - sin(θ)*sum(ϵ(i,j,k)*n[k] for k=1:3)
+            R2[i,j] = δ(i,j)*cos(θ) + (1-cos(θ))*n[i]*n[j] - sin(θ)*sum(ϵ[i,j,k]*n[k] for k=1:3)
         end
         @test R2 ≈ R
     end

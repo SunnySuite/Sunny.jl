@@ -117,55 +117,41 @@ function _print_allowed_coupling(basis_strs; prefix)
     end
 end
 
-"""
-    print_mutually_allowed_couplings(cryst::Crystal, bonds; prefix="", digits=4, atol=1e-12)
-
-Prints the allowed coupling matrix for every bond in `bonds`. The coefficient
-parameters `A`, `B`, `C` etc. will have a consistent meaning for each printed
-coupling matrix, and are selected according to the first element of `bonds`.
-"""
-function print_mutually_allowed_couplings(cryst::Crystal, bonds;  digits=4, atol=1e-12)
-    isempty(bonds) && return
-
-    b_ref = first(bonds)
-    basis_ref = basis_for_symmetry_allowed_couplings(cryst, b_ref)
-
-    for b in bonds
-        # Transformation must be identical to that in `all_symmetry_related_couplings_for_atom()`
-        syms = symmetries_between_bonds(cryst, BondRaw(cryst, b), BondRaw(cryst, b_ref))
-        isempty(syms) && error("Bonds $b and $b_ref are not symmetry equivalent.")
-        (s, parity) = first(syms)
-        R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
-        basis = [R * (parity ? J : J') * R' for J in basis_ref]
-
-        # Print rotated coupling matrix
-        println(b)
-        basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-        _print_allowed_coupling(basis_strs; prefix="  ")
-        println()
-    end
-end
-
 
 """
-    print_bond(cryst::Crystal, bond::Bond)
+    print_bond(cryst::Crystal, bond::Bond; b_ref::Bond)
 
-Prints symmetry information for bond `bond`.
+Prints symmetry information for bond `bond`. A symmetry-equivalent reference
+bond `b_ref` can optionally be provided to fix the meaning of the coefficients
+`A`, `B`, ...
 """
-function print_bond(cryst::Crystal, b::Bond)
+function print_bond(cryst::Crystal, b::Bond; b_ref=nothing)
     # Tolerance below which coefficients are dropped
     atol = 1e-12
     # How many digits to use in printing coefficients
     digits = 14
     
-    if b.i == b.j && iszero(b.n)
+    if b.i == b.j && iszero(b.n)            
         print_site(cryst, b.i)
     else
+
+        # If `b_ref` is not provided, use one from reference_bonds()
+        if isnothing(b_ref)
+            d = distance(cryst, b)
+            ref_bonds = reference_bonds(cryst, d; min_dist=d)
+            b_ref = only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
+        end
+        # Get the coupling basis on reference bond `b_ref`
+        basis = basis_for_symmetry_allowed_couplings(cryst, b_ref)
+        # Transform coupling basis from `b_ref` to `b`
+        if b != b_ref
+            basis = map(basis) do J_ref
+                transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
+            end
+        end
+
         ri = cryst.positions[b.i]
         rj = cryst.positions[b.j] + b.n
-
-        basis = basis_for_symmetry_allowed_couplings(cryst, b)
-        basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
 
         # Bond(...)
         printstyled(stdout, repr(b); bold=true, color=:underline)
@@ -182,6 +168,7 @@ function print_bond(cryst::Crystal, b::Bond)
         else
             println("Connects '$(cryst.types[b.i])' at $(atom_pos_to_string(ri)) to '$(cryst.types[b.j])' at $(atom_pos_to_string(rj))")
         end
+        basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
         _print_allowed_coupling(basis_strs; prefix="Allowed exchange matrix: ")
         antisym_basis_idxs = findall(J -> J ≈ -J', basis)
         if !isempty(antisym_basis_idxs)
@@ -203,7 +190,7 @@ b)` for every bond `b` in `reference_bonds(cryst, max_dist)`, where
 """
 function print_symmetry_table(cryst::Crystal, max_dist)
     for b in reference_bonds(cryst, max_dist)
-        print_bond(cryst, b)
+        print_bond(cryst, b; b_ref=b)
     end
 end
 

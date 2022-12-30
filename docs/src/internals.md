@@ -27,7 +27,7 @@ specifying Hamiltonian coupling parameters.
 SpinSystem(...; μB=0.67171381563034223582, μ0=17.3497470317891588)
 ```
 
-
+<!-- 
 ## Handling Interactions
 
 Interactions exist at two levels:
@@ -102,7 +102,7 @@ latter allows for in-place FFTs.
 First, we need to perform a standard Fast Fourier Transform along the spatial and time axes.
 This is be done with one of the following functions:
 
-```@docs
+```_AT_docs
 Sunny.fft_spin_traj
 Sunny.fft_spin_traj!
 ```
@@ -122,7 +122,7 @@ outerprod_conj(spin_traj_ft, (1, 2))
 Which should result in a `ComplexF64` array of size `[3, 3, B, B, D1, D2, D3, T]`.
 The documentation for this function can be seen below:
 
-```@docs
+```_AT_docs
 Sunny.outerprod_conj
 Sunny.outerprod_conj!
 ```
@@ -131,7 +131,7 @@ Alternatively, if you only care about the post-basis-summation structure factor,
 first want to instead perform the phase-weighted basis sum. This can be done manually, or
 by using one of the following functions:
 
-```@docs
+```_AT_docs
 Sunny.phase_weight_basis
 Sunny.phase_weight_basis!
 ```
@@ -158,7 +158,7 @@ There are additional functions which perform these accumulations while simulatan
 applying the neutron dipole form factor to reduce the spin components to a single
 observable scalar. These are a bit of a mess currently, though.
 
-```@docs
+```_AT_docs
 Sunny.accum_dipole_factor!
 Sunny.accum_dipole_factor_wbasis!
-```
+``` -->

@@ -61,7 +61,7 @@ const 𝒮 = spin_operator_symbols
 # Note that the Stevens operators 𝒪_q appear in descending order q = k,..-k.
 # This choice is necessary for consistency with the order of spherical tensors
 # T_q. By the Wigner-Eckhardt theorem, there are two equivalent ways of rotating
-# spherical tensors, U' T_q U = D_qq′ T_q′, where D = exp(-i n⋅J), and J is a
+# spherical tensors, U' T_q U = D*_qq′ T_q′, where D = exp(-i n⋅J), and J is a
 # spin operator in the spin-k representation. Observe that the standard
 # basis-convention for spin operators (eigenbasis of Jz, in descending order)
 # then determines the ordering of T_q and then 𝒪_q

@@ -75,6 +75,7 @@ function FormFactorParams(elem::String; g_lande=nothing)
 end
 
 
+# TODO: Get rid of site field, and replace N -> S, defaulting to 1
 """
     SiteInfo(site::Int; N=0, g=2*I(3), spin_rescaling=1.0, ff_elem=nothing, ff_lande=nothing)
 
@@ -98,7 +99,6 @@ information on the form factor calculation.
 NOTE: Currently, `N` must be uniform for all sites. All sites will be upconverted
 to the largest specified `N`.
 """
-# TODO: Get rid of site field, and replace N -> S, defaulting to 1
 Base.@kwdef struct SiteInfo
     site::Int                 # Index of site
     N::Int = 0         # N in SU(N)
