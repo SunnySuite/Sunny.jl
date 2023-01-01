@@ -60,7 +60,11 @@ function SFTrajectory(sys::SpinSystem{N};
     nops = size(ops, 3)
     traj = zeros(ComplexF64, nops, qa, qb, qc, ns, numω)
     integrator = ImplicitMidpoint(Δt)
-    sys_new = clone_spin_system(sys)
+
+    # Create a shallow copy of the spin system
+    sys_new = SpinSystem(sys.crystal, sys.size, sys.hamiltonian, sys.positions,
+        copy(sys.dipoles), copy(sys.coherents), sys.dipole_buffers, sys.coherent_buffers,
+        sys.ℌ_buffer, sys.site_infos, sys.consts, sys.rng)
 
     return SFTrajectory(sys_new, traj, ops, measperiod, gfactor, dipolemode, integrator)
 end
@@ -100,25 +104,11 @@ function SFData(sys::SpinSystem, sftraj::SFTrajectory;
 end
 
 
-
-
 function Base.getindex(sfd::SFData, α, β, qa, qb, qc, l1, l2, ω)
     α, β = α < β ? (α, β) : (β, α)  # Because SF is symmetric, only save diagonal and upper triangular
     return sfd.data[sfd.idx_info[(α, β)], qa, qb, qc, l1, l2, ω]
 end
 Base.getindex(sf::StructureFactor, α, β, qa, qb, qc, l1, l2, ω) = sf.sfdata[α, β, qa, qb, qc, l1, l2, ω]
-
-
-function clone_spin_system(sys::SpinSystem)
-    (; 
-        crystal, size, hamiltonian, positions, dipoles, coherents, dipole_buffers, 
-        coherent_buffers, ℌ_buffer, site_infos, consts, rng
-    ) = sys
-    dipoles_new = copy(dipoles)
-    coherents_new = copy(coherents)
-    return SpinSystem(crystal, size, hamiltonian, positions, dipoles_new, coherents_new,
-        dipole_buffers, coherent_buffers, ℌ_buffer, site_infos, consts, rng)
-end
 
 
 function calculate_structure_factor(sys::SpinSystem, sampler::LangevinSampler;
