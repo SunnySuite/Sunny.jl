@@ -32,20 +32,13 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, size:
     ℋ_CPU = HamiltonianCPU(ints, crystal, all_site_infos; consts)
 
     # Initialize sites to all spins along +z
-    sys_size = (size..., nbasis(crystal))
-    positions = fill(zero(Vec3), sys_size)
-    dipoles   = fill(zero(Vec3), sys_size)
-    coherents = fill(zero(CVec{N}), sys_size)
+    positions = fill_positions(crystal, size)
+    dipoles   = fill(zero(Vec3), size..., nbasis(crystal))
+    coherents = fill(zero(CVec{N}), size..., nbasis(crystal))
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     ℌ_buffer = zeros(ComplexF64, N, N)
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
-
-    # Set lattice positions
-    for cell in CartesianIndices(size), b in nbasis(crystal)
-        offset = Tuple(cell) .- (1,1,1)
-        positions[cell, b] = position(crystal, b, offset)
-    end
 
     ret = SpinSystem(crystal, size, ℋ_CPU, positions, dipoles, coherents, dipole_buffers,
                       coherent_buffers, ℌ_buffer, all_site_infos, consts, rng)
@@ -63,15 +56,24 @@ is simply repeated periodically.
 function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
     @assert all(>=(1), mults)
     size = mults .* sys.size
-    positions = repeat(sys.positions, mults..., 1)
+    positions = fill_positions(sys.crystal, size)
     dipoles   = repeat(sys.dipoles, mults..., 1)
     coherents = repeat(sys.coherents, mults..., 1)
-    dipole_buffers = []
-    coherent_buffers = []
-    return SpinSystem(sys.crystal, size, copy(sys.hamiltonian), positions, dipoles, coherents,
-                      dipole_buffers, coherent_buffers, copy(sys.ℌ_buffer), copy(sys.site_infos), sys.consts, copy(sys.rng))
+    dipole_buffers = Array{Vec3, 4}[]
+    coherent_buffers = Array{CVec{N}, 4}[]
+    return SpinSystem(sys.crystal, size, sys.hamiltonian, positions, dipoles, coherents,
+                      dipole_buffers, coherent_buffers, sys.ℌ_buffer, sys.site_infos, sys.consts, copy(sys.rng))
 end
 
+function fill_positions(crystal::Crystal, size::NTuple{3,Int})
+    nb = nbasis(crystal)
+    ret = fill(zero(Vec3), size..., nb)
+    for cell in CartesianIndices(size), b in nb
+        offset = Tuple(cell) .- (1,1,1)
+        ret[cell, b] = position(crystal, b, offset)
+    end
+    return ret
+end
 
 volume(sys::SpinSystem) = cell_volume(sys.crystal) * prod(sys.size)
 
