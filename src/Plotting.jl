@@ -239,13 +239,12 @@ function plot_spins(sys::SpinSystem; linecolor=:grey, arrowcolor=:red,
 
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(sys.positions)
-    vecs = GLMakie.Vec3f0.(sys.dipoles)
-
+    pts = GLMakie.Point3f0.(view(sys.positions,:))
+    vecs = GLMakie.Vec3f0.(view(sys.dipoles,:))
     GLMakie.arrows!(
         ax, pts, vecs;
-        linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
-        lengthscale=arrowlength, kwargs...    
+        linecolor, arrowcolor, linewidth, arrowsize,
+        lengthscale=arrowlength, kwargs...
     )
     fig
 end

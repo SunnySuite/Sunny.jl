@@ -68,23 +68,27 @@ Serialize the spin system data to a JSON dict string
 function system_json(crystal::Crystal, max_dist)
     
     ncells, bond_labels, bond_ids, bond_displacements = generate_bond_lists(crystal, max_dist)
-    lattice = Sunny.Lattice(crystal, ncells)
 
+    basis_vecs = Ref(crystal.lat_vecs) .* crystal.positions
+    
     # Fill empty types with a placeholder
-    all(isempty, lattice.types) && fill!(lattice.types, "type 1")
+    types = crystal.types
+    if all(isempty, types)
+        types = fill("type 1", nbasis(crystal))
+    end
 
     bond_colors = ["0x"*Colors.hex(c) for c in distinguishable_colors(length(bond_labels), [RGB(1,1,1), RGB(0,0,0)], dropseed=true)]
 
     return JSON.json(Dict(
-        :cellTypes    => lattice.types,
+        :cellTypes    => types,
         :bondColors   => bond_colors,
         :bondLabels   => bond_labels,
         :bondTypeIds  => bond_ids,
         :bondVecs     => bond_displacements,
-        :lattVecs     => [eachcol(lattice.lat_vecs)...],
-        :basisVecs    => lattice.basis_vecs,
-        :lattCells    => lattice.size,
-        :atomsPerCell => length(lattice.basis_vecs),
+        :lattVecs     => [eachcol(crystal.lat_vecs)...],
+        :basisVecs    => basis_vecs,
+        :lattCells    => ncells,
+        :atomsPerCell => nbasis(crystal),
     ))
 end
 
