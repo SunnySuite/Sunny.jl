@@ -9,9 +9,8 @@
         return sys
     end
 
-    function thermalize_simple_model!(sys; T = 1.0)
+    function thermalize_simple_model!(sys; kT)
         Δt = 0.05  # Time step for thermalization
-        kT = Sunny.CONSTS_meV.kB * T 
         λ  = 0.1
         nsteps = 1000  # Number of steps between MC samples
         integrator = LangevinHeunP(kT, λ, Δt)
@@ -40,7 +39,7 @@
 
         sys = simple_model_sf(; N)
         sf = StructureFactor(sys; ωmax, gfactor, ops)
-        thermalize_simple_model!(sys)
+        thermalize_simple_model!(sys; kT=0.1)
         add_trajectory!(sf, sys)
         intensities = intensity_grid(sf; contraction=Trace(), negative_energies=true)
 

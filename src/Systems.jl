@@ -10,25 +10,25 @@ struct SpinSystem{N}
     coherent_buffers :: Vector{Array{CVec{N}, 4}}        # Buffers for dynamics routines
     ℌ_buffer         :: Matrix{ComplexF64}               # Buffer for local Hamiltonian
     site_infos       :: Vector{SiteInfo}                 # Characterization of each basis site
-    consts           :: PhysicalConsts
+    units            :: PhysicalConsts
     rng              :: Random.Xoshiro
 end
 
 """
     SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, size, site_infos::Vector{SiteInfo}=[];
-               consts=CONSTS_meV)
+               units=Units.meV)
 
 Construct a `SpinSystem` with spins of magnitude `S` residing on the lattice
 sites of a given `crystal`, interactions given by `ints`, and the number of unit
 cells along each lattice vector specified by `size`. Initialized to all spins
 pointing along the ``+𝐳̂`` direction. The unit system can be selected with the
-optional consts parameter; by default, the system is (meV, T, Å).
+optional units parameter; by default, the system is (meV, T, Å).
 """
 function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, size::NTuple{3,Int},
                     site_infos::Vector{SiteInfo}=SiteInfo[];
-                    consts=CONSTS_meV, seed=nothing)
+                    units=Units.meV, seed=nothing)
     (all_site_infos, N) = propagate_site_info!(crystal, site_infos)
-    ℋ_CPU = HamiltonianCPU(ints, crystal, all_site_infos; consts)
+    ℋ_CPU = HamiltonianCPU(ints, crystal, all_site_infos; units)
 
     # Initialize sites to all spins along +z
     dipoles   = fill(zero(Vec3), size..., nbasis(crystal))
@@ -39,7 +39,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, size:
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
     ret = SpinSystem(crystal, size, ℋ_CPU, dipoles, coherents, dipole_buffers,
-                      coherent_buffers, ℌ_buffer, all_site_infos, consts, rng)
+                      coherent_buffers, ℌ_buffer, all_site_infos, units, rng)
     polarize_spins!(ret)
     return ret
 end
@@ -59,7 +59,7 @@ function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where 
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     return SpinSystem(sys.crystal, size, sys.hamiltonian, dipoles, coherents,
-                      dipole_buffers, coherent_buffers, sys.ℌ_buffer, sys.site_infos, sys.consts, copy(sys.rng))
+                      dipole_buffers, coherent_buffers, sys.ℌ_buffer, sys.site_infos, sys.units, copy(sys.rng))
 end
 
 function positions(sys::SpinSystem)
@@ -227,5 +227,5 @@ the Ewald summation (higher is more accurate, but higher creation-time cost),
 while `η` controls the direct/reciprocal-space tradeoff in the Ewald summation.
 """
 function enable_dipole_dipole!(sys::SpinSystem; extent=4, η=0.5)
-    sys.hamiltonian.ewald = EwaldCPU(sys.crystal, sys.size, sys.site_infos, sys.consts)
+    sys.hamiltonian.ewald = EwaldCPU(sys.crystal, sys.size, sys.site_infos, sys.units)
 end

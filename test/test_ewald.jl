@@ -7,14 +7,14 @@
     cryst = Crystal(latvecs, positions)
     ints = Sunny.AbstractInteraction[]
     site_infos = [SiteInfo(1; g=1)]
-    sys = SpinSystem(cryst, ints, (1,1,1), site_infos; consts=CONSTS_ONES)
+    sys = SpinSystem(cryst, ints, (1,1,1), site_infos; units=Units.theory)
     enable_dipole_dipole!(sys)
     # ewalder_energy(sys) == -2.0943951023931944
     @test isapprox(energy(sys) * 4π, -2.0943951023931944; atol=1e-13)
 
     # Same thing, with multiple unit cells
     dims = (2,3,4)
-    sys = SpinSystem(cryst, ints, dims, site_infos; consts=CONSTS_ONES)
+    sys = SpinSystem(cryst, ints, dims, site_infos; units=Units.theory)
     enable_dipole_dipole!(sys)
     @test isapprox(energy(sys) * 4π, -2.0943951023931944*prod(dims); atol=1e-13)
 
@@ -24,7 +24,7 @@
     cryst = Crystal(latvecs, positions)
     ints = Sunny.AbstractInteraction[]
     site_infos = [SiteInfo(1; g=1)]
-    sys = SpinSystem(cryst, ints, (1,1,1), site_infos; consts=CONSTS_ONES)
+    sys = SpinSystem(cryst, ints, (1,1,1), site_infos; units=Units.theory)
     enable_dipole_dipole!(sys)
     sys.dipoles[1,1,1,1] = Sunny.Vec3(0.4, 0.6, 0.2)
     sys.dipoles[1,1,1,2] = Sunny.Vec3(1, 0, 0)
