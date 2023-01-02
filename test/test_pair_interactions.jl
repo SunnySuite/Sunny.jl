@@ -1,5 +1,5 @@
 @testitem "Pair Interactions" begin
-    include("test_shared.jl")
+    include("shared.jl")
 
     # Test that each exchange gets mapped to the correct backend type
     function test_type_mapping()

@@ -1,5 +1,5 @@
 @testitem "Crystal Construction" begin
-    include("test_shared.jl")
+    include("shared.jl")
 
     cell_type(cryst::Crystal) = Sunny.cell_type(cryst.lat_vecs)
     lattice_params(cryst::Crystal) = Sunny.lattice_params(cryst.lat_vecs)
@@ -131,7 +131,7 @@ end
 
 
 @testitem "Spin matrices" begin
-    include("test_shared.jl")
+    include("shared.jl")
     
     ### Verify 𝔰𝔲(2) irreps
     for N = 2:5
@@ -167,7 +167,7 @@ end
 end
 
 @testitem "Spherical tensors" begin
-    include("test_shared.jl")
+    include("shared.jl")
 
     # Spherical tensors that satisfy `norm(T) =  √ tr T† T = 1`.
     function spherical_tensors_normalized(k; N)
@@ -275,7 +275,7 @@ end
 end
 
 @testitem "Local operator symbols" begin
-    include("test_shared.jl")
+    include("shared.jl")
 
     A = randn(3,3)
     R = Sunny.Mat3(exp(A - A'))
