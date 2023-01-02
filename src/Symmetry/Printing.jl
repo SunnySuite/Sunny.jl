@@ -71,14 +71,14 @@ end
 
 function _add_padding_to_coefficients(xs)
     max_len = maximum(length, xs)
-
     max_xs = xs[findall(x -> length(x) == max_len, xs)]
-    if !all(x -> startswith(x, '-'), max_xs)
-        max_len += 1
-    end
+
+    # Define new variable, rather than modify max_len, to avoid "captured
+    # variable" which would block Julia optimizer
+    pad_len = all(x -> startswith(x, '-'), max_xs) ? max_len+1 : max_len
 
     return map(xs) do x
-        (' ' ^ (max_len - length(x))) * x
+        (' ' ^ (pad_len - length(x))) * x
     end
 end
 
@@ -131,16 +131,16 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing)
     # How many digits to use in printing coefficients
     digits = 14
     
-    if b.i == b.j && iszero(b.n)            
+    if b.i == b.j && iszero(b.n)
         print_site(cryst, b.i)
     else
-
-        # If `b_ref` is not provided, use one from reference_bonds()
-        if isnothing(b_ref)
+        # If `b_ref` is nothing, select it from reference_bonds()
+        b_ref = @something b_ref begin
             d = distance(cryst, b)
             ref_bonds = reference_bonds(cryst, d; min_dist=d)
-            b_ref = only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
+            only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
         end
+
         # Get the coupling basis on reference bond `b_ref`
         basis = basis_for_symmetry_allowed_couplings(cryst, b_ref)
         # Transform coupling basis from `b_ref` to `b`

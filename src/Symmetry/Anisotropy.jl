@@ -1,6 +1,6 @@
 # Return a matrix whose columns are an orthogonal basis for the span of columns
 # in A. Adapted from LinearAlgebra.nullspace().
-function colspace(A::AbstractVecOrMat; atol::Real)
+function colspace(A; atol::Float64)
     m, n = size(A, 1), size(A, 2)
     (m == 0 || n == 0) && return A
     SVD = svd(A)
@@ -43,10 +43,10 @@ function axis_angle(R::Mat3)
 
     if θ < 1e-12
         # Axis is ill-defined for the identity matrix, but we don't want NaNs
-        n = Vec3(0, 0, 0)
+        n = SA[0., 0., 0.]
     else
         # Standard conversion from a unit quaternion q to an axis-angle
-        n = q[1:3] / sqrt(1 - q[4]^2)
+        n = SA[q[1], q[2], q[3]] / sqrt(1 - q[4]^2)
     end
 
     # Negate the axis to invert the rotation, i.e., transpose R. This is

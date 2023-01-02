@@ -72,7 +72,7 @@
 
 # A 9x9 matrix that, when applied to a flattened 3x3 matrix (viewed as a
 # 9-dimensional vector), generates the transposed 3x3 matrix in flattened form.
-const transpose_op_3x3 = SMatrix{9, 9, Float64}([
+const transpose_op_3x3 = [
     1 0 0  0 0 0  0 0 0
     0 0 0  1 0 0  0 0 0
     0 0 0  0 0 0  1 0 0
@@ -84,7 +84,7 @@ const transpose_op_3x3 = SMatrix{9, 9, Float64}([
     0 0 1  0 0 0  0 0 0
     0 0 0  0 0 1  0 0 0
     0 0 0  0 0 0  0 0 1
-])
+]
 
 
 # Returns a projection operator P that maps to zero any symmetry-unallowed
@@ -93,15 +93,16 @@ const transpose_op_3x3 = SMatrix{9, 9, Float64}([
 function projector_for_symop(cryst::Crystal, s::SymOp, parity::Bool)
     # Cartesian-space rotation operator corresponding to `s`
     R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
+    R = Matrix(R) # SMatrix -> Matrix
 
     # Constraint is modeled as `F J = 0`
-    F = kron(R, R) - (parity ? SMatrix{9, 9, Float64}(I) : transpose_op_3x3)
+    F = kron(R, R) - (parity ? I : transpose_op_3x3)
 
     # Orthogonal column vectors that span the null space of F
     v = nullspace(F; atol=1e-12)
 
     # Projector onto the null space of F
-    P = SMatrix{9, 9, Float64}(v * v')
+    P = v * v'
     return P
 end
 
@@ -110,7 +111,7 @@ end
 # coupling matrices for bond b. Specifically, x is an allowed coupling if and
 # only if it is an eigenvector of P with eigenvalue 1, i.e., `P x = x`.
 function symmetry_allowed_couplings_operator(cryst::Crystal, b::BondRaw)
-    P = SMatrix{9, 9, Float64}(I)
+    P = I
     for (s, parity) in symmetries_between_bonds(cryst, b, b)
         P = P * projector_for_symop(cryst, s, parity)
     end
@@ -155,7 +156,7 @@ const sym_basis = begin
          [0 0 0
           0 0 1
           0 1 0]/√2,]
-    SMatrix{9, 6, Float64}(hcat(reshape.(b, 9)...))
+    hcat(reshape.(b, 9)...)
 end
 
 # Orthonormal basis of 3x3 antisymmetric matrices
@@ -169,7 +170,7 @@ const asym_basis = begin
          [ 0  0  0
            0  0  1
            0 -1  0]/√2]
-    SMatrix{9, 3, Float64}(hcat(reshape.(b, 9)...))
+    hcat(reshape.(b, 9)...)
 end
 
 @assert sym_basis * sym_basis' + asym_basis * asym_basis' ≈ I
@@ -177,9 +178,8 @@ end
 
 # Linearly combine the columns of A to make them sparser. Specifically, find
 # reduced row echelon form, but in column space.
-function sparsify_columns(A; atol=1e-12)
-    A = rref!(copy(A'), atol)'
-    return A
+function sparsify_columns(A::Matrix{T}; atol=1e-12) where T
+    return Matrix{T}(rref!(copy(A'), atol)')
 end
 
 
@@ -206,8 +206,8 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondRaw)
     P_sym  = P *  sym_basis *  sym_basis'
     P_asym = P * asym_basis * asym_basis'
 
-    acc_sym = SVector{9, Float64}[]
-    acc_asym = SVector{9, Float64}[]
+    acc_sym = Vector{Float64}[]
+    acc_asym = Vector{Float64}[]
 
     # If any "reference" basis vectors are eigenvalues of P_sym with eigenvalue
     # 1, use them as outputs, and remove them from P_sym

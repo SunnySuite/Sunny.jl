@@ -134,7 +134,7 @@ end
 # Construct spin operators, i.e. generators of su(2), of dimension N
 function spin_matrices(N::Int)
     if N == 0
-        return zeros(ComplexF64,0,0), zeros(ComplexF64,0,0), zeros(ComplexF64,0,0)
+        return fill(zeros(ComplexF64,0,0), 3)
     end
 
     S = (N-1)/2
@@ -144,7 +144,7 @@ function spin_matrices(N::Int)
     Sx = diagm(1 => off, -1 => off)
     Sy = diagm(1 => -im*off, -1 => +im*off)
     Sz = diagm(S .- (0:N-1))
-    return SVector{3}(Sx, Sy, Sz)
+    return [Sx, Sy, Sz]
 end
 
 # Accumulates BᵅSᵅ into N×N matrix `acc`.
