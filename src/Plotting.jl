@@ -239,7 +239,7 @@ function plot_spins(sys::SpinSystem; linecolor=:grey, arrowcolor=:red,
 
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(view(sys.positions,:))
+    pts = GLMakie.Point3f0.(view(positions(sys),:))
     vecs = GLMakie.Vec3f0.(view(sys.dipoles,:))
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -269,8 +269,8 @@ function anim_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(sys.positions)
-    vecs = GLMakie.Observable(GLMakie.Vec3f0.(sys.dipoles))
+    pts = GLMakie.Point3f0.(view(positions(sys),:))
+    vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
     GLMakie.arrows!(
         ax, pts, vecs;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
@@ -302,8 +302,8 @@ function live_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(sys.positions)
-    vecs = GLMakie.Observable(GLMakie.Vec3f0.(sys.dipoles))
+    pts = GLMakie.Point3f0.(view(positions(sys),:))
+    vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles),:))
     GLMakie.arrows!(
         ax, pts, vecs;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
@@ -334,8 +334,8 @@ function live_langevin_integration(
     arrowlength=0.2, λ=0.1, framerate=30, kwargs...
 )
     fig, ax = _setup_scene()
-    pts = GLMakie.Point3f0.(sys.positions)
-    vecs = GLMakie.Observable(GLMakie.Vec3f0.(sys.dipoles))
+    pts = GLMakie.Point3f0.(view(positions(sys),:))
+    vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
     
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -347,7 +347,7 @@ function live_langevin_integration(
     integrator = LangevinHeunP(sys, kT, λ)
 
     while true
-        for step in 1:steps_per_frame
+        for _ in 1:steps_per_frame
             step!(integrator, Δt)
         end
         vecs[] = GLMakie.Vec3f0.(sys.dipoles)

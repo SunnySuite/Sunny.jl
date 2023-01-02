@@ -62,7 +62,7 @@ function SFTrajectory(sys::SpinSystem{N};
     integrator = ImplicitMidpoint(Δt)
 
     # Create a shallow copy of the spin system
-    sys_new = SpinSystem(sys.crystal, sys.size, sys.hamiltonian, sys.positions,
+    sys_new = SpinSystem(sys.crystal, sys.size, sys.hamiltonian,
         copy(sys.dipoles), copy(sys.coherents), sys.dipole_buffers, sys.coherent_buffers,
         sys.ℌ_buffer, sys.site_infos, sys.consts, sys.rng)
 
