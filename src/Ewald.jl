@@ -13,8 +13,8 @@ struct EwaldCPU <: AbstractInteractionCPU
     ift_plan :: rIFTPlan
 end
 
-function EwaldCPU(cryst::Crystal, sz::NTuple{3,Int}, site_infos::Vector{SiteInfo}, consts::PhysicalConsts)
-    (; μ0, μB) = consts
+function EwaldCPU(cryst::Crystal, sz::NTuple{3,Int}, site_infos::Vector{SiteInfo}, units::PhysicalConsts)
+    (; μ0, μB) = units
     nb = nbasis(cryst)
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(cryst, sz)
     # Scale interaction tensors by pair of g tensors for each site

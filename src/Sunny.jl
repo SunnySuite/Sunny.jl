@@ -42,7 +42,7 @@ export print_site, print_bond, print_symmetry_table, print_mutually_allowed_coup
 export print_suggested_frame, print_anisotropy_as_stevens
 
 include("Units.jl")
-export meV_per_K, CONSTS_ONES, CONSTS_meV
+export meV_per_K, Units
 
 include("Util.jl")
 

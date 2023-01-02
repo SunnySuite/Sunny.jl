@@ -31,8 +31,7 @@ for the given `crystal` and `latsize`.
 Note that `site_infos` must be complete when passed to this constructor.
 """
 function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
-                    site_infos::Vector{SiteInfo};
-                    consts=PhysicalConsts)
+                    site_infos::Vector{SiteInfo}; units=PhysicalConsts)
     ext_field   = nothing
     heisenbergs = Vector{HeisenbergCPU}()
     diag_coups  = Vector{DiagonalCouplingCPU}()
@@ -45,11 +44,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     for int in ints
         # TODO: Handle all of the ifs with multiple dispatch instead?
         if isa(int, ExternalField)
-            if isnothing(ext_field)
-                ext_field = ExternalFieldCPU(int, site_infos; consts.μB)
-            else
-                ext_field.Bgs .+= ExternalFieldCPU(int, site_infos; consts.μB).Bgs
-            end
+            ext_field = ExternalFieldCPU(int, site_infos; units.μB)
         elseif isa(int, QuadraticInteraction)
             validate_quadratic_interaction(int, crystal)
             int_impl = convert_quadratic(int, crystal, site_infos)
