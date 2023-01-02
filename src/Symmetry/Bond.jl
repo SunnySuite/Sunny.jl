@@ -17,8 +17,8 @@ struct BondRaw
 end
 
 function Bond(cryst::Crystal, b::BondRaw)
-    i = position_to_index(cryst, b.ri)
-    j = position_to_index(cryst, b.rj)
+    i = position_to_index(cryst, b.ri)::Int
+    j = position_to_index(cryst, b.rj)::Int
     ri = cryst.positions[i]
     rj = cryst.positions[j]
     n = round.(Int, (b.rj-b.ri) - (rj-ri))
