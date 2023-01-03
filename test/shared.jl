@@ -15,17 +15,22 @@ function diamond_test_exchanges()
     # Arbitrary Heisenberg
     heisen = heisenberg(rand(), Bond(1, 3, [0, 0, 0]))
 
-    # This bond has allowed J of form [A A B] along diagonal
-    diag_coup_J    = [rand(), 0.0, rand()]
-    diag_coup_J[2] = diag_coup_J[1]
-    diag_int       = exchange(diagm(diag_coup_J), Bond(1, 2, [0, 0, 0]))
+    # General exchange
+    A = 0.363
+    B = -0.642
+    C = 0.951
+    D = -0.425
+    gen_coup_J = [A C -D
+                  C A -D
+                  D D  B]
+    gen_int = exchange(gen_coup_J, Bond(1, 2, [0, 0, 0]))
 
-    # Construct random matrix of allowed form on Bond(1, 4, [0, 0, 0])
-    A, B, C, D = rand(), rand(), rand(), rand()
-    gen_coup_J = [A D C; D A C; C C B]
-    gen_int = exchange(gen_coup_J, Bond(1, 4, [0, 0, 0]))
+    # Diagonal exchange
+    A = 0.521
+    B = 0.190
+    diag_int = exchange(diagm([A, A, B]), Bond(1, 4, [0, 0, 0]))
 
-    return [heisen, diag_int, gen_int]
+    return [heisen, gen_int, diag_int]
 end
 
 function produce_example_system()

@@ -7,13 +7,11 @@
         latsize = (4, 4, 4)
         exchange_ints = diamond_test_exchanges()
 
-        # Note: These tests rely on diamond_test_exchanges outputting
-        #  the interactions in the order
-        #  [heisenberg, on_site [heisen], diagonal, general]
+        # Note: order below must be matched to that in shared.jl
         correct_types = [
             Sunny.HeisenbergCPU,
+            Sunny.GeneralCouplingCPU,
             Sunny.DiagonalCouplingCPU,
-            Sunny.GeneralCouplingCPU
         ]
 
         for (int, type) in zip(exchange_ints, correct_types)
