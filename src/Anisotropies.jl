@@ -35,7 +35,7 @@ function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::Dipo
 end
 
 
-function energy_sun_aniso(coherents::Array{CVec{N}, 4}, aniso::Array{ComplexF64, 3}, spin_mags::Vector{Float64}) where {N}
+function energy_sun_aniso(coherents::Array{CVec{N}, 4}, aniso::Array{ComplexF64, 3}, spin_mags::Vector{Float64}) where N
     E = 0.0
     latsize = size(coherents)[1:3]
     nbasis = size(coherents, 4)

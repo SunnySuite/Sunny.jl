@@ -398,7 +398,7 @@ end
 Filters sublattices of a `Crystal` by atom `types`, keeping the space group
 unchanged.
 """
-function subcrystal(cryst::Crystal, types::Vararg{String, N}) where {N}
+function subcrystal(cryst::Crystal, types::Vararg{String, N}) where N
     for s in types
         if !(s in cryst.types)
             error("types string '$s' is not present in crystal.")
@@ -415,7 +415,7 @@ end
 Filters sublattices of `Crystal` by equivalence `classes`, keeping the space
 group unchanged.
 """
-function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where {N}
+function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     for c in classes
         if !(c in cryst.classes)
             error("Class '$c' is not present in crystal.")

@@ -157,16 +157,18 @@ end
     (a - ((Z' * a) * Z))  
 end
 
-@generated function apply_ℌ!(rhs::Array{CVec{N}, 4}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, integrator, sys)  where {N}
+@generated function apply_ℌ!(rhs::Array{CVec{N}, 4}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, integrator, sys)  where N
     if integrator <: LangevinHeunP
         scale_expr = :(site_infos[a].spin_rescaling)
     else
         scale_expr = :(1.0)
     end
 
+    # TODO: KB wants to benchmark and possibly clean up. Perhaps we should
+    # always use second branch. Replace accum_spin_matrices!() with
+    # apply_spin_matrices!(), and then parallelize/accumulate the Λ Z products.
     if N < 6 
         S = spin_matrices(N) .|> SMatrix{N, N, ComplexF64, N*N}
-
         return quote
             (; hamiltonian, site_infos) = sys
             na, nb, nc, natoms = size(sys.coherents)
@@ -183,24 +185,24 @@ end
             end
             nothing
         end
-    end
-
-    return quote
-        (; hamiltonian, site_infos) = sys
-        ℌ = sys.ℌ_buffer
-        na, nb, nc, natoms = size(sys.coherents)
-        Λs = hamiltonian.sun_aniso
-        rhs′ = reinterpret(reshape, ComplexF64, rhs) 
-        @inbounds for a in 1:natoms
-            κ = $scale_expr 
-            Λ = @view(Λs[:,:,a])
-            for k in 1:nc, j in 1:nb, i in 1:na 
-                @. ℌ = κ * Λ 
-                accum_spin_matrices!(ℌ, -κ*B[i,j,k,a]) 
-                mul!(@view(rhs′[:,i,j,k,a]), ℌ, Z[i,j,k,a])
+    else
+        return quote
+            (; hamiltonian, site_infos) = sys
+            ℌ = sys.ℌ_buffer
+            na, nb, nc, natoms = size(sys.coherents)
+            Λs = hamiltonian.sun_aniso
+            rhs′ = reinterpret(reshape, ComplexF64, rhs) 
+            @inbounds for a in 1:natoms
+                κ = $scale_expr 
+                Λ = @view(Λs[:,:,a])
+                for k in 1:nc, j in 1:nb, i in 1:na 
+                    @. ℌ = κ * Λ 
+                    accum_spin_matrices!(ℌ, -κ*B[i,j,k,a]) 
+                    mul!(@view(rhs′[:,i,j,k,a]), ℌ, Z[i,j,k,a])
+                end
             end
+            nothing
         end
-        nothing
     end
 end
 

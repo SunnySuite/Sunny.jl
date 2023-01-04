@@ -171,7 +171,7 @@ function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Cryst
 end
 
 
-function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU) :: Float64 where {N}
+function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU) :: Float64 where N
     E = 0.0
     # NOTE: These are broken up separately due to fears of dispatch costs being large.
     #        However, this has never been profiled and is maybe worth looking into.
