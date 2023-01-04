@@ -159,7 +159,7 @@ get_system(sampler::IsingSampler) = sampler.sys
 
 Random.rand!(sampler::MetropolisSampler) = rand!(sampler.sys)
 Random.rand!(sampler::MeanFieldSampler) = rand!(sampler.sys)
-Random.rand!(sampler::IsingSampler) = rand!(sampler.sys)
+Random.rand!(sampler::IsingSampler) = randflips!(sampler.sys)
 
 
 """ The following functions have been added or modified to permit code reuse
