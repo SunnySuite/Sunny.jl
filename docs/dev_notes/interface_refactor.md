@@ -1,105 +1,150 @@
 # Sunny interface refactor notes
 
-## SpinSystem
+## Miscellaneous
+
+* Rename `SpinSystem` to `System`
+
+* Replace `sys.lattice` with `positions(sys)`.
+
+## Instantiate `System`
+
+Construct a spin system using
 
 ```julia
-struct SpinSystem
-    crystal::Crystal
-    dims::(Int,Int,Int)
-    ...
-end
-
-sys.lattice -> sys.position
+sys = System(crystal, dims, siteinfos; SUN=true)
 ```
 
-Basic idea: adopt a mutable interface with interactions added successively rather than all at once.
+SU(N) mode is enabled by default. One can optionally restrict to dipole-only model by setting `SUN=false`.
 
-### Instantiation
-The information necessary to instantiate a SpinSystem will then consist of a `Crystal`, lattice dimensions, and local Hilbert space information. It is also necessary to decalare at this point whether to use SU(_N_) mode or not. Creating a `SpinSystem` would then look like this:
-
-```julia
-sys = SpinSystem(crystal, dims, siteinfos; SUN_mode=false)
-```
-
-The local Hilbert space information, what we have been calling, `siteinfos` contains: the g-factor, S (the total angular momentum). Note that any information about the ion for form factor corrections will be moved to the StructureFactor portion of the code.
+The parameter `siteinfos` is a list of `SiteInfo` objects,
 
 ```julia
 SiteInfo(site::Int; S=1/2, g=2)
 ```
 
-If `SUN_mode=false`, then the `S` values are used as `spin_rescaling` values. If `SUN_mode=true`, then the largest `S` in the list is converted into an `N`, with `N = 2S + 1` (probably converting to an `Int` with a tolerance check). The resulting `N` will be used for all sites, but the appropriate `spin_rescaling` will be calculated for the remaining sites in case not all sites.
+one for each symmetry-distinct `site`. The parameter `S` gives the total angular momentum (units of $\hbar$), and `g` is a scalar or tensor that determines conversion from angular momentum to magnetic moment. Information about form factor corrections has been moved to the StructureFactor portion of the code.
 
-For example, suppose there are two symmetry inequivalent sites, one with `S=1` and the other with `S=1/2`. In dipole mode, the `spin_rescaling` value for each site will simply be set to `1` and `1/2` respectively. In SU(_N_) mode, `N` will be set to `3` for all sites, but `spin_rescaling` will be set to `1` for the `S=1` site and to `1/2` for the `S=1/2` site.
-
-
-## Lattice
+If `SUN` is false then `siteinfo.S` determines the norm of dipoles in `sys.dipoles` corresponding to site `siteinfo.i`. If `SUN=true`, then all $S$ must be the same, and the size of each local Hilbert space is $N = 2S + 1$.
 
 
+## Setting interactions
 
-### Adding interactions
-
-The Hamiltonian would then be specified by successively adding interactions after creation of the `SpinSystem`:
+Terms in the Hamiltonian can be added mutably to an existing `System`. These are applied globally,
 
 ```julia
-add_exchange!(sys::SpinSystem, b::Bond, J)      # where J is a 3x3 matrix
-add_anisotropy!(sys::SpinSystem, atom::Int, op) # where op is an abstract operator
-```
+# Zeeman coupling to external field.
+set_external_field!(sys::System, h::Vec3)
 
-Global Zeeman coupling
-```julia
-set_external_field!(sys::SpinSystem, H)         # where H is a 3-vector
-```
-
-Enable dipole-dipole interactions globally
-```julia
-enable_dipole_dipole!(sys::SpinSystem; kmax=???, eta=???)
+# Enable or disable long-range dipole-dipole interactions.
+enable_dipole_dipole!(sys)
 disable_dipole_diople!(sys)
 ```
 
-### Preparing for inhomogeneity
-
-Local applied field,
+Exchange interactions and single-ion anisotropy are propagated to symmetry equivalent bonds and sites,
 ```julia
-set_local_field!(sys, i, j, k, atom, H)
+# general 3x3 exchange matrix on a Bond(i, j, cell_offset)
+set_exchange!(sys::System, b::Bond, J::Mat3)
+
+# biquadratic scalar interaction
+set_biquadratic_scalar!(sys::System, b::Bond, J::Float64)
+
+# single-ion anisotropy where op is an abstract operator
+set_anisotropy!(sys::System, site::Int, op::SymbolicOperator)
 ```
 
-Local exchange interaction
+## Inhomogeneity and chemical disorder
+
+Inhomogeneity can be introduced using,
+
 ```julia
-set_local_exchange!(sys, i, j, k, atom1, ni, nj, nk, atom2, J)
+# Set external field at single spin `idx`
+set_external_field!(sys, idx::SpinIndex, h::Vec3)
+
+# Introduce a vacancy at single spin `idx`, which effectively rescales the
+# spin magnitude to zero.
+set_vacancy!(sys, idx::SpinIndex)
+```
+
+As a shorthand, we use the type alias
+```julia
+# The first three indices label the unit cell, and the last index labels
+# the site within a unit cell.
+const SpinIndex = CartesianIndex{4}
+```
+
+It is also possible to set inhomogeneous exchange interactions,
+
+```julia
+# First, we must switch to "inhomogeneous" mode. This will slow down
+# simulations, and cannot be undone for a given System.
+enable_inhomogeneous_exchange!(sys)
+
+# The result is inherited from the original, "homogeneous" system.
+get_exchange!(sys, idx1::SpinIndex, idx2::SpinIndex, J::Mat3)
+
+# Can override exchange matrices on individual bonds.
+set_exchange!(sys, idx1::SpinIndex, idx2::SpinIndex, J::Mat3)
 ```
 
 
-## Integrators/Samplers -> Dynamics
+## Structure factor
 
-
-abstract type Dynamics
-
-struct LangevinIntegrator <: Dynamics
-    Δt::Float64
-    λ::Float64
-    T::Float64
-end
-
-struct SphericalIntegrator <: Dynamics
-    Δt::Float64
-end
-
-struct MonteCarlo <: Dynamics
-    ...
-end
-
-
-```julia
- step!(sys, dynamics)
-```
-
-In the case of MonteCarlo dynamics, the global energy and magnetization will be updated in sys, and a flag will be set to true indicating that that data is reliable. For Langevin samples, the flag will be set to false.
-
-## StructureFactor
 
 ```julia
 add_trajectory!(sf, sys)
 ```
 
-This will modify sf but not sys. It will create a "clone" of sys which contains a new configuration array for updating the spins along the trajectory. In the implementation, some buffers in sf should be allocated ahead of time so that add_trajectory!() need not allocate memory.
+This will run a dynamical trajectory of a copy of the system `sys`, and accumulate data into `sf`. Allocations are avoided by using buffer space in `sys`.
 
+_**David: Please describe the rest of the new API**_
+
+
+# Internal details
+
+The following internal changes will be made. These should not be user facing.
+
+## Dynamics
+
+New types:
+
+```julia
+struct LangevinHeunP
+    T::Float64
+    Δt::Float64
+    λ::Float64
+end
+
+struct ImplicitMidpint
+    Δt::Float64
+    atol :: Float64
+end
+```
+
+One integration time-step:
+
+```julia
+ step!(sys, dynamics)
+```
+
+## Sampling
+
+This interface is still being evolve. There is currently also a notion of `AbstractSampler` which provides the `sample!(...)` method. For example,
+
+```julia
+mutable struct LangevinSampler <: AbstractSampler
+    integrator :: LangevinHeunP
+    nsteps     :: Int
+end
+```
+
+is distinguished from `LangevinHeunp` in that one call to `sample!(sys, ::LangevinSampler)` corresponds to `nsteps` calls to `step!(sys,::LangevinHeunP)`.
+
+Something similar will be needed for Monte Carlo samplers, e.g.
+
+```julia
+struct MonteCarlo
+    # ???
+end
+```
+
+Here `sample!(...)` will track global energy and magnetization quantities in `sys`.
