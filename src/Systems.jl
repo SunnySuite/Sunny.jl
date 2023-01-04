@@ -81,7 +81,7 @@ function set_dipole!(sys::SpinSystem{N}, idx::CartesianIndex{4}, dipole) where N
     rescaling = sys.site_infos[idx[4]].spin_rescaling
     @assert norm(dipole) ≈ rescaling * (N == 0 ? 1 : (N-1)/2)
     sys.dipoles[idx] = dipole
-    sys.coherents[idx] = get_coherent_from_dipole(dipole, Val(N))
+    sys.coherents[idx] = ket_from_dipole(dipole, Val(N))
 end
 
 function set_coherent!(sys::SpinSystem{N}, idx::CartesianIndex{4}, Z) where N
@@ -113,7 +113,7 @@ function get_coherent_buffers(sys::SpinSystem, numrequested)
 end
 
 
-function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem{N}) where {N}
+function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem{N}) where N
     sys_type = N > 0 ? "SU($N)" : "Dipolar"
     printstyled(io, "Spin System [$sys_type]\n"; bold=true, color=:underline)
     println(io, "Basis $(nbasis(sys.crystal)), Lattice dimensions $(sys.size)")

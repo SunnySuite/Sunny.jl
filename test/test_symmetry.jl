@@ -151,9 +151,13 @@ end
 
         # Test dipole -> ket -> dipole round trip
         n = S₀ * normalize(randn(Sunny.Vec3))
-        ψ = Sunny.get_coherent_from_dipole(n, Val(N))
-        @test Sunny.expected_spin(ψ) ≈ n
-    end    
+        Z = Sunny.ket_from_dipole(n, Val(N))
+        @test Sunny.expected_spin(Z) ≈ n
+
+        # Test time reversal operator
+        Z = randn(Sunny.CVec{N})
+        @test Sunny.flip_ket(Z) ≈ exp(-im*π*S[2]) * conj(Z)
+    end
 end
 
 @testitem "Sparse B⋅𝐒" begin
