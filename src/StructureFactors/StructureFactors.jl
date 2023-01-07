@@ -3,7 +3,6 @@ struct SFData
     crystal     :: Crystal           
     Δω          :: Float64                                 # Energy step size
     idxinfo     :: SortedDict{CartesianIndex{2}, Int64}    # (α, β) to save from 𝒮^{αβ}(q, ω)
-    site_infos  :: Vector{SiteInfo}                        # For form factor information
 end
 
 struct SFTrajectory{N}
@@ -63,8 +62,8 @@ function SFTrajectory(sys::SpinSystem{N};
 
     # Create a shallow copy of the spin system
     sys_new = SpinSystem(sys.crystal, sys.size, sys.hamiltonian,
-        copy(sys.dipoles), copy(sys.coherents), sys.dipole_buffers, sys.coherent_buffers,
-        sys.ℌ_buffer, sys.site_infos, sys.units, sys.rng)
+        copy(sys.dipoles), copy(sys.coherents), sys.κs, sys.gs,
+        sys.dipole_buffers, sys.coherent_buffers, sys.units, sys.rng)
 
     return SFTrajectory(sys_new, traj, ops, measperiod, gfactor, dipolemode, integrator)
 end
@@ -100,7 +99,7 @@ function SFData(sys::SpinSystem, sftraj::SFTrajectory;
     data = zeros(ComplexF64, length(matrix_elems), qa, qb, qc, ns, ns, numω)
     Δω = 2π / (sftraj.integrator.Δt*sftraj.measperiod*numω)
 
-    return SFData(data, sys.crystal, Δω, idxinfo, sys.site_infos) 
+    return SFData(data, sys.crystal, Δω, idxinfo)
 end
 
 

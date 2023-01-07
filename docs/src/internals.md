@@ -68,7 +68,7 @@ and `src/PairInteractions.jl`.
 
 **(4)** Edit the `HamiltonianCPU` struct (in `Hamiltonian.jl`) to store a `Vector{MyIntInternal}`,
     and to call your defined `energy` and `_accum_field!` functions within
-    the existing `energy(spins, ℋ::HamiltonianCPU)` and `field!(B, spins, ℋ)` functions.
+    the existing `energy(spins, ℋ::HamiltonianCPU)` and `set_forces!(B, spins, ℋ)` functions.
 
 **(5)** (Optional, for Metropolis sampling support) In `Metropolis.jl`,
 edit `local_energy_change(sys, idx, newspin)` to compute the change in energy from your

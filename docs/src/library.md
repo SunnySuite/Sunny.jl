@@ -4,97 +4,34 @@ This page describes the public types and functions exported by Sunny. This docum
 
 Typical Sunny usage will involve the following steps:
 
-1. Create a [`Crystal`](@ref), either by providing explicit geometry information or by loading a `.cif` file.
+1. Create a [`Crystal`](@ref), either by providing explicit geometry information
+   or by loading a `.cif` file.
 2. Perform symmetry analysis using [`print_symmetry_table`](@ref).
-3. Define a list of [Interactions](@ref), i.e., terms to be included in the Hamiltonian.
-4. Specify information for each site through a [`SiteInfo`](@ref) object that specifies, e.g., local spin magnitude and ``g``-tensor.
-5. Assemble a [`SpinSystem`](@ref) using the crystal, the interactions, the dimensions of the simulation box (in unit cells), and the site information.
-6. Perform some flavor of Monte Carlo simulation, which is used to sample equilibrated spin configurations.
-7. Measure the static or dynamical structure factor. For this, Sunny
-   provides high-level helper functions [`dynamic_structure_factor`](@ref) and
-   [`static_structure_factor`](@ref). For more documentation, see [Structure factor
-   calculations](@ref).
+3. Define a list of [`Interactions`](@ref), i.e., terms to be included in the
+   Hamiltonian.
+4. Specify information for each site through a [`SiteInfo`](@ref) object that
+   specifies, e.g., local spin magnitude and ``g``-tensor.
+5. Assemble a [`SpinSystem`](@ref) using the crystal, the interactions, the
+   dimensions of the simulation box (in unit cells), and the site information.
+6. Perform some flavor of Monte Carlo simulation, which is used to sample
+   equilibrated spin configurations. The [`LangevinSampler`](@ref) uses a
+   continuous dynamics that can very efficiently handle long-range dipole-dipole
+   interactions. The [`MetropolisSampler`](@ref) may be more effective in the
+   presence of strong anisotropy (e.g. the Ising limit) because it employs local
+   moves.
+7. Measure the static or dynamical structure factor. For details, see the page
+   [Structure Factor Calculations](@ref)
 
 
-## Crystal definition
+## Function list
 
-```@docs
-Crystal
-Crystal(lat_vecs, positions; types, symprec)
-Crystal(::AbstractString; symprec)
-subcrystal
-nbasis
-cell_volume
-lattice_vectors
-lattice_params
+```@index
 ```
 
-## Symmetry analysis
-
-```@docs
-Bond
-displacement
-distance
-coordination_number
-print_site
-print_bond
-print_symmetry_table
-print_anisotropy_as_stevens
-reference_bonds
-all_symmetry_related_bonds
-all_symmetry_related_bonds_for_atom
-all_symmetry_related_couplings
-all_symmetry_related_couplings_for_atom
+```@autodocs
+Modules = [Sunny]
 ```
 
-## Interactions
-
-```@docs
-anisotropy
-heisenberg
-dm_interaction
-exchange
-external_field
-dipole_dipole
-```
-
-## System definition
-
-```@docs
-SpinSystem
-SpinSystem(::Crystal, ::Vector{<:Sunny.AbstractInteraction}, latsize, ::Vector{SiteInfo}; μB, μ0)
-SiteInfo
-rand!(::SpinSystem{N}) where N
-randflips!
-energy
-field
-field!
-```
-
-## Sampling
-
-```@docs
-LangevinSampler
-MetropolisSampler
-IsingSampler
-set_temp!
-sample!
-thermalize!
-anneal!
-```
-
-## Structure factor calculations
-
-For extended details on what these functions compute, and how they do it,
-see the page [Structure Factor Calculations](@ref)
-
-```@docs
-StructureFactor
-Sunny.update!
-apply_dipole_factor
-dynamic_structure_factor
-static_structure_factor
-```
 
 <!-- 
 ## Plotting
@@ -111,16 +48,3 @@ live_integration
 live_langevin_integration
 ```
 -->
-
-## Integrators
-
-These functions are not intended to be used by typical users, who instead
-should instead perform dynamics either using [`LangevinSampler`](@ref) or implicitly in [Structure Factor Calculations](@ref). However, advanced users and developers may want direct access to an interface to perform dynamics
-integrations.
-
-```@docs
-HeunP
-LangevinHeunP
-SphericalMidpoint
-evolve!
-```

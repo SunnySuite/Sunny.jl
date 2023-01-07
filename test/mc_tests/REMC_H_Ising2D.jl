@@ -29,13 +29,16 @@ function create_system(α::Float64)
     extent = (120, 120, 1)
     g = 1 / Sunny.BOHR_MAGNETON
     system = SpinSystem(crystal, interactions, extent, [SiteInfo(1; g)])
-    
+
+    for idx = CartesianIndices(sys.dipoles)
+        rand(sys.rng, Bool) && sys.dipoles[idx] *= -1
+    end
+
     return system
 end
 
 α = H
-system = create_system(α)   
-randflips!(system)
+system = create_system(α)
     
 # Make replica for REMC
 replica = Replica(IsingSampler(system, kT, 1), α)

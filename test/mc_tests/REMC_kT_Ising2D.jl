@@ -28,7 +28,9 @@ crystal = Crystal(lvecs, bvecs)
 extent = (20, 20, 1)
 g = 1 / Sunny.BOHR_MAGNETON
 system = SpinSystem(crystal, interactions, extent, [SiteInfo(1,1,g)])
-randflips!(system)
+for idx = CartesianIndices(sys.dipoles)
+    rand(sys.rng, Bool) && sys.dipoles[idx] *= -1
+end
     
 # Make replica for REMC
 α = 1/kT

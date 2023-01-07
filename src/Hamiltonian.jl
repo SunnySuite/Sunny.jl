@@ -18,36 +18,26 @@ mutable struct HamiltonianCPU
     ewald           :: Union{Nothing, EwaldCPU}
     dipole_aniso    :: Union{Nothing, DipoleAnisotropyCPU}
     sun_aniso       :: Array{ComplexF64, 3}
-    spin_mags       :: Vector{Float64}  # Keeping this for SU(N) aniso scaling
 end
 
-"""
-HamiltonianCPU(ints, crystal, site_infos::Vector{SiteInfo})
 
-Construct a `HamiltonianCPU` from a list of interactions, converting
-each of the interactions into the proper backend type specialized
-for the given `crystal` and `latsize`.
-
-Note that `site_infos` must be complete when passed to this constructor.
-"""
 function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
-                    site_infos::Vector{SiteInfo}; units=PhysicalConsts)
+                       κs, gs, N; units=PhysicalConsts)
     ext_field   = nothing
     heisenbergs = Vector{HeisenbergCPU}()
     diag_coups  = Vector{DiagonalCouplingCPU}()
     gen_coups   = Vector{GeneralCouplingCPU}()
     biq_coups   = Vector{BiquadraticCPU}()
     ewald       = nothing
-    spin_mags   = [site.spin_rescaling for site in site_infos]
 
     anisos = Vector{OperatorAnisotropy}()
     for int in ints
         # TODO: Handle all of the ifs with multiple dispatch instead?
         if isa(int, ExternalField)
-            ext_field = ExternalFieldCPU(int, site_infos; units.μB)
+            ext_field = ExternalFieldCPU(int, gs; units.μB)
         elseif isa(int, QuadraticInteraction)
             validate_quadratic_interaction(int, crystal)
-            int_impl = convert_quadratic(int, crystal, site_infos)
+            int_impl = convert_quadratic(int, crystal)
             if isa(int_impl, HeisenbergCPU)
                 push!(heisenbergs, int_impl)
             elseif isa(int_impl, DiagonalCouplingCPU)
@@ -58,25 +48,23 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
                 error("Quadratic interaction failed to convert to known backend type.")
             end
         elseif isa(int, BiQuadraticInteraction)
-            if first(site_infos).N > 0
+            if N != 0
                 println("FIXME: BiQuadratic interactions are INCORRECT in SU(N) mode.")
             end
-            int_imp2 = convert_biquadratic(int, crystal, site_infos)
+            int_imp2 = convert_biquadratic(int, crystal)
             push!(biq_coups, int_imp2)
         elseif isa(int, OperatorAnisotropy)
             push!(anisos, int)       
-        elseif isa(int, DipoleDipole) 
-            error("Handle dipole-dipole differently. FIXME.")
         else
             error("$(int) failed to convert to known backend type.")
         end
     end
 
-    (dipole_anisos, sun_anisos) = convert_anisotropies(anisos, crystal, site_infos)
+    (dipole_anisos, sun_anisos) = convert_anisotropies(anisos, crystal, κs, N)
 
     return HamiltonianCPU(
         ext_field, heisenbergs, diag_coups, gen_coups, biq_coups, ewald,
-        dipole_anisos, sun_anisos, spin_mags
+        dipole_anisos, sun_anisos
     )
 end
 
@@ -113,11 +101,7 @@ function validate_quadratic_interaction(int::QuadraticInteraction, crystal::Crys
     =#
 end
 
-function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Crystal, site_infos::Vector{SiteInfo})
-    # TODO: Lift N to the level of SpinSystem?
-    @assert allequal(si.N for si = site_infos)
-    N = site_infos[1].N
-
+function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Crystal, κs::Vector{Float64}, N::Int)
     # Remove anisotropies that are zero
     anisos = filter(a -> !iszero(a.op), anisos)
     
@@ -125,6 +109,7 @@ function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Cryst
     SUN_ops = zeros(ComplexF64, N, N, nbasis(crystal))
     isempty(anisos) && return (nothing, SUN_ops)
     
+    # KBTODO: Rewrite using logic in SiteInfo.jl
     # Find all symmetry-equivalent anisotropies
     anisos_expanded = map(anisos) do a
         # Concrete representation of anisotropy operator
@@ -139,8 +124,8 @@ function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Cryst
         # associated operators for op
         all_symmetry_related_anisotropies(crystal, a.site, op)
     end
-    sites = reduce(vcat, (a[1] for a = anisos_expanded))
-    ops   = reduce(vcat, (a[2] for a = anisos_expanded))
+    sites = reduce(vcat, (a[1] for a in anisos_expanded))
+    ops   = reduce(vcat, (a[2] for a in anisos_expanded))
 
     if !allunique(sites)
         error("Cannot specify anisotropies for two symmetry equivalent sites.")
@@ -150,9 +135,9 @@ function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Cryst
         c2 = Vector{Float64}[]
         c4 = Vector{Float64}[]
         c6 = Vector{Float64}[]
-        for (site, op) = zip(sites, ops)
-            S = site_infos[site].spin_rescaling
+        for (site, op) in zip(sites, ops)
             # Consider checking for zero and pushing empty arrays?
+            S = κs[site]
             c = operator_to_classical_stevens_coefficients(op, S)
             push!(c2, c[2])
             push!(c4, c[4])
@@ -171,7 +156,7 @@ function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Cryst
 end
 
 
-function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU) :: Float64 where N
+function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU, κs::Vector{Float64}) :: Float64 where N
     E = 0.0
     # NOTE: These are broken up separately due to fears of dispatch costs being large.
     #        However, this has never been profiled and is maybe worth looking into.
@@ -197,7 +182,7 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Hami
         E += energy(dipoles, ℋ.dipole_aniso)
     end
     if N > 0
-        E += energy_sun_aniso(coherents, ℋ.sun_aniso, ℋ.spin_mags)
+        E += energy_sun_aniso(coherents, ℋ.sun_aniso, κs)
     end
     return E
 end
@@ -208,61 +193,61 @@ defined as:
 
 ``𝐁_i = -∇_{𝐬_i} ℋ ``.
 """
-function field!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
+function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     fill!(B, zero(Vec3))
     # NOTE: These are broken up separately due to fears of dispatch costs being large.
     #        However, this has never been profiled and is maybe worth looking into.
     if !isnothing(ℋ.ext_field)
-        _accum_neggrad!(B, ℋ.ext_field)
+        accum_force!(B, ℋ.ext_field)
     end
     for heisen in ℋ.heisenbergs
-        _accum_neggrad!(B, dipoles, heisen)
+        accum_force!(B, dipoles, heisen)
     end
     for diag_coup in ℋ.diag_coups
-        _accum_neggrad!(B, dipoles, diag_coup)
+        accum_force!(B, dipoles, diag_coup)
     end
     for gen_coup in ℋ.gen_coups
-        _accum_neggrad!(B, dipoles, gen_coup)
+        accum_force!(B, dipoles, gen_coup)
     end
     for biq_coup in ℋ.biq_coups
-        _accum_neggrad!(B, dipoles, biq_coup)
+        accum_force!(B, dipoles, biq_coup)
     end
     if !isnothing(ℋ.ewald)
-        _accum_neggrad!(B, dipoles, ℋ.ewald)
+        accum_force!(B, dipoles, ℋ.ewald)
     end
     if !isnothing(ℋ.dipole_aniso)
-        _accum_neggrad!(B, dipoles, ℋ.dipole_aniso)
+        accum_force!(B, dipoles, ℋ.dipole_aniso)
     end
 end
 
 """
 Calculates the local field, `Bᵢ`, for a single site, `i`:
 
-``𝐁_i = -∇_{𝐬_i} ℋ ``.
+``𝐁_i = -∇_{𝐬_i} E ``.
 
 This is useful for some sampling methods.
 """
-function field(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, i::CartesianIndex) 
+function force_at(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, idx::CartesianIndex{4}) 
     B = zero(Vec3)
-    _, site = splitidx(i) 
+    site = idx[4]
 
     if !isnothing(ℋ.ext_field)
         B += ℋ.ext_field.effBs[site] 
     end
     for heisen in ℋ.heisenbergs
-        B += _neggrad(dipoles, heisen, i)
+        B += force_at(dipoles, heisen, idx)
     end
     for diag_coup in ℋ.diag_coups
-        B += _neggrad(dipoles, diag_coup, i)
+        B += force_at(dipoles, diag_coup, idx)
     end
     for gen_coup in ℋ.gen_coups
-        B += _neggrad(dipoles, gen_coup, i)
+        B += force_at(dipoles, gen_coup, idx)
     end
     for biq_coup in ℋ.biq_coups
-        B += _neggrad(dipoles, biq_coup, i)
+        B += force_at(dipoles, biq_coup, idx)
     end
     if !isnothing(ℋ.dipole_aniso)
-        error("Calling `field()` for a single site with anisotropy. This is probably an error. Please contact Sunny developers if you have a valid use-case.")
+        error("Calling `force_at()` for a single site with anisotropy. This is probably an error. Please contact Sunny developers if you have a valid use-case.")
     end
     if !isnothing(ℋ.ewald)
         error("Local energy changes not implemented yet for dipole interactions")

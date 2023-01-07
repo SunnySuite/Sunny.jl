@@ -122,26 +122,7 @@ function anisotropy(op::DP.AbstractPolynomialLike, site, label="OperatorAniso")
 end
 
 
-"""
-    quadratic_anisotropy(J, site, label="Anisotropy")
-
-Creates a quadratic single-ion anisotropy,
-```math
-    ∑_i 𝐒_i^T J^{(i)} 𝐒_i
-```
-where ``i`` runs over all sublattices that are symmetry equivalent to `site`,
-and ``J^{(i)}`` is the covariant transformation of the ``3 × 3`` anisotropy
-matrix `J` appropriate for ``i``. Without loss of generality, we require that
-`J` is symmetric.
-"""
-function quadratic_anisotropy(J, site::Int, label::String="Anisotropy")
-    if !(J ≈ J')
-        error("Single-ion anisotropy must be symmetric.")
-    end
-    OperatorAnisotropy(𝒮'*Mat3(J)*𝒮, site, label)
-end
-
-
+# KBTODO remove all these, for explicitness
 """
     easy_axis(D, n, site, label="EasyAxis")
 
@@ -212,19 +193,19 @@ end
 
 
 #= Energy and field functions for "simple" interactions that aren't geometry-dependent.
-   See Hamiltonian.jl for expectations on `_accum_neggrad!` functions.
+   See Hamiltonian.jl for expectations on `accum_force!` functions.
 =#
 
 struct ExternalFieldCPU
     effBs :: Vector{Vec3}  # |S_b|gᵀB for each basis index b
 end
 
-function ExternalFieldCPU(ext_field::ExternalField, site_infos::Vector{SiteInfo}; μB)
+function ExternalFieldCPU(ext_field::ExternalField, gs::Vector{Mat3}; μB)
     # As E = -∑_i 𝐁^T g 𝐒_i, we can precompute effB = g^T S B, so that
     #  we can compute E = -∑_i effB ⋅ 𝐬_i during simulation.
     # However, S_i may be basis-dependent, so we need to store an effB
     #  per sublattice.
-    effBs = [μB * site.g' * ext_field.B for site in site_infos]
+    effBs = [μB * g' * ext_field.B for g in gs]
     ExternalFieldCPU(effBs)
 end
 
@@ -240,7 +221,7 @@ function energy(dipoles::Array{Vec3, 4}, field::ExternalFieldCPU)
 end
 
 "Accumulates the negative local Hamiltonian gradient coming from the external field"
-@inline function _accum_neggrad!(B::Array{Vec3, 4}, field::ExternalFieldCPU)
+@inline function accum_force!(B::Array{Vec3, 4}, field::ExternalFieldCPU)
     @inbounds for site in 1:size(B)[end]
         effB = field.effBs[site]
         for cell in CartesianIndices(size(B)[1:3])

@@ -45,12 +45,9 @@ ImplicitMidpoint(Δt; atol=1e-12) = ImplicitMidpoint(Δt, atol)
 
 function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::SpinSystem) where N
     @assert N > 0
-    num_sites = size(dipoles)[end]
-    for site in 1:num_sites
-        spin_rescaling = sys.site_infos[site].spin_rescaling
-        for cell in CartesianIndices(size(dipoles)[1:3]) 
-            dipoles[cell,site] = spin_rescaling * expected_spin(coherents[cell,site])
-        end
+    for idx in CartesianIndices(dipoles)
+        κ = sys.κs[idx[4]]
+        dipoles[idx] = κ * expected_spin(coherents[idx])
     end
 end
 
@@ -60,20 +57,17 @@ set_expected_spins!(sys::SpinSystem) = set_expected_spins!(sys.dipoles, sys.cohe
 ################################################################################
 # Dipole integration
 ################################################################################
-# Normalize to κ value given in site_infos. For old LL dynamics only.
-function normalize!(S::Array{Vec3, 4}, sys::SpinSystem)
-    for site in 1:size(S, 4)
-        spin_rescaling = sys.site_infos[site].spin_rescaling
-        for cell in CartesianIndices(size(S)[1:3]) 
-            S[cell, site] *= spin_rescaling/norm(S[cell, site])
-        end
+function normalize!(dipoles::Array{Vec3, 4}, sys::SpinSystem)
+    for idx in CartesianIndices(dipoles)
+        S = sys.κs[idx[4]]
+        dipoles[idx] *= S / norm(dipoles[idx])
     end
 end
 
 normalize_dipoles!(sys::SpinSystem) = normalize!(sys.dipoles, sys)
 
-@inline rhs_dipole(S, B) = -S × B
-@inline rhs_dipole(S, B, λ) = -S × (B + λ * (S × B))
+@inline rhs_dipole(s, B) = -s × B
+@inline rhs_dipole(s, B, λ) = -s × (B + λ * (s × B))
 
 @doc raw"""
     step!(sys::SpinSystem, integrator)
@@ -90,13 +84,13 @@ function step!(sys::SpinSystem{0}, integrator::LangevinHeunP)
     ξ .*= √(2λ*kT)
 
     # Euler step
-    field!(B, S, ℋ)
+    set_forces!(B, S, ℋ)
     @. f₁ = rhs_dipole(S, B, λ)
     @. r₁ = rhs_dipole(S, ξ)   # note absence of λ argument -- noise only appears once in rhs.
     @. S₁ = S + Δt * f₁ + √Δt * r₁
 
     # Corrector step
-    field!(B, S₁, ℋ)
+    set_forces!(B, S₁, ℋ)
     @. S = S + 0.5 * Δt * (f₁ + rhs_dipole(S₁, B, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(S₁, ξ))
     normalize!(S, sys)
 
@@ -117,7 +111,7 @@ function step!(sys::SpinSystem{0}, integrator::ImplicitMidpoint)
         # improved midpoint estimator _S̄′.
         @. Ŝ = S̄
         normalize!(Ŝ, sys)
-        field!(B, Ŝ, ℋ)
+        set_forces!(B, Ŝ, ℋ)
         @. S̄′ = S + 0.5 * Δt * rhs_dipole(Ŝ, B)
 
         # Convergence is reached if every element of _S̄ and _S̄′ agree to
@@ -184,11 +178,11 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
     (; dipoles, hamiltonian) = sys
 
     set_expected_spins!(dipoles, Z, sys) 
-    field!(B, dipoles, hamiltonian)
+    set_forces!(B, dipoles, hamiltonian)
 
-    @inbounds for i in CartesianIndices(ξ)
-        Λ = view(hamiltonian.sun_aniso, :, :, i[4])
-        ℌZ = mul_spin_matrices(Λ, -B[i], Z[i]) # (Λ - B⋅S) Z
+    @inbounds for idx in CartesianIndices(ξ)
+        Λ = view(hamiltonian.sun_aniso, :, :, idx[4])
+        HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅S) Z
 
         # The field κ describes an effective ket rescaling, Z → Z' = √κ Z. For
         # numerical convenience, Sunny avoids explicit ket rescaling, and
@@ -199,9 +193,9 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
         # to get an equivalent dynamics in normalized spins. The resulting
         # dynamics samples the correct Boltzmann equilibrium involving the
         # rescaled classical Hamiltonian.
-        κ = sys.site_infos[i[4]].spin_rescaling
-        ΔZ′ = -im*√(2*Δt*kT*λ/κ)*ξ[i] - Δt*(im+λ)*ℌZ
-        ΔZ[i] = proj(ΔZ′, Z[i])
+        κ = sys.κs[idx[4]]
+        ΔZ′ = -im*√(2*Δt*kT*λ/κ)*ξ[idx] - Δt*(im+λ)*HZ
+        ΔZ[idx] = proj(ΔZ′, Z[idx])
     end 
     nothing
 end
@@ -234,12 +228,12 @@ function rhs_ll!(ΔZ, Z, B, integrator, sys)
     (; dipoles, hamiltonian) = sys
 
     set_expected_spins!(dipoles, Z, sys) # temporarily de-synchs dipoles and coherents
-    field!(B, dipoles, hamiltonian)
+    set_forces!(B, dipoles, hamiltonian)
 
     @inbounds for idx in CartesianIndices(Z)
         Λ = view(hamiltonian.sun_aniso, :, :, idx[4])
-        ℌZ = mul_spin_matrices(Λ, -B[idx], Z[idx])
-        ΔZ[idx] = - Δt*im*ℌZ
+        HZ = mul_spin_matrices(Λ, -B[idx], Z[idx])
+        ΔZ[idx] = - Δt*im*HZ
     end 
 end
 

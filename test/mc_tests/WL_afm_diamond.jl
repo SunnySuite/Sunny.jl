@@ -13,7 +13,7 @@ interactions = [
 extent = (4,4,4)
 sys = SpinSystem(crystal, interactions, extent)
 sys_size = length(sys)
-rand!(sys)
+randomize_spins!(sys)
 
 ## Wang-Landau sampler
 N_bins = 1000

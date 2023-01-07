@@ -9,7 +9,7 @@ import FFTW
 import Tullio: @tullio
 import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
-import Random: Random, rand!, randn!
+import Random: Random, randn!
 import DynamicPolynomials as DP
 import DataStructures: SortedDict
 
@@ -45,13 +45,14 @@ include("Units.jl")
 export meV_per_K, Units
 
 include("Util.jl")
+export Idx
 
 include("SiteInfo.jl")
 export SiteInfo
 
 include("Interactions.jl")
 export heisenberg, exchange, biquadratic, dm_interaction
-export easy_axis, easy_plane, quadratic_anisotropy, anisotropy
+export easy_axis, easy_plane, anisotropy
 export external_field, dipole_dipole
 
 include("PairInteractions.jl")
@@ -63,13 +64,13 @@ include("Ewald.jl")
 include("Hamiltonian.jl")
 
 include("Systems.jl")
-export ChargeSystem, SpinSystem, rand!, randflips!, energy, field, field!
+export ChargeSystem, SpinSystem, polarize_spins!, randomize_spins!, energy, forces
 export extend_periodically
 export enable_dipole_dipole!
 
 include("Metropolis.jl")
-export MetropolisSampler, IsingSampler, MeanFieldSampler
-export set_temp!, get_temp, get_system
+export MetropolisSampler, IsingSampler
+export set_temp!, get_temp
 export sample!, thermalize!, anneal!
 export running_energy, running_mag, reset_running_energy!, reset_running_mag!
 

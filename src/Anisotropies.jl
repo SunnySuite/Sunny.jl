@@ -22,7 +22,7 @@ function energy(dipoles::Array{Vec3, 4}, aniso::DipoleAnisotropyCPU)
     return E
 end
 
-function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::DipoleAnisotropyCPU)
+function accum_force!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::DipoleAnisotropyCPU)
     latsize = size(dipoles)[1:3]
 
     for site in eachindex(aniso.sites)
@@ -35,16 +35,15 @@ function _accum_neggrad!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, aniso::Dipo
 end
 
 
-function energy_sun_aniso(coherents::Array{CVec{N}, 4}, aniso::Array{ComplexF64, 3}, spin_mags::Vector{Float64}) where N
+function energy_sun_aniso(coherents::Array{CVec{N}, 4}, aniso::Array{ComplexF64, 3}, κs::Vector{Float64}) where N
     E = 0.0
-    latsize = size(coherents)[1:3]
-    nbasis = size(coherents, 4)
-    @inbounds for site in 1:nbasis
-        Λ = @view(aniso[:,:,site])
-        for cell in CartesianIndices(latsize)
-            Z = coherents[cell, site]
-            E += spin_mags[site]*real(Z' * Λ * Z)
-        end
+
+    @inbounds for idx in CartesianIndices(coherents)
+        Λ = view(aniso, :,:,idx[4])
+        κ = κs[idx[4]]
+        Z = coherents[idx]
+        E += κ * real(Z' * Λ * Z)
     end
+
     return E
 end
