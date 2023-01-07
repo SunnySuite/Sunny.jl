@@ -157,68 +157,50 @@ end
     (a - ((Z' * a) * Z))  
 end
 
-@generated function apply_ℌ!(rhs::Array{CVec{N}, 4}, B::Array{Vec3, 4}, Z::Array{CVec{N}, 4}, integrator, sys)  where N
-    if integrator <: LangevinHeunP
-        scale_expr = :(site_infos[a].spin_rescaling)
-    else
-        scale_expr = :(1.0)
-    end
 
-    # TODO: KB wants to benchmark and possibly clean up. Perhaps we should
-    # always use second branch. Replace accum_spin_matrices!() with
-    # apply_spin_matrices!(), and then parallelize/accumulate the Λ Z products.
-    if N < 6 
-        S = spin_matrices(N) .|> SMatrix{N, N, ComplexF64, N*N}
-        return quote
-            (; hamiltonian, site_infos) = sys
-            na, nb, nc, natoms = size(sys.coherents)
-            Λs′ = hamiltonian.sun_aniso
-            Λs = reinterpret(SMatrix{N, N, ComplexF64, N*N},
-                             reshape(Λs′, N*N, natoms)
-            )
-            @inbounds for a in 1:natoms
-                κ = $scale_expr
-                for k in 1:nc, j in 1:nb, i in 1:na 
-                    ℌ = κ * (Λs[a] - ($S)' * B[i,j,k,a])
-                    rhs[i,j,k,a] = ℌ*Z[i,j,k,a]
+# Returns (Λ + B⋅S) Z
+@generated function mul_spin_matrices(Λ, B::Sunny.Vec3, Z::Sunny.CVec{N}) where N
+    S = Sunny.spin_matrices(N)
+    out = map(1:N) do i
+        out_i = map(1:N) do j
+            terms = Any[:(Λ[$i,$j])]
+            for α = 1:3
+                S_αij = S[α][i,j]
+                if !iszero(S_αij)
+                    push!(terms, :(B[$α] * $S_αij))
                 end
             end
-            nothing
+            :(+($(terms...)) * Z[$j])
         end
-    else
-        return quote
-            (; hamiltonian, site_infos) = sys
-            ℌ = sys.ℌ_buffer
-            na, nb, nc, natoms = size(sys.coherents)
-            Λs = hamiltonian.sun_aniso
-            rhs′ = reinterpret(reshape, ComplexF64, rhs) 
-            @inbounds for a in 1:natoms
-                κ = $scale_expr 
-                Λ = @view(Λs[:,:,a])
-                for k in 1:nc, j in 1:nb, i in 1:na 
-                    @. ℌ = κ * Λ 
-                    accum_spin_matrices!(ℌ, -κ*B[i,j,k,a]) 
-                    mul!(@view(rhs′[:,i,j,k,a]), ℌ, Z[i,j,k,a])
-                end
-            end
-            nothing
-        end
+        :(+($(out_i...)))
     end
+    return :(CVec{$N}($(out...)))
 end
 
 
 function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
-                        B::Array{Vec3, 4}, ℌZ::Array{CVec{N}, 4}, 
-                        integrator::LangevinHeunP, sys::SpinSystem{N}) where N
+                        B::Array{Vec3, 4}, integrator::LangevinHeunP, sys::SpinSystem{N}) where N
     (; kT, λ, Δt) = integrator
-    (; dipoles) = sys
+    (; dipoles, hamiltonian) = sys
 
     set_expected_spins!(dipoles, Z, sys) 
-    field!(B, dipoles, sys.hamiltonian)
-    apply_ℌ!(ℌZ, B, Z, integrator, sys)
+    field!(B, dipoles, hamiltonian)
 
-    @inbounds for i in eachindex(Z)
-        ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[i] - Δt*(im+λ)*ℌZ[i]    
+    @inbounds for i in CartesianIndices(ξ)
+        Λ = view(hamiltonian.sun_aniso, :, :, i[4])
+        ℌZ = mul_spin_matrices(Λ, -B[i], Z[i]) # (Λ - B⋅S) Z
+
+        # The field κ describes an effective ket rescaling, Z → Z' = √κ Z. For
+        # numerical convenience, Sunny avoids explicit ket rescaling, and
+        # instead performs an equivalent rescaling expectation values, ⟨A⟩ → κ
+        # ⟨A⟩. In the latter approach, the noise term in Langevin dynamics must
+        # also be rescaled as ξ → 1/√κ ξ. One can see the equivalence directly
+        # by writing the Langevin equation in Z' and then dividing both sides √κ
+        # to get an equivalent dynamics in normalized spins. The resulting
+        # dynamics samples the correct Boltzmann equilibrium involving the
+        # rescaled classical Hamiltonian.
+        κ = sys.site_infos[i[4]].spin_rescaling
+        ΔZ′ = -im*√(2*Δt*kT*λ/κ)*ξ[i] - Δt*(im+λ)*ℌZ
         ΔZ[i] = proj(ΔZ′, Z[i])
     end 
     nothing
@@ -226,19 +208,19 @@ end
 
 
 function step!(sys::SpinSystem{N}, integrator::LangevinHeunP) where N
-    (Z′, ΔZ₁, ΔZ₂, ξ, ℌZ) = get_coherent_buffers(sys, 6)  # Get these all at once to keep distinct
+    (Z′, ΔZ₁, ΔZ₂, ξ) = get_coherent_buffers(sys, 4)
     B = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
     randn!(sys.rng, ξ)
 
     # Prediction
-    rhs_langevin!(ΔZ₁, Z, ξ, B, ℌZ, integrator, sys)
+    rhs_langevin!(ΔZ₁, Z, ξ, B, integrator, sys)
     @. Z′ = Z + ΔZ₁
     normalize!(Z′)
 
     # Correction
-    rhs_langevin!(ΔZ₂, Z′, ξ, B, ℌZ, integrator, sys)
+    rhs_langevin!(ΔZ₂, Z′, ξ, B, integrator, sys)
     @. Z += (ΔZ₁ + ΔZ₂)/2
     normalize!(Z)
 
@@ -247,23 +229,24 @@ function step!(sys::SpinSystem{N}, integrator::LangevinHeunP) where N
 end
 
 
-function rhs_ll!(ΔZ, Z, B, ℌZ, integrator, sys)
+function rhs_ll!(ΔZ, Z, B, integrator, sys)
     (; Δt) = integrator
-    (; dipoles) = sys
+    (; dipoles, hamiltonian) = sys
 
     set_expected_spins!(dipoles, Z, sys) # temporarily de-synchs dipoles and coherents
-    field!(B, dipoles, sys.hamiltonian)
-    apply_ℌ!(ℌZ, B, Z, integrator, sys)
+    field!(B, dipoles, hamiltonian)
 
-    @inbounds for i in eachindex(Z)
-        ΔZ[i] = - Δt*im*ℌZ[i]    
+    @inbounds for idx in CartesianIndices(Z)
+        Λ = view(hamiltonian.sun_aniso, :, :, idx[4])
+        ℌZ = mul_spin_matrices(Λ, -B[idx], Z[idx])
+        ΔZ[idx] = - Δt*im*ℌZ
     end 
 end
 
 
 function step!(sys::SpinSystem, integrator::ImplicitMidpoint; max_iters=100)
     (; atol) = integrator
-    (ΔZ, Zb, Z′, Z″, ℌZ) = get_coherent_buffers(sys, 5)
+    (ΔZ, Zb, Z′, Z″) = get_coherent_buffers(sys, 4)
     B = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
@@ -273,7 +256,7 @@ function step!(sys::SpinSystem, integrator::ImplicitMidpoint; max_iters=100)
     for _ in 1:max_iters
         @. Zb = (Z + Z′)/2
 
-        rhs_ll!(ΔZ, Zb, B, ℌZ, integrator, sys)
+        rhs_ll!(ΔZ, Zb, B, integrator, sys)
 
         @. Z″ = Z + ΔZ
 
