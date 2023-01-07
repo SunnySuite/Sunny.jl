@@ -197,7 +197,7 @@
 
             λ = 0.1
             kT = 0.1
-            Δt = 0.01
+            Δt = 0.02
 
             n_decorr = 500  # Decorrelation steps between samples
             n_samples = 1000

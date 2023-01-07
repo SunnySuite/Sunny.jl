@@ -160,13 +160,13 @@ end
     end
 end
 
-@testitem "Sparse B⋅𝐒" begin
-    # Test that action `accum_spin_matrices!(acc, B)` is identical to adding B⋅𝐒 to `acc`
+@testitem "Action of S" begin
+    # Test action of apply_spin_matrices!(B, Z)
     for N = 4:6
-        acc = zeros(ComplexF64, N, N)
+        Λ = randn(ComplexF64, N, N)
         B = randn(Sunny.Vec3)
-        Sunny.accum_spin_matrices!(acc, B)
-        @test acc ≈ sum(Sunny.spin_matrices(N) .* B)
+        Z = randn(Sunny.CVec{N})
+        @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*Sunny.spin_matrices(N)) * Z
     end
 end
 

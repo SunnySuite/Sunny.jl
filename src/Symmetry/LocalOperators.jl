@@ -147,22 +147,6 @@ function spin_matrices(N::Int)
     return [Sx, Sy, Sz]
 end
 
-# Accumulates BᵅSᵅ into N×N matrix `acc`.
-function accum_spin_matrices!(acc, B::Sunny.Vec3)
-    N = size(acc, 1)
-    S = (N-1)/2
-
-    for j in 1:N-1
-        off = sqrt(2(S+1)*j - j*(j+1)) / 2
-        acc[j,j+1] += off*(B[1] - im*B[2]) # superdiagonal
-        acc[j,j]   += (S - (j-1))*B[3]     # diagonal
-        acc[j+1,j] += off*(B[1] + im*B[2]) # subdiagonal
-    end
-    acc[N, N] += (S - (N-1))*B[3]
-
-    return nothing
-end
-
 # Returns ⟨Z|Sᵅ|Z⟩
 @generated function expected_spin(Z::CVec{N}) where N
     S = spin_matrices(N)
