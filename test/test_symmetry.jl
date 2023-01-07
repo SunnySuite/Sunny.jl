@@ -172,6 +172,7 @@ end
 
 @testitem "Spherical tensors" begin
     include("shared.jl")
+    import WignerSymbols: clebschgordan, wigner3j
 
     # Spherical tensors that satisfy `norm(T) =  √ tr T† T = 1`.
     function spherical_tensors_normalized(k; N)
@@ -430,9 +431,9 @@ end
         Λ = randn(9)'*[𝒪[2,0], 𝒪[2,2], 𝒪[4,0], 𝒪[4,2], 𝒪[4,4], 𝒪[6,0], 𝒪[6,2], 𝒪[6,4], 𝒪[6,6]]
 
         # Test anisotropy invariance in "dipole-mode"
-        N = 0
-        sys = SpinSystem(cryst, [anisotropy(Λ, 1)], (1,1,1), [SiteInfo(1; N)])
-        rand!(sys)
+        S = 1
+        sys = SpinSystem(cryst, [anisotropy(Λ, 1)], (1,1,1), [SiteInfo(1; S)], SUN=false)
+        randomize_spins!(sys)
         E1 = energy(sys)
         # Effectively rotate site positions by π/2 clockwise
         sys.dipoles .= circshift(sys.dipoles, (0,0,0,1))
@@ -443,9 +444,10 @@ end
         @test E1 ≈ E2
 
         # Test anisotropy invariance in "SU(N)-mode"
-        N = 5
-        sys = SpinSystem(cryst, [anisotropy(Λ, 1)], (1,1,1), [SiteInfo(1; N)])
-        rand!(sys)
+        S = 2
+        N = Int(2S+1)
+        sys = SpinSystem(cryst, [anisotropy(Λ, 1)], (1,1,1), [SiteInfo(1; S)]; SUN=true)
+        randomize_spins!(sys)
         E1 = energy(sys)
         # Effectively rotate site positions by π/2 clockwise
         sys.coherents .= circshift(sys.coherents, (0,0,0,1))

@@ -131,7 +131,7 @@ isdiag(tol) = Base.Fix2(isdiag, tol)
 
 # Figures out the correct maximally-efficient backend type for a quadratic interaction, and perform
 #  all of the symmetry propagation.
-function convert_quadratic(int::QuadraticInteraction, cryst::Crystal, site_infos::Vector{SiteInfo}; tol=1e-6)
+function convert_quadratic(int::QuadraticInteraction, cryst::Crystal; tol=1e-6)
     (; J, bond, label) = int
 
     bondtable = BondTable(cryst, bond, J)
@@ -150,7 +150,7 @@ function convert_quadratic(int::QuadraticInteraction, cryst::Crystal, site_infos
 end
 
 
-function convert_biquadratic(int::BiQuadraticInteraction, cryst::Crystal, site_infos::Vector{SiteInfo}; tol=1e-6)
+function convert_biquadratic(int::BiQuadraticInteraction, cryst::Crystal; tol=1e-6)
     (; J, bond, label) = int
 
     bondtable = BondTable(cryst, bond, J)
@@ -227,7 +227,7 @@ function energy(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU)
 end
 
 "Accumulates the local -∇ℋ coming from Heisenberg couplings into `B`"
-function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, heisen::HeisenbergCPU)
+function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, heisen::HeisenbergCPU)
     bondtable = heisen.bondtable
     effJ = first(bondtable.data)
 
@@ -242,11 +242,11 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, heisen::Heisenber
     end
 end
 
-function _neggrad(dipoles::Array{Vec3}, heisen::HeisenbergCPU, i)
+function force_at(dipoles::Array{Vec3}, heisen::HeisenbergCPU, idx)
     bondtable = heisen.bondtable
     B = Vec3(0,0,0)
     J = first(bondtable.data)
-    _, site = splitidx(i)
+    site = idx[4]
 
     latsize = size(dipoles)[1:3]
     @inbounds for (bond, _) in sublat_bonds(bondtable, site)
@@ -260,7 +260,7 @@ end
 
 
 "Accumulates the local -∇ℋ coming from Biquadratic couplings into `B`"
-function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, biq_coup::BiquadraticCPU)
+function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, biq_coup::BiquadraticCPU)
     bondtable = biq_coup.bondtable
     effJ = first(bondtable.data)
 
@@ -280,7 +280,7 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, biq_coup::Biquadr
 end
 
 
-function _neggrad(dipoles::Array{Vec3}, biq_coup::BiquadraticCPU, i)
+function force_at(dipoles::Array{Vec3}, biq_coup::BiquadraticCPU, i)
     error("Not yet implemented.")
     # bondtable = biq_coup.bondtable
     # B = Vec3(0,0,0)
@@ -299,7 +299,7 @@ end
 
 
 "Accumulates the local -∇ℋ coming from diagonal couplings into `B`"
-function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
+function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
     bondtable = diag_coup.bondtable
 
     latsize = size(dipoles)[1:3]
@@ -313,10 +313,10 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, diag_coup::Diagon
     end
 end
 
-function _neggrad(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU, i)
+function force_at(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU, idx)
     bondtable = diag_coup.bondtable
     B = Vec3(0,0,0)
-    cell, site = splitidx(i)
+    cell, site = splitidx(idx)
 
     latsize = size(dipoles)[1:3]
     @inbounds for (bond, J) ∈ sublat_bonds(bondtable, site)
@@ -329,7 +329,7 @@ function _neggrad(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU, i)
 end
 
 "Accumulates the local -∇ℋ coming from general couplings into `B`"
-function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU)
+function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU)
     bondtable = gen_coup.bondtable
 
     latsize = size(dipoles)[1:3]
@@ -344,7 +344,7 @@ function _accum_neggrad!(B::Array{Vec3}, dipoles::Array{Vec3}, gen_coup::General
 end
 
 
-function _neggrad(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU, idx)
+function force_at(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU, idx)
     bondtable = gen_coup.bondtable
     B = Vec3(0,0,0)
     cell, site = splitidx(idx)

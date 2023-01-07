@@ -6,44 +6,44 @@
 
 using Random
 using LinearAlgebra
-import WignerSymbols: clebschgordan, wigner3j
 
-# Generates a "standard" set of exchange interactions for a
-#  diamond lattice with randomized coupling constants for use
-#  across many tests.
-function diamond_test_exchanges()
-    # Arbitrary Heisenberg
-    heisen = heisenberg(rand(), Bond(1, 3, [0, 0, 0]))
 
-    # General exchange
-    A = 0.363
-    B = -0.642
-    C = 0.951
-    D = -0.425
-    gen_coup_J = [A C -D
-                  C A -D
-                  D D  B]
-    gen_int = exchange(gen_coup_J, Bond(1, 2, [0, 0, 0]))
+# Various possible interactions appropriate to diamond crystal
 
-    # Diagonal exchange
-    A = 0.521
-    B = 0.190
-    diag_int = exchange(diagm([A, A, B]), Bond(1, 4, [0, 0, 0]))
-
-    return [heisen, gen_int, diag_int]
+function add_linear_interactions!(ints, SUN)
+    push!(ints, external_field([0.0, 1.0, 1.0]))
+    if SUN
+        # In SUN mode, anisotropy scales as ⟨Λ⟩ → κ ⟨Λ⟩.
+        push!(ints, anisotropy(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1))
+    end
 end
 
-function produce_example_system()
-    cryst = Sunny.diamond_crystal()
-    latsize = (5, 5, 5)
-
-    interactions = [
-        diamond_test_exchanges()...,
-        external_field([0, 0, 1])
-    ]
-
-    return SpinSystem(cryst, interactions, latsize; seed=1111)
+function add_exchange_interactions!(ints)
+    J  = 1.0   # Anti-ferro nearest neighbor
+    J′ = -1.0  # Ferro next-nearest neighbor
+    K  = 1.0   # Scale of Kitaev term
+    Γ  = 0.0   # Off-diagonal exchange, not used
+    J_exch = [J     Γ   0.0;
+              Γ     J   0.0;
+              0.0  0.0  J+K]
+    push!(ints, exchange(J_exch, Bond(1, 2, [0,0,0])))
+    push!(ints, heisenberg(J′, Bond(1, 1, [1,0,0])))
 end
+
+function add_quadratic_interactions!(ints, _)
+    add_exchange_interactions!(ints)
+
+    # TODO: Include biquadratic in SU(N) mode
+end
+
+function add_quartic_interactions!(ints, SUN)
+    if !SUN
+        # In dipole mode, spins scale individually, S⁴ → κ⁴ S⁴
+        push!(ints, anisotropy(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1))
+        push!(ints, biquadratic(1.1, Bond(1,2,[0,0,0])))
+    end
+end
+
 
 # Levi-Civita symbol
 ϵ = [(i-j)*(j-k)*(k-i)/2 for i=1:3, j=1:3, k=1:3]

@@ -6,11 +6,9 @@ function observable_expectations!(buf, sys::SpinSystem{N}, ops′::Array{Complex
     ops = reinterpret(SMatrix{N, N, ComplexF64, N*N}, reshape(ops′, N*N, num_ops))
 
     for (i, op) in enumerate(ops)
-        for site in 1:nbasis(sys.crystal)
-            κ = sys.site_infos[site].spin_rescaling
-            for idx in CartesianIndices(sys.size)
-                buf[i,idx,site] = κ * expectation(Zs[idx,site], op) 
-            end
+        for idx in CartesianIndices(Zs)
+            κ = sys.κs[idx[4]]
+            buf[i,idx] = κ * expectation(Zs[idx], op) 
         end
     end
 
@@ -43,15 +41,13 @@ end
 
 function compute_mag!(M, sys::SpinSystem, gfactor = true)
     if gfactor
-        for b in 1:nbasis(sys.crystal)
-            gS = sys.site_infos[b].g 
-            for idx in CartesianIndices(sys.size)
-                M[:, idx, b] .= gS * sys.dipoles[idx, b]
-            end
+        for idx in CartesianIndices(sys.dipoles)
+            g = sys.gs[idx[4]]
+            M[:, idx] .= g * sys.dipoles[idx]
         end
     else
-        for b in 1:nbasis(sys.crystal), idx in CartesianIndices(sys.size)
-            M[:, idx, b] .= sys.dipoles[idx, b]
+        for idx in CartesianIndices(sys.dipoles)
+            M[:, idx] .= sys.dipoles[idx]
         end
     end
 end

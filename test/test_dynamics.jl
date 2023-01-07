@@ -2,19 +2,19 @@
     include("shared.jl")
 
     "Tests that SphericalMidpoint conserves energy for simple forces to a certain tolerance."
-    function test_spherical_midpoint()
-        crystal = Sunny.diamond_crystal()
+    function test_spherical_midpoint(; SUN)
+        cryst = Sunny.diamond_crystal()
+        ints = Sunny.AbstractInteraction[]
+        add_linear_interactions!(ints, SUN)
+        add_quadratic_interactions!(ints, SUN)
+        add_quartic_interactions!(ints, SUN)
+        sys = SpinSystem(cryst, ints, (3, 3, 3); SUN, seed=0)
+        enable_dipole_dipole!(sys)
 
-        interactions = [
-            diamond_test_exchanges()...,
-            external_field([0, 0, 1])
-        ]
-
-        sys = SpinSystem(crystal, interactions, (5, 5, 5); seed=0)
-        rand!(sys)
+        randomize_spins!(sys)
 
         NITERS = 5_000
-        Δt     = 0.01
+        Δt     = 0.005
         energies = Float64[]
 
         integrator = ImplicitMidpoint(Δt)
@@ -30,34 +30,9 @@
         @test ΔE < 1e-2
     end
 
-    test_spherical_midpoint()
+    test_spherical_midpoint(; SUN=false)
+    test_spherical_midpoint(; SUN=true)
 
-    "Tests that SphericalMidpoint conserves energy for dipole forces (w/ Fourier) to a certain tolerance."
-    function test_dipole_ft()
-        crystal = Sunny.diamond_crystal()
-        interactions = Sunny.AbstractInteraction[]
-        sys = SpinSystem(crystal, interactions, (5, 5, 5); seed=0)
-        rand!(sys)
-        enable_dipole_dipole!(sys)
-
-        NITERS = 5_000
-        Δt     = 0.01
-        energies = Float64[]
-
-        # TODO: Benchmark and compare with previous versions
-        integrator = ImplicitMidpoint(Δt)
-        for _ in 1:NITERS
-            step!(sys, integrator)
-            push!(energies, energy(sys))
-        end
-
-        # Check that the energy hasn't fluctuated much
-        sqrt_size = sqrt(length(sys.dipoles))
-        ΔE = (maximum(energies) - minimum(energies)) / sqrt_size
-        @test ΔE < 2e-2
-    end
-
-    test_dipole_ft()
 
     "Tests that set_temp!/get_temp behave as expected"
     function test_set_get_temp_langevin()

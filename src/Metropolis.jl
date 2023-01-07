@@ -3,10 +3,9 @@
 """
     AbstractSampler
 
-All samplers should subtype this, and implement the following methods
+Samplers should provide a field `sys::System` and implement the following methods
     `set_temp!(sampler::MySampler, kT::Float64)`
     `get_temp(sampler::MySampler) :: Float64`
-    `get_system(sampler::MySampler) :: SpinSystem`
     `sample!(sampler::MySampler)`
 
     Optionally, can override behavior of these, which by default do full-system
@@ -17,8 +16,8 @@ All samplers should subtype this, and implement the following methods
 abstract type AbstractSampler end
 
 # These should be deprecated/rewritten. Won't have a SpinSystem in the sampler going forward.
-running_energy(sampler::S) where {S <: AbstractSampler} = energy(get_system(sampler))
-running_mag(sampler::S) where {S <: AbstractSampler} = sum(get_system(sampler)) # Does this apply g-factor?
+running_energy(sampler::S) where {S <: AbstractSampler} = energy(sampler.sys)
+running_mag(sampler::S) where {S <: AbstractSampler} = sum(sampler.sys) # Does this apply g-factor?
 reset_running_energy!(sampler::S) where {S <: AbstractSampler} = nothing
 reset_running_mag!(sampler::S) where {S <: AbstractSampler} = nothing
 
@@ -111,19 +110,6 @@ mutable struct IsingSampler{N} <: AbstractSampler
 end
 
 
-mutable struct MeanFieldSampler{N} <: AbstractSampler
-    sys     :: SpinSystem{N}
-    β          :: Float64
-    nsweeps    :: Int
-    E          :: Float64
-    M          :: Vec3
-    function MeanFieldSampler(sys::SpinSystem{N}, kT::Float64, nsweeps::Int) where N
-        @assert N > 0 "Mean field sampling only available for SU(N) systems."
-        @assert kT != 0. "Temperature must be nonzero!"
-        new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys.dipoles))
-    end
-end
-
 """
     set_temp!(sampler, kT)
 
@@ -135,9 +121,6 @@ end
 function set_temp!(sampler::IsingSampler, kT)
     sampler.β = 1 / kT
 end
-function set_temp!(sampler::MeanFieldSampler, kT)
-    sampler.β = 1 / kT
-end
 
 """
     get_temp(sampler) :: Float64
@@ -146,20 +129,6 @@ Returns the temperature of the sampler, as `kT`.
 """
 get_temp(sampler::MetropolisSampler) = 1 / sampler.β
 get_temp(sampler::IsingSampler) = 1 / sampler.β
-get_temp(sampler::MeanFieldSampler) = 1 / sampler.β
-
-"""
-    get_system(sampler)
-
-Returns the `SpinSystem` being updated by the `sampler`.
-"""
-get_system(sampler::MetropolisSampler) = sampler.sys
-get_system(sampler::MeanFieldSampler) = sampler.sys
-get_system(sampler::IsingSampler) = sampler.sys
-
-Random.rand!(sampler::MetropolisSampler) = rand!(sampler.sys)
-Random.rand!(sampler::MeanFieldSampler) = rand!(sampler.sys)
-Random.rand!(sampler::IsingSampler) = randflips!(sampler.sys)
 
 
 """ The following functions have been added or modified to permit code reuse
@@ -172,13 +141,13 @@ LL-type systems and the new SU(N) stuff. Let me know if you prefer this approach
 """
 
 ## For Metropolis sampler
-@inline function _random_spin(rng::Random.AbstractRNG, ::Val{0}, spin_rescaling = 1.0) :: Vec3
-    n = randn(rng, Vec3)
-    return spin_rescaling * n / norm(n)  
+@inline function _random_spin(sys::SpinSystem{0}, idx::CartesianIndex{4}) :: Vec3
+    n = randn(sys.rng, Vec3)
+    return sys.κs[idx[4]] * normalize(n)
 end
-@inline function _random_spin(rng::Random.AbstractRNG, ::Val{N}, spin_rescaling = 1.0) :: CVec{N} where N
-    n = randn(rng, CVec{N})
-    return n / norm(n)  # Kets are always normalized to 1.0
+@inline function _random_spin(sys::SpinSystem{N}, idx::CartesianIndex{4}) :: CVec{N} where N
+    n = randn(sys.rng, CVec{N})
+    return normalize(n)  # Kets are always normalized to 1
 end
 
 # For Ising sampler. Non-mutating. Hence "flipped" not "flip"
@@ -190,25 +159,8 @@ end
     flip_ket(sys.coherents[idx])
 end
 
-# For mean field sampler. Return to this for optimzation.
-function _local_hamiltonian(sys::SpinSystem{N}, idx) where N
-    aniso = sys.hamiltonian.sun_aniso
-    _, site = splitidx(idx)
 
-    B = field(sys.dipoles, sys.hamiltonian, idx)
-    S = spin_matrices(N)
-    ℌ = -(B[1]*S[1] + B[2]*S[2] + B[3]*S[3])
-    ℌ += @view(aniso[:,:,site])
-    
-    return ℌ
-end
-
-function _rand_mf_spin(sys::SpinSystem{N}, idx) where N
-    ℌ = _local_hamiltonian(sys, idx)
-    Zs = eigvecs(ℌ)
-    return CVec{N}(Zs[:, rand(1:3)])
-end 
-
+##### KBTODO: UNIFY
 ## Since we don't know what type the spin is in the main functions below,
 ## always generate both a ket and a dipole from the spin. (The is trivial
 ## except in the case when getting the dipole from and SU(N) spin, since in
@@ -224,8 +176,7 @@ end
     spin
 end
 @inline function dipole(spin::CVec{N}, sys::SpinSystem, idx) :: Vec3 where N
-    _, b = splitidx(idx)
-    sys.site_infos[b].spin_rescaling * expected_spin(spin)
+    sys.κs[idx[4]] * expected_spin(spin)
 end
 
 
@@ -241,8 +192,7 @@ function sample!(sampler::MetropolisSampler{N}) where N
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sys.dipoles)
             # Try to rotate this spin to somewhere randomly on the unit sphere
-            _, b = splitidx(idx)
-            new_spin = _random_spin(sys.rng, Val(N), sys.site_infos[b].spin_rescaling)
+            new_spin = _random_spin(sys, idx[4])
             ΔE = local_energy_change(sys, idx, new_spin)
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)
@@ -283,27 +233,6 @@ function sample!(sampler::IsingSampler{N}) where N
 end
 
 
-function sample!(sampler::MeanFieldSampler{N}) where N
-    sys = sampler.sys
-    for _ in 1:sampler.nsweeps
-        for idx in CartesianIndices(sys.dipoles)
-            new_spin = _rand_mf_spin(sys, idx)
-            ΔE = local_energy_change(sys, idx, new_spin)
-
-            if rand(sys.rng) < exp(-sampler.β * ΔE)
-                new_ket = ket(new_spin)
-                new_dipole = dipole(new_spin, sys, idx)
-
-                sampler.E += ΔE
-                sampler.M += 2 * new_dipole   # assuming 2 is g-factor 
-
-                sys.dipoles[idx] = new_dipole 
-                sys.coherents[idx] = new_ket
-            end
-        end
-    end
-end
-
 @inline running_energy(sampler::MetropolisSampler) = sampler.E
 @inline running_mag(sampler::MetropolisSampler) = sampler.M
 @inline reset_running_energy!(sampler::MetropolisSampler) = (sampler.E = energy(sampler.sys); nothing)
@@ -313,7 +242,7 @@ end
 @inline reset_running_energy!(sampler::IsingSampler) = (sampler.E = energy(sampler.sys); nothing)
 @inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.sys.dipoles); nothing)
 
-
+# KBTODO: move this somewhere else
 """
     local_energy_change(sys, idx, newspin)
 

@@ -1,12 +1,17 @@
 @testitem "Sum Rule" begin
 
-    function simple_model_sf(; dims = (4, 4, 4), N=0)
+    function simple_model_sf(; SUN)
+        dims = (4,4,4)
         J = 1.0
         cryst = Sunny.fcc_primitive_crystal()
         interactions = [heisenberg(J, Bond(1, 1, [1, 0, 0]))]
-        spin_rescaling = N == 0 ? 1.0 : 2.0/(N-1)
-        sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; N, spin_rescaling)])
-        return sys
+        if SUN
+            sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; S=1/2)]; SUN)
+            sys.κs .= 2
+            return sys
+        else
+            return SpinSystem(cryst, interactions, dims, [SiteInfo(1; S=1)]; SUN)
+        end
     end
 
     function thermalize_simple_model!(sys; kT)
@@ -19,30 +24,21 @@
         end
     end
     
-    # Trial parameters
-    ωmax = 10.0
-    dims = (4, 4, 4)
-    gfactor = false
-    Ns = [0, 2]
-
-    for N in Ns
-        ops = if N == 2
-            Ss = Sunny.spin_matrices(2)
-            ops = zeros(ComplexF64, 2, 2, 3)
-            for i ∈ 1:3
-                ops[:,:,i] = Ss[i]
-            end 
-            ops
+    for SUN in (true, false)
+        ops = if SUN
+            N = 2
+            S = Sunny.spin_matrices(N)
+            ops = cat(S...; dims=3)
         else
             nothing
         end
 
-        sys = simple_model_sf(; N)
-        sf = StructureFactor(sys; ωmax, gfactor, ops)
+        sys = simple_model_sf(; SUN)
+        sf = StructureFactor(sys; ωmax=10.0, gfactor=false, ops)
         thermalize_simple_model!(sys; kT=0.1)
         add_trajectory!(sf, sys)
         intensities = intensity_grid(sf; contraction=Trace(), negative_energies=true)
 
-        @test isapprox(sum(intensities) / prod(dims), 1.0; atol=1e-12)
+        @test isapprox(sum(intensities) / prod(sys.size), 1.0; atol=1e-12)
     end
 end
