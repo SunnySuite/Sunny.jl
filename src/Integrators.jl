@@ -43,6 +43,8 @@ ImplicitMidpoint(Δt; atol=1e-12) = ImplicitMidpoint(Δt, atol)
 ################################################################################
 # Convenience functions
 
+# KBTODO: find better place
+
 function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::SpinSystem) where N
     @assert N > 0
     for idx in CartesianIndices(dipoles)

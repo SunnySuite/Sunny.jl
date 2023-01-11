@@ -187,6 +187,86 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Hami
     return E
 end
 
+
+# Computes the change in energy for an update to spin state
+function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU, κs::Vector{Float64}, idx, s::Vec3, Z::CVec{N}) where N
+    s₀ = dipoles[idx]
+    Z₀ = coherents[idx]
+
+    Δs = s - s₀
+    cell, i = splitidx(idx)
+    sz = size(dipoles)[1:3]
+
+    ΔE = 0.0
+
+    if !isnothing(ℋ.ext_field)
+        ΔE -= ℋ.ext_field.effBs[i] ⋅ Δs
+    end
+    for heisen in ℋ.heisenbergs
+        J = first(heisen.bondtable.data)
+        for (bond, _) in sublat_bonds(heisen.bondtable, i)
+            if bond.i == bond.j && iszero(bond.n)
+                ΔE += J * (s⋅s - s₀⋅s₀)
+            else
+                sⱼ = dipoles[offsetc(cell, bond.n, sz), bond.j]
+                ΔE += J * (Δs ⋅ sⱼ)
+            end
+        end
+    end
+    for diag_coup in ℋ.diag_coups
+        for (bond, J) in sublat_bonds(diag_coup.bondtable, i)
+            if bond.i == bond.j && iszero(bond.n)
+                ΔE += s⋅(J.*s) - s₀⋅(J.*s₀)
+            else
+                sⱼ = dipoles[offsetc(cell, bond.n, sz), bond.j]
+                ΔE += (J .* Δs) ⋅ sⱼ
+            end
+        end
+    end
+    for gen_coup in ℋ.gen_coups
+        for (bond, J) in sublat_bonds(gen_coup.bondtable, i)
+            if bond.i == bond.j && iszero(bond.n)
+                ΔE += dot(s, J, s) - dot(s₀, J, s₀)
+            else
+                sⱼ = dipoles[offsetc(cell, bond.n, sz), bond.j]
+                ΔE += dot(Δs, J, sⱼ)
+            end
+        end
+    end
+    for biq_coup in ℋ.biq_coups
+        for (bond, effB) in sublat_bonds(biq_coup.bondtable, i)
+            # On-site biquadratic does not make sense
+            @assert !(bond.i == bond.j && iszero(bond.n))
+
+            sⱼ = dipoles[offsetc(cell, bond.n, sz), bond.j]
+            ΔE += effB * ((s ⋅ sⱼ)^2 - (s₀ ⋅ sⱼ)^2)
+        end
+    end
+
+    if !isnothing(ℋ.ewald)
+        error("Local energy changes not implemented yet for dipole interactions")
+    end
+    if !isnothing(ℋ.dipole_aniso)
+        aniso = ℋ.dipole_aniso
+        for site in aniso.sites
+            if site == i
+                c2, c4, c6 = aniso.coeff_2[i], aniso.coeff_4[i], aniso.coeff_6[i]
+                E_new, _ = energy_and_gradient_for_classical_anisotropy(s, c2, c4, c6)
+                E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, c2, c4, c6)
+                ΔE += E_new - E_old
+            end
+        end
+    end
+    if N > 0
+        aniso = ℋ.sun_aniso
+        Λ = @view(aniso[:,:,i])
+        ΔE += κs[i] * real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
+    end
+    return ΔE
+end
+
+
+
 """
 Updates `B` in-place to hold the local field on `spins` under `ℋ`,
 defined as:

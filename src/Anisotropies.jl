@@ -2,6 +2,7 @@ struct DipoleAnisotropyCPU <: AbstractInteractionCPU
     coeff_2 :: Vector{Vector{Float64}} # length 5 elements
     coeff_4 :: Vector{Vector{Float64}} # length 9 elements
     coeff_6 :: Vector{Vector{Float64}} # length 13 elements
+    # KBTODO: Why plural?
     sites :: Vector{Int}
     label :: String
 end
