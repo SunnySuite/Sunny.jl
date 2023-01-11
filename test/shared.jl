@@ -20,12 +20,13 @@ end
 
 function add_exchange_interactions!(ints)
     J  = 1.0   # Anti-ferro nearest neighbor
-    J′ = -1.0  # Ferro next-nearest neighbor
+    J′ = -0.5  # Ferro next-nearest neighbor
     K  = 1.0   # Scale of Kitaev term
-    Γ  = 0.0   # Off-diagonal exchange, not used
-    J_exch = [J     Γ   0.0;
-              Γ     J   0.0;
-              0.0  0.0  J+K]
+    Γ  = 0.2   # Off-diagonal exchange
+    D  = 0.4   # DM interaction
+    J_exch = [J   Γ   -D;
+              Γ   J   -D;
+              D   D  J+K]
     push!(ints, exchange(J_exch, Bond(1, 2, [0,0,0])))
     push!(ints, heisenberg(J′, Bond(1, 1, [1,0,0])))
 end
