@@ -4,7 +4,7 @@
     # Check that magnitude of coherent (SUN=true) or dipole (SUN=false) is
     # invariant under the dynamics
     function test_spin_magnitude_stability()
-        cryst = Sunny.fcc_crystal()
+        cryst = Sunny.diamond_crystal()
         kT = 0.1
         λ  = 0.1
         Δt = 0.01
