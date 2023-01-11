@@ -7,33 +7,29 @@
         ints = Sunny.AbstractInteraction[]
         add_linear_interactions!(ints, SUN)
         add_quadratic_interactions!(ints, SUN)
-        sys = SpinSystem(cryst, ints, (5, 5, 5); seed=1111)
+        add_quartic_interactions!(ints, SUN)
+        sys = SpinSystem(cryst, ints, (5, 5, 5); seed=0)
 
-        for _ in 1:3
-            randomize_spins!(sys)
-            for _ in 1:50
-                # Pick a random site, try to set it to a random spin
-                idx = rand(CartesianIndices(sys.dipoles))
-                newspin = Sunny._random_spin(sys, idx)
+        randomize_spins!(sys)
+        for _ in 1:5
+            # Pick a random site, try to set it to a random spin
+            idx = rand(sys.rng, CartesianIndices(sys.dipoles))
+            state = Sunny.random_state(sys, idx)
 
-                func_diff = Sunny.local_energy_change(sys, idx, newspin)
+            func_diff = Sunny.local_energy_change(sys, idx, state)
 
-                orig_energy = energy(sys)
-                sys.dipoles[idx] = newspin
-                new_energy = energy(sys)
+            orig_energy = energy(sys)
+            sys.dipoles[idx]   = state.s
+            sys.coherents[idx] = state.Z
+            new_energy = energy(sys)
 
-                actual_diff = new_energy - orig_energy
+            actual_diff = new_energy - orig_energy
 
-                if !(func_diff ≈ actual_diff)
-                    return false
-                end
-            end
+            @test func_diff ≈ actual_diff
         end
-
-        return true
     end
 
-    @test test_local_energy_change()
+    test_local_energy_change()
 
     "Tests that set_temp!/get_temp behave as expected"
     function test_set_get_temp_metropolis()
@@ -42,7 +38,7 @@
         ints = Sunny.AbstractInteraction[]
         add_linear_interactions!(ints, SUN)
         add_quadratic_interactions!(ints, SUN)
-        sys = SpinSystem(cryst, ints, (5, 5, 5); seed=1111)
+        sys = SpinSystem(cryst, ints, (5, 5, 5); seed=0)
 
         for sampler_type in [MetropolisSampler, IsingSampler]
             sampler = sampler_type(sys, 1.0, 1)
