@@ -73,7 +73,7 @@ Each single-spin update attempts to completely randomize the spin. One call to
  `sample!` will attempt to flip each spin `nsweeps` times.
 """
 mutable struct MetropolisSampler{N} <: AbstractSampler
-    sys     :: SpinSystem{N}
+    sys        :: SpinSystem{N}
     β          :: Float64
     nsweeps    :: Int
     E          :: Float64

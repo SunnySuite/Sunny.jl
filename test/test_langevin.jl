@@ -1,7 +1,7 @@
-@testitem "Langevin Dynamics" begin
-    include("shared.jl")
+@testitem "Anisotropy" begin
 
-    #= Test energy statistics for an SU(3) single ion problem with anisotropy. (GSD only.) =#
+    # Test energy statistics for an SU(3) single ion problem with anisotropy.
+    # (GSD only.)
 
     "Analytical mean energy for SU(3) model with Λ = D*(Sᶻ)^2"
     function su3_mean_energy(kT, D)
@@ -15,8 +15,8 @@
         return 4D*(exp(-a)*(-a*(a*(a*(a+4)+12)+24)-24)+24) / (5a*(exp(-a)*(-a*(a*(a+3)+6)-6)+6)) # - Λ₀
     end
 
-    #= Generates an FeI2 cyrstal (Fe+ ions only). This crystal supports
-    the anisotropies in the tests below =#
+    # Generates an FeI2 cyrstal (Fe+ ions only). This crystal supports the
+    # anisotropies in the tests below
     function FeI2_crystal()
         a = b = 4.05012
         c = 6.75214
@@ -124,11 +124,11 @@
     end
 
     test_su5_anisotropy_energy()
+end
 
 
-
-
-    #= Test energy statistics of a two-site spin chain (LLD and GSD). =#
+# Test energy statistics of a two-site spin chain (LLD and GSD).
+@testitem "Spin chain" begin
 
     # Consider a hypercube [0, 1]ᵏ (coordinates satisfying 0 ≤ xᵢ ≤ 1) and a hyperplane
     # defined by (x₁ + x₂ + ... xₖ) = α. The volume of the hypercube "beyond" this hyperplane
@@ -176,7 +176,7 @@
         Ps
     end
 
-    "Generates a two-site spin chain spin system."
+    # Generates a two-site spin chain spin system
     function two_site_spin_chain(; SUN, seed)
         a = 1.0
         b = 1.1
@@ -199,8 +199,8 @@
         return sys
     end
 
-    "Checks that the Langevin sampler produces the appropriate energy distribution 
-    for a two-site spin chain."
+    # Checks that the Langevin sampler produces the appropriate energy
+    # distribution for a two-site spin chain.
     function test_spin_chain_energy()
         seed = 111
         for SUN in (true, false)
@@ -239,5 +239,31 @@
     end
 
     test_spin_chain_energy()
+end
 
+
+@testitem "Get/set temp" begin
+
+    # Tests that set_temp!/get_temp behave as expected
+    function test_set_get_temp()
+        cryst = Sunny.diamond_crystal()
+        ints = Sunny.AbstractInteraction[]
+        sys = SpinSystem(cryst, ints, (5, 5, 5); seed=0)
+
+        samplers = [
+            MetropolisSampler(sys, 1.0, 1),
+            IsingSampler(sys, 1.0, 1),
+            LangevinSampler(LangevinHeunP(1.0, 1.0, 1.0), 1),
+        ]
+        for sampler in samplers
+            @test get_temp(sampler) ≈ 1.0
+
+            kT = 1.8
+            set_temp!(sampler, kT)
+            # approximate because `sampler` stores 1/kT
+            @test get_temp(sampler) ≈ kT
+        end
+    end
+
+    test_set_get_temp()
 end

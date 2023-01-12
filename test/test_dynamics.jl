@@ -1,7 +1,8 @@
-@testitem "Dynamics" begin
+@testitem "Dynamical energy conservation" begin
     include("shared.jl")
 
-    "Tests that SphericalMidpoint conserves energy for simple forces to a certain tolerance."
+    # Tests that SphericalMidpoint conserves energy for simple forces to a
+    # certain tolerance.
     function test_spherical_midpoint(; SUN)
         cryst = Sunny.diamond_crystal()
         ints = Sunny.AbstractInteraction[]
@@ -23,8 +24,8 @@
             push!(energies, energy(sys))
         end
 
-        # Check that the energy hasn't fluctuated much. Expected fluctuations should
-        # scale like square-root of system size.
+        # Check that the energy hasn't fluctuated much. Expected fluctuations
+        # should scale like square-root of system size.
         sqrt_size = sqrt(length(sys.dipoles))
         ΔE = (maximum(energies) - minimum(energies)) / sqrt_size
         @test ΔE < 1e-2
@@ -32,22 +33,5 @@
 
     test_spherical_midpoint(; SUN=false)
     test_spherical_midpoint(; SUN=true)
-
-
-    "Tests that set_temp!/get_temp behave as expected"
-    function test_set_get_temp_langevin()
-        integrator = LangevinHeunP(1.0, 1.0, 1.0)
-        sampler = LangevinSampler(integrator, 1)
-        for kT in [1.1, 10.3]
-            set_temp!(sampler, kT)
-            if get_temp(sampler) != kT
-                return false
-            end
-        end
-
-        return true
-    end
-
-    @test test_set_get_temp_langevin()
 
 end

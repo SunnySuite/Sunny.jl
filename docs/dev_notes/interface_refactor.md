@@ -11,10 +11,10 @@
 Construct a spin system using
 
 ```julia
-sys = System(crystal, dims, siteinfos; SUN=true)
+sys = System(crystal, dims, siteinfos; SUN=disable)
 ```
 
-SU(N) mode is enabled by default. One can optionally restrict to dipole-only model by setting `SUN=false`.
+The default, `SUN=disable`, implies that spins are dipole-only. Conversely, setting `SUN=true` will enable SU(N) mode and quadrupolar fluctuations.
 
 The parameter `siteinfos` is a list of `SiteInfo` objects,
 
@@ -22,9 +22,9 @@ The parameter `siteinfos` is a list of `SiteInfo` objects,
 SiteInfo(site::Int; S=1/2, g=2)
 ```
 
-one for each symmetry-distinct `site`. The parameter `S` gives the total angular momentum (units of $\hbar$), and `g` is a scalar or tensor that determines conversion from angular momentum to magnetic moment. Information about form factor corrections has been moved to the StructureFactor portion of the code.
+one for each symmetry-distinct `site`. The parameter `S` specifies spin angular momentum as a half-integer multiple of $\hbar$. The parameter `g` is a scalar or tensor that determines conversion from angular momentum to magnetic moment. [Form factor corrections no longer appear here; these have been moved to the Structure Factor portion of the code.]
 
-If `SUN` is false then `siteinfo.S` determines the norm of dipoles in `sys.dipoles` corresponding to site `siteinfo.i`. If `SUN=true`, then all $S$ must be the same, and the size of each local Hilbert space is $N = 2S + 1$.
+If `SUN=false` then the model consists of dipoles with magnitude `siteinfo.S`. If `SUN=true` then the model consists of quantum coherent states in the spin-$S$ representation, corresponding to a local Hilbert space dimension $N = 2S + 1$. In the current implementation, `SUN=true` requires `S` to be uniform across sites.
 
 
 ## Setting interactions
