@@ -55,8 +55,12 @@ function Base.show(io::IO, ::MIME"text/plain", bondtable::BondTable{T}) where {T
     print(io, "$(length(bondtable))-element, $(length(bondtable.basis_indices)-1)-basis BondTable{$T}")
 end
 
+# KBTODO investigate
+
 Base.length(bondtable::BondTable) = length(bondtable.bonds)
+
 nbasis(bondtable::BondTable) = length(bondtable.basis_indices) - 1
+
 ## These functions generate iterators producing (bond, data) for various subsets of bonds ##
 all_bonds(bondtable::BondTable) = zip(bondtable.bonds, bondtable.data)
 culled_bonds(bondtable::BondTable) = zip(bondtable.culled_bonds, bondtable.culled_data)
