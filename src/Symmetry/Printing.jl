@@ -75,7 +75,7 @@ function _add_padding_to_coefficients(xs)
 
     # Define new variable, rather than modify max_len, to avoid "captured
     # variable" which would block Julia optimizer
-    pad_len = all(x -> startswith(x, '-'), max_xs) ? max_len+1 : max_len
+    pad_len = all(x -> startswith(x, '-'), max_xs) ? max_len : max_len+1
 
     return map(xs) do x
         (' ' ^ (pad_len - length(x))) * x
