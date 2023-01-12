@@ -33,14 +33,9 @@
     # Calculation of energy as a sum over pairs
     function ewald_energy_pairs(dipoles::Array{Sunny.Vec3, 4}, ewald::Sunny.EwaldCPU)
         E = 0.
-        ci = CartesianIndices(dipoles)
-        for idx1 ∈ ci, idx2 ∈ ci
-            if idx1 <= idx2
-                h = Sunny.pairwise_force_at(idx1, idx2, dipoles[idx2], ewald)
-                # In the case that idx1==idx2, we must undo an extra factor of 2
-                # appearing in h = -dE/ds.
-                E -= (idx1==idx2 ? 1/2 : 1) * dipoles[idx1]⋅h
-            end
+        for idx in CartesianIndices(dipoles)
+            h = Sunny.force_at(dipoles, ewald, idx)
+            E -= (1/2)dipoles[idx]⋅h
         end
         return E
     end

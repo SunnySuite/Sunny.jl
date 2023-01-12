@@ -244,8 +244,9 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
     end
 
     if !isnothing(ℋ.ewald)
-        error("Local energy changes not implemented yet for dipole interactions")
+        ΔE += energy_delta(dipoles, ℋ.ewald, idx, s)
     end
+
     if !isnothing(ℋ.dipole_aniso)
         aniso = ℋ.dipole_aniso
         for site in aniso.sites
