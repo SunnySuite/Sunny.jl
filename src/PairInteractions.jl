@@ -246,22 +246,6 @@ function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, heisen::HeisenbergCP
     end
 end
 
-function force_at(dipoles::Array{Vec3}, heisen::HeisenbergCPU, idx)
-    bondtable = heisen.bondtable
-    B = Vec3(0,0,0)
-    J = first(bondtable.data)
-    site = idx[4]
-
-    latsize = size(dipoles)[1:3]
-    @inbounds for (bond, _) in sublat_bonds(bondtable, site)
-        (; j, n) = bond
-        offsetcell = offsetc(cell, n, latsize)
-        B -= J * dipoles[offsetcell, j]
-    end
-
-    return B
-end
-
 
 "Accumulates the local -∇ℋ coming from Biquadratic couplings into `B`"
 function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, biq_coup::BiquadraticCPU)
@@ -284,24 +268,6 @@ function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, biq_coup::Biquadrati
 end
 
 
-function force_at(dipoles::Array{Vec3}, biq_coup::BiquadraticCPU, i)
-    error("Not yet implemented.")
-    # bondtable = biq_coup.bondtable
-    # B = Vec3(0,0,0)
-    # J = first(bondtable.data)
-    # _, site = splitidx(i)
-
-    # latsize = size(dipoles)[1:3]
-    # @inbounds for (bond, _) in sublat_bonds(bondtable, site)
-    #     (; j, n) = bond
-    #     offsetcell = offsetc(cell, n, latsize)
-    #     B -= J * dipoles[offsetcell, j]
-    # end
-
-    # return B
-end
-
-
 "Accumulates the local -∇ℋ coming from diagonal couplings into `B`"
 function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
     bondtable = diag_coup.bondtable
@@ -317,21 +283,6 @@ function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, diag_coup::DiagonalC
     end
 end
 
-function force_at(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU, idx)
-    bondtable = diag_coup.bondtable
-    B = Vec3(0,0,0)
-    cell, site = splitidx(idx)
-
-    latsize = size(dipoles)[1:3]
-    @inbounds for (bond, J) ∈ sublat_bonds(bondtable, site)
-        (; j, n) = bond
-        offsetcell = offsetc(cell, n, latsize)
-        B -= J .* dipoles[offsetcell, j]
-    end
-
-    return B
-end
-
 "Accumulates the local -∇ℋ coming from general couplings into `B`"
 function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU)
     bondtable = gen_coup.bondtable
@@ -345,20 +296,4 @@ function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, gen_coup::GeneralCou
             B[offsetcell, j] = B[offsetcell, j] - J' * dipoles[cell, i]
         end
     end
-end
-
-
-function force_at(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU, idx)
-    bondtable = gen_coup.bondtable
-    B = Vec3(0,0,0)
-    cell, site = splitidx(idx)
-
-    latsize = size(dipoles)[1:3]
-    @inbounds for (bond, J) ∈ sublat_bonds(bondtable, site)
-        (; j, n) = bond
-        offsetcell = offsetc(cell, n, latsize)
-        B -= J * dipoles[offsetcell, j]
-    end
-
-    return B
 end

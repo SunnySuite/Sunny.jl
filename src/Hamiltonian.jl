@@ -301,39 +301,3 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::Hamiltonia
     end
 end
 
-"""
-Calculates the local field, `Bᵢ`, for a single site, `i`:
-
-``𝐁_i = -∇_{𝐬_i} E ``.
-
-This is useful for some sampling methods.
-"""
-function force_at(dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU, idx::CartesianIndex{4}) 
-    B = zero(Vec3)
-    site = idx[4]
-
-    if !isnothing(ℋ.ext_field)
-        B += ℋ.ext_field.effBs[site] 
-    end
-    for heisen in ℋ.heisenbergs
-        B += force_at(dipoles, heisen, idx)
-    end
-    for diag_coup in ℋ.diag_coups
-        B += force_at(dipoles, diag_coup, idx)
-    end
-    for gen_coup in ℋ.gen_coups
-        B += force_at(dipoles, gen_coup, idx)
-    end
-    for biq_coup in ℋ.biq_coups
-        B += force_at(dipoles, biq_coup, idx)
-    end
-    if !isnothing(ℋ.dipole_aniso)
-        error("Calling `force_at()` for a single site with anisotropy. This is probably an error. Please contact Sunny developers if you have a valid use-case.")
-    end
-    if !isnothing(ℋ.ewald)
-        error("Local energy changes not implemented yet for dipole interactions")
-    end
-
-    return B
-end
-
