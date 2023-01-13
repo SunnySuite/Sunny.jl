@@ -1,5 +1,5 @@
-"Element-wise application of mod1(cell+off, sz), returning CartesianIndex"
-@inline offsetc(cell::CartesianIndex{3}, off, sz) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), sz))
+"Element-wise application of mod1(cell+off, latsize), returning CartesianIndex"
+@inline offsetc(cell::CartesianIndex{3}, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
 
 "Split a Cartesian index (i,j,k,b) into its parts (i,j,k) and b."
 @inline splitidx(idx::CartesianIndex{4}) = (CartesianIndex((idx[1],idx[2],idx[3])), idx[4])

@@ -4,7 +4,7 @@ import Random
 # System.  This would allow to pass System to constructors in Model.
 struct SpinSystem{N}
     crystal          :: Crystal
-    size             :: NTuple{3, Int}            # Size of lattice in unit cells
+    latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
     hamiltonian      :: HamiltonianCPU            # All interactions
     dipoles          :: Array{Vec3, 4}            # Expected dipoles
     coherents        :: Array{CVec{N}, 4}         # Coherent states
@@ -29,7 +29,7 @@ cells along each lattice vector specified by `size`. All spins are initially
 polarized in the z direction. The default units system is (meV, T, Å), but this
 can be overridden with the option `units` parameter.
 """
-function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, size::NTuple{3,Int},
+function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsize::NTuple{3,Int},
                     site_infos::Vector{SiteInfo}=SiteInfo[]; SUN=false, units=Units.meV, seed=nothing)
     site_infos = if isempty(site_infos)
         [SiteInfo(i; S=1.0) for i in 1:nbasis(crystal)]
@@ -53,14 +53,14 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, size:
     ℋ_CPU = HamiltonianCPU(ints, crystal, κs, gs, N; units)
 
     # Initialize sites to all spins along +z
-    dipoles = fill(zero(Vec3), size..., nbasis(crystal))
-    coherents = fill(zero(CVec{N}), size..., nbasis(crystal))
+    dipoles = fill(zero(Vec3), latsize..., nbasis(crystal))
+    coherents = fill(zero(CVec{N}), latsize..., nbasis(crystal))
     κs = fill(1.0, nbasis(crystal))
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = SpinSystem(crystal, size, ℋ_CPU, dipoles, coherents, κs, gs,
+    ret = SpinSystem(crystal, latsize, ℋ_CPU, dipoles, coherents, κs, gs,
                      dipole_buffers, coherent_buffers, units, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
@@ -75,13 +75,13 @@ is simply repeated periodically.
 """
 function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where N
     @assert all(>=(1), mults)
-    size = mults .* sys.size
+    latsize = mults .* sys.latsize
     dipoles   = repeat(sys.dipoles, mults..., 1)
     coherents = repeat(sys.coherents, mults..., 1)
     #KBTODO: repeat κs
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
-    return SpinSystem(sys.crystal, size, sys.hamiltonian, dipoles, coherents, sys.κs, sys.gs,
+    return SpinSystem(sys.crystal, latsize, sys.hamiltonian, dipoles, coherents, sys.κs, sys.gs,
                       dipole_buffers, coherent_buffers, sys.units, copy(sys.rng))
 end
 
@@ -98,7 +98,7 @@ magnetic_moment(sys::SpinSystem, idx) = sys.units.μB * sys.gs[idx[4]] * sys.dip
 positions(sys::SpinSystem) = [position(sys, idx) for idx in all_sites(sys)]
 
 
-volume(sys::SpinSystem) = cell_volume(sys.crystal) * prod(sys.size)
+volume(sys::SpinSystem) = cell_volume(sys.crystal) * prod(sys.latsize)
 
 
 function polarize_spin!(sys::SpinSystem{0}, idx, dir)
@@ -147,7 +147,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", sys::SpinSystem{N}) where N
     sys_type = N > 0 ? "SU($N)" : "Dipolar"
     printstyled(io, "Spin System [$sys_type]\n"; bold=true, color=:underline)
-    println(io, "Basis $(nbasis(sys.crystal)), Lattice dimensions $(sys.size)")
+    println(io, "Basis $(nbasis(sys.crystal)), Lattice dimensions $(sys.latsize)")
 end
 
 
@@ -214,5 +214,5 @@ and vacuum permeability ``μ_0`` are physical constants, with numerical values
 determined by the unit system.
 """
 function enable_dipole_dipole!(sys::SpinSystem)
-    sys.hamiltonian.ewald = EwaldCPU(sys.crystal, sys.size, sys.gs, sys.units)
+    sys.hamiltonian.ewald = EwaldCPU(sys.crystal, sys.latsize, sys.gs, sys.units)
 end

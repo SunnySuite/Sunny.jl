@@ -1,5 +1,5 @@
 function qgrid(sf::StructureFactor; bzsize=(1,1,1))
-    Ls = sf.sftraj.sys.size 
+    Ls = sf.sftraj.sys.latsize 
     offsets = map(L -> isodd(L) ? 1 : 0, Ls)
     up = Ls .* bzsize
     hi = map(L -> L - div(L, 2), up) .- offsets
