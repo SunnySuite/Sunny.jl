@@ -8,7 +8,7 @@
         add_linear_interactions!(ints, SUN)
         add_quadratic_interactions!(ints, SUN)
         add_quartic_interactions!(ints, SUN)
-        sys = SpinSystem(cryst, ints, (5, 5, 5); seed=0)
+        sys = SpinSystem(cryst, ints, (3, 3, 3); seed=0)
         enable_dipole_dipole!(sys)
 
         rand!(sys.rng, sys.κs)
