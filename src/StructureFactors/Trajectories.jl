@@ -89,24 +89,21 @@ end
 new_trajectory!(sf::StructureFactor, sys::SpinSystem) = new_trajectory!(sf.sftraj, sys)
 
 
-# TODO: Plan FFTs (put in SFTrajectory)
+# ddtodo: Plan FFT
 function accum_trajectory!(sfdata::SFData, sftraj::SFTrajectory, nsamples::Int64)
     (; data, idxinfo) = sfdata
     (; traj) = sftraj
-    nops, na, nb, nc, ns, nω = size(traj)
+    _, na, nb, nc, ns, nω = size(traj)
 
     FFTW.fft!(traj, (2,3,4,6))
     traj /= nω * √(na*nb*nc)  # Normalize FFT according to physical convention
-    Sα = reshape(traj, (nops, na, nb, nc, 1, ns, nω)) 
-    Sβ = reshape(traj, (nops, na, nb, nc, ns, 1, nω)) 
 
-    for (ci, idx) in idxinfo
-        # Test if broadcasting eliminates need for views
-        α, β = ci.I
-        res = @view(data[idx,:,:,:,:,:,:])
-        α = @view(Sα[α,:,:,:,:,:,:])
-        β = @view(Sβ[β,:,:,:,:,:,:])
-        @. res = res + (α * conj(β) - res) / nsamples
+    ## Transfer to final memory layout while accumulating new trajectory
+    for a in 1:na, b in 1:nb, c in 1:nc, s1 in 1:ns, s2 in 1:ns, ω in 1:nω
+        for (ci, e) in idxinfo
+            α, β = ci.I
+            data[e,s1,s2,a,b,c,ω] += traj[α,a,b,c,s1,ω] * conj(traj[β,a,b,c,s2,ω]) / nsamples
+        end
     end
 
     return nothing
