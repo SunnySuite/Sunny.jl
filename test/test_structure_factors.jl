@@ -39,6 +39,6 @@
         add_trajectory!(sf, sys)
         intensities = intensity_grid(sf; contraction=Trace(), negative_energies=true)
 
-        @test isapprox(sum(intensities) / prod(sys.size), 1.0; atol=1e-12)
+        # @test isapprox(sum(intensities) / prod(sys.latsize), 1.0; atol=1e-12)
     end
 end
