@@ -66,7 +66,7 @@ Element(pair::Tuple{Int64, Int64}) = sf -> Element(sf, pair)
 function contract(elems, _, traceinfo::Trace)
     intensity = 0.0
     for i in traceinfo.indices
-        intensity += real(elems[i])
+        intensity += real(elems[i])  # Diagonal elements should be real only -- any finite imaginary component due to numerical issues in basis reduction (usually on the order of 1e-17)
     end
     return intensity
 end
