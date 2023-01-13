@@ -10,9 +10,7 @@ of all interactions internally.
 """
 mutable struct HamiltonianCPU
     ext_field       :: Union{Nothing, ExternalFieldCPU}
-    # TODO: Merge these three into one
     heisenbergs     :: Vector{HeisenbergCPU}
-    diag_coups      :: Vector{DiagonalCouplingCPU}
     gen_coups       :: Vector{GeneralCouplingCPU}
     biq_coups       :: Vector{BiquadraticCPU}
     ewald           :: Union{Nothing, EwaldCPU}
@@ -25,7 +23,6 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
                        κs, gs, N; units=PhysicalConsts)
     ext_field   = nothing
     heisenbergs = Vector{HeisenbergCPU}()
-    diag_coups  = Vector{DiagonalCouplingCPU}()
     gen_coups   = Vector{GeneralCouplingCPU}()
     biq_coups   = Vector{BiquadraticCPU}()
     ewald       = nothing
@@ -40,8 +37,6 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
             int_impl = convert_quadratic(int, crystal)
             if isa(int_impl, HeisenbergCPU)
                 push!(heisenbergs, int_impl)
-            elseif isa(int_impl, DiagonalCouplingCPU)
-                push!(diag_coups, int_impl)
             elseif isa(int_impl, GeneralCouplingCPU)
                 push!(gen_coups, int_impl)
             else
@@ -63,7 +58,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
     (dipole_anisos, sun_anisos) = convert_anisotropies(anisos, crystal, κs, N)
 
     return HamiltonianCPU(
-        ext_field, heisenbergs, diag_coups, gen_coups, biq_coups, ewald,
+        ext_field, heisenbergs, gen_coups, biq_coups, ewald,
         dipole_anisos, sun_anisos
     )
 end
@@ -166,9 +161,6 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Hami
     for heisen in ℋ.heisenbergs
         E += energy(dipoles, heisen)
     end
-    for diag_coup in ℋ.diag_coups
-        E += energy(dipoles, diag_coup)
-    end
     for gen_coup in ℋ.gen_coups
         E += energy(dipoles, gen_coup)
     end
@@ -210,16 +202,6 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
             else
                 sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
                 ΔE += J * (Δs ⋅ sⱼ)
-            end
-        end
-    end
-    for diag_coup in ℋ.diag_coups
-        for (bond, J) in sublat_bonds(diag_coup.bondtable, i)
-            if bond.i == bond.j && iszero(bond.n)
-                ΔE += s⋅(J.*s) - s₀⋅(J.*s₀)
-            else
-                sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
-                ΔE += (J .* Δs) ⋅ sⱼ
             end
         end
     end
@@ -283,9 +265,6 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::Hamiltonia
     end
     for heisen in ℋ.heisenbergs
         accum_force!(B, dipoles, heisen)
-    end
-    for diag_coup in ℋ.diag_coups
-        accum_force!(B, dipoles, diag_coup)
     end
     for gen_coup in ℋ.gen_coups
         accum_force!(B, dipoles, gen_coup)
