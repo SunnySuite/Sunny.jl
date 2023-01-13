@@ -5,28 +5,11 @@
 # Function for getting a single 𝒮(q, ω) intensity -- primarily internal
 function calc_intensity(sf::StructureFactor, q, iq, ω, iω, contractor, temp, ffdata)
     (; crystal, data) = sf.sfdata
-
-    nelems, natoms = size(data, 1), size(data, 5)
-    # This static approach is faster than preallocation of an array. However,
-    # we should probably consider reshaping the the data in SFData to 
-    # to have dimes (ne, nb, nb, nqa, nqb, nqc, nω) to avoid non-continguous
-    # memory access. This could be done when accumulating trajectories. Note
-    # in particular that the current approach may have trouble when there are 
-    # Many recorded correlations and many atoms within each unit cell. Currently
-    # tested on a system with 6 correlations and 8 atoms. This results in 
-    # 6 * 8 * 8 * 2 = 768 real numbers in a StaticArray. This seems far too large,
-    # but the approach still showed performance benefits relative to copying
-    # into a preallocated array. Need to test accessing data non-contiguously
-    # in phase_averaged_elements with no copying.
-    data_point = SArray{Tuple{nelems, natoms, natoms}, ComplexF64, 3, nelems*natoms*natoms}(
-        data[:,iq,:,:,iω]
-    )
-    elems = phase_averaged_elements(data_point, q, crystal, ffdata)
+    elems = phase_averaged_elements(@view(data[:,:,:,iq, iω]), q, crystal, ffdata)
     intensity = contract(elems, q, contractor)
     if !isnothing(temp)
         intensity *= classical_to_quantum(ω, temp)
     end
-
     return intensity
 end
 

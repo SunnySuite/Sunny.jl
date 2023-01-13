@@ -96,18 +96,19 @@ function SFData(sys::SpinSystem, sftraj::SFTrajectory;
     idxinfo = SortedDict{CartesianIndex{2}, Int64}(pairs)
 
     qa, qb, qc, ns = size(sys.dipoles)
-    data = zeros(ComplexF64, length(matrix_elems), qa, qb, qc, ns, ns, numω)
+    data = zeros(ComplexF64, length(matrix_elems), ns, ns, qa, qb, qc, numω)
     Δω = 2π / (sftraj.integrator.Δt*sftraj.measperiod*numω)
 
     return SFData(data, sys.crystal, Δω, idxinfo)
 end
 
 
-function Base.getindex(sfd::SFData, α, β, qa, qb, qc, l1, l2, ω)
-    α, β = α < β ? (α, β) : (β, α)  # Because SF is symmetric, only save diagonal and upper triangular
-    return sfd.data[sfd.idx_info[(α, β)], qa, qb, qc, l1, l2, ω]
-end
-Base.getindex(sf::StructureFactor, α, β, qa, qb, qc, l1, l2, ω) = sf.sfdata[α, β, qa, qb, qc, l1, l2, ω]
+## May not even want to provide these after all.
+# function Base.getindex(sfd::SFData, α, β, qa, qb, qc, l1, l2, ω)
+#     α, β = α < β ? (α, β) : (β, α)  # Because SF is symmetric, only save diagonal and upper triangular
+#     return sfd.data[sfd.idx_info[(α, β)], qa, qb, qc, l1, l2, ω]
+# end
+# Base.getindex(sf::StructureFactor, α, β, qa, qb, qc, l1, l2, ω) = sf.sfdata[α, β, qa, qb, qc, l1, l2, ω]
 
 
 function calculate_structure_factor(sys::SpinSystem, sampler::LangevinSampler;
