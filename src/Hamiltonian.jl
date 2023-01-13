@@ -195,7 +195,7 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
 
     Δs = s - s₀
     cell, i = splitidx(idx)
-    sz = size(dipoles)[1:3]
+    latsize = size(dipoles)[1:3]
 
     ΔE = 0.0
 
@@ -208,7 +208,7 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += J * (s⋅s - s₀⋅s₀)
             else
-                sⱼ = dipoles[offsetc(cell, bond.n, sz), bond.j]
+                sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
                 ΔE += J * (Δs ⋅ sⱼ)
             end
         end
@@ -218,7 +218,7 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += s⋅(J.*s) - s₀⋅(J.*s₀)
             else
-                sⱼ = dipoles[offsetc(cell, bond.n, sz), bond.j]
+                sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
                 ΔE += (J .* Δs) ⋅ sⱼ
             end
         end
@@ -228,7 +228,7 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += dot(s, J, s) - dot(s₀, J, s₀)
             else
-                sⱼ = dipoles[offsetc(cell, bond.n, sz), bond.j]
+                sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
                 ΔE += dot(Δs, J, sⱼ)
             end
         end
@@ -238,7 +238,7 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
             # On-site biquadratic does not make sense
             @assert !(bond.i == bond.j && iszero(bond.n))
 
-            sⱼ = dipoles[offsetc(cell, bond.n, sz), bond.j]
+            sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
             ΔE += effB * ((s ⋅ sⱼ)^2 - (s₀ ⋅ sⱼ)^2)
         end
     end
