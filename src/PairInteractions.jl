@@ -104,16 +104,6 @@ struct BiquadraticCPU <: AbstractPairIntCPU
     label        :: String
 end
 
-"""
-    DiagonalCouplingCPU <: AbstractPairIntCPU
-
-Implements an exchange interaction where matrices on all bonds
-are diagonal.
-"""
-struct DiagonalCouplingCPU <: AbstractPairIntCPU
-    bondtable     :: BondTable{Vec3}    # Bonds store diagonal of effective J's = S_i J S_j
-    label         :: String
-end
 
 """
     GeneralCouplingCPU <: AbstractPairIntCPU
@@ -144,10 +134,6 @@ function convert_quadratic(int::QuadraticInteraction, cryst::Crystal; tol=1e-6)
         # Pull out the Heisenberg scalar from each exchange matrix
         bondtable = map(J->J[1,1], bondtable)
         return HeisenbergCPU(bondtable, label)
-    elseif all(isdiag(tol), bondtable.culled_data)
-        # Pull out the diagonal of each exchange matrix
-        bondtable = map(J->diag(J), bondtable)
-        return DiagonalCouplingCPU(bondtable, label)
     else
         return GeneralCouplingCPU(bondtable, label)
     end
@@ -198,22 +184,6 @@ function energy(dipoles::Array{Vec3}, biq_coup::BiquadraticCPU)
 end
 
 
-function energy(dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
-    bondtable = diag_coup.bondtable
-    E = 0.0
-
-    latsize = size(dipoles)[1:3]
-    @inbounds for (bond, J) in culled_bonds(bondtable)
-        (; i, j, n) = bond
-        for cell in CartesianIndices(latsize)
-            sᵢ = dipoles[cell, i]
-            sⱼ = dipoles[offsetc(cell, n, latsize), j]
-            E += (J .* sᵢ) ⋅ sⱼ
-        end
-    end
-    return E
-end
-
 function energy(dipoles::Array{Vec3}, gen_coup::GeneralCouplingCPU)
     bondtable = gen_coup.bondtable
     E = 0.0
@@ -263,22 +233,6 @@ function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, biq_coup::Biquadrati
 
             B[cell, i] = B[cell, i] - 2 * effJ * sⱼ * (sᵢ ⋅ sⱼ)
             B[offsetcell, j] = B[offsetcell, j] - 2 * effJ * sᵢ * (sᵢ ⋅ sⱼ)
-        end
-    end
-end
-
-
-"Accumulates the local -∇ℋ coming from diagonal couplings into `B`"
-function accum_force!(B::Array{Vec3}, dipoles::Array{Vec3}, diag_coup::DiagonalCouplingCPU)
-    bondtable = diag_coup.bondtable
-
-    latsize = size(dipoles)[1:3]
-    @inbounds for (bond, J) in culled_bonds(bondtable)
-        (; i, j, n) = bond
-        for cell in CartesianIndices(latsize)
-            offsetcell = offsetc(cell, n, latsize)
-            B[cell, i] = B[cell, i] - J .* dipoles[offsetcell, j]
-            B[offsetcell, j] = B[offsetcell, j] - J .* dipoles[cell, i]
         end
     end
 end
