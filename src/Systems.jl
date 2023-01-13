@@ -85,15 +85,18 @@ function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where 
                       dipole_buffers, coherent_buffers, sys.units, copy(sys.rng))
 end
 
-function positions(sys::SpinSystem)
-    nb = nbasis(sys.crystal)
-    ret = fill(zero(Vec3), sys.size..., nb)
-    for cell in CartesianIndices(sys.size), b in nb
-        offset = Tuple(cell) .- (1,1,1)
-        ret[cell, b] = position(sys.crystal, b, offset)
-    end
-    return ret
-end
+"An iterator over all sites using CartesianIndices"
+@inline all_sites(sys::SpinSystem) = CartesianIndices(sys.dipoles)
+
+"Position of a site in global coordinates"
+position(sys::SpinSystem, idx) = sys.crystal.lat_vecs * (sys.crystal.positions[idx[4]] .+ (idx[1]-1, idx[2]-1, idx[3]-1))
+
+"Net magnetic moment at a site"
+magnetic_moment(sys::SpinSystem, idx) = sys.units.μB * sys.gs[idx[4]] * sys.dipoles[idx]
+
+"Positions of all sites in global coordinates"
+positions(sys::SpinSystem) = [position(sys, idx) for idx in all_sites(sys)]
+
 
 volume(sys::SpinSystem) = cell_volume(sys.crystal) * prod(sys.size)
 
