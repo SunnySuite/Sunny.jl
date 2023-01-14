@@ -51,17 +51,6 @@ function propagate_form_factors(sf::StructureFactor, form_factors)
     return all_form_factors
 end
 
-"""
-If the user provides a custom basis (newbasis), it is assumed they have provided q-values
-in terms of this basis. This function converts the user-provided q-values into coordinates
-with respect to the reciprocal lattice vectors.
-"""
-function change_basis(qs, newbasis)
-    return map(qs) do q
-        sum(newbasis .* q) # Make newbasis a matrix instead of list of Vec3s?
-    end
-end
-
 
 """
 Note that requests for intensities often come in lists of nearby q values. Since the data
@@ -114,7 +103,8 @@ function get_intensities(sf::StructureFactor, q_targets::Array;
     contractor = contraction(sf)
     ffdata = propagate_form_factors(sf, formfactors)
     if !isnothing(newbasis)
-        q_targets = change_basis(q_targets, newbasis)
+        newbasis = Mat3(newbasis)
+        q_targets = map(q -> newbasis*q, q_targets)
     end
     q_targets = convert.(Vec3, q_targets)
 
