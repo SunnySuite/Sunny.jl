@@ -10,12 +10,12 @@ using LinearAlgebra
 
 # Various possible interactions appropriate to diamond crystal
 
-function add_linear_interactions!(ints, SUN)
-    push!(ints, external_field([0.0, 1.0, 1.0]))
-    if SUN
-        # In SUN mode, anisotropy scales as ⟨Λ⟩ → κ ⟨Λ⟩.
-        push!(ints, anisotropy(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1))
-    end
+function add_linear_interactions!(sys, SUN)
+    set_external_field!(sys, (0.0, 1.0, 1.0))
+    # if SUN
+    #     # In SUN mode, anisotropy scales as ⟨Λ⟩ → κ ⟨Λ⟩.
+    #     push!(ints, anisotropy(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1))
+    # end
 end
 
 function add_exchange_interactions!(ints)

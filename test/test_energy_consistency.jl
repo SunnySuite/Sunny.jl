@@ -5,10 +5,10 @@
     function make_system(; SUN)
         cryst = Sunny.diamond_crystal()
         ints = Sunny.AbstractInteraction[]
-        add_linear_interactions!(ints, SUN)
         add_quadratic_interactions!(ints, SUN)
         add_quartic_interactions!(ints, SUN)
         sys = SpinSystem(cryst, ints, (3, 3, 3); seed=0)
+        add_linear_interactions!(sys, SUN)
         enable_dipole_dipole!(sys)
 
         rand!(sys.rng, sys.κs)

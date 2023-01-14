@@ -9,7 +9,7 @@ Stores and orchestrates the types that perform the actual implementations
 of all interactions internally.
 """
 mutable struct HamiltonianCPU
-    ext_field       :: Union{Nothing, ExternalFieldCPU}
+    ext_field       :: Vector{Vec3}
     heisenbergs     :: Vector{HeisenbergCPU}
     gen_coups       :: Vector{GeneralCouplingCPU}
     biq_coups       :: Vector{BiquadraticCPU}
@@ -21,7 +21,7 @@ end
 
 function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
                        κs, gs, N; units=PhysicalConsts)
-    ext_field   = nothing
+    ext_field   = zeros(Vec3, nbasis(crystal))
     heisenbergs = Vector{HeisenbergCPU}()
     gen_coups   = Vector{GeneralCouplingCPU}()
     biq_coups   = Vector{BiquadraticCPU}()
@@ -29,10 +29,7 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
 
     anisos = Vector{OperatorAnisotropy}()
     for int in ints
-        # TODO: Handle all of the ifs with multiple dispatch instead?
-        if isa(int, ExternalField)
-            ext_field = ExternalFieldCPU(int, gs; units.μB)
-        elseif isa(int, QuadraticInteraction)
+        if isa(int, QuadraticInteraction)
             validate_quadratic_interaction(int, crystal)
             int_impl = convert_quadratic(int, crystal)
             if isa(int_impl, HeisenbergCPU)
@@ -153,11 +150,13 @@ end
 
 function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU, κs::Vector{Float64}) :: Float64 where N
     E = 0.0
-    # NOTE: These are broken up separately due to fears of dispatch costs being large.
-    #        However, this has never been profiled and is maybe worth looking into.
-    if !isnothing(ℋ.ext_field)
-        E += energy(dipoles, ℋ.ext_field)
+    nb = size(dipoles, 4)
+
+    # Zeeman coupling to external field
+    @inbounds for idx in CartesianIndices(dipoles)
+        E -= ℋ.ext_field[idx[4]] ⋅ dipoles[idx]
     end
+
     for heisen in ℋ.heisenbergs
         E += energy(dipoles, heisen)
     end
@@ -186,17 +185,17 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
     Z₀ = coherents[idx]
 
     Δs = s - s₀
-    cell, i = splitidx(idx)
+    cell, b = splitidx(idx)
     latsize = size(dipoles)[1:3]
 
     ΔE = 0.0
 
     if !isnothing(ℋ.ext_field)
-        ΔE -= ℋ.ext_field.effBs[i] ⋅ Δs
+        ΔE -= ℋ.ext_field[b] ⋅ Δs
     end
     for heisen in ℋ.heisenbergs
         J = first(heisen.bondtable.data)
-        for (bond, _) in sublat_bonds(heisen.bondtable, i)
+        for (bond, _) in sublat_bonds(heisen.bondtable, b)
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += J * (s⋅s - s₀⋅s₀)
             else
@@ -206,7 +205,7 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
         end
     end
     for gen_coup in ℋ.gen_coups
-        for (bond, J) in sublat_bonds(gen_coup.bondtable, i)
+        for (bond, J) in sublat_bonds(gen_coup.bondtable, b)
             if bond.i == bond.j && iszero(bond.n)
                 ΔE += dot(s, J, s) - dot(s₀, J, s₀)
             else
@@ -216,7 +215,7 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
         end
     end
     for biq_coup in ℋ.biq_coups
-        for (bond, effB) in sublat_bonds(biq_coup.bondtable, i)
+        for (bond, effB) in sublat_bonds(biq_coup.bondtable, b)
             # On-site biquadratic does not make sense
             @assert !(bond.i == bond.j && iszero(bond.n))
 
@@ -232,8 +231,8 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
     if !isnothing(ℋ.dipole_aniso)
         aniso = ℋ.dipole_aniso
         for site in aniso.sites
-            if site == i
-                c2, c4, c6 = aniso.coeff_2[i], aniso.coeff_4[i], aniso.coeff_6[i]
+            if site == b
+                c2, c4, c6 = aniso.coeff_2[b], aniso.coeff_4[b], aniso.coeff_6[b]
                 E_new, _ = energy_and_gradient_for_classical_anisotropy(s, c2, c4, c6)
                 E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, c2, c4, c6)
                 ΔE += E_new - E_old
@@ -242,8 +241,8 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
     end
     if N > 0
         aniso = ℋ.sun_aniso
-        Λ = @view(aniso[:,:,i])
-        ΔE += κs[i] * real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
+        Λ = @view(aniso[:,:,b])
+        ΔE += κs[b] * real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
     end
     return ΔE
 end
@@ -258,11 +257,11 @@ defined as:
 """
 function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     fill!(B, zero(Vec3))
-    # NOTE: These are broken up separately due to fears of dispatch costs being large.
-    #        However, this has never been profiled and is maybe worth looking into.
-    if !isnothing(ℋ.ext_field)
-        accum_force!(B, ℋ.ext_field)
+
+    @inbounds for idx in CartesianIndices(dipoles)
+        B[idx] += ℋ.ext_field[idx[4]]
     end
+
     for heisen in ℋ.heisenbergs
         accum_force!(B, dipoles, heisen)
     end

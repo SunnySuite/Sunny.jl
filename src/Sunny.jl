@@ -66,6 +66,7 @@ include("Hamiltonian.jl")
 include("Systems.jl")
 export ChargeSystem, SpinSystem, polarize_spins!, randomize_spins!, energy, forces
 export extend_periodically
+export set_external_field!, set_external_field_at!
 export enable_dipole_dipole!
 
 include("Metropolis.jl")
