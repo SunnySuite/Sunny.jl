@@ -208,7 +208,6 @@ function path(sf::StructureFactor, points::Vector;
 )
     qpoints = path_points(points, density)
     intensities = Sunny.get_intensities(sf, qpoints; interp, contraction, temp, kwargs...) 
-
     if index_labels
         ωs = ωvals(sf)
         return (; intensities, qpoints, ωs)

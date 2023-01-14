@@ -92,17 +92,18 @@ new_trajectory!(sf::StructureFactor, sys::SpinSystem) = new_trajectory!(sf.sftra
 # ddtodo: Plan FFT
 function accum_trajectory!(sfdata::SFData, sftraj::SFTrajectory, nsamples::Int64)
     (; data, idxinfo) = sfdata
-    (; traj) = sftraj
-    _, na, nb, nc, ns, nω = size(traj)
+    (; traj, sys) = sftraj
+    nb, nω = size(traj)[5:6]
 
     FFTW.fft!(traj, (2,3,4,6))
-    traj /= nω * √(na*nb*nc)  # Normalize FFT according to physical convention
+    traj /= nω * √(prod(sys.size))  # Normalize FFT according to physical convention
 
     ## Transfer to final memory layout while accumulating new trajectory
-    for a in 1:na, b in 1:nb, c in 1:nc, s1 in 1:ns, s2 in 1:ns, ω in 1:nω
-        for (ci, e) in idxinfo
+    for cell in CartesianIndices(sys.size), b1 in 1:nb, b2 in 1:nb, ω in 1:nω
+        for (ci, c) in idxinfo 
             α, β = ci.I
-            data[e,s1,s2,a,b,c,ω] += traj[α,a,b,c,s1,ω] * conj(traj[β,a,b,c,s2,ω]) / nsamples
+            old = data[c,b1,b2,cell,ω]
+            data[c,b1,b2,cell,ω] =  old + (traj[α,cell,b1,ω] * conj(traj[β,cell,b2,ω]) - old) / nsamples
         end
     end
 
