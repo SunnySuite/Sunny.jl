@@ -183,7 +183,7 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
     set_forces!(B, dipoles, hamiltonian)
 
     @inbounds for idx in CartesianIndices(ξ)
-        Λ = view(hamiltonian.sun_aniso, :, :, idx[4])
+        Λ = hamiltonian.anisos[idx[4]].matrep
         HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅S) Z
 
         # The field κ describes an effective ket rescaling, Z → Z' = √κ Z. For
@@ -233,7 +233,7 @@ function rhs_ll!(ΔZ, Z, B, integrator, sys)
     set_forces!(B, dipoles, hamiltonian)
 
     @inbounds for idx in CartesianIndices(Z)
-        Λ = view(hamiltonian.sun_aniso, :, :, idx[4])
+        Λ = hamiltonian.anisos[idx[4]].matrep
         HZ = mul_spin_matrices(Λ, -B[idx], Z[idx])
         ΔZ[idx] = - Δt*im*HZ
     end 

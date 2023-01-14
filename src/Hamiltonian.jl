@@ -1,33 +1,29 @@
-# Functions associated with HamiltonianCPU, which maintains the actual internal
-# interaction types and orchestrates energy/field calculations.
+# Hamiltonian model parameters and energy/force calculations
 
-
-"""
-HamiltonianCPU
-
-Stores and orchestrates the types that perform the actual implementations
-of all interactions internally.
-"""
-mutable struct HamiltonianCPU
+mutable struct HamiltonianCPU # -> Model
     ext_field       :: Vector{Vec3}
+    anisos          :: Vector{SingleIonAnisotropy}
+
+    # pairints        :: Vector{PairInteractions}
     heisenbergs     :: Vector{HeisenbergCPU}
     gen_coups       :: Vector{GeneralCouplingCPU}
     biq_coups       :: Vector{BiquadraticCPU}
+
     ewald           :: Union{Nothing, EwaldCPU}
-    dipole_aniso    :: Union{Nothing, DipoleAnisotropyCPU}
-    sun_aniso       :: Array{ComplexF64, 3}
 end
 
 
-function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
-                       κs, gs, N; units=PhysicalConsts)
-    ext_field   = zeros(Vec3, nbasis(crystal))
+function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal, N)
+    nb = nbasis(crystal)
+    ext_field = zeros(Vec3, nb)
+    anisos = fill(SingleIonAnisotropy(N), nb)
+
     heisenbergs = Vector{HeisenbergCPU}()
     gen_coups   = Vector{GeneralCouplingCPU}()
     biq_coups   = Vector{BiquadraticCPU}()
+
     ewald       = nothing
 
-    anisos = Vector{OperatorAnisotropy}()
     for int in ints
         if isa(int, QuadraticInteraction)
             validate_quadratic_interaction(int, crystal)
@@ -45,19 +41,12 @@ function HamiltonianCPU(ints::Vector{<:AbstractInteraction}, crystal::Crystal,
             end
             int_imp2 = convert_biquadratic(int, crystal)
             push!(biq_coups, int_imp2)
-        elseif isa(int, OperatorAnisotropy)
-            push!(anisos, int)       
         else
             error("$(int) failed to convert to known backend type.")
         end
     end
 
-    (dipole_anisos, sun_anisos) = convert_anisotropies(anisos, crystal, κs, N)
-
-    return HamiltonianCPU(
-        ext_field, heisenbergs, gen_coups, biq_coups, ewald,
-        dipole_anisos, sun_anisos
-    )
+    return HamiltonianCPU(ext_field, anisos, heisenbergs, gen_coups, biq_coups, ewald)
 end
 
 
@@ -93,68 +82,58 @@ function validate_quadratic_interaction(int::QuadraticInteraction, crystal::Crys
     =#
 end
 
-function convert_anisotropies(anisos::Vector{OperatorAnisotropy}, crystal::Crystal, κs::Vector{Float64}, N::Int)
-    # Remove anisotropies that are zero
-    anisos = filter(a -> !iszero(a.op), anisos)
-    
-    # Always store SU(N) anisotropies, even if empty
-    SUN_ops = zeros(ComplexF64, N, N, nbasis(crystal))
-    isempty(anisos) && return (nothing, SUN_ops)
-    
-    # KBTODO: Rewrite using logic in SiteInfo.jl
-    # Find all symmetry-equivalent anisotropies
-    anisos_expanded = map(anisos) do a
-        # Concrete representation of anisotropy operator
-        op = iszero(N) ? operator_to_classical_stevens(a.op) : operator_to_matrix(a.op; N)
-        # Check validity
-        if !is_anisotropy_valid(crystal, a.site, op)
-            println("Symmetry-violating anisotropy: $(a.op).")
-            println("Use `print_site(crystal, $(a.site))` for more information.")
-            error("Invalid anisotropy.")
-        end
-        # Return a pair (sites, ops) containing symmetry-equivalent sites and
-        # associated operators for op
-        all_symmetry_related_anisotropies(crystal, a.site, op)
-    end
-    sites = reduce(vcat, (a[1] for a in anisos_expanded))
-    ops   = reduce(vcat, (a[2] for a in anisos_expanded))
 
-    if !allunique(sites)
-        error("Cannot specify anisotropies for two symmetry equivalent sites.")
+function propagate_anisotropies!(hamiltonian::HamiltonianCPU, cryst::Crystal, b::Int, op::DP.AbstractPolynomialLike, N::Int)
+    iszero(op) && return 
+
+    if !iszero(hamiltonian.anisos[b].op)
+        println("Warning: Overriding anisotropy for atom $b.")
     end
 
-    if N == 0
-        c2 = Vector{Float64}[]
-        c4 = Vector{Float64}[]
-        c6 = Vector{Float64}[]
-        for (site, op) in zip(sites, ops)
-            # Consider checking for zero and pushing empty arrays?
-            S = κs[site]
-            c = operator_to_classical_stevens_coefficients(op, S)
-            push!(c2, c[2])
-            push!(c4, c[4])
-            push!(c6, c[6])
-            if !all(iszero.(c[[1,3,5]]))
-                error("Odd-ordered dipole anisotropies not supported.")
-            end
-        end
-        return (DipoleAnisotropyCPU(c2, c4, c6, sites, ""), SUN_ops)
-    else
-        for (site, op) in zip(sites, ops)
-            SUN_ops[:,:,site] = op
-        end
-        return (nothing, SUN_ops)
+    if !is_anisotropy_valid(cryst, b, op)
+        println("Symmetry-violating anisotropy: $op.")
+        println("Use `print_site(crystal, $b)` for more information.")
+        error("Invalid anisotropy.")
+    end
+
+    for (b′, op′) in zip(all_symmetry_related_anisotropies(cryst, b, op)...)
+        matrep = operator_to_matrix(op′; N)
+
+        S = (N-1)/2
+        c = operator_to_classical_stevens_coefficients(op′, S)
+        all(iszero.(c[[1,3,5]])) || error("Odd-ordered dipole anisotropies not supported.")
+        c2 = SVector{ 5}(c[2])
+        c4 = SVector{ 9}(c[4])
+        c6 = SVector{13}(c[6])
+        kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
+        clsrep = ClassicalStevensExpansion(kmax, c2, c4, c6)
+
+        hamiltonian.anisos[b′] = SingleIonAnisotropy(op′, matrep, clsrep)
     end
 end
 
-
-function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU, κs::Vector{Float64}) :: Float64 where N
+function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU, κs::Vector{Float64}) where N
     E = 0.0
     nb = size(dipoles, 4)
 
     # Zeeman coupling to external field
     @inbounds for idx in CartesianIndices(dipoles)
         E -= ℋ.ext_field[idx[4]] ⋅ dipoles[idx]
+    end
+
+    # Single-ion anisotropy, dipole or SUN mode
+    if N == 0
+        for idx in CartesianIndices(coherents)
+            E_idx, _ = energy_and_gradient_for_classical_anisotropy(dipoles[idx], ℋ.anisos[idx[4]].clsrep)
+            E += E_idx
+        end
+    else
+        for idx in CartesianIndices(coherents)
+            Λ = ℋ.anisos[idx[4]].matrep
+            κ = κs[idx[4]]
+            Z = coherents[idx]
+            E += κ * real(Z' * Λ * Z)
+        end
     end
 
     for heisen in ℋ.heisenbergs
@@ -169,12 +148,6 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Hami
     if !isnothing(ℋ.ewald)
         E += energy(dipoles, ℋ.ewald)
     end
-    if !isnothing(ℋ.dipole_aniso)
-        E += energy(dipoles, ℋ.dipole_aniso)
-    end
-    if N > 0
-        E += energy_sun_aniso(coherents, ℋ.sun_aniso, κs)
-    end
     return E
 end
 
@@ -183,16 +156,25 @@ end
 function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::HamiltonianCPU, κs::Vector{Float64}, idx, s::Vec3, Z::CVec{N}) where N
     s₀ = dipoles[idx]
     Z₀ = coherents[idx]
-
     Δs = s - s₀
+    ΔE = 0.0
+
     cell, b = splitidx(idx)
     latsize = size(dipoles)[1:3]
 
-    ΔE = 0.0
+    # Zeeman coupling to external field
+    ΔE -= ℋ.ext_field[b] ⋅ Δs
 
-    if !isnothing(ℋ.ext_field)
-        ΔE -= ℋ.ext_field[b] ⋅ Δs
+    # Single-ion anisotropy, dipole or SUN mode
+    if N == 0
+        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, ℋ.anisos[b].clsrep)
+        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, ℋ.anisos[b].clsrep)
+        ΔE += E_new - E_old
+    else
+        Λ = ℋ.anisos[b].matrep
+        ΔE += κs[b] * real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
     end
+
     for heisen in ℋ.heisenbergs
         J = first(heisen.bondtable.data)
         for (bond, _) in sublat_bonds(heisen.bondtable, b)
@@ -228,22 +210,6 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
         ΔE += energy_delta(dipoles, ℋ.ewald, idx, s)
     end
 
-    if !isnothing(ℋ.dipole_aniso)
-        aniso = ℋ.dipole_aniso
-        for site in aniso.sites
-            if site == b
-                c2, c4, c6 = aniso.coeff_2[b], aniso.coeff_4[b], aniso.coeff_6[b]
-                E_new, _ = energy_and_gradient_for_classical_anisotropy(s, c2, c4, c6)
-                E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, c2, c4, c6)
-                ΔE += E_new - E_old
-            end
-        end
-    end
-    if N > 0
-        aniso = ℋ.sun_aniso
-        Λ = @view(aniso[:,:,b])
-        ΔE += κs[b] * real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
-    end
     return ΔE
 end
 
@@ -256,12 +222,25 @@ defined as:
 ``𝐁_i = -∇_{𝐬_i} ℋ ``.
 """
 function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
+    # KBTODO remove this hack!
+    N = size(ℋ.anisos[1].matrep, 1)
+
     fill!(B, zero(Vec3))
 
+    # Zeeman coupling
     @inbounds for idx in CartesianIndices(dipoles)
         B[idx] += ℋ.ext_field[idx[4]]
     end
 
+    # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
+    # anisotropy matrix will be incorporated directly into ℌ.
+    if N == 0
+        for idx in CartesianIndices(dipoles)
+            _, gradE = energy_and_gradient_for_classical_anisotropy(dipoles[idx], ℋ.anisos[idx[4]].clsrep)
+            B[idx] -= gradE
+        end
+    end
+    
     for heisen in ℋ.heisenbergs
         accum_force!(B, dipoles, heisen)
     end
@@ -274,8 +253,42 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::Hamiltonia
     if !isnothing(ℋ.ewald)
         accum_force!(B, dipoles, ℋ.ewald)
     end
-    if !isnothing(ℋ.dipole_aniso)
-        accum_force!(B, dipoles, ℋ.dipole_aniso)
-    end
 end
 
+
+
+
+
+
+
+
+#=
+struct Model
+    crystal         :: Crystal
+    units           :: PhysicalConsts            # Physical constants that determine unit system
+    latsize         :: NTuple{3, Int}            # Size of lattice in unit cells
+
+    Ns              :: Vector{Int}               # Dimension of local Hilbert space per basis site in unit cell
+    gs              :: Vector{Mat3}              # g-tensor per basis site in the crystal unit cell
+
+    # Interactions
+    ext_field       :: Vector{Vec3}
+    anisos          :: Vector{SingleIonAnisotropy}
+    pairints        :: Vector{PairInteractions}
+    ewald           :: Union{Nothing, EwaldCPU}
+end
+
+struct SpinConfig{N}
+    rng              :: Random.Xoshiro
+
+    dipoles          :: Array{Vec3, 4}            # Expected dipoles
+    coherents        :: Array{CVec{N}, 4}         # Coherent states
+    κs               :: Vector{Float64}           # Meaning depends on context:
+                                                  #  N > 0 => Effective ket rescaling, Z → √κ Z
+                                                  #  N = 0 => Dipole magnitude, |s| = κ
+
+    # Buffers for dynamical integration
+    dipole_buffers   :: Vector{Array{Vec3, 4}}
+    coherent_buffers :: Vector{Array{CVec{N}, 4}}
+end
+=#

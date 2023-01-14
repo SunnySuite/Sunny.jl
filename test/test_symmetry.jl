@@ -368,6 +368,7 @@ end
             randn(9)' * Sunny.stevens_operator_symbols[4] +
             randn(13)' * Sunny.stevens_operator_symbols[6]
         (_, c2, _, c4, _, c6) = Sunny.operator_to_classical_stevens_coefficients(p, 1.0)
+        kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
 
         p_classical = Sunny.operator_to_classical_polynomial(p)
         grad_p_classical = DP.differentiate(p_classical, Sunny.spin_classical_symbols)
@@ -375,7 +376,8 @@ end
         E_ref = p_classical(Sunny.spin_classical_symbols => s)
         gradE_ref = [g(Sunny.spin_classical_symbols => s) for g = grad_p_classical]
 
-        E, gradE = Sunny.energy_and_gradient_for_classical_anisotropy(s, c2, c4, c6)
+        clsrep = Sunny.ClassicalStevensExpansion(kmax, c2, c4, c6)
+        E, gradE = Sunny.energy_and_gradient_for_classical_anisotropy(s, clsrep)
 
         @test E ≈ E_ref
 
@@ -432,7 +434,8 @@ end
 
         # Test anisotropy invariance in "dipole-mode"
         S = 1
-        sys = SpinSystem(cryst, [anisotropy(Λ, 1)], (1,1,1), [SiteInfo(1; S)], SUN=false)
+        sys = SpinSystem(cryst, Sunny.AbstractInteraction[], (1,1,1), [SiteInfo(1; S)], SUN=false)
+        set_anisotropy!(sys, 1, Λ)
         randomize_spins!(sys)
         E1 = energy(sys)
         # Effectively rotate site positions by π/2 clockwise
@@ -446,7 +449,8 @@ end
         # Test anisotropy invariance in "SU(N)-mode"
         S = 2
         N = Int(2S+1)
-        sys = SpinSystem(cryst, [anisotropy(Λ, 1)], (1,1,1), [SiteInfo(1; S)]; SUN=true)
+        sys = SpinSystem(cryst, Sunny.AbstractInteraction[], (1,1,1), [SiteInfo(1; S)]; SUN=true)
+        set_anisotropy!(sys, 1, Λ)
         randomize_spins!(sys)
         E1 = energy(sys)
         # Effectively rotate site positions by π/2 clockwise

@@ -32,10 +32,10 @@
         S = 1
         Λ = D*𝒮[3]^2
         cryst = FeI2_crystal()
-        interactions = [anisotropy(Λ, 1)]
         dims = (L,1,1)
 
-        sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; S)]; SUN=true, seed)
+        sys = SpinSystem(cryst, Sunny.AbstractInteraction[], dims, [SiteInfo(1; S)]; SUN=true, seed)
+        set_anisotropy!(sys, 1, Λ)
         randomize_spins!(sys)
 
         return sys
@@ -46,10 +46,10 @@
         Λ = D*(𝒮[3]^2-(1/5)*𝒮[3]^4)
         
         cryst = FeI2_crystal()
-        interactions = [anisotropy(Λ, 1)]
         dims = (L,1,1)
 
-        sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; S)]; SUN=true, seed)
+        sys = SpinSystem(cryst, Sunny.AbstractInteraction[], dims, [SiteInfo(1; S)]; SUN=true, seed)
+        set_anisotropy!(sys, 1, Λ)
         randomize_spins!(sys)
 
         return sys
