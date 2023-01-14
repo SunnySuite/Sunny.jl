@@ -96,10 +96,10 @@ function accum_trajectory!(sfdata::SFData, sftraj::SFTrajectory, nsamples::Int64
     nb, nω = size(traj)[5:6]
 
     FFTW.fft!(traj, (2,3,4,6))
-    traj /= nω * √(prod(sys.size))  # Normalize FFT according to physical convention
+    traj /= nω * √(prod(sys.latsize))  # Normalize FFT according to physical convention
 
     ## Transfer to final memory layout while accumulating new trajectory
-    for cell in CartesianIndices(sys.size), b1 in 1:nb, b2 in 1:nb, ω in 1:nω
+    for cell in CartesianIndices(sys.latsize), b2 in 1:nb, b1 in 1:nb, ω in 1:nω
         for (ci, c) in idxinfo 
             α, β = ci.I
             old = data[c,b1,b2,cell,ω]
