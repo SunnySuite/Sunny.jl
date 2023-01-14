@@ -16,9 +16,9 @@
             for SUN in (true, false)
                 ints = Sunny.AbstractInteraction[]
                 add_quadratic_interactions!(ints, SUN)
-                add_quartic_interactions!(ints, SUN)
                 sys = SpinSystem(cryst, ints, (3,3,3), [SiteInfo(1; S=5/2)]; SUN, seed=0)
                 add_linear_interactions!(sys, SUN)
+                add_quartic_interactions!(sys, SUN)
                 randomize_spins!(sys)
                 mags1 = norm.(SUN ? sys.coherents : sys.dipoles)
                 for _ in 1:100
@@ -56,8 +56,8 @@
             E2 = gen_energy(κ, add_quadratic_interactions!, empty, SUN)
             @test E1 ≈ E2 / κ^2
 
-            E1 = gen_energy(1, add_quartic_interactions!, empty, SUN)
-            E2 = gen_energy(κ, add_quartic_interactions!, empty, SUN)
+            E1 = gen_energy(1, empty, add_quartic_interactions!, SUN)
+            E2 = gen_energy(κ, empty, add_quartic_interactions!, SUN)
             @test E1 ≈ E2 / κ^4
         end
     end
@@ -94,8 +94,8 @@
             s2 = gen_trajectory(κ, Δt/κ, add_quadratic_interactions!, empty, SUN)
             @test s1 ≈ s2/κ
 
-            s1 = gen_trajectory(1, Δt, add_quartic_interactions!, empty, SUN)
-            s2 = gen_trajectory(κ, Δt/κ^3, add_quartic_interactions!, empty, SUN)
+            s1 = gen_trajectory(1, Δt, empty, add_quartic_interactions!, SUN)
+            s2 = gen_trajectory(κ, Δt/κ^3, empty, add_quartic_interactions!, SUN)
             @test s1 ≈ s2/κ
         end
     end

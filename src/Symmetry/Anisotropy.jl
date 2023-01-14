@@ -371,7 +371,7 @@ function all_symmetry_related_anisotropies(cryst::Crystal, i_ref::Int, Λ_ref)
     is = all_symmetry_related_atoms(cryst, i_ref)
     Λs = map(is) do i
         # Since i is constructed to be symmetry related to i_ref, there must be
-        # some symop s that transforms i_ref into i.
+        # a symop s that transforms i_ref into i. Any such s will be fine.
         s = first(symmetries_between_atoms(cryst, i, i_ref))
         
         # Rotation+reflection R corresponds to a pure rotation Q that acts on

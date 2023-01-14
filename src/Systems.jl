@@ -50,7 +50,7 @@ function SpinSystem(crystal::Crystal, ints::Vector{<:AbstractInteraction}, latsi
         (0, Ss)
     end
 
-    ℋ_CPU = HamiltonianCPU(ints, crystal, κs, gs, N; units)
+    ℋ_CPU = HamiltonianCPU(ints, crystal, N)
 
     # Initialize sites to all spins along +z
     dipoles = fill(zero(Vec3), latsize..., nbasis(crystal))
@@ -238,3 +238,22 @@ function set_external_field!(sys::SpinSystem, B)
         sys.hamiltonian.ext_field[b] = sys.units.μB * sys.gs[b]' * Vec3(B)
     end
 end
+
+
+"""
+    set_anisotropy!(sys::SpinSystem, a::Int, op)
+
+Set the single-ion anisotropy for the `a`th atom of every unit cell, as well as
+all symmetry-equivalent atoms.
+"""
+function set_anisotropy!(sys::SpinSystem{N}, a::Int, op::DP.AbstractPolynomialLike) where N
+    propagate_anisotropies!(sys.hamiltonian, sys.crystal, a, op, N)
+end
+
+
+"""
+    local_anisotropy_override!(sys::SpinSystem, op, idx::CartesianIndex{4})
+
+Set a single-ion anisotropy for one site `idx` in the system. The crystal
+periodicity will be broken, and no symmetry analysis will be performed.
+"""

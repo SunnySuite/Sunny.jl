@@ -12,10 +12,10 @@ using LinearAlgebra
 
 function add_linear_interactions!(sys, SUN)
     set_external_field!(sys, (0.0, 1.0, 1.0))
-    # if SUN
-    #     # In SUN mode, anisotropy scales as ⟨Λ⟩ → κ ⟨Λ⟩.
-    #     push!(ints, anisotropy(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1))
-    # end
+    if SUN
+        # In SUN mode, anisotropy scales as ⟨Λ⟩ → κ ⟨Λ⟩.
+        set_anisotropy!(sys, 1, 𝒮[1]^4+𝒮[2]^4+𝒮[3]^4)
+    end
 end
 
 function add_exchange_interactions!(ints)
@@ -37,11 +37,13 @@ function add_quadratic_interactions!(ints, _)
     # TODO: Include biquadratic in SU(N) mode
 end
 
-function add_quartic_interactions!(ints, SUN)
+function add_quartic_interactions!(sys, SUN)
     if !SUN
         # In dipole mode, spins scale individually, S⁴ → κ⁴ S⁴
-        push!(ints, anisotropy(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1))
-        push!(ints, biquadratic(1.1, Bond(1,2,[0,0,0])))
+        set_anisotropy!(sys, 1, 𝒮[1]^4+𝒮[2]^4+𝒮[3]^4)
+
+        # KBTODO
+        # push!(ints, biquadratic(1.1, Bond(1,2,[0,0,0])))
     end
 end
 
