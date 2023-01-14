@@ -34,7 +34,7 @@ end
 
 
 function stencil_qs(sfd::SFData, q, ::NoInterp)
-    Ls = (size(sfd.data, 2), size(sfd.data, 3), size(sfd.data, 4)) 
+    Ls = size(sfd.data)[4:6]  # ddtodo: error proof this
     l = round.(Int, Ls .* q)
     q = l ./ Ls
     qi = map(i -> mod(l[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
@@ -43,7 +43,7 @@ end
 
 
 function stencil_qs(sfd::SFData, q, ::LinearInterp)
-    Ls = (size(sfd.data, 2), size(sfd.data, 3), size(sfd.data, 4))
+    Ls = size(sfd.data)[4:6]  # ddtodo: error proof this
     base = map(x -> floor(Int64, x), Ls .* q) 
     offsets = (
         (0, 0, 0),
