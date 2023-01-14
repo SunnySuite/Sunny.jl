@@ -216,3 +216,25 @@ determined by the unit system.
 function enable_dipole_dipole!(sys::SpinSystem)
     sys.hamiltonian.ewald = EwaldCPU(sys.crystal, sys.latsize, sys.gs, sys.units)
 end
+
+"""
+    set_external_field_at!(sys::SpinSystem, B::Vec3, idx::CartesianIndex{4})
+
+Introduce a Zeeman coupling between the spin at `idx` and an applied magnetic
+field `B`.
+"""
+function set_external_field_at!(sys::SpinSystem, B, idx)
+    b = idx[4]
+    sys.hamiltonian.ext_field[b] = sys.units.μB * sys.gs[b]' * Vec3(B)
+end
+
+"""
+    set_external_field!(sys::SpinSystem, B::Vec3)
+
+Introduce a Zeeman coupling between all spins and an applied magnetic field `B`.
+"""
+function set_external_field!(sys::SpinSystem, B)
+    for b in nbasis(sys.crystal)
+        sys.hamiltonian.ext_field[b] = sys.units.μB * sys.gs[b]' * Vec3(B)
+    end
+end

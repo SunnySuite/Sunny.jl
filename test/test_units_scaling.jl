@@ -11,9 +11,17 @@
 
     units = [Sunny.Units.meV, Sunny.Units.theory]
 
-    function collect_energy_and_forces(ints, dipole_dipole, units)
-        sys = SpinSystem(crystal, ints, latsize; units, seed=1111)
-        dipole_dipole && enable_dipole_dipole!(sys)
+    function collect_energy_and_forces(test, units)
+        ints = Sunny.AbstractInteraction[]
+        if test == :exchange
+            add_exchange_interactions!(ints)
+        end
+        sys = SpinSystem(crystal, ints, latsize; units, seed=0)
+        if test == :zeeman
+            set_external_field!(sys, randn(sys.rng, Sunny.Vec3))
+        elseif test == :dipdip
+            enable_dipole_dipole!(sys)
+        end
         randomize_spins!(sys)
         return energy(sys), forces(sys)
     end
@@ -23,8 +31,8 @@
     function validate_exchanges_scaling()
         ints = Sunny.AbstractInteraction[]
         add_exchange_interactions!(ints)
-        E1, B1 = collect_energy_and_forces(ints, false, units[1])
-        E2, B2 = collect_energy_and_forces(ints, false, units[2])
+        E1, B1 = collect_energy_and_forces(:exchange, units[1])
+        E2, B2 = collect_energy_and_forces(:exchange, units[2])
         @test E1 ≈ E2
         @test B1 ≈ B2
     end
@@ -34,10 +42,8 @@
 
     # Zeeman energies/forces should scale linearly with μB, invariant to μ0
     function validate_zeeman_scaling()
-        ext_field = external_field(rand(3))
-
-        E1, B1 = collect_energy_and_forces([ext_field], false, units[1])
-        E2, B2 = collect_energy_and_forces([ext_field], false, units[2])
+        E1, B1 = collect_energy_and_forces(:zeeman, units[1])
+        E2, B2 = collect_energy_and_forces(:zeeman, units[2])
 
         @test E1 / units[1].μB ≈ E2 / units[2].μB
         @test B1 / units[1].μB ≈ B2 / units[2].μB
@@ -49,8 +55,8 @@
     # Dipole-dipole interactions should scale linearly with μ0, and
     # quadratically with μB
     function validate_dipole_scaling()
-        E1, B1 = collect_energy_and_forces(Sunny.AbstractInteraction[], true, units[1])
-        E2, B2 = collect_energy_and_forces(Sunny.AbstractInteraction[], true, units[2])
+        E1, B1 = collect_energy_and_forces(:dipdip, units[1])
+        E2, B2 = collect_energy_and_forces(:dipdip, units[2])
 
         (; μB, μ0) = units[1]
         c1 = μ0*μB^2
