@@ -55,9 +55,8 @@ function SFTrajectory(sys::SpinSystem{N};
     end
 
     # Preallocation
-    qa, qb, qc, ns = size(sys.dipoles)
     nops = size(ops, 3)
-    traj = zeros(ComplexF64, nops, qa, qb, qc, ns, numω)
+    traj = zeros(ComplexF64, nops, size(sys.dipoles)..., numω)
     integrator = ImplicitMidpoint(Δt)
 
     # Create a shallow copy of the spin system
