@@ -9,24 +9,29 @@ using Sunny
 If Sunny has not yet been installed, Julia will ask your permission to download
 and install it within the Julia environment.
 
-A common way to interact with Sunny is through a Jupyter notebook. Enter
+One way to interact with Sunny is through a Jupyter notebook,
 ```julia
 using IJulia
 notebook()
 ```
-to launch Jupyter in a browser.
 
-## Try an example
+If you see an error about a missing a Julia kernel, you can usually fix this
+with `] build IJulia` from the Julia terminal.
 
-We recommend that new users explore the features of Sunny by browsing the
-[tutorial
-notebooks](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials).
-In particular, the [FeI2 case
+For more information about Julia, see the [Getting
+Started](https://github.com/SunnySuite/Sunny.jl/blob/main/GettingStarted.md)
+guide.
+
+## Browse a Sunny notebook
+
+To get a feeling for Sunny, a good place to start is the [FeI2 case
 study](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials/FeI2/FeI2_tutorial.ipynb)
-is a good place to start.
+tutorial notebook. Additional tutorials are
+[available](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials).
 
-To give some feeling for Sunny, we will here provide only a small example. At
-the Julia prompt, create a diamond cubic crystal using the [`Crystal`](@ref)
+## Example usage
+
+At the Julia prompt, create a diamond cubic crystal using the [`Crystal`](@ref)
 constructor:
 
 ```julia
@@ -61,14 +66,17 @@ Observe that there are eight symmetry-equivalent site positions (all crystal
 coordinates are measured in fractions of the lattice vectors). This is indeed
 the diamond cubic crystal.
 
-This `crystal` can be used as an argument to other Sunny functions. For example,
-to print a list of all symmetry-allowed exchange interactions up to a distance
-of 0.8, use:
+Sunny can also read crystal structure from a `.cif` file.
+
+The `crystal` object can be used as an argument to other Sunny functions. For
+example, [`print_symmetry_table`](@ref) lists all symmetry-allowed exchange
+interactions up to a maximum distance,
+
 ```julia
 print_symmetry_table(crystal, 0.8)
 ```
 
-which returns:
+which prints,
 ```
 Site 1
 Position [0, 0, 0], multiplicity 8
@@ -95,13 +103,23 @@ Allowed exchange matrix: | A  C -D |
 Allowed DM vector: [-D D 0]
 ```
 
-## Next steps
+Sunny reported that a single-ion anisotropy is only allowed at quartic and hexic
+orders, which is consistent with the cubic point group symmetry. Additionally,
+Sunny reported the allowed forms of nearest and next-nearest neighbor
+interaction.
 
-Sunny provides additional functionality to specify spin Hamiltonians and to
-calculate and analyze simulated structure factor data. We refer the interested
-reader to our [tutorial
-notebooks](http://nbviewer.org/github/SunnySuite/SunnyTutorials/tree/main/tutorials/).
+The next steps are typically the following
 
-Advanced users will benefit from learning more Julia. See our [Getting Started
-guide](https://github.com/SunnySuite/Sunny.jl/blob/main/GettingStarted.md) for
-resources and tips.
+1. Use the crystal to build a [`SpinSystem`](@ref) which consists of a finite
+   number of spins.
+2. Add interactions to the system using functions like
+   [`set_external_field!`](@ref), [`set_exchange!`](@ref), and
+   [`set_anisotropy!`](@ref).
+3. Perform Monte Carlo simulation to equilibrate the spin configuration. The
+   [`LangevinSampler`](@ref) uses a continuous dynamics whereas
+   [`MetropolisSampler`](@ref) uses local updates to the spin configuration. The
+   former may be more effective in the presence of strong anisotropy (e.g. the
+   Ising limit) whereas the latter is very efficient at handling long-range
+   dipole-dipole interactions.
+4. Measure the static or dynamical structure factor. For details, see the page
+   [Structure Factor Calculations](@ref).

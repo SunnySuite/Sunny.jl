@@ -1,60 +1,3 @@
-"""Defines the SymOp, Crystal types"""
-
-"""
-    SymOp
-
-Defines a symmetry operation belonging to a 3D space group, operating on fractional coordinates.
-"""
-struct SymOp
-    R :: Mat3
-    T :: Vec3
-end
-
-function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
-    atol = 1e-12
-    digits = 2
-    for i in 1:3
-        terms = []
-        for (Rij, a) in zip(s.R[i,:], ["x", "y", "z"])
-            if abs(Rij) > atol
-                push!(terms, coefficient_to_math_string(Rij; atol, digits) * a)
-            end
-        end
-        Ti = s.T[i]
-        if Ti != 0
-            push!(terms, number_to_math_string(Ti; atol, digits))
-        end
-        terms_str = if isempty(terms)
-            push!(terms, "0")
-        else
-            replace(join(terms, "+"), "+-" => "-")
-        end
-        print(io, terms_str)
-        if i < 3
-            print(io, ",")
-        end
-    end
-end
-
-function Base.isapprox(s1::SymOp, s2::SymOp; atol)
-    return isapprox(s1.R, s2.R; atol) && isapprox(s1.T, s2.T; atol)
-end
-
-function transform(s::SymOp, r::Vec3)
-    return s.R*r + s.T
-end
-
-
-# Wrap each coordinate of position r into the range [0,1). To account for finite
-# precision, wrap 1-ϵ to -ϵ, where ϵ=symprec is a tolerance parameter.
-function wrap_to_unit_cell(r::Vec3; symprec)
-    return @. mod(r+symprec, 1) - symprec
-end
-
-function all_integer(x; symprec)
-    return norm(x - round.(x)) < symprec
-end
-
 struct SiteSymmetry
     symbol       :: String
     multiplicity :: Int
@@ -63,10 +6,29 @@ end
 
 
 """
-    Crystal
+A `Crystal` object describes a crystallographic unit cell, and contains
+information about its space group symmetry. Constructors are as follows:
 
-A type holding all geometry and symmetry information needed to represent
- a three-dimensional crystal.
+
+    Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
+
+Constructs a crystal from the complete list of atom positions `positions`,
+representing fractions (between 0 and 1) of the lattice vectors `lat_vecs`. All
+symmetry information is automatically inferred.
+
+    Crystal(lat_vecs, positions, symbol::String; types=nothing, setting=nothing, symprec=1e-5)
+
+Builds a crystal by applying the symmetry operators for a given spacegroup
+symbol.
+
+    Crystal(lat_vecs, positions, spacegroup_number; types=nothing, setting=nothing, symprec=1e-5)
+
+Builds a crystal by applying symmetry operators for a given international
+spacegroup number.
+
+    Crystal(filename::AbstractString; symprec=1e-5)
+
+Reads the crystal from a `.cif` file located at the path `filename`.
 """
 struct Crystal
     lat_vecs       :: Mat3                                 # Lattice vectors as columns
@@ -102,13 +64,9 @@ parameter denotes a displacement in unit cell indices.
 position(cryst::Crystal, i::Int, offset=(0,0,0)) = cryst.lat_vecs * (convert(Vec3, offset) + cryst.positions[i])
 
 
-"""
-    Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
-
-Constructs a crystal from the complete list of atom positions `positions`,
-representing fractions (between 0 and 1) of the lattice vectors `lat_vecs`. All
-symmetry information is automatically inferred.
-"""
+# Constructs a crystal from the complete list of atom positions `positions`,
+# representing fractions (between 0 and 1) of the lattice vectors `lat_vecs`.
+# All symmetry information is automatically inferred.
 function Crystal(lat_vecs, positions; types::Union{Nothing,Vector{String}}=nothing, symprec=1e-5)
     lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
@@ -118,12 +76,9 @@ function Crystal(lat_vecs, positions; types::Union{Nothing,Vector{String}}=nothi
     return crystal_from_inferred_symmetry(lat_vecs, positions, types; symprec)
 end
 
-"""
-    Crystal(lat_vecs, positions, symbol::String; types=nothing, setting=nothing, symprec=1e-5)
 
-Builds a crystal by applying the symmetry operators for a given spacegroup
-symbol.
-"""
+# Builds a crystal by applying the symmetry operators for a given spacegroup
+# symbol.
 function Crystal(lat_vecs, positions, symbol::String; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
     lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
@@ -133,12 +88,8 @@ function Crystal(lat_vecs, positions, symbol::String; types::Union{Nothing,Vecto
     crystal_from_symbol(lat_vecs, positions, types, symbol; setting, symprec)
 end
 
-"""
-    Crystal(lat_vecs, positions, spacegroup_number; types=nothing, setting=nothing, symprec=1e-5)
-
-Builds a crystal by applying symmetry operators for a given international
-spacegroup number.
-"""
+# Builds a crystal by applying symmetry operators for a given international
+# spacegroup number.
 function Crystal(lat_vecs, positions, spacegroup_number::Int; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
     lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
@@ -186,6 +137,15 @@ function sort_sites!(cryst::Crystal)
     cryst.types .= cryst.types[perm]
 end
 
+# Wrap each coordinate of position r into the range [0,1). To account for finite
+# precision, wrap 1-ϵ to -ϵ, where ϵ=symprec is a tolerance parameter.
+function wrap_to_unit_cell(r::Vec3; symprec)
+    return @. mod(r+symprec, 1) - symprec
+end
+
+function all_integer(x; symprec)
+    return norm(x - round.(x)) < symprec
+end
 
 function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
     for i in 1:length(positions)
@@ -397,6 +357,11 @@ end
 
 Filters sublattices of a `Crystal` by atom `types`, keeping the space group
 unchanged.
+
+    subcrystal(cryst, classes) :: Crystal
+
+Filters sublattices of `Crystal` by equivalence `classes`, keeping the space
+group unchanged.
 """
 function subcrystal(cryst::Crystal, types::Vararg{String, N}) where N
     for s in types
@@ -409,12 +374,6 @@ function subcrystal(cryst::Crystal, types::Vararg{String, N}) where N
     return subcrystal(cryst, classes...)
 end
 
-"""
-    subcrystal(cryst, classes) :: Crystal
-
-Filters sublattices of `Crystal` by equivalence `classes`, keeping the space
-group unchanged.
-"""
 function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     for c in classes
         if !(c in cryst.classes)

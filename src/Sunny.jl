@@ -38,7 +38,7 @@ export Crystal, subcrystal, nbasis, cell_volume, cell_type,
     all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom,
     all_symmetry_related_anisotropies,
     𝒪, 𝒮, rotate_operator,
-    print_site, print_bond, print_symmetry_table
+    print_site, print_bond, print_symmetry_table,
     print_suggested_frame, print_anisotropy_as_stevens, print_anisotropy_as_classical_spins
 
 include("Units.jl")

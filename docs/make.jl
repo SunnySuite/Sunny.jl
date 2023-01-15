@@ -11,7 +11,6 @@ makedocs(
         "Quick Start" => "quick-start.md",
         "Library API" => "library.md",
         "Structure Factor Calculations" => "structure-factor.md",
-        "Internals" => "internals.md", 
     ],
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true"

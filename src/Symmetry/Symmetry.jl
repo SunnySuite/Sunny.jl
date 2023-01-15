@@ -1,4 +1,5 @@
 include("LatticeUtils.jl")
+include("SymOp.jl")
 include("Crystal.jl")
 include("Bond.jl")
 include("SymmetryAnalysis.jl")

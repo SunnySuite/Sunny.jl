@@ -1,6 +1,6 @@
-"Functions for parsing Crystals / SymOps from text / .cif files"
+# Functions for parsing Crystals / SymOps from text / .cif files
 
-"Strips trailing uncertainty values from a String, then parses as a Float"
+# Strips trailing uncertainty values from a String, then parses as a Float
 function _parse_cif_float(str::String) :: Float64
     i = findfirst('(', str)
     str = isnothing(i) ? str : str[1:i-1]
@@ -64,11 +64,7 @@ function _parse_op(str::AbstractString) :: SymOp
     return SymOp(R, T)
 end
 
-"""
-    Crystal(filename::AbstractString; symprec=1e-5)
-
-Reads the crystal from a `.cif` file located at the path `filename`.
-"""
+# Reads the crystal from a `.cif` file located at the path `filename`.
 function Crystal(filename::AbstractString; symprec=nothing)
     cif = CIF.Cif(Path(filename))
     # For now, assumes there is only one data collection per .cif

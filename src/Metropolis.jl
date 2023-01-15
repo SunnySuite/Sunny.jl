@@ -26,7 +26,7 @@ reset_running_mag!(sampler::S) where {S <: AbstractSampler} = nothing
 
 `sample!` a sampler a given number of times.
 """
-@inline function thermalize!(sampler::S, num_samples::Int) where {S <: AbstractSampler}
+function thermalize!(sampler::S, num_samples::Int) where {S <: AbstractSampler}
     for _ in 1:num_samples
         sample!(sampler)
     end
@@ -38,8 +38,13 @@ end
 
 `sample!` a sampler at a series of temperatures, staying at each temperature
   for the number of steps in `step_schedule`.
+
+    anneal!(sampler, temp_function::Function, num_samples)
+
+`sample!` a sampler `num_samples` times, with the sample at timestep `n`
+ drawn at a temperature `temp_function(n)`.
 """
-@inline function anneal!(sampler::S,
+function anneal!(sampler::S,
                          temp_schedule,
                          step_schedule) where {S <: AbstractSampler}
     for (temp, num_steps) in zip(temp_schedule, step_schedule)
@@ -48,13 +53,7 @@ end
     end
 end
 
-"""
-    anneal!(sampler, temp_function, num_samples)
-
-`sample!` a sampler `num_samples` times, with the sample at timestep `n`
- drawn at a temperature `temp_function(n)`.
-"""
-@inline function anneal!(sampler::S,
+function anneal!(sampler::S,
                          temp_function::Function,
                          num_samples::Int) where {S <: AbstractSampler}
     for t in 1:num_samples
