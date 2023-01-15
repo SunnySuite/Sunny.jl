@@ -1,9 +1,9 @@
-abstract type InterpolationScheme{N} end
+abstract type InterpolationScheme{NumInterp} end
 struct NoInterp <: InterpolationScheme{1} end
 struct LinearInterp <: InterpolationScheme{8} end
 
-function stencil_intensities(sf::StructureFactor, qs, iqs, ω, iω, ::InterpolationScheme{N}, contraction::Contraction{T}, temp, ffdata) where {N, T}
-    return SVector{N, T}(calc_intensity(sf, qs[n], iqs[n], ω, iω, contraction, temp, ffdata) for n in 1:N)
+function stencil_intensities(sf::StructureFactor, qs, iqs, ω, iω, ::InterpolationScheme{NumInterp}, contraction::Contraction{T}, temp, ffdata) where {NumInterp, T}
+    return SVector{NumInterp, T}(calc_intensity(sf, qs[n], iqs[n], ω, iω, contraction, temp, ffdata) for n in 1:NumInterp)
 end
 
 function interpolated_intensity(::StructureFactor, _, _, stencil_intensities, ::NoInterp) 

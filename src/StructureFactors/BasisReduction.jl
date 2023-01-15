@@ -1,6 +1,5 @@
-function phase_averaged_elements(q_data, q::Vec3, cryst::Crystal, ffdata::Vector{Union{FormFactor, Nothing}})
-    nelem = size(q_data, 1)  # ddotod: make nelem known statically (e.g., parameterize SFData with number of correlation functions)
-    elems = zero(SVector{nelem, ComplexF64})
+function phase_averaged_elements(q_data, q::Vec3, cryst::Crystal, ffdata::Vector{Union{FormFactor, Nothing}}, ::Val{NumElem}) where NumElem
+    elems = zero(SVector{NumElem, ComplexF64})
 
     # If the q components range from 0 to 1, then k (with appropriate
     # periodicity) lives in the first Brillouin zone. 
