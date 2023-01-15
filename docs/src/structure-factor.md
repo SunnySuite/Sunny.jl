@@ -1,6 +1,6 @@
 # Structure Factor Calculations
 
-(Still under-complete.)
+To be written...
 
 This page gives information on the static and dynamical spin structure factors, how to use Sunny's high and low-level interfaces for computing it, and what is happening behind the scenes in these functions!
 
@@ -132,3 +132,85 @@ end
 
 (In fact, the code for [`dynamic_structure_factor`](@ref) is not much more complex than this!) At the end of the loop, `sf` will hold the structure factor,
 averaged across all of the thermal spin configurations it was provided.
+
+## Calculating Structure Factors
+
+This section details how the lower-level functions perform each step of computing the
+structure factor.
+
+To begin, we will assume you have on hand a large array storing a single spin trajectory. By
+"single spin trajectory", we mean a single trajectory of a full system's worth of spins.
+From an initial spin _configuration_, you can either just get the
+static structure factor, or you will first need to perform Landau-Lifshitz dynamics using one of
+the [Integrators](@ref) to construct a trajectory.
+
+We will refer to this array as `spin_traj`, which can can be a `Array{SVector{3, Float64}}`
+of size `size(spin_traj) == [B, D1, D2, D3, T]` (with `B` the number of basis sites,
+`[D1, D2, D3]` the number of unit cells along each axis, and `T` the time axis).
+Alternatively, this can be an `Array{ComplexF64}` of `size(spin_traj) == [3, B, D1, D2, D3, T]`
+with the spins encoded into the real components. The former is more intuitive, but the
+latter allows for in-place FFTs.
+
+First, we need to perform a standard Fast Fourier Transform along the spatial and time axes.
+This is be done with one of the following functions:
+
+```_AT_docs
+Sunny.fft_spin_traj
+Sunny.fft_spin_traj!
+```
+
+As the documentation for the functions mentions, you will now have an array of `ComplexF64` of
+size `[3, B, D1, D2, D3, T]`. (The spin component has been unfolded out into the first axis
+regardless of the input format).
+
+This could now be outer-producted with itself to form a contribution to the basis-resolved
+structure factor. In particular, if `spin_traj_ft` is the name of your FFT'd spin trajectory,
+the following function will perform this for you:
+
+```julia
+outerprod_conj(spin_traj_ft, (1, 2))
+```
+
+Which should result in a `ComplexF64` array of size `[3, 3, B, B, D1, D2, D3, T]`.
+The documentation for this function can be seen below:
+
+```_AT_docs
+Sunny.outerprod_conj
+Sunny.outerprod_conj!
+```
+
+Alternatively, if you only care about the post-basis-summation structure factor, you would
+first want to instead perform the phase-weighted basis sum. This can be done manually, or
+by using one of the following functions:
+
+```_AT_docs
+Sunny.phase_weight_basis
+Sunny.phase_weight_basis!
+```
+
+As documented, this will return an array of `ComplexF64` of size `[3, Q1, ..., Qd, T]`,
+where `Q1, ..., Qd` are the possibly expanded range of ``𝐪`` space requested through
+`bz_size`.
+
+As before, we can outer product this resulting array with itself to get a contribution to the
+structure factor, now only required in the first axis as:
+
+```julia
+Sunny.outerprod_conj(spin_traj_ft, 1)
+```
+which should result in a `ComplexF64` array of size `[3, 3, D1, D2, D3, T]`
+
+Repeat this entire process for all thermal spin trajectories you have at a given temperature,
+average the result across all of them, and you have a dynamic structure factor! Note that if
+you performed this entire process with an array containing a single spin configuration but
+an extra "dummy" axis of length 1 (i.e. a size `[B, D1, D2, D3, 1]`), you would be left with
+the _static_ structure factor!
+
+There are additional functions which perform these accumulations while simulataneously
+applying the neutron dipole form factor to reduce the spin components to a single
+observable scalar. These are a bit of a mess currently, though.
+
+```_AT_docs
+Sunny.accum_dipole_factor!
+Sunny.accum_dipole_factor_wbasis!
+```
