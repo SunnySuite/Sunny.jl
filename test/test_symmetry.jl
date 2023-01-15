@@ -434,8 +434,8 @@ end
 
         # Test anisotropy invariance in "dipole-mode"
         S = 1
-        sys = SpinSystem(cryst, Sunny.AbstractInteraction[], (1,1,1), [SiteInfo(1; S)], SUN=false)
-        set_anisotropy!(sys, 1, Λ)
+        sys = SpinSystem(cryst, (1,1,1), [SiteInfo(1; S)], SUN=false)
+        set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
         E1 = energy(sys)
         # Effectively rotate site positions by π/2 clockwise
@@ -449,8 +449,8 @@ end
         # Test anisotropy invariance in "SU(N)-mode"
         S = 2
         N = Int(2S+1)
-        sys = SpinSystem(cryst, Sunny.AbstractInteraction[], (1,1,1), [SiteInfo(1; S)]; SUN=true)
-        set_anisotropy!(sys, 1, Λ)
+        sys = SpinSystem(cryst, (1,1,1), [SiteInfo(1; S)]; SUN=true)
+        set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
         E1 = energy(sys)
         # Effectively rotate site positions by π/2 clockwise

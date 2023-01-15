@@ -325,6 +325,8 @@ end
 
 Prints a quantum operator (e.g. linear combination of Stevens operators) as a
 polynomial of spin expectation values in the classical limit.
+
+See also [`print_anisotropy_as_stevens`](@ref).
 """
 function print_anisotropy_as_classical_spins(p)
     p = operator_to_classical_polynomial(p)
@@ -336,8 +338,20 @@ end
     function print_anisotropy_as_stevens(p; N)
 
 Prints a quantum operator (e.g. a polynomial of the spin operators `𝒮`) as a
-linear combination of Stevens operators in the classical limit. The symbol `X`
-denotes the spin magnitude squared, |𝒮|^2.
+linear combination of Stevens operators. The parameter `N` specifies the
+dimension of the SU(_N_) representation, corresponding to quantum spin magnitude
+``S = (N-1)/2``. The special value `N = 0` indicates the large-``S`` classical
+limit.
+
+In the output, the symbol `X` denotes the spin operator magnitude squared.
+Quantum spin operators ``𝒮`` of any finite dimension satisfy ``X = |𝒮|^2 = S
+(S+1)``. To take the large-``S`` limit, however, we keep only leading order
+powers of ``S``, such that ``X = S^2``.
+
+This function can be useful for understanding the conversions performed
+internally by [`set_anisotropy!`](@ref).
+
+For the inverse mapping, see [`print_anisotropy_as_classical_spins`](@ref).
 """
 function print_anisotropy_as_stevens(p; N)
     if N == 0

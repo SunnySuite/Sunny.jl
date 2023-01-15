@@ -1,17 +1,16 @@
 @testitem "Sum Rule" begin
 
     function simple_model_sf(; SUN)
-        dims = (4,4,4)
+        latsize = (4,4,4)
         J = 1.0
         cryst = Sunny.fcc_primitive_crystal()
-        interactions = [heisenberg(J, Bond(1, 1, [1, 0, 0]))]
-        if SUN
-            sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; S=1/2)]; SUN)
-            sys.κs .= 2
-            return sys
-        else
-            return SpinSystem(cryst, interactions, dims, [SiteInfo(1; S=1)]; SUN)
-        end
+
+        S = SUN ? 1/2 : 1
+        κ = SUN ? 2 : 1
+        sys = SpinSystem(cryst, latsize, [SiteInfo(1; S)]; SUN)
+        sys.κs .= κ
+        set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
+        return sys
     end
 
     function thermalize_simple_model!(sys; kT)

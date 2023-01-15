@@ -49,7 +49,7 @@ set_exchange!(sys::System, b::Bond, J::Mat3)
 set_biquadratic_scalar!(sys::System, b::Bond, J::Float64)
 
 # single-ion anisotropy where op is an abstract operator
-set_anisotropy!(sys::System, site::Int, op::SymbolicOperator)
+set_anisotropy!(sys::System, op::SymbolicOperator, atom::Int)
 ```
 
 ## Inhomogeneity and chemical disorder

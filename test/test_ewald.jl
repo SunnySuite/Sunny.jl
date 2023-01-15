@@ -17,31 +17,28 @@
     latvecs = lattice_vectors(1,1,1,90,90,90)
     positions = [[0,0,0]]
     cryst = Crystal(latvecs, positions)
-    ints = Sunny.AbstractInteraction[]
     site_infos = [SiteInfo(1; S=1, g=1)]
-    sys = SpinSystem(cryst, ints, (1,1,1), site_infos; units=Units.theory)
+    sys = SpinSystem(cryst, (1,1,1), site_infos; units=Units.theory)
     enable_dipole_dipole!(sys)
     @test ewalder_energy(sys) ≈ -1/6
     @test isapprox(energy(sys), -1/6; atol=1e-13)
 
     # Same thing, with multiple unit cells
-    dims = (2,3,4)
-    sys = SpinSystem(cryst, ints, dims, site_infos; units=Units.theory)
+    sys = SpinSystem(cryst, (2,3,4), site_infos; units=Units.theory)
     enable_dipole_dipole!(sys)
-    @test isapprox(energy(sys), -(1/6)prod(dims); atol=1e-13)
+    @test isapprox(energy(sys), -(1/6)prod(sys.latsize); atol=1e-13)
 
     # Create a random box
     latvecs = lattice_vectors(1.1,0.9,0.8,92,85,95)
     positions = [[0,0,0], [0.1,0,0], [0.6,0.4,0.5]]
     cryst = Crystal(latvecs, positions)
-    ints = Sunny.AbstractInteraction[]
     Random.seed!(0) # Don't have sys.rng yet
     site_infos = [
         SiteInfo(1; S=1, g=rand(3,3)),
         SiteInfo(2; S=1.5, g=rand(3,3)),
         SiteInfo(3; S=2, g=rand(3,3)),
     ]
-    sys = SpinSystem(cryst, ints, (1,1,1), site_infos; units=Units.theory)
+    sys = SpinSystem(cryst, (1,1,1), site_infos; units=Units.theory)
     enable_dipole_dipole!(sys)
     randomize_spins!(sys)
 
