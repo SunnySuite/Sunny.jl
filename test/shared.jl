@@ -14,25 +14,23 @@ function add_linear_interactions!(sys, SUN)
     set_external_field!(sys, (0.0, 1.0, 1.0))
     if SUN
         # In SUN mode, anisotropy scales as ⟨Λ⟩ → κ ⟨Λ⟩.
-        set_anisotropy!(sys, 1, 𝒮[1]^4+𝒮[2]^4+𝒮[3]^4)
+        set_anisotropy!(sys, 𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1)
     end
 end
 
-function add_exchange_interactions!(ints)
-    J  = 1.0   # Anti-ferro nearest neighbor
-    J′ = -0.5  # Ferro next-nearest neighbor
+function add_exchange_interactions!(sys, _)
+    J  = 0.5   # Anti-ferro nearest neighbor
     K  = 1.0   # Scale of Kitaev term
     Γ  = 0.2   # Off-diagonal exchange
     D  = 0.4   # DM interaction
     J_exch = [J   Γ   -D;
               Γ   J   -D;
               D   D  J+K]
-    push!(ints, exchange(J_exch, Bond(1, 2, [0,0,0])))
-    push!(ints, heisenberg(J′, Bond(1, 1, [1,0,0])))
+    set_exchange!(sys, J_exch, Bond(1, 2, [0, 0, 0]))
 end
 
-function add_quadratic_interactions!(ints, _)
-    add_exchange_interactions!(ints)
+function add_quadratic_interactions!(sys, SUN)
+    add_exchange_interactions!(sys, SUN)
 
     # TODO: Include biquadratic in SU(N) mode
 end
@@ -40,10 +38,10 @@ end
 function add_quartic_interactions!(sys, SUN)
     if !SUN
         # In dipole mode, spins scale individually, S⁴ → κ⁴ S⁴
-        set_anisotropy!(sys, 1, 𝒮[1]^4+𝒮[2]^4+𝒮[3]^4)
+        set_anisotropy!(sys, 𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1)
 
-        # KBTODO
-        # push!(ints, biquadratic(1.1, Bond(1,2,[0,0,0])))
+        # Biquadratic only supported for non-SUN mode
+        set_exchange_with_biquadratic!(sys, 0, 1.1, Bond(1, 3, [0, 0, 0]))
     end
 end
 

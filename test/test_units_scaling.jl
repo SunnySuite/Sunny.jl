@@ -12,14 +12,12 @@
     units = [Sunny.Units.meV, Sunny.Units.theory]
 
     function collect_energy_and_forces(test, units)
-        ints = Sunny.AbstractInteraction[]
-        if test == :exchange
-            add_exchange_interactions!(ints)
-        end
-        sys = SpinSystem(crystal, ints, latsize; units, seed=0)
+        sys = SpinSystem(crystal, latsize; units, seed=0)
         if test == :zeeman
             set_external_field!(sys, randn(sys.rng, Sunny.Vec3))
-        elseif test == :dipdip
+        elseif test == :exchange
+            add_exchange_interactions!(sys, false)
+        else test == :dipdip
             enable_dipole_dipole!(sys)
         end
         randomize_spins!(sys)
@@ -29,8 +27,6 @@
     # All exchange interactions should be invariant under changes to physical
     # constants
     function validate_exchanges_scaling()
-        ints = Sunny.AbstractInteraction[]
-        add_exchange_interactions!(ints)
         E1, B1 = collect_energy_and_forces(:exchange, units[1])
         E2, B2 = collect_energy_and_forces(:exchange, units[2])
         @test E1 ≈ E2

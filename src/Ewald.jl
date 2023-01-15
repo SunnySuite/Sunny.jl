@@ -3,7 +3,7 @@ const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
 const rBFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
 const rIFTPlan = FFTW.AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
 
-struct EwaldCPU <: AbstractInteractionCPU
+struct EwaldCPU
     A        :: Array{Mat3, 5}        # Interaction matrices in real-space         [offset+1,b1,b2]
     ϕ        :: Array{Vec3, 4}        # Cross correlation, ϕ = A⋆s                 [cell,b]
     # Space for Fourier transforms; compressed along first index m1

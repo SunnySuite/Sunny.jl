@@ -32,10 +32,9 @@
         S = 1
         Λ = D*𝒮[3]^2
         cryst = FeI2_crystal()
-        dims = (L,1,1)
 
-        sys = SpinSystem(cryst, Sunny.AbstractInteraction[], dims, [SiteInfo(1; S)]; SUN=true, seed)
-        set_anisotropy!(sys, 1, Λ)
+        sys = SpinSystem(cryst, (L,1,1), [SiteInfo(1; S)]; SUN=true, seed)
+        set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
 
         return sys
@@ -44,12 +43,10 @@
     function su5_anisotropy_model(; L=20, D=1.0, seed)
         S = 2
         Λ = D*(𝒮[3]^2-(1/5)*𝒮[3]^4)
-        
         cryst = FeI2_crystal()
-        dims = (L,1,1)
 
-        sys = SpinSystem(cryst, Sunny.AbstractInteraction[], dims, [SiteInfo(1; S)]; SUN=true, seed)
-        set_anisotropy!(sys, 1, Λ)
+        sys = SpinSystem(cryst, (L,1,1), [SiteInfo(1; S)]; SUN=true, seed)
+        set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
 
         return sys
@@ -186,16 +183,12 @@ end
         lat_vecs = lattice_vectors(a,b,c,90,90,90)
         basis_vecs = [[0,0,0], [0.45, 0.0, 0.0]]
         cryst = Crystal(lat_vecs, basis_vecs)
-        J = 1.0
-        interactions = [heisenberg(J, Bond(1,2,[0,0,0]))]
-        dims = (1,1,1)
         
-        if SUN
-            sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; S=1/2)]; SUN, seed)
-            sys.κs .= 2
-        else
-            sys = SpinSystem(cryst, interactions, dims, [SiteInfo(1; S=1)]; SUN, seed)
-        end
+        S = SUN ? 1/2 : 1
+        κ = SUN ? 2 : 1
+        sys = SpinSystem(cryst, (1,1,1), [SiteInfo(1; S)]; SUN, seed)
+        sys.κs .= κ
+        set_exchange!(sys, 1.0, Bond(1,2,[0,0,0]))
         randomize_spins!(sys)
 
         return sys
@@ -249,8 +242,7 @@ end
     # Tests that set_temp!/get_temp behave as expected
     function test_set_get_temp()
         cryst = Sunny.diamond_crystal()
-        ints = Sunny.AbstractInteraction[]
-        sys = SpinSystem(cryst, ints, (5, 5, 5); seed=0)
+        sys = SpinSystem(cryst, (5, 5, 5); seed=0)
 
         samplers = [
             MetropolisSampler(sys, 1.0, 1),
