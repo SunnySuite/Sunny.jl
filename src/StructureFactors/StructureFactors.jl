@@ -1,4 +1,4 @@
-struct SFData 
+struct SFData{NumCorr} 
     data        :: Array{ComplexF64, 7}                    # Raw SF data for 1st BZ 
     crystal     :: Crystal           
     Δω          :: Float64                                 # Energy step size
@@ -15,8 +15,8 @@ struct SFTrajectory{N}
     integrator  :: ImplicitMidpoint 
 end
 
-mutable struct StructureFactor{N}
-    sfdata      :: SFData
+mutable struct StructureFactor{N, NumCorr}
+    sfdata      :: SFData{NumCorr}
     sftraj      :: SFTrajectory{N}
     nsamples    :: Int64
 end
@@ -98,16 +98,8 @@ function SFData(sys::SpinSystem, sftraj::SFTrajectory;
     data = zeros(ComplexF64, length(matrix_elems), ns, ns, qa, qb, qc, numω)
     Δω = 2π / (sftraj.integrator.Δt*sftraj.measperiod*numω)
 
-    return SFData(data, sys.crystal, Δω, idxinfo)
+    return SFData{length(pairs)}(data, sys.crystal, Δω, idxinfo)
 end
-
-
-## May not even want to provide these after all.
-# function Base.getindex(sfd::SFData, α, β, qa, qb, qc, l1, l2, ω)
-#     α, β = α < β ? (α, β) : (β, α)  # Because SF is symmetric, only save diagonal and upper triangular
-#     return sfd.data[sfd.idx_info[(α, β)], qa, qb, qc, l1, l2, ω]
-# end
-# Base.getindex(sf::StructureFactor, α, β, qa, qb, qc, l1, l2, ω) = sf.sfdata[α, β, qa, qb, qc, l1, l2, ω]
 
 
 function calculate_structure_factor(sys::SpinSystem, sampler::LangevinSampler;
@@ -116,13 +108,11 @@ function calculate_structure_factor(sys::SpinSystem, sampler::LangevinSampler;
 )
     # Take a step size twice as large as the sampler step size if none explicitly given
     isnothing(Δt) && (Δt = 2sampler.integrator.Δt)
-
     sf = StructureFactor(sys; Δt, numω, ωmax, gfactor, ops, matrix_elems)
     for _ ∈ 1:numsamps
         sample!(sys, sampler)
         add_trajectory!(sf, sys)
     end
-
     return sf
 end
 

@@ -3,9 +3,9 @@
 ################################################################################
 
 # Function for getting a single 𝒮(q, ω) intensity -- primarily internal
-function calc_intensity(sf::StructureFactor, q, iq, ω, iω, contractor, temp, ffdata)
+function calc_intensity(sf::StructureFactor{N, NumCorr}, q, iq, ω, iω, contractor, temp, ffdata) where {N, NumCorr}
     (; crystal, data) = sf.sfdata
-    elems = phase_averaged_elements(@view(data[:,:,:,iq, iω]), q, crystal, ffdata)
+    elems = phase_averaged_elements(@view(data[:,:,:,iq, iω]), q, crystal, ffdata, Val(NumCorr))
     intensity = contract(elems, q, contractor)
     if !isnothing(temp)
         intensity *= classical_to_quantum(ω, temp)
@@ -96,7 +96,7 @@ end
 function get_intensities(sf::StructureFactor, q_targets::Array;
     interp = NoInterp(), contraction = Trace(), temp = nothing,
     formfactors = nothing, negative_energies = false, newbasis = nothing,
-) 
+)
     nq = length(q_targets)
     ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
     nω = length(ωs) 
@@ -111,8 +111,8 @@ function get_intensities(sf::StructureFactor, q_targets::Array;
     intensities = zeros(contractor, size(q_targets)..., nω)
     li_intensities = LinearIndices(intensities)
     ci_qs = CartesianIndices(q_targets)
-
     (; counts, qis_all, qs_all) = prune_stencil_qs(sf.sfdata, q_targets, interp)
+
     @time for iω in 1:nω
         iq = 0
         for (c, numrepeats) in enumerate(counts)
