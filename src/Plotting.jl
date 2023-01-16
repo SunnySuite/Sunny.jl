@@ -126,12 +126,12 @@ end
 
 
 """
-    plot_bonds(sys::SpinSystem; kwargs...)
+    plot_bonds(sys::System; kwargs...)
 
 Plot all pair interactions appearing in `sys.hamiltonian`, on the
 underlying crystal lattice. `kwargs` are passed to `plot_lattice!`.
 """
-@inline function plot_bonds(sys::SpinSystem; kwargs...)
+@inline function plot_bonds(sys::System; kwargs...)
     ℋ = sys.hamiltonian
     pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
     plot_bonds(sys.crystal, pair_ints; kwargs...)
@@ -198,7 +198,7 @@ function plot_all_bonds_between(crystal, i, j, max_dist, latsize=(3,3,3); kwargs
 end
 
 "Plot the outlines of the unit cells of a lattice"
-function plot_cells!(ax, sys::SpinSystem; color=:grey, linewidth=1.0, kwargs...)
+function plot_cells!(ax, sys::System; color=:grey, linewidth=1.0, kwargs...)
     lattice(i, j, k) = sys.crystal.lat_vecs * Vec3(i, j, k)
 
     pts = Vector{GLMakie.Point3f0}()
@@ -229,12 +229,12 @@ end
 
 
 """
-    plot_spins(sys::SpinSystem; linecolor=:grey, arrowcolor=:red, linewidth=0.1,
+    plot_spins(sys::System; linecolor=:grey, arrowcolor=:red, linewidth=0.1,
                                 arrowsize=0.3, arrowlength=1.0, kwargs...)
 
 Plot the spin configuration defined by `sys`. `kwargs` are passed to `GLMakie.arrows`.        
 """
-function plot_spins(sys::SpinSystem; linecolor=:grey, arrowcolor=:red,
+function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
     linewidth=0.1, arrowsize=0.2, arrowlength=0.2, kwargs...)
 
     fig, ax = _setup_scene()
@@ -254,7 +254,7 @@ end
 
 Produce an animation of constant-energy Landau-Lifshitz dynamics of the given `sys`.
 # Arguments:
-- `sys::SpinSystem`: The spin system to integrate.
+- `sys::System`: The spin system to integrate.
 - `fname::String`: The path to save the animation to.
 - `steps_per_frame::Int`: The number of integration steps to take per frame.
 - `Δt::Float64`: The integration timestep size.
@@ -263,7 +263,7 @@ Produce an animation of constant-energy Landau-Lifshitz dynamics of the given `s
 Other keyword arguments are passed to `GLMakie.arrows`.
 """
 function anim_integration(
-    sys::SpinSystem, fname, steps_per_frame, Δt, nframes;
+    sys::System, fname, steps_per_frame, Δt, nframes;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2, arrowlength=0.2,
     kwargs...
 )
@@ -296,7 +296,7 @@ Performs endless live constant-energy Landau-Lifshitz integration
 in an interactive window.
 """
 function live_integration(
-    sys::SpinSystem, steps_per_frame, Δt;
+    sys::System, steps_per_frame, Δt;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
     arrowlength=0.2, framerate=30, kwargs...
 )
@@ -329,7 +329,7 @@ Performs endless live Langevin Landau-Lifshitz integration
 in an interactive window.
 """
 function live_langevin_integration(
-    sys::SpinSystem, steps_per_frame, Δt, kT;
+    sys::System, steps_per_frame, Δt, kT;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
     arrowlength=0.2, λ=0.1, framerate=30, kwargs...
 )

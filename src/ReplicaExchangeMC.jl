@@ -230,7 +230,7 @@ end
 """
 Encode ising system spin z-components as 64-bit integers to file
 """
-function encode_ising_to_file(system::SpinSystem, output::IOStream)
+function encode_ising_to_file(system::System, output::IOStream)
     Sz = Int64.(vec(reinterpret(reshape, Float64, system.dipoles)[3,1,:,:,:]))
     N = length(Sz)
 
@@ -266,7 +266,7 @@ end
 """
 Print xyz formatted (Lx, Ly, Lz, Sx, Sy, Sz) configurations to file 
 """
-function xyz_to_file(sys::SpinSystem, output::IOStream)
+function xyz_to_file(sys::System, output::IOStream)
     sites = reinterpret(reshape, Float64, positions(sys))
     spins = reinterpret(reshape, Float64, sys.dipoles)
     xyz = vcat(sites, spins)

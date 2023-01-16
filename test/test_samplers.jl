@@ -33,7 +33,7 @@
         Λ = D*𝒮[3]^2
         cryst = FeI2_crystal()
 
-        sys = SpinSystem(cryst, (L,1,1), [SiteInfo(1; S)]; mode=:SUN, seed)
+        sys = System(cryst, (L,1,1), [SiteInfo(1; S)]; mode=:SUN, seed)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
 
@@ -45,7 +45,7 @@
         Λ = D*(𝒮[3]^2-(1/5)*𝒮[3]^4)
         cryst = FeI2_crystal()
 
-        sys = SpinSystem(cryst, (L,1,1), [SiteInfo(1; S)]; mode=:SUN, seed)
+        sys = System(cryst, (L,1,1), [SiteInfo(1; S)]; mode=:SUN, seed)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
 
@@ -186,7 +186,7 @@ end
         
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
-        sys = SpinSystem(cryst, (1,1,1), [SiteInfo(1; S)]; mode, seed)
+        sys = System(cryst, (1,1,1), [SiteInfo(1; S)]; mode, seed)
         sys.κs .= κ
         set_exchange!(sys, 1.0, Bond(1,2,[0,0,0]))
         randomize_spins!(sys)
@@ -242,7 +242,7 @@ end
     # Tests that set_temp!/get_temp behave as expected
     function test_set_get_temp()
         cryst = Sunny.diamond_crystal()
-        sys = SpinSystem(cryst, (5, 5, 5); mode=:dipole, seed=0)
+        sys = System(cryst, (5, 5, 5); mode=:dipole, seed=0)
 
         samplers = [
             MetropolisSampler(sys, 1.0, 1),

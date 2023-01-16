@@ -6,7 +6,7 @@ struct SFData{NumCorr}
 end
 
 struct SFTrajectory{N}
-    sys         :: SpinSystem{N}         # Clone system so original SpinSystem unaltered by trajectory calculation
+    sys         :: System{N}         # Clone system so original System unaltered by trajectory calculation
     traj        :: Array{ComplexF64, 6}  # Trajectory buffer
     ops         :: Array{ComplexF64, 3}  # Operators corresponding to observables
     measperiod  :: Int                   # Steps to skip between saving observables (downsampling)
@@ -22,7 +22,7 @@ mutable struct StructureFactor{N, NumCorr}
 end
 
 
-function StructureFactor(sys::SpinSystem;
+function StructureFactor(sys::System;
     Δt = 0.1, numω = 100, ωmax = nothing, gfactor = true, ops = nothing, matrix_elems = nothing,
 )
     sftraj = SFTrajectory(sys; Δt, numω, ωmax, ops, gfactor)
@@ -32,7 +32,7 @@ function StructureFactor(sys::SpinSystem;
     return StructureFactor(sfdata, sftraj, numsamps)
 end
 
-function SFTrajectory(sys::SpinSystem{N}; 
+function SFTrajectory(sys::System{N}; 
     Δt = 0.1, numω = 100, ωmax = nothing, ops = nothing, gfactor = true,
 ) where N
     # Default to dipole expectation values if no observables have been given
@@ -42,7 +42,7 @@ function SFTrajectory(sys::SpinSystem{N};
         ops = zeros(ComplexF64, 0, 0, 3) # Placeholder with necessary information for consistent behavior later 
     else
         if N == 0 
-            error("Structure Factor Error: Cannot provide matrices for observables for a dipolar `SpinSystem`")
+            error("Structure Factor Error: Cannot provide matrices for observables for a dipolar `System`")
         end
     end
 
@@ -60,7 +60,7 @@ function SFTrajectory(sys::SpinSystem{N};
     integrator = ImplicitMidpoint(Δt)
 
     # Create a shallow copy of the spin system
-    sys_new = SpinSystem(sys.mode, sys.crystal, sys.latsize, sys.hamiltonian,
+    sys_new = System(sys.mode, sys.crystal, sys.latsize, sys.hamiltonian,
         copy(sys.dipoles), copy(sys.coherents), sys.κs, sys.gs,
         sys.dipole_buffers, sys.coherent_buffers, sys.units, sys.rng)
 
@@ -68,7 +68,7 @@ function SFTrajectory(sys::SpinSystem{N};
 end
 
 
-function SFData(sys::SpinSystem, sftraj::SFTrajectory; 
+function SFData(sys::System, sftraj::SFTrajectory; 
     ops = nothing, matrix_elems = nothing,
 )
     nops =  isnothing(ops) ? 3 : size(ops, 3) # Assume three observables (spin operators) if none are explicitly given
@@ -102,7 +102,7 @@ function SFData(sys::SpinSystem, sftraj::SFTrajectory;
 end
 
 
-function calculate_structure_factor(sys::SpinSystem, sampler::LangevinSampler;
+function calculate_structure_factor(sys::System, sampler::LangevinSampler;
     ωmax=10.0, numω=100, numsamps=10, gfactor=true, Δt = nothing,
     ops = nothing, matrix_elems = nothing
 )
