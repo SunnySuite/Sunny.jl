@@ -45,7 +45,7 @@ struct System{N}
     mode             :: Symbol
     crystal          :: Crystal
     latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
-    hamiltonian      :: Interactions            # All interactions
+    interactions     :: Interactions              # All interactions
     dipoles          :: Array{Vec3, 4}            # Expected dipoles
     coherents        :: Array{CVec{N}, 4}         # Coherent states
     κs               :: Vector{Float64}           # Meaning depends on context:

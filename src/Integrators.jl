@@ -78,61 +78,62 @@ Advance the spin system forward one step using the parameters and integration
 scheme specified by `integrator`.
 """
 function step!(sys::System{0}, integrator::LangevinHeunP)
-    (B, S₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
+    (B, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
     (; kT, λ, Δt) = integrator
-    S, ℋ = sys.dipoles, sys.hamiltonian
+    s = sys.dipoles
 
     randn!(sys.rng, ξ)
     ξ .*= √(2λ*kT)
 
     # Euler step
-    set_forces!(B, S, ℋ)
-    @. f₁ = rhs_dipole(S, B, λ)
-    @. r₁ = rhs_dipole(S, ξ)   # note absence of λ argument -- noise only appears once in rhs.
-    @. S₁ = S + Δt * f₁ + √Δt * r₁
+    set_forces!(B, s, sys)
+    @. f₁ = rhs_dipole(s, B, λ)
+    @. r₁ = rhs_dipole(s, ξ)   # note absence of λ argument -- noise only appears once in rhs.
+    @. s₁ = s + Δt * f₁ + √Δt * r₁
 
     # Corrector step
-    set_forces!(B, S₁, ℋ)
-    @. S = S + 0.5 * Δt * (f₁ + rhs_dipole(S₁, B, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(S₁, ξ))
-    normalize!(S, sys)
+    set_forces!(B, s₁, sys)
+    @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, B, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
+    normalize!(s, sys)
 
     nothing
 end
 
 function step!(sys::System{0}, integrator::ImplicitMidpoint)
-    S, ℋ = sys.dipoles, sys.hamiltonian
+    s = sys.dipoles
     (; Δt, atol) = integrator
-    (B, S̄, Ŝ, S̄′) = get_dipole_buffers(sys, 4)
+
+    (B, s̄, ŝ, s̄′) = get_dipole_buffers(sys, 4)
     
     # Initial guess for midpoint
-    @. S̄ = S
+    @. s̄ = s
 
     max_iters = 100
     for _ in 1:max_iters
         # Integration step for current best guess of midpoint S̄. Produces
-        # improved midpoint estimator _S̄′.
-        @. Ŝ = S̄
-        normalize!(Ŝ, sys)
-        set_forces!(B, Ŝ, ℋ)
-        @. S̄′ = S + 0.5 * Δt * rhs_dipole(Ŝ, B)
+        # improved midpoint estimator S̄′.
+        @. ŝ = s̄
+        normalize!(ŝ, sys)
+        set_forces!(B, ŝ, sys)
+        @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, B)
 
-        # Convergence is reached if every element of _S̄ and _S̄′ agree to
+        # Convergence is reached if every element of S̄ and S̄′ agree to
         # within tolerance.
         converged = true
-        for i = 1:length(S)
-            converged = converged && isapprox(S̄[i], S̄′[i]; atol)
+        for i = 1:length(s)
+            converged = converged && isapprox(s̄[i], s̄′[i]; atol)
         end
 
         # If converged, then we can return
         if converged
             # Normalization here should not be necessary in principle, but it
             # could be useful in practice for finite `atol`.
-            @. S = 2*S̄′ - S
-            normalize!(S, sys)
+            @. s = 2*s̄′ - s
+            normalize!(s, sys)
             return
         end
 
-        @. S̄ = S̄′
+        @. s̄ = s̄′
     end
 
     error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
@@ -177,14 +178,14 @@ end
 function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
                         B::Array{Vec3, 4}, integrator::LangevinHeunP, sys::System{N}) where N
     (; kT, λ, Δt) = integrator
-    (; dipoles, hamiltonian) = sys
+    (; dipoles, interactions) = sys
 
     set_expected_spins!(dipoles, Z, sys) 
-    set_forces!(B, dipoles, hamiltonian)
+    set_forces!(B, dipoles, sys)
 
     @inbounds for idx in CartesianIndices(ξ)
-        Λ = hamiltonian.anisos[idx[4]].matrep
-        HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅S) Z
+        Λ = interactions.anisos[idx[4]].matrep
+        HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
 
         # The field κ describes an effective ket rescaling, Z → Z' = √κ Z. For
         # numerical convenience, Sunny avoids explicit ket rescaling, and
@@ -227,13 +228,13 @@ end
 
 function rhs_ll!(ΔZ, Z, B, integrator, sys)
     (; Δt) = integrator
-    (; dipoles, hamiltonian) = sys
+    (; dipoles, interactions) = sys
 
     set_expected_spins!(dipoles, Z, sys) # temporarily de-synchs dipoles and coherents
-    set_forces!(B, dipoles, hamiltonian)
+    set_forces!(B, dipoles, sys)
 
     @inbounds for idx in CartesianIndices(Z)
-        Λ = hamiltonian.anisos[idx[4]].matrep
+        Λ = interactions.anisos[idx[4]].matrep
         HZ = mul_spin_matrices(Λ, -B[idx], Z[idx])
         ΔZ[idx] = - Δt*im*HZ
     end 
@@ -290,7 +291,7 @@ get_temp(sampler::LangevinSampler) = sampler.integrator.kT
 
 function sample!(sys, sampler::LangevinSampler)
     (; integrator, nsteps) = sampler
-    for _ ∈ 1:nsteps
+    for _ in 1:nsteps
         step!(sys, integrator)
     end
     return nothing

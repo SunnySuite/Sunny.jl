@@ -1,19 +1,21 @@
 
-function Ewald(cryst::Crystal, latsize::NTuple{3,Int}, gs::Vector{Mat3}, units::PhysicalConsts)
+function Ewald(sys::System{N}) where N
+    (; crystal, latsize, gs, units) = sys
+
     (; μ0, μB) = units
-    nb = nbasis(cryst)
-    A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(cryst, latsize)
-    # Scale interaction tensors by pair of g tensors for each site
+    nb = nbasis(crystal)
+    A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(crystal, latsize)
+    # Scale g tensors into pair interactions A
     for b1 in 1:nb, b2 in 1:nb
-        for ijk in CartesianIndices(latsize)
-            A[ijk, b1, b2] = gs[b1]' * A[ijk, b1, b2] * gs[b2]
+        for cell in CartesianIndices(latsize)
+            A[cell, b1, b2] = gs[b1]' * A[cell, b1, b2] * gs[b2]
         end
     end
 
     ϕ  = zeros(Vec3, latsize..., nb)
 
-    Ar = reshape(reinterpret(reshape, Float64, A), 3, 3, size(A)...) # dims: [α,β,i,j,k,b1,b2]
-    FA = FFTW.rfft(Ar, 3:5) # FFT on cell indices (i,j,k)
+    Ar = reshape(reinterpret(reshape, Float64, A), 3, 3, size(A)...) # dims: [α,β,cell,b1,b2]
+    FA = FFTW.rfft(Ar, 3:5) # FFT on cell indices
     sz_rft = size(FA)[3:5]  # First FT dimension (dimension 3) will be ~ halved
     Fs = zeros(ComplexF64, 3, sz_rft..., nb)
     Fϕ = zeros(ComplexF64, 3, sz_rft..., nb)

@@ -11,22 +11,55 @@ function SingleIonAnisotropies(N)
     SingleIonAnisotropies(op, matrep, clsrep)
 end
 
-function propagate_anisotropies!(hamiltonian::Interactions, cryst::Crystal, b::Int, op::DP.AbstractPolynomialLike, N::Int)
+
+"""
+    set_anisotropy!(sys::System, op, i::Int)
+
+Set the single-ion anisotropy for the `i`th atom of every unit cell, as well as
+all symmetry-equivalent atoms. The parameter `op` may be a polynomial in
+symbolic spin operators `𝒮[α]`, or a linear combination of symbolic Stevens
+operators `𝒪[k,q]`.
+
+The characters `𝒮` and `𝒪` can be copy-pasted from this help message, or typed
+at a Julia terminal using `\\scrS` or `\\scrO` followed by tab-autocomplete.
+
+For systems with `SUN=false` and `renormalize_operators=true` (the default), the
+anisotropy operators interactions will automatically be renormalized to achieve
+maximum consistency with the more variationally accurate SU(_N_) mode.
+
+# Examples
+```julia
+# An easy axis anisotropy in the z-direction
+set_anisotropy!(sys, -D*𝒮[3]^3, i)
+
+# The unique quartic single-ion anisotropy for a site with cubic point group
+# symmetry
+set_anisotropy!(sys, 𝒪[4,0] + 5𝒪[4,4], i)
+
+# An equivalent expression of this quartic anisotropy, up to a constant shift
+set_anisotropy!(sys, 20*(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4), i)
+
+See also [`print_anisotropy_as_stevens`](@ref).
+"""
+function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) where N
+    (; crystal) = sys
+    (; anisos) = sys.interactions
+
     iszero(op) && return 
 
-    (1 <= b <= nbasis(cryst)) || error("Atom index $b is out of range.")
+    (1 <= i <= nbasis(crystal)) || error("Atom index $i is out of range.")
 
-    if !iszero(hamiltonian.anisos[b].op)
-        println("Warning: Overriding anisotropy for atom $b.")
+    if !iszero(anisos[i].op)
+        println("Warning: Overriding anisotropy for atom $i.")
     end
 
-    if !is_anisotropy_valid(cryst, b, op)
+    if !is_anisotropy_valid(crystal, i, op)
         println("Symmetry-violating anisotropy: $op.")
-        println("Use `print_site(crystal, $b)` for more information.")
+        println("Use `print_site(crystal, $i)` for more information.")
         error("Invalid anisotropy.")
     end
 
-    for (b′, op′) in zip(all_symmetry_related_anisotropies(cryst, b, op)...)
+    for (b′, op′) in zip(all_symmetry_related_anisotropies(crystal, i, op)...)
         matrep = operator_to_matrix(op′; N)
 
         S = (N-1)/2
@@ -38,9 +71,24 @@ function propagate_anisotropies!(hamiltonian::Interactions, cryst::Crystal, b::I
         kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
         clsrep = ClassicalStevensExpansion(kmax, c2, c4, c6)
 
-        hamiltonian.anisos[b′] = SingleIonAnisotropies(op′, matrep, clsrep)
+        anisos[b′] = SingleIonAnisotropies(op′, matrep, clsrep)
     end
 end
+
+
+"""
+    set_local_anisotropy!(sys::System, op, idx)
+
+Set a single-ion anisotropy for a single spin at `idx`, in violation of crystal
+periodicity. No symmetry analysis will be performed.
+"""
+function set_local_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, idx) where N
+    idx = convert_idx(idx)
+    error("Unimplemented.")
+end
+
+
+
 
 # Evaluate a given linear combination of Stevens operators for classical spin s
 function energy_and_gradient_for_classical_anisotropy(s::Vec3, clsrep::ClassicalStevensExpansion)
