@@ -12,7 +12,7 @@
     units = [Sunny.Units.meV, Sunny.Units.theory]
 
     function collect_energy_and_forces(test, units)
-        sys = SpinSystem(crystal, latsize; units, seed=0)
+        sys = SpinSystem(crystal, latsize; mode=:dipole, units, seed=0)
         if test == :zeeman
             set_external_field!(sys, randn(sys.rng, Sunny.Vec3))
         elseif test == :exchange

@@ -33,7 +33,7 @@
         Λ = D*𝒮[3]^2
         cryst = FeI2_crystal()
 
-        sys = SpinSystem(cryst, (L,1,1), [SiteInfo(1; S)]; SUN=true, seed)
+        sys = SpinSystem(cryst, (L,1,1), [SiteInfo(1; S)]; mode=:SUN, seed)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
 
@@ -45,7 +45,7 @@
         Λ = D*(𝒮[3]^2-(1/5)*𝒮[3]^4)
         cryst = FeI2_crystal()
 
-        sys = SpinSystem(cryst, (L,1,1), [SiteInfo(1; S)]; SUN=true, seed)
+        sys = SpinSystem(cryst, (L,1,1), [SiteInfo(1; S)]; mode=:SUN, seed)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
 
@@ -176,7 +176,7 @@ end
     end
 
     # Generates a two-site spin chain spin system
-    function two_site_spin_chain(; SUN, seed)
+    function two_site_spin_chain(; mode, seed)
         a = 1.0
         b = 1.1
         c = 1.2
@@ -184,9 +184,9 @@ end
         basis_vecs = [[0,0,0], [0.45, 0.0, 0.0]]
         cryst = Crystal(lat_vecs, basis_vecs)
         
-        S = SUN ? 1/2 : 1
-        κ = SUN ? 2 : 1
-        sys = SpinSystem(cryst, (1,1,1), [SiteInfo(1; S)]; SUN, seed)
+        S = mode==:SUN ? 1/2 : 1
+        κ = mode==:SUN ? 2 : 1
+        sys = SpinSystem(cryst, (1,1,1), [SiteInfo(1; S)]; mode, seed)
         sys.κs .= κ
         set_exchange!(sys, 1.0, Bond(1,2,[0,0,0]))
         randomize_spins!(sys)
@@ -198,8 +198,8 @@ end
     # distribution for a two-site spin chain.
     function test_spin_chain_energy()
         seed = 111
-        for SUN in (true, false)
-            sys = two_site_spin_chain(; SUN, seed)
+        for mode in (:SUN, :dipole)
+            sys = two_site_spin_chain(; mode, seed)
 
             λ = 0.1
             kT = 0.1
@@ -242,7 +242,7 @@ end
     # Tests that set_temp!/get_temp behave as expected
     function test_set_get_temp()
         cryst = Sunny.diamond_crystal()
-        sys = SpinSystem(cryst, (5, 5, 5); seed=0)
+        sys = SpinSystem(cryst, (5, 5, 5); mode=:dipole, seed=0)
 
         samplers = [
             MetropolisSampler(sys, 1.0, 1),

@@ -11,17 +11,17 @@
         integrators = (LangevinHeunP(kT, λ, Δt), ImplicitMidpoint(Δt))
 
         for integrator in integrators
-            for SUN in (true, false)
-                sys = SpinSystem(cryst, (3,3,3), [SiteInfo(1; S=5/2)]; SUN, seed=0)
-                add_linear_interactions!(sys, SUN)
-                add_quadratic_interactions!(sys, SUN)
-                add_quartic_interactions!(sys, SUN)
+            for mode in (:SUN, :dipole)
+                sys = SpinSystem(cryst, (3,3,3), [SiteInfo(1; S=5/2)]; mode, seed=0)
+                add_linear_interactions!(sys, mode)
+                add_quadratic_interactions!(sys, mode)
+                add_quartic_interactions!(sys, mode)
                 randomize_spins!(sys)
-                mags1 = norm.(SUN ? sys.coherents : sys.dipoles)
+                mags1 = norm.(mode==:SUN ? sys.coherents : sys.dipoles)
                 for _ in 1:100
                     step!(sys, integrator)
                 end
-                mags2 = norm.(SUN ? sys.coherents : sys.dipoles)
+                mags2 = norm.(mode==:SUN ? sys.coherents : sys.dipoles)
                 @test mags1 ≈ mags2
             end
         end
@@ -32,27 +32,27 @@
 
     # Check that each energy term rescales properly with κ
     function test_energy_scaling()
-        function gen_energy(κ, adder, SUN)
+        function gen_energy(κ, adder, mode)
             cryst = Sunny.diamond_crystal()
-            sys = SpinSystem(cryst, (2,2,2), [SiteInfo(1; S=5/2)]; SUN, seed=0)
-            adder(sys, SUN)
+            sys = SpinSystem(cryst, (2,2,2), [SiteInfo(1; S=5/2)]; mode, seed=0)
+            adder(sys, mode)
             sys.κs .= κ
             randomize_spins!(sys)
             return energy(sys)
         end
 
         κ = 2.0
-        for SUN in (true, false)
-            E1 = gen_energy(1, add_linear_interactions!, SUN)
-            E2 = gen_energy(κ, add_linear_interactions!, SUN)
+        for mode in (:SUN, :dipole)
+            E1 = gen_energy(1, add_linear_interactions!, mode)
+            E2 = gen_energy(κ, add_linear_interactions!, mode)
             @test E1 ≈ E2 / κ
 
-            E1 = gen_energy(1, add_quadratic_interactions!, SUN)
-            E2 = gen_energy(κ, add_quadratic_interactions!, SUN)
+            E1 = gen_energy(1, add_quadratic_interactions!, mode)
+            E2 = gen_energy(κ, add_quadratic_interactions!, mode)
             @test E1 ≈ E2 / κ^2
 
-            E1 = gen_energy(1, add_quartic_interactions!, SUN)
-            E2 = gen_energy(κ, add_quartic_interactions!, SUN)
+            E1 = gen_energy(1, add_quartic_interactions!, mode)
+            E2 = gen_energy(κ, add_quartic_interactions!, mode)
             @test E1 ≈ E2 / κ^4
         end
     end
@@ -63,10 +63,10 @@
     # Check that a scaling of κ corresponds to an appropriate rescaling of dynamical time
     # TODO: Figure out scaling for Langevin dynamics?
     function test_dynamics_scaling()
-        function gen_trajectory(κ, Δt, adder, SUN)
+        function gen_trajectory(κ, Δt, adder, mode)
             cryst = Sunny.diamond_crystal()
-            sys = SpinSystem(cryst, (4,3,2), [SiteInfo(1; S=5/2)]; SUN, seed=0)
-            adder(sys, SUN)
+            sys = SpinSystem(cryst, (4,3,2), [SiteInfo(1; S=5/2)]; mode, seed=0)
+            adder(sys, mode)
             sys.κs .= κ
             randomize_spins!(sys)
             integrator = ImplicitMidpoint(Δt)
@@ -78,17 +78,17 @@
     
         κ = 2.0
         Δt = 0.005
-        for SUN in (true, false)
-            s1 = gen_trajectory(1, Δt, add_linear_interactions!, SUN)
-            s2 = gen_trajectory(κ, Δt, add_linear_interactions!, SUN)
+        for mode in (:SUN, :dipole)
+            s1 = gen_trajectory(1, Δt, add_linear_interactions!, mode)
+            s2 = gen_trajectory(κ, Δt, add_linear_interactions!, mode)
             @test s1 ≈ s2/κ
 
-            s1 = gen_trajectory(1, Δt, add_quadratic_interactions!, SUN)
-            s2 = gen_trajectory(κ, Δt/κ, add_quadratic_interactions!, SUN)
+            s1 = gen_trajectory(1, Δt, add_quadratic_interactions!, mode)
+            s2 = gen_trajectory(κ, Δt/κ, add_quadratic_interactions!, mode)
             @test s1 ≈ s2/κ
 
-            s1 = gen_trajectory(1, Δt, add_quartic_interactions!, SUN)
-            s2 = gen_trajectory(κ, Δt/κ^3, add_quartic_interactions!, SUN)
+            s1 = gen_trajectory(1, Δt, add_quartic_interactions!, mode)
+            s2 = gen_trajectory(κ, Δt/κ^3, add_quartic_interactions!, mode)
             @test s1 ≈ s2/κ
         end
     end
