@@ -10,31 +10,40 @@ function Interactions(crystal::Crystal, N)
     return Interactions(extfield, anisos, pairexch, ewald)
 end
 
-function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Interactions, κs::Vector{Float64}) where N
+
+"""
+    energy(sys::System)
+
+Computes the total system energy.
+"""
+function energy(sys::System{N}) where N
+    (; dipoles, coherents, κs) = sys
+    (; extfield, anisos, pairexch, ewald) = sys.interactions
+
     E = 0.0
     latsize = size(dipoles)[1:3]
 
     # Zeeman coupling to external field
     @inbounds for idx in CartesianIndices(dipoles)
-        E -= ℋ.extfield[idx[4]] ⋅ dipoles[idx]
+        E -= extfield[idx[4]] ⋅ dipoles[idx]
     end
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
         for idx in CartesianIndices(coherents)
-            E_idx, _ = energy_and_gradient_for_classical_anisotropy(dipoles[idx], ℋ.anisos[idx[4]].clsrep)
+            E_idx, _ = energy_and_gradient_for_classical_anisotropy(dipoles[idx], anisos[idx[4]].clsrep)
             E += E_idx
         end
     else
         for idx in CartesianIndices(coherents)
-            Λ = ℋ.anisos[idx[4]].matrep
+            Λ = anisos[idx[4]].matrep
             κ = κs[idx[4]]
             Z = coherents[idx]
             E += κ * real(Z' * Λ * Z)
         end
     end
 
-    for (; heisen, quadmat, biquad) in ℋ.pairexch
+    for (; heisen, quadmat, biquad) in pairexch
         # Heisenberg exchange
         for (culled, bond, J) in heisen
             culled && break
@@ -65,15 +74,18 @@ function energy(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Inte
     end
 
     # Long-range dipole-dipole
-    if !isnothing(ℋ.ewald)
-        E += energy(dipoles, ℋ.ewald)
+    if !isnothing(ewald)
+        E += energy(dipoles, ewald)
     end
     return E
 end
 
 
-# Computes the change in energy for an update to spin state
-function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, ℋ::Interactions, κs::Vector{Float64}, idx, s::Vec3, Z::CVec{N}) where N
+function local_energy_change(sys::System{N}, idx, state::SpinState) where N
+    (; s, Z) = state
+    (; dipoles, coherents, κs) = sys
+    (; extfield, anisos, pairexch, ewald) = sys.interactions
+
     s₀ = dipoles[idx]
     Z₀ = coherents[idx]
     Δs = s - s₀
@@ -83,19 +95,19 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
     latsize = size(dipoles)[1:3]
 
     # Zeeman coupling to external field
-    ΔE -= ℋ.extfield[b] ⋅ Δs
+    ΔE -= extfield[b] ⋅ Δs
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
-        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, ℋ.anisos[b].clsrep)
-        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, ℋ.anisos[b].clsrep)
+        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, anisos[b].clsrep)
+        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, anisos[b].clsrep)
         ΔE += E_new - E_old
     else
-        Λ = ℋ.anisos[b].matrep
+        Λ = anisos[b].matrep
         ΔE += κs[b] * real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
     end
 
-    (; heisen, quadmat, biquad) = ℋ.pairexch[b]
+    (; heisen, quadmat, biquad) = pairexch[b]
     # Heisenberg exchange
     for (_, bond, J) in heisen
         sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
@@ -112,38 +124,36 @@ function energy_local_delta(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4
         ΔE += J * ((s ⋅ sⱼ)^2 - (s₀ ⋅ sⱼ)^2)
     end
 
-    if !isnothing(ℋ.ewald)
-        ΔE += energy_delta(dipoles, ℋ.ewald, idx, s)
+    if !isnothing(ewald)
+        ΔE += energy_delta(dipoles, ewald, idx, s)
     end
 
     return ΔE
 end
 
 
-
 # Updates B in-place to hold negative energy gradient, -dE/ds, for each spin.
-function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::Interactions)
-    # KBTODO remove this hack!
-    N = size(ℋ.anisos[1].matrep, 1)
-    latsize = size(B)[1:3]
+function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N}) where N
+    (; extfield, anisos, pairexch, ewald) = sys.interactions
+    latsize = sys.latsize
 
     fill!(B, zero(Vec3))
 
     # Zeeman coupling
     @inbounds for idx in CartesianIndices(dipoles)
-        B[idx] += ℋ.extfield[idx[4]]
+        B[idx] += extfield[idx[4]]
     end
 
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into ℌ.
     if N == 0
         for idx in CartesianIndices(dipoles)
-            _, gradE = energy_and_gradient_for_classical_anisotropy(dipoles[idx], ℋ.anisos[idx[4]].clsrep)
+            _, gradE = energy_and_gradient_for_classical_anisotropy(dipoles[idx], anisos[idx[4]].clsrep)
             B[idx] -= gradE
         end
     end
     
-    for (; heisen, quadmat, biquad) in ℋ.pairexch
+    for (; heisen, quadmat, biquad) in pairexch
         # Heisenberg exchange
         for (culled, bond, J) in heisen
             culled && break
@@ -179,8 +189,20 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::Interactio
         end
     end
 
-    if !isnothing(ℋ.ewald)
-        accum_force!(B, dipoles, ℋ.ewald)
+    if !isnothing(ewald)
+        accum_force!(B, dipoles, ewald)
     end
 end
 
+set_forces!(B::Array{Vec3}, sys::System{N}) where N = set_forces!(B, sys.dipoles, sys)
+
+"""
+    forces(Array{Vec3}, sys::System)
+
+Returns the effective local field (force) at each site, ``Bᵅᵢ = -∂H/∂sᵅᵢ``.
+"""
+function forces(sys::System{N}) where N
+    B = zero(sys.dipoles)
+    set_forces!(B, sys)
+    B
+end

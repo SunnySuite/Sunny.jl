@@ -130,38 +130,11 @@ get_temp(sampler::MetropolisSampler) = 1 / sampler.β
 get_temp(sampler::IsingSampler) = 1 / sampler.β
 
 
-# KBTODO: Unify with functions in System...
-
-struct SpinState{N}
-    s::Vec3
-    Z::CVec{N}
-end
-
-@inline function random_state(sys::System{0}, idx::CartesianIndex{4})
-    s = sys.κs[idx[4]] * normalize(randn(sys.rng, Vec3))
-    return SpinState(s, CVec{0}())
-end
-
-@inline function random_state(sys::System{N}, idx::CartesianIndex{4}) where N
-    Z = normalize(randn(sys.rng, CVec{N}))
-    s = sys.κs[idx[4]] * expected_spin(Z)
-    return SpinState(s, Z)
-end
-
-@inline function flipped_state(sys::System{N}, idx) where N
-    SpinState(-sys.dipoles[idx], flip_ket(sys.coherents[idx]))
-end
-
-function local_energy_change(sys::System{N}, idx, state::SpinState) where N
-    energy_local_delta(sys.dipoles, sys.coherents, sys.hamiltonian, sys.κs, idx, state.s, state.Z)
-end
-
-
 """
     sample!(sampler)
 
 Samples `sampler.sys` to a new state, under the Boltzmann distribution
- as defined by `sampler.sys.hamiltonian`.
+ as defined by `sampler.sys.interactions`.
 """
 function sample!(sampler::MetropolisSampler{N}) where N
     sys = sampler.sys

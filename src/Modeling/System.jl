@@ -50,7 +50,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{Site
         (0, Ss)
     end
 
-    ℋ_CPU = Interactions(crystal, N)
+    interactions = Interactions(crystal, N)
 
     # Initialize sites to all spins along +z
     dipoles = fill(zero(Vec3), latsize..., nbasis(crystal))
@@ -60,7 +60,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{Site
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = System(mode, crystal, latsize, ℋ_CPU, dipoles, coherents, κs, gs,
+    ret = System(mode, crystal, latsize, interactions, dipoles, coherents, κs, gs,
                      dipole_buffers, coherent_buffers, units, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
@@ -87,7 +87,7 @@ function extend_periodically(sys::System{N}, factors::NTuple{3, Int64}) where N
     #KBTODO: repeat κs
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
-    return System(sys.mode, sys.crystal, latsize, sys.hamiltonian, dipoles, coherents, sys.κs, sys.gs,
+    return System(sys.mode, sys.crystal, latsize, sys.interactions, dipoles, coherents, sys.κs, sys.gs,
                       dipole_buffers, coherent_buffers, sys.units, copy(sys.rng))
 end
 
@@ -118,6 +118,28 @@ positions(sys::System) = [position(sys, idx) for idx in all_sites(sys)]
 
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
+
+
+struct SpinState{N}
+    s::Vec3
+    Z::CVec{N}
+end
+
+@inline function random_state(sys::System{0}, idx::CartesianIndex{4})
+    s = sys.κs[idx[4]] * normalize(randn(sys.rng, Vec3))
+    return SpinState(s, CVec{0}())
+end
+
+@inline function random_state(sys::System{N}, idx::CartesianIndex{4}) where N
+    Z = normalize(randn(sys.rng, CVec{N}))
+    s = sys.κs[idx[4]] * expected_spin(Z)
+    return SpinState(s, Z)
+end
+
+@inline function flipped_state(sys::System{N}, idx) where N
+    SpinState(-sys.dipoles[idx], flip_ket(sys.coherents[idx]))
+end
+
 
 
 function polarize_spin!(sys::System{0}, idx, dir)
@@ -187,29 +209,6 @@ function polarize_spins!(sys::System{N}, dir) where N
 end
 
 
-"""
-    energy(sys::System)
-
-Computes the energy of the system under `sys.hamiltonian`.
-"""
-energy(sys::System) = energy(sys.dipoles, sys.coherents, sys.hamiltonian, sys.κs)
-
-@doc raw"""
-    forces(Array{Vec3}, sys::System)
-
-Returns the effective local field (force) at each site,
-``B^\alpha_i = - \partial H / \partial s^\alpha_i``
-
-with ``𝐬`` the expected dipole at site `i`.
-"""
-function forces(sys::System{N}) where N
-    B = zero(sys.dipoles)
-    set_forces!(B, sys)
-    B
-end
-
-set_forces!(B::Array{Vec3}, sys::System{N}) where N = set_forces!(B, sys.dipoles, sys.hamiltonian)
-
 
 """
     enable_dipole_dipole!(sys::System)
@@ -228,7 +227,7 @@ vacuum permeability ``μ_0`` are physical constants, with numerical values
 determined by the unit system.
 """
 function enable_dipole_dipole!(sys::System)
-    sys.hamiltonian.ewald = Ewald(sys.crystal, sys.latsize, sys.gs, sys.units)
+    sys.interactions.ewald = Ewald(sys)
 end
 
 """
@@ -238,7 +237,7 @@ Introduce a Zeeman coupling between all spins and an applied magnetic field `B`.
 """
 function set_external_field!(sys::System, B)
     for b in nbasis(sys.crystal)
-        sys.hamiltonian.extfield[b] = sys.units.μB * sys.gs[b]' * Vec3(B)
+        sys.interactions.extfield[b] = sys.units.μB * sys.gs[b]' * Vec3(B)
     end
 end
 
@@ -249,133 +248,4 @@ Introduce an applied field `B` localized to a single spin at `idx`.
 """
 function set_local_external_field!(sys::System, B, idx)
     error("Unimplemented.")
-end
-
-"""
-    set_anisotropy!(sys::System, op, i::Int)
-
-Set the single-ion anisotropy for the `i`th atom of every unit cell, as well as
-all symmetry-equivalent atoms. The parameter `op` may be a polynomial in
-symbolic spin operators `𝒮[α]`, or a linear combination of symbolic Stevens
-operators `𝒪[k,q]`.
-
-The characters `𝒮` and `𝒪` can be copy-pasted from this help message, or typed
-at a Julia terminal using `\\scrS` or `\\scrO` followed by tab-autocomplete.
-
-For systems with `SUN=false` and `renormalize_operators=true` (the default), the
-anisotropy operators interactions will automatically be renormalized to achieve
-maximum consistency with the more variationally accurate SU(_N_) mode.
-
-# Examples
-```julia
-# An easy axis anisotropy in the z-direction
-set_anisotropy!(sys, -D*𝒮[3]^3, i)
-
-# The unique quartic single-ion anisotropy for a site with cubic point group
-# symmetry
-set_anisotropy!(sys, 𝒪[4,0] + 5𝒪[4,4], i)
-
-# An equivalent expression of this quartic anisotropy, up to a constant shift
-set_anisotropy!(sys, 20*(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4), i)
-
-See also [`print_anisotropy_as_stevens`](@ref).
-"""
-function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) where N
-    propagate_anisotropies!(sys.hamiltonian, sys.crystal, i, op, N)
-end
-
-"""
-    set_local_anisotropy!(sys::System, op, idx)
-
-Set a single-ion anisotropy for a single spin at `idx`, in violation of crystal
-periodicity. No symmetry analysis will be performed.
-"""
-function set_local_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, idx) where N
-    idx = convert_idx(idx)
-    error("Unimplemented.")
-end
-
-
-"""
-    set_exchange!(sys::System, J, bond::Bond)
-
-Sets a 3×3 spin-exchange matrix `J` along `bond`, yielding a pairwise
-interaction energy ``𝐒_i⋅J 𝐒_j``. This interaction will be propagated to
-equivalent bonds in consistency with crystal symmetry. Any previous exchange
-interactions on these bonds will be overwritten. The parameter `bond` has the
-form `Bond(i, j, offset)`, where `i` and `j` are atom indices within the unit
-cell, and `offset` is a displacement in unit cells.
-
-Scalar `J` implies a pure Heisenberg exchange.
-
-As a convenience, `dmvec(D)` can be used to construct the antisymmetric part of
-the exchange, where `D` is the Dzyaloshinskii-Moriya pseudo-vector. The
-resulting interaction will be ``𝐃⋅(𝐒_i×𝐒_j)``.
-
-# Examples
-```julia
-using Sunny, LinearAlgebra
-
-# An explicit exchange matrix
-J1 = [2 3 0;
-     -3 2 0;
-      0 0 2]
-set_exchange!(sys, J1, bond)
-
-# An equivalent Heisenberg + DM exchange 
-J2 = 2*I + dmvec([0,0,3])
-set_exchange!(sys, J2, bond)
-```
-
-See also [`dmvec`](@ref).
-"""
-function set_exchange!(sys::System{N}, J, bond::Bond) where N
-    set_exchange_with_biquadratic!(sys, J, 0.0, bond)
-end
-
-
-"""
-    set_exchange_with_biquadratic!(sys::System, J1, J2, bond::Bond)
-
-Introduces both quadratic and biquadratic exchange interactions along `bond`,
-yielding a pairwise energy ``𝐒_i⋅J₁ 𝐒_j + J₂ (𝐒_i⋅𝐒_j)²``. These
-interactions will be propagated to equivalent bonds in consistency with crystal
-symmetry. Any previous exchange interactions on these bonds will be overwritten.
-
-For systems with `SUN=false` and `renormalize_operators=true` (the default), the
-biquadratic interactions will automatically be renormalized to achieve maximum
-consistency with the more variationally accurate SU(_N_) mode. This
-renormalization introduces a correction to the quadratic part of the exchange,
-which is why the two parts must be specified concurrently.
-
-See also [`set_exchange!`](@ref).
-"""
-function set_exchange_with_biquadratic!(sys::System{N}, J1, J2, bond::Bond) where N
-    if bond.i == bond.j && iszero(bond.n)
-        error("Exchange interactions must connect different sites.")
-    end
-    if J1 isa Number
-        J1 = J1*I
-    end
-    propagate_exchange!(sys.hamiltonian, sys.crystal, Mat3(J1), Float64(J2), bond)
-end
-
-"""
-    dmvec(D)
-
-Representation of the Dzyaloshinskii-Moriya interaction pseudo-vector `D` as
-an antisymmetric matrix,
-
-```
-  |  0   D₃ -D₂ |
-  | -D₃  0   D₁ |
-  |  D₂ -D₁  0  |
-```
-
-Useful in the context of [`set_exchange!`](@ref).
-"""
-function dmvec(D)
-   SA[ 0  D[3] -D[2];
-   -D[3]     0  D[1];
-    D[2] -D[1]    0]
 end

@@ -47,7 +47,7 @@
 
     # Calculate force using a sum over pairs, or using an FFT-based convolution
     B = map(Sunny.all_sites(sys)) do idx
-        Sunny.force_at(sys.dipoles, sys.hamiltonian.ewald, idx)
+        Sunny.force_at(sys.dipoles, sys.interactions.ewald, idx)
     end
     @test isapprox(forces(sys), B; atol=1e-12)
 
