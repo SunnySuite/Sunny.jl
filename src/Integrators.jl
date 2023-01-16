@@ -2,9 +2,9 @@
     LangevinHeunP(kT::Float64, λ::Float64, Δt::Float64)
 
 Projected Heun integration scheme with noise and damping.
-Use with the `step!` function to evolve a `SpinSystem` forward by a time step of `Δt`:
+Use with the `step!` function to evolve a `System` forward by a time step of `Δt`:
 
-step!(sys::SpinSystem, integrator::LangevinHeunP)
+step!(sys::System, integrator::LangevinHeunP)
 
 If `kT > 0`, this will simulate dynamics in the presence of a thermal bath. `λ` is an
 empirical parameter that determines the strength of coupling to the thermal bath and
@@ -23,9 +23,9 @@ end
     ImplicitMidpoint(Δt::Float64; atol=1e-12) where N
 
 Energy-conserving integrator for simulating dynamics without damping or noise.
-Use with the `step!` function to evolve a `SpinSystem` forward by a time step of `Δt`:
+Use with the `step!` function to evolve a `System` forward by a time step of `Δt`:
 
-step!(sys::SpinSystem, integrator::ImplicitMidpoint)
+step!(sys::System, integrator::ImplicitMidpoint)
 
 The above function will use the spherical midpoint integration scheme for dipole systems
 and the Schrodinger midpoint integration scheme for SU(N) spin systems.
@@ -45,7 +45,7 @@ ImplicitMidpoint(Δt; atol=1e-12) = ImplicitMidpoint(Δt, atol)
 
 # KBTODO: find better place
 
-function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::SpinSystem) where N
+function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::System) where N
     @assert N > 0
     for idx in CartesianIndices(dipoles)
         κ = sys.κs[idx[4]]
@@ -53,31 +53,31 @@ function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 
     end
 end
 
-set_expected_spins!(sys::SpinSystem) = set_expected_spins!(sys.dipoles, sys.coherents, sys)
+set_expected_spins!(sys::System) = set_expected_spins!(sys.dipoles, sys.coherents, sys)
 
 
 ################################################################################
 # Dipole integration
 ################################################################################
-function normalize!(dipoles::Array{Vec3, 4}, sys::SpinSystem)
+function normalize!(dipoles::Array{Vec3, 4}, sys::System)
     for idx in CartesianIndices(dipoles)
         S = sys.κs[idx[4]]
         dipoles[idx] *= S / norm(dipoles[idx])
     end
 end
 
-normalize_dipoles!(sys::SpinSystem) = normalize!(sys.dipoles, sys)
+normalize_dipoles!(sys::System) = normalize!(sys.dipoles, sys)
 
 @inline rhs_dipole(s, B) = -s × B
 @inline rhs_dipole(s, B, λ) = -s × (B + λ * (s × B))
 
 @doc raw"""
-    step!(sys::SpinSystem, integrator)
+    step!(sys::System, integrator)
 
 Advance the spin system forward one step using the parameters and integration
 scheme specified by `integrator`.
 """
-function step!(sys::SpinSystem{0}, integrator::LangevinHeunP)
+function step!(sys::System{0}, integrator::LangevinHeunP)
     (B, S₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
     (; kT, λ, Δt) = integrator
     S, ℋ = sys.dipoles, sys.hamiltonian
@@ -99,7 +99,7 @@ function step!(sys::SpinSystem{0}, integrator::LangevinHeunP)
     nothing
 end
 
-function step!(sys::SpinSystem{0}, integrator::ImplicitMidpoint)
+function step!(sys::System{0}, integrator::ImplicitMidpoint)
     S, ℋ = sys.dipoles, sys.hamiltonian
     (; Δt, atol) = integrator
     (B, S̄, Ŝ, S̄′) = get_dipole_buffers(sys, 4)
@@ -175,7 +175,7 @@ end
 
 
 function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
-                        B::Array{Vec3, 4}, integrator::LangevinHeunP, sys::SpinSystem{N}) where N
+                        B::Array{Vec3, 4}, integrator::LangevinHeunP, sys::System{N}) where N
     (; kT, λ, Δt) = integrator
     (; dipoles, hamiltonian) = sys
 
@@ -203,7 +203,7 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
 end
 
 
-function step!(sys::SpinSystem{N}, integrator::LangevinHeunP) where N
+function step!(sys::System{N}, integrator::LangevinHeunP) where N
     (Z′, ΔZ₁, ΔZ₂, ξ) = get_coherent_buffers(sys, 4)
     B = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
@@ -240,7 +240,7 @@ function rhs_ll!(ΔZ, Z, B, integrator, sys)
 end
 
 
-function step!(sys::SpinSystem, integrator::ImplicitMidpoint; max_iters=100)
+function step!(sys::System, integrator::ImplicitMidpoint; max_iters=100)
     (; atol) = integrator
     (ΔZ, Zb, Z′, Z″) = get_coherent_buffers(sys, 4)
     B = get_dipole_buffers(sys, 1) |> only
@@ -277,7 +277,7 @@ end
 
 Creates a sampler from a Langevin integrator. `nsteps` determines how many
 times `step!` is called using the integrator. `nsteps` should be selected large
-enough to ensure that the state of the SpinSystem after integration
+enough to ensure that the state of the System after integration
 is decorrelated with respect to its initial state.
 """
 mutable struct LangevinSampler <: AbstractSampler

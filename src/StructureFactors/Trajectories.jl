@@ -1,6 +1,6 @@
 expectation(Z, op) = Z' * (op * Z)  # No need for real -- keeping buffer complex and FFTing in place
 
-function observable_expectations!(buf, sys::SpinSystem{N}, ops′::Array{ComplexF64, 3}) where N
+function observable_expectations!(buf, sys::System{N}, ops′::Array{ComplexF64, 3}) where N
     Zs = sys.coherents
     num_ops =  size(ops′, 3)
     ops = reinterpret(SMatrix{N, N, ComplexF64, N*N}, reshape(ops′, N*N, num_ops))
@@ -39,7 +39,7 @@ function expectation_trajectory!(buf, sys, integrator, nsnaps, ops; measperiod =
 end
 
 
-function compute_mag!(M, sys::SpinSystem, gfactor = true)
+function compute_mag!(M, sys::System, gfactor = true)
     if gfactor
         for idx in CartesianIndices(sys.dipoles)
             g = sys.gs[idx[4]]
@@ -72,7 +72,7 @@ function dipole_trajectory!(buf, sys, integrator, nsnaps; measperiod = 1, gfacto
     return nothing
 end
 
-function new_trajectory!(sftraj::SFTrajectory, sys_original::SpinSystem)
+function new_trajectory!(sftraj::SFTrajectory, sys_original::System)
     (; dipolemode, integrator, traj, measperiod, sys, gfactor) = sftraj
     nsnaps = size(traj, 6)
     sys.dipoles .= sys_original.dipoles
@@ -86,7 +86,7 @@ function new_trajectory!(sftraj::SFTrajectory, sys_original::SpinSystem)
 
     return nothing
 end
-new_trajectory!(sf::StructureFactor, sys::SpinSystem) = new_trajectory!(sf.sftraj, sys)
+new_trajectory!(sf::StructureFactor, sys::System) = new_trajectory!(sf.sftraj, sys)
 
 
 # ddtodo: Plan FFT

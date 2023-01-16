@@ -110,7 +110,7 @@ interaction.
 
 The next steps are typically the following
 
-1. Use the crystal to build a [`SpinSystem`](@ref) which consists of a finite
+1. Use the crystal to build a [`System`](@ref) which consists of a finite
    number of spins.
 2. Add interactions to the system using functions like
    [`set_external_field!`](@ref), [`set_exchange!`](@ref), and

@@ -96,7 +96,7 @@ If you are writing the lower-level simulation loop yourself, or have a stack of 
 
 If you have a stack of snapshots on hand, then you can directly use them to 
 construct a `StructureFactor`. A "stack of snapshots" can either be
-represented as a `Vector{SpinSystem}` (all of which have the same underlying
+represented as a `Vector{System}` (all of which have the same underlying
 lattice), or a `Vector{Array{Vec3, 4}}` along with a `Crystal` defining
 the geometry.
 
@@ -113,14 +113,14 @@ evolution timestep size, and how many timesteps are taken between snapshots).
 See the documentation of [`StructureFactor`](@ref) for more details.
 
 Alternatively, you can create a `StructureFactor` at the beginning of
-your simulation by passing a single `SpinSystem`. The spin configuration
+your simulation by passing a single `System`. The spin configuration
 of this first system does not enter the averaged structure factor, as the
 system is purely used to obtain information about the geometry.
 
 Then, during the course of your simulation, call the `update!` function on
-the `StructureFactor` along with your `SpinSystem` -- the current spin
-configuration in the `SpinSystem` will be Fourier transformed and accumulated
-into the structure factor. A bare-bones loop achieving this (assuming that you've already created a `system::SpinSystem` and a `sampler`) would look like:
+the `StructureFactor` along with your `System` -- the current spin
+configuration in the `System` will be Fourier transformed and accumulated
+into the structure factor. A bare-bones loop achieving this (assuming that you've already created a `system::System` and a `sampler`) would look like:
 
 ```julia
 sf = StructureFactor(system)

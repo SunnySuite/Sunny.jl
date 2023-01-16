@@ -2,7 +2,7 @@
     using LinearAlgebra
     import Random, Ewalder
 
-    function ewalder_energy(sys::SpinSystem{N}) where N
+    function ewalder_energy(sys::System{N}) where N
         # super-lattice vectors
         latvecs = eachcol(sys.crystal.lat_vecs) .* sys.latsize
         # positions in global coordinates
@@ -18,13 +18,13 @@
     positions = [[0,0,0]]
     cryst = Crystal(latvecs, positions)
     site_infos = [SiteInfo(1; S=1, g=1)]
-    sys = SpinSystem(cryst, (1,1,1), site_infos; mode=:dipole, units=Units.theory)
+    sys = System(cryst, (1,1,1), site_infos; mode=:dipole, units=Units.theory)
     enable_dipole_dipole!(sys)
     @test ewalder_energy(sys) ≈ -1/6
     @test isapprox(energy(sys), -1/6; atol=1e-13)
 
     # Same thing, with multiple unit cells
-    sys = SpinSystem(cryst, (2,3,4), site_infos; mode=:dipole, units=Units.theory)
+    sys = System(cryst, (2,3,4), site_infos; mode=:dipole, units=Units.theory)
     enable_dipole_dipole!(sys)
     @test isapprox(energy(sys), -(1/6)prod(sys.latsize); atol=1e-13)
 
@@ -38,7 +38,7 @@
         SiteInfo(2; S=1.5, g=rand(3,3)),
         SiteInfo(3; S=2, g=rand(3,3)),
     ]
-    sys = SpinSystem(cryst, (1,1,1), site_infos; mode=:dipole, units=Units.theory)
+    sys = System(cryst, (1,1,1), site_infos; mode=:dipole, units=Units.theory)
     enable_dipole_dipole!(sys)
     randomize_spins!(sys)
 

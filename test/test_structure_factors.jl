@@ -7,7 +7,7 @@
 
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
-        sys = SpinSystem(cryst, latsize, [SiteInfo(1; S)]; mode)
+        sys = System(cryst, latsize, [SiteInfo(1; S)]; mode)
         sys.κs .= κ
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         return sys

@@ -58,7 +58,7 @@ include("Ewald.jl")
 include("Hamiltonian.jl")
 
 include("Systems.jl")
-export ChargeSystem, SpinSystem, polarize_spins!, randomize_spins!, energy, forces,
+export ChargeSystem, System, polarize_spins!, randomize_spins!, energy, forces,
     extend_periodically,
     set_external_field!, set_local_external_field!, set_anisotropy!, set_local_anisotropy!,
     set_exchange!, dmvec, set_exchange_with_biquadratic!,

@@ -15,7 +15,7 @@ Samplers should provide a field `sys::System` and implement the following method
 """
 abstract type AbstractSampler end
 
-# These should be deprecated/rewritten. Won't have a SpinSystem in the sampler going forward.
+# These should be deprecated/rewritten. Won't have a System in the sampler going forward.
 running_energy(sampler::S) where {S <: AbstractSampler} = energy(sampler.sys)
 running_mag(sampler::S) where {S <: AbstractSampler} = sum(sampler.sys) # Does this apply g-factor?
 reset_running_energy!(sampler::S) where {S <: AbstractSampler} = nothing
@@ -63,46 +63,46 @@ function anneal!(sampler::S,
 end
 
 """
-    MetropolisSampler(sys::SpinSystem, kT::Float64, nsweeps::Int)
+    MetropolisSampler(sys::System, kT::Float64, nsweeps::Int)
 
 A sampler which performs the standard Metropolis Monte Carlo algorithm to sample
- a `SpinSystem` at the requested temperature.
+ a `System` at the requested temperature.
 
 Each single-spin update attempts to completely randomize the spin. One call to
  `sample!` will attempt to flip each spin `nsweeps` times.
 """
 mutable struct MetropolisSampler{N} <: AbstractSampler
-    sys        :: SpinSystem{N}
+    sys        :: System{N}
     β          :: Float64
     nsweeps    :: Int
     E          :: Float64
     M          :: Vec3
-    function MetropolisSampler(sys::SpinSystem{N}, kT::Float64, nsweeps::Int) where N
+    function MetropolisSampler(sys::System{N}, kT::Float64, nsweeps::Int) where N
         @assert kT != 0. "Temperature must be nonzero!"
         new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys.dipoles))
     end
 end
 
 """
-    IsingSampler(sys::SpinSystem, kT::Float64, nsweeps::Int)
+    IsingSampler(sys::System, kT::Float64, nsweeps::Int)
 
 A sampler which performs the standard Metropolis Monte Carlo algorithm to
-sample a `SpinSystem` at the requested temperature.
+sample a `System` at the requested temperature.
 
 This version differs from `MetropolisSampler` in that each single-spin update
 only attempts to completely flip the spin. One call to `sample!` will attempt
 to flip each spin `nsweeps` times.
 
-Before constructing, be sure that your `SpinSystem` is initialized so that each
+Before constructing, be sure that your `System` is initialized so that each
 spin points along its "Ising-like" axis.
 """
 mutable struct IsingSampler{N} <: AbstractSampler
-    sys     :: SpinSystem{N}
+    sys     :: System{N}
     β          :: Float64
     nsweeps    :: Int
     E          :: Float64
     M          :: Vec3
-    function IsingSampler(sys::SpinSystem{N}, kT::Float64, nsweeps::Int) where N
+    function IsingSampler(sys::System{N}, kT::Float64, nsweeps::Int) where N
         @assert kT != 0. "Temperature must be nonzero!"
         new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys.dipoles))
     end
@@ -137,22 +137,22 @@ struct SpinState{N}
     Z::CVec{N}
 end
 
-@inline function random_state(sys::SpinSystem{0}, idx::CartesianIndex{4})
+@inline function random_state(sys::System{0}, idx::CartesianIndex{4})
     s = sys.κs[idx[4]] * normalize(randn(sys.rng, Vec3))
     return SpinState(s, CVec{0}())
 end
 
-@inline function random_state(sys::SpinSystem{N}, idx::CartesianIndex{4}) where N
+@inline function random_state(sys::System{N}, idx::CartesianIndex{4}) where N
     Z = normalize(randn(sys.rng, CVec{N}))
     s = sys.κs[idx[4]] * expected_spin(Z)
     return SpinState(s, Z)
 end
 
-@inline function flipped_state(sys::SpinSystem{N}, idx) where N
+@inline function flipped_state(sys::System{N}, idx) where N
     SpinState(-sys.dipoles[idx], flip_ket(sys.coherents[idx]))
 end
 
-function local_energy_change(sys::SpinSystem{N}, idx, state::SpinState) where N
+function local_energy_change(sys::System{N}, idx, state::SpinState) where N
     energy_local_delta(sys.dipoles, sys.coherents, sys.hamiltonian, sys.κs, idx, state.s, state.Z)
 end
 
