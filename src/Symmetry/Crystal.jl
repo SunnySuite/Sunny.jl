@@ -6,29 +6,63 @@ end
 
 
 """
-A `Crystal` object describes a crystallographic unit cell, and contains
-information about its space group symmetry. Constructors are as follows:
+An object describing a crystallographic unit cell and its space group symmetry.
+Constructors are as follows:
 
+
+    Crystal(filename; symprec=1e-5)
+
+Reads the crystal from a `.cif` file located at the path `filename`.  The
+optional parameter `symprec` controls the precision tolerance for spacegroup
+symmetries.
 
     Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
 
 Constructs a crystal from the complete list of atom positions `positions`,
-representing fractions (between 0 and 1) of the lattice vectors `lat_vecs`. All
-symmetry information is automatically inferred.
-
-    Crystal(lat_vecs, positions, symbol::String; types=nothing, setting=nothing, symprec=1e-5)
-
-Builds a crystal by applying the symmetry operators for a given spacegroup
-symbol.
+with coordinates (between 0 and 1) in units of lattice vectors `lat_vecs`.
+Spacegroup symmetry information is automatically inferred. The optional
+parameter `types` is a list of strings, one for each atom, and can be used to
+break symmetry-equivalence between atoms.
 
     Crystal(lat_vecs, positions, spacegroup_number; types=nothing, setting=nothing, symprec=1e-5)
 
 Builds a crystal by applying symmetry operators for a given international
-spacegroup number.
+spacegroup number. For certain spacegroups, there are multiple possible unit
+cell settings; in this case, a warning message will be printed, and a list of
+crystals will be returned, one for every possible setting. Alternatively, the
+optional `setting` string will disambiguate between unit cell conventions.
 
-    Crystal(filename::AbstractString; symprec=1e-5)
 
-Reads the crystal from a `.cif` file located at the path `filename`.
+# Examples
+
+```julia
+# Read a Crystal from a .cif file
+Crystal("filename.cif")
+
+# Build an FCC crystal using the primitive unit cell. The spacegroup number
+# 225 is inferred.
+lat_vecs = [1 1 0;
+            1 0 1;
+            0 1 1] / 2
+positions = [[0, 0, 0]]
+Crystal(lat_vecs, positions)
+
+# Build a CsCl crystal (two cubic sublattices). By providing distinct type
+# strings, the spacegroup number 221 is inferred.
+lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+positions = [[0,0,0], [0.5,0.5,0.5]]
+types = ["Na", "Cl"]
+cryst = Crystal(lat_vecs, positions; types)
+
+# Build a diamond cubic crystal from its spacegroup number 227. This
+# spacegroup has two possible settings ("1" or "2"), which determine an
+# overall unit cell translation.
+lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+positions = [[1, 1, 1] / 4]
+cryst = Crystal(lat_vecs, positions, 227; setting="1")
+```
+
+See also [`lattice_vectors`](@ref).
 """
 struct Crystal
     lat_vecs       :: Mat3                                 # Lattice vectors as columns

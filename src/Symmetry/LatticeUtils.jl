@@ -1,10 +1,11 @@
-"""Utilities for working with Bravais lattices"""
+# Utilities for working with Bravais lattices
 
 """
     lattice_params(lat_vecs::Mat3)
 
-Compute the lattice parameters ``(a, b, c, α, β, γ)`` from a set of lattice vectors,
- which form the columns of `lat_vecs`.
+Compute the lattice parameters ``(a, b, c, α, β, γ)`` for the three lattice
+vectors provided as columns of `lat_vecs`. The inverse mapping is
+[`lattice_vectors`](@ref).
 """
 function lattice_params(lat_vecs::Mat3) :: NTuple{6, Float64}
     v1, v2, v3 = eachcol(lat_vecs)
@@ -20,7 +21,8 @@ end
 
 Return the lattice vectors, as columns of the ``3×3`` output matrix, that
 correspond to the conventional unit cell defined by the lattice constants ``(a,
-b, c)`` and the angles ``(α, β, γ)``.
+b, c)`` and the angles ``(α, β, γ)``. The inverse mapping is
+[`lattice_params`](@ref).
 """
 function lattice_vectors(a, b, c, α, β, γ) :: Mat3
     @assert all(0 < x < 180 for x in (α, β, γ))
@@ -139,8 +141,8 @@ function cell_type(lat_vecs::Mat3)
     return triclinic
 end
 
-"Return the standard cell convention for a given Hall number"
-# Using the convention of spglib, listed at
+# Return the standard cell convention for a given Hall number using the
+# convention of spglib, listed at
 # http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37
 function cell_type(hall_number::Int)
     if 1 <= hall_number <= 2
