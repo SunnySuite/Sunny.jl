@@ -432,9 +432,9 @@ end
         # Most general allowed anisotropy for this crystal
         Λ = randn(9)'*[𝒪[2,0], 𝒪[2,2], 𝒪[4,0], 𝒪[4,2], 𝒪[4,4], 𝒪[6,0], 𝒪[6,2], 𝒪[6,4], 𝒪[6,6]]
 
-        # Test anisotropy invariance in "dipole-mode"
+        # Test anisotropy invariance in dipole mode
         S = 1
-        sys = SpinSystem(cryst, (1,1,1), [SiteInfo(1; S)], SUN=false)
+        sys = SpinSystem(cryst, (1,1,1), [SiteInfo(1; S)], mode=:dipole)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
         E1 = energy(sys)
@@ -446,10 +446,10 @@ end
         E2 = energy(sys)
         @test E1 ≈ E2
 
-        # Test anisotropy invariance in "SU(N)-mode"
+        # Test anisotropy invariance in SU(N) mode
         S = 2
         N = Int(2S+1)
-        sys = SpinSystem(cryst, (1,1,1), [SiteInfo(1; S)]; SUN=true)
+        sys = SpinSystem(cryst, (1,1,1), [SiteInfo(1; S)]; mode=:SUN)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
         E1 = energy(sys)

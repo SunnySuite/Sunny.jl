@@ -2,6 +2,7 @@ import Random
 
 # KBTODO: mode = {:dipole, :projected, :SUN}
 struct SpinSystem{N}
+    mode             :: Symbol
     crystal          :: Crystal
     latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
     hamiltonian      :: HamiltonianCPU            # All interactions
@@ -18,34 +19,38 @@ struct SpinSystem{N}
 end
 
 
-"""
-    SpinSystem(crystal::Crystal, latsize, siteinfos::Vector{SiteInfo}=[];
-               SUN=false, renormalize_operators=false, units=Units.meV)
+@doc raw"""
+    SpinSystem(crystal::Crystal, latsize, siteinfos;
+               mode, units=Units.meV, seed::Int)
 
 Construct a `System` of spins for a given `crystal` symmetry. The count of unit
-cells in each lattice vector direction is specified by `latsize`. Every spin in
-the unit cell must be specified by a [`SiteInfo`](@ref) descriptor, which
-determines the spin magnitude `S` and the ``g``-tensor. All spins are initially
-polarized in the z direction. 
+cells in each lattice vector direction is specified by `latsize`. The
+`siteinfos` parameter is a list of [`SiteInfo`](@ref) objects, which determine
+the magnitude ``S`` and ``g``-tensor of each spin.
 
-By default, spins are defined by their angular momentum dipole. Setting
-`SUN=true` will expand the description of spin to a full SU(_N_) coherent state.
-This theory completely captures multipolar spin fluctuations within the local
-Hilbert space. For example, SU(_N_) mode will account for quadrupolar
-fluctuations ``⟨𝒮ᵅ𝒮ᵝ+𝒮ᵝ𝒮ᵅ⟩`` which are generically present when ``S > 1/2``.
+The three possible options for `mode` are `:dipole`, `:SUN`, and `:projected`.
+The choice `:dipole` restricts the description of a spin to its angular momentum
+dipole. The choice `:SUN` will expand the description of a spin to a full
+SU(_N_) coherent state, where ``N = 2S + 1``. This approach captures more
+quantum mechanical degrees of freedom, e.g., the dynamics of quadrupolar
+fluctuations ``⟨ŜᵅŜᵝ+ŜᵝŜᵅ⟩``. Finally, the choice `:projected` produces the
+SU(_N_) dynamics but projected to the space of dipoles. In practice, the
+distinction between `:projected` and `:dipoles` is that the former will
+automatically apply appropriate renormalizations to the single-ion anisotropy
+and biquadratic exchange interactions for maximum accuracy.
 
-If in dipole-only mode, local operators such as the single-ion anisotropy will
-have a systematic error. Setting `renormalize_operators=true` will apply the
-optimal correction by projecting the full SU(_N_) dynamics into the restriced
-space of dipoles.
+The default units system of (meV, Å, tesla) can be overridden by with the
+`units` parameter; see [`Units`](@ref). 
 
-The default units system of (meV, Å, tesla) can be overridden by with the `units`
-parameter; see [`Units`](@ref).
+All spins are initially polarized in the ``z``-direction.
 """
 function SpinSystem(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{SiteInfo}=SiteInfo[];
-                    SUN=false, renormalize_operators=false, units=Units.meV, seed=nothing)
+                    mode::Symbol, units=Units.meV, seed=nothing)
+    mode==:projected && error("SU(N) projected mode not yet implemented.")
 
-    renormalize_operators && error("Operator renormalization not yet implemented.")
+    if mode ∉ [:dipole, :SUN, :projected]
+        error("Mode must be one of [:dipole, :SUN, :projected].")
+    end
 
     siteinfos = if isempty(siteinfos)
         [SiteInfo(i; S=1.0) for i in 1:nbasis(crystal)]
@@ -56,7 +61,7 @@ function SpinSystem(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{
     gs         = [si.g for si in siteinfos]
 
     # Determine dimension N of the local Hilbert space, or 0 if in dipole-only mode
-    N, κs = if SUN
+    N, κs = if mode == :SUN
         if !allequal(Ss)
             error("Currently all spins S must be equal in SU(N) mode.")
         end
@@ -76,7 +81,7 @@ function SpinSystem(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = SpinSystem(crystal, latsize, ℋ_CPU, dipoles, coherents, κs, gs,
+    ret = SpinSystem(mode, crystal, latsize, ℋ_CPU, dipoles, coherents, κs, gs,
                      dipole_buffers, coherent_buffers, units, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
@@ -97,7 +102,7 @@ function extend_periodically(sys::SpinSystem{N}, mults::NTuple{3, Int64}) where 
     #KBTODO: repeat κs
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
-    return SpinSystem(sys.crystal, latsize, sys.hamiltonian, dipoles, coherents, sys.κs, sys.gs,
+    return SpinSystem(sys.mode, sys.crystal, latsize, sys.hamiltonian, dipoles, coherents, sys.κs, sys.gs,
                       dipole_buffers, coherent_buffers, sys.units, copy(sys.rng))
 end
 

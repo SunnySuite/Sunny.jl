@@ -2,12 +2,12 @@
     include("shared.jl")
 
 
-    function make_system(; SUN)
+    function make_system(; mode)
         cryst = Sunny.diamond_crystal()
-        sys = SpinSystem(cryst, (3, 3, 3); seed=0)
-        add_linear_interactions!(sys, SUN)
-        add_quadratic_interactions!(sys, SUN)
-        add_quartic_interactions!(sys, SUN)
+        sys = SpinSystem(cryst, (3, 3, 3); mode, seed=0)
+        add_linear_interactions!(sys, mode)
+        add_quadratic_interactions!(sys, mode)
+        add_quartic_interactions!(sys, mode)
         enable_dipole_dipole!(sys)
 
         rand!(sys.rng, sys.κs)
@@ -35,8 +35,8 @@
         @test ΔE < 1e-2
     end
 
-    test_conservation(make_system(; SUN=true))
-    test_conservation(make_system(; SUN=false))
+    test_conservation(make_system(; mode=:SUN))
+    test_conservation(make_system(; mode=:dipole))
 
 
     # Tests that energy deltas are consistent with total energy
@@ -58,6 +58,6 @@
         end
     end
 
-    test_delta(make_system(; SUN=true))
-    test_delta(make_system(; SUN=false))
+    test_delta(make_system(; mode=:SUN))
+    test_delta(make_system(; mode=:dipole))
 end

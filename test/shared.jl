@@ -10,9 +10,9 @@ using LinearAlgebra
 
 # Various possible interactions appropriate to diamond crystal
 
-function add_linear_interactions!(sys, SUN)
+function add_linear_interactions!(sys, mode)
     set_external_field!(sys, (0.0, 1.0, 1.0))
-    if SUN
+    if mode==:SUN
         # In SUN mode, anisotropy scales as ⟨Λ⟩ → κ ⟨Λ⟩.
         set_anisotropy!(sys, 𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1)
     end
@@ -29,14 +29,14 @@ function add_exchange_interactions!(sys, _)
     set_exchange!(sys, J_exch, Bond(1, 2, [0, 0, 0]))
 end
 
-function add_quadratic_interactions!(sys, SUN)
-    add_exchange_interactions!(sys, SUN)
+function add_quadratic_interactions!(sys, mode)
+    add_exchange_interactions!(sys, mode)
 
     # TODO: Include biquadratic in SU(N) mode
 end
 
-function add_quartic_interactions!(sys, SUN)
-    if !SUN
+function add_quartic_interactions!(sys, mode)
+    if mode!=:SUN
         # In dipole mode, spins scale individually, S⁴ → κ⁴ S⁴
         set_anisotropy!(sys, 𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1)
 
