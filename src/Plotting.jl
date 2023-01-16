@@ -119,7 +119,7 @@ function plot_bonds(cryst::Crystal, ints::Vector{<:AbstractInteraction}, latsize
     latsize = collect(Int64.(latsize))
     lattice = Lattice(cryst, latsize)
     (all_site_infos, _) = propagate_site_info!(cryst, SiteInfo[])
-    ℋ = HamiltonianCPU(ints, cryst, all_site_infos)
+    ℋ = Interactions(ints, cryst, all_site_infos)
     pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
     plot_bonds(lattice, pair_ints; kwargs...)
 end

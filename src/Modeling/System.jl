@@ -1,24 +1,3 @@
-import Random
-
-# KBTODO: mode = {:dipole, :projected, :SUN}
-struct System{N}
-    mode             :: Symbol
-    crystal          :: Crystal
-    latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
-    hamiltonian      :: HamiltonianCPU            # All interactions
-    dipoles          :: Array{Vec3, 4}            # Expected dipoles
-    coherents        :: Array{CVec{N}, 4}         # Coherent states
-    κs               :: Vector{Float64}           # Meaning depends on context:
-                                                  #  N > 0 => Effective ket rescaling, Z → √κ Z
-                                                  #  N = 0 => Dipole magnitude, |s| = κ
-    gs               :: Vector{Mat3}              # g-tensor per atom in the crystal unit cell
-    dipole_buffers   :: Vector{Array{Vec3, 4}}    # Buffers for dynamics routines
-    coherent_buffers :: Vector{Array{CVec{N}, 4}} # Buffers for dynamics routines
-    units            :: PhysicalConsts
-    rng              :: Random.Xoshiro
-end
-
-
 @doc raw"""
     System(crystal::Crystal, latsize, siteinfos;
                mode, units=Units.meV, seed::Int)
@@ -71,7 +50,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{Site
         (0, Ss)
     end
 
-    ℋ_CPU = HamiltonianCPU(crystal, N)
+    ℋ_CPU = Interactions(crystal, N)
 
     # Initialize sites to all spins along +z
     dipoles = fill(zero(Vec3), latsize..., nbasis(crystal))
@@ -87,6 +66,12 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{Site
     return ret
 end
 
+function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
+    printstyled(io, "System [mode=$(sys.mode)]\n"; bold=true, color=:underline)
+    println(io, "Cell size $(nbasis(sys.crystal)), Lattice size $(sys.latsize)")
+end
+
+
 """
     extend_periodically(sys::System{N}, mults::NTuple{3, Int64}) where N
 
@@ -94,11 +79,11 @@ Creates a new System identical to `sys` but with each dimension multiplied
 by the corresponding factor given in the tuple `mults`. The original spin configuration
 is simply repeated periodically.
 """
-function extend_periodically(sys::System{N}, mults::NTuple{3, Int64}) where N
-    @assert all(>=(1), mults)
-    latsize = mults .* sys.latsize
-    dipoles   = repeat(sys.dipoles, mults..., 1)
-    coherents = repeat(sys.coherents, mults..., 1)
+function extend_periodically(sys::System{N}, factors::NTuple{3, Int64}) where N
+    @assert all(>=(1), factors)
+    latsize = factors .* sys.latsize
+    dipoles   = repeat(sys.dipoles, factors..., 1)
+    coherents = repeat(sys.coherents, factors..., 1)
     #KBTODO: repeat κs
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
@@ -106,19 +91,32 @@ function extend_periodically(sys::System{N}, mults::NTuple{3, Int64}) where N
                       dipole_buffers, coherent_buffers, sys.units, copy(sys.rng))
 end
 
-"An iterator over all sites using CartesianIndices"
+
+
+
+
+# Element-wise application of mod1(cell+off, latsize), returning CartesianIndex
+@inline offsetc(cell::CartesianIndex{3}, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
+
+# Split a Cartesian index (cell,i) into its parts cell and i.
+@inline splitidx(idx::CartesianIndex{4}) = (CartesianIndex((idx[1],idx[2],idx[3])), idx[4])
+
+@inline convert_idx(idx::CartesianIndex{4}) = idx
+@inline convert_idx(idx::NTuple{4,Int}) = CartesianIndex(idx)
+
+# An iterator over all sites using CartesianIndices
 @inline all_sites(sys::System) = CartesianIndices(sys.dipoles)
 
-"Position of a site in global coordinates"
+# Position of a site in global coordinates
 position(sys::System, idx) = sys.crystal.lat_vecs * (sys.crystal.positions[idx[4]] .+ (idx[1]-1, idx[2]-1, idx[3]-1))
 
-"Net magnetic moment at a site"
+# Magnetic moment at a site
 magnetic_moment(sys::System, idx) = sys.units.μB * sys.gs[idx[4]] * sys.dipoles[idx]
 
-"Positions of all sites in global coordinates"
+# Positions of all sites in global coordinates
 positions(sys::System) = [position(sys, idx) for idx in all_sites(sys)]
 
-
+# Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
 
 
@@ -164,12 +162,6 @@ function get_coherent_buffers(sys::System, numrequested)
     return sys.coherent_buffers[1:numrequested]
 end
 
-
-function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
-    sys_type = N > 0 ? "SU($N)" : "Dipolar"
-    printstyled(io, "Spin System [$sys_type]\n"; bold=true, color=:underline)
-    println(io, "Basis $(nbasis(sys.crystal)), Lattice dimensions $(sys.latsize)")
-end
 
 
 function randomize_spins!(sys::System{0})
@@ -236,7 +228,7 @@ vacuum permeability ``μ_0`` are physical constants, with numerical values
 determined by the unit system.
 """
 function enable_dipole_dipole!(sys::System)
-    sys.hamiltonian.ewald = EwaldCPU(sys.crystal, sys.latsize, sys.gs, sys.units)
+    sys.hamiltonian.ewald = Ewald(sys.crystal, sys.latsize, sys.gs, sys.units)
 end
 
 """
@@ -246,7 +238,7 @@ Introduce a Zeeman coupling between all spins and an applied magnetic field `B`.
 """
 function set_external_field!(sys::System, B)
     for b in nbasis(sys.crystal)
-        sys.hamiltonian.ext_field[b] = sys.units.μB * sys.gs[b]' * Vec3(B)
+        sys.hamiltonian.extfield[b] = sys.units.μB * sys.gs[b]' * Vec3(B)
     end
 end
 

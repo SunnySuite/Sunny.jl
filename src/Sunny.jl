@@ -44,24 +44,11 @@ export Crystal, subcrystal, nbasis, cell_volume, cell_type,
 include("Units.jl")
 export meV_per_K, Units
 
-include("Util.jl")
-
-include("SiteInfo.jl")
-export SiteInfo
-
-include("PairInteractions.jl")
-
-include("Anisotropies.jl")
-
-include("Ewald.jl")
-
-include("Hamiltonian.jl")
-
-include("Systems.jl")
-export ChargeSystem, System, polarize_spins!, randomize_spins!, energy, forces,
+include("Modeling/Modeling.jl")
+export SiteInfo, System, polarize_spins!, randomize_spins!, energy, forces,
     extend_periodically,
     set_external_field!, set_local_external_field!, set_anisotropy!, set_local_anisotropy!,
-    set_exchange!, dmvec, set_exchange_with_biquadratic!,
+    set_exchange!, set_exchange_with_biquadratic!, dmvec,
     enable_dipole_dipole!
 
 include("Metropolis.jl")

@@ -1,18 +1,5 @@
-# Expansion in single-ion anisotropy in Stevens coefficients
-struct ClassicalStevensExpansion
-    kmax::Int
-    c2 :: SVector{5, Float64}
-    c4 :: SVector{9, Float64}
-    c6 :: SVector{13, Float64}
-end
 
-struct SingleIonAnisotropy
-    op :: DP.AbstractPolynomialLike      # Anisotropy as a symbolic operator
-    matrep :: Matrix{ComplexF64}         # Matrix representation in some dimension N
-    clsrep :: ClassicalStevensExpansion  # Coefficients for classical Stevens polynomials 
-end
-
-function SingleIonAnisotropy(N)
+function SingleIonAnisotropies(N)
     op = zero(𝒮[1])
     matrep = zeros(ComplexF64, N, N)
     clsrep = ClassicalStevensExpansion(
@@ -21,9 +8,39 @@ function SingleIonAnisotropy(N)
         zero(SVector{9, Float64}),
         zero(SVector{13, Float64}),
     )
-    SingleIonAnisotropy(op, matrep, clsrep)
+    SingleIonAnisotropies(op, matrep, clsrep)
 end
 
+function propagate_anisotropies!(hamiltonian::Interactions, cryst::Crystal, b::Int, op::DP.AbstractPolynomialLike, N::Int)
+    iszero(op) && return 
+
+    (1 <= b <= nbasis(cryst)) || error("Atom index $b is out of range.")
+
+    if !iszero(hamiltonian.anisos[b].op)
+        println("Warning: Overriding anisotropy for atom $b.")
+    end
+
+    if !is_anisotropy_valid(cryst, b, op)
+        println("Symmetry-violating anisotropy: $op.")
+        println("Use `print_site(crystal, $b)` for more information.")
+        error("Invalid anisotropy.")
+    end
+
+    for (b′, op′) in zip(all_symmetry_related_anisotropies(cryst, b, op)...)
+        matrep = operator_to_matrix(op′; N)
+
+        S = (N-1)/2
+        c = operator_to_classical_stevens_coefficients(op′, S)
+        all(iszero.(c[[1,3,5]])) || error("Odd-ordered dipole anisotropies not supported.")
+        c2 = SVector{ 5}(c[2])
+        c4 = SVector{ 9}(c[4])
+        c6 = SVector{13}(c[6])
+        kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
+        clsrep = ClassicalStevensExpansion(kmax, c2, c4, c6)
+
+        hamiltonian.anisos[b′] = SingleIonAnisotropies(op′, matrep, clsrep)
+    end
+end
 
 # Evaluate a given linear combination of Stevens operators for classical spin s
 function energy_and_gradient_for_classical_anisotropy(s::Vec3, clsrep::ClassicalStevensExpansion)
