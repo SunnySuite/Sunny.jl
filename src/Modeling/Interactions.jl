@@ -12,6 +12,48 @@ end
 
 
 """
+    enable_dipole_dipole!(sys::System)
+
+Enables long-range dipole-dipole interactions,
+
+```math
+    -(μ₀/4π) ∑_{⟨ij⟩}  (3 (𝐌_j⋅𝐫̂_{ij})(𝐌_i⋅𝐫̂_{ij}) - 𝐌_i⋅𝐌_j) / |𝐫_{ij}|^3
+```
+
+where the sum is over all pairs of spins (singly counted), including periodic
+images, regularized using the Ewald summation convention. The magnetic moments
+are ``𝐌_i = μ_B g 𝐒_i`` where ``g`` is the g-factor or g-tensor, and ``𝐒_i``
+is the spin angular momentum dipole in units of ħ. The Bohr magneton ``μ_B`` and
+vacuum permeability ``μ_0`` are physical constants, with numerical values
+determined by the unit system.
+"""
+function enable_dipole_dipole!(sys::System)
+    sys.interactions.ewald = Ewald(sys)
+end
+
+"""
+    set_external_field!(sys::System, B::Vec3)
+
+Introduce a Zeeman coupling between all spins and an applied magnetic field `B`.
+"""
+function set_external_field!(sys::System, B)
+    for b in nbasis(sys.crystal)
+        sys.interactions.extfield[b] = sys.units.μB * sys.gs[b]' * Vec3(B)
+    end
+end
+
+"""
+    set_local_external_field!(sys::System, B::Vec3, idx::CartesianIndex{4})
+
+Introduce an applied field `B` localized to a single spin at `idx`.
+"""
+function set_local_external_field!(sys::System, B, idx)
+    error("Unimplemented.")
+end
+
+
+
+"""
     energy(sys::System)
 
 Computes the total system energy.

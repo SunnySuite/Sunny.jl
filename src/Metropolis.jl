@@ -1,5 +1,3 @@
-"Types for arbitrary samplers, and a simple Metropolis sampling algorithm."
-
 """
     AbstractSampler
 
@@ -97,7 +95,7 @@ Before constructing, be sure that your `System` is initialized so that each
 spin points along its "Ising-like" axis.
 """
 mutable struct IsingSampler{N} <: AbstractSampler
-    sys     :: System{N}
+    sys        :: System{N}
     β          :: Float64
     nsweeps    :: Int
     E          :: Float64
@@ -141,15 +139,14 @@ function sample!(sampler::MetropolisSampler{N}) where N
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sys.dipoles)
             # Try to rotate this spin to somewhere randomly on the unit sphere
-            state = random_state(sys, idx)
+            state = randspin(sys, idx)
             ΔE = local_energy_change(sys, idx, state)
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)
                 sampler.E += ΔE
                 sampler.M += state.s - sys.dipoles[idx]
 
-                sys.dipoles[idx] = state.s
-                sys.coherents[idx] = state.Z
+                setspin!(sys, state, idx)
             end
         end
     end
@@ -161,15 +158,14 @@ function sample!(sampler::IsingSampler{N}) where N
     for _ in 1:sampler.nsweeps
         for idx in CartesianIndices(sys.dipoles)
             # Try to completely flip this spin
-            state = flipped_state(sys, idx)
+            state = flip(getspin(sys, idx))
             ΔE = local_energy_change(sys, idx, state)
 
             if rand(sys.rng) < exp(-sampler.β * ΔE)
                 sampler.E += ΔE
                 sampler.M += 2 * state.s
 
-                sys.dipoles[idx] = state.s 
-                sys.coherents[idx] = state.Z
+                setspin!(sys, state, idx)
             end
         end
     end

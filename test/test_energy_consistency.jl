@@ -44,7 +44,7 @@
         for _ in 1:5
             # Pick a random site, try to set it to a random spin
             idx = rand(sys.rng, CartesianIndices(sys.dipoles))
-            state = Sunny.random_state(sys, idx)
+            state = Sunny.randspin(sys, idx)
             
             ΔE = Sunny.local_energy_change(sys, idx, state)
 

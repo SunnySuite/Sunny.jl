@@ -93,7 +93,8 @@ end
 
 
 
-
+const Cell = CartesianIndex{3}
+const Idx = CartesianIndex{4}
 
 # Element-wise application of mod1(cell+off, latsize), returning CartesianIndex
 @inline offsetc(cell::CartesianIndex{3}, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
@@ -125,42 +126,53 @@ struct SpinState{N}
     Z::CVec{N}
 end
 
-@inline function random_state(sys::System{0}, idx::CartesianIndex{4})
+@inline function getspin(sys::System{N}, idx::CartesianIndex{4}) where N
+    return SpinState(sys.dipoles[idx], sys.coherents[idx])
+end
+
+@inline function setspin!(sys::System{N}, spin::SpinState{N}, idx::CartesianIndex{4}) where N
+    sys.dipoles[idx] = spin.s
+    sys.coherents[idx] = spin.Z
+    nothing
+end
+
+@inline function flip(spin::SpinState{N}) where N
+    return SpinState(-spin.s, flip_ket(spin.Z))
+end
+
+@inline function randspin(sys::System{0}, idx)
     s = sys.κs[idx[4]] * normalize(randn(sys.rng, Vec3))
     return SpinState(s, CVec{0}())
 end
-
-@inline function random_state(sys::System{N}, idx::CartesianIndex{4}) where N
+@inline function randspin(sys::System{N}, idx) where N
     Z = normalize(randn(sys.rng, CVec{N}))
     s = sys.κs[idx[4]] * expected_spin(Z)
     return SpinState(s, Z)
 end
 
-@inline function flipped_state(sys::System{N}, idx) where N
-    SpinState(-sys.dipoles[idx], flip_ket(sys.coherents[idx]))
+@inline function dipolarspin(sys::System{0}, idx, dir)
+    s = sys.κs[idx[4]] * normalize(Vec3(dir))
+    Z = CVec{0}()
+    return SpinState(s, Z)
 end
-
-
-
-function polarize_spin!(sys::System{0}, idx, dir)
-    idx = convert_idx(idx)
-    κ = sys.κs[idx[4]]
-    sys.dipoles[idx] = κ * normalize(Vec3(dir))
-end
-
-function polarize_spin!(sys::System{N}, idx, dir) where N
-    idx = convert_idx(idx)
+@inline function dipolarspin(sys::System{N}, idx, dir) where N
     Z = ket_from_dipole(Vec3(dir), Val(N))
-    set_coherent!(sys, idx, Z)
+    s = sys.κs[idx[4]] * expected_spin(Z)
+    return SpinState(s, Z)
 end
 
-function set_coherent!(sys::System{N}, idx, Z) where N
-    idx = convert_idx(idx)
-    Z = convert(CVec{N}, Z)
-    @assert norm(Z) ≈ 1.0
-    κ = sys.κs[idx[4]]
-    sys.coherents[idx] = Z
-    sys.dipoles[idx] = κ * expected_spin(Z)
+
+function randomize_spins!(sys::System{N}) where N
+    for idx in all_sites(sys)
+        setspin!(sys, randspin(sys, idx), idx)
+    end
+end
+
+function polarize_spins!(sys::System{N}, dir) where N
+    for idx = all_sites(sys)
+        spin = dipolarspin(sys, idx, dir)
+        setspin!(sys, spin, idx)
+    end
 end
 
 
@@ -182,70 +194,4 @@ function get_coherent_buffers(sys::System, numrequested)
         end
     end
     return sys.coherent_buffers[1:numrequested]
-end
-
-
-
-function randomize_spins!(sys::System{0})
-    for idx = CartesianIndices(sys.dipoles)
-        polarize_spin!(sys, idx, randn(sys.rng, Vec3))
-    end
-    nothing
-end
-
-function randomize_spins!(sys::System{N}) where N
-    for idx = CartesianIndices(sys.coherents)
-        Z = normalize(randn(sys.rng, CVec{N}))
-        set_coherent!(sys, idx, Z)
-    end
-    nothing
-end
-
-function polarize_spins!(sys::System{N}, dir) where N
-    for idx = CartesianIndices(sys.dipoles)
-        polarize_spin!(sys, idx, dir)
-    end
-    nothing
-end
-
-
-
-"""
-    enable_dipole_dipole!(sys::System)
-
-Enables long-range dipole-dipole interactions,
-
-```math
-    -(μ₀/4π) ∑_{⟨ij⟩}  (3 (𝐌_j⋅𝐫̂_{ij})(𝐌_i⋅𝐫̂_{ij}) - 𝐌_i⋅𝐌_j) / |𝐫_{ij}|^3
-```
-
-where the sum is over all pairs of spins (singly counted), including periodic
-images, regularized using the Ewald summation convention. The magnetic moments
-are ``𝐌_i = μ_B g 𝐒_i`` where ``g`` is the g-factor or g-tensor, and ``𝐒_i``
-is the spin angular momentum dipole in units of ħ. The Bohr magneton ``μ_B`` and
-vacuum permeability ``μ_0`` are physical constants, with numerical values
-determined by the unit system.
-"""
-function enable_dipole_dipole!(sys::System)
-    sys.interactions.ewald = Ewald(sys)
-end
-
-"""
-    set_external_field!(sys::System, B::Vec3)
-
-Introduce a Zeeman coupling between all spins and an applied magnetic field `B`.
-"""
-function set_external_field!(sys::System, B)
-    for b in nbasis(sys.crystal)
-        sys.interactions.extfield[b] = sys.units.μB * sys.gs[b]' * Vec3(B)
-    end
-end
-
-"""
-    set_local_external_field!(sys::System, B::Vec3, idx::CartesianIndex{4})
-
-Introduce an applied field `B` localized to a single spin at `idx`.
-"""
-function set_local_external_field!(sys::System, B, idx)
-    error("Unimplemented.")
 end
