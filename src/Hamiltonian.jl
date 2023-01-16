@@ -225,12 +225,7 @@ end
 
 
 
-"""
-Updates `B` in-place to hold the local field on `spins` under `ℋ`,
-defined as:
-
-``𝐁_i = -∇_{𝐬_i} ℋ ``.
-"""
+# Updates B in-place to hold negative energy gradient, -dE/ds, for each spin.
 function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ℋ::HamiltonianCPU)
     # KBTODO remove this hack!
     N = size(ℋ.anisos[1].matrep, 1)
