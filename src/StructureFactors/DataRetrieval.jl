@@ -113,7 +113,7 @@ function get_intensities(sf::StructureFactor, q_targets::Array;
     ci_qs = CartesianIndices(q_targets)
     (; counts, qis_all, qs_all) = prune_stencil_qs(sf.sfdata, q_targets, interp)
 
-    @time for iω in 1:nω
+    for iω in 1:nω
         iq = 0
         for (c, numrepeats) in enumerate(counts)
             qs, qis = qs_all[c], qis_all[c]
