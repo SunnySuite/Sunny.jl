@@ -71,9 +71,8 @@ include("Integrators.jl")
 export LangevinHeunP, ImplicitMidpoint, step!
 
 include("Samplers.jl")
-export MetropolisSampler, IsingSampler, LangevinSampler
-    set_temp!, get_temp,
-    sample!, thermalize!, anneal!,
+export MetropolisSampler, IsingSampler, LangevinSampler,
+    set_temp!, get_temp, sample!, thermalize!, anneal!,
     running_energy, running_mag, reset_running_energy!, reset_running_mag!
 
 include("StructureFactors/StructureFactors.jl")
