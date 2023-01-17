@@ -67,16 +67,16 @@ function contract(elems, _, traceinfo::Trace)
 end
 
 
-function contract(elems, q::Vec3, depolar::Depolarize)
-    q /= norm(q) + 1e-12
-    dip_factor = SMatrix{3, 3, Float64, 9}(I(3) - q * q')
+function contract(elems, k::Vec3, depolar::Depolarize)
+    k /= norm(k) + 1e-12
+    dip_factor = SMatrix{3, 3, Float64, 9}(I(3) - k * k')
     intensity = 0.0
     for (ci, idx) in depolar.idxinfo # Loop from 1 to 6 
         α, β = ci.I
         # Note, can just take the real part since:
         #   (1) diagonal elements are real by construction, and 
         #   (2) pairs of off diagonal contributions have the form x*conj(y) + conj(x)*y = 2real(x*conj(y)).
-        factor = α == β ? 1.0 : 2.0 # Double off-diagonal contribution (if ij is in iteration, ji will not be)
+        factor = α == β ? 1.0 : 2.0 # Double off-diagonal contribution (if αβ is in iteration, βα will not be)
         intensity += factor * dip_factor[α, β] * real(elems[idx])  
     end
     return intensity

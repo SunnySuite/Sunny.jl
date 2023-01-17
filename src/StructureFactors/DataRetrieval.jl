@@ -2,11 +2,12 @@
 # Basic functions for retrieving 𝒮(q, ω) values
 ################################################################################
 
-# Function for getting a single 𝒮(q, ω) intensity -- primarily internal
-function calc_intensity(sf::StructureFactor{N, NumCorr}, q, iq, ω, iω, contractor, temp, ffdata) where {N, NumCorr}
+# Function for getting a single 𝒮(q, ω) intensity -- primarily internal -- really wants k, not m
+function calc_intensity(sf::StructureFactor{N, NumCorr}, m, im, ω, iω, contractor, temp, ffdata) where {N, NumCorr}
     (; crystal, data) = sf.sfdata
-    elems = phase_averaged_elements(@view(data[:,:,:,iq, iω]), q, crystal, ffdata, Val(NumCorr))
-    intensity = contract(elems, q, contractor)
+    k = 2π*inv(crystal.lat_vecs)' * (m ./ sf.sftraj.sys.latsize)
+    elems = phase_averaged_elements(view(data,:,:,:,im,iω), k, crystal, ffdata, Val(NumCorr))
+    intensity = contract(elems, k, contractor)
     if !isnothing(temp)
         intensity *= classical_to_quantum(ω, temp)
     end
@@ -59,34 +60,35 @@ information enables us to avoid some repeated identical calculations.
 
 This is ugly, but the speedup when tested on a few simple, realistic examples was 3-5x.
 """
-function prune_stencil_qs(sfd, q_targets, interp::InterpolationScheme{N}) where N
-    q_info = map(q -> stencil_qs(sfd, q, interp), q_targets)
+function prune_stencil_points(sfd, qs, interp::InterpolationScheme{N}) where N
     # Count the number of contiguous regions with unchanging values.
     # If all values are unique, returns the length of q_info.
-    numregions = sum(map((x,y) -> x == y ? 0 : 1, q_info[1:end-1], q_info[2:end])) + 1
+    m_info = map(q -> stencil_points(sfd, q, interp), qs)
+    numregions = sum(map((x,y) -> x[1] == y[1] ? 0 : 1, m_info[1:end-1], m_info[2:end])) + 1
 
+    ms_ref, ims_ref = stencil_points(sfd, qs[1], interp)
+    ms_all  = fill(ntuple(x->zero(Vec3), N), numregions)
+    ms_all[1] = ms_ref 
+    ims_all = fill(ntuple(x->CartesianIndex((-1,-1,-1)), N), numregions)
+    ims_all[1] = ims_ref 
     counts = zeros(Int64, numregions)
-    qis_all = fill(ntuple(x->CartesianIndex((-1,-1,-1)), N), numregions)
-    qs_all  = fill(ntuple(x->zero(Vec3), N), numregions)
-
-    q_data_ref = stencil_qs(sfd, q_targets[1], interp)
-
-    qs_all[1] = q_data_ref[1]
-    qis_all[1] = q_data_ref[2]
     c = counts[1] = 1
-    for q in q_targets[2:end] 
-        q_data = stencil_qs(sfd, q, interp)
-        if q_data != q_data_ref
-            q_data_ref = q_data
+
+    for q in qs[2:end] 
+        ms, ims = stencil_points(sfd, q, interp)
+        if ms != ms_ref
+            ms_ref = ms 
             c += 1
-            qs_all[c] = q_data[1]
-            qis_all[c] = q_data[2]
+            ms_all[c] =  ms
+            ims_all[c] = ims 
         end
         counts[c] += 1
     end
     
-    # @assert sum(counts) == length(q_info)
-    return (; counts, qis_all, qs_all)
+    @assert sum(counts) == length(m_info)
+    ms, ims = ms_all, ims_all
+
+    return (; ms, ims, counts)
 end
 
 function precompute_form_factors(sf::StructureFactor, ffdata, qs)
@@ -117,17 +119,17 @@ function get_intensities(sf::StructureFactor, q_targets::Array, interp::Interpol
     intensities = zeros(T, size(q_targets)..., nω)
     li_intensities = LinearIndices(intensities)
     ci_qs = CartesianIndices(q_targets)
-    (; counts, qis_all, qs_all) = prune_stencil_qs(sf.sfdata, q_targets, interp)
+    (; counts, ims, ms) = prune_stencil_points(sf.sfdata, q_targets, interp) # needs (and gets) user qs
 
     for iω in 1:nω
         iq = 0
         for (c, numrepeats) in enumerate(counts)
-            qs, qis = qs_all[c], qis_all[c]
-            local_intensities = stencil_intensities(sf, qs, qis, ωs[iω], iω, interp, contraction, temp, ffdata)
+            m, im = ms[c], ims[c]
+            local_intensities = stencil_intensities(sf, m, im, ωs[iω], iω, interp, contraction, temp, ffdata) # really needs k, not q or m, for both basis reduction and contraction
             for _ in 1:numrepeats
                 iq += 1
                 idx = li_intensities[CartesianIndex(ci_qs[iq], iω)]
-                intensities[idx] = interpolated_intensity(sf, q_targets[iq], qs, local_intensities, interp)
+                intensities[idx] = interpolated_intensity(sf, q_targets[iq], m, local_intensities, interp) # really needs q (divide by L inside)
             end
         end
         # @assert iq == length(q_targets)

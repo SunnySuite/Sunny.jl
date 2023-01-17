@@ -14,13 +14,14 @@ function interpolated_intensity(::StructureFactor, _, _, stencil_intensities, ::
     return only(stencil_intensities)
 end
 
-function interpolated_intensity(::StructureFactor, q_target, qs, stencil_intensities, ::LinearInterp) 
-    q000,    _,    _,    _,    _,    _,    _, q111 = qs 
+function interpolated_intensity(sf::StructureFactor, q_target, ms, stencil_intensities, ::LinearInterp) 
+    m000,    _,    _,    _,    _,    _,    _, m111 = ms 
     c000, c100, c010, c110, c001, c101, c011, c111 = stencil_intensities
+    L = sf.sftraj.sys.latsize 
 
     x, y, z = q_target
-    x0, y0, z0 = q000
-    x1, y1, z1 = q111
+    x0, y0, z0 = m000 ./ L # Convert m to RLUs 
+    x1, y1, z1 = m111 ./ L
 
     xd = (x-x0)/(x1-x0)
     yd = (y-y0)/(y1-y0)
@@ -38,17 +39,16 @@ function interpolated_intensity(::StructureFactor, q_target, qs, stencil_intensi
 end
 
 
-function stencil_qs(sfd::SFData, q, ::NoInterp)
-    Ls = size(sfd.data)[4:6]  # ddtodo: error proof this
+function stencil_points(sfd::SFData, q, ::NoInterp)
+    Ls = size(sfd.data)[4:6]  # lattice dims -- change sfd to sf and use sys.latsize?
     m = round.(Int, Ls .* q)
-    q = m ./ Ls
-    qi = map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
-    return (q,), (qi,)
+    im = map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
+    return (m,), (im,)
 end
 
 
-function stencil_qs(sfd::SFData, q, ::LinearInterp)
-    Ls = size(sfd.data)[4:6]  # ddtodo: error proof this
+function stencil_points(sfd::SFData, q, ::LinearInterp)
+    Ls = size(sfd.data)[4:6]  # lattice dims 
     base = map(x -> floor(Int64, x), Ls .* q) 
     offsets = (
         (0, 0, 0),
@@ -61,9 +61,8 @@ function stencil_qs(sfd::SFData, q, ::LinearInterp)
         (1, 1, 1)
     )
     ms = map(x -> x .+ base, offsets) 
-    qs = map(x -> x ./ Ls, ms)
-    qis = map(ms) do m
+    ims = map(ms) do m
         map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
     end
-    return qs, qis
+    return ms, ims
 end
