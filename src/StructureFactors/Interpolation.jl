@@ -13,6 +13,7 @@ end
 function interpolated_intensity(::StructureFactor, q_target, qs, stencil_intensities, ::LinearInterp) 
     q000,    _,    _,    _,    _,    _,    _, q111 = qs 
     c000, c100, c010, c110, c001, c101, c011, c111 = stencil_intensities
+
     x, y, z = q_target
     x0, y0, z0 = q000
     x1, y1, z1 = q111
