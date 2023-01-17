@@ -32,7 +32,7 @@ function propagate_form_factors(sf::StructureFactor, form_factors)
             (sym_bonds, sym_gs) = all_symmetry_related_couplings(
                 sys.crystal,
                 Bond(atom, atom, [0,0,0]),
-                2*I(3)  # This is irrelevant -- see note above call to this function
+                2*I(3)  # This is irrelevant -- see note above this function
             )
             for (sym_bond, _) in zip(sym_bonds, sym_gs)
                 sym_atom = sym_bond.i
@@ -62,30 +62,43 @@ This is ugly, but the speedup when tested on a few simple, realistic examples wa
 function prune_stencil_qs(sfd, q_targets, interp::InterpolationScheme{N}) where N
     q_info = map(q -> stencil_qs(sfd, q, interp), q_targets)
     # Count the number of contiguous regions with unchanging values.
-    # Note: if all values are unique, returns the length of q_info.
+    # If all values are unique, returns the length of q_info.
     numregions = sum(map((x,y) -> x == y ? 0 : 1, q_info[1:end-1], q_info[2:end])) + 1
 
     counts = zeros(Int64, numregions)
-    qis_all = Array{NTuple{N, CartesianIndex{3}}}(undef, numregions)
-    qs_all = Array{NTuple{N, Vec3}}(undef, numregions) 
+    qis_all = fill(ntuple(x->CartesianIndex((-1,-1,-1)), N), numregions)
+    qs_all  = fill(ntuple(x->zero(Vec3), N), numregions)
 
-    qs, qis = stencil_qs(sfd, q_targets[1], interp)
+    q_data_ref = stencil_qs(sfd, q_targets[1], interp)
 
-    qis_all[1] = qis_ref = CartesianIndex.(qis)
-    qs_all[1] = qs
+    qs_all[1] = q_data_ref[1]
+    qis_all[1] = q_data_ref[2]
     c = counts[1] = 1
-    for q in q_targets[2:end]
-        qs, qis = stencil_qs(sfd, q, interp)
-        if qis != qis_ref
-            qis_ref = qis
+    for q in q_targets[2:end] 
+        q_data = stencil_qs(sfd, q, interp)
+        if q_data != q_data_ref
+            q_data_ref = q_data
             c += 1
-            qis_all[c] = qis
-            qs_all[c] = qs
+            qs_all[c] = q_data[1]
+            qis_all[c] = q_data[2]
         end
         counts[c] += 1
     end
+    
     # @assert sum(counts) == length(q_info)
     return (; counts, qis_all, qs_all)
+end
+
+function precompute_form_factors(sf::StructureFactor, ffdata, qs)
+    cryst = sf.sftraj.sys.crystal
+    nb = nbasis(cryst)
+    @assert length(ffdata) == nb
+    ffdata_static = fill(ntuple(x->0.0, nb), size(qs))
+    for (i, q) in enumerate(qs)
+        k = 2π*inv(cryst.lat_vecs)' * q
+        ffdata_static[i] = ntuple(x->isnothing(ffdata[i]) ? 1.0 : compute_form(norm(k), ffdata[i]), nb)
+    end
+    return ffdata_static
 end
 
 # Type stable version
