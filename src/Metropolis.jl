@@ -13,6 +13,7 @@ Samplers should provide a field `sys::System` and implement the following method
 """
 abstract type AbstractSampler end
 
+
 # These should be deprecated/rewritten. Won't have a System in the sampler going forward.
 running_energy(sampler::S) where {S <: AbstractSampler} = energy(sampler.sys)
 running_mag(sampler::S) where {S <: AbstractSampler} = sum(sampler.sys) # Does this apply g-factor?
@@ -60,6 +61,41 @@ function anneal!(sampler::S,
     end
 end
 
+
+################################################################################
+# Langevin Sampler 
+################################################################################
+
+"""
+    LangevinSampler(integrator::LangevinHeunP, nsteps::Int)
+
+Creates a sampler from a Langevin integrator. `nsteps` determines how many
+times `step!` is called using the integrator. `nsteps` should be selected large
+enough to ensure that the state of the System after integration
+is decorrelated with respect to its initial state.
+"""
+mutable struct LangevinSampler <: AbstractSampler
+    integrator :: LangevinHeunP
+    nsteps     :: Int
+end
+
+set_temp!(sampler::LangevinSampler, kT) = sampler.integrator.kT = kT
+get_temp(sampler::LangevinSampler) = sampler.integrator.kT
+
+function sample!(sys, sampler::LangevinSampler)
+    (; integrator, nsteps) = sampler
+    for _ in 1:nsteps
+        step!(sys, integrator)
+    end
+    return nothing
+end
+
+
+################################################################################
+# Metropolis Sampler 
+################################################################################
+
+
 """
     MetropolisSampler(sys::System, kT::Float64, nsweeps::Int)
 
@@ -105,6 +141,16 @@ mutable struct IsingSampler{N} <: AbstractSampler
         new{N}(sys, 1.0 / kT, nsweeps, energy(sys), sum(sys.dipoles))
     end
 end
+
+
+@inline running_energy(sampler::MetropolisSampler) = sampler.E
+@inline running_mag(sampler::MetropolisSampler) = sampler.M
+@inline reset_running_energy!(sampler::MetropolisSampler) = (sampler.E = energy(sampler.sys); nothing)
+@inline reset_running_mag!(sampler::MetropolisSampler) = (sampler.M = sum(sampler.sys.dipoles); nothing)
+@inline running_energy(sampler::IsingSampler) = sampler.E
+@inline running_mag(sampler::IsingSampler) = sampler.M
+@inline reset_running_energy!(sampler::IsingSampler) = (sampler.E = energy(sampler.sys); nothing)
+@inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.sys.dipoles); nothing)
 
 
 """
@@ -170,13 +216,3 @@ function sample!(sampler::IsingSampler{N}) where N
         end
     end
 end
-
-
-@inline running_energy(sampler::MetropolisSampler) = sampler.E
-@inline running_mag(sampler::MetropolisSampler) = sampler.M
-@inline reset_running_energy!(sampler::MetropolisSampler) = (sampler.E = energy(sampler.sys); nothing)
-@inline reset_running_mag!(sampler::MetropolisSampler) = (sampler.M = sum(sampler.sys.dipoles); nothing)
-@inline running_energy(sampler::IsingSampler) = sampler.E
-@inline running_mag(sampler::IsingSampler) = sampler.M
-@inline reset_running_energy!(sampler::IsingSampler) = (sampler.E = energy(sampler.sys); nothing)
-@inline reset_running_mag!(sampler::IsingSampler) = (sampler.M = sum(sampler.sys.dipoles); nothing)
