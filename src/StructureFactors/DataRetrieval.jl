@@ -95,11 +95,11 @@ function get_intensities(sf::StructureFactor, q_targets::Array, interp::Interpol
     ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
     nω = length(ωs) 
     ffdata = propagate_form_factors(sf, formfactors)
+    q_targets = Vec3.(q_targets) 
     if !isnothing(newbasis)
         newbasis = Mat3(newbasis)
         q_targets = map(q -> newbasis*q, q_targets)
     end
-    q_targets = convert.(Vec3, q_targets)
 
     intensities = zeros(T, size(q_targets)..., nω)
     li_intensities = LinearIndices(intensities)
@@ -123,11 +123,13 @@ function get_intensities(sf::StructureFactor, q_targets::Array, interp::Interpol
     return intensities
 end
 
-# User-facing version
-function get_intensities(sf::StructureFactor, q_targets::Array;
-    interpolation = :none, contraction = :trace, kwargs...)
+# This is the version of the function that will typically
+# be called by the user. It sets up the appropriate data types
+# and calls the type stable internal version of the function.
+function get_intensities(sf::StructureFactor, qs::Array;
+    contraction = :trace, interpolation = nothing, kwargs...)
 
-    interp = if interpolation == :none 
+    interp = if isnothing(interpolation) 
         NoInterp()
     elseif interpolation == :linear
         LinearInterp()
@@ -141,7 +143,8 @@ function get_intensities(sf::StructureFactor, q_targets::Array;
         Element(sf, contraction)
     end
 
-    return get_intensities(sf, q_targets, interp, contract; kwargs...)
+    # Call type stable version of the function
+    return get_intensities(sf, qs, interp, contract; kwargs...)
 end
 
 
@@ -150,7 +153,7 @@ function get_intensity(sf::StructureFactor, q; kwargs...)
     if length(q) != 3
         error("Q point should have three components.")
     end
-    return get_intensities(sf, [Vec3(q)]; kwargs...)
+    return get_intensities(sf, [Vec3(q)]; kwargs...)'
 end
 
 function get_static_intensity(sf::StructureFactor, q; kwargs...)
@@ -210,11 +213,12 @@ end
 function path(sf::StructureFactor, points::Vector; 
     density = 10, index_labels=false, kwargs...
 )
-    qpoints = path_points(points, density)
-    intensities = Sunny.get_intensities(sf, qpoints; kwargs...) 
+    qs = path_points(Vec3.(points), density)
+    intensities = Sunny.get_intensities(sf, qs; kwargs...) 
     if index_labels
         ωs = ωvals(sf)
-        return (; intensities, qpoints, ωs)
+        qs = map(q -> q.data, qs)
+        return (; intensities, qs, ωs)
     end
     return intensities
 end

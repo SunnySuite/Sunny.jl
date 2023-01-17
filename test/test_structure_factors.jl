@@ -36,7 +36,7 @@
         sf = StructureFactor(sys; ωmax=10.0, gfactor=false, ops)
         thermalize_simple_model!(sys; kT=0.1)
         add_trajectory!(sf, sys)
-        intensities = intensity_grid(sf; contraction=Trace(), negative_energies=true)
+        intensities = intensity_grid(sf; contraction=:trace, negative_energies=true)
 
         @test isapprox(sum(intensities) / prod(sys.latsize), 1.0; atol=1e-12)
     end

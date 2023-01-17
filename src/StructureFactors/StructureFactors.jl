@@ -6,7 +6,7 @@ struct SFData{NumCorr}
 end
 
 struct SFTrajectory{N}
-    sys         :: System{N}         # Clone system so original System unaltered by trajectory calculation
+    sys         :: System{N}             # Clone system so original System unaltered by trajectory calculation
     traj        :: Array{ComplexF64, 6}  # Trajectory buffer
     ops         :: Array{ComplexF64, 3}  # Operators corresponding to observables
     measperiod  :: Int                   # Steps to skip between saving observables (downsampling)
@@ -42,7 +42,7 @@ function SFTrajectory(sys::System{N};
         ops = zeros(ComplexF64, 0, 0, 3) # Placeholder with necessary information for consistent behavior later 
     else
         if N == 0 
-            error("Structure Factor Error: Cannot provide matrices for observables for a dipolar `System`")
+            error("Structure Factor Error: Cannot provide matrices for observables when using dipolar `System`")
         end
     end
 
@@ -56,7 +56,7 @@ function SFTrajectory(sys::System{N};
 
     # Preallocation
     nops = size(ops, 3)
-    traj = zeros(ComplexF64, nops, size(sys.dipoles)..., numω)
+    traj = zeros(ComplexF64, nops, size(sys.dipoles)..., 2numω-1) # Double numω (since want numω _positive_ energies)
     integrator = ImplicitMidpoint(Δt)
 
     # Create a shallow copy of the spin system
