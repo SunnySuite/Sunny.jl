@@ -11,6 +11,11 @@ function qgrid(sf::StructureFactor; bzsize=(1,1,1))
     return qs
 end
 
+"""
+    ωvals(sf::StructureFactor)
+
+Return the ω-values associated with the energy index of a `StructureFactor`.
+"""
 function ωvals(sf::StructureFactor)
     sfd = sf.sfdata
     Δω = sfd.Δω

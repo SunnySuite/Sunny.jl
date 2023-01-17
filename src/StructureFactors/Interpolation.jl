@@ -6,22 +6,21 @@ struct LinearInterp <: InterpolationScheme{8} end
 ddtodo: Explanation of interpolation "API"
 =# 
 
-function stencil_intensities(sf::StructureFactor, qs, iqs, ω, iω, ::InterpolationScheme{NumInterp}, contraction::Contraction{T}, temp, ffdata) where {NumInterp, T}
-    return SVector{NumInterp, T}(calc_intensity(sf, qs[n], iqs[n], ω, iω, contraction, temp, ffdata) for n in 1:NumInterp)
+function stencil_intensities(sf::StructureFactor, ks, idcs, ω, iω, ::InterpolationScheme{NumInterp}, contraction::Contraction{T}, temp, ffdata) where {NumInterp, T}
+    return SVector{NumInterp, T}(calc_intensity(sf, ks[n], idcs[n], ω, iω, contraction, temp, ffdata) for n in 1:NumInterp)
 end
 
 function interpolated_intensity(::StructureFactor, _, _, stencil_intensities, ::NoInterp) 
     return only(stencil_intensities)
 end
 
-function interpolated_intensity(sf::StructureFactor, q_target, ms, stencil_intensities, ::LinearInterp) 
-    m000,    _,    _,    _,    _,    _,    _, m111 = ms 
+function interpolated_intensity(::StructureFactor, q_target, qs, stencil_intensities, ::LinearInterp) 
+    q000,    _,    _,    _,    _,    _,    _, q111 = qs 
     c000, c100, c010, c110, c001, c101, c011, c111 = stencil_intensities
-    L = sf.sftraj.sys.latsize 
 
     x, y, z = q_target
-    x0, y0, z0 = m000 ./ L # Convert m to RLUs 
-    x1, y1, z1 = m111 ./ L
+    x0, y0, z0 = q000 
+    x1, y1, z1 = q111 
 
     xd = (x-x0)/(x1-x0)
     yd = (y-y0)/(y1-y0)
@@ -39,16 +38,16 @@ function interpolated_intensity(sf::StructureFactor, q_target, ms, stencil_inten
 end
 
 
-function stencil_points(sfd::SFData, q, ::NoInterp)
-    Ls = size(sfd.data)[4:6]  # lattice dims -- change sfd to sf and use sys.latsize?
+function stencil_points(sf::StructureFactor, q, ::NoInterp)
+    Ls = sf.sftraj.sys.latsize 
     m = round.(Int, Ls .* q)
     im = map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
     return (m,), (im,)
 end
 
 
-function stencil_points(sfd::SFData, q, ::LinearInterp)
-    Ls = size(sfd.data)[4:6]  # lattice dims 
+function stencil_points(sf::StructureFactor, q, ::LinearInterp)
+    Ls = sf.sftraj.sys.latsize 
     base = map(x -> floor(Int64, x), Ls .* q) 
     offsets = (
         (0, 0, 0),

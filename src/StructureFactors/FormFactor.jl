@@ -1,17 +1,3 @@
-
-#= TODO: Old comments about form factors below. Add to new docs. 
-
-In order to calculate form factor corrections, `ff_elem` must be given a valid argument
-specifying a magnetic ion. A list of valid names is provided in tables available
-at: https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html . To calculate second-order form
-factor corrections, it is also necessary to provide a Lande g-factor (as a numerical
-value) to `ff_lande`. For example: `SiteInfo(1; ff_elem="Fe2", ff_lande=3/2)`. Note that
-for the form factor to be calculated, these keywords must be given values for all
-unique sites in the unit cell. Please see the documentation to `compute_form` for more
-information on the form factor calculation.
-=# 
-    
-
 struct FormFactor
     atom      :: Int64
     J0_params :: NTuple{7, Float64}
@@ -19,6 +5,19 @@ struct FormFactor
     g_lande   :: Union{Nothing, Float64}
 end
 
+"""
+    FormFactor(atom::Int64, elem::String; g_lande=nothing)
+
+Basic type for specifying form factor data, used when calling [`get_intensities`](@ref).
+Must be provided a site within the unit cell (`atom`) and a string specifying the
+element name. A list of supported element names is available at:
+
+https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
+
+The Landé g-factor may also be specified. 
+
+See [`compute_form`](@ref) for further details about the calculation.
+"""
 function FormFactor(atom::Int64, elem::String; g_lande=nothing)
 
     function lookup_ff_params(elem, datafile) :: NTuple{7, Float64}
@@ -44,12 +43,6 @@ end
 
 """ 
     compute_form(q::Vector{Float64}, params::FormFactor)
-
-**NOTE**: _This is an internal function which the user will likely never call directly.
-It will be called during structure factor calculations if form factor information
-is specified in the `SiteInfo`s for your model. See the documentation for `SiteInfo`
-for details about specifying form factor information. For details about the
-calculation, see below._
 
 Computes the form factor for a momentum space magnitude `q`, measured
 in inverse angstroms. The result is dependent on the magnetic ion species,
