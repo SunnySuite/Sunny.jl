@@ -1,4 +1,4 @@
-@doc raw"""
+"""
     LangevinHeunP(kT::Float64, λ::Float64, Δt::Float64)
 
 Projected Heun integration scheme with noise and damping.
@@ -10,8 +10,6 @@ If `kT > 0`, this will simulate dynamics in the presence of a thermal bath. `λ`
 empirical parameter that determines the strength of coupling to the thermal bath and
 sets a time scale for decorrelation, `1/λ`.
 """
-
-
 mutable struct LangevinHeunP
     kT  :: Float64
     λ   :: Float64
@@ -19,7 +17,7 @@ mutable struct LangevinHeunP
 end
 
 
-@doc raw"""
+"""
     ImplicitMidpoint(Δt::Float64; atol=1e-12) where N
 
 Energy-conserving integrator for simulating dynamics without damping or noise.
@@ -40,38 +38,21 @@ end
 ImplicitMidpoint(Δt; atol=1e-12) = ImplicitMidpoint(Δt, atol)
 
 
-################################################################################
-# Convenience functions
-
-# KBTODO: find better place
-
-function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, sys::System) where N
-    @assert N > 0
-    for idx in CartesianIndices(dipoles)
-        κ = sys.κs[idx[4]]
-        dipoles[idx] = κ * expected_spin(coherents[idx])
-    end
-end
-
-set_expected_spins!(sys::System) = set_expected_spins!(sys.dipoles, sys.coherents, sys)
-
 
 ################################################################################
 # Dipole integration
 ################################################################################
-function normalize!(dipoles::Array{Vec3, 4}, sys::System)
-    for idx in CartesianIndices(dipoles)
-        S = sys.κs[idx[4]]
-        dipoles[idx] *= S / norm(dipoles[idx])
+
+function normalize_dipoles!(dipoles::Array{Vec3, 4}, sys::System{0})
+    for idx in all_sites(sys)
+        dipoles[idx] = sys.κs[idx[4]] * normalize(dipoles[idx])
     end
 end
-
-normalize_dipoles!(sys::System) = normalize!(sys.dipoles, sys)
 
 @inline rhs_dipole(s, B) = -s × B
 @inline rhs_dipole(s, B, λ) = -s × (B + λ * (s × B))
 
-@doc raw"""
+"""
     step!(sys::System, integrator)
 
 Advance the spin system forward one step using the parameters and integration
@@ -94,11 +75,17 @@ function step!(sys::System{0}, integrator::LangevinHeunP)
     # Corrector step
     set_forces!(B, s₁, sys)
     @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, B, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
-    normalize!(s, sys)
+    normalize_dipoles!(s, sys)
 
     nothing
 end
 
+# The spherical midpoint method, Phys. Rev. E 89, 061301(R) (2014)
+# Integrates ds/dt = s × ∂E/∂s one timestep s → s′ via implicit equations
+#   s̄ = (s′ + s) / 2
+#   ŝ = s̄ / |s̄|
+#   (s′ - s)/Δt = 2(s̄ - s)/Δt = - ŝ × B,
+# where B = -∂E/∂ŝ.
 function step!(sys::System{0}, integrator::ImplicitMidpoint)
     s = sys.dipoles
     (; Δt, atol) = integrator
@@ -110,14 +97,14 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
 
     max_iters = 100
     for _ in 1:max_iters
-        # Integration step for current best guess of midpoint S̄. Produces
-        # improved midpoint estimator S̄′.
+        # Integration step for current best guess of midpoint s̄. Produces
+        # improved midpoint estimator s̄′.
         @. ŝ = s̄
-        normalize!(ŝ, sys)
+        normalize_dipoles!(ŝ, sys)
         set_forces!(B, ŝ, sys)
         @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, B)
 
-        # Convergence is reached if every element of S̄ and S̄′ agree to
+        # Convergence is reached if every element of s̄ and s̄′ agree to
         # within tolerance.
         converged = true
         for i = 1:length(s)
@@ -129,7 +116,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
             # Normalization here should not be necessary in principle, but it
             # could be useful in practice for finite `atol`.
             @. s = 2*s̄′ - s
-            normalize!(s, sys)
+            normalize_dipoles!(s, sys)
             return
         end
 
@@ -143,10 +130,17 @@ end
 ################################################################################
 # SU(N) integration
 ################################################################################
-# LinearAlgebra's `normalize!` doesn't normalize to 1 on complex vectors
-function normalize!(Z::Array{CVec{N}, 4}) where N
-    @inbounds for i in eachindex(Z)
-        Z[i] = Z[i] / √(real(Z[i]' * Z[i]))
+
+function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, κs) where N
+    @assert N > 0
+    for idx in CartesianIndices(dipoles)
+        dipoles[idx] = κs[idx[4]] * expected_spin(coherents[idx])
+    end
+end
+
+function normalize_kets!(Z::Array{CVec{N}, 4}, _sys::System{N}) where N
+    for idx in CartesianIndices(Z)
+        Z[idx] = normalize(Z[idx])
     end
 end
 
@@ -180,10 +174,10 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
     (; kT, λ, Δt) = integrator
     (; dipoles, interactions) = sys
 
-    set_expected_spins!(dipoles, Z, sys) 
+    set_expected_spins!(dipoles, Z, sys.κs) 
     set_forces!(B, dipoles, sys)
 
-    @inbounds for idx in CartesianIndices(ξ)
+    for idx in all_sites(sys)
         Λ = interactions.anisos[idx[4]].matrep
         HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
 
@@ -214,15 +208,15 @@ function step!(sys::System{N}, integrator::LangevinHeunP) where N
     # Prediction
     rhs_langevin!(ΔZ₁, Z, ξ, B, integrator, sys)
     @. Z′ = Z + ΔZ₁
-    normalize!(Z′)
+    normalize_kets!(Z′, sys)
 
     # Correction
     rhs_langevin!(ΔZ₂, Z′, ξ, B, integrator, sys)
     @. Z += (ΔZ₁ + ΔZ₂)/2
-    normalize!(Z)
+    normalize_kets!(Z, sys)
 
     # Coordinate dipole data
-    set_expected_spins!(sys)
+    set_expected_spins!(sys.dipoles, Z, sys.κs)
 end
 
 
@@ -230,18 +224,23 @@ function rhs_ll!(ΔZ, Z, B, integrator, sys)
     (; Δt) = integrator
     (; dipoles, interactions) = sys
 
-    set_expected_spins!(dipoles, Z, sys) # temporarily de-synchs dipoles and coherents
+    set_expected_spins!(dipoles, Z, sys.κs) # temporarily de-synchs dipoles and coherents
     set_forces!(B, dipoles, sys)
 
-    @inbounds for idx in CartesianIndices(Z)
+    for idx in all_sites(sys)
         Λ = interactions.anisos[idx[4]].matrep
         HZ = mul_spin_matrices(Λ, -B[idx], Z[idx])
         ΔZ[idx] = - Δt*im*HZ
     end 
 end
 
-
-function step!(sys::System, integrator::ImplicitMidpoint; max_iters=100)
+# Implicit Midpoint Method applied to the nonlinear Schrödinger dynamics, as
+# proposed in Phys. Rev. B 106, 054423 (2022). Integrates dZ/dt = - i ℌ(Z) Z one
+# timestep Z → Z′ via the implicit equation
+#
+#   (Z′-Z)/Δt = - i ℌ(Z̄) Z, where Z̄ = (Z+Z′)/2
+#
+function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     (; atol) = integrator
     (ΔZ, Zb, Z′, Z″) = get_coherent_buffers(sys, 4)
     B = get_dipole_buffers(sys, 1) |> only
@@ -259,7 +258,8 @@ function step!(sys::System, integrator::ImplicitMidpoint; max_iters=100)
 
         if isapprox(Z′, Z″; atol)
             @. Z = Z″
-            set_expected_spins!(sys)
+            normalize_kets!(Z, sys)
+            set_expected_spins!(sys.dipoles, Z, sys.κs)
             return
         end
 
@@ -267,32 +267,4 @@ function step!(sys::System, integrator::ImplicitMidpoint; max_iters=100)
     end
 
     error("SchrodingerMidpoint integrator failed to converge in $max_iters iterations.")
-end
-
-
-################################################################################
-# Langevin Sampler 
-################################################################################
-@doc raw"""
-    LangevinSampler(integrator::LangevinHeunP, nsteps::Int)
-
-Creates a sampler from a Langevin integrator. `nsteps` determines how many
-times `step!` is called using the integrator. `nsteps` should be selected large
-enough to ensure that the state of the System after integration
-is decorrelated with respect to its initial state.
-"""
-mutable struct LangevinSampler <: AbstractSampler
-    integrator :: LangevinHeunP
-    nsteps     :: Int
-end
-
-set_temp!(sampler::LangevinSampler, kT) = sampler.integrator.kT = kT
-get_temp(sampler::LangevinSampler) = sampler.integrator.kT
-
-function sample!(sys, sampler::LangevinSampler)
-    (; integrator, nsteps) = sampler
-    for _ in 1:nsteps
-        step!(sys, integrator)
-    end
-    return nothing
 end
