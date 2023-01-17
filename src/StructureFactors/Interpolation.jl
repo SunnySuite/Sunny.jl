@@ -2,6 +2,10 @@ abstract type InterpolationScheme{NumInterp} end
 struct NoInterp <: InterpolationScheme{1} end
 struct LinearInterp <: InterpolationScheme{8} end
 
+#=
+ddtodo: Explanation of interpolation "API"
+=# 
+
 function stencil_intensities(sf::StructureFactor, qs, iqs, ω, iω, ::InterpolationScheme{NumInterp}, contraction::Contraction{T}, temp, ffdata) where {NumInterp, T}
     return SVector{NumInterp, T}(calc_intensity(sf, qs[n], iqs[n], ω, iω, contraction, temp, ffdata) for n in 1:NumInterp)
 end
@@ -36,9 +40,9 @@ end
 
 function stencil_qs(sfd::SFData, q, ::NoInterp)
     Ls = size(sfd.data)[4:6]  # ddtodo: error proof this
-    l = round.(Int, Ls .* q)
-    q = l ./ Ls
-    qi = map(i -> mod(l[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
+    m = round.(Int, Ls .* q)
+    q = m ./ Ls
+    qi = map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
     return (q,), (qi,)
 end
 
@@ -56,10 +60,10 @@ function stencil_qs(sfd::SFData, q, ::LinearInterp)
         (0, 1, 1),
         (1, 1, 1)
     )
-    ls = map(x -> x .+ base, offsets) 
-    qs = map(x -> x ./ Ls, ls)
-    qis = map(ls) do l
-        map(i -> mod(l[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
+    ms = map(x -> x .+ base, offsets) 
+    qs = map(x -> x ./ Ls, ms)
+    qis = map(ms) do m
+        map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
     end
     return qs, qis
 end
