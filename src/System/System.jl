@@ -1,11 +1,10 @@
-@doc raw"""
-    System(crystal::Crystal, latsize, siteinfos;
-               mode, units=Units.meV, seed::Int)
+"""
+    System(crystal::Crystal, latsize, siteinfos; mode, units=Units.meV, seed::Int)
 
-Construct a `System` of spins for a given `crystal` symmetry. The count of unit
-cells in each lattice vector direction is specified by `latsize`. The
-`siteinfos` parameter is a list of [`SiteInfo`](@ref) objects, which determine
-the magnitude ``S`` and ``g``-tensor of each spin.
+Construct a `System` of spins for a given `crystal` symmetry. The `latsize`
+parameter determines the number of unit cells in each lattice vector direction.
+The `siteinfos` parameter is a list of [`SiteInfo`](@ref) objects, which
+determine the magnitude ``S`` and ``g``-tensor of each spin.
 
 The three possible options for `mode` are `:dipole`, `:SUN`, and `:projected`.
 The choice `:dipole` restricts the description of a spin to its angular momentum
@@ -36,8 +35,8 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{Site
     else
         propagate_site_info(crystal, siteinfos)
     end
-    Ss         = [si.S for si in siteinfos]
-    gs         = [si.g for si in siteinfos]
+    Ss = [si.S for si in siteinfos]
+    gs = [si.g for si in siteinfos]
 
     # Determine dimension N of the local Hilbert space, or 0 if in dipole-only mode
     N, κs = if mode == :SUN
@@ -67,7 +66,14 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{Site
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
-    printstyled(io, "System [mode=$(sys.mode)]\n"; bold=true, color=:underline)
+    modename = if sys.mode==:SUN
+        "SU($N)"
+    elseif sys.mode==:projected
+        "Projected SU($N)"
+    else
+        "Dipole mode"
+    end
+    printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
     println(io, "Cell size $(nbasis(sys.crystal)), Lattice size $(sys.latsize)")
 end
 

@@ -29,7 +29,17 @@ const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 const CVec{N} = SVector{N, ComplexF64}
 
-include("Symmetry/Symmetry.jl")
+
+include("Symmetry/LatticeUtils.jl")
+include("Symmetry/SymOp.jl")
+include("Symmetry/Crystal.jl")
+include("Symmetry/Bond.jl")
+include("Symmetry/SymmetryAnalysis.jl")
+include("Symmetry/AllowedCouplings.jl")
+include("Symmetry/LocalOperators.jl")
+include("Symmetry/Anisotropy.jl")
+include("Symmetry/Parsing.jl")
+include("Symmetry/Printing.jl")
 export Crystal, subcrystal, nbasis, cell_volume, cell_type,
     lattice_vectors, lattice_params,
     Bond, displacement, distance, coordination_number,
@@ -44,21 +54,27 @@ export Crystal, subcrystal, nbasis, cell_volume, cell_type,
 include("Units.jl")
 export meV_per_K, Units
 
-include("Modeling/Modeling.jl")
+include("System/SiteInfo.jl")
+include("System/Types.jl")
+include("System/System.jl")
+include("System/PairExchanges.jl")
+include("System/SingleIonAnisotropies.jl")
+include("System/Ewald.jl")
+include("System/Interactions.jl")
 export SiteInfo, System, polarize_spins!, randomize_spins!, energy, forces,
     extend_periodically,
     set_external_field!, set_local_external_field!, set_anisotropy!, set_local_anisotropy!,
     set_exchange!, set_exchange_with_biquadratic!, dmvec,
     enable_dipole_dipole!
 
-include("Metropolis.jl")
-export MetropolisSampler, IsingSampler,
+include("Integrators.jl")
+export LangevinHeunP, ImplicitMidpoint, step!
+
+include("Samplers.jl")
+export MetropolisSampler, IsingSampler, LangevinSampler
     set_temp!, get_temp,
     sample!, thermalize!, anneal!,
     running_energy, running_mag, reset_running_energy!, reset_running_mag!
-
-include("Integrators.jl")
-export LangevinHeunP, ImplicitMidpoint, LangevinSampler, step!
 
 include("StructureFactors/StructureFactors.jl")
 export StructureFactor, FormFactor, expectation_trajectory, dipole_trajectory,
@@ -68,12 +84,12 @@ export StructureFactor, FormFactor, expectation_trajectory, dipole_trajectory,
     NoInterp, LinearInterp, Trace, Depolarize, Element
 
 include("WangLandau/BinnedArray.jl")
-export BinnedArray, filter_visited, reset!
-
 include("WangLandau/WangLandau.jl")
-export WangLandau, spherical_cap_update, init_bounded!, run!
+export BinnedArray, filter_visited, reset!,
+    WangLandau, spherical_cap_update, init_bounded!, run!
 
 include("SunnyGfx/SunnyGfx.jl")
+include("SunnyGfx/CrystalViewer.jl")
 export view_crystal, offline_viewers, browser
 
 

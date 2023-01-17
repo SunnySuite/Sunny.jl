@@ -57,8 +57,6 @@ function browser(sv::SunnyViewer; dir=Nothing)
     browser(wrap_html(sv.html_str); dir)
 end
 
-include("CrystalViewer.jl")
-
 function offline_viewers()
     three_src = inflate_gzip(joinpath(@__DIR__, "assets/three.js.min-143-dev.gz"))
     orbit_controls_src = inflate_gzip(joinpath(@__DIR__, "assets/OrbitControls.js-r142.gz"))
