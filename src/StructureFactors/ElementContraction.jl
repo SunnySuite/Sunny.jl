@@ -41,7 +41,6 @@ function Trace(sf::StructureFactor{N}) where N
     indices = sort(indices)
     return Trace(SVector{length(indices), Int64}(indices))
 end
-Trace() = sf -> Trace(sf)
 
 function Depolarize(sf::StructureFactor)
     if sf.sftraj.dipolemode 
@@ -49,13 +48,11 @@ function Depolarize(sf::StructureFactor)
     end
     error("Need to be in structure factor dipole mode to calculate depolarization correction.")
 end
-Depolarize() = sf -> Depolarize(sf)
 
 function Element(sf::StructureFactor, pair)
     index = sf.sfdata.idxinfo[CartesianIndex(pair)]
     return Element(index)
 end
-Element(pair::Tuple{Int64, Int64}) = sf -> Element(sf, pair)
 
 
 ################################################################################
