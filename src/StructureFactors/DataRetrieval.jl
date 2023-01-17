@@ -13,9 +13,6 @@ function calc_intensity(sf::StructureFactor{N, NumCorr}, q, iq, ω, iω, contrac
     return intensity
 end
 
-function Base.zeros(::Contraction{T}, args...) where T
-    zeros(T, args...)
-end
 
 """
 Propagates from the form factor information, provided when requesting intensities,
@@ -91,16 +88,12 @@ function prune_stencil_qs(sfd, q_targets, interp::InterpolationScheme{N}) where 
     return (; counts, qis_all, qs_all)
 end
 
-"""
-"""
-function get_intensities(sf::StructureFactor, q_targets::Array;
-    interp = NoInterp(), contraction = Trace(), temp = nothing,
-    formfactors = nothing, negative_energies = false, newbasis = nothing,
-)
-    nq = length(q_targets)
+# Type stable version
+function get_intensities(sf::StructureFactor, q_targets::Array, interp::InterpolationScheme, contraction::Contraction{T};
+    temp = nothing, formfactors = nothing, negative_energies = false, newbasis = nothing,
+) where {T}
     ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
     nω = length(ωs) 
-    contractor = contraction(sf)
     ffdata = propagate_form_factors(sf, formfactors)
     if !isnothing(newbasis)
         newbasis = Mat3(newbasis)
@@ -108,7 +101,7 @@ function get_intensities(sf::StructureFactor, q_targets::Array;
     end
     q_targets = convert.(Vec3, q_targets)
 
-    intensities = zeros(contractor, size(q_targets)..., nω)
+    intensities = zeros(T, size(q_targets)..., nω)
     li_intensities = LinearIndices(intensities)
     ci_qs = CartesianIndices(q_targets)
     (; counts, qis_all, qs_all) = prune_stencil_qs(sf.sfdata, q_targets, interp)
@@ -117,7 +110,7 @@ function get_intensities(sf::StructureFactor, q_targets::Array;
         iq = 0
         for (c, numrepeats) in enumerate(counts)
             qs, qis = qs_all[c], qis_all[c]
-            local_intensities = stencil_intensities(sf, qs, qis, ωs[iω], iω, interp, contractor, temp, ffdata)
+            local_intensities = stencil_intensities(sf, qs, qis, ωs[iω], iω, interp, contraction, temp, ffdata)
             for _ in 1:numrepeats
                 iq += 1
                 idx = li_intensities[CartesianIndex(ci_qs[iq], iω)]
@@ -127,15 +120,37 @@ function get_intensities(sf::StructureFactor, q_targets::Array;
         # @assert iq == length(q_targets)
     end
 
-    return nq == 1 ? reshape(intensities, nω) : intensities
+    return intensities
 end
+
+# User-facing version
+function get_intensities(sf::StructureFactor, q_targets::Array;
+    interpolation = :none, contraction = :trace, kwargs...)
+
+    interp = if interpolation == :none 
+        NoInterp()
+    elseif interpolation == :linear
+        LinearInterp()
+    end
+
+    contract = if contraction == :trace
+        Trace(sf)
+    elseif contraction == :depolarize
+        Depolarize(sf)
+    elseif typeof(contraction) <: Tuple{Int, Int}
+        Element(sf, contraction)
+    end
+
+    return get_intensities(sf, q_targets, interp, contract; kwargs...)
+end
+
 
 
 function get_intensity(sf::StructureFactor, q; kwargs...) 
     if length(q) != 3
         error("Q point should have three components.")
     end
-    return get_intensities(sf, [Vec3(q...)]; kwargs...)
+    return get_intensities(sf, [Vec3(q)]; kwargs...)
 end
 
 function get_static_intensity(sf::StructureFactor, q; kwargs...)
@@ -193,11 +208,10 @@ end
 
 
 function path(sf::StructureFactor, points::Vector; 
-    density = 10, interp=Sunny.NoInterp(), contraction=Sunny.depolarize, temp=nothing,
-    index_labels=false, kwargs...
+    density = 10, index_labels=false, kwargs...
 )
     qpoints = path_points(points, density)
-    intensities = Sunny.get_intensities(sf, qpoints; interp, contraction, temp, kwargs...) 
+    intensities = Sunny.get_intensities(sf, qpoints; kwargs...) 
     if index_labels
         ωs = ωvals(sf)
         return (; intensities, qpoints, ωs)
@@ -222,11 +236,10 @@ function static_slice_points(p1, p2, z, density)
 end
 
 function static_slice(sf::StructureFactor, p1, p2, z = 0.0; 
-    density = 10, interp=Sunny.NoInterp(), contraction=Sunny.depolarize, temp=nothing,
-    index_labels=false
+    density = 10, index_labels=false, kwargs...
 )
     qpoints = static_slice_points(p1, p2, z, density)
-    intensities = Sunny.get_static_intensities(sf, qpoints; interp, contraction, temp)
+    intensities = Sunny.get_static_intensities(sf, qpoints; kwargs...)
 
     if index_labels
         return (; intensities, qpoints)
