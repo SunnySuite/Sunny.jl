@@ -1,16 +1,22 @@
-struct FormFactor
+const EMPTY_FF = 1
+const SINGLE_FF = 2 
+const DOUBLE_FF = 3
+
+Base.@kwdef struct FormFactor{FFType}
     atom      :: Int64
-    J0_params :: NTuple{7, Float64}
-    J2_params :: Union{Nothing, NTuple{7, Float64}}
-    g_lande   :: Union{Nothing, Float64}
+    J0_params :: NTuple{7, Float64} = (1, 0, 0, 0, 0, 0, 0)  # Default values so there is no effect if FFType is promoted
+    J2_params :: NTuple{7, Float64} = (0, 0, 0, 0, 0, 0, 0)
+    g_lande   :: Float64 = 1
 end
 
 """
     FormFactor(atom::Int64, elem::String; g_lande=nothing)
 
-Basic type for specifying form factor data, used when calling [`get_intensities`](@ref).
-Must be provided a site within the unit cell (`atom`) and a string specifying the
-element name. A list of supported element names is available at:
+Basic type for specifying form factor parameters. Must be provided a site within
+the unit cell (`atom`) and a string specifying the element name. This used when
+calling [`get_intensities`](@ref), which requires a list of `FormFactors`s.
+
+A list of supported element names is available at:
 
 https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
 
@@ -18,7 +24,7 @@ The Landé g-factor may also be specified.
 
 See [`compute_form`](@ref) for further details about the calculation.
 """
-function FormFactor(atom::Int64, elem::String; g_lande=nothing)
+function FormFactor(atom::Int64, elem::Union{Nothing, String}; g_lande=nothing) # default g_lande = 1.0 will never affect calculation -- better than Nothing
 
     function lookup_ff_params(elem, datafile) :: NTuple{7, Float64}
         path = joinpath(joinpath(@__DIR__, "data"), datafile)
@@ -30,14 +36,31 @@ function FormFactor(atom::Int64, elem::String; g_lande=nothing)
         Tuple(parse.(Float64, split(matches[1])[2:end]))
     end
 
-    # Look up parameters
-    J0_params = !isnothing(elem) ? lookup_ff_params(elem, "form_factor_J0.dat") : nothing
-    J2_params = !isnothing(g_lande) ? lookup_ff_params(elem, "form_factor_J2.dat") : nothing
+    return if !isnothing(g_lande) # Only attempt to lookup J2 parameters if Lande g-factor is provided
+        J0_params = lookup_ff_params(elem, "form_factor_J0.dat")
+        J2_params = lookup_ff_params(elem, "form_factor_J2.dat")
+        FormFactor{DOUBLE_FF}(; atom, J0_params, J2_params, g_lande)
+    elseif !isnothing(elem)
+        J0_params = lookup_ff_params(elem, "form_factor_J0.dat")
+        FormFactor{SINGLE_FF}(; atom, J0_params)
+    else
+        FormFactor{EMPTY_FF}(; atom)
+    end
+end
 
-    # Ensure type of g_lande
-    g_lande = !isnothing(g_lande) ? Float64(g_lande) : nothing
 
-    FormFactor(atom, J0_params, J2_params, g_lande)
+function propagate_form_factors(cryst::Crystal, ffs)
+    # Make sure `FormFactor` type parameter is uniform for all elements of list.
+    # This ensures that `phase_averaged_elements` knows which version of
+    # `compute_form` to call at compile time.
+    FFType = maximum([typeof(ff).parameters[1] for ff in ffs])
+
+    ref_atoms = [ff.atom for ff in ffs]
+    atoms = propagate_reference_atoms(cryst, ref_atoms)
+    return map(enumerate(ffs[atoms])) do (atom, ff)
+        (; J0_params, J2_params, g_lande) = ff
+        FormFactor{FFType}(; atom, J0_params, J2_params, g_lande)
+    end
 end
 
 
@@ -87,20 +110,25 @@ Additional references are:
  * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
  * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
 """
-function compute_form(q::Float64, params::FormFactor)
+function compute_form(q::Float64, params::FormFactor{DOUBLE_FF})
     s = q/4π
+    g = params.g_lande
 
-    # J0 correction
     (A, a, B, b, C, c, D) = params.J0_params
     form1 = A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
-    if isnothing(params.g_lande)
-        return form1
-    end
 
-    # J2 correction
-    g = params.g_lande
     (A, a, B, b, C, c, D) = params.J2_params
     form2 = A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
 
     return ((2-g)/g) * (form2*s^2) + form1
+end
+
+function compute_form(q::Float64, params::FormFactor{SINGLE_FF})
+    s = q/4π
+    (A, a, B, b, C, c, D) = params.J0_params
+    return A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
+end
+
+function compute_form(::Float64, ::FormFactor{EMPTY_FF})
+    return 1.0
 end
