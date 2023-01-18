@@ -231,10 +231,11 @@ functionality is very similar to [`get_intensities`](@ref), except the returned
 array has dimensions identical to `qs`. The energy axis has been summed out.
 """
 function get_static_intensities(sf::StructureFactor, qs::Array; kwargs...)
-    ndims = length(size(qs))
+    datadims = size(qs)
+    ndims = length(datadims)
     intensities = get_intensities(sf, qs; kwargs...)
     static_intensities = sum(intensities, dims=(ndims+1,))
-    return reshape(static_intensities, dims)
+    return reshape(static_intensities, datadims)
 end
 
 
