@@ -135,7 +135,7 @@ function get_intensities(sf::StructureFactor, qs::Array;
     # Propagate form factor information (if any)
     cryst = sf.sfdata.crystal
     if isnothing(formfactors)
-        formfactors = [FormFactor{EMPTY_FF}(; atom) for atom in cryst.classes]
+        formfactors = [FormFactor{EMPTY_FF}(; atom) for atom in unique(cryst.classes)]
     end
     ffdata = propagate_form_factors(cryst, formfactors)
 

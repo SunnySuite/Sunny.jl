@@ -49,7 +49,7 @@ function FormFactor(atom::Int64, elem::Union{Nothing, String}; g_lande=nothing) 
 end
 
 
-function propagate_form_factors(cryst::Crystal, ffs)
+function propagate_form_factors(cryst::Crystal, ffs::Vector{<:FormFactor})
     # Make sure `FormFactor` type parameter is uniform for all elements of list.
     # This ensures that `phase_averaged_elements` knows which version of
     # `compute_form` to call at compile time.
