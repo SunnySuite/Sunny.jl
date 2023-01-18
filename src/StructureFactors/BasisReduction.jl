@@ -1,3 +1,4 @@
+# ddtodo: Could make nbasis statically known and, e.g., call `compute_form` only once for each basis element. Loop unrolling also a possible benefit. 
 function phase_averaged_elements(data, k::Vec3, cryst::Crystal, ffdata::Vector{FormFactor{FFType}}, ::Val{NumElem}) where {NumElem, FFType}
     elems = zero(SVector{NumElem, ComplexF64})
     knorm = norm(k)
