@@ -13,40 +13,6 @@ function calc_intensity(sf::StructureFactor{N, NumCorr}, k, latidx, ω, iω, con
     return intensity
 end
 
-
-# Propagates from the form factor information, provided when requesting intensities,
-# to all symmetry equivalent sites. Works on the back of `all_symmetry_related_couplings`,
-# which also takes g-factor information, which is irrelevent here. We could perhaps write a simpler
-# symmetry propagation function to make this code nicer, but it would only ever be used here.
-function propagate_form_factors(sf::StructureFactor, form_factors)
-    sys = sf.sftraj.sys
-    natoms = size(sys.dipoles, 4)
-    all_form_factors = Vector{Union{FormFactor, Nothing}}(nothing, natoms)
-    if !isnothing(form_factors)
-        specified_atoms = Int[]
-        for form_factor in form_factors 
-            atom = form_factor.atom
-            # Using all_symmetry_related_couplings for convenience -- don't need transformed gs
-            (sym_bonds, sym_gs) = all_symmetry_related_couplings(
-                sys.crystal,
-                Bond(atom, atom, [0,0,0]),
-                2*I(3)  # This is irrelevant -- see note above this function
-            )
-            for (sym_bond, _) in zip(sym_bonds, sym_gs)
-                sym_atom = sym_bond.i
-                if sym_atom in specified_atoms
-                    error("Provided `FormFactor` information for two symmetry equivalent sites!")
-                else
-                    push!(specified_atoms, sym_atom)
-                end
-                all_form_factors[sym_atom] = form_factor
-            end
-        end
-    end
-    return all_form_factors
-end
-
-
 # Note that requests for intensities often come in lists of nearby q values. Since the data
 # is inherently discretized, this often results in repeated calls for values at the same 
 # discrete points. Since basis reduction is done for each of this calls, this results in 
@@ -56,10 +22,10 @@ end
 function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationScheme{N}) where N
     # Count the number of contiguous regions with unchanging values.
     # If all values are unique, returns the length of q_info.
-    # Note comparison is on m values rather than index values (i.e., x[1] and y[1])
+    # Note comparison is on m values rather than index values and the m values are the first
+    # element of the a tuple, that is, we're checking x[1] == y[1] in the map.
     m_info = map(q -> stencil_points(sf, q, interp), qs)
     numregions = sum(map((x,y) -> x[1] == y[1] ? 0 : 1, m_info[1:end-1], m_info[2:end])) + 1
-
     
     # Remove repeated stencil points and count number of instances of each
     ms_ref, idcs_ref = stencil_points(sf, qs[1], interp)
@@ -84,9 +50,11 @@ function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationSchem
     # Calculate corresponding q (RLU) and k (global) vectors
     (; crystal, latsize) = sf.sftraj.sys
     recip_vecs = 2π*inv(crystal.lat_vecs)
+
     qs_all = map(ms_all) do ms
        map(m -> m ./ latsize, ms) 
     end
+
     ks_all = map(qs_all) do qs
         map(q -> recip_vecs * q, qs)
     end
@@ -101,34 +69,36 @@ end
                        kT = nothing, newbasis = nothing, 
                        formfactors = nothing, negative_energies = false)
 
-The basic function for retrieving 𝒮(q,ω) information from a `StructureFactor`.
-Takes an array of wave vectors of any dimension, `qs`, and returns an array of
-intensities of the same dimension plus an added final index for energy values.
-The energy values corresponding the final index can be retrieved by calling
-[`ωvals`](@ref). The wave vectors should be specified as 3-vectors or 3-tuples in
-terms of reciprocal lattice units (RLUs).  
+The basic function for retrieving ``𝒮(q,ω)`` information from a
+`StructureFactor`. Takes an array of wave vectors of any dimension, `qs`, and
+returns an array of intensities of the same dimension plus an added final index
+for energy values. The energy values corresponding the final index can be
+retrieved by calling [`ωvals`](@ref). The wave vectors should be specified as
+3-vectors or 3-tuples in terms of reciprocal lattice units (RLUs).  
 
-- `contraction`: Determines the operation performed on the matrix elements α and β
-    of 𝒮^{αβ}(q,ω) when requesting an intensity. By default, Sunny returns the
-    trace: ∑𝒮^{αα}(q,ω). Polarization correction can be achieved by setting
-    `contraction=:depolarize`. To retrieve a single matrix element, pass
-    `contraction` a tuple of `Int`s. For example, to retrieve the `xy` correlation,
-    set `contraction=(1,2)`.
-- `interpolation`: Since 𝒮(q,ω) is only calculated on a finite lattice, data is only
-    available at discrete wave vectors. By default, Sunny will round a requested `q` to
-    the nearest available wave vector. Linear interpolation can be applied by setting
-    `interpolation=:linear`.
-- `kT`: If a temperature is provided, the intensities will be rescaled by a temperature-
-    and ω-dependent classical-to-quantum factor. `kT` should be specified when making
-    comparisons with spin wave calculations or experimental data.
-- `newbasis`: If the `qs` are given in terms of a basis other than the reciprocal
-    lattice vectors, `newbasis` should be given a 3x3 matrix, the columns of which
-    determine the new basis by specifying linear combinations of the reciprocal vectors. 
-- `formfactors`: To apply form factor corrections, provide this keyword with a vector
-    of `FormFactor`s, one for each unique site in the unit cell. Sunny will symmetry
-    propagate the results to all equivalent sites.
-- `negative_energies`: If set to `true`, Sunny will return the periodic extension of 
-    the energy axis. Most users will not want this.
+- `contraction`: Determines the operation performed on the matrix elements α and
+    β of ``𝒮^{αβ}(q,ω)`` when requesting an intensity. By default, Sunny
+    returns the trace: ``∑_α 𝒮^{αα}(q,ω)``. Polarization correction can be
+    achieved by setting `contraction=:depolarize`. To retrieve a single matrix
+    element, pass `contraction` a tuple of `Int`s. For example, to retrieve the
+    `xy` correlation, set `contraction=(1,2)`.
+- `interpolation`: Since ``𝒮(q,ω)`` is calculated on a finite lattice, data is
+    only available at discrete wave vectors. By default, Sunny will round a
+    requested `q` to the nearest available wave vector. Linear interpolation can
+    be applied by setting `interpolation=:linear`.
+- `kT`: If a temperature is provided, the intensities will be rescaled by a
+    temperature- and ω-dependent classical-to-quantum factor. `kT` should be
+    specified when making comparisons with spin wave calculations or
+    experimental data.
+- `newbasis`: If the `qs` are given in terms of a basis other than the
+    reciprocal lattice vectors, `newbasis` should be given a 3x3 matrix, the
+    columns of which determine the new basis by specifying linear combinations
+    of the reciprocal vectors. 
+- `formfactors`: To apply form factor corrections, provide this keyword with a
+    vector of `FormFactor`s, one for each unique site in the unit cell. Sunny
+    will symmetry propagate the results to all equivalent sites.
+- `negative_energies`: If set to `true`, Sunny will return the periodic
+    extension of the energy axis. Most users will not want this.
 """
 function get_intensities(sf::StructureFactor, qs::Array;
     contraction = :trace,
@@ -162,13 +132,19 @@ function get_intensities(sf::StructureFactor, qs::Array;
         q_targets = map(q -> newbasis*q, q_targets)
     end
 
+    # Propagate form factor information (if any)
+    cryst = sf.sfdata.crystal
+    if isnothing(formfactors)
+        formfactors = [FormFactor{EMPTY_FF}(; atom) for atom in cryst.classes]
+    end
+    ffdata = propagate_form_factors(cryst, formfactors)
+
     # Precompute index information and preallocate
     ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
     nω = length(ωs) 
-    ffdata = propagate_form_factors(sf, formfactors)
     intensities = zeros(contract, size(q_targets)..., nω)
     stencil_info = pruned_stencil_info(sf, q_targets, interp) 
-
+    
     # Call type stable version of the function
     get_intensities!(intensities, sf, q_targets, ωs, interp, contract, kT, ffdata, stencil_info) #ddtodo: Track down allocations
 
@@ -243,12 +219,14 @@ end
     intensity_grid(sf::StructureFactor;
                        bzsize=(1,1,1), negative_energies = false, index_labels = false, kwargs...)
 
-Returns intensities at discrete wave vectors for which there is exact information.
-Shares all keywords with [`get_intensities`](@ref), and provides two additional options:
+Returns intensities at discrete wave vectors for which there is exact
+information. Shares all keywords with [`get_intensities`](@ref), and provides
+two additional options:
 
-- `bzsize`: Specifies the number of Brillouin zones to return, given as a 3-tuple of integers.
-- `index_labels`: If set to `true`, will return axis label information for the data,
-    which may be upacked as: `(; intensities, qpoints, ωs)`.
+- `bzsize`: Specifies the number of Brillouin zones to return, given as a
+  3-tuple of integers.
+- `index_labels`: If set to `true`, will return axis label information for the
+    data, which may be upacked as: `(; intensities, qpoints, ωs)`.
 """
 function intensity_grid(sf::StructureFactor;
                             bzsize=(1,1,1), negative_energies = false, index_labels = false, kwargs...)
@@ -282,12 +260,13 @@ end
 """
     path(sf::StructureFactor, points::Vector; density = 10, index_labels=false, kwargs...)
 
-Takes a list of ordered wave vectors, `points`, and extracts a path along a lines connecting
-these wave vectors. The number of wave vectors sampled between the specified points is 
-determined by the `density` keyword, which determines the number of points per inverse
-angstrom. If `index_labels` is set to `true`, will return index label information which
-may be unpacked as `(; intensities, qs, ωs)`. `intensities` will be a two dimension array,
-with the first index corresponding to wave vectors (`q`) and the second to energy (`ω`).
+Takes a list of ordered wave vectors, `points`, and extracts a path along a
+lines connecting these wave vectors. The number of wave vectors sampled between
+the specified points is determined by the `density` keyword, which determines
+the number of points per inverse angstrom. If `index_labels` is set to `true`,
+will return index label information which may be unpacked as `(; intensities,
+qs, ωs)`. `intensities` will be a two dimension array, with the first index
+corresponding to wave vectors (`q`) and the second to energy (`ω`).
 
 All other keywords are shared with [`get_intensities`](@ref).
 """
