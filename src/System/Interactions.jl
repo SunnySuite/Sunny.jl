@@ -60,7 +60,7 @@ end
 Computes the total system energy.
 """
 function energy(sys::System{N}) where N
-    (; dipoles, coherents, κs) = sys
+    (; dipoles, coherents) = sys
     (; extfield, anisos, pairexch, ewald) = sys.interactions
 
     E = 0.0
@@ -80,9 +80,8 @@ function energy(sys::System{N}) where N
     else
         for idx in all_sites(sys)
             Λ = anisos[idx[4]].matrep
-            κ = κs[idx[4]]
             Z = coherents[idx]
-            E += κ * real(Z' * Λ * Z)
+            E += real(dot(Z, Λ, Z))
         end
     end
 
@@ -126,7 +125,7 @@ end
 
 function local_energy_change(sys::System{N}, idx, state::SpinState) where N
     (; s, Z) = state
-    (; dipoles, coherents, κs) = sys
+    (; dipoles, coherents) = sys
     (; extfield, anisos, pairexch, ewald) = sys.interactions
 
     s₀ = dipoles[idx]
@@ -147,7 +146,7 @@ function local_energy_change(sys::System{N}, idx, state::SpinState) where N
         ΔE += E_new - E_old
     else
         Λ = anisos[b].matrep
-        ΔE += κs[b] * real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
+        ΔE += real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
     end
 
     (; heisen, quadmat, biquad) = pairexch[b]

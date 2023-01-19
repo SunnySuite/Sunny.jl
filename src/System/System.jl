@@ -51,7 +51,6 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{Site
 
     interactions = Interactions(crystal, N)
 
-    # Initialize sites to all spins along +z
     dipoles = fill(zero(Vec3), latsize..., nbasis(crystal))
     coherents = fill(zero(CVec{N}), latsize..., nbasis(crystal))
     dipole_buffers = Array{Vec3, 4}[]
@@ -134,6 +133,11 @@ struct SpinState{N}
     Z::CVec{N}
 end
 
+# Returns √κ * normalize(Z), but avoids an extra square root
+@inline function normalize_ket(Z::CVec{N}, κ) where N
+    return Z / sqrt(dot(Z,Z)/κ)
+end
+
 @inline function getspin(sys::System{N}, idx::Idx) where N
     return SpinState(sys.dipoles[idx], sys.coherents[idx])
 end
@@ -153,8 +157,8 @@ end
     return SpinState(s, CVec{0}())
 end
 @inline function randspin(sys::System{N}, idx) where N
-    Z = normalize(randn(sys.rng, CVec{N}))
-    s = sys.κs[idx[4]] * expected_spin(Z)
+    Z = normalize_ket(randn(sys.rng, CVec{N}), sys.κs[idx[4]])
+    s = expected_spin(Z)
     return SpinState(s, Z)
 end
 
@@ -164,8 +168,8 @@ end
     return SpinState(s, Z)
 end
 @inline function dipolarspin(sys::System{N}, idx, dir) where N
-    Z = ket_from_dipole(Vec3(dir), Val(N))
-    s = sys.κs[idx[4]] * expected_spin(Z)
+    Z = sqrt(sys.κs[idx[4]]) * ket_from_dipole(Vec3(dir), Val(N))
+    s = expected_spin(Z)
     return SpinState(s, Z)
 end
 
