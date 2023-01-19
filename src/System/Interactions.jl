@@ -29,6 +29,7 @@ determined by the unit system.
 """
 function enable_dipole_dipole!(sys::System)
     sys.interactions.ewald = Ewald(sys)
+    return
 end
 
 """
@@ -241,10 +242,10 @@ set_forces!(B::Array{Vec3}, sys::System{N}) where N = set_forces!(B, sys.dipoles
 """
     forces(Array{Vec3}, sys::System)
 
-Returns the effective local field (force) at each site, ``Bᵅᵢ = -∂H/∂sᵅᵢ``.
+Returns the effective local field (force) at each site, ``𝐁 = -∂E/∂𝐬``.
 """
 function forces(sys::System{N}) where N
     B = zero(sys.dipoles)
     set_forces!(B, sys)
-    B
+    return B
 end

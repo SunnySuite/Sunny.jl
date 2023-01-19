@@ -242,7 +242,7 @@ end
 #
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     (; atol) = integrator
-    (ΔZ, Zb, Z′, Z″) = get_coherent_buffers(sys, 4)
+    (ΔZ, Z̄, Z′, Z″) = get_coherent_buffers(sys, 4)
     B = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
@@ -250,9 +250,9 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     @. Z″ = Z 
 
     for _ in 1:max_iters
-        @. Zb = (Z + Z′)/2
+        @. Z̄ = (Z + Z′)/2
 
-        rhs_ll!(ΔZ, Zb, B, integrator, sys)
+        rhs_ll!(ΔZ, Z̄, B, integrator, sys)
 
         @. Z″ = Z + ΔZ
 
