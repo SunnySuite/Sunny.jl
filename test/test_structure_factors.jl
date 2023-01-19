@@ -53,8 +53,8 @@
 
     # Test diagonal elements are approximately real (at one wave vector)
     for α ∈ 1:3
-        intensity = get_intensity(sf, (0.25, 0.5, 0); contraction=(α,α))
-        @test sum(imag(intensity)) < 1e-15
+        intensities = get_intensities(sf, (0.25, 0.5, 0); contraction=(α,α))
+        @test sum(imag(intensities)) < 1e-15
     end
 
 

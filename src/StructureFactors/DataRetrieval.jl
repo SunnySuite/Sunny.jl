@@ -175,27 +175,15 @@ function get_intensities!(intensities, sf::StructureFactor, q_targets::Array, ω
 end
 
 
-"""
-    get_intensity(sf::StructureFactor, q; kwargs...) 
+function get_intensities(sf::StructureFactor, q::NTuple{3,Number}; kwargs...)
+    return get_intensities(sf, [Vec3(q)]; kwargs...)[1,:]
+end
 
-Like [`get_intensities`](@ref), but takes only a single q of length 3.
-"""
-function get_intensity(sf::StructureFactor, q; kwargs...) 
+function get_intensities(sf::StructureFactor, q::AbstractArray{Number,1}; kwargs...)
     if length(q) != 3
         error("Q point should have three components.")
     end
-    return get_intensities(sf, [Vec3(q)]; kwargs...)'
-end
-
-
-"""
-    get_static_intensity(sf::StructureFactor, q; kwargs...)
-
-Like [`get_static_intensities`](@ref), but takes only a single q of length 3.
-"""
-function get_static_intensity(sf::StructureFactor, q; kwargs...)
-    intensities = get_intensity(sf, q; kwargs...)
-    return sum(intensities)
+    return get_intensities(sf, [Vec3(q)]; kwargs...)[1,:]
 end
 
 
@@ -213,6 +201,20 @@ function get_static_intensities(sf::StructureFactor, qs::Array; kwargs...)
     static_intensities = sum(intensities, dims=(ndims+1,))
     return reshape(static_intensities, datadims)
 end
+
+function get_static_intensities(sf::StructureFactor, q::NTuple{3, T}; kwargs...) where T <: Number
+    intensities = get_intensity(sf, [Vec3(q)]; kwargs...)
+    return sum(intensities)
+end
+
+function get_static_intensities(sf::StructureFactor, q::AbstractArray{T,1}; kwargs...) where T <: Number
+    if length(q) != 3
+        error("Q point should have three components.")
+    end
+    intensities = get_intensity(sf, [Vec3(q)]; kwargs...)
+    return sum(intensities)
+end
+
 
 
 """
