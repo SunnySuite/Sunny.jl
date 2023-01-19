@@ -27,7 +27,7 @@ See [`compute_form`](@ref) for further details about the calculation.
 function FormFactor(atom::Int64, elem::Union{Nothing, String}; g_lande=nothing) # default g_lande = 1.0 will never affect calculation -- better than Nothing
 
     function lookup_ff_params(elem, datafile) :: NTuple{7, Float64}
-        path = joinpath(joinpath(@__DIR__, "data"), datafile)
+        path = joinpath(@__DIR__, "data", datafile)
         lines = collect(eachline(path))
         matches = filter(line -> startswith(line, elem), lines)
         if isempty(matches)
@@ -110,8 +110,8 @@ Additional references are:
  * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
  * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
 """
-function compute_form(q::Float64, params::FormFactor{DOUBLE_FF})
-    s = q/4π
+function compute_form(k::Float64, params::FormFactor{DOUBLE_FF})
+    s = k/4π
     g = params.g_lande
 
     (A, a, B, b, C, c, D) = params.J0_params
@@ -123,8 +123,8 @@ function compute_form(q::Float64, params::FormFactor{DOUBLE_FF})
     return ((2-g)/g) * (form2*s^2) + form1
 end
 
-function compute_form(q::Float64, params::FormFactor{SINGLE_FF})
-    s = q/4π
+function compute_form(k::Float64, params::FormFactor{SINGLE_FF})
+    s = k/4π
     (A, a, B, b, C, c, D) = params.J0_params
     return A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
 end

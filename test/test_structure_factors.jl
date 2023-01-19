@@ -1,4 +1,4 @@
-@testitem "Structure Factor Functionality" begin
+@testitem "Structure factors" begin
 
     function simple_model_sf(; mode, seed=111)
         latsize = (4,4,4)
@@ -78,5 +78,41 @@
     @test total_intensity_static ≈ total_intensity_trace  # Order of summation can lead to very small discrepancies
 end
 
-@testitem "Structure Factor Reference" begin
+
+@testitem "Structure factor reference" begin
+    using DelimitedFiles
+
+    function diamond_model(; J, dims = (3,3,3), kwargs...)
+        crystal = Sunny.diamond_crystal()
+        S = 3/2
+        sys = System(crystal, dims, [SiteInfo(1; S)]; mode=:dipole, kwargs...)
+        sys.κs .= 3/2  # This can be removed when potential bug is fixed
+        set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
+        randomize_spins!(sys)
+        return sys
+    end
+
+    seed = 101
+    J = Sunny.meV_per_K * 7.5413 
+    sys = diamond_model(; J, seed)
+
+    Δt_therm = 0.07 
+    kT = Sunny.meV_per_K * 2. # Units of meV
+    λ  = 0.1
+    integrator = LangevinHeunP(kT, λ, Δt_therm)
+
+    # Thermalize
+    for _ ∈ 1:3000
+        step!(sys, integrator)
+    end
+
+    # Calculate a path
+    sampler = LangevinSampler(integrator, 1000)
+    sf = calculate_structure_factor(sys, sampler; numω=25, ωmax=5.5, numsamps=1)
+    points = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
+    intensities = path(sf, points; interpolation = :linear, contraction = :trace, kT)
+
+    # Compare with reference 
+    refdata = readdlm(joinpath(@__DIR__, "..", "src", "StructureFactors", "data", "sf_ref.dat"))
+    @test intensities == refdata
 end
