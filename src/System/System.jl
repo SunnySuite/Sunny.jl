@@ -102,16 +102,19 @@ const Cell = CartesianIndex{3}
 const Idx = CartesianIndex{4}
 
 # Element-wise application of mod1(cell+off, latsize), returning CartesianIndex
-@inline offsetc(cell::CartesianIndex{3}, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
+@inline offsetc(cell::Cell, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
 
 # Split a Cartesian index (cell,i) into its parts cell and i.
-@inline splitidx(idx::CartesianIndex{4}) = (CartesianIndex((idx[1],idx[2],idx[3])), idx[4])
+@inline splitidx(idx::Idx) = (CartesianIndex((idx[1],idx[2],idx[3])), idx[4])
 
-@inline convert_idx(idx::CartesianIndex{4}) = idx
+@inline convert_idx(idx::Idx) = idx
 @inline convert_idx(idx::NTuple{4,Int}) = CartesianIndex(idx)
 
 # An iterator over all sites using CartesianIndices
 @inline all_sites(sys::System) = CartesianIndices(sys.dipoles)
+
+# An iterator over all unit cells using CartesianIndices
+@inline all_cells(sys::System) = CartesianIndices(sys.latsize)
 
 # Position of a site in global coordinates
 position(sys::System, idx) = sys.crystal.lat_vecs * (sys.crystal.positions[idx[4]] .+ (idx[1]-1, idx[2]-1, idx[3]-1))
@@ -131,11 +134,11 @@ struct SpinState{N}
     Z::CVec{N}
 end
 
-@inline function getspin(sys::System{N}, idx::CartesianIndex{4}) where N
+@inline function getspin(sys::System{N}, idx::Idx) where N
     return SpinState(sys.dipoles[idx], sys.coherents[idx])
 end
 
-@inline function setspin!(sys::System{N}, spin::SpinState{N}, idx::CartesianIndex{4}) where N
+@inline function setspin!(sys::System{N}, spin::SpinState{N}, idx::Idx) where N
     sys.dipoles[idx] = spin.s
     sys.coherents[idx] = spin.Z
     nothing

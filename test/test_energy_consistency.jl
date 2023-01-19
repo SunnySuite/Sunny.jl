@@ -43,14 +43,14 @@
     function test_delta(sys)
         for _ in 1:5
             # Pick a random site, try to set it to a random spin
-            idx = rand(sys.rng, CartesianIndices(sys.dipoles))
-            state = Sunny.randspin(sys, idx)
+            idx = rand(sys.rng, Sunny.all_sites(sys))
+            spin = Sunny.randspin(sys, idx)
             
-            ΔE = Sunny.local_energy_change(sys, idx, state)
+            ΔE = Sunny.local_energy_change(sys, idx, spin)
 
             E0 = energy(sys)
-            sys.dipoles[idx]   = state.s
-            sys.coherents[idx] = state.Z
+            sys.dipoles[idx]   = spin.s
+            sys.coherents[idx] = spin.Z
             E1 = energy(sys)
             ΔE_ref = E1 - E0
 

@@ -67,18 +67,18 @@ function energy(sys::System{N}) where N
     latsize = size(dipoles)[1:3]
 
     # Zeeman coupling to external field
-    @inbounds for idx in CartesianIndices(dipoles)
+    for idx in all_sites(sys)
         E -= extfield[idx[4]] ⋅ dipoles[idx]
     end
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
-        for idx in CartesianIndices(coherents)
+        for idx in all_sites(sys)
             E_idx, _ = energy_and_gradient_for_classical_anisotropy(dipoles[idx], anisos[idx[4]].clsrep)
             E += E_idx
         end
     else
-        for idx in CartesianIndices(coherents)
+        for idx in all_sites(sys)
             Λ = anisos[idx[4]].matrep
             κ = κs[idx[4]]
             Z = coherents[idx]
@@ -90,7 +90,7 @@ function energy(sys::System{N}) where N
         # Heisenberg exchange
         for (culled, bond, J) in heisen
             culled && break
-            for cell in CartesianIndices(latsize)
+            for cell in all_cells(sys)
                 sᵢ = dipoles[cell, bond.i]
                 sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
                 E += J * dot(sᵢ, sⱼ)
@@ -99,7 +99,7 @@ function energy(sys::System{N}) where N
         # Quadratic exchange
         for (culled, bond, J) in quadmat
             culled && break
-            for cell in CartesianIndices(latsize)
+            for cell in all_cells(sys)
                 sᵢ = dipoles[cell, bond.i]
                 sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
                 E += dot(sᵢ, J, sⱼ)
@@ -108,7 +108,7 @@ function energy(sys::System{N}) where N
         # Biquadratic exchange
         for (culled, bond, J) in biquad
             culled && break
-            for cell in CartesianIndices(latsize)
+            for cell in all_cells(sys)
                 sᵢ = dipoles[cell, bond.i]
                 sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
                 E += J * dot(sᵢ, sⱼ)^2
@@ -183,14 +183,14 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N})
     fill!(B, zero(Vec3))
 
     # Zeeman coupling
-    @inbounds for idx in CartesianIndices(dipoles)
+    for idx in all_sites(sys)
         B[idx] += extfield[idx[4]]
     end
 
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into ℌ.
     if N == 0
-        for idx in CartesianIndices(dipoles)
+        for idx in all_sites(sys)
             _, gradE = energy_and_gradient_for_classical_anisotropy(dipoles[idx], anisos[idx[4]].clsrep)
             B[idx] -= gradE
         end
@@ -200,7 +200,7 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N})
         # Heisenberg exchange
         for (culled, bond, J) in heisen
             culled && break
-            for cellᵢ in CartesianIndices(latsize)
+            for cellᵢ in all_cells(sys)
                 cellⱼ = offsetc(cellᵢ, bond.n, latsize)
                 sᵢ = dipoles[cellᵢ, bond.i]
                 sⱼ = dipoles[cellⱼ, bond.j]
@@ -211,7 +211,7 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N})
         # Quadratic exchange
         for (culled, bond, J) in quadmat
             culled && break
-            for cellᵢ in CartesianIndices(latsize)
+            for cellᵢ in all_cells(sys)
                 cellⱼ = offsetc(cellᵢ, bond.n, latsize)
                 sᵢ = dipoles[cellᵢ, bond.i]
                 sⱼ = dipoles[cellⱼ, bond.j]
@@ -222,7 +222,7 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N})
         # Biquadratic exchange
         for (culled, bond, J) in biquad
             culled && break
-            for cellᵢ in CartesianIndices(latsize)
+            for cellᵢ in all_cells(sys)
                 cellⱼ = offsetc(cellᵢ, bond.n, latsize)
                 sᵢ = dipoles[cellᵢ, bond.i]
                 sⱼ = dipoles[cellⱼ, bond.j]

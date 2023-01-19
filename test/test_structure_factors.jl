@@ -17,7 +17,7 @@
         λ  = 0.1
         nsteps = 1000  # Number of steps between MC samples
         integrator = LangevinHeunP(kT, λ, Δt)
-        for _ ∈ 1:nsteps
+        for _ in 1:nsteps
             step!(sys, integrator)
         end
     end
@@ -52,7 +52,7 @@
 
 
     # Test diagonal elements are approximately real (at one wave vector)
-    for α ∈ 1:3
+    for α in 1:3
         intensities = get_intensities(sf, (0.25, 0.5, 0); contraction=(α,α))
         @test sum(imag(intensities)) < 1e-15
     end
@@ -86,7 +86,6 @@ end
         crystal = Sunny.diamond_crystal()
         S = 3/2
         sys = System(crystal, dims, [SiteInfo(1; S)]; mode=:dipole, kwargs...)
-        sys.κs .= 3/2  # This can be removed when potential bug is fixed
         set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
         randomize_spins!(sys)
         return sys
@@ -102,7 +101,7 @@ end
     integrator = LangevinHeunP(kT, λ, Δt_therm)
 
     # Thermalize
-    for _ ∈ 1:3000
+    for _ in 1:3000
         step!(sys, integrator)
     end
 

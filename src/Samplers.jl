@@ -183,7 +183,7 @@ Samples `sampler.sys` to a new state, under the Boltzmann distribution
 function sample!(sampler::MetropolisSampler{N}) where N
     sys = sampler.sys
     for _ in 1:sampler.nsweeps
-        for idx in CartesianIndices(sys.dipoles)
+        for idx in all_sites(sys)
             # Try to rotate this spin to somewhere randomly on the unit sphere
             state = randspin(sys, idx)
             ΔE = local_energy_change(sys, idx, state)
@@ -202,7 +202,7 @@ end
 function sample!(sampler::IsingSampler{N}) where N
     sys = sampler.sys
     for _ in 1:sampler.nsweeps
-        for idx in CartesianIndices(sys.dipoles)
+        for idx in all_sites(sys)
             # Try to completely flip this spin
             state = flip(getspin(sys, idx))
             ΔE = local_energy_change(sys, idx, state)
