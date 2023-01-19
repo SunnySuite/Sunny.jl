@@ -131,16 +131,10 @@ end
 # SU(N) integration
 ################################################################################
 
-function set_expected_spins!(dipoles::Array{Vec3, 4}, coherents::Array{CVec{N}, 4}, κs) where N
-    @assert N > 0
-    for idx in CartesianIndices(dipoles)
-        dipoles[idx] = κs[idx[4]] * expected_spin(coherents[idx])
-    end
-end
 
-function normalize_kets!(Z::Array{CVec{N}, 4}, _sys::System{N}) where N
+function normalize_kets!(Z::Array{CVec{N}, 4}, sys::System{N}) where N
     for idx in CartesianIndices(Z)
-        Z[idx] = normalize(Z[idx])
+        Z[idx] = normalize_ket(Z[idx], sys.κs[idx[4]])
     end
 end
 
@@ -174,24 +168,13 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
     (; kT, λ, Δt) = integrator
     (; dipoles, interactions) = sys
 
-    set_expected_spins!(dipoles, Z, sys.κs) 
+    dipoles .= expected_spin.(Z)
     set_forces!(B, dipoles, sys)
 
     for idx in all_sites(sys)
         Λ = interactions.anisos[idx[4]].matrep
         HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
-
-        # The field κ describes an effective ket rescaling, Z → Z' = √κ Z. For
-        # numerical convenience, Sunny avoids explicit ket rescaling, and
-        # instead performs an equivalent rescaling expectation values, ⟨A⟩ → κ
-        # ⟨A⟩. In the latter approach, the noise term in Langevin dynamics must
-        # also be rescaled as ξ → 1/√κ ξ. One can see the equivalence directly
-        # by writing the Langevin equation in Z' and then dividing both sides √κ
-        # to get an equivalent dynamics in normalized spins. The resulting
-        # dynamics samples the correct Boltzmann equilibrium involving the
-        # rescaled classical Hamiltonian.
-        κ = sys.κs[idx[4]]
-        ΔZ′ = -im*√(2*Δt*kT*λ/κ)*ξ[idx] - Δt*(im+λ)*HZ
+        ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[idx] - Δt*(im+λ)*HZ
         ΔZ[idx] = proj(ΔZ′, Z[idx])
     end 
     nothing
@@ -216,7 +199,7 @@ function step!(sys::System{N}, integrator::LangevinHeunP) where N
     normalize_kets!(Z, sys)
 
     # Coordinate dipole data
-    set_expected_spins!(sys.dipoles, Z, sys.κs)
+    sys.dipoles .= expected_spin.(Z)
 end
 
 
@@ -224,7 +207,7 @@ function rhs_ll!(ΔZ, Z, B, integrator, sys)
     (; Δt) = integrator
     (; dipoles, interactions) = sys
 
-    set_expected_spins!(dipoles, Z, sys.κs) # temporarily de-synchs dipoles and coherents
+    dipoles .= expected_spin.(Z) # temporarily de-synchs dipoles and coherents
     set_forces!(B, dipoles, sys)
 
     for idx in all_sites(sys)
@@ -259,7 +242,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
         if isapprox(Z′, Z″; atol)
             @. Z = Z″
             normalize_kets!(Z, sys)
-            set_expected_spins!(sys.dipoles, Z, sys.κs)
+            sys.dipoles .= expected_spin.(Z)
             return
         end
 

@@ -49,8 +49,8 @@ struct System{N}
     dipoles          :: Array{Vec3, 4}            # Expected dipoles
     coherents        :: Array{CVec{N}, 4}         # Coherent states
     κs               :: Vector{Float64}           # Meaning depends on context:
-                                                  #  N > 0 => Effective ket rescaling, Z → √κ Z
-                                                  #  N = 0 => Dipole magnitude, |s| = κ
+                                                  #   N > 0 => Ket magnitude,    |Z| = √κ
+                                                  #   N = 0 => Dipole magnitude, |s| = κ
     gs               :: Vector{Mat3}              # g-tensor per atom in the crystal unit cell
     dipole_buffers   :: Vector{Array{Vec3, 4}}    # Buffers for dynamics routines
     coherent_buffers :: Vector{Array{CVec{N}, 4}} # Buffers for dynamics routines

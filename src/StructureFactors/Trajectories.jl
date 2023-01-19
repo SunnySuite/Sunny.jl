@@ -1,5 +1,3 @@
-expectation(Z, op) = Z' * (op * Z)  # No need for real -- keeping buffer complex and FFTing in place
-
 function observable_expectations!(buf, sys::System{N}, ops′::Array{ComplexF64, 3}) where N
     Zs = sys.coherents
     num_ops =  size(ops′, 3)
@@ -7,8 +5,7 @@ function observable_expectations!(buf, sys::System{N}, ops′::Array{ComplexF64,
 
     for (i, op) in enumerate(ops)
         for idx in all_sites(sys)
-            κ = sys.κs[idx[4]]
-            buf[i,idx] = κ * expectation(Zs[idx], op) 
+            buf[i,idx] = dot(Zs[idx], op, Zs[idx]) 
         end
     end
 
