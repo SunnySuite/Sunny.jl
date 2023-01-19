@@ -22,7 +22,48 @@ https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
 
 The Landé g-factor may also be specified. 
 
-See [`compute_form`](@ref) for further details about the calculation.
+In more detail, the data stored in a `FormFactor` will be used to compute the
+form factor for each momentum space magnitude `|k|`, measured in inverse
+angstroms. The result is dependent on the magnetic ion species. By default, a
+first order form factor ``f`` is returned. If the keyword `g_lande` is given a
+numerical value, then a second order form factor ``F`` is returned.
+
+It is traditional to define the form factors using a sum of Gaussian broadening
+functions in the scalar variable ``s = |k|/4π``, where ``|k|`` can be
+interpreted as the magnitude of momentum transfer.
+
+The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form Factors, defines the
+approximation
+
+`` \\langle j_l(s) \\rangle = A e^{-as^2} + B e^{-bs^2} + Ce^{-cs^2} + D, ``
+
+where coefficients ``A, B, C, D, a, b, c`` are obtained from semi-empirical
+fits, depending on the orbital angular momentum index ``l = 0, 2``. For
+transition metals, the form-factors are calculated using the Hartree-Fock
+method. For rare-earth metals and ions, Dirac-Fock form is used for the
+calculations.
+
+A first approximation to the magnetic form factor is
+
+``f(s) = \\langle j_0(s) \\rangle``
+
+A second order correction is given by
+
+``F(s) = \\frac{2-g}{g} \\langle j_2(s) \\rangle s^2 + f(s)``, where ``g`` is
+the Landé g-factor.  
+
+Digital tables are available at:
+
+* https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
+
+Additional references are:
+
+ * Marshall W and Lovesey S W, Theory of thermal neutron scattering Chapter 6
+   Oxford University Press (1971)
+ * Clementi E and Roetti C,  Atomic Data and Nuclear Data Tables, 14 pp 177-478
+   (1974)
+ * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
+ * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
 """
 function FormFactor(atom::Int64, elem::Union{Nothing, String}; g_lande=nothing) # default g_lande = 1.0 will never affect calculation -- better than Nothing
 
@@ -64,52 +105,7 @@ function propagate_form_factors(cryst::Crystal, ffs::Vector{<:FormFactor})
 end
 
 
-""" 
-    compute_form(q::Vector{Float64}, params::FormFactor)
 
-Computes the form factor for a momentum space magnitude `q`, measured
-in inverse angstroms. The result is dependent on the magnetic ion species,
-specified with the `ff_elem` keyword of `SiteInfo`. By default, a first order
-form factor ``f`` is returned. If the SiteInfo keyword `ff_lande` is given
-a numerical value, then a second order form factor ``F`` is returned.
-
-It is traditional to define the form factors using a sum of Gaussian broadening
-functions in the scalar variable ``s = q/4π``, where ``q`` can be interpreted as
-the magnitude of momentum transfer.
-
-The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form Factors, defines the
-approximation
-
-`` \\langle j_l(s) \\rangle = A e^{-as^2} + B e^{-bs^2} + Ce^{-cs^2} + D, ``
-
-where coefficients ``A, B, C, D, a, b, c`` are obtained from semi-empirical
-fits, depending on the orbital angular momentum index ``l = 0, 2``. For
-transition metals, the form-factors are calculated using the Hartree-Fock
-method. For rare-earth metals and ions, Dirac-Fock form is used for the
-calculations.
-
-A first approximation to the magnetic form factor is
-
-``f(s) = \\langle j_0(s) \\rangle``
-
-A second order correction is given by
-
-``F(s) = \\frac{2-g}{g} \\langle j_2(s) \\rangle s^2 + f(s)``, where ``g`` is
-the Landé g-factor.  
-
-Digital tables are available at:
-
-* https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
-
-Additional references are:
-
- * Marshall W and Lovesey S W, Theory of thermal neutron scattering Chapter 6
-   Oxford University Press (1971)
- * Clementi E and Roetti C,  Atomic Data and Nuclear Data Tables, 14 pp 177-478
-   (1974)
- * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
- * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
-"""
 function compute_form(k::Float64, params::FormFactor{DOUBLE_FF})
     s = k/4π
     g = params.g_lande

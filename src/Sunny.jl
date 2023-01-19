@@ -86,8 +86,8 @@ include("StructureFactors/PowderAveraging.jl")
 include("StructureFactors/DataRetrieval.jl")
 export StructureFactor, FormFactor, 
     add_trajectory!, calculate_structure_factor,
-    get_intensity, get_intensities, get_static_intensity, get_static_intensities,
-    path, intensity_grid, ωvals, compute_form
+    get_intensities, get_static_intensities,
+    path, intensity_grid, ωvals
 
 include("WangLandau/BinnedArray.jl")
 include("WangLandau/WangLandau.jl")
