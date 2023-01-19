@@ -7,7 +7,7 @@ function Ewald(sys::System{N}) where N
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(crystal, latsize)
     # Scale g tensors into pair interactions A
     for b1 in 1:nb, b2 in 1:nb
-        for cell in CartesianIndices(latsize)
+        for cell in all_cells(sys)
             A[cell, b1, b2] = gs[b1]' * A[cell, b1, b2] * gs[b2]
         end
     end

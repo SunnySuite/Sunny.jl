@@ -30,7 +30,7 @@ function create_system(α::Float64)
     g = 1 / Sunny.BOHR_MAGNETON
     system = SpinSystem(crystal, interactions, extent, [SiteInfo(1; g)])
 
-    for idx = CartesianIndices(sys.dipoles)
+    for idx = all_sites(sys)
         rand(sys.rng, Bool) && sys.dipoles[idx] *= -1
     end
 

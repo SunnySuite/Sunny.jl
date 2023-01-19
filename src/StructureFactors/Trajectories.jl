@@ -6,7 +6,7 @@ function observable_expectations!(buf, sys::System{N}, ops′::Array{ComplexF64,
     ops = reinterpret(SMatrix{N, N, ComplexF64, N*N}, reshape(ops′, N*N, num_ops))
 
     for (i, op) in enumerate(ops)
-        for idx in CartesianIndices(Zs)
+        for idx in all_sites(sys)
             κ = sys.κs[idx[4]]
             buf[i,idx] = κ * expectation(Zs[idx], op) 
         end
@@ -41,12 +41,12 @@ end
 
 function compute_mag!(M, sys::System, gfactor = true)
     if gfactor
-        for idx in CartesianIndices(sys.dipoles)
+        for idx in all_sites(sys)
             g = sys.gs[idx[4]]
             M[:, idx] .= g * sys.dipoles[idx]
         end
     else
-        for idx in CartesianIndices(sys.dipoles)
+        for idx in all_sites(sys)
             M[:, idx] .= sys.dipoles[idx]
         end
     end
