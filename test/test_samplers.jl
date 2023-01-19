@@ -1,37 +1,31 @@
 ## TODO: Add MetropolisSampler to the tests below
 
 @testitem "Anisotropy" begin
-
-    # Test energy statistics for an SU(3) single ion problem with anisotropy.
-    # (GSD only.)
-
-    "Analytical mean energy for SU(3) model with Λ = D*(Sᶻ)^2"
+    
+    # Analytical mean energy for SU(3) model with Λ = D*(Sᶻ)^2
     function su3_mean_energy(kT, D)
         a = D/kT
         return D * (2 - (2 + 2a + a^2)*exp(-a)) / (a * (1 - (1+a)*exp(-a))) # - Λ₀
     end 
 
-    "Analytical mean energy for SU(5) model with Λ = D*((Sᶻ)^2-(1/5)*(Sᶻ)^4)"
+    # Analytical mean energy for SU(5) model with Λ = D*((Sᶻ)^2-(1/5)*(Sᶻ)^4)
     function su5_mean_energy(kT, D)
         a = 4D/(5kT)
         return 4D*(exp(-a)*(-a*(a*(a*(a+4)+12)+24)-24)+24) / (5a*(exp(-a)*(-a*(a*(a+3)+6)-6)+6)) # - Λ₀
     end
 
-    # Generates an FeI2 cyrstal (Fe+ ions only). This crystal supports the
-    # anisotropies in the tests below
-    function FeI2_crystal()
-        a = b = 4.05012
-        c = 6.75214
-        lat_vecs = lattice_vectors(a, b, c, 90, 90, 120)
+    # Eliminate all spacegroup symmetries
+    function asymmetric_crystal()
+        lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
         basis_vecs = [[0,0,0]]
-        Crystal(lat_vecs, basis_vecs, 164; setting="1")
+        Crystal(lat_vecs, basis_vecs, 1)
     end
 
 
     function su3_anisotropy_model(; L=20, D=1.0, seed)
         S = 1
         Λ = D*𝒮[3]^2
-        cryst = FeI2_crystal()
+        cryst = asymmetric_crystal()
 
         sys = System(cryst, (L,1,1), [SiteInfo(1; S)]; mode=:SUN, seed)
         set_anisotropy!(sys, Λ, 1)
@@ -42,12 +36,13 @@
 
     function su5_anisotropy_model(; L=20, D=1.0, seed)
         S = 2
-        Λ = D*(𝒮[3]^2-(1/5)*𝒮[3]^4)
-        cryst = FeI2_crystal()
-
+        cryst = asymmetric_crystal()
         sys = System(cryst, (L,1,1), [SiteInfo(1; S)]; mode=:SUN, seed)
-        set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
+
+        R = Sunny.random_orthogonal(sys.rng, 3; special=true)
+        Λ = Sunny.rotate_operator(D*(𝒮[3]^2-(1/5)*𝒮[3]^4), R)
+        set_anisotropy!(sys, Λ, 1)
 
         return sys
     end
@@ -79,9 +74,8 @@
         kTs = [0.125, 0.5]
         thermalize_dur = 10.0
         collect_dur = 100.0
-        seed = 111
 
-        sys = su3_anisotropy_model(; D, L, seed)
+        sys = su3_anisotropy_model(; D, L, seed=0)
         integrator = LangevinHeunP(0.0, λ, Δt)
 
         for kT ∈ kTs
@@ -105,10 +99,9 @@
         Δt = 0.01
         kTs = [0.125, 0.5]
         thermalize_dur = 10.0
-        collect_dur = 100.0
-        seed = 111
+        collect_dur = 200.0
 
-        sys = su5_anisotropy_model(; D, L, seed)
+        sys = su5_anisotropy_model(; D, L, seed=0)
         integrator = LangevinHeunP(0.0, λ, Δt)
 
         for kT ∈ kTs
@@ -197,16 +190,15 @@ end
     # Checks that the Langevin sampler produces the appropriate energy
     # distribution for a two-site spin chain.
     function test_spin_chain_energy()
-        seed = 111
         for mode in (:SUN, :dipole)
-            sys = two_site_spin_chain(; mode, seed)
+            sys = two_site_spin_chain(; mode, seed=0)
 
             λ = 0.1
             kT = 0.1
             Δt = 0.02
 
             n_decorr = 500  # Decorrelation steps between samples
-            n_samples = 1000
+            n_samples = 2000
             n_bins = 10  # Number of bins in empirical distribution
 
             # Initialize the Langevin sampler and thermalize the system

@@ -282,8 +282,8 @@ end
 @testitem "Local operator symbols" begin
     include("shared.jl")
 
-    A = randn(3,3)
-    R = Sunny.Mat3(exp(A - A'))
+    rng = Random.Xoshiro(0)
+    R = Sunny.Mat3(Sunny.random_orthogonal(rng, 3; special=true))
     N = 5
 
     # Test axis-angle decomposition
