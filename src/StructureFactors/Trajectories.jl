@@ -85,18 +85,37 @@ function new_trajectory!(sftraj::SFTrajectory, sys_original::System)
 end
 new_trajectory!(sf::StructureFactor, sys::System) = new_trajectory!(sf.sftraj, sys)
 
+function symmetrize!(sftraj::SFTrajectory)
+    (; traj) = sftraj
+    nsteps = size(traj, 6)
+    for t in 1:nsteps
+        selectdim(traj, 6, t) .= 0.5*(selectdim(traj, 6, t) + selectdim(traj, 6, nsteps-t+1))
+    end
+end
+
+function subtract_mean!(sftraj::SFTrajectory)
+    (; traj) = sftraj
+    nsteps = size(traj, 6)
+    meanvals = sum(traj, dims=6) ./ nsteps
+    traj .-= meanvals
+end
+
+function no_processing(::SFTrajectory)
+    nothing
+end
 
 # ddtodo: Plan FFT
 function accum_trajectory!(sfdata::SFData, sftraj::SFTrajectory, nsamples::Int64)
     (; data, idxinfo) = sfdata
-    (; traj, sys) = sftraj
+    (; traj, sys, processtraj!) = sftraj
     nb, nω = size(traj)[5:6]
 
+    processtraj!(sftraj)
     FFTW.fft!(traj, (2,3,4,6))
     traj /= nω * √(prod(sys.latsize))  # Normalize FFT according to physical convention
 
-    ## Transfer to final memory layout while accumulating new trajectory
-    for cell in CartesianIndices(sys.latsize), b2 in 1:nb, b1 in 1:nb, ω in 1:nω
+    # Transfer to final memory layout while accumulating new trajectory
+    for ω in 1:nω, cell in CartesianIndices(sys.latsize), b2 in 1:nb, b1 in 1:nb
         for (ci, c) in idxinfo 
             α, β = ci.I
             old = data[c,b1,b2,cell,ω]
