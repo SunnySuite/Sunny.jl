@@ -53,8 +53,8 @@
 
     # Test diagonal elements are approximately real (at one wave vector)
     for α in 1:3
-        intensities = get_intensities(sf, (0.25, 0.5, 0); contraction=(α,α))
-        @test sum(imag(intensities)) < 1e-15
+        intensities_symmetric = get_intensities(sf, (0.25, 0.5, 0); contraction=(α,α))
+        @test sum(imag(intensities_symmetric)) < 1e-15
     end
 
 
@@ -65,7 +65,7 @@
     @test total_intensity_ff != total_intensity_trace
 
 
-    # Test path function and interpolation working
+    # Test path function and interpolation working (no correctness implied here)
     points = [(0, 0, 0), (0, 1, 0), (1, 1, 0)]
     intensities = path(sf, points; density=20, interpolation=:linear)
     @test length(size(intensities)) == 2 
@@ -75,7 +75,7 @@
     qs = Sunny.qgrid(sf) 
     static_intensities = get_static_intensities(sf, qs; negative_energies=true)
     total_intensity_static = sum(static_intensities)
-    @test total_intensity_static ≈ total_intensity_trace  # Order of summation can lead to very small discrepancies
+    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-12)  # Order of summation can lead to very small discrepancies
 end
 
 
