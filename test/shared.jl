@@ -7,7 +7,6 @@
 using Random
 using LinearAlgebra
 
-
 # Various possible interactions appropriate to diamond crystal
 
 function add_linear_interactions!(sys, mode)
