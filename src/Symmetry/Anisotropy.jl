@@ -56,9 +56,21 @@ function axis_angle(R::Mat3)
     return (n, θ)
 end
 
+# Generate a random, orthogonal NxN matrix under the Haar measure
+function random_orthogonal(rng, N::Int; special=false)
+    # This approach is simple and correct as described below:
+    # https://math.stackexchange.com/q/2166210/660903
+    # More efficient methods are discussed here:
+    # https://doi.org/10.1137/0908055
+    # https://arxiv.org/abs/math-ph/0609050
+    (; U, V) = svd(randn(rng, Float64, N,N))
+    O = U*V'
+    return special ? O*det(O) : O
+end
+
 function unitary_for_rotation(R::Mat3; N::Int)
     !(R'*R ≈ I)   && error("Not an orthogonal matrix, R = $R.")
-    !(det(R) ≈ 1) && error("Not a rotation matrix, R = $R.")
+    !(det(R) ≈ 1) && error("Matrix includes a reflection, R = $R.")
     S = spin_matrices(N)
     n, θ = axis_angle(R)
     return exp(-im*θ*(n'*S))
