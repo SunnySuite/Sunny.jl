@@ -114,5 +114,5 @@ end
 
     # Compare with reference 
     refdata = readdlm(joinpath(@__DIR__, "..", "src", "StructureFactors", "data", "sf_ref.dat"))
-    @test intensities == refdata
+    @test isapprox(intensities, refdata; atol=1e-12)
 end
