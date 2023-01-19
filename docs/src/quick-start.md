@@ -43,7 +43,7 @@ The first argument defines a unit cell via the convenience function
 positions. The third, optional argument specifies an international spacegroup
 number (if it's missing, Sunny will infer a spacegroup). Arguments appearing
 after the semicolon `;` are _named_. Here, we are selecting the first (out of
-two) `"setting"` conventions for spacegroup 227.
+two) `setting` conventions for spacegroup 227.
 
 Sunny outputs:
 ```
@@ -62,11 +62,13 @@ Wyckoff 8a (point group '-43m'):
    8. [0.25, 0.75, 0.75]
 ```
 
-Observe that there are eight symmetry-equivalent site positions (all crystal
-coordinates are measured in fractions of the lattice vectors). This is indeed
-the diamond cubic crystal.
+Observe that Sunny filled all eight symmetry-equivalent atom positions for the
+diamond cubic unit cell. The coordinates are measured in units of the lattice
+vectors.
 
-Sunny can also read crystal structure from a `.cif` file.
+Alternatively, Sunny can read the crystal structure from a `.cif` file. Or, if a
+complete list of atoms is provided, Sunny can infer the spacegroup symmetry using
+[spglib](https://spglib.github.io/spglib/).
 
 The `crystal` object can be used as an argument to other Sunny functions. For
 example, [`print_symmetry_table`](@ref) lists all symmetry-allowed exchange
@@ -110,8 +112,8 @@ interaction.
 
 The next steps are typically the following
 
-1. Use the crystal to build a [`System`](@ref) which consists of a finite
-   number of spins.
+1. Build a [`System`](@ref) which contains spins on a finite size lattice of
+   crystal unit cells.
 2. Add interactions to the system using functions like
    [`set_external_field!`](@ref), [`set_exchange!`](@ref), and
    [`set_anisotropy!`](@ref).

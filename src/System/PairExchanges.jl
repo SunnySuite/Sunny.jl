@@ -11,9 +11,9 @@ end
 """
     set_exchange_with_biquadratic!(sys::System, J, J′, bond::Bond)
 
-Introduces both quadratic and biquadratic exchange interactions along `bond`,
-yielding a pairwise energy ``𝐒_i⋅J 𝐒_j + J′ (𝐒_i⋅𝐒_j)²``. These interactions
-will be propagated to equivalent bonds in consistency with crystal symmetry. Any
+Sets both quadratic and biquadratic exchange interactions along `bond`, yielding
+a pairwise energy ``𝐒_i⋅J 𝐒_j + J′ (𝐒_i⋅𝐒_j)²``. These interactions will be
+propagated to equivalent bonds in consistency with crystal symmetry. Any
 previous exchange interactions on these bonds will be overwritten.
 
 For systems with `mode=:projected` the biquadratic interactions will
@@ -122,7 +122,7 @@ J2 = 2*I + dmvec([0,0,3])
 set_exchange!(sys, J2, bond)
 ```
 
-See also [`dmvec`](@ref).
+See also [`set_exchange_with_biquadratic`](@ref), [`dmvec`](@ref).
 """
 function set_exchange!(sys::System{N}, J, bond::Bond) where N
     set_exchange_with_biquadratic!(sys, J, 0.0, bond)

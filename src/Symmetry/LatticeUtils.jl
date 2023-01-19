@@ -21,7 +21,7 @@ end
 
 Return the lattice vectors, as columns of the ``3×3`` output matrix, that
 correspond to the conventional unit cell defined by the lattice constants ``(a,
-b, c)`` and the angles ``(α, β, γ)``. The inverse mapping is
+b, c)`` and the angles ``(α, β, γ)`` in degrees. The inverse mapping is
 [`lattice_params`](@ref).
 """
 function lattice_vectors(a, b, c, α, β, γ) :: Mat3
