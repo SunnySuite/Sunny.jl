@@ -102,6 +102,7 @@ position(cryst::Crystal, i::Int, offset=(0,0,0)) = cryst.lat_vecs * (convert(Vec
 # representing fractions (between 0 and 1) of the lattice vectors `lat_vecs`.
 # All symmetry information is automatically inferred.
 function Crystal(lat_vecs, positions; types::Union{Nothing,Vector{String}}=nothing, symprec=1e-5)
+    det(lat_vecs) < 0 && println("Warning: Lattice vectors are not right-handed.")
     lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
@@ -114,6 +115,7 @@ end
 # Builds a crystal by applying the symmetry operators for a given spacegroup
 # symbol.
 function Crystal(lat_vecs, positions, symbol::String; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+    det(lat_vecs) < 0 && println("Warning: Lattice vectors are not right-handed.")
     lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
@@ -125,6 +127,7 @@ end
 # Builds a crystal by applying symmetry operators for a given international
 # spacegroup number.
 function Crystal(lat_vecs, positions, spacegroup_number::Int; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+    det(lat_vecs) < 0 && println("Warning: Lattice vectors are not right-handed.")
     lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
