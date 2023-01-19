@@ -62,9 +62,11 @@ function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationSchem
     return (; qs_all, ks_all, idcs_all, counts)
 end
 
+Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
+
 
 """
-    get_intensities(sf::StructureFactor, qs::Array;
+    get_intensities(sf::StructureFactor, qs;
                        contraction = :trace, interpolation = nothing,
                        kT = nothing, newbasis = nothing, 
                        formfactors = nothing, negative_energies = false)
@@ -100,7 +102,7 @@ retrieved by calling [`ωvals`](@ref). The wave vectors should be specified as
 - `negative_energies`: If set to `true`, Sunny will return the periodic
     extension of the energy axis. Most users will not want this.
 """
-function get_intensities(sf::StructureFactor, qs::Array;
+function get_intensities(sf::StructureFactor, qs;
     contraction = :trace,
     interpolation = nothing,
     kT = nothing,
@@ -148,12 +150,17 @@ function get_intensities(sf::StructureFactor, qs::Array;
     # Call type stable version of the function
     get_intensities!(intensities, sf, q_targets, ωs, interp, contract, kT, ffdata, stencil_info) #ddtodo: Track down allocations
 
-    # ddtodo: See if worth it to apply classical-to-quantum rescaling here instead of inside loop
+    # ddtodo: See if worth it to apply classical-to-quantum rescaling here instead of inside loop (removes branching)
 
     return intensities
 end
 
-Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
+function get_intensities(sf::StructureFactor, q::T; kwargs...) where T <: Union{Tuple, AbstractArray{<:Number}}
+    if length(q) != 3
+        error("Wave vector should have three components.")
+    end
+    return get_intensities(sf, [Vec3(q)]; kwargs...)[1,:]
+end
 
 # Type stable version
 function get_intensities!(intensities, sf::StructureFactor, q_targets::Array, ωs, interp::InterpolationScheme, contraction::Contraction{T}, temp, ffdata, stencil_info) where {T}
@@ -175,26 +182,15 @@ function get_intensities!(intensities, sf::StructureFactor, q_targets::Array, ω
 end
 
 
-function get_intensities(sf::StructureFactor, q::NTuple{3,Number}; kwargs...)
-    return get_intensities(sf, [Vec3(q)]; kwargs...)[1,:]
-end
-
-function get_intensities(sf::StructureFactor, q::AbstractArray{Number,1}; kwargs...)
-    if length(q) != 3
-        error("Q point should have three components.")
-    end
-    return get_intensities(sf, [Vec3(q)]; kwargs...)[1,:]
-end
-
 
 """
-    get_static_intensities(sf::StructureFactor, qs::Array; kwargs...)
+    get_static_intensities(sf::StructureFactor, qs; kwargs...)
 
 Return the static structure factor intensities at wave vectors `qs`. The
 functionality is very similar to [`get_intensities`](@ref), except the returned
 array has dimensions identical to `qs`. The energy axis has been summed out.
 """
-function get_static_intensities(sf::StructureFactor, qs::Array; kwargs...)
+function get_static_intensities(sf::StructureFactor, qs; kwargs...)
     datadims = size(qs)
     ndims = length(datadims)
     intensities = get_intensities(sf, qs; kwargs...)
@@ -202,19 +198,13 @@ function get_static_intensities(sf::StructureFactor, qs::Array; kwargs...)
     return reshape(static_intensities, datadims)
 end
 
-function get_static_intensities(sf::StructureFactor, q::NTuple{3, T}; kwargs...) where T <: Number
-    intensities = get_intensity(sf, [Vec3(q)]; kwargs...)
-    return sum(intensities)
-end
-
-function get_static_intensities(sf::StructureFactor, q::AbstractArray{T,1}; kwargs...) where T <: Number
+function get_static_intensities(sf::StructureFactor, q::T; kwargs...) where T <: Union{Tuple, AbstractArray{<:Number}}
     if length(q) != 3
-        error("Q point should have three components.")
+        error("Wave vector should have three components.")
     end
-    intensities = get_intensity(sf, [Vec3(q)]; kwargs...)
+    intensities = get_intensities(sf, [Vec3(q)]; kwargs...)
     return sum(intensities)
 end
-
 
 
 """
@@ -239,6 +229,7 @@ function intensity_grid(sf::StructureFactor;
         ωs =  negative_energies ? ωvals_all(sf) : ωvals(sf)
         return (; intensities, qpoints, ωs)
     end
+
     return intensities
 end
 
