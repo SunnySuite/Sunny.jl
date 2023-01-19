@@ -7,7 +7,7 @@
         cryst = Sunny.diamond_crystal()
         kT = 0.1
         λ  = 0.1
-        Δt = 0.01
+        Δt = 0.005
         integrators = (LangevinHeunP(kT, λ, Δt), ImplicitMidpoint(Δt))
 
         for integrator in integrators

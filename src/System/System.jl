@@ -44,7 +44,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{Site
             error("Currently all spins S must be equal in SU(N) mode.")
         end
         N = Int(2first(Ss) + 1)
-        (N, ones(nbasis(crystal)))
+        (N, fill(1.0, nbasis(crystal)))
     else
         (0, Ss)
     end
@@ -54,7 +54,6 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{Site
     # Initialize sites to all spins along +z
     dipoles = fill(zero(Vec3), latsize..., nbasis(crystal))
     coherents = fill(zero(CVec{N}), latsize..., nbasis(crystal))
-    κs = fill(1.0, nbasis(crystal))
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
