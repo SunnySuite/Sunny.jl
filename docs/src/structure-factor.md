@@ -6,11 +6,10 @@ between theory and experimental scattering data. More specifically, it is a
 function containing information about dynamical spin correlations, typically
 written:
 
-```math
-𝒮^{αβ}_{jk}(𝐪, ω).
-```
-Given wave vector ``𝐪``, a frequency ``ω``, basis (atom) indices ``j`` and
-``k``, and spin components ``α`` and ``β``, the dynamical structure factor will
+$$𝒮^{αβ}_{jk}(𝐪, ω).$$
+
+Given wave vector $𝐪$, a frequency $ω$, basis (atom) indices $j$ and
+$k$, and spin components $α$ and $β$, the dynamical structure factor will
 yield a complex value.
 
 Calculating the structure factor is relatively involved process. Sunny
@@ -35,7 +34,7 @@ following:
    configurations at the desired temperature, for example, by using a
    [`LangevinSampler`](@ref).
 3. Call `calculate_structure_factor(sys, sampler; kwargs...)`, which will return
-   return a `StructureFactor`, containing all ``𝒮^{αβ}_{jk}(𝐪, ω)`` data.
+   return a `StructureFactor`, containing all $𝒮^{αβ}_{jk}(𝐪, ω)$ data.
 
 The calculation can be configured in a number of ways, and we encourage you to
 see the [`calculate_structure_factor`](@ref) documentation for a list of all
@@ -45,34 +44,32 @@ and resolution (`nω`) as well as the number of samples to calculate (`nsamples`
 ### Extracting information
 
 The basic function for extracting information from a `StructureFactor` at a
-particular wave vector, ``𝐪``, is [`get_intensities`](@ref). It takes a
+particular wave vector, $𝐪$, is [`get_intensities`](@ref). It takes a
 `StructureFactor` and either a single wave vector or an array of wave vectors.
 For example: `get_intensities(sf, [0.0, 0.5, 0.5])`. Note that the wave vector
 is specified in terms of reciprocal lattice units, although an alternative basis
 may be specified by providing a transformation matrix to the keyword `newbasis`.
 
-`get_intensities` will return a vector of intensities at different ``ω``s. The
-precise ``ω`` values corresponding to each index can be retrieved by calling
+`get_intensities` will return a vector of intensities at different $ω$s. The
+precise $ω$ values corresponding to each index can be retrieved by calling
 `ωvals(sf)`, where `sf` is your `StructureFactor`.
 
 Recall that the full structure contains a number of indices:
-``𝒮^{αβ}_{jk}(𝐪,ω)``, but `get_intensities` only returns information
-corresponding to ``ω``. By default, Sunny traces out the spin component indices
-``α`` and ``β``. This behavior can be changed with the keyword argument
+$𝒮^{αβ}_{jk}(𝐪,ω)$, but `get_intensities` only returns information
+corresponding to $ω$. By default, Sunny traces out the spin component indices
+$α$ and $β$. This behavior can be changed with the keyword argument
 `contraction`. In addition to `:trace`, one may use `:perp` to apply
 polarization corrections, or `:none` to retrieve the full tensor. One may also
 set `contraction=(α,β)`, with `α` and `β` integers between 1 and 3, to retrieve
-a particular correlation functions. The basis indices ``j`` and ``k`` are always
-reduced to out through a phase averaging procedure. Note that information
-pertaining to these indices is generally not accessible to experimental inquiry.
+a particular correlation functions. The basis indices $j$ and $k$ are contracted internally by the phase averaging procedure to facilitate comparison with experimental data, which may span multiple Brillouin zones.
 
 Since Sunny currently only calculates the structure factor on a finite lattice,
 it is important to realize that exact information is only available at a
 discrete set of wave vectors. Specifically, for each axis index $i$, we will get
-information at ``q_i = \frac{n}{L_i}``, where $n$ runs from
-``(\frac{-L_i}{2}+1)$ to $\frac{L_i}{2}`` and ``L_i`` is the linear dimension of
+information at $q_i = \frac{n}{L_i}$, where $n$ runs from
+$(\frac{-L_i}{2}+1)$ to $\frac{L_i}{2}$ and $L_i$ is the linear dimension of
 the lattice used for the calculation. If you request a wave vector that does not
-fall in this set, Sunny will automatically round to the nearest ``𝐪`` that is
+fall in this set, Sunny will automatically round to the nearest $𝐪$ that is
 available. If `get_intensities` is given the keyword argument
 `interpolation=:linear`, Sunny will use trilinear interpolation to determine the
 results at the requested wave vector. 
@@ -100,7 +97,7 @@ classical-to-quantum rescaling of the energy intensities.
 A static structure will be calculated if the `nω` keyword of
 `calculate_structure_factor` or `StructureFactor` is left at its default value
 of 1. Static structure factors may also be calculated from a dynamical structure
-factor simply by summing over all the energies (i.e., the ``ω``-axis) provided
+factor simply by summing over all the energies (i.e., the $ω$-axis) provided
 by `get_intensities`. We recommend calculating static structure factors in this
 way in most cases (though it is of course much more expensive). The
 static-from-dynamic approach makes it possible to apply the classical-to-quantum
