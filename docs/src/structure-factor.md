@@ -31,15 +31,16 @@ following:
 1. Build a [`System`](@ref) and ensure that it is properly equilibrated at the
    temperature you wish to study. For example, if your `System` is in a ground
    state, one could use a [`LangevinHeunP`](@ref) integrator to thermalize it.
-2. Set up a [`LangevinSampler`](@ref) that will generate decorrelated samples of
-   spin configurations at the desired temperature.
+2. Set up a sampler that will generate decorrelated samples of spin
+   configurations at the desired temperature, for example, by using a
+   [`LangevinSampler`](@ref).
 3. Call `calculate_structure_factor(sys, sampler; kwargs...)`, which will return
    return a `StructureFactor`, containing all ``𝒮^{αβ}_{jk}(𝐪, ω)`` data.
 
 The calculation can be configured in a number of ways, and we encourage you to
 see the [`calculate_structure_factor`](@ref) documentation for a list of all
 keywords. In particular, the user will likely want to specify the energy range (`ωmax`)
-and resolution (`numω`) as well as the number of samples to calculate (`numsamps`).
+and resolution (`nω`) as well as the number of samples to calculate (`nsamples`).
 
 ### Extracting information
 
@@ -47,7 +48,7 @@ The basic function for extracting information from a `StructureFactor` at a
 particular wave vector, ``𝐪``, is [`get_intensities`](@ref). It takes a
 `StructureFactor` and either a single wave vector or an array of wave vectors.
 For example: `get_intensities(sf, [0.0, 0.5, 0.5])`. Note that the wave vector
-is specified in terms of reciprocal lattice units, though an alternative basis
+is specified in terms of reciprocal lattice units, although an alternative basis
 may be specified by providing a transformation matrix to the keyword `newbasis`.
 
 `get_intensities` will return a vector of intensities at different ``ω``s. The
@@ -58,11 +59,12 @@ Recall that the full structure contains a number of indices:
 ``𝒮^{αβ}_{jk}(𝐪,ω)``, but `get_intensities` only returns information
 corresponding to ``ω``. By default, Sunny traces out the spin component indices
 ``α`` and ``β``. This behavior can be changed with the keyword argument
-`contraction`. In addition to `:trace`, one may set `contraction=:depolarize` to
-apply polarization corrections, or `contraction=(α,β)` to retrieve a particular
-matrix element. The basis indices ``j`` and ``k`` are always reduced to out
-through a phase averaging procedure. Note that information pertaining to these
-indices is generally not accessible to experimental inquiry.
+`contraction`. In addition to `:trace`, one may use `:perp` to apply
+polarization corrections, or `:none` to retrieve the full tensor. One may also
+set `contraction=(α,β)`, with `α` and `β` integers between 1 and 3, to retrieve
+a particular correlation functions. The basis indices ``j`` and ``k`` are always
+reduced to out through a phase averaging procedure. Note that information
+pertaining to these indices is generally not accessible to experimental inquiry.
 
 Since Sunny currently only calculates the structure factor on a finite lattice,
 it is important to realize that exact information is only available at a
@@ -95,12 +97,12 @@ classical-to-quantum rescaling of the energy intensities.
 
 ### Static structure factors
 
-Static structure factors may be calculated simply by summing over all the
-energies (i.e., the ``ω``-axis) provided by `get_intensities`. We recommend
-calculating static structure factors from dynamical structure factors in this
-way (rather than directly from a series of equilibrium samples). This approach
-makes it possible to apply the classical-to-quantum intensity rescaling, which
-is energy dependent.
-
-For convenience, Sunny provides the function [`get_static_intensities`](@ref), which
-will perform the summation for you.
+A static structure will be calculated if the `nω` keyword of
+`calculate_structure_factor` or `StructureFactor` is left at its default value
+of 1. Static structure factors may also be calculated from a dynamical structure
+factor simply by summing over all the energies (i.e., the ``ω``-axis) provided
+by `get_intensities`. We recommend calculating static structure factors in this
+way in most cases (though it is of course much more expensive). The
+static-from-dynamic approach makes it possible to apply the classical-to-quantum
+intensity rescaling, which is energy dependent. Sunny provides the function
+[`get_static_intensities`](@ref), which will perform the summation for you.

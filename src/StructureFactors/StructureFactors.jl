@@ -10,7 +10,7 @@ struct SFTrajectory{N}
     traj         :: Array{ComplexF64, 6}  # Trajectory buffer
     ops          :: Array{ComplexF64, 3}  # Operators corresponding to observables
     measperiod   :: Int                   # Steps to skip between saving observables (downsampling)
-    gfactor      :: Bool                  # Whether to apply the g-factor to recorded trajectories
+    apply_g      :: Bool                  # Whether to apply the g-factor to recorded trajectories
     dipolemode   :: Bool                  # Whether considering only dipoles
     integrator   :: ImplicitMidpoint      # Integrator for dissipationless trajectories
     processtraj! :: Function              # Arbitrary function to process trajectory before FFT
@@ -23,8 +23,8 @@ mutable struct StructureFactor{N, NumCorr}
 end
 
 """
-    StructureFactor(sys::System; Δt = 0.1, numω = 100, ωmax = nothing,
-                        gfactor = true, ops = nothing, matrix_elems = nothing)
+    StructureFactor(sys::System; Δt = 0.1, nω = 1, ωmax = nothing,
+                        apply_g = true, ops = nothing, matrix_elems = nothing)
 
 `StructureFactor` is the basic type for calculating ``𝒮^{αβ}(q,ω)``, storing
 the results, and retrieving intensity information. 
@@ -41,9 +41,10 @@ The keywords specify all the parameters used in subsequent calculations and must
 be determined at the time that the `StructureFactor` is initiated. Specifically:
 - `Δt`: Sets the step size of the integrator used to calculate trajectories.
 - `ωmax`: Determines the maximum resolved energy.
-- `numω`: Determines how many energy bins to resolve between 0 and `ωmax`.
-- `gfactor`: Determines whether to apply the g-factor when calculating
-  trajectories.
+- `nω`: Determines how many energy bins to resolve between 0 and `ωmax`. If set
+    to 1, Sunny will calculate a static structure factor.
+- `apply_g`: Determines whether to apply the g-factor when calculating
+    trajectories.
 - `ops`: Enables an advanced feature for SU(_N_) mode, allowing the user to
     specify custom observables other than the three components of the dipole. To
     use this features, `ops` must be given an `N×N×numops` array, where the
@@ -59,11 +60,14 @@ be determined at the time that the `StructureFactor` is initiated. Specifically:
     trajectory, and `:subtract_mean`, which subtracts the mean value. Both
     options are useful for eliminating Fourier artifacts that frequently appear
     when simulating gapless, or nearly gapless, Hamiltonians.
+
+If you wish to calculate a dynamical structure factor, the keyword `nω` must set
+to an integer greater than 1.
 """
-function StructureFactor(sys::System; Δt = 0.1, numω = 100, ωmax = nothing,
-                            gfactor = true, ops = nothing, matrix_elems = nothing,
+function StructureFactor(sys::System; Δt = 0.1, nω = 1, ωmax = nothing,
+                            apply_g = true, ops = nothing, matrix_elems = nothing,
                             process_trajectory = nothing)
-    sftraj = SFTrajectory(sys; Δt, numω, ωmax, ops, gfactor, process_trajectory)
+    sftraj = SFTrajectory(sys; Δt, nω, ωmax, ops, apply_g, process_trajectory)
     sfdata = SFData(sys, sftraj; ops, matrix_elems)
     numsamps = 0
 
@@ -74,14 +78,14 @@ end
 # i.e., a trajectory. By default, SFTrajectory stores the x, y, and z dipolar components.
 # In SU(_N_) mode, the user may optionally specify custom observables to record.
 function SFTrajectory(sys::System{N}; 
-    Δt = 0.1, numω = 100, ωmax = nothing, ops = nothing, gfactor = true,
+    Δt = 0.1, nω = 1, ωmax = nothing, ops = nothing, apply_g = true,
     process_trajectory = nothing
 ) where N
     # Default to dipole expectation values if no observables have been given
     dipolemode = false 
     if isnothing(ops)
         dipolemode = true
-        ops = zeros(ComplexF64, 0, 0, 3) # Placeholder with necessary information for consistent behavior later 
+        ops = zeros(ComplexF64, 0, 0, 3)  # ops are empty in this case
     else
         if N == 0 
             error("Structure Factor Error: Cannot provide matrices for observables when using dipolar `System`")
@@ -89,7 +93,7 @@ function SFTrajectory(sys::System{N};
     end
 
     # Determine meas_period (downsampling factor)
-    if isnothing(ωmax)
+    if isnothing(ωmax) || nω == 1 # Default behavior and static SF mode
         measperiod = 1
     else
         @assert π/Δt > ωmax "Maximum ω with chosen step size is $(π/Δt). Choose smaller Δt or change ω_max."
@@ -107,7 +111,8 @@ function SFTrajectory(sys::System{N};
 
     # Preallocation
     nops = size(ops, 3)
-    traj = zeros(ComplexF64, nops, size(sys.dipoles)..., 2numω-1) # Double numω (since want numω _positive_ energies)
+    nω = nω == 1 ? 1 : 2nω-1 # nω = 1 is a static structure factor. If greater than 1, make nω correspond to the number of positive frequencies saved .
+    traj = zeros(ComplexF64, nops, size(sys.dipoles)..., nω) 
     integrator = ImplicitMidpoint(Δt)
 
     # Create a shallow copy of the spin system
@@ -115,14 +120,14 @@ function SFTrajectory(sys::System{N};
         copy(sys.dipoles), copy(sys.coherents), sys.κs, sys.gs,
         sys.dipole_buffers, sys.coherent_buffers, sys.units, sys.rng)
 
-    return SFTrajectory(sys_new, traj, ops, measperiod, gfactor, dipolemode, integrator, processtraj)
+    return SFTrajectory(sys_new, traj, ops, measperiod, apply_g, dipolemode, integrator, processtraj)
 end
 
 function SFData(sys::System, sftraj::SFTrajectory; 
     ops = nothing, matrix_elems = nothing,
 )
     nops =  isnothing(ops) ? 3 : size(ops, 3) # Assume three observables (spin operators) if none are explicitly given
-    numω = size(sftraj.traj, 6)
+    nω = size(sftraj.traj, 6)
 
     # Save all matrix elements if subset isn't given
     if isnothing(matrix_elems)
@@ -142,11 +147,11 @@ function SFData(sys::System, sftraj::SFTrajectory;
         count += 1
     end
     pairs = map(i -> CartesianIndex(i.first) => i.second, pairs) # Convert to CartesianIndices
-    idxinfo = SortedDict{CartesianIndex{2}, Int64}(pairs)
+    idxinfo = SortedDict{CartesianIndex{2}, Int64}(pairs) # CartesianIndices sort to fastest order
 
     nb = nbasis(sys.crystal)
-    data = zeros(ComplexF64, length(matrix_elems), nb, nb, sys.latsize..., numω)
-    Δω = 2π / (sftraj.integrator.Δt*sftraj.measperiod*numω)
+    data = zeros(ComplexF64, length(matrix_elems), nb, nb, sys.latsize..., nω)
+    Δω = 2π / (sftraj.integrator.Δt*sftraj.measperiod*nω)
 
     return SFData{length(pairs)}(data, sys.crystal, Δω, idxinfo)
 end
@@ -161,17 +166,25 @@ represent a good equilibrium sample. The function will use this state to
 generate an initial trajectory. After generating this first trajectory, it will
 call `sampler` before generating subsequent trajectories. In total, the function
 will calculate `numsamps` trajectories and accumulate them into a
-`StructureFactor` which is returned to the user.
+`StructureFactor` which is returned to the user. The remaining keyword arguments
+are shared with [`StructureFactor`](@ref). 
 
-The remaining keyword arguments are shared with [`StructureFactor`](@ref). 
+Note that, to calculate a dynamic structure factor, the keyword `nω` must be set
+to a integer greater than 1.
 """
-function calculate_structure_factor(sys::System, sampler::LangevinSampler; # ddtodo: make a general sampler, deal with step size option
-                                        numsamps=10, Δt=nothing, kwargs...)
-    # Take a step size twice as large as the sampler step size if none explicitly given
-    isnothing(Δt) && (Δt = 2sampler.integrator.Δt)
+function calculate_structure_factor(sys::System, sampler::AbstractSampler; 
+                                        nsamples=10, Δt=nothing, nω=1, kwargs...)
+    Δt = if isnothing(Δt) 
+        if typeof(sampler) <: LangevinSampler
+            2sampler.integrator.Δt
+        else
+            (nω != 1) && println("Warning: No integrator step size provided for structure factor dynamics. Using default.")
+            0.1
+        end
+    end
 
-    sf = StructureFactor(sys; Δt, kwargs...)
-    for _ ∈ 1:numsamps
+    sf = StructureFactor(sys; Δt, nω, kwargs...)
+    for _ in 1:nsamples
         sample!(sys, sampler)
         add_trajectory!(sf, sys)
     end

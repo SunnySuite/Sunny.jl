@@ -36,8 +36,8 @@ function expectation_trajectory!(buf, sys, integrator, nsnaps, ops; measperiod =
 end
 
 
-function compute_mag!(M, sys::System, gfactor = true)
-    if gfactor
+function compute_mag!(M, sys::System, apply_g = true)
+    if apply_g
         for idx in all_sites(sys)
             g = sys.gs[idx[4]]
             M[:, idx] .= g * sys.dipoles[idx]
@@ -55,28 +55,28 @@ function dipole_trajectory(sys, integrator, nsnaps; kwargs...)
     return traj_buf
 end
 
-function dipole_trajectory!(buf, sys, integrator, nsnaps; measperiod = 1, gfactor = true)
+function dipole_trajectory!(buf, sys, integrator, nsnaps; measperiod = 1, apply_g = true)
     @assert size(buf, 1) == 3
 
-    compute_mag!(@view(buf[:,:,:,:,:,1]), sys, gfactor)
+    compute_mag!(@view(buf[:,:,:,:,:,1]), sys, apply_g)
     for n in 2:nsnaps
         for _ in 1:measperiod
             step!(sys, integrator)
         end
-        compute_mag!(@view(buf[:,:,:,:,:,n]), sys, gfactor)
+        compute_mag!(@view(buf[:,:,:,:,:,n]), sys, apply_g)
     end
 
     return nothing
 end
 
 function new_trajectory!(sftraj::SFTrajectory, sys_original::System)
-    (; dipolemode, integrator, traj, measperiod, sys, gfactor) = sftraj
+    (; dipolemode, integrator, traj, measperiod, sys, apply_g) = sftraj
     nsnaps = size(traj, 6)
     sys.dipoles .= sys_original.dipoles
     sys.coherents .= sys_original.coherents
 
     if dipolemode
-        dipole_trajectory!(traj, sys, integrator, nsnaps; measperiod, gfactor)
+        dipole_trajectory!(traj, sys, integrator, nsnaps; measperiod, apply_g)
     else
         expectation_trajectory!(traj, sys, integrator, nsnaps, sftraj.ops; measperiod)
     end
