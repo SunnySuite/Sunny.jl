@@ -1,17 +1,19 @@
 ################################################################################
 # Types
 ################################################################################
-abstract type Contraction{T} end  # T determines type value returned by the contraction (Float64 or ComplexF64)
+abstract type Contraction{T} end  # T determines type value returned by the contraction 
 
 struct Trace{N} <: Contraction{Float64}
     indices :: SVector{N, Int64}
 end
 
-struct Depolarize <: Contraction{Float64} end
+struct DipoleFactor <: Contraction{Float64} end
 
 struct Element <: Contraction{ComplexF64}
     index :: Int64
 end
+
+struct FullTensor <: Contraction{SMatrix{3, 3, ComplexF64, 9}} end
 
 
 ################################################################################
@@ -40,9 +42,9 @@ function Trace(sf::StructureFactor{N}) where N
     return Trace(SVector{length(indices), Int64}(indices))
 end
 
-function Depolarize(sf::StructureFactor)
-    if sf.sftraj.dipolemode 
-        return Depolarize()
+function DipoleFactor(sf::StructureFactor{N, NumCorr}) where {N, NumCorr}
+    if sf.sftraj.dipolemode && NumCorr == 6 
+        return DipoleFactor()
     end
     error("Need to be in structure factor dipole mode to calculate depolarization correction.")
 end
@@ -50,6 +52,19 @@ end
 function Element(sf::StructureFactor, pair)
     index = sf.sfdata.idxinfo[CartesianIndex(pair)]
     return Element(index)
+end
+
+# ddtodo: Need a fast approach to doing this when working with arbitrary
+# observable The difficulty is that the correlation functions are not actually
+# stored in a matrix. Need a clear convention for ordering correlation function,
+# then can perhaps solve the problem statically with a generated function or
+# similar. Note that the contraction functions are extremely critical to
+# performance and this calculations needs to be done without allocation.
+function FullTensor(sf::StructureFactor{N, NumCorr}) where {N, NumCorr}
+    if sf.sftraj.dipolemode && NumCorr == 6
+        return FullTensor()
+    end
+    error("Full tensor currently available only when working with dipolar components.")
 end
 
 
@@ -66,7 +81,7 @@ function contract(elems, _, traceinfo::Trace)
     return intensity
 end
 
-function contract(elems, k::Vec3, ::Depolarize)
+function contract(elems, k::Vec3, ::DipoleFactor)
     k /= norm(k) + 1e-12
     dip_factor = SMatrix{3, 3, Float64, 9}(I(3) - k * k')
 
@@ -86,4 +101,14 @@ end
 
 function contract(elems, _, elem::Element)
     return elems[elem.index]
+end
+
+# ddtodo: generalize this for arbitrary sets of correlation functions and (try to) make readable
+# currently only works when D=3, DD=9 (checked when making FullTensor)
+# Matrix elements are chosen as follows:
+# [elems[1] elems[2] elems[3];
+#  elems[2] elems[4] elems[5];
+#  elems[3] elems[5] elems[6]]
+function contract(elems, _, ::FullTensor) 
+    return SMatrix{3, 3, ComplexF64, 9}(elems[1], elems[2], elems[3], elems[2], elems[4], elems[5], elems[3], elems[5],elems[6])
 end

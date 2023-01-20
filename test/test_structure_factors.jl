@@ -27,7 +27,7 @@
     sys = simple_model_sf(; mode=:SUN)
     S = Sunny.spin_matrices(2)
     ops = cat(S...; dims=3)
-    sf = StructureFactor(sys; ωmax=10.0, gfactor=false, ops)
+    sf = StructureFactor(sys; nω=100, ωmax=10.0, apply_g=false, ops)
     thermalize_simple_model!(sys; kT=0.1)
     add_trajectory!(sf, sys)
     intensities = intensity_grid(sf; contraction=:trace, negative_energies=true)
@@ -37,7 +37,7 @@
 
     # Test sum rule with default observables in dipole mode 
     sys = simple_model_sf(; mode=:dipole)
-    sf = StructureFactor(sys; ωmax=10.0, gfactor=false)
+    sf = StructureFactor(sys; nω=100, ωmax=10.0, apply_g=false)
     thermalize_simple_model!(sys; kT=0.1)
     add_trajectory!(sf, sys)
     intensities = intensity_grid(sf; contraction=:trace, negative_energies=true)
@@ -45,10 +45,10 @@
     @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
 
 
-    # Test depolarize reduces intensity
-    intensities = intensity_grid(sf; contraction=:depolarize, negative_energies=true)
-    total_intensity_depolarized = sum(intensities)
-    @test total_intensity_depolarized < total_intensity_trace
+    # Test perp reduces intensity
+    intensities = intensity_grid(sf; contraction=:perp, negative_energies=true)
+    total_intensity_unpolarized = sum(intensities)
+    @test total_intensity_unpolarized < total_intensity_trace
 
 
     # Test diagonal elements are approximately real (at one wave vector)
@@ -107,7 +107,7 @@ end
 
     # Calculate a path
     sampler = LangevinSampler(integrator, 1000)
-    sf = calculate_structure_factor(sys, sampler; numω=25, ωmax=5.5, numsamps=1)
+    sf = calculate_structure_factor(sys, sampler; nω=25, ωmax=5.5, nsamples=1)
     points = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
     intensities = path(sf, points; interpolation = :linear, contraction = :trace, kT)
 

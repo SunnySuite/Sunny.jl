@@ -81,7 +81,7 @@ retrieved by calling [`ωvals`](@ref). The wave vectors should be specified as
 - `contraction`: Determines the operation performed on the matrix elements α and
     β of ``𝒮^{αβ}(q,ω)`` when requesting an intensity. By default, Sunny
     returns the trace: ``∑_α 𝒮^{αα}(q,ω)``. Polarization correction can be
-    achieved by setting `contraction=:depolarize`. To retrieve a single matrix
+    achieved by setting `contraction=`. To retrieve a single matrix
     element, pass `contraction` a tuple of `Int`s. For example, to retrieve the
     `xy` correlation, set `contraction=(1,2)`.
 - `interpolation`: Since ``𝒮(q,ω)`` is calculated on a finite lattice, data is
@@ -104,25 +104,26 @@ retrieved by calling [`ωvals`](@ref). The wave vectors should be specified as
 """
 function get_intensities(sf::StructureFactor, qs;
     contraction = :trace,
-    interpolation = nothing,
+    interpolation = :none,
     kT = nothing,
     newbasis = nothing,
     formfactors = nothing,
     negative_energies = false,
 )
-
     # Set up interpolation scheme
-    interp = if isnothing(interpolation) 
+    interp = if interpolation == :none
         NoInterp()
     elseif interpolation == :linear
         LinearInterp()
     end
 
     # Set up element contraction
-    contract = if contraction == :trace
+    contractor = if contraction == :trace
         Trace(sf)
-    elseif contraction == :depolarize
-        Depolarize(sf)
+    elseif contraction == :perp
+        DipoleFactor(sf)
+    elseif contraction == :none
+        FullTensor(sf)
     elseif typeof(contraction) <: Tuple{Int, Int}
         Element(sf, contraction)
     end
@@ -144,11 +145,11 @@ function get_intensities(sf::StructureFactor, qs;
     # Precompute index information and preallocate
     ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
     nω = length(ωs) 
-    intensities = zeros(contract, size(q_targets)..., nω)
+    intensities = zeros(contractor, size(q_targets)..., nω)
     stencil_info = pruned_stencil_info(sf, q_targets, interp) 
     
     # Call type stable version of the function
-    get_intensities!(intensities, sf, q_targets, ωs, interp, contract, kT, ffdata, stencil_info) #ddtodo: Track down allocations
+    get_intensities!(intensities, sf, q_targets, ωs, interp, contractor, kT, ffdata, stencil_info) #ddtodo: Track down allocations
 
     # ddtodo: See if worth it to apply classical-to-quantum rescaling here instead of inside loop (removes branching)
 
