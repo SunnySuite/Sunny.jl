@@ -1,216 +1,106 @@
 # Structure Factor Calculations
 
-To be written...
-
-This page gives information on the static and dynamical spin structure factors, how to use Sunny's high and low-level interfaces for computing it, and what is happening behind the scenes in these functions!
-
-The central type implementing all of the computation behind the scenes is
-[`StructureFactor`](@ref).
-
-## Background
-
-The structure factor is one representation in which to examine how spins are correlated within spin
-configurations sampled from the thermal spin distribution defined by the system's Hamiltonian.
-Specifically, we will write our spin degrees of freedom as ``S^α_j(𝐫, t)``, where
-``𝐫 = n_a 𝐚 + n_b 𝐛 + n_c 𝐜`` is the coordinate of the unit cell, ``t`` is the time during some
-evolved dynamics, ``j`` is the index into the basis/sublattice within the unit cell,
-and ``α = \{x,y,z\}`` is the spin-component index.
-
-Spin-spin correlations in real space and time can be characterized by the two-point correlation
-function:
+A dynamical structure factor gives a basic characterization of a spin system's
+dynamical properties and is of fundamental importance when making comparisons
+between theory and experimental scattering data. More specifically, it is a
+function containing information about dynamical spin correlations, typically
+written:
 
 ```math
-C^{αβ}_{jk}(𝐫, t) = ⟨S^α_j(𝐫_0, t_0) S^β_k(𝐫_0 + 𝐫, t_0 + t)⟩_{𝐫_0, t_0}
+𝒮^{αβ}_{jk}(𝐪, ω).
 ```
-where ``⟨⋅⟩_{𝐫_0, t_0}`` means we are taking a thermal average over different spin configurations,
-as well as an average over reference positions ``𝐫_0`` in the lattice and times ``t_0`` in the
-dynamics. Colloquially, this function is telling us "how much is the ``S^α`` component
-of one spin on sublattice ``j`` correlated with the ``S^β`` component of another spin on
-sublattice ``k`` which is displaced in position and time by ``(𝐫, t)``?".
+Given wave vector ``𝐪``, a frequency ``ω``, basis (atom) indices ``j`` and
+``k``, and spin components ``α`` and ``β``, the dynamical structure factor will
+yield a complex value.
 
-The full _dynamic structure factor_ is the Fourier transform of the two-point correlation function.
+Calculating the structure factor is relatively involved process. Sunny
+provides a number of tools to facilitate the calculation and to extract
+information from the results. These tools are briefly outlined below. "Real
+life" use cases can be found in our tutorials and detailed function information
+is available in the Library API.
 
-```math
-𝒮^{αβ}_{jk}(𝐪, ω) = \frac{1}{\sqrt{2π}} \sum_𝐫 \int dt e^{-i (𝐪 ⋅ 𝐫 + ωt)} C^{αβ}_{jk}(𝐫, t)
-```
 
-This is the quantity which the structure factor module computes. By explicitly performing the
-spatial/time averages in our definition of the two-point correlation function, we can obtain
-an alternate, more easily calculable form for the dynamic structure factor:
+## Basic Usage
 
-```math
-𝒮^{αβ}_{jk}(𝐪, ω) = ⟨S^α_j(𝐪, ω) S^β_k(𝐪, ω)^∗⟩
-```
-where ``^∗`` refers to complex conjugation. This provides an easy direct route to calculating
-the dynamic structure factor:
+### Calculating a dynamical stucture factor
 
-1. Obtain a bunch of thermal spin configurations ``S^α_j(𝐫)``
-2. Using these as initial conditions, time evolve them all forward using Landau-Lifshitz
-    dynamics to obtain ``S^α_j(𝐫, t)``.
-3. Discrete Fourier transform them all to obtain ``S^α_j(𝐪, ω)``
-4. Perform a complex-conjugated outer product to obtain a contribution
-   ``S^α_j(𝐪, ω)S^β_k(𝐪, ω)^∗``
-5. Average across all sampled spin configurations
+The basic function for calculating dynamical structure factors is
+[`calculate_structure_factor`](@ref). The steps for using it effectively are the
+following:
 
-Note that in typical presentations, the basis indices are not present as they are included
-in the sum/integral over position. However, because spin simulations can resolve basis-dependent
-correlations, we may as well keep them around for now. Neutron scattering experiments, however,
-cannot resolve basis-dependent correlations, instead seeing only:
+1. Build a [`System`](@ref) and ensure that it is properly equilibrated at the
+   temperature you wish to study. For example, if your `System` is in a ground
+   state, one could use a [`LangevinHeunP`](@ref) integrator to thermalize it.
+2. Set up a [`LangevinSampler`](@ref) that will generate decorrelated samples of
+   spin configurations at the desired temperature.
+3. Call `calculate_structure_factor(sys, sampler; kwargs...)`, which will return
+   return a `StructureFactor`, containing all ``𝒮^{αβ}_{jk}(𝐪, ω)`` data.
 
-```math
-𝒮^{αβ}(𝐪, ω) = \sum_{j,k=1}^{B} e^{-i 𝐪 ⋅ (𝐝_j - 𝐝_k)} 𝒮^{αβ}_{jk}(𝐪, ω)
-```
+The calculation can be configured in a number of ways, and we encourage you to
+see the [`calculate_structure_factor`](@ref) documentation for a list of all
+keywords. In particular, the user will likely want to specify the energy range (`ωmax`)
+and resolution (`numω`) as well as the number of samples to calculate (`numsamps`).
 
-where ``B`` is the number of basis sites within the unit cell and ``𝐝_j`` are the basis vectors.
-Within this page, we will refer to going from the full structure factor to this reduced form as
-performing the "phase-weighted sum" over basis sites.
+### Extracting information
 
-The _static structure factor_ is the spatial Fourier transform of the equal-time correlation
-function.
+The basic function for extracting information from a `StructureFactor` at a
+particular wave vector, ``𝐪``, is [`get_intensities`](@ref). It takes a
+`StructureFactor` and either a single wave vector or an array of wave vectors.
+For example: `get_intensities(sf, [0.0, 0.5, 0.5])`. Note that the wave vector
+is specified in terms of reciprocal lattice units, though an alternative basis
+may be specified by providing a transformation matrix to the keyword `newbasis`.
 
-```math
-𝒮^{αβ}_{jk}(𝐪) = \sum_𝐫 e^{-i𝐪 ⋅ 𝐫} C^{αβ}_{jk}(𝐫, 0)
-               = \frac{1}{\sqrt{2π}} \int dω 𝒮^{αβ}_{jk}(𝐪, ω)
-```
+`get_intensities` will return a vector of intensities at different ``ω``s. The
+precise ``ω`` values corresponding to each index can be retrieved by calling
+`ωvals(sf)`, where `sf` is your `StructureFactor`.
 
-For both of these structure factors, neutron scattering experiments also do not resolve individual
-spin components. Instead, the observed scattering intensity is proportional to the result
-of applying the neutron dipole factor:
+Recall that the full structure contains a number of indices:
+``𝒮^{αβ}_{jk}(𝐪,ω)``, but `get_intensities` only returns information
+corresponding to ``ω``. By default, Sunny traces out the spin component indices
+``α`` and ``β``. This behavior can be changed with the keyword argument
+`contraction`. In addition to `:trace`, one may set `contraction=:depolarize` to
+apply polarization corrections, or `contraction=(α,β)` to retrieve a particular
+matrix element. The basis indices ``j`` and ``k`` are always reduced to out
+through a phase averaging procedure. Note that information pertaining to these
+indices is generally not accessible to experimental inquiry.
 
-```math
-𝒮(𝐪, ω) = ∑_{αβ} (δ_{αβ} - 𝐪̂_α 𝐪̂_β) 𝒮^{αβ}(𝐪, ω)
-```
+Since Sunny currently only calculates the structure factor on a finite lattice,
+it is important to realize that exact information is only available at a
+discrete set of wave vectors. Specifically, for each axis index $i$, we will get
+information at ``q_i = \frac{n}{L_i}``, where $n$ runs from
+``(\frac{-L_i}{2}+1)$ to $\frac{L_i}{2}`` and ``L_i`` is the linear dimension of
+the lattice used for the calculation. If you request a wave vector that does not
+fall in this set, Sunny will automatically round to the nearest ``𝐪`` that is
+available. If `get_intensities` is given the keyword argument
+`interpolation=:linear`, Sunny will use trilinear interpolation to determine the
+results at the requested wave vector. 
 
-## High-level functions
+To retrieve the intensities at all wave vectors for which there is exact data,
+one can use the function [`intensity_grid`](@ref). This takes an optional
+keyword argument `bzsize`, which must be given a tuple of three integers
+specifying the number of Brillouin zones to calculate, e.g., `bzsize=(2,2,2)`. 
 
-Sunny exposes one main high-level function which performs the entirety of the steps (1)--(5)
-outlined above for you: [`dynamic_structure_factor`](@ref). The documentation on that
-function provides a relatively in-depth explanation of all of the arguments.
+To calculate the intensities along a particular path, one may use the function
+[`path`](@ref). This takes two arguments: a structure factor and a list of of
+wave vectors. For example, `path(sf, [(0.0, 0.0, 0.0), (0.0, 0.5, 0.0), (0.5,
+0.5, 0.0)])`. `path` will return energy intensities along a path connecting
+these points. The number of wave vectors sampled along the path is set with the
+keyword `density`, which determines the number of wave vectors per inverse angstrom.
 
-A helper function [`static_structure_factor`](@ref) also exists, which computes the
-static structure factor simply by calling `dynamic_structure_factor` with `num_meas=1`.
+Note that all of these functions share keywords with [`get_intensities`](@ref).
+In particular, they all take the keyword `kT` to set the temperature. It is
+generally recommended to provided a value to `kT` corresponding to the
+temperature at which measurements were taken. This allows Sunny to apply a
+classical-to-quantum rescaling of the energy intensities. 
 
-## Manual incremental updates
+### Static structure factors
 
-If you are writing the lower-level simulation loop yourself, or have a stack of spin configurations on-hand that you want to compute the structure factor from, there is also an additional direct interface.
+Static structure factors may be calculated simply by summing over all the
+energies (i.e., the ``ω``-axis) provided by `get_intensities`. We recommend
+calculating static structure factors from dynamical structure factors in this
+way (rather than directly from a series of equilibrium samples). This approach
+makes it possible to apply the classical-to-quantum intensity rescaling, which
+is energy dependent.
 
-If you have a stack of snapshots on hand, then you can directly use them to 
-construct a `StructureFactor`. A "stack of snapshots" can either be
-represented as a `Vector{System}` (all of which have the same underlying
-lattice), or a `Vector{Array{Vec3, 4}}` along with a `Crystal` defining
-the geometry.
-
-```julia
-sf = StructureFactor(spin_snaps; )
-```
-
-All of the Fourier transforms and computation
-will be performed at construction time -- this may take considerable
-memory and time! By default, this will produce the static structure factor.
-To obtain the dynamic structure factor, set the `dyn_meas` keyword argument
-to a non-zero value (the number of time-evolved snapshots to Fourier transform), along with proper settings for `dynΔt` and `meas_rate` (the
-evolution timestep size, and how many timesteps are taken between snapshots).
-See the documentation of [`StructureFactor`](@ref) for more details.
-
-Alternatively, you can create a `StructureFactor` at the beginning of
-your simulation by passing a single `System`. The spin configuration
-of this first system does not enter the averaged structure factor, as the
-system is purely used to obtain information about the geometry.
-
-Then, during the course of your simulation, call the `update!` function on
-the `StructureFactor` along with your `System` -- the current spin
-configuration in the `System` will be Fourier transformed and accumulated
-into the structure factor. A bare-bones loop achieving this (assuming that you've already created a `system::System` and a `sampler`) would look like:
-
-```julia
-sf = StructureFactor(system)
-for _ in 1:therm_samples
-   sample!(sampler)
-   update!(sf, sys)
-end
-```
-
-(In fact, the code for [`dynamic_structure_factor`](@ref) is not much more complex than this!) At the end of the loop, `sf` will hold the structure factor,
-averaged across all of the thermal spin configurations it was provided.
-
-## Calculating Structure Factors
-
-This section details how the lower-level functions perform each step of computing the
-structure factor.
-
-To begin, we will assume you have on hand a large array storing a single spin trajectory. By
-"single spin trajectory", we mean a single trajectory of a full system's worth of spins.
-From an initial spin _configuration_, you can either just get the
-static structure factor, or you will first need to perform Landau-Lifshitz dynamics using one of
-the [Integrators](@ref) to construct a trajectory.
-
-We will refer to this array as `spin_traj`, which can can be a `Array{SVector{3, Float64}}`
-of size `size(spin_traj) == [B, D1, D2, D3, T]` (with `B` the number of basis sites,
-`[D1, D2, D3]` the number of unit cells along each axis, and `T` the time axis).
-Alternatively, this can be an `Array{ComplexF64}` of `size(spin_traj) == [3, B, D1, D2, D3, T]`
-with the spins encoded into the real components. The former is more intuitive, but the
-latter allows for in-place FFTs.
-
-First, we need to perform a standard Fast Fourier Transform along the spatial and time axes.
-This is be done with one of the following functions:
-
-```_AT_docs
-Sunny.fft_spin_traj
-Sunny.fft_spin_traj!
-```
-
-As the documentation for the functions mentions, you will now have an array of `ComplexF64` of
-size `[3, B, D1, D2, D3, T]`. (The spin component has been unfolded out into the first axis
-regardless of the input format).
-
-This could now be outer-producted with itself to form a contribution to the basis-resolved
-structure factor. In particular, if `spin_traj_ft` is the name of your FFT'd spin trajectory,
-the following function will perform this for you:
-
-```julia
-outerprod_conj(spin_traj_ft, (1, 2))
-```
-
-Which should result in a `ComplexF64` array of size `[3, 3, B, B, D1, D2, D3, T]`.
-The documentation for this function can be seen below:
-
-```_AT_docs
-Sunny.outerprod_conj
-Sunny.outerprod_conj!
-```
-
-Alternatively, if you only care about the post-basis-summation structure factor, you would
-first want to instead perform the phase-weighted basis sum. This can be done manually, or
-by using one of the following functions:
-
-```_AT_docs
-Sunny.phase_weight_basis
-Sunny.phase_weight_basis!
-```
-
-As documented, this will return an array of `ComplexF64` of size `[3, Q1, ..., Qd, T]`,
-where `Q1, ..., Qd` are the possibly expanded range of ``𝐪`` space requested through
-`bz_size`.
-
-As before, we can outer product this resulting array with itself to get a contribution to the
-structure factor, now only required in the first axis as:
-
-```julia
-Sunny.outerprod_conj(spin_traj_ft, 1)
-```
-which should result in a `ComplexF64` array of size `[3, 3, D1, D2, D3, T]`
-
-Repeat this entire process for all thermal spin trajectories you have at a given temperature,
-average the result across all of them, and you have a dynamic structure factor! Note that if
-you performed this entire process with an array containing a single spin configuration but
-an extra "dummy" axis of length 1 (i.e. a size `[B, D1, D2, D3, 1]`), you would be left with
-the _static_ structure factor!
-
-There are additional functions which perform these accumulations while simulataneously
-applying the neutron dipole form factor to reduce the spin components to a single
-observable scalar. These are a bit of a mess currently, though.
-
-```_AT_docs
-Sunny.accum_dipole_factor!
-Sunny.accum_dipole_factor_wbasis!
-```
+For convenience, Sunny provides the function [`get_static_intensities`](@ref), which
+will perform the summation for you.
