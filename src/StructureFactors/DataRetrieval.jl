@@ -210,25 +210,27 @@ end
 """
     connected_path(qs::Vector, density)
 
-Takes an order list of wave vectors, `qs`, and returns an expanded list of
-sample points that connect the provided ``𝐪`` by straight lines. The `density`
-parameter determines the number of samples along each line via the formula:
-
-    `nsamples = round(density * norm(qs[i+1]-qs[i]))`.
+Takes a list of wave vectors, `qs`, and builds an expanded list of wave vectors
+that traces a path through the provided points. Also returned is a list of
+marker indices corresponding to the intput points. The `density` parameter
+controls the frequency of sampling.
 """
 function connected_path(qs::Vector, density)
+    @assert !isempty(qs)
+
     qs = Vec3.(qs)
-    legs = []
+    path = Vec3[]
+    markers = Int[]
     for i in 1:length(qs)-1
-        leg = []
+        push!(markers, length(path)+1)
         q1, q2 = qs[i], qs[i+1]
         dist = norm(q2 - q1)
         npoints = round(Int, dist*density)
         for n in 1:npoints
-            push!(leg, Vec3((1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints))
+            push!(path, (1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints)
         end
-        push!(legs, leg)
     end
-    push!(legs[end], Vec3(qs[end]))
-    return vcat(legs...)
+    push!(markers, length(path)+1)
+    push!(path, qs[end])
+    return (path, markers)
 end
