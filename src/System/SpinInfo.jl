@@ -23,7 +23,7 @@ end
 
 # Propagates spin magnitudes and symmetry-transformed g-tensors to all
 # symmetry-equivalent atoms. Throws an error if two symmetry-equivalent atoms
-# are provided in `site_infos`, or if some atoms remain unspecified.
+# are provided in `infos`, or if some atoms remain unspecified.
 function propagate_site_info(cryst::Crystal, infos::Vector{SpinInfo})
     # Verify that all g tensors are consistent with the the site symmetries
     for info in infos

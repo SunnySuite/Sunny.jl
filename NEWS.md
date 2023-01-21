@@ -9,7 +9,7 @@ This is a big update with many breaking changes. The example FeI2 notebook
 `SpinSystem` has been renamed `System`. Its constructor is,
 
 ```julia
-sys = System(crystal, latsize, infos; mode)
+sys = System(crystal, latsize, infos, mode)
 ```
 The parameter `infos` is now a list of `SpinInfo`
 objects,

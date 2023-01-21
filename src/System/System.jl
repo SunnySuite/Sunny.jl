@@ -1,10 +1,10 @@
 """
-    System(crystal::Crystal, latsize, infos; mode, units=Units.meV, seed::Int)
+    System(crystal::Crystal, latsize, infos, mode; units=Units.meV, seed::Int)
 
 Construct a `System` of spins for a given `crystal` symmetry. The `latsize`
 parameter determines the number of unit cells in each lattice vector direction.
-The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which
-determine the magnitude ``S`` and ``g``-tensor of each spin.
+The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which determine
+the magnitude ``S`` and ``g``-tensor of each spin.
 
 The three possible options for `mode` are `:dipole`, `:SUN`, and `:projected`.
 The choice `:dipole` restricts the description of a spin to its angular momentum
@@ -22,8 +22,8 @@ The default units system of (meV, Å, tesla) can be overridden by with the
 
 All spins are initially polarized in the ``z``-direction.
 """
-function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}=SpinInfo[];
-                    mode::Symbol, units=Units.meV, seed=nothing)
+function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
+                    units=Units.meV, seed=nothing)
     mode==:projected && error("SU(N) projected mode not yet implemented.")
 
     if mode ∉ [:dipole, :SUN, :projected]

@@ -434,7 +434,7 @@ end
 
         # Test anisotropy invariance in dipole mode
         S = 1
-        sys = System(cryst, (1,1,1), [SpinInfo(1, S)], mode=:dipole)
+        sys = System(cryst, (1,1,1), [SpinInfo(1, S)], :dipole)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
         E1 = energy(sys)
@@ -449,7 +449,7 @@ end
         # Test anisotropy invariance in SU(N) mode
         S = 2
         N = Int(2S+1)
-        sys = System(cryst, (1,1,1), [SpinInfo(1, S)]; mode=:SUN)
+        sys = System(cryst, (1,1,1), [SpinInfo(1, S)], :SUN)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
         E1 = energy(sys)
