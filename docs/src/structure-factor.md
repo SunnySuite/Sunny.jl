@@ -1,23 +1,53 @@
 # Structure Factor Calculations
 
-A dynamical structure factor gives a basic characterization of a spin system's
-dynamical properties and is of fundamental importance when making comparisons
-between theory and experimental scattering data. More specifically, it is a
-function containing information about dynamical spin correlations, typically
-written:
+## Overview
+The dynamical structure factor is of fundamental importance for characterizing a
+magnetic system, and facilitates quantitative comparison between theory and
+experimental scattering data.
 
-$$𝒮^{αβ}_{jk}(𝐪, ω).$$
+Consider, for example, a two-point dynamical spin correlation function,
+$⟨s^α(𝐱+Δ𝐱, t+Δt) s^β(𝐱, t)⟩$. Here $s^α(𝐱, t)$ represents the time dynamics
+of a spin dipole component $α$ at position $𝐱$, and brackets represent an
+average over equilibrium initial conditions and over $(𝐱, t)$. The dynamical
+structure factor is defined as the Fourier transform of this two-point
+correlation in both space and time, up to an overall scaling factor. Using the
+convolution theorem, the result is,
 
-Given wave vector $𝐪$, a frequency $ω$, basis (atom) indices $j$ and
-$k$, and spin components $α$ and $β$, the dynamical structure factor will
-yield a complex value.
+$$𝒮^{αβ}(𝐪, ω) = \frac{1}{V} ⟨ŝ^α(𝐪, ω)^\ast ŝ^β(𝐪, ω) ⟩,$$
 
-Calculating the structure factor is relatively involved process. Sunny
-provides a number of tools to facilitate the calculation and to extract
-information from the results. These tools are briefly outlined below. "Real
-life" use cases can be found in our tutorials and detailed function information
-is available in the Library API.
+with $V$ the system volume. We will restrict attention to lattice systems with
+periodic boundaries.
 
+Consider a crystal unit cell defined by three lattice vectors $𝐚_1, 𝐚_2,
+𝐚_3$, and linear system sizes $L_1, L_2, L_3$ measured in unit cells. The
+allowed momentum vectors take on discrete values $𝐪 = \sum_{α=1}^{3} m_α 𝐛_α /
+L_α$, where $m_α$ are an integers and the reciprocal lattice vectors $𝐛_α$ are
+defined to satisfy $𝐚_α ⋅ 𝐛_β = 2π δ_{α,β}$. For a Bravais lattice, $𝐪$ will
+be periodic in the first Brillouin zone, i.e., under any shift $𝐪 → 𝐪 ± 𝐛_α$.
+More generally, consider a non-Bravais lattice such that each unit cell may
+contain multiple spins. By partitioning spins $s_j(𝐱,t)$ according to their
+sublattice index $j$, the relevant momenta $𝐪$ remain discretized as above, but
+now periodicity in the first Brillouin zone is lost. The structure factor may be
+written as a phase-average over the displacements between sublattices
+$𝐫_{j,k}$,
+
+$$𝒮^{αβ}(𝐪, ω) = ∑_{j,k} e^{i 𝐫_{j,k} ⋅ 𝐪} 𝒮̃^{αβ}_{j,k}(𝐪, ω) ⟩,$$
+
+From a theoretical perspective, the quantity
+
+$$𝒮̃^{αβ}_{j,k}(𝐪, ω) = \frac{1}{V} ⟨ŝ_j^α(𝐪, ω)^\ast ŝ_k^β(𝐪, ω)⟩$$
+
+is fundamental. For each sublattice $j$, the data $ŝ_j^α(𝐪, ω)$ can be
+efficiently obtained by fast Fourier tranformation of a real space configuration
+$s_j^α(𝐱, t)$. Internally, Sunny will calculate and store the discrete
+$𝒮̃^{αβ}_{j,k}(𝐪, ω)$ correlation data, and use this to construct $𝒮^{αβ}(𝐪,
+ω)$ intensities that can be compared with experiment.
+
+Calculating this structure factor involves several steps, with various possible
+settings. Sunny provides a number of tools to facilitate this calculation and to
+extract information from the results. These tools are briefly outlined below.
+"Real life" use cases can be found in our tutorials and detailed function
+information is available in the Library API.
 
 ## Basic Usage
 
@@ -28,40 +58,32 @@ The basic function for calculating dynamical structure factors is
 following:
 
 1. Build a [`System`](@ref) and ensure that it is properly equilibrated at the
-   temperature you wish to study. For example, if your `System` is in a ground
+   temperature you wish to study. For example, if the `System` is in a ground
    state, one could use a [`LangevinHeunP`](@ref) integrator to thermalize it.
 2. Set up a sampler that will generate decorrelated samples of spin
    configurations at the desired temperature, for example, by using a
    [`LangevinSampler`](@ref).
 3. Call `calculate_structure_factor(sys, sampler; kwargs...)`, which will return
-   return a `StructureFactor`, containing all $𝒮^{αβ}_{jk}(𝐪, ω)$ data.
+   a `StructureFactor`, containing all $𝒮̃^{αβ}_{jk}(𝐪, ω)$ data.
 
-The calculation can be configured in a number of ways, and we encourage you to
-see the [`calculate_structure_factor`](@ref) documentation for a list of all
-keywords. In particular, the user will likely want to specify the energy range (`ωmax`)
-and resolution (`nω`) as well as the number of samples to calculate (`nsamples`).
+The calculation can be configured in a number of ways; see
+[`calculate_structure_factor`](@ref) documentation for a list of all keywords.
+In particular, note that an argument `nω` greater than one must be specified to
+get a dynamical structure factor.
 
 ### Extracting information
 
 The basic function for extracting information from a `StructureFactor` at a
 particular wave vector, $𝐪$, is [`get_intensities`](@ref). It takes a
-`StructureFactor` and either a single wave vector or an array of wave vectors.
-For example: `get_intensities(sf, [0.0, 0.5, 0.5])`. Note that the wave vector
-is specified in terms of reciprocal lattice units, although an alternative basis
-may be specified by providing a transformation matrix to the keyword `newbasis`.
-
-`get_intensities` will return a vector of intensities at different $ω$s. The
-precise $ω$ values corresponding to each index can be retrieved by calling
-`ωvals(sf)`, where `sf` is your `StructureFactor`.
-
-Recall that the full structure contains a number of indices:
-$𝒮^{αβ}_{jk}(𝐪,ω)$, but `get_intensities` only returns information
-corresponding to $ω$. By default, Sunny traces out the spin component indices
-$α$ and $β$. This behavior can be changed with the keyword argument
-`contraction`. In addition to `:trace`, one may use `:perp` to apply
-polarization corrections, or `:none` to retrieve the full tensor. One may also
-set `contraction=(α,β)`, with `α` and `β` integers between 1 and 3, to retrieve
-a particular correlation functions. The basis indices $j$ and $k$ are contracted internally by the phase averaging procedure to facilitate comparison with experimental data, which may span multiple Brillouin zones.
+`StructureFactor`, one or multiple wave vectors, and a contraction mode. For
+example, `get_intensities(sf, [0.0, 0.5, 0.5], :trace)`. The wave vector is
+specified in reciprocal lattice units; in this example, $𝐪 = (𝐛_2 + 𝐛_3)/2$.
+The option `:trace` contracts on spin indices, and therefore returns data
+$𝒮^{αα}(𝐪,ω)$.  The alternative option `:perp` will additionally apply
+polarization corrections. The option `:full` will return data for the full
+tensor $𝒮^{αβ}(𝐪,ω)$. `get_intensities` returns a list of `nω` elements. The
+corresponding $ω$ values are given by `ωvals(sf)`, where `sf` is the
+`StructureFactor`.
 
 Since Sunny currently only calculates the structure factor on a finite lattice,
 it is important to realize that exact information is only available at a
@@ -88,7 +110,7 @@ keyword `density`, which determines the number of wave vectors per inverse angst
 
 Note that all of these functions share keywords with [`get_intensities`](@ref).
 In particular, they all take the keyword `kT` to set the temperature. It is
-generally recommended to provided a value to `kT` corresponding to the
+generally recommended to provide a value to `kT` corresponding to the
 temperature at which measurements were taken. This allows Sunny to apply a
 classical-to-quantum rescaling of the energy intensities. 
 

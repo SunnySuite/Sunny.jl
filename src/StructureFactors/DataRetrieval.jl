@@ -66,24 +66,23 @@ Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 
 
 """
-    get_intensities(sf::StructureFactor, qs;
-                       contraction = :trace, interpolation = nothing,
+    get_intensities(sf::StructureFactor, qs, mode; interpolation = nothing,
                        kT = nothing, newbasis = nothing, 
                        formfactors = nothing, negative_energies = false)
 
-The basic function for retrieving ``𝒮(q,ω)`` information from a
+The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `StructureFactor`. Takes an array of wave vectors of any dimension, `qs`, and
 returns an array of intensities of the same dimension plus an added final index
 for energy values. The energy values corresponding the final index can be
-retrieved by calling [`ωvals`](@ref). The wave vectors should be specified as
-3-vectors or 3-tuples in terms of reciprocal lattice units (RLUs).  
+retrieved by calling [`ωvals`](@ref). The three coordinates of each wave vector
+are measured in reciprocal lattice units, i.e., multiples of the reciprocal
+lattice vectors.
 
-- `contraction`: Determines the operation performed on the matrix elements α and
-    β of ``𝒮^{αβ}(q,ω)`` when requesting an intensity. By default, Sunny
-    returns the trace: ``∑_α 𝒮^{αα}(q,ω)``. Polarization correction can be
-    achieved by setting `contraction=`. To retrieve a single matrix
-    element, pass `contraction` a tuple of `Int`s. For example, to retrieve the
-    `xy` correlation, set `contraction=(1,2)`.
+- `mode`: Should be one of `:trace`, `:perp`, or `:full`. Determines an optional
+    contraction on the indices ``α`` and ``β`` of ``𝒮^{αβ}(q,ω)``. Setting
+    `trace` yields ``∑_α 𝒮^{αα}(q,ω)``. Setting `perp` will employ a
+    polarization correction on the traced value. Setting `full` will return all
+    elements ``𝒮^{αβ}(q,ω)`` with contraction.
 - `interpolation`: Since ``𝒮(q,ω)`` is calculated on a finite lattice, data is
     only available at discrete wave vectors. By default, Sunny will round a
     requested `q` to the nearest available wave vector. Linear interpolation can
@@ -102,8 +101,7 @@ retrieved by calling [`ωvals`](@ref). The wave vectors should be specified as
 - `negative_energies`: If set to `true`, Sunny will return the periodic
     extension of the energy axis. Most users will not want this.
 """
-function get_intensities(sf::StructureFactor, qs;
-    contraction = :trace,
+function get_intensities(sf::StructureFactor, qs, mode;
     interpolation = :none,
     kT = nothing,
     newbasis = nothing,
@@ -118,11 +116,11 @@ function get_intensities(sf::StructureFactor, qs;
     end
 
     # Set up element contraction
-    contractor = if contraction == :trace
+    contractor = if mode == :trace
         Trace(sf)
     elseif contraction == :perp
         DipoleFactor(sf)
-    elseif contraction == :none
+    elseif contraction == :full
         FullTensor(sf)
     elseif typeof(contraction) <: Tuple{Int, Int}
         Element(sf, contraction)
@@ -156,12 +154,6 @@ function get_intensities(sf::StructureFactor, qs;
     return intensities
 end
 
-function get_intensities(sf::StructureFactor, q::T; kwargs...) where T <: Union{Tuple, AbstractArray{<:Number}}
-    if length(q) != 3
-        error("Wave vector should have three components.")
-    end
-    return get_intensities(sf, [Vec3(q)]; kwargs...)[1,:]
-end
 
 # Type stable version
 function get_intensities!(intensities, sf::StructureFactor, q_targets::Array, ωs, interp::InterpolationScheme, contraction::Contraction{T}, temp, ffdata, stencil_info) where {T}
@@ -185,31 +177,23 @@ end
 
 
 """
-    get_static_intensities(sf::StructureFactor, qs; kwargs...)
+    get_static_intensities(sf::StructureFactor, qs, mode; kwargs...)
 
 Return the static structure factor intensities at wave vectors `qs`. The
 functionality is very similar to [`get_intensities`](@ref), except the returned
 array has dimensions identical to `qs`. The energy axis has been summed out.
 """
-function get_static_intensities(sf::StructureFactor, qs; kwargs...)
+function get_static_intensities(sf::StructureFactor, qs, mode; kwargs...)
     datadims = size(qs)
     ndims = length(datadims)
-    intensities = get_intensities(sf, qs; kwargs...)
+    intensities = get_intensities(sf, qs, mode; kwargs...)
     static_intensities = sum(intensities, dims=(ndims+1,))
     return reshape(static_intensities, datadims)
 end
 
-function get_static_intensities(sf::StructureFactor, q::T; kwargs...) where T <: Union{Tuple, AbstractArray{<:Number}}
-    if length(q) != 3
-        error("Wave vector should have three components.")
-    end
-    intensities = get_intensities(sf, [Vec3(q)]; kwargs...)
-    return sum(intensities)
-end
-
 
 """
-    intensity_grid(sf::StructureFactor;
+    intensity_grid(sf::StructureFactor, mode;
                        bzsize=(1,1,1), negative_energies = false, index_labels = false, kwargs...)
 
 Returns intensities at discrete wave vectors for which there is exact
@@ -221,10 +205,10 @@ two additional options:
 - `index_labels`: If set to `true`, will return axis label information for the
     data, which may be upacked as: `(; intensities, qpoints, ωs)`.
 """
-function intensity_grid(sf::StructureFactor;
+function intensity_grid(sf::StructureFactor, mode;
                             bzsize=(1,1,1), negative_energies = false, index_labels = false, kwargs...)
     qpoints = qgrid(sf; bzsize)
-    intensities = get_intensities(sf, qpoints; negative_energies, kwargs...)
+    intensities = get_intensities(sf, qpoints, mode; negative_energies, kwargs...)
 
     if index_labels
         ωs =  negative_energies ? ωvals_all(sf) : ωvals(sf)
@@ -235,42 +219,39 @@ function intensity_grid(sf::StructureFactor;
 end
 
 
-function path_points(points::Vector, density)
+"""
+    connected_path(qs::Vector, density)
+
+Takes an order list of wave vectors, `qs`, and returns an expanded list of
+sample points that connect the provided ``𝐪`` by straight lines. The `density`
+parameter determines the number of samples along each line via the formula:
+
+    `nsamples = round(density * norm(qs[i+1]-qs[i]))`.
+"""
+function connected_path(qs::Vector, density)
+    qs = Vec3.(qs)
     legs = []
-    for i ∈ 1:length(points)-1
+    for i in 1:length(qs)-1
         leg = []
-        p1, p2 = points[i], points[i+1]
-        dist = norm(p2 - p1)
-        numpoints = dist*density
-        for n in 1:numpoints
-            push!(leg, Vec3((1 - (n-1)/numpoints)*p1 + (n-1)*p2/numpoints))
+        q1, q2 = qs[i], qs[i+1]
+        dist = norm(q2 - q1)
+        npoints = round(Int, dist*density)
+        for n in 1:npoints
+            push!(leg, Vec3((1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints))
         end
         push!(legs, leg)
     end
-    push!(legs[end], Vec3(points[end]))
+    push!(legs[end], Vec3(qs[end]))
     return vcat(legs...)
 end
 
-"""
-    path(sf::StructureFactor, points::Vector; density = 10, index_labels=false, kwargs...)
-
-Takes a list of ordered wave vectors, `points`, and extracts a path along a
-lines connecting these wave vectors. The number of wave vectors sampled between
-the specified points is determined by the `density` keyword, which determines
-the number of points per inverse angstrom. If `index_labels` is set to `true`,
-will return index label information which may be unpacked as `(; intensities,
-qs, ωs)`. `intensities` will be a two dimension array, with the first index
-corresponding to wave vectors (`q`) and the second to energy (`ω`).
-
-All other keywords are shared with [`get_intensities`](@ref).
-"""
-function path(sf::StructureFactor, points::Vector; density = 10, index_labels=false, kwargs...)
-    qs = path_points(Vec3.(points), density)
-    intensities = Sunny.get_intensities(sf, qs; kwargs...) 
-    if index_labels
-        ωs = ωvals(sf)
-        qs = map(q -> q.data, qs) # Return Tuples instead of StaticArrays
-        return (; intensities, qs, ωs)
-    end
-    return intensities
-end
+# function path(sf::StructureFactor, points::Vector, mode; density = 10, index_labels=false, kwargs...)
+#     qs = path_points(Vec3.(points), density)
+#     intensities = Sunny.get_intensities(sf, qs, mode; kwargs...) 
+#     if index_labels
+#         ωs = ωvals(sf)
+#         qs = map(q -> q.data, qs) # Return Tuples instead of StaticArrays
+#         return (; intensities, qs, ωs)
+#     end
+#     return intensities
+# end

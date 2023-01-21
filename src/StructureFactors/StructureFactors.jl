@@ -157,7 +157,7 @@ function SFData(sys::System, sftraj::SFTrajectory;
 end
 
 """
-    calculate_structure_factor(sys::System, sampler::LangevinSampler; numsamps=10, kwargs...)
+    calculate_structure_factor(sys::System, sampler::LangevinSampler; nsamples=10, kwargs...)
 
 Calculates a `StructureFactor` containg ``𝒮(q,ω)`` information with a single
 function call. Must be given a [`System`](@ref) and a [`LangevinSampler`](@ref).
@@ -165,12 +165,13 @@ This functions expects that the spin state contained in the `System` to already
 represent a good equilibrium sample. The function will use this state to
 generate an initial trajectory. After generating this first trajectory, it will
 call `sampler` before generating subsequent trajectories. In total, the function
-will calculate `numsamps` trajectories and accumulate them into a
-`StructureFactor` which is returned to the user. The remaining keyword arguments
-are shared with [`StructureFactor`](@ref). 
+will calculate `nsamples` trajectories and accumulate them into a
+`StructureFactor` which is returned. The remaining keyword arguments are shared
+with [`StructureFactor`](@ref). 
 
-Note that, to calculate a dynamic structure factor, the keyword `nω` must be set
-to a integer greater than 1.
+By default, this function will calculate the static structure factor,
+independent of dynamics. Specify a keyword argument `nω` greater than 1 to
+measure ``ω``-dependent dynamical quantities.
 """
 function calculate_structure_factor(sys::System, sampler::AbstractSampler; 
                                         nsamples=10, Δt=nothing, nω=1, kwargs...)
