@@ -70,12 +70,11 @@ Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
                        kT = nothing, formfactors = nothing, negative_energies = false)
 
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
-`StructureFactor`. Takes an array of wave vectors of any dimension, `qs`, and
-returns an array of intensities of the same dimension plus an added final index
-for energy values. The energy values corresponding the final index can be
-retrieved by calling [`ωvals`](@ref). The three coordinates of each wave vector
-are measured in reciprocal lattice units, i.e., multiples of the reciprocal
-lattice vectors.
+`StructureFactor`. Maps an array of wave vectors `qs` to an array of structure
+factor intensities, including an additional energy index. The values of ``ω``
+associated with the energy index can be retrieved by calling [`ωvals`](@ref).
+The three coordinates of each wave vector are measured in reciprocal lattice
+units, i.e., multiples of the reciprocal lattice vectors.
 
 - `mode`: Should be one of `:trace`, `:perp`, or `:full`. Determines an optional
     contraction on the indices ``α`` and ``β`` of ``𝒮^{αβ}(q,ω)``. Setting

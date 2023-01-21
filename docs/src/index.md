@@ -1,6 +1,10 @@
 # Sunny.jl
 
-[Sunny](https://github.com/SunnySuite/Sunny.jl/) is a package for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipolar spin components. In the latter case, Sunny resolves the local quantum structure of individual spins, making it particularly suited for modeling magnetic compounds with strong local anisotropy.
+[Sunny](https://github.com/SunnySuite/Sunny.jl/) is a package for simulating
+classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles
+and its generalization to multipolar spin components. In the latter case, Sunny
+resolves the local quantum structure of individual spins, making it particularly
+suited for modeling magnetic compounds with strong local anisotropy.
 
 Sunny provides the following features:
 
@@ -14,4 +18,7 @@ Sunny provides the following features:
 - Interactive visualizations of the 3D crystal structure and spin states (support for 3D structure factors is planned.)
 - Distributed implementation of [parallel tempering](https://en.wikipedia.org/wiki/Parallel_tempering) to increase sampling efficiency.
 
-A current limitation of Sunny is that it requires real-space dynamical simulations to measure the structure factor, and this limits momentum-space resolution. Support for linear spin wave theory and its SU(_N_) generalization is **in progress**.
+A current limitation of Sunny is that it requires real-space dynamical
+simulations to measure the structure factor, and this limits momentum-space
+resolution. Support for linear spin wave theory and its SU(_N_) generalization
+is **in progress**.

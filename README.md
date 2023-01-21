@@ -13,7 +13,7 @@ A package for simulating classical spin systems, including the Landau-Lifshitz d
 
 Sunny additionally provides Monte Carlo algorithms for sampling from thermal equilibrium, as well as tools for measuring dynamical structure factors that can be compared with experimental neutron scattering data. Sunny provides symmetry analyses to facilitate the design and specification of model Hamiltonians, and interactive tools to visualize 3D crystal structures and (coming soon) structure factor data.
 
-Sunny is currently under heavy development. Expect frequent [**breaking changes**](NEWS.md).
+Sunny is currently under heavy development. A list of **breaking changes** appears in the [version history](https://sunnysuite.github.io/Sunny.jl/dev/versions/).
 
 ## Example notebooks
 
