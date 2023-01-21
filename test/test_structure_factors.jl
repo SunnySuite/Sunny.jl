@@ -30,7 +30,7 @@
     sf = StructureFactor(sys; nω=100, ωmax=10.0, apply_g=false, ops)
     thermalize_simple_model!(sys; kT=0.1)
     add_trajectory!(sf, sys)
-    intensities = intensity_grid(sf; contraction=:trace, negative_energies=true)
+    intensities = intensity_grid(sf, :trace; negative_energies=true)
     total_intensity_trace = sum(intensities)
     @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
 
@@ -40,34 +40,34 @@
     sf = StructureFactor(sys; nω=100, ωmax=10.0, apply_g=false)
     thermalize_simple_model!(sys; kT=0.1)
     add_trajectory!(sf, sys)
-    intensities = intensity_grid(sf; contraction=:trace, negative_energies=true)
+    intensities = intensity_grid(sf, :trace; negative_energies=true)
     total_intensity_trace = sum(intensities)
     @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
 
 
     # Test perp reduces intensity
-    intensities = intensity_grid(sf; contraction=:perp, negative_energies=true)
+    intensities = intensity_grid(sf, :perp; negative_energies=true)
     total_intensity_unpolarized = sum(intensities)
     @test total_intensity_unpolarized < total_intensity_trace
 
 
     # Test diagonal elements are approximately real (at one wave vector)
     for α in 1:3
-        intensities_symmetric = get_intensities(sf, (0.25, 0.5, 0); contraction=(α,α))
+        intensities_symmetric = get_intensities(sf, [(0.25, 0.5, 0)], (α,α))
         @test sum(imag(intensities_symmetric)) < 1e-15
     end
 
 
     # Test form factor correction works and is doing something. ddtodo: add example with sublattice
     formfactors = [FormFactor(1, "Fe2")]
-    intensities = intensity_grid(sf; contraction=:trace, formfactors, negative_energies=true)
+    intensities = intensity_grid(sf, :trace; formfactors, negative_energies=true)
     total_intensity_ff = sum(intensities)
     @test total_intensity_ff != total_intensity_trace
 
 
     # Test path function and interpolation working (no correctness implied here)
-    points = [(0, 0, 0), (0, 1, 0), (1, 1, 0)]
-    intensities = path(sf, points; density=20, interpolation=:linear)
+    qs = connected_path([(0, 0, 0), (0, 1, 0), (1, 1, 0)], 20)
+    intensities = get_intensities(sf, qs, :trace; interpolation=:linear)
     @test length(size(intensities)) == 2 
 
 
@@ -108,8 +108,8 @@ end
     # Calculate a path
     sampler = LangevinSampler(integrator, 1000)
     sf = calculate_structure_factor(sys, sampler; nω=25, ωmax=5.5, nsamples=1)
-    points = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
-    intensities = path(sf, points; interpolation = :linear, contraction = :trace, kT)
+    qs = connected_path([(0.0, 0.0, 0.0), (0.5, 0.0, 0.0), (0.5, 0.5, 0.0), (0.0, 0.0, 0.0)], 20)
+    intensities = get_intensities(sf, qs, :trace; interpolation=:linear, kT)
 
     # Compare with reference 
     refdata = readdlm(joinpath(@__DIR__, "..", "src", "StructureFactors", "data", "sf_ref.dat"))
