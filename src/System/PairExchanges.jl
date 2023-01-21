@@ -122,7 +122,7 @@ J2 = 2*I + dmvec([0,0,3])
 set_exchange!(sys, J2, bond)
 ```
 
-See also [`set_exchange_with_biquadratic`](@ref), [`dmvec`](@ref).
+See also [`set_exchange_with_biquadratic!`](@ref), [`dmvec`](@ref).
 """
 function set_exchange!(sys::System{N}, J, bond::Bond) where N
     set_exchange_with_biquadratic!(sys, J, 0.0, bond)

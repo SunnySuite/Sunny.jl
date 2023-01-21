@@ -75,15 +75,18 @@ get a dynamical structure factor.
 
 The basic function for extracting information from a `StructureFactor` at a
 particular wave vector, $𝐪$, is [`get_intensities`](@ref). It takes a
-`StructureFactor`, one or multiple wave vectors, and a contraction mode. For
-example, `get_intensities(sf, [0.0, 0.5, 0.5], :trace)`. The wave vector is
-specified in reciprocal lattice units; in this example, $𝐪 = (𝐛_2 + 𝐛_3)/2$.
-The option `:trace` directly contracts spin indices to return intensities
-$𝒮^{αα}(𝐪,ω)$. The option `:perp` will instead perform a contraction that
-includes polarization corrections. The option `:full` will return data for the
-full tensor $𝒮^{αβ}(𝐪,ω)$. `get_intensities` returns a list of `nω` elements.
-The corresponding $ω$ values are given by `ωvals(sf)`, where `sf` is the
-`StructureFactor`.
+`StructureFactor`, a list of wave vectors, and a contraction mode. For example,
+`get_intensities(sf, [[0.0, 0.5, 0.5]], :trace)` will calculate intensities for
+the wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The option `:trace` will contract spin
+indices, returning $𝒮^{αα}(𝐪,ω)$. The option `:perp` will instead perform a
+contraction that includes polarization corrections. The option `:full` will
+return data for the full tensor $𝒮^{αβ}(𝐪,ω)$. `get_intensities` returns a
+list of `nω` elements. The corresponding $ω$ values are given by `ωvals(sf)`,
+where `sf` is the `StructureFactor`.
+
+The convenience function [`connected_path`](@ref) returns a list of wavevectors
+sampled along a path that connects specified $𝐪$ points. This list can be used
+as an input to `get_intensities`.
 
 Since Sunny currently only calculates the structure factor on a finite lattice,
 it is important to realize that exact information is only available at a
@@ -99,19 +102,12 @@ results at the requested wave vector.
 To retrieve the intensities at all wave vectors for which there is exact data,
 one can use the function [`intensity_grid`](@ref). This takes an optional
 keyword argument `bzsize`, which must be given a tuple of three integers
-specifying the number of Brillouin zones to calculate, e.g., `bzsize=(2,2,2)`. 
+specifying the number of Brillouin zones to calculate, e.g., `bzsize=(2,2,2)`.
 
-To calculate the intensities along a particular path, one may use the function
-[`path`](@ref). This takes two arguments: a structure factor and a list of of
-wave vectors. For example, `path(sf, [(0.0, 0.0, 0.0), (0.0, 0.5, 0.0), (0.5,
-0.5, 0.0)])`. `path` will return energy intensities along a path connecting
-these points. The number of wave vectors sampled along the path is set with the
-keyword `density`, which determines the number of wave vectors per inverse angstrom.
-
-Note that all of these functions share keywords with [`get_intensities`](@ref).
-In particular, they all take the keyword `kT` to set the temperature. It is
-generally recommended to provide a value to `kT` corresponding to the
-temperature at which measurements were taken. This allows Sunny to apply a
+Many keyword arguments are available which modify the calculation of structure
+factor intensity. See the documentation of [`get_intensities`](@ref) for a full
+list. It is generally recommended to provide a value to `kT` corresponding to
+the temperature of sampled configurations. Given `kT`, Sunny will apply a
 classical-to-quantum rescaling of the energy intensities. 
 
 ### Static structure factors
