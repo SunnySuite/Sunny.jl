@@ -1,9 +1,9 @@
 """
-    System(crystal::Crystal, latsize, siteinfos; mode, units=Units.meV, seed::Int)
+    System(crystal::Crystal, latsize, infos; mode, units=Units.meV, seed::Int)
 
 Construct a `System` of spins for a given `crystal` symmetry. The `latsize`
 parameter determines the number of unit cells in each lattice vector direction.
-The `siteinfos` parameter is a list of [`SiteInfo`](@ref) objects, which
+The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which
 determine the magnitude ``S`` and ``g``-tensor of each spin.
 
 The three possible options for `mode` are `:dipole`, `:SUN`, and `:projected`.
@@ -22,7 +22,7 @@ The default units system of (meV, Å, tesla) can be overridden by with the
 
 All spins are initially polarized in the ``z``-direction.
 """
-function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{SiteInfo}=SiteInfo[];
+function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}=SpinInfo[];
                     mode::Symbol, units=Units.meV, seed=nothing)
     mode==:projected && error("SU(N) projected mode not yet implemented.")
 
@@ -30,13 +30,13 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, siteinfos::Vector{Site
         error("Mode must be one of [:dipole, :SUN, :projected].")
     end
 
-    siteinfos = if isempty(siteinfos)
-        [SiteInfo(i; S=1.0) for i in 1:nbasis(crystal)]
+    infos = if isempty(infos)
+        [SpinInfo(i, 1.0) for i in 1:nbasis(crystal)]
     else
-        propagate_site_info(crystal, siteinfos)
+        propagate_site_info(crystal, infos)
     end
-    Ss = [si.S for si in siteinfos]
-    gs = [si.g for si in siteinfos]
+    Ss = [si.S for si in infos]
+    gs = [si.g for si in infos]
 
     # Determine dimension N of the local Hilbert space, or 0 if in dipole-only mode
     N, κs = if mode == :SUN

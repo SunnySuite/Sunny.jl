@@ -27,7 +27,7 @@
         Λ = D*𝒮[3]^2
         cryst = asymmetric_crystal()
 
-        sys = System(cryst, (L,1,1), [SiteInfo(1; S)]; mode=:SUN, seed)
+        sys = System(cryst, (L,1,1), [SpinInfo(1, S)]; mode=:SUN, seed)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
 
@@ -37,7 +37,7 @@
     function su5_anisotropy_model(; L=20, D=1.0, seed)
         S = 2
         cryst = asymmetric_crystal()
-        sys = System(cryst, (L,1,1), [SiteInfo(1; S)]; mode=:SUN, seed)
+        sys = System(cryst, (L,1,1), [SpinInfo(1, S)]; mode=:SUN, seed)
         randomize_spins!(sys)
 
         R = Sunny.random_orthogonal(sys.rng, 3; special=true)
@@ -179,7 +179,7 @@ end
         
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
-        sys = System(cryst, (1,1,1), [SiteInfo(1; S)]; mode, seed)
+        sys = System(cryst, (1,1,1), [SpinInfo(1, S)]; mode, seed)
         sys.κs .= κ
         set_exchange!(sys, 1.0, Bond(1,2,[0,0,0]))
         randomize_spins!(sys)

@@ -27,7 +27,7 @@ crystal = Crystal(lvecs, bvecs)
 # Make system and randomize spins
 extent = (20, 20, 1)
 g = 1 / Sunny.BOHR_MAGNETON
-system = SpinSystem(crystal, interactions, extent, [SiteInfo(1,1,g)])
+system = SpinSystem(crystal, interactions, extent, [SpinInfo(1, 1.0; g)])
 for idx = all_sites(system)
     rand(sys.rng, Bool) && sys.dipoles[idx] *= -1
 end

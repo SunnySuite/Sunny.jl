@@ -54,14 +54,14 @@ export Crystal, subcrystal, nbasis, cell_volume, cell_type,
 include("Units.jl")
 export meV_per_K, Units
 
-include("System/SiteInfo.jl")
+include("System/SpinInfo.jl")
 include("System/Types.jl")
 include("System/System.jl")
 include("System/PairExchanges.jl")
 include("System/SingleIonAnisotropies.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
-export SiteInfo, System, polarize_spins!, randomize_spins!, energy, forces,
+export SpinInfo, System, polarize_spins!, randomize_spins!, energy, forces,
     extend_periodically,
     set_external_field!, set_local_external_field!, set_anisotropy!, set_local_anisotropy!,
     set_exchange!, set_exchange_with_biquadratic!, dmvec,
