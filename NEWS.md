@@ -9,21 +9,20 @@ This is a big update with many breaking changes. The example FeI2 notebook
 `SpinSystem` has been renamed `System`. Its constructor is,
 
 ```julia
-sys = System(crystal, latsize, siteinfos; mode)
+sys = System(crystal, latsize, infos; mode)
 ```
-
-There is now a required named parameter `mode` which must be one of `:dipole`,
-`:SUN`, or `:projected`. The parameter `siteinfos` is a list of `SiteInfo`
+The parameter `infos` is now a list of `SpinInfo`
 objects,
 
 ```julia
-SiteInfo(site::Int; S, g=2)
+SpinInfo(site::Int, S; g=2),
 ```
 
-The new parameter `S` specifies spin angular momentum as a half-integer multiple
-of $\hbar$, and has a consistent meaning between dipole and SU(_N_) modes. Form
-factor corrections will now be specified in the structure factor module of
-Sunny.
+involving spin angular momentum $S = (1/2, 1, 3/2, …)$ and an optional
+``g``-factor or tensor.
+
+`System` now requires an additional parameter `mode` which must be one of
+`:dipole`, `:SUN`, or `:projected`. 
 
 ## Setting interactions
 

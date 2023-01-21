@@ -6,7 +6,7 @@
         cryst = Sunny.fcc_primitive_crystal()
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
-        sys = System(cryst, latsize, [SiteInfo(1; S)]; mode, seed)
+        sys = System(cryst, latsize, [SpinInfo(1, S)]; mode, seed)
         sys.κs .= κ
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         return sys
@@ -85,7 +85,7 @@ end
     function diamond_model(; J, dims = (3,3,3), kwargs...)
         crystal = Sunny.diamond_crystal()
         S = 3/2
-        sys = System(crystal, dims, [SiteInfo(1; S)]; mode=:dipole, kwargs...)
+        sys = System(crystal, dims, [SpinInfo(1, S)]; mode=:dipole, kwargs...)
         set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
         randomize_spins!(sys)
         return sys

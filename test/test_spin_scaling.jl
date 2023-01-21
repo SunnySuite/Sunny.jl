@@ -12,7 +12,7 @@
 
         for integrator in integrators
             for mode in (:SUN, :dipole)
-                sys = System(cryst, (3,3,3), [SiteInfo(1; S=5/2)]; mode, seed=0)
+                sys = System(cryst, (3,3,3), [SpinInfo(1, 5/2)]; mode, seed=0)
                 add_linear_interactions!(sys, mode)
                 add_quadratic_interactions!(sys, mode)
                 add_quartic_interactions!(sys, mode)
@@ -34,7 +34,7 @@
     function test_energy_scaling()
         function gen_energy(κ, adder, mode)
             cryst = Sunny.diamond_crystal()
-            sys = System(cryst, (2,2,2), [SiteInfo(1; S=5/2)]; mode, seed=0)
+            sys = System(cryst, (2,2,2), [SpinInfo(1, 5/2)]; mode, seed=0)
             adder(sys, mode)
             sys.κs .= κ
             randomize_spins!(sys)
@@ -65,7 +65,7 @@
     function test_dynamics_scaling()
         function gen_trajectory(κ, Δt, adder, mode)
             cryst = Sunny.diamond_crystal()
-            sys = System(cryst, (4,3,2), [SiteInfo(1; S=5/2)]; mode, seed=0)
+            sys = System(cryst, (4,3,2), [SpinInfo(1, 5/2)]; mode, seed=0)
             adder(sys, mode)
             sys.κs .= κ
             randomize_spins!(sys)

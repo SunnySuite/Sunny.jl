@@ -17,14 +17,14 @@
     latvecs = lattice_vectors(1,1,1,90,90,90)
     positions = [[0,0,0]]
     cryst = Crystal(latvecs, positions)
-    site_infos = [SiteInfo(1; S=1, g=1)]
-    sys = System(cryst, (1,1,1), site_infos; mode=:dipole, units=Units.theory)
+    infos = [SpinInfo(1, 1.0; g=1)]
+    sys = System(cryst, (1,1,1), infos; mode=:dipole, units=Units.theory)
     enable_dipole_dipole!(sys)
     @test ewalder_energy(sys) ≈ -1/6
     @test isapprox(energy(sys), -1/6; atol=1e-13)
 
     # Same thing, with multiple unit cells
-    sys = System(cryst, (2,3,4), site_infos; mode=:dipole, units=Units.theory)
+    sys = System(cryst, (2,3,4), infos; mode=:dipole, units=Units.theory)
     enable_dipole_dipole!(sys)
     @test isapprox(energy(sys), -(1/6)prod(sys.latsize); atol=1e-13)
 
@@ -34,9 +34,9 @@
     cryst = Crystal(latvecs, positions)
     Random.seed!(0) # Don't have sys.rng yet
     site_infos = [
-        SiteInfo(1; S=1, g=rand(3,3)),
-        SiteInfo(2; S=1.5, g=rand(3,3)),
-        SiteInfo(3; S=2, g=rand(3,3)),
+        SpinInfo(1, 1, g=rand(3,3)),
+        SpinInfo(2, 3/2; g=rand(3,3)),
+        SpinInfo(3, 2; g=rand(3,3)),
     ]
     sys = System(cryst, (1,1,1), site_infos; mode=:dipole, units=Units.theory)
     enable_dipole_dipole!(sys)
