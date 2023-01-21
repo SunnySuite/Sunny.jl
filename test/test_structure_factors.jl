@@ -80,7 +80,6 @@ end
 
 
 @testitem "Structure factor reference" begin
-    using DelimitedFiles
 
     function diamond_model(; J, dims = (3,3,3), kwargs...)
         crystal = Sunny.diamond_crystal()
