@@ -4,7 +4,7 @@
 
     function make_system(; mode)
         cryst = Sunny.diamond_crystal()
-        sys = System(cryst, (3, 3, 3); mode, seed=0)
+        sys = System(cryst, (3, 3, 3), [SpinInfo(1, 1.0)], mode; seed=0)
         add_linear_interactions!(sys, mode)
         add_quadratic_interactions!(sys, mode)
         add_quartic_interactions!(sys, mode)
