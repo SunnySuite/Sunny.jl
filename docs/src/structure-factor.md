@@ -78,11 +78,11 @@ particular wave vector, $𝐪$, is [`get_intensities`](@ref). It takes a
 `StructureFactor`, one or multiple wave vectors, and a contraction mode. For
 example, `get_intensities(sf, [0.0, 0.5, 0.5], :trace)`. The wave vector is
 specified in reciprocal lattice units; in this example, $𝐪 = (𝐛_2 + 𝐛_3)/2$.
-The option `:trace` contracts on spin indices, and therefore returns data
-$𝒮^{αα}(𝐪,ω)$.  The alternative option `:perp` will additionally apply
-polarization corrections. The option `:full` will return data for the full
-tensor $𝒮^{αβ}(𝐪,ω)$. `get_intensities` returns a list of `nω` elements. The
-corresponding $ω$ values are given by `ωvals(sf)`, where `sf` is the
+The option `:trace` directly contracts spin indices to return intensities
+$𝒮^{αα}(𝐪,ω)$. The option `:perp` will instead perform a contraction that
+includes polarization corrections. The option `:full` will return data for the
+full tensor $𝒮^{αβ}(𝐪,ω)$. `get_intensities` returns a list of `nω` elements.
+The corresponding $ω$ values are given by `ωvals(sf)`, where `sf` is the
 `StructureFactor`.
 
 Since Sunny currently only calculates the structure factor on a finite lattice,
