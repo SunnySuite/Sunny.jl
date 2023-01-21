@@ -191,7 +191,7 @@ end
 function get_dipole_buffers(sys::System, numrequested)
     numexisting = length(sys.dipole_buffers)
     if numexisting < numrequested
-        for _ ∈ 1:(numrequested-numexisting)
+        for _ in 1:(numrequested-numexisting)
             push!(sys.dipole_buffers, zero(sys.dipoles))
         end
     end
@@ -201,7 +201,7 @@ end
 function get_coherent_buffers(sys::System, numrequested)
     numexisting = length(sys.coherent_buffers)
     if numexisting < numrequested
-        for _ ∈ 1:(numrequested-numexisting)
+        for _ in 1:(numrequested-numexisting)
             push!(sys.coherent_buffers, zero(sys.coherents))
         end
     end

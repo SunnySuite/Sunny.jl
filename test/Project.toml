@@ -1,5 +1,4 @@
 [deps]
-DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 DynamicPolynomials = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
 Ewalder = "2efd4204-53b6-4d30-8cf4-11a055f037eb"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"

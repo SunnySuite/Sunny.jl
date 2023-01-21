@@ -67,8 +67,7 @@ Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 
 """
     get_intensities(sf::StructureFactor, qs, mode; interpolation = nothing,
-                       kT = nothing, newbasis = nothing, 
-                       formfactors = nothing, negative_energies = false)
+                       kT = nothing, formfactors = nothing, negative_energies = false)
 
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `StructureFactor`. Takes an array of wave vectors of any dimension, `qs`, and
@@ -91,10 +90,6 @@ lattice vectors.
     temperature- and ω-dependent classical-to-quantum factor. `kT` should be
     specified when making comparisons with spin wave calculations or
     experimental data.
-- `newbasis`: If the `qs` are given in terms of a basis other than the
-    reciprocal lattice vectors, `newbasis` should be given a 3x3 matrix, the
-    columns of which determine the new basis by specifying linear combinations
-    of the reciprocal vectors. 
 - `formfactors`: To apply form factor corrections, provide this keyword with a
     vector of `FormFactor`s, one for each unique site in the unit cell. Sunny
     will symmetry propagate the results to all equivalent sites.
@@ -104,10 +99,11 @@ lattice vectors.
 function get_intensities(sf::StructureFactor, qs, mode;
     interpolation = :none,
     kT = nothing,
-    newbasis = nothing,
     formfactors = nothing,
     negative_energies = false,
 )
+    qs = Vec3.(qs)
+
     # Set up interpolation scheme
     interp = if interpolation == :none
         NoInterp()
@@ -118,19 +114,12 @@ function get_intensities(sf::StructureFactor, qs, mode;
     # Set up element contraction
     contractor = if mode == :trace
         Trace(sf)
-    elseif contraction == :perp
+    elseif mode == :perp
         DipoleFactor(sf)
-    elseif contraction == :full
+    elseif mode == :full
         FullTensor(sf)
-    elseif typeof(contraction) <: Tuple{Int, Int}
-        Element(sf, contraction)
-    end
-
-    # Apply basis transformation (if newbasis provided)
-    q_targets = Vec3.(qs) 
-    if !isnothing(newbasis)
-        newbasis = Mat3(newbasis)
-        q_targets = map(q -> newbasis*q, q_targets)
+    elseif typeof(mode) <: Tuple{Int, Int}
+        Element(sf, mode)
     end
 
     # Propagate form factor information (if any)
@@ -143,11 +132,11 @@ function get_intensities(sf::StructureFactor, qs, mode;
     # Precompute index information and preallocate
     ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
     nω = length(ωs) 
-    intensities = zeros(contractor, size(q_targets)..., nω)
-    stencil_info = pruned_stencil_info(sf, q_targets, interp) 
+    intensities = zeros(contractor, size(qs)..., nω)
+    stencil_info = pruned_stencil_info(sf, qs, interp) 
     
     # Call type stable version of the function
-    get_intensities!(intensities, sf, q_targets, ωs, interp, contractor, kT, ffdata, stencil_info) #ddtodo: Track down allocations
+    get_intensities!(intensities, sf, qs, ωs, interp, contractor, kT, ffdata, stencil_info) #ddtodo: Track down allocations
 
     # ddtodo: See if worth it to apply classical-to-quantum rescaling here instead of inside loop (removes branching)
 
@@ -244,14 +233,3 @@ function connected_path(qs::Vector, density)
     push!(legs[end], Vec3(qs[end]))
     return vcat(legs...)
 end
-
-# function path(sf::StructureFactor, points::Vector, mode; density = 10, index_labels=false, kwargs...)
-#     qs = path_points(Vec3.(points), density)
-#     intensities = Sunny.get_intensities(sf, qs, mode; kwargs...) 
-#     if index_labels
-#         ωs = ωvals(sf)
-#         qs = map(q -> q.data, qs) # Return Tuples instead of StaticArrays
-#         return (; intensities, qs, ωs)
-#     end
-#     return intensities
-# end
