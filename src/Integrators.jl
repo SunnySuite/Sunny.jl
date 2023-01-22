@@ -43,12 +43,6 @@ ImplicitMidpoint(Δt; atol=1e-12) = ImplicitMidpoint(Δt, atol)
 # Dipole integration
 ################################################################################
 
-function normalize_dipoles!(dipoles::Array{Vec3, 4}, sys::System{0})
-    for idx in all_sites(sys)
-        dipoles[idx] = sys.κs[idx[4]] * normalize(dipoles[idx])
-    end
-end
-
 @inline rhs_dipole(s, B) = -s × B
 @inline rhs_dipole(s, B, λ) = -s × (B + λ * (s × B))
 
@@ -75,8 +69,7 @@ function step!(sys::System{0}, integrator::LangevinHeunP)
     # Corrector step
     set_forces!(B, s₁, sys)
     @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, B, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
-    normalize_dipoles!(s, sys)
-
+    @. s = normalize_dipole(s, sys.κs)
     nothing
 end
 
@@ -99,8 +92,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
     for _ in 1:max_iters
         # Integration step for current best guess of midpoint s̄. Produces
         # improved midpoint estimator s̄′.
-        @. ŝ = s̄
-        normalize_dipoles!(ŝ, sys)
+        @. ŝ = normalize_dipole(s̄, sys.κs)
         set_forces!(B, ŝ, sys)
         @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, B)
 
@@ -115,8 +107,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         if converged
             # Normalization here should not be necessary in principle, but it
             # could be useful in practice for finite `atol`.
-            @. s = 2*s̄′ - s
-            normalize_dipoles!(s, sys)
+            @. s = normalize_dipole(2*s̄′ - s, sys.κs)
             return
         end
 
@@ -131,12 +122,6 @@ end
 # SU(N) integration
 ################################################################################
 
-
-function normalize_kets!(Z::Array{CVec{N}, 4}, sys::System{N}) where N
-    for idx in CartesianIndices(Z)
-        Z[idx] = normalize_ket(Z[idx], sys.κs[idx[4]])
-    end
-end
 
 @inline function proj(a::T, Z::T)  where T <: CVec
     (a - ((Z' * a) * Z))  
@@ -168,7 +153,7 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
     (; kT, λ, Δt) = integrator
     (; dipoles, interactions) = sys
 
-    dipoles .= expected_spin.(Z)
+    @. dipoles = expected_spin(Z)
     set_forces!(B, dipoles, sys)
 
     for idx in all_sites(sys)
@@ -190,16 +175,14 @@ function step!(sys::System{N}, integrator::LangevinHeunP) where N
 
     # Prediction
     rhs_langevin!(ΔZ₁, Z, ξ, B, integrator, sys)
-    @. Z′ = Z + ΔZ₁
-    normalize_kets!(Z′, sys)
+    @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction
     rhs_langevin!(ΔZ₂, Z′, ξ, B, integrator, sys)
-    @. Z += (ΔZ₁ + ΔZ₂)/2
-    normalize_kets!(Z, sys)
+    @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
     # Coordinate dipole data
-    sys.dipoles .= expected_spin.(Z)
+    @. sys.dipoles = expected_spin(Z)
 end
 
 
@@ -207,7 +190,7 @@ function rhs_ll!(ΔZ, Z, B, integrator, sys)
     (; Δt) = integrator
     (; dipoles, interactions) = sys
 
-    dipoles .= expected_spin.(Z) # temporarily de-synchs dipoles and coherents
+    @. dipoles = expected_spin(Z) # temporarily de-synchs dipoles and coherents
     set_forces!(B, dipoles, sys)
 
     for idx in all_sites(sys)
@@ -240,9 +223,8 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
         @. Z″ = Z + ΔZ
 
         if isapprox(Z′, Z″; atol)
-            @. Z = Z″
-            normalize_kets!(Z, sys)
-            sys.dipoles .= expected_spin.(Z)
+            @. Z = normalize_ket(Z″, sys.κs)
+            @. sys.dipoles = expected_spin(Z)
             return
         end
 

@@ -77,14 +77,16 @@ function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) 
 end
 
 
-"""
-    set_local_anisotropy!(sys::System, op, idx)
 
-Set a single-ion anisotropy for a single spin at `idx`, in violation of crystal
-periodicity. No symmetry analysis will be performed.
+"""
+    set_anisotropy_at!(sys::System, op, idx::Site)
+
+Set the single-ion anisotropy operator `op` for a single spin, neglecting
+symmetry constraints. [`Site`](@ref) includes a unit cell and a sublattice
+index.
 """
 function set_local_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, idx) where N
-    idx = convert_idx(idx)
+    idx = Site(idx)
     error("Unimplemented.")
 end
 

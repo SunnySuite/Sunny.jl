@@ -1,8 +1,7 @@
 # Hamiltonian model parameters and energy/force calculations
 
-function Interactions(crystal::Crystal, N)
-    nb = nbasis(crystal)
-    extfield = zeros(Vec3, nb)
+function Interactions(nb, latsize, N)
+    extfield = zeros(Vec3, latsize..., nb)
     anisos = fill(SingleIonAnisotropies(N), nb)
     pairexch = [PairExchanges() for _ in 1:nb]
     ewald = nothing
@@ -35,23 +34,25 @@ end
 """
     set_external_field!(sys::System, B::Vec3)
 
-Introduce a Zeeman coupling between all spins and an applied magnetic field `B`.
+Sets the external field `B` that couples to all spins.
 """
 function set_external_field!(sys::System, B)
-    for b in nbasis(sys.crystal)
-        sys.interactions.extfield[b] = sys.units.μB * sys.gs[b]' * Vec3(B)
+    for idx in all_sites(sys)
+        set_external_field_at!(sys, B, idx)
     end
 end
 
 """
-    set_external_field_at!(sys::System, B::Vec3, idx::CartesianIndex{4})
+    set_external_field_at!(sys::System, B::Vec3, idx::Site)
 
-Introduce an applied field `B` localized to a single spin at `idx`.
+Sets a Zeeman coupling between a field `B` and a single spin. [`Site`](@ref)
+includes a unit cell and a sublattice index.
 """
 function set_external_field_at!(sys::System, B, idx)
-    error("Unimplemented.")
+    idx = Site(idx)
+    g = sys.gs[idx[4]]
+    sys.interactions.extfield[idx] = sys.units.μB * g' * Vec3(B)
 end
-
 
 
 """
@@ -68,7 +69,7 @@ function energy(sys::System{N}) where N
 
     # Zeeman coupling to external field
     for idx in all_sites(sys)
-        E -= extfield[idx[4]] ⋅ dipoles[idx]
+        E -= extfield[idx] ⋅ dipoles[idx]
     end
 
     # Single-ion anisotropy, dipole or SUN mode
@@ -137,7 +138,7 @@ function local_energy_change(sys::System{N}, idx, state::SpinState) where N
     latsize = size(dipoles)[1:3]
 
     # Zeeman coupling to external field
-    ΔE -= extfield[b] ⋅ Δs
+    ΔE -= extfield[idx] ⋅ Δs
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
@@ -183,7 +184,7 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N})
 
     # Zeeman coupling
     for idx in all_sites(sys)
-        B[idx] += extfield[idx[4]]
+        B[idx] += extfield[idx]
     end
 
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the

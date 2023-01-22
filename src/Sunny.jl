@@ -63,7 +63,8 @@ export SpinInfo, System, polarize_spins!, randomize_spins!, energy, forces,
     extend_periodically,
     set_external_field!, set_anisotropy!,
     set_exchange!, set_exchange_with_biquadratic!, dmvec,
-    enable_dipole_dipole!
+    enable_dipole_dipole!,
+    Site, set_vacancy_at!, set_external_field_at!
 
 include("Integrators.jl")
 export LangevinHeunP, ImplicitMidpoint, step!

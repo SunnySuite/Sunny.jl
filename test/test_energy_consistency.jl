@@ -10,7 +10,15 @@
         add_quartic_interactions!(sys, mode)
         enable_dipole_dipole!(sys)
 
+        # Random field
+        for idx in Sunny.all_sites(sys)
+            set_external_field_at!(sys, randn(sys.rng, 3), idx)
+        end
+        # Random spin rescaling
         rand!(sys.rng, sys.κs)
+        # Include a vacancy
+        set_vacancy_at!(sys, (1,1,1,1))
+        # Random spins
         randomize_spins!(sys)
         return sys
     end
