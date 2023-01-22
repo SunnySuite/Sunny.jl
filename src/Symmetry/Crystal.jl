@@ -512,7 +512,7 @@ function fcc_crystal(; a=1.0)
 end
 
 function fcc_primitive_crystal(; a=1.0)
-    lat_vecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
+    lat_vecs = [1 1 0; 0 1 1; 1 0 1]' * a/2
     basis_vecs = [[0, 0, 0]]
     Crystal(lat_vecs, basis_vecs)
 end

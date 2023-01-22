@@ -7,7 +7,7 @@
     ### Test construction of diamond lattice
 
     # Spglib inferred symmetry
-    lat_vecs = [1 1 0; 1 0 1; 0 1 1]' / 2
+    lat_vecs = [1 1 0; 0 1 1; 1 0 1]' / 2
     positions = [[1, 1, 1], [-1, -1, -1]] / 8
     cryst = Crystal(lat_vecs, positions)
     ref_bonds = reference_bonds(cryst, 2.)
@@ -41,7 +41,7 @@
 
     ### FCC lattice, primitive vs. standard unit cell
 
-    lat_vecs = [1 1 0; 1 0 1; 0 1 1]' / 2
+    lat_vecs = [1 1 0; 0 1 1; 1 0 1]' / 2
     positions = [[0, 0, 0]]
     cryst = Crystal(lat_vecs, positions)
 
