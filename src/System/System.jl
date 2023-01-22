@@ -7,15 +7,15 @@ The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which determine
 the magnitude ``S`` and ``g``-tensor of each spin.
 
 The three possible options for `mode` are `:dipole`, `:SUN`, and `:projected`.
-The choice `:dipole` restricts the description of a spin to its angular momentum
-dipole. The choice `:SUN` will expand the description of a spin to a full
-SU(_N_) coherent state, where ``N = 2S + 1``. This approach captures more
-quantum mechanical degrees of freedom, e.g., the dynamics of quadrupolar
-fluctuations ``⟨ŜᵅŜᵝ+ŜᵝŜᵅ⟩``. Finally, the choice `:projected` produces the
-SU(_N_) dynamics but projected to the space of dipoles. In practice, the
-distinction between `:projected` and `:dipoles` is that the former will
-automatically apply appropriate renormalizations to the single-ion anisotropy
-and biquadratic exchange interactions for maximum accuracy.
+The choice `:dipole` restricts each a spin to an angular momentum dipole. In
+contrast, the choice `:SUN` describes each spin as a full SU(_N_) coherent
+state, where ``N = 2S + 1``. The SU(_N_) approach captures more quantum
+mechanical degrees of freedom, such as the quadrupolar fluctuations,
+``⟨ŜᵅŜᵝ+ŜᵝŜᵅ⟩``. Finally, the choice `:projected` projects the SU(_N_)
+dynamics onto the space of dipoles. In practice, the distinction between
+`:projected` and `:dipoles` is that the former will automatically apply
+appropriate renormalizations to the single-ion anisotropy and biquadratic
+exchange interactions for maximum accuracy.
 
 The default units system of (meV, Å, tesla) can be overridden by with the
 `units` parameter; see [`Units`](@ref). 

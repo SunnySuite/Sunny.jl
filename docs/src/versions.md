@@ -13,7 +13,7 @@ System(crystal, latsize, infos, mode)
 The parameter `infos` is now a list of [`SpinInfo`](@ref) objects involving spin
 angular momentum $S = (1/2, 1, 3/2, …)$ and an optional $g$-factor or tensor.
 
-The parameter `mode` which must be one of `:dipole`, `:SUN`, or `:projected`. 
+The parameter `mode` is one of `:dipole`, `:SUN`, or `:projected`. 
 
 ### Setting interactions
 

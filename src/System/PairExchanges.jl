@@ -9,10 +9,10 @@ end
 
 
 """
-    set_exchange_with_biquadratic!(sys::System, J, J′, bond::Bond)
+    set_exchange_with_biquadratic!(sys::System, J1, J2, bond::Bond)
 
 Sets both quadratic and biquadratic exchange interactions along `bond`, yielding
-a pairwise energy ``𝐒_i⋅J 𝐒_j + J′ (𝐒_i⋅𝐒_j)²``. These interactions will be
+a pairwise energy ``𝐒_i⋅J_1 𝐒_j + J_2 (𝐒_i⋅𝐒_j)²``. These interactions will be
 propagated to equivalent bonds in consistency with crystal symmetry. Any
 previous exchange interactions on these bonds will be overwritten.
 
