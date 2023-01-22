@@ -59,7 +59,7 @@ function Base.show(io::IO, A::BinnedArray{K, V}) where{K, V}
 
     for i in 1:A.size
         if A.print_all || A.visited[i]
-            @printf(io, "%e \t %e \n", key, A.vals[i])
+            @printf(io, "%1.5e \t %1.10e \n", key, A.vals[i])
         end
 
         key -= A.bin_size
@@ -76,6 +76,13 @@ function filter_visited(A::BinnedArray{K, V}) where{K, V}
     return A.vals[A.visited]
 end
 
+"""
+"""
+function get_keys(A::BinnedArray{K,V}; only_visited::Bool=true) where{K,V}
+    keys = collect(range(A.max_key, A.min_key, length=A.size))
+
+    return (only_visited ? keys[A.visited] : keys)
+end
 
 """ 
 Set all values to 0 and if specified, reset all visited flags to false.
@@ -96,6 +103,19 @@ Return index of key while resizing array if necessary.
 All bins are added as unvisited.
 """
 function index_for_key!(A::BinnedArray{K, V}, key::K) where{K, V}
+	# initialize array and set min/max key if first query
+	if A.size == 0
+		push!(A.vals, 0)
+		push!(A.visited, false)
+
+    	A.min_key = round(Int64, key/A.bin_size) * A.bin_size
+    	A.max_key = A.min_key
+
+		A.size = 1
+
+		return 1
+	end
+
     # index for binned key value starting from max key
     index = round(Int64, (A.max_key - key)/A.bin_size) + 1
 

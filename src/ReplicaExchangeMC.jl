@@ -228,10 +228,10 @@ function int_to_spins(intval::Int64, N::Int64)
 end
 
 """
-Encode ising system spin z-components as 64-bit integers to file
+Encode Ising system spin z-components as 64-bit integers to file
 """
 function encode_ising_to_file(system::System, output::IOStream)
-    Sz = Int64.(vec(reinterpret(reshape, Float64, system.dipoles)[3,1,:,:,:]))
+    Sz = Int64.(vec(reinterpret(reshape, Float64, system.dipoles)[3,:,:,:,:]))
     N = length(Sz)
 
     N_ints = cld(N, 63)
@@ -249,10 +249,29 @@ function encode_ising_to_file(system::System, output::IOStream)
 end
 
 """
+Decode spin-z components from file of ints for Ising system
+"""
+function ising_from_file(system::SpinSystem, fname_in::String) 
+    N = length(system)
+    N_ints = cld(N, 63)
+
+    lines = readlines(fname_in)
+    lines = map(x->parse(Int64, x), lines[length.(lines) .> 0])
+
+    intvals = [lines[i:min(i+N_ints-1,end)] for i in 1:N_ints:length(lines)]
+
+    for (i,vals) in enumerate(intvals)
+        S = Sunny.decode_ising(vals, N)
+        for j in all_sites(system)
+            system.dipoles[j] = Sunny.Vec3(0.0, 0.0, S[j])
+        end
+    end
+end
+
+"""
 Decode spin-z components from ints for Ising system
 """
-function decode_ising(intvals::Vector{Int64}, extent::Tuple{Int64,Int64,Int64})
-    N = prod(extent)
+function decode_ising(intvals::Vector{Int64}, N::Int64)
     N_ints = length(intvals)
     extra = 63*N_ints - N
     Sz = Int64[]
@@ -389,16 +408,18 @@ flow in PT simulations.
 function run_FBO!(
     replica::Replica,
     set_α!::F;
-    therm_mcs::Int64=1000,
-    rex_interval::Int64=1,
-    max_mcs::Int64=500_000,
-    update_interval::Int64=100_000,
-    w::Float64=0.0,
-    dα′::Float64=1e-5,
-    print_ranks_trajectory::Vector{Int64}=Int64[],
-    trajectory_interval::Int64=500_000
+    therm_mcs::Int64 = 50_000,
+    rex_interval::Int64 = 1,
+    max_mcs::Int64 = 500_000,
+    update_interval::Int64 = 100_000,
+    w::Float64 = 0.0,
+    dα′::Float64 = 1e-5,
+    print_ranks_trajectory::Vector{Int64} = Int64[],
+    trajectory_interval::Int64 = 500_000
 ) where {F <: Function}
-    init_REMC!(replica, therm_mcs, rex_interval, therm_mcs)
+    if therm_mcs > 0
+        init_REMC!(replica, therm_mcs, rex_interval, therm_mcs)
+    end
 
     rex_accepts = zeros(Int64, 2)
     N_updates = 0
@@ -503,8 +524,9 @@ Initialize replicas to their repective distributions using REMC.
 function init_REMC!(
     replica::Replica, 
     therm_mcs::Int64, 
-    rex_interval::Int64, 
-    trajectory_interval::Int64
+    rex_interval::Int64; 
+	print_ranks_trajectory::Vector{Int64}=Int64[],
+    trajectory_interval::Int64=1_000
 )
     # Initialize energy and equilibrate replica to it's distribution
     reset_running_energy!(replica.sampler)
@@ -515,7 +537,8 @@ function init_REMC!(
     N_rex = 0
 
     T = get_temp(replica.sampler) / Sunny.meV_per_K
-    init_output = open(@sprintf("init_T=%f.dat", T), "a")
+    init_output = open(@sprintf("init_R%03d.dat", replica.rank), "a")
+    E_min = typemax(Float64)
 
     for mcs in 1:therm_mcs
         sample!(replica.sampler)
@@ -526,7 +549,10 @@ function init_REMC!(
         end
 
         E = running_energy(replica.sampler)
-        println(init_output, E)
+        if E < E_min
+            println(init_output, mcs, " ", E)
+            E_min = E
+        end
 
         # Attempt replica exchange
         if mcs % rex_interval == 0 
@@ -549,7 +575,7 @@ function init_REMC!(
             end
 
             # Print out replica exchange timeseries -- inefficient IO
-            if N_rex % trajectory_interval == 0 
+            if (rank in print_ranks_trajectory) && (N_rex % trajectory_interval == 0)
                 if replica.label <= replica.N_ranks
                     fname = @sprintf("init_trajectory%03d.dat", abs(replica.label)-1)
                     rex_output = open(fname, "a")
@@ -623,24 +649,30 @@ Run w/ the command "mpiexec -n [n_procs] julia --project [julia_script.jl]".
 - `measure_replica_flow::Bool`: If true, then the flux of downward replica flow in 
   α space is measured and printed after the simulation
 
-- `encode_ising_interval`: Number of MC sweeps to wait before writing spin
+- `encode_ising_interval::Int64`: Number of MC sweeps to wait before writing spin
   configuration to file as sequence of 64-bit integers
+
+-`encode_ising_ranks::Vector{Int64}`: A list of ranks for which to encode ising configs to file
 """
 function run_REMC!(
     replica::Replica; 
-    therm_mcs::Int64=1000, 
-    measure_interval::Int64=10, 
-    rex_interval::Int64=1, 
-    max_mcs::Int64=1_000_000, 
-    bin_size::Float64=1.0, 
-    print_hist::Bool=false, 
-    print_xyz_ranks::Vector{Int64}=Int64[],
-    print_ranks_trajectory::Vector{Int64}=Int64[],
-    trajectory_interval::Int64=1_000_000,
-    measure_replica_flow::Bool=false,
-    encode_ising_interval::Int64=-1
+    therm_mcs::Int64 = 50_000, 
+    measure_interval::Int64 = 10, 
+    rex_interval::Int64 = 10, 
+    max_mcs::Int64 = 500_000, 
+    bin_size::Float64 = 1.0, 
+    print_hist::Bool = false, 
+    print_xyz_ranks::Vector{Int64} = Int64[],
+    print_ranks_trajectory::Vector{Int64} = Int64[],
+    trajectory_interval::Int64 = 1_000,
+    measure_replica_flow::Bool = false,
+    encode_ising_interval::Int64 = 1_000,
+    encode_ising_ranks::Vector{Int64} = Int64[]
 )
-    init_REMC!(replica, therm_mcs, rex_interval, trajectory_interval)
+    # Only initialize with REMC if specified
+    if therm_mcs > 0
+		init_REMC!(replica, therm_mcs, rex_interval; print_ranks_trajectory=print_ranks_trajectory, trajectory_interval=trajectory_interval)
+	end
 
     # Manually include these basic measurements for now
     U  = 0.0
@@ -660,8 +692,13 @@ function run_REMC!(
     Emin = typemax(Float64)
 
     T = get_temp(replica.sampler) / Sunny.meV_per_K
-    E_output = open(@sprintf("energy_T=%f.dat", T), "a")
-    ising_output = open(@sprintf("ising-int_T=%f.dat", T), "a")
+
+    E_output = open(@sprintf("Emin_R%03d.dat", replica.rank), "a")
+    
+    encode_ising_flag = (replica.rank in encode_ising_ranks)
+    if encode_ising_flag > 0
+        ising_output = open(@sprintf("ising-int_R%03d.dat", replica.rank), "a")
+    end
 
     # Start PT with finite length
     for mcs in 1:max_mcs
@@ -708,7 +745,7 @@ function run_REMC!(
             replica.rex_dir = 3 - replica.rex_dir
         end
 
-        if (encode_ising_interval > 0) && (mcs % encode_ising_interval == 0)
+        if encode_ising_flag && (mcs % encode_ising_interval == 0)
             encode_ising_to_file(replica.sampler.sys, ising_output)
         end
 
@@ -722,11 +759,11 @@ function run_REMC!(
             if E < Emin
                 Emin = E
 
-                println(E_output, E)
+                println(E_output, mcs," ",E)
 
                 # Overwrite Emin coordinates in saved file
                 if replica.rank in print_xyz_ranks
-                    xyz_output = open(@sprintf("Emin_T=%f.xyz", T), "w")
+                    xyz_output = open(@sprintf("Emin_R%03d.xyz", replica.rank), "w")
                     xyz_to_file(replica.sampler.sys, xyz_output)
                     close(xyz_output)
                 end
@@ -752,7 +789,7 @@ function run_REMC!(
     M⃗ ./= N_measure
     M  /= N_measure
     M² /= N_measure
-    C = 1.0/kT^2 * (U² - U^2)
+    C = 1.0/kT^2 * (U² - U^2) * Sunny.meV_per_K
     X = 1.0/kT   * (M² - M^2)
 
     # Acceptance rate between replicas i and i+1
@@ -774,10 +811,10 @@ function run_REMC!(
 
     # Write histogram to file for each process if specified
     if print_hist
-        f = open(@sprintf("E-hist_T=%f.dat", T), "w")
+        f = open(@sprintf("E-hist_R%03d.dat", replica.rank), "w")
         println(f, E_hist)
         close(f)
-        f = open(@sprintf("m-hist_T=%f.dat", T), "w")
+        f = open(@sprintf("m-hist_R%03d.dat", replica.rank), "w")
         println(f, m_hist)
         close(f)
     end
@@ -795,7 +832,7 @@ function run_REMC!(
     end
 
     close(E_output)
-    close(ising_output)
+    (encode_ising_flag > 0) && close(ising_output)
 
     return :SUCCESS
 end

@@ -91,8 +91,8 @@ export StructureFactor, FormFactor,
 
 include("WangLandau/BinnedArray.jl")
 include("WangLandau/WangLandau.jl")
-export BinnedArray, filter_visited, reset!,
-    WangLandau, spherical_cap_update, init_bounded!, run!
+export BinnedArray, filter_visited, reset!, get_keys,
+    WangLandau, spherical_cap_update, gaussian_spin_update, init_WL!, run_WL!
 
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
@@ -109,7 +109,13 @@ function __init__()
 
     @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" begin
         include("ReplicaExchangeMC.jl")
-        export init_MPI, xyz_to_file, Replica, run_REMC!, run_FBO!
+        export init_MPI, Replica, xyz_to_file, encode_ising_to_file, decode_ising_to_file, run_FBO!, init_REMC!, run_REMC!
+
+        include("WangLandau/REWL.jl")
+        export get_windows1D, init_REWL!, run_REWL!
+
+        include("WangLandau/REWL2D.jl")
+        export get_windows2D, init_REWL2D!, run_REWL2D!
     end
 end
 

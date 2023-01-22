@@ -1,58 +1,33 @@
 import Random # TODO: Move `rng` field up to System
 
 """ 
-    mutable struct WangLandau{F<:Function} 
+    mutable struct WangLandau
 
-Wang-Landau sampler. All parameters have default values that can be overwritten,
-but a System must be passed during construction. 
+Wang-Landau sampler. A System must be passed during construction. 
 """
-Base.@kwdef mutable struct WangLandau{F<:Function}
+mutable struct WangLandau
     # adaptive binned histogram
-    hist::BinnedArray{Float64, Int64} = BinnedArray{Float64, Int64}()
-
-    # binning resolution for the energy values
-    bin_size::Float64 = 0.1
-
-    # optional bounding of state space
-    bounds::Vector{Float64} = Vector{Float64}()
-
-    # interval for checking histogram criterion
-    hcheck_interval::Int64 = 10000
-    
-    # flatness criterion: all hist values must ≥ this fraction of the average value
-    flatness::Float64 = 0.8
+    hist::BinnedArray{Float64, Int64}
 
     # natural log of binned density of states stored adaptively 
-    ln_g::BinnedArray{Float64, Float64} = BinnedArray{Float64, Float64}()
+    ln_g::BinnedArray{Float64, Float64}
 
-    # modification factor for accumulating ln_g
-    ln_f::Float64 = 1.0
-    
-    # function for reduction schedule on ln_f
-    ln_f_sched::F = (x, t)->(x/2.0)
+    ln_f::Float64
 
-    # termination criterion: stop when ln_f ≤ ln_f_final
-    ln_f_final::Float64 = 1e-6
-
-    # termination criterion: stop if MC budget exceeded
-    max_mcsweeps::Int64 = typemax(Int64)
-
-    # random number generator
-    rng::Random.AbstractRNG = Random.MersenneTwister(
-        round(Int64, time()*1000)
-    )
+    norm::Int64
 
     # spin system
     sys::System
 
-    # minimum energy (not binned) found in simulation
-    E_min::Float64 = Inf
+function WangLandau(sys::SpinSystem, bin_size::Float64; per_spin::Bool=true)
 
-    # divide quantities by system size 
-    per_spin::Bool = false
-
-    # max cone radius for spherical cap MC spin move
-    mc_step_size::Float64 = 0.1
+    return WangLandau(
+        BinnedArray{Float64,   Int64}(bin_size=bin_size),
+        BinnedArray{Float64, Float64}(bin_size=bin_size),
+        1.0,
+        (per_spin ? length(sys) : 1),
+        sys
+    )
 end
 
 """ 
@@ -66,15 +41,15 @@ Quantum Mechanical Energy Spectra of Finite Heisenberg Spin Systems", Matthias
 Exler https://www.msuq.physik.uni-osnabrueck.de/ps/Dissertation-Exler.pdf
 """
 
-function spherical_cap_update(S::Vec3, cos_max_angle::Float64, rng::Random.AbstractRNG)::Vec3
+function spherical_cap_update(S::Vec3, cos_max_angle::Float64)::Vec3
     # Step 1: Generate a normalized unit vector [x, y, z] from uniform
     # distribution, subject to the constraint that the polar angle θ is less
     # than `max_angle`. Remarkably, this can be achieved by drawing z from a
     # uniform distribution subject to the polar angle constraint.
 
     # Draw random numbers uniformly from [0,1]
-    ξ1 = rand(rng)
-    ξ2 = rand(rng)
+    ξ1 = rand()
+    ξ2 = rand()
 
     # Randomized z component subject to constraint on polar angle
     min_z = cos_max_angle
@@ -122,54 +97,63 @@ Generate a random unit spin that is normally distributed about the direction
 of the existing spin S. The parameter σ determines the size of the update 
 from the spin S. Pass a normal random vector nv so that WLS.rng is used.
 """
-function gaussian_spin_update(S::Vec3, σ::Float64, rng::Random.AbstractRNG)::Vec3
-    S += σ * randn(rng, Vec3)
+function gaussian_spin_update(S::Vec3, σ::Float64)::Vec3
+    S += σ * randn(Vec3)
     return S/norm(S)
 end
 
 
 """ 
-Check histogram using the average flatness criterion
+Check histogram to determine when to advance WL iteration. 
+check_type==1 uses the average flatness criterion while 
+check_type==2 uses the min histogram > 1/√lnf
 """
-function check_hist(hist::BinnedArray{Float64, Int64}; p::Float64=0.8)
-    # calculate average of visited bins
-    avg = 0.0
-    vacancies = 0 
-    for i in 1:hist.size
-        if hist.visited[i]
-            avg += hist.vals[i]
-        else
-            vacancies += 1
+function check_hist(WLS::WangLandau; p::Float64=0.6, check_type::Int64=1)
+    if check_type == 1
+        # calculate average of visited bins
+        avg = 0.0
+        vacancies = 0
+        for i in 1:WLS.hist.size
+            if WLS.hist.visited[i]
+                avg += WLS.hist.vals[i]
+            else
+                vacancies += 1
+            end
         end
-    end
-    avg /= (hist.size - vacancies)
+        avg /= (WLS.hist.size - vacancies)
 
-    # check flatness 
-    for i in 1:hist.size
-        if hist.visited[i] && hist.vals[i] < p*avg
-            return false
+        for i in 1:WLS.hist.size
+            if WLS.hist.visited[i] && WLS.hist.vals[i] < p*avg
+                return false
+            end
+        end
+    elseif check_type == 2
+        Hmin = 1.0 / sqrt(WLS.ln_f)
+
+        for i in 1:WLS.hist.size
+            if WLS.hist.visited[i] && WLS.hist.vals[i] < Hmin
+                return false
+            end
         end
     end
 
     return true
 end
 
-
 """ 
 For new bins, shift ln_g to minimum existing and reset histogram
 """
 function add_new!(WLS::WangLandau, key::Float64)
     ln_g_min = Inf
-    for i in WLS.hist.size
+    for i in 1:WLS.ln_g.size	
         if WLS.ln_g.visited[i]
-            # find min of ln_g
             if WLS.ln_g.vals[i] < ln_g_min
                 ln_g_min = WLS.ln_g.vals[i]
             end
-            # reset histogram
-            WLS.hist.vals[i] = 0
         end
     end
+	reset!(WLS.hist)
+
     # shift new ln_g to min value and add to histogram
     # these will be updated again after acceptance
     WLS.ln_g[key] = ln_g_min - WLS.ln_f
@@ -178,108 +162,230 @@ function add_new!(WLS::WangLandau, key::Float64)
     return nothing
 end
 
+"""
+Check whether a key 'x' is within the area described by 'bounds'
+"""
+function bounds_check(x::Float64, bounds::Vector{Float64})
+    r = round(x, digits=10)
+    if (r < bounds[1]) || (r > bounds[2])
+        return false
+    end
+
+    return true
+end
+
 
 """ 
-Initialize system to bounded range of states using throw-away WL sampling run
-see run!(...) for comments explaining code in init loop.
+Initialize system to bounded range of states using throw-away WL sampling run.
+
+# Arguments
+-`WLS::WangLandau`: A WangLandau type to initialize
+
+-`bounds::Vector{Float64}`: {min, max} energy limits to initialize
+
+-`max_mcs::Int64`: The max number of MC sweeps to allow
+
+-`mc_move_type::String`: "flip" for spin flip (use with IsingSampler); "gaussian" for Gaussian perturbation of spin; 
+"spherical_cap" for uniform spin displacemnt within spherical cap
+
+-`mc_step_size::Float64`: Set the update magnitude for gaussian or spherical cap spin updates
+
+-`limit_pad::Float64`: Energy distance for 'padding' against lower/upper limit during initialization
+
+-`output_fname::String`: File name to write output Emin timeseries
 """
-function init_bounded!(WLS::WangLandau)
-    println("begin init.")
+function init_WL!(
+    WLS::WangLandau,
+    bounds::Vector{Float64};
+    max_mcs::Int64 = 100_000,
+    mc_move_type::String = "gaussian",
+    mc_step_size::Float64 = 0.1,
+    limit_pad::Float64 = 0.0,
+    output_fname::String = "init.dat"
+)
+    init_output = open(output_fname, "w")
 
-    ln_g_tmp = BinnedArray{Float64, Float64}(bin_size=WLS.bin_size)
+    println(init_output, "# begin init")
+    println(init_output, "# bounds = ", bounds, "\n")
 
-    system_size = length(WLS.sys)
-    ps = (WLS.per_spin) ? system_size : 1
-    
-    E_curr = energy(WLS.sys) / ps
+    E_curr = energy(WLS.sys) / WLS.norm
 
-    ln_g_tmp[E_curr] = 1.0
+    lim = E_curr
+    fac = 0
 
-    lim_curr = Inf
-    pfac = (WLS.bounds[1] < E_curr) ? 1 : -1
-
-    # start init with finite length
-    for mcsweeps_tmp in 1 : WLS.max_mcsweeps
-
-        for pos in CartesianIndices(WLS.sys)
-            new_spin = gaussian_spin_update(WLS.sys.dipoles[pos], WLS.mc_step_size, WLS.rng)
-
-            E_next = E_curr + local_energy_change(WLS.sys, pos, new_spin) / ps
-
-            Δln_g = ln_g_tmp[E_curr] - ln_g_tmp[E_next]
-
-            if (Δln_g >= 0) || ( rand(WLS.rng) <= exp(Δln_g) )
-
-                WLS.sys.dipoles[pos] = new_spin
-                E_curr = E_next
-
-                if pfac*E_curr < lim_curr
-                    lim_curr = pfac*E_curr
-                    print("new E = ", E_curr, "\r")
-                    flush(stdout)
-                end 
-            
-                if (E_curr >= WLS.bounds[1]) && (E_curr <= WLS.bounds[2])
-                    println("\nfinish init with E = ", E_curr)
-                    return :SUCCESS
-                end
-            end
-
-            ln_g_tmp[E_curr] += 1.0
+    # Make bounds for temp. ln_g that include current state
+    init_space = deepcopy(bounds)
+    for i in 1:2
+        k = 2*i - 3
+        if (k*lim) > (k*bounds[i])
+            init_space[i] = lim + k*limit_pad
+            fac = k
         end
     end
-    println("init failed.")
+
+    # WL is already in bounds
+    if fac == 0
+        println(init_output, "\n# finish init with E = ", E_curr)
+        close(init_output)
+        return :SUCCESS
+    end
+    
+    WLS.ln_g[E_curr] = 1.0
+
+    # start init with finite length
+    for mcs in 1:max_mcs
+        for pos in CartesianIndices(WLS.sys._dipoles)
+            # propose single spin move
+            if mc_move_type == "flip"
+                new_spin = -WLS.sys._dipoles[pos]
+            elseif mc_move_type == "gaussian"
+                new_spin = gaussian_spin_update(WLS.sys.dipoles[pos], mc_step_size)
+            elseif mc_move_type == "spherical_cap"
+                new_spin = spherical_cap_update(WLS.sys.dipoles[pos], mc_step_size)
+            end
+
+            # Calculate observables
+            E_next = E_curr + local_energy_change(WLS.sys, pos, new_spin) / WLS.norm
+
+            if bounds_check(E_next, init_space) 
+
+                if (E_next < bounds[1]) && (E_next-limit_pad > init_space[1])
+                    init_space[1] = E_next - limit_pad
+                end
+                if (E_next > bounds[2]) && (E_next+limit_pad < init_space[2])
+                    init_space[2] = E_next + limit_pad
+                end
+
+                Δln_g = WLS.ln_g[E_curr] - WLS.ln_g[E_next]
+
+                if (Δln_g >= 0) || ( rand() <= exp(Δln_g) )
+                    WLS.sys._dipoles[pos] = new_spin
+                    E_curr = E_next
+
+                    if (fac*E_curr) < lim
+                        lim = fac * E_curr
+                        println(init_output, mcs, " ", E_curr)
+                        flush(init_output)
+                    end
+
+                    if bounds_check(E_curr, bounds)
+                        println(init_output, "\n# finish init with E = ", E_curr)
+                        close(init_output)
+                        reset!(WLS.ln_g; reset_visited=true)
+                        return :SUCCESS
+                    end
+                end
+            end
+            WLS.ln_g[E_curr] += 1.0
+        end
+    end
+
+    println(init_output, "# init failed.")
+
+    close(init_output)
     return :MCSLIMIT
 end
 
 
 """ 
 Run a Wang-Landau simulation.
+
+# Arguments
+-`sys::SpinSystem`: Sunny system for simulation
+
+-`bin_size::Float64`: Energy bin size
+
+-`max_mcs_init::Int64`: Maximum number of MC sweeps to allow during initialization
+
+-`max_mcs::Int64`: Maximum number of MC sweeps to allow in WL simulation
+
+-`hcheck_interval::Int64`: Number of MC sweeps between histogram checks
+
+-`hcheck_type::Int64`: 1 = min hist is above some factor of avg hist; 2 = hist min is above 1/√lnf
+
+-`hist_flatness::Float64`: if hcheck_type == 1, then min hist entry must be above hist_flatness * (avg hist) 
+
+-`ln_f_final::Float64`: Cutoff threshold for modification factor
+
+-`ln_f_sched::Function`: Function to reduce modification factor at each iteration
+
+-`per_spin::Bool`: Use energy and magnetization per spin if True
+
+-`mc_move_type::String`: "flip" for spin flip (use with IsingSampler); "gaussian" for Gaussian perturbation of spin; 
+"spherical_cap" for uniform spin displacemnt within spherical cap
+
+-`mc_step_size::Float64`: Set the update magnitude for gaussian or spherical cap spin updates
+
+-`bounds::Vector{Float64}`: {min, max} energy bounds for WL simulation
 """
-function run!(WLS::WangLandau)
+function run_WL!(
+    system::SpinSystem,
+    bin_size::Float64;
+    max_init_mcs::Int64 = 100_000,
+    max_mcs::Int64 = 1_000_000,
+    hcheck_interval::Int64 = 10_000,
+    hcheck_type::Int64 = 1,
+    hist_flatness::Float64 = 0.6,
+    ln_f_final::Float64 = 1e-6,
+    ln_f_sched::F = (ln_f, i)->(0.5*ln_f),
+    per_spin::Bool = true,
+    mc_move_type::String = "gaussian",
+    mc_step_size::Float64 = 0.1,
+    bounds::Vector{Float64} = Float64[]
+) where {F <: Function}
+
+    WLS = WangLandau(system, bin_size; per_spin=per_spin)
+
     # initialize system if bounded - must supply [min, max]
     bounded = false
-    if length(WLS.bounds) == 2
+    if length(bounds) == 2
         bounded = true
-        if init_bounded!(WLS) == :MCSLIMIT
+        if init_WL!(
+            WLS, bounds; 
+            max_mcs=max_init_mcs, 
+            mc_move_type=mc_move_type, 
+            mc_step_size=mc_step_size
+        ) == :MCSLIMIT
             return :INITFAIL
         end
     end
 
     println("begin WL sampling.")
 
-    system_size = length(WLS.sys)
-    ps = (WLS.per_spin) ? system_size : 1
-
     iteration = 1
     mcs = 0
-    mcsweeps = 0
+    E_min = typemax(Float64)
 
     # set bin sizes
-    WLS.hist.bin_size = WLS.bin_size
-    WLS.ln_g.bin_size = WLS.bin_size
+    WLS.hist.bin_size = bin_size
+    WLS.ln_g.bin_size = bin_size
 
     # initial state
-    E_curr = energy(WLS.sys) / ps
+    E_curr = energy(WLS.sys) / WLS.norm
 
     # record initial state
     WLS.ln_g[E_curr] = WLS.ln_f
     WLS.hist[E_curr] = 1
 
     # start sampling with finite length
-    while (WLS.ln_f > WLS.ln_f_final) && (mcsweeps < WLS.max_mcsweeps) 
+    while (WLS.ln_f > ln_f_final) && (mcs < max_mcs) 
 
         # use MC *sweep* as unit time for histogram check interval
-        for i in 1 : WLS.hcheck_interval
-            for pos in CartesianIndices(WLS.sys)
-                # propose single spin move - random rotation on spherical cap about spin
-                new_spin = gaussian_spin_update(WLS.sys.dipoles[pos], WLS.mc_step_size, WLS.rng)
+        for i in 1:hcheck_interval
+            for pos in CartesianIndices(WLS.sys.dipoles)
+                # propose single spin move
+                if mc_move_type == "flip"
+                    new_spin = -WLS.sys._dipoles[pos]
+                elseif mc_move_type == "gaussian"
+                    new_spin = gaussian_spin_update(WLS.sys.dipoles[pos], mc_step_size)
+                elseif mc_move_type == "spherical_cap"
+                    new_spin = spherical_cap_update(WLS.sys.dipoles[pos], mc_step_size)
+                end
 
-                E_next = E_curr + local_energy_change(WLS.sys, pos, new_spin) / ps
-                mcs += 1
+                E_next = E_curr + local_energy_change(WLS.sys, pos, new_spin) / WLS.norm
 
                 # enforce bounds if applicable - still update state if rejecting move
-                if bounded && ( (E_next < WLS.bounds[1]) || (E_next > WLS.bounds[2]) )
+                if bounded && !bounds_check(E_next, bounds)
                 else
                     # add new bin to ln_g, histogram
                     if WLS.ln_g[E_next] <= eps()
@@ -290,15 +396,15 @@ function run!(WLS::WangLandau)
                     Δln_g = WLS.ln_g[E_curr] - WLS.ln_g[E_next]
 
                     # accept move
-                    if (Δln_g >= 0) || ( rand(WLS.rng) <= exp(Δln_g) )
+                    if (Δln_g >= 0) || ( rand() <= exp(Δln_g) )
 
                         WLS.sys.dipoles[pos] = new_spin
                         E_curr = E_next
 
                         # record minimum energies
-                        if E_curr < WLS.E_min
-                            WLS.E_min = E_curr
-                            println("mcs = ", mcs, ",  E_min = ", WLS.E_min)
+                        if E_curr < E_min
+                            E_min = E_curr
+                            println("mcs = ", mcs, ",  E_min = ", E_min)
                         end             
                     end
                 end
@@ -307,10 +413,10 @@ function run!(WLS::WangLandau)
                 WLS.hist[E_curr] += 1
             end
         end
-        mcsweeps += WLS.hcheck_interval
+        mcs += hcheck_interval
 
         # check histogram criterion - start new iteration if satisfied
-        if check_hist(WLS.hist; p=WLS.flatness)
+        if check_hist(WLS; p=hist_flatness, check_type=hcheck_type)
 
             # print histogram and ln_g to files for each iteration
             output = open(@sprintf("hist_iteration_%02d.dat", iteration), "w")
@@ -325,14 +431,14 @@ function run!(WLS::WangLandau)
             reset!(WLS.hist)
 
             # reduce modification factor by some schedule
-            WLS.ln_f = WLS.ln_f_sched(WLS.ln_f, iteration)
+            WLS.ln_f = ln_f_sched(WLS.ln_f, iteration)
 
             @printf("iteration %d complete: mcs = %d, ln_f = %.8f\n", iteration, mcs, WLS.ln_f)
             iteration += 1
         end
     end
 
-    println("WL sampling complete. mcsweeps = ", mcsweeps)
+    println("WL sampling complete. mcsweeps = ", mcs)
 
-    return ((mcsweeps < WLS.max_mcsweeps) ? :SUCCESS : :MCSLIMIT)
+    return ((mcs < max_mcs) ? :SUCCESS : :MCSLIMIT)
 end
