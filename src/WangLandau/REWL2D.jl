@@ -12,8 +12,8 @@ mutable struct WLReplica2D
     E::Float64
     m⃗::Vec3
 
-	# Per-spin normalization
-	norm::Int64
+    # Per-spin normalization
+    norm::Int64
 
     # Binned 2D histogram
     hist::BinnedArrayND{Float64, Int64}
@@ -55,7 +55,7 @@ function WLReplica2D(
     rank::Int64,
     N_wins::Int64,
     rex_dir::Int64,
-	per_spin::Bool
+    per_spin::Bool
 )
     dim = length(bin_sizes)
 
@@ -63,7 +63,7 @@ function WLReplica2D(
         sys,
         energy(sys), 
         sum(sys._dipoles),
-		(per_spin ? length(sys) : 1),
+        (per_spin ? length(sys) : 1),
         BinnedArrayND{Float64,   Int64}(win_bounds; bin_sizes=bin_sizes),        
         BinnedArrayND{Float64, Float64}(win_bounds; bin_sizes=bin_sizes),
         win_bounds,
@@ -87,9 +87,9 @@ function init_comms!(replica::WLReplica2D, ranks_per_win::Int64, wins_per_dim::V
 
     # Ranks from COMM_WORLD that are used to create groups - not new comm. ranks
     intra_ranks = [ collect(i:i+ranks_per_win-1) for i in 0:ranks_per_win:N-1 ]
-	inter_ranks = Vector{Int64}[]
+    inter_ranks = Vector{Int64}[]
     IDs = [ -ones(Int64, 4) for _ in 1:N_wins ]
-	pos = 1
+    pos = 1
 
     # Sweep the grid of processes and store neighbors for each dimension
     # -- Replica exchange directions are: (right=1, 2=left, 3=down, 4=up)
@@ -102,17 +102,17 @@ function init_comms!(replica::WLReplica2D, ranks_per_win::Int64, wins_per_dim::V
         if x < wins_per_dim[1]-1
             w_right = w + 1
             push!(inter_ranks, sort(vcat(intra_ranks[w+1], intra_ranks[w_right+1])))
-			IDs[w+1][1] = pos
-			IDs[w_right+1][2] = pos
-			pos += 1
+            IDs[w+1][1] = pos
+            IDs[w_right+1][2] = pos
+            pos += 1
         end
         # Down neighbor to window 'w'
         if y < wins_per_dim[2]-1
             w_down = w + wins_per_dim[1]
             push!(inter_ranks, sort(vcat(intra_ranks[w+1], intra_ranks[w_down+1])))
-			IDs[w+1][3] = pos
-			IDs[w_down+1][4] = pos
-			pos += 1
+            IDs[w+1][3] = pos
+            IDs[w_down+1][4] = pos
+            pos += 1
         end
     end
 
@@ -125,20 +125,20 @@ function init_comms!(replica::WLReplica2D, ranks_per_win::Int64, wins_per_dim::V
     replica.intra_comm_rank = MPI.Comm_rank(replica.intra_win_comm)
 
     # Create inter-window communicators
-	N_comms = length(inter_ranks)
-	inter_comms = MPI.Comm[]
+    N_comms = length(inter_ranks)
+    inter_comms = MPI.Comm[]
 
-	for i in 1:length(inter_ranks)
-		g = MPI.Group_incl(group_world, Int32.(inter_ranks[i]))
-		push!(inter_comms, MPI.Comm_create(MPI.COMM_WORLD, g) )
-	end
+    for i in 1:length(inter_ranks)
+        g = MPI.Group_incl(group_world, Int32.(inter_ranks[i]))
+        push!(inter_comms, MPI.Comm_create(MPI.COMM_WORLD, g) )
+    end
 
-	for j in 1:4
-		if IDs[w+1][j] > 0
-			replica.inter_win_comms[j] = inter_comms[IDs[w+1][j]]
-			replica.inter_comm_ranks[j] = MPI.Comm_rank(replica.inter_win_comms[j])
-		end
-	end
+    for j in 1:4
+        if IDs[w+1][j] > 0
+            replica.inter_win_comms[j] = inter_comms[IDs[w+1][j]]
+            replica.inter_comm_ranks[j] = MPI.Comm_rank(replica.inter_win_comms[j])
+        end
+    end
 
     return nothing
 end
@@ -183,7 +183,7 @@ function check_hist(replica::WLReplica2D; p::Float64=0.6, check_type::Int64=1)
     end
 
     all_flat = MPI.Allreduce(flat, MPI.PROD, replica.intra_win_comm)
-	return ((all_flat > 0) ? true : false)
+    return ((all_flat > 0) ? true : false)
 end
 
 """ 
@@ -245,7 +245,7 @@ function get_swap_partner(replica::WLReplica2D)
             end
         end
     end    
-	swap_partner = MPI.Scatter(pairs, 1, 0, replica.inter_win_comms[comm_ID])
+    swap_partner = MPI.Scatter(pairs, 1, 0, replica.inter_win_comms[comm_ID])
 
     return swap_partner[1]
 end
@@ -322,15 +322,15 @@ end
 Initialize system to bounded range of states using throw-away WL sampling run.
 """
 function init_REWL2D!(
-	replica::WLReplica2D;
+    replica::WLReplica2D;
     max_mcs::Int64 = 100_000,
     mc_move_type::String = "gaussian",
     mc_step_size::Float64 = 0.1
 )
     init_output = open(@sprintf("init%06d.dat", replica.rank), "w")
     println(init_output, "# begin init")
-	println(init_output, "# bounds = ", replica.hist.bounds, "\n")
-	flush(init_output)
+    println(init_output, "# bounds = ", replica.hist.bounds, "\n")
+    flush(init_output)
 
     # The state 'x' is a pair of energy and magnetization values
     replica.E = energy(replica.sys) 
@@ -341,7 +341,7 @@ function init_REWL2D!(
     x_next = copy(x)
 
     # Make bounds for temp. ln_g that include current state 
-	bounds = replica.hist.bounds
+    bounds = replica.hist.bounds
     init_space = deepcopy(bounds)
     x_lims = copy(x)
     fac = zeros(Int64, dim)
@@ -402,7 +402,7 @@ function init_REWL2D!(
 
                     if print_flag
                         println(init_output, mcs," ",x[1]," ",x[2])
-						flush(init_output)
+                        flush(init_output)
                     end
 
                     if bounds_check(x, bounds)
@@ -528,7 +528,7 @@ function run_REWL2D!(
     win_ID = div(rank, ranks_per_window)
     win_coords = [ win_ID % windows_per_dim[1], div(win_ID, windows_per_dim[1]) ]
     rex_dir = sum(win_coords)%2 + 1
-	bounds = windows_bounds[win_ID+1]
+    bounds = windows_bounds[win_ID+1]
 
     # Create WL replica and set MPI communicators for intra- and inter-window communication
     replica = WLReplica2D(sys, bounds, bin_sizes, rank, N_wins, rex_dir, per_spin)
@@ -538,7 +538,7 @@ function run_REWL2D!(
     if init_REWL2D!(replica; max_mcs=max_init_mcs, mc_move_type=mc_move_type, mc_step_size=mc_step_size) == :MCSLIMIT
         return :INITFAIL
     end
-	MPI.Barrier(MPI.COMM_WORLD)
+    MPI.Barrier(MPI.COMM_WORLD)
 
     output = open(@sprintf("R%06d_out.dat", replica.rank), "w")
     println(output, "begin REWL sampling.")
@@ -554,8 +554,8 @@ function run_REWL2D!(
     x_next = copy(x)
 
     # Record initial state
-	println(output, "x = ", x[1],", ",x[2],", bounds = ", replica.win_bounds)
-	flush(output)
+    println(output, "x = ", x[1],", ",x[2],", bounds = ", replica.win_bounds)
+    flush(output)
     replica.ln_g[x...] = replica.ln_f
     replica.hist[x...] = 1
 
@@ -576,7 +576,7 @@ function run_REWL2D!(
             x_next .= [E_next, m⃗_next[3]] ./ replica.norm
 
             if bounds_check(x_next, bounds)
-				# Add new bin to ln_g, histogram
+                # Add new bin to ln_g, histogram
                 if (iteration > 1) && (replica.ln_g[x_next...] <= eps())
                     add_new!(replica, x_next...)
                 end
@@ -620,32 +620,32 @@ function run_REWL2D!(
             print(fn, replica.ln_g)
             close(fn)
 
-			# Print replica exchange rates
-			print(output, "replica exchanges: ")
-			for i in 1:(2*dim)
-				if replica.inter_comm_ranks[i] >= 0
-					print(output, rex_accepts[i]/replica.N_rex[i], " ")
-				end
-			end
-			println(output,"")
-			flush(output)
+            # Print replica exchange rates
+            print(output, "replica exchanges: ")
+            for i in 1:(2*dim)
+                if replica.inter_comm_ranks[i] >= 0
+                    print(output, rex_accepts[i]/replica.N_rex[i], " ")
+                end
+            end
+            println(output,"")
+            flush(output)
 
             # Histogram is flat
             if check_hist(replica; p=hist_flatness, check_type=hcheck_type)
 
                 @printf(output, "iteration %d complete: mcs = %d, ln_f = %.8f\n", iteration, mcs, replica.ln_f)
-				flush(output)
-				
+                flush(output)
+                
                 # Average the ln_g within each window 
                 ln_g_avg = MPI.Allreduce(replica.ln_g.vals, MPI.SUM, replica.intra_win_comm) ./ ranks_per_window
 
-				for i in 1:replica.ln_g.size
-					replica.ln_g.vals[i] = ln_g_avg[i]
+                for i in 1:replica.ln_g.size
+                    replica.ln_g.vals[i] = ln_g_avg[i]
 
-					if (!replica.ln_g.visited[i]) && (ln_g_avg[i] > eps())
-						replica.ln_g.visited[i] = true
-					end
-				end	
+                    if (!replica.ln_g.visited[i]) && (ln_g_avg[i] > eps())
+                        replica.ln_g.visited[i] = true
+                    end
+                end 
 
                 # only print hist and ln_g for each window
                 if replica.intra_comm_rank == 0
@@ -661,8 +661,8 @@ function run_REWL2D!(
                 # Reset histogram
                 reset!(replica.hist)
 
-				rex_accepts .= 0
-				replica.N_rex .= 0
+                rex_accepts .= 0
+                replica.N_rex .= 0
 
                 # Reduce modification factor by some schedule
                 replica.ln_f = ln_f_sched(replica.ln_f, iteration)

@@ -11,11 +11,11 @@ mutable struct WLReplica
     # Running energy and magnetization
     E::Float64
 
-	# Per-spin normalization
-	norm::Int64
+    # Per-spin normalization
+    norm::Int64
 
-	# Binned 2D histogram
-	hist::BinnedArrayND{Float64, Int64}
+    # Binned 2D histogram
+    hist::BinnedArrayND{Float64, Int64}
 
     # Natural log of 2D binned density of states
     ln_g::BinnedArrayND{Float64, Float64}
@@ -58,9 +58,9 @@ function WLReplica(
     rank::Int64,
     N_wins::Int64,
     rex_dir::Int64,
-	per_spin::Bool
+    per_spin::Bool
 )
-	norm = (per_spin ? length(sys) : 1)
+    norm = (per_spin ? length(sys) : 1)
 
     return WLReplica(
         sys,
@@ -101,21 +101,21 @@ function init_comms!(replica::WLReplica, ranks_per_win::Int64, N_wins::Int64)
     replica.intra_comm_rank = MPI.Comm_rank(replica.intra_win_comm)
 
     # Create inter-window communicators
-	inter_comms = MPI.Comm[]
-	for i in 1:N_wins-1
-		comm_ranks = Int32.(vcat(intra_ranks[i], intra_ranks[i+1]))
-		g = MPI.Group_incl(group_world, comm_ranks)
-		push!(inter_comms, MPI.Comm_create(MPI.COMM_WORLD, g))
-	end
+    inter_comms = MPI.Comm[]
+    for i in 1:N_wins-1
+        comm_ranks = Int32.(vcat(intra_ranks[i], intra_ranks[i+1]))
+        g = MPI.Group_incl(group_world, comm_ranks)
+        push!(inter_comms, MPI.Comm_create(MPI.COMM_WORLD, g))
+    end
 
-	for j in [-1, 0]
-		i = j + 2
-		if (w+1+j > 0) && (w+1+j < N_wins)
-			replica.inter_win_comms[i] = inter_comms[w+1 + j]
-			replica.inter_comm_ranks[i] = MPI.Comm_rank(inter_comms[w+1 + j])
-		end
-	end
-	
+    for j in [-1, 0]
+        i = j + 2
+        if (w+1+j > 0) && (w+1+j < N_wins)
+            replica.inter_win_comms[i] = inter_comms[w+1 + j]
+            replica.inter_comm_ranks[i] = MPI.Comm_rank(inter_comms[w+1 + j])
+        end
+    end
+    
     return nothing
 end
 
@@ -159,7 +159,7 @@ function check_hist(replica::WLReplica; p::Float64=0.6, check_type::Int64=1)
     end
 
     all_flat = MPI.Allreduce(flat, MPI.PROD, replica.intra_win_comm)
-	return ((all_flat > 0) ? true : false)
+    return ((all_flat > 0) ? true : false)
 end
 
 """ 
@@ -312,7 +312,7 @@ Initialize system to bounded range of states using throw-away WL sampling run.
 -`limit_pad::Float64`: Energy distance for 'padding' against lower/upper limit during initialization
 """
 function init_REWL!(
-	replica::WLReplica;
+    replica::WLReplica;
     max_mcs::Int64 = 100_000,
     mc_move_type::String = "gaussian",
     mc_step_size::Float64 = 0.1,
@@ -320,10 +320,10 @@ function init_REWL!(
 )
     init_output = open(@sprintf("init%06d.dat", replica.rank), "w")
 
-	bounds = replica.hist.bounds[1]
+    bounds = replica.hist.bounds[1]
 
     println(init_output, "# begin init")
-	println(init_output, "# bounds = ", replica.hist.bounds, "\n")
+    println(init_output, "# bounds = ", replica.hist.bounds, "\n")
 
     replica.E = energy(replica.sys) / replica.norm
 
@@ -533,7 +533,7 @@ function run_REWL!(
     N_wins = length(windows_bounds)
     win_ID = div(rank, ranks_per_window)
     rex_dir = (win_ID % 2 == 0) ? 1 : 2
-	bounds = windows_bounds[win_ID+1]
+    bounds = windows_bounds[win_ID+1]
 
     # Create WL replica and set MPI communicators for intra- and inter-window communication
     replica = WLReplica(sys, bounds, bin_size, rank, N_wins, rex_dir, per_spin)
@@ -584,7 +584,7 @@ function run_REWL!(
             E_next = replica.E + local_energy_change(replica.sys, pos, new_spin) / replica.norm
 
             if bounds_check(E_next, bounds)
-				# Add new bin to ln_g, histogram
+                # Add new bin to ln_g, histogram
                 if replica.ln_g[E_next] <= eps()
                     add_new!(replica, E_next)
                 end
@@ -626,15 +626,15 @@ function run_REWL!(
             print(fn, replica.ln_g)
             close(fn)
 
-			# Print replica exchange rates
-			print(output, "replica exchanges: ")
-			for i in 1:2
-				if replica.inter_comm_ranks[i] >= 0
-					print(output, ((replica.N_rex[i] > 0) ? rex_accepts[i]/replica.N_rex[i] : 0), " ")
-				end
-			end
-			println(output,"")
-			flush(output)
+            # Print replica exchange rates
+            print(output, "replica exchanges: ")
+            for i in 1:2
+                if replica.inter_comm_ranks[i] >= 0
+                    print(output, ((replica.N_rex[i] > 0) ? rex_accepts[i]/replica.N_rex[i] : 0), " ")
+                end
+            end
+            println(output,"")
+            flush(output)
 
             if tune_exch_interval 
                 round_trip_time = 0
@@ -655,21 +655,21 @@ function run_REWL!(
             if check_hist(replica; p=hist_flatness, check_type=hcheck_type)
 
                 @printf(output, "iteration %d complete: mcs = %d, ln_f = %.8f\n", iteration, mcs, replica.ln_f)
-				flush(output)
-	
+                flush(output)
+    
                 # Average the ln_g and sum up histograms within each window 
                 ln_g_avg = MPI.Allreduce(replica.ln_g.vals, MPI.SUM, replica.intra_win_comm) ./ ranks_per_window
                 hist_tot = MPI.Allreduce(replica.hist.vals, MPI.SUM, replica.intra_win_comm)
 
-				for i in 1:replica.ln_g.size
-					replica.ln_g.vals[i] = ln_g_avg[i]
+                for i in 1:replica.ln_g.size
+                    replica.ln_g.vals[i] = ln_g_avg[i]
                     replica.hist.vals[i] = hist_tot[i]
 
-					if (!replica.ln_g.visited[i]) && (ln_g_avg[i] > eps())
-						replica.ln_g.visited[i] = true
-						replica.hist.visited[i] = true
-					end
-				end	
+                    if (!replica.ln_g.visited[i]) && (ln_g_avg[i] > eps())
+                        replica.ln_g.visited[i] = true
+                        replica.hist.visited[i] = true
+                    end
+                end 
 
                 # print window combined histogram and average ln_g
                 if (replica.intra_comm_rank == 0) && (replica.ln_f > ln_f_final)
@@ -696,8 +696,8 @@ function run_REWL!(
                 # Reset histogram
                 reset!(replica.hist)
 
-				rex_accepts .= 0
-				replica.N_rex .= 0
+                rex_accepts .= 0
+                replica.N_rex .= 0
 
                 replica.trip_dir = 0
                 replica.t_dir_curr .= 0

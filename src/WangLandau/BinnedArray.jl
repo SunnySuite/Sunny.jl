@@ -103,18 +103,18 @@ Return index of key while resizing array if necessary.
 All bins are added as unvisited.
 """
 function index_for_key!(A::BinnedArray{K, V}, key::K) where{K, V}
-	# initialize array and set min/max key if first query
-	if A.size == 0
-		push!(A.vals, 0)
-		push!(A.visited, false)
+    # initialize array and set min/max key if first query
+    if A.size == 0
+        push!(A.vals, 0)
+        push!(A.visited, false)
 
-		A.min_key = round(Int64, key/A.bin_size) * A.bin_size
-		A.max_key = A.min_key
+        A.min_key = round(Int64, key/A.bin_size) * A.bin_size
+        A.max_key = A.min_key
 
-		A.size = 1
+        A.size = 1
 
-		return 1
-	end
+        return 1
+    end
 
     # index for binned key value starting from max key
     index = round(Int64, (A.max_key - key)/A.bin_size) + 1

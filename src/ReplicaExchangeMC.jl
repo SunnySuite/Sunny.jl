@@ -525,7 +525,7 @@ function init_REMC!(
     replica::Replica, 
     therm_mcs::Int64, 
     rex_interval::Int64; 
-	print_ranks_trajectory::Vector{Int64}=Int64[],
+    print_ranks_trajectory::Vector{Int64}=Int64[],
     trajectory_interval::Int64=1_000
 )
     # Initialize energy and equilibrate replica to it's distribution
@@ -671,8 +671,8 @@ function run_REMC!(
 )
     # Only initialize with REMC if specified
     if therm_mcs > 0
-		init_REMC!(replica, therm_mcs, rex_interval; print_ranks_trajectory=print_ranks_trajectory, trajectory_interval=trajectory_interval)
-	end
+        init_REMC!(replica, therm_mcs, rex_interval; print_ranks_trajectory=print_ranks_trajectory, trajectory_interval=trajectory_interval)
+    end
 
     # Manually include these basic measurements for now
     U  = 0.0

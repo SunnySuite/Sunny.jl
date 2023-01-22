@@ -131,11 +131,11 @@ function Base.show(io::IO, A::BinnedArrayND{K, V}) where{K, V}
 end
 
 function get_keys(A::BinnedArrayND{K, V}) where{K, V}
-	L = A.print_all ? A.size : sum(A.visited)
+    L = A.print_all ? A.size : sum(A.visited)
     keys = zeros(K, L, A.dim)
-	id = zeros(Int64, A.dim)
+    id = zeros(Int64, A.dim)
     
-	pos = 1
+    pos = 1
     for i in 1:A.size
         if A.print_all || A.visited[i]
             k = i
@@ -144,11 +144,11 @@ function get_keys(A::BinnedArrayND{K, V}) where{K, V}
                 k -= (id[j]-1)*A.shifts[j] 
             end
             keys[pos,:] = A.max_keys .- (id .- 1) .* A.bin_sizes
-			pos += 1
+            pos += 1
         end
     end
 
-	return keys
+    return keys
 end
 
 """ 
