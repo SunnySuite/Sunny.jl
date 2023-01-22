@@ -45,13 +45,13 @@ struct System{N}
     mode             :: Symbol
     crystal          :: Crystal
     latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
+    Ns               :: Vector{Int}               # S=(N-1)/2 per atom in unit cell
+    gs               :: Vector{Mat3}              # g-tensor per atom in unit cell
+    κs               :: Vector{Float64}           # When N > 0, the ket magnitude,    |Z| = √κ
+                                                  # When N = 0, the dipole magnitude, |s| = κ
     interactions     :: Interactions              # All interactions
     dipoles          :: Array{Vec3, 4}            # Expected dipoles
     coherents        :: Array{CVec{N}, 4}         # Coherent states
-    κs               :: Vector{Float64}           # Meaning depends on context:
-                                                  #   N > 0 => Ket magnitude,    |Z| = √κ
-                                                  #   N = 0 => Dipole magnitude, |s| = κ
-    gs               :: Vector{Mat3}              # g-tensor per atom in the crystal unit cell
     dipole_buffers   :: Vector{Array{Vec3, 4}}    # Buffers for dynamics routines
     coherent_buffers :: Vector{Array{CVec{N}, 4}} # Buffers for dynamics routines
     units            :: PhysicalConsts

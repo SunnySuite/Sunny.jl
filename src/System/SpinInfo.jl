@@ -1,5 +1,5 @@
 """
-    SpinInfo(atom::Int; S, g=2)
+    SpinInfo(atom::Int, S; g=2)
 
 Characterizes the spin at a given `atom` index within the crystal unit cell. `S`
 is an integer multiple of 1/2 and gives the spin angular momentum in units of ħ.
@@ -15,9 +15,8 @@ struct SpinInfo
         if !isinteger(2S)
             error("Spin $S for atom $atom is not a multiple of 1/2")
         end
-        # If g is scalar then convert to tensor
         g = typeof(g) <: Number ? Mat3(I*g) : Mat3(g)
-        new(atom, Float64(S), g)
+        new(atom, S, g)
     end
 end
 
