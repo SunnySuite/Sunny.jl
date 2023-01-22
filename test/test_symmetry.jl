@@ -11,7 +11,7 @@
     positions = [[1, 1, 1], [-1, -1, -1]] / 8
     cryst = Crystal(lat_vecs, positions)
     ref_bonds = reference_bonds(cryst, 2.)
-    dist1 = [distance(cryst, b) for b in ref_bonds]
+    dist1 = [Sunny.distance(cryst, b) for b in ref_bonds]
 
     # Using explicit symops
     lat_vecs = Sunny.Mat3(lat_vecs)
@@ -19,21 +19,21 @@
     types = [""]
     cryst = Sunny.crystal_from_symops(lat_vecs, positions, types, cryst.symops, cryst.spacegroup)
     ref_bonds = reference_bonds(cryst, 2.)
-    dist2 = [distance(cryst, b) for b in ref_bonds]
+    dist2 = [Sunny.distance(cryst, b) for b in ref_bonds]
 
     # Using Hall number
     lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
     positions = [Sunny.Vec3(1, 1, 1) / 4]
     cryst = Sunny.crystal_from_hall_number(lat_vecs, positions, types, 525)
     ref_bonds = reference_bonds(cryst, 2.)
-    dist3 = [distance(cryst, b) for b in ref_bonds]
+    dist3 = [Sunny.distance(cryst, b) for b in ref_bonds]
 
     # Using international symbol
     positions = [[1, 1, 1] / 4]
     # cryst = Crystal(lat_vecs, positions, "F d -3 m") # Ambiguous!
     cryst = Crystal(lat_vecs, positions, "F d -3 m"; setting="1")
     ref_bonds = reference_bonds(cryst, 2.)
-    dist4 = [distance(cryst, b) for b in ref_bonds]
+    dist4 = [Sunny.distance(cryst, b) for b in ref_bonds]
 
     @test dist1 ≈ dist2 ≈ dist3 ≈ dist4
 
@@ -57,7 +57,7 @@
     basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
     J = basis' * randn(length(basis))
     (bs, Js) = Sunny.all_symmetry_related_couplings_for_atom(cryst, b.i, b, J)
-    @test length(Js) == coordination_number(cryst, b.i, b)
+    @test length(Js) == Sunny.coordination_number(cryst, b.i, b)
 
 
     ### Triangular lattice, primitive unit cell
@@ -67,8 +67,8 @@
     positions = [[0, 0, 0]]
     cryst = Crystal(lat_vecs, positions)
     @test cell_type(cryst) == Sunny.hexagonal
-    @test nbasis(cryst) == 1
-    @test cell_volume(cryst) ≈ c * √3 / 2 
+    @test Sunny.nbasis(cryst) == 1
+    @test Sunny.cell_volume(cryst) ≈ c * √3 / 2 
     @test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
     ### Kagome lattice
@@ -77,8 +77,8 @@
     positions = [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0]]
     cryst = Crystal(lat_vecs, positions)
     @test cell_type(cryst) == Sunny.hexagonal
-    @test nbasis(cryst) == 3
-    @test cell_volume(cryst) ≈ c * √3 / 2 
+    @test Sunny.nbasis(cryst) == 3
+    @test Sunny.cell_volume(cryst) ≈ c * √3 / 2 
     @test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
 
@@ -90,7 +90,7 @@
     # cryst = Crystal(lat_vecs, positions, "C 2/c")
     cryst = Crystal(lat_vecs, positions, "C 2/c", setting="c1")
     @test cell_type(cryst) == Sunny.monoclinic
-    @test nbasis(cryst) == 4
+    @test Sunny.nbasis(cryst) == 4
     @test all(lattice_params(cryst) .≈ mono_lat_params)
 
 
@@ -99,10 +99,10 @@
     lat_vecs = lattice_vectors(5, 5, 6, 90, 90, 120)
     positions = [[0,0,0]]
     cryst1 = Crystal(lat_vecs, positions, "P -3")
-    @test nbasis(cryst1) == 1
+    @test Sunny.nbasis(cryst1) == 1
     @test cell_type(cryst1) == Sunny.hexagonal
     cryst2 = Crystal(lat_vecs, positions, "R -3")
-    @test nbasis(cryst2) == 3
+    @test Sunny.nbasis(cryst2) == 3
     cryst3 = Crystal(lat_vecs, positions, 147) # spacegroup number
     @test cell_type(cryst1) == cell_type(cryst2) == cell_type(cryst3) == Sunny.hexagonal
 
@@ -112,9 +112,9 @@
     lat_vecs = lattice_vectors(6, 7, 8, 70, 80, 90)
     positions = [[0,0,0]]
     cryst1 = Crystal(lat_vecs, positions, "P 1")
-    @test nbasis(cryst1) == 1
+    @test Sunny.nbasis(cryst1) == 1
     cryst2 = Crystal(lat_vecs, positions) # Infers 'P -1'
-    @test nbasis(cryst1) == nbasis(cryst2) == 1
+    @test Sunny.nbasis(cryst1) == Sunny.nbasis(cryst2) == 1
     @test cell_type(cryst1) == cell_type(cryst2) == Sunny.triclinic
 
     ### Orthorhombic test, found by Ovi Garlea
