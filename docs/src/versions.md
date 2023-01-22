@@ -38,24 +38,16 @@ Stevens operators `𝒪[k,q]` admit polynomial expression in spin operators
 combination of Stevens operators. To see this expansion use
 [`print_anisotropy_as_stevens`](@ref).
 
-### Inhomogeneous interactions (Planned)
 
-Spatially inhomogeneous interactions can be get or set using the following methods:
+### Inhomogeneous interactions
 
-```julia
-set_vacancy_at!(sys, idx)
+Vacancies can be introduced with [`set_vacancy_at!`](@ref).
 
-set_external_field_at!(sys, h, idx)
-get_external_field_at!(sys, idx)
+An external field can be applied to a single site with
+[`set_external_field_at!`](@ref). 
 
-enable_inhomogeneous_exchange!(sys) # Once enabled, cannot be disabled
-
-set_exchange_at!(sys, J, idx)
-get_exchange_at(sys, idx)
-```
-
-The parameter `idx` has the shape `(n1, n2, n3, atom)`, where `(n1,n2,n3)`
-labels a unit cell, and `atom` is an index within this unit cell.
+Support for inhomogeneous exchange interactions is planned. One will first call
+`enable_inhomogeneous_exchange!`, allowing subsequent use of `set_exchange_at!`.
 
 
 ### Structure factor rewrite

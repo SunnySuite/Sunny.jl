@@ -29,6 +29,8 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
         error("Mode must be one of [:dipole, :SUN, :projected].")
     end
 
+    nb = nbasis(crystal)
+
     infos = propagate_site_info(crystal, infos)
     Ss = [si.S for si in infos]
     gs = [si.g for si in infos]
@@ -39,16 +41,17 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
             error("Currently all spins S must be equal in SU(N) mode.")
         end
         N = first(Ns)
-        κs = fill(1.0, nbasis(crystal))
+        κs = fill(1.0, latsize..., nb)
     else
         N = 0
-        κs = Ss
+        # Repeat such that `κs[cell, :] == Ss` for every `cell`
+        κs = permutedims(repeat(Ss, 1, latsize...), (2, 3, 4, 1))
     end
 
-    interactions = Interactions(crystal, N)
+    interactions = Interactions(nb, latsize, N)
 
-    dipoles = fill(zero(Vec3), latsize..., nbasis(crystal))
-    coherents = fill(zero(CVec{N}), latsize..., nbasis(crystal))
+    dipoles = fill(zero(Vec3), latsize..., nb)
+    coherents = fill(zero(CVec{N}), latsize..., nb)
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
@@ -88,27 +91,33 @@ is simply repeated periodically.
 function extend_periodically(sys::System{N}, factors::NTuple{3, Int64}) where N
     @assert all(>=(1), factors)
     new_latsize = factors .* sys.latsize
+    new_κs        = repeat(sys.κs, factors..., 1)
     new_dipoles   = repeat(sys.dipoles, factors..., 1)
     new_coherents = repeat(sys.coherents, factors..., 1)
-    #KBTODO: repeat κs
-    return System(sys.mode, sys.crystal, new_latsize, sys.Ns, sys.gs, sys.κs, sys.interactions,
+    return System(sys.mode, sys.crystal, new_latsize, sys.Ns, sys.gs, new_κs, sys.interactions,
                     new_dipoles, new_coherents, Array{Vec3, 4}[], Array{CVec{N}, 4}[],
                     sys.units, copy(sys.rng))
 end
 
 
+"""
+    Site(n1, n2, n3, i)
 
-const Cell = CartesianIndex{3}
-const Idx = CartesianIndex{4}
+References a single site in a `System` via its unit cell `(n1,n2,n3)` and its
+sublattice `i`. Can be used to index `dipoles` and `coherents` fields of a
+`System`, or to set inhomogeneous interactions.
+
+See also [`set_vacancy_at!`](@ref), [`set_external_field_at!`](@ref).
+"""
+@inline Site(idx::CartesianIndex{4})            = idx
+@inline Site(idx::NTuple{4, Int})               = CartesianIndex(idx)
+@inline Site(n1::Int, n2::Int, n3::Int, b::Int) = CartesianIndex(n1, n2, n3, b)
 
 # Element-wise application of mod1(cell+off, latsize), returning CartesianIndex
-@inline offsetc(cell::Cell, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
+@inline offsetc(cell::CartesianIndex{3}, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
 
 # Split a Cartesian index (cell,i) into its parts cell and i.
-@inline splitidx(idx::Idx) = (CartesianIndex((idx[1],idx[2],idx[3])), idx[4])
-
-@inline convert_idx(idx::Idx) = idx
-@inline convert_idx(idx::NTuple{4,Int}) = CartesianIndex(idx)
+@inline splitidx(idx::CartesianIndex{4}) = (CartesianIndex((idx[1],idx[2],idx[3])), idx[4])
 
 # An iterator over all sites using CartesianIndices
 @inline all_sites(sys::System) = CartesianIndices(sys.dipoles)
@@ -134,16 +143,21 @@ struct SpinState{N}
     Z::CVec{N}
 end
 
-# Returns √κ * normalize(Z), but avoids an extra square root
+# Returns √κ * normalize(Z)
 @inline function normalize_ket(Z::CVec{N}, κ) where N
-    return Z / sqrt(dot(Z,Z)/κ)
+    return iszero(κ) ? zero(CVec{N}) : Z/sqrt(dot(Z,Z)/κ)
 end
 
-@inline function getspin(sys::System{N}, idx::Idx) where N
+# Returns κ * normalize(s)
+@inline function normalize_dipole(s::Vec3, κ)
+    return iszero(κ) ? zero(Vec3) : κ*normalize(s)
+end
+
+@inline function getspin(sys::System{N}, idx::CartesianIndex{4}) where N
     return SpinState(sys.dipoles[idx], sys.coherents[idx])
 end
 
-@inline function setspin!(sys::System{N}, spin::SpinState{N}, idx::Idx) where N
+@inline function setspin!(sys::System{N}, spin::SpinState{N}, idx::CartesianIndex{4}) where N
     sys.dipoles[idx] = spin.s
     sys.coherents[idx] = spin.Z
     nothing
@@ -154,22 +168,22 @@ end
 end
 
 @inline function randspin(sys::System{0}, idx)
-    s = sys.κs[idx[4]] * normalize(randn(sys.rng, Vec3))
+    s = normalize_dipole(randn(sys.rng, Vec3), sys.κs[idx])
     return SpinState(s, CVec{0}())
 end
 @inline function randspin(sys::System{N}, idx) where N
-    Z = normalize_ket(randn(sys.rng, CVec{N}), sys.κs[idx[4]])
+    Z = normalize_ket(randn(sys.rng, CVec{N}), sys.κs[idx])
     s = expected_spin(Z)
     return SpinState(s, Z)
 end
 
 @inline function dipolarspin(sys::System{0}, idx, dir)
-    s = sys.κs[idx[4]] * normalize(Vec3(dir))
+    s = normalize_dipole(Vec3(dir), sys.κs[idx])
     Z = CVec{0}()
     return SpinState(s, Z)
 end
 @inline function dipolarspin(sys::System{N}, idx, dir) where N
-    Z = sqrt(sys.κs[idx[4]]) * ket_from_dipole(Vec3(dir), Val(N))
+    Z = normalize_ket(ket_from_dipole(Vec3(dir), Val(N)), sys.κs[idx])
     s = expected_spin(Z)
     return SpinState(s, Z)
 end
@@ -186,6 +200,19 @@ function polarize_spins!(sys::System{N}, dir) where N
         spin = dipolarspin(sys, idx, dir)
         setspin!(sys, spin, idx)
     end
+end
+
+"""
+    set_vacancy_at!(sys::System, idx::Site)
+
+Make a single site nonmagnetic. [`Site`](@ref) includes a unit cell and a
+sublattice index.
+"""
+function set_vacancy_at!(sys::System{N}, idx) where N
+    idx = Site(idx)
+    sys.κs[idx] = 0.0
+    sys.dipoles[idx] = zero(Vec3)
+    sys.coherents[idx] = zero(CVec{N})
 end
 
 

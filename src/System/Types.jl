@@ -35,7 +35,7 @@ struct Ewald
 end
 
 mutable struct Interactions
-    extfield :: Vector{Vec3}
+    extfield :: Array{Vec3, 4}
     anisos   :: Vector{SingleIonAnisotropies}
     pairexch :: Vector{PairExchanges}
     ewald    :: Union{Nothing, Ewald}
@@ -47,7 +47,7 @@ struct System{N}
     latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
     Ns               :: Vector{Int}               # S=(N-1)/2 per atom in unit cell
     gs               :: Vector{Mat3}              # g-tensor per atom in unit cell
-    κs               :: Vector{Float64}           # When N > 0, the ket magnitude,    |Z| = √κ
+    κs               :: Array{Float64, 4}         # When N > 0, the ket magnitude,    |Z| = √κ
                                                   # When N = 0, the dipole magnitude, |s| = κ
     interactions     :: Interactions              # All interactions
     dipoles          :: Array{Vec3, 4}            # Expected dipoles
