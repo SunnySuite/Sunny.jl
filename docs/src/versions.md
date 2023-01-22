@@ -10,14 +10,15 @@ This update includes many breaking changes.
 System(crystal, latsize, infos, mode)
 ```
 
-The parameter `infos` is now a list of [`SpinInfo`](@ref) objects involving spin
-angular momentum $S = (1/2, 1, 3/2, …)$ and an optional $g$-factor or tensor.
+The parameter `infos` is now a list of [`SpinInfo`](@ref) objects. Each defines
+spin angular momentum $S = \frac{1}{2}, 1, \frac{3}{2}, …$, and an optional
+$g$-factor or tensor.
 
-The parameter `mode` which must be one of `:dipole`, `:SUN`, or `:projected`. 
+The parameter `mode` is one of `:dipole`, `:SUN`, or `:projected`. 
 
 ### Setting interactions
 
-Interactions are now added mutably to an existing System using the following
+Interactions are now added mutably to an existing `System` using the following
 functions: [`set_external_field!`](@ref), [`set_exchange!`](@ref),
 [`set_exchange_with_biquadratic!`](@ref), [`set_anisotropy!`](@ref),
 [`enable_dipole_dipole!`](@ref).
@@ -28,15 +29,14 @@ $3×3$ antisymmetric exchange matrix.
 Fully general single-ion anisotropy is now possible. The function
 [`set_anisotropy!`](@ref) expects the single ion anisotropy to be expressed as a
 polynomial in symbolic spin operators [`𝒮`](@ref), or as a linear combination
-of symbolic Stevens operators [`𝒪`](@ref).
+of symbolic Stevens operators [`𝒪`](@ref). For example, an easy axis anisotropy
+in the direction `n` may be written `D*(𝒮⋅n)^2`.
+
 
 Stevens operators `𝒪[k,q]` admit polynomial expression in spin operators
 `𝒮[α]`. Conversely, a polynomial of spin operators can be expressed as a linear
 combination of Stevens operators. To see this expansion use
 [`print_anisotropy_as_stevens`](@ref).
-
-There is no longer a helper function to create an easy-axis or easy-plane
-anisotropy. Instead use `D*(𝒮⋅n)^2`, or similar.
 
 ### Inhomogeneous interactions (Planned)
 

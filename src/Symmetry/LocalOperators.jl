@@ -45,7 +45,7 @@ end
     𝒪[k,q]
 
 Abstract symbols for the Stevens operators. Linear combinations of these can be
-used to specify the single-ion anisotropy.
+used to define a single-ion anisotropy.
 """
 const 𝒪 = StevensOpsAbstract()
 
@@ -53,7 +53,7 @@ const 𝒪 = StevensOpsAbstract()
     𝒮[1], 𝒮[2], 𝒮[3]
 
 Abstract symbols for the spin operators. Polynomials of these can be used to
-specify the single-ion anisotropy.
+define a single-ion anisotropy.
 """
 const 𝒮 = spin_operator_symbols
 

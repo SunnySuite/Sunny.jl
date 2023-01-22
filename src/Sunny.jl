@@ -40,16 +40,14 @@ include("Symmetry/LocalOperators.jl")
 include("Symmetry/Anisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
-export Crystal, subcrystal, nbasis, cell_volume, cell_type,
-    lattice_vectors, lattice_params,
-    Bond, displacement, distance, coordination_number,
-    reference_bonds,
-    all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom,
-    all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom,
-    all_symmetry_related_anisotropies,
-    𝒪, 𝒮, rotate_operator,
-    print_site, print_bond, print_symmetry_table,
+export Crystal, subcrystal, lattice_vectors, lattice_params,
+    Bond, 𝒪, 𝒮, rotate_operator,
+    reference_bonds, print_site, print_bond, print_symmetry_table,
     print_suggested_frame, print_anisotropy_as_stevens, print_anisotropy_as_classical_spins
+    # nbasis, cell_volume, cell_type, coordination_number, displacement, distance,
+    # all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom,
+    # all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom,
+    # all_symmetry_related_anisotropies,
 
 include("Units.jl")
 export meV_per_K, Units
@@ -63,7 +61,7 @@ include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, polarize_spins!, randomize_spins!, energy, forces,
     extend_periodically,
-    set_external_field!, set_local_external_field!, set_anisotropy!, set_local_anisotropy!,
+    set_external_field!, set_anisotropy!,
     set_exchange!, set_exchange_with_biquadratic!, dmvec,
     enable_dipole_dipole!
 
@@ -72,8 +70,8 @@ export LangevinHeunP, ImplicitMidpoint, step!
 
 include("Samplers.jl")
 export MetropolisSampler, IsingSampler, LangevinSampler,
-    set_temp!, get_temp, sample!, thermalize!, anneal!,
-    running_energy, running_mag, reset_running_energy!, reset_running_mag!
+    set_temp!, get_temp, sample!, thermalize!, anneal!
+    # running_energy, running_mag, reset_running_energy!, reset_running_mag!
 
 include("StructureFactors/StructureFactors.jl")
 include("StructureFactors/SFUtils.jl")
@@ -89,10 +87,10 @@ export StructureFactor, FormFactor,
     get_intensities, get_static_intensities,
     connected_path, intensity_grid, ωvals
 
-include("WangLandau/BinnedArray.jl")
-include("WangLandau/WangLandau.jl")
-export BinnedArray, filter_visited, reset!,
-    WangLandau, spherical_cap_update, init_bounded!, run!
+# include("WangLandau/BinnedArray.jl")
+# include("WangLandau/WangLandau.jl")
+# export BinnedArray, filter_visited, reset!,
+#     WangLandau, spherical_cap_update, init_bounded!, run!
 
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
@@ -103,8 +101,8 @@ export view_crystal, offline_viewers, browser
 function __init__()
     @require GLMakie="e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin
         include("Plotting.jl")
-        export plot_lattice, plot_spins, plot_bonds, plot_all_bonds,
-            anim_integration, live_integration, live_langevin_integration
+        export plot_spins
+            # plot_lattice, plot_bonds, plot_all_bonds, anim_integration, live_integration, live_langevin_integration
     end
 
     @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" begin

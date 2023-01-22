@@ -56,7 +56,7 @@
     b = ref_bonds[2]
     basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
     J = basis' * randn(length(basis))
-    (bs, Js) = all_symmetry_related_couplings_for_atom(cryst, b.i, b, J)
+    (bs, Js) = Sunny.all_symmetry_related_couplings_for_atom(cryst, b.i, b, J)
     @test length(Js) == coordination_number(cryst, b.i, b)
 
 

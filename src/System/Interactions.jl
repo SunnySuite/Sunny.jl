@@ -44,11 +44,11 @@ function set_external_field!(sys::System, B)
 end
 
 """
-    set_local_external_field!(sys::System, B::Vec3, idx::CartesianIndex{4})
+    set_external_field_at!(sys::System, B::Vec3, idx::CartesianIndex{4})
 
 Introduce an applied field `B` localized to a single spin at `idx`.
 """
-function set_local_external_field!(sys::System, B, idx)
+function set_external_field_at!(sys::System, B, idx)
     error("Unimplemented.")
 end
 
