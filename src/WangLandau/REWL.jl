@@ -14,8 +14,8 @@ mutable struct WLReplica
 	# Per-spin normalization
 	norm::Int64
 
-    # Binned 2D histogram
-    hist::BinnedArrayND{Float64, Int64}
+	# Binned 2D histogram
+	hist::BinnedArrayND{Float64, Int64}
 
     # Natural log of 2D binned density of states
     ln_g::BinnedArrayND{Float64, Float64}

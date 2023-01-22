@@ -63,7 +63,7 @@ function WLReplica2D(
         sys,
         energy(sys), 
         sum(sys._dipoles),
-	 	(per_spin ? length(sys) : 1),
+		(per_spin ? length(sys) : 1),
         BinnedArrayND{Float64,   Int64}(win_bounds; bin_sizes=bin_sizes),        
         BinnedArrayND{Float64, Float64}(win_bounds; bin_sizes=bin_sizes),
         win_bounds,

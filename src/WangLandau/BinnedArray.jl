@@ -108,8 +108,8 @@ function index_for_key!(A::BinnedArray{K, V}, key::K) where{K, V}
 		push!(A.vals, 0)
 		push!(A.visited, false)
 
-    	A.min_key = round(Int64, key/A.bin_size) * A.bin_size
-    	A.max_key = A.min_key
+		A.min_key = round(Int64, key/A.bin_size) * A.bin_size
+		A.max_key = A.min_key
 
 		A.size = 1
 
