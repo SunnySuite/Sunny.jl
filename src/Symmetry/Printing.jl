@@ -196,7 +196,7 @@ end
 
 
 """
-print_suggested_frame(cryst, i; digits=4)
+    print_suggested_frame(cryst, i; digits=4)
 
 Print a suggested reference frame, as a rotation matrix `R`, that can be used as
 input to `print_site()`. This is useful to simplify the description of allowed
@@ -215,7 +215,7 @@ end
 
 
 """
-print_site(cryst, i; R=I)
+    print_site(cryst, i; R=I)
 
 Print symmetry information for the site `i`, including allowed g-tensor and
 allowed anisotropy operator. An optional rotation matrix `R` can be provided to

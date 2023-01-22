@@ -23,7 +23,7 @@ operators `𝒪[k,q]`.
 The characters `𝒮` and `𝒪` can be copy-pasted from this help message, or typed
 at a Julia terminal using `\\scrS` or `\\scrO` followed by tab-autocomplete.
 
-For systems with `mode=:projected`, the anisotropy operators interactions will
+For systems with `:projected`, the anisotropy operators interactions will
 automatically be renormalized to achieve maximum consistency with the more
 variationally accurate SU(_N_) mode.
 
@@ -38,6 +38,7 @@ set_anisotropy!(sys, 𝒪[4,0] + 5𝒪[4,4], i)
 
 # An equivalent expression of this quartic anisotropy, up to a constant shift
 set_anisotropy!(sys, 20*(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4), i)
+```
 
 See also [`print_anisotropy_as_stevens`](@ref).
 """

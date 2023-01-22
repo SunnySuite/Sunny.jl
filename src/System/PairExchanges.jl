@@ -9,10 +9,10 @@ end
 
 
 """
-    set_exchange_with_biquadratic!(sys::System, J, J′, bond::Bond)
+    set_exchange_with_biquadratic!(sys::System, J1, J2, bond::Bond)
 
 Sets both quadratic and biquadratic exchange interactions along `bond`, yielding
-a pairwise energy ``𝐒_i⋅J 𝐒_j + J′ (𝐒_i⋅𝐒_j)²``. These interactions will be
+a pairwise energy ``𝐒_i⋅J_1 𝐒_j + J_2 (𝐒_i⋅𝐒_j)²``. These interactions will be
 propagated to equivalent bonds in consistency with crystal symmetry. Any
 previous exchange interactions on these bonds will be overwritten.
 
@@ -132,19 +132,19 @@ end
 """
     dmvec(D)
 
-Representation of the Dzyaloshinskii-Moriya interaction pseudo-vector `D` as
-an antisymmetric matrix,
+Antisymmetric matrix representation of the Dzyaloshinskii-Moriya pseudo-vector,
 
 ```
-  |  0   D₃ -D₂ |
-  | -D₃  0   D₁ |
-  |  D₂ -D₁  0  |
+  [  0    D[3] -D[2]
+   -D[3]   0    D[1]
+    D[2] -D[1]   0  ]
 ```
 
 Useful in the context of [`set_exchange!`](@ref).
 """
 function dmvec(D)
-   SA[ 0  D[3] -D[2];
-   -D[3]     0  D[1];
-    D[2] -D[1]    0]
+    D = Vec3(D)
+    return SA[  0.0  D[3] -D[2]
+              -D[3]   0.0  D[1]
+               D[2] -D[1]   0.0 ]
 end
