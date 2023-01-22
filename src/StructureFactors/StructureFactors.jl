@@ -114,11 +114,7 @@ function SFTrajectory(sys::System{N};
     nω = nω == 1 ? 1 : 2nω-1 # nω = 1 is a static structure factor. If greater than 1, make nω correspond to the number of positive frequencies saved .
     traj = zeros(ComplexF64, nops, size(sys.dipoles)..., nω) 
     integrator = ImplicitMidpoint(Δt)
-
-    # Create a shallow copy of the spin system
-    sys_new = System(sys.mode, sys.crystal, sys.latsize, sys.interactions,
-        copy(sys.dipoles), copy(sys.coherents), sys.κs, sys.gs,
-        sys.dipole_buffers, sys.coherent_buffers, sys.units, sys.rng)
+    sys_new = clone_spin_state(sys)
 
     return SFTrajectory(sys_new, traj, ops, measperiod, apply_g, dipolemode, integrator, processtraj)
 end

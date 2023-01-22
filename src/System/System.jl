@@ -29,23 +29,20 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
         error("Mode must be one of [:dipole, :SUN, :projected].")
     end
 
-    infos = if isempty(infos)
-        [SpinInfo(i, 1.0) for i in 1:nbasis(crystal)]
-    else
-        propagate_site_info(crystal, infos)
-    end
+    infos = propagate_site_info(crystal, infos)
     Ss = [si.S for si in infos]
     gs = [si.g for si in infos]
+    Ns = @. Int(2Ss+1)
 
-    # Determine dimension N of the local Hilbert space, or 0 if in dipole-only mode
-    N, κs = if mode == :SUN
-        if !allequal(Ss)
+    if mode == :SUN
+        if !allequal(Ns)
             error("Currently all spins S must be equal in SU(N) mode.")
         end
-        N = Int(2first(Ss) + 1)
-        (N, fill(1.0, nbasis(crystal)))
+        N = first(Ns)
+        κs = fill(1.0, nbasis(crystal))
     else
-        (0, Ss)
+        N = 0
+        κs = Ss
     end
 
     interactions = Interactions(crystal, N)
@@ -56,8 +53,8 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = System(mode, crystal, latsize, interactions, dipoles, coherents, κs, gs,
-                     dipole_buffers, coherent_buffers, units, rng)
+    ret = System(mode, crystal, latsize, Ns, gs, κs, interactions, dipoles, coherents,
+                    dipole_buffers, coherent_buffers, units, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
 end
@@ -75,6 +72,12 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
 end
 
 
+function clone_spin_state(sys::System{N}) where N
+    System(sys.mode, sys.crystal, sys.latsize, sys.Ns, sys.gs, sys.κs, sys.interactions,
+        copy(sys.dipoles), copy(sys.coherents), sys.dipole_buffers, sys.coherent_buffers,
+        sys.units, copy(sys.rng))
+end
+
 """
     extend_periodically(sys::System{N}, mults::NTuple{3, Int64}) where N
 
@@ -84,14 +87,13 @@ is simply repeated periodically.
 """
 function extend_periodically(sys::System{N}, factors::NTuple{3, Int64}) where N
     @assert all(>=(1), factors)
-    latsize = factors .* sys.latsize
-    dipoles   = repeat(sys.dipoles, factors..., 1)
-    coherents = repeat(sys.coherents, factors..., 1)
+    new_latsize = factors .* sys.latsize
+    new_dipoles   = repeat(sys.dipoles, factors..., 1)
+    new_coherents = repeat(sys.coherents, factors..., 1)
     #KBTODO: repeat κs
-    dipole_buffers = Array{Vec3, 4}[]
-    coherent_buffers = Array{CVec{N}, 4}[]
-    return System(sys.mode, sys.crystal, latsize, sys.interactions, dipoles, coherents, sys.κs, sys.gs,
-                      dipole_buffers, coherent_buffers, sys.units, copy(sys.rng))
+    return System(sys.mode, sys.crystal, new_latsize, sys.Ns, sys.gs, sys.κs, sys.interactions,
+                    new_dipoles, new_coherents, Array{Vec3, 4}[], Array{CVec{N}, 4}[],
+                    sys.units, copy(sys.rng))
 end
 
 
