@@ -1,84 +1,41 @@
 struct StructureFactor{N, NumCorr, NBasis}
     # 𝒮^{αβ}(q,ω) data and metadata
-    data         :: Array{ComplexF64, 7}                  # Raw SF data for 1st BZ (numcorrelations x nbasis x nbasis x latsize x energy)
-    crystal      :: Crystal                               # Crystal for interpretation of axes
-    Δω           :: Float64                               # Energy step size
+    data          :: Array{ComplexF64, 7}  # Raw SF data for 1st BZ (numcorrelations x nbasis x nbasis x latsize x energy)
+    crystal       :: Crystal               # Crystal for interpretation of axes
+    Δω            :: Float64               # Energy step size
 
     # Correlation info (αβ indices of 𝒮^{αβ}(q,ω))
-    dipoledata   :: Bool                                  # Whether correlations from dipoles 
-    ops          :: Array{ComplexF64, 3}                  # Operators corresponding to observables
-    idxinfo      :: SortedDict{CartesianIndex{2}, Int64}  # (α, β) to save from 𝒮^{αβ}(q, ω)
+    dipole_corrs  :: Bool                                  # Whether correlations from dipoles 
+    ops           :: Array{ComplexF64, 3}                  # Operators corresponding to observables
+    idxinfo       :: SortedDict{CartesianIndex{2}, Int64}  # (α, β) to save from 𝒮^{αβ}(q, ω)
 
     # Specs for sample generation and accumulation
-    samplebuf    :: Array{ComplexF64, 6}                  # New sample buffer
-    measperiod   :: Int                                   # Steps to skip between saving observables (downsampling for dynamical calcs)
-    apply_g      :: Bool                                  # Whether to apply the g-factor
-    integrator   :: ImplicitMidpoint                      # Integrator for dissipationless trajectories (will likely move to add_sample!)
-    nsamples     :: Array{Int64, 1}                       # Number of accumulated samples (array so mutable)
-    processtraj! :: Function                              # Function to perform post-processing on sample trajectories
+    samplebuf     :: Array{ComplexF64, 6}  # New sample buffer
+    measperiod    :: Int                   # Steps to skip between saving observables (downsampling for dynamical calcs)
+    apply_g       :: Bool                  # Whether to apply the g-factor
+    integrator    :: ImplicitMidpoint      # Integrator for dissipationless trajectories (will likely move to add_sample!)
+    nsamples      :: Array{Int64, 1}       # Number of accumulated samples (array so mutable)
+    processtraj!  :: Function              # Function to perform post-processing on sample trajectories
 end
 
 """
-    StructureFactor(sys::System; nω, Δt = 0.1, ωmax = nothing,
-                        apply_g = true, ops = nothing, matrix_elems = nothing,
-                        process_trajectory=:none)
+    StructureFactor(sys::System; Δt, nω, measperiod, apply_g = true, ops = nothing,
+                        matrix_elems = nothing, process_trajectory = :none)
 
-`StructureFactor` is the basic type for calculating ``𝒮^{αβ}(q,ω)``, storing
-the results, and retrieving intensity information. 
+`StructureFactor` is the basic type for calculating ``𝒮(q,ω)`` or ``𝒮(q)``
+data, storing the results, and retrieving intensity information. 
 
-Most users should use [`calculate_structure_factor`](@ref) to generate a
-structure factor. However, one may also directly create a structure factor by
-providing a `System` to `StructureFactor`. Then, to manually generate a sample,
-the user must ensure that the spins of their system are drawn from an
-appropriate equilibrium distribution and call [`add_trajectory!`](@ref)
-function. This process may be repeated as necessary to generate a sufficient
-statistics. 
+Instead of creating `StructureFactor` directly, one should call either
+either [`DynamicStructureFactor`](@ref) or [`StaticStructureFactor`](@ref).
 
-The keywords specify all the parameters used in subsequent calculations and must
-be determined at the time that the `StructureFactor` is initiated. Specifically:
-- `nω`: Required keyword argument that determines how many energy bins to
-    resolve between 0 and `ωmax`. If set to 1, Sunny will calculate a static
-    structure factor.
-- `Δt`: Sets the step size of the integrator used to calculate trajectories.
-- `ωmax`: Determines the maximum resolved energy.
-- `apply_g`: Determines whether to apply the g-factor when calculating
-    trajectories.
-- `ops`: Enables an advanced feature for SU(_N_) mode, allowing the user to
-    specify custom observables other than the three components of the dipole. To
-    use this features, `ops` must be given an `N×N×numops` array, where the
-    final index is used to retrieve each `N×N` operator.
-- `matrix_elems`: Allows the user to specify which correlation functions are
-    calculated. This is specified with a vector of tuples. By default Sunny
-    records all auto- and cross-correlations generated by the x, y, and z
-    dipolar components. To retain only the xx and xy correlations, one would set
-    `matrix_elems=[(1,1), (1,2)]`.
-
-If you wish to calculate a dynamical structure factor, the keyword `nω` must set
-to an integer greater than 1.
+Data may be retrieved from a `StructureFactor` by calling [`intensities`](@ref) 
+or [`static_intensities`](@ref). 
 """
-function StructureFactor(sys::System{N}; Δt, nω, ωmax,
+function StructureFactor(sys::System{N}; Δt, nω, measperiod,
                             apply_g = true, ops = nothing, matrix_elems = nothing,
                             process_trajectory = :none) where N
 
-    nω = Int64(nω)
-
-    # Establish parameters for either static or dynamic sample generation
-    if nω == 1  # Static structure factor
-        measperiod = 1
-        Δω = 0.0  
-    else  # Dynamic structure factor 
-        measperiod = if isnothing(ωmax) 
-            1
-        else
-            @assert π/Δt > ωmax "Maximum ω with chosen step size is $(π/Δt). Choose smaller Δt or change ω_max."
-            # measperiod = floor(Int, π/(Δt * ωmax))
-            measperiod = floor(Int, π/(Δt * ωmax))
-        end
-        nω = 2nω-1 # Make nω correspond to number of non-negative frequencies
-        Δω = 2π / (Δt*measperiod*nω)
-    end
-
-    # Set up correlation functions
+    # Set up correlation functions (which matrix elements αβ to save from 𝒮^{αβ})
     default_observables = false
     default_correlations = false
     if isnothing(ops)
@@ -95,7 +52,7 @@ function StructureFactor(sys::System{N}; Δt, nω, ωmax,
         end
         default_correlations = true
     end
-    dipoledata = default_observables && default_correlations
+    dipole_corrs = default_observables && default_correlations
 
     # Construct look-up table for matrix elements
     count = 1
@@ -109,43 +66,140 @@ function StructureFactor(sys::System{N}; Δt, nω, ωmax,
     pairs = map(i -> CartesianIndex(i.first) => i.second, pairs) # Convert to CartesianIndices
     idxinfo = SortedDict{CartesianIndex{2}, Int64}(pairs) # CartesianIndices sort to fastest order
 
+    # Set up trajectory processing function (e.g., symmetrize)
+    processtraj! = if process_trajectory == :none 
+        no_processing
+    elseif process_trajectory == :symmetrize
+        symmetrize!
+    elseif process_trajectory == :subtract_mean
+        subtract_mean!
+    else
+        error("Unknown argument for `process_trajectory`")
+    end
 
     # Preallocation
     nb = nbasis(sys.crystal)
     ncorr = length(pairs)
     samplebuf = zeros(ComplexF64, nops, sys.latsize..., nb, nω) 
     data = zeros(ComplexF64, length(matrix_elems), nb, nb, sys.latsize..., nω)
+
+    # Other initialization
     nsamples = Int64[0]
     integrator = ImplicitMidpoint(Δt)
-
-
-    # Set up trajectory processing function (e.g., symmetrize)
-    processtraj! = if process_trajectory == :none 
-        no_processing
-    elseif process_trajectory == :symmetrize
-        symmetrize!
-    elseif process_trajectory == :subtractmean
-        subtract_mean!
-    else
-        error("Unknown argument for `process_trajectory`")
-    end
-
+    Δω = nω == 1 ? 0.0 : 2π / (Δt*measperiod*nω)
 
     # Make Structure factor and add an initial sample
-    sf = StructureFactor{N, ncorr, nb}(data, sys.crystal, Δω, dipoledata, ops, idxinfo, samplebuf, 
+    sf = StructureFactor{N, ncorr, nb}(data, sys.crystal, Δω, dipole_corrs, ops, idxinfo, samplebuf, 
                             measperiod, apply_g, integrator, nsamples, processtraj!)
     add_sample!(sf, sys; processtraj!)
 
     return sf
 end
 
+
+"""
+    DynamicStructureFactor(sys::System; Δt, nω, ωmax, 
+        apply_g=true, process_trajectory=:none, ops=nothing, matrix_elems=nothing) 
+
+Creates a `StructureFactor` for calculating and storing ``𝒮(q,ω)`` data. When
+calculating a dynamic structure factor from classical dynamics, it is necessary
+to generate trajetories. The initial conditions for these trajectories must be
+sample spin configurations drawn from the equilibrium distribution at the
+desired temperature. One such trajectory is calculated immediately when
+initializing a `DynamicStructureFactor`, so the spins in the `sys` must
+represent a good sample spin configuration before calling this function.
+Additional sample trajectories are created and accumulated into the
+`DynamicStructureFactor` by calling `[add_sample!](@ref)(sf, sys)`. The spins in
+the `sys` should be set to new sample configurations before each call to
+`add_sample!`. This can be achieved, for example, with a
+[`LangevinSampler`](@ref).
+
+Three keywords are required to specify the dynamics used for the trajectory
+calculation.
+
+- `Δt`: The time step used for calculating the trajectory from which dynamic
+    spin-spin correlations are calculated. The trajectories are calculated with
+    an [`ImplicitMidpoint`](@ref) integrator.
+- `ωmax`: The maximum energy, ``ω``, that will be resolved.
+- `nω`: The number of energy bins to calculated between 0 and `ωmax`.
+
+Additional keyword options are the following:
+- `apply_g`: Determines whether to apply the g-factor when calculating
+    trajectories.
+- `process_trajectory`: Specifies a function that will be applied to the sample
+    trajectory before correlation analysis. Current options are `:none` and
+    `:symmetrize`. The latter will symmetrize the trajectory in time, which can
+    be useful for removing Fourier artifacts that arise when calculating the
+    correlations.
+- `ops`: Enables an advanced feature for SU(_N_) mode, allowing the user to
+    specify custom observables other than the three components of the dipole. To
+    use this features, `ops` must be given an `N×N×numops` array, where the
+    final index is used to retrieve each `N×N` operator.
+- `matrix_elems`: Specify which correlation functions are calculated, i.e. which
+    matrix elements ``αβ`` of ``𝒮^{αβ}(q,ω)`` are calculated and stored.
+    Specified with a vector of tuples. By default Sunny records all auto- and
+    cross-correlations generated by the x, y, and z dipolar components (1, 2,
+    and 3 respectively). To retain only the xx and xy correlations, one would
+    set `matrix_elems=[(1,1), (1,2)]`. If custom observables (`ops`) are given,
+    the indices are ordered in the same manner as the final index of `ops`.
+
+The ``𝒮(q,ω)`` data can be retrieved by calling [`intensities`](@ref) or
+[`static_intensities`](@ref). The latter option will integrate out ``ω``.
+"""
 function DynamicStructureFactor(sys::System; Δt, nω, ωmax, kwargs...) 
-    StructureFactor(sys; Δt, nω, ωmax, kwargs...)
+    nω = Int64(nω)
+    @assert π/Δt > ωmax "Desired `ωmax` not possible with specified `Δt`. Choose smaller `Δt` value."
+    measperiod = floor(Int, π/(Δt * ωmax))
+    nω = 2nω-1  # Ensure there are nω _non-negative_ energies
+    StructureFactor(sys; Δt, nω, measperiod, kwargs...)
 end
 
-function StaticStructureFactor(sys::System; nω=1, kwargs...)
-    if nω != 1
-        error("nω must be 1 to create a `StaticStructureFactor`.")
-    end
-    StructureFactor(sys; Δt=0.1, ωmax=1.0, nω, kwargs...)
+
+"""
+    StaticStructureFactor(sys::System; apply_g=true, process_trajectory=:none,
+                            ops=nothing, matrix_elems=nothing) 
+
+Creates a `StructureFactor` for calculating and storing ``𝒮(q)`` data,
+i.e., spin-spin correlation data calculated at single time steps. An initial
+sample is generated from the spins in `sys` when calling
+`StaticStructureFactor`, so the spins in the `sys` should represent a good
+equilibrium sample at the time of calling. Additional samples may be generated
+by calling [`add_sample!(sf, sys)`](@ref). The spins in the `sys` should be
+resampled before each all to `add_sample!`.
+
+The the following optional keywords are available:
+
+- `apply_g`: Determines whether to apply the g-factor when calculating
+    trajectories.
+- `process_trajectory`: Specifies a function that will be applied to the sample
+    trajectory before correlation analysis. Current options are `:none` and
+    `:symmetrize`. The latter will symmetrize the trajectory in time, which can
+    be useful for removing Fourier artifacts that arise when calculating the
+    correlations.
+- `ops`: Enables an advanced feature for SU(_N_) mode, allowing the user to
+    specify custom observables other than the three components of the dipole. To
+    use this features, `ops` must be given an `N×N×numops` array, where the
+    final index is used to retrieve each `N×N` operator.
+- `matrix_elems`: Specify which correlation functions are calculated, i.e. which
+    matrix elements ``αβ`` of ``𝒮^{αβ}(q,ω)`` are calculated and stored.
+    Specified with a vector of tuples. By default Sunny records all auto- and
+    cross-correlations generated by the x, y, and z dipolar components (1, 2,
+    and 3 respectively). To retain only the xx and xy correlations, one would
+    set `matrix_elems=[(1,1), (1,2)]`. If custom observables (`ops`) are given,
+    the indices are ordered in the same manner as the final index of `ops`.
+
+``𝒮^{αβ}(q)`` data can be retrieved by calling [`static_intensities`](@ref).
+
+NOTE: It is often advisable to generate a static structure factor, ``𝒮(q)``,
+from a dynamic structure factor, ``𝒮(q,ω)``, by integrating out ``ω``, rather
+than calculating ``𝒮(q)`` data directly from spin-spin correlations at single
+instances of time. This makes it possible to apply a temperature- and
+``ω``-dependent classical-to-quantum intensity rescaling to the results. This
+can be accomplished in Sunny by calculating a `DynamicStructureFactor` and
+retrieving ``𝒮(q)`` data with [`static_intensities`](@ref) with the `kT`
+keyword set to the temperature used for the calculation. This will integrate
+the ``ω`` information out after applying corrections.
+"""
+function StaticStructureFactor(sys::System; kwargs...)
+    StructureFactor(sys; Δt=0.1, nω=1, measperiod=1, kwargs...)
 end

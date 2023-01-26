@@ -78,8 +78,8 @@ units, i.e., multiples of the reciprocal lattice vectors.
     contraction on the indices ``α`` and ``β`` of ``𝒮^{αβ}(q,ω)``. Setting
     `trace` yields ``∑_α 𝒮^{αα}(q,ω)``. Setting `perp` will employ a
     polarization correction on the traced value. Setting `full` will return all
-    elements ``𝒮^{αβ}(q,ω)`` with contraction.
-- `interpolation`: Since ``𝒮(q,ω)`` is calculated on a finite lattice, data is
+    elements ``𝒮^{αβ}(𝐪,ω)`` with contraction.
+- `interpolation`: Since ``𝒮(𝐪, ω)`` is calculated on a finite lattice, data is
     only available at discrete wave vectors. By default, Sunny will round a
     requested `q` to the nearest available wave vector. Linear interpolation can
     be applied by setting `interpolation=:linear`.
@@ -168,11 +168,11 @@ end
 
 
 """
-    get_static_intensities(sf::StructureFactor, qs, mode; kwargs...)
+    static_intensities(sf::StructureFactor, qs, mode; kwargs...)
 
 Return the static structure factor intensities at wave vectors `qs`. The
-functionality is very similar to [`get_intensities`](@ref), except the returned
-array has dimensions identical to `qs`. The energy axis has been summed out.
+functionality is very similar to [`intensities`](@ref), except the returned
+array has dimensions identical to `qs`. The energy axis has been integrated out.
 """
 function static_intensities(sf::StructureFactor, qs, mode; kwargs...)
     datadims = size(qs)
@@ -183,12 +183,13 @@ function static_intensities(sf::StructureFactor, qs, mode; kwargs...)
 end
 
 
+# Possibly deprecate below and expose qgrid function instead (similar to what was done with path).
 """
     intensity_grid(sf::StructureFactor, mode;
                        bzsize=(1,1,1), negative_energies = false, index_labels = false, kwargs...)
 
 Returns intensities at discrete wave vectors for which there is exact
-information. Shares all keywords with [`get_intensities`](@ref), and provides
+information. Shares all keywords with [`intensities`](@ref), and provides
 two additional options:
 
 - `bzsize`: Specifies the number of Brillouin zones to return, given as a
