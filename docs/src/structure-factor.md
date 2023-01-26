@@ -40,8 +40,8 @@ $$𝒮̃^{αβ}_{j,k}(𝐪, ω) = \frac{1}{V} ⟨ŝ_j^α(𝐪, ω)^\ast ŝ_k^�
 is fundamental. For each sublattice $j$, the data $ŝ_j^α(𝐪, ω)$ can be
 efficiently obtained by fast Fourier tranformation of a real space configuration
 $s_j^α(𝐱, t)$. Internally, Sunny will calculate and store the discrete
-$𝒮̃^{αβ}_{j,k}(𝐪, ω)$ correlation data, and use this to construct $𝒮^{αβ}(𝐪,
-ω)$ intensities that can be compared with experiment.
+$𝒮̃^{αβ}_{j,k}(𝐪, ω)$ correlation data, and use this to construct
+$𝒮^{αβ}(𝐪,ω)$ intensities that can be compared with experiment.
 
 Calculating this structure factor involves several steps, with various possible
 settings. Sunny provides a number of tools to facilitate this calculation and to
@@ -51,73 +51,135 @@ information is available in the Library API.
 
 ## Basic Usage
 
+The basic data type for calculating, storing and retrieving structure factor
+data is `StructureFactor`. Rather than creating a `StructureFactor` directly,
+one should call either `DynamicStructureFactor`, for $𝒮^{αβ}(𝐪,ω)$, or
+`StaticStructureFactor`, for $𝒮^{αβ}(𝐪)$. These functions will properly
+configure and return a `StructureFactor` appropriate to each case.
+
 ### Calculating a dynamical stucture factor
 
-The basic function for calculating dynamical structure factors is
-[`calculate_structure_factor`](@ref). The steps for using it effectively are the
-following:
+Calling `DynamicStructureFactor(sys; Δt, ωmax, nω)` will create a
+`StructureFactor` for the user and calculate an initial sample. There are three
+keywords which must be specified. These keywords will determine the dynamics
+used to calculate the sample and, consequently, the $ω$ information that will be
+available after the calculation has completed.
 
-1. Build a [`System`](@ref) and ensure that it is properly equilibrated at the
-   temperature you wish to study. For example, if the `System` is in a ground
-   state, one could use a [`LangevinHeunP`](@ref) integrator to thermalize it.
-2. Set up a sampler that will generate decorrelated samples of spin
-   configurations at the desired temperature, for example, by using a
-   [`LangevinSampler`](@ref).
-3. Call `calculate_structure_factor(sys, sampler; kwargs...)`, which will return
-   a `StructureFactor`, containing all $𝒮̃^{αβ}_{jk}(𝐪, ω)$ data.
+1. `Δt`: Determines the step size used for simulating the dynamics. A smaller
+   number will require proportionally more calculation time. While a smaller
+   `Δt` will permit a larger resolvable energy, `Δt` is typically selected to
+   ensure numerical stability rather than the maximum $ω$ value. A safe choice
+   is to use the smaller value of `Δt = 0.1/(J * S^2)` or `Δt = 0.1/(D * S)`.
+   `J` here is the parameter governing the largest bilinear interaction (e.g.
+   exchange), and `D` is the parameter governing the largest single-site term of
+   the Hamiltonian (e.g., anisotropy or Zeeman term).
+2. `ωmax`: Sets the maximum resolved energy. Note that this is not independent
+   of `Δt`. If `ωmax` too large, Sunny will throw an error and ask you to choose
+   a smaller `Δt`. 
+3. `nω`: Determines the number of energy bins to resolve. A larger number will
+   require more calculation time.
 
-The calculation can be configured in a number of ways; see
-[`calculate_structure_factor`](@ref) documentation for a list of all keywords.
-In particular, note that an argument `nω` greater than one must be specified to
-get a dynamical structure factor.
+Structure factor data is calculated from classical dynamics using a Monte Carlo
+approach. Each sample of $𝒮^{αβ}(𝐪,ω)$ is generated from a trajectory, the
+initial condition for which must be a sample spin configuration from the
+equilibrium distribution at a particular temperature. Therefore it is important
+that the spin configuration in your `sys` represent such a sample prior to
+calling `DynamicStructureFactor`. In other words, it is essential that `sys` be
+properly thermalized before initiating the calculation. One approach to
+accomplishing this is to use a [`LangevinSampler`](@ref).
 
-### Extracting information
+Additional samples can be accumulated into a `StructureFactor` by calling
+[`add_sample!(structure_factor, sys)`](@ref). Naturally, it is important that
+the spin configuration in `sys` represent a new equilibrium sample before
+calling `add_sample!`.
 
-The basic function for extracting information from a `StructureFactor` at a
-particular wave vector, $𝐪$, is [`get_intensities`](@ref). It takes a
+The outline of typical use case might look like this:
+```
+# Thermalize a `System`, `sys`, and set up a `LangevinSampler`, `sampler`
+# prior to steps below. 
+
+# Make a `StructureFactor` and calculate an initial sample
+sf = DynamicStructureFactor(sys; Δt=0.05, ωmax=10.0, nω=100) 
+
+# Add additional samples
+for _ in 1:nsamples
+   sample!(sys, sampler)   # Update spins in `sys` to generate a new initial condition
+   add_sample!(sf, sys)    # Use spins to calculate and accumulate new sample of 𝒮(𝐪,ω)
+end
+```
+
+The calculation may be configured in a number of ways; see the
+[`DynamicStructureFactor`](@ref) documentation for a list of all keywords.
+
+
+### Calculating a static structure factor
+
+Sunny provides two methods for calculating static structure factors,
+$𝒮^{αβ}(𝐪)$. The first involves calculating spin-spin correlations at single
+instances of time. The second involves calculating a dynamic structure factor
+first and integrating out the $ω$ information. The advantage of the latter
+approach is that it enables application of an $ω$-dependent classical-to-quantum
+rescaling of structure factor intensities, and this method is preferred whenever
+comparing results to experimental data or spin wave calculations. A disadvantage
+of this approach is that it is computationally more expensive. There are also
+many cases when it is not straightforward to calculate a meaningful dynamics, as
+when working with Ising spins. In this section we will discuss how to calculate
+static structure factors from static spin configurations. Information about
+calculating static data from a dynamic structure factor can be found in the
+following section.
+
+The basic usage for the static case is very similar to the dynamic case, except
+one calls `StaticStructureFactor(sys)` instead of `DynamicStructureFactor`. Note
+that there are no required keywords as there is no need to specify any dynamics.
+`StaticStructureFactor` will immediately calculate a sample of $𝒮(𝐪)$ using
+the spin configuration contained in `sys`. It is therefore important that 
+`sys` be properly thermalized before calling this function. Additional samples
+may be added with `add_sample!(sf, sys)`, just as was done in the dynamic case.
+As was true there, it is important to ensure that the spins in `sys` represents
+a new equilibrium sample before calling `add_sample!`.
+
+### Extracting information from structure factors
+
+The basic function for extracting information from a dynamic `StructureFactor`
+at a particular wave vector, $𝐪$, is [`intensities`](@ref). It takes a
 `StructureFactor`, a list of wave vectors, and a contraction mode. For example,
-`get_intensities(sf, [[0.0, 0.5, 0.5]], :trace)` will calculate intensities for
-the wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The option `:trace` will contract spin
+`intensities(sf, [[0.0, 0.5, 0.5]], :trace)` will calculate intensities for the
+wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The option `:trace` will contract spin
 indices, returning $𝒮^{αα}(𝐪,ω)$. The option `:perp` will instead perform a
 contraction that includes polarization corrections. The option `:full` will
-return data for the full tensor $𝒮^{αβ}(𝐪,ω)$. `get_intensities` returns a
-list of `nω` elements. The corresponding $ω$ values are given by `ωvals(sf)`,
-where `sf` is the `StructureFactor`.
-
-The convenience function [`connected_path`](@ref) returns a list of wavevectors
-sampled along a path that connects specified $𝐪$ points. This list can be used
-as an input to `get_intensities`.
+return data for the full tensor $𝒮^{αβ}(𝐪,ω)$. `intensities` returns a list of
+`nω` elements. The corresponding $ω$ values are given by `ωvals(sf)`, where `sf`
+is the `StructureFactor`.
 
 Since Sunny currently only calculates the structure factor on a finite lattice,
 it is important to realize that exact information is only available at a
 discrete set of wave vectors. Specifically, for each axis index $i$, we will get
-information at $q_i = \frac{n}{L_i}$, where $n$ runs from
-$(\frac{-L_i}{2}+1)$ to $\frac{L_i}{2}$ and $L_i$ is the linear dimension of
-the lattice used for the calculation. If you request a wave vector that does not
-fall in this set, Sunny will automatically round to the nearest $𝐪$ that is
-available. If `get_intensities` is given the keyword argument
-`interpolation=:linear`, Sunny will use trilinear interpolation to determine the
-results at the requested wave vector. 
+information at $q_i = \frac{n}{L_i}$, where $n$ runs from $(\frac{-L_i}{2}+1)$
+to $\frac{L_i}{2}$ and $L_i$ is the linear dimension of the lattice used for the
+calculation. If you request a wave vector that does not fall into this set,
+Sunny will automatically round to the nearest $𝐪$ that is available. If
+`intensities` is given the keyword argument `interpolation=:linear`, Sunny will
+use trilinear interpolation to determine the results at the requested wave
+vector. 
+
+The convenience function [`connected_path`](@ref) returns a list of wavevectors
+sampled along a path that connects specified $𝐪$ points. This list can be used
+as an input to `intensities`.
 
 To retrieve the intensities at all wave vectors for which there is exact data,
 one can use the function [`intensity_grid`](@ref). This takes an optional
 keyword argument `bzsize`, which must be given a tuple of three integers
 specifying the number of Brillouin zones to calculate, e.g., `bzsize=(2,2,2)`.
 
-Many keyword arguments are available which modify the calculation of structure
-factor intensity. See the documentation of [`get_intensities`](@ref) for a full
-list. It is generally recommended to provide a value to `kT` corresponding to
-the temperature of sampled configurations. Given `kT`, Sunny will apply a
-classical-to-quantum rescaling of the energy intensities. 
+A number of keyword arguments are available which modify the calculation of
+structure factor intensity. See the documentation of [`intensities`](@ref) for a
+full list. It is generally recommended to provide a value to `kT` corresponding
+to the temperature of sampled configurations. Given `kT`, Sunny will apply an
+energy- and temperature-dependent classical-to-quantum rescaling of intensities. 
 
-### Static structure factors
-
-A static structure will be calculated if the `nω` keyword of
-`calculate_structure_factor` or `StructureFactor` is left at its default value
-of 1. Static structure factors may also be calculated from a dynamical structure
-factor simply by summing over all the energies (i.e., the $ω$-axis) provided
-by `get_intensities`. We recommend calculating static structure factors in this
-way in most cases (though it is of course much more expensive). The
-static-from-dynamic approach makes it possible to apply the classical-to-quantum
-intensity rescaling, which is energy dependent. Sunny provides the function
-[`get_static_intensities`](@ref), which will perform the summation for you.
+To retrieve intensity data from a static structure factor, use
+[`static_intensities`](@ref), which shares keyword arguments with
+[`intensities`](@ref). This function may also be used to calculate static
+information from a dynamical structure factor. Note that it is important to
+supply a value to `kT` to reap the benefits of this approach over simply
+calculating a static structure factor at the outset. 
