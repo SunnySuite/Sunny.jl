@@ -69,7 +69,7 @@ function stencil_points(sf::StructureFactor, q, ::LinearInterp)
     )
     ms = map(x -> x .+ base, offsets) 
     ims = map(ms) do m
-        map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
+        map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex{3}
     end
     return ms, ims
 end
