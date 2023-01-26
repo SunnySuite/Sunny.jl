@@ -56,7 +56,7 @@ be determined at the time that the `StructureFactor` is initiated. Specifically:
 If you wish to calculate a dynamical structure factor, the keyword `nω` must set
 to an integer greater than 1.
 """
-function StructureFactor(sys::System{N}; nω, Δt = 0.1, ωmax = nothing,
+function StructureFactor(sys::System{N}; Δt, nω, ωmax,
                             apply_g = true, ops = nothing, matrix_elems = nothing,
                             process_trajectory = :none) where N
 
@@ -71,6 +71,7 @@ function StructureFactor(sys::System{N}; nω, Δt = 0.1, ωmax = nothing,
             1
         else
             @assert π/Δt > ωmax "Maximum ω with chosen step size is $(π/Δt). Choose smaller Δt or change ω_max."
+            # measperiod = floor(Int, π/(Δt * ωmax))
             measperiod = floor(Int, π/(Δt * ωmax))
         end
         nω = 2nω-1 # Make nω correspond to number of non-negative frequencies
@@ -112,7 +113,7 @@ function StructureFactor(sys::System{N}; nω, Δt = 0.1, ωmax = nothing,
     # Preallocation
     nb = nbasis(sys.crystal)
     ncorr = length(pairs)
-    samplebuf = zeros(ComplexF64, nops, size(sys.dipoles)..., nω) 
+    samplebuf = zeros(ComplexF64, nops, sys.latsize..., nb, nω) 
     data = zeros(ComplexF64, length(matrix_elems), nb, nb, sys.latsize..., nω)
     nsamples = Int64[0]
     integrator = ImplicitMidpoint(Δt)
@@ -138,5 +139,13 @@ function StructureFactor(sys::System{N}; nω, Δt = 0.1, ωmax = nothing,
     return sf
 end
 
-DynamicStructureFactor(sys::System; kwargs...) = StructureFactor(sys; kwargs...)
-StaticStructureFactor(sys::System; kwargs...) = StructureFactor(sys; nω=1, kwargs...)
+function DynamicStructureFactor(sys::System; Δt, nω, ωmax, kwargs...) 
+    StructureFactor(sys; Δt, nω, ωmax, kwargs...)
+end
+
+function StaticStructureFactor(sys::System; nω=1, kwargs...)
+    if nω != 1
+        error("nω must be 1 to create a `StaticStructureFactor`.")
+    end
+    StructureFactor(sys; Δt=0.1, ωmax=1.0, nω, kwargs...)
+end
