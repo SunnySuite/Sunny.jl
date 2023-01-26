@@ -12,11 +12,11 @@ end
     set_exchange_with_biquadratic!(sys::System, J1, J2, bond::Bond)
 
 Sets both quadratic and biquadratic exchange interactions along `bond`, yielding
-a pairwise energy ``𝐒_i⋅J_1 𝐒_j + J_2 (𝐒_i⋅𝐒_j)²``. These interactions will be
-propagated to equivalent bonds in consistency with crystal symmetry. Any
+a pairwise energy ``𝐒_i⋅J_1 𝐒_j + J_2 (𝐒_i⋅𝐒_j)²``. These interactions will
+be propagated to equivalent bonds in consistency with crystal symmetry. Any
 previous exchange interactions on these bonds will be overwritten.
 
-For systems with `mode=:projected` the biquadratic interactions will
+For systems restricted to dipoles, the biquadratic interactions will
 automatically be renormalized to achieve maximum consistency with the more
 variationally accurate SU(_N_) mode. This renormalization introduces a
 correction to the quadratic part of the exchange, which is why the two parts

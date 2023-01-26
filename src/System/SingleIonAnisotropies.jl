@@ -23,7 +23,7 @@ operators `𝒪[k,q]`.
 The characters `𝒮` and `𝒪` can be copy-pasted from this help message, or typed
 at a Julia terminal using `\\scrS` or `\\scrO` followed by tab-autocomplete.
 
-For systems with `:projected`, the anisotropy operators interactions will
+For systems restricted to dipoles, the anisotropy operators interactions will
 automatically be renormalized to achieve maximum consistency with the more
 variationally accurate SU(_N_) mode.
 

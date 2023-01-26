@@ -6,15 +6,23 @@ parameter determines the number of unit cells in each lattice vector direction.
 The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which determine
 the magnitude ``S`` and ``g``-tensor of each spin.
 
-The three possible options for `mode` are `:dipole`, `:SUN`, and `:projected`.
-The choice `:dipole` restricts each a spin to an angular momentum dipole. In
-contrast, the choice `:SUN` describes each spin as a full SU(_N_) coherent
-state, where ``N = 2S + 1``. The SU(_N_) approach captures more dynamical
-degrees of freedom, e.g.,  quadrupolar moments ``⟨ŜᵅŜᵝ+ŜᵝŜᵅ⟩``. Finally, the
-choice `:projected` projects the SU(_N_) dynamics onto the space of dipoles. In
-practice, the distinction between `:projected` and `:dipoles` is that the former
-will automatically apply appropriate renormalizations to the single-ion
-anisotropy and biquadratic exchange interactions for maximum accuracy.
+The three possible options for `mode` are `:SUN`, `:dipole`, and `:large_S`. The
+most variationally accurate choice is `:SUN`, in which each spin-``S`` degree of
+freedom is described as an SU(_N_) coherent state, where ``N = 2S + 1``. Note
+that an SU(_N_) coherent state fully describes any local spin state; this
+description includes expected dipole components ``⟨Ŝᵅ⟩``, quadrupole components
+``⟨ŜᵅŜᵝ+ŜᵝŜᵅ⟩``, etc.
+
+Classical spin models have historically used the expected dipoles alone.  The
+choice `mode=:dipole` projects the SU(_N_) dynamics onto the space of pure
+dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
+dynamics, but all single-ion anisotropy or biquadratic exchange interactions
+will be automatically renormalized to achieve maximum accuracy.
+
+To disable such renormalization, e.g. to reproduce results collected using the
+historical large-``S`` classical limit, use `mode=:large_S`. We emphasize,
+however, that `mode=:SUN` or `mode=:dipole` should be preferred for the
+development of new models.
 
 The default units system of (meV, Å, tesla) can be overridden by with the
 `units` parameter; see [`Units`](@ref). 
@@ -23,10 +31,8 @@ All spins are initially polarized in the ``z``-direction.
 """
 function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
                     units=Units.meV, seed=nothing)
-    mode==:projected && error("SU(N) projected mode not yet implemented.")
-
-    if mode ∉ [:dipole, :SUN, :projected]
-        error("Mode must be one of [:dipole, :SUN, :projected].")
+    if mode ∉ [:SUN, :dipole, :large_S]
+        error("Mode must be one of [:SUN, :dipole, :large_S].")
     end
 
     nb = nbasis(crystal)
@@ -65,10 +71,12 @@ end
 function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     modename = if sys.mode==:SUN
         "SU($N)"
-    elseif sys.mode==:projected
-        "Projected SU($N)"
-    else
+    elseif sys.mode==:dipole
         "Dipole mode"
+    elseif sys.mode==:large_S
+        "Large-S classical limit"
+    else
+        error("Unreachable")
     end
     printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
     println(io, "Cell size $(nbasis(sys.crystal)), Lattice size $(sys.latsize)")
