@@ -3,9 +3,8 @@
 ################################################################################
 
 # Function for getting a single 𝒮(q, ω) intensity -- primarily internal
-function calc_intensity(sf::StructureFactor{N, NumCorr}, k, latidx, ω, iω, contractor, temp, ffdata) where {N, NumCorr}
-    (; crystal, data) = sf.sfdata
-    elems = phase_averaged_elements(view(data,:,:,:,latidx,iω), k, crystal, ffdata, Val(NumCorr))
+function calc_intensity(sf::StructureFactor, k, latidx, ω, iω, contractor, temp, ffdata)
+    elems = phase_averaged_elements(view(sf.data,:,:,:,latidx,iω), k, sf, ffdata)
     intensity = contract(elems, k, contractor)
     if !isnothing(temp)
         intensity *= classical_to_quantum(ω, temp)
@@ -48,9 +47,8 @@ function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationSchem
     @assert sum(counts) == length(m_info)
 
     # Calculate corresponding q (RLU) and k (global) vectors
-    (; crystal, latsize) = sf.sftraj.sys
-    recip_vecs = 2π*inv(crystal.lat_vecs)
-
+    recip_vecs = 2π*inv(sf.crystal.lat_vecs)'
+    latsize = size(sf.samplebuf)[2:4]
     qs_all = map(ms_all) do ms
        map(m -> m ./ latsize, ms) 
     end
@@ -66,8 +64,8 @@ Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 
 
 """
-    get_intensities(sf::StructureFactor, qs, mode; interpolation = nothing,
-                       kT = nothing, formfactors = nothing, negative_energies = false)
+    intensities(sf::StructureFactor, qs, mode; interpolation = nothing,
+                    kT = nothing, formfactors = nothing, negative_energies = false)
 
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `StructureFactor`. Maps an array of wave vectors `qs` to an array of structure
@@ -95,13 +93,19 @@ units, i.e., multiples of the reciprocal lattice vectors.
 - `negative_energies`: If set to `true`, Sunny will return the periodic
     extension of the energy axis. Most users will not want this.
 """
-function get_intensities(sf::StructureFactor, qs, mode;
+function intensities(sf::StructureFactor, qs, mode;
     interpolation = :none,
     kT = nothing,
     formfactors = nothing,
     negative_energies = false,
+    static_warn = true
 )
     qs = Vec3.(qs)
+
+    # Make sure it's a dynamical structure factor 
+    if static_warn && size(sf.data, 7) == 1
+        error("`intensities` given a static structure factor. Call `static_intensities` to retrieve static structure factor data.")
+    end
 
     # Set up interpolation scheme
     interp = if interpolation == :none
@@ -122,11 +126,10 @@ function get_intensities(sf::StructureFactor, qs, mode;
     end
 
     # Propagate form factor information (if any)
-    cryst = sf.sfdata.crystal
     if isnothing(formfactors)
-        formfactors = [FormFactor{EMPTY_FF}(; atom) for atom in unique(cryst.classes)]
+        formfactors = [FormFactor{EMPTY_FF}(; atom) for atom in unique(sf.crystal.classes)]
     end
-    ffdata = propagate_form_factors(cryst, formfactors)
+    ffdata = propagate_form_factors(sf.crystal, formfactors)
 
     # Precompute index information and preallocate
     ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
@@ -135,7 +138,7 @@ function get_intensities(sf::StructureFactor, qs, mode;
     stencil_info = pruned_stencil_info(sf, qs, interp) 
     
     # Call type stable version of the function
-    get_intensities!(intensities, sf, qs, ωs, interp, contractor, kT, ffdata, stencil_info) #ddtodo: Track down allocations
+    intensities!(intensities, sf, qs, ωs, interp, contractor, kT, ffdata, stencil_info) #ddtodo: Track down allocations
 
     # ddtodo: See if worth it to apply classical-to-quantum rescaling here instead of inside loop (removes branching)
 
@@ -144,7 +147,7 @@ end
 
 
 # Type stable version
-function get_intensities!(intensities, sf::StructureFactor, q_targets::Array, ωs, interp::InterpolationScheme, contraction::Contraction{T}, temp, ffdata, stencil_info) where {T}
+function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωs, interp::InterpolationScheme, contraction::Contraction{T}, temp, ffdata, stencil_info) where {T}
     li_intensities = LinearIndices(intensities)
     ci_qs = CartesianIndices(q_targets)
     (; qs_all, ks_all, idcs_all, counts) = stencil_info 
@@ -171,12 +174,12 @@ Return the static structure factor intensities at wave vectors `qs`. The
 functionality is very similar to [`get_intensities`](@ref), except the returned
 array has dimensions identical to `qs`. The energy axis has been summed out.
 """
-function get_static_intensities(sf::StructureFactor, qs, mode; kwargs...)
+function static_intensities(sf::StructureFactor, qs, mode; kwargs...)
     datadims = size(qs)
     ndims = length(datadims)
-    intensities = get_intensities(sf, qs, mode; kwargs...)
-    static_intensities = sum(intensities, dims=(ndims+1,))
-    return reshape(static_intensities, datadims)
+    vals = intensities(sf, qs, mode; static_warn=false, kwargs...)
+    static_vals = sum(vals, dims=(ndims+1,))
+    return reshape(static_vals, datadims)
 end
 
 
@@ -191,19 +194,19 @@ two additional options:
 - `bzsize`: Specifies the number of Brillouin zones to return, given as a
   3-tuple of integers.
 - `index_labels`: If set to `true`, will return axis label information for the
-    data, which may be upacked as: `(; intensities, qpoints, ωs)`.
+    data, which may be upacked as: `(; vals, qpoints, ωs)`.
 """
 function intensity_grid(sf::StructureFactor, mode;
                             bzsize=(1,1,1), negative_energies = false, index_labels = false, kwargs...)
     qpoints = qgrid(sf; bzsize)
-    intensities = get_intensities(sf, qpoints, mode; negative_energies, kwargs...)
+    vals = intensities(sf, qpoints, mode; negative_energies, kwargs...)
 
     if index_labels
         ωs =  negative_energies ? ωvals_all(sf) : ωvals(sf)
-        return (; intensities, qpoints, ωs)
+        return (; vals, qpoints, ωs)
     end
 
-    return intensities
+    return vals
 end
 
 

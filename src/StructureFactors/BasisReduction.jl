@@ -1,18 +1,14 @@
-# ddtodo: Could make nbasis statically known and, e.g., call `compute_form` only once for each basis element. Loop unrolling also a possible benefit. 
-function phase_averaged_elements(data, k::Vec3, cryst::Crystal, ffdata::Vector{FormFactor{FFType}}, ::Val{NumElem}) where {NumElem, FFType}
-    elems = zero(SVector{NumElem, ComplexF64})
+function phase_averaged_elements(data, k::Vec3, sf::StructureFactor{N, NumCorr, NumBasis}, ffdata::Vector{FormFactor{FFType}}) where {FFType, N, NumCorr, NumBasis}
+    cryst = sf.crystal
+    elems = zero(SVector{NumCorr, ComplexF64})
     knorm = norm(k)
-    for b2 in 1:nbasis(cryst)
-        r2 = position(cryst, b2)
-        ffp2 = ffdata[b2]
-        ff2 = compute_form(knorm, ffp2)
-        for b1 in 1:nbasis(cryst)
-            r1 = position(cryst, b1)
-            ffp1 = ffdata[b1] 
-            ff1 = compute_form(knorm, ffp1)
-            phase = exp(im*(k ⋅ (r2 - r1)))
-            elems += phase * ff1 * ff2 * view(data, :, b1, b2)
-        end
+    ffs = ntuple(b -> compute_form(knorm, ffdata[b]), NumBasis)
+    rs = ntuple(b -> position(cryst, b), NumBasis)
+
+    for b2 in 1:NumBasis, b1 in 1:NumBasis
+        phase = exp(im*(k ⋅ (rs[b2] - rs[b1])))
+        elems += phase * ffs[b1] * ffs[b2] * view(data, :, b1, b2)  # This view allocates
     end
+
     return elems
 end

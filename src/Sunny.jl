@@ -1,7 +1,7 @@
 module Sunny
 
 using LinearAlgebra
-import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA
+import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import Requires: @require
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
 import SpecialFunctions: erfc
@@ -76,16 +76,16 @@ export MetropolisSampler, IsingSampler, LangevinSampler,
 
 include("StructureFactors/StructureFactors.jl")
 include("StructureFactors/SFUtils.jl")
-include("StructureFactors/Trajectories.jl")
+include("StructureFactors/SampleGeneration.jl")
 include("StructureFactors/FormFactor.jl")
 include("StructureFactors/ElementContraction.jl")
 include("StructureFactors/BasisReduction.jl")
 include("StructureFactors/Interpolation.jl")
 include("StructureFactors/PowderAveraging.jl")
 include("StructureFactors/DataRetrieval.jl")
-export StructureFactor, FormFactor, 
-    add_trajectory!, calculate_structure_factor,
-    get_intensities, get_static_intensities,
+export DynamicStructureFactor, StaticStructureFactor,
+    StructureFactor, FormFactor, 
+    add_sample!, intensities, static_intensities,
     connected_path, intensity_grid, ωvals
 
 # include("WangLandau/BinnedArray.jl")
