@@ -14,7 +14,7 @@ The parameter `infos` is now a list of [`SpinInfo`](@ref) objects. Each defines
 spin angular momentum $S = \frac{1}{2}, 1, \frac{3}{2}, …$, and an optional
 $g$-factor or tensor.
 
-The parameter `mode` is one of `:dipole`, `:SUN`, or `:projected`. 
+The parameter `mode` is one of `:SUN`, `:dipole`, or `:large_S`. 
 
 ### Setting interactions
 
