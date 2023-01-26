@@ -39,15 +39,23 @@ end
 
 
 function stencil_points(sf::StructureFactor, q, ::NoInterp)
-    Ls = sf.sftraj.sys.latsize 
+
+    # Each of the following lines causes a 32 byte allocation
+    Ls = size(sf.samplebuf)[2:4] 
     m = round.(Int, Ls .* q)
-    im = map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex
+    im = map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex{3}
+
+    ## The following lines cause no allocations, but don't seem to be any faster.
+    #     _, L1, L2, L3, _, _ = size(sf.samplebuf)
+    #     m = (round(Int, L1*q[1]), round(Int, L2*q[2]), round(Int, L3*q[3]))
+    #     im = CartesianIndex{3}(mod(m[1], L1)+1, mod(m[2], L2)+1, mod(m[3], L3)+1)
+
     return (m,), (im,)
 end
 
 
 function stencil_points(sf::StructureFactor, q, ::LinearInterp)
-    Ls = sf.sftraj.sys.latsize 
+    Ls = size(sf.samplebuf)[2:4] 
     base = map(x -> floor(Int64, x), Ls .* q) 
     offsets = (
         (0, 0, 0),

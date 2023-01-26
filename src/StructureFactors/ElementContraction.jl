@@ -19,17 +19,17 @@ struct FullTensor <: Contraction{SMatrix{3, 3, ComplexF64, 9}} end
 ################################################################################
 # Constructors
 ################################################################################
-function Trace(sf::StructureFactor{N}) where N
+function Trace(sf::StructureFactor{N,NumCorr,NumBasis}) where {N, NumCorr, NumBasis}
     # Collect all indices for matrix elements 𝒮^αβ where α=β
     indices = Int64[]
-    for (ci, idx) in sf.sfdata.idxinfo
+    for (ci, idx) in sf.idxinfo
         α, β = ci.I
         if α == β
             push!(indices, idx)
         end
     end
     # Check that there are the correct number of such elements
-    if N == 0 || sf.sftraj.dipolemode
+    if N == 0 || sf.dipoledata
         if length(indices) != 3
             error("Not all diagonal elements of the structure factor have been computed. Can't calculate trace.")
         end
@@ -42,15 +42,15 @@ function Trace(sf::StructureFactor{N}) where N
     return Trace(SVector{length(indices), Int64}(indices))
 end
 
-function DipoleFactor(sf::StructureFactor{N, NumCorr}) where {N, NumCorr}
-    if sf.sftraj.dipolemode && NumCorr == 6 
+function DipoleFactor(sf::StructureFactor{N, NumCorr, NumBasis}) where {N, NumCorr, NumBasis}
+    if sf.dipoledata && NumCorr == 6 
         return DipoleFactor()
     end
     error("Need to be in structure factor dipole mode to calculate depolarization correction.")
 end
 
 function Element(sf::StructureFactor, pair)
-    index = sf.sfdata.idxinfo[CartesianIndex(pair)]
+    index = sf.idxinfo[CartesianIndex(pair)]
     return Element(index)
 end
 
@@ -60,8 +60,8 @@ end
 # then can perhaps solve the problem statically with a generated function or
 # similar. Note that the contraction functions are extremely critical to
 # performance and this calculations needs to be done without allocation.
-function FullTensor(sf::StructureFactor{N, NumCorr}) where {N, NumCorr}
-    if sf.sftraj.dipolemode && NumCorr == 6
+function FullTensor(sf::StructureFactor{N,NumCorr,NumBasis}) where {N, NumCorr, NumBasis}
+    if sf.dipoledata && NumCorr == 6
         return FullTensor()
     end
     error("Full tensor currently available only when working with dipolar components.")
