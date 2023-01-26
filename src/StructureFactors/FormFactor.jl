@@ -14,7 +14,7 @@ end
 
 Basic type for specifying form factor parameters. Must be provided a site within
 the unit cell (`atom`) and a string specifying the element name. This used when
-calling [`get_intensities`](@ref), which requires a list of `FormFactors`s.
+calling [`intensities`](@ref), which requires a list of `FormFactors`s.
 
 A list of supported element names is available at:
 

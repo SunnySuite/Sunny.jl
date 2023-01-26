@@ -29,7 +29,7 @@ function Trace(sf::StructureFactor{N,NumCorr,NumBasis}) where {N, NumCorr, NumBa
         end
     end
     # Check that there are the correct number of such elements
-    if N == 0 || sf.dipoledata
+    if N == 0 || sf.dipole_corrs
         if length(indices) != 3
             error("Not all diagonal elements of the structure factor have been computed. Can't calculate trace.")
         end
@@ -43,7 +43,7 @@ function Trace(sf::StructureFactor{N,NumCorr,NumBasis}) where {N, NumCorr, NumBa
 end
 
 function DipoleFactor(sf::StructureFactor{N, NumCorr, NumBasis}) where {N, NumCorr, NumBasis}
-    if sf.dipoledata && NumCorr == 6 
+    if sf.dipole_corrs && NumCorr == 6 
         return DipoleFactor()
     end
     error("Need to be in structure factor dipole mode to calculate depolarization correction.")
@@ -61,7 +61,7 @@ end
 # similar. Note that the contraction functions are extremely critical to
 # performance and this calculations needs to be done without allocation.
 function FullTensor(sf::StructureFactor{N,NumCorr,NumBasis}) where {N, NumCorr, NumBasis}
-    if sf.dipoledata && NumCorr == 6
+    if sf.dipole_corrs && NumCorr == 6
         return FullTensor()
     end
     error("Full tensor currently available only when working with dipolar components.")
