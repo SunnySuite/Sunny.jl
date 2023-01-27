@@ -54,8 +54,8 @@ information is available in the Library API.
 The basic data type for calculating, storing and retrieving structure factor
 data is `StructureFactor`. Rather than creating a `StructureFactor` directly,
 one should call either `DynamicStructureFactor`, for $𝒮^{αβ}(𝐪,ω)$, or
-`StaticStructureFactor`, for $𝒮^{αβ}(𝐪)$. These functions will properly
-configure and return a `StructureFactor` appropriate to each case.
+`StaticStructureFactor`, for $𝒮^{αβ}(𝐪)$. These functions will configure and
+return an appropriate `StructureFactor`.
 
 ### Calculating a dynamical stucture factor
 
@@ -67,12 +67,14 @@ available after the calculation has completed.
 
 1. `Δt`: Determines the step size used for simulating the dynamics. A smaller
    number will require proportionally more calculation time. While a smaller
-   `Δt` will permit a larger resolvable energy, `Δt` is typically selected to
-   ensure numerical stability rather than the maximum $ω$ value. A safe choice
-   is to use the smaller value of `Δt = 0.1/(J * S^2)` or `Δt = 0.1/(D * S)`.
-   `J` here is the parameter governing the largest bilinear interaction (e.g.
-   exchange), and `D` is the parameter governing the largest single-site term of
-   the Hamiltonian (e.g., anisotropy or Zeeman term).
+   `Δt` will enable the resolution of higher energies, `Δt` is typically
+   selected to ensure numerical stability rather than to maximize the largest
+   $ω$ value. A safe choice is to use the smaller value of `Δt = 0.1/(J* S^2)`
+   or `Δt = 0.1/(D * S)`, where `S` is magnetic moment of the largest local spin
+   (as specified in [`SpinInfo`](@ref)), `J` is the parameter governing the
+   largest bilinear interaction (e.g. exchange), and `D` is the parameter
+   governing the largest single-site term of the Hamiltonian (e.g., anisotropy
+   or Zeeman term).
 2. `ωmax`: Sets the maximum resolved energy. Note that this is not independent
    of `Δt`. If `ωmax` too large, Sunny will throw an error and ask you to choose
    a smaller `Δt`. 
@@ -119,14 +121,14 @@ $𝒮^{αβ}(𝐪)$. The first involves calculating spin-spin correlations at si
 instances of time. The second involves calculating a dynamic structure factor
 first and integrating out the $ω$ information. The advantage of the latter
 approach is that it enables application of an $ω$-dependent classical-to-quantum
-rescaling of structure factor intensities, and this method is preferred whenever
-comparing results to experimental data or spin wave calculations. A disadvantage
-of this approach is that it is computationally more expensive. There are also
-many cases when it is not straightforward to calculate a meaningful dynamics, as
-when working with Ising spins. In this section we will discuss how to calculate
-static structure factors from static spin configurations. Information about
-calculating static data from a dynamic structure factor can be found in the
-following section.
+rescaling of structure factor intensities, a method that should be preferred
+whenever comparing results to experimental data or spin wave calculations. A
+disadvantage of this approach is that it is computationally more expensive.
+There are also many cases when it is not straightforward to calculate a
+meaningful dynamics, as when working with Ising spins. In this section we will
+discuss how to calculate static structure factors from static spin
+configurations. Information about calculating static data from a dynamic
+structure factor can be found in the following section.
 
 The basic usage for the static case is very similar to the dynamic case, except
 one calls `StaticStructureFactor(sys)` instead of `DynamicStructureFactor`. Note
