@@ -2,27 +2,29 @@
 # Basic functions for retrieving 𝒮(q, ω) values
 ################################################################################
 
-# Function for getting a single 𝒮(q, ω) intensity -- primarily internal
-function calc_intensity(sf::StructureFactor, k, latidx, ω, iω, contractor, temp, ffdata)
+# Internal function for getting a single 𝒮(q, ω) intensity
+function calc_intensity(sf::StructureFactor, k, latidx, ω, iω, contractor, kT, ffdata)
     elems = phase_averaged_elements(view(sf.data,:,:,:,latidx,iω), k, sf, ffdata)
     intensity = contract(elems, k, contractor)
-    if !isnothing(temp)
-        intensity *= classical_to_quantum(ω, temp)
-    end
-    return intensity
+    return intensity * classical_to_quantum(ω, kT)
 end
 
-# Note that requests for intensities often come in lists of nearby q values. Since the data
-# is inherently discretized, this often results in repeated calls for values at the same 
-# discrete points. Since basis reduction is done for each of this calls, this results in 
-# a large amount of repeated calculation. This function analyzes repetitions in advance
-# and prunes out repetitions. 
-# This is ugly, but the speedup when tested on a few simple, realistic examples was 3-5x.
+classical_to_quantum(ω, kT::Float64) = iszero(ω) ? 1.0 : ω/(kT*(1 - exp(-ω/kT)))
+classical_to_quantum(ω, ::Nothing) = 1.0
+
+
+# Note that requests for intensities often come in lists of nearby q values.
+# Since the data is inherently discretized, this often results in repeated calls
+# for values at the same discrete points. Since basis reduction is done for each
+# of this calls, this results in a large amount of repeated calculation. This
+# function analyzes repetitions in advance and prunes out repetitions. This is
+# ugly, but the speedup when tested on a few simple, realistic examples was
+# 3-5x.
 function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationScheme{N}) where N
-    # Count the number of contiguous regions with unchanging values.
-    # If all values are unique, returns the length of q_info.
-    # Note comparison is on m values rather than index values and the m values are the first
-    # element of the a tuple, that is, we're checking x[1] == y[1] in the map.
+    # Count the number of contiguous regions with unchanging values. If all
+    # values are unique, returns the length of q_info. Note comparison is on m
+    # values rather than index values and the m values are the first element of
+    # the a tuple, that is, we're checking x[1] == y[1] in the map.
     m_info = map(q -> stencil_points(sf, q, interp), qs)
     numregions = sum(map((x,y) -> x[1] == y[1] ? 0 : 1, m_info[1:end-1], m_info[2:end])) + 1
     
@@ -60,8 +62,6 @@ function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationSchem
     return (; qs_all, ks_all, idcs_all, counts)
 end
 
-Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
-
 
 """
     intensities(sf::StructureFactor, qs, mode; interpolation = nothing,
@@ -70,7 +70,7 @@ Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `StructureFactor`. Maps an array of wave vectors `qs` to an array of structure
 factor intensities, including an additional energy index. The values of ``ω``
-associated with the energy index can be retrieved by calling [`ωvals`](@ref).
+associated with the energy index can be retrieved by calling [`ωs`](@ref).
 The three coordinates of each wave vector are measured in reciprocal lattice
 units, i.e., multiples of the reciprocal lattice vectors.
 
@@ -132,13 +132,13 @@ function intensities(sf::StructureFactor, qs, mode;
     ffdata = propagate_form_factors(sf.crystal, formfactors)
 
     # Precompute index information and preallocate
-    ωs = negative_energies ? ωvals_all(sf) : ωvals(sf)
-    nω = length(ωs) 
+    ωvals = ωs(sf; negative_energies)
+    nω = length(ωvals) 
     intensities = zeros(contractor, size(qs)..., nω)
     stencil_info = pruned_stencil_info(sf, qs, interp) 
     
     # Call type stable version of the function
-    intensities!(intensities, sf, qs, ωs, interp, contractor, kT, ffdata, stencil_info) #ddtodo: Track down allocations
+    intensities!(intensities, sf, qs, ωvals, interp, contractor, kT, ffdata, stencil_info) #ddtodo: Track down allocations
 
     # ddtodo: See if worth it to apply classical-to-quantum rescaling here instead of inside loop (removes branching)
 
@@ -147,11 +147,11 @@ end
 
 
 # Type stable version
-function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωs, interp::InterpolationScheme, contraction::Contraction{T}, temp, ffdata, stencil_info) where {T}
+function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωvals, interp::InterpolationScheme, contraction::Contraction{T}, temp, ffdata, stencil_info) where {T}
     li_intensities = LinearIndices(intensities)
     ci_qs = CartesianIndices(q_targets)
     (; qs_all, ks_all, idcs_all, counts) = stencil_info 
-    for (iω, ω) in enumerate(ωs)
+    for (iω, ω) in enumerate(ωvals)
         iq = 0
         for (qs, ks, idcs, numrepeats) in zip(qs_all, ks_all, idcs_all, counts)
             local_intensities = stencil_intensities(sf, ks, idcs, ω, iω, interp, contraction, temp, ffdata) 
@@ -183,34 +183,6 @@ function static_intensities(sf::StructureFactor, qs, mode; kwargs...)
 end
 
 
-# Possibly deprecate below and expose qgrid function instead (similar to what was done with path).
-"""
-    intensity_grid(sf::StructureFactor, mode;
-                       bzsize=(1,1,1), negative_energies = false, index_labels = false, kwargs...)
-
-Returns intensities at discrete wave vectors for which there is exact
-information. Shares all keywords with [`intensities`](@ref), and provides
-two additional options:
-
-- `bzsize`: Specifies the number of Brillouin zones to return, given as a
-  3-tuple of integers.
-- `index_labels`: If set to `true`, will return axis label information for the
-    data, which may be upacked as: `(; vals, qpoints, ωs)`.
-"""
-function intensity_grid(sf::StructureFactor, mode;
-                            bzsize=(1,1,1), negative_energies = false, index_labels = false, kwargs...)
-    qpoints = qgrid(sf; bzsize)
-    vals = intensities(sf, qpoints, mode; negative_energies, kwargs...)
-
-    if index_labels
-        ωs =  negative_energies ? ωvals_all(sf) : ωvals(sf)
-        return (; vals, qpoints, ωs)
-    end
-
-    return vals
-end
-
-
 """
     connected_path(qs::Vector, density)
 
@@ -237,4 +209,7 @@ function connected_path(qs::Vector, density)
     push!(markers, length(path)+1)
     push!(path, qs[end])
     return (path, markers)
+end
+
+function spherical_shell(qmag, density)
 end

@@ -86,7 +86,7 @@ include("StructureFactors/DataRetrieval.jl")
 export DynamicStructureFactor, StaticStructureFactor,
     StructureFactor, FormFactor, 
     add_sample!, intensities, static_intensities,
-    connected_path, intensity_grid, ωvals
+    connected_path, all_exact_wave_vectors, ωs
 
 # include("WangLandau/BinnedArray.jl")
 # include("WangLandau/WangLandau.jl")

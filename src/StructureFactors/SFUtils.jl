@@ -1,5 +1,11 @@
-function qgrid(sf::StructureFactor; bzsize=(1,1,1))
-    Ls = size(sf.samplebuf)[2:4] 
+"""
+    all_exact_wave_vectors(sf::StructureFactor; bzsize=(1,1,1))
+
+Returns all wave vectors for which `sf` contains exact values. `bsize` specifies
+the number of Brillouin zones to be included.
+"""
+function all_exact_wave_vectors(sf::StructureFactor; bzsize=(1,1,1))
+    Ls = size(sf.samplebuf)[2:4]  # If we had a sys, would use latsize
     offsets = map(L -> isodd(L) ? 1 : 0, Ls)
     up = Ls .* bzsize
     hi = map(L -> L - div(L, 2), up) .- offsets
@@ -12,30 +18,20 @@ function qgrid(sf::StructureFactor; bzsize=(1,1,1))
 end
 
 """
-    ωvals(sf::StructureFactor)
+    ωs(sf::StructureFactor)
 
-Return the ω-values associated with the energy index of a `StructureFactor`.
+Return the ω values for the energy index of a `StructureFactor`. By default,
+only returns values for non-negative energies, which corresponds to the default
+output of `intensities`. Set `negative_energies` to true to retrieve all ω
+values.
 """
-function ωvals(sf::StructureFactor)
+function ωs(sf::StructureFactor; negative_energies=false)
     Δω = sf.Δω
     nω = size(sf.data, 7)
     hω = div(nω, 2) + 1
-    return collect(0:(hω-1)) .* Δω
-end
-
-function ωvals_all(sf::StructureFactor)
-    Δω = sf.Δω
-    nω = size(sf.data, 7)
-    hω = div(nω, 2) + 1
-    ωs = collect(0:(nω-1)) .* Δω
+    ωvals = collect(0:(nω-1)) .* Δω
     for i ∈ hω+1:nω
-        ωs[i] -= 2ωs[hω]
+        ωvals[i] -= 2ωvals[hω]
     end
-    return ωs
-end
-
-function classical_to_quantum(ω, kT)
-    (ω == 0.0) && (return 1.0)
-    kT == 0.0 ? 1e-12 : kT
-    return ω/(kT*(1 - exp(-ω/kT)))
+    return negative_energies ? ωvals : ωvals[1:hω]
 end

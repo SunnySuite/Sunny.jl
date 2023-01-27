@@ -16,7 +16,7 @@ end
 
 function powder_average(sf::StructureFactor, q_ias, mode, density; kwargs...)
     A = inv(inv(sf.crystal.lat_vecs)') # Transformation to convert from inverse angstroms to RLUs
-    nω = length(ωvals(sf))
+    nω = length(ωs(sf))
     output = zeros(Float64, length(q_ias), nω) # generalize this so matches contract
 
     for (i, r) in enumerate(q_ias)

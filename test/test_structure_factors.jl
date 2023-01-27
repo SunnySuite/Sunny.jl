@@ -29,7 +29,8 @@
     S = Sunny.spin_matrices(2)
     ops = cat(S...; dims=3)
     sf = DynamicStructureFactor(sys; nω=100, ωmax=10.0, Δt=0.1, apply_g=false, ops)
-    vals = intensity_grid(sf, :trace; negative_energies=true)
+    qgrid = all_exact_wave_vectors(sf)
+    vals = intensities(sf, qgrid, :trace; negative_energies=true)
     total_intensity_trace = sum(vals)
     @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
 
@@ -39,13 +40,13 @@
     thermalize_simple_model!(sys; kT=0.1)
     sf = DynamicStructureFactor(sys; Δt=0.1, nω=100, ωmax=10.0, apply_g=false)
     add_sample!(sf, sys)
-    vals = intensity_grid(sf, :trace; negative_energies=true)
+    vals = intensities(sf, qgrid, :trace; negative_energies=true)
     total_intensity_trace = sum(vals)
     @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
 
 
     # Test perp reduces intensity
-    vals = intensity_grid(sf, :perp; negative_energies=true)
+    vals = intensities(sf, qgrid, :perp; negative_energies=true)
     total_intensity_unpolarized = sum(vals)
     @test total_intensity_unpolarized < total_intensity_trace
 
@@ -59,7 +60,7 @@
 
     # Test form factor correction works and is doing something. ddtodo: add example with sublattice
     formfactors = [FormFactor(1, "Fe2")]
-    vals = intensity_grid(sf, :trace; formfactors, negative_energies=true)
+    vals = intensities(sf, qgrid, :trace; formfactors, negative_energies=true)
     total_intensity_ff = sum(vals)
     @test total_intensity_ff != total_intensity_trace
 
@@ -71,8 +72,7 @@
 
 
     # Test static from dynamic intensities working
-    qs = Sunny.qgrid(sf) 
-    static_vals = static_intensities(sf, qs, :trace; negative_energies=true)
+    static_vals = static_intensities(sf, qgrid, :trace; negative_energies=true)
     total_intensity_static = sum(static_vals)
     @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-12)  # Order of summation can lead to very small discrepancies
 
@@ -80,8 +80,7 @@
     sys = simple_model_sf(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
     sf = StaticStructureFactor(sys; apply_g=false)
-    grid_qs = Sunny.qgrid(sf)
-    true_static_vals = static_intensities(sf, grid_qs, :trace)
+    true_static_vals = static_intensities(sf, qgrid, :trace)
     true_static_total = sum(true_static_vals)
     @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
 

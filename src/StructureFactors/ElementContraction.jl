@@ -112,3 +112,9 @@ end
 function contract(elems, _, ::FullTensor) 
     return SMatrix{3, 3, ComplexF64, 9}(elems[1], elems[2], elems[3], elems[2], elems[4], elems[5], elems[3], elems[5],elems[6])
 end
+
+
+################################################################################
+# Contraction utils
+################################################################################
+Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
