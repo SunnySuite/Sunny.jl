@@ -61,7 +61,7 @@ return an appropriate `StructureFactor`.
 
 Calling `DynamicStructureFactor(sys; Δt, ωmax, nω)` will create a
 `StructureFactor` for the user and calculate an initial sample. There are three
-keywords which must be specified. These keywords will determine the dynamics
+keywords that must be specified. These keywords will determine the dynamics
 used to calculate the sample and, consequently, the $ω$ information that will be
 available after the calculation has completed.
 
@@ -164,14 +164,16 @@ Sunny will automatically round to the nearest $𝐪$ that is available. If
 use trilinear interpolation to determine the results at the requested wave
 vector. 
 
+To retrieve the intensities at all wave vectors for which there is exact data,
+first call the function [`all_exact_wave_vectors`](@ref) to generate a list of
+`qs`. This takes an optional keyword argument `bzsize`, which must be given a
+tuple of three integers specifying the number of Brillouin zones to calculate,
+e.g., `bzsize=(2,2,2)`. The resulting list of wave vectors may then be passed to
+`intensities`.
+
 The convenience function [`connected_path`](@ref) returns a list of wavevectors
 sampled along a path that connects specified $𝐪$ points. This list can be used
 as an input to `intensities`.
-
-To retrieve the intensities at all wave vectors for which there is exact data,
-one can use the function [`intensity_grid`](@ref). This takes an optional
-keyword argument `bzsize`, which must be given a tuple of three integers
-specifying the number of Brillouin zones to calculate, e.g., `bzsize=(2,2,2)`.
 
 A number of keyword arguments are available which modify the calculation of
 structure factor intensity. See the documentation of [`intensities`](@ref) for a
