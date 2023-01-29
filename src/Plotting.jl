@@ -1,9 +1,12 @@
 """Plotting functions for lattices and spins on lattices.
 """
 
-function _setup_scene(; show_axis=false)
+function _setup_scene(; show_axis=false, ortho=false)
     fig = GLMakie.Figure()
     ax = GLMakie.LScene(fig[1, 1], show_axis=show_axis)
+    if ortho
+        _ = GLMakie.cam3d!(ax.scene, projectiontype=GLMakie.Makie.Orthographic)
+    end
     return fig, ax
 end
 
@@ -235,12 +238,14 @@ end
 Plot the spin configuration defined by `sys`. `kwargs` are passed to `GLMakie.arrows`.        
 """
 function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
-    linewidth=0.1, arrowsize=0.2, arrowlength=0.2, kwargs...)
+    linewidth=0.1, arrowsize=0.2, arrowlength=0.2, ortho=false, kwargs...)
 
-    fig, ax = _setup_scene()
+    fig, ax = _setup_scene(; ortho)
 
-    pts = GLMakie.Point3f0.(view(positions(sys),:))
-    vecs = GLMakie.Vec3f0.(view(sys.dipoles,:))
+    center = (sys.crystal.lat_vecs * Vec3(sys.latsize))/2
+    pts = positions(sys) - sys.dipoles*(arrowlength/2) .- Ref(center)
+    pts = GLMakie.Point3f0.(pts[:])
+    vecs = GLMakie.Vec3f0.(sys.dipoles[:])
     GLMakie.arrows!(
         ax, pts, vecs;
         linecolor, arrowcolor, linewidth, arrowsize,
