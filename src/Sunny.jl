@@ -29,6 +29,8 @@ const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 const CVec{N} = SVector{N, ComplexF64}
 
+internal_error() = error("You found a bug! Please try updating Sunny.\n   If the error persists, please report it: https://github.com/SunnySuite/Sunny.jl/issues.")
+
 
 include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
@@ -64,7 +66,8 @@ export SpinInfo, System, polarize_spins!, randomize_spins!, energy, forces,
     set_external_field!, set_anisotropy!,
     set_exchange!, set_exchange_with_biquadratic!, dmvec,
     enable_dipole_dipole!,
-    Site, set_vacancy_at!, set_external_field_at!
+    Site, set_vacancy_at!, set_external_field_at!,
+    print_dominant_wavevectors, suggest_magnetic_supercell
 
 include("Integrators.jl")
 export LangevinHeunP, ImplicitMidpoint, step!
