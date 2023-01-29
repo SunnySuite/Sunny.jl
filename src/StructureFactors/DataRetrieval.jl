@@ -192,7 +192,7 @@ marker indices corresponding to the intput points. The `density` parameter
 controls the frequency of sampling.
 """
 function connected_path(qs::Vector, density)
-    @assert !isempty(qs)
+    @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
 
     qs = Vec3.(qs)
     path = Vec3[]
