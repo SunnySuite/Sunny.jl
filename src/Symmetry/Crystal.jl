@@ -18,11 +18,11 @@ symmetries.
 
     Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
 
-Constructs a crystal from the complete list of atom positions `positions`,
-with coordinates (between 0 and 1) in units of lattice vectors `lat_vecs`.
-Spacegroup symmetry information is automatically inferred. The optional
-parameter `types` is a list of strings, one for each atom, and can be used to
-break symmetry-equivalence between atoms.
+Constructs a crystal from the complete list of atom positions `positions`, with
+coordinates (between 0 and 1) in units of lattice vectors `lat_vecs`. Spacegroup
+symmetry information is automatically inferred. The optional parameter `types`
+is a list of strings, one for each atom, and can be used to break
+symmetry-equivalence between atoms.
 
     Crystal(lat_vecs, positions, spacegroup_number; types=nothing, setting=nothing, symprec=1e-5)
 
@@ -31,6 +31,10 @@ spacegroup number. For certain spacegroups, there are multiple possible unit
 cell settings; in this case, a warning message will be printed, and a list of
 crystals will be returned, one for every possible setting. Alternatively, the
 optional `setting` string will disambiguate between unit cell conventions.
+
+Currently, crystals built using only the spacegroup number will be missing some
+symmetry information. It is generally preferred to build a crystal from a `.cif`
+file or from the full specification of the unit cell.
 
 
 # Examples
@@ -66,6 +70,7 @@ See also [`lattice_vectors`](@ref).
 """
 struct Crystal
     lat_vecs       :: Mat3                                 # Lattice vectors as columns
+    prim_lat_vecs  :: Mat3                                 # Primitive lattice vectors
     positions      :: Vector{Vec3}                         # Positions in fractional coords
     types          :: Vector{String}                       # Types
     classes        :: Vector{Int}                          # Class indices
@@ -222,7 +227,7 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
 
     sitesyms = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
 
-    ret = Crystal(lat_vecs, positions, types, classes, sitesyms, symops, spacegroup, symprec)
+    ret = Crystal(lat_vecs, d.primitive_lattice, positions, types, classes, sitesyms, symops, spacegroup, symprec)
     validate(ret)
     return ret
 end
@@ -329,7 +334,7 @@ function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     end
 end
 
-"Builds a crystal from an explicit set of symmetry operations and a minimal set of positions "
+# Builds a crystal from an explicit set of symmetry operations and a minimal set of positions
 function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
     all_positions = Vec3[]
     all_types = String[]
@@ -377,12 +382,13 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     end
 
     # If the inferred symops match the provided ones, then we use the inferred
-    # Crystal. Otherwise we must construct a new Crystal and do not have site
-    # symmetry information.
+    # Crystal. Otherwise we must construct a new Crystal without primitive
+    # lattice and site symmetry information.
     ret = if is_subgroup && is_supergroup
         inferred
     else
-        Crystal(lat_vecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
+        prim_lat_vecs = lat_vecs
+        Crystal(lat_vecs, prim_lat_vecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
     end
     sort_sites!(ret)
     validate(ret)
@@ -428,7 +434,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
         println("Warning: atoms are being renumbered.")
     end
 
-    ret = Crystal(cryst.lat_vecs, new_positions, new_types, new_classes, new_sitesyms,
+    ret = Crystal(cryst.lat_vecs, cryst.prim_lat_vecs, new_positions, new_types, new_classes, new_sitesyms,
                   cryst.symops, cryst.spacegroup, cryst.symprec)
     return ret
 end
