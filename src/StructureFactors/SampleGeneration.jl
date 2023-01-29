@@ -81,8 +81,7 @@ function new_sample!(sf::StructureFactor, sys::System; processtraj! = no_process
         expectation_trajectory!(samplebuf, sys, integrator, nsnaps, sf.ops; measperiod)
     end
 
-    # processtraj!(sf)
-    
+    processtraj!(sf)
 
     return nothing
 end
