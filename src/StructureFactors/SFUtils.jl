@@ -18,7 +18,7 @@ function all_exact_wave_vectors(sf::StructureFactor; bzsize=(1,1,1))
 end
 
 """
-    ωs(sf::StructureFactor)
+    ωs(sf::StructureFactor; negative_energies=false)
 
 Return the ω values for the energy index of a `StructureFactor`. By default,
 only returns values for non-negative energies, which corresponds to the default
