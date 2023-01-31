@@ -210,6 +210,3 @@ function connected_path(qs::Vector, density)
     push!(path, qs[end])
     return (path, markers)
 end
-
-function spherical_shell(qmag, density)
-end

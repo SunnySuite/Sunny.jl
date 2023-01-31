@@ -55,11 +55,12 @@ function Element(sf::StructureFactor, pair)
 end
 
 # ddtodo: Need a fast approach to doing this when working with arbitrary
-# observable The difficulty is that the correlation functions are not actually
-# stored in a matrix. Need a clear convention for ordering correlation function,
-# then can perhaps solve the problem statically with a generated function or
-# similar. Note that the contraction functions are extremely critical to
-# performance and this calculations needs to be done without allocation.
+# observables and correlation functions. The difficulty is that the correlation
+# functions are not actually stored in a matrix. Need to leverage convention for
+# ordering correlation function, then can solve the problem statically with a
+# generated function or similar. Note that the contraction functions are
+# extremely critical to performance and this calculations needs to be done
+# without allocation.
 function FullTensor(sf::StructureFactor{N,NumCorr,NumBasis}) where {N, NumCorr, NumBasis}
     if sf.dipole_corrs && NumCorr == 6
         return FullTensor()
