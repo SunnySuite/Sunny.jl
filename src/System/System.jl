@@ -102,9 +102,16 @@ function extend_periodically(sys::System{N}, factors::NTuple{3, Int64}) where N
     new_κs        = repeat(sys.κs, factors..., 1)
     new_dipoles   = repeat(sys.dipoles, factors..., 1)
     new_coherents = repeat(sys.coherents, factors..., 1)
-    return System(sys.mode, sys.crystal, new_latsize, sys.Ns, sys.gs, new_κs, sys.interactions,
-                    new_dipoles, new_coherents, Array{Vec3, 4}[], Array{CVec{N}, 4}[],
-                    sys.units, copy(sys.rng))
+    new_field     = repeat(sys.interactions.extfield, factors..., 1)
+    (; anisos, pairexch, ewald) = sys.interactions
+    new_interactions = Interactions(new_field, anisos, pairexch, nothing)
+    new_sys =  System(sys.mode, sys.crystal, new_latsize, sys.Ns, sys.gs, new_κs, new_interactions,
+                      new_dipoles, new_coherents, Array{Vec3, 4}[], Array{CVec{N}, 4}[],
+                      sys.units, copy(sys.rng))
+    if !isnothing(ewald)
+        new_sys.interactions.ewald = Ewald(new_sys)
+    end
+    return new_sys
 end
 
 
