@@ -12,9 +12,10 @@
 # together with a strong single-ion anisotropy. Writing the exchange terms in
 # the most general way, the Hamiltonian has the form:
 # 
-# $$ 
+# ```math
 # \mathcal{H}=\sum_{(i,j)} J^{\alpha\beta}_{ij} S^{\alpha}_i S^{\beta}_j - D\sum_i \left(S^z\right)^2
-# $$ 
+# ```
+# 
 # 
 # We will calculate a dynamic structure factor using this model. We begin by
 # importing the required packages, starting with `Sunny`. We will also add
