@@ -23,19 +23,18 @@
 # entering `using Pkg; pkg"add X"` in the Julia REPL.
 
 using Sunny
-using GLMakie
-using Formatting
+using GLMakie, Formatting
 #nb Sunny.offline_viewers()  # Inject Javascript code for additional plotting capabilities 
 
 
-# ## Crystals and Symmetry Analysis
+# ## Crystals and symmetry analysis
 # We begin by specifying a crystal. If a CIF file available, it can be loaded
 # using `Crystal("file.cif")`. A `Crystal` may also be created simply by
 # providing a space group number. Here we will construct the crystal by hand,
 # providing `Crystal` with a set of lattice vectors and basis vectors, where the
 # basis vectors specify the locations of atoms within the unit cell in terms of
 # fractional coordinates. We may also assign labels to each atom with the
-# optional keyword `types`, providing one label for each basis vector.
+# optional keyword `types`.
 # 
 # For convenience, we will create a function which performs all these steps.
 
@@ -69,7 +68,7 @@ FeI2_crystal()
 # Sunny to propagate interactions and anisotropies to all symmetry-equivalent
 # sites on a lattice.
 
-# ## Spin Systems
+# ## Spin systems
 # The basic type used to model a spin system is simply called `System`. A
 # `System` can be created by providing a crystal, dimensions for a finite
 # lattice, and local information about each class of site within the unit cell:
@@ -347,4 +346,120 @@ for _ in 1:2
 end;
 
 # ## Accessing structure factor data 
-# The basic function for accessing intensity data is  
+# The basic function for accessing intensity data is `intensities`, which, in
+# addition to the structure factor data itself, takes a list of wave vectors and
+# a mode parameter. The options for the mode parameter are `:trace`, `:perp` and
+# `:full` which return, respectively, the trace, the unpolarized intensity, and
+# the full set of matrix elements (correlations of spin components) at the
+# specified wave vectors. For example, we can plot two single-Q slices as
+# follows. 
+
+qs = [[0, 0, 0], [0.5, 0.5, 0.5]]
+is = intensities(sf, qs, :trace; kT)
+
+fig = Figure()
+ax = Axis(fig[1,1]; xlabel="meV", ylabel="Intensity")
+l1 = lines!(ax, ωs(sf), is[1,:])
+l2 = lines!(ax, ωs(sf), is[2,:])
+Legend(fig[1,2], [l1, l2], ["(0,0,0)", "(π,π,π)"])
+fig
+
+# Note that we provided the optional keyword `kT` to `intensities` to enable
+# Sunny to apply a classical-to-quantum rescaling of intensities. 
+#
+# Frequently we want to extract energy intensities along lines that connection
+# special wave vectors. Sunny provides a function `connected_path` to makes this
+# easy. The density of sample points can be tuned with a density argument.
+
+points = [[0.0, 0.0, 0.0],  # List of wave vectors that define a path
+          [1.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0],
+          [0.5, 0.0, 0.0],
+          [0.0, 1.0, 0.0],
+          [0.0, 0.0, 0.0]] 
+formfactors = [FormFactor(1, "Fe2"; g_lande=3/2)]  # Ion information for each site to retrieve form factor correction parameters 
+density = 40
+path, markers = connected_path(points, density)
+
+is = intensities(sf, path, :perp; 
+    interpolation = :linear,       # Interpolate between available wave vectors
+    kT,                            # Temperature for intensity correction
+    formfactors,                   # Form factor information 
+)
+
+fig = Figure()
+labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
+ax = Axis(fig[1,1];
+    ylabel = "meV",
+    xticks = (markers, labels),
+    xticklabelrotation=π/8,
+    xticklabelsize=12,
+)
+heatmap!(ax, 1:size(is,1), ωs(sf), is; colorrange=(0.0, 0.5))
+fig
+
+# Often it is useful to plot cuts across multiple wave vectors but at a single
+# wave vector. 
+
+npoints = 60
+qvals = range(-2.0, 2.0, length=npoints)
+qs = [[a, b, 0.0] for a in qvals, b in qvals]
+forfactors = [FormFactor(1, "Fe2")]
+
+is = intensities(sf, qs, :perp;
+    interpolation = :linear,
+    kT,
+    formfactors,
+);
+
+ωidx = 30
+ω = ωs(sf)[ωidx]
+fig = Figure()
+ax = Axis(fig[1,1]; title="ω=$ω meV", aspect=true)
+hidedecorations!(ax); hidespines!(ax)
+hm = heatmap!(ax, is[:,:,ωidx])
+Colorbar(fig[1,2], hm)
+fig
+
+# Note that Brillouin zones appear "skewed". This is a consequence
+# of the fact that our reciprocal lattice vectors are not orthogonal. It is
+# often useful to express our wave vectors in terms of an orthogonal basis,
+# where each basis element is specified as a linear combination of reciprocal
+# lattice vectors. For our crystal, with reciprocal vectors $a^*$, $b^*$ and
+# $c^*$, we can define an orthogonal basis by taking $\hat{a}^* = 0.5(a^* +
+# b^*)$, $\hat{b}^*=a^* - b^*$, and $\hat{c}^*=c^*$. Below, we map `qs` to
+# wavevectors `ks` in the new coordinate system and get their intensities.
+
+A = [0.5  1.0 0.0;
+     0.5 -1.0 0.0;
+     0.0  0.0 1.0]
+ks = [A*q for q in qs]
+
+@time is_ortho = intensities(sf, ks, :perp;
+    interpolation = :linear,
+    kT,
+    formfactors,
+);
+
+fig = Figure()
+ax = Axis(fig[1,1]; title="ω=$ω meV", aspect=true)
+hidedecorations!(ax); hidespines!(ax)
+hm = heatmap!(ax, is_ortho[:,:,ωidx])
+Colorbar(fig[1,2], hm)
+fig
+
+# Finally, we note that static structure factor data can be obtained from a
+# dynamic structure factor with `static_intensities`:
+
+is_static = static_intensities(sf, ks, :perp;
+    interpolation = :linear,
+    kT,
+    formfactors,
+)
+
+fig = Figure()
+ax = Axis(fig[1,1]; title="Static Structure Factor", aspect=true)
+hidedecorations!(ax); hidespines!(ax)
+hm = heatmap!(ax, is_static)
+Colorbar(fig[1,2], hm)
+fig
