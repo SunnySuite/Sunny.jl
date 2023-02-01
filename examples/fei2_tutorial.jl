@@ -12,8 +12,9 @@
 # together with a strong single-ion anisotropy. Writing the exchange terms in
 # the most general way, the Hamiltonian has the form:
 # 
-# $ \mathcal{H}=\sum_{(i,j)}J^{\alpha\beta}_{ij}S^{\alpha}_i S^{\beta}_j -
-# D\sum_i \left(S^z\right)^2 $
+# $$ 
+# \mathcal{H}=\sum_{(i,j)} J^{\alpha\beta}_{ij} S^{\alpha}_i S^{\beta}_j - D\sum_i \left(S^z\right)^2
+# $$ 
 # 
 # We will calculate a dynamic structure factor using this model. We begin by
 # importing the required packages, starting with `Sunny`. We will also add
@@ -146,7 +147,7 @@ print_symmetry_table(cryst, 10.0)
 # symbolic operators, corresponding to 𝒮ˣ, 𝒮ʸ, and 𝒮ᶻ, and `𝒪` is a matrix
 # of symbolic Stevens that takes two indices, corresponding to the traditional
 # $k$ (irrep) and $q$ (row or column) indices of the Stevens tensors. For
-# example, to assigned $(S^z)^2$ to our only site, we would call
+# example, to assign $(S^z)^2$ to our only site, we would call
 # `set_anisotropy!(sys, 𝒮[3]^2, 1)`.
 #
 # The function below combines everything we have learned so far to create a
