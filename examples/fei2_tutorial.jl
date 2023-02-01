@@ -1,26 +1,25 @@
 # # Case Study: FeI$_{2}$
 # 
-# This example goes through all the steps necessary to calculate a dynamical
-# structure factor for the compound FeI$_{2}$. This is an effective spin-1
-# material with strong single-ion anisotropy, making it an excellent candidate for
-# treatment with SU(3) spin dynamics. In particular, one of the elementary
-# excitations of the system can only be captured clasically with an SU(3)
-# treatment. One magnon, clearly visible in the experimental data, would simply be
-# absent if we were to employ traditional Landau-Lifshitz dynamics or SU(2) spin
-# wave theory. Full details about the model can be found in reference [1].
+# FeI$_{2}$ is an effective spin-1 material with strong single-ion anisotropy,
+# making it an excellent candidate for treatment with SU(3) spin dynamics. In
+# particular, one of the elementary excitations of the system can only be
+# captured clasically with an SU(3) treatment. A magnon, clearly visible in the
+# experimental data, would simply be absent if we were to employ traditional
+# Landau-Lifshitz dynamics or SU(2) spin wave theory. Full details about the
+# model can be found in reference [1].
 # 
 # The model contains a number of competing, anisotropic exchange interactions
-# together with a strong single-ion anisotropy. Writing the exchange terms in the
-# most general way, the Hamiltonian has the form:
+# together with a strong single-ion anisotropy. Writing the exchange terms in
+# the most general way, the Hamiltonian has the form:
 # 
-# $$ \mathcal{H}=\sum_{(i,j)}J_{ij}\mathbf{S}_i\cdot\mathbf{S}_j - D\sum_i
-# \left(S\^z\right)^2 $$
+# $ \mathcal{H}=\sum_{(i,j)}J^{\alpha\beta}_{ij}S^{\alpha}_i S^{\beta}_j -
+# D\sum_i \left(S^z\right)^2 $
 # 
-# We will go through the process of implementing this Hamiltonian below. Before
-# beginning, we need to import the required packages, starting with `Sunny`. We
-# will also add `GLMakie`, a plotting package, which may take a minute to load. If
-# you see `Package X not found in current path`, you can install the package by
-# entering `using Pkg; pkg"add X"` in the Julia REPL.
+# We will calculate a dynamic structure factor using this model. We begin by
+# importing the required packages, starting with `Sunny`. We will also add
+# `GLMakie`, a plotting package. If you see `Package X not found in current
+# path`, you can install the package by entering `using Pkg; pkg"add X"` in the
+# Julia REPL.
 
 using Sunny
 using GLMakie, Formatting
@@ -28,13 +27,13 @@ using GLMakie, Formatting
 
 
 # ## Crystals and symmetry analysis
-# We begin by specifying a crystal. If a CIF file available, it can be loaded
-# using `Crystal("file.cif")`. A `Crystal` may also be created simply by
-# providing a space group number. Here we will construct the crystal by hand,
-# providing `Crystal` with a set of lattice vectors and basis vectors, where the
-# basis vectors specify the locations of atoms within the unit cell in terms of
-# fractional coordinates. We may also assign labels to each atom with the
-# optional keyword `types`.
+# The first step of defining a model is building a `Crystal`. If a CIF file
+# available, it can be loaded using `Crystal("file.cif")`. A `Crystal` may also
+# be created simply by providing a space group number. Here we will construct
+# the crystal by hand, providing `Crystal` with a set of lattice vectors and
+# basis vectors, where the basis vectors specify the locations of atoms within
+# the unit cell in terms of fractional coordinates. We also assign labels to
+# each atom with the optional keyword `types`.
 # 
 # For convenience, we will create a function which performs all these steps.
 
@@ -60,13 +59,13 @@ FeI2_crystal()
 
 # Sunny has inferred the space group `P -3 m 1`, corresponding to international
 # number 164. This agrees with the crystal specification given in reference
-# \[1\], reproduced below.
+# \[1\].
 #
-# Sunny will use the symmetry information contained in a `Crystal` throughout the
-# process of model creation. In particular, the `Crystal` will be used to
-# determined allowed interactions and anisotropies. The information also enables
-# Sunny to propagate interactions and anisotropies to all symmetry-equivalent
-# sites on a lattice.
+# Sunny will use the symmetry information contained in a `Crystal` throughout
+# the process of model creation. In particular, the `Crystal` will be used to
+# determine the form of allowed interactions and anisotropies. The information
+# also allows Sunny to propagate interactions and anisotropies to all
+# symmetry-equivalent sites on a lattice.
 
 # ## Spin systems
 # The basic type used to model a spin system is simply called `System`. A
@@ -86,7 +85,7 @@ FeI2_crystal()
 # The `mode` argument determines whether to use traditional Landau-Lifshitz
 # dyanmics (`:dipole`), or generalized SU(_N_) dynamics (`:SUN`).
 # 
-# In the code snippet below, a `System` is created  on a 4x4x4 lattice. We will
+# In the code snippet below, a `System` is created on a 4x4x4 lattice. We will
 # use the function `subcrystal` to restrict our `Crystal` to the magnetic `Fe`
 # ions.
 
@@ -105,9 +104,9 @@ sys = System(cryst, (4,4,4), [SpinInfo(1,S)], :SUN)
 #nb view_crystal(cryst, 8.0)
 
 # ### Obtaining symmetry information
-# The `System` above does not contain interactions, only a finite lattice with the
-# symmetry properities of our `Cyrstal` together with local spin information for
-# each site of the lattice. We still need to specify the interactions and
+# The `System` above does not contain interactions, only a finite lattice with
+# the symmetry properities of our `Crystal` together with local spin information
+# for each site of the lattice. We still need to specify the interactions and
 # anisotropies given in our Hamiltonian.
 # 
 # Information about the allowed interactions and anisotropies is provided by
@@ -123,19 +122,18 @@ print_symmetry_table(cryst, 10.0)
 # 
 # After single-site information, Sunny provides a list of the allowed bilinear
 # interactions on every bond that lies within `max_dist` from the origin of the
-# unit cell. The bond are specified in the following format: Bond(i, j, n),
-# where `i` and `j` are an pair of atoms within the unit cell. The number of
-# each site is as given when creating the `Crystal`. Note that the relative
-# order of `i` and `j` when calling `Bond` is significant when the exchange
-# tensor contain antisymmetric elements, as is the case for
-# Dzyaloshinskii–Moriya interactions. Finally, `n` is a vector of three integers
-# specifying lattice offsets. So `Bond(1, 1, [1,0,0])` specifies a bond between
-# the same atom in two different unit cells, where the cell offset is along the
-# direction of the first lattice vector.
+# unit cell. The bond are specified in the following format: Bond(i, j, n). `i`
+# and `j` are an pair of atoms within the unit cell. The number of each site is
+# as given when creating the `Crystal`. Note that the relative order of `i` and
+# `j` is significant when the exchange tensor contains antisymmetric elements,
+# as is the case for Dzyaloshinskii–Moriya interactions. Finally, `n` is a
+# vector of three integers specifying lattice offsets. So `Bond(1, 1, [1,0,0])`
+# specifies a bond between the same atom in two different unit cells, where the
+# cell offset is along the direction of the first lattice vector.
 
 # ### Assigning interactions and anisotropies
 # Bilinear interactions are assigned to bonds with `set_exchange!(sys, J,
-# bond)`, where `J` is the exchange tensor. `J` may be either a number, for
+# bond)`, where `J` is an exchange tensor. `J` may be either a number, for
 # simple Heisenberg exchange, or a 3x3 matrix. When `set_exchange!` is called,
 # Sunny will both analyze `J` to ensure that it is symmetry-allowed and then
 # propagate `J`, with appropriate transformations, to all symmetry-equivalent
@@ -148,11 +146,11 @@ print_symmetry_table(cryst, 10.0)
 # symbolic operators, corresponding to 𝒮ˣ, 𝒮ʸ, and 𝒮ᶻ, and `𝒪` is a matrix
 # of symbolic Stevens that takes two indices, corresponding to the traditional
 # $k$ (irrep) and $q$ (row or column) indices of the Stevens tensors. For
-# example, to assigned $(S^z)^2$ to our only equivalence class of site, we would called
+# example, to assigned $(S^z)^2$ to our only site, we would call
 # `set_anisotropy!(sys, 𝒮[3]^2, 1)`.
 #
-# The function below combines everything we have learned so far to create a complete
-# model of our FeI2 system.
+# The function below combines everything we have learned so far to create a
+# complete model of our FeI2 system.
 
 function FeI2_system(; latsize=(4,4,4), S=1, seed=0)
     ## Create the system
@@ -227,17 +225,17 @@ end;
 sys_small = FeI2_system(; latsize=(4,4,4))
 
 # # Calculating a dynamical spin structure factor
-# In the remainder of this tutorial, we will examine Sunny's capabilities for
+# In the remainder of this tutorial, we will examine Sunny's tools for
 # calculating structure factors using generalized SU(_N_) classical dynamics.
 # This is a Monte Carlo calculation and will require the sampling of many spin
 # configurations from the Boltzmann distribution at a particular temperature.
 # These samples are then used to generate dynamical trajectories that are
 # analyzed to produce correlation information, i.e., a dynamical structure
-# factor $mathcal{S}^{\alpha}{\beta}(\mathbf{q},\omega)$. To compare results
-# with low-temperature experimental data or spin wave calculations, it is
-# necessary to first identify a ground state of the system. We can then
-# thermalize this ground state with a Langevin integrator to generate sample
-# spin configurations.
+# factor $\mathcal{S}^{\alpha\beta}(\mathbf{q},\omega)$. To compare results with
+# low-temperature experimental data or spin wave calculations, it is necessary
+# to first identify a ground state of the system. We can then thermalize this
+# ground state with a Langevin integrator to generate sample spin
+# configurations.
 # 
 # ## Finding a ground state
 # 
@@ -246,15 +244,16 @@ sys_small = FeI2_system(; latsize=(4,4,4))
 # demonstrated. The first step will be to build the integrator itself. 
 
 kT = 10.0                # meV
-Δt  = abs(0.05 / 2.165)  # Safe choice for integration step size, divisor is largest coefficient in Hamiltonian
-λ = 0.1                  # Damping coefficient, empirical value that determines decorrelation time
-
+Δt  = abs(0.05 / 2.165)  # Safe choice for integration step size, divisor 
+                         ## is largest coefficient in Hamiltonian
+λ = 0.1                  # Damping coefficient, empirical value that
+                         ## determines decorrelation time
 integrator = LangevinHeunP(kT, λ, Δt);
 
 # This integrator can then be used to implement a simple annealing protocol. In
 # addition to a `System` and the integrator itself, the following function will
 # take a list of temperatures and a number specifying how many time steps to
-# take at each temperature. 
+# advance at each temperature. 
 
 function anneal!(sys, integrator, nsteps, kTs)
       Es = zeros(length(kTs))           # Buffer to record energy
@@ -307,7 +306,7 @@ plot_spins(sys_small; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 # limited by the system size. We will therefore extend the system periodically 
 # into a larger `System`:
 
-sys = extend_periodically(sys_small, (4,4,1))  # Multiply first and second lattice dimensions by 4
+sys = extend_periodically(sys_small, (4,4,1))  # Multiply 1st and 2nd lattice dimensions by 4
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 # ## Calculating the structure factor
@@ -325,7 +324,7 @@ for _ in 1:5nsteps                          # Run for sufficient time to thermal
     step!(sys, integrator)
 end;
 
-# The spins in our sample should now represent a good sample at 0.5 K. We can
+# The spins in our system should now represent a good sample at 0.5 K. We can
 # proceed with the calculation by calling `DynamicStructureFactor`. Three
 # keyword parameters are required to determine the ω information that will be
 # calculated: an integrator step size, the number of ωs to resolve, and the
@@ -367,7 +366,7 @@ fig
 # Note that we provided the optional keyword `kT` to `intensities` to enable
 # Sunny to apply a classical-to-quantum rescaling of intensities. 
 #
-# Frequently we want to extract energy intensities along lines that connection
+# Frequently we want to extract energy intensities along lines that connect
 # special wave vectors. Sunny provides a function `connected_path` to makes this
 # easy. The density of sample points can be tuned with a density argument.
 
@@ -377,7 +376,8 @@ points = [[0.0, 0.0, 0.0],  # List of wave vectors that define a path
           [0.5, 0.0, 0.0],
           [0.0, 1.0, 0.0],
           [0.0, 0.0, 0.0]] 
-formfactors = [FormFactor(1, "Fe2"; g_lande=3/2)]  # Ion information for each site to retrieve form factor correction parameters 
+formfactors = [FormFactor(1, "Fe2"; g_lande=3/2)]  # Ion information for each site to
+                                                   ## retrieve form factor correction parameters 
 density = 40
 path, markers = connected_path(points, density)
 
@@ -399,7 +399,7 @@ heatmap!(ax, 1:size(is,1), ωs(sf), is; colorrange=(0.0, 0.5))
 fig
 
 # Often it is useful to plot cuts across multiple wave vectors but at a single
-# wave vector. 
+# energy. 
 
 npoints = 60
 qvals = range(-2.0, 2.0, length=npoints)
