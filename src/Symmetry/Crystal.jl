@@ -85,7 +85,7 @@ end
 
 Number of basis positions (sublattices) in the unit cell.
 """
-nbasis(cryst::Crystal) = length(cryst.positions)
+@inline nbasis(cryst::Crystal) = length(cryst.positions)
 
 """
     cell_volume(crystal::Crystal)
@@ -179,15 +179,6 @@ function sort_sites!(cryst::Crystal)
     cryst.types .= cryst.types[perm]
 end
 
-# Wrap each coordinate of position r into the range [0,1). To account for finite
-# precision, wrap 1-ϵ to -ϵ, where ϵ=symprec is a tolerance parameter.
-function wrap_to_unit_cell(r::Vec3; symprec)
-    return @. mod(r+symprec, 1) - symprec
-end
-
-function all_integer(x; symprec)
-    return norm(x - round.(x)) < symprec
-end
 
 function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
     for i in 1:length(positions)
@@ -394,6 +385,74 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     validate(ret)
     return ret
 end
+
+
+function resize_crystal(cryst::Crystal, new_cell_size::Mat3)
+    # TODO: support resizing to multiples of the primitive cell?
+    @assert all(isinteger, new_cell_size)
+
+    # Return the original crystal if no resizing needed
+    new_cell_size == I && return cryst
+
+    # Lattice vectors of the new unit cell in global coordinates
+    new_lat_vecs = cryst.lat_vecs * new_cell_size
+
+    # These don't change because both are in global coordinates
+    prim_lat_vecs = cryst.prim_lat_vecs
+
+    # This matrix defines a mapping from fractional coordinates in the original
+    # unit cell to fractional coordinates in the new unit cell
+    B = inv(new_cell_size)
+
+    # Symmetry precision needs to be rescaled for the new unit cell. Ideally we
+    # would have three separate rescalings (one per lattice vector), but we're
+    # forced to pick just one.
+    new_symprec = cryst.symprec * cbrt(abs(det(B)))
+
+    # In original fractional coordinates, find a bounding box that completely
+    # contains the new unit cell. Not sure how much shifting is needed here;
+    # pick ±2 to be on the safe side.
+    nmin = minimum.(eachrow(new_cell_size)) .- 2
+    nmax = maximum.(eachrow(new_cell_size)) .+ 2
+
+    new_positions = Vec3[]
+    new_types     = String[]
+    new_classes   = Int[]
+    new_sitesyms  = isnothing(cryst.sitesyms) ? nothing : SiteSymmetry[]
+
+    for i in 1:nbasis(cryst)
+        for n1 in nmin[1]:nmax[1], n2 in nmin[2]:nmax[2], n3 in nmin[3]:nmax[3]
+            x = cryst.positions[i] + Vec3(n1, n2, n3)
+            Bx = B*x
+
+            # Check whether position x (in original fractional coordinates) is
+            # inside the new unit cell. The position in the new fractional
+            # coordinates is B*x. The mathematical test is whether each
+            # component of B*x is within the range [0,1). This can be checked
+            # using the condition `wrap_to_unit_cell(B*x) == B*x`. This function
+            # accounts for finite "symmetry precision" ϵ in the new unit cell by
+            # wrapping components of `B*x` to the range [-ϵ,1-ϵ).
+            if wrap_to_unit_cell(Bx; symprec=new_symprec) ≈ Bx
+                push!(new_positions, B*x)
+                push!(new_types, cryst.types[i])
+                push!(new_classes, cryst.classes[i])
+                !isnothing(cryst.sitesyms) && push!(new_sitesyms, cryst.sitesyms[i])
+            end
+        end
+    end
+
+    # Check that we have exactly the right number of atoms
+    N1, N2, N3 = eachcol(new_cell_size)
+    @assert length(new_positions) == abs((N1×N2)⋅N3) * nbasis(cryst)
+
+    # Create an empty list of symops as a marker that this information has been
+    # lost with the resizing procedure.
+    new_symops = SymOp[]
+
+    return Crystal(new_lat_vecs, prim_lat_vecs, new_positions, new_types, new_classes, new_sitesyms,
+                new_symops, cryst.spacegroup, new_symprec)
+end
+
 
 """
     subcrystal(cryst, types) :: Crystal

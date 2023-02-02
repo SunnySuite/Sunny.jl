@@ -89,31 +89,6 @@ function clone_spin_state(sys::System{N}) where N
         sys.units, copy(sys.rng))
 end
 
-"""
-    extend_periodically(sys::System{N}, mults::NTuple{3, Int64}) where N
-
-Creates a new System identical to `sys` but with each dimension multiplied
-by the corresponding factor given in the tuple `mults`. The original spin configuration
-is simply repeated periodically.
-"""
-function extend_periodically(sys::System{N}, factors::NTuple{3, Int64}) where N
-    @assert all(>=(1), factors)
-    new_latsize = factors .* sys.latsize
-    new_κs        = repeat(sys.κs, factors..., 1)
-    new_dipoles   = repeat(sys.dipoles, factors..., 1)
-    new_coherents = repeat(sys.coherents, factors..., 1)
-    new_field     = repeat(sys.interactions.extfield, factors..., 1)
-    (; anisos, pairexch, ewald) = sys.interactions
-    new_interactions = Interactions(new_field, anisos, pairexch, nothing)
-    new_sys =  System(sys.mode, sys.crystal, new_latsize, sys.Ns, sys.gs, new_κs, new_interactions,
-                      new_dipoles, new_coherents, Array{Vec3, 4}[], Array{CVec{N}, 4}[],
-                      sys.units, copy(sys.rng))
-    if !isnothing(ewald)
-        new_sys.interactions.ewald = Ewald(new_sys)
-    end
-    return new_sys
-end
-
 
 """
     Site(n1, n2, n3, i)
@@ -192,12 +167,12 @@ end
     return SpinState(s, Z)
 end
 
-@inline function dipolarspin(sys::System{0}, idx, dir)
+@inline function dipolarspin(sys::System{0}, dir, idx)
     s = normalize_dipole(Vec3(dir), sys.κs[idx])
     Z = CVec{0}()
     return SpinState(s, Z)
 end
-@inline function dipolarspin(sys::System{N}, idx, dir) where N
+@inline function dipolarspin(sys::System{N}, dir, idx) where N
     Z = normalize_ket(ket_from_dipole(Vec3(dir), Val(N)), sys.κs[idx])
     s = expected_spin(Z)
     return SpinState(s, Z)
@@ -212,7 +187,7 @@ end
 
 function polarize_spins!(sys::System{N}, dir) where N
     for idx = all_sites(sys)
-        spin = dipolarspin(sys, idx, dir)
+        spin = dipolarspin(sys, dir, idx)
         setspin!(sys, spin, idx)
     end
 end
@@ -249,6 +224,124 @@ function get_coherent_buffers(sys::System, numrequested)
         end
     end
     return sys.coherent_buffers[1:numrequested]
+end
+
+
+
+# Convert a fractional position `r` to a Cartesian{4} site index
+function position_to_site(sys::System, r::Vec3)
+    b, offset = position_to_index_and_offset(sys.crystal, r)
+    cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
+    return Site(cell..., b)
+end
+
+"""
+    resize_to_supercell(sys::System; A)
+
+Maps an existing system to a new one that has the shape and periodicity of a
+requested supercell. The columns of the ``3×3`` integer matrix `A` represent the
+supercell lattice vectors measured in units of the original crystal lattice
+vectors, `sys.crystal.lat_vecs`.
+
+The unit cell may need to be reshaped to achieve the desired periodicity of the
+requested supercell. If this is the case, the `crystal` field of the returned
+`System` object will be missing symmetry information. Consequently, certain
+operations will be unavailable for this system, e.g., setting interactions by
+symmetry propagation. In practice, one can set all interactions using the
+original system with a conventional unit cell, and then resize as a final step.
+"""
+function resize_to_supercell(sys::System{N}, A) where N
+    # latsize for new system
+    new_latsize = NTuple{3, Int}(gcd.(eachcol(A)))
+    # Unit cell for new system, in units of original unit cell. Obtained by
+    # dividing each column of A by corresponding new_latsize component.
+    new_cell_size = Int.(A / diagm(collect(new_latsize)))
+    
+    cryst = sys.crystal
+    new_cryst = resize_crystal(cryst, Mat3(new_cell_size))
+    new_nb = nbasis(new_cryst)
+
+    # Matrix that maps from fractional positions in new_cryst to fractional
+    # positions in cryst
+    to_orig_pos = cryst.lat_vecs \ new_cryst.lat_vecs
+    # Inverse mapping
+    to_new_pos = inv(to_orig_pos)
+
+    new_Ns               = zeros(Int, new_nb)
+    new_gs               = zeros(Mat3, new_nb)
+    new_κs               = zeros(Float64, new_latsize..., new_nb)
+    new_ints             = Interactions(new_nb, new_latsize, N)
+    new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
+    new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
+    new_dipole_buffers   = Array{Vec3, 4}[]
+    new_coherent_buffers = Array{CVec{N}, 4}[]
+
+    new_sys = System(sys.mode, new_cryst, new_latsize, new_Ns, new_gs, new_κs, new_ints, new_dipoles, new_coherents,
+                    new_dipole_buffers, new_coherent_buffers, sys.units, copy(sys.rng))
+
+    # Copy unit cell quantities
+    for new_i in 1:new_nb
+        new_ri = new_cryst.positions[new_i]
+        i = position_to_index(cryst, to_orig_pos * new_ri)
+
+        # Spin descriptors
+        new_sys.Ns[new_i] = sys.Ns[i]
+        new_sys.gs[new_i] = sys.gs[i]
+
+        # Anisotropies
+        new_sys.interactions.anisos[new_i] = sys.interactions.anisos[i]
+
+        # Pair exchanges
+        function map_pair_interactions(new_exch::Vector{Tuple{Bool,Bond,T}}, exch::Vector{Tuple{Bool,Bond,T}}) where T
+            empty!(new_exch)
+            for (_, bond, J) in exch
+                disp = cryst.positions[bond.j] + bond.n - cryst.positions[bond.i]
+                new_rj = new_ri + to_new_pos * disp
+                new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
+                new_bond = Bond(new_i, new_j, new_n)
+                isculled = bond_parity(new_bond)
+                push!(new_exch, (isculled, new_bond, J))
+            end
+            sort!(new_exch, by=first)
+        end
+
+        new_exchs = new_sys.interactions.pairexch[new_i]
+        exchs = sys.interactions.pairexch[i]
+        map_pair_interactions(new_exchs.heisen, exchs.heisen)
+        map_pair_interactions(new_exchs.quadmat, exchs.quadmat)
+        map_pair_interactions(new_exchs.biquad, exchs.biquad)
+    end
+
+    # Copy per-site quantities
+    for new_idx in all_sites(new_sys)
+        new_ri = new_cryst.positions[new_idx[4]] .+ (new_idx[1], new_idx[2], new_idx[3])
+        idx = position_to_site(sys, to_orig_pos * new_ri)
+        new_sys.κs[new_idx] = sys.κs[idx]
+        new_sys.dipoles[new_idx] = sys.dipoles[idx]
+        new_sys.coherents[new_idx] = sys.coherents[idx]
+
+        # External fields
+        new_sys.interactions.extfield[new_idx] = sys.interactions.extfield[idx]
+    end
+
+    # Enable dipole-dipole
+    if !isnothing(sys.interactions.ewald)
+        enable_dipole_dipole!(new_sys)
+    end
+
+    new_sys
+end
+
+"""
+    extend_periodically(sys::System{N}, mults::NTuple{3, Int64}) where N
+
+Creates a new System identical to `sys` but with each dimension multiplied
+by the corresponding factor given in the tuple `mults`. The original spin configuration
+is simply repeated periodically.
+"""
+function extend_periodically(sys::System{N}, factors::NTuple{3, Int64}) where N
+    @assert all(>=(1), factors)
+    resize_to_supercell(sys, diagm(collect(sys.latsize .* factors)))
 end
 
 
@@ -308,8 +401,9 @@ end
     suggest_magnetic_supercell(qs, latsize)
 
 Suggests a magnetic supercell, in units of the crystal lattice vectors, that is
-consistent with periodicity of the wavevectors in `qs`. The wavevectors should
-be commensurate with `latsize` in units of the lattice vectors.
+consistent with periodicity of the wavevectors in `qs`. An upper bound for the
+supercell is given by `latsize`, which is measured in units of lattice vectors,
+and must be commensurate with the wavevectors.
 """
 function suggest_magnetic_supercell(qs, latsize)
     foreach(qs) do q
@@ -319,9 +413,14 @@ function suggest_magnetic_supercell(qs, latsize)
         end
     end
 
-    # All possible periodic offsets
-    nmax = latsize .÷ 2
-    ns = [Vec3(n1, n2, n3) for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2], n3 in -nmax[3]:nmax[3]][:]
+    # All possible periodic offsets, sorted by length
+    nmax = div.(latsize, 2)
+    ns = [[n1, n2, n3] for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2], n3 in -nmax[3]:nmax[3]][:]
+    sort!(ns, by=n->n'*n)
+
+    # Remove zero vector
+    @assert iszero(ns[1])
+    deleteat!(ns, 1)
 
     # Filter out elements of ns that are not consistent with q ∈ qs
     for q in qs
@@ -335,23 +434,38 @@ function suggest_magnetic_supercell(qs, latsize)
         end
     end
 
-    # Naive supercell is the entire lattice
-    best_score = Inf
-    best_A = diagm(collect(latsize))
+    # Add vectors that wrap the entire lattice to ensure that a subset of the ns
+    # span a nonzero volume.
+    push!(ns, [latsize[1], 0, 0])
+    push!(ns, [0, latsize[2], 0])
+    push!(ns, [0, 0, latsize[3]])
 
     # Goodness of supervectors A1, A2, A3. Lower is better.
     function score(A)
         (A1, A2, A3) = eachcol(A)
         # Minimize supercell volume
         V = (A1 × A2) ⋅ A3
-        # println(A)
-        # println(V)
         # To split ties, maximize orthogonality
         c1 = (normalize(A1) × normalize(A2)) ⋅ normalize(A3)
         # To split ties, maximize alignment with Cartesian system
         c2 = normalize(A1)[1] + normalize(A2)[2] + normalize(A3)[3]
         V <= 0 ? Inf : V - 1e-3*c1 - 1e-6c2
     end
+
+    # Find three vectors that span a nonzero volume which is hopefully small.
+    # This will be our initial guess for the supercell.
+    i1 = 1
+    A1 = ns[i1]
+    i2 = findfirst(n -> !iszero(n×A1), ns[i1+1:end])::Int
+    A2 = ns[i1+i2]
+    i3 = findfirst(n -> !iszero(n⋅(A1×A2)), ns[i1+i2+1:end])::Int
+    A3 = ns[i1+i2+i3]
+    best_A = [A1 A2 A3]
+    best_score = score(best_A)
+
+    # Iteratively search for an improved supercell. For efficiency, restrict the
+    # search to some maximum number of displacement vectors
+    ns = first(ns, 1000)
 
     any_changed = true
     while any_changed
@@ -368,11 +482,11 @@ function suggest_magnetic_supercell(qs, latsize)
             end
         end
 
-        # try permuting columns with various sign changes
+        # try all possible rotations
         (A1, A2, A3) = eachcol(best_A)
-        for A in ([A1 -A3 A2], [A1 A3 -A2],
-                  [-A3 A2 A1], [A3 A2 -A1],
-                  [-A2 A1 A3], [A2 -A1 A3])
+        for A in ([A1 -A3 A2], [A1 -A2 -A3], [A1 A3 -A2], # x-axis
+                  [A3 A2 -A1], [-A1 A2 -A3], [-A3 A2 A1], # y-axis
+                  [-A2 A1 A3], [-A1 -A2 A3], [A2 -A1 A3]) # z-axis
             if best_score > score(A)
                 best_score = score(A)
                 best_A = A
@@ -392,7 +506,6 @@ function suggest_magnetic_supercell(qs, latsize)
     #         best_A = A
     #     end
     # end
-
 
     qstrs = join(map(wavevec_str, qs), ", ")
 

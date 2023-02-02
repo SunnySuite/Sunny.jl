@@ -10,7 +10,7 @@ struct Bond
     n :: SVector{3, Int}
 end
 
-"Represents a bond expressed as two fractional coordinates"
+# Represents a bond expressed as two fractional coordinates
 struct BondRaw
     ri::Vec3
     rj::Vec3
@@ -31,10 +31,6 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", bond::Bond)
     print(io, "Bond($(bond.i), $(bond.j), $(bond.n))")
-end
-
-function position_to_index(cryst::Crystal, r::Vec3)
-    return findfirst(r′ -> is_periodic_copy(cryst, r, r′), cryst.positions)
 end
 
 """    displacement(cryst::Crystal, b::Bond)
