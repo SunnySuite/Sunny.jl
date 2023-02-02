@@ -1,5 +1,5 @@
 """
-    SpinInfo(atom::Int, S; g=2)
+    SpinInfo(atom::Int; S, g=2)
 
 Characterizes the spin at a given `atom` index within the crystal unit cell. `S`
 is an integer multiple of 1/2 and gives the spin angular momentum in units of ħ.
@@ -11,7 +11,7 @@ struct SpinInfo
     S      :: Float64 # Spin magnitude in units of ħ
     g      :: Mat3    # Spin g-tensor
 
-    function SpinInfo(atom::Int, S; g=2)
+    function SpinInfo(atom::Int; S, g=2)
         if !isinteger(2S)
             error("Spin $S for atom $atom is not a multiple of 1/2")
         end
@@ -38,6 +38,6 @@ function propagate_site_info(cryst::Crystal, infos::Vector{SpinInfo})
         a′ = info.atom
         g′ = info.g
         g = transform_coupling_for_bonds(cryst, Bond(a,a,(0,0,0)), Bond(a′,a′,(0,0,0)), g′)
-        SpinInfo(a, info.S; g)
+        SpinInfo(a; info.S, g)
     end
 end
