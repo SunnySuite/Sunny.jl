@@ -120,6 +120,7 @@ function energy(sys::System{N}) where N
     if !isnothing(ewald)
         E += energy(dipoles, ewald)
     end
+    
     return E
 end
 

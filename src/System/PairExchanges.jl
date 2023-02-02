@@ -8,6 +8,13 @@ function PairExchanges()
 end
 
 
+# Parition every nonzero bound into one of two sets
+function bond_parity(bond)
+    bond_delta = (bond.j - bond.i, bond.n...)
+    @assert bond_delta != (0, 0, 0, 0)
+    return bond_delta > (0, 0, 0, 0)
+end
+
 """
     set_exchange_with_biquadratic!(sys::System, J1, J2, bond::Bond)
 
@@ -65,11 +72,8 @@ function set_exchange_with_biquadratic!(sys::System{N}, J, J_biq, bond::Bond) wh
             filter!(!matches_bond, quadmat)
             filter!(!matches_bond, biquad)
 
-            # The energy or force calculation only needs to see each bond once.
-            # Use a trick below to select half the bonds to cull.
-            bond_delta = (bond′.j - bond′.i, bond′.n...)
-            @assert bond_delta != (0, 0, 0, 0)
-            isculled = bond_delta > (0, 0, 0, 0)
+            # The energy or force calculation only needs to see each bond once
+            isculled = bond_parity(bond′)
 
             if isheisen
                 @assert J ≈ J′

@@ -1,4 +1,13 @@
-# Convenience method
+# Wrap each coordinate of position r into the range [0,1). To account for finite
+# precision, wrap 1-ϵ to -ϵ, where ϵ=symprec is a tolerance parameter.
+function wrap_to_unit_cell(r::Vec3; symprec)
+    return @. mod(r+symprec, 1) - symprec
+end
+
+function all_integer(x; symprec)
+    return norm(x - round.(x)) < symprec
+end
+
 function is_periodic_copy(cryst::Crystal, r1::Vec3, r2::Vec3)
     all_integer(r1-r2; cryst.symprec)
 end
@@ -12,6 +21,19 @@ function is_periodic_copy(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     # If both n ≈ D1 and n ≈ D2, then the bonds are equivalent by translation
     return norm(n - D1) < cryst.symprec && norm(n - D2) < cryst.symprec
 end
+
+function position_to_index(cryst::Crystal, r::Vec3)
+    return findfirst(r′ -> is_periodic_copy(cryst, r, r′), cryst.positions)
+end
+
+function position_to_index_and_offset(cryst::Crystal, r::Vec3)
+    i = position_to_index(cryst, r)::Int
+    # See comment in wrap_to_unit_cell() regarding shift by symprec
+    offset = @. round(Int, r+cryst.symprec, RoundDown)
+    @assert isapprox(cryst.positions[i]+offset, r; atol=cryst.symprec)
+    return (i, offset)
+end
+
 
 # Generate list of SymOps for the pointgroup of atom i
 function symmetries_for_pointgroup_of_atom(cryst::Crystal, i::Int)
