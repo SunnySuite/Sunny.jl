@@ -426,19 +426,21 @@ end
     # Test validity of symmetry inferred anisotropies 
     let
         latvecs = [1 0 0; 0 1 0; 0 0 10]'
-        basis = [[0.1, 0, 0], [0, 0.1, 0], [0.9, 0, 0], [0, 0.9, 0]]
-        cryst = Crystal(latvecs, basis)
+        # All atoms are a distance of 0.1 from the origin, and are arranged at
+        # angles 0, π/2, π, 3π/2, counterclockwise.
+        positions = [[0.1, 0, 0], [0, 0.1, 0], [-0.1, 0, 0], [0, -0.1, 0]]
+        cryst = Crystal(latvecs, positions)
 
         # Most general allowed anisotropy for this crystal
         Λ = randn(9)'*[𝒪[2,0], 𝒪[2,2], 𝒪[4,0], 𝒪[4,2], 𝒪[4,4], 𝒪[6,0], 𝒪[6,2], 𝒪[6,4], 𝒪[6,6]]
 
         # Test anisotropy invariance in dipole mode
-        S = 1
-        sys = System(cryst, (1,1,1), [SpinInfo(1, S)], :dipole)
+        sys = System(cryst, (1,1,1), [SpinInfo(1, S=1)], :dipole)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
         E1 = energy(sys)
-        # Effectively rotate site positions by π/2 clockwise
+        # By circularly shifting the atom index, we are effectively rotating
+        # site positions by π/2 clockwise (see comment above `positions`)
         sys.dipoles .= circshift(sys.dipoles, (0,0,0,1))
         # Rotate spin vectors correspondingly
         R = Sunny.Mat3([0 1 0; -1 0 0; 0 0 1])
@@ -447,17 +449,18 @@ end
         @test E1 ≈ E2
 
         # Test anisotropy invariance in SU(N) mode
-        S = 2
-        N = Int(2S+1)
-        sys = System(cryst, (1,1,1), [SpinInfo(1, S)], :SUN)
+        sys = System(cryst, (1,1,1), [SpinInfo(1, S=2)], :SUN)
+        N = sys.Ns[1]
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
         E1 = energy(sys)
-        # Effectively rotate site positions by π/2 clockwise
+        # By circularly shifting the atom index, we are effectively rotating
+        # site positions by π/2 clockwise (see comment above `positions`)
         sys.coherents .= circshift(sys.coherents, (0,0,0,1))
         # Rotate kets correspondingly
         U = Sunny.unitary_for_rotation(R; N)
         sys.coherents .= [U*z for z in sys.coherents]
+        sys.dipoles .= Sunny.expected_spin.(sys.coherents)
         E2 = energy(sys)
         @test E1 ≈ E2
     end

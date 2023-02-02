@@ -3,7 +3,7 @@
 
     latvecs = lattice_vectors(1, 1, 1.1, 90, 90, 120)
     cryst = Crystal(latvecs, [[0,0,0]])
-    sys = System(cryst, (4, 6, 2), [SpinInfo(1, 1.0)], :dipole)
+    sys = System(cryst, (4, 6, 2), [SpinInfo(1, S=1)], :dipole)
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, 1.2, Bond(1, 1, [0, 0, 1]))
     set_exchange!(sys, diagm([0.2, 0.3, 0.4]), Bond(1, 1, [1, 0, 1]))

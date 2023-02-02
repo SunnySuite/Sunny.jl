@@ -8,7 +8,7 @@
 
     crystal = Sunny.diamond_crystal()
     latsize = (4, 4, 4)
-    infos = [SpinInfo(1, 1.0)]
+    infos = [SpinInfo(1, S=1)]
 
     units = [Sunny.Units.meV, Sunny.Units.theory]
 

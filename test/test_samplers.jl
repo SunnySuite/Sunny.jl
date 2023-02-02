@@ -23,11 +23,10 @@
 
 
     function su3_anisotropy_model(; L=20, D=1.0, seed)
-        S = 1
         Λ = D*𝒮[3]^2
         cryst = asymmetric_crystal()
 
-        sys = System(cryst, (L,1,1), [SpinInfo(1, S)], :SUN; seed)
+        sys = System(cryst, (L,1,1), [SpinInfo(1, S=1)], :SUN; seed)
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
 
@@ -35,9 +34,8 @@
     end
 
     function su5_anisotropy_model(; L=20, D=1.0, seed)
-        S = 2
         cryst = asymmetric_crystal()
-        sys = System(cryst, (L,1,1), [SpinInfo(1, S)], :SUN; seed)
+        sys = System(cryst, (L,1,1), [SpinInfo(1, S=2)], :SUN; seed)
         randomize_spins!(sys)
 
         R = Sunny.random_orthogonal(sys.rng, 3; special=true)
@@ -179,7 +177,7 @@ end
         
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
-        sys = System(cryst, (1,1,1), [SpinInfo(1, S)], mode; seed)
+        sys = System(cryst, (1,1,1), [SpinInfo(1; S)], mode; seed)
         sys.κs .= κ
         set_exchange!(sys, 1.0, Bond(1,2,[0,0,0]))
         randomize_spins!(sys)
@@ -234,7 +232,7 @@ end
     # Tests that set_temp!/get_temp behave as expected
     function test_set_get_temp()
         cryst = Sunny.diamond_crystal()
-        sys = System(cryst, (5, 5, 5), [SpinInfo(1, 1.0)], :dipole; seed=0)
+        sys = System(cryst, (5, 5, 5), [SpinInfo(1, S=1)], :dipole; seed=0)
 
         samplers = [
             MetropolisSampler(sys, 1.0, 1),
