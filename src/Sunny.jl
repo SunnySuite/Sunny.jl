@@ -70,10 +70,10 @@ export SpinInfo, System, polarize_spins!, randomize_spins!, energy, forces,
     print_dominant_wavevectors, suggest_magnetic_supercell
 
 include("Integrators.jl")
-export LangevinHeunP, ImplicitMidpoint, step!
+export Langevin, ImplicitMidpoint, step!
 
 include("Samplers.jl")
-export MetropolisSampler, IsingSampler, LangevinSampler,
+export MetropolisSampler, IsingSampler,
     set_temp!, get_temp, sample!, thermalize!, anneal!
     # running_energy, running_mag, reset_running_energy!, reset_running_mag!
 

@@ -117,11 +117,10 @@ The next steps are typically the following
 2. Add interactions to the system using functions like
    [`set_external_field!`](@ref), [`set_exchange!`](@ref), and
    [`set_anisotropy!`](@ref).
-3. Perform Monte Carlo simulation to equilibrate the spin configuration. The
-   [`LangevinSampler`](@ref) uses a continuous dynamics whereas
-   [`MetropolisSampler`](@ref) uses local updates to the spin configuration. The
-   former may be more effective in the presence of strong anisotropy (e.g. the
-   Ising limit) whereas the latter is very efficient at handling long-range
-   dipole-dipole interactions.
+3. Perform Monte Carlo simulation to equilibrate the spin configuration. Options
+   include the continuous [`Langevin`](@ref) dynamics, or single-spin flip
+   update using [`MetropolisSampler`](@ref). The former may be more effective in
+   the presence of strong anisotropy (e.g. the Ising limit) whereas the latter
+   is very efficient at handling long-range dipole-dipole interactions.
 4. Measure the static or dynamical structure factor. For details, see the page
    [Structure Factor Calculations](@ref).

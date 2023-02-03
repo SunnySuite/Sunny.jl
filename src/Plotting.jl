@@ -284,11 +284,11 @@ function anim_integration(
     display(fig)
 
     framerate = 30
-    integrator = HeunP(sys)
+    integrator = ImplicitMidpoint(Δt)
 
     GLMakie.record(fig, fname, 1:nframes; framerate=framerate) do frame
-        for step in 1:steps_per_frame
-            step!(integrator, Δt)
+        for _ in 1:steps_per_frame
+            step!(sys, integrator)
         end
         vecs[] = GLMakie.Vec3f0.(sys.dipoles)
     end
@@ -316,11 +316,11 @@ function live_integration(
     )
     display(fig)
 
-    integrator = HeunP(sys)
+    integrator = ImplicitMidpoint(Δt)
 
     while true
         for step in 1:steps_per_frame
-            step!(integrator, Δt)
+            step!(sys, integrator)
         end
         vecs[] = GLMakie.Vec3f0.(sys.dipoles)
         sleep(1/framerate)
@@ -349,11 +349,11 @@ function live_langevin_integration(
     )
     display(fig)
 
-    integrator = LangevinHeunP(sys, kT, λ)
+    integrator = Langevin(Δt, kT, λ)
 
     while true
         for _ in 1:steps_per_frame
-            step!(integrator, Δt)
+            step!(sys, integrator)
         end
         vecs[] = GLMakie.Vec3f0.(sys.dipoles)
         sleep(1/framerate)

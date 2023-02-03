@@ -45,20 +45,20 @@
         return sys
     end
 
-    function thermalize!(sys, integrator, dur)
-        Δt = integrator.Δt
+    function thermalize!(sys, langevin, dur)
+        Δt = langevin.Δt
         numsteps = round(Int, dur/Δt)
         for _ in 1:numsteps
-            step!(sys, integrator)
+            step!(sys, langevin)
         end
     end
 
-    function calc_mean_energy(sys, integrator, dur)
+    function calc_mean_energy(sys, langevin, dur)
         L = size(sys.dipoles)[1]
-        numsteps = round(Int, dur/integrator.Δt)
+        numsteps = round(Int, dur/langevin.Δt)
         Es = zeros(numsteps)
         for i in 1:numsteps
-            step!(sys, integrator)
+            step!(sys, langevin)
             Es[i] = energy(sys) / L
         end
         sum(Es)/length(Es) 
@@ -74,12 +74,12 @@
         collect_dur = 100.0
 
         sys = su3_anisotropy_model(; D, L, seed=0)
-        integrator = LangevinHeunP(0.0, λ, Δt)
+        langevin = Langevin(Δt, 0.0, λ)
 
         for kT ∈ kTs
-            integrator.kT = kT
-            thermalize!(sys, integrator, thermalize_dur)
-            E = calc_mean_energy(sys, integrator, collect_dur)
+            langevin.kT = kT
+            thermalize!(sys, langevin, thermalize_dur)
+            E = calc_mean_energy(sys, langevin, collect_dur)
             E_ref = su3_mean_energy(kT, D)
 
             #= No more than 5% error with respect to reference. =#
@@ -100,12 +100,12 @@
         collect_dur = 200.0
 
         sys = su5_anisotropy_model(; D, L, seed=0)
-        integrator = LangevinHeunP(0.0, λ, Δt)
+        langevin = Langevin(Δt, 0.0, λ)
 
         for kT ∈ kTs
-            integrator.kT = kT
-            thermalize!(sys, integrator, thermalize_dur)
-            E = calc_mean_energy(sys, integrator, collect_dur)
+            langevin.kT = kT
+            thermalize!(sys, langevin, thermalize_dur)
+            E = calc_mean_energy(sys, langevin, collect_dur)
             E_ref = su5_mean_energy(kT, D)
 
             #= No more than 5% error with respect to reference. =#
@@ -194,25 +194,28 @@ end
             λ = 0.1
             kT = 0.1
             Δt = 0.02
+            langevin = Langevin(Δt, kT, λ)
 
-            n_decorr = 500  # Decorrelation steps between samples
+            n_equilib = 1000
             n_samples = 2000
-            n_bins = 10  # Number of bins in empirical distribution
+            n_decorr = 500
 
             # Initialize the Langevin sampler and thermalize the system
-            integrator = LangevinHeunP(kT, λ, Δt)
-            sampler = LangevinSampler(integrator, 1000)
-            sample!(sys, sampler)
-            sampler.nsteps = n_decorr
+            for _ in 1:n_equilib
+                step!(sys, langevin)
+            end
 
             # Collect samples of energy
-            Es = zeros(n_samples)
-            for i ∈ 1:n_samples
-                sample!(sys, sampler)
-                Es[i] = energy(sys)
+            Es = Float64[]
+            for i in 1:n_samples
+                for _ in 1:n_decorr
+                    step!(sys, langevin)
+                end
+                push!(Es, energy(sys))
             end
 
             # Generate empirical distribution and discretize analytical distribution
+            n_bins = 10
             (; Ps, boundaries) = empirical_distribution(Es, n_bins)
             Ps_analytical = discretize_P(boundaries, kT) 
 
@@ -237,7 +240,6 @@ end
         samplers = [
             MetropolisSampler(sys, 1.0, 1),
             IsingSampler(sys, 1.0, 1),
-            LangevinSampler(LangevinHeunP(1.0, 1.0, 1.0), 1),
         ]
         for sampler in samplers
             @test get_temp(sampler) ≈ 1.0

@@ -1,19 +1,19 @@
 """
-    LangevinHeunP(kT::Float64, λ::Float64, Δt::Float64)
+    Langevin(Δt::Float64, kT::Float64, λ::Float64)
 
 Projected Heun integration scheme with noise and damping.
 Use with the `step!` function to evolve a `System` forward by a time step of `Δt`:
 
-step!(sys::System, integrator::LangevinHeunP)
+step!(sys::System, integrator::Langevin)
 
 If `kT > 0`, this will simulate dynamics in the presence of a thermal bath. `λ` is an
 empirical parameter that determines the strength of coupling to the thermal bath and
 sets a time scale for decorrelation, `1/λ`.
 """
-mutable struct LangevinHeunP
+mutable struct Langevin
+    Δt  :: Float64
     kT  :: Float64
     λ   :: Float64
-    Δt  :: Float64
 end
 
 
@@ -49,10 +49,10 @@ ImplicitMidpoint(Δt; atol=1e-12) = ImplicitMidpoint(Δt, atol)
 """
     step!(sys::System, integrator)
 
-Advance the spin system forward one step using the parameters and integration
-scheme specified by `integrator`.
+Advance the spin dynamics one integration time-step. The `integrator` may be of
+type [`Langevin`](@ref) or [`ImplicitMidpoint`](@ref).
 """
-function step!(sys::System{0}, integrator::LangevinHeunP)
+function step!(sys::System{0}, integrator::Langevin)
     (B, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
     (; kT, λ, Δt) = integrator
     s = sys.dipoles
@@ -149,7 +149,7 @@ end
 
 
 function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
-                        B::Array{Vec3, 4}, integrator::LangevinHeunP, sys::System{N}) where N
+                        B::Array{Vec3, 4}, integrator::Langevin, sys::System{N}) where N
     (; kT, λ, Δt) = integrator
     (; dipoles, interactions) = sys
 
@@ -166,7 +166,7 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
 end
 
 
-function step!(sys::System{N}, integrator::LangevinHeunP) where N
+function step!(sys::System{N}, integrator::Langevin) where N
     (Z′, ΔZ₁, ΔZ₂, ξ) = get_coherent_buffers(sys, 4)
     B = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
@@ -231,5 +231,5 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
         Z′, Z″ = Z″, Z′
     end
 
-    error("SchrodingerMidpoint integrator failed to converge in $max_iters iterations.")
+    error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
 end
