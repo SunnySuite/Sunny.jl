@@ -232,33 +232,30 @@ sys_small = FeI2_system(; latsize=(4,4,4))
 # factor $\mathcal{S}^{\alpha\beta}(\mathbf{q},\omega)$. To compare results with
 # low-temperature experimental data or spin wave calculations, it is necessary
 # to first identify a ground state of the system. We can then thermalize this
-# ground state with a Langevin integrator to generate sample spin
+# ground state with the [`Langevin`](@ref) dynamics to generate sample spin
 # configurations.
 # 
 # ## Finding a ground state
 # 
 # While we will be using Langevin integration to generate sample spin
 # configurations, it is also a powerful tool for optimization, as will now be
-# demonstrated. The first step will be to build the integrator itself. 
+# demonstrated.
 
-kT = 10.0                # meV
-Δt  = abs(0.05 / 2.165)  # Safe choice for integration step size, divisor 
-                         ## is largest coefficient in Hamiltonian
-λ = 0.1                  # Damping coefficient, empirical value that
-                         ## determines decorrelation time
-integrator = LangevinHeunP(kT, λ, Δt);
+E0 = 2.165        # Largest energy scale in the Hamiltonian
+Δt = 0.05/E0      # Safe choice for integration step size
+kT = 10.0         # Temperature in meV
+λ = 0.1           # Magnitude of coupling to thermal bath
+langevin = Langevin(Δt, kT, λ);
 
-# This integrator can then be used to implement a simple annealing protocol. In
-# addition to a `System` and the integrator itself, the following function will
-# take a list of temperatures and a number specifying how many time steps to
-# advance at each temperature. 
+# The following function will perform simulated annealing according to a list of
+# temperatures and a number of time steps per temperature,
 
-function anneal!(sys, integrator, nsteps, kTs)
+function anneal!(sys, langevin, nsteps, kTs)
       Es = zeros(length(kTs))           # Buffer to record energy
       for (i, kT) in enumerate(kTs)
-            integrator.kT = kT          # Set the temperature
+            langevin.kT = kT            # Set the temperature
             for _ in 1:nsteps           # Advance the state nsteps
-                step!(sys, integrator)
+                step!(sys, langevin)
             end
             Es[i] = energy(sys)         # Record the energy
       end
@@ -272,10 +269,10 @@ kTs = [kT*0.9^k for k in 0:100]  # Temperature schedule
 nsteps = round(Int, 30.0/Δt)     # Set nsteps to 30.0 meV⁻¹ 
 randomize_spins!(sys_small)      # Set random (infinite temperature) initial condition
 
-Es = anneal!(sys_small, integrator, nsteps, kTs)
+Es = anneal!(sys_small, langevin, nsteps, kTs)
 
 for _ in 1:nsteps                # Run at T=0 for a short period
-    step!(sys_small, integrator)
+    step!(sys_small, langevin)
 end
 
 # Plotting the energies recorded during the annealing process will help us determined
@@ -309,23 +306,23 @@ plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 # ## Calculating the structure factor
 # To get a good equilibrium sample, we will next thermalize the system at a low
-# temperature, again using a Langevin integrator. The parameters we select below
+# temperature, again using the Langevin dynamics. The parameters we select below
 # are known to be effective for this model but will need to be determined for
 # each specific case. 
 
 decorrelation_time = 2.0                    # Time in meV⁻¹ required to get an uncorrelated sample
 nsteps = round(Int, decorrelation_time/Δt)  # Convert to number of time steps
 kT = 0.5 * Sunny.meV_per_K                  # Set temperature meV equivalent of 0.5 K
-integrator = LangevinHeunP(kT, λ, Δt)       # Build integrator with these parameters
+langevin = Langevin(Δt, kT, λ)              # Build Langevin integrator with these parameters
 
 for _ in 1:5nsteps                          # Run for sufficient time to thermalize
-    step!(sys, integrator)
+    step!(sys, langevin)
 end;
 
 # The spins in our system should now represent a good sample at 0.5 K. We can
 # proceed with the calculation by calling `DynamicStructureFactor`. Three
 # keyword parameters are required to determine the ω information that will be
-# calculated: an integrator step size, the number of ωs to resolve, and the
+# calculated: an integration step size, the number of ωs to resolve, and the
 # maximum ω to resolve. For the time step, twice the value used for the Langevin
 # integrator is usually a good choice.
 
@@ -337,7 +334,7 @@ sf = DynamicStructureFactor(sys; Δt=2Δt, nω=120, ωmax=7.5);
 
 for _ in 1:2
     for _ in 1:nsteps            # Generate a new sample spin configuration
-        step!(sys, integrator)
+        step!(sys, langevin)
     end
     add_sample!(sf, sys)         # Accumulate the sample into `sf`
 end;

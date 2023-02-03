@@ -63,35 +63,6 @@ end
 
 
 ################################################################################
-# Langevin Sampler 
-################################################################################
-
-"""
-    LangevinSampler(integrator::LangevinHeunP, nsteps::Int)
-
-Creates a sampler from a Langevin integrator. `nsteps` determines how many
-times `step!` is called using the integrator. `nsteps` should be selected large
-enough to ensure that the state of the System after integration
-is decorrelated with respect to its initial state.
-"""
-mutable struct LangevinSampler <: AbstractSampler
-    integrator :: LangevinHeunP
-    nsteps     :: Int
-end
-
-set_temp!(sampler::LangevinSampler, kT) = sampler.integrator.kT = kT
-get_temp(sampler::LangevinSampler) = sampler.integrator.kT
-
-function sample!(sys, sampler::LangevinSampler)
-    (; integrator, nsteps) = sampler
-    for _ in 1:nsteps
-        step!(sys, integrator)
-    end
-    return nothing
-end
-
-
-################################################################################
 # Metropolis Sampler 
 ################################################################################
 

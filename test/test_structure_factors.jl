@@ -16,9 +16,9 @@
         Δt = 0.05  # Time step for thermalization
         λ  = 0.1
         nsteps = 1000  # Number of steps between MC samples
-        integrator = LangevinHeunP(kT, λ, Δt)
+        langevin = Langevin(Δt, kT, λ)
         for _ in 1:nsteps
-            step!(sys, integrator)
+            step!(sys, langevin)
         end
     end
     
@@ -102,20 +102,17 @@ end
     J = Sunny.meV_per_K * 7.5413 
     sys = diamond_model(; J, seed)
 
-    Δt_therm = 0.07 
+    Δt_langevin = 0.07 
     kT = Sunny.meV_per_K * 2. # Units of meV
     λ  = 0.1
-    integrator = LangevinHeunP(kT, λ, Δt_therm)
+    langevin = Langevin(Δt_langevin, kT, λ)
 
     # Thermalize
-    for _ in 1:3000
-        step!(sys, integrator)
+    for _ in 1:4000
+        step!(sys, langevin)
     end
 
-    # Calculate a path
-    sampler = LangevinSampler(integrator, 1000)
-    sample!(sys, sampler) # Added so matches earlier reference data which called `sample!` before trajectory
-    sf = DynamicStructureFactor(sys; nω=25, ωmax=5.5, Δt=2Δt_therm)
+    sf = DynamicStructureFactor(sys; nω=25, ωmax=5.5, Δt=2Δt_langevin)
     qs, _ = connected_path([(0.0, 0.0, 0.0), (0.5, 0.0, 0.0), (0.5, 0.5, 0.0), (0.0, 0.0, 0.0)], 10)
     data = intensities(sf, qs, :trace; interpolation=:linear, kT)
 

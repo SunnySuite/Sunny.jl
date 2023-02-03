@@ -81,31 +81,23 @@ available after the calculation has completed.
 3. `nω`: Determines the number of energy bins to resolve. A larger number will
    require more calculation time.
 
-Structure factor data is calculated from classical dynamics using a Monte Carlo
-approach. Each sample of $𝒮^{αβ}(𝐪,ω)$ is generated from a trajectory, the
-initial condition for which must be a sample spin configuration from the
-equilibrium distribution at a particular temperature. Therefore it is important
-that the spin configuration in your `sys` represent such a sample prior to
-calling `DynamicStructureFactor`. In other words, it is essential that `sys` be
-properly thermalized before initiating the calculation. One approach to
-accomplishing this is to use a [`LangevinSampler`](@ref).
-
-Additional samples can be accumulated into a `StructureFactor` by calling
-[`add_sample!(structure_factor, sys)`](@ref). Naturally, it is important that
-the spin configuration in `sys` represent a new equilibrium sample before
-calling `add_sample!`.
+Upon constructing `DynamicStructureFactor`, classical spin dynamics will be
+performed, and spin correlation data will be accumulated into $𝒮^{αβ}(𝐪,ω)$.
+The input `sys` must be a spin configuration in good thermal equilibrium, e.g.,
+using the continuous [`Langevin`](@ref) dynamics or using single spin flip
+trials with [`MetropolisSampler`](@ref) or [`IsingSampler`](@ref). The
+statistical quality of the $𝒮^{αβ}(𝐪,ω)$ can be improved by generating a
+decorrelated spin configuration in `sys`, and then calling
+[`add_sample!(structure_factor, sys)`](@ref).
 
 The outline of typical use case might look like this:
 ```
-# Thermalize a `System`, `sys`, and set up a `LangevinSampler`, `sampler`
-# prior to steps below. 
-
 # Make a `StructureFactor` and calculate an initial sample
 sf = DynamicStructureFactor(sys; Δt=0.05, ωmax=10.0, nω=100) 
 
 # Add additional samples
 for _ in 1:nsamples
-   sample!(sys, sampler)   # Update spins in `sys` to generate a new initial condition
+   decorrelate_system(sys) # Perform some type of Monte Carlo simulation
    add_sample!(sf, sys)    # Use spins to calculate and accumulate new sample of 𝒮(𝐪,ω)
 end
 ```

@@ -112,7 +112,7 @@ before calling this function. Additional sample trajectories are created and
 accumulated into the `DynamicStructureFactor` by calling
 [`add_sample!`](@ref)`(sf, sys)`. The spins in the `sys` should be set to new
 sample configurations before each call to `add_sample!`. This can be achieved,
-for example, with a [`LangevinSampler`](@ref).
+for example, with the [`Langevin`](@ref) dynamics.
 
 Three keywords are required to specify the dynamics used for the trajectory
 calculation.
