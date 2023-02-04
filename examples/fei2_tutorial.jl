@@ -16,7 +16,6 @@
 # \mathcal{H}=\sum_{(i,j)} J^{\alpha\beta}_{ij} S^{\alpha}_i S^{\beta}_j - D\sum_i \left(S^z\right)^2
 # ```
 # 
-# 
 # We will calculate a dynamic structure factor using this model. We begin by
 # importing the required packages, starting with `Sunny`. We will also add
 # `GLMakie`, a plotting package. If you see `Package X not found in current
@@ -30,12 +29,11 @@ using GLMakie, Formatting
 
 # ## Crystals and symmetry analysis
 # The first step of defining a model is building a `Crystal`. If a CIF file
-# available, it can be loaded using `Crystal("file.cif")`. A `Crystal` may also
-# be created simply by providing a space group number. Here we will construct
-# the crystal by hand, providing `Crystal` with a set of lattice vectors and
-# basis vectors, where the basis vectors specify the locations of atoms within
-# the unit cell in terms of fractional coordinates. We also assign labels to
-# each atom with the optional keyword `types`.
+# available, it can be loaded using `Crystal("file.cif")`. Here we will
+# construct the crystal by hand, providing `Crystal` with a set of lattice
+# vectors and basis vectors, where the basis vectors specify the locations of
+# atoms within the unit cell in terms of fractional coordinates. We also assign
+# labels to each atom with the optional keyword `types`.
 # 
 # For convenience, we will create a function which performs all these steps.
 
@@ -54,8 +52,10 @@ end;
 
 # Sunny will perform symmetry analysis on the crystal, identifying the space
 # group. To aid the symmetry analysis, it is often helpful to provide names for
-# the atoms, as we did above. The result of Sunny's analysis is given as output
-# when creating the `Crystal`:
+# the atoms, as we did above. One may also enforce a particular space group by
+# providing its number as a third argument to `Crystal`.
+# 
+# The result of Sunny's analysis is given as output when creating the `Crystal`:
 
 FeI2_crystal()
 
@@ -121,7 +121,7 @@ print_symmetry_table(cryst, 10.0)
 # After single-site information, Sunny provides a list of the allowed bilinear
 # interactions on every bond that lies within `max_dist` from the origin of the
 # unit cell. The bond are specified in the following format: Bond(i, j, n). `i`
-# and `j` are an pair of atoms within the unit cell. The number of each site is
+# and `j` are a pair of atoms within the unit cell. The number of each site is
 # as given when creating the `Crystal`. Note that the relative order of `i` and
 # `j` is significant when the exchange tensor contains antisymmetric elements,
 # as is the case for Dzyaloshinskii–Moriya interactions. Finally, `n` is a
@@ -260,7 +260,7 @@ function anneal!(sys, langevin, nsteps, kTs)
             Es[i] = energy(sys)         # Record the energy
       end
       return Es
-end
+end;
 
 # Finally we perform the annealing. 
 
@@ -298,8 +298,7 @@ plot_spins(sys_small; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 # This is correct, but our spin system is quite small. Because the calculation
 # will be performed on a finite lattice, our resolution in momentum space will be
-# limited by the system size. We will therefore extend the system periodically 
-# into a larger `System`:
+# limited by the system size. We will therefore extend the system periodically.
 
 sys = extend_periodically(sys_small, (4,4,1))  # Multiply 1st and 2nd lattice dimensions by 4
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
@@ -310,7 +309,8 @@ plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 # are known to be effective for this model but will need to be determined for
 # each specific case. 
 
-decorrelation_time = 2.0                    # Time in meV⁻¹ required to get an uncorrelated sample
+decorrelation_time = 2.0                    # Time in meV⁻¹ required to get an
+                                            ## uncorrelated sample
 nsteps = round(Int, decorrelation_time/Δt)  # Convert to number of time steps
 kT = 0.5 * Sunny.meV_per_K                  # Set temperature meV equivalent of 0.5 K
 langevin = Langevin(Δt, kT, λ)              # Build Langevin integrator with these parameters
@@ -430,7 +430,7 @@ A = [0.5  1.0 0.0;
      0.0  0.0 1.0]
 ks = [A*q for q in qs]
 
-@time is_ortho = intensities(sf, ks, :perp;
+is_ortho = intensities(sf, ks, :perp;
     interpolation = :linear,
     kT,
     formfactors,
