@@ -1,10 +1,10 @@
 """
     System(crystal::Crystal, latsize, infos, mode; units=Units.meV, seed::Int)
 
-Construct a `System` of spins for a given `crystal` symmetry. The `latsize`
-parameter determines the number of unit cells in each lattice vector direction.
-The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which determine
-the magnitude ``S`` and ``g``-tensor of each spin.
+Construct a `System` of spins for a given [`Crystal`](@ref) symmetry. The
+`latsize` parameter determines the number of unit cells in each lattice vector
+direction. The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which
+determine the magnitude ``S`` and ``g``-tensor of each spin.
 
 The three possible options for `mode` are `:SUN`, `:dipole`, and `:large_S`. The
 most variationally accurate choice is `:SUN`, in which each spin-``S`` degree of
@@ -93,15 +93,14 @@ end
 """
     Site(n1, n2, n3, i)
 
-References a single site in a `System` via its unit cell `(n1,n2,n3)` and its
-sublattice `i`. Can be used to index `dipoles` and `coherents` fields of a
-`System`, or to set inhomogeneous interactions.
-
-See also [`set_vacancy_at!`](@ref), [`set_external_field_at!`](@ref).
+Construct an index to a single site in a [`System`](@ref) via its unit cell
+`(n1,n2,n3)` and its atom `i`. Can be used to index `dipoles` and `coherents`
+fields of a `System`, or to set inhomogeneous interactions. This function is
+effectively an alias for the four-component `CartesianIndex` constructor.
 """
 @inline Site(idx::CartesianIndex{4})            = idx
 @inline Site(idx::NTuple{4, Int})               = CartesianIndex(idx)
-@inline Site(n1::Int, n2::Int, n3::Int, b::Int) = CartesianIndex(n1, n2, n3, b)
+@inline Site(n1::Int, n2::Int, n3::Int, i::Int) = CartesianIndex(n1, n2, n3, i)
 
 # Element-wise application of mod1(cell+off, latsize), returning CartesianIndex
 @inline offsetc(cell::CartesianIndex{3}, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
@@ -167,12 +166,12 @@ end
     return SpinState(s, Z)
 end
 
-@inline function dipolarspin(sys::System{0}, dir, idx)
+@inline function dipolarspin(sys::System{0}, idx, dir)
     s = normalize_dipole(Vec3(dir), sys.κs[idx])
     Z = CVec{0}()
     return SpinState(s, Z)
 end
-@inline function dipolarspin(sys::System{N}, dir, idx) where N
+@inline function dipolarspin(sys::System{N}, idx, dir) where N
     Z = normalize_ket(ket_from_dipole(Vec3(dir), Val(N)), sys.κs[idx])
     s = expected_spin(Z)
     return SpinState(s, Z)
@@ -187,7 +186,7 @@ end
 
 function polarize_spins!(sys::System{N}, dir) where N
     for idx = all_sites(sys)
-        spin = dipolarspin(sys, dir, idx)
+        spin = dipolarspin(sys, idx, dir)
         setspin!(sys, spin, idx)
     end
 end
@@ -236,7 +235,7 @@ function position_to_site(sys::System, r::Vec3)
 end
 
 """
-    resize_to_supercell(sys::System; A)
+    reshape_volume(sys::System; A)
 
 Maps an existing system to a new one that has the shape and periodicity of a
 requested supercell. The columns of the ``3×3`` integer matrix `A` represent the
@@ -250,7 +249,7 @@ operations will be unavailable for this system, e.g., setting interactions by
 symmetry propagation. In practice, one can set all interactions using the
 original system with a conventional unit cell, and then resize as a final step.
 """
-function resize_to_supercell(sys::System{N}, A) where N
+function reshape_volume(sys::System{N}, A) where N
     # latsize for new system
     new_latsize = NTuple{3, Int}(gcd.(eachcol(A)))
     # Unit cell for new system, in units of original unit cell. Obtained by
@@ -333,15 +332,15 @@ function resize_to_supercell(sys::System{N}, A) where N
 end
 
 """
-    extend_periodically(sys::System{N}, mults::NTuple{3, Int64}) where N
+    repeat_volume(sys::System{N}, mults::NTuple{3, Int64}) where N
 
 Creates a new System identical to `sys` but with each dimension multiplied
 by the corresponding factor given in the tuple `mults`. The original spin configuration
 is simply repeated periodically.
 """
-function extend_periodically(sys::System{N}, factors::NTuple{3, Int64}) where N
+function repeat_volume(sys::System{N}, factors::NTuple{3, Int64}) where N
     @assert all(>=(1), factors)
-    resize_to_supercell(sys, diagm(collect(sys.latsize .* factors)))
+    reshape_volume(sys, diagm(collect(sys.latsize .* factors)))
 end
 
 

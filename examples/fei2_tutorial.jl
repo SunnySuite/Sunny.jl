@@ -22,331 +22,250 @@
 # path`, you can install the package by entering `using Pkg; pkg"add X"` in the
 # Julia REPL.
 
-using Sunny
-using GLMakie, Formatting
+using Sunny, GLMakie
 #nb Sunny.offline_viewers()  # Inject Javascript code for additional plotting capabilities 
 
 
 # ## Crystals and symmetry analysis
-# The first step of defining a model is building a `Crystal`. If a CIF file
-# available, it can be loaded using `Crystal("file.cif")`. Here we will
-# construct the crystal by hand, providing `Crystal` with a set of lattice
-# vectors and basis vectors, where the basis vectors specify the locations of
-# atoms within the unit cell in terms of fractional coordinates. We also assign
-# labels to each atom with the optional keyword `types`.
-# 
-# For convenience, we will create a function which performs all these steps.
+# One begins by constructing a [`Crystal`](@ref) that describes the
+# crystallographic unit cell. Frequently, the crystal will be loaded from a
+# `.cif` file. Below, we construct the crystal by providing a full list of all
+# atoms in the conventional unit cell.
 
-function FeI2_crystal()
-    a = b = 4.05012  # Define the length of the three lattice vectors,
-    c = 6.75214      # with units here given in angstroms.
+a = b = 4.05012  # Lattice constants for triangular lattice
+c = 6.75214      # Spacing in the z-direction
 
-    lat_vecs = lattice_vectors(a, b, c, 90, 90, 120) # This is a convenience method.
-                                                     ## Alternatively, lattice vectors may be
-                                                     ## specified as columns of a 3x3 matrix.
-    basis_vecs = [[0,0,0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]  # Locations of atoms in fractional 
-                                                              ## coordinates.
-    types = ["Fe", "I", "I"] # Assign a name to each atom
-    Crystal(lat_vecs, basis_vecs; types) # Create the crystal
-end;
+lat_vecs = lattice_vectors(a, b, c, 90, 90, 120) # A 3x3 matrix of lattice vectors that
+                                                 ## define the conventional unit cell
+basis_vecs = [[0,0,0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]  # Positions of atoms in fractions
+                                                          ## of lattice vectors
+types = ["Fe", "I", "I"]
+FeI2 = Crystal(lat_vecs, basis_vecs; types)
 
-# Sunny will perform symmetry analysis on the crystal, identifying the space
-# group. To aid the symmetry analysis, it is often helpful to provide names for
-# the atoms, as we did above. One may also enforce a particular space group by
-# providing its number as a third argument to `Crystal`.
-# 
-# The result of Sunny's analysis is given as output when creating the `Crystal`:
+# Observe that Sunny indentified the correct space group, 'P -3 m 1' (164), in
+# agreement with Ref. \[1\].
 
-FeI2_crystal()
+#nb # An interactive viewer of the crystal and its bonds is available for Jupyter notebooks.
+#nb view_crystal(FeI2, 8.0)
 
-# Sunny has inferred the space group `P -3 m 1`, corresponding to international
-# number 164. This agrees with the crystal specification given in reference
-# \[1\].
-#
-# Sunny will use the symmetry information contained in a `Crystal` throughout
-# the process of model creation. In particular, the `Crystal` will be used to
-# determine the form of allowed interactions and anisotropies. The information
-# also allows Sunny to propagate interactions and anisotropies to all
-# symmetry-equivalent sites on a lattice.
+# Only the Fe atoms are magnetic, so we should discard the I ions using
+# [`subcrystal`](@ref).
+
+cryst = subcrystal(FeI2, "Fe")
+
+# Importantly, `cryst` retains the spacegroup symmetry information for the full
+# FeI2 crystal. This information will be used, for example, to propagate
+# exchange interactions by symmetry.
 
 # ## Spin systems
-# The basic type used to model a spin system is [`System`](@ref). Its
-# constructor is:
-# 
-# ```
-# System(crystal, latsize, infos, mode)
-# ```
-# 
-# The argument `latsize` defines the system lattice size as three components, in
-# multiples of unit cells. The argument `infos` defines the spin magnitude ``S``
-# (in units of ``ħ``) and the ``g``-factor or ``g``-tensor for each ion, and
-# this information will be propagated by crystal symmetry. The argument `mode`
-# determines whether to use traditional Landau-Lifshitz dynamics (`:dipole`), or
-# generalized SU(_N_) dynamics (`:SUN`).
-# 
-# In this example, we use the command [`subcrystal`](@ref) to isolate the
-# magnetic `Fe` ions, and build a system of ``4×4×4`` unit cells:
+# The FeI2 unit cell contains only a single Fe atom. To simulate a system of
+# many spins, construct a [`System`](@ref).
 
-cryst = subcrystal(FeI2_crystal(), "Fe")
 sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN)
 
-# Sunny created an SU(3) system to capture the dynamics of the $2S+1=3$ distinct
-# states for each spin ``S=1`` degree of freedom.  The default ``g``-factor of 2
-# can be overriden via the [`SpinInfo`](@ref) constructor.
+# This system includes $4×4×4$ unit cells, i.e. 64 spin moments, each with spin
+# $S=1$. The default $g$-factor is 2, but this could be overriden with an
+# additional argument to [`SpinInfo`](@ref). Recall that spin-1 has $N=2S+1=3$
+# distinct angular momentum states. Because we selected `:SUN` mode, Sunny will
+# simulate the dynamics of SU(3) coherent states, which includes both dipolar
+# and quadrupolar fluctuations. For the more traditional dipole dynamics, use
+# mode `:dipole` instead.
 
 # ## Interactions and anisotropies
-#nb # It is often helpful to be able to visualize the `Crystal`` and identify
-#nb # equivalence classes of bonds. An interactive viewer is available for precisely
-#nb # this purpose: `view_crystal(crystal, max_dist)`:
-#nb 
-#nb view_crystal(cryst, 8.0)
 
-# ### Obtaining symmetry information
-# The `System` above does not contain interactions, only a finite lattice with
-# the symmetry properities of our `Crystal` together with local spin information
-# for each site of the lattice. We still need to specify the interactions and
-# anisotropies given in our Hamiltonian.
+# ### Symmetry analysis
+# The next step is to add interactions to the system. The command
+# [`print_symmetry_table`](@ref) shows all symmetry-allowed interactions up to a
+# distance cutoff.
+
+print_symmetry_table(cryst, 8.0)
+
+# The allowed $g$-tensor is given as a 3×3 matrix. The allowed single-ion
+# anisotropy is given as a linear combination of Stevens operators. The latter
+# correspond to polynomials of the spin operators, as we will describe below.
 # 
-# Information about the allowed interactions and anisotropies is provided by
-# `print_symmetry_table(cryst, max_dist)`:
-
-print_symmetry_table(cryst, 10.0)
-
-# The output begins by specifying information about each site of the `Crystal`.
-# (In our case there is only one site, since we restricted our crystal to the
-# iron ion.) The allowed form of any g-tensor is given as a 3x3 matrix, and the
-# allowed form of any single-site anisotropy is given as the most general linear
-# combination of Stevens operators.
+# The allowed exchange interactions are given as a 3×3 matrix for representative
+# bonds. The notation `Bond(i, j, n)` indicates a bond between atom indices `i`
+# and `j`, with cell offset `n`. In the general case, it will be necessary to
+# associate atom indices with their positions in the unit cell; these can be
+# viewed with `display(cryst)`. Note that the order of the pair $(i, j)$ is
+# significant if the exchange tensor contains antisymmetric
+# Dzyaloshinskii–Moriya (DM) interactions.
 # 
-# After single-site information, Sunny provides a list of the allowed bilinear
-# interactions on every bond that lies within `max_dist` from the origin of the
-# unit cell. The bond are specified in the following format: Bond(i, j, n). `i`
-# and `j` are a pair of atoms within the unit cell. The number of each site is
-# as given when creating the `Crystal`. Note that the relative order of `i` and
-# `j` is significant when the exchange tensor contains antisymmetric elements,
-# as is the case for Dzyaloshinskii–Moriya interactions. Finally, `n` is a
-# vector of three integers specifying lattice offsets. So `Bond(1, 1, [1,0,0])`
-# specifies a bond between the same atom in two different unit cells, where the
-# cell offset is along the direction of the first lattice vector.
+# As an example, `Bond(1, 1, [1,0,0])` involves an offset of one unit cell in
+# the direction of the first lattice vector. In the case of FeI2, this is one of
+# the 6 nearest-neighbor Fe-Fe bonds on the triangular lattice.
 
 # ### Assigning interactions and anisotropies
-# Bilinear interactions are assigned to bonds with `set_exchange!(sys, J,
-# bond)`, where `J` is an exchange tensor. `J` may be either a number, for
-# simple Heisenberg exchange, or a 3x3 matrix. When `set_exchange!` is called,
-# Sunny will both analyze `J` to ensure that it is symmetry-allowed and then
-# propagate `J`, with appropriate transformations, to all symmetry-equivalent
-# bonds in your `System`.
-#
-# The function to assign a single site anisotropy is similar:
-# `set_anisotropy!(sys, op, i)`. `i` is simply a site rather than a bond. `op`
-# here a polynomial of either spin operators or Stevens operators. Sunny
-# provides special symbols for their construction: `𝒮` is a vector of three
-# symbolic operators, corresponding to 𝒮ˣ, 𝒮ʸ, and 𝒮ᶻ, and `𝒪` is a matrix
-# of symbolic Stevens that takes two indices, corresponding to the traditional
-# $k$ (irrep) and $q$ (row or column) indices of the Stevens tensors. For
-# example, to assign $(S^z)^2$ to our only site, we would call
-# `set_anisotropy!(sys, 𝒮[3]^2, 1)`.
-#
-# The function below combines everything we have learned so far to create a
-# complete model of our FeI2 system.
 
-function FeI2_system(; latsize=(4,4,4), S=1, seed=0)
-    ## Create the system
-    cryst = subcrystal(FeI2_crystal(), "Fe")
-    sys = System(cryst, latsize, [SpinInfo(1; S)], :SUN; seed)
+# The function [`set_exchange!`](@ref) assigns an exchange interaction to a
+# bond, and will propagate the interaction to all symmetry-equivalent bonds in
+# the unit cell. Below we define the FeI2 interactions following Ref. \[1\].
 
-    ## Establish exchange parameters as provided in reference [1]
-    J1pm   = -0.236 
-    J1pmpm = -0.161
-    J1zpm  = -0.261
-    J2pm   = 0.026
-    J3pm   = 0.166
-    J′0pm  = 0.037
-    J′1pm  = 0.013
-    J′2apm = 0.068
-    D      = 2.165
+J1pm   = -0.236 
+J1pmpm = -0.161
+J1zpm  = -0.261
+J2pm   = 0.026
+J3pm   = 0.166
+J′0pm  = 0.037
+J′1pm  = 0.013
+J′2apm = 0.068
 
-    J1zz   = -0.236
-    J2zz   = 0.113
-    J3zz   = 0.211
-    J′0zz  = -0.036
-    J′1zz  = 0.051
-    J′2azz = 0.073
+J1zz   = -0.236
+J2zz   = 0.113
+J3zz   = 0.211
+J′0zz  = -0.036
+J′1zz  = 0.051
+J′2azz = 0.073
 
-    J1xx = J1pm + J1pmpm 
-    J1yy = J1pm - J1pmpm
-    J1yz = J1zpm
+J1xx = J1pm + J1pmpm 
+J1yy = J1pm - J1pmpm
+J1yz = J1zpm
 
-    ## Convert parameters to exchange matrices and make a list of `Js`
-    Js = [
-        [J1xx  0.0   0.0;
-         0.0   J1yy  J1yz;
-         0.0   J1yz  J1zz],
-        [J2pm  0.0  0.0;
-         0.0   J2pm 0.0;
-         0.0   0.0  J2zz],
-        [J3pm   0.0   0.0;
-         0.0    J3pm  0.0;
-         0.0    0.0   J3zz],
-        [J′0pm  0.0   0.0;
-         0.0    J′0pm 0.0;
-         0.0    0.0   J′0zz],
-        [J′1pm  0.0   0.0;
-         0.0    J′1pm 0.0;
-         0.0    0.0   J′1zz],
-        [J′2apm  0.0   0.0;
-         0.0    J′2apm 0.0;
-         0.0    0.0   J′2azz],
-    ]
+set_exchange!(sys, [J1xx   0.0    0.0;
+                    0.0    J1yy   J1yz;
+                    0.0    J1yz   J1zz], Bond(1,1,[1,0,0]))
+set_exchange!(sys, [J2pm   0.0    0.0;
+                    0.0    J2pm   0.0;
+                    0.0    0.0    J2zz], Bond(1,1,[1,2,0]))
+set_exchange!(sys, [J3pm   0.0    0.0;
+                    0.0    J3pm   0.0;
+                    0.0    0.0    J3zz], Bond(1,1,[2,0,0]))
+set_exchange!(sys, [J′0pm  0.0    0.0;
+                    0.0    J′0pm  0.0;
+                    0.0    0.0    J′0zz], Bond(1,1,[0,0,1]))
+set_exchange!(sys, [J′1pm  0.0    0.0;
+                    0.0    J′1pm  0.0;
+                    0.0    0.0    J′1zz], Bond(1,1,[1,0,1]))
+set_exchange!(sys, [J′2apm 0.0    0.0;
+                    0.0    J′2apm 0.0;
+                    0.0    0.0    J′2azz], Bond(1,1,[1,2,1]))
 
-    ## Make a corrresponding list of bonds
-    bonds = [
-        Bond(1,1,[1,0,0]),
-        Bond(1,1,[1,2,0]),
-        Bond(1,1,[2,0,0]),
-        Bond(1,1,[0,0,1]),
-        Bond(1,1,[1,0,1]),
-        Bond(1,1,[1,2,1]),
-    ]
+# The function [`set_anisotropy!`](@ref) assigns a single-ion anisotropy. It
+# takes an abstract operator and an atom index. The operator may be a polynomial
+# of spin operators or a linear combination of Stevens operators. Sunny provides
+# special symbols for their construction: [`𝒮`](@ref) is a vector of the three
+# spin operators and [`𝒪`](@ref) are the symbolic Stevens operators. Here we
+# construct an easy-axis anisotropy.
 
-    ## Assign interactions and anisotropy to the system
-    for (bond, J) in zip(bonds, Js)
-        set_exchange!(sys, J, bond)
-    end
-    set_anisotropy!(sys, -D*𝒮[3]^2, 1)
+D = 2.165
+set_anisotropy!(sys, -D*𝒮[3]^2, 1)
 
-    return sys
-end;
-
-# We can now create a `System` corresponding to our model: 
-
-sys_small = FeI2_system(; latsize=(4,4,4))
+# The function [`print_anisotropy_as_stevens`](@ref) will convert an anisotropy
+# operator to a linear combination of Stevens operators.
 
 # # Calculating a dynamical spin structure factor
 # In the remainder of this tutorial, we will examine Sunny's tools for
 # calculating structure factors using generalized SU(_N_) classical dynamics.
-# This is a Monte Carlo calculation and will require the sampling of many spin
+# This is a Monte Carlo calculation and will require the sampling of spin
 # configurations from the Boltzmann distribution at a particular temperature.
 # These samples are then used to generate dynamical trajectories that are
 # analyzed to produce correlation information, i.e., a dynamical structure
-# factor $\mathcal{S}^{\alpha\beta}(\mathbf{q},\omega)$. To compare results with
-# low-temperature experimental data or spin wave calculations, it is necessary
-# to first identify a ground state of the system. We can then thermalize this
-# ground state with the [`Langevin`](@ref) dynamics to generate sample spin
-# configurations.
+# factor $\mathcal{S}^{\alpha\beta}(\mathbf{q},\omega)$.
 # 
 # ## Finding a ground state
 # 
-# While we will be using Langevin integration to generate sample spin
-# configurations, it is also a powerful tool for optimization, as will now be
-# demonstrated.
+# The [`Langevin`](@ref) dynamics can be used to sample spin configurations in
+# thermal equlibrium.
 
 E0 = 2.165        # Largest energy scale in the Hamiltonian
 Δt = 0.05/E0      # Safe choice for integration step size
-kT = 10.0         # Temperature in meV
 λ = 0.1           # Magnitude of coupling to thermal bath
-langevin = Langevin(Δt, kT, λ);
+langevin = Langevin(Δt, 0, λ);
 
-# The following function will perform simulated annealing according to a list of
-# temperatures and a number of time steps per temperature,
+# Below we use a simulated annealing to find a low-energy configuration. We lower
+# the temperature from `E0` to `0` over `nsteps` of the Langevin dynamics. 
 
-function anneal!(sys, langevin, nsteps, kTs)
-      Es = zeros(length(kTs))           # Buffer to record energy
-      for (i, kT) in enumerate(kTs)
-            langevin.kT = kT            # Set the temperature
-            for _ in 1:nsteps           # Advance the state nsteps
-                step!(sys, langevin)
-            end
-            Es[i] = energy(sys)         # Record the energy
-      end
-      return Es
-end;
-
-# Finally we perform the annealing. 
-
-kT = 10.0                        # Starting temp in meV
-kTs = [kT*0.9^k for k in 0:100]  # Temperature schedule
-nsteps = round(Int, 30.0/Δt)     # Set nsteps to 30.0 meV⁻¹ 
-randomize_spins!(sys_small)      # Set random (infinite temperature) initial condition
-
-Es = anneal!(sys_small, langevin, nsteps, kTs)
-
-for _ in 1:nsteps                # Run at T=0 for a short period
-    step!(sys_small, langevin)
+randomize_spins!(sys)
+nsteps = 10_000
+for kT in range(E0, 0, nsteps)
+    langevin.kT = kT
+    step!(sys, langevin)
 end
 
-# Plotting the energies recorded during the annealing process will help us determined
-# whether the process has converged.
+# The annealed configuration can be visualized with `plot_spins`.
 
-fig = Figure()
-idxs = 1:10:length(kTs)
-xticks = (idxs, [format("{:.3f}",  kTs[i]) for i in idxs])
-ax = Axis(fig[1,1];
-    xlabel = "Temperature (meV)",
-    ylabel = "Total Energy (meV)",
-    xticks
-)
-lines!(ax, Es)
-fig
-
-# It appears that the system has reached at least a local minimum. We will use
-# the function `plot_spins` to examine if the spin configuration matches our
-# prior ideas about what the ground state looks like.
-
-plot_spins(sys_small; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
-
-
-# This is correct, but our spin system is quite small. Because the calculation
-# will be performed on a finite lattice, our resolution in momentum space will be
-# limited by the system size. We will therefore extend the system periodically.
-
-sys = extend_periodically(sys_small, (4,4,1))  # Multiply 1st and 2nd lattice dimensions by 4
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
+# There are likely to be defects in the magnetic order because `nsteps = 10_000`
+# is a relatively fast quench. For this system, repeating the annealing
+# procedure with, say, `nsteps = 100_000` will often yield the correct magnetic
+# order. Let's instead continue with the imperfect one.
+#
+# The zero-field energy-minimizing magnetic structure of FeI$_2$ is known to be
+# single-$q$. If annealing were perfect, then spontaneous symmetry breaking
+# would select one of $±q = [0, -1/4, 1/4]$, $[1/4, 0, 1/4]$, or
+# $[-1/4,1/4,1/4]$. Let us check which modes appear in the static structure
+# factor intensity (for each sublattice independently).
+
+print_dominant_wavevectors(sys)
+
+# If the shape of the magnetic unit supercell is known, then smaller systems can
+# be much easier to anneal. Given a list of $q$ modes, Sunny can suggest an
+# appropriate magnetic supercell, in units of the crystal lattice vectors.
+
+suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
+
+# Reshape the system to the suggested supercell volume.
+
+A = [1 0 0; 0 1 -2; 0 1 2]
+sys_supercell = reshape_volume(sys, A)
+
+# Annealing now becomes much easier.
+
+for kT in range(E0, 0, nsteps)
+    langevin.kT = kT
+    step!(sys_supercell, langevin)
+end
+plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
+
+# Now periodically repeat the annealed magnetic order to a much larger
+# spin-system.
+
+sys_large = repeat_volume(sys_supercell, (10,6,4))  # Three scaling factors
+plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
+
 # ## Calculating the structure factor
-# To get a good equilibrium sample, we will next thermalize the system at a low
-# temperature, again using the Langevin dynamics. The parameters we select below
-# are known to be effective for this model but will need to be determined for
-# each specific case. 
+# Let us now collect statistical data at a fixed temperature of 0.5K. We can
+# use Langevin dynamics to thermalize the system. Note that the required number
+# of time-steps will vary significantly for different systems and thermodynamic
+# conditions.
 
-decorrelation_time = 2.0                    # Time in meV⁻¹ required to get an
-                                            ## uncorrelated sample
-nsteps = round(Int, decorrelation_time/Δt)  # Convert to number of time steps
-kT = 0.5 * Sunny.meV_per_K                  # Set temperature meV equivalent of 0.5 K
-langevin = Langevin(Δt, kT, λ)              # Build Langevin integrator with these parameters
+nsteps = round(Int, 2.0/Δt)     # System-dependent estimate
+kT = 0.5 * meV_per_K            # 0.5K in units of meV
+langevin.kT = kT
 
-for _ in 1:5nsteps                          # Run for sufficient time to thermalize
-    step!(sys, langevin)
-end;
+for _ in 1:5nsteps
+    step!(sys_large, langevin)
+end
 
-# The spins in our system should now represent a good sample at 0.5 K. We can
-# proceed with the calculation by calling `DynamicStructureFactor`. Three
-# keyword parameters are required to determine the ω information that will be
-# calculated: an integration step size, the number of ωs to resolve, and the
+# Using our equilibrated system, we construct [`DynamicStructureFactor`](@ref).
+# Three keyword parameters are required to determine the ω information that will
+# be calculated: an integration step size, the number of ωs to resolve, and the
 # maximum ω to resolve. For the time step, twice the value used for the Langevin
 # integrator is usually a good choice.
 
-sf = DynamicStructureFactor(sys; Δt=2Δt, nω=120, ωmax=7.5);
+sf = DynamicStructureFactor(sys_large; Δt=2Δt, nω=120, ωmax=7.5);
 
 # `sf` currently contains dynamical structure data generated from a single
 # sample. Additional samples can be added by generating a new spin configuration
 # and calling `add_sample!`:
 
 for _ in 1:2
-    for _ in 1:nsteps            # Generate a new sample spin configuration
-        step!(sys, langevin)
+    for _ in 1:nsteps               # Generate a new sample spin configuration
+        step!(sys_large, langevin)
     end
-    add_sample!(sf, sys)         # Accumulate the sample into `sf`
+    add_sample!(sf, sys_large)      # Accumulate the sample into `sf`
 end;
 
 # ## Accessing structure factor data 
-# The basic function for accessing intensity data is `intensities`, which, in
-# addition to the structure factor data itself, takes a list of wave vectors and
-# a mode parameter. The options for the mode parameter are `:trace`, `:perp` and
-# `:full` which return, respectively, the trace, the unpolarized intensity, and
-# the full set of matrix elements (correlations of spin components) at the
-# specified wave vectors. For example, we can plot two single-Q slices as
-# follows. 
+# The basic function for accessing intensity data is [`intensities`](@ref),
+# which, in addition to the structure factor data itself, takes a list of wave
+# vectors and a mode parameter. The options for the mode parameter are `:trace`,
+# `:perp` and `:full` which return, respectively, the trace, the unpolarized
+# intensity, and the full set of matrix elements (correlations of spin
+# components) at the specified wave vectors. For example, we can plot two
+# single-$q$ slices as follows. 
 
 qs = [[0, 0, 0], [0.5, 0.5, 0.5]]
 is = intensities(sf, qs, :trace; kT)

@@ -1,4 +1,4 @@
-## TODO: Add MetropolisSampler to the tests below
+## TODO: Add LocalSampler to the tests below
 
 @testitem "Anisotropy" begin
     
@@ -227,29 +227,4 @@ end
     end
 
     test_spin_chain_energy()
-end
-
-
-@testitem "Get/set temp" begin
-
-    # Tests that set_temp!/get_temp behave as expected
-    function test_set_get_temp()
-        cryst = Sunny.diamond_crystal()
-        sys = System(cryst, (5, 5, 5), [SpinInfo(1, S=1)], :dipole; seed=0)
-
-        samplers = [
-            MetropolisSampler(sys, 1.0, 1),
-            IsingSampler(sys, 1.0, 1),
-        ]
-        for sampler in samplers
-            @test get_temp(sampler) ≈ 1.0
-
-            kT = 1.8
-            set_temp!(sampler, kT)
-            # approximate because `sampler` stores 1/kT
-            @test get_temp(sampler) ≈ kT
-        end
-    end
-
-    test_set_get_temp()
 end
