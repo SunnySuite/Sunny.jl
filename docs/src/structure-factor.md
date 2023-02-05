@@ -85,10 +85,9 @@ Upon constructing `DynamicStructureFactor`, classical spin dynamics will be
 performed, and spin correlation data will be accumulated into $𝒮^{αβ}(𝐪,ω)$.
 The input `sys` must be a spin configuration in good thermal equilibrium, e.g.,
 using the continuous [`Langevin`](@ref) dynamics or using single spin flip
-trials with [`MetropolisSampler`](@ref) or [`IsingSampler`](@ref). The
-statistical quality of the $𝒮^{αβ}(𝐪,ω)$ can be improved by generating a
-decorrelated spin configuration in `sys`, and then calling
-[`add_sample!(structure_factor, sys)`](@ref).
+trials with [`LocalSampler`](@ref). The statistical quality of the
+$𝒮^{αβ}(𝐪,ω)$ can be improved by generating a decorrelated spin configuration
+in `sys`, and then calling [`add_sample!(structure_factor, sys)`](@ref).
 
 The outline of typical use case might look like this:
 ```

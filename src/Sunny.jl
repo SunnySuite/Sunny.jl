@@ -62,7 +62,7 @@ include("System/SingleIonAnisotropies.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, polarize_spins!, randomize_spins!, energy, forces,
-    extend_periodically, resize_to_supercell,
+    repeat_volume, reshape_volume,
     set_external_field!, set_anisotropy!,
     set_exchange!, set_exchange_with_biquadratic!, dmvec,
     enable_dipole_dipole!,
@@ -73,9 +73,7 @@ include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!
 
 include("Samplers.jl")
-export MetropolisSampler, IsingSampler,
-    set_temp!, get_temp, sample!, thermalize!, anneal!
-    # running_energy, running_mag, reset_running_energy!, reset_running_mag!
+export temperature_schedule, anneal!, propose_uniform, propose_flip, propose_delta, propose_mix, LocalSampler
 
 include("StructureFactors/StructureFactors.jl")
 include("StructureFactors/SFUtils.jl")

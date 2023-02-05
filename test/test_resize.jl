@@ -11,7 +11,7 @@
     for idx in Sunny.all_sites(sys)
         row = idx[2]
         dir = [1, 0, 2mod(row, 2) - 1]
-        Sunny.setspin!(sys, Sunny.dipolarspin(sys, dir, idx), idx)
+        Sunny.setspin!(sys, Sunny.dipolarspin(sys, idx, dir), idx)
     end
 
     capt = IOCapture.capture() do
@@ -38,8 +38,8 @@
 
     A1 = [1 0 0; 0 2 0; 0 0 1]
     A2 = [1 0 0; 1 2 0; 0 0 1]
-    newsys1 = resize_to_supercell(sys, A1)
-    newsys2 = resize_to_supercell(sys, A2)
+    newsys1 = reshape_volume(sys, A1)
+    newsys2 = reshape_volume(sys, A2)
 
     @test energy(sys) / prod(sys.latsize) ≈ 2.55
     @test energy(newsys1) / prod(newsys1.latsize) ≈ 2.55
