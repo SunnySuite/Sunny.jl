@@ -85,7 +85,7 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     if isnothing(sys.origin)
         print(io, "Cell size ")
     else
-        print(io, "(Reshaped) cell size ")
+        print(io, "Reshaped cell $(cell_dimensions(sys)), Size ")
     end
     println(io, "$(nbasis(sys.crystal)), Lattice size $(sys.latsize)")
 end
@@ -243,7 +243,7 @@ function position_to_site(sys::System, r::Vec3)
 end
 
 """
-    reshape_volume(sys::System, A)
+    reshape_geometry(sys::System, A)
 
 Maps an existing [`System`](@ref) to a new one that has the shape and
 periodicity of a requested supercell. The columns of the ``3×3`` integer matrix
@@ -257,7 +257,7 @@ operations will be unavailable for this system, e.g., setting interactions by
 symmetry propagation. In practice, one can set all interactions using the
 original system, and then reshape as a final step.
 """
-function reshape_volume(sys::System{N}, A) where N
+function reshape_geometry(sys::System{N}, A) where N
     # latsize for new system
     new_latsize = NTuple{3, Int}(gcd.(eachcol(A)))
     # Unit cell for new system, in units of original unit cell. Obtained by
@@ -368,31 +368,58 @@ function reshape_volume(sys::System{N}, A) where N
         enable_dipole_dipole!(new_sys)
     end
 
-    new_sys
+    return new_sys
+end
+
+# Dimensions of a possibly reshaped unit cell, given in multiples of the
+# original unit cell.
+function cell_dimensions(sys)
+    if isnothing(sys.origin)
+        return [1 0 0; 0 1 0; 0 0 1]
+    else
+        supercell_vecs = sys.crystal.lat_vecs * diagm(collect(sys.latsize))
+        A = sys.origin.crystal.lat_vecs \ supercell_vecs
+        @assert norm(A - round.(A)) < 1e-12
+        return round.(Int, A)
+    end
 end
 
 """
-    repeat_volume(sys::System{N}, counts) where N
+    resize_periodically(sys::System{N}, latsize) where N
+
+Creates a [`System`](@ref) identical to `sys` but enlarged to a given number of
+unit cells in each lattice vector direction.
+
+An error will be thrown if `sys` is incommensurate with `latvecs`. Use
+[`reshape_geometry`](@ref) instead to reduce the volume, or to perform an
+incommensurate reshaping.
+"""
+function resize_periodically(sys::System{N}, latsize::NTuple{3,Int}) where N
+    # Dimensions of the full system, in multiples of the original unit cell.
+    sysdims = cell_dimensions(sys) * diagm(collect(sys.latsize))
+    # Verify that `sysdims` is commensurate with proposed latsize -- each column
+    # of `sysdims` should evenly divide `latsize`, element-by-element.
+    nrows, ncols = size(sysdims)
+    for i = 1:nrows, j = 1:ncols
+        n = sysdims[i,j]
+        if !iszero(n) && !is_approx_integer(latsize[i]/n; atol=1e-12)
+            error("Incommensurate system size.")
+        end
+    end
+    return reshape_geometry(sys, diagm(collect(latsize)))
+end
+
+"""
+    repeat_periodically(sys::System{N}, counts) where N
 
 Creates a [`System`](@ref) identical to `sys` but repeated a given number of
 times in each dimension, specified by the tuple `counts`.
 """
-function repeat_volume(sys::System{N}, counts) where N
+function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
     counts = NTuple{3,Int}(counts)
     @assert all(>=(1), counts)
-
-    if isnothing(sys.origin)
-        A = diagm(collect(counts .* sys.latsize))
-    else
-        # Reconstruct previous supercell matrix
-        supercell_vecs = sys.crystal.lat_vecs * diagm(collect(sys.latsize))
-        A = sys.origin.crystal.lat_vecs \ supercell_vecs
-        @assert norm(A - round.(A)) < 1e-12
-        # Scale by `counts` in each dimension
-        A = round.(Int, A) * diagm(collect(counts))
-    end
-
-    reshape_volume(sys, A)
+    # Scale each column by `counts` and reshape
+    return reshape_geometry(sys, cell_dimensions(sys) * diagm(collect(counts)))
 end
 
 

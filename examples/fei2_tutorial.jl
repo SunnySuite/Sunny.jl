@@ -27,9 +27,8 @@ using Sunny, LinearAlgebra, GLMakie
 
 
 # ## Crystals and symmetry analysis
-# One begins by constructing a [`Crystal`](@ref) that describes the
-# crystallographic unit cell. Frequently, the crystal will be loaded from a
-# `.cif` file. Below, we construct the crystal by providing a full list of all
+# A [`Crystal`](@ref) describes the crystallographic unit cell and will usually
+# be loaded from a `.cif` file. Here, we instead build a crystal by listing all
 # atoms in the conventional unit cell.
 
 a = b = 4.05012  # Lattice constants for triangular lattice
@@ -42,8 +41,7 @@ basis_vecs = [[0,0,0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]  # Positions of atoms i
 types = ["Fe", "I", "I"]
 FeI2 = Crystal(lat_vecs, basis_vecs; types)
 
-# Observe that Sunny indentified the correct space group, 'P -3 m 1' (164), in
-# agreement with Ref. \[1\].
+# Observe that Sunny indentified the correct space group, 'P -3 m 1' (164).
 
 #nb # An interactive viewer of the crystal and its bonds is available for Jupyter notebooks.
 #nb view_crystal(FeI2, 8.0)
@@ -58,18 +56,17 @@ cryst = subcrystal(FeI2, "Fe")
 # exchange interactions by symmetry.
 
 # ## Spin systems
-# The FeI2 unit cell contains only a single Fe atom. To simulate a system of
-# many spins, construct a [`System`](@ref).
+# To simulate a system of many spins, construct a [`System`](@ref).
 
 sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN, seed=0)
 
-# This system includes $4×4×4$ unit cells, i.e. 64 spin moments, each with spin
+# Our system includes $4×4×4$ unit cells, i.e. 64 spin moments, each with spin
 # $S=1$. The default $g$-factor is 2, but this could be overriden with an
-# additional argument to [`SpinInfo`](@ref). Recall that spin-1 has $N=2S+1=3$
-# distinct angular momentum states. Because we selected `:SUN` mode, Sunny will
-# simulate the dynamics of SU(3) coherent states, which includes both dipolar
-# and quadrupolar fluctuations. For the more traditional dipole dynamics, use
-# mode `:dipole` instead.
+# additional argument to [`SpinInfo`](@ref). Each spin-1 has $N=2S+1=3$ distinct
+# angular momentum states. In `:SUN` mode, these spins will be modeled using the
+# dynamics of SU(3) coherent states, which includes both dipolar and quadrupolar
+# fluctuations. For the more traditional dipole dynamics, use `:dipole` mode
+# instead.
 
 # ## Interactions and anisotropies
 
@@ -101,7 +98,7 @@ print_symmetry_table(cryst, 8.0)
 
 # The function [`set_exchange!`](@ref) assigns an exchange interaction to a
 # bond, and will propagate the interaction to all symmetry-equivalent bonds in
-# the unit cell. Below we define the FeI2 interactions following Ref. \[1\].
+# the unit cell. The FeI2 interactions below follow Ref. [1].
 
 J1pm   = -0.236 
 J1pmpm = -0.161
@@ -152,19 +149,18 @@ set_exchange!(sys, [J′2apm 0.0    0.0;
 D = 2.165
 set_anisotropy!(sys, -D*𝒮[3]^2, 1)
 
-# The function [`print_anisotropy_as_stevens`](@ref) will convert an anisotropy
-# operator to a linear combination of Stevens operators.
+# Any ansotropy operator can be converted to a linear combination of Stevens
+# operators with [`print_anisotropy_as_stevens`](@ref).
 
 # # Calculating a dynamical spin structure factor
 # In the remainder of this tutorial, we will examine Sunny's tools for
 # calculating structure factors using generalized SU(_N_) classical dynamics.
-# This is a Monte Carlo calculation and will require the sampling of spin
-# configurations from the Boltzmann distribution at a particular temperature.
-# These samples are then used to generate dynamical trajectories that are
-# analyzed to produce correlation information, i.e., a dynamical structure
-# factor $\mathcal{S}^{\alpha\beta}(\mathbf{q},\omega)$.
+# This will involve sampling of the spin configurations from the Boltzmann
+# distribution at a finite temperature. Dynamical trajectories will then be used
+# to estimate the finite-temperature structure factor
+# $\mathcal{S}^{\alpha\beta}(\mathbf{q},\omega)$.
 # 
-# ## Finding a ground state
+# ## Simulated annealing
 # 
 # The [`Langevin`](@ref) dynamics can be used to sample spin configurations in
 # thermal equlibrium.
@@ -174,8 +170,8 @@ E0 = 2.165        # Largest energy scale in the Hamiltonian
 λ = 0.1           # Magnitude of coupling to thermal bath
 langevin = Langevin(Δt, 0, λ);
 
-# Below we use a simulated annealing to find a low-energy configuration. We lower
-# the temperature from `E0` to `0` over `nsteps` of the Langevin dynamics. 
+# Search for a low-energy spin configuration by lowering the temperature from
+# `E0` to `0` over `nsteps` of Langevin dynamics. 
 
 randomize_spins!(sys)
 nsteps = 10_000
@@ -188,18 +184,19 @@ end
 
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# There are likely to be defects in the magnetic order because `nsteps = 10_000`
-# is a relatively fast quench. Repeating the annealing procedure with, say,
-# `nsteps = 100_000` would likely yield the correct magnetic order. Let's
-# instead continue with the imperfect one.
+# The annealed magnetic order contains defects. To fix this, we could repeat the
+# patient annealing procedure using many more time-steps. Instead, let's analyze
+# the imperfect spin configuration stored in `sys`.
 #
-# The zero-field energy-minimizing magnetic structure of FeI$_2$ is known to be
-# single-$q$. If annealing were perfect, then spontaneous symmetry breaking
-# would select one of $±q = [0, -1/4, 1/4]$, $[1/4, 0, 1/4]$, or
-# $[-1/4,1/4,1/4]$. Let us check which modes appear in the static structure
-# factor intensity (for each sublattice independently).
+# The function [`print_dominant_wavevectors`](@ref) orders wavevectors by their
+# contributions to the static structure factor intensity (1st BZ only).
 
 print_dominant_wavevectors(sys)
+
+# The above is consistent with known results. The zero-field energy-minimizing
+# magnetic structure of FeI$_2$ is single-$q$. If annealing were perfect, then
+# spontaneous symmetry breaking would select one of $±q = [0, -1/4, 1/4]$,
+# $[1/4, 0, 1/4]$, or $[-1/4,1/4,1/4]$.
 
 # Let's break the symmetry by hand. Given a list of $q$ modes, Sunny can suggest
 # a magnetic supercell with appropriate periodicity. The result is printed in
@@ -207,23 +204,23 @@ print_dominant_wavevectors(sys)
 
 suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
 
-# After reshaping the system to the suggested supercell volume, it becomes much
-# easier to relax the spin configuration.
+# The function [`reshape_geometry`](@ref) allows an arbitrary reshaping of the
+# system. Using the supercell geometry makes it much easier to find the
+# energy-minimizing spin configuration.
 
-A = [1 0 0; 0 1 -2; 0 1 2]
-sys_supercell = reshape_volume(sys, A)
+sys_supercell = reshape_geometry(sys, [1 0 0; 0 1 -2; 0 1 2])
 
-randomize_spins!(sys_supercell)
 langevin.kT = 0
-for i in 1:nsteps
+for i in 1:10_000
     step!(sys_supercell, langevin)
 end
 
 plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# We can now extend this magnetic supercell to a much larger simulation volume.
+# We can now resize the magnetic supercell to a much larger simulation volume,
+# provided as multiples of the original unit cell.
 
-sys_large = reshape_volume(sys_supercell, diagm([16,16,4]))
+sys_large = resize_periodically(sys_supercell, (16,16,4))
 plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 # ## Calculating the structure factor
@@ -231,11 +228,10 @@ plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 # number of time-steps required to decorrelate may vary significantly for
 # different systems and thermodynamic conditions.
 
-nsteps_decorr = round(Int, 2.0/Δt)     # System-dependent estimate
-kT = 0.5 * meV_per_K            # 0.5K in units of meV
+kT = 0.5 * meV_per_K     # 0.5K in units of meV
 langevin.kT = kT
 
-for _ in 1:5nsteps_decorr
+for _ in 1:10_000
     step!(sys_large, langevin)
 end
 
@@ -252,10 +248,10 @@ sf = DynamicStructureFactor(sys_large; Δt=2Δt, nω=120, ωmax=7.5);
 # and calling `add_sample!`:
 
 for _ in 1:2
-    for _ in 1:nsteps_decorr        # Generate a new sample spin configuration
+    for _ in 1:1000               # Fewer steps needed in equilibrium
         step!(sys_large, langevin)
     end
-    add_sample!(sf, sys_large)      # Accumulate the sample into `sf`
+    add_sample!(sf, sys_large)    # Accumulate the sample into `sf`
 end
 
 # ## Accessing structure factor data 

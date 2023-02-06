@@ -38,15 +38,15 @@
 
     A1 = [1 0 0; 0 2 0; 0 0 1]
     A2 = [1 0 0; 1 2 0; 0 0 1]
-    newsys1 = reshape_volume(sys, A1)
-    newsys2 = reshape_volume(sys, A2)
+    newsys1 = reshape_geometry(sys, A1)
+    newsys2 = reshape_geometry(sys, A2)
 
     @test energy(sys) / prod(sys.latsize) ≈ 2.55
     
-    newsys = reshape_volume(sys, A1)
+    newsys = reshape_geometry(sys, A1)
     @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
-    newsys = reshape_volume(sys, A2)
+    newsys = reshape_geometry(sys, A2)
     @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
-    newsys = reshape_volume(sys, A1)
+    newsys = reshape_geometry(sys, A1)
     @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
 end

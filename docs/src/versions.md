@@ -58,13 +58,19 @@ interface, see the [Structure Factor Calculations](@ref) page.
 
 ### Various
 
+* `repeat_periodically()` replaces `extend_periodically`.
+
+Additional related functions include `resize_periodically` and
+`reshape_geometry`, the latter being fundamental.
+
 * `print_symmetry_table()` replaces `print_bond_table()`.
 
 The new function includes the list of symmetry-allowed single ion anisotropies
 in addition to exchange interactions.
 
 
-* When reading CIF files, the field `_atom_site_label` is now used in place of the field `_atom_site_type_symbol`.
+* When reading CIF files, the field `_atom_site_label` is now used in place of
+  the field `_atom_site_type_symbol`.
 
 This is required for correctness. The field `_atom_site_label` is guaranteed to
 be present, and is guaranteed to be a distinct label for each
