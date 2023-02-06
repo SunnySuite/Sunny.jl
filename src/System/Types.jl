@@ -42,6 +42,7 @@ mutable struct Interactions
 end
 
 struct System{N}
+    origin           :: Union{Nothing, System{N}}
     mode             :: Symbol
     crystal          :: Crystal
     latsize          :: NTuple{3, Int}            # Size of lattice in unit cells

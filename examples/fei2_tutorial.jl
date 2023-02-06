@@ -22,7 +22,7 @@
 # path`, you can install the package by entering `using Pkg; pkg"add X"` in the
 # Julia REPL.
 
-using Sunny, GLMakie
+using Sunny, LinearAlgebra, GLMakie
 #nb Sunny.offline_viewers()  # Inject Javascript code for additional plotting capabilities 
 
 
@@ -48,7 +48,7 @@ FeI2 = Crystal(lat_vecs, basis_vecs; types)
 #nb # An interactive viewer of the crystal and its bonds is available for Jupyter notebooks.
 #nb view_crystal(FeI2, 8.0)
 
-# Only the Fe atoms are magnetic, so we should discard the I ions using
+# Only the Fe atoms are magnetic, so we discard the I ions using
 # [`subcrystal`](@ref).
 
 cryst = subcrystal(FeI2, "Fe")
@@ -188,9 +188,9 @@ end
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 # There are likely to be defects in the magnetic order because `nsteps = 10_000`
-# is a relatively fast quench. For this system, repeating the annealing
-# procedure with, say, `nsteps = 100_000` will often yield the correct magnetic
-# order. Let's instead continue with the imperfect one.
+# is a relatively fast quench. Repeating the annealing procedure with, say,
+# `nsteps = 100_000` would likely yield the correct magnetic order. Let's
+# instead continue with the imperfect one.
 #
 # The zero-field energy-minimizing magnetic structure of FeI$_2$ is known to be
 # single-$q$. If annealing were perfect, then spontaneous symmetry breaking
@@ -219,10 +219,9 @@ for kT in range(E0, 0, nsteps)
 end
 plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# Now periodically repeat the annealed magnetic order to a much larger
-# spin-system.
+# Now periodically extend the system volume to $8×8×6$ unit cells.
 
-sys_large = repeat_volume(sys_supercell, (10,6,4))  # Three scaling factors
+sys_large = reshape_volume(sys_supercell, diagm([8,8,6]))
 plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 # ## Calculating the structure factor
@@ -256,7 +255,7 @@ for _ in 1:2
         step!(sys_large, langevin)
     end
     add_sample!(sf, sys_large)      # Accumulate the sample into `sf`
-end;
+end
 
 # ## Accessing structure factor data 
 # The basic function for accessing intensity data is [`intensities`](@ref),

@@ -42,6 +42,11 @@
     newsys2 = reshape_volume(sys, A2)
 
     @test energy(sys) / prod(sys.latsize) ≈ 2.55
-    @test energy(newsys1) / prod(newsys1.latsize) ≈ 2.55
-    @test energy(newsys2) / prod(newsys2.latsize) ≈ 2.55
+    
+    newsys = reshape_volume(sys, A1)
+    @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
+    newsys = reshape_volume(sys, A2)
+    @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
+    newsys = reshape_volume(sys, A1)
+    @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
 end
