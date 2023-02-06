@@ -9,7 +9,7 @@ function calc_intensity(sf::StructureFactor, k, latidx, ω, iω, contractor, kT,
     return intensity * classical_to_quantum(ω, kT)
 end
 
-classical_to_quantum(ω, kT::Float64) = iszero(ω) ? 1.0 : ω/(kT*(1 - exp(-ω/kT)))
+classical_to_quantum(ω, kT::Float64) = iszero(ω) ? 0.0 : ω/(kT*(1 - exp(-ω/kT)))
 classical_to_quantum(ω, ::Nothing) = 1.0
 
 
