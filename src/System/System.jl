@@ -27,6 +27,9 @@ development of new models.
 The default units system of (meV, Å, tesla) can be overridden by with the
 `units` parameter; see [`Units`](@ref). 
 
+An optional `seed` may be provided to achieve reproducible random number
+generation.
+
 All spins are initially polarized in the ``z``-direction.
 """
 function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
@@ -398,13 +401,17 @@ wavevec_str(q) = "["*join(number_to_math_string.(q), ", ")*"]"
 """
     print_dominant_wavevectors(sys::System; nmax=10)
 
-Prints a list of wavevectors in the first Brillouin zone according to their
-contributions to the structure factor weights, accumulated over individual
-sublattices. Coordinates are measured in units of reciprocal lattice vectors.
-These dominant wavevectors may be used as input to
-[`suggest_magnetic_supercell`](@ref). Unlike in [`static_intensities`](@ref),
-here the structure factor weights do not incorporate phase averaging between the
-sublattices.
+Prints a list of wavevectors according to their weights in the static structure
+factor. Coordinates are given in units of reciprocal lattice vectors. These
+dominant wavevectors may be used as input to
+[`suggest_magnetic_supercell`](@ref).
+
+Unlike in [`static_intensities`](@ref), here the structure factor weights do not
+incorporate phase averaging between sublattices. Instead, intensities are
+calculated for each sublattice independently, and naïvely summed. This means
+that wavevectors beyond the first Brillouin zone will be missing. If the system
+has been reshaped using [`reshape_volume`](@ref), then modes may be missing even
+within the first BZ.
 """
 function print_dominant_wavevectors(sys::System{N}; nmax=10) where N
     s = reinterpret(reshape, Float64, sys.dipoles)
