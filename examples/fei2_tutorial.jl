@@ -61,7 +61,7 @@ cryst = subcrystal(FeI2, "Fe")
 # The FeI2 unit cell contains only a single Fe atom. To simulate a system of
 # many spins, construct a [`System`](@ref).
 
-sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN)
+sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN, seed=0)
 
 # This system includes $4×4×4$ unit cells, i.e. 64 spin moments, each with spin
 # $S=1$. The default $g$-factor is 2, but this could be overriden with an
@@ -201,26 +201,30 @@ plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 print_dominant_wavevectors(sys)
 
-# If the shape of the magnetic unit supercell is known, then smaller systems can
-# be much easier to anneal. Given a list of $q$ modes, Sunny can suggest an
-# appropriate magnetic supercell, in units of the crystal lattice vectors.
+# Let's break the symmetry by hand. Given a list of $q$ modes, Sunny can suggest
+# a magnetic supercell with appropriate periodicity. The result is printed in
+# units of the crystal lattice vectors.
 
 suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
 
-# Reshape the system to the suggested supercell volume and anneal.
+# After reshaping the system to the suggested supercell volume, it becomes much
+# easier to relax the spin configuration.
 
 A = [1 0 0; 0 1 -2; 0 1 2]
 sys_supercell = reshape_volume(sys, A)
 
-for kT in range(E0, 0, nsteps)
-    langevin.kT = kT
+randomize_spins!(sys_supercell)
+langevin.kT = 0
+for i in 1:nsteps
     step!(sys_supercell, langevin)
 end
+
 plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# Now periodically extend the system volume to $8×8×6$ unit cells.
+# Now periodically repeat the system volume to include $8×8×4$ copies of the
+# relaxed magnetic supercell.
 
-sys_large = reshape_volume(sys_supercell, diagm([8,8,6]))
+sys_large = repeat_volume(sys_supercell, (8,8,4))
 plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 # ## Calculating the structure factor
