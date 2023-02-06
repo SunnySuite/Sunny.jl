@@ -263,7 +263,10 @@ function reshape_geometry(sys::System{N}, A) where N
     # Unit cell for new system, in units of original unit cell. Obtained by
     # dividing each column of A by corresponding new_latsize component.
     new_cell_size = Int.(A / diagm(collect(new_latsize)))
-    
+    return reshape_geometry_aux(sys, new_latsize, new_cell_size)
+end
+
+function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_size::Matrix{Int}) where N
     # Reuse `origin` system if present
     origin = isnothing(sys.origin) ? sys : sys.origin
 
