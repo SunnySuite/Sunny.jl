@@ -62,7 +62,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = System(mode, crystal, latsize, Ns, gs, κs, interactions, dipoles, coherents,
+    ret = System(nothing, mode, crystal, latsize, Ns, gs, κs, interactions, dipoles, coherents,
                     dipole_buffers, coherent_buffers, units, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
@@ -84,7 +84,7 @@ end
 
 
 function clone_spin_state(sys::System{N}) where N
-    System(sys.mode, sys.crystal, sys.latsize, sys.Ns, sys.gs, sys.κs, sys.interactions,
+    System(sys.origin, sys.mode, sys.crystal, sys.latsize, sys.Ns, sys.gs, sys.κs, sys.interactions,
         copy(sys.dipoles), copy(sys.coherents), sys.dipole_buffers, sys.coherent_buffers,
         sys.units, copy(sys.rng))
 end
@@ -235,19 +235,19 @@ function position_to_site(sys::System, r::Vec3)
 end
 
 """
-    reshape_volume(sys::System; A)
+    reshape_volume(sys::System, A)
 
-Maps an existing system to a new one that has the shape and periodicity of a
-requested supercell. The columns of the ``3×3`` integer matrix `A` represent the
-supercell lattice vectors measured in units of the original crystal lattice
-vectors, `sys.crystal.lat_vecs`.
+Maps an existing [`System`](@ref) to a new one that has the shape and
+periodicity of a requested supercell. The columns of the ``3×3`` integer matrix
+`A` represent the supercell lattice vectors measured in units of the original
+crystal lattice vectors.
 
-The unit cell may need to be reshaped to achieve the desired periodicity of the
-requested supercell. If this is the case, the `crystal` field of the returned
+The crystal unit cell may also need to be reshaped to achieve the desired
+periodicity of the requested supercell. If this is the case, the returned
 `System` object will be missing symmetry information. Consequently, certain
 operations will be unavailable for this system, e.g., setting interactions by
 symmetry propagation. In practice, one can set all interactions using the
-original system with a conventional unit cell, and then resize as a final step.
+original system, and then reshape as a final step.
 """
 function reshape_volume(sys::System{N}, A) where N
     # latsize for new system
@@ -256,65 +256,97 @@ function reshape_volume(sys::System{N}, A) where N
     # dividing each column of A by corresponding new_latsize component.
     new_cell_size = Int.(A / diagm(collect(new_latsize)))
     
-    cryst = sys.crystal
-    new_cryst = resize_crystal(cryst, Mat3(new_cell_size))
-    new_nb = nbasis(new_cryst)
+    # Reuse `origin` system if present
+    origin = isnothing(sys.origin) ? sys : sys.origin
 
-    # Matrix that maps from fractional positions in new_cryst to fractional
-    # positions in cryst
-    to_orig_pos = cryst.lat_vecs \ new_cryst.lat_vecs
-    # Inverse mapping
-    to_new_pos = inv(to_orig_pos)
+    # If `new_cell_size == I`, we can effectively restore the `origin` system,
+    # but with `new_latsize`
+    if new_cell_size == I
+        new_cryst = origin.crystal
+        new_nb = nbasis(new_cryst)
 
-    new_Ns               = zeros(Int, new_nb)
-    new_gs               = zeros(Mat3, new_nb)
-    new_κs               = zeros(Float64, new_latsize..., new_nb)
-    new_ints             = Interactions(new_nb, new_latsize, N)
-    new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
-    new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
-    new_dipole_buffers   = Array{Vec3, 4}[]
-    new_coherent_buffers = Array{CVec{N}, 4}[]
+        new_κs               = zeros(Float64, new_latsize..., new_nb)
+        new_ints             = Interactions(new_nb, new_latsize, N)
+        new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
+        new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
+        new_dipole_buffers   = Array{Vec3, 4}[]
+        new_coherent_buffers = Array{CVec{N}, 4}[]
+        new_rng              = copy(sys.rng)
+        new_sys = System(nothing, origin.mode, origin.crystal, new_latsize, origin.Ns, origin.gs, new_κs, new_ints,
+                         new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, new_rng)
 
-    new_sys = System(sys.mode, new_cryst, new_latsize, new_Ns, new_gs, new_κs, new_ints, new_dipoles, new_coherents,
-                    new_dipole_buffers, new_coherent_buffers, sys.units, copy(sys.rng))
+        # Interactions defined for the unit cell can be reused
+        new_ints.anisos = origin.interactions.anisos
+        new_ints.pairexch = origin.interactions.pairexch
+    
+    # Else we must rebuild the unit cell for the new crystal
+    else
+        new_cryst = resize_crystal(origin.crystal, Mat3(new_cell_size))
+        new_nb = nbasis(new_cryst)
+        
+        new_Ns               = zeros(Int, new_nb)
+        new_gs               = zeros(Mat3, new_nb)
+        new_κs               = zeros(Float64, new_latsize..., new_nb)
+        new_ints             = Interactions(new_nb, new_latsize, N)
+        new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
+        new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
+        new_dipole_buffers   = Array{Vec3, 4}[]
+        new_coherent_buffers = Array{CVec{N}, 4}[]
+        new_rng              = copy(sys.rng)
+        
+        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_gs, new_κs, new_ints,
+                        new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, new_rng)
+        
+        # Matrix that maps from fractional positions in `new_cryst` to fractional
+        # positions in `cryst`
+        to_orig_pos = origin.crystal.lat_vecs \ new_cryst.lat_vecs
+        # Inverse mapping
+        to_new_pos = inv(to_orig_pos)
 
-    # Copy unit cell quantities
-    for new_i in 1:new_nb
-        new_ri = new_cryst.positions[new_i]
-        i = position_to_index(cryst, to_orig_pos * new_ri)
+        # Copy unit cell quantities from `origin`
+        for new_i in 1:new_nb
+            new_ri = new_cryst.positions[new_i]
+            i = position_to_index(origin.crystal, to_orig_pos * new_ri)
 
-        # Spin descriptors
-        new_sys.Ns[new_i] = sys.Ns[i]
-        new_sys.gs[new_i] = sys.gs[i]
+            # Spin descriptors
+            new_sys.Ns[new_i] = origin.Ns[i]
+            new_sys.gs[new_i] = origin.gs[i]
 
-        # Anisotropies
-        new_sys.interactions.anisos[new_i] = sys.interactions.anisos[i]
+            # Anisotropies
+            new_sys.interactions.anisos[new_i] = origin.interactions.anisos[i]
 
-        # Pair exchanges
-        function map_pair_interactions(new_exch::Vector{Tuple{Bool,Bond,T}}, exch::Vector{Tuple{Bool,Bond,T}}) where T
-            empty!(new_exch)
-            for (_, bond, J) in exch
-                disp = cryst.positions[bond.j] + bond.n - cryst.positions[bond.i]
-                new_rj = new_ri + to_new_pos * disp
-                new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
-                new_bond = Bond(new_i, new_j, new_n)
-                isculled = bond_parity(new_bond)
-                push!(new_exch, (isculled, new_bond, J))
+            # Pair exchanges
+            function map_pair_interactions!(new_exch::Vector{Tuple{Bool,Bond,T}}, exch::Vector{Tuple{Bool,Bond,T}}) where T
+                empty!(new_exch)
+                for (_, bond, J) in exch
+                    disp = origin.crystal.positions[bond.j] + bond.n - origin.crystal.positions[bond.i]
+                    new_rj = new_ri + to_new_pos * disp
+                    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
+                    new_bond = Bond(new_i, new_j, new_n)
+                    isculled = bond_parity(new_bond)
+                    push!(new_exch, (isculled, new_bond, J))
+                end
+                sort!(new_exch, by=first)
             end
-            sort!(new_exch, by=first)
-        end
 
-        new_exchs = new_sys.interactions.pairexch[new_i]
-        exchs = sys.interactions.pairexch[i]
-        map_pair_interactions(new_exchs.heisen, exchs.heisen)
-        map_pair_interactions(new_exchs.quadmat, exchs.quadmat)
-        map_pair_interactions(new_exchs.biquad, exchs.biquad)
+            new_exchs = new_sys.interactions.pairexch[new_i]
+            exchs = origin.interactions.pairexch[i]
+            map_pair_interactions!(new_exchs.heisen, exchs.heisen)
+            map_pair_interactions!(new_exchs.quadmat, exchs.quadmat)
+            map_pair_interactions!(new_exchs.biquad, exchs.biquad)
+        end
     end
 
-    # Copy per-site quantities
+    # Copy per-site quantities from `sys` (not `origin!`)
     for new_idx in all_sites(new_sys)
-        new_ri = new_cryst.positions[new_idx[4]] .+ (new_idx[1], new_idx[2], new_idx[3])
-        idx = position_to_site(sys, to_orig_pos * new_ri)
+        # Calculate `idx` into `sys` that corresponds to `new_idx` into
+        # `new_sys`. Start with the position `new_r` in fractional coordinates
+        # of `new_crystal`. Convert this to `r` in fractional coordinates of
+        # `sys.crystal`. Finally, convert `r` to an `idx`.
+        new_r = new_cryst.positions[new_idx[4]] .+ (new_idx[1], new_idx[2], new_idx[3])
+        r = sys.crystal.lat_vecs \ new_cryst.lat_vecs * new_r
+        idx = position_to_site(sys, r)
+
         new_sys.κs[new_idx] = sys.κs[idx]
         new_sys.dipoles[new_idx] = sys.dipoles[idx]
         new_sys.coherents[new_idx] = sys.coherents[idx]
@@ -332,15 +364,27 @@ function reshape_volume(sys::System{N}, A) where N
 end
 
 """
-    repeat_volume(sys::System{N}, mults::NTuple{3, Int64}) where N
+    repeat_volume(sys::System{N}, counts) where N
 
-Creates a new System identical to `sys` but with each dimension multiplied
-by the corresponding factor given in the tuple `mults`. The original spin configuration
-is simply repeated periodically.
+Creates a [`System`](@ref) identical to `sys` but repeated a given number of
+times in each dimension, specified by the tuple `counts`.
 """
-function repeat_volume(sys::System{N}, factors::NTuple{3, Int64}) where N
-    @assert all(>=(1), factors)
-    reshape_volume(sys, diagm(collect(sys.latsize .* factors)))
+function repeat_volume(sys::System{N}, counts) where N
+    counts = NTuple{3,Int}(counts)
+    @assert all(>=(1), counts)
+
+    if isnothing(sys.origin)
+        A = diagm(collect(counts .* sys.latsize))
+    else
+        # Reconstruct previous supercell matrix
+        supercell_vecs = sys.crystal.lat_vecs * diagm(collect(sys.latsize))
+        A = sys.origin.crystal.lat_vecs \ supercell_vecs
+        @assert norm(A - round.(A)) < 1e-12
+        # Scale by `counts` in each dimension
+        A = round.(Int, A) * diagm(collect(counts))
+    end
+
+    reshape_volume(sys, A)
 end
 
 
