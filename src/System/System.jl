@@ -79,7 +79,12 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
         error("Unreachable")
     end
     printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
-    println(io, "Cell size $(nbasis(sys.crystal)), Lattice size $(sys.latsize)")
+    if isnothing(sys.origin)
+        print(io, "Cell size ")
+    else
+        print(io, "(Reshaped) cell size ")
+    end
+    println(io, "$(nbasis(sys.crystal)), Lattice size $(sys.latsize)")
 end
 
 

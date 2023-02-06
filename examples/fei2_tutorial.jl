@@ -80,9 +80,10 @@ sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN)
 
 print_symmetry_table(cryst, 8.0)
 
-# The allowed $g$-tensor is given as a 3×3 matrix. The allowed single-ion
-# anisotropy is given as a linear combination of Stevens operators. The latter
-# correspond to polynomials of the spin operators, as we will describe below.
+# The allowed $g$-tensor is expressed as a 3×3 matrix in the free coefficients
+# `A`, `B`, ... The allowed single-ion anisotropy is expressed as a linear
+# combination of Stevens operators. The latter correspond to polynomials of the
+# spin operators, as we will describe below.
 # 
 # The allowed exchange interactions are given as a 3×3 matrix for representative
 # bonds. The notation `Bond(i, j, n)` indicates a bond between atom indices `i`
@@ -206,12 +207,10 @@ print_dominant_wavevectors(sys)
 
 suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
 
-# Reshape the system to the suggested supercell volume.
+# Reshape the system to the suggested supercell volume and anneal.
 
 A = [1 0 0; 0 1 -2; 0 1 2]
 sys_supercell = reshape_volume(sys, A)
-
-# Annealing now becomes much easier.
 
 for kT in range(E0, 0, nsteps)
     langevin.kT = kT
@@ -225,10 +224,9 @@ sys_large = reshape_volume(sys_supercell, diagm([8,8,6]))
 plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 # ## Calculating the structure factor
-# Let us now collect statistical data at a fixed temperature of 0.5K. We can
-# use Langevin dynamics to thermalize the system. Note that the required number
-# of time-steps will vary significantly for different systems and thermodynamic
-# conditions.
+# Apply the Langevin dynamics to thermalize the system to 0.5K. Note that the
+# number of time-steps required to thermalize may vary significantly for
+# different systems and thermodynamic conditions.
 
 nsteps = round(Int, 2.0/Δt)     # System-dependent estimate
 kT = 0.5 * meV_per_K            # 0.5K in units of meV
@@ -238,11 +236,11 @@ for _ in 1:5nsteps
     step!(sys_large, langevin)
 end
 
-# Using our equilibrated system, we construct [`DynamicStructureFactor`](@ref).
-# Three keyword parameters are required to determine the ω information that will
-# be calculated: an integration step size, the number of ωs to resolve, and the
-# maximum ω to resolve. For the time step, twice the value used for the Langevin
-# integrator is usually a good choice.
+# With our equilibrated system, we can begin to measure the
+# [`DynamicStructureFactor`](@ref). Three keyword parameters are required to
+# determine the ω information that will be calculated: an integration step size,
+# the number of ωs to resolve, and the maximum ω to resolve. For the time step,
+# twice the value used for the Langevin integrator is usually a good choice.
 
 sf = DynamicStructureFactor(sys_large; Δt=2Δt, nω=120, ωmax=7.5);
 
