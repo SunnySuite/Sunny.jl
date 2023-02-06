@@ -409,11 +409,13 @@ dominant wavevectors may be used as input to
 Unlike in [`static_intensities`](@ref), here the structure factor weights do not
 incorporate phase averaging between sublattices. Instead, intensities are
 calculated for each sublattice independently, and naïvely summed. This means
-that wavevectors beyond the first Brillouin zone will be missing. If the system
-has been reshaped using [`reshape_volume`](@ref), then modes may be missing even
-within the first BZ.
+that wavevectors beyond the first Brillouin zone will be missing.
 """
 function print_dominant_wavevectors(sys::System{N}; nmax=10) where N
+    if !isnothing(sys.origin)
+        error("Cannot perform this analysis on reshaped system.")
+    end
+
     s = reinterpret(reshape, Float64, sys.dipoles)
     V = prod(sys.latsize) # number of spins in sublattice
     cell_dims = (2,3,4)
