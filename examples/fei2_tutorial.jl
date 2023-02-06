@@ -221,22 +221,21 @@ end
 
 plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# Now periodically repeat the system volume to include $8×8×4$ copies of the
-# relaxed magnetic supercell.
+# We can now extend this magnetic supercell to a much larger simulation volume.
 
-sys_large = repeat_volume(sys_supercell, (8,8,4))
+sys_large = reshape_volume(sys_supercell, diagm([16,16,4]))
 plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 # ## Calculating the structure factor
 # Apply the Langevin dynamics to thermalize the system to 0.5K. Note that the
-# number of time-steps required to thermalize may vary significantly for
+# number of time-steps required to decorrelate may vary significantly for
 # different systems and thermodynamic conditions.
 
-nsteps = round(Int, 2.0/Δt)     # System-dependent estimate
+nsteps_decorr = round(Int, 2.0/Δt)     # System-dependent estimate
 kT = 0.5 * meV_per_K            # 0.5K in units of meV
 langevin.kT = kT
 
-for _ in 1:5nsteps
+for _ in 1:5nsteps_decorr
     step!(sys_large, langevin)
 end
 
@@ -253,7 +252,7 @@ sf = DynamicStructureFactor(sys_large; Δt=2Δt, nω=120, ωmax=7.5);
 # and calling `add_sample!`:
 
 for _ in 1:2
-    for _ in 1:nsteps               # Generate a new sample spin configuration
+    for _ in 1:nsteps_decorr        # Generate a new sample spin configuration
         step!(sys_large, langevin)
     end
     add_sample!(sf, sys_large)      # Accumulate the sample into `sf`
