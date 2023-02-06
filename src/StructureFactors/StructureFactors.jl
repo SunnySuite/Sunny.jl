@@ -35,6 +35,10 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
                             apply_g = true, ops = nothing, matrix_elems = nothing,
                             process_trajectory = :none) where N
 
+    if !isnothing(sys.origin)
+        error("Currently cannot perform structure factor calculations on a reshaped system.")
+    end
+
     # Set up correlation functions (which matrix elements αβ to save from 𝒮^{αβ})
     default_observables = false
     default_correlations = false
