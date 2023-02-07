@@ -397,16 +397,14 @@ An error will be thrown if `sys` is incommensurate with `latvecs`. Use
 incommensurate reshaping.
 """
 function resize_periodically(sys::System{N}, latsize::NTuple{3,Int}) where N
-    # Dimensions of the full system, in multiples of the original unit cell.
+    # Shape of the original system, in multiples of the original unit cell.
     sysdims = cell_dimensions(sys) * diagm(collect(sys.latsize))
-    # Verify that `sysdims` is commensurate with proposed latsize -- each column
-    # of `sysdims` should evenly divide `latsize`, element-by-element.
-    nrows, ncols = size(sysdims)
-    for i = 1:nrows, j = 1:ncols
-        n = sysdims[i,j]
-        if !iszero(n) && !is_approx_integer(latsize[i]/n; atol=1e-12)
-            error("Incommensurate system size.")
-        end
+    # Proposed system shape, given in fractional coordinates of original system
+    # geometry
+    A = sysdims \ diagm(collect(latsize))
+    # All matrix elements must be integer
+    if norm(A - round.(A)) > 1e-12
+        error("Incommensurate system size.")
     end
     return reshape_geometry(sys, diagm(collect(latsize)))
 end
