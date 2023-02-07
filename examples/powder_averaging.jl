@@ -27,8 +27,9 @@ for _ ∈ 1:3000
     step!(sys, integrator)
 end;
 
-# We can now calculate the structure factor. We will tell Sunny to symmetrize
-# the sample trajectory along the time-axis to minimize Fourier artifacts.
+# We can now calculate ``𝒮(𝐪,ω)`` with [`DynamicStructureFactor`](@ref). We
+# will tell Sunny to symmetrize the sample trajectory along the time-axis to
+# minimize Fourier artifacts.
 
 sf = DynamicStructureFactor(sys;
     Δt=2Δt,
@@ -40,7 +41,7 @@ sf = DynamicStructureFactor(sys;
 # To get some intuition about the expected results, we first look at the "single
 # crystal" results along a high-symmetry path in the first Brillouin zone. While
 # doing so, we will add some artificial broadening along the energy axis with
-# [`broaden_energy`](@ref). To use this function, it is necessary to define
+# [`broaden_energy`](@ref). To use this function, it is necessary to define a
 # kernel function with the form, `kernel(ω, ω₀)`, where `ω` is energy and `ω₀`
 # is the center frequency of the kernel. In this example we apply some
 # Lorentzian broadening using an anonymous function: `(ω, ω₀) ->
@@ -71,14 +72,15 @@ heatmap!(ax2, 1:size(is, 1), ωs(sf), is_broad; colorrange)
 fig
 
 # We next write a simple powder averaging function that takes a structure
-# factor, a list of radius values (Å⁻¹), and a density (Å⁻²) to control the
-# number of wave vectors to sample at each radius. For each radius `r`, the
-# function will generate wavevectors on a sphere of this radius and retrieve
-# their [`intensities`](@ref). The results will then be averaged to produce a
-# single vector of energy-intensities for that `r`. Note that our
-# `powder_average` function passes most of its keywords through to
-# [`intensities`](@ref), so it can be given `kT`, `formfactors`, etc., and these
-# parameters will be applied to the calculation.
+# factor, a list of radius values (Å⁻¹), and a density parameter (Å⁻²) that will
+# control the number of wave vectors to sample at each radius. For each radius
+# `r`, the function will generate wavevectors on a sphere of this radius and
+# retrieve their [`intensities`](@ref). These intensities will be broadened, as
+# just demonstrated above, and then averaged to produce a single vector of
+# energy-intensities for each `r`. Note that our `powder_average` function
+# passes most of its keywords through to [`intensities`](@ref), so it can be
+# given `kT`, `formfactors`, etc., and these parameters will be applied to the
+# calculation.
 
 function powder_average(sf, rs, density; η=0.1, mode=:perp, kwargs...)
     nω = length(ωs(sf))
@@ -115,5 +117,19 @@ ax = Axis(fig[1,1];
 heatmap!(ax, rs, ωs(sf), pa; colorrange=(0,5.0))
 fig
 
-# Note that the results approximately share the characteristic bandwidth already
-# seen in the single crystal results.
+# Note that the bandwidth is similar to what we saw above along the high
+# symmetry path.
+#
+# This was a very quick calculation. The structure factor calculation itself and
+# the powder averaging will each execute in < 10 s on a typical laptop. Higher
+# quality results can be obtained by:
+# - Increasing the number of samples used to calculate ``𝒮(𝐪,ω)`` using
+#   [`add_sample!`](@ref)
+# - Increasing the system size
+# - Increasing the energy resolution (`nω` keyword of
+#   [`DynamicStructureFactor`](@ref)) 
+# - Applying instrument-specific energy broadening by giving `broaden_energy` a
+#   custom kernel function.
+# - Including [`FormFactor`](@ref) corrections
+# - Setting `interpolation=:linear` when retrieving intensities in the powder
+#   averaging loop.

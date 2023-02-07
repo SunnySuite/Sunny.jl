@@ -314,7 +314,7 @@ fig
 npoints = 60
 qvals = range(-2.0, 2.0, length=npoints)
 qs = [[a, b, 0.0] for a in qvals, b in qvals]
-forfactors = [FormFactor(1, "Fe2")]
+formfactors = [FormFactor(1, "Fe2")]
 
 is = intensities(sf, qs, :perp;
     interpolation = :linear,
