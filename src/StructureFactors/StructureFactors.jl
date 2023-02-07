@@ -1,21 +1,22 @@
 struct StructureFactor{N, NumCorr, NBasis}
     # 𝒮^{αβ}(q,ω) data and metadata
-    data          :: Array{ComplexF64, 7}  # Raw SF data for 1st BZ (numcorrelations x nbasis x nbasis x latsize x energy)
-    crystal       :: Crystal               # Crystal for interpretation of axes
-    Δω            :: Float64               # Energy step size
+    data           :: Array{ComplexF64, 7}   # Raw SF data for 1st BZ (numcorrelations x nbasis x nbasis x latsize x energy)
+    crystal        :: Crystal                # Crystal for interpretation of q indices in `data`
+    origin_crystal :: Union{Nothing,Crystal} # Original user-specified crystal (if different from above)
+    Δω             :: Float64                # Energy step size
 
     # Correlation info (αβ indices of 𝒮^{αβ}(q,ω))
-    dipole_corrs  :: Bool                                  # Whether correlations from dipoles 
-    ops           :: Array{ComplexF64, 3}                  # Operators corresponding to observables
-    idxinfo       :: SortedDict{CartesianIndex{2}, Int64}  # (α, β) to save from 𝒮^{αβ}(q, ω)
+    dipole_corrs :: Bool                                  # Whether using all correlations from dipoles 
+    ops          :: Array{ComplexF64, 3}                  # Operators corresponding to observables
+    idxinfo      :: SortedDict{CartesianIndex{2}, Int64}  # (α, β) to save from 𝒮^{αβ}(q, ω)
 
     # Specs for sample generation and accumulation
-    samplebuf     :: Array{ComplexF64, 6}  # New sample buffer
-    measperiod    :: Int                   # Steps to skip between saving observables (downsampling for dynamical calcs)
-    apply_g       :: Bool                  # Whether to apply the g-factor
-    integrator    :: ImplicitMidpoint      # Integrator for dissipationless trajectories (will likely move to add_sample!)
-    nsamples      :: Array{Int64, 1}       # Number of accumulated samples (array so mutable)
-    processtraj!  :: Function              # Function to perform post-processing on sample trajectories
+    samplebuf    :: Array{ComplexF64, 6}  # New sample buffer
+    measperiod   :: Int                   # Steps to skip between saving observables (downsampling for dynamical calcs)
+    apply_g      :: Bool                  # Whether to apply the g-factor
+    integrator   :: ImplicitMidpoint      # Integrator for dissipationless trajectories (will likely move to add_sample!)
+    nsamples     :: Array{Int64, 1}       # Number of accumulated samples (array so mutable)
+    processtraj! :: Function              # Function to perform post-processing on sample trajectories
 end
 
 """
@@ -34,10 +35,6 @@ or [`static_intensities`](@ref).
 function StructureFactor(sys::System{N}; Δt, nω, measperiod,
                             apply_g = true, ops = nothing, matrix_elems = nothing,
                             process_trajectory = :none) where N
-
-    if !isnothing(sys.origin)
-        error("Currently cannot perform structure factor calculations on a reshaped system.")
-    end
 
     # Set up correlation functions (which matrix elements αβ to save from 𝒮^{αβ})
     default_observables = false
@@ -91,10 +88,12 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
     nsamples = Int64[0]
     integrator = ImplicitMidpoint(Δt)
     Δω = nω == 1 ? 0.0 : 2π / (Δt*measperiod*nω)
+    origin_crystal = !isnothing(sys.origin) ? sys.origin.crystal : nothing
 
     # Make Structure factor and add an initial sample
-    sf = StructureFactor{N, ncorr, nb}(data, sys.crystal, Δω, dipole_corrs, ops, idxinfo, samplebuf, 
-                            measperiod, apply_g, integrator, nsamples, processtraj!)
+    sf = StructureFactor{N, ncorr, nb}(data, sys.crystal, origin_crystal, Δω, dipole_corrs,
+                                       ops, idxinfo, samplebuf, measperiod, apply_g, integrator,
+                                       nsamples, processtraj!)
     add_sample!(sf, sys; processtraj!)
 
     return sf

@@ -102,6 +102,15 @@ function intensities(sf::StructureFactor, qs, mode;
 )
     qs = Vec3.(qs)
 
+    # If working on reshaped system, assume qs given as coordinates in terms of
+    # reciprocal vectors of original crystal and convert them to qs in terms of
+    # the reciprocal vectors of the reshaped crystal.
+    if !isnothing(sf.origin_crystal)
+        rvecs_reshaped = inv(sf.crystal.lat_vecs)'
+        rvecs_origin = inv(sf.origin_crystal.lat_vecs)'
+        qs = map(q -> rvecs_reshaped \ rvecs_origin * q, qs)
+    end
+
     # Make sure it's a dynamical structure factor 
     if static_warn && size(sf.data, 7) == 1
         error("`intensities` given a static structure factor. Call `static_intensities` to retrieve static structure factor data.")
