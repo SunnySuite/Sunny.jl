@@ -1,21 +1,23 @@
 push!(LOAD_PATH, "../src/")
 
 using Literate, Documenter, Sunny
-# using GLMakie
 
-FEI2 = joinpath(@__DIR__, "..", "examples", "fei2_tutorial.jl")
-OUTPUT = joinpath(@__DIR__, "src", "literate_build")
+example_names = ["fei2_tutorial", "powder_averaging"]
 
-Literate.markdown(FEI2, OUTPUT; execute=true, documenter=true)
+example_sources = [joinpath(@__DIR__, "..", "examples", name*".jl") for name in example_names]
+example_destination = joinpath(@__DIR__, "src", "literate_build")
+example_doc_paths = ["literate_build"*"/"*name*".md" for name in example_names]
+
+for source in example_sources
+    Literate.markdown(source, example_destination; execute=true, documenter=true)
+end
 
 makedocs(
     sitename="Sunny documentation",
     pages = [
         "Overview" => "index.md",
         "Quick Start" => "quick-start.md",
-        "Examples" => Any[
-            "literate_build/fei2_tutorial.md",
-        ],
+        "Examples" => example_doc_paths,
         "Library API" => "library.md",
         "Structure Factor Calculations" => "structure-factor.md",
         "Version History" => "versions.md",
