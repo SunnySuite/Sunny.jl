@@ -380,8 +380,7 @@ function cell_dimensions(sys)
     if isnothing(sys.origin)
         return [1 0 0; 0 1 0; 0 0 1]
     else
-        supercell_vecs = sys.crystal.lat_vecs * diagm(collect(sys.latsize))
-        A = sys.origin.crystal.lat_vecs \ supercell_vecs
+        A = sys.origin.crystal.lat_vecs \ sys.crystal.lat_vecs
         @assert norm(A - round.(A)) < 1e-12
         return round.(Int, A)
     end
