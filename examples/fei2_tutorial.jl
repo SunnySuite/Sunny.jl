@@ -1,35 +1,39 @@
 # # Case Study: FeI$_{2}$
 # 
-# FeI$_{2}$ is an effective spin-1 material with strong single-ion anisotropy,
-# making it an excellent candidate for treatment with SU(3) spin dynamics. In
-# particular, one of the elementary excitations of the system can only be
-# captured clasically with an SU(3) treatment. A magnon, clearly visible in the
-# experimental data, would simply be absent if we were to employ traditional
-# Landau-Lifshitz dynamics or SU(2) spin wave theory. Full details about the
-# model can be found in reference [1].
-# 
-# The model contains a number of competing, anisotropic exchange interactions
-# together with a strong single-ion anisotropy. Writing the exchange terms in
-# the most general way, the Hamiltonian has the form:
+# FeI$_2$ is an effective spin-1 material with strong single-ion anisotropy.
+# Quadrupolar fluctuations give rise to a single-ion bound state that cannot be
+# described by a dipole-only model. This tutorial illustrates how to use the
+# classical dynamics of SU(_N_) coherent state to model the magnetic behavior in
+# FeI$_2$. The original study was performed in [Bai et al., Nature Physics 17,
+# 467–472 (2021)](https://doi.org/10.1038/s41567-020-01110-1).
+#
+# ```@raw html
+# <img src="../assets/FeI2_crystal.jpg" style="float: left;" width="400">
+# ```
+#
+# The Fe atoms are arranged in stacked triangular layers. The effective spin
+# interactions include various anisotropic exchange interactions, and a strong
+# single-ion anisotropy:
 # 
 # ```math
 # \mathcal{H}=\sum_{(i,j)} J^{\alpha\beta}_{ij} S^{\alpha}_i S^{\beta}_j - D\sum_i \left(S^z\right)^2
 # ```
 # 
-# We will calculate a dynamic structure factor using this model. We begin by
-# importing the required packages, starting with `Sunny`. We will also add
-# `GLMakie`, a plotting package. If you see `Package X not found in current
-# path`, you can install the package by entering `using Pkg; pkg"add X"` in the
-# Julia REPL.
+# We will formulate this Hamiltonian in Sunny and then calculate its dynamic
+# structure factor.
+#
+# Begin by importing `Sunny` and `GLMakie`, a plotting package.
 
-using Sunny, LinearAlgebra, GLMakie
+using Sunny, GLMakie
 #nb Sunny.offline_viewers()  # Inject Javascript code for additional plotting capabilities 
 
+# If you see an error `Package <X> not found in current path`, add the package
+# by typing `] add <X>` at the Julia prompt.
 
 # ## Crystals and symmetry analysis
 # A [`Crystal`](@ref) describes the crystallographic unit cell and will usually
 # be loaded from a `.cif` file. Here, we instead build a crystal by listing all
-# atoms in the conventional unit cell.
+# atoms and their types.
 
 a = b = 4.05012  # Lattice constants for triangular lattice
 c = 6.75214      # Spacing in the z-direction
@@ -41,7 +45,8 @@ basis_vecs = [[0,0,0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]  # Positions of atoms i
 types = ["Fe", "I", "I"]
 FeI2 = Crystal(lat_vecs, basis_vecs; types)
 
-# Observe that Sunny indentified the correct space group, 'P -3 m 1' (164).
+# Observe that Sunny inferred the space group, 'P -3 m 1' (164) and labeled the
+# atoms according to their point group symmetries.
 
 #nb # An interactive viewer of the crystal and its bonds is available for Jupyter notebooks.
 #nb view_crystal(FeI2, 8.0)
@@ -51,22 +56,22 @@ FeI2 = Crystal(lat_vecs, basis_vecs; types)
 
 cryst = subcrystal(FeI2, "Fe")
 
-# Importantly, `cryst` retains the spacegroup symmetry information for the full
-# FeI2 crystal. This information will be used, for example, to propagate
-# exchange interactions by symmetry.
+# Importantly, `cryst` retains the spacegroup symmetry of the full FeI$_2$
+# crystal. This information will be used, for example, to propagate exchange
+# interactions between symmetry-equivalent bonds.
 
 # ## Spin systems
 # To simulate a system of many spins, construct a [`System`](@ref).
 
 sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN, seed=0)
 
-# Our system includes $4×4×4$ unit cells, i.e. 64 spin moments, each with spin
+# The system includes $4×4×4$ unit cells, i.e. 64 Fe atoms, each with spin
 # $S=1$. The default $g$-factor is 2, but this could be overriden with an
-# additional argument to [`SpinInfo`](@ref). Each spin-1 has $N=2S+1=3$ distinct
-# angular momentum states. In `:SUN` mode, these spins will be modeled using the
-# dynamics of SU(3) coherent states, which includes both dipolar and quadrupolar
-# fluctuations. For the more traditional dipole dynamics, use `:dipole` mode
-# instead.
+# additional argument to [`SpinInfo`](@ref). Spin $S=1$ involves a superposition
+# of $2S+1=3$ distinct angular momentum states. In `:SUN` mode, this
+# superposition will be modeled using the formalism of SU(3) coherent states,
+# which captures both dipolar and quadrupolar fluctuations. For the more
+# traditional dipole dynamics, use `:dipole` mode instead.
 
 # ## Interactions and anisotropies
 
@@ -90,15 +95,15 @@ print_symmetry_table(cryst, 8.0)
 # significant if the exchange tensor contains antisymmetric
 # Dzyaloshinskii–Moriya (DM) interactions.
 # 
-# As an example, `Bond(1, 1, [1,0,0])` involves an offset of one unit cell in
-# the direction of the first lattice vector. In the case of FeI2, this is one of
-# the 6 nearest-neighbor Fe-Fe bonds on the triangular lattice.
+# In the case of FeI$_2$, `Bond(1, 1, [1,0,0])` is one of the 6 nearest-neighbor
+# Fe-Fe bonds on a triangular lattice layer, and `Bond(1, 1, [0,0,1])` is an
+# Fe-Fe bond between layers. 
 
 # ### Assigning interactions and anisotropies
 
 # The function [`set_exchange!`](@ref) assigns an exchange interaction to a
 # bond, and will propagate the interaction to all symmetry-equivalent bonds in
-# the unit cell. The FeI2 interactions below follow Ref. [1].
+# the unit cell. The FeI$_2$ interactions below follow [Bai et al](https://doi.org/10.1038/s41567-020-01110-1).
 
 J1pm   = -0.236 
 J1pmpm = -0.161
@@ -152,41 +157,43 @@ set_anisotropy!(sys, -D*𝒮[3]^2, 1)
 # Any ansotropy operator can be converted to a linear combination of Stevens
 # operators with [`print_anisotropy_as_stevens`](@ref).
 
-# # Calculating a dynamical spin structure factor
+# # Calculating structure factor intensities
 # In the remainder of this tutorial, we will examine Sunny's tools for
 # calculating structure factors using generalized SU(_N_) classical dynamics.
-# This will involve sampling of the spin configurations from the Boltzmann
-# distribution at a finite temperature. Dynamical trajectories will then be used
-# to estimate the finite-temperature structure factor
+# This will involve the sampling of spin configurations from the Boltzmann
+# distribution at a finite temperature. Spin-spin correlations measured
+# dynamically then provide an estimate of the structure factor
 # $\mathcal{S}^{\alpha\beta}(\mathbf{q},\omega)$.
 # 
 # ## Simulated annealing
 # 
-# The [`Langevin`](@ref) dynamics can be used to sample spin configurations in
-# thermal equlibrium.
+# The [Langevin dynamics of SU(_N_) coherent
+# states](https://arxiv.org/abs/2209.01265) can be used to sample spin
+# configurations in thermal equlibrium. Begin by constructing a
+# [`Langevin`](@ref) object.
 
-E0 = 2.165        # Largest energy scale in the Hamiltonian
+E0 = D            # Largest energy scale in the Hamiltonian
 Δt = 0.05/E0      # Safe choice for integration step size
 λ = 0.1           # Magnitude of coupling to thermal bath
 langevin = Langevin(Δt, 0, λ);
 
-# Search for a low-energy spin configuration by lowering the temperature from
-# `E0` to `0` over `nsteps` of Langevin dynamics. 
+# Attempt to find a low-energy spin configuration by lowering the temperature
+# from `E0` to zero using a relatively fast quench of 10,000 Langevin
+# time-steps.
 
 randomize_spins!(sys)
-nsteps = 10_000
-for kT in range(E0, 0, nsteps)
+for kT in range(E0, 0.0, 10_000)
     langevin.kT = kT
     step!(sys, langevin)
 end
 
-# The annealed configuration can be visualized with `plot_spins`.
+# Defects are visually apparent using `plot_spins`.
 
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# The annealed magnetic order contains defects. To fix this, we could repeat the
-# patient annealing procedure using many more time-steps. Instead, let's analyze
-# the imperfect spin configuration stored in `sys`.
+# To find a better ground state, we could try repeating the annealing procedure
+# using more time-steps. Instead, let's analyze the imperfect spin configuration
+# currently stored in `sys`.
 #
 # The function [`print_dominant_wavevectors`](@ref) orders wavevectors by their
 # contributions to the static structure factor intensity (1st BZ only).
@@ -205,8 +212,8 @@ print_dominant_wavevectors(sys)
 suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
 
 # The function [`reshape_geometry`](@ref) allows an arbitrary reshaping of the
-# system. Using the supercell geometry makes it much easier to find the
-# energy-minimizing spin configuration.
+# system. After selecting the supercell geometry, it becomes much easier to find
+# the energy-minimizing spin configuration.
 
 sys_supercell = reshape_geometry(sys, [1 0 0; 0 1 -2; 0 1 2])
 
@@ -223,10 +230,8 @@ plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 sys_large = resize_periodically(sys_supercell, (16,16,4))
 plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# ## Calculating the structure factor
-# Apply the Langevin dynamics to thermalize the system to 0.5K. Note that the
-# number of time-steps required to decorrelate may vary significantly for
-# different systems and thermodynamic conditions.
+# ## Dynamical structure factor measurement
+# Apply Langevin dynamics to thermalize the system to a target temperature.
 
 kT = 0.5 * meV_per_K     # 0.5K in units of meV
 langevin.kT = kT
@@ -235,17 +240,19 @@ for _ in 1:10_000
     step!(sys_large, langevin)
 end
 
-# With our equilibrated system, we can begin to measure the
-# [`DynamicStructureFactor`](@ref). Three keyword parameters are required to
-# determine the ω information that will be calculated: an integration step size,
-# the number of ωs to resolve, and the maximum ω to resolve. For the time step,
-# twice the value used for the Langevin integrator is usually a good choice.
+# We can measure the [`DynamicStructureFactor`](@ref) by integrating the
+# [Hamiltonian dynamics of SU(_N_) coherent
+# states](https://arxiv.org/abs/2204.07563). Three keyword parameters are
+# required to determine the ω information that will be calculated: an
+# integration step size, the number of ωs to resolve, and the maximum ω to
+# resolve. For the time step, twice the value used for the Langevin integrator
+# is usually a good choice.
 
 sf = DynamicStructureFactor(sys_large; Δt=2Δt, nω=120, ωmax=7.5);
 
 # `sf` currently contains dynamical structure data generated from a single
 # sample. Additional samples can be added by generating a new spin configuration
-# and calling `add_sample!`:
+# and calling [`add_sample!`](@ref):
 
 for _ in 1:2
     for _ in 1:1000               # Fewer steps needed in equilibrium
@@ -260,8 +267,10 @@ end
 # vectors and a mode parameter. The options for the mode parameter are `:trace`,
 # `:perp` and `:full` which return, respectively, the trace, the unpolarized
 # intensity, and the full set of matrix elements (correlations of spin
-# components) at the specified wave vectors. For example, we can plot two
-# single-$q$ slices as follows. 
+# components) at the specified wave vectors. An optional keyword argument `kT`
+# enables a classical-to-quantum rescaling.
+# 
+# Below, we plot two single-$q$ slices.
 
 qs = [[0, 0, 0], [0.5, 0.5, 0.5]]
 is = intensities(sf, qs, :trace; kT)
@@ -273,23 +282,23 @@ l2 = lines!(ax, ωs(sf), is[2,:])
 Legend(fig[1,2], [l1, l2], ["(0,0,0)", "(π,π,π)"])
 fig
 
-# Note that we provided the optional keyword `kT` to `intensities` to enable
-# Sunny to apply a classical-to-quantum rescaling of intensities. 
-#
-# Frequently we want to extract energy intensities along lines that connect
-# special wave vectors. Sunny provides a function `connected_path` to makes this
-# easy. The density of sample points can be tuned with a density argument.
+# Frequently one wants to extract energy intensities along lines that connect
+# special wave vectors. The function [`connected_path`](@ref) linearly samples
+# between provided $q$-points, with a given sample density.
 
-points = [[0.0, 0.0, 0.0],  # List of wave vectors that define a path
-          [1.0, 0.0, 0.0],
-          [0.0, 1.0, 0.0],
-          [0.5, 0.0, 0.0],
-          [0.0, 1.0, 0.0],
-          [0.0, 0.0, 0.0]] 
-formfactors = [FormFactor(1, "Fe2"; g_lande=3/2)]  # Ion information for each site to
-                                                   ## retrieve form factor correction parameters 
+points = [[0,   0, 0],  # List of wave vectors that define a path
+          [1,   0, 0],
+          [0,   1, 0],
+          [1/2, 0, 0],
+          [0,   1, 0],
+          [0,   0, 0]] 
 density = 40
-path, markers = connected_path(points, density)
+path, markers = connected_path(points, density);
+
+# Calculate and plot the intensities along this path using [`FormFactor`](@ref)
+# corrections appropriate for `Fe2` magnetic ions.
+
+formfactors = [FormFactor(1, "Fe2"; g_lande=3/2)]
 
 is = intensities(sf, path, :perp; 
     interpolation = :linear,       # Interpolate between available wave vectors
@@ -308,13 +317,21 @@ ax = Axis(fig[1,1];
 heatmap!(ax, 1:size(is,1), ωs(sf), is; colorrange=(0.0, 0.5))
 fig
 
+# The existence of a lower-energy, single-ion bound state is in qualitative
+# agreement with the experimental data in [Bai et
+# al.](https://doi.org/10.1038/s41567-020-01110-1) (Todo: Understand the
+# different labeling of $q$-vector coordinates.)
+#
+# ```@raw html
+# <img src="../assets/FeI2_intensity.jpg">
+# ```
+#
 # Often it is useful to plot cuts across multiple wave vectors but at a single
 # energy. 
 
 npoints = 60
-qvals = range(-2.0, 2.0, length=npoints)
-qs = [[a, b, 0.0] for a in qvals, b in qvals]
-formfactors = [FormFactor(1, "Fe2")]
+qvals = range(-2, 2, length=npoints)
+qs = [[a, b, 0] for a in qvals, b in qvals]
 
 is = intensities(sf, qs, :perp;
     interpolation = :linear,
@@ -331,25 +348,26 @@ hm = heatmap!(ax, is[:,:,ωidx])
 Colorbar(fig[1,2], hm)
 fig
 
-# Note that Brillouin zones appear "skewed". This is a consequence
-# of the fact that our reciprocal lattice vectors are not orthogonal. It is
-# often useful to express our wave vectors in terms of an orthogonal basis,
-# where each basis element is specified as a linear combination of reciprocal
-# lattice vectors. For our crystal, with reciprocal vectors $a^*$, $b^*$ and
-# $c^*$, we can define an orthogonal basis by taking $\hat{a}^* = 0.5(a^* +
-# b^*)$, $\hat{b}^*=a^* - b^*$, and $\hat{c}^*=c^*$. Below, we map `qs` to
-# wavevectors `ks` in the new coordinate system and get their intensities.
+# Note that Brillouin zones appear 'skewed'. This is a consequence of the fact
+# that Sunny measures $q$-vectors as multiples of reciprocal lattice vectors,
+# and the latter are not orthogonal. It is often useful to express our wave
+# vectors in terms of an orthogonal basis, where each basis element is specified
+# as a linear combination of reciprocal lattice vectors. For our crystal, with
+# reciprocal vectors $a^*$, $b^*$ and $c^*$, we can define an orthogonal basis
+# by taking $\hat{a}^* = 0.5(a^* + b^*)$, $\hat{b}^*=a^* - b^*$, and
+# $\hat{c}^*=c^*$. Below, we map `qs` to wavevectors `ks` in the new coordinate
+# system and get their intensities.
 
-A = [0.5  1.0 0.0;
-     0.5 -1.0 0.0;
-     0.0  0.0 1.0]
+A = [0.5  1  0;
+     0.5 -1  0;
+     0    0  1]
 ks = [A*q for q in qs]
 
 is_ortho = intensities(sf, ks, :perp;
     interpolation = :linear,
     kT,
     formfactors,
-);
+)
 
 fig = Figure()
 ax = Axis(fig[1,1]; title="ω=$ω meV", aspect=true)
@@ -359,7 +377,7 @@ Colorbar(fig[1,2], hm)
 fig
 
 # Finally, we note that static structure factor data can be obtained from a
-# dynamic structure factor with `static_intensities`:
+# dynamic structure factor with [`static_intensities`](@ref).
 
 is_static = static_intensities(sf, ks, :perp;
     interpolation = :linear,

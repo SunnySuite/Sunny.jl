@@ -82,12 +82,10 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
         error("Unreachable")
     end
     printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
-    if isnothing(sys.origin)
-        print(io, "Cell size ")
-    else
-        print(io, "Reshaped cell $(cell_dimensions(sys)), Size ")
+    println(io, "Cell size $(nbasis(sys.crystal)), Lattice size $(sys.latsize)")
+    if !isnothing(sys.origin)
+        println(io, "Reshaped cell geometry $(cell_dimensions(sys))")
     end
-    println(io, "$(nbasis(sys.crystal)), Lattice size $(sys.latsize)")
 end
 
 
@@ -595,7 +593,7 @@ function suggest_magnetic_supercell(qs, latsize)
 
     println("Suggested magnetic supercell in multiples of lattice vectors:")
     println()
-    println("    A = $best_A")
+    println("    $best_A")
     println()
     println("for wavevectors [$qstrs].")
 end

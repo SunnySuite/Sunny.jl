@@ -24,7 +24,8 @@ makedocs(
     ],
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true"
-    )
+    ),
+    draft = false # set to true to disable cell evaluation
 )
 
 deploydocs(

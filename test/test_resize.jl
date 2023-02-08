@@ -31,7 +31,7 @@
     @test capt.output == """
     Suggested magnetic supercell in multiples of lattice vectors:
 
-        A = [1 0 0; 0 2 0; 0 0 1]
+        [1 0 0; 0 2 0; 0 0 1]
 
     for wavevectors [[0, 1/2, 0]].
     """
