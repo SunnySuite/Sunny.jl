@@ -9,7 +9,7 @@ function calc_intensity(sf::StructureFactor, k, latidx, ω, iω, contractor, kT,
     return intensity * classical_to_quantum(ω, kT)
 end
 
-classical_to_quantum(ω, kT::Float64) = iszero(ω) ? 0.0 : ω/(kT*(1 - exp(-ω/kT)))
+classical_to_quantum(ω, kT::Float64) = iszero(ω) ? 1.0 : ω/(kT*(1 - exp(-ω/kT)))
 classical_to_quantum(ω, ::Nothing) = 1.0
 
 
@@ -17,7 +17,7 @@ classical_to_quantum(ω, ::Nothing) = 1.0
 # Since the data is inherently discretized, this often results in repeated calls
 # for values at the same discrete points. Since basis reduction is done for each
 # of this calls, this results in a large amount of repeated calculation. This
-# function analyzes repetitions in advance and prunes out repetitions. This is
+# function analyzes repetitions in advance and prunes them out. This is
 # ugly, but the speedup when tested on a few simple, realistic examples was
 # 3-5x.
 function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationScheme{N}) where N

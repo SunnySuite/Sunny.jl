@@ -92,6 +92,7 @@ function powder_average(sf, rs, density; η=0.1, mode=:perp, kwargs...)
             qs = [[0., 0., 0.]]  # If no points (r is too small), just look at 0 vector
         end
         vals = intensities(sf, qs, mode; kwargs...)  # Retrieve energy intensities
+        vals[:,1] .*= 0.0  # Remove elastic peaks before broadening
         vals = broaden_energy(sf, vals, (ω,ω₀)->lorentzian(ω-ω₀, η))  # Apply Lorentzian broadening
         output[i,:] = reshape(mean(vals, dims=1), (nω,))  # Average single radius results and save
     end
