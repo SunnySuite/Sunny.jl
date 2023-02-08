@@ -74,7 +74,7 @@
         collect_dur = 100.0
 
         sys = su3_anisotropy_model(; D, L, seed=0)
-        langevin = Langevin(Δt, 0.0, λ)
+        langevin = Langevin(Δt; kT=0.0, λ)
 
         for kT ∈ kTs
             langevin.kT = kT
@@ -100,7 +100,7 @@
         collect_dur = 200.0
 
         sys = su5_anisotropy_model(; D, L, seed=0)
-        langevin = Langevin(Δt, 0.0, λ)
+        langevin = Langevin(Δt; kT=0.0, λ)
 
         for kT ∈ kTs
             langevin.kT = kT
@@ -194,7 +194,7 @@ end
             λ = 0.1
             kT = 0.1
             Δt = 0.02
-            langevin = Langevin(Δt, kT, λ)
+            langevin = Langevin(Δt; kT, λ)
 
             n_equilib = 1000
             n_samples = 2000

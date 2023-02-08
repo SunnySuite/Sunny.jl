@@ -8,7 +8,7 @@
         kT = 0.1
         λ  = 0.1
         Δt = 0.01
-        integrators = (Langevin(Δt, kT, λ), ImplicitMidpoint(Δt))
+        integrators = (Langevin(Δt; kT, λ), ImplicitMidpoint(Δt))
 
         for integrator in integrators
             for mode in (:SUN, :dipole)

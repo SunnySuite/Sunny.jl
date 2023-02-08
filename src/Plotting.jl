@@ -349,7 +349,7 @@ function live_langevin_integration(
     )
     display(fig)
 
-    integrator = Langevin(Δt, kT, λ)
+    integrator = Langevin(Δt; kT, λ)
 
     while true
         for _ in 1:steps_per_frame
