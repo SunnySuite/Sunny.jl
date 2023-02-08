@@ -175,7 +175,7 @@ set_anisotropy!(sys, -D*𝒮[3]^2, 1)
 E0 = D            # Largest energy scale in the Hamiltonian
 Δt = 0.05/E0      # Safe choice for integration step size
 λ = 0.1           # Magnitude of coupling to thermal bath
-langevin = Langevin(Δt, 0, λ);
+langevin = Langevin(Δt; kT=0, λ);
 
 # Attempt to find a low-energy spin configuration by lowering the temperature
 # from `E0` to zero using a relatively fast quench of 10,000 Langevin

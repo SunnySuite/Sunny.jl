@@ -21,7 +21,7 @@ set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 Δt = 0.07                   # Step size for Langevin integrator
 kT = Sunny.meV_per_K * 2    # Temperature of simulation (2K)
 λ = 0.1                     # Damping parameter
-integrator = Langevin(kT, λ, Δt);
+integrator = Langevin(Δt; kT, λ);
 
 for _ ∈ 1:3000
     step!(sys, integrator)
