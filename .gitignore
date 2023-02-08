@@ -1,7 +1,7 @@
 build/
 backup/
 examples/results/
-docs/src/literate_build
+docs/src/examples/
 Manifest.toml
 profile.pb.gz
 .DS_Store

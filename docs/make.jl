@@ -5,11 +5,11 @@ using Literate, Documenter, Sunny
 example_names = ["fei2_tutorial", "powder_averaging"]
 
 example_sources = [joinpath(@__DIR__, "..", "examples", name*".jl") for name in example_names]
-example_destination = joinpath(@__DIR__, "src", "literate_build")
-example_doc_paths = ["literate_build"*"/"*name*".md" for name in example_names]
+example_destination = joinpath(@__DIR__, "src", "examples")
+example_doc_paths = ["examples/$name.md" for name in example_names]
 
 for source in example_sources
-    Literate.markdown(source, example_destination; execute=true, documenter=true)
+    Literate.markdown(source, example_destination; documenter=true)
 end
 
 makedocs(

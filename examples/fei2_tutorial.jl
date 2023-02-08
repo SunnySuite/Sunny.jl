@@ -8,7 +8,7 @@
 # 467–472 (2021)](https://doi.org/10.1038/s41567-020-01110-1).
 #
 # ```@raw html
-# <img src="../assets/FeI2_crystal.jpg" style="float: left;" width="400">
+# <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_crystal.jpg" style="float: left;" width="400">
 # ```
 #
 # The Fe atoms are arranged in stacked triangular layers. The effective spin
@@ -323,7 +323,7 @@ fig
 # different labeling of $q$-vector coordinates.)
 #
 # ```@raw html
-# <img src="../assets/FeI2_intensity.jpg">
+# <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_intensity.jpg">
 # ```
 #
 # Often it is useful to plot cuts across multiple wave vectors but at a single
