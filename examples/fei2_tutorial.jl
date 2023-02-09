@@ -377,17 +377,17 @@ hm = heatmap!(ax, is_ortho[:,:,ωidx])
 Colorbar(fig[1,2], hm)
 fig
 
-# Finally, we note that static structure factor data can be obtained from a
-# dynamic structure factor with [`static_intensities`](@ref).
+# Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
+# obtained from a dynamic structure factor with [`instant_intensities`](@ref).
 
-is_static = static_intensities(sf, ks, :perp;
+is_static = instant_intensities(sf, ks, :perp;
     interpolation = :linear,
     kT,
     formfactors,
 )
 
 fig = Figure()
-ax = Axis(fig[1,1]; title="Static Structure Factor", aspect=true)
+ax = Axis(fig[1,1]; title="Instantaneous Structure Factor", aspect=true)
 hidedecorations!(ax); hidespines!(ax)
 hm = heatmap!(ax, is_static)
 Colorbar(fig[1,2], hm)

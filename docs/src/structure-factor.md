@@ -46,7 +46,7 @@ $𝒮^{αβ}(𝐪,ω)$ intensities that can be compared with experiment.
 Calculating this structure factor involves several steps, with various possible
 settings. Sunny provides a number of tools to facilitate this calculation and to
 extract information from the results. These tools are briefly outlined below.
-"Real life" use cases can be found in our tutorials and detailed function
+Please see the Examples for a "real life" use case. Detailed function
 information is available in the Library API.
 
 ## Basic Usage
@@ -54,10 +54,10 @@ information is available in the Library API.
 The basic data type for calculating, storing and retrieving structure factor
 data is `StructureFactor`. Rather than creating a `StructureFactor` directly,
 one should call either [`DynamicStructureFactor`](@ref), for $𝒮^{αβ}(𝐪,ω)$, or
-[`StaticStructureFactor`](@ref), for $𝒮^{αβ}(𝐪)$. These functions will configure and
-return an appropriate `StructureFactor`.
+[`InstantStructureFactor`](@ref), for $𝒮^{αβ}(𝐪)$. These functions will
+configure and return an appropriate `StructureFactor`.
 
-### Calculating a dynamical stucture factor
+### Calculating a dynamical stucture factor: ``𝒮(𝐪,ω)``
 
 Calling `DynamicStructureFactor(sys; Δt, ωmax, nω)` will create a
 `StructureFactor` for the user and calculate an initial sample. There are three
@@ -105,31 +105,31 @@ The calculation may be configured in a number of ways; see the
 [`DynamicStructureFactor`](@ref) documentation for a list of all keywords.
 
 
-### Calculating a static structure factor
+### Calculating an instantaneous ("static") structure factor: ``𝒮(𝐪)``
 
-Sunny provides two methods for calculating static structure factors,
-$𝒮^{αβ}(𝐪)$. The first involves calculating spin-spin correlations at single
-instances of time. The second involves calculating a dynamic structure factor
-first and integrating out the $ω$ information. The advantage of the latter
-approach is that it enables application of an $ω$-dependent classical-to-quantum
-rescaling of structure factor intensities, a method that should be preferred
-whenever comparing results to experimental data or spin wave calculations. A
-disadvantage of this approach is that it is computationally more expensive.
-There are also many cases when it is not straightforward to calculate a
-meaningful dynamics, as when working with Ising spins. In this section we will
-discuss how to calculate static structure factors from static spin
-configurations. Information about calculating static data from a dynamic
+Sunny provides two methods for calculating instantaneous, or static, structure
+factors: $𝒮^{αβ}(𝐪)$. The first involves calculating spin-spin correlations at
+single instances of time. The second involves calculating a dynamic structure
+factor first and integrating out the $ω$ information. The advantage of the
+latter approach is that it enables application of an $ω$-dependent
+classical-to-quantum rescaling of structure factor intensities, a method that
+should be preferred whenever comparing results to experimental data or spin wave
+calculations. A disadvantage of this approach is that it is computationally more
+expensive. There are also many cases when it is not straightforward to calculate
+a meaningful dynamics, as when working with Ising spins. In this section we will
+discuss how to calculate instantaneous structure factors from fixed spin
+configurations. Information about calculating instantaneous data from a dynamic
 structure factor can be found in the following section.
 
-The basic usage for the static case is very similar to the dynamic case, except
-one calls `StaticStructureFactor` instead of `DynamicStructureFactor`. Note
-that there are no required keywords as there is no need to specify any dynamics.
-`StaticStructureFactor` will immediately calculate a sample of $𝒮(𝐪)$ using
-the spin configuration contained in `sys`. It is therefore important that 
-`sys` be properly thermalized before calling this function. Additional samples
-may be added with `add_sample!(sf, sys)`, just as was done in the dynamic case.
-As was true there, it is important to ensure that the spins in `sys` represents
-a new equilibrium sample before calling `add_sample!`.
+The basic usage for the instantaneous case is very similar to the dynamic case,
+except one calls `InstantStructureFactor` instead of `DynamicStructureFactor`.
+Note that there are no required keywords as there is no need to specify any
+dynamics. `InstantStructureFactor` will immediately calculate a sample of
+$𝒮(𝐪)$ using the spin configuration contained in `sys`. It is therefore
+important that `sys` be properly thermalized before calling this function.
+Additional samples may be added with `add_sample!(sf, sys)`, just as was done in
+the dynamic case. As was true there, it is important to ensure that the spins in
+`sys` represents a new equilibrium sample before calling `add_sample!`.
 
 ### Extracting information from structure factors
 
@@ -138,11 +138,11 @@ at a particular wave vector, $𝐪$, is [`intensities`](@ref). It takes a
 `StructureFactor`, a list of wave vectors, and a contraction mode. For example,
 `intensities(sf, [[0.0, 0.5, 0.5]], :trace)` will calculate intensities for the
 wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The option `:trace` will contract spin
-indices, returning $𝒮^{αα}(𝐪,ω)$. The option `:perp` will instead perform a
-contraction that includes polarization corrections. The option `:full` will
-return data for the full tensor $𝒮^{αβ}(𝐪,ω)$. `intensities` returns a list of
-`nω` elements. The corresponding $ω$ values can be retrieved by calling
-[`ωs`](@ref).
+indices, returning $𝒮^{αα}(𝐪,ω)$, summing over ``α``. The option `:perp` will
+instead perform a contraction that includes polarization corrections. The option
+`:full` will return data for the full tensor $𝒮^{αβ}(𝐪,ω)$. `intensities`
+returns a list of `nω` elements. The corresponding $ω$ values can be retrieved
+by calling [`ωs`](@ref).
 
 Since Sunny currently only calculates the structure factor on a finite lattice,
 it is important to realize that exact information is only available at a
@@ -164,7 +164,9 @@ e.g., `bzsize=(2,2,2)`. The resulting list of wave vectors may then be passed to
 
 The convenience function [`connected_path`](@ref) returns a list of wavevectors
 sampled along a path that connects specified $𝐪$ points. This list can be used
-as an input to `intensities`.
+as an input to `intensities`. Another convenience method,
+[`spherical_shell`](@ref) will provide a list of wave vectors on a sphere of a
+specified radius. This is useful for powder averaging. 
 
 A number of keyword arguments are available which modify the calculation of
 structure factor intensity. See the documentation of [`intensities`](@ref) for a
@@ -172,9 +174,9 @@ full list. It is generally recommended to provide a value to `kT` corresponding
 to the temperature of sampled configurations. Given `kT`, Sunny will apply an
 energy- and temperature-dependent classical-to-quantum rescaling of intensities. 
 
-To retrieve intensity data from a static structure factor, use
-[`static_intensities`](@ref), which shares keyword arguments with
-`intensities`. This function may also be used to calculate static
+To retrieve intensity data from a instantaneous structure factor, use
+[`instant_intensities`](@ref), which shares keyword arguments with
+`intensities`. This function may also be used to calculate instantaneous
 information from a dynamical structure factor. Note that it is important to
 supply a value to `kT` to reap the benefits of this approach over simply
 calculating a static structure factor at the outset. 

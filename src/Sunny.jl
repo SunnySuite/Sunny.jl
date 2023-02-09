@@ -84,9 +84,9 @@ include("StructureFactors/BasisReduction.jl")
 include("StructureFactors/Interpolation.jl")
 include("StructureFactors/PowderAveraging.jl")
 include("StructureFactors/DataRetrieval.jl")
-export DynamicStructureFactor, StaticStructureFactor,
+export DynamicStructureFactor, InstantStructureFactor,
     StructureFactor, FormFactor, 
-    add_sample!, intensities, static_intensities,
+    add_sample!, intensities, instant_intensities,
     broaden_energy, connected_path, spherical_shell, 
     lorentzian, all_exact_wave_vectors, ωs
 

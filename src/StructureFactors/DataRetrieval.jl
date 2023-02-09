@@ -1,5 +1,5 @@
 ################################################################################
-# Basic functions for retrieving 𝒮(q, ω) values
+# Basic functions for retrieving 𝒮(𝐪,ω) values
 ################################################################################
 
 # Internal function for getting a single 𝒮(q, ω) intensity
@@ -113,7 +113,7 @@ function intensities(sf::StructureFactor, qs, mode;
 
     # Make sure it's a dynamical structure factor 
     if static_warn && size(sf.data, 7) == 1
-        error("`intensities` given a static structure factor. Call `static_intensities` to retrieve static structure factor data.")
+        error("`intensities` given a StructureFactor with no dynamical information. Call `instant_intensities` to retrieve instantaneous (static) structure factor data.")
     end
 
     # Set up interpolation scheme
@@ -177,13 +177,14 @@ end
 
 
 """
-    static_intensities(sf::StructureFactor, qs, mode; kwargs...)
+    instant_intensities(sf::StructureFactor, qs, mode; kwargs...)
 
-Return the static structure factor intensities at wave vectors `qs`. The
-functionality is very similar to [`intensities`](@ref), except the returned
-array has dimensions identical to `qs`. The energy axis has been integrated out.
+Return ``𝒮(𝐪)`` intensities at wave vectors `qs`. The functionality is very
+similar to [`intensities`](@ref), except the returned array has dimensions
+identical to `qs`. If called on a `StructureFactor` with dynamical information,
+i.e., ``𝒮(𝐪,ω)``, the ``ω`` information is integrated out.
 """
-function static_intensities(sf::StructureFactor, qs, mode; kwargs...)
+function instant_intensities(sf::StructureFactor, qs, mode; kwargs...)
     datadims = size(qs)
     ndims = length(datadims)
     vals = intensities(sf, qs, mode; static_warn=false, kwargs...)
