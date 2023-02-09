@@ -27,8 +27,8 @@
     sys = simple_model_sf(; mode=:SUN)
     thermalize_simple_model!(sys; kT=0.1)
     S = Sunny.spin_matrices(2)
-    ops = cat(S...; dims=3)
-    sf = DynamicStructureFactor(sys; nω=100, ωmax=10.0, Δt=0.1, apply_g=false, ops)
+    observables = cat(S...; dims=3)
+    sf = DynamicStructureFactor(sys; nω=100, ωmax=10.0, Δt=0.1, apply_g=false, observables)
     qgrid = all_exact_wave_vectors(sf)
     vals = intensities(sf, qgrid, :trace; negative_energies=true)
     total_intensity_trace = sum(vals)
@@ -72,15 +72,15 @@
 
 
     # Test static from dynamic intensities working
-    static_vals = static_intensities(sf, qgrid, :trace; negative_energies=true)
+    static_vals = instant_intensities(sf, qgrid, :trace; negative_energies=true)
     total_intensity_static = sum(static_vals)
     @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-12)  # Order of summation can lead to very small discrepancies
 
-    # Test StaticStructureFactor working
+    # Test InstantStructureFactor working
     sys = simple_model_sf(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
-    sf = StaticStructureFactor(sys; apply_g=false)
-    true_static_vals = static_intensities(sf, qgrid, :trace)
+    sf = InstantStructureFactor(sys; apply_g=false)
+    true_static_vals = instant_intensities(sf, qgrid, :trace)
     true_static_total = sum(true_static_vals)
     @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
 

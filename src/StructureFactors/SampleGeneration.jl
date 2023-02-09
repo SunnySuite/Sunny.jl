@@ -75,10 +75,10 @@ function new_sample!(sf::StructureFactor, sys::System; processtraj! = no_process
 
     @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `StructureFactor`"
 
-    if size(sf.ops)[1] == 0
+    if size(sf.observables)[1] == 0
         dipole_trajectory!(samplebuf, sys, integrator, nsnaps; measperiod, apply_g)
     else
-        expectation_trajectory!(samplebuf, sys, integrator, nsnaps, sf.ops; measperiod)
+        expectation_trajectory!(samplebuf, sys, integrator, nsnaps, sf.observables; measperiod)
     end
 
     processtraj!(sf)

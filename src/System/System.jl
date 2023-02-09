@@ -430,7 +430,7 @@ factor. Coordinates are given in units of reciprocal lattice vectors. These
 dominant wavevectors may be used as input to
 [`suggest_magnetic_supercell`](@ref).
 
-Unlike in [`static_intensities`](@ref), here the structure factor weights do not
+Unlike in [`instant_intensities`](@ref), here the structure factor weights do not
 incorporate phase averaging between sublattices. Instead, intensities are
 calculated for each sublattice independently, and naïvely summed. This means
 that wavevectors beyond the first Brillouin zone will be missing.
