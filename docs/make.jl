@@ -1,6 +1,7 @@
-push!(LOAD_PATH, "../src/")
-
 using Literate, Documenter, Sunny
+
+# Run with:    julia --project=@. make.jl
+execute = true # set `false` to disable cell evaluation
 
 example_names = ["fei2_tutorial", "powder_averaging"]
 
@@ -9,7 +10,7 @@ example_destination = joinpath(@__DIR__, "src", "examples")
 example_doc_paths = ["examples/$name.md" for name in example_names]
 
 for source in example_sources
-    Literate.markdown(source, example_destination; execute=true, documenter=true)
+    Literate.markdown(source, example_destination; execute, documenter=true)
 end
 
 makedocs(
@@ -25,7 +26,7 @@ makedocs(
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
-    draft = false # set to true to disable cell evaluation
+    draft=!execute
 )
 
 deploydocs(
