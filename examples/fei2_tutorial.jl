@@ -78,7 +78,7 @@ sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN, seed=0)
 # ### Symmetry analysis
 # The next step is to add interactions to the system. The command
 # [`print_symmetry_table`](@ref) shows all symmetry-allowed interactions up to a
-# distance cutoff.
+# cutoff distance.
 
 print_symmetry_table(cryst, 8.0)
 
@@ -154,7 +154,7 @@ set_exchange!(sys, [J′2apm 0.0    0.0;
 D = 2.165
 set_anisotropy!(sys, -D*𝒮[3]^2, 1)
 
-# Any ansotropy operator can be converted to a linear combination of Stevens
+# Any anisotropy operator can be converted to a linear combination of Stevens
 # operators with [`print_anisotropy_as_stevens`](@ref).
 
 # # Calculating structure factor intensities
@@ -305,6 +305,7 @@ is = intensities(sf, path, :perp;
     kT,                            # Temperature for intensity correction
     formfactors,                   # Form factor information 
 )
+is = broaden_energy(sf, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.06))  # Add artificial broadening
 
 fig = Figure()
 labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
@@ -314,13 +315,13 @@ ax = Axis(fig[1,1];
     xticklabelrotation=π/8,
     xticklabelsize=12,
 )
-heatmap!(ax, 1:size(is,1), ωs(sf), is; colorrange=(0.0, 0.5))
+heatmap!(ax, 1:size(is,1), ωs(sf), is; colorrange=(0.0, 0.7))
 fig
 
 # The existence of a lower-energy, single-ion bound state is in qualitative
 # agreement with the experimental data in [Bai et
-# al.](https://doi.org/10.1038/s41567-020-01110-1) (Todo: Understand the
-# different labeling of $q$-vector coordinates.)
+# al.](https://doi.org/10.1038/s41567-020-01110-1) (Note that the publication
+# figure uses a different coordinate system to label the same wave vectors.)
 #
 # ```@raw html
 # <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_intensity.jpg">
