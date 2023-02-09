@@ -105,24 +105,9 @@ The Julia/Jupyter integration seems to break whenever Julia is updated. If you s
 
 For beginning users, the previous sections are fully sufficient for running and modifying the Sunny examples. Some users may want to experiment with changes to Sunny itself. This section describes a more advanced setup for Julia code development.
 
-## Developing the Sunny source code
-
-The [Git version control system](https://git-scm.com/) makes it possible to fearlessly experiment with code modifications. To get the latest development branch of Sunny, use:
-
-```
-pkg> rm Sunny
-pkg> dev Sunny
-```
-
-This will download (more specifically, `git clone`) the source code for Sunny into the local directory `~/.julia/dev/Sunny/`. Modifications to the files here will be picked up by Julia.
-
-A full introduction to Git is beyond the scope of this document, but here are some basics. Open a terminal in the `~/.julia/dev/Sunny/` directory and type `git status`. You should see that the directory is free of changes, i.e., "clean". Try modifying some source file. Now `git status` will show name of the file that was changed. Type `git diff` to see the specific changes made. You can revert these changes with the command `git checkout <filename>`. Other useful commands include `git add <filenames>` and `git commit`, which will enter changes into the database (repository) of tracked changes (commits). `git log` will show a history of commits. The commands `git pull` and `git push` will download and upload, respectively, from the "origin" repository (in this case, the one hosted on Github). If you actually try this, you will likely find that `git push` reports an error stating that you don't have write access to the main Sunny repository. The recommend workflow is to [fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo) Sunny on Github. The forked version can be checked out using `pkg> dev <GithubURL>`. Changes in a fork can be considered for incorporation into Sunny using a [pull request](https://docs.github.com/en/github/collaborating-with-pull-requests/).
-
-Instead of entering Git commands in the terminal, it's usually more convenient to use a graphical user interface. For Julia development, we recommend the VSCode editor with the Git Lens extension (see below).
-
 ## Julia development with Revise.jl
 
-An extremely important package in the Julia ecosystem is [Revise](https://timholy.github.io/Revise.jl/stable/):
+A very important package for Julia code development is [Revise](https://timholy.github.io/Revise.jl/stable/):
 ```
 pkg> add Revise
 ```
@@ -166,3 +151,18 @@ Once `JULIA_EDITOR` has been configured, the `@edit` macro can be used to load s
 julia> @edit sort([3, 2, 1])
 ```
 will open the definition of the `sort` function in the VSCode editor. The `@edit` macro is defined in the [`InteractiveUtils` module](https://docs.julialang.org/en/v1/stdlib/InteractiveUtils/). Browse around these docs to see what else is availabe.
+
+## Developing the Sunny source code
+
+The [Git version control system](https://git-scm.com/) makes it possible to fearlessly experiment with code modifications. To get the latest development branch of Sunny, use:
+
+```
+pkg> rm Sunny
+pkg> dev Sunny
+```
+
+This will download (more specifically, `git clone`) the source code for Sunny into the local directory `~/.julia/dev/Sunny/`. Modifications to the files here will be picked up by Julia.
+
+A full introduction to Git is beyond the scope of this document, but here are some basics. Open a terminal in the `~/.julia/dev/Sunny/` directory and type `git status`. You should see that the directory is free of changes, i.e., "clean". Try modifying some source file. Now `git status` will show name of the file that was changed. Type `git diff` to see the specific changes made. You can revert these changes with the command `git checkout <filename>`. Other useful commands include `git add <filenames>` and `git commit`, which will enter changes into the database (repository) of tracked changes (commits). `git log` will show a history of commits. The commands `git pull` and `git push` will download and upload, respectively, from the "origin" repository (in this case, the one hosted on Github). If you actually try this, you will likely find that `git push` reports an error stating that you don't have write access to the main Sunny repository. The recommend workflow is to [fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo) Sunny on Github. The forked version can be checked out using `pkg> dev <GithubURL>`. Changes in a fork can be considered for incorporation into Sunny using a [pull request](https://docs.github.com/en/github/collaborating-with-pull-requests/).
+
+Instead of entering Git commands in the terminal, it's usually more convenient to use a graphical user interface. For Julia development, we recommend the VSCode editor with the Git Lens extension (see below).
