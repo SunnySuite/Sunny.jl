@@ -111,10 +111,7 @@ pa = powder_average(sf, rs, density; η, kT);
 # and plot the results.
 
 fig = Figure()
-ax = Axis(fig[1,1]; 
-    xlabel = "|Q| (Å⁻¹)",
-    ylabel = "ω (meV)",
-)
+ax = Axis(fig[1,1]; xlabel = "|Q| (Å⁻¹)", ylabel = "ω (meV)")
 heatmap!(ax, rs, ωs(sf), pa; colorrange=(0,5.0))
 fig
 
@@ -126,7 +123,7 @@ fig
 # quality results can be obtained by:
 # - Increasing the number of samples used to calculate ``𝒮(𝐪,ω)`` using
 #   [`add_sample!`](@ref)
-# - Increasing the system size
+# - Increasing the system size to improve momentum space resolution
 # - Increasing the energy resolution (`nω` keyword of
 #   [`DynamicStructureFactor`](@ref)) 
 # - Applying instrument-specific energy broadening by giving `broaden_energy` a
