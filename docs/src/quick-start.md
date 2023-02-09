@@ -14,8 +14,9 @@ Started](https://github.com/SunnySuite/Sunny.jl/blob/main/GettingStarted.md)
 guide.
 
 For an interactive, notebook-like experience, we recommend the [Julia extension
-for VSCode](https://www.julia-vscode.org/). Alternatively, Jupyter notebook
-supports Julia via the [IJulia package](https://github.com/JuliaLang/IJulia.jl).
+for VSCode](https://www.julia-vscode.org/). Alternatively, the [IJulia
+package](https://github.com/JuliaLang/IJulia.jl) provides Julia-enabled Jupyter
+notebooks.
 
 ## Example usage
 
