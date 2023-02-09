@@ -5,55 +5,46 @@
 </div>
 <p>
 
-<!--- [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://sunnysuite.github.io/Sunny.jl/stable) --->
-
+<!-- [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://sunnysuite.github.io/Sunny.jl/stable) -->
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
 
-A package for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipolar spin components. In the latter case, Sunny resolves the local quantum structure of individual spins, making it particularly suited for modeling magnetic compounds with strong local anisotropy.
+A package for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipolar spin components. In the latter case, Sunny resolves the local quantum structure of individual spins, making it particularly suited for modeling magnetic compounds with strong single-ion anisotropy, e.g., due to crystal field splitting.
 
-Sunny additionally provides Monte Carlo algorithms for sampling from thermal equilibrium, as well as tools for measuring dynamical structure factors that can be compared with experimental neutron scattering data. Sunny provides symmetry analyses to facilitate the design and specification of model Hamiltonians, and interactive tools to visualize 3D crystal structures and (coming soon) structure factor data.
+Sunny additionally provides Monte Carlo algorithms for sampling from thermal equilibrium, as well as tools for measuring dynamical structure factors that can be compared with experimental neutron scattering data. Symmetry analyses are available to facilitate the design and specification of model Hamiltonians. Some interactive 3D visualization tools are available, with more planned.
 
-Sunny is currently under heavy development. A list of **breaking changes** appears in the [version history](https://sunnysuite.github.io/Sunny.jl/dev/versions/).
+Sunny is currently under heavy development with many **breaking changes**. See the [version history](https://sunnysuite.github.io/Sunny.jl/dev/versions/) for details.
 
-## Example notebooks
+## Examples
 
-To get a feeling for what Sunny can do, we recommend browsing [Jupyter notebook tutorials](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials). In particular, the [FeI2 tutorial](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials/FeI2/FeI2_tutorial.ipynb) illustrates how to measure to use SU(3) spin dynamics to measure a dynamical structure factor.
+To see Sunny in action, we recommend browsing the [FeI2 case study]https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/). This example uses SU(3) spin dynamics to measure the dynamical structure factor. The SU(3) formalism is essential to model the single-ion bound-state, which has been [observed experimentally](https://doi.org/10.1038/s41567-020-01110-1).
 
 ## Technical description of SU(_N_) spin dynamics.
 
-A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct levels, and evolves under the group of special unitary transformations, SU(_N_). Local physical observables correspond to expectation values of the $N^2-1$ generators of SU(_N_), which may be interpreted as multipolar spin components. The standard treatment keeps only the expected dipole components, $\langle \hat S^x\rangle,\langle \hat S^y\rangle,\langle \hat S^z\rangle$, yielding the Landau-Lifshitz dynamics. The "SU(_N_) spin dynamics" naturally generalizes the LL equation by modeling the coupled dynamics of all $N^2-1$ generalized spin components. This formalism was introduced in [[Zhang and Batista, Phys. Rev. B **104**, 104409 (2021)](https://arxiv.org/abs/2106.14125)].
+A quantum spin of magnitude _S_ has $N = 2 S + 1$ distinct angular momentum eigenstates. The traditional classical approximation effectively replaces each spin operator with a dipole expectation value, producing the standard Landau-Lifshitz spin-dipole dynamics. Alternatively, one can derive a dynamics that retains all multipolar expectation values (dipoles, quadrupoles, etc.) [[Zhang and Batista, Phys. Rev. B **104**, 104409 (2021)](https://arxiv.org/abs/2106.14125)]. This formalism can be understood as a dynamics of SU(_N_) coherent states, and coincides with the usual Laudau-Lifshitz dynamics when $N=2$. 
 
-Sunny uses highly efficient algorithms to simulate this SU(_N_) spin dynamics:
+Sunny uses recently developed algorithms to simulate this SU(_N_) spin dynamics in a highly efficient way:
 * D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_, Phys. Rev. B **106**, 054423 (2022) [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
 * D. Dahlbom et al., _Langevin dynamics of generalized spins as SU(N) coherent states_ [[arXiv:2209.01265](https://arxiv.org/abs/2209.01265)].
 
 ## Comparison with other tools
 
-A defining feature of Sunny is its support for generalized SU(_N_) spin dynamics. Sunny can also be restricted to the dipole-only approximation of spin. When running in this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/). Advantages of Sunny are: (1) Support for finite temperature measurements, and (2) Support for single-ion anisotropies beyond quadratic order. A current **_disadvantage_** is that Sunny does not yet employ linear spin wave theory; this means that the $q$-space resolution of structure factor measurements $\mathcal{S}(q,\omega)$ is limited by the size of magnetic super cell. Sunny is also a newer project, and lacks some of the polish of SpinW.
+In addition to the generalized SU(_N_) spin dynamics, Sunny can also simulate spins in the dipole-only approximation. When running in this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/), which was an inspiration for this project. Sunny supports general single-ion anisotropies, and currently has a focus on classical spin dynamics. The classical spin dynamics allows for simulations at finite temperatures, and (soon) the application of chemical inhomogeneities. Support for the SU(_N_) version of linear spin wave theory is coming soon; this approach will be faster, and enables arbitrary $k$-space resolution.
 
 ## Installation
 
-Sunny is implemented in the [Julia programming language](https://julialang.org/). New Julia users may wish to start with our [Getting Started](GettingStarted.md) guide.
+Sunny is implemented in the [Julia programming language](https://julialang.org/). New Julia users may wish to read our [Getting Started](GettingStarted.md) guide.
 
-From the Julia prompt, one can install Sunny using the built-in package manager:
+From the Julia prompt, one can install the latest Sunny using the built-in package manager:
 ```
 julia> ]
 pkg> add Sunny
 ```
 
-Check that Sunny is working properly by running the unit tests: `pkg> test Sunny`. Please keep up-to-date by periodically running the Julia update command: `pkg> update`.
-
-A good way to interact with Sunny is through the Jupyter notebook interface. This support can be installed through the [IJulia](https://github.com/JuliaLang/IJulia.jl) package.
-
-## API Reference
-
-[Documentation available here](https://sunnysuite.github.io/Sunny.jl/dev).
+New point-releases will include **breaking changes**, so users may wish to stick with one point-release for the duration of a project. To install a specific version, e.g. `0.x`, use the syntax `add Sunny@0.x`. Documentation for old Sunny versions is [available on JuliaHub](https://juliahub.com/ui/Packages/Sunny/atBCQ) -- access it by clicking the `more...` button in the 'Version' panel on the right.
 
 ## Contact us
 
-Please join our [Slack User Community](https://join.slack.com/t/sunny-users/shared_invite/zt-1igulj7gz-_hNqCnOXbAjhH6oG64~PFA)!
-
-Alterantively, contact the [developers](https://github.com/SunnySuite/Sunny.jl/wiki/Contributors) directly.
+If you're using Sunny, we'd like to interact with you. Please join our [Slack User Community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello! If you find an unexpected behavior in Sunny, please [start a Github discussion](https://github.com/SunnySuite/Sunny.jl/discussions) or [file an issue](https://github.com/SunnySuite/Sunny.jl/issues).
     
 
 <div>

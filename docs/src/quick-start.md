@@ -9,25 +9,13 @@ using Sunny
 If Sunny has not yet been installed, Julia will ask your permission to download
 and install it within the Julia environment.
 
-One way to interact with Sunny is through a Jupyter notebook,
-```julia
-using IJulia
-notebook()
-```
-
-If you see an error about a missing a Julia kernel, you can usually fix this
-with `] build IJulia` from the Julia terminal.
-
-For more information about Julia, see the [Getting
+For more information about Julia, see our [Getting
 Started](https://github.com/SunnySuite/Sunny.jl/blob/main/GettingStarted.md)
 guide.
 
-## Browse a Sunny notebook
-
-To get a feeling for Sunny, a good place to start is the [FeI2 case
-study](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials/FeI2/FeI2_tutorial.ipynb)
-tutorial notebook. Additional tutorials are
-[available](http://nbviewer.org/github/SunnySuite/SunnyTutorials/blob/main/tutorials).
+For an interactive, notebook-like experience, we recommend the [Julia extension
+for VSCode](https://www.julia-vscode.org/). Alternatively, Jupyter notebook
+supports Julia via the [IJulia package](https://github.com/JuliaLang/IJulia.jl).
 
 ## Example usage
 
