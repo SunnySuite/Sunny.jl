@@ -53,8 +53,8 @@ information is available in the Library API.
 
 The basic data type for calculating, storing and retrieving structure factor
 data is `StructureFactor`. Rather than creating a `StructureFactor` directly,
-one should call either `DynamicStructureFactor`, for $𝒮^{αβ}(𝐪,ω)$, or
-`StaticStructureFactor`, for $𝒮^{αβ}(𝐪)$. These functions will configure and
+one should call either [`DynamicStructureFactor`](@ref), for $𝒮^{αβ}(𝐪,ω)$, or
+[`StaticStructureFactor`](@ref), for $𝒮^{αβ}(𝐪)$. These functions will configure and
 return an appropriate `StructureFactor`.
 
 ### Calculating a dynamical stucture factor
@@ -87,7 +87,7 @@ The input `sys` must be a spin configuration in good thermal equilibrium, e.g.,
 using the continuous [`Langevin`](@ref) dynamics or using single spin flip
 trials with [`LocalSampler`](@ref). The statistical quality of the
 $𝒮^{αβ}(𝐪,ω)$ can be improved by generating a decorrelated spin configuration
-in `sys`, and then calling [`add_sample!(structure_factor, sys)`](@ref).
+in `sys`, and then calling [`add_sample!`](@ref).
 
 The outline of typical use case might look like this:
 ```
@@ -122,7 +122,7 @@ configurations. Information about calculating static data from a dynamic
 structure factor can be found in the following section.
 
 The basic usage for the static case is very similar to the dynamic case, except
-one calls `StaticStructureFactor(sys)` instead of `DynamicStructureFactor`. Note
+one calls `StaticStructureFactor` instead of `DynamicStructureFactor`. Note
 that there are no required keywords as there is no need to specify any dynamics.
 `StaticStructureFactor` will immediately calculate a sample of $𝒮(𝐪)$ using
 the spin configuration contained in `sys`. It is therefore important that 
@@ -141,8 +141,8 @@ wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The option `:trace` will contract spin
 indices, returning $𝒮^{αα}(𝐪,ω)$. The option `:perp` will instead perform a
 contraction that includes polarization corrections. The option `:full` will
 return data for the full tensor $𝒮^{αβ}(𝐪,ω)$. `intensities` returns a list of
-`nω` elements. The corresponding $ω$ values are given by `ωvals(sf)`, where `sf`
-is the `StructureFactor`.
+`nω` elements. The corresponding $ω$ values can be retrieved by calling
+[`ωs`](@ref).
 
 Since Sunny currently only calculates the structure factor on a finite lattice,
 it is important to realize that exact information is only available at a
@@ -174,7 +174,7 @@ energy- and temperature-dependent classical-to-quantum rescaling of intensities.
 
 To retrieve intensity data from a static structure factor, use
 [`static_intensities`](@ref), which shares keyword arguments with
-[`intensities`](@ref). This function may also be used to calculate static
+`intensities`. This function may also be used to calculate static
 information from a dynamical structure factor. Note that it is important to
 supply a value to `kT` to reap the benefits of this approach over simply
 calculating a static structure factor at the outset. 
