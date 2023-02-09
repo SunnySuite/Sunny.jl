@@ -10,7 +10,7 @@ Sunny provides the following features:
 
 - Generalized spin dynamics using [SU(_N_) coherent states](https://arxiv.org/abs/2209.01265).
 - Ability specify a crystal by a `.cif` file, or using its spacegroup symmetry.
-- Symmetry analysis to classify allowed Hamiltonian terms, and to propagate interactions by symmetry.
+- Symmetry analysis to classify allowed interaction terms, and to propagate them by symmetry.
 - Single-ion anisotropy at arbitrary order, which can be specified using Stevens operators or as a polynomial of spin operators.
 - Monte Carlo sampling of spin configurations in thermal equilibrium.
 - Ewald summation for long-range dipole-dipole interactions, accelerated with the fast Fourier transform (FFT).

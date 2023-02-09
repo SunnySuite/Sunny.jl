@@ -17,12 +17,11 @@ Classical spin models have historically used the expected dipoles alone.  The
 choice `mode=:dipole` projects the SU(_N_) dynamics onto the space of pure
 dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
 dynamics, but all single-ion anisotropy or biquadratic exchange interactions
-will be automatically renormalized to achieve maximum accuracy.
+will be automatically renormalized for maximum accuracy. [IN PROGRESS]
 
 To disable such renormalization, e.g. to reproduce results collected using the
-historical large-``S`` classical limit, use `mode=:large_S`. We emphasize,
-however, that `mode=:SUN` or `mode=:dipole` should be preferred for the
-development of new models.
+historical large-``S`` classical limit, use `mode=:large_S`. [IN PROGRESS] Modes
+`:SUN` or `:dipole` should be preferred for the development of new models.
 
 The default units system of (meV, Å, tesla) can be overridden by with the
 `units` parameter; see [`Units`](@ref). 
