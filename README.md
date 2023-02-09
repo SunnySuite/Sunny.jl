@@ -16,7 +16,7 @@ Sunny is currently under heavy development with many **breaking changes**. See t
 
 ## Examples
 
-To see Sunny in action, we recommend browsing the [FeI2 case study]https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/). This example uses SU(3) spin dynamics to measure the dynamical structure factor. The SU(3) formalism is essential to model the single-ion bound-state, which has been [observed experimentally](https://doi.org/10.1038/s41567-020-01110-1).
+To see Sunny in action, we recommend browsing the [FeI2 case study](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/). This example uses SU(3) spin dynamics to measure the dynamical structure factor. The SU(3) formalism is essential to model the single-ion bound-state, which has been [observed experimentally](https://doi.org/10.1038/s41567-020-01110-1).
 
 ## Technical description of SU(_N_) spin dynamics.
 
