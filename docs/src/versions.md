@@ -1,6 +1,17 @@
+# Version 0.4.1 (in development)
+
+Support for inhomogeneous exchange interactions is planned. One will first call
+`enable_inhomogeneous_exchange!`, allowing subsequent use of `set_exchange_at!`.
+
+Support for [`LocalSampler`](@ref) is in development.
+
+`set_biquadratic!` will replace [`set_exchange_with_biquadratic!`](@ref).
+
+
 # Version 0.4
 
-This update includes many breaking changes.
+This update includes many breaking changes, and is missing some features of
+0.3.0.
 
 ### Creating a spin `System`
 
@@ -20,8 +31,7 @@ The parameter `mode` is one of `:SUN` or `:dipole`.
 
 Interactions are now added mutably to an existing `System` using the following
 functions: [`set_external_field!`](@ref), [`set_exchange!`](@ref),
-[`set_exchange_with_biquadratic!`](@ref), [`set_anisotropy!`](@ref),
-[`enable_dipole_dipole!`](@ref).
+[`set_anisotropy!`](@ref), [`enable_dipole_dipole!`](@ref).
 
 As a convenience, one can use [`dmvec(D)`](@ref) to convert a DM vector to a
 $3×3$ antisymmetric exchange matrix.
@@ -45,9 +55,6 @@ Vacancies can be introduced with [`set_vacancy_at!`](@ref).
 An external field can be applied to a single site with
 [`set_external_field_at!`](@ref). 
 
-Support for inhomogeneous exchange interactions is planned. One will first call
-`enable_inhomogeneous_exchange!`, allowing subsequent use of `set_exchange_at!`.
-
 
 ### Structure factor rewrite
 
@@ -70,7 +77,6 @@ Additional related functions include [`resize_periodically`](@ref) and
 
 The new function includes the list of symmetry-allowed single ion anisotropies
 in addition to exchange interactions.
-
 
 * When reading CIF files, the field `_atom_site_label` is now used in place of
   the field `_atom_site_type_symbol`.
