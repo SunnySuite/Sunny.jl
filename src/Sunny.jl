@@ -64,7 +64,7 @@ include("System/Interactions.jl")
 export SpinInfo, System, polarize_spins!, randomize_spins!, energy, forces,
     reshape_geometry, resize_periodically, repeat_periodically,
     set_external_field!, set_anisotropy!,
-    set_exchange!, set_exchange_with_biquadratic!, dmvec,
+    set_exchange!, set_biquadratic!, dmvec,
     enable_dipole_dipole!,
     Site, set_vacancy_at!, set_external_field_at!,
     print_dominant_wavevectors, suggest_magnetic_supercell

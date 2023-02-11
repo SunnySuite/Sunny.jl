@@ -5,7 +5,7 @@ Support for inhomogeneous exchange interactions is planned. One will first call
 
 Support for [`LocalSampler`](@ref) is in development.
 
-`set_biquadratic!` will replace [`set_exchange_with_biquadratic!`](@ref).
+[`set_biquadratic!`](@ref) replaces `set_exchange_with_biquadratic!`.
 
 
 # Version 0.4

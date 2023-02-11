@@ -1,5 +1,5 @@
 
-function SingleIonAnisotropies(N)
+function SingleIonAnisotropy(N)
     op = zero(𝒮[1])
     matrep = zeros(ComplexF64, N, N)
     clsrep = ClassicalStevensExpansion(
@@ -8,7 +8,7 @@ function SingleIonAnisotropies(N)
         zero(SVector{9, Float64}),
         zero(SVector{13, Float64}),
     )
-    SingleIonAnisotropies(op, matrep, clsrep)
+    SingleIonAnisotropy(op, matrep, clsrep)
 end
 
 
@@ -43,24 +43,26 @@ set_anisotropy!(sys, 20*(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4), i)
 See also [`print_anisotropy_as_stevens`](@ref).
 """
 function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) where N
-    (; crystal) = sys
-    (; anisos) = sys.interactions
+    if !is_homogeneous(sys)
+        error("Use `set_anisotropy_at!` for inhomogeneous systems.")
+    end
+    ints = interactions(sys)
 
     iszero(op) && return 
 
-    (1 <= i <= nbasis(crystal)) || error("Atom index $i is out of range.")
+    (1 <= i <= nbasis(sys.crystal)) || error("Atom index $i is out of range.")
 
-    if !iszero(anisos[i].op)
+    if !iszero(ints[i].aniso.op)
         println("Warning: Overriding anisotropy for atom $i.")
     end
 
-    if !is_anisotropy_valid(crystal, i, op)
+    if !is_anisotropy_valid(sys.crystal, i, op)
         println("Symmetry-violating anisotropy: $op.")
         println("Use `print_site(crystal, $i)` for more information.")
         error("Invalid anisotropy.")
     end
 
-    for (b′, op′) in zip(all_symmetry_related_anisotropies(crystal, i, op)...)
+    for (b′, op′) in zip(all_symmetry_related_anisotropies(sys.crystal, i, op)...)
         matrep = operator_to_matrix(op′; N)
 
         S = (N-1)/2
@@ -72,7 +74,7 @@ function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) 
         kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
         clsrep = ClassicalStevensExpansion(kmax, c2, c4, c6)
 
-        anisos[b′] = SingleIonAnisotropies(op′, matrep, clsrep)
+        ints[b′].aniso = SingleIonAnisotropy(op′, matrep, clsrep)
     end
 end
 

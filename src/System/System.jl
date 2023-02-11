@@ -55,17 +55,17 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
         # Repeat such that `κs[cell, :] == Ss` for every `cell`
         κs = permutedims(repeat(Ss, 1, latsize...), (2, 3, 4, 1))
     end
-
-    interactions = Interactions(nb, latsize, N)
-
+    extfield = zeros(Vec3, latsize..., nb)
+    interactions = empty_interactions(nb, N)
+    ewald = nothing
     dipoles = fill(zero(Vec3), latsize..., nb)
     coherents = fill(zero(CVec{N}), latsize..., nb)
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = System(nothing, mode, crystal, latsize, Ns, gs, κs, interactions, dipoles, coherents,
-                    dipole_buffers, coherent_buffers, units, rng)
+    ret = System(nothing, mode, crystal, latsize, Ns, gs, κs, extfield, interactions, ewald,
+                 dipoles, coherents, dipole_buffers, coherent_buffers, units, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
 end
@@ -89,8 +89,8 @@ end
 
 
 function clone_spin_state(sys::System{N}) where N
-    System(sys.origin, sys.mode, sys.crystal, sys.latsize, sys.Ns, sys.gs, sys.κs, sys.interactions,
-        copy(sys.dipoles), copy(sys.coherents), sys.dipole_buffers, sys.coherent_buffers,
+    System(sys.origin, sys.mode, sys.crystal, sys.latsize, sys.Ns, sys.gs, sys.κs, sys.extfield,
+        sys.interactions, sys.ewald, copy(sys.dipoles), copy(sys.coherents), sys.dipole_buffers, sys.coherent_buffers,
         sys.units, copy(sys.rng))
 end
 
@@ -263,29 +263,75 @@ function reshape_geometry(sys::System{N}, A) where N
     return reshape_geometry_aux(sys, new_latsize, new_cell_size)
 end
 
-function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_size::Matrix{Int}) where N
-    # Reuse `origin` system if present
-    origin = isnothing(sys.origin) ? sys : sys.origin
 
-    # If `new_cell_size == I`, we can effectively restore the `origin` system,
-    # but with `new_latsize`
+# Map all "unit cell" quantities from `origin` to `new_sys`. These are: Ns, gs,
+# and homogeneous interactions. 
+function transfer_unit_cell!(new_sys::System{N}, origin::System{N}) where N
+    # Both systems must be homogeneous
+    @assert is_homogeneous(new_sys) && is_homogeneous(origin)
+
+    origin_ints = interactions(origin)
+    new_ints    = interactions(new_sys)
+    new_cryst   = new_sys.crystal
+
+    # Matrix that maps from fractional positions in `new_cryst` to fractional
+    # positions in `cryst`
+    to_orig_pos = origin.crystal.lat_vecs \ new_cryst.lat_vecs
+    # Inverse mapping
+    to_new_pos = inv(to_orig_pos)
+
+    for new_i in 1:nbasis(new_cryst)
+        new_ri = new_cryst.positions[new_i]
+        i = position_to_index(origin.crystal, to_orig_pos * new_ri)
+
+        # Spin descriptors
+        new_sys.Ns[new_i] = origin.Ns[i]
+        new_sys.gs[new_i] = origin.gs[i]
+
+        # Interactions
+        function map_couplings(couplings::Vector{Coupling{T}}) where T
+            new_couplings = Coupling{T}[]
+            for (; bond, J) in couplings
+                displacement = origin.crystal.positions[bond.j] + bond.n - origin.crystal.positions[bond.i]
+                new_rj = new_ri + to_new_pos * displacement
+                new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
+                new_bond = Bond(new_i, new_j, new_n)
+                isculled = bond_parity(new_bond)
+                push!(new_couplings, Coupling(isculled, new_bond, J))
+            end
+            return sort!(new_couplings, by=c->c.isculled)
+        end
+        new_ints[new_i].aniso    = origin_ints[i].aniso
+        new_ints[new_i].heisen   = map_couplings(origin_ints[i].heisen)
+        new_ints[new_i].exchange = map_couplings(origin_ints[i].exchange)
+        new_ints[new_i].biquad   = map_couplings(origin_ints[i].biquad)
+    end
+end
+
+function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_size::Matrix{Int}) where N
+    is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
+
+    # `origin` describes the unit cell of the original system. For sequential
+    # reshapings, `sys.origin` keeps its original meaning. Make a deep copy so
+    # that the new system fully owns `origin`, and mutable updates to the
+    # previous system won't affect this one.
+    origin = deepcopy(isnothing(sys.origin) ? sys : sys.origin)
+
+    # If `new_cell_size == I`, we can effectively restore the unit cell of
+    # `origin`, but with `new_latsize`
     if new_cell_size == I
         new_cryst = origin.crystal
         new_nb = nbasis(new_cryst)
 
         new_κs               = zeros(Float64, new_latsize..., new_nb)
-        new_ints             = Interactions(new_nb, new_latsize, N)
+        new_extfield         = zeros(Vec3, new_latsize..., new_nb)
+        new_ints             = interactions(origin) # homogeneous only
         new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
-        new_rng              = copy(sys.rng)
-        new_sys = System(nothing, origin.mode, origin.crystal, new_latsize, origin.Ns, origin.gs, new_κs, new_ints,
-                         new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, new_rng)
-
-        # Interactions defined for the unit cell can be reused
-        new_ints.anisos = origin.interactions.anisos
-        new_ints.pairexch = origin.interactions.pairexch
+        new_sys = System(nothing, origin.mode, origin.crystal, new_latsize, origin.Ns, origin.gs, new_κs, new_extfield, new_ints, nothing,
+                         new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
     
     # Else we must rebuild the unit cell for the new crystal
     else
@@ -295,57 +341,19 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
         new_Ns               = zeros(Int, new_nb)
         new_gs               = zeros(Mat3, new_nb)
         new_κs               = zeros(Float64, new_latsize..., new_nb)
-        new_ints             = Interactions(new_nb, new_latsize, N)
+        new_extfield         = zeros(Vec3, new_latsize..., new_nb)
+        new_ints             = empty_interactions(new_nb, N)
         new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
-        new_rng              = copy(sys.rng)
         
-        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_gs, new_κs, new_ints,
-                        new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, new_rng)
-        
-        # Matrix that maps from fractional positions in `new_cryst` to fractional
-        # positions in `cryst`
-        to_orig_pos = origin.crystal.lat_vecs \ new_cryst.lat_vecs
-        # Inverse mapping
-        to_new_pos = inv(to_orig_pos)
-
-        # Copy unit cell quantities from `origin`
-        for new_i in 1:new_nb
-            new_ri = new_cryst.positions[new_i]
-            i = position_to_index(origin.crystal, to_orig_pos * new_ri)
-
-            # Spin descriptors
-            new_sys.Ns[new_i] = origin.Ns[i]
-            new_sys.gs[new_i] = origin.gs[i]
-
-            # Anisotropies
-            new_sys.interactions.anisos[new_i] = origin.interactions.anisos[i]
-
-            # Pair exchanges
-            function map_pair_interactions!(new_exch::Vector{Tuple{Bool,Bond,T}}, exch::Vector{Tuple{Bool,Bond,T}}) where T
-                empty!(new_exch)
-                for (_, bond, J) in exch
-                    disp = origin.crystal.positions[bond.j] + bond.n - origin.crystal.positions[bond.i]
-                    new_rj = new_ri + to_new_pos * disp
-                    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
-                    new_bond = Bond(new_i, new_j, new_n)
-                    isculled = bond_parity(new_bond)
-                    push!(new_exch, (isculled, new_bond, J))
-                end
-                sort!(new_exch, by=first)
-            end
-
-            new_exchs = new_sys.interactions.pairexch[new_i]
-            exchs = origin.interactions.pairexch[i]
-            map_pair_interactions!(new_exchs.heisen, exchs.heisen)
-            map_pair_interactions!(new_exchs.quadmat, exchs.quadmat)
-            map_pair_interactions!(new_exchs.biquad, exchs.biquad)
-        end
+        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_gs, new_κs, new_extfield, new_ints, nothing,
+                        new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
+        transfer_unit_cell!(new_sys, origin)
     end
 
-    # Copy per-site quantities from `sys` (not `origin!`)
+    # Copy per-site quantities from `sys`
     for new_idx in all_sites(new_sys)
         # Calculate `idx` into `sys` that corresponds to `new_idx` into
         # `new_sys`. Start with the position `new_r` in fractional coordinates
@@ -356,15 +364,13 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
         idx = position_to_site(sys, r)
 
         new_sys.κs[new_idx] = sys.κs[idx]
+        new_sys.extfield[new_idx] = sys.extfield[idx]
         new_sys.dipoles[new_idx] = sys.dipoles[idx]
         new_sys.coherents[new_idx] = sys.coherents[idx]
-
-        # External fields
-        new_sys.interactions.extfield[new_idx] = sys.interactions.extfield[idx]
     end
 
     # Enable dipole-dipole
-    if !isnothing(sys.interactions.ewald)
+    if !isnothing(sys.ewald)
         enable_dipole_dipole!(new_sys)
     end
 
