@@ -172,28 +172,28 @@ set_anisotropy!(sys, -D*𝒮[3]^2, 1)
 # configurations in thermal equlibrium. Begin by constructing a
 # [`Langevin`](@ref) object.
 
-E0 = D            # Largest energy scale in the Hamiltonian
-Δt = 0.05/E0      # Safe choice for integration step size
-λ = 0.1           # Magnitude of coupling to thermal bath
+Δt = 0.05/D    # Single-ion anisotropy is the strongest interaction, so 1/D is
+               # a natural dynamical time-scale (in units with ħ=1).
+λ = 0.1        # Dimensionless magnitude of coupling to thermal bath
 langevin = Langevin(Δt; kT=0, λ);
 
-# Attempt to find a low-energy spin configuration by lowering the temperature
-# from `E0` to zero using a relatively fast quench of 10,000 Langevin
-# time-steps.
-
+# Attempt to find a low-energy spin configuration by lowering the temperature kT
+# from 2 to 0 using 20,000 Langevin time-steps.
 randomize_spins!(sys)
-for kT in range(E0, 0.0, 10_000)
+for kT in range(2, 0, 20_000)
     langevin.kT = kT
     step!(sys, langevin)
 end
 
-# Defects are visually apparent using `plot_spins`.
+# This was a relatively fast quench, which typically leads to defects in the
+# magnetic order.
 
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# To find a better ground state, we could try repeating the annealing procedure
-# using more time-steps. Instead, let's analyze the imperfect spin configuration
-# currently stored in `sys`.
+# If we repeated the annealing procedure with, say, 100,000 Langevin time-steps,
+# it is very likely to converge perfectly. Instead, for purposes of
+# illustration, let's analyze the imperfect spin configuration currently stored
+# in `sys`.
 #
 # The function [`print_dominant_wavevectors`](@ref) orders wavevectors by their
 # contributions to the static structure factor intensity (1st BZ only).
