@@ -185,15 +185,15 @@ for kT in range(2, 0, 20_000)
     step!(sys, langevin)
 end
 
-# This was a relatively fast quench, which typically leads to defects in the
-# magnetic order.
+# Because the quench was relatively fast, it is expected to find defects in the
+# magnetic order. These can be visualized.
 
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# If we repeated the annealing procedure with, say, 100,000 Langevin time-steps,
-# it is very likely to converge perfectly. Instead, for purposes of
-# illustration, let's analyze the imperfect spin configuration currently stored
-# in `sys`.
+# The same system is very likely to converge perfectly if we repeat the
+# annealing procedure with 100,000 or more Langevin time-steps. Sunny could run
+# this calculation quickly. Instead, for purposes of illustration, let's analyze
+# the imperfect spin configuration currently stored in `sys`.
 #
 # The function [`print_dominant_wavevectors`](@ref) orders wavevectors by their
 # contributions to the static structure factor intensity (1st BZ only).

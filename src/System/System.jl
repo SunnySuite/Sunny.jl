@@ -120,16 +120,36 @@ effectively an alias for the four-component `CartesianIndex` constructor.
 @inline all_cells(sys::System) = CartesianIndices(sys.latsize)
 
 # Position of a site in global coordinates
-position(sys::System, idx) = sys.crystal.lat_vecs * (sys.crystal.positions[idx[4]] .+ (idx[1]-1, idx[2]-1, idx[3]-1))
+function global_position(sys::System, idx)
+    r = sys.crystal.positions[idx[4]] + Vec3(idx[1]-1, idx[2]-1, idx[3]-1)
+    return sys.crystal.lat_vecs * r
+end
+
+# Positions of all sites in global coordinates
+global_positions(sys::System) = [global_position(sys, idx) for idx in all_sites(sys)]
 
 # Magnetic moment at a site
 magnetic_moment(sys::System, idx) = sys.units.μB * sys.gs[idx[4]] * sys.dipoles[idx]
 
-# Positions of all sites in global coordinates
-positions(sys::System) = [position(sys, idx) for idx in all_sites(sys)]
-
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
+
+# The original crystal for a system, invariant under reshaping
+orig_crystal(sys) = isnothing(sys.origin) ? sys.crystal : sys.origin.crystal
+
+# Position of a site in fractional coordinates
+function position(sys::System, idx)
+    return orig_crystal(sys).lat_vecs \ global_position(sys, idx)
+end
+
+# Convert a fractional position `r` to a Cartesian{4} site index
+function position_to_site(sys::System, r::Vec3)
+    # convert to fractional coordinates of possibly reshaped crystal
+    new_r = sys.crystal.lat_vecs \ orig_crystal(sys).lat_vecs * r
+    b, offset = position_to_index_and_offset(sys.crystal, new_r)
+    cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
+    return Site(cell..., b)
+end
 
 
 struct SpinState{N}
@@ -230,14 +250,6 @@ function get_coherent_buffers(sys::System, numrequested)
     return sys.coherent_buffers[1:numrequested]
 end
 
-
-
-# Convert a fractional position `r` to a Cartesian{4} site index
-function position_to_site(sys::System, r::Vec3)
-    b, offset = position_to_index_and_offset(sys.crystal, r)
-    cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
-    return Site(cell..., b)
-end
 
 """
     reshape_geometry(sys::System, A)
@@ -355,14 +367,7 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
 
     # Copy per-site quantities from `sys`
     for new_idx in all_sites(new_sys)
-        # Calculate `idx` into `sys` that corresponds to `new_idx` into
-        # `new_sys`. Start with the position `new_r` in fractional coordinates
-        # of `new_crystal`. Convert this to `r` in fractional coordinates of
-        # `sys.crystal`. Finally, convert `r` to an `idx`.
-        new_r = new_cryst.positions[new_idx[4]] .+ (new_idx[1], new_idx[2], new_idx[3])
-        r = sys.crystal.lat_vecs \ new_cryst.lat_vecs * new_r
-        idx = position_to_site(sys, r)
-
+        idx = position_to_site(sys, position(new_sys, new_idx))
         new_sys.κs[new_idx] = sys.κs[idx]
         new_sys.extfield[new_idx] = sys.extfield[idx]
         new_sys.dipoles[new_idx] = sys.dipoles[idx]
