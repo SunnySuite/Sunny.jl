@@ -66,7 +66,7 @@ export SpinInfo, System, polarize_spins!, randomize_spins!, energy, forces,
     set_external_field!, set_anisotropy!,
     set_exchange!, set_biquadratic!, dmvec,
     enable_dipole_dipole!,
-    Site, set_vacancy_at!, set_external_field_at!,
+    Site, set_external_field_at!, set_vacancy_at!, set_exchange_at!, set_biquadratic_at!, set_anisotropy_at!,
     print_dominant_wavevectors, suggest_magnetic_supercell
 
 include("Integrators.jl")

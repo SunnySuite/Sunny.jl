@@ -7,7 +7,6 @@ function empty_interactions(nb, N)
     end
 end
 
-
 function interactions(sys::System{N}) where N
     @assert is_homogeneous(sys)
     return sys.interactions :: Vector{Interactions}
@@ -224,6 +223,7 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells) where N
     # Heisenberg exchange
     for (; isculled, bond, J) in ints.heisen
         isculled && break
+        println("$bond, i=$i, J=$J, cells=$cells, culled=$isculled")
         for cell in cells
             sᵢ = dipoles[cell, bond.i]
             sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]

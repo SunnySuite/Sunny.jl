@@ -114,7 +114,8 @@ const Site = NTuple{4, Int}
 
 @inline convert_idx(idx::CartesianIndex{4})            = idx
 @inline convert_idx(idx::NTuple{4, Int})               = CartesianIndex(idx)
-@inline convert_idx(n1::Int, n2::Int, n3::Int, i::Int) = CartesianIndex(n1, n2, n3, i)
+@inline convert_idx(c::CartesianIndex{3}, i::Int)      = CartesianIndex(c[1], c[2], c[3], i)
+@inline convert_idx(c1::Int, c2::Int, c3::Int, i::Int) = CartesianIndex(c1, c2, c3, i)
 
 # kbtodo: offsetcell ?
 # Offset a `cell` by `ncells`

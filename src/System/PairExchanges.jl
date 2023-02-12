@@ -155,9 +155,16 @@ end
 
 function bonded_idx(sys::System{N}, idx, bond::Bond) where N
     cell = offsetc(to_cell(idx), bond.n, sys.latsize)
-    convert_idx(cell..., bond.j)
+    return convert_idx(cell, bond.j)
 end
 
+
+function add_coupling!(couplings, bond, J)
+    isculled = bond_parity(bond)
+    filter!(c -> c.bond != bond, couplings)
+    push!(couplings, Coupling(isculled, bond, J))
+    sort!(couplings, by=c->c.isculled)
+end
 
 """
     set_biquadratic_at!(sys::System, J, bond::Bond, idx::Site)
@@ -188,6 +195,7 @@ function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
     isculled = bond_parity(bond)
     filter!(c -> c.bond != bond, ints[idx].biquad)
     push!(ints[idx].biquad, Coupling(isculled, bond, J))
+    sort!(ints[idx].biquad, by=c->c.isculled)
 
     # Add bond in backward direction
     idx′ = bonded_idx(sys, idx, bond)
@@ -196,6 +204,7 @@ function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
     @assert idx′[4] == bond′.i
     filter!(c -> c.bond′ != bond′, ints[idx′].biquad)
     push!(ints[idx′].biquad, Coupling(!isculled, bond′, J'))
+    sort!(ints[idx′].biquad, by=c->c.isculled)
 
     return
 end
@@ -236,8 +245,10 @@ function set_exchange_at!(sys::System{N}, J, bond::Bond, idx) where N
     filter!(c -> c.bond != bond, ints[idx].exchange)
     if is_heisenberg
         push!(ints[idx].heisen, Coupling(isculled, bond, J[1,1]))
+        sort!(ints[idx].heisen, by=c->c.isculled)
     else
         push!(ints[idx].exchange, Coupling(isculled, bond, J))
+        sort!(ints[idx].exchange, by=c->c.isculled)
     end
 
     # Add bond in backward direction
@@ -248,9 +259,11 @@ function set_exchange_at!(sys::System{N}, J, bond::Bond, idx) where N
     filter!(c -> c.bond != bond′, ints[idx′].heisen)
     filter!(c -> c.bond != bond′, ints[idx′].exchange)
     if is_heisenberg
-        push!(ints[idx′].heisen, Coupling(!isculled, bond′, J'))
+        push!(ints[idx′].heisen, Coupling(!isculled, bond′, J[1,1]'))
+        sort!(ints[idx′].heisen, by=c->c.isculled)
     else
         push!(ints[idx′].exchange, Coupling(!isculled, bond′, J'))
+        sort!(ints[idx′].exchange, by=c->c.isculled)
     end
 
     return

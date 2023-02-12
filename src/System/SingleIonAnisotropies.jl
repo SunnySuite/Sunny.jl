@@ -92,7 +92,7 @@ via [`to_inhomogeneous`](@ref).
 
 See also [`set_anisotropy!`](@ref).
 """
-function set_local_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, idx) where N
+function set_anisotropy_at!(sys::System{N}, op::DP.AbstractPolynomialLike, idx) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
     idx = convert_idx(idx)
