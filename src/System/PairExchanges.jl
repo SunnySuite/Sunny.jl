@@ -1,10 +1,3 @@
-# Partition every nonzero bound into one of two sets
-function bond_parity(bond)
-    bond_delta = (bond.j - bond.i, bond.n...)
-    @assert bond_delta != (0, 0, 0, 0)
-    return bond_delta > (0, 0, 0, 0)
-end
-
 """
     set_biquadratic!(sys::System, J, bond::Bond)
 
@@ -170,20 +163,6 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
 end
 
 
-# Transform `orig_bond` defined for `orig_sys` into a bond appropriate for use
-# in `sys.interactions`.
-function transform_bond(new_cryst::Crystal, cryst::Crystal, bond::Bond)
-    # Positions in new fractional coordinates
-    br = BondRaw(cryst, bond)
-    new_ri = new_cryst.lat_vecs \ cryst.lat_vecs * br.ri
-    new_rj = new_cryst.lat_vecs \ cryst.lat_vecs * br.rj
-
-    # Construct bond using new indexing system
-    new_i = position_to_index(new_cryst, new_ri)
-    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
-    return Bond(new_i, new_j, new_n)
-end
-
 function bonded_idx(sys::System{N}, idx, bond::Bond) where N
     cell = offsetc(to_cell(idx), bond.n, sys.latsize)
     convert_idx(cell..., bond.j)
@@ -208,12 +187,11 @@ function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
 
-    idx = convert_idx(idx)
-
     # If system has been reshaped, then we need to transform bond to new
     # indexing system.
     bond = transform_bond(sys.crystal, orig_crystal(sys), bond)
 
+    idx = convert_idx(idx)
     bond.i == idx[4] || error("Atom index `bond.i` is inconsistent with sublattice of `idx`.")
 
     # Add bond in forward direction

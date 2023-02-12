@@ -71,3 +71,24 @@ end
 function Base.reverse(b::BondRaw)
     return BondRaw(b.rj, b.ri)
 end
+
+# Partition every nonzero bound into one of two sets
+function bond_parity(bond)
+    bond_delta = (bond.j - bond.i, bond.n...)
+    @assert bond_delta != (0, 0, 0, 0)
+    return bond_delta > (0, 0, 0, 0)
+end
+
+# Given a `bond` with indices into `cryst`, return a new bond with indices into
+# `new_cryst`, which will typically be created from `reshape_crystal`.
+function transform_bond(new_cryst::Crystal, cryst::Crystal, bond::Bond)
+    # Positions in new fractional coordinates
+    br = BondRaw(cryst, bond)
+    new_ri = new_cryst.lat_vecs \ cryst.lat_vecs * br.ri
+    new_rj = new_cryst.lat_vecs \ cryst.lat_vecs * br.rj
+
+    # Construct bond using new indexing system
+    new_i = position_to_index(new_cryst, new_ri)
+    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
+    return Bond(new_i, new_j, new_n)
+end
