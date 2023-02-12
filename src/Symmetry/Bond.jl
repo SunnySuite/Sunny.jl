@@ -10,7 +10,7 @@ struct Bond
     n :: SVector{3, Int}
 end
 
-# Represents a bond expressed as two fractional coordinates
+# A bond expressed as two positions in fractional coordinates
 struct BondRaw
     ri::Vec3
     rj::Vec3
@@ -65,6 +65,10 @@ end
 
 function transform(cryst::Crystal, s::SymOp, b::Bond)
     return Bond(cryst, transform(s, BondRaw(cryst, b)))
+end
+
+function Base.reverse(b::Bond)
+    return Bond(b.j, b.i, -1 .* b.n)
 end
 
 function Base.reverse(b::BondRaw)

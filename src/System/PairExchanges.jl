@@ -35,7 +35,7 @@ function set_biquadratic!(sys::System{N}, J, bond::Bond) where N
     end
 
     if !is_homogeneous(sys)
-        error("Use `set_exchange_at!` for inhomogeneous systems.")
+        error("Use `set_biquadratic!` for inhomogeneous systems.")
     end
 
     ints = interactions(sys)
@@ -167,6 +167,40 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
         sort!(ints[i].heisen, by=c->c.isculled)
         sort!(ints[i].exchange, by=c->c.isculled)
     end
+end
+
+"""
+    set_biquadratic_at!(sys::System, J, bond::Bond, idx::Site)
+
+Sets a scalar biquadratic interaction along a single `bond`, without symmetry
+propagation. [`Site`](@ref) includes a unit cell and a sublattice index, and the
+latter must match the `bond.i` index. Inhomogeneous interactions must already be
+enabled for the system.
+    
+See also [`set_biquadratic!](@ref), [`to_inhomogeneous`](@ref).
+"""
+function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
+    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+
+    idx = Site(idx)
+    ints = interactions_inhomog(sys)
+
+    bond.i == idx[4] || error("bond.i != idx[4]")
+
+    # Add bond in forward direction
+    isculled = bond_parity(bond)
+    filter!(c -> c.bond != bond, ints[idx].biquad)
+    push!(ints[idx].biquad, Coupling(isculled, bond, J))
+
+    # Add bond in backward direction
+    bond′ = reverse(bond)
+    idx′ = position_to_site(sys, position(sys, idx) .+ bond.n)
+    @assert !isculled == bond_parity(bond′)
+    @assert idx′[4] == bond′.i
+    filter!(c -> c.bond′ != bond′, ints[idx′].biquad)
+    push!(ints[idx′].biquad, Coupling(!isculled, bond′, J'))
+
+    return
 end
 
 

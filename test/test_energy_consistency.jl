@@ -2,7 +2,7 @@
     include("shared.jl")
 
 
-    function make_system(; mode)
+    function make_system(; mode, inhomog)
         cryst = Sunny.diamond_crystal()
         sys = System(cryst, (3, 3, 3), [SpinInfo(1, S=1)], mode; seed=0)
         add_linear_interactions!(sys, mode)
@@ -16,10 +16,14 @@
         end
         # Random spin rescaling
         rand!(sys.rng, sys.κs)
-        # Include a vacancy
-        set_vacancy_at!(sys, (1,1,1,1))
         # Random spins
         randomize_spins!(sys)
+        # Make inhomogeneous
+        if inhomog
+            sys = to_inhomogeneous(sys)
+            set_vacancy_at!(sys, (1,1,1,1))
+        end
+
         return sys
     end
 
@@ -43,8 +47,8 @@
         @test ΔE < 1e-2
     end
 
-    test_conservation(make_system(; mode=:SUN))
-    test_conservation(make_system(; mode=:dipole))
+    test_conservation(make_system(; mode=:SUN, inhomog=false))
+    test_conservation(make_system(; mode=:dipole, inhomog=true))
 
 
     # Tests that energy deltas are consistent with total energy
@@ -66,6 +70,6 @@
         end
     end
 
-    test_delta(make_system(; mode=:SUN))
-    test_delta(make_system(; mode=:dipole))
+    test_delta(make_system(; mode=:SUN, inhomog=true))
+    test_delta(make_system(; mode=:dipole, inhomog=false))
 end

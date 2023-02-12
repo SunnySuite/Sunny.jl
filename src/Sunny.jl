@@ -62,7 +62,7 @@ include("System/SingleIonAnisotropies.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, polarize_spins!, randomize_spins!, energy, forces,
-    reshape_geometry, resize_periodically, repeat_periodically,
+    reshape_geometry, resize_periodically, repeat_periodically, to_inhomogeneous,
     set_external_field!, set_anisotropy!,
     set_exchange!, set_biquadratic!, dmvec,
     enable_dipole_dipole!,

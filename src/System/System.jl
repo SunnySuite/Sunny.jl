@@ -55,7 +55,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
         κs = permutedims(repeat(Ss, 1, latsize...), (2, 3, 4, 1))
     end
     extfield = zeros(Vec3, latsize..., nb)
-    interactions = empty_interactions(nb, N)
+    interactions = empty_interaction_list(nb, N)
     ewald = nothing
     dipoles = fill(zero(Vec3), latsize..., nb)
     coherents = fill(zero(CVec{N}), latsize..., nb)
@@ -215,21 +215,8 @@ function polarize_spins!(sys::System{N}, dir) where N
     end
 end
 
-"""
-    set_vacancy_at!(sys::System, idx::Site)
 
-Make a single site nonmagnetic. [`Site`](@ref) includes a unit cell and a
-sublattice index.
-"""
-function set_vacancy_at!(sys::System{N}, idx) where N
-    idx = Site(idx)
-    sys.κs[idx] = 0.0
-    sys.dipoles[idx] = zero(Vec3)
-    sys.coherents[idx] = zero(CVec{N})
-end
-
-
-function get_dipole_buffers(sys::System, numrequested)
+function get_dipole_buffers(sys::System{N}, numrequested) where N
     numexisting = length(sys.dipole_buffers)
     if numexisting < numrequested
         for _ in 1:(numrequested-numexisting)
@@ -239,7 +226,7 @@ function get_dipole_buffers(sys::System, numrequested)
     return sys.dipole_buffers[1:numrequested]
 end
 
-function get_coherent_buffers(sys::System, numrequested)
+function get_coherent_buffers(sys::System{N}, numrequested) where N
     numexisting = length(sys.coherent_buffers)
     if numexisting < numrequested
         for _ in 1:(numrequested-numexisting)
@@ -353,7 +340,7 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
         new_gs               = zeros(Mat3, new_nb)
         new_κs               = zeros(Float64, new_latsize..., new_nb)
         new_extfield         = zeros(Vec3, new_latsize..., new_nb)
-        new_ints             = empty_interactions(new_nb, N)
+        new_ints             = empty_interaction_list(new_nb, N)
         new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
         new_dipole_buffers   = Array{Vec3, 4}[]

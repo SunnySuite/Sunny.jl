@@ -1,16 +1,12 @@
 # Hamiltonian model parameters and energy/force calculations
 
-function empty_interactions(nb, N)
+function empty_interaction_list(nb, N)
     return map(1:nb) do _
         Interactions(SingleIonAnisotropy(N),
                      Coupling{Float64}[],
                      Coupling{Mat3}[],
                      Coupling{Float64}[])
     end
-end
-
-function is_homogeneous(sys::System{N}) where N
-    return sys.interactions isa Vector{Interactions}
 end
 
 function interactions(sys::System{N}) where N
@@ -21,6 +17,34 @@ end
 function interactions_inhomog(sys::System{N}) where N
     @assert !is_homogeneous(sys)
     return sys.interactions :: Array{Interactions, 4}
+end
+
+function is_homogeneous(sys::System{N}) where N
+    return sys.interactions isa Vector{Interactions}
+end
+
+"""
+    to_inhomogeneous(sys::System)
+
+Returns a copy of the system that allows for inhomogeneous interactions, which
+can be set using (`set_anisotropy_at!`)[@ref], (`set_exchange_at!`)[@ref],
+(`set_biquadratic_at!`)[@ref], and (`set_vacancy_at!`)[@ref].
+
+Inhomogeneous systems do not support symmetry-propagation of interactions or
+system reshaping.
+"""
+function to_inhomogeneous(sys::System{N}) where N
+    is_homogeneous(sys) || error("System is already inhomogeneous.")
+    ints = interactions(sys)
+
+    ret = deepcopy(sys)
+    nb = nbasis(ret.crystal)
+    ret.interactions = Array{Interactions}(undef, ret.latsize..., nb)
+    for cell in all_cells(ret)
+        ret.interactions[cell, :] = deepcopy(ints)
+    end
+
+    return ret
 end
 
 
@@ -66,6 +90,21 @@ function set_external_field_at!(sys::System, B, idx)
     idx = Site(idx)
     g = sys.gs[idx[4]]
     sys.extfield[idx] = sys.units.μB * g' * Vec3(B)
+end
+
+"""
+    set_vacancy_at!(sys::System, idx::Site)
+
+Make a single site nonmagnetic. [`Site`](@ref) includes a unit cell and a
+sublattice index.
+"""
+function set_vacancy_at!(sys::System{N}, idx) where N
+    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+
+    idx = Site(idx)
+    sys.κs[idx] = 0.0
+    sys.dipoles[idx] = zero(Vec3)
+    sys.coherents[idx] = zero(CVec{N})
 end
 
 
