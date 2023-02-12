@@ -82,10 +82,9 @@ function all_symmetry_related_atoms(cryst::Crystal, i_ref::Int)
 end
 
 
-# For each atom in the unit cell of cryst, return the corresponding reference
-# atom in ref_atom that is symmetry equivalent. Print a helpful error message if
-# two reference atoms are symmetry equivalent, or if a reference atom is
-# missing. 
+# For each atom in the unit cell of `cryst`, return the corresponding element of
+# `ref_atom` that is symmetry equivalent. Print a helpful error message if two
+# reference atoms are symmetry equivalent, or if a reference atom is missing. 
 function propagate_reference_atoms(cryst::Crystal, ref_atoms::Vector{Int})
     # Sort infos by site equivalence class
     ref_atoms = sort(ref_atoms; by = (a -> cryst.classes[a]))

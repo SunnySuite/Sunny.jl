@@ -32,12 +32,12 @@ function propagate_site_info(cryst::Crystal, infos::Vector{SpinInfo})
     end
 
     ref_atoms = [info.atom for info in infos]
-    atoms = propagate_reference_atoms(cryst, ref_atoms)
+    atom_to_ref_atom = propagate_reference_atoms(cryst, ref_atoms)
 
-    return map(enumerate(infos[atoms])) do (a, info)
-        a′ = info.atom
-        g′ = info.g
-        g = transform_coupling_for_bonds(cryst, Bond(a,a,(0,0,0)), Bond(a′,a′,(0,0,0)), g′)
-        SpinInfo(a; info.S, g)
+    return map(enumerate(atom_to_ref_atom)) do (a, a′)
+        info = infos[findfirst(==(a′), ref_atoms)]
+        S = info.S
+        g = transform_coupling_for_bonds(cryst, Bond(a,a,(0,0,0)), Bond(a′,a′,(0,0,0)), info.g)
+        SpinInfo(a; S, g)
     end
 end
