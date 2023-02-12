@@ -172,19 +172,23 @@ end
 """
     set_biquadratic_at!(sys::System, J, bond::Bond, idx::Site)
 
-Sets a scalar biquadratic interaction along a single `bond`, without symmetry
-propagation. [`Site`](@ref) includes a unit cell and a sublattice index, and the
-latter must match the `bond.i` index. Inhomogeneous interactions must already be
-enabled for the system.
+Sets a scalar biquadratic interaction along a single bond, without symmetry
+propagation. The parameter `bond`, of type [`Bond`](@ref), includes indices
+defined with respect to an original (unreshaped) unit cell. The parameter `idx`,
+of type [`Site`](@ref), references a single spin within a possibly reshaped
+`System`. This function will verify that the atom index `bond.i` is consistent
+with the sublattice index `idx[4]`. The system must allow inhomogeneous
+interactions.
     
 See also [`set_biquadratic!](@ref), [`to_inhomogeneous`](@ref).
 """
 function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
 
-    idx = Site(idx)
+    idx = convert_idx(idx)
     ints = interactions_inhomog(sys)
 
+    error("TODO")
     bond.i == idx[4] || error("bond.i != idx[4]")
 
     # Add bond in forward direction

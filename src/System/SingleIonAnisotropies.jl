@@ -88,7 +88,7 @@ symmetry constraints. [`Site`](@ref) includes a unit cell and a sublattice
 index.
 """
 function set_local_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, idx) where N
-    idx = Site(idx)
+    idx = convert_idx(idx)
     error("Unimplemented.")
 end
 

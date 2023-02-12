@@ -95,16 +95,29 @@ end
 
 
 """
-    Site(n1, n2, n3, i)
+    Site
 
-Construct an index to a single site in a [`System`](@ref) via its unit cell
-`(n1,n2,n3)` and its atom `i`. Can be used to index `dipoles` and `coherents`
-fields of a `System`, or to set inhomogeneous interactions. This function is
-effectively an alias for the four-component `CartesianIndex` constructor.
+An object with four indices `(cell1, cell2, cell3, i)` that specify a single
+site in a [`System`](@ref). The first three indices specify the cell and the
+last index specifies the sublattice (i.e., atom within a cell). Note that the
+definition of a cell may change when a system is reshaped, and the `Site`
+indices refer to the reshaped lattice (see [`reshape_geometry`](@ref) and
+related functions).
+
+The four indices in a `Site` can be used to index `dipoles` and `coherents`
+fields of a `System`. Functions that set inhomogeneous interactions, like
+[`set_field_at!`](@ref) or [`set_exchange_at!`](@ref), accept `Site` as a
+four-tuple of integers.
+
+`Site` indices will frequently be constructed using (`position_to_site`)[@ref],
+which takes a position in fractional coordinates of the lattice vectors of the
+original (not reshaped) unit cell.
 """
-@inline Site(idx::CartesianIndex{4})            = idx
-@inline Site(idx::NTuple{4, Int})               = CartesianIndex(idx)
-@inline Site(n1::Int, n2::Int, n3::Int, i::Int) = CartesianIndex(n1, n2, n3, i)
+const Site = CartesianIndex{4}
+
+@inline convert_idx(idx::CartesianIndex{4})            = idx
+@inline convert_idx(idx::NTuple{4, Int})               = CartesianIndex(idx)
+@inline convert_idx(n1::Int, n2::Int, n3::Int, i::Int) = CartesianIndex(n1, n2, n3, i)
 
 # Element-wise application of mod1(cell+off, latsize), returning CartesianIndex
 @inline offsetc(cell::CartesianIndex{3}, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
@@ -147,7 +160,7 @@ function position_to_site(sys::System, r::Vec3)
     new_r = sys.crystal.lat_vecs \ orig_crystal(sys).lat_vecs * r
     b, offset = position_to_index_and_offset(sys.crystal, new_r)
     cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
-    return Site(cell..., b)
+    return convert_idx(cell..., b)
 end
 
 
