@@ -1,4 +1,4 @@
-function verify_bond(cryst::Crystal, bond::Bond)
+function validate_bond(cryst::Crystal, bond::Bond)
     # Verify bond indices
     if bond.i == bond.j && iszero(bond.n)
         error("Bond must connect different atoms.")
@@ -32,7 +32,7 @@ function set_biquadratic!(sys::System{N}, J, bond::Bond) where N
     end
 
     sys.mode==:SUN && error("Biquadratic interactions not yet supported in SU(N) mode.")
-    verify_bond(sys.crystal, bond)
+    validate_bond(sys.crystal, bond)
     is_homogeneous(sys) || error("Cannot symmetry-propagate interactions for an inhomogeneous system.")
 
     ints = interactions(sys)
@@ -105,7 +105,7 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
         return
     end
 
-    verify_bond(sys.crystal, bond)
+    validate_bond(sys.crystal, bond)
     is_homogeneous(sys) || error("Cannot symmetry-propagate interactions for an inhomogeneous system.")
 
     ints = interactions(sys)
@@ -159,11 +159,12 @@ function bonded_idx(sys::System{N}, idx, bond::Bond) where N
 end
 
 
-function add_coupling!(couplings, bond, J)
+function push_coupling!(couplings, bond, J)
     isculled = bond_parity(bond)
     filter!(c -> c.bond != bond, couplings)
     push!(couplings, Coupling(isculled, bond, J))
     sort!(couplings, by=c->c.isculled)
+    return
 end
 
 """
@@ -181,31 +182,19 @@ index `idx[4]`.
 See also [`set_biquadratic!](@ref).
 """
 function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
+    validate_bond(sys.crystal, bond)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
 
     # If system has been reshaped, then we need to transform bond to new
     # indexing system.
     bond = transform_bond(sys.crystal, orig_crystal(sys), bond)
-
-    idx = convert_idx(idx)
     bond.i == idx[4] || error("Atom index `bond.i` is inconsistent with sublattice of `idx`.")
 
-    # Add bond in forward direction
-    isculled = bond_parity(bond)
-    filter!(c -> c.bond != bond, ints[idx].biquad)
-    push!(ints[idx].biquad, Coupling(isculled, bond, J))
-    sort!(ints[idx].biquad, by=c->c.isculled)
-
-    # Add bond in backward direction
+    idx = convert_idx(idx)
     idx′ = bonded_idx(sys, idx, bond)
-    bond′ = reverse(bond)
-    @assert !isculled == bond_parity(bond′)
-    @assert idx′[4] == bond′.i
-    filter!(c -> c.bond′ != bond′, ints[idx′].biquad)
-    push!(ints[idx′].biquad, Coupling(!isculled, bond′, J'))
-    sort!(ints[idx′].biquad, by=c->c.isculled)
-
+    push_coupling!(ints[idx].biquad, bond, J)
+    push_coupling!(ints[idx′].biquad, reverse(bond), J')
     return
 end
 
@@ -225,47 +214,29 @@ index `idx[4]`.
 See also [`set_exchange!](@ref).
 """
 function set_exchange_at!(sys::System{N}, J, bond::Bond, idx) where N
+    validate_bond(sys.crystal, bond)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
 
     # If system has been reshaped, then we need to transform bond to new
     # indexing system.
     bond = transform_bond(sys.crystal, orig_crystal(sys), bond)
+    bond.i == idx[4] || error("Atom index `bond.i` is inconsistent with sublattice of `idx`.")
 
     idx = convert_idx(idx)
-    bond.i == idx[4] || error("Atom index `bond.i` is inconsistent with sublattice of `idx`.")
+    idx′ = bonded_idx(sys, idx, bond)
 
     # Convert J to Mat3
     J = Mat3(J isa Number ? J*I : J)
     is_heisenberg = isapprox(diagm([J[1,1],J[1,1],J[1,1]]), J; atol=1e-12)
     
-    # Add bond in forward direction
-    isculled = bond_parity(bond)
-    filter!(c -> c.bond != bond, ints[idx].heisen)
-    filter!(c -> c.bond != bond, ints[idx].exchange)
     if is_heisenberg
-        push!(ints[idx].heisen, Coupling(isculled, bond, J[1,1]))
-        sort!(ints[idx].heisen, by=c->c.isculled)
+        push_coupling!(ints[idx].heisen, bond, J[1,1])
+        push_coupling!(ints[idx′].heisen, reverse(bond), J[1,1]')
     else
-        push!(ints[idx].exchange, Coupling(isculled, bond, J))
-        sort!(ints[idx].exchange, by=c->c.isculled)
+        push_coupling!(ints[idx].exchange, bond, J)
+        push_coupling!(ints[idx′].exchange, reverse(bond), J')
     end
-
-    # Add bond in backward direction
-    idx′ = bonded_idx(sys, idx, bond)
-    bond′ = reverse(bond)
-    @assert !isculled == bond_parity(bond′)
-    @assert idx′[4] == bond′.i
-    filter!(c -> c.bond != bond′, ints[idx′].heisen)
-    filter!(c -> c.bond != bond′, ints[idx′].exchange)
-    if is_heisenberg
-        push!(ints[idx′].heisen, Coupling(!isculled, bond′, J[1,1]'))
-        sort!(ints[idx′].heisen, by=c->c.isculled)
-    else
-        push!(ints[idx′].exchange, Coupling(!isculled, bond′, J'))
-        sort!(ints[idx′].exchange, by=c->c.isculled)
-    end
-
     return
 end
 
