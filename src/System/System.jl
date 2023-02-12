@@ -95,25 +95,22 @@ end
 
 
 """
-    Site
+    (cell1, cell2, cell3, i) :: Site
 
-An object with four indices `(cell1, cell2, cell3, i)` that specify a single
-site in a [`System`](@ref). The first three indices specify the cell and the
-last index specifies the sublattice (i.e., atom within a cell). Note that the
-definition of a cell may change when a system is reshaped, and the `Site`
-indices refer to the reshaped lattice (see [`reshape_geometry`](@ref) and
-related functions).
+Four indices that identify a single site in a [`System`](@ref). The first three
+indices select the lattice cell and the last selects the sublattice (i.e., the
+atom within the unit cell).
 
-The four indices in a `Site` can be used to index `dipoles` and `coherents`
-fields of a `System`. Functions that set inhomogeneous interactions, like
-[`set_field_at!`](@ref) or [`set_exchange_at!`](@ref), accept `Site` as a
-four-tuple of integers.
+This object can be used to index `dipoles` and `coherents` fields of a `System`.
+A `Site` is also required to specify inhomogeneous interactions via functions
+such as [`set_field_at!`](@ref) or [`set_exchange_at!`](@ref).
 
-`Site` indices will frequently be constructed using (`position_to_site`)[@ref],
-which takes a position in fractional coordinates of the lattice vectors of the
-original (not reshaped) unit cell.
+Note that the definition of a cell may change when a system is reshaped. In this
+case, it is convenient to construct the `Site` using (`position_to_site`)[@ref],
+which always takes a position in fractional coordinates of the original lattice
+vectors.
 """
-const Site = CartesianIndex{4}
+const Site = NTuple{4, Int}
 
 @inline convert_idx(idx::CartesianIndex{4})            = idx
 @inline convert_idx(idx::NTuple{4, Int})               = CartesianIndex(idx)
