@@ -73,7 +73,7 @@ include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!
 
 include("Samplers.jl")
-export temperature_schedule, anneal!, propose_uniform, propose_flip, propose_delta, propose_mix, LocalSampler
+export propose_uniform, propose_flip, propose_delta, propose_mix, LocalSampler
 
 include("StructureFactors/StructureFactors.jl")
 include("StructureFactors/SFUtils.jl")
