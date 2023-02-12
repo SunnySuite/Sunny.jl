@@ -1,4 +1,4 @@
-@testitem "System resizing" begin
+@testitem "Stripe order" begin
     using LinearAlgebra, IOCapture
 
     latvecs = lattice_vectors(1, 1, 1.1, 90, 90, 120)
@@ -49,4 +49,25 @@
     @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
     newsys = reshape_geometry(sys, A1)
     @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
+end
+
+@testitem "Equivalent reshaping" begin
+    using LinearAlgebra
+
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 120)
+    cryst = Crystal(latvecs, [[0,0,0]])
+    sys = System(cryst, (3, 3, 3), [SpinInfo(1, S=1)], :dipole)
+    randomize_spins!(sys)
+
+    # Reshape to sheared volume
+    sys2 = reshape_geometry(sys, [3 0 0; 2 3 0; 0 0 3])
+    # Reshape back to original volume
+    sys3 = reshape_geometry(sys2, diagm([3,3,3]))
+    @test sys2.dipoles != sys.dipoles
+    @test sys3.dipoles == sys.dipoles
+
+    # Two equivalent ways of sizing up sys
+    sys2 = repeat_periodically(sys, (2, 2, 1))
+    sys3 = resize_periodically(sys, (6, 6, 3))
+    @test sys2.dipoles == sys3.dipoles
 end

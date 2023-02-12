@@ -13,8 +13,7 @@ that an SU(_N_) coherent state fully describes any local spin state; this
 description includes expected dipole components ``⟨Ŝᵅ⟩``, quadrupole components
 ``⟨ŜᵅŜᵝ+ŜᵝŜᵅ⟩``, etc.
 
-Classical spin models have historically used the expected dipoles alone.  The
-choice `mode=:dipole` projects the SU(_N_) dynamics onto the space of pure
+The choice `:dipole` projects the SU(_N_) dynamics onto the space of pure
 dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
 dynamics, but all single-ion anisotropy or biquadratic exchange interactions
 will be automatically renormalized for maximum accuracy. [IN PROGRESS]
@@ -345,7 +344,7 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
         new_sys = System(nothing, origin.mode, origin.crystal, new_latsize, origin.Ns, origin.gs, new_κs, new_extfield, new_ints, nothing,
                          new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
     
-    # Else we must rebuild the unit cell for the new crystal
+    # Else, rebuild the unit cell for the new crystal
     else
         new_cryst = resize_crystal(origin.crystal, Mat3(new_cell_size))
         new_nb = nbasis(new_cryst)
@@ -385,13 +384,9 @@ end
 # Dimensions of a possibly reshaped unit cell, given in multiples of the
 # original unit cell.
 function cell_dimensions(sys)
-    if isnothing(sys.origin)
-        return [1 0 0; 0 1 0; 0 0 1]
-    else
-        A = sys.origin.crystal.lat_vecs \ sys.crystal.lat_vecs
-        @assert norm(A - round.(A)) < 1e-12
-        return round.(Int, A)
-    end
+    A = orig_crystal(sys).lat_vecs \ sys.crystal.lat_vecs
+    @assert norm(A - round.(A)) < 1e-12
+    return round.(Int, A)
 end
 
 """
@@ -427,7 +422,7 @@ function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
     counts = NTuple{3,Int}(counts)
     @assert all(>=(1), counts)
     # Scale each column by `counts` and reshape
-    return reshape_geometry(sys, cell_dimensions(sys) * diagm(collect(counts)))
+    return reshape_geometry_aux(sys, counts .* sys.latsize, Matrix(cell_dimensions(sys)))
 end
 
 
