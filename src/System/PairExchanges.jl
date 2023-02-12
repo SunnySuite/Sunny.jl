@@ -162,16 +162,16 @@ end
 """
     set_biquadratic_at!(sys::System, J, bond::Bond, idx::Site)
 
-Sets a scalar biquadratic interaction along the [`Bond`](@ref) associated with a
-single [`Site`](@ref). No symmetry propagation will be performed. The system
-must allow inhomogeneous interactions.
+Sets the scalar biquadratic interaction along the provided [`Bond`](@ref) for a
+single [`Site`](@ref), ignoring crystal symmetry. The system must support
+inhomogeneous interactions via [`to_inhomogeneous`](@ref).
 
 Note that `bond` is always defined with respect to the original crystal, whereas
 `idx` is an index into the current [`System`](@ref), which may have been
 reshaped. The atom index `bond.i` must be consistent with the system sublattice
 index `idx[4]`. 
 
-See also [`set_biquadratic!](@ref), [`to_inhomogeneous`](@ref).
+See also [`set_biquadratic!](@ref).
 """
 function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
@@ -204,16 +204,16 @@ end
 """
     set_exchange_at!(sys::System, J, bond::Bond, idx::Site)
 
-Sets an exchange interaction along the [`Bond`](@ref) associated with a single
-[`Site`](@ref). No symmetry propagation will be performed. The system must allow
-inhomogeneous interactions.
+Sets the exchange interaction along the provided [`Bond`](@ref) for a single
+[`Site`](@ref), ignoring crystal symmetry. The system must support inhomogeneous
+interactions via [`to_inhomogeneous`](@ref).
 
 Note that `bond` is always defined with respect to the original crystal, whereas
 `idx` is an index into the current [`System`](@ref), which may have been
 reshaped. The atom index `bond.i` must be consistent with the system sublattice
 index `idx[4]`. 
 
-See also [`set_exchange!](@ref), [`to_inhomogeneous`](@ref).
+See also [`set_exchange!](@ref).
 """
 function set_exchange_at!(sys::System{N}, J, bond::Bond, idx) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")

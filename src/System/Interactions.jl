@@ -1,13 +1,12 @@
-# Hamiltonian model parameters and energy/force calculations
-
-function empty_interaction_list(nb, N)
+function empty_interactions(nb, N)
     return map(1:nb) do _
-        Interactions(SingleIonAnisotropy(N),
+        Interactions(empty_anisotropy(N),
                      Coupling{Float64}[],
                      Coupling{Mat3}[],
                      Coupling{Float64}[])
     end
 end
+
 
 function interactions(sys::System{N}) where N
     @assert is_homogeneous(sys)

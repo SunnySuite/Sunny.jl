@@ -55,7 +55,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
         κs = permutedims(repeat(Ss, 1, latsize...), (2, 3, 4, 1))
     end
     extfield = zeros(Vec3, latsize..., nb)
-    interactions = empty_interaction_list(nb, N)
+    interactions = empty_interactions(nb, N)
     ewald = nothing
     dipoles = fill(zero(Vec3), latsize..., nb)
     coherents = fill(zero(CVec{N}), latsize..., nb)
@@ -351,7 +351,7 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
         new_gs               = zeros(Mat3, new_nb)
         new_κs               = zeros(Float64, new_latsize..., new_nb)
         new_extfield         = zeros(Vec3, new_latsize..., new_nb)
-        new_ints             = empty_interaction_list(new_nb, N)
+        new_ints             = empty_interactions(new_nb, N)
         new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
         new_dipole_buffers   = Array{Vec3, 4}[]
