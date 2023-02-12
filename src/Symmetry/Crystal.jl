@@ -378,7 +378,7 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
 end
 
 
-function resize_crystal(cryst::Crystal, new_cell_size::Mat3)
+function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
     # TODO: support resizing to multiples of the primitive cell?
     @assert all(isinteger, new_cell_size)
 

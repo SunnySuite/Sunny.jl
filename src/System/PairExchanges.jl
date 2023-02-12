@@ -169,27 +169,52 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
     end
 end
 
+
+# Transform `orig_bond` defined for `orig_sys` into a bond appropriate for use
+# in `sys.interactions`.
+function transform_bond(new_cryst::Crystal, cryst::Crystal, bond::Bond)
+    # Positions in new fractional coordinates
+    br = BondRaw(cryst, bond)
+    new_ri = new_cryst.lat_vecs \ cryst.lat_vecs * br.ri
+    new_rj = new_cryst.lat_vecs \ cryst.lat_vecs * br.rj
+
+    # Construct bond using new indexing system
+    new_i = position_to_index(new_cryst, new_ri)
+    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
+    return Bond(new_i, new_j, new_n)
+end
+
+function bonded_idx(sys::System{N}, idx, bond::Bond) where N
+    cell = offsetc(to_cell(idx), bond.n, sys.latsize)
+    convert_idx(cell..., bond.j)
+end
+
+
 """
     set_biquadratic_at!(sys::System, J, bond::Bond, idx::Site)
 
-Sets a scalar biquadratic interaction along a single bond, without symmetry
-propagation. The parameter `bond`, of type [`Bond`](@ref), includes indices
-defined with respect to an original (unreshaped) unit cell. The parameter `idx`,
-of type [`Site`](@ref), references a single spin within a possibly reshaped
-`System`. This function will verify that the atom index `bond.i` is consistent
-with the sublattice index `idx[4]`. The system must allow inhomogeneous
-interactions.
-    
+Sets a scalar biquadratic interaction along the [`Bond`](@ref) associated with a
+single [`Site`](@ref). No symmetry propagation will be performed. The system
+must allow inhomogeneous interactions.
+
+Note that `bond` is always defined with respect to the original crystal, whereas
+`idx` is an index into the current [`System`](@ref), which may have been
+reshaped. The atom index `bond.i` must be consistent with the system sublattice
+index `idx[4]`. 
+
 See also [`set_biquadratic!](@ref), [`to_inhomogeneous`](@ref).
 """
 function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
-
-    idx = convert_idx(idx)
     ints = interactions_inhomog(sys)
 
-    error("TODO")
-    bond.i == idx[4] || error("bond.i != idx[4]")
+    idx = convert_idx(idx)
+
+    # If system has been reshaped, then we need to transform bond to new
+    # indexing system.
+    bond = transform_bond(sys.crystal, orig_crystal(sys), bond)
+
+    bond.i == idx[4] || error("Atom index `bond.i` is inconsistent with sublattice of `idx`.")
 
     # Add bond in forward direction
     isculled = bond_parity(bond)
@@ -197,8 +222,8 @@ function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
     push!(ints[idx].biquad, Coupling(isculled, bond, J))
 
     # Add bond in backward direction
+    idx′ = bonded_idx(sys, idx, bond)
     bond′ = reverse(bond)
-    idx′ = position_to_site(sys, position(sys, idx) .+ bond.n)
     @assert !isculled == bond_parity(bond′)
     @assert idx′[4] == bond′.i
     filter!(c -> c.bond′ != bond′, ints[idx′].biquad)

@@ -119,11 +119,17 @@ const Site = CartesianIndex{4}
 @inline convert_idx(idx::NTuple{4, Int})               = CartesianIndex(idx)
 @inline convert_idx(n1::Int, n2::Int, n3::Int, i::Int) = CartesianIndex(n1, n2, n3, i)
 
-# Element-wise application of mod1(cell+off, latsize), returning CartesianIndex
-@inline offsetc(cell::CartesianIndex{3}, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
+# kbtodo: offsetcell ?
+# Offset a `cell` by `ncells`
+@inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(mod1.(Tuple(cell) .+ Tuple(ncells), latsize))
 
+# Split a site `idx` into its parts
+@inline to_cell(idx) = CartesianIndex((idx[1],idx[2],idx[3]))
+@inline to_atom(idx) = idx[4]
+
+# kbtodo: replace with above
 # Split a Cartesian index (cell,i) into its parts cell and i.
-@inline splitidx(idx::CartesianIndex{4}) = (CartesianIndex((idx[1],idx[2],idx[3])), idx[4])
+@inline splitidx(idx::CartesianIndex{4}) = (to_cell(idx), to_atom(idx))
 
 # An iterator over all sites using CartesianIndices
 @inline all_sites(sys::System) = CartesianIndices(sys.dipoles)
@@ -285,15 +291,10 @@ function transfer_unit_cell!(new_sys::System{N}, origin::System{N}) where N
     new_ints    = interactions(new_sys)
     new_cryst   = new_sys.crystal
 
-    # Matrix that maps from fractional positions in `new_cryst` to fractional
-    # positions in `cryst`
-    to_orig_pos = origin.crystal.lat_vecs \ new_cryst.lat_vecs
-    # Inverse mapping
-    to_new_pos = inv(to_orig_pos)
-
     for new_i in 1:nbasis(new_cryst)
         new_ri = new_cryst.positions[new_i]
-        i = position_to_index(origin.crystal, to_orig_pos * new_ri)
+        ri = origin.crystal.lat_vecs \ new_cryst.lat_vecs * new_ri
+        i = position_to_index(origin.crystal, ri)
 
         # Spin descriptors
         new_sys.Ns[new_i] = origin.Ns[i]
@@ -303,10 +304,7 @@ function transfer_unit_cell!(new_sys::System{N}, origin::System{N}) where N
         function map_couplings(couplings::Vector{Coupling{T}}) where T
             new_couplings = Coupling{T}[]
             for (; bond, J) in couplings
-                displacement = origin.crystal.positions[bond.j] + bond.n - origin.crystal.positions[bond.i]
-                new_rj = new_ri + to_new_pos * displacement
-                new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
-                new_bond = Bond(new_i, new_j, new_n)
+                new_bond = transform_bond(new_cryst, origin.crystal, bond)
                 isculled = bond_parity(new_bond)
                 push!(new_couplings, Coupling(isculled, new_bond, J))
             end
@@ -346,7 +344,7 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
     
     # Else, rebuild the unit cell for the new crystal
     else
-        new_cryst = resize_crystal(origin.crystal, Mat3(new_cell_size))
+        new_cryst = reshape_crystal(origin.crystal, Mat3(new_cell_size))
         new_nb = nbasis(new_cryst)
         
         new_Ns               = zeros(Int, new_nb)

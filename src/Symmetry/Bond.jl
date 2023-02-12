@@ -10,6 +10,7 @@ struct Bond
     n :: SVector{3, Int}
 end
 
+# kbtodo: Rename BondPos
 # A bond expressed as two positions in fractional coordinates
 struct BondRaw
     ri::Vec3
@@ -33,11 +34,10 @@ function Base.show(io::IO, ::MIME"text/plain", bond::Bond)
     print(io, "Bond($(bond.i), $(bond.j), $(bond.n))")
 end
 
-"""    displacement(cryst::Crystal, b::Bond)
+# kbtodo: Remove this function or use `global_` prefix.
 
-The displacement vector ``𝐫_j - 𝐫_i`` in global coordinates between atoms
-`b.i` and `b.j`, accounting for the integer offsets `b.n` between unit cells.
-"""
+# The displacement vector ``𝐫_j - 𝐫_i`` in global coordinates between atoms
+# `b.i` and `b.j`, accounting for the integer offsets `b.n` between unit cells.
 function displacement(cryst::Crystal, b::BondRaw)
     return cryst.lat_vecs * (b.rj - b.ri)
 end
@@ -46,11 +46,8 @@ function displacement(cryst::Crystal, b::Bond)
     return displacement(cryst, BondRaw(cryst, b))
 end
 
-"""    distance(cryst::Crystal, b::Bond)
-
-The global distance between atoms in bond `b`. Equivalent to
-`norm(displacement(cryst, b))`.
-"""
+# The global distance between atoms in bond `b`. Equivalent to
+# `norm(displacement(cryst, b))`.
 function distance(cryst::Crystal, b::BondRaw)
     return norm(displacement(cryst, b))
 end
