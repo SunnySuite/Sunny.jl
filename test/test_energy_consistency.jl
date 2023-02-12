@@ -22,6 +22,9 @@
         if inhomog
             sys = to_inhomogeneous(sys)
             set_vacancy_at!(sys, (1,1,1,1))
+            set_exchange_at!(sys, 0.5, Bond(1, 2, [1,0,0]), (1,1,1,1))
+            set_biquadratic_at!(sys, 0.7, Bond(2, 3, [0,-1,0]), (3,1,1,2))
+            set_anisotropy_at!(sys, 0.4*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), (2,2,2,4))
         end
 
         return sys

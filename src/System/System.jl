@@ -183,14 +183,14 @@ end
     return iszero(κ) ? zero(Vec3) : κ*normalize(s)
 end
 
-@inline function getspin(sys::System{N}, idx::CartesianIndex{4}) where N
+@inline function getspin(sys::System{N}, idx) where N
     return SpinState(sys.dipoles[idx], sys.coherents[idx])
 end
 
-@inline function setspin!(sys::System{N}, spin::SpinState{N}, idx::CartesianIndex{4}) where N
+@inline function setspin!(sys::System{N}, spin::SpinState{N}, idx) where N
     sys.dipoles[idx] = spin.s
     sys.coherents[idx] = spin.Z
-    nothing
+    return
 end
 
 @inline function flip(spin::SpinState{N}) where N
@@ -225,10 +225,14 @@ function randomize_spins!(sys::System{N}) where N
     end
 end
 
+function polarize_spin!(sys::System{N}, dir, idx) where N
+    idx = convert_idx(idx)
+    setspin!(sys, dipolarspin(sys, idx, dir), idx)
+end
+
 function polarize_spins!(sys::System{N}, dir) where N
     for idx = all_sites(sys)
-        spin = dipolarspin(sys, idx, dir)
-        setspin!(sys, spin, idx)
+        polarize_spin!(sys, dir, idx)
     end
 end
 
