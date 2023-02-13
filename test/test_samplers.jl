@@ -168,18 +168,14 @@ end
 
     # Generates a two-site spin chain spin system
     function two_site_spin_chain(; mode, seed)
-        a = 1.0
-        b = 1.1
-        c = 1.2
-        lat_vecs = lattice_vectors(a,b,c,90,90,90)
-        basis_vecs = [[0,0,0], [0.45, 0.0, 0.0]]
-        cryst = Crystal(lat_vecs, basis_vecs)
+        lat_vecs = lattice_vectors(1,1,1,90,90,90)
+        cryst = Crystal(lat_vecs, [[0,0,0]])
         
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
-        sys = System(cryst, (1,1,1), [SpinInfo(1; S)], mode; seed)
+        sys = to_inhomogeneous(System(cryst, (2,1,1), [SpinInfo(1; S)], mode; seed))
         sys.κs .= κ
-        set_exchange!(sys, 1.0, Bond(1,2,[0,0,0]))
+        set_exchange_at!(sys, 1.0, Bond(1,1,[1,0,0]), (1,1,1,1))
         randomize_spins!(sys)
 
         return sys

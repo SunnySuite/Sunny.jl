@@ -6,17 +6,24 @@ struct ClassicalStevensExpansion
     c6 :: SVector{13, Float64}
 end
 
-struct SingleIonAnisotropies
+struct SingleIonAnisotropy
     op :: DP.AbstractPolynomialLike      # Anisotropy as a symbolic operator
     matrep :: Matrix{ComplexF64}         # Matrix representation in some dimension N
     clsrep :: ClassicalStevensExpansion  # Coefficients for classical Stevens polynomials 
 end
 
 
-struct PairExchanges
-    heisen::Vector{Tuple{Bool, Bond, Float64}}
-    quadmat::Vector{Tuple{Bool, Bond, Mat3}}
-    biquad::Vector{Tuple{Bool, Bond, Float64}}
+struct Coupling{T}
+    isculled :: Bool
+    bond     :: Bond
+    J        :: T
+end
+
+mutable struct Interactions
+    aniso    :: SingleIonAnisotropy
+    heisen   :: Vector{Coupling{Float64}}
+    exchange :: Vector{Coupling{Mat3}}
+    biquad   :: Vector{Coupling{Float64}}
 end
 
 const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
@@ -34,27 +41,29 @@ struct Ewald
     ift_plan :: rIFTPlan
 end
 
-mutable struct Interactions
-    extfield :: Array{Vec3, 4}
-    anisos   :: Vector{SingleIonAnisotropies}
-    pairexch :: Vector{PairExchanges}
-    ewald    :: Union{Nothing, Ewald}
-end
+mutable struct System{N}
+    const origin           :: Union{Nothing, System{N}}
+    const mode             :: Symbol
+    const crystal          :: Crystal
+    const latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
+    const Ns               :: Vector{Int}               # S=(N-1)/2 per atom in unit cell
+    const gs               :: Vector{Mat3}              # g-tensor per atom in unit cell
+    const κs               :: Array{Float64, 4}         # Sets either |Z| = √κ or |s| = κ
+    const extfield         :: Array{Vec3, 4}            # External B field
 
-struct System{N}
-    origin           :: Union{Nothing, System{N}}
-    mode             :: Symbol
-    crystal          :: Crystal
-    latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
-    Ns               :: Vector{Int}               # S=(N-1)/2 per atom in unit cell
-    gs               :: Vector{Mat3}              # g-tensor per atom in unit cell
-    κs               :: Array{Float64, 4}         # When N > 0, the ket magnitude,    |Z| = √κ
-                                                  # When N = 0, the dipole magnitude, |s| = κ
-    interactions     :: Interactions              # All interactions
-    dipoles          :: Array{Vec3, 4}            # Expected dipoles
-    coherents        :: Array{CVec{N}, 4}         # Coherent states
-    dipole_buffers   :: Vector{Array{Vec3, 4}}    # Buffers for dynamics routines
-    coherent_buffers :: Vector{Array{CVec{N}, 4}} # Buffers for dynamics routines
-    units            :: PhysicalConsts
-    rng              :: Random.Xoshiro
+    # Interactions may be homogeneous (defined for one unit cell), or
+    # inhomogeneous (defined for every cell in the system).
+    interactions_union     :: Union{Vector{Interactions}, Array{Interactions,4}}
+    # Optional long-range dipole-dipole interactions (Vector is mutable box)
+    ewald                  :: Union{Ewald, Nothing}
+
+    # Dynamical variables and buffers
+    const dipoles          :: Array{Vec3, 4}            # Expected dipoles
+    const coherents        :: Array{CVec{N}, 4}         # Coherent states
+    const dipole_buffers   :: Vector{Array{Vec3, 4}}    # Buffers for dynamics routines
+    const coherent_buffers :: Vector{Array{CVec{N}, 4}} # Buffers for dynamics routines
+
+    # Global data
+    const units            :: PhysicalConsts
+    const rng              :: Random.Xoshiro
 end

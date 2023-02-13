@@ -1,96 +1,64 @@
-
-function PairExchanges()
-    return PairExchanges(
-        Tuple{Bool, Bond, Float64}[],
-        Tuple{Bool, Bond, Mat3}[],
-        Tuple{Bool, Bond, Float64}[],
-    )
-end
-
-
-# Parition every nonzero bound into one of two sets
-function bond_parity(bond)
-    bond_delta = (bond.j - bond.i, bond.n...)
-    @assert bond_delta != (0, 0, 0, 0)
-    return bond_delta > (0, 0, 0, 0)
+function validate_bond(cryst::Crystal, bond::Bond)
+    # Verify bond indices
+    if bond.i == bond.j && iszero(bond.n)
+        error("Bond must connect different atoms.")
+    end
+    (1 <= bond.i <= nbasis(cryst)) || error("Atom index $(bond.i) is out of range.")
+    (1 <= bond.j <= nbasis(cryst)) || error("Atom index $(bond.j) is out of range.")
 end
 
 """
-    set_exchange_with_biquadratic!(sys::System, J1, J2, bond::Bond)
+    set_biquadratic!(sys::System, J, bond::Bond)
 
-Sets both quadratic and biquadratic exchange interactions along `bond`, yielding
-a pairwise energy ``𝐒_i⋅J_1 𝐒_j + J_2 (𝐒_i⋅𝐒_j)²``. These interactions will
-be propagated to equivalent bonds in consistency with crystal symmetry. Any
-previous exchange interactions on these bonds will be overwritten.
+Sets a scalar biquadratic interaction along `bond`, yielding a pairwise energy
+``J (𝐒_i⋅𝐒_j)²``. This interaction will be propagated to equivalent bonds in
+consistency with crystal symmetry. Any previous biquadratic exchange
+interactions on these bonds will be overwritten.
 
 For systems restricted to dipoles, the biquadratic interactions will
 automatically be renormalized to achieve maximum consistency with the more
-variationally accurate SU(_N_) mode. This renormalization introduces a
-correction to the quadratic part of the exchange, which is why the two parts
-must be specified concurrently.
+variationally accurate SU(_N_) mode. This renormalization introduces also a
+correction to the quadratic part of the exchange.
 
 See also [`set_exchange!`](@ref).
 """
-function set_exchange_with_biquadratic!(sys::System{N}, J, J_biq, bond::Bond) where N
-    if bond.i == bond.j && iszero(bond.n)
-        error("Exchange interactions must connect different sites.")
-    end
-    J = Mat3(J isa Number ? J*I : J)
-
-    (; crystal) = sys
-    (; pairexch) = sys.interactions
-
-    # Verify that atom indices are in range
-    (1 <= bond.i <= nbasis(crystal)) || error("Atom index $(bond.i) is out of range.")
-    (1 <= bond.j <= nbasis(crystal)) || error("Atom index $(bond.j) is out of range.")
-
-    # Verify that exchange is symmetry-consistent
-    if !is_coupling_valid(crystal, bond, J)
-        println("Symmetry-violating exchange: $J.")
-        println("Use `print_bond(crystal, $bond)` for more information.")
-        error("Interaction violates symmetry.")
+function set_biquadratic!(sys::System{N}, J, bond::Bond) where N
+    # If `sys` has been reshaped, then operate first on `sys.origin`, which
+    # contains full symmetry information.
+    if !isnothing(sys.origin)
+        set_biquadratic!(sys.origin, J, bond)
+        transfer_unit_cell!(sys, sys.origin)
+        return
     end
 
-    # Biquadratic interactions not yet supported in SU(N) mode
-    if !iszero(J_biq) && sys.mode==:SUN
-        error("Biquadratic interactions not yet supported in SU(N) mode.")
-    end
+    sys.mode==:SUN && error("Biquadratic interactions not yet supported in SU(N) mode.")
+    validate_bond(sys.crystal, bond)
+    is_homogeneous(sys) || error("Cannot symmetry-propagate interactions for an inhomogeneous system.")
+
+    ints = interactions_homog(sys)
+
 
     # Print a warning if an interaction already exists for bond
-    (; heisen, quadmat, biquad) = pairexch[bond.i]
-    if any(x -> x[2] == bond, vcat(heisen, quadmat, biquad))
-        println("Warning: Overriding exchange for bond $bond.")
+    if any(x -> x.bond == bond, ints[bond.i].biquad)
+        println("Warning: Overriding biquadratic interaction for bond $bond.")
     end
 
-    isheisen = isapprox(diagm([J[1,1],J[1,1],J[1,1]]), J; atol=1e-12)
-
-    for (i, (; heisen, quadmat, biquad)) in enumerate(pairexch)
-        for (bond′, J′) in zip(all_symmetry_related_couplings_for_atom(crystal, i, bond, J)...)
-            # Remove any existing interactions for bond′
-            matches_bond(x) = x[2] == bond′
-            filter!(!matches_bond, heisen)
-            filter!(!matches_bond, quadmat)
-            filter!(!matches_bond, biquad)
+    for i in 1:nbasis(sys.crystal)
+        for bond′ in all_symmetry_related_bonds_for_atom(sys.crystal, i, bond)
+            # Remove any existing exchange for bond′
+            matches_bond(c) = c.bond == bond′
+            filter!(!matches_bond, ints[i].biquad)
 
             # The energy or force calculation only needs to see each bond once
             isculled = bond_parity(bond′)
 
-            if isheisen
-                @assert J ≈ J′
-                push!(heisen, (isculled, bond′, J′[1,1]))
-            else
-                push!(quadmat, (isculled, bond′, J′))
-            end
-
-            if !iszero(J_biq)
-                push!(biquad, (isculled, bond′, J_biq))
-            end
+            # Add to list
+            coupling = Coupling(isculled, bond′, J)
+            push!(ints[i].biquad, coupling)
         end
 
         # Sort interactions so that non-culled bonds appear first
-        sort!(heisen, by=first)
-        sort!(quadmat, by=first)
-        sort!(biquad, by=first)
+        sort!(ints[i].biquad, by=c->c.isculled)
     end
 end
 
@@ -126,10 +94,150 @@ J2 = 2*I + dmvec([0,0,3])
 set_exchange!(sys, J2, bond)
 ```
 
-See also [`set_exchange_with_biquadratic!`](@ref), [`dmvec`](@ref).
+See also [`set_biquadratic!`](@ref), [`dmvec`](@ref).
 """
 function set_exchange!(sys::System{N}, J, bond::Bond) where N
-    set_exchange_with_biquadratic!(sys, J, 0.0, bond)
+    # If `sys` has been shaped, then operate first on `sys.origin`, which
+    # contains full symmetry information.
+    if !isnothing(sys.origin)
+        set_exchange!(sys.origin, J, bond)
+        transfer_unit_cell!(sys, sys.origin)
+        return
+    end
+
+    validate_bond(sys.crystal, bond)
+    is_homogeneous(sys) || error("Cannot symmetry-propagate interactions for an inhomogeneous system.")
+
+    ints = interactions_homog(sys)
+
+    # Convert J to Mat3
+    J = Mat3(J isa Number ? J*I : J)
+    is_heisenberg = isapprox(diagm([J[1,1],J[1,1],J[1,1]]), J; atol=1e-12)
+
+    # Verify that exchange is symmetry-consistent
+    if !is_coupling_valid(sys.crystal, bond, J)
+        println("Symmetry-violating exchange: $J.")
+        println("Use `print_bond(crystal, $bond)` for more information.")
+        error("Interaction violates symmetry.")
+    end
+
+    # Print a warning if an interaction already exists for bond
+    if any(x -> x.bond == bond, vcat(ints[bond.i].heisen, ints[bond.i].exchange))
+        println("Warning: Overriding exchange for bond $bond.")
+    end
+
+    for i in 1:nbasis(sys.crystal)
+        for (bond′, J′) in zip(all_symmetry_related_couplings_for_atom(sys.crystal, i, bond, J)...)
+            # Remove any existing exchange for bond′
+            matches_bond(c) = c.bond == bond′
+            filter!(!matches_bond, ints[i].heisen)
+            filter!(!matches_bond, ints[i].exchange)
+
+            # The energy or force calculation only needs to see each bond once
+            isculled = bond_parity(bond′)
+
+            # Add to list
+            if is_heisenberg
+                coupling = Coupling(isculled, bond′, J′[1,1])
+                push!(ints[i].heisen, coupling)
+            else
+                coupling = Coupling(isculled, bond′, J′)
+                push!(ints[i].exchange, coupling)
+            end
+        end
+
+        # Sort interactions so that non-culled bonds appear first
+        sort!(ints[i].heisen, by=c->c.isculled)
+        sort!(ints[i].exchange, by=c->c.isculled)
+    end
+end
+
+
+function bonded_idx(sys::System{N}, idx, bond::Bond) where N
+    cell = offsetc(to_cell(idx), bond.n, sys.latsize)
+    return convert_idx(cell, bond.j)
+end
+
+
+function push_coupling!(couplings, bond, J)
+    isculled = bond_parity(bond)
+    filter!(c -> c.bond != bond, couplings)
+    push!(couplings, Coupling(isculled, bond, J))
+    sort!(couplings, by=c->c.isculled)
+    return
+end
+
+"""
+    set_biquadratic_at!(sys::System, J, bond::Bond, idx::Site)
+
+Sets the scalar biquadratic interaction along the provided [`Bond`](@ref) for a
+single [`Site`](@ref), ignoring crystal symmetry. The system must support
+inhomogeneous interactions via [`to_inhomogeneous`](@ref).
+
+Note that `bond` is always defined with respect to the original crystal, whereas
+`idx` is an index into the current [`System`](@ref), which may have been
+reshaped. The atom index `bond.i` must be consistent with the system sublattice
+index `idx[4]`. 
+
+See also [`set_biquadratic!`](@ref).
+"""
+function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
+    validate_bond(sys.crystal, bond)
+    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+    ints = interactions_inhomog(sys)
+
+    # If system has been reshaped, then we need to transform bond to new
+    # indexing system.
+    bond = transform_bond(sys.crystal, orig_crystal(sys), bond)
+    bond.i == idx[4] || error("Atom index `bond.i` is inconsistent with sublattice of `idx`.")
+
+    idx = convert_idx(idx)
+    idx′ = bonded_idx(sys, idx, bond)
+    push_coupling!(ints[idx].biquad, bond, J)
+    push_coupling!(ints[idx′].biquad, reverse(bond), J')
+    return
+end
+
+
+"""
+    set_exchange_at!(sys::System, J, bond::Bond, idx::Site)
+
+Sets the exchange interaction along the provided [`Bond`](@ref) for a single
+[`Site`](@ref), ignoring crystal symmetry. The system must support inhomogeneous
+interactions via [`to_inhomogeneous`](@ref).
+
+Note that `bond` is always defined with respect to the original crystal, whereas
+`idx` is an index into the current [`System`](@ref), which may have been
+reshaped. The atom index `bond.i` must be consistent with the system sublattice
+index `idx[4]`. 
+
+See also [`set_exchange!`](@ref).
+"""
+function set_exchange_at!(sys::System{N}, J, bond::Bond, idx) where N
+    validate_bond(sys.crystal, bond)
+    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+    ints = interactions_inhomog(sys)
+
+    # If system has been reshaped, then we need to transform bond to new
+    # indexing system.
+    bond = transform_bond(sys.crystal, orig_crystal(sys), bond)
+    bond.i == idx[4] || error("Atom index `bond.i` is inconsistent with sublattice of `idx`.")
+
+    idx = convert_idx(idx)
+    idx′ = bonded_idx(sys, idx, bond)
+
+    # Convert J to Mat3
+    J = Mat3(J isa Number ? J*I : J)
+    is_heisenberg = isapprox(diagm([J[1,1],J[1,1],J[1,1]]), J; atol=1e-12)
+    
+    if is_heisenberg
+        push_coupling!(ints[idx].heisen, bond, J[1,1])
+        push_coupling!(ints[idx′].heisen, reverse(bond), J[1,1]')
+    else
+        push_coupling!(ints[idx].exchange, bond, J)
+        push_coupling!(ints[idx′].exchange, reverse(bond), J')
+    end
+    return
 end
 
 

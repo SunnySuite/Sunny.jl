@@ -1,5 +1,4 @@
-
-function SingleIonAnisotropies(N)
+function empty_anisotropy(N)
     op = zero(𝒮[1])
     matrep = zeros(ComplexF64, N, N)
     clsrep = ClassicalStevensExpansion(
@@ -8,7 +7,23 @@ function SingleIonAnisotropies(N)
         zero(SVector{9, Float64}),
         zero(SVector{13, Float64}),
     )
-    SingleIonAnisotropies(op, matrep, clsrep)
+    return SingleIonAnisotropy(op, matrep, clsrep)
+end
+
+
+function SingleIonAnisotropy(op; N)
+    matrep = operator_to_matrix(op; N)
+
+    S = (N-1)/2
+    c = operator_to_classical_stevens_coefficients(op, S)
+    all(iszero.(c[[1,3,5]])) || error("Odd-ordered dipole anisotropies not supported.")
+    c2 = SVector{ 5}(c[2])
+    c4 = SVector{ 9}(c[4])
+    c6 = SVector{13}(c[6])
+    kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
+    clsrep = ClassicalStevensExpansion(kmax, c2, c4, c6)
+
+    return SingleIonAnisotropy(op, matrep, clsrep)
 end
 
 
@@ -43,54 +58,46 @@ set_anisotropy!(sys, 20*(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4), i)
 See also [`print_anisotropy_as_stevens`](@ref).
 """
 function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) where N
-    (; crystal) = sys
-    (; anisos) = sys.interactions
+    if !is_homogeneous(sys)
+        error("Use `set_anisotropy_at!` for inhomogeneous systems.")
+    end
+    ints = interactions_homog(sys)
 
     iszero(op) && return 
 
-    (1 <= i <= nbasis(crystal)) || error("Atom index $i is out of range.")
+    (1 <= i <= nbasis(sys.crystal)) || error("Atom index $i is out of range.")
 
-    if !iszero(anisos[i].op)
+    if !iszero(ints[i].aniso.op)
         println("Warning: Overriding anisotropy for atom $i.")
     end
 
-    if !is_anisotropy_valid(crystal, i, op)
+    if !is_anisotropy_valid(sys.crystal, i, op)
         println("Symmetry-violating anisotropy: $op.")
         println("Use `print_site(crystal, $i)` for more information.")
         error("Invalid anisotropy.")
     end
 
-    for (b′, op′) in zip(all_symmetry_related_anisotropies(crystal, i, op)...)
-        matrep = operator_to_matrix(op′; N)
-
-        S = (N-1)/2
-        c = operator_to_classical_stevens_coefficients(op′, S)
-        all(iszero.(c[[1,3,5]])) || error("Odd-ordered dipole anisotropies not supported.")
-        c2 = SVector{ 5}(c[2])
-        c4 = SVector{ 9}(c[4])
-        c6 = SVector{13}(c[6])
-        kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
-        clsrep = ClassicalStevensExpansion(kmax, c2, c4, c6)
-
-        anisos[b′] = SingleIonAnisotropies(op′, matrep, clsrep)
+    for (b′, op′) in zip(all_symmetry_related_anisotropies(sys.crystal, i, op)...)
+        ints[b′].aniso = SingleIonAnisotropy(op′; N)
     end
 end
-
 
 
 """
     set_anisotropy_at!(sys::System, op, idx::Site)
 
-Set the single-ion anisotropy operator `op` for a single spin, neglecting
-symmetry constraints. [`Site`](@ref) includes a unit cell and a sublattice
-index.
+Sets the single-ion anisotropy operator `op` for a single [`Site`](@ref),
+ignoring crystal symmetry.  The system must support inhomogeneous interactions
+via [`to_inhomogeneous`](@ref).
+
+See also [`set_anisotropy!`](@ref).
 """
-function set_local_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, idx) where N
-    idx = Site(idx)
-    error("Unimplemented.")
+function set_anisotropy_at!(sys::System{N}, op::DP.AbstractPolynomialLike, idx) where N
+    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+    ints = interactions_inhomog(sys)
+    idx = convert_idx(idx)
+    ints[idx].aniso = SingleIonAnisotropy(op; N)
 end
-
-
 
 
 # Evaluate a given linear combination of Stevens operators for classical spin s

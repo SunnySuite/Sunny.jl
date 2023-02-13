@@ -1,34 +1,13 @@
 """
     temperature_schedule(kT1, length; curvature=4.0)
 
-Returns an iterator that includes `length` temperatures that decay from `kT1` to
-`kT2`. The optional parameter `curvature` controls the initial slope of the
-temperature decay.
-
-See also [`anneal!`](@ref).
+Returns an iterator that includes `length` temperatures that exponentially
+decays from `kT1` to `kT2`. The optional parameter `curvature` is a multiplier
+on the initial slope of the temperature decay.
 """
 function temperature_schedule(kT1, kT2, length; curvature=4)
     kT1 >= 0 && kT2 >= 0 || error("Temperature must be positive.")
-    α = exp(-curvature)
-    c = log((kT2+α)/(kT1+α))
-    return (max((kT1+α)*exp(c*x)-α, 0.0) for x in range(0, 1, length))
-end
-
-"""
-    anneal!(sys::System, sampler, kTs)
-
-Anneals the system by repeated calling `step!(sys, sampler)` using a provided
-temperature schedule. Frequently the `kTs` will be constructed using
-[`temperature_schedule`](@ref).
-"""
-function anneal!(sys::System{N}, sampler, kTs) where N
-    Es = Float64[]
-    for kT in kTs
-        sampler.kT = kT
-        step!(sys, sampler)
-        push!(Es, energy(sys))
-    end
-    return Es
+    error("FIXME")
 end
 
 

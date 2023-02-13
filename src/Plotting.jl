@@ -131,11 +131,11 @@ end
 """
     plot_bonds(sys::System; kwargs...)
 
-Plot all pair interactions appearing in `sys.interactions`, on the
+Plot all pair interactions appearing in `sys.interactions_union`, on the
 underlying crystal lattice. `kwargs` are passed to `plot_lattice!`.
 """
 @inline function plot_bonds(sys::System; kwargs...)
-    ℋ = sys.interactions
+    ℋ = sys.interactions_union
     pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
     plot_bonds(sys.crystal, pair_ints; kwargs...)
 end
@@ -243,7 +243,7 @@ function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
     fig, ax = _setup_scene(; ortho)
 
     center = (sys.crystal.lat_vecs * Vec3(sys.latsize))/2
-    pts = positions(sys) - sys.dipoles*(arrowlength/2) .- Ref(center)
+    pts = global_positions(sys) - sys.dipoles*(arrowlength/2) .- Ref(center)
     pts = GLMakie.Point3f0.(pts[:])
     vecs = GLMakie.Vec3f0.(sys.dipoles[:])
     GLMakie.arrows!(
@@ -274,7 +274,7 @@ function anim_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(view(positions(sys),:))
+    pts = GLMakie.Point3f0.(view(global_positions(sys),:))
     vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -307,7 +307,7 @@ function live_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(view(positions(sys),:))
+    pts = GLMakie.Point3f0.(view(global_positions(sys),:))
     vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles),:))
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -339,7 +339,7 @@ function live_langevin_integration(
     arrowlength=0.2, λ=0.1, framerate=30, kwargs...
 )
     fig, ax = _setup_scene()
-    pts = GLMakie.Point3f0.(view(positions(sys),:))
+    pts = GLMakie.Point3f0.(view(global_positions(sys),:))
     vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
     
     GLMakie.arrows!(

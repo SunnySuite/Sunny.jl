@@ -153,17 +153,27 @@ end
 function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
                         B::Array{Vec3, 4}, integrator::Langevin, sys::System{N}) where N
     (; kT, λ, Δt) = integrator
-    (; dipoles, interactions) = sys
 
-    @. dipoles = expected_spin(Z)
-    set_forces!(B, dipoles, sys)
+    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
+    set_forces!(B, sys.dipoles, sys)
 
-    for idx in all_sites(sys)
-        Λ = interactions.anisos[idx[4]].matrep
-        HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
-        ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[idx] - Δt*(im+λ)*HZ
-        ΔZ[idx] = proj(ΔZ′, Z[idx])
-    end 
+    if is_homogeneous(sys)
+        ints = interactions_homog(sys)
+        for idx in all_sites(sys)
+            Λ = ints[idx[4]].aniso.matrep
+            HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
+            ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[idx] - Δt*(im+λ)*HZ
+            ΔZ[idx] = proj(ΔZ′, Z[idx])
+        end 
+    else
+        ints = interactions_inhomog(sys)
+        for idx in all_sites(sys)
+            Λ = ints[idx].aniso.matrep
+            HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
+            ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[idx] - Δt*(im+λ)*HZ
+            ΔZ[idx] = proj(ΔZ′, Z[idx])
+        end 
+    end
     nothing
 end
 
@@ -190,16 +200,25 @@ end
 
 function rhs_ll!(ΔZ, Z, B, integrator, sys)
     (; Δt) = integrator
-    (; dipoles, interactions) = sys
 
-    @. dipoles = expected_spin(Z) # temporarily de-synchs dipoles and coherents
-    set_forces!(B, dipoles, sys)
+    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
+    set_forces!(B, sys.dipoles, sys)
 
-    for idx in all_sites(sys)
-        Λ = interactions.anisos[idx[4]].matrep
-        HZ = mul_spin_matrices(Λ, -B[idx], Z[idx])
-        ΔZ[idx] = - Δt*im*HZ
-    end 
+    if is_homogeneous(sys)
+        ints = interactions_homog(sys)
+        for idx in all_sites(sys)
+            Λ = ints[idx[4]].aniso.matrep
+            HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
+            ΔZ[idx] = - Δt*im*HZ
+        end 
+    else
+        ints = interactions_inhomog(sys)
+        for idx in all_sites(sys)
+            Λ = ints[idx].aniso.matrep
+            HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
+            ΔZ[idx] = - Δt*im*HZ
+        end 
+    end
 end
 
 # Implicit Midpoint Method applied to the nonlinear Schrödinger dynamics, as

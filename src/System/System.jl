@@ -13,8 +13,7 @@ that an SU(_N_) coherent state fully describes any local spin state; this
 description includes expected dipole components ``⟨Ŝᵅ⟩``, quadrupole components
 ``⟨ŜᵅŜᵝ+ŜᵝŜᵅ⟩``, etc.
 
-Classical spin models have historically used the expected dipoles alone.  The
-choice `mode=:dipole` projects the SU(_N_) dynamics onto the space of pure
+The choice `:dipole` projects the SU(_N_) dynamics onto the space of pure
 dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
 dynamics, but all single-ion anisotropy or biquadratic exchange interactions
 will be automatically renormalized for maximum accuracy. [IN PROGRESS]
@@ -55,17 +54,17 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
         # Repeat such that `κs[cell, :] == Ss` for every `cell`
         κs = permutedims(repeat(Ss, 1, latsize...), (2, 3, 4, 1))
     end
-
-    interactions = Interactions(nb, latsize, N)
-
+    extfield = zeros(Vec3, latsize..., nb)
+    interactions = empty_interactions(nb, N)
+    ewald = nothing
     dipoles = fill(zero(Vec3), latsize..., nb)
     coherents = fill(zero(CVec{N}), latsize..., nb)
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = System(nothing, mode, crystal, latsize, Ns, gs, κs, interactions, dipoles, coherents,
-                    dipole_buffers, coherent_buffers, units, rng)
+    ret = System(nothing, mode, crystal, latsize, Ns, gs, κs, extfield, interactions, ewald,
+                 dipoles, coherents, dipole_buffers, coherent_buffers, units, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
 end
@@ -89,29 +88,46 @@ end
 
 
 function clone_spin_state(sys::System{N}) where N
-    System(sys.origin, sys.mode, sys.crystal, sys.latsize, sys.Ns, sys.gs, sys.κs, sys.interactions,
-        copy(sys.dipoles), copy(sys.coherents), sys.dipole_buffers, sys.coherent_buffers,
-        sys.units, copy(sys.rng))
+    System(sys.origin, sys.mode, sys.crystal, sys.latsize, sys.Ns, sys.gs, sys.κs, sys.extfield,
+        sys.interactions_union, sys.ewald, copy(sys.dipoles), copy(sys.coherents),
+        sys.dipole_buffers, sys.coherent_buffers, sys.units, copy(sys.rng))
 end
 
 
 """
-    Site(n1, n2, n3, i)
+    (cell1, cell2, cell3, i) :: Site
 
-Construct an index to a single site in a [`System`](@ref) via its unit cell
-`(n1,n2,n3)` and its atom `i`. Can be used to index `dipoles` and `coherents`
-fields of a `System`, or to set inhomogeneous interactions. This function is
-effectively an alias for the four-component `CartesianIndex` constructor.
+Four indices that identify a single site in a [`System`](@ref). The first three
+indices select the lattice cell and the last selects the sublattice (i.e., the
+atom within the unit cell).
+
+This object can be used to index `dipoles` and `coherents` fields of a `System`.
+A `Site` is also required to specify inhomogeneous interactions via functions
+such as [`set_external_field_at!`](@ref) or [`set_exchange_at!`](@ref).
+
+Note that the definition of a cell may change when a system is reshaped. In this
+case, it is convenient to construct the `Site` using (`position_to_site`)[@ref],
+which always takes a position in fractional coordinates of the original lattice
+vectors.
 """
-@inline Site(idx::CartesianIndex{4})            = idx
-@inline Site(idx::NTuple{4, Int})               = CartesianIndex(idx)
-@inline Site(n1::Int, n2::Int, n3::Int, i::Int) = CartesianIndex(n1, n2, n3, i)
+const Site = NTuple{4, Int}
 
-# Element-wise application of mod1(cell+off, latsize), returning CartesianIndex
-@inline offsetc(cell::CartesianIndex{3}, off, latsize) = CartesianIndex(mod1.(Tuple(cell).+Tuple(off), latsize))
+@inline convert_idx(idx::CartesianIndex{4})            = idx
+@inline convert_idx(idx::NTuple{4, Int})               = CartesianIndex(idx)
+@inline convert_idx(c::CartesianIndex{3}, i::Int)      = CartesianIndex(c[1], c[2], c[3], i)
+@inline convert_idx(c1::Int, c2::Int, c3::Int, i::Int) = CartesianIndex(c1, c2, c3, i)
 
+# kbtodo: offsetcell ?
+# Offset a `cell` by `ncells`
+@inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(mod1.(Tuple(cell) .+ Tuple(ncells), latsize))
+
+# Split a site `idx` into its parts
+@inline to_cell(idx) = CartesianIndex((idx[1],idx[2],idx[3]))
+@inline to_atom(idx) = idx[4]
+
+# kbtodo: replace with above
 # Split a Cartesian index (cell,i) into its parts cell and i.
-@inline splitidx(idx::CartesianIndex{4}) = (CartesianIndex((idx[1],idx[2],idx[3])), idx[4])
+@inline splitidx(idx::CartesianIndex{4}) = (to_cell(idx), to_atom(idx))
 
 # An iterator over all sites using CartesianIndices
 @inline all_sites(sys::System) = CartesianIndices(sys.dipoles)
@@ -120,16 +136,36 @@ effectively an alias for the four-component `CartesianIndex` constructor.
 @inline all_cells(sys::System) = CartesianIndices(sys.latsize)
 
 # Position of a site in global coordinates
-position(sys::System, idx) = sys.crystal.lat_vecs * (sys.crystal.positions[idx[4]] .+ (idx[1]-1, idx[2]-1, idx[3]-1))
+function global_position(sys::System, idx)
+    r = sys.crystal.positions[idx[4]] + Vec3(idx[1]-1, idx[2]-1, idx[3]-1)
+    return sys.crystal.lat_vecs * r
+end
+
+# Positions of all sites in global coordinates
+global_positions(sys::System) = [global_position(sys, idx) for idx in all_sites(sys)]
 
 # Magnetic moment at a site
 magnetic_moment(sys::System, idx) = sys.units.μB * sys.gs[idx[4]] * sys.dipoles[idx]
 
-# Positions of all sites in global coordinates
-positions(sys::System) = [position(sys, idx) for idx in all_sites(sys)]
-
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
+
+# The original crystal for a system, invariant under reshaping
+orig_crystal(sys) = isnothing(sys.origin) ? sys.crystal : sys.origin.crystal
+
+# Position of a site in fractional coordinates
+function position(sys::System, idx)
+    return orig_crystal(sys).lat_vecs \ global_position(sys, idx)
+end
+
+# Convert a fractional position `r` to a Cartesian{4} site index
+function position_to_site(sys::System, r::Vec3)
+    # convert to fractional coordinates of possibly reshaped crystal
+    new_r = sys.crystal.lat_vecs \ orig_crystal(sys).lat_vecs * r
+    b, offset = position_to_index_and_offset(sys.crystal, new_r)
+    cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
+    return convert_idx(cell..., b)
+end
 
 
 struct SpinState{N}
@@ -147,14 +183,14 @@ end
     return iszero(κ) ? zero(Vec3) : κ*normalize(s)
 end
 
-@inline function getspin(sys::System{N}, idx::CartesianIndex{4}) where N
+@inline function getspin(sys::System{N}, idx) where N
     return SpinState(sys.dipoles[idx], sys.coherents[idx])
 end
 
-@inline function setspin!(sys::System{N}, spin::SpinState{N}, idx::CartesianIndex{4}) where N
+@inline function setspin!(sys::System{N}, spin::SpinState{N}, idx) where N
     sys.dipoles[idx] = spin.s
     sys.coherents[idx] = spin.Z
-    nothing
+    return
 end
 
 @inline function flip(spin::SpinState{N}) where N
@@ -189,28 +225,19 @@ function randomize_spins!(sys::System{N}) where N
     end
 end
 
+function polarize_spin!(sys::System{N}, dir, idx) where N
+    idx = convert_idx(idx)
+    setspin!(sys, dipolarspin(sys, idx, dir), idx)
+end
+
 function polarize_spins!(sys::System{N}, dir) where N
     for idx = all_sites(sys)
-        spin = dipolarspin(sys, idx, dir)
-        setspin!(sys, spin, idx)
+        polarize_spin!(sys, dir, idx)
     end
 end
 
-"""
-    set_vacancy_at!(sys::System, idx::Site)
 
-Make a single site nonmagnetic. [`Site`](@ref) includes a unit cell and a
-sublattice index.
-"""
-function set_vacancy_at!(sys::System{N}, idx) where N
-    idx = Site(idx)
-    sys.κs[idx] = 0.0
-    sys.dipoles[idx] = zero(Vec3)
-    sys.coherents[idx] = zero(CVec{N})
-end
-
-
-function get_dipole_buffers(sys::System, numrequested)
+function get_dipole_buffers(sys::System{N}, numrequested) where N
     numexisting = length(sys.dipole_buffers)
     if numexisting < numrequested
         for _ in 1:(numrequested-numexisting)
@@ -220,7 +247,7 @@ function get_dipole_buffers(sys::System, numrequested)
     return sys.dipole_buffers[1:numrequested]
 end
 
-function get_coherent_buffers(sys::System, numrequested)
+function get_coherent_buffers(sys::System{N}, numrequested) where N
     numexisting = length(sys.coherent_buffers)
     if numexisting < numrequested
         for _ in 1:(numrequested-numexisting)
@@ -230,14 +257,6 @@ function get_coherent_buffers(sys::System, numrequested)
     return sys.coherent_buffers[1:numrequested]
 end
 
-
-
-# Convert a fractional position `r` to a Cartesian{4} site index
-function position_to_site(sys::System, r::Vec3)
-    b, offset = position_to_index_and_offset(sys.crystal, r)
-    cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
-    return Site(cell..., b)
-end
 
 """
     reshape_geometry(sys::System, A)
@@ -263,108 +282,99 @@ function reshape_geometry(sys::System{N}, A) where N
     return reshape_geometry_aux(sys, new_latsize, new_cell_size)
 end
 
-function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_size::Matrix{Int}) where N
-    # Reuse `origin` system if present
-    origin = isnothing(sys.origin) ? sys : sys.origin
 
-    # If `new_cell_size == I`, we can effectively restore the `origin` system,
-    # but with `new_latsize`
+# Map all "unit cell" quantities from `origin` to `new_sys`. These are: Ns, gs,
+# and homogeneous interactions. 
+function transfer_unit_cell!(new_sys::System{N}, origin::System{N}) where N
+    # Both systems must be homogeneous
+    @assert is_homogeneous(new_sys) && is_homogeneous(origin)
+
+    origin_ints = interactions_homog(origin)
+    new_ints    = interactions_homog(new_sys)
+    new_cryst   = new_sys.crystal
+
+    for new_i in 1:nbasis(new_cryst)
+        new_ri = new_cryst.positions[new_i]
+        ri = origin.crystal.lat_vecs \ new_cryst.lat_vecs * new_ri
+        i = position_to_index(origin.crystal, ri)
+
+        # Spin descriptors
+        new_sys.Ns[new_i] = origin.Ns[i]
+        new_sys.gs[new_i] = origin.gs[i]
+
+        # Interactions
+        function map_couplings(couplings::Vector{Coupling{T}}) where T
+            new_couplings = Coupling{T}[]
+            for (; bond, J) in couplings
+                new_bond = transform_bond(new_cryst, origin.crystal, bond)
+                isculled = bond_parity(new_bond)
+                push!(new_couplings, Coupling(isculled, new_bond, J))
+            end
+            return sort!(new_couplings, by=c->c.isculled)
+        end
+        new_ints[new_i].aniso    = origin_ints[i].aniso
+        new_ints[new_i].heisen   = map_couplings(origin_ints[i].heisen)
+        new_ints[new_i].exchange = map_couplings(origin_ints[i].exchange)
+        new_ints[new_i].biquad   = map_couplings(origin_ints[i].biquad)
+    end
+end
+
+function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_size::Matrix{Int}) where N
+    is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
+
+    # `origin` describes the unit cell of the original system. For sequential
+    # reshapings, `sys.origin` keeps its original meaning. Make a deep copy so
+    # that the new system fully owns `origin`, and mutable updates to the
+    # previous system won't affect this one.
+    origin = deepcopy(isnothing(sys.origin) ? sys : sys.origin)
+
+    # If `new_cell_size == I`, we can effectively restore the unit cell of
+    # `origin`, but with `new_latsize`
     if new_cell_size == I
         new_cryst = origin.crystal
         new_nb = nbasis(new_cryst)
 
         new_κs               = zeros(Float64, new_latsize..., new_nb)
-        new_ints             = Interactions(new_nb, new_latsize, N)
+        new_extfield         = zeros(Vec3, new_latsize..., new_nb)
+        new_ints             = interactions_homog(origin) # homogeneous only
         new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
-        new_rng              = copy(sys.rng)
-        new_sys = System(nothing, origin.mode, origin.crystal, new_latsize, origin.Ns, origin.gs, new_κs, new_ints,
-                         new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, new_rng)
-
-        # Interactions defined for the unit cell can be reused
-        new_ints.anisos = origin.interactions.anisos
-        new_ints.pairexch = origin.interactions.pairexch
+        new_sys = System(nothing, origin.mode, origin.crystal, new_latsize, origin.Ns, origin.gs, new_κs, new_extfield, new_ints, nothing,
+                         new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
     
-    # Else we must rebuild the unit cell for the new crystal
+    # Else, rebuild the unit cell for the new crystal
     else
-        new_cryst = resize_crystal(origin.crystal, Mat3(new_cell_size))
+        new_cryst = reshape_crystal(origin.crystal, Mat3(new_cell_size))
         new_nb = nbasis(new_cryst)
         
         new_Ns               = zeros(Int, new_nb)
         new_gs               = zeros(Mat3, new_nb)
         new_κs               = zeros(Float64, new_latsize..., new_nb)
-        new_ints             = Interactions(new_nb, new_latsize, N)
+        new_extfield         = zeros(Vec3, new_latsize..., new_nb)
+        new_ints             = empty_interactions(new_nb, N)
         new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
-        new_rng              = copy(sys.rng)
         
-        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_gs, new_κs, new_ints,
-                        new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, new_rng)
-        
-        # Matrix that maps from fractional positions in `new_cryst` to fractional
-        # positions in `cryst`
-        to_orig_pos = origin.crystal.lat_vecs \ new_cryst.lat_vecs
-        # Inverse mapping
-        to_new_pos = inv(to_orig_pos)
-
-        # Copy unit cell quantities from `origin`
-        for new_i in 1:new_nb
-            new_ri = new_cryst.positions[new_i]
-            i = position_to_index(origin.crystal, to_orig_pos * new_ri)
-
-            # Spin descriptors
-            new_sys.Ns[new_i] = origin.Ns[i]
-            new_sys.gs[new_i] = origin.gs[i]
-
-            # Anisotropies
-            new_sys.interactions.anisos[new_i] = origin.interactions.anisos[i]
-
-            # Pair exchanges
-            function map_pair_interactions!(new_exch::Vector{Tuple{Bool,Bond,T}}, exch::Vector{Tuple{Bool,Bond,T}}) where T
-                empty!(new_exch)
-                for (_, bond, J) in exch
-                    disp = origin.crystal.positions[bond.j] + bond.n - origin.crystal.positions[bond.i]
-                    new_rj = new_ri + to_new_pos * disp
-                    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
-                    new_bond = Bond(new_i, new_j, new_n)
-                    isculled = bond_parity(new_bond)
-                    push!(new_exch, (isculled, new_bond, J))
-                end
-                sort!(new_exch, by=first)
-            end
-
-            new_exchs = new_sys.interactions.pairexch[new_i]
-            exchs = origin.interactions.pairexch[i]
-            map_pair_interactions!(new_exchs.heisen, exchs.heisen)
-            map_pair_interactions!(new_exchs.quadmat, exchs.quadmat)
-            map_pair_interactions!(new_exchs.biquad, exchs.biquad)
-        end
+        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_gs, new_κs, new_extfield, new_ints, nothing,
+                        new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
+        transfer_unit_cell!(new_sys, origin)
     end
 
-    # Copy per-site quantities from `sys` (not `origin!`)
+    # Copy per-site quantities from `sys`
     for new_idx in all_sites(new_sys)
-        # Calculate `idx` into `sys` that corresponds to `new_idx` into
-        # `new_sys`. Start with the position `new_r` in fractional coordinates
-        # of `new_crystal`. Convert this to `r` in fractional coordinates of
-        # `sys.crystal`. Finally, convert `r` to an `idx`.
-        new_r = new_cryst.positions[new_idx[4]] .+ (new_idx[1], new_idx[2], new_idx[3])
-        r = sys.crystal.lat_vecs \ new_cryst.lat_vecs * new_r
-        idx = position_to_site(sys, r)
-
+        idx = position_to_site(sys, position(new_sys, new_idx))
         new_sys.κs[new_idx] = sys.κs[idx]
+        new_sys.extfield[new_idx] = sys.extfield[idx]
         new_sys.dipoles[new_idx] = sys.dipoles[idx]
         new_sys.coherents[new_idx] = sys.coherents[idx]
-
-        # External fields
-        new_sys.interactions.extfield[new_idx] = sys.interactions.extfield[idx]
     end
 
     # Enable dipole-dipole
-    if !isnothing(sys.interactions.ewald)
+    if !isnothing(sys.ewald)
         enable_dipole_dipole!(new_sys)
     end
 
@@ -374,13 +384,9 @@ end
 # Dimensions of a possibly reshaped unit cell, given in multiples of the
 # original unit cell.
 function cell_dimensions(sys)
-    if isnothing(sys.origin)
-        return [1 0 0; 0 1 0; 0 0 1]
-    else
-        A = sys.origin.crystal.lat_vecs \ sys.crystal.lat_vecs
-        @assert norm(A - round.(A)) < 1e-12
-        return round.(Int, A)
-    end
+    A = orig_crystal(sys).lat_vecs \ sys.crystal.lat_vecs
+    @assert norm(A - round.(A)) < 1e-12
+    return round.(Int, A)
 end
 
 """
@@ -416,7 +422,7 @@ function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
     counts = NTuple{3,Int}(counts)
     @assert all(>=(1), counts)
     # Scale each column by `counts` and reshape
-    return reshape_geometry(sys, cell_dimensions(sys) * diagm(collect(counts)))
+    return reshape_geometry_aux(sys, counts .* sys.latsize, Matrix(cell_dimensions(sys)))
 end
 
 
