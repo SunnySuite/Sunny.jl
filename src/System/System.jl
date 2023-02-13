@@ -306,7 +306,7 @@ function transfer_unit_cell!(new_sys::System{N}, origin::System{N}) where N
         function map_couplings(couplings::Vector{Coupling{T}}) where T
             new_couplings = Coupling{T}[]
             for (; bond, J) in couplings
-                new_bond = transform_bond(new_cryst, origin.crystal, bond)
+                new_bond = transform_bond(new_cryst, new_i, origin.crystal, bond)
                 isculled = bond_parity(new_bond)
                 push!(new_couplings, Coupling(isculled, new_bond, J))
             end
