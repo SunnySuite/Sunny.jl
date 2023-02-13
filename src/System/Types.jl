@@ -53,7 +53,7 @@ mutable struct System{N}
 
     # Interactions may be homogeneous (defined for one unit cell), or
     # inhomogeneous (defined for every cell in the system).
-    interactions           :: Union{Vector{Interactions}, Array{Interactions,4}}
+    interactions_union     :: Union{Vector{Interactions}, Array{Interactions,4}}
     # Optional long-range dipole-dipole interactions (Vector is mutable box)
     ewald                  :: Union{Ewald, Nothing}
 

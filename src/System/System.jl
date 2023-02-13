@@ -89,8 +89,8 @@ end
 
 function clone_spin_state(sys::System{N}) where N
     System(sys.origin, sys.mode, sys.crystal, sys.latsize, sys.Ns, sys.gs, sys.κs, sys.extfield,
-        sys.interactions, sys.ewald, copy(sys.dipoles), copy(sys.coherents), sys.dipole_buffers, sys.coherent_buffers,
-        sys.units, copy(sys.rng))
+        sys.interactions_union, sys.ewald, copy(sys.dipoles), copy(sys.coherents),
+        sys.dipole_buffers, sys.coherent_buffers, sys.units, copy(sys.rng))
 end
 
 
@@ -289,8 +289,8 @@ function transfer_unit_cell!(new_sys::System{N}, origin::System{N}) where N
     # Both systems must be homogeneous
     @assert is_homogeneous(new_sys) && is_homogeneous(origin)
 
-    origin_ints = interactions(origin)
-    new_ints    = interactions(new_sys)
+    origin_ints = interactions_homog(origin)
+    new_ints    = interactions_homog(new_sys)
     new_cryst   = new_sys.crystal
 
     for new_i in 1:nbasis(new_cryst)
@@ -336,7 +336,7 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
 
         new_κs               = zeros(Float64, new_latsize..., new_nb)
         new_extfield         = zeros(Vec3, new_latsize..., new_nb)
-        new_ints             = interactions(origin) # homogeneous only
+        new_ints             = interactions_homog(origin) # homogeneous only
         new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
         new_dipole_buffers   = Array{Vec3, 4}[]

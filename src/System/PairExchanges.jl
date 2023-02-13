@@ -35,7 +35,7 @@ function set_biquadratic!(sys::System{N}, J, bond::Bond) where N
     validate_bond(sys.crystal, bond)
     is_homogeneous(sys) || error("Cannot symmetry-propagate interactions for an inhomogeneous system.")
 
-    ints = interactions(sys)
+    ints = interactions_homog(sys)
 
 
     # Print a warning if an interaction already exists for bond
@@ -108,7 +108,7 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
     validate_bond(sys.crystal, bond)
     is_homogeneous(sys) || error("Cannot symmetry-propagate interactions for an inhomogeneous system.")
 
-    ints = interactions(sys)
+    ints = interactions_homog(sys)
 
     # Convert J to Mat3
     J = Mat3(J isa Number ? J*I : J)

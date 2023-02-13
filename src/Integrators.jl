@@ -158,7 +158,7 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
     set_forces!(B, sys.dipoles, sys)
 
     if is_homogeneous(sys)
-        ints = interactions(sys)
+        ints = interactions_homog(sys)
         for idx in all_sites(sys)
             Λ = ints[idx[4]].aniso.matrep
             HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
@@ -205,7 +205,7 @@ function rhs_ll!(ΔZ, Z, B, integrator, sys)
     set_forces!(B, sys.dipoles, sys)
 
     if is_homogeneous(sys)
-        ints = interactions(sys)
+        ints = interactions_homog(sys)
         for idx in all_sites(sys)
             Λ = ints[idx[4]].aniso.matrep
             HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z

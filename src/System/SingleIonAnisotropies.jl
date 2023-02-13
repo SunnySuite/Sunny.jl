@@ -61,7 +61,7 @@ function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) 
     if !is_homogeneous(sys)
         error("Use `set_anisotropy_at!` for inhomogeneous systems.")
     end
-    ints = interactions(sys)
+    ints = interactions_homog(sys)
 
     iszero(op) && return 
 

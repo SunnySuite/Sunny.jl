@@ -7,18 +7,16 @@ function empty_interactions(nb, N)
     end
 end
 
-function interactions(sys::System{N}) where N
-    @assert is_homogeneous(sys)
-    return sys.interactions :: Vector{Interactions}
+function interactions_homog(sys::System{N}) where N
+    return sys.interactions_union :: Vector{Interactions}
 end
 
 function interactions_inhomog(sys::System{N}) where N
-    @assert !is_homogeneous(sys)
-    return sys.interactions :: Array{Interactions, 4}
+    return sys.interactions_union :: Array{Interactions, 4}
 end
 
 function is_homogeneous(sys::System{N}) where N
-    return sys.interactions isa Vector{Interactions}
+    return sys.interactions_union isa Vector{Interactions}
 end
 
 """
@@ -33,13 +31,13 @@ system reshaping.
 """
 function to_inhomogeneous(sys::System{N}) where N
     is_homogeneous(sys) || error("System is already inhomogeneous.")
-    ints = interactions(sys)
+    ints = interactions_homog(sys)
 
     ret = deepcopy(sys)
     nb = nbasis(ret.crystal)
-    ret.interactions = Array{Interactions}(undef, ret.latsize..., nb)
+    ret.interactions_union = Array{Interactions}(undef, ret.latsize..., nb)
     for cell in all_cells(ret)
-        ret.interactions[cell, :] = deepcopy(ints)
+        ret.interactions_union[cell, :] = deepcopy(ints)
     end
 
     return ret
@@ -111,7 +109,7 @@ function local_energy_change(sys::System{N}, idx, state::SpinState) where N
     (; latsize, extfield, dipoles, coherents, ewald) = sys
 
     if is_homogeneous(sys)
-        (; aniso, heisen, exchange, biquad) = interactions(sys)[idx[4]]
+        (; aniso, heisen, exchange, biquad) = interactions_homog(sys)[idx[4]]
     else
         (; aniso, heisen, exchange, biquad) = interactions_inhomog(sys)[idx]
     end
@@ -181,7 +179,7 @@ function energy(sys::System{N}) where N
     # Anisotropies and exchange interactions
     for i in 1:nbasis(crystal)
         if is_homogeneous(sys)
-            ints = interactions(sys)
+            ints = interactions_homog(sys)
             E += energy_aux(sys, ints[i], i, all_cells(sys))
         else
             ints = interactions_inhomog(sys)
@@ -266,7 +264,7 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N})
     # Anisotropies and exchange interactions
     for i in 1:nbasis(crystal)
         if is_homogeneous(sys)
-            ints = interactions(sys)
+            ints = interactions_homog(sys)
             set_forces_aux!(B, dipoles, ints[i], i, all_cells(sys), sys)
         else
             ints = interactions_inhomog(sys)

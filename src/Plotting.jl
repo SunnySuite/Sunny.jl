@@ -131,11 +131,11 @@ end
 """
     plot_bonds(sys::System; kwargs...)
 
-Plot all pair interactions appearing in `sys.interactions`, on the
+Plot all pair interactions appearing in `sys.interactions_union`, on the
 underlying crystal lattice. `kwargs` are passed to `plot_lattice!`.
 """
 @inline function plot_bonds(sys::System; kwargs...)
-    ℋ = sys.interactions
+    ℋ = sys.interactions_union
     pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
     plot_bonds(sys.crystal, pair_ints; kwargs...)
 end
