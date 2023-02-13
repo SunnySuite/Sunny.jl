@@ -69,7 +69,7 @@ print_symmetry_table(crystal, 0.8)
 
 which prints,
 ```
-Site 1
+Atom 1
 Position [0, 0, 0], multiplicity 8
 Allowed g-tensor: | A  0  0 |
                   | 0  A  0 |

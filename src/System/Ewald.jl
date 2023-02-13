@@ -68,10 +68,9 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
 
     for idx in CartesianIndices(latsize), b2 in 1:nb, b1 in 1:nb
         acc = zero(Mat3)
-        # Note that `idx .- 1` represents a 3-vector offset
-        # KBTODO replace with: position(sys, idx)
-        Δr = position(cryst, b2, idx) - position(cryst, b1, (1,1,1))
-
+        cell_offset = Vec3(idx[1]-1, idx[2]-1, idx[3]-1)
+        Δr = cryst.lat_vecs * (cell_offset + cryst.positions[b2] - cryst.positions[b1])
+        
         #####################################################
         ## Real space part
         for n1 = -nmax[1]:nmax[1], n2 = -nmax[2]:nmax[2], n3 = -nmax[3]:nmax[3]

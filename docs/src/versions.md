@@ -1,11 +1,12 @@
 # Version 0.4.1 (in development)
 
-Support for inhomogeneous exchange interactions is planned. One will first call
-`enable_inhomogeneous_exchange!`, allowing subsequent use of `set_exchange_at!`.
+The function [`to_inhomogeneous`](@ref) creates a system that supports
+inhomogeneous interactions, which can be set using [`set_exchange_at!`](@ref),
+etc.
 
 Support for [`LocalSampler`](@ref) is in development.
 
-`set_biquadratic!` will replace [`set_exchange_with_biquadratic!`](@ref).
+[`set_biquadratic!`](@ref) replaces `set_exchange_with_biquadratic!`.
 
 
 # Version 0.4
@@ -48,9 +49,7 @@ combination of Stevens operators. To see this expansion use
 [`print_anisotropy_as_stevens`](@ref).
 
 
-### Inhomogeneous interactions
-
-Vacancies can be introduced with [`set_vacancy_at!`](@ref).
+### Inhomogeneous field
 
 An external field can be applied to a single site with
 [`set_external_field_at!`](@ref). 

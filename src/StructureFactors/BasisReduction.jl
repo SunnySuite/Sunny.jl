@@ -2,7 +2,7 @@ function phase_averaged_elements(data, k::Vec3, sf::StructureFactor{N, NumCorr, 
     elems = zero(SVector{NumCorr, ComplexF64})
     knorm = norm(k)
     ffs = ntuple(b -> compute_form(knorm, ffdata[b]), NumBasis)
-    rs = ntuple(b -> position(sf.crystal, b), NumBasis)
+    rs = ntuple(b -> sf.crystal.lat_vecs * sf.crystal.positions[b], NumBasis)
 
     for b2 in 1:NumBasis, b1 in 1:NumBasis
         phase = exp(im*(k ⋅ (rs[b2] - rs[b1])))

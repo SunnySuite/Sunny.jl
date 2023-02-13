@@ -94,15 +94,6 @@ Volume of the crystal unit cell.
 """
 cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
 
-"""
-    position(crystal::Crystal, i::Int, cell=(0,0,0))
-
-Position of an atom in global Cartesian coordinates. The optional `cell`
-parameter denotes a displacement in unit cell indices.
-"""
-position(cryst::Crystal, i::Int, offset=(0,0,0)) = cryst.lat_vecs * (convert(Vec3, offset) + cryst.positions[i])
-
-
 # Constructs a crystal from the complete list of atom positions `positions`,
 # representing fractions (between 0 and 1) of the lattice vectors `lat_vecs`.
 # All symmetry information is automatically inferred.
@@ -387,7 +378,7 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
 end
 
 
-function resize_crystal(cryst::Crystal, new_cell_size::Mat3)
+function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
     # TODO: support resizing to multiples of the primitive cell?
     @assert all(isinteger, new_cell_size)
 

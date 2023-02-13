@@ -225,7 +225,7 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6])
     r = cryst.positions[i]
     class_i = cryst.classes[i]
     m = count(==(class_i), cryst.classes)
-    printstyled(stdout, "Site $i\n"; bold=true, color=:underline)
+    printstyled(stdout, "Atom $i\n"; bold=true, color=:underline)
 
     if isempty(cryst.types[i])
         println("Position $(atom_pos_to_string(r)), multiplicity $m")

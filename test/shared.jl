@@ -38,7 +38,7 @@ function add_quartic_interactions!(sys, mode)
     if mode!=:SUN
         # In dipole mode, spins scale individually, S⁴ → κ⁴ S⁴
         set_anisotropy!(sys, 0.2*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), 1)
-        set_exchange_with_biquadratic!(sys, 0, 0.2, Bond(1, 3, [0, 0, 0]))
+        set_biquadratic!(sys, 0.2, Bond(1, 3, [0, 0, 0]))
     end
 end
 
