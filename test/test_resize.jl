@@ -90,3 +90,60 @@ end
     
     @test energy(sys) ≈ energy(sys2)
 end
+
+
+@testitem "FeI2 equivalent energy" begin
+    using LinearAlgebra
+
+    a = b = 4.05012
+    c = 6.75214
+    lat_vecs = lattice_vectors(a, b, c, 90, 90, 120)
+    cryst = Crystal(lat_vecs, [[0,0,0]], 164)
+    sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN, seed=0)
+
+    J1pm   = -0.236 
+    J1pmpm = -0.161
+    J1zpm  = -0.261
+    J2pm   = 0.026
+    J3pm   = 0.166
+    J′0pm  = 0.037
+    J′1pm  = 0.013
+    J′2apm = 0.068
+
+    J1zz   = -0.236
+    J2zz   = 0.113
+    J3zz   = 0.211
+    J′0zz  = -0.036
+    J′1zz  = 0.051
+    J′2azz = 0.073
+
+    J1xx = J1pm + J1pmpm 
+    J1yy = J1pm - J1pmpm
+    J1yz = J1zpm
+
+    set_exchange!(sys, [J1xx   0.0    0.0;
+                        0.0    J1yy   J1yz;
+                        0.0    J1yz   J1zz], Bond(1,1,[1,0,0]))
+    set_exchange!(sys, diagm([J2pm, J2pm, J2zz]), Bond(1,1,[1,2,0]))
+    set_exchange!(sys, diagm([J3pm, J3pm, J3zz]), Bond(1,1,[2,0,0]))
+    set_exchange!(sys, diagm([J′0pm, J′0pm, J′0zz]), Bond(1,1,[0,0,1]))
+    set_exchange!(sys, diagm([J′1pm, J′1pm, J′1zz]), Bond(1,1,[1,0,1]))
+    set_exchange!(sys, diagm([J′2apm, J′2apm, J′2azz]), Bond(1,1,[1,2,1]))
+
+    D = 2.165
+    set_anisotropy!(sys, -D*𝒮[3]^2, 1)
+
+    # periodic ground state for FeI2
+    s = Sunny.Vec3(1, 0, 0)
+    for j = 1:4, k = 1:4
+        sys.dipoles[:, j, k, 1] = circshift([s, s, -s, -s], mod(j+k, 4))
+    end
+
+    sys_supercell = reshape_geometry(sys, [2 0 1; -1 1 0; -1 -1 1])
+    sys2 = resize_periodically(sys_supercell, (4,4,4))
+
+    E0 = energy(sys) / length(sys.dipoles)
+    E1 = energy(sys_supercell) / length(sys_supercell.dipoles)
+    E2 = energy(sys2) / length(sys2.dipoles)
+    @test E0 ≈ E1 ≈ E2
+end

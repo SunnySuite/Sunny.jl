@@ -7,6 +7,28 @@ function validate_bond(cryst::Crystal, bond::Bond)
     (1 <= bond.j <= nbasis(cryst)) || error("Atom index $(bond.j) is out of range.")
 end
 
+# Partition every nonzero bound into one of two sets
+function bond_parity(bond)
+    bond_delta = (bond.j - bond.i, bond.n...)
+    @assert bond_delta != (0, 0, 0, 0)
+    return bond_delta > (0, 0, 0, 0)
+end
+
+# Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
+# `new_cryst`. The new bond will begin at atom `new_i`.
+function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bond)
+    new_ri = new_cryst.positions[new_i]
+
+    # Positions in new fractional coordinates
+    br = BondRaw(cryst, bond)
+    new_rj = new_ri + new_cryst.lat_vecs \ cryst.lat_vecs * (br.rj - br.ri)
+
+    # Construct bond using new indexing system
+    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
+    return Bond(new_i, new_j, new_n)
+end
+
+
 """
     set_biquadratic!(sys::System, J, bond::Bond)
 
@@ -188,7 +210,7 @@ function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
 
     # If system has been reshaped, then we need to transform bond to new
     # indexing system.
-    bond = transform_bond(sys.crystal, orig_crystal(sys), bond)
+    bond = transform_bond(sys.crystal, idx[4], orig_crystal(sys), bond)
     bond.i == idx[4] || error("Atom index `bond.i` is inconsistent with sublattice of `idx`.")
 
     idx = convert_idx(idx)
@@ -220,7 +242,7 @@ function set_exchange_at!(sys::System{N}, J, bond::Bond, idx) where N
 
     # If system has been reshaped, then we need to transform bond to new
     # indexing system.
-    bond = transform_bond(sys.crystal, orig_crystal(sys), bond)
+    bond = transform_bond(sys.crystal, idx[4], orig_crystal(sys), bond)
     bond.i == idx[4] || error("Atom index `bond.i` is inconsistent with sublattice of `idx`.")
 
     idx = convert_idx(idx)
