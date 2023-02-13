@@ -1,10 +1,13 @@
-# Version 0.4.1 (in development)
+# Version 0.4.2 (in development)
+
+Support for [`LocalSampler`](@ref) is in development.
+
+
+# Version 0.4.1
 
 The function [`to_inhomogeneous`](@ref) creates a system that supports
 inhomogeneous interactions, which can be set using [`set_exchange_at!`](@ref),
 etc.
-
-Support for [`LocalSampler`](@ref) is in development.
 
 [`set_biquadratic!`](@ref) replaces `set_exchange_with_biquadratic!`.
 

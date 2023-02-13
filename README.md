@@ -40,11 +40,11 @@ julia> ]
 pkg> add Sunny
 ```
 
-New point-releases will include **breaking changes**, so users may wish to stick with one point-release for the duration of a project. To install a specific version, e.g. `0.x`, use the syntax `add Sunny@0.x`. Documentation for old Sunny versions is [available on JuliaHub](https://juliahub.com/ui/Packages/Sunny/atBCQ) -- access it by clicking the `more...` button in the 'Version' panel on the right.
+New point-releases will include **breaking changes**. To install a specific version of Sunny, say `v0.x`, use the command `add Sunny@0.x`.
 
 ## Contact us
 
-If you're using Sunny, we'd like to interact with you. Please join our [Slack User Community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello! If you find an unexpected behavior in Sunny, please [start a Github discussion](https://github.com/SunnySuite/Sunny.jl/discussions) or [file an issue](https://github.com/SunnySuite/Sunny.jl/issues).
+If you're using Sunny, we'd like to interact with you. Please join our [Slack User Community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello! If you find an unexpected behavior in Sunny, please [start a Github discussion](https://github.com/SunnySuite/Sunny.jl/discussions) or [file an issue](https://github.com/SunnySuite/Sunny.jl/issues). If you use Sunny in a publication, please add it on [our Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
     
 
 <div>
