@@ -97,13 +97,14 @@ function propagate_form_factors(cryst::Crystal, ffs::Vector{<:FormFactor})
     FFType = maximum([typeof(ff).parameters[1] for ff in ffs])
 
     ref_atoms = [ff.atom for ff in ffs]
-    atoms = propagate_reference_atoms(cryst, ref_atoms)
-    return map(enumerate(ffs[atoms])) do (atom, ff)
+    atom_to_ref_atom = propagate_reference_atoms(cryst, ref_atoms)
+
+    return map(enumerate(atom_to_ref_atom)) do (atom, atom′)
+        ff = ffs[findfirst(==(atom′), ref_atoms)]
         (; J0_params, J2_params, g_lande) = ff
         FormFactor{FFType}(; atom, J0_params, J2_params, g_lande)
     end
 end
-
 
 
 function compute_form(k::Float64, params::FormFactor{DOUBLE_FF})
