@@ -71,3 +71,22 @@ end
     sys3 = resize_periodically(sys, (6, 6, 3))
     @test sys2.dipoles == sys3.dipoles
 end
+
+
+@testitem "Interactions after reshaping" begin
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0,0,0]])
+    sys = System(cryst, (3, 3, 3), [SpinInfo(1, S=1)], :dipole)
+    randomize_spins!(sys)
+    
+    # Commensurate shear that is specially designed to preserve the periodicity of
+    # the system volume
+    sys2 = reshape_geometry(sys, [3 3 0; 0 3 0; 0 0 3])
+    
+    # Users always specify a bond using atom indices of the original unit cell,
+    # but `sys2.interactions_union` is internally reindexed.
+    set_exchange!(sys,  1.0, Bond(1, 1, [1, 0, 0]))
+    set_exchange!(sys2, 1.0, Bond(1, 1, [1, 0, 0]))
+    
+    @test energy(sys) ≈ energy(sys2)
+end
