@@ -179,7 +179,7 @@ Note that `bond` is always defined with respect to the original crystal, whereas
 reshaped. The atom index `bond.i` must be consistent with the system sublattice
 index `idx[4]`. 
 
-See also [`set_biquadratic!](@ref).
+See also [`set_biquadratic!`](@ref).
 """
 function set_biquadratic_at!(sys::System{N}, J, bond::Bond, idx) where N
     validate_bond(sys.crystal, bond)
@@ -211,7 +211,7 @@ Note that `bond` is always defined with respect to the original crystal, whereas
 reshaped. The atom index `bond.i` must be consistent with the system sublattice
 index `idx[4]`. 
 
-See also [`set_exchange!](@ref).
+See also [`set_exchange!`](@ref).
 """
 function set_exchange_at!(sys::System{N}, J, bond::Bond, idx) where N
     validate_bond(sys.crystal, bond)

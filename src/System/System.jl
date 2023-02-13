@@ -103,7 +103,7 @@ atom within the unit cell).
 
 This object can be used to index `dipoles` and `coherents` fields of a `System`.
 A `Site` is also required to specify inhomogeneous interactions via functions
-such as [`set_field_at!`](@ref) or [`set_exchange_at!`](@ref).
+such as [`set_external_field_at!`](@ref) or [`set_exchange_at!`](@ref).
 
 Note that the definition of a cell may change when a system is reshaped. In this
 case, it is convenient to construct the `Site` using (`position_to_site`)[@ref],
