@@ -136,26 +136,27 @@ function intensities(sf::StructureFactor, qs, mode;
 
     # Propagate form factor information (if any)
     if isnothing(formfactors)
-        formfactors = [FormFactor{EMPTY_FF}(; atom) for atom in unique(sf.crystal.classes)]
+        cryst = isnothing(sf.origin_crystal) ? sf.crystal : sf.origin_crystal 
+        class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]
+        formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]
     end
-    ffdata = propagate_form_factors(sf.crystal, formfactors)
+    formfactors = upconvert_form_factors(formfactors) # Ensure formfactors have consistent type
+    ffdata = propagate_form_factors(sf, formfactors)
 
     # Precompute index information and preallocate
     ωvals = ωs(sf; negative_energies)
     nω = length(ωvals) 
-    intensities = zeros(contractor, size(qs)..., nω)
     stencil_info = pruned_stencil_info(sf, qs, interp) 
+    intensities = zeros(contractor, size(qs)..., nω)
     
     # Call type stable version of the function
-    intensities!(intensities, sf, qs, ωvals, interp, contractor, kT, ffdata, stencil_info) #ddtodo: Track down allocations
-
-    # ddtodo: See if worth it to apply classical-to-quantum rescaling here instead of inside loop (removes branching)
+    intensities!(intensities, sf, qs, ωvals, interp, contractor, kT, ffdata, stencil_info) 
 
     return intensities
 end
 
 
-# Type stable version
+# Actual intensity calculation
 function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωvals, interp::InterpolationScheme, contraction::Contraction{T}, temp, ffdata, stencil_info) where {T}
     li_intensities = LinearIndices(intensities)
     ci_qs = CartesianIndices(q_targets)
