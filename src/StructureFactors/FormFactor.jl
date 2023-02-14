@@ -90,14 +90,41 @@ function FormFactor(atom::Int64, elem::Union{Nothing, String}; g_lande=nothing) 
 end
 
 
-function propagate_form_factors(cryst::Crystal, ffs::Vector{<:FormFactor})
-    # Make sure `FormFactor` type parameter is uniform for all elements of list.
-    # This ensures that `phase_averaged_elements` knows which version of
-    # `compute_form` to call at compile time.
-    FFType = maximum([typeof(ff).parameters[1] for ff in ffs])
+# Make sure `FormFactor` type parameter is uniform for all elements of list.
+# This ensures that `phase_averaged_elements` knows which version of
+# `compute_form` to call at compile time.
+function upconvert_form_factors(ffs)
+    FFType = maximum([only(typeof(ff).parameters) for ff in ffs])
+    return map(ffs) do ff
+        (; atom, J0_params, J2_params, g_lande) = ff
+        FormFactor{FFType}(; atom, J0_params, J2_params, g_lande)
+    end
+end
 
+# If necessary, update the indices of FormFactors from original crystal
+# to the corresponding indices of the new crystal.
+function map_form_factors_to_crystal(sf::StructureFactor, ffs::Vector{FormFactor{FFType}}) where FFType
+    (; crystal, origin_crystal) = sf
+
+    (isnothing(origin_crystal)) && (return ffs)
+
+    ffs_new = []
+    for ff in ffs
+        old_ri = origin_crystal.positions[ff.atom]  
+        ri = crystal.lat_vecs \ origin_crystal.lat_vecs * old_ri
+        atom_new = position_to_index(crystal, ri)
+
+        (; J0_params, J2_params, g_lande) = ff
+        push!(ffs_new, FormFactor{FFType}(; atom=atom_new, J0_params, J2_params, g_lande))
+    end
+
+    return ffs_new
+end
+
+function propagate_form_factors(sf::StructureFactor, ffs::Vector{FormFactor{FFType}}) where FFType
+    ffs = map_form_factors_to_crystal(sf, ffs)
     ref_atoms = [ff.atom for ff in ffs]
-    atom_to_ref_atom = propagate_reference_atoms(cryst, ref_atoms)
+    atom_to_ref_atom = propagate_reference_atoms(sf.crystal, ref_atoms)
 
     return map(enumerate(atom_to_ref_atom)) do (atom, atom′)
         ff = ffs[findfirst(==(atom′), ref_atoms)]
