@@ -20,7 +20,7 @@ To see Sunny in action, we recommend browsing the [FeI2 case study](https://sunn
 
 ## Technical description of SU(_N_) spin dynamics.
 
-A quantum spin of magnitude _S_ has ``N = 2 S + 1`` distinct angular momentum eigenstates. The traditional classical approximation effectively replaces each spin operator with a dipole expectation value, producing the Landau-Lifshitz spin-dipole dynamics. Alternatively, one can derive a dynamics that retains all multipolar expectation values (dipoles, quadrupoles, etc.) [[Zhang and Batista, Phys. Rev. B **104**, 104409 (2021)](https://arxiv.org/abs/2106.14125)]. This formalism can be understood as a dynamics of SU(_N_) coherent states, and coincides with the usual Laudau-Lifshitz dynamics when ``N=2``. 
+A quantum spin of magnitude _S_ has _N_ = 2 _S_ + 1 distinct angular momentum eigenstates. The traditional classical approximation effectively replaces each spin operator with a dipole expectation value, producing the Landau-Lifshitz spin-dipole dynamics. Alternatively, one can derive a dynamics that retains all multipolar expectation values (dipoles, quadrupoles, etc.) [[Zhang and Batista, Phys. Rev. B **104**, 104409 (2021)](https://arxiv.org/abs/2106.14125)]. This formalism can be understood as a dynamics of SU(_N_) coherent states, and coincides with the usual Laudau-Lifshitz dynamics when _N_=2.
 
 Sunny uses recently developed algorithms to simulate this SU(_N_) spin dynamics in a highly efficient way:
 * D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_, Phys. Rev. B **106**, 054423 (2022) [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
@@ -30,7 +30,7 @@ Papers using Sunny are listed on [our Wiki](https://github.com/SunnySuite/Sunny.
 
 ## Comparison with other tools
 
-In addition to the generalized SU(_N_) spin dynamics, Sunny can also simulate spins in the dipole-only approximation. When running in this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/), which was an inspiration for this project. Sunny supports general single-ion anisotropies, and currently has a focus on classical spin dynamics. The classical spin dynamics allows for simulations at finite temperatures, and (soon) the application of chemical inhomogeneities. Support for the SU(_N_) version of linear spin wave theory is coming soon; this approach will be faster, and enables arbitrary ``k``-space resolution.
+In addition to the generalized SU(_N_) spin dynamics, Sunny can also simulate spins in the dipole-only approximation. When running in this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/), which was an inspiration for this project. Sunny supports general single-ion anisotropies, and currently has a focus on classical spin dynamics. The classical spin dynamics allows for simulations at finite temperatures, and (soon) the application of chemical inhomogeneities. Support for the SU(_N_) version of linear spin wave theory is coming soon; this approach will be faster, and enables arbitrary _k_-space resolution.
 
 ## Installation
 
