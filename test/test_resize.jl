@@ -15,7 +15,7 @@
     end
 
     capt = IOCapture.capture() do
-        print_dominant_wavevectors(sys)
+        print_wrapped_intensities(sys)
     end
     @test capt.output ==
     """

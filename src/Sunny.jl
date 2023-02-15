@@ -61,13 +61,12 @@ include("System/PairExchanges.jl")
 include("System/SingleIonAnisotropies.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
-export SpinInfo, System, polarize_spin!, polarize_spins!, randomize_spins!, energy, forces,
-    reshape_geometry, resize_periodically, repeat_periodically, to_inhomogeneous,
-    set_external_field!, set_anisotropy!,
-    set_exchange!, set_biquadratic!, dmvec,
-    enable_dipole_dipole!,
-    Site, set_external_field_at!, set_vacancy_at!, set_exchange_at!, set_biquadratic_at!, set_anisotropy_at!,
-    print_dominant_wavevectors, suggest_magnetic_supercell
+export SpinInfo, System, Site, position_to_site,
+    polarize_spin!, polarize_spins!, randomize_spins!, energy, forces,
+    set_external_field!, set_anisotropy!, set_exchange!, set_biquadratic!, dmvec, enable_dipole_dipole!,
+    to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_exchange_at!, set_biquadratic_at!, set_anisotropy_at!,
+    reshape_geometry, resize_periodically, repeat_periodically, 
+    print_wrapped_intensities, suggest_magnetic_supercell
 
 include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!
