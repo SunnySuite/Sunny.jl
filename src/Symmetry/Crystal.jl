@@ -98,7 +98,7 @@ cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
 # representing fractions (between 0 and 1) of the lattice vectors `lat_vecs`.
 # All symmetry information is automatically inferred.
 function Crystal(lat_vecs, positions; types::Union{Nothing,Vector{String}}=nothing, symprec=1e-5)
-    det(lat_vecs) < 0 && println("Warning: Lattice vectors are not right-handed.")
+    print_crystal_warnings(lat_vecs, positions)
     lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
@@ -111,7 +111,7 @@ end
 # Builds a crystal by applying the symmetry operators for a given spacegroup
 # symbol.
 function Crystal(lat_vecs, positions, symbol::String; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
-    det(lat_vecs) < 0 && println("Warning: Lattice vectors are not right-handed.")
+    print_crystal_warnings(lat_vecs, positions)
     lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
@@ -123,7 +123,7 @@ end
 # Builds a crystal by applying symmetry operators for a given international
 # spacegroup number.
 function Crystal(lat_vecs, positions, spacegroup_number::Int; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
-    det(lat_vecs) < 0 && println("Warning: Lattice vectors are not right-handed.")
+    print_crystal_warnings(lat_vecs, positions)
     lat_vecs = convert(Mat3, lat_vecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
@@ -133,6 +133,17 @@ function Crystal(lat_vecs, positions, spacegroup_number::Int; types::Union{Nothi
     crystal_from_symbol(lat_vecs, positions, types, symbol; setting, symprec)
 end
 
+function print_crystal_warnings(lat_vecs, positions)
+    det(lat_vecs) < 0 && println("Warning: Lattice vectors are not right-handed.")
+    if length(positions) >= 100
+        println("""
+            Warning: This a very large crystallographic cell, which Sunny does not handle well.
+            If the intention is to model chemical inhomogeneity, the recommended procedure is as
+            follows: First, create a small unit cell with an idealized structure. Next, create
+            a perfectly periodic `System` of the desired size. Finally, use `to_inhomogeneous`
+            and related functions to design a system with the desired inhomogeneities.""")
+    end
+end
 
 function spacegroup_name(hall_number::Int)
     # String representation of space group

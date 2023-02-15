@@ -97,7 +97,7 @@ end
 """
     (cell1, cell2, cell3, i) :: Site
 
-Four indices that identify a single site in a [`System`](@ref). The first three
+Four indices identifying a single site in a [`System`](@ref). The first three
 indices select the lattice cell and the last selects the sublattice (i.e., the
 atom within the unit cell).
 
@@ -106,7 +106,7 @@ A `Site` is also required to specify inhomogeneous interactions via functions
 such as [`set_external_field_at!`](@ref) or [`set_exchange_at!`](@ref).
 
 Note that the definition of a cell may change when a system is reshaped. In this
-case, it is convenient to construct the `Site` using (`position_to_site`)[@ref],
+case, it is convenient to construct the `Site` using [`position_to_site`](@ref),
 which always takes a position in fractional coordinates of the original lattice
 vectors.
 """
@@ -158,9 +158,28 @@ function position(sys::System, idx)
     return orig_crystal(sys).lat_vecs \ global_position(sys, idx)
 end
 
-# Convert a fractional position `r` to a Cartesian{4} site index
-function position_to_site(sys::System, r::Vec3)
+"""
+    position_to_site(sys::System, r)
+
+Converts a position `r` to four indices of a [`Site`](@ref). The coordinates of
+`r` are given in units of the lattice vectors for the original crystal. This
+function can be useful for working with systems that have been reshaped using
+[`reshape_geometry`](@ref).
+
+# Example
+
+```julia
+# Find the `idx` of the site at the center of a unit cell which is displaced
+# by four multiples of the first lattice vector
+idx = position_to_site(sys, [4.5, 0.5, 0.5])
+
+# Print the dipole at this site
+println(sys.dipoles[idx])
+```
+"""
+function position_to_site(sys::System, r)
     # convert to fractional coordinates of possibly reshaped crystal
+    r = Vec3(r)
     new_r = sys.crystal.lat_vecs \ orig_crystal(sys).lat_vecs * r
     b, offset = position_to_index_and_offset(sys.crystal, new_r)
     cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
@@ -426,22 +445,31 @@ function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
 end
 
 
-wavevec_str(q) = "["*join(number_to_math_string.(q), ", ")*"]"
+wavevec_str(q) = "[" *join(number_to_math_string.(q), ", ")*"]"
 
 """
-    print_dominant_wavevectors(sys::System; nmax=10)
+    print_wrapped_intensities(sys::System; nmax=10)
 
-Prints a list of wavevectors according to their weights in the static structure
-factor. Coordinates are given in units of reciprocal lattice vectors. These
-dominant wavevectors may be used as input to
+For Bravais lattices: Prints up to `nmax` wavevectors according to their
+instantaneous (static) structure factor intensities, listed in descending order.
+For non-Bravais lattices: Performs the same analysis for each spin sublattice
+independently; the output weights are naïvely averaged over sublattices, without
+incorporating phase shift information. Only wavevectors within the first
+Brillouin zone are printed. Wavevector coordinates are given in reciprocal
+lattice units, such that each coordinate is between ``-1/2`` and ``1/2``.  The
+output from this function will typically be used as input to
 [`suggest_magnetic_supercell`](@ref).
 
-Unlike in [`instant_intensities`](@ref), here the structure factor weights do not
-incorporate phase averaging between sublattices. Instead, intensities are
-calculated for each sublattice independently, and naïvely summed. This means
-that wavevectors beyond the first Brillouin zone will be missing.
+Because this function does not incorporate phase information in its averaging
+over sublattices, the printed weights are not directly comparable with
+experiment. For that purpose, use [`InstantStructureFactor`](@ref) instead.
+
+The weights printed by `print_wrapped_intensities` may be given a physical
+interpretation as follows: All possible ``q``-vectors are periodically wrapped
+into the first Brillouin zone, and the average over their corresponding
+instantaneous structure factor intensities produce the output weights.
 """
-function print_dominant_wavevectors(sys::System{N}; nmax=10) where N
+function print_wrapped_intensities(sys::System{N}; nmax=10) where N
     if !isnothing(sys.origin)
         error("Cannot perform this analysis on reshaped system.")
     end

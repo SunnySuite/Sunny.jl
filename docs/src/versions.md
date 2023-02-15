@@ -2,6 +2,8 @@
 
 Support for [`LocalSampler`](@ref) is in development.
 
+Rename `print_dominant_wavevectors` to [`print_wrapped_intensities`](@ref) to reduce
+confusion with the physical instantaneous intensities.
 
 # Version 0.4.1
 

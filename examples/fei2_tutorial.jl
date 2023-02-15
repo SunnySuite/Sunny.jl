@@ -190,15 +190,20 @@ end
 
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# The same system is very likely to converge perfectly if we repeat the
-# annealing procedure with 100,000 or more Langevin time-steps. Sunny could run
-# this calculation quickly. Instead, for purposes of illustration, let's analyze
-# the imperfect spin configuration currently stored in `sys`.
+# If we had used a slower annealing procedure, involving 100,000 or more
+# Langevin time-steps, it would very likely find the correct ground state.
+# Instead, for purposes of illustration, let's analyze the imperfect spin
+# configuration currently stored in `sys`.
 #
-# The function [`print_dominant_wavevectors`](@ref) orders wavevectors by their
-# contributions to the static structure factor intensity (1st BZ only).
+# An experimental probe of magnetic order order is the 'instantaneous' or
+# 'static' structure factor intensity, available via
+# [`InstantStructureFactor`](@ref) and related functions. To infer periodicities
+# of the magnetic supercell, however, it is sufficient to look at the structure
+# factor weights of spin sublattices individually, _without_ phase averaging.
+# This information is provided by [`print_wrapped_intensities`](@ref) (see the
+# API documentation for a physical interpretation).
 
-print_dominant_wavevectors(sys)
+print_wrapped_intensities(sys)
 
 # The above is consistent with known results. The zero-field energy-minimizing
 # magnetic structure of FeI$_2$ is single-$q$. If annealing were perfect, then
