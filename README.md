@@ -26,15 +26,13 @@ Sunny uses recently developed algorithms to simulate this SU(_N_) spin dynamics 
 * D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_, Phys. Rev. B **106**, 054423 (2022) [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
 * D. Dahlbom et al., _Langevin dynamics of generalized spins as SU(N) coherent states_, Phys. Rev. B **106**, 235154 (2022) [[arXiv:2209.01265](https://arxiv.org/abs/2209.01265)].
 
-Papers using Sunny are listed on [our Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature). If you write a paper using Sunny, please add it to the list!
-
 ## Comparison with other tools
 
 In addition to the generalized SU(_N_) spin dynamics, Sunny can also simulate spins in the dipole-only approximation. When running in this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/), which was an inspiration for this project. Sunny supports general single-ion anisotropies, and currently has a focus on classical spin dynamics. The classical spin dynamics allows for simulations at finite temperatures, and (soon) the application of chemical inhomogeneities. Support for the SU(_N_) version of linear spin wave theory is coming soon; this approach will be faster, and enables arbitrary _k_-space resolution.
 
 ## Installation
 
-Sunny is implemented in the [Julia programming language](https://julialang.org/). New Julia users may wish to read our [Getting Started](GettingStarted.md) guide.
+Sunny is implemented in the [Julia programming language](https://julialang.org/). New Julia users may wish to read our [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia) wiki page.
 
 From the Julia prompt, one can install the latest Sunny using the built-in package manager:
 ```
@@ -46,8 +44,7 @@ New point-releases will include **breaking changes**. To install a specific vers
 
 ## Contact us
 
-If you're using Sunny, we'd like to interact with you. Please join our [Slack User Community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello! If you find an unexpected behavior in Sunny, you can also [start a Github discussion](https://github.com/SunnySuite/Sunny.jl/discussions) or [file an issue](https://github.com/SunnySuite/Sunny.jl/issues).
-
+If you're using Sunny, we'd like to interact with you. Please join our [Slack User Community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello! If you find an unexpected behavior in Sunny, you can also [start a Github discussion](https://github.com/SunnySuite/Sunny.jl/discussions) or [file an issue](https://github.com/SunnySuite/Sunny.jl/issues). If you write a paper using Sunny, please add it to [our Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
 <div>
     <a href="https://www.lanl.gov">

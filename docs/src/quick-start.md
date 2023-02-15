@@ -9,9 +9,9 @@ using Sunny
 If Sunny has not yet been installed, Julia will ask your permission to download
 and install it within the Julia environment.
 
-For more information about Julia, see our [Getting
-Started](https://github.com/SunnySuite/Sunny.jl/blob/main/GettingStarted.md)
-guide.
+To learn more about Julia, read our [Getting Started with
+Julia](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)
+wiki page.
 
 For an interactive, notebook-like experience, we recommend the [Julia extension
 for VSCode](https://www.julia-vscode.org/). Alternatively, the [IJulia
