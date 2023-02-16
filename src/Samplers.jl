@@ -52,30 +52,45 @@ function propose_delta(magnitude)
 end
 
 """
-    propose_mix(options, weights)
+    @propose_mix weight1 propose1 weight2 propose2 ...
 
-Generate a proposal function that randomly selects among all `options`,
-according to the probability `weights`. For use with [`LocalSampler`](@ref).
+Macro to generate a proposal function that randomly selects among the provided
+functions according to the provided probability weights. For use with
+[`LocalSampler`](@ref).
 
 # Example
 ```julia
-propose_mix([propose_flip, propose_delta(0.2)], [0.5, 0.5])
+# A proposal function that proposes a spin flip 40% of the time, and a
+# Gaussian perturbation 60% of the time.
+@propose_mix 0.4 propose_flip 0.6 propose_delta(0.2)
 ```
 """
-function propose_mix(options, weights)
-    if any(<(0), weights)
-        error("Weights must be positive.")
+macro mix_proposals(terms...)
+    isodd(length(terms)) && error("Alternate weights and proposal functions.")
+    terms = reshape(collect(terms), 2, :)
+    nterms = size(terms, 2)
+    return quote
+        let
+            # Calculative cumulative probabilities for use in branching
+            weights = SVector{$nterms, Float64}($(terms[1,:]...))
+            probs = weights / sum(weights)
+            cumprobs = accumulate(+, probs)
+            @assert cumprobs[end] ≈ 1.0
+
+            # Storing the functions in a tuple preserves type information to avoid
+            # dynamic dispatch.
+            fns = ($(terms[2,:]...),)
+
+            function ret(sys::System{N}, idx) where N
+                r = rand(sys.rng)
+
+                $([:(r < cumprobs[$i] && return fns[$i](sys, idx)) for i in 1:nterms-1]...)
+                # It is always true that r ≤ cumprobs[end]
+                return fns[end](sys, idx)
+            end
+            ret
+        end
     end
-    probabilities = collect(weights) / sum(weights)
-    accum = accumulate(+, probabilities)
-    @assert accum[end] ≈ 1.0
-    accum[end] = 1.0
-    function ret(sys::System{N}, idx) where N
-        r = rand(sys.rng)
-        i = findfirst(>(r), accum)::Int
-        return options[i](sys, idx)
-    end
-    return ret
 end
 
 """
@@ -84,14 +99,17 @@ end
 Monte Carlo simulation involving Metropolis updates to individual spins. Use
 with the [`step!`](@ref) function.
 
- - `kT` is the target temperature, and can be updated dynamically.
+ - `kT` is the target temperature, and can be updated mutably.
  - `nsweeps` is the number of full-system MCMC sweeps, and may be fractional.
    The default value of `1.0` means that `step!` performs, on average, one trial
    update for every spin.
  - `propose` is a function to generate new candidate spin states, which may be
    accepted or rejected. Options include [`propose_uniform`](@ref),
    [`propose_flip`](@ref), and [`propose_delta`](@ref). Multiple proposals can
-   be mixed with [`propose_mix`](@ref).
+   be mixed with the macro [`@mix_proposals`](@ref).
+
+The returned object stores fields `ΔE` and `Δs`, which represent the cumulative
+change to the net energy and dipole, respectively.
 """
 mutable struct LocalSampler{Propose}
     kT      :: Float64   # Temperature
@@ -101,7 +119,7 @@ mutable struct LocalSampler{Propose}
     Δs      :: Vec3      # Cumulative net dipole change
 
     function LocalSampler(; kT, nsweeps=1.0, propose=propose_uniform)
-        new{typeof(propose)}(kT, nsweeps, propose, 0.0, 0.0)
+        new{typeof(propose)}(kT, nsweeps, propose, 0.0, zero(Vec3))
     end
 end
 
