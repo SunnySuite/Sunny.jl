@@ -470,9 +470,7 @@ into the first Brillouin zone, and the average over their corresponding
 instantaneous structure factor intensities produce the output weights.
 """
 function print_wrapped_intensities(sys::System{N}; nmax=10) where N
-    if !isnothing(sys.origin)
-        error("Cannot perform this analysis on reshaped system.")
-    end
+    isnothing(sys.origin) || error("Cannot perform this analysis on reshaped system.")
 
     s = reinterpret(reshape, Float64, sys.dipoles)
     V = prod(sys.latsize) # number of spins in sublattice

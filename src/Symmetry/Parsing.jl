@@ -1,7 +1,7 @@
 # Functions for parsing Crystals / SymOps from text / .cif files
 
 # Strips trailing uncertainty values from a String, then parses as a Float
-function _parse_cif_float(str::String) :: Float64
+function parse_cif_float(str::String) :: Float64
     i = findfirst('(', str)
     str = isnothing(i) ? str : str[1:i-1]
     return parse(Float64, str)
@@ -22,7 +22,7 @@ function parse_number_or_fraction(s)
 end
 
 
-function _parse_op(str::AbstractString) :: SymOp
+function parse_op(str::AbstractString) :: SymOp
     D = 3
     R = zeros(D, D)
     T = zeros(D)
@@ -70,18 +70,18 @@ function Crystal(filename::AbstractString; symprec=nothing)
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
 
-    a = _parse_cif_float(cif["_cell_length_a"][1])
-    b = _parse_cif_float(cif["_cell_length_b"][1])
-    c = _parse_cif_float(cif["_cell_length_c"][1])
-    α = _parse_cif_float(cif["_cell_angle_alpha"][1])
-    β = _parse_cif_float(cif["_cell_angle_beta"][1])
-    γ = _parse_cif_float(cif["_cell_angle_gamma"][1])
+    a = parse_cif_float(cif["_cell_length_a"][1])
+    b = parse_cif_float(cif["_cell_length_b"][1])
+    c = parse_cif_float(cif["_cell_length_c"][1])
+    α = parse_cif_float(cif["_cell_angle_alpha"][1])
+    β = parse_cif_float(cif["_cell_angle_beta"][1])
+    γ = parse_cif_float(cif["_cell_angle_gamma"][1])
     lat_vecs = lattice_vectors(a, b, c, α, β, γ)
 
     geo_table = CIF.get_loop(cif, "_atom_site_fract_x")
-    xs = _parse_cif_float.(geo_table[:, "_atom_site_fract_x"])
-    ys = _parse_cif_float.(geo_table[:, "_atom_site_fract_y"])
-    zs = _parse_cif_float.(geo_table[:, "_atom_site_fract_z"])
+    xs = parse_cif_float.(geo_table[:, "_atom_site_fract_x"])
+    ys = parse_cif_float.(geo_table[:, "_atom_site_fract_y"])
+    zs = parse_cif_float.(geo_table[:, "_atom_site_fract_z"])
     unique_atoms = Vec3.(zip(xs, ys, zs))
 
     sitetypes = String.(geo_table[:, "_atom_site_label"])
@@ -125,7 +125,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
     for sym_header in ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
         if sym_header in keys(cif)
             sym_table = CIF.get_loop(cif, sym_header)
-            symmetries = _parse_op.(sym_table[:, sym_header])
+            symmetries = parse_op.(sym_table[:, sym_header])
         end
     end
 

@@ -1,5 +1,3 @@
-"Algorithms for discovering sparse bases for the symmetry-allowed space of exchange couplings."
-
 # ##### Math behind `basis_for_symmetry_allowed_couplings()` #####
 #
 # A crystal spacegroup consists of a set of symmetry operations. Each symop is
@@ -183,10 +181,10 @@ function sparsify_columns(A::Matrix{T}; atol=1e-12) where T
 end
 
 
-const _basis_elements_by_priority = [1, 5, 9, 8, 3, 4]
+const basis_elements_by_priority = [1, 5, 9, 8, 3, 4]
 
-function _score_basis_matrix(J)
-    return findfirst(i -> abs(J[i]) > 1e-12, _basis_elements_by_priority)
+function score_basis_matrix(J)
+    return findfirst(i -> abs(J[i]) > 1e-12, basis_elements_by_priority)
 end
 
 """    basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond)
@@ -237,8 +235,8 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondRaw)
 
     # Sort basis elements according to the indices where the nonzero elements
     # first appear
-    sort!(acc_sym;  by=_score_basis_matrix)
-    sort!(acc_asym; by=_score_basis_matrix)
+    sort!(acc_sym;  by=score_basis_matrix)
+    sort!(acc_asym; by=score_basis_matrix)
 
     acc = [acc_sym; acc_asym]
     return map(acc) do x

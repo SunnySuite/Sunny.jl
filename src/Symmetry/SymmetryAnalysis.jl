@@ -193,7 +193,7 @@ end
 
 
 # Calculate score for a bond. Lower would be preferred.
-function _score_bond(cryst::Crystal, b::Bond)
+function score_bond(cryst::Crystal, b::Bond)
     # Favor bonds with fewer nonzero elements in basis matrices J
     Js = basis_for_symmetry_allowed_couplings(cryst, b)
     nnz = [count(abs.(J) .> 1e-12) for J in Js]
@@ -240,7 +240,7 @@ function reference_bonds(cryst::Crystal, max_dist::Float64; min_dist=0.0)
         # Find full set of symmetry equivalent bonds
         equiv_bonds = unique([transform(cryst, s, rb) for s in cryst.symops])
         # Take the bond with lowest score
-        return argmin(b -> _score_bond(cryst, b), equiv_bonds)
+        return argmin(b -> score_bond(cryst, b), equiv_bonds)
     end
 end
 reference_bonds(cryst::Crystal, max_dist) = reference_bonds(cryst, convert(Float64, max_dist))
