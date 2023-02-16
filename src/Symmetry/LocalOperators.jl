@@ -178,6 +178,7 @@ end
 
 # Applies the time-reversal operator to the coherent spin state |Z⟩, which
 # effectively negates the expected spin dipole, ⟨Z|Sᵅ|Z⟩ → -⟨Z|Sᵅ|Z⟩.
+flip_ket(_::CVec{0}) = CVec{0}()
 function flip_ket(Z::CVec{N}) where N
     # Per Sakurai (3rd ed.), eq. 4.176, the time reversal operator has the
     # action T[Z] = exp(-i π Sʸ) conj(Z). In our selected basis, the operator
