@@ -84,7 +84,7 @@ end
 
 
 # Converts a list of basis elements for a J matrix into a nice string summary
-function _coupling_basis_strings(coup_basis; digits, atol) :: Matrix{String}
+function coupling_basis_strings(coup_basis; digits, atol) :: Matrix{String}
     J = [String[] for _ in 1:3, _ in 1:3]
     for (letter, basis_mat) in coup_basis
         for idx in eachindex(basis_mat)
@@ -104,7 +104,7 @@ function _coupling_basis_strings(coup_basis; digits, atol) :: Matrix{String}
     end
 end
 
-function _print_allowed_coupling(basis_strs; prefix)
+function print_allowed_coupling(basis_strs; prefix)
     basis_strs = _add_padding_to_coefficients(basis_strs)
 
     for i in 1:3
@@ -168,17 +168,24 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing)
         else
             println("Connects '$(cryst.types[b.i])' at $(atom_pos_to_string(ri)) to '$(cryst.types[b.j])' at $(atom_pos_to_string(rj))")
         end
-        basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-        _print_allowed_coupling(basis_strs; prefix="Allowed exchange matrix: ")
+        basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
+        print_allowed_coupling(basis_strs; prefix="Allowed exchange matrix: ")
         antisym_basis_idxs = findall(J -> J ≈ -J', basis)
         if !isempty(antisym_basis_idxs)
-            antisym_basis_strs = _coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits, atol)
+            antisym_basis_strs = coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits, atol)
             println("Allowed DM vector: [$(antisym_basis_strs[2,3]) $(antisym_basis_strs[3,1]) $(antisym_basis_strs[1,2])]")
         end
     end
     println()
 end
 
+function validate_crystal(cryst::Crystal)
+    if isempty(cryst.symops)
+        error("""No symmetry information available for crystal. This likely indicates that
+                 the crystal has been reshaped. Perform symmetry analysis on the original
+                 crystal instead.""")
+    end
+end
 
 """
     print_symmetry_table(cryst::Crystal, max_dist)
@@ -189,6 +196,7 @@ b)` for every bond `b` in `reference_bonds(cryst, max_dist)`, where
 `Bond(i, i, [0,0,0])` refers to a single site `i`.
 """
 function print_symmetry_table(cryst::Crystal, max_dist)
+    validate_crystal(cryst)
     for b in reference_bonds(cryst, max_dist)
         print_bond(cryst, b; b_ref=b)
     end
@@ -240,8 +248,8 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6])
 
     # In the future, should we also rotate the g-tensor to the basis of R?
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
-    basis_strs = _coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-    _print_allowed_coupling(basis_strs; prefix="Allowed g-tensor: ")
+    basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
+    print_allowed_coupling(basis_strs; prefix="Allowed g-tensor: ")
 
     R = convert(Mat3, R)
     print_allowed_anisotropy(cryst, i; R, atol, digits, ks)
