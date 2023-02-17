@@ -3,7 +3,7 @@ using Literate, Documenter, Sunny
 # Run with:    julia --project=@. make.jl
 execute = true # set `false` to disable cell evaluation
 
-example_names = ["fei2_tutorial", "powder_averaging"]
+example_names = ["fei2_tutorial", "powder_averaging", "ising2d"]
 
 example_sources = [joinpath(@__DIR__, "..", "examples", name*".jl") for name in example_names]
 example_destination = joinpath(@__DIR__, "src", "examples")
