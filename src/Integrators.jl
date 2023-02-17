@@ -99,7 +99,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, B)
 
         # If converged, then we can return
-        if norm(s̄ - s̄′) / √length(s̄) < atol
+        if isapprox(s̄, s̄′, atol=atol* √length(s̄))
             # Normalization here should not be necessary in principle, but it
             # could be useful in practice for finite `atol`.
             @. s = normalize_dipole(2*s̄′ - s, sys.κs)
@@ -236,7 +236,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
 
         @. Z″ = Z + ΔZ
 
-        if norm(Z′ - Z″) / √length(Z′) < atol
+        if isapprox(Z′, Z″, atol=atol*√length(Z′))
             @. Z = normalize_ket(Z″, sys.κs)
             @. sys.dipoles = expected_spin(Z)
             return

@@ -22,9 +22,12 @@
         langevin = Langevin(0.01, kT=0.2, λ=0.1)
         @test_opt step!(sys, langevin)
 
-        # Test stability of ImplicitMidpoint
-        integrator = ImplicitMidpoint(0.01)
-        @test_opt step!(sys, integrator)
+        # Test stability of ImplicitMidpoint. For some reason, isapprox() on
+        # lists of SVectors is only type stable for Julia >= v1.9.
+        if VERSION >= v"1.9-beta"
+            integrator = ImplicitMidpoint(0.01)
+            @test_opt step!(sys, integrator)
+        end
     end
 
     test(:dipole)
