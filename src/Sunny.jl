@@ -6,7 +6,6 @@ import Requires: @require
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
 import SpecialFunctions: erfc
 import FFTW
-import Tullio: @tullio
 import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, randn!
