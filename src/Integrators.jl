@@ -102,7 +102,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         # within tolerance.
         converged = true
         for i = 1:length(s)
-            converged = converged && isapprox(s̄[i], s̄′[i]; atol)
+            converged = converged && norm(s̄[i] - s̄′[i]) < atol
         end
 
         # If converged, then we can return
@@ -243,7 +243,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
 
         @. Z″ = Z + ΔZ
 
-        if isapprox(Z′, Z″; atol)
+        if norm(Z′ - Z″) < atol
             @. Z = normalize_ket(Z″, sys.κs)
             @. sys.dipoles = expected_spin(Z)
             return
