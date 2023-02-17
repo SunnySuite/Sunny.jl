@@ -98,15 +98,8 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         set_forces!(B, ŝ, sys)
         @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, B)
 
-        # Convergence is reached if every element of s̄ and s̄′ agree to
-        # within tolerance.
-        converged = true
-        for i = 1:length(s)
-            converged = converged && norm(s̄[i] - s̄′[i]) < atol
-        end
-
         # If converged, then we can return
-        if converged
+        if norm(s̄ - s̄′) / √length(s̄) < atol
             # Normalization here should not be necessary in principle, but it
             # could be useful in practice for finite `atol`.
             @. s = normalize_dipole(2*s̄′ - s, sys.κs)
@@ -243,7 +236,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
 
         @. Z″ = Z + ΔZ
 
-        if norm(Z′ - Z″) < atol
+        if norm(Z′ - Z″) / √length(Z′) < atol
             @. Z = normalize_ket(Z″, sys.κs)
             @. sys.dipoles = expected_spin(Z)
             return
