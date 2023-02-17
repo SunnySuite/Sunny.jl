@@ -117,12 +117,12 @@ end
 
 
 function energy(dipoles::Array{Vec3, 4}, ewald::Ewald)
-    (; FA, Fs) = ewald
+    (; FA, Fs, plan) = ewald
     latsize = size(dipoles)[1:3]
     even_rft_size = latsize[1] % 2 == 0
 
     E = 0.0
-    mul!(Fs, ewald.plan, reinterpret(reshape, Float64, dipoles))
+    mul!(Fs, plan, reinterpret(reshape, Float64, dipoles))
 
     # rfft() is missing half the elements of the first Fourier transformed
     # dimension (here, dimension 2). Account for these missing values by scaling
@@ -137,22 +137,29 @@ function energy(dipoles::Array{Vec3, 4}, ewald::Ewald)
     # * The energy is an inner product, E = - (1/2)s⋅h, or using Parseval's
     #   theorem, E = - (1/2) conj(F[s]) F[h] / N
     # * Combined, the result is: E = conj(F[s]) conj(F[A]) F[s] / N
-    @tullio E += real(
-        conj(Fs[α, j, k, l, b1]) * conj(FA[α, β, j, k, l, b1, b2]) * Fs[β, j, k, l, b2]
-    )
+    (_, m1, m2, m3, nb) = size(Fs)
+    ms = CartesianIndices((m1, m2, m3))
+    @inbounds for b2 in 1:nb, b1 in 1:nb, m in ms, α in 1:3, β in 1:3
+        E += real(conj(Fs[α, m, b1]) * conj(FA[α, β, m, b1, b2]) * Fs[β, m, b2])
+    end
     return E / prod(latsize)
 end
 
 # Use FFT to accumulate the entire field -dE/ds for long-range dipole-dipole
 # interactions
 function accum_force!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ewald::Ewald)
-    (; FA, Fs, Fϕ, ϕ) = ewald
+    (; FA, Fs, Fϕ, ϕ, plan, ift_plan) = ewald
 
     fill!(Fϕ, 0.0)
-    mul!(Fs, ewald.plan, reinterpret(reshape, Float64, dipoles))
-    @tullio grad=false Fϕ[α,i,j,k,b1] += conj(FA[α,β,i,j,k,b1,b2]) * Fs[β,i,j,k,b2]
+    mul!(Fs, plan, reinterpret(reshape, Float64, dipoles))
+    (_, m1, m2, m3, nb) = size(Fs)
+    ms = CartesianIndices((m1, m2, m3))
+    # Without @inbounds here, performance degrades by > 50%
+    @inbounds for b2 in 1:nb, b1 in 1:nb, m in ms, α in 1:3, β in 1:3
+        Fϕ[α,m,b1] += conj(FA[α,β,m,b1,b2]) * Fs[β,m,b2]
+    end
     ϕr = reinterpret(reshape, Float64, ϕ)
-    mul!(ϕr, ewald.ift_plan, Fϕ)
+    mul!(ϕr, ift_plan, Fϕ)
     for i in eachindex(B)
         B[i] -= 2ϕ[i]
     end
