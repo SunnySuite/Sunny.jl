@@ -9,22 +9,25 @@
         set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
         polarize_spins!(sys, (0,0,1))
 
-        # Test stability of LocalSampler
+        # Test type stability of LocalSampler
         sampler = LocalSampler(kT=0.2, propose=propose_flip)
         @test_opt step!(sys, sampler)
 
-        # Test stability with mixed proposals
+        # Test type stability with mixed proposals
         propose = @mix_proposals 0.5 propose_flip 0.5 propose_delta(0.2)
         sampler = LocalSampler(kT=0.2; propose)
         @test_opt step!(sys, sampler)
 
-        # Test stability of Langevin
+        # Test type stability of Langevin
         langevin = Langevin(0.01, kT=0.2, λ=0.1)
         @test_opt step!(sys, langevin)
 
-        # Test stability of ImplicitMidpoint
-        integrator = ImplicitMidpoint(0.01)
-        @test_opt step!(sys, integrator)
+        # Test type stability of ImplicitMidpoint. For some reason, isapprox()
+        # on lists of SVectors is only type stable for Julia >= v1.9.
+        if VERSION >= v"1.9-beta"
+            integrator = ImplicitMidpoint(0.01)
+            @test_opt step!(sys, integrator)
+        end
     end
 
     test(:dipole)
