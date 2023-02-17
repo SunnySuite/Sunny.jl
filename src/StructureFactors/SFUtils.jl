@@ -35,3 +35,6 @@ function ωs(sf::StructureFactor; negative_energies=false)
     end
     return negative_energies ? ωvals : ωvals[1:hω]
 end
+
+
+orig_crystal(sf::StructureFactor) = isnothing(sf.origin_crystal) ? sf.crystal : sf.origin_crystal

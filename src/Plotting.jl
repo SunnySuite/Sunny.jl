@@ -338,7 +338,7 @@ function live_langevin_integration(
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
     arrowlength=0.2, λ=0.1, framerate=30, kwargs...
 )
-    fig, ax = _setup_scene()
+    fig, ax = _setup_scene(; show_axis=false)
     pts = GLMakie.Point3f0.(view(global_positions(sys),:))
     vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
     
@@ -355,7 +355,7 @@ function live_langevin_integration(
         for _ in 1:steps_per_frame
             step!(sys, integrator)
         end
-        vecs[] = GLMakie.Vec3f0.(sys.dipoles)
+        vecs[] = GLMakie.Vec3f0.(sys.dipoles[:])
         sleep(1/framerate)
     end
 end
