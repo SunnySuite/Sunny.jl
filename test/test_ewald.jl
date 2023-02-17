@@ -6,9 +6,9 @@
         # super-lattice vectors
         latvecs = eachcol(sys.crystal.lat_vecs) .* sys.latsize
         # positions in global coordinates
-        pos = [Sunny.global_position(sys, idx) for idx in Sunny.all_sites(sys)][:]
+        pos = [global_position(sys, idx) for idx in all_sites(sys)][:]
         # magnetic moments
-        dipoles = [Sunny.magnetic_moment(sys, idx) for idx in Sunny.all_sites(sys)][:]
+        dipoles = [magnetic_moment(sys, idx) for idx in all_sites(sys)][:]
         # energy from traditional Ewald summation
         Ewalder.energy(Ewalder.System(; latvecs, pos); dipoles) / (4π*sys.units.μ0)
     end

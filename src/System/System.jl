@@ -129,22 +129,39 @@ const Site = NTuple{4, Int}
 # Split a Cartesian index (cell,i) into its parts cell and i.
 @inline splitidx(idx::CartesianIndex{4}) = (to_cell(idx), to_atom(idx))
 
-# An iterator over all sites using CartesianIndices
-@inline all_sites(sys::System) = CartesianIndices(sys.dipoles)
-
 # An iterator over all unit cells using CartesianIndices
 @inline all_cells(sys::System) = CartesianIndices(sys.latsize)
 
-# Position of a site in global coordinates
+"""
+    all_sites(sys::System)
+
+An iterator over all [`Site`](@ref)s in the system. 
+"""
+@inline all_sites(sys::System) = CartesianIndices(sys.dipoles)
+
+"""
+    global_position(sys::System, idx::Site)
+
+Position of a [`Site`](@ref) in global coordinates.
+
+To precompute a full list of positions, one can use [`all_sites`](@ref) as
+below:
+
+```julia
+pos = [global_position(sys, idx) for idx in all_sites(sys)]
+```
+"""
 function global_position(sys::System, idx)
     r = sys.crystal.positions[idx[4]] + Vec3(idx[1]-1, idx[2]-1, idx[3]-1)
     return sys.crystal.lat_vecs * r
 end
 
-# Positions of all sites in global coordinates
-global_positions(sys::System) = [global_position(sys, idx) for idx in all_sites(sys)]
+"""
+    magnetic_moment(sys::System, idx::Site)
 
-# Magnetic moment at a site
+Get the magnetic moment for a [`Site`](@ref). The result is `sys.dipoles[idx]`
+multiplied by the Bohr magneton and the ``g``-tensor for `idx`.
+"""
 magnetic_moment(sys::System, idx) = sys.units.μB * sys.gs[idx[4]] * sys.dipoles[idx]
 
 # Total volume of system

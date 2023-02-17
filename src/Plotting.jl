@@ -231,6 +231,11 @@ end
 =#
 
 
+function spin_vector_origins(sys::System, arrowlength)
+    center = (sys.crystal.lat_vecs * Vec3(sys.latsize)) / 2
+    return [global_position(sys,idx) - sys.dipoles[idx]*(arrowlength/2) - center for idx in all_sites(sys)]
+end
+
 """
     plot_spins(sys::System; linecolor=:grey, arrowcolor=:red, linewidth=0.1,
                                 arrowsize=0.3, arrowlength=1.0, kwargs...)
@@ -242,9 +247,7 @@ function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
 
     fig, ax = _setup_scene(; ortho)
 
-    center = (sys.crystal.lat_vecs * Vec3(sys.latsize))/2
-    pts = global_positions(sys) - sys.dipoles*(arrowlength/2) .- Ref(center)
-    pts = GLMakie.Point3f0.(pts[:])
+    pts = GLMakie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = GLMakie.Vec3f0.(sys.dipoles[:])
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -274,7 +277,7 @@ function anim_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(view(global_positions(sys),:))
+    pts = GLMakie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -307,7 +310,7 @@ function live_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(view(global_positions(sys),:))
+    pts = GLMakie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles),:))
     GLMakie.arrows!(
         ax, pts, vecs;
@@ -339,7 +342,7 @@ function live_langevin_integration(
     arrowlength=0.2, λ=0.1, framerate=30, kwargs...
 )
     fig, ax = _setup_scene(; show_axis=false)
-    pts = GLMakie.Point3f0.(view(global_positions(sys),:))
+    pts = GLMakie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
     
     GLMakie.arrows!(

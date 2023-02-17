@@ -59,6 +59,7 @@ include("System/SingleIonAnisotropies.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, Site, position_to_site,
+    global_position, magnetic_moment, all_sites,
     polarize_spin!, polarize_spins!, randomize_spins!, energy, forces,
     set_external_field!, set_anisotropy!, set_exchange!, set_biquadratic!, dmvec, enable_dipole_dipole!,
     to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_exchange_at!, set_biquadratic_at!, set_anisotropy_at!,
