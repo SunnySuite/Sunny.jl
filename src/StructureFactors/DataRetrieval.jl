@@ -49,7 +49,7 @@ function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationSchem
     @assert sum(counts) == length(m_info)
 
     # Calculate corresponding q (RLU) and k (global) vectors
-    recip_vecs = 2π*inv(sf.crystal.lat_vecs)'
+    recip_vecs = 2π*inv(sf.crystal.lat_vecs)'  # Note, qs will be in terms of sf.crystal by this point, not origin_crystal
     latsize = size(sf.samplebuf)[2:4]
     qs_all = map(ms_all) do ms
        map(m -> m ./ latsize, ms) 
@@ -106,7 +106,7 @@ function intensities(sf::StructureFactor, qs, mode;
     # reciprocal vectors of original crystal and convert them to qs in terms of
     # the reciprocal vectors of the reshaped crystal.
     if !isnothing(sf.origin_crystal)
-        rvecs_reshaped = inv(sf.crystal.lat_vecs)'
+        rvecs_reshaped = inv(sf.crystal.lat_vecs)'       # Note, leading 2π will cancel
         rvecs_origin = inv(sf.origin_crystal.lat_vecs)'
         qs = map(q -> rvecs_reshaped \ rvecs_origin * q, qs)
     end
