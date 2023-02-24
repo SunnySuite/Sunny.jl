@@ -139,8 +139,7 @@ function energy(dipoles::Array{Vec3, 4}, ewald::Ewald)
     # * Combined, the result is: E = conj(F[s]) conj(F[A]) F[s] / N
     (_, m1, m2, m3, nb) = size(Fs)
     ms = CartesianIndices((m1, m2, m3))
-    # TODO: Reinsert @inbounds here once segfault is fixed.
-    for b2 in 1:nb, b1 in 1:nb, m in ms, α in 1:3, β in 1:3
+    @inbounds for b2 in 1:nb, b1 in 1:nb, m in ms, α in 1:3, β in 1:3
         E += real(conj(Fs[α, m, b1]) * conj(FA[α, β, m, b1, b2]) * Fs[β, m, b2])
     end
     return E / prod(latsize)
@@ -155,8 +154,8 @@ function accum_force!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ewald::Ewald)
     mul!(Fs, plan, reinterpret(reshape, Float64, dipoles))
     (_, m1, m2, m3, nb) = size(Fs)
     ms = CartesianIndices((m1, m2, m3))
-    # TODO: Reinsert @inbounds here once segfault is fixed. Performance diff is ~50%
-    for b2 in 1:nb, b1 in 1:nb, m in ms, α in 1:3, β in 1:3
+    # Without @inbounds, performance degrades by ~50%
+    @inbounds for b2 in 1:nb, b1 in 1:nb, m in ms, α in 1:3, β in 1:3
         Fϕ[α,m,b1] += conj(FA[α,β,m,b1,b2]) * Fs[β,m,b2]
     end
     ϕr = reinterpret(reshape, Float64, ϕ)

@@ -8,7 +8,7 @@
         add_linear_interactions!(sys, mode)
         add_quadratic_interactions!(sys, mode)
         add_quartic_interactions!(sys, mode)
-        enable_dipole_dipole!(sys)
+        # enable_dipole_dipole!(sys) # workaround segfault
 
         # Random field
         for idx in Sunny.all_sites(sys)
