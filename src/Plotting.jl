@@ -3,7 +3,7 @@
 
 function _setup_scene(; show_axis=false, ortho=false)
     fig = GLMakie.Figure()
-    ax = GLMakie.LScene(fig[1, 1], show_axis=show_axis)
+    ax = GLMakie.LScene(fig[1, 1]; show_axis)
     if ortho
         _ = GLMakie.cam3d!(ax.scene, projectiontype=GLMakie.Makie.Orthographic)
     end
@@ -293,7 +293,7 @@ function anim_integration(
         for _ in 1:steps_per_frame
             step!(sys, integrator)
         end
-        vecs[] = GLMakie.Vec3f0.(sys.dipoles)
+        vecs[] = GLMakie.Vec3f0.(sys.dipoles[:])
     end
 end
 
@@ -311,7 +311,7 @@ function live_integration(
     fig, ax = _setup_scene()
 
     pts = GLMakie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
-    vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles),:))
+    vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
     GLMakie.arrows!(
         ax, pts, vecs;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
@@ -325,7 +325,7 @@ function live_integration(
         for step in 1:steps_per_frame
             step!(sys, integrator)
         end
-        vecs[] = GLMakie.Vec3f0.(sys.dipoles)
+        vecs[] = GLMakie.Vec3f0.(sys.dipoles[:])
         sleep(1/framerate)
     end
 end
