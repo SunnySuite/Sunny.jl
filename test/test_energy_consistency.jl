@@ -8,7 +8,7 @@
         add_linear_interactions!(sys, mode)
         add_quadratic_interactions!(sys, mode)
         add_quartic_interactions!(sys, mode)
-        # enable_dipole_dipole!(sys) # workaround segfault
+        enable_dipole_dipole!(sys)
 
         # Random field
         for idx in Sunny.all_sites(sys)
@@ -18,16 +18,19 @@
         rand!(sys.rng, sys.κs)
         # Random spins
         randomize_spins!(sys)
-        # Make inhomogeneous
-        if inhomog
-            sys = to_inhomogeneous(sys)
-            set_vacancy_at!(sys, (1,1,1,1))
-            set_exchange_at!(sys, 0.5, Bond(1, 2, [1,0,0]), (1,1,1,1))
-            set_biquadratic_at!(sys, 0.7, Bond(2, 3, [0,-1,0]), (3,1,1,2))
-            set_anisotropy_at!(sys, 0.4*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), (2,2,2,4))
-        end
 
-        return sys
+        if !inhomog
+            return sys
+        else
+            # Add some inhomogeneous interactions
+            sys2 = to_inhomogeneous(sys)
+            @test energy(sys2) ≈ energy(sys)
+            set_vacancy_at!(sys2, (1,1,1,1))
+            set_exchange_at!(sys2, 0.5, Bond(1, 2, [1,0,0]), (1,1,1,1))
+            set_biquadratic_at!(sys2, 0.7, Bond(2, 3, [0,-1,0]), (3,1,1,2))
+            set_anisotropy_at!(sys2, 0.4*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), (2,2,2,4))
+            return sys2
+        end
     end
 
 

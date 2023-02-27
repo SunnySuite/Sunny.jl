@@ -27,6 +27,12 @@ function Ewald(sys::System{N}) where N
     return Ewald(A, ϕ, FA, Fs, Fϕ, plan, ift_plan)
 end
 
+# Clone all mutable state within Ewald. Note that `A`, `FA`, and plans should be
+# immutable data.
+function clone_ewald(ewald::Ewald)
+    (; A, ϕ, FA, Fs, Fϕ, plan, ift_plan) = ewald
+    return Ewald(A, copy(ϕ), FA, copy(Fs), copy(Fϕ), plan, ift_plan)
+end
 
 # Tensor product of 3-vectors
 (⊗)(a::Vec3,b::Vec3) = reshape(kron(a,b), 3, 3)
