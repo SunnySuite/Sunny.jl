@@ -17,24 +17,23 @@
     capt = IOCapture.capture() do
         print_wrapped_intensities(sys)
     end
-    @test capt.output ==
-    """
-    Dominant wavevectors for spin sublattices:
+    @test capt.output == """
+        Dominant wavevectors for spin sublattices:
 
-        [0, 0, 0]              50.00% weight
-        [0, 1/2, 0]            50.00%
-    """
+            [0, 0, 0]              50.00% weight
+            [0, 1/2, 0]            50.00%
+        """
 
     capt = IOCapture.capture() do
         suggest_magnetic_supercell([[0,1/2,0]], sys.latsize)
     end
     @test capt.output == """
-    Suggested magnetic supercell in multiples of lattice vectors:
+        Suggested magnetic supercell in multiples of lattice vectors:
 
-        [1 0 0; 0 2 0; 0 0 1]
+            [1 0 0; 0 2 0; 0 0 1]
 
-    for wavevectors [[0, 1/2, 0]].
-    """
+        for wavevectors [[0, 1/2, 0]].
+        """
 
     A1 = [1 0 0; 0 2 0; 0 0 1]
     A2 = [1 0 0; 1 2 0; 0 0 1]
