@@ -4,8 +4,7 @@
 # In the future, TestItemRunner may support a better pattern:
 # https://github.com/julia-vscode/TestItemRunner.jl/issues/11
 
-using Random
-using LinearAlgebra
+using Random, LinearAlgebra, IOCapture
 
 # Various possible interactions appropriate to diamond crystal
 

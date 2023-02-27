@@ -122,8 +122,23 @@
     lat_vecs = lattice_vectors(13.261, 7.718, 6.278, 90.0, 90.0, 90.0);
     types = ["Yb1","Yb2"];
     basis_vecs = [[0,0,0], [0.266,0.25,0.02]]; # Locations of atoms as multiples of lattice vectors
-    crysts = Crystal(lat_vecs, basis_vecs, 62; types, symprec=1e-4)
-    @test length(crysts) == 6
+    capt = IOCapture.capture() do
+        Crystal(lat_vecs, basis_vecs, 62; types, symprec=1e-4)
+    end
+    @test capt.output == """
+        The spacegroup '62' allows for multiple settings!
+        Returning a list of the possible crystals:
+            1. "P n m a", setting="", with  8 atoms
+            2. "P m n b", setting="ba-c", with 12 atoms
+            3. "P b n m", setting="cab", with 12 atoms
+            4. "P c m n", setting="-cba", with  8 atoms
+            5. "P m c n", setting="bca", with 12 atoms
+            6. "P n a m", setting="a-cb", with 12 atoms
+        
+        Note: To disambiguate, you may pass a named parameter, setting="...".
+        
+        """
+    @test length(capt.value) == 6
     cryst = Crystal(lat_vecs, basis_vecs,62; types, symprec=1e-4, setting="-cba")
     @test count(==(1), cryst.classes) == 4
     @test count(==(2), cryst.classes) == 4    
