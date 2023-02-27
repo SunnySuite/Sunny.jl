@@ -46,7 +46,7 @@ replica = Replica(IsingSampler(system, kT, 1), α)
 #  the sampling distribution or the system
 function set_α!(replica::Replica, α::Float64)
     replica.α = α
-    copy_sites = deepcopy(replica.sampler.system.sites)
+    copy_sites = copy(replica.sampler.system.sites)
     replica.sampler.system = create_system(α)
     replica.sampler.system.sites .= copy_sites
     reset_running_energy!(replica.sampler)

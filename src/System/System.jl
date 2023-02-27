@@ -86,11 +86,33 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     end
 end
 
+# Per Julia developers, `deepcopy` is memory unsafe, especially in conjunction
+# with C libraries. We were observing very confusing crashes that surfaced in
+# the FFTW library, https://github.com/JuliaLang/julia/issues/48722. To prevent
+# this from happening again, avoid all uses of `deepcopy`, and create our own
+# stack of `clone` functions instead.
+Base.deepcopy(_::System) = error("Use `clone_system` instead of `deepcopy`.")
 
-function clone_spin_state(sys::System{N}) where N
-    System(sys.origin, sys.mode, sys.crystal, sys.latsize, sys.Ns, sys.gs, sys.κs, sys.extfield,
-        sys.interactions_union, sys.ewald, copy(sys.dipoles), copy(sys.coherents),
-        sys.dipole_buffers, sys.coherent_buffers, sys.units, copy(sys.rng))
+# Creates a clone of the system where all the mutable internal data is copied.
+# It should be thread-safe to use the original and the copied systems, without
+# any restrictions.
+function clone_system(sys::System{N}) where N
+    (; origin, mode, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, units, rng) = sys
+
+    origin_clone = isnothing(origin) ? nothing : clone_system(origin)
+    ewald_clone  = isnothing(ewald)  ? nothing : clone_ewald(ewald)
+
+    # Dynamically dispatch to the correct `map` function for either homogeneous
+    # (Vector) or inhomogeneous interactions (4D Array)
+    interactions_clone = map(clone_interactions, interactions_union)
+    
+    # Empty buffers are required for thread safety.
+    empty_dipole_buffers = Array{Vec3, 4}[]
+    empty_coherent_buffers = Array{CVec{N}, 4}[]
+
+    System(origin_clone, mode, crystal, latsize, Ns, copy(gs), copy(κs), copy(extfield),
+           interactions_clone, ewald_clone, copy(dipoles), copy(coherents),
+           empty_dipole_buffers, empty_coherent_buffers, units, copy(rng))
 end
 
 
@@ -362,7 +384,7 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
     # reshapings, `sys.origin` keeps its original meaning. Make a deep copy so
     # that the new system fully owns `origin`, and mutable updates to the
     # previous system won't affect this one.
-    origin = deepcopy(isnothing(sys.origin) ? sys : sys.origin)
+    origin = clone_system(isnothing(sys.origin) ? sys : sys.origin)
 
     # If `new_cell_size == I`, we can effectively restore the unit cell of
     # `origin`, but with `new_latsize`
