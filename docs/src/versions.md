@@ -1,9 +1,18 @@
-# Version 0.4.2 (in development)
+# Version 0.4.2
 
-Support for [`LocalSampler`](@ref) is in development.
+Initial support for [`LocalSampler`](@ref).
 
-Rename `print_dominant_wavevectors` to [`print_wrapped_intensities`](@ref) to reduce
-confusion with the physical instantaneous intensities.
+Rename `print_dominant_wavevectors` to [`print_wrapped_intensities`](@ref) to
+reduce confusion with the physical instantaneous intensities.
+
+The function [`spherical_shell`](@ref) now takes a radius in physical units of inverse Å.
+
+New exported functions [`global_position`](@ref), [`magnetic_moment`](@ref), [`all_sites`](@ref).
+
+A **memory unsafety** bug has surfaced, seemingly related to the use of FFTW for
+the dipole-dipole interactions. We may need help from Julia compiler experts to
+resolve this -- see the [Github
+issue](https://github.com/JuliaLang/julia/issues/48722).
 
 # Version 0.4.1
 
@@ -14,7 +23,7 @@ etc.
 [`set_biquadratic!`](@ref) replaces `set_exchange_with_biquadratic!`.
 
 
-# Version 0.4
+# Version 0.4.0
 
 This update includes many breaking changes, and is missing some features of
 0.3.0.
