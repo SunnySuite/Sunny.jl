@@ -92,7 +92,7 @@ function replica_exchange!(replica::Replica)
     S_curr = running_energy(replica.sampler) / get_temp(replica.sampler)
 
     # Backup current configuration
-    backup_spins = deepcopy(replica.sampler.sys.dipoles)
+    backup_spins = copy(replica.sampler.sys.dipoles)
 
     # Swap trial configuration with partner
     MPI.Sendrecv!(

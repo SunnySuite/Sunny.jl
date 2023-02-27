@@ -7,6 +7,13 @@ function empty_interactions(nb, N)
     end
 end
 
+# Creates a clone of the lists of exchange interactions, which can be mutably
+# updated.
+function clone_interactions(ints::Interactions)
+    (; aniso, heisen, exchange, biquad) = ints
+    return Interactions(aniso, copy(heisen), copy(exchange), copy(biquad))
+end
+
 function interactions_homog(sys::System{N}) where N
     return sys.interactions_union :: Vector{Interactions}
 end
@@ -33,11 +40,13 @@ function to_inhomogeneous(sys::System{N}) where N
     is_homogeneous(sys) || error("System is already inhomogeneous.")
     ints = interactions_homog(sys)
 
-    ret = deepcopy(sys)
+    ret = clone_system(sys)
     nb = nbasis(ret.crystal)
     ret.interactions_union = Array{Interactions}(undef, ret.latsize..., nb)
-    for cell in all_cells(ret)
-        ret.interactions_union[cell, :] = deepcopy(ints)
+    for b in 1:nbasis(ret.crystal)
+        for cell in all_cells(ret)
+            ret.interactions_union[cell, b] = clone_interactions(ints[b])
+        end
     end
 
     return ret
