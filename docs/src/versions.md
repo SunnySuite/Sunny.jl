@@ -9,10 +9,10 @@ The function [`spherical_shell`](@ref) now takes a radius in physical units of i
 
 New exported functions [`global_position`](@ref), [`magnetic_moment`](@ref), [`all_sites`](@ref).
 
-A **memory unsafety** bug has surfaced, seemingly related to the use of FFTW for
-the dipole-dipole interactions. We may need help from Julia compiler experts to
-resolve this -- see the [Github
-issue](https://github.com/JuliaLang/julia/issues/48722).
+Remove all uses of
+[`Base.deepcopy`](https://docs.julialang.org/en/v1/base/base/#Base.deepcopy)
+which presumably led to [memory unsafety and
+segfaults](https://github.com/SunnySuite/Sunny.jl/issues/65).
 
 # Version 0.4.1
 
