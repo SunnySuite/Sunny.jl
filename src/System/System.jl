@@ -169,7 +169,7 @@ pos = [global_position(sys, site) for site in all_sites(sys)]
 """
 function global_position(sys::System, site)
     r = sys.crystal.positions[site[4]] + Vec3(site[1]-1, site[2]-1, site[3]-1)
-    return sys.crystal.lat_vecs * r
+    return sys.crystal.latvecs * r
 end
 
 """
@@ -188,7 +188,7 @@ orig_crystal(sys) = isnothing(sys.origin) ? sys.crystal : sys.origin.crystal
 
 # Position of a site in fractional coordinates
 function position(sys::System, site)
-    return orig_crystal(sys).lat_vecs \ global_position(sys, site)
+    return orig_crystal(sys).latvecs \ global_position(sys, site)
 end
 
 """
@@ -213,7 +213,7 @@ println(sys.dipoles[site])
 function position_to_site(sys::System, r)
     # convert to fractional coordinates of possibly reshaped crystal
     r = Vec3(r)
-    new_r = sys.crystal.lat_vecs \ orig_crystal(sys).lat_vecs * r
+    new_r = sys.crystal.latvecs \ orig_crystal(sys).latvecs * r
     b, offset = position_to_index_and_offset(sys.crystal, new_r)
     cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
     return to_cartesian((cell..., b))
@@ -357,7 +357,7 @@ function transfer_unit_cell!(new_sys::System{N}, origin::System{N}) where N
 
     for new_i in 1:natoms(new_cryst)
         new_ri = new_cryst.positions[new_i]
-        ri = origin.crystal.lat_vecs \ new_cryst.lat_vecs * new_ri
+        ri = origin.crystal.latvecs \ new_cryst.latvecs * new_ri
         i = position_to_index(origin.crystal, ri)
 
         # Spin descriptors
@@ -446,7 +446,7 @@ end
 # Dimensions of a possibly reshaped unit cell, given in multiples of the
 # original unit cell.
 function cell_dimensions(sys)
-    A = orig_crystal(sys).lat_vecs \ sys.crystal.lat_vecs
+    A = orig_crystal(sys).latvecs \ sys.crystal.latvecs
     @assert norm(A - round.(A)) < 1e-12
     return round.(Int, A)
 end

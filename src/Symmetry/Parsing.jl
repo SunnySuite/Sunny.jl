@@ -76,7 +76,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
     α = parse_cif_float(cif["_cell_angle_alpha"][1])
     β = parse_cif_float(cif["_cell_angle_beta"][1])
     γ = parse_cif_float(cif["_cell_angle_gamma"][1])
-    lat_vecs = lattice_vectors(a, b, c, α, β, γ)
+    latvecs = lattice_vectors(a, b, c, α, β, γ)
 
     geo_table = CIF.get_loop(cif, "_atom_site_fract_x")
     xs = parse_cif_float.(geo_table[:, "_atom_site_fract_x"])
@@ -164,15 +164,15 @@ function Crystal(filename::AbstractString; symprec=nothing)
 
     if !isnothing(symmetries)
         # Use explicitly provided symmetries
-        return crystal_from_symops(lat_vecs, unique_atoms, sitetypes, symmetries, spacegroup; symprec)
+        return crystal_from_symops(latvecs, unique_atoms, sitetypes, symmetries, spacegroup; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
-        return Crystal(lat_vecs, unique_atoms, sitetypes, hall_symbol; symprec)
+        return Crystal(latvecs, unique_atoms, sitetypes, hall_symbol; symprec)
     elseif !isnothing(groupnum)
         # Use symmetries for international group number
-        return Crystal(lat_vecs, unique_atoms, sitetypes, groupnum; symprec)
+        return Crystal(latvecs, unique_atoms, sitetypes, groupnum; symprec)
     else
         # Infer the symmetries automatically
-        return Crystal(lat_vecs, unique_atoms, sitetypes; symprec)
+        return Crystal(latvecs, unique_atoms, sitetypes; symprec)
     end
 end

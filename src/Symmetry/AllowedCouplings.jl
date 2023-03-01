@@ -90,7 +90,7 @@ const transpose_op_3x3 = [
 # 1 represents the allowed coupling matrices J.
 function projector_for_symop(cryst::Crystal, s::SymOp, parity::Bool)
     # Cartesian-space rotation operator corresponding to `s`
-    R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
+    R = cryst.latvecs * s.R * inv(cryst.latvecs)
     R = Matrix(R) # SMatrix -> Matrix
 
     # Constraint is modeled as `F J = 0`
@@ -119,7 +119,7 @@ function symmetry_allowed_couplings_operator(cryst::Crystal, b::BondRaw)
 end
 
 function transform_coupling_by_symmetry(cryst, J, symop, parity)
-    R = cryst.lat_vecs * symop.R * inv(cryst.lat_vecs)
+    R = cryst.latvecs * symop.R * inv(cryst.latvecs)
     return R * (parity ? J : J') * R'
 end
 

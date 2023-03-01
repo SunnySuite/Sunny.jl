@@ -1,14 +1,14 @@
 # Utilities for working with Bravais lattices
 
 """
-    lattice_params(lat_vecs::Mat3)
+    lattice_params(latvecs::Mat3)
 
 Compute the lattice parameters ``(a, b, c, α, β, γ)`` for the three lattice
-vectors provided as columns of `lat_vecs`. The inverse mapping is
+vectors provided as columns of `latvecs`. The inverse mapping is
 [`lattice_vectors`](@ref).
 """
-function lattice_params(lat_vecs::Mat3) :: NTuple{6, Float64}
-    v1, v2, v3 = eachcol(lat_vecs)
+function lattice_params(latvecs::Mat3) :: NTuple{6, Float64}
+    v1, v2, v3 = eachcol(latvecs)
     a, b, c = norm(v1), norm(v2), norm(v3)
     α = acosd((v2 ⋅ v3) / (b * c))
     β = acosd((v1 ⋅ v3) / (a * c))
@@ -46,21 +46,21 @@ function lattice_vectors(a, b, c, α, β, γ) :: Mat3
     return [v1 v2 v3]
 end
 
-function is_standard_form(lat_vecs::Mat3)
-    lat_params = lattice_params(lat_vecs)
-    conventional_lat_vecs = lattice_vectors(lat_params...)
-    return lat_vecs ≈ conventional_lat_vecs
+function is_standard_form(latvecs::Mat3)
+    lat_params = lattice_params(latvecs)
+    conventional_latvecs = lattice_vectors(lat_params...)
+    return latvecs ≈ conventional_latvecs
 end
 
 # Return true if lattice vectors are compatible with a monoclinic space group
 # "setting" for a Hall number.
-function is_compatible_monoclinic_cell(lat_vecs, hall_number)
+function is_compatible_monoclinic_cell(latvecs, hall_number)
     @assert cell_type(hall_number) == monoclinic
 
     # Special handling of monoclinic space groups. There are three possible
     # conventions for the unit cell, depending on which of α, β, or γ is
     # special.
-    _, _, _, α, β, γ = lattice_params(lat_vecs)
+    _, _, _, α, β, γ = lattice_params(latvecs)
     choice = Spglib.get_spacegroup_type(hall_number).choice
     x = first(replace(choice, "-" => ""))
     if x == 'a'
@@ -93,15 +93,15 @@ An enumeration over the different types of 3D Bravais unit cells.
 end
 
 """
-    cell_type(lat_vecs::Mat3)
+    cell_type(latvecs::Mat3)
 
 Infer the `CellType` of a unit cell from its lattice vectors, i.e. the columns
-of `lat_vecs`. Report an error if lattice vectors are not in conventional form.
+of `latvecs`. Report an error if lattice vectors are not in conventional form.
 """
-function cell_type(lat_vecs::Mat3)
-    a, b, c, α, β, γ = lattice_params(lat_vecs)
+function cell_type(latvecs::Mat3)
+    a, b, c, α, β, γ = lattice_params(latvecs)
 
-    if !(lat_vecs ≈ lattice_vectors(a, b, c, α, β, γ))
+    if !(latvecs ≈ lattice_vectors(a, b, c, α, β, γ))
         error("Lattice vectors are not in conventional form. Consider using `lattice_vectors(a, b, c, α, β, γ)`.")
     end
 

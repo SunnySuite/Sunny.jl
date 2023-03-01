@@ -16,15 +16,15 @@ Reads the crystal from a `.cif` file located at the path `filename`.  The
 optional parameter `symprec` controls the precision tolerance for spacegroup
 symmetries.
 
-    Crystal(lat_vecs, positions; types=nothing, symprec=1e-5)
+    Crystal(latvecs, positions; types=nothing, symprec=1e-5)
 
 Constructs a crystal from the complete list of atom positions `positions`, with
-coordinates (between 0 and 1) in units of lattice vectors `lat_vecs`. Spacegroup
+coordinates (between 0 and 1) in units of lattice vectors `latvecs`. Spacegroup
 symmetry information is automatically inferred. The optional parameter `types`
 is a list of strings, one for each atom, and can be used to break
 symmetry-equivalence between atoms.
 
-    Crystal(lat_vecs, positions, spacegroup_number; types=nothing, setting=nothing, symprec=1e-5)
+    Crystal(latvecs, positions, spacegroup_number; types=nothing, setting=nothing, symprec=1e-5)
 
 Builds a crystal by applying symmetry operators for a given international
 spacegroup number. For certain spacegroups, there are multiple possible unit
@@ -45,32 +45,32 @@ Crystal("filename.cif")
 
 # Build an FCC crystal using the primitive unit cell. The spacegroup number
 # 225 is inferred.
-lat_vecs = [1 1 0;
+latvecs = [1 1 0;
             1 0 1;
             0 1 1] / 2
 positions = [[0, 0, 0]]
-Crystal(lat_vecs, positions)
+Crystal(latvecs, positions)
 
 # Build a CsCl crystal (two cubic sublattices). By providing distinct type
 # strings, the spacegroup number 221 is inferred.
-lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
 positions = [[0,0,0], [0.5,0.5,0.5]]
 types = ["Na", "Cl"]
-cryst = Crystal(lat_vecs, positions; types)
+cryst = Crystal(latvecs, positions; types)
 
 # Build a diamond cubic crystal from its spacegroup number 227. This
 # spacegroup has two possible settings ("1" or "2"), which determine an
 # overall unit cell translation.
-lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
 positions = [[1, 1, 1] / 4]
-cryst = Crystal(lat_vecs, positions, 227; setting="1")
+cryst = Crystal(latvecs, positions, 227; setting="1")
 ```
 
 See also [`lattice_vectors`](@ref).
 """
 struct Crystal
-    lat_vecs       :: Mat3                                 # Lattice vectors as columns
-    prim_lat_vecs  :: Mat3                                 # Primitive lattice vectors
+    latvecs       :: Mat3                                 # Lattice vectors as columns
+    prim_latvecs  :: Mat3                                 # Primitive lattice vectors
     positions      :: Vector{Vec3}                         # Positions in fractional coords
     types          :: Vector{String}                       # Types
     classes        :: Vector{Int}                          # Class indices
@@ -92,49 +92,49 @@ Number of atoms in the unit cell, i.e., number of Bravais sublattices.
 
 Volume of the crystal unit cell.
 """
-cell_volume(cryst::Crystal) = abs(det(cryst.lat_vecs))
+cell_volume(cryst::Crystal) = abs(det(cryst.latvecs))
 
 # Constructs a crystal from the complete list of atom positions `positions`,
-# representing fractions (between 0 and 1) of the lattice vectors `lat_vecs`.
+# representing fractions (between 0 and 1) of the lattice vectors `latvecs`.
 # All symmetry information is automatically inferred.
-function Crystal(lat_vecs, positions; types::Union{Nothing,Vector{String}}=nothing, symprec=1e-5)
-    print_crystal_warnings(lat_vecs, positions)
-    lat_vecs = convert(Mat3, lat_vecs)
+function Crystal(latvecs, positions; types::Union{Nothing,Vector{String}}=nothing, symprec=1e-5)
+    print_crystal_warnings(latvecs, positions)
+    latvecs = convert(Mat3, latvecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
         types = fill("", length(positions))
     end
-    return crystal_from_inferred_symmetry(lat_vecs, positions, types; symprec)
+    return crystal_from_inferred_symmetry(latvecs, positions, types; symprec)
 end
 
 
 # Builds a crystal by applying the symmetry operators for a given spacegroup
 # symbol.
-function Crystal(lat_vecs, positions, symbol::String; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
-    print_crystal_warnings(lat_vecs, positions)
-    lat_vecs = convert(Mat3, lat_vecs)
+function Crystal(latvecs, positions, symbol::String; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+    print_crystal_warnings(latvecs, positions)
+    latvecs = convert(Mat3, latvecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
         types = fill("", length(positions))
     end
-    crystal_from_symbol(lat_vecs, positions, types, symbol; setting, symprec)
+    crystal_from_symbol(latvecs, positions, types, symbol; setting, symprec)
 end
 
 # Builds a crystal by applying symmetry operators for a given international
 # spacegroup number.
-function Crystal(lat_vecs, positions, spacegroup_number::Int; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
-    print_crystal_warnings(lat_vecs, positions)
-    lat_vecs = convert(Mat3, lat_vecs)
+function Crystal(latvecs, positions, spacegroup_number::Int; types::Union{Nothing,Vector{String}}=nothing, setting=nothing, symprec=1e-5)
+    print_crystal_warnings(latvecs, positions)
+    latvecs = convert(Mat3, latvecs)
     positions = [convert(Vec3, p) for p in positions]
     if isnothing(types)
         types = fill("", length(positions))
     end
     symbol = string(spacegroup_number)
-    crystal_from_symbol(lat_vecs, positions, types, symbol; setting, symprec)
+    crystal_from_symbol(latvecs, positions, types, symbol; setting, symprec)
 end
 
-function print_crystal_warnings(lat_vecs, positions)
-    det(lat_vecs) < 0 && println("Warning: Lattice vectors are not right-handed.")
+function print_crystal_warnings(latvecs, positions)
+    det(latvecs) < 0 && println("Warning: Lattice vectors are not right-handed.")
     if length(positions) >= 100
         println("""
             Warning: This a very large crystallographic cell, which Sunny does not handle well.
@@ -182,7 +182,7 @@ function sort_sites!(cryst::Crystal)
 end
 
 
-function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
+function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
     for i in 1:length(positions)
         for j in i+1:length(positions)
             ri = positions[i]
@@ -195,7 +195,7 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
 
     positions = wrap_to_unit_cell.(positions; symprec)
 
-    cell = Spglib.Cell(lat_vecs, positions, types)
+    cell = Spglib.Cell(latvecs, positions, types)
     d = Spglib.get_dataset(cell, symprec)
     classes = d.crystallographic_orbits
     # classes = d.equivalent_atoms
@@ -220,7 +220,7 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
 
     sitesyms = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
 
-    ret = Crystal(lat_vecs, d.primitive_lattice, positions, types, classes, sitesyms, symops, spacegroup, symprec)
+    ret = Crystal(latvecs, d.primitive_lattice, positions, types, classes, sitesyms, symops, spacegroup, symprec)
     validate(ret)
     return ret
 end
@@ -228,24 +228,24 @@ end
 
 # Build Crystal using the space group denoted by a unique Hall number. The complete
 # list is given at http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
-function crystal_from_hall_number(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, hall_number::Int; symprec=1e-5)
-    cell = cell_type(lat_vecs)
+function crystal_from_hall_number(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, hall_number::Int; symprec=1e-5)
+    cell = cell_type(latvecs)
     hall_cell = cell_type(hall_number)
     allowed_cells = all_compatible_cells(hall_cell)
     @assert cell in allowed_cells "Hall number $hall_number requires a $hall_cell cell, but found $cell."
 
     if hall_cell == Sunny.monoclinic
-        is_compatible = is_compatible_monoclinic_cell(lat_vecs, hall_number)
+        is_compatible = is_compatible_monoclinic_cell(latvecs, hall_number)
         @assert is_compatible "Lattice vectors define a monoclinic cell that is incompatible with Hall number $hall_number."
     end
 
     symops = symops_from_spglib(Spglib.get_symmetry_from_database(hall_number)...)
     spacegroup = spacegroup_name(hall_number)
 
-    return crystal_from_symops(lat_vecs, positions, types, symops, spacegroup; symprec)
+    return crystal_from_symops(latvecs, positions, types, symops, spacegroup; symprec)
 end
 
-function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symbol::String; setting=nothing, symprec=1e-5)
+function crystal_from_symbol(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symbol::String; setting=nothing, symprec=1e-5)
     hall_numbers = Int[]
     crysts = Crystal[]
 
@@ -260,7 +260,7 @@ function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
             # lattice vectors; skip them.
             is_compatible = true
 
-            cell = cell_type(lat_vecs)
+            cell = cell_type(latvecs)
             hall_cell = cell_type(hall_number)
             allowed_cells = all_compatible_cells(hall_cell)
 
@@ -281,11 +281,11 @@ function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
             end
 
             if hall_cell == Sunny.monoclinic
-                is_compatible = is_compatible_monoclinic_cell(lat_vecs, hall_number)
+                is_compatible = is_compatible_monoclinic_cell(latvecs, hall_number)
             end
 
             if is_compatible
-                cryst = crystal_from_hall_number(lat_vecs, positions, types, hall_number; symprec)
+                cryst = crystal_from_hall_number(latvecs, positions, types, hall_number; symprec)
                 push!(hall_numbers, hall_number)
                 push!(crysts, cryst)
             end
@@ -328,7 +328,7 @@ function crystal_from_symbol(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
 end
 
 # Builds a crystal from an explicit set of symmetry operations and a minimal set of positions
-function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
+function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
     all_positions = Vec3[]
     all_types = String[]
     classes = Int[]
@@ -355,7 +355,7 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     @assert unique(classes) == 1:maximum(classes)
 
     # Ask Spglib to infer the spacegroup for the given positions and types
-    inferred = crystal_from_inferred_symmetry(lat_vecs, all_positions, all_types; symprec)
+    inferred = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec)
 
     # Compare the inferred symops to the provided ones
     is_subgroup = all(symops) do s
@@ -380,8 +380,8 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
     ret = if is_subgroup && is_supergroup
         inferred
     else
-        prim_lat_vecs = lat_vecs
-        Crystal(lat_vecs, prim_lat_vecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
+        prim_latvecs = latvecs
+        Crystal(latvecs, prim_latvecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
     end
     sort_sites!(ret)
     validate(ret)
@@ -397,10 +397,10 @@ function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
     new_cell_size == I && return cryst
 
     # Lattice vectors of the new unit cell in global coordinates
-    new_lat_vecs = cryst.lat_vecs * new_cell_size
+    new_latvecs = cryst.latvecs * new_cell_size
 
     # These don't change because both are in global coordinates
-    prim_lat_vecs = cryst.prim_lat_vecs
+    prim_latvecs = cryst.prim_latvecs
 
     # This matrix defines a mapping from fractional coordinates in the original
     # unit cell to fractional coordinates in the new unit cell
@@ -451,7 +451,7 @@ function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
     # lost with the resizing procedure.
     new_symops = SymOp[]
 
-    return Crystal(new_lat_vecs, prim_lat_vecs, new_positions, new_types, new_classes, new_sitesyms,
+    return Crystal(new_latvecs, prim_latvecs, new_positions, new_types, new_classes, new_sitesyms,
                 new_symops, cryst.spacegroup, new_symprec)
 end
 
@@ -495,7 +495,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
         println("Warning: atoms are being renumbered.")
     end
 
-    ret = Crystal(cryst.lat_vecs, cryst.prim_lat_vecs, new_positions, new_types, new_classes, new_sitesyms,
+    ret = Crystal(cryst.latvecs, cryst.prim_latvecs, new_positions, new_types, new_classes, new_sitesyms,
                   cryst.symops, cryst.spacegroup, cryst.symprec)
     return ret
 end
@@ -505,12 +505,12 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
     printstyled(io, "Crystal\n"; bold=true, color=:underline)
     println(io, cryst.spacegroup)
 
-    if is_standard_form(cryst.lat_vecs)
-        (a, b, c, α, β, γ) = lattice_params(cryst.lat_vecs)
+    if is_standard_form(cryst.latvecs)
+        (a, b, c, α, β, γ) = lattice_params(cryst.latvecs)
         @printf io "Lattice params a=%.4g, b=%.4g, c=%.4g, α=%.4g°, β=%.4g°, γ=%.4g°\n" a b c α β γ
     else
         println(io, "Lattice vectors:")
-        for a in eachcol(cryst.lat_vecs)
+        for a in eachcol(cryst.latvecs)
             @printf io "   [%.4g %.4g %.4g]\n" a[1] a[2] a[3]
         end
     end
@@ -550,7 +550,7 @@ function validate(cryst::Crystal)
 
     # Rotation matrices in global coordinates must be orthogonal
     for s in cryst.symops
-        R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
+        R = cryst.latvecs * s.R * inv(cryst.latvecs)
         # Due to possible imperfections in the lattice vectors, only require
         # that R is approximately orthogonal
         @assert norm(R*R' - I) < cryst.symprec "Lattice vectors and symmetry operations are incompatible."
@@ -562,44 +562,44 @@ end
 #= Definitions of common crystals =#
 
 function cubic_crystal(; a=1.0)
-    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     positions = [[0, 0, 0]]
-    Crystal(lat_vecs, positions)
+    Crystal(latvecs, positions)
 end
 
 function fcc_crystal(; a=1.0)
-    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     positions = [[0, 0, 0]/2,
                   [1, 1, 0]/2,
                   [1, 0, 1]/2,
                   [0, 1, 1]/2]
-    cryst = Crystal(lat_vecs, positions)
+    cryst = Crystal(latvecs, positions)
     sort_sites!(cryst)
     cryst
 end
 
 function fcc_primitive_crystal(; a=1.0)
-    lat_vecs = [1 1 0; 0 1 1; 1 0 1]' * a/2
+    latvecs = [1 1 0; 0 1 1; 1 0 1]' * a/2
     positions = [[0, 0, 0]]
-    Crystal(lat_vecs, positions)
+    Crystal(latvecs, positions)
 end
 
 function bcc_crystal(; a=1.0)
-    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     positions = [[0, 0, 0]/2,
                   [1, 1, 1]/2,]
-    Crystal(lat_vecs, positions)
+    Crystal(latvecs, positions)
 end
 
 function bcc_primitive_crystal(; a=1.0)
-    lat_vecs = [1 1 -1; 1 -1 1; -1 1 1]' * a/2
+    latvecs = [1 1 -1; 1 -1 1; -1 1 1]' * a/2
     positions = [[0, 0, 0]]
-    Crystal(lat_vecs, positions)
+    Crystal(latvecs, positions)
 end
 
 
 function diamond_crystal(; a=1.0)
-    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+    latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     positions = [
         [0, 0, 0]/4,
         [2, 2, 0]/4,
@@ -610,29 +610,29 @@ function diamond_crystal(; a=1.0)
         [3, 1, 3]/4,
         [1, 3, 3]/4,
     ]
-    cryst = Crystal(lat_vecs, positions)
+    cryst = Crystal(latvecs, positions)
     sort_sites!(cryst)
     cryst
 end
 
 function diamond_primitive_crystal(; a=1.0)
-    lat_vecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
+    latvecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
     positions = [
         [0, 0, 0]/4,
         [1, 1, 1]/4,
     ]
-    Crystal(lat_vecs, positions)
+    Crystal(latvecs, positions)
 end
 
 function pyrochlore_lattice(; a=1.0)
-    lat_vecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
+    latvecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
     positions = [
         [5, 5, 5]/8,
         [1, 5, 5]/8,
         [5, 5, 1]/8,
         [5, 1, 5]/8
     ]
-    cryst = Crystal(lat_vecs, positions)
+    cryst = Crystal(latvecs, positions)
     sort_sites!(cryst)
     cryst
 end

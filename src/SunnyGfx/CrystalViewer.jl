@@ -69,7 +69,7 @@ function system_json(crystal::Crystal, max_dist)
     
     ncells, bond_labels, bond_ids, bond_displacements = generate_bond_lists(crystal, max_dist)
 
-    basis_vecs = Ref(crystal.lat_vecs) .* crystal.positions
+    basis_vecs = Ref(crystal.latvecs) .* crystal.positions
     
     # Fill empty types with a placeholder
     types = crystal.types
@@ -85,7 +85,7 @@ function system_json(crystal::Crystal, max_dist)
         :bondLabels   => bond_labels,
         :bondTypeIds  => bond_ids,
         :bondVecs     => bond_displacements,
-        :lattVecs     => [eachcol(crystal.lat_vecs)...],
+        :lattVecs     => [eachcol(crystal.latvecs)...],
         :basisVecs    => basis_vecs,
         :lattCells    => ncells,
         :atomsPerCell => natoms(crystal),

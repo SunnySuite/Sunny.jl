@@ -198,7 +198,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     Ds = map(symops) do s
         # R is an orthogonal matrix that transforms positions, x → x′ = R x. It
         # might or might not include a reflection, i.e., det R = ±1.
-        sR = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
+        sR = cryst.latvecs * s.R * inv(cryst.latvecs)
 
         # TODO: If the crystal unit cell is imperfect, then R will only be
         # orthogonal up to some tolerance cryst.symprec, whereas subsequent symmetry
@@ -277,7 +277,7 @@ function is_anisotropy_valid(cryst::Crystal, i::Int, Λ)
     symops = symmetries_for_pointgroup_of_atom(cryst, i)
 
     for s in symops
-        R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
+        R = cryst.latvecs * s.R * inv(cryst.latvecs)
         Λ′ = rotate_operator(Λ, det(R)*R)
         if !(Λ′ ≈ Λ)
             return false
@@ -297,7 +297,7 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
         (s.R ≈ I || s.R ≈ -I) && continue
 
         # Orthogonal transformation for pointgroup symmetry
-        R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
+        R = cryst.latvecs * s.R * inv(cryst.latvecs)
 
         # Extract normalized vector n, either a rotation axis or the normal of a
         # reflection plane
@@ -388,7 +388,7 @@ function all_symmetry_related_anisotropies(cryst::Crystal, i_ref::Int, Λ_ref)
         
         # Rotation+reflection R corresponds to a pure rotation Q that acts on
         # pseudo-vector spins.
-        R = cryst.lat_vecs * s.R * inv(cryst.lat_vecs)
+        R = cryst.latvecs * s.R * inv(cryst.latvecs)
         Q = det(R) * R
 
         # In moving from site i_ref to i, a spin S_ref rotates to S = Q S_ref.
