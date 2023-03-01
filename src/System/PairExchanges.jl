@@ -14,20 +14,6 @@ function bond_parity(bond)
     return bond_delta > (0, 0, 0, 0)
 end
 
-# Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
-# `new_cryst`. The new bond will begin at atom `new_i`.
-function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bond)
-    new_ri = new_cryst.positions[new_i]
-
-    # Positions in new fractional coordinates
-    br = BondRaw(cryst, bond)
-    new_rj = new_ri + new_cryst.lat_vecs \ cryst.lat_vecs * (br.rj - br.ri)
-
-    # Construct bond using new indexing system
-    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
-    return Bond(new_i, new_j, new_n)
-end
-
 
 """
     set_biquadratic!(sys::System, J, bond::Bond)
@@ -175,6 +161,23 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
 end
 
 
+# Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
+# `new_cryst`. The new bond will begin at atom `new_i`.
+function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bond)
+    new_ri = new_cryst.positions[new_i]
+
+    # Positions in new fractional coordinates
+    br = BondRaw(cryst, bond)
+    new_rj = new_ri + new_cryst.lat_vecs \ cryst.lat_vecs * (br.rj - br.ri)
+
+    # Construct bond using new indexing system
+    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
+    return Bond(new_i, new_j, new_n)
+end
+
+# Given a `bond` that begins at `idx`, return the neighboring site that also
+# participates in the `bond`. For reshaped systems, bond must have already been
+# transformed to new indexing system using `transform_bond`.
 function bonded_idx(sys::System{N}, idx, bond::Bond) where N
     cell = offsetc(to_cell(idx), bond.n, sys.latsize)
     return convert_idx(cell, bond.j)
