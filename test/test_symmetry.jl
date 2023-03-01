@@ -67,7 +67,7 @@
     positions = [[0, 0, 0]]
     cryst = Crystal(lat_vecs, positions)
     @test cell_type(cryst) == Sunny.hexagonal
-    @test Sunny.nbasis(cryst) == 1
+    @test Sunny.natoms(cryst) == 1
     @test Sunny.cell_volume(cryst) ≈ c * √3 / 2 
     @test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
@@ -77,7 +77,7 @@
     positions = [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0]]
     cryst = Crystal(lat_vecs, positions)
     @test cell_type(cryst) == Sunny.hexagonal
-    @test Sunny.nbasis(cryst) == 3
+    @test Sunny.natoms(cryst) == 3
     @test Sunny.cell_volume(cryst) ≈ c * √3 / 2 
     @test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
@@ -90,7 +90,7 @@
     # cryst = Crystal(lat_vecs, positions, "C 2/c")
     cryst = Crystal(lat_vecs, positions, "C 2/c", setting="c1")
     @test cell_type(cryst) == Sunny.monoclinic
-    @test Sunny.nbasis(cryst) == 4
+    @test Sunny.natoms(cryst) == 4
     @test all(lattice_params(cryst) .≈ mono_lat_params)
 
 
@@ -99,10 +99,10 @@
     lat_vecs = lattice_vectors(5, 5, 6, 90, 90, 120)
     positions = [[0,0,0]]
     cryst1 = Crystal(lat_vecs, positions, "P -3")
-    @test Sunny.nbasis(cryst1) == 1
+    @test Sunny.natoms(cryst1) == 1
     @test cell_type(cryst1) == Sunny.hexagonal
     cryst2 = Crystal(lat_vecs, positions, "R -3")
-    @test Sunny.nbasis(cryst2) == 3
+    @test Sunny.natoms(cryst2) == 3
     cryst3 = Crystal(lat_vecs, positions, 147) # spacegroup number
     @test cell_type(cryst1) == cell_type(cryst2) == cell_type(cryst3) == Sunny.hexagonal
 
@@ -112,9 +112,9 @@
     lat_vecs = lattice_vectors(6, 7, 8, 70, 80, 90)
     positions = [[0,0,0]]
     cryst1 = Crystal(lat_vecs, positions, "P 1")
-    @test Sunny.nbasis(cryst1) == 1
+    @test Sunny.natoms(cryst1) == 1
     cryst2 = Crystal(lat_vecs, positions) # Infers 'P -1'
-    @test Sunny.nbasis(cryst1) == Sunny.nbasis(cryst2) == 1
+    @test Sunny.natoms(cryst1) == Sunny.natoms(cryst2) == 1
     @test cell_type(cryst1) == cell_type(cryst2) == Sunny.triclinic
 
     ### Orthorhombic test, found by Ovi Garlea

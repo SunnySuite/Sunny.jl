@@ -110,8 +110,7 @@ function propagate_reference_atoms(cryst::Crystal, ref_atoms::Vector{Int})
     @assert length(ref_atoms) == length(unique(cryst.classes))
 
     # Return a symmetry-equivalent reference atom for each atom in the unit cell
-    return map(1:nbasis(cryst)) do a
-        c = cryst.classes[a]
+    return map(cryst.classes) do c
         ref_atoms[only(findall(==(c), ref_classes))]
     end
 end

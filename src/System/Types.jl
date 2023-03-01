@@ -31,10 +31,10 @@ const rBFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
 const rIFTPlan = FFTW.AbstractFFTs.ScaledPlan{ComplexF64, rBFTPlan, Float64}
 
 struct Ewald
-    A        :: Array{Mat3, 5}        # Interaction matrices in real-space         [offset+1,b1,b2]
+    A        :: Array{Mat3, 5}        # Interaction matrices in real-space         [offset+1,i,j]
     ϕ        :: Array{Vec3, 4}        # Cross correlation, ϕ = A⋆s                 [cell,b]
     # Space for Fourier transforms; compressed along first index m1
-    FA       :: Array{ComplexF64, 7}  # Transformed interactions F[A]              [α,β,m1,m2,m3,b1,b2]
+    FA       :: Array{ComplexF64, 7}  # Transformed interactions F[A]              [α,β,m1,m2,m3,i,j]
     Fs       :: Array{ComplexF64, 5}  # Transformed spins F[s]                     [α,m1,m2,m3,b]
     Fϕ       :: Array{ComplexF64, 5}  # Cross correlation, F[ϕ] = conj(F[A]) F[s]  [α,m1,m2,m3,b]
     plan     :: rFTPlan

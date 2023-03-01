@@ -1,5 +1,5 @@
-function empty_interactions(nb, N)
-    return map(1:nb) do _
+function empty_interactions(na, N)
+    return map(1:na) do _
         Interactions(empty_anisotropy(N),
                      Coupling{Float64}[],
                      Coupling{Mat3}[],
@@ -41,11 +41,11 @@ function to_inhomogeneous(sys::System{N}) where N
     ints = interactions_homog(sys)
 
     ret = clone_system(sys)
-    nb = nbasis(ret.crystal)
-    ret.interactions_union = Array{Interactions}(undef, ret.latsize..., nb)
-    for b in 1:nbasis(ret.crystal)
+    na = natoms(ret.crystal)
+    ret.interactions_union = Array{Interactions}(undef, ret.latsize..., na)
+    for i in 1:natoms(ret.crystal)
         for cell in all_cells(ret)
-            ret.interactions_union[cell, b] = clone_interactions(ints[b])
+            ret.interactions_union[cell, i] = clone_interactions(ints[i])
         end
     end
 
@@ -186,7 +186,7 @@ function energy(sys::System{N}) where N
     end
 
     # Anisotropies and exchange interactions
-    for i in 1:nbasis(crystal)
+    for i in 1:natoms(crystal)
         if is_homogeneous(sys)
             ints = interactions_homog(sys)
             E += energy_aux(sys, ints[i], i, all_cells(sys))
@@ -271,7 +271,7 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N})
     end
 
     # Anisotropies and exchange interactions
-    for i in 1:nbasis(crystal)
+    for i in 1:natoms(crystal)
         if is_homogeneous(sys)
             ints = interactions_homog(sys)
             set_forces_aux!(B, dipoles, ints[i], i, all_cells(sys), sys)

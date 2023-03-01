@@ -74,7 +74,7 @@ function system_json(crystal::Crystal, max_dist)
     # Fill empty types with a placeholder
     types = crystal.types
     if all(isempty, types)
-        types = fill("type 1", nbasis(crystal))
+        types = fill("type 1", natoms(crystal))
     end
 
     bond_colors = ["0x"*Colors.hex(c) for c in distinguishable_colors(length(bond_labels), [RGB(1,1,1), RGB(0,0,0)], dropseed=true)]
@@ -88,7 +88,7 @@ function system_json(crystal::Crystal, max_dist)
         :lattVecs     => [eachcol(crystal.lat_vecs)...],
         :basisVecs    => basis_vecs,
         :lattCells    => ncells,
-        :atomsPerCell => nbasis(crystal),
+        :atomsPerCell => natoms(crystal),
     ))
 end
 

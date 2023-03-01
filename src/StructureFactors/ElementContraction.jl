@@ -19,7 +19,7 @@ struct FullTensor <: Contraction{SMatrix{3, 3, ComplexF64, 9}} end
 ################################################################################
 # Constructors
 ################################################################################
-function Trace(sf::StructureFactor{N,NumCorr,NumBasis}) where {N, NumCorr, NumBasis}
+function Trace(sf::StructureFactor{N,NCorr,NAtoms}) where {N, NCorr, NAtoms}
     # Collect all indices for matrix elements 𝒮^αβ where α=β
     indices = Int64[]
     for (ci, idx) in sf.idxinfo
@@ -42,8 +42,8 @@ function Trace(sf::StructureFactor{N,NumCorr,NumBasis}) where {N, NumCorr, NumBa
     return Trace(SVector{length(indices), Int64}(indices))
 end
 
-function DipoleFactor(sf::StructureFactor{N, NumCorr, NumBasis}) where {N, NumCorr, NumBasis}
-    if sf.dipole_corrs && NumCorr == 6 
+function DipoleFactor(sf::StructureFactor{N, NCorr, NAtoms}) where {N, NCorr, NAtoms}
+    if sf.dipole_corrs && NCorr == 6 
         return DipoleFactor()
     end
     error("Need to be in structure factor dipole mode to calculate depolarization correction.")
@@ -61,8 +61,8 @@ end
 # generated function or similar. Note that the contraction functions are
 # extremely critical to performance and this calculations needs to be done
 # without allocation.
-function FullTensor(sf::StructureFactor{N,NumCorr,NumBasis}) where {N, NumCorr, NumBasis}
-    if sf.dipole_corrs && NumCorr == 6
+function FullTensor(sf::StructureFactor{N,NCorr,NAtoms}) where {N, NCorr, NAtoms}
+    if sf.dipole_corrs && NCorr == 6
         return FullTensor()
     end
     error("Full tensor currently available only when working with dipolar components.")

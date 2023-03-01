@@ -3,8 +3,8 @@ function validate_bond(cryst::Crystal, bond::Bond)
     if bond.i == bond.j && iszero(bond.n)
         error("Bond must connect different atoms.")
     end
-    (1 <= bond.i <= nbasis(cryst)) || error("Atom index $(bond.i) is out of range.")
-    (1 <= bond.j <= nbasis(cryst)) || error("Atom index $(bond.j) is out of range.")
+    (1 <= bond.i <= natoms(cryst)) || error("Atom index $(bond.i) is out of range.")
+    (1 <= bond.j <= natoms(cryst)) || error("Atom index $(bond.j) is out of range.")
 end
 
 # Partition every nonzero bound into one of two sets
@@ -51,7 +51,7 @@ function set_biquadratic!(sys::System{N}, J, bond::Bond) where N
         println("Warning: Overriding biquadratic interaction for bond $bond.")
     end
 
-    for i in 1:nbasis(sys.crystal)
+    for i in 1:natoms(sys.crystal)
         for bond′ in all_symmetry_related_bonds_for_atom(sys.crystal, i, bond)
             # Remove any existing exchange for bond′
             matches_bond(c) = c.bond == bond′
@@ -134,7 +134,7 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
         println("Warning: Overriding exchange for bond $bond.")
     end
 
-    for i in 1:nbasis(sys.crystal)
+    for i in 1:natoms(sys.crystal)
         for (bond′, J′) in zip(all_symmetry_related_couplings_for_atom(sys.crystal, i, bond, J)...)
             # Remove any existing exchange for bond′
             matches_bond(c) = c.bond == bond′
