@@ -267,7 +267,7 @@ end
 Print xyz formatted (Lx, Ly, Lz, Sx, Sy, Sz) configurations to file 
 """
 function xyz_to_file(sys::System, output::IOStream)
-    pos = [global_position(sys, idx) for idx in all_sites(sys)]
+    pos = [global_position(sys, site) for site in all_sites(sys)]
     sites = reinterpret(reshape, Float64, pos)
     spins = reinterpret(reshape, Float64, sys.dipoles)
     xyz = vcat(sites, spins)

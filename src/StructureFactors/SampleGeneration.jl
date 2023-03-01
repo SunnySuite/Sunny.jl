@@ -4,8 +4,8 @@ function observable_expectations!(buf, sys::System{N}, ops′::Array{ComplexF64,
     ops = reinterpret(SMatrix{N, N, ComplexF64, N*N}, reshape(ops′, N*N, num_ops))
 
     for (i, op) in enumerate(ops)
-        for idx in all_sites(sys)
-            buf[i,idx] = dot(Zs[idx], op, Zs[idx]) 
+        for site in all_sites(sys)
+            buf[i,site] = dot(Zs[site], op, Zs[site]) 
         end
     end
 
@@ -38,13 +38,13 @@ end
 
 function compute_mag!(M, sys::System, apply_g = true)
     if apply_g
-        for idx in all_sites(sys)
-            g = sys.gs[idx[4]]
-            M[:, idx] .= g * sys.dipoles[idx]
+        for site in all_sites(sys)
+            # TODO: remove 1/sys.units.μB scaling
+            M[:, site] = magnetic_moment(sys, site) / sys.units.μB
         end
     else
-        for idx in all_sites(sys)
-            M[:, idx] .= sys.dipoles[idx]
+        for site in all_sites(sys)
+            M[:, site] .= sys.dipoles[site]
         end
     end
 end

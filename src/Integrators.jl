@@ -156,19 +156,19 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
 
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
-        for idx in all_sites(sys)
-            Λ = ints[idx[4]].aniso.matrep
-            HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
-            ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[idx] - Δt*(im+λ)*HZ
-            ΔZ[idx] = proj(ΔZ′, Z[idx])
+        for site in all_sites(sys)
+            Λ = ints[site[4]].aniso.matrep
+            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
+            ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ
+            ΔZ[site] = proj(ΔZ′, Z[site])
         end 
     else
         ints = interactions_inhomog(sys)
-        for idx in all_sites(sys)
-            Λ = ints[idx].aniso.matrep
-            HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
-            ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[idx] - Δt*(im+λ)*HZ
-            ΔZ[idx] = proj(ΔZ′, Z[idx])
+        for site in all_sites(sys)
+            Λ = ints[site].aniso.matrep
+            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
+            ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ
+            ΔZ[site] = proj(ΔZ′, Z[site])
         end 
     end
     nothing
@@ -203,17 +203,17 @@ function rhs_ll!(ΔZ, Z, B, integrator, sys)
 
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
-        for idx in all_sites(sys)
-            Λ = ints[idx[4]].aniso.matrep
-            HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
-            ΔZ[idx] = - Δt*im*HZ
+        for site in all_sites(sys)
+            Λ = ints[site[4]].aniso.matrep
+            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
+            ΔZ[site] = - Δt*im*HZ
         end 
     else
         ints = interactions_inhomog(sys)
-        for idx in all_sites(sys)
-            Λ = ints[idx].aniso.matrep
-            HZ = mul_spin_matrices(Λ, -B[idx], Z[idx]) # HZ = (Λ - B⋅s) Z
-            ΔZ[idx] = - Δt*im*HZ
+        for site in all_sites(sys)
+            Λ = ints[site].aniso.matrep
+            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
+            ΔZ[site] = - Δt*im*HZ
         end 
     end
 end

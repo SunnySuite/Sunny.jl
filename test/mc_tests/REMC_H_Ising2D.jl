@@ -29,8 +29,8 @@ function create_system(α::Float64)
     extent = (120, 120, 1)
     system = SpinSystem(crystal, interactions, extent, [SpinInfo(1, S=1; g)])
 
-    for idx = all_sites(sys)
-        rand(sys.rng, Bool) && sys.dipoles[idx] *= -1
+    for site = all_sites(sys)
+        rand(sys.rng, Bool) && sys.dipoles[site] *= -1
     end
 
     return system

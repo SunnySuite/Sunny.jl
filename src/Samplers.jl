@@ -28,7 +28,7 @@ Function to propose pure spin flip updates in the context of a
 [`LocalSampler`](@ref). Dipoles are flipped as ``𝐬 → -𝐬``. SU(_N_) coherent
 states are flipped using the time-reversal operator.
 """
-propose_flip(sys::System{N}, idx) where N = flip(getspin(sys, idx))
+propose_flip(sys::System{N}, site) where N = flip(getspin(sys, site))
 
 """
     propose_delta(magnitude)
@@ -50,14 +50,14 @@ In the limit of very large `magnitude`, this function coincides with
 For use with [`LocalSampler`](@ref).
 """
 function propose_delta(magnitude)
-    function ret(sys::System{N}, idx) where N
-        κ = sys.κs[idx]
+    function ret(sys::System{N}, site) where N
+        κ = sys.κs[site]
         if N == 0
-            s = sys.dipoles[idx] + magnitude * κ * randn(sys.rng, Vec3)
+            s = sys.dipoles[site] + magnitude * κ * randn(sys.rng, Vec3)
             s = normalize_dipole(s, κ)
             return SpinState(s, CVec{0}())        
         else
-            Z = sys.coherents[idx] + magnitude * sqrt(κ) * randn(sys.rng, CVec{N})
+            Z = sys.coherents[site] + magnitude * sqrt(κ) * randn(sys.rng, CVec{N})
             Z = normalize_ket(Z, κ)
             s = expected_spin(Z)
             return SpinState(s, Z)
@@ -96,12 +96,12 @@ macro mix_proposals(terms...)
             # dynamic dispatch.
             fns = ($(terms[2,:]...),)
 
-            function ret(sys::System{N}, idx) where N
+            function ret(sys::System{N}, site) where N
                 r = rand(sys.rng)
 
-                $([:(r < cumprobs[$i] && return fns[$i](sys, idx)) for i in 1:nterms-1]...)
+                $([:(r < cumprobs[$i] && return fns[$i](sys, site)) for i in 1:nterms-1]...)
                 # It is always true that r ≤ cumprobs[end]
-                return fns[end](sys, idx)
+                return fns[end](sys, site)
             end
             ret
         end
@@ -142,15 +142,15 @@ end
 function step!(sys::System{N}, sampler::LocalSampler) where N
     niters = round(Int, sampler.nsweeps*length(sys.dipoles), RoundUp)
     for _ in 1:niters
-        idx = rand(sys.rng, all_sites(sys))
-        state = sampler.propose(sys, idx)
-        ΔE = local_energy_change(sys, idx, state)
+        site = rand(sys.rng, all_sites(sys))
+        state = sampler.propose(sys, site)
+        ΔE = local_energy_change(sys, site, state)
 
         # Metropolis acceptance probability
         if rand(sys.rng) < exp(-ΔE/sampler.kT)
             sampler.ΔE += ΔE
-            sampler.Δs += state.s - sys.dipoles[idx]
-            setspin!(sys, state, idx)
+            sampler.Δs += state.s - sys.dipoles[site]
+            setspin!(sys, state, site)
         end
     end
 end
