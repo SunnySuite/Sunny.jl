@@ -180,7 +180,7 @@ end
 # transformed to new indexing system using `transform_bond`.
 function bonded_site(sys::System{N}, site, bond::Bond) where N
     cell = offsetc(to_cell(site), bond.n, sys.latsize)
-    return convert_idx(cell, bond.j)
+    return CartesianIndex(cell[1], cell[2], cell[3], bond.j)
 end
 
 
@@ -216,7 +216,7 @@ function set_biquadratic_at!(sys::System{N}, J, bond::Bond, site) where N
     bond = transform_bond(sys.crystal, site[4], orig_crystal(sys), bond)
     bond.i == site[4] || error("Atom index `bond.i` is inconsistent with sublattice of `site`.")
 
-    site = convert_idx(site)
+    site = to_cartesian(site)
     site′ = bonded_site(sys, site, bond)
     push_coupling!(ints[site].biquad, bond, J)
     push_coupling!(ints[site′].biquad, reverse(bond), J')
@@ -248,7 +248,7 @@ function set_exchange_at!(sys::System{N}, J, bond::Bond, site) where N
     bond = transform_bond(sys.crystal, site[4], orig_crystal(sys), bond)
     bond.i == site[4] || error("Atom index `bond.i` is inconsistent with sublattice of `site`.")
 
-    site = convert_idx(site)
+    site = to_cartesian(site)
     site′ = bonded_site(sys, site, bond)
 
     # Convert J to Mat3
