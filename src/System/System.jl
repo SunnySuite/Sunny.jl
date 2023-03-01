@@ -178,7 +178,7 @@ end
 Get the magnetic moment for a [`Site`](@ref). The result is `sys.dipoles[site]`
 multiplied by the Bohr magneton and the ``g``-tensor for `site`.
 """
-magnetic_moment(sys::System, site) = sys.units.μB * sys.gs[site[4]] * sys.dipoles[site]
+magnetic_moment(sys::System, site) = sys.units.μB * sys.gs[to_atom(site)] * sys.dipoles[site]
 
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)

@@ -197,7 +197,7 @@ end
 # updated to `s`
 function energy_delta(dipoles::Array{Vec3, 4}, ewald::Ewald, site, s::Vec3)
     Δs = s - dipoles[site]
-    b = site[4]
+    b = to_atom(site)
     h = Sunny.force_at(dipoles, ewald, site)
     return - Δs⋅h + dot(Δs, ewald.A[1, 1, 1, b, b], Δs)
 end

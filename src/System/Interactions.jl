@@ -118,7 +118,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     (; latsize, extfield, dipoles, coherents, ewald) = sys
 
     if is_homogeneous(sys)
-        (; aniso, heisen, exchange, biquad) = interactions_homog(sys)[site[4]]
+        (; aniso, heisen, exchange, biquad) = interactions_homog(sys)[to_atom(site)]
     else
         (; aniso, heisen, exchange, biquad) = interactions_inhomog(sys)[site]
     end
