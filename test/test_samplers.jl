@@ -17,8 +17,8 @@
     # Eliminate all spacegroup symmetries
     function asymmetric_crystal()
         lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-        basis_vecs = [[0,0,0]]
-        Crystal(lat_vecs, basis_vecs, 1)
+        positions = [[0,0,0]]
+        Crystal(lat_vecs, positions, 1)
     end
 
 

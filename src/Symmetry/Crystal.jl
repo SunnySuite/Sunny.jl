@@ -563,44 +563,44 @@ end
 
 function cubic_crystal(; a=1.0)
     lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
-    basis_vecs = [[0, 0, 0]]
-    Crystal(lat_vecs, basis_vecs)
+    positions = [[0, 0, 0]]
+    Crystal(lat_vecs, positions)
 end
 
 function fcc_crystal(; a=1.0)
     lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
-    basis_vecs = [[0, 0, 0]/2,
+    positions = [[0, 0, 0]/2,
                   [1, 1, 0]/2,
                   [1, 0, 1]/2,
                   [0, 1, 1]/2]
-    cryst = Crystal(lat_vecs, basis_vecs)
+    cryst = Crystal(lat_vecs, positions)
     sort_sites!(cryst)
     cryst
 end
 
 function fcc_primitive_crystal(; a=1.0)
     lat_vecs = [1 1 0; 0 1 1; 1 0 1]' * a/2
-    basis_vecs = [[0, 0, 0]]
-    Crystal(lat_vecs, basis_vecs)
+    positions = [[0, 0, 0]]
+    Crystal(lat_vecs, positions)
 end
 
 function bcc_crystal(; a=1.0)
     lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
-    basis_vecs = [[0, 0, 0]/2,
+    positions = [[0, 0, 0]/2,
                   [1, 1, 1]/2,]
-    Crystal(lat_vecs, basis_vecs)
+    Crystal(lat_vecs, positions)
 end
 
 function bcc_primitive_crystal(; a=1.0)
     lat_vecs = [1 1 -1; 1 -1 1; -1 1 1]' * a/2
-    basis_vecs = [[0, 0, 0]]
-    Crystal(lat_vecs, basis_vecs)
+    positions = [[0, 0, 0]]
+    Crystal(lat_vecs, positions)
 end
 
 
 function diamond_crystal(; a=1.0)
     lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
-    basis_vecs = [
+    positions = [
         [0, 0, 0]/4,
         [2, 2, 0]/4,
         [1, 1, 1]/4,
@@ -610,29 +610,29 @@ function diamond_crystal(; a=1.0)
         [3, 1, 3]/4,
         [1, 3, 3]/4,
     ]
-    cryst = Crystal(lat_vecs, basis_vecs)
+    cryst = Crystal(lat_vecs, positions)
     sort_sites!(cryst)
     cryst
 end
 
 function diamond_primitive_crystal(; a=1.0)
     lat_vecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
-    basis_vecs = [
+    positions = [
         [0, 0, 0]/4,
         [1, 1, 1]/4,
     ]
-    Crystal(lat_vecs, basis_vecs)
+    Crystal(lat_vecs, positions)
 end
 
 function pyrochlore_lattice(; a=1.0)
     lat_vecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
-    basis_vecs = [
+    positions = [
         [5, 5, 5]/8,
         [1, 5, 5]/8,
         [5, 5, 1]/8,
         [5, 1, 5]/8
     ]
-    cryst = Crystal(lat_vecs, basis_vecs)
+    cryst = Crystal(lat_vecs, positions)
     sort_sites!(cryst)
     cryst
 end

@@ -40,10 +40,10 @@ c = 6.75214      # Spacing in the z-direction
 
 lat_vecs = lattice_vectors(a, b, c, 90, 90, 120) # A 3x3 matrix of lattice vectors that
                                                  ## define the conventional unit cell
-basis_vecs = [[0,0,0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]  # Positions of atoms in fractions
-                                                          ## of lattice vectors
+positions = [[0,0,0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]  # Positions of atoms in fractions
+                                                         ## of lattice vectors
 types = ["Fe", "I", "I"]
-FeI2 = Crystal(lat_vecs, basis_vecs; types)
+FeI2 = Crystal(lat_vecs, positions; types)
 
 # Observe that Sunny inferred the space group, 'P -3 m 1' (164) and labeled the
 # atoms according to their point group symmetries.
