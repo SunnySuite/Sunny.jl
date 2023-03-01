@@ -43,7 +43,7 @@ export Crystal, subcrystal, lattice_vectors, lattice_params,
     Bond, 𝒪, 𝒮, rotate_operator,
     reference_bonds, print_site, print_bond, print_symmetry_table,
     print_suggested_frame, print_anisotropy_as_stevens, print_anisotropy_as_classical_spins
-    # nbasis, cell_volume, cell_type, coordination_number, displacement, distance,
+    # natoms, cell_volume, cell_type, coordination_number, displacement, distance,
     # all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom,
     # all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom,
     # all_symmetry_related_anisotropies,

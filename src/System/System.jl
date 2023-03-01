@@ -36,7 +36,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
         error("Mode must be one of [:SUN, :dipole, :large_S].")
     end
 
-    nb = nbasis(crystal)
+    na = natoms(crystal)
 
     infos = propagate_site_info(crystal, infos)
     Ss = [si.S for si in infos]
@@ -48,17 +48,17 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
             error("Currently all spins S must be equal in SU(N) mode.")
         end
         N = first(Ns)
-        κs = fill(1.0, latsize..., nb)
+        κs = fill(1.0, latsize..., na)
     else
         N = 0
         # Repeat such that `κs[cell, :] == Ss` for every `cell`
         κs = permutedims(repeat(Ss, 1, latsize...), (2, 3, 4, 1))
     end
-    extfield = zeros(Vec3, latsize..., nb)
-    interactions = empty_interactions(nb, N)
+    extfield = zeros(Vec3, latsize..., na)
+    interactions = empty_interactions(na, N)
     ewald = nothing
-    dipoles = fill(zero(Vec3), latsize..., nb)
-    coherents = fill(zero(CVec{N}), latsize..., nb)
+    dipoles = fill(zero(Vec3), latsize..., na)
+    coherents = fill(zero(CVec{N}), latsize..., na)
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
@@ -80,7 +80,7 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
         error("Unreachable")
     end
     printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
-    println(io, "Cell size $(nbasis(sys.crystal)), Lattice size $(sys.latsize)")
+    println(io, "Cell size $(natoms(sys.crystal)), Lattice size $(sys.latsize)")
     if !isnothing(sys.origin)
         println(io, "Reshaped cell geometry $(cell_dimensions(sys))")
     end
@@ -355,7 +355,7 @@ function transfer_unit_cell!(new_sys::System{N}, origin::System{N}) where N
     new_ints    = interactions_homog(new_sys)
     new_cryst   = new_sys.crystal
 
-    for new_i in 1:nbasis(new_cryst)
+    for new_i in 1:natoms(new_cryst)
         new_ri = new_cryst.positions[new_i]
         ri = origin.crystal.lat_vecs \ new_cryst.lat_vecs * new_ri
         i = position_to_index(origin.crystal, ri)
@@ -394,13 +394,13 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
     # `origin`, but with `new_latsize`
     if new_cell_size == I
         new_cryst = origin.crystal
-        new_nb = nbasis(new_cryst)
+        new_na = natoms(new_cryst)
 
-        new_κs               = zeros(Float64, new_latsize..., new_nb)
-        new_extfield         = zeros(Vec3, new_latsize..., new_nb)
+        new_κs               = zeros(Float64, new_latsize..., new_na)
+        new_extfield         = zeros(Vec3, new_latsize..., new_na)
         new_ints             = interactions_homog(origin) # homogeneous only
-        new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
-        new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
+        new_dipoles          = zeros(Vec3, new_latsize..., new_na)
+        new_coherents        = zeros(CVec{N}, new_latsize..., new_na)
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
         new_sys = System(nothing, origin.mode, origin.crystal, new_latsize, origin.Ns, origin.gs, new_κs, new_extfield, new_ints, nothing,
@@ -409,15 +409,15 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
     # Else, rebuild the unit cell for the new crystal
     else
         new_cryst = reshape_crystal(origin.crystal, Mat3(new_cell_size))
-        new_nb = nbasis(new_cryst)
+        new_na = natoms(new_cryst)
         
-        new_Ns               = zeros(Int, new_nb)
-        new_gs               = zeros(Mat3, new_nb)
-        new_κs               = zeros(Float64, new_latsize..., new_nb)
-        new_extfield         = zeros(Vec3, new_latsize..., new_nb)
-        new_ints             = empty_interactions(new_nb, N)
-        new_dipoles          = zeros(Vec3, new_latsize..., new_nb)
-        new_coherents        = zeros(CVec{N}, new_latsize..., new_nb)
+        new_Ns               = zeros(Int, new_na)
+        new_gs               = zeros(Mat3, new_na)
+        new_κs               = zeros(Float64, new_latsize..., new_na)
+        new_extfield         = zeros(Vec3, new_latsize..., new_na)
+        new_ints             = empty_interactions(new_na, N)
+        new_dipoles          = zeros(Vec3, new_latsize..., new_na)
+        new_coherents        = zeros(CVec{N}, new_latsize..., new_na)
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
         

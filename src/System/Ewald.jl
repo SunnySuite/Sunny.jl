@@ -3,24 +3,24 @@ function Ewald(sys::System{N}) where N
     (; crystal, latsize, gs, units) = sys
 
     (; μ0, μB) = units
-    nb = nbasis(crystal)
+    na = natoms(crystal)
     A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(crystal, latsize)
     # Scale g tensors into pair interactions A
-    for b1 in 1:nb, b2 in 1:nb
+    for j in 1:na, i in 1:na
         for cell in all_cells(sys)
-            A[cell, b1, b2] = gs[b1]' * A[cell, b1, b2] * gs[b2]
+            A[cell, i, j] = gs[i]' * A[cell, i, j] * gs[j]
         end
     end
 
-    ϕ  = zeros(Vec3, latsize..., nb)
+    ϕ  = zeros(Vec3, latsize..., na)
 
-    Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...) # dims: [α,β,cell,b1,b2]
+    Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...) # dims: [α,β,cell,i,j]
     FA = FFTW.rfft(Ar, 3:5) # FFT on cell indices
     sz_rft = size(FA)[3:5]  # First FT dimension (dimension 3) will be ~ halved
-    Fs = zeros(ComplexF64, 3, sz_rft..., nb)
-    Fϕ = zeros(ComplexF64, 3, sz_rft..., nb)
+    Fs = zeros(ComplexF64, 3, sz_rft..., na)
+    Fϕ = zeros(ComplexF64, 3, sz_rft..., na)
 
-    mock_spins = zeros(3, latsize..., nb)
+    mock_spins = zeros(3, latsize..., na)
     plan     = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
     ift_plan = FFTW.plan_irfft(Fs, latsize[1], 2:4; flags=FFTW.MEASURE)
 
@@ -40,8 +40,8 @@ end
 # Precompute the dipole-dipole interaction matrix A and its Fourier transform
 # F[A]
 function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Array{Mat3, 5}
-    nb = nbasis(cryst)
-    A = zeros(Mat3, latsize..., nb, nb)
+    na = natoms(cryst)
+    A = zeros(Mat3, latsize..., na, na)
 
     # Superlattice vectors that describe periodicity of system and their inverse
     supervecs = cryst.lat_vecs .* Vec3(latsize)'
@@ -72,10 +72,10 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
     # nmax and mmax should be balanced here
     # println("nmax $nmax mmax $mmax")
 
-    for cell in CartesianIndices(latsize), b2 in 1:nb, b1 in 1:nb
+    for cell in CartesianIndices(latsize), j in 1:na, i in 1:na
         acc = zero(Mat3)
         cell_offset = Vec3(cell[1]-1, cell[2]-1, cell[3]-1)
-        Δr = cryst.lat_vecs * (cell_offset + cryst.positions[b2] - cryst.positions[b1])
+        Δr = cryst.lat_vecs * (cell_offset + cryst.positions[j] - cryst.positions[i])
         
         #####################################################
         ## Real space part
@@ -112,10 +112,10 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
             acc += - I₃/(3√(2π)*σ³)
         end
 
-        # For sites site1=(cell1, b1) and site2=(cell2, b2) offset by an amount
-        # (off = cell2-cell1), the pair-energy is (s1 ⋅ A[off, b1, b2] ⋅ s2).
+        # For sites site1=(cell1, i) and site2=(cell2, j) offset by an amount
+        # (off = cell2-cell1), the pair-energy is (s1 ⋅ A[off, i, j] ⋅ s2).
         # Julia arrays start at one, so we index A using (cell = off .+ 1).
-        A[cell, b1, b2] = acc
+        A[cell, i, j] = acc
     end
 
     return A
@@ -143,10 +143,10 @@ function energy(dipoles::Array{Vec3, 4}, ewald::Ewald)
     # * The energy is an inner product, E = - (1/2)s⋅h, or using Parseval's
     #   theorem, E = - (1/2) conj(F[s]) F[h] / N
     # * Combined, the result is: E = conj(F[s]) conj(F[A]) F[s] / N
-    (_, m1, m2, m3, nb) = size(Fs)
+    (_, m1, m2, m3, na) = size(Fs)
     ms = CartesianIndices((m1, m2, m3))
-    @inbounds for b2 in 1:nb, b1 in 1:nb, m in ms, α in 1:3, β in 1:3
-        E += real(conj(Fs[α, m, b1]) * conj(FA[α, β, m, b1, b2]) * Fs[β, m, b2])
+    @inbounds for j in 1:na, i in 1:na, m in ms, α in 1:3, β in 1:3
+        E += real(conj(Fs[α, m, i]) * conj(FA[α, β, m, i, j]) * Fs[β, m, j])
     end
     return E / prod(latsize)
 end
@@ -158,11 +158,11 @@ function accum_force!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ewald::Ewald)
 
     fill!(Fϕ, 0.0)
     mul!(Fs, plan, reinterpret(reshape, Float64, dipoles))
-    (_, m1, m2, m3, nb) = size(Fs)
+    (_, m1, m2, m3, na) = size(Fs)
     ms = CartesianIndices((m1, m2, m3))
     # Without @inbounds, performance degrades by ~50%
-    @inbounds for b2 in 1:nb, b1 in 1:nb, m in ms, α in 1:3, β in 1:3
-        Fϕ[α,m,b1] += conj(FA[α,β,m,b1,b2]) * Fs[β,m,b2]
+    @inbounds for j in 1:na, i in 1:na, m in ms, α in 1:3, β in 1:3
+        Fϕ[α,m,i] += conj(FA[α,β,m,i,j]) * Fs[β,m,j]
     end
     ϕr = reinterpret(reshape, Float64, ϕ)
     mul!(ϕr, ift_plan, Fϕ)

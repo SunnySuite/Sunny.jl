@@ -81,11 +81,11 @@ struct Crystal
 end
 
 """
-    nbasis(crystal::Crystal)
+    natoms(crystal::Crystal)
 
-Number of basis positions (sublattices) in the unit cell.
+Number of atoms in the unit cell, i.e., number of Bravais sublattices.
 """
-@inline nbasis(cryst::Crystal) = length(cryst.positions)
+@inline natoms(cryst::Crystal) = length(cryst.positions)
 
 """
     cell_volume(crystal::Crystal)
@@ -422,7 +422,7 @@ function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
     new_classes   = Int[]
     new_sitesyms  = isnothing(cryst.sitesyms) ? nothing : SiteSymmetry[]
 
-    for i in 1:nbasis(cryst)
+    for i in 1:natoms(cryst)
         for n1 in nmin[1]:nmax[1], n2 in nmin[2]:nmax[2], n3 in nmin[3]:nmax[3]
             x = cryst.positions[i] + Vec3(n1, n2, n3)
             Bx = B*x
@@ -445,7 +445,7 @@ function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
 
     # Check that we have exactly the right number of atoms
     N1, N2, N3 = eachcol(new_cell_size)
-    @assert length(new_positions) == abs((N1×N2)⋅N3) * nbasis(cryst)
+    @assert length(new_positions) == abs((N1×N2)⋅N3) * natoms(cryst)
 
     # Create an empty list of symops as a marker that this information has been
     # lost with the resizing procedure.

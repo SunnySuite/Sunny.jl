@@ -65,7 +65,7 @@ function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) 
 
     iszero(op) && return 
 
-    (1 <= i <= nbasis(sys.crystal)) || error("Atom index $i is out of range.")
+    (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
 
     if !iszero(ints[i].aniso.op)
         println("Warning: Overriding anisotropy for atom $i.")
