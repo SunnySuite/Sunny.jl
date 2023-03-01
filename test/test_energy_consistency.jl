@@ -11,8 +11,8 @@
         enable_dipole_dipole!(sys)
 
         # Random field
-        for idx in Sunny.all_sites(sys)
-            set_external_field_at!(sys, randn(sys.rng, 3), idx)
+        for site in Sunny.all_sites(sys)
+            set_external_field_at!(sys, randn(sys.rng, 3), site)
         end
         # Random spin rescaling
         rand!(sys.rng, sys.κs)
@@ -61,14 +61,14 @@
     function test_delta(sys)
         for _ in 1:5
             # Pick a random site, try to set it to a random spin
-            idx = rand(sys.rng, Sunny.all_sites(sys))
-            spin = Sunny.randspin(sys, idx)
+            site = rand(sys.rng, Sunny.all_sites(sys))
+            spin = Sunny.randspin(sys, site)
             
-            ΔE = Sunny.local_energy_change(sys, idx, spin)
+            ΔE = Sunny.local_energy_change(sys, site, spin)
 
             E0 = energy(sys)
-            sys.dipoles[idx]   = spin.s
-            sys.coherents[idx] = spin.Z
+            sys.dipoles[site]   = spin.s
+            sys.coherents[site] = spin.Z
             E1 = energy(sys)
             ΔE_ref = E1 - E0
 

@@ -3,8 +3,8 @@
 ################################################################################
 
 # Internal function for getting a single 𝒮(q, ω) intensity
-function calc_intensity(sf::StructureFactor, k, latidx, ω, iω, contractor, kT, ffdata)
-    elems = phase_averaged_elements(view(sf.data,:,:,:,latidx,iω), k, sf, ffdata)
+function calc_intensity(sf::StructureFactor, k, cell, ω, iω, contractor, kT, ffdata)
+    elems = phase_averaged_elements(view(sf.data,:,:,:,cell,iω), k, sf, ffdata)
     intensity = contract(elems, k, contractor)
     return intensity * classical_to_quantum(ω, kT)
 end

@@ -208,12 +208,12 @@ function crystal_from_inferred_symmetry(lat_vecs::Mat3, positions::Vector{Vec3},
 
     # multiplicities for the equivalence classes
     multiplicities = map(classes) do c
-        # indices that belong to class c
-        idxs = findall(==(c), classes)
-        # indices in the primitive cell that belong to class c
-        prim_idxs = unique(d.mapping_to_primitive[idxs])
+        # atoms that belong to class c
+        atoms = findall(==(c), classes)
+        # atoms in the primitive cell that belong to class c
+        prim_atoms = unique(d.mapping_to_primitive[atoms])
         # number of atoms in the standard cell that correspond to each primitive index for class c
-        counts = [count(==(i), d.std_mapping_to_primitive) for i in prim_idxs]
+        counts = [count(==(i), d.std_mapping_to_primitive) for i in prim_atoms]
         # sum over all equivalent atoms in the primitive cell
         sum(counts)
     end
@@ -337,15 +337,15 @@ function crystal_from_symops(lat_vecs::Mat3, positions::Vector{Vec3}, types::Vec
         for s = symops
             x = wrap_to_unit_cell(transform(s, positions[i]); symprec)
 
-            idx = findfirst(y -> all_integer(x-y; symprec), all_positions)
-            if isnothing(idx)
+            j = findfirst(y -> all_integer(x-y; symprec), all_positions)
+            if isnothing(j)
                 push!(all_positions, x)
                 push!(all_types, types[i])
                 push!(classes, i)
             else
-                j = classes[idx]
-                if i != j
-                    error("Reference positions $(positions[i]) and $(positions[j]) are symmetry equivalent.")
+                j_ref = classes[j]
+                if i != j_ref
+                    error("Reference positions $(positions[i]) and $(positions[j_ref]) are symmetry equivalent.")
                 end
             end
         end
@@ -473,8 +473,8 @@ function subcrystal(cryst::Crystal, types::Vararg{String, N}) where N
             error("types string '$s' is not present in crystal.")
         end
     end
-    idxs = findall(in(types), cryst.types)
-    classes = unique(cryst.classes[idxs])
+    atoms = findall(in(types), cryst.types)
+    classes = unique(cryst.classes[atoms])
     return subcrystal(cryst, classes...)
 end
 
@@ -485,13 +485,13 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
         end
     end
 
-    idxs = findall(in(classes), cryst.classes)
-    new_positions = cryst.positions[idxs]
-    new_types = cryst.types[idxs]
-    new_classes = cryst.classes[idxs]
-    new_sitesyms = cryst.sitesyms[idxs]
+    atoms = findall(in(classes), cryst.classes)
+    new_positions = cryst.positions[atoms]
+    new_types = cryst.types[atoms]
+    new_classes = cryst.classes[atoms]
+    new_sitesyms = cryst.sitesyms[atoms]
 
-    if idxs != 1:maximum(idxs)
+    if atoms != 1:maximum(atoms)
         println("Warning: atoms are being renumbered.")
     end
 

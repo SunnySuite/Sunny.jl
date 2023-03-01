@@ -6,9 +6,9 @@
         # super-lattice vectors
         latvecs = eachcol(sys.crystal.lat_vecs) .* sys.latsize
         # positions in global coordinates
-        pos = [global_position(sys, idx) for idx in all_sites(sys)][:]
+        pos = [global_position(sys, site) for site in all_sites(sys)][:]
         # magnetic moments
-        dipoles = [magnetic_moment(sys, idx) for idx in all_sites(sys)][:]
+        dipoles = [magnetic_moment(sys, site) for site in all_sites(sys)][:]
         # energy from traditional Ewald summation
         Ewalder.energy(Ewalder.System(; latvecs, pos); dipoles) / (4π*sys.units.μ0)
     end
@@ -46,9 +46,7 @@
     @test isapprox(energy(sys), ewalder_energy(sys); atol=1e-12)
 
     # Calculate force using a sum over pairs, or using an FFT-based convolution
-    B = map(Sunny.all_sites(sys)) do idx
-        Sunny.force_at(sys.dipoles, sys.ewald, idx)
-    end
+    B = [Sunny.force_at(sys.dipoles, sys.ewald, site) for site in all_sites(sys)]
     @test isapprox(forces(sys), B; atol=1e-12)
 
     # Calculation of energy as a sum over pairs

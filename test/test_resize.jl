@@ -8,10 +8,10 @@
     set_exchange!(sys, 1.2, Bond(1, 1, [0, 0, 1]))
     set_exchange!(sys, diagm([0.2, 0.3, 0.4]), Bond(1, 1, [1, 0, 1]))
 
-    for idx in Sunny.all_sites(sys)
-        row = idx[2]
+    for site in all_sites(sys)
+        row = site[2]
         dir = [1, 0, 2mod(row, 2) - 1]
-        Sunny.setspin!(sys, Sunny.dipolarspin(sys, idx, dir), idx)
+        Sunny.setspin!(sys, Sunny.dipolarspin(sys, site, dir), site)
     end
 
     capt = IOCapture.capture() do

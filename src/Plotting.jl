@@ -18,7 +18,7 @@ function plot_lattice!(ax, lattice::Lattice; colors=:Set1_9, markersize=200, lin
     # Plot markers at each site
     pts = GLMakie.Point3f0.(vec(lattice))
     for (i, type) in enumerate(unique_types)
-        basis_idxs = findall(isequal(type), lattice.types)
+        bs = findall(isequal(type), lattice.types)
         GLMakie.scatter!(ax, pts; label=type, color=colors[i], markersize=markersize, kwargs...)
     end
 
@@ -60,7 +60,7 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
 
     # Plot the bonds, all relative to a central atom on the first sublattice
     # TODO: Make selectable in GUI
-    basis_idx = 1
+    b = 1
 
     colors = GLMakie.resample_cmap(colors, 8)
     # Sort interactions so that longer bonds are plotted first
@@ -79,14 +79,14 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
     toggles = Vector{GLMakie.Toggle}()
     labels = Vector{GLMakie.Label}()
     cent_cell = CartesianIndex(div.(lattice.size .+ 1, 2)...)
-    cent_pt = lattice[cent_cell, basis_idx]
+    cent_pt = lattice[cent_cell, b]
     for (n, int) in enumerate(sorted_ints)
         if !isa(int, AbstractPairIntCPU)
             continue
         end
 
         pts = Vector{GLMakie.Point3f0}()
-        for (bond, _) in sublat_bonds(int.bondtable, basis_idx)
+        for (bond, _) in sublat_bonds(int.bondtable, b)
             new_cell = offsetc(cent_cell, bond.n, lattice.size)
             bond_pt = lattice[new_cell, bond.j]
             push!(pts, GLMakie.Point3f0(cent_pt))
@@ -233,7 +233,7 @@ end
 
 function spin_vector_origins(sys::System, arrowlength)
     center = (sys.crystal.lat_vecs * Vec3(sys.latsize)) / 2
-    return [global_position(sys,idx) - sys.dipoles[idx]*(arrowlength/2) - center for idx in all_sites(sys)]
+    return [global_position(sys,site) - sys.dipoles[site]*(arrowlength/2) - center for site in all_sites(sys)]
 end
 
 """

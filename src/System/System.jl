@@ -134,8 +134,8 @@ vectors.
 """
 const Site = NTuple{4, Int}
 
-@inline convert_idx(idx::CartesianIndex{4})            = idx
-@inline convert_idx(idx::NTuple{4, Int})               = CartesianIndex(idx)
+@inline convert_idx(site::CartesianIndex{4})           = site
+@inline convert_idx(site::NTuple{4, Int})              = CartesianIndex(site)
 @inline convert_idx(c::CartesianIndex{3}, i::Int)      = CartesianIndex(c[1], c[2], c[3], i)
 @inline convert_idx(c1::Int, c2::Int, c3::Int, i::Int) = CartesianIndex(c1, c2, c3, i)
 
@@ -143,13 +143,9 @@ const Site = NTuple{4, Int}
 # Offset a `cell` by `ncells`
 @inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(mod1.(Tuple(cell) .+ Tuple(ncells), latsize))
 
-# Split a site `idx` into its parts
-@inline to_cell(idx) = CartesianIndex((idx[1],idx[2],idx[3]))
-@inline to_atom(idx) = idx[4]
-
-# kbtodo: replace with above
-# Split a Cartesian index (cell,i) into its parts cell and i.
-@inline splitidx(idx::CartesianIndex{4}) = (to_cell(idx), to_atom(idx))
+# Split a site `site` into its cell and sublattice parts
+@inline to_cell(site) = CartesianIndex((site[1],site[2],site[3]))
+@inline to_atom(site) = site[4]
 
 # An iterator over all unit cells using CartesianIndices
 @inline all_cells(sys::System) = CartesianIndices(sys.latsize)
@@ -162,7 +158,7 @@ An iterator over all [`Site`](@ref)s in the system.
 @inline all_sites(sys::System) = CartesianIndices(sys.dipoles)
 
 """
-    global_position(sys::System, idx::Site)
+    global_position(sys::System, site::Site)
 
 Position of a [`Site`](@ref) in global coordinates.
 
@@ -170,21 +166,21 @@ To precompute a full list of positions, one can use [`all_sites`](@ref) as
 below:
 
 ```julia
-pos = [global_position(sys, idx) for idx in all_sites(sys)]
+pos = [global_position(sys, site) for site in all_sites(sys)]
 ```
 """
-function global_position(sys::System, idx)
-    r = sys.crystal.positions[idx[4]] + Vec3(idx[1]-1, idx[2]-1, idx[3]-1)
+function global_position(sys::System, site)
+    r = sys.crystal.positions[site[4]] + Vec3(site[1]-1, site[2]-1, site[3]-1)
     return sys.crystal.lat_vecs * r
 end
 
 """
-    magnetic_moment(sys::System, idx::Site)
+    magnetic_moment(sys::System, site::Site)
 
-Get the magnetic moment for a [`Site`](@ref). The result is `sys.dipoles[idx]`
-multiplied by the Bohr magneton and the ``g``-tensor for `idx`.
+Get the magnetic moment for a [`Site`](@ref). The result is `sys.dipoles[site]`
+multiplied by the Bohr magneton and the ``g``-tensor for `site`.
 """
-magnetic_moment(sys::System, idx) = sys.units.μB * sys.gs[idx[4]] * sys.dipoles[idx]
+magnetic_moment(sys::System, site) = sys.units.μB * sys.gs[site[4]] * sys.dipoles[site]
 
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
@@ -193,8 +189,8 @@ volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
 orig_crystal(sys) = isnothing(sys.origin) ? sys.crystal : sys.origin.crystal
 
 # Position of a site in fractional coordinates
-function position(sys::System, idx)
-    return orig_crystal(sys).lat_vecs \ global_position(sys, idx)
+function position(sys::System, site)
+    return orig_crystal(sys).lat_vecs \ global_position(sys, site)
 end
 
 """
@@ -208,12 +204,12 @@ function can be useful for working with systems that have been reshaped using
 # Example
 
 ```julia
-# Find the `idx` of the site at the center of a unit cell which is displaced
-# by four multiples of the first lattice vector
-idx = position_to_site(sys, [4.5, 0.5, 0.5])
+# Find the `site` at the center of a unit cell which is displaced by four
+# multiples of the first lattice vector
+site = position_to_site(sys, [4.5, 0.5, 0.5])
 
 # Print the dipole at this site
-println(sys.dipoles[idx])
+println(sys.dipoles[site])
 ```
 """
 function position_to_site(sys::System, r)
@@ -241,13 +237,13 @@ end
     return iszero(κ) ? zero(Vec3) : κ*normalize(s)
 end
 
-@inline function getspin(sys::System{N}, idx) where N
-    return SpinState(sys.dipoles[idx], sys.coherents[idx])
+@inline function getspin(sys::System{N}, site) where N
+    return SpinState(sys.dipoles[site], sys.coherents[site])
 end
 
-@inline function setspin!(sys::System{N}, spin::SpinState{N}, idx) where N
-    sys.dipoles[idx] = spin.s
-    sys.coherents[idx] = spin.Z
+@inline function setspin!(sys::System{N}, spin::SpinState{N}, site) where N
+    sys.dipoles[site] = spin.s
+    sys.coherents[site] = spin.Z
     return
 end
 
@@ -255,42 +251,42 @@ end
     return SpinState(-spin.s, flip_ket(spin.Z))
 end
 
-@inline function randspin(sys::System{0}, idx)
-    s = normalize_dipole(randn(sys.rng, Vec3), sys.κs[idx])
+@inline function randspin(sys::System{0}, site)
+    s = normalize_dipole(randn(sys.rng, Vec3), sys.κs[site])
     return SpinState(s, CVec{0}())
 end
-@inline function randspin(sys::System{N}, idx) where N
-    Z = normalize_ket(randn(sys.rng, CVec{N}), sys.κs[idx])
+@inline function randspin(sys::System{N}, site) where N
+    Z = normalize_ket(randn(sys.rng, CVec{N}), sys.κs[site])
     s = expected_spin(Z)
     return SpinState(s, Z)
 end
 
-@inline function dipolarspin(sys::System{0}, idx, dir)
-    s = normalize_dipole(Vec3(dir), sys.κs[idx])
+@inline function dipolarspin(sys::System{0}, site, dir)
+    s = normalize_dipole(Vec3(dir), sys.κs[site])
     Z = CVec{0}()
     return SpinState(s, Z)
 end
-@inline function dipolarspin(sys::System{N}, idx, dir) where N
-    Z = normalize_ket(ket_from_dipole(Vec3(dir), Val(N)), sys.κs[idx])
+@inline function dipolarspin(sys::System{N}, site, dir) where N
+    Z = normalize_ket(ket_from_dipole(Vec3(dir), Val(N)), sys.κs[site])
     s = expected_spin(Z)
     return SpinState(s, Z)
 end
 
 
 function randomize_spins!(sys::System{N}) where N
-    for idx in all_sites(sys)
-        setspin!(sys, randspin(sys, idx), idx)
+    for site in all_sites(sys)
+        setspin!(sys, randspin(sys, site), site)
     end
 end
 
 """
-    polarize_spin!(sys::System, dir, idx::Site)
+    polarize_spin!(sys::System, dir, site::Site)
 
 Polarize the spin at a [`Site`](@ref) along the direction `dir`.
 """
-function polarize_spin!(sys::System{N}, dir, idx) where N
-    idx = convert_idx(idx)
-    setspin!(sys, dipolarspin(sys, idx, dir), idx)
+function polarize_spin!(sys::System{N}, dir, site) where N
+    site = convert_idx(site)
+    setspin!(sys, dipolarspin(sys, site, dir), site)
 end
 
 """
@@ -299,8 +295,8 @@ end
 Polarize all spins in the system along the direction `dir`.
 """
 function polarize_spins!(sys::System{N}, dir) where N
-    for idx in all_sites(sys)
-        polarize_spin!(sys, dir, idx)
+    for site in all_sites(sys)
+        polarize_spin!(sys, dir, site)
     end
 end
 
@@ -433,12 +429,12 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
     end
 
     # Copy per-site quantities from `sys`
-    for new_idx in all_sites(new_sys)
-        idx = position_to_site(sys, position(new_sys, new_idx))
-        new_sys.κs[new_idx] = sys.κs[idx]
-        new_sys.extfield[new_idx] = sys.extfield[idx]
-        new_sys.dipoles[new_idx] = sys.dipoles[idx]
-        new_sys.coherents[new_idx] = sys.coherents[idx]
+    for new_site in all_sites(new_sys)
+        site = position_to_site(sys, position(new_sys, new_site))
+        new_sys.κs[new_site] = sys.κs[site]
+        new_sys.extfield[new_site] = sys.extfield[site]
+        new_sys.dipoles[new_site] = sys.dipoles[site]
+        new_sys.coherents[new_site] = sys.coherents[site]
     end
 
     # Enable dipole-dipole

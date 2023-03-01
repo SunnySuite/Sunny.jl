@@ -80,58 +80,58 @@ end
 Sets the external field `B` that couples to all spins.
 """
 function set_external_field!(sys::System, B)
-    for idx in all_sites(sys)
-        set_external_field_at!(sys, B, idx)
+    for site in all_sites(sys)
+        set_external_field_at!(sys, B, site)
     end
 end
 
 """
-    set_external_field_at!(sys::System, B::Vec3, idx::Site)
+    set_external_field_at!(sys::System, B::Vec3, site::Site)
 
 Sets a Zeeman coupling between a field `B` and a single spin. [`Site`](@ref)
 includes a unit cell and a sublattice index.
 """
-function set_external_field_at!(sys::System, B, idx)
-    idx = convert_idx(idx)
-    g = sys.gs[idx[4]]
-    sys.extfield[idx] = sys.units.μB * g' * Vec3(B)
+function set_external_field_at!(sys::System, B, site)
+    site = convert_idx(site)
+    g = sys.gs[site[4]]
+    sys.extfield[site] = sys.units.μB * g' * Vec3(B)
 end
 
 """
-    set_vacancy_at!(sys::System, idx::Site)
+    set_vacancy_at!(sys::System, site::Site)
 
 Make a single site nonmagnetic. [`Site`](@ref) includes a unit cell and a
 sublattice index.
 """
-function set_vacancy_at!(sys::System{N}, idx) where N
+function set_vacancy_at!(sys::System{N}, site) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
 
-    idx = convert_idx(idx)
-    sys.κs[idx] = 0.0
-    sys.dipoles[idx] = zero(Vec3)
-    sys.coherents[idx] = zero(CVec{N})
+    site = convert_idx(site)
+    sys.κs[site] = 0.0
+    sys.dipoles[site] = zero(Vec3)
+    sys.coherents[site] = zero(CVec{N})
 end
 
 
-function local_energy_change(sys::System{N}, idx, state::SpinState) where N
+function local_energy_change(sys::System{N}, site, state::SpinState) where N
     (; s, Z) = state
     (; latsize, extfield, dipoles, coherents, ewald) = sys
 
     if is_homogeneous(sys)
-        (; aniso, heisen, exchange, biquad) = interactions_homog(sys)[idx[4]]
+        (; aniso, heisen, exchange, biquad) = interactions_homog(sys)[site[4]]
     else
-        (; aniso, heisen, exchange, biquad) = interactions_inhomog(sys)[idx]
+        (; aniso, heisen, exchange, biquad) = interactions_inhomog(sys)[site]
     end
 
-    s₀ = dipoles[idx]
-    Z₀ = coherents[idx]
+    s₀ = dipoles[site]
+    Z₀ = coherents[site]
     Δs = s - s₀
     ΔE = 0.0
 
-    cell, _ = splitidx(idx)
+    cell = to_cell(site)
 
     # Zeeman coupling to external field
-    ΔE -= extfield[idx] ⋅ Δs
+    ΔE -= extfield[site] ⋅ Δs
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
@@ -163,7 +163,7 @@ function local_energy_change(sys::System{N}, idx, state::SpinState) where N
 
     # Long-range dipole-dipole
     if !isnothing(ewald)
-        ΔE += energy_delta(dipoles, ewald, idx, s)
+        ΔE += energy_delta(dipoles, ewald, site, s)
     end
 
     return ΔE
@@ -181,8 +181,8 @@ function energy(sys::System{N}) where N
     E = 0.0
 
     # Zeeman coupling to external field
-    for idx in all_sites(sys)
-        E -= extfield[idx] ⋅ dipoles[idx]
+    for site in all_sites(sys)
+        E -= extfield[site] ⋅ dipoles[site]
     end
 
     # Anisotropies and exchange interactions
@@ -266,8 +266,8 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N})
     fill!(B, zero(Vec3))
 
     # Zeeman coupling
-    for idx in all_sites(sys)
-        B[idx] += extfield[idx]
+    for site in all_sites(sys)
+        B[site] += extfield[site]
     end
 
     # Anisotropies and exchange interactions
