@@ -6,7 +6,8 @@
 <p>
 
 <!-- [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://sunnysuite.github.io/Sunny.jl/stable) -->
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
+[![Build Status](https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
 A package for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipolar spin components. In the latter case, Sunny resolves the local quantum structure of individual spins, making it particularly suited for modeling magnetic compounds with strong single-ion anisotropy, e.g., due to crystal field splitting.
 
