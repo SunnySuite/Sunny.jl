@@ -213,8 +213,8 @@ function set_biquadratic_at!(sys::System{N}, J, bond::Bond, site) where N
 
     # If system has been reshaped, then we need to transform bond to new
     # indexing system.
-    bond = transform_bond(sys.crystal, site[4], orig_crystal(sys), bond)
-    bond.i == site[4] || error("Atom index `bond.i` is inconsistent with sublattice of `site`.")
+    bond = transform_bond(sys.crystal, to_atom(site), orig_crystal(sys), bond)
+    bond.i == to_atom(site) || error("Atom index `bond.i` is inconsistent with sublattice of `site`.")
 
     site = to_cartesian(site)
     site′ = bonded_site(sys, site, bond)
@@ -245,8 +245,8 @@ function set_exchange_at!(sys::System{N}, J, bond::Bond, site) where N
 
     # If system has been reshaped, then we need to transform bond to new
     # indexing system.
-    bond = transform_bond(sys.crystal, site[4], orig_crystal(sys), bond)
-    bond.i == site[4] || error("Atom index `bond.i` is inconsistent with sublattice of `site`.")
+    bond = transform_bond(sys.crystal, to_atom(site), orig_crystal(sys), bond)
+    bond.i == to_atom(site) || error("Atom index `bond.i` is inconsistent with sublattice of `site`.")
 
     site = to_cartesian(site)
     site′ = bonded_site(sys, site, bond)
