@@ -121,9 +121,9 @@
 
     lat_vecs = lattice_vectors(13.261, 7.718, 6.278, 90.0, 90.0, 90.0);
     types = ["Yb1","Yb2"];
-    basis_vecs = [[0,0,0], [0.266,0.25,0.02]]; # Locations of atoms as multiples of lattice vectors
+    positions = [[0,0,0], [0.266,0.25,0.02]]; # Locations of atoms as multiples of lattice vectors
     capt = IOCapture.capture() do
-        Crystal(lat_vecs, basis_vecs, 62; types, symprec=1e-4)
+        Crystal(lat_vecs, positions, 62; types, symprec=1e-4)
     end
     @test capt.output == """
         The spacegroup '62' allows for multiple settings!
@@ -139,7 +139,7 @@
         
         """
     @test length(capt.value) == 6
-    cryst = Crystal(lat_vecs, basis_vecs,62; types, symprec=1e-4, setting="-cba")
+    cryst = Crystal(lat_vecs, positions, 62; types, symprec=1e-4, setting="-cba")
     @test count(==(1), cryst.classes) == 4
     @test count(==(2), cryst.classes) == 4    
 end

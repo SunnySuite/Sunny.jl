@@ -520,7 +520,7 @@ function print_wrapped_intensities(sys::System{N}; nmax=10) where N
     cell_dims = (2,3,4)
     sk = FFTW.fft(s, cell_dims) / √V
     Sk = real.(conj.(sk) .* sk)
-    dims = (1,5) # sum over spin index and basis index
+    dims = (1,5) # sum over spin index and atom (sublattice) index
     # In Julia 1.9 this becomes: sum(eachslice(dat; dims)))
     Sk = dropdims(sum(Sk; dims); dims)
     @assert sum(Sk) ≈ norm(sys.dipoles)^2
