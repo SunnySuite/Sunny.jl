@@ -92,8 +92,8 @@ Sets a Zeeman coupling between a field `B` and a single spin. [`Site`](@ref)
 includes a unit cell and a sublattice index.
 """
 function set_external_field_at!(sys::System, B, site)
-    site = convert_idx(site)
-    g = sys.gs[site[4]]
+    site = to_cartesian(site)
+    g = sys.gs[to_atom(site)]
     sys.extfield[site] = sys.units.μB * g' * Vec3(B)
 end
 
@@ -106,7 +106,7 @@ sublattice index.
 function set_vacancy_at!(sys::System{N}, site) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
 
-    site = convert_idx(site)
+    site = to_cartesian(site)
     sys.κs[site] = 0.0
     sys.dipoles[site] = zero(Vec3)
     sys.coherents[site] = zero(CVec{N})

@@ -134,10 +134,8 @@ vectors.
 """
 const Site = NTuple{4, Int}
 
-@inline convert_idx(site::CartesianIndex{4})           = site
-@inline convert_idx(site::NTuple{4, Int})              = CartesianIndex(site)
-@inline convert_idx(c::CartesianIndex{3}, i::Int)      = CartesianIndex(c[1], c[2], c[3], i)
-@inline convert_idx(c1::Int, c2::Int, c3::Int, i::Int) = CartesianIndex(c1, c2, c3, i)
+@inline to_cartesian(i::CartesianIndex{N}) where N = i
+@inline to_cartesian(i::NTuple{N, Int})    where N = CartesianIndex(i)
 
 # kbtodo: offsetcell ?
 # Offset a `cell` by `ncells`
@@ -218,7 +216,7 @@ function position_to_site(sys::System, r)
     new_r = sys.crystal.lat_vecs \ orig_crystal(sys).lat_vecs * r
     b, offset = position_to_index_and_offset(sys.crystal, new_r)
     cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
-    return convert_idx(cell..., b)
+    return to_cartesian((cell..., b))
 end
 
 
@@ -285,7 +283,7 @@ end
 Polarize the spin at a [`Site`](@ref) along the direction `dir`.
 """
 function polarize_spin!(sys::System{N}, dir, site) where N
-    site = convert_idx(site)
+    site = to_cartesian(site)
     setspin!(sys, dipolarspin(sys, site, dir), site)
 end
 

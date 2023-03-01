@@ -95,7 +95,7 @@ See also [`set_anisotropy!`](@ref).
 function set_anisotropy_at!(sys::System{N}, op::DP.AbstractPolynomialLike, site) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
-    site = convert_idx(site)
+    site = to_cartesian(site)
     ints[site].aniso = SingleIonAnisotropy(op; N)
 end
 
