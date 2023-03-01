@@ -226,9 +226,9 @@ end
 """
     lorentzian(x, η) 
 
-Returns ``η^2/(x^2 + η^2)``.
+Returns ``η/(π(x^2 + η^2))``.
 """
-lorentzian(x, η) = η^2/(x^2 + η^2)
+lorentzian(x, η) = η/(π*(x^2 + η^2))
 
 """
     broaden_energy(sf::StructureFactor, vals, kernel::Function; negative_energies=false)

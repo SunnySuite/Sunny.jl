@@ -64,11 +64,10 @@ plotparams = (;
     xticklabelrotation=π/10,
     xticklabelsize=14,
 )
-colorrange = (0,0.5)
 ax1 = Axis(fig[1,1]; title="No artificial broadening", plotparams...)
-heatmap!(ax1, 1:size(is, 1), ωs(sf), is; colorrange)
+heatmap!(ax1, 1:size(is, 1), ωs(sf), is; colorrange=(0,0.5))
 ax2 = Axis(fig[1,2]; title="Lorentzian broadening (η=0.1)", plotparams...)
-heatmap!(ax2, 1:size(is, 1), ωs(sf), is_broad; colorrange)
+heatmap!(ax2, 1:size(is, 1), ωs(sf), is_broad; colorrange=(0,2.0))
 fig
 
 # We next write a simple powder averaging function that takes a structure
@@ -102,9 +101,9 @@ end;
 
 # Finally, we perform the calculation,
 
-rs = range(0, 3.5, length=50)  # Set of radius values
-η = 0.05                       # Lorentzian broadening parameter
-density = 4.0                  # Number of samples in Å⁻²
+rs = range(0, 6π, length=55)  # Set of radius values
+η = 0.05                      # Lorentzian broadening parameter
+density = 0.15                # Number of samples in Å⁻²
 
 pa = powder_average(sf, rs, density; η, kT);
 
@@ -112,7 +111,7 @@ pa = powder_average(sf, rs, density; η, kT);
 
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel = "|Q| (Å⁻¹)", ylabel = "ω (meV)")
-heatmap!(ax, rs, ωs(sf), pa; colorrange=(0,5.0))
+heatmap!(ax, rs, ωs(sf), pa; colorrange=(0, 25.0))
 fig
 
 # Note that the bandwidth is similar to what we saw above along the high
