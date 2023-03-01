@@ -96,8 +96,8 @@ end
 
     a = b = 4.05012
     c = 6.75214
-    lat_vecs = lattice_vectors(a, b, c, 90, 90, 120)
-    cryst = Crystal(lat_vecs, [[0,0,0]], 164)
+    latvecs = lattice_vectors(a, b, c, 90, 90, 120)
+    cryst = Crystal(latvecs, [[0,0,0]], 164)
     sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN, seed=0)
 
     J1pm   = -0.236 

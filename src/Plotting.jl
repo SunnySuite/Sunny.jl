@@ -202,7 +202,7 @@ end
 
 "Plot the outlines of the unit cells of a lattice"
 function plot_cells!(ax, sys::System; color=:grey, linewidth=1.0, kwargs...)
-    lattice(i, j, k) = sys.crystal.lat_vecs * Vec3(i, j, k)
+    lattice(i, j, k) = sys.crystal.latvecs * Vec3(i, j, k)
 
     pts = Vector{GLMakie.Point3f0}()
     nx, ny, nz = lattice.size
@@ -232,7 +232,7 @@ end
 
 
 function spin_vector_origins(sys::System, arrowlength)
-    center = (sys.crystal.lat_vecs * Vec3(sys.latsize)) / 2
+    center = (sys.crystal.latvecs * Vec3(sys.latsize)) / 2
     return [global_position(sys,site) - sys.dipoles[site]*(arrowlength/2) - center for site in all_sites(sys)]
 end
 

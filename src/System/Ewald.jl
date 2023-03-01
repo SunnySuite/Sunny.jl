@@ -44,7 +44,7 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
     A = zeros(Mat3, latsize..., na, na)
 
     # Superlattice vectors that describe periodicity of system and their inverse
-    supervecs = cryst.lat_vecs .* Vec3(latsize)'
+    supervecs = cryst.latvecs .* Vec3(latsize)'
     recipvecs = 2π * inv(supervecs)
     # Split into individual vectors
     supervecs = collect(eachcol(supervecs))
@@ -75,7 +75,7 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
     for cell in CartesianIndices(latsize), j in 1:na, i in 1:na
         acc = zero(Mat3)
         cell_offset = Vec3(cell[1]-1, cell[2]-1, cell[3]-1)
-        Δr = cryst.lat_vecs * (cell_offset + cryst.positions[j] - cryst.positions[i])
+        Δr = cryst.latvecs * (cell_offset + cryst.positions[j] - cryst.positions[i])
         
         #####################################################
         ## Real space part

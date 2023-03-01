@@ -39,7 +39,7 @@ end
 # The displacement vector ``𝐫_j - 𝐫_i`` in global coordinates between atoms
 # `b.i` and `b.j`, accounting for the integer offsets `b.n` between unit cells.
 function displacement(cryst::Crystal, b::BondRaw)
-    return cryst.lat_vecs * (b.rj - b.ri)
+    return cryst.latvecs * (b.rj - b.ri)
 end
 
 function displacement(cryst::Crystal, b::Bond)

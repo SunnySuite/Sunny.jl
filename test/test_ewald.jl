@@ -4,7 +4,7 @@
 
     function ewalder_energy(sys::System{N}) where N
         # super-lattice vectors
-        latvecs = eachcol(sys.crystal.lat_vecs) .* sys.latsize
+        latvecs = eachcol(sys.crystal.latvecs) .* sys.latsize
         # positions in global coordinates
         pos = [global_position(sys, site) for site in all_sites(sys)][:]
         # magnetic moments

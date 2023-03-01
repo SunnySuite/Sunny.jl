@@ -168,7 +168,7 @@ function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bo
 
     # Positions in new fractional coordinates
     br = BondRaw(cryst, bond)
-    new_rj = new_ri + new_cryst.lat_vecs \ cryst.lat_vecs * (br.rj - br.ri)
+    new_rj = new_ri + new_cryst.latvecs \ cryst.latvecs * (br.rj - br.ri)
 
     # Construct bond using new indexing system
     new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)

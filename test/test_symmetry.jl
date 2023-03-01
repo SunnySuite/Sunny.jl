@@ -1,37 +1,37 @@
 @testitem "Crystal Construction" begin
     include("shared.jl")
 
-    cell_type(cryst::Crystal) = Sunny.cell_type(cryst.lat_vecs)
-    lattice_params(cryst::Crystal) = Sunny.lattice_params(cryst.lat_vecs)
+    cell_type(cryst::Crystal) = Sunny.cell_type(cryst.latvecs)
+    lattice_params(cryst::Crystal) = Sunny.lattice_params(cryst.latvecs)
 
     ### Test construction of diamond lattice
 
     # Spglib inferred symmetry
-    lat_vecs = [1 1 0; 0 1 1; 1 0 1]' / 2
+    latvecs = [1 1 0; 0 1 1; 1 0 1]' / 2
     positions = [[1, 1, 1], [-1, -1, -1]] / 8
-    cryst = Crystal(lat_vecs, positions)
+    cryst = Crystal(latvecs, positions)
     ref_bonds = reference_bonds(cryst, 2.)
     dist1 = [Sunny.distance(cryst, b) for b in ref_bonds]
 
     # Using explicit symops
-    lat_vecs = Sunny.Mat3(lat_vecs)
+    latvecs = Sunny.Mat3(latvecs)
     positions = [Sunny.Vec3(1, 1, 1) / 8]
     types = [""]
-    cryst = Sunny.crystal_from_symops(lat_vecs, positions, types, cryst.symops, cryst.spacegroup)
+    cryst = Sunny.crystal_from_symops(latvecs, positions, types, cryst.symops, cryst.spacegroup)
     ref_bonds = reference_bonds(cryst, 2.)
     dist2 = [Sunny.distance(cryst, b) for b in ref_bonds]
 
     # Using Hall number
-    lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
     positions = [Sunny.Vec3(1, 1, 1) / 4]
-    cryst = Sunny.crystal_from_hall_number(lat_vecs, positions, types, 525)
+    cryst = Sunny.crystal_from_hall_number(latvecs, positions, types, 525)
     ref_bonds = reference_bonds(cryst, 2.)
     dist3 = [Sunny.distance(cryst, b) for b in ref_bonds]
 
     # Using international symbol
     positions = [[1, 1, 1] / 4]
-    # cryst = Crystal(lat_vecs, positions, "F d -3 m") # Ambiguous!
-    cryst = Crystal(lat_vecs, positions, "F d -3 m"; setting="1")
+    # cryst = Crystal(latvecs, positions, "F d -3 m") # Ambiguous!
+    cryst = Crystal(latvecs, positions, "F d -3 m"; setting="1")
     ref_bonds = reference_bonds(cryst, 2.)
     dist4 = [Sunny.distance(cryst, b) for b in ref_bonds]
 
@@ -41,13 +41,13 @@
 
     ### FCC lattice, primitive vs. standard unit cell
 
-    lat_vecs = [1 1 0; 0 1 1; 1 0 1]' / 2
+    latvecs = [1 1 0; 0 1 1; 1 0 1]' / 2
     positions = [[0, 0, 0]]
-    cryst = Crystal(lat_vecs, positions)
+    cryst = Crystal(latvecs, positions)
 
-    lat_vecs = [1 0 0; 0 1 0; 0 0 1]'
+    latvecs = [1 0 0; 0 1 0; 0 0 1]'
     positions = [[0, 0, 0], [0.5, 0.5, 0], [0.5, 0, 0.5], [0, 0.5, 0.5]]
-    cryst′ = Crystal(lat_vecs, positions)
+    cryst′ = Crystal(latvecs, positions)
 
     @test cryst.sitesyms[1] == cryst′.sitesyms[1]
 
@@ -63,9 +63,9 @@
     ### Triangular lattice, primitive unit cell
 
     c = 10
-    lat_vecs = [1 0 0;  -1/2 √3/2 0;  0 0 c]'
+    latvecs = [1 0 0;  -1/2 √3/2 0;  0 0 c]'
     positions = [[0, 0, 0]]
-    cryst = Crystal(lat_vecs, positions)
+    cryst = Crystal(latvecs, positions)
     @test cell_type(cryst) == Sunny.hexagonal
     @test Sunny.natoms(cryst) == 1
     @test Sunny.cell_volume(cryst) ≈ c * √3 / 2 
@@ -73,9 +73,9 @@
 
     ### Kagome lattice
 
-    lat_vecs = [1 0 0;  -1/2 √3/2 0;  0 0 c]'
+    latvecs = [1 0 0;  -1/2 √3/2 0;  0 0 c]'
     positions = [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0]]
-    cryst = Crystal(lat_vecs, positions)
+    cryst = Crystal(latvecs, positions)
     @test cell_type(cryst) == Sunny.hexagonal
     @test Sunny.natoms(cryst) == 3
     @test Sunny.cell_volume(cryst) ≈ c * √3 / 2 
@@ -85,10 +85,10 @@
     ### Arbitrary monoclinic
 
     mono_lat_params = (6, 7, 8, 90, 90, 40)
-    lat_vecs = lattice_vectors(mono_lat_params...)
+    latvecs = lattice_vectors(mono_lat_params...)
     positions = [[0,0,0]]
-    # cryst = Crystal(lat_vecs, positions, "C 2/c")
-    cryst = Crystal(lat_vecs, positions, "C 2/c", setting="c1")
+    # cryst = Crystal(latvecs, positions, "C 2/c")
+    cryst = Crystal(latvecs, positions, "C 2/c", setting="c1")
     @test cell_type(cryst) == Sunny.monoclinic
     @test Sunny.natoms(cryst) == 4
     @test all(lattice_params(cryst) .≈ mono_lat_params)
@@ -96,34 +96,34 @@
 
     ### Arbitrary trigonal
 
-    lat_vecs = lattice_vectors(5, 5, 6, 90, 90, 120)
+    latvecs = lattice_vectors(5, 5, 6, 90, 90, 120)
     positions = [[0,0,0]]
-    cryst1 = Crystal(lat_vecs, positions, "P -3")
+    cryst1 = Crystal(latvecs, positions, "P -3")
     @test Sunny.natoms(cryst1) == 1
     @test cell_type(cryst1) == Sunny.hexagonal
-    cryst2 = Crystal(lat_vecs, positions, "R -3")
+    cryst2 = Crystal(latvecs, positions, "R -3")
     @test Sunny.natoms(cryst2) == 3
-    cryst3 = Crystal(lat_vecs, positions, 147) # spacegroup number
+    cryst3 = Crystal(latvecs, positions, 147) # spacegroup number
     @test cell_type(cryst1) == cell_type(cryst2) == cell_type(cryst3) == Sunny.hexagonal
 
 
     ### Arbitrary triclinic
 
-    lat_vecs = lattice_vectors(6, 7, 8, 70, 80, 90)
+    latvecs = lattice_vectors(6, 7, 8, 70, 80, 90)
     positions = [[0,0,0]]
-    cryst1 = Crystal(lat_vecs, positions, "P 1")
+    cryst1 = Crystal(latvecs, positions, "P 1")
     @test Sunny.natoms(cryst1) == 1
-    cryst2 = Crystal(lat_vecs, positions) # Infers 'P -1'
+    cryst2 = Crystal(latvecs, positions) # Infers 'P -1'
     @test Sunny.natoms(cryst1) == Sunny.natoms(cryst2) == 1
     @test cell_type(cryst1) == cell_type(cryst2) == Sunny.triclinic
 
     ### Orthorhombic test, found by Ovi Garlea
 
-    lat_vecs = lattice_vectors(13.261, 7.718, 6.278, 90.0, 90.0, 90.0);
+    latvecs = lattice_vectors(13.261, 7.718, 6.278, 90.0, 90.0, 90.0);
     types = ["Yb1","Yb2"];
     positions = [[0,0,0], [0.266,0.25,0.02]]; # Locations of atoms as multiples of lattice vectors
     capt = IOCapture.capture() do
-        Crystal(lat_vecs, positions, 62; types, symprec=1e-4)
+        Crystal(latvecs, positions, 62; types, symprec=1e-4)
     end
     @test capt.output == """
         The spacegroup '62' allows for multiple settings!
@@ -139,7 +139,7 @@
         
         """
     @test length(capt.value) == 6
-    cryst = Crystal(lat_vecs, positions, 62; types, symprec=1e-4, setting="-cba")
+    cryst = Crystal(latvecs, positions, 62; types, symprec=1e-4, setting="-cba")
     @test count(==(1), cryst.classes) == 4
     @test count(==(2), cryst.classes) == 4    
 end
@@ -367,8 +367,8 @@ end
         Λ′ = rotate_operator(Λ, R)
         @test Sunny.is_anisotropy_valid(cryst, i, Λ′)
 
-        lat_vecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
-        cryst = Crystal(lat_vecs, [[0., 0., 0.]])
+        latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
+        cryst = Crystal(latvecs, [[0., 0., 0.]])
         # print_site(cryst, i)
         Λ = randn()*(𝒪[6,0]-21𝒪[6,4]) + randn()*(𝒪[6,2]+(16/5)*𝒪[6,4]+(11/5)*𝒪[6,6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)

@@ -111,7 +111,7 @@ function map_form_factors_to_crystal(sf::StructureFactor, ffs::Vector{FormFactor
     ffs_new = []
     for ff in ffs
         old_ri = origin_crystal.positions[ff.atom]  
-        ri = crystal.lat_vecs \ origin_crystal.lat_vecs * old_ri
+        ri = crystal.latvecs \ origin_crystal.latvecs * old_ri
         atom_new = position_to_index(crystal, ri)
 
         (; J0_params, J2_params, g_lande) = ff

@@ -16,9 +16,9 @@
 
     # Eliminate all spacegroup symmetries
     function asymmetric_crystal()
-        lat_vecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+        latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
         positions = [[0,0,0]]
-        Crystal(lat_vecs, positions, 1)
+        Crystal(latvecs, positions, 1)
     end
 
 
@@ -168,8 +168,8 @@ end
 
     # Generates a two-site spin chain spin system
     function two_site_spin_chain(; mode, seed)
-        lat_vecs = lattice_vectors(1,1,1,90,90,90)
-        cryst = Crystal(lat_vecs, [[0,0,0]])
+        latvecs = lattice_vectors(1,1,1,90,90,90)
+        cryst = Crystal(latvecs, [[0,0,0]])
         
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1

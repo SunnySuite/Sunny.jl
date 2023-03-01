@@ -122,7 +122,7 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     # (dimensionless error tolerance is measured relative to the minimum lattice
     # constant ℓ)
     if b1 != b2
-        ℓ = minimum(norm, eachcol(cryst.lat_vecs))
+        ℓ = minimum(norm, eachcol(cryst.latvecs))
         d1 = distance(cryst, b1) / ℓ
         d2 = distance(cryst, b2) / ℓ
         if abs(d1-d2) > cryst.symprec
@@ -155,17 +155,17 @@ end
 # Returns all bonds in `cryst` for which `bond.i == i`
 function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
     # be a little generous with the minimum and maximum distances
-    ℓ = minimum(norm, eachcol(cryst.lat_vecs))
+    ℓ = minimum(norm, eachcol(cryst.latvecs))
     max_dist += 4 * cryst.symprec * ℓ
     min_dist -= 4 * cryst.symprec * ℓ
 
     # columns are the reciprocal vectors
-    recip_vecs = 2π * inv(cryst.lat_vecs)'
+    recip_vecs = 2π * inv(cryst.latvecs)'
 
     # box_lengths[i] represents the perpendicular distance between two parallel
     # boundary planes spanned by lattice vectors a_j and a_k (where indices j
     # and k differ from i)
-    box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(cryst.lat_vecs), eachcol(recip_vecs))]
+    box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(cryst.latvecs), eachcol(recip_vecs))]
     n_max = round.(Int, max_dist ./ box_lengths, RoundUp)
 
     bonds = Bond[]
