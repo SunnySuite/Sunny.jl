@@ -49,11 +49,15 @@ ImplicitMidpoint(Δt; atol=1e-12) = ImplicitMidpoint(Δt, atol)
 @inline rhs_dipole(s, B, λ) = -s × (B + λ * (s × B))
 
 """
-    step!(sys::System, integrator)
+    step!(sys::System, dynamics)
 
-Advance the spin dynamics one integration time-step. The `integrator` may be of
-type [`Langevin`](@ref) or [`ImplicitMidpoint`](@ref).
+Advance the spin configuration one dynamical time-step. The `dynamics` object
+may be a continuous spin dynamics, such as [`Langevin`](@ref) or
+[`ImplicitMidpoint`](@ref), or it may be a discrete Monte Carlo sampling scheme
+such as [`LocalSampler`](@ref).
 """
+function step! end
+
 function step!(sys::System{0}, integrator::Langevin)
     (B, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
     (; kT, λ, Δt) = integrator

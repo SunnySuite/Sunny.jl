@@ -1,6 +1,7 @@
 # Version 0.4.2
 
-Initial support for [`LocalSampler`](@ref).
+Introduce [`LocalSampler`](@ref), a framework for MCMC sampling with local spin
+updates.
 
 Rename `print_dominant_wavevectors` to [`print_wrapped_intensities`](@ref) to
 reduce confusion with the physical instantaneous intensities.
@@ -11,8 +12,7 @@ New exported functions [`global_position`](@ref), [`magnetic_moment`](@ref), [`a
 
 Remove all uses of
 [`Base.deepcopy`](https://docs.julialang.org/en/v1/base/base/#Base.deepcopy)
-which presumably led to [memory unsafety and
-segfaults](https://github.com/SunnySuite/Sunny.jl/issues/65).
+which [resolves crashes](https://github.com/SunnySuite/Sunny.jl/issues/65).
 
 # Version 0.4.1
 

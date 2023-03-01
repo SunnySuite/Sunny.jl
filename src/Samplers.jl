@@ -14,16 +14,19 @@ end
 """
     propose_uniform
 
-Function to propose a uniformly random spin update. For use with
-[`LocalSampler`](@ref).
+Function to propose a uniformly random spin update in the context of a
+[`LocalSampler`](@ref). In `:dipole` mode, the result is a random three-vector
+with appropriate normalization. In `:SUN` mode, the result is a random SU(_N_)
+coherent state with appropriate normalization.
 """
 const propose_uniform = randspin
 
 """
     propose_flip
 
-Function to propose Ising spin flip updates. For use with
-[`LocalSampler`](@ref).
+Function to propose pure spin flip updates in the context of a
+[`LocalSampler`](@ref). Dipoles are flipped as ``𝐬 → -𝐬``. SU(_N_) coherent
+states are flipped using the time-reversal operator.
 """
 propose_flip(sys::System{N}, idx) where N = flip(getspin(sys, idx))
 
@@ -31,8 +34,20 @@ propose_flip(sys::System{N}, idx) where N = flip(getspin(sys, idx))
     propose_delta(magnitude)
 
 Generate a proposal function that adds a Gaussian perturbation to the existing
-spin. The `magnitude` is typically order one or smaller. For use with
-[`LocalSampler`](@ref).
+spin state. In `:dipole` mode, the procedure is to first introduce a random
+three-vector perturbation ``𝐬′ = 𝐬 + |𝐬| ξ`` and then return the properly
+normalized spin ``|𝐬| (𝐬′/|𝐬′|)``. Each component of the random vector ``ξ``
+is Gaussian distributed with a standard deviation of `magnitude`; the latter is
+dimensionless and typically smaller than one. 
+
+In `:SUN` mode, the procedure is analogous, but now involving Gaussian
+perturbations to each of the ``N`` complex components of an SU(_N_) coherent
+state.
+
+In the limit of very large `magnitude`, this function coincides with
+[`propose_uniform`](@ref).
+
+For use with [`LocalSampler`](@ref).
 """
 function propose_delta(magnitude)
     function ret(sys::System{N}, idx) where N

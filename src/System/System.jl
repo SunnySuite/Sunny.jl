@@ -283,13 +283,23 @@ function randomize_spins!(sys::System{N}) where N
     end
 end
 
+"""
+    polarize_spin!(sys::System, dir, idx::Site)
+
+Polarize the spin at a [`Site`](@ref) along the direction `dir`.
+"""
 function polarize_spin!(sys::System{N}, dir, idx) where N
     idx = convert_idx(idx)
     setspin!(sys, dipolarspin(sys, idx, dir), idx)
 end
 
+"""
+    polarize_spins!(sys::System, dir)
+
+Polarize all spins in the system along the direction `dir`.
+"""
 function polarize_spins!(sys::System{N}, dir) where N
-    for idx = all_sites(sys)
+    for idx in all_sites(sys)
         polarize_spin!(sys, dir, idx)
     end
 end
