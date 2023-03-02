@@ -28,6 +28,11 @@ const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 const CVec{N} = SVector{N, ComplexF64}
 
+include("Operators/Spin.jl")
+include("Operators/Rotation.jl")
+include("Operators/Stevens.jl")
+include("Operators/Symbolic.jl")
+export 𝒪, 𝒮, rotate_operator, print_anisotropy_as_stevens, print_anisotropy_as_classical_spins
 
 include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
@@ -35,17 +40,15 @@ include("Symmetry/Crystal.jl")
 include("Symmetry/Bond.jl")
 include("Symmetry/SymmetryAnalysis.jl")
 include("Symmetry/AllowedCouplings.jl")
-include("Symmetry/LocalOperators.jl")
-include("Symmetry/Anisotropy.jl")
+include("Symmetry/AllowedAnisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
-export Crystal, subcrystal, lattice_vectors, lattice_params, Bond, 𝒪, 𝒮, rotate_operator,
+export Crystal, subcrystal, lattice_vectors, lattice_params, Bond, 
     reference_bonds, print_site, print_bond, print_symmetry_table,
-    print_suggested_frame, print_anisotropy_as_stevens, print_anisotropy_as_classical_spins
+    print_suggested_frame
     # natoms, cell_volume, cell_type, coordination_number, displacement, distance,
     # all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom,
-    # all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom,
-    # all_symmetry_related_anisotropies,
+    # all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom
 
 include("Units.jl")
 export meV_per_K, Units
@@ -53,8 +56,8 @@ export meV_per_K, Units
 include("System/SpinInfo.jl")
 include("System/Types.jl")
 include("System/System.jl")
-include("System/PairExchanges.jl")
-include("System/SingleIonAnisotropies.jl")
+include("System/PairExchange.jl")
+include("System/SingleIonAnisotropy.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, Site, position_to_site, global_position, magnetic_moment, all_sites,

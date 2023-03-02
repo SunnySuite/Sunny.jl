@@ -214,9 +214,9 @@ function position_to_site(sys::System, r)
     # convert to fractional coordinates of possibly reshaped crystal
     r = Vec3(r)
     new_r = sys.crystal.latvecs \ orig_crystal(sys).latvecs * r
-    b, offset = position_to_index_and_offset(sys.crystal, new_r)
+    i, offset = position_to_index_and_offset(sys.crystal, new_r)
     cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
-    return to_cartesian((cell..., b))
+    return to_cartesian((cell..., i))
 end
 
 

@@ -1,29 +1,46 @@
-function empty_anisotropy(N)
-    op = zero(𝒮[1])
-    matrep = zeros(ComplexF64, N, N)
-    clsrep = ClassicalStevensExpansion(
-        0.0,
-        zero(SVector{5, Float64}),
-        zero(SVector{9, Float64}),
-        zero(SVector{13, Float64}),
-    )
-    return SingleIonAnisotropy(op, matrep, clsrep)
+function SingleIonAnisotropy(sys, op, i)
+    if sys.mode ∈ (:dipole, :SUN)
+        matrep = operator_to_matrix(op; N=sys.Ns[i])
+        c = matrix_to_stevens_coefficients(matrep)
+    else
+        @assert sys.mode == :largeS
+        matrep = zeros(ComplexF64, 0, 0)
+        S = (sys.Ns[i]-1)/2
+        c = operator_to_classical_stevens_coefficients(op, S)
+    end
+    all(iszero.(c[[1,3,5]])) || error("Single-ion anisotropy must be time-reversal invariant.")
+    stvexp = StevensExpansion(c[2], c[4], c[6])
+    return SingleIonAnisotropy(matrep, stvexp)
 end
 
+function empty_anisotropy(N)
+    matrep = zeros(ComplexF64, N, N)
+    stvexp = StevensExpansion(zeros(5), zeros(9), zeros(13))
+    return SingleIonAnisotropy(matrep, stvexp)
+end
 
-function SingleIonAnisotropy(op; N)
-    matrep = operator_to_matrix(op; N)
+function Base.iszero(aniso::SingleIonAnisotropy)
+    return iszero(aniso.matrep) && iszero(aniso.stvexp.kmax)
+end
 
-    S = (N-1)/2
-    c = operator_to_classical_stevens_coefficients(op, S)
-    all(iszero.(c[[1,3,5]])) || error("Odd-ordered dipole anisotropies not supported.")
-    c2 = SVector{ 5}(c[2])
-    c4 = SVector{ 9}(c[4])
-    c6 = SVector{13}(c[6])
-    kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
-    clsrep = ClassicalStevensExpansion(kmax, c2, c4, c6)
+function rotate_operator(stevens::StevensExpansion, R)
+    return StevensExpansion(
+        rotate_stevens_coefficients(stevens.c2, R),
+        rotate_stevens_coefficients(stevens.c4, R),
+        rotate_stevens_coefficients(stevens.c6, R),
+    )
+end
 
-    return SingleIonAnisotropy(op, matrep, clsrep)
+function is_anisotropy_valid(cryst::Crystal, i::Int, op)
+    symops = symmetries_for_pointgroup_of_atom(cryst, i)
+    for s in symops
+        R = cryst.latvecs * s.R * inv(cryst.latvecs)
+        op′ = rotate_operator(op, det(R)*R)
+        if !(op′ ≈ op)
+            return false
+        end
+    end
+    return true
 end
 
 
@@ -65,20 +82,38 @@ function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) 
 
     iszero(op) && return 
 
-    (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
-
-    if !iszero(ints[i].aniso.op)
-        println("Warning: Overriding anisotropy for atom $i.")
-    end
-
     if !is_anisotropy_valid(sys.crystal, i, op)
         println("Symmetry-violating anisotropy: $op.")
         println("Use `print_site(crystal, $i)` for more information.")
         error("Invalid anisotropy.")
     end
 
-    for (b′, op′) in zip(all_symmetry_related_anisotropies(sys.crystal, i, op)...)
-        ints[b′].aniso = SingleIonAnisotropy(op′; N)
+    (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
+
+    if !iszero(ints[i].aniso)
+        println("Warning: Overriding anisotropy for atom $i.")
+    end
+
+    aniso = SingleIonAnisotropy(sys, op, i)
+
+    cryst = sys.crystal
+    for j in all_symmetry_related_atoms(cryst, i)
+        # Find some symop s that transforms i into j
+        s = first(symmetries_between_atoms(cryst, j, i))
+        
+        # R is orthogonal, and may include rotation and reflection
+        R = cryst.latvecs * s.R * inv(cryst.latvecs)
+
+        # Spins pseudovectors are invariant under reflection. That is, spins
+        # transform under the pure rotation matrix Q.
+        Q = det(R) * R
+
+        # In moving from site i to j, a spin S rotates to Q S. Transform the
+        # anisotropy operator using the inverse rotation Q' so that the energy
+        # remains invariant when applied to the transformed spins.
+        matrep′ = rotate_operator(aniso.matrep, Q')
+        stvexp′ = rotate_operator(aniso.stvexp, Q')
+        ints[j].aniso = SingleIonAnisotropy(matrep′, stvexp′)
     end
 end
 
@@ -96,13 +131,13 @@ function set_anisotropy_at!(sys::System{N}, op::DP.AbstractPolynomialLike, site)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
     site = to_cartesian(site)
-    ints[site].aniso = SingleIonAnisotropy(op; N)
+    ints[site].aniso = SingleIonAnisotropy(sys, op, to_atom(site))
 end
 
 
 # Evaluate a given linear combination of Stevens operators for classical spin s
-function energy_and_gradient_for_classical_anisotropy(s::Vec3, clsrep::ClassicalStevensExpansion)
-    (; kmax, c2, c4, c6) = clsrep
+function energy_and_gradient_for_classical_anisotropy(s::Vec3, stvexp::StevensExpansion)
+    (; kmax, c2, c4, c6) = stvexp
 
     E      = 0.0
     dE_dz  = 0.0
