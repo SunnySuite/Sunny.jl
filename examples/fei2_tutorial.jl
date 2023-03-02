@@ -320,7 +320,7 @@ ax = Axis(fig[1,1];
     xticklabelrotation=π/8,
     xticklabelsize=12,
 )
-heatmap!(ax, 1:size(is,1), ωs(sf), is; colorrange=(0.0, 0.7))
+heatmap!(ax, 1:size(is,1), ωs(sf), is; colorrange=(0.0, 2.5))
 fig
 
 # The existence of a lower-energy, single-ion bound state is in qualitative
