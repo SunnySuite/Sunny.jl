@@ -278,6 +278,25 @@ function randomize_spins!(sys::System{N}) where N
 end
 
 """
+    set_coherent_state!(sys::System, Z, site::Site)
+
+Set a coherent spin state at a [`Site`](@ref) using the ``N`` complex amplitudes
+in `Z`, to be interpreted in the eigenbasis of ``𝒮̂ᶻ``. That is, `Z[1]`
+represents the amplitude for the basis state fully polarized along the
+``ẑ``-direction, and subsequent components represent states with decreasing
+angular momentum along this axis (``m = S, S-1, …, -S``).
+"""
+function set_coherent_state!(sys::System{N}, Z, site) where N
+    length(Z) != N && error("Length of coherent state does not match system.")
+    iszero(N)      && error("Cannot set zero-length coherent state.")
+    site = to_cartesian(site)
+    Z = normalize_ket(CVec{N}(Z), sys.κs[to_atom(site)])
+    sys.coherents[site] = Z
+    sys.dipoles[site] = expected_spin(Z)
+end
+
+
+"""
     polarize_spin!(sys::System, dir, site::Site)
 
 Polarize the spin at a [`Site`](@ref) along the direction `dir`.
