@@ -1,4 +1,3 @@
-
 # It is convenient to present Stevens operators to the user in ascending order
 # for the index q = -k...k. Internally, however, the symbols must be stored in
 # descending order q = k...-k for consistency with the basis used for spin
@@ -58,161 +57,6 @@ define a single-ion anisotropy.
 const 𝒮 = spin_operator_symbols
 
 
-# Note that the Stevens operators 𝒪_q appear in descending order q = k,..-k.
-# This choice is necessary for consistency with the order of spherical tensors
-# T_q. By the Wigner-Eckhardt theorem, there are two equivalent ways of rotating
-# spherical tensors, U' T_q U = D*_qq′ T_q′, where D = exp(-i n⋅J), and J is a
-# spin operator in the spin-k representation. Observe that the standard
-# basis-convention for spin operators (eigenbasis of Jz, in descending order)
-# then determines the ordering of T_q and then 𝒪_q
-function stevens_abstract_polynomials(; J, k::Int)
-    k < 0  && error("Require k >= 0, received k=$k")
-    k > 6  && error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
-
-    Jx, Jy, Jz = J
-    I = one(Jx)
-    X = Jx^2 + Jy^2 + Jz^2
-    Jp = Jx + im*Jy
-    Jm = Jx - im*Jy
-
-    A = [
-        [(1/2)  *(Jp^m + Jm^m) for m=k:-1:1];
-        [I];
-        [(1/2im)*(Jp^m - Jm^m) for m=1:k]
-    ]
-
-    B = if k == 0
-        [I]
-    elseif k == 1
-        [Jz,
-        I]
-    elseif k == 2
-        [3Jz^2 - X,
-        Jz,
-        I]
-    elseif k == 3
-        [5Jz^3-(3X-I)*Jz,
-        5Jz^2-X-I/2,
-        Jz,
-        I]
-    elseif k == 4
-        [35Jz^4 - (30X-25I)*Jz^2 + (3X^2-6X),
-        7Jz^3 - (3X+I)*Jz,
-        7Jz^2 - (X+5I),
-        Jz,
-        I]
-    elseif k == 5
-        [63Jz^5 - (70X-105I)*Jz^3 + (15X^2-50X+12I)*Jz,
-        21Jz^4 - 14X*Jz^2 + (X^2-X+(3/2)*I),
-        3Jz^3 - (X+6I)*Jz,
-        9Jz^2 - (X+(33/2)*I),
-        Jz,
-        I]
-    elseif k == 6
-        [231Jz^6 - (315X-735I)Jz^4 + (105X^2-525X+294I)*Jz^2 - (5X^3-40X^2+60X),
-        33Jz^5 - (30X-15I)*Jz^3 + (5X^2-10X+12I)*Jz,
-        33Jz^4 - (18X+123I)Jz^2 + (X^2+10X+102I),
-        11Jz^3 - (3X+59I)*Jz,
-        11Jz^2 - (X+38I),
-        Jz,
-        I]
-    elseif k > 6
-        # In principle, it should be possible to programmatically generate an
-        # arbitrary polynomial using Eq. (23) of I. D. Ryabov, J. Magnetic
-        # Resonance 140, 141-145 (1999), https://doi.org/10.1006/jmre.1999.1783
-        error("Stevens operators for k > 6 are currently unsupported, received k=$k.")
-    else # k < 0
-        error("Stevens operators require k >= 0, received k=$k")
-    end
-    B = [reverse(B); B[2:end]]
-
-    𝒪 = [(a*b+b*a)/2 for (a,b) = zip(A,B)]
-    return 𝒪
-end
-
-
-# Construct spin operators, i.e. generators of su(2), of dimension N
-function spin_matrices(N::Int)
-    if N == 0
-        return fill(zeros(ComplexF64,0,0), 3)
-    end
-
-    S = (N-1)/2
-    j = 1:N-1
-    off = @. sqrt(2(S+1)*j - j*(j+1)) / 2
-
-    Sx = diagm(1 => off, -1 => off)
-    Sy = diagm(1 => -im*off, -1 => +im*off)
-    Sz = diagm(S .- (0:N-1))
-    return [Sx, Sy, Sz]
-end
-
-# Returns ⟨Z|Sᵅ|Z⟩
-@generated function expected_spin(Z::CVec{N}) where N
-    S = spin_matrices(N)
-    elems_x = SVector{N-1}(diag(S[1], 1))
-    elems_z = SVector{N}(diag(S[3], 0))
-    lo_ind = SVector{N-1}(1:N-1)
-    hi_ind = SVector{N-1}(2:N)
-
-    return quote
-        $(Expr(:meta, :inline))
-        c = Z[$lo_ind]' * ($elems_x .* Z[$hi_ind])
-        nx = 2real(c)
-        ny = 2imag(c)
-        nz = real(Z' * ($elems_z .* Z))
-        Vec3(nx, ny, nz)
-    end
-end
-
-# Find a ket (up to an irrelevant phase) that corresponds to a pure dipole.
-# TODO, we can do this faster by using the exponential map of spin operators,
-# expressed as a polynomial expansion,
-# http://www.emis.de/journals/SIGMA/2014/084/
-ket_from_dipole(_::Vec3, ::Val{0}) :: CVec{0} = zero(CVec{0})
-function ket_from_dipole(dip::Vec3, ::Val{N}) :: CVec{N} where N
-    S = spin_matrices(N) 
-    λs, vs = eigen(dip' * S)
-    return CVec{N}(vs[:, argmax(real.(λs))])
-end
-
-# Applies the time-reversal operator to the coherent spin state |Z⟩, which
-# effectively negates the expected spin dipole, ⟨Z|Sᵅ|Z⟩ → -⟨Z|Sᵅ|Z⟩.
-flip_ket(_::CVec{0}) = CVec{0}()
-function flip_ket(Z::CVec{N}) where N
-    # Per Sakurai (3rd ed.), eq. 4.176, the time reversal operator has the
-    # action T[Z] = exp(-i π Sʸ) conj(Z). In our selected basis, the operator
-    # exp(-i π Sʸ) can be implemented by flipping the sign of half the
-    # components and then reversing their order.
-    parity = SVector{N}(1-2mod(i,2) for i=0:N-1)
-    return reverse(parity .* conj(Z))
-end
-
-
-# Construct Stevens operators as polynomials in the spin operators.
-function stevens_matrices(k::Int; N::Int)
-    if k >= N
-        return fill(zeros(ComplexF64, N, N), 2k+1)
-    else
-        return stevens_abstract_polynomials(; J=spin_matrices(N), k)
-    end
-end
-
-
-# Construct Stevens operators in the classical limit, represented as polynomials
-# of spin expectation values
-function stevens_classical(k::Int)
-    𝒪s = stevens_abstract_polynomials(; J=spin_classical_symbols, k)
-    return map(𝒪s) do 𝒪
-        # In the large-S limit, only leading order terms contribute, yielding a
-        # homogeneous polynomial of degree k
-        𝒪 = sum(t for t in 𝒪 if DP.degree(t) == k)
-        # Remaining coefficients must be real integers; make this explicit
-        𝒪 = DP.mapcoefficients(x -> Int(x), 𝒪)
-        return 𝒪
-    end
-end
-
 # Construct explicit N-dimensional matrix representation of operator
 function operator_to_matrix(p::DP.AbstractPolynomialLike; N) 
     rep = p(
@@ -227,6 +71,23 @@ function operator_to_matrix(p::DP.AbstractPolynomialLike; N)
 end
 function operator_to_matrix(p::Number; N)
     return Matrix(p*I, N, N)
+end
+
+
+##### Conversion of spin polynomial to linear combination of 'Stevens functions' #####
+
+# Construct Stevens operators in the classical limit, represented as polynomials
+# of spin expectation values
+function stevens_classical(k::Int)
+    𝒪s = stevens_abstract_polynomials(; J=spin_classical_symbols, k)
+    return map(𝒪s) do 𝒪
+        # In the large-S limit, only leading order terms contribute, yielding a
+        # homogeneous polynomial of degree k
+        𝒪 = sum(t for t in 𝒪 if DP.degree(t) == k)
+        # Remaining coefficients must be real integers; make this explicit
+        𝒪 = DP.mapcoefficients(x -> Int(x), 𝒪)
+        return 𝒪
+    end
 end
 
 # Convert operator to polynomial in spin expectation values, where Stevens
@@ -305,6 +166,46 @@ function operator_to_classical_stevens_coefficients(p, S)
     end
 end
 
+function rotate_operator(P::DP.AbstractPolynomialLike, R)
+    R = convert(Mat3, R)
+
+    # The spin operator vector rotates two equivalent ways:
+    #  1. S_α -> U' S_α U
+    #  2. S_α -> R_αβ S_β
+    #
+    # where U = exp(-i θ n⋅S), for the axis-angle rotation (n, θ). Apply the
+    # latter to transform symbolic spin operators.
+    𝒮′ = R * 𝒮
+
+    # Spherical tensors T_q rotate two equivalent ways:
+    #  1. T_q -> U' T_q U       (with U = exp(-i θ n⋅S) in dimension N irrep)
+    #  2. T_q -> D*_{q,q′} T_q′ (with D = exp(-i θ n⋅S) in dimension 2k+1 irrep)
+    #
+    # The Stevens operators 𝒪_q are linearly related to T_q via 𝒪 = α T.
+    # Therefore rotation on Stevens operators is 𝒪 -> α conj(D) α⁻¹ 𝒪.
+    local 𝒪 = stevens_operator_symbols
+    𝒪′ = map(𝒪) do 𝒪ₖ
+        k = Int((length(𝒪ₖ)-1)/2)
+        D = unitary_for_rotation(R; N=2k+1)
+        R_stevens = stevens_α[k] * conj(D) * stevens_αinv[k]
+        @assert norm(imag(R_stevens)) < 1e-12
+        real(R_stevens) * 𝒪ₖ
+    end
+
+    # Spin squared as a scalar may be introduced through
+    # operator_to_classical_stevens()
+    X = spin_squared_symbol
+
+    # Perform substitutions
+    P′ = P(𝒮 => 𝒮′, [𝒪[k] => 𝒪′[k] for k=1:6]..., X => X)
+
+    # Remove terms very near zero
+    return DP.mapcoefficients(P′) do c
+        abs(c) < 1e-12 ? zero(c) : c
+    end
+end
+
+##### Printing of operators #####
 
 function pretty_print_operator(p::DP.AbstractPolynomialLike)
     terms = map(zip(DP.coefficients(p), DP.monomials(p))) do (c, m)
@@ -370,6 +271,7 @@ function print_anisotropy_as_stevens(p; N)
         # Stevens operators are zero when k >= N
         for k = 1:min(6, N-1)
             for (𝒪mat, 𝒪sym) = zip(stevens_matrices(k; N), stevens_operator_symbols[k])
+                # See also: `matrix_to_stevens_coefficients`
                 c = real(tr(𝒪mat'*Λ) / tr(𝒪mat'*𝒪mat))
                 if abs(c) > 1e-12
                     p′ += c*𝒪sym

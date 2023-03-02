@@ -135,8 +135,8 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
-        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, aniso.clsrep)
-        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, aniso.clsrep)
+        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, aniso.stvexp)
+        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, aniso.stvexp)
         ΔE += E_new - E_old
     else
         Λ = aniso.matrep
@@ -217,7 +217,7 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells) where N
     if N == 0       # Dipole mode
         for cell in cells
             s = dipoles[cell, i]
-            E += energy_and_gradient_for_classical_anisotropy(s, ints.aniso.clsrep)[1]
+            E += energy_and_gradient_for_classical_anisotropy(s, ints.aniso.stvexp)[1]
         end
     else            # SU(N) mode
         for cell in cells
@@ -298,7 +298,7 @@ function set_forces_aux!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ints::Inter
     if N == 0
         for cell in cells
             s = dipoles[cell, i]
-            B[cell, i] -= energy_and_gradient_for_classical_anisotropy(s, ints.aniso.clsrep)[2]
+            B[cell, i] -= energy_and_gradient_for_classical_anisotropy(s, ints.aniso.stvexp)[2]
         end
     end
 

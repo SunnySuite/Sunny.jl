@@ -4,7 +4,7 @@
 
     function make_system(; mode, inhomog)
         cryst = Sunny.diamond_crystal()
-        sys = System(cryst, (3, 3, 3), [SpinInfo(1, S=1)], mode; seed=0)
+        sys = System(cryst, (3, 3, 3), [SpinInfo(1, S=2)], mode; seed=0)
         add_linear_interactions!(sys, mode)
         add_quadratic_interactions!(sys, mode)
         add_quartic_interactions!(sys, mode)
@@ -37,7 +37,7 @@
     # Tests that SphericalMidpoint conserves energy to a certain tolerance.
     function test_conservation(sys)
         NITERS = 5_000
-        Δt     = 0.005
+        Δt     = 0.002
         energies = Float64[]
 
         integrator = ImplicitMidpoint(Δt)
@@ -50,7 +50,7 @@
         # independent of trajectory length
         sqrt_size = sqrt(length(sys.dipoles))
         ΔE = (maximum(energies) - minimum(energies)) / sqrt_size
-        @test ΔE < 1e-2
+        @test ΔE < 1e-3
     end
 
     test_conservation(make_system(; mode=:SUN, inhomog=false))

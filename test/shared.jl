@@ -10,9 +10,9 @@ using Random, LinearAlgebra, IOCapture
 
 function add_linear_interactions!(sys, mode)
     set_external_field!(sys, (0.0, 1.0, 1.0))
-    if mode==:SUN
+    if mode == :SUN
         # In SUN mode, anisotropy scales as ⟨Λ⟩ → κ ⟨Λ⟩.
-        set_anisotropy!(sys, 𝒮[1]^4+𝒮[2]^4+𝒮[3]^4, 1)
+        set_anisotropy!(sys, 0.2*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), 1)
     end
 end
 
@@ -34,7 +34,7 @@ function add_quadratic_interactions!(sys, mode)
 end
 
 function add_quartic_interactions!(sys, mode)
-    if mode!=:SUN
+    if mode == :dipole
         # In dipole mode, spins scale individually, S⁴ → κ⁴ S⁴
         set_anisotropy!(sys, 0.2*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), 1)
         set_biquadratic!(sys, 0.2, Bond(1, 3, [0, 0, 0]))
