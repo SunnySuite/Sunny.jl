@@ -39,8 +39,7 @@ include("Symmetry/LocalOperators.jl")
 include("Symmetry/Anisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
-export Crystal, subcrystal, lattice_vectors, lattice_params,
-    Bond, 𝒪, 𝒮, rotate_operator,
+export Crystal, subcrystal, lattice_vectors, lattice_params, Bond, 𝒪, 𝒮, rotate_operator,
     reference_bonds, print_site, print_bond, print_symmetry_table,
     print_suggested_frame, print_anisotropy_as_stevens, print_anisotropy_as_classical_spins
     # natoms, cell_volume, cell_type, coordination_number, displacement, distance,
@@ -58,12 +57,13 @@ include("System/PairExchanges.jl")
 include("System/SingleIonAnisotropies.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
-export SpinInfo, System, Site, position_to_site,
-    global_position, magnetic_moment, all_sites,
+export SpinInfo, System, Site, position_to_site, global_position, magnetic_moment, all_sites,
     polarize_spin!, polarize_spins!, randomize_spins!, energy, forces,
     set_external_field!, set_anisotropy!, set_exchange!, set_biquadratic!, dmvec, enable_dipole_dipole!,
-    to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_exchange_at!, set_biquadratic_at!, set_anisotropy_at!,
-    reshape_geometry, resize_periodically, repeat_periodically, 
+    to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_exchange_at!, set_biquadratic_at!, set_anisotropy_at!
+
+include("Reshaping.jl")
+export reshape_geometry, resize_periodically, repeat_periodically, 
     print_wrapped_intensities, suggest_magnetic_supercell
 
 include("Integrators.jl")
@@ -81,11 +81,9 @@ include("StructureFactors/BasisReduction.jl")
 include("StructureFactors/Interpolation.jl")
 include("StructureFactors/PowderAveraging.jl")
 include("StructureFactors/DataRetrieval.jl")
-export DynamicStructureFactor, InstantStructureFactor,
-    StructureFactor, FormFactor, 
-    add_sample!, intensities, instant_intensities,
-    broaden_energy, connected_path, spherical_shell, 
-    lorentzian, all_exact_wave_vectors, ωs
+export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFactor, 
+    add_sample!, intensities, instant_intensities, broaden_energy, lorentzian,
+    connected_path, all_exact_wave_vectors, ωs, spherical_shell
 
 # include("WangLandau/BinnedArray.jl")
 # include("WangLandau/WangLandau.jl")
