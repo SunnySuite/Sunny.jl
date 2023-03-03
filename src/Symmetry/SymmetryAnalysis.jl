@@ -22,6 +22,7 @@ function is_periodic_copy(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     return norm(n - D1) < cryst.symprec && norm(n - D2) < cryst.symprec
 end
 
+# kbtodo: position_to_atom
 function position_to_index(cryst::Crystal, r::Vec3)
     return findfirst(r′ -> is_periodic_copy(cryst, r, r′), cryst.positions)
 end
