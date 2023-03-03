@@ -73,6 +73,7 @@ Rotates the local quantum operator `A` according to the ``3×3`` rotation matrix
 `R`.
 """
 function rotate_operator(A::Matrix, R)
+    isempty(A) && return A
     R = convert(Mat3, R)
     N = size(A, 1)
     U = unitary_for_rotation(R; N)
