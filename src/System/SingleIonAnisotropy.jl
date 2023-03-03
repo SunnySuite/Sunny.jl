@@ -1,13 +1,21 @@
-function SingleIonAnisotropy(sys, op, i)
+function SingleIonAnisotropy(sys::System{N}, op, i) where N
     S = (sys.Ns[i]-1)/2
 
     if sys.mode ∈ (:dipole, :SUN)
-        matrep = operator_to_matrix(op; N=sys.Ns[i])
+        # Convert `op` to a traceless Hermitian matrix
+        Nᵢ = sys.Ns[i]
+        matrep = operator_to_matrix(op; N=Nᵢ)
+        matrep -= (tr(matrep)/Nᵢ)*I
+        if norm(matrep) < 1e-12
+            matrep = zero(matrep)
+        end
+        # Decompose into Stevens coefficients
         c = matrix_to_stevens_coefficients(matrep)
     else
         @assert sys.mode == :large_S
-        matrep = zeros(ComplexF64, 0, 0)
         c = operator_to_classical_stevens_coefficients(op, S)
+        # Here the true N is infinite, so we can't really build a matrep
+        matrep = zeros(ComplexF64, 0, 0)
     end
 
     all(iszero.(c[[1,3,5]])) || error("Single-ion anisotropy must be time-reversal invariant.")
