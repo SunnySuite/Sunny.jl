@@ -1,14 +1,24 @@
 function SingleIonAnisotropy(sys, op, i)
+    S = (sys.Ns[i]-1)/2
+
     if sys.mode ∈ (:dipole, :SUN)
         matrep = operator_to_matrix(op; N=sys.Ns[i])
         c = matrix_to_stevens_coefficients(matrep)
     else
-        @assert sys.mode == :largeS
+        @assert sys.mode == :large_S
         matrep = zeros(ComplexF64, 0, 0)
-        S = (sys.Ns[i]-1)/2
         c = operator_to_classical_stevens_coefficients(op, S)
     end
+
     all(iszero.(c[[1,3,5]])) || error("Single-ion anisotropy must be time-reversal invariant.")
+
+    # Apply renormalization factors
+    if sys.mode == :dipole
+        c[2] .*= (1 - (1/2)/S)
+        c[4] .*= (1 - 3/S + (11/4)/S^2 - (3/4)/S^3)
+        c[6] .*= (1 - (15/2)/S + (85/4)/S^2 - (225/8)/S^3 + (137/8)/S^4 - (15/4)/S^5)
+    end
+
     stvexp = StevensExpansion(c[2], c[4], c[6])
     return SingleIonAnisotropy(matrep, stvexp)
 end
