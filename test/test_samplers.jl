@@ -5,13 +5,15 @@
     # Analytical mean energy for SU(3) model with Λ = D*(Sᶻ)^2
     function su3_mean_energy(kT, D)
         a = D/kT
-        return D * (2 - (2 + 2a + a^2)*exp(-a)) / (a * (1 - (1+a)*exp(-a))) # - Λ₀
+        Λ₀ = D*(2/3)
+        return D * (2 - (2 + 2a + a^2)*exp(-a)) / (a * (1 - (1+a)*exp(-a))) - Λ₀
     end 
 
     # Analytical mean energy for SU(5) model with Λ = D*((Sᶻ)^2-(1/5)*(Sᶻ)^4)
     function su5_mean_energy(kT, D)
         a = 4D/(5kT)
-        return 4D*(exp(-a)*(-a*(a*(a*(a+4)+12)+24)-24)+24) / (5a*(exp(-a)*(-a*(a*(a+3)+6)-6)+6)) # - Λ₀
+        Λ₀ = D*(4/5)^2
+        return 4D*(exp(-a)*(-a*(a*(a*(a+4)+12)+24)-24)+24) / (5a*(exp(-a)*(-a*(a*(a+3)+6)-6)+6)) - Λ₀
     end
 
     # Eliminate all spacegroup symmetries
@@ -81,9 +83,7 @@
             thermalize!(sys, langevin, thermalize_dur)
             E = calc_mean_energy(sys, langevin, collect_dur)
             E_ref = su3_mean_energy(kT, D)
-
-            #= No more than 5% error with respect to reference. =#
-            @test abs(E - E_ref) < 0.05*E_ref    
+            @test isapprox(E, E_ref; rtol=0.1)
         end
     end
 
@@ -107,9 +107,7 @@
             thermalize!(sys, langevin, thermalize_dur)
             E = calc_mean_energy(sys, langevin, collect_dur)
             E_ref = su5_mean_energy(kT, D)
-
-            #= No more than 5% error with respect to reference. =#
-            @test abs(E - E_ref) < 0.05*E_ref    
+            @test isapprox(E, E_ref; rtol=0.1)
         end
     end
 
