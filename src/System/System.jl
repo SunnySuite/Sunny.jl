@@ -13,14 +13,14 @@ that an SU(_N_) coherent state fully describes any local spin state; this
 description includes expected dipole components ``⟨Ŝᵅ⟩``, quadrupole components
 ``⟨ŜᵅŜᵝ+ŜᵝŜᵅ⟩``, etc.
 
-The choice `:dipole` projects the SU(_N_) dynamics onto the space of pure
-dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
-dynamics, but all single-ion anisotropy or biquadratic exchange interactions
-will be automatically renormalized for maximum accuracy. [IN PROGRESS]
+The mode `:dipole` projects the SU(_N_) dynamics onto the space of pure dipoles.
+In practice this means that Sunny will simulate Landau-Lifshitz dynamics, but
+all single-ion anisotropy and biquadratic exchange interactions will be
+automatically renormalized for maximum accuracy.
 
-To disable such renormalization, e.g. to reproduce results collected using the
-historical large-``S`` classical limit, use `mode=:large_S`. [IN PROGRESS] Modes
-`:SUN` or `:dipole` should be preferred for the development of new models.
+To disable such renormalization, e.g. to reproduce results using the historical
+large-``S`` classical limit, use the experimental mode `:large_S`. Modes `:SUN`
+or `:dipole` are strongly preferred for the development of new models.
 
 The default units system of (meV, Å, tesla) can be overridden by with the
 `units` parameter; see [`Units`](@ref). 

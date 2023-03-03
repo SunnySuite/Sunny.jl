@@ -1,3 +1,9 @@
+# Version 0.4.3
+
+Implement renormalization of single-ion anisotropy when in `:dipole` mode. This
+makes the model more faithful to the quantum mechanical Hamiltonian.
+
+
 # Version 0.4.2
 
 Introduce [`LocalSampler`](@ref), a framework for MCMC sampling with local spin
