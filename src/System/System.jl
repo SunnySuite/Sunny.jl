@@ -186,7 +186,7 @@ volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
 # The original crystal for a system, invariant under reshaping
 orig_crystal(sys) = isnothing(sys.origin) ? sys.crystal : sys.origin.crystal
 
-# Position of a site in fractional coordinates
+# Position of a site in fractional coordinates of the original crystal
 function position(sys::System, site)
     return orig_crystal(sys).latvecs \ global_position(sys, site)
 end

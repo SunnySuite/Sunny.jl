@@ -3,6 +3,8 @@
 Implement renormalization of single-ion anisotropy when in `:dipole` mode. This
 makes the model more faithful to the quantum mechanical Hamiltonian.
 
+The functions [`set_exchange_at!`](@ref) and [`set_biquadratic_at!`](@ref) now
+expect two [`Site`](@ref)s, rather than a `Site` and a `Bond`.
 
 # Version 0.4.2
 

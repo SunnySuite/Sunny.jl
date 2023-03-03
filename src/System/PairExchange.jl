@@ -166,6 +166,10 @@ end
 function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bond)
     new_ri = new_cryst.positions[new_i]
 
+    # Verify that new_i (indexed into new_cryst) is consistent with bond.i
+    # (indexed into crystal).
+    @assert bond.i == position_to_index(cryst, cryst.latvecs \ new_cryst.latvecs * new_ri)
+
     # Positions in new fractional coordinates
     br = BondRaw(cryst, bond)
     new_rj = new_ri + new_cryst.latvecs \ cryst.latvecs * (br.rj - br.ri)
@@ -175,15 +179,43 @@ function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bo
     return Bond(new_i, new_j, new_n)
 end
 
-# Given a `bond` that begins at `site`, return the neighboring site that also
-# participates in the `bond`. For reshaped systems, bond must have already been
-# transformed to new indexing system using `transform_bond`.
+# CURRENTLY UNUSED
+"""
+    bonded_site(sys::System, site::Site, bond::Bond)
+
+Given a [`Site`](@ref) that acts as the first participant in a [`Bond`](@ref),
+return the second [`Site`](@ref) participating in the bond. For reshaped
+systems, the indices in `bond` refer to the original crystallographic unit cell.
+Useful for generating inputs to [`set_exchange_at`](@ref) and
+[`set_biquadratic_at`](@ref).
+
+# Example
+
+```julia
+# Calculate site indices from a position in fractional coordinates
+site1 = position_to_site(sys, r)
+
+# Get the other site that participates in a bond
+site2 = bonded_site(sys, site1, bond)
+
+# Use both sites to set an inhomogeneous interaction
+set_exchange_at!(sys, J, site1, site2)
+```
+"""
 function bonded_site(sys::System{N}, site, bond::Bond) where N
-    cell = offsetc(to_cell(site), bond.n, sys.latsize)
-    return CartesianIndex(cell[1], cell[2], cell[3], bond.j)
+    site = to_cartesian(site)
+    bond′ = transform_bond(sys.crystal, to_atom(site), orig_crystal(sys), bond)
+    cell′ = mod1(to_cell(site) .+ bond′.n, sys.latsize)
+    return CartesianIndex(cell′[1], cell′[2], cell′[3], bond′.j)
 end
 
+# Internal function only
+function sites_to_bond(site1::CartesianIndex{4}, site2::CartesianIndex{4})
+    n = Tuple(to_cell(site2)) .- Tuple(to_cell(site1))
+    return Bond(to_atom(site1), to_atom(site2), n)
+end
 
+# Internal function only
 function push_coupling!(couplings, bond, J)
     isculled = bond_parity(bond)
     filter!(c -> c.bond != bond, couplings)
@@ -193,74 +225,55 @@ function push_coupling!(couplings, bond, J)
 end
 
 """
-    set_biquadratic_at!(sys::System, J, bond::Bond, site::Site)
+    set_biquadratic_at!(sys::System, J, site1::Site, site2::Site)
 
-Sets the scalar biquadratic interaction along the provided [`Bond`](@ref) for a
-single [`Site`](@ref), ignoring crystal symmetry. The system must support
+Sets the scalar biquadratic interaction along the single bond connecting two
+[`Site`](@ref)s, ignoring crystal symmetry. The system must support
 inhomogeneous interactions via [`to_inhomogeneous`](@ref).
-
-Note that `bond` is always defined with respect to the original crystal, whereas
-`site` is an index into the current [`System`](@ref), which may have been
-reshaped. The atom index `bond.i` must be consistent with the system sublattice
-index `site[4]`.
 
 See also [`set_biquadratic!`](@ref).
 """
-function set_biquadratic_at!(sys::System{N}, J, bond::Bond, site) where N
-    validate_bond(sys.crystal, bond)
+function set_biquadratic_at!(sys::System{N}, J, site1, site2) where N
+    site1 = to_cartesian(site1)
+    site2 = to_cartesian(site2)
+    bond = sites_to_bond(site1, site2)
+
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
 
-    # If system has been reshaped, then we need to transform bond to new
-    # indexing system.
-    bond = transform_bond(sys.crystal, to_atom(site), orig_crystal(sys), bond)
-    bond.i == to_atom(site) || error("Atom index `bond.i` is inconsistent with sublattice of `site`.")
-
-    site = to_cartesian(site)
-    site′ = bonded_site(sys, site, bond)
-    push_coupling!(ints[site].biquad, bond, J)
-    push_coupling!(ints[site′].biquad, reverse(bond), J')
+    push_coupling!(ints[site1].biquad, bond, J)
+    push_coupling!(ints[site2].biquad, reverse(bond), J')
     return
 end
 
 
 """
-    set_exchange_at!(sys::System, J, bond::Bond, site::Site)
+    set_exchange_at!(sys::System, J, site1::Site, site2::Site)
 
-Sets the exchange interaction along the provided [`Bond`](@ref) for a single
-[`Site`](@ref), ignoring crystal symmetry. The system must support inhomogeneous
-interactions via [`to_inhomogeneous`](@ref).
-
-Note that `bond` is always defined with respect to the original crystal, whereas
-`site` is an index into the current [`System`](@ref), which may have been
-reshaped. The atom index `bond.i` must be consistent with the system sublattice
-index `site[4]`. 
+Sets the exchange interaction along the single bond connecting two
+[`Site`](@ref)s, ignoring crystal symmetry. The system must support
+inhomogeneous interactions via [`to_inhomogeneous`](@ref).
 
 See also [`set_exchange!`](@ref).
 """
-function set_exchange_at!(sys::System{N}, J, bond::Bond, site) where N
-    validate_bond(sys.crystal, bond)
+function set_exchange_at!(sys::System{N}, J, site1, site2) where N
+    site1 = to_cartesian(site1)
+    site2 = to_cartesian(site2)
+    bond = sites_to_bond(site1, site2)
+
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
-
-    # If system has been reshaped, then we need to transform bond to new
-    # indexing system.
-    bond = transform_bond(sys.crystal, to_atom(site), orig_crystal(sys), bond)
-    bond.i == to_atom(site) || error("Atom index `bond.i` is inconsistent with sublattice of `site`.")
-
-    site = to_cartesian(site)
-    site′ = bonded_site(sys, site, bond)
 
     # Convert J to Mat3
     J = Mat3(J isa Number ? J*I : J)
     is_heisenberg = isapprox(diagm([J[1,1],J[1,1],J[1,1]]), J; atol=1e-12)
     
     if is_heisenberg
-        push_coupling!(ints[site].heisen, bond, J[1,1])
-        push_coupling!(ints[site′].heisen, reverse(bond), J[1,1]')
+        push_coupling!(ints[site1].heisen, bond, J[1,1])
+        push_coupling!(ints[site2].heisen, reverse(bond), J[1,1]')
     else
-        push_coupling!(ints[site].exchange, bond, J)
-        push_coupling!(ints[site′].exchange, reverse(bond), J')
+        push_coupling!(ints[site1].exchange, bond, J)
+        push_coupling!(ints[site2].exchange, reverse(bond), J')
     end
     return
 end
