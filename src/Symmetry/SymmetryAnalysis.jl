@@ -252,6 +252,16 @@ Returns a list of all bonds that start at atom `i`, and that are symmetry
 equivalent to bond `b` or its reverse.
 """
 function all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b_ref::Bond)
+    # Some people will try to model inhomogeneous systems with very large unit
+    # cells under the 'P1' spacegroup, such that cryst.symops contains only the
+    # identity. In this case, there are only two 'symmetry related couplings':
+    # `b_ref` itself and its reverse. Return early for performance.
+    if cryst.symops == [SymOp(Mat3(I), zero(Vec3))]
+        i == b_ref.i && return [b_ref]
+        i == b_ref.j && return [reverse(b_ref)]
+        return Bond[]
+    end
+
     bs = Bond[]
     dist = distance(cryst, b_ref)
     for b in all_bonds_for_atom(cryst, i, dist; min_dist=dist)

@@ -52,7 +52,10 @@ function set_biquadratic!(sys::System{N}, J, bond::Bond) where N
     end
 
     for i in 1:natoms(sys.crystal)
-        for bond′ in all_symmetry_related_bonds_for_atom(sys.crystal, i, bond)
+        bonds = all_symmetry_related_bonds_for_atom(sys.crystal, i, bond)
+        isempty(bonds) && continue
+
+        for bond′ in bonds
             # Remove any existing exchange for bond′
             matches_bond(c) = c.bond == bond′
             filter!(!matches_bond, ints[i].biquad)
@@ -135,7 +138,10 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
     end
 
     for i in 1:natoms(sys.crystal)
-        for (bond′, J′) in zip(all_symmetry_related_couplings_for_atom(sys.crystal, i, bond, J)...)
+        bonds, Js = all_symmetry_related_couplings_for_atom(sys.crystal, i, bond, J)
+        isempty(bonds) && continue
+
+        for (bond′, J′) in zip(bonds, Js)
             # Remove any existing exchange for bond′
             matches_bond(c) = c.bond == bond′
             filter!(!matches_bond, ints[i].heisen)
