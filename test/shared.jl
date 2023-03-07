@@ -34,9 +34,11 @@ function add_quadratic_interactions!(sys, mode)
 end
 
 function add_quartic_interactions!(sys, mode)
-    if mode == :dipole
+    if mode ∈ (:dipole, :large_S)
         # In dipole mode, spins scale individually, S⁴ → κ⁴ S⁴
         set_anisotropy!(sys, 0.2*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), 1)
+    end
+    if mode == :large_S
         set_biquadratic!(sys, 0.2, Bond(1, 3, [0, 0, 0]))
     end
 end
