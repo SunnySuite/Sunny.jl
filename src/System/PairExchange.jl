@@ -166,57 +166,9 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
     end
 end
 
-
-# Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
-# `new_cryst`. The new bond will begin at atom `new_i`.
-function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bond)
-    new_ri = new_cryst.positions[new_i]
-
-    # Verify that new_i (indexed into new_cryst) is consistent with bond.i
-    # (indexed into crystal).
-    @assert bond.i == position_to_index(cryst, cryst.latvecs \ new_cryst.latvecs * new_ri)
-
-    # Positions in new fractional coordinates
-    br = BondRaw(cryst, bond)
-    new_rj = new_ri + new_cryst.latvecs \ cryst.latvecs * (br.rj - br.ri)
-
-    # Construct bond using new indexing system
-    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
-    return Bond(new_i, new_j, new_n)
-end
-
-# CURRENTLY UNUSED
-"""
-    bonded_site(sys::System, site::Site, bond::Bond)
-
-Given a [`Site`](@ref) that acts as the first participant in a [`Bond`](@ref),
-return the second [`Site`](@ref) participating in the bond. For reshaped
-systems, the indices in `bond` refer to the original crystallographic unit cell.
-Useful for generating inputs to [`set_exchange_at`](@ref) and
-[`set_biquadratic_at`](@ref).
-
-# Example
-
-```julia
-# Calculate site indices from a position in fractional coordinates
-site1 = position_to_site(sys, r)
-
-# Get the other site that participates in a bond
-site2 = bonded_site(sys, site1, bond)
-
-# Use both sites to set an inhomogeneous interaction
-set_exchange_at!(sys, J, site1, site2)
-```
-"""
-function bonded_site(sys::System{N}, site, bond::Bond) where N
-    site = to_cartesian(site)
-    bond′ = transform_bond(sys.crystal, to_atom(site), orig_crystal(sys), bond)
-    cell′ = mod1(to_cell(site) .+ bond′.n, sys.latsize)
-    return CartesianIndex(cell′[1], cell′[2], cell′[3], bond′.j)
-end
-
-# Internal function only
-function sites_to_bond(site1::CartesianIndex{4}, site2::CartesianIndex{4})
+# Converts two sites to a bond with indices appropriate to a reshaped system.
+# For internal use only.
+function sites_to_internal_bond(site1::CartesianIndex{4}, site2::CartesianIndex{4})
     n = Tuple(to_cell(site2)) .- Tuple(to_cell(site1))
     return Bond(to_atom(site1), to_atom(site2), n)
 end
@@ -242,7 +194,7 @@ See also [`set_biquadratic!`](@ref).
 function set_biquadratic_at!(sys::System{N}, J, site1, site2) where N
     site1 = to_cartesian(site1)
     site2 = to_cartesian(site2)
-    bond = sites_to_bond(site1, site2)
+    bond = sites_to_internal_bond(site1, site2)
 
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
@@ -260,12 +212,12 @@ Sets the exchange interaction along the single bond connecting two
 [`Site`](@ref)s, ignoring crystal symmetry. The system must support
 inhomogeneous interactions via [`to_inhomogeneous`](@ref).
 
-See also [`set_exchange!`](@ref).
+See also [`set_exchange!`](@ref), [`sites_to_bond`](@ref).
 """
 function set_exchange_at!(sys::System{N}, J, site1, site2) where N
     site1 = to_cartesian(site1)
     site2 = to_cartesian(site2)
-    bond = sites_to_bond(site1, site2)
+    bond = sites_to_internal_bond(site1, site2)
 
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
