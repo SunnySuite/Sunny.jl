@@ -158,7 +158,16 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     # Scalar biquadratic exchange
     for (; bond, J) in biquad
         sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
-        ΔE += J * ((s ⋅ sⱼ)^2 - (s₀ ⋅ sⱼ)^2)
+        if sys.mode == :dipole
+            # Renormalization introduces a factor r and a Heisenberg term
+            S = (sys.Ns[bond.i]-1)/2
+            r = (1 - 1/S + 1/4S^2)
+            ΔE += J * (r*((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2) - (Δs⋅sⱼ)/2)
+        elseif sys.mode == :large_S
+            ΔE += J * ((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2)
+        elseif sys.mode == :SUN
+            error("Biquadratic currently unsupported in SU(N) mode.") 
+        end
     end
 
     # Long-range dipole-dipole
@@ -251,7 +260,16 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells) where N
         for cell in cells
             sᵢ = dipoles[cell, bond.i]
             sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
-            E += J * dot(sᵢ, sⱼ)^2
+            if sys.mode == :dipole
+                # Renormalization introduces a factor r and a Heisenberg term
+                S = (sys.Ns[bond.i]-1)/2
+                r = (1 - 1/S + 1/4S^2)
+                E += J * (r*(sᵢ⋅sⱼ)^2 - (sᵢ⋅sⱼ)/2 + S^3 + S^2/4)
+            elseif sys.mode == :large_S
+                E += J * (sᵢ⋅sⱼ)^2
+            elseif sys.mode == :SUN
+                error("Biquadratic currently unsupported in SU(N) mode.")
+            end
         end
     end
 
@@ -331,10 +349,21 @@ function set_forces_aux!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ints::Inter
             cellⱼ = offsetc(cellᵢ, bond.n, latsize)
             sᵢ = dipoles[cellᵢ, bond.i]
             sⱼ = dipoles[cellⱼ, bond.j]
-            B[cellᵢ, bond.i] -= 2J  * sⱼ * (sᵢ⋅sⱼ)
-            B[cellⱼ, bond.j] -= 2J' * sᵢ * (sᵢ⋅sⱼ)
+
+            if sys.mode == :dipole
+                # Renormalization introduces a factor r and a Heisenberg term
+                S = (sys.Ns[bond.i]-1)/2
+                r = (1 - 1/S + 1/4S^2)
+                B[cellᵢ, bond.i] -= J * (2r*sⱼ*(sᵢ⋅sⱼ) - sⱼ/2)
+                B[cellⱼ, bond.j] -= J * (2r*sᵢ*(sᵢ⋅sⱼ) - sᵢ/2)
+            elseif sys.mode == :large_S
+                B[cellᵢ, bond.i] -= J * 2sⱼ*(sᵢ⋅sⱼ)
+                B[cellⱼ, bond.j] -= J * 2sᵢ*(sᵢ⋅sⱼ)
+            elseif sys.mode == :SUN
+                error("Biquadratic currently unsupported in SU(N) mode.")
+            end
         end
-   end
+    end
 end
 
 

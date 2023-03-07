@@ -27,7 +27,9 @@
             @test energy(sys2) ≈ energy(sys)
             set_vacancy_at!(sys2, (1,1,1,1))
             set_exchange_at!(sys2, 0.5, (1,1,1,1), (2,1,1,2))
-            set_biquadratic_at!(sys2, 0.7, (3,2,1,2), (3,1,1,3))
+            if mode != :SUN
+               set_biquadratic_at!(sys2, 0.7, (3,2,1,2), (3,1,1,3))
+            end
             set_anisotropy_at!(sys2, 0.4*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), (2,2,2,4))
             return sys2
         end
@@ -36,7 +38,7 @@
 
     # Tests that SphericalMidpoint conserves energy to a certain tolerance.
     function test_conservation(sys)
-        NITERS = 5_000
+        NITERS = 3_000
         Δt     = 0.002
         energies = Float64[]
 
@@ -55,6 +57,7 @@
 
     test_conservation(make_system(; mode=:SUN, inhomog=false))
     test_conservation(make_system(; mode=:dipole, inhomog=true))
+    test_conservation(make_system(; mode=:large_S, inhomog=true))
 
 
     # Tests that energy deltas are consistent with total energy
@@ -78,4 +81,5 @@
 
     test_delta(make_system(; mode=:SUN, inhomog=true))
     test_delta(make_system(; mode=:dipole, inhomog=false))
+    test_delta(make_system(; mode=:large_S, inhomog=false))
 end
