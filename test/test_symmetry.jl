@@ -225,11 +225,13 @@ end
         randn()*(𝒪[4,0]-5𝒪[4,2]) + randn()*(𝒪[4,0]+5𝒪[4,4]) +
         randn()*(𝒪[6,0]-21𝒪[6,4]) + randn()*(𝒪[6,0]+(105/16)𝒪[6,2]+(231/16)𝒪[6,6])
     
+    # Dipole system with renormalized anisotropy
     sys0 = System(cryst, (1,1,1), [SpinInfo(1, S=3)], :dipole)
     randomize_spins!(sys0)
     set_anisotropy!(sys0, Λ, i)
     E0 = energy(sys0)
     
+    # Corresponding SU(N) system
     sys = System(cryst, (1,1,1), [SpinInfo(1, S=3)], :SUN)
     for site in all_sites(sys)
         polarize_spin!(sys, sys0.dipoles[site], site)

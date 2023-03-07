@@ -1,11 +1,10 @@
-function SingleIonAnisotropy(sys::System{N}, op, i) where N
-    S = (sys.Ns[i]-1)/2
+function SingleIonAnisotropy(sys::System{_N}, op, i) where _N
+    N = sys.Ns[i] # In dipole mode, we can use a per-site N
 
     if sys.mode ∈ (:dipole, :SUN)
         # Convert `op` to a traceless Hermitian matrix
-        Nᵢ = sys.Ns[i]
-        matrep = operator_to_matrix(op; N=Nᵢ)
-        matrep -= (tr(matrep)/Nᵢ)*I
+        matrep = operator_to_matrix(op; N)
+        matrep -= (tr(matrep)/N)*I
         if norm(matrep) < 1e-12
             matrep = zero(matrep)
         end
@@ -13,6 +12,7 @@ function SingleIonAnisotropy(sys::System{N}, op, i) where N
         c = matrix_to_stevens_coefficients(matrep)
     else
         @assert sys.mode == :large_S
+        S = (N-1)/2
         c = operator_to_classical_stevens_coefficients(op, S)
         # Here the true N is infinite, so we can't really build a matrep
         matrep = zeros(ComplexF64, 0, 0)
@@ -20,15 +20,21 @@ function SingleIonAnisotropy(sys::System{N}, op, i) where N
 
     all(iszero.(c[[1,3,5]])) || error("Single-ion anisotropy must be time-reversal invariant.")
 
-    # Apply renormalization factors
     if sys.mode == :dipole
-        c[2] .*= (1 - (1/2)/S)
-        c[4] .*= (1 - 3/S + (11/4)/S^2 - (3/4)/S^3)
-        c[6] .*= (1 - (15/2)/S + (85/4)/S^2 - (225/8)/S^3 + (137/8)/S^4 - (15/4)/S^5)
+        λ = anisotropy_renormalization(N)
+        stvexp = StevensExpansion(λ[1]*c[2], λ[2]*c[4], λ[3]*c[6])
+    else
+        stvexp = StevensExpansion(c[2], c[4], c[6])
     end
-
-    stvexp = StevensExpansion(c[2], c[4], c[6])
+    
     return SingleIonAnisotropy(matrep, stvexp)
+end
+
+function anisotropy_renormalization(N)
+    S = (N-1)/2
+    return ((1 - (1/2)/S),
+            (1 - 3/S + (11/4)/S^2 - (3/4)/S^3),
+            (1 - (15/2)/S + (85/4)/S^2 - (225/8)/S^3 + (137/8)/S^4 - (15/4)/S^5))
 end
 
 function empty_anisotropy(N)
@@ -45,8 +51,16 @@ function rotate_operator(stevens::StevensExpansion, R)
     return StevensExpansion(
         rotate_stevens_coefficients(stevens.c2, R),
         rotate_stevens_coefficients(stevens.c4, R),
-        rotate_stevens_coefficients(stevens.c6, R),
+        rotate_stevens_coefficients(stevens.c6, R)
     )
+end
+
+function operator_to_matrix(stvexp::StevensExpansion; N) 
+    acc = zeros(ComplexF64, N, N)
+    for (k, c) in zip((2,4,6), (stvexp.c2, stvexp.c4, stvexp.c6))
+        acc += c' * stevens_matrices(k; N)
+    end
+    return acc
 end
 
 function is_anisotropy_valid(cryst::Crystal, i::Int, op)
