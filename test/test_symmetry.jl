@@ -214,3 +214,28 @@ end
         @test E1 ≈ E2
     end
 end
+
+
+@testitem "Renormalization" begin
+    latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0., 0., 0.]])
+    
+    i = 1
+    Λ = randn()*(𝒪[2,0]+3𝒪[2,2]) +
+        randn()*(𝒪[4,0]-5𝒪[4,2]) + randn()*(𝒪[4,0]+5𝒪[4,4]) +
+        randn()*(𝒪[6,0]-21𝒪[6,4]) + randn()*(𝒪[6,0]+(105/16)𝒪[6,2]+(231/16)𝒪[6,6])
+    
+    sys0 = System(cryst, (1,1,1), [SpinInfo(1, S=3)], :dipole)
+    randomize_spins!(sys0)
+    set_anisotropy!(sys0, Λ, i)
+    E0 = energy(sys0)
+    
+    sys = System(cryst, (1,1,1), [SpinInfo(1, S=3)], :SUN)
+    for site in all_sites(sys)
+        polarize_spin!(sys, sys0.dipoles[site], site)
+    end
+    set_anisotropy!(sys, Λ, i)
+    E = energy(sys)
+    
+    @test E ≈ E0    
+end
