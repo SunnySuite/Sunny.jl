@@ -220,6 +220,21 @@ function position_to_site(sys::System, r)
 end
 
 
+"""
+    sites_to_bond(sys::System, site1::Site, site2::Site)
+
+Given two [`Site`](@ref)s for a possibly reshaped system, return the
+corresponding [`Bond`](@ref) appropriate to the original (unreshaped) crystal.
+This `bond` can be used for symmetry analysis, e.g., as input to
+[`print_bond`](@ref).
+"""
+function sites_to_bond(sys::System{N}, site1::CartesianIndex{4}, site2::CartesianIndex{4}) where N
+    r1 = position(sys, site1)
+    r2 = position(sys, site2)
+    return Bond(orig_crystal(sys), BondRaw(r1, r2))
+end
+
+
 struct SpinState{N}
     s::Vec3
     Z::CVec{N}

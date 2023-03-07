@@ -24,6 +24,24 @@ function reshape_geometry(sys::System{N}, A) where N
 end
 
 
+# Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
+# `new_cryst`. The new bond will begin at atom `new_i`.
+function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bond)
+    new_ri = new_cryst.positions[new_i]
+
+    # Verify that new_i (indexed into new_cryst) is consistent with bond.i
+    # (indexed into crystal).
+    @assert bond.i == position_to_index(cryst, cryst.latvecs \ new_cryst.latvecs * new_ri)
+
+    # Positions in new fractional coordinates
+    br = BondRaw(cryst, bond)
+    new_rj = new_ri + new_cryst.latvecs \ cryst.latvecs * (br.rj - br.ri)
+
+    # Construct bond using new indexing system
+    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
+    return Bond(new_i, new_j, new_n)
+end
+
 # Map all "unit cell" quantities from `origin` to `new_sys`. These are: Ns, gs,
 # and homogeneous interactions. 
 function transfer_unit_cell!(new_sys::System{N}, origin::System{N}) where N

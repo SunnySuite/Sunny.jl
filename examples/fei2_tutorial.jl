@@ -63,7 +63,7 @@ cryst = subcrystal(FeI2, "Fe")
 # ## Spin systems
 # To simulate a system of many spins, construct a [`System`](@ref).
 
-sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN, seed=0)
+sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN, seed=2)
 
 # The system includes $4×4×4$ unit cells, i.e. 64 Fe atoms, each with spin
 # $S=1$. The default $g$-factor is 2, but this could be overriden with an
