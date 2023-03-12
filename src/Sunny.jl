@@ -89,27 +89,19 @@ export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFact
     add_sample!, intensities, instant_intensities, broaden_energy, lorentzian,
     connected_path, all_exact_wave_vectors, ωs, spherical_shell
 
-# include("WangLandau/BinnedArray.jl")
-# include("WangLandau/WangLandau.jl")
-# export BinnedArray, filter_visited, reset!,
-#     WangLandau, spherical_cap_update, init_bounded!, run!
-
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
 export view_crystal, offline_viewers, browser
 
+include("ParallelTempering.jl")
+export ParallelTempering, sample!
 
-# GLMakie and MPI are optional dependencies
+# GLMakie is an optional dependency
 function __init__()
     @require GLMakie="e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin
         include("Plotting.jl")
         export plot_spins
             # plot_lattice, plot_bonds, plot_all_bonds, anim_integration, live_integration, live_langevin_integration
-    end
-
-    @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" begin
-        include("ReplicaExchangeMC.jl")
-        export init_MPI, xyz_to_file, Replica, run_REMC!, run_FBO!
     end
 end
 
