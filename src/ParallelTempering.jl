@@ -17,7 +17,7 @@ end
 
 function ParallelTempering(system::System, kT_sched::Vector{Float64}, propose)
     n_replicas = length(kT_sched)
-    samplers = [LocalSampler(kT=kT, propose=propose) for kT in kT_sched]
+    samplers = [LocalSampler(; kT, propose) for kT in kT_sched]
     systems = [clone_system(system) for _ in 1:n_replicas]
     system_ids = collect(1:n_replicas)
 
@@ -56,12 +56,12 @@ function replica_exchange!(PT::ParallelTempering, exch_start::Int64)
 end
 
 # run a parallel tempering simulation for 'nsweeps' MC sweeps
-function sample!(PT::ParallelTempering, n_sweeps::Int64, exch_interval::Int64)
+function sample!(PT::ParallelTempering, nsteps::Int64, exch_interval::Int64)
     # set number of sweeps btw replica exchanges
     for rank in 1:PT.n_replicas
         PT.samplers[rank].nsweeps = exch_interval
     end
-    n_exch = cld(n_sweeps, exch_interval)
+    n_exch = cld(nsteps, exch_interval)
 
     # start PT simulation
     for i in 1:n_exch
