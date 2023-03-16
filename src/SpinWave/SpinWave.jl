@@ -18,6 +18,8 @@ function generate_ham_lswt!(sw_fields :: SpinWaveFields, k̃ :: Vector{Float64},
     N  = Nf + 1
     L  = Nf * Nm
     @assert size(Hmat) == (2*L, 2*L)
+    # scaling factor (=1) if in the fundamental representation
+    M = sys.mode == :SUN ? 1 : (Ns-1)
 
     for k̃ᵢ in k̃
         (k̃ᵢ < 0.0 || k̃ᵢ ≥ 1.0) && throw("k̃ outside [0, 1) range")
@@ -30,7 +32,8 @@ function generate_ham_lswt!(sw_fields :: SpinWaveFields, k̃ :: Vector{Float64},
     Hmat21 = zeros(ComplexF64, L, L)
 
     (; extfield) = sys
-    # external field
+
+    # external field, need to multiply the `M` factor
     for matom = 1:Nm
         @views effB = extfield[1, 1, 1, matom]
         @views site_tS = s̃_mat[:, :, :, matom]
@@ -38,24 +41,11 @@ function generate_ham_lswt!(sw_fields :: SpinWaveFields, k̃ :: Vector{Float64},
         for m = 2:N
             for n = 2:N
                 δmn = δ(m, n)
-                Hmat[(matom-1)*Nf+m-1,   (matom-1)*Nf+n-1]   += 0.5 * (site_B_dot_tS[m, n] - δmn * site_B_dot_tS[1, 1])
-                Hmat[(matom-1)*Nf+n-1+L, (matom-1)*Nf+m-1+L] += 0.5 * (site_B_dot_tS[m, n] - δmn * site_B_dot_tS[1, 1])
+                Hmat[(matom-1)*Nf+m-1,   (matom-1)*Nf+n-1]   += 0.5 * M * (site_B_dot_tS[m, n] - δmn * site_B_dot_tS[1, 1])
+                Hmat[(matom-1)*Nf+n-1+L, (matom-1)*Nf+m-1+L] += 0.5 * M * (site_B_dot_tS[m, n] - δmn * site_B_dot_tS[1, 1])
             end
         end
     end
-
-    # single-ion anisotropy
-    for matom = 1:Nm
-        @views site_aniso = T̃_mat[:, :, matom]
-        for m = 2:N
-            for n = 2:N
-                δmn = δ(m, n)
-                Hmat[(matom-1)*Nf+m-1,   (matom-1)*Nf+n-1]   += 0.5 * (site_aniso[m, n] - δmn * site_aniso[1, 1])
-                Hmat[(matom-1)*Nf+n-1+L, (matom-1)*Nf+m-1+L] += 0.5 * (site_aniso[m, n] - δmn * site_aniso[1, 1])
-            end
-        end
-    end
-
 
     # pairexchange interactions
     for matom = 1:Nm
@@ -163,13 +153,25 @@ function generate_ham_lswt!(sw_fields :: SpinWaveFields, k̃ :: Vector{Float64},
         end
     end
 
-    Hmat[1:L, 1:L] += Hmat11
-    Hmat[L+1:2*L, L+1:2*L] += Hmat22
-    Hmat[1:L, L+1:2*L] += Hmat12
-    Hmat[L+1:2*L, 1:L] += Hmat21
+    Hmat[1:L, 1:L] += M * Hmat11
+    Hmat[L+1:2*L, L+1:2*L] += M * Hmat22
+    Hmat[1:L, L+1:2*L] += M * Hmat12
+    Hmat[L+1:2*L, 1:L] += M * Hmat21
+
+    # single-ion anisotropy. For :SUN and :dipole mode, we should not multiply the results by the factor `M`, because the single-ion anisotropy is written in the fundamental representation.
+    for matom = 1:Nm
+        @views site_aniso = T̃_mat[:, :, matom]
+        for m = 2:N
+            for n = 2:N
+                δmn = δ(m, n)
+                Hmat[(matom-1)*Nf+m-1,   (matom-1)*Nf+n-1]   += 0.5 * (site_aniso[m, n] - δmn * site_aniso[1, 1])
+                Hmat[(matom-1)*Nf+n-1+L, (matom-1)*Nf+m-1+L] += 0.5 * (site_aniso[m, n] - δmn * site_aniso[1, 1])
+            end
+        end
+    end
 
     # Hmat must be hermitian up to round-off errors
-    if norm(Hmat-Hmat') > 1.0e-12
+    if norm(Hmat-Hmat') > 1e-12
         println("norm(Hmat-Hmat')= ", norm(Hmat-Hmat'))
         throw("Hmat is not hermitian!")
     end
@@ -293,6 +295,11 @@ function lswt_dynamical_spin_structure_factor!(sw_fields :: SpinWaveFields, k ::
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
     L  = Nf * Nm
+
+    # scaling factor (=1) if in the fundamental representation
+    M = sys.mode == :SUN ? 1 : (Ns-1)
+    sqrt_M = √M
+
     (; s̃_mat) = sw_fields
 
     Hmat = zeros(ComplexF64, 2*L, 2*L)
@@ -313,7 +320,7 @@ function lswt_dynamical_spin_structure_factor!(sw_fields :: SpinWaveFields, k ::
         # note that d is the chemical coordinates
         chemical_coor = chemical_positions[site]
         phase = exp(-2im * π  * dot(k, chemical_coor))
-        Avec_pref[site] = sqrt_Nm_inv * phase
+        Avec_pref[site] = sqrt_Nm_inv * phase * sqrt_M
     end
 
     for band = 1:L

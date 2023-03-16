@@ -61,7 +61,7 @@ function generate_local_sun_gens(sys :: System)
         end
 
     elseif sys.mode == :dipole
-        s_mat_2 = spin * spin_matrices(2)
+        s_mat_2 = spin_matrices(2)
         s_mat_N = spin_matrices(N)
         
         s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
@@ -113,7 +113,7 @@ External constructor for `SpinWaveFields`
 function SpinWaveFields(sys :: System, energy_ϵ :: Float64=1e-8, energy_tol :: Float64=1e-6)
     s̃_mat, T̃_mat = generate_local_sun_gens(sys)
     Q̃_mat = zeros(ComplexF64, 0, 0, 0, 0)
-    maglat_basis = sys.origin.crystal.lat_vecs \ sys.crystal.lat_vecs
+    maglat_basis = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs \ sys.crystal.latvecs
 
     Nₘ = length(sys.dipoles)
     chemical_positions = Vector{Vec3}(undef, Nₘ)
@@ -131,12 +131,12 @@ function SpinWaveFields(sys :: System, energy_ϵ :: Float64=1e-8, energy_tol :: 
     maglat_reciprocal_basis = Mat3(maglat_reciprocal_basis)
 
     # computes the reciprocal basis vectors of the chemical lattice (units Å⁻¹)
-    lat_vecs = sys.origin.crystal.lat_vecs
-    det_A = det(lat_vecs')
+    latvecs = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs
+    det_A = det(latvecs')
     chemic_reciprocal_basis = zeros(Float64, 3, 3)
-    chemic_reciprocal_basis[:, 1] = cross(lat_vecs[:, 2], lat_vecs[:, 3]) / det_A
-    chemic_reciprocal_basis[:, 2] = cross(lat_vecs[:, 3], lat_vecs[:, 1]) / det_A
-    chemic_reciprocal_basis[:, 3] = cross(lat_vecs[:, 1], lat_vecs[:, 2]) / det_A
+    chemic_reciprocal_basis[:, 1] = cross(latvecs[:, 2], latvecs[:, 3]) / det_A
+    chemic_reciprocal_basis[:, 2] = cross(latvecs[:, 3], latvecs[:, 1]) / det_A
+    chemic_reciprocal_basis[:, 3] = cross(latvecs[:, 1], latvecs[:, 2]) / det_A
     chemic_reciprocal_basis = Mat3(chemic_reciprocal_basis)
 
     return SpinWaveFields(sys, s̃_mat, T̃_mat, Q̃_mat, chemical_positions, chemic_reciprocal_basis, maglat_reciprocal_basis, energy_ϵ, energy_tol)
