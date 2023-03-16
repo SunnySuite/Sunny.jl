@@ -6,13 +6,13 @@
 Additional fields for linear spin-wave calculations.
 """
 struct SpinWaveFields
-    sys   :: Sunny.System
+    sys   :: System
     s̃_mat :: Array{ComplexF64, 4}  # dipole operators
     T̃_mat :: Array{ComplexF64, 3}  # single-ion anisos
     Q̃_mat :: Array{ComplexF64, 4}  # quarupolar operators (for biquad only)
-    chemical_positions :: Vector{Sunny.Vec3} # positions of magnetic atoms in units of (a₁, a₂, a₃) of the chemical lattice. (useful when computing the dynamical spin structure factor)
-    chemic_reciprocal_basis :: Sunny.Mat3 # maybe not useful if we have David's interface for S(q, ω)
-    maglat_reciprocal_basis :: Sunny.Mat3 # reciprocal lattice basis vectors for the magnetic supercell
+    chemical_positions :: Vector{Vec3} # positions of magnetic atoms in units of (a₁, a₂, a₃) of the chemical lattice. (useful when computing the dynamical spin structure factor)
+    chemic_reciprocal_basis :: Mat3 # maybe not useful if we have David's interface for S(q, ω)
+    maglat_reciprocal_basis :: Mat3 # reciprocal lattice basis vectors for the magnetic supercell
     energy_ϵ   :: Float64 # energy epsilon in the diagonalization. Set to add to diagonal elements of the spin-wave Hamiltonian for cholesky decompostion
     energy_tol :: Float64 # energy tolerance for maximal imaginary part of spin-wave energies
 end
@@ -39,11 +39,11 @@ end
 
 Compute SU(N) generators in the local reference frame.
 """
-function generate_local_sun_gens(sys :: Sunny.System)
+function generate_local_sun_gens(sys :: System)
     Nₘ, N = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     spin  = (N-1)/2
     if sys.mode == :SUN
-        s_mat = Sunny.spin_matrices(N)
+        s_mat = spin_matrices(N)
 
         s̃_mat = Array{ComplexF64, 4}(undef, N, N, 3, Nₘ)
         T̃_mat = Array{ComplexF64, 3}(undef, N, N, Nₘ)
@@ -57,12 +57,12 @@ function generate_local_sun_gens(sys :: Sunny.System)
             for μ = 1:3
                 s̃_mat[:, :, μ, site] = Hermitian(U_mat' * s_mat[μ] * U_mat)
             end
-            T̃_mat[:, :, site] = Hermitian(U_mat' * sys.interactions.anisos[site].matrep * U_mat)
+            T̃_mat[:, :, site] = Hermitian(U_mat' * sys.interactions_union[site].aniso.matrep * U_mat)
         end
 
     elseif sys.mode == :dipole
-        s_mat_2 = spin * Sunny.spin_matrices(2)
-        s_mat_N = Sunny.spin_matrices(N)
+        s_mat_2 = spin * spin_matrices(2)
+        s_mat_N = spin_matrices(N)
         
         s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
         T̃_mat = Array{ComplexF64, 3}(undef, 2, 2, Nₘ)
@@ -79,14 +79,14 @@ function generate_local_sun_gens(sys :: Sunny.System)
             for μ = 1:3
                 s̃_mat[:, :, μ, site] = Hermitian(U_mat_2' * s_mat_2[μ] * U_mat_2)
             end
-            T̃_mat[:, :, site] = Hermitian(U_mat_N' * sys.interactions.anisos[site].matrep * U_mat_N)[1:2, 1:2]
+            T̃_mat[:, :, site] = Hermitian(U_mat_N' * sys.interactions_union[site].aniso.matrep * U_mat_N)[1:2, 1:2]
         end
     
     # here I need help from Kipton and David to map back the solution, because in general this is difficult to implement.
     elseif sys.mode == :large_S
         error("unsupported")
         # spin  = (N-1) / 2
-        # s_mat_2 = spin * Sunny.spin_matrices(2)
+        # s_mat_2 = spin * spin_matrices(2)
 
         # s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
         # T̃_mat = Array{ComplexF64, 3}(undef, 2, 2, Nₘ)
@@ -100,7 +100,7 @@ function generate_local_sun_gens(sys :: Sunny.System)
         #     for μ = 1:3
         #         s̃_mat[:, :, μ, site] = Hermitian(U_mat_2' * s_mat_2[μ] * U_mat_2)
         #     end
-        #     # T̃_mat[:, :, site] = Hermitian(U_mat_N' * sys.interactions.anisos[site].matrep * U_mat_N)[1:2, 1:2]
+        #     # T̃_mat[:, :, site] = Hermitian(U_mat_N' * sys.interactions_union.anisos[site].matrep * U_mat_N)[1:2, 1:2]
         # end
     end
 
@@ -110,16 +110,16 @@ end
 """
 External constructor for `SpinWaveFields`
 """
-function SpinWaveFields(sys :: Sunny.System, energy_ϵ :: Float64=1e-8, energy_tol :: Float64=1e-6)
+function SpinWaveFields(sys :: System, energy_ϵ :: Float64=1e-8, energy_tol :: Float64=1e-6)
     s̃_mat, T̃_mat = generate_local_sun_gens(sys)
     Q̃_mat = zeros(ComplexF64, 0, 0, 0, 0)
     maglat_basis = sys.origin.crystal.lat_vecs \ sys.crystal.lat_vecs
 
     Nₘ = length(sys.dipoles)
-    chemical_positions = Vector{Sunny.Vec3}(undef, Nₘ)
+    chemical_positions = Vector{Vec3}(undef, Nₘ)
     for site = 1:Nₘ
         tmp_pos = maglat_basis * sys.crystal.positions[site]
-        chemical_positions[site] = Sunny.Vec3(tmp_pos)
+        chemical_positions[site] = Vec3(tmp_pos)
     end
 
     # computes the reciprocal basis vectors of the magnetic lattice (units 2π/|a|)
@@ -128,7 +128,7 @@ function SpinWaveFields(sys :: Sunny.System, energy_ϵ :: Float64=1e-8, energy_t
     maglat_reciprocal_basis[:, 1] = cross(maglat_basis[:, 2], maglat_basis[:, 3]) / det_A
     maglat_reciprocal_basis[:, 2] = cross(maglat_basis[:, 3], maglat_basis[:, 1]) / det_A
     maglat_reciprocal_basis[:, 3] = cross(maglat_basis[:, 1], maglat_basis[:, 2]) / det_A
-    maglat_reciprocal_basis = Sunny.Mat3(maglat_reciprocal_basis)
+    maglat_reciprocal_basis = Mat3(maglat_reciprocal_basis)
 
     # computes the reciprocal basis vectors of the chemical lattice (units Å⁻¹)
     lat_vecs = sys.origin.crystal.lat_vecs
@@ -137,7 +137,7 @@ function SpinWaveFields(sys :: Sunny.System, energy_ϵ :: Float64=1e-8, energy_t
     chemic_reciprocal_basis[:, 1] = cross(lat_vecs[:, 2], lat_vecs[:, 3]) / det_A
     chemic_reciprocal_basis[:, 2] = cross(lat_vecs[:, 3], lat_vecs[:, 1]) / det_A
     chemic_reciprocal_basis[:, 3] = cross(lat_vecs[:, 1], lat_vecs[:, 2]) / det_A
-    chemic_reciprocal_basis = Sunny.Mat3(chemic_reciprocal_basis)
+    chemic_reciprocal_basis = Mat3(chemic_reciprocal_basis)
 
     return SpinWaveFields(sys, s̃_mat, T̃_mat, Q̃_mat, chemical_positions, chemic_reciprocal_basis, maglat_reciprocal_basis, energy_ϵ, energy_tol)
 end
@@ -171,11 +171,11 @@ function k_chemical_to_k_magnetic(sw_fields :: SpinWaveFields, k :: Vector{Float
     return K, k̃
 end
 
-function construct_magnetic_supercell(sys :: Sunny.System, A :: Matrix{Int})
+function construct_magnetic_supercell(sys :: System, A :: Matrix{Int})
     newsys = reshape_geometry(sys, A)
     mag_latsize = (1, 1, 1)
-    mag_cell_size = Sunny.cell_dimensions(newsys) * diagm(collect(newsys.latsize))
-    return Sunny.reshape_geometry_aux(newsys, mag_latsize, mag_cell_size)
+    mag_cell_size = cell_dimensions(newsys) * diagm(collect(newsys.latsize))
+    return reshape_geometry_aux(newsys, mag_latsize, mag_cell_size)
 end
 
 """
@@ -184,7 +184,7 @@ end
 Manually set the ground state configurations by inputing the `dipoles` for all sites along with their `positions` in the magnetic supercell. `dipoles` and `positions` are `3×Nₘ` matrices. Each column of the two objects should match each other. \n
 *Warning*: 1. Must run `construct_magnetic_supercell` before calling this function. 2. You should always use the Langevin sampler provided by Sunny to find the ground state other than calling this function, unless the ground state configuration is known for sure. 3. This function works for `:dipole` and `large_S` mode. For `:SUN` mode, only the fundamental representation of `SU(2)`, i.e. S=1/2 works.
 """
-function set_dipoles!(sys :: Sunny.System, dipoles :: Matrix{Float64}, positions :: Matrix{Float64})
+function set_dipoles!(sys :: System, dipoles :: Matrix{Float64}, positions :: Matrix{Float64})
     Ns, Nₘ = sys.Ns[1], length(sys.dipoles)
     spin = (Ns-1) / 2
     (sys.mode == :SUN && !isapprox(spin, 0.5, atol=1e-6)) && (throw("SU(N)N>2 not supported, use set_coherents! instead."))
@@ -214,7 +214,7 @@ end
 # Manually set the ground state configurations by inputing the `dipoles` for all sites along with their `positions` in the magnetic supercell. `dipoles` and `positions` are `3×Nₘ` matrices. Each column of the two objects should match each other. \n
 # *Warning*: 1. Must run `construct_magnetic_supercell` before calling this function. 2. You should always use the Langevin sampler provided by Sunny to find the ground state other than calling this function, unless the ground state configuration is known for sure. 3. This function works for `:dipole` and `large_S` mode. For `:SUN` mode, only the fundamental representation of `SU(2)`, i.e. S=1/2 works.
 # """
-# function set_dipoles!(sys :: Sunny.System, dipoles :: Matrix{Float64}, positions :: Matrix{Float64})
+# function set_dipoles!(sys :: System, dipoles :: Matrix{Float64}, positions :: Matrix{Float64})
 #     Ns, Nₘ = sys.Ns[1], length(sys.dipoles)
 #     spin = (Ns-1) / 2
 #     (sys.mode == :SUN && !isapprox(spin, 0.5, atol=1e-6)) && (throw("SU(N)N>2 not supported, use set_coherents! instead."))

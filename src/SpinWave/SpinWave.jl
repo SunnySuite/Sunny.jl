@@ -29,8 +29,7 @@ function generate_ham_lswt!(sw_fields :: SpinWaveFields, k̃ :: Vector{Float64},
     Hmat12 = zeros(ComplexF64, L, L)
     Hmat21 = zeros(ComplexF64, L, L)
 
-    (; extfield, anisos, pairexch) = sys.interactions
-
+    (; extfield) = sys
     # external field
     for matom = 1:Nm
         @views effB = extfield[1, 1, 1, matom]
@@ -59,10 +58,11 @@ function generate_ham_lswt!(sw_fields :: SpinWaveFields, k̃ :: Vector{Float64},
 
 
     # pairexchange interactions
-    for (; heisen, quadmat, biquad) in pairexch
+    for matom = 1:Nm
+        ints = sys.interactions_union[matom]
         # Heisenberg exchange
-        for (culled, bond, J) in heisen
-            culled && break
+        for (; isculled, bond, J) in ints.heisen
+            isculled && break
             sub_i, sub_j, ΔRδ = bond.i, bond.j, bond.n
 
             tTi_μ = s̃_mat[:, :, :, sub_i]
@@ -112,8 +112,8 @@ function generate_ham_lswt!(sw_fields :: SpinWaveFields, k̃ :: Vector{Float64},
         end
 
         # Quadratic exchange
-        for (culled, bond, J) in quadmat
-            culled && break
+        for (; isculled, bond, J) in ints.exchange
+            isculled && break
             sub_i, sub_j, ΔRδ = bond.i, bond.j, bond.n
 
             tTi_μ = s̃_mat[:, :, :, sub_i]
