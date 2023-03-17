@@ -68,7 +68,7 @@ end
     fcc = Crystal(lat_vecs, basis_vecs, 225; types)
     S = 5/2
 
-    # According to a renormalized classical theory for spins (the details will be presented in a manuscript in preparation), the large-S expansion and the :dipole mode should produce the same results when
+    # According to a renormalized classical theory for spins (the details will be presented in a manuscript in preparation), the large-S expansion and the :dipole mode should produce the same results when apply the proper renormalization factor for the single-ion interaction strength.
     cov_factor = (1 - 3/S + 11/(4*S^2)- 3/(4*S^3))
 
     dims = (1, 1, 1)
@@ -90,9 +90,10 @@ end
     λ  = 0.1
     langevin = Langevin(Δt; kT=0, λ)
 
-    dipoles = S * [1.0 1.0 -1.0 -1.0; 1.0 -1.0 -1.0 1.0; 1.0 -1.0 1.0 -1.0] / √3
-    positions = [0.0 0.5 0.5 0.0; 0.0 0.5 0.0 0.5; 0.0 0.0 0.5 0.5]
-    set_dipoles!(sys, dipoles, positions)
+    polarize_spin!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
+    polarize_spin!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
+    polarize_spin!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
+    polarize_spin!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
     sw_fields = SpinWaveFields(sys)
 
     disp = zeros(Float64, 4)

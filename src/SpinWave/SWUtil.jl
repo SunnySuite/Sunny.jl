@@ -176,35 +176,35 @@ function construct_magnetic_supercell(sys :: System, A :: Matrix{Int})
     return reshape_geometry_aux(newsys, mag_latsize, mag_cell_size)
 end
 
-"""
-    set_dipoles!
+# """
+#     set_dipoles!
 
-Manually set the ground state configurations by inputing the `dipoles` for all sites along with their `positions` in the magnetic supercell. `dipoles` and `positions` are `3×Nₘ` matrices. Each column of the two objects should match each other. \n
-*Warning*: 1. Must run `construct_magnetic_supercell` before calling this function. 2. You should always use the Langevin sampler provided by Sunny to find the ground state other than calling this function, unless the ground state configuration is known for sure. 3. This function works for `:dipole` and `large_S` mode. For `:SUN` mode, only the fundamental representation of `SU(2)`, i.e. S=1/2 works.
-"""
-function set_dipoles!(sys :: System, dipoles :: Matrix{Float64}, positions :: Matrix{Float64})
-    Ns, Nₘ = sys.Ns[1], length(sys.dipoles)
-    spin = (Ns-1) / 2
-    (sys.mode == :SUN && !isapprox(spin, 0.5, atol=1e-6)) && (throw("SU(N)N>2 not supported, use set_coherents! instead."))
-    @assert sys.latsize == (1, 1, 1) "`sys` is not a valid magnetic supercell, run `construct_magnetic_supercell` first!"
-    @assert size(dipoles, 1) == 3 "dipole should be a 3-vector"
-    @assert size(positions, 1) == 3 "dipole should be a 3-vector"
-    @assert size(dipoles, 2) == Nₘ "number of dipoles does not match `sys`"
-    @assert size(positions, 2) == Nₘ "number of dipoles does not match `sys`"
+# Manually set the ground state configurations by inputing the `dipoles` for all sites along with their `positions` in the magnetic supercell. `dipoles` and `positions` are `3×Nₘ` matrices. Each column of the two objects should match each other. \n
+# *Warning*: 1. Must run `construct_magnetic_supercell` before calling this function. 2. You should always use the Langevin sampler provided by Sunny to find the ground state other than calling this function, unless the ground state configuration is known for sure. 3. This function works for `:dipole` and `large_S` mode. For `:SUN` mode, only the fundamental representation of `SU(2)`, i.e. S=1/2 works.
+# """
+# function set_dipoles!(sys :: System, dipoles :: Matrix{Float64}, positions :: Matrix{Float64})
+#     Ns, Nₘ = sys.Ns[1], length(sys.dipoles)
+#     spin = (Ns-1) / 2
+#     (sys.mode == :SUN && !isapprox(spin, 0.5, atol=1e-6)) && (throw("SU(N)N>2 not supported, use set_coherents! instead."))
+#     @assert sys.latsize == (1, 1, 1) "`sys` is not a valid magnetic supercell, run `construct_magnetic_supercell` first!"
+#     @assert size(dipoles, 1) == 3 "dipole should be a 3-vector"
+#     @assert size(positions, 1) == 3 "dipole should be a 3-vector"
+#     @assert size(dipoles, 2) == Nₘ "number of dipoles does not match `sys`"
+#     @assert size(positions, 2) == Nₘ "number of dipoles does not match `sys`"
     
-    indices = Vector{Int}()
+#     indices = Vector{Int}()
 
-    for i in 1:Nₘ
-        idx = findfirst(isapprox(positions[:, i], atol=1e-8, rtol=1e-10), sys.crystal.positions)
-        @assert !isnothing(idx) "wrong positions for magnetic sites"
-        push!(indices, idx)
-    end
+#     for i in 1:Nₘ
+#         idx = findfirst(isapprox(positions[:, i], atol=1e-8, rtol=1e-10), sys.crystal.positions)
+#         @assert !isnothing(idx) "wrong positions for magnetic sites"
+#         push!(indices, idx)
+#     end
 
-    for i in 1:Nₘ
-        sys.dipoles[1, 1, 1, i] = dipoles[:, indices[i]]
-    end
+#     for i in 1:Nₘ
+#         sys.dipoles[1, 1, 1, i] = dipoles[:, indices[i]]
+#     end
 
-end
+# end
 
 # """
 #     set_coherents!
