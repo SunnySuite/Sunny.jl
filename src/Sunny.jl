@@ -94,11 +94,6 @@ include("SpinWave/SpinWave.jl")
 export SpinWaveFields, construct_magnetic_supercell,
     set_dipoles!, lswt_dispersion_relation, lswt_dynamical_spin_structure_factor!, lswt_unpolarized_INS_spec
 
-# include("WangLandau/BinnedArray.jl")
-# include("WangLandau/WangLandau.jl")
-# export BinnedArray, filter_visited, reset!,
-#     WangLandau, spherical_cap_update, init_bounded!, run!
-
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
 export view_crystal, offline_viewers, browser
