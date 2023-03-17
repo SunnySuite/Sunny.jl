@@ -41,7 +41,6 @@ Compute SU(N) generators in the local reference frame.
 """
 function generate_local_sun_gens(sys :: System)
     Nₘ, N = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    spin  = (N-1)/2
     if sys.mode == :SUN
         s_mat = spin_matrices(N)
 
@@ -151,8 +150,7 @@ This is necessary because components in the reduced BZ are good quantum numbers.
 `K` is the reciprocal lattice vector, and `k̃` is the components of wavevector in the reduced BZ. Note `k = K + k̃`
 """
 function k_chemical_to_k_magnetic(sw_fields :: SpinWaveFields, k :: Vector{Float64})
-    k_copy = deepcopy(k)
-    α = sw_fields.maglat_reciprocal_basis \ k_copy
+    α = sw_fields.maglat_reciprocal_basis \ k
     k̃ = Vector{Float64}(undef, 3)
     K = Vector{Int}(undef, 3)
     for i = 1:3
