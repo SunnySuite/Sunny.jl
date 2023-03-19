@@ -108,3 +108,59 @@ end
 
     @test isapprox(sunny_trace, spintools_trace)
 end
+
+@testitem "Biquadratic interactions" begin
+    function test_biquad(k :: Vector{Float64}, S)
+
+        a = 1.0
+        lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
+        types = ["A"]
+        basis_vecs = [[0, 0, 0]]
+
+        cryst = Crystal(lat_vecs, basis_vecs; types)
+
+        # Spin System
+        dims = (2, 2, 2)
+        infos = [SpinInfo(1, S=S)]
+        sys = System(cryst, dims, infos, :dipole)
+
+        α = -0.4 * π
+        J = 1.0
+        JL, JQ = J * cos(α), J * sin(α) / S^2
+        set_exchange!(sys, JL,  Bond(1, 1, [1, 0, 0]))
+        set_biquadratic!(sys, JQ,  Bond(1, 1, [1, 0, 0]))
+
+        Δt  = abs(0.05 / JL)
+        λ = 0.1
+        langevin = Langevin(Δt; kT=0, λ)
+
+        randomize_spins!(sys)
+
+        langevin.kT = 0
+        for i in 1:100_000
+            step!(sys, langevin)
+        end
+
+        sys_lswt = construct_magnetic_supercell(sys, [1 1 1; -1 1 0; 0 0 1])
+        langevin.kT = 0
+
+        for i in 1:10_000
+            step!(sys_lswt, langevin)
+        end
+
+        sw_fields = SpinWaveFields(sys_lswt)
+
+        @inline γk(k :: Vector{Float64}) = 2 * (cos(2π*k[1]) + cos(2π*k[2]) + cos(2π*k[3]))
+        @inline ϵk₁(k :: Vector{Float64}) = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γk(k)^2) 
+
+        ϵk_num = lswt_dispersion_relation(sw_fields, k)
+        ϵk_ana = ϵk₁(k)
+
+        isapprox(ϵk_num[1], ϵk_ana)
+    end
+
+    k = rand(Float64, 3)
+    @test test_biquad(k, 1)
+    @test test_biquad(k, 3/2)
+
+end

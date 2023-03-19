@@ -46,6 +46,7 @@ function generate_local_sun_gens(sys :: System)
 
         s̃_mat = Array{ComplexF64, 4}(undef, N, N, 3, Nₘ)
         T̃_mat = Array{ComplexF64, 3}(undef, N, N, Nₘ)
+        Q̃_mat = zeros(ComplexF64, 0, 0, 0, 0)
 
         U_mat = Matrix{ComplexF64}(undef, N, N)
 
@@ -62,9 +63,22 @@ function generate_local_sun_gens(sys :: System)
     elseif sys.mode == :dipole
         s_mat_2 = spin_matrices(2)
         s_mat_N = spin_matrices(N)
+        S = (N-1)/2
+
+        # we support the biquad interactions now in the :dipole mode
+        # we choose a particular basis of the nematic operators listed in Appendix B of *Phys. Rev. B 104, 104409*
+        Q_mat = Vector{Matrix{ComplexF64}}(undef, 5)
+        Q_mat[1] = -(s_mat_N[1] * s_mat_N[3] + s_mat_N[3] * s_mat_N[1])
+        Q_mat[2] = -(s_mat_N[2] * s_mat_N[3] + s_mat_N[3] * s_mat_N[2])
+        Q_mat[3] = s_mat_N[1] * s_mat_N[1] - s_mat_N[2] * s_mat_N[2]
+        Q_mat[4] = s_mat_N[1] * s_mat_N[2] + s_mat_N[2] * s_mat_N[1]
+        Q_mat[5] = √3 * s_mat_N[3] * s_mat_N[3] - 1/√3 * S * (S+1) * I
         
         s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
-        T̃_mat = Array{ComplexF64, 3}(undef, 2, 2, Nₘ)
+
+        no_single_ion = isempty(sys.interactions_union[1].aniso.matrep)
+        T̃_mat = no_single_ion ? zeros(ComplexF64, 0, 0, 0) : Array{ComplexF64, 3}(undef, 2, 2, Nₘ)
+        Q̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 5, Nₘ)
 
         U_mat_2 = Matrix{ComplexF64}(undef, 2, 2)
         U_mat_N = Matrix{ComplexF64}(undef, N, N)
@@ -78,40 +92,24 @@ function generate_local_sun_gens(sys :: System)
             for μ = 1:3
                 s̃_mat[:, :, μ, site] = Hermitian(U_mat_2' * s_mat_2[μ] * U_mat_2)
             end
-            T̃_mat[:, :, site] = Hermitian(U_mat_N' * sys.interactions_union[site].aniso.matrep * U_mat_N)[1:2, 1:2]
+            for ν = 1:5
+                Q̃_mat[:, :, ν, site] = Hermitian(U_mat_N' * Q_mat[ν] * U_mat_N)[1:2, 1:2]
+            end
+
+            if !no_single_ion
+                T̃_mat[:, :, site] = Hermitian(U_mat_N' * sys.interactions_union[site].aniso.matrep * U_mat_N)[1:2, 1:2]
+            end
         end
-    
-    # here I need help from Kipton and David to map back the solution, because in general this is difficult to implement.
-    elseif sys.mode == :large_S
-        error("unsupported")
-        # spin  = (N-1) / 2
-        # s_mat_2 = spin * spin_matrices(2)
-
-        # s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
-        # T̃_mat = Array{ComplexF64, 3}(undef, 2, 2, Nₘ)
-
-        # U_mat_2 = Matrix{ComplexF64}(undef, 2, 2)
-
-        # for site = 1:Nₘ
-        #     θ, ϕ = dipole_to_angles(sys.dipoles[1, 1, 1, site])
-        #     U_mat_2[:] = exp(-1im * ϕ * s_mat_2[3]) * exp(-1im * θ * s_mat_2[2])
-        #     @assert isapprox(U_mat_2 * U_mat_2', I) "rotation matrix from (global frame to local frame) not unitary"
-        #     for μ = 1:3
-        #         s̃_mat[:, :, μ, site] = Hermitian(U_mat_2' * s_mat_2[μ] * U_mat_2)
-        #     end
-        #     # T̃_mat[:, :, site] = Hermitian(U_mat_N' * sys.interactions_union.anisos[site].matrep * U_mat_N)[1:2, 1:2]
-        # end
     end
 
-    return s̃_mat, T̃_mat
+    return s̃_mat, T̃_mat, Q̃_mat
 end
 
 """
 External constructor for `SpinWaveFields`
 """
 function SpinWaveFields(sys :: System, energy_ϵ :: Float64=1e-8, energy_tol :: Float64=1e-6)
-    s̃_mat, T̃_mat = generate_local_sun_gens(sys)
-    Q̃_mat = zeros(ComplexF64, 0, 0, 0, 0)
+    s̃_mat, T̃_mat, Q̃_mat = generate_local_sun_gens(sys)
     maglat_basis = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs \ sys.crystal.latvecs
 
     Nₘ = length(sys.dipoles)
@@ -175,62 +173,3 @@ function construct_magnetic_supercell(sys :: System, A :: Matrix{Int})
     mag_cell_size = cell_dimensions(newsys) * diagm(collect(newsys.latsize))
     return reshape_geometry_aux(newsys, mag_latsize, mag_cell_size)
 end
-
-# """
-#     set_dipoles!
-
-# Manually set the ground state configurations by inputing the `dipoles` for all sites along with their `positions` in the magnetic supercell. `dipoles` and `positions` are `3×Nₘ` matrices. Each column of the two objects should match each other. \n
-# *Warning*: 1. Must run `construct_magnetic_supercell` before calling this function. 2. You should always use the Langevin sampler provided by Sunny to find the ground state other than calling this function, unless the ground state configuration is known for sure. 3. This function works for `:dipole` and `large_S` mode. For `:SUN` mode, only the fundamental representation of `SU(2)`, i.e. S=1/2 works.
-# """
-# function set_dipoles!(sys :: System, dipoles :: Matrix{Float64}, positions :: Matrix{Float64})
-#     Ns, Nₘ = sys.Ns[1], length(sys.dipoles)
-#     spin = (Ns-1) / 2
-#     (sys.mode == :SUN && !isapprox(spin, 0.5, atol=1e-6)) && (throw("SU(N)N>2 not supported, use set_coherents! instead."))
-#     @assert sys.latsize == (1, 1, 1) "`sys` is not a valid magnetic supercell, run `construct_magnetic_supercell` first!"
-#     @assert size(dipoles, 1) == 3 "dipole should be a 3-vector"
-#     @assert size(positions, 1) == 3 "dipole should be a 3-vector"
-#     @assert size(dipoles, 2) == Nₘ "number of dipoles does not match `sys`"
-#     @assert size(positions, 2) == Nₘ "number of dipoles does not match `sys`"
-    
-#     indices = Vector{Int}()
-
-#     for i in 1:Nₘ
-#         idx = findfirst(isapprox(positions[:, i], atol=1e-8, rtol=1e-10), sys.crystal.positions)
-#         @assert !isnothing(idx) "wrong positions for magnetic sites"
-#         push!(indices, idx)
-#     end
-
-#     for i in 1:Nₘ
-#         sys.dipoles[1, 1, 1, i] = dipoles[:, indices[i]]
-#     end
-
-# end
-
-# """
-#     set_coherents!
-
-# Manually set the ground state configurations by inputing the `dipoles` for all sites along with their `positions` in the magnetic supercell. `dipoles` and `positions` are `3×Nₘ` matrices. Each column of the two objects should match each other. \n
-# *Warning*: 1. Must run `construct_magnetic_supercell` before calling this function. 2. You should always use the Langevin sampler provided by Sunny to find the ground state other than calling this function, unless the ground state configuration is known for sure. 3. This function works for `:dipole` and `large_S` mode. For `:SUN` mode, only the fundamental representation of `SU(2)`, i.e. S=1/2 works.
-# """
-# function set_dipoles!(sys :: System, dipoles :: Matrix{Float64}, positions :: Matrix{Float64})
-#     Ns, Nₘ = sys.Ns[1], length(sys.dipoles)
-#     spin = (Ns-1) / 2
-#     (sys.mode == :SUN && !isapprox(spin, 0.5, atol=1e-6)) && (throw("SU(N)N>2 not supported, use set_coherents! instead."))
-#     @assert sys.latsize == (1, 1, 1) "`sys` is not a valid magnetic supercell, run `construct_magnetic_supercell` first!"
-#     @assert size(dipoles, 1) == 3 "dipole should be a 3-vector"
-#     @assert size(positions, 1) == 3 "dipole should be a 3-vector"
-#     @assert size(dipoles, 2) == Nₘ "number of dipoles does not match `sys`"
-#     @assert size(positions, 2) == Nₘ "number of dipoles does not match `sys`"
-    
-
-#     indices = Vector{Int}(undef, Nₘ)
-
-#     for i in 1:Nₘ
-#         idx = findfirst(isapprox(positions[i], atol=1e-8, rtol=1e-10), sys.crystal.positions)
-#         @assert !isnothing(idx) "wrong positions for magnetic sites"
-#         push!(indices, idx)
-#     end
-
-#     sys.dipoles = dipoles[indices]
-
-# end
