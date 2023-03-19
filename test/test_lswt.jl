@@ -31,7 +31,7 @@
         step!(sys_lswt, langevin)
     end
 
-    sw_fields = SpinWaveFields(sys_lswt)
+    sw_fields = SpinWave(sys_lswt)
 
     function sion_analytical_disp(k :: Vector{Float64})
         # analytical solutions
@@ -53,7 +53,7 @@
     ωk_ana = [ωk1, ωk2, ωk3, ωk4]
     index  = sortperm(ωk_ana, rev=true)
     ωk_ana = ωk_ana[index]
-    ωk_num = lswt_dispersion_relation(sw_fields, k)
+    ωk_num = dispersion(sw_fields, k)
 
     @test isapprox(ωk_ana, ωk_num)
 end
@@ -94,13 +94,13 @@ end
     polarize_spin!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
     polarize_spin!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
     polarize_spin!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
-    sw_fields = SpinWaveFields(sys)
+    sw_fields = SpinWave(sys)
 
     disp = zeros(Float64, 4)
     Sαβ_matrix = zeros(Float64, 4, 9)
 
     k = [0.8, 0.6, 0.1]
-    lswt_dynamical_spin_structure_factor!(sw_fields, k, disp, Sαβ_matrix)
+    Sαβ_matrix =  dssf(sw_fields, k)
     tmp = Sαβ_matrix[:, 1:3]
     sunny_trace = sum(tmp, dims=2)
 
@@ -148,12 +148,12 @@ end
             step!(sys_lswt, langevin)
         end
 
-        sw_fields = SpinWaveFields(sys_lswt)
+        sw_fields = SpinWave(sys_lswt)
 
         @inline γk(k :: Vector{Float64}) = 2 * (cos(2π*k[1]) + cos(2π*k[2]) + cos(2π*k[3]))
         @inline ϵk₁(k :: Vector{Float64}) = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γk(k)^2) 
 
-        ϵk_num = lswt_dispersion_relation(sw_fields, k)
+        ϵk_num = dispersion(sw_fields, k)
         ϵk_ana = ϵk₁(k)
 
         isapprox(ϵk_num[1], ϵk_ana)

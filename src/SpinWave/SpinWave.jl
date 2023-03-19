@@ -11,7 +11,7 @@
 Update the linear spin-wave Hamiltonian from the exchange interactions.
 Note that `k̃` is a 3-vector, the units of k̃ᵢ is 2π/|ãᵢ|, where |ãᵢ| is the lattice constant of the **magnetic** lattice.
 """
-function generate_ham_lswt!(sw_fields :: SpinWaveFields, k̃ :: Vector{Float64}, Hmat :: Matrix{ComplexF64})
+function generate_ham_lswt!(sw_fields :: SpinWave, k̃ :: Vector{Float64}, Hmat :: Matrix{ComplexF64})
     (; sys, s̃_mat, T̃_mat, Q̃_mat) = sw_fields
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
@@ -324,11 +324,11 @@ function bogoliubov!(disp :: Vector{Float64}, V :: Matrix{ComplexF64}, Hmat :: M
 end
 
 """
-    lswt_dispersion_relation
+    dispersion
 
 Computes the spin excitation energy dispersion relations given a `SpinWaveField` and `k`. Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
 """
-function lswt_dispersion_relation(sw_fields :: SpinWaveFields, k :: Vector{Float64})
+function dispersion(sw_fields :: SpinWave, k :: Vector{Float64})
     K, k̃ = k_chemical_to_k_magnetic(sw_fields, k)
     (; sys) = sw_fields
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
@@ -347,7 +347,7 @@ function lswt_dispersion_relation(sw_fields :: SpinWaveFields, k :: Vector{Float
 end
 
 """
-    lswt_dynamical_spin_structure_factor
+    dssf
 
 Computes the dynamical spin structure factor: \n
     𝒮ᵅᵝ(k, ω) = 1/(2πN)∫dω ∑ₖ exp[i(ωt - k⋅r)] ⟨Sᵅ(r, t)Sᵝ(0, 0)⟩ \n
@@ -360,7 +360,7 @@ Sαβ_matrix[:, 4:6] → 2*real(xy+yx), 2*real(yz+zy), 2*real(zx+xz). \n
 Sαβ_matrix[:, 7:9] → 2*imag(xy-yx), 2*imag(yz-zy), 2*imag(zx-xz). \n 
 Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
 """
-function lswt_dynamical_spin_structure_factor!(sw_fields :: SpinWaveFields, k :: Vector{Float64}, disp :: Vector{Float64}, Sαβ_matrix :: Matrix{Float64})
+function dssf(sw_fields :: SpinWave, k :: Vector{Float64})
 
     K, k̃ = k_chemical_to_k_magnetic(sw_fields, k)
     (; sys, chemical_positions) = sw_fields
@@ -368,6 +368,7 @@ function lswt_dynamical_spin_structure_factor!(sw_fields :: SpinWaveFields, k ::
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
     L  = Nf * Nm
+    Sαβ_matrix = zeros(Float64, L, 9)
 
     # scaling factor (=1) if in the fundamental representation
     M = sys.mode == :SUN ? 1 : (Ns-1)
@@ -379,12 +380,9 @@ function lswt_dynamical_spin_structure_factor!(sw_fields :: SpinWaveFields, k ::
     generate_ham_lswt!(sw_fields, k̃, Hmat)
 
     Vmat = zeros(ComplexF64, 2*L, 2*L)
-    bogoliubov!(disp, Vmat, Hmat, sw_fields.energy_tol)
+    disp = zeros(Float64, L)
 
-    if size(Sαβ_matrix, 1) != L || size(Sαβ_matrix, 2) != 9
-        reshape(Sαβ_matrix, (L, 9))
-    end
-    fill!(Sαβ_matrix, 0.0)
+    bogoliubov!(disp, Vmat, Hmat, sw_fields.energy_tol)
 
     Avec_pref = zeros(ComplexF64, Nm)
     sqrt_Nm_inv = 1.0 / √Nm
@@ -425,9 +423,11 @@ function lswt_dynamical_spin_structure_factor!(sw_fields :: SpinWaveFields, k ::
         Sαβ_matrix[band, 9] = 2.0 * imag(Avec[3] * conj(Avec[1]))
     end
 
+    return Sαβ_matrix
+
 end 
 
-function polarization_matrix(sw_fields :: SpinWaveFields, k :: Vector{Float64})
+function polarization_matrix(sw_fields :: SpinWave, k :: Vector{Float64})
     k_cart = sw_fields.chemic_reciprocal_basis * k
     l = norm(k_cart)
     mat = Matrix{Float64}(I, 3, 3)
@@ -444,11 +444,11 @@ end
 
 
 """
-    lswt_unpolarized_INS_spec
+    intensities
 
 Computes the unpolarized inelastic neutron scattering intensities given a `SpinWaveField`, `k`, and `ω_list`. Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
 """
-function lswt_unpolarized_INS_spec(sw_fields :: SpinWaveFields, k :: Vector{Float64}, ω_list :: Vector{Float64}, η :: Float64)
+function intensities(sw_fields :: SpinWave, k :: Vector{Float64}, ω_list :: Vector{Float64}, η :: Float64)
     polar_mat = polarization_matrix(sw_fields, k)
     (; sys) = sw_fields
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
@@ -456,9 +456,8 @@ function lswt_unpolarized_INS_spec(sw_fields :: SpinWaveFields, k :: Vector{Floa
     N  = Nf + 1
     L  = Nf * Nm
 
-    disp = zeros(Float64, L)
-    Sαβ_matrix = zeros(Float64, L, 9)
-    lswt_dynamical_spin_structure_factor!(sw_fields, k, disp, Sαβ_matrix)
+    disp = dispersion(sw_fields, k)
+    Sαβ_matrix = dssf(sw_fields, k)
 
     num_ω = length(ω_list)
     unpolarized_intensity = zeros(Float64, num_ω)

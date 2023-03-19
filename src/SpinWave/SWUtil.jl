@@ -1,11 +1,11 @@
 ###########################################################################
-# Below takes Sunny to construct `SpinWaveFields` for LSWT calculations.  #
+# Below takes Sunny to construct `SpinWave` for LSWT calculations.  #
 ###########################################################################
 
 """
 Additional fields for linear spin-wave calculations.
 """
-struct SpinWaveFields
+struct SpinWave
     sys   :: System
     s̃_mat :: Array{ComplexF64, 4}  # dipole operators
     T̃_mat :: Array{ComplexF64, 3}  # single-ion anisos
@@ -106,9 +106,9 @@ function generate_local_sun_gens(sys :: System)
 end
 
 """
-External constructor for `SpinWaveFields`
+External constructor for `SpinWave`
 """
-function SpinWaveFields(sys :: System, energy_ϵ :: Float64=1e-8, energy_tol :: Float64=1e-6)
+function SpinWave(sys :: System, energy_ϵ :: Float64=1e-8, energy_tol :: Float64=1e-6)
     s̃_mat, T̃_mat, Q̃_mat = generate_local_sun_gens(sys)
     maglat_basis = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs \ sys.crystal.latvecs
 
@@ -136,7 +136,7 @@ function SpinWaveFields(sys :: System, energy_ϵ :: Float64=1e-8, energy_tol :: 
     chemic_reciprocal_basis[:, 3] = cross(latvecs[:, 1], latvecs[:, 2]) / det_A
     chemic_reciprocal_basis = Mat3(chemic_reciprocal_basis)
 
-    return SpinWaveFields(sys, s̃_mat, T̃_mat, Q̃_mat, chemical_positions, chemic_reciprocal_basis, maglat_reciprocal_basis, energy_ϵ, energy_tol)
+    return SpinWave(sys, s̃_mat, T̃_mat, Q̃_mat, chemical_positions, chemic_reciprocal_basis, maglat_reciprocal_basis, energy_ϵ, energy_tol)
 end
 
 """
@@ -147,7 +147,7 @@ Convert the components of a wavevector from the original Brillouin zone (of the 
 This is necessary because components in the reduced BZ are good quantum numbers.
 `K` is the reciprocal lattice vector, and `k̃` is the components of wavevector in the reduced BZ. Note `k = K + k̃`
 """
-function k_chemical_to_k_magnetic(sw_fields :: SpinWaveFields, k :: Vector{Float64})
+function k_chemical_to_k_magnetic(sw_fields :: SpinWave, k :: Vector{Float64})
     α = sw_fields.maglat_reciprocal_basis \ k
     k̃ = Vector{Float64}(undef, 3)
     K = Vector{Int}(undef, 3)

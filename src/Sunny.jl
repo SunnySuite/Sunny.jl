@@ -91,8 +91,8 @@ export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFact
 
 include("SpinWave/SWUtil.jl")
 include("SpinWave/SpinWave.jl")
-export SpinWaveFields, construct_magnetic_supercell,
-    set_dipoles!, lswt_dispersion_relation, lswt_dynamical_spin_structure_factor!, lswt_unpolarized_INS_spec
+export SpinWave, construct_magnetic_supercell,
+    set_dipoles!, dispersion, dssf, intensities
 
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
