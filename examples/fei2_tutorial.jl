@@ -229,13 +229,74 @@ end
 
 plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# We can now resize the magnetic supercell to a much larger simulation volume,
-# provided as multiples of the original unit cell.
+# ## Linear spin wave theory
+# Now that we have found the ground state for a magnetic supercell, we can
+# immediately proceed to perform zero-temperature calculations using linear spin
+# wave theory. We begin by instantiating a `SpinWave` type.
+
+sys_sw = construct_magnetic_supercell(sys_supercell, [1 0 0; 0 1 -2; 0 1 2])
+sw = SpinWave(sys_sw);
+
+# The dispersion relation can be determined providing `dispersion` with a
+# `SpinWave` and a wave vector. For each wave vector, `dispersion` will return a
+# list of energies, one for each band.
+
+qs = -1.5:0.01:1.5  # range for a component of wave vector
+dr = [dispersion(sw, [q, 0.0, 0.0]) for q in qs]
+
+nummodes = length(dr[1])
+fig = Figure()
+ax = Axis(fig[1,1]; xlabel="(H,0,0)", ylabel="Energy (meV)")
+for i in 1:nummodes
+    lines!(ax, qs,  [x[i] for x in dr]; color=:blue)
+end
+limits!(ax, -1.5, 1.5, 0.0, 7.5)
+fig
+
+# Intensity information, useful for comparison with inelastic neutron scattering
+# (INS) data, can be calculated with `intensities`. By default this function
+# applies a polarization correction.
+
+energies = collect(0.0:0.01:7.5)
+is = zeros(length(qs), length(energies))  # Preallocate intensity array
+γ = 0.05                            # Lorentzian broadening parameter
+for (n, q) in enumerate(qs) 
+    is[n,:] = intensities(sw, [q,0.0,0.0], energies, γ)
+end
+heatmap(qs, energies, is; axis=(xlabel = "(H,0,0)", ylabel="Energy (meV)"))
+
+#src # The full data from the dynamical spin structure factor (DSSF), including
+#src # individual correlation functions, can be retrieved with the `dssf` function.
+#src # For example, data at the zero wave vector is obtained as follows:  
+#src 
+#src Sαβ = dssf(sw, [0.0, 0.0, 0.0])    
+#src 
+#src # Matrix elements are energies, with each row corresponding to a mode and each
+#src # column to the one of the following correlation functions: ``𝒮ˣˣ``, ``𝒮ʸʸ``,
+#src # ``𝒮ᶻᶻ``,``2Re{𝒮ˣʸ+𝒮ʸˣ}``, ``2Re{𝒮ʸᶻ+𝒮ᶻʸ}``, ``2Re{𝒮ᶻˣ+𝒮ˣᶻ}``,
+#src # ``2Im{𝒮ˣʸ+𝒮ʸˣ}``, ``2Im{𝒮ʸᶻ+𝒮ᶻʸ}``, ``2Im{𝒮ᶻˣ+𝒮ˣᶻ}`` More utilities for
+#src # processing this data are forthcoming. These will be similar to what is
+#src # available for structure factors calculated using classical dynamics. 
+
+# ## Dynamical structure factors with classical dynamics
+# Linear spin wave calculations are very useful for getting quick, high-quality,
+# results at zero temperature. Moreover, these results are obtained in the
+# thermodynamic limit. Classical dynamics may also be used to produce similar
+# results, albeit at a higher computational cost and on a finite sized lattice.
+# The classical approach nonetheless provides a number of complementary
+# advantages: it is possible perform simulations at finite temperature while
+# retaining nonlinearities; out-of-equilibrium behavior may be examined
+# directly; and it is straightforward to incorporate inhomogenties, chemical or
+# otherwise.  
+
+# Because classical simulations are conducted on a finite-sized lattice,
+# obtaining acceptable resolution in momentum space requires the use of a larger
+# system size. We can now resize the magnetic supercell to a much larger
+# simulation volume, provided as multiples of the original unit cell.
 
 sys_large = resize_periodically(sys_supercell, (16,16,4))
 plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# ## Dynamical structure factor measurement
 # Apply Langevin dynamics to thermalize the system to a target temperature.
 
 kT = 0.5 * meV_per_K     # 0.5K in units of meV
