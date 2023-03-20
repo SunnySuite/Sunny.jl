@@ -89,6 +89,11 @@ export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFact
     add_sample!, intensities, instant_intensities, broaden_energy, lorentzian,
     connected_path, all_exact_wave_vectors, ωs, spherical_shell
 
+include("SpinWave/SWUtil.jl")
+include("SpinWave/SpinWave.jl")
+export SpinWave, construct_magnetic_supercell,
+    set_dipoles!, dispersion, dssf, intensities
+
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
 export view_crystal, offline_viewers, browser
