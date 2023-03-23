@@ -5,7 +5,7 @@
 """
 Additional fields for linear spin-wave calculations.
 """
-struct SpinWave
+struct SpinWaveTheory
     sys   :: System
     s̃_mat :: Array{ComplexF64, 4}  # dipole operators
     T̃_mat :: Array{ComplexF64, 3}  # single-ion anisos
@@ -106,9 +106,14 @@ function generate_local_sun_gens(sys :: System)
 end
 
 """
-External constructor for `SpinWave`
+External constructor for `SpinWaveTheory`
 """
-function SpinWave(sys :: System, energy_ϵ :: Float64=1e-8, energy_tol :: Float64=1e-6)
+function SpinWaveTheory(sys :: System, energy_ϵ :: Float64=1e-8, energy_tol :: Float64=1e-6;
+    magnetic_latsize = (1, 1, 1)
+)
+    magnetic_cellsize = cell_dimensions(sys) * diagm(collect(sys.latsize))
+    sys = reshape_geometry_aux(sys, magnetic_latsize, magnetic_cellsize)
+
     s̃_mat, T̃_mat, Q̃_mat = generate_local_sun_gens(sys)
     maglat_basis = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs \ sys.crystal.latvecs
 
@@ -136,7 +141,7 @@ function SpinWave(sys :: System, energy_ϵ :: Float64=1e-8, energy_tol :: Float6
     chemic_reciprocal_basis[:, 3] = cross(latvecs[:, 1], latvecs[:, 2]) / det_A
     chemic_reciprocal_basis = Mat3(chemic_reciprocal_basis)
 
-    return SpinWave(sys, s̃_mat, T̃_mat, Q̃_mat, chemical_positions, chemic_reciprocal_basis, maglat_reciprocal_basis, energy_ϵ, energy_tol)
+    return SpinWaveTheory(sys, s̃_mat, T̃_mat, Q̃_mat, chemical_positions, chemic_reciprocal_basis, maglat_reciprocal_basis, energy_ϵ, energy_tol)
 end
 
 """
@@ -147,7 +152,7 @@ Convert the components of a wavevector from the original Brillouin zone (of the 
 This is necessary because components in the reduced BZ are good quantum numbers.
 `K` is the reciprocal lattice vector, and `k̃` is the components of wavevector in the reduced BZ. Note `k = K + k̃`
 """
-function k_chemical_to_k_magnetic(sw_fields :: SpinWave, k :: Vector{Float64})
+function k_chemical_to_k_magnetic(sw_fields :: SpinWaveTheory, k)
     α = sw_fields.maglat_reciprocal_basis \ k
     k̃ = Vector{Float64}(undef, 3)
     K = Vector{Int}(undef, 3)

@@ -24,14 +24,14 @@
 
     randomize_spins!(sys)
     A = [1 1 1; -1 1 0; 0 0 1]
-    sys_lswt = construct_magnetic_supercell(sys, A)
+    sys_swt = reshape_geometry(sys, A)
 
     langevin.kT = 0
     for i in 1:50_000
-        step!(sys_lswt, langevin)
+        step!(sys_swt, langevin)
     end
 
-    sw_fields = SpinWave(sys_lswt)
+    swt = SpinWaveTheory(sys_swt)
 
     function sion_analytical_disp(k :: Vector{Float64})
         # analytical solutions
@@ -53,7 +53,7 @@
     ωk_ana = [ωk1, ωk2, ωk3, ωk4]
     index  = sortperm(ωk_ana, rev=true)
     ωk_ana = ωk_ana[index]
-    ωk_num = dispersion(sw_fields, k)
+    ωk_num = dispersion(swt, [k])
 
     @test isapprox(ωk_ana, ωk_num)
 end
@@ -90,16 +90,13 @@ end
     polarize_spin!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
     polarize_spin!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
     polarize_spin!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
-    sw_fields = SpinWave(sys)
 
-    disp = zeros(Float64, 4)
-    Sαβ_matrix = zeros(Float64, 4, 9)
+    swt = SpinWaveTheory(sys)
 
     k = [0.8, 0.6, 0.1]
-    Sαβ_matrix =  dssf(sw_fields, k)
-    tmp = Sαβ_matrix[:, 1:3]
-    sunny_trace = sum(tmp, dims=2)
+    Sαβs =  Sunny.dssf(swt, k)
 
+    sunny_trace = [real(tr(Sαβs[:,:,a])) for a in axes(Sαβs)[3]]
     spintools_trace = [0.0, 1.1743243223274487, 1.229979802236658, 1.048056653379038]
 
     @test isapprox(sunny_trace, spintools_trace)
@@ -126,17 +123,16 @@ end
         set_exchange!(sys, JL,  Bond(1, 1, [1, 0, 0]))
         set_biquadratic!(sys, JQ,  Bond(1, 1, [1, 0, 0]))
 
-        sys_lswt = construct_magnetic_supercell(sys, [1 1 1; -1 1 0; 0 0 1])
+        sys_swt = reshape_geometry(sys, [1 1 1; -1 1 0; 0 0 1])
+        polarize_spin!(sys_swt, (1, 0, 0), position_to_site(sys_swt, (0, 0, 0)))
+        polarize_spin!(sys_swt, (-1, 0, 0), position_to_site(sys_swt, (0, 1, 0)))
 
-        polarize_spin!(sys_lswt, (1, 0, 0), position_to_site(sys_lswt, (0, 0, 0)))
-        polarize_spin!(sys_lswt, (-1, 0, 0), position_to_site(sys_lswt, (0, 1, 0)))
+        swt = SpinWaveTheory(sys_swt)
 
-        sw_fields = SpinWave(sys_lswt)
+        γk(k :: Vector{Float64}) = 2 * (cos(2π*k[1]) + cos(2π*k[2]) + cos(2π*k[3]))
+        ϵk₁(k :: Vector{Float64}) = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γk(k)^2) 
 
-        @inline γk(k :: Vector{Float64}) = 2 * (cos(2π*k[1]) + cos(2π*k[2]) + cos(2π*k[3]))
-        @inline ϵk₁(k :: Vector{Float64}) = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γk(k)^2) 
-
-        ϵk_num = dispersion(sw_fields, k)
+        ϵk_num = dispersion(swt, [k])
         ϵk_ana = ϵk₁(k)
 
         isapprox(ϵk_num[1], ϵk_ana)
@@ -145,5 +141,4 @@ end
     k = [0.12, 0.23, 0.34]
     @test test_biquad(k, 1)
     @test test_biquad(k, 3/2)
-
 end

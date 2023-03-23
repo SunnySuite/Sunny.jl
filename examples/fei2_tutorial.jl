@@ -233,34 +233,50 @@ plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 # ## Linear spin wave theory
 # Now that we have found the ground state for a magnetic supercell, we can
 # immediately proceed to perform zero-temperature calculations using linear spin
-# wave theory. We begin by instantiating a `SpinWave` type.
+# wave theory. We begin by instantiating a `SpinWaveTheory` type using the
+# supercell.
 
-sys_sw = construct_magnetic_supercell(sys_supercell, [1 0 0; 0 1 -2; 0 1 2])
-sw = SpinWave(sys_sw);
+swt = SpinWaveTheory(sys_supercell);
 
 # The dispersion relation can be determined providing `dispersion` with a
-# `SpinWave` and a wave vector. For each wave vector, `dispersion` will return a
-# list of energies, one for each band.
+# `SpinWaveTheory` and a list of wave vectors. For each wave vector,
+# `dispersion` will return a list of energies, one for each band. 
+# Frequently one wants to dispersion information along lines
+# that connect special wave vectors. The function [`connected_path`](@ref)
+# linearly samples between provided $q$-points, with a given sample density.
 
-qs = -1.5:0.01:1.5  # range for a component of wave vector
-dr = [dispersion(sw, [q, 0.0, 0.0]) for q in qs]
+points = [[0,   0, 0],  # List of wave vectors that define a path
+          [1,   0, 0],
+          [0,   1, 0],
+          [1/2, 0, 0],
+          [0,   1, 0],
+          [0,   0, 0]] 
+density = 40
+path, markers = connected_path(points, density);
 
-nummodes = length(dr[1])
+# `dispersion` may now be called on the wave vectors along the generated path.
+# Each row of the returned matrix corresponds to a single mode.
+
+disp = dispersion(swt, path)
+
 fig = Figure()
-ax = Axis(fig[1,1]; xlabel="(H,0,0)", ylabel="Energy (meV)")
-for i in 1:nummodes
-    lines!(ax, qs,  [x[i] for x in dr]; color=:blue)
+labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
+ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)",
+    xticks=(markers, labels), xticklabelrotation=π/8,
+)
+ylims!(ax, 0.0, 7.5)
+for i in axes(disp)[1]
+    lines!(ax, 1:length(disp[i,:]), disp[i,:]; color=:blue)
 end
-limits!(ax, -1.5, 1.5, 0.0, 7.5)
 fig
 
 # Intensity information, useful for comparison with inelastic neutron scattering
 # (INS) data, can be calculated with `intensities`. By default this function
-# applies a polarization correction.
+# applies a polarization correction. 
 
-energies = collect(0.0:0.01:7.5)
+energies = collect(0.0:0.01:7.5) # Energies to calculate
 is = zeros(length(qs), length(energies))  # Preallocate intensity array
-γ = 0.05                            # Lorentzian broadening parameter
+γ = 0.05  # Lorentzian broadening parameter
 for (n, q) in enumerate(qs) 
     is[n,:] = intensities(sw, [q,0.0,0.0], energies, γ)
 end
