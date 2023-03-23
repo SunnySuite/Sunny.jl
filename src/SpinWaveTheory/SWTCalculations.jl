@@ -11,8 +11,9 @@
 Update the linear spin-wave Hamiltonian from the exchange interactions.
 Note that `k̃` is a 3-vector, the units of k̃ᵢ is 2π/|ãᵢ|, where |ãᵢ| is the lattice constant of the **magnetic** lattice.
 """
-function generate_ham_lswt!(sw_fields :: SpinWave, k̃ :: Vector{Float64}, Hmat :: Matrix{ComplexF64})
-    (; sys, s̃_mat, T̃_mat, Q̃_mat) = sw_fields
+function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Matrix{ComplexF64})
+    (; sys, s̃_mat, T̃_mat, Q̃_mat) = swt
+    Hmat .= 0 # DD: must be zeroed out
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
@@ -20,7 +21,7 @@ function generate_ham_lswt!(sw_fields :: SpinWave, k̃ :: Vector{Float64}, Hmat 
     @assert size(Hmat) == (2*L, 2*L)
     # scaling factor (=1) if in the fundamental representation
     M = sys.mode == :SUN ? 1 : (Ns-1)
-    no_single_ion = isempty(sw_fields.sys.interactions_union[1].aniso.matrep)
+    no_single_ion = isempty(swt.sys.interactions_union[1].aniso.matrep)
 
     # the "metric" of scalar biquad interaction. Here we are using the following identity:
     # (𝐒ᵢ⋅𝐒ⱼ)² = -(𝐒ᵢ⋅𝐒ⱼ)/2 + ∑ₐ (OᵢᵃOⱼᵃ)/2, a=4,…,8
@@ -254,7 +255,7 @@ function generate_ham_lswt!(sw_fields :: SpinWave, k̃ :: Vector{Float64}, Hmat 
 
     # add tiny part to the diagonal elements for cholesky decomposition.
     for ii = 1:2*L
-        Hmat[ii, ii] += sw_fields.energy_ϵ
+        Hmat[ii, ii] += swt.energy_ϵ
     end
 end
 
@@ -323,25 +324,30 @@ function bogoliubov!(disp :: Vector{Float64}, V :: Matrix{ComplexF64}, Hmat :: M
 
 end
 
+
 """
     dispersion
 
 Computes the spin excitation energy dispersion relations given a `SpinWaveField` and `k`. Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
 """
-function dispersion(sw_fields :: SpinWave, k :: Vector{Float64})
-    K, k̃ = k_chemical_to_k_magnetic(sw_fields, k)
-    (; sys) = sw_fields
+function dispersion(swt::SpinWaveTheory, qs)
+    (; sys, energy_tol) = swt
+    
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
-    N  = Nf + 1
     L  = Nf * Nm
 
-    Hmat = zeros(ComplexF64, 2*L, 2*L)
-    generate_ham_lswt!(sw_fields, k̃, Hmat)
+    ℋ = zeros(ComplexF64, 2L, 2L)
+    Vbuf = zeros(ComplexF64, 2L, 2L)
+    disp_buf = zeros(Float64, L)
+    disp = zeros(Float64, L, length(qs)) 
 
-    disp = zeros(Float64, L)
-    V    = zeros(ComplexF64, 2*L, 2*L)
-    bogoliubov!(disp, V, Hmat, sw_fields.energy_tol)
+    for (iq, q) in enumerate(qs)
+        _, qmag = k_chemical_to_k_magnetic(swt, q)
+        swt_hamiltonian!(swt, qmag, ℋ)
+        bogoliubov!(disp_buf, Vbuf, ℋ, energy_tol)
+        disp[:,iq] .= disp_buf
+    end
 
     return disp
 end
@@ -360,15 +366,15 @@ Sαβ_matrix[:, 4:6] → 2*real(xy+yx), 2*real(yz+zy), 2*real(zx+xz). \n
 Sαβ_matrix[:, 7:9] → 2*imag(xy-yx), 2*imag(yz-zy), 2*imag(zx-xz). \n 
 Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
 """
-function dssf(sw_fields :: SpinWave, k :: Vector{Float64})
+function dssf(sw_fields :: SpinWaveTheory, k :: Vector{Float64})
 
-    K, k̃ = k_chemical_to_k_magnetic(sw_fields, k)
     (; sys, chemical_positions) = sw_fields
+    _, k̃ = k_chemical_to_k_magnetic(sw_fields, k)
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
-    L  = Nf * Nm
-    Sαβ_matrix = zeros(Float64, L, 9)
+    nmodes  = Nf * Nm 
+    Sαβs = zeros(ComplexF64, 3, 3, nmodes) 
 
     # scaling factor (=1) if in the fundamental representation
     M = sys.mode == :SUN ? 1 : (Ns-1)
@@ -376,11 +382,11 @@ function dssf(sw_fields :: SpinWave, k :: Vector{Float64})
 
     (; s̃_mat) = sw_fields
 
-    Hmat = zeros(ComplexF64, 2*L, 2*L)
-    generate_ham_lswt!(sw_fields, k̃, Hmat)
+    Hmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
+    swt_hamiltonian!(sw_fields, k̃, Hmat)
 
-    Vmat = zeros(ComplexF64, 2*L, 2*L)
-    disp = zeros(Float64, L)
+    Vmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
+    disp = zeros(Float64, nmodes)
 
     bogoliubov!(disp, Vmat, Hmat, sw_fields.energy_tol)
 
@@ -394,40 +400,34 @@ function dssf(sw_fields :: SpinWave, k :: Vector{Float64})
         Avec_pref[site] = sqrt_Nm_inv * phase * sqrt_M
     end
 
-    for band = 1:L
+    for band = 1:nmodes
         v = Vmat[:, band]
         Avec = zeros(ComplexF64, 3)
         for site = 1:Nm
             @views tS_μ = s̃_mat[:, :, :, site]
             for μ = 1:3
                 for α = 2:N
-                    Avec[μ] += Avec_pref[site] * (tS_μ[α, 1, μ] * v[(site-1)*(N-1)+α-1+L] + tS_μ[1, α, μ] * v[(site-1)*(N-1)+α-1])
+                    Avec[μ] += Avec_pref[site] * (tS_μ[α, 1, μ] * v[(site-1)*(N-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(site-1)*(N-1)+α-1])
                 end
             end
         end
 
-        Sαβ_matrix[band, 1] = real(Avec[1] * conj(Avec[1]))
-        Sαβ_matrix[band, 2] = real(Avec[2] * conj(Avec[2]))
-        Sαβ_matrix[band, 3] = real(Avec[3] * conj(Avec[3]))
-        # xy + yx
-        Sαβ_matrix[band, 4] = 2.0 * real(Avec[1] * conj(Avec[2]))
-        # yz + zy
-        Sαβ_matrix[band, 5] = 2.0 * real(Avec[2] * conj(Avec[3]))
-        # zx + xz
-        Sαβ_matrix[band, 6] = 2.0 * real(Avec[3] * conj(Avec[1]))
-        # xy - yx
-        Sαβ_matrix[band, 7] = 2.0 * imag(Avec[1] * conj(Avec[2]))
-        # yz - zy
-        Sαβ_matrix[band, 8] = 2.0 * imag(Avec[2] * conj(Avec[3]))
-        # zx - xz
-        Sαβ_matrix[band, 9] = 2.0 * imag(Avec[3] * conj(Avec[1]))
+        # DD: Generalize this based on list of arbitrary operators, optimize out symmetry, etc.
+        Sαβs[1,1,band] = real(Avec[1] * conj(Avec[1]))
+        Sαβs[1,2,band] = Avec[1] * conj(Avec[2])
+        Sαβs[1,3,band] = Avec[1] * conj(Avec[3])
+        Sαβs[2,2,band] = real(Avec[2] * conj(Avec[2]))
+        Sαβs[2,3,band] = Avec[2] * conj(Avec[3])
+        Sαβs[3,3,band] = real(Avec[3] * conj(Avec[3]))
+        Sαβs[2,1,band] = conj(Sαβs[1,2,band]) 
+        Sαβs[3,1,band] = conj(Sαβs[3,1,band]) 
+        Sαβs[3,2,band] = conj(Sαβs[2,3,band]) 
     end
 
-    return Sαβ_matrix
-
+    return Sαβs
 end 
 
-function polarization_matrix(sw_fields :: SpinWave, k :: Vector{Float64})
+function polarization_matrix(sw_fields :: SpinWaveTheory, k :: Vector{Float64})
     k_cart = sw_fields.chemic_reciprocal_basis * k
     l = norm(k_cart)
     mat = Matrix{Float64}(I, 3, 3)
@@ -440,26 +440,23 @@ function polarization_matrix(sw_fields :: SpinWave, k :: Vector{Float64})
 end
 
 
-@inline lorentzian(x :: Float64, η :: Float64) = η / (π * (x^2 + η^2))
-
-
 """
     intensities
 
 Computes the unpolarized inelastic neutron scattering intensities given a `SpinWaveField`, `k`, and `ω_list`. Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
 """
-function intensities(sw_fields :: SpinWave, k :: Vector{Float64}, ω_list :: Vector{Float64}, η :: Float64)
-    polar_mat = polarization_matrix(sw_fields, k)
-    (; sys) = sw_fields
+# DD: incorporate existing SF utilties (e.g., form factor, basis reduction, polarization correction)
+function intensities(swt::SpinWaveTheory, k, ωvals, η::Float64)
+    (; sys) = swt
+    polar_mat = polarization_matrix(swt, k)
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
-    N  = Nf + 1
     L  = Nf * Nm
 
-    disp = dispersion(sw_fields, k)
-    Sαβ_matrix = dssf(sw_fields, k)
+    disp = dispersion(swt, k)
+    Sαβ_matrix = dssf(swt, k)
 
-    num_ω = length(ω_list)
+    num_ω = length(ωvals)
     unpolarized_intensity = zeros(Float64, num_ω)
 
     for band = 1:L
@@ -470,7 +467,7 @@ function intensities(sw_fields :: SpinWave, k :: Vector{Float64}, ω_list :: Vec
             unpolarized_intensity[1] += int_band
         else
             for index_ω = 1:num_ω
-                lll = lorentzian(ω_list[index_ω]-disp[band], η)
+                lll = lorentzian(ωst[index_ω]-disp[band], η)
                 unpolarized_intensity[index_ω] += int_band * lll
             end
         end
