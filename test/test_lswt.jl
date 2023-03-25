@@ -24,7 +24,7 @@
 
     randomize_spins!(sys)
     A = [1 1 1; -1 1 0; 0 0 1]
-    sys_lswt = construct_magnetic_supercell(sys, [1 1 1; -1 1 0; 0 0 1])
+    sys_lswt = construct_magnetic_supercell(sys, A)
 
     langevin.kT = 0
     for i in 1:50_000
@@ -86,10 +86,6 @@ end
     Λ = D * (𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
     set_anisotropy!(sys, Λ, 1)
 
-    Δt = abs(0.05 / D)
-    λ  = 0.1
-    langevin = Langevin(Δt; kT=0, λ)
-
     polarize_spin!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
     polarize_spin!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
     polarize_spin!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
@@ -130,23 +126,10 @@ end
         set_exchange!(sys, JL,  Bond(1, 1, [1, 0, 0]))
         set_biquadratic!(sys, JQ,  Bond(1, 1, [1, 0, 0]))
 
-        Δt  = abs(0.05 / JL)
-        λ = 0.1
-        langevin = Langevin(Δt; kT=0, λ)
-
-        randomize_spins!(sys)
-
-        langevin.kT = 0
-        for i in 1:100_000
-            step!(sys, langevin)
-        end
-
         sys_lswt = construct_magnetic_supercell(sys, [1 1 1; -1 1 0; 0 0 1])
-        langevin.kT = 0
 
-        for i in 1:10_000
-            step!(sys_lswt, langevin)
-        end
+        polarize_spin!(sys_lswt, (1, 0, 0), position_to_site(sys_lswt, (0, 0, 0)))
+        polarize_spin!(sys_lswt, (-1, 0, 0), position_to_site(sys_lswt, (0, 1, 0)))
 
         sw_fields = SpinWave(sys_lswt)
 
@@ -159,7 +142,7 @@ end
         isapprox(ϵk_num[1], ϵk_ana)
     end
 
-    k = rand(Float64, 3)
+    k = [0.12, 0.23, 0.34]
     @test test_biquad(k, 1)
     @test test_biquad(k, 3/2)
 
