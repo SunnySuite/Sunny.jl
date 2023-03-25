@@ -220,18 +220,97 @@ function position_to_site(sys::System, r)
 end
 
 
-"""
-    sites_to_bond(sys::System, site1::Site, site2::Site)
+# Given two [`Site`](@ref)s for a possibly reshaped system, return the
+# corresponding [`Bond`](@ref) for the original (unreshaped) crystal. This
+# `bond` can be used for symmetry analysis, e.g., as input to
+# [`print_bond`](@ref). See also [`site_to_atom`](@ref).
+#
+# Warning: This function will not be useful until site2 is wrapped properly.
+function sites_to_bond(sys::System{N}, site1, site2) where N
+    site1, site2 = to_cartesian.((site1, site2))
 
-Given two [`Site`](@ref)s for a possibly reshaped system, return the
-corresponding [`Bond`](@ref) appropriate to the original (unreshaped) crystal.
-This `bond` can be used for symmetry analysis, e.g., as input to
-[`print_bond`](@ref).
-"""
-function sites_to_bond(sys::System{N}, site1::CartesianIndex{4}, site2::CartesianIndex{4}) where N
+    # Position of sites in multiples of original latvecs.
     r1 = position(sys, site1)
     r2 = position(sys, site2)
+
+    # Map to Bond for original crystal
     return Bond(orig_crystal(sys), BondRaw(r1, r2))
+end
+
+# Given a [`Site`](@ref)s for a possibly reshaped system, return the
+# corresponding atom index for the original (unreshaped) crystal. See also
+# [`sites_to_bond`](@ref).
+function site_to_atom(sys::System{N}, site) where N
+    site = to_cartesian(site)
+    r = position(sys, site)
+    return position_to_index(orig_crystal(sys), r)
+end
+
+# Maps atom `i` in `cryst` to the corresponding atom in `orig_cryst`
+function map_atom_to_crystal(cryst, i, orig_cryst)
+    r = cryst.positions[i]
+    orig_r = orig_cryst.latvecs \ cryst.latvecs * r
+    return position_to_index(orig_cryst, orig_r)
+end
+
+# Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
+# `new_cryst`. The new bond will begin at atom `new_i`.
+function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bond)
+    # Positions in new fractional coordinates
+    new_ri = new_cryst.positions[new_i]
+    new_rj = new_ri + new_cryst.latvecs \ displacement(cryst, bond)
+
+    # Verify that new_i (indexed into new_cryst) is consistent with bond.i
+    # (indexed into original cryst).
+    @assert bond.i == position_to_index(cryst, cryst.latvecs \ new_cryst.latvecs * new_ri)
+
+    # Construct bond using new indexing system
+    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
+    return Bond(new_i, new_j, new_n)
+end
+
+
+"""
+    symmetry_equivalent_bonds(sys::System, bond::Bond)
+
+Given a [`Bond`](@ref) for the original (unreshaped) crystal, return all
+symmetry equivalent bonds in the [`System`](@ref). Each returned bond is
+represented as a pair of [`Site`](@ref)s, which may be used as input to
+[`set_exchange_at!`](@ref) or [`set_biquadratic_at!`](@ref). Reverse bonds are
+not included (no double counting).
+
+# Example
+```julia
+for (site1, site2) in symmetry_equivalent_bonds(sys, bond)
+    @assert site1 < site2
+    set_exchange_at!(sys, J, site1, site2)
+end
+```
+"""
+function symmetry_equivalent_bonds(sys::System, bond::Bond)
+    ret = Tuple{Site, Site}[]
+
+    for new_i in 1:natoms(sys.crystal)
+        # atom index in original crystal
+        i = map_atom_to_crystal(sys.crystal, new_i, orig_crystal(sys))
+
+        # loop over symmetry equivalent bonds in original crystal
+        for bond′ in all_symmetry_related_bonds_for_atom(orig_crystal(sys), i, bond)
+
+            # map to a bond with indexing for new crystal
+            new_bond = transform_bond(sys.crystal, new_i, orig_crystal(sys), bond′)
+
+            # loop over all new crystal cells and push site pairs
+            for new_cell_i in all_cells(sys)
+                new_cell_j = offsetc(new_cell_i, new_bond.n, sys.latsize)
+                site_i = (Tuple(new_cell_i)..., new_bond.i)
+                site_j = (Tuple(new_cell_j)..., new_bond.j)
+                site_i < site_j && push!(ret, (site_i, site_j))
+            end
+        end
+    end
+
+    return ret
 end
 
 

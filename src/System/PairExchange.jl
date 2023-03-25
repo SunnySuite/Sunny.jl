@@ -166,8 +166,8 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
     end
 end
 
-# Converts two sites to a bond with indices appropriate to a reshaped system.
-# For internal use only.
+# Converts two sites to a bond with indices for a reshaped system. For internal
+# use only.
 function sites_to_internal_bond(site1::CartesianIndex{4}, site2::CartesianIndex{4})
     n = Tuple(to_cell(site2)) .- Tuple(to_cell(site1))
     return Bond(to_atom(site1), to_atom(site2), n)
@@ -212,7 +212,7 @@ Sets the exchange interaction along the single bond connecting two
 [`Site`](@ref)s, ignoring crystal symmetry. The system must support
 inhomogeneous interactions via [`to_inhomogeneous`](@ref).
 
-See also [`set_exchange!`](@ref), [`sites_to_bond`](@ref).
+See also [`set_exchange!`](@ref).
 """
 function set_exchange_at!(sys::System{N}, J, site1, site2) where N
     site1 = to_cartesian(site1)

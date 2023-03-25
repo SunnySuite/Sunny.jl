@@ -91,6 +91,36 @@ end
 end
 
 
+@testitem "Reshape then inhomogeneous" begin
+    using LinearAlgebra
+
+    latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
+    cryst = Crystal(latvecs, [[0,0,0]])
+    latsize = (6, 6, 2)
+    sys = System(cryst, latsize, [SpinInfo(1, S=1)], :dipole)
+    polarize_spins!(sys, (0,0,1))
+
+    J = 1.5
+    set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
+
+    E0 = J * prod(latsize) * (6/2)
+    @test energy(sys) == E0
+
+    A = [latsize[1] latsize[2]÷2 0
+         0          latsize[2]   0
+         0          0            latsize[3]]
+    @test det(A) ≈ prod(latsize)
+    sys2 = reshape_geometry(sys, A)
+    @test Sunny.natoms(sys2.crystal) == 2
+    @test energy(sys2) ≈ E0
+
+    for sys′ in to_inhomogeneous.((sys, sys2))
+        @test energy(sys′) ≈ E0
+        @test length(symmetry_equivalent_bonds(sys′, Bond(1, 1, [1, 0, 0]))) ≈ E0 / J
+    end
+end
+
+
 @testitem "FeI2 equivalent energy" begin
     using LinearAlgebra
 
