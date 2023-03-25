@@ -25,6 +25,7 @@
 # Begin by importing `Sunny` and `GLMakie`, a plotting package.
 
 using Sunny, GLMakie
+#md Makie.inline!(true); #hide
 #nb Sunny.offline_viewers()  # Inject Javascript code for additional plotting capabilities 
 
 # If you see an error `Package <X> not found in current path`, add the package
