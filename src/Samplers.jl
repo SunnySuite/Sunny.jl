@@ -111,25 +111,30 @@ end
 """
     LocalSampler(; kT, nsweeps=1.0, propose=propose_uniform)
 
-Monte Carlo simulation involving Metropolis updates to individual spins. Use
-with the [`step!`](@ref) function.
+Monte Carlo simulation involving Metropolis updates to individual spins. One
+call to the [`step!`](@ref) function will perform `nsweeps` of MCMC sampling for
+a provided [`System`](@ref). The default value of `1.0` means that `step!`
+performs, on average, one trial update per spin.
 
- - `kT` is the target temperature, and can be updated mutably.
- - `nsweeps` is the number of full-system MCMC sweeps, and may be fractional.
-   The default value of `1.0` means that `step!` performs, on average, one trial
-   update for every spin.
- - `propose` is a function to generate new candidate spin states, which may be
-   accepted or rejected. Options include [`propose_uniform`](@ref),
-   [`propose_flip`](@ref), and [`propose_delta`](@ref). Multiple proposals can
-   be mixed with the macro [`@mix_proposals`](@ref).
+Assuming ergodicity, the `LocalSampler` will sample from thermal equilibrium for
+the target temperature `kT`. 
+
+The trial spin updates are sampled using the `propose` function. Built-in
+options include [`propose_uniform`](@ref), [`propose_flip`](@ref), and
+[`propose_delta`](@ref). Multiple proposals can be mixed with the macro
+[`@mix_proposals`](@ref).
 
 The returned object stores fields `ΔE` and `Δs`, which represent the cumulative
 change to the net energy and dipole, respectively.
+
+An alternative approach to sampling is [`Langevin`](@ref), which may be
+preferred for simulating continuous spins, especially in the presence of
+long-range dipole-dipole interactions (cf. [`enable_dipole_dipole!`](@ref)).
 """
-mutable struct LocalSampler{Propose}
+mutable struct LocalSampler{F}
     kT      :: Float64   # Temperature
-    nsweeps :: Float64   # Number of sweeps per step!()
-    propose :: Propose   # Function: (System, Site) -> SpinState
+    nsweeps :: Float64   # Number of MCMC sweeps per `step!`
+    propose :: F         # Function: (System, Site) -> SpinState
     ΔE      :: Float64   # Cumulative energy change
     Δs      :: Vec3      # Cumulative net dipole change
 
@@ -138,6 +143,9 @@ mutable struct LocalSampler{Propose}
     end
 end
 
+function Base.copy(sampler::LocalSampler{F}) where F
+    LocalSampler(; sampler.kT, sampler.nsweeps, sampler.propose)
+end
 
 function step!(sys::System{N}, sampler::LocalSampler) where N
     niters = round(Int, sampler.nsweeps*length(sys.dipoles), RoundUp)

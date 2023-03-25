@@ -1,14 +1,19 @@
 """
     Langevin(Δt::Float64; λ::Float64, kT::Float64)
 
-Projected Heun integration scheme with noise and damping.
-Use with the `step!` function to evolve a `System` forward by a time step of `Δt`:
+Spin dynamics with coupling to a Langevin thermostat, which includes damping and
+noise terms. One call to the [`step!`](@ref) function will advance a
+[`System`](@ref) by `Δt` units of time.
 
-step!(sys::System, integrator::Langevin)
+Assuming ergodicity, the Langevin dynamics will sample from thermal equilibrium
+for the target temperature `kT`. The empirical parameter `λ` determines the
+strength of the coupling to the thermal bath. In other words, `1/λ` is the
+decorrelation time-scale. If ``λ = 0``, then the spin dynamics coincides with
+[`ImplicitMidpoint`](@ref).
 
-If `kT > 0`, this will simulate dynamics in the presence of a thermal bath. `λ` is an
-empirical parameter that determines the strength of coupling to the thermal bath and
-sets a time scale for decorrelation, `1/λ`. Both keyword parameters are required.
+An alternative approach to sampling is [`LocalSampler`](@ref), which may be
+preferred when the allowed spin values become effective discrete (e.g. Ising
+spins).
 """
 mutable struct Langevin
     Δt  :: Float64
@@ -18,19 +23,18 @@ end
 
 Langevin(Δt; λ, kT) = Langevin(Δt, λ, kT)
 
+Base.copy(dyn::Langevin) = Langevin(dyn.Δt, dyn.λ, dyn.kT)
 
 """
     ImplicitMidpoint(Δt::Float64; atol=1e-12) where N
 
-Energy-conserving integrator for simulating dynamics without damping or noise.
-Use with the `step!` function to evolve a `System` forward by a time step of `Δt`:
+Energy-conserving spin dynamics. One call to the [`step!`](@ref) function will
+advance a [`System`](@ref) by `Δt` units of time.
 
-step!(sys::System, integrator::ImplicitMidpoint)
-
-The above function will use the spherical midpoint integration scheme for dipole systems
-and the Schrodinger midpoint integration scheme for SU(N) spin systems.
-Both integration schemes are symplectic (energy-conserving) and are appropriate for
-simulating dissipationless dynamics over long periods of time.
+Uses the spherical midpoint integration scheme for dipole systems and the
+Schrödinger midpoint integration scheme for SU(_N_) spin systems. Both
+integration schemes are symplectic, and therefore avoid energy drift over long
+periods of simulation time.
 """
 mutable struct ImplicitMidpoint
     Δt   :: Float64
