@@ -266,7 +266,7 @@ Bogoliubov transformation that diagonalizes a bosonic Hamiltonian.
 See Colpa JH. *Diagonalization of the quadratic boson hamiltonian* 
 Physica A: Statistical Mechanics and its Applications, 1978 Sep 1;93(3-4):327-53.
 """
-function bogoliubov!(disp :: Vector{Float64}, V :: Matrix{ComplexF64}, Hmat :: Matrix{ComplexF64}, energy_tol :: Float64, mode_fast :: Bool = false)
+function bogoliubov!(disp, V, Hmat, energy_tol, mode_fast::Bool = false)
     @assert size(Hmat, 1) == size(Hmat, 2) "Hmat is not a square matrix"
     @assert size(Hmat, 1) % 2 == 0 "dimension of Hmat is not even"
 
@@ -325,6 +325,20 @@ function bogoliubov!(disp :: Vector{Float64}, V :: Matrix{ComplexF64}, Hmat :: M
 end
 
 
+function reshape_correlations(corrs)
+    qdims, nmodes = size(corrs)[4:end], size(corrs)[3]
+    idxorder = collect(1:ndims(corrs))
+    idxorder[3], idxorder[end] = idxorder[end], idxorder[3]
+    corrs = permutedims(corrs, idxorder)
+    return selectdim(reinterpret(SMatrix{3,3,ComplexF64,9}, reshape(corrs, 9, qdims...,nmodes) ), 1, 1)
+end
+
+function reshape_dispersions(disp)
+    idxorder = collect(1:ndims(disp))
+    idxorder[1], idxorder[end] = idxorder[end], idxorder[1]
+    return permutedims(disp, idxorder)
+end
+
 """
     dispersion
 
@@ -335,21 +349,21 @@ function dispersion(swt::SpinWaveTheory, qs)
     
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
-    L  = Nf * Nm
+    nmodes  = Nf * Nm
 
-    ℋ = zeros(ComplexF64, 2L, 2L)
-    Vbuf = zeros(ComplexF64, 2L, 2L)
-    disp_buf = zeros(Float64, L)
-    disp = zeros(Float64, L, length(qs)) 
+    ℋ = zeros(ComplexF64, 2nmodes, 2nmodes)
+    Vbuf = zeros(ComplexF64, 2nmodes, 2nmodes)
+    disp_buf = zeros(Float64, nmodes)
+    disp = zeros(Float64, nmodes, length(qs)) 
 
     for (iq, q) in enumerate(qs)
-        _, qmag = k_chemical_to_k_magnetic(swt, q)
+        _, qmag = chemical_to_magnetic(swt, q)
         swt_hamiltonian!(swt, qmag, ℋ)
         bogoliubov!(disp_buf, Vbuf, ℋ, energy_tol)
         disp[:,iq] .= disp_buf
     end
 
-    return disp
+    return reshape_dispersions(disp)
 end
 
 """
@@ -360,118 +374,102 @@ Computes the dynamical spin structure factor: \n
 For spin-wave theory at the linear level
     𝒮ᵅᵝ(k, ω) = ∑ₙ |Aₙᵅᵝ(k)|²δ[ω-ωₙ(k)]. \n
 
-The output is a `n×9` dimensional matrix that hold |Aₙᵅᵝ(k)|², where `n` is the band index. \n
-Sαβ_matrix[:, 1:3] → xx, yy, zz. \n 
-Sαβ_matrix[:, 4:6] → 2*real(xy+yx), 2*real(yz+zy), 2*real(zx+xz). \n 
-Sαβ_matrix[:, 7:9] → 2*imag(xy-yx), 2*imag(yz-zy), 2*imag(zx-xz). \n 
-Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
+The output is a `3x3×n` dimensional complex array, the first throw
+indices correspond to the α and β indices of ``𝒮^{\alpha\beta}``,
+ordered as x, y and z, and n corresponds to the number of modes.  
 """
-function dssf(sw_fields :: SpinWaveTheory, k :: Vector{Float64})
-
-    (; sys, chemical_positions) = sw_fields
-    _, k̃ = k_chemical_to_k_magnetic(sw_fields, k)
+function dssf(swt::SpinWaveTheory, qs)
+    (; sys, chemical_positions, s̃_mat) = swt
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
     nmodes  = Nf * Nm 
-    Sαβs = zeros(ComplexF64, 3, 3, nmodes) 
-
-    # scaling factor (=1) if in the fundamental representation
-    M = sys.mode == :SUN ? 1 : (Ns-1)
+    M = sys.mode == :SUN ? 1 : (Ns-1) # scaling factor (=1) if in the fundamental representation
     sqrt_M = √M
-
-    (; s̃_mat) = sw_fields
-
-    Hmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
-    swt_hamiltonian!(sw_fields, k̃, Hmat)
-
-    Vmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
-    disp = zeros(Float64, nmodes)
-
-    bogoliubov!(disp, Vmat, Hmat, sw_fields.energy_tol)
-
-    Avec_pref = zeros(ComplexF64, Nm)
     sqrt_Nm_inv = 1.0 / √Nm
 
-    for site = 1:Nm
-        # note that d is the chemical coordinates
-        chemical_coor = chemical_positions[site]
-        phase = exp(-2im * π  * dot(k, chemical_coor))
-        Avec_pref[site] = sqrt_Nm_inv * phase * sqrt_M
-    end
+    # Preallocation
+    Hmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
+    Vmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
+    disp = zeros(Float64, nmodes, size(qs)...)
+    Avec_pref = zeros(ComplexF64, Nm)
+    Sαβs = zeros(ComplexF64, 3, 3, nmodes, size(qs)...) 
 
-    for band = 1:nmodes
-        v = Vmat[:, band]
-        Avec = zeros(ComplexF64, 3)
+    # Calculate DSSF 
+    for qidx in CartesianIndices(qs)
+        q = qs[qidx]
+        _, qmag = chemical_to_magnetic(swt, q)
+
+        swt_hamiltonian!(swt, qmag, Hmat)
+        bogoliubov!(@view(disp[:,qidx]), Vmat, Hmat, swt.energy_tol)
+
         for site = 1:Nm
-            @views tS_μ = s̃_mat[:, :, :, site]
-            for μ = 1:3
-                for α = 2:N
-                    Avec[μ] += Avec_pref[site] * (tS_μ[α, 1, μ] * v[(site-1)*(N-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(site-1)*(N-1)+α-1])
-                end
-            end
+            # note that d is the chemical coordinates
+            chemical_coor = chemical_positions[site]
+            phase = exp(-2im * π  * dot(q, chemical_coor))
+            Avec_pref[site] = sqrt_Nm_inv * phase * sqrt_M
         end
 
-        # DD: Generalize this based on list of arbitrary operators, optimize out symmetry, etc.
-        Sαβs[1,1,band] = real(Avec[1] * conj(Avec[1]))
-        Sαβs[1,2,band] = Avec[1] * conj(Avec[2])
-        Sαβs[1,3,band] = Avec[1] * conj(Avec[3])
-        Sαβs[2,2,band] = real(Avec[2] * conj(Avec[2]))
-        Sαβs[2,3,band] = Avec[2] * conj(Avec[3])
-        Sαβs[3,3,band] = real(Avec[3] * conj(Avec[3]))
-        Sαβs[2,1,band] = conj(Sαβs[1,2,band]) 
-        Sαβs[3,1,band] = conj(Sαβs[3,1,band]) 
-        Sαβs[3,2,band] = conj(Sαβs[2,3,band]) 
+        for band = 1:nmodes
+            v = Vmat[:, band]
+            Avec = zeros(ComplexF64, 3)
+            for site = 1:Nm
+                @views tS_μ = s̃_mat[:, :, :, site]
+                for μ = 1:3
+                    for α = 2:N
+                        Avec[μ] += Avec_pref[site] * (tS_μ[α, 1, μ] * v[(site-1)*(N-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(site-1)*(N-1)+α-1])
+                    end
+                end
+            end
+
+            # DD: Generalize this based on list of arbitrary operators, optimize out symmetry, etc.
+            Sαβs[1,1,band,qidx] = real(Avec[1] * conj(Avec[1]))
+            Sαβs[1,2,band,qidx] = Avec[1] * conj(Avec[2])
+            Sαβs[1,3,band,qidx] = Avec[1] * conj(Avec[3])
+            Sαβs[2,2,band,qidx] = real(Avec[2] * conj(Avec[2]))
+            Sαβs[2,3,band,qidx] = Avec[2] * conj(Avec[3])
+            Sαβs[3,3,band,qidx] = real(Avec[3] * conj(Avec[3]))
+            Sαβs[2,1,band,qidx] = conj(Sαβs[1,2,band,qidx]) 
+            Sαβs[3,1,band,qidx] = conj(Sαβs[3,1,band,qidx]) 
+            Sαβs[3,2,band,qidx] = conj(Sαβs[2,3,band,qidx]) 
+        end
     end
 
-    return Sαβs
+    return reshape_dispersions(disp), reshape_correlations(Sαβs) 
 end 
-
-function polarization_matrix(sw_fields :: SpinWaveTheory, k :: Vector{Float64})
-    k_cart = sw_fields.chemic_reciprocal_basis * k
-    l = norm(k_cart)
-    mat = Matrix{Float64}(I, 3, 3)
-    if l > 1.0e-12
-        [mat[μ, ν] = μ == ν ? 1.0 - k_cart[μ] * k_cart[μ] / l^2 : -k_cart[μ] * k_cart[ν] / l^2 for μ = 1:3, ν = 1:3]
-        return mat
-    else
-        return mat
-    end
-end
 
 
 """
     intensities
 
-Computes the unpolarized inelastic neutron scattering intensities given a `SpinWaveField`, `k`, and `ω_list`. Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
+Computes the unpolarized inelastic neutron scattering intensities given a `SpinWaveField`, `q`, and `ω_list`. Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
 """
-# DD: incorporate existing SF utilties (e.g., form factor, basis reduction, polarization correction)
-function intensities(swt::SpinWaveTheory, k, ωvals, η::Float64)
+# DD: incorporate existing SF utilties (e.g., form factor, polarization correction)
+function intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64)
     (; sys) = swt
-    polar_mat = polarization_matrix(swt, k)
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
-    L  = Nf * Nm
+    nmodes  = Nf * Nm
 
-    disp = dispersion(swt, k)
-    Sαβ_matrix = dssf(swt, k)
+    disp, Sαβs = dssf(swt, qs)
 
     num_ω = length(ωvals)
-    unpolarized_intensity = zeros(Float64, num_ω)
+    is = zeros(Float64, size(qs)..., num_ω)
 
-    for band = 1:L
-        int_band = polar_mat[1, 1] * Sαβ_matrix[band, 1] + polar_mat[2, 2] * Sαβ_matrix[band, 2] + polar_mat[3, 3] * Sαβ_matrix[band, 3] +
-        polar_mat[1, 2] * Sαβ_matrix[band, 4] + polar_mat[2, 3] * Sαβ_matrix[band, 5] + polar_mat[3, 1] * Sαβ_matrix[band, 6]
-        # At a Goldstone mode, where the intensity is divergent, use a delta-function for the intensity.
-        if (disp[band] < 1.0e-3) && (int_band > 1.0e3)
-            unpolarized_intensity[1] += int_band
-        else
-            for index_ω = 1:num_ω
-                lll = lorentzian(ωst[index_ω]-disp[band], η)
-                unpolarized_intensity[index_ω] += int_band * lll
+    for qidx in CartesianIndices(qs)
+        polar_mat = polarization_matrix(swt.chemic_reciprocal_basis * qs[qidx])
+
+        for band = 1:nmodes
+            band_intensity = real(sum(polar_mat .* Sαβs[qidx,band]))
+            # At a Goldstone mode, where the intensity is divergent, use a delta-function for the intensity.
+            if (disp[qidx, band] < 1.0e-3) && (band_intensity > 1.0e3)
+                is[qidx, 1] += band_intensity
+            else
+                for index_ω = 1:num_ω
+                    is[qidx, index_ω] += band_intensity * lorentzian(ωvals[index_ω]-disp[qidx,band], η)
+                end
             end
         end
     end
-
-    return unpolarized_intensity
+    return is
 end

@@ -15,6 +15,9 @@ struct SpinWaveTheory
     maglat_reciprocal_basis :: Mat3 # reciprocal lattice basis vectors for the magnetic supercell
     energy_ϵ   :: Float64 # energy epsilon in the diagonalization. Set to add to diagonal elements of the spin-wave Hamiltonian for cholesky decompostion
     energy_tol :: Float64 # energy tolerance for maximal imaginary part of spin-wave energies
+
+    # observables  :: Array{ComplexF64, 3}                  # Operators corresponding to observables
+    # idxinfo      :: SortedDict{CartesianIndex{2}, Int64}  # (α, β) to save from 𝒮^{αβ}(q, ω)
 end
 
 
@@ -152,7 +155,8 @@ Convert the components of a wavevector from the original Brillouin zone (of the 
 This is necessary because components in the reduced BZ are good quantum numbers.
 `K` is the reciprocal lattice vector, and `k̃` is the components of wavevector in the reduced BZ. Note `k = K + k̃`
 """
-function k_chemical_to_k_magnetic(sw_fields :: SpinWaveTheory, k)
+function chemical_to_magnetic(sw_fields :: SpinWaveTheory, k)
+    k = Vec3(k)
     α = sw_fields.maglat_reciprocal_basis \ k
     k̃ = Vector{Float64}(undef, 3)
     K = Vector{Int}(undef, 3)
@@ -170,11 +174,4 @@ function k_chemical_to_k_magnetic(sw_fields :: SpinWaveTheory, k)
     @assert norm(k - k_check) < 1e-12
 
     return K, k̃
-end
-
-function construct_magnetic_supercell(sys :: System, A :: Matrix{Int})
-    newsys = reshape_geometry(sys, A)
-    mag_latsize = (1, 1, 1)
-    mag_cell_size = cell_dimensions(newsys) * diagm(collect(newsys.latsize))
-    return reshape_geometry_aux(newsys, mag_latsize, mag_cell_size)
 end
