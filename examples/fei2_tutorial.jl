@@ -230,103 +230,11 @@ end
 
 plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# ## Linear spin wave theory
-# Now that we have found the ground state for a magnetic supercell, we can
-# immediately proceed to perform zero-temperature calculations using linear spin
-# wave theory. We begin by instantiating a `SpinWaveTheory` type using the
-# supercell.
-
-swt = SpinWaveTheory(sys_supercell);
-
-# The dispersion relation can be determined providing `dispersion` with a
-# `SpinWaveTheory` and a list of wave vectors. For each wave vector,
-# `dispersion` will return a list of energies, one for each band. 
-# Frequently one wants to dispersion information along lines
-# that connect special wave vectors. The function [`connected_path`](@ref)
-# linearly samples between provided $q$-points, with a given sample density.
-
-points = [[0,   0, 0],  # List of wave vectors that define a path
-          [1,   0, 0],
-          [0,   1, 0],
-          [1/2, 0, 0],
-          [0,   1, 0],
-          [0,   0, 0]] 
-density = 80
-path, markers = connected_path(points, density);
-
-# `dispersion` may now be called on the wave vectors along the generated path.
-# Each column of the returned matrix corresponds to a single mode.
-
-disp = dispersion(swt, path)
-
-fig = Figure()
-labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
-ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)",
-    xticks=(markers, labels), xticklabelrotation=π/8,
-)
-ylims!(ax, 0.0, 7.5)
-for i in axes(disp)[2]
-    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=:blue)
-end
-fig
-
-################################################################################
-# Temp
-################################################################################
-qs = [(a, b, 0.0) for a in [0.0, 0.5], b in [0.0, 0.5]]
-energies, sf = Sunny.dssf(swt, qs)
-energies, sf = Sunny.dssf(swt, path)
-
-begin
-energies = 0.0:0.005:7.5 
-γ = 0.05  # Lorentzian broadening parameter
-is = intensities(swt, path, energies, γ)
-heatmap(is; axis=(xlabel = "(H,0,0)", ylabel="Energy (meV)"))
-end
-################################################################################
-# End temp
-################################################################################
-
-# Intensity information, useful for comparison with inelastic neutron scattering
-# (INS) data, can be calculated with `intensities`. By default this function
-# applies a polarization correction. 
-
-energies = collect(0.0:0.01:7.5) # Energies to calculate
-is = zeros(length(points), length(energies))  # Preallocate intensity array
-γ = 0.05  # Lorentzian broadening parameter
-for (n, q) in enumerate(points) 
-    is[n,:] = intensities(swt, [q,0.0,0.0], energies, γ)
-end
-heatmap(points, energies, is; axis=(xlabel = "(H,0,0)", ylabel="Energy (meV)"))
-
-#src # The full data from the dynamical spin structure factor (DSSF), including
-#src # individual correlation functions, can be retrieved with the `dssf` function.
-#src # For example, data at the zero wave vector is obtained as follows:  
-#src 
-#src Sαβ = dssf(sw, [0.0, 0.0, 0.0])    
-#src 
-#src # Matrix elements are energies, with each row corresponding to a mode and each
-#src # column to the one of the following correlation functions: ``𝒮ˣˣ``, ``𝒮ʸʸ``,
-#src # ``𝒮ᶻᶻ``,``2Re{𝒮ˣʸ+𝒮ʸˣ}``, ``2Re{𝒮ʸᶻ+𝒮ᶻʸ}``, ``2Re{𝒮ᶻˣ+𝒮ˣᶻ}``,
-#src # ``2Im{𝒮ˣʸ+𝒮ʸˣ}``, ``2Im{𝒮ʸᶻ+𝒮ᶻʸ}``, ``2Im{𝒮ᶻˣ+𝒮ˣᶻ}`` More utilities for
-#src # processing this data are forthcoming. These will be similar to what is
-#src # available for structure factors calculated using classical dynamics. 
-
 # ## Dynamical structure factors with classical dynamics
-# Linear spin wave calculations are very useful for getting quick, high-quality,
-# results at zero temperature. Moreover, these results are obtained in the
-# thermodynamic limit. Classical dynamics may also be used to produce similar
-# results, albeit at a higher computational cost and on a finite sized lattice.
-# The classical approach nonetheless provides a number of complementary
-# advantages: it is possible perform simulations at finite temperature while
-# retaining nonlinearities; out-of-equilibrium behavior may be examined
-# directly; and it is straightforward to incorporate inhomogenties, chemical or
-# otherwise.  
-
-# Because classical simulations are conducted on a finite-sized lattice,
+# Working with the magnetic supercell makes annealing substantially easier.
+# Classical simulations are conducted on a finite-sized lattice, however, and
 # obtaining acceptable resolution in momentum space requires the use of a larger
-# system size. We can now resize the magnetic supercell to a much larger
-# simulation volume, provided as multiples of the original unit cell.
+# system size. This easily achieved with `resize_periodically`: 
 
 sys_large = resize_periodically(sys_supercell, (16,16,4))
 plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
