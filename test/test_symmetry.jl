@@ -199,7 +199,7 @@ end
 
         # Test anisotropy invariance in SU(N) mode
         sys = System(cryst, (1,1,1), [SpinInfo(1, S=2)], :SUN)
-        N = sys.Ns[1]
+        N = only(unique(sys.Ns))
         set_anisotropy!(sys, Λ, 1)
         randomize_spins!(sys)
         E1 = energy(sys)

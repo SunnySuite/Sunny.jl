@@ -37,13 +37,10 @@ end
 
 
 function compute_mag!(M, sys::System, apply_g = true)
-    if apply_g
-        for site in all_sites(sys)
-            # TODO: remove 1/sys.units.μB scaling
-            M[:, site] = magnetic_moment(sys, site) / sys.units.μB
-        end
-    else
-        for site in all_sites(sys)
+    for site in all_sites(sys)
+        if apply_g
+            M[:, site] .= sys.gs[site] * sys.dipoles[site]
+        else
             M[:, site] .= sys.dipoles[site]
         end
     end

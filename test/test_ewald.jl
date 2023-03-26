@@ -46,7 +46,7 @@
     @test isapprox(energy(sys), ewalder_energy(sys); atol=1e-12)
 
     # Calculate force using a sum over pairs, or using an FFT-based convolution
-    B = [Sunny.force_at(sys.dipoles, sys.ewald, site) for site in all_sites(sys)]
+    B = [Sunny.ewald_force_at(sys, site) for site in all_sites(sys)]
     @test isapprox(forces(sys), B; atol=1e-12)
 
     # Calculation of energy as a sum over pairs

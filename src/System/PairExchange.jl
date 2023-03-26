@@ -31,17 +31,18 @@ correction to the quadratic part of the exchange.
 See also [`set_exchange!`](@ref).
 """
 function set_biquadratic!(sys::System{N}, J, bond::Bond) where N
+    is_homogeneous(sys) || error("Use `set_biquadratic_at!` for an inhomogeneous system.")
+
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
     if !isnothing(sys.origin)
         set_biquadratic!(sys.origin, J, bond)
-        transfer_unit_cell!(sys, sys.origin)
+        set_interactions_from_origin!(sys)
         return
     end
 
-    sys.mode==:SUN && error("Biquadratic interactions not yet supported in SU(N) mode.")
+    sys.mode == :SUN && error("Biquadratic interactions not yet supported in SU(N) mode.")
     validate_bond(sys.crystal, bond)
-    is_homogeneous(sys) || error("Cannot symmetry-propagate interactions for an inhomogeneous system.")
 
     ints = interactions_homog(sys)
 
@@ -108,17 +109,17 @@ set_exchange!(sys, J2, bond)
 See also [`set_biquadratic!`](@ref), [`dmvec`](@ref).
 """
 function set_exchange!(sys::System{N}, J, bond::Bond) where N
-    # If `sys` has been shaped, then operate first on `sys.origin`, which
+    is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
+
+    # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
     if !isnothing(sys.origin)
         set_exchange!(sys.origin, J, bond)
-        transfer_unit_cell!(sys, sys.origin)
+        set_interactions_from_origin!(sys)
         return
     end
 
     validate_bond(sys.crystal, bond)
-    is_homogeneous(sys) || error("Cannot symmetry-propagate interactions for an inhomogeneous system.")
-
     ints = interactions_homog(sys)
 
     # Convert J to Mat3

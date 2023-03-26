@@ -24,39 +24,31 @@ function reshape_geometry(sys::System{N}, A) where N
 end
 
 
-# Map all "unit cell" quantities from `origin` to `new_sys`. These are: Ns, gs,
-# and homogeneous interactions. 
-function transfer_unit_cell!(new_sys::System{N}, origin::System{N}) where N
-    # Both systems must be homogeneous
-    @assert is_homogeneous(new_sys) && is_homogeneous(origin)
+# Transfer homogeneous interactions from `sys.origin` to reshaped `sys`
+function set_interactions_from_origin!(sys::System{N}) where N
+    origin = sys.origin
+    new_ints  = interactions_homog(sys)
+    orig_ints = interactions_homog(origin)
 
-    origin_ints = interactions_homog(origin)
-    new_ints    = interactions_homog(new_sys)
-    new_cryst   = new_sys.crystal
-
-    for new_i in 1:natoms(new_cryst)
-        i = map_atom_to_crystal(new_cryst, new_i, origin.crystal)
-
-        # Spin descriptors
-        new_sys.Ns[new_i] = origin.Ns[i]
-        new_sys.gs[new_i] = origin.gs[i]
-
-        # Interactions
+    for new_i in 1:natoms(sys.crystal)
         function map_couplings(couplings::Vector{Coupling{T}}) where T
             new_couplings = Coupling{T}[]
             for (; bond, J) in couplings
-                new_bond = transform_bond(new_cryst, new_i, origin.crystal, bond)
+                new_bond = transform_bond(sys.crystal, new_i, origin.crystal, bond)
                 isculled = bond_parity(new_bond)
                 push!(new_couplings, Coupling(isculled, new_bond, J))
             end
             return sort!(new_couplings, by=c->c.isculled)
         end
-        new_ints[new_i].aniso    = origin_ints[i].aniso
-        new_ints[new_i].heisen   = map_couplings(origin_ints[i].heisen)
-        new_ints[new_i].exchange = map_couplings(origin_ints[i].exchange)
-        new_ints[new_i].biquad   = map_couplings(origin_ints[i].biquad)
+        
+        i = map_atom_to_crystal(sys.crystal, new_i, origin.crystal)
+        new_ints[new_i].aniso    = orig_ints[i].aniso
+        new_ints[new_i].heisen   = map_couplings(orig_ints[i].heisen)
+        new_ints[new_i].exchange = map_couplings(orig_ints[i].exchange)
+        new_ints[new_i].biquad   = map_couplings(orig_ints[i].biquad)
     end
 end
+
 
 function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_size::Matrix{Int}) where N
     is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
@@ -68,51 +60,60 @@ function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_c
     origin = clone_system(isnothing(sys.origin) ? sys : sys.origin)
 
     # If `new_cell_size == I`, we can effectively restore the unit cell of
-    # `origin`, but with `new_latsize`
+    # `origin`. Otherwise, we will need to reshape the crystal, map the
+    # interactions, and keep a reference to the original system.
     if new_cell_size == I
         new_cryst = origin.crystal
-        new_na = natoms(new_cryst)
 
+        new_na               = natoms(new_cryst)
+        new_Ns               = zeros(Int, new_latsize..., new_na)
         new_κs               = zeros(Float64, new_latsize..., new_na)
+        new_gs               = zeros(Mat3, new_latsize..., new_na)
         new_extfield         = zeros(Vec3, new_latsize..., new_na)
-        new_ints             = interactions_homog(origin) # homogeneous only
         new_dipoles          = zeros(Vec3, new_latsize..., new_na)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_na)
+
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
-        new_sys = System(nothing, origin.mode, origin.crystal, new_latsize, origin.Ns, origin.gs, new_κs, new_extfield, new_ints, nothing,
-                         new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
-    
-    # Else, rebuild the unit cell for the new crystal
+
+        new_ints = interactions_homog(origin)
+
+        new_sys = System(nothing, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
+                    new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
     else
         new_cryst = reshape_crystal(origin.crystal, Mat3(new_cell_size))
-        new_na = natoms(new_cryst)
-        
-        new_Ns               = zeros(Int, new_na)
-        new_gs               = zeros(Mat3, new_na)
+
+        new_na               = natoms(new_cryst)
+        new_Ns               = zeros(Int, new_latsize..., new_na)
         new_κs               = zeros(Float64, new_latsize..., new_na)
+        new_gs               = zeros(Mat3, new_latsize..., new_na)
         new_extfield         = zeros(Vec3, new_latsize..., new_na)
-        new_ints             = empty_interactions(new_na, N)
         new_dipoles          = zeros(Vec3, new_latsize..., new_na)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_na)
+
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
-        
-        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_gs, new_κs, new_extfield, new_ints, nothing,
-                        new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
-        transfer_unit_cell!(new_sys, origin)
+
+        new_ints = empty_interactions(new_na, N)
+
+        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
+                    new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
+
+        set_interactions_from_origin!(new_sys)
     end
 
-    # Copy per-site quantities from `sys`
+    # Copy per-site quantities
     for new_site in all_sites(new_sys)
         site = position_to_site(sys, position(new_sys, new_site))
-        new_sys.κs[new_site] = sys.κs[site]
-        new_sys.extfield[new_site] = sys.extfield[site]
-        new_sys.dipoles[new_site] = sys.dipoles[site]
+        new_sys.Ns[new_site]        = sys.Ns[site]
+        new_sys.κs[new_site]        = sys.κs[site]
+        new_sys.gs[new_site]        = sys.gs[site]
+        new_sys.extfield[new_site]  = sys.extfield[site]
+        new_sys.dipoles[new_site]   = sys.dipoles[site]
         new_sys.coherents[new_site] = sys.coherents[site]
     end
 
-    # Enable dipole-dipole
+    # Restore dipole-dipole interactions if present
     if !isnothing(sys.ewald)
         enable_dipole_dipole!(new_sys)
     end

@@ -1,6 +1,4 @@
-function SingleIonAnisotropy(sys::System{_N}, op, i) where _N
-    N = sys.Ns[i] # In dipole mode, we can use a per-site N
-
+function SingleIonAnisotropy(sys::System, op, N)
     if sys.mode ∈ (:dipole, :SUN)
         # Convert `op` to a traceless Hermitian matrix
         matrep = operator_to_matrix(op; N)
@@ -107,9 +105,16 @@ set_anisotropy!(sys, 20*(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4), i)
 See also [`print_anisotropy_as_stevens`](@ref).
 """
 function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) where N
-    if !is_homogeneous(sys)
-        error("Use `set_anisotropy_at!` for inhomogeneous systems.")
+    is_homogeneous(sys) || error("Use `set_anisotropy_at!` for an inhomogeneous system.")
+
+    # If `sys` has been reshaped, then operate first on `sys.origin`, which
+    # contains full symmetry information.
+    if !isnothing(sys.origin)
+        set_anisotropy!(sys.origin, op, i)
+        set_interactions_from_origin!(sys)
+        return
     end
+
     ints = interactions_homog(sys)
 
     iszero(op) && return 
@@ -126,7 +131,7 @@ function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) 
         println("Warning: Overriding anisotropy for atom $i.")
     end
 
-    aniso = SingleIonAnisotropy(sys, op, i)
+    aniso = SingleIonAnisotropy(sys, op, sys.Ns[1,1,1,i])
 
     cryst = sys.crystal
     for j in all_symmetry_related_atoms(cryst, i)
@@ -163,7 +168,7 @@ function set_anisotropy_at!(sys::System{N}, op::DP.AbstractPolynomialLike, site)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
     site = to_cartesian(site)
-    ints[site].aniso = SingleIonAnisotropy(sys, op, to_atom(site))
+    ints[site].aniso = SingleIonAnisotropy(sys, op, sys.Ns[site])
 end
 
 

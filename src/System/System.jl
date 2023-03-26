@@ -44,27 +44,33 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     Ns = @. Int(2Ss+1)
 
     if mode == :SUN
-        if !allequal(Ns)
-            error("Currently all spins S must be equal in SU(N) mode.")
-        end
+        allequal(Ns) || error("Currently all spins S must be equal in SU(N) mode.")
         N = first(Ns)
-        κs = fill(1.0, latsize..., na)
+        κs = fill(1.0, na)
     else
-        N = 0
-        # Repeat such that `κs[cell, :] == Ss` for every `cell`
-        κs = permutedims(repeat(Ss, 1, latsize...), (2, 3, 4, 1))
+        N = 0 # acts as marker for :dipole
+        κs = Ss
     end
-    extfield = zeros(Vec3, latsize..., na)
+
+    # Repeat such that `A[:]` → `A[cell, :]` for every `cell`
+    repeat_to_lattice(A) = permutedims(repeat(A, 1, latsize...), (2, 3, 4, 1))
+
+    Ns = repeat_to_lattice(Ns)
+    κs = repeat_to_lattice(κs)
+    gs = repeat_to_lattice(gs)
+
     interactions = empty_interactions(na, N)
     ewald = nothing
+
+    extfield = zeros(Vec3, latsize..., na)
     dipoles = fill(zero(Vec3), latsize..., na)
     coherents = fill(zero(CVec{N}), latsize..., na)
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = System(nothing, mode, crystal, latsize, Ns, gs, κs, extfield, interactions, ewald,
-                 dipoles, coherents, dipole_buffers, coherent_buffers, units, rng)
+    ret = System(nothing, mode, crystal, latsize, Ns, κs, gs, interactions, ewald,
+                 extfield, dipoles, coherents, dipole_buffers, coherent_buffers, units, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
 end
@@ -94,8 +100,8 @@ end
 Base.deepcopy(_::System) = error("Use `clone_system` instead of `deepcopy`.")
 
 # Creates a clone of the system where all the mutable internal data is copied.
-# It should be thread-safe to use the original and the copied systems, without
-# any restrictions.
+# It is intended to be thread-safe to use the original and the copied systems,
+# without any restrictions, but see caveats in `clone_ewald()`.
 function clone_system(sys::System{N}) where N
     (; origin, mode, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, units, rng) = sys
 
@@ -110,8 +116,8 @@ function clone_system(sys::System{N}) where N
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
-    System(origin_clone, mode, crystal, latsize, Ns, copy(gs), copy(κs), copy(extfield),
-           interactions_clone, ewald_clone, copy(dipoles), copy(coherents),
+    System(origin_clone, mode, crystal, latsize, Ns, copy(κs), copy(gs),
+           interactions_clone, ewald_clone, copy(extfield), copy(dipoles), copy(coherents),
            empty_dipole_buffers, empty_coherent_buffers, units, copy(rng))
 end
 
@@ -175,10 +181,10 @@ end
 """
     magnetic_moment(sys::System, site::Site)
 
-Get the magnetic moment for a [`Site`](@ref). The result is `sys.dipoles[site]`
-multiplied by the Bohr magneton and the ``g``-tensor for `site`.
+Get the magnetic moment for a [`Site`](@ref). This is the spin dipole multiplied
+by the Bohr magneton and the local g-tensor.
 """
-magnetic_moment(sys::System, site) = sys.units.μB * sys.gs[to_atom(site)] * sys.dipoles[site]
+magnetic_moment(sys::System, site) = sys.units.μB * sys.gs[site] * sys.dipoles[site]
 
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
@@ -384,7 +390,7 @@ function set_coherent_state!(sys::System{N}, Z, site) where N
     length(Z) != N && error("Length of coherent state does not match system.")
     iszero(N)      && error("Cannot set zero-length coherent state.")
     site = to_cartesian(site)
-    Z = normalize_ket(CVec{N}(Z), sys.κs[to_atom(site)])
+    Z = normalize_ket(CVec{N}(Z), sys.κs[site])
     sys.coherents[site] = Z
     sys.dipoles[site] = expected_spin(Z)
 end
