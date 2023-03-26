@@ -1,37 +1,34 @@
 
 function Ewald(sys::System{N}) where N
-    (; crystal, latsize, gs, units) = sys
+    (; crystal, latsize, units) = sys
 
-    (; μ0, μB) = units
+    A = (units.μ0/4π) * precompute_dipole_ewald(crystal, latsize)
+
     na = natoms(crystal)
-    A = (μ0/4π) * μB^2 .* precompute_dipole_ewald(crystal, latsize)
-    # Scale g tensors into pair interactions A
-    for j in 1:na, i in 1:na
-        for cell in all_cells(sys)
-            A[cell, i, j] = gs[i]' * A[cell, i, j] * gs[j]
-        end
-    end
-
-    ϕ  = zeros(Vec3, latsize..., na)
+    μ = zeros(Vec3, latsize..., na)
+    ϕ = zeros(Vec3, latsize..., na)
 
     Ar = reshape(reinterpret(Float64, A), 3, 3, size(A)...) # dims: [α,β,cell,i,j]
     FA = FFTW.rfft(Ar, 3:5) # FFT on cell indices
     sz_rft = size(FA)[3:5]  # First FT dimension (dimension 3) will be ~ halved
-    Fs = zeros(ComplexF64, 3, sz_rft..., na)
+    Fμ = zeros(ComplexF64, 3, sz_rft..., na)
     Fϕ = zeros(ComplexF64, 3, sz_rft..., na)
 
     mock_spins = zeros(3, latsize..., na)
     plan     = FFTW.plan_rfft(mock_spins, 2:4; flags=FFTW.MEASURE)
-    ift_plan = FFTW.plan_irfft(Fs, latsize[1], 2:4; flags=FFTW.MEASURE)
+    ift_plan = FFTW.plan_irfft(Fμ, latsize[1], 2:4; flags=FFTW.MEASURE)
 
-    return Ewald(A, ϕ, FA, Fs, Fϕ, plan, ift_plan)
+    return Ewald(A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan)
 end
 
-# Clone all mutable state within Ewald. Note that `A`, `FA`, and plans should be
-# immutable data.
+# Clone all mutable state within Ewald. Note that `A`, `FA` are immutable data.
+# We're also treating FFTW plans as immutable. This is not 100% correct, because
+# plans mutably cache inverse plans, which may possibly lead to data races in a
+# multithreaded context. Unfortunately, FFTW does not yet provide a copy
+# function. For context, see https://github.com/JuliaMath/FFTW.jl/issues/261.
 function clone_ewald(ewald::Ewald)
-    (; A, ϕ, FA, Fs, Fϕ, plan, ift_plan) = ewald
-    return Ewald(A, copy(ϕ), FA, copy(Fs), copy(Fϕ), plan, ift_plan)
+    (; A, μ, ϕ, FA, Fμ, Fϕ, plan, ift_plan) = ewald
+    return Ewald(A, copy(μ), copy(ϕ), FA, copy(Fμ), copy(Fϕ), plan, ift_plan)
 end
 
 # Tensor product of 3-vectors
@@ -122,82 +119,99 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
 end
 
 
-function energy(dipoles::Array{Vec3, 4}, ewald::Ewald)
-    (; FA, Fs, plan) = ewald
-    latsize = size(dipoles)[1:3]
+function ewald_energy(sys::System{N}) where N
+    (; μ, FA, Fμ, plan) = sys.ewald
+    latsize = size(sys.dipoles)[1:3]
     even_rft_size = latsize[1] % 2 == 0
 
+    for site in all_sites(sys)
+        μ[site] = magnetic_moment(sys, site)
+    end
+
     E = 0.0
-    mul!(Fs, plan, reinterpret(reshape, Float64, dipoles))
+    mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
 
     # rfft() is missing half the elements of the first Fourier transformed
     # dimension (here, dimension 2). Account for these missing values by scaling
     # the output by 2.
     if even_rft_size
-        @views Fs[:, 2:end-1, :, :, :] .*= √2
+        @views Fμ[:, 2:end-1, :, :, :] .*= √2
     else
-        @views Fs[:, 2:end, :, :, :] .*= √2
+        @views Fμ[:, 2:end, :, :, :] .*= √2
     end
     # * The field is a cross correlation, h(r) = - 2 A(Δr) s(r+Δr) = - 2A⋆s, or
     #   in Fourier space, F[h] = - 2 conj(F[A]) F[s]
     # * The energy is an inner product, E = - (1/2)s⋅h, or using Parseval's
     #   theorem, E = - (1/2) conj(F[s]) F[h] / N
     # * Combined, the result is: E = conj(F[s]) conj(F[A]) F[s] / N
-    (_, m1, m2, m3, na) = size(Fs)
+    (_, m1, m2, m3, na) = size(Fμ)
     ms = CartesianIndices((m1, m2, m3))
     @inbounds for j in 1:na, i in 1:na, m in ms, α in 1:3, β in 1:3
-        E += real(conj(Fs[α, m, i]) * conj(FA[α, β, m, i, j]) * Fs[β, m, j])
+        E += real(conj(Fμ[α, m, i]) * conj(FA[α, β, m, i, j]) * Fμ[β, m, j])
     end
     return E / prod(latsize)
 end
 
 # Use FFT to accumulate the entire field -dE/ds for long-range dipole-dipole
 # interactions
-function accum_force!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ewald::Ewald)
-    (; FA, Fs, Fϕ, ϕ, plan, ift_plan) = ewald
+function accum_ewald_force!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N}) where N
+    (; ewald, units, gs) = sys
+    (; μ, FA, Fμ, Fϕ, ϕ, plan, ift_plan) = ewald
 
-    fill!(Fϕ, 0.0)
-    mul!(Fs, plan, reinterpret(reshape, Float64, dipoles))
-    (_, m1, m2, m3, na) = size(Fs)
-    ms = CartesianIndices((m1, m2, m3))
-    # Without @inbounds, performance degrades by ~50%
-    @inbounds for j in 1:na, i in 1:na, m in ms, α in 1:3, β in 1:3
-        Fϕ[α,m,i] += conj(FA[α,β,m,i,j]) * Fs[β,m,j]
+    # Fourier transformed magnetic moments
+    for site in all_sites(sys)
+        μ[site] = units.μB * gs[site] * dipoles[site]
     end
+    mul!(Fμ, plan, reinterpret(reshape, Float64, μ))
+
+    # Calculate magneto-potential ϕ in Fourier space. Without @inbounds,
+    # performance degrades by ~50%
+    fill!(Fϕ, 0.0)
+    (_, m1, m2, m3, na) = size(Fμ)
+    ms = CartesianIndices((m1, m2, m3))
+    @inbounds for j in 1:na, i in 1:na, m in ms, α in 1:3, β in 1:3
+        Fϕ[α,m,i] += conj(FA[α,β,m,i,j]) * Fμ[β,m,j]
+    end
+
+    # Inverse Fourier transform to get ϕ in real space
     ϕr = reinterpret(reshape, Float64, ϕ)
     mul!(ϕr, ift_plan, Fϕ)
-    for i in eachindex(B)
-        B[i] -= 2ϕ[i]
+    
+    for site in all_sites(sys)
+        B[site] -= 2 * units.μB * (gs[site]' * ϕ[site])
     end
 end
 
 # Calculate the field -dE/ds at site1 generated by a dipole at site2.
-function pairwise_force_at(site1, site2, dipole::Vec3, ewald::Ewald)
+function ewald_pairwise_force_at(sys::System{N}, site1, site2) where N
+    (; gs, ewald, units) = sys
     latsize = size(ewald.ϕ)[1:3]
-    offset = mod.(Tuple(to_cell(site2)-to_cell(site1)), latsize)
-    site = CartesianIndex(offset .+ (1,1,1))
+    cell_offset = mod.(Tuple(to_cell(site2)-to_cell(site1)), latsize)
+    cell = CartesianIndex(cell_offset .+ (1,1,1))
 
     # A prefactor of 2 is always appropriate here. If site1 == site2, it
     # accounts for the quadratic dependence on the dipole. If site1 != site2, it
-    # accounts for energy contributions from both ordered pairs (site1,site2)
-    # and (site2,site1).
-    return - 2ewald.A[site, to_atom(site1), to_atom(site2)] * dipole
+    # accounts for energy contributions from both ordered pairs (site1, site2)
+    # and (site2, site1).
+    return - 2 * units.μB^2 * gs[site1]' * ewald.A[cell, to_atom(site1), to_atom(site2)] * gs[site2] * sys.dipoles[site2]
 end
 
 # Calculate the field -dE/ds at `site` generated by all `dipoles`.
-function force_at(dipoles::Array{Vec3, 4}, ewald::Ewald, site)
+function ewald_force_at(sys::System{N}, site) where N
     acc = zero(Vec3)
-    for site2 in CartesianIndices(dipoles)
-        acc += pairwise_force_at(site, site2, dipoles[site2], ewald)
+    for site2 in all_sites(sys)
+        acc += ewald_pairwise_force_at(sys, site, site2)
     end
     return acc
 end
 
 # Calculate the change in dipole-dipole energy when the spin at `site` is
 # updated to `s`
-function energy_delta(dipoles::Array{Vec3, 4}, ewald::Ewald, site, s::Vec3)
+function ewald_energy_delta(sys::System{N}, site, s::Vec3) where N
+    (; dipoles, ewald, units) = sys
     Δs = s - dipoles[site]
-    b = to_atom(site)
-    h = Sunny.force_at(dipoles, ewald, site)
-    return - Δs⋅h + dot(Δs, ewald.A[1, 1, 1, b, b], Δs)
+    Δμ = units.μB * (sys.gs[site] * Δs)
+    i = to_atom(site)
+    B = ewald_force_at(sys, site)
+    return - Δs⋅B + dot(Δμ, ewald.A[1, 1, 1, i, i], Δμ)
 end

@@ -92,9 +92,7 @@ Sets a Zeeman coupling between a field `B` and a single spin. [`Site`](@ref)
 includes a unit cell and a sublattice index.
 """
 function set_external_field_at!(sys::System, B, site)
-    site = to_cartesian(site)
-    g = sys.gs[to_atom(site)]
-    sys.extfield[site] = sys.units.μB * g' * Vec3(B)
+    sys.extfield[to_cartesian(site)] = Vec3(B)
 end
 
 """
@@ -131,7 +129,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     cell = to_cell(site)
 
     # Zeeman coupling to external field
-    ΔE -= extfield[site] ⋅ Δs
+    ΔE -= sys.units.μB * extfield[site] ⋅ (sys.gs[site] * Δs)
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
@@ -157,10 +155,13 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
 
     # Scalar biquadratic exchange
     for (; bond, J) in biquad
-        sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
+        cellⱼ = offsetc(cell, bond.n, latsize)
+        sⱼ = dipoles[cellⱼ, bond.j]
         if sys.mode == :dipole
             # Renormalization introduces a factor r and a Heisenberg term
-            S = (sys.Ns[bond.i]-1)/2
+            Sᵢ = (sys.Ns[site]-1)/2
+            Sⱼ = (sys.Ns[cellⱼ, bond.j]-1)/2
+            S = √(Sᵢ*Sⱼ)
             r = (1 - 1/S + 1/4S^2)
             ΔE += J * (r*((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2) - (Δs⋅sⱼ)/2)
         elseif sys.mode == :large_S
@@ -172,7 +173,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
 
     # Long-range dipole-dipole
     if !isnothing(ewald)
-        ΔE += energy_delta(dipoles, ewald, site, s)
+        ΔE += ewald_energy_delta(sys, site, s)
     end
 
     return ΔE
@@ -191,7 +192,7 @@ function energy(sys::System{N}) where N
 
     # Zeeman coupling to external field
     for site in all_sites(sys)
-        E -= extfield[site] ⋅ dipoles[site]
+        E -= sys.units.μB * extfield[site] ⋅ (sys.gs[site] * dipoles[site])
     end
 
     # Anisotropies and exchange interactions
@@ -209,7 +210,7 @@ function energy(sys::System{N}) where N
 
     # Long-range dipole-dipole
     if !isnothing(ewald)
-        E += energy(dipoles, ewald)
+        E += ewald_energy(sys)
     end
     
     return E
@@ -257,12 +258,15 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells) where N
     # Scalar biquadratic exchange
     for (; isculled, bond, J) in ints.biquad
         isculled && break
-        for cell in cells
-            sᵢ = dipoles[cell, bond.i]
-            sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
+        for cellᵢ in cells
+            cellⱼ = offsetc(cellᵢ, bond.n, latsize)
+            sᵢ = dipoles[cellᵢ, bond.i]
+            sⱼ = dipoles[cellⱼ, bond.j]
             if sys.mode == :dipole
                 # Renormalization introduces a factor r and a Heisenberg term
-                S = (sys.Ns[bond.i]-1)/2
+                Sᵢ = (sys.Ns[cellᵢ, bond.i]-1)/2
+                Sⱼ = (sys.Ns[cellⱼ, bond.j]-1)/2
+                S = √(Sᵢ*Sⱼ)
                 r = (1 - 1/S + 1/4S^2)
                 E += J * (r*(sᵢ⋅sⱼ)^2 - (sᵢ⋅sⱼ)/2 + S^3 + S^2/4)
             elseif sys.mode == :large_S
@@ -285,7 +289,7 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N})
 
     # Zeeman coupling
     for site in all_sites(sys)
-        B[site] += extfield[site]
+        B[site] += sys.units.μB * (sys.gs[site]' * extfield[site])
     end
 
     # Anisotropies and exchange interactions
@@ -302,7 +306,7 @@ function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N})
     end
 
     if !isnothing(ewald)
-        accum_force!(B, dipoles, ewald)
+        accum_ewald_force!(B, dipoles, sys)
     end
 end
 
@@ -351,8 +355,10 @@ function set_forces_aux!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ints::Inter
             sⱼ = dipoles[cellⱼ, bond.j]
 
             if sys.mode == :dipole
+                Sᵢ = (sys.Ns[cellᵢ, bond.i]-1)/2
+                Sⱼ = (sys.Ns[cellⱼ, bond.j]-1)/2
+                S = √(Sᵢ*Sⱼ)
                 # Renormalization introduces a factor r and a Heisenberg term
-                S = (sys.Ns[bond.i]-1)/2
                 r = (1 - 1/S + 1/4S^2)
                 B[cellᵢ, bond.i] -= J * (2r*sⱼ*(sᵢ⋅sⱼ) - sⱼ/2)
                 B[cellⱼ, bond.j] -= J * (2r*sᵢ*(sᵢ⋅sⱼ) - sᵢ/2)

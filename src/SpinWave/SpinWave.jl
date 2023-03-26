@@ -39,12 +39,12 @@ function generate_ham_lswt!(sw_fields :: SpinWave, k̃ :: Vector{Float64}, Hmat 
     Hmat12 = zeros(ComplexF64, L, L)
     Hmat21 = zeros(ComplexF64, L, L)
 
-    (; extfield) = sys
+    (; extfield, gs, units) = sys
 
     # external field, need to multiply the `M` factor
     for matom = 1:Nm
-        @views effB = extfield[1, 1, 1, matom]
-        @views site_tS = s̃_mat[:, :, :, matom]
+        effB = units.μB * (gs[1, 1, 1, matom]' * extfield[1, 1, 1, matom])
+        site_tS = s̃_mat[:, :, :, matom]
         site_B_dot_tS  = - effB[1] * site_tS[:, :, 1] - effB[2] * site_tS[:, :, 2] - effB[3] * site_tS[:, :, 3]
         for m = 2:N
             for n = 2:N
