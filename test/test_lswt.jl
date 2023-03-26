@@ -53,7 +53,8 @@
     ωk_ana = [ωk1, ωk2, ωk3, ωk4]
     index  = sortperm(ωk_ana, rev=true)
     ωk_ana = ωk_ana[index]
-    ωk_num = dispersion(swt, [k])
+
+    ωk_num = dispersion(swt, [k])'
 
     @test isapprox(ωk_ana, ωk_num)
 end
@@ -94,9 +95,9 @@ end
     swt = SpinWaveTheory(sys)
 
     k = [0.8, 0.6, 0.1]
-    Sαβs =  Sunny.dssf(swt, k)
+    _, Sαβs =  Sunny.dssf(swt, [k])
 
-    sunny_trace = [real(tr(Sαβs[:,:,a])) for a in axes(Sαβs)[3]]
+    sunny_trace = [real(tr(Sαβs[1,a])) for a in axes(Sαβs)[2]]
     spintools_trace = [0.0, 1.1743243223274487, 1.229979802236658, 1.048056653379038]
 
     @test isapprox(sunny_trace, spintools_trace)

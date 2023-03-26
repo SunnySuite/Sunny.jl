@@ -68,6 +68,13 @@ function FullTensor(sf::StructureFactor{N,NCorr,NAtoms}) where {N, NCorr, NAtoms
     error("Full tensor currently available only when working with dipolar components.")
 end
 
+################################################################################
+# Contraction helper functions
+################################################################################
+@inline function polarization_matrix(k::Vec3)
+    k /= norm(k) + 1e-12
+    return SMatrix{3, 3, Float64, 9}(I(3) - k * k')
+end
 
 ################################################################################
 # Contraction methods
@@ -83,8 +90,7 @@ function contract(elems, _, traceinfo::Trace)
 end
 
 function contract(elems, k::Vec3, ::DipoleFactor)
-    k /= norm(k) + 1e-12
-    dip_factor = SMatrix{3, 3, Float64, 9}(I(3) - k * k')
+    dip_factor = polarization_matrix(k)
 
     # Note, can just take the real part since:
     #   (1) diagonal elements are real by construction, and 

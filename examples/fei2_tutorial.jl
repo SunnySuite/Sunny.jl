@@ -251,11 +251,11 @@ points = [[0,   0, 0],  # List of wave vectors that define a path
           [1/2, 0, 0],
           [0,   1, 0],
           [0,   0, 0]] 
-density = 40
+density = 80
 path, markers = connected_path(points, density);
 
 # `dispersion` may now be called on the wave vectors along the generated path.
-# Each row of the returned matrix corresponds to a single mode.
+# Each column of the returned matrix corresponds to a single mode.
 
 disp = dispersion(swt, path)
 
@@ -265,22 +265,39 @@ ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)",
     xticks=(markers, labels), xticklabelrotation=π/8,
 )
 ylims!(ax, 0.0, 7.5)
-for i in axes(disp)[1]
-    lines!(ax, 1:length(disp[i,:]), disp[i,:]; color=:blue)
+for i in axes(disp)[2]
+    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=:blue)
 end
 fig
+
+################################################################################
+# Temp
+################################################################################
+qs = [(a, b, 0.0) for a in [0.0, 0.5], b in [0.0, 0.5]]
+energies, sf = Sunny.dssf(swt, qs)
+energies, sf = Sunny.dssf(swt, path)
+
+begin
+energies = 0.0:0.005:7.5 
+γ = 0.05  # Lorentzian broadening parameter
+is = intensities(swt, path, energies, γ)
+heatmap(is; axis=(xlabel = "(H,0,0)", ylabel="Energy (meV)"))
+end
+################################################################################
+# End temp
+################################################################################
 
 # Intensity information, useful for comparison with inelastic neutron scattering
 # (INS) data, can be calculated with `intensities`. By default this function
 # applies a polarization correction. 
 
 energies = collect(0.0:0.01:7.5) # Energies to calculate
-is = zeros(length(qs), length(energies))  # Preallocate intensity array
+is = zeros(length(points), length(energies))  # Preallocate intensity array
 γ = 0.05  # Lorentzian broadening parameter
-for (n, q) in enumerate(qs) 
-    is[n,:] = intensities(sw, [q,0.0,0.0], energies, γ)
+for (n, q) in enumerate(points) 
+    is[n,:] = intensities(swt, [q,0.0,0.0], energies, γ)
 end
-heatmap(qs, energies, is; axis=(xlabel = "(H,0,0)", ylabel="Energy (meV)"))
+heatmap(points, energies, is; axis=(xlabel = "(H,0,0)", ylabel="Energy (meV)"))
 
 #src # The full data from the dynamical spin structure factor (DSSF), including
 #src # individual correlation functions, can be retrieved with the `dssf` function.
