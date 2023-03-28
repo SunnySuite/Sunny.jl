@@ -1,4 +1,4 @@
-function phase_averaged_elements(data, k::Vec3, sf::StructureFactor{N, NCorr, NAtoms}, ffdata::Vector{FormFactor{FFType}}) where {FFType, N, NCorr, NAtoms}
+function phase_averaged_elements(data, k::Vec3, sf::StructureFactor{N}, ffdata::Vector{FormFactor{FFType}}, ::Val{NCorr}, ::Val{NAtoms}) where {FFType, N, NCorr, NAtoms} 
     elems = zero(SVector{NCorr, ComplexF64})
     knorm = norm(k)
     ffs = ntuple(i -> compute_form(knorm, ffdata[i]), NAtoms)

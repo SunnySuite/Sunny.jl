@@ -19,7 +19,7 @@ struct FullTensor <: Contraction{SMatrix{3, 3, ComplexF64, 9}} end
 ################################################################################
 # Constructors
 ################################################################################
-function Trace(sf::StructureFactor{N,NCorr,NAtoms}) where {N, NCorr, NAtoms}
+function Trace(sf::StructureFactor{N}) where {N}
     # Collect all indices for matrix elements 𝒮^αβ where α=β
     indices = Int64[]
     for (ci, idx) in sf.idxinfo
@@ -42,8 +42,8 @@ function Trace(sf::StructureFactor{N,NCorr,NAtoms}) where {N, NCorr, NAtoms}
     return Trace(SVector{length(indices), Int64}(indices))
 end
 
-function DipoleFactor(sf::StructureFactor{N, NCorr, NAtoms}) where {N, NCorr, NAtoms}
-    if sf.dipole_corrs && NCorr == 6 
+function DipoleFactor(sf::StructureFactor{N}) where {N}
+    if sf.dipole_corrs && (size(sf.data, 1) == 6)  # size(sf.data[1]) is number of correlations
         return DipoleFactor()
     end
     error("Need to be in structure factor dipole mode to calculate depolarization correction.")
@@ -61,11 +61,12 @@ end
 # generated function or similar. Note that the contraction functions are
 # extremely critical to performance and this calculations needs to be done
 # without allocation.
-function FullTensor(sf::StructureFactor{N,NCorr,NAtoms}) where {N, NCorr, NAtoms}
-    if sf.dipole_corrs && NCorr == 6
-        return FullTensor()
-    end
-    error("Full tensor currently available only when working with dipolar components.")
+function FullTensor(sf::StructureFactor{N}) where {N}
+    # if sf.dipole_corrs && (size(sf.data, 1) == 6)  # size(sf.data[1]) is number of correlations
+    #     return FullTensor()
+    # end
+    # error("Full tensor currently available only when working with dipolar components.")
+    FullTensor()
 end
 
 ################################################################################
@@ -117,7 +118,8 @@ end
 #  elems[2] elems[4] elems[5];
 #  elems[3] elems[5] elems[6]]
 function contract(elems, _, ::FullTensor) 
-    return SMatrix{3, 3, ComplexF64, 9}(elems[1], elems[2], elems[3], elems[2], elems[4], elems[5], elems[3], elems[5],elems[6])
+    # return SMatrix{3, 3, ComplexF64, 9}(elems[1], elems[2], elems[3], elems[2], elems[4], elems[5], elems[3], elems[5],elems[6])
+    return elems
 end
 
 
