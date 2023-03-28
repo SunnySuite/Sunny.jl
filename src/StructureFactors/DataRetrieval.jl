@@ -3,8 +3,8 @@
 ################################################################################
 
 # Internal function for getting a single 𝒮(q, ω) intensity
-function calc_intensity(sf::StructureFactor, k, cell, ω, iω, contractor, kT, ffdata)
-    elems = phase_averaged_elements(view(sf.data,:,:,:,cell,iω), k, sf, ffdata)
+function calc_intensity(sf::StructureFactor, k, cell, ω, iω, contractor, kT, ffdata, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
+    elems = phase_averaged_elements(view(sf.data,:,:,:,cell,iω), k, sf, ffdata, Val(NCorr), Val(NAtoms))
     intensity = contract(elems, k, contractor)
     return intensity * classical_to_quantum(ω, kT)
 end
@@ -101,6 +101,7 @@ function intensities(sf::StructureFactor, qs, mode;
     static_warn = true
 )
     qs = Vec3.(qs)
+    NCorr, NAtoms = size(sf.data)[1:2]
 
     # If working on reshaped system, assume qs given as coordinates in terms of
     # reciprocal vectors of original crystal and convert them to qs in terms of
@@ -150,21 +151,21 @@ function intensities(sf::StructureFactor, qs, mode;
     intensities = zeros(contractor, size(qs)..., nω)
     
     # Call type stable version of the function
-    intensities!(intensities, sf, qs, ωvals, interp, contractor, kT, ffdata, stencil_info) 
+    intensities!(intensities, sf, qs, ωvals, interp, contractor, kT, ffdata, stencil_info, Val(NCorr), Val(NAtoms)) 
 
     return intensities
 end
 
 
 # Actual intensity calculation
-function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωvals, interp::InterpolationScheme, contraction::Contraction{T}, temp, ffdata, stencil_info) where {T}
+function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωvals, interp::InterpolationScheme, contraction::Contraction{T}, temp, ffdata, stencil_info, ::Val{NCorr}, ::Val{NAtoms}) where {T, NCorr, NAtoms}
     li_intensities = LinearIndices(intensities)
     ci_qs = CartesianIndices(q_targets)
     (; qs_all, ks_all, idcs_all, counts) = stencil_info 
     for (iω, ω) in enumerate(ωvals)
         iq = 0
         for (qs, ks, idcs, numrepeats) in zip(qs_all, ks_all, idcs_all, counts)
-            local_intensities = stencil_intensities(sf, ks, idcs, ω, iω, interp, contraction, temp, ffdata) 
+            local_intensities = stencil_intensities(sf, ks, idcs, ω, iω, interp, contraction, temp, ffdata, Val(NCorr), Val(NAtoms)) 
             for _ in 1:numrepeats
                 iq += 1
                 idx = li_intensities[CartesianIndex(ci_qs[iq], iω)]

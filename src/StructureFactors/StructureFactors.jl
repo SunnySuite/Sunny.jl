@@ -1,4 +1,4 @@
-struct StructureFactor{N, NCorr, NAtoms}
+struct StructureFactor{N}
     # 𝒮^{αβ}(q,ω) data and metadata
     data           :: Array{ComplexF64, 7}   # Raw SF data for 1st BZ (numcorrelations × natoms × natoms × latsize × energy)
     crystal        :: Crystal                # Crystal for interpretation of q indices in `data`
@@ -28,7 +28,7 @@ respectively.
 """
 function StructureFactor(sys::System{N}; Δt, nω, measperiod,
                             apply_g = true, observables = nothing, correlations = nothing,
-                            process_trajectory = :none) where N
+                            process_trajectory = :none) where {N}
 
     # Set up correlation functions (which matrix elements αβ to save from 𝒮^{αβ})
     default_observables = false
@@ -74,9 +74,9 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
 
     # Preallocation
     na = natoms(sys.crystal)
-    ncorr = length(pairs)
+    ncorr = length(correlations)
     samplebuf = zeros(ComplexF64, nops, sys.latsize..., na, nω) 
-    data = zeros(ComplexF64, length(correlations), na, na, sys.latsize..., nω)
+    data = zeros(ComplexF64, ncorr, na, na, sys.latsize..., nω)
 
     # Other initialization
     nsamples = Int64[0]
@@ -85,9 +85,9 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
     origin_crystal = !isnothing(sys.origin) ? sys.origin.crystal : nothing
 
     # Make Structure factor and add an initial sample
-    sf = StructureFactor{N, ncorr, na}(data, sys.crystal, origin_crystal, Δω, dipole_corrs,
-                                       observables, idxinfo, samplebuf, measperiod, apply_g, integrator,
-                                       nsamples, processtraj!)
+    sf = StructureFactor{N}(data, sys.crystal, origin_crystal, Δω, dipole_corrs,
+                            observables, idxinfo, samplebuf, measperiod, apply_g, integrator,
+                            nsamples, processtraj!)
     add_sample!(sf, sys; processtraj!)
 
     return sf

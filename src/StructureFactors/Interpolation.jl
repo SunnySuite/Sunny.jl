@@ -6,8 +6,8 @@ struct LinearInterp <: InterpolationScheme{8} end
 ddtodo: Explanation of interpolation "API"
 =# 
 
-function stencil_intensities(sf::StructureFactor, ks, idcs, ω, iω, ::InterpolationScheme{NumInterp}, contraction::Contraction{T}, temp, ffdata) where {NumInterp, T}
-    return SVector{NumInterp, T}(calc_intensity(sf, ks[n], idcs[n], ω, iω, contraction, temp, ffdata) for n in 1:NumInterp)
+function stencil_intensities(sf::StructureFactor, ks, idcs, ω, iω, ::InterpolationScheme{NumInterp}, contraction::Contraction{T}, temp, ffdata, ::Val{NCorr}, ::Val{NAtoms}) where {NumInterp, T, NCorr, NAtoms}
+    return SVector{NumInterp, T}(calc_intensity(sf, ks[n], idcs[n], ω, iω, contraction, temp, ffdata, Val(NCorr), Val(NAtoms)) for n in 1:NumInterp)
 end
 
 function interpolated_intensity(::StructureFactor, _, _, stencil_intensities, ::NoInterp) 
