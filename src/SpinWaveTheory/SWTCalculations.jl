@@ -13,7 +13,7 @@ Note that `k̃` is a 3-vector, the units of k̃ᵢ is 2π/|ãᵢ|, where |ã�
 """
 function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Matrix{ComplexF64})
     (; sys, s̃_mat, T̃_mat, Q̃_mat) = swt
-    Hmat .= 0 # DD: must be zeroed out
+    Hmat .= 0 # DD: must be zeroed out!
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
@@ -379,7 +379,8 @@ indices correspond to the α and β indices of ``𝒮^{\alpha\beta}``,
 ordered as x, y and z, and n corresponds to the number of modes.  
 """
 function dssf(swt::SpinWaveTheory, qs)
-    (; sys, chemical_positions, s̃_mat) = swt
+    (; sys, positions_chem, s̃_mat) = swt
+    qs = Vec3.(qs)
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
@@ -405,7 +406,7 @@ function dssf(swt::SpinWaveTheory, qs)
 
         for site = 1:Nm
             # note that d is the chemical coordinates
-            chemical_coor = chemical_positions[site]
+            chemical_coor = positions_chem[site]
             phase = exp(-2im * π  * dot(q, chemical_coor))
             Avec_pref[site] = sqrt_Nm_inv * phase * sqrt_M
         end
@@ -447,6 +448,7 @@ Computes the unpolarized inelastic neutron scattering intensities given a `SpinW
 # DD: incorporate existing SF utilties (e.g., form factor, polarization correction)
 function intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64)
     (; sys) = swt
+    qs = Vec3.(qs)
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     nmodes  = Nf * Nm

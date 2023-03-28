@@ -13,7 +13,7 @@ struct Element <: Contraction{ComplexF64}
     index :: Int64
 end
 
-struct FullTensor <: Contraction{SMatrix{3, 3, ComplexF64, 9}} end
+struct FullTensor{NCorr} <: Contraction{SVector{NCorr, ComplexF64}} end
 
 
 ################################################################################
@@ -66,7 +66,8 @@ function FullTensor(sf::StructureFactor{N}) where {N}
     #     return FullTensor()
     # end
     # error("Full tensor currently available only when working with dipolar components.")
-    FullTensor()
+    # ncorr = size(sf.data, 1)
+    FullTensor{size(sf.data, 1)}()
 end
 
 ################################################################################
@@ -111,14 +112,7 @@ function contract(elems, _, elem::Element)
     return elems[elem.index]
 end
 
-# ddtodo: generalize this for arbitrary sets of correlation functions and (try to) make readable
-# currently only works when D=3, DD=9 (checked when making FullTensor)
-# Matrix elements are chosen as follows:
-# [elems[1] elems[2] elems[3];
-#  elems[2] elems[4] elems[5];
-#  elems[3] elems[5] elems[6]]
 function contract(elems, _, ::FullTensor) 
-    # return SMatrix{3, 3, ComplexF64, 9}(elems[1], elems[2], elems[3], elems[2], elems[4], elems[5], elems[3], elems[5],elems[6])
     return elems
 end
 
