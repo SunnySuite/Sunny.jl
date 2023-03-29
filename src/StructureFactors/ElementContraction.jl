@@ -43,7 +43,9 @@ function Trace(sf::StructureFactor{N}) where {N}
 end
 
 function DipoleFactor(sf::StructureFactor{N}) where {N}
-    if sf.dipole_corrs && (size(sf.data, 1) == 6)  # size(sf.data[1]) is number of correlations
+    if collect(keys(sf.idxinfo))[1:6] == [(1, 1), (1, 2), (2, 2), (1, 3), (2, 3), (3, 3)] .|> CartesianIndex
+        obs_matrices = [sf.observables[:,:,i] for i in 1:3]
+        @assert sum(spin_matrices(N) .≈ obs_matrices) == 3 "Dipole factor can only be applied when the first three observables are spin matrices."
         return DipoleFactor()
     end
     error("Need to be in structure factor dipole mode to calculate depolarization correction.")
@@ -54,19 +56,7 @@ function Element(sf::StructureFactor, pair)
     return Element(index)
 end
 
-# ddtodo: Need a fast approach to doing this when working with arbitrary
-# observables and correlation functions. The difficulty is that the correlation
-# functions are not actually stored in a matrix. Need to leverage convention for
-# ordering correlation function, then can solve the problem statically with a
-# generated function or similar. Note that the contraction functions are
-# extremely critical to performance and this calculations needs to be done
-# without allocation.
 function FullTensor(sf::StructureFactor{N}) where {N}
-    # if sf.dipole_corrs && (size(sf.data, 1) == 6)  # size(sf.data[1]) is number of correlations
-    #     return FullTensor()
-    # end
-    # error("Full tensor currently available only when working with dipolar components.")
-    # ncorr = size(sf.data, 1)
     FullTensor{size(sf.data, 1)}()
 end
 

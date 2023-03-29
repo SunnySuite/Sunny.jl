@@ -19,6 +19,11 @@ struct StructureFactor{N}
     processtraj! :: Function              # Function to perform post-processing on sample trajectories
 end
 
+function Base.show(io::IO, ::MIME"text/plain", sf::StructureFactor)
+    modename = sf.dipole_corrs ? "Dipole correlations" : "Custom correlations"
+    printstyled(io, "StructureFactor [$modename]\n"; bold=true, color=:underline)
+end
+
 """
     StructureFactor
 
@@ -59,6 +64,7 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
         count += 1
     end
     pairs = map(i -> CartesianIndex(i.first) => i.second, pairs) # Convert to CartesianIndices
+    println(pairs)
     idxinfo = SortedDict{CartesianIndex{2}, Int64}(pairs) # CartesianIndices sort to fastest order
 
     # Set up trajectory processing function (e.g., symmetrize)
