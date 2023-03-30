@@ -70,17 +70,18 @@ end
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `StructureFactor`. Maps an array of wave vectors `qs` to an array of structure
 factor intensities, including an additional energy index. The values of ``ω``
-associated with the energy index can be retrieved by calling [`ωs`](@ref).
-The three coordinates of each wave vector are measured in reciprocal lattice
-units, i.e., multiples of the reciprocal lattice vectors.
+associated with the energy index can be retrieved by calling [`ωs`](@ref). The
+three coordinates of each wave vector are measured in reciprocal lattice units,
+i.e., multiples of the reciprocal lattice vectors.
 
 - `mode`: Should be one of `:trace`, `:perp`, or `:full`. Determines an optional
     contraction on the indices ``α`` and ``β`` of ``𝒮^{αβ}(q,ω)``. Setting
-    `trace` yields ``∑_α 𝒮^{αα}(q,ω)``. Setting `perp` will employ a
-    polarization correction on the traced value. Setting `full` will return all
-    elements ``𝒮^{αβ}(𝐪,ω)`` with contraction.
-- `interpolation`: Since ``𝒮(𝐪, ω)`` is calculated on a finite lattice, data is
-    only available at discrete wave vectors. By default, Sunny will round a
+    `trace` yields ``∑_α 𝒮^{αα}(q,ω)``. Setting `perp` will contract
+    ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning
+    the unpolarized intensity. Setting `full` will return all elements
+    ``𝒮^{αβ}(𝐪,ω)`` without contraction.
+- `interpolation`: Since ``𝒮(𝐪, ω)`` is calculated on a finite lattice, data
+    is only available at discrete wave vectors. By default, Sunny will round a
     requested `q` to the nearest available wave vector. Linear interpolation can
     be applied by setting `interpolation=:linear`.
 - `kT`: If a temperature is provided, the intensities will be rescaled by a
