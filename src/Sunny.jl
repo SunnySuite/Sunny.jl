@@ -91,7 +91,7 @@ export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFact
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/SWTCalculations.jl")
-export SpinWaveTheory, dispersion, intensities
+export SpinWaveTheory, dispersion, intensities, dssf
 
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
