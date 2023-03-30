@@ -331,6 +331,7 @@ function reshape_correlations(corrs)
     idxorder[3], idxorder[end] = idxorder[end], idxorder[3]
     corrs = permutedims(corrs, idxorder)
     return selectdim(reinterpret(SMatrix{3,3,ComplexF64,9}, reshape(corrs, 9, qdims...,nmodes) ), 1, 1)
+    # return reinterpret(SMatrix{3,3,ComplexF64,9}, reshape(corrs, 9, qdims...,nmodes))
 end
 
 function reshape_dispersions(disp)
@@ -459,7 +460,7 @@ function intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64)
     is = zeros(Float64, size(qs)..., num_ω)
 
     for qidx in CartesianIndices(qs)
-        polar_mat = polarization_matrix(swt.chemic_reciprocal_basis * qs[qidx])
+        polar_mat = polarization_matrix(swt.recipvecs_chem * qs[qidx])
 
         for band = 1:nmodes
             band_intensity = real(sum(polar_mat .* Sαβs[qidx,band]))
