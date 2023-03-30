@@ -325,13 +325,22 @@ function bogoliubov!(disp, V, Hmat, energy_tol, mode_fast::Bool = false)
 end
 
 
+# DD: These two functions are a stopgap until data is treated differently in
+# main calculations. Also, the final data layout will need to be iterated on. I
+# am thinking the user should always be able to get some array with indices
+# identical to the list of wave vectors. This could be achieved, for example, by
+# having the output be an array with length equal to the number of modes. Each
+# entry would then be an array with dimension equal to the array of wave
+# vectors. The entries of this array would then depend on the request (an an
+# energy, an intensity, an entire tensor stored as an SMatrix, etc.) 
+# The key point is to make it as easy as possible to put the output
+# in correspondence with the input for plotting, further processing, etc.
 function reshape_correlations(corrs)
-    qdims, nmodes = size(corrs)[4:end], size(corrs)[3]
+    qdims, nmodes = size(corrs)[4:end], size(corrs)[3]  # First two indices are are always tensor indices
     idxorder = collect(1:ndims(corrs))
     idxorder[3], idxorder[end] = idxorder[end], idxorder[3]
     corrs = permutedims(corrs, idxorder)
     return selectdim(reinterpret(SMatrix{3,3,ComplexF64,9}, reshape(corrs, 9, qdims...,nmodes) ), 1, 1)
-    # return reinterpret(SMatrix{3,3,ComplexF64,9}, reshape(corrs, 9, qdims...,nmodes))
 end
 
 function reshape_dispersions(disp)
@@ -341,9 +350,16 @@ function reshape_dispersions(disp)
 end
 
 """
-    dispersion
+    dispersion(swt::SpinWaveTheory, qs)
 
-Computes the spin excitation energy dispersion relations given a `SpinWaveField` and `k`. Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
+Computes the spin excitation energy dispersion relations given a `SpinWaveField`
+and an array of wave vectors `qs`. Each element ``q`` of `qs` must be a 3-vector
+in units of reciprocal lattice units. I.e., ``qᵢ`` is given in ``2π/|aᵢ|`` with
+``|aᵢ|`` the lattice constant of the chemical lattice.
+
+The first indices of the returned array correspond to those of `qs`. A final
+index, corresponding to mode, is added to these. Each entry of the array is an
+energy.
 """
 function dispersion(swt::SpinWaveTheory, qs)
     (; sys, energy_tol) = swt
@@ -367,17 +383,22 @@ function dispersion(swt::SpinWaveTheory, qs)
     return reshape_dispersions(disp)
 end
 
+
 """
-    dssf
+    dssf(swt::SpinWaveTheory, qs)
 
-Computes the dynamical spin structure factor: \n
-    𝒮ᵅᵝ(k, ω) = 1/(2πN)∫dω ∑ₖ exp[i(ωt - k⋅r)] ⟨Sᵅ(r, t)Sᵝ(0, 0)⟩ \n
-For spin-wave theory at the linear level
-    𝒮ᵅᵝ(k, ω) = ∑ₙ |Aₙᵅᵝ(k)|²δ[ω-ωₙ(k)]. \n
+Computes the dynamical spin structure factor: \n 𝒮ᵅᵝ(k, ω) = 1/(2πN)∫dω ∑ₖ
+    exp[i(ωt - k⋅r)] ⟨Sᵅ(r, t)Sᵝ(0, 0)⟩ \n For spin-wave theory at the linear
+level 𝒮ᵅᵝ(k, ω) = ∑ₙ |Aₙᵅᵝ(k)|²δ[ω-ωₙ(k)]. \n
 
-The output is a `3x3×n` dimensional complex array, the first throw
-indices correspond to the α and β indices of ``𝒮^{\alpha\beta}``,
-ordered as x, y and z, and n corresponds to the number of modes.  
+`qs` is an array of wave vectors of arbitrary dimension. Each element ``q`` of
+`qs` must be a 3-vector in reciprocal lattice units. I.e., ``qᵢ`` is given in
+``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the chemical lattice.
+
+The first indices of the returned array correspond to those of `qs`. A final
+index, corresponding to mode, is added to these. Each entry of this array is a
+tensor (3x3 matrix) containing with indices α and β corresponding to
+``𝒮ᵅᵝ(q,ω)``.
 """
 function dssf(swt::SpinWaveTheory, qs)
     (; sys, positions_chem, s̃_mat) = swt
@@ -441,10 +462,20 @@ function dssf(swt::SpinWaveTheory, qs)
 end 
 
 
+#DD this will become more similar to the existing intensities.
 """
-    intensities
+    intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64)
 
-Computes the unpolarized inelastic neutron scattering intensities given a `SpinWaveField`, `q`, and `ω_list`. Note that `k` is a 3-vector, the units of kᵢ is 2π/|aᵢ|, where |aᵢ| is the lattice constant of the **chemical** lattice.
+Computes the unpolarized inelastic neutron scattering intensities given a
+`SpinWaveTheory`, an array of wave vectors `qs`, a list of energies `ωvals`, and
+a Lorentzian broadening parameter `η`.
+
+Note that `qs` is an array of wave vectors of arbitrary dimension. Each element
+``q`` of `qs` must be a 3-vector in reciprocal lattice units. I.e., ``qᵢ`` is
+given in ``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the chemical lattice.
+
+The output will be an array with indices identical to `qs`. Each entry of the
+array will be an unpolarized intensity.
 """
 # DD: incorporate existing SF utilties (e.g., form factor, polarization correction)
 function intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64)
