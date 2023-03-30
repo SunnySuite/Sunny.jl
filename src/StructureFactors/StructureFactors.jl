@@ -64,7 +64,6 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
         count += 1
     end
     pairs = map(i -> CartesianIndex(i.first) => i.second, pairs) # Convert to CartesianIndices
-    println(pairs)
     idxinfo = SortedDict{CartesianIndex{2}, Int64}(pairs) # CartesianIndices sort to fastest order
 
     # Set up trajectory processing function (e.g., symmetrize)
