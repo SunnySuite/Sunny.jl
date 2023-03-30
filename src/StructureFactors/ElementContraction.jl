@@ -44,8 +44,6 @@ end
 
 function DipoleFactor(sf::StructureFactor{N}) where {N}
     if collect(keys(sf.idxinfo))[1:6] == [(1, 1), (1, 2), (2, 2), (1, 3), (2, 3), (3, 3)] .|> CartesianIndex
-        obs_matrices = [sf.observables[:,:,i] for i in 1:3]
-        @assert sum(spin_matrices(N) .≈ obs_matrices) == 3 "Dipole factor can only be applied when the first three observables are spin matrices."
         return DipoleFactor()
     end
     error("Need to be in structure factor dipole mode to calculate depolarization correction.")

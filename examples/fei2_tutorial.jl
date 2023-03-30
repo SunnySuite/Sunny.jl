@@ -315,16 +315,17 @@ is = intensities(sf, path, :perp;
 )
 is = broaden_energy(sf, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.06))  # Add artificial broadening
 
-fig = Figure()
 labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
-ax = Axis(fig[1,1];
-    ylabel = "meV",
-    xticks = (markers, labels),
-    xticklabelrotation=π/8,
-    xticklabelsize=12,
+
+heatmap(1:size(is,1), ωs(sf), is;
+    colorrange=(0.0, 2.5),
+    axis = (
+        ylabel = "meV",
+        xticks = (markers, labels),
+        xticklabelrotation=π/8,
+        xticklabelsize=12,
+    )
 )
-heatmap!(ax, 1:size(is,1), ωs(sf), is; colorrange=(0.0, 2.5))
-fig
 
 # The existence of a lower-energy, single-ion bound state is in qualitative
 # agreement with the experimental data in [Bai et
