@@ -25,6 +25,21 @@ function Base.show(io::IO, ::MIME"text/plain", sf::StructureFactor)
 end
 
 """
+    merge!(sf::StructureFactor, others...)
+
+Accumulate the samples in `others` (one or more `StructureFactors`) into `sf`.
+"""
+function merge!(sf::StructureFactor, others...)
+    for sfnew in others
+        nnew = sfnew.nsamples[1]
+        ntotal = sf.nsamples[1] + nnew
+        @. sf.data = sf.data + (sfnew.data - sf.data) * (nnew/ntotal)
+        sf.nsamples[1] = ntotal
+    end
+end
+
+
+"""
     StructureFactor
 
 An object holding ``𝒮(𝐪,ω)`` or ``𝒮(𝐪)`` data. Construct a `StructureFactor`
