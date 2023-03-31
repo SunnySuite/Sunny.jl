@@ -87,7 +87,7 @@ include("StructureFactors/PowderAveraging.jl")
 include("StructureFactors/DataRetrieval.jl")
 export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFactor, 
     add_sample!, intensities, instant_intensities, broaden_energy, lorentzian,
-    connected_path, all_exact_wave_vectors, ωs, spherical_shell
+    connected_path, all_exact_wave_vectors, ωs, spherical_shell, merge!
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/SWTCalculations.jl")
