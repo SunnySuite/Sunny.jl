@@ -106,14 +106,14 @@ end
 function accum_sample!(sf::StructureFactor)
     (; data, idxinfo, samplebuf, nsamples) = sf
     latsize = size(samplebuf)[2:4]
-    na, nω = size(samplebuf)[5:6]
+    natoms, nω = size(samplebuf)[5:6]
 
     FFTW.fft!(samplebuf, (2,3,4,6))
     samplebuf /= nω * √(prod(latsize))  # Normalize FFT according to physical convention
     nsamples[1] += 1
 
     # Transfer to final memory layout while accumulating new samplebuf
-    for ω in 1:nω, cell in CartesianIndices(latsize), j in 1:na, i in 1:na
+    for ω in 1:nω, cell in CartesianIndices(latsize), j in 1:natoms, i in 1:natoms
         for (ci, c) in idxinfo 
             α, β = ci.I
             old = data[c,i,j,cell,ω]
