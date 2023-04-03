@@ -121,7 +121,9 @@ end
 """
 External constructor for `SpinWaveTheory`
 """
-function SpinWaveTheory(sys::System, energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6)
+function SpinWaveTheory(sys::System{N}, energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6) where N
+    (N == 0) && error("`SpinWaveTheory` requires an SU(N) `System`. Dipole mode is not currently supported.") 
+
     # Reshape into single unit cell
     cellsize_mag = cell_dimensions(sys) * diagm(collect(sys.latsize))
     sys = reshape_geometry_aux(sys, (1,1,1), cellsize_mag)
@@ -131,8 +133,8 @@ function SpinWaveTheory(sys::System, energy_ϵ::Float64=1e-8, energy_tol::Float6
     latvecs_mag = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs \ sys.crystal.latvecs # DD: correct/necessary? 
     positions_chem = Vec3.([latvecs_mag * position for position in sys.crystal.positions]) # Positions of atoms in chemical coordinates
     recipvecs_mag = inv(latvecs_mag)'
-    latvecs = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs # DD: correct/necessary?
-    recipvecs_chem = inv(latvecs)'
+    latvecs_chem = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs # DD: correct/necessary?
+    recipvecs_chem = inv(latvecs_chem)'
 
     return SpinWaveTheory(sys, s̃_mat, T̃_mat, Q̃_mat, positions_chem, recipvecs_chem, recipvecs_mag, energy_ϵ, energy_tol)
 end
@@ -145,9 +147,9 @@ Convert the components of a wavevector from the original Brillouin zone (of the 
 This is necessary because components in the reduced BZ are good quantum numbers.
 `K` is the reciprocal lattice vector, and `k̃` is the components of wavevector in the reduced BZ. Note `k = K + k̃`
 """
-function chemical_to_magnetic(sw_fields :: SpinWaveTheory, k)
+function chemical_to_magnetic(swt::SpinWaveTheory, k)
     k = Vec3(k)
-    α = sw_fields.recipvecs_mag \ k
+    α = swt.recipvecs_mag \ k
     k̃ = Vector{Float64}(undef, 3)
     K = Vector{Int}(undef, 3)
     for i = 1:3
@@ -159,7 +161,7 @@ function chemical_to_magnetic(sw_fields :: SpinWaveTheory, k)
         end
         @assert k̃[i] ≥ 0.0 && k̃[i] < 1.0
     end
-    k_check = sw_fields.recipvecs_mag * (K + k̃)
+    k_check = swt.recipvecs_mag * (K + k̃)
     @assert norm(k - k_check) < 1e-12
 
     return K, k̃

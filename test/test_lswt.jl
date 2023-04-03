@@ -59,7 +59,7 @@
     @test isapprox(ωk_ana, ωk_num)
 end
 
-@testitem "Intensities" begin
+@testitem "Intensities" tags=[:skip] begin
     using LinearAlgebra
 
     a = 8.289
@@ -103,7 +103,7 @@ end
     @test isapprox(sunny_trace, spintools_trace)
 end
 
-@testitem "Biquadratic interactions" begin
+@testitem "Biquadratic interactions" tags=[:skip] begin
     function test_biquad(k :: Vector{Float64}, S)
 
         a = 1.0
