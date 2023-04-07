@@ -20,7 +20,7 @@ function SingleIonAnisotropy(sys::System, op, N)
 
     if sys.mode == :dipole
         λ = anisotropy_renormalization(N)
-        stvexp = StevensExpansion(λ[1]*c[2], λ[2]*c[4], λ[3]*c[6])
+        stvexp = StevensExpansion(λ[2]*c[2], λ[4]*c[4], λ[6]*c[6])
     else
         stvexp = StevensExpansion(c[2], c[4], c[6])
     end
@@ -30,9 +30,12 @@ end
 
 function anisotropy_renormalization(N)
     S = (N-1)/2
-    return ((1 - (1/2)/S),
-            (1 - 3/S + (11/4)/S^2 - (3/4)/S^3),
-            (1 - (15/2)/S + (85/4)/S^2 - (225/8)/S^3 + (137/8)/S^4 - (15/4)/S^5))
+    return ((1), # k=1
+            (1 - (1/2)/S), # k=2
+            (1 - (3/2)/S + (1/2)/S^2), # k=3
+            (1 - 3/S + (11/4)/S^2 - (3/4)/S^3), # k=4
+            (1 - 5/S + (35/4)/S^2 - (25/4)/S^3 + (3/2)/S^4), # k=5
+            (1 - (15/2)/S + (85/4)/S^2 - (225/8)/S^3 + (137/8)/S^4 - (15/4)/S^5)) # k=6
 end
 
 function empty_anisotropy(N)
