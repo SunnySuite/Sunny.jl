@@ -75,6 +75,18 @@
 
 \begin_body
 
+\begin_layout Title
+Stevens operators in Sunny
+\end_layout
+
+\begin_layout Author
+Kipton Barros
+\end_layout
+
+\begin_layout Section
+Definitions
+\end_layout
+
 \begin_layout Standard
 \begin_inset FormulaMacro
 \newcommand{\hc}{\textrm{h.c.}}
@@ -127,9 +139,9 @@ By the Wigner-Eckhart theorem, spherical tensors
 
  have matrix elements proportional to the Clebsch Gordon coefficients,
 \begin_inset Formula 
-\[
+\begin{equation}
 \left(T_{q}^{k}\right)_{m,m'}\propto\langle jm'kq|jm\rangle,
-\]
+\end{equation}
 
 \end_inset
 
@@ -148,12 +160,12 @@ involving angular momentum states
 
  symbol,
 \begin_inset Formula 
-\[
+\begin{equation}
 \left(T_{q}^{k}\right)_{m,m'}\propto(-1)^{-m}\left(\begin{array}{ccc}
 j & k & j\\
 -m & q & m'
 \end{array}\right).
-\]
+\end{equation}
 
 \end_inset
 
@@ -198,32 +210,32 @@ The proportionality constant depends only on
 In the Koster and Statz (1959) and Buckmaster et al (1972) convention (KS/BCS),
  one defines
 \begin_inset Formula 
-\[
+\begin{equation}
 \left(T_{q}^{k}\right)_{m,m'}=c_{k,j}(-1)^{j-m}\left(\begin{array}{ccc}
 j & k & j\\
 -m & q & m'
 \end{array}\right),
-\]
+\end{equation}
 
 \end_inset
 
 where
 \begin_inset Formula 
-\[
+\begin{equation}
 c_{k,j}=k!\left\{ \frac{(2j+k+1)!}{(2k)!(2j-k)!}\right\} ^{1/2}.
-\]
+\end{equation}
 
 \end_inset
 
 Using these, the Stevens operators are defined as
 \begin_inset Formula 
-\[
+\begin{equation}
 \mathcal{O}_{k,q}=a_{k,|q|}\times\begin{cases}
 \left[T_{-|q|}^{k}+(-1)^{q}T_{|q|}^{k}\right] & (q>0)\\
 T_{0}^{k} & (q=0).\\
 \mathrm{i}\,\left[T_{-|q|}^{k}-(-1)^{q}T_{|q|}^{k}\right] & (q<0)
 \end{cases}
-\]
+\end{equation}
 
 \end_inset
 
@@ -247,13 +259,13 @@ status open
 
 
 \begin_inset Formula 
-\[
+\begin{equation}
 T_{q}^{k}=\frac{1}{2a_{k,|q|}}\times\begin{cases}
 (-1)^{q}(\mathcal{O}_{k,|q|}+\mathrm{i}\mathcal{O}_{k,-|q|}) & (q>0)\\
 2\mathcal{O}_{k,0} & (q=0).\\
 (\mathcal{O}_{k,|q|}-\mathrm{i}\mathcal{O}_{k,-|q|}) & (q<0)
 \end{cases}
-\]
+\end{equation}
 
 \end_inset
 
@@ -278,7 +290,7 @@ The coefficients
 
 \begin_layout Standard
 \begin_inset Formula 
-\[
+\begin{equation}
 a_{k,|q|}=\left[\begin{array}{ccccccc}
 1\\
 1 & \frac{1}{\sqrt{2}}\\
@@ -288,7 +300,7 @@ a_{k,|q|}=\left[\begin{array}{ccccccc}
 6\sqrt{14} & 2\sqrt{\frac{21}{5}} & \sqrt{\frac{3}{5}} & 6\sqrt{\frac{2}{5}} & \frac{2}{\sqrt{5}} & 2\sqrt{2}\\
 4\sqrt{231} & \sqrt{22} & 4\sqrt{\frac{11}{5}} & 2\sqrt{\frac{11}{5}} & 4\sqrt{\frac{11}{6}} & \frac{2}{\sqrt{3}} & 4
 \end{array}\right].
-\]
+\end{equation}
 
 \end_inset
 
@@ -332,11 +344,11 @@ Below are the Stevens operators for even
 
  using the definitions
 \begin_inset Formula 
-\begin{align*}
+\begin{align}
 X & =J_{x}^{2}+J_{y}^{2}+J_{z}^{2}=j(j+1),\\
 J_{\pm} & =J_{x}\pm iJ_{y},\\
-\phi_{+} & =\frac{1}{4},\quad\phi_{-}=\frac{1}{4\mathrm{i}}.
-\end{align*}
+\phi_{+} & =\frac{1}{4},\quad\phi_{-}=\frac{1}{4\mathrm{i}}.\label{eq:phi_def}
+\end{align}
 
 \end_inset
 
@@ -469,6 +481,14 @@ https://github.com/mducle/mcphase
 , 5825 (2004).
 \end_layout
 
+\begin_layout Section
+Large-
+\begin_inset Formula $S$
+\end_inset
+
+ limit
+\end_layout
+
 \begin_layout Standard
 One can take the classical limit by formally sending 
 \begin_inset Formula $j\rightarrow\infty$
@@ -481,26 +501,26 @@ One can take the classical limit by formally sending
 .
  Then each spin operator may be replaced with its expectation value,
 \begin_inset Formula 
-\[
+\begin{equation}
 J_{\alpha}\rightarrow\langle J_{\alpha}\rangle=s_{\alpha}.
-\]
+\end{equation}
 
 \end_inset
 
 Correspondly, one should replace 
 \begin_inset Formula 
-\[
-X\rightarrow s_{x}^{2}+s_{y}^{2}+s_{z}^{2}.
-\]
+\begin{equation}
+X\rightarrow S^{2}=s_{x}^{2}+s_{y}^{2}+s_{z}^{2}.
+\end{equation}
 
 \end_inset
 
 The large 
-\begin_inset Formula $s$
+\begin_inset Formula $S$
 \end_inset
 
  limit implies that each Stevens operator 
-\begin_inset Formula $\mathcal{O}_{k,m}$
+\begin_inset Formula $\mathcal{O}_{k,q}$
 \end_inset
 
  becomes a homogeneous polynomial of order 
@@ -508,15 +528,58 @@ The large
 \end_inset
 
 ; all terms not at leading order should be ignored.
+ As a classical function, each 
+\begin_inset Formula $\mathcal{O}_{k,q}(\mathbf{s})$
+\end_inset
+
+ is proportional to the spherical harmonic 
+\begin_inset Formula $Y_{l,m}(\theta,\phi)$
+\end_inset
+
+ where 
+\begin_inset Formula $k\rightarrow l$
+\end_inset
+
+, 
+\begin_inset Formula $q\rightarrow m$
+\end_inset
+
+, and the normalized vector 
+\begin_inset Formula $\mathbf{s}$
+\end_inset
+
+ is replaced by its polar coordinates 
+\begin_inset Formula $(\theta,\phi)$
+\end_inset
+
+.
+ The constant of proportionality varies as a function of both 
+\begin_inset Formula $k$
+\end_inset
+
+ and 
+\begin_inset Formula $q$
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Standard
-To evaluate gradients, note that
+As a shorthand, define 
+\begin_inset Formula $(x,y)\equiv(s_{x},s_{y})$
+\end_inset
+
+.
+ To evaluate gradients of 
+\begin_inset Formula $\mathcal{O}_{k,q}(\mathbf{s})$
+\end_inset
+
+, first note that
 \begin_inset Formula 
-\begin{align*}
-\frac{d}{dx} & =\frac{d}{ds_{+}}+\frac{d}{ds_{-}}\\
--i\frac{d}{dy} & =\frac{d}{ds_{+}}-\frac{d}{ds_{-}},
-\end{align*}
+\begin{align}
+\frac{d}{dx} & =\frac{d}{ds_{+}}+\frac{d}{ds_{-}}\label{eq:d_dx}\\
+-i\frac{d}{dy} & =\frac{d}{ds_{+}}-\frac{d}{ds_{-}},\label{eq:d_dy}
+\end{align}
 
 \end_inset
 
@@ -531,31 +594,379 @@ where the derivatives on the right are Wirtinger derivatives, and
 
 , we have
 \begin_inset Formula 
-\[
+\begin{equation}
 \frac{df}{ds_{-}}=\left(\frac{df}{ds_{+}}\right)^{\ast},
-\]
+\end{equation}
 
 \end_inset
 
 so that
 \begin_inset Formula 
-\begin{align*}
+\begin{align}
 \frac{df}{dx} & =\frac{df}{ds_{+}}+\left(\frac{df}{ds_{-}}\right)^{\ast}=2\mathrm{Re}\frac{df}{ds_{+}}\\
 \frac{df}{dy} & =-\frac{1}{i}\left(\frac{df}{ds_{+}}-\left(\frac{df}{ds_{+}}\right)^{\ast}\right)=-2\mathrm{Im}\frac{df}{ds_{+}}.
-\end{align*}
+\end{align}
 
 \end_inset
 
-In our applications, we will take
+The classical Stevens functions 
+\begin_inset Formula $\mathcal{O}_{k,q}(\mathbf{s})$
+\end_inset
+
+ involve 
+\begin_inset Formula $s_{+}^{n}\pm s_{-}^{n}$
+\end_inset
+
+.
+ An important identity is,
 \begin_inset Formula 
-\begin{align*}
+\begin{align}
 f_{1} & =\frac{s_{+}^{n}+s_{-}^{n}}{2}=\mathrm{Re}s_{+}^{n}\implies\frac{df_{1}}{ds_{+}}=\frac{n}{2}s_{+}^{n-1}\\
 f_{2} & =\frac{s_{+}^{n}-s_{-}^{n}}{2i}=\mathrm{Im}s_{+}^{n}\implies\frac{df_{2}}{ds_{+}}=\frac{n}{2i}s_{+}^{n-1}.
-\end{align*}
+\end{align}
+
+\end_inset
+
+These results can be used in combination with Eqs.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:d_dx"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:d_dy"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ to get the gradient of 
+\begin_inset Formula $\mathcal{O}_{k,q}(\mathbf{s})$
+\end_inset
+
+ with respect to both 
+\begin_inset Formula $x=s_{x}$
+\end_inset
+
+ and 
+\begin_inset Formula $y=s_{y}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Subsection
+Application to linear spin wave theory
+\end_layout
+
+\begin_layout Standard
+Consider a spin-
+\begin_inset Formula $S$
+\end_inset
+
+ quantum Hamiltonian.
+ The single-ion anisotropy may be modeled as an 
+\begin_inset Formula $N\times N$
+\end_inset
+
+ matrix 
+\begin_inset Formula $\Lambda$
+\end_inset
+
+ acting on the local spin Hilbert space, where 
+\begin_inset Formula $N=2S+1$
+\end_inset
+
+.
+ It is always possible to decompose 
+\begin_inset Formula $\Lambda$
+\end_inset
+
+ as linear combination of Stevens operators, each of which is a polynomial
+ of 
+\begin_inset Formula $N\times N$
+\end_inset
+
+ spin operators 
+\begin_inset Formula $J^{\alpha}$
+\end_inset
+
+, as defined above.
+\end_layout
+
+\begin_layout Standard
+In LSWT it is convenient to locally rotate the reference frame so that the
+ ground state magnetic ordering is aligned with the 
+\begin_inset Formula $z$
+\end_inset
+
+-direction.
+ This rotation corresponds to a unitary transformation on local quantum
+ operators,
+\begin_inset Formula 
+\begin{equation}
+\tilde{\Lambda}=U^{\dagger}\Lambda U,\quad\tilde{\mathbf{J}}=U^{\dagger}\mathbf{J}U.
+\end{equation}
+
+\end_inset
+
+The rotated single-ion anisotropy operator can be expanded in Stevens operators,
+\begin_inset Formula 
+\begin{equation}
+\tilde{\Lambda}=\sum_{k,q}\tilde{c}_{k,q}\mathcal{O}_{k,q},\label{eq:Lambda_tilde}
+\end{equation}
+
+\end_inset
+
+involving new coefficients 
+\begin_inset Formula $\tilde{c}_{k,q}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+Introduce Holstein-Primakoff bosons 
+\begin_inset Formula $\{b,b^{\dagger}\}$
+\end_inset
+
+ to represent the spin operators.
+ Condense in the 
+\begin_inset Formula $z$
+\end_inset
+
+-direction, so that 
+\begin_inset Formula $J^{z}$
+\end_inset
+
+ (in the rotated frame) becomes a number operator, 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+J_{z}=S-b^{\dagger}b,
+\end{equation}
+
+\end_inset
+
+while 
+\begin_inset Formula $J_{\pm}=J_{x}\pm iJ_{y}$
+\end_inset
+
+ are approximated as bosonic annihilation/creation operators,
+\begin_inset Formula 
+\begin{equation}
+J_{+}\approx\sqrt{2S}\,b,\quad J_{-}\approx\sqrt{2S}\,b^{\dagger}.
+\end{equation}
 
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+The Hamiltonian may be expanded in powers of bosons.
+ At zeroth order, one obtains the ground state classical energy.
+ Terms at linear order cancel because the gradient of the classical energy
+ at the ground state is zero.
+ Terms quadratic in the bosons describe a leading order approximation to
+ magnon excitations, which becomes exact in the large-
+\begin_inset Formula $S$
+\end_inset
+
+ limit.
+\end_layout
+
+\begin_layout Standard
+Our purpose is to extract these quadratic terms for the rotated anisotropy
+ operator 
+\begin_inset Formula $\tilde{\Lambda}$
+\end_inset
+
+.
+ Observe that 
+\begin_inset Formula $\mathcal{O}_{k,q}$
+\end_inset
+
+ contains a prefactor 
+\begin_inset Formula $(J_{+}^{q}\pm J_{-}^{q})$
+\end_inset
+
+, which itself is of order 
+\begin_inset Formula $q$
+\end_inset
+
+ in the bosons.
+ Therefore 
+\begin_inset Formula $\mathcal{O}_{k,q}$
+\end_inset
+
+ with 
+\begin_inset Formula $|q|\geq3$
+\end_inset
+
+ cannot contribute to the Hamiltonian at quadratic order.
+ Observe that 
+\begin_inset Formula $\mathcal{O}_{k,q}$
+\end_inset
+
+ with 
+\begin_inset Formula $|q|=1$
+\end_inset
+
+ consists entirely of terms that are odd in bosons.
+ This leaves only terms of order 
+\begin_inset Formula $q\in\{0,\pm2\}$
+\end_inset
+
+ that can contribute to 
+\begin_inset Formula $\tilde{\Lambda}$
+\end_inset
+
+ at quadratic order in bosons.
+\end_layout
+
+\begin_layout Standard
+In the large-
+\begin_inset Formula $S$
+\end_inset
+
+ limit, Stevens operators become homogeneous polynomials at highest order
+ in 
+\begin_inset Formula $X=S^{2}$
+\end_inset
+
+.
+ These are, for 
+\begin_inset Formula $q=0$
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{align*}
+\mathcal{O}_{2,0} & =3J_{z}^{2}-S^{2}\\
+\mathcal{O}_{4,0} & =35J_{z}^{4}-30S^{2}J_{z}^{2}+3S^{4}\\
+\mathcal{O}_{6,0} & =231J_{z}^{6}-315S^{2}J_{z}^{4}+105S^{4}J_{z}^{2}-5S^{6},
+\end{align*}
+
+\end_inset
+
+and for 
+\begin_inset Formula $q=\pm2$
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{align*}
+\mathcal{O}_{2,\pm2} & =\phi_{\pm}(J_{+}^{2}\pm J_{-}^{2})+\hc\\
+\mathcal{O}_{4,\pm2} & =\phi_{\pm}(J_{+}^{2}\pm J_{-}^{2})(7J_{z}^{2}-S^{2})+\hc\\
+\mathcal{O}_{6,\pm2} & =\phi_{\pm}(J_{+}^{2}\pm J_{-}^{2})(33J_{z}^{4}-18S^{2}J_{z}^{2}+S^{4})+\hc
+\end{align*}
+
+\end_inset
+
+When 
+\begin_inset Formula $q=0$
+\end_inset
+
+, the quadratic boson terms are obtained by replacing 
+\begin_inset Formula 
+\[
+J_{z}^{n}\rightarrow-nS^{n-1}b^{\dagger}b,
+\]
+
+\end_inset
+
+for 
+\begin_inset Formula $n\geq1$
+\end_inset
+
+.
+ When 
+\begin_inset Formula $q=\pm2$
+\end_inset
+
+, the quadratic boson terms are obtained by replacing 
+\begin_inset Formula 
+\begin{align*}
+J_{z} & \rightarrow S,\\
+J_{+}^{2}\pm J_{-}^{2} & \rightarrow2S(bb\pm b^{\dagger}b^{\dagger}).
+\end{align*}
+
+\end_inset
+
+After substitution and simplification, one finds the replacement rules,
+\begin_inset Formula 
+\begin{align}
+\mathcal{O}_{k,0} & \rightarrow-a_{0}^{(k)}S^{k-1}b^{\dagger}b,\\
+\mathcal{O}_{k,\pm2} & \rightarrow\phi_{\pm}a_{2}^{(k)}S^{k-1}(bb\pm b^{\dagger}b^{\dagger}),
+\end{align}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{align}
+a_{0}^{(2)} & =6,\,a_{0}^{(4)}=80,\,a_{0}^{(6)}=336.\\
+a_{2}^{(2)} & =4,\,a_{2}^{(4)}=24,\,a_{2}^{(6)}=64,
+\end{align}
+
+\end_inset
+
+and scalars 
+\begin_inset Formula $\phi_{\pm}$
+\end_inset
+
+ are defined in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:phi_def"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ These rules may be used in the context of the 
+\begin_inset Formula $\tilde{\Lambda}$
+\end_inset
+
+ expansion given in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:Lambda_tilde"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
 \end_layout
 
 \end_body

@@ -1,0 +1,1084 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Numerical calculation of para-unitary transformations for bosonic Hamiltonians
+\end_layout
+
+\begin_layout Author
+Kipton Barros
+\end_layout
+
+\begin_layout Section
+Review of theory
+\end_layout
+
+\begin_layout Standard
+This note summarizes the results of J.
+ L.
+ van Hemmen, Z.
+ Physik B - Condensed Matter 
+\series bold
+38
+\series default
+, 271-277 (1980), which builds on the earlier work of J.
+ H.
+ P.
+ Colpa, Physica 
+\series bold
+93A,
+\series default
+ 327-353 (1978).
+\end_layout
+
+\begin_layout Standard
+Assume a bosonic Hamiltonian of the form
+\begin_inset Formula 
+\begin{equation}
+\mathbf{H}\equiv{\bf \mathbf{a}}^{\dagger}\mathcal{D}\mathbf{a}\quad\mathbf{a}^{\dagger}\equiv(\boldsymbol{\alpha}^{\dagger},\boldsymbol{\alpha}),\quad\mathbf{a}\equiv\left(\begin{array}{c}
+\boldsymbol{\alpha}\\
+\boldsymbol{\alpha}^{\dagger}
+\end{array}\right),
+\end{equation}
+
+\end_inset
+
+with 
+\begin_inset Formula $\alpha_{j}^{\dagger}$
+\end_inset
+
+ bosonic creation operators for 
+\begin_inset Formula $1\leq j\leq n$
+\end_inset
+
+.
+ Bosons satisfy canonical commutation relations,
+\begin_inset Formula 
+\begin{equation}
+[\alpha_{i},\alpha_{j}^{\dagger}]=\alpha_{i}\alpha_{j}^{\dagger}-\alpha_{j}^{\dagger}\alpha_{i}=\delta_{ij}.
+\end{equation}
+
+\end_inset
+
+The grand-dynamical matrix 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+ has 
+\begin_inset Formula $2n\times2n$
+\end_inset
+
+ complex elements, and must be Hermitian.
+ The diagonal blocks must have the form
+\begin_inset Formula 
+\begin{equation}
+\mathcal{D}=\left[\begin{array}{cc}
+A & B\\
+B^{\dagger} & A^{\dagger}
+\end{array}\right],\label{eq:D_block}
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $A^{\dagger}$
+\end_inset
+
+ is the conjugate-transpose (i.e.
+ adjoint) of the matrix 
+\begin_inset Formula $A$
+\end_inset
+
+.
+ Further (and this is a subtle point), all eigenvalues of 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+ must be 
+\emph on
+strictly positive
+\emph default
+, or there can be physical instabilities, as well as mathematical problems
+ in bringing 
+\begin_inset Formula $\mathbf{H}$
+\end_inset
+
+ to diagonal form.
+\end_layout
+
+\begin_layout Standard
+Introduce the 
+\begin_inset Formula $2n\times2n$
+\end_inset
+
+ matrix 
+\begin_inset Formula 
+\begin{equation}
+\hat{I}=\left[\begin{array}{cc}
+I_{n}\\
+ & -I_{n}
+\end{array}\right].
+\end{equation}
+
+\end_inset
+
+Its square, 
+\begin_inset Formula $\hat{I}^{2}=I$
+\end_inset
+
+, is the usual 
+\begin_inset Formula $2n\times2n$
+\end_inset
+
+ identity matrix.
+ A para-unitary transformation 
+\begin_inset Formula $T$
+\end_inset
+
+ is one that satisfies,
+\begin_inset Formula 
+\begin{equation}
+\hat{I}=T\hat{I}T^{\dagger}.\label{eq:I eq TIT}
+\end{equation}
+
+\end_inset
+
+Equivalently 
+\begin_inset Formula $\hat{I}=T^{\dagger}\hat{I}T$
+\end_inset
+
+, since 
+\begin_inset Formula $(\hat{I}T)^{-1}=\hat{I}T^{\dagger}$
+\end_inset
+
+.
+ It follows that 
+\begin_inset Formula $T^{-1}=\hat{I}T^{\dagger}\hat{I}$
+\end_inset
+
+ is the inverse of 
+\begin_inset Formula $T$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+Para-unitary transformations are important because they preserve bosonic
+ anti-commutation relations.
+ Namely, the new operators
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+\mathbf{b}=T^{-1}\mathbf{a},
+\end{equation}
+
+\end_inset
+
+with 
+\begin_inset Formula $\mathbf{b}^{\dagger}=(\boldsymbol{\beta}^{\dagger},\boldsymbol{\beta})$
+\end_inset
+
+ are again bosons, 
+\begin_inset Formula $\{\beta_{i}^{\dagger},\beta_{j}\}=\delta_{ij}$
+\end_inset
+
+.
+ If we can find a para-unitary 
+\begin_inset Formula $T$
+\end_inset
+
+ that diagonalizes 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{equation}
+T^{\dagger}\mathcal{D}T=\Omega\label{eq:para-diag}
+\end{equation}
+
+\end_inset
+
+then it will bring the Hamiltonian into diagonal form [van Hemmen], 
+\begin_inset Formula 
+\begin{equation}
+\mathbf{H}=\sum_{i}\omega_{i}(\beta_{i}^{\dagger}\beta_{i}+\beta_{i}\beta_{i}^{\dagger})=\mathbf{b}^{\dagger}\Omega\mathbf{b}.
+\end{equation}
+
+\end_inset
+
+Here 
+\begin_inset Formula $\Omega=\mathrm{diag}(\omega_{1},\dots\omega_{n},\omega_{1},\dots\omega_{n})$
+\end_inset
+
+ by Hermiticity.
+ Note that the left of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:para-diag"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ is invertible by assumption that 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+ is positive definite, so 
+\begin_inset Formula $\Omega$
+\end_inset
+
+ must also be invertible, and this ensures nonzero eigenvalues, 
+\begin_inset Formula $\omega_{i}\neq0$
+\end_inset
+
+.
+ Further, through the construction below, we will demonstrate positivity,
+ 
+\begin_inset Formula $\omega_{i}>0$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+By the identities stated above, Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:para-diag"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ is equivalent to 
+\begin_inset Formula 
+\begin{equation}
+(\hat{I}\mathcal{D})T=T\hat{I}\Omega,\label{eq:IDT}
+\end{equation}
+
+\end_inset
+
+which may be written as a regular eigenvalue problem,
+\begin_inset Formula 
+\begin{equation}
+\hat{I}\mathcal{D}\mathbf{x}=\omega\mathbf{x}.\label{eq:eig}
+\end{equation}
+
+\end_inset
+
+The desired columns of 
+\begin_inset Formula $T$
+\end_inset
+
+ are the 
+\begin_inset Formula $2n$
+\end_inset
+
+ eigenvectors 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+, with some caveats to be discussed below.
+ If 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ is an eigenvector of 
+\begin_inset Formula $\hat{I}\mathcal{D}$
+\end_inset
+
+ with eigenvalue 
+\begin_inset Formula $\omega$
+\end_inset
+
+, then 
+\begin_inset Formula $\mathbf{J}[\mathbf{x}]$
+\end_inset
+
+ is another
+\emph on
+ 
+\emph default
+eigenvector with eigenvalue 
+\begin_inset Formula $-\omega$
+\end_inset
+
+.
+ It follows the set of eigenvalues of 
+\begin_inset Formula $\hat{I}\mathcal{D}$
+\end_inset
+
+ must appear in pairs, 
+\begin_inset Formula $\omega\in\{\omega_{1},\dots,\omega_{n},-\omega_{1},\dots,-\omega_{n}\}$
+\end_inset
+
+.
+ The symbol 
+\begin_inset Formula $\mathbf{J}$
+\end_inset
+
+ is an 
+\emph on
+anti
+\emph default
+-unitary operator, defined by the action,
+\begin_inset Formula 
+\begin{equation}
+\mathbf{J}\left(\begin{array}{c}
+\mathbf{u}\\
+\mathbf{v}
+\end{array}\right)=\left(\begin{array}{c}
+\bar{\mathbf{v}}\\
+\bar{\mathbf{u}}
+\end{array}\right),
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\bar{\mathbf{u}}$
+\end_inset
+
+ denotes the complex conjugate of 
+\begin_inset Formula $\mathbf{u}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+The para-unitary condition Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:I eq TIT"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ is equivalent to an orthonormality condition on column vectors of 
+\begin_inset Formula $T$
+\end_inset
+
+, namely
+\begin_inset Formula 
+\begin{equation}
+\langle\mathbf{x}_{i},\mathbf{x}_{j}\rangle\equiv\mathbf{x}_{i}^{\dagger}\hat{I}\mathbf{x}_{j}=\hat{I}_{ij}.\label{eq:inner}
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Consider first eigenvectors 
+\begin_inset Formula $\mathbf{x}_{i}\neq\mathbf{x}_{j}$
+\end_inset
+
+ with distinct eigenvalues 
+\begin_inset Formula $\omega_{i}\neq\omega_{j}$
+\end_inset
+
+ appearing in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:eig"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ One can verify
+\begin_inset Formula 
+\begin{equation}
+\omega_{i}\langle\mathbf{x}_{i},\mathbf{x}_{j}\rangle=(\hat{I}\mathcal{D}\mathbf{x}_{i})^{\dagger}\hat{I}\mathbf{x}_{j}=\mathbf{x}_{i}^{\dagger}\mathcal{D}\mathbf{x}_{j}=\omega_{j}\langle\mathbf{x}_{i},\mathbf{x}_{j}\rangle,
+\end{equation}
+
+\end_inset
+
+which ensures 
+\begin_inset Formula $\langle\mathbf{x}_{i},\mathbf{x}_{j}\rangle=0$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+If eigenvectors 
+\begin_inset Formula $\mathbf{x}_{i}\neq\mathbf{x}_{j}$
+\end_inset
+
+ share degenerate eigenvalues 
+\begin_inset Formula $\omega_{i}=\omega_{j}$
+\end_inset
+
+, then a Gram-Schmidt orthogonalization process can be employed to ensure
+ 
+\begin_inset Formula $\langle\mathbf{x}_{i},\mathbf{x}_{j}\rangle=0$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+In the case that 
+\begin_inset Formula $\mathbf{x}_{i}=\mathbf{x}_{j}$
+\end_inset
+
+, Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:inner"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ requires a normalization condition 
+\begin_inset Formula $\langle\mathbf{x}_{i},\mathbf{x}_{i}\rangle=1$
+\end_inset
+
+.
+ This can be achieved through appropriate normalization of 
+\begin_inset Formula $\mathbf{x}_{i}$
+\end_inset
+
+; here we rely crucially on he assumption that 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+ is 
+\emph on
+positive
+\emph default
+ 
+\emph on
+definite.
+\end_layout
+
+\begin_layout Standard
+The above arguments ensure that it is always possible to select eigenvectors
+ 
+\begin_inset Formula $\mathbf{x}_{i}$
+\end_inset
+
+ that satisfy Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:inner"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Then the desired para-unitary transformation is defined to contain the
+ columns,
+\begin_inset Formula 
+\begin{equation}
+T=[\mathbf{x}_{1},\dots,\mathbf{x}_{n},\mathbf{J}\mathbf{x}_{1},\dots,\mathbf{J}\mathbf{x}_{n}],
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{x}_{i}$
+\end_inset
+
+ for 
+\begin_inset Formula $1\leq i\leq n$
+\end_inset
+
+ are associated with eigenvalues 
+\begin_inset Formula $\omega_{i}>0$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Section
+Numerical methods
+\end_layout
+
+\begin_layout Subsection*
+Method 1, direct general diagonalization
+\end_layout
+
+\begin_layout Standard
+The construction above suggests a direct calculation strategy.
+ First, use a standard numerical diagonalization routine on the matrix 
+\begin_inset Formula $\hat{I}D$
+\end_inset
+
+ to find eigenvalues/eigenvectors in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:eig"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ It remains to adjust eigenvectors to satisfy the orthonormality condition,
+ Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:inner"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Eigenvectors with distinct eigenvalues will already be orthogonal.
+ For each degenerate subspace, apply a Gram-Schmidt procedure to orthogonalize
+ as necessary.
+ Finally, rescale eigenvectors appropriately.
+\end_layout
+
+\begin_layout Subsection*
+Method 2, two Hermitian diagonalizations
+\end_layout
+
+\begin_layout Standard
+Instead of solving Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:eig"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ directly, multiply both sides by 
+\begin_inset Formula $\mathcal{D}^{1/2}$
+\end_inset
+
+ to get a new eigenvalue equation,
+\begin_inset Formula 
+\begin{align}
+\mathcal{D}^{1/2}\hat{I}\mathcal{D}^{1/2}\mathbf{y} & =\omega\mathbf{y},
+\end{align}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{equation}
+\mathbf{y}=\mathcal{D}^{1/2}\mathbf{x}.
+\end{equation}
+
+\end_inset
+
+Note that 
+\begin_inset Formula $\mathcal{D}^{1/2}$
+\end_inset
+
+ exists by the assumption that 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+ is Hermitian and positive definite.
+ The numerical steps are:
+\end_layout
+
+\begin_layout Enumerate
+Diagonalize Hermitian matrix 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+ and construct 
+\begin_inset Formula $\mathcal{D}^{1/2}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Construct and diagonalize the Hermitian matrix 
+\begin_inset Formula $\mathcal{D}^{1/2}\hat{I}\mathcal{D}^{1/2}$
+\end_inset
+
+ to get eigenvalues 
+\begin_inset Formula $\omega$
+\end_inset
+
+ and orthonormal eigenvectors 
+\begin_inset Formula $\mathbf{y}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Desired columns of 
+\begin_inset Formula $T$
+\end_inset
+
+ are 
+\begin_inset Formula $\mathbf{x}\propto\mathcal{D}^{-1/2}\mathbf{y}$
+\end_inset
+
+, with appropriate normalization.
+ In this step the positive definiteness assumption ensures that 
+\begin_inset Formula $\mathcal{D}^{-1/2}$
+\end_inset
+
+ is well defined.
+\end_layout
+
+\begin_layout Standard
+Note that the assumed orthonormality, 
+\begin_inset Formula 
+\[
+\mathbf{y}_{i}^{\dagger}\mathbf{y}_{j}=\delta_{ij},
+\]
+
+\end_inset
+
+implies
+\begin_inset Formula 
+\[
+\delta_{ij}=\mathbf{x}_{i}^{\dagger}\mathcal{D}\mathbf{x}_{j}=\omega_{j}\mathbf{x}_{i}^{\dagger}\hat{I}\mathbf{x}_{j}\propto\langle\mathbf{x}_{i},\mathbf{x}_{j}\rangle.
+\]
+
+\end_inset
+
+This demonstrates that the distinct eigenvectors 
+\begin_inset Formula $\mathbf{x}_{i}\neq\mathbf{x}_{j}$
+\end_inset
+
+ are appropriately orthonormal even if they live in a degenerate subspace
+ (
+\begin_inset Formula $\omega_{i}=\omega_{j}$
+\end_inset
+
+).
+\end_layout
+
+\begin_layout Subsection*
+Method 3, Cholesky decomposition
+\end_layout
+
+\begin_layout Standard
+This is the method proposed by Colpa.
+ Since 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+ is positive definite, it is possible to perform a Cholesky decomposition,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+\mathcal{D}=K^{\dagger}K.\label{eq:cholesky}
+\end{equation}
+
+\end_inset
+
+We are seeking the para-unitary transform 
+\begin_inset Formula $T$
+\end_inset
+
+ that satisfies Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:para-diag"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, namely 
+\begin_inset Formula $T^{\dagger}\mathcal{D}T=\Omega.$
+\end_inset
+
+ Our strategy will be to diagonalize the Hermitian matrix,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+A=K\hat{I}K^{\dagger}.\label{eq:A_def}
+\end{equation}
+
+\end_inset
+
+Let us now demonstrate that
+\begin_inset Formula 
+\begin{equation}
+U=KT\Omega^{-1/2}\label{eq:U_def}
+\end{equation}
+
+\end_inset
+
+is the unitary matrix that diagonalizes 
+\begin_inset Formula $A$
+\end_inset
+
+.
+ Expansion yields,
+\begin_inset Formula 
+\begin{equation}
+U^{\dagger}AU=\Omega^{-1/2}T^{\dagger}\mathcal{D}\hat{I}\mathcal{D}T\Omega^{-1/2}
+\end{equation}
+
+\end_inset
+
+Next, use Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:IDT"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and then
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:para-diag"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{align}
+U^{\dagger}AU & =\Omega^{-1/2}T^{\dagger}\mathcal{D}(T\hat{I}\Omega)\Omega^{-1/2}\nonumber \\
+ & =\Omega^{1/2}\hat{I}\Omega^{1/2}.
+\end{align}
+
+\end_inset
+
+It follows,
+\begin_inset Formula 
+\begin{equation}
+U^{\dagger}AU=\hat{I}\Omega.\label{eq:A_diag}
+\end{equation}
+
+\end_inset
+
+These results allow to state the numerical procedure of Colpa:
+\end_layout
+
+\begin_layout Enumerate
+Peform the Cholesky decomposition, Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:cholesky"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, of 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Contruct the Hermitian matrix 
+\begin_inset Formula $A$
+\end_inset
+
+ via Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:A_def"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Diagonalize 
+\begin_inset Formula $A$
+\end_inset
+
+ as in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:A_diag"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ From this, infer the eigenvalues 
+\begin_inset Formula $\hat{I}\Omega=\mathrm{diag}(\omega_{1},\dots\omega_{n},-\omega_{1},\dots-\omega_{n})$
+\end_inset
+
+, and corresponding eigenvectors as columns of 
+\begin_inset Formula $U^{\dagger}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Solve Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:U_def"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ for the desired para-unitary transform 
+\begin_inset Formula $T=K^{-1}U\Omega^{1/2}$
+\end_inset
+
+.
+ Note that 
+\begin_inset Formula $K$
+\end_inset
+
+ is an upper-triangular matrix, so 
+\begin_inset Formula $K^{-1}$
+\end_inset
+
+ can be applied efficiently.
+\end_layout
+
+\begin_layout Section
+Perturbation theory
+\end_layout
+
+\begin_layout Standard
+It would be an interesting exercise to carry out the usual perturbation
+ theory procedure applied to Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:eig"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ That is, we wish to find the sensitivity of eigenvectors 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ in response to changes in the grand dynamical matrix 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+.
+ Here, it is important to use the block diagonal form, Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:D_block"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, as well as the orthonormality relation of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:inner"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Presumably this exercise will produce a recipe that is analogous to usual
+ perturbation theory of a Hermitian matrix, but involving the para-identity
+ 
+\begin_inset Formula $\hat{I}$
+\end_inset
+
+.
+\end_layout
+
+\end_body
+\end_document
