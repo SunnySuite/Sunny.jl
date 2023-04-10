@@ -19,7 +19,7 @@ function generate_bond_lists(crystal::Crystal, max_dist::Float64)
     pos = 0
 
     for(i, rb) in enumerate(reference_bonds(crystal, max_dist))
-        dr = distance(crystal, rb)
+        dr = global_distance(crystal, rb)
         iszero(dr) && continue
 
         # Replace reference bond `rb` with a new one on a canonical atom.
@@ -52,7 +52,7 @@ function generate_bond_lists(crystal::Crystal, max_dist::Float64)
             mask = (abs.(b.n) .> ncells)
             ncells[mask] .= abs.(b.n)[mask]
 
-            dr⃗ = Sunny.displacement(crystal, b) 
+            dr⃗ = Sunny.global_displacement(crystal, b) 
             push!(bond_displacements[pos], dr⃗)
         end
     end

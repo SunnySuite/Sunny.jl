@@ -69,7 +69,7 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
         by=int->(
             iszero(length(int.bondtable))
             ? Inf 
-            : distance(lattice, first(all_bonds(int.bondtable))[1])
+            : global_distance(lattice, first(all_bonds(int.bondtable))[1])
         )
     )
 
@@ -157,7 +157,7 @@ function plot_all_bonds(crystal::Crystal, max_dist, latsize=(3,3,3); kwargs...)
     for bond in ref_bonds
         # Exclude self (on-site) "bonds"
         if !(bond.i == bond.j && all(isequal(0), bond.n))
-            if distance(crystal, bond) ≈ prev_dist
+            if global_distance(crystal, bond) ≈ prev_dist
                 class += 1
             else
                 dist += 1
@@ -185,7 +185,7 @@ function plot_all_bonds_between(crystal, i, j, max_dist, latsize=(3,3,3); kwargs
         onsite = bond.i == bond.j && iszero(bond.n)
         target = bond.i == i && bond.j == j
         if !onsite && target
-            if distance(crystal, bond) ≈ prev_dist
+            if global_distance(crystal, bond) ≈ prev_dist
                 class += 1
             else
                 dist += 1

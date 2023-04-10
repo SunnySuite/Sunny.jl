@@ -220,7 +220,7 @@ function position_to_site(sys::System, r)
     # convert to fractional coordinates of possibly reshaped crystal
     r = Vec3(r)
     new_r = sys.crystal.latvecs \ orig_crystal(sys).latvecs * r
-    i, offset = position_to_index_and_offset(sys.crystal, new_r)
+    i, offset = position_to_atom_and_offset(sys.crystal, new_r)
     cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
     return to_cartesian((cell..., i))
 end
@@ -240,7 +240,7 @@ function sites_to_bond(sys::System{N}, site1, site2) where N
     r2 = position(sys, site2)
 
     # Map to Bond for original crystal
-    return Bond(orig_crystal(sys), BondRaw(r1, r2))
+    return Bond(orig_crystal(sys), BondPos(r1, r2))
 end
 
 # Given a [`Site`](@ref)s for a possibly reshaped system, return the
@@ -249,14 +249,14 @@ end
 function site_to_atom(sys::System{N}, site) where N
     site = to_cartesian(site)
     r = position(sys, site)
-    return position_to_index(orig_crystal(sys), r)
+    return position_to_atom(orig_crystal(sys), r)
 end
 
 # Maps atom `i` in `cryst` to the corresponding atom in `orig_cryst`
 function map_atom_to_crystal(cryst, i, orig_cryst)
     r = cryst.positions[i]
     orig_r = orig_cryst.latvecs \ cryst.latvecs * r
-    return position_to_index(orig_cryst, orig_r)
+    return position_to_atom(orig_cryst, orig_r)
 end
 
 # Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
@@ -264,14 +264,14 @@ end
 function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bond)
     # Positions in new fractional coordinates
     new_ri = new_cryst.positions[new_i]
-    new_rj = new_ri + new_cryst.latvecs \ displacement(cryst, bond)
+    new_rj = new_ri + new_cryst.latvecs \ global_displacement(cryst, bond)
 
     # Verify that new_i (indexed into new_cryst) is consistent with bond.i
     # (indexed into original cryst).
-    @assert bond.i == position_to_index(cryst, cryst.latvecs \ new_cryst.latvecs * new_ri)
+    @assert bond.i == position_to_atom(cryst, cryst.latvecs \ new_cryst.latvecs * new_ri)
 
     # Construct bond using new indexing system
-    new_j, new_n = position_to_index_and_offset(new_cryst, new_rj)
+    new_j, new_n = position_to_atom_and_offset(new_cryst, new_rj)
     return Bond(new_i, new_j, new_n)
 end
 

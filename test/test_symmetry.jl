@@ -11,7 +11,7 @@
     positions = [[1, 1, 1], [-1, -1, -1]] / 8
     cryst = Crystal(latvecs, positions)
     ref_bonds = reference_bonds(cryst, 2.)
-    dist1 = [Sunny.distance(cryst, b) for b in ref_bonds]
+    dist1 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
     # Using explicit symops
     latvecs = Sunny.Mat3(latvecs)
@@ -19,21 +19,21 @@
     types = [""]
     cryst = Sunny.crystal_from_symops(latvecs, positions, types, cryst.symops, cryst.spacegroup)
     ref_bonds = reference_bonds(cryst, 2.)
-    dist2 = [Sunny.distance(cryst, b) for b in ref_bonds]
+    dist2 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
     # Using Hall number
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90) # must switch to standard cubic unit cell
     positions = [Sunny.Vec3(1, 1, 1) / 4]
     cryst = Sunny.crystal_from_hall_number(latvecs, positions, types, 525)
     ref_bonds = reference_bonds(cryst, 2.)
-    dist3 = [Sunny.distance(cryst, b) for b in ref_bonds]
+    dist3 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
     # Using international symbol
     positions = [[1, 1, 1] / 4]
     # cryst = Crystal(latvecs, positions, "F d -3 m") # Ambiguous!
     cryst = Crystal(latvecs, positions, "F d -3 m"; setting="1")
     ref_bonds = reference_bonds(cryst, 2.)
-    dist4 = [Sunny.distance(cryst, b) for b in ref_bonds]
+    dist4 = [Sunny.global_distance(cryst, b) for b in ref_bonds]
 
     @test dist1 ≈ dist2 ≈ dist3 ≈ dist4
 

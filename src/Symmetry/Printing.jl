@@ -136,7 +136,7 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing)
     else
         # If `b_ref` is nothing, select it from reference_bonds()
         b_ref = @something b_ref begin
-            d = distance(cryst, b)
+            d = global_distance(cryst, b)
             ref_bonds = reference_bonds(cryst, d; min_dist=d)
             only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
         end
@@ -157,7 +157,7 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing)
         printstyled(stdout, repr(b); bold=true, color=:underline)
         println()
         (m_i, m_j) = (coordination_number(cryst, b.i, b), coordination_number(cryst, b.j, b))
-        dist_str = number_to_simple_string(distance(cryst, b); digits, atol)
+        dist_str = number_to_simple_string(global_distance(cryst, b); digits, atol)
         if m_i == m_j
             println("Distance $dist_str, coordination $m_i")
         else
