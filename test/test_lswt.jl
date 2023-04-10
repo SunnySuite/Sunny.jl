@@ -59,7 +59,7 @@
     @test isapprox(ωk_ana, ωk_num)
 end
 
-@testitem "Intensities" tags=[:skip] begin
+@testitem "Intensities" begin
     using LinearAlgebra
 
     a = 8.289
@@ -74,7 +74,7 @@ end
 
     dims = (1, 1, 1)
     infos = [SpinInfo(1, S=S)]
-    sys = System(fcc, dims, infos, :dipole)
+    sys = System(fcc, dims, infos, :SUN)
 
     J = 22.06 * Sunny.meV_per_K
     K = 0.15  * Sunny.meV_per_K
@@ -98,7 +98,8 @@ end
     _, Sαβs =  Sunny.dssf(swt, [k])
 
     sunny_trace = [real(tr(Sαβs[1,a])) for a in axes(Sαβs)[2]]
-    spintools_trace = [0.0, 1.1743243223274487, 1.229979802236658, 1.048056653379038]
+    sunny_trace = filter(x -> abs(x) > 1e-12, sunny_trace)
+    spintools_trace = [1.1743243223274487, 1.229979802236658, 1.048056653379038]
 
     @test isapprox(sunny_trace, spintools_trace)
 end
