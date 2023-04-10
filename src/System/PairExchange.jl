@@ -41,7 +41,6 @@ function set_biquadratic!(sys::System{N}, J, bond::Bond) where N
         return
     end
 
-    sys.mode == :SUN && error("Biquadratic interactions not yet supported in SU(N) mode.")
     validate_bond(sys.crystal, bond)
 
     ints = interactions_homog(sys)
