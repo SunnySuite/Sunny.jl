@@ -1,0 +1,538 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Singular value decomposition of tensor interactions 
+\end_layout
+
+\begin_layout Author
+Kipton Barros
+\end_layout
+
+\begin_layout Section
+Matrix representation of tensor product operators
+\end_layout
+
+\begin_layout Standard
+Local observables in quantum mechanics are formed as tensor products.
+ Let 
+\begin_inset Formula $(S^{x},S^{y},S^{z})$
+\end_inset
+
+ denote spin operators in some matrix representation.
+ Consider, for example, a two-site system.
+ The spin operators on sites 
+\begin_inset Formula $i$
+\end_inset
+
+ and 
+\begin_inset Formula $j$
+\end_inset
+
+ may be represented by 
+\begin_inset Formula $\hat{S}_{i}^{\alpha}\rightarrow S^{\alpha}\otimes I$
+\end_inset
+
+ and 
+\begin_inset Formula $\hat{S}_{j}^{\alpha}\rightarrow I\otimes S^{\alpha}$
+\end_inset
+
+.
+ The usual rules for multiplication of tensor products then yield, e.g.
+ 
+\begin_inset Formula $\hat{S}_{i}^{\alpha}\hat{S}_{i}^{\beta}\rightarrow(S^{\alpha}S^{\beta})\otimes I$
+\end_inset
+
+ and 
+\begin_inset Formula $\hat{S}_{i}^{\alpha}\hat{S}_{j}^{\beta}\rightarrow S^{\alpha}\otimes S^{\beta}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+Numerically, the tensor product of two matrices, 
+\begin_inset Formula $A\otimes B$
+\end_inset
+
+, can be represented as a rank-4 tensor.
+ The following indexing scheme is convenient,
+\begin_inset Formula 
+\begin{equation}
+C\equiv A\otimes B\Longleftrightarrow C_{(ac),(bd)}=A_{ab}B_{cd}.\label{eq:C_def}
+\end{equation}
+
+\end_inset
+
+Note, in particular, the swapped order of 
+\begin_inset Formula $c$
+\end_inset
+
+ and 
+\begin_inset Formula $b$
+\end_inset
+
+ indices on 
+\begin_inset Formula $C$
+\end_inset
+
+.
+ (The built-in Julia 
+\family typewriter
+kron
+\family default
+ function does not have this behavior!).
+ This ordering facilitates the use of matrices to represent tensor products.
+ Specifically, by employing indices 
+\begin_inset Formula $I=(a,c)$
+\end_inset
+
+ and 
+\begin_inset Formula $J=(b,d)$
+\end_inset
+
+, we can treat 
+\begin_inset Formula $C_{IJ}=(A\otimes B)_{IJ}$
+\end_inset
+
+ as a matrix that satisfies the usual multiplication rules.
+ For example, if we construct 
+\begin_inset Formula $C_{IK}^{(1)}=(A^{(1)}\otimes B^{(1)})_{IK}$
+\end_inset
+
+ and 
+\begin_inset Formula $C_{KJ}^{(2)}=(A^{(2)}\otimes B^{(2)})_{KJ}$
+\end_inset
+
+ as matrices, then matrix multiplication 
+\begin_inset Formula $C_{IK}^{(1)}C_{KJ}^{(2)}$
+\end_inset
+
+ yields the desired result, 
+\begin_inset Formula $C^{(1)}C^{(2)}=(A^{(1)}A^{(2)})\otimes(B^{(1)}B^{(2)})$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+The expectation value of an observable with respect to a tensor product
+ state 
+\begin_inset Formula $\mathbf{z}_{i}\otimes\mathbf{z}_{j}$
+\end_inset
+
+ may be written,
+\begin_inset Formula 
+\begin{equation}
+\langle A\otimes B\rangle=(\mathbf{z}_{i}^{\dagger}A\mathbf{z}_{i})(\mathbf{z}_{j}^{\dagger}B\mathbf{z}_{j}).
+\end{equation}
+
+\end_inset
+
+In matrix notation, this becomes
+\begin_inset Formula 
+\begin{equation}
+\langle A\otimes B\rangle=\mathbf{Z}^{\dagger}C\mathbf{Z},\label{eq:C_expect}
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $Z_{ab}=z_{1,a}z_{2,b}$
+\end_inset
+
+ (i.e., 
+\family typewriter
+kron(z1,z2)
+\family default
+) is viewed as a vector, and 
+\begin_inset Formula $C=A\otimes B$
+\end_inset
+
+ is viewed as a matrix following Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:C_def"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Even if 
+\begin_inset Formula $C$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{Z}$
+\end_inset
+
+ are a sum of tensor products, Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:C_expect"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ continues to hold.
+\end_layout
+
+\begin_layout Section
+SVD Compression 
+\end_layout
+
+\begin_layout Standard
+Singular value decomposition (SVD) allows compression of matrices.
+ We will use it to find a compactified representation of a rank-4 tensor
+ 
+\begin_inset Formula $D_{(ac),(bd)}$
+\end_inset
+
+, viewed as a matrix.
+ First, define a new tensor that permutes indices,
+\begin_inset Formula 
+\begin{equation}
+\tilde{D}_{(ab),(cd)}\equiv D_{(ac),(bd)}.\label{eq:D_tilde}
+\end{equation}
+
+\end_inset
+
+The matrix SVD operation yields
+\begin_inset Formula 
+\begin{equation}
+\tilde{D}_{I,J}=\left(U\Sigma V^{\dagger}\right)_{I,J},
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\Sigma$
+\end_inset
+
+ is the diagonal matrix of singular values.
+ This decomposition may be viewed as a sum over outer products, involving
+ the 
+\begin_inset Quotes eld
+\end_inset
+
+column vectors
+\begin_inset Quotes erd
+\end_inset
+
+ of 
+\begin_inset Formula $U$
+\end_inset
+
+ and 
+\begin_inset Formula $V$
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{equation}
+\tilde{D}_{I,J}=\sum_{k}\sigma_{k}U_{I}^{k}(V_{J}^{k})^{\ast}.
+\end{equation}
+
+\end_inset
+
+Reinsert the original indices and undo the permutation to get,
+\begin_inset Formula 
+\begin{align}
+D_{(ac),(bd)} & =\sum_{k}\sigma_{k}U_{ab}^{k}(V_{cd}^{k})^{\ast},
+\end{align}
+
+\end_inset
+
+or equivalently, in the notation of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:C_def"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{equation}
+D=\sum_{k}\sigma_{k}U^{k}\otimes(V^{k})^{\ast},\label{eq:C_tensor_sum}
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $*$
+\end_inset
+
+ denotes complex conjugation without matrix transpose.
+ Orthogonality implies,
+\begin_inset Formula 
+\begin{equation}
+\mathrm{tr}U^{k}(U^{k'})^{\dagger}=\sum_{ab}U_{ab}^{k}(U_{ab}^{k'})^{*}=\delta_{k,k'},\label{eq:U_ortho}
+\end{equation}
+
+\end_inset
+
+and similarly for 
+\begin_inset Formula $V$
+\end_inset
+
+.
+ In typical applications, many singular values 
+\begin_inset Formula $\sigma_{k}$
+\end_inset
+
+ will be zero.
+ For example, the quantum Hamiltonian will normally be provided as a sum
+ of tensor product operators, and the orthogonalization of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:C_tensor_sum"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ will maintain this sparsity.
+ The SVD is useful in that it guarantees a maximally sparse representation,
+ given arbitrary 
+\begin_inset Formula $D$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Section
+Hermiticity of factors
+\end_layout
+
+\begin_layout Standard
+Suppose we are given the quantum Hamiltonian as an expansion 
+\begin_inset Formula $D=\sum_{k}A^{k}\otimes B^{k}$
+\end_inset
+
+, involving Hermitian observables 
+\begin_inset Formula $A^{k}$
+\end_inset
+
+ and 
+\begin_inset Formula $B^{k}$
+\end_inset
+
+.
+ Unlike in the SVD factorization of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:C_tensor_sum"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, here the local observables 
+\begin_inset Formula $A^{k}$
+\end_inset
+
+ (or 
+\begin_inset Formula $B^{k}$
+\end_inset
+
+) will not be orthogonal for different 
+\begin_inset Formula $k$
+\end_inset
+
+.
+ Using the matrix notation of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:C_def"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:D_tilde"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+\tilde{D}_{IJ}=\sum_{k}A_{I}^{k}B_{J}^{k}.
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $I=(a,b)$
+\end_inset
+
+ and 
+\begin_inset Formula $J=(c,d)$
+\end_inset
+
+.
+ Let 
+\begin_inset Formula $I'=(b,a)$
+\end_inset
+
+ and 
+\begin_inset Formula $J'=(d,c)$
+\end_inset
+
+ denote transpose indices.
+ For example, 
+\begin_inset Formula $A_{I}^{k\dagger}=A_{I'}^{k*}=A_{I}^{k}$
+\end_inset
+
+.
+ It follows 
+\begin_inset Formula $\tilde{D}_{I'J'}^{\ast}=D_{IJ}$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+Sunny will use SVD to compactify an interaction,
+\begin_inset Formula 
+\begin{equation}
+\tilde{D}_{I,J}=\sum_{k}\sigma_{k}U_{I}^{k}(V_{J}^{k})^{\ast}.
+\end{equation}
+
+\end_inset
+
+Empirical evidence suggests that each matrix factor 
+\begin_inset Formula $U_{I}^{k}$
+\end_inset
+
+ and 
+\begin_inset Formula $V_{J}^{k}$
+\end_inset
+
+ is also Hermitian.
+ It would be nice to prove this.
+\end_layout
+
+\end_body
+\end_document
