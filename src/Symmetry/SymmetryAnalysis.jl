@@ -12,7 +12,7 @@ function is_periodic_copy(cryst::Crystal, r1::Vec3, r2::Vec3)
     all_integer(r1-r2; cryst.symprec)
 end
 
-function is_periodic_copy(cryst::Crystal, b1::BondRaw, b2::BondRaw)
+function is_periodic_copy(cryst::Crystal, b1::BondPos, b2::BondPos)
     # Displacements between the two bonds
     D1 = b2.ri - b1.ri
     D2 = b2.rj - b1.rj
@@ -22,13 +22,12 @@ function is_periodic_copy(cryst::Crystal, b1::BondRaw, b2::BondRaw)
     return norm(n - D1) < cryst.symprec && norm(n - D2) < cryst.symprec
 end
 
-# kbtodo: position_to_atom
-function position_to_index(cryst::Crystal, r::Vec3)
+function position_to_atom(cryst::Crystal, r::Vec3)
     return findfirst(r′ -> is_periodic_copy(cryst, r, r′), cryst.positions)
 end
 
-function position_to_index_and_offset(cryst::Crystal, r::Vec3)
-    i = position_to_index(cryst, r)::Int
+function position_to_atom_and_offset(cryst::Crystal, r::Vec3)
+    i = position_to_atom(cryst, r)::Int
     # See comment in wrap_to_unit_cell() regarding shift by symprec
     offset = @. round(Int, r+cryst.symprec, RoundDown)
     @assert isapprox(cryst.positions[i]+offset, r; atol=cryst.symprec)
@@ -75,7 +74,7 @@ function all_symmetry_related_atoms(cryst::Crystal, i_ref::Int)
     equiv_atoms = Int[]
     r_ref = cryst.positions[i_ref]
     for s in cryst.symops
-        push!(equiv_atoms, position_to_index(cryst, transform(s, r_ref)))
+        push!(equiv_atoms, position_to_atom(cryst, transform(s, r_ref)))
     end
     @assert sort(unique(equiv_atoms)) == ret
 
@@ -118,14 +117,14 @@ end
 
 
 # Generate list of all symmetries that transform b2 into b1, along with parity
-function symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw)
+function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
     # Fail early if two bonds describe different real-space distances
     # (dimensionless error tolerance is measured relative to the minimum lattice
     # constant ℓ)
     if b1 != b2
         ℓ = minimum(norm, eachcol(cryst.latvecs))
-        d1 = distance(cryst, b1) / ℓ
-        d2 = distance(cryst, b2) / ℓ
+        d1 = global_distance(cryst, b1) / ℓ
+        d2 = global_distance(cryst, b2) / ℓ
         if abs(d1-d2) > cryst.symprec
             return Tuple{SymOp, Bool}[]
         end
@@ -145,12 +144,12 @@ end
 
 # Is there a symmetry operation that transforms `b1` into either `b2` or its
 # reverse?
-function is_related_by_symmetry(cryst::Crystal, b1::BondRaw, b2::BondRaw)
-    return !isempty(symmetries_between_bonds(cryst::Crystal, b1::BondRaw, b2::BondRaw))
+function is_related_by_symmetry(cryst::Crystal, b1::BondPos, b2::BondPos)
+    return !isempty(symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos))
 end
 
 function is_related_by_symmetry(cryst::Crystal, b1::Bond, b2::Bond)
-    return is_related_by_symmetry(cryst, BondRaw(cryst, b1), BondRaw(cryst, b2))
+    return is_related_by_symmetry(cryst, BondPos(cryst, b1), BondPos(cryst, b2))
 end
 
 # Returns all bonds in `cryst` for which `bond.i == i`
@@ -180,7 +179,7 @@ function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
                 # loop over all atoms within neighboring cell
                 for j in eachindex(cryst.positions)
                     b = Bond(i, j, n)
-                    if min_dist <= distance(cryst, b) <= max_dist
+                    if min_dist <= global_distance(cryst, b) <= max_dist
                         push!(bonds, b)
                     end
                 end
@@ -233,7 +232,7 @@ function reference_bonds(cryst::Crystal, max_dist::Float64; min_dist=0.0)
     end
 
     # Sort by distance
-    sort!(ref_bonds, by=b->distance(cryst, b))
+    sort!(ref_bonds, by=b->global_distance(cryst, b))
 
     # Replace each canonical bond by the "best" equivalent bond
     return map(ref_bonds) do rb
@@ -263,7 +262,7 @@ function all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b_ref::Bond
     end
 
     bs = Bond[]
-    dist = distance(cryst, b_ref)
+    dist = global_distance(cryst, b_ref)
     for b in all_bonds_for_atom(cryst, i, dist; min_dist=dist)
         if is_related_by_symmetry(cryst, b_ref, b)
             push!(bs, b)

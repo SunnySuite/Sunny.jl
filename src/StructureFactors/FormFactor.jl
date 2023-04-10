@@ -112,7 +112,7 @@ function map_form_factors_to_crystal(sf::StructureFactor, ffs::Vector{FormFactor
     for ff in ffs
         old_ri = origin_crystal.positions[ff.atom]  
         ri = crystal.latvecs \ origin_crystal.latvecs * old_ri
-        atom_new = position_to_index(crystal, ri)
+        atom_new = position_to_atom(crystal, ri)
 
         (; J0_params, J2_params, g_lande) = ff
         push!(ffs_new, FormFactor{FFType}(; atom=atom_new, J0_params, J2_params, g_lande))

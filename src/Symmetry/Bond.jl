@@ -10,64 +10,61 @@ struct Bond
     n :: SVector{3, Int}
 end
 
-# kbtodo: Rename BondPos
 # A bond expressed as two positions in fractional coordinates
-struct BondRaw
+struct BondPos
     ri::Vec3
     rj::Vec3
 end
 
-function Bond(cryst::Crystal, b::BondRaw)
-    i = position_to_index(cryst, b.ri)::Int
-    j = position_to_index(cryst, b.rj)::Int
+function Bond(cryst::Crystal, b::BondPos)
+    i = position_to_atom(cryst, b.ri)::Int
+    j = position_to_atom(cryst, b.rj)::Int
     ri = cryst.positions[i]
     rj = cryst.positions[j]
     n = round.(Int, (b.rj-b.ri) - (rj-ri))
     return Bond(i, j, n)
 end
 
-function BondRaw(cryst::Crystal, b::Bond)
-    return BondRaw(cryst.positions[b.i], cryst.positions[b.j]+b.n)
+function BondPos(cryst::Crystal, b::Bond)
+    return BondPos(cryst.positions[b.i], cryst.positions[b.j]+b.n)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", bond::Bond)
     print(io, "Bond($(bond.i), $(bond.j), $(bond.n))")
 end
 
-# kbtodo: Remove this function or use `global_` prefix.
-
 # The displacement vector ``𝐫_j - 𝐫_i`` in global coordinates between atoms
 # `b.i` and `b.j`, accounting for the integer offsets `b.n` between unit cells.
-function displacement(cryst::Crystal, b::BondRaw)
+function global_displacement(cryst::Crystal, b::BondPos)
     return cryst.latvecs * (b.rj - b.ri)
 end
 
-function displacement(cryst::Crystal, b::Bond)
-    return displacement(cryst, BondRaw(cryst, b))
+function global_displacement(cryst::Crystal, b::Bond)
+    return global_displacement(cryst, BondPos(cryst, b))
 end
 
 # The global distance between atoms in bond `b`. Equivalent to
-# `norm(displacement(cryst, b))`.
-function distance(cryst::Crystal, b::BondRaw)
-    return norm(displacement(cryst, b))
+# `norm(global_displacement(cryst, b))`.
+function global_distance(cryst::Crystal, b::BondPos)
+    return norm(global_displacement(cryst, b))
 end
 
-function distance(cryst::Crystal, b::Bond)
-    return norm(displacement(cryst, b))
+function global_distance(cryst::Crystal, b::Bond)
+    return norm(global_displacement(cryst, b))
 end
 
-function transform(s::SymOp, b::BondRaw)
-    return BondRaw(transform(s, b.ri), transform(s, b.rj))
+function transform(s::SymOp, b::BondPos)
+    return BondPos(transform(s, b.ri), transform(s, b.rj))
 end
 
 function transform(cryst::Crystal, s::SymOp, b::Bond)
-    return Bond(cryst, transform(s, BondRaw(cryst, b)))
+    return Bond(cryst, transform(s, BondPos(cryst, b)))
 end
 
 function Base.reverse(b::Bond)
     return Bond(b.j, b.i, -1 .* b.n)
 end
 
-function Base.reverse(b::BondRaw)
-    return BondRaw(b.rj, b.ri)
+function Base.reverse(b::BondPos)
+    return BondPos(b.rj, b.ri)
 end

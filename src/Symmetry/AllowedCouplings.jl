@@ -108,7 +108,7 @@ end
 # Return an operator P that implicitly gives the space of symmetry allowed
 # coupling matrices for bond b. Specifically, x is an allowed coupling if and
 # only if it is an eigenvector of P with eigenvalue 1, i.e., `P x = x`.
-function symmetry_allowed_couplings_operator(cryst::Crystal, b::BondRaw)
+function symmetry_allowed_couplings_operator(cryst::Crystal, b::BondPos)
     P = I
     for (s, parity) in symmetries_between_bonds(cryst, b, b)
         P = P * projector_for_symop(cryst, s, parity)
@@ -124,7 +124,7 @@ function transform_coupling_by_symmetry(cryst, J, symop, parity)
 end
 
 # Check whether a coupling matrix J is consistent with symmetries of a bond
-function is_coupling_valid(cryst::Crystal, b::BondRaw, J::Mat3)
+function is_coupling_valid(cryst::Crystal, b::BondPos, J::Mat3)
     for sym in symmetries_between_bonds(cryst, b, b)
         J′ = transform_coupling_by_symmetry(cryst, J, sym...)
         # TODO use symprec to handle case where symmetry is inexact
@@ -136,7 +136,7 @@ function is_coupling_valid(cryst::Crystal, b::BondRaw, J::Mat3)
 end
 
 function is_coupling_valid(cryst::Crystal, b::Bond, J::Mat3)
-    return is_coupling_valid(cryst, BondRaw(cryst, b), J)
+    return is_coupling_valid(cryst, BondPos(cryst, b), J)
 end
 
 
@@ -192,7 +192,7 @@ end
 Returns a list of ``3×3`` matrices that form a linear basis for the
 symmetry-allowed coupling matrices associated with bond `b`.
 """
-function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondRaw)
+function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondPos)
     # Expected floating point precision for 9x9 matrix operations
     atol = 1e-12
 
@@ -257,11 +257,11 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondRaw)
 end
 
 function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond)
-    return basis_for_symmetry_allowed_couplings(cryst, BondRaw(cryst, b))
+    return basis_for_symmetry_allowed_couplings(cryst, BondPos(cryst, b))
 end
 
 function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
-    syms = symmetries_between_bonds(cryst, BondRaw(cryst, b), BondRaw(cryst, b_ref))
+    syms = symmetries_between_bonds(cryst, BondPos(cryst, b), BondPos(cryst, b_ref))
     isempty(syms) && error("Bonds $b and $b_ref are not symmetry equivalent.")
     return transform_coupling_by_symmetry(cryst, J_ref, first(syms)...)
 end
