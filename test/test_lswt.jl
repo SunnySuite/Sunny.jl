@@ -104,7 +104,7 @@ end
     @test isapprox(sunny_trace, spintools_trace)
 end
 
-@testitem "Biquadratic interactions" tags=[:skip] begin
+@testitem "Biquadratic interactions" begin
     function test_biquad(k :: Vector{Float64}, S)
 
         a = 1.0
@@ -117,7 +117,7 @@ end
         # Spin System
         dims = (2, 2, 2)
         infos = [SpinInfo(1, S=S)]
-        sys = System(cryst, dims, infos, :dipole)
+        sys = System(cryst, dims, infos, :SUN)
 
         α = -0.4 * π
         J = 1.0
@@ -137,7 +137,7 @@ end
         ϵk_num = dispersion(swt, [k])
         ϵk_ana = ϵk₁(k)
 
-        isapprox(ϵk_num[1], ϵk_ana)
+        ϵk_num[end-1] ≈ ϵk_num[end] ≈ ϵk_ana
     end
 
     k = [0.12, 0.23, 0.34]

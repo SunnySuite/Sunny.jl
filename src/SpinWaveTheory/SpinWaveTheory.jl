@@ -53,13 +53,26 @@ Compute SU(N) generators in the local reference frame.
 """
 # DD: Redo this using existing operator rotation facilities.
 function generate_local_sun_gens(sys :: System)
-    Nₘ, N = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
+    Nₘ, N = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert 
+    S = (N-1)/2
+
+    s_mat_N = spin_matrices(N)
+
+    # we support the biquad interactions now in the :dipole mode
+    # we choose a particular basis of the nematic operators listed in Appendix B of *Phys. Rev. B 104, 104409*
+    Q_mat_N = Vector{Matrix{ComplexF64}}(undef, 5)
+    Q_mat_N[1] = -(s_mat_N[1] * s_mat_N[3] + s_mat_N[3] * s_mat_N[1])
+    Q_mat_N[2] = -(s_mat_N[2] * s_mat_N[3] + s_mat_N[3] * s_mat_N[2])
+    Q_mat_N[3] = s_mat_N[1] * s_mat_N[1] - s_mat_N[2] * s_mat_N[2]
+    Q_mat_N[4] = s_mat_N[1] * s_mat_N[2] + s_mat_N[2] * s_mat_N[1]
+    Q_mat_N[5] = √3 * s_mat_N[3] * s_mat_N[3] - 1/√3 * S * (S+1) * I
+
     if sys.mode == :SUN
-        s_mat = spin_matrices(N)
+        s_mat_N = spin_matrices(N)
 
         s̃_mat = Array{ComplexF64, 4}(undef, N, N, 3, Nₘ)
         T̃_mat = Array{ComplexF64, 3}(undef, N, N, Nₘ)
-        Q̃_mat = zeros(ComplexF64, 0, 0, 0, 0)
+        Q̃_mat = zeros(ComplexF64, N, N, 5, Nₘ)
 
         U_mat = Matrix{ComplexF64}(undef, N, N)
 
@@ -68,24 +81,16 @@ function generate_local_sun_gens(sys :: System)
             U_mat[:, 2:N] = nullspace(U_mat[:, 1]')
             @assert isapprox(U_mat * U_mat', I) "rotation matrix from (global frame to local frame) not unitary"
             for μ = 1:3
-                s̃_mat[:, :, μ, atom] = Hermitian(U_mat' * s_mat[μ] * U_mat)
+                s̃_mat[:, :, μ, atom] = Hermitian(U_mat' * s_mat_N[μ] * U_mat)
+            end
+            for ν = 1:5
+                Q̃_mat[:, :, ν, atom] = Hermitian(U_mat' * Q_mat_N[ν] * U_mat)
             end
             T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].aniso.matrep * U_mat)
         end
 
     elseif sys.mode == :dipole
         s_mat_2 = spin_matrices(2)
-        s_mat_N = spin_matrices(N)
-        S = (N-1)/2
-
-        # we support the biquad interactions now in the :dipole mode
-        # we choose a particular basis of the nematic operators listed in Appendix B of *Phys. Rev. B 104, 104409*
-        Q_mat = Vector{Matrix{ComplexF64}}(undef, 5)
-        Q_mat[1] = -(s_mat_N[1] * s_mat_N[3] + s_mat_N[3] * s_mat_N[1])
-        Q_mat[2] = -(s_mat_N[2] * s_mat_N[3] + s_mat_N[3] * s_mat_N[2])
-        Q_mat[3] = s_mat_N[1] * s_mat_N[1] - s_mat_N[2] * s_mat_N[2]
-        Q_mat[4] = s_mat_N[1] * s_mat_N[2] + s_mat_N[2] * s_mat_N[1]
-        Q_mat[5] = √3 * s_mat_N[3] * s_mat_N[3] - 1/√3 * S * (S+1) * I
         
         s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
 
@@ -106,7 +111,7 @@ function generate_local_sun_gens(sys :: System)
                 s̃_mat[:, :, μ, atom] = Hermitian(U_mat_2' * s_mat_2[μ] * U_mat_2)
             end
             for ν = 1:5
-                Q̃_mat[:, :, ν, atom] = Hermitian(U_mat_N' * Q_mat[ν] * U_mat_N)[1:2, 1:2]
+                Q̃_mat[:, :, ν, atom] = Hermitian(U_mat_N' * Q_mat_N[ν] * U_mat_N)[1:2, 1:2]
             end
 
             if !no_single_ion
