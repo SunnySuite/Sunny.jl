@@ -8,54 +8,55 @@
 # **Script**: Diamond Lattice Finite Temperature Calculation <br>
 # **Inspired by**: CoRh<sub>2</sub>O<sub>4</sub> Powder 
 # (Ge _et al._ https://doi.org/10.1103/PhysRevB.96.064413) <br>
-# **Authors**: Martin Mourigal, David Dalbhom <br>
+# **Authors**: Martin Mourigal, David Dahlbom <br>
 # **Date**: March 21, 2023  (Sunny 0.4.2) <br>
 # **Goal**: This script is to calculate the temperature dependence of the magnon excitations in the 
 # spin-3/2 Heisenberg Diamond Antiferromagnet and compare to powder-averaged results obtained for 
 # the compound CoRh<sub>2</sub>O<sub>4</sub> <br>
 
 # ---
-# ### Loading Packages and Custom Functions 
-cd("/Users/mourigal/Dropbox (GaTech)/Group/Shared-Scripts/MourigalLab-Git/Sunny-External/")  #src
-
 # #### Loading Packages 
 using Sunny, GLMakie, ProgressMeter, Statistics, Random, Brillouin
-import Plots ## Plotting tools as import to avoid conflict with GLMakie
+#md Makie.inline!(true)
+#nb Makie.inline!(true)
 Sunny.offline_viewers() 
+cif_path = joinpath("..", "Sunny.jl", "examples", "longer_examples", "CoRh2O4_#109301.cif");
 
 # #### Defining Custom functions
 
-# Function:quench! Randomizes spin system, go to a target temperature, let the system relax with 
-# nrelax steps of the integrator.
+# The function `quench!` randomizes the spins of a given `SpinSystem`, fixes a
+# target temperature, and lets the system relax at this temperature for `nrelax`
+# integration steps.
 function quench!(sys, integrator; kTtarget, nrelax)
     randomize_spins!(sys);
     integrator.kT = kTtarget;
     prog          = Progress(nrelax; dt=10.0, desc="Quenched and now relaxing: ", color=:green);
-    for i in 1:nrelax
+    for _ in 1:nrelax
         step!(sys, integrator)
         next!(prog)
     end 
 end
 
-# Function:dwell! Takes the spin system, go to a target temperature, and dwell with ndwell steps 
-# of the Integrator.
+# `dwell!` takes a `SpinSystem`, sets a target temperature, and has the system
+# dwell at this temperature for `ndwell` integration steps.
 function dwell!(sys, integrator; kTtarget, ndwell)
     integrator.kT = kTtarget;
     prog          = Progress(ndwell; dt=10.0, desc="Dwelling: ", color=:green);
-    for i in 1:ndwell
+    for _ in 1:ndwell
         step!(sys, integrator)
         next!(prog)
     end 
 end
 
-# Function:anneal! Takes a temperature schedule and cool the system through it, with ndwell steps of 
-# the Integrator at each temperature on the schedule. Returns the energy at the end of the dweel for 
-# each scheduled temperature.
+# `anneal!` takes a temperature schedule and cools the `SpinSystem` through it,
+# with `ndwell` steps of the integrator at each temperature in the schedule.
+# Returns the energy at the end of the dwell for each scheduled temperature.
 function anneal!(sys,  integrator;  kTschedule, ndwell)
     nspins = prod(size(sys.dipoles));
     ensys  = zeros(length(kTschedule))        
     prog   = Progress(ndwell*length(kTschedule); dt=10.0, desc="Annealing: ", color=:red);
     for (i, kT) in enumerate(kTschedule)
+        integrator.kT = kT
         for _ in 1:ndwell
             step!(sys, integrator)
             next!(prog)  
@@ -65,8 +66,9 @@ function anneal!(sys,  integrator;  kTschedule, ndwell)
     return ensys/nspins   
 end
 
-# Function:sample_sf! Samples a Structure Factor: Instant or Dynamical Structure Factor. 
-# The integrator is run ndecorr times before each one of the nsamples is measured.
+# `sample_sf!` samples a structure factor, which may be either an instant or
+# dynamical structure factor. The integrator is run `ndecorr` times before each
+# one of the samples is taken. 
 function sample_sf!(sf, sys, integrator; nsamples, ndecorr)
     prog  = Progress(nsamples*ndecorr; dt=10.0, desc="Sampling SF: ", color=:red);
     for _ in 1:nsamples
@@ -78,8 +80,10 @@ function sample_sf!(sf, sys, integrator; nsamples, ndecorr)
     end
 end
     
-# Function:powder_average; Powder Averages a Structure Factor. Works for instant or dynamical 
-# Structure Factor
+# `powder_average` powder averages a structure factor. Works for both instant
+# and dynamical structure factors. To prevent smearing, removes Bragg peaks
+# before introducing energy broadening. Bragg peaks are added back at ω=0 after
+# broadening.
 function powder_average(dsf, rs, density; η=0.1, mode=:perp, kwargs...)
     prog   = Progress(length(rs); dt=10., desc="Powder Averaging: ", color=:blue);
     output = zeros(Float64, length(rs), length(ωs(dsf)))
@@ -89,7 +93,11 @@ function powder_average(dsf, rs, density; η=0.1, mode=:perp, kwargs...)
             qs = [[0., 0., 0.]] ## If radius is too small, just look at 0 vector
         end
         vals = intensities(dsf, qs, mode; kwargs...)
+        bragg_idxs = findall(x -> x > maximum(vals)*0.9, vals)
+        bragg_vals = vals[bragg_idxs]
+        vals[bragg_idxs] .= 0
         vals = broaden_energy(dsf, vals, (ω,ω₀)->lorentzian(ω-ω₀, η))
+        vals[bragg_idxs] .= bragg_vals
         output[i,:] .= mean(vals, dims=1)[1,:]
         next!(prog)
     end
@@ -100,7 +108,7 @@ end
 # ### System Definition for CoRh<sub>2</sub>O<sub>4</sub>
 
 # Define the crystal structure of CoRh$_2$O$_4$  in the conventional cell
-xtal    = Crystal("CoRh2O4_#109301.cif";symprec=1e-4)
+xtal    = Crystal(cif_path ;symprec=1e-4)
 magxtal = subcrystal(xtal,"Co1")
 view_crystal(magxtal,6.0)
 print_symmetry_table(magxtal, 4.0)
@@ -137,7 +145,7 @@ integrator    = Langevin(Δt0; λ=λ0, kT=kT0);
 # Thermalization 
 # Option 1: Quench the system from infinite temperature to a target temperature. 
 # Note: this may lead to a poorly thermalized sample
-quench!(sys,integrator;kTtarget=kT0,nrelax=10000);
+quench!(sys,integrator; kTtarget=kT0,nrelax=10000);
 
 # Option 2: Anneal (according to a temperature schedule) than dwell once reach base
 # Note: starting from very high temperature here 
@@ -172,15 +180,14 @@ Qpts   = [[qx, qy, qz] for qx in Qxpts, qy in Qypts];
 @time  iq = instant_intensities(eqsf, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
 
 # Plot the resulting I(Q)
-fig1=Plots.heatmap(Qxpts, Qypts, iq[:,:]';
-    color=cgrad(:viridis, scale = :lin, rev = false),
-    clims=(0,maximum(iq)/20), 
-    xlabel="Momentum Transfer Qx (r.l.u)", xlabelfontsize=10, 
-    ylabel="Momentum Transfer Qy (r.l.u)", ylabelfontsize=10, 
-    size=(800,550), fmt=:png,
-    margin=5Plots.PlotMeasures.mm, format=:png
-);
-display(fig1)
+heatmap(Qxpts, Qypts, iq;
+    colorrange = (0, maximum(iq)/20),
+    axis = (
+        xlabel="Momentum Transfer Qx (r.l.u)", xlabelsize=16, 
+        ylabel="Momentum Transfer Qy (r.l.u)", ylabelsize=16, 
+        aspect=true,
+    )
+)
 
 
 # #### Dynamical and energy-integrated two-point correlation functions
@@ -220,45 +227,44 @@ iqwc  = broaden_energy(dsf, iqw, (ω, ω₀) -> lorentzian(ω-ω₀, η));
 @time  iqt = instant_intensities(dsf, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
 
 # Plot the resulting I(Q,W)    
-fig2=Plots.heatmap(1:size(iqwc, 1), ωs(dsf), iqwc';
-    color=cgrad(:viridis, scale = :lin, rev = false),
-    clims=(0,maximum(iqwc)/20000), 
-    xticks = (symQind, symQpts), xrotation=35, xtickfontsize=8,
-    xlabel="Momentum Transfer (r.l.u)",
-    ylabel="Energy Transfer (meV)", 
-    size=(800,550), fmt=:png,
-    margin=5Plots.PlotMeasures.mm, format=:png
-);
-display(fig2)
+heatmap(1:size(iqwc, 1), ωs(dsf), iqwc;
+    colorrange = (0, maximum(iqwc)/20000.0),
+    axis = (
+        xlabel="Momentum Transfer (r.l.u)",
+        ylabel="Energy Transfer (meV)", 
+        xticks = (symQind, string.(symQpts)),
+        xticklabelrotation=π/5,
+        aspect = 1.4,
+    )
+)
 
 # Projection into a powder-averaged neutron scattering intensity 
 Qmax       = 3.5;
 nQpts      = 100;
 Qpow       = range(0, Qmax, length=nQpts);  
 η          = 0.1;
-sphdensity = 4.0;
+sphdensity = 3.5;
 @time pqw = powder_average(dsf, Qpow, sphdensity; η, kT=integrator.kT, formfactors=ffs);
 
 # Plot resulting Ipow(Q,W)    
-fig3=Plots.heatmap(Qpow, ωs(dsf), pqw';
-    color=cgrad(:viridis, scale = :log, rev = false),
-    clims=(0,maximum(pqw)/100), 
-    xlabel="|Q| (Å⁻¹)",
-    ylabel="Energy Transfer (meV)", 
-    size=(800,550), fmt=:png,
-    margin=5Plots.PlotMeasures.mm, format=:png
-); 
-display(fig3)
+heatmap(Qpow, ωs(dsf), pqw;
+    colorrange = (0, 20.0),
+    axis = (
+        xlabel="|Q| (Å⁻¹)",
+        ylabel="Energy Transfer (meV)", 
+        aspect = 1.4,
+    )
+)
 
 # --- 
 # ### Calculation of temperature-dependent powder average spectrum
 
 # Define a temperature schedule
-kTs        = [60 40 25 20 15 12 10 4]/11.602;
+kTs        = [60 40 25 20 15 12 10 4] * Sunny.meV_per_K;
 pqw_res    = Array{Matrix{Float64}}(undef, length(kTs)); 
 iqw_res    = Array{Matrix{Float64}}(undef, length(kTs)); 
 for (i, kT) in enumerate(kTs)
-    dwell!(sys,integrator;kTtarget=kT,ndwell=1000);
+    dwell!(sys, integrator;kTtarget=kT,ndwell=1000);
     dsf_loc     = DynamicStructureFactor(sys; Δt=2Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
     iqw_res[i]  = intensities(dsf_loc, Qpts, :perp; interpolation = :none, kT=kT, formfactors=ffs); 
     pqw_res[i]  = powder_average(dsf_loc, Qpow, sphdensity; η, kT=kT, formfactors=ffs);
@@ -266,15 +272,16 @@ end
 
 # Plot the resulting Ipow(Q,W) as a function of temperature,
 # to compare with Fig.6 of https://arxiv.org/abs/1706.05881
-for i = 8:-1:1
-    fig4 = Plots.heatmap(Qpow, ωs(dsf), pqw_res[i]';
-        color=cgrad(:viridis, scale = :lin, rev = false),
-        clims=(0,10), 
-        xlabel="|Q| (Å⁻¹)",
-        ylabel="Energy Transfer (meV)", 
-        size=(800,550), fmt=:png,
-        margin=5Plots.PlotMeasures.mm, format=:png
-    );
-    display(fig4)
+fig = Figure(; resolution=(1200,600))
+for i in 1:8 
+    r, c = fldmod1(i, 4)
+    ax = Axis(fig[r, c];
+        title = "kT = "*string(round(kTs[9-i], digits=3))*" (meV)",
+        xlabel = r == 2 ? "|Q| (Å⁻¹)" : "",
+        ylabel = c == 1 ? "Energy Transfer (meV)" : "",
+        aspect = 1.4,
+    )
+    heatmap!(ax, Qpow, ωs(dsf), pqw_res[9-i]; colorrange = (0, 10))
 end
+fig
 
