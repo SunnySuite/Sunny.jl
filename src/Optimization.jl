@@ -25,15 +25,22 @@ function optim_gradient!(buf, free_dipoles, sys::System{0})
 
     # Calculate gradient in "new coordinates" and incorporate regularizing terms
     for site in all_sites(sys)
-        xx = free_dipoles[site] ⋅ free_dipoles[site]
-        jac = √xx * (I - (1/xx) * (free_dipoles[site] * free_dipoles[site]'))
+        ixx = 1/(free_dipoles[site] ⋅ free_dipoles[site])
+        jac = √ixx * (I - ixx * (free_dipoles[site] * free_dipoles[site]'))
         Hgrad[site] = -jac * Hgrad[site] + grad_norm_penalty(free_dipoles[site]) # Note Optim expects ∇, `set_forces!` gives -∇
     end
 end
 
-function minimize_energy!(sys; method=Optim.LBFGS)
+"""
+    minimize_energy!(sys; method=Optim.LBFGS, kwargs...)
+
+Minimize the energy of a spin system using either LBFGS (`method=Optim.LBFGS`)
+or Conjugate Gradient (`method=Optim.ConjugateGradient`) methods. Currently only
+works for systems in dipole mode. 
+"""
+function minimize_energy!(sys; method=Optim.LBFGS, kwargs...)
     f(spins) = optim_energy(spins, sys)
     g!(G, spins) = optim_gradient!(G, spins, sys)
     free_dipoles = Array(reinterpret(reshape, Float64, sys.dipoles))
-    Optim.optimize(f, g!, free_dipoles, method()) 
+    Optim.optimize(f, g!, free_dipoles, method(), kwargs...) 
 end
