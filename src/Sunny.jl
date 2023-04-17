@@ -11,6 +11,7 @@ import Printf: @printf, @sprintf
 import Random: Random, randn!
 import DynamicPolynomials as DP
 import DataStructures: SortedDict
+import Optim
 
 # Specific to Symmetry/
 import FilePathsBase: Path
@@ -72,6 +73,9 @@ export reshape_geometry, resize_periodically, repeat_periodically,
 
 include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!
+
+include("Optimization.jl")
+export minimize_energy! 
 
 include("Samplers.jl")
 export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler

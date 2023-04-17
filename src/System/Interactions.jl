@@ -282,7 +282,7 @@ end
 
 
 # Updates B in-place to hold negative energy gradient, -dE/ds, for each spin.
-function set_forces!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N}) where N
+function set_forces!(B, dipoles::Array{Vec3, 4}, sys::System{N}) where N
     (; crystal, extfield, ewald) = sys
 
     fill!(B, zero(Vec3))
@@ -312,7 +312,7 @@ end
 
 # Calculate the energy for the interactions `ints` defined for one sublattice
 # `i` , accumulated over all equivalent `cells`.
-function set_forces_aux!(B::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, ints::Interactions, i::Int, cells, sys::System{N}) where N
+function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, i::Int, cells, sys::System{N}) where N
     (; latsize) = sys
 
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
