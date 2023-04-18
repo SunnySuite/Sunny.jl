@@ -114,12 +114,8 @@ xtal_mgcro_2 = Crystal(lat_vecs, bas_vecs, lat_spg; types=bas_typs, setting=lat_
 
 # ### "Experimentalist Method #3 (Correct -- if your CIF file is)
 
-## === Define the crystal structure of MgCr2O4 by importing a cif file === 
-xtal_mgcro_3 = Crystal(joinpath(cif_path, "MgCr2O4_9006236_1994.cif"); symprec=0.001)
-
-# As you can see, the CIF file is not formatted correctly. We could revert to
-# inputting the data from the CIF by hand, or we can work with an updated CIF
-# file, as we do below.
+# To import a CIF file, simply give the path to `Crystal`. One may optionally
+# specify a precision parameter to apply to the symmetry analysis.
 
 ## === Define the crystal structure of MgCr2O4 by importing a cif file === 
 xtal_mgcro_3 = Crystal(joinpath(cif_path, "MgCr2O4_160953_2009.cif"); symprec=0.001)
@@ -143,7 +139,7 @@ sys_pyro = System(xtal_pyro, dims, spininfos, :dipole)    # Make a system in dip
 sys_mgcro = System(xtal_mgcro, dims, spininfos, :dipole); # Same on MgCr2O4 crystal
 
 # To understand what interactions we may assign to this system, we have to
-# understand the the symmetry properties of the crystal. 
+# understand the the symmetry properties of the crystal, which we turn to next.
 #
 # ### Symmetry analysis for exchange and single-ion anisotropies
 # 
