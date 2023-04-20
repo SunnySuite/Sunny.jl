@@ -54,44 +54,44 @@ cif_path = joinpath("..", "Sunny.jl", "examples", "longer_examples");
 
 # ### "Theorist" Method
 
-## === Define the crystal structure of a B-site pyrochlore lattice with only B-site atoms === 
-lat_vecs = lattice_vectors(8.3342, 8.3342, 8.3342, 90.0, 90.0, 90.0);  
-bas_vecs = [  [0.87500000, 0.62500000, 0.37500000],
-              [0.62500000, 0.12500000, 0.62500000],
-              [0.87500000, 0.87500000, 0.12500000],  
-              [0.62500000, 0.87500000, 0.37500000],  
-              [0.87500000, 0.12500000, 0.87500000],  
-              [0.62500000, 0.62500000, 0.12500000],  
-              [0.87500000, 0.37500000, 0.62500000],  
-              [0.62500000, 0.37500000, 0.87500000],  
-              [0.37500000, 0.62500000, 0.87500000],  
-              [0.12500000, 0.12500000, 0.12500000],  
-              [0.37500000, 0.87500000, 0.62500000],  
-              [0.12500000, 0.87500000, 0.87500000],  
-              [0.37500000, 0.12500000, 0.37500000],  
-              [0.12500000, 0.62500000, 0.62500000],  
-              [0.37500000, 0.37500000, 0.12500000],  
-              [0.12500000, 0.37500000, 0.37500000]];
-bas_typs = ["B","B","B","B", "B","B","B","B", "B","B","B","B", "B","B","B","B"]
-xtal_pyro   = Crystal(lat_vecs, bas_vecs; types=bas_typs) # We will call this crystal the Theoretical Pyrochlore
+# In this approach, we directly define the lattice vectors and specify the positions
+# of each atom in fractional coordinates.
+latvecs = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90);  
+positions = [[0.875, 0.625, 0.375],
+             [0.625, 0.125, 0.625],
+             [0.875, 0.875, 0.125],  
+             [0.625, 0.875, 0.375],  
+             [0.875, 0.125, 0.875],  
+             [0.625, 0.625, 0.125],  
+             [0.875, 0.375, 0.625],  
+             [0.625, 0.375, 0.875],  
+             [0.375, 0.625, 0.875],  
+             [0.125, 0.125, 0.125],  
+             [0.375, 0.875, 0.625],  
+             [0.125, 0.875, 0.875],  
+             [0.375, 0.125, 0.375],  
+             [0.125, 0.625, 0.625],  
+             [0.375, 0.375, 0.125],  
+             [0.125, 0.375, 0.375]];
+types = ["B" for _ in positions]
+xtal_pyro   = Crystal(latvecs, positions; types) # We will call this crystal the Theoretical Pyrochlore
 
-## === Return crystalographic information gathered by Sunny about the crystal structure === 
-view_crystal(xtal_pyro, 3.2) # Sunny can draw the crystal structure.
-display(xtal_pyro) # Sunny can identify the space-group and point-group for this system. Here Fd-3m
+# To examine the result interactively, we can call `view_crystal`.
+
+#nb view_crystal(xtal_pyro, 3.2) # Sunny can draw the crystal structure.
 
 # ### "Experimentalist" Method #1 (Incorrect)
 # A real crystal is more complicated than this, however, and we will now
 # construct the system using the actual CIF file of MgCr2O4 from ICSD. This can
-# be done by directly importing the data from a CIF file by hand, but this can
-# be dangerous, as shown below.
+# be done by copying over the data from a CIF file by hand, but this can be
+# dangerous, as shown below.
 
-## === Define the crystal structure of MgCr2O4 by copying the info from a .cif file === 
-lat_vecs     = lattice_vectors(8.3342, 8.3342, 8.3342, 90.0, 90.0, 90.0)
-bas_vecs     = [ [0.12500, 0.12500, 0.12500],
-                 [0.50000, 0.50000, 0.50000],
-                 [0.26070, 0.26070, 0.26070]]
-bas_typs     = ["Mg","Cr","O"]
-xtal_mgcro_1 = Crystal(lat_vecs, bas_vecs; types=bas_typs)
+latvecs   = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90)
+positions = [[0.1250, 0.1250, 0.1250],
+             [0.5000, 0.5000, 0.5000],
+             [0.2607, 0.2607, 0.2607]]
+types = ["Mg","Cr","O"]
+xtal_mgcro_1 = Crystal(latvecs, positions; types)
 
 # Sunny returned a valid crystal, but it did get right space group for MgCr2O4.
 # This can be fixed by modifying the input to include the space group and the
@@ -100,19 +100,19 @@ xtal_mgcro_1 = Crystal(lat_vecs, bas_vecs; types=bas_typs)
 # ### "Experimentalist" Method #2 (Correct)
 
 ## === Define the crystal structure of MgCr2O4 by copying the info from a CIF file INCLUDING space group and setting === 
-lat_vecs     = lattice_vectors(8.3342, 8.3342, 8.3342, 90.0, 90.0, 90.0)
-bas_vecs     = [ [0.12500, 0.12500, 0.12500],
-                 [0.50000, 0.50000, 0.50000],
-                 [0.26070, 0.26070, 0.26070]]
-bas_typs     = ["Mg","Cr","O"]
-lat_spg      = 227 # Space Group Number 
-lat_set      = "2" # Space Group setting
-xtal_mgcro_2 = Crystal(lat_vecs, bas_vecs, lat_spg; types=bas_typs, setting=lat_set)
+latvecs    = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90)
+positions  = [[0.1250, 0.1250, 0.1250],
+              [0.5000, 0.5000, 0.5000],
+              [0.2607, 0.2607, 0.2607]]
+types      = ["Mg","Cr","O"]
+spacegroup = 227 # Space Group Number 
+setting    = "2" # Space Group setting
+xtal_mgcro_2 = Crystal(latvecs, positions, spacegroup; types, setting)
 
-# This result is correct, but at this point we might as well import the
-# CIF file directly, which we now proceed to do.
+# This result is correct, but at this point we might as well import the CIF file
+# directly, which we now proceed to do.
 
-# ### "Experimentalist Method #3 (Correct -- if your CIF file is)
+# ### "Experimentalist" Method #3 (Correct -- if your CIF file is)
 
 # To import a CIF file, simply give the path to `Crystal`. One may optionally
 # specify a precision parameter to apply to the symmetry analysis.
@@ -130,7 +130,7 @@ xtal_mgcro = subcrystal(xtal_mgcro_2,"Cr")
 
 # ## Making a `System` and assigning interactions 
 # ### Making a `System`
-# Before assigning and interactions, we first have to set up a `System` using
+# Before assigning any interactions, we first have to set up a `System` using
 # our `Crystal`.
 
 dims = (6, 6, 6)  # Supercell dimensions 
@@ -145,7 +145,7 @@ sys_mgcro = System(xtal_mgcro, dims, spininfos, :dipole); # Same on MgCr2O4 crys
 # 
 # `print_symmetry_table` reports all the allowed exchange interactions,
 # single-site anisotropies, and g-factors on our crystal. It takes a `Cyrstal`
-# and a distance. We'll look at both the "theoriest's" pyrochlore lattice,
+# and a distance. We'll look at both the "theorist's" pyrochlore lattice,
 
 display("======== Pyrochlore Lattice Exchange Interactions to Third Neighbor ========")
 print_symmetry_table(xtal_pyro, 5.9) 
@@ -157,13 +157,13 @@ print_symmetry_table(xtal_mgcro, 6.0)
 
 
 # Note that the exchange anisotropies allowed on the the pyrochlore lattice are
-# slightly different from those on the MgCr2O4 cyrstal, due to the role of Mg
+# slightly different from those on the MgCr2O4 cyrstal due to the role of Mg
 # and O in the bonds. Also note that Sunny has correctly identified the two
 # inequivalent bonds 3a and 3b having the same length. A question may arises to
 # know which bond is J3a and which is J3b, let's plot the structure.
-#
+ 
 #nb view_crystal(xtal_mgcro, 5.9) # Sunny can draw the crystal structure. 
-#
+ 
 # The above plot shows that the second interaction (cyan color) with the
 # distance of 5.89Å is in fact the one hopping through a chromium site, meaning
 # it is J3a! We will need to be careful with that later.
@@ -253,8 +253,10 @@ Sq_mgcro = instant_intensities(isf_mgcro, qs, :perp);
 # Finally we can plot the results.
 
 fig = Figure(; resolution=(1200,500))
-ax_pyro  = Axis(fig[1,1]; aspect=true, title="Pyrochlore")
-ax_mgcro = Axis(fig[1,3]; aspect=true, title="MgCr2O4")
+axparams = (aspect = true, xticks=-4:4, yticks=-4:4, titlesize=20,
+    xlabel = "𝐪a (2π a⁻¹)", ylabel = "𝐪b (2π b⁻¹)", xlabelsize = 18, ylabelsize=18,)
+ax_pyro  = Axis(fig[1,1]; title="Pyrochlore", axparams...) 
+ax_mgcro = Axis(fig[1,3]; title="MgCr2O4",  axparams...)
 hm = heatmap!(ax_pyro, qvals, qvals, Sq_pyro)
 Colorbar(fig[1,2], hm)
 hm = heatmap!(ax_mgcro, qvals, qvals, Sq_mgcro)
@@ -284,13 +286,14 @@ end
 
 ## Plot pyrochlore results at a few slices
 fig = Figure(; resolution=(1200,900))
-qbs = 0.0:0.5:1.5
+axsqw = (xticks=-4:4, yticks=0:2:10, ylabel="E (meV)", ylabelsize=18, xlabelsize=18, )
+qbs = 0.0:0.5:1.5 # Determine q_b for each slice
 for (i, qb) in enumerate(qbs)
     path, labels = connected_path([[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
                                                                          ## vectors through the BZ
     Sqω_pyro  = intensities(dsf_pyro, path, :perp; )  # Temperature keyword enables intensity rescaling
 
-    ax = Axis(fig[fldmod1(i,2)...]; xlabel = "q = (x, $qb, 0)", ylabel="E (meV)")
+    ax = Axis(fig[fldmod1(i,2)...]; xlabel = "q = (x, $qb, 0)", axsqw...)
     heatmap!(ax, [p[1] for p in path], ωs(dsf_pyro), Sqω_pyro; colorrange=(0.0, 4.0))
 end
 fig
@@ -302,17 +305,19 @@ for (i, qb) in enumerate(qbs)
     path, labels = connected_path([[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave vectors through the BZ
     Sqω_mgcro  = intensities(dsf_mgcro, path, :perp; )  # Temperature keyword enables intensity rescaling
 
-    ax = Axis(fig[fldmod1(i,2)...]; xlabel = "q = (x, $qb, 0)", ylabel="E (meV)")
+    ax = Axis(fig[fldmod1(i,2)...]; xlabel = "q = (x, $qb, 0)", axsqw...)
     heatmap!(ax, [p[1] for p in path], ωs(dsf_mgcro), Sqω_mgcro; colorrange=(0.0, 4.0))
 end
 fig
 
+# ### Instantaneous structure factor from a dynamical structure factor
+
 # Finally, we note that the instant structure factor can be calculated from the
 # dynamical structure factor. We simply call `instant_intensities` rather than
-# `intensities`. An advantage of doing this (as opposed to using
-# `InstantStructureFactor`) is that Sunny is able to apply a temperature- and
-# energy-dependent intensities rescaling when working with the dynamic structure
-# factor. 
+# `intensities`. This will integrate out the energy (ω) axis. An advantage of
+# doing this (as opposed to using an `InstantStructureFactor`) is that Sunny is
+# able to apply a temperature- and energy-dependent intensity rescaling when
+# starting from the `DynamicStructureFactor`. 
 qvals = -4.0:0.05:4.0
 qs = [(qa, qb, 0) for qa in qvals, qb in qvals]      # Wave vectors to query
 
@@ -323,8 +328,8 @@ Sq_mgcro = instant_intensities(dsf_mgcro, qs, :perp; kT);
 # using `InstantStructureFactor`.
 
 fig = Figure(; resolution=(1200,500))
-ax_pyro  = Axis(fig[1,1]; aspect=true, title="Pyrochlore")
-ax_mgcro = Axis(fig[1,3]; aspect=true, title="MgCr2O4")
+ax_pyro  = Axis(fig[1,1]; title="Pyrochlore", axparams...)
+ax_mgcro = Axis(fig[1,3]; title="MgCr2O4", axparams...)
 hm = heatmap!(ax_pyro, qvals, qvals, Sq_pyro)
 Colorbar(fig[1,2], hm)
 hm = heatmap!(ax_mgcro, qvals, qvals, Sq_mgcro)
