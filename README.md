@@ -19,6 +19,8 @@ Sunny is currently under heavy development with many **breaking changes**. See t
 
 To see Sunny in action, we recommend browsing the [FeI2 case study](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/). This example uses SU(3) spin dynamics to measure the dynamical structure factor. The SU(3) formalism is essential to model the single-ion bound-state, which has been [observed experimentally](https://doi.org/10.1038/s41567-020-01110-1).
 
+In addition to the examples in the official [documentation](https://sunnysuite.github.io/Sunny.jl/dev/), a number of tutorials are available as Jupyter notebooks at the [SunnyTutorials](https://github.com/SunnySuite/SunnyTutorials/tree/main/Tutorials) repo. 
+
 ## Technical description of SU(_N_) spin dynamics.
 
 A quantum spin of magnitude _S_ has _N_ = 2 _S_ + 1 distinct angular momentum eigenstates. The traditional classical approximation effectively replaces each spin operator with a dipole expectation value, producing the Landau-Lifshitz spin-dipole dynamics. Alternatively, one can derive a dynamics that retains all multipolar expectation values (dipoles, quadrupoles, etc.) [[Zhang and Batista, Phys. Rev. B **104**, 104409 (2021)](https://arxiv.org/abs/2106.14125)]. This formalism can be understood as a dynamics of SU(_N_) coherent states, and coincides with the usual Laudau-Lifshitz dynamics when _N_=2.
@@ -33,7 +35,7 @@ In addition to the generalized SU(_N_) spin dynamics, Sunny can also simulate sp
 
 ## Installation
 
-Sunny is implemented in the [Julia programming language](https://julialang.org/). New Julia users may wish to read our [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia) wiki page.
+Sunny is implemented in the [Julia programming language](https://julialang.org/). New Julia users may wish to read our [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia-and-Sunny) wiki page.
 
 From the Julia prompt, one can install the latest Sunny using the built-in package manager:
 ```
