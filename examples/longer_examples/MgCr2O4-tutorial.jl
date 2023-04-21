@@ -29,7 +29,7 @@
 # the Julia programming language and the Sunny package. Some useful references
 # for getting started are:
 #
-# https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia 
+# https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia-and-Sunny
 # 
 # https://sunnysuite.github.io/Sunny.jl/dev/
 #
@@ -54,7 +54,7 @@ cif_path = joinpath("..", "Sunny.jl", "examples", "longer_examples");
 
 # ### "Theorist" Method
 
-# In this approach, we directly define the lattice vectors and specify the positions
+# In this approach, we directly define the lattice vectors and specify the position
 # of each atom in fractional coordinates.
 latvecs = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90);  
 positions = [[0.875, 0.625, 0.375],
@@ -78,7 +78,7 @@ xtal_pyro   = Crystal(latvecs, positions; types) # We will call this crystal the
 
 # To examine the result interactively, we can call `view_crystal`.
 
-#nb view_crystal(xtal_pyro, 3.2) # Sunny can draw the crystal structure.
+#nb view_crystal(xtal_pyro, 3.2) 
 
 # ### "Experimentalist" Method #1 (Incorrect)
 # A real crystal is more complicated than this, however, and we will now
@@ -99,7 +99,10 @@ xtal_mgcro_1 = Crystal(latvecs, positions; types)
 # 
 # ### "Experimentalist" Method #2 (Correct)
 
-## === Define the crystal structure of MgCr2O4 by copying the info from a CIF file INCLUDING space group and setting === 
+# As above, we will define the crystal structure of MgCr2O4 by copying the info
+# from a CIF file, but we will also specify the space group and setting
+# explicitly.
+ 
 latvecs    = lattice_vectors(8.3342, 8.3342, 8.3342, 90, 90, 90)
 positions  = [[0.1250, 0.1250, 0.1250],
               [0.5000, 0.5000, 0.5000],
@@ -117,7 +120,6 @@ xtal_mgcro_2 = Crystal(latvecs, positions, spacegroup; types, setting)
 # To import a CIF file, simply give the path to `Crystal`. One may optionally
 # specify a precision parameter to apply to the symmetry analysis.
 
-## === Define the crystal structure of MgCr2O4 by importing a cif file === 
 xtal_mgcro_3 = Crystal(joinpath(cif_path, "MgCr2O4_160953_2009.cif"); symprec=0.001)
 
 # Finally, we wish to restrict attention to the magnetic atoms in the unit cell
@@ -125,7 +127,6 @@ xtal_mgcro_3 = Crystal(joinpath(cif_path, "MgCr2O4_160953_2009.cif"); symprec=0.
 # to determine the correct exchange and g-factor anisotropies. This can be
 # achieved with the `subcrystal` function.
 
-## === Define the crystal structure of MgCr2O4 by importing a cif file === 
 xtal_mgcro = subcrystal(xtal_mgcro_2,"Cr")
 
 # ## Making a `System` and assigning interactions 
@@ -143,18 +144,15 @@ sys_mgcro = System(xtal_mgcro, dims, spininfos, :dipole); # Same on MgCr2O4 crys
 #
 # ### Symmetry analysis for exchange and single-ion anisotropies
 # 
-# `print_symmetry_table` reports all the allowed exchange interactions,
-# single-site anisotropies, and g-factors on our crystal. It takes a `Cyrstal`
-# and a distance. We'll look at both the "theorist's" pyrochlore lattice,
+# `print_symmetry_table` reports all the exchange interactions, single-site
+# anisotropies, and g-factors allowed on our crystal. It takes a `Cyrstal` and a
+# distance. We'll look at both the "theorist's" pyrochlore lattice,
 
-display("======== Pyrochlore Lattice Exchange Interactions to Third Neighbor ========")
 print_symmetry_table(xtal_pyro, 5.9) 
 
 # and for the the MgCrO4 crystal,
 
-display("======== MgCr2O4 Exchange Interactions to Third Neighbor ========")
 print_symmetry_table(xtal_mgcro, 6.0) 
-
 
 # Note that the exchange anisotropies allowed on the the pyrochlore lattice are
 # slightly different from those on the MgCr2O4 cyrstal due to the role of Mg
@@ -162,16 +160,16 @@ print_symmetry_table(xtal_mgcro, 6.0)
 # inequivalent bonds 3a and 3b having the same length. A question may arises to
 # know which bond is J3a and which is J3b, let's plot the structure.
  
-#nb view_crystal(xtal_mgcro, 5.9) # Sunny can draw the crystal structure. 
+#nb view_crystal(xtal_mgcro, 5.9)
  
-# The above plot shows that the second interaction (cyan color) with the
-# distance of 5.89Å is in fact the one hopping through a chromium site, meaning
-# it is J3a! We will need to be careful with that later.
+# The crystal viewer shows that the second interaction -- cyan color with
+# distance of 5.89Å -- is in fact the one hopping through a chromium site,
+# meaning it is J3a! We will need to be careful with that later.
 #
 # ### Building the exchange interactions for our system
 #
 # We begin by setting the scale of our exchange interactions on each bond. 
-## === Define Values of Exchange Interactions ===
+
 J1      = 3.27  # value of J1 in meV from Bai's PRL paper
 J_pyro  = [1.00,0.000,0.000,0.000]*J1    # pure nearest neighbor pyrochlore
 J_mgcro = [1.00,0.0815,0.1050,0.085]*J1; # further neighbor pyrochlore relevant for MgCr2O4
@@ -244,13 +242,14 @@ for _ in 1:10
 end
 
 # To retrieve the intensities, we call `intensities` on an array of wave vectors.
+
 qvals = -4.0:0.025:4.0
 qs = [(qa, qb, 0) for qa in qvals, qb in qvals]      # Wave vectors to query
 
 Sq_pyro  = instant_intensities(isf_pyro, qs, :perp)  # :perp applies polarization factor 
 Sq_mgcro = instant_intensities(isf_mgcro, qs, :perp);
 
-# Finally we can plot the results.
+# Finally, we can plot the results.
 
 fig = Figure(; resolution=(1200,500))
 axparams = (aspect = true, xticks=-4:4, yticks=-4:4, titlesize=20,
@@ -269,7 +268,8 @@ fig
 dsf_pyro  = DynamicStructureFactor(sys_pyro;  Δt, ωmax = 10.0, nω = 100)
 dsf_mgcro = DynamicStructureFactor(sys_mgcro; Δt, ωmax = 10.0, nω = 100);
 
-# Let's add a couple more samples. 
+# One sample is calculated when creating a `DynamicStructureFactor`. Let's add a
+# couple more.
 
 for _ in 1:2
     ## Run dynamics to decorrelate
@@ -284,14 +284,14 @@ end
 
 # We can now examine the structure factor intensities along a path in momentum space. 
 
-## Plot pyrochlore results at a few slices
 fig = Figure(; resolution=(1200,900))
 axsqw = (xticks=-4:4, yticks=0:2:10, ylabel="E (meV)", ylabelsize=18, xlabelsize=18, )
+
 qbs = 0.0:0.5:1.5 # Determine q_b for each slice
 for (i, qb) in enumerate(qbs)
     path, labels = connected_path([[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
                                                                          ## vectors through the BZ
-    Sqω_pyro  = intensities(dsf_pyro, path, :perp; )  # Temperature keyword enables intensity rescaling
+    Sqω_pyro  = intensities(dsf_pyro, path, :perp; kT)  # Temperature keyword enables intensity rescaling
 
     ax = Axis(fig[fldmod1(i,2)...]; xlabel = "q = (x, $qb, 0)", axsqw...)
     heatmap!(ax, [p[1] for p in path], ωs(dsf_pyro), Sqω_pyro; colorrange=(0.0, 4.0))
@@ -299,11 +299,14 @@ end
 fig
 
 # And let's take a look at the same slices for MgCr2O4.
+
 fig = Figure(; resolution=(1200,900))
+
 qbs = 0.0:0.5:1.5
 for (i, qb) in enumerate(qbs)
-    path, labels = connected_path([[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave vectors through the BZ
-    Sqω_mgcro  = intensities(dsf_mgcro, path, :perp; )  # Temperature keyword enables intensity rescaling
+    path, labels = connected_path([[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
+                                                                         ## vectors through the BZ
+    Sqω_mgcro  = intensities(dsf_mgcro, path, :perp; kT)  # Temperature keyword enables intensity rescaling
 
     ax = Axis(fig[fldmod1(i,2)...]; xlabel = "q = (x, $qb, 0)", axsqw...)
     heatmap!(ax, [p[1] for p in path], ωs(dsf_mgcro), Sqω_mgcro; colorrange=(0.0, 4.0))
@@ -314,18 +317,21 @@ fig
 
 # Finally, we note that the instant structure factor can be calculated from the
 # dynamical structure factor. We simply call `instant_intensities` rather than
-# `intensities`. This will integrate out the energy (ω) axis. An advantage of
-# doing this (as opposed to using an `InstantStructureFactor`) is that Sunny is
-# able to apply a temperature- and energy-dependent intensity rescaling when
-# starting from the `DynamicStructureFactor`. 
+# `intensities`. This will calculate the instantaneous structure factor from
+# from ``𝒮(𝐪,ω)`` by integrating out ``ω`` . An advantage of doing this (as
+# opposed to using an `InstantStructureFactor`) is that Sunny is able to apply a
+# temperature- and energy-dependent intensity rescaling before integrating out
+# the dynamical information. The results of this approach are more suitable for
+# comparison with experimental data.
+
 qvals = -4.0:0.05:4.0
 qs = [(qa, qb, 0) for qa in qvals, qb in qvals]      # Wave vectors to query
 
 Sq_pyro  = instant_intensities(dsf_pyro, qs, :perp; kT)  
 Sq_mgcro = instant_intensities(dsf_mgcro, qs, :perp; kT);
 
-# Finally we can plot the results. It is useful to compare these to our earlier results
-# using `InstantStructureFactor`.
+# We can plot the results below. It is useful to compare these to the plot above
+# generated with an `InstantStructureFactor`.
 
 fig = Figure(; resolution=(1200,500))
 ax_pyro  = Axis(fig[1,1]; title="Pyrochlore", axparams...)
