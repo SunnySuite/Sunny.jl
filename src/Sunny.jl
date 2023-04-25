@@ -77,9 +77,6 @@ export Langevin, ImplicitMidpoint, step!
 include("Optimization.jl")
 export minimize_energy! 
 
-include("Samplers.jl")
-export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
-
 include("StructureFactors/StructureFactors.jl")
 include("StructureFactors/SFUtils.jl")
 include("StructureFactors/SampleGeneration.jl")
@@ -100,6 +97,9 @@ export SpinWaveTheory, dispersion, intensities, dssf
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
 export view_crystal, offline_viewers, browser
+
+include("MonteCarlo/Samplers.jl")
+export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
 
 include("MonteCarlo/BinnedArray.jl")
 export BinnedArray, reset!, get_keys, get_vals, get_pairs
