@@ -99,16 +99,11 @@ include("SunnyGfx/CrystalViewer.jl")
 export view_crystal, offline_viewers, browser
 
 include("MonteCarlo/Samplers.jl")
-export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
-
 include("MonteCarlo/BinnedArray.jl")
-export BinnedArray, reset!, get_keys, get_vals, get_pairs
-
 include("MonteCarlo/ParallelTempering.jl")
-export ParallelTempering, sample!
-
 include("MonteCarlo/HistogramReweighting.jl")
-export WHAM, ensemble_average
+export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler,
+    ParallelTempering, sample!
 
 # GLMakie is an optional dependency
 function __init__()
