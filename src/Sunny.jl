@@ -77,9 +77,6 @@ export Langevin, ImplicitMidpoint, step!
 include("Optimization.jl")
 export minimize_energy! 
 
-include("Samplers.jl")
-export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
-
 include("StructureFactors/StructureFactors.jl")
 include("StructureFactors/SFUtils.jl")
 include("StructureFactors/SampleGeneration.jl")
@@ -101,8 +98,12 @@ include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
 export view_crystal, offline_viewers, browser
 
-include("ParallelTempering.jl")
-export ParallelTempering, sample!
+include("MonteCarlo/Samplers.jl")
+include("MonteCarlo/BinnedArray.jl")
+include("MonteCarlo/ParallelTempering.jl")
+include("MonteCarlo/HistogramReweighting.jl")
+export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler,
+    ParallelTempering, sample!
 
 # GLMakie is an optional dependency
 function __init__()
