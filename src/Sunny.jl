@@ -102,8 +102,12 @@ include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")
 include("MonteCarlo/ParallelTempering.jl")
 include("MonteCarlo/HistogramReweighting.jl")
+include("MonteCarlo/GenEnsemble.jl")
+include("MonteCarlo/ParallelGenEnsemble.jl")
 export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler,
-    ParallelTempering, sample!
+    ParallelTempering, sample!,
+    GenEnsemble,
+    ParallelGenEnsemble
 
 # GLMakie is an optional dependency
 function __init__()
