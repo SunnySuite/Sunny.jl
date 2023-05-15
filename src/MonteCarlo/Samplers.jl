@@ -67,7 +67,7 @@ function propose_delta(magnitude)
 end
 
 """
-    @propose_mix weight1 propose1 weight2 propose2 ...
+    @mix_proposals weight1 propose1 weight2 propose2 ...
 
 Macro to generate a proposal function that randomly selects among the provided
 functions according to the provided probability weights. For use with
@@ -77,7 +77,7 @@ functions according to the provided probability weights. For use with
 ```julia
 # A proposal function that proposes a spin flip 40% of the time, and a
 # Gaussian perturbation 60% of the time.
-@propose_mix 0.4 propose_flip 0.6 propose_delta(0.2)
+@mix_proposals 0.4 propose_flip 0.6 propose_delta(0.2)
 ```
 """
 macro mix_proposals(terms...)
