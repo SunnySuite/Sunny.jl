@@ -89,11 +89,6 @@ Matrix representation of tensor product operators
 
 \begin_layout Standard
 Local observables in quantum mechanics are formed as tensor products.
- Let 
-\begin_inset Formula $(S^{x},S^{y},S^{z})$
-\end_inset
-
- denote spin operators in some matrix representation.
  Consider, for example, a two-site system.
  The spin operators on sites 
 \begin_inset Formula $i$
@@ -111,7 +106,11 @@ Local observables in quantum mechanics are formed as tensor products.
 \begin_inset Formula $\hat{S}_{j}^{\alpha}\rightarrow I\otimes S^{\alpha}$
 \end_inset
 
-.
+, where 
+\begin_inset Formula $S^{\{x,y,z\}}$
+\end_inset
+
+ without the 'hat' are generators for SU(2).
  The usual rules for multiplication of tensor products then yield, e.g.
  
 \begin_inset Formula $\hat{S}_{i}^{\alpha}\hat{S}_{i}^{\beta}\rightarrow(S^{\alpha}S^{\beta})\otimes I$
@@ -268,7 +267,7 @@ SVD Compression
 \end_layout
 
 \begin_layout Standard
-Singular value decomposition (SVD) allows compression of matrices.
+Singular value decomposition (SVD) allows compression of low-rank matrices.
  We will use it to find a compactified representation of a rank-4 tensor
  
 \begin_inset Formula $D_{(ac),(bd)}$
@@ -295,7 +294,11 @@ where
 \begin_inset Formula $\Sigma$
 \end_inset
 
- is the diagonal matrix of singular values.
+ is the diagonal matrix of singular values 
+\begin_inset Formula $\sigma_{k}$
+\end_inset
+
+.
  This decomposition may be viewed as a sum over outer products, involving
  the 
 \begin_inset Quotes eld
@@ -305,18 +308,26 @@ column vectors
 \begin_inset Quotes erd
 \end_inset
 
+ 
+\begin_inset Formula $u^{k}$
+\end_inset
+
  of 
 \begin_inset Formula $U$
 \end_inset
 
  and 
-\begin_inset Formula $V$
+\begin_inset Formula $v^{k}$
+\end_inset
+
+ of 
+\begin_inset Formula $V^{*}$
 \end_inset
 
 ,
 \begin_inset Formula 
 \begin{equation}
-\tilde{D}_{I,J}=\sum_{k}\sigma_{k}U_{I}^{k}(V_{J}^{k})^{\ast}.
+\tilde{D}_{I,J}=\sum_{k}\sigma_{k}u_{I}^{k}v_{J}^{k},
 \end{equation}
 
 \end_inset
@@ -324,7 +335,7 @@ column vectors
 Reinsert the original indices and undo the permutation to get,
 \begin_inset Formula 
 \begin{align}
-D_{(ac),(bd)} & =\sum_{k}\sigma_{k}U_{ab}^{k}(V_{cd}^{k})^{\ast},
+D_{(ac),(bd)} & =\sum_{k}\sigma_{k}u_{ab}^{k}v_{cd}^{k},
 \end{align}
 
 \end_inset
@@ -346,30 +357,29 @@ noprefix "false"
 ,
 \begin_inset Formula 
 \begin{equation}
-D=\sum_{k}\sigma_{k}U^{k}\otimes(V^{k})^{\ast},\label{eq:C_tensor_sum}
+D=\sum_{k}\sigma_{k}u^{k}\otimes v^{k},\label{eq:C_tensor_sum}
 \end{equation}
 
 \end_inset
 
-where 
-\begin_inset Formula $*$
+with 
+\begin_inset Formula $\sigma_{k}\geq0$
 \end_inset
 
- denotes complex conjugation without matrix transpose.
+ and 
+\begin_inset Formula $u^{k},v^{k}$
+\end_inset
+
+ now understood as matrices.
  Orthogonality implies,
 \begin_inset Formula 
 \begin{equation}
-\mathrm{tr}U^{k}(U^{k'})^{\dagger}=\sum_{ab}U_{ab}^{k}(U_{ab}^{k'})^{*}=\delta_{k,k'},\label{eq:U_ortho}
+\mathrm{tr}u^{k}(u^{k'})^{\dagger}=\mathrm{tr}v^{k}(v^{k'})^{\dagger}=\delta_{k,k'},\label{eq:U_ortho}
 \end{equation}
 
 \end_inset
 
-and similarly for 
-\begin_inset Formula $V$
-\end_inset
-
-.
- In typical applications, many singular values 
+In typical applications, many singular values 
 \begin_inset Formula $\sigma_{k}$
 \end_inset
 
@@ -403,20 +413,15 @@ Hermiticity of factors
 \end_layout
 
 \begin_layout Standard
-Suppose we are given the quantum Hamiltonian as an expansion 
-\begin_inset Formula $D=\sum_{k}A^{k}\otimes B^{k}$
+If 
+\begin_inset Formula 
+\begin{equation}
+D=D^{\dagger}\label{eq:D_hermit}
+\end{equation}
+
 \end_inset
 
-, involving Hermitian observables 
-\begin_inset Formula $A^{k}$
-\end_inset
-
- and 
-\begin_inset Formula $B^{k}$
-\end_inset
-
-.
- Unlike in the SVD factorization of Eq.
+ is Hermitian, then we have empirically observed the decomposition of Eq.
 \begin_inset space ~
 \end_inset
 
@@ -430,108 +435,220 @@ noprefix "false"
 
 \end_inset
 
-, here the local observables 
-\begin_inset Formula $A^{k}$
+ to produce Hermitian factors 
+\begin_inset Formula $u^{k}$
 \end_inset
 
- (or 
-\begin_inset Formula $B^{k}$
+ and 
+\begin_inset Formula $v^{k}$
 \end_inset
 
-) will not be orthogonal for different 
-\begin_inset Formula $k$
+ with some caveats:
+\end_layout
+
+\begin_layout Itemize
+There is an ambiguity of complex phase.
+ To remove this, one can rescale 
+\begin_inset Formula $u^{k}\rightarrow u^{k}e^{-\phi}$
+\end_inset
+
+ and 
+\begin_inset Formula $v^{k}\rightarrow v^{k}e^{+\phi}$
+\end_inset
+
+ for arbitrary 
+\begin_inset Formula $\phi$
 \end_inset
 
 .
- Using the matrix notation of Eq.
-\begin_inset space ~
+\end_layout
+
+\begin_layout Itemize
+If there are degenerate singular values 
+\begin_inset Formula $\sigma_{k}$
 \end_inset
 
+ and 
+\begin_inset Formula $\sigma_{k'}$
+\end_inset
 
-\begin_inset CommandInset ref
-LatexCommand eqref
-reference "eq:C_def"
-plural "false"
-caps "false"
-noprefix "false"
+, then one can rotate 
+\begin_inset Formula $(u^{k},v^{k})$
+\end_inset
+
+ and 
+\begin_inset Formula $(u^{k'},v^{k'})$
+\end_inset
+
+ into each other in a way that violates Hermiticity.
+ Cristian produced an elegant example.
+ The spin operators satisfy an equality 
+\begin_inset Formula 
+\begin{equation}
+S^{x}\otimes S^{x}+S^{y}\otimes S^{y}=\frac{1}{2}(S^{+}\otimes S^{-}+S^{-}\otimes S^{+}).
+\end{equation}
 
 \end_inset
 
- and
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset CommandInset ref
-LatexCommand eqref
-reference "eq:D_tilde"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-,
+The left involves tensor products of Hermitian matrices while the right
+ involves non-Hermitian matrices.
+ It remains to develop a general procedure that will map from right-to-left,
+ i.e., produce a sum of tensor products of Hermitian matrices.
 \end_layout
 
 \begin_layout Standard
+\begin_inset Note Comment
+status open
+
+\begin_layout Plain Layout
+We will investigate the consequences for the matrices 
+\begin_inset Formula $u^{k}$
+\end_inset
+
+ and 
+\begin_inset Formula $v^{k}$
+\end_inset
+
+ used in the tensor product expansion.
+\end_layout
+
+\begin_layout Plain Layout
+An arbitrary linear operator has Hermitian and non-Hermitian parts.
+ We will use,
 \begin_inset Formula 
-\begin{equation}
-\tilde{D}_{IJ}=\sum_{k}A_{I}^{k}B_{J}^{k}.
-\end{equation}
+\begin{align}
+u^{k}\otimes v^{k} & =\frac{1}{2}(u^{k}\otimes v^{k}+u^{k\dagger}\otimes v^{k\dagger})+\frac{1}{2}(u^{k}\otimes v^{k}-u^{k\dagger}\otimes v^{k\dagger})\nonumber \\
+ & =Q^{k}+R^{k},
+\end{align}
 
 \end_inset
 
 where 
-\begin_inset Formula $I=(a,b)$
+\begin_inset Formula $Q^{k}=Q^{k\dagger}$
 \end_inset
 
  and 
-\begin_inset Formula $J=(c,d)$
+\begin_inset Formula $R^{k}=-R^{k\dagger}$
 \end_inset
 
 .
- Let 
-\begin_inset Formula $I'=(b,a)$
+ Since 
+\begin_inset Formula $D$
 \end_inset
 
- and 
-\begin_inset Formula $J'=(d,c)$
-\end_inset
-
- denote transpose indices.
- For example, 
-\begin_inset Formula $A_{I}^{k\dagger}=A_{I'}^{k*}=A_{I}^{k}$
-\end_inset
-
-.
- It follows 
-\begin_inset Formula $\tilde{D}_{I'J'}^{\ast}=D_{IJ}$
-\end_inset
-
-.
- 
-\end_layout
-
-\begin_layout Standard
-Sunny will use SVD to compactify an interaction,
+ is Hermitian,
 \begin_inset Formula 
 \begin{equation}
-\tilde{D}_{I,J}=\sum_{k}\sigma_{k}U_{I}^{k}(V_{J}^{k})^{\ast}.
+D=\sum_{k}\sigma_{k}Q^{k},\quad0=\sum_{k}\sigma_{gk}R^{k}.
 \end{equation}
 
 \end_inset
 
-Empirical evidence suggests that each matrix factor 
-\begin_inset Formula $U_{I}^{k}$
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\series bold
+If we can show that 
+\begin_inset Formula $R^{k}$
+\end_inset
+
+ are linearly independent
+\series default
+, then the second equality implies each 
+\begin_inset Formula $R^{k}$
+\end_inset
+
+ must be zero whenever 
+\begin_inset Formula $\sigma_{k}$
+\end_inset
+
+ is nonzero.
+ This in turn implies 
+\begin_inset Formula $u^{k}e^{-\phi}$
 \end_inset
 
  and 
-\begin_inset Formula $V_{J}^{k}$
+\begin_inset Formula $v^{k}e^{+\phi}$
 \end_inset
 
- is also Hermitian.
- It would be nice to prove this.
+ are each Hermitian, up to some arbitrary complex phase 
+\begin_inset Formula $\phi$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Plain Layout
+Since 
+\begin_inset Formula $D$
+\end_inset
+
+ is Hermitian it has a complete set of orthogonal eigenvectors 
+\begin_inset Formula $A_{k}$
+\end_inset
+
+, with corresponding eigenvalues 
+\begin_inset Formula $\lambda_{k}=\pm\sqrt{\sigma_{k}}$
+\end_inset
+
+.
+ Let us focus only on nonzero eigenvalues, and 
+\series bold
+assume no degeneracy of nonzero eigenvalues
+\series default
+.
+\end_layout
+
+\begin_layout Plain Layout
+Note that since 
+\begin_inset Formula $u^{\ell}$
+\end_inset
+
+ and 
+\begin_inset Formula $v^{m}$
+\end_inset
+
+ are orthonormal, their products 
+\begin_inset Formula $u^{\ell}\otimes v^{m}$
+\end_inset
+
+ are a complete basis for the tensor product space.
+ The 
+\begin_inset Formula $R^{k}$
+\end_inset
+
+ tensor may be decomposed in this basis,
+\begin_inset Formula 
+\begin{equation}
+R^{k}=R_{\ell m}^{k}u^{\ell}\otimes v^{m},
+\end{equation}
+
+\end_inset
+
+with matrix elements
+\begin_inset Formula 
+\begin{equation}
+\mathrm{tr}R^{k}(u^{\ell}\otimes v^{m})^{\dagger}=R_{\ell m}^{k}.
+\end{equation}
+
+\end_inset
+
+Note that
+\begin_inset Formula 
+\begin{equation}
+\mathrm{tr}D(u^{\ell}\otimes v^{m})^{\dagger}=\sigma_{\ell}\delta_{\ell m}.
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \end_body
