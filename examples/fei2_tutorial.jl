@@ -230,11 +230,106 @@ end
 
 plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
+# ## Linear spin wave theory
+# Now that we have found the ground state for a magnetic supercell, we can
+# immediately proceed to perform zero-temperature calculations using linear spin
+# wave theory. We begin by instantiating a `SpinWaveTheory` type using the
+# supercell.
+
+swt = SpinWaveTheory(sys_supercell);
+
+# The dispersion relation can be determined providing `dispersion` with a
+# `SpinWaveTheory` and a list of wave vectors. For each wave vector,
+# `dispersion` will return a list of energies, one for each band. 
+# Frequently one wants to dispersion information along lines
+# that connect special wave vectors. The function [`connected_path`](@ref)
+# linearly samples between provided $q$-points, with a given sample density.
+
+points = [[0,   0, 0],  # List of wave vectors that define a path
+          [1,   0, 0],
+          [0,   1, 0],
+          [1/2, 0, 0],
+          [0,   1, 0],
+          [0,   0, 0]] 
+labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
+density = 80
+path, markers = connected_path(points, density);
+
+# `dispersion` may now be called on the wave vectors along the generated path.
+# Each row column of the returned matrix corresponds to a single mode.
+
+disp = dispersion(swt, path)
+
+fig = Figure()
+ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)",
+    xticks=(markers, labels), xticklabelrotation=π/8,
+)
+ylims!(ax, 0.0, 7.5)
+for i in axes(disp)[2]
+    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=:blue)
+end
+fig
+
+
+# Intensity information, useful for comparison with inelastic neutron scattering
+# (INS) data, can be calculated with `intensities`. By default this function
+# applies a polarization correction. 
+
+energies = collect(0.0:0.01:7.5) # Energies to calculate
+γ = 0.05  # Lorentzian broadening parameter
+is = intensities(swt, path, energies, γ)
+
+heatmap(1:size(is, 1), energies, is; 
+    axis=(xlabel = "(H,0,0)", ylabel="Energy (meV)", xticks=(markers, labels),
+        xticklabelrotation=π/8, 
+    ),
+    colorrange=(0.0, 2.5),
+)
+
+# The existence of a lower-energy, single-ion bound state is in qualitative
+# agreement with the experimental data in [Bai et
+# al.](https://doi.org/10.1038/s41567-020-01110-1) (Note that the publication
+# figure uses a different coordinate system to label the same wave vectors and
+# the experimental data necessarily averages over the three degenerate ground
+# states.)
+# ```@raw html
+# <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_intensity.jpg">
+# ```
+
+# The full data from the dynamical spin structure factor (DSSF) can be
+# retrieved with the `dssf` function. Like `dispersion` and `intensities`,
+# `dssf` takes an array of wave vectors.
+
+disp, Sαβ = dssf(swt, [[0, 0, 0]]);
+
+# `disp` is identical to the output that is obtained from `dispersion` and
+# contains the energy of each mode at the specified wave vectors. `Sαβ` contains
+# a 3x3 matrix for each of these modes. The matrix elements of `Sαβ` correspond
+# to correlations of the different spin components (ordered x, y, z). For
+# example, the full set of matrix elements for the first mode may be obtained as
+# follows,
+
+Sαβ[1]
+
+# and the `xx` matrix element is
+
+Sαβ[1][1,1]
+
 # ## Dynamical structure factors with classical dynamics
-# Working with the magnetic supercell makes annealing substantially easier.
-# Classical simulations are conducted on a finite-sized lattice, however, and
+# Linear spin wave calculations are very useful for getting quick, high-quality,
+# results at zero temperature. Moreover, these results are obtained in the
+# thermodynamic limit. Classical dynamics may also be used to produce similar
+# results, albeit at a higher computational cost and on a finite sized lattice.
+# The classical approach nonetheless provides a number of complementary
+# advantages: it is possible perform simulations at finite temperature while
+# retaining nonlinearities; out-of-equilibrium behavior may be examined
+# directly; and it is straightforward to incorporate inhomogenties, chemical or
+# otherwise.  
+
+# Because classical simulations are conducted on a finite-sized lattice,
 # obtaining acceptable resolution in momentum space requires the use of a larger
-# system size. This easily achieved with `resize_periodically`: 
+# system size. We can now resize the magnetic supercell to a much larger
+# simulation volume, provided as multiples of the original unit cell.
 
 sys_large = resize_periodically(sys_supercell, (16,16,4))
 plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
@@ -283,11 +378,9 @@ end
 qs = [[0, 0, 0], [0.5, 0.5, 0.5]]
 is = intensities(sf, qs, :trace; kT)
 
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="meV", ylabel="Intensity")
-l1 = lines!(ax, ωs(sf), is[1,:])
-l2 = lines!(ax, ωs(sf), is[2,:])
-Legend(fig[1,2], [l1, l2], ["(0,0,0)", "(π,π,π)"])
+fig = lines(ωs(sf), is[1,:]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
+lines!(ωs(sf), is[2,:]; label="(π,π,π)")
+axislegend()
 fig
 
 # Frequently one wants to extract energy intensities along lines that connect
@@ -313,12 +406,12 @@ is = intensities(sf, path, :perp;
     kT,                            # Temperature for intensity correction
     formfactors,                   # Form factor information 
 )
-is = broaden_energy(sf, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.06))  # Add artificial broadening
+is = broaden_energy(sf, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.05))  # Add artificial broadening
 
 labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
 
 heatmap(1:size(is,1), ωs(sf), is;
-    colorrange=(0.0, 2.5),
+    colorrange=(0.0, 3.5),
     axis = (
         ylabel = "meV",
         xticks = (markers, labels),
@@ -327,15 +420,6 @@ heatmap(1:size(is,1), ωs(sf), is;
     )
 )
 
-# The existence of a lower-energy, single-ion bound state is in qualitative
-# agreement with the experimental data in [Bai et
-# al.](https://doi.org/10.1038/s41567-020-01110-1) (Note that the publication
-# figure uses a different coordinate system to label the same wave vectors.)
-#
-# ```@raw html
-# <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_intensity.jpg">
-# ```
-#
 # Often it is useful to plot cuts across multiple wave vectors but at a single
 # energy. 
 
@@ -350,13 +434,10 @@ is = intensities(sf, qs, :perp;
 );
 
 ωidx = 30
-ω = ωs(sf)[ωidx]
-fig = Figure()
-ax = Axis(fig[1,1]; title="ω=$ω meV", aspect=true)
-hidedecorations!(ax); hidespines!(ax)
-hm = heatmap!(ax, is[:,:,ωidx])
-Colorbar(fig[1,2], hm)
-fig
+hm = heatmap(is[:,:,ωidx]; axis=(title="ω=$(ωs(sf)[ωidx]) meV", aspect=true))
+Colorbar(hm.figure[1,2], hm.plot)
+hidedecorations!(hm.axis); hidespines!(hm.axis)
+hm
 
 # Note that Brillouin zones appear 'skewed'. This is a consequence of the fact
 # that Sunny measures $q$-vectors as multiples of reciprocal lattice vectors,
@@ -379,12 +460,10 @@ is_ortho = intensities(sf, ks, :perp;
     formfactors,
 )
 
-fig = Figure()
-ax = Axis(fig[1,1]; title="ω=$ω meV", aspect=true)
-hidedecorations!(ax); hidespines!(ax)
-hm = heatmap!(ax, is_ortho[:,:,ωidx])
-Colorbar(fig[1,2], hm)
-fig
+hm = heatmap(is_ortho[:,:,ωidx]; axis=(title="ω=$(ωs(sf)[ωidx]) meV", aspect=true))
+Colorbar(hm.figure[1,2], hm.plot)
+hidedecorations!(hm.axis); hidespines!(hm.axis)
+hm
 
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
 # obtained from a dynamic structure factor with [`instant_intensities`](@ref).
@@ -395,9 +474,7 @@ is_static = instant_intensities(sf, ks, :perp;
     formfactors,
 )
 
-fig = Figure()
-ax = Axis(fig[1,1]; title="Instantaneous Structure Factor", aspect=true)
-hidedecorations!(ax); hidespines!(ax)
-hm = heatmap!(ax, is_static)
-Colorbar(fig[1,2], hm)
-fig
+hm = heatmap(is_static; axis=(title="Instantaneous Structure Factor", aspect=true))
+Colorbar(hm.figure[1,2], hm.plot)
+hidedecorations!(hm.axis); hidespines!(hm.axis)
+hm
