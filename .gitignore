@@ -1,10 +1,10 @@
 build/
 backup/
 examples/results/
-examples/fei2_tutorial_swt.jl
 docs/src/examples/
 Manifest.toml
 profile.pb.gz
 .DS_Store
+*.ipynb
 *.lyx~
 *.lyx#
