@@ -16,7 +16,7 @@ for i in 1:length(sys.dipoles)
 end
 
 # create tyoe for Wang-Landau simulation
-WL = GenEnsemble(;bin_size=1/L^2, propose=propose_flip, ln_f=1.0)
+WL = WangLandau(;bin_size=1/L^2, propose=propose_flip, ln_f=1.0)
 
 # REWL parameters - won't see much speedup vs. serial WL for small system
 n_wins = 4
@@ -24,7 +24,7 @@ win_overlap = 0.8
 windows = Sunny.get_windows([-2.0, 2.0], n_wins, win_overlap)
 
 # create type for REWL simulation
-REWL = ParallelGenEnsemble(sys, WL, windows)
+REWL = ParallelWangLandau(sys, WL, windows)
 
 # initialize systems to their respective bounds - use pad of 50 bins
 max_mcs_init = 10_000

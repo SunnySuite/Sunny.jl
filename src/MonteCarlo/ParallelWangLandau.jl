@@ -1,15 +1,15 @@
 # Replica-exchange multicanonical or Wang-Landau with 1 replica per window
-mutable struct ParallelGenEnsemble{N, PR}
+mutable struct ParallelWangLandau{N, PR}
     n_replicas::Int64
     windows::Vector{Vector{Float64}}
-    samplers::Vector{GenEnsemble{PR}}
+    samplers::Vector{WangLandau{PR}}
     systems::Vector{System{N}}
     system_ids::Vector{Int64}
     n_accept::Vector{Int64}
     n_exch::Vector{Int64}
 end
 
-function ParallelGenEnsemble(system::System{N}, sampler::GenEnsemble{PR}, 
+function ParallelWangLandau(system::System{N}, sampler::WangLandau{PR}, 
                                             windows::Vector{Vector{Float64}}) where{N, PR}
     n_replicas = length(windows)
 
@@ -19,7 +19,7 @@ function ParallelGenEnsemble(system::System{N}, sampler::GenEnsemble{PR},
     systems = [clone_system(system) for _ in 1:n_replicas]
     system_ids = collect(1:n_replicas)
 
-    return ParallelGenEnsemble(
+    return ParallelWangLandau(
         n_replicas, windows, samplers, systems, system_ids, 
         zeros(Int64, n_replicas), zeros(Int64, n_replicas)
     )
@@ -44,41 +44,41 @@ function get_windows(global_bounds::Vector{Float64}, n_wins::Int64, overlap::Flo
 end
 
 # attempt a replica exchange 
-function replica_exchange!(G::ParallelGenEnsemble, exch_start::Int64) 
-    @Threads.threads for rank in exch_start : 2 : G.n_replicas-1
+function replica_exchange!(PWL::ParallelWangLandau, exch_start::Int64) 
+    @Threads.threads for rank in exch_start : 2 : PWL.n_replicas-1
         id₁, id₂ = rank, rank+1
 
-        E₁ = G.samplers[id₁].E
-        E₂ = G.samplers[id₂].E
+        E₁ = PWL.samplers[id₁].E
+        E₂ = PWL.samplers[id₂].E
 
         # see if exchange energies are in bounds for target windows
-        if bounds_check(E₁, G.windows[id₂]) && bounds_check(E₂, G.windows[id₁]) 
-            Δln_g₁ = G.samplers[id₁].ln_g[E₁] - G.samplers[id₁].ln_g[E₂]
-            Δln_g₂ = G.samplers[id₂].ln_g[E₂] - G.samplers[id₂].ln_g[E₁]
+        if bounds_check(E₁, PWL.windows[id₂]) && bounds_check(E₂, PWL.windows[id₁]) 
+            Δln_g₁ = PWL.samplers[id₁].ln_g[E₁] - PWL.samplers[id₁].ln_g[E₂]
+            Δln_g₂ = PWL.samplers[id₂].ln_g[E₂] - PWL.samplers[id₂].ln_g[E₁]
             ln_P = Δln_g₁ + Δln_g₂
 
             # accept exchange -- just swap labels and energies instead of configs.
-            if (ln_P >= 0 || rand(G.systems[G.system_ids[id₁]].rng) < exp(ln_P))
-                G.system_ids[id₁], G.system_ids[id₂] = G.system_ids[id₂], G.system_ids[id₁]
-                G.samplers[id₁].E = E₂
-                G.samplers[id₂].E = E₁
-                G.n_accept[id₁] += 1
+            if (ln_P >= 0 || rand(PWL.systems[PWL.system_ids[id₁]].rng) < exp(ln_P))
+                PWL.system_ids[id₁], PWL.system_ids[id₂] = PWL.system_ids[id₂], PWL.system_ids[id₁]
+                PWL.samplers[id₁].E = E₂
+                PWL.samplers[id₂].E = E₁
+                PWL.n_accept[id₁] += 1
             end
         end
-        G.n_exch[id₁] += 1
+        PWL.n_exch[id₁] += 1
     end
 end
 
 # perform replica-exchange MUCA or WL for specified number of sweeps
-function sample!(G::ParallelGenEnsemble, nsteps::Int64, exch_interval::Int64)
+function sample!(PWL::ParallelWangLandau, nsteps::Int64, exch_interval::Int64)
     n_exch = cld(nsteps, exch_interval)
 
     for i in 1:n_exch
-        @Threads.threads for rank in 1:G.n_replicas
-            sample!(G.systems[G.system_ids[rank]], G.samplers[rank], exch_interval)
+        @Threads.threads for rank in 1:PWL.n_replicas
+            sample!(PWL.systems[PWL.system_ids[rank]], PWL.samplers[rank], exch_interval)
         end
 
-        replica_exchange!(G, (i%2)+1)
+        replica_exchange!(PWL, (i%2)+1)
     end
 end
 

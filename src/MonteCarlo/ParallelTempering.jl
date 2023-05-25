@@ -72,6 +72,8 @@ function replica_exchange!(PT::ParallelTempering, exch_start::Int64)
     end
 end
 
+"""
+"""
 function sample! end
 
 # run a parallel tempering simulation for 'nsweeps' MC sweeps
