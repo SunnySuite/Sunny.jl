@@ -94,6 +94,9 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
     (; Δt, atol) = integrator
 
     (B, s̄, ŝ, s̄′) = get_dipole_buffers(sys, 4)
+	
+	# Cache stores *norm* of (s̄ - s̄′), which is scalars
+    (progress,) = get_scalar_buffers(sys, 1)
     
     # Initial guess for midpoint
     @. s̄ = s
@@ -107,7 +110,9 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, B)
 
         # If converged, then we can return
-        if isapprox(s̄, s̄′, atol=atol* √length(s̄))
+		@. progress = norm(s̄ - s̄′)
+        if maximum(progress) <= atol
+        #if isapprox(s̄, s̄′, atol=atol* √length(s̄))
             # Normalization here should not be necessary in principle, but it
             # could be useful in practice for finite `atol`.
             @. s = normalize_dipole(2*s̄′ - s, sys.κs)
