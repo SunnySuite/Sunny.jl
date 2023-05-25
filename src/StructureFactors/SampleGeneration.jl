@@ -113,12 +113,16 @@ function accum_sample!(sf::StructureFactor)
     nsamples[1] += 1
 
     # Transfer to final memory layout while accumulating new samplebuf
-    for ω in 1:nω, cell in CartesianIndices(latsize), j in 1:natoms, i in 1:natoms
+    cache = zeros(ComplexF64, size(data)[4:7])
+    for j in 1:natoms
+      for i in 1:natoms
         for (ci, c) in idxinfo 
-            α, β = ci.I
-            old = data[c,i,j,cell,ω]
-            data[c,i,j,cell,ω] = old + (samplebuf[α,cell,i,ω] * conj(samplebuf[β,cell,j,ω]) - old) / nsamples[1]
+          α, β = ci.I
+          @. cache = @views samplebuf[α,:,:,:,i,:] * conj(samplebuf[β,:,:,:,j,:]) - data[c,i,j,:,:,:,:] 
+          oneOverN = 1/nsamples[1]
+          @views data[c,i,j,:,:,:,:] .+= cache .* oneOverN
         end
+      end
     end
 
     return nothing
