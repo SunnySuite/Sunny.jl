@@ -26,6 +26,17 @@ Base.@kwdef mutable struct BinnedArray{K, V}
     bin_size::Float64 = 1.0
 end
 
+# copy constructor
+function Base.copy(A::BinnedArray{K, V}) where{K, V}
+    return BinnedArray{K, V}([copy(getproperty(A, fn)) for fn in fieldnames(typeof(A))]...)
+end
+
+# construct zero-valued BinnedArray from another
+function Base.zeros(A::BinnedArray{K, V}) where{K, V}
+    B = BinnedArray{K, V}([copy(getproperty(A, fn)) for fn in fieldnames(typeof(A))]...)
+    reset!(B)
+    return B
+end
 
 """ 
 Return value at key. Resizes array if necessary and inserts default value.
@@ -79,7 +90,7 @@ end
 """
 """
 function get_keys(A::BinnedArray{K,V}) where{K,V}
-    keys = collect(range(A.max_key, A.min_key, length=A.size))
+    keys = round.(collect(range(A.max_key, A.min_key, length=A.size)), digits=5)
 
     return (A.print_all ? keys : keys[A.visited])
 end
