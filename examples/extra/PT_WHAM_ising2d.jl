@@ -25,7 +25,7 @@ kT_sched = collect(range(kT_min, kT_max, length=n_replicas))
 sampler = LocalSampler(; kT=kT_min, propose=propose_flip)
 
 # initialize parallel tempering 
-PT = ParallelTempering(sys, sampler, kT_sched)
+PT = Sunny.ParallelTempering(sys, sampler, kT_sched)
 
 # sampling parameters
 n_therm = 1000
@@ -37,12 +37,12 @@ exch_interval = 5
 E_hists = [Sunny.BinnedArray{Float64, Int64}() for _ in 1:PT.n_replicas]
 
 # equilibration
-sample!(PT, n_therm, exch_interval)
+Sunny.sample!(PT, n_therm, exch_interval)
 
 # start PT simulation
 for i in 1:n_measure
     # run some sweeps and replica exchanges
-    sample!(PT, measure_interval, exch_interval)
+    Sunny.sample!(PT, measure_interval, exch_interval)
 
     # measurements - assuming LocalSampler used
     for (j, sampler) in enumerate(PT.samplers)

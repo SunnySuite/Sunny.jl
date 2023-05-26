@@ -16,7 +16,7 @@ for site in all_sites(sys)
 end
 
 # create type for Wang-Landau simulation
-WL = WangLandau(; bin_size=1/L^2, propose=propose_flip, ln_f=1.0)
+WL = Sunny.WangLandau(; bin_size=1/L^2, propose=propose_flip, ln_f=1.0)
 
 # REWL parameters - won't see much speedup vs. serial WL for small system
 n_wins = 4
@@ -24,7 +24,7 @@ win_overlap = 0.8
 windows = Sunny.get_windows([-2.0, 2.0], n_wins, win_overlap)
 
 # create type for REWL simulation
-REWL = ParallelWangLandau(sys, WL, windows)
+REWL = Sunny.ParallelWangLandau(sys, WL, windows)
 
 # initialize systems to their respective bounds - use pad of 50 bins
 max_mcs_init = 10_000
@@ -42,7 +42,7 @@ flat = zeros(Bool, REWL.n_replicas)
 # start REWL sampling - 20 iterations (final ln_f <= 1e-6)
 for i in 1:n_iters
     for mcs in 1:max_hchecks_per_iter
-        sample!(REWL, hcheck_interval, exch_interval)
+        Sunny.sample!(REWL, hcheck_interval, exch_interval)
 
         # check flatness and start next iteration if satisfied
         flat .= false
