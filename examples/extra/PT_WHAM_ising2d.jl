@@ -57,11 +57,11 @@ A = PT.n_accept ./ PT.n_exch
 E, ln_g = Sunny.WHAM(E_hists, PT.kT_sched; n_iters=20_000)
 
 # calculate thermodynamics
-U = Sunny.ensemble_average(E, ln_g, E, kT)
-U² = Sunny.ensemble_average(E, ln_g, E .^2, kT)
-C = abs.( (U² .- U .^2) ./ (kT .^2) )
+U = Sunny.ensemble_average(E, ln_g, E, PT.kT_sched)
+U² = Sunny.ensemble_average(E, ln_g, E .^2, PT.kT_sched)
+C = abs.( (U² .- U .^2) ./ (PT.kT_sched .^2) )
 
 # plot density of states and thermodynamics
 display( plot(E/L^2, ln_g .- minimum(ln_g), xlabel="E/N", ylabel="ln[g(E)]", legend=false) )
-display( plot(kT, U/L^2, xlabel="kT/J", ylabel="U/N", legend=false) )
-display( plot(kT, C/L^2, xlabel="kT/J", ylabel="C/N", legend=false) )
+display( plot(PT.kT_sched, U/L^2, xlabel="kT/J", ylabel="U/N", legend=false) )
+display( plot(PT.kT_sched, C/L^2, xlabel="kT/J", ylabel="C/N", legend=false) )
