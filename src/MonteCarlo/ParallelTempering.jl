@@ -4,7 +4,6 @@ mutable struct ParallelTempering{N, SMP}
     # temperatures
     kT_sched::Vector{Float64}
     #sampler that evolves/updates systems at temperature
-    #samplers::Vector{Union{LocalSampler, Langevin}}
     samplers::Vector{SMP}
     # system (replica) containing state information 
     systems::Vector{System{N}}
@@ -16,11 +15,9 @@ mutable struct ParallelTempering{N, SMP}
     n_exch::Vector{Int64}
 end
 
-#function ParallelTempering(system::System{N}, sampler::Union{LocalSampler, Langevin}, kT_sched::Vector{Float64}) where {N}
 function ParallelTempering(system::System{N}, sampler::SMP, kT_sched::Vector{Float64}) where {N, SMP}
     n_replicas = length(kT_sched)
 
-    #samplers = Union{LocalSampler, Langevin}[copy(sampler) for _ in 1:n_replicas]
     samplers = SMP[copy(sampler) for _ in 1:n_replicas]
     setproperty!.(samplers, :kT, kT_sched)
  
@@ -74,6 +71,10 @@ function replica_exchange!(PT::ParallelTempering, exch_start::Int64)
         PT.n_exch[id₁] += 1
     end
 end
+
+"""
+"""
+function sample! end
 
 # run a parallel tempering simulation for 'nsweeps' MC sweeps
 function sample!(PT::ParallelTempering, nsteps::Int64, exch_interval::Int64)
