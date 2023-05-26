@@ -285,7 +285,7 @@ Singular value decomposition (SVD) allows compression of low-rank matrices.
 The matrix SVD operation yields
 \begin_inset Formula 
 \begin{equation}
-\tilde{D}_{I,J}=\left(U\Sigma V^{\dagger}\right)_{I,J},
+\tilde{D}_{I,J}=\left(U\Sigma V^{\dagger}\right)_{I,J}=\sigma_{k}U_{IK}V_{JK}^{\ast},\label{eq:svd}
 \end{equation}
 
 \end_inset
@@ -299,7 +299,19 @@ where
 \end_inset
 
 .
- This decomposition may be viewed as a sum over outer products, involving
+ The matrices 
+\begin_inset Formula $U$
+\end_inset
+
+ and 
+\begin_inset Formula $V$
+\end_inset
+
+ are unitary.
+\end_layout
+
+\begin_layout Standard
+This decomposition may be viewed as a sum over outer products, involving
  the 
 \begin_inset Quotes eld
 \end_inset
@@ -321,21 +333,26 @@ column vectors
 \end_inset
 
  of 
-\begin_inset Formula $V^{*}$
+\begin_inset Formula $V$
 \end_inset
 
 ,
 \begin_inset Formula 
 \begin{equation}
-\tilde{D}_{I,J}=\sum_{k}\sigma_{k}u_{I}^{k}v_{J}^{k},
+\tilde{D}_{I,J}=\sum_{k}\sigma_{k}u_{I}^{k}v_{J}^{k*},
 \end{equation}
 
 \end_inset
 
-Reinsert the original indices and undo the permutation to get,
+where 
+\begin_inset Formula $[\cdot]^{\ast}$
+\end_inset
+
+ denotes simple complex conjugation.
+ Reinsert the original indices and undo the permutation to get,
 \begin_inset Formula 
 \begin{align}
-D_{(ac),(bd)} & =\sum_{k}\sigma_{k}u_{ab}^{k}v_{cd}^{k},
+D_{(ac),(bd)} & =\sum_{k}\sigma_{k}u_{ab}^{k}v_{cd}^{k*},
 \end{align}
 
 \end_inset
@@ -357,7 +374,7 @@ noprefix "false"
 ,
 \begin_inset Formula 
 \begin{equation}
-D=\sum_{k}\sigma_{k}u^{k}\otimes v^{k},\label{eq:C_tensor_sum}
+D=\sum_{k}\sigma_{k}u^{k}\otimes v^{k*},\label{eq:C_tensor_sum}
 \end{equation}
 
 \end_inset
@@ -371,14 +388,53 @@ with
 \end_inset
 
  now understood as matrices.
- Orthogonality implies,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Comment
+status open
+
+\begin_layout Plain Layout
+Unitarity of 
+\begin_inset Formula $U$
+\end_inset
+
+ and 
+\begin_inset Formula $V$
+\end_inset
+
+ implies an orthogonality condition
 \begin_inset Formula 
 \begin{equation}
-\mathrm{tr}u^{k}(u^{k'})^{\dagger}=\mathrm{tr}v^{k}(v^{k'})^{\dagger}=\delta_{k,k'},\label{eq:U_ortho}
+\mathrm{tr}u^{k}(u^{k'})^{\dagger}=\mathrm{tr}v^{k}(v^{k'})^{\dagger}=\delta_{k,k'}.\label{eq:U_ortho}
 \end{equation}
 
 \end_inset
 
+
+\end_layout
+
+\begin_layout Plain Layout
+And
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula 
+\[
+\sum_{k}u_{I}^{k}u_{J}^{k*}=\delta_{IJ}=\delta_{a,c}\delta_{b,d}.
+\]
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
 In typical applications, many singular values 
 \begin_inset Formula $\sigma_{k}$
 \end_inset
@@ -409,19 +465,15 @@ noprefix "false"
 \end_layout
 
 \begin_layout Section
-Hermiticity of factors
+Hermitian operators
 \end_layout
 
 \begin_layout Standard
-If 
-\begin_inset Formula 
-\begin{equation}
-D=D^{\dagger}\label{eq:D_hermit}
-\end{equation}
-
+The adjoint of the linear operator 
+\begin_inset Formula $D$
 \end_inset
 
- is Hermitian, then we have empirically observed the decomposition of Eq.
+ in Eq.
 \begin_inset space ~
 \end_inset
 
@@ -435,73 +487,33 @@ noprefix "false"
 
 \end_inset
 
- to produce Hermitian factors 
-\begin_inset Formula $u^{k}$
-\end_inset
-
- and 
-\begin_inset Formula $v^{k}$
-\end_inset
-
- with some caveats:
-\end_layout
-
-\begin_layout Itemize
-There is an ambiguity of complex phase.
- To remove this, one can rescale 
-\begin_inset Formula $u^{k}\rightarrow u^{k}e^{-\phi}$
-\end_inset
-
- and 
-\begin_inset Formula $v^{k}\rightarrow v^{k}e^{+\phi}$
-\end_inset
-
- for arbitrary 
-\begin_inset Formula $\phi$
-\end_inset
-
-.
-\end_layout
-
-\begin_layout Itemize
-If there are degenerate singular values 
-\begin_inset Formula $\sigma_{k}$
-\end_inset
-
- and 
-\begin_inset Formula $\sigma_{k'}$
-\end_inset
-
-, then one can rotate 
-\begin_inset Formula $(u^{k},v^{k})$
-\end_inset
-
- and 
-\begin_inset Formula $(u^{k'},v^{k'})$
-\end_inset
-
- into each other in a way that violates Hermiticity.
- Cristian produced an elegant example.
- The spin operators satisfy an equality 
+ can be expressed as the adjoint of each tensor factor, 
 \begin_inset Formula 
 \begin{equation}
-S^{x}\otimes S^{x}+S^{y}\otimes S^{y}=\frac{1}{2}(S^{+}\otimes S^{-}+S^{-}\otimes S^{+}).
+D^{\dagger}=\sum_{k}\sigma_{k}(u^{k})^{\dagger}\otimes(v^{k*})^{\dagger}.
 \end{equation}
 
 \end_inset
 
-The left involves tensor products of Hermitian matrices while the right
- involves non-Hermitian matrices.
- It remains to develop a general procedure that will map from right-to-left,
- i.e., produce a sum of tensor products of Hermitian matrices.
-\end_layout
+If 
+\begin_inset Formula $D$
+\end_inset
 
-\begin_layout Standard
-\begin_inset Note Comment
-status open
+ is Hermitian, it is possible to design the tensor decomposition Eq.
+\begin_inset space ~
+\end_inset
 
-\begin_layout Plain Layout
-We will investigate the consequences for the matrices 
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:C_tensor_sum"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ such that 
 \begin_inset Formula $u^{k}$
 \end_inset
 
@@ -509,146 +521,525 @@ We will investigate the consequences for the matrices
 \begin_inset Formula $v^{k}$
 \end_inset
 
- used in the tensor product expansion.
+ are also Hermitian.
+ That is, it is possible to require,
+\begin_inset Formula 
+\begin{equation}
+D=D^{\dagger}\implies u^{k}=u^{k\dagger}\textrm{, and }v^{k}=v^{k\dagger}.
+\end{equation}
+
+\end_inset
+
+
 \end_layout
 
-\begin_layout Plain Layout
-An arbitrary linear operator has Hermitian and non-Hermitian parts.
- We will use,
+\begin_layout Standard
+To demonstrate this, we will consider again the general SVD in the abstract
+ form of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:svd"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Let 
+\begin_inset Formula $\{s_{1},\dots,s_{M}\}$
+\end_inset
+
+ denote the distinct singular values 
+\begin_inset Formula $\{\sigma_{1},\dots,\sigma_{N}\}$
+\end_inset
+
+.
+ Without loss of generality, we will also require 
+\begin_inset Formula $s_{m}>0$
+\end_inset
+
+.
+ Note that, in general, 
+\begin_inset Formula $M\leq N$
+\end_inset
+
+.
+ The SVD can be reexpressed as a sum over the 
+\begin_inset Formula $m=1,\dots,M$
+\end_inset
+
+ the distinct singular values 
+\begin_inset Formula $s_{m}$
+\end_inset
+
+,
 \begin_inset Formula 
-\begin{align}
-u^{k}\otimes v^{k} & =\frac{1}{2}(u^{k}\otimes v^{k}+u^{k\dagger}\otimes v^{k\dagger})+\frac{1}{2}(u^{k}\otimes v^{k}-u^{k\dagger}\otimes v^{k\dagger})\nonumber \\
- & =Q^{k}+R^{k},
-\end{align}
+\begin{equation}
+\tilde{D}=s_{m}\sum_{m}U^{(m)}V^{(m)\dagger},\label{eq:Dtilde_s}
+\end{equation}
 
 \end_inset
 
 where 
-\begin_inset Formula $Q^{k}=Q^{k\dagger}$
+\begin_inset Formula $U^{(m)}$
 \end_inset
 
  and 
-\begin_inset Formula $R^{k}=-R^{k\dagger}$
+\begin_inset Formula $V^{(m)}$
+\end_inset
+
+ are rectangular submatrices of 
+\begin_inset Formula $U$
+\end_inset
+
+ and 
+\begin_inset Formula $V$
 \end_inset
 
 .
- Since 
+ For a given 
+\begin_inset Formula $m$
+\end_inset
+
+, there is freedom to mix the column vectors within 
+\begin_inset Formula $U^{(m)}$
+\end_inset
+
+ and similarly 
+\begin_inset Formula $V^{(m)}$
+\end_inset
+
+.
+ That is, a new SVD can be constructed using
+\begin_inset Formula 
+\begin{equation}
+U^{(m)}\rightarrow U^{(m)}Q,\quad V^{(m)}\rightarrow V^{(m)}Q,
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $Q$
+\end_inset
+
+ is an arbitrary unitary matrix.
+ However, no mixing is allowed between different column spaces 
+\begin_inset Formula $m\neq m'$
+\end_inset
+
+, which are associated with distinct singular values 
+\begin_inset Formula $s_{m}\neq s_{m'}$
+\end_inset
+
+.
+ This lack of mixing allows us to focus attention on a single index 
+\begin_inset Formula $m$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+The 
+\begin_inset Formula $k$
+\end_inset
+
+th column vector of 
+\begin_inset Formula $U^{(m)}$
+\end_inset
+
+ may itself be viewed as a matrix, i.e., 
+\begin_inset Formula $u_{a,b}^{(m,k)}\equiv U_{(a,b),k}^{(m)}$
+\end_inset
+
+.
+ Orthonormality, 
+\begin_inset Formula $U^{(m)\dagger}U^{(m)}=I$
+\end_inset
+
+, implies
+\begin_inset Formula 
+\begin{equation}
+\mathrm{tr}u^{(m,k)}u^{(m,k')\dagger}=\delta_{k,k'}.
+\end{equation}
+
+\end_inset
+
+Define an operator 
+\begin_inset Formula $J[\cdot]$
+\end_inset
+
+ that maps each column 
+\begin_inset Formula $u^{(m,k)}$
+\end_inset
+
+ of 
+\begin_inset Formula $U^{(m)}$
+\end_inset
+
+ to its adjoint 
+\begin_inset Formula $u^{(m,k)\dagger}$
+\end_inset
+
+.
+ That is,
+\begin_inset Formula 
+\begin{equation}
+J[U^{(m)}]_{(a,b),k}\equiv U_{(b,a),k}^{(m)*}.
+\end{equation}
+
+\end_inset
+
+The statement 
+\begin_inset Formula $D=D^{\dagger}$
+\end_inset
+
+ implies that the SVD of 
+\begin_inset Formula $\tilde{D}$
+\end_inset
+
+ in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:Dtilde_s"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ can also be written,
+\begin_inset Formula 
+\begin{equation}
+\tilde{D}=s_{m}\sum_{m}J[U^{(m)}]J[V^{(m)}]^{\dagger},
+\end{equation}
+
+\end_inset
+
+By the uniqueness property of the SVD, 
+\begin_inset Formula $U^{(m)}$
+\end_inset
+
+ and 
+\begin_inset Formula $J[U^{(m]}]$
+\end_inset
+
+ must be related by a unitary transformation 
+\begin_inset Formula $Q$
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{equation}
+U^{(m)}Q=J[U^{(m)}].
+\end{equation}
+
+\end_inset
+
+By orthonormality, the solution is,
+\begin_inset Formula 
+\begin{align}
+Q & =U^{(m)\dagger}J[U^{(m)}].\label{eq:Qdef}
+\end{align}
+
+\end_inset
+
+Recall that the column vectors of 
+\begin_inset Formula $U^{(m)}$
+\end_inset
+
+ may be interpreted as matrices 
+\begin_inset Formula $u^{(m,k)}$
+\end_inset
+
+.
+ Then the matrix elements of 
+\begin_inset Formula $Q$
+\end_inset
+
+ may be written, 
+\begin_inset Formula 
+\begin{equation}
+Q_{k,k'}=\mathrm{tr}\,u^{(m,k)\dagger}u^{(m,k')\dagger},\label{eq:Q_kk'}
+\end{equation}
+
+\end_inset
+
+By the cyclic property of the trace, it follows 
+\begin_inset Formula $Q^{T}=Q$
+\end_inset
+
+.
+ Therefore 
+\begin_inset Formula $Q^{*}=Q^{\dagger}=Q^{-1}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+Our goal is to design a unitary 
+\begin_inset Formula $R$
+\end_inset
+
+ such that each column vector of
+\begin_inset Formula 
+\begin{equation}
+\tilde{U}^{(m)}\equiv U^{(m)}R,
+\end{equation}
+
+\end_inset
+
+is Hermitian.
+ This Hermiticity condition may be written,
+\begin_inset Formula 
+\begin{equation}
+\tilde{U}^{(m)}=J[\tilde{U}^{(m)}].
+\end{equation}
+
+\end_inset
+
+Substitute the definition of 
+\begin_inset Formula $\tilde{U}^{(m)}$
+\end_inset
+
+ on both sides and use the definition of 
+\begin_inset Formula $J$
+\end_inset
+
+ to find,
+\begin_inset Formula 
+\begin{equation}
+U^{(m)}R=J[U^{(m)}]R^{\ast}.
+\end{equation}
+
+\end_inset
+
+Next, left-multiply both sides by 
+\begin_inset Formula $U^{(m)\dagger}$
+\end_inset
+
+ and use Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:Qdef"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ to find,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+R=QR^{\ast}.\label{eq:R_eq}
+\end{equation}
+
+\end_inset
+
+This equation can be satisfied by selecting,
+\begin_inset Formula 
+\begin{equation}
+R=\sqrt{Q}.\label{eq:R_def}
+\end{equation}
+
+\end_inset
+
+Note that 
+\begin_inset Formula $R=R^{T}$
+\end_inset
+
+ and therefore by unitarity, 
+\begin_inset Formula $R^{*}=Q^{-1/2}$
+\end_inset
+
+.
+ It follows that this choice of 
+\begin_inset Formula $R$
+\end_inset
+
+ indeed solves Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:R_eq"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+To summarize, if we are given an arbitrary Hermitian operator 
+\begin_inset Formula $D=D^{\dagger}$
+\end_inset
+
+, then we may decompose
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+D=s_{m}\sum_{m}\tilde{u}^{(m,k)}\otimes\tilde{v}^{(m,k)*},\label{eq:D_hermit}
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\tilde{u}^{(m,k)}$
+\end_inset
+
+ and 
+\begin_inset Formula $\tilde{v}^{(m,k)}$
+\end_inset
+
+ are each Hermitian.
+ The recipe is as follows.
+ First, construct a matrix 
+\begin_inset Formula $\tilde{D}$
+\end_inset
+
+ as a permutation of 
 \begin_inset Formula $D$
 \end_inset
 
- is Hermitian,
+ as a rank-4 tensor.
+ Next, decompose 
+\begin_inset Formula $\tilde{D}$
+\end_inset
+
+ by SVD as in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:Dtilde_s"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ For each index 
+\begin_inset Formula $m$
+\end_inset
+
+ representing a degenerate singular value subspace, build the unitary matrix
+ 
+\begin_inset Formula $Q$
+\end_inset
+
+ as in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:Q_kk'"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ The matrix square root 
+\begin_inset Formula $R=\sqrt{Q}$
+\end_inset
+
+ defines a suitable change of basis such that the new SVD,
 \begin_inset Formula 
 \begin{equation}
-D=\sum_{k}\sigma_{k}Q^{k},\quad0=\sum_{k}\sigma_{gk}R^{k}.
+\tilde{D}=s_{m}\sum_{m}(U^{(m)}R)(V^{(m)}R)^{\dagger},
 \end{equation}
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout Plain Layout
-
-\series bold
-If we can show that 
-\begin_inset Formula $R^{k}$
+provides the required decomposition, Eq.
+\begin_inset space ~
 \end_inset
 
- are linearly independent
-\series default
-, then the second equality implies each 
-\begin_inset Formula $R^{k}$
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:D_hermit"
+plural "false"
+caps "false"
+noprefix "false"
+
 \end_inset
 
- must be zero whenever 
-\begin_inset Formula $\sigma_{k}$
-\end_inset
-
- is nonzero.
- This in turn implies 
-\begin_inset Formula $u^{k}e^{-\phi}$
+.
+ The desired Hermitian matrices 
+\begin_inset Formula $\tilde{u}^{(m,k)}$
 \end_inset
 
  and 
-\begin_inset Formula $v^{k}e^{+\phi}$
+\begin_inset Formula $\tilde{v}^{(m,k)}$
 \end_inset
 
- are each Hermitian, up to some arbitrary complex phase 
-\begin_inset Formula $\phi$
-\end_inset
-
-.
-\end_layout
-
-\begin_layout Plain Layout
-Since 
-\begin_inset Formula $D$
-\end_inset
-
- is Hermitian it has a complete set of orthogonal eigenvectors 
-\begin_inset Formula $A_{k}$
-\end_inset
-
-, with corresponding eigenvalues 
-\begin_inset Formula $\lambda_{k}=\pm\sqrt{\sigma_{k}}$
-\end_inset
-
-.
- Let us focus only on nonzero eigenvalues, and 
-\series bold
-assume no degeneracy of nonzero eigenvalues
-\series default
-.
-\end_layout
-
-\begin_layout Plain Layout
-Note that since 
-\begin_inset Formula $u^{\ell}$
+ are the column vectors of 
+\begin_inset Formula $U^{(m)}R$
 \end_inset
 
  and 
-\begin_inset Formula $v^{m}$
+\begin_inset Formula $V^{(m)}R$
 \end_inset
 
- are orthonormal, their products 
-\begin_inset Formula $u^{\ell}\otimes v^{m}$
-\end_inset
-
- are a complete basis for the tensor product space.
- The 
-\begin_inset Formula $R^{k}$
-\end_inset
-
- tensor may be decomposed in this basis,
-\begin_inset Formula 
-\begin{equation}
-R^{k}=R_{\ell m}^{k}u^{\ell}\otimes v^{m},
-\end{equation}
-
-\end_inset
-
-with matrix elements
-\begin_inset Formula 
-\begin{equation}
-\mathrm{tr}R^{k}(u^{\ell}\otimes v^{m})^{\dagger}=R_{\ell m}^{k}.
-\end{equation}
-
-\end_inset
-
-Note that
-\begin_inset Formula 
-\begin{equation}
-\mathrm{tr}D(u^{\ell}\otimes v^{m})^{\dagger}=\sigma_{\ell}\delta_{\ell m}.
-\end{equation}
-
-\end_inset
-
-
+.
 \end_layout
 
+\begin_layout Standard
+There is a large degeneracy in the decomposition Eq.
+\begin_inset space ~
 \end_inset
 
 
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:D_hermit"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ One can compose the unitary 
+\begin_inset Formula $R$
+\end_inset
+
+ with 
+\emph on
+any
+\emph default
+ orthogonal matrix and still have a good tensor decomposition.
 \end_layout
 
 \end_body
