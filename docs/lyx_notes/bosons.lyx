@@ -76,7 +76,7 @@
 \begin_body
 
 \begin_layout Title
-Numerical calculation of para-unitary transformations for bosonic Hamiltonians
+Notes on para-unitary transformations for bosonic Hamiltonians
 \end_layout
 
 \begin_layout Author
@@ -88,21 +88,25 @@ Review of theory
 \end_layout
 
 \begin_layout Standard
-This note summarizes the results of J.
- L.
- van Hemmen, Z.
- Physik B - Condensed Matter 
-\series bold
-38
-\series default
-, 271-277 (1980), which builds on the earlier work of J.
- H.
- P.
- Colpa, Physica 
-\series bold
-93A,
-\series default
- 327-353 (1978).
+This section summarizes the results of 
+\begin_inset CommandInset href
+LatexCommand href
+name "J. L. van Hemmen, Z. Physik B - Condensed Matter 38, 271-277 (1980)"
+target "https://doi.org/10.1007/BF01315667"
+literal "false"
+
+\end_inset
+
+, which builds on the earlier work of 
+\begin_inset CommandInset href
+LatexCommand href
+name "J. H. P. Colpa, Physica 93A, 327-353 (1978)"
+target "https://doi.org/10.1016/0378-4371(78)90160-7"
+literal "false"
+
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Standard
@@ -128,9 +132,10 @@ with
 .
  Bosons satisfy canonical commutation relations,
 \begin_inset Formula 
-\begin{equation}
-[\alpha_{i},\alpha_{j}^{\dagger}]=\alpha_{i}\alpha_{j}^{\dagger}-\alpha_{j}^{\dagger}\alpha_{i}=\delta_{ij}.
-\end{equation}
+\begin{align*}
+[\alpha_{i},\alpha_{j}^{\dagger}] & =\alpha_{i}\alpha_{j}^{\dagger}-\alpha_{j}^{\dagger}\alpha_{i}=\delta_{ij}\\{}
+[\alpha_{i}^{\dagger},\alpha_{j}^{\dagger}] & =[\alpha_{i},\alpha_{j}]=0.
+\end{align*}
 
 \end_inset
 
@@ -143,28 +148,40 @@ The grand-dynamical matrix
 \end_inset
 
  complex elements, and must be Hermitian.
- The diagonal blocks must have the form
+ Up to a constant shift, 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+ must take the block diagonal form
 \begin_inset Formula 
 \begin{equation}
 \mathcal{D}=\left[\begin{array}{cc}
 A & B\\
-B^{\dagger} & A^{\dagger}
+B^{*} & A^{*}
 \end{array}\right],\label{eq:D_block}
 \end{equation}
 
 \end_inset
 
 where 
-\begin_inset Formula $A^{\dagger}$
+\begin_inset Formula $A^{*}$
 \end_inset
 
- is the conjugate-transpose (i.e.
- adjoint) of the matrix 
+ denotes complex conjugation of the matrix 
 \begin_inset Formula $A$
 \end_inset
 
 .
- Further (and this is a subtle point), all eigenvalues of 
+ The diagonal blocks are Hermitian, 
+\begin_inset Formula $A=A^{\dagger}$
+\end_inset
+
+, while the off-diagonal blocks are symmetric, 
+\begin_inset Formula $B=B^{T}$
+\end_inset
+
+.
+ Further, on physical grounds, all eigenvalues of 
 \begin_inset Formula $\mathcal{D}$
 \end_inset
 
@@ -172,8 +189,9 @@ where
 \emph on
 strictly positive
 \emph default
-, or there can be physical instabilities, as well as mathematical problems
- in bringing 
+.
+ Otherwise there can arise physical instabilities, as well as mathematical
+ problems in bringing 
 \begin_inset Formula $\mathbf{H}$
 \end_inset
 
@@ -246,17 +264,16 @@ Para-unitary transformations are important because they preserve bosonic
 \begin_layout Standard
 \begin_inset Formula 
 \begin{equation}
-\mathbf{b}=T^{-1}\mathbf{a},
+\mathbf{b}=T^{-1}\mathbf{a}=\left(\begin{array}{c}
+\boldsymbol{\beta}\\
+\boldsymbol{\beta}^{\dagger}
+\end{array}\right)
 \end{equation}
 
 \end_inset
 
-with 
-\begin_inset Formula $\mathbf{b}^{\dagger}=(\boldsymbol{\beta}^{\dagger},\boldsymbol{\beta})$
-\end_inset
-
- are again bosons, 
-\begin_inset Formula $\{\beta_{i}^{\dagger},\beta_{j}\}=\delta_{ij}$
+again bosons, 
+\begin_inset Formula $[\beta_{i},\beta_{j}^{\dagger}]=\delta_{ij}$
 \end_inset
 
 .
@@ -276,7 +293,7 @@ T^{\dagger}\mathcal{D}T=\Omega\label{eq:para-diag}
 
 \end_inset
 
-then it will bring the Hamiltonian into diagonal form [van Hemmen], 
+then it will bring the Hamiltonian into diagonal form, 
 \begin_inset Formula 
 \begin{equation}
 \mathbf{H}=\sum_{i}\omega_{i}(\beta_{i}^{\dagger}\beta_{i}+\beta_{i}\beta_{i}^{\dagger})=\mathbf{b}^{\dagger}\Omega\mathbf{b}.
@@ -611,8 +628,8 @@ where
 Numerical methods
 \end_layout
 
-\begin_layout Subsection*
-Method 1, direct general diagonalization
+\begin_layout Subsection
+Direct general diagonalization
 \end_layout
 
 \begin_layout Standard
@@ -658,8 +675,8 @@ noprefix "false"
  Finally, rescale eigenvectors appropriately.
 \end_layout
 
-\begin_layout Subsection*
-Method 2, two Hermitian diagonalizations
+\begin_layout Subsection
+Two Hermitian diagonalizations
 \end_layout
 
 \begin_layout Standard
@@ -783,8 +800,8 @@ This demonstrates that the distinct eigenvectors
 ).
 \end_layout
 
-\begin_layout Subsection*
-Method 3, Cholesky decomposition
+\begin_layout Subsection
+Cholesky decomposition
 \end_layout
 
 \begin_layout Standard
@@ -1017,8 +1034,7 @@ Perturbation theory
 \end_layout
 
 \begin_layout Standard
-It would be an interesting exercise to carry out the usual perturbation
- theory procedure applied to Eq.
+Here we consider perturbations to the para-unitary diagonalization, Eq.
 \begin_inset space ~
 \end_inset
 
@@ -1033,16 +1049,127 @@ noprefix "false"
 \end_inset
 
 .
- That is, we wish to find the sensitivity of eigenvectors 
+ That is, we calculate the sensitivity of the eigenvalues 
+\begin_inset Formula $\omega$
+\end_inset
+
+ and eigenvectors 
 \begin_inset Formula $\mathbf{x}$
 \end_inset
 
- in response to changes in the grand dynamical matrix 
+ in response to changes to the grand dynamical matrix 
 \begin_inset Formula $\mathcal{D}$
 \end_inset
 
 .
- Here, it is important to use the block diagonal form, Eq.
+\end_layout
+
+\begin_layout Standard
+Let 
+\begin_inset Formula $\mathcal{D}_{0}$
+\end_inset
+
+ denote an 
+\begin_inset Quotes eld
+\end_inset
+
+unperturbed
+\begin_inset Quotes erd
+\end_inset
+
+ dynamical matrix, which we can 
+\begin_inset Quotes eld
+\end_inset
+
+diagonalize
+\begin_inset Quotes erd
+\end_inset
+
+
+\begin_inset Formula 
+\begin{equation}
+T_{0}^{\dagger}\mathcal{D}_{0}T_{0}=\Omega_{0},\label{eq:para-diag-0}
+\end{equation}
+
+\end_inset
+
+as in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:para-diag"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ The para-unitary 
+\begin_inset Formula $T_{0}$
+\end_inset
+
+ satisfies the analog of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:I eq TIT"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+\hat{I}=T_{0}^{\dagger}\hat{I}T_{0}=T_{0}\hat{I}T_{0}^{\dagger}.\label{eq:I eq TIT 0}
+\end{equation}
+
+\end_inset
+
+Since 
+\begin_inset Formula $\hat{I}^{2}=I$
+\end_inset
+
+, this provides a resolution of the (usual) identity,
+\begin_inset Formula 
+\begin{equation}
+I=T_{0}\hat{I}T_{0}^{\dagger}\hat{I}.\label{eq:res_ident}
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Now consider the perturbed matrix,
+\begin_inset Formula 
+\begin{equation}
+\mathcal{D}=\mathcal{D}_{0}+\epsilon\mathcal{V},
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\epsilon$
+\end_inset
+
+ is a small parameter and the matrix 
+\begin_inset Formula $\mathcal{V}$
+\end_inset
+
+ is arbitrary, subject to the structure of Eq.
 \begin_inset space ~
 \end_inset
 
@@ -1056,14 +1183,65 @@ noprefix "false"
 
 \end_inset
 
-, as well as the orthonormality relation of Eq.
+.
+ We wish to find corrections to 
+\begin_inset Formula $T_{0}$
+\end_inset
+
+ and 
+\begin_inset Formula $\Omega_{0}$
+\end_inset
+
+ that will approximately diagonalize 
+\begin_inset Formula $\mathcal{D}$
+\end_inset
+
+.
+ Assume the unknown 
+\begin_inset Formula $\Omega$
+\end_inset
+
+ and 
+\begin_inset Formula $T$
+\end_inset
+
+ admit expansion in powers of 
+\begin_inset Formula $\epsilon$
+\end_inset
+
+,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align}
+\Omega & =\Omega_{0}+\epsilon\Omega_{1}+\mathcal{O}(\epsilon^{2})\label{eq:omega_exp}\\
+T & =T_{0}+\epsilon T_{1}+\mathcal{O}(\epsilon^{2}).\label{eq:T_exp}
+\end{align}
+
+\end_inset
+
+Both sides of the constraint 
+\begin_inset Formula $T^{\dagger}\mathcal{D}T=\Omega$
+\end_inset
+
+ can also be expanded in powers of 
+\begin_inset Formula $\epsilon$
+\end_inset
+
+.
+ At zeroth order (
+\begin_inset Formula $\epsilon^{0}=1$
+\end_inset
+
+), one recovers Eq.
 \begin_inset space ~
 \end_inset
 
 
 \begin_inset CommandInset ref
 LatexCommand eqref
-reference "eq:inner"
+reference "eq:para-diag-0"
 plural "false"
 caps "false"
 noprefix "false"
@@ -1071,10 +1249,409 @@ noprefix "false"
 \end_inset
 
 .
- Presumably this exercise will produce a recipe that is analogous to usual
- perturbation theory of a Hermitian matrix, but involving the para-identity
- 
+ At linear order, one finds 
+\begin_inset Formula 
+\begin{equation}
+T_{0}^{\dagger}\mathcal{D}_{0}T_{1}+T_{1}^{\dagger}\mathcal{D}_{0}T_{0}+T_{0}^{\dagger}\mathcal{V}T_{0}=\Omega_{1}.\label{eq:diag_linear}
+\end{equation}
+
+\end_inset
+
+The matrix 
+\begin_inset Formula $T$
+\end_inset
+
+ is subject to the para-unitary condition Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:I eq TIT"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, which also can be expanded in powers of 
+\begin_inset Formula $\epsilon$
+\end_inset
+
+.
+ At zeroth order, one recovers Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:I eq TIT 0"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ At linear order,
+\begin_inset Formula 
+\begin{equation}
+T_{1}^{\dagger}\hat{I}T_{0}+T_{0}^{\dagger}\hat{I}T_{1}=0.
+\end{equation}
+
+\end_inset
+
+Equivalently, the constraint is 
+\begin_inset Formula $B=-B^{\dagger},$
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{equation}
+B=T_{0}^{\dagger}\hat{I}T_{1}.
+\end{equation}
+
+\end_inset
+
+
+\begin_inset Note Comment
+status open
+
+\begin_layout Plain Layout
+\begin_inset Formula 
+\begin{align}
+T_{1}^{\dagger}\hat{I}T_{0}+T_{0}^{\dagger}\hat{I}T_{1} & =0\label{eq:para-mixed}\\
+T_{1}\hat{I}T_{0}^{\dagger}+T_{0}\hat{I}T_{1}^{\dagger} & =0.
+\end{align}
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Using the resolution of the identity, Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:res_ident"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{equation}
+C=T_{0}^{\dagger}\mathcal{D}_{0}T_{1}=T_{0}^{\dagger}\mathcal{D}_{0}T_{0}\hat{I}T_{0}^{\dagger}\hat{I}T_{1},
+\end{equation}
+
+\end_inset
+
+which simplifies to
+\begin_inset Formula 
+\begin{equation}
+C=\Omega_{0}\hat{I}B.
+\end{equation}
+
+\end_inset
+
+Then Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:diag_linear"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ may be written
+\begin_inset Formula 
+\begin{align}
+\Omega_{1}-T_{0}^{\dagger}\mathcal{V}T_{0} & =C+C^{\dagger}\nonumber \\
+ & =\Omega_{0}\hat{I}B+B^{\dagger}\hat{I}\Omega_{0}.
+\end{align}
+
+\end_inset
+
+The diagonal matrices 
 \begin_inset Formula $\hat{I}$
+\end_inset
+
+ and 
+\begin_inset Formula $\Omega_{0}$
+\end_inset
+
+ commute.
+ Using also the anti-Hermiticity of 
+\begin_inset Formula $B$
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{equation}
+\Omega_{1}=T_{0}^{\dagger}\mathcal{V}T_{0}-[B,\hat{I}\Omega_{0}].\label{eq:const2}
+\end{equation}
+
+\end_inset
+
+Because 
+\begin_inset Formula $\hat{I}\Omega_{0}$
+\end_inset
+
+ is diagonal, the diagonal elements of the final term must vanish,
+\begin_inset Formula 
+\begin{align}
+[B,\hat{I}\Omega_{0}]_{jj} & =\sum_{k}\left[B_{jk}(\hat{I}\Omega_{0})_{kj}-(\hat{I}\Omega_{0})_{jk}B_{kj}\right]=0.
+\end{align}
+
+\end_inset
+
+We arrive at a final result for the elements of the diagonal matrix 
+\begin_inset Formula $\Omega_{1}$
+\end_inset
+
+,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+(\Omega_{1})_{jj}=(T_{0}^{\dagger}\mathcal{V}T_{0})_{jj},
+\end{equation}
+
+\end_inset
+
+(no sum on 
+\begin_inset Formula $j$
+\end_inset
+
+ implied).
+ This gives the first-order perturbative correction to the eigenvalues,
+ Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:omega_exp"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+It remains to calculate the correction to the eigenvectors, Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:T_exp"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ Using the resolution of the identity, Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:res_ident"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{equation}
+T_{1}=T_{0}\hat{I}T_{0}^{\dagger}\hat{I}T_{1}=T_{0}\hat{I}B.\label{eq:T1_final}
+\end{equation}
+
+\end_inset
+
+We will be done once we have calculated the matrix elements of 
+\begin_inset Formula $B$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+First, consider diagonal elements 
+\begin_inset Formula $B_{jj}$
+\end_inset
+
+.
+ By anti-Hermiticity, these must be purely imaginary, but there are no additiona
+l mathematical constraints.
+ To understand this, recall that there is a gauge freedom on the complex
+ phases of the column vectors of 
+\begin_inset Formula $T$
+\end_inset
+
+, i.e., on the eigenvectors of 
+\begin_inset Formula $\hat{I}\mathcal{D}$
+\end_inset
+
+.
+ We may fix a gauge of our choosing.
+ A natural choice is to set the diagonal elements of the matrix 
+\begin_inset Formula $T_{0}^{\dagger}\hat{I}T\hat{I}$
+\end_inset
+
+ to be real and nonnegative.
+ This, in turn, will enforce 
+\begin_inset Formula $B_{jj}=0$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+To calculate the off-diagonal elements 
+\begin_inset Formula $B_{jk}$
+\end_inset
+
+ for 
+\begin_inset Formula $j\neq k$
+\end_inset
+
+, we consider the corresponding elements of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:const2"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{align}
+(T_{0}^{\dagger}\mathcal{V}T_{0})_{jk} & =[B,\hat{I}\Omega_{0}]_{jk}.\nonumber \\
+ & =B_{jk}\omega_{0,k}-\omega_{0,j}B_{jk}\nonumber \\
+ & =B_{jk}(\omega_{0,k}-\omega_{0,j}),
+\end{align}
+
+\end_inset
+
+where 
+\begin_inset Formula 
+\begin{equation}
+\omega_{0,j}\equiv(\hat{I}\Omega_{0})_{jj}.
+\end{equation}
+
+\end_inset
+
+In the non-degenerate case, where the eigenvalues 
+\begin_inset Formula $\omega_{0,j}$
+\end_inset
+
+ are all distinct, we arrive at,
+\begin_inset Formula 
+\begin{equation}
+B_{jk}=\begin{cases}
+\frac{(T_{0}^{\dagger}\mathcal{V}T_{0})_{jk}}{\omega_{0,k}-\omega_{0,j}} & k\neq j\\
+0 & k=j
+\end{cases}.
+\end{equation}
+
+\end_inset
+
+Inserting this result into Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:T1_final"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ completes the calculation for the eigenvector corrections 
+\begin_inset Formula $T_{1}$
+\end_inset
+
+.
+ Interestingly, this result is almost the same as the usual perturbation
+ theory for a Hermitian matrix.
+ Here, however, we have the eigenvalue problem of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:IDT"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ involving the 
+\emph on
+non-Hermitian
+\emph default
+ matrix 
+\begin_inset Formula $\hat{I}\mathcal{D}$
+\end_inset
+
+, and there is a new factor of 
+\begin_inset Formula $\hat{I}$
+\end_inset
+
+ appearing in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:T1_final"
+plural "false"
+caps "false"
+noprefix "false"
+
 \end_inset
 
 .
