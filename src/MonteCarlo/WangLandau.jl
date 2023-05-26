@@ -2,13 +2,13 @@
 mutable struct WangLandau{PR}
     ln_g::BinnedArray{Float64, Float64} # log density of states, ln[g(E)]
     hist::BinnedArray{Float64, Float64} # energy histogram
-    bounds::Vector{Float64} # energy bounds to sample [E_min, E_max]
+    bounds::Tuple{Float64, Float64} # energy bounds to sample [E_min, E_max]
     propose::PR     # MC move proposal (function)
     per_spin::Bool  # choose whether to use energy per spin 
     ln_f::Float64   # factor for insstantaneous modification of ln[g(E)] 
     E::Float64      # current energy state
 
-    function WangLandau(; bin_size=1.0, bounds=Float64[], propose=propose_uniform, per_spin=true, ln_f=0.0)
+    function WangLandau(; bin_size, bounds, propose=propose_uniform, per_spin=true, ln_f=0.0)
         new{typeof(propose)}(
             BinnedArray{Float64, Float64}(bin_size=bin_size), 
             BinnedArray{Float64, Float64}(bin_size=bin_size), 
@@ -29,9 +29,8 @@ function check_flat(H::BinnedArray{Float64, Float64}; p::Float64=0.8)
 end
 
 # check if energy is in specified bounds
-function bounds_check(x::Float64, bounds::Vector{Float64})
-    r = round(x, digits=10)
-    return (r >= bounds[1]) && (r <= bounds[2])
+function bounds_check(x, bounds)
+    return bounds[1] - 1e-10 <= x <= bounds[2] + 1e-10
 end
 
 # add new energy bin by shifting ln_g to current min. and reset hist
@@ -50,7 +49,7 @@ function init_system!(sys::System{N}, WL::WangLandau, nsteps::Int64; limit_pad::
     WL.E = fac * energy(sys)
 
     # adjust current bounds to contain initial state
-    init_space = copy(WL.bounds)
+    init_space = collect(WL.bounds)
     lim = WL.E
     dir = 0
     for (i, j) in enumerate([-1, 1])
@@ -60,7 +59,7 @@ function init_system!(sys::System{N}, WL::WangLandau, nsteps::Int64; limit_pad::
         end
     end
     # already in bounds
-    (dir == 0) && (return 0)
+    (dir == 0) && return 0
 
     reset!(WL.ln_g)
     WL.ln_g[WL.E] = 1.0

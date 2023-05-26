@@ -16,14 +16,14 @@ for site in all_sites(sys)
 end
 
 # create type for Wang-Landau simulation
-WL = Sunny.WangLandau(; bin_size=1/L^2, bounds=[-2.0, 2.0], propose=propose_flip, ln_f=1.0)
+WL = Sunny.WangLandau(; bin_size=1/L^2, bounds=(-2.0, 2.0), propose=propose_flip, ln_f=1.0)
 
 # get system in bounded energy range - set pad to 50 bins
 max_mcs_init = 10_000
 Sunny.init_system!(sys, WL, max_mcs_init; limit_pad=50/L^2)
 
 # sampling parameters
-n_iters = 20
+n_iters = 10
 max_hchecks_per_iter = 100
 hcheck_interval = 10_000
 

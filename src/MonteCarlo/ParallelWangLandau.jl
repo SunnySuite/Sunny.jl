@@ -1,7 +1,7 @@
 # Replica-exchange multicanonical or Wang-Landau with 1 replica per window
 mutable struct ParallelWangLandau{N, PR}
     n_replicas::Int64
-    windows::Vector{Vector{Float64}}
+    windows::Vector{Tuple{Float64, Float64}}
     samplers::Vector{WangLandau{PR}}
     systems::Vector{System{N}}
     system_ids::Vector{Int64}
@@ -10,7 +10,7 @@ mutable struct ParallelWangLandau{N, PR}
 end
 
 function ParallelWangLandau(system::System{N}, sampler::WangLandau{PR}, 
-                                            windows::Vector{Vector{Float64}}) where{N, PR}
+                                            windows::Vector{Tuple{Float64, Float64}}) where{N, PR}
     n_replicas = length(windows)
 
     samplers = [copy(sampler) for _ in 1:n_replicas]
@@ -26,18 +26,18 @@ function ParallelWangLandau(system::System{N}, sampler::WangLandau{PR},
 end
 
 # get array of window bounds given total range, number of windows, and desired overlap
-function get_windows(global_bounds::Vector{Float64}, n_wins::Int64, overlap::Float64)
+function get_windows(global_bounds::Tuple{Float64, Float64}, n_wins::Int64, overlap::Float64)
     Δ = abs(global_bounds[2] - global_bounds[1])
     n = 1 / (1.0 - overlap)
     width = Δ * n / (n_wins + n - 1)
 
-    wins = Vector{Float64}[]
+    wins = Tuple{Float64, Float64}[]
     pos = global_bounds[1]
 
-    for i in 1:n_wins
+    for _ in 1:n_wins
         w_beg = round(pos, digits=3)
         w_end = round(pos + width, digits=3)
-        push!(wins, [w_beg, w_end])
+        push!(wins, (w_beg, w_end))
         pos += width / n
     end
     return wins
