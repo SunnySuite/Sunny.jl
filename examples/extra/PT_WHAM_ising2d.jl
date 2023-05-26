@@ -11,8 +11,8 @@ sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=1)], :dipole, units=Units.the
 set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
 
 # start with randomized state
-for i in 1:length(sys.dipoles)
-    sys.dipoles[i] = Sunny.Vec3(0,0,rand([-1,1]))
+for site in all_sites(sys)
+    polarize_spin!(sys, (0, 0, rand([-1,1])), site)
 end
 
 # temperature schedule for thermodynamics

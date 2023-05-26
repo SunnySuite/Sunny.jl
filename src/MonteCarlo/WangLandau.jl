@@ -44,7 +44,7 @@ function add_new!(WL::WangLandau, E_new::Float64)
 end
 
 # use WL sampling to get system in bounded energy range -- **will reset MUCA data**
-function init_system!(sys::System{N}, WL::WangLandau, nsteps::Int64; limit_pad::Float64=0.0) where{N, CR}
+function init_system!(sys::System{N}, WL::WangLandau, nsteps::Int64; limit_pad::Float64=0.0) where N
 
     fac = WL.per_spin ? 1.0/length(sys.dipoles) : 1.0
     WL.E = fac * energy(sys)
@@ -67,7 +67,7 @@ function init_system!(sys::System{N}, WL::WangLandau, nsteps::Int64; limit_pad::
 
     # try to enter energy bounds with Wang-Landau
     mcs = 0
-    for n in 1:nsteps*length(sys.dipoles)
+    for _ in 1:nsteps*length(sys.dipoles)
         # perform single-spin update and calculate proposal energy
         site = rand(sys.rng, all_sites(sys))
         state = WL.propose(sys, site)
@@ -110,7 +110,7 @@ function init_system!(sys::System{N}, WL::WangLandau, nsteps::Int64; limit_pad::
 end
 
 # perform  MUCA or WL sampling for specified number of sweeps
-function sample!(sys::System{N}, WL::WangLandau, nsteps::Int64) where{N, CR}
+function sample!(sys::System{N}, WL::WangLandau, nsteps::Int64) where N
     # choose whether to use energy per spin
     fac = WL.per_spin ? 1.0/length(sys.dipoles) : 1.0
     WL.E = fac * energy(sys)
@@ -124,7 +124,7 @@ function sample!(sys::System{N}, WL::WangLandau, nsteps::Int64) where{N, CR}
 
     # try to fulfill the histogram criterion in set number of MC sweeps
     accepts = 0
-    for i in 1:nsteps*length(sys.dipoles)
+    for _ in 1:nsteps*length(sys.dipoles)
         # perform single-spin update and calculate proposal energy
         site = rand(sys.rng, all_sites(sys))
         state = WL.propose(sys, site)

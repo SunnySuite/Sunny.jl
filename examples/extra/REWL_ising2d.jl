@@ -11,12 +11,12 @@ sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=1)], :dipole, units=Units.the
 set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
 
 # start with randomized state
-for i in 1:length(sys.dipoles)
-    sys.dipoles[i] = Sunny.Vec3(0,0,rand([-1,1]))
+for site in all_sites(sys)
+    polarize_spin!(sys, (0, 0, rand([-1,1])), site)
 end
 
-# create tyoe for Wang-Landau simulation
-WL = WangLandau(;bin_size=1/L^2, propose=propose_flip, ln_f=1.0)
+# create type for Wang-Landau simulation
+WL = WangLandau(; bin_size=1/L^2, propose=propose_flip, ln_f=1.0)
 
 # REWL parameters - won't see much speedup vs. serial WL for small system
 n_wins = 4

@@ -11,12 +11,12 @@ sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=1)], :dipole, units=Units.the
 set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
 
 # start with randomized state
-for i in 1:length(sys.dipoles)
-    sys.dipoles[i] = Sunny.Vec3(0,0,rand([-1,1]))
+for site in all_sites(sys)
+    polarize_spin!(sys, (0, 0, rand([-1,1])), site)
 end
 
 # create type for Wang-Landau simulation
-WL = WangLandau(;bin_size=1/L^2, bounds=[-2.0, 2.0], propose=propose_flip, ln_f=1.0)
+WL = WangLandau(; bin_size=1/L^2, bounds=[-2.0, 2.0], propose=propose_flip, ln_f=1.0)
 
 # get system in bounded energy range - set pad to 50 bins
 max_mcs_init = 10_000
