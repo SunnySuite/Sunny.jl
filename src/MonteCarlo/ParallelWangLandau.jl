@@ -1,29 +1,20 @@
-# Replica-exchange multicanonical or Wang-Landau with 1 replica per window
+# Replica-exchange Wang-Landau with one replica per window
 mutable struct ParallelWangLandau{N, PR}
-    n_replicas::Int64
-    windows::Vector{Tuple{Float64, Float64}}
-    samplers::Vector{WangLandau{PR}}
-    systems::Vector{System{N}}
-    system_ids::Vector{Int64}
+    samplers::Vector{WangLandau{N, PR}}
     n_accept::Vector{Int64}
     n_exch::Vector{Int64}
+
+    function ParallelWangLandau(; sys::System{N}, bin_size::Float64, propose::PR,
+                                windows::Vector{Tuple{Float64, Float64}}, ln_f=1.0) where{N, PR}
+        samplers = map(windows) do bounds
+            WangLandau(; sys=clone_system(sys), bin_size, bounds, propose, ln_f)
+        end
+        return new{N, PR}(
+            samplers, zeros(Int64, length(samplers)), zeros(Int64, length(samplers))
+        )
+    end
 end
 
-function ParallelWangLandau(system::System{N}, sampler::WangLandau{PR}, 
-                                            windows::Vector{Tuple{Float64, Float64}}) where{N, PR}
-    n_replicas = length(windows)
-
-    samplers = [copy(sampler) for _ in 1:n_replicas]
-    setproperty!.(samplers, :bounds, windows)
-
-    systems = [clone_system(system) for _ in 1:n_replicas]
-    system_ids = collect(1:n_replicas)
-
-    return ParallelWangLandau(
-        n_replicas, windows, samplers, systems, system_ids, 
-        zeros(Int64, n_replicas), zeros(Int64, n_replicas)
-    )
-end
 
 # get array of window bounds given total range, number of windows, and desired overlap
 function get_windows(global_bounds::Tuple{Float64, Float64}, n_wins::Int64, overlap::Float64)
@@ -45,27 +36,25 @@ end
 
 # attempt a replica exchange 
 function replica_exchange!(PWL::ParallelWangLandau, exch_start::Int64) 
-    @Threads.threads for rank in exch_start : 2 : PWL.n_replicas-1
-        id₁, id₂ = rank, rank+1
-
-        E₁ = PWL.samplers[id₁].E
-        E₂ = PWL.samplers[id₂].E
+    n_replicas = length(PWL.samplers)
+    @Threads.threads for rank in exch_start : 2 : n_replicas-1
+        WL₁, WL₂ = PWL.samplers[[rank, rank+1]]
+        E₁, E₂ = (WL₁.E, WL₂.E)
 
         # see if exchange energies are in bounds for target windows
-        if bounds_check(E₁, PWL.windows[id₂]) && bounds_check(E₂, PWL.windows[id₁]) 
-            Δln_g₁ = PWL.samplers[id₁].ln_g[E₁] - PWL.samplers[id₁].ln_g[E₂]
-            Δln_g₂ = PWL.samplers[id₂].ln_g[E₂] - PWL.samplers[id₂].ln_g[E₁]
+        if inbounds(E₁, WL₂.bounds) && inbounds(E₂, WL₁.bounds)
+            Δln_g₁ = WL₁.ln_g[E₁] - WL₁.ln_g[E₂]
+            Δln_g₂ = WL₂.ln_g[E₂] - WL₂.ln_g[E₁]
             ln_P = Δln_g₁ + Δln_g₂
 
-            # accept exchange -- just swap labels and energies instead of configs.
-            if (ln_P >= 0 || rand(PWL.systems[PWL.system_ids[id₁]].rng) < exp(ln_P))
-                PWL.system_ids[id₁], PWL.system_ids[id₂] = PWL.system_ids[id₂], PWL.system_ids[id₁]
-                PWL.samplers[id₁].E = E₂
-                PWL.samplers[id₂].E = E₁
-                PWL.n_accept[id₁] += 1
+            # accept exchange by swapping systems
+            if (ln_P >= 0 || rand(first(PWL.samplers).sys.rng) < exp(ln_P))
+                (WL₁.sys, WL₂.sys) = (WL₂.sys, WL₁.sys)
+                (WL₁.E, WL₂.E)     = (E₂, E₁)
+                PWL.n_accept[rank] += 1
             end
         end
-        PWL.n_exch[id₁] += 1
+        PWL.n_exch[rank] += 1
     end
 end
 
@@ -74,8 +63,8 @@ function sample!(PWL::ParallelWangLandau, nsteps::Int64, exch_interval::Int64)
     n_exch = cld(nsteps, exch_interval)
 
     for i in 1:n_exch
-        @Threads.threads for rank in 1:PWL.n_replicas
-            sample!(PWL.systems[PWL.system_ids[rank]], PWL.samplers[rank], exch_interval)
+        @Threads.threads for sampler in PWL.samplers
+            sample!(sampler, exch_interval)
         end
 
         replica_exchange!(PWL, (i%2)+1)

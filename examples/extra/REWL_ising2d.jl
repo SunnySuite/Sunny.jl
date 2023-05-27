@@ -7,16 +7,9 @@ crystal = Crystal(latvecs, [[0,0,0]])
 
 L = 20
 sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=1)], :dipole, units=Units.theory, seed=0)
+polarize_spins!(sys, (0,0,1))
 
 set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
-
-# start with randomized state
-for site in all_sites(sys)
-    polarize_spin!(sys, (0, 0, rand([-1,1])), site)
-end
-
-# create type for Wang-Landau simulation
-WL = Sunny.WangLandau(; bin_size=1/L^2, bounds=(NaN, NaN), propose=propose_flip, ln_f=1.0)
 
 # REWL parameters - won't see much speedup vs. serial WL for small system
 n_wins = 4
@@ -24,37 +17,30 @@ win_overlap = 0.8
 windows = Sunny.get_windows((-2.0, 2.0), n_wins, win_overlap)
 
 # create type for REWL simulation
-REWL = Sunny.ParallelWangLandau(sys, WL, windows)
-
-# initialize systems to their respective bounds - use pad of 50 bins
-max_mcs_init = 10_000
-@Threads.threads for rank in 1:REWL.n_replicas
-    Sunny.init_system!(REWL.systems[rank], REWL.samplers[rank], max_mcs_init; limit_pad=50/L^2)
-end
+REWL = Sunny.ParallelWangLandau(; sys, bin_size=1/L^2, propose=propose_flip, windows)
 
 # sampling parameters
-n_iters = 10
+n_iters = 12
 max_hchecks_per_iter = 100
 hcheck_interval = 10_000
 exch_interval = 100
-flat = zeros(Bool, REWL.n_replicas)
 
-# start REWL sampling - 20 iterations (final ln_f <= 1e-6)
+# start REWL sampling
 for i in 1:n_iters
     for mcs in 1:max_hchecks_per_iter
         Sunny.sample!(REWL, hcheck_interval, exch_interval)
 
         # check flatness and start next iteration if satisfied
-        flat .= false
-        @Threads.threads for rank in 1:REWL.n_replicas
-            flat[rank] = Sunny.check_flat(REWL.samplers[rank].hist)
+        flat = fill(false, length(REWL.samplers))
+        @Threads.threads for i in eachindex(REWL.samplers)
+            flat[i] = Sunny.check_flat(REWL.samplers[i].hist)
         end
         all(flat) && break
     end
     println("iteration $i complete.")
-    @Threads.threads for rank in 1:REWL.n_replicas
-        Sunny.reset!(REWL.samplers[rank].hist)
-        REWL.samplers[rank].ln_f /= 2.0
+    @Threads.threads for sampler in REWL.samplers
+        Sunny.reset!(sampler.hist)
+        sampler.ln_f /= 2
     end
 end
 
