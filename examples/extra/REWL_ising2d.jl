@@ -22,7 +22,7 @@ REWL = Sunny.ParallelWangLandau(; sys, bin_size=1/L^2, propose=propose_flip, win
 # sampling parameters
 n_iters = 12
 max_hchecks_per_iter = 100
-hcheck_interval = 10_000
+hcheck_interval = 1_000
 exch_interval = 100
 
 # start REWL sampling
@@ -33,7 +33,7 @@ for i in 1:n_iters
         # check flatness and start next iteration if satisfied
         flat = fill(false, length(REWL.samplers))
         @Threads.threads for i in eachindex(REWL.samplers)
-            flat[i] = Sunny.check_flat(REWL.samplers[i].hist)
+            flat[i] = Sunny.check_flat(REWL.samplers[i].hist; p=0.5)
         end
         all(flat) && break
     end
@@ -59,7 +59,7 @@ println("A = ", REWL.n_accept ./ REWL.n_exch)
 kT = collect(range(0.1, 20, length=1000))
 U = Sunny.ensemble_average(E, ln_g, E, kT)
 U² = Sunny.ensemble_average(E, ln_g, E .^2, kT)
-C = (U² .- U .^2) ./ (kT .^2)
+C = @. (U² - U^2) / kT^2
 
 # plot density of states and thermodynamics
 display( plot(E/L^2, ln_g .- minimum(ln_g), xlabel="E/N", ylabel="ln[g(E)]", legend=false) )

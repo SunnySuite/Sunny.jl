@@ -8,7 +8,7 @@ mutable struct WangLandau{N, PR}
     E::Float64      # current energy state (per spin)
 
     function WangLandau(; sys::System{N}, bin_size, bounds, propose::PR, ln_f=1.0, max_sweeps_relax=100) where {N, PR}
-        relax_system_to_bounds!(sys, bounds, propose, max_sweeps_relax)
+        drive_system_to_energy_bounds!(sys, bounds, propose, max_sweeps_relax)
         E = energy(sys)/length(all_sites(sys))
         return new{N, PR}(
             sys,
@@ -20,24 +20,31 @@ mutable struct WangLandau{N, PR}
 end
 
 # use MCMC sampling to get system into bounded energy range
-function relax_system_to_bounds!(sys::System{N}, bounds, propose::PR, max_sweeps) where {N, PR}
+function drive_system_to_energy_bounds!(sys::System{N}, bounds, propose::PR, max_sweeps) where {N, PR}
     nsites = length(all_sites(sys))
 
-    E = energy(sys)/nsites
-    inbounds(E, bounds) && return
-    kT = E < bounds[1] ? Inf : 0.0
+    E0 = energy(sys)
 
-    sampler = LocalSampler(; kT, propose)
+    inbounds(E0/nsites, bounds) && return
+
+    kT = E0/nsites < bounds[1] ? Inf : 0.0
+
+    sampler = LocalSampler(; kT, nsweeps=0.01, propose)
     for _ in 1:max_sweeps
         step!(sys, sampler)
-        inbounds(energy(sys)/nsites, bounds) && return
+        E = E0+sampler.ΔE
+        inbounds(E/nsites, bounds) && return
     end
 
-    error("Failed to equilibrate system within bounds.")
+    if iszero(kT)
+        error("Failed to drive system to energy bounds. Try initializing the system to a low-energy configuration.")
+    else
+        error("Failed to drive system to energy bounds. The energy scale may be unphysically high.")
+    end
 end
 
 # check average flatness of histogram
-function check_flat(H::BinnedArray{Float64, Float64}; p::Float64=0.8)
+function check_flat(H::BinnedArray{Float64, Float64}; p::Float64)
     avg = sum(get_vals(H)) / sum(H.visited)
     return !any(x -> x < p*avg, get_vals(H))
 end

@@ -17,7 +17,7 @@ WL = Sunny.WangLandau(; sys, bin_size=1/L^2, bounds=(-2.0, 2.0), propose=propose
 # sampling parameters
 n_iters = 12
 max_hchecks_per_iter = 100
-hcheck_interval = 10_000
+hcheck_interval = 1_000
 
 # start WL sampling
 for i in 1:n_iters
@@ -26,7 +26,7 @@ for i in 1:n_iters
         Sunny.sample!(WL, hcheck_interval)
 
         # criterion satisfied - start next iteration
-        if Sunny.check_flat(WL.hist; p=0.8)
+        if Sunny.check_flat(WL.hist; p=0.5)
             break
         end
     end
@@ -44,7 +44,7 @@ ln_g = Sunny.get_vals(WL.ln_g)
 kT = collect(range(0.1, 20, length=1000))
 U = Sunny.ensemble_average(E, ln_g, E, kT)
 U² = Sunny.ensemble_average(E, ln_g, E .^2, kT)
-C = (U² .- U .^2) ./ (kT .^2)
+C = @. (U² - U^2) / kT^2
 
 # plot density of states and thermodynamics
 display( plot(E/L^2, ln_g .- minimum(ln_g), xlabel="E/N", ylabel="ln[g(E)]", legend=false) )
