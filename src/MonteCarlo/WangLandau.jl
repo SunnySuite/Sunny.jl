@@ -62,7 +62,7 @@ function add_new!(WL::WangLandau, E_new::Float64)
 end
 
 # sample for specified number of sweeps
-function sample!(WL::WangLandau, nsweeps::Int64)
+function step_ensemble!(WL::WangLandau, nsweeps::Int64)
     (; sys) = WL
     nsites = length(all_sites(sys))
     WL.E = energy(sys) / nsites

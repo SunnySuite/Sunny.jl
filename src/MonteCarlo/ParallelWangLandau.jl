@@ -59,12 +59,12 @@ function replica_exchange!(PWL::ParallelWangLandau, exch_start::Int64)
 end
 
 # perform replica-exchange MUCA or WL for specified number of sweeps
-function sample!(PWL::ParallelWangLandau, nsteps::Int64, exch_interval::Int64)
+function step_ensemble!(PWL::ParallelWangLandau, nsteps::Int64, exch_interval::Int64)
     n_exch = cld(nsteps, exch_interval)
 
     for i in 1:n_exch
         @Threads.threads for sampler in PWL.samplers
-            sample!(sampler, exch_interval)
+            step_ensemble!(sampler, exch_interval)
         end
 
         replica_exchange!(PWL, (i%2)+1)

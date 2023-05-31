@@ -23,7 +23,7 @@ hcheck_interval = 1_000
 for i in 1:n_iters
     # try to sample the histogram criterion (flat histogram)
     for mcs in 1:max_hchecks_per_iter
-        Sunny.sample!(WL, hcheck_interval)
+        Sunny.step_ensemble!(WL, hcheck_interval)
 
         # criterion satisfied - start next iteration
         if Sunny.check_flat(WL.hist; p=0.5)

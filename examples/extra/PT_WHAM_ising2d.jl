@@ -18,7 +18,7 @@ n_replicas = 40 # can be larger than number of cores on machine
 kT_sched = collect(range(kT_min, kT_max, length=n_replicas))
 
 # use Metropolis sampler for Ising system
-sampler = LocalSampler(; kT=kT_min, propose=propose_flip)
+sampler = LocalSampler(; kT=0, propose=propose_flip)
 
 # initialize parallel tempering 
 PT = Sunny.ParallelTempering(sys, sampler, kT_sched)
@@ -33,12 +33,12 @@ exch_interval = 5
 E_hists = [Sunny.BinnedArray{Float64, Int64}() for _ in 1:PT.n_replicas]
 
 # equilibration
-Sunny.sample!(PT, n_therm, exch_interval)
+Sunny.step_ensemble!(PT, n_therm, exch_interval)
 
 # start PT simulation
 for _ in 1:n_measure
     # run some sweeps and replica exchanges
-    Sunny.sample!(PT, measure_interval, exch_interval)
+    Sunny.step_ensemble!(PT, measure_interval, exch_interval)
 
     # measurements - assuming LocalSampler used
     for (j, sampler) in enumerate(PT.samplers)

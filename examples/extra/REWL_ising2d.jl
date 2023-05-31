@@ -28,7 +28,7 @@ exch_interval = 100
 # start REWL sampling
 for i in 1:n_iters
     for mcs in 1:max_hchecks_per_iter
-        Sunny.sample!(REWL, hcheck_interval, exch_interval)
+        Sunny.step_ensemble!(REWL, hcheck_interval, exch_interval)
 
         # check flatness and start next iteration if satisfied
         flat = fill(false, length(REWL.samplers))
