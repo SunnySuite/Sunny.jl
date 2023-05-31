@@ -6,7 +6,7 @@ function phase_averaged_elements(data, k::Vec3, sf::StructureFactor{N}, ffdata::
 
     for j in 1:NAtoms, i in 1:NAtoms
         phase = exp(im*(k ⋅ (rs[j] - rs[i])))
-        @. elems += phase * ffs[i] * ffs[j] * (@views data[:, i, j])
+        elems .+= phase .* ffs[i] .* ffs[j] .* view(data,:, i, j)
     end
 
     return SVector(elems)

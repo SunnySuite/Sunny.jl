@@ -111,15 +111,10 @@ function accum_sample!(sf::StructureFactor)
     nsamples[1] += 1
 
     # Transfer to final memory layout while accumulating new samplebuf
-    for j in 1:natoms
-      for i in 1:natoms
-        for (ci, c) in idxinfo 
-          α, β = ci.I
-          @. copybuf = @views samplebuf[α,:,:,:,i,:] * conj(samplebuf[β,:,:,:,j,:]) - data[c,i,j,:,:,:,:] 
-          oneOverN = 1/nsamples[1]
-          @views data[c,i,j,:,:,:,:] .+= copybuf .* oneOverN
-        end
-      end
+    for j in 1:natoms, i in 1:natoms, (ci, c) in idxinfo 
+        α, β = ci.I
+        @. copybuf = @views samplebuf[α,:,:,:,i,:] * conj(samplebuf[β,:,:,:,j,:]) - data[c,i,j,:,:,:,:] 
+        @views data[c,i,j,:,:,:,:] .+= copybuf .* (1/nsamples[1])
     end
 
     return nothing
