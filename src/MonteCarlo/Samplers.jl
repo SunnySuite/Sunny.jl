@@ -155,7 +155,13 @@ function step!(sys::System{N}, sampler::LocalSampler) where N
         ΔE = local_energy_change(sys, site, state)
 
         # Metropolis acceptance probability
-        if rand(sys.rng) < exp(-ΔE/sampler.kT)
+        if iszero(sampler.kT)
+            accept = ΔE <= 0
+        else
+            accept = rand(sys.rng) <= exp(-ΔE/sampler.kT)
+        end
+        
+        if accept
             sampler.ΔE += ΔE
             sampler.Δs += state.s - sys.dipoles[site]
             setspin!(sys, state, site)
