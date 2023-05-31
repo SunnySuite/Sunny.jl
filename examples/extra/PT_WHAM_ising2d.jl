@@ -7,13 +7,9 @@ crystal = Crystal(latvecs, [[0,0,0]])
 
 L = 20
 sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=1)], :dipole, units=Units.theory, seed=0)
+polarize_spins!(sys, (0,0,1))
 
 set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
-
-# start with randomized state
-for site in all_sites(sys)
-    polarize_spin!(sys, (0, 0, rand([-1,1])), site)
-end
 
 # temperature schedule for thermodynamics
 kT_min = 0.5
@@ -40,7 +36,7 @@ E_hists = [Sunny.BinnedArray{Float64, Int64}() for _ in 1:PT.n_replicas]
 Sunny.sample!(PT, n_therm, exch_interval)
 
 # start PT simulation
-for i in 1:n_measure
+for _ in 1:n_measure
     # run some sweeps and replica exchanges
     Sunny.sample!(PT, measure_interval, exch_interval)
 
@@ -54,14 +50,15 @@ end
 A = PT.n_accept ./ PT.n_exch
 
 # apply multiple histogram reweighting to PT data to get ln_g(E)
-E, ln_g = Sunny.WHAM(E_hists, PT.kT_sched; n_iters=20_000)
+E, ln_g = Sunny.WHAM(E_hists, PT.kT_sched; n_iters=1000)
 
 # calculate thermodynamics
-U = Sunny.ensemble_average(E, ln_g, E, PT.kT_sched)
-U² = Sunny.ensemble_average(E, ln_g, E .^2, PT.kT_sched)
-C = abs.( (U² .- U .^2) ./ (PT.kT_sched .^2) )
+kT = collect(range(kT_min, kT_max, length=1000))
+U = Sunny.ensemble_average(E, ln_g, E, kT)
+U² = Sunny.ensemble_average(E, ln_g, E.^2, kT)
+C = @. abs( (U² - U^2) / kT^2 )
 
 # plot density of states and thermodynamics
 display( plot(E/L^2, ln_g .- minimum(ln_g), xlabel="E/N", ylabel="ln[g(E)]", legend=false) )
-display( plot(PT.kT_sched, U/L^2, xlabel="kT/J", ylabel="U/N", legend=false) )
-display( plot(PT.kT_sched, C/L^2, xlabel="kT/J", ylabel="C/N", legend=false) )
+display( plot(kT, U/L^2, xlabel="kT/J", ylabel="U/N", legend=false) )
+display( plot(kT, C/L^2, xlabel="kT/J", ylabel="C/N", legend=false) )

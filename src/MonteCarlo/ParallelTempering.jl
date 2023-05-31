@@ -84,7 +84,7 @@ function sample!(PT::ParallelTempering, nsteps::Int64, exch_interval::Int64)
     for i in 1:n_exch
         # sample the systems at each kT in parallel
         @Threads.threads for rank in 1:PT.n_replicas
-            for j in 1:exch_interval
+            for _ in 1:exch_interval
                 step!(PT.systems[PT.system_ids[rank]], PT.samplers[rank])
             end
         end
