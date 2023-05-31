@@ -1,3 +1,5 @@
+const Histogram = BinnedArray{Float64, Float64}
+
 # get natural log of density of states, g(E), from multiple histogram reweighting
 # iteratively solve WHAM (weighted histogram analysis method) equation:
 #
@@ -7,9 +9,9 @@
 #
 #   Zᵢ = ∑ⱼ ĝ(Eⱼ)exp(-βᵢEⱼ)
 #
-function WHAM(E_hists::Vector{BinnedArray{Float64, Int64}}, kT_sched::Vector{Float64}; n_iters::Int64=1000)
+function WHAM(E_hists::Vector{Histogram}, kT_sched::Vector{Float64}; n_iters::Int64=1000)
     # sum up all histograms -- assume equal number of samples in each histogram
-    H_total = BinnedArray{Float64, Float64}(bin_size=E_hists[1].bin_size)
+    H_total = Histogram(bin_size=E_hists[1].bin_size)
     for H in E_hists
         for (E, n) in get_pairs(H)
             H_total[E] += n

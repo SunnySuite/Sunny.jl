@@ -1,7 +1,7 @@
 mutable struct WangLandau{N, PR}
     sys::System{N}
-    ln_g::BinnedArray{Float64, Float64} # log density of states, ln[g(E)]
-    hist::BinnedArray{Float64, Float64} # energy histogram
+    ln_g::Histogram # log density of states, ln[g(E)]
+    hist::Histogram # energy histogram
     bounds::Tuple{Float64, Float64} # energy bounds to sample [E_min, E_max]
     propose::PR     # MC move proposal (function)
     ln_f::Float64   # visiting a site with energy E sets: ln[g(E)] += ln_f
@@ -12,8 +12,8 @@ mutable struct WangLandau{N, PR}
         E = energy(sys)/length(all_sites(sys))
         return new{N, PR}(
             sys,
-            BinnedArray{Float64, Float64}(; bin_size),
-            BinnedArray{Float64, Float64}(; bin_size),
+            Histogram(; bin_size),
+            Histogram(; bin_size),
             bounds, propose, ln_f, E
         )
     end
@@ -44,7 +44,7 @@ function drive_system_to_energy_bounds!(sys::System{N}, bounds, propose::PR, max
 end
 
 # check average flatness of histogram
-function check_flat(H::BinnedArray{Float64, Float64}; p::Float64)
+function check_flat(H::Histogram; p::Float64)
     avg = sum(get_vals(H)) / sum(H.visited)
     return !any(x -> x < p*avg, get_vals(H))
 end

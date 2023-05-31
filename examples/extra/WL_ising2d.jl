@@ -15,7 +15,7 @@ set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
 WL = Sunny.WangLandau(; sys, bin_size=1/L^2, bounds=(-2.0, 2.0), propose=propose_flip)
 
 # sampling parameters
-n_iters = 12
+n_iters = 12 # Small number for testing. Use ≥ 20 in production.
 max_hchecks_per_iter = 100
 hcheck_interval = 1_000
 

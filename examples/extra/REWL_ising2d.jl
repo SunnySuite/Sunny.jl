@@ -20,7 +20,7 @@ windows = Sunny.get_windows((-2.0, 2.0), n_wins, win_overlap)
 REWL = Sunny.ParallelWangLandau(; sys, bin_size=1/L^2, propose=propose_flip, windows)
 
 # sampling parameters
-n_iters = 12
+n_iters = 12 # Small number for testing. Use ≥ 20 in production.
 max_hchecks_per_iter = 100
 hcheck_interval = 1_000
 exch_interval = 100

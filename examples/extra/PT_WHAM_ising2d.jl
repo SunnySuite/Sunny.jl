@@ -30,7 +30,7 @@ measure_interval = 10
 exch_interval = 5
 
 # energy histograms for each PT replica
-E_hists = [Sunny.BinnedArray{Float64, Int64}() for _ in 1:PT.n_replicas]
+E_hists = [Sunny.Histogram() for _ in 1:PT.n_replicas]
 
 # equilibration
 Sunny.step_ensemble!(PT, n_therm, exch_interval)
