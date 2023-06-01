@@ -120,7 +120,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
     error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
 end
 
-function fast_isapprox(x, y; atol=0)
+function fast_isapprox(x, y; atol)
     sqTol = atol^2
     acc = 0.
     for i in eachindex(x)
