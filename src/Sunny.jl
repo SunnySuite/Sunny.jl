@@ -104,10 +104,7 @@ include("MonteCarlo/ParallelTempering.jl")
 include("MonteCarlo/HistogramReweighting.jl")
 include("MonteCarlo/WangLandau.jl")
 include("MonteCarlo/ParallelWangLandau.jl")
-export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler,
-    ParallelTempering, sample!,
-    WangLandau,
-    ParallelWangLandau
+export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
 
 # GLMakie is an optional dependency
 function __init__()
