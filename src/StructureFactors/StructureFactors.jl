@@ -12,6 +12,8 @@ struct StructureFactor{N}
 
     # Specs for sample generation and accumulation
     samplebuf    :: Array{ComplexF64, 6}  # New sample buffer
+    fft!         :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
+    copybuf      :: Array{ComplexF64, 4}  # Copy cache for accumulating samples
     measperiod   :: Int                   # Steps to skip between saving observables (downsampling for dynamical calcs)
     apply_g      :: Bool                  # Whether to apply the g-factor
     integrator   :: ImplicitMidpoint      # Integrator for dissipationless trajectories (will likely move to add_sample!)
@@ -96,7 +98,12 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
     na = natoms(sys.crystal)
     ncorr = length(correlations)
     samplebuf = zeros(ComplexF64, nops, sys.latsize..., na, nω) 
+    copybuf = zeros(ComplexF64, sys.latsize..., nω) 
     data = zeros(ComplexF64, ncorr, na, na, sys.latsize..., nω)
+
+    # Normalize FFT according to physical convention
+    normalizationFactor = 1/(nω * √(prod(sys.latsize)))
+    fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6))
 
     # Other initialization
     nsamples = Int64[0]
@@ -106,7 +113,7 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
 
     # Make Structure factor and add an initial sample
     sf = StructureFactor{N}(data, sys.crystal, origin_crystal, Δω, dipole_corrs,
-                            observables, idxinfo, samplebuf, measperiod, apply_g, integrator,
+                            observables, idxinfo, samplebuf, fft!, copybuf, measperiod, apply_g, integrator,
                             nsamples, processtraj!)
     add_sample!(sf, sys; processtraj!)
 

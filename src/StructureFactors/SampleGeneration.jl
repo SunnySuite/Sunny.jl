@@ -102,23 +102,19 @@ function no_processing(::StructureFactor)
     nothing
 end
 
-# ddtodo: Plan FFT
 function accum_sample!(sf::StructureFactor)
-    (; data, idxinfo, samplebuf, nsamples) = sf
+    (; data, idxinfo, samplebuf, copybuf, nsamples, fft!) = sf
     latsize = size(samplebuf)[2:4]
     natoms, nω = size(samplebuf)[5:6]
 
-    FFTW.fft!(samplebuf, (2,3,4,6))
-    samplebuf /= nω * √(prod(latsize))  # Normalize FFT according to physical convention
+    fft! * samplebuf # Apply pre-planned and pre-normalized FFT
     nsamples[1] += 1
 
     # Transfer to final memory layout while accumulating new samplebuf
-    for ω in 1:nω, cell in CartesianIndices(latsize), j in 1:natoms, i in 1:natoms
-        for (ci, c) in idxinfo 
-            α, β = ci.I
-            old = data[c,i,j,cell,ω]
-            data[c,i,j,cell,ω] = old + (samplebuf[α,cell,i,ω] * conj(samplebuf[β,cell,j,ω]) - old) / nsamples[1]
-        end
+    for j in 1:natoms, i in 1:natoms, (ci, c) in idxinfo 
+        α, β = ci.I
+        @. copybuf = @views samplebuf[α,:,:,:,i,:] * conj(samplebuf[β,:,:,:,j,:]) - data[c,i,j,:,:,:,:] 
+        @views data[c,i,j,:,:,:,:] .+= copybuf .* (1/nsamples[1])
     end
 
     return nothing
