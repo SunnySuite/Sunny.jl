@@ -107,7 +107,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, B)
 
         # If converged, then we can return
-        if fast_isapprox(s̄, s̄′, atol* √length(s̄))
+        if fast_isapprox(s̄, s̄′,atol=atol* √length(s̄))
             # Normalization here should not be necessary in principle, but it
             # could be useful in practice for finite `atol`.
             @. s = normalize_dipole(2*s̄′ - s, sys.κs)
@@ -120,12 +120,12 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
     error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
 end
 
-function fast_isapprox(s̄, s̄′, atol)
+function fast_isapprox(x, y; atol=0)
     sqTol = atol^2
     acc = 0.
-    for i in eachindex(s̄)
-        diff = s̄[i] - s̄′[i]
-        acc += dot(diff,diff)
+    for i in eachindex(x)
+        diff = x[i] - y[i]
+        acc += real(dot(diff,diff))
         if acc > sqTol
             return false
         end
@@ -257,7 +257,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
 
         @. Z″ = Z + ΔZ
 
-        if isapprox(Z′, Z″, atol=atol*√length(Z′))
+        if fast_isapprox(Z′, Z″, atol=atol*√length(Z′))
             @. Z = normalize_ket(Z″, sys.κs)
             @. sys.dipoles = expected_spin(Z)
             return
