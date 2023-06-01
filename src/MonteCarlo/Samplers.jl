@@ -1,17 +1,4 @@
 """
-    temperature_schedule(kT1, length; curvature=4.0)
-
-Returns an iterator that includes `length` temperatures that exponentially
-decays from `kT1` to `kT2`. The optional parameter `curvature` is a multiplier
-on the initial slope of the temperature decay.
-"""
-function temperature_schedule(kT1, kT2, length; curvature=4)
-    kT1 >= 0 && kT2 >= 0 || error("Temperature must be positive.")
-    error("FIXME")
-end
-
-
-"""
     propose_uniform
 
 Function to propose a uniformly random spin update in the context of a
@@ -155,7 +142,13 @@ function step!(sys::System{N}, sampler::LocalSampler) where N
         ΔE = local_energy_change(sys, site, state)
 
         # Metropolis acceptance probability
-        if rand(sys.rng) < exp(-ΔE/sampler.kT)
+        if iszero(sampler.kT)
+            accept = ΔE <= 0
+        else
+            accept = rand(sys.rng) <= exp(-ΔE/sampler.kT)
+        end
+        
+        if accept
             sampler.ΔE += ΔE
             sampler.Δs += state.s - sys.dipoles[site]
             setspin!(sys, state, site)
