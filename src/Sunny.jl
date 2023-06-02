@@ -44,6 +44,7 @@ include("Symmetry/AllowedCouplings.jl")
 include("Symmetry/AllowedAnisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
+include("Symmetry/CartesianIndicesShifted.jl")
 export Crystal, subcrystal, lattice_vectors, lattice_params, Bond, 
     reference_bonds, print_site, print_bond, print_symmetry_table,
     print_suggested_frame
