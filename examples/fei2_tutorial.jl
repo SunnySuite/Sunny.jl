@@ -252,8 +252,8 @@ points = [[0,   0, 0],  # List of wave vectors that define a path
           [0,   1, 0],
           [0,   0, 0]] 
 labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
-density = 80
-path, markers = connected_path(points, density);
+density = 200
+path, markers = connected_path(swt, points, density);
 
 # `dispersion` may now be called on the wave vectors along the generated path.
 # Each row column of the returned matrix corresponds to a single mode.
@@ -394,7 +394,7 @@ points = [[0,   0, 0],  # List of wave vectors that define a path
           [0,   1, 0],
           [0,   0, 0]] 
 density = 40
-path, markers = connected_path(points, density);
+path, markers = connected_path(sf, points, density);
 
 # Calculate and plot the intensities along this path using [`FormFactor`](@ref)
 # corrections appropriate for `Fe2` magnetic ions.
@@ -411,7 +411,7 @@ is = broaden_energy(sf, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.05))  # Add arti
 labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
 
 heatmap(1:size(is,1), ωs(sf), is;
-    colorrange=(0.0, 3.5),
+    colorrange=(0.0, 4.0),
     axis = (
         ylabel = "meV",
         xticks = (markers, labels),
