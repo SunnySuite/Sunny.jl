@@ -197,23 +197,28 @@ end
 
 
 """
-    connected_path(qs::Vector, density)
+    connected_path(recip_vecs, qs::Vector, density)
 
 Takes a list of wave vectors, `qs`, and builds an expanded list of wave vectors
 that traces a path through the provided points. Also returned is a list of
-marker indices corresponding to the intput points. The `density` parameter
-controls the frequency of sampling.
-"""
-function connected_path(qs::Vector, density)
-    @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
+marker indices corresponding to the input points. The `density` parameter is
+given in samples per inverse Å.
 
+Instead of `recip_vecs`, the first argument may be either a `StructureFactor` or
+a `SpinWaveTheory`.
+"""
+function connected_path(recip_vecs, qs::Vector, density)
+    @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
     qs = Vec3.(qs)
+    ks = map(q -> recip_vecs * q, qs)
+
     path = Vec3[]
     markers = Int[]
     for i in 1:length(qs)-1
         push!(markers, length(path)+1)
         q1, q2 = qs[i], qs[i+1]
-        dist = norm(q2 - q1)
+        k1, k2 = ks[i], ks[i+1]
+        dist = norm(k1 - k2)
         npoints = round(Int, dist*density)
         for n in 1:npoints
             push!(path, (1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints)
@@ -221,8 +226,11 @@ function connected_path(qs::Vector, density)
     end
     push!(markers, length(path)+1)
     push!(path, qs[end])
+
     return (path, markers)
 end
+connected_path(sf::StructureFactor, qs::Vector, density) = connected_path(2π*inv(sf.crystal.latvecs)', qs, density)
+connected_path(sw::SpinWaveTheory, qs::Vector, density) = connected_path(sw.recipvecs_chem, qs, density)
 
 
 """

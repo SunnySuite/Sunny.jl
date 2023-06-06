@@ -216,7 +216,7 @@ symQpts   = [[0.75, 0.75, 0.00],  # List of wave vectors that define a path
             [0.25, 1.00, 0.25],
             [0.00, 1.00, 0.00],
             [0.00,-4.00, 0.00]];
-(Qpts, symQind) = connected_path(symQpts,densQpts);
+(Qpts, symQind) = connected_path(dsf, symQpts,densQpts);
 @time  iqw = intensities(dsf, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
 
 # If desired, broaden the dsf in energy
@@ -284,4 +284,3 @@ for i in 1:8
     heatmap!(ax, Qpow, ωs(dsf), pqw_res[9-i]; colorrange = (0, 10))
 end
 fig
-
