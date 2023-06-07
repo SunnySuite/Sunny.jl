@@ -198,12 +198,12 @@ function energy(sys::System{N}) where N
     # Anisotropies and exchange interactions
     for i in 1:natoms(crystal)
         if is_homogeneous(sys)
-            ints = interactions_homog(sys)
-            E += energy_aux(sys, ints[i], i, all_cells(sys), homog_bond_iterator(latsize))
+            interactions = sys.interactions_union[i]
+            E += energy_aux(sys, interactions, i, all_cells(sys), homog_bond_iterator(latsize))
         else
-            ints = interactions_inhomog(sys)
             for cell in all_cells(sys)
-                E += energy_aux(sys, ints[cell, i], i, (cell,), inhomog_bond_iterator(latsize, cell))
+                interactions = sys.interactions_union[cell, i]
+                E += energy_aux(sys, interactions, i, (cell,), inhomog_bond_iterator(latsize, cell))
             end
         end
     end
@@ -220,7 +220,7 @@ end
 # The function `foreachbond` enables efficient iteration over neighboring cell
 # pairs.
 function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbond) where N
-    (; dipoles, coherents, latsize) = sys
+    (; dipoles, coherents) = sys
     E = 0.0
 
     # Single-ion anisotropy
@@ -287,13 +287,13 @@ function set_forces!(B, dipoles::Array{Vec3, 4}, sys::System{N}) where N
     for i in 1:natoms(crystal)
         if is_homogeneous(sys)
             # Interaction is the same at every cell
-            interaction = sys.interactions_union[i]
-            set_forces_aux!(B, dipoles, interaction, sys, i, all_cells(sys), homog_bond_iterator(latsize))
+            interactions = sys.interactions_union[i]
+            set_forces_aux!(B, dipoles, interactions, sys, i, all_cells(sys), homog_bond_iterator(latsize))
         else
             for cell in all_cells(sys)
                 # There is a different interaction at every cell
-                interaction = sys.interactions_union[cell,i]
-                set_forces_aux!(B, dipoles, interaction, sys, i, (cell,), inhomog_bond_iterator(latsize, cell))
+                interactions = sys.interactions_union[cell,i]
+                set_forces_aux!(B, dipoles, interactions, sys, i, (cell,), inhomog_bond_iterator(latsize, cell))
             end
         end
     end
