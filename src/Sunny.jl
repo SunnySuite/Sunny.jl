@@ -29,6 +29,9 @@ const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 const CVec{N} = SVector{N, ComplexF64}
 
+
+include("Util/CartesianIndicesShifted.jl")
+
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
 include("Operators/Stevens.jl")
@@ -44,7 +47,6 @@ include("Symmetry/AllowedCouplings.jl")
 include("Symmetry/AllowedAnisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
-include("Symmetry/CartesianIndicesShifted.jl")
 export Crystal, subcrystal, lattice_vectors, lattice_params, Bond, 
     reference_bonds, print_site, print_bond, print_symmetry_table,
     print_suggested_frame

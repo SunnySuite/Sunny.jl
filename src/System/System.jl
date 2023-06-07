@@ -418,22 +418,22 @@ function polarize_spins!(sys::System{N}, dir) where N
 end
 
 
-@inline function get_dipole_buffers(sys::System{N}, numrequested) where N
+function get_dipole_buffers(sys::System{N}, numrequested) where N
     numexisting = length(sys.dipole_buffers)
     if numexisting < numrequested
         for _ in 1:(numrequested-numexisting)
             push!(sys.dipole_buffers, zero(sys.dipoles))
         end
     end
-    return view(sys.dipole_buffers,1:numrequested)
+    return view(sys.dipole_buffers, 1:numrequested)
 end
 
-@inline function get_coherent_buffers(sys::System{N}, numrequested) where N
+function get_coherent_buffers(sys::System{N}, numrequested) where N
     numexisting = length(sys.coherent_buffers)
     if numexisting < numrequested
         for _ in 1:(numrequested-numexisting)
             push!(sys.coherent_buffers, zero(sys.coherents))
         end
     end
-    return view(sys.coherent_buffers,1:numrequested)
+    return view(sys.coherent_buffers, 1:numrequested)
 end

@@ -186,7 +186,7 @@ end
 Computes the total system energy.
 """
 function energy(sys::System{N}) where N
-    (; crystal, dipoles, extfield, ewald) = sys
+    (; crystal, latsize, dipoles, extfield, ewald) = sys
 
     E = 0.0
 
@@ -198,12 +198,12 @@ function energy(sys::System{N}) where N
     # Anisotropies and exchange interactions
     for i in 1:natoms(crystal)
         if is_homogeneous(sys)
-            ints = sys.interactions_union[i]
-            E += energy_aux(sys, ints, i)
+            ints = interactions_homog(sys)
+            E += energy_aux(sys, ints[i], i, all_cells(sys), homog_bond_iterator(latsize))
         else
             for cell in all_cells(sys)
-                ints = sys.interactions_union[cell,i]
-                E += energy_aux(sys, ints, i; inhomogeneous_cell = cell)
+                ints = interactions_inhomog(sys)
+                E += energy_aux(sys, ints[cell, i], i, (cell,), inhomog_bond_iterator(latsize, cell))
             end
         end
     end
@@ -216,15 +216,13 @@ function energy(sys::System{N}) where N
     return E
 end
 
-# Total the energy contributed by each cell due to the interactions `ints' at sublattice `i'
-#
-# If inhomogeneous_cell is set, only calculate the interaction at that cell.
-# Otherwise, calculate the interaction homogeneously at every cell.
-function energy_aux(sys::System{N}, ints::Interactions, i :: Int;inhomogeneous_cell = nothing) where N
+# Total energy contributed by sublattice `i`, summed over the list of `cells`.
+# The function `foreachbond` enables efficient iteration over neighboring cell
+# pairs.
+function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbond) where N
     (; dipoles, coherents, latsize) = sys
     E = 0.0
 
-    cells = isnothing(inhomogeneous_cell) ? all_cells(sys) : (inhomogeneous_cell,)
     # Single-ion anisotropy
     if N == 0       # Dipole mode
         for cell in cells
@@ -240,27 +238,27 @@ function energy_aux(sys::System{N}, ints::Interactions, i :: Int;inhomogeneous_c
     end
 
     # Heisenberg exchange
-    foreachbond(latsize,ints.heisen;cell_index=inhomogeneous_cell) do bond,J,i,j
-        sᵢ = dipoles[i]
-        sⱼ = dipoles[j]
+    foreachbond(ints.heisen) do J, site1, site2
+        sᵢ = dipoles[site1]
+        sⱼ = dipoles[site2]
         E += J * dot(sᵢ, sⱼ)
     end
 
     # Quadratic exchange matrix
-    foreachbond(latsize,ints.exchange;cell_index=inhomogeneous_cell) do bond,J,i,j
-        sᵢ = dipoles[i]
-        sⱼ = dipoles[j]
+    foreachbond(ints.exchange) do J, site1, site2
+        sᵢ = dipoles[site1]
+        sⱼ = dipoles[site2]
         E += dot(sᵢ, J, sⱼ)
     end
 
     # Scalar biquadratic exchange
-    foreachbond(latsize,ints.biquad;cell_index=inhomogeneous_cell) do bond,J,i,j
-        sᵢ = dipoles[i]
-        sⱼ = dipoles[j]
+    foreachbond(ints.biquad) do J, site1, site2
+        sᵢ = dipoles[site1]
+        sⱼ = dipoles[site2]
         if sys.mode == :dipole
             # Renormalization introduces a factor r and a Heisenberg term
-            Sᵢ = (sys.Ns[i]-1)/2
-            Sⱼ = (sys.Ns[j]-1)/2
+            Sᵢ = (sys.Ns[site1]-1)/2
+            Sⱼ = (sys.Ns[site2]-1)/2
             S = √(Sᵢ*Sⱼ)
             r = (1 - 1/S + 1/4S^2)
             E += J * (r*(sᵢ⋅sⱼ)^2 - (sᵢ⋅sⱼ)/2 + S^3 + S^2/4)
@@ -276,7 +274,7 @@ end
 
 # Updates B in-place to hold negative energy gradient, -dE/ds, for each spin.
 function set_forces!(B, dipoles::Array{Vec3, 4}, sys::System{N}) where N
-    (; crystal, extfield, ewald) = sys
+    (; crystal, latsize, extfield, ewald) = sys
 
     fill!(B, zero(Vec3))
 
@@ -290,13 +288,13 @@ function set_forces!(B, dipoles::Array{Vec3, 4}, sys::System{N}) where N
         if is_homogeneous(sys)
             # Interaction is the same at every cell
             interaction = sys.interactions_union[i]
-            set_forces_aux!(B, dipoles, interaction, sys, i)
+            set_forces_aux!(B, dipoles, interaction, sys, i, all_cells(sys), homog_bond_iterator(latsize))
         else
-          for cell in all_cells(sys)
-            # There is a different interaction at every cell
-            interaction = sys.interactions_union[cell,i]
-            set_forces_aux!(B, dipoles, interaction, sys, i; inhomogeneous_cell = cell)
-          end
+            for cell in all_cells(sys)
+                # There is a different interaction at every cell
+                interaction = sys.interactions_union[cell,i]
+                set_forces_aux!(B, dipoles, interaction, sys, i, (cell,), inhomog_bond_iterator(latsize, cell))
+            end
         end
     end
 
@@ -305,17 +303,13 @@ function set_forces!(B, dipoles::Array{Vec3, 4}, sys::System{N}) where N
     end
 end
 
-# Calculate the force `B' at each cell due to the interactions `ints' at sublattice `i'
-#
-# If inhomogeneous_cell is set, only calculate the interaction at that cell.
-# Otherwise, calculate the interaction homogeneously at every cell.
-function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int;inhomogeneous_cell = nothing) where N
-    (; latsize) = sys
-
+# Calculate the force `B' for the sublattice `i' at all elements of `cells`. The
+# function `foreachbond` enables efficient iteration over neighboring cell
+# pairs.
+function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells, foreachbond) where N
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into ℌ.
     if N == 0
-        cells = isnothing(inhomogeneous_cell) ? all_cells(sys) : (inhomogeneous_cell,)
         for cell in cells
             s = dipoles[cell, i]
             B[cell, i] -= energy_and_gradient_for_classical_anisotropy(s, ints.aniso.stvexp)[2]
@@ -323,65 +317,69 @@ function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::Sy
     end
 
     # Heisenberg exchange
-    foreachbond(latsize,ints.heisen;cell_index=inhomogeneous_cell) do bond,J,i,j
-        sᵢ = dipoles[i]
-        sⱼ = dipoles[j]
-        B[i] -= J  * sⱼ
-        B[j] -= J' * sᵢ
+    foreachbond(ints.heisen) do J, site1, site2
+        sᵢ = dipoles[site1]
+        sⱼ = dipoles[site2]
+        B[site1] -= J  * sⱼ
+        B[site2] -= J' * sᵢ
     end
 
     # Quadratic exchange matrix
-    foreachbond(latsize,ints.exchange;cell_index=inhomogeneous_cell) do bond,J,i,j
-        sᵢ = dipoles[i]
-        sⱼ = dipoles[j]
-        B[i] -= J  * sⱼ
-        B[j] -= J' * sᵢ
+    foreachbond(ints.exchange) do J, site1, site2
+        sᵢ = dipoles[site1]
+        sⱼ = dipoles[site2]
+        B[site1] -= J  * sⱼ
+        B[site2] -= J' * sᵢ
     end
 
     # Scalar biquadratic exchange
-    foreachbond(latsize,ints.biquad;cell_index=inhomogeneous_cell) do bond,J,i,j
-        sᵢ = dipoles[i]
-        sⱼ = dipoles[j]
+    foreachbond(ints.biquad) do J, site1, site2
+        sᵢ = dipoles[site1]
+        sⱼ = dipoles[site2]
 
         if sys.mode == :dipole
-            Sᵢ = (sys.Ns[i]-1)/2
-            Sⱼ = (sys.Ns[j]-1)/2
+            Sᵢ = (sys.Ns[site1]-1)/2
+            Sⱼ = (sys.Ns[site2]-1)/2
             S = √(Sᵢ*Sⱼ)
             # Renormalization introduces a factor r and a Heisenberg term
             r = (1 - 1/S + 1/4S^2)
-            B[i] -= J * (2r*sⱼ*(sᵢ⋅sⱼ) - sⱼ/2)
-            B[j] -= J * (2r*sᵢ*(sᵢ⋅sⱼ) - sᵢ/2)
+            B[site1] -= J * (2r*sⱼ*(sᵢ⋅sⱼ) - sⱼ/2)
+            B[site2] -= J * (2r*sᵢ*(sᵢ⋅sⱼ) - sᵢ/2)
         elseif sys.mode == :large_S
-            B[i] -= J * 2sⱼ*(sᵢ⋅sⱼ)
-            B[j] -= J * 2sᵢ*(sᵢ⋅sⱼ)
+            B[site1] -= J * 2sⱼ*(sᵢ⋅sⱼ)
+            B[site2] -= J * 2sᵢ*(sᵢ⋅sⱼ)
         elseif sys.mode == :SUN
             error("Biquadratic currently unsupported in SU(N) mode.")
         end
     end
 end
 
-# Applies the given function at bonds specified by the interaction `ints`.
-#
-# f(bond,J,i,j) where i,j are the site indices of the ends of the bond.
-#
-# If `cell_index` is given, only includes bonds starting in that cell
-# Otherwise, includes every bond in the lattice homogeneously.
-@inline function foreachbond(f,latsize,ints;cell_index=nothing)
-    for (; isculled,bond,J) in ints
+# Producer of a functions that iterate over all interactions for a given cell
+function inhomog_bond_iterator(latsize, cell)
+    return function inner(f, ints)
+        for (; isculled, bond, J) in ints
+            # Early return to avoid double-counting a bond
+            isculled && break
 
-        # Bonds are sorted such that culled bonds appear last
-        isculled && break
+            # Neighboring cell may wrap the system
+            cell′ = offsetc(cell, bond.n, latsize)
+            f(J, CartesianIndex(cell, bond.i), CartesianIndex(cell′, bond.j))
+        end
+    end
+end
 
-        if isnothing(cell_index)
-            # Loops over all cells `ci', efficeintly computing
-            # the cell `cj = ci + bond.n' to which they are bonded
-            for (ci,cj) in zip(CartesianIndices(latsize), CartesianIndicesShifted(latsize,bond.n.data))
-                f(bond,J,CartesianIndex(ci,bond.i),CartesianIndex(cj,bond.j))
+# Producer of a functions that iterate over all interactions, involving all
+# pairs of cells in a homogeneous system
+function homog_bond_iterator(latsize)
+    return function inner(f, ints)
+        for (; isculled, bond, J) in ints
+            # Early return to avoid double-counting a bond
+            isculled && break
+
+            # Iterate over all cells and periodically shifted neighbors
+            for (ci, cj) in zip(CartesianIndices(latsize), CartesianIndicesShifted(latsize, bond.n.data)) # kbtodo: Tuple(bond.n)
+                f(J, CartesianIndex(ci, bond.i), CartesianIndex(cj, bond.j))
             end
-        else
-            # Computes the single cell `cj' to which `cell_index' is bonded
-            cj = offsetc(cell_index, bond.n, latsize)
-            f(bond,J,CartesianIndex(cell_index,bond.i),CartesianIndex(cj,bond.j))
         end
     end
 end
