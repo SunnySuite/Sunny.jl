@@ -425,7 +425,7 @@ function get_dipole_buffers(sys::System{N}, numrequested) where N
             push!(sys.dipole_buffers, zero(sys.dipoles))
         end
     end
-    return sys.dipole_buffers[1:numrequested]
+    return view(sys.dipole_buffers, 1:numrequested)
 end
 
 function get_coherent_buffers(sys::System{N}, numrequested) where N
@@ -435,5 +435,5 @@ function get_coherent_buffers(sys::System{N}, numrequested) where N
             push!(sys.coherent_buffers, zero(sys.coherents))
         end
     end
-    return sys.coherent_buffers[1:numrequested]
+    return view(sys.coherent_buffers, 1:numrequested)
 end
