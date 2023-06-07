@@ -210,15 +210,13 @@ a `SpinWaveTheory`.
 function connected_path(recip_vecs, qs::Vector, density)
     @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
     qs = Vec3.(qs)
-    ks = map(q -> recip_vecs * q, qs)
 
     path = Vec3[]
     markers = Int[]
     for i in 1:length(qs)-1
         push!(markers, length(path)+1)
         q1, q2 = qs[i], qs[i+1]
-        k1, k2 = ks[i], ks[i+1]
-        dist = norm(k1 - k2)
+        dist = norm(recip_vecs*(q1 - q2))
         npoints = round(Int, dist*density)
         for n in 1:npoints
             push!(path, (1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints)
