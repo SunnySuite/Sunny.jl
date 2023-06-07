@@ -49,7 +49,7 @@ sf = DynamicStructureFactor(sys;
 # lorentzian(ω-ω₀, 0.1)`. 
 
 qpoints = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
-qs, markers = connected_path(qpoints, 50) 
+qs, markers = connected_path(sf, qpoints, 50) 
 
 is = intensities(sf, qs, :trace; interpolation=:none)
 is_broad = broaden_energy(sf, is, (ω, ω₀) -> lorentzian(ω-ω₀, 0.1))

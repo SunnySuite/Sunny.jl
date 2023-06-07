@@ -262,9 +262,10 @@ disp = dispersion(swt, path)
 
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)",
-    xticks=(markers, labels), xticklabelrotation=π/8,
+    xticks=(markers, labels), xticklabelrotation=π/6,
 )
 ylims!(ax, 0.0, 7.5)
+xlims!(ax, 1, size(disp, 1))
 for i in axes(disp)[2]
     lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=:blue)
 end
