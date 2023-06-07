@@ -29,6 +29,9 @@ const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 const CVec{N} = SVector{N, ComplexF64}
 
+
+include("Util/CartesianIndicesShifted.jl")
+
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
 include("Operators/Stevens.jl")
