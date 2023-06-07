@@ -201,8 +201,8 @@ function energy(sys::System{N}) where N
             ints = interactions_homog(sys)
             E += energy_aux(sys, ints[i], i, all_cells(sys), homog_bond_iterator(latsize))
         else
+            ints = interactions_inhomog(sys)
             for cell in all_cells(sys)
-                ints = interactions_inhomog(sys)
                 E += energy_aux(sys, ints[cell, i], i, (cell,), inhomog_bond_iterator(latsize, cell))
             end
         end
@@ -354,9 +354,9 @@ function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::Sy
     end
 end
 
-# Producer of a functions that iterate over all interactions for a given cell
+# Produces a function that iterates over a list interactions for a given cell
 function inhomog_bond_iterator(latsize, cell)
-    return function inner(f, ints)
+    return function foreachbond(f, ints)
         for (; isculled, bond, J) in ints
             # Early return to avoid double-counting a bond
             isculled && break
@@ -368,16 +368,16 @@ function inhomog_bond_iterator(latsize, cell)
     end
 end
 
-# Producer of a functions that iterate over all interactions, involving all
+# Produces a function that iterates over a list of interactions, involving all
 # pairs of cells in a homogeneous system
 function homog_bond_iterator(latsize)
-    return function inner(f, ints)
+    return function foreachbond(f, ints)
         for (; isculled, bond, J) in ints
             # Early return to avoid double-counting a bond
             isculled && break
 
             # Iterate over all cells and periodically shifted neighbors
-            for (ci, cj) in zip(CartesianIndices(latsize), CartesianIndicesShifted(latsize, bond.n.data)) # kbtodo: Tuple(bond.n)
+            for (ci, cj) in zip(CartesianIndices(latsize), CartesianIndicesShifted(latsize, Tuple(bond.n)))
                 f(J, CartesianIndex(ci, bond.i), CartesianIndex(cj, bond.j))
             end
         end
