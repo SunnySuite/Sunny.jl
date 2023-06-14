@@ -12,6 +12,179 @@ end
 classical_to_quantum(ω, kT::Float64) = iszero(ω) ? 1.0 : ω/(kT*(1 - exp(-ω/kT)))
 classical_to_quantum(ω, ::Nothing) = 1.0
 
+# Describes a 4D parallelepided histogram in a format compatible with Mantid/Horace
+# 
+# The coordinates of the histogram axes are specified by multiplication 
+# of `q' with each row of the covectors matrix
+mutable struct BinningParameters
+    binstart::SVector{4,Float64}
+    binend::SVector{4,Float64}
+    binwidth::SVector{4,Float64}
+    covectors::SMatrix{4,4,Float64}
+end
+
+function Base.show(io::IO, ::MIME"text/plain", params::BinningParameters)
+    printstyled(io, "Binning Parameters\n"; bold=true, color=:underline)
+    nbin = params.numbins
+    for k = 1:4
+        if nbin[k] == 1
+            printstyled(io, "∫ Integrated"; bold=true)
+        else
+            printstyled(io, @sprintf("⊡ %5d bins",nbin[k]); bold=true)
+        end
+        @printf(io," from %+.3f to %+.3f along [", params.binstart[k], params.binend[k])
+        axes_names = ["x","y","z","E"]
+        inMiddle = false
+        for j = 1:4
+            if params.covectors[k,j] != 0.
+                if(inMiddle)
+                    print(io," ")
+                end
+                @printf(io,"%+.2f d%s",params.covectors[k,j],axes_names[j])
+                inMiddle = true
+            end
+        end
+        @printf(io,"] (Δ = %.3f)", params.binwidth[k]/norm(params.covectors[k,:]))
+        println()
+    end
+end
+
+# Support numbins as a (virtual) property, even though only the binwidth is stored
+Base.getproperty(params::BinningParameters, sym::Symbol) = sym == :numbins ? round.(Int64,(params.binend .- params.binstart) ./ params.binwidth) : getfield(params,sym)
+
+function Base.setproperty!(params::BinningParameters, sym::Symbol, numbins)
+    if sym == :numbins
+        binwidth = (params.binend .- params.binstart) ./ numbins
+        setfield!(params,:binwidth,binwidth)
+    else
+        setfield!(params,sym,numbins)
+    end
+end
+
+# Default coordinates are (Qx,Qy,Qz,ω)
+function BinningParameters(binstart,binend,binwidth;covectors = [1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1])
+    return BinningParameters(binstart,binend,binwidth,covectors)
+end
+
+function BinningParameters(binstart,binend;numbins,kwargs...)
+    binwidth = (binend .- binstart) ./ numbins
+    return BinningParameters(binstart,binend,binwidth;kwargs...)
+end
+
+# Integrate over one or more axes of the histogram by setting the number of bins
+# in that axis to 1
+function integrate_params!(params::BinningParameters;axis)
+    for k in axis
+        nbins = [params.numbins.data...]
+        nbins[k] = 1
+        params.numbins = SVector{4}(nbins)
+    end
+end
+
+# This places one histogram bin around each possible Sunny scattering vector.
+# This is the finest possible binning without creating bins with zero scattering vectors in them.
+function unit_res_binning_parameters(sf::StructureFactor) 
+    ωvals = ωs(sf)
+    numbins = (size(sf.samplebuf)[2:4]...,length(ωvals))
+    # Bin centers should be at Sunny scattering vectors
+    total_size = (1.,1.,1.,maximum(ωvals)) .- (0.,0.,0.,minimum(ωvals))
+    binwidth = total_size ./ (numbins .- 1)
+    binstart = (0.,0.,0.,minimum(ωvals)) .- (binwidth ./ 2)
+    binend = (1.,1.,1.,maximum(ωvals)) .+ (binwidth ./ 2)
+
+    return BinningParameters(binstart,binend,binwidth)
+end
+
+# Creates BinningParameters which implement a 1D cut in (Qx,Qy,Qz) space.
+# 
+# The x-axis of the resulting histogram consists of `cut_bins`-many bins ranging
+# from `cut_from_q` to `cut_to_q`. The binning in the transverse directions is
+# determined automatically using `plane_normal`, and has size controlled by `cut_width`.
+#
+# If the cut is too narrow, there will be very few scattering vectors per bin, or
+# the number per bin will vary substantially along the cut.
+#
+# The four axes of the resulting histogram are:
+#   1. Along the cut
+#   2. Fist transverse Q direction
+#   3. Second transverse Q direction
+#   4. Energy
+function one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,cut_bins,cut_width;plane_normal = [0,0,1],cut_height = cut_width)
+    # This covector should measure progress along the cut in r.l.u.
+    cut_covector = normalize(cut_to_q - cut_from_q)
+    # These two covectors should be perpendicular to the cut, and to each other
+    transverse_covector = normalize(plane_normal × cut_covector)
+    cotransverse_covector = normalize(transverse_covector × cut_covector)
+
+    start_x = cut_covector ⋅ cut_from_q
+    end_x = cut_covector ⋅ cut_to_q
+
+    transverse_center = transverse_covector ⋅ cut_from_q # Equal to using cut_to_q
+    cotransverse_center = cotransverse_covector ⋅ cut_from_q
+
+    unit_params = Sunny.unit_res_binning_parameters(sf)
+
+    binstart = [start_x,transverse_center - cut_width/2,cotransverse_center - cut_height/2,unit_params.binstart[4]]
+    binend = [end_x,transverse_center + cut_width/2,cotransverse_center + cut_height/2,unit_params.binend[4]]
+    numbins = [cut_bins,1,1,unit_params.numbins[4]]
+    covectors = [cut_covector... 0; transverse_covector... 0; cotransverse_covector... 0; 0 0 0 1]
+
+    return BinningParameters(binstart,binend;numbins = numbins, covectors = covectors)
+end
+
+# Returns tick marks which label the histogram bins by their bin centers
+function axes_bincenters(params::BinningParameters)
+    return (:).(params.binstart .+ params.binwidth ./ 2,params.binwidth,params.binend)
+end
+
+# SQTODO: spherical_histogram for powder averaging; BinningParameters can and should only describe
+# *linear* bins, and spheres are nonlinear. In particular, "nonlinear binning parameters" can't be pretty-printed.
+
+# Given correlation data contained in `sf` and BinningParameters describing the
+# shape of a histogram, compute the intensity and normalization for each histogram bin.
+#
+# This is an alternative to `intensities` which bins the scattering intensities into a histogram
+# instead of interpolating between them at specified `qs` values. See `unit_res_binning_parameters`
+# for a reasonable default choice of `BinningParameters` which roughly emulates `intensities` with `NoInterp`.
+function binned_histogram(sf::StructureFactor,params::BinningParameters,contractor,kT,ffdata)
+    (;binwidth,binstart,covectors,numbins) = params
+    sunHist = zeros(Float64,numbins...)
+    sunCounts = zeros(Int64,numbins...)
+    ωvals = ωs(sf)
+    for cell in CartesianIndices(size(sf.samplebuf)[2:4])
+        for (iω,ω) in enumerate(ωvals)
+
+            # Compute intensity
+            # [c.f. all_exact_wave_vectors, but we need `cell' index as well here]
+            Ls = size(sf.samplebuf)[2:4] # Lattice size
+            q = SVector((cell.I .- 1) ./ Ls) # q is in R.L.U.
+            recip_vecs = 2π*inv(sf.crystal.latvecs)'
+            k = recip_vecs * q
+            NCorr, NAtoms = size(sf.data)[1:2]
+            intensity = calc_intensity(sf,k,cell,ω,iω,contractor,kT,ffdata, Val(NCorr), Val(NAtoms))
+
+            # Figure out which bin this goes in
+            v = [q...,ω]
+            coords = covectors * v
+            xyztBin = 1 .+ floor.(Int64,(coords .- binstart) ./ binwidth)
+
+            # Check this bin is within the histogram bounds
+            if all(xyztBin .<= numbins) &&  all(xyztBin .>= 1)
+                ci = CartesianIndex(xyztBin.data)
+                sunHist[ci] += intensity
+                sunCounts[ci] += 1
+            #else
+              #@show v
+              #@show coords
+              #@show xyztBin
+              #@show numbins
+              #println()
+            end
+        end
+    end
+    return sunHist, sunCounts
+end
+
 
 # Note that requests for intensities often come in lists of nearby q values.
 # Since the data is inherently discretized, this often results in repeated calls
