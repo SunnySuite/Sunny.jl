@@ -82,6 +82,7 @@ export minimize_energy!
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/SWTCalculations.jl")
+include("SpinWaveTheory/Lanczos.jl")
 export SpinWaveTheory, dispersion, intensities, dssf
 
 include("StructureFactors/StructureFactors.jl")
