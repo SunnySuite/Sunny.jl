@@ -69,8 +69,8 @@ cryst = Crystal(latvecs, positions, 227; setting="1")
 See also [`lattice_vectors`](@ref).
 """
 struct Crystal
-    latvecs       :: Mat3                                 # Lattice vectors as columns
-    prim_latvecs  :: Mat3                                 # Primitive lattice vectors
+    latvecs        :: Mat3                                 # Lattice vectors as columns
+    prim_latvecs   :: Mat3                                 # Primitive lattice vectors
     positions      :: Vector{Vec3}                         # Positions in fractional coords
     types          :: Vector{String}                       # Types
     classes        :: Vector{Int}                          # Class indices
