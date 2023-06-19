@@ -118,9 +118,8 @@ end
 
 # This places one histogram bin around each possible Sunny scattering vector.
 # This is the finest possible binning without creating bins with zero scattering vectors in them.
-function unit_resolution_binning_parameters(sf::StructureFactor) 
-    ωvals = ωs(sf)
-    numbins = (size(sf.samplebuf)[2:4]...,length(ωvals))
+function unit_resolution_binning_parameters(ωvals,latsize) 
+    numbins = (latsize...,length(ωvals))
     # Bin centers should be at Sunny scattering vectors
     maxQ = 1 .- (1 ./ numbins)
     total_size = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .- (0.,0.,0.,minimum(ωvals))
@@ -129,6 +128,11 @@ function unit_resolution_binning_parameters(sf::StructureFactor)
     binend = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .+ (binwidth ./ 2)
 
     return BinningParameters(binstart,binend,binwidth)
+end
+function unit_resolution_binning_parameters(sf::StructureFactor) 
+    ωvals = ωs(sf)
+    latsize = size(sf.samplebuf)[2:4]
+    return unit_resolution_binning_parameters(ωvals,latsize)
 end
 
 # Creates BinningParameters which implement a 1D cut in (Qx,Qy,Qz) space.
@@ -145,7 +149,7 @@ end
 #   2. Fist transverse Q direction
 #   3. Second transverse Q direction
 #   4. Energy
-function one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,cut_bins::Int64,cut_width;plane_normal = [0,0,1],cut_height = cut_width)
+function one_dimensional_cut_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q,cut_bins::Int64,cut_width;plane_normal = [0,0,1],cut_height = cut_width)
     # This covector should measure progress along the cut in r.l.u.
     cut_covector = normalize(cut_to_q - cut_from_q)
     # These two covectors should be perpendicular to the cut, and to each other
@@ -158,15 +162,19 @@ function one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,c
     transverse_center = transverse_covector ⋅ cut_from_q # Equal to using cut_to_q
     cotransverse_center = cotransverse_covector ⋅ cut_from_q
 
-    unit_params = unit_resolution_binning_parameters(sf)
+    ωbinwidth = (maximum(ωvals) - minimum(ωvals)) / (length(ωvals) - 1)
+    ωstart = minimum(ωvals) - ωbinwidth / 2
+    ωend = maximum(ωvals) + ωbinwidth / 2
 
-    binstart = [start_x,transverse_center - cut_width/2,cotransverse_center - cut_height/2,unit_params.binstart[4]]
-    binend = [end_x,transverse_center + cut_width/2,cotransverse_center + cut_height/2,unit_params.binend[4]]
-    numbins = [cut_bins,1,1,unit_params.numbins[4]]
+
+    binstart = [start_x,transverse_center - cut_width/2,cotransverse_center - cut_height/2,ωstart]
+    binend = [end_x,transverse_center + cut_width/2,cotransverse_center + cut_height/2,ωend]
+    numbins = [cut_bins,1,1,length(ωvals)]
     covectors = [cut_covector... 0; transverse_covector... 0; cotransverse_covector... 0; 0 0 0 1]
 
     return BinningParameters(binstart,binend;numbins = numbins, covectors = covectors)
 end
+one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...) = one_dimensional_cut_binning_parameters(ωs(sf),cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...)
 
 # Returns tick marks which label the histogram bins by their bin centers
 function axes_bincenters(params::BinningParameters)
@@ -185,26 +193,29 @@ Also returned is a list of marker indices corresponding to the input points, and
 a list of ranges giving the indices of each histogram `x`-axis within a concatenated histogram.
 The `density` parameter is given in samples per reciprocal lattice unit (R.L.U.).
 """
-function connected_path_bins(sf::StructureFactor,qs,density,args...;kwargs...)
+function connected_path_bins(recip_vecs,ωvals,qs,density,args...;kwargs...)
     nPts = length(qs)
     params = []
     markers = []
     ranges = []
     total_bins_so_far = 0
     push!(markers, total_bins_so_far+1)
-    recip_vecs = 2π*inv(sf.crystal.latvecs)'
     for k = 1:(nPts-1)
         startPt = qs[k]
         endPt = qs[k+1]
         dist = norm(recip_vecs*(endPt - startPt))
         nBins = round(Int64,density * norm(endPt-startPt))
-        push!(params,one_dimensional_cut_binning_parameters(sf,startPt,endPt,nBins,args...;kwargs...))
+        push!(params,one_dimensional_cut_binning_parameters(ωvals,startPt,endPt,nBins,args...;kwargs...))
         push!(ranges, total_bins_so_far .+ (1:nBins))
         total_bins_so_far = total_bins_so_far + nBins
         push!(markers, total_bins_so_far+1)
     end
     return params, markers, ranges
 end
+connected_path_bins(sf::StructureFactor, qs::Vector, density,args...;kwargs...) = connected_path_bins(2π*inv(sf.crystal.latvecs)', ωs(sf), qs, density,args...;kwargs...)
+connected_path_bins(sw::SpinWaveTheory, ωvals, qs::Vector, density,args...;kwargs...) = connected_path_bins(sw.recipvecs_chem, ωvals, qs, density,args...;kwargs...)
+
+
 
 # SQTODO: spherical_histogram for powder averaging; BinningParameters can and should only describe
 # *linear* bins, and spheres are nonlinear. In particular, "nonlinear binning parameters" can't be pretty-printed.
@@ -262,6 +273,60 @@ function intensities_binned(sf::StructureFactor,params::BinningParameters,contra
         end
     end
     return sunHist, sunCounts
+end
+
+"""
+    intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, η::Float64)
+
+Computes the unpolarized inelastic neutron scattering intensities given a
+`SpinWaveTheory`, histogram described by its `BinningParameters`, and
+a Lorentzian broadening parameter `η`.
+
+Note that this method only calculates the intensity at the bin centers--it doesn't
+integrate over the bins in any way. The output will be the same shape as if it were
+histogrammed data.
+"""
+function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, η::Float64)
+    (; sys) = swt
+    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
+    Nf = sys.mode == :SUN ? Ns-1 : 1
+    nmodes  = Nf * Nm
+
+    bin_centers = axes_bincenters(params)
+    qs = []
+    ωs = []
+    # Record all histogram bin centers
+    for ci in CartesianIndices(params.numbins.data)
+        qx_center = bin_centers[1][ci[1]]
+        qy_center = bin_centers[2][ci[2]]
+        qz_center = bin_centers[3][ci[3]]
+
+        q_center = [qx_center,qy_center,qz_center]
+        push!(qs,q_center)
+        ω_center = bin_centers[4][ci[4]]
+        push!(ωs,ω_center)
+    end
+
+    # Compute SWT at bin center qs
+    disp, Sαβs = dssf(swt, qs)
+
+    is = zeros(Float64,params.numbins...)
+    for (cii,ci) in enumerate(CartesianIndices(params.numbins.data))
+        q = qs[cii]
+        polar_mat = polarization_matrix(swt.recipvecs_chem * q)
+
+        for band = 1:nmodes
+            band_intensity = real(sum(polar_mat .* Sαβs[cii,band]))
+            # At a Goldstone mode, where the intensity is divergent, use a delta-function for the intensity.
+            if (disp[cii, band] < 1.0e-3) && (band_intensity > 1.0e3)
+                is[ci] += band_intensity
+            else
+                #SQTODO: This calculation is fake. It needs to integrate over the bin.
+                is[ci] += band_intensity * lorentzian(ωs[cii]-disp[cii,band], η)
+            end
+        end
+    end
+    return is
 end
 
 
