@@ -1,6 +1,6 @@
 # # Binning Tutorial
 
-using Sunny, GLMakie, ProgressMeter, Statistics, Random, Brillouin, StaticArrays
+using Sunny, GLMakie
 import Plots ## Plotting tools as import to avoid conflict with GLMakie
 
 # We specify the crystal lattice structure of CTFD using the lattice parameters specified by
