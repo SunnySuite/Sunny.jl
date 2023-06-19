@@ -26,9 +26,9 @@
             sys2 = to_inhomogeneous(sys)
             @test energy(sys2) ≈ energy(sys)
             set_vacancy_at!(sys2, (1,1,1,1))
-            set_exchange_at!(sys2, 0.5, (1,1,1,1), (2,1,1,2))
+            set_exchange_at!(sys2, 0.5, (1,1,1,1), (2,1,1,2); offset=(1, 0, 0))
             if mode != :SUN
-               set_biquadratic_at!(sys2, 0.7, (3,2,1,2), (3,1,1,3))
+               set_biquadratic_at!(sys2, 0.7, (3,2,1,2), (3,1,1,3); offset=(0,-1,0))
             end
             set_anisotropy_at!(sys2, 0.4*(𝒮[1]^4+𝒮[2]^4+𝒮[3]^4), (2,2,2,4))
             return sys2

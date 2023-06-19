@@ -166,11 +166,49 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
     end
 end
 
-# Converts two sites to a bond with indices for a reshaped system. For internal
-# use only.
-function sites_to_internal_bond(site1::CartesianIndex{4}, site2::CartesianIndex{4})
-    n = Tuple(to_cell(site2)) .- Tuple(to_cell(site1))
-    return Bond(to_atom(site1), to_atom(site2), n)
+# Converts two sites to a bond with indices for possibly reshaped unit cell. For
+# internal use only.
+function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2::CartesianIndex{4}, n_ref) where N
+    (; crystal, latsize) = sys
+
+    n0 = Tuple(to_cell(site2)) .- Tuple(to_cell(site1))
+
+    # Try to build a bond with the provided offset n_ref
+    if !isnothing(n_ref)
+        if all(iszero, mod.(n_ref .- n0, latsize))
+            return Bond(to_atom(site1), to_atom(site2), n_ref)
+        else
+            cell1 = Tuple(to_cell(site1))
+            cell2 = Tuple(to_cell(site2))
+            println("""Cells $cell1 and $cell2 are not compatible with the offset
+                       $n_ref for a system with lattice size $latsize.""")
+            error("Incompatible displacement specified")
+        end
+    end
+    
+    # Otherwise, search over all possible wrappings of the bond
+    ns = view([n0 .+ latsize .* (i,j,k) for i in -1:1, j in -1:1, k in -1:1], :)
+    bonds = map(ns) do n
+        Bond(to_atom(site1), to_atom(site2), n)
+    end
+    distances = global_distance.(Ref(crystal), bonds)
+
+    # Indices of bonds, from smallest to largest
+    perm = sortperm(distances)
+
+    # If one of the bonds is much shorter than all others by some arbitrary
+    # `safety` factor, then return it
+    safety = 4
+    if safety * distances[perm[1]] < distances[perm[2]] - 1e-12
+        return bonds[perm[1]]
+    else
+        println(distances[perm])
+        n1 = bonds[perm[1]].n
+        n2 = bonds[perm[2]].n
+        println("""Cannot find an obvious offset vector. Possibilities include $n1 and $n2.
+                   Try using a bigger system size, or pass an explicit offset vector.""")
+        error("Ambiguous offset between sites.")
+    end
 end
 
 # Internal function only
@@ -183,18 +221,22 @@ function push_coupling!(couplings, bond, J)
 end
 
 """
-    set_biquadratic_at!(sys::System, J, site1::Site, site2::Site)
+    set_biquadratic_at!(sys::System, J, site1::Site, site2::Site; offset=nothing)
 
 Sets the scalar biquadratic interaction along the single bond connecting two
 [`Site`](@ref)s, ignoring crystal symmetry. The system must support
 inhomogeneous interactions via [`to_inhomogeneous`](@ref).
 
+If the system is relatively small, the direction of the bond can be ambiguous
+due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
+`offset` vector, in multiples of unit cells.
+
 See also [`set_biquadratic!`](@ref).
 """
-function set_biquadratic_at!(sys::System{N}, J, site1, site2) where N
+function set_biquadratic_at!(sys::System{N}, J, site1, site2; offset=nothing) where N
     site1 = to_cartesian(site1)
     site2 = to_cartesian(site2)
-    bond = sites_to_internal_bond(site1, site2)
+    bond = sites_to_internal_bond(sys, site1, site2, offset)
 
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
@@ -206,18 +248,22 @@ end
 
 
 """
-    set_exchange_at!(sys::System, J, site1::Site, site2::Site)
+    set_exchange_at!(sys::System, J, site1::Site, site2::Site; offset=nothing)
 
 Sets the exchange interaction along the single bond connecting two
 [`Site`](@ref)s, ignoring crystal symmetry. The system must support
 inhomogeneous interactions via [`to_inhomogeneous`](@ref).
 
+If the system is relatively small, the direction of the bond can be ambiguous
+due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
+`offset` vector, in multiples of unit cells.
+
 See also [`set_exchange!`](@ref).
 """
-function set_exchange_at!(sys::System{N}, J, site1, site2) where N
+function set_exchange_at!(sys::System{N}, J, site1, site2; offset=nothing) where N
     site1 = to_cartesian(site1)
     site2 = to_cartesian(site2)
-    bond = sites_to_internal_bond(site1, site2)
+    bond = sites_to_internal_bond(sys, site1, site2, offset)
 
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)

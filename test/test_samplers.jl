@@ -173,7 +173,7 @@ end
         κ = mode==:SUN ? 2 : 1
         sys = to_inhomogeneous(System(cryst, (2,1,1), [SpinInfo(1; S)], mode; seed))
         sys.κs .= κ
-        set_exchange_at!(sys, 1.0, (1,1,1,1), (2,1,1,1))
+        set_exchange_at!(sys, 1.0, (1,1,1,1), (2,1,1,1); offset=(-1,0,0))
         randomize_spins!(sys)
 
         return sys
