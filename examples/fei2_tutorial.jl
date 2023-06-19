@@ -421,6 +421,31 @@ heatmap(1:size(is,1), ωs(sf), is;
     )
 )
 
+# For comparison, we can make the same plot using histogram bins:
+cut_width = 0.3
+density = 15
+paramsList, markers, ranges = connected_path_bins(sf,points,density,cut_width)
+
+total_bins = ranges[end][end]
+energy_bins = paramsList[1].numbins[4]
+is = zeros(Float64,total_bins,energy_bins)
+integrated_kernel = x -> atan(x/0.05)/pi # Lorentzian broadening
+for k in 1:length(paramsList)
+    h,c = intensities_binned(sf,paramsList[k],Sunny.DipoleFactor(sf),kT,formfactors;integrated_kernel = integrated_kernel)
+    is[ranges[k],:] = h[:,1,1,:] ./ c[:,1,1,:]
+end
+
+heatmap(1:size(is,1), ωs(sf), is;
+    colorrange=(0.0, maximum(is[:,8:end])),
+    axis = (
+        ylabel = "meV",
+        xticks = (markers, labels),
+        xticklabelrotation=π/8,
+        xticklabelsize=12,
+    )
+)
+
+
 # Often it is useful to plot cuts across multiple wave vectors but at a single
 # energy. 
 

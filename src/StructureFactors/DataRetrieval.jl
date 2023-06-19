@@ -17,10 +17,10 @@ classical_to_quantum(ω, ::Nothing) = 1.0
 # The coordinates of the histogram axes are specified by multiplication 
 # of `q' with each row of the covectors matrix
 mutable struct BinningParameters
-    binstart::SVector{4,Float64}
-    binend::SVector{4,Float64}
-    binwidth::SVector{4,Float64}
-    covectors::SMatrix{4,4,Float64}
+    binstart::MVector{4,Float64}
+    binend::MVector{4,Float64}
+    binwidth::MVector{4,Float64}
+    covectors::MMatrix{4,4,Float64}
 end
 
 function Base.show(io::IO, ::MIME"text/plain", params::BinningParameters)
@@ -45,7 +45,7 @@ function Base.show(io::IO, ::MIME"text/plain", params::BinningParameters)
             end
         end
         @printf(io,"] (Δ = %.3f)", params.binwidth[k]/norm(params.covectors[k,:]))
-        println()
+        println(io)
     end
 end
 
@@ -73,24 +73,60 @@ end
 
 # Integrate over one or more axes of the histogram by setting the number of bins
 # in that axis to 1
-function integrate_params!(params::BinningParameters;axis)
-    for k in axis
+function integrate_axes!(params::BinningParameters;axes)
+    for k in axes
         nbins = [params.numbins.data...]
         nbins[k] = 1
         params.numbins = SVector{4}(nbins)
     end
+    return params
+end
+
+function rlu_to_absolute_units!(sf,params::BinningParameters)
+    recip_vecs = 2π*inv(sf.crystal.latvecs)'
+    covectorsQ = params.covectors
+
+    # covectorsQ * q = covectorsK * k = covectorsK * recip_vecs * q
+    covectorsK = covectorsQ * [inv(recip_vecs) [0;0;0]; [0 0 0] 1]
+    params.covectors = MMatrix{4,4}(covectorsK)
+end
+
+
+function generate_shiver_script(params)
+    covectorsK = params.covectors # Please call rlu_to_absolute_units! first if needed
+    #function bin_string(k)
+        #if params.numbins[k] == 1
+            #return "$(params.binsstart[k]),$(params.binend[k])"
+        #else
+            #return "$(params.binsstart[k]),$(params.binend[k])"
+        #end
+    #end
+    return """MakeSlice(InputWorkspace="merged_mde_INPUT",
+        QDimension0="$(covectorsK[1,1]),$(covectorsK[1,2]),$(covectorsK[1,3])",
+        QDimension1="$(covectorsK[2,1]),$(covectorsK[2,2]),$(covectorsK[2,3])",
+        QDimension2="$(covectorsK[3,1]),$(covectorsK[3,2]),$(covectorsK[3,3])",
+        Dimension0Binning="$(params.binstart[1]),$(params.binwidth[1]),$(params.binend[1])",
+        Dimension1Name="DeltaE",
+        Dimension1Binning="$(params.binstart[2]),$(params.binwidth[2]),$(params.binend[2])",
+        Dimension2Binning="$(params.binstart[3]),$(params.binwidth[3]),$(params.binend[3])",
+        Dimension3Binning="$(params.binstart[4]),$(params.binwidth[4]),$(params.binend[4])",
+        Dimension3Name="QDimension1",
+        Smoothing="0",
+        OutputWorkspace="Histogram_OUTPUT")
+        """
 end
 
 # This places one histogram bin around each possible Sunny scattering vector.
 # This is the finest possible binning without creating bins with zero scattering vectors in them.
-function unit_res_binning_parameters(sf::StructureFactor) 
+function unit_resolution_binning_parameters(sf::StructureFactor) 
     ωvals = ωs(sf)
     numbins = (size(sf.samplebuf)[2:4]...,length(ωvals))
     # Bin centers should be at Sunny scattering vectors
-    total_size = (1.,1.,1.,maximum(ωvals)) .- (0.,0.,0.,minimum(ωvals))
+    maxQ = 1 .- (1 ./ numbins)
+    total_size = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .- (0.,0.,0.,minimum(ωvals))
     binwidth = total_size ./ (numbins .- 1)
     binstart = (0.,0.,0.,minimum(ωvals)) .- (binwidth ./ 2)
-    binend = (1.,1.,1.,maximum(ωvals)) .+ (binwidth ./ 2)
+    binend = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .+ (binwidth ./ 2)
 
     return BinningParameters(binstart,binend,binwidth)
 end
@@ -109,7 +145,7 @@ end
 #   2. Fist transverse Q direction
 #   3. Second transverse Q direction
 #   4. Energy
-function one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,cut_bins,cut_width;plane_normal = [0,0,1],cut_height = cut_width)
+function one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,cut_bins::Int64,cut_width;plane_normal = [0,0,1],cut_height = cut_width)
     # This covector should measure progress along the cut in r.l.u.
     cut_covector = normalize(cut_to_q - cut_from_q)
     # These two covectors should be perpendicular to the cut, and to each other
@@ -122,7 +158,7 @@ function one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,c
     transverse_center = transverse_covector ⋅ cut_from_q # Equal to using cut_to_q
     cotransverse_center = cotransverse_covector ⋅ cut_from_q
 
-    unit_params = Sunny.unit_res_binning_parameters(sf)
+    unit_params = unit_resolution_binning_parameters(sf)
 
     binstart = [start_x,transverse_center - cut_width/2,cotransverse_center - cut_height/2,unit_params.binstart[4]]
     binend = [end_x,transverse_center + cut_width/2,cotransverse_center + cut_height/2,unit_params.binend[4]]
@@ -137,6 +173,39 @@ function axes_bincenters(params::BinningParameters)
     return (:).(params.binstart .+ params.binwidth ./ 2,params.binwidth,params.binend)
 end
 
+"""
+    connected_path_bins(sf,qs,density,args...;kwargs...)
+
+Takes a list of wave vectors, `qs`, and builds a series of histogram `BinningParameters`
+whose first axis traces a path through the provided points.
+The second and third axes are integrated over according to the `args` and `kwargs`,
+which are passed through to `one_dimensional_cut_binning_parameters`.
+
+Also returned is a list of marker indices corresponding to the input points, and
+a list of ranges giving the indices of each histogram `x`-axis within a concatenated histogram.
+The `density` parameter is given in samples per reciprocal lattice unit (R.L.U.).
+"""
+function connected_path_bins(sf::StructureFactor,qs,density,args...;kwargs...)
+    nPts = length(qs)
+    params = []
+    markers = []
+    ranges = []
+    total_bins_so_far = 0
+    push!(markers, total_bins_so_far+1)
+    recip_vecs = 2π*inv(sf.crystal.latvecs)'
+    for k = 1:(nPts-1)
+        startPt = qs[k]
+        endPt = qs[k+1]
+        dist = norm(recip_vecs*(endPt - startPt))
+        nBins = round(Int64,density * norm(endPt-startPt))
+        push!(params,one_dimensional_cut_binning_parameters(sf,startPt,endPt,nBins,args...;kwargs...))
+        push!(ranges, total_bins_so_far .+ (1:nBins))
+        total_bins_so_far = total_bins_so_far + nBins
+        push!(markers, total_bins_so_far+1)
+    end
+    return params, markers, ranges
+end
+
 # SQTODO: spherical_histogram for powder averaging; BinningParameters can and should only describe
 # *linear* bins, and spheres are nonlinear. In particular, "nonlinear binning parameters" can't be pretty-printed.
 
@@ -144,13 +213,14 @@ end
 # shape of a histogram, compute the intensity and normalization for each histogram bin.
 #
 # This is an alternative to `intensities` which bins the scattering intensities into a histogram
-# instead of interpolating between them at specified `qs` values. See `unit_res_binning_parameters`
+# instead of interpolating between them at specified `qs` values. See `unit_resolution_binning_parameters`
 # for a reasonable default choice of `BinningParameters` which roughly emulates `intensities` with `NoInterp`.
-function binned_histogram(sf::StructureFactor,params::BinningParameters,contractor,kT,ffdata)
+function intensities_binned(sf::StructureFactor,params::BinningParameters,contractor, kT, ffdata;integrated_kernel = nothing)
     (;binwidth,binstart,covectors,numbins) = params
     sunHist = zeros(Float64,numbins...)
-    sunCounts = zeros(Int64,numbins...)
+    sunCounts = zeros(Float64,numbins...)
     ωvals = ωs(sf)
+    recip_vecs = 2π*inv(sf.crystal.latvecs)'
     for cell in CartesianIndices(size(sf.samplebuf)[2:4])
         for (iω,ω) in enumerate(ωvals)
 
@@ -158,10 +228,6 @@ function binned_histogram(sf::StructureFactor,params::BinningParameters,contract
             # [c.f. all_exact_wave_vectors, but we need `cell' index as well here]
             Ls = size(sf.samplebuf)[2:4] # Lattice size
             q = SVector((cell.I .- 1) ./ Ls) # q is in R.L.U.
-            recip_vecs = 2π*inv(sf.crystal.latvecs)'
-            k = recip_vecs * q
-            NCorr, NAtoms = size(sf.data)[1:2]
-            intensity = calc_intensity(sf,k,cell,ω,iω,contractor,kT,ffdata, Val(NCorr), Val(NAtoms))
 
             # Figure out which bin this goes in
             v = [q...,ω]
@@ -171,14 +237,27 @@ function binned_histogram(sf::StructureFactor,params::BinningParameters,contract
             # Check this bin is within the histogram bounds
             if all(xyztBin .<= numbins) &&  all(xyztBin .>= 1)
                 ci = CartesianIndex(xyztBin.data)
-                sunHist[ci] += intensity
-                sunCounts[ci] += 1
-            #else
-              #@show v
-              #@show coords
-              #@show xyztBin
-              #@show numbins
-              #println()
+                k = recip_vecs * q
+                NCorr, NAtoms = size(sf.data)[1:2]
+                intensity = calc_intensity(sf,k,cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                if isnothing(integrated_kernel)
+                    sunHist[ci] += intensity
+                    sunCounts[ci] += 1
+                else
+                    # `Energy broadening into bins' logic
+                    if covectors[4,:] == [0,0,0,1]
+                        for i = 1:numbins[4]
+                            ci_other = CartesianIndex(ci[1],ci[2],ci[3],i)
+                            a = binstart[4] + (i - 1) * binwidth[4]
+                            b = binstart[4] + i * binwidth[4]
+                            fraction_in_bin = integrated_kernel(b - ω) - integrated_kernel(a - ω)
+                            sunHist[ci_other] += fraction_in_bin * intensity
+                            sunCounts[ci_other] += fraction_in_bin
+                        end
+                    else
+                        error("Energy broadening not yet implemented for histograms with complicated energy axes")
+                    end
+                end
             end
         end
     end
