@@ -1,6 +1,6 @@
 name = "Sunny"
 uuid = "2b4a2ac8-8f8b-43e8-abf4-3cb0c45e8736"
-authors = ["Cole Miles <cmm572@cornell.edu>", "Kipton Barros <kbarros@lanl.gov>", "Matthew Wilson <msw@lanl.gov>", "David Dahlbohm <ddahlbom@utk.edu>"]
+authors = ["The Sunny team"]
 version = "0.4.3"
 
 [deps]
@@ -36,6 +36,7 @@ Inflate = "0.1.2"
 Interpolations = "0.14.4"
 JSON = "0.21.3"
 OffsetArrays = "1.10.8"
+Optim = "1.7.6"
 ProgressMeter = "1.7.1"
 Requires = "1.3.0"
 RowEchelon = "0.2.1"
