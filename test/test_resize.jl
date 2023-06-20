@@ -101,7 +101,8 @@ end
     polarize_spins!(sys, (0,0,1))
 
     J = 1.5
-    set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
+    bond = Bond(1, 1, [1, 0, 0])
+    set_exchange!(sys, J, bond)
 
     E0 = J * prod(latsize) * (6/2)
     @test energy(sys) == E0
@@ -116,8 +117,33 @@ end
 
     for sys′ in to_inhomogeneous.((sys, sys2))
         @test energy(sys′) ≈ E0
-        @test length(symmetry_equivalent_bonds(sys′, Bond(1, 1, [1, 0, 0]))) ≈ E0 / J
+
+        # Check that we can overwrite all the bonds in inhomogeneous mode
+        for (site1, site2, offset) in symmetry_equivalent_bonds(sys′, bond)
+            set_exchange_at!(sys′, 2J, site1, site2; offset)
+        end
+        @test energy(sys′) ≈ 2*E0
     end
+end
+
+
+@testitem "Remove periodicity" begin
+    a = 1
+    latvecs = lattice_vectors(a, a, a, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0,0,0]])
+
+    L = 3
+    bond = Bond(1, 1, (1, 0, 0))
+    sys = System(cryst, (L,L,L), [SpinInfo(1, S=1)], :dipole, seed=0)
+    set_exchange!(sys, 1, bond)
+    @test energy(sys) == 81
+
+    # Remove periodic boundaries in certain directions
+    sys2 = to_inhomogeneous(sys)
+    remove_periodicity!(sys2, (true, false, false))
+    @test energy(sys2) == 72
+    remove_periodicity!(sys2, (true, false, true))
+    @test energy(sys2) == 63
 end
 
 

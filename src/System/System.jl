@@ -287,14 +287,14 @@ not included (no double counting).
 
 # Example
 ```julia
-for (site1, site2) in symmetry_equivalent_bonds(sys, bond)
+for (site1, site2, offset) in symmetry_equivalent_bonds(sys, bond)
     @assert site1 < site2
-    set_exchange_at!(sys, J, site1, site2)
+    set_exchange_at!(sys, J, site1, site2; offset)
 end
 ```
 """
 function symmetry_equivalent_bonds(sys::System, bond::Bond)
-    ret = Tuple{Site, Site}[]
+    ret = Tuple{Site, Site, SVector{3, Int}}[]
 
     for new_i in 1:natoms(sys.crystal)
         # atom index in original crystal
@@ -311,7 +311,7 @@ function symmetry_equivalent_bonds(sys::System, bond::Bond)
                 new_cell_j = offsetc(new_cell_i, new_bond.n, sys.latsize)
                 site_i = (Tuple(new_cell_i)..., new_bond.i)
                 site_j = (Tuple(new_cell_j)..., new_bond.j)
-                site_i < site_j && push!(ret, (site_i, site_j))
+                site_i < site_j && push!(ret, (site_i, site_j, new_bond.n))
             end
         end
     end
