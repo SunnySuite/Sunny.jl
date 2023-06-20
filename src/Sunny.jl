@@ -68,7 +68,7 @@ export SpinInfo, System, Site, all_sites, position_to_site,
     global_position, magnetic_moment, polarize_spin!, polarize_spins!, randomize_spins!, energy, forces,
     set_external_field!, set_anisotropy!, set_exchange!, set_biquadratic!, dmvec, enable_dipole_dipole!,
     to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_anisotropy_at!,
-    symmetry_equivalent_bonds, set_exchange_at!, set_biquadratic_at!
+    symmetry_equivalent_bonds, set_exchange_at!, set_biquadratic_at!, remove_periodicity!
 
 include("Reshaping.jl")
 export reshape_geometry, resize_periodically, repeat_periodically, 
