@@ -3,7 +3,15 @@
 ###########################################################################
 
 """
-Additional fields for linear spin-wave calculations.
+    SpinWaveTheory(sys, energy_ϵ::Float64=1e-8, energy_tol=1e-6)
+
+**Experimental**. Constructs an object to perform linear spin wave theory. Use
+it with [`dispersion`](@ref) and [`dssf`](@ref) functions.
+
+The optional parameter `energy_ϵ` adds a small positive shift to the diagonal of
+the dynamical matrix ``D`` to avoid numerical issues with zero-energy
+quasi-particle modes. The optional parameter `energy_tol` relaxes the check on
+the imaginary part of the eigenvalues.
 """
 struct SpinWaveTheory
     sys   :: System
@@ -123,9 +131,6 @@ function generate_local_sun_gens(sys :: System)
     return s̃_mat, T̃_mat, Q̃_mat
 end
 
-"""
-External constructor for `SpinWaveTheory`
-"""
 function SpinWaveTheory(sys::System{N}, energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6) where N
     (N == 0) && error("`SpinWaveTheory` requires an SU(N) `System`. Dipole mode is not currently supported.") 
 

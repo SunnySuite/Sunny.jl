@@ -1,10 +1,22 @@
 # Version 0.4.3
 
-Implement renormalization of single-ion anisotropy when in `:dipole` mode. This
-makes the model more faithful to the quantum mechanical Hamiltonian.
+**Experimental** support for linear [`SpinWaveTheory`](@ref), implemented in
+SU(_N_) mode. This module may evolve rapidly.
 
-The functions [`set_exchange_at!`](@ref) and [`set_biquadratic_at!`](@ref) now
-expect two [`Site`](@ref)s, rather than a `Site` and a `Bond`.
+Implement renormalization of single-ion anisotropy and biquadratic interactions
+when in `:dipole` mode. This makes the model more faithful to the quantum
+mechanical Hamiltonian, but is also a **breaking change**.
+
+Various improvements and bugfixes for [`to_inhomogeneous`](@ref). Setting
+inhomogeneous interactions via [`set_exchange_at!`](@ref) should now infer the
+correct bond offset direction, or will report an ambiguity error. Ambiguities
+can be resolved by passing an explicit `offset`.
+
+The function [`remove_periodicity!`](@ref) disables periodicity along specified
+dimensions.
+
+Rename `StaticStructureFactor` to [`InstantStructureFactor`](@ref).
+
 
 # Version 0.4.2
 
