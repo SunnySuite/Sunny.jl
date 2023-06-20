@@ -14,4 +14,4 @@ Private = false
 ## Plotting
 
 To reduce package load times, certain plotting functions are only available when
-the user explicitly executes "`using GLMakie`".
+the user explicitly loads Makie, e.g., with `using GLMakie` or `using WGLMakie`.

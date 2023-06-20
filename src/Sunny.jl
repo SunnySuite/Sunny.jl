@@ -110,9 +110,9 @@ include("MonteCarlo/WangLandau.jl")
 include("MonteCarlo/ParallelWangLandau.jl")
 export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
 
-# GLMakie is an optional dependency
+# Makie (e.g., WGLMakie or GLMakie) is an optional dependency
 function __init__()
-    @require GLMakie="e9467ef8-e4e7-5192-8a1a-b1aee30e663a" begin
+    @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
         include("Plotting.jl")
         export plot_spins
             # plot_lattice, plot_bonds, plot_all_bonds, anim_integration, live_integration, live_langevin_integration

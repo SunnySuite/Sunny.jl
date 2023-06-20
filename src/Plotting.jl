@@ -1,11 +1,10 @@
-"""Plotting functions for lattices and spins on lattices.
-"""
+# Plotting functions for lattices and spins on lattices.
 
 function _setup_scene(; show_axis=false, ortho=false)
-    fig = GLMakie.Figure()
-    ax = GLMakie.LScene(fig[1, 1]; show_axis)
+    fig = Makie.Figure()
+    ax = Makie.LScene(fig[1, 1]; show_axis)
     if ortho
-        _ = GLMakie.cam3d!(ax.scene, projectiontype=GLMakie.Makie.Orthographic)
+        _ = Makie.cam3d!(ax.scene, projectiontype=Makie.Orthographic)
     end
     return fig, ax
 end
@@ -13,13 +12,13 @@ end
 #=
 function plot_lattice!(ax, lattice::Lattice; colors=:Set1_9, markersize=200, linecolor=:grey, linewidth=1.0, kwargs...)
     unique_types = unique(lattice.types)
-    colors = GLMakie.resample_cmap(colors, 9)
+    colors = Makie.resample_cmap(colors, 9)
 
     # Plot markers at each site
-    pts = GLMakie.Point3f0.(vec(lattice))
+    pts = Makie.Point3f0.(vec(lattice))
     for (i, type) in enumerate(unique_types)
         bs = findall(isequal(type), lattice.types)
-        GLMakie.scatter!(ax, pts; label=type, color=colors[i], markersize=markersize, kwargs...)
+        Makie.scatter!(ax, pts; label=type, color=colors[i], markersize=markersize, kwargs...)
     end
 
     # For some odd reason, the sites will not appear unless this happens afterwards
@@ -31,7 +30,7 @@ function plot_lattice(lattice::Lattice; kwargs...)
     fig, ax = _setup_scene()
     plot_lattice!(ax, lattice; kwargs...)
     # TODO: Markers are often way too big.
-    fig[1, 2] = GLMakie.Legend(fig, ax, "Species")
+    fig[1, 2] = Makie.Legend(fig, ax, "Species")
     fig
 end
 
@@ -48,7 +47,7 @@ colors=:Set1_9, markersize=20, linecolor=:grey, linewidth=1.0, kwargs...
 - `markersize=20`  : Sets the size of the atomic sites
 - `colors=:Set1_9` : Sets the colors used for the atomic sites
 
-Additional keyword arguments are given to `GLMakie.scatter!` which
+Additional keyword arguments are given to `Makie.scatter!` which
 draws the points.
 """
 plot_lattice(cryst::Crystal, latsize=(3,3,3); kwargs...) = plot_lattice(Lattice(cryst, latsize); kwargs...)
@@ -62,7 +61,7 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
     # TODO: Make selectable in GUI
     b = 1
 
-    colors = GLMakie.resample_cmap(colors, 8)
+    colors = Makie.resample_cmap(colors, 8)
     # Sort interactions so that longer bonds are plotted first
     sorted_ints = sort(
         ints, 
@@ -76,8 +75,8 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
     # Plot the lattice
     plot_lattice!(ax, lattice; kwargs...)
 
-    toggles = Vector{GLMakie.Toggle}()
-    labels = Vector{GLMakie.Label}()
+    toggles = Vector{Makie.Toggle}()
+    labels = Vector{Makie.Label}()
     cent_cell = CartesianIndex(div.(lattice.size .+ 1, 2)...)
     cent_pt = lattice[cent_cell, b]
     for (n, int) in enumerate(sorted_ints)
@@ -85,27 +84,27 @@ function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
             continue
         end
 
-        pts = Vector{GLMakie.Point3f0}()
+        pts = Vector{Makie.Point3f0}()
         for (bond, _) in sublat_bonds(int.bondtable, b)
             new_cell = offsetc(cent_cell, bond.n, lattice.size)
             bond_pt = lattice[new_cell, bond.j]
-            push!(pts, GLMakie.Point3f0(cent_pt))
-            push!(pts, GLMakie.Point3f0(bond_pt))
+            push!(pts, Makie.Point3f0(cent_pt))
+            push!(pts, Makie.Point3f0(bond_pt))
         end
         if length(pts) == 0
             continue
         end
 
         color = colors[mod1(n, 8)]
-        seg = GLMakie.linesegments!(pts; linewidth=bondwidth, label=int.label, color=color)
-        tog = GLMakie.Toggle(fig, active=true)
-        GLMakie.connect!(seg.visible, tog.active)
+        seg = Makie.linesegments!(pts; linewidth=bondwidth, label=int.label, color=color)
+        tog = Makie.Toggle(fig, active=true)
+        Makie.connect!(seg.visible, tog.active)
         push!(toggles, tog)
-        push!(labels, GLMakie.Label(fig, int.label))
+        push!(labels, Makie.Label(fig, int.label))
     end
-    GLMakie.axislegend()
+    Makie.axislegend()
     if length(toggles) > 0
-        fig[1, 2] = GLMakie.grid!(hcat(toggles, labels), tellheight=false)
+        fig[1, 2] = Makie.grid!(hcat(toggles, labels), tellheight=false)
     end
     fig
 end
@@ -204,29 +203,29 @@ end
 function plot_cells!(ax, sys::System; color=:grey, linewidth=1.0, kwargs...)
     lattice(i, j, k) = sys.crystal.latvecs * Vec3(i, j, k)
 
-    pts = Vector{GLMakie.Point3f0}()
+    pts = Vector{Makie.Point3f0}()
     nx, ny, nz = lattice.size
     for j in 1:ny
         for k in 1:nz
             bot_pt, top_pt = lattice(1, j, k), lattice(nx, j, k)
-            push!(pts, GLMakie.Point3f0(bot_pt))
-            push!(pts, GLMakie.Point3f0(top_pt))
+            push!(pts, Makie.Point3f0(bot_pt))
+            push!(pts, Makie.Point3f0(top_pt))
         end
         for i in 1:nx
             left_pt, right_pt = lattice(i, j, 1), lattice(i, j, nz)
-            push!(pts, GLMakie.Point3f0(left_pt))
-            push!(pts, GLMakie.Point3f0(right_pt))
+            push!(pts, Makie.Point3f0(left_pt))
+            push!(pts, Makie.Point3f0(right_pt))
         end
     end
     for k in 1:nz
         for i in 1:nx
             left_pt, right_pt = lattice(i, 1, k), lattice(i, ny, k)
-            push!(pts, GLMakie.Point3f0(left_pt))
-            push!(pts, GLMakie.Point3f0(right_pt))
+            push!(pts, Makie.Point3f0(left_pt))
+            push!(pts, Makie.Point3f0(right_pt))
         end
     end
 
-    GLMakie.linesegments!(ax, pts; color=color, linewidth=linewidth)
+    Makie.linesegments!(ax, pts; color=color, linewidth=linewidth)
 end
 =#
 
@@ -240,16 +239,16 @@ end
     plot_spins(sys::System; linecolor=:grey, arrowcolor=:red, linewidth=0.1,
                                 arrowsize=0.3, arrowlength=1.0, kwargs...)
 
-Plot the spin configuration defined by `sys`. `kwargs` are passed to `GLMakie.arrows`.        
+Plot the spin configuration defined by `sys`. `kwargs` are passed to `Makie.arrows`.        
 """
 function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
     linewidth=0.1, arrowsize=0.2, arrowlength=0.2, ortho=false, kwargs...)
 
     fig, ax = _setup_scene(; ortho)
 
-    pts = GLMakie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
-    vecs = GLMakie.Vec3f0.(sys.dipoles[:])
-    GLMakie.arrows!(
+    pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
+    vecs = Makie.Vec3f0.(sys.dipoles[:])
+    Makie.arrows!(
         ax, pts, vecs;
         linecolor, arrowcolor, linewidth, arrowsize,
         lengthscale=arrowlength, kwargs...
@@ -268,7 +267,7 @@ Produce an animation of constant-energy Landau-Lifshitz dynamics of the given `s
 - `Δt::Float64`: The integration timestep size.
 - `nframes::Int`: The number of frames to produce in the animation.
 
-Other keyword arguments are passed to `GLMakie.arrows`.
+Other keyword arguments are passed to `Makie.arrows`.
 """
 function anim_integration(
     sys::System, fname, steps_per_frame, Δt, nframes;
@@ -277,9 +276,9 @@ function anim_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
-    vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
-    GLMakie.arrows!(
+    pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
+    vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
+    Makie.arrows!(
         ax, pts, vecs;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
         lengthscale=arrowlength, kwargs...    
@@ -289,11 +288,11 @@ function anim_integration(
     framerate = 30
     integrator = ImplicitMidpoint(Δt)
 
-    GLMakie.record(fig, fname, 1:nframes; framerate=framerate) do frame
+    Makie.record(fig, fname, 1:nframes; framerate=framerate) do frame
         for _ in 1:steps_per_frame
             step!(sys, integrator)
         end
-        vecs[] = GLMakie.Vec3f0.(sys.dipoles[:])
+        vecs[] = Makie.Vec3f0.(sys.dipoles[:])
     end
 end
 
@@ -310,9 +309,9 @@ function live_integration(
 )
     fig, ax = _setup_scene()
 
-    pts = GLMakie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
-    vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
-    GLMakie.arrows!(
+    pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
+    vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
+    Makie.arrows!(
         ax, pts, vecs;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
         lengthscale=arrowlength, kwargs...    
@@ -325,7 +324,7 @@ function live_integration(
         for step in 1:steps_per_frame
             step!(sys, integrator)
         end
-        vecs[] = GLMakie.Vec3f0.(sys.dipoles[:])
+        vecs[] = Makie.Vec3f0.(sys.dipoles[:])
         sleep(1/framerate)
     end
 end
@@ -342,10 +341,10 @@ function live_langevin_integration(
     arrowlength=0.2, λ=0.1, framerate=30, kwargs...
 )
     fig, ax = _setup_scene(; show_axis=false)
-    pts = GLMakie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
-    vecs = GLMakie.Observable(GLMakie.Vec3f0.(view(sys.dipoles,:)))
+    pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
+    vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
     
-    GLMakie.arrows!(
+    Makie.arrows!(
         ax, pts, vecs;
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
         lengthscale=arrowlength, kwargs...    
@@ -358,7 +357,7 @@ function live_langevin_integration(
         for _ in 1:steps_per_frame
             step!(sys, integrator)
         end
-        vecs[] = GLMakie.Vec3f0.(sys.dipoles[:])
+        vecs[] = Makie.Vec3f0.(sys.dipoles[:])
         sleep(1/framerate)
     end
 end
@@ -381,23 +380,23 @@ function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz)
     ky = 1:sampy*Ly
     ω  = 1:T
 
-    lsgrid = GLMakie.labelslidergrid!(
+    lsgrid = Makie.labelslidergrid!(
         fig,
         ["kx", "ky", "ω"],
         [1:sampx*Lx, 1:sampy*Ly, 1:T]
     )
     fig[2, 1] = lsgrid.layout
-    volslices = GLMakie.volumeslices!(ax, kx, ky, ω, sfactor)
+    volslices = Makie.volumeslices!(ax, kx, ky, ω, sfactor)
 
     # See: http://makie.juliaplots.org/stable/plotting_functions/volumeslices.html
     sl_yz, sl_xz, sl_xy = lsgrid.sliders
-    GLMakie.on(sl_yz.value) do v; volslices[:update_yz][](v) end
-    GLMakie.on(sl_xz.value) do v; volslices[:update_xz][](v) end
-    GLMakie.on(sl_xy.value) do v; volslices[:update_xy][](v) end
+    Makie.on(sl_yz.value) do v; volslices[:update_yz][](v) end
+    Makie.on(sl_xz.value) do v; volslices[:update_xz][](v) end
+    Makie.on(sl_xy.value) do v; volslices[:update_xy][](v) end
 
-    GLMakie.set_close_to!(sl_yz, .5Lx)
-    GLMakie.set_close_to!(sl_xz, .5Ly)
-    GLMakie.set_close_to!(sl_xy, .5T)
+    Makie.set_close_to!(sl_yz, .5Lx)
+    Makie.set_close_to!(sl_xz, .5Ly)
+    Makie.set_close_to!(sl_xy, .5T)
 
     fig
 end
