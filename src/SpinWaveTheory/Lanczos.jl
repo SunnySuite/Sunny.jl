@@ -38,20 +38,20 @@ function lanczos_aux!(αs, βs, buf, A, niters)
     v, vprev, w = view(buf,:,1), view(buf,:,2), view(buf,:,3)
 
     @label initialize_lanczos
-    randn!(vprev)
-    normalize!(vprev)
-    mul!(w, A, vprev)
-    αs[1] = real(w⋅vprev)
-    @. w = w - αs[1]*vprev
+    randn!(v)
+    normalize!(v)
+    mul!(w, A, v)
+    αs[1] = real(w⋅v)
+    @. w = w - αs[1]*v
 
     for j in 2:niters
+        v, vprev = vprev, v
         βs[j-1] = norm(w)
         (abs(βs[j-1]) < 1e-12) && (@goto initialize_lanczos)
         @. v = w/βs[j-1]
         mul!(w, A, v)
         αs[j] = real(w⋅v)
         @. w = w - αs[j]*v - βs[j-1]*vprev
-        v, vprev = vprev, v
     end
 
     return nothing

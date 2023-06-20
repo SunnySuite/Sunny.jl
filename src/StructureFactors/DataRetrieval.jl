@@ -6,10 +6,10 @@
 function calc_intensity(sf::StructureFactor, k, cell, ω, iω, contractor, kT, ffdata, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
     elems = phase_averaged_elements(view(sf.data,:,:,:,cell,iω), k, sf, ffdata, Val(NCorr), Val(NAtoms))
     intensity = contract(elems, k, contractor)
-    return intensity * classical_to_quantum(ω, kT)
+    return intensity * classical_to_quantum(ω, kT)  # DDTodo: Probably make this a post-processing step 
 end
 
-classical_to_quantum(ω, kT::Float64) = iszero(ω) ? 1.0 : ω/(kT*(1 - exp(-ω/kT)))
+classical_to_quantum(ω, kT::Float64) = ω > 0 ? ω/(kT*(1 - exp(-ω/kT))) : iszero(ω) ? 1.0 : -ω*exp(ω/kT)/(kT*(1 - exp(ω/kT)))
 classical_to_quantum(ω, ::Nothing) = 1.0
 
 
@@ -116,6 +116,11 @@ function intensities(sf::StructureFactor, qs, mode;
     # Make sure it's a dynamical structure factor 
     if static_warn && size(sf.data, 7) == 1
         error("`intensities` given a StructureFactor with no dynamical information. Call `instant_intensities` to retrieve instantaneous (static) structure factor data.")
+    end
+
+    # If temperature given, ensure it's greater than 0.0
+    if !isnothing(kT) && iszero(kT)
+        error("`kT` must be greater than zero.")
     end
 
     # Set up interpolation scheme
