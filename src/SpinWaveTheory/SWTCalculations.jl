@@ -352,10 +352,10 @@ end
 """
     dispersion(swt::SpinWaveTheory, qs)
 
-Computes the spin excitation energy dispersion relations given a `SpinWaveField`
-and an array of wave vectors `qs`. Each element ``q`` of `qs` must be a 3-vector
-in units of reciprocal lattice units. I.e., ``qᵢ`` is given in ``2π/|aᵢ|`` with
-``|aᵢ|`` the lattice constant of the chemical lattice.
+**Experimental**. Computes the spin excitation energy dispersion relations given a
+[`SpinWaveTheory`](@ref) and an array of wave vectors `qs`. Each element ``q``
+of `qs` must be a 3-vector in units of reciprocal lattice units. I.e., ``qᵢ`` is
+given in ``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the chemical lattice.
 
 The first indices of the returned array correspond to those of `qs`. A final
 index, corresponding to mode, is added to these. Each entry of the array is an
@@ -387,18 +387,26 @@ end
 """
     dssf(swt::SpinWaveTheory, qs)
 
-Computes the dynamical spin structure factor: \n 𝒮ᵅᵝ(k, ω) = 1/(2πN)∫dω ∑ₖ
-    exp[i(ωt - k⋅r)] ⟨Sᵅ(r, t)Sᵝ(0, 0)⟩ \n For spin-wave theory at the linear
-level 𝒮ᵅᵝ(k, ω) = ∑ₙ |Aₙᵅᵝ(k)|²δ[ω-ωₙ(k)]. \n
+**Experimental**. Given a [`SpinWaveTheory`](@ref) object, computes the dynamical spin structure
+factor,
+
+```math
+    𝒮^{αβ}(𝐤, ω) = 1/(2πN)∫dt ∑_𝐫 \\exp[i(ωt - 𝐤⋅𝐫)] ⟨S^α(𝐫, t)S^β(0, 0)⟩,
+```
+
+using the result from linear spin-wave theory,
+
+```math
+    𝒮^{αβ}(𝐤, ω) = ∑_n |A_n^{αβ}(𝐤)|^2 δ[ω-ω_n(𝐤)].
+```
 
 `qs` is an array of wave vectors of arbitrary dimension. Each element ``q`` of
-`qs` must be a 3-vector in reciprocal lattice units. I.e., ``qᵢ`` is given in
-``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the chemical lattice.
+`qs` must be a 3-vector in reciprocal lattice units. I.e., ``q_i`` is given in
+``2π/|a_i|`` with ``|a_i|`` the lattice constant of the chemical lattice.
 
 The first indices of the returned array correspond to those of `qs`. A final
 index, corresponding to mode, is added to these. Each entry of this array is a
-tensor (3x3 matrix) containing with indices α and β corresponding to
-``𝒮ᵅᵝ(q,ω)``.
+tensor (3×3 matrix) corresponding to the indices ``α`` and ``β``.
 """
 function dssf(swt::SpinWaveTheory, qs)
     (; sys, positions_chem, s̃_mat) = swt
