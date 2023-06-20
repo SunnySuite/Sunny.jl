@@ -284,6 +284,38 @@ end
 
 
 """
+    remove_periodicity!(sys::System, dims)
+
+Remove periodic interactions along the dimensions where `dims` is `true`. The
+system must support inhomogeneous interactions via [`to_inhomogeneous`](@ref).
+
+# Example
+
+```julia
+# Remove periodic boundaries along the 1st and 3rd dimensions
+remove_periodicity!(sys::System, (true, false, true))
+```
+"""
+function remove_periodicity!(sys::System{N}, dims) where N
+    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+
+    for site in all_sites(sys)
+        (; heisen, exchange, biquad) = interactions_inhomog(sys)[site]
+
+        for ints in (heisen, exchange, biquad)
+            filter!(ints) do (; bond)
+                offset_cell = Tuple(to_cell(site)) .+ bond.n
+
+                # keep bond if it is acceptable along every dimension (either
+                # `!dims` or if each cell component is within bounds)
+                all(@. !dims || 1 <= offset_cell <= sys.latsize)
+            end
+        end
+    end
+end
+
+
+"""
     dmvec(D)
 
 Antisymmetric matrix representation of the Dzyaloshinskii-Moriya pseudo-vector,
