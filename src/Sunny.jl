@@ -98,7 +98,7 @@ export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFact
     connected_path, all_exact_wave_vectors, ωs, spherical_shell, merge!, BinningParameters,
     integrate_axes!, unit_resolution_binning_parameters, rlu_to_absolute_units!,
     intensities_binned, one_dimensional_cut_binning_parameters, axes_bincenters,
-    connected_path_bins
+    connected_path_bins, powder_averaged_bins
 
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")

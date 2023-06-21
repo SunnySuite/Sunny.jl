@@ -15,7 +15,17 @@ classical_to_quantum(ω, ::Nothing) = 1.0
 # Describes a 4D parallelepided histogram in a format compatible with Mantid/Horace
 # 
 # The coordinates of the histogram axes are specified by multiplication 
-# of `q' with each row of the covectors matrix
+# of `(q,ω)' with each row of the covectors matrix
+#
+# The convention is that:
+# - The left edge of the first bin starts at `binstart`
+# - The last bin contains `binend`
+# - There are no ``partial bins;'' the last bin may contain values greater than `binend`
+# - The bin width is `binwidth`
+#
+# A value can be binned by computing its bin number:
+# 
+#     bin = 1 + floor(Int64,(value - binstart) / binwidth)
 mutable struct BinningParameters
     binstart::MVector{4,Float64}
     binend::MVector{4,Float64}
@@ -50,16 +60,23 @@ function Base.show(io::IO, ::MIME"text/plain", params::BinningParameters)
 end
 
 # Support numbins as a (virtual) property, even though only the binwidth is stored
-Base.getproperty(params::BinningParameters, sym::Symbol) = sym == :numbins ? round.(Int64,(params.binend .- params.binstart) ./ params.binwidth) : getfield(params,sym)
+Base.getproperty(params::BinningParameters, sym::Symbol) = sym == :numbins ? count_bins(params.binstart,params.binend,params.binwidth) : getfield(params,sym)
 
 function Base.setproperty!(params::BinningParameters, sym::Symbol, numbins)
     if sym == :numbins
         binwidth = (params.binend .- params.binstart) ./ numbins
+
+        # *Ensure* that the last bin contains params.binend
+        binwidth = binwidth .+ eps.(binwidth) 
+
         setfield!(params,:binwidth,binwidth)
     else
         setfield!(params,sym,numbins)
     end
 end
+
+# This function defines how partial bins are handled.
+count_bins(bin_start,bin_end,bin_width) = ceil.(Int64,(bin_end .- bin_start) ./ bin_width)
 
 # Default coordinates are (Qx,Qy,Qz,ω)
 function BinningParameters(binstart,binend,binwidth;covectors = [1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1])
@@ -135,6 +152,13 @@ function unit_resolution_binning_parameters(sf::StructureFactor)
     return unit_resolution_binning_parameters(ωvals,latsize)
 end
 
+function unit_resolution_binning_parameters(ωvals::Vector{Float64})
+    ωbinwidth = (maximum(ωvals) - minimum(ωvals)) / (length(ωvals) - 1)
+    ωstart = minimum(ωvals) - ωbinwidth / 2
+    ωend = maximum(ωvals) + ωbinwidth / 2
+    return ωstart, ωend, ωbinwidth
+end
+
 # Creates BinningParameters which implement a 1D cut in (Qx,Qy,Qz) space.
 # 
 # The x-axis of the resulting histogram consists of `cut_bins`-many bins ranging
@@ -177,9 +201,8 @@ end
 one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...) = one_dimensional_cut_binning_parameters(ωs(sf),cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...)
 
 # Returns tick marks which label the histogram bins by their bin centers
-function axes_bincenters(params::BinningParameters)
-    return (:).(params.binstart .+ params.binwidth ./ 2,params.binwidth,params.binend)
-end
+axes_bincenters(binstart,binend,binwidth) = (:).(binstart .+ binwidth ./ 2,binwidth,binend)
+axes_bincenters(params::BinningParameters) = axes_bincenters(params.binstart,params.binend,params.binwidth)
 
 """
     connected_path_bins(sf,qs,density,args...;kwargs...)
@@ -217,21 +240,25 @@ connected_path_bins(sw::SpinWaveTheory, ωvals, qs::Vector, density,args...;kwar
 
 
 
-# SQTODO: spherical_histogram for powder averaging; BinningParameters can and should only describe
-# *linear* bins, and spheres are nonlinear. In particular, "nonlinear binning parameters" can't be pretty-printed.
-
 # Given correlation data contained in `sf` and BinningParameters describing the
 # shape of a histogram, compute the intensity and normalization for each histogram bin.
 #
 # This is an alternative to `intensities` which bins the scattering intensities into a histogram
 # instead of interpolating between them at specified `qs` values. See `unit_resolution_binning_parameters`
 # for a reasonable default choice of `BinningParameters` which roughly emulates `intensities` with `NoInterp`.
+#
+# If a function `integrated_kernel(Δω)` is passed, it will be used as the CDF of a kernel function for energy broadening.
+# For example,
+# `integrated_kernel = Δω -> atan(Δω/η)/pi` implements `lorentzian` broadening with parameter `η`.
+# Currently, energy broadening is only supported if the `BinningParameters` are such that the first three axes are purely spatial and the last (energy) axis is `[0,0,0,1]`.
 function intensities_binned(sf::StructureFactor,params::BinningParameters,contractor, kT, ffdata;integrated_kernel = nothing)
     (;binwidth,binstart,covectors,numbins) = params
-    sunHist = zeros(Float64,numbins...)
-    sunCounts = zeros(Float64,numbins...)
+    output_intensities = zeros(Float64,numbins...)
+    output_counts = zeros(Float64,numbins...)
     ωvals = ωs(sf)
     recip_vecs = 2π*inv(sf.crystal.latvecs)'
+
+    # Loop over every scattering vector
     for cell in CartesianIndices(size(sf.samplebuf)[2:4])
         for (iω,ω) in enumerate(ωvals)
 
@@ -245,34 +272,51 @@ function intensities_binned(sf::StructureFactor,params::BinningParameters,contra
             coords = covectors * v
             xyztBin = 1 .+ floor.(Int64,(coords .- binstart) ./ binwidth)
 
-            # Check this bin is within the histogram bounds
-            if all(xyztBin .<= numbins) &&  all(xyztBin .>= 1)
-                ci = CartesianIndex(xyztBin.data)
-                k = recip_vecs * q
-                NCorr, NAtoms = size(sf.data)[1:2]
-                intensity = calc_intensity(sf,k,cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
-                if isnothing(integrated_kernel)
-                    sunHist[ci] += intensity
-                    sunCounts[ci] += 1
-                else
-                    # `Energy broadening into bins' logic
-                    if covectors[4,:] == [0,0,0,1]
-                        for i = 1:numbins[4]
-                            ci_other = CartesianIndex(ci[1],ci[2],ci[3],i)
-                            a = binstart[4] + (i - 1) * binwidth[4]
-                            b = binstart[4] + i * binwidth[4]
+            if isnothing(integrated_kernel) # `Delta-function energy' logic
+                # Check this bin is within the 4D histogram bounds
+                if all(xyztBin .<= numbins) &&  all(xyztBin .>= 1)
+                    ci = CartesianIndex(xyztBin.data)
+                    k = recip_vecs * q
+                    NCorr, NAtoms = size(sf.data)[1:2]
+                    intensity = calc_intensity(sf,k,cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                    output_intensities[ci] += intensity
+                    output_counts[ci] += 1
+                end
+            else # `Energy broadening into bins' logic
+                # For now, only support broadening for `simple' energy axes
+                if covectors[4,:] == [0,0,0,1] && norm(covectors[1:3,:] * [0,0,0,1]) == 0
+
+                    # Check this bin is within the *spatial* 3D histogram bounds
+                    # If we are energy-broadening, then scattering vectors outside the histogram
+                    # in the energy direction need to be considered
+                    if all(xyztBin[1:3] .<= numbins[1:3]) &&  all(xyztBin[1:3] .>= 1)
+
+                        # Calculate source scattering vector intensity only once
+                        ci = CartesianIndex(xyztBin.data)
+                        k = recip_vecs * q
+                        NCorr, NAtoms = size(sf.data)[1:2]
+                        intensity = calc_intensity(sf,k,cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                        # Broaden from the source scattering vector (k,ω) to
+                        # each target bin ci_other
+                        for iωother = 1:numbins[4]
+                            ci_other = CartesianIndex(ci[1],ci[2],ci[3],iωother)
+                            # Start and end points of the target bin
+                            a = binstart[4] + (iωother - 1) * binwidth[4]
+                            b = binstart[4] + iωother * binwidth[4]
+
+                            # P(ω picked up in bin [a,b]) = ∫ₐᵇ Kernel(ω' - ω) dω'
                             fraction_in_bin = integrated_kernel(b - ω) - integrated_kernel(a - ω)
-                            sunHist[ci_other] += fraction_in_bin * intensity
-                            sunCounts[ci_other] += fraction_in_bin
+                            output_intensities[ci_other] += fraction_in_bin * intensity
+                            output_counts[ci_other] += fraction_in_bin
                         end
-                    else
-                        error("Energy broadening not yet implemented for histograms with complicated energy axes")
                     end
+                else
+                    error("Energy broadening not yet implemented for histograms with complicated energy axes")
                 end
             end
         end
     end
-    return sunHist, sunCounts
+    return output_intensities, output_counts
 end
 
 """

@@ -1,7 +1,6 @@
 # # Binning Tutorial
 
 using Sunny, GLMakie
-import Plots ## Plotting tools as import to avoid conflict with GLMakie
 
 # We specify the crystal lattice structure of CTFD using the lattice parameters specified by
 #
@@ -63,14 +62,17 @@ end
 # Since the SU(N)NY crystal has only finitely many lattice sites, there are finitely
 # many ways for a neutron to scatter off of the sample.
 # We can visualize this discreteness by plotting each possible Qx and Qz, for example:
-Qx = []
-Qz = []
+Qx = zeros(Float64,0)
+Qz = zeros(Float64,0)
 for cell in Sunny.all_cells(sys)
     q = (cell.I .- 1) ./ latsize # q is in R.L.U.
     push!(Qx,q[1])
     push!(Qz,q[3])
 end
-Plots.scatter(Qx,Qz;xlabel="Qx [r.l.u]",ylabel="Qz [r.l.u.]")
+fig = Figure()
+ax = Axis(fig[1,1];xlabel="Qx [r.l.u]",ylabel="Qz [r.l.u.]")
+scatter!(ax,Qx,Qz)
+fig
 
 # One way to display the structure factor is to create a histogram with
 # one bin centered at each discrete scattering possibility.
@@ -85,14 +87,22 @@ integrate_axes!(params;axes = [2,4]) # Integrate over Qy (2) and E (4)
 # The arguments beyond `params` specify which dipole, temperature,
 # and atomic form factor corrections should be applied during the intensity calculation.
 intensity,counts = intensities_binned(dsf,params,Sunny.DipoleFactor(dsf),kT,formfactors);
+normalized_intensity = intensity ./ counts;
 
 # With the data binned, we can now plot it. The axes labels give the bin centers of each bin.
 function plot_data(params) #hide
 intensity,counts = intensities_binned(dsf,params,Sunny.DipoleFactor(dsf),kT,formfactors) #hide
+normalized_intensity = intensity ./ counts;#hide
 bin_centers = axes_bincenters(params);
-Plots.heatmap(bin_centers[1],bin_centers[3],(intensity[:,1,:,1] ./ counts[:,1,:,1])';xlabel="Qx [r.l.u]",ylabel="Qz [r.l.u]",color=cgrad(:viridis,scale = :lin,rev = false))
-Plots.scatter!(Qx,Qz)
-end #hide
+
+fig = Figure()#hide
+ax = Axis(fig[1,1];xlabel="Qx [r.l.u]",ylabel="Qz [r.l.u.]")#hide
+heatmap!(ax,bin_centers[1],bin_centers[3],normalized_intensity[:,1,:,1])
+scatter!(ax,Qx,Qz)
+return fig#hide
+
+end#hide
+
 plot_data(params)#hide
 
 # Note that some bins have no scattering vectors at all when the bin size is made too small:
@@ -111,13 +121,14 @@ plot_data(params)#hide
 
 # Recall that while we under-resolved in Q by choosing a small lattice, we 
 # over-resolved in energy:
-x = []#hide
-y = []#hide
+x = zeros(Float64,0)#hide
+y = zeros(Float64,0)#hide
 for omega = ωs(dsf), qx = unique(Qx)#hide
     push!(x,qx)#hide
     push!(y,omega)#hide
 end#hide
-Plots.scatter(x,y;xlabel="Qx [r.l.u.]",ylabel="Energy [meV]")#hide
+ax = Axis(fig[1,1];xlabel="Qx [r.l.u]",ylabel="Energy [meV]")#hide
+scatter!(ax,x,y)
 
 # Let's make a new histogram which includes the energy axis.
 # The x-axis of the histogram will be a 1D cut from `Q = [0,0,0]` to `Q = [1,1,0]`
@@ -131,74 +142,19 @@ params = one_dimensional_cut_binning_parameters(dsf,[0,0,0],[1,1,0],x_axis_bin_c
 #
 # We plot the intensity on a log-scale to improve visibility.
 intensity,counts = intensities_binned(dsf,params,Sunny.DipoleFactor(dsf),kT,formfactors)
-bin_centers = axes_bincenters(params);
-Plots.heatmap(bin_centers[1],bin_centers[4],log10.(intensity[:,1,1,:] ./ counts[:,1,1,:])';xlabel="Progress along cut [r.l.u]",ylabel="Energy [meV]",color=cgrad(:viridis,scale = :lin,rev = false))
+log_intensity = log10.(intensity ./ counts);
+bin_centers = axes_bincenters(params);#hide
+fig = Figure()#hide
+ax = Axis(fig[1,1];xlabel="Progress along cut [r.l.u]",ylabel="Energy [meV]")#hide
+heatmap!(ax,bin_centers[1],bin_centers[4],log_intensity[:,1,1,:])
+fig#hide
 
 # By reducing the number of energy bins to be closer to the number of bins on the x-axis, we can make the dispersion curve look nicer:
 params.binwidth[4] *= 20
 intensity,counts = intensities_binned(dsf,params,Sunny.DipoleFactor(dsf),kT,formfactors)#hide
+log_intensity = log10.(intensity ./ counts);#hide
 bin_centers = axes_bincenters(params);#hide
-Plots.heatmap(bin_centers[1],bin_centers[4],log10.(intensity[:,1,1,:] ./ counts[:,1,1,:])';xlabel="Progress along cut [r.l.u]",ylabel="Energy [meV]",color=cgrad(:viridis,scale = :lin,rev = false))#hide
-
-# Now we will re-run everything at a more reasonable resolution...
-latsize = (20,20,3);
-## Re-run everything...
-sys = System(magxtal, latsize, [SpinInfo(1;S = valS)], :dipole; seed=1);#hide
-set_exchange!(sys,J,Bond(1,1,[1,0,0]))#hide
-set_exchange!(sys,J,Bond(1,1,[0,1,0]))#hide
-randomize_spins!(sys);#hide
-for i in 1:10_000#hide
-    step!(sys, langevin)#hide
-end#hide
-nω = 240;#hide
-dsf = DynamicStructureFactor(sys; Δt=Δt, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize);#hide
-nsamples = 3#hide
-for _ in 1:nsamples#hide
-    for _ in 1:8000#hide
-        step!(sys, langevin)#hide
-    end#hide
-    add_sample!(dsf, sys)#hide
-end#hide
-
-# ... and make a connected path plot.
-# Note that the parameters describing each sub-histogram are recorded in `paramsList`.
-# These parameters can then be used to bin the experimental data into the same bins
-# as are being modelled by Sunny.
-points = [[1,   1, 0], 
-          [1,   0, 0],
-          [1/2, 1/2, 0],
-          [1, 1, 0]]
-labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
-cut_width = 0.3
-density = 15
-paramsList, markers, ranges = connected_path_bins(dsf,points,density,cut_width;cut_height = 4.0)
-
-total_bins = ranges[end][end]
-energy_bins = 24
-is = zeros(Float64,total_bins,energy_bins)
-for k in 1:length(paramsList)
-    paramsList[k].binwidth[4] *= 10
-    h,c = intensities_binned(dsf,paramsList[k],Sunny.DipoleFactor(dsf),kT,formfactors)
-    is[ranges[k],:] = (h[:,1,1,:] ./ c[:,1,1,:])
-end
-
-# In this case, the sub-histograms are generated as follows.
-# First cut:
-paramsList[1]
-
-# Second cut:
-paramsList[2]
-
-# Third cut:
-paramsList[3]
-
-# See:
-GLMakie.heatmap(1:size(is,1), ωs(dsf), is;
-    colorrange=(0.0, 0.2),
-    axis = (
-        ylabel = "meV",
-        xticks = (markers, labels),
-        xticklabelrotation=π/8,
-        xticklabelsize=12,
-    )
-)
+fig = Figure()#hide
+ax = Axis(fig[1,1];xlabel="Progress along cut [r.l.u]",ylabel="Energy [meV]")#hide
+heatmap!(ax,bin_centers[1],bin_centers[4],log_intensity[:,1,1,:])
+fig#hide
