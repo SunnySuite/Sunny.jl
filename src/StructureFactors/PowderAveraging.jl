@@ -54,7 +54,7 @@ end
 # e.g. `radial_binning_parameters = (0,6π,6π/55)`.
 #
 # Energy broadening is support in the same as `intensities_binned`.
-function powder_averaged_bins(sf::StructureFactor,radial_binning_parameters,contractor, kT, ffdata;ω_binning_parameters=unit_resolution_binning_parameters(ωs(sf)),integrated_kernel = nothing)
+function powder_averaged_bins(sf::StructureFactor,radial_binning_parameters,contractor, kT, ffdata;ω_binning_parameters=unit_resolution_binning_parameters(ωs(sf)),integrated_kernel = nothing,bzsize=nothing)
     ωstart,ωend,ωbinwidth = ω_binning_parameters
     rstart,rend,rbinwidth = radial_binning_parameters
 
@@ -67,11 +67,15 @@ function powder_averaged_bins(sf::StructureFactor,radial_binning_parameters,cont
     recip_vecs = 2π*inv(sf.crystal.latvecs)'
 
     # Loop over every scattering vector
-    for cell in CartesianIndices(size(sf.samplebuf)[2:4])
+    Ls = size(sf.samplebuf)[2:4] # Lattice size
+    if isnothing(bzsize)
+        bzsize = (1,1,1) .* ceil(Int64,rend/eigmin(recip_vecs))
+    end
+    for cell in CartesianIndices(Ls .* bzsize)
+        base_cell = CartesianIndex(mod1.(cell.I,Ls)...)
         for (iω,ω) in enumerate(ωvals)
             # Compute intensity
             # [c.f. all_exact_wave_vectors, but we need `cell' index as well here]
-            Ls = size(sf.samplebuf)[2:4] # Lattice size
             q = SVector((cell.I .- 1) ./ Ls) # q is in R.L.U.
 
             # Figure out which radial bin this scattering vector goes in
@@ -89,7 +93,7 @@ function powder_averaged_bins(sf::StructureFactor,radial_binning_parameters,cont
                     ωbin = 1 .+ floor.(Int64,(ω .- ωstart) ./ ωbinwidth)
                     if ωbin <= ω_bin_count && ωbin >= 1
                         NCorr, NAtoms = size(sf.data)[1:2]
-                        intensity = calc_intensity(sf,k,cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                        intensity = calc_intensity(sf,k,base_cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
                         output_intensities[rbin,ωbin] += intensity
                         output_counts[rbin,ωbin] += 1
                     end
@@ -97,7 +101,7 @@ function powder_averaged_bins(sf::StructureFactor,radial_binning_parameters,cont
 
                     # Calculate source scattering vector intensity only once
                     NCorr, NAtoms = size(sf.data)[1:2]
-                    intensity = calc_intensity(sf,k,cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                    intensity = calc_intensity(sf,k,base_cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
                     # Broaden from the source scattering vector (k,ω) to
                     # each target bin (rbin,ωbin_other)
                     for ωbin_other = 1:ω_bin_count

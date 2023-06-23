@@ -133,7 +133,7 @@ fig1
 #   averaging loop.
 
 
-# The intensity data can alternatively be collected into bonafide histogram bins
+# The intensity data can alternatively be collected into bonafide histogram bins.
 radial_binning_parameters = (0,6π,6π/55)
 integrated_kernel = x -> atan(x/0.05)/pi # Lorentzian broadening
 
@@ -150,5 +150,40 @@ pa_normalized_intensities = pa_intensities ./ pa_counts
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel = "|k| (Å⁻¹)", ylabel = "ω (meV)")
 rs_bincenters = axes_bincenters(radial_binning_parameters...)
-heatmap!(ax, rs_bincenters, ωs(sf), pa_normalized_intensities)
+heatmap!(ax, rs_bincenters, ωs(sf), pa_normalized_intensities; colorrange=(0,3.0))
 fig
+
+# Using the `bzsize` option, we can even resolve the contribution from each brillouin zone:
+intensity_firstBZ, counts_firstBZ = powder_averaged_bins(sf,radial_binning_parameters,Sunny.DipoleFactor(sf),kT,ffdata,integrated_kernel = integrated_kernel, bzsize=(1,1,1))
+#md #intensity_secondBZ, counts_secondBZ = powder_averaged_bins(..., bzsize=(2,2,2))
+intensity_secondBZ, counts_secondBZ = powder_averaged_bins(sf,radial_binning_parameters,Sunny.DipoleFactor(sf),kT,ffdata,integrated_kernel = integrated_kernel, bzsize=(2,2,2))#hide
+#md #intensity_thirdBZ, counts_thirdBZ = powder_averaged_bins(..., bzsize=(3,3,3))
+intensity_thirdBZ = pa_intensities;#hide
+counts_thirdBZ = pa_counts;#hide
+
+# First BZ:
+fig = Figure()#hide
+ax = Axis(fig[1,1]; xlabel = "|k| (Å⁻¹)", ylabel = "ω (meV)")#hide
+rs_bincenters = axes_bincenters(radial_binning_parameters...)#hide
+heatmap!(ax, rs_bincenters, ωs(sf),
+         intensity_firstBZ ./ counts_firstBZ
+         ; colorrange=(0,3.0))
+fig#hide
+
+# Second BZ:
+fig = Figure()#hide
+ax = Axis(fig[1,1]; xlabel = "|k| (Å⁻¹)", ylabel = "ω (meV)")#hide
+rs_bincenters = axes_bincenters(radial_binning_parameters...)#hide
+heatmap!(ax, rs_bincenters, ωs(sf),
+         (intensity_secondBZ .- intensity_firstBZ) ./ (counts_secondBZ .- counts_firstBZ)
+         ; colorrange=(0,3.0))
+fig#hide
+
+# Third BZ:
+fig = Figure()#hide
+ax = Axis(fig[1,1]; xlabel = "|k| (Å⁻¹)", ylabel = "ω (meV)")#hide
+rs_bincenters = axes_bincenters(radial_binning_parameters...)#hide
+heatmap!(ax, rs_bincenters, ωs(sf),
+         (intensity_thirdBZ .- intensity_secondBZ .- intensity_firstBZ) ./ (counts_thirdBZ .- counts_secondBZ .- counts_firstBZ)
+         ; colorrange=(0,3.0))
+fig#hide
