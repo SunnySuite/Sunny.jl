@@ -110,10 +110,10 @@ pa = powder_average(sf, rs, density; η, kT);
 
 # and plot the results.
 
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel = "|Q| (Å⁻¹)", ylabel = "ω (meV)")
+fig1= Figure()
+ax = Axis(fig1[1,1]; xlabel = "|Q| (Å⁻¹)", ylabel = "ω (meV)")
 heatmap!(ax, rs, ωs(sf), pa; colorrange=(0, 25.0))
-fig
+fig1
 
 # Note that the bandwidth is similar to what we saw above along the high
 # symmetry path.
@@ -131,3 +131,24 @@ fig
 # - Including [`FormFactor`](@ref) corrections
 # - Setting `interpolation=:linear` when retrieving intensities in the powder
 #   averaging loop.
+
+
+# The intensity data can alternatively be collected into bonafide histogram bins
+radial_binning_parameters = (0,6π,6π/55)
+integrated_kernel = x -> atan(x/0.05)/pi # Lorentzian broadening
+
+## TODO: form factors#hide
+cryst = isnothing(sf.origin_crystal) ? sf.crystal : sf.origin_crystal #hide
+class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]#hide
+formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]#hide
+formfactors = Sunny.upconvert_form_factors(formfactors)#hide
+ffdata = Sunny.propagate_form_factors(sf, formfactors)#hide
+pa_intensities, pa_counts = powder_averaged_bins(sf,radial_binning_parameters,Sunny.DipoleFactor(sf),kT,ffdata,integrated_kernel = integrated_kernel)
+
+pa_normalized_intensities = pa_intensities ./ pa_counts
+
+fig = Figure()
+ax = Axis(fig[1,1]; xlabel = "|k| (Å⁻¹)", ylabel = "ω (meV)")
+rs_bincenters = axes_bincenters(radial_binning_parameters...)
+heatmap!(ax, rs_bincenters, ωs(sf), pa_normalized_intensities)
+fig

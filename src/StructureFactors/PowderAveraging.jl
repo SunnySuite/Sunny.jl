@@ -45,3 +45,74 @@ function powder_average(sf::StructureFactor, q_ias, mode, density; kwargs...)
 
     return output
 end
+
+# Similar to `powder_average`, but the data is binned instead of interpolated.
+# Also similar to `intensities_binned`, but the histogram x-axis is `|k|` in absolute units, which
+# is a nonlinear function of `kx`,`ky`,`kz`. The y-axis is energy.
+#
+# Binning parameters are specified as tuples `(start,end,bin_width)`,
+# e.g. `radial_binning_parameters = (0,6π,6π/55)`.
+#
+# Energy broadening is support in the same as `intensities_binned`.
+function powder_averaged_bins(sf::StructureFactor,radial_binning_parameters,contractor, kT, ffdata;ω_binning_parameters=unit_resolution_binning_parameters(ωs(sf)),integrated_kernel = nothing)
+    ωstart,ωend,ωbinwidth = ω_binning_parameters
+    rstart,rend,rbinwidth = radial_binning_parameters
+
+    ω_bin_count = count_bins(ω_binning_parameters...)
+    r_bin_count = count_bins(radial_binning_parameters...)
+
+    output_intensities = zeros(Float64,r_bin_count,ω_bin_count)
+    output_counts = zeros(Float64,r_bin_count,ω_bin_count)
+    ωvals = ωs(sf)
+    recip_vecs = 2π*inv(sf.crystal.latvecs)'
+
+    # Loop over every scattering vector
+    for cell in CartesianIndices(size(sf.samplebuf)[2:4])
+        for (iω,ω) in enumerate(ωvals)
+            # Compute intensity
+            # [c.f. all_exact_wave_vectors, but we need `cell' index as well here]
+            Ls = size(sf.samplebuf)[2:4] # Lattice size
+            q = SVector((cell.I .- 1) ./ Ls) # q is in R.L.U.
+
+            # Figure out which radial bin this scattering vector goes in
+            # The spheres are surfaces of fixed |k|, with k in absolute units
+            k = recip_vecs * q
+            r_coordinate = norm(k) 
+
+            # Check if the radius falls within the histogram
+            rbin = 1 .+ floor.(Int64,(r_coordinate .- rstart) ./ rbinwidth)
+            if rbin <= r_bin_count && rbin >= 1
+                # If we are energy-broadening, then scattering vectors outside the histogram
+                # in the energy direction need to be considered
+                if isnothing(integrated_kernel) # `Delta-function energy' logic
+                    # Check if the ω falls within the histogram
+                    ωbin = 1 .+ floor.(Int64,(ω .- ωstart) ./ ωbinwidth)
+                    if ωbin <= ω_bin_count && ωbin >= 1
+                        NCorr, NAtoms = size(sf.data)[1:2]
+                        intensity = calc_intensity(sf,k,cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                        output_intensities[rbin,ωbin] += intensity
+                        output_counts[rbin,ωbin] += 1
+                    end
+                else # `Energy broadening into bins' logic
+
+                    # Calculate source scattering vector intensity only once
+                    NCorr, NAtoms = size(sf.data)[1:2]
+                    intensity = calc_intensity(sf,k,cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                    # Broaden from the source scattering vector (k,ω) to
+                    # each target bin (rbin,ωbin_other)
+                    for ωbin_other = 1:ω_bin_count
+                        # Start and end points of the target bin
+                        a = ωstart + (ωbin_other - 1) * ωbinwidth
+                        b = ωstart + ωbin_other * ωbinwidth
+
+                        # P(ω picked up in bin [a,b]) = ∫ₐᵇ Kernel(ω' - ω) dω'
+                        fraction_in_bin = integrated_kernel(b - ω) - integrated_kernel(a - ω)
+                        output_intensities[rbin,ωbin_other] += fraction_in_bin * intensity
+                        output_counts[rbin,ωbin_other] += fraction_in_bin
+                    end
+                end
+            end
+        end
+    end
+    return output_intensities, output_counts
+end
