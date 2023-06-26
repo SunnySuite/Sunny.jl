@@ -67,7 +67,7 @@ function Base.setproperty!(params::BinningParameters, sym::Symbol, numbins)
         binwidth = (params.binend .- params.binstart) ./ numbins
 
         # *Ensure* that the last bin contains params.binend
-        binwidth = binwidth .+ eps.(binwidth) 
+        binwidth .+= eps.(binwidth) 
 
         setfield!(params,:binwidth,binwidth)
     else
@@ -85,6 +85,7 @@ end
 
 function BinningParameters(binstart,binend;numbins,kwargs...)
     binwidth = (binend .- binstart) ./ numbins
+    binwidth .+= eps.(binwidth)
     return BinningParameters(binstart,binend,binwidth;kwargs...)
 end
 
@@ -141,6 +142,7 @@ function unit_resolution_binning_parameters(ωvals,latsize)
     maxQ = 1 .- (1 ./ numbins)
     total_size = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .- (0.,0.,0.,minimum(ωvals))
     binwidth = total_size ./ (numbins .- 1)
+    binwidth .+= eps.(binwidth)
     binstart = (0.,0.,0.,minimum(ωvals)) .- (binwidth ./ 2)
     binend = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .+ (binwidth ./ 2)
 
@@ -154,6 +156,7 @@ end
 
 function unit_resolution_binning_parameters(ωvals::Vector{Float64})
     ωbinwidth = (maximum(ωvals) - minimum(ωvals)) / (length(ωvals) - 1)
+    ωbinwidth += eps(ωbinwidth)
     ωstart = minimum(ωvals) - ωbinwidth / 2
     ωend = maximum(ωvals) + ωbinwidth / 2
     return ωstart, ωend, ωbinwidth
@@ -186,9 +189,7 @@ function one_dimensional_cut_binning_parameters(ωvals::Vector{Float64},cut_from
     transverse_center = transverse_covector ⋅ cut_from_q # Equal to using cut_to_q
     cotransverse_center = cotransverse_covector ⋅ cut_from_q
 
-    ωbinwidth = (maximum(ωvals) - minimum(ωvals)) / (length(ωvals) - 1)
-    ωstart = minimum(ωvals) - ωbinwidth / 2
-    ωend = maximum(ωvals) + ωbinwidth / 2
+    ωstart, ωend, ωbinwidth = unit_resolution_binning_parameters(ωvals)
 
 
     binstart = [start_x,transverse_center - cut_width/2,cotransverse_center - cut_height/2,ωstart]
