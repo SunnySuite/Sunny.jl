@@ -232,7 +232,10 @@ function connected_path(recip_vecs, qs::Vector, density)
 
     return (path, markers)
 end
-connected_path(sf::StructureFactor, qs::Vector, density) = connected_path(2π*inv(sf.crystal.latvecs)', qs, density)
+function connected_path(sf::StructureFactor, qs::Vector, density) 
+    cryst = isnothing(sf.origin_crystal) ? sf.crystal : sf.origin_crystal 
+    connected_path(2π*inv(cryst.latvecs)', qs, density)
+end
 connected_path(sw::SpinWaveTheory, qs::Vector, density) = connected_path(sw.recipvecs_chem, qs, density)
 
 
