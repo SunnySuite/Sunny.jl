@@ -54,7 +54,13 @@ end
 # e.g. `radial_binning_parameters = (0,6π,6π/55)`.
 #
 # Energy broadening is support in the same as `intensities_binned`.
-function powder_averaged_bins(sf::StructureFactor,radial_binning_parameters,contractor, kT, ffdata;ω_binning_parameters=unit_resolution_binning_parameters(ωs(sf)),integrated_kernel = nothing,bzsize=nothing)
+function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters, mode;
+    ω_binning_parameters=unit_resolution_binning_parameters(ωs(sf)),
+    integrated_kernel=nothing,
+    bzsize=nothing,
+    kT=nothing,
+    ffdata=nothing,
+)
     ωstart,ωend,ωbinwidth = ω_binning_parameters
     rstart,rend,rbinwidth = radial_binning_parameters
 
@@ -65,6 +71,14 @@ function powder_averaged_bins(sf::StructureFactor,radial_binning_parameters,cont
     output_counts = zeros(Float64,r_bin_count,ω_bin_count)
     ωvals = ωs(sf)
     recip_vecs = 2π*inv(sf.crystal.latvecs)'
+    ffdata = prepare_form_factors(sf, formfactors)
+    contractor = if mode == :perp
+        DipoleFactor(sf)
+    elseif typeof(mode) <: Tuple{Int, Int}
+        Element(sf, mode)
+    else
+        Trace(sf)
+    end
 
     # Loop over every scattering vector
     Ls = size(sf.samplebuf)[2:4] # Lattice size

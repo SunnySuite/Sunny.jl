@@ -86,12 +86,12 @@ integrate_axes!(params;axes = [2,4]) # Integrate over Qy (2) and E (4)
 # Now that we have parameterized the histogram, we can bin our data.
 # The arguments beyond `params` specify which dipole, temperature,
 # and atomic form factor corrections should be applied during the intensity calculation.
-intensity,counts = intensities_binned(dsf,params,Sunny.DipoleFactor(dsf),kT,formfactors);
+intensity,counts = intensities_binned(dsf, params, :perp; kT, formfactors);
 normalized_intensity = intensity ./ counts;
 
 # With the data binned, we can now plot it. The axes labels give the bin centers of each bin.
 function plot_data(params) #hide
-intensity,counts = intensities_binned(dsf,params,Sunny.DipoleFactor(dsf),kT,formfactors) #hide
+intensity,counts = intensities_binned(dsf, params, :perp; kT, formfactors) #hide
 normalized_intensity = intensity ./ counts;#hide
 bin_centers = axes_bincenters(params);
 
@@ -141,7 +141,7 @@ params = one_dimensional_cut_binning_parameters(dsf,[0,0,0],[1,1,0],x_axis_bin_c
 # directions are integrated over, so slightly out of plane points are included.
 #
 # We plot the intensity on a log-scale to improve visibility.
-intensity,counts = intensities_binned(dsf,params,Sunny.DipoleFactor(dsf),kT,formfactors)
+intensity,counts = intensities_binned(dsf, params, :perp; kT, formfactors)
 log_intensity = log10.(intensity ./ counts);
 bin_centers = axes_bincenters(params);#hide
 fig = Figure()#hide
@@ -151,7 +151,7 @@ fig#hide
 
 # By reducing the number of energy bins to be closer to the number of bins on the x-axis, we can make the dispersion curve look nicer:
 params.binwidth[4] *= 20
-intensity,counts = intensities_binned(dsf,params,Sunny.DipoleFactor(dsf),kT,formfactors)#hide
+intensity,counts = intensities_binned(dsf, params, :perp; kT, formfactors)#hide
 log_intensity = log10.(intensity ./ counts);#hide
 bin_centers = axes_bincenters(params);#hide
 fig = Figure()#hide

@@ -12,6 +12,18 @@ end
 classical_to_quantum(ω, kT::Float64) = ω > 0 ? ω/(kT*(1 - exp(-ω/kT))) : iszero(ω) ? 1.0 : -ω*exp(ω/kT)/(kT*(1 - exp(ω/kT)))
 classical_to_quantum(ω, ::Nothing) = 1.0
 
+
+function prepare_form_factors(sf, formfactors)
+    if isnothing(formfactors)
+        cryst = isnothing(sf.origin_crystal) ? sf.crystal : sf.origin_crystal 
+        class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]
+        formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]
+    end
+    formfactors = upconvert_form_factors(formfactors) # Ensure formfactors have consistent type
+    return propagate_form_factors(sf, formfactors)
+end
+
+
 # Describes a 4D parallelepided histogram in a format compatible with Mantid/Horace
 # 
 # The coordinates of the histogram axes are specified by multiplication 
@@ -142,7 +154,7 @@ function unit_resolution_binning_parameters(ωvals,latsize)
     maxQ = 1 .- (1 ./ numbins)
     total_size = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .- (0.,0.,0.,minimum(ωvals))
     binwidth = total_size ./ (numbins .- 1)
-    binwidth .+= eps.(binwidth)
+    binwidth = binwidth .+ eps.(binwidth)
     binstart = (0.,0.,0.,minimum(ωvals)) .- (binwidth ./ 2)
     binend = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .+ (binwidth ./ 2)
 
@@ -252,12 +264,24 @@ connected_path_bins(sw::SpinWaveTheory, ωvals, qs::Vector, density,args...;kwar
 # For example,
 # `integrated_kernel = Δω -> atan(Δω/η)/pi` implements `lorentzian` broadening with parameter `η`.
 # Currently, energy broadening is only supported if the `BinningParameters` are such that the first three axes are purely spatial and the last (energy) axis is `[0,0,0,1]`.
-function intensities_binned(sf::StructureFactor,params::BinningParameters,contractor, kT, ffdata;integrated_kernel = nothing)
-    (;binwidth,binstart,covectors,numbins) = params
+function intensities_binned(sf::StructureFactor, params::BinningParameters, mode;
+    integrated_kernel = nothing,
+    kT = nothing,
+    formfactors = nothing,
+)
+    (; binwidth, binstart, covectors, numbins) = params
     output_intensities = zeros(Float64,numbins...)
     output_counts = zeros(Float64,numbins...)
     ωvals = ωs(sf)
     recip_vecs = 2π*inv(sf.crystal.latvecs)'
+    ffdata = prepare_form_factors(sf, formfactors)
+    contractor = if mode == :perp
+        DipoleFactor(sf)
+    elseif typeof(mode) <: Tuple{Int, Int}
+        Element(sf, mode)
+    else
+        Trace(sf)
+    end
 
     # Loop over every scattering vector
     for cell in CartesianIndices(size(sf.samplebuf)[2:4])
@@ -504,13 +528,7 @@ function intensities(sf::StructureFactor, qs, mode;
     end
 
     # Propagate form factor information (if any)
-    if isnothing(formfactors)
-        cryst = isnothing(sf.origin_crystal) ? sf.crystal : sf.origin_crystal 
-        class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]
-        formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]
-    end
-    formfactors = upconvert_form_factors(formfactors) # Ensure formfactors have consistent type
-    ffdata = propagate_form_factors(sf, formfactors)
+    ffdata = prepare_form_factors(sf, formfactors) 
 
     # Precompute index information and preallocate
     ωvals = ωs(sf; negative_energies)
