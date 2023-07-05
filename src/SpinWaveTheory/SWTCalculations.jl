@@ -20,7 +20,8 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
     L  = Nf * Nm
     @assert size(Hmat) == (2*L, 2*L)
     # scaling factor (=1) if in the fundamental representation
-    M = sys.mode == :SUN ? 1 : (Ns-1)
+    # M = sys.mode == :SUN ? 1 : (Ns-1)
+    M = 1
     no_single_ion = isempty(swt.sys.interactions_union[1].aniso.matrep)
 
     # the "metric" of scalar biquad interaction. Here we are using the following identity:
