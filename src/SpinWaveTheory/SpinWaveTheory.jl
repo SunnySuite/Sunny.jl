@@ -98,7 +98,6 @@ function generate_local_sun_gens(sys :: System)
         end
 
     elseif sys.mode == :dipole
-        s_mat_2 = spin_matrices(2)
         
         s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
 
@@ -106,24 +105,23 @@ function generate_local_sun_gens(sys :: System)
         T̃_mat = no_single_ion ? zeros(ComplexF64, 0, 0, 0) : Array{ComplexF64, 3}(undef, 2, 2, Nₘ)
         Q̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 5, Nₘ)
 
-        U_mat_2 = Matrix{ComplexF64}(undef, 2, 2)
-        U_mat_N = Matrix{ComplexF64}(undef, N, N)
+        U_mat = Matrix{ComplexF64}(undef, N, N)
 
         for atom = 1:Nₘ
             θ, ϕ = dipole_to_angles(sys.dipoles[1, 1, 1, atom])
-            U_mat_N[:] = exp(-1im * ϕ * s_mat_N[3]) * exp(-1im * θ * s_mat_N[2])
-            U_mat_2[:] = exp(-1im * ϕ * s_mat_2[3]) * exp(-1im * θ * s_mat_2[2])
-            @assert isapprox(U_mat_N * U_mat_N', I) "rotation matrix from (global frame to local frame) not unitary"
-            @assert isapprox(U_mat_2 * U_mat_2', I) "rotation matrix from (global frame to local frame) not unitary"
+            U_mat[:] = exp(-1im * ϕ * s_mat_N[3]) * exp(-1im * θ * s_mat_N[2])
+            # U_mat_2[:] = exp(-1im * ϕ * s_mat_2[3]) * exp(-1im * θ * s_mat_2[2])
+            @assert isapprox(U_mat * U_mat', I) "rotation matrix from (global frame to local frame) not unitary"
+            # @assert isapprox(U_mat_2 * U_mat_2', I) "rotation matrix from (global frame to local frame) not unitary"
             for μ = 1:3
-                s̃_mat[:, :, μ, atom] = Hermitian(U_mat_2' * s_mat_2[μ] * U_mat_2)
+                s̃_mat[:, :, μ, atom] = Hermitian(U_mat' * s_mat_N[μ] * U_mat)[1:2, 1:2]
             end
             for ν = 1:5
-                Q̃_mat[:, :, ν, atom] = Hermitian(U_mat_N' * Q_mat_N[ν] * U_mat_N)[1:2, 1:2]
+                Q̃_mat[:, :, ν, atom] = Hermitian(U_mat' * Q_mat_N[ν] * U_mat)[1:2, 1:2]
             end
 
             if !no_single_ion
-                T̃_mat[:, :, atom] = Hermitian(U_mat_N' * sys.interactions_union[atom].aniso.matrep * U_mat_N)[1:2, 1:2]
+                T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].aniso.matrep * U_mat)[1:2, 1:2]
             end
         end
     end
@@ -132,8 +130,6 @@ function generate_local_sun_gens(sys :: System)
 end
 
 function SpinWaveTheory(sys::System{N}, energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6) where N
-    (N == 0) && error("`SpinWaveTheory` requires an SU(N) `System`. Dipole mode is not currently supported.") 
-
     # Reshape into single unit cell
     cellsize_mag = cell_dimensions(sys) * diagm(collect(sys.latsize))
     sys = reshape_geometry_aux(sys, (1,1,1), cellsize_mag)
