@@ -431,7 +431,7 @@ energy_bins = paramsList[1].numbins[4]
 is = zeros(Float64,total_bins,energy_bins)
 integrated_kernel = x -> atan(x/0.05)/pi # Lorentzian broadening
 for k in 1:length(paramsList)
-    h,c = intensities_binned(sf,paramsList[k],Sunny.DipoleFactor(sf),kT,formfactors;integrated_kernel = integrated_kernel)
+    h,c = intensities_binned(sf,paramsList[k],:perp,kT=kT,formfactors=formfactors,integrated_kernel = integrated_kernel)
     is[ranges[k],:] = h[:,1,1,:] ./ c[:,1,1,:]
 end
 

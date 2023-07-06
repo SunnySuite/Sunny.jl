@@ -112,6 +112,23 @@ function integrate_axes!(params::BinningParameters;axes)
     return params
 end
 
+# Find an axis-aligned bounding box containing the histogram
+function binning_parameters_aabb(params)
+    (; binstart, binend, covectors) = params
+    bin_edges = [binstart binend]
+    this_corner = MVector{4,Float64}(undef)
+    q_corners = MMatrix{4,16,Float64}(undef)
+    for j = 1:16 # The sixteen corners of a 4-cube
+        for k = 1:4 # The four axes
+            this_corner[k] = bin_edges[k,1 + (j >> (k-1) & 1)]
+        end
+        q_corners[:,j] = covectors \ this_corner
+    end
+    lower_aabb_q = minimum(q_corners,dims=2)[1:3]
+    upper_aabb_q = maximum(q_corners,dims=2)[1:3]
+    return lower_aabb_q, upper_aabb_q
+end
+
 function rlu_to_absolute_units!(sf,params::BinningParameters)
     recip_vecs = 2π*inv(sf.crystal.latvecs)'
     covectorsQ = params.covectors
@@ -160,11 +177,8 @@ function unit_resolution_binning_parameters(ωvals,latsize)
 
     return BinningParameters(binstart,binend,binwidth)
 end
-function unit_resolution_binning_parameters(sf::StructureFactor) 
-    ωvals = ωs(sf)
-    latsize = size(sf.samplebuf)[2:4]
-    return unit_resolution_binning_parameters(ωvals,latsize)
-end
+
+unit_resolution_binning_parameters(sf::StructureFactor) = unit_resolution_binning_parameters(ωs(sf),sf.latsize)
 
 function unit_resolution_binning_parameters(ωvals::Vector{Float64})
     ωbinwidth = (maximum(ωvals) - minimum(ωvals)) / (length(ωvals) - 1)
@@ -214,7 +228,15 @@ end
 one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...) = one_dimensional_cut_binning_parameters(ωs(sf),cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...)
 
 # Returns tick marks which label the histogram bins by their bin centers
-axes_bincenters(binstart,binend,binwidth) = (:).(binstart .+ binwidth ./ 2,binwidth,binend)
+function axes_bincenters(binstart,binend,binwidth)
+    bincenters = []
+    for k = 1:length(binstart)
+        first_center = binstart[k] .+ binwidth[k] ./ 2
+        nbin = count_bins(binstart[k],binend[k],binwidth[k])
+        push!(bincenters,range(first_center,step = binwidth[k],length = nbin))
+    end
+    bincenters
+end
 axes_bincenters(params::BinningParameters) = axes_bincenters(params.binstart,params.binend,params.binwidth)
 
 """
@@ -269,7 +291,7 @@ function intensities_binned(sf::StructureFactor, params::BinningParameters, mode
     kT = nothing,
     formfactors = nothing,
 )
-    (; binwidth, binstart, covectors, numbins) = params
+    (; binwidth, binstart, binend, covectors, numbins) = params
     output_intensities = zeros(Float64,numbins...)
     output_counts = zeros(Float64,numbins...)
     ωvals = ωs(sf)
@@ -283,13 +305,22 @@ function intensities_binned(sf::StructureFactor, params::BinningParameters, mode
         Trace(sf)
     end
 
-    # Loop over every scattering vector
-    for cell in CartesianIndices(size(sf.samplebuf)[2:4])
+    # Find an axis-aligned bounding box containing the histogram
+    lower_aabb_q, upper_aabb_q = binning_parameters_aabb(params)
+
+    # Round the axis-aligned bounding box *outwards* to lattice sites
+    # SQTODO: are these bounds optimal?
+    Ls = sf.latsize
+    lower_aabb_cell = floor.(Int64,lower_aabb_q .* Ls .+ 1) 
+    upper_aabb_cell = ceil.(Int64,upper_aabb_q .* Ls .+ 1)
+
+    # Loop over every scattering vector in the bounding box
+    for cell in CartesianIndices(Tuple(((:).(lower_aabb_cell,upper_aabb_cell))))
+        base_cell = CartesianIndex(mod1.(cell.I,Ls)...)
         for (iω,ω) in enumerate(ωvals)
 
             # Compute intensity
             # [c.f. all_exact_wave_vectors, but we need `cell' index as well here]
-            Ls = size(sf.samplebuf)[2:4] # Lattice size
             q = SVector((cell.I .- 1) ./ Ls) # q is in R.L.U.
 
             # Figure out which bin this goes in
@@ -299,11 +330,11 @@ function intensities_binned(sf::StructureFactor, params::BinningParameters, mode
 
             if isnothing(integrated_kernel) # `Delta-function energy' logic
                 # Check this bin is within the 4D histogram bounds
-                if all(xyztBin .<= numbins) &&  all(xyztBin .>= 1)
+                if all(xyztBin .<= numbins) && all(xyztBin .>= 1)
                     ci = CartesianIndex(xyztBin.data)
                     k = recip_vecs * q
                     NCorr, NAtoms = size(sf.data)[1:2]
-                    intensity = calc_intensity(sf,k,cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                    intensity = calc_intensity(sf,k,base_cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
                     output_intensities[ci] += intensity
                     output_counts[ci] += 1
                 end
@@ -320,7 +351,7 @@ function intensities_binned(sf::StructureFactor, params::BinningParameters, mode
                         ci = CartesianIndex(xyztBin.data)
                         k = recip_vecs * q
                         NCorr, NAtoms = size(sf.data)[1:2]
-                        intensity = calc_intensity(sf,k,cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                        intensity = calc_intensity(sf,k,base_cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
                         # Broaden from the source scattering vector (k,ω) to
                         # each target bin ci_other
                         for iωother = 1:numbins[4]
@@ -436,9 +467,8 @@ function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationSchem
 
     # Calculate corresponding q (RLU) and k (global) vectors
     recip_vecs = 2π*inv(sf.crystal.latvecs)'  # Note, qs will be in terms of sf.crystal by this point, not origin_crystal
-    latsize = size(sf.samplebuf)[2:4]
     qs_all = map(ms_all) do ms
-       map(m -> m ./ latsize, ms) 
+       map(m -> m ./ sf.latsize, ms) 
     end
 
     ks_all = map(qs_all) do qs

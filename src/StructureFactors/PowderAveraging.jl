@@ -59,7 +59,7 @@ function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters, mo
     integrated_kernel=nothing,
     bzsize=nothing,
     kT=nothing,
-    ffdata=nothing,
+    formfactors=nothing,
 )
     ωstart,ωend,ωbinwidth = ω_binning_parameters
     rstart,rend,rbinwidth = radial_binning_parameters
@@ -81,7 +81,7 @@ function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters, mo
     end
 
     # Loop over every scattering vector
-    Ls = size(sf.samplebuf)[2:4] # Lattice size
+    Ls = sf.latsize
     if isnothing(bzsize)
         bzsize = (1,1,1) .* ceil(Int64,rend/eigmin(recip_vecs))
     end

@@ -62,17 +62,23 @@ end
 # Since the SU(N)NY crystal has only finitely many lattice sites, there are finitely
 # many ways for a neutron to scatter off of the sample.
 # We can visualize this discreteness by plotting each possible Qx and Qz, for example:
-Qx = zeros(Float64,0)
-Qz = zeros(Float64,0)
-for cell in Sunny.all_cells(sys)
-    q = (cell.I .- 1) ./ latsize # q is in R.L.U.
-    push!(Qx,q[1])
-    push!(Qz,q[3])
-end
-fig = Figure()
-ax = Axis(fig[1,1];xlabel="Qx [r.l.u]",ylabel="Qz [r.l.u.]")
+
+lower_aabb_q, upper_aabb_q = Sunny.binning_parameters_aabb(unit_resolution_binning_parameters(dsf))#hide
+lower_aabb_cell = floor.(Int64,lower_aabb_q .* latsize .+ 1)#hide
+upper_aabb_cell = ceil.(Int64,upper_aabb_q .* latsize .+ 1)#hide
+
+Qx = zeros(Float64,0)#hide
+Qz = zeros(Float64,0)#hide
+for cell in CartesianIndices(Tuple(((:).(lower_aabb_cell,upper_aabb_cell))))#hide
+    q = (cell.I .- 1) ./ latsize # q is in R.L.U.#hide
+    push!(Qx,q[1])#hide
+    push!(Qz,q[3])#hide
+end#hide
+fig = Figure()#hide
+ax = Axis(fig[1,1];xlabel="Qx [r.l.u]",ylabel="Qz [r.l.u.]")#hide
+## Compute some scattering vectors at and around the first BZ...
 scatter!(ax,Qx,Qz)
-fig
+fig#hide
 
 # One way to display the structure factor is to create a histogram with
 # one bin centered at each discrete scattering possibility.
@@ -99,6 +105,8 @@ fig = Figure()#hide
 ax = Axis(fig[1,1];xlabel="Qx [r.l.u]",ylabel="Qz [r.l.u.]")#hide
 heatmap!(ax,bin_centers[1],bin_centers[3],normalized_intensity[:,1,:,1])
 scatter!(ax,Qx,Qz)
+xlims!(ax,params.binstart[1],params.binend[1])
+ylims!(ax,params.binstart[3],params.binend[3])
 return fig#hide
 
 end#hide
@@ -147,6 +155,8 @@ bin_centers = axes_bincenters(params);#hide
 fig = Figure()#hide
 ax = Axis(fig[1,1];xlabel="Progress along cut [r.l.u]",ylabel="Energy [meV]")#hide
 heatmap!(ax,bin_centers[1],bin_centers[4],log_intensity[:,1,1,:])
+xlims!(ax,params.binstart[1],params.binend[1])#hide
+ylims!(ax,params.binstart[4],params.binend[4])#hide
 fig#hide
 
 # By reducing the number of energy bins to be closer to the number of bins on the x-axis, we can make the dispersion curve look nicer:
@@ -157,4 +167,6 @@ bin_centers = axes_bincenters(params);#hide
 fig = Figure()#hide
 ax = Axis(fig[1,1];xlabel="Progress along cut [r.l.u]",ylabel="Energy [meV]")#hide
 heatmap!(ax,bin_centers[1],bin_centers[4],log_intensity[:,1,1,:])
+xlims!(ax,params.binstart[1],params.binend[1])#hide
+ylims!(ax,params.binstart[4],params.binend[4])#hide
 fig#hide

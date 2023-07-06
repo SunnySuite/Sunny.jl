@@ -26,6 +26,8 @@ function Base.show(io::IO, ::MIME"text/plain", sf::StructureFactor)
     printstyled(io, "StructureFactor [$modename]\n"; bold=true, color=:underline)
 end
 
+Base.getproperty(sf::StructureFactor, sym::Symbol) = sym == :latsize ? size(sf.samplebuf)[2:4] : getfield(sf,sym)
+
 """
     merge!(sf::StructureFactor, others...)
 
