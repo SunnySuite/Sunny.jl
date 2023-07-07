@@ -242,9 +242,9 @@ end
 Plot the spin configuration defined by `sys`. `kwargs` are passed to `Makie.arrows`.        
 """
 function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
-    linewidth=0.1, arrowsize=0.2, arrowlength=0.2, ortho=false, kwargs...)
+    linewidth=0.1, arrowsize=0.2, arrowlength=0.2, show_axis=false, ortho=false, kwargs...)
 
-    fig, ax = _setup_scene(; ortho)
+    fig, ax = _setup_scene(; show_axis, ortho)
 
     pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = Makie.Vec3f0.(sys.dipoles[:])
