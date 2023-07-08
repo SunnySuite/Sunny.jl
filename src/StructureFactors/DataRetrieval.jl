@@ -23,21 +23,30 @@ function prepare_form_factors(sf, formfactors)
     return propagate_form_factors(sf, formfactors)
 end
 
+"""
+    BinningParameters(binstart,binend,binwidth;covectors = I(4))
+    BinningParameters(binstart,binend;numbins,covectors = I(4))
 
-# Describes a 4D parallelepided histogram in a format compatible with Mantid/Horace
-# 
-# The coordinates of the histogram axes are specified by multiplication 
-# of `(q,ω)' with each row of the covectors matrix
-#
-# The convention is that:
-# - The left edge of the first bin starts at `binstart`
-# - The last bin contains `binend`
-# - There are no ``partial bins;'' the last bin may contain values greater than `binend`
-# - The bin width is `binwidth`
-#
-# A value can be binned by computing its bin number:
-# 
-#     bin = 1 + floor(Int64,(value - binstart) / binwidth)
+Describes a 4D parallelepided histogram in a format compatible with experimental Inelasitic Neutron Scattering data.
+See [`generate_shiver_script`](@ref) to convert [`BinningParameters`](@ref) to a format understandable by the [Mantid software](https://www.mantidproject.org/), or [`load_nxs_binning_parameters`](@ref) to load a [`BinningParameters`](@ref) from a Mantid `.nxs` file.
+ 
+The coordinates of the histogram axes are specified by multiplication 
+of `(q,ω)` with each row of the `covectors` matrix.
+Since the `covectors` matrix is the identity matrix by default, the default coordinates
+are `(q,ω)` in Reciprocal Lattice Units (R.L.U.). 
+To use physical units instead, see [`rlu_to_absolute_units!`](@ref).
+
+The convention for the binning scheme is that:
+- The left edge of the first bin starts at `binstart`
+- The bin width is `binwidth`
+- The last bin contains `binend`
+- There are no "partial bins;" the last bin may contain values greater than `binend`. C.f. [`count_bins`](@ref).
+
+A `value` can be binned by computing its bin index:
+
+    coords = covectors * value
+    bin_ix = 1 .+ floor.(Int64,(coords .- binstart) ./ binwidth)
+"""
 mutable struct BinningParameters
     binstart::MVector{4,Float64}
     binend::MVector{4,Float64}
@@ -87,10 +96,17 @@ function Base.setproperty!(params::BinningParameters, sym::Symbol, numbins)
     end
 end
 
-# This function defines how partial bins are handled.
+"""
+    count_bins(binstart,binend,binwidth)
+
+Returns the number of bins in the binning scheme implied by `binstart`, `binend`, and `binwidth`.
+To count the bins in a [`BinningParameters`](@ref), use `params.numbins`.
+
+This function defines how partial bins are handled, so it should be used preferentially over
+computing the number of bins manually.
+"""
 count_bins(bin_start,bin_end,bin_width) = ceil.(Int64,(bin_end .- bin_start) ./ bin_width)
 
-# Default coordinates are (Qx,Qy,Qz,ω)
 function BinningParameters(binstart,binend,binwidth;covectors = [1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1])
     return BinningParameters(binstart,binend,binwidth,covectors)
 end
@@ -101,8 +117,14 @@ function BinningParameters(binstart,binend;numbins,kwargs...)
     return BinningParameters(binstart,binend,binwidth;kwargs...)
 end
 
-# Integrate over one or more axes of the histogram by setting the number of bins
-# in that axis to 1
+"""
+    integrate_axes!(params::BinningParameters; axes)
+Integrate over one or more axes of the histogram by setting the number of bins
+in that axis to 1. Examples:
+
+    integrate_axes!(params; axes = [2,3])
+    integrate_axes!(params; axes = 2)
+"""
 function integrate_axes!(params::BinningParameters;axes)
     for k in axes
         nbins = [params.numbins.data...]
@@ -129,14 +151,29 @@ function binning_parameters_aabb(params)
     return lower_aabb_q, upper_aabb_q
 end
 
-function rlu_to_absolute_units!(sf,params::BinningParameters)
-    recip_vecs = 2π*inv(sf.crystal.latvecs)'
+"""
+    rlu_to_absolute_units!(params::BinningParameters,[specification of reciprocal lattice vectors])
+
+Converts the [`BinningParameters`](@ref) from Reciprocal Lattice Units R.L.U. to absolute (physical) units.
+After calling `rlu_to_absolute_units!`, 
+
+The second argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or any of these objects:
+- [`Crystal`](@ref)
+- [`System`](@ref)
+- [`StructureFactor`](@ref)
+- [`SpinWaveTheory`](@ref)
+"""
+function rlu_to_absolute_units!(params::BinningParameters,recip_vecs)
     covectorsQ = params.covectors
 
     # covectorsQ * q = covectorsK * k = covectorsK * recip_vecs * q
     covectorsK = covectorsQ * [inv(recip_vecs) [0;0;0]; [0 0 0] 1]
     params.covectors = MMatrix{4,4}(covectorsK)
 end
+rlu_to_absolute_units!(crystal::Crystal,params::BinningParameters) = rlu_to_absolute_units!(2π*inv(crystal.latvecs)',params)
+rlu_to_absolute_units!(sys::System,params::BinningParameters) = rlu_to_absolute_units!(sys.crystal,params)
+rlu_to_absolute_units!(sf::StructureFactor,params::BinningParameters) = rlu_to_absolute_units!(sf.crystal,params)
+rlu_to_absolute_units!(swt::SpinWaveTheory,params::BinningParameters) = rlu_to_absolute_units!(swt.recipvecs_chem,params)
 
 
 function generate_shiver_script(params)
@@ -163,8 +200,16 @@ function generate_shiver_script(params)
         """
 end
 
-# This places one histogram bin around each possible Sunny scattering vector.
-# This is the finest possible binning without creating bins with zero scattering vectors in them.
+"""
+    unit_resolution_binning_parameters(sf::StructureFactor)
+
+Create [`BinningParameters`](@ref) which place one histogram bin centered at each possible Sunny scattering vector.
+This is the finest possible binning without creating bins with zero scattering vectors in them.
+
+This function can be used without reference to a [`StructureFactor`](@ref) using this alternate syntax to manually specify the bin centers for the energy axis and the lattice size:
+
+    unit_resolution_binning_parameters(ω_bincenters = ωs(sf),latsize = sf.latsize)
+"""
 function unit_resolution_binning_parameters(ωvals,latsize) 
     numbins = (latsize...,length(ωvals))
     # Bin centers should be at Sunny scattering vectors
@@ -188,20 +233,30 @@ function unit_resolution_binning_parameters(ωvals::Vector{Float64})
     return ωstart, ωend, ωbinwidth
 end
 
-# Creates BinningParameters which implement a 1D cut in (Qx,Qy,Qz) space.
-# 
-# The x-axis of the resulting histogram consists of `cut_bins`-many bins ranging
-# from `cut_from_q` to `cut_to_q`. The binning in the transverse directions is
-# determined automatically using `plane_normal`, and has size controlled by `cut_width`.
-#
-# If the cut is too narrow, there will be very few scattering vectors per bin, or
-# the number per bin will vary substantially along the cut.
-#
-# The four axes of the resulting histogram are:
-#   1. Along the cut
-#   2. Fist transverse Q direction
-#   3. Second transverse Q direction
-#   4. Energy
+"""
+    one_dimensional_cut_binning_parameter(sf::StructureFactor, cut_from_q, cut_to_q, cut_bins::Int64, cut_width::Float64; plane_normal = [0,0,1],cut_height = cutwidth)
+
+Creates [`BinningParameters`](@ref) which make a 1D cut in Q-space.
+ 
+The x-axis of the resulting histogram consists of `cut_bins`-many bins ranging
+from `cut_from_q` to `cut_to_q`. The orientation of the binning in the transverse directions is
+determined automatically using `plane_normal`.
+The width of the bins in the transverse direciton is controlled by `cut_width` and `cut_height`.
+
+If the cut is too narrow, there will be very few scattering vectors per bin, or
+the number per bin will vary substantially along the cut.
+If the output appears under-resolved, try increasing `cut_width`.
+
+The four axes of the resulting histogram are:
+  1. Along the cut
+  2. Fist transverse Q direction
+  3. Second transverse Q direction
+  4. Energy
+
+This function can be used without reference to a [`StructureFactor`](@ref) using this alternate syntax to manually specify the bin centers for the energy axis:
+
+    one_dimensional_cut_binning_parameter(ω_bincenters = ωs(sf),...)
+"""
 function one_dimensional_cut_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q,cut_bins::Int64,cut_width;plane_normal = [0,0,1],cut_height = cut_width)
     # This covector should measure progress along the cut in r.l.u.
     cut_covector = normalize(cut_to_q - cut_from_q)
@@ -227,7 +282,15 @@ function one_dimensional_cut_binning_parameters(ωvals::Vector{Float64},cut_from
 end
 one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...) = one_dimensional_cut_binning_parameters(ωs(sf),cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...)
 
-# Returns tick marks which label the histogram bins by their bin centers
+"""
+    axes_bincenters(params::BinningParameters)
+
+Returns tick marks which label the bins of the histogram described by [`BinningParameters`](@ref) by their bin centers.
+
+The following alternative syntax can be used to compute bin centers for a single axis:
+
+    axes_bincenters(binstart,binend,binwidth)
+"""
 function axes_bincenters(binstart,binend,binwidth)
     bincenters = []
     for k = 1:length(binstart)
@@ -275,6 +338,9 @@ connected_path_bins(sw::SpinWaveTheory, ωvals, qs::Vector, density,args...;kwar
 
 
 
+"""
+    intensities_binned(sf::StructureFactor, params::BinningParameters, mode)
+"""
 # Given correlation data contained in `sf` and BinningParameters describing the
 # shape of a histogram, compute the intensity and normalization for each histogram bin.
 #
@@ -592,8 +658,6 @@ function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωvals
     return intensities
 end
 
-
-
 """
     instant_intensities(sf::StructureFactor, qs, mode; kwargs...)
 
@@ -652,6 +716,13 @@ connected_path(sw::SpinWaveTheory, qs::Vector, density) = connected_path(sw.reci
 Returns ``η/(π(x^2 + η^2))``.
 """
 lorentzian(x, η) = η/(π*(x^2 + η^2))
+
+"""
+    integrated_lorentzian(η) 
+
+Returns ``x \\mapsto atan(x/η)/π`` for use with [`intensities_binned`](@ref).
+"""
+integrated_lorentzian(η) = x -> atan(x/η)/π
 
 """
     broaden_energy(sf::StructureFactor, vals, kernel::Function; negative_energies=false)

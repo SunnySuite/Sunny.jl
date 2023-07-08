@@ -11,7 +11,7 @@ types = ["Cu"]
 formfactors  = [FormFactor(1,"Cu2")]
 xtal = Crystal(latvecs,positions;types);
 
-# We will use a somewhat small periodic lattice size of 5x5x3 in order
+# We will use a somewhat small periodic lattice size of 6x6x4 in order
 # to showcase the effect of a finite lattice size.
 latsize = (6,6,4);
 
@@ -81,21 +81,21 @@ scatter!(ax,Qx,Qz)
 fig#hide
 
 # One way to display the structure factor is to create a histogram with
-# one bin centered at each discrete scattering possibility.
+# one bin centered at each discrete scattering possibility using [`unit_resolution_binning_parameters`](@ref) to create a set of [`BinningParameters`](@ref).
 params = unit_resolution_binning_parameters(dsf)
 
 # Since this is a 4D histogram,
 # it further has to be integrated over two of those directions in order to be displayed.
-# Here, we integrate over Qy and Energy:
+# Here, we integrate over Qy and Energy using [`integrate_axes!`](@ref):
 integrate_axes!(params;axes = [2,4]) # Integrate over Qy (2) and E (4)
 
 # Now that we have parameterized the histogram, we can bin our data.
-# The arguments beyond `params` specify which dipole, temperature,
+# The arguments to [`intensities_binned`](@ref) beyond `params` specify which dipole, temperature,
 # and atomic form factor corrections should be applied during the intensity calculation.
 intensity,counts = intensities_binned(dsf, params, :perp; kT, formfactors);
 normalized_intensity = intensity ./ counts;
 
-# With the data binned, we can now plot it. The axes labels give the bin centers of each bin.
+# With the data binned, we can now plot it. The axes labels give the bin centers of each bin, as given by [`axes_bincenters`](@ref).
 function plot_data(params) #hide
 intensity,counts = intensities_binned(dsf, params, :perp; kT, formfactors) #hide
 normalized_intensity = intensity ./ counts;#hide
@@ -139,7 +139,8 @@ ax = Axis(fig[1,1];xlabel="Qx [r.l.u]",ylabel="Energy [meV]")#hide
 scatter!(ax,x,y)
 
 # Let's make a new histogram which includes the energy axis.
-# The x-axis of the histogram will be a 1D cut from `Q = [0,0,0]` to `Q = [1,1,0]`
+# The x-axis of the histogram will be a 1D cut from `Q = [0,0,0]` to `Q = [1,1,0]`.
+# See [`one_dimensional_cut_binning_parameters`](@ref).
 x_axis_bin_count = 10
 cut_width = 0.3
 params = one_dimensional_cut_binning_parameters(dsf,[0,0,0],[1,1,0],x_axis_bin_count,cut_width)

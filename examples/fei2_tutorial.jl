@@ -429,7 +429,7 @@ paramsList, markers, ranges = connected_path_bins(sf,points,density,cut_width)
 total_bins = ranges[end][end]
 energy_bins = paramsList[1].numbins[4]
 is = zeros(Float64,total_bins,energy_bins)
-integrated_kernel = x -> atan(x/0.05)/pi # Lorentzian broadening
+integrated_kernel = integrated_lorentzian(0.05) # Lorentzian broadening
 for k in 1:length(paramsList)
     h,c = intensities_binned(sf,paramsList[k],:perp,kT=kT,formfactors=formfactors,integrated_kernel = integrated_kernel)
     is[ranges[k],:] = h[:,1,1,:] ./ c[:,1,1,:]

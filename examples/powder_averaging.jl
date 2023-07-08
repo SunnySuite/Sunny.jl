@@ -133,9 +133,9 @@ fig1
 #   averaging loop.
 
 
-# The intensity data can alternatively be collected into bonafide histogram bins.
+# The intensity data can alternatively be collected into bonafide histogram bins. See [`integrated_lorentzian`](@ref), [`powder_averaged_bins`](@ref), and [`axes_bincenters`](@ref).
 radial_binning_parameters = (0,6π,6π/55)
-integrated_kernel = x -> atan(x/0.05)/pi # Lorentzian broadening
+integrated_kernel = integrated_lorentzian(0.05) # Lorentzian broadening
 
 pa_intensities, pa_counts = powder_averaged_bins(sf,radial_binning_parameters,:perp,kT=kT,integrated_kernel = integrated_kernel)
 
