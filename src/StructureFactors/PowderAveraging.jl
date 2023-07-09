@@ -28,7 +28,7 @@ function spherical_shell(sf::StructureFactor, radius, density)
     end
 end
 
-function powder_average(sf::StructureFactor, q_ias, mode, density; kwargs...)
+function powder_average(sf::StructureFactor, q_ias, density; kwargs...)
     A = inv(inv(sf.crystal.latvecs)') # Transformation to convert from inverse angstroms to RLUs
     nω = length(ωs(sf))
     output = zeros(Float64, length(q_ias), nω) # generalize this so matches contract
@@ -38,7 +38,7 @@ function powder_average(sf::StructureFactor, q_ias, mode, density; kwargs...)
         numpoints = round(Int, area*density)
         fibpoints = numpoints == 0 ? [Vec3(0,0,0)] :  r .* spherical_points_fibonacci(numpoints)
         qs = map(v->A*v, fibpoints)
-        vals = intensities(sf, qs, mode; kwargs...)
+        vals = intensities(sf, qs; kwargs...)
         vals = sum(vals, dims=1) / size(vals, 1)
         output[i,:] .= vals[1,:]
     end
@@ -46,20 +46,23 @@ function powder_average(sf::StructureFactor, q_ias, mode, density; kwargs...)
     return output
 end
 
-# Similar to `powder_average`, but the data is binned instead of interpolated.
-# Also similar to `intensities_binned`, but the histogram x-axis is `|k|` in absolute units, which
-# is a nonlinear function of `kx`,`ky`,`kz`. The y-axis is energy.
-#
-# Binning parameters are specified as tuples `(start,end,bin_width)`,
-# e.g. `radial_binning_parameters = (0,6π,6π/55)`.
-#
-# Energy broadening is support in the same as `intensities_binned`.
-function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters, mode;
+"""
+    powder_averaged_bins(sf::StructureFactor, radial_binning_parameters; formula
+                         ω_binning_parameters, integrated_kernel = nothing, bzsize = nothing)
+
+Similar to [`powder_average`](@ref), but the data is binned instead of interpolated.
+Also similar to [`intensities_binned`](@ref), but the histogram x-axis is `|k|` in absolute units, which is a nonlinear function of `kx`,`ky`,`kz`. The y-axis is energy.
+
+Binning parameters are specified as tuples `(start,end,bin_width)`,
+e.g. `radial_binning_parameters = (0,6π,6π/55)`.
+
+Energy broadening is supported in the same way as `intensities_binned`.
+"""
+function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters;
     ω_binning_parameters=unit_resolution_binning_parameters(ωs(sf)),
-    integrated_kernel=nothing,
-    bzsize=nothing,
-    kT=nothing,
-    formfactors=nothing,
+    integrated_kernel = nothing,
+    formula = intensity_formula(sf,:perp),
+    bzsize=nothing
 )
     ωstart,ωend,ωbinwidth = ω_binning_parameters
     rstart,rend,rbinwidth = radial_binning_parameters
@@ -71,14 +74,6 @@ function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters, mo
     output_counts = zeros(Float64,r_bin_count,ω_bin_count)
     ωvals = ωs(sf)
     recip_vecs = 2π*inv(sf.crystal.latvecs)'
-    ffdata = prepare_form_factors(sf, formfactors)
-    contractor = if mode == :perp
-        DipoleFactor(sf)
-    elseif typeof(mode) <: Tuple{Int, Int}
-        Element(sf, mode)
-    else
-        Trace(sf)
-    end
 
     # Loop over every scattering vector
     Ls = sf.latsize
@@ -106,16 +101,14 @@ function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters, mo
                     # Check if the ω falls within the histogram
                     ωbin = 1 .+ floor.(Int64,(ω .- ωstart) ./ ωbinwidth)
                     if ωbin <= ω_bin_count && ωbin >= 1
-                        NCorr, NAtoms = size(sf.data)[1:2]
-                        intensity = calc_intensity(sf,k,base_cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                        intensity = formula(sf,k,base_cell,iω)
                         output_intensities[rbin,ωbin] += intensity
                         output_counts[rbin,ωbin] += 1
                     end
                 else # `Energy broadening into bins' logic
 
                     # Calculate source scattering vector intensity only once
-                    NCorr, NAtoms = size(sf.data)[1:2]
-                    intensity = calc_intensity(sf,k,base_cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                    intensity = formula(sf,k,base_cell,iω)
                     # Broaden from the source scattering vector (k,ω) to
                     # each target bin (rbin,ωbin_other)
                     for ωbin_other = 1:ω_bin_count

@@ -1,6 +1,7 @@
 module Sunny
 
 using LinearAlgebra
+using LinearMaps
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import Requires: @require
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
@@ -10,7 +11,7 @@ import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, randn!
 import DynamicPolynomials as DP
-import DataStructures: SortedDict
+import DataStructures: SortedDict, OrderedDict
 import Optim
 
 # Specific to Symmetry/
@@ -95,11 +96,11 @@ include("StructureFactors/Interpolation.jl")
 include("StructureFactors/PowderAveraging.jl")
 include("StructureFactors/DataRetrieval.jl")
 export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFactor, 
-    add_sample!, intensities, instant_intensities, broaden_energy, lorentzian,
+    add_sample!, intensities_interpolated, instant_intensities_interpolated, broaden_energy, lorentzian,
     connected_path, all_exact_wave_vectors, ωs, spherical_shell, merge!, BinningParameters,
     integrate_axes!, unit_resolution_binning_parameters, rlu_to_absolute_units!,
     intensities_binned, one_dimensional_cut_binning_parameters, axes_bincenters,
-    connected_path_bins, powder_averaged_bins
+    connected_path_bins, powder_averaged_bins, intensity_formula, integrated_lorentzian, count_bins
 
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
