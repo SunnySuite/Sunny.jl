@@ -22,10 +22,9 @@ struct StructureFactor{N}
 end
 
 function Base.show(io::IO, sf::StructureFactor{N}) where N
-    observable_names = SortedDict(value => key for (key, value) in sf.observable_ixs)
     modename = N == 0 ? "Dipole" : "SU($(N))"
     print(io,"StructureFactor{$modename}")
-    print(io,[v for v in values(observable_names)])
+    print(io,all_observable_names(sf))
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sf::StructureFactor{N}) where N
@@ -96,6 +95,11 @@ function lookup_correlations(sf::StructureFactor,corrs; err_msg = αβ -> "Missi
         indices[i] = get!(() -> error(err_msg(αβ)),sf.correlations,idx)
     end
     indices
+end
+
+function all_observable_names(sf::StructureFactor)
+    observable_names = Dict(value => key for (key, value) in sf.observable_ixs)
+    [observable_names[i] for i in 1:length(observable_names)]
 end
 
 """

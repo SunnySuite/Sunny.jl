@@ -316,7 +316,6 @@ connected_path_bins(sf::StructureFactor, qs::Vector, density,args...;kwargs...) 
 connected_path_bins(sw::SpinWaveTheory, ωvals, qs::Vector, density,args...;kwargs...) = connected_path_bins(sw.recipvecs_chem, ωvals, qs, density,args...;kwargs...)
 
 
-
 """
     intensity, counts = intensities_binned(sf::StructureFactor, params::BinningParameters; formula, integrated_kernel)
 
@@ -369,7 +368,7 @@ function intensities_binned(sf::StructureFactor, params::BinningParameters;
                 if all(xyztBin .<= numbins) && all(xyztBin .>= 1)
                     ci = CartesianIndex(xyztBin.data)
                     k = recip_vecs * q
-                    intensity = formula(sf,k,base_cell,iω)
+                    intensity = formula.calc_intensity(sf,k,base_cell,iω)
                     output_intensities[ci] += intensity
                     output_counts[ci] += 1
                 end
@@ -385,7 +384,7 @@ function intensities_binned(sf::StructureFactor, params::BinningParameters;
                         # Calculate source scattering vector intensity only once
                         ci = CartesianIndex(xyztBin.data)
                         k = recip_vecs * q
-                        intensity = formula(sf,k,base_cell,iω)
+                        intensity = formula.calc_intensity(sf,k,base_cell,iω)
                         # Broaden from the source scattering vector (k,ω) to
                         # each target bin ci_other
                         for iωother = 1:numbins[4]
@@ -512,17 +511,61 @@ function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationSchem
     return (; qs_all, ks_all, idcs_all, counts)
 end
 
-"""
-    formula = intensity_formula(sf::StructureFactor, contraction_mode; kwargs...)
-    formula(sf,k,cell,iω)
+abstract type IntensityFormula end
 
-Establish a formula for computing ``𝒮(𝐪,ω)`` from the correlation data stored in the [`StructureFactor`](@ref).
+struct ClassicalIntensityFormula{T} <: IntensityFormula
+    kT :: Float64
+    formfactors
+    string_formula :: String
+    calc_intensity :: Function
+end
+
+function Base.show(io::IO, formula::ClassicalIntensityFormula{T}) where T
+    print(io,"ClassicalIntensityFormula{$T}")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", formula::ClassicalIntensityFormula{T}) where T
+    printstyled(io, "Classical Scattering Intensity Formula\n";bold=true, color=:underline)
+
+    formula_lines = split(formula.string_formula,'\n')
+
+    intensity_equals = "  Intensity[ix_q,ix_ω] = "
+    println(io,"At discrete scattering modes S = S[ix_q,ix_ω], use:")
+    println(io)
+    println(io,intensity_equals,formula_lines[1])
+    for i = 2:length(formula_lines)
+        precursor = repeat(' ', textwidth(intensity_equals))
+        println(io,precursor,formula_lines[i])
+    end
+    println(io)
+
+    if isnothing(formula.formfactors)
+        printstyled(io, "No form factors specified\n";color=:yellow)
+    else
+        printstyled(io, "Form factors included in S ✓\n";color=:green)
+    end
+    if formula.kT == Inf
+        printstyled(io, "No temperature correction";color=:yellow)
+        print(io, " (kT = ∞)\n")
+    else
+        printstyled(io, "Temperature corrected (kT = $(formula.kT)) ✓\n";color = :green)
+    end
+    if T != Float64
+        println(io,"Intensity :: $(T)")
+    end
+end
+
+"""
+    formula = intensity_formula(sf::StructureFactor; kwargs...)
+    formula.calc_intensity(sf,q,ix_q,ix_ω)
+
+Establish a formula for computing the intensity of the discrete scattering modes `(q,ω)` using the correlation data ``𝒮^{αβ}(q,ω)`` stored in the [`StructureFactor`](@ref).
 The `formula` returned from `intensity_formula` can be passed to [`intensities_interpolated`](@ref) or [`intensities_binned`](@ref).
 
 Sunny has several built-in formulas that can be selected by setting `contraction_mode` to one of these values:
 
+- `:perp` (default), which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
 - `:trace`, which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α 𝒮^{αα}(q,ω)``
-- `:perp`, which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
 - `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
 
 Additionally, there are keyword arguments providing temperature and form factor corrections:
@@ -542,26 +585,30 @@ Alternatively, a custom formula can be specifed by providing a function `intensi
 The function is intended to be specified using `do` notation. For example, this custom formula sums the off-diagonal correlations:
 
     required = [(:Sx,:Sy),(:Sy,:Sz),(:Sx,:Sz)]
-    intensity_formula(sf,required,return_type = ComplexF64) do q, ω, off_diagonal_correlations
+    intensity_formula(sf,required,return_type = ComplexF64) do k, ω, off_diagonal_correlations
         sum(off_diagonal_correlations)
     end
 
 If your custom formula returns a type other than `Float64`, use the `return_type` keyword argument to flag this.
 """
-intensity_formula(sf::StructureFactor, elem::Tuple{Symbol,Symbol}; kwargs...) = intensity_formula(sf,Element(sf, elem); kwargs...)
+function intensity_formula(sf::StructureFactor, elem::Tuple{Symbol,Symbol}; kwargs...)
+    string_formula = "S{$(elem[1]),$(elem[2])}[ix_q,ix_ω]"
+    intensity_formula(sf,Element(sf, elem); string_formula, kwargs...)
+end
 #intensity_formula(sf::StructureFactor, elem::Vector{Tuple{Symbol,Symbol}}; kwargs...) = intensity_formula(sf,Element(sf, elem); kwargs...)
+intensity_formula(sf::StructureFactor; kwargs...) = intensity_formula(sf, :perp; kwargs...)
 function intensity_formula(sf::StructureFactor, mode::Symbol; kwargs...)
-    # Set up element contraction
-    contractor = if mode == :trace
-        Trace(sf)
+    if mode == :trace
+        contractor = Trace(sf)
+        string_formula = "Tr S"
     elseif mode == :perp
-        DipoleFactor(sf)
+        contractor = DipoleFactor(sf)
+        string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz)"
     elseif mode == :full
-        FullTensor(sf)
-    elseif typeof(mode) <: Tuple{Int, Int}
-        Element(sf, mode)
+        contractor = FullTensor(sf)
+        string_formula = "S{α,β}"
     end
-    intensity_formula(sf,contractor;kwargs...)
+    intensity_formula(sf,contractor;string_formula,kwargs...)
 end
 
 function intensity_formula(sf::StructureFactor, contractor::Contraction; kwargs...)
@@ -571,7 +618,7 @@ function intensity_formula(sf::StructureFactor, contractor::Contraction; kwargs.
     end
 end
 
-function intensity_formula(f,sf::StructureFactor,required_correlations; kwargs...)
+function intensity_formula(f::Function,sf::StructureFactor,required_correlations; kwargs...)
     # SQTODO: This corr_ix may contain repeated correlations if the user does a silly
     # thing like [(:Sx,:Sy),(:Sy,:Sx)], and this can technically be optimized so it's
     # not computed twice
@@ -579,7 +626,7 @@ function intensity_formula(f,sf::StructureFactor,required_correlations; kwargs..
     intensity_formula(f,sf,corr_ix;kwargs...)
 end
 
-function intensity_formula(f,sf::StructureFactor,corr_ix::AbstractVector{Int64}; kT = Inf, formfactors = nothing, return_type = Float64)
+function intensity_formula(f::Function,sf::StructureFactor,corr_ix::AbstractVector{Int64}; kT = Inf, formfactors = nothing, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])")
     # If temperature given, ensure it's greater than 0.0
     if iszero(kT)
         error("`kT` must be greater than zero.")
@@ -590,16 +637,17 @@ function intensity_formula(f,sf::StructureFactor,corr_ix::AbstractVector{Int64};
     NCorr = length(corr_ix)
 
     ωs_sf = ωs(sf;negative_energies=true)
-    function formula(sf,k,cell,iω)
-        correlations = phase_averaged_elements(view(sf.data,corr_ix,:,:,cell,iω), k, sf, ffdata, Val(NCorr), Val(NAtoms))
+    formula = function (sf::StructureFactor,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
+        correlations = phase_averaged_elements(view(sf.data,corr_ix,:,:,ix_q,ix_ω), k, sf, ffdata, Val(NCorr), Val(NAtoms))
 
-        ω = ωs_sf[iω]
+        ω = ωs_sf[ix_ω]
         intensity = f(k,ω,correlations) * classical_to_quantum(ω, kT)
 
         # Having this line saves the return_type in the function closure
         # so that it can be read by intensities later
         intensity :: return_type
     end
+    ClassicalIntensityFormula{return_type}(kT,formfactors,string_formula,formula)
 end
 
 function classical_to_quantum(ω, kT::Float64)
@@ -645,7 +693,7 @@ i.e., multiples of the reciprocal lattice vectors.
     extension of the energy axis. Most users will not want this.
 """
 function intensities_interpolated(sf::StructureFactor, qs;
-    formula = intensity_formula(sf,:perp),
+    formula = intensity_formula(sf,:perp) :: ClassicalIntensityFormula,
     interpolation = :round,
     negative_energies = false,
     static_warn = true
@@ -677,10 +725,10 @@ function intensities_interpolated(sf::StructureFactor, qs;
     ωvals = ωs(sf; negative_energies)
     nω = length(ωvals) 
     stencil_info = pruned_stencil_info(sf, qs, interp) 
-    intensities = zeros(formula.return_type, size(qs)..., nω)
+    intensities = zeros(formula.calc_intensity.return_type, size(qs)..., nω)
     
     # Call type stable version of the function
-    intensities!(intensities, sf, qs, ωvals, interp, formula, stencil_info, formula.return_type) 
+    intensities!(intensities, sf, qs, ωvals, interp, formula, stencil_info, formula.calc_intensity.return_type)
 
     return intensities
 end
@@ -694,7 +742,7 @@ function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωvals
     for (iω, ω) in enumerate(ωvals)
         iq = 0
         for (qs, ks, idcs, numrepeats) in zip(qs_all, ks_all, idcs_all, counts)
-            local_intensities = SVector{NInterp, T}(formula(sf, ks[n], idcs[n], iω) for n in 1:NInterp)
+            local_intensities = SVector{NInterp, T}(formula.calc_intensity(sf, ks[n], idcs[n], iω) for n in 1:NInterp)
             for _ in 1:numrepeats
                 iq += 1
                 idx = li_intensities[CartesianIndex(ci_qs[iq], iω)]

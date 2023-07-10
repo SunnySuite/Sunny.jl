@@ -14,7 +14,7 @@ function observable_values!(buf, sys::System{N}, ops; apply_g = true) where N
 
         # SQTODO: This allocates :(
         for (i, op) in enumerate(ops)
-          matrix_operator = convert(Matrix,op)
+          matrix_operator = convert(Matrix{ComplexF64},op)
             for site in all_sites(sys)
                 buf[i,site] = dot(Zs[site], matrix_operator, Zs[site])
             end

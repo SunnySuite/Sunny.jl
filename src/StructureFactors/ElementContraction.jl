@@ -21,6 +21,8 @@ struct FullTensor{NCorr} <: Contraction{SVector{NCorr, ComplexF64}} end
 ################################################################################
 # Constructors
 ################################################################################
+Trace(swt::SpinWaveTheory) = Trace([1,5,9])
+
 function Trace(sf::StructureFactor{N}) where {N}
     # Collect all indices for matrix elements 𝒮^αβ where α=β
     indices = Int64[]
@@ -50,6 +52,8 @@ function Trace(sf::StructureFactor{N}) where {N}
     Trace(SVector{length(indices), Int64}(indices))
 end
 
+DipoleFactor(swt::SpinWaveTheory) = DipoleFactor([1,4,5,7,8,9])
+
 function DipoleFactor(sf::StructureFactor{N}; spin_components = [:Sx,:Sy,:Sz]) where {N}
     # Ensure that the observables themselves are present
     for si in spin_components
@@ -68,6 +72,8 @@ end
 function Element(sf::StructureFactor, pair::Tuple{Symbol,Symbol})
     Element(only(lookup_correlations(sf,[pair]; err_msg = pair -> "Missing correlation $(pair), which was requested.")))
 end
+
+FullTensor(swt::SpinWaveTheory) = FullTensor{9}()
 
 function FullTensor(sf::StructureFactor{N}) where {N}
     FullTensor{size(sf.data, 1)}()

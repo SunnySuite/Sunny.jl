@@ -95,6 +95,7 @@ include("StructureFactors/BasisReduction.jl")
 include("StructureFactors/Interpolation.jl")
 include("StructureFactors/PowderAveraging.jl")
 include("StructureFactors/DataRetrieval.jl")
+include("SpinWaveTheory/Intensities.jl") # Requires ElementContraction
 export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFactor, 
     add_sample!, intensities_interpolated, instant_intensities_interpolated, broaden_energy, lorentzian,
     connected_path, all_exact_wave_vectors, ωs, spherical_shell, merge!, BinningParameters,
