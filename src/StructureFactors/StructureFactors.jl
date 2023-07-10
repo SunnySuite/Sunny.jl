@@ -21,8 +21,16 @@ struct StructureFactor{N}
     processtraj! :: Function              # Function to perform post-processing on sample trajectories
 end
 
-function Base.show(io::IO, ::MIME"text/plain", sf::StructureFactor)
+function Base.show(io::IO, sf::StructureFactor{N}) where N
+    observable_names = SortedDict(value => key for (key, value) in sf.observable_ixs)
+    modename = N == 0 ? "Dipole" : "SU($(N))"
+    print(io,"StructureFactor{$modename}")
+    print(io,[v for v in values(observable_names)])
+end
+
+function Base.show(io::IO, ::MIME"text/plain", sf::StructureFactor{N}) where N
     printstyled(io, "StructureFactor";bold=true, color=:underline)
+    modename = N == 0 ? "Dipole" : "SU($(N))"
     print(io," ($(Base.format_bytes(Base.summarysize(sf))))\n")
     print(io,"[")
     if size(sf.data)[7] == 1
@@ -34,7 +42,8 @@ function Base.show(io::IO, ::MIME"text/plain", sf::StructureFactor)
     print(io," | $(sf.nsamples[1]) sample")
     (sf.nsamples[1] > 1) && print(io,"s")
     print(io,"]\n")
-    print(io,"$(size(sf.data)[1]) correlations on $(sf.latsize) lattice:\n")
+    println(io,"Lattice: $(sf.latsize)×$(natoms(sf.crystal))")
+    print(io,"$(size(sf.data)[1]) correlations in $modename mode:\n")
 
     # Reverse the dictionary
     observable_names = Dict(value => key for (key, value) in sf.observable_ixs)
