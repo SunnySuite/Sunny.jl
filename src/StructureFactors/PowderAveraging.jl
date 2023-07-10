@@ -61,7 +61,7 @@ Energy broadening is supported in the same way as `intensities_binned`.
 function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters;
     ω_binning_parameters=unit_resolution_binning_parameters(ωs(sf)),
     integrated_kernel = nothing,
-    formula = intensity_formula(sf,:perp),
+    formula = intensity_formula(sf,:perp) :: ClassicalIntensityFormula,
     bzsize=nothing
 )
     ωstart,ωend,ωbinwidth = ω_binning_parameters
@@ -101,14 +101,14 @@ function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters;
                     # Check if the ω falls within the histogram
                     ωbin = 1 .+ floor.(Int64,(ω .- ωstart) ./ ωbinwidth)
                     if ωbin <= ω_bin_count && ωbin >= 1
-                        intensity = formula(sf,k,base_cell,iω)
+                        intensity = formula.calc_intensity(sf,k,base_cell,iω)
                         output_intensities[rbin,ωbin] += intensity
                         output_counts[rbin,ωbin] += 1
                     end
                 else # `Energy broadening into bins' logic
 
                     # Calculate source scattering vector intensity only once
-                    intensity = formula(sf,k,base_cell,iω)
+                    intensity = formula.calc_intensity(sf,k,base_cell,iω)
                     # Broaden from the source scattering vector (k,ω) to
                     # each target bin (rbin,ωbin_other)
                     for ωbin_other = 1:ω_bin_count
