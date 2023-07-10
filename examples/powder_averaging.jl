@@ -37,7 +37,7 @@ sf = DynamicStructureFactor(sys;
     nω=100,
     ωmax=5.5,
     process_trajectory=:symmetrize
-);
+)
 
 # To get some intuition about the expected results, we first look at the "single
 # crystal" results along a high-symmetry path in the first Brillouin zone. While
@@ -51,7 +51,7 @@ sf = DynamicStructureFactor(sys;
 qpoints = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
 qs, markers = connected_path(sf, qpoints, 50) 
 
-is = intensities(sf, qs, :trace; interpolation=:none)
+is = intensities_interpolated(sf, qs; interpolation=:round, formula = intensity_formula(sf,:trace))
 is_broad = broaden_energy(sf, is, (ω, ω₀) -> lorentzian(ω-ω₀, 0.1))
 
 ## Plot results
@@ -75,14 +75,13 @@ fig
 # factor, a list of radius values (Å⁻¹), and a density parameter (Å⁻²) that will
 # control the number of wave vectors to sample at each radius. For each radius
 # `r`, the function will generate wavevectors on a sphere of this radius and
-# retrieve their [`intensities`](@ref). These intensities will be broadened, as
+# retrieve their [`intensities_interpolated`](@ref). These intensities will be broadened, as
 # just demonstrated above, and then averaged to produce a single vector of
 # energy-intensities for each `r`. Note that our `powder_average` function
-# passes most of its keywords through to [`intensities`](@ref), so it can be
-# given `kT`, `formfactors`, etc., and these parameters will be applied to the
-# calculation.
+# passes most of its keywords through to [`intensities_interpolated`](@ref), so it can be
+# given an [`intensity_formula`](@ref).
 
-function powder_average(sf, rs, density; η=0.1, mode=:perp, kwargs...)
+function powder_average(sf, rs, density; η=0.1, kwargs...)
     nω = length(ωs(sf))
     output = zeros(Float64, length(rs), nω)
 
@@ -91,7 +90,7 @@ function powder_average(sf, rs, density; η=0.1, mode=:perp, kwargs...)
         if length(qs) == 0                    
             qs = [[0., 0., 0.]]  # If no points (r is too small), just look at 0 vector
         end
-        vals = intensities(sf, qs, mode; kwargs...)  # Retrieve energy intensities
+        vals = intensities_interpolated(sf, qs; kwargs...)  # Retrieve energy intensities
         vals[:,1] .*= 0.0  # Remove elastic peaks before broadening
         vals = broaden_energy(sf, vals, (ω,ω₀)->lorentzian(ω-ω₀, η))  # Apply Lorentzian broadening
         output[i,:] = reshape(mean(vals, dims=1), (nω,))  # Average single radius results and save
@@ -106,7 +105,8 @@ rs = range(0, 6π, length=55)  # Set of radius values
 η = 0.05                      # Lorentzian broadening parameter
 density = 0.15                # Number of samples in Å⁻²
 
-pa = powder_average(sf, rs, density; η, kT);
+formula = intensity_formula(sf,:perp)
+pa = powder_average(sf, rs, density; η, formula);
 
 # and plot the results.
 
@@ -137,7 +137,7 @@ fig1
 radial_binning_parameters = (0,6π,6π/55)
 integrated_kernel = integrated_lorentzian(0.05) # Lorentzian broadening
 
-pa_intensities, pa_counts = powder_averaged_bins(sf,radial_binning_parameters,:perp,kT=kT,integrated_kernel = integrated_kernel)
+pa_intensities, pa_counts = powder_averaged_bins(sf,radial_binning_parameters;integrated_kernel = integrated_kernel,formula)
 
 pa_normalized_intensities = pa_intensities ./ pa_counts
 
@@ -147,10 +147,13 @@ rs_bincenters = axes_bincenters(radial_binning_parameters...)
 heatmap!(ax, rs_bincenters[1], ωs(sf), pa_normalized_intensities; colorrange=(0,3.0))
 fig
 
+# The striations in the graph tell us that the simulation is under resolved for this bin size.
+# We should increase the size of either the periodic lattice, or the bins.
+#
 # Using the `bzsize` option, we can even resolve the contribution from each brillouin zone:
-intensity_firstBZ, counts_firstBZ = powder_averaged_bins(sf,radial_binning_parameters,:perp,kT=kT,integrated_kernel = integrated_kernel, bzsize=(1,1,1))
+intensity_firstBZ, counts_firstBZ = powder_averaged_bins(sf,radial_binning_parameters;integrated_kernel = integrated_kernel, bzsize=(1,1,1),formula)
 #md #intensity_secondBZ, counts_secondBZ = powder_averaged_bins(..., bzsize=(2,2,2))
-intensity_secondBZ, counts_secondBZ = powder_averaged_bins(sf,radial_binning_parameters,:perp,kT=kT,integrated_kernel = integrated_kernel, bzsize=(2,2,2))#hide
+intensity_secondBZ, counts_secondBZ = powder_averaged_bins(sf,radial_binning_parameters;integrated_kernel = integrated_kernel, bzsize=(2,2,2),formula)#hide
 #md #intensity_thirdBZ, counts_thirdBZ = powder_averaged_bins(..., bzsize=(3,3,3))
 intensity_thirdBZ = pa_intensities;#hide
 counts_thirdBZ = pa_counts;#hide

@@ -2,27 +2,6 @@
 # Basic functions for retrieving 𝒮(𝐪,ω) values
 ################################################################################
 
-# Internal function for getting a single 𝒮(q, ω) intensity
-function calc_intensity(sf::StructureFactor, k, cell, ω, iω, contractor, kT, ffdata, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
-    elems = phase_averaged_elements(view(sf.data,:,:,:,cell,iω), k, sf, ffdata, Val(NCorr), Val(NAtoms))
-    intensity = contract(elems, k, contractor)
-    return intensity * classical_to_quantum(ω, kT)  # DDTodo: Probably make this a post-processing step 
-end
-
-classical_to_quantum(ω, kT::Float64) = ω > 0 ? ω/(kT*(1 - exp(-ω/kT))) : iszero(ω) ? 1.0 : -ω*exp(ω/kT)/(kT*(1 - exp(ω/kT)))
-classical_to_quantum(ω, ::Nothing) = 1.0
-
-
-function prepare_form_factors(sf, formfactors)
-    if isnothing(formfactors)
-        cryst = isnothing(sf.origin_crystal) ? sf.crystal : sf.origin_crystal 
-        class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]
-        formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]
-    end
-    formfactors = upconvert_form_factors(formfactors) # Ensure formfactors have consistent type
-    return propagate_form_factors(sf, formfactors)
-end
-
 """
     BinningParameters(binstart,binend,binwidth;covectors = I(4))
     BinningParameters(binstart,binend;numbins,covectors = I(4))
@@ -203,7 +182,7 @@ end
 """
     unit_resolution_binning_parameters(sf::StructureFactor)
 
-Create [`BinningParameters`](@ref) which place one histogram bin centered at each possible Sunny scattering vector.
+Create [`BinningParameters`](@ref) which place one histogram bin centered at each possible `(q,ω)` scattering vector of the crystal.
 This is the finest possible binning without creating bins with zero scattering vectors in them.
 
 This function can be used without reference to a [`StructureFactor`](@ref) using this alternate syntax to manually specify the bin centers for the energy axis and the lattice size:
@@ -337,39 +316,29 @@ connected_path_bins(sf::StructureFactor, qs::Vector, density,args...;kwargs...) 
 connected_path_bins(sw::SpinWaveTheory, ωvals, qs::Vector, density,args...;kwargs...) = connected_path_bins(sw.recipvecs_chem, ωvals, qs, density,args...;kwargs...)
 
 
+"""
+    intensity, counts = intensities_binned(sf::StructureFactor, params::BinningParameters; formula, integrated_kernel)
 
+Given correlation data contained in a [`StructureFactor`](@ref) and [`BinningParameters`](@ref) describing the
+shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_fomula`](@ref), or `intensity_formula(sf,:perp)` by default.
+
+This is an alternative to [`intensities_interpolated`](@ref) which bins the scattering intensities into a histogram
+instead of interpolating between them at specified `qs` values. See [`unit_resolution_binning_parameters`](@ref)
+for a reasonable default choice of [`BinningParameters`](@ref) which roughly emulates [`intensities_interpolated`](@ref) with `interpolation = :round`.
+
+If a function `integrated_kernel(Δω)` is passed, it will be used as the CDF of a kernel function for energy broadening.
+For example,
+`integrated_kernel = Δω -> atan(Δω/η)/pi` (c.f. [`integrated_lorentzian`](@ref) implements Lorentzian broadening with parameter `η`.
+Currently, energy broadening is only supported if the [`BinningParameters`](@ref) are such that the first three axes are purely spatial and the last (energy) axis is `[0,0,0,1]`.
 """
-    intensities_binned(sf::StructureFactor, params::BinningParameters, mode)
-"""
-# Given correlation data contained in `sf` and BinningParameters describing the
-# shape of a histogram, compute the intensity and normalization for each histogram bin.
-#
-# This is an alternative to `intensities` which bins the scattering intensities into a histogram
-# instead of interpolating between them at specified `qs` values. See `unit_resolution_binning_parameters`
-# for a reasonable default choice of `BinningParameters` which roughly emulates `intensities` with `NoInterp`.
-#
-# If a function `integrated_kernel(Δω)` is passed, it will be used as the CDF of a kernel function for energy broadening.
-# For example,
-# `integrated_kernel = Δω -> atan(Δω/η)/pi` implements `lorentzian` broadening with parameter `η`.
-# Currently, energy broadening is only supported if the `BinningParameters` are such that the first three axes are purely spatial and the last (energy) axis is `[0,0,0,1]`.
-function intensities_binned(sf::StructureFactor, params::BinningParameters, mode;
-    integrated_kernel = nothing,
-    kT = nothing,
-    formfactors = nothing,
+function intensities_binned(sf::StructureFactor, params::BinningParameters;
+    integrated_kernel = nothing,formula = intensity_formula(sf,:perp)
 )
     (; binwidth, binstart, binend, covectors, numbins) = params
     output_intensities = zeros(Float64,numbins...)
     output_counts = zeros(Float64,numbins...)
     ωvals = ωs(sf)
     recip_vecs = 2π*inv(sf.crystal.latvecs)'
-    ffdata = prepare_form_factors(sf, formfactors)
-    contractor = if mode == :perp
-        DipoleFactor(sf)
-    elseif typeof(mode) <: Tuple{Int, Int}
-        Element(sf, mode)
-    else
-        Trace(sf)
-    end
 
     # Find an axis-aligned bounding box containing the histogram
     lower_aabb_q, upper_aabb_q = binning_parameters_aabb(params)
@@ -399,8 +368,7 @@ function intensities_binned(sf::StructureFactor, params::BinningParameters, mode
                 if all(xyztBin .<= numbins) && all(xyztBin .>= 1)
                     ci = CartesianIndex(xyztBin.data)
                     k = recip_vecs * q
-                    NCorr, NAtoms = size(sf.data)[1:2]
-                    intensity = calc_intensity(sf,k,base_cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                    intensity = formula.calc_intensity(sf,k,base_cell,iω)
                     output_intensities[ci] += intensity
                     output_counts[ci] += 1
                 end
@@ -416,8 +384,7 @@ function intensities_binned(sf::StructureFactor, params::BinningParameters, mode
                         # Calculate source scattering vector intensity only once
                         ci = CartesianIndex(xyztBin.data)
                         k = recip_vecs * q
-                        NCorr, NAtoms = size(sf.data)[1:2]
-                        intensity = calc_intensity(sf,k,base_cell,ω,iω,contractor, kT, ffdata, Val(NCorr), Val(NAtoms))
+                        intensity = formula.calc_intensity(sf,k,base_cell,iω)
                         # Broaden from the source scattering vector (k,ω) to
                         # each target bin ci_other
                         for iωother = 1:numbins[4]
@@ -544,10 +511,172 @@ function pruned_stencil_info(sf::StructureFactor, qs, interp::InterpolationSchem
     return (; qs_all, ks_all, idcs_all, counts)
 end
 
+abstract type IntensityFormula end
+
+struct ClassicalIntensityFormula{T} <: IntensityFormula
+    kT :: Float64
+    formfactors
+    string_formula :: String
+    calc_intensity :: Function
+end
+
+function Base.show(io::IO, formula::ClassicalIntensityFormula{T}) where T
+    print(io,"ClassicalIntensityFormula{$T}")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", formula::ClassicalIntensityFormula{T}) where T
+    printstyled(io, "Classical Scattering Intensity Formula\n";bold=true, color=:underline)
+
+    formula_lines = split(formula.string_formula,'\n')
+
+    intensity_equals = "  Intensity[ix_q,ix_ω] = "
+    println(io,"At discrete scattering modes S = S[ix_q,ix_ω], use:")
+    println(io)
+    println(io,intensity_equals,formula_lines[1])
+    for i = 2:length(formula_lines)
+        precursor = repeat(' ', textwidth(intensity_equals))
+        println(io,precursor,formula_lines[i])
+    end
+    println(io)
+
+    if isnothing(formula.formfactors)
+        printstyled(io, "No form factors specified\n";color=:yellow)
+    else
+        printstyled(io, "Form factors included in S ✓\n";color=:green)
+    end
+    if formula.kT == Inf
+        printstyled(io, "No temperature correction";color=:yellow)
+        print(io, " (kT = ∞)\n")
+    else
+        printstyled(io, "Temperature corrected (kT = $(formula.kT)) ✓\n";color = :green)
+    end
+    if T != Float64
+        println(io,"Intensity :: $(T)")
+    end
+end
 
 """
-    intensities(sf::StructureFactor, qs, mode; interpolation = nothing,
-                    kT = nothing, formfactors = nothing, negative_energies = false)
+    formula = intensity_formula(sf::StructureFactor; kwargs...)
+    formula.calc_intensity(sf,q,ix_q,ix_ω)
+
+Establish a formula for computing the intensity of the discrete scattering modes `(q,ω)` using the correlation data ``𝒮^{αβ}(q,ω)`` stored in the [`StructureFactor`](@ref).
+The `formula` returned from `intensity_formula` can be passed to [`intensities_interpolated`](@ref) or [`intensities_binned`](@ref).
+
+Sunny has several built-in formulas that can be selected by setting `contraction_mode` to one of these values:
+
+- `:perp` (default), which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
+- `:trace`, which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α 𝒮^{αα}(q,ω)``
+- `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
+
+Additionally, there are keyword arguments providing temperature and form factor corrections:
+
+- `kT`: If a temperature is provided, the intensities will be rescaled by a
+    temperature- and ω-dependent classical-to-quantum factor. `kT` should be
+    specified when making comparisons with spin wave calculations or
+    experimental data. If `kT` is not specified, infinite temperature (no correction) is assumed.
+- `formfactors`: To apply form factor corrections, provide this keyword with a
+    vector of `FormFactor`s, one for each unique site in the unit cell. The form factors
+    will be symmetry propagated to all equivalent sites.
+
+Alternatively, a custom formula can be specifed by providing a function `intensity = f(q,ω,correlations)` and specifying which correlations it requires:
+
+    intensity_formula(f,sf::StructureFactor, required_correlations; kwargs...)
+
+The function is intended to be specified using `do` notation. For example, this custom formula sums the off-diagonal correlations:
+
+    required = [(:Sx,:Sy),(:Sy,:Sz),(:Sx,:Sz)]
+    intensity_formula(sf,required,return_type = ComplexF64) do k, ω, off_diagonal_correlations
+        sum(off_diagonal_correlations)
+    end
+
+If your custom formula returns a type other than `Float64`, use the `return_type` keyword argument to flag this.
+"""
+function intensity_formula(sf::StructureFactor, elem::Tuple{Symbol,Symbol}; kwargs...)
+    string_formula = "S{$(elem[1]),$(elem[2])}[ix_q,ix_ω]"
+    intensity_formula(sf,Element(sf, elem); string_formula, kwargs...)
+end
+#intensity_formula(sf::StructureFactor, elem::Vector{Tuple{Symbol,Symbol}}; kwargs...) = intensity_formula(sf,Element(sf, elem); kwargs...)
+intensity_formula(sf::StructureFactor; kwargs...) = intensity_formula(sf, :perp; kwargs...)
+function intensity_formula(sf::StructureFactor, mode::Symbol; kwargs...)
+    if mode == :trace
+        contractor = Trace(sf)
+        string_formula = "Tr S"
+    elseif mode == :perp
+        contractor = DipoleFactor(sf)
+        string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz)"
+    elseif mode == :full
+        contractor = FullTensor(sf)
+        string_formula = "S{α,β}"
+    end
+    intensity_formula(sf,contractor;string_formula,kwargs...)
+end
+
+function intensity_formula(sf::StructureFactor, contractor::Contraction; kwargs...)
+    return_type = contraction_return_type(contractor)
+    intensity_formula(sf,required_correlations(contractor); return_type = return_type,kwargs...) do k,ω,correlations
+        intensity = contract(correlations, k, contractor)
+    end
+end
+
+function intensity_formula(f::Function,sf::StructureFactor,required_correlations; kwargs...)
+    # SQTODO: This corr_ix may contain repeated correlations if the user does a silly
+    # thing like [(:Sx,:Sy),(:Sy,:Sx)], and this can technically be optimized so it's
+    # not computed twice
+    corr_ix = lookup_correlations(sf,required_correlations)
+    intensity_formula(f,sf,corr_ix;kwargs...)
+end
+
+function intensity_formula(f::Function,sf::StructureFactor,corr_ix::AbstractVector{Int64}; kT = Inf, formfactors = nothing, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])")
+    # If temperature given, ensure it's greater than 0.0
+    if iszero(kT)
+        error("`kT` must be greater than zero.")
+    end
+
+    ffdata = prepare_form_factors(sf, formfactors)
+    NAtoms = size(sf.data)[2]
+    NCorr = length(corr_ix)
+
+    ωs_sf = ωs(sf;negative_energies=true)
+    formula = function (sf::StructureFactor,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
+        correlations = phase_averaged_elements(view(sf.data,corr_ix,:,:,ix_q,ix_ω), k, sf, ffdata, Val(NCorr), Val(NAtoms))
+
+        ω = ωs_sf[ix_ω]
+        intensity = f(k,ω,correlations) * classical_to_quantum(ω, kT)
+
+        # Having this line saves the return_type in the function closure
+        # so that it can be read by intensities later
+        intensity :: return_type
+    end
+    ClassicalIntensityFormula{return_type}(kT,formfactors,string_formula,formula)
+end
+
+function classical_to_quantum(ω, kT::Float64)
+  if kT == Inf
+    return 1.0
+  end
+  if ω > 0
+    ω/(kT*(1 - exp(-ω/kT)))
+  elseif iszero(ω)
+    1.0
+  else
+    -ω*exp(ω/kT)/(kT*(1 - exp(ω/kT)))
+  end
+end
+
+function prepare_form_factors(sf, formfactors)
+    if isnothing(formfactors)
+        cryst = isnothing(sf.origin_crystal) ? sf.crystal : sf.origin_crystal 
+        class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]
+        formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]
+    end
+    formfactors = upconvert_form_factors(formfactors) # Ensure formfactors have consistent type
+    return propagate_form_factors(sf, formfactors)
+end
+
+
+
+"""
+    intensities_interpolated(sf::StructureFactor, qs; interpolation = nothing, formula = intensity_formula(sf,:perp), negative_energies = false)
 
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `StructureFactor`. Maps an array of wave vectors `qs` to an array of structure
@@ -556,35 +685,20 @@ associated with the energy index can be retrieved by calling [`ωs`](@ref). The
 three coordinates of each wave vector are measured in reciprocal lattice units,
 i.e., multiples of the reciprocal lattice vectors.
 
-- `mode`: Should be one of `:trace`, `:perp`, or `:full`. Determines an optional
-    contraction on the indices ``α`` and ``β`` of ``𝒮^{αβ}(q,ω)``. Setting
-    `trace` yields ``∑_α 𝒮^{αα}(q,ω)``. Setting `perp` will contract
-    ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning
-    the unpolarized intensity. Setting `full` will return all elements
-    ``𝒮^{αβ}(𝐪,ω)`` without contraction.
 - `interpolation`: Since ``𝒮(𝐪, ω)`` is calculated on a finite lattice, data
     is only available at discrete wave vectors. By default, Sunny will round a
     requested `q` to the nearest available wave vector. Linear interpolation can
     be applied by setting `interpolation=:linear`.
-- `kT`: If a temperature is provided, the intensities will be rescaled by a
-    temperature- and ω-dependent classical-to-quantum factor. `kT` should be
-    specified when making comparisons with spin wave calculations or
-    experimental data.
-- `formfactors`: To apply form factor corrections, provide this keyword with a
-    vector of `FormFactor`s, one for each unique site in the unit cell. Sunny
-    will symmetry propagate the results to all equivalent sites.
 - `negative_energies`: If set to `true`, Sunny will return the periodic
     extension of the energy axis. Most users will not want this.
 """
-function intensities(sf::StructureFactor, qs, mode;
-    interpolation = :none,
-    kT = nothing,
-    formfactors = nothing,
+function intensities_interpolated(sf::StructureFactor, qs;
+    formula = intensity_formula(sf,:perp) :: ClassicalIntensityFormula,
+    interpolation = :round,
     negative_energies = false,
     static_warn = true
 )
     qs = Vec3.(qs)
-    NCorr, NAtoms = size(sf.data)[1:2]
 
     # If working on reshaped system, assume qs given as coordinates in terms of
     # reciprocal vectors of original crystal and convert them to qs in terms of
@@ -597,57 +711,38 @@ function intensities(sf::StructureFactor, qs, mode;
 
     # Make sure it's a dynamical structure factor 
     if static_warn && size(sf.data, 7) == 1
-        error("`intensities` given a StructureFactor with no dynamical information. Call `instant_intensities` to retrieve instantaneous (static) structure factor data.")
-    end
-
-    # If temperature given, ensure it's greater than 0.0
-    if !isnothing(kT) && iszero(kT)
-        error("`kT` must be greater than zero.")
+        error("`intensities_interpolated` given a StructureFactor with no dynamical information. Call `instant_intensities_interpolated` to retrieve instantaneous (static) structure factor data.")
     end
 
     # Set up interpolation scheme
-    interp = if interpolation == :none
+    interp = if interpolation == :round
         NoInterp()
     elseif interpolation == :linear
         LinearInterp()
     end
 
-    # Set up element contraction
-    contractor = if mode == :trace
-        Trace(sf)
-    elseif mode == :perp
-        DipoleFactor(sf)
-    elseif mode == :full
-        FullTensor(sf)
-    elseif typeof(mode) <: Tuple{Int, Int}
-        Element(sf, mode)
-    end
-
-    # Propagate form factor information (if any)
-    ffdata = prepare_form_factors(sf, formfactors) 
-
     # Precompute index information and preallocate
     ωvals = ωs(sf; negative_energies)
     nω = length(ωvals) 
     stencil_info = pruned_stencil_info(sf, qs, interp) 
-    intensities = zeros(contractor, size(qs)..., nω)
+    intensities = zeros(formula.calc_intensity.return_type, size(qs)..., nω)
     
     # Call type stable version of the function
-    intensities!(intensities, sf, qs, ωvals, interp, contractor, kT, ffdata, stencil_info, Val(NCorr), Val(NAtoms)) 
+    intensities!(intensities, sf, qs, ωvals, interp, formula, stencil_info, formula.calc_intensity.return_type)
 
     return intensities
 end
 
 
 # Actual intensity calculation
-function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωvals, interp::InterpolationScheme, contraction::Contraction{T}, temp, ffdata, stencil_info, ::Val{NCorr}, ::Val{NAtoms}) where {T, NCorr, NAtoms}
+function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωvals, interp::InterpolationScheme{NInterp}, formula, stencil_info, T) where {NInterp}
     li_intensities = LinearIndices(intensities)
     ci_qs = CartesianIndices(q_targets)
     (; qs_all, ks_all, idcs_all, counts) = stencil_info 
     for (iω, ω) in enumerate(ωvals)
         iq = 0
         for (qs, ks, idcs, numrepeats) in zip(qs_all, ks_all, idcs_all, counts)
-            local_intensities = stencil_intensities(sf, ks, idcs, ω, iω, interp, contraction, temp, ffdata, Val(NCorr), Val(NAtoms)) 
+            local_intensities = SVector{NInterp, T}(formula.calc_intensity(sf, ks[n], idcs[n], iω) for n in 1:NInterp)
             for _ in 1:numrepeats
                 iq += 1
                 idx = li_intensities[CartesianIndex(ci_qs[iq], iω)]
@@ -659,17 +754,17 @@ function intensities!(intensities, sf::StructureFactor, q_targets::Array, ωvals
 end
 
 """
-    instant_intensities(sf::StructureFactor, qs, mode; kwargs...)
+    instant_intensities_interpolated(sf::StructureFactor, qs; kwargs...)
 
 Return ``𝒮(𝐪)`` intensities at wave vectors `qs`. The functionality is very
-similar to [`intensities`](@ref), except the returned array has dimensions
+similar to [`intensities_interpolated`](@ref), except the returned array has dimensions
 identical to `qs`. If called on a `StructureFactor` with dynamical information,
 i.e., ``𝒮(𝐪,ω)``, the ``ω`` information is integrated out.
 """
-function instant_intensities(sf::StructureFactor, qs, mode; kwargs...)
+function instant_intensities_interpolated(sf::StructureFactor, qs; kwargs...)
     datadims = size(qs)
     ndims = length(datadims)
-    vals = intensities(sf, qs, mode; static_warn=false, kwargs...)
+    vals = intensities_interpolated(sf, qs; static_warn=false, kwargs...)
     static_vals = sum(vals, dims=(ndims+1,))
     return reshape(static_vals, datadims)
 end
@@ -729,7 +824,7 @@ integrated_lorentzian(η) = x -> atan(x/η)/π
 
 Performs a real-space convolution along the energy axis of an array of
 intensities. Assumes the format of the intensities array corresponds to what
-would be returned by [`intensities`](@ref). `kernel` must be a function that
+would be returned by [`intensities_interpolated`](@ref). `kernel` must be a function that
 takes two numbers: `kernel(ω, ω₀)`, where `ω` is a frequency, and `ω₀` is the
 center frequency of the kernel. Sunny provides [`lorentzian`](@ref)
 for the most common use case:

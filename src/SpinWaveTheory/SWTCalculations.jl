@@ -470,48 +470,4 @@ function dssf(swt::SpinWaveTheory, qs)
 end 
 
 
-#DD this will become more similar to the existing intensities.
-"""
-    intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64)
 
-Computes the unpolarized inelastic neutron scattering intensities given a
-`SpinWaveTheory`, an array of wave vectors `qs`, a list of energies `ωvals`, and
-a Lorentzian broadening parameter `η`.
-
-Note that `qs` is an array of wave vectors of arbitrary dimension. Each element
-``q`` of `qs` must be a 3-vector in reciprocal lattice units. I.e., ``qᵢ`` is
-given in ``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the chemical lattice.
-
-The output will be an array with indices identical to `qs`. Each entry of the
-array will be an unpolarized intensity.
-"""
-# DD: incorporate existing SF utilties (e.g., form factor, polarization correction)
-function intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64)
-    (; sys) = swt
-    qs = Vec3.(qs)
-    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    Nf = sys.mode == :SUN ? Ns-1 : 1
-    nmodes  = Nf * Nm
-
-    disp, Sαβs = dssf(swt, qs)
-
-    num_ω = length(ωvals)
-    is = zeros(Float64, size(qs)..., num_ω)
-
-    for qidx in CartesianIndices(qs)
-        polar_mat = polarization_matrix(swt.recipvecs_chem * qs[qidx])
-
-        for band = 1:nmodes
-            band_intensity = real(sum(polar_mat .* Sαβs[qidx,band]))
-            # At a Goldstone mode, where the intensity is divergent, use a delta-function for the intensity.
-            if (disp[qidx, band] < 1.0e-3) && (band_intensity > 1.0e3)
-                is[qidx, 1] += band_intensity
-            else
-                for index_ω = 1:num_ω
-                    is[qidx, index_ω] += band_intensity * lorentzian(ωvals[index_ω]-disp[qidx,band], η)
-                end
-            end
-        end
-    end
-    return is
-end
