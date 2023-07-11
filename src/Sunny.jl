@@ -13,6 +13,8 @@ import Random: Random, randn!
 import DynamicPolynomials as DP
 import DataStructures: SortedDict, OrderedDict
 import Optim
+import JLD2
+using CodecZlib # Required for reading compressed HDF
 
 # Specific to Symmetry/
 import FilePathsBase: Path
@@ -102,6 +104,7 @@ export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFact
     integrate_axes!, unit_resolution_binning_parameters, rlu_to_absolute_units!,
     intensities_binned, one_dimensional_cut_binning_parameters, axes_bincenters,
     connected_path_bins, powder_averaged_bins, intensity_formula, integrated_lorentzian, count_bins
+    load_nxs_binning_parameters, generate_shiver_script
 
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
