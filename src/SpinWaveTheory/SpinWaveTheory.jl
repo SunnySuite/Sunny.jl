@@ -133,7 +133,7 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Flo
             # In Cristian's note, S̃ = R S, so here we should pass SR'
             push!(R_mat, SR')
             for μ = 1:3
-                s̃_mat[:, :, μ, atom] = Hermitian(rotate_operator(s_mat_N[μ], Mat3(R)))[1:2, 1:2]
+                s̃_mat[:, :, μ, atom] = Hermitian(rotate_operator(s_mat_N[μ], SR))[1:2, 1:2]
             end
             c2′ = rotate_stevens_coefficients(c2, SR)
             c4′ = rotate_stevens_coefficients(c4, SR)
