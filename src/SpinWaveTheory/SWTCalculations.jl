@@ -3,7 +3,10 @@
 ###########################################################################
 
 @inline δ(x, y) = ==(x, y) # my delta function
-
+# The "metric" of scalar biquad interaction. Here we are using the following identity:
+# (𝐒ᵢ⋅𝐒ⱼ)² = -(𝐒ᵢ⋅𝐒ⱼ)/2 + ∑ₐ (OᵢᵃOⱼᵃ)/2, a=4,…,8, 
+# where the definition of Oᵢᵃ is given in Appendix B of *Phys. Rev. B 104, 104409*
+const biquad_metric = 1/2 * diagm([-1, -1, -1, 1, 1, 1, 1, 1])
 
 """
     generate_ham_lswt!
@@ -15,21 +18,14 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
     (; sys, s̃_mat, T̃_mat, Q̃_mat) = swt
     Hmat .= 0 # DD: must be zeroed out!
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
+    # Below two lines are for dipole mode only
+    S = (Ns-1) / 2 # spin-S
+    biquad_res_factor = 1 - 1/S + 1/(4S^2) # rescaling factor for biquadratic interaction
+
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
     L  = Nf * Nm
     @assert size(Hmat) == (2*L, 2*L)
-    # scaling factor (=1) if in the fundamental representation
-    # M = sys.mode == :SUN ? 1 : (Ns-1)
-    M = 1
-    no_single_ion = isempty(swt.sys.interactions_union[1].aniso.matrep)
-
-    # the "metric" of scalar biquad interaction. Here we are using the following identity:
-    # (𝐒ᵢ⋅𝐒ⱼ)² = -(𝐒ᵢ⋅𝐒ⱼ)/2 + ∑ₐ (OᵢᵃOⱼᵃ)/2, a=4,…,8
-    # where the definition of Oᵢᵃ is given in Appendix B of *Phys. Rev. B 104, 104409*
-    # Note: this is only valid for the `:dipole` mode, for `:SUN` mode, we consider 
-    # different implementations
-    biquad_metric = 1/2 * diagm([-1, -1, -1, 1/M, 1/M, 1/M, 1/M, 1/M])
 
     for k̃ᵢ in k̃
         (k̃ᵢ < 0.0 || k̃ᵢ ≥ 1.0) && throw("k̃ outside [0, 1) range")
@@ -43,7 +39,6 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
 
     (; extfield, gs, units) = sys
 
-    # external field, need to multiply the `M` factor
     for matom = 1:Nm
         effB = units.μB * (gs[1, 1, 1, matom]' * extfield[1, 1, 1, matom])
         site_tS = s̃_mat[:, :, :, matom]
@@ -51,8 +46,8 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
         for m = 2:N
             for n = 2:N
                 δmn = δ(m, n)
-                Hmat[(matom-1)*Nf+m-1,   (matom-1)*Nf+n-1]   += 0.5 * M * (site_B_dot_tS[m, n] - δmn * site_B_dot_tS[1, 1])
-                Hmat[(matom-1)*Nf+n-1+L, (matom-1)*Nf+m-1+L] += 0.5 * M * (site_B_dot_tS[m, n] - δmn * site_B_dot_tS[1, 1])
+                Hmat[(matom-1)*Nf+m-1,   (matom-1)*Nf+n-1]   += 0.5 * (site_B_dot_tS[m, n] - δmn * site_B_dot_tS[1, 1])
+                Hmat[(matom-1)*Nf+n-1+L, (matom-1)*Nf+m-1+L] += 0.5 * (site_B_dot_tS[m, n] - δmn * site_B_dot_tS[1, 1])
             end
         end
     end
@@ -165,74 +160,124 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
         for (; isculled, bond, J) in ints.biquad
             isculled && break
             sub_i, sub_j, ΔRδ = bond.i, bond.j, bond.n
-
-            tTi_μ = zeros(ComplexF64, N, N, 8)
-            tTj_ν = zeros(ComplexF64, N, N, 8)
-
-            for i = 1:3
-                tTi_μ[:, :, i] = s̃_mat[:, :, i, sub_i]
-                tTj_ν[:, :, i] = s̃_mat[:, :, i, sub_j]
-            end
-
-            for i = 4:8
-                tTi_μ[:, :, i] = Q̃_mat[:, :, i-3, sub_i]
-                tTj_ν[:, :, i] = Q̃_mat[:, :, i-3, sub_j]
-            end
-
             phase  = exp(2im * π * dot(k̃, ΔRδ))
             cphase = conj(phase)
-            sub_i_M1, sub_j_M1 = sub_i - 1, sub_j - 1
 
-            for m = 2:N
-                mM1 = m - 1
-                T_μ_11 = conj(tTi_μ[1, 1, :])
-                T_μ_m1 = conj(tTi_μ[m, 1, :])
-                T_μ_1m = conj(tTi_μ[1, m, :])
-                T_ν_11 = tTj_ν[1, 1, :]
+            if sys.mode == :SUN
+                tTi_μ = zeros(ComplexF64, N, N, 8)
+                tTj_ν = zeros(ComplexF64, N, N, 8)
+                for i = 1:3
+                    tTi_μ[:, :, i] = s̃_mat[:, :, i, sub_i]
+                    tTj_ν[:, :, i] = s̃_mat[:, :, i, sub_j]
+                end
+                for i = 4:8
+                    tTi_μ[:, :, i] = Q̃_mat[:, :, i-3, sub_i]
+                    tTj_ν[:, :, i] = Q̃_mat[:, :, i-3, sub_j]
+                end
 
-                for n = 2:N
-                    nM1 = n - 1
-                    δmn = δ(m, n)
-                    T_μ_mn, T_ν_mn = conj(tTi_μ[m, n, :]), tTj_ν[m, n, :]
-                    T_ν_n1 = tTj_ν[n, 1, :]
-                    T_ν_1n = tTj_ν[1, n, :]
-                    # now the biquad interactions are only supported in the :dipole mode,
-                    # since for the dipole mode, we do not need to multiply the `M` factor
-                    # we first divide and then multiply back to be consistent
-                    c1 = J * dot(T_μ_mn - δmn * T_μ_11, biquad_metric, T_ν_11)
-                    c2 = J * dot(T_μ_11, biquad_metric, T_ν_mn - δmn * T_ν_11)
-                    c3 = J * dot(T_μ_m1, biquad_metric, T_ν_1n)
-                    c4 = J * dot(T_μ_1m, biquad_metric, T_ν_n1)
-                    c5 = J * dot(T_μ_m1, biquad_metric, T_ν_n1)
-                    c6 = J * dot(T_μ_1m, biquad_metric, T_ν_1n)
+                sub_i_M1, sub_j_M1 = sub_i - 1, sub_j - 1
+                for m = 2:N
+                    mM1 = m - 1
+                    T_μ_11 = conj(tTi_μ[1, 1, :])
+                    T_μ_m1 = conj(tTi_μ[m, 1, :])
+                    T_μ_1m = conj(tTi_μ[1, m, :])
+                    T_ν_11 = tTj_ν[1, 1, :]
+                    for n = 2:N
+                        nM1 = n - 1
+                        δmn = δ(m, n)
+                        T_μ_mn, T_ν_mn = conj(tTi_μ[m, n, :]), tTj_ν[m, n, :]
+                        T_ν_n1 = tTj_ν[n, 1, :]
+                        T_ν_1n = tTj_ν[1, n, :]
+                        c1 = J * dot(T_μ_mn - δmn * T_μ_11, biquad_metric, T_ν_11)
+                        c2 = J * dot(T_μ_11, biquad_metric, T_ν_mn - δmn * T_ν_11)
+                        c3 = J * dot(T_μ_m1, biquad_metric, T_ν_1n)
+                        c4 = J * dot(T_μ_1m, biquad_metric, T_ν_n1)
+                        c5 = J * dot(T_μ_m1, biquad_metric, T_ν_n1)
+                        c6 = J * dot(T_μ_1m, biquad_metric, T_ν_1n)
 
-                    Hmat11[sub_i_M1*Nf+mM1, sub_i_M1*Nf+nM1] += 0.5 * c1
-                    Hmat11[sub_j_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c2
-                    Hmat22[sub_i_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c1
-                    Hmat22[sub_j_M1*Nf+nM1, sub_j_M1*Nf+mM1] += 0.5 * c2
+                        Hmat11[sub_i_M1*Nf+mM1, sub_i_M1*Nf+nM1] += 0.5 * c1
+                        Hmat11[sub_j_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c2
+                        Hmat22[sub_i_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c1
+                        Hmat22[sub_j_M1*Nf+nM1, sub_j_M1*Nf+mM1] += 0.5 * c2
 
-                    Hmat11[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c3 * phase
-                    Hmat22[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c3 * cphase
-                    
-                    Hmat22[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c4 * phase
-                    Hmat11[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c4 * cphase
+                        Hmat11[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c3 * phase
+                        Hmat22[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c3 * cphase
+                        Hmat22[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c4 * phase
+                        Hmat11[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c4 * cphase
 
-                    Hmat12[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c5 * phase
-                    Hmat12[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c5 * cphase
-                    Hmat21[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c6 * phase
-                    Hmat21[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c6 * cphase
+                        Hmat12[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c5 * phase
+                        Hmat12[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c5 * cphase
+                        Hmat21[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c6 * phase
+                        Hmat21[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c6 * cphase
+                    end
+                end
+
+            # ⟨Ω₂, Ω₁|(𝐒₁⋅𝐒₂)^2|Ω₁, Ω₂⟩ = (1-1/S+1/(4S^2)) (Ω₁⋅Ω₂)^2 - 1/2 Ω₁⋅Ω₂ + const.
+            elseif sys.mode == :dipole
+                # The biquadratic part including the biquadratic scaling factor.
+                Ri = swt.R_mat[sub_i]
+                Rj = swt.R_mat[sub_j]
+                Rʳ = Ri * Rj'
+                C0 = Rʳ[3, 3]*S^2
+                C1 = S*√S/2*(Rʳ[1, 3] + 1im * Rʳ[2, 3])
+                C2 = S*√S/2*(Rʳ[3, 1] + 1im * Rʳ[3, 2])
+                A11 = -Rʳ[3, 3]*S
+                A22 = -Rʳ[3, 3]*S
+                A21 = S/2*(Rʳ[1, 1] - 1im*Rʳ[1, 2] - 1im*Rʳ[2, 1] + Rʳ[2, 2])
+                A12 = S/2*(Rʳ[1, 1] + 1im*Rʳ[1, 2] + 1im*Rʳ[2, 1] + Rʳ[2, 2])
+                B21 = S/4*(Rʳ[1, 1] + 1im*Rʳ[1, 2] + 1im*Rʳ[2, 1] - Rʳ[2, 2])
+                B12 = B21
+
+                Hmat11[sub_i, sub_i] += J*biquad_res_factor * (C0*A11 + C1 * conj(C1))
+                Hmat11[sub_j, sub_j] += J*biquad_res_factor * (C0*A22 + C2 * conj(C2))
+                Hmat22[sub_i, sub_i] += J*biquad_res_factor * (C0*A11 + C1 * conj(C1))
+                Hmat22[sub_j, sub_j] += J*biquad_res_factor * (C0*A22 + C2 * conj(C2))
+                Hmat11[sub_i, sub_j] += J*biquad_res_factor * ((C0*A12 + C1 * conj(C2)) * phase)
+                Hmat22[sub_j, sub_i] += J*biquad_res_factor * ((C0*A12 + C1 * conj(C2)) * cphase)
+                Hmat22[sub_i, sub_j] += J*biquad_res_factor * ((C0*A21 + C2 * conj(C1)) * phase)
+                Hmat11[sub_j, sub_i] += J*biquad_res_factor * ((C0*A21 + C2 * conj(C1)) * cphase)
+
+                Hmat12[sub_i, sub_i] += J*biquad_res_factor * (C1 * conj(C1))
+                Hmat12[sub_j, sub_j] += J*biquad_res_factor * (C2 * conj(C2))
+                Hmat21[sub_i, sub_i] += J*biquad_res_factor * (C1 * conj(C1))
+                Hmat21[sub_j, sub_j] += J*biquad_res_factor * (C2 * conj(C2))
+
+                Hmat12[sub_i, sub_j] += J*biquad_res_factor * ((2C0*B12 + C1 * C2) * phase)
+                Hmat12[sub_j, sub_i] += J*biquad_res_factor * ((2C0*B21 + C2 * C1) * cphase)
+                Hmat21[sub_i, sub_j] += J*biquad_res_factor * (conj(2C0*B12 + C1 * C2) * phase)
+                Hmat21[sub_j, sub_i] += J*biquad_res_factor * (conj(2C0*B21 + C2 * C1) * cphase)
+
+                # The additional bilinear interactions
+                tSi = s̃_mat[:, :, :, sub_i]
+                tSj = s̃_mat[:, :, :, sub_j]
+                for μ = 1:3
+                    Hmat11[sub_i, sub_i] += -J/4 * (tSi[2, 2, μ]-tSi[1, 1, μ]) * tSj[1, 1, μ]
+                    Hmat22[sub_i, sub_i] += -J/4 * (tSi[2, 2, μ]-tSi[1, 1, μ]) * tSj[1, 1, μ]
+                    Hmat11[sub_j, sub_j] += -J/4 * (tSj[2, 2, μ]-tSj[1, 1, μ]) * tSi[1, 1, μ]
+                    Hmat22[sub_j, sub_j] += -J/4 * (tSj[2, 2, μ]-tSj[1, 1, μ]) * tSi[1, 1, μ]
+
+                    Hmat11[sub_i, sub_j] += -J/4 * tSi[2, 1, μ] * tSj[1, 2, μ] * phase
+                    Hmat11[sub_j, sub_i] += -J/4 * tSi[2, 1, μ] * tSj[1, 2, μ] * cphase
+                    Hmat22[sub_i, sub_j] += -J/4 * tSi[1, 2, μ] * tSj[2, 1, μ] * phase
+                    Hmat22[sub_j, sub_i] += -J/4 * tSi[1, 2, μ] * tSj[2, 1, μ] * cphase
+
+                    Hmat12[sub_i, sub_j] += -J/4 * tSi[2, 1, μ] * tSj[2, 1, μ] * phase
+                    Hmat12[sub_j, sub_i] += -J/4 * tSi[2, 1, μ] * tSj[2, 1, μ] * cphase
+                    Hmat21[sub_i, sub_j] += -J/4 * tSi[1, 2, μ] * tSj[1, 2, μ] * phase
+                    Hmat21[sub_j, sub_i] += -J/4 * tSi[1, 2, μ] * tSj[1, 2, μ] * cphase
                 end
             end
+
         end
     end
 
-    Hmat[1:L, 1:L] += M * Hmat11
-    Hmat[L+1:2*L, L+1:2*L] += M * Hmat22
-    Hmat[1:L, L+1:2*L] += M * Hmat12
-    Hmat[L+1:2*L, 1:L] += M * Hmat21
+    Hmat[1:L, 1:L] += Hmat11
+    Hmat[L+1:2*L, L+1:2*L] += Hmat22
+    Hmat[1:L, L+1:2*L] += Hmat12
+    Hmat[L+1:2*L, 1:L] += Hmat21
 
-    # single-ion anisotropy. For :SUN and :dipole mode, we should not multiply the results by the factor `M`, because the single-ion anisotropy is written in the fundamental representation.
-    if !no_single_ion
+    # single-ion anisotropy
+    if sys.mode == :SUN
         for matom = 1:Nm
             @views site_aniso = T̃_mat[:, :, matom]
             for m = 2:N
@@ -242,6 +287,14 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
                     Hmat[(matom-1)*Nf+n-1+L, (matom-1)*Nf+m-1+L] += 0.5 * (site_aniso[m, n] - δmn * site_aniso[1, 1])
                 end
             end
+        end
+    elseif sys.mode == :dipole
+        for matom = 1:Nm
+            (; c2, c4, c6) = swt.c′_coef[matom]
+            Hmat[matom, matom]     += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
+            Hmat[matom+L, matom+L] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
+            Hmat[matom, matom+L]   += -1im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+            Hmat[matom+L, matom]   +=  1im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
         end
     end
 
@@ -416,8 +469,6 @@ function dssf(swt::SpinWaveTheory, qs)
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
     nmodes  = Nf * Nm 
-    M = sys.mode == :SUN ? 1 : (Ns-1) # scaling factor (=1) if in the fundamental representation
-    sqrt_M = √M
     sqrt_Nm_inv = 1.0 / √Nm
 
     # Preallocation
@@ -439,7 +490,7 @@ function dssf(swt::SpinWaveTheory, qs)
             # note that d is the chemical coordinates
             chemical_coor = positions_chem[site]
             phase = exp(-2im * π  * dot(q, chemical_coor))
-            Avec_pref[site] = sqrt_Nm_inv * phase * sqrt_M
+            Avec_pref[site] = sqrt_Nm_inv * phase
         end
 
         for band = 1:nmodes
