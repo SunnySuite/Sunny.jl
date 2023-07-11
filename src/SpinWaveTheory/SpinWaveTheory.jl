@@ -17,7 +17,9 @@ struct SpinWaveTheory
     sys   :: System
     s̃_mat :: Array{ComplexF64, 4}  # dipole operators
     T̃_mat :: Array{ComplexF64, 3}  # single-ion anisos
-    Q̃_mat :: Array{ComplexF64, 4}  # quarupolar operators (for biquad only)
+    Q̃_mat :: Array{ComplexF64, 4}  # quarupolar operators
+    c′_coef :: Vector{StevensExpansion}    # c′_coefficents (for dipole mode)
+    R_mat   :: Vector{Mat3}        # SO(3) rotation to align the quantization axis (for dipole mode)
     positions_chem :: Vector{Vec3} # positions of magnetic atoms in units of (a₁, a₂, a₃) of the chemical lattice. (useful when computing the dynamical spin structure factor)
     recipvecs_chem :: Mat3 # maybe not useful if we have David's interface for S(q, ω)
     recipvecs_mag :: Mat3 # reciprocal lattice basis vectors for the magnetic supercell
@@ -75,66 +77,71 @@ function generate_local_sun_gens(sys :: System)
     Q_mat_N[4] = s_mat_N[1] * s_mat_N[2] + s_mat_N[2] * s_mat_N[1]
     Q_mat_N[5] = √3 * s_mat_N[3] * s_mat_N[3] - 1/√3 * S * (S+1) * I
 
-    if sys.mode == :SUN
-        s_mat_N = spin_matrices(; N)
+    U_mat = Matrix{ComplexF64}(undef, N, N)
 
-        s̃_mat = Array{ComplexF64, 4}(undef, N, N, 3, Nₘ)
-        T̃_mat = Array{ComplexF64, 3}(undef, N, N, Nₘ)
-        Q̃_mat = zeros(ComplexF64, N, N, 5, Nₘ)
+    s̃_mat = Array{ComplexF64, 4}(undef, N, N, 3, Nₘ)
+    T̃_mat = Array{ComplexF64, 3}(undef, N, N, Nₘ)
+    Q̃_mat = zeros(ComplexF64, N, N, 5, Nₘ)
 
-        U_mat = Matrix{ComplexF64}(undef, N, N)
-
-        for atom = 1:Nₘ
-            U_mat[:, 1] = sys.coherents[1, 1, 1, atom]
-            U_mat[:, 2:N] = nullspace(U_mat[:, 1]')
-            @assert isapprox(U_mat * U_mat', I) "rotation matrix from (global frame to local frame) not unitary"
-            for μ = 1:3
-                s̃_mat[:, :, μ, atom] = Hermitian(U_mat' * s_mat_N[μ] * U_mat)
-            end
-            for ν = 1:5
-                Q̃_mat[:, :, ν, atom] = Hermitian(U_mat' * Q_mat_N[ν] * U_mat)
-            end
-            T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].aniso.matrep * U_mat)
+    for atom = 1:Nₘ
+        U_mat[:, 1] = sys.coherents[1, 1, 1, atom]
+        U_mat[:, 2:N] = nullspace(U_mat[:, 1]')
+        @assert isapprox(U_mat * U_mat', I) "rotation matrix from (global frame to local frame) not unitary"
+        for μ = 1:3
+            s̃_mat[:, :, μ, atom] = Hermitian(U_mat' * s_mat_N[μ] * U_mat)
         end
-
-    elseif sys.mode == :dipole
-        
-        s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
-
-        no_single_ion = isempty(sys.interactions_union[1].aniso.matrep)
-        T̃_mat = no_single_ion ? zeros(ComplexF64, 0, 0, 0) : Array{ComplexF64, 3}(undef, 2, 2, Nₘ)
-        Q̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 5, Nₘ)
-
-        U_mat = Matrix{ComplexF64}(undef, N, N)
-
-        for atom = 1:Nₘ
-            θ, ϕ = dipole_to_angles(sys.dipoles[1, 1, 1, atom])
-            U_mat[:] = exp(-1im * ϕ * s_mat_N[3]) * exp(-1im * θ * s_mat_N[2])
-            # U_mat_2[:] = exp(-1im * ϕ * s_mat_2[3]) * exp(-1im * θ * s_mat_2[2])
-            @assert isapprox(U_mat * U_mat', I) "rotation matrix from (global frame to local frame) not unitary"
-            # @assert isapprox(U_mat_2 * U_mat_2', I) "rotation matrix from (global frame to local frame) not unitary"
-            for μ = 1:3
-                s̃_mat[:, :, μ, atom] = Hermitian(U_mat' * s_mat_N[μ] * U_mat)[1:2, 1:2]
-            end
-            for ν = 1:5
-                Q̃_mat[:, :, ν, atom] = Hermitian(U_mat' * Q_mat_N[ν] * U_mat)[1:2, 1:2]
-            end
-
-            if !no_single_ion
-                T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].aniso.matrep * U_mat)[1:2, 1:2]
-            end
+        for ν = 1:5
+            Q̃_mat[:, :, ν, atom] = Hermitian(U_mat' * Q_mat_N[ν] * U_mat)
         end
+        T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].aniso.matrep * U_mat)
     end
 
     return s̃_mat, T̃_mat, Q̃_mat
 end
 
-function SpinWaveTheory(sys::System{N}, energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6) where N
+function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6) where N
     # Reshape into single unit cell
     cellsize_mag = cell_dimensions(sys) * diagm(collect(sys.latsize))
     sys = reshape_geometry_aux(sys, (1,1,1), cellsize_mag)
 
-    s̃_mat, T̃_mat, Q̃_mat = generate_local_sun_gens(sys)
+    # Computes the Stevens operator in the local reference frame and the SO(3) rotation matrix from global to local frame
+    # (:dipole mode only)
+    c′_coef = Vector{StevensExpansion}()
+    R_mat   = Vector{Mat3}()
+    if sys.mode == :SUN
+        s̃_mat, T̃_mat, Q̃_mat = generate_local_sun_gens(sys)
+    elseif sys.mode == :dipole
+        Nₘ, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert 
+        s_mat_N = spin_matrices(Ns)
+        Nₘ = length(sys.dipoles)
+        s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
+        T̃_mat = zeros(ComplexF64, 0, 0, 0)
+        Q̃_mat = zeros(ComplexF64, 0, 0, 0, 0)
+        Nₘ = length(sys.dipoles)
+        R  = zeros(Float64, 3, 3)
+        for atom = 1:Nₘ
+            θ, ϕ = dipole_to_angles(sys.dipoles[1, 1, 1, atom])
+            # U_mat = exp(-1im*ϕ*s_mat_N[3]) * exp(-1im*θ*s_mat_N[2])
+            # SO(3) rotation that aligns the quantization axis. Important: since we will project out bosons that correspond to multipolar fluctuations,
+            # therefore we use the explicit matrix to get rid of any ambiguity
+            # Note that R * (0, 0, 1) = normalize(sys.dipoles[1,1,1,atom]))
+            R[:] = [-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
+                     cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
+                     0.0     sin(θ)        cos(θ)]
+            (; c2, c4, c6) = sys.interactions_union[atom].aniso.stvexp
+            SR  = Mat3(R)
+            # In Cristian's note, S̃ = R S, so here we should pass SR'
+            push!(R_mat, SR')
+            for μ = 1:3
+                s̃_mat[:, :, μ, atom] = Hermitian(rotate_operator(s_mat_N[μ], Mat3(R)))[1:2, 1:2]
+            end
+            c2′ = rotate_stevens_coefficients(c2, SR)
+            c4′ = rotate_stevens_coefficients(c4, SR)
+            c6′ = rotate_stevens_coefficients(c6, SR)
+            c′  = StevensExpansion(c2′, c4′, c6′)
+            push!(c′_coef, c′)
+        end
+    end
 
     latvecs_mag = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs \ sys.crystal.latvecs # DD: correct/necessary? 
     positions_chem = Vec3.([latvecs_mag * position for position in sys.crystal.positions]) # Positions of atoms in chemical coordinates
@@ -142,7 +149,7 @@ function SpinWaveTheory(sys::System{N}, energy_ϵ::Float64=1e-8, energy_tol::Flo
     latvecs_chem = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs # DD: correct/necessary?
     recipvecs_chem = inv(latvecs_chem)'
 
-    return SpinWaveTheory(sys, s̃_mat, T̃_mat, Q̃_mat, positions_chem, recipvecs_chem, recipvecs_mag, energy_ϵ, energy_tol)
+    return SpinWaveTheory(sys, s̃_mat, T̃_mat, Q̃_mat, c′_coef, R_mat, positions_chem, recipvecs_chem, recipvecs_mag, energy_ϵ, energy_tol)
 end
 
 """
