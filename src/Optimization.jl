@@ -44,3 +44,55 @@ function minimize_energy!(sys; method=Optim.LBFGS, kwargs...)
     free_dipoles = Array(reinterpret(reshape, Float64, sys.dipoles))
     Optim.optimize(f, g!, free_dipoles, method(), kwargs...) 
 end
+
+################################################################################
+# Coordinate systems
+################################################################################
+
+struct StereographicPoint{Nm1}
+    chart :: Int
+    coord :: SVector{Nm1, Float64}
+end
+
+function vec_to_stereo(vec::SVector{N, Float64}) where N  # N parameter unnecessary here, but generalizes to ℝP^{N-1}
+    remaining_indices(skip, max) = ntuple(i -> i > (skip-1) ? i + 1 : i, max-1)
+
+    plane_idx = argmax(vec)               
+    is = remaining_indices(plane_idx, N)   
+    denom = 1 - vec[plane_idx]             
+    StereographicPoint{N-1}(plane_idx, ntuple(i -> vec[is[i]]/denom, N-1)) 
+end
+
+function stereo_to_vec(sp::StereographicPoint{Nm1}) where Nm1
+    r2 = mapreduce(x -> x^2, +, sp.coord)
+    SVector{Nm1+1,Float64}(
+        ntuple(Nm1 + 1) do i
+            if i < sp.chart
+                2sp.coord[i]/(1+r2)
+            elseif i == sp.chart
+                (-1 + r2)/(1+r2)
+            else
+                2sp.coord[i-1]/(1+r2)
+            end
+        end
+    )
+end
+
+
+
+# Tests
+# for _ in 1:20
+#     N = 3
+#     vec = SVector{N, Float64}(normalize(rand(N)))
+#     sp = vec_to_stereo(vec)
+#     println(stereo_to_vec(sp) ≈ vec ? "Good" : "Bad")
+# end
+# 
+# begin
+#     N = 3
+#     vec = SVector{N, Float64}(normalize(rand(N)))
+#     sp = vec_to_stereo(vec)
+#     @btime vec_to_stereo($vec)
+#     vec1 = stereo_to_vec(sp)
+#     @btime stereo_to_vec($sp)
+# end
