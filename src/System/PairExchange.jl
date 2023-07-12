@@ -260,7 +260,7 @@ due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
 
 See also [`set_exchange!`](@ref).
 """
-function set_exchange_at!(sys::System{N}, J, site1, site2; offset=nothing) where N
+function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; offset=nothing) where N
     site1 = to_cartesian(site1)
     site2 = to_cartesian(site2)
     bond = sites_to_internal_bond(sys, site1, site2, offset)

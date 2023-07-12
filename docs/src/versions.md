@@ -1,3 +1,22 @@
+# Version 0.5.0
+
+This version includes many **breaking changes**.
+
+Replace `set_anisotropy!` with a new function [`set_onsite!`](@ref). The latter
+expects an explicit matrix representation for the local Hamiltonian. This can be
+constructed, e.g., as a linear combination of [`stevens_operators`](@ref), or as
+a polynomial of [`spin_operators`](@ref). To understand the mapping between
+these two, the new function [`print_stevens_expansion`](@ref) acts on an
+arbitrary local operator.
+
+Symbolic representations of operators are now hidden unless the package
+`DynamicPolynomials` is explicitly loaded by the user. The functionality of
+`print_anisotropy_as_stevens` has been replaced with
+[`print_classical_stevens_expansion`](@ref), while
+`print_anisotropy_as_classical_spins` has become
+[`print_classical_spin_polynomial`](@ref).
+
+
 # Version 0.4.3
 
 **Experimental** support for linear [`SpinWaveTheory`](@ref), implemented in
@@ -50,7 +69,7 @@ This update includes many breaking changes, and is missing some features of
 
 ### Creating a spin `System`
 
-`SpinSystem` has been renamed [`System`](@ref). Its constructor now has the form,
+Rename `SpinSystem` to [`System`](@ref). Its constructor now has the form,
 
 ```julia
 System(crystal, latsize, infos, mode)
@@ -66,13 +85,13 @@ The parameter `mode` is one of `:SUN` or `:dipole`.
 
 Interactions are now added mutably to an existing `System` using the following
 functions: [`set_external_field!`](@ref), [`set_exchange!`](@ref),
-[`set_anisotropy!`](@ref), [`enable_dipole_dipole!`](@ref).
+[`set_onsite!`](@ref), [`enable_dipole_dipole!`](@ref).
 
 As a convenience, one can use [`dmvec(D)`](@ref) to convert a DM vector to a
 $3×3$ antisymmetric exchange matrix.
 
 Fully general single-ion anisotropy is now possible. The function
-[`set_anisotropy!`](@ref) expects the single ion anisotropy to be expressed as a
+[`set_onsite!`](@ref) expects the single ion anisotropy to be expressed as a
 polynomial in symbolic spin operators [`𝒮`](@ref), or as a linear combination
 of symbolic Stevens operators [`𝒪`](@ref). For example, an easy axis anisotropy
 in the direction `n` may be written `D*(𝒮⋅n)^2`.
@@ -80,7 +99,7 @@ in the direction `n` may be written `D*(𝒮⋅n)^2`.
 Stevens operators `𝒪[k,q]` admit polynomial expression in spin operators
 `𝒮[α]`. Conversely, a polynomial of spin operators can be expressed as a linear
 combination of Stevens operators. To see this expansion use
-[`print_anisotropy_as_stevens`](@ref).
+`print_anisotropy_as_stevens`.
 
 
 ### Inhomogeneous field

@@ -105,7 +105,7 @@ The next steps are typically the following
    crystal unit cells.
 2. Add interactions to the system using functions like
    [`set_external_field!`](@ref), [`set_exchange!`](@ref), and
-   [`set_anisotropy!`](@ref).
+   [`set_onsite!`](@ref).
 3. Perform Monte Carlo simulation to equilibrate the spin configuration. Options
    include the continuous [`Langevin`](@ref) dynamics, or single-spin flip
    updates with [`LocalSampler`](@ref). The former can efficiently handle

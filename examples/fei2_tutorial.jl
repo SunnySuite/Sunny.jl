@@ -25,7 +25,6 @@
 # Begin by importing `Sunny` and `GLMakie`, a plotting package.
 
 using Sunny, GLMakie
-#md Makie.inline!(true); #hide
 #nb Sunny.offline_viewers()  # Inject Javascript code for additional plotting capabilities 
 
 # If you see an error `Package <X> not found in current path`, add the package
@@ -145,18 +144,17 @@ set_exchange!(sys, [J′2apm 0.0    0.0;
                     0.0    J′2apm 0.0;
                     0.0    0.0    J′2azz], Bond(1,1,[1,2,1]))
 
-# The function [`set_anisotropy!`](@ref) assigns a single-ion anisotropy. It
-# takes an abstract operator and an atom index. The operator may be a polynomial
-# of spin operators or a linear combination of Stevens operators. Sunny provides
-# special symbols for their construction: [`𝒮`](@ref) is a vector of the three
-# spin operators and [`𝒪`](@ref) are the symbolic Stevens operators. Here we
-# construct an easy-axis anisotropy.
+# The function [`set_onsite!`](@ref) assigns a single-ion anisotropy
+# operator. It can be constructed, e.g., from the matrices given by
+# [`spin_operators`](@ref) or [`stevens_operators`](@ref). Here we construct an
+# easy-axis anisotropy along the direction $\hat{z}$.
 
 D = 2.165
-set_anisotropy!(sys, -D*𝒮[3]^2, 1)
+S = spin_operators(sys, 1)
+set_onsite!(sys, -D*S[3]^2, 1)
 
 # Any anisotropy operator can be converted to a linear combination of Stevens
-# operators with [`print_anisotropy_as_stevens`](@ref).
+# operators with [`print_stevens_expansion`](@ref).
 
 # # Calculating structure factor intensities
 # In the remainder of this tutorial, we will examine Sunny's tools for

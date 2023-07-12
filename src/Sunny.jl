@@ -9,7 +9,6 @@ import FFTW
 import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, randn!
-import DynamicPolynomials as DP
 import DataStructures: SortedDict
 import Optim
 
@@ -35,8 +34,8 @@ include("Util/CartesianIndicesShifted.jl")
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
 include("Operators/Stevens.jl")
-include("Operators/Symbolic.jl")
-export 𝒪, 𝒮, rotate_operator, print_anisotropy_as_stevens, print_anisotropy_as_classical_spins
+include("Operators/TensorOperators.jl")
+export spin_matrices, rotate_operator, print_stevens_expansion
 
 include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
@@ -50,9 +49,6 @@ include("Symmetry/Printing.jl")
 export Crystal, subcrystal, lattice_vectors, lattice_params, Bond, 
     reference_bonds, print_site, print_bond, print_symmetry_table,
     print_suggested_frame
-    # natoms, cell_volume, cell_type, coordination_number, displacement, distance,
-    # all_symmetry_related_bonds, all_symmetry_related_bonds_for_atom,
-    # all_symmetry_related_couplings, all_symmetry_related_couplings_for_atom
 
 include("Units.jl")
 export meV_per_K, Units
@@ -66,8 +62,8 @@ include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, Site, all_sites, position_to_site,
     global_position, magnetic_moment, polarize_spin!, polarize_spins!, randomize_spins!, energy, forces,
-    set_external_field!, set_anisotropy!, set_exchange!, set_biquadratic!, dmvec, enable_dipole_dipole!,
-    to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_anisotropy_at!,
+    spin_operators, stevens_operators, set_external_field!, set_onsite!, set_exchange!, set_biquadratic!,
+    dmvec, enable_dipole_dipole!, to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_anisotropy_at!,
     symmetry_equivalent_bonds, set_exchange_at!, set_biquadratic_at!, remove_periodicity!
 
 include("Reshaping.jl")
@@ -110,12 +106,17 @@ include("MonteCarlo/WangLandau.jl")
 include("MonteCarlo/ParallelWangLandau.jl")
 export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
 
-# Makie (e.g., WGLMakie or GLMakie) is an optional dependency
 function __init__()
+    # Importing Makie (e.g., WGLMakie or GLMakie) will enable plotting
     @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
         include("Plotting.jl")
         export plot_spins
-            # plot_lattice, plot_bonds, plot_all_bonds, anim_integration, live_integration, live_langevin_integration
+    end
+
+    # Importing DynamicPolynomials will enable certain symbolic analysis
+    @require DynamicPolynomials="7c1d4256-1411-5781-91ec-d7bc3513ac07" begin
+        include("Operators/Symbolic.jl")
+        export 𝒪, 𝒮, print_classical_stevens_expansion, print_classical_spin_polynomial
     end
 end
 

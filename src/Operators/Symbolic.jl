@@ -1,3 +1,5 @@
+const DP = DynamicPolynomials
+
 # It is convenient to present Stevens operators to the user in ascending order
 # for the index q = -k...k. Internally, however, the symbols must be stored in
 # descending order q = k...-k for consistency with the basis used for spin
@@ -5,17 +7,17 @@
 # to generate rotations of the Stevens operators via the Wigner D matrices.
 const stevens_operator_symbols = let
     # 𝒪₀ = identity
-    𝒪₁ = collect(reverse(DP.@ncpolyvar                          𝒪₁₋₁ 𝒪₁₀ 𝒪₁₁))
-    𝒪₂ = collect(reverse(DP.@ncpolyvar                     𝒪₂₋₂ 𝒪₂₋₁ 𝒪₂₀ 𝒪₂₁ 𝒪₂₂))
-    𝒪₃ = collect(reverse(DP.@ncpolyvar                𝒪₃₋₃ 𝒪₃₋₂ 𝒪₃₋₁ 𝒪₃₀ 𝒪₃₁ 𝒪₃₂ 𝒪₃₃))
-    𝒪₄ = collect(reverse(DP.@ncpolyvar           𝒪₄₋₄ 𝒪₄₋₃ 𝒪₄₋₂ 𝒪₄₋₁ 𝒪₄₀ 𝒪₄₁ 𝒪₄₂ 𝒪₄₃ 𝒪₄₄))
-    𝒪₅ = collect(reverse(DP.@ncpolyvar      𝒪₅₋₅ 𝒪₅₋₄ 𝒪₅₋₃ 𝒪₅₋₂ 𝒪₅₋₁ 𝒪₅₀ 𝒪₅₁ 𝒪₅₂ 𝒪₅₃ 𝒪₅₄ 𝒪₅₅))
-    𝒪₆ = collect(reverse(DP.@ncpolyvar 𝒪₆₋₆ 𝒪₆₋₅ 𝒪₆₋₄ 𝒪₆₋₃ 𝒪₆₋₂ 𝒪₆₋₁ 𝒪₆₀ 𝒪₆₁ 𝒪₆₂ 𝒪₆₃ 𝒪₆₄ 𝒪₆₅ 𝒪₆₆))
+    𝒪₁ = collect(DP.@ncpolyvar                     𝒪₁₁ 𝒪₁₀ 𝒪₁₋₁)
+    𝒪₂ = collect(DP.@ncpolyvar                 𝒪₂₂ 𝒪₂₁ 𝒪₂₀ 𝒪₂₋₁ 𝒪₂₋₂)
+    𝒪₃ = collect(DP.@ncpolyvar             𝒪₃₃ 𝒪₃₂ 𝒪₃₁ 𝒪₃₀ 𝒪₃₋₁ 𝒪₃₋₂ 𝒪₃₋₃)
+    𝒪₄ = collect(DP.@ncpolyvar         𝒪₄₄ 𝒪₄₃ 𝒪₄₂ 𝒪₄₁ 𝒪₄₀ 𝒪₄₋₁ 𝒪₄₋₂ 𝒪₄₋₃ 𝒪₄₋₄)
+    𝒪₅ = collect(DP.@ncpolyvar     𝒪₅₅ 𝒪₅₄ 𝒪₅₃ 𝒪₅₂ 𝒪₅₁ 𝒪₅₀ 𝒪₅₋₁ 𝒪₅₋₂ 𝒪₅₋₃ 𝒪₅₋₄ 𝒪₅₋₅)
+    𝒪₆ = collect(DP.@ncpolyvar 𝒪₆₆ 𝒪₆₅ 𝒪₆₄ 𝒪₆₃ 𝒪₆₂ 𝒪₆₁ 𝒪₆₀ 𝒪₆₋₁ 𝒪₆₋₂ 𝒪₆₋₃ 𝒪₆₋₄ 𝒪₆₋₅ 𝒪₆₋₆)
     [𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄, 𝒪₅, 𝒪₆]
 end
 
 const spin_operator_symbols = let
-    SVector{3}(DP.@ncpolyvar 𝒮₁ 𝒮₂ 𝒮₃)
+    SVector{3}(reverse(DP.@ncpolyvar 𝒮₃ 𝒮₂ 𝒮₁))
 end
 
 const spin_squared_symbol = let
@@ -39,6 +41,7 @@ function Base.getindex(::StevensOpsAbstract, k::Int, q::Int)
         return stevens_operator_symbols[k][q_idx]
     end
 end
+
 
 """
     𝒪[k,q]
@@ -66,7 +69,7 @@ function operator_to_matrix(p::DP.AbstractPolynomialLike; N)
     if !(rep ≈ rep')
         println("Warning: Symmetrizing non-Hermitian operator '$p'.")
     end
-    # Symmetrize in any case for more accuracy
+    # Symmetrize in any case for slightly more accuracy
     return (rep+rep')/2
 end
 function operator_to_matrix(p::Number; N)
@@ -74,7 +77,7 @@ function operator_to_matrix(p::Number; N)
 end
 
 
-##### Conversion of spin polynomial to linear combination of 'Stevens functions' #####
+##### Convert classical spin polynomial to linear combination of 'Stevens functions' #####
 
 # Construct Stevens operators in the classical limit, represented as polynomials
 # of spin expectation values
@@ -85,7 +88,7 @@ function stevens_classical(k::Int)
         # homogeneous polynomial of degree k
         𝒪 = sum(t for t in 𝒪 if DP.degree(t) == k)
         # Remaining coefficients must be real integers; make this explicit
-        𝒪 = DP.mapcoefficients(x -> Int(x), 𝒪)
+        𝒪 = DP.map_coefficients(x -> Int(x), 𝒪)
         return 𝒪
     end
 end
@@ -166,49 +169,16 @@ function operator_to_classical_stevens_coefficients(p, S)
     end
 end
 
-function rotate_operator(P::DP.AbstractPolynomialLike, R)
-    R = convert(Mat3, R)
-
-    # The spin operator vector rotates two equivalent ways:
-    #  1. S_α -> U' S_α U
-    #  2. S_α -> R_αβ S_β
-    #
-    # where U = exp(-i θ n⋅S), for the axis-angle rotation (n, θ). Apply the
-    # latter to transform symbolic spin operators.
-    𝒮′ = R * 𝒮
-
-    # Spherical tensors T_q rotate two equivalent ways:
-    #  1. T_q -> U' T_q U       (with U = exp(-i θ n⋅S) in dimension N irrep)
-    #  2. T_q -> D*_{q,q′} T_q′ (with D = exp(-i θ n⋅S) in dimension 2k+1 irrep)
-    #
-    # The Stevens operators 𝒪_q are linearly related to T_q via 𝒪 = α T.
-    # Therefore rotation on Stevens operators is 𝒪 -> α conj(D) α⁻¹ 𝒪.
-    local 𝒪 = stevens_operator_symbols
-    𝒪′ = map(𝒪) do 𝒪ₖ
-        k = Int((length(𝒪ₖ)-1)/2)
-        D = unitary_for_rotation(R; N=2k+1)
-        R_stevens = stevens_α[k] * conj(D) * stevens_αinv[k]
-        @assert norm(imag(R_stevens)) < 1e-12
-        real(R_stevens) * 𝒪ₖ
-    end
-
-    # Spin squared as a scalar may be introduced through
-    # operator_to_classical_stevens()
-    X = spin_squared_symbol
-
-    # Perform substitutions
-    P′ = P(𝒮 => 𝒮′, [𝒪[k] => 𝒪′[k] for k=1:6]..., X => X)
-
-    # Remove terms very near zero
-    return DP.mapcoefficients(P′) do c
-        abs(c) < 1e-12 ? zero(c) : c
-    end
-end
 
 ##### Printing of operators #####
 
 function pretty_print_operator(p::DP.AbstractPolynomialLike)
-    terms = map(zip(DP.coefficients(p), DP.monomials(p))) do (c, m)
+    # Iterator over coefficients and monomials
+    terms = zip(DP.coefficients(p), DP.monomials(p))
+    # Keep only terms with non-vanishing coefficients
+    terms = Iterators.filter(x -> abs(x[1]) > 1e-12, terms)
+    # Pretty-print each term
+    terms = map(terms) do (c, m)
         isone(m) ? number_to_math_string(c) : coefficient_to_math_string(c) * repr(m)
     end
     # Concatenate with plus signs
@@ -223,65 +193,64 @@ end
 
 
 """
-    function print_anisotropy_as_classical_spins(p)
+    function print_classical_spin_polynomial(op)
 
-Prints a quantum operator (e.g. linear combination of Stevens operators) as a
-polynomial of spin expectation values in the classical limit.
+Prints an operator (e.g., a linear combination of Stevens operators `𝒪`) as a
+polynomial in the classical dipole components.
+            
+This function works in the "large-``S``" classical limit, which corresponds to
+replacing each spin operator with its expected dipole. There are ambiguities in
+defining this limit at sub-leading order in ``S``. The procedure in Sunny is as
+follows: First, uniquely decompose `op` as a linear combination of Stevens
+operators, each of which is defined as a polynomial in the spin operators. To
+take the large-``S`` limit, Sunny replaces each Stevens operator with a
+corresponding polynomial in the expected dipole components, keeping only leading
+order terms in ``S``. The resulting "classical Stevens functions" are
+essentially the spherical harmonics ``Yᵐₗ``, up to ``m``- and ``l``- dependent
+scaling factors.
 
-See also [`print_anisotropy_as_stevens`](@ref).
+# Example
+
+```julia
+using DynamicPolynomials, Sunny
+
+print_classical_spin_polynomial((1/4)𝒪[4,4] + (1/20)𝒪[4,0] + (3/5)*(𝒮'*𝒮)^2)
+# Prints: 𝒮₁⁴ + 𝒮₂⁴ + 𝒮₃⁴
+```
+
+See also [`print_classical_stevens_expansion`](@ref) for the inverse mapping.
 """
-function print_anisotropy_as_classical_spins(p)
-    p = operator_to_classical_polynomial(p)
-    p = p(spin_classical_symbols => 𝒮)
-    pretty_print_operator(p)
+function print_classical_spin_polynomial(op)
+    op = operator_to_classical_polynomial(op)
+    op = op(spin_classical_symbols => 𝒮)
+    pretty_print_operator(op)
 end
 
 """
-    function print_anisotropy_as_stevens(p; N)
+    function print_classical_stevens_expansion(op)
 
-Prints a quantum operator (e.g. a polynomial of the spin operators `𝒮`) as a
-linear combination of Stevens operators. The parameter `N` specifies the
-dimension of the SU(_N_) representation, corresponding to quantum spin magnitude
-``S = (N-1)/2``. The special value `N = 0` indicates the large-``S`` classical
-limit.
+Prints an operator (e.g. a polynomial of the spin operators `𝒮`) as a linear
+combination of Stevens operators. This function works in the large-``S``
+classical limit, as described in the documentation for
+[`print_classical_spin_polynomial`](@ref).
 
-In the output, the symbol `X` denotes the spin operator magnitude squared.
-Quantum spin operators ``𝒮`` of any finite dimension satisfy ``X = |𝒮|^2 = S
-(S+1)``. To take the large-``S`` limit, however, we keep only leading order
-powers of ``S``, such that ``X = S^2``.
+In the output, the symbol `X` denotes the spin magnitude squared, which can be
+entered symbolically as `𝒮'*𝒮`.
 
-This function can be useful for understanding the conversions performed
-internally by [`set_anisotropy!`](@ref).
+# Examples
 
-For the inverse mapping, see [`print_anisotropy_as_classical_spins`](@ref).
+```julia
+using DynamicPolynomials, Sunny
+
+print_classical_stevens_expansion(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
+# Prints: (1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)X²
+```
+
+See also [`print_classical_spin_polynomial`](@ref) for the inverse mapping.
+
+The function [`print_stevens_expansion`](@ref) is analogous to this one, but
+expects a quantum operator in a finite-``S`` representation.
 """
-function print_anisotropy_as_stevens(p; N)
-    if N == 0
-        p′ = operator_to_classical_stevens(p)
-    else
-        Λ = operator_to_matrix(p; N)
-
-        # Stevens operators are orthogonal but not normalized. Pull out
-        # coefficients c one-by-one and accumulate into p′. These must be real
-        # because both Λ and 𝒪 are Hermitian.
-
-        # k = 0 term, for which 𝒪₀₀ = I.
-        p′ = real(tr(Λ)/N)
-
-        # Stevens operators are zero when k >= N
-        for k = 1:min(6, N-1)
-            for (𝒪mat, 𝒪sym) = zip(stevens_matrices(k; N), stevens_operator_symbols[k])
-                # See also: `matrix_to_stevens_coefficients`
-                c = real(tr(𝒪mat'*Λ) / tr(𝒪mat'*𝒪mat))
-                if abs(c) > 1e-12
-                    p′ += c*𝒪sym
-                end
-            end
-        end
-
-        # p′ should be faithful to p and its matrix representation Λ. This will
-        # fail if the spin polynomial order in p exceeds 6.
-        @assert operator_to_matrix(p′; N) ≈ Λ
-    end
-    pretty_print_operator(p′)
+function print_classical_stevens_expansion(op)
+    pretty_print_operator(operator_to_classical_stevens(op))
 end

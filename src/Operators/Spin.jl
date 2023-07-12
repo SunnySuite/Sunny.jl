@@ -1,4 +1,10 @@
-# Construct spin operators, i.e. generators of su(2), of dimension N
+"""
+    spin_matrices(N)
+
+Constructs the three spin operators, i.e. the generators of SU(2), in the
+`N`-dimensional irrep. See also [`spin_operators`](@ref), which determines the
+appropriate value of `N` for a given site index.
+"""
 function spin_matrices(N::Int)
     if N == 0
         return fill(zeros(ComplexF64,0,0), 3)

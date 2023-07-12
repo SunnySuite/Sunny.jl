@@ -28,7 +28,8 @@ end
 
     set_exchange!(sys, J,  Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(1, 1, [0, 0, 1]))
-    set_anisotropy!(sys, D * 𝒮[3]^2, 1)
+    S = spin_operators(sys, 1)
+    set_onsite!(sys, D * S[3]^2, 1)
 
     Δt  = abs(0.05 / D)
     λ = 0.1
@@ -96,8 +97,9 @@ end
     D = D_ST / cov_factor
 
     set_exchange!(sys, J₁, Bond(1, 2, [0, 0, 0]))
-    Λ = D * (𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
-    set_anisotropy!(sys, Λ, 1)
+    S = spin_operators(sys, 1)
+    Λ = D * (S[1]^4 + S[2]^4 + S[3]^4)
+    set_onsite!(sys, Λ, 1)
 
     polarize_spin!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
     polarize_spin!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))

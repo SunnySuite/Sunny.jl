@@ -28,6 +28,27 @@ function SingleIonAnisotropy(sys::System, op, N)
     return SingleIonAnisotropy(matrep, stvexp)
 end
 
+function SingleIonAnisotropy(sys::System, matrep::Matrix{ComplexF64}, N)
+    # Remove trace
+    matrep -= (tr(matrep)/N)*I
+    if norm(matrep) < 1e-12
+        matrep = zero(matrep)
+    end
+    c = matrix_to_stevens_coefficients(matrep)
+
+    iszero(c[[1,3,5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
+
+    if sys.mode == :dipole
+        λ = anisotropy_renormalization(N)
+        stvexp = StevensExpansion(λ[2]*c[2], λ[4]*c[4], λ[6]*c[6])
+    else
+        stvexp = StevensExpansion(c[2], c[4], c[6])
+    end
+    
+    return SingleIonAnisotropy(matrep, stvexp)
+end
+
+
 function anisotropy_renormalization(N)
     S = (N-1)/2
     return ((1), # k=1
@@ -78,15 +99,11 @@ end
 
 
 """
-    set_anisotropy!(sys::System, op, i::Int)
+    set_onsite!(sys::System, op::Matrix{ComplexF64}, i::Int)
 
 Set the single-ion anisotropy for the `i`th atom of every unit cell, as well as
-all symmetry-equivalent atoms. The parameter `op` may be a polynomial in
-symbolic spin operators `𝒮[α]`, or a linear combination of symbolic Stevens
-operators `𝒪[k,q]`.
-
-The characters `𝒮` and `𝒪` can be copy-pasted from this help message, or typed
-at a Julia terminal using `\\scrS` or `\\scrO` followed by tab-autocomplete.
+all symmetry-equivalent atoms. The local operator `op` may be constructed using
+[`spin_operators`](@ref) or [`stevens_operators`](@ref).
 
 For systems restricted to dipoles, the anisotropy operators interactions will
 automatically be renormalized to achieve maximum consistency with the more
@@ -95,25 +112,27 @@ variationally accurate SU(_N_) mode.
 # Examples
 ```julia
 # An easy axis anisotropy in the z-direction
-set_anisotropy!(sys, -D*𝒮[3]^3, i)
+S = spin_operators(sys, i)
+set_onsite!(sys, -D*S[3]^3, i)
 
 # The unique quartic single-ion anisotropy for a site with cubic point group
 # symmetry
-set_anisotropy!(sys, 𝒪[4,0] + 5𝒪[4,4], i)
+O = stevens_operators(sys, i)
+set_onsite!(sys, O[4,0] + 5O[4,4], i)
 
 # An equivalent expression of this quartic anisotropy, up to a constant shift
-set_anisotropy!(sys, 20*(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4), i)
+set_onsite!(sys, 20*(S[1]^4 + S[2]^4 + S[3]^4), i)
 ```
 
-See also [`print_anisotropy_as_stevens`](@ref).
+See also [`spin_operators`](@ref).
 """
-function set_anisotropy!(sys::System{N}, op::DP.AbstractPolynomialLike, i::Int) where N
+function set_onsite!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) where N
     is_homogeneous(sys) || error("Use `set_anisotropy_at!` for an inhomogeneous system.")
 
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
     if !isnothing(sys.origin)
-        set_anisotropy!(sys.origin, op, i)
+        set_onsite!(sys.origin, op, i)
         set_interactions_from_origin!(sys)
         return
     end
@@ -159,15 +178,15 @@ end
 
 
 """
-    set_anisotropy_at!(sys::System, op, site::Site)
+    set_anisotropy_at!(sys::System, op::Matrix{ComplexF64}, site::Site)
 
 Sets the single-ion anisotropy operator `op` for a single [`Site`](@ref),
 ignoring crystal symmetry.  The system must support inhomogeneous interactions
 via [`to_inhomogeneous`](@ref).
 
-See also [`set_anisotropy!`](@ref).
+See also [`set_onsite!`](@ref).
 """
-function set_anisotropy_at!(sys::System{N}, op::DP.AbstractPolynomialLike, site) where N
+function set_anisotropy_at!(sys::System{N}, op::Matrix{ComplexF64}, site::Site) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
     site = to_cartesian(site)
@@ -175,7 +194,12 @@ function set_anisotropy_at!(sys::System{N}, op::DP.AbstractPolynomialLike, site)
 end
 
 
-# Evaluate a given linear combination of Stevens operators for classical spin s
+# Evaluate a given linear combination of Stevens operators in the large-S limit,
+# where each spin operator is replaced by its dipole expectation value. In this
+# limit, each Stevens operator O[ℓ,m](s) becomes a homogeneous polynomial in the
+# spin components sᵅ, and is equal to the spherical Harmonic Yₗᵐ(s) up to an
+# overall (l- and m-dependent) scaling factor. Also return the gradient of the
+# scalar output.
 function energy_and_gradient_for_classical_anisotropy(s::Vec3, stvexp::StevensExpansion)
     (; kmax, c2, c4, c6) = stvexp
 

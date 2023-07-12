@@ -167,3 +167,66 @@ function rotate_stevens_coefficients(c, R::Mat3)
     @assert norm(imag(c′)) < 1e-12
     return real(c′)
 end
+
+
+# Builds matrix representation of Stevens operators on demand
+struct StevensMatrices
+    N::Int
+end
+function Base.getindex(this::StevensMatrices, k::Int, q::Int)
+    k < 0  && error("Stevens operators 𝒪[k,q] require k >= 0.")
+    k > 6  && error("Stevens operators 𝒪[k,q] currently require k <= 6.")
+    !(-k <= q <= k) && error("Stevens operators 𝒪[k,q] require -k <= q <= k.")
+    if k == 0
+        return Matrix{ComplexF64}(I, this.N, this.N)
+    else
+        # Stevens operators are stored in descending order: k, k-1, ... -k.
+        # Therefore q=k should be the first index, q_idx=1.
+        q_idx = k - q + 1
+        # Build all (2k+1) matrices and extract the desired one. This seems a
+        # bit wasteful, but presumably this function won't be called in
+        # performance sensitive contexts.
+        return stevens_matrices(k; this.N)[q_idx]
+    end
+end
+
+
+"""
+    function print_stevens_expansion(op)
+
+Prints a local Hermitian operator as a linear combination of Stevens operators.
+This function works on explicit matrix representations. The analogous function
+in the large-``S`` classical limit is
+[`print_classical_stevens_expansion`](@ref).
+
+# Examples
+
+```julia
+S = spin_matrices(5)
+print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
+# Prints: (1/20)𝒪₄₀ + (1/4)𝒪₄₄ + 102/5
+```
+"""
+function print_stevens_expansion(op::Matrix{ComplexF64})
+    op ≈ op' || error("Requires Hermitian operator")
+    terms = String[]
+
+    # Decompose op into Stevens coefficients
+    c = matrix_to_stevens_coefficients(op)
+    for k in 1:6
+        for (c_km, m) in zip(reverse(c[k]), -k:k)
+            abs(c_km) < 1e-12 && continue
+            push!(terms, *(coefficient_to_math_string(c_km), "𝒪", int_to_underscore_string.((k,m))...))
+        end
+    end
+
+    # Handle linear shift specially
+    c_00 = real(tr(op))/size(op, 1)
+    abs(c_00) > 1e-12 && push!(terms, number_to_math_string(c_00))
+
+    # Concatenate with plus signs
+    str = join(terms, " + ")
+    # Remove redundant plus signs and print
+    str = replace(str, "+ -" => "- ")
+    println(str)
+end

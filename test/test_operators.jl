@@ -130,17 +130,17 @@ end
     # Check mapping between spherical tensors and Stevens operators
     for N in 2:7
         for k in 1:N-1
-            𝒪 = Sunny.stevens_matrices(k; N)
+            O = Sunny.stevens_matrices(k; N)
             T = spherical_tensors(k; N)
 
             # Check that Stevens operators are proper linear combination of
             # spherical tensors
-            @test 𝒪 ≈ Sunny.stevens_α[k] * T
+            @test O ≈ Sunny.stevens_α[k] * T
     
             # Check conversion of coefficients
             c = randn(2k+1)
             b = Sunny.transform_spherical_to_stevens_coefficients(k, c)
-            @test transpose(c)*T ≈ transpose(b)*𝒪
+            @test transpose(c)*T ≈ transpose(b)*O
         end
     end
 
@@ -167,7 +167,7 @@ end
 
     rng = Random.Xoshiro(0)
     R = Sunny.Mat3(Sunny.random_orthogonal(rng, 3; special=true))
-    N = 5
+    N = 7
 
     # Test axis-angle decomposition
     let
@@ -206,62 +206,60 @@ end
         @test c′1 ≈ c′2
     end
 
-    # Test that a symbolic operators rotate properly
-    let
-        p = randn(3)'*𝒮 + randn(5)'*Sunny.stevens_operator_symbols[2]
-        @test Sunny.operator_to_matrix(rotate_operator(p, R); N) ≈ rotate_operator(Sunny.operator_to_matrix(p; N), R)
-    end        
-end
+    # Test evaluation of the classical Stevens functions (i.e. spherical
+    # harmonics) and their gradients
+    let 
+        using LinearAlgebra, FiniteDifferences
 
+        # Random dipole and Stevens coefficients
+        s = normalize(randn(Sunny.Vec3))
+        c = [randn(5), randn(9), randn(13)]
+        stvexp = Sunny.StevensExpansion(c[1], c[2], c[3])
 
-@testitem "Symbolic operators" begin
-    using LinearAlgebra
+        # Rotate dipole and Stevens coefficients
+        s′ = R*s
+        c′ = Sunny.rotate_stevens_coefficients.(c, Ref(R))
+        stvexp′ = Sunny.StevensExpansion(c′[1], c′[2], c′[3])
 
-    # Internal conversion between spin and Stevens operators
-    let
-        J = randn(3,3)
-        J = J+J'
-        p = randn(3)'*𝒮 + 𝒮'*J*𝒮 +
-            randn(11)' * Sunny.stevens_operator_symbols[5] +
-            randn(13)' * Sunny.stevens_operator_symbols[6]
-        cp1 = p |> Sunny.operator_to_classical_polynomial
-        cp2 = p |> Sunny.operator_to_classical_stevens |> Sunny.operator_to_classical_polynomial
-        @test cp1 ≈ cp2
-    end
+        # Verify that the energy is the same regardless of which is rotated
+        E1, _ = Sunny.energy_and_gradient_for_classical_anisotropy(s′, stvexp)
+        E2, _ = Sunny.energy_and_gradient_for_classical_anisotropy(s, stvexp′)
+        @test E1 ≈ E2
 
+        # Verify that gradient agrees with finite differences
+        _, gradE1 = Sunny.energy_and_gradient_for_classical_anisotropy(s, stvexp)
+        f(s) = Sunny.energy_and_gradient_for_classical_anisotropy(s, stvexp)[1]
+        gradE2 = grad(central_fdm(5, 1), f, s)[1]
 
-    # Test fast evaluation of Stevens functions
-    let
-        import DynamicPolynomials as DP
-
-        s = randn(Sunny.Vec3)
-        p = randn(5)' * Sunny.stevens_operator_symbols[2] + 
-            randn(9)' * Sunny.stevens_operator_symbols[4] +
-            randn(13)' * Sunny.stevens_operator_symbols[6]
-        (_, c2, _, c4, _, c6) = Sunny.operator_to_classical_stevens_coefficients(p, 1.0)
-
-        p_classical = Sunny.operator_to_classical_polynomial(p)
-        grad_p_classical = DP.differentiate(p_classical, Sunny.spin_classical_symbols)
-
-        E_ref = p_classical(Sunny.spin_classical_symbols => s)
-        gradE_ref = [g(Sunny.spin_classical_symbols => s) for g = grad_p_classical]
-
-        stvexp = Sunny.StevensExpansion(c2, c4, c6)
-        E, gradE = Sunny.energy_and_gradient_for_classical_anisotropy(s, stvexp)
-
-        @test E ≈ E_ref
-
-        # Above, when calculating gradE_ref, the value X = |S|^2 is treated
-        # as varying with S, such that dX/dS = 2S. Conversely, when calculating
-        # gradE, the value X is treated as a constant, such that dX/dS = 0. In
-        # practice, gradE will be used to drive spin dynamics, for which |S| is
-        # constant, and the component of gradE parallel to S will be projected
-        # out anyway. Therefore we only need agreement between the parts of
-        # gradE and gradE_ref that are perpendicular to S.
-        gradE_ref -= (gradE_ref⋅s)*s / (s⋅s) # Orthogonalize to s
-        gradE -= (gradE⋅s)*s / (s⋅s)         # Orthogonalize to s
-        @test gradE_ref ≈ gradE
+        # When calculating gradE2, the value X = |S|^2 is treated as varying
+        # with S, such that dX/dS = 2S. Conversely, when calculating gradE1, the
+        # value X is treated as a constant, such that dX/dS = 0. In practice,
+        # gradE will be used to drive spin dynamics, for which |S| is constant,
+        # and the component of gradE parallel to S will be projected out anyway.
+        # Therefore we only need agreement in the components perpendicular to S.
+        gradE1 -= (gradE1⋅s)*s
+        gradE2 -= (gradE2⋅s)*s
+        @test gradE1 ≈ gradE2
     end
 end
 
 
+@testitem "Symbolics" begin
+    import IOCapture, DynamicPolynomials
+
+    capt = IOCapture.capture() do
+        print_classical_spin_polynomial((1/4)𝒪[4,4] + (1/20)𝒪[4,0] + (3/5)*(𝒮'*𝒮)^2)
+    end
+    @test capt.output == "𝒮₁⁴ + 𝒮₂⁴ + 𝒮₃⁴\n"
+
+    capt = IOCapture.capture() do
+        print_classical_stevens_expansion(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
+    end
+    @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)X²\n"
+
+    capt = IOCapture.capture() do
+        S = spin_matrices(5)
+        print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
+    end
+    @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + 102/5\n"
+end
