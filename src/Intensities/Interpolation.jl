@@ -250,9 +250,8 @@ connected_path(sf::StructureFactor, qs::Vector, density) = connected_path(2π*in
 connected_path(sw::SpinWaveTheory, qs::Vector, density) = connected_path(sw.recipvecs_chem, qs, density)
 
 
-#DD this will become more similar to the existing intensities.
 """
-    intensities_interpolated(swt::SpinWaveTheory, qs, ωvals, η::Float64)
+    intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64)
 
 Computes the unpolarized inelastic neutron scattering intensities given a
 `SpinWaveTheory`, an array of wave vectors `qs`, a list of energies `ωvals`, and
@@ -266,7 +265,7 @@ The output will be an array with indices identical to `qs`. Each entry of the
 array will be an unpolarized intensity.
 """
 # DD: incorporate existing SF utilties (e.g., form factor)
-function intensities_interpolated(swt::SpinWaveTheory, qs, ωvals, η::Float64; formula = intensity_formula(swt) :: SpinWaveIntensityFormula)
+function intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64; formula = intensity_formula(swt) :: SpinWaveIntensityFormula)
     (; sys) = swt
     qs = Vec3.(qs)
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
