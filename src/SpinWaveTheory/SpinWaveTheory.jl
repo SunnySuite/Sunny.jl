@@ -59,7 +59,7 @@ end
 """
     generate_local_sun_gens
 
-Compute SU(N) generators in the local reference frame.
+Compute SU(N) generators in the local reference frame (for :SUN mode).
 """
 # DD: Redo this using existing operator rotation facilities.
 function generate_local_sun_gens(sys :: System)
@@ -86,7 +86,6 @@ function generate_local_sun_gens(sys :: System)
     for atom = 1:Nₘ
         U_mat[:, 1] = sys.coherents[1, 1, 1, atom]
         U_mat[:, 2:N] = nullspace(U_mat[:, 1]')
-        @assert isapprox(U_mat * U_mat', I) "rotation matrix from (global frame to local frame) not unitary"
         for μ = 1:3
             s̃_mat[:, :, μ, atom] = Hermitian(U_mat' * s_mat_N[μ] * U_mat)
         end
@@ -99,6 +98,46 @@ function generate_local_sun_gens(sys :: System)
     return s̃_mat, T̃_mat, Q̃_mat
 end
 
+"""
+    generate_local_stevens_coefs
+
+Compute the stevens coefficients in the local reference frame (for :dipole mode).
+"""
+function generate_local_stevens_coefs(sys :: System)
+    c′_coef = Vector{StevensExpansion}()
+    R_mat   = Vector{Mat3}()
+    Nₘ, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert 
+    s_mat_N = spin_matrices(Ns)
+    Nₘ = length(sys.dipoles)
+    s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
+    Nₘ = length(sys.dipoles)
+    R  = zeros(Float64, 3, 3)
+    for atom = 1:Nₘ
+        θ, ϕ = dipole_to_angles(sys.dipoles[1, 1, 1, atom])
+        # U_mat = exp(-1im*ϕ*s_mat_N[3]) * exp(-1im*θ*s_mat_N[2])
+        # SO(3) rotation that aligns the quantization axis. Important: since we will project out bosons that correspond to multipolar fluctuations,
+        # therefore we use the explicit matrix to get rid of any ambiguity
+        # Note that R * (0, 0, 1) = normalize(sys.dipoles[1,1,1,atom]))
+        R[:] = [-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
+                    cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
+                    0.0     sin(θ)        cos(θ)]
+        (; c2, c4, c6) = sys.interactions_union[atom].aniso.stvexp
+        SR  = Mat3(R)
+        # In Cristian's note, S̃ = R S, so here we should pass SR'
+        push!(R_mat, SR')
+        for μ = 1:3
+            s̃_mat[:, :, μ, atom] = Hermitian(rotate_operator(s_mat_N[μ], SR))[1:2, 1:2]
+        end
+        c2′ = rotate_stevens_coefficients(c2, SR)
+        c4′ = rotate_stevens_coefficients(c4, SR)
+        c6′ = rotate_stevens_coefficients(c6, SR)
+        c′  = StevensExpansion(c2′, c4′, c6′)
+        push!(c′_coef, c′)
+    end
+    return s̃_mat, R_mat, c′_coef
+end
+
+
 function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6) where N
     # Reshape into single unit cell
     cellsize_mag = cell_dimensions(sys) * diagm(collect(sys.latsize))
@@ -106,41 +145,14 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Flo
 
     # Computes the Stevens operator in the local reference frame and the SO(3) rotation matrix from global to local frame
     # (:dipole mode only)
-    c′_coef = Vector{StevensExpansion}()
-    R_mat   = Vector{Mat3}()
     if sys.mode == :SUN
         s̃_mat, T̃_mat, Q̃_mat = generate_local_sun_gens(sys)
+        c′_coef = Vector{StevensExpansion}()
+        R_mat   = Vector{Mat3}()
     elseif sys.mode == :dipole
-        Nₘ, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert 
-        s_mat_N = spin_matrices(Ns)
-        Nₘ = length(sys.dipoles)
-        s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
+        s̃_mat, R_mat, c′_coef = generate_local_stevens_coefs(sys)
         T̃_mat = zeros(ComplexF64, 0, 0, 0)
         Q̃_mat = zeros(ComplexF64, 0, 0, 0, 0)
-        Nₘ = length(sys.dipoles)
-        R  = zeros(Float64, 3, 3)
-        for atom = 1:Nₘ
-            θ, ϕ = dipole_to_angles(sys.dipoles[1, 1, 1, atom])
-            # U_mat = exp(-1im*ϕ*s_mat_N[3]) * exp(-1im*θ*s_mat_N[2])
-            # SO(3) rotation that aligns the quantization axis. Important: since we will project out bosons that correspond to multipolar fluctuations,
-            # therefore we use the explicit matrix to get rid of any ambiguity
-            # Note that R * (0, 0, 1) = normalize(sys.dipoles[1,1,1,atom]))
-            R[:] = [-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
-                     cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
-                     0.0     sin(θ)        cos(θ)]
-            (; c2, c4, c6) = sys.interactions_union[atom].aniso.stvexp
-            SR  = Mat3(R)
-            # In Cristian's note, S̃ = R S, so here we should pass SR'
-            push!(R_mat, SR')
-            for μ = 1:3
-                s̃_mat[:, :, μ, atom] = Hermitian(rotate_operator(s_mat_N[μ], SR))[1:2, 1:2]
-            end
-            c2′ = rotate_stevens_coefficients(c2, SR)
-            c4′ = rotate_stevens_coefficients(c4, SR)
-            c6′ = rotate_stevens_coefficients(c6, SR)
-            c′  = StevensExpansion(c2′, c4′, c6′)
-            push!(c′_coef, c′)
-        end
     end
 
     latvecs_mag = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs \ sys.crystal.latvecs # DD: correct/necessary? 
