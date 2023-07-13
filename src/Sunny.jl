@@ -92,19 +92,28 @@ include("StructureFactors/StructureFactors.jl")
 include("StructureFactors/SFUtils.jl")
 include("StructureFactors/SampleGeneration.jl")
 include("StructureFactors/FormFactor.jl")
-include("StructureFactors/ElementContraction.jl")
 include("StructureFactors/BasisReduction.jl")
-include("StructureFactors/Interpolation.jl")
-include("StructureFactors/PowderAveraging.jl")
 include("StructureFactors/DataRetrieval.jl")
-include("SpinWaveTheory/Intensities.jl") # Requires ElementContraction
 export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFactor, 
-    add_sample!, intensities_interpolated, instant_intensities_interpolated, broaden_energy, lorentzian,
-    connected_path, all_exact_wave_vectors, ωs, spherical_shell, merge!, BinningParameters,
-    integrate_axes!, unit_resolution_binning_parameters, rlu_to_absolute_units!,
+    add_sample!, broaden_energy, lorentzian,
+    all_exact_wave_vectors, ωs, spherical_shell, merge!, intensity_formula, integrated_lorentzian
+
+include("Intensities/ElementContraction.jl")
+
+include("Intensities/Interpolation.jl")
+export intensities_interpolated, instant_intensities_interpolated, connected_path
+
+include("Intensities/Binning.jl")
+export intensities_binned, instant_intensities_interpolated, connected_path_bins,
+    BinningParameters, integrate_axes!, unit_resolution_binning_parameters,
+    rlu_to_absolute_units!,
     intensities_binned, one_dimensional_cut_binning_parameters, axes_bincenters,
-    connected_path_bins, powder_averaged_bins, intensity_formula, integrated_lorentzian, count_bins
-    load_nxs_binning_parameters, generate_shiver_script
+    connected_path_bins, load_nxs_binning_parameters,
+    generate_shiver_script, count_bins
+
+
+include("Intensities/PowderAveraging.jl")
+export powder_averaged_bins, powder_average
 
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")

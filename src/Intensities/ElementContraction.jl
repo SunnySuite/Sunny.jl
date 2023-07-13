@@ -21,7 +21,7 @@ struct FullTensor{NCorr} <: Contraction{SVector{NCorr, ComplexF64}} end
 ################################################################################
 # Constructors
 ################################################################################
-Trace(swt::SpinWaveTheory) = Trace([1,5,9])
+Trace(swt::SpinWaveTheory) = Trace(@SVector[1,5,9])
 
 function Trace(sf::StructureFactor{N}) where {N}
     # Collect all indices for matrix elements 𝒮^αβ where α=β
@@ -129,3 +129,55 @@ required_correlations(::FullTensor{NCorr}) where NCorr = 1:NCorr
 ################################################################################
 Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 contraction_return_type(::Contraction{T}) where T = T
+
+
+intensity_formula(swt::SpinWaveTheory; kwargs...) = intensity_formula(swt, :perp; kwargs...)
+function intensity_formula(swt::SpinWaveTheory, mode::Symbol; kwargs...)
+    if mode == :trace
+        contractor = Trace(swt)
+        string_formula = "Tr S"
+    elseif mode == :perp
+        contractor = DipoleFactor(swt)
+        string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz)"
+    elseif mode == :full
+        contractor = FullTensor(swt)
+        string_formula = "S{α,β}"
+    end
+    intensity_formula(swt,contractor;string_formula,kwargs...)
+end
+
+function intensity_formula(swt::SpinWaveTheory, contractor::Contraction; kwargs...)
+    return_type = contraction_return_type(contractor)
+    intensity_formula(swt,required_correlations(contractor); return_type = return_type,kwargs...) do k,ω,correlations
+        intensity = contract(correlations, k, contractor)
+    end
+end
+
+function intensity_formula(sf::StructureFactor, elem::Tuple{Symbol,Symbol}; kwargs...)
+    string_formula = "S{$(elem[1]),$(elem[2])}[ix_q,ix_ω]"
+    intensity_formula(sf,Element(sf, elem); string_formula, kwargs...)
+end
+#intensity_formula(sf::StructureFactor, elem::Vector{Tuple{Symbol,Symbol}}; kwargs...) = intensity_formula(sf,Element(sf, elem); kwargs...)
+intensity_formula(sf::StructureFactor; kwargs...) = intensity_formula(sf, :perp; kwargs...)
+function intensity_formula(sf::StructureFactor, mode::Symbol; kwargs...)
+    if mode == :trace
+        contractor = Trace(sf)
+        string_formula = "Tr S"
+    elseif mode == :perp
+        contractor = DipoleFactor(sf)
+        string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz)"
+    elseif mode == :full
+        contractor = FullTensor(sf)
+        string_formula = "S{α,β}"
+    end
+    intensity_formula(sf,contractor;string_formula,kwargs...)
+end
+
+function intensity_formula(sf::StructureFactor, contractor::Contraction; kwargs...)
+    return_type = contraction_return_type(contractor)
+    intensity_formula(sf,required_correlations(contractor); return_type = return_type,kwargs...) do k,ω,correlations
+        intensity = contract(correlations, k, contractor)
+    end
+end
+
+
