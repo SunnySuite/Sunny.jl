@@ -463,58 +463,26 @@ index, corresponding to mode, is added to these. Each entry of this array is a
 tensor (3×3 matrix) corresponding to the indices ``α`` and ``β``.
 """
 function dssf(swt::SpinWaveTheory, qs)
-    (; sys, positions_chem, s̃_mat) = swt
+    sys = swt.sys
     qs = Vec3.(qs)
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
-    N  = Nf + 1
     nmodes  = Nf * Nm 
-    sqrt_Nm_inv = 1.0 / √Nm
 
-    # Preallocation
-    Hmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
-    Vmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
     disp = zeros(Float64, nmodes, size(qs)...)
-    Avec_pref = zeros(ComplexF64, Nm)
     Sαβs = zeros(ComplexF64, 3, 3, nmodes, size(qs)...) 
+
+    # dssf(...) doesn't do any contraction, temperature correction, etc.
+    # It simply returns the full Sαβ correlation matrix
+    formula = intensity_formula(swt,:full)
 
     # Calculate DSSF 
     for qidx in CartesianIndices(qs)
         q = qs[qidx]
-        _, qmag = chemical_to_magnetic(swt, q)
-
-        swt_hamiltonian!(swt, qmag, Hmat)
-        bogoliubov!(@view(disp[:,qidx]), Vmat, Hmat, swt.energy_tol)
-
-        for site = 1:Nm
-            # note that d is the chemical coordinates
-            chemical_coor = positions_chem[site]
-            phase = exp(-2im * π  * dot(q, chemical_coor))
-            Avec_pref[site] = sqrt_Nm_inv * phase
-        end
-
+        dispQ, intensityQ = formula.calc_intensity(swt,q)
         for band = 1:nmodes
-            v = Vmat[:, band]
-            Avec = zeros(ComplexF64, 3)
-            for site = 1:Nm
-                @views tS_μ = s̃_mat[:, :, :, site]
-                for μ = 1:3
-                    for α = 2:N
-                        Avec[μ] += Avec_pref[site] * (tS_μ[α, 1, μ] * v[(site-1)*(N-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(site-1)*(N-1)+α-1])
-                    end
-                end
-            end
-
-            # DD: Generalize this based on list of arbitrary operators, optimize out symmetry, etc.
-            Sαβs[1,1,band,qidx] = real(Avec[1] * conj(Avec[1]))
-            Sαβs[1,2,band,qidx] = Avec[1] * conj(Avec[2])
-            Sαβs[1,3,band,qidx] = Avec[1] * conj(Avec[3])
-            Sαβs[2,2,band,qidx] = real(Avec[2] * conj(Avec[2]))
-            Sαβs[2,3,band,qidx] = Avec[2] * conj(Avec[3])
-            Sαβs[3,3,band,qidx] = real(Avec[3] * conj(Avec[3]))
-            Sαβs[2,1,band,qidx] = conj(Sαβs[1,2,band,qidx]) 
-            Sαβs[3,1,band,qidx] = conj(Sαβs[3,1,band,qidx]) 
-            Sαβs[3,2,band,qidx] = conj(Sαβs[2,3,band,qidx]) 
+            disp[band,qidx] = dispQ[band]
+            Sαβs[:,:,band,qidx] .= reshape(intensityQ[band],3,3)
         end
     end
 
@@ -555,8 +523,6 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
     nmodes  = Nf * Nm 
-    M = sys.mode == :SUN ? 1 : (Ns-1) # scaling factor (=1) if in the fundamental representation
-    sqrt_M = √M
     sqrt_Nm_inv = 1.0 / √Nm
 
     # Preallocation
@@ -564,7 +530,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     Vmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
     Avec_pref = zeros(ComplexF64, Nm)
     disp = zeros(Float64, nmodes)
-    intensity = zeros(Float64, nmodes)
+    intensity = zeros(return_type, nmodes)
 
     # Calculate DSSF 
     formula = function(swt::SpinWaveTheory,q::Vec3)
@@ -577,7 +543,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             # note that d is the chemical coordinates
             chemical_coor = positions_chem[site]
             phase = exp(-2im * π  * dot(q, chemical_coor))
-            Avec_pref[site] = sqrt_Nm_inv * phase * sqrt_M
+            Avec_pref[site] = sqrt_Nm_inv * phase
         end
 
         for band = 1:nmodes
