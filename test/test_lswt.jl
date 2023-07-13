@@ -129,30 +129,131 @@ end
         # Spin System
         dims = (2, 2, 2)
         infos = [SpinInfo(1, S=S)]
-        sys = System(cryst, dims, infos, :SUN)
+        sys_SUN = System(cryst, dims, infos, :SUN)
+        sys_dip = System(cryst, dims, infos, :dipole)
 
         α = -0.4 * π
         J = 1.0
         JL, JQ = J * cos(α), J * sin(α) / S^2
-        set_exchange!(sys, JL,  Bond(1, 1, [1, 0, 0]))
-        set_biquadratic!(sys, JQ,  Bond(1, 1, [1, 0, 0]))
+        set_exchange!(sys_SUN, JL,  Bond(1, 1, [1, 0, 0]))
+        set_biquadratic!(sys_SUN, JQ,  Bond(1, 1, [1, 0, 0]))
+        set_exchange!(sys_dip, JL,  Bond(1, 1, [1, 0, 0]))
+        set_biquadratic!(sys_dip, JQ,  Bond(1, 1, [1, 0, 0]))
 
-        sys_swt = reshape_geometry(sys, [1 1 1; -1 1 0; 0 0 1])
-        polarize_spin!(sys_swt, (1, 0, 0), position_to_site(sys_swt, (0, 0, 0)))
-        polarize_spin!(sys_swt, (-1, 0, 0), position_to_site(sys_swt, (0, 1, 0)))
+        sys_swt_SUN = reshape_geometry(sys_SUN, [1 1 1; -1 1 0; 0 0 1])
+        polarize_spin!(sys_swt_SUN, ( 1, 0, 0), position_to_site(sys_swt_SUN, (0, 0, 0)))
+        polarize_spin!(sys_swt_SUN, (-1, 0, 0), position_to_site(sys_swt_SUN, (0, 1, 0)))
 
-        swt = SpinWaveTheory(sys_swt)
+        sys_swt_dip = reshape_geometry(sys_dip, [1 1 1; -1 1 0; 0 0 1])
+        polarize_spin!(sys_swt_dip, ( 1, 0, 0), position_to_site(sys_swt_dip, (0, 0, 0)))
+        polarize_spin!(sys_swt_dip, (-1, 0, 0), position_to_site(sys_swt_dip, (0, 1, 0)))
+
+        swt_SUN = SpinWaveTheory(sys_swt_SUN)
+        swt_dip = SpinWaveTheory(sys_swt_dip)
 
         γk(k :: Vector{Float64}) = 2 * (cos(2π*k[1]) + cos(2π*k[2]) + cos(2π*k[3]))
         ϵk₁(k :: Vector{Float64}) = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γk(k)^2) 
 
-        ϵk_num = dispersion(swt, [k])
+        ϵk_num_SUN = dispersion(swt_SUN, [k])
+        ϵk_num_dip = dispersion(swt_dip, [k])
         ϵk_ana = ϵk₁(k)
 
-        ϵk_num[end-1] ≈ ϵk_num[end] ≈ ϵk_ana
+        ϵk_num_SUN[end-1] ≈ ϵk_num_SUN[end] ≈ ϵk_num_dip[end] ≈ ϵk_ana
     end
 
     k = [0.12, 0.23, 0.34]
     @test test_biquad(k, 1)
     @test test_biquad(k, 3/2)
+end
+
+@testitem "Canted afm" begin
+
+    function disp_analytical_canted_afm(J, D, h, S, qs)
+        c₂ = 1 - 1/(2S)
+        θ = acos(h / (2S*(4J+c₂*D)))
+        disp = zeros(Float64, 2, length(qs))
+        for (iq, q) in enumerate(qs)
+            Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
+            ωq₊ = real(√Complex(4J*S*(4J*S+2D*S*c₂*sin(θ)^2) + cos(2θ)*(Jq*S)^2 + 2S*Jq*(4J*S*cos(θ)^2 + c₂*D*S*sin(θ)^2)))
+            ωq₋ = real(√Complex(4J*S*(4J*S+2D*S*c₂*sin(θ)^2) + cos(2θ)*(Jq*S)^2 - 2S*Jq*(4J*S*cos(θ)^2 + c₂*D*S*sin(θ)^2)))
+            disp[:, iq] = [ωq₊, ωq₋]
+        end
+        return Sunny.reshape_dispersions(disp)
+    end
+
+    function test_canted_afm(q :: Vector{Float64}, S)
+        J, D, h = 1.0, 0.54, 0.76
+        a = 1
+        latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
+        positions = [[0, 0, 0]]
+        cryst = Crystal(latvecs, positions)
+
+        dims = (2, 2, 1)
+        sys_dip = System(cryst, dims, [SpinInfo(1; S=S, g=1)], :dipole; units=Units.theory)
+
+        set_exchange!(sys_dip, J, Bond(1, 1, [1, 0, 0]))
+        set_anisotropy!(sys_dip, D*𝒮[3]^2, 1)
+        set_external_field!(sys_dip, [0, 0, h])
+        sys_swt_dip = reshape_geometry(sys_dip, [1 -1 0; 1 1 0; 0 0 1])
+        c₂ = 1 - 1/(2S)
+        θ = acos(h / (2S*(4J+D*c₂)))
+        Sunny.polarize_spin!(sys_swt_dip, ( sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (0,0,0)))
+        Sunny.polarize_spin!(sys_swt_dip, (-sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (1,0,0)))
+        swt_dip = SpinWaveTheory(sys_swt_dip)
+        ϵq_num = dispersion(swt_dip, [q])
+        ϵq_ana = disp_analytical_canted_afm(J, D, h, S, [q])
+        ϵq_num ≈ ϵq_ana
+    end
+    q = [0.12, 0.23, 0.34]
+    @test test_canted_afm(q, 1)
+    @test test_canted_afm(q, 2)
+end
+
+@testitem "Local stevens expansion" begin
+    using LinearAlgebra
+    a = 1
+    latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
+    positions = [[0, 0, 0]]
+    # P1 point group for most general single-ion anisotropy
+    cryst = Crystal(latvecs, positions, 1)
+
+    dims = (1, 1, 1)
+    S = 3
+    sys_dip = System(cryst, dims, [SpinInfo(1; S, g=1)], :dipole)
+    sys_SUN = System(cryst, dims, [SpinInfo(1; S, g=1)], :SUN)
+
+    # The strengths of single-ion anisotropy (must be negative to favor the dipolar ordering under consideration)
+    Ds = -rand(3)
+    h  = rand()
+    # Random magnetic moment
+    𝐌 = normalize(rand(3))
+    θ, ϕ = Sunny.dipole_to_angles(𝐌)
+    s_mat = Sunny.spin_matrices(2S+1)
+    s̃ᶻ = 𝐌[1] * 𝒮[1] + 𝐌[2] * 𝒮[2] + 𝐌[3] * 𝒮[3]
+    U_mat = exp(-1im * ϕ * s_mat[3]) * exp(-1im * θ * s_mat[2])
+    hws = zeros(2S+1)
+    hws[1] = 1.0
+    Z = U_mat * hws
+
+    aniso = Ds[1]*s̃ᶻ^2 + Ds[2]*s̃ᶻ^4 + Ds[3]*s̃ᶻ^6
+    set_anisotropy!(sys_dip, aniso, 1)
+    set_anisotropy!(sys_SUN, aniso, 1)
+    set_external_field!(sys_dip, h*𝐌)
+    set_external_field!(sys_SUN, h*𝐌)
+
+    Sunny.polarize_spin!(sys_dip, 𝐌, position_to_site(sys_dip, (0, 0, 0)))
+    Sunny.set_coherent_state!(sys_SUN, Z, position_to_site(sys_SUN, (0, 0, 0)))
+
+    energy(sys_dip)
+    energy(sys_SUN)
+
+    q = rand(3)
+
+    swt_dip = SpinWaveTheory(sys_dip)
+    swt_SUN = SpinWaveTheory(sys_SUN)
+
+    disp_dip = dispersion(swt_dip, [q])
+    disp_SUN = dispersion(swt_SUN, [q])
+
+    @test disp_dip[1] ≈ disp_SUN[end-1]
 end

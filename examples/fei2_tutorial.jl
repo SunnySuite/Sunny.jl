@@ -352,7 +352,7 @@ end
 # resolve. For the time step, twice the value used for the Langevin integrator
 # is usually a good choice.
 
-sf = DynamicStructureFactor(sys_large; Δt=2Δt, nω=120, ωmax=7.5);
+sf = DynamicStructureFactor(sys_large; Δt=2Δt, nω=120, ωmax=7.5)
 
 # `sf` currently contains dynamical structure data generated from a single
 # sample. Additional samples can be added by generating a new spin configuration
@@ -366,18 +366,21 @@ for _ in 1:2
 end
 
 # ## Accessing structure factor data 
-# The basic function for accessing intensity data is [`intensities`](@ref),
-# which, in addition to the structure factor data itself, takes a list of wave
-# vectors and a mode parameter. The options for the mode parameter are `:trace`,
-# `:perp` and `:full` which return, respectively, the trace, the unpolarized
-# intensity, and the full set of matrix elements (correlations of spin
-# components) at the specified wave vectors. An optional keyword argument `kT`
-# enables a classical-to-quantum rescaling.
-# 
-# Below, we plot two single-$q$ slices.
+# The basic functions for accessing intensity data are [`intensities_interpolated`](@ref)
+# and [`intensities_binned`](@ref). Both functions accept an [`intensity_formula`](@ref)
+# to specify how to combine the correlations recorded in the `StructureFactor` into
+# intensity data. By default, a formula computing the unpolarized intensity is used,
+# but alternative formulas can be specified.
+#
+# By way of example, we will use a formula which computes the trace of the structure
+# factor and applies a classical-to-quantum temperature-dependent rescaling `kT`.
+
+formula = intensity_formula(sf, :trace; kT = kT);
+
+# Using the formula, we plot single-$q$ slices at (0,0,0) and (π,π,π):
 
 qs = [[0, 0, 0], [0.5, 0.5, 0.5]]
-is = intensities(sf, qs, :trace; kT)
+is = intensities_interpolated(sf, qs; interpolation = :round, formula = formula)
 
 fig = lines(ωs(sf), is[1,:]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
 lines!(ωs(sf), is[2,:]; label="(π,π,π)")
@@ -398,14 +401,14 @@ density = 40
 path, markers = connected_path(sf, points, density);
 
 # Calculate and plot the intensities along this path using [`FormFactor`](@ref)
-# corrections appropriate for `Fe2` magnetic ions.
+# corrections appropriate for `Fe2` magnetic ions, and apply a dipole correction `:perp`.
 
 formfactors = [FormFactor(1, "Fe2"; g_lande=3/2)]
+new_formula = intensity_formula(sf, :perp; kT = kT, formfactors = formfactors);
 
-is = intensities(sf, path, :perp; 
+is = intensities_interpolated(sf, path;
     interpolation = :linear,       # Interpolate between available wave vectors
-    kT,                            # Temperature for intensity correction
-    formfactors,                   # Form factor information 
+    formula = new_formula
 )
 is = broaden_energy(sf, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.05))  # Add artificial broadening
 
@@ -421,6 +424,34 @@ heatmap(1:size(is,1), ωs(sf), is;
     )
 )
 
+# Whereas [`intensities_interpolated`](@ref) either rounds or linearly interpolates
+# between the discrete ``(Q,ω)`` points Sunny calculates correlations at, [`intensities_binned`](@ref)
+# performs histogram binning analgous to what is done in experiments.
+# The graphs produced by each method are similar.
+cut_width = 0.3
+density = 15
+paramsList, markers, ranges = connected_path_bins(sf,points,density,cut_width)
+
+total_bins = ranges[end][end]
+energy_bins = paramsList[1].numbins[4]
+is = zeros(Float64,total_bins,energy_bins)
+integrated_kernel = integrated_lorentzian(0.05) # Lorentzian broadening
+for k in 1:length(paramsList)
+    h,c = intensities_binned(sf,paramsList[k];formula = new_formula,integrated_kernel = integrated_kernel)
+    is[ranges[k],:] = h[:,1,1,:] ./ c[:,1,1,:]
+end
+
+heatmap(1:size(is,1), ωs(sf), is;
+    colorrange=(0.0, maximum(is[:,8:end])),
+    axis = (
+        ylabel = "meV",
+        xticks = (markers, labels),
+        xticklabelrotation=π/8,
+        xticklabelsize=12,
+    )
+)
+
+
 # Often it is useful to plot cuts across multiple wave vectors but at a single
 # energy. 
 
@@ -428,11 +459,7 @@ npoints = 60
 qvals = range(-2, 2, length=npoints)
 qs = [[a, b, 0] for a in qvals, b in qvals]
 
-is = intensities(sf, qs, :perp;
-    interpolation = :linear,
-    kT,
-    formfactors,
-);
+is = intensities_interpolated(sf, qs; formula = new_formula,interpolation = :linear);
 
 ωidx = 30
 hm = heatmap(is[:,:,ωidx]; axis=(title="ω=$(ωs(sf)[ωidx]) meV", aspect=true))
@@ -455,11 +482,7 @@ A = [0.5  1  0;
      0    0  1]
 ks = [A*q for q in qs]
 
-is_ortho = intensities(sf, ks, :perp;
-    interpolation = :linear,
-    kT,
-    formfactors,
-)
+is_ortho = intensities_interpolated(sf, ks; formula = new_formula, interpolation = :linear)
 
 hm = heatmap(is_ortho[:,:,ωidx]; axis=(title="ω=$(ωs(sf)[ωidx]) meV", aspect=true))
 Colorbar(hm.figure[1,2], hm.plot)
@@ -467,13 +490,9 @@ hidedecorations!(hm.axis); hidespines!(hm.axis)
 hm
 
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
-# obtained from a dynamic structure factor with [`instant_intensities`](@ref).
+# obtained from a dynamic structure factor with [`instant_intensities_interpolated`](@ref).
 
-is_static = instant_intensities(sf, ks, :perp;
-    interpolation = :linear,
-    kT,
-    formfactors,
-)
+is_static = instant_intensities_interpolated(sf, ks; formula = new_formula, interpolation = :linear)
 
 hm = heatmap(is_static; axis=(title="Instantaneous Structure Factor", aspect=true))
 Colorbar(hm.figure[1,2], hm.plot)

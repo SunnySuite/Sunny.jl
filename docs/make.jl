@@ -4,7 +4,7 @@ using Literate, Documenter, Sunny
 
 execute = true # set `false` to disable cell evaluation
 
-example_names = ["fei2_tutorial", "powder_averaging", "ising2d"]
+example_names = ["fei2_tutorial", "powder_averaging", "ising2d", "binning_tutorial"]
 example_sources = [joinpath(@__DIR__, "..", "examples", name*".jl") for name in example_names]
 example_destination = joinpath(@__DIR__, "src", "examples")
 example_doc_paths = ["examples/$name.md" for name in example_names]
