@@ -1,3 +1,15 @@
+# Version 0.5.0
+
+This version includes many **breaking changes**.
+
+Added support for `:dipole`-mode Linear Spin Wave Theory.
+
+Split `intensities` into calculation (`intensity_formula`) and presentation (`intensities_interpolated`, `intensities_binned`).
+
+Broadened support for custom observables in `StructureFactor` for use in `intensity_formula`.
+
+Added function `load_nxs` to load experimental neutron scattering data to compare with `intensities_binned`.
+
 # Version 0.4.3
 
 **Experimental** support for linear [`SpinWaveTheory`](@ref), implemented in
