@@ -142,10 +142,10 @@ scatter!(ax,x,y)
 
 # Let's make a new histogram which includes the energy axis.
 # The x-axis of the histogram will be a 1D cut from `Q = [0,0,0]` to `Q = [1,1,0]`.
-# See [`one_dimensional_cut_binning_parameters`](@ref).
+# See [`slice_2D_binning_parameters`](@ref).
 x_axis_bin_count = 10
 cut_width = 0.3
-params = one_dimensional_cut_binning_parameters(dsf,[0,0,0],[1,1,0],x_axis_bin_count,cut_width)
+params = slice_2D_binning_parameters(dsf,[0,0,0],[1,1,0],x_axis_bin_count,cut_width)
 
 # There are no longer any scattering vectors exactly in the plane of the cut. Instead,
 # as described in the `BinningParameters` output above, the transverse Q

@@ -4,7 +4,7 @@
     BinningParameters(binstart,binend;numbins,covectors = I(4))
 
 Describes a 4D parallelepided histogram in a format compatible with experimental Inelasitic Neutron Scattering data.
-See [`generate_shiver_script`](@ref) to convert [`BinningParameters`](@ref) to a format understandable by the [Mantid software](https://www.mantidproject.org/), or [`load_nxs_binning_parameters`](@ref) to load a [`BinningParameters`](@ref) from a Mantid `.nxs` file.
+See [`generate_mantid_script_from_binning_parameters`](@ref) to convert [`BinningParameters`](@ref) to a format understandable by the [Mantid software](https://www.mantidproject.org/), or [`load_nxs`](@ref) to load [`BinningParameters`](@ref) from a Mantid `.nxs` file.
  
 The coordinates of the histogram axes are specified by multiplication 
 of `(q,ω)` with each row of the `covectors` matrix.
@@ -153,109 +153,6 @@ rlu_to_absolute_units!(swt::SpinWaveTheory,params::BinningParameters) = rlu_to_a
 
 
 """
-    generate_shiver_script(params::BinningParameters)
-
-Generate a Mantid/Shiver script which bins data according to the 
-given [`BinningParameters`](@ref). You may want to call [`rlu_to_absolute_units!`](@ref) first.
-"""
-function generate_shiver_script(params)
-    covectorsK = params.covectors # Please call rlu_to_absolute_units! first if needed
-    #function bin_string(k)
-        #if params.numbins[k] == 1
-            #return "$(params.binsstart[k]),$(params.binend[k])"
-        #else
-            #return "$(params.binsstart[k]),$(params.binend[k])"
-        #end
-    #end
-    return """MakeSlice(InputWorkspace="merged_mde_INPUT",
-        QDimension0="$(covectorsK[1,1]),$(covectorsK[1,2]),$(covectorsK[1,3])",
-        QDimension1="$(covectorsK[2,1]),$(covectorsK[2,2]),$(covectorsK[2,3])",
-        QDimension2="$(covectorsK[3,1]),$(covectorsK[3,2]),$(covectorsK[3,3])",
-        Dimension0Binning="$(params.binstart[1]),$(params.binwidth[1]),$(params.binend[1])",
-        Dimension1Name="DeltaE",
-        Dimension1Binning="$(params.binstart[2]),$(params.binwidth[2]),$(params.binend[2])",
-        Dimension2Binning="$(params.binstart[3]),$(params.binwidth[3]),$(params.binend[3])",
-        Dimension3Binning="$(params.binstart[4]),$(params.binwidth[4]),$(params.binend[4])",
-        Dimension3Name="QDimension1",
-        Smoothing="0",
-        OutputWorkspace="Histogram_OUTPUT")
-        """
-end
-
-"""
-    params, signal = load_nxs_binning_parameters(filename)
-
-Given the name of a Mantid-exported `MDHistoWorkspace` file, load the [`BinningParameters`](@ref) and the signal from that file.
-"""
-function load_nxs_binning_parameters(filename)
-    JLD2.jldopen(filename) do file
-        coordinate_system = file["MDHistoWorkspace"]["coordinate_system"][1]
-
-        # Permalink to where this enum is defined:
-        # https://github.com/mantidproject/mantid/blob/057df5b2de1c15b819c7dd06e50bdbf5461b09c6/Framework/Kernel/inc/MantidKernel/SpecialCoordinateSystem.h#L14
-        system_name = ["None", "QLab", "QSample", "HKL"][coordinate_system + 1]
-
-        # The matrix stored in the file is transpose of the actual
-        # transform_from_orig matrix
-        transform_from_orig = file["MDHistoWorkspace"]["transform_from_orig"]
-        transform_from_orig = reshape(transform_from_orig,5,5)
-        transform_from_orig = transform_from_orig'
-        
-        # U: Orthogonal rotation matrix
-        # B: inv(lattice_vectors(...)) matrix, as in Sunny
-        # The matrix stored in the file is transpose of U * B
-        ub_matrix = file["MDHistoWorkspace"]["experiment0"]["sample"]["oriented_lattice"]["orientation_matrix"]
-        ub_matrix = ub_matrix'
-
-        # Following: https://docs.mantidproject.org/nightly/concepts/Lattice.html
-        # It can be verified that the matrix G^* = (ub_matrix' * ub_matrix)
-        # is equal to B' * B, where B = inv(lattice_vectors(...)), and the diagonal
-        # entries of the inverse of this matrix are the lattice parameters squared
-        #
-        #abcMagnitude = sqrt.(diag(inv(ub_matrix' * ub_matrix)))
-        #println("[a,b,c] = ",abcMagnitude)
-
-        # This is how you extract the covectors
-        covectors = 2π .* transform_from_orig[1:3,1:3] * ub_matrix
-
-        signal = file["MDHistoWorkspace"]["data"]["signal"]
-
-        axes = Dict(JLD2.load_attributes(file,"MDHistoWorkspace/data/signal"))[:axes]
-
-        # Axes are just stored backwards in Mantid .nxs for some reason
-        axes_names = reverse(split(axes,":"))
-
-        data_dims = Vector{Vector{Float64}}(undef,length(axes_names))
-        binwidth = Vector{Float64}(undef,length(axes_names))
-        binstart = Vector{Float64}(undef,length(axes_names))
-        binend = Vector{Float64}(undef,length(axes_names))
-        std = x -> sqrt(sum((x .- sum(x) ./ length(x)).^2))
-        for (i,name) in enumerate(axes_names)
-            data_dims[i] = file["MDHistoWorkspace"]["data"][name]
-            binwidth[i] = sum(diff(data_dims[i])) / length(diff(data_dims[i]))
-            if std(diff(data_dims[i])) > 1e-4 * binwidth[i]
-              printstyled("Warning possible non-uniform binning: mean width = $(binwidth[i]),  std width = $(std(diff(data_dims[i])))"; color = :yellow)
-            end
-
-            binstart[i] = minimum(data_dims[i])
-            binend[i] = maximum(data_dims[i])
-        end
-
-        covectors4D = [covectors [0;0;0]; [0 0 0] 1]
-        return BinningParameters(binstart,binend,binwidth,covectors4D), signal
-    end
-end
-
-function quick_view_nxs(filename,keep_ax)
-    integration_axes = setdiff(1:4,keep_ax)
-    params, signal = load_nxs_binning_parameters(filename)
-    integrate_axes!(params,axes = integration_axes)
-    int_signal = dropdims(sum(signal,dims = integration_axes);dims = Tuple(integration_axes))
-    bcs = axes_bincenters(params)
-    (bcs[keep_ax[1]],bcs[keep_ax[2]],int_signal)
-end
-
-"""
     unit_resolution_binning_parameters(sf::StructureFactor)
 
 Create [`BinningParameters`](@ref) which place one histogram bin centered at each possible `(q,ω)` scattering vector of the crystal.
@@ -289,7 +186,7 @@ function unit_resolution_binning_parameters(ωvals::Vector{Float64})
 end
 
 """
-    one_dimensional_cut_binning_parameter(sf::StructureFactor, cut_from_q, cut_to_q, cut_bins::Int64, cut_width::Float64; plane_normal = [0,0,1],cut_height = cutwidth)
+    slice_2D_binning_parameter(sf::StructureFactor, cut_from_q, cut_to_q, cut_bins::Int64, cut_width::Float64; plane_normal = [0,0,1],cut_height = cutwidth)
 
 Creates [`BinningParameters`](@ref) which make a 1D cut in Q-space.
  
@@ -310,9 +207,9 @@ The four axes of the resulting histogram are:
 
 This function can be used without reference to a [`StructureFactor`](@ref) using this alternate syntax to manually specify the bin centers for the energy axis:
 
-    one_dimensional_cut_binning_parameter(ω_bincenters = ωs(sf),...)
+    slice_2D_binning_parameter(ω_bincenters = ωs(sf),...)
 """
-function one_dimensional_cut_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q,cut_bins::Int64,cut_width;plane_normal = [0,0,1],cut_height = cut_width)
+function slice_2D_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q,cut_bins::Int64,cut_width;plane_normal = [0,0,1],cut_height = cut_width)
     # This covector should measure progress along the cut in r.l.u.
     cut_covector = normalize(cut_to_q - cut_from_q)
     # These two covectors should be perpendicular to the cut, and to each other
@@ -335,7 +232,7 @@ function one_dimensional_cut_binning_parameters(ωvals::Vector{Float64},cut_from
 
     return BinningParameters(binstart,binend;numbins = numbins, covectors = covectors)
 end
-one_dimensional_cut_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...) = one_dimensional_cut_binning_parameters(ωs(sf),cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...)
+slice_2D_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...) = slice_2D_binning_parameters(ωs(sf),cut_from_q,cut_to_q,cut_bins,cut_width;kwargs...)
 
 """
     axes_bincenters(params::BinningParameters)
@@ -360,10 +257,10 @@ axes_bincenters(params::BinningParameters) = axes_bincenters(params.binstart,par
 """
     connected_path_bins(sf,qs,density,args...;kwargs...)
 
-Takes a list of wave vectors, `qs`, and builds a series of histogram `BinningParameters`
+Takes a list of wave vectors, `qs`, and builds a series of histogram [`BinningParameters`](@ref)
 whose first axis traces a path through the provided points.
 The second and third axes are integrated over according to the `args` and `kwargs`,
-which are passed through to `one_dimensional_cut_binning_parameters`.
+which are passed through to [`slice_2D_binning_parameters`](@ref).
 
 Also returned is a list of marker indices corresponding to the input points, and
 a list of ranges giving the indices of each histogram `x`-axis within a concatenated histogram.
@@ -381,7 +278,7 @@ function connected_path_bins(recip_vecs,ωvals,qs,density,args...;kwargs...)
         endPt = qs[k+1]
         dist = norm(recip_vecs*(endPt - startPt))
         nBins = round(Int64,density * norm(endPt-startPt))
-        push!(params,one_dimensional_cut_binning_parameters(ωvals,startPt,endPt,nBins,args...;kwargs...))
+        push!(params,slice_2D_binning_parameters(ωvals,startPt,endPt,nBins,args...;kwargs...))
         push!(ranges, total_bins_so_far .+ (1:nBins))
         total_bins_so_far = total_bins_so_far + nBins
         push!(markers, total_bins_so_far+1)

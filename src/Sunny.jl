@@ -108,12 +108,14 @@ export intensities_binned, instant_intensities_interpolated, connected_path_bins
     BinningParameters, integrate_axes!, unit_resolution_binning_parameters,
     rlu_to_absolute_units!,
     intensities_binned, one_dimensional_cut_binning_parameters, axes_bincenters,
-    connected_path_bins, load_nxs_binning_parameters,
-    generate_shiver_script, count_bins
+    connected_path_bins, count_bins
 
 
 include("Intensities/PowderAveraging.jl")
 export powder_averaged_bins, powder_average
+
+include("Intensities/ExperimentData.jl")
+export load_nxs, generate_mantid_script_from_binning_parameters
 
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")

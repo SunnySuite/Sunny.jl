@@ -375,7 +375,7 @@ end
 # By way of example, we will use a formula which computes the trace of the structure
 # factor and applies a classical-to-quantum temperature-dependent rescaling `kT`.
 
-formula = intensity_formula(sf, :trace; kT = kT);
+formula = intensity_formula(sf, :trace; kT = kT)
 
 # Using the formula, we plot single-$q$ slices at (0,0,0) and (π,π,π):
 
@@ -386,6 +386,13 @@ fig = lines(ωs(sf), is[1,:]; axis=(xlabel="meV", ylabel="Intensity"), label="(0
 lines!(ωs(sf), is[2,:]; label="(π,π,π)")
 axislegend()
 fig
+
+# For real calculations, one often wants to apply further corrections and more accurate formulas
+# Here, we apply [`FormFactor`](@ref) corrections appropriate for `Fe2` magnetic ions,
+# and a dipole polarization correction `:perp`.
+
+formfactors = [FormFactor(1, "Fe2"; g_lande=3/2)]
+new_formula = intensity_formula(sf, :perp; kT = kT, formfactors = formfactors)
 
 # Frequently one wants to extract energy intensities along lines that connect
 # special wave vectors. The function [`connected_path`](@ref) linearly samples
@@ -400,11 +407,9 @@ points = [[0,   0, 0],  # List of wave vectors that define a path
 density = 40
 path, markers = connected_path(sf, points, density);
 
-# Calculate and plot the intensities along this path using [`FormFactor`](@ref)
-# corrections appropriate for `Fe2` magnetic ions, and apply a dipole correction `:perp`.
-
-formfactors = [FormFactor(1, "Fe2"; g_lande=3/2)]
-new_formula = intensity_formula(sf, :perp; kT = kT, formfactors = formfactors);
+# Since scattering intensities are only available at a certain discrete ``(Q,\omega)``
+# points, the intensity on the path can be calculated by interpolating between these
+# discrete points:
 
 is = intensities_interpolated(sf, path;
     interpolation = :linear,       # Interpolate between available wave vectors
@@ -425,7 +430,7 @@ heatmap(1:size(is,1), ωs(sf), is;
 )
 
 # Whereas [`intensities_interpolated`](@ref) either rounds or linearly interpolates
-# between the discrete ``(Q,ω)`` points Sunny calculates correlations at, [`intensities_binned`](@ref)
+# between the discrete ``(Q,\omega)`` points Sunny calculates correlations at, [`intensities_binned`](@ref)
 # performs histogram binning analgous to what is done in experiments.
 # The graphs produced by each method are similar.
 cut_width = 0.3
@@ -469,7 +474,7 @@ hm
 
 # Note that Brillouin zones appear 'skewed'. This is a consequence of the fact
 # that Sunny measures $q$-vectors as multiples of reciprocal lattice vectors,
-# and the latter are not orthogonal. It is often useful to express our wave
+# which are not orthogonal. It is often useful to express our wave
 # vectors in terms of an orthogonal basis, where each basis element is specified
 # as a linear combination of reciprocal lattice vectors. For our crystal, with
 # reciprocal vectors $a^*$, $b^*$ and $c^*$, we can define an orthogonal basis
