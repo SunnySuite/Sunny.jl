@@ -107,7 +107,7 @@ include("Intensities/Binning.jl")
 export intensities_binned, instant_intensities_interpolated, connected_path_bins,
     BinningParameters, integrate_axes!, unit_resolution_binning_parameters,
     rlu_to_absolute_units!,
-    intensities_binned, one_dimensional_cut_binning_parameters, axes_bincenters,
+    intensities_binned, slice_2D_binning_parameters, axes_bincenters,
     connected_path_bins, count_bins
 
 
