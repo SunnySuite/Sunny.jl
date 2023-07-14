@@ -26,7 +26,7 @@
     # Test sum rule with custom observables 
     sys = simple_model_sf(; mode=:SUN)
     thermalize_simple_model!(sys; kT=0.1)
-    S = Sunny.spin_matrices(2)
+    S = spin_matrices(N=2)
     observables = cat(S...; dims=3)
     sf = DynamicStructureFactor(sys; nω=100, ωmax=10.0, Δt=0.1, apply_g=false, observables)
     qgrid = all_exact_wave_vectors(sf)

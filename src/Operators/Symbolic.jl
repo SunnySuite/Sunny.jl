@@ -63,7 +63,7 @@ const 𝒮 = spin_operator_symbols
 # Construct explicit N-dimensional matrix representation of operator
 function operator_to_matrix(p::DP.AbstractPolynomialLike; N) 
     rep = p(
-        𝒮 => spin_matrices(N),
+        𝒮 => spin_matrices(; N),
         [stevens_operator_symbols[k] => stevens_matrices(k; N) for k=1:6]... 
     )
     if !(rep ≈ rep')

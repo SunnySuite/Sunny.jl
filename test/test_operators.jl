@@ -4,7 +4,7 @@
     ### Verify 𝔰𝔲(2) irreps
     for N = 2:5
         S₀ = (N-1)/2
-        S = Sunny.spin_matrices(N)
+        S = spin_matrices(; N)
 
         for i in 1:3, j in 1:3
             # Test commutation relations
@@ -32,7 +32,7 @@
         Λ = randn(ComplexF64, N, N)
         B = randn(Sunny.Vec3)
         Z = randn(Sunny.CVec{N})
-        @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*Sunny.spin_matrices(N)) * Z
+        @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*spin_matrices(; N)) * Z
     end    
 end
 
@@ -94,7 +94,7 @@ end
 
     # Check transformation properties of spherical tensors
     for N in 2:7
-        S = Sunny.spin_matrices(N)
+        S = spin_matrices(; N)
         Sp = S[1] + im*S[2]
         Sm = S[1] - im*S[2]
         
@@ -103,7 +103,7 @@ end
             T = spherical_tensors(k; N)
 
             # Generators of rotations in the spin-k representation
-            K = Sunny.spin_matrices(2k+1)
+            K = spin_matrices(N=2k+1)
 
             # The selected basis is q ∈ [|k⟩, |k-1⟩, ... |-k⟩]. This function
             # converts from a q value to a 1-based index.
@@ -186,7 +186,7 @@ end
 
     # Test that spin matrices rotate as vectors
     let
-        S = Sunny.spin_matrices(N)
+        S = spin_matrices(; N)
         @test R * S ≈ rotate_operator.(S, Ref(R))
     end
 
@@ -258,7 +258,7 @@ end
     @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)X²\n"
 
     capt = IOCapture.capture() do
-        S = spin_matrices(5)
+        S = spin_matrices(N=5)
         print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
     end
     @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + 102/5\n"

@@ -429,8 +429,8 @@ Each is an ``N×N`` matrix of appropriate dimension ``N``.
 
 See also [`print_stevens_expansion`](@ref).
 """
-spin_operators(sys::System{N}, i::Int) where N = spin_matrices(sys.Ns[i])
-spin_operators(sys::System{N}, site::Site) where N = spin_matrices(sys.Ns[to_atom(site)])
+spin_operators(sys::System{N}, i::Int) where N = spin_matrices(N=sys.Ns[i])
+spin_operators(sys::System{N}, site::Site) where N = spin_matrices(N=sys.Ns[to_atom(site)])
 
 """
     stevens_operators(sys, i::Int)
@@ -446,7 +446,7 @@ stevens_operators(sys::System{N}, site::Site) where N = StevensMatrices(sys.Ns[t
 
 
 function spin_operators(sys::System{N}, b::Bond) where N
-    Si = spin_matrices(sys.Ns[b.i])
-    Sj = spin_matrices(sys.Ns[b.j])
+    Si = spin_matrices(N=sys.Ns[b.i])
+    Sj = spin_matrices(N=sys.Ns[b.j])
     return local_quantum_operators(Si, Sj)
 end

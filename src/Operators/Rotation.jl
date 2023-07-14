@@ -61,7 +61,7 @@ end
 function unitary_for_rotation(R::Mat3; N::Int)
     !(R'*R ≈ I)   && error("Not an orthogonal matrix, R = $R.")
     !(det(R) ≈ 1) && error("Matrix includes a reflection, R = $R.")
-    S = spin_matrices(N)
+    S = spin_matrices(; N)
     n, θ = axis_angle(R)
     return exp(-im*θ*(n'*S))
 end

@@ -97,8 +97,8 @@ end
 # Returns the spin operators for two sites, with Hilbert space dimensions N₁ and
 # N₂, respectively.
 function spin_pair(N1, N2)
-    S1 = Sunny.spin_matrices(N1)
-    S2 = Sunny.spin_matrices(N2)
+    S1 = spin_matrices(N=N1)
+    S2 = spin_matrices(N=N2)
     return local_quantum_operators(S1, S2)
 end
 

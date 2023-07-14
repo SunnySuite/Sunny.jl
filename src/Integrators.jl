@@ -146,7 +146,7 @@ end
 
 # Returns (Λ + B⋅S) Z
 @generated function mul_spin_matrices(Λ, B::Sunny.Vec3, Z::Sunny.CVec{N}) where N
-    S = Sunny.spin_matrices(N)
+    S = spin_matrices(; N)
     out = map(1:N) do i
         out_i = map(1:N) do j
             terms = Any[:(Λ[$i,$j])]
