@@ -35,35 +35,45 @@ Given the name of a Mantid-exported `MDHistoWorkspace` file, load the [`BinningP
 """
 function load_nxs(filename)
     JLD2.jldopen(filename) do file
-        coordinate_system = file["MDHistoWorkspace"]["coordinate_system"][1]
+        read_covectors_from_axes_labels = false
+        covectors = Matrix{Float64}(undef,3,3)
+        try
+          coordinate_system = file["MDHistoWorkspace"]["coordinate_system"][1]
 
-        # Permalink to where this enum is defined:
-        # https://github.com/mantidproject/mantid/blob/057df5b2de1c15b819c7dd06e50bdbf5461b09c6/Framework/Kernel/inc/MantidKernel/SpecialCoordinateSystem.h#L14
-        system_name = ["None", "QLab", "QSample", "HKL"][coordinate_system + 1]
+          # Permalink to where this enum is defined:
+          # https://github.com/mantidproject/mantid/blob/057df5b2de1c15b819c7dd06e50bdbf5461b09c6/Framework/Kernel/inc/MantidKernel/SpecialCoordinateSystem.h#L14
+          system_name = ["None", "QLab", "QSample", "HKL"][coordinate_system + 1]
 
-        # The matrix stored in the file is transpose of the actual
-        # transform_from_orig matrix
-        transform_from_orig = file["MDHistoWorkspace"]["transform_from_orig"]
-        transform_from_orig = reshape(transform_from_orig,5,5)
-        transform_from_orig = transform_from_orig'
-        
-        # U: Orthogonal rotation matrix
-        # B: inv(lattice_vectors(...)) matrix, as in Sunny
-        # The matrix stored in the file is transpose of U * B
-        ub_matrix = file["MDHistoWorkspace"]["experiment0"]["sample"]["oriented_lattice"]["orientation_matrix"]
-        ub_matrix = ub_matrix'
+          # The matrix stored in the file is transpose of the actual
+          # transform_from_orig matrix
+          transform_from_orig = file["MDHistoWorkspace"]["transform_from_orig"]
+          transform_from_orig = reshape(transform_from_orig,5,5)
+          transform_from_orig = transform_from_orig'
+          
+          # U: Orthogonal rotation matrix
+          # B: inv(lattice_vectors(...)) matrix, as in Sunny
+          # The matrix stored in the file is transpose of U * B
+          ub_matrix = file["MDHistoWorkspace"]["experiment0"]["sample"]["oriented_lattice"]["orientation_matrix"]
+          ub_matrix = ub_matrix'
 
-        # Following: https://docs.mantidproject.org/nightly/concepts/Lattice.html
-        # It can be verified that the matrix G^* = (ub_matrix' * ub_matrix)
-        # is equal to B' * B, where B = inv(lattice_vectors(...)), and the diagonal
-        # entries of the inverse of this matrix are the lattice parameters squared
-        #
-        #abcMagnitude = sqrt.(diag(inv(ub_matrix' * ub_matrix)))
-        #println("[a,b,c] = ",abcMagnitude)
+          # Following: https://docs.mantidproject.org/nightly/concepts/Lattice.html
+          # It can be verified that the matrix G^* = (ub_matrix' * ub_matrix)
+          # is equal to B' * B, where B = inv(lattice_vectors(...)), and the diagonal
+          # entries of the inverse of this matrix are the lattice parameters squared
+          #
+          #abcMagnitude = sqrt.(diag(inv(ub_matrix' * ub_matrix)))
+          #println("[a,b,c] = ",abcMagnitude)
 
-        # This is how you extract the covectors from `transform_from_orig` and `ub_matrix`
-        # TODO: Parse this from the `long_name` of the data_dims instead
-        covectors = 2π .* transform_from_orig[1:3,1:3] * ub_matrix
+          # This is how you extract the covectors from `transform_from_orig` and `ub_matrix`
+          # TODO: Parse this from the `long_name` of the data_dims instead
+          covectors .= 2π .* transform_from_orig[1:3,1:3] * ub_matrix
+        catch e
+          printstyled("Warning",color=:yellow)
+          print(": failed to read histogram axes from Mantid file $filename due to:\n")
+          println(e)
+          println("Defaulting to low-accuracy reading of axes labels!")
+          read_covectors_from_axes_labels = true
+        end
 
         signal = file["MDHistoWorkspace"]["data"]["signal"]
 
@@ -73,11 +83,19 @@ function load_nxs(filename)
         axes_names = reverse(split(axes,":"))
 
         data_dims = Vector{Vector{Float64}}(undef,length(axes_names))
-        binwidth = Vector{Float64}(undef,length(axes_names))
-        binstart = Vector{Float64}(undef,length(axes_names))
-        binend = Vector{Float64}(undef,length(axes_names))
+        binwidth = Vector{Float64}(undef,4)
+        binstart = Vector{Float64}(undef,4)
+        binend = Vector{Float64}(undef,4)
         std = x -> sqrt(sum((x .- sum(x) ./ length(x)).^2))
         for (i,name) in enumerate(axes_names)
+            if read_covectors_from_axes_labels
+                long_name = Dict(JLD2.load_attributes(file,"MDHistoWorkspace/data/$name"))[:long_name]
+
+                if i <= 3 # This is long_name contains a covector
+                    covectors[i,:] .= parse_long_name(long_name)
+                end
+            end
+
             data_dims[i] = file["MDHistoWorkspace"]["data"][name]
             binwidth[i] = sum(diff(data_dims[i])) / length(diff(data_dims[i]))
             if std(diff(data_dims[i])) > 1e-4 * binwidth[i]
@@ -91,6 +109,17 @@ function load_nxs(filename)
         covectors4D = [covectors [0;0;0]; [0 0 0] 1]
         return BinningParameters(binstart,binend,binwidth,covectors4D), signal
     end
+end
+
+# Parse the "[0.5H,0.3H,0.1H]" type of Mantid string describing
+# a histogram axis
+function parse_long_name(long_name)
+  # You're welcome
+  found = match(r"\[(|0|(?:-?[0-9]?(?:\.[0-9]+)?))[HKL]?,(|0|(?:-?[0-9]?(?:\.[0-9]+)?))[HKL]?,(|0|(?:-?[0-9]?(?:\.[0-9]+)?))[HKL]?\]",long_name)
+  if isnothing(found)
+    return nothing
+  end
+  return map(x -> isempty(x) ? 1. : parse(Float64,x),found)
 end
 
 function quick_view_nxs(filename,keep_ax)
