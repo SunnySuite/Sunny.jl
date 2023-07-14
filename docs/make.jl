@@ -2,6 +2,9 @@
 
 using Literate, Documenter, Sunny
 
+import DynamicPolynomials # get symbolic functions
+import GLMakie # get plotting functions
+
 execute = true # set `false` to disable cell evaluation
 
 example_names = ["fei2_tutorial", "powder_averaging", "ising2d"]

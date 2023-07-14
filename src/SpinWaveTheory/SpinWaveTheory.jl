@@ -64,7 +64,7 @@ function generate_local_sun_gens(sys :: System)
     Nₘ, N = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert 
     S = (N-1)/2
 
-    s_mat_N = spin_matrices(N)
+    s_mat_N = spin_matrices(; N)
 
     # we support the biquad interactions now in the :dipole mode
     # we choose a particular basis of the nematic operators listed in Appendix B of *Phys. Rev. B 104, 104409*
@@ -76,7 +76,7 @@ function generate_local_sun_gens(sys :: System)
     Q_mat_N[5] = √3 * s_mat_N[3] * s_mat_N[3] - 1/√3 * S * (S+1) * I
 
     if sys.mode == :SUN
-        s_mat_N = spin_matrices(N)
+        s_mat_N = spin_matrices(; N)
 
         s̃_mat = Array{ComplexF64, 4}(undef, N, N, 3, Nₘ)
         T̃_mat = Array{ComplexF64, 3}(undef, N, N, Nₘ)
@@ -98,7 +98,7 @@ function generate_local_sun_gens(sys :: System)
         end
 
     elseif sys.mode == :dipole
-        s_mat_2 = spin_matrices(2)
+        s_mat_2 = spin_matrices(N=2)
         
         s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
 

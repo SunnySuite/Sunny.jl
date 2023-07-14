@@ -7,7 +7,6 @@
 
 using Sunny, GLMakie
 using Statistics: mean
-#md Makie.inline!(true); #hide
 
 dims = (8,8,8)               # Lattice dimensions
 seed = 1                     # RNG seed for repeatable behavior 
