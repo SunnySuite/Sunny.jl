@@ -185,8 +185,9 @@ end
     set_exchange!(sys, diagm([J′1pm, J′1pm, J′1zz]), Bond(1,1,[1,0,1]))
     set_exchange!(sys, diagm([J′2apm, J′2apm, J′2azz]), Bond(1,1,[1,2,1]))
 
+    S = spin_operators(sys, 1)
     D = 2.165
-    set_anisotropy!(sys, -D*𝒮[3]^2, 1)
+    set_onsite_coupling!(sys, -D*S[3]^2, 1)
 
     # periodic ground state for FeI2
     s = Sunny.Vec3(1, 0, 0)

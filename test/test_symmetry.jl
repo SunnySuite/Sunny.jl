@@ -154,21 +154,22 @@ end
         k = 6
         i = 1
         cryst = Sunny.diamond_crystal()
+        O = Sunny.StevensMatrices(N)
 
         # print_site(cryst, i)
-        Λ = 𝒪[6,0]-21𝒪[6,4]
+        Λ = O[6,0]-21O[6,4]
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
 
         R = [normalize([1 1 -2]); normalize([-1 1 0]); normalize([1 1 1])]
         # print_site(cryst, i; R)
-        Λ = 𝒪[6,0]-(35/√8)*𝒪[6,3]+(77/8)*𝒪[6,6]
+        Λ = O[6,0]-(35/√8)*O[6,3]+(77/8)*O[6,6]
         Λ′ = rotate_operator(Λ, R)
         @test Sunny.is_anisotropy_valid(cryst, i, Λ′)
 
         latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
         cryst = Crystal(latvecs, [[0., 0., 0.]])
         # print_site(cryst, i)
-        Λ = randn()*(𝒪[6,0]-21𝒪[6,4]) + randn()*(𝒪[6,2]+(16/5)*𝒪[6,4]+(11/5)*𝒪[6,6])
+        Λ = randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,2]+(16/5)*O[6,4]+(11/5)*O[6,6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
     end
 
@@ -180,38 +181,36 @@ end
         positions = [[0.1, 0, 0], [0, 0.1, 0], [-0.1, 0, 0], [0, -0.1, 0]]
         cryst = Crystal(latvecs, positions)
 
-        # Most general allowed anisotropy for this crystal
-        Λ = randn(9)'*[𝒪[2,0], 𝒪[2,2], 𝒪[4,0], 𝒪[4,2], 𝒪[4,4], 𝒪[6,0], 𝒪[6,2], 𝒪[6,4], 𝒪[6,6]]
+        for mode in (:dipole, :SUN)
+            sys = System(cryst, (1,1,1), [SpinInfo(1, S=2)], mode)
+            randomize_spins!(sys)
 
-        # Test anisotropy invariance in dipole mode
-        sys = System(cryst, (1,1,1), [SpinInfo(1, S=1)], :dipole)
-        set_anisotropy!(sys, Λ, 1)
-        randomize_spins!(sys)
-        E1 = energy(sys)
-        # By circularly shifting the atom index, we are effectively rotating
-        # site positions by π/2 clockwise (see comment above `positions`)
-        sys.dipoles .= circshift(sys.dipoles, (0,0,0,1))
-        # Rotate spin vectors correspondingly
-        R = Sunny.Mat3([0 1 0; -1 0 0; 0 0 1])
-        sys.dipoles .= [R*d for d in sys.dipoles]
-        E2 = energy(sys)
-        @test E1 ≈ E2
+            # Most general allowed anisotropy for this crystal
+            c = randn(9)
+            O = stevens_operators(sys, 1)
+            Λ = sum(c .* [O[2,0], O[2,2], O[4,0], O[4,2], O[4,4], O[6,0], O[6,2], O[6,4], O[6,6]])
+            set_onsite_coupling!(sys, Λ, 1)
 
-        # Test anisotropy invariance in SU(N) mode
-        sys = System(cryst, (1,1,1), [SpinInfo(1, S=2)], :SUN)
-        N = only(unique(sys.Ns))
-        set_anisotropy!(sys, Λ, 1)
-        randomize_spins!(sys)
-        E1 = energy(sys)
-        # By circularly shifting the atom index, we are effectively rotating
-        # site positions by π/2 clockwise (see comment above `positions`)
-        sys.coherents .= circshift(sys.coherents, (0,0,0,1))
-        # Rotate kets correspondingly
-        U = Sunny.unitary_for_rotation(R; N)
-        sys.coherents .= [U*z for z in sys.coherents]
-        sys.dipoles .= Sunny.expected_spin.(sys.coherents)
-        E2 = energy(sys)
-        @test E1 ≈ E2
+            E1 = energy(sys)
+
+            # By circularly shifting the atom index, we are effectively rotating
+            # site positions by π/2 clockwise (see comment above `positions`).
+            # Rotate spin state correspondingly
+            R = Sunny.Mat3([0 1 0; -1 0 0; 0 0 1])
+            sys.dipoles .= circshift(sys.dipoles, (0,0,0,1))
+            sys.dipoles .= [R*d for d in sys.dipoles]
+
+            # If coherents are present, perform same operation
+            if mode == :SUN
+                U = Sunny.unitary_for_rotation(R; N=sys.Ns[1])
+                sys.coherents .= circshift(sys.coherents, (0,0,0,1))
+                sys.coherents .= [U*z for z in sys.coherents]
+            end
+
+            # Verify energy is invariant
+            E2 = energy(sys)
+            @test E1 ≈ E2
+        end
     end
 end
 
@@ -220,15 +219,17 @@ end
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
     cryst = Crystal(latvecs, [[0., 0., 0.]])
     
-    i = 1
-    Λ = randn()*(𝒪[2,0]+3𝒪[2,2]) +
-        randn()*(𝒪[4,0]-5𝒪[4,2]) + randn()*(𝒪[4,0]+5𝒪[4,4]) +
-        randn()*(𝒪[6,0]-21𝒪[6,4]) + randn()*(𝒪[6,0]+(105/16)𝒪[6,2]+(231/16)𝒪[6,6])
     
     # Dipole system with renormalized anisotropy
     sys0 = System(cryst, (1,1,1), [SpinInfo(1, S=3)], :dipole)
     randomize_spins!(sys0)
-    set_anisotropy!(sys0, Λ, i)
+
+    i = 1
+    O = stevens_operators(sys0, i)
+    Λ = randn()*(O[2,0]+3O[2,2]) +
+        randn()*(O[4,0]-5O[4,2]) + randn()*(O[4,0]+5O[4,4]) +
+        randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,0]+(105/16)O[6,2]+(231/16)O[6,6])
+    set_onsite_coupling!(sys0, Λ, i)
     E0 = energy(sys0)
     
     # Corresponding SU(N) system
@@ -236,7 +237,7 @@ end
     for site in all_sites(sys)
         polarize_spin!(sys, sys0.dipoles[site], site)
     end
-    set_anisotropy!(sys, Λ, i)
+    set_onsite_coupling!(sys, Λ, i)
     E = energy(sys)
     
     @test E ≈ E0    

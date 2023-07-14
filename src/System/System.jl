@@ -138,7 +138,7 @@ case, it is convenient to construct the `Site` using [`position_to_site`](@ref),
 which always takes a position in fractional coordinates of the original lattice
 vectors.
 """
-const Site = NTuple{4, Int}
+const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 
 @inline to_cartesian(i::CartesianIndex{N}) where N = i
 @inline to_cartesian(i::NTuple{N, Int})    where N = CartesianIndex(i)
@@ -190,7 +190,7 @@ magnetic_moment(sys::System, site) = sys.units.μB * sys.gs[site] * sys.dipoles[
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
 
 # The original crystal for a system, invariant under reshaping
-orig_crystal(sys) = isnothing(sys.origin) ? sys.crystal : sys.origin.crystal
+orig_crystal(sys) = something(sys.origin, sys).crystal
 
 # Position of a site in fractional coordinates of the original crystal
 function position(sys::System, site)
@@ -226,26 +226,8 @@ function position_to_site(sys::System, r)
 end
 
 
-# Given two [`Site`](@ref)s for a possibly reshaped system, return the
-# corresponding [`Bond`](@ref) for the original (unreshaped) crystal. This
-# `bond` can be used for symmetry analysis, e.g., as input to
-# [`print_bond`](@ref). See also [`site_to_atom`](@ref).
-#
-# Warning: This function will not be useful until site2 is wrapped properly.
-function sites_to_bond(sys::System{N}, site1, site2) where N
-    site1, site2 = to_cartesian.((site1, site2))
-
-    # Position of sites in multiples of original latvecs.
-    r1 = position(sys, site1)
-    r2 = position(sys, site2)
-
-    # Map to Bond for original crystal
-    return Bond(orig_crystal(sys), BondPos(r1, r2))
-end
-
 # Given a [`Site`](@ref)s for a possibly reshaped system, return the
-# corresponding atom index for the original (unreshaped) crystal. See also
-# [`sites_to_bond`](@ref).
+# corresponding atom index for the original (unreshaped) crystal.
 function site_to_atom(sys::System{N}, site) where N
     site = to_cartesian(site)
     r = position(sys, site)
@@ -436,4 +418,35 @@ function get_coherent_buffers(sys::System{N}, numrequested) where N
         end
     end
     return view(sys.coherent_buffers, 1:numrequested)
+end
+
+"""
+    spin_operators(sys, i::Int)
+    spin_operators(sys, site::Int)
+
+Returns the three spin operators appropriate to an atom or [`Site`](@ref) index.
+Each is an ``N×N`` matrix of appropriate dimension ``N``.
+
+See also [`print_stevens_expansion`](@ref).
+"""
+spin_operators(sys::System{N}, i::Int) where N = spin_matrices(N=sys.Ns[i])
+spin_operators(sys::System{N}, site::Site) where N = spin_matrices(N=sys.Ns[to_atom(site)])
+
+"""
+    stevens_operators(sys, i::Int)
+    stevens_operators(sys, site::Int)
+
+Returns a generator of Stevens operators appropriate to an atom or
+[`Site`](@ref) index. The return value `O` can be indexed as `O[q,m]`, where ``0
+≤ q ≤ 6`` labels an irrep and ``m = -q, …, q``. This will produce an ``N×N``
+matrix of appropriate dimension ``N``.
+"""
+stevens_operators(sys::System{N}, i::Int) where N = StevensMatrices(sys.Ns[i])
+stevens_operators(sys::System{N}, site::Site) where N = StevensMatrices(sys.Ns[to_atom(site)])
+
+
+function spin_operators(sys::System{N}, b::Bond) where N
+    Si = spin_matrices(N=sys.Ns[b.i])
+    Sj = spin_matrices(N=sys.Ns[b.j])
+    return local_quantum_operators(Si, Sj)
 end

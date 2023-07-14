@@ -310,7 +310,7 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
             push!(lines, prefix * join(terms, " + "))
         end
     end
-    println("Allowed anisotropy in Stevens operators 𝒪[k,q]:")
+    println("Allowed anisotropy in Stevens operators:")
     println(join(lines, " +\n"))
 
     if R != I

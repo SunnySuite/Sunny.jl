@@ -25,11 +25,10 @@
 
 
     function su3_anisotropy_model(; L=20, D=1.0, seed)
-        Λ = D*𝒮[3]^2
         cryst = asymmetric_crystal()
-
         sys = System(cryst, (L,1,1), [SpinInfo(1, S=1)], :SUN; seed)
-        set_anisotropy!(sys, Λ, 1)
+        S = spin_operators(sys, 1)
+        set_onsite_coupling!(sys, D*S[3]^2, 1)
         randomize_spins!(sys)
 
         return sys
@@ -40,9 +39,10 @@
         sys = System(cryst, (L,1,1), [SpinInfo(1, S=2)], :SUN; seed)
         randomize_spins!(sys)
 
+        S = spin_operators(sys, 1)
         R = Sunny.random_orthogonal(sys.rng, 3; special=true)
-        Λ = Sunny.rotate_operator(D*(𝒮[3]^2-(1/5)*𝒮[3]^4), R)
-        set_anisotropy!(sys, Λ, 1)
+        Λ = Sunny.rotate_operator(D*(S[3]^2-(1/5)*S[3]^4), R)
+        set_onsite_coupling!(sys, Λ, 1)
 
         return sys
     end
