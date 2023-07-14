@@ -189,7 +189,7 @@ end
             c = randn(9)
             O = stevens_operators(sys, 1)
             Λ = sum(c .* [O[2,0], O[2,2], O[4,0], O[4,2], O[4,4], O[6,0], O[6,2], O[6,4], O[6,6]])
-            set_onsite!(sys, Λ, 1)
+            set_onsite_coupling!(sys, Λ, 1)
 
             E1 = energy(sys)
 
@@ -229,7 +229,7 @@ end
     Λ = randn()*(O[2,0]+3O[2,2]) +
         randn()*(O[4,0]-5O[4,2]) + randn()*(O[4,0]+5O[4,4]) +
         randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,0]+(105/16)O[6,2]+(231/16)O[6,6])
-    set_onsite!(sys0, Λ, i)
+    set_onsite_coupling!(sys0, Λ, i)
     E0 = energy(sys0)
     
     # Corresponding SU(N) system
@@ -237,7 +237,7 @@ end
     for site in all_sites(sys)
         polarize_spin!(sys, sys0.dipoles[site], site)
     end
-    set_onsite!(sys, Λ, i)
+    set_onsite_coupling!(sys, Λ, i)
     E = energy(sys)
     
     @test E ≈ E0    

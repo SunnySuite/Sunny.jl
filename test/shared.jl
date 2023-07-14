@@ -13,7 +13,7 @@ function add_linear_interactions!(sys, mode)
     if mode == :SUN
         # Kets scale as z → √κ z, so ⟨Λ⟩ → κ ⟨Λ⟩ is linear in κ
         S = spin_operators(sys, 1)
-        set_onsite!(sys, 0.2*(S[1]^4+S[2]^4+S[3]^4), 1)
+        set_onsite_coupling!(sys, 0.2*(S[1]^4+S[2]^4+S[3]^4), 1)
     end
 end
 
@@ -38,7 +38,7 @@ function add_quartic_interactions!(sys, mode)
     if mode ∈ (:dipole, :large_S)
         # Dipoles scale as ⟨S⟩ → κ ⟨S⟩, so ⟨S⟩⁴ → κ⁴ ⟨S⟩⁴ is quartic
         S = spin_operators(sys, 1)
-        set_onsite!(sys, 0.2*(S[1]^4+S[2]^4+S[3]^4), 1)
+        set_onsite_coupling!(sys, 0.2*(S[1]^4+S[2]^4+S[3]^4), 1)
     end
     if mode == :large_S
         set_biquadratic!(sys, 0.2, Bond(1, 3, [0, 0, 0]))

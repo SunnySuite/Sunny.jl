@@ -187,7 +187,7 @@ end
 
     S = spin_operators(sys, 1)
     D = 2.165
-    set_onsite!(sys, -D*S[3]^2, 1)
+    set_onsite_coupling!(sys, -D*S[3]^2, 1)
 
     # periodic ground state for FeI2
     s = Sunny.Vec3(1, 0, 0)

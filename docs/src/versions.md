@@ -2,8 +2,9 @@
 
 This version includes many **breaking changes**.
 
-Replace `set_anisotropy!` with a new function [`set_onsite!`](@ref). The latter
-expects an explicit matrix representation for the local Hamiltonian. This can be
+Replace `set_anisotropy!` with a new function [`set_onsite_coupling!`](@ref)
+(and similarly [`set_onsite_coupling_at!`](@ref)). The latter expects an
+explicit matrix representation for the local Hamiltonian. This can be
 constructed, e.g., as a linear combination of [`stevens_operators`](@ref), or as
 a polynomial of [`spin_operators`](@ref). To understand the mapping between
 these two, the new function [`print_stevens_expansion`](@ref) acts on an
@@ -85,13 +86,13 @@ The parameter `mode` is one of `:SUN` or `:dipole`.
 
 Interactions are now added mutably to an existing `System` using the following
 functions: [`set_external_field!`](@ref), [`set_exchange!`](@ref),
-[`set_onsite!`](@ref), [`enable_dipole_dipole!`](@ref).
+[`set_onsite_coupling!`](@ref), [`enable_dipole_dipole!`](@ref).
 
 As a convenience, one can use [`dmvec(D)`](@ref) to convert a DM vector to a
 $3×3$ antisymmetric exchange matrix.
 
 Fully general single-ion anisotropy is now possible. The function
-[`set_onsite!`](@ref) expects the single ion anisotropy to be expressed as a
+[`set_onsite_coupling!`](@ref) expects the single ion anisotropy to be expressed as a
 polynomial in symbolic spin operators [`𝒮`](@ref), or as a linear combination
 of symbolic Stevens operators [`𝒪`](@ref). For example, an easy axis anisotropy
 in the direction `n` may be written `D*(𝒮⋅n)^2`.

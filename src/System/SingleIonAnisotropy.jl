@@ -99,7 +99,7 @@ end
 
 
 """
-    set_onsite!(sys::System, op::Matrix{ComplexF64}, i::Int)
+    set_onsite_coupling!(sys::System, op::Matrix{ComplexF64}, i::Int)
 
 Set the single-ion anisotropy for the `i`th atom of every unit cell, as well as
 all symmetry-equivalent atoms. The local operator `op` may be constructed using
@@ -113,26 +113,26 @@ variationally accurate SU(_N_) mode.
 ```julia
 # An easy axis anisotropy in the z-direction
 S = spin_operators(sys, i)
-set_onsite!(sys, -D*S[3]^3, i)
+set_onsite_coupling!(sys, -D*S[3]^3, i)
 
 # The unique quartic single-ion anisotropy for a site with cubic point group
 # symmetry
 O = stevens_operators(sys, i)
-set_onsite!(sys, O[4,0] + 5O[4,4], i)
+set_onsite_coupling!(sys, O[4,0] + 5*O[4,4], i)
 
 # An equivalent expression of this quartic anisotropy, up to a constant shift
-set_onsite!(sys, 20*(S[1]^4 + S[2]^4 + S[3]^4), i)
+set_onsite_coupling!(sys, 20*(S[1]^4 + S[2]^4 + S[3]^4), i)
 ```
 
 See also [`spin_operators`](@ref).
 """
-function set_onsite!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) where N
-    is_homogeneous(sys) || error("Use `set_anisotropy_at!` for an inhomogeneous system.")
+function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) where N
+    is_homogeneous(sys) || error("Use `set_onsite_coupling_at!` for an inhomogeneous system.")
 
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
     if !isnothing(sys.origin)
-        set_onsite!(sys.origin, op, i)
+        set_onsite_coupling!(sys.origin, op, i)
         set_interactions_from_origin!(sys)
         return
     end
@@ -178,15 +178,15 @@ end
 
 
 """
-    set_anisotropy_at!(sys::System, op::Matrix{ComplexF64}, site::Site)
+    set_onsite_coupling_at!(sys::System, op::Matrix{ComplexF64}, site::Site)
 
 Sets the single-ion anisotropy operator `op` for a single [`Site`](@ref),
 ignoring crystal symmetry.  The system must support inhomogeneous interactions
 via [`to_inhomogeneous`](@ref).
 
-See also [`set_onsite!`](@ref).
+See also [`set_onsite_coupling!`](@ref).
 """
-function set_anisotropy_at!(sys::System{N}, op::Matrix{ComplexF64}, site::Site) where N
+function set_onsite_coupling_at!(sys::System{N}, op::Matrix{ComplexF64}, site::Site) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
     site = to_cartesian(site)

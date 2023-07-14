@@ -62,8 +62,8 @@ include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, Site, all_sites, position_to_site,
     global_position, magnetic_moment, polarize_spin!, polarize_spins!, randomize_spins!, energy, forces,
-    spin_operators, stevens_operators, set_external_field!, set_onsite!, set_exchange!, set_biquadratic!,
-    dmvec, enable_dipole_dipole!, to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_anisotropy_at!,
+    spin_operators, stevens_operators, set_external_field!, set_onsite_coupling!, set_exchange!, set_biquadratic!,
+    dmvec, enable_dipole_dipole!, to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
     symmetry_equivalent_bonds, set_exchange_at!, set_biquadratic_at!, remove_periodicity!
 
 include("Reshaping.jl")

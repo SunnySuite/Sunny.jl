@@ -28,7 +28,7 @@
         cryst = asymmetric_crystal()
         sys = System(cryst, (L,1,1), [SpinInfo(1, S=1)], :SUN; seed)
         S = spin_operators(sys, 1)
-        set_onsite!(sys, D*S[3]^2, 1)
+        set_onsite_coupling!(sys, D*S[3]^2, 1)
         randomize_spins!(sys)
 
         return sys
@@ -42,7 +42,7 @@
         S = spin_operators(sys, 1)
         R = Sunny.random_orthogonal(sys.rng, 3; special=true)
         Λ = Sunny.rotate_operator(D*(S[3]^2-(1/5)*S[3]^4), R)
-        set_onsite!(sys, Λ, 1)
+        set_onsite_coupling!(sys, Λ, 1)
 
         return sys
     end

@@ -32,7 +32,7 @@
             end
 
             S = spin_operators(sys2, 4)
-            set_anisotropy_at!(sys2, 0.4*(S[1]^4+S[2]^4+S[3]^4), (2,2,2,4))
+            set_onsite_coupling_at!(sys2, 0.4*(S[1]^4+S[2]^4+S[3]^4), (2,2,2,4))
             return sys2
         end
     end
