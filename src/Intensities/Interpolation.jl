@@ -286,9 +286,7 @@ function intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64; formula = int
             if (disp[band] < 1.0e-3) && (intensity[band] > 1.0e3)
                 is[qidx, 1] += intensity[band]
             else
-                for index_ω = 1:num_ω
-                    is[qidx, index_ω] += intensity[band] * lorentzian(ωvals[index_ω]-disp[band], η)
-                end
+                view(is,qidx,:) .+= intensity[band] .* lorentzian.(ωvals .- disp[band], η)
             end
         end
     end
