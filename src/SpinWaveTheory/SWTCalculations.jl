@@ -463,8 +463,75 @@ index, corresponding to mode, is added to these. Each entry of this array is a
 tensor (3×3 matrix) corresponding to the indices ``α`` and ``β``.
 """
 function dssf(swt::SpinWaveTheory, qs)
-    (; sys, positions_chem, s̃_mat) = swt
     qs = Vec3.(qs)
+    nmodes = num_bands(swt)
+
+    disp = zeros(Float64, nmodes, size(qs)...)
+    Sαβs = zeros(ComplexF64, 3, 3, nmodes, size(qs)...) 
+
+    # dssf(...) doesn't do any contraction, temperature correction, etc.
+    # It simply returns the full Sαβ correlation matrix
+    formula = intensity_formula(swt,:full; kernel = delta_function_kernel)
+
+    # Calculate DSSF 
+    for qidx in CartesianIndices(qs)
+        q = qs[qidx]
+        band_structure = formula.calc_intensity(swt,q)
+        for band = 1:nmodes
+            disp[band,qidx] = band_structure.dispersion[band]
+            Sαβs[:,:,band,qidx] .= reshape(band_structure.intensity[band],3,3)
+        end
+    end
+
+    return reshape_dispersions(disp), reshape_correlations(Sαβs) 
+end 
+
+
+struct BandStructure{N,T}
+  dispersion :: SVector{N,Float64}
+  intensity :: SVector{N,T}
+end
+
+struct SpinWaveIntensityFormula{T}
+    string_formula :: String
+    kernel :: Union{Nothing,Function}
+    calc_intensity :: Function
+end
+
+function Base.show(io::IO, formula::SpinWaveIntensityFormula{T}) where T
+    print(io,"SpinWaveIntensityFormula{$T}")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", formula::SpinWaveIntensityFormula{T}) where T
+    printstyled(io, "Quantum Scattering Intensity Formula\n";bold=true, color=:underline)
+
+    formula_lines = split(formula.string_formula,'\n')
+
+    if isnothing(formula.kernel)
+        intensity_equals = "  Intensity(Q,ω) = ∑ᵢ δ(ω-ωᵢ) "
+        println(io,"At any Q and for each band ωᵢ = εᵢ(Q), with S = S(Q,ωᵢ):")
+    else
+        intensity_equals = "  Intensity(Q,ω) = ∑ᵢ Kernel(ω-ωᵢ) "
+        println(io,"At any (Q,ω), with S = S(Q,ωᵢ):")
+    end
+    println(io)
+    println(io,intensity_equals,formula_lines[1])
+    for i = 2:length(formula_lines)
+        precursor = repeat(' ', textwidth(intensity_equals))
+        println(io,precursor,formula_lines[i])
+    end
+    println(io)
+    if isnothing(formula.kernel)
+        println(io,"BandStructure information (ωᵢ and intensity) reported for each band")
+    else
+        println(io,"Intensity(ω) reported")
+    end
+end
+
+delta_function_kernel = nothing
+
+function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function}, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])")
+    (; sys, positions_chem, s̃_mat) = swt
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N  = Nf + 1
@@ -474,17 +541,16 @@ function dssf(swt::SpinWaveTheory, qs)
     # Preallocation
     Hmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
     Vmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
-    disp = zeros(Float64, nmodes, size(qs)...)
     Avec_pref = zeros(ComplexF64, Nm)
-    Sαβs = zeros(ComplexF64, 3, 3, nmodes, size(qs)...) 
+    disp = zeros(Float64, nmodes)
+    intensity = zeros(return_type, nmodes)
 
     # Calculate DSSF 
-    for qidx in CartesianIndices(qs)
-        q = qs[qidx]
+    formula = function(swt::SpinWaveTheory,q::Vec3)
         _, qmag = chemical_to_magnetic(swt, q)
 
         swt_hamiltonian!(swt, qmag, Hmat)
-        bogoliubov!(@view(disp[:,qidx]), Vmat, Hmat, swt.energy_tol)
+        bogoliubov!(disp, Vmat, Hmat, swt.energy_tol)
 
         for site = 1:Nm
             # note that d is the chemical coordinates
@@ -506,64 +572,50 @@ function dssf(swt::SpinWaveTheory, qs)
             end
 
             # DD: Generalize this based on list of arbitrary operators, optimize out symmetry, etc.
-            Sαβs[1,1,band,qidx] = real(Avec[1] * conj(Avec[1]))
-            Sαβs[1,2,band,qidx] = Avec[1] * conj(Avec[2])
-            Sαβs[1,3,band,qidx] = Avec[1] * conj(Avec[3])
-            Sαβs[2,2,band,qidx] = real(Avec[2] * conj(Avec[2]))
-            Sαβs[2,3,band,qidx] = Avec[2] * conj(Avec[3])
-            Sαβs[3,3,band,qidx] = real(Avec[3] * conj(Avec[3]))
-            Sαβs[2,1,band,qidx] = conj(Sαβs[1,2,band,qidx]) 
-            Sαβs[3,1,band,qidx] = conj(Sαβs[3,1,band,qidx]) 
-            Sαβs[3,2,band,qidx] = conj(Sαβs[2,3,band,qidx]) 
+            Sαβ = Matrix{ComplexF64}(undef,3,3)
+            Sαβ[1,1] = real(Avec[1] * conj(Avec[1]))
+            Sαβ[1,2] = Avec[1] * conj(Avec[2])
+            Sαβ[1,3] = Avec[1] * conj(Avec[3])
+            Sαβ[2,2] = real(Avec[2] * conj(Avec[2]))
+            Sαβ[2,3] = Avec[2] * conj(Avec[3])
+            Sαβ[3,3] = real(Avec[3] * conj(Avec[3]))
+            Sαβ[2,1] = conj(Sαβ[1,2]) 
+            Sαβ[3,1] = conj(Sαβ[3,1]) 
+            Sαβ[3,2] = conj(Sαβ[2,3])
+
+            k = swt.recipvecs_chem * q
+            intensity[band] = f(k,disp[band],Sαβ[corr_ix])
+        end
+        if isnothing(kernel)
+          # If there is no specified kernel, we are done: just return the BandStructure
+          return BandStructure{nmodes,return_type}(disp, intensity)
+        else
+          # If a kernel is specified, convolve with it after filtering out Goldstone modes.
+
+          # At a Goldstone mode, where the intensity is divergent,
+          # use a delta-function at the lowest energy < 1e-3.
+          goldstone_threshold = 1e-3
+          ix_goldstone = (disp .< goldstone_threshold) .&& (intensity .> 1e3)
+          goldstone_intensity = sum(intensity[ix_goldstone])
+
+          # At all other modes, use the provided kernel
+          num_finite = count(.!ix_goldstone)
+          disp_finite = reshape(disp[.!ix_goldstone],1,num_finite)
+          intensity_finite = reshape(intensity[.!ix_goldstone],1,num_finite)
+
+          return function(ω)
+              is = Vector{Float64}(undef,length(ω))
+              is .= 0.
+              if ω[1] < goldstone_threshold
+                  is[1] = goldstone_intensity
+              end
+              is .+= sum(intensity_finite .* kernel.(ω .- disp_finite),dims=2)
+              is
+          end
         end
     end
-
-    return reshape_dispersions(disp), reshape_correlations(Sαβs) 
-end 
-
-
-#DD this will become more similar to the existing intensities.
-"""
-    intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64)
-
-Computes the unpolarized inelastic neutron scattering intensities given a
-`SpinWaveTheory`, an array of wave vectors `qs`, a list of energies `ωvals`, and
-a Lorentzian broadening parameter `η`.
-
-Note that `qs` is an array of wave vectors of arbitrary dimension. Each element
-``q`` of `qs` must be a 3-vector in reciprocal lattice units. I.e., ``qᵢ`` is
-given in ``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the chemical lattice.
-
-The output will be an array with indices identical to `qs`. Each entry of the
-array will be an unpolarized intensity.
-"""
-# DD: incorporate existing SF utilties (e.g., form factor, polarization correction)
-function intensities(swt::SpinWaveTheory, qs, ωvals, η::Float64)
-    (; sys) = swt
-    qs = Vec3.(qs)
-    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    Nf = sys.mode == :SUN ? Ns-1 : 1
-    nmodes  = Nf * Nm
-
-    disp, Sαβs = dssf(swt, qs)
-
-    num_ω = length(ωvals)
-    is = zeros(Float64, size(qs)..., num_ω)
-
-    for qidx in CartesianIndices(qs)
-        polar_mat = polarization_matrix(swt.recipvecs_chem * qs[qidx])
-
-        for band = 1:nmodes
-            band_intensity = real(sum(polar_mat .* Sαβs[qidx,band]))
-            # At a Goldstone mode, where the intensity is divergent, use a delta-function for the intensity.
-            if (disp[qidx, band] < 1.0e-3) && (band_intensity > 1.0e3)
-                is[qidx, 1] += band_intensity
-            else
-                for index_ω = 1:num_ω
-                    is[qidx, index_ω] += band_intensity * lorentzian(ωvals[index_ω]-disp[qidx,band], η)
-                end
-            end
-        end
-    end
-    return is
+    output_type = isnothing(kernel) ? BandStructure{nmodes,return_type} : return_type
+    SpinWaveIntensityFormula{output_type}(string_formula,kernel,formula)
 end
+
+

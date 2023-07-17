@@ -9,5 +9,5 @@ function phase_averaged_elements(data, k::Vec3, sf::StructureFactor{N}, ffdata::
         elems .+= phase .* ffs[i] .* ffs[j] .* view(data,:, i, j)
     end
 
-    return SVector(elems)
+    return SVector{NCorr,ComplexF64}(elems)
 end
