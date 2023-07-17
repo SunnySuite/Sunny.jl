@@ -91,12 +91,12 @@ function intensity_formula(f::Function,sf::StructureFactor,corr_ix::AbstractVect
     end
 
     ffdata = prepare_form_factors(sf, formfactors)
-    NAtoms = size(sf.data)[2]
-    NCorr = length(corr_ix)
+    NAtoms = Val(size(sf.data)[2])
+    NCorr = Val(length(corr_ix))
 
     ωs_sf = ωs(sf;negative_energies=true)
     formula = function (sf::StructureFactor,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
-        correlations = phase_averaged_elements(view(sf.data,corr_ix,:,:,ix_q,ix_ω), k, sf, ffdata, Val(NCorr), Val(NAtoms))
+        correlations = phase_averaged_elements(view(sf.data,corr_ix,:,:,ix_q,ix_ω), k, sf, ffdata, NCorr, NAtoms)
 
         ω = ωs_sf[ix_ω]
         intensity = f(k,ω,correlations) * classical_to_quantum(ω, kT)
