@@ -2,13 +2,13 @@
 
 This version includes many **breaking changes**.
 
-Added support for `:dipole`-mode Linear Spin Wave Theory.
+Added support for Dipole-mode Linear Spin Wave Theory. (Thanks Hao Zhang!)
 
-Split `intensities` into calculation (`intensity_formula`) and presentation (`intensities_interpolated`, `intensities_binned`).
+Split `intensities` into calculation ([`intensity_formula`](@ref)) and presentation ([`intensities_interpolated`](@ref), [`intensities_binned`](@ref)). This is a **breaking change**, see the docs to migrate your code.
 
 Broadened support for custom observables in `StructureFactor` for use in `intensity_formula`.
 
-Added function `load_nxs` to load experimental neutron scattering data to compare with `intensities_binned`.
+Added function [`load_nxs`](@ref) to load experimental neutron scattering data to compare with `intensities_binned`.
 
 Replace `set_anisotropy!` with a new function [`set_onsite_coupling!`](@ref)
 (and similarly [`set_onsite_coupling_at!`](@ref)). The latter expects an

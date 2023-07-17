@@ -1,7 +1,16 @@
-# # Binning Tutorial
+# # Histogram Binning Tutorial
 
 using Sunny, GLMakie
 
+# This Tutorial demonstrates how to use Sunny's histogram binning
+# capabilities (via [`intensities_binned`](@ref)). This functionality allows
+# the simulation data produced by Sunny to be compared to experimental data produced by
+# Inelastic Neutron Scattering (INS) in an apples-to-apples fashion.
+# Experimental data can be loaded from a `MDHistoWorkspace` stored in a `.nxs` file
+# by the [Mantid software](https://www.mantidproject.org/) using [`load_nxs`](@ref).
+
+# For this example, we will examine the CTFD compound, which is crystallographically approximately
+# a square lattice.
 # We specify the crystal lattice structure of CTFD using the lattice parameters specified by
 #
 # W Wan et al 2020 J. Phys.: Condens. Matter 32 374007 DOI 10.1088/1361-648X/ab757a
