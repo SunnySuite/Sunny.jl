@@ -128,8 +128,6 @@ required_correlations(::FullTensor{NCorr}) where NCorr = 1:NCorr
 # Contraction utils
 ################################################################################
 Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
-contraction_return_type(::Contraction{T}) where T = T
-
 
 intensity_formula(swt::SpinWaveTheory; kwargs...) = intensity_formula(swt, :perp; kwargs...)
 function intensity_formula(swt::SpinWaveTheory, mode::Symbol; kwargs...)
@@ -146,9 +144,8 @@ function intensity_formula(swt::SpinWaveTheory, mode::Symbol; kwargs...)
     intensity_formula(swt,contractor;string_formula,kwargs...)
 end
 
-function intensity_formula(swt::SpinWaveTheory, contractor::Contraction; kwargs...)
-    return_type = contraction_return_type(contractor)
-    intensity_formula(swt,required_correlations(contractor); return_type = return_type,kwargs...) do k,ω,correlations
+function intensity_formula(swt::SpinWaveTheory, contractor::Contraction{T}; kwargs...) where T
+    intensity_formula(swt,required_correlations(contractor); return_type = T,kwargs...) do k,ω,correlations
         intensity = contract(correlations, k, contractor)
     end
 end
@@ -173,9 +170,8 @@ function intensity_formula(sf::StructureFactor, mode::Symbol; kwargs...)
     intensity_formula(sf,contractor;string_formula,kwargs...)
 end
 
-function intensity_formula(sf::StructureFactor, contractor::Contraction; kwargs...)
-    return_type = contraction_return_type(contractor)
-    intensity_formula(sf,required_correlations(contractor); return_type = return_type,kwargs...) do k,ω,correlations
+function intensity_formula(sf::StructureFactor, contractor::Contraction{T}; kwargs...) where T
+    intensity_formula(sf,required_correlations(contractor); return_type = T,kwargs...) do k,ω,correlations
         intensity = contract(correlations, k, contractor)
     end
 end

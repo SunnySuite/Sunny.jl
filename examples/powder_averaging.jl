@@ -133,11 +133,11 @@ fig1
 #   averaging loop.
 
 
-# The intensity data can alternatively be collected into bonafide histogram bins. See [`integrated_lorentzian`](@ref), [`powder_averaged_bins`](@ref), and [`axes_bincenters`](@ref).
+# The intensity data can alternatively be collected into bonafide histogram bins. See [`integrated_lorentzian`](@ref), [`powder_average_binned`](@ref), and [`axes_bincenters`](@ref).
 radial_binning_parameters = (0,6π,6π/55)
 integrated_kernel = integrated_lorentzian(0.05) # Lorentzian broadening
 
-pa_intensities, pa_counts = powder_averaged_bins(sf,radial_binning_parameters;integrated_kernel = integrated_kernel,formula)
+pa_intensities, pa_counts = powder_average_binned(sf,radial_binning_parameters;integrated_kernel = integrated_kernel,formula)
 
 pa_normalized_intensities = pa_intensities ./ pa_counts
 
@@ -151,10 +151,10 @@ fig
 # We should increase the size of either the periodic lattice, or the bins.
 #
 # Using the `bzsize` option, we can even resolve the contribution from each brillouin zone:
-intensity_firstBZ, counts_firstBZ = powder_averaged_bins(sf,radial_binning_parameters;integrated_kernel = integrated_kernel, bzsize=(1,1,1),formula)
-#md #intensity_secondBZ, counts_secondBZ = powder_averaged_bins(..., bzsize=(2,2,2))
-intensity_secondBZ, counts_secondBZ = powder_averaged_bins(sf,radial_binning_parameters;integrated_kernel = integrated_kernel, bzsize=(2,2,2),formula)#hide
-#md #intensity_thirdBZ, counts_thirdBZ = powder_averaged_bins(..., bzsize=(3,3,3))
+intensity_firstBZ, counts_firstBZ = powder_average_binned(sf,radial_binning_parameters;integrated_kernel = integrated_kernel, bzsize=(1,1,1),formula)
+#md #intensity_secondBZ, counts_secondBZ = powder_average_binned(..., bzsize=(2,2,2))
+intensity_secondBZ, counts_secondBZ = powder_average_binned(sf,radial_binning_parameters;integrated_kernel = integrated_kernel, bzsize=(2,2,2),formula)#hide
+#md #intensity_thirdBZ, counts_thirdBZ = powder_average_binned(..., bzsize=(3,3,3))
 intensity_thirdBZ = pa_intensities;#hide
 counts_thirdBZ = pa_counts;#hide
 

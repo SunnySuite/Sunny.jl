@@ -39,6 +39,13 @@ function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
     println(io, "Atoms in magnetic supercell $(length(swt.positions_chem))")
 end
 
+function num_bands(swt::SpinWaveTheory)
+    (; sys) = swt
+    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
+    Nf = sys.mode == :SUN ? Ns-1 : 1
+    nbands = Nf * Nm
+end
+
 
 """
     dipole_to_angles

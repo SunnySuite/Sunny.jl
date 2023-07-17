@@ -1,7 +1,7 @@
 module Sunny
 
 using LinearAlgebra
-using LinearMaps
+import LinearMaps: LinearMap, FunctionMap
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import Requires: @require
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
@@ -14,7 +14,7 @@ import DynamicPolynomials as DP
 import DataStructures: SortedDict, OrderedDict
 import Optim
 import JLD2
-using CodecZlib # Required for reading compressed HDF
+import CodecZlib # Required for reading compressed HDF
 
 # Specific to Symmetry/
 import FilePathsBase: Path
@@ -86,13 +86,14 @@ export minimize_energy!
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/SWTCalculations.jl")
 include("SpinWaveTheory/Lanczos.jl")
-export SpinWaveTheory, dispersion, intensities, dssf
+export SpinWaveTheory, dispersion, intensities, dssf, delta_function_kernel
 
 include("StructureFactors/StructureFactors.jl")
 include("StructureFactors/SFUtils.jl")
 include("StructureFactors/SampleGeneration.jl")
 include("StructureFactors/FormFactor.jl")
 include("StructureFactors/BasisReduction.jl")
+include("Intensities/Types.jl")
 include("StructureFactors/DataRetrieval.jl")
 export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFactor, 
     add_sample!, broaden_energy, lorentzian,
@@ -104,15 +105,17 @@ include("Intensities/Interpolation.jl")
 export intensities_interpolated, instant_intensities_interpolated, connected_path
 
 include("Intensities/Binning.jl")
-export intensities_binned, instant_intensities_interpolated, connected_path_bins,
+export intensities_binned, instant_intensities_interpolated,
     BinningParameters, integrate_axes!, unit_resolution_binning_parameters,
     rlu_to_absolute_units!,
     intensities_binned, slice_2D_binning_parameters, axes_bincenters,
     connected_path_bins, count_bins
 
+include("Intensities/LinearSpinWaveIntensities.jl")
+export intensities_broadened, intensities_bands
 
 include("Intensities/PowderAveraging.jl")
-export powder_averaged_bins, powder_average
+export powder_average_binned, powder_average_interpolated
 
 include("Intensities/ExperimentData.jl")
 export load_nxs, generate_mantid_script_from_binning_parameters

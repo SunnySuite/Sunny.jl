@@ -28,7 +28,7 @@ function spherical_shell(sf::StructureFactor, radius, density)
     end
 end
 
-function powder_average(sf::StructureFactor, q_ias, density; kwargs...)
+function powder_average_interpolated(sf::StructureFactor, q_ias, density; kwargs...)
     A = inv(inv(sf.crystal.latvecs)') # Transformation to convert from inverse angstroms to RLUs
     nω = length(ωs(sf))
     output = zeros(Float64, length(q_ias), nω) # generalize this so matches contract
@@ -47,10 +47,10 @@ function powder_average(sf::StructureFactor, q_ias, density; kwargs...)
 end
 
 """
-    powder_averaged_bins(sf::StructureFactor, radial_binning_parameters; formula
+    powder_average_binned(sf::StructureFactor, radial_binning_parameters; formula
                          ω_binning_parameters, integrated_kernel = nothing, bzsize = nothing)
 
-Similar to [`powder_average`](@ref), but the data is binned instead of interpolated.
+Similar to [`powder_average_interpolated`](@ref), but the data is binned instead of interpolated.
 Also similar to [`intensities_binned`](@ref), but the histogram x-axis is `|k|` in absolute units, which is a nonlinear function of `kx`,`ky`,`kz`. The y-axis is energy.
 
 Binning parameters are specified as tuples `(start,end,bin_width)`,
@@ -58,7 +58,7 @@ e.g. `radial_binning_parameters = (0,6π,6π/55)`.
 
 Energy broadening is supported in the same way as `intensities_binned`.
 """
-function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters;
+function powder_average_binned(sf::StructureFactor, radial_binning_parameters;
     ω_binning_parameters=unit_resolution_binning_parameters(ωs(sf)),
     integrated_kernel = nothing,
     formula = intensity_formula(sf,:perp) :: ClassicalIntensityFormula,
@@ -127,3 +127,5 @@ function powder_averaged_bins(sf::StructureFactor, radial_binning_parameters;
     end
     return output_intensities, output_counts
 end
+
+# SQTODO: powder_average(::SpinWaveTheory)

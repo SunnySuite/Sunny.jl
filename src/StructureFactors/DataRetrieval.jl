@@ -1,9 +1,3 @@
-################################################################################
-# Basic functions for retrieving 𝒮(𝐪,ω) values
-################################################################################
-
-abstract type IntensityFormula end
-
 struct ClassicalIntensityFormula{T} <: IntensityFormula
     kT :: Float64
     formfactors
@@ -144,6 +138,7 @@ end
 Returns ``η/(π(x^2 + η^2))``.
 """
 lorentzian(x, η) = η/(π*(x^2 + η^2))
+lorentzian(η) = x -> lorentzian(x,η)
 
 """
     integrated_lorentzian(η) 

@@ -36,12 +36,12 @@ end
 function trajectory!(buf, sys, integrator, nsnaps, ops; measperiod = 1, apply_g = true)
     @assert length(ops) == size(buf, 1)
 
-    observable_values!(@view(buf[:,:,:,:,:,1]), sys, ops, apply_g = apply_g)
+    observable_values!(@view(buf[:,:,:,:,:,1]), sys, ops; apply_g = apply_g)
     for n in 2:nsnaps
         for _ in 1:measperiod
             step!(sys, integrator)
         end
-        observable_values!(@view(buf[:,:,:,:,:,n]), sys, ops, apply_g = apply_g)
+        observable_values!(@view(buf[:,:,:,:,:,n]), sys, ops; apply_g = apply_g)
     end
 
     return nothing

@@ -238,10 +238,10 @@ plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 swt = SpinWaveTheory(sys_supercell);
 
-# The dispersion relation can be determined providing `dispersion` with a
+# The dispersion relation can be calculated by providing `dispersion` with a
 # `SpinWaveTheory` and a list of wave vectors. For each wave vector,
 # `dispersion` will return a list of energies, one for each band. 
-# Frequently one wants to dispersion information along lines
+# Frequently one wants dispersion information along lines
 # that connect special wave vectors. The function [`connected_path`](@ref)
 # linearly samples between provided $q$-points, with a given sample density.
 
@@ -252,13 +252,24 @@ points = [[0,   0, 0],  # List of wave vectors that define a path
           [0,   1, 0],
           [0,   0, 0]] 
 labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
-density = 200
+density = 600
 path, markers = connected_path(swt, points, density);
 
 # `dispersion` may now be called on the wave vectors along the generated path.
-# Each row column of the returned matrix corresponds to a single mode.
+# Each column of the returned matrix corresponds to a different mode.
 
-disp = dispersion(swt, path)
+disp = dispersion(swt, path);
+
+# In addition to the band energies ``\omega_i``, Sunny can calculate
+# the inelastic neutron scattering intensity ``I(q,\omega_i(q))`` according to
+# an [`intensity_formula`](@ref). The default formula applies a polarization correction ``(1 - Q\otimes Q)``.
+
+formula = intensity_formula(swt; kernel = delta_function_kernel)
+
+# The `delta_function_kernel` specifies that we want the energy and intensity of each
+# band individually.
+
+disp, intensity = intensities_bands(swt, path; formula = formula)
 
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)",
@@ -267,24 +278,25 @@ ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)",
 ylims!(ax, 0.0, 7.5)
 xlims!(ax, 1, size(disp, 1))
 for i in axes(disp)[2]
-    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=:blue)
+    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=intensity[:,i])
 end
 fig
 
+# For comparison with inelastic neutron scattering (INS) data, it's often
+# appropriate to apply a lorentzian broadening to the bands.
 
-# Intensity information, useful for comparison with inelastic neutron scattering
-# (INS) data, can be calculated with `intensities`. By default this function
-# applies a polarization correction. 
+γ = 0.05 # Lorentzian broadening parameter
+broadened_formula = intensity_formula(swt; kernel = lorentzian(γ))
 
+# The broadened intensity can be calculated for any ``(q,\omega)``
+# using `intensities_broadened`:
 energies = collect(0.0:0.01:7.5) # Energies to calculate
-γ = 0.05  # Lorentzian broadening parameter
-is = intensities(swt, path, energies, γ)
+is = intensities_broadened(swt, path, energies, broadened_formula)
 
 heatmap(1:size(is, 1), energies, is; 
     axis=(xlabel = "(H,0,0)", ylabel="Energy (meV)", xticks=(markers, labels),
         xticklabelrotation=π/8, 
     ),
-    colorrange=(0.0, 2.5),
 )
 
 # The existence of a lower-energy, single-ion bound state is in qualitative
@@ -420,7 +432,6 @@ is = broaden_energy(sf, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.05))  # Add arti
 labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
 
 heatmap(1:size(is,1), ωs(sf), is;
-    colorrange=(0.0, 4.0),
     axis = (
         ylabel = "meV",
         xticks = (markers, labels),
@@ -447,7 +458,6 @@ for k in 1:length(paramsList)
 end
 
 heatmap(1:size(is,1), ωs(sf), is;
-    colorrange=(0.0, maximum(is[:,8:end])),
     axis = (
         ylabel = "meV",
         xticks = (markers, labels),
