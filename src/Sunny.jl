@@ -1,6 +1,7 @@
 module Sunny
 
 using LinearAlgebra
+import LinearMaps: LinearMap, FunctionMap
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import Requires: @require
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
@@ -9,8 +10,10 @@ import FFTW
 import ProgressMeter: Progress, next!
 import Printf: @printf, @sprintf
 import Random: Random, randn!
-import DataStructures: SortedDict
+import DataStructures: SortedDict, OrderedDict
 import Optim
+import JLD2
+import CodecZlib # Required for reading compressed HDF
 
 # Specific to Symmetry/
 import FilePathsBase: Path
@@ -79,20 +82,39 @@ export minimize_energy!
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/SWTCalculations.jl")
 include("SpinWaveTheory/Lanczos.jl")
-export SpinWaveTheory, dispersion, intensities, dssf
+export SpinWaveTheory, dispersion, dssf, delta_function_kernel
 
 include("StructureFactors/StructureFactors.jl")
 include("StructureFactors/SFUtils.jl")
 include("StructureFactors/SampleGeneration.jl")
 include("StructureFactors/FormFactor.jl")
-include("StructureFactors/ElementContraction.jl")
 include("StructureFactors/BasisReduction.jl")
-include("StructureFactors/Interpolation.jl")
-include("StructureFactors/PowderAveraging.jl")
+include("Intensities/Types.jl")
 include("StructureFactors/DataRetrieval.jl")
 export DynamicStructureFactor, InstantStructureFactor, StructureFactor, FormFactor, 
-    add_sample!, intensities, instant_intensities, broaden_energy, lorentzian,
-    connected_path, all_exact_wave_vectors, ωs, spherical_shell, merge!
+    add_sample!, broaden_energy, lorentzian,
+    all_exact_wave_vectors, ωs, spherical_shell, merge!, intensity_formula, integrated_lorentzian
+
+include("Intensities/ElementContraction.jl")
+
+include("Intensities/Interpolation.jl")
+export intensities_interpolated, instant_intensities_interpolated, connected_path
+
+include("Intensities/Binning.jl")
+export intensities_binned, BinningParameters, count_bins, integrate_axes!,
+    unit_resolution_binning_parameters, 
+    bin_absolute_units_as_rlu!, bin_rlu_as_absolute_units!,
+    slice_2D_binning_parameters, axes_bincenters,
+    connected_path_bins
+
+include("Intensities/LinearSpinWaveIntensities.jl")
+export intensities_broadened, intensities_bands
+
+include("Intensities/PowderAveraging.jl")
+export powder_average_binned
+
+include("Intensities/ExperimentData.jl")
+export load_nxs, generate_mantid_script_from_binning_parameters
 
 include("SunnyGfx/SunnyGfx.jl")
 include("SunnyGfx/CrystalViewer.jl")
