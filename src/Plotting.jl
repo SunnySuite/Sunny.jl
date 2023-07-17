@@ -423,3 +423,55 @@ function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz)
 
     fig
 end
+
+#=
+function export_vtk(filename,sf::StructureFactor)
+    observable_names = Dict(value => key for (key, value) in sf.observable_ixs)
+    WriteVTK.a
+    x = 0:0.1:1
+    y = 0:0.2:1
+    z = range(-1, 1; length = 21)
+
+    real_space_correlations = ifft(sf.data,dims = 4:7)
+
+    vtk_grid(filename, x, y, z) do vtk
+        for ((α,β),i) in sf.correlations
+            vtk["corr-$(α)-$(β)"] = reshape(real_space_correlations[i,:,:,:,:,:,:])
+        end
+    end
+end
+=#
+
+function export_vtk(filename,params::BinningParameters,data)
+    edges = Vector{AbstractRange{Float64}}(undef,0)
+    drops = Int64[]
+    for dim in 1:4
+        if params.numbins[dim] > 1
+            push!(edges, axes_binedges(params.binstart[dim],params.binend[dim],params.binwidth[dim])[1])
+        else
+            push!(drops, dim)
+        end
+    end
+
+    if length(drops) == 0
+        error("VTK doesn't support 4D data")
+    end
+
+    data = dropdims(data;dims = Tuple(drops))
+
+    WriteVTK.vtk_grid(filename, edges...) do vtk
+        vtk["data"] = data
+    end
+end
+
+function axes_binedges(binstart,binend,binwidth)
+    binedges = Vector{AbstractRange{Float64}}(undef,0)
+    for k = 1:length(binstart)
+        nbin = count_bins(binstart[k],binend[k],binwidth[k])
+        push!(binedges,range(binstart[k],step = binwidth[k],length = nbin + 1))
+    end
+    binedges
+end
+axes_binedges(params::BinningParameters) = axes_binedges(params.binstart,params.binend,params.binwidth)
+
+

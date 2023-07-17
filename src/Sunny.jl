@@ -12,6 +12,7 @@ import Printf: @printf, @sprintf
 import Random: Random, randn!
 import DataStructures: SortedDict, OrderedDict
 import Optim
+import WriteVTK
 import JLD2
 import CodecZlib # Required for reading compressed HDF
 
