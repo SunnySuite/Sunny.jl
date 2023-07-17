@@ -75,6 +75,22 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     return ret
 end
 
+function Base.show(io::IO, sys::System{N}) where N
+    modename = if sys.mode==:SUN
+        "SU($N)"
+    elseif sys.mode==:dipole
+        "Dipole"
+    elseif sys.mode==:large_S
+        "Large-S"
+    else
+        error("Unreachable")
+    end
+    print(io,"System{$modename}[$(sys.latsize)×$(natoms(sys.crystal))]")
+    if !isnothing(sys.origin)
+        print(io,"[Reshape = $(cell_dimensions(sys))]")
+    end
+end
+
 function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     modename = if sys.mode==:SUN
         "SU($N)"
@@ -86,7 +102,7 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
         error("Unreachable")
     end
     printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
-    println(io, "Cell size $(natoms(sys.crystal)), Lattice size $(sys.latsize)")
+    println(io, "Lattice: $(sys.latsize)×$(natoms(sys.crystal))")
     if !isnothing(sys.origin)
         println(io, "Reshaped cell geometry $(cell_dimensions(sys))")
     end

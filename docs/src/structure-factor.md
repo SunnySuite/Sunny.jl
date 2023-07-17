@@ -134,15 +134,15 @@ the dynamic case. As was true there, it is important to ensure that the spins in
 ### Extracting information from structure factors
 
 The basic function for extracting information from a dynamic `StructureFactor`
-at a particular wave vector, $𝐪$, is [`intensities`](@ref). It takes a
+at a particular wave vector, $𝐪$, is [`intensities_interpolated`](@ref). It takes a
 `StructureFactor`, a list of wave vectors, and a contraction mode. For example,
-`intensities(sf, [[0.0, 0.5, 0.5]], :trace)` will calculate intensities for the
-wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The option `:trace` will contract spin
-indices, returning $𝒮^{αα}(𝐪,ω)$, summing over ``α``. The option `:perp` will
-instead perform a contraction that includes polarization corrections. The option
-`:full` will return data for the full tensor $𝒮^{αβ}(𝐪,ω)$. `intensities`
-returns a list of `nω` elements. The corresponding $ω$ values can be retrieved
-by calling [`ωs`](@ref).
+`intensities_interpolated(sf, [[0.0, 0.5, 0.5]])` will calculate intensities for the
+wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The keyword argument `formula` can be used to
+specify an [`intensity_formula`](@ref) for greater control over the intensity calculation.
+The default formula performs a contraction of $𝒮^{αβ}(𝐪,ω)$ that includes
+polarization corrections. `intensities_interpolated`
+returns a list of `nω` elements at each wavevector. The corresponding $ω$ values can be retrieved
+by calling [`ωs`](@ref) on `sf`.
 
 Since Sunny currently only calculates the structure factor on a finite lattice,
 it is important to realize that exact information is only available at a
@@ -151,8 +151,8 @@ information at $q_i = \frac{n}{L_i}$, where $n$ runs from $(\frac{-L_i}{2}+1)$
 to $\frac{L_i}{2}$ and $L_i$ is the linear dimension of the lattice used for the
 calculation. If you request a wave vector that does not fall into this set,
 Sunny will automatically round to the nearest $𝐪$ that is available. If
-`intensities` is given the keyword argument `interpolation=:linear`, Sunny will
-use trilinear interpolation to determine the results at the requested wave
+`intensities_interpolated` is given the keyword argument `interpolation=:linear`, Sunny will
+use trilinear interpolation to determine a result at the requested wave
 vector. 
 
 To retrieve the intensities at all wave vectors for which there is exact data,
@@ -160,7 +160,10 @@ first call the function [`all_exact_wave_vectors`](@ref) to generate a list of
 `qs`. This takes an optional keyword argument `bzsize`, which must be given a
 tuple of three integers specifying the number of Brillouin zones to calculate,
 e.g., `bzsize=(2,2,2)`. The resulting list of wave vectors may then be passed to
-`intensities`.
+`intensities_interpolated`.
+
+Alternatively, [`intensities_binned`](@ref) can be used to place the exact data
+into histogram bins for comparison with experiment.
 
 The convenience function [`connected_path`](@ref) returns a list of wavevectors
 sampled along a path that connects specified $𝐪$ points. This list can be used
@@ -168,15 +171,15 @@ as an input to `intensities`. Another convenience method,
 [`spherical_shell`](@ref) will provide a list of wave vectors on a sphere of a
 specified radius. This is useful for powder averaging. 
 
-A number of keyword arguments are available which modify the calculation of
-structure factor intensity. See the documentation of [`intensities`](@ref) for a
-full list. It is generally recommended to provide a value to `kT` corresponding
-to the temperature of sampled configurations. Given `kT`, Sunny will apply an
-energy- and temperature-dependent classical-to-quantum rescaling of intensities. 
+A number of arguments for [`intensity_formula`](@ref) are available which
+modify the calculation of structure factor intensity. It is generally recommended
+to provide a value of `kT` corresponding to the temperature of sampled configurations.
+Given `kT`, Sunny will include an energy- and temperature-dependent classical-to-quantum 
+rescaling of intensities in the formula.
 
 To retrieve intensity data from a instantaneous structure factor, use
-[`instant_intensities`](@ref), which shares keyword arguments with
-`intensities`. This function may also be used to calculate instantaneous
+[`instant_intensities_interpolated`](@ref), which accepts similar arguments to
+`intensities_interpolated`. This function may also be used to calculate instantaneous
 information from a dynamical structure factor. Note that it is important to
 supply a value to `kT` to reap the benefits of this approach over simply
 calculating a static structure factor at the outset. 
