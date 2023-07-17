@@ -114,7 +114,7 @@ function generate_local_stevens_coefs(sys :: System)
     c′_coef = Vector{StevensExpansion}()
     R_mat   = Vector{Mat3}()
     Nₘ, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert 
-    s_mat_N = spin_matrices(Ns)
+    s_mat_N = spin_matrices(N=Ns)
     Nₘ = length(sys.dipoles)
     s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
     Nₘ = length(sys.dipoles)
