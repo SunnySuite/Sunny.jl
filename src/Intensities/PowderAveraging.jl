@@ -50,13 +50,17 @@ end
     powder_average_binned(sf::StructureFactor, radial_binning_parameters; formula
                          ω_binning_parameters, integrated_kernel = nothing, bzsize = nothing)
 
-Similar to [`powder_average_interpolated`](@ref), but the data is binned instead of interpolated.
-Also similar to [`intensities_binned`](@ref), but the histogram x-axis is `|k|` in absolute units, which is a nonlinear function of `kx`,`ky`,`kz`. The y-axis is energy.
+This function emulates the experimental situation of "powder averaging," where only the
+magnitude (and not the direction) of the momentum transfer is resolvable.
+The intensities are binned similarly to [`intensities_binned`](@ref), but the histogram
+x-axis is `|k|` in absolute units, which is a nonlinear function of `kx`,`ky`,`kz`.
+The y-axis is energy.
 
-Binning parameters are specified as tuples `(start,end,bin_width)`,
+Radial binning parameters are specified as tuples `(start,end,bin_width)`,
 e.g. `radial_binning_parameters = (0,6π,6π/55)`.
 
-Energy broadening is supported in the same way as `intensities_binned`.
+Energy broadening is supported in the same way as `intensities_binned`, and this function
+accepts the same kind of [`intensity_formula`](@ref).
 """
 function powder_average_binned(sf::StructureFactor, radial_binning_parameters;
     ω_binning_parameters=unit_resolution_binning_parameters(ωs(sf)),

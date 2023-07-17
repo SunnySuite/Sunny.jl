@@ -24,7 +24,7 @@ function intensities_broadened(swt::SpinWaveTheory, qs, ωvals, formula)
 
     return_type = typeof(formula).parameters[1]
     if return_type <: BandStructure 
-        # This only happens if the user set `kernel = delta_function_kernel`
+        # This only happens if the user sets `kernel = delta_function_kernel`
         error("intensities_broadened: Can't compute broadened intensities without a finite-width kernel.\nTry: intensity_formula(...; kernel = lorentzian(0.05))")
     end
 
@@ -40,7 +40,7 @@ function intensities_broadened(swt::SpinWaveTheory, qs, ωvals, formula)
 end
 
 """
-    dispersions, intensities = intensities_bands(swt::SpinWaveTheory, qs; [formula])
+    dispersion, intensities = intensities_bands(swt::SpinWaveTheory, qs; [formula])
 
 Computes the scattering intensities at each energy band for each `q` in `qs`, according
 to Linear Spin Wave Theory and the given intensity `formula`.

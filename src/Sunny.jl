@@ -86,7 +86,7 @@ export minimize_energy!
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/SWTCalculations.jl")
 include("SpinWaveTheory/Lanczos.jl")
-export SpinWaveTheory, dispersion, intensities, dssf, delta_function_kernel
+export SpinWaveTheory, dispersion, dssf, delta_function_kernel
 
 include("StructureFactors/StructureFactors.jl")
 include("StructureFactors/SFUtils.jl")
@@ -105,17 +105,16 @@ include("Intensities/Interpolation.jl")
 export intensities_interpolated, instant_intensities_interpolated, connected_path
 
 include("Intensities/Binning.jl")
-export intensities_binned, instant_intensities_interpolated,
-    BinningParameters, integrate_axes!, unit_resolution_binning_parameters,
-    rlu_to_absolute_units!,
-    intensities_binned, slice_2D_binning_parameters, axes_bincenters,
-    connected_path_bins, count_bins
+export intensities_binned, BinningParameters, count_bins, integrate_axes!,
+    unit_resolution_binning_parameters, rlu_to_absolute_units!,
+    slice_2D_binning_parameters, axes_bincenters,
+    connected_path_bins
 
 include("Intensities/LinearSpinWaveIntensities.jl")
 export intensities_broadened, intensities_bands
 
 include("Intensities/PowderAveraging.jl")
-export powder_average_binned, powder_average_interpolated
+export powder_average_binned
 
 include("Intensities/ExperimentData.jl")
 export load_nxs, generate_mantid_script_from_binning_parameters
