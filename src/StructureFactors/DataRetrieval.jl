@@ -145,7 +145,7 @@ lorentzian(η) = x -> lorentzian(x,η)
 
 Returns ``x \\mapsto atan(x/η)/π`` for use with [`intensities_binned`](@ref).
 """
-integrated_lorentzian(η) = x -> atan(x/η)/π
+integrated_lorentzian(η::Float64) = x -> atan(x/η)/π
 
 """
     broaden_energy(sf::StructureFactor, vals, kernel::Function; negative_energies=false)

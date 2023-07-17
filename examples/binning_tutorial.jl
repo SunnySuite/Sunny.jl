@@ -63,7 +63,9 @@ end
 # many ways for a neutron to scatter off of the sample.
 # We can visualize this discreteness by plotting each possible Qx and Qz, for example:
 
-lower_aabb_q, upper_aabb_q = Sunny.binning_parameters_aabb(unit_resolution_binning_parameters(dsf))#hide
+params = unit_resolution_binning_parameters(dsf)#hide
+bin_rlu_as_absolute_units!(params,dsf)#hide
+lower_aabb_q, upper_aabb_q = Sunny.binning_parameters_aabb(params)#hide
 lower_aabb_cell = floor.(Int64,lower_aabb_q .* latsize .+ 1)#hide
 upper_aabb_cell = ceil.(Int64,upper_aabb_q .* latsize .+ 1)#hide
 

@@ -106,7 +106,8 @@ export intensities_interpolated, instant_intensities_interpolated, connected_pat
 
 include("Intensities/Binning.jl")
 export intensities_binned, BinningParameters, count_bins, integrate_axes!,
-    unit_resolution_binning_parameters, rlu_to_absolute_units!,
+    unit_resolution_binning_parameters, 
+    bin_absolute_units_as_rlu!, bin_rlu_as_absolute_units!,
     slice_2D_binning_parameters, axes_bincenters,
     connected_path_bins
 
