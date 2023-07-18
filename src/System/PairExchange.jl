@@ -14,68 +14,27 @@ function bond_parity(bond)
     return bond_delta > (0, 0, 0, 0)
 end
 
-
-"""
-    set_biquadratic!(sys::System, J, bond::Bond)
-
-Sets a scalar biquadratic interaction along `bond`, yielding a pairwise energy
-``J (𝐒_i⋅𝐒_j)²``. This interaction will be propagated to equivalent bonds in
-consistency with crystal symmetry. Any previous biquadratic exchange
-interactions on these bonds will be overwritten.
-
-For systems restricted to dipoles, the biquadratic interactions will
-automatically be renormalized to achieve maximum consistency with the more
-variationally accurate SU(_N_) mode. This renormalization introduces also a
-correction to the quadratic part of the exchange.
-
-See also [`set_exchange!`](@ref).
-"""
-function set_biquadratic!(sys::System{N}, J, bond::Bond) where N
-    is_homogeneous(sys) || error("Use `set_biquadratic_at!` for an inhomogeneous system.")
-
-    # If `sys` has been reshaped, then operate first on `sys.origin`, which
-    # contains full symmetry information.
-    if !isnothing(sys.origin)
-        set_biquadratic!(sys.origin, J, bond)
-        set_interactions_from_origin!(sys)
-        return
+# Convert J to Union{Float64, Mat3}
+function to_float_or_mat3(J)
+    if J isa Number || isapprox(J, J[1] * I, atol=1e-12)
+        J = Float64(first(J))
+    else
+        J = Mat3(J)
     end
-
-    validate_bond(sys.crystal, bond)
-
-    ints = interactions_homog(sys)
-
-
-    # Print a warning if an interaction already exists for bond
-    if any(x -> x.bond == bond, ints[bond.i].biquad)
-        println("Warning: Overriding biquadratic interaction for bond $bond.")
-    end
-
-    for i in 1:natoms(sys.crystal)
-        bonds = all_symmetry_related_bonds_for_atom(sys.crystal, i, bond)
-        isempty(bonds) && continue
-
-        for bond′ in bonds
-            # Remove any existing exchange for bond′
-            matches_bond(c) = c.bond == bond′
-            filter!(!matches_bond, ints[i].biquad)
-
-            # The energy or force calculation only needs to see each bond once
-            isculled = bond_parity(bond′)
-
-            # Add to list
-            coupling = Coupling(isculled, bond′, J)
-            push!(ints[i].biquad, coupling)
-        end
-
-        # Sort interactions so that non-culled bonds appear first
-        sort!(ints[i].biquad, by=c->c.isculled)
-    end
+    return J
 end
 
+# Internal function only
+function push_coupling!(couplings, bond, bilin, biquad)
+    isculled = bond_parity(bond)
+    filter!(c -> c.bond != bond, couplings)
+    push!(couplings, PairCoupling(isculled, bond, bilin, biquad))
+    sort!(couplings, by=c->c.isculled)
+    return
+end
 
 """
-    set_exchange!(sys::System, J, bond::Bond)
+    set_exchange!(sys::System, J, bond::Bond; biquad=0.)
 
 Sets a 3×3 spin-exchange matrix `J` along `bond`, yielding a pairwise
 interaction energy ``𝐒_i⋅J 𝐒_j``. This interaction will be propagated to
@@ -84,11 +43,16 @@ interactions on these bonds will be overwritten. The parameter `bond` has the
 form `Bond(i, j, offset)`, where `i` and `j` are atom indices within the unit
 cell, and `offset` is a displacement in unit cells.
 
-Scalar `J` implies a pure Heisenberg exchange.
+The parameter `J` may be scalar or matrix-valued. As a convenience, `dmvec(D)`
+can be used to construct the antisymmetric part of the exchange, where `D` is
+the Dzyaloshinskii-Moriya pseudo-vector. The resulting interaction will be
+``𝐃⋅(𝐒_i×𝐒_j)``.
 
-As a convenience, `dmvec(D)` can be used to construct the antisymmetric part of
-the exchange, where `D` is the Dzyaloshinskii-Moriya pseudo-vector. The
-resulting interaction will be ``𝐃⋅(𝐒_i×𝐒_j)``.
+The optional parameter `biquad` defines the strength ``b`` for scalar
+biquadratic interactions of the form ``b (𝐒_i⋅𝐒_j)²`` For systems restricted
+to dipoles, ``b`` will be automatically renormalized for maximum consistency
+with the more variationally accurate SU(_N_) mode. This renormalization
+introduces also a correction to the quadratic part of the exchange.
 
 # Examples
 ```julia
@@ -104,26 +68,22 @@ set_exchange!(sys, J1, bond)
 J2 = 2*I + dmvec([0,0,3])
 set_exchange!(sys, J2, bond)
 ```
-
-See also [`set_biquadratic!`](@ref), [`dmvec`](@ref).
 """
-function set_exchange!(sys::System{N}, J, bond::Bond) where N
-    is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
-
+function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.) where N
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
     if !isnothing(sys.origin)
-        set_exchange!(sys.origin, J, bond)
+        set_exchange!(sys.origin, J, bond; biquad)
         set_interactions_from_origin!(sys)
         return
     end
 
     validate_bond(sys.crystal, bond)
+
+    is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
     ints = interactions_homog(sys)
 
-    # Convert J to Mat3
-    J = Mat3(J isa Number ? J*I : J)
-    is_heisenberg = isapprox(diagm([J[1,1],J[1,1],J[1,1]]), J; atol=1e-12)
+    J = to_float_or_mat3(J)
 
     # Verify that exchange is symmetry-consistent
     if !is_coupling_valid(sys.crystal, bond, J)
@@ -133,36 +93,15 @@ function set_exchange!(sys::System{N}, J, bond::Bond) where N
     end
 
     # Print a warning if an interaction already exists for bond
-    if any(x -> x.bond == bond, vcat(ints[bond.i].heisen, ints[bond.i].exchange))
+    if any(x -> x.bond == bond, ints[bond.i].pair)
         println("Warning: Overriding exchange for bond $bond.")
     end
 
     for i in 1:natoms(sys.crystal)
         bonds, Js = all_symmetry_related_couplings_for_atom(sys.crystal, i, bond, J)
-        isempty(bonds) && continue
-
         for (bond′, J′) in zip(bonds, Js)
-            # Remove any existing exchange for bond′
-            matches_bond(c) = c.bond == bond′
-            filter!(!matches_bond, ints[i].heisen)
-            filter!(!matches_bond, ints[i].exchange)
-
-            # The energy or force calculation only needs to see each bond once
-            isculled = bond_parity(bond′)
-
-            # Add to list
-            if is_heisenberg
-                coupling = Coupling(isculled, bond′, J′[1,1])
-                push!(ints[i].heisen, coupling)
-            else
-                coupling = Coupling(isculled, bond′, J′)
-                push!(ints[i].exchange, coupling)
-            end
+            push_coupling!(ints[i].pair, bond′, J′, biquad)
         end
-
-        # Sort interactions so that non-culled bonds appear first
-        sort!(ints[i].heisen, by=c->c.isculled)
-        sort!(ints[i].exchange, by=c->c.isculled)
     end
 end
 
@@ -211,44 +150,9 @@ function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2:
     end
 end
 
-# Internal function only
-function push_coupling!(couplings, bond, J)
-    isculled = bond_parity(bond)
-    filter!(c -> c.bond != bond, couplings)
-    push!(couplings, Coupling(isculled, bond, J))
-    sort!(couplings, by=c->c.isculled)
-    return
-end
 
 """
-    set_biquadratic_at!(sys::System, J, site1::Site, site2::Site; offset=nothing)
-
-Sets the scalar biquadratic interaction along the single bond connecting two
-[`Site`](@ref)s, ignoring crystal symmetry. The system must support
-inhomogeneous interactions via [`to_inhomogeneous`](@ref).
-
-If the system is relatively small, the direction of the bond can be ambiguous
-due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
-`offset` vector, in multiples of unit cells.
-
-See also [`set_biquadratic!`](@ref).
-"""
-function set_biquadratic_at!(sys::System{N}, J, site1, site2; offset=nothing) where N
-    site1 = to_cartesian(site1)
-    site2 = to_cartesian(site2)
-    bond = sites_to_internal_bond(sys, site1, site2, offset)
-
-    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
-    ints = interactions_inhomog(sys)
-
-    push_coupling!(ints[site1].biquad, bond, J)
-    push_coupling!(ints[site2].biquad, reverse(bond), J')
-    return
-end
-
-
-"""
-    set_exchange_at!(sys::System, J, site1::Site, site2::Site; offset=nothing)
+    set_exchange_at!(sys::System, J, site1::Site, site2::Site; biquad=0., offset=nothing)
 
 Sets the exchange interaction along the single bond connecting two
 [`Site`](@ref)s, ignoring crystal symmetry. The system must support
@@ -260,7 +164,7 @@ due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
 
 See also [`set_exchange!`](@ref).
 """
-function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; offset=nothing) where N
+function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad=0., offset=nothing) where N
     site1 = to_cartesian(site1)
     site2 = to_cartesian(site2)
     bond = sites_to_internal_bond(sys, site1, site2, offset)
@@ -268,17 +172,10 @@ function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; offset=no
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
 
-    # Convert J to Mat3
-    J = Mat3(J isa Number ? J*I : J)
-    is_heisenberg = isapprox(diagm([J[1,1],J[1,1],J[1,1]]), J; atol=1e-12)
-    
-    if is_heisenberg
-        push_coupling!(ints[site1].heisen, bond, J[1,1])
-        push_coupling!(ints[site2].heisen, reverse(bond), J[1,1]')
-    else
-        push_coupling!(ints[site1].exchange, bond, J)
-        push_coupling!(ints[site2].exchange, reverse(bond), J')
-    end
+    J = to_float_or_mat3(J)
+    push_coupling!(ints[site1].pair, bond, J, biquad)
+    push_coupling!(ints[site2].pair, reverse(bond), J', biquad')
+
     return
 end
 
@@ -300,16 +197,13 @@ function remove_periodicity!(sys::System{N}, dims) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
 
     for site in all_sites(sys)
-        (; heisen, exchange, biquad) = interactions_inhomog(sys)[site]
+        ints = interactions_inhomog(sys)[site]
+        filter!(ints.pair) do (; bond)
+            offset_cell = Tuple(to_cell(site)) .+ bond.n
 
-        for ints in (heisen, exchange, biquad)
-            filter!(ints) do (; bond)
-                offset_cell = Tuple(to_cell(site)) .+ bond.n
-
-                # keep bond if it is acceptable along every dimension (either
-                # `!dims` or if each cell component is within bounds)
-                all(@. !dims || 1 <= offset_cell <= sys.latsize)
-            end
+            # keep bond if it is acceptable along every dimension (either
+            # `!dims` or if each cell component is within bounds)
+            all(@. !dims || 1 <= offset_cell <= sys.latsize)
         end
     end
 end

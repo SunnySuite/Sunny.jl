@@ -65,8 +65,8 @@ function empty_anisotropy(N)
     return SingleIonAnisotropy(matrep, stvexp)
 end
 
-function Base.iszero(aniso::SingleIonAnisotropy)
-    return iszero(aniso.matrep) && iszero(aniso.stvexp.kmax)
+function Base.iszero(onsite::SingleIonAnisotropy)
+    return iszero(onsite.matrep) && iszero(onsite.stvexp.kmax)
 end
 
 function rotate_operator(stevens::StevensExpansion, R)
@@ -149,11 +149,11 @@ function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) wh
 
     (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
 
-    if !iszero(ints[i].aniso)
+    if !iszero(ints[i].onsite)
         println("Warning: Overriding anisotropy for atom $i.")
     end
 
-    aniso = SingleIonAnisotropy(sys, op, sys.Ns[1,1,1,i])
+    onsite = SingleIonAnisotropy(sys, op, sys.Ns[1,1,1,i])
 
     cryst = sys.crystal
     for j in all_symmetry_related_atoms(cryst, i)
@@ -170,9 +170,9 @@ function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) wh
         # In moving from site i to j, a spin S rotates to Q S. Transform the
         # anisotropy operator using the inverse rotation Q' so that the energy
         # remains invariant when applied to the transformed spins.
-        matrep′ = rotate_operator(aniso.matrep, Q')
-        stvexp′ = rotate_operator(aniso.stvexp, Q')
-        ints[j].aniso = SingleIonAnisotropy(matrep′, stvexp′)
+        matrep′ = rotate_operator(onsite.matrep, Q')
+        stvexp′ = rotate_operator(onsite.stvexp, Q')
+        ints[j].onsite = SingleIonAnisotropy(matrep′, stvexp′)
     end
 end
 
@@ -190,7 +190,7 @@ function set_onsite_coupling_at!(sys::System{N}, op::Matrix{ComplexF64}, site::S
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
     site = to_cartesian(site)
-    ints[site].aniso = SingleIonAnisotropy(sys, op, sys.Ns[site])
+    ints[site].onsite = SingleIonAnisotropy(sys, op, sys.Ns[site])
 end
 
 
