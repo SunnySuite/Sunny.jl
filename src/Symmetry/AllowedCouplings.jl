@@ -124,7 +124,9 @@ function transform_coupling_by_symmetry(cryst, J, symop, parity)
 end
 
 # Check whether a coupling matrix J is consistent with symmetries of a bond
-function is_coupling_valid(cryst::Crystal, b::BondPos, J::Mat3)
+function is_coupling_valid(cryst::Crystal, b::BondPos, J)
+    J isa Number && return true
+    
     for sym in symmetries_between_bonds(cryst, b, b)
         J′ = transform_coupling_by_symmetry(cryst, J, sym...)
         # TODO use symprec to handle case where symmetry is inexact
@@ -135,7 +137,7 @@ function is_coupling_valid(cryst::Crystal, b::BondPos, J::Mat3)
     return true
 end
 
-function is_coupling_valid(cryst::Crystal, b::Bond, J::Mat3)
+function is_coupling_valid(cryst::Crystal, b::Bond, J)
     return is_coupling_valid(cryst, BondPos(cryst, b), J)
 end
 
@@ -261,6 +263,8 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond)
 end
 
 function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
+    J_ref isa Number && return J_ref
+
     syms = symmetries_between_bonds(cryst, BondPos(cryst, b), BondPos(cryst, b_ref))
     isempty(syms) && error("Bonds $b and $b_ref are not symmetry equivalent.")
     return transform_coupling_by_symmetry(cryst, J_ref, first(syms)...)
@@ -273,12 +277,11 @@ Given a reference bond `b` and coupling matrix `J` on that bond, return a list
 of symmetry-equivalent bonds (constrained to start from atom `i`), and a
 corresponding list of symmetry-transformed coupling matrices.
 """
-function all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, b_ref::Bond, J_ref)
-    J_ref = Mat3(J_ref)
+function all_symmetry_related_couplings_for_atom(cryst::Crystal, i::Int, b_ref::Bond, J_ref::T) where T
     @assert is_coupling_valid(cryst, b_ref, J_ref)
 
     bs = Bond[]
-    Js = Mat3[]
+    Js = T[]
 
     for b in all_symmetry_related_bonds_for_atom(cryst, i, b_ref)
         push!(bs, b)

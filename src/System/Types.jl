@@ -11,22 +11,26 @@ struct StevensExpansion
     end
 end
 
-struct SingleIonAnisotropy
+struct OnsiteCoupling
     matrep :: Matrix{ComplexF64}    # Matrix representation in some dimension N
     stvexp :: StevensExpansion      # Renormalized coefficients for Stevens functions
 end
 
-struct Coupling{T}
+struct PairCoupling
     isculled :: Bool
     bond     :: Bond
-    J        :: T
+
+    bilin    :: Union{Float64, Mat3} # Bilinear exchange as 3×3 matrix
+    biquad   :: Float64              # Scalar biquadratic, only valid in dipole mode
+
+    # General pair interactions, only valid in SU(N) mode
+    # general  :: Vector{Tuple{Hermitian{ComplexF64}, Hermitian{ComplexF64}}}
+    # TODO: update clone_interactions(), set_interactions_from_origin!
 end
 
 mutable struct Interactions
-    aniso    :: SingleIonAnisotropy
-    heisen   :: Vector{Coupling{Float64}}
-    exchange :: Vector{Coupling{Mat3}}
-    biquad   :: Vector{Coupling{Float64}}
+    onsite    :: OnsiteCoupling
+    pair      :: Vector{PairCoupling}
 end
 
 const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
@@ -61,7 +65,7 @@ mutable struct System{N}
     # inhomogeneous (defined for every cell in the system).
     interactions_union     :: Union{Vector{Interactions}, Array{Interactions,4}}
 
-    # Optional long-range dipole-dipole interactions (Vector is mutable box)
+    # Optional long-range dipole-dipole interactions
     ewald                  :: Union{Ewald, Nothing}
 
     # Dynamical variables and buffers

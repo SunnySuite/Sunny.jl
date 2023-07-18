@@ -137,10 +137,8 @@ end
         α = -0.4 * π
         J = 1.0
         JL, JQ = J * cos(α), J * sin(α) / S^2
-        set_exchange!(sys_SUN, JL,  Bond(1, 1, [1, 0, 0]))
-        set_biquadratic!(sys_SUN, JQ,  Bond(1, 1, [1, 0, 0]))
-        set_exchange!(sys_dip, JL,  Bond(1, 1, [1, 0, 0]))
-        set_biquadratic!(sys_dip, JQ,  Bond(1, 1, [1, 0, 0]))
+        set_exchange!(sys_SUN, JL,  Bond(1, 1, [1, 0, 0]); biquad=JQ)
+        set_exchange!(sys_dip, JL,  Bond(1, 1, [1, 0, 0]); biquad=JQ)
 
         sys_swt_SUN = reshape_geometry(sys_SUN, [1 1 1; -1 1 0; 0 0 1])
         polarize_spin!(sys_swt_SUN, ( 1, 0, 0), position_to_site(sys_swt_SUN, (0, 0, 0)))

@@ -60,14 +60,14 @@ include("System/SpinInfo.jl")
 include("System/Types.jl")
 include("System/System.jl")
 include("System/PairExchange.jl")
-include("System/SingleIonAnisotropy.jl")
+include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, Site, all_sites, position_to_site,
     global_position, magnetic_moment, polarize_spin!, polarize_spins!, randomize_spins!, energy, forces,
-    spin_operators, stevens_operators, set_external_field!, set_onsite_coupling!, set_exchange!, set_biquadratic!,
+    spin_operators, stevens_operators, set_external_field!, set_onsite_coupling!, set_exchange!,
     dmvec, enable_dipole_dipole!, to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
-    symmetry_equivalent_bonds, set_exchange_at!, set_biquadratic_at!, remove_periodicity!
+    symmetry_equivalent_bonds, set_exchange_at!, remove_periodicity!
 
 include("Reshaping.jl")
 export reshape_geometry, resize_periodically, repeat_periodically, 

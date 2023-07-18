@@ -41,7 +41,9 @@ function add_quartic_interactions!(sys, mode)
         set_onsite_coupling!(sys, 0.2*(S[1]^4+S[2]^4+S[3]^4), 1)
     end
     if mode == :large_S
-        set_biquadratic!(sys, 0.2, Bond(1, 3, [0, 0, 0]))
+        # We must exclude :dipole because the renormalization will introduce a
+        # quadratic Heisenberg interaction
+        set_exchange!(sys, 0.0, Bond(1, 3, [0, 0, 0]); biquad=0.2)
     end
 end
 

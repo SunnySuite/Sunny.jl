@@ -18,6 +18,9 @@ a polynomial of [`spin_operators`](@ref). To understand the mapping between
 these two, the new function [`print_stevens_expansion`](@ref) acts on an
 arbitrary local operator.
 
+Replace `set_biquadratic!` with an optional keyword argument `biquad` to
+[`set_exchange!`](@ref).
+
 Symbolic representations of operators are now hidden unless the package
 `DynamicPolynomials` is explicitly loaded by the user. The functionality of
 `print_anisotropy_as_stevens` has been replaced with
@@ -68,7 +71,7 @@ The function [`to_inhomogeneous`](@ref) creates a system that supports
 inhomogeneous interactions, which can be set using [`set_exchange_at!`](@ref),
 etc.
 
-[`set_biquadratic!`](@ref) replaces `set_exchange_with_biquadratic!`.
+`set_biquadratic!` replaces `set_exchange_with_biquadratic!`.
 
 
 # Version 0.4.0
