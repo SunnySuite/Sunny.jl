@@ -150,7 +150,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
         if !iszero(coupling.biquad)
             J = coupling.biquad
             if sys.mode == :dipole
-                # Renormalization introduces a factor r and a Heisenberg term
+                # Renormalization defined in https://arxiv.org/abs/2304.03874.
                 Sᵢ = (sys.Ns[site]-1)/2
                 Sⱼ = (sys.Ns[cellⱼ, bond.j]-1)/2
                 S = √(Sᵢ*Sⱼ)
@@ -242,7 +242,7 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbo
         if !iszero(coupling.biquad)
             J = coupling.biquad
             if sys.mode == :dipole
-                # Renormalization introduces a factor r and a Heisenberg term
+                # Renormalization defined in https://arxiv.org/abs/2304.03874.
                 Sᵢ = (sys.Ns[site1]-1)/2
                 Sⱼ = (sys.Ns[site2]-1)/2
                 S = √(Sᵢ*Sⱼ)
@@ -316,8 +316,7 @@ function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::Sy
         if !iszero(coupling.biquad)
             J = coupling.biquad
             if sys.mode == :dipole
-                # Renormalization procedure introduces a factor r and a
-                # Heisenberg term, https://arxiv.org/abs/2304.03874.
+                # Renormalization defined in https://arxiv.org/abs/2304.03874.
                 Sᵢ = (sys.Ns[site1]-1)/2
                 Sⱼ = (sys.Ns[site2]-1)/2
                 S = √(Sᵢ*Sⱼ)
