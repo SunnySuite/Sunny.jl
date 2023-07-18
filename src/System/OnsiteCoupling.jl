@@ -1,4 +1,4 @@
-function SingleIonAnisotropy(sys::System, op, N)
+function OnsiteCoupling(sys::System, op, N)
     if sys.mode ∈ (:dipole, :SUN)
         # Convert `op` to a traceless Hermitian matrix
         matrep = operator_to_matrix(op; N)
@@ -25,10 +25,10 @@ function SingleIonAnisotropy(sys::System, op, N)
         stvexp = StevensExpansion(c[2], c[4], c[6])
     end
     
-    return SingleIonAnisotropy(matrep, stvexp)
+    return OnsiteCoupling(matrep, stvexp)
 end
 
-function SingleIonAnisotropy(sys::System, matrep::Matrix{ComplexF64}, N)
+function OnsiteCoupling(sys::System, matrep::Matrix{ComplexF64}, N)
     # Remove trace
     matrep -= (tr(matrep)/N)*I
     if norm(matrep) < 1e-12
@@ -45,7 +45,7 @@ function SingleIonAnisotropy(sys::System, matrep::Matrix{ComplexF64}, N)
         stvexp = StevensExpansion(c[2], c[4], c[6])
     end
     
-    return SingleIonAnisotropy(matrep, stvexp)
+    return OnsiteCoupling(matrep, stvexp)
 end
 
 
@@ -62,10 +62,10 @@ end
 function empty_anisotropy(N)
     matrep = zeros(ComplexF64, N, N)
     stvexp = StevensExpansion(zeros(5), zeros(9), zeros(13))
-    return SingleIonAnisotropy(matrep, stvexp)
+    return OnsiteCoupling(matrep, stvexp)
 end
 
-function Base.iszero(onsite::SingleIonAnisotropy)
+function Base.iszero(onsite::OnsiteCoupling)
     return iszero(onsite.matrep) && iszero(onsite.stvexp.kmax)
 end
 
@@ -153,7 +153,7 @@ function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) wh
         println("Warning: Overriding anisotropy for atom $i.")
     end
 
-    onsite = SingleIonAnisotropy(sys, op, sys.Ns[1,1,1,i])
+    onsite = OnsiteCoupling(sys, op, sys.Ns[1,1,1,i])
 
     cryst = sys.crystal
     for j in all_symmetry_related_atoms(cryst, i)
@@ -172,7 +172,7 @@ function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) wh
         # remains invariant when applied to the transformed spins.
         matrep′ = rotate_operator(onsite.matrep, Q')
         stvexp′ = rotate_operator(onsite.stvexp, Q')
-        ints[j].onsite = SingleIonAnisotropy(matrep′, stvexp′)
+        ints[j].onsite = OnsiteCoupling(matrep′, stvexp′)
     end
 end
 
@@ -190,7 +190,7 @@ function set_onsite_coupling_at!(sys::System{N}, op::Matrix{ComplexF64}, site::S
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
     site = to_cartesian(site)
-    ints[site].onsite = SingleIonAnisotropy(sys, op, sys.Ns[site])
+    ints[site].onsite = OnsiteCoupling(sys, op, sys.Ns[site])
 end
 
 

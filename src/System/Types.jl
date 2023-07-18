@@ -11,7 +11,7 @@ struct StevensExpansion
     end
 end
 
-struct SingleIonAnisotropy
+struct OnsiteCoupling
     matrep :: Matrix{ComplexF64}    # Matrix representation in some dimension N
     stvexp :: StevensExpansion      # Renormalized coefficients for Stevens functions
 end
@@ -29,7 +29,7 @@ struct PairCoupling
 end
 
 mutable struct Interactions
-    onsite    :: SingleIonAnisotropy
+    onsite    :: OnsiteCoupling
     pair      :: Vector{PairCoupling}
 end
 

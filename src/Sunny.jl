@@ -60,7 +60,7 @@ include("System/SpinInfo.jl")
 include("System/Types.jl")
 include("System/System.jl")
 include("System/PairExchange.jl")
-include("System/SingleIonAnisotropy.jl")
+include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, Site, all_sites, position_to_site,
