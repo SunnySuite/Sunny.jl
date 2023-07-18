@@ -31,21 +31,17 @@ function set_interactions_from_origin!(sys::System{N}) where N
     orig_ints = interactions_homog(origin)
 
     for new_i in 1:natoms(sys.crystal)
-        function map_couplings(couplings::Vector{Coupling{T}}) where T
-            new_couplings = Coupling{T}[]
-            for (; bond, J) in couplings
-                new_bond = transform_bond(sys.crystal, new_i, origin.crystal, bond)
-                isculled = bond_parity(new_bond)
-                push!(new_couplings, Coupling(isculled, new_bond, J))
-            end
-            return sort!(new_couplings, by=c->c.isculled)
-        end
-        
         i = map_atom_to_crystal(sys.crystal, new_i, origin.crystal)
-        new_ints[new_i].aniso    = orig_ints[i].aniso
-        new_ints[new_i].heisen   = map_couplings(orig_ints[i].heisen)
-        new_ints[new_i].exchange = map_couplings(orig_ints[i].exchange)
-        new_ints[new_i].biquad   = map_couplings(orig_ints[i].biquad)
+        new_ints[new_i].onsite = orig_ints[i].onsite
+
+        new_pair = PairCoupling[]
+        for (; bond, bilin, biquad) in orig_ints[i].pair
+            new_bond = transform_bond(sys.crystal, new_i, origin.crystal, bond)
+            isculled = bond_parity(new_bond)
+            push!(new_pair, PairCoupling(isculled, new_bond, bilin, biquad))
+        end
+        new_pair = sort!(new_pair, by=c->c.isculled)
+        new_ints[new_i].pair = new_pair
     end
 end
 

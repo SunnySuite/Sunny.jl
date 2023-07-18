@@ -26,6 +26,16 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
     N  = Nf + 1
     L  = Nf * Nm
     @assert size(Hmat) == (2*L, 2*L)
+    # scaling factor (=1) if in the fundamental representation
+    M = sys.mode == :SUN ? 1 : (Ns-1)
+    no_single_ion = isempty(swt.sys.interactions_union[1].onsite.matrep)
+
+    # the "metric" of scalar biquad interaction. Here we are using the following identity:
+    # (𝐒ᵢ⋅𝐒ⱼ)² = -(𝐒ᵢ⋅𝐒ⱼ)/2 + ∑ₐ (OᵢᵃOⱼᵃ)/2, a=4,…,8
+    # where the definition of Oᵢᵃ is given in Appendix B of *Phys. Rev. B 104, 104409*
+    # Note: this is only valid for the `:dipole` mode, for `:SUN` mode, we consider 
+    # different implementations
+    biquad_metric = 1/2 * diagm([-1, -1, -1, 1/M, 1/M, 1/M, 1/M, 1/M])
 
     for k̃ᵢ in k̃
         (k̃ᵢ < 0.0 || k̃ᵢ ≥ 1.0) && throw("k̃ outside [0, 1) range")
@@ -55,60 +65,14 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
     # pairexchange interactions
     for matom = 1:Nm
         ints = sys.interactions_union[matom]
-        # Heisenberg exchange
-        for (; isculled, bond, J) in ints.heisen
+
+        for coupling in ints.pair
+            (; isculled, bond) = coupling
             isculled && break
-            sub_i, sub_j, ΔRδ = bond.i, bond.j, bond.n
 
-            tTi_μ = s̃_mat[:, :, :, sub_i]
-            tTj_ν = s̃_mat[:, :, :, sub_j]
-            phase  = exp(2im * π * dot(k̃, ΔRδ))
-            cphase = conj(phase)
-            sub_i_M1, sub_j_M1 = sub_i - 1, sub_j - 1
-
-            for m = 2:N
-                mM1 = m - 1
-                T_μ_11 = conj(tTi_μ[1, 1, :])
-                T_μ_m1 = conj(tTi_μ[m, 1, :])
-                T_μ_1m = conj(tTi_μ[1, m, :])
-                T_ν_11 = tTj_ν[1, 1, :]
-
-                for n = 2:N
-                    nM1 = n - 1
-                    δmn = δ(m, n)
-                    T_μ_mn, T_ν_mn = conj(tTi_μ[m, n, :]), tTj_ν[m, n, :]
-                    T_ν_n1 = tTj_ν[n, 1, :]
-                    T_ν_1n = tTj_ν[1, n, :]
-
-                    c1 = J * dot(T_μ_mn - δmn * T_μ_11, T_ν_11)
-                    c2 = J * dot(T_μ_11, T_ν_mn - δmn * T_ν_11)
-                    c3 = J * dot(T_μ_m1, T_ν_1n)
-                    c4 = J * dot(T_μ_1m, T_ν_n1)
-                    c5 = J * dot(T_μ_m1, T_ν_n1)
-                    c6 = J * dot(T_μ_1m, T_ν_1n)
-
-                    Hmat11[sub_i_M1*Nf+mM1, sub_i_M1*Nf+nM1] += 0.5 * c1
-                    Hmat11[sub_j_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c2
-                    Hmat22[sub_i_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c1
-                    Hmat22[sub_j_M1*Nf+nM1, sub_j_M1*Nf+mM1] += 0.5 * c2
-
-                    Hmat11[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c3 * phase
-                    Hmat22[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c3 * cphase
-                    
-                    Hmat22[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c4 * phase
-                    Hmat11[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c4 * cphase
-
-                    Hmat12[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c5 * phase
-                    Hmat12[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c5 * cphase
-                    Hmat21[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c6 * phase
-                    Hmat21[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c6 * cphase
-                end
-            end
-        end
-
-        # Quadratic exchange
-        for (; isculled, bond, J) in ints.exchange
-            isculled && break
+            ### Bilinear exchange
+            
+            J = Mat3(coupling.bilin*I)
             sub_i, sub_j, ΔRδ = bond.i, bond.j, bond.n
 
             tTi_μ = s̃_mat[:, :, :, sub_i]
@@ -155,10 +119,10 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
                     Hmat21[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * c6 * cphase
                 end
             end
-        end
 
-        for (; isculled, bond, J) in ints.biquad
-            isculled && break
+            ### Biquadratic exchange
+
+            J = coupling.biquad
             sub_i, sub_j, ΔRδ = bond.i, bond.j, bond.n
             phase  = exp(2im * π * dot(k̃, ΔRδ))
             cphase = conj(phase)

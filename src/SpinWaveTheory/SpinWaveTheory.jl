@@ -84,22 +84,58 @@ function generate_local_sun_gens(sys :: System)
     Q_mat_N[4] = s_mat_N[1] * s_mat_N[2] + s_mat_N[2] * s_mat_N[1]
     Q_mat_N[5] = √3 * s_mat_N[3] * s_mat_N[3] - 1/√3 * S * (S+1) * I
 
-    U_mat = Matrix{ComplexF64}(undef, N, N)
+    if sys.mode == :SUN
+        s_mat_N = spin_matrices(; N)
 
-    s̃_mat = Array{ComplexF64, 4}(undef, N, N, 3, Nₘ)
-    T̃_mat = Array{ComplexF64, 3}(undef, N, N, Nₘ)
-    Q̃_mat = zeros(ComplexF64, N, N, 5, Nₘ)
+        s̃_mat = Array{ComplexF64, 4}(undef, N, N, 3, Nₘ)
+        T̃_mat = Array{ComplexF64, 3}(undef, N, N, Nₘ)
+        Q̃_mat = zeros(ComplexF64, N, N, 5, Nₘ)
 
-    for atom = 1:Nₘ
-        U_mat[:, 1] = sys.coherents[1, 1, 1, atom]
-        U_mat[:, 2:N] = nullspace(U_mat[:, 1]')
-        for μ = 1:3
-            s̃_mat[:, :, μ, atom] = Hermitian(U_mat' * s_mat_N[μ] * U_mat)
+        U_mat = Matrix{ComplexF64}(undef, N, N)
+
+        for atom = 1:Nₘ
+            U_mat[:, 1] = sys.coherents[1, 1, 1, atom]
+            U_mat[:, 2:N] = nullspace(U_mat[:, 1]')
+            @assert isapprox(U_mat * U_mat', I) "rotation matrix from (global frame to local frame) not unitary"
+            for μ = 1:3
+                s̃_mat[:, :, μ, atom] = Hermitian(U_mat' * s_mat_N[μ] * U_mat)
+            end
+            for ν = 1:5
+                Q̃_mat[:, :, ν, atom] = Hermitian(U_mat' * Q_mat_N[ν] * U_mat)
+            end
+            T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].onsite.matrep * U_mat)
         end
-        for ν = 1:5
-            Q̃_mat[:, :, ν, atom] = Hermitian(U_mat' * Q_mat_N[ν] * U_mat)
+
+    elseif sys.mode == :dipole
+        s_mat_2 = spin_matrices(N=2)
+        
+        s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
+
+        no_single_ion = isempty(sys.interactions_union[1].onsite.matrep)
+        T̃_mat = no_single_ion ? zeros(ComplexF64, 0, 0, 0) : Array{ComplexF64, 3}(undef, 2, 2, Nₘ)
+        Q̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 5, Nₘ)
+
+        U_mat_2 = Matrix{ComplexF64}(undef, 2, 2)
+        U_mat_N = Matrix{ComplexF64}(undef, N, N)
+
+        for atom = 1:Nₘ
+            θ, ϕ = dipole_to_angles(sys.dipoles[1, 1, 1, atom])
+            U_mat_N[:] = exp(-1im * ϕ * s_mat_N[3]) * exp(-1im * θ * s_mat_N[2])
+            U_mat_2[:] = exp(-1im * ϕ * s_mat_2[3]) * exp(-1im * θ * s_mat_2[2])
+            @assert isapprox(U_mat_N * U_mat_N', I) "rotation matrix from (global frame to local frame) not unitary"
+            @assert isapprox(U_mat_2 * U_mat_2', I) "rotation matrix from (global frame to local frame) not unitary"
+            for μ = 1:3
+                s̃_mat[:, :, μ, atom] = Hermitian(U_mat_2' * s_mat_2[μ] * U_mat_2)
+            end
+            for ν = 1:5
+                Q̃_mat[:, :, ν, atom] = Hermitian(U_mat_N' * Q_mat_N[ν] * U_mat_N)[1:2, 1:2]
+            end
+
+            if !no_single_ion
+                T̃_mat[:, :, atom] = Hermitian(U_mat_N' * sys.interactions_union[atom].onsite.matrep * U_mat_N)[1:2, 1:2]
+            end
         end
-        T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].aniso.matrep * U_mat)
+        T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].onsite.matrep * U_mat)
     end
 
     return s̃_mat, T̃_mat, Q̃_mat
@@ -128,7 +164,7 @@ function generate_local_stevens_coefs(sys :: System)
         R[:] = [-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
                     cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
                     0.0     sin(θ)        cos(θ)]
-        (; c2, c4, c6) = sys.interactions_union[atom].aniso.stvexp
+        (; c2, c4, c6) = sys.interactions_union[atom].onsite.stvexp
         SR  = Mat3(R)
         # In Cristian's note, S̃ = R S, so here we should pass SR'
         push!(R_mat, SR')
