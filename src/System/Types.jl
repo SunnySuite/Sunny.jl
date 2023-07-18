@@ -65,7 +65,7 @@ mutable struct System{N}
     # inhomogeneous (defined for every cell in the system).
     interactions_union     :: Union{Vector{Interactions}, Array{Interactions,4}}
 
-    # Optional long-range dipole-dipole interactions (Vector is mutable box)
+    # Optional long-range dipole-dipole interactions
     ewald                  :: Union{Ewald, Nothing}
 
     # Dynamical variables and buffers

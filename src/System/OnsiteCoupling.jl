@@ -49,6 +49,8 @@ function OnsiteCoupling(sys::System, matrep::Matrix{ComplexF64}, N)
 end
 
 
+# k-dependent renormalization of Stevens operators O[k,q] as derived in
+# https://arxiv.org/abs/2304.03874.
 function anisotropy_renormalization(N)
     S = (N-1)/2
     return ((1), # k=1

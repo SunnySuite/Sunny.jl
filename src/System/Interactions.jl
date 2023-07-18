@@ -142,14 +142,11 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
         cellⱼ = offsetc(to_cell(site), bond.n, latsize)
         sⱼ = dipoles[cellⱼ, bond.j]
 
-        if coupling.bilin isa Float64
-            J = coupling.bilin::Float64
-            ΔE += J * dot(Δs, sⱼ)
-        else
-            J = coupling.bilin::Mat3
-            ΔE += dot(Δs, J, sⱼ)
-        end
+        # Bilinear
+        J = coupling.bilin
+        ΔE += dot(Δs, J, sⱼ)
 
+        # Biquadratic
         if !iszero(coupling.biquad)
             J = coupling.biquad
             if sys.mode == :dipole
@@ -237,14 +234,11 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbo
         sᵢ = dipoles[site1]
         sⱼ = dipoles[site2]
 
-        if coupling.bilin isa Float64
-            J = coupling.bilin::Float64
-            E += J * dot(sᵢ, sⱼ)
-        else
-            J = coupling.bilin::Mat3
-            E += dot(sᵢ, J, sⱼ)
-        end
+        # Bilinear
+        J = coupling.bilin
+        E += dot(sᵢ, J, sⱼ)
 
+        # Biquadratic
         if !iszero(coupling.biquad)
             J = coupling.biquad
             if sys.mode == :dipole
@@ -313,23 +307,20 @@ function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::Sy
         sᵢ = dipoles[site1]
         sⱼ = dipoles[site2]
 
-        if coupling.bilin isa Float64
-            J = coupling.bilin::Float64
-            B[site1] -= J  * sⱼ
-            B[site2] -= J' * sᵢ
-        else
-            J = coupling.bilin::Mat3
-            B[site1] -= J  * sⱼ
-            B[site2] -= J' * sᵢ
-        end
+        # Bilinear
+        J = coupling.bilin
+        B[site1] -= J  * sⱼ
+        B[site2] -= J' * sᵢ
 
+        # Biquadratic
         if !iszero(coupling.biquad)
             J = coupling.biquad
             if sys.mode == :dipole
+                # Renormalization procedure introduces a factor r and a
+                # Heisenberg term, https://arxiv.org/abs/2304.03874.
                 Sᵢ = (sys.Ns[site1]-1)/2
                 Sⱼ = (sys.Ns[site2]-1)/2
                 S = √(Sᵢ*Sⱼ)
-                # Renormalization introduces a factor r and a Heisenberg term
                 r = (1 - 1/S + 1/4S^2)
                 B[site1] -= J * (2r*sⱼ*(sᵢ⋅sⱼ) - sⱼ/2)
                 B[site2] -= J * (2r*sᵢ*(sᵢ⋅sⱼ) - sᵢ/2)

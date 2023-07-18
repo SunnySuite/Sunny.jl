@@ -21,7 +21,7 @@ function to_float_or_mat3(J)
     else
         J = Mat3(J)
     end
-    return J
+    return J::Union{Float64, Mat3}
 end
 
 # Internal function only

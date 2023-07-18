@@ -452,15 +452,15 @@ spin_operators(sys::System{N}, site::Site) where N = spin_matrices(N=sys.Ns[to_a
     stevens_operators(sys, site::Int)
 
 Returns a generator of Stevens operators appropriate to an atom or
-[`Site`](@ref) index. The return value `O` can be indexed as `O[q,m]`, where ``0
-≤ q ≤ 6`` labels an irrep and ``m = -q, …, q``. This will produce an ``N×N``
+[`Site`](@ref) index. The return value `O` can be indexed as `O[k,q]`, where ``0
+≤ k ≤ 6`` labels an irrep and ``q = -k, …, k``. This will produce an ``N×N``
 matrix of appropriate dimension ``N``.
 """
 stevens_operators(sys::System{N}, i::Int) where N = StevensMatrices(sys.Ns[i])
 stevens_operators(sys::System{N}, site::Site) where N = StevensMatrices(sys.Ns[to_atom(site)])
 
 
-function spin_operators(sys::System{N}, b::Bond) where N
+function spin_operators_pair(sys::System{N}, b::Bond) where N
     Si = spin_matrices(N=sys.Ns[b.i])
     Sj = spin_matrices(N=sys.Ns[b.j])
     return local_quantum_operators(Si, Sj)

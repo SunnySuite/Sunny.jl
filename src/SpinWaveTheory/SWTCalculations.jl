@@ -71,12 +71,8 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
             isculled && break
 
             ### Bilinear exchange
-            if coupling.bilin isa Number
-                J = Mat3(coupling.bilin*I)
-            else
-                J = coupling.bilin
-            end
-
+            
+            J = Mat3(coupling.bilin*I)
             sub_i, sub_j, ΔRδ = bond.i, bond.j, bond.n
 
             tTi_μ = s̃_mat[:, :, :, sub_i]
