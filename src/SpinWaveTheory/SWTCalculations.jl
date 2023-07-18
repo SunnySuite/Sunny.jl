@@ -66,11 +66,16 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
     for matom = 1:Nm
         ints = sys.interactions_union[matom]
 
-        for (; isculled, bond, bilin, biquad) in ints.pair
+        for coupling in ints.pair
+            (; isculled, bond) = coupling
             isculled && break
 
-            ### Quadratic exchange
-            J = bilin
+            ### Bilinear exchange
+            if coupling.bilin isa Number
+                J = Mat3(coupling.bilin*I)
+            else
+                J = coupling.bilin
+            end
 
             sub_i, sub_j, ΔRδ = bond.i, bond.j, bond.n
 
@@ -119,9 +124,9 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
                 end
             end
 
-            ### Biquadratic
+            ### Biquadratic exchange
 
-            J = biquad
+            J = coupling.biquad
             sub_i, sub_j, ΔRδ = bond.i, bond.j, bond.n
             phase  = exp(2im * π * dot(k̃, ΔRδ))
             cphase = conj(phase)
