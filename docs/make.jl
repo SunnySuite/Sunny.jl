@@ -13,7 +13,7 @@ example_destination = joinpath(@__DIR__, "src", "examples")
 example_doc_paths = ["examples/$name.md" for name in example_names]
 
 for source in example_sources
-    Literate.markdown(source, example_destination; execute, documenter=true)
+    Literate.markdown(source, example_destination; documenter=true)
 end
 
 makedocs(
@@ -27,7 +27,8 @@ makedocs(
         "Version History" => "versions.md",
     ],
     format = Documenter.HTML(
-        prettyurls = get(ENV, "CI", nothing) == "true"
+        prettyurls = get(ENV, "CI", nothing) == "true",
+        ansicolor = true
     ),
     draft=!execute
 )
