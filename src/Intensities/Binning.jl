@@ -198,13 +198,26 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...;units = :abso
     numbins = (latsize...,length(ωvals))
     # Bin centers should be at Sunny scattering vectors
     maxQ = 1 .- (1 ./ numbins)
-    total_size = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .- (0.,0.,0.,minimum(ωvals))
+    
+    min_val = (0.,0.,0.,minimum(ωvals))
+    max_val = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals))
+    total_size = max_val .- min_val
+
     binwidth = total_size ./ (numbins .- 1)
     binwidth = binwidth .+ eps.(binwidth)
     binstart = (0.,0.,0.,minimum(ωvals)) .- (binwidth ./ 2)
     binend = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .+ (binwidth ./ 2)
 
     params = BinningParameters(binstart,binend,binwidth)
+
+    # Special case for when there is only one bin in a direction
+    for i = 1:4
+        if numbins[i] == 1
+            params.binstart[i] = min_val[i]
+            params.binend[i] = min_val[i] + eps(min_val[i])
+            params.binwidth[i] = 1.
+        end
+    end
 
     if units == :absolute
         bin_absolute_units_as_rlu!(params,args...)
@@ -308,6 +321,18 @@ function axes_bincenters(binstart,binend,binwidth)
     bincenters
 end
 axes_bincenters(params::BinningParameters) = axes_bincenters(params.binstart,params.binend,params.binwidth)
+
+function axes_binedges(binstart,binend,binwidth)
+    binedges = Vector{AbstractRange{Float64}}(undef,0)
+    for k = 1:length(binstart)
+        nbin = count_bins(binstart[k],binend[k],binwidth[k])
+        push!(binedges,range(binstart[k],step = binwidth[k],length = nbin + 1))
+    end
+    binedges
+end
+axes_binedges(params::BinningParameters) = axes_binedges(params.binstart,params.binend,params.binwidth)
+
+
 
 """
     connected_path_bins(sf,qs,density,args...;kwargs...)
