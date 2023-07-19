@@ -12,7 +12,6 @@ import Printf: @printf, @sprintf
 import Random: Random, randn!
 import DataStructures: SortedDict, OrderedDict
 import Optim
-import WriteVTK
 import JLD2
 import CodecZlib # Required for reading compressed HDF
 
@@ -134,6 +133,12 @@ function __init__()
     @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
         include("Plotting.jl")
         export plot_spins
+    end
+
+    # Importing WriteVTK will enable saving files to view with ParaView
+    @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" begin
+        include("VTKExport.jl")
+        export export_vtk
     end
 
     # Importing DynamicPolynomials will enable certain symbolic analysis
