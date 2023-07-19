@@ -147,6 +147,8 @@ The second argument may be a 3x3 matrix specifying the reciprocal lattice vector
 - [`StructureFactor`](@ref)
 - [`SpinWaveTheory`](@ref)
 """
+bin_absolute_units_as_rlu!, bin_rlu_as_absolute_units!
+
 function bin_rlu_as_absolute_units!(params::BinningParameters,recip_vecs::AbstractMatrix)
     covectorsK = params.covectors
 
@@ -354,7 +356,7 @@ connected_path_bins(sw::SpinWaveTheory, ωvals, qs::Vector, density,args...;kwar
     intensity, counts = intensities_binned(sf::StructureFactor, params::BinningParameters; formula, integrated_kernel)
 
 Given correlation data contained in a [`StructureFactor`](@ref) and [`BinningParameters`](@ref) describing the
-shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_fomula`](@ref), or `intensity_formula(sf,:perp)` by default.
+shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_formula`](@ref), or `intensity_formula(sf,:perp)` by default.
 
 The [`BinningParameters`](@ref) are expected to accept `(k,ω)` in absolute units.
 
