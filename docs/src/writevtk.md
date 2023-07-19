@@ -6,7 +6,7 @@ Visual ToolKit (VTK) format, which is compatible with the [ParaView](https://www
 ParaView supports volumetric rendering:
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewrender.jpg" style="margin: 30px; " width="400">
+<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewrender.png" style="margin: 30px; " width="400">
 ```
 
 ## Simulation data
@@ -126,7 +126,7 @@ Since we adjusted the energy axis, the outline is a 1x1x1 cube.
 Optionally enable the axes grid under "View", and customize using the adjacent edit button.
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewimport.jpg" style="margin: 30px;" width="200">
+<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewimport.png" style="margin: 30px;" width="200">
 ```
 
 **To enable the volumetric render**:
@@ -135,7 +135,7 @@ Optionally enable the axes grid under "View", and customize using the adjacent e
 3. Open the Color Map Editor to adjust the opacity of the fog, which may be too faint to see by default.
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewvolume.jpg" style="margin: 30px; " width="400">
+<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewvolume.png" style="margin: 30px; " width="400">
 ```
 
 Depending on your computer and your dataset size, the volumetric rendering may be slow, but our dataset is relatively small, so the render should be fast.
@@ -146,13 +146,13 @@ To see this, enable Display Data Histogram in the Color Map Editor panel.
 To zoom in on the lower-intensity data, click and drag the right side handle of the opacity transfer function box to the middle a few times.
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewcolormap.jpg" style="margin: 30px; " width="200">
+<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewcolormap.png" style="margin: 30px; " width="200">
 ```
 
 After suitable color mapping, the dispersion curve should become visible:
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewrender.jpg" style="margin: 30px; " width="400">
+<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewrender.png" style="margin: 30px; " width="400">
 ```
 
 ## Experiment data
