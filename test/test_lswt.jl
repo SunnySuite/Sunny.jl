@@ -192,8 +192,10 @@ end
         sys_dip = System(cryst, dims, [SpinInfo(1; S=S, g=1)], :dipole; units=Units.theory)
 
         set_exchange!(sys_dip, J, Bond(1, 1, [1, 0, 0]))
+
         Sz = spin_operators(sys_dip,1)[3]
         set_onsite_coupling!(sys_dip, D*Sz^2, 1)
+
         set_external_field!(sys_dip, [0, 0, h])
         sys_swt_dip = reshape_geometry(sys_dip, [1 -1 0; 1 1 0; 0 0 1])
         c₂ = 1 - 1/(2S)
@@ -229,8 +231,8 @@ end
     # Random magnetic moment
     𝐌 = normalize(rand(3))
     θ, ϕ = Sunny.dipole_to_angles(𝐌)
+
     s_mat = Sunny.spin_matrices(N=2S+1)
-    
     
     s̃ᶻ = 𝐌' * spin_operators(sys_dip,1)
     
@@ -240,11 +242,13 @@ end
     Z = U_mat * hws
 
     aniso = Ds[1]*s̃ᶻ^2 + Ds[2]*s̃ᶻ^4 + Ds[3]*s̃ᶻ^6
+
     set_onsite_coupling!(sys_dip, aniso, 1)
     
     s̃ᶻ = 𝐌' * spin_operators(sys_SUN,1)
     aniso = Ds[1]*s̃ᶻ^2 + Ds[2]*s̃ᶻ^4 + Ds[3]*s̃ᶻ^6
     set_onsite_coupling!(sys_SUN, aniso, 1)
+
     set_external_field!(sys_dip, h*𝐌)
     set_external_field!(sys_SUN, h*𝐌)
 

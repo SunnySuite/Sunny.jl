@@ -26,16 +26,6 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
     N  = Nf + 1
     L  = Nf * Nm
     @assert size(Hmat) == (2*L, 2*L)
-    # scaling factor (=1) if in the fundamental representation
-    M = sys.mode == :SUN ? 1 : (Ns-1)
-    no_single_ion = isempty(swt.sys.interactions_union[1].onsite.matrep)
-
-    # the "metric" of scalar biquad interaction. Here we are using the following identity:
-    # (𝐒ᵢ⋅𝐒ⱼ)² = -(𝐒ᵢ⋅𝐒ⱼ)/2 + ∑ₐ (OᵢᵃOⱼᵃ)/2, a=4,…,8
-    # where the definition of Oᵢᵃ is given in Appendix B of *Phys. Rev. B 104, 104409*
-    # Note: this is only valid for the `:dipole` mode, for `:SUN` mode, we consider 
-    # different implementations
-    biquad_metric = 1/2 * diagm([-1, -1, -1, 1/M, 1/M, 1/M, 1/M, 1/M])
 
     for k̃ᵢ in k̃
         (k̃ᵢ < 0.0 || k̃ᵢ ≥ 1.0) && throw("k̃ outside [0, 1) range")
@@ -123,6 +113,7 @@ function swt_hamiltonian!(swt::SpinWaveTheory, k̃ :: Vector{Float64}, Hmat::Mat
             ### Biquadratic exchange
 
             J = coupling.biquad
+    
             sub_i, sub_j, ΔRδ = bond.i, bond.j, bond.n
             phase  = exp(2im * π * dot(k̃, ΔRδ))
             cphase = conj(phase)
