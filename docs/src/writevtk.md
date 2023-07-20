@@ -6,7 +6,7 @@ Visual ToolKit (VTK) format, which is compatible with the [ParaView](https://www
 ParaView supports volumetric rendering:
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewrender.png" style="margin: 30px; " width="400">
+<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewrender.jpg" style="margin: 30px; " width="400">
 ```
 
 ## Simulation data
@@ -31,10 +31,8 @@ xtal = Crystal(latvecs,positions;types);
 sys = System(xtal, latsize, [SpinInfo(1;S = 1/2)], :SUN; seed=1);
 
 J = 10.
-characteristic_energy_scale = abs(J * valS)
 set_exchange!(sys,J,Bond(1,1,[1,0,0]))
 set_exchange!(sys,J,Bond(1,1,[0,1,0]))
-remove_periodicity!(sys,(false,false,true))
 
 Δt = 0.01
 kT = 0.5
@@ -152,7 +150,7 @@ To zoom in on the lower-intensity data, click and drag the right side handle of 
 After suitable color mapping, the dispersion curve should become visible:
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewrender.png" style="margin: 30px; " width="400">
+<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewrender.jpg" style="margin: 30px; " width="400">
 ```
 
 ## Experiment data
