@@ -135,6 +135,12 @@ function __init__()
         export plot_spins
     end
 
+    # Importing WriteVTK will enable saving files to view with ParaView
+    @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" begin
+        include("VTKExport.jl")
+        export export_vtk
+    end
+
     # Importing DynamicPolynomials will enable certain symbolic analysis
     @require DynamicPolynomials="7c1d4256-1411-5781-91ec-d7bc3513ac07" begin
         include("Operators/Symbolic.jl")

@@ -423,3 +423,4 @@ function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz)
 
     fig
 end
+
