@@ -146,7 +146,7 @@ end
 
 # Returns (Λ + B⋅S) Z
 @generated function mul_spin_matrices(Λ, B::Sunny.Vec3, Z::Sunny.CVec{N}) where N
-    S = Sunny.spin_matrices(N)
+    S = spin_matrices(; N)
     out = map(1:N) do i
         out_i = map(1:N) do j
             terms = Any[:(Λ[$i,$j])]
@@ -174,7 +174,7 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
         for site in all_sites(sys)
-            Λ = ints[to_atom(site)].aniso.matrep
+            Λ = ints[to_atom(site)].onsite.matrep
             HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
             ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ
             ΔZ[site] = proj(ΔZ′, Z[site])
@@ -182,7 +182,7 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
     else
         ints = interactions_inhomog(sys)
         for site in all_sites(sys)
-            Λ = ints[site].aniso.matrep
+            Λ = ints[site].onsite.matrep
             HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
             ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ
             ΔZ[site] = proj(ΔZ′, Z[site])
@@ -221,14 +221,14 @@ function rhs_ll!(ΔZ, Z, B, integrator, sys)
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
         for site in all_sites(sys)
-            Λ = ints[to_atom(site)].aniso.matrep
+            Λ = ints[to_atom(site)].onsite.matrep
             HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
             ΔZ[site] = - Δt*im*HZ
         end 
     else
         ints = interactions_inhomog(sys)
         for site in all_sites(sys)
-            Λ = ints[site].aniso.matrep
+            Λ = ints[site].onsite.matrep
             HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
             ΔZ[site] = - Δt*im*HZ
         end 

@@ -242,9 +242,9 @@ end
 Plot the spin configuration defined by `sys`. `kwargs` are passed to `Makie.arrows`.        
 """
 function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
-    linewidth=0.1, arrowsize=0.2, arrowlength=0.2, ortho=false, kwargs...)
+    linewidth=0.1, arrowsize=0.2, arrowlength=0.2, show_axis=false, ortho=false, kwargs...)
 
-    fig, ax = _setup_scene(; ortho)
+    fig, ax = _setup_scene(; show_axis, ortho)
 
     pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = Makie.Vec3f0.(sys.dipoles[:])
@@ -253,6 +253,29 @@ function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
         linecolor, arrowcolor, linewidth, arrowsize,
         lengthscale=arrowlength, kwargs...
     )
+
+    if !isnothing(sys.origin)
+        sys_origin = resize_periodically(sys,sys.origin.latsize)
+
+        # Translate to a correct lattice site in the middle of the bigger system
+        center_origin = (sys_origin.crystal.latvecs * Vec3(sys_origin.latsize))/2
+        center_this = (sys.crystal.latvecs * Vec3(sys.latsize))/2
+        center_offset = center_origin .- center_this
+        middle_site = global_position(sys_origin,CartesianIndex((sys_origin.latsize .÷ 2)...,1))
+        diff_center = center_offset .- middle_site
+
+        pts = Makie.Point3f0.(map(x -> diff_center .+ x,spin_vector_origins(sys_origin, arrowlength))[:])
+        vecs = Makie.Vec3f0.(sys_origin.dipoles[:])
+        Makie.arrows!(
+            ax, pts, vecs;
+            linewidth, arrowsize,
+            lengthscale=arrowlength,
+            # Original system is transparent
+            arrowcolor=(arrowcolor,0.03), linecolor = (linecolor,0.03),
+            kwargs...
+        )
+    end
+
     fig
 end
 

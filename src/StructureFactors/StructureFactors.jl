@@ -6,9 +6,9 @@ struct StructureFactor{N}
     Δω             :: Float64                # Energy step size
 
     # Correlation info (αβ indices of 𝒮^{αβ}(q,ω))
-    dipole_corrs :: Bool                                  # Whether using all correlations from dipoles 
-    observables  :: Array{ComplexF64, 3}                  # Operators corresponding to observables
-    idxinfo      :: SortedDict{CartesianIndex{2}, Int64}  # (α, β) to save from 𝒮^{αβ}(q, ω)
+    observables  :: Vector{LinearMap} # Operators corresponding to observables
+    observable_ixs :: Dict{Symbol,Int64} # User-defined observable names
+    correlations :: SortedDict{CartesianIndex{2}, Int64}  # (α, β) to save from 𝒮^{αβ}(q, ω)
 
     # Specs for sample generation and accumulation
     samplebuf    :: Array{ComplexF64, 6}  # New sample buffer
@@ -21,10 +21,50 @@ struct StructureFactor{N}
     processtraj! :: Function              # Function to perform post-processing on sample trajectories
 end
 
-function Base.show(io::IO, ::MIME"text/plain", sf::StructureFactor)
-    modename = sf.dipole_corrs ? "Dipole correlations" : "Custom correlations"
-    printstyled(io, "StructureFactor [$modename]\n"; bold=true, color=:underline)
+function Base.show(io::IO, sf::StructureFactor{N}) where N
+    modename = N == 0 ? "Dipole" : "SU($(N))"
+    print(io,"StructureFactor{$modename}")
+    print(io,all_observable_names(sf))
 end
+
+function Base.show(io::IO, ::MIME"text/plain", sf::StructureFactor{N}) where N
+    printstyled(io, "StructureFactor";bold=true, color=:underline)
+    modename = N == 0 ? "Dipole" : "SU($(N))"
+    print(io," ($(Base.format_bytes(Base.summarysize(sf))))\n")
+    print(io,"[")
+    if size(sf.data)[7] == 1
+        printstyled(io,"S(q)";bold=true)
+    else
+        printstyled(io,"S(q,ω)";bold=true)
+        print(io," | nω = $(size(sf.data)[7])")
+    end
+    print(io," | $(sf.nsamples[1]) sample")
+    (sf.nsamples[1] > 1) && print(io,"s")
+    print(io,"]\n")
+    println(io,"Lattice: $(sf.latsize)×$(natoms(sf.crystal))")
+    print(io,"$(size(sf.data)[1]) correlations in $modename mode:\n")
+
+    # Reverse the dictionary
+    observable_names = Dict(value => key for (key, value) in sf.observable_ixs)
+
+    for i = 1:length(sf.observables)
+        print(io,i == 1 ? "╔ " : i == length(sf.observables) ? "╚ " : "║ ")
+        for j = 1:length(sf.observables)
+            if i > j
+                print(io,"⋅ ")
+            elseif haskey(sf.correlations,CartesianIndex(i,j))
+                print(io,"⬤ ")
+            else
+                print(io,"• ")
+            end
+        end
+        print(io,observable_names[i])
+        println(io)
+    end
+    printstyled(io,"")
+end
+
+Base.getproperty(sf::StructureFactor, sym::Symbol) = sym == :latsize ? size(sf.samplebuf)[2:4] : getfield(sf,sym)
 
 """
     merge!(sf::StructureFactor, others...)
@@ -40,6 +80,27 @@ function merge!(sf::StructureFactor, others...)
     end
 end
 
+# Finds the linear index according to sf.correlations of each correlation in corrs, where
+# corrs is of the form [(:A,:B),(:B,:C),...] where :A,:B,:C are observable names.
+function lookup_correlations(sf::StructureFactor,corrs; err_msg = αβ -> "Missing correlation $(αβ)")
+    indices = Vector{Int64}(undef,length(corrs))
+    for (i,(α,β)) in enumerate(corrs)
+        αi = sf.observable_ixs[α]
+        βi = sf.observable_ixs[β]
+        # Make sure we're looking up the correlation with its properly sorted name
+        αi,βi = minmax(αi,βi)
+        idx = CartesianIndex(αi,βi)
+
+        # Get index or fail with an error
+        indices[i] = get!(() -> error(err_msg(αβ)),sf.correlations,idx)
+    end
+    indices
+end
+
+function all_observable_names(sf::StructureFactor)
+    observable_names = Dict(value => key for (key, value) in sf.observable_ixs)
+    [observable_names[i] for i in 1:length(observable_names)]
+end
 
 """
     StructureFactor
@@ -53,35 +114,85 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
                             process_trajectory = :none) where {N}
 
     # Set up correlation functions (which matrix elements αβ to save from 𝒮^{αβ})
-    default_observables = false
-    default_correlations = false
     if isnothing(observables)
-        observables = zeros(ComplexF64, 0, 0, 3)  # observables are empty in this case
-        default_observables = true
+        # Default observables are spin x,y,z
+        # projections (SU(N) mode) or components (dipole mode)
+        observable_ixs = Dict(:Sx => 1,:Sy => 2,:Sz => 3)
+        if N == 0
+            dipole_component(i) = FunctionMap{Float64}(s -> s[i],1,3)
+            observables = dipole_component.([1,2,3])
+        else
+            # SQTODO: Make this use the more optimized expected_spin function
+            # Doing this will also, by necessity, allow users to make the same
+            # type of optimization for their vector-valued observables.
+            observables = LinearMap{ComplexF64}.(spin_matrices(;N))
+        end
     else
-        (N == 0) && error("Structure Factor Error: Cannot provide matrices for observables when using dipolar `System`")
+        # If it was given as a list, preserve the user's preferred
+        # ordering of observables
+        if observables isa AbstractVector
+            # If they are pairs (:A => [...]), use the names
+            # and otherwise use alphabetical names
+            if !isempty(observables) && observables[1] isa Pair
+                observables = OrderedDict(observables)
+            else
+                dict = OrderedDict{Symbol,LinearMap}()
+                for i = 1:length(observables)
+                    dict[Symbol('A' + i - 1)] = observables[i]
+                end
+                observables = dict
+            end
+        end
+
+        # If observables were provided as (:name => matrix) pairs,
+        # reformat them to (:name => idx) and matrices[idx]
+        observable_ixs = Dict{Symbol,Int64}()
+        matrices = Vector{LinearMap}(undef,length(observables))
+        for (i,name) in enumerate(keys(observables))
+            next_available_ix = length(observable_ixs) + 1
+            if haskey(observable_ixs,name)
+                error("Repeated observable name $name not allowed.")
+            end
+            observable_ixs[name] = next_available_ix
+
+            # Convert dense matrices to LinearMap
+            if observables[name] isa Matrix
+                matrices[i] = LinearMap(observables[name])
+            else
+                matrices[i] = observables[name]
+            end
+        end
+        observables = matrices
     end
-    nops = size(observables, 3)
+
+    # By default, include all correlations
     if isnothing(correlations)
         correlations = []
-        for i in 1:nops, j in i:nops
-            push!(correlations, (i, j))
+        for oi in keys(observable_ixs), oj in keys(observable_ixs)
+            push!(correlations, (oi, oj))
         end
-        default_correlations = true
+    elseif correlations isa AbstractVector{Tuple{Int64,Int64}}
+        # If the user used numeric indices to describe the correlations,
+        # we need to convert it to the names, so need to temporarily reverse
+        # the dictionary.
+        observable_names = Dict(value => key for (key, value) in observable_ixs)
+        correlations = [(observable_names[i],observable_names[j]) for (i,j) in correlations]
     end
-    dipole_corrs = default_observables && default_correlations
 
-    # Construct look-up table for matrix elements
-    count = 1
-    pairs = []
-    for αβ in correlations
-        α, β = αβ
-        α, β = α < β ? (α, β) : (β, α)  # Because SF is symmetric, only save diagonal and upper triangular
-        push!(pairs, (α, β) => count)
-        count += 1
+    # Construct look-up table for correlation matrix elements
+    idxinfo = SortedDict{CartesianIndex{2},Int64}() # CartesianIndex's sort to fastest order
+    for (α,β) in correlations
+        αi = observable_ixs[α]
+        βi = observable_ixs[β]
+        # Because correlation matrix is symmetric, only save diagonal and upper triangular
+        # by ensuring that all pairs are in sorted order
+        αi,βi = minmax(αi,βi)
+        idx = CartesianIndex(αi,βi)
+
+        # Add this correlation to the list if it's not already listed
+        get!(() -> length(idxinfo) + 1,idxinfo,idx)
     end
-    pairs = map(i -> CartesianIndex(i.first) => i.second, pairs) # Convert to CartesianIndices
-    idxinfo = SortedDict{CartesianIndex{2}, Int64}(pairs) # CartesianIndices sort to fastest order
+    correlations = idxinfo
 
     # Set up trajectory processing function (e.g., symmetrize)
     processtraj! = if process_trajectory == :none 
@@ -97,7 +208,7 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
     # Preallocation
     na = natoms(sys.crystal)
     ncorr = length(correlations)
-    samplebuf = zeros(ComplexF64, nops, sys.latsize..., na, nω) 
+    samplebuf = zeros(ComplexF64, length(observables), sys.latsize..., na, nω) 
     copybuf = zeros(ComplexF64, sys.latsize..., nω) 
     data = zeros(ComplexF64, ncorr, na, na, sys.latsize..., nω)
 
@@ -112,8 +223,8 @@ function StructureFactor(sys::System{N}; Δt, nω, measperiod,
     origin_crystal = !isnothing(sys.origin) ? sys.origin.crystal : nothing
 
     # Make Structure factor and add an initial sample
-    sf = StructureFactor{N}(data, sys.crystal, origin_crystal, Δω, dipole_corrs,
-                            observables, idxinfo, samplebuf, fft!, copybuf, measperiod, apply_g, integrator,
+    sf = StructureFactor{N}(data, sys.crystal, origin_crystal, Δω,
+                            observables, observable_ixs, correlations, samplebuf, fft!, copybuf, measperiod, apply_g, integrator,
                             nsamples, processtraj!)
     add_sample!(sf, sys; processtraj!)
 
@@ -128,8 +239,8 @@ end
 Creates a `StructureFactor` for calculating and storing ``𝒮(𝐪,ω)`` data. This
 information will be obtained by running dynamical spin simulations on
 equilibrium snapshots, and measuring pair-correlations. The ``𝒮(𝐪,ω)`` data
-can be retrieved by calling [`intensities`](@ref). Alternatively,
-[`instant_intensities`](@ref) will integrate out ``ω`` to obtain ``𝒮(𝐪)``,
+can be retrieved by calling [`intensities_interpolated`](@ref). Alternatively,
+[`instant_intensities_interpolated`](@ref) will integrate out ``ω`` to obtain ``𝒮(𝐪)``,
 optionally applying classical-to-quantum correction factors.
         
 Prior to calling `DynamicStructureFactor`, ensure that `sys` represents a good
@@ -151,18 +262,17 @@ Additional keyword options are the following:
     `:symmetrize`. The latter will symmetrize the trajectory in time, which can
     be useful for removing Fourier artifacts that arise when calculating the
     correlations.
-- `observables`: Enables an advanced feature for SU(_N_) mode, allowing the user
-    to specify custom observables other than the three components of the dipole.
-    To use this features, `observables` must be given an `N×N×numops` array,
-    where the final index is used to retrieve each `N×N` operator.
+- `observables`: Allows the user to specify custom observables. The `observables`
+    must be given as a list of complex `N×N` matrices or `LinearMap`s. It's
+    recommended to name each observable, for example:
+    `observables = [:A => a_observable_matrix, :B => b_map, ...]`.
+    By default, Sunny uses the 3 components of the dipole, `:Sx`, `:Sy` and `:Sz`.
 - `correlations`: Specify which correlation functions are calculated, i.e. which
     matrix elements ``αβ`` of ``𝒮^{αβ}(q,ω)`` are calculated and stored.
     Specified with a vector of tuples. By default Sunny records all auto- and
-    cross-correlations generated by the x, y, and z dipolar components (1, 2,
-    and 3 respectively). To retain only the xx and xy correlations, one would
-    set `correlations=[(1,1), (1,2)]`. If custom observables (`observables`) are
-    given, the indices are ordered in the same manner as the final index of
-    `ops`.
+    cross-correlations generated by all `observables`.
+    To retain only the xx and xy correlations, one would set
+    `correlations=[(:Sx,:Sx), (:Sx,:Sy)]` or `correlations=[(1,1),(1,2)]`.
 """
 function DynamicStructureFactor(sys::System; Δt, nω, ωmax, kwargs...) 
     nω = Int64(nω)
@@ -181,7 +291,7 @@ Creates a `StructureFactor` object for calculating and storing instantaneous
 structure factor intensities ``𝒮(𝐪)``. This data will be calculated from the
 spin-spin correlations of equilibrium snapshots, absent any dynamical
 information. ``𝒮(𝐪)`` data can be retrieved by calling
-[`instant_intensities`](@ref).
+[`instant_intensities_interpolated`](@ref).
 
 _Important note_: When dealing with continuous (non-Ising) spins, consider
 creating a full [`DynamicStructureFactor`](@ref) object instead of an
@@ -189,7 +299,7 @@ creating a full [`DynamicStructureFactor`](@ref) object instead of an
 which ``𝒮(𝐪)`` can be obtained by integrating out ``ω``. During this
 integration step, Sunny can incorporate temperature- and ``ω``-dependent
 classical-to-quantum correction factors to produce more accurate ``𝒮(𝐪)``
-estimates. See [`instant_intensities`](@ref) for more information.
+estimates. See [`instant_intensities_interpolated`](@ref) for more information.
 
 Prior to calling `InstantStructureFactor`, ensure that `sys` represents a good
 equilibrium sample. Additional sample data may be accumulated by calling
@@ -202,18 +312,17 @@ The following optional keywords are available:
     `:symmetrize`. The latter will symmetrize the trajectory in time, which can
     be useful for removing Fourier artifacts that arise when calculating the
     correlations.
-- `observables`: Enables an advanced feature for SU(_N_) mode, allowing the user
-    to specify custom observables other than the three components of the dipole.
-    To use this features, `observables` must be given an `N×N×numops` array,
-    where the final index is used to retrieve each `N×N` operator.
+- `observables`: Allows the user to specify custom observables. The `observables`
+    must be given as a list of complex `N×N` matrices or `LinearMap`s. It's
+    recommended to name each observable, for example:
+    `observables = [:A => a_observable_matrix, :B => b_map, ...]`.
+    By default, Sunny uses the 3 components of the dipole, `:Sx`, `:Sy` and `:Sz`.
 - `correlations`: Specify which correlation functions are calculated, i.e. which
     matrix elements ``αβ`` of ``𝒮^{αβ}(q,ω)`` are calculated and stored.
     Specified with a vector of tuples. By default Sunny records all auto- and
-    cross-correlations generated by the x, y, and z dipolar components (1, 2,
-    and 3 respectively). To retain only the xx and xy correlations, one would
-    set `correlations=[(1,1), (1,2)]`. If custom observables (`observables`) are
-    given, the indices are ordered in the same manner as the final index of
-    `observables`.
+    cross-correlations generated by all `observables`.
+    To retain only the xx and xy correlations, one would set
+    `correlations=[(:Sx,:Sx), (:Sx,:Sy)]` or `correlations=[(1,1),(1,2)]`.
 """
 function InstantStructureFactor(sys::System; kwargs...)
     StructureFactor(sys; Δt=0.1, nω=1, measperiod=1, kwargs...)

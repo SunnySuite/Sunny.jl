@@ -28,7 +28,8 @@ end
 
     set_exchange!(sys, J,  Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(1, 1, [0, 0, 1]))
-    set_anisotropy!(sys, D * 𝒮[3]^2, 1)
+    S = spin_operators(sys, 1)
+    set_onsite_coupling!(sys, D * S[3]^2, 1)
 
     Δt  = abs(0.05 / D)
     λ = 0.1
@@ -96,8 +97,9 @@ end
     D = D_ST / cov_factor
 
     set_exchange!(sys, J₁, Bond(1, 2, [0, 0, 0]))
-    Λ = D * (𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
-    set_anisotropy!(sys, Λ, 1)
+    S = spin_operators(sys, 1)
+    Λ = D * (S[1]^4 + S[2]^4 + S[3]^4)
+    set_onsite_coupling!(sys, Λ, 1)
 
     polarize_spin!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
     polarize_spin!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
@@ -135,10 +137,8 @@ end
         α = -0.4 * π
         J = 1.0
         JL, JQ = J * cos(α), J * sin(α) / S^2
-        set_exchange!(sys_SUN, JL,  Bond(1, 1, [1, 0, 0]))
-        set_biquadratic!(sys_SUN, JQ,  Bond(1, 1, [1, 0, 0]))
-        set_exchange!(sys_dip, JL,  Bond(1, 1, [1, 0, 0]))
-        set_biquadratic!(sys_dip, JQ,  Bond(1, 1, [1, 0, 0]))
+        set_exchange!(sys_SUN, JL,  Bond(1, 1, [1, 0, 0]); biquad=JQ)
+        set_exchange!(sys_dip, JL,  Bond(1, 1, [1, 0, 0]); biquad=JQ)
 
         sys_swt_SUN = reshape_geometry(sys_SUN, [1 1 1; -1 1 0; 0 0 1])
         polarize_spin!(sys_swt_SUN, ( 1, 0, 0), position_to_site(sys_swt_SUN, (0, 0, 0)))
@@ -192,7 +192,10 @@ end
         sys_dip = System(cryst, dims, [SpinInfo(1; S=S, g=1)], :dipole; units=Units.theory)
 
         set_exchange!(sys_dip, J, Bond(1, 1, [1, 0, 0]))
-        set_anisotropy!(sys_dip, D*𝒮[3]^2, 1)
+
+        Sz = spin_operators(sys_dip,1)[3]
+        set_onsite_coupling!(sys_dip, D*Sz^2, 1)
+
         set_external_field!(sys_dip, [0, 0, h])
         sys_swt_dip = reshape_geometry(sys_dip, [1 -1 0; 1 1 0; 0 0 1])
         c₂ = 1 - 1/(2S)
@@ -228,16 +231,24 @@ end
     # Random magnetic moment
     𝐌 = normalize(rand(3))
     θ, ϕ = Sunny.dipole_to_angles(𝐌)
-    s_mat = Sunny.spin_matrices(2S+1)
-    s̃ᶻ = 𝐌[1] * 𝒮[1] + 𝐌[2] * 𝒮[2] + 𝐌[3] * 𝒮[3]
+
+    s_mat = Sunny.spin_matrices(N=2S+1)
+    
+    s̃ᶻ = 𝐌' * spin_operators(sys_dip,1)
+    
     U_mat = exp(-1im * ϕ * s_mat[3]) * exp(-1im * θ * s_mat[2])
     hws = zeros(2S+1)
     hws[1] = 1.0
     Z = U_mat * hws
 
     aniso = Ds[1]*s̃ᶻ^2 + Ds[2]*s̃ᶻ^4 + Ds[3]*s̃ᶻ^6
-    set_anisotropy!(sys_dip, aniso, 1)
-    set_anisotropy!(sys_SUN, aniso, 1)
+
+    set_onsite_coupling!(sys_dip, aniso, 1)
+    
+    s̃ᶻ = 𝐌' * spin_operators(sys_SUN,1)
+    aniso = Ds[1]*s̃ᶻ^2 + Ds[2]*s̃ᶻ^4 + Ds[3]*s̃ᶻ^6
+    set_onsite_coupling!(sys_SUN, aniso, 1)
+
     set_external_field!(sys_dip, h*𝐌)
     set_external_field!(sys_SUN, h*𝐌)
 

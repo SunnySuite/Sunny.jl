@@ -1,17 +1,14 @@
 function empty_interactions(na, N)
     return map(1:na) do _
-        Interactions(empty_anisotropy(N),
-                     Coupling{Float64}[],
-                     Coupling{Mat3}[],
-                     Coupling{Float64}[])
+        Interactions(empty_anisotropy(N), PairCoupling[])
     end
 end
 
 # Creates a clone of the lists of exchange interactions, which can be mutably
 # updated.
 function clone_interactions(ints::Interactions)
-    (; aniso, heisen, exchange, biquad) = ints
-    return Interactions(aniso, copy(heisen), copy(exchange), copy(biquad))
+    (; onsite, pair) = ints
+    return Interactions(onsite, copy(pair))
 end
 
 function interactions_homog(sys::System{N}) where N
@@ -30,8 +27,8 @@ end
     to_inhomogeneous(sys::System)
 
 Returns a copy of the system that allows for inhomogeneous interactions, which
-can be set using [`set_anisotropy_at!`](@ref), [`set_exchange_at!`](@ref),
-[`set_biquadratic_at!`](@ref), and [`set_vacancy_at!`](@ref).
+can be set using [`set_onsite_coupling_at!`](@ref), [`set_exchange_at!`](@ref),
+and [`set_vacancy_at!`](@ref).
 
 Inhomogeneous systems do not support symmetry-propagation of interactions or
 system reshaping.
@@ -116,9 +113,9 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     (; latsize, extfield, dipoles, coherents, ewald) = sys
 
     if is_homogeneous(sys)
-        (; aniso, heisen, exchange, biquad) = interactions_homog(sys)[to_atom(site)]
+        (; onsite, pair) = interactions_homog(sys)[to_atom(site)]
     else
-        (; aniso, heisen, exchange, biquad) = interactions_inhomog(sys)[site]
+        (; onsite, pair) = interactions_inhomog(sys)[site]
     end
 
     s₀ = dipoles[site]
@@ -126,48 +123,44 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     Δs = s - s₀
     ΔE = 0.0
 
-    cell = to_cell(site)
-
     # Zeeman coupling to external field
-    ΔE -= sys.units.μB * extfield[site] ⋅ (sys.gs[site] * Δs)
+    ΔE -= sys.units.μB * dot(extfield[site], sys.gs[site], Δs)
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
-        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, aniso.stvexp)
-        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, aniso.stvexp)
+        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, onsite.stvexp)
+        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, onsite.stvexp)
         ΔE += E_new - E_old
     else
-        Λ = aniso.matrep
+        Λ = onsite.matrep
         ΔE += real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
     end
 
-    # Heisenberg exchange
-    for (; bond, J) in heisen
-        sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
-        ΔE += J * (Δs ⋅ sⱼ)    
-    end
-
     # Quadratic exchange matrix
-    for (; bond, J) in exchange
-        sⱼ = dipoles[offsetc(cell, bond.n, latsize), bond.j]
-        ΔE += dot(Δs, J, sⱼ)
-    end
-
-    # Scalar biquadratic exchange
-    for (; bond, J) in biquad
-        cellⱼ = offsetc(cell, bond.n, latsize)
+    for coupling in pair
+        (; bond) = coupling
+        cellⱼ = offsetc(to_cell(site), bond.n, latsize)
         sⱼ = dipoles[cellⱼ, bond.j]
-        if sys.mode == :dipole
-            # Renormalization introduces a factor r and a Heisenberg term
-            Sᵢ = (sys.Ns[site]-1)/2
-            Sⱼ = (sys.Ns[cellⱼ, bond.j]-1)/2
-            S = √(Sᵢ*Sⱼ)
-            r = (1 - 1/S + 1/4S^2)
-            ΔE += J * (r*((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2) - (Δs⋅sⱼ)/2)
-        elseif sys.mode == :large_S
-            ΔE += J * ((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2)
-        elseif sys.mode == :SUN
-            error("Biquadratic currently unsupported in SU(N) mode.") 
+
+        # Bilinear
+        J = coupling.bilin
+        ΔE += dot(Δs, J, sⱼ)
+
+        # Biquadratic
+        if !iszero(coupling.biquad)
+            J = coupling.biquad
+            if sys.mode == :dipole
+                # Renormalization defined in https://arxiv.org/abs/2304.03874.
+                Sᵢ = (sys.Ns[site]-1)/2
+                Sⱼ = (sys.Ns[cellⱼ, bond.j]-1)/2
+                S = √(Sᵢ*Sⱼ)
+                r = (1 - 1/S + 1/4S^2)
+                ΔE += J * (r*((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2) - (Δs⋅sⱼ)/2)
+            elseif sys.mode == :large_S
+                ΔE += J * ((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2)
+            elseif sys.mode == :SUN
+                error("Biquadratic currently unsupported in SU(N) mode.") 
+            end
         end
     end
 
@@ -227,45 +220,39 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbo
     if N == 0       # Dipole mode
         for cell in cells
             s = dipoles[cell, i]
-            E += energy_and_gradient_for_classical_anisotropy(s, ints.aniso.stvexp)[1]
+            E += energy_and_gradient_for_classical_anisotropy(s, ints.onsite.stvexp)[1]
         end
     else            # SU(N) mode
         for cell in cells
-            Λ = ints.aniso.matrep
+            Λ = ints.onsite.matrep
             Z = coherents[cell, i]
             E += real(dot(Z, Λ, Z))
         end
     end
 
-    # Heisenberg exchange
-    foreachbond(ints.heisen) do J, site1, site2
+    foreachbond(ints.pair) do coupling, site1, site2
         sᵢ = dipoles[site1]
         sⱼ = dipoles[site2]
-        E += J * dot(sᵢ, sⱼ)
-    end
 
-    # Quadratic exchange matrix
-    foreachbond(ints.exchange) do J, site1, site2
-        sᵢ = dipoles[site1]
-        sⱼ = dipoles[site2]
+        # Bilinear
+        J = coupling.bilin
         E += dot(sᵢ, J, sⱼ)
-    end
 
-    # Scalar biquadratic exchange
-    foreachbond(ints.biquad) do J, site1, site2
-        sᵢ = dipoles[site1]
-        sⱼ = dipoles[site2]
-        if sys.mode == :dipole
-            # Renormalization introduces a factor r and a Heisenberg term
-            Sᵢ = (sys.Ns[site1]-1)/2
-            Sⱼ = (sys.Ns[site2]-1)/2
-            S = √(Sᵢ*Sⱼ)
-            r = (1 - 1/S + 1/4S^2)
-            E += J * (r*(sᵢ⋅sⱼ)^2 - (sᵢ⋅sⱼ)/2 + S^3 + S^2/4)
-        elseif sys.mode == :large_S
-            E += J * (sᵢ⋅sⱼ)^2
-        elseif sys.mode == :SUN
-            error("Biquadratic currently unsupported in SU(N) mode.")
+        # Biquadratic
+        if !iszero(coupling.biquad)
+            J = coupling.biquad
+            if sys.mode == :dipole
+                # Renormalization defined in https://arxiv.org/abs/2304.03874.
+                Sᵢ = (sys.Ns[site1]-1)/2
+                Sⱼ = (sys.Ns[site2]-1)/2
+                S = √(Sᵢ*Sⱼ)
+                r = (1 - 1/S + 1/4S^2)
+                E += J * (r*(sᵢ⋅sⱼ)^2 - (sᵢ⋅sⱼ)/2 + S^3 + S^2/4)
+            elseif sys.mode == :large_S
+                E += J * (sᵢ⋅sⱼ)^2
+            elseif sys.mode == :SUN
+                error("Biquadratic currently unsupported in SU(N) mode.")
+            end
         end
     end
 
@@ -312,58 +299,51 @@ function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::Sy
     if N == 0
         for cell in cells
             s = dipoles[cell, i]
-            B[cell, i] -= energy_and_gradient_for_classical_anisotropy(s, ints.aniso.stvexp)[2]
+            B[cell, i] -= energy_and_gradient_for_classical_anisotropy(s, ints.onsite.stvexp)[2]
         end
     end
 
-    # Heisenberg exchange
-    foreachbond(ints.heisen) do J, site1, site2
+    foreachbond(ints.pair) do coupling, site1, site2
         sᵢ = dipoles[site1]
         sⱼ = dipoles[site2]
+
+        # Bilinear
+        J = coupling.bilin
         B[site1] -= J  * sⱼ
         B[site2] -= J' * sᵢ
-    end
 
-    # Quadratic exchange matrix
-    foreachbond(ints.exchange) do J, site1, site2
-        sᵢ = dipoles[site1]
-        sⱼ = dipoles[site2]
-        B[site1] -= J  * sⱼ
-        B[site2] -= J' * sᵢ
-    end
-
-    # Scalar biquadratic exchange
-    foreachbond(ints.biquad) do J, site1, site2
-        sᵢ = dipoles[site1]
-        sⱼ = dipoles[site2]
-
-        if sys.mode == :dipole
-            Sᵢ = (sys.Ns[site1]-1)/2
-            Sⱼ = (sys.Ns[site2]-1)/2
-            S = √(Sᵢ*Sⱼ)
-            # Renormalization introduces a factor r and a Heisenberg term
-            r = (1 - 1/S + 1/4S^2)
-            B[site1] -= J * (2r*sⱼ*(sᵢ⋅sⱼ) - sⱼ/2)
-            B[site2] -= J * (2r*sᵢ*(sᵢ⋅sⱼ) - sᵢ/2)
-        elseif sys.mode == :large_S
-            B[site1] -= J * 2sⱼ*(sᵢ⋅sⱼ)
-            B[site2] -= J * 2sᵢ*(sᵢ⋅sⱼ)
-        elseif sys.mode == :SUN
-            error("Biquadratic currently unsupported in SU(N) mode.")
+        # Biquadratic
+        if !iszero(coupling.biquad)
+            J = coupling.biquad
+            if sys.mode == :dipole
+                # Renormalization defined in https://arxiv.org/abs/2304.03874.
+                Sᵢ = (sys.Ns[site1]-1)/2
+                Sⱼ = (sys.Ns[site2]-1)/2
+                S = √(Sᵢ*Sⱼ)
+                r = (1 - 1/S + 1/4S^2)
+                B[site1] -= J * (2r*sⱼ*(sᵢ⋅sⱼ) - sⱼ/2)
+                B[site2] -= J * (2r*sᵢ*(sᵢ⋅sⱼ) - sᵢ/2)
+            elseif sys.mode == :large_S
+                B[site1] -= J * 2sⱼ*(sᵢ⋅sⱼ)
+                B[site2] -= J * 2sᵢ*(sᵢ⋅sⱼ)
+            elseif sys.mode == :SUN
+                error("Biquadratic currently unsupported in SU(N) mode.")
+            end
         end
     end
 end
 
+
 # Produces a function that iterates over a list interactions for a given cell
 function inhomog_bond_iterator(latsize, cell)
-    return function foreachbond(f, ints)
-        for (; isculled, bond, J) in ints
+    return function foreachbond(f, pcs)
+        for pc in pcs
             # Early return to avoid double-counting a bond
-            isculled && break
+            pc.isculled && break
 
             # Neighboring cell may wrap the system
-            cell′ = offsetc(cell, bond.n, latsize)
-            f(J, CartesianIndex(cell, bond.i), CartesianIndex(cell′, bond.j))
+            cell′ = offsetc(cell, pc.bond.n, latsize)
+            f(pc, CartesianIndex(cell, pc.bond.i), CartesianIndex(cell′, pc.bond.j))
         end
     end
 end
@@ -371,14 +351,14 @@ end
 # Produces a function that iterates over a list of interactions, involving all
 # pairs of cells in a homogeneous system
 function homog_bond_iterator(latsize)
-    return function foreachbond(f, ints)
-        for (; isculled, bond, J) in ints
+    return function foreachbond(f, pcs)
+        for pc in pcs
             # Early return to avoid double-counting a bond
-            isculled && break
+            pc.isculled && break
 
             # Iterate over all cells and periodically shifted neighbors
-            for (ci, cj) in zip(CartesianIndices(latsize), CartesianIndicesShifted(latsize, Tuple(bond.n)))
-                f(J, CartesianIndex(ci, bond.i), CartesianIndex(cj, bond.j))
+            for (ci, cj) in zip(CartesianIndices(latsize), CartesianIndicesShifted(latsize, Tuple(pc.bond.n)))
+                f(pc, CartesianIndex(ci, pc.bond.i), CartesianIndex(cj, pc.bond.j))
             end
         end
     end

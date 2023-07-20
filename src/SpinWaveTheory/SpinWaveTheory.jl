@@ -39,6 +39,13 @@ function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
     println(io, "Atoms in magnetic supercell $(length(swt.positions_chem))")
 end
 
+function num_bands(swt::SpinWaveTheory)
+    (; sys) = swt
+    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
+    Nf = sys.mode == :SUN ? Ns-1 : 1
+    nbands = Nf * Nm
+end
+
 
 """
     dipole_to_angles
@@ -66,7 +73,7 @@ function generate_local_sun_gens(sys :: System)
     Nₘ, N = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert 
     S = (N-1)/2
 
-    s_mat_N = spin_matrices(N)
+    s_mat_N = spin_matrices(; N)
 
     # we support the biquad interactions now in the :dipole mode
     # we choose a particular basis of the nematic operators listed in Appendix B of *Phys. Rev. B 104, 104409*
@@ -107,7 +114,7 @@ function generate_local_stevens_coefs(sys :: System)
     c′_coef = Vector{StevensExpansion}()
     R_mat   = Vector{Mat3}()
     Nₘ, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert 
-    s_mat_N = spin_matrices(Ns)
+    s_mat_N = spin_matrices(N=Ns)
     Nₘ = length(sys.dipoles)
     s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
     Nₘ = length(sys.dipoles)
@@ -121,7 +128,9 @@ function generate_local_stevens_coefs(sys :: System)
         R[:] = [-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
                     cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
                     0.0     sin(θ)        cos(θ)]
-        (; c2, c4, c6) = sys.interactions_union[atom].aniso.stvexp
+
+        (; c2, c4, c6) = sys.interactions_union[atom].onsite.stvexp
+
         SR  = Mat3(R)
         # In Cristian's note, S̃ = R S, so here we should pass SR'
         push!(R_mat, SR')
