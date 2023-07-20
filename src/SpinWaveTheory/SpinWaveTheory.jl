@@ -99,7 +99,7 @@ function generate_local_sun_gens(sys :: System)
         for ν = 1:5
             Q̃_mat[:, :, ν, atom] = Hermitian(U_mat' * Q_mat_N[ν] * U_mat)
         end
-        T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].aniso.matrep * U_mat)
+        T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].onsite.matrep * U_mat)
     end
 
     return s̃_mat, T̃_mat, Q̃_mat
