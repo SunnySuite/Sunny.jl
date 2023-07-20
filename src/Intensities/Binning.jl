@@ -214,7 +214,7 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...;units = :abso
     for i = 1:4
         if numbins[i] == 1
             params.binstart[i] = min_val[i]
-            params.binend[i] = min_val[i] + eps(min_val[i])
+            params.binend[i] = min_val[i] + 1.
             params.binwidth[i] = 1.
         end
     end
