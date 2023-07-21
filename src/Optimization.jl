@@ -114,7 +114,7 @@ end
 function optim_energy_stereo(stereo_coords, sys::System{0})
     stereo_coords = reinterpret(reshape, StereographicPoint{3}, stereo_coords)
     for site in all_sites(sys)
-        polarize_spin!(sys, stereo_to_vec(stereo_coords[site]), site)
+        set_coherent_state!(sys, stereo_to_vec(stereo_coords[site]), site)
     end
     return energy(sys)
 end
@@ -125,9 +125,9 @@ function optim_gradient_stereo!(buf, stereo_coords, sys::System{0})
 
     # Calculate gradient of energy in original coordinates
     for site in all_sites(sys)
-        polarize_spin!(sys, stereo_to_vec(stereo_coords[site]), site)
+        set_coherent_state!(sys, stereo_to_vec(stereo_coords[site]), site)
     end
-    Sunny.set_forces!(Hgrad, sys.dipoles, sys)
+    Sunny.set_forces!(Hgrad, sys.coherents, sys)
 
     # Calculate gradient, using Jacobian for stereographic coordinates 
     jac = zeros(3,3)  # Maybe write function to apply matrix multiply and avoid allocation
@@ -174,8 +174,35 @@ function minimize_energy_stereo!(sys; method=Optim.LBFGS, maxiters = 100, kwargs
 end
 
 ################################################################################
+# Equivalent of set forces for SU(N) systems
+################################################################################
+
+# Calculates ℌz 
+function set_complex_forces!(HZ, Z, sys::System{N}) where N
+    B = only(get_dipole_buffers(sys, 1) )
+
+    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
+    set_forces!(B, sys.dipoles, sys)
+
+    if is_homogeneous(sys)
+        ints = interactions_homog(sys)
+        for site in all_sites(sys)
+            Λ = ints[to_atom(site)].aniso.matrep
+            HZ[site] = mul_spin_matrices(Λ, -B[site], -Z[site])  # Z negative to match sign convention of set_forces!
+        end 
+    else
+        ints = interactions_inhomog(sys)
+        for site in all_sites(sys)
+            Λ = ints[site].aniso.matrep
+            HZ[site] = mul_spin_matrices(Λ, -B[site], -Z[site])  # Z negative to match sign convention of set_forces!
+        end 
+    end
+end
+
+################################################################################
 # Coordinates for ℂP^{N-1} 
 ################################################################################
+
 struct CPAffineCoordinate{N}
     data :: NTuple{N, ComplexF64}
 end
@@ -190,7 +217,6 @@ function Base.show(io::IO, ::MIME"text/plain", cp::CPAffineCoordinate{N}) where 
     println(io, "$( "(" * prod( [string(round(x; sigdigits=3))*", " for x in cp.data[1:end-2]]) * "$(string(round(cp.data[end-2]; sigdigits=3))))" ) in ⟂$(Int(cp.data[end]))-plane")
 end
 
-@inline remaining_indices(skip, max) = ntuple(i -> i > (skip-1) ? i + 1 : i, max-1)
 @inline chart(cp::CPAffineCoordinate) = Int64(cp.data[end])
 
 function vec_to_affine(vec::SVector{N, ComplexF64}) where N  # N parameter unnecessary here, but generalizes to ℝP^{N-1}
@@ -244,7 +270,7 @@ function optim_energy_affine(affine_coords, sys::System{N}) where N
     return energy(sys)
 end
 
-function optim_gradient_affine!(buf, affine_coords, sys::System{N}) 
+function optim_gradient_affine!(buf, affine_coords, sys::System{N}) where N
     affine_coords = reinterpret(reshape, CPAffineCoordinate{N}, affine_coords)
     Hgrad = reinterpret(reshape, SVector{N, ComplexF64}, buf)
 
@@ -252,47 +278,50 @@ function optim_gradient_affine!(buf, affine_coords, sys::System{N})
     for site in all_sites(sys)
         set_coherent_state!(sys, affine_to_vec(affine_coords[site]), site)
     end
-    Sunny.set_forces!(Hgrad, sys.dipoles, sys)
+    Sunny.set_complex_forces!(Hgrad, sys.coherents, sys)
 
     # Calculate gradient, using Jacobian for affinegraphic coordinates 
-    jac = zeros(N,N)  # Maybe write function to apply matrix multiply and avoid allocation
+    jac = zeros(ComplexF64, N, N)  # Maybe write function to apply matrix multiply and avoid allocation
     for site in all_sites(sys)
         affine_jac!(jac, affine_coords[site])
         Hgrad[site] = -jac * Hgrad[site]  # Note Optim expects ∇, `set_forces!` gives -∇
     end
 end
 
-function minimize_energy_affine!(sys::System{N}; method=Optim.LBFGS, maxiters = 100, kwargs...)
+function minimize_energy_affine!(sys::System{N}; method=Optim.LBFGS, maxiters = 100, kwargs...) where N
     f(affine_spins) = optim_energy_affine(affine_spins, sys)
     g!(G, affine_spins) = optim_gradient_affine!(G, affine_spins, sys)
     # fg!(energy_spins, G, x) = affine_energy_grad!(affine_spins, G, sys)
 
-    options = Optim.Options(iterations=10, kwargs...)
 
     # Quick test if any coordinates every go to infinity 
-    niters = 0
-    success = false
-    while niters < maxiters
-        niters += 1
-        affine_spins = map(vec -> vec_to_affine(vec), sys.dipoles) 
-        affine_spins = Array(reinterpret(reshape, Float64, affine_spins))
-        # affine_spins = map!(vec -> vec_to_affine(vec), affine_spins, sys.dipoles) 
-        optout = Optim.optimize(f, g!, affine_spins, method(), options)
-        if optout.g_converged
-            println("We got there.")
-            return true
-        end
-        # println("Maximum: ", maximum(affine_spins))
-        # println(affine_spins)
-        if maximum(affine_spins) > 5.0
-            println("Remapping coords...")
-            affine_spins = reinterpret(reshape, affinegraphicPoint{3}, affine_spins)
-            @. affine_spins = remap_affine(affine_spins)
-        end
-        println("Trying again...")
-    end
+    # niters = 0
+    # success = false
+    # while niters < maxiters
+    #     niters += 1
+    #     affine_spins = map(vec -> vec_to_affine(vec), sys.dipoles) 
+    #     affine_spins = Array(reinterpret(reshape, Float64, affine_spins))
+    #     # affine_spins = map!(vec -> vec_to_affine(vec), affine_spins, sys.dipoles) 
+    #     optout = Optim.optimize(f, g!, affine_spins, method(), options)
+    #     if optout.g_converged
+    #         println("We got there.")
+    #         return true
+    #     end
+    #     # println("Maximum: ", maximum(affine_spins))
+    #     # println(affine_spins)
+    #     if maximum(affine_spins) > 5.0
+    #         println("Remapping coords...")
+    #         affine_spins = reinterpret(reshape, affinegraphicPoint{3}, affine_spins)
+    #         @. affine_spins = remap_affine(affine_spins)
+    #     end
+    #     println("Trying again...")
+    # end
+    # return success
 
-    return success
+    affine_spins = map(vec -> vec_to_affine(vec), sys.coherents) 
+    affine_spins = Array(reinterpret(reshape, ComplexF64, affine_spins))
+    options = Optim.Options(iterations=1000, kwargs...)
+    Optim.optimize(f, g!, affine_spins, method(), options)
 end
 
 
@@ -354,5 +383,3 @@ function there_and_back2(u::SVector{N, ComplexF64}) where N
     display(spin_expectations(u1))
     u1 * exp(-im*angle(u1[1]))
 end
-
-
