@@ -113,11 +113,7 @@ Compute the stevens coefficients in the local reference frame (for :dipole mode)
 function generate_local_stevens_coefs(sys :: System)
     c′_coef = Vector{StevensExpansion}()
     R_mat   = Vector{Mat3}()
-    Nₘ, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert 
-    s_mat_N = spin_matrices(N=Ns)
-    Nₘ = length(sys.dipoles)
-    s̃_mat = Array{ComplexF64, 4}(undef, 2, 2, 3, Nₘ)
-    Nₘ = length(sys.dipoles)
+    Nₘ = length(sys.dipoles) # number of magnetic atoms and dimension of Hilbert 
     R  = zeros(Float64, 3, 3)
     for atom = 1:Nₘ
         θ, ϕ = dipole_to_angles(sys.dipoles[1, 1, 1, atom])
@@ -126,24 +122,20 @@ function generate_local_stevens_coefs(sys :: System)
         # therefore we use the explicit matrix to get rid of any ambiguity
         # Note that R * (0, 0, 1) = normalize(sys.dipoles[1,1,1,atom]))
         R[:] = [-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
-                    cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
-                    0.0     sin(θ)        cos(θ)]
+                 cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
+                 0.0     sin(θ)        cos(θ)]
 
         (; c2, c4, c6) = sys.interactions_union[atom].onsite.stvexp
 
         SR  = Mat3(R)
-        # In Cristian's note, S̃ = R S, so here we should pass SR'
-        push!(R_mat, SR')
-        for μ = 1:3
-            s̃_mat[:, :, μ, atom] = Hermitian(rotate_operator(s_mat_N[μ], SR))[1:2, 1:2]
-        end
+        push!(R_mat, SR)
         c2′ = rotate_stevens_coefficients(c2, SR)
         c4′ = rotate_stevens_coefficients(c4, SR)
         c6′ = rotate_stevens_coefficients(c6, SR)
         c′  = StevensExpansion(c2′, c4′, c6′)
         push!(c′_coef, c′)
     end
-    return s̃_mat, R_mat, c′_coef
+    return R_mat, c′_coef
 end
 
 
@@ -159,7 +151,8 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Flo
         c′_coef = Vector{StevensExpansion}()
         R_mat   = Vector{Mat3}()
     elseif sys.mode == :dipole
-        s̃_mat, R_mat, c′_coef = generate_local_stevens_coefs(sys)
+        R_mat, c′_coef = generate_local_stevens_coefs(sys)
+        s̃_mat = zeros(ComplexF64, 0, 0, 0, 0)
         T̃_mat = zeros(ComplexF64, 0, 0, 0)
         Q̃_mat = zeros(ComplexF64, 0, 0, 0, 0)
     end
