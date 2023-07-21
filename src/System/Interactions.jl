@@ -260,7 +260,7 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbo
 end
 
 # Updates B in-place to hold negative energy gradient, -dE/ds, for each spin.
-function set_forces!(B, dipoles::Array{Vec3, 4}, sys::System{N}) where N
+function set_forces_dipoles!(B, dipoles::Array{Vec3, 4}, sys::System{N}) where N
     (; crystal, latsize, extfield, ewald) = sys
 
     fill!(B, zero(Vec3))
@@ -335,7 +335,7 @@ end
 
 # Updates `HZ` in-place to hold `dH/dZ^*`, the analog in the Schroedinger formulation
 # of the classical quantity `dE/ds` (note sign).
-function set_complex_forces!(HZ, B, Z, sys::System{N}) where N
+function set_forces_coherents!(HZ, B, Z, sys::System{N}) where N
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
         for site in all_sites(sys)
@@ -408,6 +408,6 @@ Returns the effective local field (force) at each site, ``𝐁 = -∂E/∂𝐬``
 """
 function forces(sys::System{N}) where N
     B = zero(sys.dipoles)
-    set_forces!(B, sys.dipoles, sys)
+    set_forces_dipoles!(B, sys.dipoles, sys)
     return B
 end

@@ -71,13 +71,13 @@ function step!(sys::System{0}, integrator::Langevin)
     ξ .*= √(2λ*kT)
 
     # Euler step
-    set_forces!(B, s, sys)
+    set_forces_dipoles!(B, s, sys)
     @. f₁ = rhs_dipole(s, B, λ)
     @. r₁ = rhs_dipole(s, ξ)   # note absence of λ argument -- noise only appears once in rhs.
     @. s₁ = s + Δt * f₁ + √Δt * r₁
 
     # Corrector step
-    set_forces!(B, s₁, sys)
+    set_forces_dipoles!(B, s₁, sys)
     @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, B, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
     @. s = normalize_dipole(s, sys.κs)
     nothing
@@ -103,7 +103,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         # Integration step for current best guess of midpoint s̄. Produces
         # improved midpoint estimator s̄′.
         @. ŝ = normalize_dipole(s̄, sys.κs)
-        set_forces!(B, ŝ, sys)
+        set_forces_dipoles!(B, ŝ, sys)
         @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, B)
 
         # If converged, then we can return
@@ -150,15 +150,15 @@ function step!(sys::System{N}, integrator::Langevin) where N
 
     # Prediction
     @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
-    set_forces!(B, sys.dipoles, sys)
-    set_complex_forces!(HZ, B, Z, sys)
+    set_forces_dipoles!(B, sys.dipoles, sys)
+    set_forces_coherents!(HZ, B, Z, sys)
     rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction
     @. sys.dipoles = expected_spin(Z′) # temporarily desyncs dipoles and coherents
-    set_forces!(B, sys.dipoles, sys)
-    set_complex_forces!(HZ, B, Z′, sys)
+    set_forces_dipoles!(B, sys.dipoles, sys)
+    set_forces_coherents!(HZ, B, Z′, sys)
     rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
@@ -196,8 +196,8 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
         @. Z̄ = (Z + Z′)/2
 
         @. sys.dipoles = expected_spin(Z̄) # temporarily desyncs dipoles and coherents
-        set_forces!(B, sys.dipoles, sys)
-        set_complex_forces!(HZ, B, Z̄, sys)
+        set_forces_dipoles!(B, sys.dipoles, sys)
+        set_forces_coherents!(HZ, B, Z̄, sys)
         rhs_ll!(ΔZ, HZ, integrator, sys)
 
         @. Z″ = Z + ΔZ
