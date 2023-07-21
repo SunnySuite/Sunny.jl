@@ -334,12 +334,8 @@ function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::Sy
 end
 
 # Updates `HZ` in-place to hold `dH/dZ^*`, the analog in the Schroedinger formulation
-# of the classical quantity `-dE/ds`.
+# of the classical quantity `dE/ds` (note sign).
 function set_complex_forces!(HZ, B, Z, sys::System{N}) where N
-
-    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
-    set_forces!(B, sys.dipoles, sys)
-
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
         for site in all_sites(sys)
@@ -354,6 +350,26 @@ function set_complex_forces!(HZ, B, Z, sys::System{N}) where N
         end 
     end
 end
+
+# Returns (Λ + B⋅S) Z
+@generated function mul_spin_matrices(Λ, B::Sunny.Vec3, Z::Sunny.CVec{N}) where N
+    S = spin_matrices(; N)
+    out = map(1:N) do i
+        out_i = map(1:N) do j
+            terms = Any[:(Λ[$i,$j])]
+            for α = 1:3
+                S_αij = S[α][i,j]
+                if !iszero(S_αij)
+                    push!(terms, :(B[$α] * $S_αij))
+                end
+            end
+            :(+($(terms...)) * Z[$j])
+        end
+        :(+($(out_i...)))
+    end
+    return :(CVec{$N}($(out...)))
+end
+
 
 # Produces a function that iterates over a list interactions for a given cell
 function inhomog_bond_iterator(latsize, cell)

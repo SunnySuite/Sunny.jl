@@ -137,30 +137,33 @@ end
 ################################################################################
 # SU(N) integration
 ################################################################################
-
-
 @inline function proj(a::T, Z::T)  where T <: CVec
     (a - ((Z' * a) * Z))  
 end
 
+function step!(sys::System{N}, integrator::Langevin) where N
+    (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
+    B = get_dipole_buffers(sys, 1) |> only
+    Z = sys.coherents
 
-# Returns (Λ + B⋅S) Z
-@generated function mul_spin_matrices(Λ, B::Sunny.Vec3, Z::Sunny.CVec{N}) where N
-    S = spin_matrices(; N)
-    out = map(1:N) do i
-        out_i = map(1:N) do j
-            terms = Any[:(Λ[$i,$j])]
-            for α = 1:3
-                S_αij = S[α][i,j]
-                if !iszero(S_αij)
-                    push!(terms, :(B[$α] * $S_αij))
-                end
-            end
-            :(+($(terms...)) * Z[$j])
-        end
-        :(+($(out_i...)))
-    end
-    return :(CVec{$N}($(out...)))
+    randn!(sys.rng, ξ)
+
+    # Prediction
+    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
+    set_forces!(B, sys.dipoles, sys)
+    set_complex_forces!(HZ, B, Z, sys)
+    rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
+    @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
+
+    # Correction
+    @. sys.dipoles = expected_spin(Z′) # temporarily desyncs dipoles and coherents
+    set_forces!(B, sys.dipoles, sys)
+    set_complex_forces!(HZ, B, Z′, sys)
+    rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
+    @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
+
+    # Coordinate dipole data
+    @. sys.dipoles = expected_spin(Z)
 end
 
 function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
@@ -173,34 +176,6 @@ function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{C
 end
 
 
-function step!(sys::System{N}, integrator::Langevin) where N
-    (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
-    B = get_dipole_buffers(sys, 1) |> only
-    Z = sys.coherents
-
-    randn!(sys.rng, ξ)
-
-    # Prediction
-    set_complex_forces!(HZ, B, Z, sys)
-    rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
-    @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
-
-    # Correction
-    set_complex_forces!(HZ, B, Z′, sys)
-    rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
-    @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
-
-    # Coordinate dipole data
-    @. sys.dipoles = expected_spin(Z)
-end
-
-
-function rhs_ll!(ΔZ, HZ, integrator, sys)
-    (; Δt) = integrator
-    for site in all_sites(sys)
-        ΔZ[site] = - Δt*im*HZ[site]
-    end
-end
 
 # Implicit Midpoint Method applied to the nonlinear Schrödinger dynamics, as
 # proposed in Phys. Rev. B 106, 054423 (2022). Integrates dZ/dt = - i ℌ(Z) Z one
@@ -220,6 +195,8 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     for _ in 1:max_iters
         @. Z̄ = (Z + Z′)/2
 
+        @. sys.dipoles = expected_spin(Z̄) # temporarily desyncs dipoles and coherents
+        set_forces!(B, sys.dipoles, sys)
         set_complex_forces!(HZ, B, Z̄, sys)
         rhs_ll!(ΔZ, HZ, integrator, sys)
 
@@ -235,4 +212,11 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     end
 
     error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
+end
+
+function rhs_ll!(ΔZ, HZ, integrator, sys)
+    (; Δt) = integrator
+    for site in all_sites(sys)
+        ΔZ[site] = - Δt*im*HZ[site]
+    end
 end
