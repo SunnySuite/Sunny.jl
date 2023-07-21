@@ -63,7 +63,7 @@ such as [`LocalSampler`](@ref).
 function step! end
 
 function step!(sys::System{0}, integrator::Langevin)
-    (B, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
+    (∇E, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
     (; kT, λ, Δt) = integrator
     s = sys.dipoles
 
@@ -71,14 +71,14 @@ function step!(sys::System{0}, integrator::Langevin)
     ξ .*= √(2λ*kT)
 
     # Euler step
-    set_forces!(B, s, sys)
-    @. f₁ = rhs_dipole(s, B, λ)
+    set_energy_grad_dipoles!(∇E, s, sys)
+    @. f₁ = rhs_dipole(s, -∇E, λ)
     @. r₁ = rhs_dipole(s, ξ)   # note absence of λ argument -- noise only appears once in rhs.
     @. s₁ = s + Δt * f₁ + √Δt * r₁
 
     # Corrector step
-    set_forces!(B, s₁, sys)
-    @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, B, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
+    set_energy_grad_dipoles!(∇E, s₁, sys)
+    @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, -∇E, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
     @. s = normalize_dipole(s, sys.κs)
     nothing
 end
@@ -93,7 +93,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
     s = sys.dipoles
     (; Δt, atol) = integrator
 
-    (B, s̄, ŝ, s̄′) = get_dipole_buffers(sys, 4)
+    (∇E, s̄, ŝ, s̄′) = get_dipole_buffers(sys, 4)
     
     # Initial guess for midpoint
     @. s̄ = s
@@ -103,8 +103,8 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         # Integration step for current best guess of midpoint s̄. Produces
         # improved midpoint estimator s̄′.
         @. ŝ = normalize_dipole(s̄, sys.κs)
-        set_forces!(B, ŝ, sys)
-        @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, B)
+        set_energy_grad_dipoles!(∇E, ŝ, sys)
+        @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, -∇E)
 
         # If converged, then we can return
         if fast_isapprox(s̄, s̄′,atol=atol* √length(s̄))
@@ -137,103 +137,45 @@ end
 ################################################################################
 # SU(N) integration
 ################################################################################
-
-
 @inline function proj(a::T, Z::T)  where T <: CVec
     (a - ((Z' * a) * Z))  
 end
 
-
-# Returns (Λ + B⋅S) Z
-@generated function mul_spin_matrices(Λ, B::Sunny.Vec3, Z::Sunny.CVec{N}) where N
-    S = spin_matrices(; N)
-    out = map(1:N) do i
-        out_i = map(1:N) do j
-            terms = Any[:(Λ[$i,$j])]
-            for α = 1:3
-                S_αij = S[α][i,j]
-                if !iszero(S_αij)
-                    push!(terms, :(B[$α] * $S_αij))
-                end
-            end
-            :(+($(terms...)) * Z[$j])
-        end
-        :(+($(out_i...)))
-    end
-    return :(CVec{$N}($(out...)))
-end
-
-
-function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
-                        B::Array{Vec3, 4}, integrator::Langevin, sys::System{N}) where N
-    (; kT, λ, Δt) = integrator
-
-    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
-    set_forces!(B, sys.dipoles, sys)
-
-    if is_homogeneous(sys)
-        ints = interactions_homog(sys)
-        for site in all_sites(sys)
-            Λ = ints[to_atom(site)].onsite.matrep
-            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
-            ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ
-            ΔZ[site] = proj(ΔZ′, Z[site])
-        end 
-    else
-        ints = interactions_inhomog(sys)
-        for site in all_sites(sys)
-            Λ = ints[site].onsite.matrep
-            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
-            ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ
-            ΔZ[site] = proj(ΔZ′, Z[site])
-        end 
-    end
-    nothing
-end
-
-
 function step!(sys::System{N}, integrator::Langevin) where N
-    (Z′, ΔZ₁, ΔZ₂, ξ) = get_coherent_buffers(sys, 4)
-    B = get_dipole_buffers(sys, 1) |> only
+    (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
+    ∇E = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
     randn!(sys.rng, ξ)
 
     # Prediction
-    rhs_langevin!(ΔZ₁, Z, ξ, B, integrator, sys)
+    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
+    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
+    set_energy_grad_coherents!(HZ, ∇E, Z, sys)
+    rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction
-    rhs_langevin!(ΔZ₂, Z′, ξ, B, integrator, sys)
+    @. sys.dipoles = expected_spin(Z′) # temporarily desyncs dipoles and coherents
+    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
+    set_energy_grad_coherents!(HZ, ∇E, Z′, sys)
+    rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
     # Coordinate dipole data
     @. sys.dipoles = expected_spin(Z)
 end
 
-
-function rhs_ll!(ΔZ, Z, B, integrator, sys)
-    (; Δt) = integrator
-
-    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
-    set_forces!(B, sys.dipoles, sys)
-
-    if is_homogeneous(sys)
-        ints = interactions_homog(sys)
-        for site in all_sites(sys)
-            Λ = ints[to_atom(site)].onsite.matrep
-            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
-            ΔZ[site] = - Δt*im*HZ
-        end 
-    else
-        ints = interactions_inhomog(sys)
-        for site in all_sites(sys)
-            Λ = ints[site].onsite.matrep
-            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
-            ΔZ[site] = - Δt*im*HZ
-        end 
+function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
+                       HZ::Array{CVec{N}, 4}, integrator::Langevin, sys::System{N}) where N
+    (; kT, λ, Δt) = integrator
+    for site in all_sites(sys)
+        ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ[site]
+        ΔZ[site] = proj(ΔZ′, Z[site])
     end
 end
+
+
 
 # Implicit Midpoint Method applied to the nonlinear Schrödinger dynamics, as
 # proposed in Phys. Rev. B 106, 054423 (2022). Integrates dZ/dt = - i ℌ(Z) Z one
@@ -243,8 +185,8 @@ end
 #
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     (; atol) = integrator
-    (ΔZ, Z̄, Z′, Z″) = get_coherent_buffers(sys, 4)
-    B = get_dipole_buffers(sys, 1) |> only
+    (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
+    ∇E = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
     @. Z′ = Z 
@@ -253,7 +195,10 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     for _ in 1:max_iters
         @. Z̄ = (Z + Z′)/2
 
-        rhs_ll!(ΔZ, Z̄, B, integrator, sys)
+        @. sys.dipoles = expected_spin(Z̄) # temporarily desyncs dipoles and coherents
+        set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
+        set_energy_grad_coherents!(HZ, ∇E, Z̄, sys)
+        rhs_ll!(ΔZ, HZ, integrator, sys)
 
         @. Z″ = Z + ΔZ
 
@@ -267,4 +212,11 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     end
 
     error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
+end
+
+function rhs_ll!(ΔZ, HZ, integrator, sys)
+    (; Δt) = integrator
+    for site in all_sites(sys)
+        ΔZ[site] = - Δt*im*HZ[site]
+    end
 end
