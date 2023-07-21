@@ -47,13 +47,13 @@ end
 
 
 ################################################################################
-# Stereographic stuff
+# Coordinates for ℝP^{N-1} 
 ################################################################################
 struct StereographicPoint{N}
     data :: NTuple{N, Float64}
 end
 
-function StereographicPoint(i, coords::NTuple{Nm1, Float64}) where Nm1
+function StereographicPoint(i, coords::NTuple{N, Float64}) where N
     StereographicPoint{Nm1+1}((coords..., Float64(i)))
 end
 
@@ -166,6 +166,128 @@ function minimize_energy_stereo!(sys; method=Optim.LBFGS, maxiters = 100, kwargs
             println("Remapping coords...")
             stereo_spins = reinterpret(reshape, StereographicPoint{3}, stereo_spins)
             @. stereo_spins = remap_stereo(stereo_spins)
+        end
+        println("Trying again...")
+    end
+
+    return success
+end
+
+################################################################################
+# Coordinates for ℂP^{N-1} 
+################################################################################
+struct CPAffineCoordinate{N}
+    data :: NTuple{N, ComplexF64}
+end
+
+function CPAffineCoordinate(i, coords::NTuple{Nm1, ComplexF64}) where Nm1
+    CPAffineCoordinate{Nm1+1}((coords..., ComplexF64(i)))
+end
+
+Base.getindex(sp::CPAffineCoordinate, i) = getindex(sp.data, i)
+
+function Base.show(io::IO, ::MIME"text/plain", cp::CPAffineCoordinate{N}) where N
+    println(io, "$( "(" * prod( [string(round(x; sigdigits=3))*", " for x in cp.data[1:end-2]]) * "$(string(round(cp.data[end-2]; sigdigits=3))))" ) in ⟂$(Int(cp.data[end]))-plane")
+end
+
+@inline remaining_indices(skip, max) = ntuple(i -> i > (skip-1) ? i + 1 : i, max-1)
+@inline chart(cp::CPAffineCoordinate) = Int64(cp.data[end])
+
+function vec_to_affine(vec::SVector{N, ComplexF64}) where N  # N parameter unnecessary here, but generalizes to ℝP^{N-1}
+    plane_idx = argmax(norm.(vec)) # Choose projection coordinate
+    other_idxs = remaining_indices(plane_idx, N)   
+    denom = vec[plane_idx] 
+    CPAffineCoordinate{N}(ntuple(i -> i < N ? vec[other_idxs[i]]/denom : ComplexF64(plane_idx), N)) 
+end
+
+function affine_to_vec(cp::CPAffineCoordinate{N}) where N
+    c = chart(cp)
+    r2 = mapreduce(x -> x^2, +, cp.data[1:end-1])
+    SVector{N,ComplexF64}(
+        ntuple(N) do i
+            if i < c
+                cp[i]/sqrt(1+r2)
+            elseif i == c
+                1/sqrt(1+r2)
+            else
+                cp[i-1]/sqrt(1+r2)
+            end
+        end
+    ) |> normalize
+end
+
+@inline remap_affine(cp) = cp |> affine_to_vec |> vec_to_affine
+
+function affine_jac!(jac, cp::CPAffineCoordinate{N}) where N
+    δ(i,j) = i == j ? 1 : 0
+    Nidx(i, c) = i > c ? i - 1 : i
+
+    c = chart(cp)
+    r2 = mapreduce(x -> x^2, +, cp.data[1:end-1])
+    for j in 1:N, k in 1:N-1
+        jac[k,j] = if j == c
+            -cp[k]/((1+r2)^(3/2))
+        else
+            (1/sqrt(1+r2)) * (δ(Nidx(j,c),k) - cp[k]/(sqrt(1+r2)))
+        end
+    end
+end
+
+################################################################################
+# Optimization with ℂP^{N-1} affine coordinates
+################################################################################
+function optim_energy_affine(affine_coords, sys::System{N}) where N
+    affine_coords = reinterpret(reshape, CPAffineCoordinate{N}, affine_coords)
+    for site in all_sites(sys)
+        set_coherent_state!(sys, affine_to_vec(affine_coords[site]), site)
+    end
+    return energy(sys)
+end
+
+function optim_gradient_affine!(buf, affine_coords, sys::System{N}) 
+    affine_coords = reinterpret(reshape, CPAffineCoordinate{N}, affine_coords)
+    Hgrad = reinterpret(reshape, SVector{N, ComplexF64}, buf)
+
+    # Calculate gradient of energy in original coordinates
+    for site in all_sites(sys)
+        set_coherent_state!(sys, affine_to_vec(affine_coords[site]), site)
+    end
+    Sunny.set_forces!(Hgrad, sys.dipoles, sys)
+
+    # Calculate gradient, using Jacobian for affinegraphic coordinates 
+    jac = zeros(N,N)  # Maybe write function to apply matrix multiply and avoid allocation
+    for site in all_sites(sys)
+        affine_jac!(jac, affine_coords[site])
+        Hgrad[site] = -jac * Hgrad[site]  # Note Optim expects ∇, `set_forces!` gives -∇
+    end
+end
+
+function minimize_energy_affine!(sys::System{N}; method=Optim.LBFGS, maxiters = 100, kwargs...)
+    f(affine_spins) = optim_energy_affine(affine_spins, sys)
+    g!(G, affine_spins) = optim_gradient_affine!(G, affine_spins, sys)
+    # fg!(energy_spins, G, x) = affine_energy_grad!(affine_spins, G, sys)
+
+    options = Optim.Options(iterations=10, kwargs...)
+
+    # Quick test if any coordinates every go to infinity 
+    niters = 0
+    success = false
+    while niters < maxiters
+        niters += 1
+        affine_spins = map(vec -> vec_to_affine(vec), sys.dipoles) 
+        affine_spins = Array(reinterpret(reshape, Float64, affine_spins))
+        # affine_spins = map!(vec -> vec_to_affine(vec), affine_spins, sys.dipoles) 
+        optout = Optim.optimize(f, g!, affine_spins, method(), options)
+        if optout.g_converged
+            println("We got there.")
+            return true
+        end
+        # println("Maximum: ", maximum(affine_spins))
+        # println(affine_spins)
+        if maximum(affine_spins) > 5.0
+            println("Remapping coords...")
+            affine_spins = reinterpret(reshape, affinegraphicPoint{3}, affine_spins)
+            @. affine_spins = remap_affine(affine_spins)
         end
         println("Trying again...")
     end
