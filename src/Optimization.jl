@@ -45,42 +45,47 @@ function minimize_energy!(sys; method=Optim.LBFGS, kwargs...)
     Optim.optimize(f, g!, free_dipoles, method(), kwargs...) 
 end
 
-################################################################################
-# Coordinate systems
-################################################################################
 
-using LinearAlgebra, StaticArrays, BenchmarkTools
-struct StereographicPoint{Nm1}
-    chart :: Int
-    coord :: NTuple{Nm1, Float64}
+################################################################################
+# Stereographic stuff
+################################################################################
+struct StereographicPoint{N}
+    data :: NTuple{N, Float64}
 end
+
+function StereographicPoint(i, coords::NTuple{Nm1, Float64}) where Nm1
+    StereographicPoint{Nm1+1}((coords..., Float64(i)))
+end
+
+Base.getindex(sp::StereographicPoint, i) = getindex(sp.data, i)
 
 function Base.show(io::IO, ::MIME"text/plain", sp::StereographicPoint{Nm1}) where Nm1
-    println(io, "($(sp.coord[1]), $(sp.coord[2])) in ⟂$(sp.chart)-plane")
+    println(io, "($(sp.data[1]), $(sp.data[2])) in ⟂$(Int(sp.data[3]))-plane")
 end
 
-@inline δ(i,j) = i == j ? 1 : 0
 @inline remaining_indices(skip, max) = ntuple(i -> i > (skip-1) ? i + 1 : i, max-1)
-toNidx(i, c) = i > c ? i - 1 : i
+@inline chart(sp::StereographicPoint) = Int64(sp.data[end])
 
 function vec_to_stereo(vec::SVector{N, Float64}) where N  # N parameter unnecessary here, but generalizes to ℝP^{N-1}
-    plane_idx = argmin(vec) # Project onto plane perpendicular to axis corresponding
-                            # to the minimal vector component, i.e. ⟂ ̂x_min
+    plane_idx = argmin(vec) # Project onto closest plane, i.e. the plane 
+                            # perpendicular to the axis corresponding
+                            # to the minimal vector component (⟂ ̂x_min)
     other_idxs = remaining_indices(plane_idx, N)   
     denom = 1 - vec[plane_idx]             
-    StereographicPoint{N-1}(plane_idx, ntuple(i -> vec[other_idxs[i]]/denom, N-1)) 
+    StereographicPoint{N}(ntuple(i -> i < N ? vec[other_idxs[i]]/denom : Float64(plane_idx), N)) 
 end
 
-function stereo_to_vec(sp::StereographicPoint{Nm1}) where Nm1
-    r2 = mapreduce(x -> x^2, +, sp.coord)
-    SVector{Nm1+1,Float64}(
-        ntuple(Nm1 + 1) do i
-            if i < sp.chart
-                2sp.coord[i]/(1+r2)
-            elseif i == sp.chart
+function stereo_to_vec(sp::StereographicPoint{N}) where N
+    c = chart(sp)
+    r2 = mapreduce(x -> x^2, +, sp.data[1:end-1])
+    SVector{N,Float64}(
+        ntuple(N) do i
+            if i < c
+                2sp[i]/(1+r2)
+            elseif i == c
                 (-1+r2)/(1+r2)
             else
-                2sp.coord[i-1]/(1+r2)
+                2sp[i-1]/(1+r2)
             end
         end
     )
@@ -88,59 +93,82 @@ end
 
 @inline remap_stereo(sp) = sp |> stereo_to_vec |> vec_to_stereo
 
-function stereo_jac!(jac, sp::StereographicPoint{Nm1}) where Nm1 # Hardy-har
-    c, X = sp.chart, sp.coord
-    r2 = mapreduce(x -> x^2, +, X)
-    for j in 1:Nm1+1, k in 1:Nm1
+function stereo_jac!(jac, sp::StereographicPoint{N}) where N # Hardy-har
+    δ(i,j) = i == j ? 1 : 0
+    Nidx(i, c) = i > c ? i - 1 : i
+
+    c = chart(sp)
+    r2 = mapreduce(x -> x^2, +, sp.data[1:end-1])
+    for j in 1:N, k in 1:N-1
         jac[k,j] = if j == c
-            (2X[k]/(r2+1))*(1 + (r2-1)/(r2+1))
+            (2sp[k]/(r2+1))*(1 - (r2-1)/(r2+1))
         else
-            (2/(r2+1))*(δ(j,k) + (2X[toNidx(j,c)]*X[k])/(r2+1))
+            (2/(r2+1))*(δ(Nidx(j,c),k) - (2sp[Nidx(j,c)]*sp[k])/(r2+1))
         end
     end
-    jac
 end
 
-function stereo_jac(sp::StereographicPoint{Nm1}) where Nm1
-    jac = zeros(Nm1, Nm1+1)
-    @time stereo_jac!(jac, sp)
+################################################################################
+# Optimization with stereographic coordinates
+################################################################################
+function optim_energy_stereo(stereo_coords, sys::System{0})
+    stereo_coords = reinterpret(reshape, StereographicPoint{3}, stereo_coords)
+    for site in all_sites(sys)
+        polarize_spin!(sys, stereo_to_vec(stereo_coords[site]), site)
+    end
+    return energy(sys)
+end
+
+function optim_gradient_stereo!(buf, stereo_coords, sys::System{0}) 
+    stereo_coords = reinterpret(reshape, StereographicPoint{3}, stereo_coords)
+    Hgrad = reinterpret(reshape, SVector{3, Float64}, buf)
+
+    # Calculate gradient of energy in original coordinates
+    for site in all_sites(sys)
+        polarize_spin!(sys, stereo_to_vec(stereo_coords[site]), site)
+    end
+    Sunny.set_forces!(Hgrad, sys.dipoles, sys)
+
+    # Calculate gradient, using Jacobian for stereographic coordinates 
+    jac = zeros(3,3)  # Maybe write function to apply matrix multiply and avoid allocation
+    for site in all_sites(sys)
+        stereo_jac!(jac, stereo_coords[site])
+        Hgrad[site] = -jac * Hgrad[site]  # Note Optim expects ∇, `set_forces!` gives -∇
+    end
 end
 
 
 
-## Tests
-# Test display
-for _ in 1:10
-    N = 3
-    vec = SVector{N, Float64}(normalize(rand(N)))
-    sp = vec_to_stereo(vec)
-    display(sp)
-end
+# Under construction
+function minimize_energy_stereo!(sys; method=Optim.LBFGS, maxiters = 100, kwargs...)
+    f(stereo_spins) = optim_energy_stereo(stereo_spins, sys)
+    g!(G, stereo_spins) = optim_gradient_stereo!(G, stereo_spins, sys)
+    # fg!(energy_spins, G, x) = stereo_energy_grad!(stereo_spins, G, sys)
 
-# Test invertibility
-for _ in 1:20
-    N = 3
-    vec = SVector{N, Float64}(normalize(rand(N)))
-    sp = vec_to_stereo(vec)
-    println(stereo_to_vec(sp) ≈ vec ? "Good" : "Bad")
-end
+    options = Optim.Options(iterations=10, kwargs...)
 
-# Test reparameterization
-begin
-    sp = StereographicPoint{2}(1, (2.1, 0.2))
-    vec = stereo_to_vec(sp)
-    sp2 = remap_stereo(sp)
-end
+    # Quick test if any coordinates every go to infinity 
+    niters = 0
+    success = false
+    while niters < maxiters
+        niters += 1
+        stereo_spins = map(vec -> vec_to_stereo(vec), sys.dipoles) 
+        stereo_spins = Array(reinterpret(reshape, Float64, stereo_spins))
+        # stereo_spins = map!(vec -> vec_to_stereo(vec), stereo_spins, sys.dipoles) 
+        optout = Optim.optimize(f, g!, stereo_spins, method(), options)
+        if optout.g_converged
+            println("We got there.")
+            return true
+        end
+        # println("Maximum: ", maximum(stereo_spins))
+        # println(stereo_spins)
+        if maximum(stereo_spins) > 5.0
+            println("Remapping coords...")
+            stereo_spins = reinterpret(reshape, StereographicPoint{3}, stereo_spins)
+            @. stereo_spins = remap_stereo(stereo_spins)
+        end
+        println("Trying again...")
+    end
 
-# Benchmark
-begin
-    N = 3
-    vec = SVector{N, Float64}(normalize(rand(N)))
-    sp = vec_to_stereo(vec)
-    @btime vec_to_stereo($vec)
-    vec1 = stereo_to_vec(sp)
-    @btime stereo_to_vec($sp)
-    sp2 = remap_stereo(sp)
-    @btime remap_stereo($sp)
+    return success
 end
-
