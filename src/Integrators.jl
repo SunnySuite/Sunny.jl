@@ -163,6 +163,31 @@ end
     return :(CVec{$N}($(out...)))
 end
 
+# Analog of set_forces! for Schroedinger dynamics. Placed here because will need
+# to be revised in tandem with rhs_langevin! and rhs_ll!. This could possibly be
+# factored out of those functions to reduce code duplication. This is performance
+# critical, so would need benchmarking.
+function set_complex_forces!(HZ, Z, sys::System{N}) where N
+    B = only(get_dipole_buffers(sys, 1) )
+
+    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
+    set_forces!(B, sys.dipoles, sys)
+
+    if is_homogeneous(sys)
+        ints = interactions_homog(sys)
+        for site in all_sites(sys)
+            Λ = ints[to_atom(site)].aniso.matrep
+            HZ[site] = mul_spin_matrices(Λ, -B[site], Z[site])  
+        end 
+    else
+        ints = interactions_inhomog(sys)
+        for site in all_sites(sys)
+            Λ = ints[site].aniso.matrep
+            HZ[site] = mul_spin_matrices(Λ, -B[site], Z[site])  
+        end 
+    end
+end
+
 
 function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
                         B::Array{Vec3, 4}, integrator::Langevin, sys::System{N}) where N
