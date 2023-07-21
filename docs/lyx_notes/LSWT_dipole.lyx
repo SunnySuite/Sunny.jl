@@ -1,0 +1,5360 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass revtex4-2
+\begin_preamble
+
+
+\usepackage{mathrsfs}
+\usepackage{babel}
+\usepackage{color}
+\usepackage{graphicx}
+\newcommand{\inlinecode}{\texttt}
+\end_preamble
+\options aps,prl,amsmath,preprintnumber,superscriptaddress,notitlepage
+\use_default_options false
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding iso8859-15
+\fontencoding T1
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 2
+\use_package amssymb 2
+\use_package cancel 0
+\use_package esint 1
+\use_package mathdots 0
+\use_package mathtools 0
+\use_package mhchem 0
+\use_package stackrel 0
+\use_package stmaryrd 0
+\use_package undertilde 0
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 0
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Linear spin-wave theory: dipole mode
+\end_layout
+
+\begin_layout Author
+Hao
+\begin_inset space ~
+\end_inset
+
+Zhang, and Cristian
+\begin_inset space ~
+\end_inset
+
+D.
+\begin_inset space ~
+\end_inset
+
+Batista
+\end_layout
+
+\begin_layout Section
+Introduction
+\end_layout
+
+\begin_layout Standard
+In this note, we explain the implementation of the dipole mode of Sunny's
+ linear spin-wave theory (LSWT) module.
+ In particular, we will focus on the construction of the SWT Hamiltonian
+ in 
+\emph on
+real
+\emph default
+ space.
+ The remaining steps, Fourier transformation, SWT Hamiltonian's diagonalization
+ (Bogoliubov transformation), and the calculation of the dynamical spin
+ structure factor can be found in a separate note that explains the implementati
+on of the SU(
+\begin_inset Formula $N$
+\end_inset
+
+) mode.
+\end_layout
+
+\begin_layout Standard
+Like the well-known spin dynamics package 
+\family typewriter
+spinW
+\family default
+, the starting point of Sunny's LSWT dipole mode is the Holstein-Primakoff
+ expansion, 
+\begin_inset Formula 
+\begin{align}
+\tilde{S}_{i}^{+} & =\sqrt{2S-b_{i}^{\dagger}b_{i}^{\dagger}}b_{i}\approx\sqrt{2S}b_{i}\nonumber \\
+\tilde{S}_{i}^{-} & =b_{i}^{\dagger}\sqrt{2S-b_{i}^{\dagger}b_{i}^{\dagger}}\approx\sqrt{2S}b_{i}^{\dagger}\nonumber \\
+\tilde{S}_{i}^{z} & =S-b_{i}^{\dagger}b_{i},\label{eq:HP}
+\end{align}
+
+\end_inset
+
+where 
+\begin_inset Formula $\tilde{\bm{S}}_{i}$
+\end_inset
+
+ denotes the spin operators in the local reference frame.
+ Here the local reference frame is defined such that the spin dipole moment
+ is pointing along the local 
+\begin_inset Formula $\hat{z}$
+\end_inset
+
+ direction.
+ As a result, the spin operator in the global (lab) frame 
+\begin_inset Formula $\bm{S}_{i}$
+\end_inset
+
+ is related the that in the local frame through an SO(3) rotation: 
+\begin_inset Formula 
+\begin{equation}
+{\bm{S}}_{i}=R_{i}\tilde{\bm{S}}_{i}\label{eq:local}
+\end{equation}
+
+\end_inset
+
+To avoid any ambiguity, we write the SO(3) rotation in terms of Euler angles
+ 
+\begin_inset Formula 
+\begin{equation}
+R=\begin{pmatrix}-\sin\phi & -\cos\phi\cos\theta & \cos\phi\sin\theta\\
+\cos\phi & -\sin\phi\cos\theta & \sin\phi\sin\theta\\
+0 & \sin\theta & \cos\theta
+\end{pmatrix},\label{eq:rotation}
+\end{equation}
+
+\end_inset
+
+where the two Euler angles can be obtained from the dipole moment 
+\begin_inset Formula $\langle\bm{S}\rangle=(\sin\theta\cos\phi,\sin\theta\sin\phi,\cos\theta)$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+The formulas for the bilinear interactions are exactly the same as those
+ that were implemented in 
+\family typewriter
+spinW
+\family default
+.
+ However, as it will become clear in later sections of this note, the treatments
+ of the biquadratic interactions and the single-ion anisotropy are different
+ from the large-
+\begin_inset Formula $S$
+\end_inset
+
+ based 
+\family typewriter
+spinW
+\family default
+.
+ As explained in
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Hao21, Dahlbom22, Dahlbom22b"
+literal "false"
+
+\end_inset
+
+, the better classical limit of a 
+\begin_inset Formula $N$
+\end_inset
+
+-level system (
+\begin_inset Formula $N=2S+1$
+\end_inset
+
+) should be the one based on the coherent states of SU(
+\begin_inset Formula $N$
+\end_inset
+
+).
+ In particular, quantum corrections are organized in powers of 
+\begin_inset Formula $1/\lambda_{1}$
+\end_inset
+
+ (the label of degenerate irreducible representations of SU(
+\begin_inset Formula $N$
+\end_inset
+
+)
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Hao21"
+literal "false"
+
+\end_inset
+
+) instead of 
+\begin_inset Formula $1/S$
+\end_inset
+
+, and the classical limit is obtained by sending 
+\begin_inset Formula $\lambda_{1}$
+\end_inset
+
+ to infinity instead of 
+\begin_inset Formula $S$
+\end_inset
+
+.
+ Our expansion is based on a renormalized classical spin Hamiltonian that
+ was introduced in
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Dahlbom23"
+literal "false"
+
+\end_inset
+
+.
+ It is identical to the traditional classical Hamiltonian except that nonlinear
+ terms have been renormalized by coefficients expressed in powers of 
+\begin_inset Formula $1/S$
+\end_inset
+
+.
+ These 
+\begin_inset Formula $1/S$
+\end_inset
+
+ factors do not emerge from the introduction of higher-order quantum corrections
+; instead, they are the consequence of group theoretical considerations
+ when comparing two different classical limits.
+ The details of the group theoretical considerations can be found in
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Dahlbom23"
+literal "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+The structure of this note is organized as follows.
+ We first review the construction of the LSWT Hamiltonian for the bilinear
+ interactions (the same as in 
+\family typewriter
+spinW
+\family default
+).
+ Then we consider the biquadratic interaction that includes the proper renormali
+zations (note that 
+\family typewriter
+spinW
+\family default
+ does not take into account the quantum effects captured by our approach,
+ which would lead to wrong answers).
+ Finally, we apply the group theoretical treatment to write down the LSWT
+ Hamiltonian for 
+\emph on
+arbitary
+\emph default
+ single-ion anisotropy (note that 
+\family typewriter
+spinW
+\family default
+ can only handle quadratic single-ion anisotropy plus it does not include
+ the proper renormalization.
+\end_layout
+
+\begin_layout Section
+Bilinear interaction
+\end_layout
+
+\begin_layout Standard
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:blinear"
+
+\end_inset
+
+ Let us first consider the case of a general bilinear interaction: 
+\begin_inset Formula 
+\begin{equation}
+\mathcal{H}_{{\rm Bil}}=J_{ab}S_{1}^{a}S_{2}^{b},\label{eq:bil}
+\end{equation}
+
+\end_inset
+
+where we are using the convention of summation over repeated indices 
+\begin_inset Formula $a,b=x,y,z$
+\end_inset
+
+.
+ After performing the rotation 
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:local"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ to the local reference frame, we obtain: 
+\begin_inset Formula 
+\begin{equation}
+\mathcal{H}_{{\rm Bil}}=J_{ab}R_{1}^{ca}{\tilde{S}}_{1}^{c}R_{2}^{db}\tilde{S}_{2}^{d}.\label{eq:billoc}
+\end{equation}
+
+\end_inset
+
+The next step is to express the spin operators in terms of the HP bosons
+ by using Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:HP"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, to obtain the result: 
+\begin_inset Formula 
+\begin{equation}
+\mathcal{H}_{{\rm Bil}}^{{\rm SW}}=Pb_{1}b_{2}+P^{*}b_{1}^{\dagger}b_{2}^{\dagger}+Qb_{1}^{\dagger}b_{2}+Q^{*}b_{2}^{\dagger}b_{1}-R_{ij}^{33}(b_{1}^{\dagger}b_{1}+b_{2}^{\dagger}b_{2}),
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $R_{ij}=SR_{i}^{T}J_{ab}R_{j}$
+\end_inset
+
+ (
+\begin_inset Formula $R_{i},R_{j}\in\mathrm{SO}(3)$
+\end_inset
+
+ are the SO(3) rotations for site 
+\begin_inset Formula $i$
+\end_inset
+
+, 
+\begin_inset Formula $j$
+\end_inset
+
+ defined in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:rotation"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) with 
+\begin_inset Formula 
+\begin{align}
+P & =\frac{1}{2}\left(R_{ij}^{11}-R_{ij}^{22}+i(-R_{ij}^{12}-R_{ij}^{21})\right)\nonumber \\
+Q & =\frac{1}{2}\left(R_{ij}^{11}+R_{ij}^{22}+i(-R_{ij}^{12}+R_{ij}^{21})\right)
+\end{align}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+begin{equation}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+mathcal{H}^{
+\backslash
+rm SW}_{
+\backslash
+rm Bil} =  [K_0 + K_{
+\backslash
+mu}   b^{
+\backslash
+dagger}_{
+\backslash
+mu} + K^*_{
+\backslash
+mu} b^{
+\backslash
+;}_{
+\backslash
+mu} + F_{
+\backslash
+mu 
+\backslash
+nu} b^{
+\backslash
+dagger}_{
+\backslash
+mu} b^{
+\backslash
+;}_{
+\backslash
+nu} + G_{
+\backslash
+mu 
+\backslash
+nu} b^{
+\backslash
+dagger}_{
+\backslash
+mu} b^{
+\backslash
+dagger}_{
+\backslash
+nu} + G^*_{
+\backslash
+mu 
+\backslash
+nu}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+% b^{
+\backslash
+;}_{
+\backslash
+nu} b^{
+\backslash
+;}_{
+\backslash
+mu} ]
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+end{equation}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%with 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+begin{eqnarray}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%K_0 &=& S^2 J_{ab} R_{1}^{z a} R_{2}^{z b},
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+nonumber 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%K_1 &=& S_2 
+\backslash
+sqrt{
+\backslash
+frac{ S_1}{2}} J_{ab}   (R_{1}^{x a} + i R_{1}^{y a})   R_{2}^{z b}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+nonumber 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%K_2 &=& S_1 
+\backslash
+sqrt{
+\backslash
+frac{ S_2}{2}}  J_{ab} R_{2}^{z a} (R_{2}^{x b} + i R_{2}^{y b})
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+end{eqnarray}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+begin{eqnarray} 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%F_{11} &=& 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+nonumber 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%F_{22} &=& 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+nonumber 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%F_{21} &=& 
+\backslash
+frac{ 
+\backslash
+sqrt{S_1 S_2}}{2} 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+nonumber 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%F_{12} &=&  
+\backslash
+frac{ 
+\backslash
+sqrt{S_1 S_2}}{2} 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+end{eqnarray}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%and 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+begin{eqnarray} 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%G_{11} &=& 0 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+nonumber 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%G_{22} &=& 0
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+nonumber 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%G_{21} &=& 
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+nonumber 
+\backslash
+
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%G_{12} &=&  
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+end{eqnarray}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Biquadratic interactions
+\end_layout
+
+\begin_layout Standard
+The goal of this short section is to derive the general expression for the
+ contribution of a scalar biquadratic interaction to the spin wave Hamiltonian.
+ We will then assume that the spin Hamiltonian includes a term of the form:
+ 
+\begin_inset Formula 
+\begin{equation}
+\mathcal{H}_{{\rm B}}=K_{12}(\bm{S}_{1}\cdot\bm{S}_{2})^{2}.\label{eq:biq}
+\end{equation}
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%where $
+\backslash
+bm{S}_1 
+\backslash
+equiv (S^x_1, S^y_1, S^z_1)$ represents a spin $S_1$ at site 1 and $
+\backslash
+bm{S}_2 
+\backslash
+equiv (S^x_2, S^y_2, S^z_2)$ represents a spin $S_2$ at site 2.
+ We will assume that the ordered moments point along the directions $
+\backslash
+tilde{
+\backslash
+bm z}_1$ and $
+\backslash
+tilde{
+\backslash
+bm z}_2$ directions and that $R_1$ and $R_2$ are the local rotation operators
+ that rotate the global quantization ${
+\backslash
+bm z}$-axis into $
+\backslash
+tilde{
+\backslash
+bm z}_1$ and $
+\backslash
+tilde{
+\backslash
+bm z}_2$, respectively:
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+begin{equation}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%R_1 
+\backslash
+tilde{
+\backslash
+bm z}_1 = {
+\backslash
+bm z}, 
+\backslash
+quad R_2 
+\backslash
+tilde{
+\backslash
+bm z}_2 = {
+\backslash
+bm z}.
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+label{eq:quant-axis}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%
+\backslash
+end{equation}
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+As before, the first step of a spin wave calculation is to rotate the local
+ reference frames into new frames where 
+\begin_inset Formula $\tilde{\bm{z}}_{1}$
+\end_inset
+
+ and 
+\begin_inset Formula $\tilde{\bm{z}}_{2}$
+\end_inset
+
+ are the local quantization axes: and rewrite 
+\begin_inset Formula $\mathcal{H}_{{\rm B}}$
+\end_inset
+
+ in terms of 
+\begin_inset Formula $\tilde{\bm{S}}_{1}$
+\end_inset
+
+ and 
+\begin_inset Formula $\tilde{\bm{S}}_{2}$
+\end_inset
+
+: 
+\begin_inset Formula 
+\begin{equation}
+\mathcal{H}_{{\rm B}}=K_{12}(R_{1}\tilde{\bm{S}}_{1}\cdot R_{2}\tilde{\bm{S}}_{2})^{2}=K_{12}(\tilde{\bm{S}}_{1}\cdot R_{1}^{T}R_{2}\tilde{\bm{S}}_{2})^{2},
+\end{equation}
+
+\end_inset
+
+where we have used the invariance of the scalar product under global rotations:
+ 
+\begin_inset Formula $R\tilde{\bm{S}}_{1}\cdot R\tilde{\bm{S}}_{2}=\tilde{\bm{S}}_{1}\cdot\tilde{\bm{S}}_{2}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The next step is to implement the HP transformation and keep terms up to
+ quadratic order in the HP bosons 
+\begin_inset Formula $b_{1}^{(\dagger)}$
+\end_inset
+
+ and 
+\begin_inset Formula $b_{2}^{(\dagger)}$
+\end_inset
+
+.
+ For that purpose, it is enough the expand the spin operators 
+\begin_inset Formula $\tilde{\bm{S}}_{1}$
+\end_inset
+
+ and 
+\begin_inset Formula $\tilde{\bm{S}}_{2}$
+\end_inset
+
+ up to quadratic order in the HP bosons.
+ 
+\begin_inset Formula 
+\begin{eqnarray}
+\tilde{\bm{S}}_{1} & = & \left(\sqrt{\frac{S_{1}}{2}}(b_{1}^{\dagger}+b_{1}^{\;}),i\sqrt{\frac{S_{1}}{2}}(b_{1}^{\dagger}-b_{1}^{\;}),S_{1}-b_{1}^{\dagger}b_{1}^{\;}\right)+\mathcal{O}(b_{1}^{3}),\nonumber \\
+\tilde{\bm{S}}_{2} & = & \left(\sqrt{\frac{S_{2}}{2}}(b_{2}^{\dagger}+b_{2}^{\;}),i\sqrt{\frac{S_{2}}{2}}(b_{2}^{\dagger}-b_{2}^{\;}),S_{2}-b_{2}^{\dagger}b_{2}^{\;}\right)+\mathcal{O}(b_{2}^{3}),\label{eq:HP1}
+\end{eqnarray}
+
+\end_inset
+
+After introducing the definition 
+\begin_inset Formula $R^{r}=R_{1}^{T}R_{2}$
+\end_inset
+
+, we get: 
+\begin_inset Formula 
+\begin{equation}
+(\tilde{\bm{S}}_{1}\cdot R^{r}\tilde{\bm{S}}_{2})=C_{0}+C_{\mu}b_{\mu}^{\dagger}+C_{\mu}^{*}b_{\mu}^{\;}+[A_{\mu\nu}b_{\mu}^{\dagger}b_{\nu}^{\;}+B_{\mu\nu}b_{\mu}^{\dagger}b_{\nu}^{\dagger}+B_{\mu\nu}^{*}b_{\nu}^{\;}b_{\mu}^{\;}]\label{eq:bilinear}
+\end{equation}
+
+\end_inset
+
+with 
+\begin_inset Formula $\mu,\nu=1,2$
+\end_inset
+
+ (we are using the convention of summation over repeated Greek indices)
+ and 
+\begin_inset Formula 
+\begin{eqnarray}
+C_{0} & = & R_{33}^{r}S_{1}S_{2},\nonumber \\
+C_{1} & = & S_{2}\sqrt{\frac{S_{1}}{2}}(R_{13}^{r}+iR_{23}^{r}),\nonumber \\
+C_{2} & = & S_{1}\sqrt{\frac{S_{2}}{2}}(R_{31}^{r}+iR_{32}^{r}),
+\end{eqnarray}
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{eqnarray}
+A_{11} & = & -R_{33}^{r}S_{2}\nonumber \\
+A_{22} & = & -R_{33}^{r}S_{1}\nonumber \\
+A_{21} & = & \frac{\sqrt{S_{1}S_{2}}}{2}(R_{11}^{r}-iR_{12}^{r}-iR_{21}^{r}+R_{22}^{r})\nonumber \\
+A_{12} & = & \frac{\sqrt{S_{1}S_{2}}}{2}(R_{11}^{r}+iR_{12}^{r}+iR_{21}^{r}+R_{22}^{r})
+\end{eqnarray}
+
+\end_inset
+
+and 
+\begin_inset Formula 
+\begin{eqnarray}
+B_{11} & = & 0\nonumber \\
+B_{22} & = & 0\nonumber \\
+B_{21} & = & \frac{\sqrt{S_{1}S_{2}}}{4}(R_{11}^{r}+iR_{12}^{r}+iR_{21}^{r}-R_{22}^{r})\nonumber \\
+B_{12} & = & \frac{\sqrt{S_{1}S_{2}}}{4}(R_{11}^{r}+iR_{12}^{r}+iR_{21}^{r}-R_{22}^{r})
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+By taking the square of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:bilinear"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, we obtain the contribution of the biquadratic term 
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:biq"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ to the spin wave Hamiltonian: 
+\begin_inset Formula 
+\begin{equation}
+\mathcal{H}_{{\rm B}}^{{\rm SW}}=K_{12}[\tilde{C}_{0}+\tilde{C}_{\mu}b_{\mu}^{\dagger}+\tilde{C}_{\mu}^{*}b_{\mu}^{\;}+\tilde{A}_{\mu\nu}b_{\mu}^{\dagger}b_{\nu}^{\;}+\tilde{B}_{\mu\nu}b_{\mu}^{\dagger}b_{\nu}^{\dagger}+\tilde{B}_{\mu\nu}^{*}b_{\nu}^{\;}b_{\mu}^{\;}]\label{eq:biquad_swt}
+\end{equation}
+
+\end_inset
+
+with 
+\begin_inset Formula 
+\begin{eqnarray}
+\tilde{C}_{0} & = & C_{0}^{2}+|C_{1}|^{2}+|C_{2}|^{2}\nonumber \\
+\tilde{C}_{\mu} & = & 2C_{0}C_{\mu}\nonumber \\
+\tilde{A}_{\mu\nu} & = & 2C_{0}{A}_{\mu\nu}+2C_{\mu}C_{\nu}^{*}\nonumber \\
+\tilde{B}_{\mu\nu} & = & 2C_{0}{B}_{\mu\nu}+C_{\mu}C_{\nu}
+\end{eqnarray}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We note that to capture the effects from the 
+\begin_inset Formula $1/\lambda_{1}$
+\end_inset
+
+ expansion, we need to multiply Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:biquad_swt"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ by the re-scaling factor
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Dahlbom23"
+literal "false"
+
+\end_inset
+
+ 
+\begin_inset Formula 
+\begin{equation}
+1-\frac{1}{S}+\frac{1}{4S^{2}}.
+\end{equation}
+
+\end_inset
+
+Moreover, we need to consider the additional bilinear interaction 
+\begin_inset Formula 
+\begin{equation}
+-\frac{J}{2}\bm{S}_{1}\cdot\bm{S}_{2}.
+\end{equation}
+
+\end_inset
+
+The LSWT Hamiltonian from this additional interaction can be easily read
+ off from the expressions given in Sec.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:blinear"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Section
+Single-ion anisotropy
+\end_layout
+
+\begin_layout Standard
+A generic contribution to the single-ion anisotropy term is given by: 
+\begin_inset Formula 
+\begin{equation}
+{\cal H}_{{\rm SI}}=c_{qm}\hat{O}_{qm}({\bm{S}})
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\hat{O}_{qm}$
+\end_inset
+
+ is a so-called Steven's operator (see Appendix 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "SO"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) and 
+\begin_inset Formula $c_{qm}$
+\end_inset
+
+ is the value of the corresponding anisotropy (are assuming implicit summation
+ over repeated indices 
+\begin_inset Formula $qm$
+\end_inset
+
+ to consider the most general single-ion anisotropy term ).
+ As we did in the previous section, we need to perform a rotation 
+\begin_inset Formula $R$
+\end_inset
+
+ into the local reference frame whose quantization 
+\begin_inset Formula $\tilde{\bm{z}}$
+\end_inset
+
+ is parallel to the direction of the ordered moment: 
+\begin_inset Formula 
+\begin{equation}
+\bm{z}=R\tilde{\bm{z}}.
+\end{equation}
+
+\end_inset
+
+Once again, we need to rotate the spin operator into the local reference
+ frame into a new frame where 
+\begin_inset Formula $\tilde{\bm{z}}$
+\end_inset
+
+ is the local quantization axis: 
+\begin_inset Formula 
+\begin{equation}
+\bm{S}=R\tilde{\bm{S}},
+\end{equation}
+
+\end_inset
+
+and rewrite 
+\begin_inset Formula $\mathcal{H}_{{\rm SI}}$
+\end_inset
+
+ in terms of 
+\begin_inset Formula $\tilde{\bm{S}}$
+\end_inset
+
+: 
+\begin_inset Formula 
+\begin{equation}
+{\cal H}_{{\rm SI}}=c_{qm}\hat{O}_{qm}(R\tilde{\bm{S}})=c_{qm}\sum_{m'=-q}^{q}\alpha_{m'}^{qm}\hat{O}_{qm'}(\tilde{\bm{S}})=c_{qm'}\hat{O}_{qm'}(\tilde{\bm{S}})
+\end{equation}
+
+\end_inset
+
+where we have used the fact that the Stevens operators for a fixed value
+ of 
+\begin_inset Formula $q$
+\end_inset
+
+ form an invariant subspace of SO(3).
+ To obtain 
+\begin_inset Formula $c_{qm'}$
+\end_inset
+
+ from 
+\begin_inset Formula $c_{qm}$
+\end_inset
+
+ in Sunny, we simply call 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+inlinecode
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+rotate_stevens_coeffcients
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+.
+ The next step is to expand each Steven's operator 
+\begin_inset Formula $\hat{O}_{qm}(\tilde{\bm{S}})$
+\end_inset
+
+ to quadratic order in the HP bosons.
+ As we mentioned before: 
+\begin_inset Formula 
+\begin{eqnarray}
+\tilde{S}^{+} & \simeq & \sqrt{2S}b,\nonumber \\
+\tilde{S}^{-} & \simeq & \sqrt{2S}b^{\dagger},\nonumber \\
+\tilde{S}^{z} & \simeq & S-b^{\dagger}b.
+\end{eqnarray}
+
+\end_inset
+
+It is clear that only the operators 
+\begin_inset Formula $\hat{O}_{q2}(\tilde{\bm{S}})$
+\end_inset
+
+, 
+\begin_inset Formula $\hat{O}_{q0}(\tilde{\bm{S}})$
+\end_inset
+
+ and 
+\begin_inset Formula $\hat{O}_{q\bar{2}}(\tilde{\bm{S}})$
+\end_inset
+
+ contribute to the LSW Hamiltonian (see Appendix 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "SO"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+): 
+\begin_inset Formula 
+\begin{equation}
+{\cal H}_{{\rm SI}}^{{\rm sw}}=A_{qm}\left[\alpha_{-2}^{qm}\hat{\tilde{O}}_{q\bar{2}}(b^{\dagger},b)+\alpha_{0}^{qm}\hat{\tilde{O}}_{q0}(b^{\dagger},b)+\alpha_{2}^{qm}\hat{\tilde{O}}_{q2}(b^{\dagger},b)\right]
+\end{equation}
+
+\end_inset
+
+where the expressions 
+\begin_inset Formula $\hat{\tilde{O}}_{qm}(b^{\dagger},b)$
+\end_inset
+
+ are the expansions of Steven's operators up to quadratic order in 
+\begin_inset Formula $b^{(\dagger)}$
+\end_inset
+
+ given in Appendix 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "expSO"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ The linear contributions (not included here) arise from the operators 
+\begin_inset Formula $\hat{O}_{q\bar{1}}(\tilde{\bm{S}})$
+\end_inset
+
+ and 
+\begin_inset Formula $\hat{O}_{q1}(\tilde{\bm{S}})$
+\end_inset
+
+: 
+\begin_inset Formula 
+\begin{equation}
+{\cal H}_{{\rm SI}}^{{\rm Linear}}=A_{qm}\left[\alpha_{-1}^{qm}\hat{\tilde{O}}_{q\bar{1}}(b^{\dagger},b)+\alpha_{1}^{qm}\hat{\tilde{O}}_{q1}(b^{\dagger},b)\right]
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Appendix 
+\begin_inset CommandInset label
+LatexCommand label
+name "app"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+Steven's operators 
+\begin_inset CommandInset label
+LatexCommand label
+name "SO"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+X=J(J+1)
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+\hat{O}_{00}=1
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+\begin{aligned}\hat{O}_{2\bar{2}} & =\frac{-i}{2}\left[J_{+}^{2}-J_{-}^{2}\right]=J_{x}J_{y}+J_{y}J_{x}=2P_{xy}=I_{4}\\
+\hat{O}_{2\bar{1}} & =\frac{-i}{4}\left[J_{z}\left(J_{+}-J_{-}\right)+\left(J_{+}-J_{-}\right)J_{z}\right]=\frac{1}{2}\left[J_{y}J_{z}+J_{z}J_{y}\right]=P_{yz}=I_{5}\\
+\hat{O}_{20} & =\left[3J_{z}^{2}-X\right]=I_{6}\\
+\hat{O}_{21} & =\frac{1}{4}\left[J_{z}\left(J_{+}+J_{-}\right)+\left(J_{+}+J_{-}\right)J_{z}\right]=\frac{1}{2}\left[J_{x}J_{z}+J_{z}J_{x}\right]=P_{xz}=I_{7}\\
+\hat{O}_{22} & =\frac{1}{2}\left[J_{+}^{2}+J_{-}^{2}\right]=J_{x}^{2}-J_{y}^{2}=I_{8}
+\end{aligned}
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+\begin{aligned}O_{4\bar{4}} & =\frac{-i}{2}\left[\left(J_{+}^{4}-J_{-}^{4}\right]=I_{16}\right.\\
+O_{4\bar{3}} & =\frac{-i}{4}\left[\left(J_{+}^{3}-J_{-}^{3}\right)J_{z}+J_{z}\left(J_{+}^{3}-J_{-}^{3}\right)\right]=I_{17}\\
+O_{4\bar{2}} & =\frac{-i}{4}\left[\left(J_{+}^{2}-J_{-}^{2}\right)\left(7J_{z}^{2}-X-5\right)+\left(7J_{z}^{2}-X-5\right)\left(J_{+}^{2}-J_{-}^{2}\right)\right]=I_{18}\\
+O_{4\bar{1}} & =\frac{-i}{4}\left[\left(J_{+}-J_{-}\right)\left(7J_{z}^{3}-(3X+1)J_{z}\right)+\left(7J_{z}^{3}-(3X+1)J_{z}\right)\left(J_{+}-J_{-}\right)\right]=I_{19}\\
+O_{40} & =\left[35J_{z}^{4}-(30X-25)J_{z}^{2}+3X^{2}-6X\right]=I_{20}\\
+O_{41} & =\frac{1}{4}\left[\left(J_{+}+J_{-}\right)\left(7J_{z}^{3}-(3X+1)J_{z}\right)+\left(7J_{z}^{3}-(3X+1)J_{z}\right)\left(J_{+}+J_{-}\right)\right]=I_{21}\\
+O_{42} & =\frac{1}{4}\left[\left(J_{+}^{2}+J_{-}^{2}\right)\left(7J_{z}^{2}-X-5\right)+\left(7J_{z}^{2}-X-5\right)\left(J_{+}^{2}+J_{-}^{2}\right)\right]=I_{22}\\
+O_{43} & =\frac{1}{4}\left[\left(J_{+}^{3}+J_{-}^{3}\right)J_{z}+J_{z}\left(J_{+}^{3}+J_{-}^{3}\right)\right]=I_{23}\\
+O_{44} & =\frac{1}{2}\left[\left(J_{+}^{4}+J_{-}^{4}\right]=I_{24}\right.
+\end{aligned}
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+\begin{aligned} & \hat{O}_{6\bar{6}}=\frac{-i}{2}\left[J_{+}^{6}-J_{-}^{6}\right]=I_{36}\\
+ & \hat{O}_{6\bar{5}}=\frac{-i}{4}\left[\left(J_{+}^{5}-J_{-}^{5}\right)J_{z}+J_{z}\left(J_{+}^{5}-J_{-}^{5}\right)\right]=I_{37}\\
+ & \hat{O}_{6\bar{4}}=\frac{-i}{4}\left[\left(J_{+}^{4}-J_{-}^{4}\right)\left(11J_{z}^{2}-X-38\right)+\left(11J_{z}^{2}-X-38\right)\left(J_{+}^{4}-J_{-}^{4}\right)\right]=I_{38}\\
+ & \hat{O}_{6\bar{3}}=\frac{-i}{4}\left[\left(J_{+}^{3}-J_{-}^{3}\right)\left(11J_{z}^{3}-(3X+59)J_{z}\right)+\left(11J_{z}^{3}-(3X+59)J_{z}\right)\left(J_{+}^{3}-J_{-}^{3}\right)\right]=I_{39}\\
+ & \hat{O}_{6\bar{2}}=\frac{-i}{4}\left[\left(J_{+}^{2}-J_{-}^{2}\right)\left\{ 33J_{z}^{4}-(18X+123)J_{z}^{2}+X^{2}+10X+102\right\} +\{\ldots\}\left(J_{+}^{2}-J_{-}^{2}\right)\right]=I_{40}\\
+ & \hat{O}_{6\bar{1}}=\frac{-i}{4}\left[\left(J_{+}-J_{-}\right)\left\{ 33J_{z}^{5}-(30X-15)J_{z}^{3}+\left(5X^{2}-10X+12\right)J_{z}\right\} +\{\ldots\}\left(J_{+}-J_{-}\right)\right]=I_{41}\\
+ & \hat{O}_{60}=\left[231J_{z}^{6}-(315X-735)J_{z}^{4}+\left(105X^{2}-525X+294\right)J_{z}^{2}-5X^{3}+40X^{2}-60X\right]=I_{42}\\
+ & \hat{O}_{61}=\frac{1}{4}\left[\left(J_{+}+J_{-}\right)\left\{ 33J_{z}^{5}-(30X-15)J_{z}^{3}+\left(5X^{2}-10X+12\right)J_{z}\right\} +\{\ldots\}\left(J_{+}+J_{-}\right)\right]=I_{43}\\
+ & \hat{O}_{62}=\frac{1}{4}\left[\left(J_{+}^{2}+J_{-}^{2}\right)\left\{ 33J_{z}^{4}-(18X+123)J_{z}^{2}+X^{2}+10X+102\right\} +\{\ldots\}\left(J_{+}^{2}+J_{-}^{2}\right)\right]=I_{44}\\
+ & \hat{O}_{63}=\frac{1}{4}\left[\left(J_{+}^{3}+J_{-}^{3}\right)\left(11J_{z}^{3}-(3X+59)J_{z}\right)+\left(11J_{z}^{3}-(3X+59)J_{z}\right)\left(J_{+}^{3}+J_{-}^{3}\right)\right]=I_{45}\\
+ & \hat{O}_{64}=\frac{1}{4}\left[\left(J_{+}^{4}+J_{-}^{4}\right)\left(11J_{z}^{2}-X-38\right)+\left(11J_{z}^{2}-X-38\right)\left(J_{+}^{4}+J_{-}^{4}\right)\right]=I_{46}\\
+ & \hat{O}_{65}=\frac{1}{4}\left[\left(J_{+}^{5}+J_{-}^{5}\right)J_{z}+J_{z}\left(J_{+}^{5}+J_{-}^{5}\right)\right]=I_{47}\\
+ & \hat{O}_{66}=\frac{1}{2}\left[J_{+}^{6}+J_{-}^{6}\right]=I_{48}
+\end{aligned}
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+Expansion of Steven's operators in HP bosons 
+\begin_inset CommandInset label
+LatexCommand label
+name "expSO"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{alignat*}{2}
+\hat{\tilde{O}}_{2\bar{2}} & =-iS\left(bb-b^{\dagger}b^{\dagger}\right)\quad\hat{\tilde{O}}_{4\bar{2}} & =-6iS^{3}\left(bb-b^{\dagger}b^{\dagger}\right)\quad\hat{\tilde{O}}_{6\bar{2}} & =-16iS^{5}\left(bb-b^{\dagger}b^{\dagger}\right)\\
+\hat{\tilde{O}}_{20} & =6(S^{2}-Sb^{\dagger}b)\quad\quad\hat{\tilde{O}}_{40}\;\; & =8S^{4}-80S^{3}b^{\dagger}b\quad\quad\hat{\tilde{O}}_{60} & =16S^{6}-336S^{5}b^{\dagger}b\\
+\hat{\tilde{O}}_{22} & =S\left(bb+b^{\dagger}b^{\dagger}\right)\quad\hat{\tilde{O}}_{42} & =6S^{3}\left(bb+b^{\dagger}b^{\dagger}\right)\quad\hat{\tilde{O}}_{62} & =16S^{5}\left(bb+b^{\dagger}b^{\dagger}\right)
+\end{alignat*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{alignat*}{2}
+\hat{\tilde{O}}_{2\bar{1}} & =-i\sqrt{\frac{S}{2}}S(b-b^{\dagger})\quad\hat{\tilde{O}}_{4\bar{1}} & =-i2\sqrt{2S}S^{3}(b-b^{\dagger})\quad\hat{\tilde{O}}_{6\bar{1}} & =-i4\sqrt{2S}S^{5}(b-b^{\dagger})\\
+\hat{\tilde{O}}_{21} & =\sqrt{\frac{S}{2}}S(b+b^{\dagger})\quad\hat{\tilde{O}}_{41} & =2\sqrt{2S}S^{3}(b+b^{\dagger})\quad\hat{\tilde{O}}_{61} & =4\sqrt{2S}S^{5}(b+b^{\dagger})
+\end{alignat*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibliographystyle{apsrev4-2}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%apsrev4-2.bst 2019-01-14 (MD) hand-edited version of apsrev4-1.bst
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%Control: key (0)
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%Control: author (72) initials jnrlst
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%Control: editor formatted (1) identically to author
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%Control: production of article title (-1) disabled
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%Control: page (0) single
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%Control: year (1) truncated
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%Control: production of eprint (0) enabled
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+makeatletter
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+@ifxundefined}[1]{%
+\end_layout
+
+\begin_layout Plain Layout
+
+ 
+\backslash
+@ifx{#1
+\backslash
+undefined}
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+@ifnum}[1]{%
+\end_layout
+
+\begin_layout Plain Layout
+
+ 
+\backslash
+ifnum #1
+\backslash
+expandafter 
+\backslash
+@firstoftwo
+\end_layout
+
+\begin_layout Plain Layout
+
+ 
+\backslash
+else 
+\backslash
+expandafter 
+\backslash
+@secondoftwo
+\end_layout
+
+\begin_layout Plain Layout
+
+ 
+\backslash
+fi
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+@ifx}[1]{%
+\end_layout
+
+\begin_layout Plain Layout
+
+ 
+\backslash
+ifx #1
+\backslash
+expandafter 
+\backslash
+@firstoftwo
+\end_layout
+
+\begin_layout Plain Layout
+
+ 
+\backslash
+else 
+\backslash
+expandafter 
+\backslash
+@secondoftwo
+\end_layout
+
+\begin_layout Plain Layout
+
+ 
+\backslash
+fi
+\end_layout
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+natexlab}[1]{#1}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+enquote}[1]{``#1''}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+bibnamefont}[1]{#1}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+bibfnamefont}[1]{#1}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+citenamefont}[1]{#1}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+href@noop}[0]{
+\backslash
+@secondoftwo}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+href}[0]{
+\backslash
+begingroup 
+\backslash
+@sanitize@url 
+\backslash
+@href}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+@href}[1]{
+\backslash
+@@startlink{#1}
+\backslash
+@@href}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+@@href}[1]{
+\backslash
+endgroup#1
+\backslash
+@@endlink}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+@sanitize@url}[0]{
+\backslash
+catcode `
+\backslash
+
+\backslash
+12
+\backslash
+catcode `
+\backslash
+$12
+\backslash
+catcode
+\end_layout
+
+\begin_layout Plain Layout
+
+  `
+\backslash
+&12
+\backslash
+catcode `
+\backslash
+#12
+\backslash
+catcode `
+\backslash
+^12
+\backslash
+catcode `
+\backslash
+_12
+\backslash
+catcode `
+\backslash
+%12
+\backslash
+relax}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+@@startlink}[1]{}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+@@endlink}[0]{}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+url}[0]{
+\backslash
+begingroup
+\backslash
+@sanitize@url 
+\backslash
+@url }
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+@url}[1]{
+\backslash
+endgroup
+\backslash
+@href {#1}{
+\backslash
+urlprefix }}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+urlprefix}[0]{URL }
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+Eprint}[0]{
+\backslash
+href }
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+doibase}[0]{https://doi.org/}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+selectlanguage}[0]{
+\backslash
+@gobble}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+bibinfo}[0]{
+\backslash
+@secondoftwo}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+bibfield}[0]{
+\backslash
+@secondoftwo}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+translation}[1]{[#1]}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+BibitemOpen}[0]{}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+bibitemStop}[0]{}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+bibitemNoStop}[0]{.
+\backslash
+EOS
+\backslash
+space}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+EOS}[0]{
+\backslash
+spacefactor3000
+\backslash
+relax}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+providecommand{
+\backslash
+BibitemShut}[1]{
+\backslash
+csname bibitem#1
+\backslash
+endcsname}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+let
+\backslash
+auto@bib@innerbib
+\backslash
+@empty
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+%</preamble>
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+label "{\\citenamefont {Zhang}\\ and\\ \\citenamefont {Batista}(2021)}"
+key "Hao21"
+literal "true"
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+BibitemOpen
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfield
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+H.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Zhang
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space \space{}
+\end_inset
+
+and
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+C.
+\begin_inset space ~
+\end_inset
+
+D.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Batista
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+,
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset href
+LatexCommand href
+name "\\bibfield   {journal} {\\bibinfo  {journal} {Phys. Rev. B}\\ }\\textbf {\\bibinfo {volume}   {104}},\\ \\bibinfo {pages} {104409} (\\bibinfo {year} {2021})"
+target "https://doi.org/10.1103/PhysRevB.104.104409"
+literal "true"
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+BibitemShut{
+\end_layout
+
+\end_inset
+
+NoStop
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+label "{\\citenamefont {Dahlbom}\\ \\emph   {et~al.}(2022{\\natexlab{a}})\\citenamefont {Dahlbom}, \\citenamefont {Zhang},   \\citenamefont {Miles}, \\citenamefont {Bai}, \\citenamefont {Batista},\\ and\\   \\citenamefont {Barros}}"
+key "Dahlbom22"
+literal "true"
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+BibitemOpen
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfield
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+D.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Dahlbom
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+H.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Zhang
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+C.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Miles
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+X.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Bai
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+C.
+\begin_inset space ~
+\end_inset
+
+D.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Batista
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+,
+\begin_inset space \space{}
+\end_inset
+
+and
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+K.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Barros
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+,
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset href
+LatexCommand href
+name "\\bibfield  {journal} {\\bibinfo    {journal} {Phys. Rev. B}\\ }\\textbf {\\bibinfo {volume} {106}},\\ \\bibinfo   {pages} {054423} (\\bibinfo {year} {2022}{\\natexlab{a}})"
+target "https://doi.org/10.1103/PhysRevB.106.054423"
+literal "true"
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+BibitemShut{
+\end_layout
+
+\end_inset
+
+NoStop
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+label "{\\citenamefont {Dahlbom}\\ \\emph   {et~al.}(2022{\\natexlab{b}})\\citenamefont {Dahlbom}, \\citenamefont {Miles},   \\citenamefont {Zhang}, \\citenamefont {Batista},\\ and\\ \\citenamefont   {Barros}}"
+key "Dahlbom22b"
+literal "true"
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+BibitemOpen
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfield
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+D.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Dahlbom
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+C.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Miles
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+H.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Zhang
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+C.
+\begin_inset space ~
+\end_inset
+
+D.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Batista
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+,
+\begin_inset space \space{}
+\end_inset
+
+and
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+K.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Barros
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+,
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset href
+LatexCommand href
+name "\\bibfield  {journal} {\\bibinfo    {journal} {Phys. Rev. B}\\ }\\textbf {\\bibinfo {volume} {106}},\\ \\bibinfo   {pages} {235154} (\\bibinfo {year} {2022}{\\natexlab{b}})"
+target "https://doi.org/10.1103/PhysRevB.106.235154"
+literal "true"
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+BibitemShut{
+\end_layout
+
+\end_inset
+
+NoStop
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+label "{\\citenamefont {Dahlbom}\\ \\emph {et~al.}(2023)\\citenamefont   {Dahlbom}, \\citenamefont {Zhang}, \\citenamefont {Laraib}, \\citenamefont   {Pajerowski}, \\citenamefont {Barros},\\ and\\ \\citenamefont   {Batista}}"
+key "Dahlbom23"
+literal "true"
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+BibitemOpen
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfield
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+D.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Dahlbom
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+H.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Zhang
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+Z.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Laraib
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+D.
+\begin_inset space ~
+\end_inset
+
+M.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Pajerowski
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+, 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+K.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Barros
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+,
+\begin_inset space \space{}
+\end_inset
+
+and
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+author
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibfnamefont{
+\end_layout
+
+\end_inset
+
+C.
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibnamefont{
+\end_layout
+
+\end_inset
+
+Batista
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+,
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+href@noop
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+title
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+Renormalized classical theory of quantum magnets
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ (
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+bibinfo
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+year
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+2023
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+),
+\begin_inset space \space{}
+\end_inset
+
+
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+Eprint
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+https://arxiv.org/abs/2304.03874
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+{
+\end_layout
+
+\end_inset
+
+arXiv:2304.03874 [cond-mat.str-el]
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+ 
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+BibitemShut{
+\end_layout
+
+\end_inset
+
+NoStop
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
