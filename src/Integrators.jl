@@ -163,73 +163,31 @@ end
     return :(CVec{$N}($(out...)))
 end
 
-# Analog of set_forces! for Schroedinger dynamics. Placed here because will need
-# to be revised in tandem with rhs_langevin! and rhs_ll!. This could possibly be
-# factored out of those functions to reduce code duplication. This is performance
-# critical, so would need benchmarking.
-function set_complex_forces!(HZ, Z, sys::System{N}) where N
-    B = only(get_dipole_buffers(sys, 1) )
-
-    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
-    set_forces!(B, sys.dipoles, sys)
-
-    if is_homogeneous(sys)
-        ints = interactions_homog(sys)
-        for site in all_sites(sys)
-            Λ = ints[to_atom(site)].aniso.matrep
-            HZ[site] = mul_spin_matrices(Λ, -B[site], Z[site])  
-        end 
-    else
-        ints = interactions_inhomog(sys)
-        for site in all_sites(sys)
-            Λ = ints[site].aniso.matrep
-            HZ[site] = mul_spin_matrices(Λ, -B[site], Z[site])  
-        end 
-    end
-end
-
-
 function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
-                        B::Array{Vec3, 4}, integrator::Langevin, sys::System{N}) where N
+                       HZ::Array{CVec{N}, 4}, integrator::Langevin, sys::System{N}) where N
     (; kT, λ, Δt) = integrator
-
-    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
-    set_forces!(B, sys.dipoles, sys)
-
-    if is_homogeneous(sys)
-        ints = interactions_homog(sys)
-        for site in all_sites(sys)
-            Λ = ints[to_atom(site)].onsite.matrep
-            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
-            ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ
-            ΔZ[site] = proj(ΔZ′, Z[site])
-        end 
-    else
-        ints = interactions_inhomog(sys)
-        for site in all_sites(sys)
-            Λ = ints[site].onsite.matrep
-            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
-            ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ
-            ΔZ[site] = proj(ΔZ′, Z[site])
-        end 
+    for site in all_sites(sys)
+        ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ[site]
+        ΔZ[site] = proj(ΔZ′, Z[site])
     end
-    nothing
 end
 
 
 function step!(sys::System{N}, integrator::Langevin) where N
-    (Z′, ΔZ₁, ΔZ₂, ξ) = get_coherent_buffers(sys, 4)
+    (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
     B = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
     randn!(sys.rng, ξ)
 
     # Prediction
-    rhs_langevin!(ΔZ₁, Z, ξ, B, integrator, sys)
+    set_complex_forces!(HZ, B, Z, sys)
+    rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction
-    rhs_langevin!(ΔZ₂, Z′, ξ, B, integrator, sys)
+    set_complex_forces!(HZ, B, Z′, sys)
+    rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
     # Coordinate dipole data
@@ -237,26 +195,10 @@ function step!(sys::System{N}, integrator::Langevin) where N
 end
 
 
-function rhs_ll!(ΔZ, Z, B, integrator, sys)
+function rhs_ll!(ΔZ, HZ, integrator, sys)
     (; Δt) = integrator
-
-    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
-    set_forces!(B, sys.dipoles, sys)
-
-    if is_homogeneous(sys)
-        ints = interactions_homog(sys)
-        for site in all_sites(sys)
-            Λ = ints[to_atom(site)].onsite.matrep
-            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
-            ΔZ[site] = - Δt*im*HZ
-        end 
-    else
-        ints = interactions_inhomog(sys)
-        for site in all_sites(sys)
-            Λ = ints[site].onsite.matrep
-            HZ = mul_spin_matrices(Λ, -B[site], Z[site]) # HZ = (Λ - B⋅s) Z
-            ΔZ[site] = - Δt*im*HZ
-        end 
+    for site in all_sites(sys)
+        ΔZ[site] = - Δt*im*HZ[site]
     end
 end
 
@@ -268,7 +210,7 @@ end
 #
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     (; atol) = integrator
-    (ΔZ, Z̄, Z′, Z″) = get_coherent_buffers(sys, 4)
+    (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
     B = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
@@ -278,7 +220,8 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     for _ in 1:max_iters
         @. Z̄ = (Z + Z′)/2
 
-        rhs_ll!(ΔZ, Z̄, B, integrator, sys)
+        set_complex_forces!(HZ, B, Z̄, sys)
+        rhs_ll!(ΔZ, HZ, integrator, sys)
 
         @. Z″ = Z + ΔZ
 

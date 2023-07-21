@@ -333,6 +333,27 @@ function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::Sy
     end
 end
 
+# Updates `HZ` in-place to hold `dH/dZ^*`, the analog in the Schroedinger formulation
+# of the classical quantity `-dE/ds`.
+function set_complex_forces!(HZ, B, Z, sys::System{N}) where N
+
+    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
+    set_forces!(B, sys.dipoles, sys)
+
+    if is_homogeneous(sys)
+        ints = interactions_homog(sys)
+        for site in all_sites(sys)
+            Λ = ints[to_atom(site)].onsite.matrep
+            HZ[site] = mul_spin_matrices(Λ, -B[site], Z[site])  
+        end 
+    else
+        ints = interactions_inhomog(sys)
+        for site in all_sites(sys)
+            Λ = ints[site].onsite.matrep
+            HZ[site] = mul_spin_matrices(Λ, -B[site], Z[site])  
+        end 
+    end
+end
 
 # Produces a function that iterates over a list interactions for a given cell
 function inhomog_bond_iterator(latsize, cell)
