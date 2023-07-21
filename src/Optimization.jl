@@ -1,6 +1,6 @@
 # The following four helper functions allow for more code resuse since the
 # projective parameterization is formally the same for both dipoles and coherent
-# states (the element types are just real in the first case, compelx in the
+# states (the element types are just real in the first case, complex in the
 # second).
 function set_forces_optim!(∇H, ∇H_dip, sys::System{N}) where {N}
     Sunny.set_energy_grad_dipoles!(∇H_dip, sys.dipoles, sys)
@@ -48,7 +48,7 @@ function optim_energy(αs, zs, sys::System{N})::Float64 where N
     for site in all_sites(sys)
         set_spin_optim!(sys, αs[site], zs[site], site)
     end
-    return energy(sys) # Note: `Sunny.energy` seems to allocate and is type-unstable
+    return energy(sys) # Note: `Sunny.energy` seems to allocate and is type-unstable (7/20/2023)
 end
 
 # Non-allocating check for largest unnormalized coordinate.
@@ -92,7 +92,7 @@ end
 # Quick "touchup" optimization that assumes the system is already near the
 # ground state. Never changes the parameterization of coherent states or
 # dipoles. For internal use when setting up a spin wave calculation.
-function minimize_energy_touchup!(sys::System{N}; method=Optim.LBFGS, maxiters = 40, kwargs...) where N
+function minimize_energy_touchup!(sys::System{N}; method=Optim.LBFGS, maxiters=50, kwargs...) where N
     numbertype = N == 0 ? Float64 : ComplexF64
     buffer = N == 0 ? sys.dipoles : sys.coherents
     B = N == 0 ? nothing : get_dipole_buffers(sys, 1) |> only
