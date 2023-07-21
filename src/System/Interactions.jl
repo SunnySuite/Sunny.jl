@@ -290,7 +290,7 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
     end
 end
 
-# Calculate the energy gradient `∇H' for the sublattice `i' at all elements of
+# Calculate the energy gradient `∇E' for the sublattice `i' at all elements of
 # `cells`. The function `foreachbond` enables efficient iteration over
 # neighboring cell pairs.
 function set_energy_grad_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells, foreachbond) where N
@@ -351,7 +351,7 @@ function set_energy_grad_coherents!(HZ, ∇E, Z, sys::System{N}) where N
     end
 end
 
-# Returns (Λ - ∇E⋅S) Z
+# Returns (Λ + ∇E⋅S) Z
 @generated function mul_spin_matrices(Λ, ∇E::Sunny.Vec3, Z::Sunny.CVec{N}) where N
     S = spin_matrices(; N)
     out = map(1:N) do i
