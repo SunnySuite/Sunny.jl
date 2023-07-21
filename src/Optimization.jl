@@ -294,3 +294,65 @@ function minimize_energy_affine!(sys::System{N}; method=Optim.LBFGS, maxiters = 
 
     return success
 end
+
+
+################################################################################
+# Complex projective representation of CP^N-1 vector 
+################################################################################
+
+using Sunny, StaticArrays, LinearAlgebra
+
+function vec_to_stereo(u, z)
+    # (I - z*z')*u/(1 - √(u'*z*z'*u))
+
+    zz = z*z'
+    (I - zz)*u/(1 - sqrt(u'*zz*u))
+
+    # (I - z*z')*u/(1 - abs(z'*u))
+end
+
+function stereo_to_vec(v, z)
+    v2 = v' * v
+    denom = 1 + v2
+
+    (2v + (v2-1)*z)/ denom
+end
+
+function spin_expectations(ψ::SVector{N, ComplexF64}) where N
+    S = Sunny.spin_matrices(N)
+    real.((ψ' * S[1] * ψ, ψ' * S[2] * ψ, ψ' * S[3] * ψ))
+end
+
+# Tests
+function there_and_back(u::SVector{N, ComplexF64}, z::SVector{N, ComplexF64}; θ=nothing) where N
+    # u1 = vec_to_stereo(u,z) |> v -> stereo_to_vec(v, z)
+    v = vec_to_stereo(u, z) 
+    u1 = stereo_to_vec(v, z)
+
+    println("Norm of intermediate: ", norm(v))
+    println("Reconstruction error: ", norm(u - u1))
+
+    display(spin_expectations(u))
+    display(spin_expectations(u1))
+    u1 * exp(-im*angle(u1[1]))
+end
+
+function there_and_back2(u::SVector{N, ComplexF64}) where N
+    rv = rand(SVector{N, ComplexF64})
+    ov = rv - (u'*rv)*u
+    z = normalize(ov)
+
+
+    # u1 = vec_to_stereo(u,z) |> v -> stereo_to_vec(v, z)
+    v = vec_to_stereo(u, z) 
+    u1 = stereo_to_vec(v, z)
+
+    println("Norm of intermediate: ", norm(v))
+    println("Reconstruction error: ", norm(u - u1))
+
+    display(spin_expectations(u))
+    display(spin_expectations(u1))
+    u1 * exp(-im*angle(u1[1]))
+end
+
+
