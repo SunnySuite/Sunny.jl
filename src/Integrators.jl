@@ -63,7 +63,7 @@ such as [`LocalSampler`](@ref).
 function step! end
 
 function step!(sys::System{0}, integrator::Langevin)
-    (B, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
+    (∇E, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
     (; kT, λ, Δt) = integrator
     s = sys.dipoles
 
@@ -71,14 +71,14 @@ function step!(sys::System{0}, integrator::Langevin)
     ξ .*= √(2λ*kT)
 
     # Euler step
-    set_forces_dipoles!(B, s, sys)
-    @. f₁ = rhs_dipole(s, B, λ)
+    set_energy_grad_dipoles!(∇E, s, sys)
+    @. f₁ = rhs_dipole(s, -∇E, λ)
     @. r₁ = rhs_dipole(s, ξ)   # note absence of λ argument -- noise only appears once in rhs.
     @. s₁ = s + Δt * f₁ + √Δt * r₁
 
     # Corrector step
-    set_forces_dipoles!(B, s₁, sys)
-    @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, B, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
+    set_energy_grad_dipoles!(∇E, s₁, sys)
+    @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, -∇E, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
     @. s = normalize_dipole(s, sys.κs)
     nothing
 end
@@ -93,7 +93,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
     s = sys.dipoles
     (; Δt, atol) = integrator
 
-    (B, s̄, ŝ, s̄′) = get_dipole_buffers(sys, 4)
+    (∇E, s̄, ŝ, s̄′) = get_dipole_buffers(sys, 4)
     
     # Initial guess for midpoint
     @. s̄ = s
@@ -103,8 +103,8 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         # Integration step for current best guess of midpoint s̄. Produces
         # improved midpoint estimator s̄′.
         @. ŝ = normalize_dipole(s̄, sys.κs)
-        set_forces_dipoles!(B, ŝ, sys)
-        @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, B)
+        set_energy_grad_dipoles!(∇E, ŝ, sys)
+        @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, -∇E)
 
         # If converged, then we can return
         if fast_isapprox(s̄, s̄′,atol=atol* √length(s̄))
@@ -143,22 +143,22 @@ end
 
 function step!(sys::System{N}, integrator::Langevin) where N
     (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
-    B = get_dipole_buffers(sys, 1) |> only
+    ∇E = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
     randn!(sys.rng, ξ)
 
     # Prediction
     @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
-    set_forces_dipoles!(B, sys.dipoles, sys)
-    set_forces_coherents!(HZ, B, Z, sys)
+    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
+    set_energy_grad_coherents!(HZ, ∇E, Z, sys)
     rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction
     @. sys.dipoles = expected_spin(Z′) # temporarily desyncs dipoles and coherents
-    set_forces_dipoles!(B, sys.dipoles, sys)
-    set_forces_coherents!(HZ, B, Z′, sys)
+    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
+    set_energy_grad_coherents!(HZ, ∇E, Z′, sys)
     rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
@@ -186,7 +186,7 @@ end
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     (; atol) = integrator
     (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
-    B = get_dipole_buffers(sys, 1) |> only
+    ∇E = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
     @. Z′ = Z 
@@ -196,8 +196,8 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
         @. Z̄ = (Z + Z′)/2
 
         @. sys.dipoles = expected_spin(Z̄) # temporarily desyncs dipoles and coherents
-        set_forces_dipoles!(B, sys.dipoles, sys)
-        set_forces_coherents!(HZ, B, Z̄, sys)
+        set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
+        set_energy_grad_coherents!(HZ, ∇E, Z̄, sys)
         rhs_ll!(ΔZ, HZ, integrator, sys)
 
         @. Z″ = Z + ΔZ

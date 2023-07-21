@@ -2,13 +2,13 @@
 # projective parameterization is formally the same for both dipoles and coherent
 # states (the element types are just real in the first case, compelx in the
 # second).
-function set_forces_optim!(Hgrad, B, sys::System{N}) where {N}
-    Sunny.set_forces_dipoles!(B, sys.dipoles, sys)
-    Sunny.set_forces_coherents!(Hgrad, B, sys.coherents, sys)
+function set_forces_optim!(∇H, ∇H_dip, sys::System{N}) where {N}
+    Sunny.set_energy_grad_dipoles!(∇H_dip, sys.dipoles, sys)
+    Sunny.set_energy_grad_coherents!(∇H, ∇H_dip, sys.coherents, sys)
 end
 
-function set_forces_optim!(Hgrad, _, sys::System{0}) 
-    Sunny.set_forces_dipoles!(Hgrad, sys.dipoles, sys)
+function set_forces_optim!(∇H, _, sys::System{0}) 
+    Sunny.set_energy_grad_dipoles!(∇H, sys.dipoles, sys)
 end
 
 @inline function set_spin_optim!(sys::System{N}, α, z, site) where N
@@ -64,7 +64,6 @@ end
 # Calculate dH(u(α))/dα 
 function optim_gradient!(buf, αs, zs, B, sys::System{N}, halted, quickmode=false) where N
     T = N == 0 ? Vec3 : CVec{N} 
-    jacsign = N == 0 ? -1 : 1  # Because set_forces_dipoles gives -dH/dS whereas set_forces_coherents gives dH/dZ*
     αs = reinterpret(reshape, T, αs)
     Hgrad = reinterpret(reshape, T, buf)
 
@@ -86,7 +85,7 @@ function optim_gradient!(buf, αs, zs, B, sys::System{N}, halted, quickmode=fals
     set_forces_optim!(Hgrad, B, sys)
 
     for site in all_sites(sys)
-        Hgrad[site] = jacsign * apply_projective_jacobian(Hgrad[site], αs[site], zs[site])
+        Hgrad[site] = apply_projective_jacobian(Hgrad[site], αs[site], zs[site])
     end
 end
 

@@ -259,15 +259,15 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbo
     return E
 end
 
-# Updates B in-place to hold negative energy gradient, -dE/ds, for each spin.
-function set_forces_dipoles!(B, dipoles::Array{Vec3, 4}, sys::System{N}) where N
+# Updates ∇E in-place to hold energy gradient, dE/ds, for each spin.
+function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N}) where N
     (; crystal, latsize, extfield, ewald) = sys
 
-    fill!(B, zero(Vec3))
+    fill!(∇E, zero(Vec3))
 
     # Zeeman coupling
     for site in all_sites(sys)
-        B[site] += sys.units.μB * (sys.gs[site]' * extfield[site])
+        ∇E[site] -= sys.units.μB * (sys.gs[site]' * extfield[site])
     end
 
     # Anisotropies and exchange interactions
@@ -275,31 +275,31 @@ function set_forces_dipoles!(B, dipoles::Array{Vec3, 4}, sys::System{N}) where N
         if is_homogeneous(sys)
             # Interaction is the same at every cell
             interactions = sys.interactions_union[i]
-            set_forces_aux!(B, dipoles, interactions, sys, i, all_cells(sys), homog_bond_iterator(latsize))
+            set_energy_grad_aux!(∇E, dipoles, interactions, sys, i, all_cells(sys), homog_bond_iterator(latsize))
         else
             for cell in all_cells(sys)
                 # There is a different interaction at every cell
                 interactions = sys.interactions_union[cell,i]
-                set_forces_aux!(B, dipoles, interactions, sys, i, (cell,), inhomog_bond_iterator(latsize, cell))
+                set_energy_grad_aux!(∇E, dipoles, interactions, sys, i, (cell,), inhomog_bond_iterator(latsize, cell))
             end
         end
     end
 
     if !isnothing(ewald)
-        accum_ewald_force!(B, dipoles, sys)
+        accum_ewald_grad!(∇E, dipoles, sys)
     end
 end
 
-# Calculate the force `B' for the sublattice `i' at all elements of `cells`. The
-# function `foreachbond` enables efficient iteration over neighboring cell
-# pairs.
-function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells, foreachbond) where N
+# Calculate the energy gradient `∇H' for the sublattice `i' at all elements of
+# `cells`. The function `foreachbond` enables efficient iteration over
+# neighboring cell pairs.
+function set_energy_grad_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells, foreachbond) where N
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into ℌ.
     if N == 0
         for cell in cells
             s = dipoles[cell, i]
-            B[cell, i] -= energy_and_gradient_for_classical_anisotropy(s, ints.onsite.stvexp)[2]
+            ∇E[cell, i] += energy_and_gradient_for_classical_anisotropy(s, ints.onsite.stvexp)[2]
         end
     end
 
@@ -309,8 +309,8 @@ function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::Sy
 
         # Bilinear
         J = coupling.bilin
-        B[site1] -= J  * sⱼ
-        B[site2] -= J' * sᵢ
+        ∇E[site1] += J  * sⱼ
+        ∇E[site2] += J' * sᵢ
 
         # Biquadratic
         if !iszero(coupling.biquad)
@@ -321,11 +321,11 @@ function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::Sy
                 Sⱼ = (sys.Ns[site2]-1)/2
                 S = √(Sᵢ*Sⱼ)
                 r = (1 - 1/S + 1/4S^2)
-                B[site1] -= J * (2r*sⱼ*(sᵢ⋅sⱼ) - sⱼ/2)
-                B[site2] -= J * (2r*sᵢ*(sᵢ⋅sⱼ) - sᵢ/2)
+                ∇E[site1] += J * (2r*sⱼ*(sᵢ⋅sⱼ) - sⱼ/2)
+                ∇E[site2] += J * (2r*sᵢ*(sᵢ⋅sⱼ) - sᵢ/2)
             elseif sys.mode == :large_S
-                B[site1] -= J * 2sⱼ*(sᵢ⋅sⱼ)
-                B[site2] -= J * 2sᵢ*(sᵢ⋅sⱼ)
+                ∇E[site1] += J * 2sⱼ*(sᵢ⋅sⱼ)
+                ∇E[site2] += J * 2sᵢ*(sᵢ⋅sⱼ)
             elseif sys.mode == :SUN
                 error("Biquadratic currently unsupported in SU(N) mode.")
             end
@@ -333,26 +333,26 @@ function set_forces_aux!(B, dipoles::Array{Vec3, 4}, ints::Interactions, sys::Sy
     end
 end
 
-# Updates `HZ` in-place to hold `dH/dZ^*`, the analog in the Schroedinger formulation
-# of the classical quantity `dE/ds` (note sign).
-function set_forces_coherents!(HZ, B, Z, sys::System{N}) where N
+# Updates `HZ` in-place to hold `dH/dZ^*`, the analog in the Schroedinger
+# formulation of the quantity `dE/ds`.
+function set_energy_grad_coherents!(HZ, ∇E, Z, sys::System{N}) where N
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
         for site in all_sites(sys)
             Λ = ints[to_atom(site)].onsite.matrep
-            HZ[site] = mul_spin_matrices(Λ, -B[site], Z[site])  
+            HZ[site] = mul_spin_matrices(Λ, ∇E[site], Z[site])  
         end 
     else
         ints = interactions_inhomog(sys)
         for site in all_sites(sys)
             Λ = ints[site].onsite.matrep
-            HZ[site] = mul_spin_matrices(Λ, -B[site], Z[site])  
+            HZ[site] = mul_spin_matrices(Λ, ∇E[site], Z[site])  
         end 
     end
 end
 
-# Returns (Λ + B⋅S) Z
-@generated function mul_spin_matrices(Λ, B::Sunny.Vec3, Z::Sunny.CVec{N}) where N
+# Returns (Λ - ∇E⋅S) Z
+@generated function mul_spin_matrices(Λ, ∇E::Sunny.Vec3, Z::Sunny.CVec{N}) where N
     S = spin_matrices(; N)
     out = map(1:N) do i
         out_i = map(1:N) do j
@@ -360,7 +360,7 @@ end
             for α = 1:3
                 S_αij = S[α][i,j]
                 if !iszero(S_αij)
-                    push!(terms, :(B[$α] * $S_αij))
+                    push!(terms, :(∇E[$α] * $S_αij))
                 end
             end
             :(+($(terms...)) * Z[$j])
@@ -407,7 +407,7 @@ end
 Returns the effective local field (force) at each site, ``𝐁 = -∂E/∂𝐬``.
 """
 function forces(sys::System{N}) where N
-    B = zero(sys.dipoles)
-    set_forces_dipoles!(B, sys.dipoles, sys)
-    return B
+    ∇E = zero(sys.dipoles)
+    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
+    return -∇E
 end
