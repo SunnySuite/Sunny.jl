@@ -84,38 +84,39 @@ end
 
     # According to a renormalized classical theory for spins (the details will be presented in a manuscript in preparation), the large-S expansion and the :dipole mode should produce the same results when apply the proper renormalization factor for the single-ion interaction strength.
     cov_factor = (1 - 3/S + 11/(4*S^2)- 3/(4*S^3))
-
-    dims = (1, 1, 1)
-    infos = [SpinInfo(1, S=S)]
-    sys = System(fcc, dims, infos, :SUN)
-
     J = 22.06 * Sunny.meV_per_K
     K = 0.15  * Sunny.meV_per_K
     C = J + K
     J₁ = diagm([J, J, C])
     D_ST = 0.2
     D = D_ST / cov_factor
+    dims = (1, 1, 1)
+    infos = [SpinInfo(1, S=S)]
 
-    set_exchange!(sys, J₁, Bond(1, 2, [0, 0, 0]))
-    S = spin_operators(sys, 1)
-    Λ = D * (S[1]^4 + S[2]^4 + S[3]^4)
-    set_onsite_coupling!(sys, Λ, 1)
+    function compute_trace(mode::Symbol)
+        sys = System(fcc, dims, infos, mode)
+        set_exchange!(sys, J₁, Bond(1, 2, [0, 0, 0]))
+        S = spin_operators(sys, 1)
+        Λ = D * (S[1]^4 + S[2]^4 + S[3]^4)
+        set_onsite_coupling!(sys, Λ, 1)
+        polarize_spin!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
+        polarize_spin!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
+        polarize_spin!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
+        polarize_spin!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
+        swt = SpinWaveTheory(sys)
+        k = [0.8, 0.6, 0.1]
+        _, Sαβs =  Sunny.dssf(swt, [k])
 
-    polarize_spin!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
-    polarize_spin!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
-    polarize_spin!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
-    polarize_spin!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
+        sunny_trace = [real(tr(Sαβs[1,a])) for a in axes(Sαβs)[2]]
+        sunny_trace = filter(x -> abs(x) > 1e-12, sunny_trace)
 
-    swt = SpinWaveTheory(sys)
+        return sunny_trace
+    end
 
-    k = [0.8, 0.6, 0.1]
-    _, Sαβs =  Sunny.dssf(swt, [k])
-
-    sunny_trace = [real(tr(Sαβs[1,a])) for a in axes(Sαβs)[2]]
-    sunny_trace = filter(x -> abs(x) > 1e-12, sunny_trace)
     spintools_trace = [1.1743243223274487, 1.229979802236658, 1.048056653379038]
-
-    @test isapprox(sunny_trace, spintools_trace)
+    SUN_trace = compute_trace(:SUN)
+    dipole_trace = compute_trace(:dipole)
+    @test SUN_trace ≈ dipole_trace ≈ spintools_trace
 end
 
 @testitem "Biquadratic interactions" begin
