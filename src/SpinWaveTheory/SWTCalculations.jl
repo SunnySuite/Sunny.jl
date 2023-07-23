@@ -565,12 +565,12 @@ end
 delta_function_kernel = nothing
 
 function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function}, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast = false)
-    (; sys, positions_chem, s̃_mat) = swt
+    (; sys, positions_chem, s̃_mat, R_mat) = swt
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    Nf = sys.mode == :SUN ? Ns-1 : 1
-    N  = Nf + 1
-    nmodes  = Nf * Nm 
+    S = (Ns-1) / 2
+    nmodes = num_bands(swt)
     sqrt_Nm_inv = 1.0 / √Nm
+    sqrt_halfS  = √(S/2)
 
     # Preallocation
     Hmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
@@ -600,12 +600,19 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
         for band = 1:nmodes
             v = Vmat[:, band]
             Avec = zeros(ComplexF64, 3)
-            for site = 1:Nm
-                @views tS_μ = s̃_mat[:, :, :, site]
-                for μ = 1:3
-                    for α = 2:N
-                        Avec[μ] += Avec_pref[site] * (tS_μ[α, 1, μ] * v[(site-1)*(N-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(site-1)*(N-1)+α-1])
+            if sys.mode == :SUN
+                for site = 1:Nm
+                    @views tS_μ = s̃_mat[:, :, :, site]
+                    for μ = 1:3
+                        for α = 2:Ns
+                            Avec[μ] += Avec_pref[site] * (tS_μ[α, 1, μ] * v[(site-1)*(Ns-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(site-1)*(Ns-1)+α-1])
+                        end
                     end
+                end
+            elseif sys.mode == :dipole
+                for site = 1:Nm
+                    Vtmp = [v[site+nmodes] + v[site], 1im * (v[site+nmodes] - v[site]), 0.0]
+                    Avec += Avec_pref[site] * sqrt_halfS * (R_mat[site] * Vtmp)
                 end
             end
 
