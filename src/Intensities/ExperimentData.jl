@@ -35,39 +35,49 @@ end
 Given the name of a Mantid-exported `MDHistoWorkspace` file, load the [`BinningParameters`](@ref) and the signal from that file.
 """
 function load_nxs(filename)
-    JLD2.jldopen(filename) do file
+    JLD2.jldopen(filename,"r") do file
         read_covectors_from_axes_labels = false
         covectors = Matrix{Float64}(undef,3,3)
         try
-          coordinate_system = file["MDHistoWorkspace"]["coordinate_system"][1]
+          try
+            w_matrix = file["MDHistoWorkspace"]["experiment0"]["logs"]["W_MATRIX"]["value"]
+            covectors .= reshape(w_matrix,3,3) # No transpose because stored as column
+          catch e
+            printstyled("Warning",color=:yellow)
+            print(": failed to load W_MATRIX from Mantid file $filename due to:\n")
+            println(e)
+            println("Falling back to reading transform_from_orig")
 
-          # Permalink to where this enum is defined:
-          # https://github.com/mantidproject/mantid/blob/057df5b2de1c15b819c7dd06e50bdbf5461b09c6/Framework/Kernel/inc/MantidKernel/SpecialCoordinateSystem.h#L14
-          system_name = ["None", "QLab", "QSample", "HKL"][coordinate_system + 1]
+            coordinate_system = file["MDHistoWorkspace"]["coordinate_system"][1]
 
-          # The matrix stored in the file is transpose of the actual
-          # transform_from_orig matrix
-          transform_from_orig = file["MDHistoWorkspace"]["transform_from_orig"]
-          transform_from_orig = reshape(transform_from_orig,5,5)
-          transform_from_orig = transform_from_orig'
-          
-          # U: Orthogonal rotation matrix
-          # B: inv(lattice_vectors(...)) matrix, as in Sunny
-          # The matrix stored in the file is transpose of U * B
-          ub_matrix = file["MDHistoWorkspace"]["experiment0"]["sample"]["oriented_lattice"]["orientation_matrix"]
-          ub_matrix = ub_matrix'
+            # Permalink to where this enum is defined:
+            # https://github.com/mantidproject/mantid/blob/057df5b2de1c15b819c7dd06e50bdbf5461b09c6/Framework/Kernel/inc/MantidKernel/SpecialCoordinateSystem.h#L14
+            system_name = ["None", "QLab", "QSample", "HKL"][coordinate_system + 1]
 
-          # Following: https://docs.mantidproject.org/nightly/concepts/Lattice.html
-          # It can be verified that the matrix G^* = (ub_matrix' * ub_matrix)
-          # is equal to B' * B, where B = inv(lattice_vectors(...)), and the diagonal
-          # entries of the inverse of this matrix are the lattice parameters squared
-          #
-          #abcMagnitude = sqrt.(diag(inv(ub_matrix' * ub_matrix)))
-          #println("[a,b,c] = ",abcMagnitude)
+            # The matrix stored in the file is transpose of the actual
+            # transform_from_orig matrix
+            transform_from_orig = file["MDHistoWorkspace"]["transform_from_orig"]
+            transform_from_orig = reshape(transform_from_orig,5,5)
+            transform_from_orig = transform_from_orig'
+            
+            # U: Orthogonal rotation matrix
+            # B: inv(lattice_vectors(...)) matrix, as in Sunny
+            # The matrix stored in the file is transpose of U * B
+            ub_matrix = file["MDHistoWorkspace"]["experiment0"]["sample"]["oriented_lattice"]["orientation_matrix"]
+            ub_matrix = ub_matrix'
 
-          # This is how you extract the covectors from `transform_from_orig` and `ub_matrix`
-          # TODO: Parse this from the `long_name` of the data_dims instead
-          covectors .= 2π .* transform_from_orig[1:3,1:3] * ub_matrix
+            # Following: https://docs.mantidproject.org/nightly/concepts/Lattice.html
+            # It can be verified that the matrix G^* = (ub_matrix' * ub_matrix)
+            # is equal to B' * B, where B = inv(lattice_vectors(...)), and the diagonal
+            # entries of the inverse of this matrix are the lattice parameters squared
+            #
+            #abcMagnitude = sqrt.(diag(inv(ub_matrix' * ub_matrix)))
+            #println("[a,b,c] = ",abcMagnitude)
+
+            # This is how you extract the covectors from `transform_from_orig` and `ub_matrix`
+            # TODO: Parse this from the `long_name` of the data_dims instead
+            covectors .= 2π .* transform_from_orig[1:3,1:3] * ub_matrix
+          end
         catch e
           printstyled("Warning",color=:yellow)
           print(": failed to read histogram axes from Mantid file $filename due to:\n")
