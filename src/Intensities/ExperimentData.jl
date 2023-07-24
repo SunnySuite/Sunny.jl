@@ -120,7 +120,7 @@ function parse_long_name(long_name)
   if isnothing(found)
     return nothing
   end
-  return map(x -> isempty(x) ? 1. : parse(Float64,x),found)
+  return map(x -> isempty(x) ? 1. : x == "-" ? -1. : parse(Float64,x),found)
 end
 
 function quick_view_nxs(filename,keep_ax)
