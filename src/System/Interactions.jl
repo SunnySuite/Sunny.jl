@@ -259,7 +259,11 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbo
     return E
 end
 
-# Updates ∇E in-place to hold energy gradient, dE/ds, for each spin.
+# Updates ∇E in-place to hold energy gradient, dE/ds, for each spin. In the case
+# of :SUN mode, s is interpreted as expected spin, and dE/ds only includes
+# contributions from Zeeman coupling, bilinear exchange, and long-range
+# dipole-dipole. Excluded terms include onsite coupling, and general pair
+# coupling (biquadratic and beyond).
 function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N}) where N
     (; crystal, latsize, extfield, ewald) = sys
 
@@ -333,15 +337,20 @@ function set_energy_grad_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions,
     end
 end
 
-# Updates `HZ` in-place to hold `dH/dZ^*`, the analog in the Schroedinger
-# formulation of the quantity `dE/ds`.
-function set_energy_grad_coherents!(HZ, ∇E, Z, sys::System{N}) where N
+# Updates `HZ` in-place to hold `dE/dZ̄`, which is the Schrödinger analog to the
+# quantity `dE/ds`. **Overwrites the first two dipole buffers in `sys`.**
+function set_energy_grad_coherents!(HZ, Z, sys::System{N}) where N
+    @assert N > 0
+    ∇E, dipoles = get_dipole_buffers(sys, 2)
+    @. dipoles = expected_spin(Z)
+    set_energy_grad_dipoles!(∇E, dipoles, sys)
+
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
         for site in all_sites(sys)
             Λ = ints[to_atom(site)].onsite.matrep
             HZ[site] = mul_spin_matrices(Λ, ∇E[site], Z[site])  
-        end 
+        end
     else
         ints = interactions_inhomog(sys)
         for site in all_sites(sys)
@@ -401,13 +410,8 @@ function homog_bond_iterator(latsize)
     end
 end
 
-"""
-    forces(Array{Vec3}, sys::System)
-
-Returns the effective local field (force) at each site, ``𝐁 = -∂E/∂𝐬``.
-"""
-function forces(sys::System{N}) where N
+function energy_grad(sys::System{N}) where N
     ∇E = zero(sys.dipoles)
     set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
-    return -∇E
+    return ∇E
 end

@@ -12,7 +12,7 @@
 
     units = [Sunny.Units.meV, Sunny.Units.theory]
 
-    function collect_energy_and_forces(test, units)
+    function collect_energy_and_grad(test, units)
         sys = System(crystal, latsize, infos, :dipole; units, seed=0)
         if test == :zeeman
             set_external_field!(sys, randn(sys.rng, Sunny.Vec3))
@@ -22,16 +22,16 @@
             enable_dipole_dipole!(sys)
         end
         randomize_spins!(sys)
-        return energy(sys), forces(sys)
+        return energy(sys), Sunny.energy_grad(sys)
     end
 
     # All exchange interactions should be invariant under changes to physical
     # constants
     function validate_exchanges_scaling()
-        E1, B1 = collect_energy_and_forces(:exchange, units[1])
-        E2, B2 = collect_energy_and_forces(:exchange, units[2])
+        E1, ∇E1 = collect_energy_and_grad(:exchange, units[1])
+        E2, ∇E2 = collect_energy_and_grad(:exchange, units[2])
         @test E1 ≈ E2
-        @test B1 ≈ B2
+        @test ∇E1 ≈ ∇E2
     end
 
     validate_exchanges_scaling()
@@ -39,11 +39,11 @@
 
     # Zeeman energies/forces should scale linearly with μB, invariant to μ0
     function validate_zeeman_scaling()
-        E1, B1 = collect_energy_and_forces(:zeeman, units[1])
-        E2, B2 = collect_energy_and_forces(:zeeman, units[2])
+        E1, ∇E1 = collect_energy_and_grad(:zeeman, units[1])
+        E2, ∇E2 = collect_energy_and_grad(:zeeman, units[2])
 
         @test E1 / units[1].μB ≈ E2 / units[2].μB
-        @test B1 / units[1].μB ≈ B2 / units[2].μB
+        @test ∇E1 / units[1].μB ≈ ∇E2 / units[2].μB
     end
 
     validate_zeeman_scaling()
@@ -52,15 +52,15 @@
     # Dipole-dipole interactions should scale linearly with μ0, and
     # quadratically with μB
     function validate_dipole_scaling()
-        E1, B1 = collect_energy_and_forces(:dipdip, units[1])
-        E2, B2 = collect_energy_and_forces(:dipdip, units[2])
+        E1, ∇E1 = collect_energy_and_grad(:dipdip, units[1])
+        E2, ∇E2 = collect_energy_and_grad(:dipdip, units[2])
 
         (; μB, μ0) = units[1]
         c1 = μ0*μB^2
         (; μB, μ0) = units[2]
         c2 = μ0*μB^2
         @test E1 / c1 ≈ E2 / c2
-        @test B1 / c1 ≈ B2 / c2
+        @test ∇E1 / c1 ≈ ∇E2 / c2
     end
 
     validate_dipole_scaling()
