@@ -39,7 +39,10 @@ function Base.show(io::IO, ::MIME"text/plain", params::BinningParameters)
         else
             printstyled(io, @sprintf("⊡ %5d bins",nbin[k]); bold=true)
         end
-        @printf(io," from %+.3f to %+.3f along [", params.binstart[k], params.binend[k])
+        bin_edges = axes_binedges(params)
+        first_edges = map(x -> x[1],bin_edges)
+        last_edges = map(x -> x[end],bin_edges)
+        @printf(io," from %+.3f to %+.3f along [", first_edges[k], last_edges[k])
         axes_names = ["x","y","z","E"]
         inMiddle = false
         for j = 1:4
@@ -63,12 +66,8 @@ Base.getproperty(params::BinningParameters, sym::Symbol) = sym == :numbins ? cou
 
 function Base.setproperty!(params::BinningParameters, sym::Symbol, numbins)
     if sym == :numbins
-        binwidth = (params.binend .- params.binstart) ./ numbins
-
         # *Ensure* that the last bin contains params.binend
-        binwidth .+= eps.(binwidth) 
-
-        setfield!(params,:binwidth,binwidth)
+        params.binwidth .= (params.binend .- params.binstart) ./ (numbins .- 0.5)
     else
         setfield!(params,sym,numbins)
     end
@@ -90,9 +89,9 @@ function BinningParameters(binstart,binend,binwidth;covectors = [1 0 0 0; 0 1 0 
 end
 
 function BinningParameters(binstart,binend;numbins,kwargs...)
-    binwidth = (binend .- binstart) ./ numbins
-    binwidth .+= eps.(binwidth)
-    return BinningParameters(binstart,binend,binwidth;kwargs...)
+    params = BinningParameters(binstart,binend,[0.,0,0,0];kwargs...)
+    params.numbins = numbins # Use the setproperty to do it correctly
+    params
 end
 
 """
@@ -115,7 +114,10 @@ end
 # Find an axis-aligned bounding box containing the histogram
 function binning_parameters_aabb(params)
     (; binstart, binend, covectors) = params
-    bin_edges = [binstart binend]
+    bin_edges = axes_binedges(params)
+    first_edges = map(x -> x[1],bin_edges)
+    last_edges = map(x -> x[end],bin_edges)
+    bin_edges = [first_edges last_edges]
     this_corner = MVector{4,Float64}(undef)
     q_corners = MMatrix{4,16,Float64}(undef)
     for j = 1:16 # The sixteen corners of a 4-cube
@@ -206,18 +208,17 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...;units = :abso
     total_size = max_val .- min_val
 
     binwidth = total_size ./ (numbins .- 1)
-    binwidth = binwidth .+ eps.(binwidth)
     binstart = (0.,0.,0.,minimum(ωvals)) .- (binwidth ./ 2)
-    binend = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) .+ (binwidth ./ 2)
+    binend = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) # bin end is well inside of last bin
 
     params = BinningParameters(binstart,binend,binwidth)
 
     # Special case for when there is only one bin in a direction
     for i = 1:4
         if numbins[i] == 1
-            params.binstart[i] = min_val[i]
-            params.binend[i] = min_val[i] + 1.
             params.binwidth[i] = 1.
+            params.binstart[i] = min_val[i] - (params.binwidth[i] ./ 2)
+            params.binend[i] = min_val[i]
         end
     end
 
@@ -232,11 +233,17 @@ end
 
 unit_resolution_binning_parameters(sf::StructureFactor; kwargs...) = unit_resolution_binning_parameters(ωs(sf),sf.latsize,sf;kwargs...)
 
-function unit_resolution_binning_parameters(ωvals::Vector{Float64})
+function unit_resolution_binning_parameters(ωvals::AbstractVector{Float64})
+    if !all(abs.(diff(diff(ωvals))) .< 1e-12)
+      @warn "Non-uniform bins will be re-spaced into uniform bins"
+    end
+    if length(ωvals) == 1
+      error("Can not infer bin width given only one bin center")
+    end
     ωbinwidth = (maximum(ωvals) - minimum(ωvals)) / (length(ωvals) - 1)
-    ωbinwidth += eps(ωbinwidth)
     ωstart = minimum(ωvals) - ωbinwidth / 2
-    ωend = maximum(ωvals) + ωbinwidth / 2
+    ωend = maximum(ωvals)
+
     return ωstart, ωend, ωbinwidth
 end
 
@@ -282,10 +289,10 @@ function slice_2D_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q
     cotransverse_center = cotransverse_covector ⋅ cut_from_q
 
     ωstart, ωend, ωbinwidth = unit_resolution_binning_parameters(ωvals)
+    xstart, xend, xbinwidth = unit_resolution_binning_parameters(range(start_x,end_x,length = cut_bins))
 
-
-    binstart = [start_x,transverse_center - cut_width/2,cotransverse_center - cut_height/2,ωstart]
-    binend = [end_x,transverse_center + cut_width/2,cotransverse_center + cut_height/2,ωend]
+    binstart = [xstart,transverse_center - cut_width/2,cotransverse_center - cut_height/2,ωstart]
+    binend = [xend,transverse_center,cotransverse_center,ωend]
     numbins = [cut_bins,1,1,length(ωvals)]
     covectors = [cut_covector... 0; transverse_covector... 0; cotransverse_covector... 0; 0 0 0 1]
 
@@ -314,7 +321,7 @@ The following alternative syntax can be used to compute bin centers for a single
     axes_bincenters(binstart,binend,binwidth)
 """
 function axes_bincenters(binstart,binend,binwidth)
-    bincenters = []
+    bincenters = Vector{AbstractRange{Float64}}(undef,0)
     for k = 1:length(binstart)
         first_center = binstart[k] .+ binwidth[k] ./ 2
         nbin = count_bins(binstart[k],binend[k],binwidth[k])
