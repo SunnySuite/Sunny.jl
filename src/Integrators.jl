@@ -143,22 +143,17 @@ end
 
 function step!(sys::System{N}, integrator::Langevin) where N
     (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
-    ∇E = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
     randn!(sys.rng, ξ)
 
     # Prediction
-    @. sys.dipoles = expected_spin(Z) # temporarily desyncs dipoles and coherents
-    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
-    set_energy_grad_coherents!(HZ, ∇E, Z, sys)
+    set_energy_grad_coherents!(HZ, Z, sys)
     rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction
-    @. sys.dipoles = expected_spin(Z′) # temporarily desyncs dipoles and coherents
-    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
-    set_energy_grad_coherents!(HZ, ∇E, Z′, sys)
+    set_energy_grad_coherents!(HZ, Z′, sys)
     rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
@@ -186,7 +181,6 @@ end
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     (; atol) = integrator
     (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
-    ∇E = get_dipole_buffers(sys, 1) |> only
     Z = sys.coherents
 
     @. Z′ = Z 
@@ -195,9 +189,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     for _ in 1:max_iters
         @. Z̄ = (Z + Z′)/2
 
-        @. sys.dipoles = expected_spin(Z̄) # temporarily desyncs dipoles and coherents
-        set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
-        set_energy_grad_coherents!(HZ, ∇E, Z̄, sys)
+        set_energy_grad_coherents!(HZ, Z̄, sys)
         rhs_ll!(ΔZ, HZ, integrator, sys)
 
         @. Z″ = Z + ΔZ

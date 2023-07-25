@@ -11,7 +11,7 @@
     for site in all_sites(sys)
         row = site[2]
         dir = [1, 0, 2mod(row, 2) - 1]
-        Sunny.setspin!(sys, Sunny.dipolarspin(sys, site, dir), site)
+        polarize_spin!(sys, dir, site)
     end
 
     capt = IOCapture.capture() do

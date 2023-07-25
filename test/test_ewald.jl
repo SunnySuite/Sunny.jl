@@ -45,11 +45,12 @@
     # Consistency with Ewalder reference calculation
     @test isapprox(energy(sys), ewalder_energy(sys); atol=1e-12)
 
-    # Calculate force using a sum over pairs, or using an FFT-based convolution
-    B = [Sunny.ewald_force_at(sys, site) for site in all_sites(sys)]
-    @test isapprox(forces(sys), B; atol=1e-12)
+    # Calculate energy gradient using a sum over pairs, or using an FFT-based
+    # convolution
+    ∇E = [Sunny.ewald_grad_at(sys, site) for site in all_sites(sys)]
+    @test isapprox(Sunny.energy_grad(sys), ∇E; atol=1e-12)
 
     # Calculation of energy as a sum over pairs
-    E = - sum((1/2)d⋅b for (d, b) in zip(sys.dipoles, B))
+    E = sum((1/2)d⋅b for (d, b) in zip(sys.dipoles, ∇E))
     @test isapprox(energy(sys), E; atol=1e-12)
 end
