@@ -365,7 +365,7 @@ function set_energy_grad_coherents!(HZ, Z, sys::System{N}) where N
         end 
     end
 
-    @. dE_ds = dipoles = zero(Vec3)
+    @. dE_ds = dipoles = Vec3(0,0,0)
 end
 
 # Returns (Λ + (dE/ds)⋅S) Z
