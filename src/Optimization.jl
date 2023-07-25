@@ -74,13 +74,15 @@ end
 
 
 """
-    minimize_energy!(sys::System{N}; method=Optim.LBFGS, maxiters = 100, subiters=20, kwargs...) where N
+    minimize_energy!(sys::System{N}; maxiters=100, subiters=20,
+                     method=Optim.ConjugateGradient(), kwargs...) where N
 
-Optimizes the spin configuration in `sys` to minimize energy. Any method from
-Optim.jl that accepts only a gradient may be used by setting the `method`
-keyword. Defaults to LBFGS.
+Optimizes the spin configuration in `sys` to minimize energy. A total of
+`maxiters` iterations will be attempted, with restarts after every `subiters`
+iterations. The remaining `kwargs` will be forwarded to the `optimize` method of
+the Optim.jl package.
 """
-function minimize_energy!(sys::System{N}; method=Optim.LBFGS(), maxiters=100, subiters=20, kwargs...) where N
+function minimize_energy!(sys::System{N}; maxiters=100, subiters=20, method=Optim.ConjugateGradient(), kwargs...) where N
     # Allocate buffers for optimization:
     #   - Each `ns[site]` defines a direction for stereographic projection.
     #   - Each `αs[:,site]` will be optimized in the space orthogonal to `ns[site]`.
@@ -103,7 +105,7 @@ function minimize_energy!(sys::System{N}; method=Optim.LBFGS(), maxiters=100, su
     end
 
     # Perform optimization, resetting parameterization of coherent states as necessary
-    options = Optim.Options(iterations=subiters, show_trace=true, kwargs...)
+    options = Optim.Options(iterations=subiters, kwargs...)
 
     for iter in 1 : div(maxiters, subiters, RoundUp)
         output = Optim.optimize(f, g!, αs, method, options)
