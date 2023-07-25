@@ -92,8 +92,8 @@ function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.) where N
 
     # Verify that exchange is symmetry-consistent
     if !is_coupling_valid(sys.crystal, bond, J)
-        println("Symmetry-violating exchange: $J.")
-        println("Use `print_bond(crystal, $bond)` for more information.")
+        @error """Symmetry-violating exchange: $J.
+                  Use `print_bond(crystal, $bond)` for more information."""
         error("Interaction violates symmetry.")
     end
 
@@ -124,8 +124,8 @@ function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2:
         else
             cell1 = Tuple(to_cell(site1))
             cell2 = Tuple(to_cell(site2))
-            println("""Cells $cell1 and $cell2 are not compatible with the offset
-                       $n_ref for a system with lattice size $latsize.""")
+            @error """Cells $cell1 and $cell2 are not compatible with the offset
+                      $n_ref for a system with lattice size $latsize."""
             error("Incompatible displacement specified")
         end
     end
@@ -146,11 +146,10 @@ function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2:
     if safety * distances[perm[1]] < distances[perm[2]] - 1e-12
         return bonds[perm[1]]
     else
-        println(distances[perm])
         n1 = bonds[perm[1]].n
         n2 = bonds[perm[2]].n
-        println("""Cannot find an obvious offset vector. Possibilities include $n1 and $n2.
-                   Try using a bigger system size, or pass an explicit offset vector.""")
+        @error """Cannot find an obvious offset vector. Possibilities include $n1 and $n2.
+                  Try using a bigger system size, or pass an explicit offset vector."""
         error("Ambiguous offset between sites.")
     end
 end

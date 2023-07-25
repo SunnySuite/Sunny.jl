@@ -216,9 +216,9 @@ function print_suggested_frame(cryst::Crystal, i::Int)
     R_strs = [number_to_math_string(x; digits=14, atol=1e-12) for x in R]
     R_strs = _add_padding_to_coefficients(R_strs)
 
-    println("R = [" * join(R_strs[1,:], " "))
-    println("     " * join(R_strs[2,:], " "))
-    println("     " * join(R_strs[3,:], " "), " ]")
+    println("""R = [$(join(R_strs[1,:], " "))
+                    $(join(R_strs[2,:], " "))
+                    $(join(R_strs[3,:], " "))]""")
 end
 
 

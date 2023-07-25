@@ -308,6 +308,7 @@ function crystal_from_symbol(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
             end
         end
 
+        # TODO: Make this @warn
         println("The spacegroup '$symbol' allows for multiple settings!")
         println("Returning a list of the possible crystals:")
         for (i, (hall_number, c)) in enumerate(zip(hall_numbers, crysts))

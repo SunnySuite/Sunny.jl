@@ -144,8 +144,8 @@ function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) wh
     iszero(op) && return 
 
     if !is_anisotropy_valid(sys.crystal, i, op)
-        println("Symmetry-violating anisotropy: $op.")
-        println("Use `print_site(crystal, $i)` for more information.")
+        @error """Symmetry-violating anisotropy: $op.
+                  Use `print_site(crystal, $i)` for more information."""
         error("Invalid anisotropy.")
     end
 
