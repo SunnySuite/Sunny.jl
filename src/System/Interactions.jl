@@ -4,6 +4,17 @@ function empty_interactions(na, N)
     end
 end
 
+# Warn up to `OverrideWarningMax` times about overriding a coupling
+OverrideWarningCnt::Int = 0
+OverrideWarningMax::Int = 5
+function warn_coupling_override(str)
+    global OverrideWarningCnt, OverrideWarningMax
+    OverrideWarningCnt < OverrideWarningMax && @info str
+    OverrideWarningCnt += 1
+    OverrideWarningCnt == OverrideWarningMax && @info "Suppressing future override notifications."
+end
+
+
 # Creates a clone of the lists of exchange interactions, which can be mutably
 # updated.
 function clone_interactions(ints::Interactions)

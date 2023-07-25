@@ -144,15 +144,15 @@ function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) wh
     iszero(op) && return 
 
     if !is_anisotropy_valid(sys.crystal, i, op)
-        println("Symmetry-violating anisotropy: $op.")
-        println("Use `print_site(crystal, $i)` for more information.")
+        @error """Symmetry-violating anisotropy: $op.
+                  Use `print_site(crystal, $i)` for more information."""
         error("Invalid anisotropy.")
     end
 
     (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
 
     if !iszero(ints[i].onsite)
-        println("Warning: Overriding anisotropy for atom $i.")
+        warn_coupling_override("Overriding anisotropy for atom $i.")
     end
 
     onsite = OnsiteCoupling(sys, op, sys.Ns[1,1,1,i])

@@ -216,9 +216,9 @@ function print_suggested_frame(cryst::Crystal, i::Int)
     R_strs = [number_to_math_string(x; digits=14, atol=1e-12) for x in R]
     R_strs = _add_padding_to_coefficients(R_strs)
 
-    println("R = [" * join(R_strs[1,:], " "))
-    println("     " * join(R_strs[2,:], " "))
-    println("     " * join(R_strs[3,:], " "), " ]")
+    println("""R = [$(join(R_strs[1,:], " "))
+                    $(join(R_strs[2,:], " "))
+                    $(join(R_strs[3,:], " "))]""")
 end
 
 
@@ -282,8 +282,8 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
             for b in reverse(collect(eachcol(B)))
 
                 if any(x -> 1e-12 < abs(x) < 1e-6, b)
-                    println("""Warning: Found a very small but nonzero expansion coefficient.
-                               This may indicate a slightly misaligned reference frame.""")
+                    @info """Found a very small but nonzero expansion coefficient.
+                             This may indicate a slightly misaligned reference frame."""
                 end
 
                 # rescale column by its minimum nonzero value

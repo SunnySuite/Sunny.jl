@@ -134,14 +134,13 @@ function Crystal(latvecs, positions, spacegroup_number::Int; types::Union{Nothin
 end
 
 function print_crystal_warnings(latvecs, positions)
-    det(latvecs) < 0 && println("Warning: Lattice vectors are not right-handed.")
+    det(latvecs) < 0 && @warn "Lattice vectors are not right-handed."
     if length(positions) >= 100
-        println("""
-            Warning: This a very large crystallographic cell, which Sunny does not handle well.
-            If the intention is to model chemical inhomogeneity, the recommended procedure is as
-            follows: First, create a small unit cell with an idealized structure. Next, create
-            a perfectly periodic `System` of the desired size. Finally, use `to_inhomogeneous`
-            and related functions to design a system with the desired inhomogeneities.""")
+        @info """This a very large crystallographic cell, which Sunny does not handle well.
+                 If the intention is to model chemical inhomogeneity, the recommended procedure is as
+                 follows: First, create a small unit cell with an idealized structure. Next, create
+                 a perfectly periodic `System` of the desired size. Finally, use `to_inhomogeneous`
+                 and related functions to design a system with the desired inhomogeneities."""
     end
 end
 
@@ -309,6 +308,7 @@ function crystal_from_symbol(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
             end
         end
 
+        # TODO: Make this @warn
         println("The spacegroup '$symbol' allows for multiple settings!")
         println("Returning a list of the possible crystals:")
         for (i, (hall_number, c)) in enumerate(zip(hall_numbers, crysts))
@@ -370,8 +370,8 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     end
 
     if !is_subgroup
-        println("""Warning: User provided symmetry operation could not be inferred by Spglib,
-                   which likely indicates a non-conventional unit cell.""")
+        @warn """User provided symmetry operation could not be inferred by Spglib,
+                 which likely indicates a non-conventional unit cell."""
     end
 
     # If the inferred symops match the provided ones, then we use the inferred
@@ -492,7 +492,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     new_sitesyms = cryst.sitesyms[atoms]
 
     if atoms != 1:maximum(atoms)
-        println("Warning: atoms are being renumbered.")
+        @info "Atoms have been renumbered in subcrystal."
     end
 
     ret = Crystal(cryst.latvecs, cryst.prim_latvecs, new_positions, new_types, new_classes, new_sitesyms,
