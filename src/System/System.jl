@@ -332,14 +332,19 @@ end
     return iszero(κ) ? zero(Vec3) : κ*normalize(s)
 end
 
-@inline function getspin(sys::System{N}, site) where N
-    return SpinState(sys.dipoles[site], sys.coherents[site])
+@inline function coherent_state(sys::System{N}, site, Z) where N
+    Z = normalize_ket(CVec{N}(Z), sys.κs[site])
+    s = expected_spin(Z)
+    return SpinState(s, Z)
 end
 
-@inline function setspin!(sys::System{N}, spin::SpinState{N}, site) where N
-    sys.dipoles[site] = spin.s
-    sys.coherents[site] = spin.Z
-    return
+@inline function dipolar_state(sys::System{0}, site, dir)
+    s = normalize_dipole(Vec3(dir), sys.κs[site])
+    Z = CVec{0}()
+    return SpinState(s, Z)
+end
+@inline function dipolar_state(sys::System{N}, site, dir) where N
+    return coherent_state(sys, site, ket_from_dipole(Vec3(dir), Val(N)))
 end
 
 @inline function flip(spin::SpinState{N}) where N
@@ -356,23 +361,27 @@ end
     return SpinState(s, Z)
 end
 
-@inline function dipolarspin(sys::System{0}, site, dir)
-    s = normalize_dipole(Vec3(dir), sys.κs[site])
-    Z = CVec{0}()
-    return SpinState(s, Z)
-end
-@inline function dipolarspin(sys::System{N}, site, dir) where N
-    Z = normalize_ket(ket_from_dipole(Vec3(dir), Val(N)), sys.κs[site])
-    s = expected_spin(Z)
-    return SpinState(s, Z)
+@inline function getspin(sys::System{N}, site) where N
+    return SpinState(sys.dipoles[site], sys.coherents[site])
 end
 
+@inline function setspin!(sys::System{N}, spin::SpinState{N}, site) where N
+    sys.dipoles[site] = spin.s
+    sys.coherents[site] = spin.Z
+    return
+end
 
+"""
+    randomize_spins!(sys::System)
+
+Randomizes all spins under appropriate the uniform distribution.
+"""
 function randomize_spins!(sys::System{N}) where N
     for site in all_sites(sys)
         setspin!(sys, randspin(sys, site), site)
     end
 end
+
 
 """
     set_coherent_state!(sys::System, Z, site::Site)
@@ -386,10 +395,7 @@ angular momentum along this axis (``m = S, S-1, …, -S``).
 function set_coherent_state!(sys::System{N}, Z, site) where N
     length(Z) != N && error("Length of coherent state does not match system.")
     iszero(N)      && error("Cannot set zero-length coherent state.")
-    site = to_cartesian(site)
-    Z = normalize_ket(CVec{N}(Z), sys.κs[site])
-    sys.coherents[site] = Z
-    sys.dipoles[site] = expected_spin(Z)
+    setspin!(sys, coherent_state(sys, site, Z), to_cartesian(site))
 end
 
 
@@ -400,7 +406,7 @@ Polarize the spin at a [`Site`](@ref) along the direction `dir`.
 """
 function polarize_spin!(sys::System{N}, dir, site) where N
     site = to_cartesian(site)
-    setspin!(sys, dipolarspin(sys, site, dir), site)
+    setspin!(sys, dipolar_state(sys, site, dir), site)
 end
 
 """
