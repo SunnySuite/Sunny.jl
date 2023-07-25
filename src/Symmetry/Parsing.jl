@@ -108,14 +108,14 @@ function Crystal(filename::AbstractString; symprec=nothing)
         end
         (err, i) = findmax(errs)
         if err < 1e-12
-            @warn """Precision parameter is unspecified, but all coordinates seem to be simple fractions.
+            @info """Precision parameter is unspecified, but all coordinates seem to be simple fractions.
                      Setting symprec=1e-12."""
             symprec = 1e-12
         elseif 1e-12 < err < 1e-4
             symprec = 15err
             err_str = @sprintf "%.1e" err
             symprec_str = @sprintf "%.1e" symprec
-            @warn """Precision parameter is unspecified, but coordinate string '$s' seems to have error $err_str.
+            @info """Precision parameter is unspecified, but coordinate string '$s' seems to have error $err_str.
                      Setting symprec=$symprec_str."""
         else
             error("Cannot infer precision. Please provide an explicit `symprec` parameter to load '$filename'")

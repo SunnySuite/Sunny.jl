@@ -136,7 +136,7 @@ end
 function print_crystal_warnings(latvecs, positions)
     det(latvecs) < 0 && @warn "Lattice vectors are not right-handed."
     if length(positions) >= 100
-        @warn """This a very large crystallographic cell, which Sunny does not handle well.
+        @info """This a very large crystallographic cell, which Sunny does not handle well.
                  If the intention is to model chemical inhomogeneity, the recommended procedure is as
                  follows: First, create a small unit cell with an idealized structure. Next, create
                  a perfectly periodic `System` of the desired size. Finally, use `to_inhomogeneous`
@@ -492,7 +492,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     new_sitesyms = cryst.sitesyms[atoms]
 
     if atoms != 1:maximum(atoms)
-        @warn "Atoms are being renumbered."
+        @info "Atoms have been renumbered in subcrystal."
     end
 
     ret = Crystal(cryst.latvecs, cryst.prim_latvecs, new_positions, new_types, new_classes, new_sitesyms,
