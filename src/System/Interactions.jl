@@ -279,12 +279,12 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
         if is_homogeneous(sys)
             # Interaction is the same at every cell
             interactions = sys.interactions_union[i]
-            set_energy_grad_aux!(∇E, dipoles, interactions, sys, i, all_cells(sys), homog_bond_iterator(latsize))
+            set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, all_cells(sys), homog_bond_iterator(latsize))
         else
             for cell in all_cells(sys)
                 # There is a different interaction at every cell
                 interactions = sys.interactions_union[cell,i]
-                set_energy_grad_aux!(∇E, dipoles, interactions, sys, i, (cell,), inhomog_bond_iterator(latsize, cell))
+                set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, (cell,), inhomog_bond_iterator(latsize, cell))
             end
         end
     end
@@ -297,7 +297,7 @@ end
 # Calculate the energy gradient `∇E' for the sublattice `i' at all elements of
 # `cells`. The function `foreachbond` enables efficient iteration over
 # neighboring cell pairs.
-function set_energy_grad_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells, foreachbond) where N
+function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells, foreachbond) where N
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into ℌ.
     if N == 0
@@ -341,27 +341,35 @@ end
 # quantity `dE/ds`. **Overwrites the first two dipole buffers in `sys`.**
 function set_energy_grad_coherents!(HZ, Z, sys::System{N}) where N
     @assert N > 0
-    ∇E, dipoles = get_dipole_buffers(sys, 2)
+
+    # For efficiency, pre-calculate some of the terms associated with dE/ds,
+    # where s is the expected spin associated with Z. Note that dE_ds does _not_
+    # include anything about the onsite coupling, the biquadratic interactions,
+    # or the general pair couplings, which must be handled in a more general
+    # way.
+    dE_ds, dipoles = get_dipole_buffers(sys, 2)
     @. dipoles = expected_spin(Z)
-    set_energy_grad_dipoles!(∇E, dipoles, sys)
+    set_energy_grad_dipoles!(dE_ds, dipoles, sys)
 
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
         for site in all_sites(sys)
             Λ = ints[to_atom(site)].onsite.matrep
-            HZ[site] = mul_spin_matrices(Λ, ∇E[site], Z[site])  
+            HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
         end
     else
         ints = interactions_inhomog(sys)
         for site in all_sites(sys)
             Λ = ints[site].onsite.matrep
-            HZ[site] = mul_spin_matrices(Λ, ∇E[site], Z[site])  
+            HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
         end 
     end
+
+    @. dE_ds = dipoles = zero(Vec3)
 end
 
-# Returns (Λ + ∇E⋅S) Z
-@generated function mul_spin_matrices(Λ, ∇E::Sunny.Vec3, Z::Sunny.CVec{N}) where N
+# Returns (Λ + (dE/ds)⋅S) Z
+@generated function mul_spin_matrices(Λ, dE_ds::Sunny.Vec3, Z::Sunny.CVec{N}) where N
     S = spin_matrices(; N)
     out = map(1:N) do i
         out_i = map(1:N) do j
@@ -369,7 +377,7 @@ end
             for α = 1:3
                 S_αij = S[α][i,j]
                 if !iszero(S_αij)
-                    push!(terms, :(∇E[$α] * $S_αij))
+                    push!(terms, :(dE_ds[$α] * $S_αij))
                 end
             end
             :(+($(terms...)) * Z[$j])

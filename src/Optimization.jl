@@ -63,13 +63,15 @@ end
 
 function optim_set_gradient!(G, sys::System{0}, αs, ns)
     (αs, G) = reinterpret.(reshape, Vec3, (αs, G))
-    set_energy_grad_dipoles!(G, sys.dipoles, sys)
-    @. G = adjoint(vjp_stereographic_projection(G, αs, ns)) / norm(sys.dipoles)
+    set_energy_grad_dipoles!(G, sys.dipoles, sys)            # G = dE/ds
+    @. G *= norm(sys.dipoles)                                # G = dE/ds * ds/du = dE/du
+    @. G = adjoint(vjp_stereographic_projection(G, αs, ns))  # G = dE/du du/dα = dE/dα
 end
 function optim_set_gradient!(G, sys::System{N}, αs, ns) where N
     (αs, G) = reinterpret.(reshape, CVec{N}, (αs, G))
-    set_energy_grad_coherents!(G, sys.coherents, sys)
-    @. G = adjoint(vjp_stereographic_projection(G, αs, ns)) / norm(sys.coherents)
+    set_energy_grad_coherents!(G, sys.coherents, sys)        # G = dE/dZ
+    @. G *= norm(sys.coherents)                              # G = dE/dZ * dZ/du = dE/du
+    @. G = adjoint(vjp_stereographic_projection(G, αs, ns))  # G = dE/du du/dα = dE/dα
 end
 
 
@@ -82,7 +84,7 @@ Optimizes the spin configuration in `sys` to minimize energy. A total of
 iterations. The remaining `kwargs` will be forwarded to the `optimize` method of
 the Optim.jl package.
 """
-function minimize_energy!(sys::System{N}; maxiters=100, subiters=20, method=Optim.ConjugateGradient(), kwargs...) where N
+function minimize_energy!(sys::System{N}; maxiters=100, subiters=10, method=Optim.ConjugateGradient(), kwargs...) where N
     # Allocate buffers for optimization:
     #   - Each `ns[site]` defines a direction for stereographic projection.
     #   - Each `αs[:,site]` will be optimized in the space orthogonal to `ns[site]`.
