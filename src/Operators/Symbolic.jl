@@ -67,7 +67,7 @@ function operator_to_matrix(p::DP.AbstractPolynomialLike; N)
         [stevens_operator_symbols[k] => stevens_matrices(k; N) for k=1:6]... 
     )
     if !(rep ≈ rep')
-        println("Warning: Symmetrizing non-Hermitian operator '$p'.")
+        @warn "Symmetrizing non-Hermitian operator '$p'."
     end
     # Symmetrize in any case for slightly more accuracy
     return (rep+rep')/2

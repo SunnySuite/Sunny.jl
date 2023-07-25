@@ -282,8 +282,8 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
             for b in reverse(collect(eachcol(B)))
 
                 if any(x -> 1e-12 < abs(x) < 1e-6, b)
-                    println("""Warning: Found a very small but nonzero expansion coefficient.
-                               This may indicate a slightly misaligned reference frame.""")
+                    @warn """Found a very small but nonzero expansion coefficient.
+                             This may indicate a slightly misaligned reference frame."""
                 end
 
                 # rescale column by its minimum nonzero value

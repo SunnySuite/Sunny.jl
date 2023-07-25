@@ -99,7 +99,7 @@ function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.) where N
 
     # Print a warning if an interaction already exists for bond
     if any(x -> x.bond == bond, ints[bond.i].pair)
-        println("Warning: Overriding exchange for bond $bond.")
+        @info "Overriding exchange for bond $bond."
     end
 
     for i in 1:natoms(sys.crystal)

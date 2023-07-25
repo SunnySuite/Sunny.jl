@@ -152,7 +152,7 @@ function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) wh
     (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
 
     if !iszero(ints[i].onsite)
-        println("Warning: Overriding anisotropy for atom $i.")
+        @info "Overriding anisotropy for atom $i."
     end
 
     onsite = OnsiteCoupling(sys, op, sys.Ns[1,1,1,i])
