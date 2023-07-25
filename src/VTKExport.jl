@@ -47,6 +47,16 @@ function export_vtk(filename,sys; coordinates = :physical, log_scale = false)
     append!(saved_files, saved_files_more)
 end
 
+"""
+    export_vtk(filename,params::BinningParameters,data)
+
+Export a VTK-compatible file to `filename` (do not include file
+extension when specifying the file name) which contains the `data` as VTK Cell Data on
+a grid parameterized by `params`.
+
+At least one axis of the [`BinningParameters`](@ref) must be integrated over, since VTK
+does not support 4D data. See [`integrate_axes!`](@ref).
+"""
 function export_vtk(filename,params::BinningParameters,data;dims_kept = nothing)
     # Storing the bin *edges* as the grid in the VTK file
     # so that the data is treated as cell data (correct for histogram data)
