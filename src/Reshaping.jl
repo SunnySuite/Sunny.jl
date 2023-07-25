@@ -339,9 +339,9 @@ function suggest_magnetic_supercell(qs, latsize)
 
     qstrs = join(map(wavevec_str, qs), ", ")
 
-    println("Suggested magnetic supercell in multiples of lattice vectors:")
-    println()
-    println("    $best_A")
-    println()
-    println("for wavevectors [$qstrs].")
+    println("""Suggested magnetic supercell in multiples of lattice vectors:
+               
+                   $best_A
+               
+               for wavevectors [$qstrs].""")
 end

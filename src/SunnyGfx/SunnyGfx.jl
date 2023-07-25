@@ -23,14 +23,14 @@ directory `dir` is provided, an HTML file will be written at that location.
 """
 function browser(html_str::String; dir=Nothing)
     if Sys.islinux() && dir==Nothing
-        println("""If your browser cannot access `/tmp`, consider specifying a directory:
-                       browser(html_str; dir="~")""")
+        @info """If your browser cannot access `/tmp`, consider specifying a directory:
+                     browser(html_str; dir="~")"""
     end
 
     is_tempdir = (dir == Nothing)
     dir = is_tempdir ?  mktempdir() : expanduser(dir)
     path = joinpath(dir, "SunnyGfx.html")
-    !is_tempdir && println("Writing `$path`.")
+    !is_tempdir && @info "Writing `$path`."
     open(path, "w") do io
         write(io, html_str)
     end
