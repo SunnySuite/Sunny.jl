@@ -405,7 +405,8 @@ end
 Polarize the spin at a [`Site`](@ref) along the direction `dir`.
 """
 function polarize_spin!(sys::System{N}, dir, site) where N
-    setspin!(sys, dipolar_state(sys, site, dir), to_cartesian(site))
+    site = to_cartesian(site)
+    setspin!(sys, dipolar_state(sys, site, dir), site)
 end
 
 """

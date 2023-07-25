@@ -16,7 +16,7 @@ end
 
 @testitem "Optimization" begin
     # H = -∑Sᵢ⋅Sⱼ - ∑(Sᵢᶻ)² on 2D square lattice (z-polarized ground state)
-    function simple_sys(; mode=:dipole, dims=(4,4,1), seed=nothing, S)
+    function simple_sys(; dims=(4,4,1), mode, seed, S)
         cryst = Crystal(lattice_vectors(1,1,2,90,90,90), [[0,0,0]])
         sys = System(cryst, dims, [SpinInfo(1; S)], mode; seed) 
         set_exchange!(sys, -1, Bond(1,1,[1,0,0]))
@@ -27,8 +27,9 @@ end
     S = 3/2
     is_z_polarized(sys) = all(s -> abs(s[3]) ≈ S, sys.dipoles)
 
-    sys_dip = simple_sys(; mode=:dipole, seed=101, S)
-    sys_sun = simple_sys(; mode=:SUN, seed=102, S)
+    seed = 101
+    sys_dip = simple_sys(; mode=:dipole, seed, S)
+    sys_sun = simple_sys(; mode=:SUN, seed, S)
 
     # Thermalize near ground state
     Δt = 0.05
