@@ -59,9 +59,11 @@ also available when only $𝒮^{αβ}(𝐪)$ is desired.
 
 ### Calculating a dynamical stucture factor: ``𝒮(𝐪,ω)``
 
+The dynamical structure factor, $𝒮^{αβ}(𝐪,ω)$, may be estimated by collecting
+sample trajectories and analyzing their spin-spin correlations.
 `SampledCorrelations(sys; Δt, ωmax, nω)` will create a will create an empty
-`SampledCorrelations` which can be used to accumulate correlation data from
-sample trajectories. There are three keywords that must be specified. These
+`SampledCorrelations` object that can be used to accumulate correlation data
+from such trajectories. Three keywords that must be specified. These
 keywords will determine the dynamics used to calculate the sample and,
 consequently, the $ω$ information that will be available after the calculation
 has completed.
@@ -82,12 +84,12 @@ has completed.
 3. `nω`: Determines the number of energy bins to resolve. A larger number will
    require more calculation time.
 
-Samples may be accumulated into an estimate of $𝒮^{αβ}(𝐪,ω)$ by calling
-`add_sample!(sc, sys)`. The input `sys` must be a spin configuration in good
-thermal equilibrium, e.g., using the continuous [`Langevin`](@ref) dynamics or
-using single spin flip trials with [`LocalSampler`](@ref). The statistical
-quality of the $𝒮^{αβ}(𝐪,ω)$ can be improved by generating a decorrelated spin
-configuration in `sys`, and then calling [`add_sample!`](@ref) additional times.
+Samples may be added by calling `add_sample!(sc, sys)`. The input `sys` must be
+a spin configuration in good thermal equilibrium, e.g., using the continuous
+[`Langevin`](@ref) dynamics or using single spin flip trials with
+[`LocalSampler`](@ref). The statistical quality of the $𝒮^{αβ}(𝐪,ω)$ can be
+improved by generating a decorrelated spin configuration in `sys`, and then
+calling [`add_sample!`](@ref) additional times.
 
 The outline of typical use case might look like this:
 ```
