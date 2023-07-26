@@ -179,7 +179,7 @@ output from this function will typically be used as input to
 
 Because this function does not incorporate phase information in its averaging
 over sublattices, the printed weights are not directly comparable with
-experiment. For that purpose, use [`InstantStructureFactor`](@ref) instead.
+experiment. For that purpose, use [`instant_correlations`](@ref) instead.
 
 The weights printed by `print_wrapped_intensities` may be given a physical
 interpretation as follows: All possible ``q``-vectors are periodically wrapped

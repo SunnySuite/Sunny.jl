@@ -146,7 +146,7 @@ will adjust `params` to instead accept `(k,ω)` absolute units.
 The second argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or any of these objects:
 - [`Crystal`](@ref)
 - [`System`](@ref)
-- [`StructureFactor`](@ref)
+- [`SampledCorrelations`](@ref)
 - [`SpinWaveTheory`](@ref)
 """
 bin_absolute_units_as_rlu!, bin_rlu_as_absolute_units!
@@ -167,31 +167,31 @@ bin_absolute_units_as_rlu!(params::BinningParameters,recip_vecs::AbstractMatrix)
 
 bin_absolute_units_as_rlu!(params::BinningParameters,crystal::Crystal) = bin_absolute_units_as_rlu!(params,2π*inv(crystal.latvecs)')
 bin_absolute_units_as_rlu!(params::BinningParameters,sys::System) = bin_absolute_units_as_rlu!(params,sys.crystal)
-bin_absolute_units_as_rlu!(params::BinningParameters,sf::StructureFactor) = bin_absolute_units_as_rlu!(params,sf.crystal)
+bin_absolute_units_as_rlu!(params::BinningParameters,sc::SampledCorrelations) = bin_absolute_units_as_rlu!(params,sc.crystal)
 bin_absolute_units_as_rlu!(params::BinningParameters,swt::SpinWaveTheory) = bin_absolute_units_as_rlu!(params,swt.recipvecs_chem)
 
 bin_rlu_as_absolute_units!(params::BinningParameters,crystal::Crystal) = bin_absolute_units_as_rlu!(params,crystal.latvecs'/2π)
 bin_rlu_as_absolute_units!(params::BinningParameters,sys::System) = bin_rlu_as_absolute_units!(params,sys.crystal)
-bin_rlu_as_absolute_units!(params::BinningParameters,sf::StructureFactor) = bin_rlu_as_absolute_units!(params,sf.crystal)
+bin_rlu_as_absolute_units!(params::BinningParameters,sc::SampledCorrelations) = bin_rlu_as_absolute_units!(params,sc.crystal)
 bin_rlu_as_absolute_units!(params::BinningParameters,swt::SpinWaveTheory) = bin_rlu_as_absolute_units!(params,swt.recipvecs_chem)
 
 
 """
-    unit_resolution_binning_parameters(sf::StructureFactor; units = :absolute)
+    unit_resolution_binning_parameters(sc::SampledCorrelations; units = :absolute)
 
 Create [`BinningParameters`](@ref) which place one histogram bin centered at each possible `(q,ω)` scattering vector of the crystal.
 This is the finest possible binning without creating bins with zero scattering vectors in them.
 
 Setting `units = :rlu` returns [`BinningParameters`](@ref) which accept values in R.L.U. instead of absolute units.
 
-This function can be used without reference to a [`StructureFactor`](@ref) using an alternate syntax to manually specify the bin centers for the energy axis and the lattice size:
+This function can be used without reference to a [`SampledCorrelations`](@ref) using an alternate syntax to manually specify the bin centers for the energy axis and the lattice size:
 
     unit_resolution_binning_parameters(ω_bincenters,latsize,[reciprocal lattice vectors]; [units])
 
 As in [`bin_absolute_units_as_rlu!`](@ref), the last argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or any of these objects:
 - [`Crystal`](@ref)
 - [`System`](@ref)
-- [`StructureFactor`](@ref)
+- [`SampledCorrelations`](@ref)
 - [`SpinWaveTheory`](@ref)
 
 Lastly, binning parameters for a single axis may be specifed by their bin centers:
@@ -231,7 +231,7 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...;units = :abso
     end
 end
 
-unit_resolution_binning_parameters(sf::StructureFactor; kwargs...) = unit_resolution_binning_parameters(ωs(sf),sf.latsize,sf;kwargs...)
+unit_resolution_binning_parameters(sc::SampledCorrelations; kwargs...) = unit_resolution_binning_parameters(ωs(sc),sc.latsize,sc;kwargs...)
 
 function unit_resolution_binning_parameters(ωvals::AbstractVector{Float64})
     if !all(abs.(diff(diff(ωvals))) .< 1e-12)
@@ -248,7 +248,7 @@ function unit_resolution_binning_parameters(ωvals::AbstractVector{Float64})
 end
 
 """
-    slice_2D_binning_parameter(sf::StructureFactor, cut_from_q, cut_to_q, cut_bins::Int64, cut_width::Float64; plane_normal = [0,0,1],cut_height = cutwidth, units = :absolute)
+    slice_2D_binning_parameter(sc::SampledCorrelations, cut_from_q, cut_to_q, cut_bins::Int64, cut_width::Float64; plane_normal = [0,0,1],cut_height = cutwidth, units = :absolute)
 
 Creates [`BinningParameters`](@ref) which make a 1D cut in Q-space.
  
@@ -269,7 +269,7 @@ The four axes of the resulting histogram are:
 
 Setting `units = :rlu` returns [`BinningParameters`](@ref) which accept values in R.L.U. instead of absolute units.
 
-This function can be used without reference to a [`StructureFactor`](@ref) using this alternate syntax to manually specify the bin centers for the energy axis:
+This function can be used without reference to a [`SampledCorrelations`](@ref) using this alternate syntax to manually specify the bin centers for the energy axis:
 
     slice_2D_binning_parameter(ω_bincenters, cut_from, cut_to,...)
 
@@ -299,11 +299,11 @@ function slice_2D_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q
     BinningParameters(binstart,binend;numbins = numbins, covectors = covectors)
 end
 
-function slice_2D_binning_parameters(sf::StructureFactor,cut_from_q,cut_to_q,args...;units = :absolute,kwargs...)
-    params = slice_2D_binning_parameters(ωs(sf),cut_from_q,cut_to_q,args...;kwargs...)
+function slice_2D_binning_parameters(sc::SampledCorrelations,cut_from_q,cut_to_q,args...;units = :absolute,kwargs...)
+    params = slice_2D_binning_parameters(ωs(sc),cut_from_q,cut_to_q,args...;kwargs...)
 
     if units == :absolute
-        bin_absolute_units_as_rlu!(params,sf)
+        bin_absolute_units_as_rlu!(params,sc)
     elseif units == :rlu
         params
     else
@@ -344,7 +344,7 @@ axes_binedges(params::BinningParameters) = axes_binedges(params.binstart,params.
 
 
 """
-    connected_path_bins(sf,qs,density,args...;kwargs...)
+    connected_path_bins(sc,qs,density,args...;kwargs...)
 
 Takes a list of wave vectors, `qs`, and builds a series of histogram [`BinningParameters`](@ref)
 whose first axis traces a path through the provided points.
@@ -380,15 +380,15 @@ function connected_path_bins(recip_vecs,ωvals,qs,density,args...;kwargs...)
     end
     return params, markers, ranges
 end
-connected_path_bins(sf::StructureFactor, qs::Vector, density,args...;kwargs...) = connected_path_bins(2π*inv(sf.crystal.latvecs)', ωs(sf), qs, density,args...;kwargs...)
+connected_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;kwargs...) = connected_path_bins(2π*inv(sc.crystal.latvecs)', ωs(sc), qs, density,args...;kwargs...)
 connected_path_bins(sw::SpinWaveTheory, ωvals, qs::Vector, density,args...;kwargs...) = connected_path_bins(sw.recipvecs_chem, ωvals, qs, density,args...;kwargs...)
 
 
 """
-    intensity, counts = intensities_binned(sf::StructureFactor, params::BinningParameters; formula, integrated_kernel)
+    intensity, counts = intensities_binned(sc::SampledCorrelations, params::BinningParameters; formula, integrated_kernel)
 
-Given correlation data contained in a [`StructureFactor`](@ref) and [`BinningParameters`](@ref) describing the
-shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_formula`](@ref), or `intensity_formula(sf,:perp)` by default.
+Given correlation data contained in a [`SampledCorrelations`](@ref) and [`BinningParameters`](@ref) describing the
+shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_formula`](@ref), or `intensity_formula(sc,:perp)` by default.
 
 The [`BinningParameters`](@ref) are expected to accept `(k,ω)` in absolute units.
 
@@ -401,25 +401,25 @@ For example,
 `integrated_kernel = Δω -> atan(Δω/η)/pi` (c.f. [`integrated_lorentzian`](@ref) implements Lorentzian broadening with parameter `η`.
 Currently, energy broadening is only supported if the [`BinningParameters`](@ref) are such that the first three axes are purely spatial and the last (energy) axis is `[0,0,0,1]`.
 """
-function intensities_binned(sf::StructureFactor, params::BinningParameters;
-    integrated_kernel = nothing,formula = intensity_formula(sf,:perp) :: ClassicalIntensityFormula
+function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
+    integrated_kernel = nothing,formula = intensity_formula(sc,:perp) :: ClassicalIntensityFormula
 )
     (; binwidth, binstart, binend, covectors, numbins) = params
     output_intensities = zeros(Float64,numbins...)
     output_counts = zeros(Float64,numbins...)
-    ωvals = ωs(sf)
-    recip_vecs = 2π*inv(sf.crystal.latvecs)'
+    ωvals = ωs(sc)
+    recip_vecs = 2π*inv(sc.crystal.latvecs)'
 
     # Find an axis-aligned bounding box containing the histogram.
     # The AABB needs to be in q-space because that's where we index
     # over the scattering modes.
     q_params = copy(params)
-    bin_rlu_as_absolute_units!(q_params,sf)
+    bin_rlu_as_absolute_units!(q_params,sc)
     lower_aabb_q, upper_aabb_q = binning_parameters_aabb(q_params)
 
     # Round the axis-aligned bounding box *outwards* to lattice sites
     # SQTODO: are these bounds optimal?
-    Ls = sf.latsize
+    Ls = sc.latsize
     lower_aabb_cell = floor.(Int64,lower_aabb_q .* Ls .+ 1) 
     upper_aabb_cell = ceil.(Int64,upper_aabb_q .* Ls .+ 1)
 
@@ -462,7 +462,7 @@ function intensities_binned(sf::StructureFactor, params::BinningParameters;
 
                 # Check this bin is within the 4D histogram bounds
                 if all(xyztBin .<= numbins) && all(xyztBin .>= 1)
-                    intensity = formula.calc_intensity(sf,SVector{3,Float64}(k),base_cell,iω)
+                    intensity = formula.calc_intensity(sc,SVector{3,Float64}(k),base_cell,iω)
 
                     ci = CartesianIndex(xyztBin.data)
                     output_intensities[ci] += intensity
@@ -480,7 +480,7 @@ function intensities_binned(sf::StructureFactor, params::BinningParameters;
                     if all(xyzBin .<= view(numbins,1:3)) &&  all(xyzBin .>= 1)
 
                         # Calculate source scattering vector intensity only once
-                        intensity = formula.calc_intensity(sf,SVector{3,Float64}(k),base_cell,iω)
+                        intensity = formula.calc_intensity(sc,SVector{3,Float64}(k),base_cell,iω)
 
                         # Broaden from the source scattering vector (k,ω) to
                         # each target bin ci_other

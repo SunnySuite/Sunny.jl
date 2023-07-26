@@ -1,11 +1,11 @@
 """
-    all_exact_wave_vectors(sf::StructureFactor; bzsize=(1,1,1))
+    all_exact_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
 
-Returns all wave vectors for which `sf` contains exact values. `bsize` specifies
+Returns all wave vectors for which `sc` contains exact values. `bsize` specifies
 the number of Brillouin zones to be included.
 """
-function all_exact_wave_vectors(sf::StructureFactor; bzsize=(1,1,1))
-    Ls = size(sf.samplebuf)[2:4]  # If we had a sys, would use latsize
+function all_exact_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
+    Ls = size(sc.samplebuf)[2:4]  # If we had a sys, would use latsize
     offsets = map(L -> isodd(L) ? 1 : 0, Ls)
     up = Ls .* bzsize
     hi = map(L -> L - div(L, 2), up) .- offsets
@@ -18,16 +18,18 @@ function all_exact_wave_vectors(sf::StructureFactor; bzsize=(1,1,1))
 end
 
 """
-    ωs(sf::StructureFactor; negative_energies=false)
+    ωs(sc::SampledCorrelations; negative_energies=false)
 
-Return the ω values for the energy index of a `StructureFactor`. By default,
+Return the ω values for the energy index of a `SampledCorrelations`. By default,
 only returns values for non-negative energies, which corresponds to the default
 output of `intensities`. Set `negative_energies` to true to retrieve all ω
 values.
 """
-function ωs(sf::StructureFactor; negative_energies=false)
-    Δω = sf.Δω
-    nω = size(sf.data, 7)
+function ωs(sc::SampledCorrelations; negative_energies=false)
+    Δω = sc.Δω
+    isnan(Δω) && (return NaN)
+
+    nω = size(sc.data, 7)
     hω = div(nω, 2) + 1
     ωvals = collect(0:(nω-1)) .* Δω
     for i ∈ hω+1:nω
@@ -37,4 +39,4 @@ function ωs(sf::StructureFactor; negative_energies=false)
 end
 
 
-orig_crystal(sf::StructureFactor) = isnothing(sf.origin_crystal) ? sf.crystal : sf.origin_crystal
+orig_crystal(sc::SampledCorrelations) = isnothing(sc.origin_crystal) ? sc.crystal : sc.origin_crystal

@@ -16,9 +16,10 @@
 
     sys = System(Sunny.diamond_crystal(),(4,1,1),[SpinInfo(1,S=1/2)],:SUN,seed=1)
     randomize_spins!(sys)
-    sf = DynamicStructureFactor(sys;Δt = 1.,nω=3,ωmax = 1.)
-    @test_nowarn unit_resolution_binning_parameters(sf)
-    params = unit_resolution_binning_parameters(sf)
+    sc = dynamical_correlations(sys;Δt = 1.,nω=3,ωmax = 1.)
+    add_sample!(sc, sys)
+    @test_nowarn unit_resolution_binning_parameters(sc)
+    params = unit_resolution_binning_parameters(sc)
     @test params.numbins == [4,1,1,3]
 
     # Ensure insensitivity to small changes in bin size
@@ -55,16 +56,16 @@
     params.binwidth[3] = params.binwidth[3] + eps(params.binwidth[3]) # Plus
     @test bins_before == params.numbins[3]
 
-    params = unit_resolution_binning_parameters(sf)
+    params = unit_resolution_binning_parameters(sc)
 
     # TODO: Test broadening
-    is, counts = intensities_binned(sf, params)
+    is, counts = intensities_binned(sc, params)
 
     is_golden = [2.452071781061995; 0.8649599530836397; 1.1585615432377976; 0.2999470844988036;;;; 0; 0; 0; 0;;;; 0; 0; 0; 0]
     @test isapprox(is,is_golden;atol = 1e-12)
     @test all(counts .== 1.)
 
-    is, counts = powder_average_binned(sf, (0,6π,6π/4))
+    is, counts = powder_average_binned(sc, (0,6π,6π/4))
 
     is_golden = [4.475593277383433 0 0; 17.95271052224501 0 0; 51.13888001854976 0 0; 45.72331040682036 0 0]
     counts_golden = [3.0 3.0 3.0; 15.0 15.0 15.0; 28.0 28.0 28.0; 39.0 39.0 39.0]
