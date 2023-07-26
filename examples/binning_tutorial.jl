@@ -57,7 +57,8 @@ end
 # to be ≈20× better than the experimental resolution in order to demonstrate
 # the effect of over-resolving in energy.
 nω = 480; 
-dsf = DynamicStructureFactor(sys; Δt=Δt, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize)
+sc = SampledCorrelations(sys; Δt=Δt, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize)
+add_sample!(sc)
 
 # We re-sample from the thermal equilibrium distribution several times to increase our sample size
 nsamples = 3
@@ -65,15 +66,15 @@ for _ in 1:nsamples
     for _ in 1:8000 
         step!(sys, langevin)
     end
-    add_sample!(dsf, sys)
+    add_sample!(sc, sys)
 end
 
 # Since the SU(N)NY crystal has only finitely many lattice sites, there are finitely
 # many ways for a neutron to scatter off of the sample.
 # We can visualize this discreteness by plotting each possible Qx and Qz, for example:
 
-params = unit_resolution_binning_parameters(dsf)#hide
-bin_rlu_as_absolute_units!(params,dsf)#hide
+params = unit_resolution_binning_parameters(sc)#hide
+bin_rlu_as_absolute_units!(params,sc)#hide
 lower_aabb_q, upper_aabb_q = Sunny.binning_parameters_aabb(params)#hide
 lower_aabb_cell = floor.(Int64,lower_aabb_q .* latsize .+ 1)#hide
 upper_aabb_cell = ceil.(Int64,upper_aabb_q .* latsize .+ 1)#hide
@@ -93,7 +94,7 @@ fig#hide
 
 # One way to display the structure factor is to create a histogram with
 # one bin centered at each discrete scattering possibility using [`unit_resolution_binning_parameters`](@ref) to create a set of [`BinningParameters`](@ref).
-params = unit_resolution_binning_parameters(dsf)
+params = unit_resolution_binning_parameters(sc)
 
 # Since this is a 4D histogram,
 # it further has to be integrated over two of those directions in order to be displayed.
@@ -104,13 +105,13 @@ integrate_axes!(params;axes = [2,4]) # Integrate over Qy (2) and E (4)
 # In addition to the [`BinningParameters`](@ref), an [`intensity_formula`](@ref) needs to be
 # provided to specify which dipole, temperature, and atomic form factor
 # corrections should be applied during the intensity calculation.
-formula = intensity_formula(dsf, :perp; kT, formfactors)
-intensity,counts = intensities_binned(dsf, params; formula)
+formula = intensity_formula(sc, :perp; kT, formfactors)
+intensity,counts = intensities_binned(sc, params; formula)
 normalized_intensity = intensity ./ counts;
 
 # With the data binned, we can now plot it. The axes labels give the bin centers of each bin, as given by [`axes_bincenters`](@ref).
 function plot_data(params) #hide
-intensity,counts = intensities_binned(dsf, params; formula)#hide
+intensity,counts = intensities_binned(sc, params; formula)#hide
 normalized_intensity = intensity ./ counts;#hide
 bin_centers = axes_bincenters(params);
 
@@ -127,14 +128,14 @@ end#hide
 plot_data(params)#hide
 
 # Note that some bins have no scattering vectors at all when the bin size is made too small:
-params = unit_resolution_binning_parameters(dsf)#hide
+params = unit_resolution_binning_parameters(sc)#hide
 integrate_axes!(params;axes = [2,4])#hide
 params.binwidth[1] /= 1.2
 params.binwidth[3] /= 2.5
 plot_data(params)#hide
 
 # Conversely, making the bins bigger doesn't break anything, but loses resolution:
-params = unit_resolution_binning_parameters(dsf)#hide
+params = unit_resolution_binning_parameters(sc)#hide
 integrate_axes!(params;axes = [2,4])#hide
 params.binwidth[1] *= 2
 params.binwidth[3] *= 2
@@ -144,7 +145,7 @@ plot_data(params)#hide
 # over-resolved in energy:
 x = zeros(Float64,0)#hide
 y = zeros(Float64,0)#hide
-for omega = ωs(dsf), qx = unique(Qx)#hide
+for omega = ωs(sc), qx = unique(Qx)#hide
     push!(x,qx)#hide
     push!(y,omega)#hide
 end#hide
@@ -156,14 +157,14 @@ scatter!(ax,x,y)
 # See [`slice_2D_binning_parameters`](@ref).
 x_axis_bin_count = 10
 cut_width = 0.3
-params = slice_2D_binning_parameters(dsf,[0,0,0],[1,1,0],x_axis_bin_count,cut_width)
+params = slice_2D_binning_parameters(sc,[0,0,0],[1,1,0],x_axis_bin_count,cut_width)
 
 # There are no longer any scattering vectors exactly in the plane of the cut. Instead,
 # as described in the `BinningParameters` output above, the transverse Q
 # directions are integrated over, so slightly out of plane points are included.
 #
 # We plot the intensity on a log-scale to improve visibility.
-intensity,counts = intensities_binned(dsf, params; formula)
+intensity,counts = intensities_binned(sc, params; formula)
 log_intensity = log10.(intensity ./ counts);
 bin_centers = axes_bincenters(params);#hide
 fig = Figure()#hide
@@ -175,7 +176,7 @@ fig#hide
 
 # By reducing the number of energy bins to be closer to the number of bins on the x-axis, we can make the dispersion curve look nicer:
 params.binwidth[4] *= 20
-intensity,counts = intensities_binned(dsf, params; formula)#hide
+intensity,counts = intensities_binned(sc, params; formula)#hide
 log_intensity = log10.(intensity ./ counts);#hide
 bin_centers = axes_bincenters(params);#hide
 fig = Figure()#hide

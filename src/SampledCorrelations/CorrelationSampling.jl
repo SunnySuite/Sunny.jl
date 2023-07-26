@@ -47,40 +47,40 @@ function trajectory!(buf, sys, integrator, nsnaps, ops; measperiod = 1, apply_g 
     return nothing
 end
 
-function new_sample!(sf::StructureFactor, sys::System; processtraj! = no_processing)
-    (; integrator, samplebuf, measperiod, apply_g) = sf
+function new_sample!(sc::SampledCorrelations, sys::System; processtraj! = no_processing)
+    (; integrator, samplebuf, measperiod, apply_g) = sc
     nsnaps = size(samplebuf, 6)
 
-    @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `StructureFactor`"
+    @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `SampledCorrelations`"
 
-    trajectory!(samplebuf, sys, integrator, nsnaps, sf.observables; measperiod = measperiod, apply_g = apply_g)
+    trajectory!(samplebuf, sys, integrator, nsnaps, sc.observables; measperiod = measperiod, apply_g = apply_g)
 
-    processtraj!(sf)
+    processtraj!(sc)
 
     return nothing
 end
 
-function symmetrize!(sf::StructureFactor)
-    (; samplebuf) = sf
+function symmetrize!(sc::SampledCorrelations)
+    (; samplebuf) = sc
     nsteps = size(samplebuf, 6)
     for t in 1:nsteps
         selectdim(samplebuf, 6, t) .= 0.5*(selectdim(samplebuf, 6, t) + selectdim(samplebuf, 6, nsteps-t+1))
     end
 end
 
-function subtract_mean!(sf::StructureFactor)
-    (; samplebuf) = sf
+function subtract_mean!(sc::SampledCorrelations)
+    (; samplebuf) = sc
     nsteps = size(samplebuf, 6)
     meanvals = sum(samplebuf, dims=6) ./ nsteps
     samplebuf .-= meanvals
 end
 
-function no_processing(::StructureFactor)
+function no_processing(::SampledCorrelations)
     nothing
 end
 
-function accum_sample!(sf::StructureFactor)
-    (; data, correlations, samplebuf, copybuf, nsamples, fft!) = sf
+function accum_sample!(sc::SampledCorrelations)
+    (; data, correlations, samplebuf, copybuf, nsamples, fft!) = sc
     natoms = size(samplebuf)[5]
 
     fft! * samplebuf # Apply pre-planned and pre-normalized FFT
@@ -98,14 +98,14 @@ end
 
 
 """
-    add_sample!(sf::StructureFactor, sys::System)
+    add_sample!(sc::SampledCorrelations, sys::System)
 
 `add_trajectory` uses the spin configuration contained in the `System` to
-generate a correlation data and accumulate it into `sf`. For static structure
+generate a correlation data and accumulate it into `sc`. For static structure
 factors, this involves analyzing the spin-spin correlations of the spin
 configuration provided. For a dynamic structure factor, a trajectory is
 calculated using the given spin configuration as an initial condition. The
-spin-spin correlations are then calculating in time and accumulated into `sf`. 
+spin-spin correlations are then calculating in time and accumulated into `sc`. 
 
 This function will change the state of `sys` when calculating dynamical
 structure factor data. To preserve the initial state of `sys`, it must be saved
@@ -113,7 +113,7 @@ separately prior to calling `add_sample!`. Alternatively, the initial spin
 configuration may be copied into a new `System` and this new `System` can be
 passed to `add_sample!`.
 """
-function add_sample!(sf::StructureFactor, sys::System; processtraj! = no_processing) 
-    new_sample!(sf, sys; processtraj!)
-    accum_sample!(sf)
+function add_sample!(sc::SampledCorrelations, sys::System; processtraj! = no_processing) 
+    new_sample!(sc, sys; processtraj!)
+    accum_sample!(sc)
 end

@@ -84,19 +84,19 @@ end
 # and dynamical structure factors. To prevent smearing, removes Bragg peaks
 # before introducing energy broadening. Bragg peaks are added back at ω=0 after
 # broadening.
-function powder_average(dsf, rs, density; η=0.1, mode=:perp, kwargs...)
+function powder_average(sc, rs, density; η=0.1, mode=:perp, kwargs...)
     prog   = Progress(length(rs); dt=10., desc="Powder Averaging: ", color=:blue);
-    output = zeros(Float64, length(rs), length(ωs(dsf)))
+    output = zeros(Float64, length(rs), length(ωs(sc)))
     for (i, r) in enumerate(rs)
-        qs = spherical_shell(dsf, r, density)
+        qs = spherical_shell(sc, r, density)
         if length(qs) == 0
             qs = [[0., 0., 0.]] ## If radius is too small, just look at 0 vector
         end
-        vals = intensities(dsf, qs, mode; kwargs...)
+        vals = intensities(sc, qs, mode; kwargs...)
         bragg_idxs = findall(x -> x > maximum(vals)*0.9, vals)
         bragg_vals = vals[bragg_idxs]
         vals[bragg_idxs] .= 0
-        vals = broaden_energy(dsf, vals, (ω,ω₀)->lorentzian(ω-ω₀, η))
+        vals = broaden_energy(sc, vals, (ω,ω₀)->lorentzian(ω-ω₀, η))
         vals[bragg_idxs] .= bragg_vals
         output[i,:] .= mean(vals, dims=1)[1,:]
         next!(prog)
@@ -193,14 +193,15 @@ heatmap(Qxpts, Qypts, iq;
 # #### Dynamical and energy-integrated two-point correlation functions
 
 # Calculate the Time Traces and Fourier Transform: Dynamical Structure Factor (first sample)
-ωmax       = 6.0;  # Maximum  energy to resolve
-nω         = 100;  # Number of energies to resolve
-@time dsf  = DynamicStructureFactor(sys; Δt=Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
+ωmax     = 6.0;  # Maximum  energy to resolve
+nω       = 100;  # Number of energies to resolve
+@time sc  = SampledCorrelations(sys; Δt=Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
+add_sample!(sc, sys) # Add a sample trajectory
 
-# If desired, add additional samples by decorrelating and then re-calculating the dsf
+# If desired, add additional decorrelated samples.
 nsamples      = 0; # Aditional Samples
 ndecorr       = 1000;
-@time sample_sf!(dsf, sys, integrator; nsamples=nsamples, ndecorr=ndecorr);
+@time sample_sf!(sc, sys, integrator; nsamples=nsamples, ndecorr=ndecorr);
 
 # Can use the Brillouin package for help on determining high symmetry points 
 kp        = irrfbz_path(227,[[1,0,0], [0,1,0], [0,0,1]]);
@@ -216,18 +217,18 @@ symQpts   = [[0.75, 0.75, 0.00],  # List of wave vectors that define a path
             [0.25, 1.00, 0.25],
             [0.00, 1.00, 0.00],
             [0.00,-4.00, 0.00]];
-(Qpts, symQind) = connected_path(dsf, symQpts,densQpts);
-@time  iqw = intensities(dsf, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
+(Qpts, symQind) = connected_path(sc, symQpts,densQpts);
+@time  iqw = intensities(sc, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
 
-# If desired, broaden the dsf in energy
+# If desired, broaden the sc in energy
 η     = 0.02 ## Lorentzian energy broadening parameter
-iqwc  = broaden_energy(dsf, iqw, (ω, ω₀) -> lorentzian(ω-ω₀, η));
+iqwc  = broaden_energy(sc, iqw, (ω, ω₀) -> lorentzian(ω-ω₀, η));
 
 # If desired, calculated the energy-integrated structure factor
-@time  iqt = instant_intensities(dsf, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
+@time  iqt = instant_intensities(sc, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
 
 # Plot the resulting I(Q,W)    
-heatmap(1:size(iqwc, 1), ωs(dsf), iqwc;
+heatmap(1:size(iqwc, 1), ωs(sc), iqwc;
     colorrange = (0, maximum(iqwc)/20000.0),
     axis = (
         xlabel="Momentum Transfer (r.l.u)",
@@ -244,10 +245,10 @@ nQpts      = 100;
 Qpow       = range(0, Qmax, length=nQpts);  
 η          = 0.1;
 sphdensity = 3.5;
-@time pqw = powder_average(dsf, Qpow, sphdensity; η, kT=integrator.kT, formfactors=ffs);
+@time pqw = powder_average(sc, Qpow, sphdensity; η, kT=integrator.kT, formfactors=ffs);
 
 # Plot resulting Ipow(Q,W)    
-heatmap(Qpow, ωs(dsf), pqw;
+heatmap(Qpow, ωs(sc), pqw;
     colorrange = (0, 20.0),
     axis = (
         xlabel="|Q| (Å⁻¹)",
@@ -265,9 +266,10 @@ pqw_res    = Array{Matrix{Float64}}(undef, length(kTs));
 iqw_res    = Array{Matrix{Float64}}(undef, length(kTs)); 
 for (i, kT) in enumerate(kTs)
     dwell!(sys, integrator;kTtarget=kT,ndwell=1000);
-    dsf_loc     = DynamicStructureFactor(sys; Δt=2Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
-    iqw_res[i]  = intensities(dsf_loc, Qpts, :perp; interpolation = :none, kT=kT, formfactors=ffs); 
-    pqw_res[i]  = powder_average(dsf_loc, Qpow, sphdensity; η, kT=kT, formfactors=ffs);
+    sc_loc     = SampledCorrelations(sys; Δt=2Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
+    add_sample!(sc_loc, sys)
+    iqw_res[i]  = intensities(sc_loc, Qpts, :perp; interpolation = :none, kT=kT, formfactors=ffs); 
+    pqw_res[i]  = powder_average(sc_loc, Qpow, sphdensity; η, kT=kT, formfactors=ffs);
 end
 
 # Plot the resulting Ipow(Q,W) as a function of temperature,
@@ -281,6 +283,6 @@ for i in 1:8
         ylabel = c == 1 ? "Energy Transfer (meV)" : "",
         aspect = 1.4,
     )
-    heatmap!(ax, Qpow, ωs(dsf), pqw_res[9-i]; colorrange = (0, 10))
+    heatmap!(ax, Qpow, ωs(sc), pqw_res[9-i]; colorrange = (0, 10))
 end
 fig

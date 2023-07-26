@@ -103,8 +103,8 @@ end
 
 # If necessary, update the indices of FormFactors from original crystal
 # to the corresponding indices of the new crystal.
-function map_form_factors_to_crystal(sf::StructureFactor, ffs::Vector{FormFactor{FFType}}) where FFType
-    (; crystal, origin_crystal) = sf
+function map_form_factors_to_crystal(sc::SampledCorrelations, ffs::Vector{FormFactor{FFType}}) where FFType
+    (; crystal, origin_crystal) = sc
 
     (isnothing(origin_crystal)) && (return ffs)
 
@@ -121,10 +121,10 @@ function map_form_factors_to_crystal(sf::StructureFactor, ffs::Vector{FormFactor
     return ffs_new
 end
 
-function propagate_form_factors(sf::StructureFactor, ffs::Vector{FormFactor{FFType}}) where FFType
-    ffs = map_form_factors_to_crystal(sf, ffs)
+function propagate_form_factors(sc::SampledCorrelations, ffs::Vector{FormFactor{FFType}}) where FFType
+    ffs = map_form_factors_to_crystal(sc, ffs)
     ref_atoms = [ff.atom for ff in ffs]
-    atom_to_ref_atom = propagate_reference_atoms(sf.crystal, ref_atoms)
+    atom_to_ref_atom = propagate_reference_atoms(sc.crystal, ref_atoms)
 
     return map(enumerate(atom_to_ref_atom)) do (atom, atom′)
         ff = ffs[findfirst(==(atom′), ref_atoms)]
