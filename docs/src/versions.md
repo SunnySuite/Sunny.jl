@@ -9,9 +9,9 @@ presentation ([`intensities_interpolated`](@ref), [`intensities_binned`](@ref)).
 This is a **breaking change**, see the docs to migrate your code.
 
 `StructureFactor` type renamed `SampledCorrelations`. An appropriate
-`SampledCorrelations` is created by calling either `dynamical_correlations` or
-`instant_correlations` instead of `DynamicStructureFactor` or
-`InstantStructureFactor`.
+`SampledCorrelations` is created by calling either
+[`dynamical_correlations`](@ref) or `instant_correlations`(@ref) instead of
+`DynamicStructureFactor` or `InstantStructureFactor`.
 
 Broadened support for custom observables in `SampledCorrelations` for use in
 `intensity_formula`.
