@@ -51,16 +51,16 @@ information is available in the Library API.
 
 ## Estimating stucture factors with classical dynamics
 
-The basic approach to estimating structure factor information using classical
-dynamics relies on the generation of spin-spin correlation data from dynamical
-trajectories. This is fundamentally a Monte Carlo calculation, as the
-trajectories must be started from an initial spin configuration that is sampled
-from thermal equilibrium. (Note that it is not possible to estimate a true T=0
-dynamical structure factor using this approach, but the temperature may be very
-small.) Samples are accumulated into a `SampledCorrelations`, from which
-intensity information may be extracted. The user does not typically build their
-own `SampledCorrelations`, but instead initializes one using either
-`dynamical_correlations` or `instant_correlations`, as described below.
+Classical dynamics may be used to estimate structure factor data by analyzing
+the spin-spin correlations of dynamical trajectories. This is fundamentally a
+Monte Carlo approach, as the trajectories must be started from an initial spin
+configuration that is sampled at thermal equilibrium. (Note that it is not
+possible to estimate a true T=0 dynamical structure factor using this method,
+but the temperature may be very low.) Samples are accumulated into a
+`SampledCorrelations`, from which intensity information may be extracted. The
+user does not typically build their own `SampledCorrelations` but instead
+initializes one by calling either `dynamical_correlations` or
+`instant_correlations`, as described below.
 
 ### Estimating a dynamical structure factor: ``𝒮(𝐪,ω)``
 
