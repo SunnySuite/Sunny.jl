@@ -32,7 +32,8 @@ function export_vtk(filename,sys; coordinates = :physical, log_scale = false)
 
     ## Save S(Q) correlations
     
-    ic = InstantCorrelations(sys)
+    ic = instant_correlations(sys)
+    add_sample!(ic, sys)
     params = unit_resolution_binning_parameters(ic)
     formula = intensity_formula(ic,:trace)
 

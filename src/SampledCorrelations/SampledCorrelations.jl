@@ -1,3 +1,10 @@
+"""
+    SampledCorrelations
+
+Basic data type for storing sampled correlation data. A `SampleCorrelations` is
+initialized by calling either [`dynamical_correlations`](@ref) or
+[`instant_correlations`](@ref).
+"""
 struct SampledCorrelations{N}
     # 𝒮^{αβ}(q,ω) data and metadata
     data           :: Array{ComplexF64, 7}   # Raw SF data for 1st BZ (numcorrelations × natoms × natoms × latsize × energy)
@@ -290,14 +297,14 @@ information. ``𝒮(𝐪)`` data can be retrieved by calling
 [`instant_intensities_interpolated`](@ref).
 
 _Important note_: When dealing with continuous (non-Ising) spins, consider
-creating a full [`SampledCorrelations`](@ref) object instead of an
-`InstantCorrelations`. The former will provide full ``𝒮(𝐪,ω)`` data, from
+creating using [`dynamical_correlations`](@ref) instead of 
+`instant_correlations`. The former will provide full ``𝒮(𝐪,ω)`` data, from
 which ``𝒮(𝐪)`` can be obtained by integrating out ``ω``. During this
 integration step, Sunny can incorporate temperature- and ``ω``-dependent
 classical-to-quantum correction factors to produce more accurate ``𝒮(𝐪)``
 estimates. See [`instant_intensities_interpolated`](@ref) for more information.
 
-Prior to calling `InstantCorrelations`, ensure that `sys` represents a good
+Prior to calling `instant_correlations`, ensure that `sys` represents a good
 equilibrium sample. Additional sample data may be accumulated by calling
 [`add_sample!`](@ref)`(sc, sys)` with newly equilibrated `sys` configurations.
 

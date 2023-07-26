@@ -27,7 +27,7 @@ for _ ∈ 1:3000
     step!(sys, integrator)
 end;
 
-# We can now estimate ``𝒮(𝐪,ω)`` with [`SampledCorrelations`](@ref). We
+# We can now estimate ``𝒮(𝐪,ω)`` with [`dynamical_correlations`](@ref). We
 # will tell Sunny to symmetrize the sample trajectory along the time-axis to
 # minimize Fourier artifacts.
 
@@ -125,7 +125,7 @@ fig1
 #   [`add_sample!`](@ref)
 # - Increasing the system size to improve momentum space resolution
 # - Increasing the energy resolution (`nω` keyword of
-#   [`SampledCorrelations`](@ref)) 
+#   [`dynamical_correlations`](@ref)) 
 # - Applying instrument-specific energy broadening by giving `broaden_energy` a
 #   custom kernel function.
 # - Including [`FormFactor`](@ref) corrections

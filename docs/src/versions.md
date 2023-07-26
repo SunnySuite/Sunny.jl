@@ -55,7 +55,7 @@ can be resolved by passing an explicit `offset`.
 The function [`remove_periodicity!`](@ref) disables periodicity along specified
 dimensions.
 
-Rename `StaticStructureFactor` to [`InstantStructureFactor`](@ref).
+Rename `StaticStructureFactor` to [`InstantStructureFactor`].
 
 
 # Version 0.4.2
