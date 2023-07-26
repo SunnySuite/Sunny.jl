@@ -8,7 +8,7 @@ Split `intensities` into calculation ([`intensity_formula`](@ref)) and
 presentation ([`intensities_interpolated`](@ref), [`intensities_binned`](@ref)).
 This is a **breaking change**, see the docs to migrate your code.
 
-`StructureFactor` type renamed `SampledCorrelations`. An appropriate
+`StructureFactor` type renamed [`SampledCorrelations`](@ref). An appropriate
 `SampledCorrelations` is created by calling either
 [`dynamical_correlations`](@ref) or `instant_correlations`(@ref) instead of
 `DynamicStructureFactor` or `InstantStructureFactor`.
