@@ -52,18 +52,19 @@ information is available in the Library API.
 ## Basic Usage
 
 The basic data type for calculating, storing and retrieving structure factor
-data is `StructureFactor`. Rather than creating a `StructureFactor` directly,
-one should call either [`DynamicStructureFactor`](@ref), for $𝒮^{αβ}(𝐪,ω)$, or
-[`InstantStructureFactor`](@ref), for $𝒮^{αβ}(𝐪)$. These functions will
-configure and return an appropriate `StructureFactor`.
+data is [`SampledCorrelations`](@ref). After accumulating samples into a
+`SampledCorrelations` with [`add_sample!`](@ref), it can be used to estimate the
+dynamical structure factor, $𝒮^{αβ}(𝐪,ω)$. [`InstantStructureFactor`](@ref) is
+also available when only $𝒮^{αβ}(𝐪)$ is desired. 
 
 ### Calculating a dynamical stucture factor: ``𝒮(𝐪,ω)``
 
-Calling `DynamicStructureFactor(sys; Δt, ωmax, nω)` will create a
-`StructureFactor` for the user and calculate an initial sample. There are three
-keywords that must be specified. These keywords will determine the dynamics
-used to calculate the sample and, consequently, the $ω$ information that will be
-available after the calculation has completed.
+`SampledCorrelations(sys; Δt, ωmax, nω)` will create a will create an empty
+`SampledCorrelations` which can be used to accumulate correlation data from
+sample trajectories. There are three keywords that must be specified. These
+keywords will determine the dynamics used to calculate the sample and,
+consequently, the $ω$ information that will be available after the calculation
+has completed.
 
 1. `Δt`: Determines the step size used for simulating the dynamics. A smaller
    number will require proportionally more calculation time. While a smaller
@@ -81,18 +82,17 @@ available after the calculation has completed.
 3. `nω`: Determines the number of energy bins to resolve. A larger number will
    require more calculation time.
 
-Upon constructing `DynamicStructureFactor`, classical spin dynamics will be
-performed, and spin correlation data will be accumulated into $𝒮^{αβ}(𝐪,ω)$.
-The input `sys` must be a spin configuration in good thermal equilibrium, e.g.,
-using the continuous [`Langevin`](@ref) dynamics or using single spin flip
-trials with [`LocalSampler`](@ref). The statistical quality of the
-$𝒮^{αβ}(𝐪,ω)$ can be improved by generating a decorrelated spin configuration
-in `sys`, and then calling [`add_sample!`](@ref).
+Samples may be accumulated into an estimate of $𝒮^{αβ}(𝐪,ω)$ by calling
+`add_sample!(sc, sys)`. The input `sys` must be a spin configuration in good
+thermal equilibrium, e.g., using the continuous [`Langevin`](@ref) dynamics or
+using single spin flip trials with [`LocalSampler`](@ref). The statistical
+quality of the $𝒮^{αβ}(𝐪,ω)$ can be improved by generating a decorrelated spin
+configuration in `sys`, and then calling [`add_sample!`](@ref) additional times.
 
 The outline of typical use case might look like this:
 ```
-# Make a `StructureFactor` and calculate an initial sample
-sf = DynamicStructureFactor(sys; Δt=0.05, ωmax=10.0, nω=100) 
+# Make a `SampledCorrelations` and calculate an initial sample
+sf = SampledCorrelations(sys; Δt=0.05, ωmax=10.0, nω=100) 
 
 # Add additional samples
 for _ in 1:nsamples
@@ -102,7 +102,7 @@ end
 ```
 
 The calculation may be configured in a number of ways; see the
-[`DynamicStructureFactor`](@ref) documentation for a list of all keywords.
+[`SampledCorrelations`](@ref) documentation for a list of all keywords.
 
 
 ### Calculating an instantaneous ("static") structure factor: ``𝒮(𝐪)``
@@ -122,7 +122,7 @@ configurations. Information about calculating instantaneous data from a dynamic
 structure factor can be found in the following section.
 
 The basic usage for the instantaneous case is very similar to the dynamic case,
-except one calls `InstantStructureFactor` instead of `DynamicStructureFactor`.
+except one calls `InstantStructureFactor` instead of `SampledCorrelations`.
 Note that there are no required keywords as there is no need to specify any
 dynamics. `InstantStructureFactor` will immediately calculate a sample of
 $𝒮(𝐪)$ using the spin configuration contained in `sys`. It is therefore
@@ -133,9 +133,9 @@ the dynamic case. As was true there, it is important to ensure that the spins in
 
 ### Extracting information from structure factors
 
-The basic function for extracting information from a dynamic `StructureFactor`
+The basic function for extracting information from a `SampledCorrelations`
 at a particular wave vector, $𝐪$, is [`intensities_interpolated`](@ref). It takes a
-`StructureFactor`, a list of wave vectors, and a contraction mode. For example,
+`SampledCorrelations`, a list of wave vectors, and a contraction mode. For example,
 `intensities_interpolated(sf, [[0.0, 0.5, 0.5]])` will calculate intensities for the
 wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The keyword argument `formula` can be used to
 specify an [`intensity_formula`](@ref) for greater control over the intensity calculation.
@@ -179,7 +179,8 @@ rescaling of intensities in the formula.
 
 To retrieve intensity data from a instantaneous structure factor, use
 [`instant_intensities_interpolated`](@ref), which accepts similar arguments to
-`intensities_interpolated`. This function may also be used to calculate instantaneous
-information from a dynamical structure factor. Note that it is important to
-supply a value to `kT` to reap the benefits of this approach over simply
-calculating a static structure factor at the outset. 
+`intensities_interpolated`. This function may also be used to calculate
+instantaneous information from a dynamical structure factor, i.e. from a
+`SampledCorrelations`. Note that it is important to supply a value to `kT` to
+reap the benefits of this approach over simply calculating a static structure
+factor at the outset. 

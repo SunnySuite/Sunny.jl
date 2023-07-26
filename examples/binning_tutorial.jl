@@ -58,7 +58,7 @@ end
 # the effect of over-resolving in energy.
 nω = 480; 
 sc = SampledCorrelations(sys; Δt=Δt, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize)
-add_sample!(sc)
+add_sample!(sc, sys)
 
 # We re-sample from the thermal equilibrium distribution several times to increase our sample size
 nsamples = 3
