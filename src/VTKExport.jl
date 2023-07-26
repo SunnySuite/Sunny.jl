@@ -32,12 +32,13 @@ function export_vtk(filename,sys; coordinates = :physical, log_scale = false)
 
     ## Save S(Q) correlations
     
-    isf = InstantStructureFactor(sys)
-    params = unit_resolution_binning_parameters(isf)
-    formula = intensity_formula(isf,:trace)
+    ic = instant_correlations(sys)
+    add_sample!(ic, sys)
+    params = unit_resolution_binning_parameters(ic)
+    formula = intensity_formula(ic,:trace)
 
     # Counts is always just one because of unit_resolution
-    signal, _ = intensities_binned(isf,params; formula)
+    signal, _ = intensities_binned(ic,params; formula)
 
     if log_scale
         signal .= log10.(signal)

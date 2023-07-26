@@ -225,10 +225,10 @@ plot_spins(sys_mgcro; arrowlength=0.5, linewidth=0.2, arrowsize=0.5)
 # ## Instantaneous Structure Factor
 # Next we can examine the instantaneous structure factor.
 
-isf_pyro  = InstantStructureFactor(sys_pyro)
-isf_mgcro = InstantStructureFactor(sys_mgcro);
+isf_pyro  = instant_correlations(sys_pyro)
+isf_mgcro = instant_correlations(sys_mgcro);
 
-# This generates a single sample. Let's add 10 more.
+# These are currently empty. Let's add correlation data from 10 trajectories.
 
 for _ in 1:10
     ## Run dynamics to decorrelate
@@ -263,23 +263,22 @@ Colorbar(fig[1,4], hm)
 fig
 
 # ## Dynamical Structure Factor
-# We can also calculate the dynamical structure factor. 
+# We can also estimate the dynamical structure factor.
 
-dsf_pyro  = DynamicStructureFactor(sys_pyro;  Δt, ωmax = 10.0, nω = 100)
-dsf_mgcro = DynamicStructureFactor(sys_mgcro; Δt, ωmax = 10.0, nω = 100);
+sc_pyro  = dynamical_correlations(sys_pyro;  Δt, ωmax = 10.0, nω = 100)
+sc_mgcro = dynamical_correlations(sys_mgcro; Δt, ωmax = 10.0, nω = 100);
 
-# One sample is calculated when creating a `DynamicStructureFactor`. Let's add a
-# couple more.
+# Next we add some sample trajectories.
 
-for _ in 1:2
+for _ in 1:3
     ## Run dynamics to decorrelate
     for _ in 1:500
         step!(sys_pyro, langevin)
         step!(sys_mgcro, langevin)
     end
     ## Add samples
-    add_sample!(dsf_pyro, sys_pyro)
-    add_sample!(dsf_mgcro, sys_mgcro)
+    add_sample!(sc_pyro, sys_pyro)
+    add_sample!(sc_mgcro, sys_mgcro)
 end
 
 # We can now examine the structure factor intensities along a path in momentum space. 
@@ -289,12 +288,12 @@ axsqw = (xticks=-4:4, yticks=0:2:10, ylabel="E (meV)", ylabelsize=18, xlabelsize
 
 qbs = 0.0:0.5:1.5 # Determine q_b for each slice
 for (i, qb) in enumerate(qbs)
-    path, labels = connected_path(dsf_pyro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
+    path, labels = connected_path(sc_pyro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
                                                                          ## vectors through the BZ
-    Sqω_pyro  = intensities(dsf_pyro, path, :perp; kT)  # Temperature keyword enables intensity rescaling
+    Sqω_pyro  = intensities(sc_pyro, path, :perp; kT)  # Temperature keyword enables intensity rescaling
 
     ax = Axis(fig[fldmod1(i,2)...]; xlabel = "q = (x, $qb, 0)", axsqw...)
-    heatmap!(ax, [p[1] for p in path], ωs(dsf_pyro), Sqω_pyro; colorrange=(0.0, 4.0))
+    heatmap!(ax, [p[1] for p in path], ωs(sc_pyro), Sqω_pyro; colorrange=(0.0, 4.0))
 end
 fig
 
@@ -304,12 +303,12 @@ fig = Figure(; resolution=(1200,900))
 
 qbs = 0.0:0.5:1.5
 for (i, qb) in enumerate(qbs)
-    path, labels = connected_path(dsf_mgcro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
+    path, labels = connected_path(sc_mgcro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
                                                                          ## vectors through the BZ
-    Sqω_mgcro  = intensities(dsf_mgcro, path, :perp; kT)  # Temperature keyword enables intensity rescaling
+    Sqω_mgcro  = intensities(sc_mgcro, path, :perp; kT)  # Temperature keyword enables intensity rescaling
 
     ax = Axis(fig[fldmod1(i,2)...]; xlabel = "q = (x, $qb, 0)", axsqw...)
-    heatmap!(ax, [p[1] for p in path], ωs(dsf_mgcro), Sqω_mgcro; colorrange=(0.0, 4.0))
+    heatmap!(ax, [p[1] for p in path], ωs(sc_mgcro), Sqω_mgcro; colorrange=(0.0, 4.0))
 end
 fig
 
@@ -319,7 +318,7 @@ fig
 # dynamical structure factor. We simply call `instant_intensities` rather than
 # `intensities`. This will calculate the instantaneous structure factor from
 # from ``𝒮(𝐪,ω)`` by integrating out ``ω`` . An advantage of doing this (as
-# opposed to using an `InstantStructureFactor`) is that Sunny is able to apply a
+# opposed to using `instant_correlations`) is that Sunny is able to apply a
 # temperature- and energy-dependent intensity rescaling before integrating out
 # the dynamical information. The results of this approach are more suitable for
 # comparison with experimental data.
@@ -327,11 +326,11 @@ fig
 qvals = -4.0:0.05:4.0
 qs = [(qa, qb, 0) for qa in qvals, qb in qvals]      # Wave vectors to query
 
-Sq_pyro  = instant_intensities(dsf_pyro, qs, :perp; kT)  
-Sq_mgcro = instant_intensities(dsf_mgcro, qs, :perp; kT);
+Sq_pyro  = instant_intensities(sc_pyro, qs, :perp; kT)  
+Sq_mgcro = instant_intensities(sc_mgcro, qs, :perp; kT);
 
 # We can plot the results below. It is useful to compare these to the plot above
-# generated with an `InstantStructureFactor`.
+# generated with an `instant_correlations`.
 
 fig = Figure(; resolution=(1200,500))
 ax_pyro  = Axis(fig[1,1]; title="Pyrochlore", axparams...)

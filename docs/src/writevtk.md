@@ -14,7 +14,7 @@ ParaView supports volumetric rendering:
 First, generate some correlation data in Sunny.
 We will use a 2D lattice, since the correlation data ``S(Q_x,Q_y,\omega)`` is 
 3D and can be exported in its entirety.
-The following code sets up the system, thermalizes it, and records the correlation data in a [`DynamicalStructureFactor`](@ref) called `dsf`.
+The following code sets up the system, thermalizes it, and records the correlation data in a `SampledCorrelations` called `dsf`.
 
 ```julia
 using Sunny
@@ -44,11 +44,11 @@ end
 
 ωmax=10.
 
-dsf = DynamicStructureFactor(sys
-                            ;Δt=Δt
-                            ,nω=48
-                            ,ωmax=ωmax
-                            ,process_trajectory=:symmetrize)
+dsf = dynamical_correlations(sys
+                             ;Δt=Δt
+                             ,nω=48
+                             ,ωmax=ωmax
+                             ,process_trajectory=:symmetrize)
 
 nsamples = 10
 for _ in 1:nsamples

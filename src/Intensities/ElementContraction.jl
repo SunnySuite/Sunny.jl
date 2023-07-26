@@ -23,13 +23,13 @@ struct FullTensor{NCorr} <: Contraction{SVector{NCorr, ComplexF64}} end
 ################################################################################
 Trace(swt::SpinWaveTheory) = Trace(@SVector[1,5,9])
 
-function Trace(sf::StructureFactor{N}) where {N}
+function Trace(sc::SampledCorrelations{N}) where {N}
     # Collect all indices for matrix elements 𝒮^αβ where α=β
     indices = Int64[]
-    for (ki,i) = sf.observable_ixs
+    for (ki,i) = sc.observable_ixs
         autocorrelation_index = CartesianIndex(i,i)
-        if haskey(sf.correlations,autocorrelation_index)
-            push!(indices,sf.correlations[autocorrelation_index])
+        if haskey(sc.correlations,autocorrelation_index)
+            push!(indices,sc.correlations[autocorrelation_index])
         else
             problematic_correlation = ki
             error("Can't calculate trace because auto-correlation of the $problematic_correlation observable was not computed.")
@@ -44,7 +44,7 @@ function Trace(sf::StructureFactor{N}) where {N}
     #=
     total_autocorrelations = N == 0 ? 3 : N*N-1
     if length(indices) != total_autocorrelations
-        error("Unexpected number of observables were encounted. Expected $total_autocorrelations but actually have $(length(sf.observables)): $(keys(sf.observable_ixs))")
+        error("Unexpected number of observables were encounted. Expected $total_autocorrelations but actually have $(length(sc.observables)): $(keys(sc.observable_ixs))")
     end
     =#
 
@@ -54,10 +54,10 @@ end
 
 DipoleFactor(swt::SpinWaveTheory) = DipoleFactor([1,4,5,7,8,9])
 
-function DipoleFactor(sf::StructureFactor{N}; spin_components = [:Sx,:Sy,:Sz]) where {N}
+function DipoleFactor(sc::SampledCorrelations{N}; spin_components = [:Sx,:Sy,:Sz]) where {N}
     # Ensure that the observables themselves are present
     for si in spin_components
-        if !haskey(sf.observable_ixs,si)
+        if !haskey(sc.observable_ixs,si)
             error("Observable $(si) missing, but required for dipole correction factor")
         end
     end
@@ -65,18 +65,18 @@ function DipoleFactor(sf::StructureFactor{N}; spin_components = [:Sx,:Sy,:Sz]) w
     # Ensure that the required correlations are also present
     sx,sy,sz = spin_components
     dipole_correlations = [(sx,sx),(sx,sy),(sy,sy),(sx,sz),(sy,sz),(sz,sz)]
-    indices = lookup_correlations(sf,dipole_correlations; err_msg = αβ -> "Missing correlation $(αβ), which is required to compute the depolarization correction.")
+    indices = lookup_correlations(sc,dipole_correlations; err_msg = αβ -> "Missing correlation $(αβ), which is required to compute the depolarization correction.")
     DipoleFactor(indices)
 end
 
-function Element(sf::StructureFactor, pair::Tuple{Symbol,Symbol})
-    Element(only(lookup_correlations(sf,[pair]; err_msg = pair -> "Missing correlation $(pair), which was requested.")))
+function Element(sc::SampledCorrelations, pair::Tuple{Symbol,Symbol})
+    Element(only(lookup_correlations(sc,[pair]; err_msg = pair -> "Missing correlation $(pair), which was requested.")))
 end
 
 FullTensor(swt::SpinWaveTheory) = FullTensor{9}()
 
-function FullTensor(sf::StructureFactor{N}) where {N}
-    FullTensor{size(sf.data, 1)}()
+function FullTensor(sc::SampledCorrelations{N}) where {N}
+    FullTensor{size(sc.data, 1)}()
 end
 
 ################################################################################
@@ -150,28 +150,28 @@ function intensity_formula(swt::SpinWaveTheory, contractor::Contraction{T}; kwar
     end
 end
 
-function intensity_formula(sf::StructureFactor, elem::Tuple{Symbol,Symbol}; kwargs...)
+function intensity_formula(sc::SampledCorrelations, elem::Tuple{Symbol,Symbol}; kwargs...)
     string_formula = "S{$(elem[1]),$(elem[2])}[ix_q,ix_ω]"
-    intensity_formula(sf,Element(sf, elem); string_formula, kwargs...)
+    intensity_formula(sc,Element(sc, elem); string_formula, kwargs...)
 end
-#intensity_formula(sf::StructureFactor, elem::Vector{Tuple{Symbol,Symbol}}; kwargs...) = intensity_formula(sf,Element(sf, elem); kwargs...)
-intensity_formula(sf::StructureFactor; kwargs...) = intensity_formula(sf, :perp; kwargs...)
-function intensity_formula(sf::StructureFactor, mode::Symbol; kwargs...)
+#intensity_formula(sc::SampledCorrelations, elem::Vector{Tuple{Symbol,Symbol}}; kwargs...) = intensity_formula(sc,Element(sc, elem); kwargs...)
+intensity_formula(sc::SampledCorrelations; kwargs...) = intensity_formula(sc, :perp; kwargs...)
+function intensity_formula(sc::SampledCorrelations, mode::Symbol; kwargs...)
     if mode == :trace
-        contractor = Trace(sf)
+        contractor = Trace(sc)
         string_formula = "Tr S"
     elseif mode == :perp
-        contractor = DipoleFactor(sf)
+        contractor = DipoleFactor(sc)
         string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz)"
     elseif mode == :full
-        contractor = FullTensor(sf)
+        contractor = FullTensor(sc)
         string_formula = "S{α,β}"
     end
-    intensity_formula(sf,contractor;string_formula,kwargs...)
+    intensity_formula(sc,contractor;string_formula,kwargs...)
 end
 
-function intensity_formula(sf::StructureFactor, contractor::Contraction{T}; kwargs...) where T
-    intensity_formula(sf,required_correlations(contractor); return_type = T,kwargs...) do k,ω,correlations
+function intensity_formula(sc::SampledCorrelations, contractor::Contraction{T}; kwargs...) where T
+    intensity_formula(sc,required_correlations(contractor); return_type = T,kwargs...) do k,ω,correlations
         intensity = contract(correlations, k, contractor)
     end
 end

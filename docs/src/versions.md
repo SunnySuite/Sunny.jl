@@ -4,11 +4,20 @@ This version includes many **breaking changes**.
 
 Added support for Dipole-mode Linear Spin Wave Theory. (Thanks Hao Zhang!)
 
-Split `intensities` into calculation ([`intensity_formula`](@ref)) and presentation ([`intensities_interpolated`](@ref), [`intensities_binned`](@ref)). This is a **breaking change**, see the docs to migrate your code.
+Split `intensities` into calculation ([`intensity_formula`](@ref)) and
+presentation ([`intensities_interpolated`](@ref), [`intensities_binned`](@ref)).
+This is a **breaking change**, see the docs to migrate your code.
 
-Broadened support for custom observables in `StructureFactor` for use in `intensity_formula`.
+`StructureFactor` type renamed [`SampledCorrelations`](@ref). An appropriate
+`SampledCorrelations` is created by calling either
+[`dynamical_correlations`](@ref) or `instant_correlations`(@ref) instead of
+`DynamicStructureFactor` or `InstantStructureFactor`.
 
-Added function [`load_nxs`](@ref) to load experimental neutron scattering data to compare with `intensities_binned`.
+Broadened support for custom observables in `SampledCorrelations` for use in
+`intensity_formula`.
+
+Added function [`load_nxs`](@ref) to load experimental neutron scattering data
+to compare with `intensities_binned`.
 
 Replace `set_anisotropy!` with a new function [`set_onsite_coupling!`](@ref)
 (and similarly [`set_onsite_coupling_at!`](@ref)). The latter expects an
@@ -46,7 +55,7 @@ can be resolved by passing an explicit `offset`.
 The function [`remove_periodicity!`](@ref) disables periodicity along specified
 dimensions.
 
-Rename `StaticStructureFactor` to [`InstantStructureFactor`](@ref).
+Rename `StaticStructureFactor` to [`InstantStructureFactor`].
 
 
 # Version 0.4.2

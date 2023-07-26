@@ -41,10 +41,10 @@ function Base.show(io::IO, ::MIME"text/plain", formula::ClassicalIntensityFormul
 end
 
 """
-    formula = intensity_formula(sf::StructureFactor; kwargs...)
-    formula.calc_intensity(sf,q,ix_q,ix_ω)
+    formula = intensity_formula(sc::SampledCorrelations; kwargs...)
+    formula.calc_intensity(sc,q,ix_q,ix_ω)
 
-Establish a formula for computing the intensity of the discrete scattering modes `(q,ω)` using the correlation data ``𝒮^{αβ}(q,ω)`` stored in the [`StructureFactor`](@ref).
+Establish a formula for computing the intensity of the discrete scattering modes `(q,ω)` using the correlation data ``𝒮^{αβ}(q,ω)`` stored in the [`SampledCorrelations`](@ref).
 The `formula` returned from `intensity_formula` can be passed to [`intensities_interpolated`](@ref) or [`intensities_binned`](@ref).
 
 Sunny has several built-in formulas that can be selected by setting `contraction_mode` to one of these values:
@@ -65,40 +65,40 @@ Additionally, there are keyword arguments providing temperature and form factor 
 
 Alternatively, a custom formula can be specifed by providing a function `intensity = f(q,ω,correlations)` and specifying which correlations it requires:
 
-    intensity_formula(f,sf::StructureFactor, required_correlations; kwargs...)
+    intensity_formula(f,sc::SampledCorrelations, required_correlations; kwargs...)
 
 The function is intended to be specified using `do` notation. For example, this custom formula sums the off-diagonal correlations:
 
     required = [(:Sx,:Sy),(:Sy,:Sz),(:Sx,:Sz)]
-    intensity_formula(sf,required,return_type = ComplexF64) do k, ω, off_diagonal_correlations
+    intensity_formula(sc,required,return_type = ComplexF64) do k, ω, off_diagonal_correlations
         sum(off_diagonal_correlations)
     end
 
 If your custom formula returns a type other than `Float64`, use the `return_type` keyword argument to flag this.
 """
-function intensity_formula(f::Function,sf::StructureFactor,required_correlations; kwargs...)
+function intensity_formula(f::Function,sc::SampledCorrelations,required_correlations; kwargs...)
     # SQTODO: This corr_ix may contain repeated correlations if the user does a silly
     # thing like [(:Sx,:Sy),(:Sy,:Sx)], and this can technically be optimized so it's
     # not computed twice
-    corr_ix = lookup_correlations(sf,required_correlations)
-    intensity_formula(f,sf,corr_ix;kwargs...)
+    corr_ix = lookup_correlations(sc,required_correlations)
+    intensity_formula(f,sc,corr_ix;kwargs...)
 end
 
-function intensity_formula(f::Function,sf::StructureFactor,corr_ix::AbstractVector{Int64}; kT = Inf, formfactors = nothing, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])")
+function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::AbstractVector{Int64}; kT = Inf, formfactors = nothing, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])")
     # If temperature given, ensure it's greater than 0.0
     if iszero(kT)
         error("`kT` must be greater than zero.")
     end
 
-    ffdata = prepare_form_factors(sf, formfactors)
-    NAtoms = Val(size(sf.data)[2])
+    ffdata = prepare_form_factors(sc, formfactors)
+    NAtoms = Val(size(sc.data)[2])
     NCorr = Val(length(corr_ix))
 
-    ωs_sf = ωs(sf;negative_energies=true)
-    formula = function (sf::StructureFactor,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
-        correlations = phase_averaged_elements(view(sf.data,corr_ix,:,:,ix_q,ix_ω), k, sf, ffdata, NCorr, NAtoms)
+    ωs_sc = ωs(sc;negative_energies=true)
+    formula = function (sc::SampledCorrelations,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
+        correlations = phase_averaged_elements(view(sc.data,corr_ix,:,:,ix_q,ix_ω), k, sc, ffdata, NCorr, NAtoms)
 
-        ω = ωs_sf[ix_ω]
+        ω = ωs_sc[ix_ω]
         intensity = f(k,ω,correlations) * classical_to_quantum(ω, kT)
 
         # Having this line saves the return_type in the function closure
@@ -121,14 +121,14 @@ function classical_to_quantum(ω, kT::Float64)
   end
 end
 
-function prepare_form_factors(sf, formfactors)
+function prepare_form_factors(sc, formfactors)
     if isnothing(formfactors)
-        cryst = isnothing(sf.origin_crystal) ? sf.crystal : sf.origin_crystal 
+        cryst = isnothing(sc.origin_crystal) ? sc.crystal : sc.origin_crystal 
         class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]
         formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]
     end
     formfactors = upconvert_form_factors(formfactors) # Ensure formfactors have consistent type
-    return propagate_form_factors(sf, formfactors)
+    return propagate_form_factors(sc, formfactors)
 end
 
 
@@ -148,7 +148,7 @@ Returns ``x \\mapsto atan(x/η)/π`` for use with [`intensities_binned`](@ref).
 integrated_lorentzian(η::Float64) = x -> atan(x/η)/π
 
 """
-    broaden_energy(sf::StructureFactor, vals, kernel::Function; negative_energies=false)
+    broaden_energy(sc::SampledCorrelations, vals, kernel::Function; negative_energies=false)
 
 Performs a real-space convolution along the energy axis of an array of
 intensities. Assumes the format of the intensities array corresponds to what
@@ -158,12 +158,12 @@ center frequency of the kernel. Sunny provides [`lorentzian`](@ref)
 for the most common use case:
 
 ```
-newvals = broaden_energy(sf, vals, (ω, ω₀) -> lorentzian(ω-ω₀, 0.2))
+newvals = broaden_energy(sc, vals, (ω, ω₀) -> lorentzian(ω-ω₀, 0.2))
 ```
 """
-function broaden_energy(sf::StructureFactor, is, kernel::Function; negative_energies=false)
+function broaden_energy(sc::SampledCorrelations, is, kernel::Function; negative_energies=false)
     dims = size(is)
-    ωvals = ωs(sf; negative_energies)
+    ωvals = ωs(sc; negative_energies)
     out = zero(is)
     for (ω₀i, ω₀) in enumerate(ωvals)
         for (ωi, ω) in enumerate(ωvals)
