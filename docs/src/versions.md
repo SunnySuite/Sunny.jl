@@ -10,7 +10,7 @@ This is a **breaking change**, see the docs to migrate your code.
 
 `StructureFactor` type renamed [`SampledCorrelations`](@ref). An appropriate
 `SampledCorrelations` is created by calling either
-[`dynamical_correlations`](@ref) or `instant_correlations`(@ref) instead of
+[`dynamical_correlations`](@ref) or [`instant_correlations`](@ref) instead of
 `DynamicStructureFactor` or `InstantStructureFactor`.
 
 Broadened support for custom observables in `SampledCorrelations` for use in
@@ -55,7 +55,7 @@ can be resolved by passing an explicit `offset`.
 The function [`remove_periodicity!`](@ref) disables periodicity along specified
 dimensions.
 
-Rename `StaticStructureFactor` to [`InstantStructureFactor`].
+Rename `StaticStructureFactor` to `InstantStructureFactor`.
 
 
 # Version 0.4.2
