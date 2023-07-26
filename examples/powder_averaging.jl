@@ -31,7 +31,7 @@ end;
 # will tell Sunny to symmetrize the sample trajectory along the time-axis to
 # minimize Fourier artifacts.
 
-sc = SampledCorrelations(sys;
+sc = dynamical_correlations(sys;
     Δt=2Δt,
     nω=100,
     ωmax=5.5,

@@ -57,7 +57,7 @@ end
 # to be ≈20× better than the experimental resolution in order to demonstrate
 # the effect of over-resolving in energy.
 nω = 480; 
-sc = SampledCorrelations(sys; Δt=Δt, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize)
+sc = dynamical_correlations(sys; Δt=Δt, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize)
 add_sample!(sc, sys)
 
 # We re-sample from the thermal equilibrium distribution several times to increase our sample size

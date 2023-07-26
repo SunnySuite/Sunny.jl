@@ -225,10 +225,10 @@ plot_spins(sys_mgcro; arrowlength=0.5, linewidth=0.2, arrowsize=0.5)
 # ## Instantaneous Structure Factor
 # Next we can examine the instantaneous structure factor.
 
-isf_pyro  = InstantStructureFactor(sys_pyro)
-isf_mgcro = InstantStructureFactor(sys_mgcro);
+isf_pyro  = instant_correlations(sys_pyro)
+isf_mgcro = instant_correlations(sys_mgcro);
 
-# This generates a single sample. Let's add 10 more.
+# These are currently empty. Let's add correlation data from 10 trajectories.
 
 for _ in 1:10
     ## Run dynamics to decorrelate
@@ -265,8 +265,8 @@ fig
 # ## Dynamical Structure Factor
 # We can also estimate the dynamical structure factor.
 
-sc_pyro  = SampledCorrelations(sys_pyro;  Δt, ωmax = 10.0, nω = 100)
-sc_mgcro = SampledCorrelations(sys_mgcro; Δt, ωmax = 10.0, nω = 100);
+sc_pyro  = dynamical_correlations(sys_pyro;  Δt, ωmax = 10.0, nω = 100)
+sc_mgcro = dynamical_correlations(sys_mgcro; Δt, ωmax = 10.0, nω = 100);
 
 # Next we add some sample trajectories.
 
@@ -318,7 +318,7 @@ fig
 # dynamical structure factor. We simply call `instant_intensities` rather than
 # `intensities`. This will calculate the instantaneous structure factor from
 # from ``𝒮(𝐪,ω)`` by integrating out ``ω`` . An advantage of doing this (as
-# opposed to using an `InstantStructureFactor`) is that Sunny is able to apply a
+# opposed to using `instant_correlations`) is that Sunny is able to apply a
 # temperature- and energy-dependent intensity rescaling before integrating out
 # the dynamical information. The results of this approach are more suitable for
 # comparison with experimental data.
@@ -330,7 +330,7 @@ Sq_pyro  = instant_intensities(sc_pyro, qs, :perp; kT)
 Sq_mgcro = instant_intensities(sc_mgcro, qs, :perp; kT);
 
 # We can plot the results below. It is useful to compare these to the plot above
-# generated with an `InstantStructureFactor`.
+# generated with an `instant_correlations`.
 
 fig = Figure(; resolution=(1200,500))
 ax_pyro  = Axis(fig[1,1]; title="Pyrochlore", axparams...)

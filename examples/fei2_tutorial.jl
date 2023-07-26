@@ -196,7 +196,7 @@ plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 #
 # An experimental probe of magnetic order order is the 'instantaneous' or
 # 'static' structure factor intensity, available via
-# [`InstantStructureFactor`](@ref) and related functions. To infer periodicities
+# [`instant_correlations`](@ref) and related functions. To infer periodicities
 # of the magnetic supercell, however, it is sufficient to look at the structure
 # factor weights of spin sublattices individually, _without_ phase averaging.
 # This information is provided by [`print_wrapped_intensities`](@ref) (see the
@@ -354,15 +354,18 @@ for _ in 1:10_000
     step!(sys_large, langevin)
 end
 
-# To estimate the dynamic structure factor, we can collect
-# [`SampledCorrelations`](@ref) by integrating the [Hamiltonian dynamics of
-# SU(_N_) coherent states](https://arxiv.org/abs/2204.07563). Three keyword
-# parameters are required to determine the ω information that will be
-# calculated: an integration step size, the number of ωs to resolve, and the
+# To estimate the dynamic structure factor, we can collect spin-spin correlation
+# data by first generating an initial condition at thermal equilibrium and then
+# integrating the [Hamiltonian dynamics of SU(_N_) coherent
+# states](https://arxiv.org/abs/2204.07563). Samples are accumulated into a
+# `SampledCorrelations`, which is initialized by calling
+# [`dynamical_correlations`](@ref).  `dynamical_correlations` takes a `System`
+# and three keyword parameters that determine the ω information that will be
+# available: an integration step size, the number of ωs to resolve, and the
 # maximum ω to resolve. For the time step, twice the value used for the Langevin
 # integrator is usually a good choice.
 
-sc = SampledCorrelations(sys_large; Δt=2Δt, nω=120, ωmax=7.5)
+sc = dynamical_correlations(sys_large; Δt=2Δt, nω=120, ωmax=7.5)
 
 # `sc` currently contains no data. A sample can be accumulated into it by
 # calling [`add_sample!`](@ref).

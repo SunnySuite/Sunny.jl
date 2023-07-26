@@ -1,4 +1,4 @@
-@testitem "Classical Spin Correlations" begin
+@testitem "Correlation sampling" begin
 
     function simple_model_sc(; mode, seed=111)
         latsize = (4,4,4)
@@ -28,7 +28,7 @@
     thermalize_simple_model!(sys; kT=0.1)
     S = spin_matrices(N=2)
     observables = Dict(:Sx => S[1], :Sy => S[2], :Sz => S[3])
-    sc = SampledCorrelations(sys; nω=100, ωmax=10.0, Δt=0.1, apply_g=false, observables)
+    sc = dynamical_correlations(sys; nω=100, ωmax=10.0, Δt=0.1, apply_g=false, observables)
     add_sample!(sc, sys)
     qgrid = all_exact_wave_vectors(sc)
     vals = intensities_interpolated(sc, qgrid; formula = intensity_formula(sc,:trace),negative_energies=true)
@@ -39,7 +39,7 @@
     # Test sum rule with default observables in dipole mode 
     sys = simple_model_sc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
-    sc = SampledCorrelations(sys; Δt=0.1, nω=100, ωmax=10.0, apply_g=false)
+    sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0, apply_g=false)
     add_sample!(sc, sys)
     formula = intensity_formula(sc,:trace)
     vals = intensities_interpolated(sc, qgrid; formula, negative_energies=true)
@@ -80,14 +80,14 @@
     total_intensity_static = sum(static_vals)
     @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-12)  # Order of summation can lead to very small discrepancies
 
-    # Test InstantStructureFactor working
+    # Test instant intensities working
     sys = simple_model_sc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
-    sc = InstantStructureFactor(sys; apply_g=false)
-    true_static_vals = instant_intensities_interpolated(sc, qgrid; formula = intensity_formula(sc,:trace))
+    ic = instant_correlations(sys; apply_g=false)
+    add_sample!(ic, sys)
+    true_static_vals = instant_intensities_interpolated(ic, qgrid; formula = intensity_formula(ic,:trace))
     true_static_total = sum(true_static_vals)
     @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
-
 end
 
 
@@ -116,7 +116,7 @@ end
         step!(sys, langevin)
     end
 
-    sc = SampledCorrelations(sys; nω=25, ωmax=5.5, Δt=2Δt_langevin)
+    sc = dynamical_correlations(sys; nω=25, ωmax=5.5, Δt=2Δt_langevin)
     add_sample!(sc, sys)
     qs, _ = connected_path(sc, [(0.0, 0.0, 0.0), (0.5, 0.0, 0.0), (0.5, 0.5, 0.0), (0.0, 0.0, 0.0)], 10)
     data = intensities_interpolated(sc, qs; formula = intensity_formula(sc,:trace;kT = kT), interpolation=:linear)

@@ -164,7 +164,7 @@ plot_spins(sys, arrowlength=1.0, linewidth=0.5, arrowsize=1.0)
 # #### Fourier transformed instantaneous two-point correlation functions
 
 # Calculate the Instantaneous/Equal-time Structure Factor
-@time eqsf = InstantStructureFactor(sys);
+@time eqsf = instant_correlations(sys);
 
 # If desired, add additional samples by decorrelating and then re-calculating the eqsf
 nsamples   = 0; 
@@ -195,7 +195,7 @@ heatmap(Qxpts, Qypts, iq;
 # Calculate the Time Traces and Fourier Transform: Dynamical Structure Factor (first sample)
 ωmax     = 6.0;  # Maximum  energy to resolve
 nω       = 100;  # Number of energies to resolve
-@time sc  = SampledCorrelations(sys; Δt=Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
+@time sc  = dynamical_correlations(sys; Δt=Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
 add_sample!(sc, sys) # Add a sample trajectory
 
 # If desired, add additional decorrelated samples.
@@ -266,10 +266,10 @@ pqw_res    = Array{Matrix{Float64}}(undef, length(kTs));
 iqw_res    = Array{Matrix{Float64}}(undef, length(kTs)); 
 for (i, kT) in enumerate(kTs)
     dwell!(sys, integrator;kTtarget=kT,ndwell=1000);
-    sc_loc     = SampledCorrelations(sys; Δt=2Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
+    sc_loc = dynamical_correlations(sys; Δt=2Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
     add_sample!(sc_loc, sys)
-    iqw_res[i]  = intensities(sc_loc, Qpts, :perp; interpolation = :none, kT=kT, formfactors=ffs); 
-    pqw_res[i]  = powder_average(sc_loc, Qpow, sphdensity; η, kT=kT, formfactors=ffs);
+    iqw_res[i] = intensities(sc_loc, Qpts, :perp; interpolation = :none, kT=kT, formfactors=ffs); 
+    pqw_res[i] = powder_average(sc_loc, Qpow, sphdensity; η, kT=kT, formfactors=ffs);
 end
 
 # Plot the resulting Ipow(Q,W) as a function of temperature,

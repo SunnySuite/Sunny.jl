@@ -27,6 +27,8 @@ values.
 """
 function ωs(sc::SampledCorrelations; negative_energies=false)
     Δω = sc.Δω
+    isnan(Δω) && (return NaN)
+
     nω = size(sc.data, 7)
     hω = div(nω, 2) + 1
     ωvals = collect(0:(nω-1)) .* Δω

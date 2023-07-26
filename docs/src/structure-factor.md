@@ -49,15 +49,25 @@ extract information from the results. These tools are briefly outlined below.
 Please see the Examples for a "real life" use case. Detailed function
 information is available in the Library API.
 
-## Calculating a dynamical stucture factor with classical dynamics
+## Estimating stucture factors with classical dynamics
 
-The dynamical structure factor, $𝒮^{αβ}(𝐪,ω)$, may be estimated by collecting
-sample trajectories and analyzing their spin-spin correlations.
-`SampledCorrelations(sys; Δt, ωmax, nω)` will create a will create an empty
-`SampledCorrelations` object that can be used to accumulate such correlation
-data. It requires three keyword arguments. These will determine the dynamics
-used to calculate samples and, consequently, the $ω$ information that will be
-available. 
+The basic approach to estimating structure factor information using classical
+dynamics relies on the generation of spin-spin correlation data from dynamical
+trajectories. This is fundamentally a Monte Carlo calculation, as the
+trajectories must be started from an initial spin configuration that is sampled
+from thermal equilibrium. (Note that it is not possible to estimate a true T=0
+dynamical structure factor using this approach, but the temperature may be very
+small.) Samples are accumulated into a `SampledCorrelations`, from which
+intensity information may be extracted. The user does not typically build their
+own `SampledCorrelations`, but instead initializes one using either
+`dynamical_correlations` or `instant_correlations`, as described below.
+
+### Estimating a dynamical structure factor: ``𝒮(𝐪,ω)``
+
+A `SampledCorrelations` for estimating the dynamical structure factor,
+$𝒮^{αβ}(𝐪,ω)$, may be created by calling [`dynamical_correlations`](@ref). This
+requires three keyword arguments. These will determine the dynamics used to
+calculate samples and, consequently, the $ω$ information that will be available. 
 
 1. `Δt`: Determines the step size used for simulating the dynamics. A smaller
    number will require proportionally more calculation time. While a smaller
@@ -84,51 +94,53 @@ calling `add_sample!` on each configuration.
 
 The outline of typical use case might look like this:
 ```
-# Make a `SampledCorrelations` and calculate an initial sample
-sc = SampledCorrelations(sys; Δt=0.05, ωmax=10.0, nω=100) 
+# Make a `SampledCorrelations`
+sc = dynamical_correlations(sys; Δt=0.05, ωmax=10.0, nω=100) 
 
-# Add additional samples
+# Add samples
 for _ in 1:nsamples
    decorrelate_system(sys) # Perform some type of Monte Carlo simulation
-   add_sample!(sc, sys)    # Use spins to calculate and accumulate new sample of 𝒮(𝐪,ω)
+   add_sample!(sc, sys)    # Use spins to calculate trajectory and accumulate new sample of 𝒮(𝐪,ω)
 end
 ```
-
 The calculation may be configured in a number of ways; see the
-[`SampledCorrelations`](@ref) documentation for a list of all keywords.
+[`dynamical_correlations`](@ref) documentation for a list of all keywords.
 
 
-### Calculating an instantaneous ("static") structure factor: ``𝒮(𝐪)``
+### Estimating an instantaneous ("static") structure factor: ``𝒮(𝐪)``
 
 Sunny provides two methods for calculating instantaneous, or static, structure
-factors: $𝒮^{αβ}(𝐪)$. The first involves calculating spin-spin correlations at
-single instances of time. The second involves calculating a dynamic structure
-factor first and integrating out the $ω$ information. The advantage of the
-latter approach is that it enables application of an $ω$-dependent
+factors: $𝒮^{αβ}(𝐪)$. The first involves calculating spatial spin-spin
+correlations at single time slices. The second involves calculating a dynamic
+structure factor first and integrating out the $ω$ information. The advantage of
+the latter approach is that it enables application of an $ω$-dependent
 classical-to-quantum rescaling of structure factor intensities, a method that
 should be preferred whenever comparing results to experimental data or spin wave
 calculations. A disadvantage of this approach is that it is computationally more
 expensive. There are also many cases when it is not straightforward to calculate
 a meaningful dynamics, as when working with Ising spins. In this section we will
-discuss how to calculate instantaneous structure factors from fixed spin
-configurations. Information about calculating instantaneous data from a dynamic
-structure factor can be found in the following section.
+discuss how to calculate instantaneous structure factors from static spin
+configurations. Information about calculating instantaneous data from a
+dynamical correlations can be found in the following section.
 
 The basic usage for the instantaneous case is very similar to the dynamic case,
-except one calls `InstantStructureFactor` instead of `SampledCorrelations`.
-Note that there are no required keywords as there is no need to specify any
-dynamics. `InstantStructureFactor` will immediately calculate a sample of
-$𝒮(𝐪)$ using the spin configuration contained in `sys`. It is therefore
-important that `sys` be properly thermalized before calling this function.
-Additional samples may be added with `add_sample!(sf, sys)`, just as was done in
-the dynamic case. As was true there, it is important to ensure that the spins in
-`sys` represents a new equilibrium sample before calling `add_sample!`.
+except one calls [`instant_correlations`](@ref) instead of
+`dynamical_correlations` to configure a `SampledCorrelations`. Note that there
+are no required keywords as there is no need to specify any dynamics.
+`instant_correlations` will return a `SampledCorrelations` containing no data.
+Samples may be added by calling `add_sample!(sc, sys)`, where `sc` is the
+`SampledCorrelations`. When performing a finite-temperature calculation, it is
+important to ensure that the spin configuration in the `sys` represents a good
+equilibrium sample, as in the dynamical case. Note, however, that we recommend
+calculating instantaneous correlations at finite temperature calculations by
+using full dynamics (i.e., using `dynamical_correlations`) and then integrating
+out the energy axis. An approach to doing this is described in the next section.
 
-### Extracting information from structure factors
+### Extracting information from correlation data 
 
 The basic function for extracting information from a `SampledCorrelations`
 at a particular wave vector, $𝐪$, is [`intensities_interpolated`](@ref). It takes a
-`SampledCorrelations`, a list of wave vectors, and a contraction mode. For example,
+`SampledCorrelations` and a list of wave vectors. For example,
 `intensities_interpolated(sf, [[0.0, 0.5, 0.5]])` will calculate intensities for the
 wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The keyword argument `formula` can be used to
 specify an [`intensity_formula`](@ref) for greater control over the intensity calculation.
@@ -144,9 +156,9 @@ information at $q_i = \frac{n}{L_i}$, where $n$ runs from $(\frac{-L_i}{2}+1)$
 to $\frac{L_i}{2}$ and $L_i$ is the linear dimension of the lattice used for the
 calculation. If you request a wave vector that does not fall into this set,
 Sunny will automatically round to the nearest $𝐪$ that is available. If
-`intensities_interpolated` is given the keyword argument `interpolation=:linear`, Sunny will
-use trilinear interpolation to determine a result at the requested wave
-vector. 
+`intensities_interpolated` is given the keyword argument
+`interpolation=:linear`, Sunny will use trilinear interpolation to determine a
+result at the requested wave vector. 
 
 To retrieve the intensities at all wave vectors for which there is exact data,
 first call the function [`all_exact_wave_vectors`](@ref) to generate a list of
@@ -174,6 +186,6 @@ To retrieve intensity data from a instantaneous structure factor, use
 [`instant_intensities_interpolated`](@ref), which accepts similar arguments to
 `intensities_interpolated`. This function may also be used to calculate
 instantaneous information from a dynamical structure factor, i.e. from a
-`SampledCorrelations`. Note that it is important to supply a value to `kT` to
-reap the benefits of this approach over simply calculating a static structure
-factor at the outset. 
+`SampledCorrelations` created with `dynamical_correlations`. Note that it is
+important to supply a value to `kT` to reap the benefits of this approach over
+simply calculating a static structure factor at the outset. 

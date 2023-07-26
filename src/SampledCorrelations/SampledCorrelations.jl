@@ -3,22 +3,22 @@ struct SampledCorrelations{N}
     data           :: Array{ComplexF64, 7}   # Raw SF data for 1st BZ (numcorrelations × natoms × natoms × latsize × energy)
     crystal        :: Crystal                # Crystal for interpretation of q indices in `data`
     origin_crystal :: Union{Nothing,Crystal} # Original user-specified crystal (if different from above)
-    Δω             :: Float64                # Energy step size
+    Δω             :: Float64                # Energy step size (could make this a virtual property)
 
     # Correlation info (αβ indices of 𝒮^{αβ}(q,ω))
-    observables  :: Vector{LinearMap} # Operators corresponding to observables
+    observables    :: Vector{LinearMap}  # Operators corresponding to observables
     observable_ixs :: Dict{Symbol,Int64} # User-defined observable names
-    correlations :: SortedDict{CartesianIndex{2}, Int64}  # (α, β) to save from 𝒮^{αβ}(q, ω)
+    correlations   :: SortedDict{CartesianIndex{2}, Int64}  # (α, β) to save from 𝒮^{αβ}(q, ω)
 
     # Specs for sample generation and accumulation
-    samplebuf    :: Array{ComplexF64, 6}  # New sample buffer
+    samplebuf    :: Array{ComplexF64, 6}   # New sample buffer
     fft!         :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
-    copybuf      :: Array{ComplexF64, 4}  # Copy cache for accumulating samples
-    measperiod   :: Int                   # Steps to skip between saving observables (downsampling for dynamical calcs)
-    apply_g      :: Bool                  # Whether to apply the g-factor
-    integrator   :: ImplicitMidpoint      # Integrator for dissipationless trajectories (will likely move to add_sample!)
-    nsamples     :: Array{Int64, 1}       # Number of accumulated samples (array so mutable)
-    processtraj! :: Function              # Function to perform post-processing on sample trajectories
+    copybuf      :: Array{ComplexF64, 4}   # Copy cache for accumulating samples
+    measperiod   :: Int                    # Steps to skip between saving observables (downsampling for dynamical calcs)
+    apply_g      :: Bool                   # Whether to apply the g-factor
+    Δt           :: Float64                # Step size for trajectory integration 
+    nsamples     :: Array{Int64, 1}        # Number of accumulated samples (array so mutable)
+    processtraj! :: Function               # Function to perform post-processing on sample trajectories
 end
 
 function Base.show(io::IO, sc::SampledCorrelations{N}) where N
@@ -103,7 +103,7 @@ function all_observable_names(sc::SampledCorrelations)
 end
 
 """
-    SampledCorrelations(sys::System; Δt, nω, ωmax, 
+    dynamic_correlations(sys::System; Δt, nω, ωmax, 
         process_trajectory=:none, observables=nothing, correlations=nothing) 
 
 Creates a `SampledCorrelations` for calculating and storing ``𝒮(𝐪,ω)`` data.
@@ -147,19 +147,9 @@ Additional keyword options are the following:
     xy correlations, one would set `correlations=[(:Sx,:Sx), (:Sx,:Sy)]` or
     `correlations=[(1,1),(1,2)]`.
 """
-function SampledCorrelations(sys::System{N}; Δt, nω, ωmax,
-                            apply_g = true, observables = nothing, correlations = nothing,
-                            process_trajectory = :none) where {N}
-
-    # Determine trajectory measurement parameters
-    nω = Int64(nω)
-    measperiod = if ωmax != 0 
-        @assert π/Δt > ωmax "Desired `ωmax` not possible with specified `Δt`. Choose smaller `Δt` value."
-        floor(Int, π/(Δt * ωmax))
-    else
-        1
-    end
-    nω = 2nω-1  # Ensure there are nω _non-negative_ energies
+function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
+                                apply_g = true, observables = nothing, correlations = nothing,
+                                process_trajectory = :none) where {N}
 
     # Set up correlation functions (which matrix elements αβ to save from 𝒮^{αβ})
     if isnothing(observables)
@@ -242,6 +232,18 @@ function SampledCorrelations(sys::System{N}; Δt, nω, ωmax,
     end
     correlations = idxinfo
 
+    # Determine trajectory measurement parameters
+    nω = Int64(nω)
+    if nω != 1
+        @assert π/Δt > ωmax "Desired `ωmax` not possible with specified `Δt`. Choose smaller `Δt` value."
+        measperiod = floor(Int, π/(Δt * ωmax))
+        nω = 2nω-1  # Ensure there are nω _non-negative_ energies
+        Δω = 2π / (Δt*measperiod*nω)
+    else
+        measperiod = 1
+        Δt = Δω = NaN
+    end
+
     # Set up trajectory processing function (e.g., symmetrize)
     processtraj! = if process_trajectory == :none 
         no_processing
@@ -266,14 +268,12 @@ function SampledCorrelations(sys::System{N}; Δt, nω, ωmax,
 
     # Other initialization
     nsamples = Int64[0]
-    integrator = ImplicitMidpoint(Δt)
-    Δω = nω == 1 ? 0.0 : 2π / (Δt*measperiod*nω)
     origin_crystal = !isnothing(sys.origin) ? sys.origin.crystal : nothing
 
     # Make Structure factor and add an initial sample
     sc = SampledCorrelations{N}(data, sys.crystal, origin_crystal, Δω,
-                            observables, observable_ixs, correlations, samplebuf, fft!, copybuf, measperiod, apply_g, integrator,
-                            nsamples, processtraj!)
+                                observables, observable_ixs, correlations,
+                                samplebuf, fft!, copybuf, measperiod, apply_g, Δt, nsamples, processtraj!)
 
     return sc
 end
@@ -281,8 +281,7 @@ end
 
 
 """
-    InstantStructureFactor(sys::System; process_trajectory=:none,
-                            observables=nothing, correlations=nothing) 
+    instant_correlations(sys::System; process_trajectory=:none, observables=nothing, correlations=nothing) 
 
 Creates a `SampledCorrelations` object for calculating and storing instantaneous
 structure factor intensities ``𝒮(𝐪)``. This data will be calculated from the
@@ -292,13 +291,13 @@ information. ``𝒮(𝐪)`` data can be retrieved by calling
 
 _Important note_: When dealing with continuous (non-Ising) spins, consider
 creating a full [`SampledCorrelations`](@ref) object instead of an
-`InstantStructureFactor`. The former will provide full ``𝒮(𝐪,ω)`` data, from
+`InstantCorrelations`. The former will provide full ``𝒮(𝐪,ω)`` data, from
 which ``𝒮(𝐪)`` can be obtained by integrating out ``ω``. During this
 integration step, Sunny can incorporate temperature- and ``ω``-dependent
 classical-to-quantum correction factors to produce more accurate ``𝒮(𝐪)``
 estimates. See [`instant_intensities_interpolated`](@ref) for more information.
 
-Prior to calling `InstantStructureFactor`, ensure that `sys` represents a good
+Prior to calling `InstantCorrelations`, ensure that `sys` represents a good
 equilibrium sample. Additional sample data may be accumulated by calling
 [`add_sample!`](@ref)`(sc, sys)` with newly equilibrated `sys` configurations.
 
@@ -309,20 +308,18 @@ The following optional keywords are available:
     `:symmetrize`. The latter will symmetrize the trajectory in time, which can
     be useful for removing Fourier artifacts that arise when calculating the
     correlations.
-- `observables`: Allows the user to specify custom observables. The `observables`
-    must be given as a list of complex `N×N` matrices or `LinearMap`s. It's
-    recommended to name each observable, for example:
-    `observables = [:A => a_observable_matrix, :B => b_map, ...]`.
-    By default, Sunny uses the 3 components of the dipole, `:Sx`, `:Sy` and `:Sz`.
+- `observables`: Allows the user to specify custom observables. The
+    `observables` must be given as a list of complex `N×N` matrices or
+    `LinearMap`s. It's recommended to name each observable, for example:
+    `observables = [:A => a_observable_matrix, :B => b_map, ...]`. By default,
+    Sunny uses the 3 components of the dipole, `:Sx`, `:Sy` and `:Sz`.
 - `correlations`: Specify which correlation functions are calculated, i.e. which
     matrix elements ``αβ`` of ``𝒮^{αβ}(q,ω)`` are calculated and stored.
     Specified with a vector of tuples. By default Sunny records all auto- and
-    cross-correlations generated by all `observables`.
-    To retain only the xx and xy correlations, one would set
-    `correlations=[(:Sx,:Sx), (:Sx,:Sy)]` or `correlations=[(1,1),(1,2)]`.
+    cross-correlations generated by all `observables`. To retain only the xx and
+    xy correlations, one would set `correlations=[(:Sx,:Sx), (:Sx,:Sy)]` or
+    `correlations=[(1,1),(1,2)]`.
 """
-function InstantStructureFactor(sys::System; kwargs...)
-    sc = SampledCorrelations(sys; Δt=0.1, nω=1, ωmax=0, kwargs...)
-    add_sample!(sc, sys)
-    return sc
+function instant_correlations(sys::System; kwargs...)
+    dynamical_correlations(sys; Δt=NaN, nω=1, ωmax=NaN, kwargs...)
 end

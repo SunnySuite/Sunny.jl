@@ -85,13 +85,13 @@ include("SpinWaveTheory/Lanczos.jl")
 export SpinWaveTheory, dispersion, dssf, delta_function_kernel
 
 include("SampledCorrelations/SampledCorrelations.jl")
-include("SampledCorrelations/SampledCorrelationUtils.jl")
+include("SampledCorrelations/CorrelationUtils.jl")
 include("SampledCorrelations/CorrelationSampling.jl")
 include("SampledCorrelations/FormFactor.jl")
 include("SampledCorrelations/BasisReduction.jl")
 include("Intensities/Types.jl")
 include("SampledCorrelations/DataRetrieval.jl")
-export InstantStructureFactor, SampledCorrelations, FormFactor, 
+export dynamical_correlations, instant_correlations, FormFactor, 
     add_sample!, broaden_energy, lorentzian,
     all_exact_wave_vectors, ωs, spherical_shell, merge!, intensity_formula, integrated_lorentzian
 
