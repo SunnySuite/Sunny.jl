@@ -579,7 +579,10 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     disp = zeros(Float64, nmodes)
     intensity = zeros(return_type, nmodes)
 
-    # Calculate DSSF 
+    # This `formula` closure will be stored in the return value, of type
+    # SpinWaveIntensityFormula. When `formula` is called on a given `q`
+    # wavevector it will return a new closure that takes an `ω` energy and
+    # returns intensities. This nested closure design allows staged-computation.
     formula = function(swt::SpinWaveTheory,q::Vec3)
         _, qmag = chemical_to_magnetic(swt, q)
 
@@ -597,6 +600,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             Avec_pref[site] = sqrt_Nm_inv * phase
         end
 
+        # Fill `intensity` array
         for band = 1:nmodes
             v = Vmat[:, band]
             Avec = zeros(ComplexF64, 3)
@@ -616,7 +620,8 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                 end
             end
 
-            # DD: Generalize this based on list of arbitrary operators, optimize out symmetry, etc.
+            # DD: Generalize this based on list of arbitrary operators, optimize
+            # out symmetry, etc.
             Sαβ = Matrix{ComplexF64}(undef,3,3)
             Sαβ[1,1] = real(Avec[1] * conj(Avec[1]))
             Sαβ[1,2] = Avec[1] * conj(Avec[2])
@@ -625,38 +630,42 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             Sαβ[2,3] = Avec[2] * conj(Avec[3])
             Sαβ[3,3] = real(Avec[3] * conj(Avec[3]))
             Sαβ[2,1] = conj(Sαβ[1,2]) 
-            Sαβ[3,1] = conj(Sαβ[3,1]) 
+            Sαβ[3,1] = conj(Sαβ[1,3])
             Sαβ[3,2] = conj(Sαβ[2,3])
 
             k = swt.recipvecs_chem * q
             intensity[band] = f(k,disp[band],Sαβ[corr_ix])
         end
+
+        # Return closure that maps from ω to intensities
         if isnothing(kernel)
-          # If there is no specified kernel, we are done: just return the BandStructure
-          return BandStructure{nmodes,return_type}(disp, intensity)
+            # If there is no specified kernel, we are done: just return the
+            # BandStructure
+            return BandStructure{nmodes,return_type}(disp, intensity)
         else
-          # If a kernel is specified, convolve with it after filtering out Goldstone modes.
+            # If a kernel is specified, convolve with it after filtering out
+            # Goldstone modes.
 
-          # At a Goldstone mode, where the intensity is divergent,
-          # use a delta-function at the lowest energy < 1e-3.
-          goldstone_threshold = 1e-3
-          ix_goldstone = (disp .< goldstone_threshold) .&& (intensity .> 1e3)
-          goldstone_intensity = sum(intensity[ix_goldstone])
+            # At a Goldstone mode, where the intensity is divergent,
+            # use a delta-function at the lowest energy < 1e-3.
+            goldstone_threshold = 1e-3
+            ix_goldstone = (disp .< goldstone_threshold) .&& (intensity .> 1e3)
+            goldstone_intensity = sum(intensity[ix_goldstone])
 
-          # At all other modes, use the provided kernel
-          num_finite = count(.!ix_goldstone)
-          disp_finite = reshape(disp[.!ix_goldstone],1,num_finite)
-          intensity_finite = reshape(intensity[.!ix_goldstone],1,num_finite)
+            # At all other modes, use the provided kernel
+            num_finite = count(.!ix_goldstone)
+            disp_finite = reshape(disp[.!ix_goldstone],1,num_finite)
+            intensity_finite = reshape(intensity[.!ix_goldstone],1,num_finite)
 
-          return function(ω)
-              is = Vector{Float64}(undef,length(ω))
-              is .= 0.
-              if ω[1] < goldstone_threshold
-                  is[1] = goldstone_intensity
-              end
-              is .+= sum(intensity_finite .* kernel.(ω .- disp_finite),dims=2)
-              is
-          end
+            return function(ω)
+                is = Vector{Float64}(undef,length(ω))
+                is .= 0.
+                if ω[1] < goldstone_threshold
+                    is[1] = goldstone_intensity
+                end
+                is .+= sum(intensity_finite .* kernel.(ω .- disp_finite),dims=2)
+                is
+            end
         end
     end
     output_type = isnothing(kernel) ? BandStructure{nmodes,return_type} : return_type
