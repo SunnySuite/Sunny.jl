@@ -249,7 +249,7 @@ points = [[0,   0, 0],  # List of wave vectors that define a path
           [1/2, 0, 0],
           [0,   1, 0],
           [0,   0, 0]] 
-labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
+labels = string.(points)
 density = 600
 path, markers = connected_path(swt, points, density);
 
@@ -432,9 +432,7 @@ is = intensities_interpolated(sc, path;
     formula = new_formula
 )
 is = broaden_energy(sc, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.05))  # Add artificial broadening
-
-labels = ["($(p[1]),$(p[2]),$(p[3]))" for p in points]
-
+labels = string.(points)
 heatmap(1:size(is,1), ωs(sc), is;
     axis = (
         ylabel = "meV",
