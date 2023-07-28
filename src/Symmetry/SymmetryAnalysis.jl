@@ -256,9 +256,7 @@ function all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b_ref::Bond
     # identity. In this case, there are only two 'symmetry related couplings':
     # `b_ref` itself and its reverse. Return early for performance.
     if cryst.symops == [SymOp(Mat3(I), zero(Vec3))]
-        i == b_ref.i && return [b_ref]
-        i == b_ref.j && return [reverse(b_ref)]
-        return Bond[]
+        return i in (b_ref.i, b_ref.j) ? [b_ref, reverse(b_ref)] : Bond[]
     end
 
     bs = Bond[]
