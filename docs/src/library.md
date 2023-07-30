@@ -9,9 +9,3 @@ This page describes the public types and functions exported by Sunny. This docum
 Modules = [Sunny]
 Private = false
 ```
-
-
-## Plotting
-
-To reduce package load times, certain plotting functions are only available when
-the user explicitly loads Makie, e.g., with `using GLMakie` or `using WGLMakie`.

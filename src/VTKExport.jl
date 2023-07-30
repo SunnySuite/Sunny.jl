@@ -57,6 +57,8 @@ a grid parameterized by `params`.
 
 At least one axis of the [`BinningParameters`](@ref) must be integrated over, since VTK
 does not support 4D data. See [`integrate_axes!`](@ref).
+
+**Becomes available after explicitly loading VTKExport.jl, e.g., `using VTKExport`.**
 """
 function export_vtk(filename,params::BinningParameters,data;dims_kept = nothing)
     # Storing the bin *edges* as the grid in the VTK file

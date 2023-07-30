@@ -3,7 +3,8 @@
 using Literate, Documenter, Sunny
 
 import DynamicPolynomials # get symbolic functions
-import GLMakie # get plotting functions
+import GLMakie            # get plotting functions
+import WriteVTK           # get `export_vtk`
 
 draft = false # set `true` to disable cell evaluation
 
