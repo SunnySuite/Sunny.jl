@@ -31,10 +31,17 @@ end
 
 # Internal function only
 function push_coupling!(couplings, bond, bilin, biquad)
-    isculled = bond_parity(bond)
+    # Remove previous coupling on this bond
     filter!(c -> c.bond != bond, couplings)
+
+    # If the new coupling is exactly zero, return early
+    iszero(bilin) && iszero(biquad) && return
+
+    # Otherwise, add the new coupling to the list
+    isculled = bond_parity(bond)
     push!(couplings, PairCoupling(isculled, bond, bilin, biquad))
     sort!(couplings, by=c->c.isculled)
+    
     return
 end
 
@@ -75,6 +82,9 @@ set_exchange!(sys, J2, bond)
 ```
 """
 function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.) where N
+    is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
+    ints = interactions_homog(sys)
+
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
     if !isnothing(sys.origin)
@@ -84,9 +94,6 @@ function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.) where N
     end
 
     validate_bond(sys.crystal, bond)
-
-    is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
-    ints = interactions_homog(sys)
 
     J = to_float_or_mat3(J)
 

@@ -130,6 +130,7 @@ See also [`spin_operators`](@ref).
 """
 function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) where N
     is_homogeneous(sys) || error("Use `set_onsite_coupling_at!` for an inhomogeneous system.")
+    ints = interactions_homog(sys)
 
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
@@ -139,17 +140,13 @@ function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) wh
         return
     end
 
-    ints = interactions_homog(sys)
-
-    iszero(op) && return 
+    (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
 
     if !is_anisotropy_valid(sys.crystal, i, op)
         @error """Symmetry-violating anisotropy: $op.
                   Use `print_site(crystal, $i)` for more information."""
         error("Invalid anisotropy.")
     end
-
-    (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
 
     if !iszero(ints[i].onsite)
         warn_coupling_override("Overriding anisotropy for atom $i.")
