@@ -48,6 +48,9 @@ end
 
 Abstract symbols for the Stevens operators. Linear combinations of these can be
 used to define a single-ion anisotropy.
+
+**Becomes available after explicitly loading DynamicPolynomials.jl, e.g., `using
+DynamicPolynomials`.**
 """
 const 𝒪 = StevensOpsAbstract()
 
@@ -56,6 +59,9 @@ const 𝒪 = StevensOpsAbstract()
 
 Abstract symbols for the spin operators. Polynomials of these can be used to
 define a single-ion anisotropy.
+
+**Becomes available after explicitly loading DynamicPolynomials.jl, e.g., `using
+DynamicPolynomials`.**
 """
 const 𝒮 = spin_operator_symbols
 
@@ -219,6 +225,9 @@ print_classical_spin_polynomial((1/4)𝒪[4,4] + (1/20)𝒪[4,0] + (3/5)*(𝒮'*
 ```
 
 See also [`print_classical_stevens_expansion`](@ref) for the inverse mapping.
+
+**Becomes available after explicitly loading DynamicPolynomials.jl, e.g., `using
+DynamicPolynomials`.**
 """
 function print_classical_spin_polynomial(op)
     op = operator_to_classical_polynomial(op)
@@ -250,6 +259,9 @@ See also [`print_classical_spin_polynomial`](@ref) for the inverse mapping.
 
 The function [`print_stevens_expansion`](@ref) is analogous to this one, but
 expects a quantum operator in a finite-``S`` representation.
+
+**Becomes available after explicitly loading DynamicPolynomials.jl, e.g., `using
+DynamicPolynomials`.**
 """
 function print_classical_stevens_expansion(op)
     pretty_print_operator(operator_to_classical_stevens(op))

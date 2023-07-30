@@ -239,7 +239,11 @@ end
     plot_spins(sys::System; linecolor=:grey, arrowcolor=:red, linewidth=0.1,
                                 arrowsize=0.3, arrowlength=1.0, kwargs...)
 
-Plot the spin configuration defined by `sys`. `kwargs` are passed to `Makie.arrows`.        
+Plot the spin configuration defined by `sys`. `kwargs` are passed to
+`Makie.arrows`.   
+
+**Becomes available after explicitly loading Makie, e.g., `using GLMakie` or
+`using WGLMakie`.**
 """
 function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
     linewidth=0.1, arrowsize=0.2, arrowlength=0.2, show_axis=false, ortho=false, kwargs...)
@@ -282,7 +286,8 @@ end
 """
     anim_integration(sys, fname, steps_per_frame, Δt, nframes; kwargs...)
 
-Produce an animation of constant-energy Landau-Lifshitz dynamics of the given `sys`.
+Produce an animation of constant-energy Landau-Lifshitz dynamics of the given
+`sys`.
 # Arguments:
 - `sys::System`: The spin system to integrate.
 - `fname::String`: The path to save the animation to.
@@ -291,6 +296,9 @@ Produce an animation of constant-energy Landau-Lifshitz dynamics of the given `s
 - `nframes::Int`: The number of frames to produce in the animation.
 
 Other keyword arguments are passed to `Makie.arrows`.
+
+**Becomes available after explicitly loading Makie, e.g., `using GLMakie` or
+`using WGLMakie`.**
 """
 function anim_integration(
     sys::System, fname, steps_per_frame, Δt, nframes;
