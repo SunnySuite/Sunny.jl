@@ -13,7 +13,7 @@ seed = 1                     # RNG seed for repeatable behavior
 J = Sunny.meV_per_K*7.5413   # Nearest-neighbor exchange parameter
 
 crystal = Sunny.diamond_crystal()
-sys = System(crystal, dims, [SpinInfo(1, S=3/2)], :dipole; seed)
+sys = System(crystal, dims, [SpinInfo(1, S=3/2, g=2)], :dipole; seed)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 
 # We next set up a [`Langevin`](@ref) integrator and thermalize the system. 

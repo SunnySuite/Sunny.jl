@@ -219,7 +219,7 @@ end
 Converts a position `r` to four indices of a [`Site`](@ref). The coordinates of
 `r` are given in units of the lattice vectors for the original crystal. This
 function can be useful for working with systems that have been reshaped using
-[`reshape_geometry`](@ref).
+[`reshape_supercell`](@ref).
 
 # Example
 
@@ -384,15 +384,18 @@ end
 
 
 """
-    set_coherent_state!(sys::System, Z, site::Site)
+    set_coherent!(sys::System, Z, site::Site)
 
 Set a coherent spin state at a [`Site`](@ref) using the ``N`` complex amplitudes
-in `Z`, to be interpreted in the eigenbasis of ``𝒮̂ᶻ``. That is, `Z[1]`
-represents the amplitude for the basis state fully polarized along the
-``ẑ``-direction, and subsequent components represent states with decreasing
-angular momentum along this axis (``m = S, S-1, …, -S``).
+in `Z`.
+
+For a standard [`SpinInfo`](@ref), these amplitudes will be interpreted in the
+eigenbasis of ``𝒮̂ᶻ``. That is, `Z[1]` represents the amplitude for the basis
+state fully polarized along the ``ẑ``-direction, and subsequent components
+represent states with decreasing angular momentum along this axis (``m = S, S-1,
+…, -S``).
 """
-function set_coherent_state!(sys::System{N}, Z, site) where N
+function set_coherent!(sys::System{N}, Z, site) where N
     length(Z) != N && error("Length of coherent state does not match system.")
     iszero(N)      && error("Cannot set zero-length coherent state.")
     setspin!(sys, coherent_state(sys, site, Z), to_cartesian(site))
@@ -400,11 +403,11 @@ end
 
 
 """
-    polarize_spin!(sys::System, dir, site::Site)
+    set_dipole!(sys::System, dir, site::Site)
 
 Polarize the spin at a [`Site`](@ref) along the direction `dir`.
 """
-function polarize_spin!(sys::System{N}, dir, site) where N
+function set_dipole!(sys::System{N}, dir, site) where N
     site = to_cartesian(site)
     setspin!(sys, dipolar_state(sys, site, dir), site)
 end
@@ -416,7 +419,7 @@ Polarize all spins in the system along the direction `dir`.
 """
 function polarize_spins!(sys::System{N}, dir) where N
     for site in all_sites(sys)
-        polarize_spin!(sys, dir, site)
+        set_dipole!(sys, dir, site)
     end
 end
 

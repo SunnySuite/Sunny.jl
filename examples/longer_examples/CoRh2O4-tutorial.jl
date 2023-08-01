@@ -113,12 +113,9 @@ magxtal = subcrystal(xtal,"Co1")
 view_crystal(magxtal,6.0)
 print_symmetry_table(magxtal, 4.0)
 
-# Define spin and g-factors
-valg = 2.0
-valS = 3/2;
-
 # Assign Local Hilbert Space
-lhs  = [SpinInfo(1,S=valS;g=valg)]
+S = 3/2
+lhs  = [SpinInfo(1, S=S, g=2)]
 ffs  = [FormFactor(1,"Co2")];
 
 # Create Spin System and Randomize it
@@ -131,15 +128,15 @@ plot_spins(sys, arrowlength=1.0, linewidth=0.5, arrowsize=1.0)
 # Define Exchange Interactions 
 scaleJ = 0.63
 valJ1  = 1.00*scaleJ
-set_exchange!(sys, valJ1, Bond(1, 3, [0, 0, 0]) );
+set_exchange!(sys, valJ1, Bond(1, 3, [0, 0, 0]));
 
 # ---
 # ### System thermalization to an ordered, yet finite temperature, state
 
 # Define Langevin Integrator and Initialize it 
-Δt0           = 0.05/abs(scaleJ*valS); ## Time steps in Langevin
+Δt0           = 0.05/abs(scaleJ*S); ## Time steps in Langevin
 λ0            = 0.1; ## Langevin damping, usually 0.05 or 0.1 is good.
-kT0           = 0.01*abs(scaleJ*valS); ## Initialize at some temperature
+kT0           = 0.01*abs(scaleJ*S); ## Initialize at some temperature
 integrator    = Langevin(Δt0; λ=λ0, kT=kT0); 
 
 # Thermalization 
