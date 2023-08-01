@@ -182,12 +182,12 @@ set_onsite_coupling!(sys, -D*S[3]^2, 1)
 # that locally minimizes energy.
 
 randomize_spins!(sys)
-minimize_energy!(sys)
+minimize_energy!(sys);
 
 # The expected ground state for FeI$_2$ is an antiferrogmanetic striped phase
-# with four-spin wavelength (two up, two down). Visualizing the actual spin
-# state, however, may indicate that the optimization procedure got stuck in a
-# local minimum with defects.
+# with a period of four spins (two up, two down). Visualizing the result of
+# optimization, however, may indicate the system got stuck in a local minimum
+# with defects.
 
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
@@ -201,7 +201,7 @@ plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 print_wrapped_intensities(sys)
 
-# The precise output may vary with Sunny version due to, e.g., accumulation of
+# The precise output may vary with Sunny version due to, e.g., different
 # floating point roundoff effects. Very likely, however, the result will be
 # approximately consistent with the known zero-field energy-minimizing magnetic
 # structure of FeI$_2$, which is single-$Q$. Mathematically, spontaneous
@@ -236,8 +236,6 @@ sys_min = reshape_geometry(sys, [1 0 0; 0 1 -2; 0 1 2])
 randomize_spins!(sys_min)
 minimize_energy!(sys_min)
 plot_spins(sys_min; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
-
-# Visualization 
 
 # ## Linear spin wave theory
 #
@@ -279,12 +277,11 @@ formula = intensity_formula(swt; kernel = delta_function_kernel)
 # The `delta_function_kernel` specifies that we want the energy and intensity of each
 # band individually.
 
-disp, intensity = intensities_bands(swt, path; formula = formula)
+disp, intensity = intensities_bands(swt, path; formula)
 
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)",
-    xticks=(markers, labels), xticklabelrotation=π/6,
-)
+          xticks=(markers, labels), xticklabelrotation=π/6)
 ylims!(ax, 0.0, 7.5)
 xlims!(ax, 1, size(disp, 1))
 for i in axes(disp)[2]
@@ -303,11 +300,11 @@ broadened_formula = intensity_formula(swt; kernel = lorentzian(γ))
 energies = collect(0.0:0.01:7.5) # Energies to calculate
 is = intensities_broadened(swt, path, energies, broadened_formula)
 
-heatmap(1:size(is, 1), energies, is; 
-    axis=(xlabel = "(H,0,0)", ylabel="Energy (meV)", xticks=(markers, labels),
-        xticklabelrotation=π/8, 
-    ),
-)
+fig = Figure()
+ax = Axis(fig[1,1], xlabel="(H,0,0)", ylabel="Energy (meV)", xticks=(markers, labels),
+          xticklabelrotation=π/8)
+heatmap!(ax, 1:size(is, 1), energies, is)
+fig
 
 # The existence of a lower-energy, single-ion bound state is in qualitative
 # agreement with the experimental data in [Bai et
@@ -327,16 +324,9 @@ disp, Sαβ = dssf(swt, [[0, 0, 0]]);
 
 # `disp` is identical to the output that is obtained from `dispersion` and
 # contains the energy of each mode at the specified wave vectors. `Sαβ` contains
-# a 3x3 matrix for each of these modes. The matrix elements of `Sαβ` correspond
-# to correlations of the different spin components (ordered x, y, z). For
-# example, the full set of matrix elements for the first mode may be obtained as
-# follows,
-
-Sαβ[1]
-
-# and the `xx` matrix element is
-
-Sαβ[1][1,1]
+# a $3×3$ matrix for each of these modes. For example, `Sαβ[1]` are the
+# dynamical structure factor intensities for the first mode, and `Sαβ[1][2,3]`
+# is associated with the $α=ŷ$ and $β=ẑ$ spin components.
 
 # ## What's next?
 #
