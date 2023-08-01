@@ -28,7 +28,7 @@ latsize = (6,6,4);
 # and there is a spin-1/2 dipole on each site.
 magxtal = xtal;
 valS = 1/2;
-sys = System(magxtal, latsize, [SpinInfo(1;S = valS)], :dipole; seed=1);
+sys = System(magxtal, latsize, [SpinInfo(1, S=valS, g=2)], :dipole; seed=1);
 
 # Quoted value of J = +6.19(2) meV (antiferromagnetic) between
 # nearest neighbors on the square lattice
