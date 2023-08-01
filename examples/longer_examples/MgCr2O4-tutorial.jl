@@ -135,7 +135,7 @@ xtal_mgcro = subcrystal(xtal_mgcro_2,"Cr")
 # our `Crystal`.
 
 dims = (6, 6, 6)  # Supercell dimensions 
-spininfos = [SpinInfo(1; S=3/2)]  # Specify spin information, note that all sites are symmetry equivalent 
+spininfos = [SpinInfo(1, S=3/2, g=2)]  # Specify spin information, note that all sites are symmetry equivalent 
 sys_pyro = System(xtal_pyro, dims, spininfos, :dipole)    # Make a system in dipole (Landau-Lifshitz) mode on pyrochlore lattice
 sys_mgcro = System(xtal_mgcro, dims, spininfos, :dipole); # Same on MgCr2O4 crystal
 

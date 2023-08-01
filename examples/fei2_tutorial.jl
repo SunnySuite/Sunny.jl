@@ -63,15 +63,14 @@ cryst = subcrystal(FeI2, "Fe")
 # ## Spin systems
 # To simulate a system of many spins, construct a [`System`](@ref).
 
-sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN, seed=2)
+sys = System(cryst, (4,4,4), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
 
-# The system includes $4×4×4$ unit cells, i.e. 64 Fe atoms, each with spin
-# $S=1$. The default $g$-factor is 2, but this could be overriden with an
-# additional argument to [`SpinInfo`](@ref). Spin $S=1$ involves a superposition
-# of $2S+1=3$ distinct angular momentum states. In `:SUN` mode, this
-# superposition will be modeled using the formalism of SU(3) coherent states,
-# which captures both dipolar and quadrupolar fluctuations. For the more
-# traditional dipole dynamics, use `:dipole` mode instead.
+# The system includes $4×4×4$ unit cells, i.e. 64 Fe atoms, each with spin $S=1$
+# and a $g$-factor of 2. Quantum mechanically, spin $S=1$ involves a
+# superposition of $2S+1=3$ distinct angular momentum states. In `:SUN` mode,
+# this superposition will be modeled explicitly using the formalism of SU(3)
+# coherent states, which captures both dipolar and quadrupolar fluctuations. For
+# the more traditional dipole dynamics, use `:dipole` mode instead.
 
 # ## Interactions and anisotropies
 
@@ -228,11 +227,11 @@ print_wrapped_intensities(sys)
 
 suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
 
-# The function [`reshape_geometry`](@ref) allows an arbitrary reshaping of the
+# The function [`reshape_supercell`](@ref) allows an arbitrary reshaping of the
 # system's supercell. We select the supercell appropriate to the broken-symmetry
 # ground-state, which makes optimization much easier.
 
-sys_min = reshape_geometry(sys, [1 0 0; 0 1 -2; 0 1 2])
+sys_min = reshape_supercell(sys, [1 0 0; 0 1 -2; 0 1 2])
 randomize_spins!(sys_min)
 minimize_energy!(sys_min)
 plot_spins(sys_min; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)

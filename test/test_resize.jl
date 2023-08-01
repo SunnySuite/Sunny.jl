@@ -3,7 +3,7 @@
 
     latvecs = lattice_vectors(1, 1, 1.1, 90, 90, 120)
     cryst = Crystal(latvecs, [[0,0,0]])
-    sys = System(cryst, (4, 6, 2), [SpinInfo(1, S=1)], :dipole)
+    sys = System(cryst, (4, 6, 2), [SpinInfo(1, S=1, g=2)], :dipole)
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, 1.2, Bond(1, 1, [0, 0, 1]))
     set_exchange!(sys, diagm([0.2, 0.3, 0.4]), Bond(1, 1, [1, 0, 1]))
@@ -11,7 +11,7 @@
     for site in all_sites(sys)
         row = site[2]
         dir = [1, 0, 2mod(row, 2) - 1]
-        polarize_spin!(sys, dir, site)
+        set_dipole!(sys, dir, site)
     end
 
     capt = IOCapture.capture() do
@@ -37,16 +37,16 @@
 
     A1 = [1 0 0; 0 2 0; 0 0 1]
     A2 = [1 0 0; 1 2 0; 0 0 1]
-    newsys1 = reshape_geometry(sys, A1)
-    newsys2 = reshape_geometry(sys, A2)
+    newsys1 = reshape_supercell(sys, A1)
+    newsys2 = reshape_supercell(sys, A2)
 
     @test energy(sys) / prod(sys.latsize) ≈ 2.55
     
-    newsys = reshape_geometry(sys, A1)
+    newsys = reshape_supercell(sys, A1)
     @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
-    newsys = reshape_geometry(sys, A2)
+    newsys = reshape_supercell(sys, A2)
     @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
-    newsys = reshape_geometry(sys, A1)
+    newsys = reshape_supercell(sys, A1)
     @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
 end
 
@@ -55,19 +55,19 @@ end
 
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 120)
     cryst = Crystal(latvecs, [[0,0,0]])
-    sys = System(cryst, (3, 3, 3), [SpinInfo(1, S=1)], :dipole)
+    sys = System(cryst, (3, 3, 3), [SpinInfo(1, S=1, g=2)], :dipole)
     randomize_spins!(sys)
 
     # Reshape to sheared volume
-    sys2 = reshape_geometry(sys, [3 0 0; 2 3 0; 0 0 3])
+    sys2 = reshape_supercell(sys, [3 0 0; 2 3 0; 0 0 3])
     # Reshape back to original volume
-    sys3 = reshape_geometry(sys2, diagm([3,3,3]))
+    sys3 = reshape_supercell(sys2, diagm([3,3,3]))
     @test sys2.dipoles != sys.dipoles
     @test sys3.dipoles == sys.dipoles
 
     # Two equivalent ways of sizing up sys
     sys2 = repeat_periodically(sys, (2, 2, 1))
-    sys3 = resize_periodically(sys, (6, 6, 3))
+    sys3 = resize_supercell(sys, (6, 6, 3))
     @test sys2.dipoles == sys3.dipoles
 end
 
@@ -75,12 +75,12 @@ end
 @testitem "Interactions after reshaping" begin
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]])
-    sys = System(cryst, (3, 3, 3), [SpinInfo(1, S=1)], :dipole)
+    sys = System(cryst, (3, 3, 3), [SpinInfo(1, S=1, g=2)], :dipole)
     randomize_spins!(sys)
     
     # Commensurate shear that is specially designed to preserve the periodicity of
     # the system volume
-    sys2 = reshape_geometry(sys, [3 3 0; 0 3 0; 0 0 3])
+    sys2 = reshape_supercell(sys, [3 3 0; 0 3 0; 0 0 3])
     
     # Users always specify a bond using atom indices of the original unit cell,
     # but `sys2.interactions_union` is internally reindexed.
@@ -97,7 +97,7 @@ end
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
     cryst = Crystal(latvecs, [[0,0,0]])
     latsize = (6, 6, 2)
-    sys = System(cryst, latsize, [SpinInfo(1, S=1)], :dipole)
+    sys = System(cryst, latsize, [SpinInfo(1, S=1, g=2)], :dipole)
     polarize_spins!(sys, (0,0,1))
 
     J = 1.5
@@ -111,7 +111,7 @@ end
          0          latsize[2]   0
          0          0            latsize[3]]
     @test det(A) ≈ prod(latsize)
-    sys2 = reshape_geometry(sys, A)
+    sys2 = reshape_supercell(sys, A)
     @test Sunny.natoms(sys2.crystal) == 2
     @test energy(sys2) ≈ E0
 
@@ -134,7 +134,7 @@ end
 
     L = 3
     bond = Bond(1, 1, (1, 0, 0))
-    sys = System(cryst, (L,L,L), [SpinInfo(1, S=1)], :dipole, seed=0)
+    sys = System(cryst, (L,L,L), [SpinInfo(1, S=1, g=2)], :dipole, seed=0)
     set_exchange!(sys, 1, bond)
     @test energy(sys) == 81
 
@@ -154,7 +154,7 @@ end
     c = 6.75214
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
     cryst = Crystal(latvecs, [[0,0,0]], 164)
-    sys = System(cryst, (4,4,4), [SpinInfo(1,S=1)], :SUN, seed=0)
+    sys = System(cryst, (4,4,4), [SpinInfo(1,S=1,g=2)], :SUN, seed=0)
 
     J1pm   = -0.236 
     J1pmpm = -0.161
@@ -195,8 +195,8 @@ end
         sys.dipoles[:, j, k, 1] = circshift([s, s, -s, -s], mod(j+k, 4))
     end
 
-    sys_supercell = reshape_geometry(sys, [2 0 1; -1 1 0; -1 -1 1])
-    sys2 = resize_periodically(sys_supercell, (4,4,4))
+    sys_supercell = reshape_supercell(sys, [2 0 1; -1 1 0; -1 -1 1])
+    sys2 = resize_supercell(sys_supercell, (4,4,4))
 
     E0 = energy(sys) / length(sys.dipoles)
     E1 = energy(sys_supercell) / length(sys_supercell.dipoles)

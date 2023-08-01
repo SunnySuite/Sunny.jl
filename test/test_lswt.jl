@@ -23,7 +23,7 @@ end
 
     # Spin System
     dims = (2, 2, 2)
-    infos = [SpinInfo(1, S=1)]
+    infos = [SpinInfo(1, S=1, g=2)]
     sys = System(cryst, dims, infos, :SUN)
 
     set_exchange!(sys, J,  Bond(1, 1, [1, 0, 0]))
@@ -37,7 +37,7 @@ end
 
     randomize_spins!(sys)
     A = [1 1 1; -1 1 0; 0 0 1]
-    sys_swt = reshape_geometry(sys, A)
+    sys_swt = reshape_supercell(sys, A)
 
     langevin.kT = 0
     for i in 1:50_000
@@ -91,7 +91,7 @@ end
     D_ST = 0.2
     D = D_ST / cov_factor
     dims = (1, 1, 1)
-    infos = [SpinInfo(1, S=S)]
+    infos = [SpinInfo(1, S=S, g=2)]
 
     function compute_trace(mode::Symbol)
         sys = System(fcc, dims, infos, mode)
@@ -99,10 +99,10 @@ end
         S = spin_operators(sys, 1)
         Λ = D * (S[1]^4 + S[2]^4 + S[3]^4)
         set_onsite_coupling!(sys, Λ, 1)
-        polarize_spin!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
-        polarize_spin!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
-        polarize_spin!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
-        polarize_spin!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
+        set_dipole!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
+        set_dipole!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
+        set_dipole!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
+        set_dipole!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
         swt = SpinWaveTheory(sys)
         k = [0.8, 0.6, 0.1]
         _, Sαβs =  Sunny.dssf(swt, [k])
@@ -131,7 +131,7 @@ end
 
         # Spin System
         dims = (2, 2, 2)
-        infos = [SpinInfo(1, S=S)]
+        infos = [SpinInfo(1, S=S, g=2)]
         sys_SUN = System(cryst, dims, infos, :SUN)
         sys_dip = System(cryst, dims, infos, :dipole)
 
@@ -141,13 +141,13 @@ end
         set_exchange!(sys_SUN, JL,  Bond(1, 1, [1, 0, 0]); biquad=JQ)
         set_exchange!(sys_dip, JL,  Bond(1, 1, [1, 0, 0]); biquad=JQ)
 
-        sys_swt_SUN = reshape_geometry(sys_SUN, [1 1 1; -1 1 0; 0 0 1])
-        polarize_spin!(sys_swt_SUN, ( 1, 0, 0), position_to_site(sys_swt_SUN, (0, 0, 0)))
-        polarize_spin!(sys_swt_SUN, (-1, 0, 0), position_to_site(sys_swt_SUN, (0, 1, 0)))
+        sys_swt_SUN = reshape_supercell(sys_SUN, [1 1 1; -1 1 0; 0 0 1])
+        set_dipole!(sys_swt_SUN, ( 1, 0, 0), position_to_site(sys_swt_SUN, (0, 0, 0)))
+        set_dipole!(sys_swt_SUN, (-1, 0, 0), position_to_site(sys_swt_SUN, (0, 1, 0)))
 
-        sys_swt_dip = reshape_geometry(sys_dip, [1 1 1; -1 1 0; 0 0 1])
-        polarize_spin!(sys_swt_dip, ( 1, 0, 0), position_to_site(sys_swt_dip, (0, 0, 0)))
-        polarize_spin!(sys_swt_dip, (-1, 0, 0), position_to_site(sys_swt_dip, (0, 1, 0)))
+        sys_swt_dip = reshape_supercell(sys_dip, [1 1 1; -1 1 0; 0 0 1])
+        set_dipole!(sys_swt_dip, ( 1, 0, 0), position_to_site(sys_swt_dip, (0, 0, 0)))
+        set_dipole!(sys_swt_dip, (-1, 0, 0), position_to_site(sys_swt_dip, (0, 1, 0)))
 
         swt_SUN = SpinWaveTheory(sys_swt_SUN)
         swt_dip = SpinWaveTheory(sys_swt_dip)
@@ -190,7 +190,7 @@ end
         cryst = Crystal(latvecs, positions)
 
         dims = (2, 2, 1)
-        sys_dip = System(cryst, dims, [SpinInfo(1; S=S, g=1)], :dipole; units=Units.theory)
+        sys_dip = System(cryst, dims, [SpinInfo(1, S=S, g=1)], :dipole; units=Units.theory)
 
         set_exchange!(sys_dip, J, Bond(1, 1, [1, 0, 0]))
 
@@ -198,11 +198,11 @@ end
         set_onsite_coupling!(sys_dip, D*Sz^2, 1)
 
         set_external_field!(sys_dip, [0, 0, h])
-        sys_swt_dip = reshape_geometry(sys_dip, [1 -1 0; 1 1 0; 0 0 1])
+        sys_swt_dip = reshape_supercell(sys_dip, [1 -1 0; 1 1 0; 0 0 1])
         c₂ = 1 - 1/(2S)
         θ = acos(h / (2S*(4J+D*c₂)))
-        Sunny.polarize_spin!(sys_swt_dip, ( sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (0,0,0)))
-        Sunny.polarize_spin!(sys_swt_dip, (-sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (1,0,0)))
+        set_dipole!(sys_swt_dip, ( sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (0,0,0)))
+        set_dipole!(sys_swt_dip, (-sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (1,0,0)))
         swt_dip = SpinWaveTheory(sys_swt_dip)
         ϵq_num = dispersion(swt_dip, [q])
         ϵq_ana = disp_analytical_canted_afm(J, D, h, S, [q])
@@ -253,8 +253,8 @@ end
     set_external_field!(sys_dip, h*𝐌)
     set_external_field!(sys_SUN, h*𝐌)
 
-    Sunny.polarize_spin!(sys_dip, 𝐌, position_to_site(sys_dip, (0, 0, 0)))
-    Sunny.set_coherent_state!(sys_SUN, Z, position_to_site(sys_SUN, (0, 0, 0)))
+    set_dipole!(sys_dip, 𝐌, position_to_site(sys_dip, (0, 0, 0)))
+    set_coherent!(sys_SUN, Z, position_to_site(sys_SUN, (0, 0, 0)))
 
     energy(sys_dip)
     energy(sys_SUN)

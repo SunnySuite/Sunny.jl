@@ -259,7 +259,7 @@ function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
     )
 
     if !isnothing(sys.origin)
-        sys_origin = resize_periodically(sys,sys.origin.latsize)
+        sys_origin = resize_supercell(sys,sys.origin.latsize)
 
         # Translate to a correct lattice site in the middle of the bigger system
         center_origin = (sys_origin.crystal.latvecs * Vec3(sys_origin.latsize))/2

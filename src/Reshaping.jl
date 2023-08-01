@@ -1,6 +1,6 @@
 
 """
-    reshape_geometry(sys::System, A)
+    reshape_supercell(sys::System, A)
 
 Maps an existing [`System`](@ref) to a new one that has the shape and
 periodicity of a requested supercell. The columns of the ``3×3`` integer matrix
@@ -14,13 +14,13 @@ operations will be unavailable for this system, e.g., setting interactions by
 symmetry propagation. In practice, one can set all interactions using the
 original system, and then reshape as a final step.
 """
-function reshape_geometry(sys::System{N}, A) where N
+function reshape_supercell(sys::System{N}, A) where N
     # latsize for new system
     new_latsize = NTuple{3, Int}(gcd.(eachcol(A)))
     # Unit cell for new system, in units of original unit cell. Obtained by
     # dividing each column of A by corresponding new_latsize component.
     new_cell_size = Int.(A / diagm(collect(new_latsize)))
-    return reshape_geometry_aux(sys, new_latsize, new_cell_size)
+    return reshape_supercell_aux(sys, new_latsize, new_cell_size)
 end
 
 
@@ -46,7 +46,7 @@ function set_interactions_from_origin!(sys::System{N}) where N
 end
 
 
-function reshape_geometry_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_size::Matrix{Int}) where N
+function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_size::Matrix{Int}) where N
     is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
 
     # `origin` describes the unit cell of the original system. For sequential
@@ -126,16 +126,16 @@ function cell_dimensions(sys)
 end
 
 """
-    resize_periodically(sys::System{N}, latsize) where N
+    resize_supercell(sys::System{N}, latsize) where N
 
 Creates a [`System`](@ref) identical to `sys` but enlarged to a given number of
 unit cells in each lattice vector direction.
 
 An error will be thrown if `sys` is incommensurate with `latsize`. Use
-[`reshape_geometry`](@ref) instead to reduce the volume, or to perform an
+[`reshape_supercell`](@ref) instead to reduce the volume, or to perform an
 incommensurate reshaping.
 """
-function resize_periodically(sys::System{N}, latsize::NTuple{3,Int}) where N
+function resize_supercell(sys::System{N}, latsize::NTuple{3,Int}) where N
     # Shape of the original system, in multiples of the original unit cell.
     sysdims = cell_dimensions(sys) * diagm(collect(sys.latsize))
     # Proposed system shape, given in fractional coordinates of original system
@@ -145,7 +145,7 @@ function resize_periodically(sys::System{N}, latsize::NTuple{3,Int}) where N
     if norm(A - round.(A)) > 1e-12
         error("Incommensurate system size.")
     end
-    return reshape_geometry(sys, diagm(collect(latsize)))
+    return reshape_supercell(sys, diagm(collect(latsize)))
 end
 
 """
@@ -158,7 +158,7 @@ function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
     counts = NTuple{3,Int}(counts)
     @assert all(>=(1), counts)
     # Scale each column by `counts` and reshape
-    return reshape_geometry_aux(sys, counts .* sys.latsize, Matrix(cell_dimensions(sys)))
+    return reshape_supercell_aux(sys, counts .* sys.latsize, Matrix(cell_dimensions(sys)))
 end
 
 

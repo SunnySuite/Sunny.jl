@@ -14,7 +14,7 @@
 
     @test_warn "Non-uniform" unit_resolution_binning_parameters([0.,1,3,7])
 
-    sys = System(Sunny.diamond_crystal(),(4,1,1),[SpinInfo(1,S=1/2)],:SUN,seed=1)
+    sys = System(Sunny.diamond_crystal(),(4,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN,seed=1)
     randomize_spins!(sys)
     sc = dynamical_correlations(sys;Δt = 1.,nω=3,ωmax = 1.)
     add_sample!(sc, sys)

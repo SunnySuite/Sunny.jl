@@ -50,14 +50,14 @@ function optim_set_spins!(sys::System{0}, αs, ns)
     αs = reinterpret(reshape, Vec3, αs)
     for site in all_sites(sys)
         s = stereographic_projection(αs[site], ns[site])
-        polarize_spin!(sys, s, site)
+        set_dipole!(sys, s, site)
     end
 end
 function optim_set_spins!(sys::System{N}, αs, ns) where N
     αs = reinterpret(reshape, CVec{N}, αs)
     for site in all_sites(sys)
         Z = stereographic_projection(αs[site], ns[site])
-        set_coherent_state!(sys, Z, site)
+        set_coherent!(sys, Z, site)
     end
 end
 

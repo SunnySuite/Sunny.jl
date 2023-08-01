@@ -1,23 +1,21 @@
 # Version 0.5.0
 
-This version includes many **breaking changes**.
+**New features**.
 
-Added support for Dipole-mode Linear Spin Wave Theory. (Thanks Hao Zhang!)
+Support for Linear Spin Wave Theory in `:dipole` and `:SUN` modes. (Thanks Hao
+Zhang!)
 
-Split `intensities` into calculation ([`intensity_formula`](@ref)) and
-presentation ([`intensities_interpolated`](@ref), [`intensities_binned`](@ref)).
-This is a **breaking change**, see the docs to migrate your code.
+New function [`minimize_energy!`](@ref) to efficiently find an optimal
+configuration of spin dipoles or SU(_N_) coherent states.
 
-`StructureFactor` type renamed [`SampledCorrelations`](@ref). An appropriate
-`SampledCorrelations` is created by calling either
-[`dynamical_correlations`](@ref) or [`instant_correlations`](@ref) instead of
-`DynamicStructureFactor` or `InstantStructureFactor`.
+Major refactors and enhancements to intensity calculations. This new interface
+allows unification between LSWT and classical spin dynamics calculations. This
+interface allows: Custom observables as local quantum operators, better support
+for linebroadening, and automatic binning to facilitate comparison with
+experimental data. See [`intensity_formula`](@ref) for documentation. Use
+[`load_nxs`](@ref) to load experimental neutron scattering data.
 
-Broadened support for custom observables in `SampledCorrelations` for use in
-`intensity_formula`.
-
-Added function [`load_nxs`](@ref) to load experimental neutron scattering data
-to compare with `intensities_binned`.
+**Breaking changes**.
 
 Replace `set_anisotropy!` with a new function [`set_onsite_coupling!`](@ref)
 (and similarly [`set_onsite_coupling_at!`](@ref)). The latter expects an
@@ -27,11 +25,32 @@ a polynomial of [`spin_operators`](@ref). To understand the mapping between
 these two, the new function [`print_stevens_expansion`](@ref) acts on an
 arbitrary local operator.
 
-Replace `set_biquadratic!` with an optional keyword argument `biquad` to
+Remove `set_biquadratic!`. Instead, use an optional keyword argument `biquad` to
 [`set_exchange!`](@ref).
 
-Symbolic representations of operators are now hidden unless the package
-`DynamicPolynomials` is explicitly loaded by the user. The functionality of
+Rename `DynamicStructureFactor` to [`dynamical_correlations`](@ref).
+Similarly, replace `InstantStructureFactor` with [`instant_correlations`](@ref).
+The return type has been renamed [`SampledCorrelations`](@ref) to emphasize that
+the object may be holding thermodynamic samples, which are collected using
+[`add_sample!`](@ref).
+
+Remove `intensities` function. Instead, use one of
+[`intensities_interpolated`](@ref) or [`intensities_binned`](@ref). These will
+require an [`intensity_formula`](@ref), which defines a calculator (e.g., LSWT).
+
+Rename `polarize_spin!` to [`set_dipole!`](@ref) for consistency with
+[`set_coherent!`](@ref). The behavior of the former function is unchanged: the
+spin at a given site will still be polarized along the provided direction.
+
+Rename `reshape_geometry` to [`reshape_supercell`](@ref), which is the
+fundamental reshaping function. Rename `resize_periodically` to
+[`resize_supercell`](@ref).
+
+The constructor [`SpinInfo`](@ref) now requires a ``g``-factor or tensor as a
+named argument.
+
+Symbolic representations of operators are now hidden unless the external package
+`DynamicPolynomials.jl` is explicitly loaded by the user. The functionality of
 `print_anisotropy_as_stevens` has been replaced with
 [`print_classical_stevens_expansion`](@ref), while
 `print_anisotropy_as_classical_spins` has become
@@ -143,8 +162,8 @@ interface, see the [Structure Factor Calculations](@ref) page.
 
 * [`repeat_periodically`](@ref) replaces `extend_periodically`.
 
-Additional related functions include [`resize_periodically`](@ref) and
-[`reshape_geometry`](@ref), the latter being fundamental.
+Additional related functions include `resize_periodically` and
+`reshape_geometry`, the latter being fundamental.
 
 * [`print_symmetry_table`](@ref) replaces `print_bond_table()`.
 

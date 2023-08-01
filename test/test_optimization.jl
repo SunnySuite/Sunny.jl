@@ -18,7 +18,7 @@ end
     # H = -∑Sᵢ⋅Sⱼ - ∑(Sᵢᶻ)² on 2D square lattice (z-polarized ground state)
     function simple_sys(; dims=(4,4,1), mode, seed, S)
         cryst = Crystal(lattice_vectors(1,1,2,90,90,90), [[0,0,0]])
-        sys = System(cryst, dims, [SpinInfo(1; S)], mode; seed) 
+        sys = System(cryst, dims, [SpinInfo(1; S, g=2)], mode; seed) 
         set_exchange!(sys, -1, Bond(1,1,[1,0,0]))
         set_onsite_coupling!(sys, -spin_operators(sys, 1)[3]^2, 1)
         sys

@@ -11,7 +11,7 @@ struct SpinInfo
     S      :: Float64 # Spin magnitude in units of ħ
     g      :: Mat3    # Spin g-tensor
 
-    function SpinInfo(atom::Int; S, g=2)
+    function SpinInfo(atom::Int; S, g)
         if !isinteger(2S)
             error("Spin $S for atom $atom is not a multiple of 1/2")
         end
