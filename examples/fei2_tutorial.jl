@@ -211,7 +211,7 @@ print_wrapped_intensities(sys)
 # ground state.
 
 # If the desired ground state is already known, as with FeI$_2$, it could be
-# entered by hand using [`polarize_spin!`](@ref). Alternatively, in the case of
+# entered by hand using [`set_dipole!`](@ref). Alternatively, in the case of
 # FeI$_2$, we could repeatedly employ the above randomization and minimization
 # procedure until a defect-free configuration is found. Some systems will have
 # more complicated ground states, which can be much more challenging to find.
@@ -245,14 +245,12 @@ plot_spins(sys_min; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 swt = SpinWaveTheory(sys_min);
 
-# The dispersion relation can be calculated by providing `dispersion` with a
-# `SpinWaveTheory` and a list of wave vectors. For each wave vector,
-# `dispersion` will return a list of energies, one for each band. 
-# Frequently one wants dispersion information along lines
-# that connect special wave vectors. The function [`connected_path`](@ref)
-# linearly samples between provided $q$-points, with a given sample density.
-
-points = [[0,   0, 0],  # List of wave vectors that define a path
+# Next, select a sequence of wavevectors that will define a piecewise linear
+# path in reciprocal space. The coefficients of each $q$-vector are given in
+# reciprocal lattice units (RLU), i.e., are multiples of the recripocal lattice
+# vectors. The function [`connected_path`](@ref) will linearly sample between
+# the provided $q$-points with some `density`.
+points = [[0,   0, 0],
           [1,   0, 0],
           [0,   1, 0],
           [1/2, 0, 0],
@@ -262,21 +260,32 @@ labels = string.(points)
 density = 600
 path, markers = connected_path(swt, points, density);
 
-# `dispersion` may now be called on the wave vectors along the generated path.
-# Each column of the returned matrix corresponds to a different mode.
+# The dispersion relation can be calculated by providing `dispersion` with a
+# `SpinWaveTheory` and a list of wave vectors. For each wave vector,
+# `dispersion` will return a list of energies, one for each band. Frequently one
+# wants dispersion information along lines that connect special wave vectors.
+# The function [`connected_path`](@ref) linearly samples between provided
+# $𝐪$-points, with a given sample density.
+
+# The [`dispersion`](@ref) function defines the quasiparticle excitation
+# energies $ω_i(𝐪)$ for each point $𝐪$ along the reciprocal space path.
 
 disp = dispersion(swt, path);
 
-# In addition to the band energies ``\omega_i``, Sunny can calculate
-# the inelastic neutron scattering intensity ``I(q,\omega_i(q))`` according to
-# an [`intensity_formula`](@ref). The default formula applies a polarization correction ``(1 - Q\otimes Q)``.
+# In addition to the band energies $ω_i(𝐪)$, Sunny can calculate the inelastic
+# neutron scattering intensity $I_i(𝐪)$ for each band $i$ according to an
+# [`intensity_formula`](@ref). The default formula applies a polarization
+# correction $(1 - 𝐪⊗𝐪)$. Selecting `delta_function_kernel` specifies that we
+# want the energy and intensity of each band individually.
 
-formula = intensity_formula(swt; kernel = delta_function_kernel)
+formula = intensity_formula(swt; kernel=delta_function_kernel)
 
-# The `delta_function_kernel` specifies that we want the energy and intensity of each
-# band individually.
+# The function [`intensities_bands`](@ref) uses linear spin wave theory to
+# calculate both the dispersion and intensity data for the provided path.
 
-disp, intensity = intensities_bands(swt, path; formula)
+disp, intensity = intensities_bands(swt, path; formula);
+
+# These can be plotted in GLMakie.
 
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)",
@@ -288,44 +297,78 @@ for i in axes(disp)[2]
 end
 fig
 
-# For comparison with inelastic neutron scattering (INS) data, it's often
-# appropriate to apply a lorentzian broadening to the bands.
+# To make comparisons with inelastic neutron scattering (INS) data, it is helpful to employ
+# an empirical broadening kernel.
 
-γ = 0.05 # Lorentzian broadening parameter
-broadened_formula = intensity_formula(swt; kernel = lorentzian(γ))
+γ = 0.15 # width in meV
+broadened_formula = intensity_formula(swt; kernel=lorentzian(γ))
 
-# The broadened intensity can be calculated for any ``(q,\omega)``
-# using `intensities_broadened`:
-energies = collect(0.0:0.01:7.5) # Energies to calculate
-is = intensities_broadened(swt, path, energies, broadened_formula)
+# The broadened intensity can be calculated for using
+# [`intensities_broadened`](@ref). One must space a path in $𝐪$-space and an
+# energy range.
+
+energies = collect(0:0.01:7.5)  # 0 < ω < 7.5 (meV).
+is1 = intensities_broadened(swt, path, energies, broadened_formula);
+
+# In real FeI$_2$, there will be competing magnetic domains associated with the
+# three possible orientations of the symmetry-broken ground state, which derive
+# from the three-fold rotational symmetry of a triangular lattice.
+#
+# The matrix $A$ defined below implements a 120° clockwise rotation on
+# wavevectors $𝐪$ defined in RLU.
+
+A = [-1 -1 0;
+      1  0 0;
+      0  0 1]
+@assert A^3 ≈ [1 0 0; 0 1 0; 0 0 1] # Rotation by 360° is the identity
+
+# We will average the intensity data over the three symmetry-equivalent
+# rotations of the $𝐪$-space path.
+
+function rotated_intensity(R)
+    rotated_path = [R * q for q in path]
+    intensities_broadened(swt, rotated_path, energies, broadened_formula)
+end
+
+@assert is1 == rotated_intensity(A^0)
+is2 = rotated_intensity(A)
+is3 = rotated_intensity(A^2)
+is_averaged = (is1 + is2 + is3) / 3
 
 fig = Figure()
 ax = Axis(fig[1,1], xlabel="(H,0,0)", ylabel="Energy (meV)", xticks=(markers, labels),
-          xticklabelrotation=π/8)
-heatmap!(ax, 1:size(is, 1), energies, is)
+          )
+heatmap!(ax, 1:size(is_averaged, 1), energies, is_averaged)
 fig
 
-# The existence of a lower-energy, single-ion bound state is in qualitative
-# agreement with the experimental data in [Bai et
-# al.](https://doi.org/10.1038/s41567-020-01110-1) (Note that the publication
-# figure uses a different coordinate system to label the same wave vectors and
-# the experimental data necessarily averages over the three degenerate ground
-# states.)
+# This result can be directly compared to experimental neutron scattering data
+# [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)
 # ```@raw html
 # <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_intensity.jpg">
 # ```
+#
+# (Note that the publication figure uses a different coordinate system to label
+# the wave vectors.)
+# 
+# To get this agreement, the use of SU(3) coherent states is essential (in other
+# words, we needed a theory of multi-flavored bosons). The lower band has large
+# quadrupolar character, and arises from the strong easy-axis anisotropy of
+# FeI$_2$. By setting `mode = :SUN`, the calculation captures this coupled
+# dipole-quadrupole dynamics.
+#
+# An interesting exercise is to repeat the same study, but using `mode =
+# :dipole` instead of `:SUN`. That alternative choice would constrain the
+# coherent state dynamics to the space of dipoles only.
 
-# The full data from the dynamical spin structure factor (DSSF) can be
-# retrieved with the `dssf` function. Like `dispersion` and `intensities`,
-# `dssf` takes an array of wave vectors.
+# The full dynamical spin structure factor (DSSF) can be retrieved as a $3×3$
+# matrix with the [`dssf`](@ref) function, for a given path of $𝐪$-vectors.
 
-disp, Sαβ = dssf(swt, [[0, 0, 0]]);
+disp, is = dssf(swt, path);
 
-# `disp` is identical to the output that is obtained from `dispersion` and
-# contains the energy of each mode at the specified wave vectors. `Sαβ` contains
-# a $3×3$ matrix for each of these modes. For example, `Sαβ[1]` are the
-# dynamical structure factor intensities for the first mode, and `Sαβ[1][2,3]`
-# is associated with the $α=ŷ$ and $β=ẑ$ spin components.
+# The first output `disp` is identical to that obtained from `dispersion`. The
+# second output `is` contains a list of $3×3$ matrix of intensities. For
+# example, `is[q,n][2,3]` yields the $(ŷ,ẑ)$ component of the structure factor
+# intensity for `nth` mode at the `q`th wavevector in the `path`.
 
 # ## What's next?
 #
