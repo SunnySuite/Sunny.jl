@@ -1,0 +1,1743 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass revtex4-2
+\begin_preamble
+\usepackage[T1]{fontenc}
+\usepackage{beramono}
+\usepackage{listings}
+\usepackage[usenames,dvipsnames]{xcolor}
+
+%%
+%% Julia definition (c) 2014 Jubobs
+%%
+\lstdefinelanguage{Julia}%
+  {morekeywords={abstract,break,case,catch,const,continue,do,else,elseif,%
+      end,export,false,for,function,immutable,import,importall,if,in,%
+      macro,module,otherwise,quote,return,switch,true,try,type,typealias,%
+      using,while},%
+   sensitive=true,%
+   alsoother={$},%
+   morecomment=[l]\#,%
+   morecomment=[n]{\#=}{=\#},%
+   morestring=[s]{"}{"},%
+   morestring=[m]{'}{'},%
+}[keywords,comments,strings]%
+
+\lstset{%
+    language         = Julia,
+    basicstyle       = \ttfamily,
+    keywordstyle     = \bfseries\color{blue},
+    stringstyle      = \color{magenta},
+    commentstyle     = \color{ForestGreen},
+    showstringspaces = false,
+}
+\end_preamble
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine natbib
+\cite_engine_type authoryear
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+SU(
+\begin_inset Formula $N$
+\end_inset
+
+) Linear Spin-Wave Theory Interface to Sunny.jl
+\end_layout
+
+\begin_layout Author
+Hao Zhang
+\end_layout
+
+\begin_layout Section
+Overview
+\end_layout
+
+\begin_layout Standard
+In this note, we try to lay out the implementation of the SU(
+\begin_inset Formula $N$
+\end_inset
+
+) 
+\emph on
+linear
+\emph default
+ spin-wave theory interface to Sunny.jl.
+ The implementation will be based on the following assumptions: I) We can
+ inherit from Sunny.jl the crystal symmetry information and the functionalities
+ of the automatic propagation of the interaction to all other symmetry equivalen
+t bonds or sites; II) The ground state (magnetic ordering), 
+\begin_inset Formula $|Z_{\text{gs}}\rangle=\otimes_{j=1}^{N_{\text{matom}}}|Z_{j}\rangle$
+\end_inset
+
+, that is a direct product state of 
+\begin_inset Formula $N_{\text{matom}}$
+\end_inset
+
+ (number of magnetic atoms in the magnetic unit cell) SU(
+\begin_inset Formula $N$
+\end_inset
+
+) coherent states, is known, i.e.
+ the user needs to provide 
+\begin_inset Formula $N_{\text{matom}}N$
+\end_inset
+
+ complex numbers (and the positions of magnetic atoms) to specify 
+\begin_inset Formula $|Z_{\text{gs}}\rangle$
+\end_inset
+
+, where
+\begin_inset Formula 
+\begin{equation}
+|Z_{j}\rangle=\sum_{m=-(N-1)/2}^{(N-1)/2}Z_{j}^{m}|m\rangle,\label{eq:coefs}
+\end{equation}
+
+\end_inset
+
+with 
+\begin_inset Formula $\sum_{m}|Z_{j}^{m}|^{2}=1$
+\end_inset
+
+.
+ In addition, the user needs to specify the basis vectors 
+\begin_inset Formula $\tilde{\bm{a}}_{i}$
+\end_inset
+
+ (in units of the chemical unit cell 
+\begin_inset Formula $\bm{a}_{i}$
+\end_inset
+
+) of the magnetic unit cell .
+\end_layout
+
+\begin_layout Section
+Schwinger boson representation
+\end_layout
+
+\begin_layout Standard
+Let us work with the fundamental representation of SU(
+\begin_inset Formula $N$
+\end_inset
+
+).
+ To make connection with realistic spin Hamiltonians, we will work with
+ a hermitian basis (physical basis) of SU(
+\begin_inset Formula $N$
+\end_inset
+
+) generators (that are in general polynomial functions of spin operators
+ 
+\begin_inset Formula $\hat{\bm{S}}$
+\end_inset
+
+ (can be obtained from Sunny by calling 
+\color blue
+Sunny.gen_spin_ops(
+\begin_inset Formula $N$
+\end_inset
+
+)
+\color inherit
+).
+\begin_inset Formula 
+\begin{equation}
+\hat{T}_{\bm{r}}^{\mu}=\bm{b}_{\bm{r}}^{\dagger}\mathcal{T}_{\bm{r}}^{\mu}\bm{b}_{\bm{r}},\quad\mu=1,2,\ldots,N^{2}-1,
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\bm{b}_{\bm{r}}=(b_{\bm{r},(N-1)/2},\ldots,b_{\bm{r}-(N-1)/2})^{T}$
+\end_inset
+
+ is a column vector of Schwinger boson operators that satisfy an additonal
+ local constaint
+\begin_inset Formula 
+\begin{equation}
+\sum_{m=-(N-1)/2}^{(N-1)/2}b_{\bm{r}m}^{\dagger}b_{\bm{r}m}=M,\quad(M=1\ \text{for fundamental rep.)}\label{eq:constraint}
+\end{equation}
+
+\end_inset
+
+and 
+\begin_inset Formula $\mathcal{T}_{\bm{r}}^{\mu}$
+\end_inset
+
+ is an 
+\begin_inset Formula $N\times N$
+\end_inset
+
+ hermitian matrix.
+ Let us consider a general spin Hamiltonian
+\begin_inset Formula 
+\begin{equation}
+\hat{\mathcal{H}}=\frac{1}{2}\sum_{\bm{r},\bm{\delta}}\sum_{\mu,\nu=1}^{N^{2}-1}\mathcal{J}_{\bm{\delta}}^{\mu\nu}\hat{T}_{\bm{r}}^{\mu}\hat{T}_{\bm{r}+\bm{\delta}}^{\nu}+\sum_{\bm{r}}\sum_{\mu=1}^{N^{2}-1}\mathcal{D}_{\mu}\hat{T}^{\mu}.
+\end{equation}
+
+\end_inset
+
+The first term of 
+\begin_inset Formula $\hat{\mathcal{H}}$
+\end_inset
+
+ corresponds to an anisotropic exchange interaction between two SU(
+\begin_inset Formula $N$
+\end_inset
+
+) spins connected by the bond 
+\begin_inset Formula $\bm{\delta}$
+\end_inset
+
+ (at this moment Sunny handles the symmetry analysis for dipolar exchange
+ interactions only.
+ Here we consider the general exchange interactions for the sake of completeness
+).
+ The second term of 
+\begin_inset Formula $\hat{\mathcal{H}}$
+\end_inset
+
+ represents any arbitrary on-site term that can be interpreted as generalized
+ Zeeman coupling between the SU(
+\begin_inset Formula $N$
+\end_inset
+
+) spin and an external SU(
+\begin_inset Formula $N$
+\end_inset
+
+) field.
+\end_layout
+
+\begin_layout Standard
+Now we associate the local coherent state 
+\begin_inset Formula $|Z_{\bm{r}}\rangle$
+\end_inset
+
+ with a single-particle state of a local Schwinger boson 
+\begin_inset Formula $\tilde{b}_{\bm{r}(N-1)/2}^{\dagger}$
+\end_inset
+
+:
+\begin_inset Formula 
+\begin{equation}
+|Z_{\bm{r}}\rangle=\tilde{b}_{\bm{r}(N-1)/2}^{\dagger}|\varnothing\rangle,\label{eq:chs}
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $|\varnothing\rangle$
+\end_inset
+
+ is the common vacuum of the local Schwinger bosons (SBs) 
+\begin_inset Formula $\tilde{b}_{\bm{r}m}^{\dagger},\ m=(N-1)/2,\ldots,-(N-1)/2$
+\end_inset
+
+.
+ We can introduce an SU(
+\begin_inset Formula $N$
+\end_inset
+
+) transformation 
+\begin_inset Formula $\tilde{\bm{b}}_{\bm{r}}^{\dagger}=\bm{b}_{\bm{r}}^{\dagger}U_{\bm{r}}^{\dagger}$
+\end_inset
+
+ that maps the original Schwinger bosons 
+\begin_inset Formula $\bm{b}_{\bm{r}}^{\dagger}$
+\end_inset
+
+ into a new set of Schwinger bosons 
+\begin_inset Formula $\tilde{\bm{b}}_{\bm{r}}^{\dagger}$
+\end_inset
+
+ containing the boson 
+\begin_inset Formula $\tilde{b}_{\bm{r}(N-1)/2}^{\dagger}$
+\end_inset
+
+ that creates the local coherent state 
+\begin_inset Formula $|Z_{\bm{r}}\rangle$
+\end_inset
+
+.
+ We note that 
+\begin_inset Formula ${\color{blue}U_{\bm{r}}[1,:]=(Z_{\bm{r}(N-1)/2},\ldots,Z_{\bm{r}-(N-1)/2})^{T}}$
+\end_inset
+
+ and the remaining columns are given by 
+\begin_inset Formula ${\color{blue}U_{\bm{r}}[2:N,:]=\text{nullspace(U_{\bm{r}}[:,\ 1]')}}$
+\end_inset
+
+.
+ In terms of the local SBs, the Hamiltonian takes the form
+\begin_inset Formula 
+\begin{equation}
+\mathcal{\hat{H}}=\frac{1}{2}\sum_{\bm{r},\bm{\delta}}\sum_{\mu,\nu=1}^{N^{2}-1}\mathcal{J}_{\bm{\delta}}^{\mu\nu}\tilde{\bm{b}}_{\bm{r}}^{\dagger}\tilde{\mathcal{T}}_{\bm{r}}^{\mu}\tilde{\bm{b}}_{\bm{r}}\tilde{\bm{b}}_{\bm{r}+\bm{\delta}}^{\dagger}\tilde{\mathcal{T}}_{\bm{r}+\bm{\delta}}^{\nu}\tilde{\bm{b}}_{\bm{r}+\bm{\delta}}+\sum_{\bm{r}}\sum_{\mu=1}^{N^{2}-1}\mathcal{D}_{\mu}\tilde{\bm{b}}_{\bm{r}}^{\dagger}\tilde{\mathcal{T}}_{\bm{r}}^{\mu}\tilde{\bm{b}}_{\bm{r}},\label{eq:sunham}
+\end{equation}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{equation}
+\tilde{\mathcal{T}}_{\bm{r}}^{\mu}=U_{\bm{r}}\mathcal{T}_{\bm{r}}^{\mu}U_{\bm{r}}^{\dagger}.
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Condensation of Schwinger bosons
+\end_layout
+
+\begin_layout Standard
+For simplicity, we rename the flavor index 
+\begin_inset Formula $m$
+\end_inset
+
+ of the SBs from 
+\begin_inset Formula $(N-1)/2,\ldots-(N-1)/2$
+\end_inset
+
+ to 
+\begin_inset Formula $1,\ldots N$
+\end_inset
+
+.
+ We note that the local coherent (ground) state can be expressed as a condensati
+on of the boson 
+\begin_inset Formula $\tilde{b}_{\bm{r}1}^{\dagger}$
+\end_inset
+
+:
+\begin_inset Formula 
+\begin{equation}
+\tilde{b}_{\bm{r}1}^{\dagger}=\tilde{b}_{\bm{r}1}=\sqrt{M}\sqrt{1-\frac{1}{M}\sum_{m=2}^{N}\tilde{b}_{\bm{r}m}^{\dagger}\tilde{b}_{\bm{r}m}}.
+\end{equation}
+
+\end_inset
+
+We have
+\begin_inset Formula 
+\begin{align}
+\hat{T}_{\bm{r}}^{\mu} & =[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{11}\left(M-\sum_{m=2}^{N}\tilde{b}_{\bm{r}m}^{\dagger}\tilde{b}_{\bm{r}m}\right)+\sqrt{M}\sum_{m=2}^{N}\left(\tilde{b}_{\bm{r}m}^{\dagger}[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{m1}\sqrt{1-\frac{1}{M}\sum_{m=2}^{N}\tilde{b}_{\bm{r}m}^{\dagger}\tilde{b}_{\bm{r}m}}+h.c.\right)\nonumber \\
+ & +\sum_{m,m'=2}^{N}[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{mm'}\tilde{b}_{\bm{r}m}^{\dagger}\tilde{b}_{\bm{r}m'}\label{eq:ghpt}
+\end{align}
+
+\end_inset
+
+where 
+\begin_inset Formula $\tilde{\mathcal{T}}_{\bm{r}}^{\mu}=U_{\bm{r}}\mathcal{T}_{\bm{r}}^{\mu}U_{\bm{r}}^{\dagger}$
+\end_inset
+
+.
+ As in the case of the 
+\begin_inset Formula $1/S$
+\end_inset
+
+-expansion, we implement a Taylor expansion of the square-root that appears
+ in the above equation.
+ This is justified by assuming 
+\begin_inset Formula $\sum_{m=2}^{N}\langle\tilde{b}_{\bm{r}m}^{\dagger}\tilde{b}_{\bm{r}m}\rangle\ll M$
+\end_inset
+
+.
+ After plugging Eq.
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+~
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:ghpt"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ into the general Hamiltonian Eq.
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+~
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:sunham"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and expanding the square root, we obtain
+\begin_inset Formula 
+\begin{equation}
+\hat{\mathcal{H}}=M^{2}\mathcal{H}^{(0)}+M\hat{\mathcal{H}}^{(2)}+M^{1/2}\hat{\mathcal{H}}^{(3)}+M^{0}\hat{\mathcal{H}}^{(4)}+\mathcal{O}(M^{-1}).\label{eq:hamlargeM}
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\hat{\mathcal{H}}^{(n)}$
+\end_inset
+
+ denotes the terms of the 
+\begin_inset Formula $n$
+\end_inset
+
+-th power in the 
+\begin_inset Formula $N-1$
+\end_inset
+
+ uncondensed SB operators 
+\begin_inset Formula $\tilde{b}_{\bm{r}m}^{\dagger}$
+\end_inset
+
+ and 
+\begin_inset Formula $\tilde{b}_{\bm{r}m}$
+\end_inset
+
+ with 
+\begin_inset Formula $m\neq1$
+\end_inset
+
+.
+ 
+\begin_inset Formula $M^{2}\mathcal{H}^{(0)}$
+\end_inset
+
+ is the classical Hamiltonian, and the quadratic bosonic Hamiltonian 
+\begin_inset Formula $\hat{\mathcal{H}}^{(2)}$
+\end_inset
+
+ is known as the 
+\emph on
+linear
+\emph default
+ spin-wave Hamiltonian, that corresponds to a non-interacting theory of
+ bosons.
+ The higher order corrections in the 
+\begin_inset Formula $1/M$
+\end_inset
+
+ expansion (
+\begin_inset Formula $n\geq3$
+\end_inset
+
+-particle terms) correspond to interactions between quasiparticles of the
+ linear spin wave theory.
+\end_layout
+
+\begin_layout Section
+Linear spin-wave Hamiltonian and dispersion relations
+\end_layout
+
+\begin_layout Standard
+Let us focus on the linear spin-wave Hamiltonian 
+\begin_inset Formula $\hat{\mathcal{H}}^{(2)}$
+\end_inset
+
+:
+\begin_inset Formula 
+\begin{align}
+\hat{\mathcal{H}}^{(2)} & =M\sum_{\bm{r}}\bigg\{\sum_{\delta=\bm{\delta}_{\text{culled}}}\sum_{m,n=2}^{N}\sum_{\mu,\nu=1}^{N^{2}-1}\mathcal{J}_{\bm{\delta}}^{\mu\nu}\bigg[\big([\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{mn}-\delta_{mn}[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{11}\big)[\tilde{\mathcal{T}}_{\bm{r}+\bm{\delta}}^{\nu}]_{11}\tilde{b}_{\bm{r}m}^{\dagger}\tilde{b}_{\bm{r}n}\nonumber \\
+ & +[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{mn}\big([\tilde{\mathcal{T}}_{\bm{r}+\bm{\delta}}^{\nu}]_{mn}-\delta_{mn}[\tilde{\mathcal{T}}_{\bm{r}+\bm{\delta}}^{\nu}]_{11}\big)\tilde{b}_{\bm{r}+\bm{\delta}m}^{\dagger}\tilde{b}_{\bm{r}+\bm{\delta}n}\nonumber \\
+ & +[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{m1}[\tilde{\mathcal{T}}_{\bm{r}+\bm{\delta}}^{\nu}]_{1n}\tilde{b}_{\bm{r}m}^{\dagger}\tilde{b}_{\bm{r}+\bm{\delta}n}+[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{1m}[\tilde{\mathcal{T}}_{\bm{r}+\bm{\delta}}^{\nu}]_{n1}\tilde{b}_{\bm{r}m}\tilde{b}_{\bm{r}+\bm{\delta}n}^{\dagger}\nonumber \\
+ & +[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{m1}[\tilde{\mathcal{T}}_{\bm{r}+\bm{\delta}}^{\nu}]_{n1}\tilde{b}_{\bm{r}m}^{\dagger}\tilde{b}_{\bm{r}+\bm{\delta}n}^{\dagger}+[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{1m}[\tilde{\mathcal{T}}_{\bm{r}+\bm{\delta}}^{\nu}]_{1n}\tilde{b}_{\bm{r}m}\tilde{b}_{\bm{r}+\bm{\delta}n}\bigg]\nonumber \\
+ & +\sum_{\mu=1}^{N^{2}-1}\mathcal{D}_{\mu}\sum_{mm'=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{mm'}-\delta_{mm'}[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{11}\big)\tilde{b}_{\bm{r}m}^{\dagger}\tilde{b}_{\bm{r}m'}\bigg\},
+\end{align}
+
+\end_inset
+
+where 
+\begin_inset Formula $\bm{\delta}_{\text{culled}}$
+\end_inset
+
+ indicates the culled bonds defined in Sunny.jl to avoid double counting.
+ The next step is to implement the Fourier tranform.
+ We use the letter 
+\begin_inset Formula $\bm{k}$
+\end_inset
+
+ without a tilde to indicate a Bloch wave vector of the chemical lattice
+ and 
+\begin_inset Formula $\tilde{\bm{k}}$
+\end_inset
+
+ to indicate a Bloch wave vector of the magnetic lattice.
+ Note that the good quantum numbers are the 
+\begin_inset Formula $\tilde{\bm{k}}$
+\end_inset
+
+s instead of 
+\begin_inset Formula $\bm{k}$
+\end_inset
+
+s because of the reduced translation symmetry of the magnetic lattice.
+ As a result, we introduce the following Fourier transform on the boson
+ operator
+\begin_inset Formula 
+\begin{equation}
+\tilde{b}_{\bm{r}m}=\tilde{b}_{\bm{R}+\bm{d}m}=\sqrt{\frac{N_{\text{matom}}}{N_{s}}}\sum_{\tilde{\bm{k}}}e^{i\tilde{\bm{k}}\cdot\bm{R}}\tilde{b}_{\tilde{\bm{k}},\bm{d}m}\label{eq:fourier1}
+\end{equation}
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{equation}
+\tilde{b}_{\bm{r}m}^{\dagger}=\tilde{b}_{\bm{R}+\bm{d}m}^{\dagger}=\sqrt{\frac{N_{\text{matom}}}{N_{s}}}\sum_{\tilde{\bm{k}}}e^{-i\tilde{\bm{k}}\cdot\bm{R}}\tilde{b}_{\tilde{\bm{k}},\bm{d}m}^{\dagger}\ ,\label{eq:fourier2}
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\bm{R}$
+\end_inset
+
+ indicates the position of the origin of a magnetic cell and 
+\begin_inset Formula $\bm{d}$
+\end_inset
+
+ is the relative displacement of the magnetic atom (there are 
+\begin_inset Formula $N_{\text{matom}}$
+\end_inset
+
+ of them) with respect to the origin of the magnetic cell
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+~
+\backslash
+footnote{There is a U(1) gauge freedom to choose the phase factor for the
+ Fourier transform.
+ As it will become clear later, our choice here simplifies the calculation.}
+\end_layout
+
+\end_inset
+
+.
+ 
+\begin_inset Formula $N_{s}$
+\end_inset
+
+ is the total number of sites in the above equations.
+ After Fourier tranforming the linear spin-wave Hamiltonian, we have
+\begin_inset Formula 
+\begin{align}
+M\hat{\mathcal{H}}^{(2)} & =M\sum_{\tilde{\bm{k}}}\sum_{\bm{d}}\bigg\{\sum_{\delta=\bm{\delta}_{\text{culled}}}\sum_{mn=2}^{N}\sum_{\mu,\nu=1}^{N^{2}-1}\mathcal{J}_{\bm{\delta}}^{\mu\nu}\bigg[\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{mn}-\delta_{mn}[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\big)[\tilde{\mathcal{T}}_{\bm{d}+\bm{\delta}}^{\nu}]_{11}\tilde{b}_{\tilde{\bm{k}},\bm{d}m}^{\dagger}\tilde{b}_{\tilde{\bm{k}},\bm{d}n}\nonumber \\
+ & +[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\big([\tilde{\mathcal{T}}_{\bm{d}+\bm{\delta}}^{\nu}]_{mn}-\delta_{mn}[\tilde{\mathcal{T}}_{\bm{d}+\bm{\delta}}^{\nu}]_{11}\big)\tilde{b}_{\tilde{\bm{k}},\bm{d}+\bm{\delta}m}^{\dagger}\tilde{b}_{\tilde{\bm{k}},\bm{d}+\bm{\delta}n}\nonumber \\
+ & [\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{m1}[\tilde{\mathcal{T}}_{\bm{d}+\bm{\delta}}^{\nu}]_{1n}\tilde{b}_{\tilde{\bm{k}},\bm{d}m}^{\dagger}\tilde{b}_{\tilde{\bm{k}},\bm{d}+\bm{\delta}n}e^{i\tilde{\bm{k}}\cdot\Delta\bm{R}_{\bm{\delta}}}+[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{1m}[\tilde{\mathcal{T}}_{\bm{d}+\bm{\delta}}^{\nu}]_{n1}\tilde{b}_{\tilde{\bm{k}},dm}\tilde{b}_{\tilde{\bm{k}},\bm{d}+\bm{\delta}n}^{\dagger}e^{-i\tilde{\bm{k}}\cdot\Delta\bm{R}_{\bm{\delta}}}\nonumber \\
+ & +[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{m1}[\tilde{\mathcal{T}}_{\bm{d}+\bm{\delta}}^{\nu}]_{n1}\tilde{b}_{\tilde{\bm{k}},\bm{d}m}^{\dagger}\tilde{b}_{-\tilde{\bm{k}},\bm{d}+\bm{\delta}n}^{\dagger}e^{i\tilde{\bm{k}}\cdot\Delta\bm{R}_{\bm{\delta}}}+[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{1m}[\tilde{\mathcal{T}}_{\bm{d}+\bm{\delta}}^{\nu}]_{1n}\tilde{b}_{-\tilde{\bm{k}},dm}\tilde{b}_{\tilde{\bm{k}},\bm{d}+\bm{\delta}n}e^{i\tilde{\bm{k}}\cdot\Delta\bm{R}_{\bm{\delta}}}\bigg]\label{eq:hamfourier}\\
+ & +\sum_{\mu=1}^{N^{2}-1}\mathcal{D}_{\mu}\sum_{mm'=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{mm'}-\delta_{mm'}[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\big)\tilde{b}_{\tilde{\bm{k}},\bm{d}m}^{\dagger}\tilde{b}_{\tilde{\bm{k}},\bm{d}m'}\bigg\},
+\end{align}
+
+\end_inset
+
+where the additional phase factor 
+\begin_inset Formula $e^{i\tilde{\bm{k}}\cdot\Delta\bm{R}_{\bm{\delta}}}$
+\end_inset
+
+ comes from the Bloch theorem and 
+\begin_inset Formula $\Delta\bm{R}_{\bm{\delta}}$
+\end_inset
+
+ is the displacement of two magnetic unit cells that contain the two sites
+ connected by the bond 
+\begin_inset Formula $\bm{\delta}$
+\end_inset
+
+.
+ In a more compact way,
+\begin_inset Formula 
+\begin{equation}
+M\hat{\mathcal{H}}^{(2)}=M\bigg[\sum_{\tilde{\bm{k}}}\Psi_{\tilde{\bm{k}}}^{\dagger}\mathcal{H}^{(2)}(\tilde{\bm{k}})\Psi_{\tilde{\bm{k}}}+\xi\bigg],
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\Psi_{\bm{k}}=(\tilde{b}_{\tilde{\bm{k}},\bm{d}_{1}2},\ldots\tilde{b}_{\tilde{\bm{k}},\bm{d}_{1}N},\ldots\tilde{b}_{\tilde{\bm{k}},\bm{d}_{N_{\text{matom}}}2},\ldots\tilde{b}_{\tilde{\bm{k}},\bm{d}_{N_{\text{matom}}}N},\tilde{b}_{-\tilde{\bm{k}},\bm{d}_{1}2}^{\dagger},\ldots\tilde{b}_{-\tilde{\bm{k}},\bm{d}_{1}N}^{\dagger},\ldots\tilde{b}_{-\tilde{\bm{k}},\bm{d}_{N_{\text{matom}}}2}^{\dagger},\ldots\tilde{b}_{-\tilde{\bm{k}},\bm{d}_{N_{\text{matom}}}N}^{\dagger})^{T}$
+\end_inset
+
+ is a 
+\begin_inset Formula $2(N-1)N_{\text{matom}}$
+\end_inset
+
+-dimensional Nambu spinor and 
+\begin_inset Formula $\xi$
+\end_inset
+
+ is a number that renormalizes the classical energy.
+ The matrix element of 
+\begin_inset Formula $\mathcal{H}^{(2)}$
+\end_inset
+
+ can be read from Eq.
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+~
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:hamfourier"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+The next goal is to diagonalize 
+\begin_inset Formula $\tilde{\mathcal{H}}^{(2)}$
+\end_inset
+
+.
+ Here we follow
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+~
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset citation
+LatexCommand citep
+key "Colpa1978"
+literal "false"
+
+\end_inset
+
+ by performming the so-called Bogoliubov tranform:
+\begin_inset Formula 
+\begin{equation}
+\tilde{\Psi}_{\tilde{\bm{k}}}=V_{\tilde{\bm{k}}}^{-1}\Psi_{\tilde{\bm{k}}},
+\end{equation}
+
+\end_inset
+
+we have
+\begin_inset Formula 
+\begin{equation}
+\sum_{\tilde{\bm{k}}}\Psi_{\tilde{\bm{k}}}^{\dagger}\mathcal{H}^{(2)}(\tilde{\bm{k}})\Psi_{\tilde{\bm{k}}}=\sum_{\tilde{\bm{k}}}\tilde{\Psi}_{\tilde{\bm{k}}}^{\dagger}\tilde{\mathcal{H}}^{(2)}(\tilde{\bm{k}})\tilde{\Psi}_{\tilde{\bm{k}}},
+\end{equation}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{equation}
+\tilde{\mathcal{H}}^{(2)}(\tilde{\bm{k}})=\text{diag}(\text{\tilde{\omega}_{\tilde{\bm{k}}1},\ldots}\tilde{\omega}_{\tilde{\bm{k}}(N-1)N_{\text{matom}}},\text{\tilde{\omega}_{-\tilde{\bm{k}}1},\ldots}\tilde{\omega}_{-\tilde{\bm{k}}(N-1)N_{\text{matom}}})
+\end{equation}
+
+\end_inset
+
+and 
+\begin_inset Formula 
+\begin{equation}
+\tilde{\Psi}_{\tilde{\bm{k}}}=(\beta_{\tilde{\bm{k}}1},\ldots,\beta_{\tilde{\bm{k}}(N-1)N_{\text{matom}}},\beta_{-\tilde{\bm{k}}1}^{\dagger},\ldots,\beta_{\tilde{-\bm{k}}(N-1)N_{\text{matom}}}^{\dagger})^{T}.
+\end{equation}
+
+\end_inset
+
+Putting the above result in normal ordering, we have the Hamiltonian of
+ 
+\begin_inset Formula $(N-1)N_{\text{matom}}$
+\end_inset
+
+ decoupled quantum harmonic oscillators for each 
+\begin_inset Formula $\tilde{\bm{k}}$
+\end_inset
+
+:
+\begin_inset Formula 
+\begin{equation}
+\sum_{\tilde{\bm{k}}}\tilde{\Psi}_{\tilde{\bm{k}}}^{\dagger}\tilde{\mathcal{H}}^{(2)}(\tilde{\bm{k}})\tilde{\Psi}_{\tilde{\bm{k}}}=\sum_{n=1}^{(N-1)N_{\text{matom}}}\sum_{\tilde{\bm{k}}}\omega_{\tilde{\bm{k}},n}\bigg(\beta_{\tilde{\bm{k}}n}^{\dagger}\beta_{\tilde{\bm{k}}n}+\frac{1}{2}\bigg),
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\omega_{\tilde{\bm{k}},n}=2\tilde{\omega}_{\tilde{\bm{k}},n}$
+\end_inset
+
+ gives the linear spin-wave dispersion of band 
+\begin_inset Formula $n$
+\end_inset
+
+.
+ The details of finding 
+\begin_inset Formula $\tilde{\omega}_{\tilde{\bm{k}}}$
+\end_inset
+
+ and 
+\begin_inset Formula $V_{\tilde{\bm{k}}}$
+\end_inset
+
+ can be found in
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+~
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset citation
+LatexCommand citep
+key "Colpa1978"
+literal "false"
+
+\end_inset
+
+ and will be easily implemented in the code (see documentation for the code
+ later).
+\end_layout
+
+\begin_layout Section
+Linear spin-wave theory–Spectral weight
+\end_layout
+
+\begin_layout Standard
+Let us write down the Bogoliubov transform explicitly for later convinence
+ (note that 
+\begin_inset Formula $N_{m}=N_{\text{matoms}}$
+\end_inset
+
+ for shorter notations), the combined index 
+\begin_inset Formula $d_{\alpha}=(d-1)(N-1)+\alpha-1$
+\end_inset
+
+, where 
+\begin_inset Formula $d=1,\ldots N_{m},\alpha=2,\ldots N$
+\end_inset
+
+:
+\begin_inset Formula 
+\begin{align}
+\tilde{b}_{\tilde{\bm{k}}d_{\alpha}} & =\sum_{n=1}^{(N-1)N_{m}}\big([V_{\tilde{\bm{k}}}]_{d_{\alpha},n}\beta_{\tilde{\bm{k}},n}+[V_{\tilde{\bm{k}}}]_{d_{\alpha},n+(N-1)N_{m}}\beta_{-\tilde{\bm{k}},n}^{\dagger}\big)\label{eq:bk1}\\
+\tilde{b}_{-\tilde{\bm{k}}d_{\alpha}}^{\dagger} & =\sum_{n=1}^{(N-1)N_{m}}\big([V_{\tilde{\bm{k}}}]_{d_{\alpha}+(N-1)N_{m},n}\beta_{\tilde{\bm{k}},n}+[V_{\tilde{\bm{k}}}]_{d_{\alpha}+(N-1)N_{m},n+(N-1)N_{m}}\beta_{-\tilde{\bm{k}},n}^{\dagger}\big)\\
+\tilde{b}_{-\tilde{\bm{k}}d_{\alpha}} & =\sum_{n=1}^{(N-1)N_{m}}\big([V_{\tilde{\bm{k}}}]_{d_{\alpha}+(N-1)N_{m},n}^{*}\beta_{\tilde{\bm{k}},n}^{\dagger}+[V_{\tilde{\bm{k}}}]_{d_{\alpha}+(N-1)N_{m},n+(N-1)N_{m}}^{*}\beta_{-\tilde{\bm{k}},n}\big)\\
+\tilde{b}_{\tilde{\bm{k}}d_{\alpha}}^{\dagger} & =\sum_{n=1}^{(N-1)N_{m}}\big([V_{\tilde{\bm{k}}}]_{d_{\alpha},n}^{*}\beta_{\tilde{\bm{k}},n}^{\dagger}+[V_{\tilde{\bm{k}}}]_{d_{\alpha},n+(N-1)N_{m}}^{*}\beta_{-\tilde{\bm{k}},n}\big),\label{eq:bk4}
+\end{align}
+
+\end_inset
+
+where the third and fourth line is obtained from Hermitian conjugating the
+ second and the first line, respectively.
+ The 
+\begin_inset Formula $T=0$
+\end_inset
+
+ (generalized) spin structure factor is related to the dynamical spin susceptibi
+lity through the fluctuation dissipation theorem:
+\begin_inset Formula 
+\begin{align}
+\mathcal{S}^{\mu\nu}(\bm{q},\omega) & =-2\text{Im}\chi^{\mu\nu}(\bm{q},\omega)\nonumber \\
+ & =\sum_{\nu}\langle0|\hat{T}_{\bm{q}}^{\mu}|\nu\rangle\langle\nu|\hat{T}_{-\bm{q}}^{\nu}|0\rangle\delta(\omega+E_{0}-E_{\nu})\nonumber \\
+ & =\mathcal{S}_{\text{ssf}}^{\mu\nu}(\bm{q},\omega)+\mathcal{S}_{\text{dssf}}^{\mu\nu}(\bm{q},\omega),
+\end{align}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{align}
+\mathcal{S}_{\text{ssf}}^{\mu\nu} & =\langle0|\hat{T}_{\bm{q}}^{\mu}|0\rangle\langle0|\hat{T}_{-\bm{q}}^{\nu}|0\rangle\delta(\omega),\\
+\mathcal{S}_{\text{dssf}}^{\mu\nu}(\bm{q},\omega) & =\sum_{\nu\neq0}\langle0|\hat{T}_{\bm{q}}^{\mu}|\nu\rangle\langle\nu|\hat{T}_{-\bm{q}}^{\nu}|0\rangle\delta(\omega+E_{0}-E_{\nu}).
+\end{align}
+
+\end_inset
+
+In the above expressions, 
+\begin_inset Formula $\bm{q}$
+\end_inset
+
+ belongs to the wave vector in the reciprocal space of the chemical lattice.
+ We have 
+\begin_inset Formula $\bm{q}=\bm{K}+\tilde{\bm{q}}$
+\end_inset
+
+, where 
+\begin_inset Formula $\bm{K}$
+\end_inset
+
+ is the reciprocal lattice vector of the magnetic lattice, and 
+\begin_inset Formula $\tilde{\bm{q}}$
+\end_inset
+
+ is the wave vector in the first BZ of the magnetic lattice.
+ An useful relation:
+\begin_inset Formula 
+\begin{equation}
+e^{i\bm{K}\cdot\bm{R}}=1,
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\bm{R}$
+\end_inset
+
+ sits on the magnetic lattice.
+ Consider the Fourier transform of the SU(
+\begin_inset Formula $N$
+\end_inset
+
+) generator 
+\begin_inset Formula 
+\begin{align*}
+\hat{T}_{\bm{q}}^{\mu} & =\frac{1}{\sqrt{N_{s}}}\sum_{\bm{r}}e^{-i\bm{q}\cdot\bm{r}}\hat{T}_{\bm{r}}^{\mu}=\frac{1}{\sqrt{N_{s}}}\sum_{\bm{r}}e^{-i\bm{q}\cdot\bm{r}}\bm{b}_{\bm{r}}^{\dagger}\mathcal{T}_{\bm{r}}^{\mu}\bm{b}_{\bm{r}}\\
+ & =\frac{1}{\sqrt{N_{s}}}\sum_{\bm{r}}e^{-i\bm{q}\cdot\bm{r}}\bm{b}_{\bm{r}}^{\dagger}U_{\bm{r}}^{\dagger}U_{\bm{r}}\mathcal{T}_{\bm{r}}^{\mu}U_{\bm{r}}^{\dagger}U_{\bm{r}}\bm{b}_{\bm{r}}=\frac{1}{\sqrt{N_{s}}}\sum_{\bm{r}}e^{-i\bm{q}\cdot\bm{r}}\tilde{\bm{b}}_{\bm{r}}^{\dagger}\mathcal{\tilde{T}}_{\bm{r}}^{\mu}\tilde{\bm{b}}_{\bm{r}}\\
+ & \approx\frac{1}{\sqrt{N_{s}}}\sum_{\bm{r}}e^{-i\bm{q}\cdot\bm{r}}\bigg[M[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{11}+\sqrt{M}\sum_{\alpha=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{\alpha1}\tilde{b}_{\bm{r}\alpha}^{\dagger}+[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{1\alpha}\tilde{b}_{\bm{r}\alpha}\big)\\
+ & +M^{0}\sum_{\alpha,\beta=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{\alpha\beta}-[\tilde{\mathcal{T}}_{\bm{r}}^{\mu}]_{11}\delta_{\alpha\beta}\big)\tilde{b}_{\bm{r}\alpha}^{\dagger}\tilde{b}_{\bm{r}\beta}\bigg]\\
+ & =\frac{1}{\sqrt{N_{s}}}\sum_{\bm{R}}\sum_{\bm{d}}e^{-i(\bm{K}+\tilde{\bm{q}})\cdot(\bm{R}+\bm{d})}\bigg[M[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\\
+ & +\sqrt{\frac{MN_{m}}{N_{s}}}\sum_{\tilde{\bm{k}}}\sum_{\alpha=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha1}\tilde{b}_{\tilde{\bm{k}},\bm{d}\alpha}^{\dagger}e^{-i\tilde{\bm{k}}\cdot\bm{R}}+[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{1\alpha}\tilde{b}_{\tilde{\bm{k}},\bm{d}\alpha}e^{i\tilde{\bm{k}}\cdot\bm{R}}\big)\\
+ & +\frac{M^{0}N_{m}}{N_{s}}\sum_{\tilde{\bm{k}}_{1},\tilde{\bm{k}}_{2}}\sum_{\alpha,\beta=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha\beta}-[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\alpha\beta}\big)\tilde{b}_{\tilde{\bm{k}}_{1}\bm{d}\alpha}^{\dagger}\tilde{b}_{\tilde{\bm{k}}_{2},\bm{d}\beta}e^{-i(\tilde{\bm{k}}_{1}-\tilde{\bm{k}}_{2})\cdot\bm{R}}\bigg]\\
+ & =\frac{1}{\sqrt{N_{s}}}\sum_{\bm{d}}e^{-i(\bm{K}+\tilde{\bm{q}})\cdot\bm{d}}\bigg[\frac{MN_{s}}{N_{m}}[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\tilde{\bm{q}},0}+\sqrt{\frac{MN_{s}}{N_{m}}}\sum_{\alpha=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha1}\tilde{b}_{-\tilde{\bm{q}},\bm{d}\alpha}^{\dagger}+[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{1\alpha}\tilde{b}_{\tilde{\bm{q}},\bm{d}\alpha}\big)\\
+ & +\sum_{\tilde{\bm{k}}}\sum_{\alpha,\beta=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha\beta}-[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\alpha\beta}\big)\tilde{b}_{\tilde{\bm{k}}-\tilde{\bm{q}}\bm{d}\alpha}^{\dagger}\tilde{b}_{\tilde{\bm{k}},\bm{d}\beta}\bigg]
+\end{align*}
+
+\end_inset
+
+As a result, after the Bogoliubov transform, we have
+\begin_inset Formula 
+\begin{align}
+\langle0|\hat{T}_{\bm{q}}^{\mu} & \approx\frac{1}{\sqrt{N_{s}}}\sum_{\bm{d}}e^{-i\bm{q}\cdot\bm{d}}\bigg[\frac{MN_{s}}{N_{m}}[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\tilde{\bm{q}},0}\nonumber \\
+ & +\sqrt{\frac{MN_{s}}{N_{m}}}\sum_{\alpha=2}^{N}\sum_{n=1}^{(N-1)N_{m}}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha1}[V_{\tilde{\bm{q}}}]_{d_{\alpha}+(N-1)N_{m},n}\beta_{\tilde{\bm{k}},n}+[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{1\alpha}[V_{\tilde{\bm{q}}}]_{d_{\alpha},n}\beta_{\tilde{\bm{q}},n}\big)\nonumber \\
+ & +\langle0|\sum_{\tilde{\bm{k}}}\sum_{\alpha,\beta=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha\beta}-[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\alpha\beta}\big)\tilde{b}_{\tilde{\bm{k}}-\tilde{\bm{q}}\bm{d}\alpha}^{\dagger}\tilde{b}_{\tilde{\bm{k}},\bm{d}\beta}\bigg]
+\end{align}
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align}
+\hat{T}_{-\bm{q}}^{\nu}|0\rangle & \approx\frac{1}{\sqrt{N_{s}}}\sum_{\bm{d}}e^{i\bm{q}\cdot\bm{d}}\bigg[\frac{MN_{s}}{N_{m}}[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\tilde{\bm{q}},0}\nonumber \\
+ & +\sqrt{\frac{MN_{s}}{N_{m}}}\sum_{\alpha=2}^{N}\sum_{n=1}^{(N-1)N_{m}}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{\alpha1}[V_{\tilde{\bm{q}}}]_{d_{\alpha},n}^{*}\beta_{\tilde{\bm{q}},n}^{\dagger}+[\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{1\alpha}[V_{\tilde{\bm{q}}}]_{d_{\alpha}+(N-1)N_{m},n}^{*}\beta_{\tilde{\bm{q}},n}^{\dagger}\big)\nonumber \\
+ & +\sum_{\tilde{\bm{k}}}\sum_{\alpha,\beta=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{\alpha\beta}-[\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{11}\delta_{\alpha\beta}\big)\tilde{b}_{\tilde{\bm{k}}+\tilde{\bm{q}}\bm{d}\alpha}^{\dagger}\tilde{b}_{\tilde{\bm{k}},\bm{d}\beta}
+\end{align}
+
+\end_inset
+
+Furthermore (keeping contributions up to the 
+\begin_inset Formula $1/M$
+\end_inset
+
+ order),
+\begin_inset Formula 
+\begin{equation}
+\langle0|\hat{T}_{\bm{q}}^{\mu}|n\neq0\rangle\approx\sqrt{\frac{M}{N_{m}}}\sum_{\bm{d}}e^{-i\bm{q}\cdot\bm{d}}\sum_{\alpha=2}^{N}\sum_{n=1}^{(N-1)N_{m}}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha1}[V_{\tilde{\bm{q}}}]_{d_{\alpha}+(N-1)N_{m},n}+[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{1\alpha}[V_{\tilde{\bm{q}}}]_{d_{\alpha},n}\big)
+\end{equation}
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{equation}
+\langle0|\hat{T}_{\bm{q}}^{\mu}|0\rangle\approx\sqrt{N_{s}}\sum_{\bm{d}}e^{-i\bm{q}\cdot\bm{d}}\bigg[\frac{M}{N_{m}}[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\tilde{\bm{q}},0}+\frac{1}{N_{m}}\frac{1}{N_{u}}\sum_{\tilde{\bm{k}}}\sum_{\alpha,\beta=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha\beta}-[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\alpha\beta}\big)\tilde{b}_{\tilde{\bm{k}}-\tilde{\bm{q}}\bm{d}\alpha}^{\dagger}\tilde{b}_{\tilde{\bm{k}},\bm{d}\beta}\bigg],
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $N_{u}=N_{s}/N_{m}$
+\end_inset
+
+.
+ In summary, 
+\begin_inset Formula 
+\begin{align}
+\mathcal{S}_{\text{ssf}}^{\mu\nu} & (\bm{q},\omega)=\langle0|\hat{T}_{\bm{q}}^{\mu}|0\rangle\langle0|\hat{T}_{\bm{-q}}^{\nu}|0\rangle\delta(\omega),\nonumber \\
+ & \approx N_{s}\delta_{\tilde{\bm{q}},0}\delta(\omega)\bigg(\frac{1}{N_{m}}\sum_{\bm{d}}e^{-i\bm{q}\cdot\bm{d}}\bigg[M[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}+\delta\tilde{T}_{\bm{d}}^{\mu}\bigg]\bigg)\nonumber \\
+ & \times\bigg(\frac{1}{N_{m}}\sum_{\bm{d}}e^{i\bm{q}\cdot\bm{d}}\bigg[M[\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{11}+\delta\tilde{T}_{\bm{d}}^{\nu}\bigg]\bigg)
+\end{align}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{align}
+\delta T_{\bm{d}}^{\mu} & =\frac{1}{N_{u}}\sum_{\tilde{\bm{k}}}\sum_{\alpha,\beta=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha\beta}-[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\alpha\beta}\big)\langle0|\tilde{b}_{\tilde{\bm{k}},\bm{d}\alpha}^{\dagger}\tilde{b}_{\tilde{\bm{k}},\bm{d}\beta}|0\rangle\bigg],\nonumber \\
+ & =\frac{1}{N_{u}}\sum_{\tilde{\bm{k}}}\sum_{\alpha,\beta=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha\beta}-[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\alpha\beta}\big)\sum_{n=1}^{(N-1)N_{m}}[V_{\tilde{\bm{k}}}]_{d_{\alpha},n+(N-1)N_{m}}^{*}[V_{\tilde{\bm{k}}}]_{d_{\beta},n+(N-1)N_{m}},
+\end{align}
+
+\end_inset
+
+and
+\begin_inset Formula 
+\begin{align}
+\mathcal{S}_{\text{dssf}}^{\mu\nu}(\bm{q},\omega) & =\frac{M}{N_{m}}\bigg(\sum_{\bm{d}}\sum_{\alpha=2}^{N}\sum_{n=1}^{(N-1)N_{m}}e^{-i\bm{q}\cdot\bm{d}}\big[[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha1}[V_{\tilde{\bm{q}}}]_{d_{\alpha}+(N-1)N_{m},n}+[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{1\alpha}[V_{\tilde{\bm{q}}}]_{d_{\alpha},n}\big]\bigg)\nonumber \\
+ & \times\bigg(\sum_{\bm{d}}\sum_{\alpha=2}^{N}\sum_{n=1}^{(N-1)N_{m}}e^{i\bm{q}\cdot\bm{d}}\big[[\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{\alpha1}[V_{\tilde{\bm{q}}}]_{d_{\alpha},n}^{*}+[\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{1\alpha}[V_{\tilde{\bm{q}}}]_{d_{\alpha}+(N-1)N_{m},n}^{*}\big]\bigg)\delta(\omega-\omega_{\tilde{\bm{q}},n})
+\end{align}
+
+\end_inset
+
+We note that the diagonal part 
+\begin_inset Formula $\mu\mu$
+\end_inset
+
+ is pure real, the sum of the off-diagonal part 
+\begin_inset Formula $\mu\nu+\nu\mu$
+\end_inset
+
+ is also pure real, but the difference of the off-diagonal part 
+\begin_inset Formula $\mu\nu-\nu\mu$
+\end_inset
+
+ is pure imaginary.
+ Moreover, 
+\begin_inset Formula $\delta T_{\bm{d}}^{\mu}$
+\end_inset
+
+ is pure real
+\begin_inset Formula 
+\begin{align}
+(\delta T_{\bm{d}}^{\mu})^{*} & =\frac{1}{N_{u}}\sum_{\tilde{\bm{k}}}\sum_{n=1}^{(N-1)N_{m}}\sum_{\alpha,\beta=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha\beta}^{*}-[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}^{*}\delta_{\alpha\beta}\big)[V_{\tilde{\bm{k}}}]_{d_{\beta},n+(N-1)N_{m}}^{*}[V_{\tilde{\bm{k}}}]_{d_{\alpha},n+(N-1)N_{m}}\nonumber \\
+ & =\frac{1}{N_{u}}\sum_{\tilde{\bm{k}}}\sum_{n=1}^{(N-1)N_{m}}\sum_{\alpha,\beta=2}^{N}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\beta\alpha}-[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}\delta_{\beta\alpha}\big)[V_{\tilde{\bm{k}}}]_{d_{\beta},n+(N-1)N_{m}}^{*}[V_{\tilde{\bm{k}}}]_{d_{\alpha},n+(N-1)N_{m}}\nonumber \\
+ & =\delta T_{\bm{d}}^{\mu},
+\end{align}
+
+\end_inset
+
+where we have used the fact that 
+\begin_inset Formula $\hat{T}^{\mu}$
+\end_inset
+
+ is hermitian (
+\begin_inset Formula $[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{11}$
+\end_inset
+
+ is pure real) that 
+\begin_inset Formula $\alpha,\beta$
+\end_inset
+
+ are dummy indices.
+\end_layout
+
+\begin_layout Section
+Cubic Hamiltonian
+\end_layout
+
+\begin_layout Standard
+The cubic Hamiltonian is written as
+\begin_inset Formula 
+\begin{align}
+\hat{\mathcal{H}}^{(3)} & =\sqrt{M}\sum_{\langle i,j\rangle}\bigg\{\sum_{m,n=2}^{N}\bigg(V_{(3,1)}^{m}(i,j)\tilde{b}_{j,n}^{\dagger}\tilde{b}_{j,n}\tilde{b}_{j,m}+V_{(3,1)}^{m}(j,i)\tilde{b}_{i,n}^{\dagger}\tilde{b}_{i,n}\tilde{b}_{i,m}+h.c.\bigg)\nonumber \\
+ & +\sum_{m,n,l=2}^{N}\bigg(V_{(3,2)}^{lmn}(i,j)\tilde{b}_{j,m}^{\dagger}\tilde{b}_{j,n}\tilde{b}_{i,l}+V_{(3,2)}^{lmn}(j,i)\tilde{b}_{i,m}^{\dagger}\tilde{b}_{i,n}\tilde{b}_{j,l}+h.c.\bigg)\bigg\}\nonumber \\
+ & -\frac{1}{2\sqrt{M}}\sum_{i}\sum_{\mu=1}^{N^{2}-2}\mathcal{D}_{\mu}\sum_{m,n=2}^{N}\bigg([\tilde{\mathcal{T}}_{i}^{\mu}]_{1m}\tilde{b}_{i,n}^{\dagger}\tilde{b}_{i,n}\tilde{b}_{i,m}+h.c.\bigg),
+\end{align}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{equation}
+V_{(3,1)}^{m}(i,j)=-\frac{1}{2}[\tilde{\mathcal{T}}_{i}^{\mu}]_{11}\mathcal{J}_{ij}^{\mu\nu}[\tilde{\mathcal{T}}_{j}^{\nu}]_{1m},\quad V_{(3,2)}^{lmn}=[\tilde{\mathcal{T}}_{i}]_{1l}\mathcal{J}_{ij}^{\mu\nu}\big([\tilde{\mathcal{T}}_{j}^{\nu}]_{mn}-\delta_{mn}[\tilde{\mathcal{T}}_{j}^{\nu}]_{11}\big).
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Again (assuming translation symmetry and) applying Fourier transforms Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:fourier1"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and 
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:fourier2"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, we have (In this section, we drop the tilde for wave vectors in the magnetic
+ Brillouin zone for notation simplicity and introduce the notation 
+\begin_inset Formula $\bar{\bm{q}}=-\bm{q}$
+\end_inset
+
+)
+\begin_inset Formula 
+\begin{equation}
+\mathcal{H}^{(3)}=\frac{1}{\sqrt{N_{u}}}\sum_{\bm{q}_{a}\in MBZ}\sum_{\alpha_{a}}\sum_{\sigma_{a}\neq1}\delta\big(\sum_{a=1}^{3}\bm{q}_{a}\big)V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\tilde{b}_{\bar{\bm{q}}_{1}\alpha_{1}\sigma_{1}}^{\dagger}\tilde{b}_{\bm{q}_{2}\alpha_{2}\sigma_{2}}\tilde{b}_{\bm{q}_{3}\alpha_{3}\sigma_{3}}+h.c.,
+\end{equation}
+
+\end_inset
+
+with
+\begin_inset Formula 
+\begin{equation}
+V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})=\sum_{\langle i,j\rangle'}\tilde{V}_{\langle i,j\rangle'}(1,2,3)+\sum_{\alpha}\tilde{V}_{\alpha}(1,2,3),
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\sum_{\langle i,j\rangle'}$
+\end_inset
+
+ sums over translationally inequivalent bonds (culled bonds given by Sunny),
+ 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ is the sublattice index (in the magnetic unit cell), and 
+\begin_inset Formula $\sigma$
+\end_inset
+
+ is the Schwinger boson flavor index (Recall that 
+\begin_inset Formula $\sigma\neq1$
+\end_inset
+
+ because the 
+\begin_inset Quotes eld
+\end_inset
+
+
+\begin_inset Formula $1$
+\end_inset
+
+
+\begin_inset Quotes erd
+\end_inset
+
+ is chosen to be condensed).
+ The first term includes the bond contributions to the cubic vertex that
+ arises from the exchange interactions.
+ The corresponding vertex function is 
+\begin_inset Formula 
+\begin{align}
+\tilde{V}_{\langle i,j\rangle'}(1,2,3) & =\sqrt{M}\bigg[V_{(3,1)}^{\sigma_{3}}(\alpha_{i},\bm{\delta}_{\langle i,j\rangle})\delta_{\alpha_{1}\alpha_{j}}\delta_{\alpha_{2}\alpha_{j}}\delta_{\alpha_{3}\alpha_{j}}\delta_{\sigma_{1}\sigma_{2}}\nonumber \\
+ & +V_{(3,1)}^{\sigma_{3}}(\alpha_{i},\bar{\bm{\delta}}_{\langle i,j\rangle})\delta_{\alpha_{1}\alpha_{i}}\delta_{\alpha_{2}\alpha_{i}}\delta_{\alpha_{3}\alpha_{i}}\delta_{\sigma_{1}\sigma_{2}}\nonumber \\
+ & +V_{(3,2)}^{\sigma_{3}\sigma_{1}\sigma_{2}}(\alpha_{i},\bm{\delta}_{\langle i,j\rangle})e^{-i\bm{q}_{3}\cdot\bm{\delta}_{ij}}\delta_{\alpha_{1}\alpha_{j}}\delta_{\alpha_{2}\alpha_{j}}\delta_{\alpha_{3}\alpha_{i}}\nonumber \\
+ & +V_{(3,2)}^{\sigma_{3}\sigma_{1}\sigma_{2}}(\alpha_{i},\bar{\bm{\delta}}_{\langle i,j\rangle})e^{i\bm{q}_{3}\cdot\bm{\delta}_{ij}}\delta_{\alpha_{1}\alpha_{i}}\delta_{\alpha_{2}\alpha_{i}}\delta_{\alpha_{3}\alpha_{j}},
+\end{align}
+
+\end_inset
+
+and
+\begin_inset Formula 
+\begin{equation}
+\tilde{V}_{\alpha}(1,2,3)=\frac{1}{2\sqrt{M}}\sum_{\mu}\mathcal{D}_{\mu}[\tilde{\mathcal{T}}_{i}^{\mu}]_{1\sigma_{3}}\delta_{\alpha_{1}\alpha}\delta_{\alpha_{2}\alpha}\delta_{\alpha_{3}\alpha}\delta_{\sigma_{1}\sigma_{2}}.
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Then we write the vertex functions in the quasi-particle basis by applying
+ the Bogoliubov transforms Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:bk1"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+-
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:bk4"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+ [The useful formula to transform the combined index of sublattice and flavor
+ to a linear index: 
+\begin_inset Formula $(\alpha,\sigma)=(\alpha-1)(N-1)+\sigma-1$
+\end_inset
+
+].
+ 
+\begin_inset Formula 
+\begin{align}
+\tilde{b}_{\bar{\bm{q}}_{1}\alpha_{1}\sigma_{1}}^{\dagger}\tilde{b}_{\bm{q}_{2}\alpha_{2}\sigma_{2}}\tilde{b}_{\bm{q}_{3}\alpha_{3}\sigma_{3}} & =\sum_{n_{1}n_{2}n_{3}=1}^{(N-1)N_{m}}\big[V_{\bm{q}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\bm{q}_{1},n_{1}}\beta_{\bm{q}_{2},n_{2}}\beta_{\bm{q}_{3},n_{3}}\nonumber \\
+ & +\big[\big[V_{\bm{q}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\bm{q}_{1},n_{1}}\beta_{\bar{\bm{q}}_{2},n_{2}}^{\dagger}\beta_{\bm{q}_{3},n_{3}}\nonumber \\
+ & +\big[V_{\bm{q}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\bm{q}_{1},n_{1}}\beta_{\bm{q}_{2},n_{2}}\beta_{\bar{\bm{q}}_{3},n_{3}}^{\dagger}\nonumber \\
+ & +\big[V_{\bm{q}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\bm{q}_{1},n_{1}}\beta_{\bar{\bm{q}}_{2},n_{2}}^{\dagger}\beta_{\bar{\bm{q}}_{3},n_{3}}^{\dagger}\nonumber \\
+ & +\big[V_{\bm{q}_{1}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\bar{\bm{q}}_{1},n_{1}}^{\dagger}\beta_{\bm{q}_{2},n_{2}}\beta_{\bm{q}_{3},n_{3}}\nonumber \\
+ & +\big[V_{\bm{q}_{1}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\bar{\bm{q}}_{1},n_{1}}^{\dagger}\beta_{\bar{\bm{q}}_{2},n_{2}}^{\dagger}\beta_{\bm{q}_{3},n_{3}}\nonumber \\
+ & +\big[V_{\bm{q}_{1}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\bar{\bm{q}}_{1},n_{1}}^{\dagger}\beta_{\bm{q}_{2},n_{2}}\beta_{\bar{\bm{q}}_{3},n_{3}}^{\dagger}\nonumber \\
+ & +\big[V_{\bm{q}_{1}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\bar{\bm{q}}_{1},n_{1}}^{\dagger}\beta_{\bar{\bm{q}}_{2},n_{2}}^{\dagger}\beta_{\bar{\bm{q}}_{3},n_{3}}^{\dagger}.
+\end{align}
+
+\end_inset
+
+Here we write the matrix of eigenvectors 
+\begin_inset Formula $V_{\bm{k}}$
+\end_inset
+
+ into 
+\begin_inset Formula $2\times2$
+\end_inset
+
+ block form.
+ After putting the 
+\begin_inset Formula $\beta$
+\end_inset
+
+ operators in normal ordering, we have the cubic vertex the additional cubic-lin
+ear vertex (see appendix for details of the calculation)
+\begin_inset Formula 
+\begin{align}
+ & V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\tilde{b}_{\bar{\bm{q}}_{1}\alpha_{1}\sigma_{1}}^{\dagger}\tilde{b}_{\bm{q}_{2}\alpha_{2}\sigma_{2}}\tilde{b}_{\bm{q}_{3}\alpha_{3}\sigma_{3}}+h.c.\nonumber \\
+ & =\sum_{\{n_{i}\}}\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,1)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\beta_{\bar{\bm{q}}_{1},n_{1}}^{\dagger}\beta_{\bm{q}_{2},n_{2}}\beta_{\bm{q}_{3},n_{3}}+\sum_{\{n_{i}\}}\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,2)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\beta_{\bar{\bm{q}}_{1},n_{1}}^{\dagger}\beta_{\bar{\bm{q}}_{2},n_{2}}^{\dagger}\beta_{\bar{\bm{q}}_{3},n_{3}}^{\dagger}+h.c.\nonumber \\
+ & +\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,3)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\beta_{\tilde{\bm{q}}_{3},n_{3}}+h.c.,
+\end{align}
+
+\end_inset
+
+where
+\begin_inset Note Comment
+status collapsed
+
+\begin_layout Plain Layout
+\begin_inset Formula 
+\begin{align}
+\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,1)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3}) & =\sum_{\{\alpha_{i},\sigma_{i}\}}V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\nonumber \\
+ & +V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{3},\bm{q}_{2},\bm{q}_{1})\big[V_{\bm{q}_{3}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{1}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}\nonumber \\
+ & +V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{2},\bm{q}_{1},\bm{q}_{3})\big[V_{\bm{q}_{2}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{2}}\big[V_{\bm{q}_{1}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{1}}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{1},\bar{\bm{q}}_{2},\bar{\bm{q}}_{3})\big]^{*}\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\bar{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\bar{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{3},\bar{\bm{q}}_{2},\bar{\bm{q}}_{1})\big]^{*}\big[V_{\bar{\bm{q}}_{3}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}^{*}\big[V_{\bar{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\bar{\bm{q}}_{1}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}^{*}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{2},\bar{\bm{q}}_{1},\bar{\bm{q}}_{3})\big]^{*}\big[V_{\bar{\bm{q}}_{2}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{2}}^{*}\big[V_{\bar{\bm{q}}_{1}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{1}}^{*}\big[V_{\bar{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*},
+\end{align}
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align}
+\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,1)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3}) & =\sum_{\{\alpha_{i},\sigma_{i}\}}V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\nonumber \\
+ & +V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{3},\bm{q}_{2},\bm{q}_{1})\big[V_{\bm{q}_{3}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}^{*}\nonumber \\
+ & +V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{2},\bm{q}_{1},\bm{q}_{3})\big[V_{\bm{q}_{2}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{2}}\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{2},\sigma_{2}),n_{1}}^{*}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{1},\bar{\bm{q}}_{2},\bar{\bm{q}}_{3})\big]^{*}\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\bm{q}_{2}}^{21}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{21}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{3},\bar{\bm{q}}_{2},\bar{\bm{q}}_{1})\big]^{*}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}\big[V_{\bm{q}_{2}}^{21}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bar{\bm{q}}_{1}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}^{*}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{2},\bar{\bm{q}}_{1},\bar{\bm{q}}_{3})\big]^{*}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{1},\sigma_{1}),n_{2}}\big[V_{\bar{\bm{q}}_{1}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{1}}^{*}\big[V_{\bm{q}_{3}}^{21}\big]_{(\alpha_{3},\sigma_{3}),n_{3}},
+\end{align}
+
+\end_inset
+
+and
+\begin_inset Note Comment
+status collapsed
+
+\begin_layout Plain Layout
+\begin_inset Formula 
+\begin{align}
+\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,2)} & =\sum_{\{\alpha_{i},\sigma_{i}\}}V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\big[V_{\bm{q}_{1}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{3},\bar{\bm{q}}_{2},\bar{\bm{q}}_{1})\big]^{*}\big[V_{\bar{\bm{q}}_{3}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}^{*}\big[V_{\bar{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\bar{\bm{q}}_{1}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}^{*},
+\end{align}
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align}
+\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,2)} & =\sum_{\{\alpha_{i},\sigma_{i}\}}V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\big[V_{\bar{\bm{q}}_{1}}^{11}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\bar{\bm{q}}_{2}}^{21}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\bar{\bm{q}}_{3}}^{21}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{3},\bar{\bm{q}}_{2},\bar{\bm{q}}_{1})\big]^{*}\big[V_{\bar{\bm{q}}_{3}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}^{*}\big[V_{\bar{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\bar{\bm{q}}_{1}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}^{*},
+\end{align}
+
+\end_inset
+
+and
+\begin_inset Note Comment
+status collapsed
+
+\begin_layout Plain Layout
+\begin_inset Formula 
+\begin{align}
+\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,3)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3}) & =\sum_{\{\alpha_{i},\sigma_{i}\}}\bigg\{ V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{3},\bm{q}_{2},\bm{q}_{1})\big[V_{\bm{q}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\nonumber \\
+ & +V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{3},\bm{q}_{2},\bm{q}_{1})\big[V_{\bm{q}_{3}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{1}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}\nonumber \\
+ & +V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{1},\bm{q}_{3},\bm{q}_{2})\big[V_{\bm{q}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{3}}\big[V_{\bm{q}_{2}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{2}}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{1},\bar{\bm{q}}_{2},\bar{\bm{q}}_{3})\big]^{*}\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\bar{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\bar{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{1},\bar{\bm{q}}_{3},\bar{\bm{q}}_{2})\big]^{*}\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\bar{\bm{q}}_{3}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{3}}^{*}\big[V_{\bar{\bm{q}}_{2}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{2}}^{*}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{3},\bar{\bm{q}}_{2},\bar{\bm{q}}_{1})\big]^{*}\big[V_{\bar{\bm{q}}_{3}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}^{*}\big[V_{\bar{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\bar{\bm{q}}_{1}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}^{*}\bigg\}\nonumber \\
+ & \delta_{\bm{q}_{2}+\bm{q}_{1}}\delta_{n_{2}n_{1}}\beta_{\bm{q}_{3},n_{3}}.
+\end{align}
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align}
+\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,3)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3}) & =\sum_{\{\alpha_{i},\sigma_{i}\}}\bigg\{ V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{3},\bm{q}_{2},\bm{q}_{1})\big[V_{\bm{q}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bar{\bm{q}}_{2}}^{21}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\nonumber \\
+ & +V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{3},\bm{q}_{2},\bm{q}_{1})\big[V_{\bm{q}_{3}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}\big[V_{\bm{q}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}^{*}\nonumber \\
+ & +V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bm{q}_{1},\bm{q}_{3},\bm{q}_{2})\big[V_{\bm{q}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{3}}\big[V_{\bar{\bm{q}}_{2}}^{21}\big]_{(\alpha_{3},\sigma_{3}),n_{2}}^{*}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{1},\bar{\bm{q}}_{2},\bar{\bm{q}}_{3})\big]^{*}\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\bm{q}_{2}}^{21}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\bm{q}_{3}}^{21}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{1},\bar{\bm{q}}_{3},\bar{\bm{q}}_{2})\big]^{*}\big[V_{\bar{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\bm{q}_{3}}^{21}\big]_{(\alpha_{2},\sigma_{2}),n_{3}}\big[V_{\bm{q}_{2}}^{21}\big]_{(\alpha_{3},\sigma_{3}),n_{2}}\nonumber \\
+ & +\big[V_{\alpha_{1}\alpha_{2}\alpha_{3}}^{\sigma_{1}\sigma_{2}\sigma_{3}}(\bar{\bm{q}}_{3},\bar{\bm{q}}_{2},\bar{\bm{q}}_{1})\big]^{*}\big[V_{\bm{q}_{3}}^{11}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}\big[V_{\bar{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\bm{q}_{1}}^{21}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}\bigg\}\nonumber \\
+ & \delta_{\bm{q}_{2}+\bm{q}_{1}}\delta_{n_{2}n_{1}}\beta_{\bm{q}_{3},n_{3}}.
+\end{align}
+
+\end_inset
+
+The final expression for the cubic interction is obtained after symmetrization
+ of the vertex:
+\begin_inset Formula 
+\begin{align}
+\hat{\mathcal{H}}^{(3)} & =\frac{1}{\sqrt{N_{u}}}\sum_{\bm{q}_{a}\in MBZ}\sum_{\alpha_{a}}\sum_{\sigma_{a}\neq1}\delta(\sum_{\bm{a}}\bm{q}_{a})\bigg[\frac{1}{2!}V_{n_{1}n_{2}n_{3}}^{(3,S1)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\beta_{\bar{\bm{q}}_{1},n_{1}}^{\dagger}\beta_{\bm{q}_{2},n_{2}}\beta_{\bm{q}_{3},n_{3}}\\
+ & +\frac{1}{3!}V_{n_{1}n_{2}n_{3}}^{(3,S2)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\beta_{\bar{\bm{q}}_{1},n_{1}}^{\dagger}\beta_{\bar{\bm{q}}_{2},n_{2}}^{\dagger}\beta_{\bar{\bm{q}}_{3},n_{3}}^{\dagger}+V_{n_{1}n_{2}n_{3}}^{(3,S3)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})\beta_{\bm{q}_{3},n_{3}}\bigg]+h.c.,
+\end{align}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{equation}
+V_{n_{1}n_{2}n_{3}}^{(3,S1)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})=\sum_{P(2,3)}\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,1)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})
+\end{equation}
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{equation}
+V_{n_{1}n_{2}n_{3}}^{(S2)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})=\sum_{P(1,2,3)}\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,2)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})
+\end{equation}
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{equation}
+V_{n_{1}n_{2}n_{3}}^{(S3)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3})=\sum_{P(2,3)}\tilde{V}_{n_{1}n_{2}n_{3}}^{(3,3)}(\bm{q}_{1},\bm{q}_{2},\bm{q}_{3}),
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $P(1,2)$
+\end_inset
+
+ denotes the permutation of 
+\begin_inset Formula $(\bm{q}_{1},n_{1})$
+\end_inset
+
+ and 
+\begin_inset Formula $(\bm{q}_{2},n_{2})$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Section
+Quartic Contribution
+\end_layout
+
+\begin_layout Standard
+The quartic Hamiltonian is written as
+\begin_inset Formula 
+\begin{align}
+\mathcal{H}^{(4)} & =\sum_{\langle i,j\rangle}\big[V_{(4,1)}^{\sigma_{1}\sigma_{2}\sigma_{3}\sigma_{4}}\tilde{b}_{i\sigma_{1}}^{\dagger}\tilde{b}_{i\sigma_{2}}\tilde{b}_{j\sigma_{3}}^{\dagger}\tilde{b}_{j\sigma_{4}}+(V_{(4,2)}^{\sigma_{1}\sigma_{2}\sigma_{3}}\tilde{b}_{i\sigma_{1}}\tilde{b}_{j\sigma_{2}}^{\dagger}\tilde{b}_{j\sigma_{2}}\tilde{b}_{j\sigma_{3}}+h.c.)\nonumber \\
+ & +(V_{(4,3)}^{\sigma_{1}\sigma_{2}\sigma_{3}}\tilde{b}_{i\sigma_{1}}^{\dagger}\tilde{b}_{j\sigma_{2}}^{\dagger}\tilde{b}_{j\sigma_{2}}\tilde{b}_{j\sigma_{3}}+h.c.)\big]\label{eq:quarticHam}
+\end{align}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{align}
+V_{(4,1)}^{\sigma_{1}\sigma_{2}\sigma_{3}\sigma_{4}} & =\mathcal{J}_{ij}^{\mu\nu}\big([\tilde{\mathcal{T}}_{i}^{\mu}]_{\sigma_{1}\sigma_{2}}-\delta_{\sigma_{1}\sigma_{2}}[\tilde{\mathcal{T}}_{i}^{\mu}]_{11}\big)\big([\tilde{\mathcal{T}}_{j}^{\nu}]_{\sigma_{3}\sigma_{4}}-\delta_{\sigma_{3}\sigma_{4}}[\tilde{\mathcal{T}}_{j}^{\nu}]_{11}\big)\\
+V_{(4,2)}^{\sigma_{1}\sigma_{2}\sigma_{3}} & =\mathcal{J}_{ij}^{\mu\nu}[\tilde{\mathcal{T}}_{i}^{\mu}]_{\sigma_{1}1}[\tilde{\mathcal{T}}_{j}^{\nu}]_{1\sigma_{3}}\\
+V_{(4,3)}^{\sigma_{1}\sigma_{2}\sigma_{3}} & =\mathcal{J}_{ij}^{\mu\nu}[\tilde{\mathcal{T}}_{i}^{\mu}]_{1\sigma_{1}}[\tilde{\mathcal{T}}_{j}^{\nu}]_{1\sigma_{3}}.
+\end{align}
+
+\end_inset
+
+To deal with these quartic terms, we will perform the 
+\emph on
+Hartree-Fock-like
+\emph default
+ mean-field decouplings
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+~
+\backslash
+footnote{The decouplings are not self-consistent so they are not rigorously
+ speaking Hartree-Fock.}
+\end_layout
+
+\end_inset
+
+ by introducing the following mean-field parameters (that are quadratic
+ in H-P bosons)
+\begin_inset Formula 
+\begin{align}
+N_{(\alpha_{1},\sigma_{1}),(\alpha_{2},\sigma_{2})} & (\bm{\delta}_{12})\equiv\frac{1}{N_{u}}\sum_{\langle i,j\rangle}\langle\tilde{b}_{i,(\alpha_{1}\sigma_{1})}^{\dagger}\tilde{b}_{j,(\alpha_{2},\sigma_{2})}\rangle_{0}\nonumber \\
+ & =\frac{1}{N_{u}}\sum_{\tilde{\bm{q}}\in BZ}\sum_{n}[V_{\tilde{\bm{q}}}^{21}]_{(\alpha_{1}\sigma_{1}),n}[V_{\tilde{\bm{q}}}^{21}]_{(\alpha_{2}\sigma_{2}),n}^{*}e^{i\bm{q}\cdot\bm{\delta}_{12}}
+\end{align}
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align}
+\Delta_{(\alpha_{1},\sigma_{1}),(\alpha_{2},\sigma_{2})} & (\bm{\delta}_{12})\equiv\frac{1}{N_{u}}\sum_{\langle i,j\rangle}\langle\tilde{b}_{i,(\alpha_{1}\sigma_{1})}\tilde{b}_{j,(\alpha_{2},\sigma_{2})}\rangle_{0}\nonumber \\
+ & =\frac{1}{N_{u}}\sum_{\tilde{\bm{q}}\in BZ}\sum_{n}[V_{\tilde{\bm{q}}}^{11}]_{(\alpha_{1}\sigma_{1}),n}[V_{\tilde{\bm{q}}}^{21}]_{(\alpha_{2}\sigma_{2}),n}^{*}e^{i\bm{q}\cdot\bm{\delta}_{12}},
+\end{align}
+
+\end_inset
+
+where 
+\begin_inset Formula $\langle\ldots\rangle_{0}$
+\end_inset
+
+ denotes the
+\emph on
+ bare-vacuum
+\emph default
+ of Bogoliubov particles (LSWT).
+ By applying the Wick's theorem, we obtain the decouplings for the three
+ quartic terms
+\begin_inset Formula 
+\begin{align}
+\tilde{b}_{i\alpha_{1}\sigma_{1}}^{\dagger}\tilde{b}_{i\alpha_{1}\sigma_{2}}\tilde{b}_{j\alpha_{2}\sigma_{3}}^{\dagger}\tilde{b}_{j\alpha_{2}\sigma_{4}} & \simeq N_{(\alpha_{1},\sigma_{1})(\alpha_{1},\sigma_{2})}(\bm{0})\tilde{b}_{j\alpha_{2}\sigma_{3}}^{\dagger}\tilde{b}_{j\alpha_{2}\sigma_{4}}+N_{(\alpha_{2},\sigma_{3})(\alpha_{2},\sigma_{4})}(\bm{0})\tilde{b}_{i\alpha_{1}\sigma_{1}}^{\dagger}\tilde{b}_{i\alpha_{1}\sigma_{2}}\nonumber \\
+ & +\Delta_{(\alpha_{1},\sigma_{1})(\alpha_{2},\sigma_{3})}^{*}(\bm{\delta}_{ij})\tilde{b}_{i\alpha_{1}\sigma_{2}}\tilde{b}_{j\alpha_{2}\sigma_{4}}+\Delta_{(\alpha_{1},\sigma_{2})(\alpha_{2},\sigma_{4})}(\bm{\delta}_{ij})\tilde{b}_{i\alpha_{1}\sigma_{1}}^{\dagger}\tilde{b}_{j\alpha_{2}\sigma_{3}}^{\dagger}\nonumber \\
+ & +N_{(\alpha_{1},\sigma_{1})(\alpha_{2},\sigma_{4})}(\bm{\delta}_{ij})\tilde{b}_{i\alpha_{1}\sigma_{2}}\tilde{b}_{j\alpha_{2}\sigma_{3}}^{\dagger}+N_{(\alpha_{1},\sigma_{2})(\alpha_{2},\sigma_{3})}^{*}(\bm{\delta}_{ij})\tilde{b}_{i\alpha_{1}\sigma_{1}}^{\dagger}\tilde{b}_{j\alpha_{2}\sigma_{4}},\label{eq:quartic1}
+\end{align}
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align}
+\tilde{b}_{i\sigma_{1}}\tilde{b}_{j\sigma_{2}}^{\dagger}\tilde{b}_{j\sigma_{2}}\tilde{b}_{j\sigma_{3}} & \simeq N_{(\alpha_{1},\sigma_{1})(\alpha_{2},\sigma_{2})}^{*}(\bm{\delta}_{ij})\tilde{b}_{j\sigma_{2}}\tilde{b}_{j\sigma_{3}}+\Delta_{(\alpha_{2},\sigma_{2}),(\alpha_{2},\sigma_{3})}(\bm{0})\tilde{b}_{i\sigma_{1}}\tilde{b}_{j\sigma_{2}}^{\dagger}\nonumber \\
+ & +\Delta_{(\alpha_{1},\sigma_{1}),(\alpha_{2},\sigma_{2})}(\bm{\delta}_{ij})\tilde{b}_{j\sigma_{2}}^{\dagger}\tilde{b}_{j\sigma_{3}}+N_{(\alpha_{2},\sigma_{2})(\alpha_{2},\sigma_{3})}(\bm{0})\tilde{b}_{i\sigma_{1}}\tilde{b}_{j\sigma_{2}}\nonumber \\
+ & +\Delta_{(\alpha_{1},\sigma_{1}),(\alpha_{2},\sigma_{3})}(\bm{\delta}_{ij})\tilde{b}_{j\sigma_{2}}^{\dagger}\tilde{b}_{j\sigma_{2}}+N_{(\alpha_{2},\sigma_{2})(\alpha_{2},\sigma_{2})}(\bm{0})\tilde{b}_{i\sigma_{1}}\tilde{b}_{j\sigma_{3}},
+\end{align}
+
+\end_inset
+
+and
+\begin_inset Formula 
+\begin{align}
+\tilde{b}_{i\sigma_{1}}^{\dagger}\tilde{b}_{j\sigma_{2}}^{\dagger}\tilde{b}_{j\sigma_{2}}\tilde{b}_{j\sigma_{3}} & \simeq\Delta_{(\alpha_{1},\sigma_{1}),(\alpha_{2},\sigma_{2})}^{*}(\bm{\delta}_{ij})\tilde{b}_{j\sigma_{2}}\tilde{b}_{j\sigma_{3}}+\Delta_{(\alpha_{2},\sigma_{2}),(\alpha_{2},\sigma_{3})}\tilde{b}_{i\sigma_{1}}^{\dagger}\tilde{b}_{j\sigma_{2}}^{\dagger}\nonumber \\
+ & +N_{(\alpha_{1},\sigma_{1}),(\alpha_{2},\sigma_{2})}(\bm{\delta}_{ij})\tilde{b}_{j\sigma_{2}}^{\dagger}\tilde{b}_{j\sigma_{3}}+N_{(\alpha_{2},\sigma_{2})(\alpha_{2},\sigma_{3})}(\bm{0})\tilde{b}_{i\sigma_{1}}^{\dagger}\tilde{b}_{j\sigma_{2}}^{\dagger}\nonumber \\
+ & +N_{(\alpha_{1},\sigma_{1}),(\alpha_{2},\sigma_{3})}(\bm{\delta}_{ij})\tilde{b}_{j\sigma_{2}}^{\dagger}\tilde{b}_{j\sigma_{2}}+N_{(\alpha_{2},\sigma_{2})(\alpha_{2},\sigma_{2})}(\bm{0})\tilde{b}_{i\sigma_{1}}^{\dagger}\tilde{b}_{j\sigma_{3}}.\label{eq:quartic3}
+\end{align}
+
+\end_inset
+
+Our decoupling scheme simply leads to a renormalization of the quadratic
+ Hamiltonian:
+\begin_inset Formula 
+\begin{equation}
+\mathcal{H}^{(4)}\simeq\mathcal{H}_{NO}^{(2)}=\sum_{\bm{q}}\sum_{n,n'}\big[V_{nn'}^{(4,N)}(\bm{q})\beta_{\bm{q},n}^{\dagger}\beta_{\bm{q},n'}+(V_{nn'}^{(4,A)}(\bm{q})\beta_{\bar{\bm{q}},n}\beta_{\bm{q},n}+h.c.)\big].
+\end{equation}
+
+\end_inset
+
+Note that in presence of quantum fluctuations, the Bogoliubov particles
+ no-longer correspond to the eigenstates.
+ As a result, the quartic Hamiltonian after the normal ordering includes
+ both normal 
+\begin_inset Formula $V_{nn'}^{(4,N)}(\bm{q})$
+\end_inset
+
+ and anomalous 
+\begin_inset Formula $V_{nn'}^{(4,A)}(\bm{q})$
+\end_inset
+
+ contributions.
+ From the above derivation, we see that 
+\begin_inset Formula $\mathcal{H}_{NO}^{(2)}$
+\end_inset
+
+ is of order 
+\begin_inset Formula $M^{0}$
+\end_inset
+
+.
+ Therefore, only the diagonal normal contribution arising from the normal
+ vertex 
+\begin_inset Formula $V_{nn'}^{(4,N)}(\bm{q})\delta_{nn'}$
+\end_inset
+
+ gives a relative correction of 
+\begin_inset Formula $1/M$
+\end_inset
+
+ to the bare single-particle energy.
+\end_layout
+
+\begin_layout Standard
+The next step is to derive 
+\begin_inset Formula $V_{nn'}^{(4,N)}(\bm{q})\delta_{nn'}$
+\end_inset
+
+ .
+ Let us use the notation 
+\begin_inset Formula $f_{N}$
+\end_inset
+
+ to denote such contributions, we have:
+\begin_inset Formula 
+\begin{align}
+f_{N}(\tilde{b}_{i\alpha_{1}\sigma_{1}}^{\dagger}\tilde{b}_{j\alpha_{2}\sigma_{2}}) & =\sum_{n}\big[V_{\bm{q}}^{11}\big]_{(\alpha_{1},\sigma_{1}),n}^{*}\big[V_{\bm{q}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n}e^{i\bm{q}\cdot\bm{\delta}_{ij}}+\big[V_{\bar{\bm{q}}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n}^{*}\big[V_{\bar{\bm{q}}}^{21}\big]_{(\alpha_{2},\sigma_{2}),n}e^{-i\bm{q}\cdot\bm{\delta}_{ij}}\\
+f_{N}(\tilde{b}_{i\alpha_{1}\sigma_{1}}\tilde{b}_{j\alpha_{2}\sigma_{2}}) & =\sum_{n}\big[V_{\bar{\bm{q}}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n}\big[V_{\bm{q}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n}e^{i\tilde{\bm{q}}\cdot\bm{\delta}_{ij}}+\big[V_{\bar{\bm{q}}}^{11}\big]_{(\alpha_{1},\sigma_{1}),n}\big[V_{\bar{\bm{q}}}^{21}\big]_{(\alpha_{2},\sigma_{2}),n}^{*}e^{-i\bm{q}\cdot\bm{\delta}_{ij}}.
+\end{align}
+
+\end_inset
+
+We can then plug in the above results to Eq
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:quarticHam"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ and Eqs
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:quartic1"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+-
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:quartic3"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ to obtain the general expression for 
+\begin_inset Formula $V_{nn'}^{(4,N)}(\bm{q})\delta_{nn'}$
+\end_inset
+
+ .
+ We will let computer to perform this simple algebra.
+\end_layout
+
+\begin_layout Section
+One-Loop diagrams
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+appendix
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Normal ordering of the cubic vertex
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align}
+\tilde{b}_{\bar{\tilde{\bm{q}}}_{1}\alpha_{1}\sigma_{1}}^{\dagger}\tilde{b}_{\tilde{\bm{q}}_{2}\alpha_{2}\sigma_{2}}\tilde{b}_{\tilde{\bm{q}}_{3}\alpha_{3}\sigma_{3}} & =\sum_{n_{1}n_{2}n_{3}=1}^{(N-1)N_{m}}\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bm{q}}_{1},n_{1}}\beta_{\tilde{\bm{q}}_{2},n_{2}}\beta_{\tilde{\bm{q}}_{3},n_{3}}\nonumber \\
+ & +\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bm{q}}_{1},n_{1}}\beta_{\tilde{\bar{\bm{q}}}_{2},n_{2}}^{\dagger}\beta_{\tilde{\bm{q}}_{3},n_{3}}\nonumber \\
+ & +\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bm{q}}_{1},n_{1}}\beta_{\tilde{\bm{q}}_{2},n_{2}}\beta_{\tilde{\bar{\bm{q}}}_{3},n_{3}}^{\dagger}\nonumber \\
+ & +\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bm{q}}_{1},n_{1}}\beta_{\tilde{\bar{\bm{q}}}_{2},n_{2}}^{\dagger}\beta_{\tilde{\bar{\bm{q}}}_{3},n_{3}}^{\dagger}\nonumber \\
+ & +\big[V_{\tilde{\bm{q}}_{1}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bar{\bm{q}}}_{1},n_{1}}^{\dagger}\beta_{\tilde{\bm{q}}_{2},n_{2}}\beta_{\tilde{\bm{q}}_{3},n_{3}}\nonumber \\
+ & +\big[V_{\tilde{\bm{q}}_{1}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bar{\bm{q}}}_{1},n_{1}}^{\dagger}\beta_{\tilde{\bar{\bm{q}}}_{2},n_{2}}^{\dagger}\beta_{\tilde{\bm{q}}_{3},n_{3}}\nonumber \\
+ & +\big[V_{\tilde{\bm{q}}_{1}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bar{\bm{q}}}_{1},n_{1}}^{\dagger}\beta_{\tilde{\bm{q}}_{2},n_{2}}\beta_{\tilde{\bar{\bm{q}}}_{3},n_{3}}^{\dagger}\nonumber \\
+ & +\big[V_{\tilde{\bm{q}}_{1}}^{22}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bar{\bm{q}}}_{1},n_{1}}^{\dagger}\beta_{\tilde{\bar{\bm{q}}}_{2},n_{2}}^{\dagger}\beta_{\tilde{\bar{\bm{q}}}_{3},n_{3}}^{\dagger}.
+\end{align}
+
+\end_inset
+
+Below we work out the normal ordering
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align}
+ & \big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bm{q}}_{1},n_{1}}\beta_{\tilde{\bar{\bm{q}}}_{2},n_{2}}^{\dagger}\beta_{\tilde{\bm{q}}_{3},n_{3}}\nonumber \\
+ & =\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}(\delta_{\tilde{\bm{q}}_{1}+\tilde{\bm{q}}_{2}}\delta_{n_{1}n_{2}}+\beta_{\tilde{\bar{\bm{q}}}_{2},n_{2}}^{\dagger}\beta_{\tilde{\bm{q}}_{1},n_{1}})\beta_{\tilde{\bm{q}}_{3},n_{3}}\nonumber \\
+ & =\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bar{\bm{q}}}_{2},n_{2}}^{\dagger}\beta_{\tilde{\bm{q}}_{1},n_{1}}\beta_{\tilde{\bm{q}}_{3},n_{3}}\nonumber \\
+ & +\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\delta_{\tilde{\bm{q}}_{1}+\tilde{\bm{q}}_{2}}\delta_{n_{1}n_{2}}\beta_{\tilde{\bm{q}}_{3},n_{3}}\nonumber \\
+ & ={\color{blue}\big[V_{\tilde{\bm{q}}_{2}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{2}}\big[V_{\tilde{\bm{q}}_{1}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{1}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bar{\bm{q}}}_{1},n_{2}}^{\dagger}\beta_{\tilde{\bm{q}}_{2},n_{1}}\beta_{\tilde{\bm{q}}_{3},n_{3}}}\nonumber \\
+ & {\color{blue}+\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\delta_{\tilde{\bm{q}}_{1}+\tilde{\bm{q}}_{2}}\delta_{n_{1}n_{2}}\beta_{\tilde{\bm{q}}_{3},n_{3}}}
+\end{align}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align}
+ & \big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bm{q}}_{1},n_{1}}\beta_{\tilde{\bm{q}}_{2},n_{2}}\beta_{\tilde{\bar{\bm{q}}}_{3},n_{3}}^{\dagger}\nonumber \\
+ & =\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bm{q}}_{1},n_{1}}(\delta_{\tilde{\bm{q}}_{2}+\tilde{\bm{q}}_{3}}\delta_{n_{2}n_{3}}+\beta_{\tilde{\bar{\bm{q}}}_{3},n_{3}}^{\dagger}\beta_{\tilde{\bm{q}}_{2},n_{2}})\nonumber \\
+ & =\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\bigg[\beta_{\tilde{\bm{q}}_{1},n_{1}}\delta_{\tilde{\bm{q}}_{2}+\tilde{\bm{q}}_{3}}\delta_{n_{2}n_{3}}\nonumber \\
+ & +(\delta_{\tilde{\bm{q}}_{3}+\tilde{\bm{q}}_{1}}\delta_{n_{3}n_{1}}+\beta_{\tilde{\bar{\bm{q}}}_{3},n_{3}}^{\dagger}\beta_{\tilde{\bm{q}}_{1},n_{1}})\beta_{\tilde{\bm{q}}_{2},n_{2}}\bigg]\nonumber \\
+ & =\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bar{\bm{q}}}_{3},n_{3}}^{\dagger}\beta_{\tilde{\bm{q}}_{1},n_{1}}\beta_{\tilde{\bm{q}}_{2},n_{2}}\nonumber \\
+ & +\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\delta_{\tilde{\bm{q}}_{2}+\tilde{\bm{q}}_{3}}\delta_{n_{2}n_{3}}\beta_{\tilde{\bm{q}}_{1},n_{1}}\nonumber \\
+ & +\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\delta_{\tilde{\bm{q}}_{3}+\tilde{\bm{q}}_{1}}\delta_{n_{3}n_{1}}\beta_{\tilde{\bm{q}}_{2},n_{2}}\nonumber \\
+ & {\color{blue}=\big[V_{\tilde{\bm{q}}_{3}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{1}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}\beta_{\tilde{\bar{\bm{q}}}_{1},n_{2}}^{\dagger}\beta_{\tilde{\bm{q}}_{2},n_{1}}\beta_{\tilde{\bm{q}}_{3},n_{3}}}\\
+ & {\color{blue}+(\big[V_{\tilde{\bm{q}}_{3}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{3}}\big[V_{\tilde{\bm{q}}_{2}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{1}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{1}}+\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{3}}^{11}\big]_{(\alpha_{2},\sigma_{2}),n_{3}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{2}})\delta_{\tilde{\bm{q}}_{2}+\tilde{\bm{q}}_{1}}\delta_{n_{2}n_{1}}\beta_{\tilde{\bm{q}}_{3},n_{3}}}\nonumber 
+\end{align}
+
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align}
+ & \bigg(\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}\beta_{\tilde{\bm{q}}_{1},n_{1}}\beta_{\tilde{\bar{\bm{q}}}_{2},n_{2}}^{\dagger}\beta_{\tilde{\bar{\bm{q}}}_{3},n_{3}}^{\dagger}\bigg)^{\dagger}\nonumber \\
+ & =\big[V_{\tilde{\bm{q}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\tilde{\bm{q}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\tilde{\bm{q}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}\beta_{\tilde{\bar{\bm{q}}}_{3},n_{1}}\beta_{\tilde{\bar{\bm{q}}}_{2},n_{2}}\beta_{\tilde{\bm{q}}_{1},n_{1}}^{\dagger}\nonumber \\
+ & =\big[V_{\tilde{\bar{\bm{q}}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}\beta_{\tilde{\bm{q}}_{3},n_{1}}\beta_{\tilde{\bm{q}}_{2},n_{2}}\beta_{\tilde{\bar{\bm{q}}}_{1},n_{1}}^{\dagger}\nonumber \\
+ & =\big[V_{\tilde{\bar{\bm{q}}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}\beta_{\tilde{\bm{q}}_{3},n_{1}}\bigg(\delta_{\tilde{\bm{q}}_{1}+\tilde{\bm{q}}_{2}}\delta_{n_{1}n_{2}}+\beta_{\tilde{\bar{\bm{q}}}_{1},n_{1}}^{\dagger}\beta_{\tilde{\bm{q}}_{2},n_{2}}\bigg)\nonumber \\
+ & =\big[V_{\tilde{\bar{\bm{q}}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}\delta_{\tilde{\bm{q}}_{1}+\tilde{\bm{q}}_{2}}\delta_{n_{1}n_{2}}\beta_{\tilde{\bm{q}}_{3},n_{1}}\nonumber \\
+ & +\big[V_{\tilde{\bar{\bm{q}}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}\delta_{\tilde{\bm{q}}_{1}+\tilde{\bm{q}}_{3}}\delta_{n_{1}n_{3}}\beta_{\tilde{\bm{q}}_{2},n_{2}}\nonumber \\
+ & +\big[V_{\tilde{\bar{\bm{q}}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}\beta_{\tilde{\bar{\bm{q}}}_{1},n_{1}}^{\dagger}\beta_{\tilde{\bm{q}}_{2},n_{2}}\beta_{\tilde{\bm{q}}_{3},n_{1}}\nonumber \\
+ & {\color{blue}=\big[V_{\tilde{\bar{\bm{q}}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}\beta_{\tilde{\bar{\bm{q}}}_{1},n_{1}}^{\dagger}\beta_{\tilde{\bm{q}}_{2},n_{2}}\beta_{\tilde{\bm{q}}_{3},n_{1}}}\\
+ & {\color{blue}+\bigg(\big[V_{\tilde{\bar{\bm{q}}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{2}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{2}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{3}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{3}}^{*}+\big[V_{\tilde{\bar{\bm{q}}}_{1}}^{21}\big]_{(\alpha_{1},\sigma_{1}),n_{1}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{3}}^{12}\big]_{(\alpha_{2},\sigma_{2}),n_{3}}^{*}\big[V_{\tilde{\bar{\bm{q}}}_{2}}^{12}\big]_{(\alpha_{3},\sigma_{3}),n_{2}}^{*}\bigg)\delta_{\tilde{\bm{q}}_{1}+\tilde{\bm{q}}_{2}}\delta_{n_{1}n_{2}}\beta_{\tilde{\bm{q}}_{3},n_{1}}}\nonumber 
+\end{align}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Comment
+status open
+
+\begin_layout Plain Layout
+\begin_inset Formula 
+\begin{align}
+\mathcal{S}_{\text{dssf}}^{\mu\nu}(\bm{q},\omega) & =\frac{M}{N_{m}}\bigg(\sum_{\bm{d}}e^{-i\bm{q}\cdot\bm{d}}\sum_{\alpha=2}^{N}\sum_{n=1}^{(N-1)N_{m}}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha1}[V_{\tilde{\bm{q}}}]_{d_{\alpha},n}^{*}+[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{1\alpha}[V_{\tilde{\bm{q}}}]_{d_{\alpha},n+(N-1)N_{m}}\big)\bigg)^{*}\nonumber \\
+ & \times\bigg(\sum_{\bm{d}}e^{i\bm{q}\cdot\bm{d}}\sum_{\alpha=2}^{N}\sum_{n=1}^{(N-1)N_{m}}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{\alpha1}[V_{-\tilde{\bm{q}}}]_{d_{\alpha},n}^{*}+[\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{1\alpha}[V_{-\tilde{\bm{q}}}]_{d_{\alpha},n+(N-1)N_{m}}\big)\bigg)\delta(\omega-\omega_{\tilde{\bm{q}},n})\nonumber \\
+ & =\frac{M}{N_{m}}\bigg(\sum_{\bm{d}}e^{-i\bm{q}\cdot\bm{d}}\sum_{\alpha=2}^{N}\sum_{n=1}^{(N-1)N_{m}}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{\alpha1}[V_{\tilde{\bm{q}}}]_{d_{\alpha},n}^{*}+[\tilde{\mathcal{T}}_{\bm{d}}^{\mu}]_{1\alpha}[V_{\tilde{\bm{q}}}]_{d_{\alpha},n+(N-1)N_{m}}\big)\bigg)^{*}\nonumber \\
+ & \times\bigg(\sum_{\bm{d}}e^{i\bm{q}\cdot\bm{d}}\sum_{\alpha=2}^{N}\sum_{n=1}^{(N-1)N_{m}}\big([\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{\alpha1}[V_{\bm{q}}]_{d_{\alpha}+(N-1)N_{m},n+(N-1)N_{m}}+[\tilde{\mathcal{T}}_{\bm{d}}^{\nu}]_{1\alpha}[V_{\tilde{\bm{q}}}]_{d_{\alpha}+(N-1)N_{m},n}^{*}\big)\bigg)\delta(\omega-\omega_{\tilde{\bm{q}},n}),
+\end{align}
+
+\end_inset
+
+where we have used the facts that
+\begin_inset Formula 
+\begin{align}
+[V_{-\tilde{\bm{q}}}]_{d_{\alpha},n}^{*} & =[V_{\bm{q}}]_{d_{\alpha}+(N-1)N_{m},n+(N-1)N_{m}}\\{}
+[V_{-\tilde{\bm{q}}}]_{d_{\alpha},n+(N-1)N_{m}} & =[V_{\tilde{\bm{q}}}]_{d_{\alpha}+(N-1)N_{m},n}^{*}
+\end{align}
+
+\end_inset
+
+that can be read from Eq.
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+~
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:bk1"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+-
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:bk4"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
