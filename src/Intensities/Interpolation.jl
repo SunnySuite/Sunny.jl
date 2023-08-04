@@ -170,7 +170,9 @@ function intensities_interpolated(sc::SampledCorrelations, qs;
     ωvals = ωs(sc; negative_energies)
     nω = length(ωvals) 
     stencil_info = pruned_stencil_info(sc, qs, interp) 
-    return_type = typeof(formula).parameters[1] # Get return type of formula
+
+    # Pre-allocate the output array based on the return type of the formula
+    return_type = typeof(formula).parameters[1]
     intensities = zeros(return_type, size(qs)..., nω)
     
     # Call type stable version of the function

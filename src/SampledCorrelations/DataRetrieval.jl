@@ -95,6 +95,11 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
     NCorr = Val(length(corr_ix))
 
     ωs_sc = ωs(sc;negative_energies=true)
+
+    # Intensity is calculated at the discrete (ix_q,ix_ω) modes available to the system.
+    # Additionally, for momentum transfers outside of the first BZ, the norm `k` of the
+    # momentum transfer may be different than the one inferred from `ix_q`, so it needs
+    # to be provided independently of `ix_q`.
     formula = function (sc::SampledCorrelations,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
         correlations = phase_averaged_elements(view(sc.data,corr_ix,:,:,ix_q,ix_ω), k, sc, ffdata, NCorr, NAtoms)
 
