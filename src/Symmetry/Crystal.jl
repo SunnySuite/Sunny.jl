@@ -81,20 +81,6 @@ struct Crystal
     symprec        :: Float64                              # Tolerance to imperfections in symmetry
 end
 
-"""
-    natoms(cryst::Crystal)
-
-Number of atoms in the unit cell, i.e., number of Bravais sublattices.
-"""
-@inline natoms(cryst::Crystal) = length(cryst.positions)
-
-"""
-    cell_volume(cryst::Crystal)
-
-Volume of the crystal unit cell.
-"""
-cell_volume(cryst::Crystal) = abs(det(cryst.latvecs))
-
 # Constructs a crystal from the complete list of atom positions `positions`,
 # representing fractions (between 0 and 1) of the lattice vectors `latvecs`.
 # All symmetry information is automatically inferred.
@@ -144,6 +130,30 @@ function print_crystal_warnings(latvecs, positions)
                  and related functions to design a system with the desired inhomogeneities."""
     end
 end
+
+"""
+    natoms(cryst::Crystal)
+
+Number of atoms in the unit cell, i.e., number of Bravais sublattices.
+"""
+@inline natoms(cryst::Crystal) = length(cryst.positions)
+
+"""
+    cell_volume(cryst::Crystal)
+
+Volume of the crystal unit cell.
+"""
+cell_volume(cryst::Crystal) = abs(det(cryst.latvecs))
+
+"""
+    reciprocal_lattice_vectors(cryst::Crystal)
+
+Returns a ``3×3`` matrix, with columns that define the reciprocal lattice
+vectors ``(𝐛₁,𝐛₂,𝐛₃)``. These are defined to satisfy ``𝐛ᵢ⋅𝐚ⱼ = 2πδᵢⱼ``,
+where ``(𝐚₁,𝐚₂,𝐚₃)`` are the lattice vectors for `cryst` in real-space.
+"""
+reciprocal_lattice_vectors(cryst::Crystal) = cryst.recipvecs
+
 
 function spacegroup_name(hall_number::Int)
     # String representation of space group
@@ -501,8 +511,8 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
         @info "Atoms have been renumbered in subcrystal."
     end
 
-    ret = Crystal(cryst.latvecs, cryst.prim_latvecs, new_positions, new_types, new_classes, new_sitesyms,
-                  cryst.symops, cryst.spacegroup, cryst.symprec)
+    ret = Crystal(cryst.latvecs, cryst.prim_latvecs, cryst.recipvecs, new_positions, new_types,
+                  new_classes, new_sitesyms, cryst.symops, cryst.spacegroup, cryst.symprec)
     return ret
 end
 

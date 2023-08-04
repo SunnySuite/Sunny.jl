@@ -571,9 +571,7 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix; kernel::Un
     #
     #   Smooth kernel --> I_of_ω = Intensity as a function of ω
     #
-    calc_intensity = function(swt::SpinWaveTheory,q::Vec3)
-        _, qmag = chemical_to_magnetic(swt, q)
-
+    calc_intensity = function(swt::SpinWaveTheory, q::Vec3)
         if sys.mode == :SUN
             swt_hamiltonian_SUN!(swt, q, Hmat)
         elseif sys.mode == :dipole

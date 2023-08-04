@@ -49,7 +49,7 @@ add_sample!(sc, sys)
 # lorentzian(ω-ω₀, 0.1)`. 
 
 qpoints = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
-qs, markers = connected_path(sc, qpoints, 50) 
+qs, markers = connected_path_from_rlu(crystal, qpoints, 50)
 
 is = intensities_interpolated(sc, qs; interpolation=:round, formula = intensity_formula(sc,:trace))
 is_broad = broaden_energy(sc, is, (ω, ω₀) -> lorentzian(ω-ω₀, 0.1))

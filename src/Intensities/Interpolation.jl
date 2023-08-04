@@ -218,18 +218,24 @@ end
 
 
 """
-    connected_path(qs, density)
+    connected_path_from_rlu(cryst, qs_rlu, density)
 
-Returns two things: First, a list of wavevectors that linearly interpolates
-between the points `qs` and second, a list of markers that index the locations
-of each original interpolation point.
+Returns a pair `(path, xticks)`. The first return value is a path in reciprocal
+space that samples linearly between the wavevectors in `qs`. The elements in
+`qs` are defined in reciprocal lattice units (RLU) associated with the
+[`reciprocal_lattice_vectors``](@ref) for `cryst`. The `density` parameter has
+units of inverse length, and controls the number of samples between elements of
+`qs`.
 
-More sample-points will be returned between `q`-values that are further apart,
-and this is controlled by the `density` parameter.
+The second return value `xticks` can be used for plotting. The `xticks` object
+is itself a pair `(numbers, labels)`, which give the locations of the
+interpolating ``q``-points and a human-readable string.
 """
-function connected_path(qs::Vector, density)
-    @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
-    qs = Vec3.(qs)
+function connected_path_from_rlu(cryst::Crystal, qs_rlu::Vector, density)
+    @assert length(qs_rlu) >= 2 "The list `qs` should include at least two wavevectors."
+    qs_rlu = Vec3.(qs_rlu)
+
+    qs = Ref(cryst.recipvecs) .* qs_rlu
 
     path = Vec3[]
     markers = Int[]
@@ -245,5 +251,10 @@ function connected_path(qs::Vector, density)
     push!(markers, length(path)+1)
     push!(path, qs[end])
 
-    return (path, markers)
+    labels = map(qs_rlu) do q_rlu
+        "[" * join(number_to_math_string.(q_rlu), ",") * "]"
+    end
+    xticks = (markers, labels)
+
+    return (path, xticks)
 end

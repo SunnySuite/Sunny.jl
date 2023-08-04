@@ -245,29 +245,19 @@ plot_spins(sys_min; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 swt = SpinWaveTheory(sys_min);
 
-# Next, select a sequence of wavevectors that will define a piecewise linear
-# interpolation in reciprocal lattice units (RLU). Sunny expects wavevectors in
-# absolute units, i.e., inverse angstroms. To convert from RLU, multiply by the
-# $3×3$ matrix `cryst.recipvecs`, which provides the reciprocal lattice vectors
-# for the conventional unit cell.
+# Select a sequence of wavevectors that will define a piecewise linear
+# interpolation in reciprocal lattice units (RLU).
 
 points_rlu = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
-points = [cryst.recipvecs*p for p in points_rlu]
 
-# The function [`connected_path`](@ref) will linearly sample between the
-# provided $q$-points with given `density`. Also keep track of location and
-# names of the special $𝐪$-points for plotting purposes.
+# The function [`connected_path_from_rlu`](@ref) will linearly sample between
+# the provided $q$-points with a given `density`. The `path` return value is a
+# list of wavevectors in absolute units (inverse Å). The `xticks` return value
+# keeps track of the locations of the special $𝐪$-points, and provides
+# human-readable labels for use in plotting.
 
 density = 50
-path, numbers = connected_path(points, density);
-xticks = (numbers, ["[0,0,0]", "[1,0,0]", "[0,1,0]", "[1/2,0,0]", "[0,1,0]", "[0,0,0]"])
-
-# The dispersion relation can be calculated by providing `dispersion` with a
-# `SpinWaveTheory` and a list of wave vectors. For each wave vector,
-# `dispersion` will return a list of energies, one for each band. Frequently one
-# wants dispersion information along lines that connect special wave vectors.
-# The function [`connected_path`](@ref) linearly samples between provided
-# $𝐪$-points, with a given sample density.
+path, xticks = connected_path_from_rlu(cryst, points_rlu, density);
 
 # The [`dispersion`](@ref) function defines the quasiparticle excitation
 # energies $ω_i(𝐪)$ for each point $𝐪$ along the reciprocal space path.
@@ -332,13 +322,13 @@ heatmap!(ax, 1:size(is_averaged, 1), energies, is_averaged)
 fig
 
 # This result can be directly compared to experimental neutron scattering data
-# [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)
+# from [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)
 # ```@raw html
 # <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_intensity.jpg">
 # ```
 #
-# (Note that the publication figure uses a different coordinate system to label
-# the wave vectors.)
+# (The publication figure accidentally used a non-standard coordinate system to
+# label the wave vectors.)
 # 
 # To get this agreement, the use of SU(3) coherent states is essential (in other
 # words, we needed a theory of multi-flavored bosons). The lower band has large

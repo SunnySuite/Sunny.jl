@@ -108,7 +108,7 @@ end
 # ### System Definition for CoRh<sub>2</sub>O<sub>4</sub>
 
 # Define the crystal structure of CoRh$_2$O$_4$  in the conventional cell
-xtal    = Crystal(cif_path ;symprec=1e-4)
+xtal    = Crystal(cif_path; symprec=1e-4)
 magxtal = subcrystal(xtal,"Co1")
 view_crystal(magxtal,6.0)
 print_symmetry_table(magxtal, 4.0)
@@ -214,7 +214,7 @@ symQpts   = [[0.75, 0.75, 0.00],  # List of wave vectors that define a path
             [0.25, 1.00, 0.25],
             [0.00, 1.00, 0.00],
             [0.00,-4.00, 0.00]];
-(Qpts, symQind) = connected_path(sc, symQpts,densQpts);
+(Qpts, xticks) = connected_path_from_rlu(magxtal, symQpts, densQpts);
 @time  iqw = intensities(sc, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
 
 # If desired, broaden the sc in energy
@@ -227,10 +227,10 @@ iqwc  = broaden_energy(sc, iqw, (ω, ω₀) -> lorentzian(ω-ω₀, η));
 # Plot the resulting I(Q,W)    
 heatmap(1:size(iqwc, 1), ωs(sc), iqwc;
     colorrange = (0, maximum(iqwc)/20000.0),
-    axis = (
+    axis = (;
         xlabel="Momentum Transfer (r.l.u)",
         ylabel="Energy Transfer (meV)", 
-        xticks = (symQind, string.(symQpts)),
+        xticks,
         xticklabelrotation=π/5,
         aspect = 1.4,
     )
