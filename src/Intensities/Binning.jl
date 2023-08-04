@@ -168,12 +168,12 @@ bin_absolute_units_as_rlu!(params::BinningParameters,recip_vecs::AbstractMatrix)
 bin_absolute_units_as_rlu!(params::BinningParameters,crystal::Crystal) = bin_absolute_units_as_rlu!(params,2π*inv(crystal.latvecs)')
 bin_absolute_units_as_rlu!(params::BinningParameters,sys::System) = bin_absolute_units_as_rlu!(params,sys.crystal)
 bin_absolute_units_as_rlu!(params::BinningParameters,sc::SampledCorrelations) = bin_absolute_units_as_rlu!(params,sc.crystal)
-bin_absolute_units_as_rlu!(params::BinningParameters,swt::SpinWaveTheory) = bin_absolute_units_as_rlu!(params,swt.recipvecs_chem)
+bin_absolute_units_as_rlu!(params::BinningParameters,swt::SpinWaveTheory) = bin_absolute_units_as_rlu!(params,swt.sys)
 
 bin_rlu_as_absolute_units!(params::BinningParameters,crystal::Crystal) = bin_absolute_units_as_rlu!(params,crystal.latvecs'/2π)
 bin_rlu_as_absolute_units!(params::BinningParameters,sys::System) = bin_rlu_as_absolute_units!(params,sys.crystal)
 bin_rlu_as_absolute_units!(params::BinningParameters,sc::SampledCorrelations) = bin_rlu_as_absolute_units!(params,sc.crystal)
-bin_rlu_as_absolute_units!(params::BinningParameters,swt::SpinWaveTheory) = bin_rlu_as_absolute_units!(params,swt.recipvecs_chem)
+bin_rlu_as_absolute_units!(params::BinningParameters,swt::SpinWaveTheory) = bin_rlu_as_absolute_units!(params,swt.sys)
 
 
 """

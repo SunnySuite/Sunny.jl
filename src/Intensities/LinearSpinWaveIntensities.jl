@@ -90,47 +90,34 @@ Note that this method only calculates the intensity at the bin centers--it doesn
 integrate over the bins in any way. The output will be the same shape as if it were
 histogrammed data.
 """
-function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, η::Float64)
-    (; sys) = swt
-    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    Nf = sys.mode == :SUN ? Ns-1 : 1
-    nmodes  = Nf * Nm
+function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, formula::SpinWaveIntensityFormula)
+    if any(params.covectors[1:3,4] .!= 0.) || any(params.covectors[4,1:3] .!= 0.)
+      error("Complicated binning parameters not supported by intensities_bin_centers")
+    end
 
     bin_centers = axes_bincenters(params)
-    qs = []
-    ωs = []
-    # Record all histogram bin centers
-    for ci in CartesianIndices(params.numbins.data)
-        qx_center = bin_centers[1][ci[1]]
-        qy_center = bin_centers[2][ci[2]]
-        qz_center = bin_centers[3][ci[3]]
 
-        q_center = [qx_center,qy_center,qz_center]
-        push!(qs,q_center)
-        ω_center = bin_centers[4][ci[4]]
-        push!(ωs,ω_center)
-    end
 
-    # Compute SWT at bin center qs
-    disp, Sαβs = dssf(swt, qs)
+    q_params = copy(params)
+    bin_rlu_as_absolute_units!(q_params,swt)
+    # coords = q_covectors * (q,ω)
+    coords_to_q = inv(q_params.covectors[1:3,1:3])
 
     is = zeros(Float64,params.numbins...)
-    for (cii,ci) in enumerate(CartesianIndices(params.numbins.data))
-        q = qs[cii]
-        polar_mat = polarization_matrix(swt.recipvecs_chem * q)
 
-        for band = 1:nmodes
-            band_intensity = real(sum(polar_mat .* Sαβs[cii,band]))
-            # At a Goldstone mode, where the intensity is divergent, use a delta-function for the intensity.
-            if (disp[cii, band] < 1.0e-3) && (band_intensity > 1.0e3)
-                is[ci] += band_intensity
-            else
-                #SQTODO: This calculation is fake. It needs to integrate over the bin.
-                is[ci] += band_intensity * lorentzian(ωs[cii]-disp[cii,band], η)
-            end
-        end
+    # Loop over qs
+    for ci in CartesianIndices(params.numbins.data[1:3])
+        x_center = bin_centers[1][ci[1]]
+        y_center = bin_centers[2][ci[2]]
+        z_center = bin_centers[3][ci[3]]
+
+        q = SVector{3}(coords_to_q * [x_center;y_center;z_center])
+        ωvals = bin_centers[4]
+
+        intensity_as_function_of_ω = formula.calc_intensity(swt,q)
+        is[ci,:] .= intensity_as_function_of_ω(ωvals)
     end
-    return is
+    is
 end
 
 
