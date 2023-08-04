@@ -15,16 +15,15 @@ the imaginary part of the eigenvalues.
 """
 struct SpinWaveTheory
     sys   :: System
-    s̃_mat :: Array{ComplexF64, 4}  # dipole operators
-    T̃_mat :: Array{ComplexF64, 3}  # single-ion anisos
-    Q̃_mat :: Array{ComplexF64, 4}  # quarupolar operators
-    c′_coef :: Vector{StevensExpansion}    # c′_coefficents (for dipole mode)
+    s̃_mat :: Array{ComplexF64, 4}  # Dipole operators
+    T̃_mat :: Array{ComplexF64, 3}  # Single-ion anisos
+    Q̃_mat :: Array{ComplexF64, 4}  # Quadrupolar operators
+    c′_coef :: Vector{StevensExpansion} # Stevens operator coefficents (for dipole mode)
     R_mat   :: Vector{Mat3}        # SO(3) rotation to align the quantization axis (for dipole mode)
-    positions_chem :: Vector{Vec3} # positions of magnetic atoms in units of (a₁, a₂, a₃) of the chemical lattice. (useful when computing the dynamical spin structure factor)
-    recipvecs_chem :: Mat3 # maybe not useful if we have David's interface for S(q, ω)
-    recipvecs_mag :: Mat3 # reciprocal lattice basis vectors for the magnetic supercell
-    energy_ϵ   :: Float64 # energy epsilon in the diagonalization. Set to add to diagonal elements of the spin-wave Hamiltonian for cholesky decompostion
-    energy_tol :: Float64 # energy tolerance for maximal imaginary part of spin-wave energies
+    positions  :: Vector{Vec3}     # Positions of sites in global coordinates (Å)
+    recipvecs  :: Mat3             # Reciprocal vectors in global coordinates (1/Å)
+    energy_ϵ   :: Float64          # Energy shift applied to dynamical matrix prior to Bogoliubov transformation
+    energy_tol :: Float64          # Energy tolerance for maximal imaginary part of quasiparticle energies
 
     # Correlation info (αβ indices of 𝒮^{αβ}(q,ω))
     # dipole_corrs :: Bool                                  # Whether using all correlations from dipoles 
@@ -36,14 +35,13 @@ function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
     # modename = swt.dipole_corrs ? "Dipole correlations" : "Custom correlations"
     modename = "Dipole correlations"
     printstyled(io, "SpinWaveTheory [$modename]\n"; bold=true, color=:underline)
-    println(io, "Atoms in magnetic supercell $(length(swt.positions_chem))")
+    println(io, "Atoms in magnetic supercell: $(natoms(swt.sys.crystal))")
 end
 
 function num_bands(swt::SpinWaveTheory)
     (; sys) = swt
-    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    Nf = sys.mode == :SUN ? Ns-1 : 1
-    nbands = Nf * Nm
+    nbosons = sys.mode == :SUN ? sys.Ns[1]-1 : 1
+    return nbosons * natoms(sys.crystal)
 end
 
 
@@ -59,7 +57,7 @@ function dipole_to_angles(dipoles :: AbstractVector{Float64})
     @assert isfinite(θ)
     ϕ = atan(dipoles[2], dipoles[1])
     @assert isfinite(ϕ)
-    (ϕ < 0.0) && (ϕ += 2.0 * π)
+    (ϕ < 0.0) && (ϕ += 2π)
     return θ, ϕ
 end
 
@@ -157,39 +155,6 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Flo
         Q̃_mat = zeros(ComplexF64, 0, 0, 0, 0)
     end
 
-    latvecs_mag = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs \ sys.crystal.latvecs # DD: correct/necessary? 
-    positions_chem = Vec3.([latvecs_mag * position for position in sys.crystal.positions]) # Positions of atoms in chemical coordinates
-    recipvecs_mag = inv(latvecs_mag)'
-    latvecs_chem = isnothing(sys.origin) ? diagm(ones(3)) : sys.origin.crystal.latvecs # DD: correct/necessary?
-    recipvecs_chem = inv(latvecs_chem)'
-
-    return SpinWaveTheory(sys, s̃_mat, T̃_mat, Q̃_mat, c′_coef, R_mat, positions_chem, recipvecs_chem, recipvecs_mag, energy_ϵ, energy_tol)
-end
-
-"""
-    chemical_to_magnetic
-
-Convert the components of a wavevector from the original Brillouin zone (of the chemical lattice) to the reduced Brillouin zone (BZ)
-(of the magnetic lattice). \
-This is necessary because components in the reduced BZ are good quantum numbers.
-`K` is the reciprocal lattice vector, and `k̃` is the components of wavevector in the reduced BZ. Note `k = K + k̃`
-"""
-function chemical_to_magnetic(swt::SpinWaveTheory, k)
-    k = Vec3(k)
-    α = swt.recipvecs_mag \ k
-    k̃ = Vector{Float64}(undef, 3)
-    K = Vector{Int}(undef, 3)
-    for i = 1:3
-        if abs(α[i]) < eps()
-            K[i] = k̃[i] = 0.0
-        else
-            K[i] = Int(round(floor(α[i])))
-            k̃[i] = α[i] - K[i]
-        end
-        @assert k̃[i] ≥ 0.0 && k̃[i] < 1.0
-    end
-    k_check = swt.recipvecs_mag * (K + k̃)
-    @assert norm(k - k_check) < 1e-12
-
-    return K, k̃
+    positions = [global_position(sys, site) for site in all_sites(sys)][:]
+    return SpinWaveTheory(sys, s̃_mat, T̃_mat, Q̃_mat, c′_coef, R_mat, positions, sys.crystal.recipvecs, energy_ϵ, energy_tol)
 end

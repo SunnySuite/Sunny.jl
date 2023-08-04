@@ -77,12 +77,11 @@ function powder_average_binned(sc::SampledCorrelations, radial_binning_parameter
     output_intensities = zeros(Float64,r_bin_count,ω_bin_count)
     output_counts = zeros(Float64,r_bin_count,ω_bin_count)
     ωvals = ωs(sc)
-    recip_vecs = 2π*inv(sc.crystal.latvecs)'
 
     # Loop over every scattering vector
     Ls = sc.latsize
     if isnothing(bzsize)
-        bzsize = (1,1,1) .* ceil(Int64,rend/eigmin(recip_vecs))
+        bzsize = (1,1,1) .* ceil(Int64,rend/eigmin(sc.crystal.recipvecs)) # TODO: ceil(Int64, a/b) -> div(a, b, RoundUp)
     end
     for cell in CartesianIndices(Ls .* bzsize)
         base_cell = CartesianIndex(mod1.(cell.I,Ls)...)
@@ -93,18 +92,18 @@ function powder_average_binned(sc::SampledCorrelations, radial_binning_parameter
 
             # Figure out which radial bin this scattering vector goes in
             # The spheres are surfaces of fixed |k|, with k in absolute units
-            k = recip_vecs * q
+            k = sc.crystal.recipvecs * q # FIXME: q should already be in absolute units
             r_coordinate = norm(k) 
 
             # Check if the radius falls within the histogram
-            rbin = 1 .+ floor.(Int64,(r_coordinate .- rstart) ./ rbinwidth)
-            if rbin <= r_bin_count && rbin >= 1
+            rbin = @. 1 + floor(Int64, (r_coordinate - rstart) / rbinwidth) # TODO: @. 1 + div(r_coordinate-rstart, rbinwidth, RoundDown)
+            if r1 <= bin <= r_bin_count
                 # If we are energy-broadening, then scattering vectors outside the histogram
                 # in the energy direction need to be considered
                 if isnothing(integrated_kernel) # `Delta-function energy' logic
                     # Check if the ω falls within the histogram
                     ωbin = 1 .+ floor.(Int64,(ω .- ωstart) ./ ωbinwidth)
-                    if ωbin <= ω_bin_count && ωbin >= 1
+                    if 1 <= ωbin <= ω_bin_count
                         intensity = formula.calc_intensity(sc,k,base_cell,iω)
                         output_intensities[rbin,ωbin] += intensity
                         output_counts[rbin,ωbin] += 1

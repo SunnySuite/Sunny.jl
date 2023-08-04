@@ -131,6 +131,7 @@ function binning_parameters_aabb(params)
     return lower_aabb_q, upper_aabb_q
 end
 
+# FIXME: various conversions go away. Always absolute units.
 """
 If `params` expects to bin values `(k,ω)` in absolute units, then calling
 
@@ -247,6 +248,7 @@ function unit_resolution_binning_parameters(ωvals::AbstractVector{Float64})
     return ωstart, ωend, ωbinwidth
 end
 
+# FIXME: remove `units` arg -- always absolute
 """
     slice_2D_binning_parameter(sc::SampledCorrelations, cut_from_q, cut_to_q, cut_bins::Int64, cut_width::Float64; plane_normal = [0,0,1],cut_height = cutwidth, units = :absolute)
 
@@ -408,7 +410,6 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
     output_intensities = zeros(Float64,numbins...)
     output_counts = zeros(Float64,numbins...)
     ωvals = ωs(sc)
-    recip_vecs = 2π*inv(sc.crystal.latvecs)'
 
     # Find an axis-aligned bounding box containing the histogram.
     # The AABB needs to be in q-space because that's where we index
@@ -452,7 +453,7 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
         # Which is the analog of this scattering mode in the first BZ?
         base_cell = CartesianIndex(mod1.(cell.I,Ls)...)
         q .= ((cell.I .- 1) ./ Ls) # q is in R.L.U.
-        k .= recip_vecs * q # But binning is done in absolute units
+        k .= sc.crystal.recipvecs * q # FIXME -- no scaling factor needed, q will already in absolute units.
         for (iω,ω) in enumerate(ωvals)
             if isnothing(integrated_kernel) # `Delta-function energy' logic
                 # Figure out which bin this goes in

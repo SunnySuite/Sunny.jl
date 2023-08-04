@@ -36,8 +36,7 @@ function intensity_formula_kpm(f::Function,swt::SpinWaveTheory,corr_ix::Abstract
     stuff = setup_stuff(swt)
     formula = function(swt::SpinWaveTheory,q::Vec3,ω::Float64)
         Sαβ = do_KPM(swt,stuff)
-        k = swt.recipvecs_chem * q
-        intensity = f(k,ω,Sαβ[corr_ix])
+        return f(q,ω,Sαβ[corr_ix])
     end
     KPMIntensityFormula{return_type}(P,kT,σ,broadening,kernel,string_formula,formula)
 end

@@ -106,13 +106,12 @@ function pruned_stencil_info(sc::SampledCorrelations, qs, interp::InterpolationS
     @assert sum(counts) == length(m_info)
 
     # Calculate corresponding q (RLU) and k (global) vectors
-    recip_vecs = 2π*inv(sc.crystal.latvecs)'  # Note, qs will be in terms of sc.crystal by this point, not origin_crystal
     qs_all = map(ms_all) do ms
        map(m -> m ./ sc.latsize, ms) 
     end
 
     ks_all = map(qs_all) do qs
-        map(q -> recip_vecs * q, qs)
+        map(q -> sc.crystal.recipvecs * q, qs) # FIXME: should q still by in sc.crystal, or in absolute units?
     end
     
     return (; qs_all, ks_all, idcs_all, counts)
@@ -219,17 +218,16 @@ end
 
 
 """
-    connected_path(recip_vecs, qs::Vector, density)
+    connected_path(qs, density)
 
-Takes a list of wave vectors, `qs`, and builds an expanded list of wave vectors
-that traces a path through the provided points. Also returned is a list of
-marker indices corresponding to the input points. The `density` parameter is
-given in samples per inverse Å.
+Returns two things: First, a list of wavevectors that linearly interpolates
+between the points `qs` and second, a list of markers that index the locations
+of each original interpolation point.
 
-Instead of `recip_vecs`, the first argument may be either a `SampledCorrelations` or
-a `SpinWaveTheory`.
+More sample-points will be returned between `q`-values that are further apart,
+and this is controlled by the `density` parameter.
 """
-function connected_path(recip_vecs, qs::Vector, density)
+function connected_path(qs::Vector, density)
     @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
     qs = Vec3.(qs)
 
@@ -238,7 +236,7 @@ function connected_path(recip_vecs, qs::Vector, density)
     for i in 1:length(qs)-1
         push!(markers, length(path)+1)
         q1, q2 = qs[i], qs[i+1]
-        dist = norm(recip_vecs*(q1 - q2))
+        dist = norm(q1 - q2)
         npoints = round(Int, dist*density)
         for n in 1:npoints
             push!(path, (1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints)
@@ -249,6 +247,3 @@ function connected_path(recip_vecs, qs::Vector, density)
 
     return (path, markers)
 end
-connected_path(sc::SampledCorrelations, qs::Vector, density) = connected_path(2π*inv(sc.crystal.latvecs)', qs, density)
-connected_path(sw::SpinWaveTheory, qs::Vector, density) = connected_path(sw.recipvecs_chem, qs, density)
-

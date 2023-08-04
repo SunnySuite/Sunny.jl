@@ -69,8 +69,9 @@ cryst = Crystal(latvecs, positions, 227; setting="1")
 See also [`lattice_vectors`](@ref).
 """
 struct Crystal
-    latvecs        :: Mat3                                 # Lattice vectors as columns
+    latvecs        :: Mat3                                 # Lattice vectors as columns (conventional)
     prim_latvecs   :: Mat3                                 # Primitive lattice vectors
+    recipvecs      :: Mat3                                 # Reciprocal lattice vectors (conventional)
     positions      :: Vector{Vec3}                         # Positions in fractional coords
     types          :: Vector{String}                       # Types
     classes        :: Vector{Int}                          # Class indices
@@ -81,14 +82,14 @@ struct Crystal
 end
 
 """
-    natoms(crystal::Crystal)
+    natoms(cryst::Crystal)
 
 Number of atoms in the unit cell, i.e., number of Bravais sublattices.
 """
 @inline natoms(cryst::Crystal) = length(cryst.positions)
 
 """
-    cell_volume(crystal::Crystal)
+    cell_volume(cryst::Crystal)
 
 Volume of the crystal unit cell.
 """
@@ -192,6 +193,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
         end
     end
 
+    recipvecs = 2π*Mat3(inv(latvecs)')
     positions = wrap_to_unit_cell.(positions; symprec)
 
     cell = Spglib.Cell(latvecs, positions, types)
@@ -219,7 +221,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
 
     sitesyms = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
 
-    ret = Crystal(latvecs, d.primitive_lattice, positions, types, classes, sitesyms, symops, spacegroup, symprec)
+    ret = Crystal(latvecs, d.primitive_lattice, recipvecs, positions, types, classes, sitesyms, symops, spacegroup, symprec)
     validate(ret)
     return ret
 end
@@ -381,7 +383,8 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
         inferred
     else
         prim_latvecs = latvecs
-        Crystal(latvecs, prim_latvecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
+        recipvecs = 2π*Mat3(inv(latvecs)')
+        Crystal(latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
     end
     sort_sites!(ret)
     validate(ret)
@@ -398,6 +401,9 @@ function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
 
     # Lattice vectors of the new unit cell in global coordinates
     new_latvecs = cryst.latvecs * new_cell_size
+
+    # Reciprocal lattice vectors of the new unit cell
+    new_recipvecs = 2π * Mat3(inv(new_latvecs)')
 
     # These don't change because both are in global coordinates
     prim_latvecs = cryst.prim_latvecs
@@ -451,8 +457,8 @@ function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
     # lost with the resizing procedure.
     new_symops = SymOp[]
 
-    return Crystal(new_latvecs, prim_latvecs, new_positions, new_types, new_classes, new_sitesyms,
-                new_symops, cryst.spacegroup, new_symprec)
+    return Crystal(new_latvecs, prim_latvecs, new_recipvecs, new_positions, new_types, new_classes,
+                   new_sitesyms, new_symops, cryst.spacegroup, new_symprec)
 end
 
 
