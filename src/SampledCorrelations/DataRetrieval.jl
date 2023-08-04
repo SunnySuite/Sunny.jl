@@ -99,11 +99,7 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
         correlations = phase_averaged_elements(view(sc.data,corr_ix,:,:,ix_q,ix_ω), k, sc, ffdata, NCorr, NAtoms)
 
         ω = ωs_sc[ix_ω]
-        intensity = f(k,ω,correlations) * classical_to_quantum(ω, kT)
-
-        # Having this line saves the return_type in the function closure
-        # so that it can be read by intensities later
-        intensity :: return_type
+        return f(k,ω,correlations) * classical_to_quantum(ω, kT)
     end
     ClassicalIntensityFormula{return_type}(kT,formfactors,string_formula,formula)
 end
