@@ -579,11 +579,19 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     disp = zeros(Float64, nmodes)
     intensity = zeros(return_type, nmodes)
 
-    # This `formula` closure will be stored in the return value, of type
-    # SpinWaveIntensityFormula. When `formula` is called on a given `q`
-    # wavevector it will return a new closure that takes an `ω` energy and
-    # returns intensities. This nested closure design allows staged-computation.
-    formula = function(swt::SpinWaveTheory,q::Vec3)
+    # In Spin Wave Theory, the Hamiltonian depends on momentum transfer `q`.
+    # At each `q`, the Hamiltonian is diagonalized one time, and then the
+    # energy eigenvalues can be reused multiple times. To facilitate this,
+    # `I_of_ω = calc_intensity(swt,q)` performs the diagonalization, and returns
+    # the result either as:
+    #
+    #   Delta function kernel --> I_of_ω = (eigenvalue,intensity) pairs
+    #
+    #   OR
+    #
+    #   Smooth kernel --> I_of_ω = Intensity as a function of ω
+    #
+    calc_intensity = function(swt::SpinWaveTheory,q::Vec3)
         _, qmag = chemical_to_magnetic(swt, q)
 
         if sys.mode == :SUN
@@ -637,12 +645,17 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             intensity[band] = f(k,disp[band],Sαβ[corr_ix])
         end
 
-        # Return closure that maps from ω to intensities
+        # Return the result of the diagonalization in an appropriate
+        # format based on the kernel provided
         if isnothing(kernel)
+            # Delta function kernel --> (eigenvalue,intensity) pairs
+
             # If there is no specified kernel, we are done: just return the
             # BandStructure
             return BandStructure{nmodes,return_type}(disp, intensity)
         else
+            # Smooth kernel --> Intensity as a function of ω
+
             # If a kernel is specified, convolve with it after filtering out
             # Goldstone modes.
 
@@ -657,6 +670,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             disp_finite = reshape(disp[.!ix_goldstone],1,num_finite)
             intensity_finite = reshape(intensity[.!ix_goldstone],1,num_finite)
 
+            # Intensity as a function of ω (or a list of ωs)
             return function(ω)
                 is = Vector{Float64}(undef,length(ω))
                 is .= 0.
@@ -669,7 +683,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
         end
     end
     output_type = isnothing(kernel) ? BandStructure{nmodes,return_type} : return_type
-    SpinWaveIntensityFormula{output_type}(string_formula,kernel,formula)
+    SpinWaveIntensityFormula{output_type}(string_formula,kernel,calc_intensity)
 end
 
 
