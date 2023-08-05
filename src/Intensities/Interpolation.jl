@@ -221,15 +221,14 @@ end
     connected_path_from_rlu(cryst, qs_rlu, density)
 
 Returns a pair `(path, xticks)`. The first return value is a path in reciprocal
-space that samples linearly between the wavevectors in `qs`. The elements in
-`qs` are defined in reciprocal lattice units (RLU) associated with the
-[`reciprocal_lattice_vectors``](@ref) for `cryst`. The `density` parameter has
-units of inverse length, and controls the number of samples between elements of
-`qs`.
+space that samples linearly between the wavevectors in `qs_rlu`. The elements in
+`qs_rlu` are defined in reciprocal lattice units (RLU) associated with the
+[`reciprocal_lattice_vectors`](@ref) for `cryst`. The sampling `density` between
+elements of `qs` has units of inverse length.
 
 The second return value `xticks` can be used for plotting. The `xticks` object
 is itself a pair `(numbers, labels)`, which give the locations of the
-interpolating ``q``-points and a human-readable string.
+interpolating ``q``-points and labels as pretty-printed strings.
 """
 function connected_path_from_rlu(cryst::Crystal, qs_rlu::Vector, density)
     @assert length(qs_rlu) >= 2 "The list `qs` should include at least two wavevectors."

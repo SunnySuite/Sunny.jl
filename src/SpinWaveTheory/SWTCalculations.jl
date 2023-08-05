@@ -2,7 +2,7 @@
 # Below are the implementations of the SU(N) linear spin-wave calculations #
 ###########################################################################
 
-@inline δ(x, y) = ==(x, y) # my delta function
+@inline δ(x, y) = (x==y)
 # The "metric" of scalar biquad interaction. Here we are using the following identity:
 # (𝐒ᵢ⋅𝐒ⱼ)² = -(𝐒ᵢ⋅𝐒ⱼ)/2 + ∑ₐ (OᵢᵃOⱼᵃ)/2, a=4,…,8, 
 # where the definition of Oᵢᵃ is given in Appendix B of *Phys. Rev. B 104, 104409*
@@ -11,12 +11,14 @@ const biquad_metric = 1/2 * diagm([-1, -1, -1, 1, 1, 1, 1, 1])
 
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
 function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
-    (; sys, s̃_mat, T̃_mat, Q̃_mat) = swt
-    Hmat .= 0 # DD: must be zeroed out!
-    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    Nf = Ns-1
-    N  = Nf + 1
-    L  = Nf * Nm
+    (; sys, data) = swt
+    (; s̃_mat, T̃_mat, Q̃_mat) = data
+
+    Hmat .= 0
+    Nm = natoms(sys.crystal)
+    N = sys.Ns[1]            # Dimension of SU(N) coherent states
+    Nf = N - 1               # Number of local boson flavors
+    L  = Nf * Nm             # Number of quasiparticle bands
     @assert size(Hmat) == (2L, 2L)
 
     # block matrices of `Hmat`
@@ -186,10 +188,14 @@ end
 
 # Set the dynamical quadratic Hamiltonian matrix in dipole mode. 
 function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
-    (; sys, R_mat, c′_coef) = swt
+    (; sys, data) = swt
+    (; R_mat, c_coef) = data
     Hmat .= 0.0
-    L, Ns = length(sys.dipoles), sys.Ns[1]
-    S = (Ns-1) / 2
+
+    N = sys.Ns[1]            # Dimension of SU(N) coherent states
+    S = (N-1)/2              # Spin magnitude
+    L  = natoms(sys.crystal) # Number of quasiparticle bands
+
     biquad_res_factor = 1 - 1/S + 1/(4S^2) # rescaling factor for biquadratic interaction
 
     @assert size(Hmat) == (2L, 2L)
@@ -198,7 +204,7 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64
     (; extfield, gs, units) = sys
     for matom = 1:L
         effB = units.μB * (gs[1, 1, 1, matom]' * extfield[1, 1, 1, matom])
-        res = dot(effB, (R_mat[matom])[:, 3]) / 2
+        res = dot(effB, R_mat[matom][:, 3]) / 2
         Hmat[matom, matom]     += res
         Hmat[matom+L, matom+L] += res
     end
@@ -221,8 +227,8 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64
             R_mat_j = R_mat[sub_j]
             Rij = S * (R_mat_i' * J * R_mat_j)
 
-            P = 0.25 * (Rij[1, 1] - Rij[2, 2] + 1im * (-Rij[1, 2] - Rij[2, 1]))
-            Q = 0.25 * (Rij[1, 1] + Rij[2, 2] + 1im * (-Rij[1, 2] + Rij[2, 1]))
+            P = 0.25 * (Rij[1, 1] - Rij[2, 2] - im*Rij[1, 2] - im*Rij[2, 1])
+            Q = 0.25 * (Rij[1, 1] + Rij[2, 2] - im*Rij[1, 2] + im*Rij[2, 1])
 
             Hmat[sub_i, sub_j] += Q  * phase
             Hmat[sub_j, sub_i] += conj(Q) * conj(phase)
@@ -244,17 +250,17 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64
             J = coupling.biquad
             # ⟨Ω₂, Ω₁|(𝐒₁⋅𝐒₂)^2|Ω₁, Ω₂⟩ = (1-1/S+1/(4S^2)) (Ω₁⋅Ω₂)^2 - 1/2 Ω₁⋅Ω₂ + const.
             # The biquadratic part including the biquadratic scaling factor.
-            Ri = swt.R_mat[sub_i]
-            Rj = swt.R_mat[sub_j]
+            Ri = R_mat[sub_i]
+            Rj = R_mat[sub_j]
             Rʳ = Ri' * Rj
             C0 = Rʳ[3, 3]*S^2
-            C1 = S*√S/2*(Rʳ[1, 3] + 1im * Rʳ[2, 3])
-            C2 = S*√S/2*(Rʳ[3, 1] + 1im * Rʳ[3, 2])
+            C1 = S*√S/2*(Rʳ[1, 3] + im*Rʳ[2, 3])
+            C2 = S*√S/2*(Rʳ[3, 1] + im*Rʳ[3, 2])
             A11 = -Rʳ[3, 3]*S
             A22 = -Rʳ[3, 3]*S
-            A21 = S/2*(Rʳ[1, 1] - 1im*Rʳ[1, 2] - 1im*Rʳ[2, 1] + Rʳ[2, 2])
-            A12 = S/2*(Rʳ[1, 1] + 1im*Rʳ[1, 2] + 1im*Rʳ[2, 1] + Rʳ[2, 2])
-            B21 = S/4*(Rʳ[1, 1] + 1im*Rʳ[1, 2] + 1im*Rʳ[2, 1] - Rʳ[2, 2])
+            A21 = S/2*(Rʳ[1, 1] - im*Rʳ[1, 2] - im*Rʳ[2, 1] + Rʳ[2, 2])
+            A12 = S/2*(Rʳ[1, 1] + im*Rʳ[1, 2] + im*Rʳ[2, 1] + Rʳ[2, 2])
+            B21 = S/4*(Rʳ[1, 1] + im*Rʳ[1, 2] + im*Rʳ[2, 1] - Rʳ[2, 2])
             B12 = B21
 
             Hmat[sub_i, sub_i] += J*biquad_res_factor * (C0*A11 + C1*conj(C1))
@@ -279,8 +285,8 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64
             # The additional bilinear interactions
             Rij = -J * S * (Ri' * Rj) / 2
 
-            P = 0.25 * (Rij[1, 1] - Rij[2, 2] + 1im * (-Rij[1, 2] - Rij[2, 1]))
-            Q = 0.25 * (Rij[1, 1] + Rij[2, 2] + 1im * (-Rij[1, 2] + Rij[2, 1]))
+            P = 0.25 * (Rij[1, 1] - Rij[2, 2] - im*Rij[1, 2] - im*Rij[2, 1])
+            Q = 0.25 * (Rij[1, 1] + Rij[2, 2] - im*Rij[1, 2] + im*Rij[2, 1])
 
             Hmat[sub_i, sub_j] += Q  * phase
             Hmat[sub_j, sub_i] += conj(Q) * conj(phase)
@@ -297,12 +303,11 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64
             Hmat[sub_i+L, sub_i+L] -= 0.5 * Rij[3, 3]
             Hmat[sub_j+L, sub_j+L] -= 0.5 * Rij[3, 3]
         end
-
     end
 
     # single-ion anisotropy
     for matom = 1:L
-        (; c2, c4, c6) = c′_coef[matom]
+        (; c2, c4, c6) = c_coef[matom]
         Hmat[matom, matom]     += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
         Hmat[matom+L, matom+L] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
         Hmat[matom, matom+L]   += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
@@ -324,13 +329,10 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64
     end
 end
 
-"""
-    bogoliubov!
 
-Bogoliubov transformation that diagonalizes a bosonic Hamiltonian. 
-See Colpa JH. *Diagonalization of the quadratic boson hamiltonian* 
-Physica A: Statistical Mechanics and its Applications, 1978 Sep 1;93(3-4):327-53.
-"""
+# Bogoliubov transformation that diagonalizes a bosonic Hamiltonian. See Colpa
+# JH. *Diagonalization of the quadratic boson hamiltonian* Physica A:
+# Statistical Mechanics and its Applications, 1978 Sep 1;93(3-4):327-53.
 function bogoliubov!(disp, V, Hmat, energy_tol, mode_fast::Bool = false)
     @assert size(Hmat, 1) == size(Hmat, 2) "Hmat is not a square matrix"
     @assert size(Hmat, 1) % 2 == 0 "dimension of Hmat is not even"
@@ -384,9 +386,11 @@ function bogoliubov!(disp, V, Hmat, energy_tol, mode_fast::Bool = false)
         @assert all(<(1e-6), abs.(V' * Σ * V - Σ)) "Para-renormalization check fails (Boson commutatition relations not preserved after the Bogoliubov transformation!)"
     end
 
-    # The linear spin-wave dispersion also in descending order.
-    return [disp[i] = 2.0 * eigval[i] for i = 1:L]
-
+    # The linear spin-wave dispersion in descending order.
+    for i in 1:L
+        disp[i] = 2eigval[i]
+    end
+    return
 end
 
 
@@ -455,8 +459,8 @@ end
 """
     dssf(swt::SpinWaveTheory, qs)
 
-**Experimental**. Given a [`SpinWaveTheory`](@ref) object, computes the
-dynamical spin structure factor,
+Given a [`SpinWaveTheory`](@ref) object, computes the dynamical spin structure
+factor,
 
 ```math
     𝒮^{αβ}(𝐤, ω) = 1/(2πN)∫dt ∑_𝐫 \\exp[i(ωt - 𝐤⋅𝐫)] ⟨S^α(𝐫, t)S^β(0, 0)⟩,
@@ -485,7 +489,7 @@ function dssf(swt::SpinWaveTheory, qs)
 
     # dssf(...) doesn't do any contraction, temperature correction, etc.
     # It simply returns the full Sαβ correlation matrix
-    formula = intensity_formula(swt,:full; kernel = delta_function_kernel)
+    formula = intensity_formula(swt, :full; kernel = delta_function_kernel)
 
     # Calculate DSSF 
     for qidx in CartesianIndices(qs)
@@ -512,28 +516,24 @@ struct SpinWaveIntensityFormula{T}
     calc_intensity :: Function
 end
 
-function Base.show(io::IO, formula::SpinWaveIntensityFormula{T}) where T
+function Base.show(io::IO, ::SpinWaveIntensityFormula{T}) where T
     print(io,"SpinWaveIntensityFormula{$T}")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", formula::SpinWaveIntensityFormula{T}) where T
-    printstyled(io, "Quantum Scattering Intensity Formula\n";bold=true, color=:underline)
+    printstyled(io, "Quantum Scattering Intensity Formula\n"; bold=true, color=:underline)
 
-    formula_lines = split(formula.string_formula,'\n')
+    formula_lines = split(formula.string_formula, '\n')
 
     if isnothing(formula.kernel)
+        println(io, "At any Q and for each band ωᵢ = εᵢ(Q), with S = S(Q,ωᵢ):\n")
         intensity_equals = "  Intensity(Q,ω) = ∑ᵢ δ(ω-ωᵢ) "
-        println(io,"At any Q and for each band ωᵢ = εᵢ(Q), with S = S(Q,ωᵢ):")
     else
+        println(io, "At any (Q,ω), with S = S(Q,ωᵢ):\n")
         intensity_equals = "  Intensity(Q,ω) = ∑ᵢ Kernel(ω-ωᵢ) "
-        println(io,"At any (Q,ω), with S = S(Q,ωᵢ):")
     end
-    println(io)
-    println(io,intensity_equals,formula_lines[1])
-    for i = 2:length(formula_lines)
-        precursor = repeat(' ', textwidth(intensity_equals))
-        println(io,precursor,formula_lines[i])
-    end
+    separator = '\n' * repeat(' ', textwidth(intensity_equals))
+    println(io, intensity_equals, join(formula_lines, separator))
     println(io)
     if isnothing(formula.kernel)
         println(io,"BandStructure information (ωᵢ and intensity) reported for each band")
@@ -545,7 +545,7 @@ end
 delta_function_kernel = nothing
 
 function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix; kernel::Union{Nothing,Function}, return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast=false)
-    (; sys, s̃_mat, R_mat) = swt
+    (; sys, data) = swt
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     S = (Ns-1) / 2
     nmodes = num_bands(swt)
@@ -591,6 +591,7 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix; kernel::Un
             v = Vmat[:, band]
             Avec = zeros(ComplexF64, 3)
             if sys.mode == :SUN
+                (; s̃_mat) = data
                 for site = 1:Nm
                     @views tS_μ = s̃_mat[:, :, :, site]
                     for μ = 1:3
@@ -600,6 +601,7 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix; kernel::Un
                     end
                 end
             elseif sys.mode == :dipole
+                (; R_mat) = data
                 for site = 1:Nm
                     Vtmp = [v[site+nmodes] + v[site], im * (v[site+nmodes] - v[site]), 0.0]
                     Avec += Avec_pref[site] * sqrt_halfS * (R_mat[site] * Vtmp)
