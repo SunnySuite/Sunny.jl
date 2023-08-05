@@ -148,9 +148,9 @@ cell_volume(cryst::Crystal) = abs(det(cryst.latvecs))
 """
     reciprocal_lattice_vectors(cryst::Crystal)
 
-Returns a ``3×3`` matrix, with columns that define the reciprocal lattice
-vectors ``(𝐛₁,𝐛₂,𝐛₃)``. These are defined to satisfy ``𝐛ᵢ⋅𝐚ⱼ = 2πδᵢⱼ``,
-where ``(𝐚₁,𝐚₂,𝐚₃)`` are the lattice vectors for `cryst` in real-space.
+Returns the ``3×3`` matrix ``(𝐛₁,𝐛₂,𝐛₃)`` with columns ``𝐛ᵢ`` as reciprocal
+lattice vectors. These are defined to satisfy ``𝐛ᵢ⋅𝐚ⱼ = 2πδᵢⱼ``, where
+``(𝐚₁,𝐚₂,𝐚₃)`` are the lattice vectors used to construct `cryst`.
 """
 reciprocal_lattice_vectors(cryst::Crystal) = cryst.recipvecs
 
