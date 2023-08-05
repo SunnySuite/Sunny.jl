@@ -40,14 +40,14 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
     na = natoms(cryst)
     A = zeros(Mat3, latsize..., na, na)
 
-    # Superlattice vectors that describe periodicity of system and their inverse
-    latscale = diagm(Vec3(latsize))
-    slatvecs = collect(eachcol(cryst.latvecs * latscale))
-    srecipvecs = collect(eachcol(latscale \ cryst.recipvecs))
+    # Superlattice vectors and reciprocals for the full system volume
+    sys_size = diagm(Vec3(latsize))
+    latvecs = cryst.latvecs * sys_size
+    recipvecs = sys_size \ cryst.recipvecs
 
     # Precalculate constants
     I₃ = Mat3(I)
-    V = (slatvecs[1] × slatvecs[2]) ⋅ slatvecs[3]
+    V = det(latvecs)
     L = cbrt(V)
     # Roughly balances the real and Fourier space costs
     σ = L/3
@@ -57,10 +57,10 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
     rmax = 6√2 * σ
     kmax = 6√2 / σ
 
-    nmax = map(slatvecs, srecipvecs) do a, b
+    nmax = map(eachcol(latvecs), eachcol(recipvecs)) do a, b
         round(Int, rmax / (a⋅normalize(b)) + 1e-6) + 1
     end
-    mmax = map(slatvecs, srecipvecs) do a, b
+    mmax = map(eachcol(latvecs), eachcol(recipvecs)) do a, b
         round(Int, kmax / (b⋅normalize(a)) + 1e-6)
     end
 
@@ -75,8 +75,7 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
         #####################################################
         ## Real space part
         for n1 = -nmax[1]:nmax[1], n2 = -nmax[2]:nmax[2], n3 = -nmax[3]:nmax[3]
-            n = Vec3(n1, n2, n3)
-            rvec = Δr + n' * slatvecs
+            rvec = Δr + latvecs * Vec3(n1, n2, n3)
             r² = rvec⋅rvec
             if 0 < r² <= rmax*rmax
                 r = √r²
@@ -91,7 +90,7 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
         #####################################################
         ## Fourier space part
         for m1 = -mmax[1]:mmax[1], m2 = -mmax[2]:mmax[2], m3 = -mmax[3]:mmax[3]
-            k = Vec3(m1, m2, m3)' * srecipvecs
+            k = recipvecs * Vec3(m1, m2, m3)
             k² = k⋅k
             if 0 < k² <= kmax*kmax
                 # Replace exp(-ikr) -> cos(kr). It's valid to drop the imaginary
