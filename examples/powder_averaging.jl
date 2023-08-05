@@ -49,19 +49,18 @@ add_sample!(sc, sys)
 # lorentzian(ω-ω₀, 0.1)`. 
 
 qpoints = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
-qs, markers = connected_path_from_rlu(crystal, qpoints, 50)
+qs, xticks = connected_path_from_rlu(crystal, qpoints, 50)
 
 is = intensities_interpolated(sc, qs; interpolation=:round, formula = intensity_formula(sc,:trace))
 is_broad = broaden_energy(sc, is, (ω, ω₀) -> lorentzian(ω-ω₀, 0.1))
 
 ## Plot results
 fig = Figure(; resolution=(1000,400))
-xticklabels = [string(tuple(qs[i]...)) for i in markers]
 plotparams = (;
     aspect=1.4,
     ylabel = "ω (meV)",
     xlabel = "𝐪 (RLU)",
-    xticks=(markers, xticklabels),
+    xticks,
     xticklabelrotation=π/10,
     xticklabelsize=14,
 )
@@ -86,7 +85,7 @@ function powder_average(sc, rs, density; η=0.1, kwargs...)
     output = zeros(Float64, length(rs), nω)
 
     for (i, r) in enumerate(rs)
-        qs = spherical_shell(sc, r, density)  # Get points on a sphere of radius r
+        qs = spherical_shell(r, density)  # Get points on a sphere of radius r
         if length(qs) == 0                    
             qs = [[0., 0., 0.]]  # If no points (r is too small), just look at 0 vector
         end

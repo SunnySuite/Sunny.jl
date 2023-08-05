@@ -88,7 +88,7 @@ function powder_average(sc, rs, density; η=0.1, mode=:perp, kwargs...)
     prog   = Progress(length(rs); dt=10., desc="Powder Averaging: ", color=:blue);
     output = zeros(Float64, length(rs), length(ωs(sc)))
     for (i, r) in enumerate(rs)
-        qs = spherical_shell(sc, r, density)
+        qs = spherical_shell(r, density)
         if length(qs) == 0
             qs = [[0., 0., 0.]] ## If radius is too small, just look at 0 vector
         end
