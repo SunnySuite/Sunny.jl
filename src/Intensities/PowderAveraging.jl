@@ -21,8 +21,8 @@ function spherical_shell(radius; density=0.0, minpoints=0, maxpoints=typemax(Int
         error("Must specify `density` or `minpoints`.")
     end
     n = round(Int, 4π*radius^2 * density)
-    n = min(max(n, minpoints), maxpoints)
-    return n <= 1 ? [Vec3(0,0,0)] : radius * spherical_points_fibonacci(n)
+    n = min(max(n, minpoints, 1), maxpoints)
+    return radius * spherical_points_fibonacci(n)
 end
 
 function powder_average_interpolated(sc::SampledCorrelations, q_ias, density; kwargs...)
