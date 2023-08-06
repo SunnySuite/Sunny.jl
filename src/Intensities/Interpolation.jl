@@ -110,7 +110,8 @@ end
 
 
 """
-    intensities_interpolated(sc::SampledCorrelations, qs; interpolation = nothing, formula = intensity_formula(sc,:perp), negative_energies = false)
+    intensities_interpolated(sc::SampledCorrelations, qs; interpolation=nothing,
+                             formula=intensity_formula(sc,:perp), negative_energies=false)
 
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `SampledCorrelations`. Maps an array of wave vectors `qs` to an array of structure
@@ -132,8 +133,9 @@ function intensities_interpolated(sc::SampledCorrelations, qs;
     negative_energies = false,
     instantaneous_warning = true
 )
-    qs = Vec3.(qs)
-    qs = map!(q -> sc.crystal.recipvecs \ q, qs, qs) 
+    # Convert wavevectors from absolute units to reciprocal lattice units (RLU)
+    # associated with sc.crystal
+    qs = [sc.crystal.recipvecs \ Vec3(q) for q in qs]
 
     # Make sure it's a dynamical structure factor 
     if instantaneous_warning && size(sc.data, 7) == 1
