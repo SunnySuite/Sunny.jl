@@ -9,8 +9,8 @@ struct SampledCorrelations{N}
     # 𝒮^{αβ}(q,ω) data and metadata
     data           :: Array{ComplexF64, 7}   # Raw SF data for 1st BZ (numcorrelations × natoms × natoms × latsize × energy)
     crystal        :: Crystal                # Crystal for interpretation of q indices in `data`
-    origin_crystal :: Union{Nothing,Crystal} # Original user-specified crystal (if different from above)  # FIXME: Eliminate
-    Δω             :: Float64                # Energy step size (could make this a virtual property)
+    origin_crystal :: Union{Nothing,Crystal} # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
+    Δω             :: Float64                # Energy step size (could make this a virtual property)  
 
     # Correlation info (αβ indices of 𝒮^{αβ}(q,ω))
     observables    :: Vector{LinearMap}  # Operators corresponding to observables
@@ -110,7 +110,7 @@ function all_observable_names(sc::SampledCorrelations)
 end
 
 """
-    dynamic_correlations(sys::System; Δt, nω, ωmax, 
+    dynamical_correlations(sys::System; Δt, nω, ωmax, 
         process_trajectory=:none, observables=nothing, correlations=nothing) 
 
 Creates a `SampledCorrelations` for calculating and storing ``𝒮(𝐪,ω)`` data.

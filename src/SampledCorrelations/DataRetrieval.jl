@@ -44,37 +44,47 @@ end
     formula = intensity_formula(sc::SampledCorrelations; kwargs...)
     formula.calc_intensity(sc,q,ix_q,ix_ω)
 
-Establish a formula for computing the intensity of the discrete scattering modes `(q,ω)` using the correlation data ``𝒮^{αβ}(q,ω)`` stored in the [`SampledCorrelations`](@ref).
-The `formula` returned from `intensity_formula` can be passed to [`intensities_interpolated`](@ref) or [`intensities_binned`](@ref).
+Establish a formula for computing the intensity of the discrete scattering modes
+`(q,ω)` using the correlation data ``𝒮^{αβ}(q,ω)`` stored in the
+[`SampledCorrelations`](@ref). The `formula` returned from `intensity_formula`
+can be passed to [`intensities_interpolated`](@ref) or
+[`intensities_binned`](@ref).
 
-Sunny has several built-in formulas that can be selected by setting `contraction_mode` to one of these values:
+Sunny has several built-in formulas that can be selected by setting
+`contraction_mode` to one of these values:
 
-- `:perp` (default), which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
+- `:perp` (default), which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor
+  ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
 - `:trace`, which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α 𝒮^{αα}(q,ω)``
 - `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
 
-Additionally, there are keyword arguments providing temperature and form factor corrections:
+Additionally, there are keyword arguments providing temperature and form factor
+corrections:
 
 - `kT`: If a temperature is provided, the intensities will be rescaled by a
     temperature- and ω-dependent classical-to-quantum factor. `kT` should be
     specified when making comparisons with spin wave calculations or
-    experimental data. If `kT` is not specified, infinite temperature (no correction) is assumed.
+    experimental data. If `kT` is not specified, infinite temperature (no
+    correction) is assumed.
 - `formfactors`: To apply form factor corrections, provide this keyword with a
-    vector of `FormFactor`s, one for each unique site in the unit cell. The form factors
-    will be symmetry propagated to all equivalent sites.
+    vector of `FormFactor`s, one for each unique site in the unit cell. The form
+    factors will be symmetry propagated to all equivalent sites.
 
-Alternatively, a custom formula can be specifed by providing a function `intensity = f(q,ω,correlations)` and specifying which correlations it requires:
+Alternatively, a custom formula can be specifed by providing a function
+`intensity = f(q,ω,correlations)` and specifying which correlations it requires:
 
     intensity_formula(f,sc::SampledCorrelations, required_correlations; kwargs...)
 
-The function is intended to be specified using `do` notation. For example, this custom formula sums the off-diagonal correlations:
+The function is intended to be specified using `do` notation. For example, this
+custom formula sums the off-diagonal correlations:
 
     required = [(:Sx,:Sy),(:Sy,:Sz),(:Sx,:Sz)]
     intensity_formula(sc,required,return_type = ComplexF64) do k, ω, off_diagonal_correlations
         sum(off_diagonal_correlations)
     end
 
-If your custom formula returns a type other than `Float64`, use the `return_type` keyword argument to flag this.
+If your custom formula returns a type other than `Float64`, use the
+`return_type` keyword argument to flag this.
 """
 function intensity_formula(f::Function,sc::SampledCorrelations,required_correlations; kwargs...)
     # SQTODO: This corr_ix may contain repeated correlations if the user does a silly
@@ -94,7 +104,7 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
     NAtoms = Val(size(sc.data)[2])
     NCorr = Val(length(corr_ix))
 
-    ωs_sc = ωs(sc;negative_energies=true)
+    ωs_sc = ωs(sc;negative_energies=true)  # I think this default `true` may be a problem
 
     # Intensity is calculated at the discrete (ix_q,ix_ω) modes available to the system.
     # Additionally, for momentum transfers outside of the first BZ, the norm `k` of the
@@ -110,28 +120,17 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
 end
 
 function classical_to_quantum(ω, kT::Float64)
-  if kT == Inf
-    return 1.0
-  end
-  if ω > 0
-    ω/(kT*(1 - exp(-ω/kT)))
-  elseif iszero(ω)
-    1.0
-  else
-    -ω*exp(ω/kT)/(kT*(1 - exp(ω/kT)))
-  end
-end
-
-function prepare_form_factors(sc, formfactors)
-    if isnothing(formfactors)
-        cryst = isnothing(sc.origin_crystal) ? sc.crystal : sc.origin_crystal 
-        class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]
-        formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]
+    if kT == Inf
+        return 1.0
     end
-    formfactors = upconvert_form_factors(formfactors) # Ensure formfactors have consistent type
-    return propagate_form_factors(sc, formfactors)
+    if ω > 0
+        ω/(kT*(1 - exp(-ω/kT)))
+    elseif iszero(ω)
+        1.0
+    else
+        -ω*exp(ω/kT)/(kT*(1 - exp(ω/kT)))
+    end
 end
-
 
 """
     lorentzian(x, η) 

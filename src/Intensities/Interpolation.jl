@@ -2,9 +2,6 @@ abstract type InterpolationScheme{NumInterp} end
 struct NoInterp <: InterpolationScheme{1} end
 struct LinearInterp <: InterpolationScheme{8} end
 
-#=
-ddtodo: Explanation of interpolation "API"
-=# 
 
 function interpolated_intensity(::SampledCorrelations, _, _, stencil_intensities, ::NoInterp) 
     return only(stencil_intensities)
@@ -35,16 +32,9 @@ end
 
 
 function stencil_points(sc::SampledCorrelations, q, ::NoInterp)
-
-    # Each of the following lines causes a 32 byte allocation
     Ls = size(sc.samplebuf)[2:4] 
     m = round.(Int, Ls .* q)
     im = map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex{3}
-
-    ## The following lines cause no allocations, but don't seem to be any faster.
-    #     _, L1, L2, L3, _, _ = size(sc.samplebuf)
-    #     m = (round(Int, L1*q[1]), round(Int, L2*q[2]), round(Int, L3*q[3]))
-    #     im = CartesianIndex{3}(mod(m[1], L1)+1, mod(m[2], L2)+1, mod(m[3], L3)+1)
 
     return (m,), (im,)
 end
@@ -140,21 +130,13 @@ function intensities_interpolated(sc::SampledCorrelations, qs;
     formula = intensity_formula(sc,:perp) :: ClassicalIntensityFormula,
     interpolation = :round,
     negative_energies = false,
-    static_warn = true
+    instantaneous_warning = true
 )
     qs = Vec3.(qs)
-
-    # If working on reshaped system, assume qs given as coordinates in terms of
-    # reciprocal vectors of original crystal and convert them to qs in terms of
-    # the reciprocal vectors of the reshaped crystal.
-    if !isnothing(sc.origin_crystal)
-        rvecs_reshaped = inv(sc.crystal.latvecs)'       # Note, leading 2π will cancel
-        rvecs_origin = inv(sc.origin_crystal.latvecs)'
-        qs = map(q -> rvecs_reshaped \ rvecs_origin * q, qs)
-    end
+    qs = map!(q -> sc.crystal.recipvecs \ q, qs, qs) 
 
     # Make sure it's a dynamical structure factor 
-    if static_warn && size(sc.data, 7) == 1
+    if instantaneous_warning && size(sc.data, 7) == 1
         error("`intensities_interpolated` given a SampledCorrelations with no dynamical information. Call `instant_intensities_interpolated` to retrieve instantaneous (static) structure factor data.")
     end
 
@@ -174,7 +156,7 @@ function intensities_interpolated(sc::SampledCorrelations, qs;
     return_type = typeof(formula).parameters[1]
     intensities = zeros(return_type, size(qs)..., nω)
     
-    # Call type stable version of the function
+    # Call type-stable version of the function
     intensities_interpolated!(intensities, sc, qs, ωvals, interp, formula, stencil_info, return_type)
 
     return intensities
@@ -211,7 +193,7 @@ i.e., ``𝒮(𝐪,ω)``, the ``ω`` information is integrated out.
 function instant_intensities_interpolated(sc::SampledCorrelations, qs; kwargs...)
     datadims = size(qs)
     ndims = length(datadims)
-    vals = intensities_interpolated(sc, qs; static_warn=false, kwargs...)
+    vals = intensities_interpolated(sc, qs; instantaneous_warning=false, kwargs...)
     static_vals = sum(vals, dims=(ndims+1,))
     return reshape(static_vals, datadims)
 end
