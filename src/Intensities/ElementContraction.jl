@@ -129,7 +129,15 @@ required_correlations(::FullTensor{NCorr}) where NCorr = 1:NCorr
 ################################################################################
 Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 
-intensity_formula(swt::SpinWaveTheory; kwargs...) = intensity_formula(swt, :perp; kwargs...)
+"""
+    intensity_formula([swt or sc], contraction_mode::Symbol)
+
+Sunny has several built-in formulas that can be selected by setting `contraction_mode` to one of these values:
+
+- `:perp` (default), which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
+- `:trace`, which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α 𝒮^{αα}(q,ω)``
+- `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
+"""
 function intensity_formula(swt::SpinWaveTheory, mode::Symbol; kwargs...)
     if mode == :trace
         contractor = Trace(swt)
