@@ -352,6 +352,9 @@ function live_integration(
     integrator = ImplicitMidpoint(Δt)
 
     while true
+        if !Makie.events(fig).window_open[]
+            break
+        end
         for step in 1:steps_per_frame
             step!(sys, integrator)
         end
@@ -380,11 +383,14 @@ function live_langevin_integration(
         linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
         lengthscale=arrowlength, kwargs...    
     )
-    display(fig)
+    scene = display(fig)
 
     integrator = Langevin(Δt; kT, λ)
 
     while true
+        if !Makie.events(fig).window_open[]
+            break
+        end
         for _ in 1:steps_per_frame
             step!(sys, integrator)
         end
