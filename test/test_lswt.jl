@@ -238,3 +238,29 @@ end
 
     @test disp_dip[1] ≈ disp_SUN[end-1]
 end
+
+@testitem "Intensities interface" begin
+    sys = System(Sunny.diamond_crystal(),(1,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN;seed = 0)
+    randomize_spins!(sys)
+
+    swt = SpinWaveTheory(sys)
+    
+    # Just testing that nothing throws errors
+    # TODO: accuracy check
+    path, _ = connected_path_from_rlu(Sunny.diamond_crystal(),[[0.,0.,0.],[0.5,0.5,0.]],50)
+    energies = collect(0:0.1:5)
+
+    # Bands
+    formula = intensity_formula(swt,:perp,kernel = delta_function_kernel)
+    intensities_bands(swt,path;formula)
+    @test_throws "without a finite-width kernel" intensities_broadened(swt,path,energies,formula)
+
+    # Broadened
+    formula = intensity_formula(swt,:perp,kernel = lorentzian(0.05))
+    intensities_broadened(swt,path,energies,formula)
+    @test_throws "broadening kernel" intensities_bands(swt,path;formula)
+
+    formula = intensity_formula(swt,:perp,kernel = (w,dw) -> lorentzian(dw,w.^2))
+    intensities_broadened(swt,path,energies,formula)
+    @test_throws "broadening kernel" intensities_bands(swt,path;formula)
+end
