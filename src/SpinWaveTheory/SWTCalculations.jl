@@ -564,6 +564,19 @@ end
 
 delta_function_kernel = nothing
 
+"""
+    formula = intensity_formula(swt::SpinWaveTheory; kernel = ...)
+
+Establish a formula for computing the scattering intensity by diagonalizing
+the hamiltonian ``H(q)`` using Linear Spin Wave Theory.
+
+If `kernel = delta_function_kernel`, then the resulting formula can be used with
+[`intensities_bands`](@ref).
+
+If `kernel` is a broadening kernel function, then the resulting formula can be used with [`intensities_broadened`](@ref).
+"""
+intensity_formula(swt::SpinWaveTheory; kwargs...) = intensity_formula(swt, :perp; kwargs...)
+
 function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function}, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast = false)
     (; sys, positions_chem, s̃_mat, R_mat) = swt
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
