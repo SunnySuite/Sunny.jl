@@ -170,9 +170,9 @@ e.g., `bzsize=(2,2,2)`. The resulting list of wave vectors may then be passed to
 Alternatively, [`intensities_binned`](@ref) can be used to place the exact data
 into histogram bins for comparison with experiment.
 
-The convenience function [`connected_path`](@ref) returns a list of wavevectors
-sampled along a path that connects specified $𝐪$ points. This list can be used
-as an input to `intensities`. Another convenience method,
+The convenience function [`connected_path_from_rlu`](@ref) returns a list of
+wavevectors sampled along a path that connects specified $𝐪$ points. This list
+can be used as an input to `intensities`. Another convenience method,
 [`spherical_shell`](@ref) will provide a list of wave vectors on a sphere of a
 specified radius. This is useful for powder averaging. 
 

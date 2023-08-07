@@ -38,6 +38,12 @@ Remove `intensities` function. Instead, use one of
 [`intensities_interpolated`](@ref) or [`intensities_binned`](@ref). These will
 require an [`intensity_formula`](@ref), which defines a calculator (e.g., LSWT).
 
+Sunny now expects all wavevectors in units of inverse Angstrom (1/Å). This
+facilitates orientational averaging. Replace `connected_path` with
+[`connected_path_from_rlu`](@ref), which returns wavevectors in 1/Å. Now
+[`spherical_shell`](@ref) needs one fewer argument, and returns wavevectors in
+1/Å.
+
 Rename `polarize_spin!` to [`set_dipole!`](@ref) for consistency with
 [`set_coherent!`](@ref). The behavior of the former function is unchanged: the
 spin at a given site will still be polarized along the provided direction.

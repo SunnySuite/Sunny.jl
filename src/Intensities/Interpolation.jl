@@ -2,9 +2,6 @@ abstract type InterpolationScheme{NumInterp} end
 struct NoInterp <: InterpolationScheme{1} end
 struct LinearInterp <: InterpolationScheme{8} end
 
-#=
-ddtodo: Explanation of interpolation "API"
-=# 
 
 function interpolated_intensity(::SampledCorrelations, _, _, stencil_intensities, ::NoInterp) 
     return only(stencil_intensities)
@@ -35,16 +32,9 @@ end
 
 
 function stencil_points(sc::SampledCorrelations, q, ::NoInterp)
-
-    # Each of the following lines causes a 32 byte allocation
     Ls = size(sc.samplebuf)[2:4] 
     m = round.(Int, Ls .* q)
     im = map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex{3}
-
-    ## The following lines cause no allocations, but don't seem to be any faster.
-    #     _, L1, L2, L3, _, _ = size(sc.samplebuf)
-    #     m = (round(Int, L1*q[1]), round(Int, L2*q[2]), round(Int, L3*q[3]))
-    #     im = CartesianIndex{3}(mod(m[1], L1)+1, mod(m[2], L2)+1, mod(m[3], L3)+1)
 
     return (m,), (im,)
 end
@@ -106,13 +96,12 @@ function pruned_stencil_info(sc::SampledCorrelations, qs, interp::InterpolationS
     @assert sum(counts) == length(m_info)
 
     # Calculate corresponding q (RLU) and k (global) vectors
-    recip_vecs = 2π*inv(sc.crystal.latvecs)'  # Note, qs will be in terms of sc.crystal by this point, not origin_crystal
     qs_all = map(ms_all) do ms
        map(m -> m ./ sc.latsize, ms) 
     end
 
     ks_all = map(qs_all) do qs
-        map(q -> recip_vecs * q, qs)
+        map(q -> sc.crystal.recipvecs * q, qs) # FIXME: should q still by in sc.crystal, or in absolute units?
     end
     
     return (; qs_all, ks_all, idcs_all, counts)
@@ -121,7 +110,8 @@ end
 
 
 """
-    intensities_interpolated(sc::SampledCorrelations, qs; interpolation = nothing, formula = intensity_formula(sc,:perp), negative_energies = false)
+    intensities_interpolated(sc::SampledCorrelations, qs; interpolation=nothing,
+                             formula=intensity_formula(sc,:perp), negative_energies=false)
 
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `SampledCorrelations`. Maps an array of wave vectors `qs` to an array of structure
@@ -141,21 +131,14 @@ function intensities_interpolated(sc::SampledCorrelations, qs;
     formula = intensity_formula(sc,:perp) :: ClassicalIntensityFormula,
     interpolation = :round,
     negative_energies = false,
-    static_warn = true
+    instantaneous_warning = true
 )
-    qs = Vec3.(qs)
-
-    # If working on reshaped system, assume qs given as coordinates in terms of
-    # reciprocal vectors of original crystal and convert them to qs in terms of
-    # the reciprocal vectors of the reshaped crystal.
-    if !isnothing(sc.origin_crystal)
-        rvecs_reshaped = inv(sc.crystal.latvecs)'       # Note, leading 2π will cancel
-        rvecs_origin = inv(sc.origin_crystal.latvecs)'
-        qs = map(q -> rvecs_reshaped \ rvecs_origin * q, qs)
-    end
+    # Convert wavevectors from absolute units to reciprocal lattice units (RLU)
+    # associated with sc.crystal
+    qs = [sc.crystal.recipvecs \ Vec3(q) for q in qs]
 
     # Make sure it's a dynamical structure factor 
-    if static_warn && size(sc.data, 7) == 1
+    if instantaneous_warning && size(sc.data, 7) == 1
         error("`intensities_interpolated` given a SampledCorrelations with no dynamical information. Call `instant_intensities_interpolated` to retrieve instantaneous (static) structure factor data.")
     end
 
@@ -175,7 +158,7 @@ function intensities_interpolated(sc::SampledCorrelations, qs;
     return_type = typeof(formula).parameters[1]
     intensities = zeros(return_type, size(qs)..., nω)
     
-    # Call type stable version of the function
+    # Call type-stable version of the function
     intensities_interpolated!(intensities, sc, qs, ωvals, interp, formula, stencil_info, return_type)
 
     return intensities
@@ -212,33 +195,37 @@ i.e., ``𝒮(𝐪,ω)``, the ``ω`` information is integrated out.
 function instant_intensities_interpolated(sc::SampledCorrelations, qs; kwargs...)
     datadims = size(qs)
     ndims = length(datadims)
-    vals = intensities_interpolated(sc, qs; static_warn=false, kwargs...)
+    vals = intensities_interpolated(sc, qs; instantaneous_warning=false, kwargs...)
     static_vals = sum(vals, dims=(ndims+1,))
     return reshape(static_vals, datadims)
 end
 
 
 """
-    connected_path(recip_vecs, qs::Vector, density)
+    connected_path_from_rlu(cryst, qs_rlu, density)
 
-Takes a list of wave vectors, `qs`, and builds an expanded list of wave vectors
-that traces a path through the provided points. Also returned is a list of
-marker indices corresponding to the input points. The `density` parameter is
-given in samples per inverse Å.
+Returns a pair `(path, xticks)`. The first return value is a path in reciprocal
+space that samples linearly between the wavevectors in `qs_rlu`. The elements in
+`qs_rlu` are defined in reciprocal lattice units (RLU) associated with the
+[`reciprocal_lattice_vectors`](@ref) for `cryst`. The sampling `density` between
+elements of `qs` has units of inverse length.
 
-Instead of `recip_vecs`, the first argument may be either a `SampledCorrelations` or
-a `SpinWaveTheory`.
+The second return value `xticks` can be used for plotting. The `xticks` object
+is itself a pair `(numbers, labels)`, which give the locations of the
+interpolating ``q``-points and labels as pretty-printed strings.
 """
-function connected_path(recip_vecs, qs::Vector, density)
-    @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
-    qs = Vec3.(qs)
+function connected_path_from_rlu(cryst::Crystal, qs_rlu::Vector, density)
+    @assert length(qs_rlu) >= 2 "The list `qs` should include at least two wavevectors."
+    qs_rlu = Vec3.(qs_rlu)
+
+    qs = Ref(cryst.recipvecs) .* qs_rlu
 
     path = Vec3[]
     markers = Int[]
     for i in 1:length(qs)-1
         push!(markers, length(path)+1)
         q1, q2 = qs[i], qs[i+1]
-        dist = norm(recip_vecs*(q1 - q2))
+        dist = norm(q1 - q2)
         npoints = round(Int, dist*density)
         for n in 1:npoints
             push!(path, (1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints)
@@ -247,8 +234,10 @@ function connected_path(recip_vecs, qs::Vector, density)
     push!(markers, length(path)+1)
     push!(path, qs[end])
 
-    return (path, markers)
-end
-connected_path(sc::SampledCorrelations, qs::Vector, density) = connected_path(2π*inv(sc.crystal.latvecs)', qs, density)
-connected_path(sw::SpinWaveTheory, qs::Vector, density) = connected_path(sw.recipvecs_chem, qs, density)
+    labels = map(qs_rlu) do q_rlu
+        "[" * join(number_to_math_string.(q_rlu), ",") * "]"
+    end
+    xticks = (markers, labels)
 
+    return (path, xticks)
+end

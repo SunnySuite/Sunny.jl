@@ -43,8 +43,11 @@ end
 """
     formula = intensity_formula(sc::SampledCorrelations)
 
-Establish a formula for computing the intensity of the discrete scattering modes `(q,ω)` using the correlation data ``𝒮^{αβ}(q,ω)`` stored in the [`SampledCorrelations`](@ref).
-The `formula` returned from `intensity_formula` can be passed to [`intensities_interpolated`](@ref) or [`intensities_binned`](@ref).
+Establish a formula for computing the intensity of the discrete scattering modes
+`(q,ω)` using the correlation data ``𝒮^{αβ}(q,ω)`` stored in the
+[`SampledCorrelations`](@ref). The `formula` returned from `intensity_formula`
+can be passed to [`intensities_interpolated`](@ref) or
+[`intensities_binned`](@ref).
 
     intensity_formula(sc,...; kT = Inf, formfactors = ...)
 
@@ -53,7 +56,8 @@ There are keyword arguments providing temperature and form factor corrections:
 - `kT`: If a temperature is provided, the intensities will be rescaled by a
     temperature- and ω-dependent classical-to-quantum factor. `kT` should be
     specified when making comparisons with spin wave calculations or
-    experimental data. If `kT` is not specified, infinite temperature (no correction) is assumed.
+    experimental data. If `kT` is not specified, infinite temperature (no
+    correction) is assumed.
 - `formfactors`: To apply form factor corrections, provide this keyword with a
     vector of `FormFactor`s, one for each unique site in the unit cell. The form factors
     will be symmetry propagated to all equivalent sites.
@@ -68,7 +72,7 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
     NAtoms = Val(size(sc.data)[2])
     NCorr = Val(length(corr_ix))
 
-    ωs_sc = ωs(sc;negative_energies=true)
+    ωs_sc = ωs(sc;negative_energies=true)  # I think this default `true` may be a problem
 
     # Intensity is calculated at the discrete (ix_q,ix_ω) modes available to the system.
     # Additionally, for momentum transfers outside of the first BZ, the norm `k` of the
@@ -108,28 +112,17 @@ end
 
 
 function classical_to_quantum(ω, kT::Float64)
-  if kT == Inf
-    return 1.0
-  end
-  if ω > 0
-    ω/(kT*(1 - exp(-ω/kT)))
-  elseif iszero(ω)
-    1.0
-  else
-    -ω*exp(ω/kT)/(kT*(1 - exp(ω/kT)))
-  end
-end
-
-function prepare_form_factors(sc, formfactors)
-    if isnothing(formfactors)
-        cryst = isnothing(sc.origin_crystal) ? sc.crystal : sc.origin_crystal 
-        class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]
-        formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]
+    if kT == Inf
+        return 1.0
     end
-    formfactors = upconvert_form_factors(formfactors) # Ensure formfactors have consistent type
-    return propagate_form_factors(sc, formfactors)
+    if ω > 0
+        ω/(kT*(1 - exp(-ω/kT)))
+    elseif iszero(ω)
+        1.0
+    else
+        -ω*exp(ω/kT)/(kT*(1 - exp(ω/kT)))
+    end
 end
-
 
 """
     lorentzian(x, η) 

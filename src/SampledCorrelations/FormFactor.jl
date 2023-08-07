@@ -15,6 +15,8 @@ end
 Basic type for specifying form factor parameters. Must be provided a site within
 the unit cell (`atom`) and a string specifying the element name. This used when
 creating an [`intensity_formula`](@ref), which accepts a list of `FormFactors`s.
+Note that these corrections assume S(q,ω) is being calculated in the dipole
+approximation; they may not be appropriate for a general SU(N) system.
 
 A list of supported element names is available at:
 
@@ -103,6 +105,8 @@ end
 
 # If necessary, update the indices of FormFactors from original crystal
 # to the corresponding indices of the new crystal.
+# TODO: Moving ion information into `SpinInfo` will eliminate the need for this as well
+# as symmetry propagation.
 function map_form_factors_to_crystal(sc::SampledCorrelations, ffs::Vector{FormFactor{FFType}}) where FFType
     (; crystal, origin_crystal) = sc
 
@@ -121,6 +125,8 @@ function map_form_factors_to_crystal(sc::SampledCorrelations, ffs::Vector{FormFa
     return ffs_new
 end
 
+# Remap form factors to reshaped crystal (if necessary) and propagate to symmetry
+# equivalent sites.
 function propagate_form_factors(sc::SampledCorrelations, ffs::Vector{FormFactor{FFType}}) where FFType
     ffs = map_form_factors_to_crystal(sc, ffs)
     ref_atoms = [ff.atom for ff in ffs]
@@ -133,7 +139,20 @@ function propagate_form_factors(sc::SampledCorrelations, ffs::Vector{FormFactor{
     end
 end
 
+# Process form factor information into optimal form for efficient calculation.
+# Form factors are provided at the level of an `intensities` call, so there is
+# no opportunity to precalculate this in current arrangement. 
+function prepare_form_factors(sc, formfactors)
+    if isnothing(formfactors)
+        cryst = isnothing(sc.origin_crystal) ? sc.crystal : sc.origin_crystal 
+        class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]
+        formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]
+    end
+    formfactors = upconvert_form_factors(formfactors) # Ensure formfactors have consistent type
+    return propagate_form_factors(sc, formfactors)
+end
 
+# Second-order form factor calculation.
 function compute_form(k::Float64, params::FormFactor{DOUBLE_FF})
     s = k/4π
     g = params.g_lande
@@ -147,12 +166,14 @@ function compute_form(k::Float64, params::FormFactor{DOUBLE_FF})
     return ((2-g)/g) * (form2*s^2) + form1
 end
 
+# First-order form factor calculation.
 function compute_form(k::Float64, params::FormFactor{SINGLE_FF})
     s = k/4π
     (A, a, B, b, C, c, D) = params.J0_params
     return A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
 end
 
+# No form factor correction.
 function compute_form(::Float64, ::FormFactor{EMPTY_FF})
     return 1.0
 end

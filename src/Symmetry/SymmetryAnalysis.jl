@@ -159,13 +159,10 @@ function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
     max_dist += 4 * cryst.symprec * ℓ
     min_dist -= 4 * cryst.symprec * ℓ
 
-    # columns are the reciprocal vectors
-    recip_vecs = 2π * inv(cryst.latvecs)'
-
     # box_lengths[i] represents the perpendicular distance between two parallel
     # boundary planes spanned by lattice vectors a_j and a_k (where indices j
     # and k differ from i)
-    box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(cryst.latvecs), eachcol(recip_vecs))]
+    box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(cryst.latvecs), eachcol(cryst.recipvecs))]
     n_max = round.(Int, max_dist ./ box_lengths, RoundUp)
 
     bonds = Bond[]

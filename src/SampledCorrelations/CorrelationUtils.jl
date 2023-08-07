@@ -12,7 +12,7 @@ function all_exact_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
     lo = map(L -> 1 - div(L, 2), up) .- offsets
     qs = zeros(Vec3, up...)
     for (k, lz) in enumerate(lo[3]:hi[3]), (j, ly) in enumerate(lo[2]:hi[2]), (i, lx) in enumerate(lo[1]:hi[1])
-        qs[i,j,k] = Vec3(lx/Ls[1], ly/Ls[2], lz/Ls[3]) 
+        qs[i,j,k] = sc.crystal.recipvecs * Vec3(lx/Ls[1], ly/Ls[2], lz/Ls[3]) 
     end
     return qs
 end
@@ -37,6 +37,3 @@ function ωs(sc::SampledCorrelations; negative_energies=false)
     end
     return negative_energies ? ωvals : ωvals[1:hω]
 end
-
-
-orig_crystal(sc::SampledCorrelations) = isnothing(sc.origin_crystal) ? sc.crystal : sc.origin_crystal

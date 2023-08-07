@@ -49,9 +49,8 @@ include("Symmetry/AllowedCouplings.jl")
 include("Symmetry/AllowedAnisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
-export Crystal, subcrystal, lattice_vectors, lattice_params, Bond, 
-    reference_bonds, print_site, print_bond, print_symmetry_table,
-    print_suggested_frame
+export Crystal, subcrystal, lattice_vectors, lattice_params, reciprocal_lattice_vectors, Bond,
+    reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame
 
 include("Units.jl")
 export meV_per_K, Units
@@ -98,12 +97,11 @@ export SampledCorrelations, dynamical_correlations, instant_correlations, FormFa
 include("Intensities/ElementContraction.jl")
 
 include("Intensities/Interpolation.jl")
-export intensities_interpolated, instant_intensities_interpolated, connected_path
+export intensities_interpolated, instant_intensities_interpolated, connected_path_from_rlu
 
 include("Intensities/Binning.jl")
 export intensities_binned, BinningParameters, count_bins, integrate_axes!,
     unit_resolution_binning_parameters, 
-    bin_absolute_units_as_rlu!, bin_rlu_as_absolute_units!,
     slice_2D_binning_parameters, axes_bincenters,
     connected_path_bins
 

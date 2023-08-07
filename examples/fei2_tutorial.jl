@@ -245,27 +245,19 @@ plot_spins(sys_min; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 swt = SpinWaveTheory(sys_min);
 
-# Next, select a sequence of wavevectors that will define a piecewise linear
-# path in reciprocal space. The coefficients of each $q$-vector are given in
-# reciprocal lattice units (RLU), i.e., are multiples of the recripocal lattice
-# vectors. The function [`connected_path`](@ref) will linearly sample between
-# the provided $q$-points with some `density`.
-points = [[0,   0, 0],
-          [1,   0, 0],
-          [0,   1, 0],
-          [1/2, 0, 0],
-          [0,   1, 0],
-          [0,   0, 0]] 
-labels = string.(points)
-density = 600
-path, markers = connected_path(swt, points, density);
+# Select a sequence of wavevectors that will define a piecewise linear
+# interpolation in reciprocal lattice units (RLU).
 
-# The dispersion relation can be calculated by providing `dispersion` with a
-# `SpinWaveTheory` and a list of wave vectors. For each wave vector,
-# `dispersion` will return a list of energies, one for each band. Frequently one
-# wants dispersion information along lines that connect special wave vectors.
-# The function [`connected_path`](@ref) linearly samples between provided
-# $𝐪$-points, with a given sample density.
+points_rlu = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
+
+# The function [`connected_path_from_rlu`](@ref) will linearly sample between
+# the provided $q$-points with a given `density`. The `path` return value is a
+# list of wavevectors in absolute units (inverse Å). The `xticks` return value
+# keeps track of the locations of the special $𝐪$-points, and provides
+# human-readable labels for use in plotting.
+
+density = 50
+path, xticks = connected_path_from_rlu(cryst, points_rlu, density);
 
 # The [`dispersion`](@ref) function defines the quasiparticle excitation
 # energies $ω_i(𝐪)$ for each point $𝐪$ along the reciprocal space path.
@@ -288,8 +280,7 @@ disp, intensity = intensities_bands(swt, path; formula);
 # These can be plotted in GLMakie.
 
 fig = Figure()
-ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)",
-          xticks=(markers, labels), xticklabelrotation=π/6)
+ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
 ylims!(ax, 0.0, 7.5)
 xlims!(ax, 1, size(disp, 1))
 for i in axes(disp)[2]
@@ -297,58 +288,47 @@ for i in axes(disp)[2]
 end
 fig
 
-# To make comparisons with inelastic neutron scattering (INS) data, it is helpful to employ
-# an empirical broadening kernel.
+# To make comparisons with inelastic neutron scattering (INS) data, it is
+# helpful to employ an empirical broadening kernel, e.g., a
+# [`lorentzian`](@ref).
 
 γ = 0.15 # width in meV
 broadened_formula = intensity_formula(swt; kernel=lorentzian(γ))
 
-# The broadened intensity can be calculated for using
-# [`intensities_broadened`](@ref). One must space a path in $𝐪$-space and an
-# energy range.
+# The [`intensities_broadened`](@ref) function requires an energy range in
+# addition to the $𝐪$-space path.
 
-energies = collect(0:0.01:7.5)  # 0 < ω < 7.5 (meV).
+energies = collect(0:0.01:10)  # 0 < ω < 10 (meV).
 is1 = intensities_broadened(swt, path, energies, broadened_formula);
 
-# In real FeI$_2$, there will be competing magnetic domains associated with the
-# three possible orientations of the symmetry-broken ground state, which derive
-# from the three-fold rotational symmetry of a triangular lattice.
-#
-# The matrix $A$ defined below implements a 120° clockwise rotation on
-# wavevectors $𝐪$ defined in RLU.
+# A real FeI$_2$ sample will exhibit competing magnetic domains associated with
+# spontaneous symmetry breaking of the 6-fold rotational symmetry of the
+# triangular lattice. Note that the wavevectors $𝐪$ and $-𝐪$ are equivalent in
+# the structure factor, which leaves three distinct domain orientations, which
+# are related by 120° rotations. Rather than rotating the spin configuration
+# directly, on can rotate the $𝐪$-space path. Below, we collect and plot
+# intensity data that is averaged over all three possible orientations.
 
-A = [-1 -1 0;
-      1  0 0;
-      0  0 1]
-@assert A^3 ≈ [1 0 0; 0 1 0; 0 0 1] # Rotation by 360° is the identity
+sθ, cθ = sincos(2π/3)
+R = [cθ -sθ 0; sθ cθ 0; 0  0 1]  # 120° rotation about the ẑ axis
 
-# We will average the intensity data over the three symmetry-equivalent
-# rotations of the $𝐪$-space path.
-
-function rotated_intensity(R)
-    rotated_path = [R * q for q in path]
-    intensities_broadened(swt, rotated_path, energies, broadened_formula)
-end
-
-@assert is1 == rotated_intensity(A^0)
-is2 = rotated_intensity(A)
-is3 = rotated_intensity(A^2)
+is2 = intensities_broadened(swt, [R*q for q in path], energies, broadened_formula)
+is3 = intensities_broadened(swt, [R*R*q for q in path], energies, broadened_formula)
 is_averaged = (is1 + is2 + is3) / 3
 
 fig = Figure()
-ax = Axis(fig[1,1], xlabel="(H,0,0)", ylabel="Energy (meV)", xticks=(markers, labels),
-          )
+ax = Axis(fig[1,1]; xlabel="(H,0,0)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
 heatmap!(ax, 1:size(is_averaged, 1), energies, is_averaged)
 fig
 
 # This result can be directly compared to experimental neutron scattering data
-# [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)
+# from [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)
 # ```@raw html
 # <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_intensity.jpg">
 # ```
 #
-# (Note that the publication figure uses a different coordinate system to label
-# the wave vectors.)
+# (The publication figure accidentally used a non-standard coordinate system to
+# label the wave vectors.)
 # 
 # To get this agreement, the use of SU(3) coherent states is essential (in other
 # words, we needed a theory of multi-flavored bosons). The lower band has large
