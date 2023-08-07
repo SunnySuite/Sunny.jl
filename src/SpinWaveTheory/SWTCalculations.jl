@@ -553,7 +553,16 @@ the hamiltonian ``H(q)`` using Linear Spin Wave Theory.
 If `kernel = delta_function_kernel`, then the resulting formula can be used with
 [`intensities_bands`](@ref).
 
-If `kernel` is a broadening kernel function, then the resulting formula can be used with [`intensities_broadened`](@ref).
+If `kernel` is an energy broadening kernel function, then the resulting formula can be used with [`intensities_broadened`](@ref).
+Energy broadening kernel functions can either be a function of `Δω` only, e.g.:
+
+    kernel = Δω -> ...
+
+or a function of both the energy transfer `ω` and of `Δω`, e.g.:
+
+    kernel = (ω,Δω) -> ...
+
+The integral of a properly normalized kernel function over all `Δω` is one.
 """
 intensity_formula(swt::SpinWaveTheory; kwargs...) = intensity_formula(swt, :perp; kwargs...)
 
@@ -571,6 +580,16 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     Avec_pref = zeros(ComplexF64, Nm)
     disp = zeros(Float64, nmodes)
     intensity = zeros(return_type, nmodes)
+
+    # Upgrade to 2-argument kernel if needed
+    if !isnothing(kernel)
+        kernel = try
+            kernel(0.,0.)
+            kernel
+        catch MethodError
+            (ω,Δω) -> kernel(Δω)
+        end
+    end
 
     # In Spin Wave Theory, the Hamiltonian depends on momentum transfer `q`.
     # At each `q`, the Hamiltonian is diagonalized one time, and then the
@@ -669,7 +688,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                 if ω[1] < goldstone_threshold
                     is[1] = goldstone_intensity
                 end
-                is .+= sum(intensity_finite .* kernel.(ω .- disp_finite),dims=2)
+                is .+= sum(intensity_finite .* kernel.(disp_finite,ω .- disp_finite),dims=2)
                 is
             end
         end

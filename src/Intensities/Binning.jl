@@ -247,7 +247,7 @@ Creates [`BinningParameters`](@ref) which make a 1D cut in Q-space.
  
 The x-axis of the resulting histogram consists of `cut_bins`-many bins ranging
 from `cut_from_q` to `cut_to_q`. The orientation of the binning in the transverse directions is
-determined automatically using `plane_normal`.
+determined automatically using `plane_normal`, and will be orthogonal according to the Euclidean metric.
 The width of the bins in the transverse direciton is controlled by `cut_width` and `cut_height`.
 
 If the cut is too narrow, there will be very few scattering vectors per bin, or
@@ -383,6 +383,8 @@ for a reasonable default choice of [`BinningParameters`](@ref) which roughly emu
 If a function `integrated_kernel(Δω)` is passed, it will be used as the CDF of a kernel function for energy broadening.
 For example,
 `integrated_kernel = Δω -> atan(Δω/η)/pi` (c.f. [`integrated_lorentzian`](@ref) implements Lorentzian broadening with parameter `η`.
+Energy-dependent energy broadening can be achieved by providing an `integrated_kernel(ω,Δω)` whose first argument is the energy transfer `ω`.
+
 Currently, energy broadening is only supported if the [`BinningParameters`](@ref) are such that the first three axes are purely spatial and the last (energy) axis is `[0,0,0,1]`.
 """
 function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
@@ -415,6 +417,15 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
 
     # Pre-compute discrete broadening kernel from continuous one provided
     if !isnothing(integrated_kernel)
+
+        # Upgrade to 2-argument kernel if needed
+        integrated_kernel = try
+            integrated_kernel(0.,0.)
+            integrated_kernel
+        catch MethodError
+            (ω,Δω) -> integrated_kernel(Δω)
+        end
+
         fraction_in_bin = Vector{Vector{Float64}}(undef,length(ωvals))
         for (iω,ω) in enumerate(ωvals)
             fraction_in_bin[iω] = Vector{Float64}(undef,numbins[4])
@@ -425,7 +436,7 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
                 b = binstart[4] + iωother * binwidth[4]
 
                 # P(ω picked up in bin [a,b]) = ∫ₐᵇ Kernel(ω' - ω) dω'
-                fraction_in_bin[iω][iωother] = integrated_kernel(b - ω) - integrated_kernel(a - ω)
+                fraction_in_bin[iω][iωother] = integrated_kernel(ω,b - ω) - integrated_kernel(ω,a - ω)
             end
         end
     end
