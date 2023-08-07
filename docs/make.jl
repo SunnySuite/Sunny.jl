@@ -13,6 +13,8 @@ example_sources = [joinpath(@__DIR__, "..", "examples", name*".jl") for name in 
 example_destination = joinpath(@__DIR__, "src", "examples")
 example_doc_paths = ["examples/$name.md" for name in example_names]
 
+# Run Literate on each `../examples/file.jl` and output `src/examples/file.md`
+isdir(example_destination) && rm(example_destination; recursive=true)
 for source in example_sources
     Literate.markdown(source, example_destination)
 end

@@ -2,8 +2,8 @@
 #
 # This tutorial illustrates the calculation of the powder-averaged structure
 # factor by performing an orientational average. We consider a simple model of
-# the diamond-cubic crystal CoRh$_2$O$_4$, with parameters extracted from Ge et
-# al., Phys. Rev. B 96, 064413 (https://doi.org/10.1103/PhysRevB.96.064413).
+# the diamond-cubic crystal CoRh$_2$O$_4$, with parameters extracted from [Ge et
+# al., Phys. Rev. B 96, 064413](https://doi.org/10.1103/PhysRevB.96.064413).
 
 using Sunny, GLMakie
 
@@ -70,8 +70,6 @@ path, xticks = connected_path_from_rlu(crystal, qpoints, 50)
 energies = collect(0:0.01:6)
 is = intensities_broadened(swt, path, energies, formula)
 
-# Plot the results
-
 fig = Figure()
 ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (RLU)",
           xticks, xticklabelrotation=π/10)
@@ -100,7 +98,7 @@ heatmap!(ax, rs, energies, output, colormap=:gnuplot2)
 fig
 
 # This result can be compared to experimental neutron scattering data
-# from [Ge et al.](https://doi.org/10.1038/s41567-020-01110-1)
+# from Fig. 5 of [Ge et al.](https://doi.org/10.1103/PhysRevB.96.064413)
 # ```@raw html
-# <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/CoRh2O4_intensity.jpg">
+# <img width="95%" src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/CoRh2O4_intensity.jpg">
 # ```
