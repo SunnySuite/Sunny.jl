@@ -74,7 +74,7 @@ end
 # We can visualize this discreteness by plotting each possible Qx and Qz, for example:
 
 params = unit_resolution_binning_parameters(sc)#hide
-bin_rlu_as_absolute_units!(params,sc)#hide
+Sunny.bin_rlu_as_absolute_units!(params,sc)#hide
 lower_aabb_q, upper_aabb_q = Sunny.binning_parameters_aabb(params)#hide
 lower_aabb_cell = floor.(Int64,lower_aabb_q .* latsize .+ 1)#hide
 upper_aabb_cell = ceil.(Int64,upper_aabb_q .* latsize .+ 1)#hide
