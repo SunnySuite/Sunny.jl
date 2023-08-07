@@ -40,9 +40,9 @@ require an [`intensity_formula`](@ref), which defines a calculator (e.g., LSWT).
 
 Sunny now expects all wavevectors in units of inverse Angstrom (1/Å). This
 facilitates orientational averaging. Replace `connected_path` with
-[`connected_path_from_rlu`](@ref), which returns wavevectors in 1/Å. Now
-[`spherical_shell`](@ref) needs one fewer argument, and returns wavevectors in
-1/Å.
+[`connected_path_from_rlu`](@ref), which returns wavevectors in 1/Å. Replace
+`spherical_shell` with [`spherical_points`](@ref) that generates points on the
+unit sphere.
 
 Rename `polarize_spin!` to [`set_dipole!`](@ref) for consistency with
 [`set_coherent!`](@ref). The behavior of the former function is unchanged: the
@@ -91,7 +91,8 @@ updates.
 Rename `print_dominant_wavevectors` to [`print_wrapped_intensities`](@ref) to
 reduce confusion with the physical instantaneous intensities.
 
-The function [`spherical_shell`](@ref) now takes a radius in physical units of inverse Å.
+The function `spherical_shell` now takes a radius in physical units of inverse
+Å.
 
 New exported functions [`global_position`](@ref), [`magnetic_moment`](@ref), [`all_sites`](@ref).
 

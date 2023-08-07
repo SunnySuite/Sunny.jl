@@ -3,9 +3,10 @@
 # FeI$_2$ is an effective spin-1 material with strong single-ion anisotropy.
 # Quadrupolar fluctuations give rise to a single-ion bound state that cannot be
 # described by a dipole-only model. This tutorial illustrates how to use the
-# classical dynamics of SU(_N_) coherent state to model the magnetic behavior in
-# FeI$_2$. The original study was performed in [Bai et al., Nature Physics 17,
-# 467–472 (2021)](https://doi.org/10.1038/s41567-020-01110-1).
+# linear spin wave theory of SU(3) coherent states (i.e. 2-flavor bosons) to
+# model the magnetic behavior in FeI$_2$. The original study was performed in
+# [Bai et al., Nature Physics 17, 467–472
+# (2021)](https://doi.org/10.1038/s41567-020-01110-1).
 #
 # ```@raw html
 # <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_crystal.jpg" style="float: left;" width="400">
@@ -248,7 +249,7 @@ swt = SpinWaveTheory(sys_min);
 # Select a sequence of wavevectors that will define a piecewise linear
 # interpolation in reciprocal lattice units (RLU).
 
-points_rlu = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
+points_rlu = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]];
 
 # The function [`connected_path_from_rlu`](@ref) will linearly sample between
 # the provided $q$-points with a given `density`. The `path` return value is a
