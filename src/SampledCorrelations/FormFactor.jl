@@ -140,8 +140,6 @@ function propagate_form_factors(sc::SampledCorrelations, ffs::Vector{FormFactor{
 end
 
 # Process form factor information into optimal form for efficient calculation.
-# Form factors are provided at the level of an `intensities` call, so there is
-# no opportunity to precalculate this in current arrangement. 
 function prepare_form_factors(sc, formfactors)
     if isnothing(formfactors)
         cryst = isnothing(sc.origin_crystal) ? sc.crystal : sc.origin_crystal 
