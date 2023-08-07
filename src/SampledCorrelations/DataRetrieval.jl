@@ -41,19 +41,14 @@ function Base.show(io::IO, ::MIME"text/plain", formula::ClassicalIntensityFormul
 end
 
 """
-    formula = intensity_formula(sc::SampledCorrelations; kwargs...)
-    formula.calc_intensity(sc,q,ix_q,ix_ω)
+    formula = intensity_formula(sc::SampledCorrelations)
 
 Establish a formula for computing the intensity of the discrete scattering modes `(q,ω)` using the correlation data ``𝒮^{αβ}(q,ω)`` stored in the [`SampledCorrelations`](@ref).
 The `formula` returned from `intensity_formula` can be passed to [`intensities_interpolated`](@ref) or [`intensities_binned`](@ref).
 
-Sunny has several built-in formulas that can be selected by setting `contraction_mode` to one of these values:
+    intensity_formula(sc,...; kT = Inf, formfactors = ...)
 
-- `:perp` (default), which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
-- `:trace`, which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α 𝒮^{αα}(q,ω)``
-- `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
-
-Additionally, there are keyword arguments providing temperature and form factor corrections:
+There are keyword arguments providing temperature and form factor corrections:
 
 - `kT`: If a temperature is provided, the intensities will be rescaled by a
     temperature- and ω-dependent classical-to-quantum factor. `kT` should be
@@ -62,28 +57,7 @@ Additionally, there are keyword arguments providing temperature and form factor 
 - `formfactors`: To apply form factor corrections, provide this keyword with a
     vector of `FormFactor`s, one for each unique site in the unit cell. The form factors
     will be symmetry propagated to all equivalent sites.
-
-Alternatively, a custom formula can be specifed by providing a function `intensity = f(q,ω,correlations)` and specifying which correlations it requires:
-
-    intensity_formula(f,sc::SampledCorrelations, required_correlations; kwargs...)
-
-The function is intended to be specified using `do` notation. For example, this custom formula sums the off-diagonal correlations:
-
-    required = [(:Sx,:Sy),(:Sy,:Sz),(:Sx,:Sz)]
-    intensity_formula(sc,required,return_type = ComplexF64) do k, ω, off_diagonal_correlations
-        sum(off_diagonal_correlations)
-    end
-
-If your custom formula returns a type other than `Float64`, use the `return_type` keyword argument to flag this.
 """
-function intensity_formula(f::Function,sc::SampledCorrelations,required_correlations; kwargs...)
-    # SQTODO: This corr_ix may contain repeated correlations if the user does a silly
-    # thing like [(:Sx,:Sy),(:Sy,:Sx)], and this can technically be optimized so it's
-    # not computed twice
-    corr_ix = lookup_correlations(sc,required_correlations)
-    intensity_formula(f,sc,corr_ix;kwargs...)
-end
-
 function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::AbstractVector{Int64}; kT = Inf, formfactors = nothing, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])")
     # If temperature given, ensure it's greater than 0.0
     if iszero(kT)
@@ -108,6 +82,30 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
     end
     ClassicalIntensityFormula{return_type}(kT,formfactors,string_formula,formula)
 end
+
+"""
+A custom intensity formula can be specifed by providing a function `intensity = f(q,ω,correlations)` and specifying which correlations it requires:
+
+    intensity_formula(f,sc::SampledCorrelations, required_correlations; kwargs...)
+
+The function is intended to be specified using `do` notation. For example, this custom formula sums the off-diagonal correlations:
+
+    required = [(:Sx,:Sy),(:Sy,:Sz),(:Sx,:Sz)]
+    intensity_formula(sc,required,return_type = ComplexF64) do k, ω, off_diagonal_correlations
+        sum(off_diagonal_correlations)
+    end
+
+If your custom formula returns a type other than `Float64`, use the `return_type` keyword argument to flag this.
+"""
+function intensity_formula(f::Function,sc::SampledCorrelations,required_correlations; kwargs...)
+    # SQTODO: This corr_ix may contain repeated correlations if the user does a silly
+    # thing like [(:Sx,:Sy),(:Sy,:Sx)], and this can technically be optimized so it's
+    # not computed twice
+    corr_ix = lookup_correlations(sc,required_correlations)
+    intensity_formula(f,sc,corr_ix;kwargs...)
+end
+
+
 
 function classical_to_quantum(ω, kT::Float64)
   if kT == Inf
