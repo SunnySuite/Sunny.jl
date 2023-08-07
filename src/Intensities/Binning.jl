@@ -10,7 +10,6 @@ The coordinates of the histogram axes are specified by multiplication
 of `(k,ω)` with each row of the `covectors` matrix, with `k` given in absolute units.
 Since the default `covectors` matrix is the identity matrix, the default axes are
 `(kx,ky,kz,ω)` in absolute units.
-To bin `(q,ω)` values given in reciprocal lattice units (R.L.U.) instead, see [`bin_rlu_as_absolute_units!`](@ref).
 
 The convention for the binning scheme is that:
 - The left edge of the first bin starts at `binstart`
@@ -29,6 +28,8 @@ mutable struct BinningParameters
     binwidth::MVector{4,Float64}
     covectors::MMatrix{4,4,Float64}
 end
+# TODO: Use the more efficient three-argument `div(a,b,RoundDown)` instead of `floor(a/b)`
+# to implement binning. Both performance and correctness need to be checked.
 
 function Base.show(io::IO, ::MIME"text/plain", params::BinningParameters)
     printstyled(io, "Binning Parameters\n"; bold=true, color=:underline)
@@ -177,18 +178,16 @@ bin_rlu_as_absolute_units!(params::BinningParameters,swt::SpinWaveTheory) = bin_
 
 
 """
-    unit_resolution_binning_parameters(sc::SampledCorrelations; units = :absolute)
+    unit_resolution_binning_parameters(sc::SampledCorrelations)
 
 Create [`BinningParameters`](@ref) which place one histogram bin centered at each possible `(q,ω)` scattering vector of the crystal.
 This is the finest possible binning without creating bins with zero scattering vectors in them.
 
-Setting `units = :rlu` returns [`BinningParameters`](@ref) which accept values in R.L.U. instead of absolute units.
-
 This function can be used without reference to a [`SampledCorrelations`](@ref) using an alternate syntax to manually specify the bin centers for the energy axis and the lattice size:
 
-    unit_resolution_binning_parameters(ω_bincenters,latsize,[reciprocal lattice vectors]; [units])
+    unit_resolution_binning_parameters(ω_bincenters,latsize,[reciprocal lattice vectors])
 
-As in [`bin_absolute_units_as_rlu!`](@ref), the last argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or any of these objects:
+The last argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or any of these objects:
 - [`Crystal`](@ref)
 - [`System`](@ref)
 - [`SampledCorrelations`](@ref)
@@ -198,7 +197,7 @@ Lastly, binning parameters for a single axis may be specifed by their bin center
 
     (binstart,binend,binwidth) = unit_resolution_binning_parameters(bincenters::Vector{Float64})
 """
-function unit_resolution_binning_parameters(ωvals,latsize,args...;units = :absolute)
+function unit_resolution_binning_parameters(ωvals,latsize,args...)
     numbins = (latsize...,length(ωvals))
     # Bin centers should be at Sunny scattering vectors
     maxQ = 1 .- (1 ./ numbins)
@@ -222,13 +221,7 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...;units = :abso
         end
     end
 
-    if units == :absolute
-        bin_absolute_units_as_rlu!(params,args...)
-    elseif units == :rlu
-        params
-    else
-        error("unit_resolution_binning_parameters: Unsupported units $units")
-    end
+    bin_absolute_units_as_rlu!(params,args...)
 end
 
 unit_resolution_binning_parameters(sc::SampledCorrelations; kwargs...) = unit_resolution_binning_parameters(ωs(sc),sc.latsize,sc;kwargs...)
@@ -248,7 +241,7 @@ function unit_resolution_binning_parameters(ωvals::AbstractVector{Float64})
 end
 
 """
-    slice_2D_binning_parameter(sc::SampledCorrelations, cut_from_q, cut_to_q, cut_bins::Int64, cut_width::Float64; plane_normal = [0,0,1],cut_height = cutwidth, units = :absolute)
+    slice_2D_binning_parameter(sc::SampledCorrelations, cut_from_q, cut_to_q, cut_bins::Int64, cut_width::Float64; plane_normal = [0,0,1],cut_height = cutwidth)
 
 Creates [`BinningParameters`](@ref) which make a 1D cut in Q-space.
  
@@ -266,8 +259,6 @@ The four axes of the resulting histogram are:
   2. Fist transverse Q direction
   3. Second transverse Q direction
   4. Energy
-
-Setting `units = :rlu` returns [`BinningParameters`](@ref) which accept values in R.L.U. instead of absolute units.
 
 This function can be used without reference to a [`SampledCorrelations`](@ref) using this alternate syntax to manually specify the bin centers for the energy axis:
 
@@ -299,16 +290,9 @@ function slice_2D_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q
     BinningParameters(binstart,binend;numbins = numbins, covectors = covectors)
 end
 
-function slice_2D_binning_parameters(sc::SampledCorrelations,cut_from_q,cut_to_q,args...;units = :absolute,kwargs...)
+function slice_2D_binning_parameters(sc::SampledCorrelations,cut_from_q,cut_to_q,args...;kwargs...)
     params = slice_2D_binning_parameters(ωs(sc),cut_from_q,cut_to_q,args...;kwargs...)
-
-    if units == :absolute
-        bin_absolute_units_as_rlu!(params,sc)
-    elseif units == :rlu
-        params
-    else
-        error("slice_2D_binning_parameters: Unsupported units $units")
-    end
+    bin_absolute_units_as_rlu!(params,sc)
 end
 
 """
@@ -408,7 +392,6 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
     output_intensities = zeros(Float64,numbins...)
     output_counts = zeros(Float64,numbins...)
     ωvals = ωs(sc)
-    recip_vecs = 2π*inv(sc.crystal.latvecs)'
 
     # Find an axis-aligned bounding box containing the histogram.
     # The AABB needs to be in q-space because that's where we index
@@ -452,7 +435,7 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
         # Which is the analog of this scattering mode in the first BZ?
         base_cell = CartesianIndex(mod1.(cell.I,Ls)...)
         q .= ((cell.I .- 1) ./ Ls) # q is in R.L.U.
-        k .= recip_vecs * q # But binning is done in absolute units
+        k .= sc.crystal.recipvecs * q
         for (iω,ω) in enumerate(ωvals)
             if isnothing(integrated_kernel) # `Delta-function energy' logic
                 # Figure out which bin this goes in

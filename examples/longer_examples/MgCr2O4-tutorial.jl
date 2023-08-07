@@ -288,7 +288,7 @@ axsqw = (xticks=-4:4, yticks=0:2:10, ylabel="E (meV)", ylabelsize=18, xlabelsize
 
 qbs = 0.0:0.5:1.5 # Determine q_b for each slice
 for (i, qb) in enumerate(qbs)
-    path, labels = connected_path(sc_pyro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
+    path, _ = connected_path_from_rlu(xtal_pyro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
                                                                          ## vectors through the BZ
     Sqω_pyro  = intensities(sc_pyro, path, :perp; kT)  # Temperature keyword enables intensity rescaling
 
@@ -303,7 +303,7 @@ fig = Figure(; resolution=(1200,900))
 
 qbs = 0.0:0.5:1.5
 for (i, qb) in enumerate(qbs)
-    path, labels = connected_path(sc_mgcro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
+    path, _ = connected_path_from_rlu(xtal_mgcro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
                                                                          ## vectors through the BZ
     Sqω_mgcro  = intensities(sc_mgcro, path, :perp; kT)  # Temperature keyword enables intensity rescaling
 
