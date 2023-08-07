@@ -84,18 +84,16 @@ function powder_average_binned(sc::SampledCorrelations, radial_binning_parameter
     for cell in CartesianIndices(Ls .* bzsize)
         base_cell = CartesianIndex(mod1.(cell.I,Ls)...)
         for (iω,ω) in enumerate(ωvals)
-            # Compute intensity
-            # [c.f. all_exact_wave_vectors, but we need `cell' index as well here]
             q = SVector((cell.I .- 1) ./ Ls) # q is in R.L.U.
 
             # Figure out which radial bin this scattering vector goes in
             # The spheres are surfaces of fixed |k|, with k in absolute units
-            k = sc.crystal.recipvecs * q # FIXME: q should already be in absolute units
+            k = sc.crystal.recipvecs * q
             r_coordinate = norm(k) 
 
             # Check if the radius falls within the histogram
             rbin = @. 1 + floor(Int64, (r_coordinate - rstart) / rbinwidth) # TODO: @. 1 + div(r_coordinate-rstart, rbinwidth, RoundDown)
-            if r1 <= bin <= r_bin_count
+            if 1 <= rbin <= r_bin_count
                 # If we are energy-broadening, then scattering vectors outside the histogram
                 # in the energy direction need to be considered
                 if isnothing(integrated_kernel) # `Delta-function energy' logic
