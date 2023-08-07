@@ -2,8 +2,12 @@
     generate_mantid_script_from_binning_parameters(params::BinningParameters)
 
 Generate a Mantid script which bins data according to the 
-given [`BinningParameters`](@ref). Take care to ensure the units are correct (R.L.U. or absolute).
-You may want to call [`bin_rlu_as_absolute_units!`](@ref) or [`bin_absolute_units_as_rlu!`](@ref) first.
+given [`BinningParameters`](@ref).
+
+!!! warning "Units"
+
+    Take care to ensure the units are correct (R.L.U. or absolute).
+    You may want to call [`Sunny.bin_rlu_as_absolute_units!`](@ref) or [`Sunny.bin_absolute_units_as_rlu!`](@ref) first.
 """
 function generate_mantid_script_from_binning_parameters(params)
     covectorsK = params.covectors # Please call rlu_to_absolute_units! first if needed
