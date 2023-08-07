@@ -582,8 +582,10 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     intensity = zeros(return_type, nmodes)
 
     # Upgrade to 2-argument kernel if needed
-    if !isnothing(kernel)
-        kernel = try
+    kernel_edep = if isnothing(kernel)
+        nothing
+    else
+        try
             kernel(0.,0.)
             kernel
         catch MethodError
@@ -688,13 +690,13 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                 if ω[1] < goldstone_threshold
                     is[1] = goldstone_intensity
                 end
-                is .+= sum(intensity_finite .* kernel.(disp_finite,ω .- disp_finite),dims=2)
+                is .+= sum(intensity_finite .* kernel_edep.(disp_finite,ω .- disp_finite),dims=2)
                 is
             end
         end
     end
     output_type = isnothing(kernel) ? BandStructure{nmodes,return_type} : return_type
-    SpinWaveIntensityFormula{output_type}(string_formula,kernel,calc_intensity)
+    SpinWaveIntensityFormula{output_type}(string_formula,kernel_edep,calc_intensity)
 end
 
 

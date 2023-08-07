@@ -419,7 +419,7 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
     if !isnothing(integrated_kernel)
 
         # Upgrade to 2-argument kernel if needed
-        integrated_kernel = try
+        integrated_kernel_edep = try
             integrated_kernel(0.,0.)
             integrated_kernel
         catch MethodError
@@ -436,7 +436,7 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
                 b = binstart[4] + iωother * binwidth[4]
 
                 # P(ω picked up in bin [a,b]) = ∫ₐᵇ Kernel(ω' - ω) dω'
-                fraction_in_bin[iω][iωother] = integrated_kernel(ω,b - ω) - integrated_kernel(ω,a - ω)
+                fraction_in_bin[iω][iωother] = integrated_kernel_edep(ω,b - ω) - integrated_kernel_edep(ω,a - ω)
             end
         end
     end
