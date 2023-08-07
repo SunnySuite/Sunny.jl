@@ -1,4 +1,4 @@
-# # Powder Averaging
+# # Powder averaged CoRh$_2$O$_4$
 #
 # This tutorial illustrates the calculation of the powder-averaged structure
 # factor by performing an orientational average. We consider a simple model of
@@ -63,7 +63,7 @@ formula = intensity_formula(swt, :perp, kernel=lorentzian(η)) # TODO: formfacto
 # [`connected_path_from_rlu`](@ref) to construct a path that connects
 # high-symmetry points in reciprocal space. The [`intensities_broadened`](@ref)
 # function collects intensities along this path for the given set of energy
-# ($ħω$) values.
+# values.
 
 qpoints = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
 path, xticks = connected_path_from_rlu(crystal, qpoints, 50)
@@ -76,25 +76,23 @@ ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (RLU)",
 heatmap!(ax, 1:size(is, 1), energies, is, colormap=:gnuplot2)
 fig
 
-# To compare with experimental measurements on a crystal powder, we should
-# average over all possible crystal orientations. For this, consider a sequence
-# of radii `rs` (units of inverse Å) that define spherical shells in reciprocal
-# space. The function [`spherical_shell`](@ref) selects points on these shells
-# that are approximately equidistant. For each shell, again call
-# `intensities_broadened`, and average over the energy index. The result is a
-# powder averaged intensity.
+# A scattering measurement on powder is effectively an average over all possible
+# crystal orientations. We consider a sequence of wavevector magnitudes `qmags`,
+# which define spherical shells in reciprocal space. Sample points on each shell
+# using [`spherical_points`](@ref), and then average over the results of
+# `intensities_broadened` to get a powder averaged intensity.
 
-rs = 0.01:0.02:3 # (1/Å)
-output = zeros(Float64, length(rs), length(energies))
-for (i, r) in enumerate(rs)
-    qs = spherical_shell(r; minpoints=300)
+qmags = 0.01:0.02:3 # (1/Å)
+output = zeros(Float64, length(qmags), length(energies))
+for (i, qmag) in enumerate(qmags)
+    qs = qmag .* spherical_points(300)
     is = intensities_broadened(swt, qs, energies, formula)
     output[i, :] = sum(is, dims=1) / size(is, 1)
 end
 
 empty!(fig)
 ax = Axis(fig[1,1]; xlabel="|Q| (Å⁻¹)", ylabel="ω (meV)")
-heatmap!(ax, rs, energies, output, colormap=:gnuplot2)
+heatmap!(ax, qmags, energies, output, colormap=:gnuplot2)
 fig
 
 # This result can be compared to experimental neutron scattering data

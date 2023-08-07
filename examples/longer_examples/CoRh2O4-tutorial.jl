@@ -84,11 +84,11 @@ end
 # and dynamical structure factors. To prevent smearing, removes Bragg peaks
 # before introducing energy broadening. Bragg peaks are added back at ω=0 after
 # broadening.
-function powder_average(sc, rs, density; η=0.1, mode=:perp, kwargs...)
+function powder_average(sc, rs, npts; η=0.1, mode=:perp, kwargs...)
     prog   = Progress(length(rs); dt=10., desc="Powder Averaging: ", color=:blue);
     output = zeros(Float64, length(rs), length(ωs(sc)))
     for (i, r) in enumerate(rs)
-        qs = spherical_shell(r; density)
+        qs = r .* spherical_points(npts)
         if length(qs) == 0
             qs = [[0., 0., 0.]] ## If radius is too small, just look at 0 vector
         end
@@ -241,8 +241,8 @@ Qmax       = 3.5;
 nQpts      = 100;
 Qpow       = range(0, Qmax, length=nQpts);  
 η          = 0.1;
-sphdensity = 3.5;
-@time pqw = powder_average(sc, Qpow, sphdensity; η, kT=integrator.kT, formfactors=ffs);
+npts       = 300;
+@time pqw = powder_average(sc, Qpow, npts; η, kT=integrator.kT, formfactors=ffs);
 
 # Plot resulting Ipow(Q,W)    
 heatmap(Qpow, ωs(sc), pqw;
@@ -266,7 +266,7 @@ for (i, kT) in enumerate(kTs)
     sc_loc = dynamical_correlations(sys; Δt=2Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
     add_sample!(sc_loc, sys)
     iqw_res[i] = intensities(sc_loc, Qpts, :perp; interpolation = :none, kT=kT, formfactors=ffs); 
-    pqw_res[i] = powder_average(sc_loc, Qpow, sphdensity; η, kT=kT, formfactors=ffs);
+    pqw_res[i] = powder_average(sc_loc, Qpow, npts; η, kT=kT, formfactors=ffs);
 end
 
 # Plot the resulting Ipow(Q,W) as a function of temperature,
