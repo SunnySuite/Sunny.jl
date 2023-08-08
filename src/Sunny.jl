@@ -92,7 +92,7 @@ include("Intensities/Types.jl")
 include("SampledCorrelations/DataRetrieval.jl")
 export SampledCorrelations, dynamical_correlations, instant_correlations, FormFactor, 
     add_sample!, broaden_energy, lorentzian,
-    all_exact_wave_vectors, ωs, spherical_points, merge!, intensity_formula, integrated_lorentzian
+    all_exact_wave_vectors, ωs, merge!, intensity_formula, integrated_lorentzian
 
 include("Intensities/ElementContraction.jl")
 
@@ -109,7 +109,7 @@ include("Intensities/LinearSpinWaveIntensities.jl")
 export intensities_broadened, intensities_bands
 
 include("Intensities/PowderAveraging.jl")
-export powder_average_binned
+export sphere_points, powder_average_binned
 
 include("Intensities/ExperimentData.jl")
 export load_nxs, generate_mantid_script_from_binning_parameters

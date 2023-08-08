@@ -1,11 +1,11 @@
 
 """
-    spherical_points(n)
+    sphere_points(n)
 
 Sample `n` points on the unit sphere. These are generated from the Fibonacci
 lattice.
 """
-function spherical_points(n) 
+function sphere_points(n) 
     golden = (1+√5)/2
     decimals(x) = x - floor(x)
     planar_fib_points(N) = [(decimals(i/golden), i/N) for i in 1:N]
@@ -25,7 +25,7 @@ function powder_average_interpolated(sc::SampledCorrelations, q_ias, density; kw
     for (i, r) in enumerate(q_ias)
         area = 4π*r^2
         numpoints = round(Int, area*density)
-        fibpoints = numpoints == 0 ? [Vec3(0,0,0)] :  r .* spherical_points_fibonacci(numpoints)
+        fibpoints = numpoints == 0 ? [Vec3(0,0,0)] :  r .* sphere_points(numpoints)
         qs = map(v->A*v, fibpoints)
         vals = intensities(sc, qs; kwargs...)
         vals = sum(vals, dims=1) / size(vals, 1)

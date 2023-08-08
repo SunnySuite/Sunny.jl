@@ -12,7 +12,7 @@ using Sunny, GLMakie
 # given the international spacegroup number 227 ("Fd-3m") and the appropriate
 # setting. For this spacegroup, there are two conventional translations of the
 # unit cell, and it is necessary to disambiguate through the `setting` keyword
-# argument. Try omitting the `setting` argument and see how Sunny responds.
+# argument. (On your own: what happens if `setting` is omitted?)
 
 a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
@@ -79,13 +79,13 @@ fig
 # A scattering measurement on powder is effectively an average over all possible
 # crystal orientations. We consider a sequence of wavevector magnitudes `qmags`,
 # which define spherical shells in reciprocal space. Sample points on each shell
-# using [`spherical_points`](@ref), and then average over the results of
+# using [`sphere_points`](@ref), and then average over the results of
 # `intensities_broadened` to get a powder averaged intensity.
 
 qmags = 0.01:0.02:3 # (1/Å)
 output = zeros(Float64, length(qmags), length(energies))
 for (i, qmag) in enumerate(qmags)
-    qs = qmag .* spherical_points(300)
+    qs = qmag .* sphere_points(300)
     is = intensities_broadened(swt, qs, energies, formula)
     output[i, :] = sum(is, dims=1) / size(is, 1)
 end
