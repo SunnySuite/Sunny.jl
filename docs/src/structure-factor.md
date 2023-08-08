@@ -173,7 +173,7 @@ into histogram bins for comparison with experiment.
 The convenience function [`connected_path_from_rlu`](@ref) returns a list of
 wavevectors sampled along a path that connects specified $𝐪$ points. This list
 can be used as an input to `intensities`. Another convenience method,
-[`spherical_points`](@ref) will generate points on a sphere of unit radius. This
+[`sphere_points`](@ref) will generate points on a sphere of unit radius. This
 is useful for powder averaging. 
 
 A number of arguments for [`intensity_formula`](@ref) are available which

@@ -41,7 +41,7 @@ require an [`intensity_formula`](@ref), which defines a calculator (e.g., LSWT).
 Sunny now expects all wavevectors in units of inverse Angstrom (1/Å). This
 facilitates orientational averaging. Replace `connected_path` with
 [`connected_path_from_rlu`](@ref), which returns wavevectors in 1/Å. Replace
-`spherical_shell` with [`spherical_points`](@ref) that generates points on the
+`spherical_shell` with [`sphere_points`](@ref) that generates points on the
 unit sphere.
 
 Rename `polarize_spin!` to [`set_dipole!`](@ref) for consistency with
