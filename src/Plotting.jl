@@ -283,6 +283,58 @@ function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
     fig
 end
 
+function draw_level!(ax,n_level,level,center,radius,dir,z)
+    if level == n_level || level == 1
+        top_level = level == n_level
+        col = map(x -> Makie.Colors.HSVA(rad2deg(angle(x[level])),1,1,abs2(x[level])),z)
+        Makie.scatter!(ax,center .+ (top_level ? radius : -radius) .* dir,color = col)
+        #Makie.arrows!(ax,center,(top_level ? radius : -radius) .* dir,color = col)
+    else
+        theta = range(0,2π,length=16)
+        for i in 1:length(center)
+            normal_dir = norm(dir[i] × [0,0,1]) < 1e-4 ? [1,0,0] : [0,0,1]
+
+            codir1 = normalize(dir[i] × normal_dir)
+            codir2 = normalize(codir1 × dir[i])
+            l = (n_level - 1)/2
+            m = (level - 1) - l
+            phi = acos(m/l)
+            pts = Vector{Makie.Point3f}(undef,length(theta))
+            for j = 1:length(theta)
+                pts[j] = center[i] .+ sin(phi) .* radius .* (cos(theta[j]) .* codir1 .+ sin(theta[j]) .* codir2) .+ radius .* (m/l) .* dir[i]
+            end
+            Makie.lines!(pts,color = Makie.Colors.HSVA(rad2deg(angle(z[i][level])),1,1,abs2(z[i][level])))
+        end
+    end
+end
+
+function plot_coherents(sys::System{N};radius = 1.) where N
+    n_level = length(sys.coherents[1])
+    fig, ax = _setup_scene(; show_axis = false, ortho = true)
+
+    centers = [Makie.Point3f(Sunny.global_position(sys,site)) for site in all_sites(sys)][:]
+    Makie.scatter!(ax,centers,color = :black,marker='x')
+
+    dir = zeros(Makie.Point3f,length(sys.coherents))
+    opacity = sys.coherents[:]
+    for (i,site) in enumerate(all_sites(sys))
+      z = sys.coherents[site]
+      v = normalize(expected_spin(z))
+      S = spin_operators(sys,site[4])
+      spin_operator = S[1] .* v[1] .+ S[2] .* v[2] .+ S[3] .* v[3]
+      basis_rotation = eigvecs(spin_operator;sortby = λ -> -real(λ))
+      dir[i] = Makie.Point3f(v...)
+      opacity[i] = basis_rotation' * z
+    end
+
+    for level = 1:n_level
+        draw_level!(ax,n_level,level,centers,radius,dir,opacity)
+    end
+    fig
+end
+
+
+
 """
     anim_integration(sys, fname, steps_per_frame, Δt, nframes; kwargs...)
 
