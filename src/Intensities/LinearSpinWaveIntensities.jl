@@ -113,9 +113,10 @@ function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters,
         z_center = bin_centers[3][ci[3]]
 
         q = SVector{3}(coords_to_q * [x_center;y_center;z_center])
+        k = swt.sys.crystal.recipvecs * q
         ωvals = bin_centers[4]
 
-        intensity_as_function_of_ω = formula.calc_intensity(swt,q)
+        intensity_as_function_of_ω = formula.calc_intensity(swt,k)
         is[ci,:] .= intensity_as_function_of_ω(ωvals)
     end
     is
