@@ -79,13 +79,13 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
     # Additionally, for momentum transfers outside of the first BZ, the norm `k` of the
     # momentum transfer may be different than the one inferred from `ix_q`, so it needs
     # to be provided independently of `ix_q`.
-    formula = function (sc::SampledCorrelations,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
+    calc_intensity = function (sc::SampledCorrelations,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
         correlations = phase_averaged_elements(view(sc.data,corr_ix,:,:,ix_q,ix_ω), k, sc, ff_atoms, NCorr, NAtoms)
 
         ω = ωs_sc[ix_ω]
         return f(k,ω,correlations) * classical_to_quantum(ω, kT)
     end
-    ClassicalIntensityFormula{return_type}(kT,formfactors,string_formula,formula)
+    ClassicalIntensityFormula{return_type}(kT,formfactors,string_formula,calc_intensity)
 end
 
 """
