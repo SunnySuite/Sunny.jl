@@ -55,6 +55,10 @@ fundamental reshaping function. Rename `resize_periodically` to
 The constructor [`SpinInfo`](@ref) now requires a ``g``-factor or tensor as a
 named argument.
 
+The constructor [`FormFactor`](@ref) no longer accepts an atom index. Instead,
+the form factors are associated with site-symmetry classes in order of
+appearance.
+
 Symbolic representations of operators are now hidden unless the external package
 `DynamicPolynomials.jl` is explicitly loaded by the user. The functionality of
 `print_anisotropy_as_stevens` has been replaced with
