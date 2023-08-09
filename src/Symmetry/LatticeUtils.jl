@@ -10,9 +10,10 @@ vectors provided as columns of `latvecs`. The inverse mapping is
 function lattice_params(latvecs::Mat3) :: NTuple{6, Float64}
     v1, v2, v3 = eachcol(latvecs)
     a, b, c = norm(v1), norm(v2), norm(v3)
-    α = acosd((v2 ⋅ v3) / (b * c))
-    β = acosd((v1 ⋅ v3) / (a * c))
-    γ = acosd((v1 ⋅ v2) / (a * b))
+    acosd_clipped(x) = acosd(min(max(x, -1), 1))
+    α = acosd_clipped((v2 ⋅ v3) / (b * c))
+    β = acosd_clipped((v1 ⋅ v3) / (a * c))
+    γ = acosd_clipped((v1 ⋅ v2) / (a * b))
     return (a, b, c, α, β, γ)
 end
 
