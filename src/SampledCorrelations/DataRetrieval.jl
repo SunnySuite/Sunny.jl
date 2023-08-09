@@ -59,8 +59,9 @@ There are keyword arguments providing temperature and form factor corrections:
     experimental data. If `kT` is not specified, infinite temperature (no
     correction) is assumed.
 - `formfactors`: To apply form factor corrections, provide this keyword with a
-    vector of `FormFactor`s, one for each unique site in the unit cell. The form factors
-    will be symmetry propagated to all equivalent sites.
+    list of `FormFactor`s, one for each symmetry-distinct site in the crystal.
+    The order of `FormFactor`s must correspond to the order of site symmetry
+    classes, e.g., as they appear when printed in `display(crystal)`.
 """
 function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::AbstractVector{Int64}; kT = Inf, formfactors = nothing, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])")
     # If temperature given, ensure it's greater than 0.0
