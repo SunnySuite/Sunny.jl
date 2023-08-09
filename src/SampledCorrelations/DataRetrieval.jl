@@ -68,7 +68,7 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
         error("`kT` must be greater than zero.")
     end
 
-    ffdata = prepare_form_factors(sc, formfactors)
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
     NAtoms = Val(size(sc.data)[2])
     NCorr = Val(length(corr_ix))
 
@@ -79,7 +79,7 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
     # momentum transfer may be different than the one inferred from `ix_q`, so it needs
     # to be provided independently of `ix_q`.
     formula = function (sc::SampledCorrelations,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
-        correlations = phase_averaged_elements(view(sc.data,corr_ix,:,:,ix_q,ix_ω), k, sc, ffdata, NCorr, NAtoms)
+        correlations = phase_averaged_elements(view(sc.data,corr_ix,:,:,ix_q,ix_ω), k, sc, ff_atoms, NCorr, NAtoms)
 
         ω = ωs_sc[ix_ω]
         return f(k,ω,correlations) * classical_to_quantum(ω, kT)

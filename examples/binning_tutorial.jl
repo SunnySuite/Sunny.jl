@@ -17,7 +17,7 @@ using Sunny, GLMakie
 latvecs = lattice_vectors(8.113,8.119,12.45,90,100,90)
 positions = [[0,0,0]]
 types = ["Cu"]
-formfactors  = [FormFactor(1,"Cu2")]
+formfactors = [FormFactor("Cu2")]
 xtal = Crystal(latvecs,positions;types);
 
 # We will use a somewhat small periodic lattice size of 6x6x4 in order
