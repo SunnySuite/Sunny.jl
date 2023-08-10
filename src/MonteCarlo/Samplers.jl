@@ -137,7 +137,7 @@ end
 function step!(sys::System{N}, sampler::LocalSampler) where N
     niters = round(Int, sampler.nsweeps*length(sys.dipoles), RoundUp)
     for _ in 1:niters
-        site = rand(sys.rng, all_sites(sys))
+        site = rand(sys.rng, eachsite(sys))
         state = sampler.propose(sys, site)
         ΔE = local_energy_change(sys, site, state)
 

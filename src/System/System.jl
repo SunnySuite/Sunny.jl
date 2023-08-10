@@ -168,25 +168,25 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 @inline to_atom(site) = site[4]
 
 # An iterator over all unit cells using CartesianIndices
-@inline all_cells(sys::System) = CartesianIndices(sys.latsize)
+@inline eachcell(sys::System) = CartesianIndices(sys.latsize)
 
 """
-    all_sites(sys::System)
+    eachsite(sys::System)
 
 An iterator over all [`Site`](@ref)s in the system. 
 """
-@inline all_sites(sys::System) = CartesianIndices(sys.dipoles)
+@inline eachsite(sys::System) = CartesianIndices(sys.dipoles)
 
 """
     global_position(sys::System, site::Site)
 
 Position of a [`Site`](@ref) in global coordinates.
 
-To precompute a full list of positions, one can use [`all_sites`](@ref) as
+To precompute a full list of positions, one can use [`eachsite`](@ref) as
 below:
 
 ```julia
-pos = [global_position(sys, site) for site in all_sites(sys)]
+pos = [global_position(sys, site) for site in eachsite(sys)]
 ```
 """
 function global_position(sys::System, site)
@@ -304,7 +304,7 @@ function symmetry_equivalent_bonds(sys::System, bond::Bond)
             new_bond = transform_bond(sys.crystal, new_i, orig_crystal(sys), bond′)
 
             # loop over all new crystal cells and push site pairs
-            for new_cell_i in all_cells(sys)
+            for new_cell_i in eachcell(sys)
                 new_cell_j = offsetc(new_cell_i, new_bond.n, sys.latsize)
                 site_i = (Tuple(new_cell_i)..., new_bond.i)
                 site_j = (Tuple(new_cell_j)..., new_bond.j)
@@ -377,7 +377,7 @@ end
 Randomizes all spins under appropriate the uniform distribution.
 """
 function randomize_spins!(sys::System{N}) where N
-    for site in all_sites(sys)
+    for site in eachsite(sys)
         setspin!(sys, randspin(sys, site), site)
     end
 end
@@ -418,7 +418,7 @@ end
 Polarize all spins in the system along the direction `dir`.
 """
 function polarize_spins!(sys::System{N}, dir) where N
-    for site in all_sites(sys)
+    for site in eachsite(sys)
         set_dipole!(sys, dir, site)
     end
 end

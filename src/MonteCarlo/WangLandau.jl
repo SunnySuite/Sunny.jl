@@ -9,7 +9,7 @@ mutable struct WangLandau{N, PR}
 
     function WangLandau(; sys::System{N}, bin_size, bounds, propose::PR, ln_f=1.0, max_sweeps_relax=100) where {N, PR}
         drive_system_to_energy_bounds!(sys, bounds, propose, max_sweeps_relax)
-        E = energy(sys)/length(all_sites(sys))
+        E = energy(sys)/length(eachsite(sys))
         return new{N, PR}(
             sys,
             Histogram(; bin_size),
@@ -21,7 +21,7 @@ end
 
 # use MCMC sampling to get system into bounded energy range
 function drive_system_to_energy_bounds!(sys::System{N}, bounds, propose::PR, max_sweeps) where {N, PR}
-    nsites = length(all_sites(sys))
+    nsites = length(eachsite(sys))
 
     E0 = energy(sys)
 
@@ -64,7 +64,7 @@ end
 # sample for specified number of sweeps
 function step_ensemble!(WL::WangLandau, nsweeps::Int64)
     (; sys) = WL
-    nsites = length(all_sites(sys))
+    nsites = length(eachsite(sys))
     WL.E = energy(sys) / nsites
     @assert inbounds(WL.E, WL.bounds)
 
@@ -72,7 +72,7 @@ function step_ensemble!(WL::WangLandau, nsweeps::Int64)
     accepts = 0
     for _ in 1:nsweeps*nsites
         # perform single-spin update and calculate proposal energy
-        site = rand(sys.rng, all_sites(sys))
+        site = rand(sys.rng, eachsite(sys))
         state = WL.propose(sys, site)
         E_next = WL.E + local_energy_change(sys, site, state) / nsites
         

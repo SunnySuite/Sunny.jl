@@ -42,7 +42,7 @@ set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-energy_per_site = energy(sys) / length(all_sites(sys))
+energy_per_site = energy(sys) / length(eachsite(sys))
 @assert energy_per_site ≈ -2J*S^2
 
 # Plotting the spins confirms the expected Néel order. Note that the overall,
