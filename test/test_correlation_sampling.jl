@@ -63,8 +63,8 @@
 
 
     # Test form factor correction works and is doing something. ddtodo: add example with sublattice
-    formfactors = [FormFactor(1, "Fe2")]
-    vals = intensities_interpolated(sc, qgrid; formula = intensity_formula(sc,:trace;formfactors = formfactors), negative_energies=true)
+    formfactors = [FormFactor("Fe2")]
+    vals = intensities_interpolated(sc, qgrid; formula = intensity_formula(sc,:trace; formfactors), negative_energies=true)
     total_intensity_ff = sum(vals)
     @test total_intensity_ff != total_intensity_trace
 

@@ -25,7 +25,7 @@ latsize = (12,12,1);
 latvecs = lattice_vectors(8.,8.,12.,90,100,90)
 positions = [[0,0,0]]
 types = ["Cu"]
-formfactors  = [FormFactor(1,"Cu2")]
+formfactors = [FormFactor("Cu2")]
 xtal = Crystal(latvecs,positions;types);
 
 sys = System(xtal, latsize, [SpinInfo(1, S=1/2, g=2)], :SUN; seed=1);
