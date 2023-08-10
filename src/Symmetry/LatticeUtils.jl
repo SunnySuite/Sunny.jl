@@ -36,15 +36,11 @@ function lattice_vectors(a, b, c, α, β, γ) :: Mat3
     v3y = c / sγ * (cα - cβ * cγ)
     v3z = c / sγ * √(sγ^2 - cα^2 - cβ^2 + 2 * cα * cβ * cγ)
     v3 = Vec3(v3x, v3y, v3z)
+    latvecs = hcat(v1, v2, v3)
 
-    @assert norm(v1) ≈ a
-    @assert norm(v2) ≈ b
-    @assert norm(v3) ≈ c
-    @assert acosd(v1⋅v2 / (a*b)) ≈ γ
-    @assert acosd(v1⋅v3 / (a*c)) ≈ β
-    @assert acosd(v2⋅v3 / (b*c)) ≈ α
+    @assert [a, b, c, α, β, γ] ≈ collect(lattice_params(latvecs))
 
-    return [v1 v2 v3]
+    return latvecs
 end
 
 function is_standard_form(latvecs::Mat3)
@@ -93,18 +89,21 @@ An enumeration over the different types of 3D Bravais unit cells.
     cubic
 end
 
-"""
-    cell_type(latvecs::Mat3)
-
-Infer the `CellType` of a unit cell from its lattice vectors, i.e. the columns
-of `latvecs`. Report an error if lattice vectors are not in conventional form.
-"""
+# Infer the `CellType` of a unit cell from its lattice vectors, i.e. the columns
+# of `latvecs`. Report an error if the unit cell is not in conventional form,
+# which would invalidate the table of symops for a given Hall number.
 function cell_type(latvecs::Mat3)
     a, b, c, α, β, γ = lattice_params(latvecs)
 
-    if !(latvecs ≈ lattice_vectors(a, b, c, α, β, γ))
-        error("Lattice vectors are not in conventional form. Consider using `lattice_vectors(a, b, c, α, β, γ)`.")
-    end
+    # Previously, we had errored on the condition:
+    #
+    # !(latvecs ≈ lattice_vectors(a, b, c, α, β, γ))
+    #
+    # This condition seems allowable, however, because a global rotation of
+    # lattice vectors should not affect the meaning of symops, which act on
+    # fractional coordinates. Such a rotation naturally arises when specifying,
+    # e.g., the primitive cell for FCC or BCC as a subvolume of the conventional
+    # cubic unit cell.
 
     if a ≈ b ≈ c
         if α ≈ β ≈ γ ≈ 90
@@ -118,7 +117,7 @@ function cell_type(latvecs::Mat3)
         if a ≈ b
             return tetragonal
         elseif b ≈ c || c ≈ a
-            error("Found a nonconventional tetragonal unit cell. Use `lattice_vectors(a, a, c, 90, 90, 90)` instead.")
+            error("Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`.")
         else
             return orthorhombic
         end
@@ -130,7 +129,7 @@ function cell_type(latvecs::Mat3)
         if γ ≈ 120
             return hexagonal
         else
-            error("Found a nonconventional hexagonal unit cell. Use `lattice_vectors(a, a, c, 90, 90, 120)` instead.")
+            error("Found a nonconventional hexagonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 120)`.")
         end
     end
 
