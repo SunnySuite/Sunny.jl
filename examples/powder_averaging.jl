@@ -53,11 +53,14 @@ plot_spins(sys; arrowlength=1.0, linewidth=0.4, arrowsize=0.5)
 # We can now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and
 # [`intensity_formula`](@ref). The mode `:perp` contracts with a dipole factor
 # to return the unpolarized intensity. We will also apply broadening with the
-# [`lorentzian`](@ref) kernel.
+# [`lorentzian`](@ref) kernel, and will dampen intensities using the
+# [`FormFactor`](@ref) for Cobalt(2+).
 
 swt = SpinWaveTheory(sys)
-η = 0.3 # (meV)
-formula = intensity_formula(swt, :perp, kernel=lorentzian(η)) # TODO: formfactors=[FormFactor(1, "Co2")]
+η = 0.4 # (meV)
+kernel = lorentzian(η)
+formfactors = [FormFactor("Co2")]
+formula = intensity_formula(swt, :perp; kernel, formfactors)
 
 # First, we consider the "single crystal" results. Use
 # [`connected_path_from_rlu`](@ref) to construct a path that connects

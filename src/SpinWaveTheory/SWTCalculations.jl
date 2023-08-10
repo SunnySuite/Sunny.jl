@@ -566,7 +566,9 @@ The integral of a properly normalized kernel function over all `Δω` is one.
 """
 intensity_formula(swt::SpinWaveTheory; kwargs...) = intensity_formula(swt, :perp; kwargs...)
 
-function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function}, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast = false)
+function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
+                           return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast=false,
+                           formfactors=nothing)
     (; sys, data) = swt
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     S = (Ns-1) / 2
@@ -580,6 +582,10 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     Avec_pref = zeros(ComplexF64, Nm)
     disp = zeros(Float64, nmodes)
     intensity = zeros(return_type, nmodes)
+
+    # Expand formfactors for symmetry classes to formfactors for all atoms in
+    # crystal
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, swt.sys.crystal)
 
     # Upgrade to 2-argument kernel if needed
     kernel_edep = if isnothing(kernel)
@@ -617,7 +623,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             @assert Nm == natoms(sys.crystal)
             r = sys.crystal.latvecs * sys.crystal.positions[i]
             phase = exp(-im * dot(q, r))
-            Avec_pref[i] = sqrt_Nm_inv * phase
+            Avec_pref[i] = compute_form_factor(ff_atoms[i], q⋅q) * sqrt_Nm_inv * phase
         end
 
         # Fill `intensity` array
@@ -626,19 +632,19 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             Avec = zeros(ComplexF64, 3)
             if sys.mode == :SUN
                 (; s̃_mat) = data
-                for site = 1:Nm
-                    @views tS_μ = s̃_mat[:, :, :, site]
+                for i = 1:Nm
+                    @views tS_μ = s̃_mat[:, :, :, i]
                     for μ = 1:3
                         for α = 2:Ns
-                            Avec[μ] += Avec_pref[site] * (tS_μ[α, 1, μ] * v[(site-1)*(Ns-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(site-1)*(Ns-1)+α-1])
+                            Avec[μ] += Avec_pref[i] * (tS_μ[α, 1, μ] * v[(i-1)*(Ns-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(i-1)*(Ns-1)+α-1])
                         end
                     end
                 end
             elseif sys.mode == :dipole
                 (; R_mat) = data
-                for site = 1:Nm
-                    Vtmp = [v[site+nmodes] + v[site], im * (v[site+nmodes] - v[site]), 0.0]
-                    Avec += Avec_pref[site] * sqrt_halfS * (R_mat[site] * Vtmp)
+                for i = 1:Nm
+                    Vtmp = [v[i+nmodes] + v[i], im * (v[i+nmodes] - v[i]), 0.0]
+                    Avec += Avec_pref[i] * sqrt_halfS * (R_mat[i] * Vtmp)
                 end
             end
 
