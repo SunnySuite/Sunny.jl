@@ -6,9 +6,9 @@
         # super-lattice vectors
         latvecs = eachcol(sys.crystal.latvecs) .* sys.latsize
         # positions in global coordinates
-        pos = [global_position(sys, site) for site in all_sites(sys)][:]
+        pos = [global_position(sys, site) for site in eachsite(sys)][:]
         # magnetic moments
-        dipoles = [magnetic_moment(sys, site) for site in all_sites(sys)][:]
+        dipoles = [magnetic_moment(sys, site) for site in eachsite(sys)][:]
         # energy from traditional Ewald summation
         Ewalder.energy(Ewalder.System(; latvecs, pos); dipoles) / (4π*sys.units.μ0)
     end
@@ -47,7 +47,7 @@
 
     # Calculate energy gradient using a sum over pairs, or using an FFT-based
     # convolution
-    ∇E = [Sunny.ewald_grad_at(sys, site) for site in all_sites(sys)]
+    ∇E = [Sunny.ewald_grad_at(sys, site) for site in eachsite(sys)]
     @test isapprox(Sunny.energy_grad(sys), ∇E; atol=1e-12)
 
     # Calculation of energy as a sum over pairs

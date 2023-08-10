@@ -232,7 +232,7 @@ end
 
 function spin_vector_origins(sys::System, arrowlength)
     center = (sys.crystal.latvecs * Vec3(sys.latsize)) / 2
-    return [global_position(sys,site) - sys.dipoles[site]*(arrowlength/2) - center for site in all_sites(sys)]
+    return [global_position(sys,site) - sys.dipoles[site]*(arrowlength/2) - center for site in eachsite(sys)]
 end
 
 """
@@ -312,12 +312,12 @@ function plot_coherents(sys::System{N};radius = 1.) where N
     n_level = length(sys.coherents[1])
     fig, ax = _setup_scene(; show_axis = false, ortho = true)
 
-    centers = [Makie.Point3f(Sunny.global_position(sys,site)) for site in all_sites(sys)][:]
+    centers = [Makie.Point3f(Sunny.global_position(sys,site)) for site in eachsite(sys)][:]
     Makie.scatter!(ax,centers,color = :black,marker='x')
 
     dir = zeros(Makie.Point3f,length(sys.coherents))
     opacity = sys.coherents[:]
-    for (i,site) in enumerate(all_sites(sys))
+    for (i,site) in enumerate(eachsite(sys))
       z = sys.coherents[site]
       v = normalize(expected_spin(z))
       S = spin_operators(sys,site[4])

@@ -52,7 +52,7 @@ function to_inhomogeneous(sys::System{N}) where N
     na = natoms(ret.crystal)
     ret.interactions_union = Array{Interactions}(undef, ret.latsize..., na)
     for i in 1:natoms(ret.crystal)
-        for cell in all_cells(ret)
+        for cell in eachcell(ret)
             ret.interactions_union[cell, i] = clone_interactions(ints[i])
         end
     end
@@ -88,7 +88,7 @@ end
 Sets the external field `B` that couples to all spins.
 """
 function set_external_field!(sys::System, B)
-    for site in all_sites(sys)
+    for site in eachsite(sys)
         set_external_field_at!(sys, B, site)
     end
 end
@@ -195,7 +195,7 @@ function energy(sys::System{N}) where N
     E = 0.0
 
     # Zeeman coupling to external field
-    for site in all_sites(sys)
+    for site in eachsite(sys)
         E -= sys.units.μB * extfield[site] ⋅ (sys.gs[site] * dipoles[site])
     end
 
@@ -203,9 +203,9 @@ function energy(sys::System{N}) where N
     for i in 1:natoms(crystal)
         if is_homogeneous(sys)
             interactions = sys.interactions_union[i]
-            E += energy_aux(sys, interactions, i, all_cells(sys), homog_bond_iterator(latsize))
+            E += energy_aux(sys, interactions, i, eachcell(sys), homog_bond_iterator(latsize))
         else
-            for cell in all_cells(sys)
+            for cell in eachcell(sys)
                 interactions = sys.interactions_union[cell, i]
                 E += energy_aux(sys, interactions, i, (cell,), inhomog_bond_iterator(latsize, cell))
             end
@@ -281,7 +281,7 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
     fill!(∇E, zero(Vec3))
 
     # Zeeman coupling
-    for site in all_sites(sys)
+    for site in eachsite(sys)
         ∇E[site] -= sys.units.μB * (sys.gs[site]' * extfield[site])
     end
 
@@ -290,9 +290,9 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
         if is_homogeneous(sys)
             # Interaction is the same at every cell
             interactions = sys.interactions_union[i]
-            set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, all_cells(sys), homog_bond_iterator(latsize))
+            set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, eachcell(sys), homog_bond_iterator(latsize))
         else
-            for cell in all_cells(sys)
+            for cell in eachcell(sys)
                 # There is a different interaction at every cell
                 interactions = sys.interactions_union[cell,i]
                 set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, (cell,), inhomog_bond_iterator(latsize, cell))
@@ -364,13 +364,13 @@ function set_energy_grad_coherents!(HZ, Z, sys::System{N}) where N
 
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
-        for site in all_sites(sys)
+        for site in eachsite(sys)
             Λ = ints[to_atom(site)].onsite.matrep
             HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
         end
     else
         ints = interactions_inhomog(sys)
-        for site in all_sites(sys)
+        for site in eachsite(sys)
             Λ = ints[site].onsite.matrep
             HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
         end 

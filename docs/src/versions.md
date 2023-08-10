@@ -48,6 +48,8 @@ Rename `polarize_spin!` to [`set_dipole!`](@ref) for consistency with
 [`set_coherent!`](@ref). The behavior of the former function is unchanged: the
 spin at a given site will still be polarized along the provided direction.
 
+Rename `all_sites` to `eachsite` consistent with Julia convention for iterators.
+
 Rename `reshape_geometry` to [`reshape_supercell`](@ref), which is the
 fundamental reshaping function. Rename `resize_periodically` to
 [`resize_supercell`](@ref).
@@ -98,7 +100,7 @@ reduce confusion with the physical instantaneous intensities.
 The function `spherical_shell` now takes a radius in physical units of inverse
 Å.
 
-New exported functions [`global_position`](@ref), [`magnetic_moment`](@ref), [`all_sites`](@ref).
+New exported functions [`global_position`](@ref), [`magnetic_moment`](@ref), `all_sites`.
 
 Remove all uses of
 [`Base.deepcopy`](https://docs.julialang.org/en/v1/base/base/#Base.deepcopy)

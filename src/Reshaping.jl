@@ -99,7 +99,7 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
     end
 
     # Copy per-site quantities
-    for new_site in all_sites(new_sys)
+    for new_site in eachsite(new_sys)
         site = position_to_site(sys, position(new_sys, new_site))
         new_sys.Ns[new_site]        = sys.Ns[site]
         new_sys.κs[new_site]        = sys.κs[site]

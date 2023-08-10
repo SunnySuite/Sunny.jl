@@ -8,7 +8,7 @@
     set_exchange!(sys, 1.2, Bond(1, 1, [0, 0, 1]))
     set_exchange!(sys, diagm([0.2, 0.3, 0.4]), Bond(1, 1, [1, 0, 1]))
 
-    for site in all_sites(sys)
+    for site in eachsite(sys)
         row = site[2]
         dir = [1, 0, 2mod(row, 2) - 1]
         set_dipole!(sys, dir, site)
