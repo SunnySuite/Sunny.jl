@@ -122,4 +122,124 @@ function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters,
     is
 end
 
+function intensities_bin_multisample(swt::SpinWaveTheory, hist_params::BinningParameters, msaa_strategy, energy_msaa_strategy, formula::SpinWaveIntensityFormula)
+    if any(hist_params.covectors[1:3,4] .!= 0.) || any(hist_params.covectors[4,1:3] .!= 0.)
+      error("Complicated binning parameters not supported by intensities_bin_centers")
+    end
+
+    bin_edges = axes_binedges(hist_params)
+    bin_diagonal_vector = reshape(hist_params.binwidth[1:3],3,1)
+
+    q_params = copy(hist_params)
+    bin_rlu_as_absolute_units!(q_params,swt)
+    # coords = q_covectors * (q,ω)
+    coords_to_q = inv(q_params.covectors[1:3,1:3])
+
+    is = zeros(Float64,hist_params.numbins...)
+    counts = zeros(Float64,hist_params.numbins...)
+
+    # Visits each bin in hist_params
+    for ci in CartesianIndices(hist_params.numbins.data[1:3])
+        x_lower = bin_edges[1][ci[1]]
+        y_lower = bin_edges[2][ci[2]]
+        z_lower = bin_edges[3][ci[3]]
+
+        for msaa_location in msaa_strategy
+            coords_xyz = [x_lower;y_lower;z_lower] .+ bin_diagonal_vector .* msaa_location
+            q = SVector{3}(coords_to_q * coords_xyz)
+            k = swt.sys.crystal.recipvecs * q
+
+            if isnothing(formula.kernel) # Need to handle BandStructure
+                if !isempty(energy_msaa_strategy)
+                    error("Attempted to multisample in energy with delta function kernel")
+                end
+                band_structure = formula.calc_intensity(swt,k)
+                energy_bins = 1 .+ floor.(Int64,(band_structure.dispersion .- hist_params.binstart[4]) ./ hist_params.binwidth[4])
+                for (i,bin_i) in enumerate(energy_bins)
+                    if 1 <= bin_i <= hist_params.numbins[4]
+                        is[ci,bin_i] += band_structure.intensity[i]
+                        counts[ci,bin_i] += 1
+                    end
+                end
+            else # Broadening is done by the formula
+                intensity_as_function_of_ω = formula.calc_intensity(swt,k)
+                energy_lower_edges = bin_edges[4][1:end-1]
+                for (i,energy_sample) in enumerate(energy_msaa_strategy)
+                    energy_sample
+                    bin_edges[4]
+                    ω_this_sample = energy_lower_edges .+ hist_params.binwidth[4] .* energy_sample
+                    view(is,ci,:) .+= intensity_as_function_of_ω(ω_this_sample)
+                end
+                view(counts,ci,:) .+= length(energy_msaa_strategy)
+            end
+        end
+    end
+    is, counts
+end
+
+
+function intensities_bin_multisample(swt::SpinWaveTheory, hist_params::BinningParameters, sampling_params::BinningParameters, formula::SpinWaveIntensityFormula)
+    if any(sampling_params.covectors[1:3,4] .!= 0.) || any(sampling_params.covectors[4,1:3] .!= 0.)
+      error("Complicated binning parameters not supported by intensities_bin_centers")
+    end
+
+    bin_centers = axes_bincenters(sampling_params)
+
+    q_params = copy(hist_params)
+    bin_rlu_as_absolute_units!(q_params,swt)
+    # coords = q_covectors * (q,ω)
+    coords_to_q = inv(q_params.covectors[1:3,1:3])
+
+    is = zeros(Float64,hist_params.numbins...)
+    counts = zeros(Float64,hist_params.numbins...)
+
+    # Visits each bin in sampling_params
+    for ci in CartesianIndices(sampling_params.numbins.data[1:3])
+        x_center = bin_centers[1][ci[1]]
+        y_center = bin_centers[2][ci[2]]
+        z_center = bin_centers[3][ci[3]]
+
+        coords_xyz = [x_center;y_center;z_center]
+        xyzBin = 1 .+ floor.(Int64,(coords_xyz .- hist_params.binstart[1:3]) ./ hist_params.binwidth[1:3])
+        q = SVector{3}(coords_to_q * coords_xyz)
+        k = swt.sys.crystal.recipvecs * q
+        ωvals = bin_centers[4]
+
+        if !all(xyzBin .<= hist_params.numbins[1:3]) || !all(xyzBin .>= 1)
+            continue
+        end
+
+        if isnothing(formula.kernel) # Need to handle BandStructure
+            band_structure = formula.calc_intensity(swt,k)
+            energy_bins = 1 .+ floor.(Int64,(band_structure.dispersion .- hist_params.binstart[4]) ./ hist_params.binwidth[4])
+            for (i,bin_i) in enumerate(energy_bins)
+                if 1 <= bin_i <= hist_params.numbins[4]
+                    is[CartesianIndex(xyzBin...),bin_i] += band_structure.intensity[i]
+                    counts[CartesianIndex(xyzBin...),bin_i] += 1
+                end
+            end
+        else # Broadening is done by the formula
+            intensity_as_function_of_ω = formula.calc_intensity(swt,k)
+            energy_bins = 1 .+ floor.(Int64,(ωvals .- hist_params.binstart[4]) ./ hist_params.binwidth[4])
+            for k = 1:hist_params.numbins[4]
+                ix = findall(energy_bins .== k)
+                this_bin_intensities = intensity_as_function_of_ω(ωvals[ix])
+                is[CartesianIndex(xyzBin...),k] += sum(this_bin_intensities)
+                counts[CartesianIndex(xyzBin...),k] += length(this_bin_intensities) # TODO: check this
+            end
+            #ix_in_hist = 1 .<= energy_bins .<= hist_params.numbins[4]
+            #all_intensities = intensity_as_function_of_ω(ωvals[ix_in_hist])
+            #is[CartesianIndex(xyzBin...),energy_bins[ix_in_hist]] .+= all_intensities
+            #counts[CartesianIndex(xyzBin...),energy_bins[ix_in_hist]] .+= 1 # TODO: check this
+            #for (i,bin_i) in enumerate(energy_bins)
+                #if 1 <= bin_i <= hist_params.numbins[4]
+                    #is[CartesianIndex(xyzBin...),bin_i] += all_intensities[i]
+                    #counts[CartesianIndex(xyzBin...),bin_i] += 1 # TODO: check this
+                #end
+            #end
+        end
+    end
+    is, counts
+end
+
 
