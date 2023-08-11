@@ -1,32 +1,32 @@
-# # Using Classical Dynamics to Calcualte $S(\mathbf{q},\omega)$.
+# # Structure Factors with Classical Dynamics 
 
-using Sunny, GLMakie
+using Sunny, GLMakie#hide
 
 # The FeI$_2$ tutorial shows how to use traditional linear spin wave theory to
 # calculate dynamical information in Sunny. Here we show how similar information
 # may be calculated using classical dynamics, specifically by employing a
 # generalization of Landau-Lifshitz dynamics to coherent states of SU($3$). This
-# approach is generallly computationally more expensive than the traditional
-# approach, and it can only be performed for finite-sized systems. The classical
-# approach nonetheless provides a number of complementary advantages: it is
-# possible perform simulations at finite temperature while retaining
-# nonlinearities; out-of-equilibrium behavior may be examined directly; and it
-# is straightforward to incorporate inhomogenties, chemical or otherwise.  
+# approach is computationally more expensive than the traditional approach, and
+# it can only be performed for finite-sized systems. The classical approach
+# nonetheless provides a number of complementary advantages: it is possible
+# perform simulations at finite temperature while retaining nonlinearities;
+# out-of-equilibrium behavior may be examined directly; and it is
+# straightforward to incorporate inhomogenties, chemical or otherwise.  
 #
-# In this tutorial, we show how to calculate the finite temperature dynamics of
-# FeI$_2$ using the classical approach. It is important to stress that
-# estimating ``S(𝐪,ω)`` with classical dynamics is fundamentally a Monte Carlo
-# process: sample spin configurations are drawn from thermal equilibrium and
-# used as initial conditions for generating a dissipationless trajectories. The
-# correlations of these trajectories are then averaged and used to calculate the
-# structure factor. It is therefore important to ensure that the initial spin
-# configurations are sampled appropriately and that sufficient statistics are
-# collected. We will demonstrate one approach here.
+# In this tutorial, we show how to study the finite temperature dynamics of
+# FeI$_2$ using the classical approach. It is important to stress that the
+# estimation of ``S(𝐪,ω)`` with classical dynamics is fundamentally a Monte
+# Carlo calculation: sample spin configurations are drawn from thermal
+# equilibrium and used as initial conditions for generating a dissipationless
+# trajectories. The correlations of these trajectories are then averaged and
+# used to calculate the structure factor. It is therefore important to ensure
+# that the initial spin configurations are sampled appropriately and that
+# sufficient statistics are collected. We will demonstrate one approach here.
 #
 # As the implementation of FeI$_2$ is already covered in detail in the previous
 # tutorial, we will not repeat it below. Instead, we will assume that you
-# already have a $4\times 4\times 4$ `sys` available and proceed to the
-# calculation.
+# already have defined a `sys` in the same way with lattice dimensions $4\times
+# 4\times 4$. 
 
 a = b = 4.05012#hide 
 c = 6.75214#hide
@@ -67,16 +67,20 @@ set_onsite_coupling!(sys, -D*S[3]^2, 1)#hide
 # 
 # The [Langevin dynamics of SU(_N_) coherent
 # states](https://arxiv.org/abs/2209.01265) can be used to sample spin
-# configurations in thermal equlibrium. Begin by constructing a
-# [`Langevin`](@ref) integrator.
+# configurations in thermal equlibrium. It may also be used to perform
+# optimization by annealing, which we demonstrate first. To use these dynamics,
+# one first constructs a [`Langevin`](@ref) integrator. This requires a time
+# step, temperature, and a phenomenological damping parameter that sets the
+# coupling to the thermal bath.
 
 Δt = 0.05/D    # Single-ion anisotropy is the strongest interaction, so 1/D is
-               # a natural dynamical time-scale (in units with ħ=1).
-λ = 0.1        # Dimensionless magnitude of coupling to thermal bath
+               ## a natural dynamical time-scale (in units with ħ=1).
+λ = 0.1        # Dimensionless magnitude of coupling to thermal bath,
+               ## sets a decorrelation time-scale of 1/λ
 langevin = Langevin(Δt; kT=0, λ);
 
-# Attempt to find a low-energy spin configuration by lowering the temperature kT
-# from 2 to 0 using 20,000 Langevin time-steps.
+# Next we attempt to find a low-energy spin configuration by lowering the
+# temperature kT from 2 to 0 using 20,000 Langevin time-steps.
 randomize_spins!(sys)
 for kT in range(2, 0, 20_000)
     langevin.kT = kT
