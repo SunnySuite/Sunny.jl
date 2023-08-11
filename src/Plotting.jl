@@ -451,6 +451,27 @@ function live_langevin_integration(
     end
 end
 
+function scatter_bin_centers(params;axes)
+    labels = ["Qx [r.l.u]","Qy [r.l.u.]","Qz [r.l.u.]","E [meV]"]
+    fig = Makie.Figure()
+    ax = Makie.Axis(fig[1,1],xlabel = labels[axes[1]], ylabel = labels[axes[2]])
+    scatter_bin_centers!(ax,params;axes)
+    fig
+end
+
+function scatter_bin_centers!(ax,params;axes)
+    bcs = axes_bincenters(params)
+    xs = Vector{Float64}(undef,0)
+    ys = Vector{Float64}(undef,0)
+    for xx = bcs[axes[1]], yy = bcs[axes[2]]
+        push!(xs,xx)
+        push!(ys,yy)
+    end
+    Makie.scatter!(ax,xs,ys,marker='x',markersize=10,color = :black)
+end
+
+
+
 "Plots slices of a 3D structure factor. Input array should have shape [3, Lx, Ly, Lz, T]"
 function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz)
     fig, ax = _setup_scene(; show_axis=true)
