@@ -193,7 +193,8 @@ formula = intensity_formula(sc, :trace; kT = kT)
 
 # Using the formula, we plot single-$q$ slices at (0,0,0) and (π,π,π):
 
-qs = [[0, 0, 0], [0.5, 0.5, 0.5]]
+qs_rlu = [[0, 0, 0], [0.5, 0.5, 0.5]]
+qs = [cryst.recipvecs*q for q in qs_rlu]  # Convert from RLU to absolute units
 is = intensities_interpolated(sc, qs; interpolation = :round, formula = formula)
 
 fig = lines(ωs(sc), is[1,:]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
