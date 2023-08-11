@@ -259,7 +259,7 @@ total_bins = ranges[end][end]
 energy_bins = paramsList[1].numbins[4]
 is = zeros(Float64,total_bins,energy_bins)
 integrated_kernel = integrated_lorentzian(0.05) # Lorentzian broadening
-for k in 1:length(paramsList)
+for k in eachindex(paramsList)
     h,c = intensities_binned(sc,paramsList[k];formula = new_formula,integrated_kernel = integrated_kernel)
     is[ranges[k],:] = h[:,1,1,:] ./ c[:,1,1,:]
 end
@@ -284,7 +284,7 @@ qs = [[a, b, 0] for a in qvals, b in qvals]
 
 is = intensities_interpolated(sc, qs; formula = new_formula,interpolation = :linear);
 
-ωidx = 30
+ωidx = 60
 hm = heatmap(is[:,:,ωidx]; axis=(title="ω=$(ωs(sc)[ωidx]) meV", aspect=true))
 Colorbar(hm.figure[1,2], hm.plot)
 hidedecorations!(hm.axis); hidespines!(hm.axis)
