@@ -22,10 +22,10 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
     @assert size(Hmat) == (2L, 2L)
 
     # block matrices of `Hmat`
-    Hmat11 = zeros(ComplexF64, L, L)
-    Hmat22 = zeros(ComplexF64, L, L)
-    Hmat12 = zeros(ComplexF64, L, L)
-    Hmat21 = zeros(ComplexF64, L, L)
+    Hmat11 = view(Hmat,1:L,1:L)
+    Hmat22 = view(Hmat,L+1:2L,L+1:2L)
+    Hmat12 = view(Hmat,1:L,L+1:2L)
+    Hmat21 = view(Hmat,L+1:2L,1:L)
 
     (; extfield, gs, units) = sys
 
@@ -42,6 +42,17 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
         end
     end
 
+
+    tTi_μ = zeros(ComplexF64, N, N, 8)
+    tTj_ν = zeros(ComplexF64, N, N, 8)
+    
+    T_μ_11 = zeros(ComplexF64,8)
+    T_μ_m1 = zeros(ComplexF64,8)
+    T_μ_1m = zeros(ComplexF64,8)
+    
+    T_μ_mn = zeros(ComplexF64,8)
+    T_ν_mn = zeros(ComplexF64,8)
+
     # pairexchange interactions
     for matom = 1:Nm
         ints = sys.interactions_union[matom]
@@ -53,34 +64,69 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
             ### Bilinear exchange
             
             J = Mat3(coupling.bilin*I)
+            
             sub_i, sub_j = bond.i, bond.j
+            sub_i_M1, sub_j_M1 = sub_i - 1, sub_j - 1
+            
             ΔR = sys.crystal.latvecs * bond.n # Displacement associated with periodic wrapping
             phase = exp(im * dot(q, ΔR))
 
-            tTi_μ = s̃_mat[:, :, :, sub_i]
-            tTj_ν = s̃_mat[:, :, :, sub_j]
-            sub_i_M1, sub_j_M1 = sub_i - 1, sub_j - 1
+            # Fill dipole part of tTi_μ
+            tTi_μ[:, :, 1:3] .= view(s̃_mat,:, :, 1:3, sub_i)
+            tTj_ν[:, :, 1:3] .= view(s̃_mat,:, :, 1:3, sub_j)
+            
+            # Fill quadrupole part of tTi_μ
+            tTi_μ[:, :, 4:8] .= view(Q̃_mat,:, :, 1:5, sub_i)
+            tTj_ν[:, :, 4:8] .= view(Q̃_mat,:, :, 1:5, sub_j)
+
+            # For Bilinear exchange, only use dipole part of everything
+            tTi_μ_dipole = view(tTi_μ, :, :, 1:3)
+            tTj_ν_dipole = view(tTj_ν, :, :, 1:3)
+            
+            T_μ_11_dipole = view(T_μ_11,1:3)
+            T_μ_m1_dipole = view(T_μ_m1,1:3)
+            T_μ_1m_dipole = view(T_μ_1m,1:3)
+            
+            T_μ_mn_dipole = view(T_μ_mn,1:3)
+            T_ν_mn_dipole = view(T_ν_mn,1:3)
+            
 
             for m = 2:N
                 mM1 = m - 1
-                T_μ_11 = conj(tTi_μ[1, 1, :])
-                T_μ_m1 = conj(tTi_μ[m, 1, :])
-                T_μ_1m = conj(tTi_μ[1, m, :])
-                T_ν_11 = tTj_ν[1, 1, :]
+                
+                T_μ_11_dipole .= @view tTi_μ_dipole[1, 1, :]
+                conj!(T_μ_11_dipole)
+                
+                T_μ_m1_dipole .= @view tTi_μ_dipole[m, 1, :]
+                conj!(T_μ_m1_dipole)
+                
+                T_μ_1m_dipole .= @view tTi_μ_dipole[1, m, :]
+                conj!(T_μ_1m_dipole)
+                
+                T_ν_11_dipole = view(tTj_ν_dipole, 1, 1, :)
 
                 for n = 2:N
                     nM1 = n - 1
-                    δmn = δ(m, n)
-                    T_μ_mn, T_ν_mn = conj(tTi_μ[m, n, :]), tTj_ν[m, n, :]
-                    T_ν_n1 = tTj_ν[n, 1, :]
-                    T_ν_1n = tTj_ν[1, n, :]
+                    
+                    T_μ_mn_dipole .= @view tTi_μ_dipole[m, n, :]
+                    conj!(T_μ_mn_dipole)
+                    
+                    T_ν_mn_dipole .= @view tTj_ν_dipole[m, n, :]
+                    
+                    if δ(m, n)
+                        T_μ_mn_dipole .-= T_μ_11_dipole
+                        T_ν_mn_dipole .-= T_ν_11_dipole
+                    end
+                    
+                    T_ν_n1_dipole = @view tTj_ν_dipole[n, 1, :]
+                    T_ν_1n_dipole = @view tTj_ν_dipole[1, n, :]
 
-                    c1 = dot(T_μ_mn - δmn * T_μ_11, J, T_ν_11)
-                    c2 = dot(T_μ_11, J, T_ν_mn - δmn * T_ν_11)
-                    c3 = dot(T_μ_m1, J, T_ν_1n)
-                    c4 = dot(T_μ_1m, J, T_ν_n1)
-                    c5 = dot(T_μ_m1, J, T_ν_n1)
-                    c6 = dot(T_μ_1m, J, T_ν_1n)
+                    c1 = dot(T_μ_mn_dipole, J, T_ν_11_dipole)
+                    c2 = dot(T_μ_11_dipole, J, T_ν_mn_dipole)
+                    c3 = dot(T_μ_m1_dipole, J, T_ν_1n_dipole)
+                    c4 = dot(T_μ_1m_dipole, J, T_ν_n1_dipole)
+                    c5 = dot(T_μ_m1_dipole, J, T_ν_n1_dipole)
+                    c6 = dot(T_μ_1m_dipole, J, T_ν_1n_dipole)
 
                     Hmat11[sub_i_M1*Nf+mM1, sub_i_M1*Nf+nM1] += 0.5 * c1
                     Hmat11[sub_j_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c2
@@ -103,33 +149,39 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
             ### Biquadratic exchange
 
             J = coupling.biquad
+            
 
-            tTi_μ = zeros(ComplexF64, N, N, 8)
-            tTj_ν = zeros(ComplexF64, N, N, 8)
-            for i = 1:3
-                tTi_μ[:, :, i] = s̃_mat[:, :, i, sub_i]
-                tTj_ν[:, :, i] = s̃_mat[:, :, i, sub_j]
-            end
-            for i = 4:8
-                tTi_μ[:, :, i] = Q̃_mat[:, :, i-3, sub_i]
-                tTj_ν[:, :, i] = Q̃_mat[:, :, i-3, sub_j]
-            end
-
-            sub_i_M1, sub_j_M1 = sub_i - 1, sub_j - 1
             for m = 2:N
                 mM1 = m - 1
-                T_μ_11 = conj(tTi_μ[1, 1, :])
-                T_μ_m1 = conj(tTi_μ[m, 1, :])
-                T_μ_1m = conj(tTi_μ[1, m, :])
-                T_ν_11 = tTj_ν[1, 1, :]
+                
+                T_μ_11 .= @view tTi_μ[1, 1, :]
+                conj!(T_μ_11)
+                
+                T_μ_m1 .= @view tTi_μ[m, 1, :]
+                conj!(T_μ_m1)
+                
+                T_μ_1m .= @view tTi_μ[1, m, :]
+                conj!(T_μ_1m)
+                
+                T_ν_11 = view(tTj_ν, 1, 1, :)
+                
                 for n = 2:N
                     nM1 = n - 1
-                    δmn = δ(m, n)
-                    T_μ_mn, T_ν_mn = conj(tTi_μ[m, n, :]), tTj_ν[m, n, :]
-                    T_ν_n1 = tTj_ν[n, 1, :]
-                    T_ν_1n = tTj_ν[1, n, :]
-                    c1 = J * dot(T_μ_mn - δmn * T_μ_11, biquad_metric, T_ν_11)
-                    c2 = J * dot(T_μ_11, biquad_metric, T_ν_mn - δmn * T_ν_11)
+                    
+                    T_μ_mn .= @view tTi_μ[m, n, :]
+                    conj!(T_μ_mn)
+                    
+                    T_ν_mn .= @view tTj_ν[m, n, :]
+                    
+                    if δ(m, n)
+                        T_μ_mn .-= T_μ_11
+                        T_ν_mn .-= T_ν_11
+                    end
+                    
+                    T_ν_n1 = @view tTj_ν[n, 1, :]
+                    T_ν_1n = @view tTj_ν[1, n, :]
+                    c1 = J * dot(T_μ_mn, biquad_metric, T_ν_11)
+                    c2 = J * dot(T_μ_11, biquad_metric, T_ν_mn)
                     c3 = J * dot(T_μ_m1, biquad_metric, T_ν_1n)
                     c4 = J * dot(T_μ_1m, biquad_metric, T_ν_n1)
                     c5 = J * dot(T_μ_m1, biquad_metric, T_ν_n1)
@@ -154,11 +206,6 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
         end
     end
 
-    Hmat[1:L, 1:L] += Hmat11
-    Hmat[L+1:2*L, L+1:2*L] += Hmat22
-    Hmat[1:L, L+1:2*L] += Hmat12
-    Hmat[L+1:2*L, 1:L] += Hmat21
-
     # single-ion anisotropy
     for matom = 1:Nm
         @views site_aniso = T̃_mat[:, :, matom]
@@ -178,7 +225,7 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
     end
     
     # make Hmat exactly hermitian for cholesky decomposition.
-    Hmat[:, :] = (0.5 + 0.0im) * (Hmat + Hmat')
+    Hmat[:, :] .= (0.5 + 0.0im) * (Hmat + Hmat')
 
     # add tiny part to the diagonal elements for cholesky decomposition.
     for i = 1:2*L
