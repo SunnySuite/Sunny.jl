@@ -201,8 +201,7 @@ lines!(ωs(sc), is[2,:]; label="(π,π,π)")
 axislegend()
 fig
 
-# Note that, to get smoother results, it will be necessary to collect many more
-# statistics.
+# To get smoother results, it will be necessary to collect many more statistics.
 #
 # For real calculations, one often wants to apply further corrections and more
 # accurate formulas Here, we apply [`FormFactor`](@ref) corrections appropriate
@@ -280,7 +279,7 @@ heatmap(1:size(is,1), ωs(sc), is;
 # energy. 
 
 npoints = 60
-qvals = range(-2, 2, length=npoints)
+qvals = range(-3, 3, length=npoints)
 qs = [[a, b, 0] for a in qvals, b in qvals]
 
 is = intensities_interpolated(sc, qs; formula = new_formula,interpolation = :linear);
@@ -291,32 +290,10 @@ Colorbar(hm.figure[1,2], hm.plot)
 hidedecorations!(hm.axis); hidespines!(hm.axis)
 hm
 
-# Note that Brillouin zones appear 'skewed'. This is a consequence of the fact
-# that Sunny measures $q$-vectors as multiples of reciprocal lattice vectors,
-# which are not orthogonal. It is often useful to express our wave
-# vectors in terms of an orthogonal basis, where each basis element is specified
-# as a linear combination of reciprocal lattice vectors. For our crystal, with
-# reciprocal vectors $a^*$, $b^*$ and $c^*$, we can define an orthogonal basis
-# by taking $\hat{a}^* = 0.5(a^* + b^*)$, $\hat{b}^*=a^* - b^*$, and
-# $\hat{c}^*=c^*$. Below, we map `qs` to wavevectors `ks` in the new coordinate
-# system and get their intensities.
-
-A = [0.5  1  0;
-     0.5 -1  0;
-     0    0  1]
-ks = [A*q for q in qs]
-
-is_ortho = intensities_interpolated(sc, ks; formula = new_formula, interpolation = :linear)
-
-hm = heatmap(is_ortho[:,:,ωidx]; axis=(title="ω=$(ωs(sc)[ωidx]) meV", aspect=true))
-Colorbar(hm.figure[1,2], hm.plot)
-hidedecorations!(hm.axis); hidespines!(hm.axis)
-hm
-
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
 # obtained from a dynamic structure factor with [`instant_intensities_interpolated`](@ref).
 
-is_static = instant_intensities_interpolated(sc, ks; formula = new_formula, interpolation = :linear)
+is_static = instant_intensities_interpolated(sc, qs; formula = new_formula, interpolation = :linear)
 
 hm = heatmap(is_static; axis=(title="Instantaneous Structure Factor", aspect=true))
 Colorbar(hm.figure[1,2], hm.plot)
