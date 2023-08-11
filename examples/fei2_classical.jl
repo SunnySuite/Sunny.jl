@@ -2,16 +2,16 @@
 
 using Sunny, GLMakie#hide
 
-# The FeI$_2$ tutorial shows how to use traditional linear spin wave theory to
-# calculate dynamical information in Sunny. Here we show how similar information
-# may be calculated using classical dynamics, specifically by employing a
-# generalization of Landau-Lifshitz dynamics to coherent states of SU($3$). This
-# approach is computationally more expensive than the traditional approach, and
-# it can only be performed for finite-sized systems. The classical approach
-# nonetheless provides a number of complementary advantages: it is possible
-# perform simulations at finite temperature while retaining nonlinearities;
-# out-of-equilibrium behavior may be examined directly; and it is
-# straightforward to incorporate inhomogenties, chemical or otherwise.  
+# The FeI$_2$ tutorial shows how to use traditional linear spin wave theory
+# (LSWT) to calculate dynamical information in Sunny. Here we show how similar
+# information may be calculated using classical dynamics, specifically by
+# employing a generalization of Landau-Lifshitz dynamics to coherent states of
+# SU($3$). This approach is computationally more expensive than the traditional
+# approach, and it can only be performed for finite-sized systems. The classical
+# approach nonetheless provides a number of complementary advantages: it is
+# possible perform simulations at finite temperature while retaining
+# nonlinearities; out-of-equilibrium behavior may be examined directly; and it
+# is straightforward to incorporate inhomogenties, chemical or otherwise.  
 #
 # In this tutorial, we show how to study the finite temperature dynamics of
 # FeI$_2$ using the classical approach. It is important to stress that the
@@ -23,8 +23,8 @@ using Sunny, GLMakie#hide
 # that the initial spin configurations are sampled appropriately and that
 # sufficient statistics are collected. We will demonstrate one approach here.
 #
-# As the implementation of FeI$_2$ is already covered in detail in the previous
-# tutorial, we will not repeat it below. Instead, we will assume that you
+# As the implementation of the FeI$_2$ model is already covered in detail in the
+# LSWT tutorial, we will not repeat it below. Instead, we will assume that you
 # already have defined a `sys` in the same way with lattice dimensions $4\times
 # 4\times 4$. 
 
