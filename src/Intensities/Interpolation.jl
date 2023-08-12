@@ -207,7 +207,19 @@ end
 
 
 """
-    wavevector_path(cryst::Crystal, qs, density)
+    rotation_in_rlu(cryst::Crystal, axis, angle)
+
+Returns a ``3×3`` matrix that rotates wavevectors in reciprocal lattice units
+(RLU). The axis vector is a real-space direction in absolute units (but
+arbitrary magnitude), and the angle is in radians.
+"""
+function rotation_in_rlu(cryst::Crystal, axis, angle)
+    cryst.recipvecs * rotation_matrix(axis, angle) * inv(cryst.recipvecs)
+end
+
+
+"""
+    reciprocal_space_path(cryst::Crystal, qs, density)
 
 Returns a pair `(path, xticks)`. The `path` return value is a list of
 wavevectors that samples linearly between the provided wavevectors `qs`. The
@@ -220,7 +232,7 @@ specified in units of inverse length. The `path` will therefore include more
 samples between `q`-points that are further apart in absolute Fourier distance
 (units of inverse length).
 """
-function wavevector_path(cryst::Crystal, qs, density)
+function reciprocal_space_path(cryst::Crystal, qs, density)
     @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
     qs = Vec3.(qs)
 

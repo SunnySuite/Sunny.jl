@@ -97,7 +97,8 @@ export SampledCorrelations, dynamical_correlations, instant_correlations, FormFa
 include("Intensities/ElementContraction.jl")
 
 include("Intensities/Interpolation.jl")
-export intensities_interpolated, instant_intensities_interpolated, wavevector_path
+export intensities_interpolated, instant_intensities_interpolated, rotation_in_rlu,
+    reciprocal_space_path
 
 include("Intensities/Binning.jl")
 export intensities_binned, BinningParameters, count_bins, integrate_axes!,

@@ -38,7 +38,7 @@ Remove `intensities` function. Instead, use one of
 [`intensities_interpolated`](@ref) or [`intensities_binned`](@ref). These will
 require an [`intensity_formula`](@ref), which defines a calculator (e.g., LSWT).
 
-Rename `connected_path` to [`wavevector_path`](@ref), which now returns an
+Rename `connected_path` to [`reciprocal_space_path`](@ref), which now returns an
 `xticks` object that can be used in plotting. Replace `spherical_shell` with
 [`sphere_points`](@ref) that generates points on the unit sphere.
 

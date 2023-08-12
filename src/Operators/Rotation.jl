@@ -79,3 +79,8 @@ function rotate_operator(A::Matrix, R)
     U = unitary_for_rotation(R; N)
     return U'*A*U
 end
+
+function rotation_matrix(axis, angle)
+    @warn "IMPLEMENT ME"
+    return Mat3(I)
+end

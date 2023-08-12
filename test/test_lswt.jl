@@ -247,7 +247,7 @@ end
     
     # Just testing that nothing throws errors
     # TODO: accuracy check
-    path, _ = wavevector_path(Sunny.diamond_crystal(),[[0.,0.,0.],[0.5,0.5,0.]],50)
+    path, _ = reciprocal_space_path(Sunny.diamond_crystal(),[[0.,0.,0.],[0.5,0.5,0.]],50)
     energies = collect(0:0.1:5)
 
     # Bands

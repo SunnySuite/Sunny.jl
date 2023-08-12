@@ -204,8 +204,8 @@ formfactors = [FormFactor("Fe2"; g_lande=3/2)]
 new_formula = intensity_formula(sc, :perp; kT = kT, formfactors = formfactors)
 
 # Frequently one wants to extract energy intensities along lines that connect
-# special wave vectors. The function [`wavevector_path`](@ref) linearly samples
-# between provided $q$-points, with a given sample density.
+# special wave vectors. The function [`reciprocal_space_path`](@ref) linearly
+# samples between provided $q$-points, with a given sample density.
 
 points = [[0,   0, 0],  # List of wave vectors that define a path
           [1,   0, 0],
@@ -214,7 +214,7 @@ points = [[0,   0, 0],  # List of wave vectors that define a path
           [0,   1, 0],
           [0,   0, 0]] 
 density = 40
-path, xticks = wavevector_path(cryst, points, density);
+path, xticks = reciprocal_space_path(cryst, points, density);
 
 # Since scattering intensities are only available at a certain discrete ``(Q,\omega)``
 # points, the intensity on the path can be calculated by interpolating between these
