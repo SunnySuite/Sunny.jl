@@ -2,16 +2,19 @@
 
 using Sunny, GLMakie#hide
 
-# The FeI$_2$ tutorial shows how to use traditional linear spin wave theory
-# (LSWT) to calculate dynamical information in Sunny. Here we show how similar
-# information may be calculated using classical dynamics, specifically by
-# employing a generalization of Landau-Lifshitz dynamics to coherent states of
-# SU($3$). This approach is computationally more expensive than the traditional
-# approach, and it can only be performed for finite-sized systems. The classical
-# approach nonetheless provides a number of complementary advantages: it is
-# possible perform simulations at finite temperature while retaining
-# nonlinearities; out-of-equilibrium behavior may be examined directly; and it
-# is straightforward to incorporate inhomogenties, chemical or otherwise.  
+# In our previous [Case Study: FeI$_{2}$](@ref), we used linear spin wave theory
+# (LSWT) to calculate the dynamical structure factor. Here, we perform a similar
+# calculation using classical spin dynamics. Because we are interested in the
+# coupled dynamics of spin dipoles and quadrupoles, we must employ a [classical
+# dynamics of SU(3) coherent states](https://arxiv.org/abs/2209.01265) that
+# generalizes the Landau-Lifshitz equation.
+#
+# Compared to LSWT, simulations using classical dynamics are much slower, and
+# are limited in $k$-space resolution. However, they make it is possible to
+# capture nonlinear effects associated with finite temperature fluctuations.
+# Classical dynamics are also appealing for studying out-of-equilibrium systems
+# (e.g., relaxation of spin glasses), or systems with quenched inhomogeneities
+# that require large simulation volumes.
 #
 # In this tutorial, we show how to study the finite temperature dynamics of
 # FeI$_2$ using the classical approach. It is important to stress that the
@@ -25,8 +28,7 @@ using Sunny, GLMakie#hide
 #
 # As the implementation of the FeI$_2$ model is already covered in detail in the
 # LSWT tutorial, we will not repeat it below. Instead, we will assume that you
-# already have defined a `sys` in the same way with lattice dimensions $4\times
-# 4\times 4$. 
+# already have defined a `sys` in the same way with lattice dimensions $4×4×4$. 
 
 a = b = 4.05012#hide 
 c = 6.75214#hide
@@ -64,90 +66,75 @@ S = spin_operators(sys, 1)#hide
 set_onsite_coupling!(sys, -D*S[3]^2, 1)#hide
 
 # ## Finding a ground state
-# 
+
 # The [Langevin dynamics of SU(_N_) coherent
 # states](https://arxiv.org/abs/2209.01265) can be used to sample spin
-# configurations in thermal equlibrium. It may also be used to perform
-# optimization by annealing, which we demonstrate first. To use these dynamics,
-# one first constructs a [`Langevin`](@ref) integrator. This requires a time
-# step, temperature, and a phenomenological damping parameter that sets the
-# coupling to the thermal bath.
+# configurations in thermal equlibrium. One first constructs a
+# [`Langevin`](@ref) integrator. This requires a time step, temperature, and a
+# phenomenological damping parameter $λ$ that sets the coupling to the thermal
+# bath.
 
-Δt = 0.05/D    # Single-ion anisotropy is the strongest interaction, so 1/D is
-               ## a natural dynamical time-scale (in units with ħ=1).
-λ = 0.1        # Dimensionless magnitude of coupling to thermal bath,
-               ## sets a decorrelation time-scale of 1/λ
-langevin = Langevin(Δt; kT=0, λ);
+Δt = 0.05/D    # A good rule of thumb is `Δt = 0.05/E₀`, where E₀ is the
+               ## largest energy scale in the system. In FeI2, this is the
+               ## easy-axis anisotropy scale, `D = 2.165` (1/meV). 
+kT = 0.2       # Temperature for spin fluctuations (meV).
+λ = 0.1        # A good value is 0.1, independent of system details.
+langevin = Langevin(Δt; kT, λ);
 
-# Next we attempt to find a low-energy spin configuration by lowering the
-# temperature kT from 2 to 0 using 20,000 Langevin time-steps.
+# Sampling with a large number of Langevin time-steps should hopefully
+# thermalize the system to a target temperature. For demonstration purposes, we
+# will here run for a relatively short period of 1,000 timesteps.
+
 randomize_spins!(sys)
-for kT in range(2, 0, 20_000)
-    langevin.kT = kT
+for _ in 1:1_000
     step!(sys, langevin)
 end
 
-# Because the quench was relatively fast, it is expected to find defects in the
-# magnetic order. These can be visualized.
+# To inspect the structure of the spin configuration, we use the function
+# [`minimize_energy!`](@ref) to find a nearby _local_ minimum. Then
+# [`print_wrapped_intensities`](@ref) provides information about the Fourier
+# modes in reciprocal lattice units (RLU).
+
+minimize_energy!(sys)
+print_wrapped_intensities(sys)
+
+# The wide distribution of intensities indicates an imperfect magnetic order.
+# The defects are immediately apparent in the real-space spin configuration.
 
 plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
-# If we had used a slower annealing procedure, involving 100,000 or more
-# Langevin time-steps, it would very likely find the correct ground state.
-# Instead, for purposes of illustration, let's analyze the imperfect spin
-# configuration currently stored in `sys`.
-#
-# An experimental probe of magnetic order order is the 'instantaneous' or
-# 'static' structure factor intensity, available via
-# [`instant_correlations`](@ref) and related functions. To infer periodicities
-# of the magnetic supercell, however, it is sufficient to look at the structure
-# factor weights of spin sublattices individually, _without_ phase averaging.
-# This information is provided by [`print_wrapped_intensities`](@ref) (see the
-# API documentation for a physical interpretation).
+# In this case, we can find the correct ground state simply by running the
+# Langevin sampler for longer.
 
+for _ in 1:10_000
+    step!(sys, langevin)
+end
+minimize_energy!(sys)
 print_wrapped_intensities(sys)
 
-# The above is consistent with known results. The zero-field energy-minimizing
-# magnetic structure of FeI$_2$ is single-$q$. If annealing were perfect, then
-# spontaneous symmetry breaking would select one of $±q = [0, -1/4, 1/4]$,
-# $[1/4, 0, 1/4]$, or $[-1/4,1/4,1/4]$.
+# This is the perfect single-$𝐐$ ground state. This worked because the
+# temperature `kT = 0.2` was carefully selected. It is below the magnetic
+# ordering temperature, but still large enough that the Langevin dynamics could
+# quickly overcome local energy barriers. More complicated magnetic orderings
+# will frequently require more sophisticated sampling schemes. One possibility
+# is simulated annealing, where `kT` is slowly lowered over the course of the
+# sampling procedure.
 
-# Let's break the symmetry by hand. Given a list of $q$ modes, Sunny can suggest
-# a magnetic supercell with appropriate periodicity. The result is printed in
-# units of the crystal lattice vectors.
+# # Calculating $S(𝐪,ω)$
 
-suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
-
-# The function [`reshape_supercell`](@ref) allows an arbitrary reshaping of the
-# system. After selecting the supercell geometry, it becomes much easier to find
-# the energy-minimizing spin configuration.
-
-sys_supercell = reshape_supercell(sys, [1 0 0; 0 1 -2; 0 1 2])
-
-langevin.kT = 0
-for i in 1:10_000
-    step!(sys_supercell, langevin)
-end
-
-plot_spins(sys_supercell; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
-
-# Instead of using Langevin integration to perform the final minimization, we
-# could also have used [`minimize_energy`](@ref).
-
-## Calculating ``S(𝐪,ω)``
 # Because classical simulations are conducted on a finite-sized lattice,
 # obtaining acceptable resolution in momentum space requires the use of a larger
 # system size. We can now resize the magnetic supercell to a much larger
 # simulation volume, provided as multiples of the original unit cell.
 
-sys_large = resize_supercell(sys_supercell, (16,16,4))
+sys_large = resize_supercell(sys, (16,16,4))
 plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 
 # As stressed above, the calculation process depends on sampling equilibrium
 # spin configurations. We therefore begin by using Langevin dynamics to
 # thermalize the system to a target temperature.
 
-kT = 3.5 * meV_per_K     # 3.5K in units of meV
+kT = 3.5 * meV_per_K     # 3.5K, converted to meV
 langevin.kT = kT
 
 for _ in 1:10_000
@@ -183,7 +170,8 @@ for _ in 1:2
     add_sample!(sc, sys_large)    # Accumulate the sample into `sc`
 end
 
-# ## Accessing structure factor data 
+# ## Accessing structure factor data
+
 # The basic functions for accessing intensity data are [`intensities_interpolated`](@ref)
 # and [`intensities_binned`](@ref). Both functions accept an [`intensity_formula`](@ref)
 # to specify how to combine the correlations recorded in the `SampledCorrelations` into
@@ -216,8 +204,8 @@ formfactors = [FormFactor("Fe2"; g_lande=3/2)]
 new_formula = intensity_formula(sc, :perp; kT = kT, formfactors = formfactors)
 
 # Frequently one wants to extract energy intensities along lines that connect
-# special wave vectors. The function [`connected_path`](@ref) linearly samples
-# between provided $q$-points, with a given sample density.
+# special wave vectors. The function [`connected_path_from_rlu`](@ref) linearly
+# samples between provided $q$-points, with a given sample density.
 
 points = [[0,   0, 0],  # List of wave vectors that define a path
           [1,   0, 0],
