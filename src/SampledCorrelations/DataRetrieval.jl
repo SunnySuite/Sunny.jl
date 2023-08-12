@@ -73,7 +73,7 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
     NAtoms = Val(size(sc.data)[2])
     NCorr = Val(length(corr_ix))
 
-    ωs_sc = ωs(sc;negative_energies=true)  # I think this default `true` may be a problem
+    ωs_sc = ωs(sc;negative_energies=true)  # TODO: is the default `true` a problem?
 
     # Intensity is calculated at the discrete (ix_q,ix_ω) modes available to the system.
     # Additionally, for momentum transfers outside of the first BZ, the norm `k` of the

@@ -214,7 +214,7 @@ symQpts   = [[0.75, 0.75, 0.00],  # List of wave vectors that define a path
             [0.25, 1.00, 0.25],
             [0.00, 1.00, 0.00],
             [0.00,-4.00, 0.00]];
-(Qpts, xticks) = connected_path_from_rlu(magxtal, symQpts, densQpts);
+(Qpts, xticks) = wavevector_path(magxtal, symQpts, densQpts);
 @time  iqw = intensities(sc, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors); 
 
 # If desired, broaden the sc in energy

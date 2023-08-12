@@ -133,9 +133,12 @@ function intensities_interpolated(sc::SampledCorrelations, qs;
     negative_energies = false,
     instantaneous_warning = true
 )
-    # Convert wavevectors from absolute units to reciprocal lattice units (RLU)
-    # associated with sc.crystal
-    qs = [sc.crystal.recipvecs \ Vec3(q) for q in qs]
+    # If the crystal has been reshaped, convert all wavevectors from RLU in the
+    # original crystal to RLU in the reshaped crystal
+    if !isnothing(sc.origin_crystal)
+        convert = sc.crystal.recipvecs \ sc.origin_crystal.recipvecs
+        qs = [convert * q for q in qs]
+    end
 
     # Make sure it's a dynamical structure factor 
     if instantaneous_warning && size(sc.data, 7) == 1
@@ -204,30 +207,29 @@ end
 
 
 """
-    connected_path_from_rlu(cryst, qs_rlu, density)
+    wavevector_path(cryst::Crystal, qs, density)
 
-Returns a pair `(path, xticks)`. The first return value is a path in reciprocal
-space that samples linearly between the wavevectors in `qs_rlu`. The elements in
-`qs_rlu` are defined in reciprocal lattice units (RLU) associated with the
-[`reciprocal_lattice_vectors`](@ref) for `cryst`. The sampling `density` between
-elements of `qs` has units of inverse length.
+Returns a pair `(path, xticks)`. The `path` return value is a list of
+wavevectors that samples linearly between the provided wavevectors `qs`. The
+`xticks` return value can be used to label the special ``𝐪`` values on the
+x-axis of a plot.
 
-The second return value `xticks` can be used for plotting. The `xticks` object
-is itself a pair `(numbers, labels)`, which give the locations of the
-interpolating ``q``-points and labels as pretty-printed strings.
+Special note about units: the wavevectors `qs` must be provided in reciprocal
+lattice units (RLU) for the given crystal, but the sampling density must be
+specified in units of inverse length. The `path` will therefore include more
+samples between `q`-points that are further apart in absolute Fourier distance
+(units of inverse length).
 """
-function connected_path_from_rlu(cryst::Crystal, qs_rlu::Vector, density)
-    @assert length(qs_rlu) >= 2 "The list `qs` should include at least two wavevectors."
-    qs_rlu = Vec3.(qs_rlu)
-
-    qs = Ref(cryst.recipvecs) .* qs_rlu
+function wavevector_path(cryst::Crystal, qs, density)
+    @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
+    qs = Vec3.(qs)
 
     path = Vec3[]
     markers = Int[]
     for i in 1:length(qs)-1
         push!(markers, length(path)+1)
         q1, q2 = qs[i], qs[i+1]
-        dist = norm(q1 - q2)
+        dist = norm(cryst.recipvecs * (q1 - q2))
         npoints = round(Int, dist*density)
         for n in 1:npoints
             push!(path, (1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints)
@@ -236,8 +238,8 @@ function connected_path_from_rlu(cryst::Crystal, qs_rlu::Vector, density)
     push!(markers, length(path)+1)
     push!(path, qs[end])
 
-    labels = map(qs_rlu) do q_rlu
-        "[" * join(number_to_math_string.(q_rlu), ",") * "]"
+    labels = map(qs) do q
+        "[" * join(number_to_math_string.(q), ",") * "]"
     end
     xticks = (markers, labels)
 

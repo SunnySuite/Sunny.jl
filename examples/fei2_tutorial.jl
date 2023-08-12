@@ -251,14 +251,14 @@ swt = SpinWaveTheory(sys_min);
 
 points_rlu = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]];
 
-# The function [`connected_path_from_rlu`](@ref) will linearly sample between
-# the provided $q$-points with a given `density`. The `path` return value is a
-# list of wavevectors in absolute units (inverse Å). The `xticks` return value
+# The function [`wavevector_path`](@ref) will linearly sample between the
+# provided $q$-points with a given `density`. The `path` return value is a list
+# of wavevectors in reciprocal lattice units (RLU). The `xticks` return value
 # keeps track of the locations of the special $𝐪$-points, and provides
 # human-readable labels for use in plotting.
 
 density = 50
-path, xticks = connected_path_from_rlu(cryst, points_rlu, density);
+path, xticks = wavevector_path(cryst, points_rlu, density);
 
 # The [`dispersion`](@ref) function defines the quasiparticle excitation
 # energies $ω_i(𝐪)$ for each point $𝐪$ along the reciprocal space path.
