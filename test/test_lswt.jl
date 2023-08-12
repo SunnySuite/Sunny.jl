@@ -33,13 +33,13 @@ end
     randomize_spins!(sys)
     @test minimize_energy!(sys) > 0
 
-    k = cryst.recipvecs * rand(Float64, 3)
+    k = rand(Float64, 3)
     swt = SpinWaveTheory(sys)
     ωk_num = dispersion(swt, [k])[1, :]
 
     function single_ion_analytical_disp(k)
-        γkxy = cos(a*k[1]) + cos(a*k[2])
-        γkz  = cos(c*k[3])
+        γkxy = cos(2π*k[1]) + cos(2π*k[2])
+        γkz  = cos(2π*k[3])
         x = 1/2 - D/(8*(2*J+J′))
         Ak₊ = -8 * (x-1) * x * (2*J+J′) - (x-1) * D + 2 * (2*x-1) * (J *γkxy + J′*γkz)
         Bk₊ = -2 * (J * γkxy + J′ * γkz)
@@ -50,7 +50,7 @@ end
         return ωk₊, ωk₋
     end
     ωk1, ωk2 = single_ion_analytical_disp(k)
-    ωk3, ωk4 = single_ion_analytical_disp(k + [π/a, π/a, π/c])
+    ωk3, ωk4 = single_ion_analytical_disp(k + [0.5, 0.5, 0.5])
     ωk_ref = sort([ωk1, ωk2, ωk3, ωk4]; rev=true)
 
     @test ωk_num ≈ ωk_ref
@@ -89,7 +89,7 @@ end
         set_dipole!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
         set_dipole!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
         swt = SpinWaveTheory(sys)
-        k = fcc.recipvecs * [0.8, 0.6, 0.1]
+        k = [0.8, 0.6, 0.1]
         _, Sαβs =  Sunny.dssf(swt, [k])
 
         sunny_trace = [real(tr(Sαβs[1,a])) for a in axes(Sαβs)[2]]
@@ -105,9 +105,9 @@ end
 @testitem "Biquadratic interactions" begin
     # Cubic crystal
     a = 2.0
-    lat_vecs = lattice_vectors(a, a, a, 90, 90, 90)
-    basis_vecs = [[0, 0, 0]]
-    cryst = Crystal(lat_vecs, basis_vecs)
+    latvecs = lattice_vectors(a, a, a, 90, 90, 90)
+    positions = [[0, 0, 0]]
+    cryst = Crystal(latvecs, positions)
     
     function test_biquad(mode, k, S)
         # System
@@ -129,7 +129,7 @@ end
         disp = dispersion(swt, [k])
 
         # Analytical result
-        γk = 2 * (cos(k[1]*a) + cos(k[2]*a) + cos(k[3]*a))
+        γk = 2 * (cos(2π*k[1]) + cos(2π*k[2]) + cos(2π*k[3]))
         disp_ref = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γk^2)
         
         @test disp[end-1] ≈ disp[end] ≈ disp_ref
@@ -149,7 +149,7 @@ end
         latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
         positions = [[0, 0, 0]]
         cryst = Crystal(latvecs, positions)
-        q = cryst.recipvecs * [0.12, 0.23, 0.34]
+        q = [0.12, 0.23, 0.34]
         
         dims = (2, 2, 1)
         sys = System(cryst, dims, [SpinInfo(1; S, g=1)], :dipole; units=Units.theory)
@@ -170,7 +170,7 @@ end
         # Analytical
         c₂ = 1 - 1/(2S)
         θ = acos(h / (2S*(4J+c₂*D)))
-        Jq = 2J*(cos(q[1])+cos(q[2]))
+        Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
         ωq₊ = real(√Complex(4J*S*(4J*S+2D*S*c₂*sin(θ)^2) + cos(2θ)*(Jq*S)^2 + 2S*Jq*(4J*S*cos(θ)^2 + c₂*D*S*sin(θ)^2)))
         ωq₋ = real(√Complex(4J*S*(4J*S+2D*S*c₂*sin(θ)^2) + cos(2θ)*(Jq*S)^2 - 2S*Jq*(4J*S*cos(θ)^2 + c₂*D*S*sin(θ)^2)))
         ϵq_ana = [ωq₊, ωq₋]
@@ -199,12 +199,12 @@ end
     Ds = -rand(3)
     h  = rand()
     # Random magnetic moment
-    𝐌 = normalize(rand(3))
-    θ, ϕ = Sunny.dipole_to_angles(𝐌)
+    M = normalize(rand(3))
+    θ, ϕ = Sunny.dipole_to_angles(M)
 
     s_mat = Sunny.spin_matrices(N=2S+1)
     
-    s̃ᶻ = 𝐌' * spin_operators(sys_dip,1)
+    s̃ᶻ = M' * spin_operators(sys_dip,1)
     
     U_mat = exp(-1im * ϕ * s_mat[3]) * exp(-1im * θ * s_mat[2])
     hws = zeros(2S+1)
@@ -215,14 +215,14 @@ end
 
     set_onsite_coupling!(sys_dip, aniso, 1)
     
-    s̃ᶻ = 𝐌' * spin_operators(sys_SUN,1)
+    s̃ᶻ = M' * spin_operators(sys_SUN,1)
     aniso = Ds[1]*s̃ᶻ^2 + Ds[2]*s̃ᶻ^4 + Ds[3]*s̃ᶻ^6
     set_onsite_coupling!(sys_SUN, aniso, 1)
 
-    set_external_field!(sys_dip, h*𝐌)
-    set_external_field!(sys_SUN, h*𝐌)
+    set_external_field!(sys_dip, h*M)
+    set_external_field!(sys_SUN, h*M)
 
-    set_dipole!(sys_dip, 𝐌, position_to_site(sys_dip, (0, 0, 0)))
+    set_dipole!(sys_dip, M, position_to_site(sys_dip, (0, 0, 0)))
     set_coherent!(sys_SUN, Z, position_to_site(sys_SUN, (0, 0, 0)))
 
     energy(sys_dip)
