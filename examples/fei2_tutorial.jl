@@ -244,21 +244,19 @@ plot_spins(sys_min; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 # wave theory. We begin by instantiating a `SpinWaveTheory` type using the
 # supercell.
 
-swt = SpinWaveTheory(sys_min);
+swt = SpinWaveTheory(sys_min)
 
 # Select a sequence of wavevectors that will define a piecewise linear
 # interpolation in reciprocal lattice units (RLU).
 
-points_rlu = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]];
+q_points = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]];
 
-# The function [`reciprocal_space_path`](@ref) will linearly sample between the
-# provided $q$-points with a given `density`. The `path` return value is a list
-# of wavevectors in reciprocal lattice units (RLU). The `xticks` return value
-# keeps track of the locations of the special $𝐪$-points, and provides
-# human-readable labels for use in plotting.
+# The function [`reciprocal_space_path`](@ref) will linearly sample a `path`
+# between the provided $q$-points with a given `density`. The `xticks` return
+# value provides labels for use in plotting.
 
 density = 50
-path, xticks = reciprocal_space_path(cryst, points_rlu, density);
+path, xticks = reciprocal_space_path(cryst, q_points, density);
 
 # The [`dispersion`](@ref) function defines the quasiparticle excitation
 # energies $ω_i(𝐪)$ for each point $𝐪$ along the reciprocal space path.

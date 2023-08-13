@@ -214,7 +214,7 @@ Returns a ``3×3`` matrix that rotates wavevectors in reciprocal lattice units
 arbitrary magnitude), and the angle is in radians.
 """
 function rotation_in_rlu(cryst::Crystal, axis, angle)
-    cryst.recipvecs * rotation_matrix(axis, angle) * inv(cryst.recipvecs)
+    inv(cryst.recipvecs) * axis_angle_to_matrix(axis, angle) * cryst.recipvecs
 end
 
 

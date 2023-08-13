@@ -1,4 +1,14 @@
-function axis_angle(R::Mat3)
+# Magnitude of axis n is ignored. Angle θ in radians.
+function axis_angle_to_matrix(n, θ)
+    x, y, z = normalize(n)
+    s, c = sincos(θ)
+    t = 1 - c
+    return SA[t*x*x+c    t*x*y-z*s  t*x*z+y*s
+              t*x*y+z*s  t*y*y+c    t*y*z-x*s
+              t*x*z-y*s  t*y*z+x*s  t*z*z+c]
+end
+
+function matrix_to_axis_angle(R::Mat3)
     # Assertion disabled for performance
     # @assert R'*R ≈ I && det(R) ≈ 1
 
@@ -62,7 +72,7 @@ function unitary_for_rotation(R::Mat3; N::Int)
     !(R'*R ≈ I)   && error("Not an orthogonal matrix, R = $R.")
     !(det(R) ≈ 1) && error("Matrix includes a reflection, R = $R.")
     S = spin_matrices(; N)
-    n, θ = axis_angle(R)
+    n, θ = matrix_to_axis_angle(R)
     return exp(-im*θ*(n'*S))
 end
 
@@ -78,9 +88,4 @@ function rotate_operator(A::Matrix, R)
     N = size(A, 1)
     U = unitary_for_rotation(R; N)
     return U'*A*U
-end
-
-function rotation_matrix(axis, angle)
-    @warn "IMPLEMENT ME"
-    return Mat3(I)
 end
