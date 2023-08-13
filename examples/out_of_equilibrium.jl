@@ -106,15 +106,23 @@ end
 
 # To visualize the state of the system contained in each snapshot, we will
 # calculate and plot the skyrmion density on each plaquette of our lattice. The
-# function `plot_chirality` is not part of the core Sunny package, but rather
-# something you could define yourself. We are using the definition in
+# function `plot_triangular_plaquettes` is not part of the core Sunny package,
+# but rather something you could define yourself. We are using the definition in
 # `plotting2d.jl` from the Sunny [`examples/extra`
 # directory](https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra).
 
 include(joinpath(pkgdir(Sunny), "examples", "extra", "plotting2d.jl"))
 
-plot_chirality(frames, sys; resolution=(1800,600), offset_spacing=10,
-    texts = ["\tt = "*string(τ) for τ in τs], text_offset = (0.0, 6.0)
+function sun_berry_curvature(z₁, z₂, z₃)
+    z₁, z₂, z₃ = normalize.((z₁, z₂, z₃))
+    n₁ = z₁ ⋅ z₂
+    n₂ = z₂ ⋅ z₃
+    n₃ = z₃ ⋅ z₁
+    return angle(n₁ * n₂ * n₃)
+end
+
+plot_triangular_plaquettes(sun_berry_curvature, frames; resolution=(1800,600),
+    offset_spacing=10, texts = ["\tt = "*string(τ) for τ in τs], text_offset = (0.0, 6.0)
 )
 
 # The times are given in $\hbar/|J_1|$. The white

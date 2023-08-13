@@ -2,22 +2,9 @@ using LinearAlgebra
 import ColorSchemes, ColorTypes
 
 
-################################################################################
-# Functions for plotting on triangular plaquettes, in particular Berry curvature
-################################################################################
-
-function vec3_triple_product(s₁, s₂, s₃)
-    s₁, s₂, s₃ = normalize.((s₁, s₂, s₃))
-    return s₁ ⋅ (s₂ × s₃)
-end
-
-function sun_berry_curvature(z₁, z₂, z₃)
-    z₁, z₂, z₃ = normalize.((z₁, z₂, z₃))
-    n₁ = z₁ ⋅ z₂
-    n₂ = z₂ ⋅ z₃
-    n₃ = z₃ ⋅ z₁
-    return angle(n₁ * n₂ * n₃)
-end
+#################################################
+# Functions for plotting on triangular plaquettes
+#################################################
 
 
 function plaquette_idcs(dims::Tuple{Int,Int,Int})
@@ -81,17 +68,16 @@ function aspect_ratio(x_panel, y_panel, x_offset, y_offset, numrows, numcols;
 end
 
 
-function plot_chirality(xs, sys;
+function plot_triangular_plaquettes(f, frames;
     colorscheme=ColorSchemes.RdBu, clims=(-0.5, 0.5), offset_spacing=1,
     numcols=nothing, texts=nothing, force_aspect=true, text_offset = (0.0, 0.0), fig_kwargs...
 )
     # Consolidate lattice info and panel layout
-    numpanels = length(xs)
+    numpanels = length(frames)
     isnothing(numcols) && (numcols = numpanels)
     numrows = floor(Int, (numpanels - 1) / numcols) + 1
-    vecs = sys.crystal.latvecs
-    v₁, v₂ = vecs[:, 1], vecs[:, 2]
-    nx, ny = size(xs[1])[1:2]
+    v₁, v₂ = [1, 0, 0], [-1/2, √3/2, 0] # Derives from lattice_vectors(a,a,c,90,90,120)
+    nx, ny = size(frames[1])[1:2]
     v₁, v₂ = Point3f(v₁), Point3f(v₂)
     x, y = [1.0, 0, 0], [0.0, 1, 0]
     x_offset = offset_spacing * (x ⋅ v₁) * x
@@ -103,9 +89,9 @@ function plot_chirality(xs, sys;
     # Set up figure
     fig = Figure(; fig_kwargs...)
     if force_aspect
-        ax = Axis(fig[1, 1:length(xs)]; aspect)
+        ax = Axis(fig[1, 1:length(frames)]; aspect)
     else
-        ax = Axis(fig[1, 1:length(xs)]; aspect=true)
+        ax = Axis(fig[1, 1:length(frames)]; aspect=true)
     end
     hidespines!(ax)
     hidedecorations!(ax)
@@ -113,12 +99,11 @@ function plot_chirality(xs, sys;
     # Plot panels
     plaq1(p) = GLMakie.Polygon(Point2f.([p, p+v₁+v₂, p+v₂]))
     plaq2(p) = GLMakie.Polygon(Point2f.([p, p+v₁, p+v₂+v₁]))
-    for (i, x) ∈ enumerate(xs)
+    for (i, frame) ∈ enumerate(frames)
         r, c = fldmod1(i, numcols)
         v₀ = (c - 1) * (x_panel + x_offset) + (r - 1) * (y_panel + y_offset)
 
-        f = (eltype(x) == Sunny.Vec3) ? vec3_triple_product : sun_berry_curvature
-        χ = plaquette_map(f, x)
+        χ = plaquette_map(f, frame)
         pgons = GLMakie.Polygon[]
         colors = ColorTypes.RGB{Float64}[]
         for r ∈ 1:nx
@@ -136,12 +121,4 @@ function plot_chirality(xs, sys;
         end
     end
     return fig
-end
-
-function plot_chirality(sys;
-    colorscheme=ColorSchemes.RdBu, clims=(-0.5, 0.5), offset=1,
-    numcols=nothing, texts=nothing, fig_kwargs...
-)
-    x = (sys.mode == :dipole) ? sys.dipoles : sys.coherents
-    return plot_chirality([x], sys; colorscheme, clims, offset, numcols, texts, fig_kwargs...)
 end
