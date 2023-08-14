@@ -329,7 +329,7 @@ Also returned is a list of marker indices corresponding to the input points, and
 a list of ranges giving the indices of each histogram `x`-axis within a concatenated histogram.
 The `density` parameter is given in samples per reciprocal lattice unit (R.L.U.).
 """
-function reciprocal_space_path_bins(recip_vecs,ωvals,qs,density,args...;kwargs...)
+function reciprocal_space_path_bins(ωvals,qs,density,args...;kwargs...)
     nPts = length(qs)
     params = []
     markers = []
@@ -353,7 +353,7 @@ function reciprocal_space_path_bins(recip_vecs,ωvals,qs,density,args...;kwargs.
     end
     return params, markers, ranges
 end
-reciprocal_space_path_bins(crystal::Crystal, qs::Vector, density,args...;kwargs...) = reciprocal_space_path_bins(2π*inv(crystal.latvecs)', ωs(sc), qs, density,args...;kwargs...)
+reciprocal_space_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;kwargs...) = reciprocal_space_path_bins(ωs(sc), qs, density,args...;kwargs...)
 
 
 """

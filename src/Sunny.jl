@@ -104,7 +104,7 @@ include("Intensities/Binning.jl")
 export intensities_binned, BinningParameters, count_bins, integrate_axes!,
     unit_resolution_binning_parameters, 
     slice_2D_binning_parameters, axes_bincenters,
-    connected_path_bins
+    reciprocal_space_path_bins
 
 include("Intensities/LinearSpinWaveIntensities.jl")
 export intensities_broadened, intensities_bands
