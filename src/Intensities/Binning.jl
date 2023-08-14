@@ -7,9 +7,9 @@ Describes a 4D parallelepided histogram in a format compatible with experimental
 See [`generate_mantid_script_from_binning_parameters`](@ref) to convert [`BinningParameters`](@ref) to a format understandable by the [Mantid software](https://www.mantidproject.org/), or [`load_nxs`](@ref) to load [`BinningParameters`](@ref) from a Mantid `.nxs` file.
  
 The coordinates of the histogram axes are specified by multiplication 
-of `(k,ω)` with each row of the `covectors` matrix, with `k` given in absolute units.
+of `(q,ω)` with each row of the `covectors` matrix, with `q` given in [R.L.U.].
 Since the default `covectors` matrix is the identity matrix, the default axes are
-`(kx,ky,kz,ω)` in absolute units.
+`(qx,qy,qz,ω)` in absolute units.
 
 The convention for the binning scheme is that:
 - The left edge of the first bin starts at `binstart`
@@ -144,11 +144,7 @@ Conversly, if `params` expects `(q,ω)` R.L.U., calling
 
 will adjust `params` to instead accept `(k,ω)` absolute units.
 
-The second argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or any of these objects:
-- [`Crystal`](@ref)
-- [`System`](@ref)
-- [`SampledCorrelations`](@ref)
-- [`SpinWaveTheory`](@ref)
+The second argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or a [`Crystal`](@ref).
 """
 bin_absolute_units_as_rlu!, bin_rlu_as_absolute_units!
 
@@ -167,15 +163,8 @@ end
 bin_absolute_units_as_rlu!(params::BinningParameters,recip_vecs::AbstractMatrix) = bin_rlu_as_absolute_units!(params,inv(recip_vecs))
 
 bin_absolute_units_as_rlu!(params::BinningParameters,crystal::Crystal) = bin_absolute_units_as_rlu!(params,2π*inv(crystal.latvecs)')
-bin_absolute_units_as_rlu!(params::BinningParameters,sys::System) = bin_absolute_units_as_rlu!(params,sys.crystal)
-bin_absolute_units_as_rlu!(params::BinningParameters,sc::SampledCorrelations) = bin_absolute_units_as_rlu!(params,sc.crystal)
-bin_absolute_units_as_rlu!(params::BinningParameters,swt::SpinWaveTheory) = bin_absolute_units_as_rlu!(params,swt.sys)
 
 bin_rlu_as_absolute_units!(params::BinningParameters,crystal::Crystal) = bin_absolute_units_as_rlu!(params,crystal.latvecs'/2π)
-bin_rlu_as_absolute_units!(params::BinningParameters,sys::System) = bin_rlu_as_absolute_units!(params,sys.crystal)
-bin_rlu_as_absolute_units!(params::BinningParameters,sc::SampledCorrelations) = bin_rlu_as_absolute_units!(params,sc.crystal)
-bin_rlu_as_absolute_units!(params::BinningParameters,swt::SpinWaveTheory) = bin_rlu_as_absolute_units!(params,swt.sys)
-
 
 """
     unit_resolution_binning_parameters(sc::SampledCorrelations)
@@ -187,11 +176,7 @@ This function can be used without reference to a [`SampledCorrelations`](@ref) u
 
     unit_resolution_binning_parameters(ω_bincenters,latsize,[reciprocal lattice vectors])
 
-The last argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or any of these objects:
-- [`Crystal`](@ref)
-- [`System`](@ref)
-- [`SampledCorrelations`](@ref)
-- [`SpinWaveTheory`](@ref)
+The last argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or a [`Crystal`](@ref).
 
 Lastly, binning parameters for a single axis may be specifed by their bin centers:
 
@@ -220,8 +205,7 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...)
             params.binend[i] = min_val[i]
         end
     end
-
-    bin_absolute_units_as_rlu!(params,args...)
+    params
 end
 
 unit_resolution_binning_parameters(sc::SampledCorrelations; kwargs...) = unit_resolution_binning_parameters(ωs(sc),sc.latsize,sc;kwargs...)
@@ -243,12 +227,19 @@ end
 """
     slice_2D_binning_parameter(sc::SampledCorrelations, cut_from_q, cut_to_q, cut_bins::Int64, cut_width::Float64; plane_normal = [0,0,1],cut_height = cutwidth)
 
-Creates [`BinningParameters`](@ref) which make a 1D cut in Q-space.
+Creates [`BinningParameters`](@ref) which make a cut along one dimension of Q-space.
  
 The x-axis of the resulting histogram consists of `cut_bins`-many bins ranging
-from `cut_from_q` to `cut_to_q`. The orientation of the binning in the transverse directions is
-determined automatically using `plane_normal`, and will be orthogonal according to the Euclidean metric.
+from `cut_from_q` to `cut_to_q`. 
 The width of the bins in the transverse direciton is controlled by `cut_width` and `cut_height`.
+
+The binning in the transverse directions is defined in the following way, which sets their normalization and orthogonality properties:
+
+    cut_covector = normalize(cut_to_q - cut_from_q)
+    transverse_covector = normalize(plane_normal × cut_covector)
+    cotransverse_covector = normalize(transverse_covector × cut_covector)
+
+In other words, the axes are orthonormal with respect to the Euclidean metric.
 
 If the cut is too narrow, there will be very few scattering vectors per bin, or
 the number per bin will vary substantially along the cut.
@@ -291,8 +282,7 @@ function slice_2D_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q
 end
 
 function slice_2D_binning_parameters(sc::SampledCorrelations,cut_from_q,cut_to_q,args...;kwargs...)
-    params = slice_2D_binning_parameters(ωs(sc),cut_from_q,cut_to_q,args...;kwargs...)
-    bin_absolute_units_as_rlu!(params,sc)
+    slice_2D_binning_parameters(ωs(sc),cut_from_q,cut_to_q,args...;kwargs...)
 end
 
 """
@@ -328,9 +318,9 @@ axes_binedges(params::BinningParameters) = axes_binedges(params.binstart,params.
 
 
 """
-    connected_path_bins(sc,qs,density,args...;kwargs...)
+    reciprocal_space_path_bins(sc,qs,density,args...;kwargs...)
 
-Takes a list of wave vectors, `qs`, and builds a series of histogram [`BinningParameters`](@ref)
+Takes a list of wave vectors, `qs` in R.L.U., and builds a series of histogram [`BinningParameters`](@ref)
 whose first axis traces a path through the provided points.
 The second and third axes are integrated over according to the `args` and `kwargs`,
 which are passed through to [`slice_2D_binning_parameters`](@ref).
@@ -339,7 +329,7 @@ Also returned is a list of marker indices corresponding to the input points, and
 a list of ranges giving the indices of each histogram `x`-axis within a concatenated histogram.
 The `density` parameter is given in samples per reciprocal lattice unit (R.L.U.).
 """
-function connected_path_bins(recip_vecs,ωvals,qs,density,args...;kwargs...)
+function reciprocal_space_path_bins(recip_vecs,ωvals,qs,density,args...;kwargs...)
     nPts = length(qs)
     params = []
     markers = []
@@ -356,7 +346,6 @@ function connected_path_bins(recip_vecs,ωvals,qs,density,args...;kwargs...)
         # if there are not enough (e.g. zero) counts in some bins
 
         param = slice_2D_binning_parameters(ωvals,startPt,endPt,nBins,args...;kwargs...)
-        bin_absolute_units_as_rlu!(param,recip_vecs)
         push!(params,param)
         push!(ranges, total_bins_so_far .+ (1:nBins))
         total_bins_so_far = total_bins_so_far + nBins
@@ -364,8 +353,7 @@ function connected_path_bins(recip_vecs,ωvals,qs,density,args...;kwargs...)
     end
     return params, markers, ranges
 end
-connected_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;kwargs...) = connected_path_bins(2π*inv(sc.crystal.latvecs)', ωs(sc), qs, density,args...;kwargs...)
-connected_path_bins(sw::SpinWaveTheory, ωvals, qs::Vector, density,args...;kwargs...) = connected_path_bins(sw.recipvecs_chem, ωvals, qs, density,args...;kwargs...)
+reciprocal_space_path_bins(crystal::Crystal, qs::Vector, density,args...;kwargs...) = reciprocal_space_path_bins(2π*inv(crystal.latvecs)', ωs(sc), qs, density,args...;kwargs...)
 
 
 """
@@ -374,7 +362,7 @@ connected_path_bins(sw::SpinWaveTheory, ωvals, qs::Vector, density,args...;kwar
 Given correlation data contained in a [`SampledCorrelations`](@ref) and [`BinningParameters`](@ref) describing the
 shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_formula`](@ref), or `intensity_formula(sc,:perp)` by default.
 
-The [`BinningParameters`](@ref) are expected to accept `(k,ω)` in absolute units.
+The [`BinningParameters`](@ref) are expected to accept `(q,ω)` in R.L.U. for the (possibly reshaped) crystal associated with `sc`.
 
 This is an alternative to [`intensities_interpolated`](@ref) which bins the scattering intensities into a histogram
 instead of interpolating between them at specified `qs` values. See [`unit_resolution_binning_parameters`](@ref)
@@ -396,11 +384,9 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
     ωvals = ωs(sc)
 
     # Find an axis-aligned bounding box containing the histogram.
-    # The AABB needs to be in q-space because that's where we index
-    # over the scattering modes.
-    q_params = copy(params)
-    bin_rlu_as_absolute_units!(q_params,sc)
-    lower_aabb_q, upper_aabb_q = binning_parameters_aabb(q_params)
+    # The AABB needs to be in r.l.u for the (possibly reshaped) crystal
+    # because that's where we index over the scattering modes.
+    lower_aabb_q, upper_aabb_q = binning_parameters_aabb(params)
 
     # Round the axis-aligned bounding box *outwards* to lattice sites
     # SQTODO: are these bounds optimal?
@@ -408,9 +394,9 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
     lower_aabb_cell = floor.(Int64,lower_aabb_q .* Ls .+ 1) 
     upper_aabb_cell = ceil.(Int64,upper_aabb_q .* Ls .+ 1)
 
-    q = MVector{3,Float64}(undef)
+    k = MVector{3,Float64}(undef)
     v = MVector{4,Float64}(undef)
-    k = view(v,1:3)
+    q = view(v,1:3)
     coords = MVector{4,Float64}(undef)
     xyztBin = MVector{4,Int64}(undef)
     xyzBin = view(xyztBin,1:3)
