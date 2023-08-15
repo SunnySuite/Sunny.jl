@@ -378,64 +378,73 @@ end
 # Bogoliubov transformation that diagonalizes a bosonic Hamiltonian. See Colpa
 # JH. *Diagonalization of the quadratic boson hamiltonian* Physica A:
 # Statistical Mechanics and its Applications, 1978 Sep 1;93(3-4):327-53.
-function bogoliubov!(disp, V, Hmat, energy_tol, mode_fast::Bool = false)
-    @assert size(Hmat, 1) == size(Hmat, 2) "Hmat is not a square matrix"
-    @assert size(Hmat, 1) % 2 == 0 "dimension of Hmat is not even"
+function mk_bogoliubov!(L)
+    Σ = Diagonal(diagm([ones(ComplexF64, L); -ones(ComplexF64, L)]))
+    buf = UpperTriangular(zeros(ComplexF64,2L,2L))
 
-    L = size(Hmat, 1) ÷ 2
-    (length(disp) != L) && (resize!(disp, L))
+    function bogoliubov!(disp, V, Hmat, energy_tol, mode_fast::Bool = false)
+        @assert size(Hmat, 1) == size(Hmat, 2) "Hmat is not a square matrix"
+        @assert size(Hmat, 1) % 2 == 0 "dimension of Hmat is not even"
+        @assert size(Hmat, 1) ÷ 2 == L "dimension of Hmat doesn't match $L"
+        @assert length(disp) == L "length of dispersion doesn't match $L"
 
-    Σ = diagm([ones(ComplexF64, L); -ones(ComplexF64, L)])
+        if (!mode_fast)
+            eigval_check = eigen(Σ * Hmat).values
+            @assert all(<(energy_tol), abs.(imag(eigval_check))) "Matrix contains complex eigenvalues with imaginary part larger than `energy_tol`= "*string(energy_tol)*"(`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
 
-    if (!mode_fast)
-        eigval_check = eigen(Σ * Hmat).values
-        @assert all(<(energy_tol), abs.(imag(eigval_check))) "Matrix contains complex eigenvalues with imaginary part larger than `energy_tol`= "*string(energy_tol)*"(`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
-
-        eigval_check = eigen(Hmat).values
-        @assert all(>(1e-12), real(eigval_check)) "Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
-    end
-
-    K = cholesky(Hmat).U
-    @assert mode_fast || norm(K' * K - Hmat) < 1e-12 "Cholesky fails"
-
-    T = K * Σ * K'
-    eigval, U = eigen(Hermitian(T + T') / 2)
-
-    @assert mode_fast || norm(U * U' - I) < 1e-10 "Orthonormality fails"
-
-    # sort eigenvalues and eigenvectors
-    eigval = real(eigval)
-    # sort eigenvalues in descending order
-    index  = sortperm(eigval, rev=true)
-    eigval = eigval[index]
-    U = U[:, index]
-    for i = 1:2*L
-        if (i ≤ L && eigval[i] < 0.0) || (i > L && eigval[i] > 0.0)
-            error("Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)")
+            eigval_check = eigen(Hmat).values
+            @assert all(>(1e-12), real(eigval_check)) "Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
         end
-        pref = i ≤ L ? √(eigval[i]) : √(-eigval[i])
-        U[:, i] .*= pref
-    end
 
-    for col = 1:2*L
-        normalize!(U[:, col])
-    end
 
-    V[:] = K \ U
+        K = if mode_fast
+          cholesky!(Hmat).U # Clobbers Hmat
+        else
+          K = cholesky(Hmat).U
+          @assert norm(K' * K - Hmat) < 1e-12 "Cholesky fails"
+          K
+        end
 
-    if (!mode_fast)
-        E_check = V' * Hmat * V
-        [E_check[i, i] -= eigval[i] for i = 1:L]
-        [E_check[i, i] += eigval[i] for i = L+1:2*L]
-        @assert all(<(1e-8), abs.(E_check)) "Eigenvectors check fails (Bogoliubov matrix `V` are not normalized!)"
-        @assert all(<(1e-6), abs.(V' * Σ * V - Σ)) "Para-renormalization check fails (Boson commutatition relations not preserved after the Bogoliubov transformation!)"
-    end
+        # Compute eigenvalues of KΣK', sorted in descending order by real part
+        eigval, U = if mode_fast
+          mul!(buf,K,Σ)
+          mul!(V,buf,K')
+          # Hermitian only views the upper triangular, so no need
+          # to explicitly symmetrize here
+          T = Hermitian(V)
+          eigen!(T;sortby = λ -> -real(λ)) # Clobbers
+        else
+          T = K * Σ * K'
+          eigen(Hermitian(T + T') / 2;sortby = λ -> -real(λ))
+        end
 
-    # The linear spin-wave dispersion in descending order.
-    for i in 1:L
-        disp[i] = 2eigval[i]
+        @assert mode_fast || norm(U * U' - I) < 1e-10 "Orthonormality fails"
+
+        for i = 1:2*L
+            if (i ≤ L && eigval[i] < 0.0) || (i > L && eigval[i] > 0.0)
+                error("Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)")
+            end
+            pref = i ≤ L ? √(eigval[i]) : √(-eigval[i])
+            view(U,:,i) .*= pref
+        end
+
+        V .= U
+        ldiv!(K,V)
+
+        if (!mode_fast)
+            E_check = V' * Hmat * V
+            [E_check[i, i] -= eigval[i] for i = 1:L]
+            [E_check[i, i] += eigval[i] for i = L+1:2*L]
+            @assert all(<(1e-8), abs.(E_check)) "Eigenvectors check fails (Bogoliubov matrix `V` are not normalized!)"
+            @assert all(<(1e-6), abs.(V' * Σ * V - Σ)) "Para-renormalization check fails (Boson commutatition relations not preserved after the Bogoliubov transformation!)"
+        end
+
+        # The linear spin-wave dispersion in descending order.
+        for i in 1:L
+            disp[i] = 2eigval[i]
+        end
+        return
     end
-    return
 end
 
 
@@ -485,8 +494,8 @@ function dispersion(swt::SpinWaveTheory, qs)
 
     ℋ = zeros(ComplexF64, 2nmodes, 2nmodes)
     Vbuf = zeros(ComplexF64, 2nmodes, 2nmodes)
-    disp_buf = zeros(Float64, nmodes)
     disp = zeros(Float64, nmodes, length(qs)) 
+    bogoliubov! = mk_bogoliubov!(nmodes)
 
     for (iq, q) in enumerate(qs)
         q_reshaped = to_reshaped_rlu(swt.sys, q)
@@ -495,8 +504,7 @@ function dispersion(swt::SpinWaveTheory, qs)
         elseif sys.mode == :dipole
             swt_hamiltonian_dipole!(swt, q_reshaped, ℋ)
         end
-        bogoliubov!(disp_buf, Vbuf, ℋ, energy_tol)
-        disp[:,iq] .= disp_buf
+        bogoliubov!(view(disp,:,iq), Vbuf, ℋ, energy_tol)
     end
 
     return reshape_dispersions(disp)
@@ -629,6 +637,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     Avec_pref = zeros(ComplexF64, Nm)
     disp = zeros(Float64, nmodes)
     intensity = zeros(return_type, nmodes)
+    bogoliubov! = mk_bogoliubov!(nmodes)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
