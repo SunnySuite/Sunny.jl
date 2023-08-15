@@ -80,11 +80,14 @@ set_onsite_coupling!(sys, -D*S[3]^2, 1)#hide
 # phenomenological damping parameter $λ$ that sets the coupling to the thermal
 # bath.
 
-Δt = 0.05/D    # A good rule of thumb is `Δt = 0.05/E₀`, where E₀ is the
-               ## largest energy scale in the system. In FeI2, this is the
-               ## easy-axis anisotropy scale, `D = 2.165` (1/meV). 
-kT = 0.2       # Temperature for spin fluctuations (meV).
-λ = 0.1        # A good value is 0.1, independent of system details.
+Δt = 0.05/D    # Should be inversely proportional to the largest energy scale
+               ## in the system. For FeI2, this is the easy-axis anisotropy,
+               ## `D = 2.165` (meV). The prefactor 0.05 is relatively small,
+               ## and achieves high accuracy.
+kT = 0.2       # Temperature of the thermal bath (meV).
+λ = 0.1        # This value is typically good for Monte Carlo sampling,
+               ## independent of system details.
+
 langevin = Langevin(Δt; kT, λ);
 
 # Sampling with a large number of Langevin time-steps should hopefully
