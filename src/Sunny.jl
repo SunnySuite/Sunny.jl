@@ -97,13 +97,14 @@ export SampledCorrelations, dynamical_correlations, instant_correlations, FormFa
 include("Intensities/ElementContraction.jl")
 
 include("Intensities/Interpolation.jl")
-export intensities_interpolated, instant_intensities_interpolated, connected_path_from_rlu
+export intensities_interpolated, instant_intensities_interpolated, rotation_in_rlu,
+    reciprocal_space_path
 
 include("Intensities/Binning.jl")
 export intensities_binned, BinningParameters, count_bins, integrate_axes!,
     unit_resolution_binning_parameters, 
     slice_2D_binning_parameters, axes_bincenters,
-    connected_path_bins
+    reciprocal_space_path_bins
 
 include("Intensities/LinearSpinWaveIntensities.jl")
 export intensities_broadened, intensities_bands

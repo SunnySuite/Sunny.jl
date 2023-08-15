@@ -12,7 +12,14 @@ function all_exact_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
     lo = map(L -> 1 - div(L, 2), up) .- offsets
     qs = zeros(Vec3, up...)
     for (k, lz) in enumerate(lo[3]:hi[3]), (j, ly) in enumerate(lo[2]:hi[2]), (i, lx) in enumerate(lo[1]:hi[1])
-        qs[i,j,k] = sc.crystal.recipvecs * Vec3(lx/Ls[1], ly/Ls[2], lz/Ls[3]) 
+        qs[i,j,k] = Vec3(lx/Ls[1], ly/Ls[2], lz/Ls[3])
+
+        # If the crystal has been reshaped, convert all wavevectors from RLU in the
+        # the reshaped crystal to RLU in the original crystal
+        if !isnothing(sc.origin_crystal)
+            convert = sc.origin_crystal.recipvecs \ sc.crystal.recipvecs
+            qs = [convert * q for q in qs]
+        end
     end
     return qs
 end

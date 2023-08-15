@@ -10,7 +10,7 @@ const biquad_metric = 1/2 * diagm([-1, -1, -1, 1, 1, 1, 1, 1])
 
 
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
-function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
+function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matrix{ComplexF64})
     (; sys, data) = swt
     (; s̃_mat, T̃_mat, Q̃_mat) = data
 
@@ -54,8 +54,7 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
             
             J = Mat3(coupling.bilin*I)
             sub_i, sub_j = bond.i, bond.j
-            ΔR = sys.crystal.latvecs * bond.n # Displacement associated with periodic wrapping
-            phase = exp(im * dot(q, ΔR))
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             tTi_μ = s̃_mat[:, :, :, sub_i]
             tTj_ν = s̃_mat[:, :, :, sub_j]
@@ -187,7 +186,7 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
 end
 
 # Set the dynamical quadratic Hamiltonian matrix in dipole mode. 
-function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
+function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matrix{ComplexF64})
     (; sys, data) = swt
     (; R_mat, c_coef) = data
     Hmat .= 0.0
@@ -220,8 +219,7 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64
 
             J = Mat3(coupling.bilin*I)
             sub_i, sub_j = bond.i, bond.j
-            ΔR = sys.crystal.latvecs * bond.n # Displacement associated with periodic wrapping
-            phase = exp(im * dot(q, ΔR))
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             R_mat_i = R_mat[sub_i]
             R_mat_j = R_mat[sub_j]
@@ -421,10 +419,11 @@ end
 """
     dispersion(swt::SpinWaveTheory, qs)
 
-**Experimental**. Computes the spin excitation energy dispersion relations given a
+Computes the spin excitation energy dispersion relations given a
 [`SpinWaveTheory`](@ref) and an array of wave vectors `qs`. Each element ``q``
 of `qs` must be a 3-vector in units of reciprocal lattice units. I.e., ``qᵢ`` is
-given in ``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the chemical lattice.
+given in ``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the original chemical
+lattice.
 
 The first indices of the returned array correspond to those of `qs`. A final
 index, corresponding to mode, is added to these. Each entry of the array is an
@@ -443,10 +442,11 @@ function dispersion(swt::SpinWaveTheory, qs)
     disp = zeros(Float64, nmodes, length(qs)) 
 
     for (iq, q) in enumerate(qs)
+        q_reshaped = to_reshaped_rlu(swt.sys, q)
         if sys.mode == :SUN
-            swt_hamiltonian_SUN!(swt, q, ℋ)
+            swt_hamiltonian_SUN!(swt, q_reshaped, ℋ)
         elseif sys.mode == :dipole
-            swt_hamiltonian_dipole!(swt, q, ℋ)
+            swt_hamiltonian_dipole!(swt, q_reshaped, ℋ)
         end
         bogoliubov!(disp_buf, Vbuf, ℋ, energy_tol)
         disp[:,iq] .= disp_buf
@@ -612,18 +612,23 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     #   Smooth kernel --> I_of_ω = Intensity as a function of ω
     #
     calc_intensity = function(swt::SpinWaveTheory, q::Vec3)
+        q_reshaped = to_reshaped_rlu(swt.sys, q)
+
         if sys.mode == :SUN
-            swt_hamiltonian_SUN!(swt, q, Hmat)
+            swt_hamiltonian_SUN!(swt, q_reshaped, Hmat)
         elseif sys.mode == :dipole
-            swt_hamiltonian_dipole!(swt, q, Hmat)
+            swt_hamiltonian_dipole!(swt, q_reshaped, Hmat)
         end
         bogoliubov!(disp, Vmat, Hmat, swt.energy_tol, mode_fast)
 
         for i = 1:Nm
             @assert Nm == natoms(sys.crystal)
-            r = sys.crystal.latvecs * sys.crystal.positions[i]
-            phase = exp(-im * dot(q, r))
-            Avec_pref[i] = compute_form_factor(ff_atoms[i], q⋅q) * sqrt_Nm_inv * phase
+            phase = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
+            Avec_pref[i] = sqrt_Nm_inv * phase
+
+             # TODO: move form factor into `f`, then delete this rescaling
+            q_absolute = swt.sys.crystal.recipvecs * q_reshaped
+            Avec_pref[i] *= compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
         end
 
         # Fill `intensity` array

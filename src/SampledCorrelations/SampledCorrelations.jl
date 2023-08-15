@@ -9,6 +9,7 @@ struct SampledCorrelations{N}
     # 𝒮^{αβ}(q,ω) data and metadata
     data           :: Array{ComplexF64, 7}   # Raw SF data for 1st BZ (numcorrelations × natoms × natoms × latsize × energy)
     crystal        :: Crystal                # Crystal for interpretation of q indices in `data`
+    origin_crystal :: Union{Nothing,Crystal} # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
     Δω             :: Float64                # Energy step size (could make this a virtual property)  
 
     # Correlation info (αβ indices of 𝒮^{αβ}(q,ω))
@@ -276,7 +277,8 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
     nsamples = Int64[0]
 
     # Make Structure factor and add an initial sample
-    sc = SampledCorrelations{N}(data, sys.crystal, Δω, observables, observable_ixs, correlations,
+    origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
+    sc = SampledCorrelations{N}(data, sys.crystal, origin_crystal, Δω, observables, observable_ixs, correlations,
                                 samplebuf, fft!, copybuf, measperiod, apply_g, Δt, nsamples, processtraj!)
 
     return sc

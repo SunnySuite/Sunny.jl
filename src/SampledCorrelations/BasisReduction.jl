@@ -1,10 +1,12 @@
-function phase_averaged_elements(data, k::Vec3, sc::SampledCorrelations{N}, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}) where {N, NCorr, NAtoms}
+function phase_averaged_elements(data, q_absolute::Vec3, crystal::Crystal, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
     elems = zero(MVector{NCorr,ComplexF64})
-    ffs = ntuple(i -> compute_form_factor(ff_atoms[i], k⋅k), NAtoms)
-    rs = ntuple(i -> sc.crystal.latvecs * sc.crystal.positions[i], NAtoms)
+    ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute), NAtoms)
+
+    # Real space position of each atom within the unit cell
+    rs = ntuple(i -> crystal.latvecs * crystal.positions[i], NAtoms)
 
     for j in 1:NAtoms, i in 1:NAtoms
-        phase = exp(im*(k ⋅ (rs[j] - rs[i])))
+        phase = exp(im*(q_absolute ⋅ (rs[j] - rs[i])))
         elems .+= phase .* ffs[i] .* ffs[j] .* view(data, :, i, j)
     end
 

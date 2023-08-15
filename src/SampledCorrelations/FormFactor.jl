@@ -99,13 +99,13 @@ function compute_gaussian_expansion(j::ExpandedBesselIntegral, s2)
     return A*exp(-a*s2) + B*exp(-b*s2) + C*exp(-c*s2) + D
 end
 
-function compute_form_factor(form_factor::FormFactor, k2::Float64)
+function compute_form_factor(form_factor::FormFactor, k2_absolute::Float64)
     (; j0, j2, g) = form_factor
 
     # Return early if this is the identity form factor
     (j0.A == j0.B == j0.C == 0) && (j0.D == 1) && (g == 2) && return 1.0
 
-    s2 = k2 / (4π)^2
+    s2 = k2_absolute / (4π)^2
     if g == 2
         return compute_gaussian_expansion(j0, s2)
     else

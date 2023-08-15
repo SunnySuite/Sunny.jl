@@ -244,21 +244,19 @@ plot_spins(sys_min; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 # wave theory. We begin by instantiating a `SpinWaveTheory` type using the
 # supercell.
 
-swt = SpinWaveTheory(sys_min);
+swt = SpinWaveTheory(sys_min)
 
 # Select a sequence of wavevectors that will define a piecewise linear
 # interpolation in reciprocal lattice units (RLU).
 
-points_rlu = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]];
+q_points = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]];
 
-# The function [`connected_path_from_rlu`](@ref) will linearly sample between
-# the provided $q$-points with a given `density`. The `path` return value is a
-# list of wavevectors in absolute units (inverse Å). The `xticks` return value
-# keeps track of the locations of the special $𝐪$-points, and provides
-# human-readable labels for use in plotting.
+# The function [`reciprocal_space_path`](@ref) will linearly sample a `path`
+# between the provided $q$-points with a given `density`. The `xticks` return
+# value provides labels for use in plotting.
 
 density = 50
-path, xticks = connected_path_from_rlu(cryst, points_rlu, density);
+path, xticks = reciprocal_space_path(cryst, q_points, density);
 
 # The [`dispersion`](@ref) function defines the quasiparticle excitation
 # energies $ω_i(𝐪)$ for each point $𝐪$ along the reciprocal space path.
@@ -306,13 +304,12 @@ is1 = intensities_broadened(swt, path, energies, broadened_formula);
 # spontaneous symmetry breaking of the 6-fold rotational symmetry of the
 # triangular lattice. Note that the wavevectors $𝐪$ and $-𝐪$ are equivalent in
 # the structure factor, which leaves three distinct domain orientations, which
-# are related by 120° rotations. Rather than rotating the spin configuration
-# directly, on can rotate the $𝐪$-space path. Below, we collect and plot
-# intensity data that is averaged over all three possible orientations.
+# are related by 120° rotations about the $ẑ$-axis. Rather than rotating the
+# spin configuration directly, on can rotate the $𝐪$-space path. Below, we use
+# [`rotation_in_rlu`](@ref) to average the intensities over all three possible
+# orientations.
 
-sθ, cθ = sincos(2π/3)
-R = [cθ -sθ 0; sθ cθ 0; 0  0 1]  # 120° rotation about the ẑ axis
-
+R = rotation_in_rlu(cryst, [0, 0, 1], 2π/3)
 is2 = intensities_broadened(swt, [R*q for q in path], energies, broadened_formula)
 is3 = intensities_broadened(swt, [R*R*q for q in path], energies, broadened_formula)
 is_averaged = (is1 + is2 + is3) / 3
