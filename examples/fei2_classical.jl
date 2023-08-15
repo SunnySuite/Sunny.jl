@@ -131,10 +131,11 @@ print_wrapped_intensities(sys)
 
 # ## Calculating Thermal-Averaged Correlations $\langle S^{\alpha\beta}(𝐪,ω)\rangle$
 #
-# Now that we have identified an appropriate ground state, we will reduce
-# the temperature substantially so that the system remains near the ground state.
+# Now that we have identified an appropriate ground state, we will adjust
+# the temperature so that the system still remains near the ground state, but still
+# has thermal fluctuations.
 
-kT = 3.5 * meV_per_K     # 3.5K ≈ 0.086 meV
+kT = 3.5 * meV_per_K     # 3.5K ≈ 0.30 meV
 langevin.kT = kT
 
 # Additionally, since these classical simulations are conducted on a finite-sized lattice,
@@ -148,9 +149,9 @@ plot_spins(sys_large; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
 # As stressed above, we need to sample multiple spin configurations
 # from the thermal equilibrium distribution.
 # We therefore begin by using Langevin dynamics to
-# bring the system into thermal equilibrium at the colder temperature.
+# bring the system into thermal equilibrium at the new temperature.
 
-## At the new, colder temperature
+## At the new temperature
 for _ in 1:10_000
     step!(sys_large, langevin)
 end
