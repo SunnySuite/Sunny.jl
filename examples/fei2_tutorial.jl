@@ -189,7 +189,7 @@ minimize_energy!(sys);
 # optimization, however, may indicate the system got stuck in a local minimum
 # with defects.
 
-plot_spins(sys; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
+plot_spins(sys)
 
 # A better understanding of the magnetic ordering can often be obtained by
 # moving to Fourier space. The 'instant' structure factor $𝒮(𝐪)$ is an
@@ -235,7 +235,7 @@ suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
 sys_min = reshape_supercell(sys, [1 0 0; 0 1 -2; 0 1 2])
 randomize_spins!(sys_min)
 minimize_energy!(sys_min)
-plot_spins(sys_min; arrowlength=2.5, linewidth=0.75, arrowsize=1.5)
+plot_spins(sys_min; ghost_radius=2.5)
 
 # ## Linear spin wave theory
 #
