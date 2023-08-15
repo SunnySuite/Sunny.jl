@@ -42,7 +42,7 @@ set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-energy_per_site = energy(sys) / length(all_sites(sys))
+energy_per_site = energy(sys) / length(eachsite(sys))
 @assert energy_per_site ≈ -2J*S^2
 
 # Plotting the spins confirms the expected Néel order. Note that the overall,
@@ -53,20 +53,23 @@ plot_spins(sys; arrowlength=1.0, linewidth=0.4, arrowsize=0.5)
 # We can now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and
 # [`intensity_formula`](@ref). The mode `:perp` contracts with a dipole factor
 # to return the unpolarized intensity. We will also apply broadening with the
-# [`lorentzian`](@ref) kernel.
+# [`lorentzian`](@ref) kernel, and will dampen intensities using the
+# [`FormFactor`](@ref) for Cobalt(2+).
 
 swt = SpinWaveTheory(sys)
-η = 0.3 # (meV)
-formula = intensity_formula(swt, :perp, kernel=lorentzian(η)) # TODO: formfactors=[FormFactor(1, "Co2")]
+η = 0.4 # (meV)
+kernel = lorentzian(η)
+formfactors = [FormFactor("Co2")]
+formula = intensity_formula(swt, :perp; kernel, formfactors)
 
 # First, we consider the "single crystal" results. Use
-# [`connected_path_from_rlu`](@ref) to construct a path that connects
+# [`reciprocal_space_path`](@ref) to construct a path that connects
 # high-symmetry points in reciprocal space. The [`intensities_broadened`](@ref)
 # function collects intensities along this path for the given set of energy
 # values.
 
 qpoints = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
-path, xticks = connected_path_from_rlu(crystal, qpoints, 50)
+path, xticks = reciprocal_space_path(crystal, qpoints, 50)
 energies = collect(0:0.01:6)
 is = intensities_broadened(swt, path, energies, formula)
 

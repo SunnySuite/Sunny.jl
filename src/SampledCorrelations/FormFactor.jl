@@ -1,177 +1,130 @@
-const EMPTY_FF = 1
-const SINGLE_FF = 2 
-const DOUBLE_FF = 3
+# The intention is to replace src/SampledCorreslations/FormFactor.jl with
+# src/System/FormFactor.jl. The code duplication here is temporary to aid the
+# transition.
 
-Base.@kwdef struct FormFactor{FFType}
-    atom      :: Int64
-    J0_params :: NTuple{7, Float64} = (1, 0, 0, 0, 0, 0, 0)  # Default values so there is no effect if FFType is promoted
-    J2_params :: NTuple{7, Float64} = (0, 0, 0, 0, 0, 0, 0)
-    g_lande   :: Float64 = 1
+# Expansion of the form ``A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D``
+struct ExpandedBesselIntegral
+    # !! Order of fields is tied to data table format !! 
+    A :: Float64
+    a :: Float64
+    B :: Float64
+    b :: Float64
+    C :: Float64
+    c :: Float64
+    D :: Float64
+end
+
+struct FormFactor
+    j0 :: ExpandedBesselIntegral
+    j2 :: ExpandedBesselIntegral
+    g :: Float64
+end
+
+const identity_form_factor = let
+    j0 = ExpandedBesselIntegral(0, 0, 0, 0, 0, 0, 1)
+    j2 = ExpandedBesselIntegral(0, 0, 0, 0, 0, 0, 0)
+    g = 2
+    FormFactor(j0, j2, g)
 end
 
 """
-    FormFactor(atom::Int64, elem::String; g_lande=nothing)
+    FormFactor(ion::String; g_lande=2)
 
-Basic type for specifying form factor parameters. Must be provided a site within
-the unit cell (`atom`) and a string specifying the element name. This used when
-creating an [`intensity_formula`](@ref), which accepts a list of `FormFactors`s.
-Note that these corrections assume S(q,ω) is being calculated in the dipole
-approximation; they may not be appropriate for a general SU(N) system.
+The magnetic form factor for a given magnetic ion and charge state. These can
+optionally be provided to [`intensity_formula`](@ref), and will be used to scale
+the structure factor intensities as a function of wavevector magnitude.
 
-A list of supported element names is available at:
-
-https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
-
-The Landé g-factor may also be specified. 
-
-In more detail, the data stored in a `FormFactor` will be used to compute the
-form factor for each momentum space magnitude `|k|`, measured in inverse
-angstroms. The result is dependent on the magnetic ion species. By default, a
-first order form factor ``f`` is returned. If the keyword `g_lande` is given a
-numerical value, then a second order form factor ``F`` is returned.
-
-It is traditional to define the form factors using a sum of Gaussian broadening
-functions in the scalar variable ``s = |k|/4π``, where ``|k|`` can be
-interpreted as the magnitude of momentum transfer.
-
-The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form Factors, defines the
-approximation
-
-`` \\langle j_l(s) \\rangle = A e^{-as^2} + B e^{-bs^2} + Ce^{-cs^2} + D, ``
-
-where coefficients ``A, B, C, D, a, b, c`` are obtained from semi-empirical
-fits, depending on the orbital angular momentum index ``l = 0, 2``. For
-transition metals, the form-factors are calculated using the Hartree-Fock
-method. For rare-earth metals and ions, Dirac-Fock form is used for the
-calculations.
+The parameter `ion` must be one of the following allowed strings:
+```
+Sc0,Sc1,Sc2,Ti0,Ti1,Ti2,Ti3,V0,V1,V2,V3,V4,Cr0,Cr1,Cr2,Cr3,Cr4,Mn0,Mn1,Mn2,Mn3,
+Mn4,Fe0,Fe1,Fe2,Fe3,Fe4,Co0,Co1,Co2,Co3,Co4,Ni0,Ni1,Ni2,Ni3,Ni4,Cu0,Cu1,Cu2,Cu3,
+Cu4,Y0,Zr0,Zr1,Nb0,Nb1,Mo0,Mo1,Tc0,Tc1,Ru0,Ru1,Rh0,Rh1,Pd0,Pd1,Ce2,Nd2,Nd3,Sm2,
+Sm3,Eu2,Eu3,Gd2,Gd3,Tb2,Tb3,Dy2,Dy3,Ho2,Ho3,Er2,Er3,Tm2,Tm3,Yb2,Yb3,Pr3,U3,U4,
+U5,Np3,Np4,Np5,Np6,Pu3,Pu4,Pu5,Pu6,Am2,Am3,Am4,Am5,Am6,Am7
+```
 
 A first approximation to the magnetic form factor is
 
-``f(s) = \\langle j_0(s) \\rangle``
+``f(s) = \\langle j_0(s) \\rangle``,
 
-A second order correction is given by
+where ``\\langle j_l(s) \\rangle`` is a Bessel function integral of the magnetic
+dipole.
 
-``F(s) = \\frac{2-g}{g} \\langle j_2(s) \\rangle s^2 + f(s)``, where ``g`` is
-the Landé g-factor.  
+If Landé ``g``-factor is distinct from 2, then a correction will be applied,
 
-Digital tables are available at:
+``F(s) = \\frac{2-g}{g} \\langle j_2(s) \\rangle s^2 + f(s)``.
 
-* https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
+Sunny uses the semi-empirical fits for ``j_0`` and ``j_2`` listed from Refs. [1]
+and [2]. These functions are approximated as a sum of Gaussians in the scalar
+variable ``s = |k|/4π``, where ``|k|`` can be interpreted as the magnitude of
+momentum transfer:
 
-Additional references are:
+``\\langle j_l(s) \\rangle = A e^{-as^2} + B e^{-bs^2} + Ce^{-cs^2} + D,``
 
- * Marshall W and Lovesey S W, Theory of thermal neutron scattering Chapter 6
-   Oxford University Press (1971)
- * Clementi E and Roetti C,  Atomic Data and Nuclear Data Tables, 14 pp 177-478
-   (1974)
- * Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
- * Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
+where ``A, B, C, D, a, b, c`` are ``l``-dependent fitting parameters. For
+transition metals, the parameters are estimated using the Hartree-Fock method.
+For rare-earth metals and ions, the Dirac-Fock form is used.
+
+References:
+
+ 1. https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
+ 2. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form Factors
+    (2003).
+ 3. Marshall W and Lovesey S W, Theory of thermal neutron scattering Chapter 6
+    Oxford University Press (1971)
+ 4. Clementi E and Roetti C,  Atomic Data and Nuclear Data Tables, 14 pp 177-478
+    (1974)
+ 5. Freeman A J and Descleaux J P, J. Magn. Mag. Mater., 12 pp 11-21 (1979)
+    Descleaux J P and Freeman A J, J. Magn. Mag. Mater., 8 pp 119-129 (1978) 
 """
-function FormFactor(atom::Int64, elem::Union{Nothing, String}; g_lande=nothing) # default g_lande = 1.0 will never affect calculation -- better than Nothing
-
-    function lookup_ff_params(elem, datafile) :: NTuple{7, Float64}
+function FormFactor(ion::String; g_lande=2)
+    function lookup_ff_params(ion, datafile)
         path = joinpath(@__DIR__, "data", datafile)
         lines = collect(eachline(path))
-        matches = filter(line -> startswith(line, elem), lines)
+        matches = filter(line -> startswith(line, ion), lines)
         if isempty(matches)
-            error("'ff_elem = $elem' not a valid choice of magnetic ion.")
+            error("'$ion' not a valid magnetic ion.")
         end
-        Tuple(parse.(Float64, split(matches[1])[2:end]))
+        ExpandedBesselIntegral(parse.(Float64, split(matches[1])[2:end])...)
     end
 
-    return if !isnothing(g_lande) # Only attempt to lookup J2 parameters if Lande g-factor is provided
-        J0_params = lookup_ff_params(elem, "form_factor_J0.dat")
-        J2_params = lookup_ff_params(elem, "form_factor_J2.dat")
-        FormFactor{DOUBLE_FF}(; atom, J0_params, J2_params, g_lande)
-    elseif !isnothing(elem)
-        J0_params = lookup_ff_params(elem, "form_factor_J0.dat")
-        FormFactor{SINGLE_FF}(; atom, J0_params)
+    j0 = lookup_ff_params(ion, "form_factor_J0.dat")
+    j2 = lookup_ff_params(ion, "form_factor_J2.dat")
+    FormFactor(j0, j2, g_lande)
+end
+
+
+function compute_gaussian_expansion(j::ExpandedBesselIntegral, s2)
+    (; A, a, B, b, C, c, D) = j
+    return A*exp(-a*s2) + B*exp(-b*s2) + C*exp(-c*s2) + D
+end
+
+function compute_form_factor(form_factor::FormFactor, k2_absolute::Float64)
+    (; j0, j2, g) = form_factor
+
+    # Return early if this is the identity form factor
+    (j0.A == j0.B == j0.C == 0) && (j0.D == 1) && (g == 2) && return 1.0
+
+    s2 = k2_absolute / (4π)^2
+    if g == 2
+        return compute_gaussian_expansion(j0, s2)
     else
-        FormFactor{EMPTY_FF}(; atom)
+        form1 = compute_gaussian_expansion(j0, s2)
+        form2 = compute_gaussian_expansion(j2, s2)
+        return ((2-g)/g) * form2 * s2 + form1
     end
 end
 
-
-# Make sure `FormFactor` type parameter is uniform for all elements of list.
-# This ensures that `phase_averaged_elements` knows which version of
-# `compute_form` to call at compile time.
-function upconvert_form_factors(ffs)
-    FFType = maximum([only(typeof(ff).parameters) for ff in ffs])
-    return map(ffs) do ff
-        (; atom, J0_params, J2_params, g_lande) = ff
-        FormFactor{FFType}(; atom, J0_params, J2_params, g_lande)
-    end
-end
-
-# If necessary, update the indices of FormFactors from original crystal
-# to the corresponding indices of the new crystal.
-# TODO: Moving ion information into `SpinInfo` will eliminate the need for this as well
-# as symmetry propagation.
-function map_form_factors_to_crystal(sc::SampledCorrelations, ffs::Vector{FormFactor{FFType}}) where FFType
-    (; crystal, origin_crystal) = sc
-
-    (isnothing(origin_crystal)) && (return ffs)
-
-    ffs_new = []
-    for ff in ffs
-        old_ri = origin_crystal.positions[ff.atom]  
-        ri = crystal.latvecs \ origin_crystal.latvecs * old_ri
-        atom_new = position_to_atom(crystal, ri)
-
-        (; J0_params, J2_params, g_lande) = ff
-        push!(ffs_new, FormFactor{FFType}(; atom=atom_new, J0_params, J2_params, g_lande))
+# Given a form factor for each "symmetry class" of sites, return a form factor
+# for each atom in the crystal.
+function propagate_form_factors_to_atoms(ffs, cryst::Crystal)
+    isnothing(ffs) && return fill(identity_form_factor, natoms(cryst))
+    
+    ref_classes = unique(cryst.classes)
+    if length(ffs) != length(ref_classes)
+        error("""Received $(length(ffs)) form factors, but $(length(ref_classes)) are
+                 required, one for each symmetry-distinct site in the crystal.""")
     end
 
-    return ffs_new
-end
-
-# Remap form factors to reshaped crystal (if necessary) and propagate to symmetry
-# equivalent sites.
-function propagate_form_factors(sc::SampledCorrelations, ffs::Vector{FormFactor{FFType}}) where FFType
-    ffs = map_form_factors_to_crystal(sc, ffs)
-    ref_atoms = [ff.atom for ff in ffs]
-    atom_to_ref_atom = propagate_reference_atoms(sc.crystal, ref_atoms)
-
-    return map(enumerate(atom_to_ref_atom)) do (atom, atom′)
-        ff = ffs[findfirst(==(atom′), ref_atoms)]
-        (; J0_params, J2_params, g_lande) = ff
-        FormFactor{FFType}(; atom, J0_params, J2_params, g_lande)
-    end
-end
-
-# Process form factor information into optimal form for efficient calculation.
-function prepare_form_factors(sc, formfactors)
-    if isnothing(formfactors)
-        cryst = isnothing(sc.origin_crystal) ? sc.crystal : sc.origin_crystal 
-        class_indices = [findfirst(==(class_label), cryst.classes) for class_label in unique(cryst.classes)]
-        formfactors = [FormFactor{Sunny.EMPTY_FF}(; atom) for atom in class_indices]
-    end
-    formfactors = upconvert_form_factors(formfactors) # Ensure formfactors have consistent type
-    return propagate_form_factors(sc, formfactors)
-end
-
-# Second-order form factor calculation.
-function compute_form(k::Float64, params::FormFactor{DOUBLE_FF})
-    s = k/4π
-    g = params.g_lande
-
-    (A, a, B, b, C, c, D) = params.J0_params
-    form1 = A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
-
-    (A, a, B, b, C, c, D) = params.J2_params
-    form2 = A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
-
-    return ((2-g)/g) * (form2*s^2) + form1
-end
-
-# First-order form factor calculation.
-function compute_form(k::Float64, params::FormFactor{SINGLE_FF})
-    s = k/4π
-    (A, a, B, b, C, c, D) = params.J0_params
-    return A*exp(-a*s^2) + B*exp(-b*s^2) + C*exp(-c*s^2) + D
-end
-
-# No form factor correction.
-function compute_form(::Float64, ::FormFactor{EMPTY_FF})
-    return 1.0
+    return [ffs[findfirst(==(c), ref_classes)] for c in cryst.classes]
 end

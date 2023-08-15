@@ -37,7 +37,8 @@ struct SpinWaveTheory
 end
 
 function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6) where N
-    # Reshape into single unit cell
+    # Reshape into single unit cell. A clone will always be performed, even if
+    # no reshaping happens.
     cellsize_mag = cell_dimensions(sys) * diagm(collect(sys.latsize))
     sys = reshape_supercell_aux(sys, (1,1,1), cellsize_mag)
 
@@ -71,6 +72,11 @@ function dipole_to_angles(dipoles)
     return θ, ϕ
 end
 
+# Given q in reciprocal lattice units (RLU) for the original crystal, return a
+# q_reshaped in RLU for the possibly-reshaped crystal.
+function to_reshaped_rlu(sys::System{N}, q) where N
+    return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
+end
 
 # Compute SU(N) generators in the local reference frame (for :SUN mode). DD:
 # Redo this using existing operator rotation facilities.

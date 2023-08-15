@@ -171,17 +171,11 @@ end
 
     # Test axis-angle decomposition
     let
-        (n, θ) = Sunny.axis_angle(R)
+        (n, θ) = Sunny.matrix_to_axis_angle(R)
         @test 1 + 2cos(θ) ≈ tr(R)
         @test norm(n) ≈ 1
         @test R*n ≈ n
-
-        # Rodrigues formula
-        R2 = zeros(3,3)
-        for i=1:3, j=1:3
-            R2[i,j] = δ(i,j)*cos(θ) + (1-cos(θ))*n[i]*n[j] - sin(θ)*sum(ϵ[i,j,k]*n[k] for k=1:3)
-        end
-        @test R2 ≈ R
+        @test R ≈ Sunny.axis_angle_to_matrix(n, θ)
     end
 
     # Test that spin matrices rotate as vectors

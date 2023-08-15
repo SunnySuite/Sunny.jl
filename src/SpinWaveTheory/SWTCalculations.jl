@@ -10,7 +10,7 @@ const biquad_metric = 1/2 * diagm([-1, -1, -1, 1, 1, 1, 1, 1])
 
 
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
-function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
+function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matrix{ComplexF64})
     (; sys, data) = swt
     (; s̃_mat, T̃_mat, Q̃_mat) = data
 
@@ -68,8 +68,7 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
             sub_i, sub_j = bond.i, bond.j
             sub_i_M1, sub_j_M1 = sub_i - 1, sub_j - 1
             
-            ΔR = sys.crystal.latvecs * bond.n # Displacement associated with periodic wrapping
-            phase = exp(im * dot(q, ΔR))
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             # Fill dipole part of tTi_μ
             tTi_μ[:, :, 1:3] .= view(s̃_mat,:, :, 1:3, sub_i)
@@ -234,7 +233,7 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
 end
 
 # Set the dynamical quadratic Hamiltonian matrix in dipole mode. 
-function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64})
+function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matrix{ComplexF64})
     (; sys, data) = swt
     (; R_mat, c_coef) = data
     Hmat .= 0.0
@@ -267,8 +266,7 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q, Hmat::Matrix{ComplexF64
 
             J = Mat3(coupling.bilin*I)
             sub_i, sub_j = bond.i, bond.j
-            ΔR = sys.crystal.latvecs * bond.n # Displacement associated with periodic wrapping
-            phase = exp(im * dot(q, ΔR))
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             R_mat_i = R_mat[sub_i]
             R_mat_j = R_mat[sub_j]
@@ -468,10 +466,11 @@ end
 """
     dispersion(swt::SpinWaveTheory, qs)
 
-**Experimental**. Computes the spin excitation energy dispersion relations given a
+Computes the spin excitation energy dispersion relations given a
 [`SpinWaveTheory`](@ref) and an array of wave vectors `qs`. Each element ``q``
 of `qs` must be a 3-vector in units of reciprocal lattice units. I.e., ``qᵢ`` is
-given in ``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the chemical lattice.
+given in ``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the original chemical
+lattice.
 
 The first indices of the returned array correspond to those of `qs`. A final
 index, corresponding to mode, is added to these. Each entry of the array is an
@@ -490,10 +489,11 @@ function dispersion(swt::SpinWaveTheory, qs)
     disp = zeros(Float64, nmodes, length(qs)) 
 
     for (iq, q) in enumerate(qs)
+        q_reshaped = to_reshaped_rlu(swt.sys, q)
         if sys.mode == :SUN
-            swt_hamiltonian_SUN!(swt, q, ℋ)
+            swt_hamiltonian_SUN!(swt, q_reshaped, ℋ)
         elseif sys.mode == :dipole
-            swt_hamiltonian_dipole!(swt, q, ℋ)
+            swt_hamiltonian_dipole!(swt, q_reshaped, ℋ)
         end
         bogoliubov!(disp_buf, Vbuf, ℋ, energy_tol)
         disp[:,iq] .= disp_buf
@@ -613,7 +613,9 @@ The integral of a properly normalized kernel function over all `Δω` is one.
 """
 intensity_formula(swt::SpinWaveTheory; kwargs...) = intensity_formula(swt, :perp; kwargs...)
 
-function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function}, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast = false)
+function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
+                           return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast=false,
+                           formfactors=nothing)
     (; sys, data) = swt
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     S = (Ns-1) / 2
@@ -627,6 +629,10 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     Avec_pref = zeros(ComplexF64, Nm)
     disp = zeros(Float64, nmodes)
     intensity = zeros(return_type, nmodes)
+
+    # Expand formfactors for symmetry classes to formfactors for all atoms in
+    # crystal
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, swt.sys.crystal)
 
     # Upgrade to 2-argument kernel if needed
     kernel_edep = if isnothing(kernel)
@@ -653,18 +659,23 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     #   Smooth kernel --> I_of_ω = Intensity as a function of ω
     #
     calc_intensity = function(swt::SpinWaveTheory, q::Vec3)
+        q_reshaped = to_reshaped_rlu(swt.sys, q)
+
         if sys.mode == :SUN
-            swt_hamiltonian_SUN!(swt, q, Hmat)
+            swt_hamiltonian_SUN!(swt, q_reshaped, Hmat)
         elseif sys.mode == :dipole
-            swt_hamiltonian_dipole!(swt, q, Hmat)
+            swt_hamiltonian_dipole!(swt, q_reshaped, Hmat)
         end
         bogoliubov!(disp, Vmat, Hmat, swt.energy_tol, mode_fast)
 
         for i = 1:Nm
             @assert Nm == natoms(sys.crystal)
-            r = sys.crystal.latvecs * sys.crystal.positions[i]
-            phase = exp(-im * dot(q, r))
+            phase = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
             Avec_pref[i] = sqrt_Nm_inv * phase
+
+             # TODO: move form factor into `f`, then delete this rescaling
+            q_absolute = swt.sys.crystal.recipvecs * q_reshaped
+            Avec_pref[i] *= compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
         end
 
         # Fill `intensity` array
@@ -673,19 +684,19 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             Avec = zeros(ComplexF64, 3)
             if sys.mode == :SUN
                 (; s̃_mat) = data
-                for site = 1:Nm
-                    @views tS_μ = s̃_mat[:, :, :, site]
+                for i = 1:Nm
+                    @views tS_μ = s̃_mat[:, :, :, i]
                     for μ = 1:3
                         for α = 2:Ns
-                            Avec[μ] += Avec_pref[site] * (tS_μ[α, 1, μ] * v[(site-1)*(Ns-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(site-1)*(Ns-1)+α-1])
+                            Avec[μ] += Avec_pref[i] * (tS_μ[α, 1, μ] * v[(i-1)*(Ns-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(i-1)*(Ns-1)+α-1])
                         end
                     end
                 end
             elseif sys.mode == :dipole
                 (; R_mat) = data
-                for site = 1:Nm
-                    Vtmp = [v[site+nmodes] + v[site], im * (v[site+nmodes] - v[site]), 0.0]
-                    Avec += Avec_pref[site] * sqrt_halfS * (R_mat[site] * Vtmp)
+                for i = 1:Nm
+                    Vtmp = [v[i+nmodes] + v[i], im * (v[i+nmodes] - v[i]), 0.0]
+                    Avec += Avec_pref[i] * sqrt_halfS * (R_mat[i] * Vtmp)
                 end
             end
 

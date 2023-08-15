@@ -62,7 +62,7 @@ include("System/PairExchange.jl")
 include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
-export SpinInfo, System, Site, all_sites, position_to_site,
+export SpinInfo, System, Site, eachsite, position_to_site,
     global_position, magnetic_moment, set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, energy,
     spin_operators, stevens_operators, set_external_field!, set_onsite_coupling!, set_exchange!,
     dmvec, enable_dipole_dipole!, to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
@@ -97,13 +97,14 @@ export SampledCorrelations, dynamical_correlations, instant_correlations, FormFa
 include("Intensities/ElementContraction.jl")
 
 include("Intensities/Interpolation.jl")
-export intensities_interpolated, instant_intensities_interpolated, connected_path_from_rlu
+export intensities_interpolated, instant_intensities_interpolated, rotation_in_rlu,
+    reciprocal_space_path
 
 include("Intensities/Binning.jl")
 export intensities_binned, BinningParameters, count_bins, integrate_axes!,
     unit_resolution_binning_parameters, 
     slice_2D_binning_parameters, axes_bincenters,
-    connected_path_bins
+    reciprocal_space_path_bins
 
 include("Intensities/LinearSpinWaveIntensities.jl")
 export intensities_broadened, intensities_bands

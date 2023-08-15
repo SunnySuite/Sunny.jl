@@ -234,7 +234,7 @@ end
     
     # Corresponding SU(N) system
     sys = System(cryst, (1,1,1), [SpinInfo(1, S=3, g=2)], :SUN)
-    for site in all_sites(sys)
+    for site in eachsite(sys)
         set_dipole!(sys, sys0.dipoles[site], site)
     end
     set_onsite_coupling!(sys, Λ, i)

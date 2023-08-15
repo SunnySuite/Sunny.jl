@@ -3,21 +3,15 @@ struct NoInterp <: InterpolationScheme{1} end
 struct LinearInterp <: InterpolationScheme{8} end
 
 
-function interpolated_intensity(::SampledCorrelations, _, _, stencil_intensities, ::NoInterp) 
+function interpolated_intensity(::SampledCorrelations, _, stencil_intensities, ::NoInterp) 
     return only(stencil_intensities)
 end
 
-function interpolated_intensity(::SampledCorrelations, q_target, qs, stencil_intensities, ::LinearInterp) 
-    q000,    _,    _,    _,    _,    _,    _, q111 = qs 
+# N.B.: This interpolation is only valid when all three entries of m_target are in [0,1]
+function interpolated_intensity(::SampledCorrelations, m_target, stencil_intensities, ::LinearInterp) 
     c000, c100, c010, c110, c001, c101, c011, c111 = stencil_intensities
 
-    x, y, z = q_target
-    x0, y0, z0 = q000 
-    x1, y1, z1 = q111 
-
-    xd = (x-x0)/(x1-x0)
-    yd = (y-y0)/(y1-y0)
-    zd = (z-z0)/(z1-z0)
+    xd, yd, zd = m_target
 
     c00 = c000*(1-xd) + c100*xd
     c01 = c001*(1-xd) + c101*xd
@@ -29,7 +23,6 @@ function interpolated_intensity(::SampledCorrelations, q_target, qs, stencil_int
 
     return c0*(1-zd) + c1*zd
 end
-
 
 function stencil_points(sc::SampledCorrelations, q, ::NoInterp)
     Ls = size(sc.samplebuf)[2:4] 
@@ -95,16 +88,12 @@ function pruned_stencil_info(sc::SampledCorrelations, qs, interp::InterpolationS
     end
     @assert sum(counts) == length(m_info)
 
-    # Calculate corresponding q (RLU) and k (global) vectors
-    qs_all = map(ms_all) do ms
-       map(m -> m ./ sc.latsize, ms) 
+    # Calculate corresponding wave vectors in absolute units
+    ks_all = map(ms_all) do ms
+        map(m -> sc.crystal.recipvecs * (m ./ sc.latsize), ms)
     end
 
-    ks_all = map(qs_all) do qs
-        map(q -> sc.crystal.recipvecs * q, qs) # FIXME: should q still by in sc.crystal, or in absolute units?
-    end
-    
-    return (; qs_all, ks_all, idcs_all, counts)
+    return (; ks_all, idcs_all, counts)
 end
 
 
@@ -133,9 +122,12 @@ function intensities_interpolated(sc::SampledCorrelations, qs;
     negative_energies = false,
     instantaneous_warning = true
 )
-    # Convert wavevectors from absolute units to reciprocal lattice units (RLU)
-    # associated with sc.crystal
-    qs = [sc.crystal.recipvecs \ Vec3(q) for q in qs]
+    # If the crystal has been reshaped, convert all wavevectors from RLU in the
+    # original crystal to RLU in the reshaped crystal
+    if !isnothing(sc.origin_crystal)
+        convert = sc.crystal.recipvecs \ sc.origin_crystal.recipvecs
+        qs = [convert * q for q in qs]
+    end
 
     # Make sure it's a dynamical structure factor 
     if instantaneous_warning && size(sc.data, 7) == 1
@@ -165,19 +157,26 @@ function intensities_interpolated(sc::SampledCorrelations, qs;
 end
 
 
-# Actual intensity calculation
 function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targets::Array, ωvals, interp::InterpolationScheme{NInterp}, formula, stencil_info, T) where {NInterp}
     li_intensities = LinearIndices(intensities)
-    ci_qs = CartesianIndices(q_targets)
-    (; qs_all, ks_all, idcs_all, counts) = stencil_info 
-    for (iω, ω) in enumerate(ωvals)
+    ci_targets = CartesianIndices(q_targets)
+
+    # Compute the location of each q_target within its cell in R.L.U.
+    # (which is an axis-aligned unit cube) with coordinates given as
+    # the fractional distance along each side of the cube.
+    m_targets = [mod.(sc.latsize .* q_target,1) for q_target in q_targets]
+
+    (; ks_all, idcs_all, counts) = stencil_info 
+    for iω in eachindex(ωvals)
         iq = 0
-        for (qs, ks, idcs, numrepeats) in zip(qs_all, ks_all, idcs_all, counts)
+        for (ks, idcs, numrepeats) in zip(ks_all, idcs_all, counts)
+            # The closure `formula.calc_intensity` is defined in
+            # intensity_formula(f, ::SampledCorrelations, ...)
             local_intensities = SVector{NInterp, T}(formula.calc_intensity(sc, ks[n], idcs[n], iω) for n in 1:NInterp)
             for _ in 1:numrepeats
                 iq += 1
-                idx = li_intensities[CartesianIndex(ci_qs[iq], iω)]
-                intensities[idx] = interpolated_intensity(sc, q_targets[iq], qs, local_intensities, interp) 
+                idx = li_intensities[CartesianIndex(ci_targets[iq], iω)]
+                intensities[idx] = interpolated_intensity(sc, m_targets[iq], local_intensities, interp) 
             end
         end
     end
@@ -202,30 +201,41 @@ end
 
 
 """
-    connected_path_from_rlu(cryst, qs_rlu, density)
+    rotation_in_rlu(cryst::Crystal, axis, angle)
 
-Returns a pair `(path, xticks)`. The first return value is a path in reciprocal
-space that samples linearly between the wavevectors in `qs_rlu`. The elements in
-`qs_rlu` are defined in reciprocal lattice units (RLU) associated with the
-[`reciprocal_lattice_vectors`](@ref) for `cryst`. The sampling `density` between
-elements of `qs` has units of inverse length.
-
-The second return value `xticks` can be used for plotting. The `xticks` object
-is itself a pair `(numbers, labels)`, which give the locations of the
-interpolating ``q``-points and labels as pretty-printed strings.
+Returns a ``3×3`` matrix that rotates wavevectors in reciprocal lattice units
+(RLU). The axis vector is a real-space direction in absolute units (but
+arbitrary magnitude), and the angle is in radians.
 """
-function connected_path_from_rlu(cryst::Crystal, qs_rlu::Vector, density)
-    @assert length(qs_rlu) >= 2 "The list `qs` should include at least two wavevectors."
-    qs_rlu = Vec3.(qs_rlu)
+function rotation_in_rlu(cryst::Crystal, axis, angle)
+    inv(cryst.recipvecs) * axis_angle_to_matrix(axis, angle) * cryst.recipvecs
+end
 
-    qs = Ref(cryst.recipvecs) .* qs_rlu
+
+"""
+    reciprocal_space_path(cryst::Crystal, qs, density)
+
+Returns a pair `(path, xticks)`. The `path` return value is a list of
+wavevectors that samples linearly between the provided wavevectors `qs`. The
+`xticks` return value can be used to label the special ``𝐪`` values on the
+x-axis of a plot.
+
+Special note about units: the wavevectors `qs` must be provided in reciprocal
+lattice units (RLU) for the given crystal, but the sampling density must be
+specified in units of inverse length. The `path` will therefore include more
+samples between `q`-points that are further apart in absolute Fourier distance
+(units of inverse length).
+"""
+function reciprocal_space_path(cryst::Crystal, qs, density)
+    @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
+    qs = Vec3.(qs)
 
     path = Vec3[]
     markers = Int[]
     for i in 1:length(qs)-1
         push!(markers, length(path)+1)
         q1, q2 = qs[i], qs[i+1]
-        dist = norm(q1 - q2)
+        dist = norm(cryst.recipvecs * (q1 - q2))
         npoints = round(Int, dist*density)
         for n in 1:npoints
             push!(path, (1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints)
@@ -234,8 +244,8 @@ function connected_path_from_rlu(cryst::Crystal, qs_rlu::Vector, density)
     push!(markers, length(path)+1)
     push!(path, qs[end])
 
-    labels = map(qs_rlu) do q_rlu
-        "[" * join(number_to_math_string.(q_rlu), ",") * "]"
+    labels = map(qs) do q
+        "[" * join(number_to_math_string.(q), ",") * "]"
     end
     xticks = (markers, labels)
 

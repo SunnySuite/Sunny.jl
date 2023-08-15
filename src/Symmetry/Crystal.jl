@@ -193,6 +193,9 @@ end
 
 
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
+    # Print a warning if non-conventional lattice vectors are detected.
+    try cell_type(latvecs) catch(e) @warn e.msg end
+
     for i in 1:length(positions)
         for j in i+1:length(positions)
             ri = positions[i]
@@ -580,7 +583,7 @@ end
 function cubic_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     positions = [[0, 0, 0]]
-    Crystal(latvecs, positions)
+    return Crystal(latvecs, positions)
 end
 
 function fcc_crystal(; a=1.0)
@@ -591,26 +594,25 @@ function fcc_crystal(; a=1.0)
                   [0, 1, 1]/2]
     cryst = Crystal(latvecs, positions)
     sort_sites!(cryst)
-    cryst
+    return cryst
 end
 
 function fcc_primitive_crystal(; a=1.0)
     latvecs = [1 1 0; 0 1 1; 1 0 1]' * a/2
     positions = [[0, 0, 0]]
-    Crystal(latvecs, positions)
+    return Crystal(latvecs, positions)
 end
 
 function bcc_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-    positions = [[0, 0, 0]/2,
-                  [1, 1, 1]/2,]
-    Crystal(latvecs, positions)
+    positions = [[0, 0, 0]/2, [1, 1, 1]/2]
+    return Crystal(latvecs, positions)
 end
 
 function bcc_primitive_crystal(; a=1.0)
     latvecs = [1 1 -1; 1 -1 1; -1 1 1]' * a/2
     positions = [[0, 0, 0]]
-    Crystal(latvecs, positions)
+    return Crystal(latvecs, positions)
 end
 
 
@@ -628,7 +630,7 @@ function diamond_crystal(; a=1.0)
     ]
     cryst = Crystal(latvecs, positions)
     sort_sites!(cryst)
-    cryst
+    return cryst
 end
 
 function diamond_primitive_crystal(; a=1.0)
@@ -637,10 +639,10 @@ function diamond_primitive_crystal(; a=1.0)
         [0, 0, 0]/4,
         [1, 1, 1]/4,
     ]
-    Crystal(latvecs, positions)
+    return Crystal(latvecs, positions)
 end
 
-function pyrochlore_lattice(; a=1.0)
+function pyrochlore_crystal(; a=1.0)
     latvecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
     positions = [
         [5, 5, 5]/8,
@@ -650,5 +652,21 @@ function pyrochlore_lattice(; a=1.0)
     ]
     cryst = Crystal(latvecs, positions)
     sort_sites!(cryst)
-    cryst
+    return cryst
+end
+
+function kagome_crystal(; a=1.0, c=10.0)
+    latvecs = lattice_vectors(a, a, c, 90, 90, 120)
+    positions = [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0]]
+    cryst = Crystal(latvecs, positions)
+    sort_sites!(cryst)
+    return cryst
+end
+
+function hexagonal_crystal(; a=1.0, c=10.0)
+    latvecs = lattice_vectors(a, a, c, 90, 90, 120)
+    positions = [[0, 0, 0], [1/3, 2/3, 0]]
+    cryst = Crystal(latvecs, positions)
+    sort_sites!(cryst)
+    return cryst
 end

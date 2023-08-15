@@ -275,11 +275,10 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
 
     # Other initialization
     nsamples = Int64[0]
-    origin_crystal = !isnothing(sys.origin) ? sys.origin.crystal : nothing
 
     # Make Structure factor and add an initial sample
-    sc = SampledCorrelations{N}(data, sys.crystal, origin_crystal, Δω,
-                                observables, observable_ixs, correlations,
+    origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
+    sc = SampledCorrelations{N}(data, sys.crystal, origin_crystal, Δω, observables, observable_ixs, correlations,
                                 samplebuf, fft!, copybuf, measperiod, apply_g, Δt, nsamples, processtraj!)
 
     return sc

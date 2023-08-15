@@ -73,17 +73,17 @@ function viz_chain(sys;kwargs...)#hide
   linewidth = 5.#hide
   arrowsize = 10.#hide
   lengthscale = 15.#hide
-  pts = [Point3f(Sunny.global_position(sys,site)) for site in all_sites(sys)][:]#hide
+  pts = [Point3f(Sunny.global_position(sys,site)) for site in eachsite(sys)][:]#hide
 #hide
   ## Ups#hide
-  vecs = [Vec3f([0,0,1]) for site in all_sites(sys)][:]#hide
+  vecs = [Vec3f([0,0,1]) for site in eachsite(sys)][:]#hide
   cols = map(x -> (:blue,x), ups)#hide
   Makie.arrows!(ax, pts .+ 0.5 .* vecs, vecs;#hide
         linecolor = cols, arrowcolor = cols,#hide
         lengthscale, arrowsize, linewidth, kwargs...)#hide
 #hide
   ## Downs#hide
-  vecs = [Vec3f([0,0,-1]) for site in all_sites(sys)][:]#hide
+  vecs = [Vec3f([0,0,-1]) for site in eachsite(sys)][:]#hide
   cols = map(x -> (:red,x), downs)#hide
   Makie.arrows!(ax, pts .+ 0.5 .* vecs, vecs;#hide
         linecolor = cols, arrowcolor = cols,#hide

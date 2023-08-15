@@ -207,7 +207,7 @@ remove_periodicity!(sys::System, (true, false, true))
 function remove_periodicity!(sys::System{N}, dims) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
 
-    for site in all_sites(sys)
+    for site in eachsite(sys)
         ints = interactions_inhomog(sys)[site]
         filter!(ints.pair) do (; bond)
             offset_cell = Tuple(to_cell(site)) .+ bond.n

@@ -59,8 +59,9 @@ There are keyword arguments providing temperature and form factor corrections:
     experimental data. If `kT` is not specified, infinite temperature (no
     correction) is assumed.
 - `formfactors`: To apply form factor corrections, provide this keyword with a
-    vector of `FormFactor`s, one for each unique site in the unit cell. The form factors
-    will be symmetry propagated to all equivalent sites.
+    list of `FormFactor`s, one for each symmetry-distinct site in the crystal.
+    The order of `FormFactor`s must correspond to the order of site symmetry
+    classes, e.g., as they appear when printed in `display(crystal)`.
 """
 function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::AbstractVector{Int64}; kT = Inf, formfactors = nothing, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])")
     # If temperature given, ensure it's greater than 0.0
@@ -68,23 +69,23 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
         error("`kT` must be greater than zero.")
     end
 
-    ffdata = prepare_form_factors(sc, formfactors)
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
     NAtoms = Val(size(sc.data)[2])
     NCorr = Val(length(corr_ix))
 
-    ωs_sc = ωs(sc;negative_energies=true)  # I think this default `true` may be a problem
+    ωs_sc = ωs(sc;negative_energies=true)  # TODO: is the default `true` a problem?
 
     # Intensity is calculated at the discrete (ix_q,ix_ω) modes available to the system.
-    # Additionally, for momentum transfers outside of the first BZ, the norm `k` of the
+    # Additionally, for momentum transfers outside of the first BZ, the norm `q_absolute` of the
     # momentum transfer may be different than the one inferred from `ix_q`, so it needs
     # to be provided independently of `ix_q`.
-    formula = function (sc::SampledCorrelations,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
-        correlations = phase_averaged_elements(view(sc.data,corr_ix,:,:,ix_q,ix_ω), k, sc, ffdata, NCorr, NAtoms)
+    calc_intensity = function (sc::SampledCorrelations,q_absolute::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
+        correlations = phase_averaged_elements(view(sc.data,corr_ix,:,:,ix_q,ix_ω), q_absolute, sc.crystal, ff_atoms, NCorr, NAtoms)
 
         ω = ωs_sc[ix_ω]
-        return f(k,ω,correlations) * classical_to_quantum(ω, kT)
+        return f(q_absolute,ω,correlations) * classical_to_quantum(ω, kT)
     end
-    ClassicalIntensityFormula{return_type}(kT,formfactors,string_formula,formula)
+    ClassicalIntensityFormula{return_type}(kT,formfactors,string_formula,calc_intensity)
 end
 
 """

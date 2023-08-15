@@ -38,15 +38,15 @@ Remove `intensities` function. Instead, use one of
 [`intensities_interpolated`](@ref) or [`intensities_binned`](@ref). These will
 require an [`intensity_formula`](@ref), which defines a calculator (e.g., LSWT).
 
-Sunny now expects all wavevectors in units of inverse Angstrom (1/Å). This
-facilitates orientational averaging. Replace `connected_path` with
-[`connected_path_from_rlu`](@ref), which returns wavevectors in 1/Å. Replace
-`spherical_shell` with [`sphere_points`](@ref) that generates points on the
-unit sphere.
+Rename `connected_path` to [`reciprocal_space_path`](@ref), which now returns an
+`xticks` object that can be used in plotting. Replace `spherical_shell` with
+[`sphere_points`](@ref) that generates points on the unit sphere.
 
 Rename `polarize_spin!` to [`set_dipole!`](@ref) for consistency with
 [`set_coherent!`](@ref). The behavior of the former function is unchanged: the
 spin at a given site will still be polarized along the provided direction.
+
+Rename `all_sites` to `eachsite` consistent with Julia convention for iterators.
 
 Rename `reshape_geometry` to [`reshape_supercell`](@ref), which is the
 fundamental reshaping function. Rename `resize_periodically` to
@@ -54,6 +54,10 @@ fundamental reshaping function. Rename `resize_periodically` to
 
 The constructor [`SpinInfo`](@ref) now requires a ``g``-factor or tensor as a
 named argument.
+
+The constructor [`FormFactor`](@ref) no longer accepts an atom index. Instead,
+the form factors are associated with site-symmetry classes in order of
+appearance.
 
 Symbolic representations of operators are now hidden unless the external package
 `DynamicPolynomials.jl` is explicitly loaded by the user. The functionality of
@@ -94,7 +98,7 @@ reduce confusion with the physical instantaneous intensities.
 The function `spherical_shell` now takes a radius in physical units of inverse
 Å.
 
-New exported functions [`global_position`](@ref), [`magnetic_moment`](@ref), [`all_sites`](@ref).
+New exported functions [`global_position`](@ref), [`magnetic_moment`](@ref), `all_sites`.
 
 Remove all uses of
 [`Base.deepcopy`](https://docs.julialang.org/en/v1/base/base/#Base.deepcopy)

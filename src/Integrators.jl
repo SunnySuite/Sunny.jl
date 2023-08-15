@@ -164,7 +164,7 @@ end
 function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
                        HZ::Array{CVec{N}, 4}, integrator::Langevin, sys::System{N}) where N
     (; kT, λ, Δt) = integrator
-    for site in all_sites(sys)
+    for site in eachsite(sys)
         ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ[site]
         ΔZ[site] = proj(ΔZ′, Z[site])
     end
@@ -208,7 +208,7 @@ end
 
 function rhs_ll!(ΔZ, HZ, integrator, sys)
     (; Δt) = integrator
-    for site in all_sites(sys)
+    for site in eachsite(sys)
         ΔZ[site] = - Δt*im*HZ[site]
     end
 end

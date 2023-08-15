@@ -115,8 +115,8 @@ print_symmetry_table(magxtal, 4.0)
 
 # Assign Local Hilbert Space
 S = 3/2
-lhs  = [SpinInfo(1, S=S, g=2)]
-ffs  = [FormFactor(1,"Co2")];
+lhs = [SpinInfo(1, S=S, g=2)]
+formfactors = [FormFactor("Co2")];
 
 # Create Spin System and Randomize it
 sunmode = :dipole
@@ -174,7 +174,7 @@ Qxpts  = range(-10.0, 10.0, length=nQpts);
 Qypts  = range(-10.0, 10.0, length=nQpts);
 qz     = 1.0;
 Qpts   = [[qx, qy, qz] for qx in Qxpts, qy in Qypts];
-@time  iq = instant_intensities(eqsf, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
+@time  iq = instant_intensities(eqsf, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors);
 
 # Plot the resulting I(Q)
 heatmap(Qxpts, Qypts, iq;
@@ -214,15 +214,15 @@ symQpts   = [[0.75, 0.75, 0.00],  # List of wave vectors that define a path
             [0.25, 1.00, 0.25],
             [0.00, 1.00, 0.00],
             [0.00,-4.00, 0.00]];
-(Qpts, xticks) = connected_path_from_rlu(magxtal, symQpts, densQpts);
-@time  iqw = intensities(sc, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
+(Qpts, xticks) = reciprocal_space_path(magxtal, symQpts, densQpts);
+@time  iqw = intensities(sc, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors); 
 
 # If desired, broaden the sc in energy
 η     = 0.02 ## Lorentzian energy broadening parameter
 iqwc  = broaden_energy(sc, iqw, (ω, ω₀) -> lorentzian(ω-ω₀, η));
 
 # If desired, calculated the energy-integrated structure factor
-@time  iqt = instant_intensities(sc, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors=ffs); 
+@time  iqt = instant_intensities(sc, Qpts, :perp; interpolation = :none, kT=integrator.kT, formfactors); 
 
 # Plot the resulting I(Q,W)    
 heatmap(1:size(iqwc, 1), ωs(sc), iqwc;
@@ -242,7 +242,7 @@ nQpts      = 100;
 Qpow       = range(0, Qmax, length=nQpts);  
 η          = 0.1;
 npts       = 300;
-@time pqw = powder_average(sc, Qpow, npts; η, kT=integrator.kT, formfactors=ffs);
+@time pqw = powder_average(sc, Qpow, npts; η, kT=integrator.kT, formfactors);
 
 # Plot resulting Ipow(Q,W)    
 heatmap(Qpow, ωs(sc), pqw;
@@ -265,8 +265,8 @@ for (i, kT) in enumerate(kTs)
     dwell!(sys, integrator;kTtarget=kT,ndwell=1000);
     sc_loc = dynamical_correlations(sys; Δt=2Δt0, nω=nω, ωmax=ωmax, process_trajectory=:symmetrize); 
     add_sample!(sc_loc, sys)
-    iqw_res[i] = intensities(sc_loc, Qpts, :perp; interpolation = :none, kT=kT, formfactors=ffs); 
-    pqw_res[i] = powder_average(sc_loc, Qpow, npts; η, kT=kT, formfactors=ffs);
+    iqw_res[i] = intensities(sc_loc, Qpts, :perp; interpolation = :none, kT, formfactors); 
+    pqw_res[i] = powder_average(sc_loc, Qpow, npts; η, kT, formfactors);
 end
 
 # Plot the resulting Ipow(Q,W) as a function of temperature,

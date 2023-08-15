@@ -1,6 +1,6 @@
 function observable_values!(buf, sys::System{N}, ops; apply_g = true) where N
     if N == 0
-        for site in all_sites(sys), (i, op) in enumerate(ops)
+        for site in eachsite(sys), (i, op) in enumerate(ops)
             dipole = sys.dipoles[site]
             if apply_g
               dipole = sys.gs[site] * dipole
@@ -15,7 +15,7 @@ function observable_values!(buf, sys::System{N}, ops; apply_g = true) where N
         # SQTODO: This allocates :(
         for (i, op) in enumerate(ops)
           matrix_operator = convert(Matrix{ComplexF64},op)
-            for site in all_sites(sys)
+            for site in eachsite(sys)
                 buf[i,site] = dot(Zs[site], matrix_operator, Zs[site])
             end
         end
