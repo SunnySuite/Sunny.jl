@@ -63,13 +63,13 @@ formfactors = [FormFactor("Co2")]
 formula = intensity_formula(swt, :perp; kernel, formfactors)
 
 # First, we consider the "single crystal" results. Use
-# [`connected_path_from_rlu`](@ref) to construct a path that connects
+# [`reciprocal_space_path`](@ref) to construct a path that connects
 # high-symmetry points in reciprocal space. The [`intensities_broadened`](@ref)
 # function collects intensities along this path for the given set of energy
 # values.
 
 qpoints = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
-path, xticks = connected_path_from_rlu(crystal, qpoints, 50)
+path, xticks = reciprocal_space_path(crystal, qpoints, 50)
 energies = collect(0:0.01:6)
 is = intensities_broadened(swt, path, energies, formula)
 

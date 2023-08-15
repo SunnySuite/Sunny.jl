@@ -73,17 +73,17 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
     NAtoms = Val(size(sc.data)[2])
     NCorr = Val(length(corr_ix))
 
-    ωs_sc = ωs(sc;negative_energies=true)  # I think this default `true` may be a problem
+    ωs_sc = ωs(sc;negative_energies=true)  # TODO: is the default `true` a problem?
 
     # Intensity is calculated at the discrete (ix_q,ix_ω) modes available to the system.
-    # Additionally, for momentum transfers outside of the first BZ, the norm `k` of the
+    # Additionally, for momentum transfers outside of the first BZ, the norm `q_absolute` of the
     # momentum transfer may be different than the one inferred from `ix_q`, so it needs
     # to be provided independently of `ix_q`.
-    calc_intensity = function (sc::SampledCorrelations,k::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
-        correlations = phase_averaged_elements(view(sc.data,corr_ix,:,:,ix_q,ix_ω), k, sc, ff_atoms, NCorr, NAtoms)
+    calc_intensity = function (sc::SampledCorrelations,q_absolute::Vec3,ix_q::CartesianIndex{3},ix_ω::Int64)
+        correlations = phase_averaged_elements(view(sc.data,corr_ix,:,:,ix_q,ix_ω), q_absolute, sc.crystal, ff_atoms, NCorr, NAtoms)
 
         ω = ωs_sc[ix_ω]
-        return f(k,ω,correlations) * classical_to_quantum(ω, kT)
+        return f(q_absolute,ω,correlations) * classical_to_quantum(ω, kT)
     end
     ClassicalIntensityFormula{return_type}(kT,formfactors,string_formula,calc_intensity)
 end

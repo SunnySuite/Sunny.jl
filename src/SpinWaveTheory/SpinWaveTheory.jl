@@ -72,6 +72,11 @@ function dipole_to_angles(dipoles)
     return θ, ϕ
 end
 
+# Given q in reciprocal lattice units (RLU) for the original crystal, return a
+# q_reshaped in RLU for the possibly-reshaped crystal.
+function to_reshaped_rlu(sys::System{N}, q) where N
+    return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
+end
 
 # Compute SU(N) generators in the local reference frame (for :SUN mode). DD:
 # Redo this using existing operator rotation facilities.

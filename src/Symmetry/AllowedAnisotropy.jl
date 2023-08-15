@@ -116,7 +116,7 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
         # Extract normalized vector n, either a rotation axis or the normal of a
         # reflection plane
         Q = det(R) * R
-        n, _ = axis_angle(Q)
+        n, _ = matrix_to_axis_angle(Q)
 
         # Prefer positive coordinates
         if sum(n) < 0
