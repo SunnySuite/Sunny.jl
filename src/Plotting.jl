@@ -1,10 +1,10 @@
 # Plotting functions for lattices and spins on lattices.
 
-function _setup_scene(; show_axis=false, ortho=false)
+function setup_scene(; show_axis=false, orthographic=false)
     fig = Makie.Figure()
     ax = Makie.LScene(fig[1, 1]; show_axis)
-    if ortho
-        _ = Makie.cam3d!(ax.scene, projectiontype=Makie.Orthographic)
+    if orthographic
+        _ = Makie.cam3d!(ax.scene; projectiontype=Makie.Orthographic)
     end
     return fig, ax
 end
@@ -27,7 +27,7 @@ function plot_lattice!(ax, lattice::Lattice; colors=:Set1_9, markersize=200, lin
 end
 
 function plot_lattice(lattice::Lattice; kwargs...)
-    fig, ax = _setup_scene()
+    fig, ax = setup_scene()
     plot_lattice!(ax, lattice; kwargs...)
     # TODO: Markers are often way too big.
     fig[1, 2] = Makie.Legend(fig, ax, "Species")
@@ -55,7 +55,7 @@ plot_lattice(cryst::Crystal, latsize=(3,3,3); kwargs...) = plot_lattice(Lattice(
 
 function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
                     colors=:Dark2_8, bondwidth=4, kwargs...)
-    fig, ax = _setup_scene()
+    fig, ax = setup_scene()
 
     # Plot the bonds, all relative to a central atom on the first sublattice
     # TODO: Make selectable in GUI
@@ -230,54 +230,135 @@ end
 =#
 
 
-function spin_vector_origins(sys::System, arrowlength)
-    center = (sys.crystal.latvecs * Vec3(sys.latsize)) / 2
-    return [global_position(sys,site) - sys.dipoles[site]*(arrowlength/2) - center for site in eachsite(sys)]
+function cell_wireframe(latvecs)
+    vecs = Makie.Point3f0.(eachcol(latvecs))
+    ret = Tuple{Makie.Point3f0, Makie.Point3f0}[]
+
+    origin = zero(Makie.Point3f0)
+
+    for j in 0:1, k in 0:1
+        shift = j*vecs[2]+k*vecs[3]
+        push!(ret, (origin+shift, vecs[1]+shift))
+    end
+    for i in 0:1, k in 0:1
+        shift = i*vecs[1]+k*vecs[3]
+        push!(ret, (origin+shift, vecs[2]+shift))
+    end
+    for i in 0:1, j in 0:1
+        shift = i*vecs[1]+j*vecs[2]
+        push!(ret, (origin+shift, vecs[3]+shift))
+    end
+    return ret
+end
+
+
+# TODO: We could rewrite `all_bonds_within_distance` to use this function.
+function all_atoms_within_distance(latvecs, rs, r0; min_dist=0, max_dist)
+    ret = Tuple{Int, Vec3}[]
+
+    # box_lengths[i] represents the perpendicular distance between two parallel
+    # boundary planes spanned by lattice vectors a_j and a_k (where indices j
+    # and k differ from i)
+    box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(latvecs), eachrow(inv(latvecs)))]
+    n_max = round.(Int, max_dist ./ box_lengths, RoundUp)
+
+    # loop over neighboring systems
+    for n1 in -n_max[1]:n_max[1]
+        for n2 in -n_max[2]:n_max[2]
+            for n3 in -n_max[3]:n_max[3]
+                n = Vec3(n1, n2, n3)
+                
+                # loop over all atoms within neighboring systems
+                for j in eachindex(rs)
+                    dist = norm(latvecs * (rs[j] + n - r0))
+                    if min_dist <= dist <= max_dist
+                        push!(ret, (j, n))
+                    end
+                end
+            end
+        end
+    end
+
+    return ret
 end
 
 """
-    plot_spins(sys::System; linecolor=:grey, arrowcolor=:red, linewidth=0.1,
-                                arrowsize=0.3, arrowlength=1.0, kwargs...)
+    plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgrey,
+               arrowcolor=:red, show_axis=false, show_cell=true,
+               orthographic=false, ghost_radius=0)
 
-Plot the spin configuration defined by `sys`. `kwargs` are passed to
-`Makie.arrows`.   
+Plot the spin configuration defined by `sys`. Optional parameters include:
+
+  - `arrowscale`: Scale all arrows by dimensionless factor.
+  - `show_axis`: Show global Cartesian coordinates axis.
+  - `show_cell`: Show original crystallographic unit cell.
+  - `orthographic`: Use camera with orthographic projection.
+  - `ghost_radius`: Show translucent periodic images up to a radius, given as a
+    multiple of the characteristic distance between sites.
 
 **Becomes available after explicitly loading Makie, e.g., `using GLMakie` or
 `using WGLMakie`.**
 """
-function plot_spins(sys::System; linecolor=:grey, arrowcolor=:red,
-    linewidth=0.1, arrowsize=0.2, arrowlength=0.2, show_axis=false, ortho=false, kwargs...)
+function plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
+                    arrowcolor=:red, show_axis=false, show_cell=true, orthographic=false, ghost_radius=0)
+    # Use the length and spin scales in the system to determine a good
+    # characteristic arrow size
+    vol = det(sys.crystal.latvecs)
+    ℓ0 = cbrt(vol / natoms(sys.crystal))
+    a0 = arrowscale * ℓ0
 
-    fig, ax = _setup_scene(; show_axis, ortho)
+    # Quantum spin-S, averaged over all sites. Will be used to normalize
+    # dipoles.
+    S0 = (sum(sys.Ns)/length(sys.Ns) - 1) / 2
 
-    pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
-    vecs = Makie.Vec3f0.(sys.dipoles[:])
-    Makie.arrows!(
-        ax, pts, vecs;
-        linecolor, arrowcolor, linewidth, arrowsize,
-        lengthscale=arrowlength, kwargs...
-    )
+    # Parameters defining arrow shape
+    arrowsize = 0.3a0
+    linewidth = 0.1a0
+    lengthscale = 0.5a0
+    markersize = 0.8linewidth
+    arrow_fractional_shift = 0.6
 
-    if !isnothing(sys.origin)
-        sys_origin = resize_supercell(sys,sys.origin.latsize)
+    fig, ax = setup_scene(; show_axis, orthographic)
 
-        # Translate to a correct lattice site in the middle of the bigger system
-        center_origin = (sys_origin.crystal.latvecs * Vec3(sys_origin.latsize))/2
-        center_this = (sys.crystal.latvecs * Vec3(sys.latsize))/2
-        center_offset = center_origin .- center_this
-        middle_site = global_position(sys_origin,CartesianIndex((sys_origin.latsize .÷ 2)...,1))
-        diff_center = center_offset .- middle_site
+    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
+    sys_center = sys.crystal.latvecs * Vec3(sys.latsize) / 2
+    Makie.translate_cam!(ax.scene, Makie.Point3f0(sys_center))
 
-        pts = Makie.Point3f0.(map(x -> diff_center .+ x,spin_vector_origins(sys_origin, arrowlength))[:])
-        vecs = Makie.Vec3f0.(sys_origin.dipoles[:])
-        Makie.arrows!(
-            ax, pts, vecs;
-            linewidth, arrowsize,
-            lengthscale=arrowlength,
-            # Original system is transparent
-            arrowcolor=(arrowcolor,0.03), linecolor = (linecolor,0.03),
-            kwargs...
-        )
+    # Plot primary sites as spheres
+    pts = [Makie.Point3f0(global_position(sys, site)) for site in eachsite(sys)[:]]
+    Makie.meshscatter!(pts; markersize, color=linecolor)
+
+    # Plot primary spins as arrows
+    vecs = (lengthscale / S0) * Makie.Vec3f0.(sys.dipoles[:])
+    pts -= arrow_fractional_shift * vecs
+    Makie.arrows!(ax, pts, vecs; linecolor, arrowsize, arrowcolor, linewidth)
+
+    # Plot ghost (periodic image) spins as translucent arrows
+    max_dist = ℓ0 * ghost_radius
+    rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
+    r0 = [0.5, 0.5, 0.5]
+    ghosts = all_atoms_within_distance(supervecs, rs, r0; max_dist)
+    pts = Makie.Point3f0[]
+    vecs = Makie.Vec3f0[]
+    for (site, n) in ghosts
+        if !iszero(n)
+            push!(pts, supervecs * (rs[site] + n))
+            push!(vecs, (lengthscale / S0) * sys.dipoles[site])
+        end
+    end
+    if !isempty(pts)
+        pts -= arrow_fractional_shift * vecs
+        Makie.arrows!(ax, pts, vecs; arrowsize, linecolor=(linecolor, 0.2), arrowcolor=(arrowcolor, 0.2), linewidth)
+    end
+
+    # Show bounding box of supercell in gray
+    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
+    Makie.linesegments!(ax, cell_wireframe(supervecs), color=:gray, linewidth=3.0)
+
+    # Show bounding box of original crystal
+    if show_cell
+        color = :blue
+        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs); color, linewidth=3.0)
     end
 
     fig
@@ -330,9 +411,9 @@ function plot_coherents(sys::System{N};radius = 1.) where N
     for level = 1:n_level
         draw_level!(ax,n_level,level,centers,radius,dir,opacity)
     end
+
     fig
 end
-
 
 
 """
@@ -357,7 +438,7 @@ function anim_integration(
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2, arrowlength=0.2,
     kwargs...
 )
-    fig, ax = _setup_scene()
+    fig, ax = setup_scene()
 
     pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
@@ -390,7 +471,7 @@ function live_integration(
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
     arrowlength=0.2, framerate=30, kwargs...
 )
-    fig, ax = _setup_scene()
+    fig, ax = setup_scene()
 
     pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
@@ -426,7 +507,7 @@ function live_langevin_integration(
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
     arrowlength=0.2, λ=0.1, framerate=30, kwargs...
 )
-    fig, ax = _setup_scene(; show_axis=false)
+    fig, ax = setup_scene(; show_axis=false)
     pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
     
@@ -453,7 +534,7 @@ end
 
 "Plots slices of a 3D structure factor. Input array should have shape [3, Lx, Ly, Lz, T]"
 function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz)
-    fig, ax = _setup_scene(; show_axis=true)
+    fig, ax = setup_scene(; show_axis=true)
 
     Sdim, Lx, Ly, Lz, T = size(sfactor)
     # Average over Sxx, Syy, Szz - in future give controls to user
