@@ -1,10 +1,8 @@
-build/
-backup/
-examples/results/
+docs/build/
 docs/src/examples/
 Manifest.toml
 profile.pb.gz
 .DS_Store
+.vscode
 *.ipynb
-*.lyx~
-*.lyx#
+*.lyx*
