@@ -23,20 +23,14 @@ function reciprocal_space_shell(cryst::Crystal, radius, n)
     return Ref(scale) .* sphere_points(n)
 end
 
-function powder_average_interpolated(sc::SampledCorrelations, q_ias, density; kwargs...)
-    # FIXME
-    A = inv(inv(sc.crystal.latvecs)') # Transformation to convert from inverse angstroms to RLUs
+function powder_average_interpolated(sc::SampledCorrelations, radii, n; kwargs...)
     nω = length(ωs(sc))
-    output = zeros(Float64, length(q_ias), nω) # generalize this so matches contract
+    output = zeros(Float64, length(radii), nω) # generalize this so matches contract
 
-    for (i, r) in enumerate(q_ias)
-        area = 4π*r^2
-        numpoints = round(Int, area*density)
-        fibpoints = numpoints == 0 ? [Vec3(0,0,0)] :  r .* sphere_points(numpoints)
-        qs = map(v->A*v, fibpoints)
-        vals = intensities(sc, qs; kwargs...)
-        vals = sum(vals, dims=1) / size(vals, 1)
-        output[i,:] .= vals[1,:]
+    for (i, r) in enumerate(radii)
+        qs = reciprocal_space_shell(sc.scrystal, r, n)
+        is = intensities(sc, qs; kwargs...)
+        output[i,:] .= sum(is, dims=1) / size(is, 1)
     end
 
     return output
