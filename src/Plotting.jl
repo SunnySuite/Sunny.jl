@@ -348,17 +348,16 @@ function plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
     end
     if !isempty(pts)
         pts -= arrow_fractional_shift * vecs
-        Makie.arrows!(ax, pts, vecs; arrowsize, linecolor=(linecolor, 0.2), arrowcolor=(arrowcolor, 0.2), linewidth)
+        Makie.arrows!(ax, pts, vecs; arrowsize, linecolor=(linecolor, 0.1), arrowcolor=(arrowcolor, 0.1), linewidth)
     end
 
     # Show bounding box of supercell in gray
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    Makie.linesegments!(ax, cell_wireframe(supervecs), color=:gray, linewidth=3.0)
+    Makie.linesegments!(ax, cell_wireframe(supervecs), color=:gray, linewidth=1.5)
 
     # Show bounding box of original crystal
     if show_cell
-        color = :blue
-        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs); color, linewidth=3.0)
+        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs); color=:teal, linewidth=1.5)
     end
 
     fig
