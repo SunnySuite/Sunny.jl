@@ -151,7 +151,7 @@ end
 
 # Use FFT to accumulate the entire field dE/ds for long-range dipole-dipole
 # interactions
-function accum_ewald_grad!(∇E::Array{Vec3, 4}, dipoles::Array{Vec3, 4}, sys::System{N}) where N
+function accum_ewald_grad!(∇E, dipoles, sys::System{N}) where N
     (; ewald, units, gs) = sys
     (; μ, FA, Fμ, Fϕ, ϕ, plan, ift_plan) = ewald
 

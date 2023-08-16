@@ -54,3 +54,26 @@ end
     @test is_z_polarized(sys_dip)
     @test is_z_polarized(sys_sun)
 end
+
+@testitem "Optimization Coverage" begin
+    # Make sure optimization works on system with dipole-dipole
+    function simple_sys(; dims=(4,4,1), mode, seed, S)
+        cryst = Crystal(lattice_vectors(1,1,2,90,90,90), [[0,0,0]])
+        sys = System(cryst, dims, [SpinInfo(1; S, g=2)], mode; seed) 
+        set_exchange!(sys, -1, Bond(1,1,[1,0,0]))
+        set_onsite_coupling!(sys, -spin_operators(sys, 1)[3]^2, 1)
+        enable_dipole_dipole!(sys)
+        sys
+    end
+
+    S = 3/2
+
+    seed = 101
+    sys_dip = simple_sys(; mode=:dipole, seed, S)
+    sys_sun = simple_sys(; mode=:SUN, seed, S)
+    randomize_spins!(sys_dip)
+    randomize_spins!(sys_sun)
+
+    @test minimize_energy!(sys_dip) > 0
+    @test minimize_energy!(sys_sun) > 0
+end
