@@ -13,12 +13,20 @@ end
 
 
 """
-    reciprocal_space_shell(radius, radius, n)
+    reciprocal_space_shell(cryst::Crystal, radius, n)
 
 Sample `n` points on the reciprocal space sphere with a given `radius` (units of
 inverse length).
+
+# Examples
+
+```julia
+# Sample wavevectors on the sphere at fixed density
+reciprocal_space_shell(cryst, r, 4π*r^2*density)
+```
 """
 function reciprocal_space_shell(cryst::Crystal, radius, n)
+    n = ceil(Int, n)
     scale = inv(cryst.recipvecs) * radius
     return Ref(scale) .* sphere_points(n)
 end
