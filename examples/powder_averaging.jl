@@ -79,23 +79,23 @@ ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (RLU)",
 heatmap!(ax, 1:size(is, 1), energies, is, colormap=:gnuplot2)
 fig
 
-# A scattering measurement on powder is effectively an average over all possible
-# crystal orientations. We consider a sequence of wavevector magnitudes `qmags`,
-# which define spherical shells in reciprocal space. Sample points on each shell
-# using [`sphere_points`](@ref), and then average over the results of
-# `intensities_broadened` to get a powder averaged intensity.
+# A powder measurement effectively involves an average over all possible crystal
+# orientations. We use the function [`reciprocal_space_shell`](@ref) to sample
+# `n` wavevectors on a sphere of a given radius (inverse angstroms), and then
+# calculate the spherically-averaged intensity.
 
-qmags = 0.01:0.02:3 # (1/Å)
-output = zeros(Float64, length(qmags), length(energies))
-for (i, qmag) in enumerate(qmags)
-    qs = qmag .* sphere_points(300)
+radii = 0.01:0.02:3 # (1/Å)
+output = zeros(Float64, length(radii), length(energies))
+for (i, radius) in enumerate(radii)
+    n = 300
+    qs = reciprocal_space_shell(crystal, radius, n)
     is = intensities_broadened(swt, qs, energies, formula)
     output[i, :] = sum(is, dims=1) / size(is, 1)
 end
 
 empty!(fig)
 ax = Axis(fig[1,1]; xlabel="|Q| (Å⁻¹)", ylabel="ω (meV)")
-heatmap!(ax, qmags, energies, output, colormap=:gnuplot2)
+heatmap!(ax, radii, energies, output, colormap=:gnuplot2)
 fig
 
 # This result can be compared to experimental neutron scattering data

@@ -1,10 +1,6 @@
 
-"""
-    sphere_points(n)
-
-Sample `n` points on the unit sphere. These are generated from the Fibonacci
-lattice.
-"""
+# Sample `n` points on the unit sphere. These are generated from the Fibonacci
+# lattice.
 function sphere_points(n) 
     golden = (1+√5)/2
     decimals(x) = x - floor(x)
@@ -15,6 +11,17 @@ function sphere_points(n)
     return planar_fib_points(n) .|> plane_to_sphere .|> spherical_to_cartesian .|> Vec3
 end
 
+
+"""
+    reciprocal_space_shell(radius, radius, n)
+
+Sample `n` points on the reciprocal space sphere with a given `radius` (units of
+inverse length).
+"""
+function reciprocal_space_shell(cryst::Crystal, radius, n)
+    scale = inv(cryst.recipvecs) * radius
+    return Ref(scale) .* sphere_points(n)
+end
 
 function powder_average_interpolated(sc::SampledCorrelations, q_ias, density; kwargs...)
     # FIXME

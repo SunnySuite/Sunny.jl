@@ -110,7 +110,7 @@ include("Intensities/LinearSpinWaveIntensities.jl")
 export intensities_broadened, intensities_bands
 
 include("Intensities/PowderAveraging.jl")
-export sphere_points, powder_average_binned
+export reciprocal_space_shell, powder_average_binned
 
 include("Intensities/ExperimentData.jl")
 export load_nxs, generate_mantid_script_from_binning_parameters
