@@ -40,7 +40,7 @@ require an [`intensity_formula`](@ref), which defines a calculator (e.g., LSWT).
 
 Rename `connected_path` to [`reciprocal_space_path`](@ref), which now returns an
 `xticks` object that can be used in plotting. Replace `spherical_shell` with
-[`sphere_points`](@ref) that generates points on the unit sphere.
+[`reciprocal_space_shell`](@ref) that functions similarly.
 
 Rename `polarize_spin!` to [`set_dipole!`](@ref) for consistency with
 [`set_coherent!`](@ref). The behavior of the former function is unchanged: the

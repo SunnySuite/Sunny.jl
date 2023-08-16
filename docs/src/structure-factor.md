@@ -173,8 +173,8 @@ into histogram bins for comparison with experiment.
 The convenience function [`reciprocal_space_path`](@ref) returns a list of
 wavevectors sampled along a path that connects specified $𝐪$ points. This list
 can be used as an input to `intensities`. Another convenience method,
-[`sphere_points`](@ref) will generate points on a sphere of unit radius. This is
-useful for powder averaging. 
+[`reciprocal_space_shell`](@ref) will generate points on a sphere of a given
+radius. This is useful for powder averaging. 
 
 A number of arguments for [`intensity_formula`](@ref) are available which
 modify the calculation of structure factor intensity. It is generally recommended
