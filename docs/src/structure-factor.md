@@ -138,16 +138,16 @@ out the energy axis. An approach to doing this is described in the next section.
 
 ### Extracting information from correlation data 
 
-The basic function for extracting information from a `SampledCorrelations`
-at a particular wave vector, $𝐪$, is [`intensities_interpolated`](@ref). It takes a
+The basic function for extracting information from a `SampledCorrelations` at a
+particular wave vector, $𝐪$, is [`intensities_interpolated`](@ref). It takes a
 `SampledCorrelations` and a list of wave vectors. For example,
-`intensities_interpolated(sf, [[0.0, 0.5, 0.5]])` will calculate intensities for the
-wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The keyword argument `formula` can be used to
-specify an [`intensity_formula`](@ref) for greater control over the intensity calculation.
-The default formula performs a contraction of $𝒮^{αβ}(𝐪,ω)$ that includes
-polarization corrections. `intensities_interpolated`
-returns a list of `nω` elements at each wavevector. The corresponding $ω$ values can be retrieved
-by calling [`ωs`](@ref) on `sf`.
+`intensities_interpolated(sf, [[0.0, 0.5, 0.5]])` will calculate intensities for
+the wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The keyword argument `formula` can be
+used to specify an [`intensity_formula`](@ref) for greater control over the
+intensity calculation. The default formula performs returns the trace of the
+structure factor: $\sum_{α}𝒮^{αα}(𝐪,ω)$. `intensities_interpolated` returns a
+list of `nω` elements at each wavevector. The corresponding $ω$ values can be
+retrieved by calling [`available_energies`](@ref) on `sf`.
 
 Since Sunny currently only calculates the structure factor on a finite lattice,
 it is important to realize that exact information is only available at a
@@ -161,7 +161,7 @@ Sunny will automatically round to the nearest $𝐪$ that is available. If
 result at the requested wave vector. 
 
 To retrieve the intensities at all wave vectors for which there is exact data,
-first call the function [`all_exact_wave_vectors`](@ref) to generate a list of
+first call the function [`available_wave_vectors`](@ref) to generate a list of
 `qs`. This takes an optional keyword argument `bzsize`, which must be given a
 tuple of three integers specifying the number of Brillouin zones to calculate,
 e.g., `bzsize=(2,2,2)`. The resulting list of wave vectors may then be passed to
