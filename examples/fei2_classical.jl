@@ -315,7 +315,7 @@ fig
 target_ω = ωs[ωidx]
 
 ## Binning
-fig = Figure()
+fig = Figure(; resolution=(1200,500))
 ax_left = Axis(fig[1,2],title="Δω=0.3 meV (Binned)", aspect=true)
 
 params = unit_resolution_binning_parameters(sc)
@@ -338,7 +338,7 @@ hm_left = heatmap!(ax_left,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])
 Colorbar(fig[1,1], hm_left);
 
 ## Interpolating
-ax_right = Axis(fig[1,3],title="ω≈$(ωs[ωidx]) meV (Interpolated)", aspect=true)
+ax_right = Axis(fig[1,3],title="ω≈$(round(ωs[ωidx], digits=2)) meV (Interpolated)", aspect=true)
 npoints = 60
 qvals = range(-3, 3, length=npoints)
 qs_absolute = [[a, b, 0] for a in qvals, b in qvals]
@@ -346,9 +346,8 @@ qs = [cryst.recipvecs \ q for q in qs_absolute]
 
 is = intensities_interpolated(sc, qs, new_formula; interpolation=:linear)
 
-hm_right = heatmap!(ax_right,is[:,:,ωidx])
+hm_right = heatmap!(ax_right,qvals,qvals,is[:,:,ωidx])
 Colorbar(fig[1,4], hm_right)
-hidedecorations!(ax_right); hidespines!(ax_right)
 fig
 
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
