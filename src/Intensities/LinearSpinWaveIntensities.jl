@@ -99,10 +99,8 @@ function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters,
     bin_centers = axes_bincenters(params)
 
 
-    q_params = copy(params)
-    bin_rlu_as_absolute_units!(q_params,swt)
-    # coords = q_covectors * (q,ω)
-    coords_to_q = inv(q_params.covectors[1:3,1:3])
+    # coords = covectors * (q,ω)
+    coords_to_q = inv(params.covectors[1:3,1:3])
 
     is = zeros(Float64,params.numbins...)
 
@@ -113,10 +111,9 @@ function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters,
         z_center = bin_centers[3][ci[3]]
 
         q = SVector{3}(coords_to_q * [x_center;y_center;z_center])
-        k = swt.sys.crystal.recipvecs * q
         ωvals = bin_centers[4]
 
-        intensity_as_function_of_ω = formula.calc_intensity(swt,k)
+        intensity_as_function_of_ω = formula.calc_intensity(swt,q)
         is[ci,:] .= intensity_as_function_of_ω(ωvals)
     end
     is
