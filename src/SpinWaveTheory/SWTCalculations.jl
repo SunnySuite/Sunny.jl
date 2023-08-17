@@ -564,8 +564,6 @@ or a function of both the energy transfer `ω` and of `Δω`, e.g.:
 
 The integral of a properly normalized kernel function over all `Δω` is one.
 """
-intensity_formula(swt::SpinWaveTheory; kwargs...) = intensity_formula(swt, :trace; kwargs...)
-
 function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
                            return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast=false,
                            formfactors=nothing)

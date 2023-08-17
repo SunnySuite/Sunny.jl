@@ -163,7 +163,6 @@ function intensity_formula(sc::SampledCorrelations, elem::Tuple{Symbol,Symbol}; 
     intensity_formula(sc,Element(sc, elem); string_formula, kwargs...)
 end
 #intensity_formula(sc::SampledCorrelations, elem::Vector{Tuple{Symbol,Symbol}}; kwargs...) = intensity_formula(sc,Element(sc, elem); kwargs...)
-intensity_formula(sc::SampledCorrelations; kwargs...) = intensity_formula(sc, :trace; kwargs...)
 function intensity_formula(sc::SampledCorrelations, mode::Symbol; kwargs...)
     if mode == :trace
         contractor = Trace(sc)
