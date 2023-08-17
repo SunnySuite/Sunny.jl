@@ -100,7 +100,7 @@ end
 
 """
     intensities_interpolated(sc::SampledCorrelations, qs; interpolation=nothing,
-                             formula=intensity_formula(sc,:perp), negative_energies=false)
+                             formula=intensity_formula(sc,:trace), negative_energies=false)
 
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `SampledCorrelations`. Maps an array of wave vectors `qs` to an array of structure
@@ -117,7 +117,7 @@ i.e., multiples of the reciprocal lattice vectors.
     extension of the energy axis. Most users will not want this.
 """
 function intensities_interpolated(sc::SampledCorrelations, qs;
-    formula = intensity_formula(sc,:perp) :: ClassicalIntensityFormula,
+    formula = intensity_formula(sc,:trace) :: ClassicalIntensityFormula,
     interpolation = :round,
     negative_energies = false,
     instantaneous_warning = true

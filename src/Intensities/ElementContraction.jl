@@ -134,8 +134,8 @@ Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 
 Sunny has several built-in formulas that can be selected by setting `contraction_mode` to one of these values:
 
-- `:perp` (default), which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
-- `:trace`, which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α 𝒮^{αα}(q,ω)``
+- `:trace` (default), which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α 𝒮^{αα}(q,ω)``
+- `:perp`, which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
 - `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
 """
 function intensity_formula(swt::SpinWaveTheory, mode::Symbol; kwargs...)
@@ -163,7 +163,7 @@ function intensity_formula(sc::SampledCorrelations, elem::Tuple{Symbol,Symbol}; 
     intensity_formula(sc,Element(sc, elem); string_formula, kwargs...)
 end
 #intensity_formula(sc::SampledCorrelations, elem::Vector{Tuple{Symbol,Symbol}}; kwargs...) = intensity_formula(sc,Element(sc, elem); kwargs...)
-intensity_formula(sc::SampledCorrelations; kwargs...) = intensity_formula(sc, :perp; kwargs...)
+intensity_formula(sc::SampledCorrelations; kwargs...) = intensity_formula(sc, :trace; kwargs...)
 function intensity_formula(sc::SampledCorrelations, mode::Symbol; kwargs...)
     if mode == :trace
         contractor = Trace(sc)

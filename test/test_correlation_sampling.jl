@@ -41,14 +41,15 @@
     thermalize_simple_model!(sys; kT=0.1)
     sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0, apply_g=false)
     add_sample!(sc, sys)
-    formula = intensity_formula(sc,:trace)
-    vals = intensities_interpolated(sc, qgrid; formula, negative_energies=true)
+    trace_formula = intensity_formula(sc,:trace)
+    vals = intensities_interpolated(sc, qgrid; formula=trace_formula, negative_energies=true)
     total_intensity_trace = sum(vals)
     @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
 
 
     # Test perp reduces intensity
-    vals = intensities_interpolated(sc, qgrid; negative_energies=true) # Formula is :perp by default
+    perp_formula = intensity_formula(sc,:perp)
+    vals = intensities_interpolated(sc, qgrid; formula=perp_formula, negative_energies=true) 
     total_intensity_unpolarized = sum(vals)
     @test total_intensity_unpolarized < total_intensity_trace
 
@@ -71,12 +72,12 @@
 
     # Test path function and interpolation working (no correctness implied here)
     qs, _ = reciprocal_space_path(sc.crystal, [(0, 0, 0), (0, 1, 0), (1, 1, 0)], 20)
-    vals = intensities_interpolated(sc, qs; formula, interpolation=:linear)
+    vals = intensities_interpolated(sc, qs; formula=perp_formula, interpolation=:linear)
     @test length(size(vals)) == 2 
 
 
     # Test static from dynamic intensities working
-    static_vals = instant_intensities_interpolated(sc, qgrid; formula, negative_energies=true)
+    static_vals = instant_intensities_interpolated(sc, qgrid; formula=trace_formula, negative_energies=true)
     total_intensity_static = sum(static_vals)
     @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-12)  # Order of summation can lead to very small discrepancies
 
