@@ -1,10 +1,10 @@
 """
-    all_exact_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
+    available_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
 
 Returns all wave vectors for which `sc` contains exact values. `bsize` specifies
 the number of Brillouin zones to be included.
 """
-function all_exact_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
+function available_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
     Ls = size(sc.samplebuf)[2:4]  # If we had a sys, would use latsize
     offsets = map(L -> isodd(L) ? 1 : 0, Ls)
     up = Ls .* bzsize
@@ -25,14 +25,14 @@ function all_exact_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
 end
 
 """
-    ωs(sc::SampledCorrelations; negative_energies=false)
+    available_energies(sc::SampledCorrelations; negative_energies=false)
 
 Return the ω values for the energy index of a `SampledCorrelations`. By default,
 only returns values for non-negative energies, which corresponds to the default
 output of `intensities`. Set `negative_energies` to true to retrieve all ω
 values.
 """
-function ωs(sc::SampledCorrelations; negative_energies=false)
+function available_energies(sc::SampledCorrelations; negative_energies=false)
     Δω = sc.Δω
     isnan(Δω) && (return NaN)
 

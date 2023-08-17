@@ -252,17 +252,17 @@ end
 
     # Bands
     formula = intensity_formula(swt,:perp,kernel = delta_function_kernel)
-    intensities_bands(swt,path;formula)
+    intensities_bands(swt,path,formula)
     @test_throws "without a finite-width kernel" intensities_broadened(swt,path,energies,formula)
 
     # Broadened
     formula = intensity_formula(swt,:perp,kernel = lorentzian(0.05))
     intensities_broadened(swt,path,energies,formula)
-    @test_throws "broadening kernel" intensities_bands(swt,path;formula)
+    @test_throws "broadening kernel" intensities_bands(swt,path,formula)
 
     formula = intensity_formula(swt,:perp,kernel = (w,dw) -> lorentzian(dw,w.^2))
     intensities_broadened(swt,path,energies,formula)
-    @test_throws "broadening kernel" intensities_bands(swt,path;formula)
+    @test_throws "broadening kernel" intensities_bands(swt,path,formula)
 
     # Full
     formula = intensity_formula(swt,:full,kernel = lorentzian(0.05))

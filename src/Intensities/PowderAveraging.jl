@@ -32,7 +32,7 @@ function reciprocal_space_shell(cryst::Crystal, radius, n)
 end
 
 function powder_average_interpolated(sc::SampledCorrelations, radii, n; kwargs...)
-    nω = length(ωs(sc))
+    nω = length(available_energies(sc))
     output = zeros(Float64, length(radii), nω) # generalize this so matches contract
 
     for (i, r) in enumerate(radii)
@@ -60,10 +60,9 @@ e.g. `radial_binning_parameters = (0,6π,6π/55)`.
 Energy broadening is supported in the same way as `intensities_binned`, and this function
 accepts the same kind of [`intensity_formula`](@ref).
 """
-function powder_average_binned(sc::SampledCorrelations, radial_binning_parameters;
-    ω_binning_parameters=unit_resolution_binning_parameters(ωs(sc)),
+function powder_average_binned(sc::SampledCorrelations, radial_binning_parameters, formula::ClassicalIntensityFormula;
+    ω_binning_parameters=unit_resolution_binning_parameters(available_energies(sc)),
     integrated_kernel = nothing,
-    formula = intensity_formula(sc,:perp) :: ClassicalIntensityFormula,
     bzsize=nothing
 )
     ωstart,ωend,ωbinwidth = ω_binning_parameters
@@ -74,7 +73,7 @@ function powder_average_binned(sc::SampledCorrelations, radial_binning_parameter
 
     output_intensities = zeros(Float64,r_bin_count,ω_bin_count)
     output_counts = zeros(Float64,r_bin_count,ω_bin_count)
-    ωvals = ωs(sc)
+    ωvals = available_energies(sc)
 
     # Loop over every scattering vector
     Ls = sc.latsize

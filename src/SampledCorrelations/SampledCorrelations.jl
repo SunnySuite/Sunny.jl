@@ -43,7 +43,7 @@ function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations{N}) where
         printstyled(io,"S(q)";bold=true)
     else
         printstyled(io,"S(q,ω)";bold=true)
-        print(io," | nω = $(size(sc.data)[7])")
+        print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
     end
     print(io," | $(sc.nsamples[1]) sample")
     (sc.nsamples[1] > 1) && print(io,"s")
