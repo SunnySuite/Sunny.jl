@@ -329,13 +329,12 @@ target_ω = ωs(sc)[ωidx]
 ## Binning
 ax_left = Axis(fig[1,2],title="Δω=0.3 meV (Binned)", aspect=true)
 
-params = unit_resolution_binning_parameters(sc)
-params.binstart[1:2] .= -3
-params.binend[1:2] .= 3
-
-params.binstart[4] = target_ω
-params.binend[4] = target_ω + 0.15
-params.binwidth[4] = 0.3
+params = BinningParameters(
+    [-3,-3, 0, target_ω],           # Bin start (h,k,l,ω)
+    [3, 3, 0.15, target_ω + 0.15],  # Bin end
+    [.2, .2, .3, 0.3]               # Bin width
+)
+Sunny.bin_rlu_as_absolute_units!(params, cryst.recipvecs)
 
 integrate_axes!(params,axes = [3,4])
 is, counts = intensities_binned(sc,params,formula = new_formula)
@@ -347,9 +346,10 @@ Colorbar(fig[1,1], hm_left)
 ax_right = Axis(fig[1,3],title="ω≈$(ωs(sc)[ωidx]) meV (Interpolated)", aspect=true)
 npoints = 60
 qvals = range(-3, 3, length=npoints)
-qs = [[a, b, 0] for a in qvals, b in qvals]
+qs_absolute = [[a, b, 0] for a in qvals, b in qvals]
+qs_rlu = [cryst.recipvecs \ q for q in qs_absolute]
 
-is = intensities_interpolated(sc, qs; formula = new_formula,interpolation = :linear);
+is = intensities_interpolated(sc, qs_rlu; formula = new_formula, interpolation=:linear);
 
 hm_right = heatmap!(ax_right,is[:,:,ωidx])
 Colorbar(fig[1,4], hm_right)
@@ -359,7 +359,7 @@ fig
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
 # obtained from a dynamic structure factor with [`instant_intensities_interpolated`](@ref).
 
-is_static = instant_intensities_interpolated(sc, qs; formula = new_formula, interpolation = :linear)
+is_static = instant_intensities_interpolated(sc, qs_rlu; formula = new_formula, interpolation = :linear)
 
 hm = heatmap(is_static; axis=(title="Instantaneous Structure Factor", aspect=true))
 Colorbar(hm.figure[1,2], hm.plot)
