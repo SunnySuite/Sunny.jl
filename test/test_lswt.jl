@@ -263,4 +263,8 @@ end
     formula = intensity_formula(swt,:perp,kernel = (w,dw) -> lorentzian(dw,w.^2))
     intensities_broadened(swt,path,energies,formula)
     @test_throws "broadening kernel" intensities_bands(swt,path;formula)
+
+    # Full
+    formula = intensity_formula(swt,:full,kernel = lorentzian(0.05))
+    intensities_broadened(swt,path,energies,formula)
 end
