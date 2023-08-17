@@ -30,7 +30,7 @@
     observables = Dict(:Sx => S[1], :Sy => S[2], :Sz => S[3])
     sc = dynamical_correlations(sys; nω=100, ωmax=10.0, Δt=0.1, apply_g=false, observables)
     add_sample!(sc, sys)
-    qgrid = all_exact_wave_vectors(sc)
+    qgrid = available_wave_vectors(sc)
     vals = intensities_interpolated(sc, qgrid; formula = intensity_formula(sc,:trace),negative_energies=true)
     total_intensity_trace = sum(vals)
     @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)

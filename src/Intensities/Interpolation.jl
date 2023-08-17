@@ -105,7 +105,7 @@ end
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `SampledCorrelations`. Maps an array of wave vectors `qs` to an array of structure
 factor intensities, including an additional energy index. The values of ``ω``
-associated with the energy index can be retrieved by calling [`ωs`](@ref). The
+associated with the energy index can be retrieved by calling [`available_energies`](@ref). The
 three coordinates of each wave vector are measured in reciprocal lattice units,
 i.e., multiples of the reciprocal lattice vectors.
 
@@ -142,7 +142,7 @@ function intensities_interpolated(sc::SampledCorrelations, qs;
     end
 
     # Precompute index information and preallocate
-    ωvals = ωs(sc; negative_energies)
+    ωvals = available_energies(sc; negative_energies)
     nω = length(ωvals) 
     stencil_info = pruned_stencil_info(sc, qs, interp) 
 

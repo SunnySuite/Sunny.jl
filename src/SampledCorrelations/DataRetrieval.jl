@@ -73,7 +73,7 @@ function intensity_formula(f::Function,sc::SampledCorrelations,corr_ix::Abstract
     NAtoms = Val(size(sc.data)[2])
     NCorr = Val(length(corr_ix))
 
-    ωs_sc = ωs(sc;negative_energies=true)  # TODO: is the default `true` a problem?
+    ωs_sc = available_energies(sc;negative_energies=true)  # TODO: is the default `true` a problem?
 
     # Intensity is calculated at the discrete (ix_q,ix_ω) modes available to the system.
     # Additionally, for momentum transfers outside of the first BZ, the norm `q_absolute` of the
@@ -156,7 +156,7 @@ newvals = broaden_energy(sc, vals, (ω, ω₀) -> lorentzian(ω-ω₀, 0.2))
 """
 function broaden_energy(sc::SampledCorrelations, is, kernel::Function; negative_energies=false)
     dims = size(is)
-    ωvals = ωs(sc; negative_energies)
+    ωvals = available_energies(sc; negative_energies)
     out = zero(is)
     for (ω₀i, ω₀) in enumerate(ωvals)
         for (ωi, ω) in enumerate(ωvals)
