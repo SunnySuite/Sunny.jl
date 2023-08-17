@@ -208,7 +208,7 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...)
     params
 end
 
-unit_resolution_binning_parameters(sc::SampledCorrelations; kwargs...) = unit_resolution_binning_parameters(ωs(sc),sc.latsize,sc;kwargs...)
+unit_resolution_binning_parameters(sc::SampledCorrelations; kwargs...) = unit_resolution_binning_parameters(available_energies(sc),sc.latsize,sc;kwargs...)
 
 function unit_resolution_binning_parameters(ωvals::AbstractVector{Float64})
     if !all(abs.(diff(diff(ωvals))) .< 1e-12)
@@ -282,7 +282,7 @@ function slice_2D_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q
 end
 
 function slice_2D_binning_parameters(sc::SampledCorrelations,cut_from_q,cut_to_q,args...;kwargs...)
-    slice_2D_binning_parameters(ωs(sc),cut_from_q,cut_to_q,args...;kwargs...)
+    slice_2D_binning_parameters(available_energies(sc),cut_from_q,cut_to_q,args...;kwargs...)
 end
 
 """
@@ -353,14 +353,14 @@ function reciprocal_space_path_bins(ωvals,qs,density,args...;kwargs...)
     end
     return params, markers, ranges
 end
-reciprocal_space_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;kwargs...) = reciprocal_space_path_bins(ωs(sc), qs, density,args...;kwargs...)
+reciprocal_space_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;kwargs...) = reciprocal_space_path_bins(available_energies(sc), qs, density,args...;kwargs...)
 
 
 """
-    intensity, counts = intensities_binned(sc::SampledCorrelations, params::BinningParameters; formula, integrated_kernel)
+    intensity, counts = intensities_binned(sc::SampledCorrelations, params::BinningParameters, formula; integrated_kernel)
 
 Given correlation data contained in a [`SampledCorrelations`](@ref) and [`BinningParameters`](@ref) describing the
-shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_formula`](@ref), or `intensity_formula(sc,:perp)` by default.
+shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_formula`](@ref).
 
 The [`BinningParameters`](@ref) are expected to accept `(q,ω)` in R.L.U. for the (possibly reshaped) crystal associated with `sc`.
 
@@ -375,13 +375,13 @@ Energy-dependent energy broadening can be achieved by providing an `integrated_k
 
 Currently, energy broadening is only supported if the [`BinningParameters`](@ref) are such that the first three axes are purely spatial and the last (energy) axis is `[0,0,0,1]`.
 """
-function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
-    integrated_kernel = nothing,formula = intensity_formula(sc,:perp) :: ClassicalIntensityFormula
+function intensities_binned(sc::SampledCorrelations, params::BinningParameters, formula::ClassicalIntensityFormula;
+    integrated_kernel = nothing,
 )
     (; binwidth, binstart, binend, covectors, numbins) = params
     output_intensities = zeros(Float64,numbins...)
     output_counts = zeros(Float64,numbins...)
-    ωvals = ωs(sc)
+    ωvals = available_energies(sc)
 
     # Find an axis-aligned bounding box containing the histogram.
     # The AABB needs to be in r.l.u for the (possibly reshaped) crystal

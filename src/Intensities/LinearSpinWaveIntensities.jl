@@ -5,7 +5,7 @@ Computes the scattering intensities at each `(Q,ω)` according to Linear Spin Wa
 and the given intensity `formula`. The required `formula` must have a non-delta-function
 kernel, e.g.:
     
-    formula = intensity_formula(swt; kernel = lorentzian(0.05))
+    formula = intensity_formula(swt, :perp; kernel = lorentzian(0.05))
 
 or else the intensity at `ωvals` which are not exactly on the dispersion curve can not
 be calculated.
@@ -39,13 +39,13 @@ function intensities_broadened(swt::SpinWaveTheory, ks, ωvals, formula)
 end
 
 """
-    dispersion, intensities = intensities_bands(swt::SpinWaveTheory, ks; [formula])
+    dispersion, intensities = intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFormula)
 
 Computes the scattering intensities at each energy band for each momentum transfer `k` in `ks`, according
 to Linear Spin Wave Theory and the given intensity `formula`.
-The optional `formula` must have a delta-function kernel, e.g.:
+The `formula` must have a delta-function kernel, e.g.:
     
-    formula = intensity_formula(swt; kernel = delta_function_kernel)
+    formula = intensity_formula(swt, :perp, formula; kernel = delta_function_kernel)
 
 or else the bands will be broadened, and their intensity can not be computed.
 
@@ -53,7 +53,7 @@ The outputs will be arrays with indices identical to `ks`, with the last index
 giving the band index. `dispersions` reports the energy of each band, while
 `intensities` reports the scattering intensity.
 """
-function intensities_bands(swt::SpinWaveTheory, ks; formula = intensity_formula(swt;kernel = nothing) :: SpinWaveIntensityFormula)
+function intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFormula)
     if !isnothing(formula.kernel)
         # This is only triggered if the user has explicitly specified a formula with e.g. kT
         # corrections applied, but has not disabled the broadening kernel.
@@ -85,7 +85,7 @@ Computes the unpolarized inelastic neutron scattering intensities given a
 `SpinWaveTheory`, histogram described by its `BinningParameters`, and
 an [`intensity_formula`](@ref) with finite kernel width, e.g.:
 
-    formula = intensity_formula(swt; kernel = lorentzian(0.05))
+    formula = intensity_formula(swt, :perp; kernel = lorentzian(0.05))
 
 Note that this method only calculates the intensity at the bin centers--it doesn't
 integrate over the bins in any way. The output will be the same shape as if it were

@@ -136,32 +136,34 @@ calculating instantaneous correlations at finite temperature calculations by
 using full dynamics (i.e., using `dynamical_correlations`) and then integrating
 out the energy axis. An approach to doing this is described in the next section.
 
-### Extracting information from correlation data 
+### Extracting information from sampled correlation data 
 
-The basic function for extracting information from a `SampledCorrelations`
-at a particular wave vector, $𝐪$, is [`intensities_interpolated`](@ref). It takes a
-`SampledCorrelations` and a list of wave vectors. For example,
-`intensities_interpolated(sf, [[0.0, 0.5, 0.5]])` will calculate intensities for the
-wavevector $𝐪 = (𝐛_2 + 𝐛_3)/2$. The keyword argument `formula` can be used to
-specify an [`intensity_formula`](@ref) for greater control over the intensity calculation.
-The default formula performs a contraction of $𝒮^{αβ}(𝐪,ω)$ that includes
-polarization corrections. `intensities_interpolated`
-returns a list of `nω` elements at each wavevector. The corresponding $ω$ values can be retrieved
-by calling [`ωs`](@ref) on `sf`.
+The basic function for extracting information from a `SampledCorrelations` at a
+particular wave vector, $𝐪$, is [`intensities_interpolated`](@ref). It takes a
+`SampledCorrelations`, a _list_ of wave vectors, and an
+[`intensity_formula`](@ref). The `intensity_formula` specifies how to contract and correct
+correlation data to arrive at a physical intensity.
+A simple example is `formula = intensity_formula(sc, :perp)`, which will
+instruct Sunny apply polarization corrections: $\sum_{αβ}(I-q_α q_β) 𝒮^{αβ}(𝐪,ω)$.
+An intensity at the wave vector $𝐪 = (𝐛_2 + 𝐛_3)/2$
+may then be retrieved with  `intensities_interpolated(sf, [[0.0, 0.5, 0.5]], formula)` . 
+`intensities_interpolated` returns a list of `nω` elements at each wavevector.
+The corresponding $ω$ values can be retrieved by calling
+[`available_energies`](@ref) on `sf`.
 
-Since Sunny currently only calculates the structure factor on a finite lattice,
-it is important to realize that exact information is only available at a
-discrete set of wave vectors. Specifically, for each axis index $i$, we will get
-information at $q_i = \frac{n}{L_i}$, where $n$ runs from $(\frac{-L_i}{2}+1)$
-to $\frac{L_i}{2}$ and $L_i$ is the linear dimension of the lattice used for the
-calculation. If you request a wave vector that does not fall into this set,
-Sunny will automatically round to the nearest $𝐪$ that is available. If
-`intensities_interpolated` is given the keyword argument
-`interpolation=:linear`, Sunny will use trilinear interpolation to determine a
-result at the requested wave vector. 
+Since Sunny only calculates the structure factor on a finite lattice when
+performing classical simulations, it is important to realize that exact
+information is only available at a discrete set of wave vectors. Specifically,
+for each axis index $i$, we will get information at $q_i = \frac{n}{L_i}$, where
+$n$ runs from $(\frac{-L_i}{2}+1)$ to $\frac{L_i}{2}$ and $L_i$ is the linear
+dimension of the lattice used for the calculation. If you request a wave vector
+that does not fall into this set, Sunny will automatically round to the nearest
+$𝐪$ that is available. If `intensities_interpolated` is given the keyword
+argument `interpolation=:linear`, Sunny will use trilinear interpolation to
+determine a result at the requested wave vector. 
 
 To retrieve the intensities at all wave vectors for which there is exact data,
-first call the function [`all_exact_wave_vectors`](@ref) to generate a list of
+first call the function [`available_wave_vectors`](@ref) to generate a list of
 `qs`. This takes an optional keyword argument `bzsize`, which must be given a
 tuple of three integers specifying the number of Brillouin zones to calculate,
 e.g., `bzsize=(2,2,2)`. The resulting list of wave vectors may then be passed to
@@ -185,7 +187,7 @@ rescaling of intensities in the formula.
 To retrieve intensity data from a instantaneous structure factor, use
 [`instant_intensities_interpolated`](@ref), which accepts similar arguments to
 `intensities_interpolated`. This function may also be used to calculate
-instantaneous information from a dynamical structure factor, i.e. from a
+instantaneous information from a dynamical correlation data, i.e. from a
 `SampledCorrelations` created with `dynamical_correlations`. Note that it is
 important to supply a value to `kT` to reap the benefits of this approach over
 simply calculating a static structure factor at the outset. 
