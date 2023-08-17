@@ -282,6 +282,33 @@ function all_atoms_within_distance(latvecs, rs, r0; min_dist=0, max_dist)
     return ret
 end
 
+function characteristic_length_between_atoms(cryst::Crystal)
+    # Detect if atoms are on a submanifold (aligned line or plane)
+    ps = cryst.positions[1:end-1] .- Ref(cryst.positions[end])
+    any_nonzero = map(1:3) do i
+        any(p -> !iszero(p[i]), ps)
+    end
+    vecs = eachcol(cryst.latvecs)[findall(any_nonzero)]
+
+    # Take nth root of appropriate hypervolume per atom
+    if length(vecs) == 0
+        ℓ = Inf
+    elseif length(vecs) == 1
+        ℓ = norm(vecs[1]) / natoms(cryst)
+    elseif length(vecs) == 2
+        ℓ = sqrt(norm(vecs[1] × vecs[2]) / natoms(cryst))
+    elseif length(vecs) == 3
+        ℓ = cbrt(abs(det(cryst.latvecs)) / natoms(cryst))
+    else
+        error("Internal error")
+    end
+
+    # An upper bound is the norm of the smallest lattice vector.
+    ℓ0 = minimum(norm.(eachcol(cryst.latvecs)))
+
+    return min(ℓ0, ℓ)
+end
+
 """
     plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgrey,
                arrowcolor=:red, show_axis=false, show_cell=true,
@@ -301,20 +328,18 @@ Plot the spin configuration defined by `sys`. Optional parameters include:
 """
 function plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
                     arrowcolor=:red, show_axis=false, show_cell=true, orthographic=false, ghost_radius=0)
-    # Use the length and spin scales in the system to determine a good
-    # characteristic arrow size
-    vol = det(sys.crystal.latvecs)
-    ℓ0 = cbrt(vol / natoms(sys.crystal))
-    a0 = arrowscale * ℓ0
+    # Infer characteristic length scale between sites
+    ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
     # Quantum spin-S, averaged over all sites. Will be used to normalize
     # dipoles.
     S0 = (sum(sys.Ns)/length(sys.Ns) - 1) / 2
 
     # Parameters defining arrow shape
-    arrowsize = 0.3a0
-    linewidth = 0.1a0
-    lengthscale = 0.5a0
+    a0 = arrowscale * ℓ0
+    arrowsize = 0.4a0
+    linewidth = 0.12a0
+    lengthscale = 0.6a0
     markersize = 0.8linewidth
     arrow_fractional_shift = 0.6
 
@@ -348,16 +373,22 @@ function plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
     end
     if !isempty(pts)
         pts -= arrow_fractional_shift * vecs
-        Makie.arrows!(ax, pts, vecs; arrowsize, linecolor=(linecolor, 0.1), arrowcolor=(arrowcolor, 0.1), linewidth)
+        Makie.arrows!(ax, pts, vecs; arrowsize, linewidth, linecolor=(linecolor, 0.1),
+                      arrowcolor=(arrowcolor, 0.1), transparency=true)
     end
 
-    # Show bounding box of supercell in gray
+    # Show bounding box of magnetic supercell in gray
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
     Makie.linesegments!(ax, cell_wireframe(supervecs), color=:gray, linewidth=1.5)
 
-    # Show bounding box of original crystal
     if show_cell
+        # Show bounding box of original crystal unit cell
         Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs); color=:teal, linewidth=1.5)
+
+        # Labels for lattice vectors
+        pos = [Makie.Point3f0(p/2) for p in collect(eachcol(orig_crystal(sys).latvecs))]
+        text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
+        Makie.text!(pos; text, color=:black, fontsize=20, align=(:center, :center), overdraw=true)
     end
 
     fig

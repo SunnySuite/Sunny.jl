@@ -235,7 +235,7 @@ suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
 sys_min = reshape_supercell(sys, [1 0 0; 0 1 -2; 0 1 2])
 randomize_spins!(sys_min)
 minimize_energy!(sys_min)
-plot_spins(sys_min; ghost_radius=2.5)
+plot_spins(sys_min; ghost_radius=3)
 
 # ## Linear spin wave theory
 #
