@@ -293,7 +293,7 @@ fig
 # [`lorentzian`](@ref).
 
 γ = 0.15 # width in meV
-broadened_formula = intensity_formula(swt; kernel=lorentzian(γ))
+broadened_formula = intensity_formula(swt, :perp; kernel=lorentzian(γ))
 
 # The [`intensities_broadened`](@ref) function requires an energy range in
 # addition to the $𝐪$-space path.

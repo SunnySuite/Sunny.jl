@@ -209,9 +209,6 @@ sc
 # With the thermally-averaged correlation data ``\langle S^{\alpha\beta}(q,\omega)\rangle``
 # in hand, we now need to specify how to extract a scattering intensity from this information.
 # This is done by constructing an [`intensity_formula`](@ref).
-# By default, a formula computing the unpolarized intensity is used,
-# but alternative formulas can be specified.
-
 # By way of example, we will use a formula which computes the trace of the structure
 # factor and applies a classical-to-quantum temperature-dependent rescaling `kT`.
 
@@ -220,12 +217,12 @@ formula = intensity_formula(sc, :trace; kT = kT)
 # Recall that ``\langle S^{\alpha\beta}(q,\omega)\rangle`` is only available at certain discrete
 # ``q`` values, due to the finite lattice size.
 # There are two basic approaches to handling this discreteness.
-# The first approach is to linearly interpolate between the available
+# The first approach is to interpolate between the available
 # data using [`intensities_interpolated`](@ref). For example, we can plot single-$q$ slices
 # at (0,0,0) and (π,π,π) using this method:
 
 qs = [[0, 0, 0], [0.5, 0.5, 0.5]]
-is = intensities_interpolated(sc, qs; interpolation = :round, formula = formula)
+is = intensities_interpolated(sc, qs, formula; interpolation = :round)
 
 ωs = available_energies(sc)
 fig = lines(ωs, is[1,:]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
@@ -264,9 +261,8 @@ path, xticks = reciprocal_space_path(cryst, points, density);
 # points, the intensity on the path can be calculated by interpolating between these
 # discrete points:
 
-is_interpolated = intensities_interpolated(sc, path;
+is_interpolated = intensities_interpolated(sc, path, new_formula;
     interpolation = :linear,       # Interpolate between available wave vectors
-    formula = new_formula
 )
 ## Add artificial broadening
 is_interpolated_broadened = broaden_energy(sc, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.05));
@@ -292,8 +288,7 @@ energy_bins = paramsList[1].numbins[4]
 is_binned = zeros(Float64,total_bins,energy_bins)
 integrated_kernel = integrated_lorentzian(0.05) # Lorentzian broadening
 for k in eachindex(paramsList)
-    bin_data, counts = intensities_binned(sc,paramsList[k];
-        formula = new_formula,
+    bin_data, counts = intensities_binned(sc,paramsList[k], new_formula;
         integrated_kernel = integrated_kernel
     )
     is_binned[ranges[k],:] = bin_data[:,1,1,:] ./ counts[:,1,1,:]
@@ -343,7 +338,7 @@ params.binend[1], params.binend[2] = 3, 3
 integrate_axes!(params, axes = [3,4])
 
 integrate_axes!(params,axes = [3,4])
-is, counts = intensities_binned(sc,params,formula = new_formula)
+is, counts = intensities_binned(sc,params,new_formula)
 bcs = axes_bincenters(params)
 hm_left = heatmap!(ax_left,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])
 Colorbar(fig[1,1], hm_left)
@@ -355,7 +350,7 @@ qvals = range(-3, 3, length=npoints)
 qs_absolute = [[a, b, 0] for a in qvals, b in qvals]
 qs = [cryst.recipvecs \ q for q in qs_absolute]
 
-is = intensities_interpolated(sc, qs; formula = new_formula, interpolation=:linear);
+is = intensities_interpolated(sc, qs, new_formula; interpolation=:linear);
 
 hm_right = heatmap!(ax_right,is[:,:,ωidx])
 Colorbar(fig[1,4], hm_right)
@@ -365,7 +360,7 @@ fig#hide
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
 # obtained from a dynamic structure factor with [`instant_intensities_interpolated`](@ref).
 
-is_static = instant_intensities_interpolated(sc, qs; formula = new_formula, interpolation = :linear)
+is_static = instant_intensities_interpolated(sc, qs, new_formula; interpolation = :linear)
 
 hm = heatmap(is_static; axis=(title="Instantaneous Structure Factor", aspect=true))
 Colorbar(hm.figure[1,2], hm.plot)
