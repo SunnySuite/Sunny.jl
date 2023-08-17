@@ -1,6 +1,6 @@
 ## Install Julia and Sunny
 
-[Download Julia 1.8 or later](https://julialang.org/downloads/). Run the Julia
+[Download Julia 1.9 or later](https://julialang.org/downloads/). Run the Julia
 executable, which should open a terminal with the prompt: `julia>`. Load Sunny
 with the command:
 ```julia
