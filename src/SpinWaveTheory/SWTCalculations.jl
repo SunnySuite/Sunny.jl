@@ -22,10 +22,10 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
     @assert size(Hmat) == (2L, 2L)
 
     # block matrices of `Hmat`
-    Hmat11 = zeros(ComplexF64, L, L)
-    Hmat22 = zeros(ComplexF64, L, L)
-    Hmat12 = zeros(ComplexF64, L, L)
-    Hmat21 = zeros(ComplexF64, L, L)
+    Hmat11 = view(Hmat,1:L,1:L)
+    Hmat22 = view(Hmat,L+1:2L,L+1:2L)
+    Hmat12 = view(Hmat,1:L,L+1:2L)
+    Hmat21 = view(Hmat,L+1:2L,1:L)
 
     (; extfield, gs, units) = sys
 
@@ -42,6 +42,17 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
         end
     end
 
+
+    tTi_μ = zeros(ComplexF64, N, N, 8)
+    tTj_ν = zeros(ComplexF64, N, N, 8)
+    
+    T_μ_11 = zeros(ComplexF64,8)
+    T_μ_m1 = zeros(ComplexF64,8)
+    T_μ_1m = zeros(ComplexF64,8)
+    
+    T_μ_mn = zeros(ComplexF64,8)
+    T_ν_mn = zeros(ComplexF64,8)
+
     # pairexchange interactions
     for matom = 1:Nm
         ints = sys.interactions_union[matom]
@@ -53,33 +64,68 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
             ### Bilinear exchange
             
             J = Mat3(coupling.bilin*I)
+            
             sub_i, sub_j = bond.i, bond.j
+            sub_i_M1, sub_j_M1 = sub_i - 1, sub_j - 1
+            
             phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
-            tTi_μ = s̃_mat[:, :, :, sub_i]
-            tTj_ν = s̃_mat[:, :, :, sub_j]
-            sub_i_M1, sub_j_M1 = sub_i - 1, sub_j - 1
+            # Fill dipole part of tTi_μ
+            tTi_μ[:, :, 1:3] .= view(s̃_mat,:, :, 1:3, sub_i)
+            tTj_ν[:, :, 1:3] .= view(s̃_mat,:, :, 1:3, sub_j)
+            
+            # Fill quadrupole part of tTi_μ
+            tTi_μ[:, :, 4:8] .= view(Q̃_mat,:, :, 1:5, sub_i)
+            tTj_ν[:, :, 4:8] .= view(Q̃_mat,:, :, 1:5, sub_j)
+
+            # For Bilinear exchange, only use dipole part of everything
+            tTi_μ_dipole = view(tTi_μ, :, :, 1:3)
+            tTj_ν_dipole = view(tTj_ν, :, :, 1:3)
+            
+            T_μ_11_dipole = view(T_μ_11,1:3)
+            T_μ_m1_dipole = view(T_μ_m1,1:3)
+            T_μ_1m_dipole = view(T_μ_1m,1:3)
+            
+            T_μ_mn_dipole = view(T_μ_mn,1:3)
+            T_ν_mn_dipole = view(T_ν_mn,1:3)
+            
 
             for m = 2:N
                 mM1 = m - 1
-                T_μ_11 = conj(tTi_μ[1, 1, :])
-                T_μ_m1 = conj(tTi_μ[m, 1, :])
-                T_μ_1m = conj(tTi_μ[1, m, :])
-                T_ν_11 = tTj_ν[1, 1, :]
+                
+                T_μ_11_dipole .= @view tTi_μ_dipole[1, 1, :]
+                conj!(T_μ_11_dipole)
+                
+                T_μ_m1_dipole .= @view tTi_μ_dipole[m, 1, :]
+                conj!(T_μ_m1_dipole)
+                
+                T_μ_1m_dipole .= @view tTi_μ_dipole[1, m, :]
+                conj!(T_μ_1m_dipole)
+                
+                T_ν_11_dipole = view(tTj_ν_dipole, 1, 1, :)
 
                 for n = 2:N
                     nM1 = n - 1
-                    δmn = δ(m, n)
-                    T_μ_mn, T_ν_mn = conj(tTi_μ[m, n, :]), tTj_ν[m, n, :]
-                    T_ν_n1 = tTj_ν[n, 1, :]
-                    T_ν_1n = tTj_ν[1, n, :]
+                    
+                    T_μ_mn_dipole .= @view tTi_μ_dipole[m, n, :]
+                    conj!(T_μ_mn_dipole)
+                    
+                    T_ν_mn_dipole .= @view tTj_ν_dipole[m, n, :]
+                    
+                    if δ(m, n)
+                        T_μ_mn_dipole .-= T_μ_11_dipole
+                        T_ν_mn_dipole .-= T_ν_11_dipole
+                    end
+                    
+                    T_ν_n1_dipole = @view tTj_ν_dipole[n, 1, :]
+                    T_ν_1n_dipole = @view tTj_ν_dipole[1, n, :]
 
-                    c1 = dot(T_μ_mn - δmn * T_μ_11, J, T_ν_11)
-                    c2 = dot(T_μ_11, J, T_ν_mn - δmn * T_ν_11)
-                    c3 = dot(T_μ_m1, J, T_ν_1n)
-                    c4 = dot(T_μ_1m, J, T_ν_n1)
-                    c5 = dot(T_μ_m1, J, T_ν_n1)
-                    c6 = dot(T_μ_1m, J, T_ν_1n)
+                    c1 = dot(T_μ_mn_dipole, J, T_ν_11_dipole)
+                    c2 = dot(T_μ_11_dipole, J, T_ν_mn_dipole)
+                    c3 = dot(T_μ_m1_dipole, J, T_ν_1n_dipole)
+                    c4 = dot(T_μ_1m_dipole, J, T_ν_n1_dipole)
+                    c5 = dot(T_μ_m1_dipole, J, T_ν_n1_dipole)
+                    c6 = dot(T_μ_1m_dipole, J, T_ν_1n_dipole)
 
                     Hmat11[sub_i_M1*Nf+mM1, sub_i_M1*Nf+nM1] += 0.5 * c1
                     Hmat11[sub_j_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * c2
@@ -102,33 +148,39 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
             ### Biquadratic exchange
 
             J = coupling.biquad
+            
 
-            tTi_μ = zeros(ComplexF64, N, N, 8)
-            tTj_ν = zeros(ComplexF64, N, N, 8)
-            for i = 1:3
-                tTi_μ[:, :, i] = s̃_mat[:, :, i, sub_i]
-                tTj_ν[:, :, i] = s̃_mat[:, :, i, sub_j]
-            end
-            for i = 4:8
-                tTi_μ[:, :, i] = Q̃_mat[:, :, i-3, sub_i]
-                tTj_ν[:, :, i] = Q̃_mat[:, :, i-3, sub_j]
-            end
-
-            sub_i_M1, sub_j_M1 = sub_i - 1, sub_j - 1
             for m = 2:N
                 mM1 = m - 1
-                T_μ_11 = conj(tTi_μ[1, 1, :])
-                T_μ_m1 = conj(tTi_μ[m, 1, :])
-                T_μ_1m = conj(tTi_μ[1, m, :])
-                T_ν_11 = tTj_ν[1, 1, :]
+                
+                T_μ_11 .= @view tTi_μ[1, 1, :]
+                conj!(T_μ_11)
+                
+                T_μ_m1 .= @view tTi_μ[m, 1, :]
+                conj!(T_μ_m1)
+                
+                T_μ_1m .= @view tTi_μ[1, m, :]
+                conj!(T_μ_1m)
+                
+                T_ν_11 = view(tTj_ν, 1, 1, :)
+                
                 for n = 2:N
                     nM1 = n - 1
-                    δmn = δ(m, n)
-                    T_μ_mn, T_ν_mn = conj(tTi_μ[m, n, :]), tTj_ν[m, n, :]
-                    T_ν_n1 = tTj_ν[n, 1, :]
-                    T_ν_1n = tTj_ν[1, n, :]
-                    c1 = J * dot(T_μ_mn - δmn * T_μ_11, biquad_metric, T_ν_11)
-                    c2 = J * dot(T_μ_11, biquad_metric, T_ν_mn - δmn * T_ν_11)
+                    
+                    T_μ_mn .= @view tTi_μ[m, n, :]
+                    conj!(T_μ_mn)
+                    
+                    T_ν_mn .= @view tTj_ν[m, n, :]
+                    
+                    if δ(m, n)
+                        T_μ_mn .-= T_μ_11
+                        T_ν_mn .-= T_ν_11
+                    end
+                    
+                    T_ν_n1 = @view tTj_ν[n, 1, :]
+                    T_ν_1n = @view tTj_ν[1, n, :]
+                    c1 = J * dot(T_μ_mn, biquad_metric, T_ν_11)
+                    c2 = J * dot(T_μ_11, biquad_metric, T_ν_mn)
                     c3 = J * dot(T_μ_m1, biquad_metric, T_ν_1n)
                     c4 = J * dot(T_μ_1m, biquad_metric, T_ν_n1)
                     c5 = J * dot(T_μ_m1, biquad_metric, T_ν_n1)
@@ -153,11 +205,6 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
         end
     end
 
-    Hmat[1:L, 1:L] += Hmat11
-    Hmat[L+1:2*L, L+1:2*L] += Hmat22
-    Hmat[1:L, L+1:2*L] += Hmat12
-    Hmat[L+1:2*L, 1:L] += Hmat21
-
     # single-ion anisotropy
     for matom = 1:Nm
         @views site_aniso = T̃_mat[:, :, matom]
@@ -177,7 +224,7 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
     end
     
     # make Hmat exactly hermitian for cholesky decomposition.
-    Hmat[:, :] = (0.5 + 0.0im) * (Hmat + Hmat')
+    Hmat[:, :] .= (0.5 + 0.0im) * (Hmat + Hmat')
 
     # add tiny part to the diagonal elements for cholesky decomposition.
     for i = 1:2*L
@@ -331,64 +378,73 @@ end
 # Bogoliubov transformation that diagonalizes a bosonic Hamiltonian. See Colpa
 # JH. *Diagonalization of the quadratic boson hamiltonian* Physica A:
 # Statistical Mechanics and its Applications, 1978 Sep 1;93(3-4):327-53.
-function bogoliubov!(disp, V, Hmat, energy_tol, mode_fast::Bool = false)
-    @assert size(Hmat, 1) == size(Hmat, 2) "Hmat is not a square matrix"
-    @assert size(Hmat, 1) % 2 == 0 "dimension of Hmat is not even"
+function mk_bogoliubov!(L)
+    Σ = Diagonal(diagm([ones(ComplexF64, L); -ones(ComplexF64, L)]))
+    buf = UpperTriangular(zeros(ComplexF64,2L,2L))
 
-    L = size(Hmat, 1) ÷ 2
-    (length(disp) != L) && (resize!(disp, L))
+    function bogoliubov!(disp, V, Hmat, energy_tol, mode_fast::Bool = false)
+        @assert size(Hmat, 1) == size(Hmat, 2) "Hmat is not a square matrix"
+        @assert size(Hmat, 1) % 2 == 0 "dimension of Hmat is not even"
+        @assert size(Hmat, 1) ÷ 2 == L "dimension of Hmat doesn't match $L"
+        @assert length(disp) == L "length of dispersion doesn't match $L"
 
-    Σ = diagm([ones(ComplexF64, L); -ones(ComplexF64, L)])
+        if (!mode_fast)
+            eigval_check = eigen(Σ * Hmat).values
+            @assert all(<(energy_tol), abs.(imag(eigval_check))) "Matrix contains complex eigenvalues with imaginary part larger than `energy_tol`= "*string(energy_tol)*"(`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
 
-    if (!mode_fast)
-        eigval_check = eigen(Σ * Hmat).values
-        @assert all(<(energy_tol), abs.(imag(eigval_check))) "Matrix contains complex eigenvalues with imaginary part larger than `energy_tol`= "*string(energy_tol)*"(`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
-
-        eigval_check = eigen(Hmat).values
-        @assert all(>(1e-12), real(eigval_check)) "Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
-    end
-
-    K = cholesky(Hmat).U
-    @assert mode_fast || norm(K' * K - Hmat) < 1e-12 "Cholesky fails"
-
-    T = K * Σ * K'
-    eigval, U = eigen(Hermitian(T + T') / 2)
-
-    @assert mode_fast || norm(U * U' - I) < 1e-10 "Orthonormality fails"
-
-    # sort eigenvalues and eigenvectors
-    eigval = real(eigval)
-    # sort eigenvalues in descending order
-    index  = sortperm(eigval, rev=true)
-    eigval = eigval[index]
-    U = U[:, index]
-    for i = 1:2*L
-        if (i ≤ L && eigval[i] < 0.0) || (i > L && eigval[i] > 0.0)
-            error("Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)")
+            eigval_check = eigen(Hmat).values
+            @assert all(>(1e-12), real(eigval_check)) "Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
         end
-        pref = i ≤ L ? √(eigval[i]) : √(-eigval[i])
-        U[:, i] .*= pref
-    end
 
-    for col = 1:2*L
-        normalize!(U[:, col])
-    end
 
-    V[:] = K \ U
+        K = if mode_fast
+          cholesky!(Hmat).U # Clobbers Hmat
+        else
+          K = cholesky(Hmat).U
+          @assert norm(K' * K - Hmat) < 1e-12 "Cholesky fails"
+          K
+        end
 
-    if (!mode_fast)
-        E_check = V' * Hmat * V
-        [E_check[i, i] -= eigval[i] for i = 1:L]
-        [E_check[i, i] += eigval[i] for i = L+1:2*L]
-        @assert all(<(1e-8), abs.(E_check)) "Eigenvectors check fails (Bogoliubov matrix `V` are not normalized!)"
-        @assert all(<(1e-6), abs.(V' * Σ * V - Σ)) "Para-renormalization check fails (Boson commutatition relations not preserved after the Bogoliubov transformation!)"
-    end
+        # Compute eigenvalues of KΣK', sorted in descending order by real part
+        eigval, U = if mode_fast
+          mul!(buf,K,Σ)
+          mul!(V,buf,K')
+          # Hermitian only views the upper triangular, so no need
+          # to explicitly symmetrize here
+          T = Hermitian(V)
+          eigen!(T;sortby = λ -> -real(λ)) # Clobbers
+        else
+          T = K * Σ * K'
+          eigen(Hermitian(T + T') / 2;sortby = λ -> -real(λ))
+        end
 
-    # The linear spin-wave dispersion in descending order.
-    for i in 1:L
-        disp[i] = 2eigval[i]
+        @assert mode_fast || norm(U * U' - I) < 1e-10 "Orthonormality fails"
+
+        for i = 1:2*L
+            if (i ≤ L && eigval[i] < 0.0) || (i > L && eigval[i] > 0.0)
+                error("Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)")
+            end
+            pref = i ≤ L ? √(eigval[i]) : √(-eigval[i])
+            view(U,:,i) .*= pref
+        end
+
+        V .= U
+        ldiv!(K,V)
+
+        if (!mode_fast)
+            E_check = V' * Hmat * V
+            [E_check[i, i] -= eigval[i] for i = 1:L]
+            [E_check[i, i] += eigval[i] for i = L+1:2*L]
+            @assert all(<(1e-8), abs.(E_check)) "Eigenvectors check fails (Bogoliubov matrix `V` are not normalized!)"
+            @assert all(<(1e-6), abs.(V' * Σ * V - Σ)) "Para-renormalization check fails (Boson commutatition relations not preserved after the Bogoliubov transformation!)"
+        end
+
+        # The linear spin-wave dispersion in descending order.
+        for i in 1:L
+            disp[i] = 2eigval[i]
+        end
+        return
     end
-    return
 end
 
 
@@ -438,8 +494,8 @@ function dispersion(swt::SpinWaveTheory, qs)
 
     ℋ = zeros(ComplexF64, 2nmodes, 2nmodes)
     Vbuf = zeros(ComplexF64, 2nmodes, 2nmodes)
-    disp_buf = zeros(Float64, nmodes)
     disp = zeros(Float64, nmodes, length(qs)) 
+    bogoliubov! = mk_bogoliubov!(nmodes)
 
     for (iq, q) in enumerate(qs)
         q_reshaped = to_reshaped_rlu(swt.sys, q)
@@ -448,8 +504,7 @@ function dispersion(swt::SpinWaveTheory, qs)
         elseif sys.mode == :dipole
             swt_hamiltonian_dipole!(swt, q_reshaped, ℋ)
         end
-        bogoliubov!(disp_buf, Vbuf, ℋ, energy_tol)
-        disp[:,iq] .= disp_buf
+        bogoliubov!(view(disp,:,iq), Vbuf, ℋ, energy_tol)
     end
 
     return reshape_dispersions(disp)
@@ -580,6 +635,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     Avec_pref = zeros(ComplexF64, Nm)
     disp = zeros(Float64, nmodes)
     intensity = zeros(return_type, nmodes)
+    bogoliubov! = mk_bogoliubov!(nmodes)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
