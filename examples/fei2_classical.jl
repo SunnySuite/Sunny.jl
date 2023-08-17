@@ -136,7 +136,7 @@ print_wrapped_intensities(sys)
 # has thermal fluctuations.
 
 kT = 3.5 * meV_per_K     # 3.5K ≈ 0.30 meV
-langevin.kT = kT
+langevin.kT = kT;
 
 # Additionally, since these classical simulations are conducted on a finite-sized lattice,
 # obtaining acceptable resolution in momentum space requires the use of a larger
@@ -228,7 +228,7 @@ is = intensities_interpolated(sc, qs, formula; interpolation = :round)
 fig = lines(ωs, is[1,:]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
 lines!(ωs, is[2,:]; label="(π,π,π)")
 axislegend()
-fig#hide
+fig
 
 # The resolution in energy can be improved by increasing `nω` (and decreasing `Δt`),
 # and the general accuracy can be improved by collecting additional samples from the thermal
@@ -263,7 +263,7 @@ path, xticks = reciprocal_space_path(cryst, points, density);
 
 is_interpolated = intensities_interpolated(sc, path, new_formula;
     interpolation = :linear,       # Interpolate between available wave vectors
-)
+);
 ## Add artificial broadening
 is_interpolated_broadened = broaden_energy(sc, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.05));
 
@@ -274,12 +274,7 @@ is_interpolated_broadened = broaden_energy(sc, is, (ω, ω₀)->lorentzian(ω-ω
 
 cut_width = 0.3
 density = 15
-paramsList, markers, ranges = reciprocal_space_path_bins(sc,points,density,cut_width)
-typeof(paramsList)
-
-#
-
-paramsList[1]
+paramsList, markers, ranges = reciprocal_space_path_bins(sc,points,density,cut_width);
 
 # Then, the intensity data is computed using [`intensities_binned`](@ref) for each sub-histogram:
 
@@ -293,7 +288,6 @@ for k in eachindex(paramsList)
     )
     is_binned[ranges[k],:] = bin_data[:,1,1,:] ./ counts[:,1,1,:]
 end
-nothing#hide
 
 # The graph produced by interpolating (top) is similar to the one produced by binning (bottom):
 
@@ -309,7 +303,7 @@ heatmap!(ax_bottom,1:size(is_binned,1), ωs, is_binned;
     colorrange=(0.0,0.05),
 )
 
-fig#hide
+fig
 
 
 # Note that we have clipped the colors in order to make the higher-energy
@@ -341,7 +335,7 @@ integrate_axes!(params,axes = [3,4])
 is, counts = intensities_binned(sc,params,new_formula)
 bcs = axes_bincenters(params)
 hm_left = heatmap!(ax_left,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])
-Colorbar(fig[1,1], hm_left)
+Colorbar(fig[1,1], hm_left);
 
 ## Interpolating
 ax_right = Axis(fig[1,3],title="ω≈$(ωs[ωidx]) meV (Interpolated)", aspect=true)
@@ -350,12 +344,12 @@ qvals = range(-3, 3, length=npoints)
 qs_absolute = [[a, b, 0] for a in qvals, b in qvals]
 qs = [cryst.recipvecs \ q for q in qs_absolute]
 
-is = intensities_interpolated(sc, qs, new_formula; interpolation=:linear);
+is = intensities_interpolated(sc, qs, new_formula; interpolation=:linear)
 
 hm_right = heatmap!(ax_right,is[:,:,ωidx])
 Colorbar(fig[1,4], hm_right)
 hidedecorations!(ax_right); hidespines!(ax_right)
-fig#hide
+fig
 
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
 # obtained from a dynamic structure factor with [`instant_intensities_interpolated`](@ref).
@@ -365,4 +359,4 @@ is_static = instant_intensities_interpolated(sc, qs, new_formula; interpolation 
 hm = heatmap(is_static; axis=(title="Instantaneous Structure Factor", aspect=true))
 Colorbar(hm.figure[1,2], hm.plot)
 hidedecorations!(hm.axis); hidespines!(hm.axis)
-hm#hide
+hm
