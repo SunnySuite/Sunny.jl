@@ -224,11 +224,12 @@ formula = intensity_formula(sc, :trace; kT = kT)
 # data using [`intensities_interpolated`](@ref). For example, we can plot single-$q$ slices
 # at (0,0,0) and (π,π,π) using this method:
 
-qs_rlu = [[0, 0, 0], [0.5, 0.5, 0.5]]
-is = intensities_interpolated(sc, qs_rlu; interpolation = :round, formula = formula)
+qs = [[0, 0, 0], [0.5, 0.5, 0.5]]
+is = intensities_interpolated(sc, qs; interpolation = :round, formula = formula)
 
-fig = lines(ωs(sc), is[1,:]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
-lines!(ωs(sc), is[2,:]; label="(π,π,π)")
+ωs = available_energies(sc)
+fig = lines(ωs, is[1,:]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
+lines!(ωs, is[2,:]; label="(π,π,π)")
 axislegend()
 fig
 
@@ -305,11 +306,11 @@ fig = Figure()#hide
 ax_top = Axis(fig[1,1],ylabel = "meV",xticklabelrotation=π/8,xticklabelsize=12;xticks)
 ax_bottom = Axis(fig[2,1],ylabel = "meV",xticks = (markers, string.(points)),xticklabelrotation=π/8,xticklabelsize=12)
 
-heatmap!(ax_top,1:size(is_interpolated,1), ωs(sc), is_interpolated;
+heatmap!(ax_top,1:size(is_interpolated,1), ωs, is_interpolated;
     colorrange=(0.0,0.07),
 )
 
-heatmap!(ax_bottom,1:size(is_binned,1), ωs(sc), is_binned;
+heatmap!(ax_bottom,1:size(is_binned,1), ωs, is_binned;
     colorrange=(0.0,0.05),
 )
 
@@ -324,7 +325,7 @@ fig#hide
 
 fig = Figure()#hide
 ωidx = 60
-target_ω = ωs(sc)[ωidx]
+target_ω = ωs[ωidx]
 
 ## Binning
 ax_left = Axis(fig[1,2],title="Δω=0.3 meV (Binned)", aspect=true)
@@ -343,13 +344,13 @@ hm_left = heatmap!(ax_left,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])
 Colorbar(fig[1,1], hm_left)
 
 ## Interpolating
-ax_right = Axis(fig[1,3],title="ω≈$(ωs(sc)[ωidx]) meV (Interpolated)", aspect=true)
+ax_right = Axis(fig[1,3],title="ω≈$(ωs[ωidx]) meV (Interpolated)", aspect=true)
 npoints = 60
 qvals = range(-3, 3, length=npoints)
 qs_absolute = [[a, b, 0] for a in qvals, b in qvals]
-qs_rlu = [cryst.recipvecs \ q for q in qs_absolute]
+qs = [cryst.recipvecs \ q for q in qs_absolute]
 
-is = intensities_interpolated(sc, qs_rlu; formula = new_formula, interpolation=:linear);
+is = intensities_interpolated(sc, qs; formula = new_formula, interpolation=:linear);
 
 hm_right = heatmap!(ax_right,is[:,:,ωidx])
 Colorbar(fig[1,4], hm_right)
@@ -359,7 +360,7 @@ fig
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
 # obtained from a dynamic structure factor with [`instant_intensities_interpolated`](@ref).
 
-is_static = instant_intensities_interpolated(sc, qs_rlu; formula = new_formula, interpolation = :linear)
+is_static = instant_intensities_interpolated(sc, qs; formula = new_formula, interpolation = :linear)
 
 hm = heatmap(is_static; axis=(title="Instantaneous Structure Factor", aspect=true))
 Colorbar(hm.figure[1,2], hm.plot)

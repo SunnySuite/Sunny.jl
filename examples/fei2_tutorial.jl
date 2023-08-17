@@ -265,11 +265,12 @@ disp = dispersion(swt, path);
 
 # In addition to the band energies $ω_i(𝐪)$, Sunny can calculate the inelastic
 # neutron scattering intensity $I_i(𝐪)$ for each band $i$ according to an
-# [`intensity_formula`](@ref). The default formula applies a polarization
-# correction $(1 - 𝐪⊗𝐪)$. Selecting `delta_function_kernel` specifies that we
-# want the energy and intensity of each band individually.
+# [`intensity_formula`](@ref). We choose to apply a polarization correction
+# $(1 - 𝐪⊗𝐪)$ by setting the mode argument to `:perp`. Selecting
+# `delta_function_kernel` specifies that we want the energy and intensity of
+# each band individually.
 
-formula = intensity_formula(swt; kernel=delta_function_kernel)
+formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
 
 # The function [`intensities_bands`](@ref) uses linear spin wave theory to
 # calculate both the dispersion and intensity data for the provided path.
