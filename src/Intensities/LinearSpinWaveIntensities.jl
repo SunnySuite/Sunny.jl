@@ -39,13 +39,13 @@ function intensities_broadened(swt::SpinWaveTheory, ks, ωvals, formula)
 end
 
 """
-    dispersion, intensities = intensities_bands(swt::SpinWaveTheory, ks; [formula])
+    dispersion, intensities = intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFormula)
 
 Computes the scattering intensities at each energy band for each momentum transfer `k` in `ks`, according
 to Linear Spin Wave Theory and the given intensity `formula`.
-The optional `formula` must have a delta-function kernel, e.g.:
+The `formula` must have a delta-function kernel, e.g.:
     
-    formula = intensity_formula(swt, :perp; kernel = delta_function_kernel)
+    formula = intensity_formula(swt, :perp, formula; kernel = delta_function_kernel)
 
 or else the bands will be broadened, and their intensity can not be computed.
 
@@ -53,7 +53,7 @@ The outputs will be arrays with indices identical to `ks`, with the last index
 giving the band index. `dispersions` reports the energy of each band, while
 `intensities` reports the scattering intensity.
 """
-function intensities_bands(swt::SpinWaveTheory, ks; formula = intensity_formula(swt, :trace; kernel = nothing) :: SpinWaveIntensityFormula)
+function intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFormula)
     if !isnothing(formula.kernel)
         # This is only triggered if the user has explicitly specified a formula with e.g. kT
         # corrections applied, but has not disabled the broadening kernel.
