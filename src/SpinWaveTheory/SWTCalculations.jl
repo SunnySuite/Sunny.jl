@@ -678,30 +678,10 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             # BandStructure
             return BandStructure{nmodes,return_type}(disp, intensity)
         else
-            # Smooth kernel --> Intensity as a function of ω
-
-            # If a kernel is specified, convolve with it after filtering out
-            # Goldstone modes.
-
-            # At a Goldstone mode, where the intensity is divergent,
-            # use a delta-function at the lowest energy < 1e-3.
-            goldstone_threshold = 1e-3
-            ix_goldstone = (disp .< goldstone_threshold) .&& (intensity .> 1e3)
-            goldstone_intensity = sum(intensity[ix_goldstone])
-
-            # At all other modes, use the provided kernel
-            num_finite = count(.!ix_goldstone)
-            disp_finite = reshape(disp[.!ix_goldstone],1,num_finite)
-            intensity_finite = reshape(intensity[.!ix_goldstone],1,num_finite)
-
-            # Intensity as a function of ω (or a list of ωs)
+            # Smooth kernel --> Intensity as a function of ω (or a list of ωs)
             return function(ω)
-                is = Vector{Float64}(undef,length(ω))
-                is .= 0.
-                if ω[1] < goldstone_threshold
-                    is[1] = goldstone_intensity
-                end
-                is .+= sum(intensity_finite .* kernel_edep.(disp_finite,ω .- disp_finite),dims=2)
+                is = Vector{return_type}(undef,length(ω))
+                is .= sum(intensity' .* kernel_edep.(disp',ω .- disp'),dims=2)
                 is
             end
         end
