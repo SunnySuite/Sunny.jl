@@ -357,10 +357,10 @@ reciprocal_space_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;
 
 
 """
-    intensity, counts = intensities_binned(sc::SampledCorrelations, params::BinningParameters; formula, integrated_kernel)
+    intensity, counts = intensities_binned(sc::SampledCorrelations, params::BinningParameters, formula; integrated_kernel)
 
 Given correlation data contained in a [`SampledCorrelations`](@ref) and [`BinningParameters`](@ref) describing the
-shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_formula`](@ref), or `intensity_formula(sc,:trace)` by default.
+shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_formula`](@ref).
 
 The [`BinningParameters`](@ref) are expected to accept `(q,ω)` in R.L.U. for the (possibly reshaped) crystal associated with `sc`.
 
@@ -375,8 +375,8 @@ Energy-dependent energy broadening can be achieved by providing an `integrated_k
 
 Currently, energy broadening is only supported if the [`BinningParameters`](@ref) are such that the first three axes are purely spatial and the last (energy) axis is `[0,0,0,1]`.
 """
-function intensities_binned(sc::SampledCorrelations, params::BinningParameters;
-    integrated_kernel = nothing,formula = intensity_formula(sc,:trace) :: ClassicalIntensityFormula
+function intensities_binned(sc::SampledCorrelations, params::BinningParameters, formula::ClassicalIntensityFormula;
+    integrated_kernel = nothing,
 )
     (; binwidth, binstart, binend, covectors, numbins) = params
     output_intensities = zeros(Float64,numbins...)

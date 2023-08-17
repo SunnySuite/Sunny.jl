@@ -60,13 +60,13 @@
 
     # TODO: Test broadening
     formula = intensity_formula(sc, :perp)
-    is, counts = intensities_binned(sc, params; formula)
+    is, counts = intensities_binned(sc, params, formula)
 
     is_golden = [2.452071781061995; 0.8649599530836397; 1.1585615432377976; 0.2999470844988036;;;; 0; 0; 0; 0;;;; 0; 0; 0; 0]
     @test isapprox(is,is_golden;atol = 1e-12)
     @test all(counts .== 1.)
 
-    is, counts = powder_average_binned(sc, (0,6π,6π/4); formula)
+    is, counts = powder_average_binned(sc, (0,6π,6π/4), formula)
 
     is_golden = [4.475593277383433 0 0; 17.95271052224501 0 0; 51.13888001854976 0 0; 45.72331040682036 0 0]
     counts_golden = [3.0 3.0 3.0; 15.0 15.0 15.0; 28.0 28.0 28.0; 39.0 39.0 39.0]

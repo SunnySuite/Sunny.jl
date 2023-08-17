@@ -60,10 +60,9 @@ e.g. `radial_binning_parameters = (0,6π,6π/55)`.
 Energy broadening is supported in the same way as `intensities_binned`, and this function
 accepts the same kind of [`intensity_formula`](@ref).
 """
-function powder_average_binned(sc::SampledCorrelations, radial_binning_parameters;
+function powder_average_binned(sc::SampledCorrelations, radial_binning_parameters, formula::ClassicalIntensityFormula;
     ω_binning_parameters=unit_resolution_binning_parameters(available_energies(sc)),
     integrated_kernel = nothing,
-    formula = intensity_formula(sc,:trace) :: ClassicalIntensityFormula,
     bzsize=nothing
 )
     ωstart,ωend,ωbinwidth = ω_binning_parameters

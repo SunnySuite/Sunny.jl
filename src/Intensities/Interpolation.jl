@@ -99,8 +99,7 @@ end
 
 
 """
-    intensities_interpolated(sc::SampledCorrelations, qs; interpolation=nothing,
-                             formula=intensity_formula(sc,:trace), negative_energies=false)
+    intensities_interpolated(sc::SampledCorrelations, qs, formula:ClassicalIntensityFormula; interpolation=nothing, negative_energies=false)
 
 The basic function for retrieving ``𝒮(𝐪,ω)`` information from a
 `SampledCorrelations`. Maps an array of wave vectors `qs` to an array of structure
@@ -116,8 +115,7 @@ i.e., multiples of the reciprocal lattice vectors.
 - `negative_energies`: If set to `true`, Sunny will return the periodic
     extension of the energy axis. Most users will not want this.
 """
-function intensities_interpolated(sc::SampledCorrelations, qs;
-    formula = intensity_formula(sc,:trace) :: ClassicalIntensityFormula,
+function intensities_interpolated(sc::SampledCorrelations, qs, formula::ClassicalIntensityFormula;
     interpolation = :round,
     negative_energies = false,
     instantaneous_warning = true
@@ -191,10 +189,10 @@ similar to [`intensities_interpolated`](@ref), except the returned array has dim
 identical to `qs`. If called on a `SampledCorrelations` with dynamical information,
 i.e., ``𝒮(𝐪,ω)``, the ``ω`` information is integrated out.
 """
-function instant_intensities_interpolated(sc::SampledCorrelations, qs; kwargs...)
+function instant_intensities_interpolated(sc::SampledCorrelations, qs, formula; kwargs...)
     datadims = size(qs)
     ndims = length(datadims)
-    vals = intensities_interpolated(sc, qs; instantaneous_warning=false, kwargs...)
+    vals = intensities_interpolated(sc, qs, formula; instantaneous_warning=false, kwargs...)
     static_vals = sum(vals, dims=(ndims+1,))
     return reshape(static_vals, datadims)
 end
