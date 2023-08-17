@@ -17,6 +17,8 @@ experimental data. See [`intensity_formula`](@ref) for documentation. Use
 
 **Breaking changes**.
 
+Require Julia 1.9.
+
 Replace `set_anisotropy!` with a new function [`set_onsite_coupling!`](@ref)
 (and similarly [`set_onsite_coupling_at!`](@ref)). The latter expects an
 explicit matrix representation for the local Hamiltonian. This can be
