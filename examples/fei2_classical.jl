@@ -231,7 +231,7 @@ is = intensities_interpolated(sc, qs; interpolation = :round, formula = formula)
 fig = lines(ωs, is[1,:]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
 lines!(ωs, is[2,:]; label="(π,π,π)")
 axislegend()
-fig
+fig#hide
 
 # The resolution in energy can be improved by increasing `nω` (and decreasing `Δt`),
 # and the general accuracy can be improved by collecting additional samples from the thermal
@@ -302,7 +302,7 @@ nothing#hide
 
 # The graph produced by interpolating (top) is similar to the one produced by binning (bottom):
 
-fig = Figure()#hide
+fig = Figure()
 ax_top = Axis(fig[1,1],ylabel = "meV",xticklabelrotation=π/8,xticklabelsize=12;xticks)
 ax_bottom = Axis(fig[2,1],ylabel = "meV",xticks = (markers, string.(points)),xticklabelrotation=π/8,xticklabelsize=12)
 
@@ -322,20 +322,25 @@ fig#hide
 
 # Often it is useful to plot cuts across multiple wave vectors but at a single
 # energy. 
-
-fig = Figure()#hide
 ωidx = 60
 target_ω = ωs[ωidx]
 
 ## Binning
+fig = Figure()
 ax_left = Axis(fig[1,2],title="Δω=0.3 meV (Binned)", aspect=true)
 
-params = BinningParameters(
-    [-3,-3, 0, target_ω],           # Bin start (h,k,l,ω)
-    [3, 3, 0.15, target_ω + 0.15],  # Bin end
-    [.2, .2, .3, 0.3]               # Bin width
-)
-Sunny.bin_rlu_as_absolute_units!(params, cryst.recipvecs)
+params = unit_resolution_binning_parameters(sc)
+params.covectors[1:3,1:3] .= cryst.recipvecs  # We will express bin limits in absolute units
+omega_width = 0.3
+params.binstart[4] = target_ω
+params.binend[4] = target_ω + (sc.Δω/2)
+params.binwidth[4] = omega_width
+params.binwidth[1:2] .*= 1.78  # Increase bin size to avoid empty bins
+
+params.binstart[1], params.binstart[2] = -3, -3
+params.binend[1], params.binend[2] = 3, 3
+
+integrate_axes!(params, axes = [3,4])
 
 integrate_axes!(params,axes = [3,4])
 is, counts = intensities_binned(sc,params,formula = new_formula)
@@ -355,7 +360,7 @@ is = intensities_interpolated(sc, qs; formula = new_formula, interpolation=:line
 hm_right = heatmap!(ax_right,is[:,:,ωidx])
 Colorbar(fig[1,4], hm_right)
 hidedecorations!(ax_right); hidespines!(ax_right)
-fig
+fig#hide
 
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
 # obtained from a dynamic structure factor with [`instant_intensities_interpolated`](@ref).
@@ -365,4 +370,4 @@ is_static = instant_intensities_interpolated(sc, qs; formula = new_formula, inte
 hm = heatmap(is_static; axis=(title="Instantaneous Structure Factor", aspect=true))
 Colorbar(hm.figure[1,2], hm.plot)
 hidedecorations!(hm.axis); hidespines!(hm.axis)
-hm
+hm#hide
