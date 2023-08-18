@@ -83,8 +83,33 @@ end
 # Contraction helper functions
 ################################################################################
 @inline function polarization_matrix(k::Vec3)
-    k /= norm(k) + 1e-12
-    return SMatrix{3, 3, Float64, 9}(I(3) - k * k')
+    nk = norm(k)
+    if nk > 0 # Common case, k > 0
+        k /= norm(k)
+        return SMatrix{3, 3, Float64, 9}(I(3) - k * k')
+    else # Exceptional case, k = 0
+        # N.B.: Where does this 2/3 come from??
+        # =====================================
+        # When deriving the "dipole correction" (δ - q⊗q) [with q a unit vector],
+        # the following identity is used:
+        #
+        #     ∫ exp(i(Q+q)⋅R) d³R = (2π)³δ(Q+q)       [see 4.29 in Boothroyd]
+        #
+        # This integral is taken over an infinite volume (d³R over all space).
+        # In reality, the sample volume is finite, so instead of a sharp delta function
+        # on the right hand side, should really have a slightly blurred kernel whose shape
+        # depends reciprocally on the shape of the coherent volume within the sample.
+        # To zeroth order, this is just a sphere of some finite size.
+        #
+        # As a result, the (δ - q⊗q) should be averaged over nearby q in some way.
+        # For nonzero q, this changes essentially nothing. But for q comparable to
+        # 1/(sample length), the averaging is significant.
+        #
+        # Here, we assume a 3D spherical volume, so that the averaging is entirely
+        # isotropic. Averaging the 3x3 matrix diag(0,1,1) over all rotations
+        # (isotropically) gives the following matrix:
+        return SMatrix{3, 3, Float64, 9}((2/3) .* I(3)) # The Mourigal limit
+    end
 end
 
 ################################################################################
