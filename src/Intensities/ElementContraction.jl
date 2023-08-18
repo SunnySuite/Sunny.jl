@@ -83,7 +83,7 @@ end
 # Contraction helper functions
 ################################################################################
 @inline function polarization_matrix(k::Vec3)
-    k /= norm(k) + 1e-12
+    k /= norm(k) + 1e-12 # SQTODO: Fix this.
     return SMatrix{3, 3, Float64, 9}(I(3) - k * k')
 end
 
