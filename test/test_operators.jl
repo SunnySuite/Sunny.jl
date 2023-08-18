@@ -241,13 +241,16 @@ end
 @testitem "Symbolics" begin
     import IOCapture, DynamicPolynomials
 
+    𝒪 = Sunny.𝒪
+    𝒮 = Sunny.𝒮
+
     capt = IOCapture.capture() do
-        print_classical_spin_polynomial((1/4)𝒪[4,4] + (1/20)𝒪[4,0] + (3/5)*(𝒮'*𝒮)^2)
+        Sunny.print_classical_spin_polynomial((1/4)𝒪[4,4] + (1/20)𝒪[4,0] + (3/5)*(𝒮'*𝒮)^2)
     end
     @test capt.output == "𝒮₁⁴ + 𝒮₂⁴ + 𝒮₃⁴\n"
 
     capt = IOCapture.capture() do
-        print_classical_stevens_expansion(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
+        Sunny.print_classical_stevens_expansion(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
     end
     @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)X²\n"
 

@@ -3,11 +3,11 @@
 import Literate
 import Documenter
 
-using Sunny               # `using` needed to enable hyperrefs
-import DynamicPolynomials # get symbolic functions
-import GLMakie            # get plotting functions
-import WriteVTK           # get `export_vtk`
+# Make exports visible to Documenter.@autodocs
+using Sunny
 
+# Importing these activates package extensions
+import GLMakie, WriteVTK
 
 draft = false # set `true` to disable cell evaluation
 
@@ -24,8 +24,8 @@ for source in example_sources
     Literate.markdown(source, example_destination)
 end
 
-Documenter.makedocs(
-    sitename="Sunny documentation",
+Documenter.makedocs(;
+    sitename = "Sunny documentation",
     pages = [
         "Overview" => "index.md",
         "Quick Start" => "quick-start.md",
@@ -38,7 +38,7 @@ Documenter.makedocs(
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
         ansicolor = true
-    );
+    ),
     draft
 )
 

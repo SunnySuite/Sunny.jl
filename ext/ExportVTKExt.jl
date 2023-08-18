@@ -1,4 +1,10 @@
-function export_vtk(filename,sys; coordinates = :physical, log_scale = false)
+module ExportVTKExt
+
+using Sunny
+import WriteVTK 
+
+
+function Sunny.export_vtk(filename,sys; coordinates = :physical, log_scale = false)
     if !ispath(filename)
         mkdir(filename)
     end
@@ -57,10 +63,8 @@ a grid parameterized by `params`.
 
 At least one axis of the [`BinningParameters`](@ref) must be integrated over, since VTK
 does not support 4D data. See [`integrate_axes!`](@ref).
-
-**Becomes available after explicitly loading VTKExport.jl, e.g., `using VTKExport`.**
 """
-function export_vtk(filename,params::BinningParameters,data;dims_kept = nothing)
+function Sunny.export_vtk(filename,params::BinningParameters,data;dims_kept = nothing)
     # Storing the bin *edges* as the grid in the VTK file
     # so that the data is treated as cell data (correct for histogram data)
     edges = Vector{AbstractRange{Float64}}(undef,0)
@@ -99,4 +103,6 @@ function export_vtk(filename,params::BinningParameters,data;dims_kept = nothing)
         vtk["data"] = data
         vtk["bin_center"] = centers
     end
+end
+
 end
