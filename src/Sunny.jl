@@ -131,7 +131,7 @@ export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSample
 function plot_spins end
 export plot_spins
 
-### ext/VTKExt.jl, dependent on WriteVTK
+### ext/ExportVTKExt.jl, dependent on WriteVTK
 function export_vtk end
 export export_vtk
 
