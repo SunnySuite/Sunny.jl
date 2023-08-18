@@ -623,8 +623,24 @@ function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz)
     fig
 end
 
-# Ugly hack to provide access to plotting funtions via `Sunny.Plotting`. An
-# alternative is: `Base.get_extension(Sunny, :PlottingExt)`
+# The purpose of __init__() below is to make all the internal functions of
+# PlottingExt accessible to developers of Sunny.
+#
+# The standard and recommended use of Julia package extensions is to add methods
+# to existing functions.
+# https://pkgdocs.julialang.org/v1/creating-packages/#Conditional-loading-of-code-in-packages-(Extensions).
+# For publicly exported functions, we create a "stub" in Sunny.jl using the
+# syntax `function f end`. Then the implementation is provided in this extension
+# module as `function Sunny.f() ... end`.
+#
+# For internal, exploratory plotting functions, however, it is undesirable fill
+# Sunny.jl with function stubs that are irrelevant to most users. Access to such
+# internal functions will instead be provided through the global variable
+# `Sunny.Plotting`, which is set below, where `@__MODULE__` references the
+# current extension module, i.e. `PlottingExt`.
+#
+# Without the global variable `Sunny.Plotting`, one would need to use something
+# like `Base.get_extension(Sunny, :PlottingExt)` to find the extension module.
 function __init__()
     Sunny.Plotting = @__MODULE__
 end

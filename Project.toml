@@ -32,7 +32,7 @@ WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [extensions]
 PlottingExt = "Makie"
-VTKExportExt = "WriteVTK"
+ExportVTKExt = "WriteVTK"
 
 [compat]
 Colors = "0.12.8"

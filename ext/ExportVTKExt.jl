@@ -1,4 +1,4 @@
-module VTKExportExt
+module ExportVTKExt
 
 using Sunny
 import WriteVTK 
