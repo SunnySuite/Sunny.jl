@@ -3,11 +3,10 @@ module Sunny
 using LinearAlgebra
 import LinearMaps: LinearMap, FunctionMap
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
-import Requires: @require
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
 import SpecialFunctions: erfc
 import FFTW
-import ProgressMeter: Progress, next!
+import DynamicPolynomials
 import Printf: @printf, @sprintf
 import Random: Random, randn!
 import DataStructures: SortedDict, OrderedDict
@@ -38,6 +37,7 @@ include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
 include("Operators/Stevens.jl")
 include("Operators/TensorOperators.jl")
+include("Operators/Symbolic.jl")
 export spin_matrices, rotate_operator, print_stevens_expansion
 
 include("Symmetry/LatticeUtils.jl")
@@ -127,24 +127,12 @@ include("MonteCarlo/WangLandau.jl")
 include("MonteCarlo/ParallelWangLandau.jl")
 export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
 
-function __init__()
-    # Importing Makie (e.g., WGLMakie or GLMakie) will enable plotting
-    @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
-        include("Plotting.jl")
-        export plot_spins
-    end
+### ext/PlottingExt.jl, dependent on Makie
+function plot_spins end
+export plot_spins
 
-    # Importing WriteVTK will enable saving files to view with ParaView
-    @require WriteVTK="64499a7a-5c06-52f2-abe2-ccb03c286192" begin
-        include("VTKExport.jl")
-        export export_vtk
-    end
-
-    # Importing DynamicPolynomials will enable certain symbolic analysis
-    @require DynamicPolynomials="7c1d4256-1411-5781-91ec-d7bc3513ac07" begin
-        include("Operators/Symbolic.jl")
-        export 𝒪, 𝒮, print_classical_stevens_expansion, print_classical_spin_polynomial
-    end
-end
+### ext/VTKExt.jl, dependent on WriteVTK
+function export_vtk end
+export export_vtk
 
 end

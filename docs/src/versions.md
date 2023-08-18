@@ -61,14 +61,6 @@ The constructor [`FormFactor`](@ref) no longer accepts an atom index. Instead,
 the form factors are associated with site-symmetry classes in order of
 appearance.
 
-Symbolic representations of operators are now hidden unless the external package
-`DynamicPolynomials.jl` is explicitly loaded by the user. The functionality of
-`print_anisotropy_as_stevens` has been replaced with
-[`print_classical_stevens_expansion`](@ref), while
-`print_anisotropy_as_classical_spins` has become
-[`print_classical_spin_polynomial`](@ref).
-
-
 # Version 0.4.3
 
 **Experimental** support for linear [`SpinWaveTheory`](@ref), implemented in
@@ -145,8 +137,8 @@ $3×3$ antisymmetric exchange matrix.
 
 Fully general single-ion anisotropy is now possible. The function
 [`set_onsite_coupling!`](@ref) expects the single ion anisotropy to be expressed as a
-polynomial in symbolic spin operators [`𝒮`](@ref), or as a linear combination
-of symbolic Stevens operators [`𝒪`](@ref). For example, an easy axis anisotropy
+polynomial in symbolic spin operators `𝒮`, or as a linear combination
+of symbolic Stevens operators `𝒪`. For example, an easy axis anisotropy
 in the direction `n` may be written `D*(𝒮⋅n)^2`.
 
 Stevens operators `𝒪[k,q]` admit polynomial expression in spin operators

@@ -1,4 +1,11 @@
-# Plotting functions for lattices and spins on lattices.
+module PlottingExt
+
+using Sunny
+import Sunny: Vec3, orig_crystal, natoms # Private functions
+
+using LinearAlgebra
+import Makie
+
 
 function setup_scene(; show_axis=false, orthographic=false)
     fig = Makie.Figure()
@@ -322,12 +329,9 @@ Plot the spin configuration defined by `sys`. Optional parameters include:
   - `orthographic`: Use camera with orthographic projection.
   - `ghost_radius`: Show translucent periodic images up to a radius, given as a
     multiple of the characteristic distance between sites.
-
-**Becomes available after explicitly loading Makie, e.g., `using GLMakie` or
-`using WGLMakie`.**
 """
-function plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
-                    arrowcolor=:red, show_axis=false, show_cell=true, orthographic=false, ghost_radius=0)
+function Sunny.plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
+                          arrowcolor=:red, show_axis=false, show_cell=true, orthographic=false, ghost_radius=0)
     # Infer characteristic length scale between sites
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
@@ -459,9 +463,6 @@ Produce an animation of constant-energy Landau-Lifshitz dynamics of the given
 - `nframes::Int`: The number of frames to produce in the animation.
 
 Other keyword arguments are passed to `Makie.arrows`.
-
-**Becomes available after explicitly loading Makie, e.g., `using GLMakie` or
-`using WGLMakie`.**
 """
 function anim_integration(
     sys::System, fname, steps_per_frame, Δt, nframes;
@@ -622,3 +623,10 @@ function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz)
     fig
 end
 
+# Ugly hack to provide access to plotting funtions via `Sunny.Plotting`. An
+# alternative is: `Base.get_extension(Sunny, :PlottingExt)`
+function __init__()
+    Sunny.Plotting = @__MODULE__
+end
+
+end
