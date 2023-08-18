@@ -126,11 +126,34 @@ plot_spins(sys)
 # called `forward_problem` because it's the opposite of the so-called "inverse problem" of
 # finding the unknown parameters given some data.
 
+# !!! note "Multi-sampling"
+#     
+#     Since the bins of the experiment data have a finite width, it's important to account for this
+#     fact when calculating the theoretical intensity for the bin. We will do this by taking multiple
+#     within each bin. This is specified by a "multi-sampling strategy," a list of the fractional positions
+#     of the sample points within the bin. Sampling more points is more computationally intensive, but also more accurate.
+#     Three multi-sampling strategies of varying resolution are shown in different colors below.
+
+
 ## Multi-sampling parameters
-## TODO: explanation
+lhc16 = [7 7 5; 3 2 10; 5 13 2; 10 12 13; 14 10 6; 13 11 3; 8 5 11; 1 16 1; 15 9 9; 2 6 12; 12 3 4; 4 8 8; 16 15 15; 9 14 7; 6 4 14; 11 1 16]
+msaa16 = [(lhc16[i,:] .- 0.5) ./ 16 for i = 1:16]
+
 lhc4 = [3 3 1; 4 1 2; 2 2 4; 1 4 3]
 msaa4 = [(lhc4[i,:] .- 0.5) ./ 4 for i = 1:4]
+
 msaa1 = [[0.5,0.5,0.5]]
+
+f = Figure()
+ax = Axis3(f[1,1])
+for (msaa,c) in zip([msaa1,msaa4,msaa16],[:red,:blue,:green])
+  x = [p[1] for p in msaa]
+  y = [p[2] for p in msaa]
+  z = [p[3] for p in msaa]
+  scatter!(ax,x,y,z,color = c)
+end
+
+#
 
 function forward_problem(J1,J2,A=0.05; msaa = msaa4, do_energy_msaa = true)
   ## Overwrite all bonds
@@ -262,7 +285,5 @@ heatmap!(ax,is[:,:,1,ebin])
 ax = Axis(f[2,2],title = "J1 = Experiment",aspect = true)
 heatmap!(ax,signal_nxs[:,:,1,ebin])
 f
-
-# 
 
 
