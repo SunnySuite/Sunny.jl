@@ -611,6 +611,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     #
     calc_intensity = function(swt::SpinWaveTheory, q::Vec3)
         q_reshaped = to_reshaped_rlu(swt.sys, q)
+        q_absolute = swt.sys.crystal.recipvecs * q_reshaped
 
         if sys.mode == :SUN
             swt_hamiltonian_SUN!(swt, q_reshaped, Hmat)
@@ -625,7 +626,6 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             Avec_pref[i] = sqrt_Nm_inv * phase
 
              # TODO: move form factor into `f`, then delete this rescaling
-            q_absolute = swt.sys.crystal.recipvecs * q_reshaped
             Avec_pref[i] *= compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
         end
 
@@ -664,7 +664,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             Sαβ[3,1] = conj(Sαβ[1,3])
             Sαβ[3,2] = conj(Sαβ[2,3])
 
-            intensity[band] = f(q, disp[band], Sαβ[corr_ix])
+            intensity[band] = f(q_absolute, disp[band], Sαβ[corr_ix])
         end
 
         # Return the result of the diagonalization in an appropriate
