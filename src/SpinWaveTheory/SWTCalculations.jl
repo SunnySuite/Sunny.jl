@@ -24,6 +24,19 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
     # block matrices of `Hmat`
     Hmat11 = view(Hmat,1:L,1:L)
     Hmat12 = view(Hmat,1:L,L+1:2L)
+    Hmat22 = view(Hmat,L+1:2L,L+1:2L)
+    # Hmat21 is inferred from Hmat12
+
+    # N.B.: Hmat22
+    # ============
+    # The relation between H11 and H22 is:
+    # 
+    #     H22(q) = transpose(H11(-k))
+    #
+    # so H22 can be constructed in parallel with H11 by adding
+    # the same term to each matrix, but with indices backwards on H22,
+    # and with exp(iqr) conjugated for H22:
+
 
     (; extfield, gs, units) = sys
 
@@ -34,7 +47,11 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
         for m = 2:N
             for n = 2:N
                 δmn = δ(m, n)
-                Hmat11[(matom-1)*Nf+m-1,   (matom-1)*Nf+n-1]   += 0.5 * (site_B_dot_tS[m, n] - δmn * site_B_dot_tS[1, 1])
+                ix_m = (matom-1)*Nf+m-1
+                ix_n = (matom-1)*Nf+n-1
+                c = 0.5 * (site_B_dot_tS[m, n] - δmn * site_B_dot_tS[1, 1])
+                Hmat11[ix_m, ix_n] += c
+                Hmat22[ix_n, ix_m] += c
             end
         end
     end
@@ -56,7 +73,6 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
     Si_mn = view(Ti_mn,1:3)
     Sj_mn = view(Tj_mn,1:3)
 
-    Hmat22 = view(Hmat,L+1:2L,L+1:2L)
     # pairexchange interactions
     for ints in sys.interactions_union
         for coupling in ints.pair
@@ -101,22 +117,30 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
                     Sj_n1 = view(dipole_operators, n, 1, :, bond.j)
                     Sj_1n = view(dipole_operators, 1, n, :, bond.j)
 
+                    ix_im = sub_i_M1*Nf+mM1
+                    ix_in = sub_i_M1*Nf+nM1
+                    ix_jm = sub_j_M1*Nf+mM1
+                    ix_jn = sub_j_M1*Nf+nM1
 
-                    Hmat11[sub_i_M1*Nf+mM1, sub_i_M1*Nf+nM1] += 0.5 * dot_no_conj(Si_mn, J, Sj_11)
-                    Hmat11[sub_j_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * dot_no_conj(Si_11, J, Sj_mn)
-                    
-                    Hmat22[sub_i_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * dot_no_conj(Si_mn, J, Sj_11) # Strange conjugation
-                    Hmat22[sub_j_M1*Nf+nM1, sub_j_M1*Nf+mM1] += 0.5 * dot_no_conj(Si_11, J, Sj_mn) # Strange conjugation
+                    c = 0.5 * dot_no_conj(Si_mn, J, Sj_11)
+                    Hmat11[ix_im, ix_in] += c
+                    Hmat22[ix_in, ix_im] += c
 
-                    Hmat11[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * dot_no_conj(Si_m1, J, Sj_1n) * phase
-                    Hmat11[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * dot_no_conj(Si_1m, J, Sj_n1) * conj(phase)
-                    
-                    
-                    Hmat22[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * dot_no_conj(Si_m1, J, Sj_1n) * conj(phase) # Strange conjugation
-                    Hmat22[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * dot_no_conj(Si_1m, J, Sj_n1) * phase # Strange conjugation
+                    c = 0.5 * dot_no_conj(Si_11, J, Sj_mn)
+                    Hmat11[ix_jm, ix_jn] += c
+                    Hmat22[ix_jn, ix_jm] += c
 
-                    Hmat12[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * dot_no_conj(Si_m1, J, Sj_n1) * phase
-                    Hmat12[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * dot_no_conj(Si_m1, J, Sj_n1) * conj(phase)
+                    c = 0.5 * dot_no_conj(Si_m1, J, Sj_1n)
+                    Hmat11[ix_im, ix_jn] += c * phase
+                    Hmat22[ix_jn, ix_im] += c * conj(phase)
+
+                    c = 0.5 * dot_no_conj(Si_1m, J, Sj_n1)
+                    Hmat11[ix_jn, ix_im] += c * conj(phase)
+                    Hmat22[ix_im, ix_jn] += c * phase
+					
+                    c = 0.5 * dot_no_conj(Si_m1, J, Sj_n1)
+                    Hmat12[ix_im, ix_jn] += c * phase
+                    Hmat12[ix_jn, ix_im] += c * conj(phase)
                 end
             end
 
@@ -147,30 +171,34 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
                     Tj_n1 = view(sun_basis_j, n, 1, :)
                     Tj_1n = view(sun_basis_j, 1, n, :)
                     
-                    Hmat11[sub_i_M1*Nf+mM1, sub_i_M1*Nf+nM1] += 0.5 * J * dot_no_conj(Ti_mn, biquad_metric, Tj_11)
-                    Hmat11[sub_j_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * J * dot_no_conj(Ti_11, biquad_metric, Tj_mn)
-					
-                    Hmat22[sub_i_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * J * dot_no_conj(Ti_mn, biquad_metric, Tj_11) # Strange conjugation
-                    Hmat22[sub_j_M1*Nf+nM1, sub_j_M1*Nf+mM1] += 0.5 * J * dot_no_conj(Ti_11, biquad_metric, Tj_mn) # Strange conjugation
+                    ix_im = sub_i_M1*Nf+mM1
+                    ix_in = sub_i_M1*Nf+nM1
+                    ix_jm = sub_j_M1*Nf+mM1
+                    ix_jn = sub_j_M1*Nf+nM1
 
-                    Hmat11[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * J * dot_no_conj(Ti_m1, biquad_metric, Tj_1n) * phase
-                    Hmat11[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * J * dot_no_conj(Ti_1m, biquad_metric, Tj_n1) * conj(phase)
-					
-                    Hmat22[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * J * dot_no_conj(Ti_m1, biquad_metric, Tj_1n) * conj(phase) # Strange conjugation
-                    Hmat22[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * J * dot_no_conj(Ti_1m, biquad_metric, Tj_n1) * phase # Strange conjugation
+                    c = 0.5 * J * dot_no_conj(Ti_mn, biquad_metric, Tj_11)
+                    Hmat11[ix_im, ix_in] += c
+                    Hmat22[ix_in, ix_im] += c
 
-                    Hmat12[sub_i_M1*Nf+mM1, sub_j_M1*Nf+nM1] += 0.5 * J * dot_no_conj(Ti_m1, biquad_metric, Tj_n1) * phase
-                    Hmat12[sub_j_M1*Nf+nM1, sub_i_M1*Nf+mM1] += 0.5 * J * dot_no_conj(Ti_m1, biquad_metric, Tj_n1) * conj(phase)
+                    c = 0.5 * J * dot_no_conj(Ti_11, biquad_metric, Tj_mn)
+                    Hmat11[ix_jm, ix_jn] += c
+                    Hmat22[ix_jn, ix_jm] += c
+
+                    c = 0.5 * J * dot_no_conj(Ti_m1, biquad_metric, Tj_1n)
+                    Hmat11[ix_im, ix_jn] += c * phase
+                    Hmat22[ix_jn, ix_im] += c * conj(phase)
+
+                    c = 0.5 * J * dot_no_conj(Ti_1m, biquad_metric, Tj_n1)
+                    Hmat11[ix_jn, ix_im] += c * conj(phase)
+                    Hmat22[ix_im, ix_jn] += c * phase
+					
+                    c = 0.5 * J * dot_no_conj(Ti_m1, biquad_metric, Tj_n1)
+                    Hmat12[ix_im, ix_jn] += c * phase
+                    Hmat12[ix_jn, ix_im] += c * conj(phase)
                 end
             end
         end
     end
-    
-    Hmat22 = view(Hmat,L+1:2L,L+1:2L)
-    Hmat21 = view(Hmat,L+1:2L,1:L)
-    
-    #Hmat22 .= Hmat11' # See above: strange conjugation!
-    Hmat21 .= Hmat12'
     
 
     # single-ion anisotropy
@@ -179,12 +207,18 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
         for m = 2:N
             for n = 2:N
                 δmn = δ(m, n)
-                Hmat11[(matom-1)*Nf+m-1,   (matom-1)*Nf+n-1]   += 0.5 * (site_aniso[m, n] - δmn * site_aniso[1, 1])
-                Hmat22[(matom-1)*Nf+n-1,   (matom-1)*Nf+m-1]   += 0.5 * (site_aniso[m, n] - δmn * site_aniso[1, 1]) # Strange conjugation
+                ix_m = (matom-1)*Nf+m-1
+                ix_n = (matom-1)*Nf+n-1
+                c = 0.5 * (site_aniso[m, n] - δmn * site_aniso[1, 1])
+                Hmat11[ix_m, ix_n] += c
+                Hmat22[ix_n, ix_m] += c
             end
         end
     end
 
+    # Infer Hmat21 by H=H'
+    Hmat21 = view(Hmat,L+1:2L,1:L)
+    Hmat21 .= Hmat12'
     
     # Hmat must be hermitian up to round-off errors
     if norm(Hmat-Hmat') > 1e-12
