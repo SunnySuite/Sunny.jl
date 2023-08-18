@@ -128,4 +128,35 @@ function powder_average_binned(sc::SampledCorrelations, radial_binning_parameter
     return output_intensities, output_counts
 end
 
-# SQTODO: powder_average(::SpinWaveTheory)
+function powder_average_bin_centers(swt::SpinWaveTheory, radial_binning_parameters, ω_binning_parameters, n, formula;kwargs...)
+    ωstart,ωend,ωbinwidth = ω_binning_parameters
+    nω = count_bins(ω_binning_parameters...)
+    nr = count_bins(radial_binning_parameters...)
+
+    if !isnothing(formula.kernel)
+        error("powder_average_bin_centers: Broadening is not yet implemented!")
+    end
+    return_type = typeof(formula).parameters[1].parameters[2]
+    output_is = zeros(return_type, nr, nω)
+    output_counts = zeros(Float64, nr, nω)
+
+    radii = axes_bincenters(radial_binning_parameters...)[1]
+
+    for (ir, r_bin_center) in enumerate(radii)
+        qs = reciprocal_space_shell(swt.sys.crystal, r_bin_center, n)
+        #qs = [swt.sys.crystal.recipvecs * (r_bin_center .* k for k in sphere_points(n)]
+        disp, is = intensities_bands(swt, qs; kwargs...)
+
+        for (ix,ω) in enumerate(disp)
+            # Check if the ω falls within the histogram
+            ωbin = 1 .+ floor.(Int64,(ω .- ωstart) ./ ωbinwidth)
+            if 1 <= ωbin <= nω
+                output_is[ir,ωbin] += is[ix]
+                output_counts[ir,ωbin] += 1
+            end
+        end
+    end
+
+    return output_is, output_counts
+end
+
