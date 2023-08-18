@@ -275,7 +275,7 @@ formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
 # The function [`intensities_bands`](@ref) uses linear spin wave theory to
 # calculate both the dispersion and intensity data for the provided path.
 
-disp, intensity = intensities_bands(swt, path; formula);
+disp, intensity = intensities_bands(swt, path, formula);
 
 # These can be plotted in GLMakie.
 
