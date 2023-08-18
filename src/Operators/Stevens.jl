@@ -195,9 +195,7 @@ end
     function print_stevens_expansion(op)
 
 Prints a local Hermitian operator as a linear combination of Stevens operators.
-This function works on explicit matrix representations. The analogous function
-in the large-``S`` classical limit is
-[`print_classical_stevens_expansion`](@ref).
+This function works on explicit matrix representations.
 
 # Examples
 

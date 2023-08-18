@@ -1,4 +1,11 @@
-# Plotting functions for lattices and spins on lattices.
+module PlottingExt
+
+using Sunny
+import Sunny: Vec3, orig_crystal, natoms # Private functions
+
+using LinearAlgebra
+import Makie
+
 
 function setup_scene(; show_axis=false, orthographic=false)
     fig = Makie.Figure()
@@ -322,12 +329,9 @@ Plot the spin configuration defined by `sys`. Optional parameters include:
   - `orthographic`: Use camera with orthographic projection.
   - `ghost_radius`: Show translucent periodic images up to a radius, given as a
     multiple of the characteristic distance between sites.
-
-**Becomes available after explicitly loading Makie, e.g., `using GLMakie` or
-`using WGLMakie`.**
 """
-function plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
-                    arrowcolor=:red, show_axis=false, show_cell=true, orthographic=false, ghost_radius=0)
+function Sunny.plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
+                          arrowcolor=:red, show_axis=false, show_cell=true, orthographic=false, ghost_radius=0)
     # Infer characteristic length scale between sites
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
@@ -459,9 +463,6 @@ Produce an animation of constant-energy Landau-Lifshitz dynamics of the given
 - `nframes::Int`: The number of frames to produce in the animation.
 
 Other keyword arguments are passed to `Makie.arrows`.
-
-**Becomes available after explicitly loading Makie, e.g., `using GLMakie` or
-`using WGLMakie`.**
 """
 function anim_integration(
     sys::System, fname, steps_per_frame, Δt, nframes;
@@ -622,3 +623,26 @@ function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz)
     fig
 end
 
+# The purpose of __init__() below is to make all the internal functions of
+# PlottingExt accessible to developers of Sunny.
+#
+# The standard and recommended use of Julia package extensions is to add methods
+# to existing functions.
+# https://pkgdocs.julialang.org/v1/creating-packages/#Conditional-loading-of-code-in-packages-(Extensions).
+# For public exports, we create a function stub in Sunny.jl using the syntax
+# `function f end`. Then the implementation is provided in this extension module
+# as `function Sunny.f() ... end`.
+#
+# For non-public functions, however, it is undesirable fill Sunny.jl with stubs
+# that will be irrelevant to most users. Access to such internal functions will
+# instead be provided through the global variable `Sunny.Plotting`, which is set
+# below. Note that `@__MODULE__` references the current extension module, here
+# `PlottingExt`.
+#
+# Without the global variable `Sunny.Plotting`, one would need to use something
+# like `Base.get_extension(Sunny, :PlottingExt)` to find the extension module.
+function __init__()
+    Sunny.Plotting = @__MODULE__
+end
+
+end
