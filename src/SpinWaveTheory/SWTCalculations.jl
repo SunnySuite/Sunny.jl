@@ -610,6 +610,15 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     #   Smooth kernel --> I_of_ω = Intensity as a function of ω
     #
     calc_intensity = function(swt::SpinWaveTheory, q::Vec3)
+        # This function, calc_intensity, is an internal function to be stored
+        # inside a formula. The unit system for `q` that is passed to
+        # formula.calc_intensity is an implementation detail that may vary
+        # according to the "type" of a formula. In the present context, namely
+        # LSWT formulas, `q` is given in RLU for the original crystal. This
+        # convention must be consistent with the usage in various
+        # `intensities_*` functions defined in LinearSpinWaveIntensities.jl.
+        # Separately, the functions calc_intensity for formulas associated with
+        # SampledCorrelations will receive `q_absolute` in absolute units.
         q_reshaped = to_reshaped_rlu(swt.sys, q)
         q_absolute = swt.sys.crystal.recipvecs * q_reshaped
 
