@@ -310,52 +310,86 @@ fig
 # excitations more visible.
 
 # Often it is useful to plot cuts across multiple wave vectors but at a single
-# energy. 
+# energy. We'll pick an energy,
+
 ωidx = 60
 target_ω = ωs[ωidx]
 
-## Binning
+# and take a cut in the $a^*$-$b^*$ plane. Since the reciprocal vectors that
+# define this plane are not orthogonal, we'll establish a new, orthogonal basis
+# to specify our wave vectors: $a^* - \frac{1}{2}b^*$, $b^*$ and $c^*$. Then
+# we'll sample a rectilinear grid of wave vectors in this frame. Finally, we'll
+# convert these to RLU for input into Sunny. 
+
+## New basis
+A = [1    0 0
+     -1/2 1 0
+     0    0 1] 
+
+## Define our grid of wave vectors
+npoints = 60
+as = range(-2, 2, npoints)
+bs = range(-3/√3, 3/√3, npoints)
+qs_ortho = [[a, b, 0] for a in as, b in bs]
+qs = [A * q for q in qs_ortho]  # Convert to RLU for input to Sunny
+
+## Use interpolation to get intensities
+is = intensities_interpolated(sc, qs, new_formula; interpolation=:linear)
+
+## Plot the results to a figure that we'll display later
 fig = Figure(; resolution=(1200,500))
-ax_left = Axis(fig[1,2],title="Δω=0.3 meV (Binned)", aspect=true)
+ax_left = Axis(fig[1,2];
+    title="ω≈$(round(ωs[ωidx], digits=2)) meV (Interpolated)", aspect=true,
+    xlabel = "[H, -1/2H, 0]", ylabel = "[0, K, 0]"
+)
+hm_left = heatmap!(ax_left, as, bs, is[:,:,ωidx])
+Colorbar(fig[1,1], hm_left);
+
+# We'll display these interpolated results together with results obtained by a
+# binning procedure. A set of binning parameters is initialized by calling
+# [`unit_resolution_binning_parameters`](@ref). These are then modified to use
+# our orthogonal basis.
 
 params = unit_resolution_binning_parameters(sc)
-params.covectors[1:3,1:3] .= cryst.recipvecs  # We will express bin limits in absolute units
+
+params.covectors[1:3,1:3] .= inv(A)  # Use our custom frame when specifying binning parameters 
+params.binstart[1], params.binstart[2] = -2, -3/√3
+params.binend[1], params.binend[2] = 2, 3/√3
+
 omega_width = 0.3
 params.binstart[4] = target_ω
 params.binend[4] = target_ω + (sc.Δω/2)
 params.binwidth[4] = omega_width
-params.binwidth[1:2] .*= 1.78  # Increase bin size to avoid empty bins
-
-params.binstart[1], params.binstart[2] = -3, -3
-params.binend[1], params.binend[2] = 3, 3
 
 integrate_axes!(params, axes = [3,4])
 
-integrate_axes!(params,axes = [3,4])
+## Perform the binning 
 is, counts = intensities_binned(sc,params,new_formula)
+
+## Plot results
+ax_right = Axis(fig[1,3];
+    title="Δω=0.3 meV (Binned)", aspect=true,
+    xlabel = "[H, -1/2H, 0]"
+)
 bcs = axes_bincenters(params)
-hm_left = heatmap!(ax_left,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])
-Colorbar(fig[1,1], hm_left);
-
-## Interpolating
-ax_right = Axis(fig[1,3],title="ω≈$(round(ωs[ωidx], digits=2)) meV (Interpolated)", aspect=true)
-npoints = 60
-qvals = range(-3, 3, length=npoints)
-qs_absolute = [[a, b, 0] for a in qvals, b in qvals]
-qs = [cryst.recipvecs \ q for q in qs_absolute]
-
-is = intensities_interpolated(sc, qs, new_formula; interpolation=:linear)
-
-hm_right = heatmap!(ax_right,qvals,qvals,is[:,:,ωidx])
-Colorbar(fig[1,4], hm_right)
+hm_right = heatmap!(ax_right,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])
+Colorbar(fig[1,4], hm_right);
 fig
 
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
-# obtained from a dynamic structure factor with [`instant_intensities_interpolated`](@ref).
+# obtained from a dynamic structure factor with
+# [`instant_intensities_interpolated`](@ref). Here we'll reuse the grid of wave
+# vectors we generated above.
 
 is_static = instant_intensities_interpolated(sc, qs, new_formula; interpolation = :linear)
 
-hm = heatmap(is_static; axis=(title="Instantaneous Structure Factor", aspect=true))
+hm = heatmap(as, bs, is_static; 
+    axis=(
+        title="Instantaneous Structure Factor", 
+        xlabel = "[H, -1/2H, 0]",
+        ylabel = "[0, K, 0]",
+        aspect=true
+    )
+)
 Colorbar(hm.figure[1,2], hm.plot)
-hidedecorations!(hm.axis); hidespines!(hm.axis)
 hm
