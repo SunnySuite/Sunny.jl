@@ -1,4 +1,4 @@
-# # LaSrCrO4
+# # Fitting a Model to Experiment Data in LaSrCrO4
 
 using Sunny, GLMakie
 
@@ -19,6 +19,10 @@ using Sunny, GLMakie
 fn = "60meV"
 params_nxs, signal_nxs = load_nxs("../../normData_LaSrCrO4_$(fn)_5K_2D_lowres.nxs")
 params_norm_nxs, normalization_nxs = load_nxs("../../normOnly_LaSrCrO4_$(fn)_5K_2D_lowres.nxs")
+nothing#hide
+
+# The warnings here have to do with the availability (or lack thereof) of certain fields in the `.nxs` data files.
+# In this case, Sunny has defaulted to parsing the axis labels, e.g. `"[H,0,0]"` in the file becomes the Qx-axis in the histogram.
 
 # The first file contains the experimentally measured probability `signal_nxs` of a neutron scattering according to each bin
 # of the histogram described by `params_nxs`:
@@ -144,18 +148,22 @@ msaa4 = [(lhc4[i,:] .- 0.5) ./ 4 for i = 1:4]
 
 msaa1 = [[0.5,0.5,0.5]]
 
-f = Figure()
-ax = Axis3(f[1,1])
+f = Figure()#hide
+ax = Axis3(f[1,1])#hide
 for (msaa,c) in zip([msaa1,msaa4,msaa16],[:red,:blue,:green])
   x = [p[1] for p in msaa]
   y = [p[2] for p in msaa]
   z = [p[3] for p in msaa]
   scatter!(ax,x,y,z,color = c)
 end
+f#hide
 
 #
 
-function forward_problem(J1,J2,A=0.05; msaa = msaa4, do_energy_msaa = true)
+function forward_problem(J1,J2 = 0.16,A=0.05;
+    msaa = msaa4, do_energy_msaa = true, # Use 4x multisample by default
+    histogram_parameters = params_nxs # Use histogram parameters from `.nxs` file by default
+  )
   ## Overwrite all bonds
   set_exchange!(sys,J1,Bond(1,1,[1,0,0])) # Nearest neighbor
   set_exchange!(sys,J2,Bond(1,1,[1,1,0])) # Next-nearest neighbor
@@ -179,8 +187,6 @@ function forward_problem(J1,J2,A=0.05; msaa = msaa4, do_energy_msaa = true)
                               ,formfactors = [FormFactor("Cr3")]
                              )
 
-  ## Use histogram parameters from `.nxs` file
-  histogram_parameters = params_nxs
   energy_msaa = [0,1/5,2/5,3/5,4/5]
 
   intensity, counts = Sunny.intensities_bin_multisample(swt,histogram_parameters,msaa,do_energy_msaa ? energy_msaa : [0.5],formula)
@@ -239,51 +245,86 @@ end
 # With this loss function in place, we can sweep `J1` over a range of values, and see that
 # the loss function is (hopefully) minimized at the true value:
 
-J1s = range(7,15,length = 10)
+J1s = range(9,12,length = 10)
 landscape = zeros(Float64,length(J1s))
 is_landscape = Vector{Array{Float64,4}}(undef,length(J1s))
 for (i1,J1) in enumerate(J1s)
-  @time is_landscape[i1] = forward_problem(J1,0.16)
+  @time is_landscape[i1] = forward_problem(J1)
   landscape[i1] = loss_function(normalization_nxs,signal_nxs,is_landscape[i1])
 end
-plot(landscape)
+plot(J1s,landscape)
+
+# At the time of this writing, each data point on the graph costs about 4 seconds to compute.
 
 # To understand how this is working, observe that changing `J1` changes the size of the circles
-# in each constant energy slice:
+# in any given constant energy slice:
 
-ebin = 20
-f = Figure()
-ix = 1
-ax = Axis(f[1,1],title = "J1 = $(J1s[ix])",aspect = true)
-heatmap!(ax,is_landscape[ix][:,:,1,ebin])
-ix = 4
-ax = Axis(f[1,2],title = "J1 = $(J1s[ix])",aspect = true)
-heatmap!(ax,is_landscape[ix][:,:,1,ebin])
-ix = 10
-ax = Axis(f[1,3],title = "J1 = $(J1s[ix])",aspect = true)
-heatmap!(ax,is_landscape[ix][:,:,1,ebin])
-ax = Axis(f[2,2],title = "J1 = Experiment",aspect = true)
-heatmap!(ax,signal_nxs[:,:,1,ebin])
-f
+energy_bin = 20 # Fix a particular constant-energy slice
+f = Figure()#hide
+ix = 1#hide
+ax = Axis(f[1,1],title = "J1 = $(J1s[ix])",aspect = true)#hide
+heatmap!(ax,bin_centers[1],bin_centers[2],is_landscape[ix][:,:,1,energy_bin])#hide
+ix = 4#hide
+ax = Axis(f[1,2],title = "J1 = $(J1s[ix])",aspect = true)#hide
+heatmap!(ax,bin_centers[1],bin_centers[2],is_landscape[ix][:,:,1,energy_bin])#hide
+ix = 10#hide
+ax = Axis(f[1,3],title = "J1 = $(J1s[ix])",aspect = true)#hide
+heatmap!(ax,bin_centers[1],bin_centers[2],is_landscape[ix][:,:,1,energy_bin])#hide
+ax = Axis(f[2,2],title = "J1 = Experiment",aspect = true)#hide
+heatmap!(ax,bin_centers[1],bin_centers[2],signal_nxs[:,:,1,energy_bin])#hide
+f#hide
 
-# Further, the "binning effect" is important to account for, and here we do it by multi-sampling.
-# If we don't multisample, the circles are much less circular, and the fit is likely to be incorrect:
+# Thus, the fit is expressing that the circles for the correct `J1` should match the size seen in the experiment.
 
-f = Figure()
-ix = 1
-is = forward_problem(J1s[ix],0.16;msaa=msaa1,do_energy_msaa = false)
-ax = Axis(f[1,1],title = "J1 = $(J1s[ix])",aspect = true)
-heatmap!(ax,is[:,:,1,ebin])
-ix = 4
-is = forward_problem(J1s[ix],0.16;msaa=msaa1,do_energy_msaa = false)
-ax = Axis(f[1,2],title = "J1 = $(J1s[ix])",aspect = true)
-heatmap!(ax,is[:,:,1,ebin])
-ix = 10
-is = forward_problem(J1s[ix],0.16;msaa=msaa1,do_energy_msaa = false)
-ax = Axis(f[1,3],title = "J1 = $(J1s[ix])",aspect = true)
-heatmap!(ax,is[:,:,1,ebin])
-ax = Axis(f[2,2],title = "J1 = Experiment",aspect = true)
-heatmap!(ax,signal_nxs[:,:,1,ebin])
-f
+# ## Binning Effects
+
+# It's very important to choose a multi-sampling strategy which is appropriate for the size and level of
+# detail of the bins in a histogram.
+# For example, if we didn't multisample, the circles are much less circular, and the fit is likely to be incorrect:
+
+f = Figure()#hide
+ix = 1#hide
+## Re-compute with 1x msaa and no multi-sampling in energy...
+is = forward_problem(J1s[ix];msaa=msaa1,do_energy_msaa = false)#hide
+ax = Axis(f[1,1],title = "J1 = $(J1s[ix])",aspect = true)#hide
+heatmap!(ax,bin_centers[1],bin_centers[2],is[:,:,1,energy_bin])#hide
+ix = 4#hide
+is = forward_problem(J1s[ix];msaa=msaa1,do_energy_msaa = false)#hide
+ax = Axis(f[1,2],title = "J1 = $(J1s[ix])",aspect = true)#hide
+heatmap!(ax,bin_centers[1],bin_centers[2],is[:,:,1,energy_bin])#hide
+ix = 10#hide
+is = forward_problem(J1s[ix];msaa=msaa1,do_energy_msaa = false)#hide
+ax = Axis(f[1,3],title = "J1 = $(J1s[ix])",aspect = true)#hide
+heatmap!(ax,bin_centers[1],bin_centers[2],is[:,:,1,energy_bin])#hide
+ax = Axis(f[2,2],title = "J1 = Experiment",aspect = true)#hide
+heatmap!(ax,bin_centers[1],bin_centers[2],signal_nxs[:,:,1,energy_bin])#hide
+lines!(ax,[Point2f([0.75,h]) for h in [0,1]],linestyle=:dash,color = :red)#hide
+f#hide
+
+
+# In other cases, the choice of bin width can impact the qualitative interpretation of the data.
+# For example, consider a 2D QE slice `[0.75,H,0]` parameterized by H (red dashed line above).
+# This slice passes nearby, but not through, the ordering wavevector `[0.5,0.5,0]`.
+# As a result, the bands are highly dispersive (meaning ``\frac{\partial\omega}{\partial Q_x}`` is large) near ``H = 0.5``.
+# For small tranverse bins ``\Delta Q_x``, there is a binning effect "broadening" of the bands on the order of ``\frac{\partial\omega}{\partial Q_x} \Delta Q_x``, as seen below:
+
+ff = Figure()#hide
+energies = axes_bincenters(params_nxs)[4]
+for (i,width) in enumerate(10 .^ range(-2,0,length = 6))
+  params = slice_2D_binning_parameters(energies,[0.75,0,0],[0.75,1,0],50,width;cut_height = 10.)
+  msaa = [[0,dy,0] for dy in range(0,1,length = 32)] # 32x msaa in the transverse direction
+  is = forward_problem(10.6; msaa, histogram_parameters = params) # True value of J1
+  bcs = axes_bincenters(params)
+  ax = if mod(i-1,3) == 0#hide
+    Axis(ff[(i-1)÷3 + 1,1],xlabel = "[0.75,H,0]", title = "ΔQx ≈ $(round(width,sigdigits=3))", ylabel = "Energy [meV]", aspect = true)#hide
+  else#hide
+    Axis(ff[(i-1) ÷ 3 + 1, mod(i - 1,3) + 1],xlabel = "[0.75,H,0]", title = "ΔQx ≈ $(round(width,sigdigits=3))", yticklabelsvisible = false, aspect = true)#hide
+  end#hide
+  heatmap!(ax,bcs[1],bcs[4],is[:,1,1,:])
+end
+ff#hide
+
+# The ``\Delta Q_x \approx 0.158`` panel in particular looks like it could be exotic fractional spin excitations,
+# with a continuous range of energies possible for each ``Q``, but in fact the broadening is simply due to the binning effect.
 
 
