@@ -28,7 +28,6 @@ Documenter.makedocs(;
     sitename = "Sunny documentation",
     pages = [
         "Overview" => "index.md",
-        "Quick Start" => "quick-start.md",
         "Examples" => example_doc_paths,
         "Library API" => "library.md",
         "Structure Factor Calculations" => "structure-factor.md",
