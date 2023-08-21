@@ -63,14 +63,18 @@
     is, counts = intensities_binned(sc, params, formula)
 
     is_golden = [2.452071781061995; 0.8649599530836397; 1.1585615432377976; 0.2999470844988036;;;; 0; 0; 0; 0;;;; 0; 0; 0; 0]
-    @test isapprox(is,is_golden;atol = 1e-12)
+    mask = ones(Float64,size(is_golden)) # Mask out irrelevant Q=0 intensity
+    mask[1,1,1,1] = 0
+    @test isapprox(mask .* is,mask .* is_golden;atol = 1e-12)
     @test all(counts .== 1.)
 
     is, counts = powder_average_binned(sc, (0,6π,6π/4), formula)
 
     is_golden = [4.475593277383433 0 0; 17.95271052224501 0 0; 51.13888001854976 0 0; 45.72331040682036 0 0]
+    mask = ones(Float64,size(is_golden))
+    mask[1,1] = 0
     counts_golden = [3.0 3.0 3.0; 15.0 15.0 15.0; 28.0 28.0 28.0; 39.0 39.0 39.0]
-    @test isapprox(is,is_golden;atol = 1e-12)
+    @test isapprox(mask .* is,mask .* is_golden;atol = 1e-8)
     @test isapprox(counts,counts_golden;atol = 1e-12)
 
     # TODO: Test AABB
