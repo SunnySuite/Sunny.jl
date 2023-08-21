@@ -5,49 +5,44 @@
 </div>
 <p>
 
-<!-- [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://sunnysuite.github.io/Sunny.jl/stable) -->
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://docs.juliahub.com/Sunny/atBCQ/)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
 [![Build Status](https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
-A package for simulating classical spin systems, including the Landau-Lifshitz dynamics of spin dipoles and its generalization to multipolar spin components. In the latter case, Sunny resolves the local quantum structure of individual spins, making it particularly suited for modeling magnetic compounds with strong single-ion anisotropy, e.g., due to crystal field splitting.
+## Overview
 
-Sunny additionally provides Monte Carlo algorithms for sampling from thermal equilibrium, as well as tools for measuring dynamical structure factors that can be compared with experimental neutron scattering data. Symmetry analyses are available to facilitate the design and specification of model Hamiltonians. Some interactive 3D visualization tools are available, with more planned.
+Sunny is a Julia package for modeling atomic-scale magnetism using semi-classical spin dynamics. This formalism can be used to estimate dynamical structure factor intensities, $\mathcal{S}(𝐪,ω)$, enabling quantitative comparison with experimental scattering data, e.g., neutrons or x-rays.
 
-Sunny is currently under heavy development with many **breaking changes**. See the [version history](https://sunnysuite.github.io/Sunny.jl/dev/versions/) for details.
+A unique feature of Sunny is its treatment of spins as [SU(_N_) coherent states](https://doi.org/10.48550/arXiv.2106.14125). Intuitively: A quantum spin-_S_ state can be described as a superposition of $N=2S+1$ levels, which evolve under unitary, SU(_N_) transformations. Within this formalism, the Landau-Lifshitz dynamics of spin dipoles generalizes to a dynamics of spin multipoles. This theory becomes especially useful for [modeling materials like FeI₂](https://doi.org/10.48550/arXiv.2004.05623) that have strong single-ion anisotropy effects. In the future, the theory could also be used to model explicit spin-orbit coupling, or 'units' of locally entangled spins.
 
-## Examples
+At low-temperatures, Sunny supports the usual linear spin wave theory (LSWT) for spin dipoles, and its ['multi-boson' generalization](https://doi.org/10.48550/arXiv.1307.7731). At finite temperatures, simulations using the full semi-classical spin dynamics may be preferred to capture thermal fluctuations and associated anharmonic effects. Sunny also allows for [coupling to a thermal bath](https://doi.org/10.48550/arXiv.2209.01265), which makes possible the study of various non-equilibrium dynamics, e.g., thermal transport, pump-probe experiments, and spin-glass relaxation.
 
-To see Sunny in action, we recommend browsing the [FeI2 case study](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/). This example uses SU(3) spin dynamics to measure the dynamical structure factor. The SU(3) formalism is essential to model the single-ion bound-state, which has been [observed experimentally](https://doi.org/10.1038/s41567-020-01110-1).
+Sunny provides a number of tools to facilitate the specification and solution of spin Hamiltonians. This includes spacegroup symmetry analysis, powerful Monte Carlo sampling algorithms, and interactive 3D visualization. Efficient simulation is made possible by [several algorithmic developments](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
-In addition to the examples in the official [documentation](https://sunnysuite.github.io/Sunny.jl/dev/), a number of tutorials are available as Jupyter notebooks at the [SunnyTutorials](https://github.com/SunnySuite/SunnyTutorials/tree/main/Tutorials) repo. 
 
-## Technical description of SU(_N_) spin dynamics.
+## Try it out!
 
-A quantum spin of magnitude _S_ has _N_ = 2 _S_ + 1 distinct angular momentum eigenstates. The traditional classical approximation effectively replaces each spin operator with a dipole expectation value, producing the Landau-Lifshitz spin-dipole dynamics. Alternatively, one can derive a dynamics that retains all multipolar expectation values (dipoles, quadrupoles, etc.) [[Zhang and Batista, Phys. Rev. B **104**, 104409 (2021)](https://arxiv.org/abs/2106.14125)]. This formalism can be understood as a dynamics of SU(_N_) coherent states, and coincides with the usual Laudau-Lifshitz dynamics when _N_=2.
+To see Sunny in action, a good starting point is our **[FeI₂ case study](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/)**. This compound includes  effective spin-1 moments with strong easy-axis anisotropy. The coupled dipole-quadrupole dynamics is efficiently described within the formalism of SU(3) coherent states, and is [crucial to explain neutron scattering data](https://doi.org/10.1038/s41567-020-01110-1).
+<!-- 
+In addition to the examples in the official [documentation](https://sunnysuite.github.io/Sunny.jl/dev/), a number of tutorials are available as Jupyter notebooks at the [SunnyTutorials](https://github.com/SunnySuite/SunnyTutorials/tree/main/Tutorials) repo.  -->
 
-Sunny uses recently developed algorithms to simulate this SU(_N_) spin dynamics in a highly efficient way:
-* D. Dahlbom et al., _Geometric integration of classical spin dynamics via a mean-field Schrödinger equation_, Phys. Rev. B **106**, 054423 (2022) [[arXiv:2204.07563](https://arxiv.org/abs/2204.07563)].
-* D. Dahlbom et al., _Langevin dynamics of generalized spins as SU(N) coherent states_, Phys. Rev. B **106**, 235154 (2022) [[arXiv:2209.01265](https://arxiv.org/abs/2209.01265)].
+Try it yourself by downloading Sunny using Julia's built-in package manager. Full instructions for new Julia users are provided in our **[Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)** guide. With Sunny loaded, you should be able to enter to run the documentation examples from a Julia terminal.
 
-## Comparison with other tools
+Sunny is evolving rapidly. See [Version History](https://sunnysuite.github.io/Sunny.jl/dev/versions/) for new features and breaking changes. To install a specific version of Sunny, say `v0.x`, use the command `add Sunny@0.x`.
 
-In addition to the generalized SU(_N_) spin dynamics, Sunny can also simulate spins in the dipole-only approximation. When running in this mode, the capabilities of Sunny are similar to [SpinW](https://spinw.org/), which was an inspiration for this project. Sunny supports general single-ion anisotropies, and currently has a focus on classical spin dynamics. The classical spin dynamics allows for simulations at finite temperatures, and (soon) the application of chemical inhomogeneities. Support for the SU(_N_) version of linear spin wave theory is coming soon; this approach will be faster, and enables arbitrary _k_-space resolution.
+## Related projects
 
-## Installation
+Sunny is heavily inspired by the [SpinW](https://spinw.org/) code. In particular, Sunny's symmetry analysis, model specification, and LSWT features will be familiar to users of SpinW. Sunny differs from SpinW in its support for semi-classical spin dynamics. Such dynamics can be useful, e.g., to study thermal fluctuations, non-equilibrium dynamics, or disorder in systems with large magnetic supercells.
 
-Sunny is implemented in the [Julia programming language](https://julialang.org/). New Julia users may wish to read our [Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia-and-Sunny) wiki page.
+Another LSWT code is [SpinWaveGenie](https://github.com/SpinWaveGenie/SpinWaveGenie) which is written in C++ and very fast. With future optimizations, Sunny aspires to comparable performance.
 
-From the Julia prompt, one can install the latest Sunny using the built-in package manager:
-```
-julia> ]
-pkg> add Sunny
-```
+Conversely, there exist many powerful codes for studying classical spin dynamics, including [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https://vampire.york.ac.uk/). Compared to these codes, Sunny puts more emphasis on capturing quantum effects of magnetic compounds.
 
-New point-releases will include **breaking changes**. To install a specific version of Sunny, say `v0.x`, use the command `add Sunny@0.x`.
+A distinguishing feature of Sunny compared is its support for simulating generalized spins via the theory of SU(_N_) coherent states.
 
-## Contact us
+## Join our community
 
-If you're using Sunny, we'd like to interact with you. Please join our [Slack User Community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA) and say hello! If you find an unexpected behavior in Sunny, you can also [start a Github discussion](https://github.com/SunnySuite/Sunny.jl/discussions) or [file an issue](https://github.com/SunnySuite/Sunny.jl/issues). If you write a paper using Sunny, please add it to [our Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+If you're using Sunny, we'd like to interact with you. Please join our **[Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA)** and say hello. If you find an unexpected behavior in Sunny, you can also  [file an issue](https://github.com/SunnySuite/Sunny.jl/issues). If you write a paper using Sunny, please add it to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
 <div>
     <a href="https://www.lanl.gov">
