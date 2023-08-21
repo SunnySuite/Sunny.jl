@@ -38,9 +38,8 @@ using Sunny, GLMakie
 #nb Sunny.offline_viewers()  # Inject Javascript code for additional plotting capabilities 
 
 # If these packages are not yet installed, Julia should offer to install them
-# for you using its built-in package management system. If old versions are
-# installed, you may want to update them from the built-in Julia package manager
-# using `] update`.
+# using its built-in package management system. If old versions are installed,
+# you may need to update them to run this tutorial.
 
 # ## Crystals
 #
