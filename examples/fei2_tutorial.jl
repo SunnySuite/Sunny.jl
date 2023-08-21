@@ -22,16 +22,28 @@
 # 
 # We will formulate this Hamiltonian in Sunny and then calculate its dynamic
 # structure factor.
+
+# ## Get Julia and Sunny
+# 
+# Sunny is implemented in Julia. This is a relatively new programming language
+# that allows for interactive development (like Python or Matlab) while also
+# providing high numerical efficiency (like C++ or Fortran). New Julia users may
+# wish to take a look at our [Getting Started with
+# Julia](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)
+# guide. Sunny requires Julia 1.9 or later.
 #
-# Begin by importing `Sunny` and `GLMakie`, a plotting package.
+# From the Julia prompt, load `Sunny` and `GLMakie`, a plotting package.
 
 using Sunny, GLMakie
 #nb Sunny.offline_viewers()  # Inject Javascript code for additional plotting capabilities 
 
-# If you see an error `Package <X> not found in current path`, add the package
-# by typing `] add <X>` at the Julia prompt.
+# If these packages are not yet installed, Julia should offer to install them
+# for you using its built-in package management system. If old versions are
+# installed, you may want to update them from the built-in Julia package manager
+# using `] update`.
 
-# ## Crystals and symmetry analysis
+# ## Crystals
+#
 # A [`Crystal`](@ref) describes the crystallographic unit cell and will usually
 # be loaded from a `.cif` file. Here, we instead build a crystal by listing all
 # atoms and their types.
@@ -61,24 +73,10 @@ cryst = subcrystal(FeI2, "Fe")
 # crystal. This information will be used, for example, to propagate exchange
 # interactions between symmetry-equivalent bonds.
 
-# ## Spin systems
-# To simulate a system of many spins, construct a [`System`](@ref).
-
-sys = System(cryst, (4,4,4), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
-
-# The system includes $4×4×4$ unit cells, i.e. 64 Fe atoms, each with spin $S=1$
-# and a $g$-factor of 2. Quantum mechanically, spin $S=1$ involves a
-# superposition of $2S+1=3$ distinct angular momentum states. In `:SUN` mode,
-# this superposition will be modeled explicitly using the formalism of SU(3)
-# coherent states, which captures both dipolar and quadrupolar fluctuations. For
-# the more traditional dipole dynamics, use `:dipole` mode instead.
-
-# ## Interactions and anisotropies
-
-# ### Symmetry analysis
-# The next step is to add interactions to the system. The command
-# [`print_symmetry_table`](@ref) shows all symmetry-allowed interactions up to a
-# cutoff distance.
+# ## Symmetry analysis
+#
+# The command [`print_symmetry_table`](@ref) provides a list of all the
+# symmetry-allowed interactions up to a cutoff distance.
 
 print_symmetry_table(cryst, 8.0)
 
@@ -99,11 +97,24 @@ print_symmetry_table(cryst, 8.0)
 # Fe-Fe bonds on a triangular lattice layer, and `Bond(1, 1, [0,0,1])` is an
 # Fe-Fe bond between layers. 
 
-# ### Assigning interactions and anisotropies
+# ## Building a spin System
 
-# The function [`set_exchange!`](@ref) assigns an exchange interaction to a
-# bond, and will propagate the interaction to all symmetry-equivalent bonds in
-# the unit cell. The FeI$_2$ interactions below follow [Bai et al](https://doi.org/10.1038/s41567-020-01110-1).
+# In constructing a spin [`System`](@ref), we must provide several additional
+# details about the spins.
+
+sys = System(cryst, (4,4,4), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
+
+# This system includes $4×4×4$ unit cells, i.e. 64 Fe atoms, each with spin $S=1$
+# and a $g$-factor of 2. Quantum mechanically, spin $S=1$ involves a
+# superposition of $2S+1=3$ distinct angular momentum states. In `:SUN` mode,
+# this superposition will be modeled explicitly using the formalism of SU(3)
+# coherent states, which captures both dipolar and quadrupolar fluctuations. For
+# the more traditional dipole dynamics, use `:dipole` mode instead.
+
+# Next we will use [`set_exchange!`](@ref) to assign interaction to bonds. Sunny
+# will automatically propagate each interaction to all symmetry-equivalent bonds
+# in the unit cell. The FeI$_2$ interactions below follow [Bai et
+# al](https://doi.org/10.1038/s41567-020-01110-1).
 
 J1pm   = -0.236 
 J1pmpm = -0.161
