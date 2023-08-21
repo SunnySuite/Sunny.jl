@@ -257,7 +257,7 @@ This function can be used without reference to a [`SampledCorrelations`](@ref) u
 
 where `ω_bincenters` specifies the energy axis, and both `cut_from` and `cut_to` are arbitrary covectors, in any units.
 """
-function slice_2D_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q,cut_bins::Int64,cut_width;plane_normal = [0,0,1],cut_height = cut_width)
+function slice_2D_binning_parameters(ωvals::AbstractVector{Float64},cut_from_q,cut_to_q,cut_bins::Int64,cut_width;plane_normal = [0,0,1],cut_height = cut_width)
     # This covector should measure progress along the cut in r.l.u.
     cut_covector = normalize(cut_to_q - cut_from_q)
     # These two covectors should be perpendicular to the cut, and to each other
