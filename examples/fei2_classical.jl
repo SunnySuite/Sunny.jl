@@ -1,6 +1,6 @@
 # # Structure Factors with Classical Dynamics 
 
-using Sunny, GLMakie#hide
+using Sunny, GLMakie, LinearAlgebra#hide
 
 # In our previous [Case Study: FeI$_{2}$](@ref), we used linear spin wave theory
 # (LSWT) to calculate the dynamical structure factor. Here, we perform a similar
@@ -309,19 +309,139 @@ fig
 # Note that we have clipped the colors in order to make the higher-energy
 # excitations more visible.
 
+# # Unconventional R.L.U. Systems and Constant Energy Cuts
+
 # Often it is useful to plot cuts across multiple wave vectors but at a single
 # energy. We'll pick an energy,
 
 ωidx = 60
 target_ω = ωs[ωidx]
+println("target_ω = $(target_ω)")#hide
 
-# and take a cut in the $a^*$-$b^*$ plane. Since the reciprocal vectors that
-# define this plane are not orthogonal, we'll establish a new, orthogonal basis
-# to specify our wave vectors: $a^* - \frac{1}{2}b^*$, $b^*$ and $c^*$. Then
-# we'll sample a rectilinear grid of wave vectors in this frame. Finally, we'll
-# convert these to RLU for input into Sunny. 
+# and take a constant-energy cut at that energy.
+# The most straightforward way is to make a plot whose axes are aligned with
+# the conventional reciprocal lattice of the crystal.
+# This is accomplished using [`unit_resolution_binning_parameters`](@ref):
 
-## New basis
+params = unit_resolution_binning_parameters(sc)
+params.binstart[1:2] .= -1 # Expand plot range slightly
+
+## Set energy integration range
+omega_width = 0.3
+params.binstart[4] = target_ω - (omega_width/2)
+params.binend[4] = target_ω # `binend` should be inside (e.g. at the center) of the range
+params.binwidth[4] = omega_width
+
+integrate_axes!(params, axes = 3) # Integrate out z direction entirely
+params#hide
+
+# In each of the following plots, black dashed lines represent (direct) lattice vectors.
+# Since these plots are in reciprocal space, direct lattice vectors are represented
+# as covectors (i.e. coordinate grids) instead of as arrows.
+
+is, counts = intensities_binned(sc,params,new_formula)
+
+fig = Figure()
+ax = Axis(fig[1,1];
+    title="Δω=0.3 meV (Binned)", aspect=true,
+    xlabel = "[H, 0, 0]",
+    ylabel = "[0, K, 0]"
+)
+bcs = axes_bincenters(params)
+hm = heatmap!(ax,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])
+function add_lines!(ax,params)#hide
+  bes = Sunny.axes_binedges(params)#hide
+  hrange = range(-2,2,length=17)#hide
+  linesegments!(ax,[(Point2f(params.covectors[1,1:3] ⋅ [h,-10,0],params.covectors[2,1:3] ⋅ [h,-10,0]),Point2f(params.covectors[1,1:3] ⋅ [h,10,0],params.covectors[2,1:3] ⋅ [h,10,0])) for h = hrange],linestyle=:dash,color=:black)#hide
+  krange = range(-2,2,length=17)#hide
+  linesegments!(ax,[(Point2f(params.covectors[1,1:3] ⋅ [-10,k,0],params.covectors[2,1:3] ⋅ [-10,k,0]),Point2f(params.covectors[1,1:3] ⋅ [10,k,0],params.covectors[2,1:3] ⋅ [10,k,0])) for k = krange],linestyle=:dash,color=:black)#hide
+  xlims!(ax,bes[1][1],bes[1][end])#hide
+  ylims!(ax,bes[2][1],bes[2][end])#hide
+end#hide
+add_lines!(ax,params)
+Colorbar(fig[1,2], hm);
+fig
+
+# In the above plot, the dashed-line (direct) lattice vectors are clearly orthogonal.
+# However, we know that in real space, the lattice vectors $a$ and $b$ are *not* orthogonal, but rather
+# point along the edges of a hexagon (see lower left corner):
+# 
+# ```@raw html
+# <br><img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_crystal.jpg" width="400"><br>
+# ```
+#
+# Thus, plotting the direct lattice vectors as orthogonal (even in reciprocal space) is somewhat misleading.
+# Worse yet, the `[H,0,0]` by `[0,K,0]` plot apparently loses the 6-fold symmetry of the crystal!
+# Lastly, if one works out the components of the real-space metric with respect to the axes of the plot,
+# one finds that there are non-zero off-diagonal entries,
+
+latvecs = sys.crystal.latvecs
+metric = latvecs' * I(3) * latvecs
+
+# so real-space rotations and angles map into reciprocal space rotations angles in a complicated way.
+#
+# To resolve these important issues, we want to use axes which are orthogonal (i.e. they diagonalize
+# the metric and solve all of the problems just mentioned). The canonical choice is to use
+# the combination ``\frac{1}{2}a + b`` of lattice vectors (equiv. ``a^* - \frac{1}{2}b^*``), which is orthogonal to ``a``:
+
+(latvecs * [1/2,1,0]) ⋅ (latvecs * [1,0,0]) == 0
+
+# This new vector ``\frac{1}{2}a+b`` is visibly orthogonal to ``a`` in real space:
+
+f = Figure()#hide
+ax = Axis(f[1,1])#hide
+arrows!(ax,[Point2f(0,0),Point2f(latvecs[1:2,1] ./ 2)],[Vec2f(latvecs[1:2,1] ./ 2), Vec2f(latvecs[1:2,2])],arrowcolor = :blue,arrowsize = 30.,linewidth = 5.,linecolor = :blue)#hide
+arrows!(ax,[Point2f(0,0)],[Vec2f(latvecs[1:2,:] * [1/2,1,0])],arrowcolor = :red,arrowsize = 30.,linewidth = 5.,linecolor = :red, linestyle = :dash)#hide
+scatter!(ax,[Point2f(latvecs[1:2,:] * [a,b,0]) for a in -1:1, b in -1:1][:],color = :black)#hide
+annotations!(ax,["0","0+b","0+a", "a/2", "b"],[Point2f(0,-0.3),Point2f(latvecs[1:2,2]) .- Vec2f(0,0.3),Point2f(latvecs[1:2,1]) .- Vec2f(0,0.3),Point2f(latvecs[1:2,1] ./ 4) .- Vec2f(0,0.3),Point2f(latvecs[1:2,1] ./ 2) .+ Vec2f(latvecs[1:2,2] ./ 2) .+ Vec2f(0.3,0.3)],color=[:black,:black,:black,:blue,:blue])#hide
+f#hide
+
+# To use "projection onto the new vector" as a histogram axis, only a single change is needed to the binning parameters.
+# The second covector (previously ``b``) must be swapped out for ``\frac{1}{2}a + b`` (recall that reciprocal space covectors, such
+# as those used in [`BinningParameters`](@ref) correspond to direct space vectors).
+
+params.covectors[2,1:3] = [1/2,1,0] # [1/2,1,0] times [a;b;c] is (a/2 + b)
+params#hide
+
+# The second axis of the histogram now agrees with what is conventionally labelled as `[H,-H/2,0]`.
+
+# !!! warning "Length of the new vector"
+#     
+#     Note that, although ``\frac{1}{2}a+b`` is orthogonal to ``a``, it is not the same length as ``a``.
+#     Instead, it is `sqrt(3/4)` times as long. Note the unsymmetrical axes labels in the plots that
+#     follow as a direct result of this!
+
+## Zoom out horizontal axis
+params.binstart[1], params.binend[1] = -2, 2
+
+## Adjust vertical axis bounds to account for
+## length of a/2 + b
+params.binstart[2], params.binend[2] = -2 * sqrt(3/4), 2 * sqrt(3/4)
+
+## Re-compute in the new coordinate system
+is, counts = intensities_binned(sc,params,new_formula)
+
+fig = Figure(; resolution=(1200,500))#hide
+ax_right = Axis(fig[1,3];#hide
+    title="ω≈$(round(target_ω, digits=2)) meV with Δω=0.3 meV (Binned)", aspect=true,#hide
+    xlabel = "[H, -1/2H, 0]"#hide
+)#hide
+bcs = axes_bincenters(params)#hide
+hm_right = heatmap!(ax_right,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])#hide
+add_lines!(ax_right,params)
+Colorbar(fig[1,4], hm_right);#hide
+
+
+# For comparison purposes, we will make the same plot using
+# [`intensities_interpolated`](@ref) to emulate zero-width bins.
+# This time, it's more convenient to think in terms of reciprocal vectors $a^*$ and $b^*$.
+# Now, our coordinate transformation consists of
+# establishing a new, orthogonal basis
+# to specify our wave vectors: $a^* - \frac{1}{2}b^*$, $b^*$ and $c^*$.
+# Writing this in matrix form allows us to sample a rectilinear grid of wave vectors in this frame.
+# Finally, we'll convert these back into the original RLU system for input into Sunny. 
+
+## New basis matrix
 A = [1    0 0
      -1/2 1 0
      0    0 1] 
@@ -331,50 +451,26 @@ npoints = 60
 as = range(-2, 2, npoints)
 bs = range(-3/√3, 3/√3, npoints)
 qs_ortho = [[a, b, 0] for a in as, b in bs]
-qs = [A * q for q in qs_ortho]  # Convert to RLU for input to Sunny
+
+## Convert to original RLU system for input to Sunny
+qs = [A * q for q in qs_ortho]
 
 ## Use interpolation to get intensities
 is = intensities_interpolated(sc, qs, new_formula; interpolation=:linear)
 
-## Plot the results to a figure that we'll display later
-fig = Figure(; resolution=(1200,500))
-ax_left = Axis(fig[1,2];
-    title="ω≈$(round(ωs[ωidx], digits=2)) meV (Interpolated)", aspect=true,
-    xlabel = "[H, -1/2H, 0]", ylabel = "[0, K, 0]"
-)
-hm_left = heatmap!(ax_left, as, bs, is[:,:,ωidx])
-Colorbar(fig[1,1], hm_left);
-
-# We'll display these interpolated results together with results obtained by a
-# binning procedure. A set of binning parameters is initialized by calling
-# [`unit_resolution_binning_parameters`](@ref). These are then modified to use
-# our orthogonal basis.
-
-params = unit_resolution_binning_parameters(sc)
-
-params.covectors[1:3,1:3] .= inv(A)  # Use our custom frame when specifying binning parameters 
-params.binstart[1], params.binstart[2] = -2, -3/√3
-params.binend[1], params.binend[2] = 2, 3/√3
-
-omega_width = 0.3
-params.binstart[4] = target_ω
-params.binend[4] = target_ω + (sc.Δω/2)
-params.binwidth[4] = omega_width
-
-integrate_axes!(params, axes = [3,4])
-
-## Perform the binning 
-is, counts = intensities_binned(sc,params,new_formula)
-
-## Plot results
-ax_right = Axis(fig[1,3];
-    title="Δω=0.3 meV (Binned)", aspect=true,
-    xlabel = "[H, -1/2H, 0]"
-)
-bcs = axes_bincenters(params)
-hm_right = heatmap!(ax_right,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])
-Colorbar(fig[1,4], hm_right);
+ax_left = Axis(fig[1,2];#hide
+    title="ω≈$(round(ωs[ωidx], digits=2)) meV (Interpolated)", aspect=true,#hide
+    xlabel = "[H, -1/2H, 0]", ylabel = "[0, K, 0]"#hide
+)#hide
+hm_left = heatmap!(ax_left, as, bs, is[:,:,ωidx])#hide
+add_lines!(ax_left,params)
+Colorbar(fig[1,1], hm_left);#hide
 fig
+
+# Now, not only are the dashed-line lattice vectors no longer misleadingly orthogonal,
+# but the six-fold symmetry has been restored as well!
+# Further, the metric has been diagonalized:
+metric = (latvecs * inv(A'))' * I(3) * (latvecs * inv(A'))
 
 # Finally, we note that instantaneous structure factor data, ``𝒮(𝐪)``, can be
 # obtained from a dynamic structure factor with
