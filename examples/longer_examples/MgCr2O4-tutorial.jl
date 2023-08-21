@@ -7,7 +7,7 @@
 #
 # # Spin Dynamics of the Heisenberg pyrochlore antiferromagnet and applications to MgCr2O4
 # **Author**: Martin Mourigal <br>
-# **Date**: September 9, 2022 (Updated by David Dahlbom on April 17, 2023) <br>
+# **Date**: September 9, 2022 (Updated by David Dahlbom on August 21, 2023 using Sunny 0.5.0) <br>
 #
 # 
 # In this tutorial, we will walk through a first example in Sunny and calculate
@@ -194,7 +194,7 @@ set_exchange!(sys_mgcro, J_mgcro[4], Bond(1, 3, [1,0,0])); # J3b -- And here!
 # (infinite temperature) initial condition.
 
 randomize_spins!(sys_pyro)
-randomize_spins!(sys_mgcro)
+randomize_spins!(sys_mgcro);
 
 # ## Cooling our `System` amd calculating the instantaneous and dynamic structure factors at the final temperature ##
 # 
@@ -293,8 +293,8 @@ qbs = 0.0:0.5:1.5 # Determine q_b for each slice
 for (i, qb) in enumerate(qbs)
     path, _ = reciprocal_space_path(xtal_pyro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
                                                                                       ## vectors through the BZ
-    formula_pyro = intensity_formula(sc_pyro, :perp; kT) # Temperature keyword enables intensity rescaling
-    Sqω_pyro  = intensities_interpolated(sc_pyro, path, formula_pyro)  
+    formula = intensity_formula(sc_pyro, :perp; kT) # Temperature keyword enables intensity rescaling
+    Sqω_pyro  = intensities_interpolated(sc_pyro, path, formula)  
 
     ax = Axis(fig[fldmod1(i,2)...]; xlabel = "q = (x, $qb, 0)", axsqw...)
     ωs = available_energies(sc_pyro)
@@ -310,8 +310,8 @@ qbs = 0.0:0.5:1.5
 for (i, qb) in enumerate(qbs)
     path, _ = reciprocal_space_path(xtal_mgcro, [[-4.0, qb, 0.0],[4.0, qb, 0.0]], 40)  # Generate a path of wave
                                                                                  ## vectors through the BZ
-    formula_mgcro = intensity_formula(sc_mgcro, :perp; kT) # Temperature keyword enables intensity rescaling
-    Sqω_mgcro  = intensities_interpolated(sc_mgcro, path, formula_mgcro) 
+    formula = intensity_formula(sc_mgcro, :perp; kT) # Temperature keyword enables intensity rescaling
+    Sqω_mgcro  = intensities_interpolated(sc_mgcro, path, formula) 
 
     ax = Axis(fig[fldmod1(i,2)...]; xlabel = "q = (x, $qb, 0)", axsqw...)
     ωs = available_energies(sc_mgcro)
