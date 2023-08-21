@@ -31,14 +31,16 @@ function reciprocal_space_shell(cryst::Crystal, radius, n)
     return Ref(scale) .* sphere_points(n)
 end
 
-function powder_average_interpolated(sc::SampledCorrelations, radii, n; kwargs...)
+# Not exported
+function powder_average_interpolated(sc::SampledCorrelations, radii, n, formula)
     nω = length(available_energies(sc))
     output = zeros(Float64, length(radii), nω) # generalize this so matches contract
+    cryst = isnothing(sc.origin_crystal) ? sc.crystal : sc.origin_crystal
 
     for (i, r) in enumerate(radii)
-        qs = reciprocal_space_shell(sc.scrystal, r, n)
-        is = intensities(sc, qs; kwargs...)
-        output[i,:] .= sum(is, dims=1) / size(is, 1)
+        qs = reciprocal_space_shell(cryst, r, n)
+        is = intensities_interpolated(sc, qs, formula)
+        output[i,:] .= sum(is, dims=1)[1,:] / size(is, 1)
     end
 
     return output
