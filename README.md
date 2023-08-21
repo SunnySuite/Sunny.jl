@@ -11,22 +11,22 @@
 
 ## Overview
 
-Sunny is a Julia package for modeling atomic-scale magnetism using semi-classical spin dynamics. This formalism can be used to estimate dynamical structure factor intensities, $\mathcal{S}(𝐪,ω)$, enabling quantitative comparison with experimental scattering data, e.g., neutrons or x-rays.
+Sunny is a Julia package for modeling atomic-scale magnetism using semi-classical spin dynamics. It provides powerful tools to estimate dynamical structure factor intensities, $\mathcal{S}(𝐪,ω)$, enabling quantitative comparison with experimental scattering data, e.g., neutrons or x-rays.
 
-A unique feature of Sunny is its treatment of spins as [SU(_N_) coherent states](https://doi.org/10.48550/arXiv.2106.14125). Intuitively: A quantum spin-_S_ state can be described as a superposition of $N=2S+1$ levels, which evolve under unitary, SU(_N_) transformations. Within this formalism, the Landau-Lifshitz dynamics of spin dipoles generalizes to a dynamics of spin multipoles. This theory becomes especially useful for [modeling materials like FeI₂](https://doi.org/10.48550/arXiv.2004.05623) that have strong single-ion anisotropy effects. In the future, the theory could also be used to model explicit spin-orbit coupling, or 'units' of locally entangled spins.
+A unique feature of Sunny is its treatment of spins as [SU(_N_) coherent states](https://doi.org/10.48550/arXiv.2106.14125). Intuitively: A quantum spin-_S_ state can be described as a superposition of $N=2S+1$ levels, which evolve under unitary, SU(_N_) transformations. Through this formalism, the Landau-Lifshitz dynamics of spin dipoles generalizes to a dynamics of spin multipoles. The theory becomes especially useful for modeling materials with strong single-ion anisotropy effects (see our [FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/)). In the future, the theory could also be used to model explicit spin-orbit coupling, or 'units' of locally entangled spins.
 
-At low-temperatures, Sunny supports the usual linear spin wave theory (LSWT) for spin dipoles, and its ['multi-boson' generalization](https://doi.org/10.48550/arXiv.1307.7731). At finite temperatures, simulations using the full semi-classical spin dynamics may be preferred to capture thermal fluctuations and associated anharmonic effects. Sunny also allows for [coupling to a thermal bath](https://doi.org/10.48550/arXiv.2209.01265), which makes possible the study of various non-equilibrium dynamics, e.g., thermal transport, pump-probe experiments, and spin-glass relaxation.
+At low-temperatures, Sunny supports the usual linear spin wave theory (LSWT) for spin dipoles, and its ['multi-boson' generalization](https://doi.org/10.48550/arXiv.1307.7731). At finite temperatures, simulations with the full semi-classical spin dynamics may be preferred, as they can capture thermal fluctuations and associated anharmonic effects. Sunny also allows for [coupling to a thermal bath](https://doi.org/10.48550/arXiv.2209.01265), which makes possible the study of various non-equilibrium dynamics, e.g., thermal transport, pump-probe experiments, and spin-glass relaxation.
 
 Sunny provides a number of tools to facilitate the specification and solution of spin Hamiltonians. This includes spacegroup symmetry analysis, powerful Monte Carlo sampling algorithms, and interactive 3D visualization. Efficient simulation is made possible by [several algorithmic developments](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
 
 ## Try it out!
 
-To see Sunny in action, a good starting point is our **[FeI₂ case study](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/)**. This compound includes  effective spin-1 moments with strong easy-axis anisotropy. The coupled dipole-quadrupole dynamics is efficiently described within the formalism of SU(3) coherent states, and is [crucial to explain neutron scattering data](https://doi.org/10.1038/s41567-020-01110-1).
+To see Sunny in action, a good starting point is our **[FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/)**. This compound includes effective spin-1 moments with strong easy-axis anisotropy. The coupled dipole-quadrupole dynamics is efficiently described within the formalism of SU(3) coherent states, and is [crucial to explain neutron scattering data](https://doi.org/10.1038/s41567-020-01110-1).
 <!-- 
 In addition to the examples in the official [documentation](https://sunnysuite.github.io/Sunny.jl/dev/), a number of tutorials are available as Jupyter notebooks at the [SunnyTutorials](https://github.com/SunnySuite/SunnyTutorials/tree/main/Tutorials) repo.  -->
 
-Try it yourself by downloading Sunny using Julia's built-in package manager. Full instructions for new Julia users are provided in our **[Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)** guide. With Sunny loaded, you should be able to enter to run the documentation examples from a Julia terminal.
+Try it yourself by downloading Sunny using Julia's built-in package manager. Full instructions for new Julia users are provided in our **[Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)** guide. 
 
 Sunny is evolving rapidly. See [Version History](https://sunnysuite.github.io/Sunny.jl/dev/versions/) for new features and breaking changes. To install a specific version of Sunny, say `v0.x`, use the command `add Sunny@0.x`.
 
@@ -38,7 +38,7 @@ Another LSWT code is [SpinWaveGenie](https://github.com/SpinWaveGenie/SpinWaveGe
 
 Conversely, there exist many powerful codes for studying classical spin dynamics, including [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https://vampire.york.ac.uk/). Compared to these codes, Sunny puts more emphasis on capturing quantum effects of magnetic compounds.
 
-A distinguishing feature of Sunny compared is its support for simulating generalized spins via the theory of SU(_N_) coherent states.
+A distinguishing feature of Sunny compared to previous codes is its support for simulating generalized spins via the theory of SU(_N_) coherent states.
 
 ## Join our community
 
