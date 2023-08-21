@@ -11,11 +11,11 @@
 
 ## Overview
 
-Sunny is a Julia package for modeling atomic-scale magnetism using semi-classical spin dynamics. It provides powerful tools to estimate dynamical structure factor intensities, $\mathcal{S}(𝐪,ω)$, enabling quantitative comparison with experimental scattering data, e.g., neutrons or x-rays.
+Sunny is a Julia package for modeling atomic-scale magnetism using classical spin dynamics with quantum corrections. It provides powerful tools to estimate dynamical structure factor intensities, $\mathcal{S}(𝐪,ω)$, enabling quantitative comparison with experimental scattering data, e.g., neutrons or x-rays.
 
-A unique feature of Sunny is its treatment of spins as [SU(_N_) coherent states](https://doi.org/10.48550/arXiv.2106.14125). Intuitively: A quantum spin-_S_ state can be described as a superposition of $N=2S+1$ levels, which evolve under unitary, SU(_N_) transformations. Through this formalism, the Landau-Lifshitz dynamics of spin dipoles generalizes to a dynamics of spin multipoles. The theory becomes especially useful for modeling materials with strong single-ion anisotropy effects (see our [FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/)). In the future, the theory could also be used to model explicit spin-orbit coupling, or 'units' of locally entangled spins.
+A unique feature of Sunny is its treatment of spins as [SU(_N_) coherent states](https://doi.org/10.48550/arXiv.2106.14125). Each quantum spin-_S_ state is a superposition of $N=2S+1$ levels, and evolves under unitary, SU(_N_) transformations. Through neglect of entanglement, the formalism allows to generalize the Landau-Lifshitz dynamics of spin dipoles to a dynamics of spin multipoles. The theory becomes especially useful for modeling materials with strong single-ion anisotropy effects (see our [FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial/)). In the future, the theory could also be used to model explicit spin-orbit coupling, or 'units' of locally entangled spins.
 
-At low-temperatures, Sunny supports the usual linear spin wave theory (LSWT) for spin dipoles, and its ['multi-boson' generalization](https://doi.org/10.48550/arXiv.1307.7731). At finite temperatures, simulations with the full semi-classical spin dynamics may be preferred, as they can capture thermal fluctuations and associated anharmonic effects. Sunny also allows for [coupling to a thermal bath](https://doi.org/10.48550/arXiv.2209.01265), which makes possible the study of various non-equilibrium dynamics, e.g., thermal transport, pump-probe experiments, and spin-glass relaxation.
+At low-temperatures, Sunny supports the usual linear spin wave theory (LSWT) for spin dipoles, and its ['multi-boson' generalization](https://doi.org/10.48550/arXiv.1307.7731). At finite temperatures, the full classical dynamics (with quantum correction factors) may be preferable to capture anharmonic effects. The [coupling of SU(_N_) spins to a thermal bath](https://doi.org/10.48550/arXiv.2209.01265) also makes possible the study of various non-equilibrium dynamics, e.g., thermal transport, pump-probe experiments, and spin-glass relaxation.
 
 Sunny provides a number of tools to facilitate the specification and solution of spin Hamiltonians. This includes spacegroup symmetry analysis, powerful Monte Carlo sampling algorithms, and interactive 3D visualization. Efficient simulation is made possible by [several algorithmic developments](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
@@ -26,15 +26,15 @@ To see Sunny in action, a good starting point is our **[FeI₂ tutorial](https:/
 <!-- 
 In addition to the examples in the official [documentation](https://sunnysuite.github.io/Sunny.jl/dev/), a number of tutorials are available as Jupyter notebooks at the [SunnyTutorials](https://github.com/SunnySuite/SunnyTutorials/tree/main/Tutorials) repo.  -->
 
-Try it yourself by downloading Sunny using Julia's built-in package manager. Full instructions for new Julia users are provided in our **[Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)** guide. 
+Try it yourself by downloading [Julia](https://julialang.org/), and installing Sunny within Julia's built-in package manager. New Julia users can refer to our **[Getting Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)** guide. 
 
 Sunny is evolving rapidly. See [Version History](https://sunnysuite.github.io/Sunny.jl/dev/versions/) for new features and breaking changes. To install a specific version of Sunny, say `v0.x`, use the command `add Sunny@0.x`.
 
 ## Related projects
 
-Sunny is heavily inspired by the [SpinW](https://spinw.org/) code. In particular, Sunny's symmetry analysis, model specification, and LSWT features will be familiar to users of SpinW. Sunny differs from SpinW in its support for semi-classical spin dynamics. Such dynamics can be useful, e.g., to study thermal fluctuations, non-equilibrium dynamics, or disorder in systems with large magnetic supercells.
+Sunny is heavily inspired by the [SpinW](https://spinw.org/) code. In particular, Sunny's symmetry analysis, model specification, and LSWT features will be familiar to users of SpinW. Sunny differs from SpinW in its support for nonlinear classical spin dynamics. Such dynamics can be useful, e.g., to study thermal fluctuations, non-equilibrium dynamics, transport, or disorder in systems with large magnetic supercells.
 
-Another LSWT code is [SpinWaveGenie](https://github.com/SpinWaveGenie/SpinWaveGenie) which is written in C++ and very fast. With future optimizations, Sunny aspires to comparable performance.
+Another LSWT code is [SpinWaveGenie](https://github.com/SpinWaveGenie/SpinWaveGenie) which is written in C++ and very fast. With future optimizations, Sunny aims to achieve comparable performance.
 
 Conversely, there exist many powerful codes for studying classical spin dynamics, including [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https://vampire.york.ac.uk/). Compared to these codes, Sunny puts more emphasis on capturing quantum effects of magnetic compounds.
 

@@ -169,21 +169,10 @@ set_onsite_coupling!(sys, -D*S[3]^2, 1)
 # # Calculating structure factor intensities
 
 # In the remainder of this tutorial, we will examine Sunny's tools for
-# calculating the dynamical structure factor using a generalization of linear
-# spin wave theory that captures quasi-particle excitations that include coupled
-# dipolar and quadrupolar fluctuations.
-# 
-# A review of the quantum theory is provided in https://arxiv.org/abs/1307.7731.
-# The same theory can alternatively be viewed as the quantization of a classical
-# dynamics on SU(_N_) coherent states, https://arxiv.org/abs/2106.14125.
-# Although outside the scope of this tutorial, Sunny provides support for
-# simulating the classical SU(_N_) spin dynamics via a [`Langevin`](@ref)
-# equation that generalizes the stochastic Landau-Lifshitz equation,
-# https://arxiv.org/abs/2209.01265. This Langevin equation can be used to study
-# equilibrium thermal fluctuations of classical SU(_N_) coherent states, or
-# their non-equilibrium dynamics. Examples of the latter include relaxation of a
-# spin glass, or the driven-dissipative dynamics of topological magnetic
-# textures. To learn more, see the other Sunny documentation examples.
+# calculating the dynamical structure factor using a [multi-boson
+# generalization](https://arxiv.org/abs/1307.7731) of linear spin wave theory
+# (LSWT). This theory describes non-interacting quasi-particle excitations that
+# hybridize dipolar and quadrupolar modes.
 
 # ## Finding the ground state
 
@@ -339,8 +328,8 @@ fig
 # (The publication figure accidentally used a non-standard coordinate system to
 # label the wave vectors.)
 # 
-# To get this agreement, the use of SU(3) coherent states is essential (in other
-# words, we needed a theory of multi-flavored bosons). The lower band has large
+# To get this agreement, the use of SU(3) coherent states is essential. In other
+# words, we needed a theory of multi-flavored bosons. The lower band has large
 # quadrupolar character, and arises from the strong easy-axis anisotropy of
 # FeI$_2$. By setting `mode = :SUN`, the calculation captures this coupled
 # dipole-quadrupole dynamics.
@@ -361,10 +350,26 @@ disp, is = dssf(swt, path);
 
 # ## What's next?
 #
-# Sunny provides much more than just linear spin wave theory. Please explore the
-# other examples in the documentation for more details. Sunny's capability to
-# simulate the classical [`Langevin`](@ref) dynamics of SU(_N_) coherent states
-# allows to incorporate finite-temperature spin fluctuations into the dynamical
-# structure factor calculation, or to study systems under highly non-equilibrium
-# conditions. Sunny also supports the construction of inhomogeneous systems
-# (e.g., systems with quenched disorder) via [`to_inhomogeneous`](@ref).
+# The multi-boson linear spin wave theory, applied above, can be understood as
+# the quantization of a certain generalization of the Landau-Lifshitz spin
+# dynamics. Rather than dipoles, this dynamics takes places on the space of
+# [SU(_N_) coherent states](https://arxiv.org/abs/2106.14125).
+#
+# The full SU(_N_) coherent state dynamics, with appropriate quantum correction
+# factors, can be useful to model finite temperature scattering data. In
+# particular, it captures certain anharmonic effects due to thermal
+# fluctuations. This is the subject of our [Structure Factors with Classical
+# Dynamics](@ref) tutorial.
+#
+# The classical dynamics is also a good starting point to study non-equilibrium
+# phenomena. Empirical noise and damping terms can be used to model [coupling to
+# a thermal bath](https://arxiv.org/abs/2209.01265). This yields a Langevin
+# dynamics of SU(_N_) coherent states. Our [CP$^2$ Skyrmion Quench](@ref)
+# tutorial shows how this dynamics gives rise to the formation of novel
+# topological defects in a temperature quench.
+# 
+# Relative to LSWT calculations, it can take much more time to estimate
+# $\mathcal{S}(𝐪,ω)$ intensities using classical dynamics simulation. See the
+# [SunnyTutorials
+# notebooks](https://nbviewer.org/github/SunnySuite/SunnyTutorials/tree/main/Tutorials/)
+# for examples of "production-scale" simulations.
