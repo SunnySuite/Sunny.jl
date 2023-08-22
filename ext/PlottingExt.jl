@@ -398,12 +398,15 @@ function Sunny.plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
     fig
 end
 
-function draw_level!(ax,n_level,level,center,radius,dir,z)
+function draw_level!(ax,n_level,level,center,radius,dir,z; arrows = true, linewidth, lengthscale, arrowsize)
     if level == n_level || level == 1
         top_level = level == n_level
         col = map(x -> Makie.Colors.HSVA(rad2deg(angle(x[level])),1,1,abs2(x[level])),z)
-        Makie.scatter!(ax,center .+ (top_level ? radius : -radius) .* dir,color = col)
-        #Makie.arrows!(ax,center,(top_level ? radius : -radius) .* dir,color = col)
+        if arrows
+          Makie.arrows!(ax,center,(top_level ? radius : -radius) .* dir,color = col; linewidth, arrowsize)
+        else
+          Makie.scatter!(ax,center .+ (top_level ? radius : -radius) .* dir,color = col)
+        end
     else
         theta = range(0,2π,length=16)
         for i in 1:length(center)
@@ -418,23 +421,40 @@ function draw_level!(ax,n_level,level,center,radius,dir,z)
             for j = 1:length(theta)
                 pts[j] = center[i] .+ sin(phi) .* radius .* (cos(theta[j]) .* codir1 .+ sin(theta[j]) .* codir2) .+ radius .* (m/l) .* dir[i]
             end
-            Makie.lines!(pts,color = Makie.Colors.HSVA(rad2deg(angle(z[i][level])),1,1,abs2(z[i][level])))
+            Makie.lines!(pts,color = Makie.Colors.HSVA(rad2deg(angle(z[i][level])),1,1,abs2(z[i][level])); linewidth)
         end
     end
 end
 
-function plot_coherents(sys::System{N};radius = 1.) where N
+function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, use_arrows = true) where N
+
+    ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
+
+    # Parameters defining arrow shape
+    a0 = scale * ℓ0
+    radius = 0.4a0
+    arrowsize = 0.4a0
+    linewidth = 0.12a0
+    lengthscale = 0.6a0
+    markersize = 0.52a0
+    #arrow_fractional_shift = 0.6
+
+
     n_level = length(sys.coherents[1])
-    fig, ax = _setup_scene(; show_axis = false, ortho = true)
+    fig, ax = setup_scene(; show_axis = false, orthographic = true)
 
     centers = [Makie.Point3f(Sunny.global_position(sys,site)) for site in eachsite(sys)][:]
-    Makie.scatter!(ax,centers,color = :black,marker='x')
+    Makie.scatter!(ax,centers,color = :black,marker='x';markersize)
 
     dir = zeros(Makie.Point3f,length(sys.coherents))
     opacity = sys.coherents[:]
     for (i,site) in enumerate(eachsite(sys))
       z = sys.coherents[site]
-      v = normalize(expected_spin(z))
+      v = if isnothing(quantization_axis)
+        normalize(Sunny.expected_spin(z))
+      else
+        quantization_axis
+      end
       S = spin_operators(sys,site[4])
       spin_operator = S[1] .* v[1] .+ S[2] .* v[2] .+ S[3] .* v[3]
       basis_rotation = eigvecs(spin_operator;sortby = λ -> -real(λ))
@@ -443,7 +463,7 @@ function plot_coherents(sys::System{N};radius = 1.) where N
     end
 
     for level = 1:n_level
-        draw_level!(ax,n_level,level,centers,radius,dir,opacity)
+        draw_level!(ax,n_level,level,centers,radius,dir,opacity;linewidth,lengthscale,arrowsize, arrows = use_arrows)
     end
 
     fig

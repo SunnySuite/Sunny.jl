@@ -1,6 +1,6 @@
-using Sunny, LinearAlgebra, GLMakie, Optim
+# # Fitting model parameters in a 1D spin-1 ferromagnetic chain
 
-# 1D FM chain (J1=0.1D) with single-ion anisotropy D. Data created with Landau-Lifshitz at finite but small temperature. Fit using SWT kernel to extract J and D.
+using Sunny, LinearAlgebra, GLMakie, Optim
 
 # In this Example, we consider a 1D chain of spin-1 sites.
 # The sites along the chain interact via a ferromagnetic nearest-neighbor
@@ -18,7 +18,7 @@ using Sunny, LinearAlgebra, GLMakie, Optim
 # In our case, the "experiment" data will actually be simulation data produced
 # using Landau-Lifschitz dynamics.
 
-# # Creating simulated "experiment" data using Landau-Lifschitz dynamics
+# ## Creating simulated "experiment" data using Landau-Lifschitz dynamics
 
 # Our simulated data will use ground truth values ``J_0 = -1\,\text{meV}`` and ``D_0 = 10\,\text{meV}`` with a lattice spacing ``a = 10`` angstrom.
 
@@ -32,9 +32,9 @@ latvecs = chain_spacing * I(3)
 one_dimensional_chain = Crystal(latvecs,[[0,0,0]],"P1")
 
 ## Establish geometry of the whole chain.
-chain_length = 64 # Number of atoms
+chain_length = 16 # Number of atoms
 latsize = (chain_length,1,1) # 1D chain is Nx1x1 lattice
-spin_one_chain = System(one_dimensional_chain, latsize, [SpinInfo(1,S=1)], :SUN)
+spin_one_chain = System(one_dimensional_chain, latsize, [SpinInfo(1,S=1,g=2)], :SUN)
 
 # Configure the nearest-neighbor interaction:
 
@@ -62,40 +62,47 @@ kT = 0.1
 langevin = Langevin(Δt; kT, λ);
 
 function viz_chain(sys;kwargs...)#hide
-  ups = map(x -> abs2(x[1]), sys.coherents)[:];#hide
-  zs = map(x -> abs2(x[2]), sys.coherents)[:];#hide
-  downs = map(x -> abs2(x[3]), sys.coherents)[:];#hide
-#hide
-  f = Figure()#hide
-  ax = LScene(f[1,1];show_axis = false)#hide
-  _ = Makie.cam3d!(ax.scene, projectiontype=Makie.Orthographic)#hide
-#hide
-  linewidth = 5.#hide
-  arrowsize = 10.#hide
-  lengthscale = 15.#hide
-  pts = [Point3f(Sunny.global_position(sys,site)) for site in eachsite(sys)][:]#hide
-#hide
-  ## Ups#hide
-  vecs = [Vec3f([0,0,1]) for site in eachsite(sys)][:]#hide
-  cols = map(x -> (:blue,x), ups)#hide
-  Makie.arrows!(ax, pts .+ 0.5 .* vecs, vecs;#hide
-        linecolor = cols, arrowcolor = cols,#hide
-        lengthscale, arrowsize, linewidth, kwargs...)#hide
-#hide
-  ## Downs#hide
-  vecs = [Vec3f([0,0,-1]) for site in eachsite(sys)][:]#hide
-  cols = map(x -> (:red,x), downs)#hide
-  Makie.arrows!(ax, pts .+ 0.5 .* vecs, vecs;#hide
-        linecolor = cols, arrowcolor = cols,#hide
-        lengthscale, arrowsize, linewidth, kwargs...)#hide
-#hide
-  cols = map(x -> (:green,x), zs)#hide
-  meshscatter!(ax,pts, markersize = 7., color = cols)#hide
-  f#hide
+  ##ups = map(x -> abs2(x[1]), sys.coherents)[:];#hide
+  ##zs = map(x -> abs2(x[2]), sys.coherents)[:];#hide
+  ##downs = map(x -> abs2(x[3]), sys.coherents)[:];#hide
+###hide
+  ##f = Figure()#hide
+  ##ax = LScene(f[1,1];show_axis = false)#hide
+  ##_ = Makie.cam3d!(ax.scene, projectiontype=Makie.Orthographic)#hide
+###hide
+  ##linewidth = 5.#hide
+  ##arrowsize = 10.#hide
+  ##lengthscale = 15.#hide
+  ##pts = [Point3f(Sunny.global_position(sys,site)) for site in eachsite(sys)][:]#hide
+###hide
+  #### Ups#hide
+  ##vecs = [Vec3f([0,0,1]) for site in eachsite(sys)][:]#hide
+  ##cols = map(x -> (:blue,x), ups)#hide
+  ##Makie.arrows!(ax, pts .+ 0.5 .* vecs, vecs;#hide
+        ##linecolor = cols, arrowcolor = cols,#hide
+        ##lengthscale, arrowsize, linewidth, kwargs...)#hide
+###hide
+  #### Downs#hide
+  ##vecs = [Vec3f([0,0,-1]) for site in eachsite(sys)][:]#hide
+  ##cols = map(x -> (:red,x), downs)#hide
+  ##Makie.arrows!(ax, pts .+ 0.5 .* vecs, vecs;#hide
+        ##linecolor = cols, arrowcolor = cols,#hide
+        ##lengthscale, arrowsize, linewidth, kwargs...)#hide
+###hide
+  ##cols = map(x -> (:green,x), zs)#hide
+  ##meshscatter!(ax,pts, markersize = 7., color = cols)#hide
+  ##f#hide
+  Sunny.Plotting.plot_coherents(sys;quantization_axis = [0,0,1],kwargs...)
 end#hide
 randomize_spins!(spin_one_chain)
 viz_chain(spin_one_chain)
 
+# In this plot, the z-axis has been used as the quantization axis for each site,
+# with the up/down arrows and circle representing the ``\pm \hbar`` and ``0\hbar`` spin projections
+# onto the z-axis respectively. The opacity of each object represents the probability (absolute value
+# squared), and the color represents the phase.
+# Since we are using classical dynamics to simulate the data, the phase will be mostly random.
+#
 # First, we thermalize the chain, and then take several samples
 # in order get reasonably good "experiment" data.
 
@@ -148,8 +155,8 @@ SIMULATED_EXPERIMENT_HISTOGRAM_PARAMS = unit_resolution_binning_parameters(sc)
 
 # Here's what the experiment data looks like:
 
-formula = intensity_formula(sc;kT)
-is, counts = intensities_binned(sc,SIMULATED_EXPERIMENT_HISTOGRAM_PARAMS;formula)
+formula = intensity_formula(sc,:perp;kT)
+is, counts = intensities_binned(sc,SIMULATED_EXPERIMENT_HISTOGRAM_PARAMS,formula)
 
 SIMULATED_EXPERIMENT_DATA = (is ./ counts)[:,1,1,:]
 
@@ -159,7 +166,7 @@ ax = Axis(f[1,1])#hide
 heatmap!(ax,bcs[1],bcs[4],log10.(SIMULATED_EXPERIMENT_DATA))
 f#hide
 
-# # Fitting to the experiment data
+# ## Fitting to the experiment data
 
 # To fit this data, we first model the known aspects of the system in Sunny.
 # The first steps are the same whether we are simulating a known system or modelling an
@@ -169,9 +176,9 @@ f#hide
 chain_spacing = 10. # Angstrom
 latvecs = chain_spacing * I(3)
 one_dimensional_chain = Crystal(latvecs,[[0,0,0]],"P1")
-chain_length = 64 # Number of atoms
+chain_length = 16 # Number of atoms
 latsize = (chain_length,1,1) # 1D chain is Nx1x1 lattice
-spin_one_chain = System(one_dimensional_chain, latsize, [SpinInfo(1,S=1)], :SUN)
+spin_one_chain = System(one_dimensional_chain, latsize, [SpinInfo(1,S=1,g=2)], :SUN)
 
 
 
@@ -236,7 +243,7 @@ function forward_problem(J_trial, D_trial)
 # the simplified system is extremely simple:
 
   ## ... perform spin wave calculation, continued from above.
-  one_site_system = reshape_geometry(spin_one_chain,[1 0 0; 0 1 0; 0 0 1])
+  one_site_system = reshape_supercell(spin_one_chain,[1 0 0; 0 1 0; 0 0 1])
 
 #+
 # After restricting to a single site, it's best to re-thermalize the system
@@ -256,7 +263,7 @@ function forward_problem(J_trial, D_trial)
 # binning method is written.
 
   swt = SpinWaveTheory(one_site_system)
-  formula = intensity_formula(swt; kernel = lorentzian(0.5))
+  formula = intensity_formula(swt,:perp; kernel = lorentzian(0.5))
   params = SIMULATED_EXPERIMENT_HISTOGRAM_PARAMS
   is_swt = Sunny.intensities_bin_centers(swt, params, formula)
 
@@ -329,7 +336,7 @@ set_exchange!(spin_one_chain,J_trial,nearest_neighbor_right)#hide
 set_exchange!(spin_one_chain,J_trial,nearest_neighbor_left)#hide
 
 set_onsite_coupling!(spin_one_chain, -D_trial*Sz^2, 1)#hide
-one_site_system = reshape_geometry(spin_one_chain,[1 0 0; 0 1 0; 0 0 1])#hide
+one_site_system = reshape_supercell(spin_one_chain,[1 0 0; 0 1 0; 0 0 1])#hide
 
 langevin.kT = 0.#hide
 nStep = 1_000#hide
@@ -341,7 +348,7 @@ swt = SpinWaveTheory(one_site_system)#hide
 params = SIMULATED_EXPERIMENT_HISTOGRAM_PARAMS
 
 path = [[q,0,0] for q in bcs[1]]
-disp, intensity = intensities_bands(swt, path)
+disp, intensity = intensities_bands(swt, path, intensity_formula(swt,:perp, kernel = delta_function_kernel))
 
 for i in axes(disp)[2]
     lines!(ax, bcs[1], disp[:,i]; color=intensity[:,i], colormap = :turbo,linewidth = 5,colorrange = (0.,1.))
