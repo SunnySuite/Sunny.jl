@@ -379,7 +379,8 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
     integrated_kernel = nothing,
 )
     (; binwidth, binstart, binend, covectors, numbins) = params
-    output_intensities = zeros(Float64,numbins...)
+    return_type = typeof(formula).parameters[1]
+    output_intensities = zeros(return_type,numbins...)
     output_counts = zeros(Float64,numbins...)
     ωvals = available_energies(sc)
 
@@ -465,7 +466,7 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
                         # Broaden from the source scattering vector (k,ω) to
                         # each target bin ci_other
                         ci_other = CartesianIndex(xyzBin[1],xyzBin[2],xyzBin[3])
-                        view(output_intensities,ci_other,:) .+= fraction_in_bin[iω] .* intensity
+                        view(output_intensities,ci_other,:) .+= fraction_in_bin[iω] .* Ref(intensity)
                         view(output_counts,ci_other,:) .+= fraction_in_bin[iω]
                     end
                 else
