@@ -74,10 +74,13 @@ function intensity_formula(f::Function, sc::SampledCorrelations, corr_ix::Abstra
         if iszero(kT)
             error("`kT` must be greater than zero.")
         end
+        # Only apply c2q factor if have dynamical correlations
         if isnan(sc.Δω)
             error("`kT`-dependent corrections not available when using correlation data generated with `instant_correlations`. Do not set `kT` keyword.")
         end
     end
+
+    ωs_sc = available_energies(sc;negative_energies = true)
 
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
     NAtoms = Val(size(sc.data)[2])
@@ -90,8 +93,10 @@ function intensity_formula(f::Function, sc::SampledCorrelations, corr_ix::Abstra
     calc_intensity = function (sc::SampledCorrelations, q_absolute::Vec3, ix_q::CartesianIndex{3}, ix_ω::Int64)
         correlations = phase_averaged_elements(view(sc.data, corr_ix, :, :, ix_q, ix_ω), q_absolute, sc.crystal, ff_atoms, NCorr, NAtoms)
 
-        ω = 1.0  # Note this ω doesn't do anything in this case. Perhaps consider whether should be part of the formula.
-        return f(q_absolute, ω, correlations)  
+        # This is NaN if sc is instant_correlations
+        ω = (typeof(ωs_sc) == Float64 && isnan(ωs_sc)) ? NaN : ωs_sc[ix_ω] 
+
+        return f(q_absolute, ω, correlations) * classical_to_quantum(ω,kT)
     end
     ClassicalIntensityFormula{return_type}(kT, formfactors, string_formula, calc_intensity)
 end
