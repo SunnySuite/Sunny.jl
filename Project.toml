@@ -1,7 +1,7 @@
 name = "Sunny"
 uuid = "2b4a2ac8-8f8b-43e8-abf4-3cb0c45e8736"
 authors = ["The Sunny team"]
-version = "0.5.0"
+version = "0.5.1"
 
 [deps]
 CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
