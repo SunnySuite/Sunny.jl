@@ -7,8 +7,8 @@ using LinearAlgebra
 import Makie
 
 
-function setup_scene(; show_axis=false, orthographic=false)
-    fig = Makie.Figure()
+function setup_scene(; resolution, show_axis=false, orthographic=false)
+    fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)
     if orthographic
         _ = Makie.cam3d!(ax.scene; projectiontype=Makie.Orthographic)
@@ -331,7 +331,8 @@ Plot the spin configuration defined by `sys`. Optional parameters include:
     multiple of the characteristic distance between sites.
 """
 function Sunny.plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
-                          arrowcolor=:red, show_axis=false, show_cell=true, orthographic=false, ghost_radius=0)
+                          arrowcolor=:red, show_axis=false, show_cell=true,
+                          orthographic=false, ghost_radius=0, resolution=(768, 512))
     # Infer characteristic length scale between sites
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
@@ -347,7 +348,7 @@ function Sunny.plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
     markersize = 0.8linewidth
     arrow_fractional_shift = 0.6
 
-    fig, ax = setup_scene(; show_axis, orthographic)
+    fig, ax = setup_scene(; show_axis, orthographic, resolution)
 
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
     sys_center = sys.crystal.latvecs * Vec3(sys.latsize) / 2
@@ -426,7 +427,7 @@ function draw_level!(ax,n_level,level,center,radius,dir,z; arrows = true, linewi
     end
 end
 
-function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, use_arrows = true) where N
+function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, use_arrows = true, resolution=(768, 512)) where N
 
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
@@ -441,7 +442,7 @@ function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, 
 
 
     n_level = length(sys.coherents[1])
-    fig, ax = setup_scene(; show_axis = false, orthographic = true)
+    fig, ax = setup_scene(; show_axis = false, orthographic = true, resolution)
 
     centers = [Makie.Point3f(Sunny.global_position(sys,site)) for site in eachsite(sys)][:]
     Makie.scatter!(ax,centers,color = :black,marker='x';markersize)
@@ -487,9 +488,9 @@ Other keyword arguments are passed to `Makie.arrows`.
 function anim_integration(
     sys::System, fname, steps_per_frame, Δt, nframes;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2, arrowlength=0.2,
-    kwargs...
+    resolution=(768, 512), kwargs...
 )
-    fig, ax = setup_scene()
+    fig, ax = setup_scene(; resolution)
 
     pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
@@ -520,9 +521,9 @@ in an interactive window.
 function live_integration(
     sys::System, steps_per_frame, Δt;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
-    arrowlength=0.2, framerate=30, kwargs...
+    arrowlength=0.2, framerate=30, resolution=(768, 512), kwargs...
 )
-    fig, ax = setup_scene()
+    fig, ax = setup_scene(; resolution)
 
     pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
@@ -556,9 +557,9 @@ in an interactive window.
 function live_langevin_integration(
     sys::System, steps_per_frame, Δt, kT;
     linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
-    arrowlength=0.2, λ=0.1, framerate=30, kwargs...
+    arrowlength=0.2, λ=0.1, framerate=30, resolution=(768, 512), kwargs...
 )
-    fig, ax = setup_scene(; show_axis=false)
+    fig, ax = setup_scene(; show_axis=false, resolution)
     pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
     vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
     
@@ -605,8 +606,8 @@ end
 
 
 "Plots slices of a 3D structure factor. Input array should have shape [3, Lx, Ly, Lz, T]"
-function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz)
-    fig, ax = setup_scene(; show_axis=true)
+function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz, resolution=(768, 512))
+    fig, ax = setup_scene(; resolution, show_axis=true)
 
     Sdim, Lx, Ly, Lz, T = size(sfactor)
     # Average over Sxx, Syy, Szz - in future give controls to user
