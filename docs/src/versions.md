@@ -1,3 +1,8 @@
+# Version 0.5.1
+
+* Fix binning edge cases.
+* plot_spins accepts resolution argument.
+
 # Version 0.5.0
 
 **New features**.
