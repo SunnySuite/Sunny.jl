@@ -65,7 +65,7 @@ end
 """
 Serialize the spin system data to a JSON dict string
 """
-function system_json(crystal::Crystal, max_dist)
+function system_json(crystal::Crystal, max_dist::Float64)
     
     ncells, bond_labels, bond_ids, bond_displacements = generate_bond_lists(crystal, max_dist)
 
@@ -99,6 +99,7 @@ Create and show crystal viewer in a VSCode or Jupyter notebook environment. The
 result can also be displayed using `browser()`.
 """
 function view_crystal(crystal::Crystal, max_dist::Real)
+    max_dist = Float64(max_dist)
     data = system_json(crystal, max_dist)
     unique_key = randstring(RandomDevice(), ['0':'9'; 'a':'f'], 12)
     js_src = open(joinpath(@__DIR__, "assets/crystal_viewer.js"), "r") do io
