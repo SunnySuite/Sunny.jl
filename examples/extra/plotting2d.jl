@@ -97,14 +97,14 @@ function plot_triangular_plaquettes(f, frames;
     hidedecorations!(ax)
 
     # Plot panels
-    plaq1(p) = GLMakie.Polygon(Point2f.([p, p+v₁+v₂, p+v₂]))
-    plaq2(p) = GLMakie.Polygon(Point2f.([p, p+v₁, p+v₂+v₁]))
+    plaq1(p) = Makie.Polygon(Point2f.([p, p+v₁+v₂, p+v₂]))
+    plaq2(p) = Makie.Polygon(Point2f.([p, p+v₁, p+v₂+v₁]))
     for (i, frame) ∈ enumerate(frames)
         r, c = fldmod1(i, numcols)
         v₀ = (c - 1) * (x_panel + x_offset) + (r - 1) * (y_panel + y_offset)
 
         χ = plaquette_map(f, frame)
-        pgons = GLMakie.Polygon[]
+        pgons = Makie.Polygon[]
         colors = ColorTypes.RGB{Float64}[]
         for r ∈ 1:nx
             for c ∈ 1:ny
