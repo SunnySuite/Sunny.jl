@@ -122,24 +122,30 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
                     ix_jm = sub_j_M1*Nf+mM1
                     ix_jn = sub_j_M1*Nf+nM1
 
+                    # b†ₘ(r) bₙ(r)
                     c = 0.5 * dot_no_conj(Si_mn, J, Sj_11)
                     Hmat11[ix_im, ix_in] += c
                     Hmat22[ix_in, ix_im] += c
 
+                    # b†ₘ(r+δ) bₙ(r+δ)
                     c = 0.5 * dot_no_conj(Si_11, J, Sj_mn)
                     Hmat11[ix_jm, ix_jn] += c
                     Hmat22[ix_jn, ix_jm] += c
 
+                    # b†ₘ(r) bₙ(r+δ)
                     c = 0.5 * dot_no_conj(Si_m1, J, Sj_1n)
                     Hmat11[ix_im, ix_jn] += c * phase
                     Hmat22[ix_jn, ix_im] += c * conj(phase)
 
+                    # bₘ(r) b†ₙ(r+δ)
                     c = 0.5 * dot_no_conj(Si_1m, J, Sj_n1)
                     Hmat11[ix_jn, ix_im] += c * conj(phase)
                     Hmat22[ix_im, ix_jn] += c * phase
 					
                     c = 0.5 * dot_no_conj(Si_m1, J, Sj_n1)
+                    # b†ₘ(r) b†ₙ(r+δ)
                     Hmat12[ix_im, ix_jn] += c * phase
+                    # bₘ(r) bₙ(r+δ)
                     Hmat12[ix_jn, ix_im] += c * conj(phase)
                 end
             end
@@ -449,6 +455,7 @@ function mk_bogoliubov!(L)
             end
             pref = i ≤ L ? √(eigval[i]) : √(-eigval[i])
             view(U,:,i) .*= pref
+            view(U,:,i) .*= sign(real(U[1,i])) # Stabilize the transform
         end
 
         V .= U
