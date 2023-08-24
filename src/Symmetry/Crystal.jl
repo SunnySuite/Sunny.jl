@@ -161,12 +161,6 @@ function spacegroup_name(hall_number::Int)
     return "HM symbol '$(sgt.international)' ($(sgt.number))"
 end
 
-function symops_from_spglib(rotations, translations)
-    Rs = Mat3.(transpose.(eachslice(rotations, dims=3)))
-    Ts = Vec3.(eachcol(translations))
-    return SymOp.(Rs, Ts)
-end
-
 
 # Sort the sites according to class and fractional coordinates.
 function sort_sites!(cryst::Crystal)
@@ -213,8 +207,8 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     d = Spglib.get_dataset(cell, symprec)
     classes = d.crystallographic_orbits
     # classes = d.equivalent_atoms
-    symops = symops_from_spglib(d.rotations, d.translations)
-    spacegroup = spacegroup_name(d.hall_number)
+    symops = SymOp.(d.rotations, d.translations)
+    spacegroup = spacegroup_name(Int(d.hall_number))
 
     # renumber class indices so that they go from 1:max_class
     classes = [findfirst(==(c), unique(classes)) for c in classes]
@@ -253,7 +247,8 @@ function crystal_from_hall_number(latvecs::Mat3, positions::Vector{Vec3}, types:
         @assert is_compatible "Lattice vectors define a monoclinic cell that is incompatible with Hall number $hall_number."
     end
 
-    symops = symops_from_spglib(Spglib.get_symmetry_from_database(hall_number)...)
+    rotations, translations = Spglib.get_symmetry_from_database(hall_number)
+    symops = SymOp.(rotations, translations)
     spacegroup = spacegroup_name(hall_number)
 
     return crystal_from_symops(latvecs, positions, types, symops, spacegroup; symprec)
