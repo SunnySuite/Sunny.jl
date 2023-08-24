@@ -84,7 +84,7 @@ function Crystal(filename::AbstractString; symprec=nothing)
     zs = parse_cif_float.(geo_table[:, "_atom_site_fract_z"])
     unique_atoms = Vec3.(zip(xs, ys, zs))
 
-    sitetypes = String.(geo_table[:, "_atom_site_label"])
+    types = String.(geo_table[:, "_atom_site_label"])
 
     multiplicities = nothing
     if "_atom_site_symmetry_multiplicity" in names(geo_table)
@@ -165,15 +165,15 @@ function Crystal(filename::AbstractString; symprec=nothing)
 
     if !isnothing(symmetries)
         # Use explicitly provided symmetries
-        return crystal_from_symops(latvecs, unique_atoms, sitetypes, symmetries, spacegroup; symprec)
+        return crystal_from_symops(latvecs, unique_atoms, types, symmetries, spacegroup; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
-        return Crystal(latvecs, unique_atoms, sitetypes, hall_symbol; symprec)
+        return Crystal(latvecs, unique_atoms, hall_symbol; types, symprec)
     elseif !isnothing(groupnum)
         # Use symmetries for international group number
-        return Crystal(latvecs, unique_atoms, sitetypes, groupnum; symprec)
+        return Crystal(latvecs, unique_atoms, groupnum; types, symprec)
     else
         # Infer the symmetries automatically
-        return Crystal(latvecs, unique_atoms, sitetypes; symprec)
+        return Crystal(latvecs, unique_atoms; types, symprec)
     end
 end
