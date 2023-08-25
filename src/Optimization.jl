@@ -107,7 +107,7 @@ function minimize_energy!(sys::System{N}; maxiters=100, subiters=10, method=Opti
     end
 
     # Perform optimization, resetting parameterization of coherent states as necessary
-    options = Optim.Options(iterations=subiters, kwargs...)
+    options = Optim.Options(; iterations=subiters, kwargs...)
 
     for iter in 1 : div(maxiters, subiters, RoundUp)
         output = Optim.optimize(f, g!, αs, method, options)
