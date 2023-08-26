@@ -282,8 +282,9 @@ fig = Figure()
 ax = Axis(fig[1,1]; xlabel="𝐪", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
 ylims!(ax, 0.0, 7.5)
 xlims!(ax, 1, size(disp, 1))
+colorrange = extrema(intensity)
 for i in axes(disp)[2]
-    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=intensity[:,i])
+    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=intensity[:,i], colorrange)
 end
 fig
 
