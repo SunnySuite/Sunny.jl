@@ -1,6 +1,6 @@
 # # Structure Factors with Classical Dynamics 
 
-using Sunny, GLMakie, LinearAlgebra#hide
+using Sunny, LinearAlgebra, GLMakie
 
 # In our previous [Case Study: FeI$_{2}$](@ref), we used linear spin wave theory
 # (LSWT) to calculate the dynamical structure factor. Here, we perform a similar
