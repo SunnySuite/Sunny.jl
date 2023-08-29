@@ -21,11 +21,13 @@ example_doc_paths = [joinpath("examples", "$name.md") for name in example_names]
 # Run Literate on each `../examples/name.jl` and output `src/examples/name.md`
 isdir(example_destination) && rm(example_destination; recursive=true)
 for (name, source) in zip(example_names, example_sources)
-    # Preprocess each example by adding a notebook download link at the top
+    # Preprocess each example by adding a notebook download link at the top. The
+    # relative path is hardcoded according to the layout of `gh-pages` branch,
+    # which is set up by `Documenter.deploydocs`.
     function preprocess(str)
         """
         # ```@raw html
-        # <a href="$name.ipynb" download>Download as a Jupyter notebook</a>
+        # <a href="../../assets/notebooks/$name.ipynb" download>Download as a Jupyter notebook</a>
         # ```
         
         """ * str
@@ -53,7 +55,8 @@ Documenter.makedocs(;
 
 # Create Jupyter notebooks alongside the newly built Documenter examples. Set
 # `execute=false` to avoid re-running all the simulations.
-notebook_path = joinpath("build", "examples")
+notebook_path = joinpath(@__DIR__, "build", "assets", "notebooks")
+mkdir(notebook_path)
 for source in example_sources
     function preprocess(str)
         # Notebooks don't need to escape HTML in markdown cells
@@ -69,4 +72,5 @@ end
 Documenter.deploydocs(
     repo = "github.com/SunnySuite/Sunny.jl.git",
     devbranch = "main",
+    push_preview = true, # Deploy docs for PRs
 )
