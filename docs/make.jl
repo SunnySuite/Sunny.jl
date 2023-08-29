@@ -18,12 +18,22 @@ example_destination = joinpath(@__DIR__, "src", "examples")
 example_doc_paths = [joinpath("examples", "$name.md") for name in example_names]
 
 
-# Run Literate on each `../examples/file.jl` and output `src/examples/file.md`
+# Run Literate on each `../examples/name.jl` and output `src/examples/name.md`
 isdir(example_destination) && rm(example_destination; recursive=true)
-for source in example_sources
-    Literate.markdown(source, example_destination)
+for (name, source) in zip(example_names, example_sources)
+    # Preprocess each example by adding a notebook download link at the top
+    function preprocess(str)
+        """
+        # ```@raw html
+        # <a href="$name.ipynb" download>Download as a Jupyter notebook</a>
+        # ```
+        
+        """ * str
+    end
+    Literate.markdown(source, example_destination; preprocess, credit=false)
 end
 
+# Build docs as HTML, including the `examples/name.md` markdown built above
 Documenter.makedocs(;
     sitename = "Sunny documentation",
     pages = [
@@ -41,6 +51,21 @@ Documenter.makedocs(;
     draft
 )
 
+# Create Jupyter notebooks alongside the newly built Documenter examples. Set
+# `execute=false` to avoid re-running all the simulations.
+notebook_path = joinpath("build", "examples")
+for source in example_sources
+    function preprocess(str)
+        # Notebooks don't need to escape HTML in markdown cells
+        # TODO: remove with new Literate release
+        str = replace(str, r"```@raw(\h+)html(.*?)```"s => s"\2")
+        # Notebooks use WGLMakie instead of GLMakie
+        str = replace(str, r"^using(.*?)GLMakie"m => s"using\1WGLMakie")
+    end
+    Literate.notebook(source, notebook_path; preprocess, execute=false, credit=false)
+end
+
+# Attempt to push to gh-pages branch for deployment
 Documenter.deploydocs(
     repo = "github.com/SunnySuite/Sunny.jl.git",
     devbranch = "main",

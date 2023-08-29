@@ -28,7 +28,7 @@ crystal = Crystal(latvecs, [[0,0,0]], 227, setting="1")
 latsize = (1,1,1)
 seed = 0
 S = 3/2
-J = 7.5413*meV_per_K # (meV)
+J = 7.5413*meV_per_K # (~ 0.65 meV)
 sys = System(crystal, latsize, [SpinInfo(1; S, g=2)], :dipole; seed=0)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 
@@ -93,7 +93,7 @@ for (i, radius) in enumerate(radii)
     output[i, :] = sum(is, dims=1) / size(is, 1)
 end
 
-empty!(fig)
+fig = Figure()
 ax = Axis(fig[1,1]; xlabel="|Q| (Å⁻¹)", ylabel="ω (meV)")
 heatmap!(ax, radii, energies, output, colormap=:gnuplot2)
 fig

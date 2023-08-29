@@ -32,10 +32,11 @@
 # Julia](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)
 # guide. Sunny requires Julia 1.9 or later.
 #
-# From the Julia prompt, load `Sunny` and `GLMakie`, a plotting package.
+# From the Julia prompt, load `Sunny`. For plotting, one can choose either
+# `GLMakie` (a pop-up window) or `WGLMakie` (inline plots for a Jupyter notebook
+# or VSCode).
 
 using Sunny, GLMakie
-#nb Sunny.offline_viewers()  # Inject Javascript code for additional plotting capabilities 
 
 # If these packages are not yet installed, Julia should offer to install them
 # using its built-in package management system. If old versions are installed,
@@ -51,9 +52,9 @@ a = b = 4.05012  # Lattice constants for triangular lattice
 c = 6.75214      # Spacing in the z-direction
 
 latvecs = lattice_vectors(a, b, c, 90, 90, 120) # A 3x3 matrix of lattice vectors that
-                                                 ## define the conventional unit cell
-positions = [[0,0,0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]  # Positions of atoms in fractions
-                                                         ## of lattice vectors
+                                                ## define the conventional unit cell
+positions = [[0, 0, 0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]  # Positions of atoms in fractions
+                                                           ## of lattice vectors
 types = ["Fe", "I", "I"]
 FeI2 = Crystal(latvecs, positions; types)
 

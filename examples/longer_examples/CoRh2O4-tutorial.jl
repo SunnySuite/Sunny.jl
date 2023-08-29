@@ -17,8 +17,6 @@
 # ---
 # #### Loading Packages 
 using Sunny, GLMakie, ProgressMeter, Statistics, Random, Brillouin
-#md Makie.inline!(true)
-#nb Makie.inline!(true)
 Sunny.offline_viewers() 
 cif_path = joinpath("..", "Sunny.jl", "examples", "longer_examples", "CoRh2O4_#109301.cif");
 
