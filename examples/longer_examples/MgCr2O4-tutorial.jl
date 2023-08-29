@@ -37,11 +37,7 @@
 
 using Sunny # The main package
 using GLMakie # Plotting package
-#nb Sunny.offline_viewers(); # Enable Javascript plotting
-#nb Makie.inline!(true); # Embed Makie plots in notebook
-#md Makie.inline!(true); # Embed Makie plots in markdown document
-cif_path = joinpath("..", "Sunny.jl", "examples", "longer_examples");
- 
+
 # ## Setting up the crystal structure
 # 
 # Before specifying the interactions of our system, we first must set up the
@@ -120,7 +116,8 @@ xtal_mgcro_2 = Crystal(latvecs, positions, spacegroup; types, setting)
 # To import a CIF file, simply give the path to `Crystal`. One may optionally
 # specify a precision parameter to apply to the symmetry analysis.
 
-xtal_mgcro_3 = Crystal(joinpath(cif_path, "MgCr2O4_160953_2009.cif"); symprec=0.001)
+cif = joinpath(pkgdir(Sunny), "examples", "longer_examples", "MgCr2O4_160953_2009.cif")
+xtal_mgcro_3 = Crystal(cif; symprec=0.001)
 
 # Finally, we wish to restrict attention to the magnetic atoms in the unit cell
 # while maintaining symmetry information for the full crystal, which is required
