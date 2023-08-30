@@ -50,14 +50,19 @@ Tc1, Ti0, Ti1, Ti2, Ti3, Tm2, Tm3, U3, U4, U5, V0, V1, V2, V3, V4, W0a, W0b,
 W0c, W1a, W1b, W2c, W3, W4, W5, Y0, Yb2, Yb3, Zr0, Zr1
 ```
 
-The trailing number denotes ionization state. For example, "Fe0" denotes a
-neutral iron atom, while "Fe2" denotes ``Fe_2^+``. If multiple electronic
-configurations are possible, they will be distinguished by a trailing index (a,
-b, ...). Details are given in the `config` field, e.g.,
+The trailing number denotes ionization state. For example, `"Fe0"` denotes a
+neutral iron atom, while `"Fe2"` denotes `Fe²⁺`. If multiple electronic
+configurations are possible, they will be distinguished by a trailing index
+letter (`a`, `b`, ...). Absence of this letter will print an informative error
+message,
 
-```julia
-println(FormFactor("Ir0a").config) # 6s⁰5d⁹
-println(FormFactor("Ir0b").config) # 6s¹5d⁸
+```
+FormFactor("Ir0")
+
+ERROR: Disambiguate form factor according to electronic configuration:
+    "Ir0a" -- 6s⁰5d⁹
+    "Ir0b" -- 6s¹5d⁸
+    "Ir0c" -- 6s²5d⁷
 ```
 
 The form factor is approximated as
@@ -85,6 +90,21 @@ References:
  3. K. Kobayashi, T. Nagao, M. Ito, Acta Cryst. A, 67 pp 473–480 (2011)
 """
 function FormFactor(ion::String; g_lande=2)
+    if !haskey(radial_integral_coefficients, ion)
+        if !haskey(radial_integral_coefficients, ion*"a")
+            error("Form factor requires species name and charge state, e.g. \"Fe2\" for Fe²⁺")
+        else
+            avail_keys = [k for k in keys(radial_integral_coefficients) if startswith(k, ion)]
+            avail_strs = map(sort(avail_keys)) do k
+                "    $(repr(k)) -- " * radial_integral_coefficients[k][3]
+            end
+            error("""
+                Disambiguate form factor according to electronic configuration:
+                $(join(avail_strs, "\n"))
+                """)
+        end
+    end
+
     (j0, j2, config) = radial_integral_coefficients[ion]
     j0 = ExpandedBesselIntegral(j0...)
     j2 = ExpandedBesselIntegral(j2...)
