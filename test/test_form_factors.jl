@@ -1,5 +1,6 @@
-@testitem "Compute form factors" begin
-    # arbitrary numbers for testing
+@testitem "Form factors" begin
+    # Compute form factors for all ion types, and on arbitrary arguments
+
     k2_absolute = 0.57
     g_lande = 2.15
 
@@ -9,12 +10,22 @@
     kobayashi_keys = ["Hf2", "Hf3", "Ta2", "Ta3", "Ta4", "W0a", "W0b", "W0c", "W1a", "W1b", "W2c", "W3", "W4", "W5", "Re0a", "Re0b", "Re0c", "Re1a", "Re1b", "Re2", "Re3", "Re4", "Re5", "Re6", "Os0a", "Os0b", "Os0c", "Os1a", "Os1b", "Os2", "Os3", "Os4", "Os5", "Os6", "Os7", "Ir0a", "Ir0b", "Ir0c", "Ir1a", "Ir1b", "Ir2", "Ir3", "Ir4", "Ir5", "Ir6", "Pt1", "Pt2", "Pt3", "Pt4", "Pt5", "Pt6", "Au1", "Au2", "Au3", "Au4", "Au5"]
     kobayashi_refs = [0.8689440651253271, 0.8888136177131588, 0.8840686215950699, 0.8994004337496564, 0.9101528391610143, 0.8472388078049689, 0.8650067638665045, 0.879267908902524, 0.8779398246381942, 0.8880602665398635, 0.896093849382087, 0.9084055597571624, 0.9174422350375753, 0.9244679050355514, 0.8681630254808739, 0.8822371232551307, 0.8933169474106295, 0.8915297871341744, 0.8998453622986089, 0.9060230528912959, 0.9161468433220479, 0.9237747655215364, 0.9296393376164646, 0.9345562156909509, 0.8841187378321346, 0.8954374822984409, 0.904413051738971, 0.9025244946804027, 0.9094578103795641, 0.9143596889560148, 0.9228623215928715, 0.9293869806624924, 0.9345241242095418, 0.9387633528752165, 0.9423464867717495, 0.896643858631712, 0.9061310241612465, 0.9135576034496984, 0.9117017027338759, 0.9174776840032718, 0.9214765103783157, 0.9286788274192451, 0.9342761922806214, 0.9387216006635983, 0.9425685778782177, 0.9192223249722434, 0.9275720974747921, 0.9337847095781193, 0.9386221417937619, 0.9426937750124552, 0.9460141761165295, 0.9301232355721594, 0.9328984199721937, 0.9384038365877813, 0.9425634681355087, 0.9461716107116591]
 
-
     for (ref, key) in zip(brown_refs, brown_keys)
-        @assert ref ≈ Sunny.compute_form_factor(FormFactor(key; g_lande), k2_absolute)
+        @test ref ≈ Sunny.compute_form_factor(FormFactor(key; g_lande), k2_absolute)
     end
 
     for (ref, key) in zip(kobayashi_refs, kobayashi_keys)
-        @assert ref ≈ Sunny.compute_form_factor(FormFactor(key; g_lande), k2_absolute)
+        @test ref ≈ Sunny.compute_form_factor(FormFactor(key; g_lande), k2_absolute)
     end
+
+    # Check error messages
+
+    @test_throws "Form factor requires species name" FormFactor("Fe")
+    
+    @test_throws """
+        Disambiguate form factor according to electronic configuration:
+            "Ir0a" -- 6s⁰5d⁹
+            "Ir0b" -- 6s¹5d⁸
+            "Ir0c" -- 6s²5d⁷
+        """ FormFactor("Ir0")
 end
