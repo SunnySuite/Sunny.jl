@@ -67,7 +67,7 @@ function intensity_formula(f::Function, sc::SampledCorrelations, corr_ix::Abstra
     kT = Inf, 
     formfactors = nothing, 
     return_type = Float64, 
-    errors = false, 
+    calculate_errors = false, 
     string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])"
 )
     # If temperature given, ensure it's greater than 0.0
@@ -86,14 +86,20 @@ function intensity_formula(f::Function, sc::SampledCorrelations, corr_ix::Abstra
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
     NAtoms = Val(size(sc.data)[2])
     NCorr = Val(length(corr_ix))
-    databuffer = errors ? sc.errdata : sc.data
+
+    # Set the buffer and basis reduction function that will go into closure.
+    # This is determined by whether or not the running variance will be
+    # calculated.
+    data_buffer = calculate_errors ? sc.variance : sc.data
+    # reduce_basis = calculate_errors ? error_basis_reduction : phase_averaged_elements
+    reduce_basis = phase_averaged_elements
 
     # Intensity is calculated at the discrete (ix_q,ix_ω) modes available to the system.
     # Additionally, for momentum transfers outside of the first BZ, the norm `q_absolute` of the
     # momentum transfer may be different than the one inferred from `ix_q`, so it needs
     # to be provided independently of `ix_q`.
     calc_intensity = function (sc::SampledCorrelations, q_absolute::Vec3, ix_q::CartesianIndex{3}, ix_ω::Int64)
-        correlations = phase_averaged_elements(view(databuffer, corr_ix, :, :, ix_q, ix_ω), q_absolute, sc.crystal, ff_atoms, NCorr, NAtoms)
+        correlations = reduce_basis(view(data_buffer, corr_ix, :, :, ix_q, ix_ω), q_absolute, sc.crystal, ff_atoms, NCorr, NAtoms)
 
         # This is NaN if sc is instant_correlations
         ω = (typeof(ωs_sc) == Float64 && isnan(ωs_sc)) ? NaN : ωs_sc[ix_ω] 
@@ -124,7 +130,6 @@ function intensity_formula(f::Function,sc::SampledCorrelations,required_correlat
     corr_ix = lookup_correlations(sc,required_correlations)
     intensity_formula(f,sc,corr_ix;kwargs...)
 end
-
 
 
 function classical_to_quantum(ω, kT::Float64)

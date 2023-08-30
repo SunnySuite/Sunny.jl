@@ -81,7 +81,7 @@ function no_processing(::SampledCorrelations)
 end
 
 function accum_sample!(sc::SampledCorrelations)
-    (; data, absdata, errdata, correlations, samplebuf, copybuf, nsamples, fft!) = sc
+    (; data, variance, correlations, samplebuf, copybuf, nsamples, fft!) = sc
     natoms = size(samplebuf)[5]
 
     fft! * samplebuf # Apply pre-planned and pre-normalized FFT
@@ -92,25 +92,31 @@ function accum_sample!(sc::SampledCorrelations)
         # Calculate one matrix element of S(𝐪,ω) associated with new sample and
         # put into `copybuf`. Then accumluate into `data``.
         α, β = ci.I
-        @. copybuf = @views samplebuf[α,:,:,:,i,:] * conj(samplebuf[β,:,:,:,j,:]) - data[c,i,j,:,:,:,:] 
-        @views data[c,i,j,:,:,:,:] .+= copybuf .* (1/nsamples[1])
 
-        if !isnothing(errdata) 
-            # If tracking errors, add (x_n - ̅x_{n-1})*(x_n - ̅x_{n}) to
-            # `errdata` without allocating. `n` indicates sample number and
-            # \overbar indicates mean.
-            databuf  = @view data[c,i,j,:,:,:,:] 
-            errbuf   = @view errdata[c,i,j,:,:,:,:]
-            absbuf   = @view absdata[c,i,j,:,:,:,:]
+        if isnothing(variance)
+            @. copybuf = @views samplebuf[α,:,:,:,i,:] * conj(samplebuf[β,:,:,:,j,:]) - data[c,i,j,:,:,:,:] 
+            @views data[c,i,j,:,:,:,:] .+= copybuf .* (1/nsamples[1])
+        else 
+            databuf  = @view data[c,i,j,:,:,:,:]
+            varbuf   = @view variance[c,i,j,:,:,:,:]
             sample_α = @view samplebuf[α,:,:,:,i,:]
             sample_β = @view samplebuf[β,:,:,:,j,:]
 
             for k in eachindex(databuf)
-                abssample = abs(sample_α[k] * conj(sample_β[k]))
-                prod = abssample - absbuf[k]                             # Calculate (x_n - ̅x_{n-1})
-                absbuf[k] += (abssample - absbuf[k]) * (1/nsamples[1])   # Update `data`: ̅x_{n-1} → ̅x_{n}
-                prod *= abssample - absbuf[k]                            # Calculate (x_n - ̅x_{n-1})*(x_n - ̅x_n)
-                errbuf[k] += prod
+                # Store old (complex) mean on stack.
+                μ_old = databuf[k]
+
+                # Update running mean.
+                matrixelem = sample_α[k] * conj(sample_β[k])
+                databuf[k] += (matrixelem - databuf[k]) * (1/nsamples[1])
+                μ = databuf[k]
+
+                # Update variance estimate.
+                # Note that the first term of `diff` is real by construction
+                # (despite appearances), but `real` is explicitly called to
+                # avoid automatic typecasting errors caused by roundoff.
+                diff = real((conj(matrixelem) - conj(μ_old))*(matrixelem - μ)) - varbuf[k]
+                varbuf[k] += diff * (1/nsamples[1])
             end
         end
     end
