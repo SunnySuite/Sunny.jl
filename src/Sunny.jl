@@ -28,6 +28,7 @@ import Random: randstring, RandomDevice
 
 const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
+const Mat2 = SMatrix{2, 2, ComplexF64, 4}
 const CVec{N} = SVector{N, ComplexF64}
 
 

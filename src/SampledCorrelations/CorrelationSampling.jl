@@ -81,17 +81,38 @@ function no_processing(::SampledCorrelations)
 end
 
 function accum_sample!(sc::SampledCorrelations)
-    (; data, correlations, samplebuf, copybuf, nsamples, fft!) = sc
+    (; data, absdata, errdata, correlations, samplebuf, copybuf, nsamples, fft!) = sc
     natoms = size(samplebuf)[5]
 
     fft! * samplebuf # Apply pre-planned and pre-normalized FFT
     nsamples[1] += 1
 
-    # Transfer to final memory layout while accumulating new samplebuf
     for j in 1:natoms, i in 1:natoms, (ci, c) in correlations 
+
+        # Calculate one matrix element of S(𝐪,ω) associated with new sample and
+        # put into `copybuf`. Then accumluate into `data``.
         α, β = ci.I
         @. copybuf = @views samplebuf[α,:,:,:,i,:] * conj(samplebuf[β,:,:,:,j,:]) - data[c,i,j,:,:,:,:] 
         @views data[c,i,j,:,:,:,:] .+= copybuf .* (1/nsamples[1])
+
+        if !isnothing(errdata) 
+            # If tracking errors, add (x_n - ̅x_{n-1})*(x_n - ̅x_{n}) to
+            # `errdata` without allocating. `n` indicates sample number and
+            # \overbar indicates mean.
+            databuf  = @view data[c,i,j,:,:,:,:] 
+            errbuf   = @view errdata[c,i,j,:,:,:,:]
+            absbuf   = @view absdata[c,i,j,:,:,:,:]
+            sample_α = @view samplebuf[α,:,:,:,i,:]
+            sample_β = @view samplebuf[β,:,:,:,j,:]
+
+            for k in eachindex(databuf)
+                abssample = abs(sample_α[k] * conj(sample_β[k]))
+                prod = abssample - absbuf[k]                             # Calculate (x_n - ̅x_{n-1})
+                absbuf[k] += (abssample - absbuf[k]) * (1/nsamples[1])   # Update `data`: ̅x_{n-1} → ̅x_{n}
+                prod *= abssample - absbuf[k]                            # Calculate (x_n - ̅x_{n-1})*(x_n - ̅x_n)
+                errbuf[k] += prod
+            end
+        end
     end
 
     return nothing

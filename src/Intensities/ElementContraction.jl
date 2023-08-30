@@ -177,6 +177,8 @@ function intensity_formula(sc::SampledCorrelations, mode::Symbol; kwargs...)
     intensity_formula(sc,contractor;string_formula,kwargs...)
 end
 
+error_formula(sc::SampledCorrelations, mode::Symbol; kwargs...) = intensity_formula(sc, mode; errors=true, kwargs...)
+
 function intensity_formula(sc::SampledCorrelations, contractor::Contraction{T}; kwargs...) where T
     intensity_formula(sc,required_correlations(contractor); return_type = T,kwargs...) do k,ω,correlations
         intensity = contract(correlations, k, contractor)

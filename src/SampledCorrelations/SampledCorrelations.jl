@@ -7,10 +7,12 @@ initialized by calling either [`dynamical_correlations`](@ref) or
 """
 struct SampledCorrelations{N}
     # 𝒮^{αβ}(q,ω) data and metadata
-    data           :: Array{ComplexF64, 7}   # Raw SF data for 1st BZ (numcorrelations × natoms × natoms × latsize × energy)
-    crystal        :: Crystal                # Crystal for interpretation of q indices in `data`
-    origin_crystal :: Union{Nothing,Crystal} # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
-    Δω             :: Float64                # Energy step size (could make this a virtual property)  
+    data           :: Array{ComplexF64, 7}                 # Raw SF data for 1st BZ (numcorrelations × natoms × natoms × latsize × energy)
+    absdata        :: Union{Nothing, Array{Float64, 7}}
+    errdata        :: Union{Nothing, Array{Float64, 7}}    # Running sum of squares of the differences between current samples and mean (for standard error estimate)
+    crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
+    origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
+    Δω             :: Float64                              # Energy step size (could make this a virtual property)  
 
     # Correlation info (αβ indices of 𝒮^{αβ}(q,ω))
     observables    :: Vector{LinearMap}  # Operators corresponding to observables
@@ -156,7 +158,7 @@ Additional keyword options are the following:
 """
 function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
                                 apply_g = true, observables = nothing, correlations = nothing,
-                                process_trajectory = :none) where {N}
+                                calculate_errors = false, process_trajectory = :none) where {N}
 
     # Set up correlation functions (which matrix elements αβ to save from 𝒮^{αβ})
     if isnothing(observables)
@@ -268,6 +270,8 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
     samplebuf = zeros(ComplexF64, length(observables), sys.latsize..., na, nω) 
     copybuf = zeros(ComplexF64, sys.latsize..., nω) 
     data = zeros(ComplexF64, ncorr, na, na, sys.latsize..., nω)
+    absdata = calculate_errors ? zeros(Float64, size(data)...) : nothing
+    errdata = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
     # Normalize FFT according to physical convention
     normalizationFactor = 1/(nω * √(prod(sys.latsize)))
@@ -278,7 +282,7 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
 
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
-    sc = SampledCorrelations{N}(data, sys.crystal, origin_crystal, Δω, observables, observable_ixs, correlations,
+    sc = SampledCorrelations{N}(data, absdata, errdata, sys.crystal, origin_crystal, Δω, observables, observable_ixs, correlations,
                                 samplebuf, fft!, copybuf, measperiod, apply_g, Δt, nsamples, processtraj!)
 
     return sc
