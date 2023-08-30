@@ -92,7 +92,6 @@ function intensity_formula(f::Function, sc::SampledCorrelations, corr_ix::Abstra
     # calculated.
     data_buffer = calculate_errors ? sc.variance : sc.data
     reduce_basis = calculate_errors ? error_basis_reduction : phase_averaged_elements
-    # reduce_basis = phase_averaged_elements
 
     # Intensity is calculated at the discrete (ix_q,ix_ω) modes available to the system.
     # Additionally, for momentum transfers outside of the first BZ, the norm `q_absolute` of the
