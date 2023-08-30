@@ -98,10 +98,8 @@ end
 
 
 function errors_interpolated(sc::SampledCorrelations, qs, formula; kwargs...)
-    # Add field to ClassicalIntensityFormula so can verify it's an error formula?
+    # Add `error`` field to ClassicalIntensityFormula so can verify it's an error formula?
     is = intensities_interpolated(sc, qs, formula; kwargs...)
-    n = sc.nsamples[1]
-    # @. is = √(is/(n+1))  # Return standard deviation, not variance
     @. is = √(is)  # Return standard deviation, not variance
     return is
 end
