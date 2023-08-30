@@ -1,7 +1,13 @@
+# Version 0.5.2
+
+* Form factors for 5d transition ions.
+* Download links for notebooks and scripts on each doc example
+* Various bug fixes.
+
 # Version 0.5.1
 
 * Fix binning edge cases.
-* plot_spins accepts resolution argument.
+* `plot_spins` accepts resolution argument.
 
 # Version 0.5.0
 
