@@ -27,7 +27,8 @@ for (name, source) in zip(example_names, example_sources)
     function preprocess(str)
         """
         # ```@raw html
-        # <a href="../../assets/notebooks/$name.ipynb" download>Download as a Jupyter notebook</a>
+        # Download this example as <a href="../../assets/notebooks/$name.ipynb" download><u>Jupyter notebook</u></a>
+        # or <a href="../../assets/scripts/$name.jl" download><u>Julia script</u></a>.
         # ```
         
         """ * str
@@ -53,20 +54,27 @@ Documenter.makedocs(;
     draft
 )
 
-# Create Jupyter notebooks alongside the newly built Documenter examples. Set
-# `execute=false` to avoid re-running all the simulations.
+# Create Jupyter notebooks and Julia script for each Literate example. These
+# will be stored in the `assets/` directory of the hosted docs.
 notebook_path = joinpath(@__DIR__, "build", "assets", "notebooks")
+script_path   = joinpath(@__DIR__, "build", "assets", "scripts")
 mkdir(notebook_path)
+mkdir(script_path)
 for source in example_sources
     function preprocess(str)
         # Notebooks don't need to escape HTML in markdown cells
-        # TODO: remove with new Literate release
+        # (Workaround for https://github.com/fredrikekre/Literate.jl/issues/222)
         str = replace(str, r"```@raw(\h+)html(.*?)```"s => s"\2")
         # Notebooks use WGLMakie instead of GLMakie
         str = replace(str, r"^using(.*?)GLMakie"m => s"using\1WGLMakie")
     end
+    # Build notebooks
     Literate.notebook(source, notebook_path; preprocess, execute=false, credit=false)
+
+    # Build julia scripts
+    Literate.script(source, script_path; credit=false)
 end
+
 
 # Attempt to push to gh-pages branch for deployment
 Documenter.deploydocs(
