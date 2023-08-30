@@ -81,34 +81,40 @@ function no_processing(::SampledCorrelations)
 end
 
 function accum_sample!(sc::SampledCorrelations)
-    (; data, variance, correlations, samplebuf, copybuf, nsamples, fft!) = sc
+    (; data, variance, correlations, samplebuf, nsamples, fft!) = sc
     natoms = size(samplebuf)[5]
 
     fft! * samplebuf # Apply pre-planned and pre-normalized FFT
-    nsamples[1] += 1
+    count = nsamples[1] += 1
 
-    for j in 1:natoms, i in 1:natoms, (ci, c) in correlations 
+    # There seem to be 12 allocations per loop. (These also existed in previous
+    # version using copybuf.) No individual line or block of code within the for
+    # loop allocates when tested. The allocations are small and don't seem to be
+    # a big performance problem, but I am not sure where they are coming from.
+    # Possibly from the iteration itself?
+    for j in 1:natoms, i in 1:natoms, (ci, c) in correlations  
 
-        # Calculate one matrix element of S(𝐪,ω) associated with new sample and
-        # put into `copybuf`. Then accumluate into `data``.
         α, β = ci.I
+        sample_α = @view samplebuf[α,:,:,:,i,:]
+        sample_β = @view samplebuf[β,:,:,:,j,:]
+        databuf  = @view data[c,i,j,:,:,:,:]
 
         if isnothing(variance)
-            @. copybuf = @views samplebuf[α,:,:,:,i,:] * conj(samplebuf[β,:,:,:,j,:]) - data[c,i,j,:,:,:,:] 
-            @views data[c,i,j,:,:,:,:] .+= copybuf .* (1/nsamples[1])
+            for k in eachindex(databuf)
+                # Store the diff for one complex number on the stack.
+                diff = sample_α[k] * conj(sample_β[k]) - databuf[k]
+                # Accumulate into running average
+                databuf[k] += diff * (1/count)
+            end
         else 
-            databuf  = @view data[c,i,j,:,:,:,:]
             varbuf   = @view variance[c,i,j,:,:,:,:]
-            sample_α = @view samplebuf[α,:,:,:,i,:]
-            sample_β = @view samplebuf[β,:,:,:,j,:]
-
             for k in eachindex(databuf)
                 # Store old (complex) mean on stack.
                 μ_old = databuf[k]
 
                 # Update running mean.
                 matrixelem = sample_α[k] * conj(sample_β[k])
-                databuf[k] += (matrixelem - databuf[k]) * (1/nsamples[1])
+                databuf[k] += (matrixelem - databuf[k]) * (1/count)
                 μ = databuf[k]
 
                 # Update variance estimate.
@@ -116,7 +122,7 @@ function accum_sample!(sc::SampledCorrelations)
                 # (despite appearances), but `real` is explicitly called to
                 # avoid automatic typecasting errors caused by roundoff.
                 diff = real((conj(matrixelem) - conj(μ_old))*(matrixelem - μ)) - varbuf[k]
-                varbuf[k] += diff * (1/nsamples[1])
+                varbuf[k] += diff * (1/count)
             end
         end
     end

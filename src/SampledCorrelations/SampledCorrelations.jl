@@ -21,7 +21,6 @@ struct SampledCorrelations{N}
     # Specs for sample generation and accumulation
     samplebuf    :: Array{ComplexF64, 6}   # New sample buffer
     fft!         :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
-    copybuf      :: Array{ComplexF64, 4}   # Copy cache for accumulating samples
     measperiod   :: Int                    # Steps to skip between saving observables (downsampling for dynamical calcs)
     apply_g      :: Bool                   # Whether to apply the g-factor
     Δt           :: Float64                # Step size for trajectory integration 
@@ -267,7 +266,6 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
     na = natoms(sys.crystal)
     ncorr = length(correlations)
     samplebuf = zeros(ComplexF64, length(observables), sys.latsize..., na, nω) 
-    copybuf = zeros(ComplexF64, sys.latsize..., nω) 
     data = zeros(ComplexF64, ncorr, na, na, sys.latsize..., nω)
     variance = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
@@ -281,7 +279,7 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
     sc = SampledCorrelations{N}(data, variance, sys.crystal, origin_crystal, Δω, observables, observable_ixs, correlations,
-                                samplebuf, fft!, copybuf, measperiod, apply_g, Δt, nsamples, processtraj!)
+                                samplebuf, fft!, measperiod, apply_g, Δt, nsamples, processtraj!)
 
     return sc
 end
