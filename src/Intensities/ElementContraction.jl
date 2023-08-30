@@ -129,6 +129,20 @@ required_correlations(::FullTensor{NCorr}) where NCorr = 1:NCorr
 ################################################################################
 Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 
+function contractor_from_mode(source, mode::Symbol)
+    if mode == :trace
+        contractor = Trace(source)
+        string_formula = "Tr S"
+    elseif mode == :perp
+        contractor = DipoleFactor(source)
+        string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz)"
+    elseif mode == :full
+        contractor = FullTensor(source)
+        string_formula = "S{α,β}"
+    end
+    return contractor, string_formula
+end
+
 """
     intensity_formula([swt or sc], contraction_mode::Symbol)
 
@@ -139,17 +153,8 @@ Sunny has several built-in formulas that can be selected by setting `contraction
 - `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
 """
 function intensity_formula(swt::SpinWaveTheory, mode::Symbol; kwargs...)
-    if mode == :trace
-        contractor = Trace(swt)
-        string_formula = "Tr S"
-    elseif mode == :perp
-        contractor = DipoleFactor(swt)
-        string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz)"
-    elseif mode == :full
-        contractor = FullTensor(swt)
-        string_formula = "S{α,β}"
-    end
-    intensity_formula(swt,contractor;string_formula,kwargs...)
+    contractor, string_formula = contractor_from_mode(swt, mode)
+    intensity_formula(swt, contractor; string_formula, kwargs...)
 end
 
 function intensity_formula(swt::SpinWaveTheory, contractor::Contraction{T}; kwargs...) where T
@@ -162,19 +167,10 @@ function intensity_formula(sc::SampledCorrelations, elem::Tuple{Symbol,Symbol}; 
     string_formula = "S{$(elem[1]),$(elem[2])}[ix_q,ix_ω]"
     intensity_formula(sc,Element(sc, elem); string_formula, kwargs...)
 end
-#intensity_formula(sc::SampledCorrelations, elem::Vector{Tuple{Symbol,Symbol}}; kwargs...) = intensity_formula(sc,Element(sc, elem); kwargs...)
+
 function intensity_formula(sc::SampledCorrelations, mode::Symbol; kwargs...)
-    if mode == :trace
-        contractor = Trace(sc)
-        string_formula = "Tr S"
-    elseif mode == :perp
-        contractor = DipoleFactor(sc)
-        string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz)"
-    elseif mode == :full
-        contractor = FullTensor(sc)
-        string_formula = "S{α,β}"
-    end
-    intensity_formula(sc,contractor;string_formula,kwargs...)
+    contractor, string_formula = contractor_from_mode(sc, mode)
+    intensity_formula(sc, contractor; string_formula, kwargs...)
 end
 
 function intensity_formula(sc::SampledCorrelations, contractor::Contraction{T}; kwargs...) where T
@@ -183,4 +179,9 @@ function intensity_formula(sc::SampledCorrelations, contractor::Contraction{T}; 
     end
 end
 
-
+function error_formula(sc::SampledCorrelations, mode::Symbol; kwargs...)
+    if isnothing(sc.variance)
+        error("Error information not available for this `SampledCorrelation`.")
+    end
+    intensity_formula(sc, mode; calculate_errors=true, kwargs...)
+end

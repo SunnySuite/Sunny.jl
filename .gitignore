@@ -5,4 +5,5 @@ profile.pb.gz
 .DS_Store
 .vscode
 *.ipynb
-*.lyx*
+*.lyx~
+*.lyx#

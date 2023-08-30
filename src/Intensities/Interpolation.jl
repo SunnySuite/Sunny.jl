@@ -97,6 +97,21 @@ function pruned_stencil_info(sc::SampledCorrelations, qs, interp::InterpolationS
 end
 
 
+function errors_interpolated(sc::SampledCorrelations, qs, formula; kwargs...)
+    # Note: There's currently no way to check whether the formula is an error
+    # formula. This is important because only error_formula will use the correct
+    # buffer (by configuring a closure). Revisit this.
+
+    # We can, however, check if `sc` has error information.
+    if isnothing(sc.variance)
+        error("Error information not available for this `SampledCorrelation`.")
+    end
+
+    is = intensities_interpolated(sc, qs, formula; kwargs...)
+    @. is = √is  # Return standard deviation, not variance
+
+    return is
+end
 
 """
     intensities_interpolated(sc::SampledCorrelations, qs, formula:ClassicalIntensityFormula; interpolation=nothing, negative_energies=false)
