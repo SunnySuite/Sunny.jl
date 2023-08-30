@@ -1,0 +1,432 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Running Variance Estimates in Sunny: Complex generalization of Welford's
+ Algorithm
+\end_layout
+
+\begin_layout Standard
+When calculating a structure factor, Sunny first generates a trajectory,
+ 
+\begin_inset Formula $s_{i,\mu}^{\alpha}\left({\bf r},t\right)$
+\end_inset
+
+, where 
+\begin_inset Formula ${\bf r}$
+\end_inset
+
+ is a position on the Bravais lattice, 
+\begin_inset Formula $t$
+\end_inset
+
+ time, 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ spin component, 
+\begin_inset Formula $\mu$
+\end_inset
+
+ the atom, and 
+\begin_inset Formula $i$
+\end_inset
+
+ sample number.
+ For each trajectory, Sunny determines a sample structure factor, 
+\begin_inset Formula $S_{i,\mu\nu}^{\alpha\beta}\text{\left({\bf q},\omega\right)}$
+\end_inset
+
+, where 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ and 
+\begin_inset Formula $\beta$
+\end_inset
+
+ are spin indices, 
+\begin_inset Formula $\mu$
+\end_inset
+
+ and 
+\begin_inset Formula $\nu$
+\end_inset
+
+ are atom indices, 
+\begin_inset Formula ${\bf q}$
+\end_inset
+
+ is a reciprocal lattice vector, and 
+\begin_inset Formula $\omega$
+\end_inset
+
+ is an energy.
+ This can be thought of as an 8-index array of complex numbers.
+ These sample structure factors are averaged to produce a final estimate,
+ 
+\begin_inset Formula 
+\[
+S_{\mu\nu}^{\alpha\beta}\text{\left({\bf q},\omega\right)}=\frac{1}{N}\sum_{i=1}^{N}S_{i,\mu\nu}^{\alpha\beta}\text{\left({\bf q},\omega\right)}
+\]
+
+\end_inset
+
+where 
+\begin_inset Formula $N$
+\end_inset
+
+ is the total number of samples.
+ 
+\end_layout
+
+\begin_layout Standard
+In practice, the average structure factor is calculated iteratively, since
+ each 
+\begin_inset Formula $S_{i,\mu\nu}^{\alpha\beta}\text{\left({\bf q},\omega\right)}$
+\end_inset
+
+ is generally very large.
+ It would be valuable to calculate a running estimate of the variance as
+ well.
+ A standard way to estimate variance iteratively is Welford's algorithm.
+ However, this method is generally stated in terms of real variables, whereas
+ each entry of 
+\series bold
+
+\begin_inset Formula $S_{i,\mu\nu}^{\alpha\beta}\text{\left({\bf q},\omega\right)}$
+\end_inset
+
+
+\series default
+ is a complex number (i.e., for any choice of 
+\begin_inset Formula ${\bf q}$
+\end_inset
+
+, 
+\begin_inset Formula $\omega$
+\end_inset
+
+ and indices).
+ This note outlines how this algorithm is generalized to the complex case.
+\end_layout
+
+\begin_layout Standard
+We will make the assumption that the values associated with all wave vectors,
+ energies and indices are decorrelated, i.e., we will assume every complex
+ number in the array representing 
+\begin_inset Formula $S_{i,\mu\nu}^{\alpha\beta}\text{\left({\bf q},\omega\right)}$
+\end_inset
+
+ is an independent random variable.
+ Will refer to an arbitrary matrix element (single complex random variable)
+ as 
+\begin_inset Formula $z_{i}$
+\end_inset
+
+.
+ Further, we will assume that the real and complex components of 
+\begin_inset Formula $z_{i}$
+\end_inset
+
+ are not correlated.
+ Under this assumption (circularly-symmetric Gaussian), the variance of
+ the complex random variable 
+\begin_inset Formula $Z$
+\end_inset
+
+ that generates the samples may be estimated as
+\begin_inset Formula 
+\[
+\sigma_{Z}^{2}={\rm Var}\left[Z\right]={\rm E}\left[\left|Z\right|^{2}\right]-\left|{\rm E}\left[Z\right]\right|^{2}.
+\]
+
+\end_inset
+
+(If the real and complex components are correlated, it is also necessary
+ to track the pseudovariance, which we disregard.) This definition yields
+ the sum of the variances of the real and imaginary components of 
+\begin_inset Formula $Z$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+To derive the algorithm, we observe that, for 
+\begin_inset Formula $N$
+\end_inset
+
+ samples, the estimated variance is given by,
+\begin_inset Formula 
+\[
+\sigma_{N}^{2}=\frac{1}{N}\sum_{i=1}^{N}z_{i}z_{i}^{*}-\mu_{N}\mu_{N}^{*},
+\]
+
+\end_inset
+
+where the mean,
+\begin_inset Formula 
+\[
+\mu_{N}=\frac{1}{N}\sum_{i=1}^{N}z_{i},
+\]
+
+\end_inset
+
+is a complex number.
+ From this it follows that
+\begin_inset Formula 
+\[
+\begin{alignedat}{1}N\sigma_{N} & =\sum_{i=1}^{N}z_{i}z_{i}^{*}-N\mu_{N}\mu_{N}^{*}\end{alignedat}
+\]
+
+\end_inset
+
+and
+\begin_inset Formula 
+\begin{equation}
+\begin{alignedat}{1}\left(N+1\right)\sigma_{N+1} & =\sum_{i=1}^{N+1}z_{i}z_{i}^{*}-\left(N+1\right)\mu_{N+1}\mu_{N+1}^{*}\\
+ & =\sum_{i=1}^{N}z_{i}z_{i}^{*}+z_{N+1}z_{N+1}^{*}-\left(N+1\right)\mu_{N+1}\mu_{N+1}^{*}\\
+ & =N\left(\sigma_{N}^{2}+\mu_{N}\mu_{N}^{*}\right)+z_{N+1}z_{N+1}^{*}-\left(N+1\right)\mu_{N+1}\mu_{N+1}^{*}.
+\end{alignedat}
+\label{eq:intermediate_1}
+\end{equation}
+
+\end_inset
+
+Further, 
+\begin_inset Formula 
+\[
+\begin{alignedat}{1}\mu_{N+1}\mu_{N+1}^{*} & =\frac{1}{\left(N+1\right)^{2}}\left(N\mu_{N}+z_{N}\right)\left(N\mu_{N}^{*}+z_{N}^{*}\right)\end{alignedat}
+.
+\]
+
+\end_inset
+
+Substituting this into Eq.
+ (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:intermediate_1"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+), expanding and simplifying, yields,
+\begin_inset Formula 
+\[
+\left(N+1\right)^{2}\sigma_{N+1}=N\left(N+1\right)\sigma_{N}^{2}+N\left(\mu_{N}-z_{N+1}\right)\left(\mu_{N}^{*}-z_{N+1}\right).
+\]
+
+\end_inset
+
+Rearranging this expression yields the desired recursion:
+\begin_inset Formula 
+\begin{equation}
+\sigma_{N+1}^{2}=\sigma_{N}^{2}+\frac{N\left(z_{N+1}-\mu_{N}\right)\left(z_{N+1}^{*}-\mu_{N}^{*}\right)-\left(N+1\right)\sigma_{N}^{2}}{\left(N+1\right)^{2}}.\label{eq:recursion_initial}
+\end{equation}
+
+\end_inset
+
+The same result essentially holds in the real case, with the product of
+ conjugates replaced by ordinary squaring.
+\end_layout
+
+\begin_layout Standard
+We will massage this a bit further.
+ Note that,
+\begin_inset Formula 
+\[
+z_{N+1}=\left(N+1\right)\mu_{N+1}-N\mu_{N}.
+\]
+
+\end_inset
+
+Substituting this into the numerator of the 
+\begin_inset Quotes eld
+\end_inset
+
+update
+\begin_inset Quotes erd
+\end_inset
+
+ term of Eq.
+ (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:recursion_initial"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) and simplifying, we find
+\begin_inset Formula 
+\begin{equation}
+\sigma_{N+1}^{2}=\sigma_{N}^{2}+\frac{N\left(\mu_{N+1}-\mu_{N}\right)\left(z_{N+1}^{*}-\mu_{N}^{*}\right)-\sigma_{N}^{2}}{\left(N+1\right)}.\label{eq:almost_there}
+\end{equation}
+
+\end_inset
+
+Finally, note that 
+\begin_inset Formula 
+\[
+\begin{alignedat}{1}N\left(\mu_{N+1}-\mu_{N}\right) & =\frac{N}{N+1}\sum_{i=1}^{N+1}z_{i}-\sum_{i=1}^{N}z_{i}\\
+ & =\sum_{i=1}^{N+1}z_{i}-\frac{1}{N+1}\sum_{i=1}^{N+1}z_{i}-\sum_{i}^{N}z_{i}\\
+ & =\left(z_{N+1}-\mu_{N+1}\right).
+\end{alignedat}
+\]
+
+\end_inset
+
+Substituting this result into Eq.
+ (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:almost_there"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) yields the desired result:
+\begin_inset Formula 
+\begin{equation}
+\sigma_{N+1}^{2}=\sigma_{N}+\frac{\left(z_{N+1}-\mu_{N+1}\right)\left(z_{N+1}^{*}-\mu_{N}^{*}\right)-\sigma_{N}^{2}}{N+1}.\label{eq:final_recursion}
+\end{equation}
+
+\end_inset
+
+Note that since Eq.
+ (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:recursion_initial"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+) is clearly real valued, so is Eq.
+ (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:final_recursion"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+), which results from simple manipulations of Eq.
+ (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:recursion_initial"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+).
+ This is true despite the fact that it is not immediately obvious that 
+\begin_inset Formula $\left(z_{N+1}-\mu_{N+1}\right)\left(z_{N+1}^{*}-\mu_{N}^{*}\right)$
+\end_inset
+
+ should be real.
+\end_layout
+
+\begin_layout Standard
+This iterative estimation can be implemented in a straightforward way alongside
+ the cumulative average.
+ It requires the allocation of an array with the same number of entries
+ as 
+\begin_inset Formula $S_{\mu\nu}^{\alpha\beta}\text{\left({\bf q},\omega\right)}$
+\end_inset
+
+, but these entries need only contain real variables.
+\end_layout
+
+\end_body
+\end_document
