@@ -1,6 +1,6 @@
 struct ClassicalIntensityFormula{T} <: IntensityFormula
     kT :: Float64
-    formfactors
+    formfactors :: Union{Nothing, Vector{FormFactor}}
     string_formula :: String
     calc_intensity :: Function
 end
