@@ -78,6 +78,9 @@ export Langevin, ImplicitMidpoint, step!
 include("Optimization.jl")
 export minimize_energy! 
 
+include("FormFactor.jl")
+export FormFactor
+
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/SWTCalculations.jl")
 include("SpinWaveTheory/Lanczos.jl")
@@ -86,13 +89,12 @@ export SpinWaveTheory, dispersion, dssf, delta_function_kernel
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
 include("SampledCorrelations/CorrelationSampling.jl")
-include("SampledCorrelations/FormFactor.jl")
 include("SampledCorrelations/BasisReduction.jl")
 include("Intensities/Types.jl")
 include("SampledCorrelations/DataRetrieval.jl")
-export SampledCorrelations, dynamical_correlations, instant_correlations, FormFactor, 
-    add_sample!, broaden_energy, lorentzian,
-    available_wave_vectors, available_energies, merge!, intensity_formula, integrated_lorentzian
+export SampledCorrelations, dynamical_correlations, instant_correlations, add_sample!,
+    broaden_energy, lorentzian, available_wave_vectors, available_energies, merge!,
+    intensity_formula, integrated_lorentzian
 
 include("Intensities/ElementContraction.jl")
 
