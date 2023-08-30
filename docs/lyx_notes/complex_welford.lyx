@@ -297,7 +297,7 @@ noprefix "false"
 
 \end_inset
 
-Rearranging this expression yeilds the desired recursion:
+Rearranging this expression yields the desired recursion:
 \begin_inset Formula 
 \begin{equation}
 \sigma_{N+1}^{2}=\sigma_{N}^{2}+\frac{N\left(z_{N+1}-\mu_{N}\right)\left(z_{N+1}^{*}-\mu_{N}^{*}\right)-\left(N+1\right)\sigma_{N}^{2}}{\left(N+1\right)^{2}}.\label{eq:recursion_initial}
