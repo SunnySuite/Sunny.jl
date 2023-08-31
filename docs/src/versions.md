@@ -1,3 +1,8 @@
+# Version 0.5.3
+
+* `SpinWaveTheory` will (currently) error if provided a system with
+  [`enable_dipole_dipole!`](@ref).
+
 # Version 0.5.2
 
 * Form factors for 5d transition ions.
