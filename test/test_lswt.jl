@@ -268,3 +268,9 @@ end
     formula = intensity_formula(swt,:full,kernel = lorentzian(0.05))
     intensities_broadened(swt,path,energies,formula)
 end
+
+@testitem "Dipole-dipole unimplemented" begin
+    sys = System(Sunny.diamond_crystal(),(1,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN;seed = 0)
+    enable_dipole_dipole!(sys)
+    @test_throws "SpinWaveTheory does not yet support long-range dipole-dipole interactions." SpinWaveTheory(sys)
+end
