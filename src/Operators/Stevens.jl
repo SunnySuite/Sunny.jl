@@ -206,6 +206,10 @@ print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
 ```
 """
 function print_stevens_expansion(op::Matrix{ComplexF64})
+  println(show_stevens_expansion(op))
+end
+
+function show_stevens_expansion(op::Matrix{ComplexF64})
     op ≈ op' || error("Requires Hermitian operator")
     terms = String[]
 
@@ -226,5 +230,6 @@ function print_stevens_expansion(op::Matrix{ComplexF64})
     str = join(terms, " + ")
     # Remove redundant plus signs and print
     str = replace(str, "+ -" => "- ")
-    println(str)
 end
+
+

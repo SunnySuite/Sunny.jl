@@ -515,6 +515,21 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
 end
 
 
+function Base.show(io::IO, cryst::Crystal)
+  lattice_params_string = if is_standard_form(cryst.latvecs)
+        (a, b, c, α, β, γ) = lattice_params(cryst.latvecs)
+        @sprintf "a=%.4g, b=%.4g, c=%.4g, α=%.4g°, β=%.4g°, γ=%.4g°" a b c α β γ
+    else
+        "unconventional lattice vectors"
+    end
+  space_group_string = if startswith(cryst.spacegroup, "HM symbol ")
+      cryst.spacegroup[length("HM symbol ")+1:end]
+  else
+      cryst.spacegroup
+  end
+  print(io,"Crystal($space_group_string, $lattice_params_string)")
+end
+
 function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
     printstyled(io, "Crystal\n"; bold=true, color=:underline)
     println(io, cryst.spacegroup)
