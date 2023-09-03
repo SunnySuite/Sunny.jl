@@ -64,6 +64,7 @@ field = set_external_field!(sys, [0.0 0.0 h]);
 D = 19.0
 Sz = Sunny.spin_operators(sys, 1)[3]
 set_onsite_coupling!(sys, D*Sz^2, 1);
+sys#hide
 
 # Initialize system to an infinite temperature (fully randomized) initial
 # condition.
