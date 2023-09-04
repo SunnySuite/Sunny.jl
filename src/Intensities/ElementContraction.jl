@@ -15,21 +15,21 @@ struct Element <: Contraction{ComplexF64}
     index :: Int64
 end
 
-struct FullTensor{NCorr} <: Contraction{SVector{NCorr, ComplexF64}} end
+struct FullTensor{NCorr,NSquare,NObs} <: Contraction{SMatrix{NObs, NObs, ComplexF64}}
+    indices :: SVector{NSquare, Int64}
+end
 
 
 ################################################################################
 # Constructors
 ################################################################################
-Trace(swt::SpinWaveTheory) = Trace(@SVector[1,5,9])
-
-function Trace(sc::SampledCorrelations{N}) where {N}
+function Trace(obs::ObservableInfo)
     # Collect all indices for matrix elements 𝒮^αβ where α=β
     indices = Int64[]
-    for (ki,i) = sc.observable_ixs
+    for (ki,i) = obs.observable_ixs
         autocorrelation_index = CartesianIndex(i,i)
-        if haskey(sc.correlations,autocorrelation_index)
-            push!(indices,sc.correlations[autocorrelation_index])
+        if haskey(obs.correlations,autocorrelation_index)
+            push!(indices,obs.correlations[autocorrelation_index])
         else
             problematic_correlation = ki
             error("Can't calculate trace because auto-correlation of the $problematic_correlation observable was not computed.")
@@ -52,12 +52,10 @@ function Trace(sc::SampledCorrelations{N}) where {N}
     Trace(SVector{length(indices), Int64}(indices))
 end
 
-DipoleFactor(swt::SpinWaveTheory) = DipoleFactor([1,4,5,7,8,9])
-
-function DipoleFactor(sc::SampledCorrelations{N}; spin_components = [:Sx,:Sy,:Sz]) where {N}
+function DipoleFactor(obs::ObservableInfo; spin_components = [:Sx,:Sy,:Sz])
     # Ensure that the observables themselves are present
     for si in spin_components
-        if !haskey(sc.observable_ixs,si)
+        if !haskey(obs.observable_ixs,si)
             error("Observable $(si) missing, but required for dipole correction factor")
         end
     end
@@ -65,18 +63,22 @@ function DipoleFactor(sc::SampledCorrelations{N}; spin_components = [:Sx,:Sy,:Sz
     # Ensure that the required correlations are also present
     sx,sy,sz = spin_components
     dipole_correlations = [(sx,sx),(sx,sy),(sy,sy),(sx,sz),(sy,sz),(sz,sz)]
-    indices = lookup_correlations(sc,dipole_correlations; err_msg = αβ -> "Missing correlation $(αβ), which is required to compute the depolarization correction.")
+    indices = lookup_correlations(obs,dipole_correlations; err_msg = αβ -> "Missing correlation $(αβ), which is required to compute the depolarization correction.")
     DipoleFactor(indices)
 end
 
-function Element(sc::SampledCorrelations, pair::Tuple{Symbol,Symbol})
-    Element(only(lookup_correlations(sc,[pair]; err_msg = pair -> "Missing correlation $(pair), which was requested.")))
+function Element(obs::ObservableInfo, pair::Tuple{Symbol,Symbol})
+    Element(only(lookup_correlations(obs,[pair]; err_msg = pair -> "Missing correlation $(pair), which was requested.")))
 end
 
-FullTensor(swt::SpinWaveTheory) = FullTensor{9}()
-
-function FullTensor(sc::SampledCorrelations{N}) where {N}
-    FullTensor{size(sc.data, 1)}()
+function FullTensor(obs::ObservableInfo)
+    n_obs = num_observables(obs)
+    tensor_elements = Matrix{Tuple{Symbol,Symbol}}(undef,n_obs,n_obs)
+    for (ki,i) = obs.observable_ixs, (kj,j) = obs.observable_ixs
+      tensor_elements[i,j] = (ki,kj) # Required to put matrix in correct order
+    end
+    indices = lookup_correlations(obs, collect(tensor_elements); err_msg = αβ -> "Missing correlation $(αβ). All correlations are required to return the full tensor.")
+    FullTensor{num_correlations(obs),length(indices),num_observables(obs)}(indices)
 end
 
 ################################################################################
@@ -113,7 +115,11 @@ end
 
 contract(specific_element, _, ::Element) = only(specific_element)
 
-contract(all_elems, _, ::FullTensor) = all_elems
+function contract(all_elems, _, full::FullTensor{NCorr,NSquare,NObs}) where {NCorr, NSquare,NObs}
+    # This Hermitian takes only the upper triangular part of its argument
+    # and ensures that Sαβ has exactly the correct symmetry
+    Hermitian(reshape(all_elems[full.indices],NObs,NObs))
+end
 
 ################################################################################
 # Contraction utils
@@ -131,13 +137,13 @@ Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 
 function contractor_from_mode(source, mode::Symbol)
     if mode == :trace
-        contractor = Trace(source)
+        contractor = Trace(source.observables)
         string_formula = "Tr S"
     elseif mode == :perp
-        contractor = DipoleFactor(source)
+        contractor = DipoleFactor(source.observables)
         string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz)"
     elseif mode == :full
-        contractor = FullTensor(source)
+        contractor = FullTensor(source.observables)
         string_formula = "S{α,β}"
     end
     return contractor, string_formula

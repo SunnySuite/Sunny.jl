@@ -126,7 +126,7 @@ function intensity_formula(f::Function,sc::SampledCorrelations,required_correlat
     # SQTODO: This corr_ix may contain repeated correlations if the user does a silly
     # thing like [(:Sx,:Sy),(:Sy,:Sx)], and this can technically be optimized so it's
     # not computed twice
-    corr_ix = lookup_correlations(sc,required_correlations)
+    corr_ix = lookup_correlations(sc.observables,required_correlations)
     intensity_formula(f,sc,corr_ix;kwargs...)
 end
 
