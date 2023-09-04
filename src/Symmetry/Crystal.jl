@@ -575,6 +575,22 @@ end
 
 #= Definitions of common crystals =#
 
+function kagome_crystal(; a=1.0, c=10a)
+    latvecs = lattice_vectors(a, a, c, 90, 90, 120)
+    positions = [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0]]
+    cryst = Crystal(latvecs, positions)
+    sort_sites!(cryst)
+    return cryst
+end
+
+function hexagonal_crystal(; a=1.0, c=10a)
+    latvecs = lattice_vectors(a, a, c, 90, 90, 120)
+    positions = [[0, 0, 0], [1/3, 2/3, 0]]
+    cryst = Crystal(latvecs, positions)
+    sort_sites!(cryst)
+    return cryst
+end
+
 function cubic_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     positions = [[0, 0, 0]]
@@ -610,7 +626,6 @@ function bcc_primitive_crystal(; a=1.0)
     return Crystal(latvecs, positions)
 end
 
-
 function diamond_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     positions = [
@@ -637,7 +652,7 @@ function diamond_primitive_crystal(; a=1.0)
     return Crystal(latvecs, positions)
 end
 
-function pyrochlore_crystal(; a=1.0)
+function pyrochlore_primitive_crystal(; a=1.0)
     latvecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
     positions = [
         [5, 5, 5]/8,
@@ -650,18 +665,14 @@ function pyrochlore_crystal(; a=1.0)
     return cryst
 end
 
-function kagome_crystal(; a=1.0, c=10.0)
-    latvecs = lattice_vectors(a, a, c, 90, 90, 120)
-    positions = [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0]]
-    cryst = Crystal(latvecs, positions)
-    sort_sites!(cryst)
-    return cryst
-end
-
-function hexagonal_crystal(; a=1.0, c=10.0)
-    latvecs = lattice_vectors(a, a, c, 90, 90, 120)
-    positions = [[0, 0, 0], [1/3, 2/3, 0]]
-    cryst = Crystal(latvecs, positions)
-    sort_sites!(cryst)
+function hyperkagome_crystal(; a=1.0)
+    latvecs = lattice_vectors(a, a, a, 90, 90, 90)
+    # This shift is appropriate to the Ir atoms of a conventional Na4Ir3O8 cell,
+    # but any other shift would yield the same symmetries
+    # https://materials.springer.com/isp/crystallographic/docs/sd_1723194
+    x = 0.141
+    p = [1/8, x, x+1/4]
+    cryst = Crystal(latvecs, [p], 213)
+    @assert !isnothing(cryst.sitesyms)
     return cryst
 end
