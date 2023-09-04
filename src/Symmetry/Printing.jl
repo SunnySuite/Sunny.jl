@@ -104,16 +104,17 @@ function coupling_basis_strings(coup_basis; digits, atol) :: Matrix{String}
     end
 end
 
-function print_allowed_coupling(basis_strs; prefix)
+print_allowed_coupling(basis_strs; prefix) = print_allowed_coupling(stdout,basis_strs;prefix)
+function print_allowed_coupling(io::IO,basis_strs; prefix)
     basis_strs = _add_padding_to_coefficients(basis_strs)
 
     for i in 1:3
-        print(i == 1 ? prefix : repeat(' ', length(prefix)))
-        print('|')
+        print(io,i == 1 ? prefix : repeat(' ', length(prefix)))
+        print(io,'|')
         for j in 1:3
-            print(basis_strs[i, j] * " ")
+            print(io,basis_strs[i, j] * " ")
         end
-        println('|')
+        println(io,'|')
     end
 end
 

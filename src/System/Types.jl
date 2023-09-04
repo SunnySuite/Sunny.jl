@@ -11,9 +11,60 @@ struct StevensExpansion
     end
 end
 
+function show_stevens_expansion(stvexp::StevensExpansion)
+    c = map(1:6) do k
+        if k == 2
+            stvexp.c2
+        elseif k == 4
+            stvexp.c4
+        elseif k == 6
+            stvexp.c6
+        else
+            zeros(Float64, 2k+1)
+        end
+    end
+
+    terms = String[]
+    for k in 1:6
+        for (c_km, m) in zip(reverse(c[k]), -k:k)
+            abs(c_km) < 1e-12 && continue
+            push!(terms, *(coefficient_to_math_string(c_km), "𝒪", int_to_underscore_string.((k,m))...))
+        end
+    end
+
+    # Linear shift c_00 is not included in StevensExpansion
+    push!(terms, "trace")
+
+    # Concatenate with plus signs
+    str = join(terms, " + ")
+    # Remove redundant plus signs and print
+    str = replace(str, "+ -" => "- ")
+    str
+end
+
+function Base.show(io::IO, stvexp::StevensExpansion)
+    print(io,"StevensExpansion{0,$(stvexp.c2),0,$(stvexp.c4),0,$(stvexp.c6)}")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", stvexp::StevensExpansion)
+    print(io,show_stevens_expansion(stvexp))
+end
+
 struct OnsiteCoupling
     matrep :: Matrix{ComplexF64}    # Matrix representation in some dimension N
     stvexp :: StevensExpansion      # Renormalized coefficients for Stevens functions
+end
+
+function Base.show(io::IO, onsite::OnsiteCoupling)
+  print(io,"OnsiteCoupling($(show_stevens_expansion(onsite.matrep)))")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", onsite::OnsiteCoupling)
+    printstyled(io,"Onsite coupling\n";bold=true,underline=true)
+    show(io,"text/plain",onsite.matrep)
+    printstyled(io,"\n\nwith Stevens expansion:\n";bold=true)
+    # Use matrep preferentially because it contains the trace
+    println(io,show_stevens_expansion(onsite.matrep))
 end
 
 struct PairCoupling
@@ -28,10 +79,124 @@ struct PairCoupling
     # TODO: update clone_interactions(), set_interactions_from_origin!
 end
 
+
+function Base.show(io::IO, pair::PairCoupling)
+    cull_string = pair.isculled ? "(CULLED)," : ""
+    bilin_string = iszero(pair.bilin) ? "" : (pair.bilin isa Float64 ? ",J = $(pair.bilin)" : ",J = Exchange Matrix")
+    biquad_string = iszero(pair.biquad) ? "" : ",biquad = $(pair.biquad)"
+    print(io,"PairCoupling($(cull_string)$(repr(pair.bond))$(bilin_string)$(biquad_string))")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", pair::PairCoupling)
+    cull_string = pair.isculled ? "(CULLED) " : ""
+    printstyled(io,"Pair Coupling $(cull_string)on $(repr(pair.bond))\n";bold=true,underline=true)
+    #printstyled(io, repr(b); bold=true, color=:underline)
+
+    atol = 1e-12
+    digits = 8
+    max_denom = 20
+    if pair.bilin isa Mat3
+        strs = number_to_math_string.(pair.bilin;digits,atol,max_denom)
+        print_allowed_coupling(io,strs; prefix="Bilinear exchange matrix: ")
+    else
+      println(io,"Heisenberg (pure diagonal) exchange J = $(number_to_math_string(pair.bilin;digits,atol,max_denom))")
+    end
+    if !iszero(pair.biquad)
+      println(io,"and biquadratic b = $(number_to_math_string(pair.biquad;digits,atol,max_denom))")
+    end
+end
+
+function print_coupling(cryst::Crystal,pair::PairCoupling)
+    # Tolerance below which coefficients are dropped
+    atol = 1e-12
+    # How many digits to use in printing coefficients
+    digits = 14
+
+    b = pair.bond
+    b_ref = begin
+        d = global_distance(cryst, b)
+        ref_bonds = reference_bonds(cryst, d; min_dist=d)
+        only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
+    end
+
+    # Verify that exchange is symmetry-consistent.
+    # If not, the projection we are about to compute will be a lie!
+    if !is_coupling_valid(cryst, pair.bond, pair.bilin)
+        print_bond(cryst,pair.bond)
+        println("Actual exchange matrix:")
+        show(stdout,"text/plain",pair.bilin)
+        println()
+        @error """Coupling violates symmetry!! This should never happen.\nDid this PairCoupling originate from a different Crystal?"""
+    end
+
+    # Get the coupling basis on reference bond `b_ref`
+    basis = basis_for_symmetry_allowed_couplings(cryst, b_ref)
+    # Transform coupling basis from `b_ref` to `b`
+    if b != b_ref
+        basis = map(basis) do J_ref
+            transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
+        end
+    end
+
+    ri = cryst.positions[b.i]
+    rj = cryst.positions[b.j] + b.n
+
+    cull_string = pair.isculled ? "(CULLED) " : ""
+    printstyled("Pair Coupling $(cull_string)on $(repr(pair.bond))\n";bold=true,underline=true)
+
+    letters = zip('A':'Z', basis)
+    basis_strs = coupling_basis_strings(letters; digits, atol)
+    print_allowed_coupling(basis_strs; prefix="Exchange matrix: ")
+    print("where ")
+    for (i,(l,m_basis)) in enumerate(letters)
+      proj = tr(m_basis' * pair.bilin) / tr(m_basis' * m_basis)
+      print(l, " = ",number_to_math_string(proj; digits = 4, atol, max_denom = 20), i < length(letters) ? ", " : "")
+    end
+end
+
 mutable struct Interactions
     onsite    :: OnsiteCoupling
     pair      :: Vector{PairCoupling}
 end
+
+function Base.show(io::IO, ints::Interactions)
+    has_onsite = !iszero(ints.onsite.matrep)
+    count_pair = length(ints.pair)
+    if !has_onsite && count_pair == 0
+        print(io,"[No Interactions]")
+    else
+        print(io,"Interactions($(has_onsite ? "Onsite Coupling, " : "")$(count_pair) Pair Couplings)")
+    end
+end
+
+function Base.show(io::IO, ::MIME"text/plain", ints::Interactions)
+    if !iszero(ints.onsite.matrep)
+        println(io,"Onsite coupling: ",show_stevens_expansion(ints.onsite.matrep))
+    end
+
+    if isempty(ints.pair)
+        if iszero(ints.onsite.matrep)
+           println(io,"No interactions")
+        end
+        return
+    end
+    println(io,"Pair couplings:")
+    count_culled = 0
+    for pair in ints.pair
+        if pair.isculled
+          count_culled += 1
+          continue
+        end
+        print(io,"  ")
+        show(io,pair)
+        println(io)
+    end
+    if count_culled > 0
+        println(io,"  + $(count_culled) culled couplings")
+    end
+end
+
+
 
 const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}
 const rBFTPlan = FFTW.rFFTWPlan{ComplexF64, 1, false, 5, UnitRange{Int64}}
