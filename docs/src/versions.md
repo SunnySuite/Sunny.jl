@@ -1,5 +1,7 @@
 # Version 0.5.3
 
+* Replace `view_crystal` with [`plot_crystal`](@ref), which is now implemented
+  in Makie.
 * `SpinWaveTheory` will (currently) error if provided a system with
   [`enable_dipole_dipole!`](@ref).
 

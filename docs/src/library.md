@@ -19,6 +19,7 @@ The following will be enabled through a package extension if either `GLMakie` or
 
 ```@docs
 plot_spins
+plot_crystal
 ```
 
 ## Optional WriteVTK extensions

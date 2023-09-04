@@ -16,7 +16,10 @@ using Sunny, GLMakie
 
 a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-crystal = Crystal(latvecs, [[0,0,0]], 227, setting="1")
+cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
+
+# The crystal can be inspected interactively.
+plot_crystal(cryst, 8.0)
 
 # Construct a [`System`](@ref) with an antiferromagnetic nearest neighbor
 # interaction `J`. Because the diamond crystal is bipartite, the ground state
@@ -29,7 +32,7 @@ latsize = (1,1,1)
 seed = 0
 S = 3/2
 J = 7.5413*meV_per_K # (~ 0.65 meV)
-sys = System(crystal, latsize, [SpinInfo(1; S, g=2)], :dipole; seed=0)
+sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], :dipole; seed=0)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 
 # The ground state is non-frustrated. Each spin should be exactly anti-aligned
@@ -69,7 +72,7 @@ formula = intensity_formula(swt, :perp; kernel, formfactors)
 # values.
 
 qpoints = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
-path, xticks = reciprocal_space_path(crystal, qpoints, 50)
+path, xticks = reciprocal_space_path(cryst, qpoints, 50)
 energies = collect(0:0.01:6)
 is = intensities_broadened(swt, path, energies, formula)
 
@@ -88,7 +91,7 @@ radii = 0.01:0.02:3 # (1/Å)
 output = zeros(Float64, length(radii), length(energies))
 for (i, radius) in enumerate(radii)
     n = 300
-    qs = reciprocal_space_shell(crystal, radius, n)
+    qs = reciprocal_space_shell(cryst, radius, n)
     is = intensities_broadened(swt, qs, energies, formula)
     output[i, :] = sum(is, dims=1) / size(is, 1)
 end

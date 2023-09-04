@@ -61,17 +61,18 @@ FeI2 = Crystal(latvecs, positions; types)
 # Observe that Sunny inferred the space group, 'P -3 m 1' (164) and labeled the
 # atoms according to their point group symmetries.
 
-#nb # An interactive viewer of the crystal and its bonds is available for Jupyter notebooks.
-#nb view_crystal(FeI2, 8.0)
-
 # Only the Fe atoms are magnetic, so we discard the I ions using
 # [`subcrystal`](@ref).
 
 cryst = subcrystal(FeI2, "Fe")
 
-# Importantly, `cryst` retains the spacegroup symmetry of the full FeI$_2$
+# Observe that `cryst` retains the spacegroup symmetry of the full FeI$_2$
 # crystal. This information will be used, for example, to propagate exchange
 # interactions between symmetry-equivalent bonds.
+#
+# The crystal can be inspected interactively.
+
+plot_crystal(cryst, 8.0)
 
 # ## Symmetry analysis
 #

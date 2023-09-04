@@ -117,9 +117,10 @@ export reciprocal_space_shell, powder_average_binned
 include("Intensities/ExperimentData.jl")
 export load_nxs, generate_mantid_script_from_binning_parameters
 
-include("SunnyGfx/SunnyGfx.jl")
-include("SunnyGfx/CrystalViewer.jl")
-export view_crystal, offline_viewers, browser
+# TODO: Delete in Sunny 0.6
+view_crystal(cryst, dist) = error("Use `plot_crystal` instead.")
+offline_viewers() = error("This function is no longer needed.")
+export view_crystal, offline_viewers
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")
@@ -131,7 +132,8 @@ export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSample
 
 ### ext/PlottingExt.jl, dependent on Makie
 function plot_spins end
-export plot_spins
+function plot_crystal end
+export plot_spins, plot_crystal
 
 ### ext/ExportVTKExt.jl, dependent on WriteVTK
 function export_vtk end
