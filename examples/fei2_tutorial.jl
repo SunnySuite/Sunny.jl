@@ -191,6 +191,11 @@ minimize_energy!(sys);
 
 plot_spins(sys)
 
+# The defects become easier to recognize if we color arrows by the z-component
+# of spin.
+
+plot_spins(sys; color=[s[3] for s in sys.dipoles])
+
 # A better understanding of the magnetic ordering can often be obtained by
 # moving to Fourier space. The 'instant' structure factor $𝒮(𝐪)$ is an
 # experimental observable. To investigate $𝒮(𝐪)$ as true 3D data, Sunny
@@ -235,7 +240,11 @@ suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
 sys_min = reshape_supercell(sys, [1 0 0; 0 1 -2; 0 1 2])
 randomize_spins!(sys_min)
 minimize_energy!(sys_min)
-plot_spins(sys_min; ghost_radius=3)
+
+# Because the reshaped system size is small, we add some periodic "ghost" spins
+# to help with visualization.
+
+plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=3)
 
 # ## Linear spin wave theory
 #
