@@ -379,6 +379,19 @@ function set_energy_grad_coherents!(HZ, Z, sys::System{N}) where N
     @. dE_ds = dipoles = Vec3(0,0,0)
 end
 
+# Internal testing functions
+function energy_grad_dipoles(sys::System{N}) where N
+    ∇E = zero(sys.dipoles)
+    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
+    return ∇E
+end
+function energy_grad_coherents(sys::System{N}) where N
+    ∇E = zero(sys.coherents)
+    set_energy_grad_coherents!(∇E, sys.coherents, sys)
+    return ∇E
+end
+
+
 # Returns (Λ + (dE/ds)⋅S) Z
 @generated function mul_spin_matrices(Λ, dE_ds::Sunny.Vec3, Z::Sunny.CVec{N}) where N
     S = spin_matrices(; N)
@@ -427,10 +440,4 @@ function homog_bond_iterator(latsize)
             end
         end
     end
-end
-
-function energy_grad(sys::System{N}) where N
-    ∇E = zero(sys.dipoles)
-    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
-    return ∇E
 end
