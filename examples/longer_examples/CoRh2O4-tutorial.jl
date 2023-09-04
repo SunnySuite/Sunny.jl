@@ -106,7 +106,7 @@ end
 # Define the crystal structure of CoRh$_2$O$_4$  in the conventional cell
 xtal    = Crystal(cif_path; symprec=1e-4)
 magxtal = subcrystal(xtal,"Co1")
-view_crystal(magxtal,6.0)
+plot_crystal(magxtal,6.0)
 print_symmetry_table(magxtal, 4.0)
 
 # Assign local Hilbert space

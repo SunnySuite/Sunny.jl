@@ -188,8 +188,8 @@ Plot the spin configuration defined by `sys`. Optional parameters include:
   - `show_axis`: Show global Cartesian coordinates axis.
   - `show_cell`: Show original crystallographic unit cell.
   - `orthographic`: Use camera with orthographic projection.
-  - `ghost_radius`: Show translucent periodic images up to a radius, given as a
-    multiple of the characteristic distance between sites.
+  - `ghost_radius`: Show translucent periodic images up to a given distance
+    (length units).
 """
 function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
                           color=:red, show_axis=false, show_cell=true,
@@ -222,10 +222,9 @@ function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
     color0 = fill_colors(color, size(sys.dipoles))
 
     # Find all sites within max_dist of the system center
-    max_dist = ℓ0 * ghost_radius
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
     r0 = [0.5, 0.5, 0.5]
-    images = all_images_within_distance(supervecs, rs, [r0]; max_dist, include_zeros=true)
+    images = all_images_within_distance(supervecs, rs, [r0]; max_dist=ghost_radius, include_zeros=true)
 
     # Require separate drawing calls with `transparency=true` for ghost sites
     for (isghost, alpha) in ((false, 1.0), (true, 0.08))
@@ -263,7 +262,7 @@ function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
         # Labels for lattice vectors
         pos = [Makie.Point3f0(p/2) for p in collect(eachcol(orig_crystal(sys).latvecs))]
         text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
-        Makie.text!(pos; text, color=:black, fontsize=20, align=(:center, :center), overdraw=true)
+        Makie.text!(pos; text, color=:black, fontsize=16, align=(:center, :center), overdraw=true)
     end
 
     return fig
@@ -353,7 +352,7 @@ function Sunny.plot_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
 
     # Label lattice vectors. (This needs to come last for `overdraw` to work.)
     text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
-    Makie.text!(ax, pos; text, color=:black, fontsize=20, align=(:center, :center), overdraw=true)
+    Makie.text!(ax, pos; text, color=:black, fontsize=16, align=(:center, :center), overdraw=true)
 
     return fig
 end

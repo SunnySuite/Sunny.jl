@@ -2,6 +2,7 @@
 
 * Replace `view_crystal` with [`plot_crystal`](@ref), which is now implemented
   in Makie.
+* [`plot_spins`](@ref) now expects `ghost_radius` in physical length units.
 * `SpinWaveTheory` will (currently) error if provided a system with
   [`enable_dipole_dipole!`](@ref).
 

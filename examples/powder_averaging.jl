@@ -18,7 +18,9 @@ a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
 
-# The crystal can be inspected interactively.
+# In a running Julia environment, the crystal can be viewed interactively using
+# [`plot_crystal`](@ref).
+
 plot_crystal(cryst, 8.0)
 
 # Construct a [`System`](@ref) with an antiferromagnetic nearest neighbor
@@ -51,7 +53,7 @@ energy_per_site = energy(sys) / length(eachsite(sys))
 # Plotting the spins confirms the expected Néel order. Note that the overall,
 # global rotation of dipoles is arbitrary.
 
-plot_spins(sys; ghost_radius=2.0)
+plot_spins(sys; ghost_radius=12)
 
 # We can now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and
 # [`intensity_formula`](@ref). The mode `:perp` contracts with a dipole factor

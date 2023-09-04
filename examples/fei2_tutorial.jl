@@ -70,7 +70,8 @@ cryst = subcrystal(FeI2, "Fe")
 # crystal. This information will be used, for example, to propagate exchange
 # interactions between symmetry-equivalent bonds.
 #
-# The crystal can be inspected interactively.
+# In a running Julia environment, the crystal can be viewed interactively using
+# [`plot_crystal`](@ref).
 
 plot_crystal(cryst, 8.0)
 
@@ -185,15 +186,14 @@ set_onsite_coupling!(sys, -D*S[3]^2, 1)
 randomize_spins!(sys)
 minimize_energy!(sys);
 
-# The expected ground state for FeI$_2$ is an antiferrogmanetic striped phase
-# with a period of four spins (two up, two down). Visualizing the result of
-# optimization, however, may indicate the system got stuck in a local minimum
-# with defects.
+# The resulting configuration can be visualized using [`plot_spins`](@ref).
 
 plot_spins(sys)
 
-# The defects become easier to recognize if we color arrows by the z-component
-# of spin.
+# The expected ground state for FeI$_2$ is an antiferrogmanetic striped phase
+# with a period of four spins (two up, two down). Here, however, the system may
+# be stuck in a local minimum with defects. The defects become easier to
+# recognize if we color arrows by the z-component of spin.
 
 plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
@@ -201,9 +201,9 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 # moving to Fourier space. The 'instant' structure factor $𝒮(𝐪)$ is an
 # experimental observable. To investigate $𝒮(𝐪)$ as true 3D data, Sunny
 # provides [`instant_correlations`](@ref) and related functions. Here, however,
-# we will use the lighter weight function [`print_wrapped_intensities`](@ref) to
-# get a quick understanding of the periodicities present in the spin
-# configuration.
+# we will use the lightweight function [`print_wrapped_intensities`](@ref) to
+# get a quick understanding of the periodicities present in each sublattice of
+# the spin configuration.
 
 print_wrapped_intensities(sys)
 
@@ -242,10 +242,10 @@ sys_min = reshape_supercell(sys, [1 0 0; 0 1 -2; 0 1 2])
 randomize_spins!(sys_min)
 minimize_energy!(sys_min)
 
-# Because the reshaped system size is small, we add some periodic "ghost" spins
-# to help with visualization.
+# Because the reshaped system size is small, some "ghost" spins up to a given
+# distance can help with visualization.
 
-plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=3)
+plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
 
 # ## Linear spin wave theory
 #
