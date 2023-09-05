@@ -5,236 +5,90 @@ import Sunny: Vec3, orig_crystal, natoms # Private functions
 
 using LinearAlgebra
 import Makie
+import Colors: RGB
 
+const seaborn_bright = [
+    RGB{Float64}(0.00784313725490196,0.24313725490196078,1.0),
+    RGB{Float64}(1.0,0.48627450980392156,0.0),
+    RGB{Float64}(0.10196078431372549,0.788235294117647,0.2196078431372549),
+    RGB{Float64}(0.9098039215686274,0.0,0.043137254901960784),
+    RGB{Float64}(0.5450980392156862,0.16862745098039217,0.8862745098039215),
+    RGB{Float64}(0.6235294117647059,0.2823529411764706,0.0),
+    RGB{Float64}(0.9450980392156862,0.2980392156862745,0.7568627450980392),
+    RGB{Float64}(0.6392156862745098,0.6392156862745098,0.6392156862745098),
+    RGB{Float64}(1.0,0.7686274509803922,0.0),
+    RGB{Float64}(0.0,0.8431372549019608,1.0),
+]
 
-function setup_scene(; resolution, show_axis=false, orthographic=false)
-    fig = Makie.Figure(; resolution)
-    ax = Makie.LScene(fig[1, 1]; show_axis)
-    if orthographic
-        _ = Makie.cam3d!(ax.scene; projectiontype=Makie.Orthographic)
+const seaborn_muted = [
+    RGB{Float64}(0.2823529411764706,0.47058823529411764,0.8156862745098039),
+    RGB{Float64}(0.9333333333333333,0.5215686274509804,0.2901960784313726),
+    RGB{Float64}(0.41568627450980394,0.8,0.39215686274509803),
+    RGB{Float64}(0.8392156862745098,0.37254901960784315,0.37254901960784315),
+    RGB{Float64}(0.5843137254901961,0.4235294117647059,0.7058823529411765),
+    RGB{Float64}(0.5490196078431373,0.3803921568627451,0.23529411764705882),
+    RGB{Float64}(0.8627450980392157,0.49411764705882355,0.7529411764705882),
+    RGB{Float64}(0.4745098039215686,0.4745098039215686,0.4745098039215686),
+    RGB{Float64}(0.8352941176470589,0.7333333333333333,0.403921568627451),
+    RGB{Float64}(0.5098039215686274,0.7764705882352941,0.8862745098039215),
+]
+
+getindex_cyclic(a, i) = a[mod1(i, length(a))] 
+
+function fill_colors(c::AbstractArray, sz)
+    size(c) == sz || error("Colors array must have size $sz.")
+    if eltype(c) <: Number
+        c = numbers_to_colors(c)
     end
-    return fig, ax
+    return c
 end
+fill_colors(c, sz) = fill(c, sz)
 
-#=
-function plot_lattice!(ax, lattice::Lattice; colors=:Set1_9, markersize=200, linecolor=:grey, linewidth=1.0, kwargs...)
-    unique_types = unique(lattice.types)
-    colors = Makie.resample_cmap(colors, 9)
 
-    # Plot markers at each site
-    pts = Makie.Point3f0.(vec(lattice))
-    for (i, type) in enumerate(unique_types)
-        bs = findall(isequal(type), lattice.types)
-        Makie.scatter!(ax, pts; label=type, color=colors[i], markersize=markersize, kwargs...)
-    end
-
-    # For some odd reason, the sites will not appear unless this happens afterwards
-    # Plot the unit cell mesh
-    plot_cells!(ax, lattice; color=linecolor, linewidth=linewidth)
-end
-
-function plot_lattice(lattice::Lattice; kwargs...)
-    fig, ax = setup_scene()
-    plot_lattice!(ax, lattice; kwargs...)
-    # TODO: Markers are often way too big.
-    fig[1, 2] = Makie.Legend(fig, ax, "Species")
-    fig
-end
-
+# TODO: See if we can reuse Makie internal functions, e.g. `numbers_to_colors`,
+# https://github.com/MakieOrg/Makie.jl/blob/ac02141c4c87dbf71d06b301f6dc18f5719e6d05/src/colorsampler.jl#L154-L177
 """
-    plot_lattice(crystal, latsize=(3,3,3); kwargs...)
+    numbers_to_colors(x; colorrange=nothing, colormap=:viridis)
 
-Plots a crystal lattice with `latsize` unit cells along each
-lattice vector. Other keyword arguments are:
+Converts each number in `x` to a color according to a given `colormap`. The data
+in `x` will be scaled according to `colorrange`, which defaults to the min and
+max values of `x`. This function mirrors the color conventions of Makie [1].
 
-colors=:Set1_9, markersize=20, linecolor=:grey, linewidth=1.0, kwargs...
-# Arguments
-- `linecolor=:grey`: Sets the colors on the unit cell guide lines
-- `linewidth=1.0`  : Sets the width of the unit cell guide lines
-- `markersize=20`  : Sets the size of the atomic sites
-- `colors=:Set1_9` : Sets the colors used for the atomic sites
-
-Additional keyword arguments are given to `Makie.scatter!` which
-draws the points.
+[1] https://docs.makie.org/stable/documentation/colors/.
 """
-plot_lattice(cryst::Crystal, latsize=(3,3,3); kwargs...) = plot_lattice(Lattice(cryst, latsize); kwargs...)
-
-
-function plot_bonds(lattice::Lattice, ints::Vector{<:AbstractInteractionCPU};
-                    colors=:Dark2_8, bondwidth=4, kwargs...)
-    fig, ax = setup_scene()
-
-    # Plot the bonds, all relative to a central atom on the first sublattice
-    # TODO: Make selectable in GUI
-    b = 1
-
-    colors = Makie.resample_cmap(colors, 8)
-    # Sort interactions so that longer bonds are plotted first
-    sorted_ints = sort(
-        ints, 
-        by=int->(
-            iszero(length(int.bondtable))
-            ? Inf 
-            : global_distance(lattice, first(all_bonds(int.bondtable))[1])
-        )
-    )
-
-    # Plot the lattice
-    plot_lattice!(ax, lattice; kwargs...)
-
-    toggles = Vector{Makie.Toggle}()
-    labels = Vector{Makie.Label}()
-    cent_cell = CartesianIndex(div.(lattice.size .+ 1, 2)...)
-    cent_pt = lattice[cent_cell, b]
-    for (n, int) in enumerate(sorted_ints)
-        if !isa(int, AbstractPairIntCPU)
-            continue
-        end
-
-        pts = Vector{Makie.Point3f0}()
-        for (bond, _) in sublat_bonds(int.bondtable, b)
-            new_cell = offsetc(cent_cell, bond.n, lattice.size)
-            bond_pt = lattice[new_cell, bond.j]
-            push!(pts, Makie.Point3f0(cent_pt))
-            push!(pts, Makie.Point3f0(bond_pt))
-        end
-        if length(pts) == 0
-            continue
-        end
-
-        color = colors[mod1(n, 8)]
-        seg = Makie.linesegments!(pts; linewidth=bondwidth, label=int.label, color=color)
-        tog = Makie.Toggle(fig, active=true)
-        Makie.connect!(seg.visible, tog.active)
-        push!(toggles, tog)
-        push!(labels, Makie.Label(fig, int.label))
-    end
-    Makie.axislegend()
-    if length(toggles) > 0
-        fig[1, 2] = Makie.grid!(hcat(toggles, labels), tellheight=false)
-    end
-    fig
+function numbers_to_colors(xs; colorrange=nothing, colormap=:viridis)
+    (cmin, cmax) = @something colorrange extrema(xs)
+    colors = Makie.cgrad(colormap)
+    return [colors[(x - cmin) / (cmax - cmin)] for x in xs]
 end
 
 
-"""
-    plot_bonds(cryst::Crystal, ints, latsize=(3,3,3), infos=SpinInfo[]; kwargs...)
+function orient_camera!(ax, latvecs, dist; orthographic=false)
+    # Set up camera
+    lookat = latvecs * Vec3(0.5, 0.5, 0.5)
 
-Plot a list of pair interactions defined on a `Crystal`. `latsize` sets how many
-unit cells are plotted, and `kwargs` are passed to to `plot_lattice!`.
-"""
-function plot_bonds(cryst::Crystal, ints::Vector{<:AbstractInteraction}, latsize=(3,3,3);
-                    kwargs...)
-    latsize = collect(Int64.(latsize))
-    lattice = Lattice(cryst, latsize)
-    (all_infos, _) = propagate_site_info!(cryst, SpinInfo[])
-    ℋ = Interactions(ints, cryst, all_infos)
-    pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
-    plot_bonds(lattice, pair_ints; kwargs...)
+    # This hack seems needed to get good feeling Makie camera rotations
+    eyeposition = lookat - dist * (diagm([1, 1, 0]) * latvecs * Vec3(1, 1, 0))
+    upvector = Vec3(0, 0, 1)
+    @assert norm((lookat-eyeposition) ⋅ upvector) < 1e-12
+
+    projectiontype = orthographic ? Makie.Orthographic : Makie.Perspective
+    Makie.cam3d_cad!(ax.scene; lookat, eyeposition, upvector, projectiontype)
+
+    # TODO: Make this work. It gives weird results when applied to the reshaped
+    # system.
+    #=
+    lookat = latvecs * Vec3(0.5, 0.5, 0.5)
+    eyeposition = lookat - dist * normalize(latvecs * Vec3(-1, -1, -1))
+
+    z = Vec3(0, 0, 1)
+    delta = normalize(lookat - eyeposition)
+    upvector = normalize(z - delta * (delta ⋅ z))
+    @assert norm(delta ⋅ upvector) < 1e-12
+
+    Makie.cam3d_cad!(ax.scene; eyeposition, lookat, upvector)
+    =#
 end
-
-
-"""
-    plot_bonds(sys::System; kwargs...)
-
-Plot all pair interactions appearing in `sys.interactions_union`, on the
-underlying crystal lattice. `kwargs` are passed to `plot_lattice!`.
-"""
-@inline function plot_bonds(sys::System; kwargs...)
-    ℋ = sys.interactions_union
-    pair_ints = vcat(ℋ.heisenbergs, ℋ.diag_coups, ℋ.gen_coups)
-    plot_bonds(sys.crystal, pair_ints; kwargs...)
-end
-
-"""
-    plot_all_bonds(crystal::Crystal, max_dist, latsize=(3,3,3); kwargs...)
-
-Plot all bond equivalency classes present in `crystal` up to a maximum
-bond length of `max_dist`. `latsize` controls how many unit cells are
-plotted along each axis. `kwargs` are passed to `plot_bonds`. 
-"""
-function plot_all_bonds(crystal::Crystal, max_dist, latsize=(3,3,3); kwargs...)
-    ref_bonds = reference_bonds(crystal, max_dist)
-    interactions = QuadraticInteraction[]
-    
-    prev_dist = 0.0
-    dist = 0
-    class = 1
-    for bond in ref_bonds
-        # Exclude self (on-site) "bonds"
-        if !(bond.i == bond.j && all(isequal(0), bond.n))
-            if global_distance(crystal, bond) ≈ prev_dist
-                class += 1
-            else
-                dist += 1
-                class = 1
-            end
-            label = "J$(dist)_$(class)"
-            push!(interactions, heisenberg(1.0, bond, label))
-        end
-    end
-    @assert length(interactions) > 0 "No non-self interactions found!"
-
-    plot_bonds(crystal, interactions, latsize; kwargs...)
-end
-
-"Plot all bonds between equivalent sites i and j"
-function plot_all_bonds_between(crystal, i, j, max_dist, latsize=(3,3,3); kwargs...)
-    ref_bonds = reference_bonds(crystal, max_dist)
-    interactions = QuadraticInteraction[]
-
-    prev_dist = 0.0
-    dist = 0
-    class = 1
-    for bond in ref_bonds
-        # Exclude self (on-site) "bonds"
-        onsite = bond.i == bond.j && iszero(bond.n)
-        target = bond.i == i && bond.j == j
-        if !onsite && target
-            if global_distance(crystal, bond) ≈ prev_dist
-                class += 1
-            else
-                dist += 1
-                class = 1
-            end
-            label = "J$(dist)_$(class)"
-            push!(interactions, heisenberg(1.0, bond, label))
-        end
-    end
-    @assert length(interactions) > 0 "No non-self interactions found!"
-
-    plot_bonds(crystal, interactions, latsize; kwargs...)
-end
-
-"Plot the outlines of the unit cells of a lattice"
-function plot_cells!(ax, sys::System; color=:grey, linewidth=1.0, kwargs...)
-    lattice(i, j, k) = sys.crystal.latvecs * Vec3(i, j, k)
-
-    pts = Vector{Makie.Point3f0}()
-    nx, ny, nz = lattice.size
-    for j in 1:ny
-        for k in 1:nz
-            bot_pt, top_pt = lattice(1, j, k), lattice(nx, j, k)
-            push!(pts, Makie.Point3f0(bot_pt))
-            push!(pts, Makie.Point3f0(top_pt))
-        end
-        for i in 1:nx
-            left_pt, right_pt = lattice(i, j, 1), lattice(i, j, nz)
-            push!(pts, Makie.Point3f0(left_pt))
-            push!(pts, Makie.Point3f0(right_pt))
-        end
-    end
-    for k in 1:nz
-        for i in 1:nx
-            left_pt, right_pt = lattice(i, 1, k), lattice(i, ny, k)
-            push!(pts, Makie.Point3f0(left_pt))
-            push!(pts, Makie.Point3f0(right_pt))
-        end
-    end
-
-    Makie.linesegments!(ax, pts; color=color, linewidth=linewidth)
-end
-=#
 
 
 function cell_wireframe(latvecs)
@@ -259,38 +113,44 @@ function cell_wireframe(latvecs)
 end
 
 
-# TODO: We could rewrite `all_bonds_within_distance` to use this function.
-function all_atoms_within_distance(latvecs, rs, r0; min_dist=0, max_dist)
-    ret = Tuple{Int, Vec3}[]
-
+# TODO: We could rewrite `all_bonds_for_atom` to use this function.
+function all_images_within_distance(latvecs, rs, r0s; min_dist=0, max_dist, include_zeros=false)
     # box_lengths[i] represents the perpendicular distance between two parallel
     # boundary planes spanned by lattice vectors a_j and a_k (where indices j
     # and k differ from i)
     box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(latvecs), eachrow(inv(latvecs)))]
     n_max = round.(Int, max_dist ./ box_lengths, RoundUp)
 
-    # loop over neighboring systems
-    for n1 in -n_max[1]:n_max[1]
-        for n2 in -n_max[2]:n_max[2]
-            for n3 in -n_max[3]:n_max[3]
-                n = Vec3(n1, n2, n3)
-                
-                # loop over all atoms within neighboring systems
-                for j in eachindex(rs)
-                    dist = norm(latvecs * (rs[j] + n - r0))
-                    if min_dist <= dist <= max_dist
-                        push!(ret, (j, n))
+    # optionally initialize to include all (0,0,0) images
+    images = include_zeros ? [[zero(Vec3)] for _ in rs] : [Vec3[] for _ in rs]
+
+    # loop over all center points
+    for r0 in r0s
+        # loop over each atom in primary cell or system
+        for (ns, r) in zip(images, rs)
+            # loop over image cells or systems
+            for n1 in -n_max[1]:n_max[1]
+                for n2 in -n_max[2]:n_max[2]
+                    for n3 in -n_max[3]:n_max[3]
+                        # track list of periodic offsets where the atom image is
+                        # within distance bounds
+                        n = Vec3(n1, n2, n3)
+                        dist = norm(latvecs * (r + n - r0))
+                        if min_dist <= dist <= max_dist && !(n in ns)
+                            push!(ns, n)
+                        end
                     end
                 end
             end
         end
     end
 
-    return ret
+    return images
 end
 
+
 function characteristic_length_between_atoms(cryst::Crystal)
-    # Detect if atoms are on a submanifold (aligned line or plane)
+    # Detect if atom displacements are on a submanifold (aligned line or plane)
     ps = cryst.positions[1:end-1] .- Ref(cryst.positions[end])
     any_nonzero = map(1:3) do i
         any(p -> !iszero(p[i]), ps)
@@ -299,9 +159,9 @@ function characteristic_length_between_atoms(cryst::Crystal)
 
     # Take nth root of appropriate hypervolume per atom
     if length(vecs) == 0
-        ℓ = Inf
+        ℓ = Inf                            # For a single atom, use ℓ0 below
     elseif length(vecs) == 1
-        ℓ = norm(vecs[1]) / natoms(cryst)
+        ℓ = norm(vecs[1]) / natoms(cryst)  # Atoms aligned with single lattice vector
     elseif length(vecs) == 2
         ℓ = sqrt(norm(vecs[1] × vecs[2]) / natoms(cryst))
     elseif length(vecs) == 3
@@ -316,23 +176,33 @@ function characteristic_length_between_atoms(cryst::Crystal)
     return min(ℓ0, ℓ)
 end
 
+
 """
-    plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgrey,
-               arrowcolor=:red, show_axis=false, show_cell=true,
+    plot_spins(sys::System; arrowscale=1.0, color=:red, show_axis=false, show_cell=true,
                orthographic=false, ghost_radius=0)
 
 Plot the spin configuration defined by `sys`. Optional parameters include:
 
   - `arrowscale`: Scale all arrows by dimensionless factor.
+  - `color`: Arrow color. May be defined per site in system.
   - `show_axis`: Show global Cartesian coordinates axis.
   - `show_cell`: Show original crystallographic unit cell.
   - `orthographic`: Use camera with orthographic projection.
-  - `ghost_radius`: Show translucent periodic images up to a radius, given as a
-    multiple of the characteristic distance between sites.
+  - `ghost_radius`: Show translucent periodic images up to a given distance
+    (length units).
 """
-function Sunny.plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
-                          arrowcolor=:red, show_axis=false, show_cell=true,
+function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
+                          color=:red, show_axis=false, show_cell=true,
                           orthographic=false, ghost_radius=0, resolution=(768, 512))
+    fig = Makie.Figure(; resolution)
+    ax = Makie.LScene(fig[1, 1]; show_axis)
+
+    # TODO: Why can't this move to the bottom?
+    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
+    orient_camera!(ax, supervecs, 1; orthographic)
+
+    ### Plot spins ###
+
     # Infer characteristic length scale between sites
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
@@ -347,44 +217,43 @@ function Sunny.plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
     lengthscale = 0.6a0
     markersize = 0.8linewidth
     arrow_fractional_shift = 0.6
+   
+    # Make sure colors are indexable by site
+    color0 = fill_colors(color, size(sys.dipoles))
 
-    fig, ax = setup_scene(; show_axis, orthographic, resolution)
-
-    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    sys_center = sys.crystal.latvecs * Vec3(sys.latsize) / 2
-    Makie.translate_cam!(ax.scene, Makie.Point3f0(sys_center))
-
-    # Plot primary sites as spheres
-    pts = [Makie.Point3f0(global_position(sys, site)) for site in eachsite(sys)[:]]
-    Makie.meshscatter!(pts; markersize, color=linecolor)
-
-    # Plot primary spins as arrows
-    vecs = (lengthscale / S0) * Makie.Vec3f0.(sys.dipoles[:])
-    pts -= arrow_fractional_shift * vecs
-    Makie.arrows!(ax, pts, vecs; linecolor, arrowsize, arrowcolor, linewidth)
-
-    # Plot ghost (periodic image) spins as translucent arrows
-    max_dist = ℓ0 * ghost_radius
+    # Find all sites within max_dist of the system center
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
     r0 = [0.5, 0.5, 0.5]
-    ghosts = all_atoms_within_distance(supervecs, rs, r0; max_dist)
-    pts = Makie.Point3f0[]
-    vecs = Makie.Vec3f0[]
-    for (site, n) in ghosts
-        if !iszero(n)
-            push!(pts, supervecs * (rs[site] + n))
-            push!(vecs, (lengthscale / S0) * sys.dipoles[site])
+    images = all_images_within_distance(supervecs, rs, [r0]; max_dist=ghost_radius, include_zeros=true)
+
+    # Require separate drawing calls with `transparency=true` for ghost sites
+    for (isghost, alpha) in ((false, 1.0), (true, 0.08))
+        pts = Makie.Point3f0[]
+        vecs = Makie.Vec3f0[]
+        arrowcolor = Tuple{eltype(color0), Float64}[]
+        for site in eachindex(images)
+            vec = (lengthscale / S0) * sys.dipoles[site]
+            # Loop over all periodic images of site within radius
+            for n in images[site]
+                # If drawing ghosts, require !iszero(n), and vice versa
+                iszero(n) == isghost && continue
+                pt = supervecs * (rs[site] + n)
+                push!(pts, Makie.Point3f0(pt))
+                push!(vecs, Makie.Vec3f0(vec))
+                push!(arrowcolor, (color0[site], alpha))
+            end
         end
-    end
-    if !isempty(pts)
-        pts -= arrow_fractional_shift * vecs
-        Makie.arrows!(ax, pts, vecs; arrowsize, linewidth, linecolor=(linecolor, 0.1),
-                      arrowcolor=(arrowcolor, 0.1), transparency=true)
+        shifted_pts = pts - arrow_fractional_shift * vecs
+        linecolor = @something (stemcolor, alpha) arrowcolor
+        Makie.arrows!(ax, shifted_pts, vecs; arrowsize, linewidth, linecolor, arrowcolor, transparency=isghost)
+
+        # Small sphere inside arrow to mark atom position
+        Makie.meshscatter!(ax, pts; markersize, color=linecolor, transparency=isghost)
     end
 
     # Show bounding box of magnetic supercell in gray
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    Makie.linesegments!(ax, cell_wireframe(supervecs), color=:gray, linewidth=1.5)
+    Makie.linesegments!(ax, cell_wireframe(supervecs); color=:gray, linewidth=1.5)
 
     if show_cell
         # Show bounding box of original crystal unit cell
@@ -393,11 +262,101 @@ function Sunny.plot_spins(sys::System; arrowscale=1.0, linecolor=:lightgray,
         # Labels for lattice vectors
         pos = [Makie.Point3f0(p/2) for p in collect(eachcol(orig_crystal(sys).latvecs))]
         text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
-        Makie.text!(pos; text, color=:black, fontsize=20, align=(:center, :center), overdraw=true)
+        Makie.text!(pos; text, color=:black, fontsize=16, align=(:center, :center), overdraw=true)
     end
 
-    fig
+    return fig
 end
+
+"""
+    view_crystal(crystal::Crystal, max_dist::Real; show_axis=false, orthographic=false)
+
+An interactive crystal viewer, with bonds up to `max_dist`.
+"""
+function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis=false,
+                      orthographic=false, resolution=(768, 512))
+    fig = Makie.Figure(; resolution)
+    ax = Makie.LScene(fig[1, 1]; show_axis)
+
+    # TODO: Why can't this move to the bottom?
+    orient_camera!(ax, cryst.latvecs, 1; orthographic)
+
+    # Show cell volume and label lattice vectors (this needs to come first to
+    # set a scale for the scene in case there is only one atom).
+    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs); color=:teal, linewidth=1.5)
+    pos = [Makie.Point3f0(p/2) for p in collect(eachcol(cryst.latvecs))]
+
+    # Map atom classes to indices that run from 1..nclasses
+    unique_classes = unique(cryst.classes)
+    class_indices = [findfirst(==(c), unique_classes) for c in cryst.classes]
+
+    # Show atoms
+    ℓ0 = characteristic_length_between_atoms(cryst)
+    markersize = spherescale * ℓ0
+    max_dist = max(max_dist, ℓ0 + 1e-6)
+    images = all_images_within_distance(cryst.latvecs, cryst.positions, cryst.positions; max_dist, include_zeros=true)
+    for (isghost, alpha) in ((false, 1.0), (true, 0.15))
+        pts = Makie.Point3f0[]
+        color = RGB{Float64}[]
+        for i in eachindex(images), n in images[i]
+            # If drawing ghosts, require !iszero(n), and vice versa
+            iszero(n) == isghost && continue
+            push!(pts, cryst.latvecs * (cryst.positions[i] + n))
+            push!(color, getindex_cyclic(seaborn_muted, class_indices[i]))
+        end
+        Makie.meshscatter!(ax, pts; markersize, color, alpha, transparency=isghost)
+    end
+
+    # Get up to 10 reference bonds, without self bonds
+    refbonds = filter(reference_bonds(cryst, max_dist)) do b
+        return !(b.i == b.j && iszero(b.n))
+    end
+    refbonds = first(refbonds, 10)
+
+    function all_segments_for_bond(b, color, visible)
+        # Get symmetry related bonds without "self" bonds
+        bonds = filter(Sunny.all_symmetry_related_bonds(cryst, b)) do b
+            return b.i != b.j || !iszero(collect(b.n))
+        end
+
+        # Map each bond to line segments in global coordinates
+        segments = map(bonds) do b
+            (; ri, rj) = Sunny.BondPos(cryst, b)
+            Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
+        end
+        s2 = Makie.linesegments!(ax, segments; color, linewidth=3, visible)
+
+        # Draw thicker reference segment 
+        (; ri, rj) = Sunny.BondPos(cryst, b)
+        ref_segment = Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
+        s1 = Makie.linesegments!(ax, [ref_segment]; color=(color, 0.5), linewidth=10, visible)
+
+        return [s1, s2]
+    end
+
+    layout = Makie.GridLayout(; tellheight=false, valign=:top)
+    for (i, b) in enumerate(refbonds)
+        color = getindex_cyclic(seaborn_bright, i)
+        active = (i == 1)
+        toggle = Makie.Toggle(fig; active)
+        observables = all_segments_for_bond(b, color, active)
+        for o in observables
+            Makie.connect!(o.visible, toggle.active)
+        end
+        # Equivalent:
+        # Makie.on(x -> segments.visible[] = x, toggle.active; update=true)
+
+        layout[i, 1:2] = [toggle, Makie.Label(fig, repr(b))]
+    end
+    fig[1, 2] = layout
+
+    # Label lattice vectors. (This needs to come last for `overdraw` to work.)
+    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
+    Makie.text!(ax, pos; text, color=:black, fontsize=16, align=(:center, :center), overdraw=true)
+
+    return fig
+end
+
 
 function draw_level!(ax,n_level,level,center,radius,dir,z; arrows = true, linewidth, lengthscale, arrowsize)
     if level == n_level || level == 1
@@ -410,7 +369,7 @@ function draw_level!(ax,n_level,level,center,radius,dir,z; arrows = true, linewi
         end
     else
         theta = range(0,2π,length=16)
-        for i in 1:length(center)
+        for i in eachindex(center)
             normal_dir = norm(dir[i] × [0,0,1]) < 1e-4 ? [1,0,0] : [0,0,1]
 
             codir1 = normalize(dir[i] × normal_dir)
@@ -419,7 +378,7 @@ function draw_level!(ax,n_level,level,center,radius,dir,z; arrows = true, linewi
             m = (level - 1) - l
             phi = acos(m/l)
             pts = Vector{Makie.Point3f}(undef,length(theta))
-            for j = 1:length(theta)
+            for j = eachindex(theta)
                 pts[j] = center[i] .+ sin(phi) .* radius .* (cos(theta[j]) .* codir1 .+ sin(theta[j]) .* codir2) .+ radius .* (m/l) .* dir[i]
             end
             Makie.lines!(pts,color = Makie.Colors.HSVA(rad2deg(angle(z[i][level])),1,1,abs2(z[i][level])); linewidth)
@@ -442,7 +401,13 @@ function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, 
 
 
     n_level = length(sys.coherents[1])
-    fig, ax = setup_scene(; show_axis = false, orthographic = true, resolution)
+
+    fig = Makie.Figure(; resolution)
+    ax = Makie.LScene(fig[1, 1])
+
+    # TODO: Why can't this move to the bottom?
+    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
+    orient_camera!(ax, supervecs, 1; orthographic=true)
 
     centers = [Makie.Point3f(Sunny.global_position(sys,site)) for site in eachsite(sys)][:]
     Makie.scatter!(ax,centers,color = :black,marker='x';markersize)
@@ -471,119 +436,6 @@ function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, 
 end
 
 
-"""
-    anim_integration(sys, fname, steps_per_frame, Δt, nframes; kwargs...)
-
-Produce an animation of constant-energy Landau-Lifshitz dynamics of the given
-`sys`.
-# Arguments:
-- `sys::System`: The spin system to integrate.
-- `fname::String`: The path to save the animation to.
-- `steps_per_frame::Int`: The number of integration steps to take per frame.
-- `Δt::Float64`: The integration timestep size.
-- `nframes::Int`: The number of frames to produce in the animation.
-
-Other keyword arguments are passed to `Makie.arrows`.
-"""
-function anim_integration(
-    sys::System, fname, steps_per_frame, Δt, nframes;
-    linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2, arrowlength=0.2,
-    resolution=(768, 512), kwargs...
-)
-    fig, ax = setup_scene(; resolution)
-
-    pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
-    vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
-    Makie.arrows!(
-        ax, pts, vecs;
-        linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
-        lengthscale=arrowlength, kwargs...    
-    )
-    display(fig)
-
-    framerate = 30
-    integrator = ImplicitMidpoint(Δt)
-
-    Makie.record(fig, fname, 1:nframes; framerate=framerate) do frame
-        for _ in 1:steps_per_frame
-            step!(sys, integrator)
-        end
-        vecs[] = Makie.Vec3f0.(sys.dipoles[:])
-    end
-end
-
-"""
-    live_integration(sys, steps_per_frame, Δt; kwargs...)
-
-Performs endless live constant-energy Landau-Lifshitz integration
-in an interactive window.
-"""
-function live_integration(
-    sys::System, steps_per_frame, Δt;
-    linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
-    arrowlength=0.2, framerate=30, resolution=(768, 512), kwargs...
-)
-    fig, ax = setup_scene(; resolution)
-
-    pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
-    vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
-    Makie.arrows!(
-        ax, pts, vecs;
-        linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
-        lengthscale=arrowlength, kwargs...    
-    )
-    display(fig)
-
-    integrator = ImplicitMidpoint(Δt)
-
-    while true
-        if !Makie.events(fig).window_open[]
-            break
-        end
-        for step in 1:steps_per_frame
-            step!(sys, integrator)
-        end
-        vecs[] = Makie.Vec3f0.(sys.dipoles[:])
-        sleep(1/framerate)
-    end
-end
-
-"""
-    live_langevin_integration(sys, steps_per_frame, Δt, kT; λ=0.1, kwargs...)
-
-Performs endless live Langevin Landau-Lifshitz integration
-in an interactive window.
-"""
-function live_langevin_integration(
-    sys::System, steps_per_frame, Δt, kT;
-    linecolor=:grey, arrowcolor=:red, linewidth=0.1, arrowsize=0.2,
-    arrowlength=0.2, λ=0.1, framerate=30, resolution=(768, 512), kwargs...
-)
-    fig, ax = setup_scene(; show_axis=false, resolution)
-    pts = Makie.Point3f0.(spin_vector_origins(sys, arrowlength)[:])
-    vecs = Makie.Observable(Makie.Vec3f0.(view(sys.dipoles,:)))
-    
-    Makie.arrows!(
-        ax, pts, vecs;
-        linecolor=linecolor, arrowcolor=arrowcolor, linewidth=linewidth, arrowsize=arrowsize,
-        lengthscale=arrowlength, kwargs...    
-    )
-    scene = display(fig)
-
-    integrator = Langevin(Δt; kT, λ)
-
-    while true
-        if !Makie.events(fig).window_open[]
-            break
-        end
-        for _ in 1:steps_per_frame
-            step!(sys, integrator)
-        end
-        vecs[] = Makie.Vec3f0.(sys.dipoles[:])
-        sleep(1/framerate)
-    end
-end
-
 function scatter_bin_centers(params;axes)
     labels = ["Qx [r.l.u]","Qy [r.l.u.]","Qz [r.l.u.]","E [meV]"]
     fig = Makie.Figure()
@@ -603,46 +455,6 @@ function scatter_bin_centers!(ax,params;axes)
     Makie.scatter!(ax,xs,ys,marker='x',markersize=10,color = :black)
 end
 
-
-
-"Plots slices of a 3D structure factor. Input array should have shape [3, Lx, Ly, Lz, T]"
-function plot_3d_structure_factor(sfactor::Array{Float64, 5}, iz, resolution=(768, 512))
-    fig, ax = setup_scene(; resolution, show_axis=true)
-
-    Sdim, Lx, Ly, Lz, T = size(sfactor)
-    # Average over Sxx, Syy, Szz - in future give controls to user
-    sfactor = dropdims(sum(sfactor, dims=1) ./ 3, dims=1)
-    # Index out the asked-for slice - in future give controls to user
-    sfactor = sfactor[:, :, iz, :]
-
-    # Nearest-neighbor upsample this to a similar size as the T axis.
-    sampx, sampy = div(T, 2Lx), div(T, 2Ly)
-    sfactor = repeat(sfactor, inner=(sampx, sampy, 1))
-
-    kx = 1:sampx*Lx
-    ky = 1:sampy*Ly
-    ω  = 1:T
-
-    lsgrid = Makie.labelslidergrid!(
-        fig,
-        ["kx", "ky", "ω"],
-        [1:sampx*Lx, 1:sampy*Ly, 1:T]
-    )
-    fig[2, 1] = lsgrid.layout
-    volslices = Makie.volumeslices!(ax, kx, ky, ω, sfactor)
-
-    # See: http://makie.juliaplots.org/stable/plotting_functions/volumeslices.html
-    sl_yz, sl_xz, sl_xy = lsgrid.sliders
-    Makie.on(sl_yz.value) do v; volslices[:update_yz][](v) end
-    Makie.on(sl_xz.value) do v; volslices[:update_xz][](v) end
-    Makie.on(sl_xy.value) do v; volslices[:update_xy][](v) end
-
-    Makie.set_close_to!(sl_yz, .5Lx)
-    Makie.set_close_to!(sl_xz, .5Ly)
-    Makie.set_close_to!(sl_xy, .5T)
-
-    fig
-end
 
 # The purpose of __init__() below is to make all the internal functions of
 # PlottingExt accessible to developers of Sunny.
