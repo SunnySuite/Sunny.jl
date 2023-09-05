@@ -178,10 +178,3 @@ function intensity_formula(sc::SampledCorrelations, contractor::Contraction{T}; 
         intensity = contract(correlations, k, contractor)
     end
 end
-
-function error_formula(sc::SampledCorrelations, mode::Symbol; kwargs...)
-    if isnothing(sc.variance)
-        error("Error information not available for this `SampledCorrelation`.")
-    end
-    intensity_formula(sc, mode; calculate_errors=true, kwargs...)
-end

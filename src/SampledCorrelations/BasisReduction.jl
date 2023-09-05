@@ -19,7 +19,9 @@ end
 # form factors only. This approximation seems to give results very similar to
 # those achieved by directly pulling out statistics during the sampling process.
 # But it seems to me that the correct thing to do is simply to add all the
-# variances from all the sites that contribute. Revisit this.
+# variances from all the sites that contribute. Revisit this. This is currently
+# not used, but would be employed in a parallel intensities-like pipeline for
+# error propagation.
 function error_basis_reduction(data, q_absolute::Vec3, _::Crystal, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
     elems = zero(MVector{NCorr,ComplexF64})
     ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute), NAtoms)
