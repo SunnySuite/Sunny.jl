@@ -71,9 +71,9 @@ cryst = subcrystal(FeI2, "Fe")
 # interactions between symmetry-equivalent bonds.
 #
 # In a running Julia environment, the crystal can be viewed interactively using
-# [`plot_crystal`](@ref).
+# [`view_crystal`](@ref).
 
-plot_crystal(cryst, 8.0)
+view_crystal(cryst, 8.0)
 
 # ## Symmetry analysis
 #

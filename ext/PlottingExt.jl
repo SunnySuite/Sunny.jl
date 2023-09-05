@@ -269,11 +269,11 @@ function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
 end
 
 """
-    plot_crystal(crystal::Crystal, max_dist::Real; show_axis=false, orthographic=false)
+    view_crystal(crystal::Crystal, max_dist::Real; show_axis=false, orthographic=false)
 
 An interactive crystal viewer, with bonds up to `max_dist`.
 """
-function Sunny.plot_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis=false,
+function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis=false,
                       orthographic=false, resolution=(768, 512))
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)

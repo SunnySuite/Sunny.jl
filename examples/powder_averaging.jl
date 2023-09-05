@@ -19,9 +19,9 @@ latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
 
 # In a running Julia environment, the crystal can be viewed interactively using
-# [`plot_crystal`](@ref).
+# [`view_crystal`](@ref).
 
-plot_crystal(cryst, 8.0)
+view_crystal(cryst, 8.0)
 
 # Construct a [`System`](@ref) with an antiferromagnetic nearest neighbor
 # interaction `J`. Because the diamond crystal is bipartite, the ground state
