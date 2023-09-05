@@ -110,7 +110,7 @@ print_wrapped_intensities(sys)
 # The wide distribution of intensities indicates an imperfect magnetic order.
 # The defects are immediately apparent in the real-space spin configuration.
 
-plot_spins(sys)
+plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 # In this case, we can find the correct ground state simply by running the
 # Langevin dynamics for longer.
@@ -144,7 +144,7 @@ langevin.kT = kT;
 # simulation volume, provided as multiples of the original unit cell.
 
 sys_large = resize_supercell(sys, (16,16,4)) # 16x16x4 copies of the original unit cell
-plot_spins(sys_large)
+plot_spins(sys_large; color=[s[3] for s in sys_large.dipoles])
 
 # As stressed above, we need to sample multiple spin configurations
 # from the thermal equilibrium distribution.
