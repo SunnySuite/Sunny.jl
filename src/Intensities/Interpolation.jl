@@ -219,9 +219,11 @@ x-axis of a plot.
 
 Special note about units: the wavevectors `qs` must be provided in reciprocal
 lattice units (RLU) for the given crystal, but the sampling density must be
-specified in units of inverse length. The `path` will therefore include more
-samples between `q`-points that are further apart in absolute Fourier distance
-(units of inverse length).
+specified in the global frame. Specifically, the density is given as number of
+sample points per unit of radian inverse length, where the unit of length is the
+same as that used to specify the lattice vectors of the Crystal. The `path` will
+therefore include more samples between `q`-points that are further apart in
+absolute Fourier distance.
 """
 function reciprocal_space_path(cryst::Crystal, qs, density)
     @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
