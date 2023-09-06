@@ -6,20 +6,18 @@ struct StevensExpansion
     c6 :: SVector{13, Float64}
 
     function StevensExpansion(c2, c4, c6)
+        c2 = norm(c2) < 1e-12 ? zero(c2) : c2
+        c4 = norm(c4) < 1e-12 ? zero(c4) : c4
+        c6 = norm(c6) < 1e-12 ? zero(c6) : c6
         kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
         return new(kmax, c2, c4, c6)
     end
 end
 
-struct OnsiteCoupling
-    matrep :: Matrix{ComplexF64}    # Matrix representation in some dimension N
-    stvexp :: StevensExpansion      # Renormalized coefficients for Stevens functions
-end
 
-# Pair couplings are counted only once per bond (the reverse bond is not double
-# counted).
+# Pair couplings are counted only once per bond
 struct PairCoupling
-    isculled :: Bool # Reverse bonds may be culled to avoid double-counting
+    isculled :: Bool # Bond directionality is used to avoid double counting
     bond     :: Bond
 
     # In :dipole mode, these will be renormalized couplings following
@@ -33,8 +31,11 @@ struct PairCoupling
 end
 
 mutable struct Interactions
-    onsite    :: OnsiteCoupling
-    pair      :: Vector{PairCoupling}
+    # Onsite coupling is either an N×N Hermitian matrix or possibly renormalized
+    # Stevens coefficients, depending on the mode :SUN or :dipole.
+    onsite :: Union{Matrix{ComplexF64}, StevensExpansion}
+    # Pair couplings for every bond that starts at the given atom
+    pair :: Vector{PairCoupling}
 end
 
 const rFTPlan = FFTW.rFFTWPlan{Float64, -1, false, 5, UnitRange{Int64}}

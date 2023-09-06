@@ -141,11 +141,12 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
-        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, onsite.stvexp)
-        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, onsite.stvexp)
+        stvexp = onsite :: StevensExpansion
+        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, stvexp)
+        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, stvexp)
         ΔE += E_new - E_old
     else
-        Λ = onsite.matrep
+        Λ = onsite :: Matrix
         ΔE += real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
     end
 
@@ -224,13 +225,14 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbo
 
     # Single-ion anisotropy
     if N == 0       # Dipole mode
+        stvexp = ints.onsite :: StevensExpansion
         for cell in cells
             s = dipoles[cell, i]
-            E += energy_and_gradient_for_classical_anisotropy(s, ints.onsite.stvexp)[1]
+            E += energy_and_gradient_for_classical_anisotropy(s, stvexp)[1]
         end
     else            # SU(N) mode
+        Λ = ints.onsite :: Matrix
         for cell in cells
-            Λ = ints.onsite.matrep
             Z = coherents[cell, i]
             E += real(dot(Z, Λ, Z))
         end
@@ -300,9 +302,10 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into ℌ.
     if N == 0
+        stvexp = ints.onsite :: StevensExpansion
         for cell in cells
             s = dipoles[cell, i]
-            ∇E[cell, i] += energy_and_gradient_for_classical_anisotropy(s, ints.onsite.stvexp)[2]
+            ∇E[cell, i] += energy_and_gradient_for_classical_anisotropy(s, stvexp)[2]
         end
     end
 
@@ -345,13 +348,13 @@ function set_energy_grad_coherents!(HZ, Z, sys::System{N}) where N
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
         for site in eachsite(sys)
-            Λ = ints[to_atom(site)].onsite.matrep
+            Λ = ints[to_atom(site)].onsite :: Matrix
             HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
         end
     else
         ints = interactions_inhomog(sys)
         for site in eachsite(sys)
-            Λ = ints[site].onsite.matrep
+            Λ = ints[site].onsite :: Matrix
             HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
         end 
     end

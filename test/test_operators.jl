@@ -237,26 +237,46 @@ end
     end
 end
 
-
 @testitem "Symbolics" begin
-    import IOCapture, DynamicPolynomials
+    import IOCapture
 
-    𝒪 = Sunny.𝒪
-    𝒮 = Sunny.𝒮
-
-    capt = IOCapture.capture() do
-        Sunny.print_classical_spin_polynomial((1/4)𝒪[4,4] + (1/20)𝒪[4,0] + (3/5)*(𝒮'*𝒮)^2)
-    end
-    @test capt.output == "𝒮₁⁴ + 𝒮₂⁴ + 𝒮₃⁴\n"
+    @test repr(large_S_stevens_operators[3,1]) == "-𝒮ˣ³ - 𝒮ʸ²𝒮ˣ + 4𝒮ᶻ²𝒮ˣ"
 
     capt = IOCapture.capture() do
-        Sunny.print_classical_stevens_expansion(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
+        𝒪 = large_S_stevens_operators
+        𝒮 = large_S_spin_operators
+        Sunny.pretty_print_operator((1/4)𝒪[4,4] + (1/20)𝒪[4,0] + (3/5)*(𝒮'*𝒮)^2)
     end
-    @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)X²\n"
+    @test capt.output == "𝒮ˣ⁴ + 𝒮ʸ⁴ + 𝒮ᶻ⁴\n"
+
+    capt = IOCapture.capture() do
+        𝒮 = large_S_spin_operators
+        print_stevens_expansion(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
+    end
+    @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)𝒮⁴\n"
 
     capt = IOCapture.capture() do
         S = spin_matrices(N=5)
         print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
     end
     @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + 102/5\n"
+
+    # Test Stevens coefficients extraction
+    S = large_S_spin_operators
+    O = large_S_stevens_operators
+    S_mag = π
+    p = S'*S * O[4, 2]
+    c = Sunny.operator_to_stevens_coefficients(p, S_mag)
+    @test iszero(c[1]) && iszero(c[2]) && iszero(c[3]) && iszero(c[5]) && iszero(c[6])
+    @test c[4] ≈ [0.0, 0.0, S_mag^2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # Test round trip Stevens -> spin -> Stevens
+    c_ref = Vector{Float64}[]
+    for k in 1:6
+        push!(c_ref, randn(2k+1))
+    end
+    p = sum(c_ref[k]'*Sunny.stevens_symbols[k] for k in 1:6)
+    p = Sunny.expand_as_spin_polynomial(p)
+    c = Sunny.operator_to_stevens_coefficients(p, 1.0)
+    @test c ≈ c_ref
 end

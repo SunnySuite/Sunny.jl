@@ -114,7 +114,7 @@ function swt_data_sun(sys::System{N}) where N
         for ν = 1:5
             Q̃_mat[:, :, ν, atom] = Hermitian(U_mat' * Q_mat_N[ν] * U_mat)
         end
-        T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].onsite.matrep * U_mat)
+        T̃_mat[:, :, atom] = Hermitian(U_mat' * sys.interactions_union[atom].onsite * U_mat)
     end
 
     return SWTDataSUN(s̃_mat, T̃_mat, Q̃_mat)
@@ -136,7 +136,7 @@ function swt_data_dipole(sys::System{0})
                 cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
                 0.0     sin(θ)        cos(θ)]
         # Rotated Stevens expansion
-        c = rotate_operator(sys.interactions_union[atom].onsite.stvexp, R)
+        c = rotate_operator(sys.interactions_union[atom].onsite, R)
 
         push!(Rs, R)
         push!(cs, c)

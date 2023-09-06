@@ -438,30 +438,6 @@ function get_coherent_buffers(sys::System{N}, numrequested) where N
     return view(sys.coherent_buffers, 1:numrequested)
 end
 
-"""
-    spin_operators(sys, i::Int)
-    spin_operators(sys, site::Int)
-
-Returns the three spin operators appropriate to an atom or [`Site`](@ref) index.
-Each is an ``N×N`` matrix of appropriate dimension ``N``.
-
-See also [`print_stevens_expansion`](@ref).
-"""
-spin_operators(sys::System{N}, i::Int) where N = spin_matrices(N=sys.Ns[i])
-spin_operators(sys::System{N}, site::Site) where N = spin_matrices(N=sys.Ns[to_atom(site)])
-
-"""
-    stevens_operators(sys, i::Int)
-    stevens_operators(sys, site::Int)
-
-Returns a generator of Stevens operators appropriate to an atom or
-[`Site`](@ref) index. The return value `O` can be indexed as `O[k,q]`, where ``0
-≤ k ≤ 6`` labels an irrep and ``q = -k, …, k``. This will produce an ``N×N``
-matrix of appropriate dimension ``N``.
-"""
-stevens_operators(sys::System{N}, i::Int) where N = StevensMatrices(sys.Ns[i])
-stevens_operators(sys::System{N}, site::Site) where N = StevensMatrices(sys.Ns[to_atom(site)])
-
 
 function spin_operators_pair(sys::System{N}, b::Bond) where N
     Si = spin_matrices(N=sys.Ns[b.i])
