@@ -1,50 +1,25 @@
-function OnsiteCoupling(sys::System, op, N)
-    if sys.mode ∈ (:dipole, :SUN)
-        # Convert `op` to a traceless Hermitian matrix
-        matrep = operator_to_matrix(op; N)
-        matrep -= (tr(matrep)/N)*I
-        if norm(matrep) < 1e-12
-            matrep = zero(matrep)
-        end
-        # Decompose into Stevens coefficients
-        c = matrix_to_stevens_coefficients(matrep)
-    else
-        @assert sys.mode == :large_S
-        S = (N-1)/2
-        c = operator_to_classical_stevens_coefficients(op, S)
-        # Here the true N is infinite, so we can't really build a matrep
-        matrep = zeros(ComplexF64, 0, 0)
-    end
+function OnsiteCoupling(matrep::Matrix{ComplexF64}, mode, N)
+    size(matrep) == (N, N) || error("Matrix has wrong size.")
 
-    all(iszero.(c[[1,3,5]])) || error("Single-ion anisotropy must be time-reversal invariant.")
-
-    if sys.mode == :dipole
-        λ = anisotropy_renormalization(N)
-        stvexp = StevensExpansion(λ[2]*c[2], λ[4]*c[4], λ[6]*c[6])
-    else
-        stvexp = StevensExpansion(c[2], c[4], c[6])
-    end
-    
-    return OnsiteCoupling(matrep, stvexp)
-end
-
-function OnsiteCoupling(sys::System, matrep::Matrix{ComplexF64}, N)
     # Remove trace
     matrep -= (tr(matrep)/N)*I
-    if norm(matrep) < 1e-12
-        matrep = zero(matrep)
-    end
-    c = matrix_to_stevens_coefficients(matrep)
 
-    iszero(c[[1,3,5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
-
-    if sys.mode == :dipole
-        λ = anisotropy_renormalization(N)
-        stvexp = StevensExpansion(λ[2]*c[2], λ[4]*c[4], λ[6]*c[6])
-    else
-        stvexp = StevensExpansion(c[2], c[4], c[6])
+    if mode == :dipole
+        if norm(matrep) < 1e-12
+            matrep = zero(matrep)
+            stvexp = StevensExpansion(zeros(5), zeros(9), zeros(13))
+        else
+            c = matrix_to_stevens_coefficients(matrep)
+            iszero(c[[1,3,5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
+            λ = anisotropy_renormalization(N)
+            stvexp = StevensExpansion(λ[2]*c[2], λ[4]*c[4], λ[6]*c[6])    
+        end
+    elseif mode == :SUN
+        # SU(N) may involve, e.g., a tensor product representation, that is not
+        # simply decomposed in irreps of SU(2)
+        stvexp = StevensExpansion(fill(NaN, 5), fill(NaN, 9), fill(NaN, 13))
     end
-    
+
     return OnsiteCoupling(matrep, stvexp)
 end
 
@@ -61,9 +36,13 @@ function anisotropy_renormalization(N)
             (1 - (15/2)/S + (85/4)/S^2 - (225/8)/S^3 + (137/8)/S^4 - (15/4)/S^5)) # k=6
 end
 
-function empty_anisotropy(N)
+function empty_anisotropy(mode, N)
     matrep = zeros(ComplexF64, N, N)
-    stvexp = StevensExpansion(zeros(5), zeros(9), zeros(13))
+    if mode == :dipole
+        stvexp = StevensExpansion(zeros(5), zeros(9), zeros(13))
+    elseif mode == :SUN
+        stvexp = StevensExpansion(fill(NaN, 5), fill(NaN, 9), fill(NaN, 13))
+    end
     return OnsiteCoupling(matrep, stvexp)
 end
 
@@ -101,15 +80,19 @@ end
 
 
 """
-    set_onsite_coupling!(sys::System, op::Matrix{ComplexF64}, i::Int)
+    set_onsite_coupling!(sys::System, op, i::Int)
 
 Set the single-ion anisotropy for the `i`th atom of every unit cell, as well as
-all symmetry-equivalent atoms. The local operator `op` may be constructed using
-[`spin_operators`](@ref) or [`stevens_operators`](@ref).
+all symmetry-equivalent atoms. The local operator `op` will typically be given
+in an explicit ``N×N`` matrix representation, where ``N = 2S + 1``. For example,
+`op` may be constructed as a polynomial of [`spin_operators`](@ref), or as a
+linear combination of [`stevens_operators`](@ref). In `:dipole` mode, the
+anisotropy will be automatically renormalized to maximize consistency with the
+more variationally accurate `:SUN` mode.
 
-For systems restricted to dipoles, the anisotropy operators interactions will
-automatically be renormalized to achieve maximum consistency with the more
-variationally accurate SU(_N_) mode.
+To model a system of dipoles without the above renormalization, it is necessary
+to provide `op` as a symbolic operator in the "large-``S`` limit". For this, use
+[`large_S_spin_operators`](@ref) or [`large_S_stevens_operators`](@ref).
 
 # Examples
 ```julia
@@ -125,10 +108,8 @@ set_onsite_coupling!(sys, O[4,0] + 5*O[4,4], i)
 # An equivalent expression of this quartic anisotropy, up to a constant shift
 set_onsite_coupling!(sys, 20*(S[1]^4 + S[2]^4 + S[3]^4), i)
 ```
-
-See also [`spin_operators`](@ref).
 """
-function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) where N
+function set_onsite_coupling!(sys::System, op, i::Int)
     is_homogeneous(sys) || error("Use `set_onsite_coupling_at!` for an inhomogeneous system.")
     ints = interactions_homog(sys)
 
@@ -152,7 +133,7 @@ function set_onsite_coupling!(sys::System{N}, op::Matrix{ComplexF64}, i::Int) wh
         warn_coupling_override("Overriding anisotropy for atom $i.")
     end
 
-    onsite = OnsiteCoupling(sys, op, sys.Ns[1,1,1,i])
+    onsite = OnsiteCoupling(op, sys.mode, sys.Ns[1, 1, 1, i])
 
     cryst = sys.crystal
     for j in all_symmetry_related_atoms(cryst, i)
@@ -177,7 +158,7 @@ end
 
 
 """
-    set_onsite_coupling_at!(sys::System, op::Matrix{ComplexF64}, site::Site)
+    set_onsite_coupling_at!(sys::System, op, site::Site)
 
 Sets the single-ion anisotropy operator `op` for a single [`Site`](@ref),
 ignoring crystal symmetry.  The system must support inhomogeneous interactions
@@ -185,11 +166,11 @@ via [`to_inhomogeneous`](@ref).
 
 See also [`set_onsite_coupling!`](@ref).
 """
-function set_onsite_coupling_at!(sys::System{N}, op::Matrix{ComplexF64}, site::Site) where N
+function set_onsite_coupling_at!(sys::System, op, site::Site)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
     site = to_cartesian(site)
-    ints[site].onsite = OnsiteCoupling(sys, op, sys.Ns[site])
+    ints[site].onsite = OnsiteCoupling(op, sys.mode, sys.Ns[site])
 end
 
 

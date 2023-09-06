@@ -78,7 +78,7 @@
         sys = su3_anisotropy_model(; D, L, seed=0)
         langevin = Langevin(Δt; kT=0.0, λ)
 
-        for kT ∈ kTs
+        for kT in kTs
             langevin.kT = kT
             thermalize!(sys, langevin, thermalize_dur)
             E = calc_mean_energy(sys, langevin, collect_dur)
@@ -159,7 +159,7 @@ end
         Ps = zeros(numbins)
         for i in 1:numbins 
             Es = boundaries[i]:Δ:boundaries[i+1]
-            Ps[i] = sum([P(E, kT; n, J)*Δ for E ∈ Es])
+            Ps[i] = sum([P(E, kT; n, J)*Δ for E in Es])
         end
         Ps
     end
@@ -201,7 +201,7 @@ end
 
             # Collect samples of energy
             Es = Float64[]
-            for i in 1:n_samples
+            for _ in 1:n_samples
                 for _ in 1:n_decorr
                     step!(sys, langevin)
                 end

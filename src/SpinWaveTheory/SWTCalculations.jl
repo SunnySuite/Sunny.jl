@@ -195,8 +195,6 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Ma
     S = (N-1)/2              # Spin magnitude
     L  = natoms(sys.crystal) # Number of quasiparticle bands
 
-    biquad_res_factor = 1 - 1/S + 1/(4S^2) # rescaling factor for biquadratic interaction
-
     @assert size(Hmat) == (2L, 2L)
 
     # Zeeman contributions
@@ -261,45 +259,24 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Ma
             B21 = S/4*(Rʳ[1, 1] + im*Rʳ[1, 2] + im*Rʳ[2, 1] - Rʳ[2, 2])
             B12 = B21
 
-            Hmat[sub_i, sub_i] += J*biquad_res_factor * (C0*A11 + C1*conj(C1))
-            Hmat[sub_j, sub_j] += J*biquad_res_factor * (C0*A22 + C2*conj(C2))
-            Hmat[sub_i, sub_j] += J*biquad_res_factor * ((C0*A12 + C1*conj(C2)) * phase)
-            Hmat[sub_j, sub_i] += J*biquad_res_factor * ((C0*A21 + C2*conj(C1)) * conj(phase))
-            Hmat[sub_i+L, sub_i+L] += J*biquad_res_factor * (C0*A11 + C1*conj(C1))
-            Hmat[sub_j+L, sub_j+L] += J*biquad_res_factor * (C0*A22 + C2*conj(C2))
-            Hmat[sub_j+L, sub_i+L] += J*biquad_res_factor * ((C0*A12 + C1*conj(C2)) * conj(phase))
-            Hmat[sub_i+L, sub_j+L] += J*biquad_res_factor * ((C0*A21 + C2*conj(C1)) * phase)
+            Hmat[sub_i, sub_i] += J* (C0*A11 + C1*conj(C1))
+            Hmat[sub_j, sub_j] += J* (C0*A22 + C2*conj(C2))
+            Hmat[sub_i, sub_j] += J* ((C0*A12 + C1*conj(C2)) * phase)
+            Hmat[sub_j, sub_i] += J* ((C0*A21 + C2*conj(C1)) * conj(phase))
+            Hmat[sub_i+L, sub_i+L] += J* (C0*A11 + C1*conj(C1))
+            Hmat[sub_j+L, sub_j+L] += J* (C0*A22 + C2*conj(C2))
+            Hmat[sub_j+L, sub_i+L] += J* ((C0*A12 + C1*conj(C2)) * conj(phase))
+            Hmat[sub_i+L, sub_j+L] += J* ((C0*A21 + C2*conj(C1)) * phase)
 
-            Hmat[sub_i, sub_i+L] += J*biquad_res_factor * (C1*conj(C1))
-            Hmat[sub_j, sub_j+L] += J*biquad_res_factor * (C2*conj(C2))
-            Hmat[sub_i+L, sub_i] += J*biquad_res_factor * (C1*conj(C1))
-            Hmat[sub_j+L, sub_j] += J*biquad_res_factor * (C2*conj(C2))
+            Hmat[sub_i, sub_i+L] += J* (C1*conj(C1))
+            Hmat[sub_j, sub_j+L] += J* (C2*conj(C2))
+            Hmat[sub_i+L, sub_i] += J* (C1*conj(C1))
+            Hmat[sub_j+L, sub_j] += J* (C2*conj(C2))
 
-            Hmat[sub_i, sub_j+L] += J*biquad_res_factor * ((2C0*B12 + C1*C2) * phase)
-            Hmat[sub_j, sub_i+L] += J*biquad_res_factor * ((2C0*B21 + C2*C1) * conj(phase))
-            Hmat[sub_i+L, sub_j] += J*biquad_res_factor * (conj(2C0*B12 + C1*C2) * phase)
-            Hmat[sub_j+L, sub_i] += J*biquad_res_factor * (conj(2C0*B21 + C2*C1) * conj(phase))
-
-            # The additional bilinear interactions
-            Rij = -J * S * (Ri' * Rj) / 2
-
-            P = 0.25 * (Rij[1, 1] - Rij[2, 2] - im*Rij[1, 2] - im*Rij[2, 1])
-            Q = 0.25 * (Rij[1, 1] + Rij[2, 2] - im*Rij[1, 2] + im*Rij[2, 1])
-
-            Hmat[sub_i, sub_j] += Q  * phase
-            Hmat[sub_j, sub_i] += conj(Q) * conj(phase)
-            Hmat[sub_i+L, sub_j+L] += conj(Q) * phase
-            Hmat[sub_j+L, sub_i+L] += Q  * conj(phase)
-
-            Hmat[sub_i+L, sub_j] += P * phase
-            Hmat[sub_j+L, sub_i] += P * conj(phase)
-            Hmat[sub_i, sub_j+L] += conj(P) * phase
-            Hmat[sub_j, sub_i+L] += conj(P) * conj(phase)
-
-            Hmat[sub_i, sub_i] -= 0.5 * Rij[3, 3]
-            Hmat[sub_j, sub_j] -= 0.5 * Rij[3, 3]
-            Hmat[sub_i+L, sub_i+L] -= 0.5 * Rij[3, 3]
-            Hmat[sub_j+L, sub_j+L] -= 0.5 * Rij[3, 3]
+            Hmat[sub_i, sub_j+L] += J* ((2C0*B12 + C1*C2) * phase)
+            Hmat[sub_j, sub_i+L] += J* ((2C0*B21 + C2*C1) * conj(phase))
+            Hmat[sub_i+L, sub_j] += J* (conj(2C0*B12 + C1*C2) * phase)
+            Hmat[sub_j+L, sub_i] += J* (conj(2C0*B21 + C2*C1) * conj(phase))
         end
     end
 

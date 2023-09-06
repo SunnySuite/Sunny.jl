@@ -6,21 +6,19 @@ Construct a `System` of spins for a given [`Crystal`](@ref) symmetry. The
 direction. The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which
 determine the magnitude ``S`` and ``g``-tensor of each spin.
 
-The three possible options for `mode` are `:SUN`, `:dipole`, and `:large_S`. The
-most variationally accurate choice is `:SUN`, in which each spin-``S`` degree of
-freedom is described as an SU(_N_) coherent state, where ``N = 2S + 1``. Note
-that an SU(_N_) coherent state fully describes any local spin state; this
-description includes expected dipole components ``⟨Ŝᵅ⟩``, quadrupole components
-``⟨ŜᵅŜᵝ+ŜᵝŜᵅ⟩``, etc.
+The two possible options for `mode` are `:SUN` and `:dipole`. In the former,
+each spin-``S`` degree of freedom is described as an SU(_N_) coherent state,
+i.e. a quantum superposition of ``N = 2S + 1`` levels. This approach can be
+important, e.g., to capture multipolar spin fluctuations when there is a strong
+single-ion anisotropy, or to explicitly resolve spin-orbit coupling. 
 
-The mode `:dipole` projects the SU(_N_) dynamics onto the space of pure dipoles.
-In practice this means that Sunny will simulate Landau-Lifshitz dynamics, but
-all single-ion anisotropy and biquadratic exchange interactions will be
-automatically renormalized for maximum accuracy.
-
-To disable such renormalization, e.g. to reproduce results using the historical
-large-``S`` classical limit, use the experimental mode `:large_S`. Modes `:SUN`
-or `:dipole` are strongly preferred for the development of new models.
+Mode `:dipole` projects the SU(_N_) dynamics onto the restricted space of pure
+dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
+dynamics, but all single-ion anisotropy and biquadratic exchange interactions
+will be renormalized for maximum accuracy. To disable this renormalization
+(e.g., to model systems in the large-spin limit) construct anisotropy operators
+using the special function [`large_S_spin_operators`](@ref) and define any
+biquadratic exchange using the `large_S=true` in [`set_exchange!`](@ref).
 
 The default units system of (meV, Å, tesla) can be overridden by with the
 `units` parameter; see [`Units`](@ref). 
@@ -32,8 +30,8 @@ All spins are initially polarized in the ``z``-direction.
 """
 function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
                     units=Units.meV, seed=nothing)
-    if mode ∉ [:SUN, :dipole, :large_S]
-        error("Mode must be one of [:SUN, :dipole, :large_S].")
+    if !(mode == :SUN || mode == :dipole)
+        error("Mode must be `:SUN` or `:dipole`.")
     end
 
     na = natoms(crystal)
@@ -47,9 +45,9 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
         allequal(Ns) || error("Currently all spins S must be equal in SU(N) mode.")
         N = first(Ns)
         κs = fill(1.0, na)
-    else
+    elseif mode == :dipole
         N = 0 # acts as marker for :dipole
-        κs = Ss
+        κs = copy(Ss)
     end
 
     # Repeat such that `A[:]` → `A[cell, :]` for every `cell`
@@ -59,7 +57,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     κs = repeat_to_lattice(κs)
     gs = repeat_to_lattice(gs)
 
-    interactions = empty_interactions(na, N)
+    interactions = empty_interactions(mode, na, N)
     ewald = nothing
 
     extfield = zeros(Vec3, latsize..., na)
@@ -80,10 +78,8 @@ function Base.show(io::IO, sys::System{N}) where N
         "SU($N)"
     elseif sys.mode==:dipole
         "Dipole"
-    elseif sys.mode==:large_S
-        "Large-S"
     else
-        error("Unreachable")
+        error()
     end
     print(io,"System{$modename}[$(sys.latsize)×$(natoms(sys.crystal))]")
     if !isnothing(sys.origin)
@@ -96,10 +92,8 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
         "SU($N)"
     elseif sys.mode==:dipole
         "Dipole mode"
-    elseif sys.mode==:large_S
-        "Large-S classical limit"
     else
-        error("Unreachable")
+        error()
     end
     printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
     println(io, "Lattice: $(sys.latsize)×$(natoms(sys.crystal))")

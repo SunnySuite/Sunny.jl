@@ -42,7 +42,7 @@
         end
 
         κ = 2.0
-        for mode in (:SUN, :dipole, :large_S)
+        for mode in (:SUN, :dipole)
             E1 = gen_energy(1, add_linear_interactions!, mode)
             E2 = gen_energy(κ, add_linear_interactions!, mode)
             @test E1 ≈ E2 / κ
@@ -77,7 +77,7 @@
     
         κ = 2.0
         Δt = 0.005
-        for mode in (:SUN, :dipole, :large_S)
+        for mode in (:SUN, :dipole)
             s1 = gen_trajectory(1, Δt, add_linear_interactions!, mode)
             s2 = gen_trajectory(κ, Δt, add_linear_interactions!, mode)
             @test s1 ≈ s2/κ

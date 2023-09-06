@@ -59,7 +59,6 @@
 
     test_conservation(make_system(; mode=:SUN, inhomog=false))
     test_conservation(make_system(; mode=:dipole, inhomog=true))
-    test_conservation(make_system(; mode=:large_S, inhomog=true))
 
 
     # Tests that energy deltas are consistent with total energy
@@ -83,5 +82,4 @@
 
     test_delta(make_system(; mode=:SUN, inhomog=true))
     test_delta(make_system(; mode=:dipole, inhomog=false))
-    test_delta(make_system(; mode=:large_S, inhomog=false))
 end

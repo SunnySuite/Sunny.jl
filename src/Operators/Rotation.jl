@@ -82,7 +82,7 @@ end
 Rotates the local quantum operator `A` according to the ``3×3`` rotation matrix
 `R`.
 """
-function rotate_operator(A::Matrix, R)
+function rotate_operator(A::Matrix, R) # TODO: Arbitrary generators of rotation
     isempty(A) && return A
     R = convert(Mat3, R)
     N = size(A, 1)
