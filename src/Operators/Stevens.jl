@@ -160,6 +160,7 @@ end
 # cᵀ α conj(D) α⁻¹ 𝒪 = c′ᵀ 𝒪. The rotated Stevens coefficients must therefore
 # satisfy c′ = α⁻ᵀ D† αᵀ c.
 function rotate_stevens_coefficients(c, R::Mat3)
+    isnan(norm(c)) && return c
     N = length(c)
     k = Int((N-1)/2)
     D = unitary_for_rotation(R; N)

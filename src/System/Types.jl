@@ -16,12 +16,16 @@ struct OnsiteCoupling
     stvexp :: StevensExpansion      # Renormalized coefficients for Stevens functions
 end
 
+# Pair couplings are counted only once per bond (the reverse bond is not double
+# counted).
 struct PairCoupling
-    isculled :: Bool
+    isculled :: Bool # Reverse bonds may be culled to avoid double-counting
     bond     :: Bond
 
-    bilin    :: Union{Float64, Mat3} # Bilinear exchange as 3×3 matrix
-    biquad   :: Float64              # Scalar biquadratic, only valid in dipole mode
+    # In :dipole mode, these will be renormalized couplings following
+    # the procedure in https://arxiv.org/abs/2304.03874
+    bilin    :: Union{Float64, Mat3} # Bilinear exchange
+    biquad   :: Float64              # Scalar biquadratic
 
     # General pair interactions, only valid in SU(N) mode
     # general  :: Vector{Tuple{Hermitian{ComplexF64}, Hermitian{ComplexF64}}}
