@@ -1,33 +1,40 @@
-function OnsiteCoupling(matrep::Matrix{ComplexF64}, mode, N)
-    size(matrep) == (N, N) || error("Matrix has wrong size.")
+function onsite_coupling(mode, N, matrep::Matrix{ComplexF64})
+    size(matrep) == (N, N) || error("Invalid matrix size.")
 
-    # Remove trace
+    # Remove trace and check for zero
     matrep -= (tr(matrep)/N)*I
-
-    if mode == :dipole
-        if norm(matrep) < 1e-12
-            matrep = zero(matrep)
-            stvexp = StevensExpansion(zeros(5), zeros(9), zeros(13))
-        else
-            c = matrix_to_stevens_coefficients(matrep)
-            iszero(c[[1,3,5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
-            λ = anisotropy_renormalization(N)
-            stvexp = StevensExpansion(λ[2]*c[2], λ[4]*c[4], λ[6]*c[6])    
-        end
-    elseif mode == :SUN
-        # SU(N) may involve, e.g., a tensor product representation, that is not
-        # simply decomposed in irreps of SU(2)
-        stvexp = StevensExpansion(fill(NaN, 5), fill(NaN, 9), fill(NaN, 13))
+    if norm(matrep) < 1e-12
+        matrep = zero(matrep)
     end
 
-    return OnsiteCoupling(matrep, stvexp)
+    if mode == :SUN
+        return matrep
+    elseif mode == :dipole
+        c = matrix_to_stevens_coefficients(matrep)
+        iszero(c[[1,3,5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
+
+        S = (N-1)/2
+        λ = anisotropy_renormalization(S)
+        return StevensExpansion(λ[2]*c[2], λ[4]*c[4], λ[6]*c[6])
+    end
+end
+
+function onsite_coupling(mode, N, p::DP.AbstractPolynomialLike)
+    mode == :dipole || error("Cannot take 'large-S limit' in :SUN mode.")
+
+    S = (N-1)/2
+    c = operator_to_stevens_coefficients(p, S)
+    iszero(c[[1,3,5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
+
+    # No renormalization here because `p` was constructed using
+    # `large_S_spin_operators` or `large_S_stevens_operators`.
+    return StevensExpansion(c[2], c[4], c[6])
 end
 
 
 # k-dependent renormalization of Stevens operators O[k,q] as derived in
 # https://arxiv.org/abs/2304.03874.
-function anisotropy_renormalization(N)
-    S = (N-1)/2
+function anisotropy_renormalization(S)
     return ((1), # k=1
             (1 - (1/2)/S), # k=2
             (1 - (3/2)/S + (1/2)/S^2), # k=3
@@ -37,17 +44,19 @@ function anisotropy_renormalization(N)
 end
 
 function empty_anisotropy(mode, N)
-    matrep = zeros(ComplexF64, N, N)
     if mode == :dipole
-        stvexp = StevensExpansion(zeros(5), zeros(9), zeros(13))
+        return StevensExpansion(zeros(5), zeros(9), zeros(13))
     elseif mode == :SUN
-        stvexp = StevensExpansion(fill(NaN, 5), fill(NaN, 9), fill(NaN, 13))
+        return zeros(ComplexF64, N, N)
     end
-    return OnsiteCoupling(matrep, stvexp)
 end
 
-function Base.iszero(onsite::OnsiteCoupling)
-    return iszero(onsite.matrep) && iszero(onsite.stvexp.kmax)
+function Base.iszero(stvexp::StevensExpansion)
+    return iszero(stvexp.kmax)
+end
+
+function Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion)
+    return (stvexp.c2 ≈ stvexp′.c2) && (stvexp.c4 ≈ stvexp′.c4) && (stvexp.c6 ≈ stvexp′.c6)
 end
 
 function rotate_operator(stevens::StevensExpansion, R)
@@ -66,17 +75,118 @@ function operator_to_matrix(stvexp::StevensExpansion; N)
     return acc
 end
 
-function is_anisotropy_valid(cryst::Crystal, i::Int, op)
+function is_anisotropy_valid(cryst::Crystal, i::Int, onsite)
     symops = symmetries_for_pointgroup_of_atom(cryst, i)
     for s in symops
         R = cryst.latvecs * s.R * inv(cryst.latvecs)
-        op′ = rotate_operator(op, det(R)*R)
-        if !(op′ ≈ op)
+        onsite′ = rotate_operator(onsite, det(R)*R)
+        if !(onsite′ ≈ onsite)
             return false
         end
     end
     return true
 end
+
+
+# Helper structs to support "index" notation for Stevens operators
+struct StevensMatrices
+    N::Int
+end
+function Base.getindex(this::StevensMatrices, k::Int, q::Int)
+    k < 0  && error("Stevens operators 𝒪[k,q] require k >= 0.")
+    k > 6  && error("Stevens operators 𝒪[k,q] currently require k <= 6.")
+    !(-k <= q <= k) && error("Stevens operators 𝒪[k,q] require -k <= q <= k.")
+    if k == 0
+        return Matrix{ComplexF64}(I, this.N, this.N)
+    else
+        # Stevens operators are stored in descending order: k, k-1, ... -k.
+        return stevens_matrices(k; this.N)[k - q + 1]
+    end
+end
+struct StevensSymbolic end
+function Base.getindex(::StevensSymbolic, k::Int, q::Int)
+    k < 0  && error("Stevens operators 𝒪[k,q] require k >= 0.")
+    k > 6  && error("Stevens operators 𝒪[k,q] currently require k <= 6.")
+    !(-k <= q <= k) && error("Stevens operators 𝒪[k,q] require -k <= q <= k.")
+    if k == 0
+        return 1.0
+    else
+        return stevens_as_spin_polynomials(k)[k - q + 1]
+    end
+end
+
+
+"""
+    spin_operators(sys, i::Int)
+    spin_operators(sys, site::Int)
+
+Returns the three spin operators appropriate to an atom or [`Site`](@ref) index.
+Each is an ``N×N`` matrix of appropriate dimension ``N``. Polynomials of these
+can be used in [`set_onsite_coupling!`](@ref) to define a single-ion anisotropy.
+
+See also [`print_stevens_expansion`](@ref).
+"""
+spin_operators(sys::System{N}, i::Int) where N = spin_matrices(N=sys.Ns[i])
+spin_operators(sys::System{N}, site::Site) where N = spin_matrices(N=sys.Ns[to_atom(site)])
+
+"""
+    const large_S_spin_operators
+
+Abstract symbols for the spin operators in the large-``S`` limit, where they are
+commuting variables. Polynomials of these can be used in
+[`set_onsite_coupling!`](@ref) to define a single-ion anisotropy for a system of
+classical dipoles.
+
+# Example
+```julia
+S = large_S_spin_operators
+set_onsite_coupling!(sys, -D*S[3]^2, i)
+```
+
+To get the spin operators in a finite-``S`` representation, use
+[`spin_operators`](@ref) instead, which will yield more accurate simulations of
+quantum-spin Hamiltonians.
+
+See also [`print_stevens_expansion`](@ref), which prints an expansion in
+[`large_S_stevens_operators`](@ref).
+"""
+const large_S_spin_operators = spin_vector_symbol
+
+
+"""
+    stevens_operators(sys, i::Int)
+    stevens_operators(sys, site::Int)
+
+Returns a generator of Stevens operators appropriate to an atom or
+[`Site`](@ref) index. The return value `O` can be indexed as `O[k,q]`, where ``0
+≤ k ≤ 6`` labels an irrep of SO(3) and ``q = -k, …, k``. This will produce an
+``N×N`` matrix of appropriate dimension ``N``. Linear combinations of these can
+be used in [`set_onsite_coupling!`](@ref) to define a single-ion anisotropy.
+"""
+stevens_operators(sys::System{N}, i::Int) where N = StevensMatrices(sys.Ns[i])
+stevens_operators(sys::System{N}, site::Site) where N = StevensMatrices(sys.Ns[to_atom(site)])
+
+"""
+    const large_S_stevens_operators
+
+Stevens operators as homogeneous spin polynomials in the large-``S`` limit.
+Linear combinations of these can be used in [`set_onsite_coupling!`](@ref) to
+define a single-ion anisotropy for a system of classical dipoles.
+
+The symbol `O = large_S_stevens_operators` can be indexed as `O[k,q]`, where ``0
+≤ k ≤ 6`` labels an irrep of SO(3) and ``q = -k, …, k``.
+
+# Example
+```julia
+O = large_S_stevens_operators
+set_onsite_coupling!(sys, (1/4)O[4,4] + (1/20)O[4,0], i)
+```
+
+To get the Stevens operators in a finite-``S`` representation, use
+[`stevens_operators`](@ref) instead, which will yield more accurate simulations
+of quantum-spin Hamiltonians.
+"""
+const large_S_stevens_operators = StevensSymbolic()
 
 
 """
@@ -123,17 +233,17 @@ function set_onsite_coupling!(sys::System, op, i::Int)
 
     (1 <= i <= natoms(sys.crystal)) || error("Atom index $i is out of range.")
 
-    if !is_anisotropy_valid(sys.crystal, i, op)
-        @error """Symmetry-violating anisotropy: $op.
-                  Use `print_site(crystal, $i)` for more information."""
-        error("Invalid anisotropy.")
-    end
-
     if !iszero(ints[i].onsite)
         warn_coupling_override("Overriding anisotropy for atom $i.")
     end
 
-    onsite = OnsiteCoupling(op, sys.mode, sys.Ns[1, 1, 1, i])
+    onsite = onsite_coupling(sys.mode, sys.Ns[1,1,1,i], op)
+
+    if !is_anisotropy_valid(sys.crystal, i, onsite)
+        @error """Symmetry-violating anisotropy: $op.
+                  Use `print_site(crystal, $i)` for more information."""
+        error("Invalid anisotropy.")
+    end
 
     cryst = sys.crystal
     for j in all_symmetry_related_atoms(cryst, i)
@@ -150,9 +260,7 @@ function set_onsite_coupling!(sys::System, op, i::Int)
         # In moving from site i to j, a spin S rotates to Q S. Transform the
         # anisotropy operator using the inverse rotation Q' so that the energy
         # remains invariant when applied to the transformed spins.
-        matrep′ = rotate_operator(onsite.matrep, Q')
-        stvexp′ = rotate_operator(onsite.stvexp, Q')
-        ints[j].onsite = OnsiteCoupling(matrep′, stvexp′)
+        ints[j].onsite = rotate_operator(onsite, Q')
     end
 end
 
@@ -170,7 +278,7 @@ function set_onsite_coupling_at!(sys::System, op, site::Site)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
     site = to_cartesian(site)
-    ints[site].onsite = OnsiteCoupling(op, sys.mode, sys.Ns[site])
+    ints[site].onsite = onsite_coupling(sys.mode, sys.Ns[site], op)
 end
 
 

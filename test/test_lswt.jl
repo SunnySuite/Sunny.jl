@@ -71,9 +71,7 @@ end
     K = 0.15  * meV_per_K
     C = J + K
     J₁ = diagm([J, J, C])
-    D_ST = 0.2
-    # Undo Sunny-applied renormalization of quartic anisotropy
-    D = D_ST / Sunny.anisotropy_renormalization(2S+1)[4]
+    D = 25/24
 
     dims = (1, 1, 1)
     infos = [SpinInfo(1; S, g=2)]
