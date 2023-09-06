@@ -242,9 +242,12 @@ formfactors = [FormFactor("Fe2"; g_lande=3/2)]
 new_formula = intensity_formula(sc, :perp; kT = kT, formfactors = formfactors)
 
 # Frequently, one wants to extract energy intensities along lines that connect
-# special wave vectors--a so-called "spaghetti plot". The function 
-# [`reciprocal_space_path`](@ref) creates an appropriate horizontal axis for this plot
-# by linearly sampling between provided $q$-points, with a given sample density.
+# special wave vectors--a so-called "spaghetti plot". The function
+# [`reciprocal_space_path`](@ref) creates an appropriate horizontal axis for
+# this plot by linearly sampling between provided $q$-points with a given
+# sample density. The number of sample points between two wavevectors `q1` and
+# `q2` is given by `dist*density` where `dist = norm(cryst.recipvecs * (q1 -
+# q2))` is measured in the global frame. 
 
 points = [[0,   0, 0],  # List of wave vectors that define a path
           [1,   0, 0],
