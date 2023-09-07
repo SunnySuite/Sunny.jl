@@ -111,7 +111,7 @@ print_wrapped_intensities(sys)
 # The wide distribution of intensities indicates an imperfect magnetic order.
 # The defects are immediately apparent in the real-space spin configuration.
 
-plot_spins(sys)
+plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 # In this case, we can find the correct ground state simply by running the
 # Langevin dynamics for longer.
@@ -145,7 +145,7 @@ langevin.kT = kT;
 # simulation volume, provided as multiples of the original unit cell.
 
 sys_large = resize_supercell(sys, (16,16,4)) # 16x16x4 copies of the original unit cell
-plot_spins(sys_large)
+plot_spins(sys_large; color=[s[3] for s in sys_large.dipoles])
 
 # As stressed above, we need to sample multiple spin configurations
 # from the thermal equilibrium distribution.
@@ -243,9 +243,12 @@ formfactors = [FormFactor("Fe2"; g_lande=3/2)]
 new_formula = intensity_formula(sc, :perp; kT = kT, formfactors = formfactors)
 
 # Frequently, one wants to extract energy intensities along lines that connect
-# special wave vectors--a so-called "spaghetti plot". The function 
-# [`reciprocal_space_path`](@ref) creates an appropriate horizontal axis for this plot
-# by linearly sampling between provided $q$-points, with a given sample density.
+# special wave vectors--a so-called "spaghetti plot". The function
+# [`reciprocal_space_path`](@ref) creates an appropriate horizontal axis for
+# this plot by linearly sampling between provided $q$-points with a given
+# sample density. The number of sample points between two wavevectors `q1` and
+# `q2` is given by `dist*density` where `dist = norm(cryst.recipvecs * (q1 -
+# q2))` is measured in the global frame. 
 
 points = [[0,   0, 0],  # List of wave vectors that define a path
           [1,   0, 0],

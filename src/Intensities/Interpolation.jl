@@ -97,22 +97,6 @@ function pruned_stencil_info(sc::SampledCorrelations, qs, interp::InterpolationS
 end
 
 
-function errors_interpolated(sc::SampledCorrelations, qs, formula; kwargs...)
-    # Note: There's currently no way to check whether the formula is an error
-    # formula. This is important because only error_formula will use the correct
-    # buffer (by configuring a closure). Revisit this.
-
-    # We can, however, check if `sc` has error information.
-    if isnothing(sc.variance)
-        error("Error information not available for this `SampledCorrelation`.")
-    end
-
-    is = intensities_interpolated(sc, qs, formula; kwargs...)
-    @. is = √is  # Return standard deviation, not variance
-
-    return is
-end
-
 """
     intensities_interpolated(sc::SampledCorrelations, qs, formula:ClassicalIntensityFormula; interpolation=nothing, negative_energies=false)
 
@@ -235,9 +219,11 @@ x-axis of a plot.
 
 Special note about units: the wavevectors `qs` must be provided in reciprocal
 lattice units (RLU) for the given crystal, but the sampling density must be
-specified in units of inverse length. The `path` will therefore include more
-samples between `q`-points that are further apart in absolute Fourier distance
-(units of inverse length).
+specified in the global frame. Specifically, the density is given as number of
+sample points per unit of radian inverse length, where the unit of length is the
+same as that used to specify the lattice vectors of the Crystal. The `path` will
+therefore include more samples between `q`-points that are further apart in
+absolute Fourier distance.
 """
 function reciprocal_space_path(cryst::Crystal, qs, density)
     @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."

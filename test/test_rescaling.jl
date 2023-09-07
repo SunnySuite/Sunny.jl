@@ -1,9 +1,9 @@
-@testitem "Spin Scaling" begin
+@testitem "Kappa rescaling" begin
     include("shared.jl")
 
     # Check that magnitude of coherent (SUN=true) or dipole (SUN=false) is
     # invariant under the dynamics
-    function test_spin_magnitude_stability()
+    let
         cryst = Sunny.diamond_crystal()
         kT = 0.1
         λ  = 0.1
@@ -13,6 +13,7 @@
         for integrator in integrators
             for mode in (:SUN, :dipole)
                 sys = System(cryst, (3,3,3), [SpinInfo(1, S=5/2, g=2)], mode; seed=0)
+                randn!(sys.κs)
                 add_linear_interactions!(sys, mode)
                 add_quadratic_interactions!(sys, mode)
                 add_quartic_interactions!(sys, mode)
@@ -27,11 +28,9 @@
         end
     end
 
-    test_spin_magnitude_stability()
-
 
     # Check that each energy term rescales properly with κ
-    function test_energy_scaling()
+    let
         function gen_energy(κ, adder, mode)
             cryst = Sunny.diamond_crystal()
             sys = System(cryst, (2,2,2), [SpinInfo(1, S=5/2, g=2)], mode; seed=0)
@@ -42,7 +41,7 @@
         end
 
         κ = 2.0
-        for mode in (:SUN, :dipole, :large_S)
+        for mode in (:SUN, :dipole)
             E1 = gen_energy(1, add_linear_interactions!, mode)
             E2 = gen_energy(κ, add_linear_interactions!, mode)
             @test E1 ≈ E2 / κ
@@ -57,11 +56,9 @@
         end
     end
 
-    test_energy_scaling()
-
 
     # Check that a scaling of κ corresponds to an appropriate rescaling of dynamical time
-    function test_dynamics_scaling()
+    let
         function gen_trajectory(κ, Δt, adder, mode)
             cryst = Sunny.diamond_crystal()
             sys = System(cryst, (4,3,2), [SpinInfo(1, S=5/2, g=2)], mode; seed=0)
@@ -77,7 +74,7 @@
     
         κ = 2.0
         Δt = 0.005
-        for mode in (:SUN, :dipole, :large_S)
+        for mode in (:SUN, :dipole)
             s1 = gen_trajectory(1, Δt, add_linear_interactions!, mode)
             s2 = gen_trajectory(κ, Δt, add_linear_interactions!, mode)
             @test s1 ≈ s2/κ
@@ -91,7 +88,23 @@
             @test s1 ≈ s2/κ
         end
     end
+end
 
-    test_dynamics_scaling()
 
+@testitem "Anisotropy rescaling" begin
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0,0,0]], "P1")
+    S = 3
+    λ = Sunny.anisotropy_renormalization(S)
+    
+    for k in (2, 4, 6)
+        sys1 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole)
+        sys2 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole)
+        O = stevens_operators(sys1, 1)
+        O′ = large_S_stevens_operators    
+        c = randn(2k+1)
+        set_onsite_coupling!(sys1, sum(c[k-q+1]*O[k, q] for q in -k:k), 1)
+        set_onsite_coupling!(sys2, sum(c[k-q+1]*O′[k, q] for q in -k:k), 1)
+        @test energy(sys1) ≈ λ[k] * energy(sys2)
+    end    
 end

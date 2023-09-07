@@ -6,7 +6,7 @@ import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
 import SpecialFunctions: erfc
 import FFTW
-import DynamicPolynomials
+import DynamicPolynomials as DP
 import Printf: @printf, @sprintf
 import Random: Random, randn!
 import DataStructures: SortedDict, OrderedDict
@@ -63,10 +63,11 @@ include("System/PairExchange.jl")
 include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
-export SpinInfo, System, Site, eachsite, position_to_site,
-    global_position, magnetic_moment, set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, energy,
-    spin_operators, stevens_operators, set_external_field!, set_onsite_coupling!, set_exchange!,
-    dmvec, enable_dipole_dipole!, to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
+export SpinInfo, System, Site, eachsite, position_to_site, global_position, magnetic_moment, 
+    set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, energy,
+    spin_operators, stevens_operators, large_S_spin_operators, large_S_stevens_operators,
+    set_external_field!, set_onsite_coupling!, set_exchange!, dmvec, enable_dipole_dipole!,
+    to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
     symmetry_equivalent_bonds, set_exchange_at!, remove_periodicity!
 
 include("Reshaping.jl")
@@ -118,10 +119,6 @@ export reciprocal_space_shell, powder_average_binned
 include("Intensities/ExperimentData.jl")
 export load_nxs, generate_mantid_script_from_binning_parameters
 
-include("SunnyGfx/SunnyGfx.jl")
-include("SunnyGfx/CrystalViewer.jl")
-export view_crystal, offline_viewers, browser
-
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")
 include("MonteCarlo/ParallelTempering.jl")
@@ -132,7 +129,13 @@ export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSample
 
 ### ext/PlottingExt.jl, dependent on Makie
 function plot_spins end
-export plot_spins
+function view_crystal end
+export plot_spins, view_crystal
+
+# TODO: Delete in Sunny 0.6
+"""This function is deprecated and does nothing."""
+offline_viewers() = @warn "This function is deprecated and does nothing."
+export offline_viewers
 
 ### ext/ExportVTKExt.jl, dependent on WriteVTK
 function export_vtk end

@@ -1,6 +1,8 @@
-function empty_interactions(na, N)
+function empty_interactions(mode, na, N)
+    # Cannot use `fill` because the PairCoupling arrays must be
+    # allocated separately for later mutation.
     return map(1:na) do _
-        Interactions(empty_anisotropy(N), PairCoupling[])
+        Interactions(empty_anisotropy(mode, N), PairCoupling[])
     end
 end
 
@@ -139,11 +141,12 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
-        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, onsite.stvexp)
-        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, onsite.stvexp)
+        stvexp = onsite :: StevensExpansion
+        E_new, _ = energy_and_gradient_for_classical_anisotropy(s, stvexp)
+        E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, stvexp)
         ΔE += E_new - E_old
     else
-        Λ = onsite.matrep
+        Λ = onsite :: Matrix
         ΔE += real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
     end
 
@@ -161,13 +164,6 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
         if !iszero(coupling.biquad)
             J = coupling.biquad
             if sys.mode == :dipole
-                # Renormalization defined in https://arxiv.org/abs/2304.03874.
-                Sᵢ = (sys.Ns[site]-1)/2
-                Sⱼ = (sys.Ns[cellⱼ, bond.j]-1)/2
-                S = √(Sᵢ*Sⱼ)
-                r = (1 - 1/S + 1/4S^2)
-                ΔE += J * (r*((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2) - (Δs⋅sⱼ)/2)
-            elseif sys.mode == :large_S
                 ΔE += J * ((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2)
             elseif sys.mode == :SUN
                 error("Biquadratic currently unsupported in SU(N) mode.") 
@@ -222,20 +218,21 @@ end
 
 # Total energy contributed by sublattice `i`, summed over the list of `cells`.
 # The function `foreachbond` enables efficient iteration over neighboring cell
-# pairs.
+# pairs (without double counting).
 function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbond) where N
     (; dipoles, coherents) = sys
     E = 0.0
 
     # Single-ion anisotropy
     if N == 0       # Dipole mode
+        stvexp = ints.onsite :: StevensExpansion
         for cell in cells
             s = dipoles[cell, i]
-            E += energy_and_gradient_for_classical_anisotropy(s, ints.onsite.stvexp)[1]
+            E += energy_and_gradient_for_classical_anisotropy(s, stvexp)[1]
         end
     else            # SU(N) mode
+        Λ = ints.onsite :: Matrix
         for cell in cells
-            Λ = ints.onsite.matrep
             Z = coherents[cell, i]
             E += real(dot(Z, Λ, Z))
         end
@@ -253,13 +250,6 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbo
         if !iszero(coupling.biquad)
             J = coupling.biquad
             if sys.mode == :dipole
-                # Renormalization defined in https://arxiv.org/abs/2304.03874.
-                Sᵢ = (sys.Ns[site1]-1)/2
-                Sⱼ = (sys.Ns[site2]-1)/2
-                S = √(Sᵢ*Sⱼ)
-                r = (1 - 1/S + 1/4S^2)
-                E += J * (r*(sᵢ⋅sⱼ)^2 - (sᵢ⋅sⱼ)/2 + S^3 + S^2/4)
-            elseif sys.mode == :large_S
                 E += J * (sᵢ⋅sⱼ)^2
             elseif sys.mode == :SUN
                 error("Biquadratic currently unsupported in SU(N) mode.")
@@ -307,14 +297,15 @@ end
 
 # Calculate the energy gradient `∇E' for the sublattice `i' at all elements of
 # `cells`. The function `foreachbond` enables efficient iteration over
-# neighboring cell pairs.
+# neighboring cell pairs (without double counting).
 function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells, foreachbond) where N
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into ℌ.
     if N == 0
+        stvexp = ints.onsite :: StevensExpansion
         for cell in cells
             s = dipoles[cell, i]
-            ∇E[cell, i] += energy_and_gradient_for_classical_anisotropy(s, ints.onsite.stvexp)[2]
+            ∇E[cell, i] += energy_and_gradient_for_classical_anisotropy(s, stvexp)[2]
         end
     end
 
@@ -331,14 +322,6 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
         if !iszero(coupling.biquad)
             J = coupling.biquad
             if sys.mode == :dipole
-                # Renormalization defined in https://arxiv.org/abs/2304.03874.
-                Sᵢ = (sys.Ns[site1]-1)/2
-                Sⱼ = (sys.Ns[site2]-1)/2
-                S = √(Sᵢ*Sⱼ)
-                r = (1 - 1/S + 1/4S^2)
-                ∇E[site1] += J * (2r*sⱼ*(sᵢ⋅sⱼ) - sⱼ/2)
-                ∇E[site2] += J * (2r*sᵢ*(sᵢ⋅sⱼ) - sᵢ/2)
-            elseif sys.mode == :large_S
                 ∇E[site1] += J * 2sⱼ*(sᵢ⋅sⱼ)
                 ∇E[site2] += J * 2sᵢ*(sᵢ⋅sⱼ)
             elseif sys.mode == :SUN
@@ -365,19 +348,32 @@ function set_energy_grad_coherents!(HZ, Z, sys::System{N}) where N
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
         for site in eachsite(sys)
-            Λ = ints[to_atom(site)].onsite.matrep
+            Λ = ints[to_atom(site)].onsite :: Matrix
             HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
         end
     else
         ints = interactions_inhomog(sys)
         for site in eachsite(sys)
-            Λ = ints[site].onsite.matrep
+            Λ = ints[site].onsite :: Matrix
             HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
         end 
     end
 
     @. dE_ds = dipoles = Vec3(0,0,0)
 end
+
+# Internal testing functions
+function energy_grad_dipoles(sys::System{N}) where N
+    ∇E = zero(sys.dipoles)
+    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
+    return ∇E
+end
+function energy_grad_coherents(sys::System{N}) where N
+    ∇E = zero(sys.coherents)
+    set_energy_grad_coherents!(∇E, sys.coherents, sys)
+    return ∇E
+end
+
 
 # Returns (Λ + (dE/ds)⋅S) Z
 @generated function mul_spin_matrices(Λ, dE_ds::Sunny.Vec3, Z::Sunny.CVec{N}) where N
@@ -427,10 +423,4 @@ function homog_bond_iterator(latsize)
             end
         end
     end
-end
-
-function energy_grad(sys::System{N}) where N
-    ∇E = zero(sys.dipoles)
-    set_energy_grad_dipoles!(∇E, sys.dipoles, sys)
-    return ∇E
 end

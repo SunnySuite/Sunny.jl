@@ -90,7 +90,7 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
 
-        new_ints = empty_interactions(new_na, N)
+        new_ints = empty_interactions(origin.mode, new_na, N)
 
         new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
                     new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
@@ -171,20 +171,15 @@ For Bravais lattices: Prints up to `nmax` wavevectors according to their
 instantaneous (static) structure factor intensities, listed in descending order.
 For non-Bravais lattices: Performs the same analysis for each spin sublattice
 independently; the output weights are naïvely averaged over sublattices, without
-incorporating phase shift information. Only wavevectors within the first
-Brillouin zone are printed. Wavevector coordinates are given in reciprocal
-lattice units, such that each coordinate is between ``-1/2`` and ``1/2``.  The
-output from this function will typically be used as input to
+incorporating phase shift information. This procedure therefore wraps all
+wavevectors into the first Brillouin zone. Each wavevector coordinate is given
+between ``-1/2`` and ``1/2`` in reciprocal lattice units (RLU).  The output from
+this function will typically be used as input to
 [`suggest_magnetic_supercell`](@ref).
 
 Because this function does not incorporate phase information in its averaging
 over sublattices, the printed weights are not directly comparable with
 experiment. For that purpose, use [`instant_correlations`](@ref) instead.
-
-The weights printed by `print_wrapped_intensities` may be given a physical
-interpretation as follows: All possible ``q``-vectors are periodically wrapped
-into the first Brillouin zone, and the average over their corresponding
-instantaneous structure factor intensities produce the output weights.
 """
 function print_wrapped_intensities(sys::System{N}; nmax=10) where N
     isnothing(sys.origin) || error("Cannot perform this analysis on reshaped system.")

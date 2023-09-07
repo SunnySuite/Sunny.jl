@@ -13,12 +13,15 @@
 # ```
 #
 # The Fe atoms are arranged in stacked triangular layers. The effective spin
-# interactions include various anisotropic exchange interactions, and a strong
-# single-ion anisotropy:
+# Hamiltonian takes the form,
 # 
 # ```math
-# \mathcal{H}=\sum_{(i,j)} J^{\alpha\beta}_{ij} S^{\alpha}_i S^{\beta}_j - D\sum_i \left(S^z\right)^2
+# \mathcal{H}=\sum_{(i,j)} 𝐒_i ⋅ J_{ij} 𝐒_j - D\sum_i \left(S_i^z\right)^2,
 # ```
+#
+# where the set of exchange matrices ``J_{ij}`` between bonded sites ``(i,j)``
+# includes competing ferromagnetic and antiferromagnetic interactions. This
+# model also includes a strong easy axis anisotropy, ``D > 0``.
 # 
 # We will formulate this Hamiltonian in Sunny and then calculate its dynamic
 # structure factor.
@@ -61,17 +64,19 @@ FeI2 = Crystal(latvecs, positions; types)
 # Observe that Sunny inferred the space group, 'P -3 m 1' (164) and labeled the
 # atoms according to their point group symmetries.
 
-#nb # An interactive viewer of the crystal and its bonds is available for Jupyter notebooks.
-#nb view_crystal(FeI2, 8.0)
-
 # Only the Fe atoms are magnetic, so we discard the I ions using
 # [`subcrystal`](@ref).
 
 cryst = subcrystal(FeI2, "Fe")
 
-# Importantly, `cryst` retains the spacegroup symmetry of the full FeI$_2$
+# Observe that `cryst` retains the spacegroup symmetry of the full FeI$_2$
 # crystal. This information will be used, for example, to propagate exchange
 # interactions between symmetry-equivalent bonds.
+#
+# In a running Julia environment, the crystal can be viewed interactively using
+# [`view_crystal`](@ref).
+
+view_crystal(cryst, 8.0)
 
 # ## Symmetry analysis
 #
@@ -185,20 +190,24 @@ sys#hide
 randomize_spins!(sys)
 minimize_energy!(sys);
 
-# The expected ground state for FeI$_2$ is an antiferrogmanetic striped phase
-# with a period of four spins (two up, two down). Visualizing the result of
-# optimization, however, may indicate the system got stuck in a local minimum
-# with defects.
+# The resulting configuration can be visualized using [`plot_spins`](@ref).
 
 plot_spins(sys)
+
+# The expected ground state for FeI$_2$ is an antiferrogmanetic striped phase
+# with a period of four spins (two up, two down). Here, however, the system may
+# be stuck in a local minimum with defects. The defects become easier to
+# recognize if we color arrows by the z-component of spin.
+
+plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 # A better understanding of the magnetic ordering can often be obtained by
 # moving to Fourier space. The 'instant' structure factor $𝒮(𝐪)$ is an
 # experimental observable. To investigate $𝒮(𝐪)$ as true 3D data, Sunny
 # provides [`instant_correlations`](@ref) and related functions. Here, however,
-# we will use the lighter weight function [`print_wrapped_intensities`](@ref) to
-# get a quick understanding of the periodicities present in the spin
-# configuration.
+# we will use the lightweight function [`print_wrapped_intensities`](@ref) to
+# get a quick understanding of the periodicities present in each sublattice of
+# the spin configuration.
 
 print_wrapped_intensities(sys)
 
@@ -239,7 +248,11 @@ sys_min = reshape_supercell(sys, [1 0 0; 0 1 -2; 0 1 2])
 
 randomize_spins!(sys_min)
 minimize_energy!(sys_min)
-plot_spins(sys_min; ghost_radius=3)
+
+# Because the reshaped system size is small, some "ghost" spins up to a given
+# distance can help with visualization.
+
+plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
 
 # ## Linear spin wave theory
 #

@@ -1,3 +1,14 @@
+# Version 0.5.3
+
+* Add [`large_S_spin_operators`](@ref) and [`large_S_stevens_operators`](@ref)
+  to support single-ion anisotropies in dipole mode without renormalization. Set
+  `large_S=true` in [`set_exchange!`](@ref) to avoid renormalization of
+  biquadratics.
+* [`view_crystal`](@ref) has been rewritten in Makie.
+* [`plot_spins`](@ref) now expects `ghost_radius` in physical length units.
+* [`SpinWaveTheory`](@ref) will (currently) error if provided a system with
+  [`enable_dipole_dipole!`](@ref).
+
 # Version 0.5.2
 
 * Form factors for 5d transition ions.

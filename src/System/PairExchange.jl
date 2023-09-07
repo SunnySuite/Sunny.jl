@@ -30,7 +30,23 @@ function to_float_or_mat3(J)
 end
 
 # Internal function only
-function push_coupling!(couplings, bond, bilin, biquad)
+function push_coupling!(sys, couplings, bond, bilin, biquad, large_S)
+    # Perform renormalization derived in https://arxiv.org/abs/2304.03874
+    if sys.mode == :dipole && !large_S
+        # Multiplicative average is the correct result for two sites with
+        # different S (derivation omitted).
+        S1 = (sys.Ns[bond.i]-1)/2
+        S2 = (sys.Ns[bond.j]-1)/2
+        S = sqrt(S1*S2)
+        r = (1 - 1/S + 1/4S^2)
+    
+        # J_bq (s⋅sⱼ)^2 -> J_bq (r (sᵢ⋅sⱼ)^2 - (sᵢ⋅sⱼ)/2 + S^3 + S^2/4)
+        bilin = bilin - (biquad/2) * one(bilin)
+        biquad = r * biquad
+        
+        # Drop the constant shift, J_bq (S^3 + S^2/4).
+    end
+
     # Remove previous coupling on this bond
     filter!(c -> c.bond != bond, couplings)
 
@@ -46,7 +62,7 @@ function push_coupling!(couplings, bond, bilin, biquad)
 end
 
 """
-    set_exchange!(sys::System, J, bond::Bond; biquad=0.)
+    set_exchange!(sys::System, J, bond::Bond; biquad=0, large_S=false)
 
 Sets a 3×3 spin-exchange matrix `J` along `bond`, yielding a pairwise
 interaction energy ``𝐒_i⋅J 𝐒_j``. This interaction will be propagated to
@@ -63,8 +79,8 @@ the Dzyaloshinskii-Moriya pseudo-vector. The resulting interaction will be
 The optional parameter `biquad` defines the strength ``b`` for scalar
 biquadratic interactions of the form ``b (𝐒_i⋅𝐒_j)²`` For systems restricted
 to dipoles, ``b`` will be automatically renormalized for maximum consistency
-with the more variationally accurate SU(_N_) mode. This renormalization
-introduces also a correction to the quadratic part of the exchange.
+with the more variationally accurate SU(_N_) mode. Set `large_S=true` to work in
+the large-``S`` limit and disable this renormalization.
 
 # Examples
 ```julia
@@ -81,7 +97,7 @@ J2 = 2*I + dmvec([0,0,3])
 set_exchange!(sys, J2, bond)
 ```
 """
-function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.) where N
+function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0, large_S=false) where N
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
     ints = interactions_homog(sys)
 
@@ -112,7 +128,7 @@ function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.) where N
     for i in 1:natoms(sys.crystal)
         bonds, Js = all_symmetry_related_couplings_for_atom(sys.crystal, i, bond, J)
         for (bond′, J′) in zip(bonds, Js)
-            push_coupling!(ints[i].pair, bond′, J′, biquad)
+            push_coupling!(sys, ints[i].pair, bond′, J′, biquad, large_S)
         end
     end
 end
@@ -163,7 +179,7 @@ end
 
 
 """
-    set_exchange_at!(sys::System, J, site1::Site, site2::Site; biquad=0., offset=nothing)
+    set_exchange_at!(sys::System, J, site1::Site, site2::Site; biquad=0, large_S=false, offset=nothing)
 
 Sets the exchange interaction along the single bond connecting two
 [`Site`](@ref)s, ignoring crystal symmetry. The system must support
@@ -175,7 +191,7 @@ due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
 
 See also [`set_exchange!`](@ref).
 """
-function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad=0., offset=nothing) where N
+function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad=0, large_S=false, offset=nothing) where N
     site1 = to_cartesian(site1)
     site2 = to_cartesian(site2)
     bond = sites_to_internal_bond(sys, site1, site2, offset)
@@ -184,8 +200,8 @@ function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad=0.
     ints = interactions_inhomog(sys)
 
     J = to_float_or_mat3(J)
-    push_coupling!(ints[site1].pair, bond, J, biquad)
-    push_coupling!(ints[site2].pair, reverse(bond), J', biquad')
+    push_coupling!(sys, ints[site1].pair, bond, J, biquad, large_S)
+    push_coupling!(sys, ints[site2].pair, reverse(bond), J', biquad', large_S)
 
     return
 end

@@ -160,6 +160,7 @@ end
 # cᵀ α conj(D) α⁻¹ 𝒪 = c′ᵀ 𝒪. The rotated Stevens coefficients must therefore
 # satisfy c′ = α⁻ᵀ D† αᵀ c.
 function rotate_stevens_coefficients(c, R::Mat3)
+    isnan(norm(c)) && return c
     N = length(c)
     k = Int((N-1)/2)
     D = unitary_for_rotation(R; N)
@@ -169,33 +170,12 @@ function rotate_stevens_coefficients(c, R::Mat3)
 end
 
 
-# Builds matrix representation of Stevens operators on demand
-struct StevensMatrices
-    N::Int
-end
-function Base.getindex(this::StevensMatrices, k::Int, q::Int)
-    k < 0  && error("Stevens operators 𝒪[k,q] require k >= 0.")
-    k > 6  && error("Stevens operators 𝒪[k,q] currently require k <= 6.")
-    !(-k <= q <= k) && error("Stevens operators 𝒪[k,q] require -k <= q <= k.")
-    if k == 0
-        return Matrix{ComplexF64}(I, this.N, this.N)
-    else
-        # Stevens operators are stored in descending order: k, k-1, ... -k.
-        # Therefore q=k should be the first index, q_idx=1.
-        q_idx = k - q + 1
-        # Build all (2k+1) matrices and extract the desired one. This seems a
-        # bit wasteful, but presumably this function won't be called in
-        # performance sensitive contexts.
-        return stevens_matrices(k; this.N)[q_idx]
-    end
-end
-
-
 """
     function print_stevens_expansion(op)
 
 Prints a local Hermitian operator as a linear combination of Stevens operators.
-This function works on explicit matrix representations.
+The operator `op` may be given in a finite-dimensional matrix representation, or
+on an abstract spin polynomial in the large-``S`` limit.
 
 # Examples
 
@@ -203,6 +183,10 @@ This function works on explicit matrix representations.
 S = spin_matrices(N=5)
 print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
 # Prints: (1/20)𝒪₄₀ + (1/4)𝒪₄₄ + 102/5
+
+S = large_S_spin_operators
+print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
+# Prints: (1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)𝒮⁴
 ```
 """
 function print_stevens_expansion(op::Matrix{ComplexF64})

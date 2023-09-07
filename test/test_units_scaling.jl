@@ -22,7 +22,7 @@
             enable_dipole_dipole!(sys)
         end
         randomize_spins!(sys)
-        return energy(sys), Sunny.energy_grad(sys)
+        return energy(sys), Sunny.energy_grad_dipoles(sys)
     end
 
     # All exchange interactions should be invariant under changes to physical

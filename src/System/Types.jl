@@ -6,6 +6,9 @@ struct StevensExpansion
     c6 :: SVector{13, Float64}
 
     function StevensExpansion(c2, c4, c6)
+        c2 = norm(c2) < 1e-12 ? zero(c2) : c2
+        c4 = norm(c4) < 1e-12 ? zero(c4) : c4
+        c6 = norm(c6) < 1e-12 ? zero(c6) : c6
         kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
         return new(kmax, c2, c4, c6)
     end
@@ -67,12 +70,16 @@ function Base.show(io::IO, ::MIME"text/plain", onsite::OnsiteCoupling)
     println(io,show_stevens_expansion(onsite.matrep))
 end
 
+
+# Pair couplings are counted only once per bond
 struct PairCoupling
-    isculled :: Bool
+    isculled :: Bool # Bond directionality is used to avoid double counting
     bond     :: Bond
 
-    bilin    :: Union{Float64, Mat3} # Bilinear exchange as 3×3 matrix
-    biquad   :: Float64              # Scalar biquadratic, only valid in dipole mode
+    # In :dipole mode, these will be renormalized couplings following
+    # the procedure in https://arxiv.org/abs/2304.03874
+    bilin    :: Union{Float64, Mat3} # Bilinear exchange
+    biquad   :: Float64              # Scalar biquadratic
 
     # General pair interactions, only valid in SU(N) mode
     # general  :: Vector{Tuple{Hermitian{ComplexF64}, Hermitian{ComplexF64}}}
@@ -155,8 +162,11 @@ function print_coupling(cryst::Crystal,pair::PairCoupling)
 end
 
 mutable struct Interactions
-    onsite    :: OnsiteCoupling
-    pair      :: Vector{PairCoupling}
+    # Onsite coupling is either an N×N Hermitian matrix or possibly renormalized
+    # Stevens coefficients, depending on the mode :SUN or :dipole.
+    onsite :: Union{Matrix{ComplexF64}, StevensExpansion}
+    # Pair couplings for every bond that starts at the given atom
+    pair :: Vector{PairCoupling}
 end
 
 function Base.show(io::IO, ints::Interactions)

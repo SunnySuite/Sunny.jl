@@ -11,7 +11,6 @@ struct SWTDataSUN
     dipole_operators :: Array{ComplexF64, 4}
     onsite_operator :: Array{ComplexF64, 3}  # Single-ion anisotropy
     quadrupole_operators :: Array{ComplexF64, 4}
-    sun_basis :: Array{ComplexF64, 4}
     observable_operators :: Array{ComplexF64, 4}
 end
 
@@ -108,33 +107,11 @@ function swt_data_sun(sys::System{N},obs) where N
     quadrupole_operators[4] = Sx * Sy + Sy * Sx
     quadrupole_operators[5] = √3 * Sz * Sz - 1/√3 * S * (S+1) * I
 
-    # The "Natural basis" from Eq 17 of *Phys. Rev. B 104, 104409*
-    sun_basis = Vector{Matrix{ComplexF64}}(undef, N^2 - 1)
-
-    # Cartan subalgebra
-    for k = 1:(N-1)
-        sun_basis[k] = zeros(ComplexF64, N, N)
-        sun_basis[k][k,k] = 1/2
-        sun_basis[k][k+1,k+1] = -1/2
-    end
-
-    # Remaining generators
-    ix = N
-    for i = 1:N, j = 1:N
-        if i == j
-          continue
-        end
-        sun_basis[ix] = zeros(ComplexF64, N, N)
-        sun_basis[ix][i,j] = 1
-        ix = ix + 1
-    end
-
     local_quantization_basis = Matrix{ComplexF64}(undef, N, N)
 
     dipole_operators_localized = Array{ComplexF64, 4}(undef, N, N, 3, n_magnetic_atoms)
     onsite_operator_localized = Array{ComplexF64, 3}(undef, N, N, n_magnetic_atoms)
     quadrupole_operators_localized = zeros(ComplexF64, N, N, 5, n_magnetic_atoms)
-    sun_basis_localized = zeros(ComplexF64, N, N, N^2 - 1, n_magnetic_atoms)
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
     for atom = 1:n_magnetic_atoms
@@ -152,16 +129,13 @@ function swt_data_sun(sys::System{N},obs) where N
         for ν = 1:5
             quadrupole_operators_localized[:, :, ν, atom] = Hermitian(local_quantization_basis' * quadrupole_operators[ν] * local_quantization_basis)
         end
-        onsite_operator_localized[:, :, atom] = Hermitian(local_quantization_basis' * sys.interactions_union[atom].onsite.matrep * local_quantization_basis)
-        for k = 1:(N^2 - 1)
-            sun_basis_localized[:, :, k, atom] = Hermitian(local_quantization_basis' * sun_basis[k] * local_quantization_basis)
-        end
+        onsite_operator_localized[:, :, atom] = Hermitian(local_quantization_basis' * sys.interactions_union[atom].onsite * local_quantization_basis)
         for k = 1:num_observables(obs)
             observables_localized[:, :, k, atom] = Hermitian(local_quantization_basis' * convert(Matrix,obs.observables[k]) * local_quantization_basis)
         end
     end
 
-    return SWTDataSUN(dipole_operators_localized, onsite_operator_localized, quadrupole_operators_localized, sun_basis_localized, observables_localized)
+    return SWTDataSUN(dipole_operators_localized, onsite_operator_localized, quadrupole_operators_localized, observables_localized)
 end
 
 # Compute Stevens coefficients in the local reference frame
@@ -180,7 +154,7 @@ function swt_data_dipole(sys::System{0})
                 cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
                 0.0     sin(θ)        cos(θ)]
         # Rotated Stevens expansion
-        c = rotate_operator(sys.interactions_union[atom].onsite.stvexp, R)
+        c = rotate_operator(sys.interactions_union[atom].onsite, R)
 
         push!(Rs, R)
         push!(cs, c)

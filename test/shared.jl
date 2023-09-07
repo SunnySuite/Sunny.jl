@@ -35,15 +35,13 @@ function add_quadratic_interactions!(sys, mode)
 end
 
 function add_quartic_interactions!(sys, mode)
-    if mode ∈ (:dipole, :large_S)
+    if mode == :dipole
         # Dipoles scale as ⟨S⟩ → κ ⟨S⟩, so ⟨S⟩⁴ → κ⁴ ⟨S⟩⁴ is quartic
         S = spin_operators(sys, 1)
-        set_onsite_coupling!(sys, 0.2*(S[1]^4+S[2]^4+S[3]^4), 1)
-    end
-    if mode == :large_S
-        # We must exclude :dipole because the renormalization will introduce a
-        # quadratic Heisenberg interaction
-        set_exchange!(sys, 0.0, Bond(1, 3, [0, 0, 0]); biquad=0.2)
+        set_onsite_coupling!(sys, 0.2*(S[1]^4+S[2]^4+S[3]^4), 3)
+
+        # Biquadratic interactions in large-S mode also have quartic scaling.
+        set_exchange!(sys, 0.0, Bond(1, 3, [0, 0, 0]); biquad=0.2, large_S=true)
     end
 end
 

@@ -48,7 +48,7 @@
     # Calculate energy gradient using a sum over pairs, or using an FFT-based
     # convolution
     ∇E = [Sunny.ewald_grad_at(sys, site) for site in eachsite(sys)]
-    @test isapprox(Sunny.energy_grad(sys), ∇E; atol=1e-12)
+    @test isapprox(Sunny.energy_grad_dipoles(sys), ∇E; atol=1e-12)
 
     # Calculation of energy as a sum over pairs
     E = sum((1/2)d⋅b for (d, b) in zip(sys.dipoles, ∇E))
