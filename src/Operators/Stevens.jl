@@ -186,7 +186,7 @@ print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
 
 S = large_S_spin_operators
 print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
-# Prints: (1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)S⁴
+# Prints: (1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)𝒮⁴
 ```
 """
 function print_stevens_expansion(op::Matrix{ComplexF64})

@@ -13,12 +13,14 @@
 # ```
 #
 # The Fe atoms are arranged in stacked triangular layers. The effective spin
-# interactions include various anisotropic exchange interactions, and a strong
-# single-ion anisotropy:
+# Hamiltonian takes the form,
 # 
 # ```math
-# \mathcal{H}=\sum_{(i,j)} J^{\alpha\beta}_{ij} S^{\alpha}_i S^{\beta}_j - D\sum_i \left(S^z\right)^2
+# \mathcal{H}=\sum_{(i,j)} 𝐒_i ⋅ J_{ij} 𝐒_j - D\sum_i \left(S_i^z\right)^2,
 # ```
+#
+# where ``J_{ij}`` denotes various ``3×3`` exchange matrices between bonded
+# sites ``(i,j)``, and ``D > 0`` is a strong easy axis anisotropy.
 # 
 # We will formulate this Hamiltonian in Sunny and then calculate its dynamic
 # structure factor.

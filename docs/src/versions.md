@@ -5,8 +5,8 @@
   `large_S=true` in [`set_exchange!`](@ref) to avoid renormalization of
   biquadratics.
 * [`view_crystal`](@ref) has been rewritten in Makie.
-* `plot_spins`[`plot_spins`](@ref) now expects `ghost_radius` in physical length units.
-* `SpinWaveTheory` will (currently) error if provided a system with
+* [`plot_spins`](@ref) now expects `ghost_radius` in physical length units.
+* [`SpinWaveTheory`](@ref) will (currently) error if provided a system with
   [`enable_dipole_dipole!`](@ref).
 
 # Version 0.5.2
