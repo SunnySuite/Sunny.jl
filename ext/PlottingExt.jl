@@ -405,10 +405,13 @@ function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, 
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1])
 
-    # TODO: Why can't this move to the bottom?
+    # Hack to get the `one_dim_chain.jl` examples working. TODO: make
+    # `orient_camera!` work better.
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    orient_camera!(ax, supervecs, 1; orthographic=true)
-
+    lookat = sum(eachcol(supervecs)/2)
+    eyeposition = lookat - [0, 1, 0]
+    Makie.cam3d_cad!(ax.scene; lookat, eyeposition, projectiontype=Makie.Orthographic)
+    
     centers = [Makie.Point3f(Sunny.global_position(sys,site)) for site in eachsite(sys)][:]
     Makie.scatter!(ax,centers,color = :black,marker='x';markersize)
 
