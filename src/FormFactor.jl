@@ -75,7 +75,7 @@ metals, or Dirac-Fock for the rare earths and actinide series [1--3]. Sunny uses
 approximate fits as a sum of Gaussians,
 
 ```math
-⟨j_0(s)⟩ = A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E
+⟨j_0(s)⟩ = A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E \\
 ⟨j_l(s)⟩ = (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2
 ```
 

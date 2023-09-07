@@ -53,7 +53,8 @@ energy_per_site = energy(sys) / length(eachsite(sys))
 # Plotting the spins confirms the expected Néel order. Note that the overall,
 # global rotation of dipoles is arbitrary.
 
-plot_spins(sys; ghost_radius=12)
+s0 = sys.dipoles[1,1,1,1]
+plot_spins(sys; ghost_radius=12, color=[s'*s0 for s in sys.dipoles])
 
 # We can now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and
 # [`intensity_formula`](@ref). The mode `:perp` contracts with a dipole factor

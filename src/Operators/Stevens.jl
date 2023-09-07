@@ -174,8 +174,8 @@ end
     function print_stevens_expansion(op)
 
 Prints a local Hermitian operator as a linear combination of Stevens operators.
-The operator `op` may be given in a finite-dimensional matrix representation, or
-on an abstract spin polynomial in the large-``S`` limit.
+The operator `op` may be a finite-dimensional matrix or an abstract spin
+polynomial in the large-``S`` limit.
 
 # Examples
 
