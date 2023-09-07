@@ -90,108 +90,71 @@ kT = 0.2       # Temperature of the thermal bath (meV).
 
 langevin = Langevin(Δt; kT, λ);
 
-# Sampling with a large number of Langevin time-steps should hopefully
-# thermalize the system to a target temperature. For demonstration purposes, we
-# will here run for a relatively short period of 1,000 timesteps.
+# Langevin dynamics can be used to search for a magnetically ordered state. For
+# this, the temperature `kT` must be below the ordering temperature, but large
+# enough that the dynamical sampling procedure can overcome local energy
+# barriers and eliminate defects.
 
 randomize_spins!(sys)
-for _ in 1:1_000
+for _ in 1:20_000
     step!(sys, langevin)
 end
 
-# To inspect the structure of the spin configuration, we use the function
-# [`minimize_energy!`](@ref) to find a nearby _local_ minimum. Then
-# [`print_wrapped_intensities`](@ref) provides information about the Fourier
-# modes in reciprocal lattice units (RLU).
-
-minimize_energy!(sys)
-print_wrapped_intensities(sys)
-
-# The wide distribution of intensities indicates an imperfect magnetic order.
-# The defects are immediately apparent in the real-space spin configuration.
+# Although thermal fluctuations are present, the correct antiferromagnetic order
+# (2 up, 2 down) is apparent.
 
 plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
-# In this case, we can find the correct ground state simply by running the
-# Langevin dynamics for longer.
-
-for _ in 1:10_000
-    step!(sys, langevin)
-end
-minimize_energy!(sys)
-print_wrapped_intensities(sys)
-
-# This is the perfect single-$𝐐$ ground state. This worked because the
-# temperature `kT = 0.2` was carefully selected. It is below the magnetic
-# ordering temperature, but still large enough that the Langevin dynamics could
-# quickly overcome local energy barriers. More complicated magnetic orderings
-# will frequently require more sophisticated sampling schemes. One possibility
-# is simulated annealing, where `kT` is slowly lowered over the course of the
-# sampling procedure.
+# For other systems, it can be much harder to find the magnetic ordering in an
+# unbiased way, and more complicated sampling procedures may be necessary.
 
 # ## Calculating Thermal-Averaged Correlations $\langle S^{\alpha\beta}(𝐪,ω)\rangle$
 #
-# Now that we have identified an appropriate ground state, we will adjust
-# the temperature so that the system still remains near the ground state, but still
-# has thermal fluctuations.
-
-kT = 3.5 * meV_per_K     # 3.5K ≈ 0.30 meV
-langevin.kT = kT;
-
-# Additionally, since these classical simulations are conducted on a finite-sized lattice,
-# obtaining acceptable resolution in momentum space requires the use of a larger
-# system size. We resize the magnetic supercell to a much larger
-# simulation volume, provided as multiples of the original unit cell.
+# Our aim is to study the classical spin dynamics for states sampled in thermal
+# equilibrium. To minimize finite size effects, and achieve sufficient momentum
+# space resolution, we should significantly enlarge the system volume. The
+# function [`resize_supercell`](@ref) takes new dimensions as multiples of the
+# unit cell lattice vectors.
 
 sys_large = resize_supercell(sys, (16,16,4)) # 16x16x4 copies of the original unit cell
 plot_spins(sys_large; color=[s[3] for s in sys_large.dipoles])
 
-# As stressed above, we need to sample multiple spin configurations
-# from the thermal equilibrium distribution.
-# We therefore begin by using Langevin dynamics to
-# bring the system into thermal equilibrium at the new temperature.
+# Now we will re-thermalize the system to a configuration just above the
+# ordering temperature. Sunny expects energies in meV by default, so
+# we use `meV_per_K` to convert from kelvin.
 
-## At the new temperature
+kT = 3.5 * meV_per_K     # 3.5K ≈ 0.30 meV
+langevin.kT = kT
 for _ in 1:10_000
     step!(sys_large, langevin)
 end
 
-# Now that we are in a state drawn from thermal equilibrium, we are ready to begin
-# collecting correlation data ``S^{\alpha\beta}``.
+# The next step is to collect correlation data ``S^{\alpha\beta}``. This will
+# involve sampling spin configurations from thermal equilibrium, and then
+# integrating the [Hamiltonian dynamics of SU(_N_) coherent
+# states](https://arxiv.org/abs/2204.07563) to collect Fourier-space information
+# about normal modes. Quantization of these modes yields the magnons, and the
+# associated dynamical spin-spin correlations can be compared with neutron
+# scattering intensities ``S^{\alpha\beta}(q,\omega)``. Because this a
+# real-space calculation, data is only available for discrete ``q`` modes (the
+# resolution scales like inverse system size).
 #
-# To collect one sample of spin-spin correlation data, we integrate the
-# [Hamiltonian dynamics of SU(_N_) coherent states](https://arxiv.org/abs/2204.07563).
-# This generates trajectories ``S^\alpha(\vec r,t)``.
-# However, note that the spins are only defined at the finitely-many lattice
-# sites, so ``\vec r`` is discrete.
-# From the trajectories, Sunny computes fourier-transformed correlations ``S^{\alpha\beta}(q,\omega)``,
-# where ``q`` is discrete for the same reason.
-#
-# The correlation data from this sample is now ready to be averaged together with data
-# from other samples to form the thermal average.
-# Samples of correlation data are accumulated and averaged into a
-# `SampledCorrelations`, which is initialized by calling
-# [`dynamical_correlations`](@ref):
+# To store the correlation data, we initialize a `SampledCorrelations` object by
+# calling [`dynamical_correlations`](@ref). It requires three keyword arguments:
+# an integration step size, a target number of ωs to retain, and a maximum
+# energy ω to resolve. For the time step, twice the value used for the Langevin
+# integrator is usually a good choice.
 
 sc = dynamical_correlations(sys_large; Δt=2Δt, nω=120, ωmax=7.5)
 
-# `dynamical_correlations` takes a `System`
-# and three keyword parameters that determine the ω information that will be
-# available: an integration step size, the number of ωs to resolve, and the
-# maximum ω to resolve. For the time step, twice the value used for the Langevin
-# integrator is usually a good choice.
+# The function [`add_sample!`](@ref) will collect data by running a dynamical
+# trajectory starting from the current system configuration. 
 
-# `sc` currently contains no data. The first sample can be accumulated into it by
-# calling [`add_sample!`](@ref).
+add_sample!(sc, sys_large)        # Accumulate the sample into `sc`
 
-add_sample!(sc, sys_large)
-
-# Additional samples can be added after re-sampling new 
-# spin configurations from the thermal distribution.
-# The new samples are generated in the same way as the first sample, by running
-# the Langevin dynamics.
-# The dynamics should be run long enough that consecutive samples are uncorrelated, or
-# else the thermal average will converge only very slowly.
+# To collect additional data, it is required to re-sample the spin configuration
+# from the thermal distribution. For efficiency, the dynamics should be run long
+# enough that consecutive samples are uncorrelated.
 
 for _ in 1:2
     for _ in 1:1000               # Enough steps to decorrelate spins
@@ -212,7 +175,7 @@ sc
 # By way of example, we will use a formula which computes the trace of the structure
 # factor and applies a classical-to-quantum temperature-dependent rescaling `kT`.
 
-formula = intensity_formula(sc, :trace; kT = kT)
+formula = intensity_formula(sc, :trace; kT)
 
 # Recall that ``\langle S^{\alpha\beta}(q,\omega)\rangle`` is only available at certain discrete
 # ``q`` values, due to the finite lattice size.
@@ -239,7 +202,7 @@ fig
 # for `Fe2` magnetic ions, and a dipole polarization correction `:perp`.
 
 formfactors = [FormFactor("Fe2"; g_lande=3/2)]
-new_formula = intensity_formula(sc, :perp; kT = kT, formfactors = formfactors)
+new_formula = intensity_formula(sc, :perp; kT, formfactors = formfactors)
 
 # Frequently, one wants to extract energy intensities along lines that connect
 # special wave vectors--a so-called "spaghetti plot". The function
@@ -312,14 +275,13 @@ fig
 # Note that we have clipped the colors in order to make the higher-energy
 # excitations more visible.
 
-# # Unconventional R.L.U. Systems and Constant Energy Cuts
+# # Unconventional RLU Systems and Constant Energy Cuts
 
 # Often it is useful to plot cuts across multiple wave vectors but at a single
 # energy. We'll pick an energy,
 
 ωidx = 60
 target_ω = ωs[ωidx]
-println("target_ω = $(target_ω)")#hide
 
 # and take a constant-energy cut at that energy.
 # The most straightforward way is to make a plot whose axes are aligned with
@@ -336,7 +298,8 @@ params.binend[4] = target_ω # `binend` should be inside (e.g. at the center) of
 params.binwidth[4] = omega_width
 
 integrate_axes!(params, axes = 3) # Integrate out z direction entirely
-params#hide
+
+params
 
 # In each of the following plots, black dashed lines represent (direct) lattice vectors.
 # Since these plots are in reciprocal space, direct lattice vectors are represented

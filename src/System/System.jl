@@ -14,11 +14,10 @@ single-ion anisotropy, or to explicitly resolve spin-orbit coupling.
 
 Mode `:dipole` projects the SU(_N_) dynamics onto the restricted space of pure
 dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
-dynamics, but all single-ion anisotropy and biquadratic exchange interactions
-will be renormalized for maximum accuracy. To disable this renormalization
-(e.g., to model systems in the large-spin limit) construct anisotropy operators
-using the special function [`large_S_spin_operators`](@ref) and define any
-biquadratic exchange using the `large_S=true` in [`set_exchange!`](@ref).
+dynamics, but single-ion anisotropy and biquadratic exchange interactions will
+be renormalized to improve accuracy. It is possible to disable this
+renormalization by working with operators in the "large-``S``" limit. For
+details, see the documentation page: [Single-ion anisotropy](@ref).
 
 The default units system of (meV, Å, tesla) can be overridden by with the
 `units` parameter; see [`Units`](@ref). 

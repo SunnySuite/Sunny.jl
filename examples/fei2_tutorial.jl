@@ -187,36 +187,31 @@ set_onsite_coupling!(sys, -D*S[3]^2, 1)
 # that locally minimizes energy.
 
 randomize_spins!(sys)
-minimize_energy!(sys);
+minimize_energy!(sys)
 
-# The resulting configuration can be visualized using [`plot_spins`](@ref).
-
-plot_spins(sys)
-
-# The expected ground state for FeI$_2$ is an antiferrogmanetic striped phase
-# with a period of four spins (two up, two down). Here, however, the system may
-# be stuck in a local minimum with defects. The defects become easier to
-# recognize if we color arrows by the z-component of spin.
+# A positive number above indicates that the procedure has converged to a local
+# energy minimum. The configuration, however, may still have defects. This can
+# be checked by visualizing the spins, colored according to their
+# ``z``-components.
 
 plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
-# A better understanding of the magnetic ordering can often be obtained by
-# moving to Fourier space. The 'instant' structure factor $𝒮(𝐪)$ is an
-# experimental observable. To investigate $𝒮(𝐪)$ as true 3D data, Sunny
-# provides [`instant_correlations`](@ref) and related functions. Here, however,
-# we will use the lightweight function [`print_wrapped_intensities`](@ref) to
-# get a quick understanding of the periodicities present in each sublattice of
-# the spin configuration.
+# A different understanding of the magnetic ordering can be obtained by moving
+# to Fourier space. The 'instant' structure factor $𝒮(𝐪)$ is an experimental
+# observable. To investigate $𝒮(𝐪)$ as true 3D data, Sunny provides
+# [`instant_correlations`](@ref) and related functions. Here, however, we will
+# use [`print_wrapped_intensities`](@ref), which gives average intensities for
+# the individual Bravais sublattices (in effect, all wavevectors are wrapped to
+# the first Brillouin zone).
 
 print_wrapped_intensities(sys)
 
-# The precise output may vary with Sunny version due to, e.g., different
-# floating point roundoff effects. Very likely, however, the result will be
-# approximately consistent with the known zero-field energy-minimizing magnetic
-# structure of FeI$_2$, which is single-$Q$. Mathematically, spontaneous
-# symmetry breaking should select one of $±Q = [0, -1/4, 1/4]$, $[1/4, 0, 1/4]$,
-# or $[-1/4,1/4,1/4]$, associated with the three-fold rotational symmetry of the
-# crystal spacegroup. In practice, however, one will frequently encounter
+# The result will likely be approximately consistent with the known zero-field
+# energy-minimizing magnetic structure of FeI$_2$, which is single-$Q$ (two-up,
+# two-down antiferromagnetic order). Mathematically, spontaneous symmetry
+# breaking should select one of $±Q = [0, -1/4, 1/4]$, $[1/4, 0, 1/4]$, or
+# $[-1/4,1/4,1/4]$, associated with the three-fold rotational symmetry of the
+# crystal spacegroup. In nature, however, one will frequently encounter
 # competing "domains" associated with the three possible orientations of the
 # ground state.
 
