@@ -19,8 +19,9 @@
 # \mathcal{H}=\sum_{(i,j)} 𝐒_i ⋅ J_{ij} 𝐒_j - D\sum_i \left(S_i^z\right)^2,
 # ```
 #
-# where ``J_{ij}`` denotes various ``3×3`` exchange matrices between bonded
-# sites ``(i,j)``, and ``D > 0`` is a strong easy axis anisotropy.
+# where the set of exchange matrices ``J_{ij}`` between bonded sites ``(i,j)``
+# includes competing ferromagnetic and antiferromagnetic interactions. This
+# model also includes a strong easy axis anisotropy, ``D > 0``.
 # 
 # We will formulate this Hamiltonian in Sunny and then calculate its dynamic
 # structure factor.

@@ -44,6 +44,7 @@ Documenter.makedocs(;
         "Examples" => example_doc_paths,
         "Library API" => "library.md",
         "Structure Factor Calculations" => "structure-factor.md",
+        "Single-Ion Anisotropy" => "anisotropy.md",
         "Volumetric Rendering with ParaView" => "writevtk.md",
         "Version History" => "versions.md",
     ],
