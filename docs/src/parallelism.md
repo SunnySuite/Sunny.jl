@@ -14,8 +14,8 @@ copied and pasted into your preferred Julia development environment.
 
 ## Review of the serial workflow
 
-The serial approach to calculating a structure factor, covered in [Structure
-Factors with Classsical Dynamics](@ref), involves thermalizing a spin `System`
+The serial approach to calculating a structure factor, covered in 
+[Structure Factors with Classsical Dynamics](@ref), involves thermalizing a spin `System`
 and then calling [`add_sample!`](@ref). `add_sample!` uses the state of the
 `System` as an initial condition for the calculation of a dynamical
 trajectory. The correlations of the trajectory are calculated and accumulated
