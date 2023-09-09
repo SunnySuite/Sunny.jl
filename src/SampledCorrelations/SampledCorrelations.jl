@@ -87,6 +87,32 @@ function merge!(sc::SampledCorrelations, others...)
     end
 end
 
+function clone_correlations(sc::SampledCorrelations{N}) where N
+    dims = size(sc.data)[2:4]
+    nω = size(sc.data, 7)
+    normalization_factor = 1/(nω * √(prod(dims)))
+    fft! = normalization_factor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
+    variance = isnothing(sc.variance) ? nothing : copy(sc.variance)
+    return SampledCorrelations{N}(copy(sc.data), variance, deepcopy(sc.crystal), deepcopy(sc.origin_crystal), sc.Δω,
+        deepcopy(sc.observables), deepcopy(sc.observable_ixs), deepcopy(sc.correlations), 
+        copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.Δt, copy(sc.nsamples), sc.processtraj!)
+end
+
+function merge_correlations(scs::Vector{SampledCorrelations{N}}) where N
+    sc_merged = clone_correlations(scs[1])
+    for sc in scs[2:end]
+        n = sc_merged.nsamples[1] 
+        m = sc.nsamples[1]
+        @. sc_merged.data = ((n)/(n+m))*sc_merged.data + ((m)/(n+m))*sc.data
+        if !isnothing(sc_merged.variance)
+            @. sc_merged.variance = ((n-1)/(n+m-1))*sc_merged.variance + ((m-1)/(n+m-1))*sc.variance +
+                n*m*real((sc_merged.data - sc.data)*conj(sc_merged.data - sc.data))/((n+m)*(n+m-1))
+        end
+        sc_merged.nsamples[1] += m
+    end
+    sc_merged
+end
+
 # Finds the linear index according to sc.correlations of each correlation in corrs, where
 # corrs is of the form [(:A,:B),(:B,:C),...] where :A,:B,:C are observable names.
 function lookup_correlations(sc::SampledCorrelations,corrs; err_msg = αβ -> "Missing correlation $(αβ)")
