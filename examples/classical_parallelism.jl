@@ -4,9 +4,9 @@ using Sunny, GLMakie
 
 # Calculating structure factors using classical dynamics can be computationally
 # expensive, and Sunny does not currently parallelize these calculations at a
-# fine-grained level. However, Julia provides facilities that will allow users
-# to run multiple simulations in parallel with only a little extra effort. We
-# will look at two approaches to doing this, using threads and using Julia'S
+# fine-grained level. However, Julia provides facilities that allow users to run
+# multiple simulations in parallel with only a little extra effort. We will look
+# at two approaches to doing this, using multithreading and using Julia's
 # `Distributed` package. 
 
 
@@ -73,24 +73,34 @@ path, xticks = reciprocal_space_path(cryst, qs, 40)
 formula = intensity_formula(sc, :perp; kT)
 is = intensities_interpolated(sc, path, formula)
 
-ωs = available_energies(corrdata)
+ωs = available_energies(sc)
 heatmap(1:size(is, 1), ωs, is; colorrange=(0.0, 0.15), axis=(ylabel="Energy (meV)", xticks))
 
 # Note that the data is visibly noisy due to the small number of samples
 # collected. 
 
 # ## Multithreading approach
-# To use threads in Julia, it is important to launch your Julia environment
-# appropriately. From the command line, this can be achieved with `julia
-# --threads=N`, where `N` is the number of threads you'd like to use. If you
-# don't know how many threads you'd like, you can let Julia determine an
-# appropriate number with `julia --threads=auto`. If you are working in a
-# Jupyter notebook, it's impotant to configure your Julia kernel so that it
-# launches with this option.
+# To use [threads](https://docs.julialang.org/en/v1/manual/multi-threading/) in
+# Julia, it is important to launch your Julia environment appropriately. From
+# the command line, this can be achieved with `julia --threads=N`, where `N` is
+# the number of threads you'd like to use. If you don't know how many threads
+# you'd like, you can let Julia determine an appropriate number with `julia
+# --threads=auto`. If you are working in a Jupyter notebook, you will need to
+# to set up a multithreaded Julia kernel.
+#nb # To do this, open a Julia REPL and type the following.
+#nb # ```
+#nb # using IJulia
+#nb # IJulia.installkernel("Julia Multithreaded", env=Dict(
+#nb #            "JULIA_NUM_THREADS" => "auto"
+#nb # ))
+#nb # ```
+#nb # This will create a new kernel using as many threads as you have available.
+#nb # After doing this, you'll have to restart Jupyter and make sure to select this kernel when
+#nb # launching a notebook.
 
-# We will use multithreading in a very simple way, essentially mimicking A
-# distributed memory approach by preallocating a number of systems and
-# correlations.  
+# We will use multithreading in a very simple way, essentially employing a
+# distributed memory approach to avoid issues around data races. First we'll
+# preallocate a number of systems and correlations.  
 
 npar = Threads.nthreads()
 systems = [make_afm_system(cryst; seed=i) for i in 1:npar]
@@ -101,11 +111,10 @@ scs = [dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0) for _ in 1:npar
 # that case, simply reduce `npar` to a small enough value that you can make the
 # necessary allocations.
 
-# To perform the parallel computation, we'll use the `Threads.@threads` macro on
-# a `for` loop. This will cause the iterations of the loop to execute in
-# parallel using the available threads. We will put the entire thermalization
-# and sampling process inside the loop, with each thread acting on a unique
-# `System` and `SampledCorrelations`.
+# When the `Threads.@threads` macro is applied before a `for` loop, the
+# iterations of the loop will execute in parallel using the available threads.
+# We will put the entire thermalization and sampling process inside the loop,
+# with each thread acting on a unique `System` and `SampledCorrelations`.
 
 @time Threads.@threads for id in 1:npar
     integrator = Langevin(Δt; kT, λ=0.1)
