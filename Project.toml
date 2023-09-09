@@ -11,6 +11,7 @@ DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 DynamicPolynomials = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 FilePathsBase = "48062228-2e41-5def-b9a4-89aafe57970f"
+IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
 Inflate = "d25df0c9-e2be-5dd7-82c8-3ad0b3e990b9"
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
@@ -31,12 +32,12 @@ Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [extensions]
-PlottingExt = "Makie"
 ExportVTKExt = "WriteVTK"
+PlottingExt = "Makie"
 
 [compat]
-Colors = "0.12.8"
 CodecZlib = "0.7.2"
+Colors = "0.12.8"
 CrystalInfoFramework = "0.6.0"
 DataStructures = "0.18.13"
 DynamicPolynomials = "0.5.2"

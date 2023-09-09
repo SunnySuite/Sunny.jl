@@ -73,18 +73,37 @@ end
 
 Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(sc.samplebuf)[2:4] : getfield(sc,sym)
 
-"""
-    merge!(sc::SampledCorrelations, others...)
+function clone_correlations(sc::SampledCorrelations{N}) where N
+    dims = size(sc.data)[2:4]
+    nω = size(sc.data, 7)
+    normalization_factor = 1/(nω * √(prod(dims)))
+    fft! = normalization_factor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
+    variance = isnothing(sc.variance) ? nothing : copy(sc.variance)
+    return SampledCorrelations{N}(copy(sc.data), variance, deepcopy(sc.crystal), deepcopy(sc.origin_crystal), sc.Δω,
+        deepcopy(sc.observables), deepcopy(sc.observable_ixs), deepcopy(sc.correlations), 
+        copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.Δt, copy(sc.nsamples), sc.processtraj!)
+end
 
-Accumulate the samples in `others` (one or more `SampledCorrelations`) into `sc`.
+
 """
-function merge!(sc::SampledCorrelations, others...)
-    for scnew in others
-        nnew = scnew.nsamples[1]
-        ntotal = sc.nsamples[1] + nnew
-        @. sc.data = sc.data + (scnew.data - sc.data) * (nnew/ntotal)
-        sc.nsamples[1] = ntotal
+    merge_correlations(scs::Vector{SampledCorrelations)
+
+Accumulate a list of `SampledCorrelations` into a single, summary
+`SampledCorrelations`. Useful for reducing the results of parallel computations.
+"""
+function merge_correlations(scs::Vector{SampledCorrelations{N}}) where N
+    sc_merged = clone_correlations(scs[1])
+    for sc in scs[2:end]
+        n = sc_merged.nsamples[1] 
+        m = sc.nsamples[1]
+        @. sc_merged.data = ((n)/(n+m))*sc_merged.data + ((m)/(n+m))*sc.data
+        if !isnothing(sc_merged.variance)
+            @. sc_merged.variance = ((n-1)/(n+m-1))*sc_merged.variance + ((m-1)/(n+m-1))*sc.variance +
+                n*m*real((sc_merged.data - sc.data)*conj(sc_merged.data - sc.data))/((n+m)*(n+m-1))
+        end
+        sc_merged.nsamples[1] += m
     end
+    sc_merged
 end
 
 # Finds the linear index according to sc.correlations of each correlation in corrs, where
