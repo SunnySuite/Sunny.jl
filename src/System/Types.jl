@@ -1,19 +1,20 @@
 # Stevens function expansion, renormalized for dipole projection
 struct StevensExpansion
-    kmax::Int
+    kmax ::Int
+    c0 :: SVector{1, Float64}
     c2 :: SVector{5, Float64}
     c4 :: SVector{9, Float64}
     c6 :: SVector{13, Float64}
-
-    function StevensExpansion(c2, c4, c6)
-        c2 = norm(c2) < 1e-12 ? zero(c2) : c2
-        c4 = norm(c4) < 1e-12 ? zero(c4) : c4
-        c6 = norm(c6) < 1e-12 ? zero(c6) : c6
-        kmax = max(!iszero(c2)*2, !iszero(c4)*4, !iszero(c6)*6)
-        return new(kmax, c2, c4, c6)
-    end
 end
 
+function StevensExpansion(c)
+    c = map(c) do ck
+        norm(ck) < 1e-12 ? zero(ck) : ck
+    end
+    iszero(c[[1,3,5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
+    kmax = max(!iszero(c[2])*2, !iszero(c[4])*4, !iszero(c[6])*6)
+    return StevensExpansion(kmax, c[0], c[2], c[4], c[6])
+end
 
 # Pair couplings are counted only once per bond
 struct PairCoupling
