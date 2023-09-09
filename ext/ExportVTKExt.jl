@@ -1,6 +1,8 @@
 module ExportVTKExt
 
 using Sunny
+using LinearAlgebra
+using StaticArrays
 import WriteVTK 
 
 
@@ -74,7 +76,7 @@ function Sunny.export_vtk(filename,params::BinningParameters,data;dims_kept = no
           dims_integrated_over = Int64[]
           for dim in 1:4
               if params.numbins[dim] > 1
-                  push!(edges, axes_binedges(params.binstart[dim],params.binend[dim],params.binwidth[dim])[1])
+                  push!(edges, Sunny.axes_binedges(params.binstart[dim],params.binend[dim],params.binwidth[dim])[1])
               else
                   push!(dims_integrated_over, dim)
               end
@@ -82,7 +84,7 @@ function Sunny.export_vtk(filename,params::BinningParameters,data;dims_kept = no
           dims_integrated_over, setdiff(1:4,dims_integrated_over)
       else
           for dim in dims_kept
-              push!(edges, axes_binedges(params.binstart[dim],params.binend[dim],params.binwidth[dim])[1])
+              push!(edges, Sunny.axes_binedges(params.binstart[dim],params.binend[dim],params.binwidth[dim])[1])
           end
           setdiff(1:4,dims_kept), dims_kept
       end
