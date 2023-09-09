@@ -34,8 +34,10 @@
         function gen_energy(κ, adder, mode)
             cryst = Sunny.diamond_crystal()
             sys = System(cryst, (2,2,2), [SpinInfo(1, S=5/2, g=2)], mode; seed=0)
-            adder(sys, mode)
+            # κ must be set before anisotropy operators are added, otherwise we
+            # will lose information about how to rescale the Stevens expansion.
             sys.κs .= κ
+            adder(sys, mode)
             randomize_spins!(sys)
             return energy(sys)
         end

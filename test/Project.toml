@@ -1,10 +1,10 @@
 [deps]
-DynamicPolynomials = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
 Ewalder = "2efd4204-53b6-4d30-8cf4-11a055f037eb"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 IOCapture = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"

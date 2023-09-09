@@ -94,17 +94,18 @@ const stevens_α = let
     # Phys. C: Solid State Phys. 18, 1415 (1985). It appears the general formula
     # could be unraveled from Eq. (21) of I. D. Ryabov, J. Magnetic Resonance
     # 140, 141-145 (1999).
-    a = [1     1/√2     0        0        0        0    0;
+    a = [1     0        0        0        0        0    0;
+         1     1/√2     0        0        0        0    0;
          √6    1/2      1        0        0        0    0;
          √10   √(10/3)  1/√3     √2       0        0    0;
          2√70  √(7/2)   √7       1/√2     2        0    0;
          6√14  2√(21/5) √(3/5)   6√(2/5)  2/√5     2√2  0;
          4√231 √22      4√(11/5) 2√(11/5) 4√(11/6) 2/√3 4;]
-    a = OffsetArray(a, 1:6, 0:6)
+    a = OffsetArray(a, 0:6, 0:6)
 
     ret = Matrix{ComplexF64}[]
 
-    for k = 1:6
+    for k = 0:6
         sz = 2k+1
         α = zeros(ComplexF64, sz, sz)
 
@@ -127,7 +128,7 @@ const stevens_α = let
         push!(ret, α)
     end
 
-    ret
+    OffsetArray(ret, 0:6)
 end
 
 const stevens_αinv = map(inv, stevens_α)
@@ -137,9 +138,7 @@ function matrix_to_stevens_coefficients(A::Matrix{ComplexF64})
     N = size(A,1)
     @assert N == size(A,2)
 
-    # The sole Stevens operator for k=0 is 𝒪₀₀ = I, and its coefficient is
-    # tr(A)/N. Our list below begins at k=1.
-    return map(1:6) do k
+    return map(OffsetArray(0:6, 0:6)) do k
         if k >= N
             zeros(Float64, 2k+1)
         else
@@ -160,7 +159,6 @@ end
 # cᵀ α conj(D) α⁻¹ 𝒪 = c′ᵀ 𝒪. The rotated Stevens coefficients must therefore
 # satisfy c′ = α⁻ᵀ D† αᵀ c.
 function rotate_stevens_coefficients(c, R::Mat3)
-    isnan(norm(c)) && return c
     N = length(c)
     k = Int((N-1)/2)
     D = unitary_for_rotation(R; N)
@@ -203,8 +201,7 @@ function print_stevens_expansion(op::Matrix{ComplexF64})
     end
 
     # Handle linear shift specially
-    c_00 = real(tr(op))/size(op, 1)
-    abs(c_00) > 1e-12 && push!(terms, number_to_math_string(c_00))
+    abs(only(c[0])) > 1e-12 && push!(terms, number_to_math_string(only(c[0])))
 
     # Concatenate with plus signs
     str = join(terms, " + ")

@@ -203,17 +203,18 @@ end
     # Test evaluation of the classical Stevens functions (i.e. spherical
     # harmonics) and their gradients
     let 
-        using LinearAlgebra, FiniteDifferences
+        using LinearAlgebra, FiniteDifferences, OffsetArrays
 
         # Random dipole and Stevens coefficients
         s = normalize(randn(Sunny.Vec3))
-        c = [randn(5), randn(9), randn(13)]
-        stvexp = Sunny.StevensExpansion(c[1], c[2], c[3])
+        c = map(OffsetArrays.OffsetArray(0:6, 0:6)) do k
+            iseven(k) ? randn(2k+1) : zero(2k+1)
+        end
+        stvexp = Sunny.StevensExpansion(c)
 
         # Rotate dipole and Stevens coefficients
         s′ = R*s
-        c′ = Sunny.rotate_stevens_coefficients.(c, Ref(R))
-        stvexp′ = Sunny.StevensExpansion(c′[1], c′[2], c′[3])
+        stvexp′ = Sunny.rotate_operator(stvexp, R)
 
         # Verify that the energy is the same regardless of which is rotated
         E1, _ = Sunny.energy_and_gradient_for_classical_anisotropy(s′, stvexp)
@@ -238,7 +239,7 @@ end
 end
 
 @testitem "Symbolics" begin
-    import IOCapture
+    import IOCapture, OffsetArrays
 
     @test repr(large_S_stevens_operators[3,1]) == "-𝒮ˣ³ - 𝒮ʸ²𝒮ˣ + 4𝒮ᶻ²𝒮ˣ"
 
@@ -271,11 +272,10 @@ end
     @test c[4] ≈ [0.0, 0.0, S_mag^2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     # Test round trip Stevens -> spin -> Stevens
-    c_ref = Vector{Float64}[]
-    for k in 1:6
-        push!(c_ref, randn(2k+1))
+    c_ref = map(OffsetArrays.OffsetArray(0:6, 0:6)) do k
+        randn(2k+1)
     end
-    p = sum(c_ref[k]'*Sunny.stevens_symbols[k] for k in 1:6)
+    p = sum(c_ref[k]'*Sunny.stevens_symbols[k] for k in 0:6)
     p = Sunny.expand_as_spin_polynomial(p)
     c = Sunny.operator_to_stevens_coefficients(p, 1.0)
     @test c ≈ c_ref

@@ -1,51 +1,45 @@
-function onsite_coupling(mode, N, matrep::Matrix{ComplexF64})
+function onsite_coupling(sys, site, matrep::Matrix{ComplexF64})
+    N = sys.Ns[site]
     size(matrep) == (N, N) || error("Invalid matrix size.")
 
-    # Remove trace and check for zero
-    matrep -= (tr(matrep)/N)*I
-    if norm(matrep) < 1e-12
-        matrep = zero(matrep)
-    end
-
-    if mode == :SUN
+    if sys.mode == :SUN
         return matrep
-    elseif mode == :dipole
-        c = matrix_to_stevens_coefficients(matrep)
-        iszero(c[[1,3,5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
-
-        S = (N-1)/2
+    elseif sys.mode == :dipole
+        S = sys.κs[site]
         λ = anisotropy_renormalization(S)
-        return StevensExpansion(λ[2]*c[2], λ[4]*c[4], λ[6]*c[6])
+        c = matrix_to_stevens_coefficients(matrep)
+        return StevensExpansion(λ .* c)
     end
 end
 
-function onsite_coupling(mode, N, p::DP.AbstractPolynomialLike)
-    mode == :dipole || error("Cannot take 'large-S limit' in :SUN mode.")
-
-    S = (N-1)/2
+function onsite_coupling(sys, site, p::DP.AbstractPolynomialLike)
+    sys.mode == :dipole || error("Cannot take 'large-S limit' in :SUN mode.")
+    S = sys.κs[site]
     c = operator_to_stevens_coefficients(p, S)
-    iszero(c[[1,3,5]]) || error("Single-ion anisotropy must be time-reversal invariant.")
 
     # No renormalization here because `p` was constructed using
     # `large_S_spin_operators` or `large_S_stevens_operators`.
-    return StevensExpansion(c[2], c[4], c[6])
+    return StevensExpansion(c)
 end
 
 
 # k-dependent renormalization of Stevens operators O[k,q] as derived in
 # https://arxiv.org/abs/2304.03874.
 function anisotropy_renormalization(S)
-    return ((1), # k=1
-            (1 - (1/2)/S), # k=2
-            (1 - (3/2)/S + (1/2)/S^2), # k=3
-            (1 - 3/S + (11/4)/S^2 - (3/4)/S^3), # k=4
-            (1 - 5/S + (35/4)/S^2 - (25/4)/S^3 + (3/2)/S^4), # k=5
-            (1 - (15/2)/S + (85/4)/S^2 - (225/8)/S^3 + (137/8)/S^4 - (15/4)/S^5)) # k=6
+    λ = [1,                                                                  # k=0
+         1,                                                                  # k=1
+         1 - (1/2)/S,                                                        # k=2
+         1 - (3/2)/S + (1/2)/S^2,                                            # k=3
+         1 - 3/S + (11/4)/S^2 - (3/4)/S^3,                                   # k=4
+         1 - 5/S + (35/4)/S^2 - (25/4)/S^3 + (3/2)/S^4,                      # k=5
+         1 - (15/2)/S + (85/4)/S^2 - (225/8)/S^3 + (137/8)/S^4 - (15/4)/S^5] # k=6
+    return OffsetArray(λ, 0:6)
 end
 
 function empty_anisotropy(mode, N)
     if mode == :dipole
-        return StevensExpansion(zeros(5), zeros(9), zeros(13))
+        c = map(k -> zeros(2k+1), OffsetArray(0:6, 0:6))
+        return StevensExpansion(c)
     elseif mode == :SUN
         return zeros(ComplexF64, N, N)
     end
@@ -56,20 +50,20 @@ function Base.iszero(stvexp::StevensExpansion)
 end
 
 function Base.isapprox(stvexp::StevensExpansion, stvexp′::StevensExpansion)
-    return (stvexp.c2 ≈ stvexp′.c2) && (stvexp.c4 ≈ stvexp′.c4) && (stvexp.c6 ≈ stvexp′.c6)
+    return (stvexp.c0 ≈ stvexp′.c0) && (stvexp.c2 ≈ stvexp′.c2) &&
+           (stvexp.c4 ≈ stvexp′.c4) && (stvexp.c6 ≈ stvexp′.c6)
 end
 
-function rotate_operator(stevens::StevensExpansion, R)
-    return StevensExpansion(
-        rotate_stevens_coefficients(stevens.c2, R),
-        rotate_stevens_coefficients(stevens.c4, R),
-        rotate_stevens_coefficients(stevens.c6, R)
-    )
+function rotate_operator(stvexp::StevensExpansion, R)
+    c2′ = rotate_stevens_coefficients(stvexp.c2, R)
+    c4′ = rotate_stevens_coefficients(stvexp.c4, R)
+    c6′ = rotate_stevens_coefficients(stvexp.c6, R)
+    return StevensExpansion(stvexp.kmax, stvexp.c0, c2′, c4′, c6′)
 end
 
 function operator_to_matrix(stvexp::StevensExpansion; N) 
     acc = zeros(ComplexF64, N, N)
-    for (k, c) in zip((2,4,6), (stvexp.c2, stvexp.c4, stvexp.c6))
+    for (k, c) in zip((0,2,4,6), (stvexp.c0, stvexp.c2, stvexp.c4, stvexp.c6))
         acc += c' * stevens_matrices(k; N)
     end
     return acc
@@ -240,7 +234,7 @@ function set_onsite_coupling!(sys::System, op, i::Int)
         warn_coupling_override("Overriding anisotropy for atom $i.")
     end
 
-    onsite = onsite_coupling(sys.mode, sys.Ns[1,1,1,i], op)
+    onsite = onsite_coupling(sys, CartesianIndex(1,1,1,i), op)
 
     if !is_anisotropy_valid(sys.crystal, i, onsite)
         @error """Symmetry-violating anisotropy: $op.
@@ -281,7 +275,7 @@ function set_onsite_coupling_at!(sys::System, op, site::Site)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
     site = to_cartesian(site)
-    ints[site].onsite = onsite_coupling(sys.mode, sys.Ns[site], op)
+    ints[site].onsite = onsite_coupling(sys, site, op)
 end
 
 
@@ -292,9 +286,9 @@ end
 # overall (l- and m-dependent) scaling factor. Also return the gradient of the
 # scalar output.
 function energy_and_gradient_for_classical_anisotropy(s::Vec3, stvexp::StevensExpansion)
-    (; kmax, c2, c4, c6) = stvexp
+    (; kmax, c0, c2, c4, c6) = stvexp
 
-    E      = 0.0
+    E      = only(c0)
     dE_dz  = 0.0
     dE_dJp = 0.0 + 0.0im
 

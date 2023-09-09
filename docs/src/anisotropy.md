@@ -114,10 +114,12 @@ X &= \mathbf{\hat{S}} \cdot \mathbf{\hat{S}} = S (S+1) \\
 \end{align*}
 ```
 
-the most relevant Stevens operators are defined as,
+the relevant Stevens operators are defined as,
 
 ```math
 \begin{align*}
+\hat{\mathcal{O}}_{0,0} & = 1 \\
+\\
 \hat{\mathcal{O}}_{2,\pm2} & =\phi_{\pm}(\hat{S}_{+}^{2}\pm \hat{S}_{-}^{2})+\mathrm{h.c.}\\
 \hat{\mathcal{O}}_{2,\pm1} & =\phi_{\pm}(\hat{S}_{+}\pm \hat{S}_{-})\hat{S}_{z}+\mathrm{h.c.}\\
 \hat{\mathcal{O}}_{2,0} & =3\hat{S}_{z}^{2}-X\\
@@ -138,8 +140,8 @@ the most relevant Stevens operators are defined as,
 \end{align*}
 ```
 
-Stevens operators $\hat{\mathcal{O}}_{k,q}$ for odd $k$ would violate
-time-reversal symmetry, so Sunny disallows them from the single-ion anisotropy.
+Stevens operators $\hat{\mathcal{O}}_{k,q}$ for odd $k$ are disallowed from the
+single-ion anisotropy under the assumption of time-reversal symmetry.
 Computer-generated tables of Stevens operators with larger k are available from
 C. Rudowicz and C. Y. Chung, J. Phys.: Condens. Matter 16, 5825 (2004).
 

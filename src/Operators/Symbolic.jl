@@ -5,14 +5,14 @@ const spin_magnitude_symbol = (DP.@polyvar 𝒮)[1]
 # Stevens symbols are stored in descending order q = k...-k for consistency with
 # `stevens_abstract_polynomials` and the Wigner D matrix.
 const stevens_symbols = let
-    # 𝒪₀ = identity
+    𝒪₀ = collect(DP.@polyvar                         𝒪₀₀)
     𝒪₁ = collect(DP.@polyvar                     𝒪₁₁ 𝒪₁₀ 𝒪₁₋₁)
     𝒪₂ = collect(DP.@polyvar                 𝒪₂₂ 𝒪₂₁ 𝒪₂₀ 𝒪₂₋₁ 𝒪₂₋₂)
     𝒪₃ = collect(DP.@polyvar             𝒪₃₃ 𝒪₃₂ 𝒪₃₁ 𝒪₃₀ 𝒪₃₋₁ 𝒪₃₋₂ 𝒪₃₋₃)
     𝒪₄ = collect(DP.@polyvar         𝒪₄₄ 𝒪₄₃ 𝒪₄₂ 𝒪₄₁ 𝒪₄₀ 𝒪₄₋₁ 𝒪₄₋₂ 𝒪₄₋₃ 𝒪₄₋₄)
     𝒪₅ = collect(DP.@polyvar     𝒪₅₅ 𝒪₅₄ 𝒪₅₃ 𝒪₅₂ 𝒪₅₁ 𝒪₅₀ 𝒪₅₋₁ 𝒪₅₋₂ 𝒪₅₋₃ 𝒪₅₋₄ 𝒪₅₋₅)
     𝒪₆ = collect(DP.@polyvar 𝒪₆₆ 𝒪₆₅ 𝒪₆₄ 𝒪₆₃ 𝒪₆₂ 𝒪₆₁ 𝒪₆₀ 𝒪₆₋₁ 𝒪₆₋₂ 𝒪₆₋₃ 𝒪₆₋₄ 𝒪₆₋₅ 𝒪₆₋₆)
-    [𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄, 𝒪₅, 𝒪₆]
+    OffsetArray([𝒪₀, 𝒪₁, 𝒪₂, 𝒪₃, 𝒪₄, 𝒪₅, 𝒪₆], 0:6)
 end
 
 
@@ -37,7 +37,7 @@ function expand_as_spin_polynomial(p)
     𝒮 = spin_vector_symbol
     return DP.subs(p, 
         spin_squared_symbol => 𝒮⋅𝒮,
-        [stevens_symbols[k] => stevens_as_spin_polynomials(k) for k=1:6]...
+        [stevens_symbols[k] => stevens_as_spin_polynomials(k) for k=0:6]...
     )
 end
 
@@ -47,14 +47,10 @@ const spin_monomial_to_stevens_expansion_dict = let
     ret = Dict()
     S² = spin_squared_symbol
 
-    for order = 1:6
+    for order = 0:6
         ops = []
         for k = order:-2:0
-            if k == 0
-                push!(ops, S²^(order÷2))
-            else
-                append!(ops, S²^((order-k)÷2) * stevens_symbols[k])
-            end
+            append!(ops, S²^((order-k)÷2) * stevens_symbols[k])
         end
 
         ops_expanded = expand_as_spin_polynomial.(ops)
@@ -75,7 +71,9 @@ const spin_monomial_to_stevens_expansion_dict = let
 
         M_inv = rationalize.(inv(M); tol=1e-14)
         @assert M_inv * M == I
-        @assert all_monomials == expand_as_spin_polynomial.(M_inv * ops_expanded)
+        # TODO: Diagnose DynamicPolynomials bug in line below, appearing for order=0.
+        # @assert all_monomials == expand_as_spin_polynomial.(M_inv * ops_expanded))
+        @assert iszero(all_monomials .- expand_as_spin_polynomial.(M_inv * ops_expanded))
 
         push!.(Ref(ret), all_monomials .=> M_inv * ops)
     end
@@ -87,7 +85,8 @@ end
 function expand_in_stevens_operators(p)
     cp = expand_as_spin_polynomial(p)
     d = spin_monomial_to_stevens_expansion_dict
-    return sum(c*d[m] for (c, m) = zip(DP.coefficients(cp), DP.monomials(cp)))
+    init = DP.zero_term(only(stevens_symbols[0]))
+    return sum(c*d[m] for (c, m) = zip(DP.coefficients(cp), DP.monomials(cp)); init)
 end
 
 
@@ -126,5 +125,6 @@ end
 function print_stevens_expansion(op::DP.AbstractPolynomialLike)
     X = spin_squared_symbol
     S = spin_magnitude_symbol
-    pretty_print_operator(DP.subs(expand_in_stevens_operators(op), X => 1S^2))
+    O = stevens_symbols
+    pretty_print_operator(DP.subs(expand_in_stevens_operators(op), X => 1S^2, only(O[0]) => 1))
 end
