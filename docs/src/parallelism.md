@@ -88,9 +88,7 @@ need to to set up a multithreaded Julia kernel. To do this, open a Julia REPL
 and type the following.
 ```
 using IJulia
-IJulia.installkernel("Julia Multithreaded", env=Dict(
-           "JULIA_NUM_THREADS" => "auto"
-))
+IJulia.installkernel("Julia Multithreaded", env=Dict("JULIA_NUM_THREADS" => "auto"))
 ```
 After doing this, you'll have to restart Jupyter and make sure to select this
 kernel when launching a notebook.
@@ -202,19 +200,15 @@ called `scs`.
 
 ```julia
 @time scs = pmap(1:ncores) do seed
-    # Make our system and correlations
     sys = make_system(Sunny.fcc_primitive_crystal(); J=1.0, dims=(10,10,2), seed)
     sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0)
     integrator = Langevin(Δt; kT, λ=0.1)
 
-    # Thermalize the system
-    for _ in 1:5000
+    for _ in 1:5000      # Thermalize
         step!(sys, integrator)
     end
-
-    # Collect samples
-    for _ in 1:nsamples
-        for _ in 1:1000
+    for _ in 1:nsamples 
+        for _ in 1:1000 
             step!(sys, integrator)
         end
         add_sample!(sc, sys)
