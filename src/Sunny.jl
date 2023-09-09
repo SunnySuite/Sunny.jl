@@ -69,9 +69,11 @@ export SpinInfo, System, Site, eachsite, position_to_site, global_position, magn
     to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
     symmetry_equivalent_bonds, set_exchange_at!, remove_periodicity!
 
+include("MagneticOrdering.jl")
+export print_wrapped_intensities, suggest_magnetic_supercell, set_spiral_order!, set_spiral_order_on_sublattice!
+
 include("Reshaping.jl")
-export reshape_supercell, resize_supercell, repeat_periodically, 
-    print_wrapped_intensities, suggest_magnetic_supercell
+export reshape_supercell, resize_supercell, repeat_periodically
 
 include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!

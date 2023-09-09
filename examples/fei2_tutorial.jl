@@ -107,7 +107,7 @@ print_symmetry_table(cryst, 8.0)
 # In constructing a spin [`System`](@ref), we must provide several additional
 # details about the spins.
 
-sys = System(cryst, (4,4,4), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
+sys = System(cryst, (4, 4, 4), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
 
 # This system includes $4×4×4$ unit cells, i.e. 64 Fe atoms, each with spin $S=1$
 # and a $g$-factor of 2. Quantum mechanically, spin $S=1$ involves a
@@ -227,23 +227,29 @@ print_wrapped_intensities(sys)
 # Here, let's break the three-fold symmetry of FeI$_2$ by hand. Given one or
 # more desired $Q$ modes, Sunny can suggest a magnetic supercell with
 # appropriate periodicity. Let's arbitrarily select one of the three possible
-# ordering wavevectors, $Q = [0, -1/4, 1/4]$. Sunny suggest a corresponding
+# ordering wavevectors, $Q = [0, -1/4, 1/4]$. Sunny suggests a corresponding
 # magnetic supercell in units of the crystal lattice vectors.
 
-suggest_magnetic_supercell([[0, -1/4, 1/4]], sys.latsize)
+println(suggest_magnetic_supercell([[0, -1/4, 1/4]]))
 
-# The function [`reshape_supercell`](@ref) allows an arbitrary reshaping of the
-# system's supercell. We select the supercell appropriate to the broken-symmetry
-# ground-state, which makes optimization much easier.
+# The system returned by [`reshape_supercell`](@ref) is smaller, and is sheared
+# relative to the original system. This makes it much easier to find the global
+# energy minimum.
 
-sys_min = reshape_supercell(sys, [1 0 0; 0 1 -2; 0 1 2])
+sys_min = reshape_supercell(sys, [1 0 0; 0 2 1; 0 -2 1])
 randomize_spins!(sys_min)
-minimize_energy!(sys_min)
+minimize_energy!(sys_min);
 
-# Because the reshaped system size is small, some "ghost" spins up to a given
-# distance can help with visualization.
+# Plot the system again, now including "ghost" spins out to 12Å
 
 plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
+
+# Another way to get exactly the same ground state is by manually calling
+# `set_spiral_order_on_sublattice!` twice. Note that `sys.crystal` refers to a
+# reshaped unit cell with two sublattice indices.
+
+set_spiral_order_on_sublattice!(sys_min, 1; q=[0, -1/4, 1/4], axis=[1, 0, 0], S0=[0, 0, -1])
+set_spiral_order_on_sublattice!(sys_min, 2; q=[0, -1/4, 1/4], axis=[1, 0, 0], S0=[0, 0, 1])
 
 # ## Linear spin wave theory
 #

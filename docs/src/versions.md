@@ -1,6 +1,15 @@
 # Version 0.5.4
 
-* Retain constant energy shifts if introduced by anisotropy operators.
+* The function [`suggest_magnetic_supercell`](@ref) now requires only a list of
+  wavevectors, and will return a $3×3$ matrix that can be programmatically
+  passed to [`reshape_supercell`]. The new tolerance parameter `tol` allows
+  `suggest_magnetic_supercell` to approximate incommensurate wavevectors with
+  nearby commensurate ones.
+* New functions [`set_spiral_order!`](@ref) and
+  [`set_spiral_order_on_sublattice!`](@ref) can be used to initialize a spiral,
+  single-$Q$ order.
+* Sunny now retains all constant energy shifts that have been introduced by
+  anisotropy operators.
 * Fix `export_vtk` functionality.
 
 # Version 0.5.3
@@ -81,7 +90,7 @@ Rename `reshape_geometry` to [`reshape_supercell`](@ref), which is the
 fundamental reshaping function. Rename `resize_periodically` to
 [`resize_supercell`](@ref).
 
-The constructor [`SpinInfo`](@ref) now requires a ``g``-factor or tensor as a
+The constructor [`SpinInfo`](@ref) now requires a $g$-factor or tensor as a
 named argument.
 
 The constructor [`FormFactor`](@ref) no longer accepts an atom index. Instead,
