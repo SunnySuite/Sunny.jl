@@ -73,20 +73,6 @@ end
 
 Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(sc.samplebuf)[2:4] : getfield(sc,sym)
 
-"""
-    merge!(sc::SampledCorrelations, others...)
-
-Accumulate the samples in `others` (one or more `SampledCorrelations`) into `sc`.
-"""
-function merge!(sc::SampledCorrelations, others...)
-    for scnew in others
-        nnew = scnew.nsamples[1]
-        ntotal = sc.nsamples[1] + nnew
-        @. sc.data = sc.data + (scnew.data - sc.data) * (nnew/ntotal)
-        sc.nsamples[1] = ntotal
-    end
-end
-
 function clone_correlations(sc::SampledCorrelations{N}) where N
     dims = size(sc.data)[2:4]
     nω = size(sc.data, 7)
@@ -98,6 +84,13 @@ function clone_correlations(sc::SampledCorrelations{N}) where N
         copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.Δt, copy(sc.nsamples), sc.processtraj!)
 end
 
+
+"""
+    merge_correlations(scs::Vector{SampledCorrelations)
+
+Accumulate a list of `SampledCorrelations` into a single, summary
+`SampledCorrelations`. Useful for reducing the results of parallel computations.
+"""
 function merge_correlations(scs::Vector{SampledCorrelations{N}}) where N
     sc_merged = clone_correlations(scs[1])
     for sc in scs[2:end]

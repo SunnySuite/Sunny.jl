@@ -133,7 +133,7 @@ end
 # samples are split across each element of the `scs` array. We'll merge them
 # into one summary `SampledCorrelations`. 
 
-sc = Sunny.merge_correlations(scs)
+sc = merge_correlations(scs)
 
 #nb # Finally we'll plot the results to compare with what we found before, finding
 #nb # significantly improved results.
@@ -207,7 +207,7 @@ end;
 # `pmap` will collect the return results into a list, which we will merge
 # into a summary `SampledCorrelations`.
 
-sc = Sunny.merge_correlations(scs)
+sc = merge_correlations(scs)
 
 #nb # Because we've used the same seeds, the results look identical to those
 #nb # achieved with multithreading.
