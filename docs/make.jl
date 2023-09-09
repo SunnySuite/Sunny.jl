@@ -12,10 +12,11 @@ import GLMakie, WriteVTK
 draft = false # set `true` to disable cell evaluation
 
 example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging",
-                 "fei2_classical", "ising2d", "one_dim_chain"] # "binning_tutorial"
+                 "fei2_classical", "ising2d", "one_dim_chain", "classical_parallelism"] # "binning_tutorial"
 example_sources = [joinpath(@__DIR__, "..", "examples", "$name.jl") for name in example_names]
 example_destination = joinpath(@__DIR__, "src", "examples")
 example_doc_paths = [joinpath("examples", "$name.md") for name in example_names]
+example_skip_build = ["classical_parallelism"]
 
 
 # Run Literate on each `../examples/name.jl` and output `src/examples/name.md`
@@ -33,7 +34,8 @@ for (name, source) in zip(example_names, example_sources)
         
         """ * str
     end
-    Literate.markdown(source, example_destination; preprocess, credit=false)
+    execute = name in example_skip_build ? false : true
+    Literate.markdown(source, example_destination; preprocess, execute, credit=false)
 end
 
 # Build docs as HTML, including the `examples/name.md` markdown built above
