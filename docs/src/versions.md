@@ -1,3 +1,8 @@
+# Version 0.5.4
+
+* Retain constant energy shifts if introduced by anisotropy operators.
+* Fix `export_vtk` functionality.
+
 # Version 0.5.3
 
 * Add [`large_S_spin_operators`](@ref) and [`large_S_stevens_operators`](@ref)
