@@ -78,22 +78,15 @@ This will take a second or two on a modern workstation, resulting in a single
 ## Multithreading approach
 To use threads in Julia, you must launch your Julia environment appropriately.
 
- - From the **command line**, launch Julia with `julia --threads=N`, where `N`
-is the number of threads. If you don't know how many threads you'd like, you can
-let Julia decide with `--threads=auto`.
+ - From the **command line**, launch Julia with `julia --threads=N`, where `N` is the number of threads. If you don't know how many threads you'd like, you can let Julia decide with `--threads=auto`.
 
-- **Jupyter notebook** users will need to to set up a multithreaded Julia kernel
-and restart into this kernel. The kernel can be created inside Julia with the
-following:
-    ```
+- **Jupyter notebook** users will need to to set up a multithreaded Julia kernel and restart into this kernel. The kernel can be created inside Julia with the following:
+```
     using IJulia
     IJulia.installkernel("Julia Multithreaded",
         env=Dict("JULIA_NUM_THREADS" => "auto"))
-    ```
-
-- **VSCode** users should open their settings and search for
-`Julia: Additional Args`. There will be link called `Edit in settings.json`. Click on this and add
-`"--threads=auto"` to the list `julia.additionalArgs`. Then start a new REPL.
+```
+- **VSCode** users should open their settings and search for `Julia: Additional Args`. There will be link called `Edit in settings.json`. Click on this and add `"--threads=auto"` to the list `julia.additionalArgs`. Start a new REPL.
 
 Before going further, make sure that `Threads.nthreads()` returns a number greater than 1.
 
@@ -150,7 +143,7 @@ Julia environments on different "processes." An advantage of this approach is
 that it scales naturally to clusters since the processes are easily distributed
 across many different compute nodes. A disadvantage, especially when working on
 a single computer, is the increased memory overhead associated with launching
-many Julia environments.
+all these environments.
 
 We begin by importing the package,
 
@@ -167,8 +160,8 @@ addprocs(ncores)
 ```
 
 You can think of each process as a separate computer running a fresh Julia
-environment, so we'll need to import Sunny and define our function inside each
-of them. This is easily achieved with the `@everywhere` macro.
+environment, so we'll need to import Sunny and define our function in each of
+these environments. This is easily achieved with the `@everywhere` macro.
 ```julia
 @everywhere using Sunny
 
