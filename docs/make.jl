@@ -46,6 +46,7 @@ Documenter.makedocs(;
         "Structure Factor Calculations" => "structure-factor.md",
         "Single-Ion Anisotropy" => "anisotropy.md",
         "Volumetric Rendering with ParaView" => "writevtk.md",
+        "Parallel Computation" => "parallelism.md",
         "Version History" => "versions.md",
     ],
     format = Documenter.HTML(
