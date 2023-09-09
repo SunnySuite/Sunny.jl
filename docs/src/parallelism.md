@@ -1,6 +1,6 @@
 # Parallelizing Classical Structure Factor Calculations
 
-Calculating structure factors using classical dynamics is computationally
+Calculating structure factors with classical dynamics is computationally
 expensive, and Sunny does not currently parallelize these calculations at a
 fine-grained level. However, Julia provides facilities that allow users to run
 multiple simulations in parallel with only a little extra effort. We will look
@@ -8,23 +8,21 @@ at two approaches to doing this:
 [multithreading](https://docs.julialang.org/en/v1/manual/multi-threading/) and
 Julia's
 [`Distributed`](https://docs.julialang.org/en/v1/manual/distributed-computing/)
-package.
-We'll present these approaches in a series of code snippets that can be
+package. We'll present these approaches in a series of code snippets that can be
 copied and pasted into your preferred Julia development environment.
 
 ## Review of the serial workflow
 
 The serial approach to calculating a structure factor, covered in 
-[Structure Factors with Classsical Dynamics](@ref), involves thermalizing a spin `System`
+[Structure Factors with Classical Dynamics](@ref), involves thermalizing a spin `System`
 and then calling [`add_sample!`](@ref). `add_sample!` uses the state of the
 `System` as an initial condition for the calculation of a dynamical
 trajectory. The correlations of the trajectory are calculated and accumulated
-into a running average of the ``𝒮(𝐪,ω)``. This processes is repeated to
+into a running average of the ``𝒮(𝐪,ω)``. This sequence is repeated to
 generate additional samples.
 
-To illustrate, we'll set up a a simple model: a spin-1 antiferromagnet on an
-FCC crystal. We'll write a function to generate the model to make things
-easier later on.
+To illustrate, we'll set up a a simple model: a spin-1 antiferromagnet on an FCC
+crystal. 
 
 ```julia
 using Sunny, GLMakie
@@ -35,26 +33,25 @@ function make_system(cryst; J, dims, seed=nothing)
     return sys
 end
 
+J = 1.0 # meV 
 cryst = Sunny.fcc_primitive_crystal()
-sys = make_system(cryst; dims=(10,10,2), J=1.0)
+sys = make_system(cryst; J, dims=(10,10,2))
 ```
+To thermalize and generate equilibrium samples, we'll need a [`Langevin`](@ref)
+integrator. 
 
-We call [`dynamical_correlations`](@ref) to create a `SampledCorrelations`.
+```julia
+kT = 0.5    # meV
+Δt = 0.05/J
+integrator = Langevin(Δt; kT, λ=0.1)
+```
+Finally, call [`dynamical_correlations`](@ref) to configure a `SampledCorrelations`.
 
 ```julia
 sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0)
 ```
 
-To thermalize and generate equilibrium samples, we'll need a
-[`Langevin`](@ref) integrator. We'll set the temperature to $k_B T = 0.5$ meV.
-
-```julia
-kT = 0.5
-Δt = 0.05
-integrator = Langevin(Δt; kT, λ=0.1)
-```
-
-The serial calculation can then be performed as follows:
+The serial calculation can now be performed as follows:
 
 ```julia
 nsamples = 10
@@ -80,26 +77,33 @@ This will take a second or two on a modern workstation, resulting in a single
 
 ## Multithreading approach
 To use threads in Julia, you must launch your Julia environment appropriately.
-From the command line, this can be achieved with `julia --threads=N`, where
-`N` is the number of threads you'd like to use. If you don't know how many
-threads you'd like, you can let Julia determine an appropriate number with
-`julia --threads=auto`. If you are working in a Jupyter notebook, you will
-need to to set up a multithreaded Julia kernel. To do this, open a Julia REPL
-and type the following.
-```
-using IJulia
-IJulia.installkernel("Julia Multithreaded", env=Dict("JULIA_NUM_THREADS" => "auto"))
-```
-After doing this, you'll have to restart Jupyter and make sure to select this
-kernel when launching a notebook.
+
+ - From the **command line**, launch Julia with `julia --threads=N`, where `N`
+is the number of threads. If you don't know how many threads you'd like, you can
+let Julia decide with `--threads=auto`.
+
+- **Jupyter notebook** users will need to to set up a multithreaded Julia kernel
+and restart into this kernel. The kernel can be created inside Julia with the
+following:
+    ```
+    using IJulia
+    IJulia.installkernel("Julia Multithreaded",
+        env=Dict("JULIA_NUM_THREADS" => "auto"))
+    ```
+
+- **VSCode** users should open their settings and search for
+`Julia: Additional Args`. There will be link called `Edit in settings.json`. Click on this and add
+`"--threads=auto"` to the list `julia.additionalArgs`. Then start a new REPL.
+
+Before going further, make sure that `Threads.nthreads()` returns a number greater than 1.
 
 We will use multithreading in a very simple way, essentially employing a
 distributed memory approach to avoid conflicts around memory access. First
-we will preallocate a number of systems and correlations.
+preallocate a number of systems and correlations.
 
 ```julia
 npar = Threads.nthreads()
-systems = [make_system(cryst; J=1.0, dims=(10,10,2), seed=i) for i in 1:npar]
+systems = [make_system(cryst; J, dims=(10,10,2), seed=i) for i in 1:npar]
 scs = [dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0) for _ in 1:npar]
 ```
 
@@ -141,39 +145,33 @@ sc = merge_correlations(scs)
 
 ## Using `Distributed`
 Julia also provides a distributed memory approach to parallelism through the
-standard library package `Distributed`. This works by launching
-independent Julia environments on different "processes". An advantage of this
-approach is that it scales naturally to clusters -- the processes are easily
-distributed across many different compute nodes. A disadvantage, especially when
-working on a single computer, is the increased memory overhead associated with
-launching many Julia environments.
+standard library package `Distributed`. This works by launching independent
+Julia environments on different "processes." An advantage of this approach is
+that it scales naturally to clusters since the processes are easily distributed
+across many different compute nodes. A disadvantage, especially when working on
+a single computer, is the increased memory overhead associated with launching
+many Julia environments.
 
-We begin by importing the package.
+We begin by importing the package,
 
 ```julia
 using Distributed
 ```
 
-We now need to launch the Julia processes. The number of cores you have on
-your computer is often a good choice for the number of processes.
+and launching some new processes. It is often sensible to create as many
+processes as there are cores.
 
 ```julia
 ncores = length(Sys.cpu_info())
 addprocs(ncores)
 ```
 
-You can think of each process as a separate computer running Julia. We now need
-to import Sunny into all of these Julia environments. This can be achieved with
-the `@everywhere` macro.
-
+You can think of each process as a separate computer running a fresh Julia
+environment, so we'll need to import Sunny and define our function inside each
+of them. This is easily achieved with the `@everywhere` macro.
 ```julia
 @everywhere using Sunny
-```
 
-We also need to define our functions on all of these processes. This again
-can be achieved with `@everywhere`.
-
-```julia
 @everywhere function make_system(cryst; J, dims, seed=nothing)
     sys = System(cryst, dims, [SpinInfo(1, S=1, g=2)], :dipole; seed)
     set_exchange!(sys, J, Bond(1,1,[1,0,0]))
@@ -181,12 +179,12 @@ can be achieved with `@everywhere`.
 end
 ```
 
-A simple way to perform work on each of these processes is to use the parallel
-map function, `pmap`. This will apply a function to each element of some
-iterable, such as a list of numbers, and return a list of the results. It is a
-_parallel_ map because these function calls may occur at the same time on
-different Julia processes. The `pmap` function takes care of distributing the
-work among the different processes and retrieving the results.
+A simple way to perform work on these processes is to use the parallel map
+function, `pmap`. This will apply a function to each element of some iterable,
+such as a list of numbers, and return a list of the results. It is a _parallel_
+map because these function calls may occur at the same time on different Julia
+processes. The `pmap` function takes care of distributing the work among the
+different processes and retrieving the results.
 
 In the example below, we give `pmap` a list of RNG seeds to iterate over, and
 we define the function that will be applied to each of these seeds in a `do`
@@ -199,7 +197,7 @@ the parallel computations are collected into list of `SampledCorrelations`
 called `scs`.
 
 ```julia
-@time scs = pmap(1:ncores) do seed
+scs = pmap(1:ncores) do seed
     sys = make_system(Sunny.fcc_primitive_crystal(); J=1.0, dims=(10,10,2), seed)
     sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0)
     integrator = Langevin(Δt; kT, λ=0.1)
@@ -218,7 +216,7 @@ called `scs`.
 end
 ```
 
-Finally, we will merge the results into a summary `SampledCorrelations`.
+Finally, merge the results into a summary `SampledCorrelations`.
 
 ```julia
 sc = merge_correlations(scs)
