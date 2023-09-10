@@ -24,7 +24,16 @@
             [0, 1/2, 0]            50.00%
         """
 
-    @test suggest_magnetic_supercell([[0,1/2,0]]) == [1 0 0; 0 2 0; 0 0 1]
+    capt = IOCapture.capture() do
+        suggest_magnetic_supercell([[0,1/2,0]])
+    end
+    @test capt.output == """
+        Suggested magnetic supercell in multiples of lattice vectors:
+
+            [1 0 0; 0 2 0; 0 0 1]
+
+        for wavevectors [[0, 1/2, 0]].
+        """
 
     A1 = [1 0 0; 0 2 0; 0 0 1]
     A2 = [1 0 0; 1 2 0; 0 0 1]

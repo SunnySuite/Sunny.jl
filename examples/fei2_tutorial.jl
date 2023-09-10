@@ -230,7 +230,7 @@ print_wrapped_intensities(sys)
 # ordering wavevectors, $Q = [0, -1/4, 1/4]$. Sunny suggests a corresponding
 # magnetic supercell in units of the crystal lattice vectors.
 
-println(suggest_magnetic_supercell([[0, -1/4, 1/4]]))
+suggest_magnetic_supercell([[0, -1/4, 1/4]])
 
 # The system returned by [`reshape_supercell`](@ref) is smaller, and is sheared
 # relative to the original system. This makes it much easier to find the global

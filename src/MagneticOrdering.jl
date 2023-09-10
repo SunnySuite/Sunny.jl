@@ -80,7 +80,7 @@ function suggest_magnetic_supercell(qs, latsize)
             error("Wavevector $q is incommensurate with lattice size $latsize")
         end
     end
-    return suggest_magnetic_supercell_aux(qs, latsize)
+    suggest_magnetic_supercell_aux(qs, latsize)
 end
 
 
@@ -93,28 +93,26 @@ are incommensurate (with respect to the maximum supercell size `maxsize`), one
 can select a larger error tolerance `tol` to find a supercell that is almost
 commensurate.
 
-The return value is a ``3×3`` matrix of integers that is suitable for use in
+Prints a ``3×3`` matrix of integers that is suitable for use in
 [`reshape_supercell`](@ref).
 
 # Examples
 
 ```julia
-# A magnetic supercell for a single-Q structure
+# A magnetic supercell for a single-Q structure. Will print
 q1 = [0, -1/4, 1/4]
-A = suggest_magnetic_supercell([q1])
-@assert det(A) == 4
-@assert all(isinteger, A' * q1)
+suggest_magnetic_supercell([q1])       # [1 0 0; 0 2 1; 0 -2 1]
 
 # A larger magnetic supercell for a double-Q structure
 q2 = [1/4, 0, 1/4]
-B = suggest_magnetic_supercell([q1, q2])
-@assert det(B) == 16
-@assert all(isinteger, B' * q1) && all(isinteger, B' * q2)
+suggest_magnetic_supercell([q1, q2])   # [1 2 2; -1 2 -2; -1 2 2]
 
-# An almost commensurate supercell, which employs the rational approximations
-# 1/√5 ≈ 7/16 and 1/√7 ≈ 3/8
-C = suggest_magnetic_supercell([[0, 0, 1/√5], [0, 0, 1/√7]]; tol=1e-2)
-@assert C == diagm([1, 1, 16])
+# If given incommensurate wavevectors, find an approximate supercell that
+# is exactly commensurate for nearby wavevectors.
+suggest_magnetic_supercell([[0, 0, 1/√5], [0, 0, 1/√7]]; tol=1e-2)
+
+# This prints [1 0 0; 0 1 0; 0 0 16], which becomes commensurate under the
+# approximations `1/√5 ≈ 7/16` and `1/√7 ≈ 3/8`.
 ```
 """
 function suggest_magnetic_supercell(qs; tol=1e-12, maxsize=100)
@@ -134,7 +132,7 @@ function suggest_magnetic_supercell(qs; tol=1e-12, maxsize=100)
         @info "Using adapted q values: " * join(wavevec_str.(new_qs), ", ")
     end
 
-    return suggest_magnetic_supercell_aux(new_qs, denoms)
+    suggest_magnetic_supercell_aux(new_qs, denoms)
 end
 
 function suggest_magnetic_supercell_aux(qs, denoms)
@@ -237,7 +235,12 @@ function suggest_magnetic_supercell_aux(qs, denoms)
     #     end
     # end
 
-    return best_A
+    qstrs = join(map(wavevec_str, qs), ", ")
+    println("""Suggested magnetic supercell in multiples of lattice vectors:
+               
+                   $(repr(best_A))
+               
+               for wavevectors [$qstrs].""")
 end
 
 
