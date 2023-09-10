@@ -338,7 +338,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
     for (i, b) in enumerate(refbonds)
         color = getindex_cyclic(seaborn_bright, i)
         active = (i == 1)
-        toggle = Makie.Toggle(fig; active)
+        toggle = Makie.Toggle(fig; active, framecolor_active=color, buttoncolor=:gray)
         observables = all_segments_for_bond(b, color, active)
         for o in observables
             Makie.connect!(o.visible, toggle.active)
