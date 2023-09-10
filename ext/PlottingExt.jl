@@ -284,7 +284,6 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
     # Show cell volume and label lattice vectors (this needs to come first to
     # set a scale for the scene in case there is only one atom).
     Makie.linesegments!(ax, cell_wireframe(cryst.latvecs); color=:teal, linewidth=1.5)
-    pos = [Makie.Point3f0(p/2) for p in collect(eachcol(cryst.latvecs))]
 
     # Map atom classes to indices that run from 1..nclasses
     unique_classes = unique(cryst.classes)
@@ -295,6 +294,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
     markersize = spherescale * ℓ0
     max_dist = max(max_dist, ℓ0 + 1e-6)
     images = all_images_within_distance(cryst.latvecs, cryst.positions, cryst.positions; max_dist, include_zeros=true)
+    atom_labels = nothing
     for (isghost, alpha) in ((false, 1.0), (true, 0.15))
         pts = Makie.Point3f0[]
         color = RGB{Float64}[]
@@ -305,6 +305,13 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
             push!(color, getindex_cyclic(seaborn_muted, class_indices[i]))
         end
         Makie.meshscatter!(ax, pts; markersize, color, alpha, transparency=isghost)
+
+        # Atom indices
+        if !isghost
+            text = repr.(eachindex(pts))
+            atom_labels = Makie.text!(ax, pts; text, color=:white, fontsize=14, align=(:center, :center),
+                                      transparency=true, overdraw=true, visible=true)
+        end
     end
 
     # Get up to 10 reference bonds, without self bonds
@@ -324,14 +331,9 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
             (; ri, rj) = Sunny.BondPos(cryst, b)
             Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
         end
-        s2 = Makie.linesegments!(ax, segments; color, linewidth=3, visible)
 
-        # Draw thicker reference segment 
-        (; ri, rj) = Sunny.BondPos(cryst, b)
-        ref_segment = Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
-        s1 = Makie.linesegments!(ax, [ref_segment]; color=(color, 0.5), linewidth=10, visible)
-
-        return [s1, s2]
+        s = Makie.linesegments!(ax, segments; color, linewidth=3, transparency=true, visible)
+        return [s]
     end
 
     layout = Makie.GridLayout(; tellheight=false, valign=:top)
@@ -348,11 +350,20 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
 
         layout[i, 1:2] = [toggle, Makie.Label(fig, repr(b))]
     end
-    fig[1, 2] = layout
 
-    # Label lattice vectors. (This needs to come last for `overdraw` to work.)
+    # Toggle atom indices
+    atom_labels_toggle = Makie.Toggle(fig; active=true, buttoncolor=:gray)
+    Makie.connect!(atom_labels.visible, atom_labels_toggle.active)
+    layout[length(refbonds)+1, 1:2] = [atom_labels_toggle, Makie.Label(fig, "Show atom indices")]
+
+    # Label lattice vectors. WGLMakie bug: `overdraw` seems broken, so this call
+    # comes last.
+    pos = [Makie.Point3f0(p/2) for p in collect(eachcol(cryst.latvecs))]
     text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
-    Makie.text!(ax, pos; text, color=:black, fontsize=16, align=(:center, :center), overdraw=true)
+    Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
+                glowcolor=(:white, 0.6), align=(:center, :center), transparency=true, overdraw=true)
+
+    fig[1, 2] = layout
 
     return fig
 end
