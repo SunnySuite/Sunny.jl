@@ -86,7 +86,7 @@ To use threads in Julia, you must launch your Julia environment appropriately.
     IJulia.installkernel("Julia Multithreaded",
         env=Dict("JULIA_NUM_THREADS" => "auto"))
 ```
-- **VSCode** users should open their settings and search for `Julia: Additional Args`. There will be link called `Edit in settings.json`. Click on this and add `"--threads=auto"` to the list `julia.additionalArgs`. Start a new REPL.
+- **VSCode** users should open their settings and search for `Julia: Additional Args`. There will be link called `Edit in settings.json`. Click on this, add `"--threads=auto"` to the list `julia.additionalArgs`, and start a new REPL.
 
 Before going further, make sure that `Threads.nthreads()` returns a number greater than 1.
 
