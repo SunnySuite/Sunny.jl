@@ -2,9 +2,9 @@
 
 * The function [`suggest_magnetic_supercell`](@ref) now requires only a list of
   wavevectors, and will return a $3×3$ matrix that can be programmatically
-  passed to [`reshape_supercell`]. The new tolerance parameter `tol` allows
-  `suggest_magnetic_supercell` to approximate incommensurate wavevectors with
-  nearby commensurate ones.
+  passed to [`reshape_supercell`](@ref). The new tolerance parameter `tol`
+  allows `suggest_magnetic_supercell` to approximate incommensurate wavevectors
+  with nearby commensurate ones.
 * New functions [`set_spiral_order!`](@ref) and
   [`set_spiral_order_on_sublattice!`](@ref) can be used to initialize a spiral,
   single-$Q$ order.
