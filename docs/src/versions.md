@@ -1,5 +1,9 @@
 # Version 0.5.4
 
+* Various enhancements to [`view_crystal`](@ref). Atoms are now labeled by
+  index, and bonds support interactive inspection (GLMakie only). Font sizes
+  work correctly on Makie v0.20-beta. If using Makie v0.19 on a high-resolution
+  display, pass `rescale=1.5` to enlarge font sizes.
 * The function [`suggest_magnetic_supercell`](@ref) now requires only a list of
   wavevectors, and will return a $3×3$ matrix that can be programmatically
   passed to [`reshape_supercell`](@ref). The new tolerance parameter `tol`
@@ -32,7 +36,7 @@
 # Version 0.5.1
 
 * Fix binning edge cases.
-* `plot_spins` accepts resolution argument.
+* [`plot_spins`](@ref) accepts resolution argument.
 
 # Version 0.5.0
 
