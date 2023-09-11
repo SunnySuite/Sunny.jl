@@ -179,28 +179,37 @@ end
 
 
 """
-    plot_spins(sys::System; arrowscale=1.0, color=:red, show_axis=false, show_cell=true,
+    plot_spins(sys::System; arrowscale=1.0, color=:red, show_cell=true,
                orthographic=false, ghost_radius=0)
 
 Plot the spin configuration defined by `sys`. Optional parameters include:
 
   - `arrowscale`: Scale all arrows by dimensionless factor.
-  - `color`: Arrow color. May be defined per site in system.
-  - `show_axis`: Show global Cartesian coordinates axis.
+  - `color`: Arrow color. May be a numeric value per site in system.
   - `show_cell`: Show original crystallographic unit cell.
   - `orthographic`: Use camera with orthographic projection.
   - `ghost_radius`: Show translucent periodic images up to a given distance
     (length units).
 """
-function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
-                          color=:red, show_axis=false, show_cell=true,
-                          orthographic=false, ghost_radius=0, resolution=(768, 512), rescale=1.0)
+function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red, show_cell=true,
+                          orthographic=false, ghost_radius=0, resolution=(768, 512), show_axis=false, rescale=1.0)
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)
+    plot_spins!(ax, sys; arrowscale, stemcolor, color, show_cell, orthographic, ghost_radius, rescale)
+    return fig
+end
 
+"""
+    plot_spins!(ax, sys::System; arrowscale=1.0, color=:red,
+                show_cell=true, orthographic=false, ghost_radius=0)
+
+Like [`plot_spins`](@ref) but will draw into the given Makie Axis, `ax`.
+"""
+function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red, show_cell=true,
+                     orthographic=false, ghost_radius=0, rescale=1.0)
     # TODO: Why can't this move to the bottom?
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    orient_camera!(ax, supervecs, 1; orthographic)
+    orient_camera!(ax, supervecs, 1.0; orthographic)
 
     ### Plot spins ###
 
@@ -266,7 +275,7 @@ function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
         Makie.text!(pos; text, color=:black, fontsize=rescale*16, align=(:center, :center), overdraw=true)
     end
 
-    return fig
+    return ax
 end
 
 """
@@ -370,7 +379,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     axes_toggle = Makie.Toggle(fig; active=axes.visible[], buttoncolor=:gray)
     Makie.connect!(axes.visible, axes_toggle.active)
     axes_labels = Makie.GridLayout()
-    axes_labels[1, 1] = Makie.Label(fig, "Show axes"; fontsize)
+    axes_labels[1, 1] = Makie.Label(fig, "Show"; fontsize)
     axes_labels[1, 2] = Makie.Label(fig, "x"; color=RGB(0.90, 0.0, 0.0), font=:bold, fontsize)
     axes_labels[1, 3] = Makie.Label(fig, "y"; color=RGB(0.90, 0.5, 0.0), font=:bold, fontsize)
     axes_labels[1, 4] = Makie.Label(fig, "z"; color=RGB(0.90, 0.85, 0.0), font=:bold, fontsize)
