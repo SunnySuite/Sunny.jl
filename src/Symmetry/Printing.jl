@@ -104,19 +104,38 @@ function coupling_basis_strings(coup_basis; digits, atol) :: Matrix{String}
     end
 end
 
-function print_allowed_coupling(basis_strs; prefix)
+function basis_for_exchange_on_bond(cryst::Crystal, b::Bond; b_ref)
+    # If `b_ref` is nothing, select it from reference_bonds()
+    b_ref = @something b_ref begin
+        d = global_distance(cryst, b)
+        ref_bonds = reference_bonds(cryst, d; min_dist=d)
+        only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
+    end
+
+    # Get the coupling basis on reference bond
+    basis = basis_for_symmetry_allowed_couplings(cryst, b_ref)
+    # Transform coupling basis from `b_ref` to `b`
+    if b != b_ref
+        basis = map(basis) do J_ref
+            transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
+        end
+    end
+
+    return basis
+end
+
+function print_allowed_coupling(basis_strs; prefix, io=stdout)
     basis_strs = _add_padding_to_coefficients(basis_strs)
 
     for i in 1:3
-        print(i == 1 ? prefix : repeat(' ', length(prefix)))
-        print('|')
+        print(io, i == 1 ? prefix : repeat(' ', length(prefix)))
+        print(io, '|')
         for j in 1:3
-            print(basis_strs[i, j] * " ")
+            print(io, basis_strs[i, j] * " ")
         end
-        println('|')
+        println(io, '|')
     end
 end
-
 
 """
     print_bond(cryst::Crystal, bond::Bond; b_ref::Bond)
@@ -125,58 +144,47 @@ Prints symmetry information for bond `bond`. A symmetry-equivalent reference
 bond `b_ref` can optionally be provided to fix the meaning of the coefficients
 `A`, `B`, ...
 """
-function print_bond(cryst::Crystal, b::Bond; b_ref=nothing)
-    # Tolerance below which coefficients are dropped
-    atol = 1e-12
+function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
     # How many digits to use in printing coefficients
     digits = 14
+    # Tolerance below which coefficients are dropped
+    atol = 1e-12
     
     if b.i == b.j && iszero(b.n)
-        print_site(cryst, b.i)
+        print_site(cryst, b.i; io)
     else
-        # If `b_ref` is nothing, select it from reference_bonds()
-        b_ref = @something b_ref begin
-            d = global_distance(cryst, b)
-            ref_bonds = reference_bonds(cryst, d; min_dist=d)
-            only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
-        end
-
-        # Get the coupling basis on reference bond `b_ref`
-        basis = basis_for_symmetry_allowed_couplings(cryst, b_ref)
-        # Transform coupling basis from `b_ref` to `b`
-        if b != b_ref
-            basis = map(basis) do J_ref
-                transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
-            end
-        end
 
         ri = cryst.positions[b.i]
         rj = cryst.positions[b.j] + b.n
 
         # Bond(...)
-        printstyled(stdout, repr(b); bold=true, color=:underline)
-        println()
+        printstyled(io, repr(b); bold=true, color=:underline)
+        println(io)
         (m_i, m_j) = (coordination_number(cryst, b.i, b), coordination_number(cryst, b.j, b))
-        dist_str = number_to_simple_string(global_distance(cryst, b); digits, atol)
+        dist_str = number_to_simple_string(global_distance(cryst, b); digits, atol=1e-12)
         if m_i == m_j
-            println("Distance $dist_str, coordination $m_i")
+            println(io, "Distance $dist_str, coordination $m_i")
         else
-            println("Distance $dist_str, coordination $m_i (from atom $(b.i)) and $m_j (from atom $(b.j))")
+            println(io, "Distance $dist_str, coordination $m_i (from atom $(b.i)) and $m_j (from atom $(b.j))")
         end
         if isempty(cryst.types[b.i]) && isempty(cryst.types[b.j])
-            println("Connects $(atom_pos_to_string(ri)) to $(atom_pos_to_string(rj))")
+            println(io, "Connects $(atom_pos_to_string(ri)) to $(atom_pos_to_string(rj))")
         else
-            println("Connects '$(cryst.types[b.i])' at $(atom_pos_to_string(ri)) to '$(cryst.types[b.j])' at $(atom_pos_to_string(rj))")
-        end
-        basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-        print_allowed_coupling(basis_strs; prefix="Allowed exchange matrix: ")
-        antisym_basis_idxs = findall(J -> J ≈ -J', basis)
-        if !isempty(antisym_basis_idxs)
-            antisym_basis_strs = coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits, atol)
-            println("Allowed DM vector: [$(antisym_basis_strs[2,3]) $(antisym_basis_strs[3,1]) $(antisym_basis_strs[1,2])]")
+            println(io, "Connects '$(cryst.types[b.i])' at $(atom_pos_to_string(ri)) to '$(cryst.types[b.j])' at $(atom_pos_to_string(rj))")
         end
     end
-    println()
+
+    basis = basis_for_exchange_on_bond(cryst, b; b_ref)
+    basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
+    print_allowed_coupling(basis_strs; prefix="Allowed exchange matrix: ", io)
+
+    antisym_basis_idxs = findall(J -> J ≈ -J', basis)
+    if !isempty(antisym_basis_idxs)
+        antisym_basis_strs = coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits, atol)
+        println(io, "Allowed DM vector: [$(antisym_basis_strs[2,3]) $(antisym_basis_strs[3,1]) $(antisym_basis_strs[1,2])]")
+    end
+
+    println(io)
 end
 
 function validate_crystal(cryst::Crystal)
@@ -229,16 +237,16 @@ Print symmetry information for the site `i`, including allowed g-tensor and
 allowed anisotropy operator. An optional rotation matrix `R` can be provided to
 define the reference frame for expression of the anisotropy.
 """
-function print_site(cryst, i; R=Mat3(I), ks=[2,4,6])
+function print_site(cryst, i; R=Mat3(I), ks=[2,4,6], io=stdout)
     r = cryst.positions[i]
     class_i = cryst.classes[i]
     m = count(==(class_i), cryst.classes)
-    printstyled(stdout, "Atom $i\n"; bold=true, color=:underline)
+    printstyled(io, "Atom $i\n"; bold=true, color=:underline)
 
     if isempty(cryst.types[i])
-        println("Position $(atom_pos_to_string(r)), multiplicity $m")
+        println(io, "Position $(atom_pos_to_string(r)), multiplicity $m")
     else
-        println("Type '$(cryst.types[i])', position $(atom_pos_to_string(r)), multiplicity $m")
+        println(io, "Type '$(cryst.types[i])', position $(atom_pos_to_string(r)), multiplicity $m")
     end
 
     # Tolerance below which coefficients are dropped
@@ -249,10 +257,10 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6])
     # In the future, should we also rotate the g-tensor to the basis of R?
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
     basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-    print_allowed_coupling(basis_strs; prefix="Allowed g-tensor: ")
+    print_allowed_coupling(basis_strs; prefix="Allowed g-tensor: ", io)
 
     R = convert(Mat3, R)
-    print_allowed_anisotropy(cryst, i; R, atol, digits, ks)
+    print_allowed_anisotropy(cryst, i; R, atol, digits, ks, io)
 end
 
 function int_to_underscore_string(x::Int)
@@ -269,7 +277,7 @@ function int_to_underscore_string(x::Int)
 end
 
 
-function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits, ks)
+function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits, ks, io=stdout)
     prefix="    "
 
     lines = String[]
@@ -310,11 +318,11 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
             push!(lines, prefix * join(terms, " + "))
         end
     end
-    println("Allowed anisotropy in Stevens operators:")
-    println(join(lines, " +\n"))
+    println(io, "Allowed anisotropy in Stevens operators:")
+    println(io, join(lines, " +\n"))
 
     if R != I
-        println("Transform anisotropy using rotate_operator(Λ; R) where")
-        println(prefix*"R = $R")
+        println(io, "Transform anisotropy using rotate_operator(Λ; R) where")
+        println(io, prefix*"R = $R")
     end
 end

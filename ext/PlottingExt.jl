@@ -73,7 +73,8 @@ function orient_camera!(ax, latvecs, dist; orthographic=false)
     @assert norm((lookat-eyeposition) ⋅ upvector) < 1e-12
 
     projectiontype = orthographic ? Makie.Orthographic : Makie.Perspective
-    Makie.cam3d_cad!(ax.scene; lookat, eyeposition, upvector, projectiontype)
+    # TODO: investigate cam3d_cad! later
+    Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype)
 
     # TODO: Make this work. It gives weird results when applied to the reshaped
     # system.
@@ -277,13 +278,21 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
                       orthographic=false, resolution=(768, 512))
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)
+    Makie.DataInspector(ax)
 
     # TODO: Why can't this move to the bottom?
     orient_camera!(ax, cryst.latvecs, 1; orthographic)
 
     # Show cell volume and label lattice vectors (this needs to come first to
     # set a scale for the scene in case there is only one atom).
-    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs); color=:teal, linewidth=1.5)
+    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs); color=:teal, linewidth=1.5, inspectable=false)
+
+    # Label lattice vectors. WGLMakie bug: `overdraw` seems broken, so this call
+    # would need to come last.
+    pos = [Makie.Point3f0(p/2) for p in collect(eachcol(cryst.latvecs))]
+    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
+    Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
+                glowcolor=(:white, 0.6), align=(:center, :center), transparency=true)
 
     # Map atom classes to indices that run from 1..nclasses
     unique_classes = unique(cryst.classes)
@@ -304,7 +313,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
             push!(pts, cryst.latvecs * (cryst.positions[i] + n))
             push!(color, getindex_cyclic(seaborn_muted, class_indices[i]))
         end
-        Makie.meshscatter!(ax, pts; markersize, color, alpha, transparency=isghost)
+        Makie.meshscatter!(ax, pts; markersize, color, alpha, inspectable=false, transparency=isghost)
 
         # Atom indices
         if !isghost
@@ -321,9 +330,25 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
     refbonds = first(refbonds, 10)
 
     function all_segments_for_bond(b, color, visible)
-        # Get symmetry related bonds without "self" bonds
+        # Prune bonds
         bonds = filter(Sunny.all_symmetry_related_bonds(cryst, b)) do b
-            return b.i != b.j || !iszero(collect(b.n))
+            if iszero(collect(b.n))
+                # Bonds within the unit cell must not be self bonds, and must not be
+                # duplicated.
+                return b.i != b.j && Sunny.bond_parity(b)
+            else
+                # Bonds between two unit cells can always be include
+                return true
+            end            
+        end
+
+        # Capture results of `print_bond` for each b′
+        bond_labels = map(bonds) do b′
+            basis = Sunny.basis_for_exchange_on_bond(cryst, b′; b_ref=b)
+            basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=12, atol=1e-12)
+            rows = map(row -> join(row, "   "), eachrow(basis_strs))
+            J_matrix_str = "[" * join(rows, ";\n") * "]"
+            return "$b′\n$J_matrix_str"
         end
 
         # Map each bond to line segments in global coordinates
@@ -331,12 +356,23 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
             (; ri, rj) = Sunny.BondPos(cryst, b)
             Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
         end
-
-        s = Makie.linesegments!(ax, segments; color, linewidth=3, transparency=true, visible)
+        
+        # TODO: Report bug of ÷2 indexing
+        inspector_label(plot, index, position) = bond_labels[index ÷ 2]
+        s = Makie.linesegments!(ax, segments; color, linewidth=3, transparency=true,
+                                inspectable=true, inspector_label, visible)
         return [s]
     end
 
     layout = Makie.GridLayout(; tellheight=false, valign=:top)
+
+    # Toggle on/off atom indices
+    toggle_cnt = 0
+    atom_labels_toggle = Makie.Toggle(fig; active=true, buttoncolor=:gray)
+    Makie.connect!(atom_labels.visible, atom_labels_toggle.active)
+    layout[toggle_cnt+=1, 1:2] = [atom_labels_toggle, Makie.Label(fig, "Show atom indices")]
+    
+    # Toggle on/off bonds
     for (i, b) in enumerate(refbonds)
         color = getindex_cyclic(seaborn_bright, i)
         active = (i == 1)
@@ -348,20 +384,8 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
         # Equivalent:
         # Makie.on(x -> segments.visible[] = x, toggle.active; update=true)
 
-        layout[i, 1:2] = [toggle, Makie.Label(fig, repr(b))]
+        layout[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, repr(b))]
     end
-
-    # Toggle atom indices
-    atom_labels_toggle = Makie.Toggle(fig; active=true, buttoncolor=:gray)
-    Makie.connect!(atom_labels.visible, atom_labels_toggle.active)
-    layout[length(refbonds)+1, 1:2] = [atom_labels_toggle, Makie.Label(fig, "Show atom indices")]
-
-    # Label lattice vectors. WGLMakie bug: `overdraw` seems broken, so this call
-    # comes last.
-    pos = [Makie.Point3f0(p/2) for p in collect(eachcol(cryst.latvecs))]
-    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
-    Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
-                glowcolor=(:white, 0.6), align=(:center, :center), transparency=true, overdraw=true)
 
     fig[1, 2] = layout
 
