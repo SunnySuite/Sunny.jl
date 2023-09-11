@@ -194,7 +194,7 @@ Plot the spin configuration defined by `sys`. Optional parameters include:
 """
 function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
                           color=:red, show_axis=false, show_cell=true,
-                          orthographic=false, ghost_radius=0, resolution=(768, 512), rescale=1.5)
+                          orthographic=false, ghost_radius=0, resolution=(768, 512), rescale=1.0)
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)
 
@@ -270,16 +270,16 @@ function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
 end
 
 """
-    view_crystal(crystal::Crystal, max_dist::Real; show_axis=false, orthographic=false)
+    view_crystal(crystal::Crystal, max_dist::Real; show_axis=true, orthographic=false)
 
 An interactive crystal viewer, with bonds up to `max_dist`.
 """
-function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis=false,
-                      orthographic=false, resolution=(768, 512), rescale=1.5)
+function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthographic=false,
+                            spherescale=0.2, resolution=(768, 512), rescale=1.0)
     fig = Makie.Figure(; resolution)
-    ax = Makie.LScene(fig[1, 1]; show_axis)
-    Makie.DataInspector(ax)
+    ax = Makie.LScene(fig[1, 1], show_axis=false)
 
+    # Main.@infiltrate
     # TODO: Why can't this move to the bottom?
     orient_camera!(ax, cryst.latvecs, 1; orthographic)
 
@@ -287,12 +287,10 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
     # set a scale for the scene in case there is only one atom).
     Makie.linesegments!(ax, cell_wireframe(cryst.latvecs); color=:teal, linewidth=rescale*1.5, inspectable=false)
 
-    # Label lattice vectors. WGLMakie bug: `overdraw` seems broken, so this call
-    # would need to come last.
-    pos = [Makie.Point3f0(p/2) for p in collect(eachcol(cryst.latvecs))]
-    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
-    Makie.text!(ax, pos; text, color=:black, fontsize=rescale*20, font=:bold, glowwidth=4.0,
-                glowcolor=(:white, 0.6), align=(:center, :center), transparency=true)
+    # Draw Cartesian axes
+    axissize = (1/3)*minimum(norm.(eachcol(cryst.latvecs)))
+    axes = Makie.arrows!(ax, Makie.Point3f0.(fill([0,0,0], 3)), axissize*Makie.Point3f0.([[1, 0, 0], [0, 1, 0], [0, 0, 1]]),
+                         arrowsize=0.5axissize, linewidth=0.15axissize, color=[:red, :orange, :yellow], inspectable=false, visible=show_axis)
 
     # Map atom classes to indices that run from 1..nclasses
     unique_classes = unique(cryst.classes)
@@ -304,7 +302,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
     max_dist = max(max_dist, ℓ0 + 1e-6)
     images = all_images_within_distance(cryst.latvecs, cryst.positions, cryst.positions; max_dist, include_zeros=true)
     atom_labels = nothing
-    for (isghost, alpha) in ((false, 1.0), (true, 0.15))
+    for (isghost, alpha) in ((true, 0.15), (false, 1.0))
         pts = Makie.Point3f0[]
         color = RGB{Float64}[]
         for i in eachindex(images), n in images[i]
@@ -319,7 +317,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
         if !isghost
             text = repr.(eachindex(pts))
             atom_labels = Makie.text!(ax, pts; text, color=:white, fontsize=rescale*14, align=(:center, :center),
-                                      transparency=true, overdraw=true, visible=true)
+                                      overdraw=true, visible=true)
         end
     end
 
@@ -366,11 +364,22 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
 
     layout = Makie.GridLayout(; tellheight=false, valign=:top)
 
-    # Toggle on/off atom indices
+    # Toggle on/off Cartesian axes
+    fontsize = rescale*16
     toggle_cnt = 0
+    axes_toggle = Makie.Toggle(fig; active=axes.visible[], buttoncolor=:gray)
+    Makie.connect!(axes.visible, axes_toggle.active)
+    axes_labels = Makie.GridLayout()
+    axes_labels[1, 1] = Makie.Label(fig, "Show axes"; fontsize)
+    axes_labels[1, 2] = Makie.Label(fig, "x"; color=RGB(0.90, 0.0, 0.0), font=:bold, fontsize)
+    axes_labels[1, 3] = Makie.Label(fig, "y"; color=RGB(0.90, 0.5, 0.0), font=:bold, fontsize)
+    axes_labels[1, 4] = Makie.Label(fig, "z"; color=RGB(0.90, 0.85, 0.0), font=:bold, fontsize)
+    layout[toggle_cnt+=1, 1:2] = [axes_toggle, axes_labels]
+
+    # Toggle on/off atom indices
     atom_labels_toggle = Makie.Toggle(fig; active=true, buttoncolor=:gray)
     Makie.connect!(atom_labels.visible, atom_labels_toggle.active)
-    layout[toggle_cnt+=1, 1:2] = [atom_labels_toggle, Makie.Label(fig, "Show atom indices")]
+    layout[toggle_cnt+=1, 1:2] = [atom_labels_toggle, Makie.Label(fig, "Show atom indices"; fontsize)]
     
     # Toggle on/off bonds
     for (i, b) in enumerate(refbonds)
@@ -384,10 +393,22 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
         # Equivalent:
         # Makie.on(x -> segments.visible[] = x, toggle.active; update=true)
 
-        layout[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, repr(b))]
+        layout[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, repr(b); fontsize)]
     end
 
     fig[1, 2] = layout
+
+
+    # Label lattice vectors. Putting this last helps with visibility (Makie
+    # v0.19)
+    pos = [(3/4)*Makie.Point3f0(p) for p in collect(eachcol(cryst.latvecs))]
+    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
+    Makie.text!(ax, pos; text, color=:black, fontsize=rescale*20, font=:bold, glowwidth=4.0,
+                glowcolor=(:white, 0.6), align=(:center, :center))
+
+    # Add inspector for pop-up information. Putting this last helps with
+    # visibility (Makie v0.19)
+    Makie.DataInspector(ax; fontsize)
 
     return fig
 end
