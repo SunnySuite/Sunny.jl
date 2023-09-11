@@ -194,7 +194,7 @@ Plot the spin configuration defined by `sys`. Optional parameters include:
 """
 function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
                           color=:red, show_axis=false, show_cell=true,
-                          orthographic=false, ghost_radius=0, resolution=(768, 512))
+                          orthographic=false, ghost_radius=0, resolution=(768, 512), rescale=1.5)
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)
 
@@ -254,16 +254,16 @@ function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray,
 
     # Show bounding box of magnetic supercell in gray
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    Makie.linesegments!(ax, cell_wireframe(supervecs); color=:gray, linewidth=1.5)
+    Makie.linesegments!(ax, cell_wireframe(supervecs); color=:gray, linewidth=rescale*1.5)
 
     if show_cell
         # Show bounding box of original crystal unit cell
-        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs); color=:teal, linewidth=1.5)
+        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs); color=:teal, linewidth=rescale*1.5)
 
         # Labels for lattice vectors
         pos = [Makie.Point3f0(p/2) for p in collect(eachcol(orig_crystal(sys).latvecs))]
         text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
-        Makie.text!(pos; text, color=:black, fontsize=16, align=(:center, :center), overdraw=true)
+        Makie.text!(pos; text, color=:black, fontsize=rescale*16, align=(:center, :center), overdraw=true)
     end
 
     return fig
@@ -275,7 +275,7 @@ end
 An interactive crystal viewer, with bonds up to `max_dist`.
 """
 function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis=false,
-                      orthographic=false, resolution=(768, 512))
+                      orthographic=false, resolution=(768, 512), rescale=1.5)
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)
     Makie.DataInspector(ax)
@@ -285,13 +285,13 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
 
     # Show cell volume and label lattice vectors (this needs to come first to
     # set a scale for the scene in case there is only one atom).
-    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs); color=:teal, linewidth=1.5, inspectable=false)
+    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs); color=:teal, linewidth=rescale*1.5, inspectable=false)
 
     # Label lattice vectors. WGLMakie bug: `overdraw` seems broken, so this call
     # would need to come last.
     pos = [Makie.Point3f0(p/2) for p in collect(eachcol(cryst.latvecs))]
     text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
-    Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
+    Makie.text!(ax, pos; text, color=:black, fontsize=rescale*20, font=:bold, glowwidth=4.0,
                 glowcolor=(:white, 0.6), align=(:center, :center), transparency=true)
 
     # Map atom classes to indices that run from 1..nclasses
@@ -318,7 +318,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
         # Atom indices
         if !isghost
             text = repr.(eachindex(pts))
-            atom_labels = Makie.text!(ax, pts; text, color=:white, fontsize=14, align=(:center, :center),
+            atom_labels = Makie.text!(ax, pts; text, color=:white, fontsize=rescale*14, align=(:center, :center),
                                       transparency=true, overdraw=true, visible=true)
         end
     end
@@ -359,7 +359,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; spherescale=0.2, show_axis
         
         # TODO: Report bug of ÷2 indexing
         inspector_label(plot, index, position) = bond_labels[index ÷ 2]
-        s = Makie.linesegments!(ax, segments; color, linewidth=3, transparency=true,
+        s = Makie.linesegments!(ax, segments; color, linewidth=rescale*3, transparency=true,
                                 inspectable=true, inspector_label, visible)
         return [s]
     end
