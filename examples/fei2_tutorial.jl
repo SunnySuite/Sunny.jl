@@ -244,13 +244,6 @@ minimize_energy!(sys_min);
 
 plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
 
-# Another way to get exactly the same ground state is by manually calling
-# `set_spiral_order_on_sublattice!` twice. Note that `sys.crystal` refers to a
-# reshaped unit cell with two sublattice indices.
-
-set_spiral_order_on_sublattice!(sys_min, 1; q=[0, -1/4, 1/4], axis=[1, 0, 0], S0=[0, 0, -1])
-set_spiral_order_on_sublattice!(sys_min, 2; q=[0, -1/4, 1/4], axis=[1, 0, 0], S0=[0, 0, 1])
-
 # ## Linear spin wave theory
 #
 # Now that we have found the ground state for a magnetic supercell, we can

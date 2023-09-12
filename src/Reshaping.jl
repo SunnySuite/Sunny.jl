@@ -6,13 +6,6 @@ Maps an existing [`System`](@ref) to a new one that has the shape and
 periodicity of a requested supercell. The columns of the ``3×3`` integer matrix
 `A` represent the supercell lattice vectors measured in units of the original
 crystal lattice vectors.
-
-The crystal unit cell may also need to be reshaped to achieve the desired
-periodicity of the requested supercell. If this is the case, the returned
-`System` object will be missing symmetry information. Consequently, certain
-operations will be unavailable for this system, e.g., setting interactions by
-symmetry propagation. In practice, one can set all interactions using the
-original system, and then reshape as a final step.
 """
 function reshape_supercell(sys::System{N}, A) where N
     # latsize for new system
