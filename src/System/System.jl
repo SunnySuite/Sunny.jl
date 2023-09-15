@@ -82,7 +82,7 @@ function Base.show(io::IO, sys::System{N}) where N
     end
     print(io,"System{$modename}[$(sys.latsize)×$(natoms(sys.crystal))]")
     if !isnothing(sys.origin)
-        print(io,"[Reshape = $(cell_dimensions(sys))]")
+        print(io,"[Reshape = $(cell_shape(sys))]")
     end
 end
 
@@ -97,7 +97,7 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
     println(io, "Lattice: $(sys.latsize)×$(natoms(sys.crystal))")
     if !isnothing(sys.origin)
-        println(io, "Reshaped cell geometry $(cell_dimensions(sys))")
+        println(io, "Reshaped cell geometry $(cell_shape(sys))")
     end
 end
 

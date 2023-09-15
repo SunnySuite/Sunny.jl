@@ -80,7 +80,7 @@ energies = collect(0:0.01:6)
 is = intensities_broadened(swt, path, energies, formula)
 
 fig = Figure()
-ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (RLU)",
+ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (r.l.u.)",
           xticks, xticklabelrotation=π/10)
 heatmap!(ax, 1:size(is, 1), energies, is, colormap=:gnuplot2)
 fig
@@ -100,7 +100,7 @@ for (i, radius) in enumerate(radii)
 end
 
 fig = Figure()
-ax = Axis(fig[1,1]; xlabel="|Q| (Å⁻¹)", ylabel="ω (meV)")
+ax = Axis(fig[1,1]; xlabel="Q (Å⁻¹)", ylabel="ω (meV)")
 heatmap!(ax, radii, energies, output, colormap=:gnuplot2)
 fig
 

@@ -12,8 +12,8 @@ function reshape_supercell(sys::System{N}, A) where N
     new_latsize = NTuple{3, Int}(gcd.(eachcol(A)))
     # Unit cell for new system, in units of original unit cell. Obtained by
     # dividing each column of A by corresponding new_latsize component.
-    new_cell_size = Int.(A / diagm(collect(new_latsize)))
-    return reshape_supercell_aux(sys, new_latsize, new_cell_size)
+    new_cell_shape = Int.(A / diagm(collect(new_latsize)))
+    return reshape_supercell_aux(sys, new_latsize, new_cell_shape)
 end
 
 
@@ -39,7 +39,7 @@ function set_interactions_from_origin!(sys::System{N}) where N
 end
 
 
-function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_size::Matrix{Int}) where N
+function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_shape::Matrix{Int}) where N
     is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
 
     # `origin` describes the unit cell of the original system. For sequential
@@ -48,10 +48,10 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
     # previous system won't affect this one.
     origin = clone_system(isnothing(sys.origin) ? sys : sys.origin)
 
-    # If `new_cell_size == I`, we can effectively restore the unit cell of
+    # If `new_cell_shape == I`, we can effectively restore the unit cell of
     # `origin`. Otherwise, we will need to reshape the crystal, map the
     # interactions, and keep a reference to the original system.
-    if new_cell_size == I
+    if new_cell_shape == I
         new_cryst = origin.crystal
 
         new_na               = natoms(new_cryst)
@@ -70,7 +70,7 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
         new_sys = System(nothing, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
                     new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
     else
-        new_cryst = reshape_crystal(origin.crystal, Mat3(new_cell_size))
+        new_cryst = reshape_crystal(origin.crystal, Mat3(new_cell_shape))
 
         new_na               = natoms(new_cryst)
         new_Ns               = zeros(Int, new_latsize..., new_na)
@@ -110,9 +110,9 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
     return new_sys
 end
 
-# Dimensions of a possibly reshaped unit cell, given in multiples of the
-# original unit cell.
-function cell_dimensions(sys)
+# Shape of a possibly reshaped unit cell, given in multiples of the original
+# unit cell.
+function cell_shape(sys)
     A = orig_crystal(sys).latvecs \ sys.crystal.latvecs
     @assert norm(A - round.(A)) < 1e-12
     return round.(Int, A)
@@ -130,7 +130,7 @@ incommensurate reshaping.
 """
 function resize_supercell(sys::System{N}, latsize::NTuple{3,Int}) where N
     # Shape of the original system, in multiples of the original unit cell.
-    sysdims = cell_dimensions(sys) * diagm(collect(sys.latsize))
+    sysdims = cell_shape(sys) * diagm(collect(sys.latsize))
     # Proposed system shape, given in fractional coordinates of original system
     # geometry
     A = sysdims \ diagm(collect(latsize))
@@ -151,5 +151,5 @@ function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
     counts = NTuple{3,Int}(counts)
     @assert all(>=(1), counts)
     # Scale each column by `counts` and reshape
-    return reshape_supercell_aux(sys, counts .* sys.latsize, Matrix(cell_dimensions(sys)))
+    return reshape_supercell_aux(sys, counts .* sys.latsize, Matrix(cell_shape(sys)))
 end
