@@ -40,8 +40,8 @@ function number_to_math_string(x::T; digits=4, atol=1e-12, max_denom=1000) where
 end
 
 # Convert atom position to string using, by default, at most 4 digits
-function atom_pos_to_string(v; digits=4, atol=1e-12)
-    v = [number_to_simple_string(x; digits, atol) for x in v]
+function fractional_vec3_to_string(v; digits=4, atol=1e-12)
+    v = number_to_math_string.(v; digits, atol, max_denom=12)
     return "["*join(v, ", ")*"]"
 end
 
@@ -68,20 +68,6 @@ function coefficient_to_math_string(x::T; digits=4, atol=1e-12) where T <: Real
         return ret
     end
 end
-
-function _add_padding_to_coefficients(xs)
-    max_len = maximum(length, xs)
-    max_xs = xs[findall(x -> length(x) == max_len, xs)]
-
-    # Define new variable, rather than modify max_len, to avoid "captured
-    # variable" which would block Julia optimizer
-    pad_len = all(x -> startswith(x, '-'), max_xs) ? max_len : max_len+1
-
-    return map(xs) do x
-        (' ' ^ (pad_len - length(x))) * x
-    end
-end
-
 
 # Converts a list of basis elements for a J matrix into a nice string summary
 function coupling_basis_strings(coup_basis; digits, atol) :: Matrix{String}
@@ -124,17 +110,15 @@ function basis_for_exchange_on_bond(cryst::Crystal, b::Bond; b_ref)
     return basis
 end
 
-function print_allowed_coupling(basis_strs; prefix, io=stdout)
-    basis_strs = _add_padding_to_coefficients(basis_strs)
+function print_formatted_matrix(elemstrs; prefix, io=stdout)
+    max_col_len = [maximum(length.(col)) for col in eachcol(elemstrs)]
+    max_col_len = repeat(max_col_len', 3)
+    padded_elems = repeat.(' ', max_col_len .- length.(elemstrs)) .* elemstrs
 
-    for i in 1:3
-        print(io, i == 1 ? prefix : repeat(' ', length(prefix)))
-        print(io, '|')
-        for j in 1:3
-            print(io, basis_strs[i, j] * " ")
-        end
-        println(io, '|')
-    end
+    spacing = repeat(' ', length(prefix) + 1)
+    println(io, """$prefix[$(join(padded_elems[1,:], " "))
+                   $spacing$(join(padded_elems[2,:], " "))
+                   $spacing$(join(padded_elems[3,:], " "))]""")
 end
 
 """
@@ -168,15 +152,15 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
             println(io, "Distance $dist_str, coordination $m_i (from atom $(b.i)) and $m_j (from atom $(b.j))")
         end
         if isempty(cryst.types[b.i]) && isempty(cryst.types[b.j])
-            println(io, "Connects $(atom_pos_to_string(ri)) to $(atom_pos_to_string(rj))")
+            println(io, "Connects $(fractional_vec3_to_string(ri)) to $(fractional_vec3_to_string(rj))")
         else
-            println(io, "Connects '$(cryst.types[b.i])' at $(atom_pos_to_string(ri)) to '$(cryst.types[b.j])' at $(atom_pos_to_string(rj))")
+            println(io, "Connects '$(cryst.types[b.i])' at $(fractional_vec3_to_string(ri)) to '$(cryst.types[b.j])' at $(fractional_vec3_to_string(rj))")
         end
     end
 
     basis = basis_for_exchange_on_bond(cryst, b; b_ref)
     basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-    print_allowed_coupling(basis_strs; prefix="Allowed exchange matrix: ", io)
+    print_formatted_matrix(basis_strs; prefix="Allowed exchange matrix:", io)
 
     antisym_basis_idxs = findall(J -> J ≈ -J', basis)
     if !isempty(antisym_basis_idxs)
@@ -222,11 +206,8 @@ function print_suggested_frame(cryst::Crystal, i::Int)
     R = suggest_frame_for_atom(cryst, i)
 
     R_strs = [number_to_math_string(x; digits=14, atol=1e-12) for x in R]
-    R_strs = _add_padding_to_coefficients(R_strs)
 
-    println("""R = [$(join(R_strs[1,:], " "))
-                    $(join(R_strs[2,:], " "))
-                    $(join(R_strs[3,:], " "))]""")
+    print_formatted_matrix(R_strs; prefix="R = ", io=stdout)
 end
 
 
@@ -244,9 +225,9 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6], io=stdout)
     printstyled(io, "Atom $i\n"; bold=true, color=:underline)
 
     if isempty(cryst.types[i])
-        println(io, "Position $(atom_pos_to_string(r)), multiplicity $m")
+        println(io, "Position $(fractional_vec3_to_string(r)), multiplicity $m")
     else
-        println(io, "Type '$(cryst.types[i])', position $(atom_pos_to_string(r)), multiplicity $m")
+        println(io, "Type '$(cryst.types[i])', position $(fractional_vec3_to_string(r)), multiplicity $m")
     end
 
     # Tolerance below which coefficients are dropped
@@ -254,12 +235,14 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6], io=stdout)
     # How many digits to use in printing coefficients
     digits = 14
 
-    # In the future, should we also rotate the g-tensor to the basis of R?
+    R = convert(Mat3, R) # Rotate to frame of R
     basis = basis_for_symmetry_allowed_couplings(cryst, Bond(i, i, [0,0,0]))
+    # TODO: `R` should be passed to `basis_for_symmetry_allowed_couplings` to
+    # get a nicer basis.
+    basis = [R * b * R' for b in basis]
     basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-    print_allowed_coupling(basis_strs; prefix="Allowed g-tensor: ", io)
+    print_formatted_matrix(basis_strs; prefix="Allowed g-tensor: ", io)
 
-    R = convert(Mat3, R)
     print_allowed_anisotropy(cryst, i; R, atol, digits, ks, io)
 end
 
@@ -322,7 +305,8 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
     println(io, join(lines, " +\n"))
 
     if R != I
-        println(io, "Transform anisotropy using rotate_operator(Λ; R) where")
-        println(io, prefix*"R = $R")
+        println(io)
+        println(io, "Modified reference frame! Transform using `rotate_operator(op; R)` where")
+        print_formatted_matrix(number_to_math_string.(R); prefix="R = ", io)
     end
 end

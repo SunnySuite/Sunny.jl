@@ -1,6 +1,3 @@
-wavevec_str(q) = "[" * join(number_to_math_string.(q), ", ") * "]"
-
-
 """
     print_wrapped_intensities(sys::System; nmax=10)
 
@@ -39,7 +36,7 @@ function print_wrapped_intensities(sys::System{N}; nmax=10) where N
         q = (Tuple(m) .- 1) ./ sys.latsize
         q = [qi > 1/2 ? qi-1 : qi for qi in q]
 
-        qstr = wavevec_str(q)
+        qstr = fractional_vec3_to_string(q)
         
         if weight[m] < 0.01
             break
@@ -129,7 +126,7 @@ function suggest_magnetic_supercell(qs; tol=1e-12, maxsize=100)
     new_qs = eachcol(new_qs)
 
     if !isapprox(qs, new_qs; atol=1e-12)
-        @info "Using adapted q values: " * join(wavevec_str.(new_qs), ", ")
+        @info "Using adapted q values: " * join(fractional_vec3_to_string.(new_qs), ", ")
     end
 
     suggest_magnetic_supercell_aux(new_qs, denoms)
@@ -235,7 +232,7 @@ function suggest_magnetic_supercell_aux(qs, denoms)
     #     end
     # end
 
-    qstrs = join(map(wavevec_str, qs), ", ")
+    qstrs = join(map(fractional_vec3_to_string, qs), ", ")
     println("""Suggested magnetic supercell in multiples of lattice vectors:
                
                    $(repr(best_A))
@@ -251,7 +248,7 @@ function check_commensurate(sys, q)
         denom = denominator(rationalize(q_reshaped[i]))
         commensurate == commensurate && iszero(mod(denom, sys.latsize[i]))            
     end
-    @warn "Wavevector $(wavevec_str(q)) is incommensurate with system."
+    @warn "Wavevector $(fractional_vec3_to_string(q)) is incommensurate with system."
 end
 
 """

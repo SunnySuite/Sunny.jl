@@ -214,6 +214,114 @@ end
     end
 end
 
+@testitem "Symmetry table" begin
+    using LinearAlgebra
+    import IOCapture
+
+    # Pyrochlore
+    cryst = Crystal(Sunny.Mat3(I), [[0, 0, 0]], 227, setting="2")
+    @test cryst.positions ≈ [
+        [0, 0, 0], [1/4, 1/4, 0], [1/2, 1/2, 0], [3/4, 3/4, 0], [1/4, 0, 1/4], [0, 1/4, 1/4], [3/4, 1/2, 1/4], [1/2, 3/4, 1/4], [1/2, 0, 1/2], [3/4, 1/4, 1/2], [0, 1/2, 1/2], [1/4, 3/4, 1/2], [3/4, 0, 3/4], [1/2, 1/4, 3/4], [1/4, 1/2, 3/4], [0, 3/4, 3/4],
+    ]
+    capt = IOCapture.capture() do
+        print_symmetry_table(cryst, 0.8)
+    end
+    @test capt.output == """
+        Atom 1
+        Position [0, 0, 0], multiplicity 16
+        Allowed g-tensor: [A B B
+                           B A B
+                           B B A]
+        Allowed anisotropy in Stevens operators:
+            c₁*(𝒪[2,-2]+2𝒪[2,-1]+2𝒪[2,1]) +
+            c₂*(-7𝒪[4,-3]-2𝒪[4,-2]+𝒪[4,-1]+𝒪[4,1]+7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
+            c₄*(-11𝒪[6,-6]-8𝒪[6,-3]+𝒪[6,-2]-8𝒪[6,-1]-8𝒪[6,1]+8𝒪[6,3]) + c₅*(𝒪[6,0]-21𝒪[6,4]) + c₆*((9/5)𝒪[6,-6]+(24/5)𝒪[6,-5]+𝒪[6,-2]+(8/5)𝒪[6,-1]+(8/5)𝒪[6,1]+(24/5)𝒪[6,5])
+        Allowed exchange matrix:[A B B
+                                 B A B
+                                 B B A]
+        
+        Sunny.Bond(1, 2, [0, 0, 0])
+        Distance 0.35355339059327, coordination 6
+        Connects [0, 0, 0] to [1/4, 1/4, 0]
+        Allowed exchange matrix:[A C -D
+                                 C A -D
+                                 D D  B]
+        Allowed DM vector: [-D D 0]
+        
+        Sunny.Bond(3, 5, [0, 0, 0])
+        Distance 0.61237243569579, coordination 12
+        Connects [1/2, 1/2, 0] to [1/4, 0, 1/4]
+        Allowed exchange matrix:[  A  C-E  D-F
+                                 C+E    B -C+E
+                                 D+F -C-E    A]
+        Allowed DM vector: [E F -E]
+        
+        Sunny.Bond(1, 3, [-1, 0, 0])
+        Distance 0.70710678118655, coordination 6
+        Connects [0, 0, 0] to [-1/2, 1/2, 0]
+        Allowed exchange matrix:[A D C
+                                 D A C
+                                 C C B]
+        
+        Sunny.Bond(1, 3, [0, 0, 0])
+        Distance 0.70710678118655, coordination 6
+        Connects [0, 0, 0] to [1/2, 1/2, 0]
+        Allowed exchange matrix:[A D C
+                                 D A C
+                                 C C B]
+        
+        Sunny.Bond(1, 2, [-1, 0, 0])
+        Distance 0.79056941504209, coordination 12
+        Connects [0, 0, 0] to [-3/4, 1/4, 0]
+        Allowed exchange matrix:[A  D -F
+                                 D  B  E
+                                 F -E  C]
+        Allowed DM vector: [E F 0]
+
+        """
+
+    capt = IOCapture.capture() do
+        print_suggested_frame(cryst, 2)
+    end
+    @test capt.output == """
+        R = [1/√2      0  1/√2
+             1/√6 -√2/√3 -1/√6
+             1/√3   1/√3 -1/√3]
+        """
+    
+    R = [1/√2 0 1/√2; 1/√6 -√2/√3 -1/√6; 1/√3 1/√3 -1/√3]
+    capt = IOCapture.capture() do
+        print_site(cryst, 2; R)
+    end
+    @test capt.output == """
+        Atom 2
+        Position [1/4, 1/4, 0], multiplicity 16
+        Allowed g-tensor: [A-B   0    0
+                             0 A-B    0
+                             0   0 A+2B]
+        Allowed anisotropy in Stevens operators:
+            c₁*𝒪[2,0] +
+            c₂*𝒪[4,-3] + c₃*𝒪[4,0] +
+            c₄*𝒪[6,-3] + c₅*𝒪[6,0] + c₆*𝒪[6,6]
+        
+        Modified reference frame! Transform using `rotate_operator(op; R)` where
+        R = [1/√2      0  1/√2
+             1/√6 -√2/√3 -1/√6
+             1/√3   1/√3 -1/√3]
+        """
+
+    capt = IOCapture.capture() do
+        cryst = Sunny.hyperkagome_crystal()
+        print_suggested_frame(cryst, 2)
+    end
+    @test capt.output == """
+        [ Info: Could not find a symmetry axis orthogonal to [1/√2, 1/√2, 0].
+        R = [1/√2 -1/√2  0
+                0     0 -1
+             1/√2  1/√2  0]
+        """
+end
+
 
 @testitem "Renormalization" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)

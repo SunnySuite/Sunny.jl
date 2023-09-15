@@ -523,10 +523,8 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
         (a, b, c, α, β, γ) = lattice_params(cryst.latvecs)
         @printf io "Lattice params a=%.4g, b=%.4g, c=%.4g, α=%.4g°, β=%.4g°, γ=%.4g°\n" a b c α β γ
     else
-        println(io, "Lattice vectors:")
-        for a in eachcol(cryst.latvecs)
-            @printf io "   [%.4g %.4g %.4g]\n" a[1] a[2] a[3]
-        end
+        elems = [number_to_simple_string(x; digits=4) for x in cryst.latvecs]
+        print_formatted_matrix(elems; prefix="Lattice vectors: ", io)
     end
 
     @printf io "Cell volume %.4g\n" cell_volume(cryst)
@@ -546,7 +544,7 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
         println(io, join(descr, ", "), ":")
 
         for i in findall(==(c), cryst.classes)
-            pos = atom_pos_to_string(cryst.positions[i])
+            pos = fractional_vec3_to_string(cryst.positions[i])
             println(io, "   $i. $pos")
         end
     end
@@ -650,6 +648,11 @@ function diamond_primitive_crystal(; a=1.0)
         [1, 1, 1]/4,
     ]
     return Crystal(latvecs, positions)
+end
+
+function pyrochlore_crystal(; a=1.0)
+    latvecs = lattice_vectors(a, a, a, 90, 90, 90)
+    return Crystal(latvecs, [[0, 0, 0]], 227, setting="2")
 end
 
 function pyrochlore_primitive_crystal(; a=1.0)
