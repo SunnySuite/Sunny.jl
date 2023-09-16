@@ -1,18 +1,33 @@
 
 """
-    reshape_supercell(sys::System, A)
+    reshape_supercell(sys::System, shape)
 
 Maps an existing [`System`](@ref) to a new one that has the shape and
 periodicity of a requested supercell. The columns of the ``3×3`` integer matrix
-`A` represent the supercell lattice vectors measured in units of the original
-crystal lattice vectors.
+`shape` represent the supercell lattice vectors measured in units of the
+original crystal lattice vectors.
 """
-function reshape_supercell(sys::System{N}, A) where N
-    # latsize for new system
-    new_latsize = NTuple{3, Int}(gcd.(eachcol(A)))
-    # Unit cell for new system, in units of original unit cell. Obtained by
-    # dividing each column of A by corresponding new_latsize component.
-    new_cell_shape = Int.(A / diagm(collect(new_latsize)))
+function reshape_supercell(sys::System{N}, shape) where N
+    orig = orig_crystal(sys)
+
+    supervecs = orig.latvecs * shape
+    check_latvecs_commensurate(orig, supervecs)
+
+    # Convert `shape` to multiples of primitive lattice vectors
+    if !isnothing(orig.prim_latvecs)
+        prim_shape = orig.prim_latvecs \ supervecs
+        prim_shape′ = round.(Int, prim_shape)
+        @assert prim_shape′ ≈ prim_shape
+        new_latsize = NTuple{3, Int}(gcd.(eachcol(prim_shape′)))
+    else
+        shape′ = round.(Int, shape)
+        @assert shape′ ≈ shape
+        new_latsize = NTuple{3, Int}(gcd.(eachcol(shape′)))
+    end
+
+    # Unit cell for new system, in units of original unit cell.
+    new_cell_shape = Mat3(shape * diagm(collect(inv.(new_latsize))))
+
     return reshape_supercell_aux(sys, new_latsize, new_cell_shape)
 end
 
@@ -39,7 +54,7 @@ function set_interactions_from_origin!(sys::System{N}) where N
 end
 
 
-function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_shape::Matrix{Int}) where N
+function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_shape::Mat3) where N
     is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
 
     # `origin` describes the unit cell of the original system. For sequential
@@ -51,7 +66,7 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
     # If `new_cell_shape == I`, we can effectively restore the unit cell of
     # `origin`. Otherwise, we will need to reshape the crystal, map the
     # interactions, and keep a reference to the original system.
-    if new_cell_shape == I
+    if new_cell_shape ≈ I
         new_cryst = origin.crystal
 
         new_na               = natoms(new_cryst)
@@ -70,7 +85,7 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
         new_sys = System(nothing, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
                     new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
     else
-        new_cryst = reshape_crystal(origin.crystal, Mat3(new_cell_shape))
+        new_cryst = reshape_crystal(origin.crystal, new_cell_shape)
 
         new_na               = natoms(new_cryst)
         new_Ns               = zeros(Int, new_latsize..., new_na)
@@ -113,9 +128,7 @@ end
 # Shape of a possibly reshaped unit cell, given in multiples of the original
 # unit cell.
 function cell_shape(sys)
-    A = orig_crystal(sys).latvecs \ sys.crystal.latvecs
-    @assert norm(A - round.(A)) < 1e-12
-    return round.(Int, A)
+    return orig_crystal(sys).latvecs \ sys.crystal.latvecs
 end
 
 """
@@ -151,5 +164,5 @@ function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
     counts = NTuple{3,Int}(counts)
     @assert all(>=(1), counts)
     # Scale each column by `counts` and reshape
-    return reshape_supercell_aux(sys, counts .* sys.latsize, Matrix(cell_shape(sys)))
+    return reshape_supercell_aux(sys, counts .* sys.latsize, cell_shape(sys))
 end

@@ -69,7 +69,8 @@ cryst = Crystal(latvecs, positions, 227; setting="1")
 See also [`lattice_vectors`](@ref).
 """
 struct Crystal
-    latvecs        :: Mat3                                 # Lattice vectors as columns (conventional)
+    origin         :: Union{Nothing, Crystal}              # Origin crystal (invariant under `subcrystal` and reshaping)
+    latvecs        :: Mat3                                 # Lattice vectors as columns
     prim_latvecs   :: Mat3                                 # Primitive lattice vectors
     recipvecs      :: Mat3                                 # Reciprocal lattice vectors (conventional)
     positions      :: Vector{Vec3}                         # Positions in fractional coords
@@ -145,15 +146,6 @@ Volume of the crystal unit cell.
 """
 cell_volume(cryst::Crystal) = abs(det(cryst.latvecs))
 
-"""
-    reciprocal_lattice_vectors(cryst::Crystal)
-
-Returns the ``3×3`` matrix ``(𝐛₁,𝐛₂,𝐛₃)`` with columns ``𝐛ᵢ`` as reciprocal
-lattice vectors. These are defined to satisfy ``𝐛ᵢ⋅𝐚ⱼ = 2πδᵢⱼ``, where
-``(𝐚₁,𝐚₂,𝐚₃)`` are the lattice vectors used to construct `cryst`.
-"""
-reciprocal_lattice_vectors(cryst::Crystal) = cryst.recipvecs
-
 
 function spacegroup_name(hall_number::Int)
     # String representation of space group
@@ -228,7 +220,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
 
     sitesyms = SiteSymmetry.(d.site_symmetry_symbols, multiplicities, d.wyckoffs)
 
-    ret = Crystal(latvecs, d.primitive_lattice, recipvecs, positions, types, classes, sitesyms, symops, spacegroup, symprec)
+    ret = Crystal(nothing, latvecs, d.primitive_lattice, recipvecs, positions, types, classes, sitesyms, symops, spacegroup, symprec)
     validate(ret)
     return ret
 end
@@ -392,7 +384,7 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     else
         prim_latvecs = latvecs
         recipvecs = 2π*Mat3(inv(latvecs)')
-        Crystal(latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
+        Crystal(nothing, latvecs, prim_latvecs, recipvecs, all_positions, all_types, classes, nothing, symops, spacegroup, symprec)
     end
     sort_sites!(ret)
     validate(ret)
@@ -400,36 +392,81 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
 end
 
 
-function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
-    # TODO: support resizing to multiples of the primitive cell?
-    @assert all(isinteger, new_cell_size)
+"""
+    primitive_cell_shape(cryst::Crystal)
 
-    # Return the original crystal if no resizing needed
-    new_cell_size == I && return cryst
+Returns the shape of the primitive cell as a 3×3 matrix, in fractional
+coordinates of the conventional lattice vectors. May be useful for constructing
+inputs to [`reshape_supercell`](@ref).
+
+# Examples
+```julia
+# Valid if `cryst` has not been reshaped
+@assert cryst.prim_latvecs ≈ cryst.latvecs * primitive_cell_shape(cryst)
+```
+"""
+function primitive_cell_shape(cryst::Crystal)
+    origin = @something cryst.origin cryst
+    if isnothing(origin.prim_latvecs)
+        error("Primitive lattice vectors not available.")
+    end
+    return origin.latvecs \ origin.prim_latvecs
+end
+
+
+function check_latvecs_commensurate(origin, new_latvecs)
+    # Work in multiples of the primitive lattice vectors, if they exist.
+    prim_latvecs = @something origin.prim_latvecs origin.latvecs
+    cell_shape = prim_latvecs \ new_latvecs
+
+    # Each of these components must be integer
+    if !(round.(cell_shape) ≈ cell_shape)
+        if issomething(origin.prim_latvecs)
+            error("Cell shape must be integer multiples of primitive lattice vectors. Calculated $cell_shape.")
+        else
+            error("Cell shape must be a 3×3 matrix of integers. Received $cell_shape.")
+        end
+    end
+end
+
+function reshape_crystal(cryst::Crystal, new_cell_shape::Mat3)
+    # Find the original crystal (unreshaped, prior to subcrystal calls, etc.).
+    # The field `origin.latvecs` gives meaning to the "fractional" coordinate
+    # system of `new_cell_shape`. Note that `cryst` may be formed as a
+    # subcrystal of `origin`. For reshaping purposes, therefore, we must use
+    # `cryst.positions` and not `origin.positions`, etc.
+    origin = @something cryst.origin cryst
 
     # Lattice vectors of the new unit cell in global coordinates
-    new_latvecs = cryst.latvecs * new_cell_size
+    new_latvecs = origin.latvecs * new_cell_shape
 
-    # Reciprocal lattice vectors of the new unit cell
-    new_recipvecs = 2π * Mat3(inv(new_latvecs)')
-
-    # These don't change because both are in global coordinates
-    prim_latvecs = cryst.prim_latvecs
-
-    # This matrix defines a mapping from fractional coordinates in the original
-    # unit cell to fractional coordinates in the new unit cell
-    B = inv(new_cell_size)
+    # Return original crystal if possible
+    new_latvecs ≈ cryst.latvecs && return cryst
 
     # Symmetry precision needs to be rescaled for the new unit cell. Ideally we
     # would have three separate rescalings (one per lattice vector), but we're
-    # forced to pick just one.
-    new_symprec = cryst.symprec * cbrt(abs(det(B)))
+    # forced to pick just one. Scale according to volume change.
+    new_symprec = origin.symprec / cbrt(abs(det(new_cell_shape)))
 
-    # In original fractional coordinates, find a bounding box that completely
-    # contains the new unit cell. Not sure how much shifting is needed here;
-    # pick ±2 to be on the safe side.
-    nmin = minimum.(eachrow(new_cell_size)) .- 2
-    nmax = maximum.(eachrow(new_cell_size)) .+ 2
+    # Check that desired lattice vectors are commensurate with origin cell
+    check_latvecs_commensurate(origin, new_latvecs)
+
+    # This matrix defines a mapping from fractional coordinates `x` in `cryst`
+    # to fractional coordinates `y` in the new unit cell.
+    B = new_latvecs \ cryst.latvecs
+
+    # Our goal is to loop over `cryst` cells (n1, n2, n3) and make sure we
+    # completely cover `new_latvecs` cell, {0 ≤ y₁ ≤ 1, 0 ≤ y₂ ≤ 1, 0 ≤ y₃ ≤ 1}.
+    # Due to the linear relationship `y = Bx`, the required range of (n1, n2,
+    # n3) is associated with inv(B). For example, `inv(B) * [1, 1, 1]` should be
+    # covered in the space of `x` sampling.
+    #
+    # It is not clear to me what the right formula is, and the
+    # `sum.(eachrow(...))` formula below is a conservative, heuristic guess.
+    # Fortunately, it is well protected against mistakes via the check on atom
+    # count. Any mistake will yield an assertion error: "Missing atoms in
+    # reshaped unit cell".
+    nmax = sum.(eachrow(abs.(inv(B)))) .+ 1
 
     new_positions = Vec3[]
     new_types     = String[]
@@ -437,19 +474,17 @@ function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
     new_sitesyms  = isnothing(cryst.sitesyms) ? nothing : SiteSymmetry[]
 
     for i in 1:natoms(cryst)
-        for n1 in nmin[1]:nmax[1], n2 in nmin[2]:nmax[2], n3 in nmin[3]:nmax[3]
+        for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2], n3 in -nmax[3]:nmax[3]
             x = cryst.positions[i] + Vec3(n1, n2, n3)
-            Bx = B*x
+            y = B*x
 
-            # Check whether position x (in original fractional coordinates) is
-            # inside the new unit cell. The position in the new fractional
-            # coordinates is B*x. The mathematical test is whether each
-            # component of B*x is within the range [0,1). This can be checked
-            # using the condition `wrap_to_unit_cell(B*x) == B*x`. This function
-            # accounts for finite "symmetry precision" ϵ in the new unit cell by
-            # wrapping components of `B*x` to the range [-ϵ,1-ϵ).
-            if wrap_to_unit_cell(Bx; symprec=new_symprec) ≈ Bx
-                push!(new_positions, B*x)
+            # Check whether the new position y (in fractional coordinates
+            # associated with `new_latvecs`) is within the new unit cell. Is
+            # each component of y within the range [0,1)? The check
+            # `wrap_to_unit_cell(y) == y` accounts for finite precision ϵ by
+            # wrapping components of `y` to the range [-ϵ,1-ϵ).
+            if wrap_to_unit_cell(y; symprec=new_symprec) ≈ y
+                push!(new_positions, y)
                 push!(new_types, cryst.types[i])
                 push!(new_classes, cryst.classes[i])
                 !isnothing(cryst.sitesyms) && push!(new_sitesyms, cryst.sitesyms[i])
@@ -457,16 +492,18 @@ function reshape_crystal(cryst::Crystal, new_cell_size::Mat3)
         end
     end
 
-    # Check that we have exactly the right number of atoms
-    N1, N2, N3 = eachcol(new_cell_size)
-    @assert length(new_positions) == abs((N1×N2)⋅N3) * natoms(cryst)
+    # Check that we have the right number of atoms
+    @assert abs(det(B)) * length(new_positions) ≈ natoms(cryst) "Missing atoms in reshaped unit cell. Please report this bug!"
+
+    # Reciprocal lattice vectors of the new unit cell
+    new_recipvecs = 2π * Mat3(inv(new_latvecs)')
 
     # Create an empty list of symops as a marker that this information has been
     # lost with the resizing procedure.
     new_symops = SymOp[]
 
-    return Crystal(new_latvecs, prim_latvecs, new_recipvecs, new_positions, new_types, new_classes,
-                   new_sitesyms, new_symops, cryst.spacegroup, new_symprec)
+    return Crystal(origin, new_latvecs, origin.prim_latvecs, new_recipvecs, new_positions, new_types, new_classes,
+                   new_sitesyms, new_symops, origin.spacegroup, new_symprec)
 end
 
 
@@ -493,6 +530,7 @@ function subcrystal(cryst::Crystal, types::Vararg{String, N}) where N
 end
 
 function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
+    origin = @something cryst.origin cryst
     for c in classes
         if !(c in cryst.classes)
             error("Class '$c' is not present in crystal.")
@@ -509,7 +547,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
         @info "Atoms have been renumbered in subcrystal."
     end
 
-    ret = Crystal(cryst.latvecs, cryst.prim_latvecs, cryst.recipvecs, new_positions, new_types,
+    ret = Crystal(origin, cryst.latvecs, cryst.prim_latvecs, cryst.recipvecs, new_positions, new_types,
                   new_classes, new_sitesyms, cryst.symops, cryst.spacegroup, cryst.symprec)
     return ret
 end
