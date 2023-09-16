@@ -30,18 +30,17 @@ view_crystal(cryst, 8.0)
 # explicit `seed`, the system's random number generator will give repeatable
 # results.
 
-latsize = (1,1,1)
+latsize = (2, 2, 2)
 seed = 0
 S = 3/2
 J = 7.5413*meV_per_K # (~ 0.65 meV)
 sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], :dipole; seed=0)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 
-# The ground state is non-frustrated. Each spin should be exactly anti-aligned
-# with its 4 nearest-neighbors, such that every bond contributes an energy of
-# $-JS^2$. This gives an energy per site of $-2JS^2$. In this calculation, a
-# factor of 1/2 is necessary to avoid double-counting the bonds. Given the small
-# magnetic supercell (which includes only one unit cell), direct energy
+# In the ground state, each spin is exactly anti-aligned with its 4
+# nearest-neighbors. Because every bond contributes an energy of $-JS^2$, the
+# energy per site is $-2JS^2$. In this calculation, a factor of 1/2 avoids
+# double-counting the bonds. Due to lack of frustration, direct energy
 # minimization is successful in finding the ground state.
 
 randomize_spins!(sys)
@@ -54,25 +53,32 @@ energy_per_site = energy(sys) / length(eachsite(sys))
 # global rotation of dipoles is arbitrary.
 
 s0 = sys.dipoles[1,1,1,1]
-plot_spins(sys; ghost_radius=12, color=[s'*s0 for s in sys.dipoles])
+plot_spins(sys; color=[s'*s0 for s in sys.dipoles])
 
-# We can now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and
+# For numerical efficiency, it will be helpful to work with the smallest
+# possible magnetic supercell. This happens to be the primitive cell, which
+# contains just two sites.
+
+sys_prim = reshape_supercell(sys, primitive_cell_shape(cryst))
+energy_per_site = energy(sys_prim) / length(eachsite(sys_prim))
+@assert energy_per_site ≈ -2J*S^2
+
+# Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and an
 # [`intensity_formula`](@ref). The mode `:perp` contracts with a dipole factor
-# to return the unpolarized intensity. We will also apply broadening with the
-# [`lorentzian`](@ref) kernel, and will dampen intensities using the
-# [`FormFactor`](@ref) for Cobalt(2+).
+# to return the unpolarized intensity. The formula also employs
+# [`lorentzian`](@ref) broadening. The isotropic [`FormFactor`](@ref) for
+# Cobalt(2+) dampens intensities at large ``𝐪``.
 
-swt = SpinWaveTheory(sys)
+swt = SpinWaveTheory(sys_prim)
 η = 0.4 # (meV)
 kernel = lorentzian(η)
 formfactors = [FormFactor("Co2")]
 formula = intensity_formula(swt, :perp; kernel, formfactors)
 
-# First, we consider the "single crystal" results. Use
-# [`reciprocal_space_path`](@ref) to construct a path that connects
-# high-symmetry points in reciprocal space. The [`intensities_broadened`](@ref)
-# function collects intensities along this path for the given set of energy
-# values.
+# For the "single crystal" result, we may use [`reciprocal_space_path`](@ref) to
+# construct a path that connects high-symmetry points in reciprocal space. The
+# [`intensities_broadened`](@ref) function collects intensities along this path
+# for the given set of energy values.
 
 qpoints = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
 path, xticks = reciprocal_space_path(cryst, qpoints, 50)

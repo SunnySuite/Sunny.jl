@@ -246,7 +246,7 @@ function check_commensurate(sys, q)
     commensurate = true
     for i = 1:3
         denom = denominator(rationalize(q_reshaped[i]))
-        commensurate == commensurate && iszero(mod(denom, sys.latsize[i]))            
+        commensurate = commensurate && iszero(mod(denom, sys.latsize[i]))            
     end
     @warn "Wavevector $(fractional_vec3_to_string(q)) is incommensurate with system."
 end

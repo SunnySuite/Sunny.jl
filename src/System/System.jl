@@ -28,11 +28,17 @@ generation.
 All spins are initially polarized in the ``z``-direction.
 """
 function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
-                    units=Units.meV, seed=nothing)
+                units=Units.meV, seed=nothing)
     if !(mode == :SUN || mode == :dipole)
         error("Mode must be `:SUN` or `:dipole`.")
     end
 
+    # The lattice vectors of `crystal` must be conventional (`crystal` cannot be
+    # reshaped).
+    if !isnothing(crystal.origin)
+        @assert crystal.latvecs == crystal.origin.latvecs
+    end
+    
     na = natoms(crystal)
 
     infos = propagate_site_info(crystal, infos)
@@ -82,7 +88,8 @@ function Base.show(io::IO, sys::System{N}) where N
     end
     print(io,"System{$modename}[$(sys.latsize)×$(natoms(sys.crystal))]")
     if !isnothing(sys.origin)
-        print(io,"[Reshape = $(cell_shape(sys))]")
+        shape = number_to_math_string.(cell_shape(sys))
+        print_formatted_matrix(shape; prefix="Reshaped cell: ", io)
     end
 end
 
@@ -97,7 +104,8 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
     println(io, "Lattice: $(sys.latsize)×$(natoms(sys.crystal))")
     if !isnothing(sys.origin)
-        println(io, "Reshaped cell geometry $(cell_shape(sys))")
+        shape = number_to_math_string.(cell_shape(sys))
+        print_formatted_matrix(shape; prefix="Reshaped cell: ", io)
     end
 end
 
@@ -198,7 +206,8 @@ magnetic_moment(sys::System, site) = sys.units.μB * sys.gs[site] * sys.dipoles[
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
 
-# The original crystal for a system, invariant under reshaping
+# The original crystal for a system. It is guaranteed to be un-reshaped, and its
+# lattice vectors define the "conventional" unit cell.
 orig_crystal(sys) = something(sys.origin, sys).crystal
 
 # Position of a site in fractional coordinates of the original crystal
