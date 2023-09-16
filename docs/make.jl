@@ -49,9 +49,11 @@ Documenter.makedocs(;
         "Parallel Computation" => "parallelism.md",
         "Version History" => "versions.md",
     ],
-    format = Documenter.HTML(
+    format = Documenter.HTML(;
         prettyurls = get(ENV, "CI", nothing) == "true",
-        ansicolor = true
+        ansicolor = true,
+        size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
+        size_threshold      = 300*2024, # 300KB
     ),
     draft
 )
