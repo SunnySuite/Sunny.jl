@@ -98,60 +98,7 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
     println(io, "Lattice: $(sys.latsize)×$(natoms(sys.crystal))")
     if !isnothing(sys.origin)
-        #println(io, "Reshaped cell geometry $(cell_dimensions(sys))")
-        is_enlarged = abs(det(sys.crystal.latvecs)) > abs(det(sys.origin.crystal.latvecs))
-        println(io)
-        println(io, "Unit cell has been $(is_enlarged ? "enlarged" : "reshaped") from original such that:")
-        printstyled(io, "  [Original lattice vectors]";bold=true,color=:red)
-        print(io," * $(cell_dimensions(sys)) = ")
-        printstyled(io,"[Reshaped lattice vectors]\n";bold=true,color=:blue)
-        println(io, "where")
-        printstyled(io, "  [Original] ";bold=true,color=:red)
-        show(io, sys.origin.crystal)
-        printstyled(io, "\n  [Reshaped] ";bold=true,color=:blue)
-        show(io, sys.crystal)
-        println(io)
-    else
-        show(io, sys.crystal)
-    end
-    println(io)
-
-    if is_homogeneous(sys)
-        ints = interactions_homog(sys)
-        if isempty(ints)
-            println(io, "No interactions")
-        else
-            print(io, "Homogeneous interactions by atom:\n")
-            for (i,int) in enumerate(ints)
-                if sys.crystal.types[i] != ""
-                    print(io,"  $i. '$(sys.crystal.types[i])' atom has ")
-                else
-                    print(io,"  Atom $i has ")
-                end
-                show(io,int)
-                println(io)
-            end
-        end
-    else
-        print(io, "Inhomogeneous interactions (may differ at every site)")
-    end
-
-    if !isnothing(sys.ewald)
-        println(io, "Long range dipole-dipole interactions enabled!")
-    end
-
-    if !iszero(sys.extfield)
-        if allequal(sys.extfield)
-            println(io, "Uniform magnetic field B = $(sys.extfield[1]) applied")
-        else
-            mean_field = sum(sys.extfield) ./ length(sys.extfield)
-            rms_field = sqrt.(sum([(B .- mean_field) .^ 2 for B in sys.extfield]) ./ length(sys.extfield))
-
-            mean_field_str = @sprintf "[%.4g %.4g %.4g]" mean_field[1] mean_field[2] mean_field[3]
-            rms_field_str = @sprintf "[%.4g %.4g %.4g]" rms_field[1] rms_field[2] rms_field[3]
-
-            println(io, "Spatially periodic magnetic field B = (mean $mean_field_str ± $rms_field_str RMS) applied")
-        end
+        println(io, "Reshaped cell geometry $(cell_dimensions(sys))")
     end
 end
 
