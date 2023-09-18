@@ -52,6 +52,7 @@ function Trace(obs::ObservableInfo)
     Trace(SVector{length(indices), Int64}(indices))
 end
 
+
 function DipoleFactor(obs::ObservableInfo; spin_components = [:Sx,:Sy,:Sz])
     # Ensure that the observables themselves are present
     for si in spin_components
@@ -104,6 +105,8 @@ function contract(dipole_elements, k::Vec3, dipoleinfo::DipoleFactor)
     # Note, can just take the real part since:
     #   (1) diagonal elements are real by construction, and 
     #   (2) pairs of off diagonal contributions have the form x*conj(y) + conj(x)*y = 2real(x*conj(y)).
+
+    # The index order here is fixed (for speed) by a unit test in test/test_contraction.jl
     return  dip_factor[1,1]*real(dipole_elements[1]) +
            2dip_factor[1,2]*real(dipole_elements[2]) +
             dip_factor[2,2]*real(dipole_elements[3]) +

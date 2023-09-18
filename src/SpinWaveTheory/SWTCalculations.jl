@@ -732,7 +732,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                 corrs
             end
 
-            intensity[band] = f(q_absolute, disp[band], corrs)
+            intensity[band] = f(q_absolute, disp[band], corrs[corr_ix])
         end
 
         # Return the result of the diagonalization in an appropriate
