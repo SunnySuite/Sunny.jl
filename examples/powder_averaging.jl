@@ -46,8 +46,7 @@ set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-energy_per_site = energy(sys) / length(eachsite(sys))
-@assert energy_per_site ≈ -2J*S^2
+@assert energy_per_site(sys) ≈ -2J*S^2
 
 # Plotting the spins confirms the expected Néel order. Note that the overall,
 # global rotation of dipoles is arbitrary.
@@ -56,12 +55,16 @@ s0 = sys.dipoles[1,1,1,1]
 plot_spins(sys; color=[s'*s0 for s in sys.dipoles])
 
 # For numerical efficiency, it will be helpful to work with the smallest
-# possible magnetic supercell. This happens to be the primitive cell, which
-# contains just two sites.
+# possible magnetic supercell. Here, it is the primitive unit cell, which
+# contains just two sites. The variable `shape` below defines the primitive
+# lattice vectors `cryst.prim_latvecs` in units of the conventional lattice
+# vectors. This result is used as input to [`reshape_supercell`](@ref). The
+# energy per site remains the same, which verifies that the magnetic supercell
+# is valid.
 
-sys_prim = reshape_supercell(sys, primitive_cell_shape(cryst))
-energy_per_site = energy(sys_prim) / length(eachsite(sys_prim))
-@assert energy_per_site ≈ -2J*S^2
+shape = cryst.latvecs \ cryst.prim_latvecs
+sys_prim = reshape_supercell(sys, shape)
+@assert energy_per_site(sys_prim) ≈ -2J*S^2
 
 # Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and an
 # [`intensity_formula`](@ref). The mode `:perp` contracts with a dipole factor

@@ -9,7 +9,7 @@ mutable struct WangLandau{N, PR}
 
     function WangLandau(; sys::System{N}, bin_size, bounds, propose::PR, ln_f=1.0, max_sweeps_relax=100) where {N, PR}
         drive_system_to_energy_bounds!(sys, bounds, propose, max_sweeps_relax)
-        E = energy(sys)/length(eachsite(sys))
+        E = energy_per_site(sys)
         return new{N, PR}(
             sys,
             Histogram(; bin_size),
@@ -21,19 +21,19 @@ end
 
 # use MCMC sampling to get system into bounded energy range
 function drive_system_to_energy_bounds!(sys::System{N}, bounds, propose::PR, max_sweeps) where {N, PR}
-    nsites = length(eachsite(sys))
 
-    E0 = energy(sys)
+    E0 = energy_per_site(sys)
 
-    inbounds(E0/nsites, bounds) && return
+    inbounds(E0, bounds) && return
 
-    kT = E0/nsites < bounds[1] ? Inf : 0.0
+    kT = E0 < bounds[1] ? Inf : 0.0
 
     sampler = LocalSampler(; kT, nsweeps=0.01, propose)
     for _ in 1:max_sweeps
         step!(sys, sampler)
-        E = E0+sampler.ΔE
-        inbounds(E/nsites, bounds) && return
+        nsites = length(eachsite(sys))
+        E = E0 + sampler.ΔE/nsites
+        inbounds(E, bounds) && return
     end
 
     if iszero(kT)

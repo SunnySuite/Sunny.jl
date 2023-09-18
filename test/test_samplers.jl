@@ -54,12 +54,11 @@
     end
 
     function calc_mean_energy(sys, langevin, dur)
-        L = size(sys.dipoles)[1]
         numsteps = round(Int, dur/langevin.Δt)
         Es = zeros(numsteps)
         for i in 1:numsteps
             step!(sys, langevin)
-            Es[i] = energy(sys) / L
+            Es[i] = energy_per_site(sys)
         end
         sum(Es)/length(Es) 
     end
