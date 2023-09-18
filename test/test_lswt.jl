@@ -393,7 +393,6 @@ end
     
     @test isapprox(disp[:], reverse(SpinW_energies); atol=1e-3)
     
-    intensities_reshaped = reinterpret(reshape, ComplexF64, intensities)[:]
     intensities_reshaped = zeros(ComplexF64,size(SpinW_intensities))
     for i = 1:(length(SpinW_intensities)÷9)
         intensities_reshaped[9*(i-1) .+ (1:9)] .= intensities[i][:]
