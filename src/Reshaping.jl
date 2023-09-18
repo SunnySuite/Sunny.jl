@@ -132,36 +132,32 @@ function cell_shape(sys)
 end
 
 """
-    resize_supercell(sys::System{N}, latsize) where N
+    resize_supercell(sys::System{N}, latsize::NTuple{3,Int}) where N
 
-Creates a [`System`](@ref) identical to `sys` but enlarged to a given number of
-unit cells in each lattice vector direction.
+Creates a [`System`](@ref) with a given number of conventional unit cells in
+each lattice vector direction. Interactions and other settings will be inherited
+from `sys`.
 
-An error will be thrown if `sys` is incommensurate with `latsize`. Use
-[`reshape_supercell`](@ref) instead to reduce the volume, or to perform an
-incommensurate reshaping.
+Convenience function for:
+```julia
+reshape_supercell(sys, [latsize[1] 0 0; 0 latsize[2] 0; 0 0 latsize[3]])
+```
+
+See also [`reshape_supercell`](@ref).
 """
 function resize_supercell(sys::System{N}, latsize::NTuple{3,Int}) where N
-    # Shape of the original system, in multiples of the original unit cell.
-    sysdims = cell_shape(sys) * diagm(collect(sys.latsize))
-    # Proposed system shape, given in fractional coordinates of original system
-    # geometry
-    A = sysdims \ diagm(collect(latsize))
-    # All matrix elements must be integer
-    if norm(A - round.(A)) > 1e-12
-        error("Incommensurate system size.")
-    end
     return reshape_supercell(sys, diagm(collect(latsize)))
 end
 
 """
-    repeat_periodically(sys::System{N}, counts) where N
+    repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
 
 Creates a [`System`](@ref) identical to `sys` but repeated a given number of
 times in each dimension, specified by the tuple `counts`.
+
+See also [`reshape_supercell`](@ref).
 """
 function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
-    counts = NTuple{3,Int}(counts)
     @assert all(>=(1), counts)
     # Scale each column by `counts` and reshape
     return reshape_supercell_aux(sys, counts .* sys.latsize, cell_shape(sys))
