@@ -248,7 +248,9 @@ function check_commensurate(sys, q)
         denom = denominator(rationalize(q_reshaped[i]))
         commensurate = commensurate && iszero(mod(denom, sys.latsize[i]))            
     end
-    @warn "Wavevector $(fractional_vec3_to_string(q)) is incommensurate with system."
+    if !commensurate
+        @warn "Wavevector $(fractional_vec3_to_string(q)) is incommensurate with system."
+    end
 end
 
 """
@@ -297,6 +299,10 @@ sublattice of the reshaped crystal, not the original one. Inspect `sys.crystal`
 to determine if the crystal has been reshaped.
 """
 function set_spiral_order_on_sublattice!(sys, i; q, axis, S0)
+    if orig_crystal(sys) != sys.crystal
+        error("Cannot operate on a reshaped crystal. Atom indices may have changed.")
+    end
+
     check_commensurate(sys, q)
     q_absolute = orig_crystal(sys).recipvecs * q
 
