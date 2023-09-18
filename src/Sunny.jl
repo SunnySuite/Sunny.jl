@@ -63,7 +63,7 @@ include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, Site, eachsite, position_to_site, global_position, magnetic_moment, 
-    set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, energy,
+    set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, energy, energy_per_site,
     spin_operators, stevens_operators, large_S_spin_operators, large_S_stevens_operators,
     set_external_field!, set_onsite_coupling!, set_exchange!, dmvec, enable_dipole_dipole!,
     to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,

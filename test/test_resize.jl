@@ -40,14 +40,14 @@
     newsys1 = reshape_supercell(sys, A1)
     newsys2 = reshape_supercell(sys, A2)
 
-    @test energy(sys) / prod(sys.latsize) ≈ 2.55
+    @test energy_per_site(sys) ≈ 2.55
     
     newsys = reshape_supercell(sys, A1)
-    @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
+    @test energy_per_site(newsys) ≈ 2.55
     newsys = reshape_supercell(sys, A2)
-    @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
+    @test energy_per_site(newsys) ≈ 2.55
     newsys = reshape_supercell(sys, A1)
-    @test energy(newsys) / prod(newsys.latsize) ≈ 2.55
+    @test energy_per_site(newsys) ≈ 2.55
 end
 
 @testitem "Equivalent reshaping" begin
@@ -198,8 +198,8 @@ end
     sys_supercell = reshape_supercell(sys, [2 0 1; -1 1 0; -1 -1 1])
     sys2 = resize_supercell(sys_supercell, (4,4,4))
 
-    E0 = energy(sys) / length(sys.dipoles)
-    E1 = energy(sys_supercell) / length(sys_supercell.dipoles)
-    E2 = energy(sys2) / length(sys2.dipoles)
+    E0 = energy_per_site(sys)
+    E1 = energy_per_site(sys_supercell)
+    E2 = energy_per_site(sys2)
     @test E0 ≈ E1 ≈ E2
 end

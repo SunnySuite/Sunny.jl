@@ -179,11 +179,19 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     return ΔE
 end
 
+"""
+    energy_per_site(sys::System)
+
+The total system [`energy`](@ref) divided by the number of sites.
+"""
+function energy_per_site(sys::System{N}) where N
+    return energy(sys) / length(eachsite(sys))
+end
 
 """
     energy(sys::System)
 
-Computes the total system energy.
+The total system energy. See also [`energy_per_site`](@ref).
 """
 function energy(sys::System{N}) where N
     (; crystal, latsize, dipoles, extfield, ewald) = sys
