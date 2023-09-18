@@ -1,3 +1,13 @@
+# Version 0.5.5
+
+* [`reshape_supercell`](@ref) now allows reshaping to multiples of the primitive
+  unit cell, which can speed up certain calculations. This is illustrated in the
+  CoRh$_2$O$_4$ powder averaging tutorial.
+* [`resize_supercell`](@ref) now allows all resizings.
+* Added [`energy_per_site`](@ref).
+* [`set_spiral_order_on_sublattice!`](@ref) cannot work on reshaped systems.
+* Various bug fixes.
+
 # Version 0.5.4
 
 * Various enhancements to [`view_crystal`](@ref). Atoms are now labeled by
