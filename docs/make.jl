@@ -24,6 +24,7 @@ example_doc_paths = [joinpath("examples", "$name.md") for name in example_names]
 curdir = pwd()
 cd(joinpath(@__DIR__, "..", "SunnyTutorials"))
 run(`$(Git.git()) fetch --all`)
+run(`$(Git.git()) checkout -b main origin/main`)
 run(`$(Git.git()) pull`)
 cd(curdir)
 
