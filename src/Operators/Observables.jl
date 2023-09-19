@@ -28,7 +28,7 @@ function Base.show(io::IO, ::MIME"text/plain", obs::ObservableInfo)
 end
 
 
-function parse_observables(N;observables = nothing,correlations = nothing)
+function parse_observables(N; observables, correlations)
     # Set up correlation functions (which matrix elements αβ to save from 𝒮^{αβ})
     if isnothing(observables)
         # Default observables are spin x,y,z
@@ -53,7 +53,7 @@ function parse_observables(N;observables = nothing,correlations = nothing)
                 observables = OrderedDict(observables)
             else
                 dict = OrderedDict{Symbol,LinearMap}()
-                for i = 1:length(observables)
+                for i = eachindex(observables)
                     dict[Symbol('A' + i - 1)] = observables[i]
                 end
                 observables = dict

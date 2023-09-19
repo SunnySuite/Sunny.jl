@@ -34,7 +34,7 @@ struct SpinWaveTheory
     observables :: ObservableInfo
 end
 
-function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6, observables = nothing, correlations = nothing) where N
+function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6, observables=nothing, correlations=nothing) where N
     if !isnothing(sys.ewald)
         error("SpinWaveTheory does not yet support long-range dipole-dipole interactions.")
     end
@@ -45,15 +45,15 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Flo
     sys = reshape_supercell_aux(sys, (1,1,1), cellsize_mag)
 
     # Rotate local operators to quantization axis
-    obs, data = if sys.mode == :SUN
-        obs = parse_observables(N;observables,correlations)
-        obs, swt_data_sun(sys,obs)
+    if sys.mode == :SUN
+        obs = parse_observables(N; observables, correlations)
+        data = swt_data_sun(sys,obs)
     else
         if !isnothing(observables) || !isnothing(correlations)
             error("Only the default spin operators are supported in dipole mode")
         end
-        obs = parse_observables(N;observables = nothing,correlations = nothing)
-        obs, swt_data_dipole(sys)
+        obs = parse_observables(N; observables, correlations=nothing)
+        data = swt_data_dipole(sys)
     end
 
     return SpinWaveTheory(sys, data, energy_ϵ, energy_tol, obs)
