@@ -2,6 +2,7 @@
 
 import Literate
 import Documenter
+import Git
 
 # Make exports visible to Documenter.@autodocs
 using Sunny
@@ -20,6 +21,11 @@ example_doc_paths = [joinpath("examples", "$name.md") for name in example_names]
 
 
 # Copy over prebuilt contributed examples so Documenter can find them
+curdir = pwd()
+cd(joinpath(@__DIR__, "..", "SunnyTutorials"))
+run(`$(Git.git()) pull`)
+cd(curdir)
+
 contrib_names = ["08_Kagome_AFM", "15_Ba3NbFe3Si2O14"]
 contrib_doc_paths = [joinpath("contributed_examples", "$name.md") for name in contrib_names]
 
