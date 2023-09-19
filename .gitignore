@@ -1,5 +1,6 @@
 docs/build/
 docs/src/examples/
+docs/src/contributed_examples/
 Manifest.toml
 profile.pb.gz
 .DS_Store

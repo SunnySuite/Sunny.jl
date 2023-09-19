@@ -1,4 +1,4 @@
-## Ba<sub>3</sub>NbFe<sub>3</sub>Si<sub>2</sub>O<sub>14</sub>
+# # Ba<sub>3</sub>NbFe<sub>3</sub>Si<sub>2</sub>O<sub>14</sub>
 #
 # - Sunny port of the SpinW tutorial authored by Toth et al.,
 # https://spinw.org/tutorials/15tutorial.

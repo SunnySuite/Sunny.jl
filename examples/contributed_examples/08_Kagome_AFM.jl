@@ -1,16 +1,16 @@
-## Kagome Antiferromagnet
+# # Kagome Antiferromagnet
 #
 # - Sunny port of the SpinW tutorial authored by Bjorn Fak and Sandor Toth,
 # https://spinw.org/tutorials/08tutorial.
 # - Authors: Harry Lane
-# - Goal: Calculate the linear spin wave theory spectrum for the $\sqrt{3}
-# \times \sqrt{3}$ order of a Kagome antiferromagnet.
+# - Goal: Calculate the linear spin wave theory spectrum for the ``\sqrt{3}
+# \times \sqrt{3}`` order of a Kagome antiferromagnet.
 
 # Load Packages 
 
 using Sunny, GLMakie
 
-# Build a [`Crystal`](@ref) with $P\overline{3}$ space group and Cr$^{+}$ ions
+# Build a [`Crystal`](@ref) with ``P\overline{3}`` space group and Cr⁺ ions
 # on each site.
 
 a = b = 6.0 # (Å)
@@ -35,7 +35,7 @@ set_spiral_order_on_sublattice!(sys, 2; q, axis, S0=[cos(0),sin(0),0])
 set_spiral_order_on_sublattice!(sys, 3; q, axis, S0=[cos(2π/3),sin(2π/3),0])
 plot_spins(sys; ghost_radius=30, orthographic=true)
 
-# Check energy. Each site participates in 4 bonds with energy J*S^2*cos(2π/3).
+# Check energy. Each site participates in 4 bonds with energy ``JS^2\cos(2π/3)``.
 # Factor of 1/2 avoids double counting.
 
 @assert energy_per_site(sys) ≈ (4/2)*J*S^2*cos(2π/3)

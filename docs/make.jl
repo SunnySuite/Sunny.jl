@@ -9,13 +9,26 @@ using Sunny
 # Importing these activates package extensions
 import GLMakie, WriteVTK
 
-draft = false # set `true` to disable cell evaluation
+draft = true # set `true` to disable cell evaluation
 
+# Core, CI-built examples
 example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging",
                  "fei2_classical", "ising2d", "one_dim_chain"] # "binning_tutorial"
 example_sources = [joinpath(@__DIR__, "..", "examples", "$name.jl") for name in example_names]
 example_destination = joinpath(@__DIR__, "src", "examples")
 example_doc_paths = [joinpath("examples", "$name.md") for name in example_names]
+
+
+# Copy over prebuilt contributed examples so Documenter can find them
+contrib_names = ["08_Kagome_AFM", "15_Ba3NbFe3Si2O14"]
+contrib_doc_paths = [joinpath("contributed_examples", "$name.md") for name in contrib_names]
+
+contrib_src_dir = joinpath(@__DIR__, "..", "SunnyTutorials", "docstash")
+contrib_dst_dir = joinpath(@__DIR__, "src", "contributed_examples")
+src_files = readdir(contrib_src_dir)
+for file in src_files
+    cp(joinpath(contrib_src_dir, file), joinpath(contrib_dst_dir, file); force=true)
+end
 
 
 # Run Literate on each `../examples/name.jl` and output `src/examples/name.md`
@@ -42,6 +55,7 @@ Documenter.makedocs(;
     pages = [
         "Overview" => "index.md",
         "Examples" => example_doc_paths,
+        "Contributed Examples" => contrib_doc_paths,
         "Library API" => "library.md",
         "Structure Factor Calculations" => "structure-factor.md",
         "Single-Ion Anisotropy" => "anisotropy.md",
@@ -52,8 +66,8 @@ Documenter.makedocs(;
     format = Documenter.HTML(;
         prettyurls = get(ENV, "CI", nothing) == "true",
         ansicolor = true,
-        size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
-        size_threshold      = 300*2024, # 300KB
+        # size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
+        # size_threshold      = 300*2024, # 300KB
     ),
     draft
 )

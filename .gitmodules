@@ -1,0 +1,6 @@
+[submodule "Sunny.jl"]
+	path = Sunny.jl
+	url = https://github.com/SunnySuite/Sunny.jl
+[submodule "SunnyTutorials"]
+	path = SunnyTutorials
+	url = https://github.com/SunnySuite/SunnyTutorials
