@@ -38,6 +38,7 @@ include("Operators/Rotation.jl")
 include("Operators/Stevens.jl")
 include("Operators/TensorOperators.jl")
 include("Operators/Symbolic.jl")
+include("Operators/Observables.jl")
 export spin_matrices, rotate_operator, print_stevens_expansion
 
 include("Symmetry/LatticeUtils.jl")
