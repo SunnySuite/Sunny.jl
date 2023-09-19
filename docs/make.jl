@@ -23,6 +23,7 @@ example_doc_paths = [joinpath("examples", "$name.md") for name in example_names]
 # Copy over prebuilt contributed examples so Documenter can find them
 curdir = pwd()
 cd(joinpath(@__DIR__, "..", "SunnyTutorials"))
+run(`$(Git.git()) fetch --all`)
 run(`$(Git.git()) pull`)
 cd(curdir)
 
