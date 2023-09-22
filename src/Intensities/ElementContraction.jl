@@ -15,7 +15,7 @@ struct Element <: Contraction{ComplexF64}
     index :: Int64
 end
 
-struct FullTensor{NCorr,NSquare,NObs} <: Contraction{SMatrix{NObs, NObs, ComplexF64}}
+struct FullTensor{NCorr,NSquare,NObs,NObs2} <: Contraction{SMatrix{NObs, NObs, ComplexF64, NObs2}}
     indices :: SVector{NSquare, Int64}
 end
 
@@ -79,7 +79,7 @@ function FullTensor(obs::ObservableInfo)
       tensor_elements[i,j] = (ki,kj) # Required to put matrix in correct order
     end
     indices = lookup_correlations(obs, collect(tensor_elements); err_msg = αβ -> "Missing correlation $(αβ). All correlations are required to return the full tensor.")
-    FullTensor{num_correlations(obs),length(indices),num_observables(obs)}(indices)
+    FullTensor{num_correlations(obs),length(indices),n_obs,n_obs*n_obs}(indices)
 end
 
 ################################################################################
@@ -118,7 +118,7 @@ end
 
 contract(specific_element, _, ::Element) = only(specific_element)
 
-function contract(all_elems, _, full::FullTensor{NCorr,NSquare,NObs}) where {NCorr, NSquare,NObs}
+function contract(all_elems, _, full::FullTensor{NCorr,NSquare,NObs,NObs2}) where {NCorr, NSquare,NObs,NObs2}
     # This Hermitian takes only the upper triangular part of its argument
     # and ensures that Sαβ has exactly the correct symmetry
     Hermitian(reshape(all_elems[full.indices],NObs,NObs))
