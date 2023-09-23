@@ -395,8 +395,7 @@ function mk_bogoliubov!(L)
             eigval_check = eigen(Hmat).values
             @assert all(>(1e-12), real(eigval_check)) "Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
         end
-
-
+  
         K = if mode_fast
           cholesky!(Hmat).U # Clobbers Hmat
         else
@@ -552,7 +551,7 @@ function dssf(swt::SpinWaveTheory, qs)
         band_structure = formula.calc_intensity(swt,q)
         for band = 1:nmodes
             disp[band,qidx] = band_structure.dispersion[band]
-            Sαβs[:,:,band,qidx] .= reshape(band_structure.intensity[band],3,3)
+            Sαβs[:,:,band,qidx] .= band_structure.intensity[band]
         end
     end
 
@@ -622,7 +621,7 @@ The integral of a properly normalized kernel function over all `Δω` is one.
 function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
                            return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast=false,
                            formfactors=nothing)
-    (; sys, data) = swt
+    (; sys, data, observables) = swt
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     S = (Ns-1) / 2
     nmodes = num_bands(swt)
@@ -690,46 +689,50 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             phase = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
             Avec_pref[i] = sqrt_Nm_inv * phase
 
-             # TODO: move form factor into `f`, then delete this rescaling
+            # TODO: move form factor into `f`, then delete this rescaling
             Avec_pref[i] *= compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
         end
 
         # Fill `intensity` array
         for band = 1:nmodes
             v = Vmat[:, band]
-            Avec = zeros(ComplexF64, 3)
-            if sys.mode == :SUN
-                (; dipole_operators) = data
+            corrs = if sys.mode == :SUN
+                Avec = zeros(ComplexF64, num_observables(observables))
+                (; observable_operators) = data
                 for i = 1:Nm
-                    @views tS_μ = dipole_operators[:, :, :, i]
-                    for μ = 1:3
+                    for μ = 1:num_observables(observables)
+                        @views O = observable_operators[:, :, μ, i]
                         for α = 2:Ns
-                            Avec[μ] += Avec_pref[i] * (tS_μ[α, 1, μ] * v[(i-1)*(Ns-1)+α-1+nmodes] + tS_μ[1, α, μ] * v[(i-1)*(Ns-1)+α-1])
+                            Avec[μ] += Avec_pref[i] * (O[α, 1] * v[(i-1)*(Ns-1)+α-1+nmodes] + O[1, α] * v[(i-1)*(Ns-1)+α-1])
                         end
                     end
                 end
+                corrs = Vector{ComplexF64}(undef,num_correlations(observables))
+                for (ci,i) in observables.correlations
+                    (α,β) = ci.I
+                    corrs[i] = Avec[α] * conj(Avec[β])
+                end
+                corrs
             elseif sys.mode == :dipole
+                Avec = zeros(ComplexF64, 3)
                 (; R_mat) = data
                 for i = 1:Nm
                     Vtmp = [v[i+nmodes] + v[i], im * (v[i+nmodes] - v[i]), 0.0]
                     Avec += Avec_pref[i] * sqrt_halfS * (R_mat[i] * Vtmp)
                 end
+
+                @assert observables.observable_ixs[:Sx] == 1
+                @assert observables.observable_ixs[:Sy] == 2
+                @assert observables.observable_ixs[:Sz] == 3
+                corrs = Vector{ComplexF64}(undef,num_correlations(observables))
+                for (ci,i) in observables.correlations
+                    (α,β) = ci.I
+                    corrs[i] = Avec[α] * conj(Avec[β])
+                end
+                corrs
             end
 
-            # DD: Generalize this based on list of arbitrary operators, optimize
-            # out symmetry, etc.
-            Sαβ = Matrix{ComplexF64}(undef,3,3)
-            Sαβ[1,1] = real(Avec[1] * conj(Avec[1]))
-            Sαβ[1,2] = Avec[1] * conj(Avec[2])
-            Sαβ[1,3] = Avec[1] * conj(Avec[3])
-            Sαβ[2,2] = real(Avec[2] * conj(Avec[2]))
-            Sαβ[2,3] = Avec[2] * conj(Avec[3])
-            Sαβ[3,3] = real(Avec[3] * conj(Avec[3]))
-            Sαβ[2,1] = conj(Sαβ[1,2]) 
-            Sαβ[3,1] = conj(Sαβ[1,3])
-            Sαβ[3,2] = conj(Sαβ[2,3])
-
-            intensity[band] = f(q_absolute, disp[band], Sαβ[corr_ix])
+            intensity[band] = f(q_absolute, disp[band], corrs[corr_ix])
         end
 
         # Return the result of the diagonalization in an appropriate

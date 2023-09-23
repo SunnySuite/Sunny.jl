@@ -56,7 +56,7 @@
 
 
     # Test diagonal elements are approximately real (at one wave vector)
-    diag_elems = [(α,α) for α in keys(sc.observable_ixs)]
+    diag_elems = [(α,α) for α in keys(sc.observables.observable_ixs)]
     formula_imaginary_parts = intensity_formula(sc,diag_elems) do k,ω,corr
         sum(abs.(imag.(corr)))
     end

@@ -52,18 +52,18 @@ ex2 = J2 * [1.0 0.0 0.0;
             0.0 1.0 0.0;
             0.0 0.0 Δ]
 set_exchange!(sys, ex1, Bond(1, 1, [1, 0, 0]))
-set_exchange!(sys, ex2, Bond(1, 1, [1, 2, 0]));
+set_exchange!(sys, ex2, Bond(1, 1, [1, 2, 0]))
 
 # Next we add the external field,
 
 h = 15.5
-field = set_external_field!(sys, [0.0 0.0 h]);
+field = set_external_field!(sys, [0.0 0.0 h])
 
 # and finally the single-ion anisotropy,
 
 D = 19.0
 Sz = spin_operators(sys, 1)[3]
-set_onsite_coupling!(sys, D*Sz^2, 1);
+set_onsite_coupling!(sys, D*Sz^2, 1)
 
 # Initialize system to an infinite temperature (fully randomized) initial
 # condition.
@@ -87,7 +87,7 @@ randomize_spins!(sys)
             ## accuracy isn't critical.
 kT = 0      # Target equilibrium temperature (meV)
 λ = 0.1     # Magnitude of coupling to thermal bath (dimensionless)
-integrator = Langevin(Δt; kT, λ);
+integrator = Langevin(Δt; kT, λ)
 
 # Finally we run the dynamics. We will record the state of the system at three
 # different times during the quenching process by copying the `coherents` field
