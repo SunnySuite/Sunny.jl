@@ -137,7 +137,6 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
     if b.i == b.j && iszero(b.n)
         print_site(cryst, b.i; io)
     else
-
         ri = cryst.positions[b.i]
         rj = cryst.positions[b.j] + b.n
 
@@ -156,16 +155,16 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
         else
             println(io, "Connects '$(cryst.types[b.i])' at $(fractional_vec3_to_string(ri)) to '$(cryst.types[b.j])' at $(fractional_vec3_to_string(rj))")
         end
-    end
 
-    basis = basis_for_exchange_on_bond(cryst, b; b_ref)
-    basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-    print_formatted_matrix(basis_strs; prefix="Allowed exchange matrix:", io)
+        basis = basis_for_exchange_on_bond(cryst, b; b_ref)
+        basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
+        print_formatted_matrix(basis_strs; prefix="Allowed exchange matrix:", io)
 
-    antisym_basis_idxs = findall(J -> J ≈ -J', basis)
-    if !isempty(antisym_basis_idxs)
-        antisym_basis_strs = coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits, atol)
-        println(io, "Allowed DM vector: [$(antisym_basis_strs[2,3]) $(antisym_basis_strs[3,1]) $(antisym_basis_strs[1,2])]")
+        antisym_basis_idxs = findall(J -> J ≈ -J', basis)
+        if !isempty(antisym_basis_idxs)
+            antisym_basis_strs = coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits, atol)
+            println(io, "Allowed DM vector: [$(antisym_basis_strs[2,3]) $(antisym_basis_strs[3,1]) $(antisym_basis_strs[1,2])]")
+        end
     end
 
     println(io)
