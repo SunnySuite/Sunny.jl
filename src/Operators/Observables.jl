@@ -27,7 +27,8 @@ function Base.show(io::IO, ::MIME"text/plain", obs::ObservableInfo)
     printstyled(io,"")
 end
 
-
+# TODO: Add/unify docs about allowed list of observables. See comment here:
+# https://github.com/SunnySuite/Sunny.jl/pull/167#issuecomment-1724751213
 function parse_observables(N; observables, correlations)
     # Set up correlation functions (which matrix elements αβ to save from 𝒮^{αβ})
     if isnothing(observables)
