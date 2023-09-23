@@ -365,21 +365,11 @@ end
     set_exchange!(sys, 0.017, Bond(1, 1, [0,0,1]))   # J4
     set_exchange!(sys, 0.24,  Bond(3, 2, [1,1,1]))   # J5
     
-    # TODO: Use helper function to initialize single-Q state
-    function R(site)
-        R1=[0.5 0.5im 0; -0.5im 0.5 0; 0 0 0]
-        R2=[0 0 0; 0 0 0; 0 0 1]
-        return exp((site-1)*2π*im/7)*R1 + exp(-(site-1)*2π*im/7)*conj(R1) + R2
+    for i in 1:3
+        θ = -2π*(i-1)/3
+        set_spiral_order_on_sublattice!(sys, i; q=[0,0,1/7], axis=[0,0,1], S0=[cos(θ),sin(θ),0])
     end
-    S1=[1.0, 0, 0]*(5/2)
-    S2=[-0.5, -sqrt(3)/2, 0]*(5/2)
-    S3=[-0.5, sqrt(3)/2, 0]*(5/2)
-    for site in 1:7
-        set_dipole!(sys, R(site)*S1, (1,1,site,1))
-        set_dipole!(sys, R(site)*S2, (1,1,site,2))
-        set_dipole!(sys, R(site)*S3, (1,1,site,3))
-    end
-    
+
     swt = SpinWaveTheory(sys)
     formula = intensity_formula(swt, :full; kernel=delta_function_kernel)
     q = [0.41568,0.56382,0.76414]
