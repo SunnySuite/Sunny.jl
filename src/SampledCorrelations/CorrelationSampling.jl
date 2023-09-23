@@ -49,12 +49,12 @@ function trajectory!(buf, sys, Δt, nsnaps, ops; measperiod = 1, apply_g = true)
 end
 
 function new_sample!(sc::SampledCorrelations, sys::System; processtraj! = no_processing)
-    (; Δt, samplebuf, measperiod, apply_g) = sc
+    (; Δt, samplebuf, measperiod, apply_g, observables) = sc
     nsnaps = size(samplebuf, 6)
 
     @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `SampledCorrelations`"
 
-    trajectory!(samplebuf, sys, Δt, nsnaps, sc.observables; measperiod = measperiod, apply_g = apply_g)
+    trajectory!(samplebuf, sys, Δt, nsnaps, observables.observables; measperiod = measperiod, apply_g = apply_g)
 
     processtraj!(sc)
 
@@ -81,7 +81,7 @@ function no_processing(::SampledCorrelations)
 end
 
 function accum_sample!(sc::SampledCorrelations)
-    (; data, variance, correlations, samplebuf, nsamples, fft!) = sc
+    (; data, variance, observables, samplebuf, nsamples, fft!) = sc
     natoms = size(samplebuf)[5]
 
     fft! * samplebuf # Apply pre-planned and pre-normalized FFT
@@ -91,7 +91,7 @@ function accum_sample!(sc::SampledCorrelations)
     # allocations here. The contents of the loop contains no allocations. There
     # does not seem to be a big performance penalty associated with these
     # allocations.
-    for j in 1:natoms, i in 1:natoms, (ci, c) in correlations  
+    for j in 1:natoms, i in 1:natoms, (ci, c) in observables.correlations  
         α, β = ci.I
 
         sample_α = @view samplebuf[α,:,:,:,i,:]

@@ -6,7 +6,8 @@
 * [`resize_supercell`](@ref) now allows all resizings.
 * Added [`energy_per_site`](@ref).
 * [`set_spiral_order_on_sublattice!`](@ref) cannot work on reshaped systems.
-* Various bug fixes.
+* Various bug fixes. In particular, an `intensity_formula` with `:full` will now
+  uniformly calculate a `3x3` matrix of complex numbers.
 
 # Version 0.5.4
 

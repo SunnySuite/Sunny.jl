@@ -73,7 +73,11 @@
     @test isapprox(is,is_golden;atol = 1e-12)
     @test isapprox(counts,counts_golden;atol = 1e-12)
 
-    formula = intensity_formula(sc, :full; kT = 4.7, formfactors = [FormFactor("Fe2")])
+    # Test a custom formula returning arbitrarily ordered correlations
+    import StaticArrays # Required in order to support zero(return_type)
+    sx, sy, sz = :Sx, :Sy, :Sz
+    golden_correlations = [(sz,sz),(sy,sz),(sx,sz),(sy,sy),(sx,sy),(sx,sx)]
+    formula = intensity_formula((k,ω,c) -> c,sc,golden_correlations; kT = 4.7, formfactors = [FormFactor("Fe2")], return_type = StaticArrays.SVector{6,ComplexF64})
     is, counts = intensities_binned(sc, params, formula)
 
 
@@ -96,6 +100,15 @@
 
     @test isapprox(is_flat,is_golden;atol = 1e-12)
     @test all(counts .== counts_golden)
+
+    # Test all components using :full
+    formula = intensity_formula(sc, :full; kT = 4.7, formfactors = [FormFactor("Fe2")])
+    is, counts = intensities_binned(sc, params, formula)
+
+    is2_golden = ComplexF64[0.20692326628022634 + 0.0im -0.1729875452235063 - 0.08960830762607443im -0.1321381427681472 + 0.27533711824849455im; -0.1729875452235063 + 0.08960830762607443im 0.18342229117272907 + 0.0im -0.008767695763007954 - 0.28740396674625im; -0.1321381427681472 - 0.27533711824849455im -0.008767695763007954 + 0.28740396674625im 0.4507517165000102 + 0.0im]
+
+    @test isapprox(is[2],is2_golden;atol = 1e-12)
+    @test all(counts .== 1.)
 
     # TODO: Test AABB
 end

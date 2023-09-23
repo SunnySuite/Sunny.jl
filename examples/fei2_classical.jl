@@ -70,6 +70,7 @@ set_exchange!(sys, [J′2apm 0.0 0.0; 0.0 J′2apm 0.0; 0.0 0.0 J′2azz], Bond(
 D = 2.165#hide
 S = spin_operators(sys, 1)#hide
 set_onsite_coupling!(sys, -D*S[3]^2, 1)#hide
+sys
 
 # ## Finding a ground state
 
