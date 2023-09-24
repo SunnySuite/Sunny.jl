@@ -111,7 +111,7 @@ end
 # `plotting2d.jl` from the Sunny [`examples/extra`
 # directory](https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra).
 
-include(joinpath(pkgdir(Sunny), "examples", "extra", "plotting2d.jl"))
+include(pkgdir(Sunny, "examples", "extra", "plotting2d.jl"))
 
 function sun_berry_curvature(z₁, z₂, z₃)
     z₁, z₂, z₃ = normalize.((z₁, z₂, z₃))

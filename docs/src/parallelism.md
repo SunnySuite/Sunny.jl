@@ -1,4 +1,4 @@
-# Parallelizing Classical Structure Factor Calculations
+# Parallelizing Calculations
 
 Calculating structure factors with classical dynamics is computationally
 expensive, and Sunny does not currently parallelize these calculations at a
@@ -13,13 +13,13 @@ copied and pasted into your preferred Julia development environment.
 
 ## Review of the serial workflow
 
-The serial approach to calculating a structure factor, covered in 
-[Structure Factors with Classical Dynamics](@ref), involves thermalizing a spin `System`
-and then calling [`add_sample!`](@ref). `add_sample!` uses the state of the
-`System` as an initial condition for the calculation of a dynamical
-trajectory. The correlations of the trajectory are calculated and accumulated
-into a running average of the ``𝒮(𝐪,ω)``. This sequence is repeated to
-generate additional samples.
+The serial approach to calculating a structure factor, covered in [FeI₂ at
+Finite Temperature](@ref), involves thermalizing a spin `System` and then
+calling [`add_sample!`](@ref). `add_sample!` uses the state of the `System` as
+an initial condition for the calculation of a dynamical trajectory. The
+correlations of the trajectory are calculated and accumulated into a running
+average of the ``𝒮(𝐪,ω)``. This sequence is repeated to generate additional
+samples.
 
 To illustrate, we'll set up a a simple model: a spin-1 antiferromagnet on an FCC
 crystal. 

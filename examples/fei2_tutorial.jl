@@ -1,11 +1,11 @@
-# # Case Study: FeI$_{2}$
+# # Case Study: FeI₂
 # 
-# FeI$_2$ is an effective spin-1 material with strong single-ion anisotropy.
+# FeI₂ is an effective spin-1 material with strong single-ion anisotropy.
 # Quadrupolar fluctuations give rise to a single-ion bound state that cannot be
 # described by a dipole-only model. This tutorial illustrates how to use the
 # linear spin wave theory of SU(3) coherent states (i.e. 2-flavor bosons) to
-# model the magnetic behavior in FeI$_2$. The original study was performed in
-# [Bai et al., Nature Physics 17, 467–472
+# model the magnetic behavior in FeI₂. The original study was performed in [Bai
+# et al., Nature Physics 17, 467–472
 # (2021)](https://doi.org/10.1038/s41567-020-01110-1).
 #
 # ```@raw html
@@ -69,9 +69,9 @@ FeI2 = Crystal(latvecs, positions; types)
 
 cryst = subcrystal(FeI2, "Fe")
 
-# Observe that `cryst` retains the spacegroup symmetry of the full FeI$_2$
-# crystal. This information will be used, for example, to propagate exchange
-# interactions between symmetry-equivalent bonds.
+# Observe that `cryst` retains the spacegroup symmetry of the full FeI₂ crystal.
+# This information will be used, for example, to propagate exchange interactions
+# between symmetry-equivalent bonds.
 #
 # In a running Julia environment, the crystal can be viewed interactively using
 # [`view_crystal`](@ref).
@@ -98,7 +98,7 @@ print_symmetry_table(cryst, 8.0)
 # significant if the exchange tensor contains antisymmetric
 # Dzyaloshinskii–Moriya (DM) interactions.
 # 
-# In the case of FeI$_2$, `Bond(1, 1, [1,0,0])` is one of the 6 nearest-neighbor
+# In the case of FeI₂, `Bond(1, 1, [1,0,0])` is one of the 6 nearest-neighbor
 # Fe-Fe bonds on a triangular lattice layer, and `Bond(1, 1, [0,0,1])` is an
 # Fe-Fe bond between layers. 
 
@@ -118,7 +118,7 @@ sys = System(cryst, (4, 4, 4), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
 
 # Next we will use [`set_exchange!`](@ref) to assign interaction to bonds. Sunny
 # will automatically propagate each interaction to all symmetry-equivalent bonds
-# in the unit cell. The FeI$_2$ interactions below follow [Bai et
+# in the unit cell. The FeI₂ interactions below follow [Bai et
 # al](https://doi.org/10.1038/s41567-020-01110-1).
 
 J1pm   = -0.236 
@@ -207,7 +207,7 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 print_wrapped_intensities(sys)
 
 # The result will likely be approximately consistent with the known zero-field
-# energy-minimizing magnetic structure of FeI$_2$, which is single-$Q$ (two-up,
+# energy-minimizing magnetic structure of FeI₂, which is single-$Q$ (two-up,
 # two-down antiferromagnetic order). Mathematically, spontaneous symmetry
 # breaking should select one of $±Q = [0, -1/4, 1/4]$, $[1/4, 0, 1/4]$, or
 # $[-1/4,1/4,1/4]$, associated with the three-fold rotational symmetry of the
@@ -215,20 +215,20 @@ print_wrapped_intensities(sys)
 # competing "domains" associated with the three possible orientations of the
 # ground state.
 
-# If the desired ground state is already known, as with FeI$_2$, it could be
+# If the desired ground state is already known, as with FeI₂, it could be
 # entered by hand using [`set_dipole!`](@ref). Alternatively, in the case of
-# FeI$_2$, we could repeatedly employ the above randomization and minimization
+# FeI₂, we could repeatedly employ the above randomization and minimization
 # procedure until a defect-free configuration is found. Some systems will have
 # more complicated ground states, which can be much more challenging to find.
 # For this, Sunny provides experimental support for powerful simulated annealing
 # via [parallel tempering](https://en.wikipedia.org/wiki/Parallel_tempering),
 # but that is outside the scope of this tutorial.
 
-# Here, let's break the three-fold symmetry of FeI$_2$ by hand. Given one or
-# more desired $Q$ modes, Sunny can suggest a magnetic supercell with
-# appropriate periodicity. Let's arbitrarily select one of the three possible
-# ordering wavevectors, $Q = [0, -1/4, 1/4]$. Sunny suggests a corresponding
-# magnetic supercell in units of the crystal lattice vectors.
+# Here, let's break the three-fold symmetry of FeI₂ by hand. Given one or more
+# desired $Q$ modes, Sunny can suggest a magnetic supercell with appropriate
+# periodicity. Let's arbitrarily select one of the three possible ordering
+# wavevectors, $Q = [0, -1/4, 1/4]$. Sunny suggests a corresponding magnetic
+# supercell in units of the crystal lattice vectors.
 
 suggest_magnetic_supercell([[0, -1/4, 1/4]])
 
@@ -309,7 +309,7 @@ broadened_formula = intensity_formula(swt, :perp; kernel=lorentzian(γ))
 energies = collect(0:0.01:10)  # 0 < ω < 10 (meV).
 is1 = intensities_broadened(swt, path, energies, broadened_formula);
 
-# A real FeI$_2$ sample will exhibit competing magnetic domains associated with
+# A real FeI₂ sample will exhibit competing magnetic domains associated with
 # spontaneous symmetry breaking of the 6-fold rotational symmetry of the
 # triangular lattice. Note that the wavevectors $𝐪$ and $-𝐪$ are equivalent in
 # the structure factor, which leaves three distinct domain orientations, which
@@ -340,7 +340,7 @@ fig
 # To get this agreement, the use of SU(3) coherent states is essential. In other
 # words, we needed a theory of multi-flavored bosons. The lower band has large
 # quadrupolar character, and arises from the strong easy-axis anisotropy of
-# FeI$_2$. By setting `mode = :SUN`, the calculation captures this coupled
+# FeI₂. By setting `mode = :SUN`, the calculation captures this coupled
 # dipole-quadrupole dynamics.
 #
 # An interesting exercise is to repeat the same study, but using `mode =
@@ -367,8 +367,8 @@ disp, is = dssf(swt, path);
 # The full SU(_N_) coherent state dynamics, with appropriate quantum correction
 # factors, can be useful to model finite temperature scattering data. In
 # particular, it captures certain anharmonic effects due to thermal
-# fluctuations. This is the subject of our [Structure Factors with Classical
-# Dynamics](@ref) tutorial.
+# fluctuations. This is the subject of our [FeI₂ at Finite Temperature](@ref)
+# tutorial.
 #
 # The classical dynamics is also a good starting point to study non-equilibrium
 # phenomena. Empirical noise and damping terms can be used to model [coupling to

@@ -47,7 +47,7 @@ Calculating this structure factor involves several steps, with various possible
 settings. Sunny provides a number of tools to facilitate this calculation and to
 extract information from the results. These tools are briefly outlined below.
 Please see the Examples for a "real life" use case. Detailed function
-information is available in the Library API.
+information is available in the [Library API](@ref).
 
 ## Estimating stucture factors with classical dynamics
 
