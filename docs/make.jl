@@ -14,7 +14,9 @@ scripts_path = joinpath(build_path, "assets", "scripts")
 mkpath.([notebooks_path, scripts_path])
 
 
-function build_examples(example_sources)
+function build_examples(example_sources, destdir)
+    assetsdir = joinpath(fill("..", length(splitpath(destdir)))..., "assets")
+
     # Transform each Literate source file to Markdown for subsequent processing by
     # Documenter.
     for source in example_sources
@@ -26,12 +28,12 @@ function build_examples(example_sources)
         # which is set up by `Documenter.deploydocs`.
         function preprocess(str)
             """
-            # Download this example as [Jupyter notebook](../assets/notebooks/$name.ipynb) or [Julia script](../assets/scripts/$name.jl).
+            # Download this example as [Jupyter notebook]($assetsdir/notebooks/$name.ipynb) or [Julia script]($assetsdir/scripts/$name.jl).
 
             """ * str
         end
-        # Write to `src/examples/$name.md`
-        dest = joinpath(@__DIR__, "src", "examples")
+        # Write to `src/$destpath/$name.md`
+        dest = joinpath(@__DIR__, "src", destdir)
         Literate.markdown(source, dest; preprocess, credit=false)
     end
 
@@ -48,15 +50,22 @@ function build_examples(example_sources)
         # Build julia scripts
         Literate.script(source, scripts_path; credit=false)
     end
+
+    # Return paths `$destpath/$name.md` for each new Markdown file (relative to
+    # `src/`)
+    return map(example_sources) do source
+        name = splitext(basename(source))[1]
+        joinpath(destdir, "$name.md")
+    end
 end
 
 example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging", "fei2_classical", "ising2d"]
 example_sources = [pkgdir(Sunny, "examples", "$name.jl") for name in example_names]
-build_examples(example_sources)
+example_mds = build_examples(example_sources, "examples")
 
 spinw_names = ["08_Kagome_AFM", "15_Ba3NbFe3Si2O14"]
 spinw_sources = [pkgdir(Sunny, "examples", "spinw_ports", "$name.jl") for name in spinw_names]
-build_examples(spinw_sources)
+spinw_mds = build_examples(spinw_sources, joinpath("examples", "spinw"))
 
 
 # Build docs as HTML, including the `examples/name.md` markdown built above
@@ -66,8 +75,8 @@ Documenter.makedocs(;
     pages = [
         "index.md",
         "Examples" => [
-            [joinpath("examples", "$name.md") for name in example_names]...,
-            "SpinW ports" => [joinpath("examples", "$name.md") for name in spinw_names],
+            example_mds...,
+            "SpinW ports" => spinw_mds,
             "Advanced" => [
                 "parallelism.md",                        
                 "writevtk.md",
