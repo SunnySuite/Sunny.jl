@@ -2,7 +2,7 @@
 # 
 # This tutorial illustrates simulation of the classical 2D Ising model.
 
-using Sunny, Plots
+using Sunny, GLMakie
 
 # Sunny expects a 3D [`Crystal`](@ref) unit cell. To model a square lattice, we
 # create an orthogonal unit cell where the $z$-spacing is distinct from the $x$
