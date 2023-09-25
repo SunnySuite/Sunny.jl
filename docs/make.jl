@@ -1,13 +1,9 @@
 # julia --project=@. make.jl
 
-import Literate
-import Documenter
-# Make exports visible to Documenter.@autodocs
-using Sunny
-# Importing these activates package extensions
-import GLMakie, WriteVTK
+import Literate, Documenter
+using Sunny, GLMakie, WriteVTK # Load packages to enable Documenter references
 
-draft = true # set `true` to disable cell evaluation
+draft = false # set `true` to disable cell evaluation
 
 # Remove existing Documenter `build` directory
 build_path = joinpath(@__DIR__, "build")
@@ -43,9 +39,6 @@ function build_examples(example_sources)
     # will be stored in the `assets/` directory of the hosted docs.
     for source in example_sources
         function preprocess(str)
-            # Notebooks don't need to escape HTML in markdown cells
-            # (Workaround for https://github.com/fredrikekre/Literate.jl/issues/222)
-            str = replace(str, r"```@raw(\h+)html(.*?)```"s => s"\2")
             # Notebooks use WGLMakie instead of GLMakie
             str = replace(str, r"^using(.*?)GLMakie"m => s"using\1WGLMakie")
         end
@@ -71,12 +64,16 @@ Documenter.makedocs(;
         "Examples" => [
             [joinpath("examples", "$name.md") for name in example_names]...,
             # "SpinW ports" => 
+            "Advanced" => [
+                "parallelism.md",                        
+                "writevtk.md",
+            ],
+        ],
+        "Modeling Guides" => [
+            "structure-factor.md",
+            "anisotropy.md",    
         ],
         "library.md",
-        "structure-factor.md",
-        "anisotropy.md",
-        "writevtk.md",
-        "parallelism.md",
         "versions.md",
     ],
     format = Documenter.HTML(;
