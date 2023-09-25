@@ -1,8 +1,9 @@
 # # Ba₃NbFe₃Si₂O₁₄
 #
-# - Sunny port of the SpinW [tutorial](https://spinw.org/tutorials/15tutorial) authored by Toth et al.
-# - Author: Harry Lane
-# - Goal: Calculate the linear spin wave theory spectrum for Ba₃NbFe₃Si₂O₁₄
+# - Sunny port of the SpinW [tutorial](https://spinw.org/tutorials/15tutorial)
+#   authored by Toth et al.
+# - Author: Harry Lane.
+# - Goal: Calculate the linear spin wave theory spectrum for Ba₃NbFe₃Si₂O₁₄.
 
 # Load packages 
 

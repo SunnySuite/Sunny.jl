@@ -15,12 +15,10 @@ mkpath.([notebooks_path, scripts_path])
 
 
 function build_examples(example_sources)
-    # Create Markdown for each Literature example, for subsequent processing by
-    # Documenter. These will be written to `src/examples/*.md`.
-    examples_path = joinpath(@__DIR__, "src", "examples")
-    isdir(examples_path) && rm(examples_path; recursive=true)
+    # Transform each Literate source file to Markdown for subsequent processing by
+    # Documenter.
     for source in example_sources
-        # Map "path/example.jl" to "example"
+        # Extract "example" from "path/example.jl"
         name = splitext(basename(source))[1]
         
         # Preprocess each example by adding a notebook download link at the top. The
@@ -28,11 +26,13 @@ function build_examples(example_sources)
         # which is set up by `Documenter.deploydocs`.
         function preprocess(str)
             """
-            # Download this example as [Jupyter notebook](./../assets/notebooks/$name.ipynb) or [Julia script](./../assets/scripts/$name.jl).
+            # Download this example as [Jupyter notebook](../assets/notebooks/$name.ipynb) or [Julia script](../assets/scripts/$name.jl).
 
             """ * str
         end
-        Literate.markdown(source, examples_path; preprocess, credit=false)
+        # Write to `src/examples/$name.md`
+        dest = joinpath(@__DIR__, "src", "examples")
+        Literate.markdown(source, dest; preprocess, credit=false)
     end
 
     # Create Jupyter notebooks and Julia script for each Literate example. These
@@ -54,6 +54,10 @@ example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging", "fei
 example_sources = [pkgdir(Sunny, "examples", "$name.jl") for name in example_names]
 build_examples(example_sources)
 
+spinw_names = ["08_Kagome_AFM", "15_Ba3NbFe3Si2O14"]
+spinw_sources = [pkgdir(Sunny, "examples", "spinw_ports", "$name.jl") for name in spinw_names]
+build_examples(spinw_sources)
+
 
 # Build docs as HTML, including the `examples/name.md` markdown built above
 Documenter.makedocs(;
@@ -63,7 +67,7 @@ Documenter.makedocs(;
         "index.md",
         "Examples" => [
             [joinpath("examples", "$name.md") for name in example_names]...,
-            # "SpinW ports" => 
+            "SpinW ports" => [joinpath("examples", "$name.md") for name in spinw_names],
             "Advanced" => [
                 "parallelism.md",                        
                 "writevtk.md",
@@ -78,8 +82,8 @@ Documenter.makedocs(;
     ],
     format = Documenter.HTML(;
         # Ideally we would use `get(ENV, "CI", nothing) == "true"` instead, but
-        # this would break the relative URL paths `./../assets/*`
-        prettyurls = true,
+        # this would break the relative URL paths `./assets/*`
+        prettyurls = false,
         ansicolor = true,
         size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
         size_threshold      = 300*2024, # 300KB
