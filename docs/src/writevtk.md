@@ -20,24 +20,24 @@ The following code sets up the system, thermalizes it, and records the correlati
 using Sunny
 
 # Single layer 12x12 periodic square lattice
-latsize = (12,12,1);
+latsize = (12,12,1)
 
 latvecs = lattice_vectors(8.,8.,12.,90,100,90)
 positions = [[0,0,0]]
 types = ["Cu"]
 formfactors = [FormFactor("Cu2")]
-xtal = Crystal(latvecs,positions;types);
+xtal = Crystal(latvecs, positions; types)
 
-sys = System(xtal, latsize, [SpinInfo(1, S=1/2, g=2)], :SUN; seed=1);
+sys = System(xtal, latsize, [SpinInfo(1, S=1/2, g=2)], :SUN; seed=1)
 
 J = 10.
-set_exchange!(sys,J,Bond(1,1,[1,0,0]))
-set_exchange!(sys,J,Bond(1,1,[0,1,0]))
+set_exchange!(sys, J, Bond(1,1,[1,0,0]))
+set_exchange!(sys, J, Bond(1,1,[0,1,0]))
 
 Δt = 0.01
 kT = 0.5
 langevin = Langevin(Δt; λ=0.5, kT)
-randomize_spins!(sys);
+randomize_spins!(sys)
 for i in 1:10_000 # Long enough to reach equilibrium
     step!(sys, langevin)
 end 

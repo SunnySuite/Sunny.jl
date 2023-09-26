@@ -1,4 +1,4 @@
-# # CP$^2$ Skyrmion Quench 
+# # CP² Skyrmion Quench 
 #
 # This example demonstrates Sunny's ability to simulate the out-of-equilibrium
 # dynamics of generalized spin systems. We will implement the model Hamiltonian
