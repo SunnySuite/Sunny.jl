@@ -373,7 +373,7 @@ disp, is = dssf(swt, path);
 # The classical dynamics is also a good starting point to study non-equilibrium
 # phenomena. Empirical noise and damping terms can be used to model [coupling to
 # a thermal bath](https://arxiv.org/abs/2209.01265). This yields a Langevin
-# dynamics of SU(_N_) coherent states. Our [CP$^2$ Skyrmion Quench](@ref)
+# dynamics of SU(_N_) coherent states. Our [CP² Skyrmion Quench](@ref)
 # tutorial shows how this dynamics gives rise to the formation of novel
 # topological defects in a temperature quench.
 # 
