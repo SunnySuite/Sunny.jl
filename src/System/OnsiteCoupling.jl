@@ -140,7 +140,7 @@ set_onsite_coupling!(sys, -D*S[3]^2, i)
 To get the spin operators in a finite-``S`` representation, use
 [`spin_operators`](@ref) instead, which will yield more accurate simulations of
 quantum-spin Hamiltonians. A technical discussion appears in the Sunny
-documentation page: [Single-ion anisotropy](@ref).
+documentation page: [Single-Ion Anisotropy](@ref).
 
 See also [`print_stevens_expansion`](@ref), which prints an expansion in
 [`large_S_stevens_operators`](@ref).
@@ -181,7 +181,7 @@ set_onsite_coupling!(sys, (1/4)O[4,4] + (1/20)O[4,0], i)
 To get the Stevens operators in a finite-``S`` representation, use
 [`stevens_operators`](@ref) instead, which will yield more accurate simulations
 of quantum-spin Hamiltonians. A technical discussion appears in the Sunny
-documentation page: [Single-ion anisotropy](@ref).
+documentation page: [Single-Ion Anisotropy](@ref).
 """
 const large_S_stevens_operators = StevensSymbolic()
 

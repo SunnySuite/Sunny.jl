@@ -1,17 +1,17 @@
-## Kagome Antiferromagnet
+# # Kagome Antiferromagnet
 #
-# - Sunny port of the SpinW tutorial authored by Bjorn Fak and Sandor Toth,
-# https://spinw.org/tutorials/08tutorial.
-# - Authors: Harry Lane
-# - Goal: Calculate the linear spin wave theory spectrum for the $\sqrt{3}
-# \times \sqrt{3}$ order of a Kagome antiferromagnet.
+# - Sunny port of the SpinW [tutorial](https://spinw.org/tutorials/08tutorial)
+#   authored by Bjorn Fak and Sandor Toth.
+# - Author: Harry Lane.
+# - Goal: Calculate the linear spin wave theory spectrum for the ``\sqrt{3}
+#   \times \sqrt{3}`` order of a Kagome antiferromagnet.
 
 # Load Packages 
 
 using Sunny, GLMakie
 
-# Build a [`Crystal`](@ref) with $P\overline{3}$ space group and Cr$^{+}$ ions
-# on each site.
+# Build a [`Crystal`](@ref) with P``\overline{3}`` space group and Cr⁺ ions on
+# each site.
 
 a = b = 6.0 # (Å)
 c = 40.0
@@ -19,7 +19,7 @@ latvecs = lattice_vectors(a, b, c, 90, 90, 120)
 crystal = Crystal(latvecs, [[1/2,0,0]], 147; types=["Cr"])
 
 # Build a [`System`](@ref) with antiferrogmanetic nearest neighbor exchange
-# $J=1$.
+# ``J=1``.
 
 S = 1
 sys = System(crystal, (3,3,1), [SpinInfo(1; S, g=2)], :dipole)
@@ -35,7 +35,7 @@ set_spiral_order_on_sublattice!(sys, 2; q, axis, S0=[cos(0),sin(0),0])
 set_spiral_order_on_sublattice!(sys, 3; q, axis, S0=[cos(2π/3),sin(2π/3),0])
 plot_spins(sys; ghost_radius=30, orthographic=true)
 
-# Check energy. Each site participates in 4 bonds with energy J*S^2*cos(2π/3).
+# Check energy. Each site participates in 4 bonds with energy ``JS^2\cos(2π/3)``.
 # Factor of 1/2 avoids double counting.
 
 @assert energy_per_site(sys) ≈ (4/2)*J*S^2*cos(2π/3)
@@ -44,13 +44,13 @@ plot_spins(sys; ghost_radius=30, orthographic=true)
 
 points_rlu = [[-1/2, 0, 0], [0, 0, 0], [1/2, 1/2, 0]]
 density = 100
-path, xticks = reciprocal_space_path(crystal, points_rlu, density)
+path, xticks = reciprocal_space_path(crystal, points_rlu, density);
 
 # Calculate discrete intensities
 
 swt = SpinWaveTheory(sys)
 formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
-disp, intensity = intensities_bands(swt, path, formula)
+disp, intensity = intensities_bands(swt, path, formula);
 
 # Plot over a restricted color range from [0,1e-2]. Note that the intensities of
 # the flat band at zero-energy are divergent.

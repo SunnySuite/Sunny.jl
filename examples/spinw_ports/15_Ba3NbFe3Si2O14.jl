@@ -1,17 +1,15 @@
-## Ba<sub>3</sub>NbFe<sub>3</sub>Si<sub>2</sub>O<sub>14</sub>
+# # Ba₃NbFe₃Si₂O₁₄
 #
-# - Sunny port of the SpinW tutorial authored by Toth et al.,
-# https://spinw.org/tutorials/15tutorial.
-# - Authors: Harry Lane
-# - Goal: Calculate the linear spin wave theory spectrum for
-#   Ba<sub>3</sub>NbFe<sub>3</sub>Si<sub>2</sub>O<sub>14</sub>.
+# - Sunny port of the SpinW [tutorial](https://spinw.org/tutorials/15tutorial)
+#   authored by Toth et al.
+# - Author: Harry Lane.
+# - Goal: Calculate the linear spin wave theory spectrum for Ba₃NbFe₃Si₂O₁₄.
 
-# Load Packages 
+# Load packages 
 
 using Sunny, GLMakie
 
-# Build a [`Crystal`](@ref) for
-# Ba<sub>3</sub>NbFe<sub>3</sub>Si<sub>2</sub>O<sub>14</sub> using the crystal
+# Build a [`Crystal`](@ref) for Ba₃NbFe₃Si₂O₁₄ using the crystal
 # structure from [Marty et al., Phys. Rev. Lett. **101**, 247201
 # (2008)](http://dx.doi.org/10.1103/PhysRevLett.101.247201).
 
@@ -25,7 +23,7 @@ crystal = subcrystal(langasite, "Fe")
 view_crystal(crystal, 7)
 
 # Create a [`System`](@ref) with a lattice size of $(1,1,7)$. The magnetic
-# structure of Ba<sub>3</sub>NbFe<sub>3</sub>Si<sub>2</sub>O<sub>14</sub> was
+# structure of Ba₃NbFe₃Si₂O₁₄ was
 # determined to have the ordering wavevector $𝐐=(0,0,1/7)$ and hence the
 # magnetic unit cell has 7 sites. By passing an explicit `seed`, the system's
 # random number generator will give repeatable results. 
@@ -93,7 +91,7 @@ swt = SpinWaveTheory(sys)
 γ = 0.15 # width in meV
 broadened_formula = intensity_formula(swt, :perp; kernel=lorentzian(γ))
 energies = collect(0:0.01:6)  # 0 < ω < 6 (meV).
-is = intensities_broadened(swt, path, energies, broadened_formula)
+is = intensities_broadened(swt, path, energies, broadened_formula);
 
 # Plot
 

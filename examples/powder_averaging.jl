@@ -1,9 +1,9 @@
-# # Powder averaged CoRh$_2$O$_4$
+# # Powder Averaged CoRh₂O₄
 #
 # This tutorial illustrates the calculation of the powder-averaged structure
 # factor by performing an orientational average. We consider a simple model of
-# the diamond-cubic crystal CoRh$_2$O$_4$, with parameters extracted from [Ge et
-# al., Phys. Rev. B 96, 064413](https://doi.org/10.1103/PhysRevB.96.064413).
+# the diamond-cubic crystal CoRh₂O₄, with parameters extracted from [Ge et al.,
+# Phys. Rev. B 96, 064413](https://doi.org/10.1103/PhysRevB.96.064413).
 
 using Sunny, GLMakie
 
@@ -116,5 +116,5 @@ fig
 # This result can be compared to experimental neutron scattering data
 # from Fig. 5 of [Ge et al.](https://doi.org/10.1103/PhysRevB.96.064413)
 # ```@raw html
-# <img width="95%" src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/CoRh2O4_intensity.jpg">
+# <img width="95%" src="./assets/CoRh2O4_intensity.jpg">
 # ```
