@@ -1,8 +1,8 @@
-# # Structure Factors with Classical Dynamics 
+# # FeI₂ at Finite Temperature
 
 using Sunny, LinearAlgebra, GLMakie
 
-# In our previous [Case Study: FeI$_{2}$](@ref), we used linear spin wave theory
+# In our previous [Case Study: FeI₂](@ref), we used linear spin wave theory
 # (LSWT) to calculate the dynamical structure factor. Here, we perform a similar
 # calculation using classical spin dynamics. Because we are interested in the
 # coupled dynamics of spin dipoles and quadrupoles, we employ a [classical
@@ -16,23 +16,24 @@ using Sunny, LinearAlgebra, GLMakie
 # (e.g., relaxation of spin glasses), or systems with quenched inhomogeneities
 # that require large simulation volumes.
 #
-# In this tutorial, we show how to study the finite temperature dynamics of
-# FeI$_2$ using the classical approach. It is important to stress that the
-# estimation of ``S(𝐪,ω)`` with classical dynamics is fundamentally a Monte
-# Carlo calculation: sample spin configurations are drawn from thermal
-# equilibrium and used as initial conditions for generating dissipationless
-# trajectories. The correlations of these trajectories are then averaged and
-# used to calculate scattering intensities. It is therefore important to ensure
-# that the initial spin configurations are sampled appropriately and that
-# sufficient statistics are collected. We will demonstrate one approach here.
+# In this tutorial, we show how to study the finite temperature dynamics of FeI₂
+# using the classical approach. It is important to stress that the estimation of
+# ``S(𝐪,ω)`` with classical dynamics is fundamentally a Monte Carlo
+# calculation: sample spin configurations are drawn from thermal equilibrium and
+# used as initial conditions for generating dissipationless trajectories. The
+# correlations of these trajectories are then averaged and used to calculate
+# scattering intensities. It is therefore important to ensure that the initial
+# spin configurations are sampled appropriately and that sufficient statistics
+# are collected. We will demonstrate one approach here.
 #
 # As an overview, we will:
 #
 # 1. Identify the ground state
-# 2. Measure correlation data describing the excitations around that ground state
+# 2. Measure correlation data describing the excitations around that ground
+#    state
 # 3. Use the correlation data to compute scattering intensities
 #
-# As the implementation of the FeI$_2$ model is already covered in detail in the
+# As the implementation of the FeI₂ model is already covered in detail in the
 # LSWT tutorial, we will not repeat it below. Instead, we will assume that you
 # already have defined a `sys` in the same way with lattice dimensions $4×4×4$. 
 

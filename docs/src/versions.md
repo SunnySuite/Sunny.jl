@@ -1,15 +1,17 @@
-# Version 0.5.5
+# Version History
+
+## v0.5.5
 
 * [`reshape_supercell`](@ref) now allows reshaping to multiples of the primitive
   unit cell, which can speed up certain calculations. This is illustrated in the
-  CoRh$_2$O$_4$ powder averaging tutorial.
+  CoRh₂O₄ powder averaging tutorial.
 * [`resize_supercell`](@ref) now allows all resizings.
 * Added [`energy_per_site`](@ref).
 * [`set_spiral_order_on_sublattice!`](@ref) cannot work on reshaped systems.
 * Various bug fixes. In particular, an `intensity_formula` with `:full` will now
   uniformly calculate a `3x3` matrix of complex numbers.
 
-# Version 0.5.4
+# v0.5.4
 
 * Various enhancements to [`view_crystal`](@ref). Atoms are now labeled by
   index, and bonds support interactive inspection (GLMakie only). Font sizes
@@ -27,7 +29,7 @@
   anisotropy operators.
 * Fix `export_vtk` functionality.
 
-# Version 0.5.3
+# v0.5.3
 
 * Add [`large_S_spin_operators`](@ref) and [`large_S_stevens_operators`](@ref)
   to support single-ion anisotropies in dipole mode without renormalization. Set
@@ -38,18 +40,18 @@
 * [`SpinWaveTheory`](@ref) will (currently) error if provided a system with
   [`enable_dipole_dipole!`](@ref).
 
-# Version 0.5.2
+# v0.5.2
 
 * Form factors for 5d transition ions.
 * Download links for notebooks and scripts on each doc example
 * Various bug fixes.
 
-# Version 0.5.1
+# v0.5.1
 
 * Fix binning edge cases.
 * [`plot_spins`](@ref) accepts resolution argument.
 
-# Version 0.5.0
+# v0.5.0
 
 **New features**.
 
@@ -112,7 +114,7 @@ The constructor [`FormFactor`](@ref) no longer accepts an atom index. Instead,
 the form factors are associated with site-symmetry classes in order of
 appearance.
 
-# Version 0.4.3
+# v0.4.3
 
 **Experimental** support for linear [`SpinWaveTheory`](@ref), implemented in
 SU(_N_) mode. This module may evolve rapidly.
@@ -132,7 +134,7 @@ dimensions.
 Rename `StaticStructureFactor` to `InstantStructureFactor`.
 
 
-# Version 0.4.2
+# v0.4.2
 
 Introduce [`LocalSampler`](@ref), a framework for MCMC sampling with local spin
 updates.
@@ -149,7 +151,7 @@ Remove all uses of
 [`Base.deepcopy`](https://docs.julialang.org/en/v1/base/base/#Base.deepcopy)
 which [resolves crashes](https://github.com/SunnySuite/Sunny.jl/issues/65).
 
-# Version 0.4.1
+# v0.4.1
 
 The function [`to_inhomogeneous`](@ref) creates a system that supports
 inhomogeneous interactions, which can be set using [`set_exchange_at!`](@ref),
@@ -158,7 +160,7 @@ etc.
 `set_biquadratic!` replaces `set_exchange_with_biquadratic!`.
 
 
-# Version 0.4.0
+# v0.4.0
 
 This update includes many breaking changes, and is missing some features of
 0.3.0.
@@ -207,7 +209,7 @@ An external field can be applied to a single site with
 ### Structure factor rewrite
 
 The calculation of structure factors has been completely rewritten. For the new
-interface, see the [Structure Factor Calculations](@ref) page.
+interface, see the [FeI₂ at Finite Temperature](@ref) page.
 
 
 ### Various

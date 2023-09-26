@@ -1,5 +1,4 @@
 using LinearAlgebra
-import ColorSchemes, ColorTypes
 
 
 #################################################
@@ -69,7 +68,7 @@ end
 
 
 function plot_triangular_plaquettes(f, frames;
-    colorscheme=ColorSchemes.RdBu, clims=(-0.5, 0.5), offset_spacing=1,
+    colormap=:RdBu, colorrange=(-0.5, 0.5), offset_spacing=1,
     numcols=nothing, texts=nothing, force_aspect=true, text_offset = (0.0, 0.0), fig_kwargs...
 )
     # Consolidate lattice info and panel layout
@@ -105,17 +104,17 @@ function plot_triangular_plaquettes(f, frames;
 
         χ = plaquette_map(f, frame)
         pgons = Makie.Polygon[]
-        colors = ColorTypes.RGB{Float64}[]
+        color = Float64[]
         for r ∈ 1:nx
             for c ∈ 1:ny
                 base = (r - 1) * v₁ + (c - 1) * v₂ + v₀
                 push!(pgons, plaq1(base))
-                push!(colors, get(colorscheme, χ[1, r, c, 1, 1], clims))
+                push!(color, χ[1, r, c, 1, 1])
                 push!(pgons, plaq2(base))
-                push!(colors, get(colorscheme, χ[2, r, c, 1, 1], clims))
+                push!(color, χ[2, r, c, 1, 1])
             end
         end
-        poly!(ax, pgons; color=colors)
+        poly!(ax, pgons; color, colormap, colorrange)
         if !isnothing(texts)
             text!(ax, v₀[1] - text_offset[1], v₀[2] - text_offset[2]; text=texts[i], fontsize=36)
         end

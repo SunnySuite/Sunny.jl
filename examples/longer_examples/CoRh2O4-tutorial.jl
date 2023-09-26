@@ -4,21 +4,20 @@
 #  which enables dynamical simulations of ordered and thermally disordered spins with dipole 
 #  and higher order moments._
 #
-# ## Welcome to a Sunny Tutorial on the Diamond Lattice System CoRh<sub>2</sub>O<sub>4</sub>
+# ## Welcome to a Sunny Tutorial on the Diamond Lattice System CoRh₂O₄</sub>
 # **Script**: Diamond Lattice Finite Temperature Calculation <br>
-# **Inspired by**: CoRh<sub>2</sub>O<sub>4</sub> Powder 
-# (Ge _et al._ https://doi.org/10.1103/PhysRevB.96.064413) <br>
+# **Inspired by**: [Ge et al., Phys. Rev. B 96, 064413 (2017)](https://doi.org/10.1103/PhysRevB.96.064413) <br>
 # **Authors**: Martin Mourigal, David Dahlbom <br>
 # **Date**: August 21, 2023  (Sunny 0.5.0) <br>
 # **Goal**: This script is to calculate the temperature dependence of the magnon excitations in the 
 # spin-3/2 Heisenberg Diamond Antiferromagnet and compare to powder-averaged results obtained for 
-# the compound CoRh<sub>2</sub>O<sub>4</sub> <br>
+# the compound CoRh₂O₄ <br>
 
 # ---
 # #### Loading Packages 
 using Sunny, GLMakie, ProgressMeter, Statistics, Random, Brillouin
 Sunny.offline_viewers() 
-cif_path = joinpath("..", "Sunny.jl", "examples", "longer_examples", "CoRh2O4_#109301.cif");
+cif_path = pkgdir(Sunny, "examples", "longer_examples", "CoRh2O4_#109301.cif");
 
 # #### Defining Custom functions
 
@@ -101,9 +100,9 @@ function powder_average(sc, rs, npts, formula; η=0.1)
 end
 
 # ---
-# ### System Definition for CoRh<sub>2</sub>O<sub>4</sub>
+# ### System Definition for CoRh₂O₄
 
-# Define the crystal structure of CoRh$_2$O$_4$  in the conventional cell
+# Define the crystal structure of CoRh₂O₄ in the conventional cell
 xtal    = Crystal(cif_path; symprec=1e-4)
 magxtal = subcrystal(xtal,"Co1")
 view_crystal(magxtal,6.0)

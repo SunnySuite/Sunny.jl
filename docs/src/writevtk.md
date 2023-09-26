@@ -1,4 +1,4 @@
-# Volumetric Rendering with ParaView
+# ParaView Rendering
 
 The 4D correlation data produced by Sunny is too high-dimensional to visualize directly.
 This page describes how to export *3D slices* of correlation data from Sunny to the
@@ -6,7 +6,7 @@ Visual ToolKit (VTK) format, which is compatible with the [ParaView](https://www
 ParaView supports volumetric rendering:
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewrender.jpg" style="margin: 30px; " width="400">
+<img src="./assets/paraviewrender.jpg" style="margin: 30px; " width="400">
 ```
 
 ## Simulation data
@@ -20,24 +20,24 @@ The following code sets up the system, thermalizes it, and records the correlati
 using Sunny
 
 # Single layer 12x12 periodic square lattice
-latsize = (12,12,1);
+latsize = (12,12,1)
 
 latvecs = lattice_vectors(8.,8.,12.,90,100,90)
 positions = [[0,0,0]]
 types = ["Cu"]
 formfactors = [FormFactor("Cu2")]
-xtal = Crystal(latvecs,positions;types);
+xtal = Crystal(latvecs, positions; types)
 
-sys = System(xtal, latsize, [SpinInfo(1, S=1/2, g=2)], :SUN; seed=1);
+sys = System(xtal, latsize, [SpinInfo(1, S=1/2, g=2)], :SUN; seed=1)
 
 J = 10.
-set_exchange!(sys,J,Bond(1,1,[1,0,0]))
-set_exchange!(sys,J,Bond(1,1,[0,1,0]))
+set_exchange!(sys, J, Bond(1,1,[1,0,0]))
+set_exchange!(sys, J, Bond(1,1,[0,1,0]))
 
 Δt = 0.01
 kT = 0.5
-langevin = Langevin(Δt; λ=0.5, kT=kT)
-randomize_spins!(sys);
+langevin = Langevin(Δt; λ=0.5, kT)
+randomize_spins!(sys)
 for i in 1:10_000 # Long enough to reach equilibrium
     step!(sys, langevin)
 end 
@@ -124,7 +124,7 @@ Since we adjusted the energy axis, the outline is a 1x1x1 cube.
 Optionally enable the axes grid under "View", and customize using the adjacent edit button.
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewimport.png" style="margin: 30px;" width="200">
+<img src="./assets/paraviewimport.png" style="margin: 30px;" width="200">
 ```
 
 **To enable the volumetric render**:
@@ -133,7 +133,7 @@ Optionally enable the axes grid under "View", and customize using the adjacent e
 3. Open the Color Map Editor to adjust the opacity of the fog, which may be too faint to see by default.
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewvolume.png" style="margin: 30px; " width="400">
+<img src="./assets/paraviewvolume.png" style="margin: 30px; " width="400">
 ```
 
 Depending on your computer and your dataset size, the volumetric rendering may be slow, but our dataset is relatively small, so the render should be fast.
@@ -144,13 +144,13 @@ To see this, enable Display Data Histogram in the Color Map Editor panel.
 To zoom in on the lower-intensity data, click and drag the right side handle of the opacity transfer function box to the middle a few times.
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewcolormap.png" style="margin: 30px; " width="200">
+<img src="./assets/paraviewcolormap.png" style="margin: 30px; " width="200">
 ```
 
 After suitable color mapping, the dispersion curve should become visible:
 
 ```@raw html
-<img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/paraviewrender.jpg" style="margin: 30px; " width="400">
+<img src="./assets/paraviewrender.jpg" style="margin: 30px; " width="400">
 ```
 
 ## Experiment data

@@ -1,4 +1,4 @@
-# Single-ion anisotropy
+# Single-Ion Anisotropy
 
 A unique feature of Sunny is its support for building classical models where
 each quantum spin is represented as a full $N$-level system, rather than just an
@@ -88,7 +88,7 @@ accurate than traditional codes like SpinW**.
 ## How and when to disable renormalization?
 
 Although we generally recommend the above renormalization procedure, there are
-some circumstances where it is not desirable. Examples include reproducing a
+circumstances where it is not desirable. Examples include reproducing a
 model-system study, or describing a micromagnetic system for which the
 $S\to\infty$ limit is quantitatively realized. To get symbolic operators in the
 large-$S$ limit, use [`large_S_spin_operators`](@ref) or

@@ -116,7 +116,7 @@ xtal_mgcro_2 = Crystal(latvecs, positions, spacegroup; types, setting)
 # To import a CIF file, simply give the path to `Crystal`. One may optionally
 # specify a precision parameter to apply to the symmetry analysis.
 
-cif = joinpath(pkgdir(Sunny), "examples", "longer_examples", "MgCr2O4_160953_2009.cif")
+cif = pkgdir(Sunny, "examples", "longer_examples", "MgCr2O4_160953_2009.cif")
 xtal_mgcro_3 = Crystal(cif; symprec=0.001)
 
 # Finally, we wish to restrict attention to the magnetic atoms in the unit cell

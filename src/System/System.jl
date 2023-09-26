@@ -17,7 +17,7 @@ dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
 dynamics, but single-ion anisotropy and biquadratic exchange interactions will
 be renormalized to improve accuracy. It is possible to disable this
 renormalization by working with operators in the "large-``S``" limit. For
-details, see the documentation page: [Single-ion anisotropy](@ref).
+details, see the documentation page: [Single-Ion Anisotropy](@ref).
 
 The default units system of (meV, Å, tesla) can be overridden by with the
 `units` parameter; see [`Units`](@ref). 

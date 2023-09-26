@@ -1,84 +1,105 @@
 # julia --project=@. make.jl
 
-import Literate
-import Documenter
-
-# Make exports visible to Documenter.@autodocs
-using Sunny
-
-# Importing these activates package extensions
-import GLMakie, WriteVTK
+import Literate, Documenter
+using Sunny, GLMakie, WriteVTK # Load packages to enable Documenter references
 
 draft = false # set `true` to disable cell evaluation
 
-example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging",
-                 "fei2_classical", "ising2d", "one_dim_chain"] # "binning_tutorial"
-example_sources = [joinpath(@__DIR__, "..", "examples", "$name.jl") for name in example_names]
-example_destination = joinpath(@__DIR__, "src", "examples")
-example_doc_paths = [joinpath("examples", "$name.md") for name in example_names]
+# Remove existing Documenter `build` directory
+build_path = joinpath(@__DIR__, "build")
+isdir(build_path) && rm(build_path; recursive=true)
+# Create `build/assets` directories
+notebooks_path = joinpath(build_path, "assets", "notebooks")
+scripts_path = joinpath(build_path, "assets", "scripts")
+mkpath.([notebooks_path, scripts_path])
 
 
-# Run Literate on each `../examples/name.jl` and output `src/examples/name.md`
-isdir(example_destination) && rm(example_destination; recursive=true)
-for (name, source) in zip(example_names, example_sources)
-    # Preprocess each example by adding a notebook download link at the top. The
-    # relative path is hardcoded according to the layout of `gh-pages` branch,
-    # which is set up by `Documenter.deploydocs`.
-    function preprocess(str)
-        """
-        # ```@raw html
-        # Download this example as <a href="../../assets/notebooks/$name.ipynb" download><u>Jupyter notebook</u></a>
-        # or <a href="../../assets/scripts/$name.jl" download><u>Julia script</u></a>.
-        # ```
+function build_examples(example_sources, destdir)
+    assetsdir = joinpath(fill("..", length(splitpath(destdir)))..., "assets")
+
+    # Transform each Literate source file to Markdown for subsequent processing by
+    # Documenter.
+    for source in example_sources
+        # Extract "example" from "path/example.jl"
+        name = splitext(basename(source))[1]
         
-        """ * str
+        # Preprocess each example by adding a notebook download link at the top. The
+        # relative path is hardcoded according to the layout of `gh-pages` branch,
+        # which is set up by `Documenter.deploydocs`.
+        function preprocess(str)
+            """
+            # Download this example as [Jupyter notebook]($assetsdir/notebooks/$name.ipynb) or [Julia script]($assetsdir/scripts/$name.jl).
+
+            """ * str
+        end
+        # Write to `src/$destpath/$name.md`
+        dest = joinpath(@__DIR__, "src", destdir)
+        Literate.markdown(source, dest; preprocess, credit=false)
     end
-    Literate.markdown(source, example_destination; preprocess, credit=false)
+
+    # Create Jupyter notebooks and Julia script for each Literate example. These
+    # will be stored in the `assets/` directory of the hosted docs.
+    for source in example_sources
+        function preprocess(str)
+            # Notebooks use WGLMakie instead of GLMakie
+            str = replace(str, r"^using(.*?)GLMakie"m => s"using\1WGLMakie")
+        end
+        # Build notebooks
+        Literate.notebook(source, notebooks_path; preprocess, execute=false, credit=false)
+
+        # Build julia scripts
+        Literate.script(source, scripts_path; credit=false)
+    end
+
+    # Return paths `$destpath/$name.md` for each new Markdown file (relative to
+    # `src/`)
+    return map(example_sources) do source
+        name = splitext(basename(source))[1]
+        joinpath(destdir, "$name.md")
+    end
 end
+
+example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging", "fei2_classical", "ising2d"]
+example_sources = [pkgdir(Sunny, "examples", "$name.jl") for name in example_names]
+example_mds = build_examples(example_sources, "examples")
+
+spinw_names = ["08_Kagome_AFM", "15_Ba3NbFe3Si2O14"]
+spinw_sources = [pkgdir(Sunny, "examples", "spinw_ports", "$name.jl") for name in spinw_names]
+spinw_mds = build_examples(spinw_sources, joinpath("examples", "spinw"))
+
 
 # Build docs as HTML, including the `examples/name.md` markdown built above
 Documenter.makedocs(;
+    clean = false, # Don't wipe files in `build/assets/`
     sitename = "Sunny documentation",
     pages = [
-        "Overview" => "index.md",
-        "Examples" => example_doc_paths,
-        "Library API" => "library.md",
-        "Structure Factor Calculations" => "structure-factor.md",
-        "Single-Ion Anisotropy" => "anisotropy.md",
-        "Volumetric Rendering with ParaView" => "writevtk.md",
-        "Parallel Computation" => "parallelism.md",
-        "Version History" => "versions.md",
+        "index.md",
+        "Examples" => [
+            example_mds...,
+            "SpinW ports" => spinw_mds,
+            "Advanced" => [
+                "parallelism.md",                        
+                "writevtk.md",
+            ],
+        ],
+        "Modeling Guides" => [
+            "structure-factor.md",
+            "anisotropy.md",    
+        ],
+        "library.md",
+        "versions.md",
     ],
     format = Documenter.HTML(;
-        prettyurls = get(ENV, "CI", nothing) == "true",
+        # Using `get(ENV, "CI", nothing) == "true"` instead would break the
+        # relative URL paths `./assets/*` for embedded HTML. See:
+        # https://github.com/JuliaDocs/Documenter.jl/issues/423#issuecomment-1733869224.
+        prettyurls = false,
         ansicolor = true,
         size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
         size_threshold      = 300*2024, # 300KB
     ),
     draft
 )
-
-# Create Jupyter notebooks and Julia script for each Literate example. These
-# will be stored in the `assets/` directory of the hosted docs.
-notebook_path = joinpath(@__DIR__, "build", "assets", "notebooks")
-script_path   = joinpath(@__DIR__, "build", "assets", "scripts")
-mkdir(notebook_path)
-mkdir(script_path)
-for source in example_sources
-    function preprocess(str)
-        # Notebooks don't need to escape HTML in markdown cells
-        # (Workaround for https://github.com/fredrikekre/Literate.jl/issues/222)
-        str = replace(str, r"```@raw(\h+)html(.*?)```"s => s"\2")
-        # Notebooks use WGLMakie instead of GLMakie
-        str = replace(str, r"^using(.*?)GLMakie"m => s"using\1WGLMakie")
-    end
-    # Build notebooks
-    Literate.notebook(source, notebook_path; preprocess, execute=false, credit=false)
-
-    # Build julia scripts
-    Literate.script(source, script_path; credit=false)
-end
-
 
 # Attempt to push to gh-pages branch for deployment
 Documenter.deploydocs(

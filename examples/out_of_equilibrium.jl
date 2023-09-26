@@ -1,4 +1,4 @@
-# # CP$^2$ Skyrmion Quench 
+# # CP² Skyrmion Quench 
 #
 # This example demonstrates Sunny's ability to simulate the out-of-equilibrium
 # dynamics of generalized spin systems. We will implement the model Hamiltonian
@@ -111,7 +111,7 @@ end
 # `plotting2d.jl` from the Sunny [`examples/extra`
 # directory](https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra).
 
-include(joinpath(pkgdir(Sunny), "examples", "extra", "plotting2d.jl"))
+include(pkgdir(Sunny, "examples", "extra", "plotting2d.jl"))
 
 function sun_berry_curvature(z₁, z₂, z₃)
     z₁, z₂, z₃ = normalize.((z₁, z₂, z₃))
