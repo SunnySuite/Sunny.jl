@@ -150,12 +150,12 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
 
     # Preallocation
     na = natoms(sys.crystal)
-    samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, nω) 
+    samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, 2nω)
     data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., nω)
     variance = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
     # Normalize FFT according to physical convention
-    normalizationFactor = 1/(nω * √(prod(sys.latsize)))
+    normalizationFactor = 1/(nω * √(prod(sys.latsize))) # Note nω not 2nω due to zeroing
     fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6))
 
     # Other initialization

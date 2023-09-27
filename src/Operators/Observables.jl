@@ -13,9 +13,7 @@ function Base.show(io::IO, ::MIME"text/plain", obs::ObservableInfo)
     for i = 1:length(obs.observables)
         print(io,i == 1 ? "╔ " : i == length(obs.observables) ? "╚ " : "║ ")
         for j = 1:length(obs.observables)
-            if i > j
-                print(io,"⋅ ")
-            elseif haskey(obs.correlations,CartesianIndex(i,j))
+            if haskey(obs.correlations,CartesianIndex(i,j))
                 print(io,"⬤ ")
             else
                 print(io,"• ")
@@ -101,9 +99,6 @@ function parse_observables(N; observables, correlations)
     for (α,β) in correlations
         αi = observable_ixs[α]
         βi = observable_ixs[β]
-        # Because correlation matrix is symmetric, only save diagonal and upper triangular
-        # by ensuring that all pairs are in sorted order
-        αi,βi = minmax(αi,βi)
         idx = CartesianIndex(αi,βi)
 
         # Add this correlation to the list if it's not already listed
@@ -121,12 +116,10 @@ function lookup_correlations(obs::ObservableInfo,corrs; err_msg = αβ -> "Missi
     for (i,(α,β)) in enumerate(corrs)
         αi = obs.observable_ixs[α]
         βi = obs.observable_ixs[β]
-        # Make sure we're looking up the correlation with its properly sorted name
-        αi,βi = minmax(αi,βi)
         idx = CartesianIndex(αi,βi)
 
         # Get index or fail with an error
-        indices[i] = get!(() -> error(err_msg(αβ)),obs.correlations,idx)
+        indices[i] = get!(() -> error(err_msg((α,β))),obs.correlations,idx)
     end
     indices
 end

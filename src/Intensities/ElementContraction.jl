@@ -19,6 +19,9 @@ struct FullTensor{NCorr,NSquare,NObs,NObs2} <: Contraction{SMatrix{NObs, NObs, C
     indices :: SVector{NSquare, Int64}
 end
 
+struct AllAvailable{NCorr} <: Contraction{SVector{NCorr, ComplexF64}}
+end
+
 
 ################################################################################
 # Constructors
@@ -52,7 +55,7 @@ function Trace(obs::ObservableInfo)
     Trace(SVector{length(indices), Int64}(indices))
 end
 
-
+# Warning: This dipole factor assumes Sαβ symmetric (i.e. it assumes equilibrium)
 function DipoleFactor(obs::ObservableInfo; spin_components = [:Sx,:Sy,:Sz])
     # Ensure that the observables themselves are present
     for si in spin_components
@@ -119,9 +122,11 @@ end
 contract(specific_element, _, ::Element) = only(specific_element)
 
 function contract(all_elems, _, full::FullTensor{NCorr,NSquare,NObs,NObs2}) where {NCorr, NSquare,NObs,NObs2}
-    # This Hermitian takes only the upper triangular part of its argument
-    # and ensures that Sαβ has exactly the correct symmetry
-    Hermitian(reshape(all_elems[full.indices],NObs,NObs))
+    reshape(all_elems[full.indices],NObs,NObs)
+end
+
+function contract(all_elems, _, ::AllAvailable{NCorr}) where NCorr
+    all_elems
 end
 
 ################################################################################
@@ -131,6 +136,7 @@ required_correlations(traceinfo::Trace) = traceinfo.indices
 required_correlations(dipoleinfo::DipoleFactor) = dipoleinfo.indices
 required_correlations(eleminfo::Element) = [eleminfo.index]
 required_correlations(::FullTensor{NCorr}) where NCorr = 1:NCorr
+required_correlations(::AllAvailable{NCorr}) where NCorr = 1:NCorr
 
 
 ################################################################################
@@ -144,10 +150,14 @@ function contractor_from_mode(source, mode::Symbol)
         string_formula = "Tr S"
     elseif mode == :perp
         contractor = DipoleFactor(source.observables)
-        string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz)"
+        string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz) and assuming S = S†"
     elseif mode == :full
         contractor = FullTensor(source.observables)
         string_formula = "S{α,β}"
+    elseif mode == :all_available
+        corrs = keys(source.observables.correlations)
+        contractor = AllAvailable{length(corrs)}()
+        string_formula = "[" * join(map(x -> "S{$(x.I[1]),$(x.I[2])}",corrs),", ") * "]"
     end
     return contractor, string_formula
 end
@@ -160,6 +170,7 @@ Sunny has several built-in formulas that can be selected by setting `contraction
 - `:trace` (default), which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α 𝒮^{αα}(q,ω)``
 - `:perp`, which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
 - `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
+- `:all_available`, which will return each computed correlation as determined by `sc.observables` or `swt.observables`.
 """
 function intensity_formula(swt::SpinWaveTheory, mode::Symbol; kwargs...)
     contractor, string_formula = contractor_from_mode(swt, mode)
