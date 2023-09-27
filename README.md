@@ -22,7 +22,7 @@ Sunny provides a number of tools to facilitate the specification and solution of
 
 ## Try it out!
 
-To see Sunny in action, a good starting point is our **[FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial.html)**. This compound includes effective spin-1 moments with strong easy-axis anisotropy. The coupled dipole-quadrupole dynamics is efficiently described within the formalism of SU(3) coherent states, and is [crucial to explain neutron scattering data](https://doi.org/10.1038/s41567-020-01110-1).
+To see Sunny in action, a good starting point is our **[FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/fei2_tutorial.html)**. This compound includes effective spin-1 moments with strong easy-axis anisotropy, and exemplifies the power of simulating SU(3) coherent states.
 <!-- 
 In addition to the examples in the official [documentation](https://sunnysuite.github.io/Sunny.jl/dev/), a number of tutorials are available as Jupyter notebooks at the [SunnyTutorials](https://github.com/SunnySuite/SunnyTutorials/tree/main/Tutorials) repo.  -->
 
@@ -32,22 +32,22 @@ Sunny is evolving rapidly. See [Version History](https://sunnysuite.github.io/Su
 
 ## Other spin wave codes
 
-Sunny is inspired by SpinW, especially regarding symmetry analysis, model specification, and linear spin wave calculations. Relative to other spin wave codes, this table highlights Sunny's special features:
+Sunny is inspired by SpinW, especially regarding symmetry analysis, model specification, and linear spin wave calculations. Relative to other spin wave codes, this table highlights Sunny's special features (as of 2023):
 
-|| [McPhase](https://github.com/mducle/mcphase) | [SpinW](https://github.com/SpinW/spinw) | Sunny |
+| | [McPhase](https://github.com/mducle/mcphase) | [SpinW](https://github.com/SpinW/spinw) | Sunny |
 | -- | -- | -- | -- |
 | Symmetry-guided modeling | ❌ | ✅ | ✅ |
 | Interactive graphics | ❌ | ✅ | ✅ |
 | General single-ion anisotropy | ✅ | ❌ | ✅ |
 | [Interaction renormalization for dipoles](https://arxiv.org/abs/2304.03874) | ❌ | ❌ | ✅ |
-| [Multi-flavor RPA](https://arxiv.org/abs/1307.7731) | ✅ | ❌ | ✅ |
+| [Multi-flavor spin wave theory](https://arxiv.org/abs/1307.7731) | ✅ | ❌ | ✅ |
 | [Classical SU(_N_) spin dynamics](https://arxiv.org/abs/2209.01265)</u> | ❌ | ❌ | ✅ |
 | Ewald summation for dipole-dipole | ❌ | ❌ | 🟨⁽¹⁾ |
 | Programming language | C++ | Matlab | [Julia](https://julialang.org/) |
 
 _Fine print: (1) Dipole-dipole interactions currently supported in classical dyamics but not LSWT._
 
-The classical SU(_N_) spin dynamics in Sunny generalizes the Landau-Lifshitz equation for $S > 1/2$ quantum spins. Linearizing and quantizing SU(_N_) dynamics yields multi-flavor RPA, which generalizes the usual spin wave theory.
+The classical SU(_N_) spin dynamics in Sunny generalizes the Landau-Lifshitz equation for $S > 1/2$ quantum spins. Linearizing and quantizing SU(_N_) dynamics yields a generalization of spin wave theory involving multi-flavor bosons.
 
 Codes like [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https://vampire.york.ac.uk/) focus less on capturing quantum effects, but may be good options for classical dynamics of pure dipoles.
 

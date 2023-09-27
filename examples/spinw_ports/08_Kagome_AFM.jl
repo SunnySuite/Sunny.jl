@@ -2,7 +2,6 @@
 #
 # - Sunny port of the SpinW [tutorial](https://spinw.org/tutorials/08tutorial)
 #   authored by Bjorn Fak and Sandor Toth.
-# - Author: Harry Lane.
 # - Goal: Calculate the linear spin wave theory spectrum for the ``\sqrt{3}
 #   \times \sqrt{3}`` order of a Kagome antiferromagnet.
 
