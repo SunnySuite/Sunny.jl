@@ -290,13 +290,15 @@ end
 """
     set_spiral_order_on_sublattice!(sys, i; q, axis, S0)
 
-Like [`set_spiral_order!`](@ref), but applies only to the sublattice associated
-with index `i`. Following initialization, the spin at `sys.dipole[1,1,1,i]` will
-point in the direction of `S0`.
+Initializes sublattice `i` with a spiral order described by the wavevector `q`,
+an axis of rotation `axis`, and an initial dipole direction `S0`. The phase is
+selected such that the spin at `sys.dipole[1,1,1,i]` will point in the direction
+of `S0`. The wavevector is expected in repicrocal lattice units (RLU), while the
+direction vectors `axis` and `S0` are expected in global Cartesian coordinates.
 
-Important note: if the crystal has been reshaped, then  `i` refers to a
-sublattice of the reshaped crystal, not the original one. Inspect `sys.crystal`
-to determine if the crystal has been reshaped.
+This function is not available for systems with reshaped unit cells.
+
+See also [`set_spiral_order!`](@ref).
 """
 function set_spiral_order_on_sublattice!(sys, i; q, axis, S0)
     if orig_crystal(sys) != sys.crystal
