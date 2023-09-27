@@ -84,7 +84,11 @@ function accum_sample!(sc::SampledCorrelations)
     (; data, M, observables, samplebuf, nsamples, fft!) = sc
     natoms = size(samplebuf)[5]
 
+    sourcebuf = copy(samplebuf)
+    sourcebuf[:,:,:,:,:,(1+size(samplebuf,6)÷2):end] .= 0
+
     fft! * samplebuf # Apply pre-planned and pre-normalized FFT
+    fft! * sourcebuf
     count = nsamples[1] += 1
 
     # Note that iterating over the `correlations` (a SortedDict) causes
@@ -94,14 +98,19 @@ function accum_sample!(sc::SampledCorrelations)
     for j in 1:natoms, i in 1:natoms, (ci, c) in observables.correlations  
         α, β = ci.I
 
+        # Convention is: S{α,β} means <α(t)> <β(0)>, i.e. α is delayed
         sample_α = @view samplebuf[α,:,:,:,i,:]
-        sample_β = @view samplebuf[β,:,:,:,j,:]
+        sample_β = @view sourcebuf[β,:,:,:,j,:]
+
+        correlation_plus_trash = FFTW.ifft(sample_α .* conj.(sample_β),4)
+        correlation = FFTW.fft(correlation_plus_trash[:,:,:,1:size(data,7)],4)
+
         databuf  = @view data[c,i,j,:,:,:,:]
 
         if isnothing(M)
             for k in eachindex(databuf)
                 # Store the diff for one complex number on the stack.
-                diff = sample_α[k] * conj(sample_β[k]) - databuf[k]
+                diff = correlation[k] - databuf[k]
 
                 # Accumulate into running average
                 databuf[k] += diff * (1/count)
@@ -113,7 +122,7 @@ function accum_sample!(sc::SampledCorrelations)
                 μ_old = databuf[k]
 
                 # Update running mean.
-                matrixelem = sample_α[k] * conj(sample_β[k])
+                matrixelem = correlation[k]
                 databuf[k] += (matrixelem - databuf[k]) * (1/count)
                 μ = databuf[k]
 
