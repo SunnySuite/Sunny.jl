@@ -1,9 +1,9 @@
 # julia --project=@. make.jl
 
-import Literate, Documenter
+import Literate, Documenter, Git
 using Sunny, GLMakie, WriteVTK # Load packages to enable Documenter references
 
-draft = false # set `true` to disable cell evaluation
+draft = true # set `true` to disable cell evaluation
 
 # Remove existing Documenter `build` directory
 build_path = joinpath(@__DIR__, "build")
@@ -59,6 +59,36 @@ function build_examples(example_sources, destdir)
     end
 end
 
+function prepare_contributed()
+    function is_markdown(name)
+        if split(name, ".")[end] == "md"
+            return true
+        end
+        false
+    end
+
+    # Clone only the build directory from the SunnyContributed repo 
+    mkdir("contributed-tmp")
+    cd("contributed-tmp")
+    run(`$(Git.git()) init`)
+    run(`$(Git.git()) remote add origin -f https://github.com/SunnySuite/SunnyContributed.git`)
+    write(".git/info/sparse-checkout", "contributed-docs/build")
+    run(`$(Git.git()) pull origin main`)
+    cd("..")
+
+    # Copy the contents of the build directory locally
+    mkdir("src/examples/contributed")
+    contrib_files = readdir(joinpath("contributed-tmp", "contributed-docs", "build"))
+    for file in contrib_files
+        cp(joinpath("contributed-tmp", "contributed-docs", "build", file), joinpath("src", "examples", "contributed", file); force=true)
+    end
+    contrib_names = filter(is_markdown, contrib_files)
+
+    return ["examples/contributed/"*name for name in contrib_names]
+end
+
+contributed_mds = prepare_contributed()
+
 example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging", "fei2_classical", "ising2d"]
 example_sources = [pkgdir(Sunny, "examples", "$name.jl") for name in example_names]
 example_mds = build_examples(example_sources, "examples")
@@ -77,6 +107,7 @@ Documenter.makedocs(;
         "Examples" => [
             example_mds...,
             "SpinW ports" => spinw_mds,
+            "Contributed" => contributed_mds,
             "Advanced" => [
                 "parallelism.md",                        
                 "writevtk.md",
