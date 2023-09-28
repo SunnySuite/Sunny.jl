@@ -80,11 +80,11 @@ function prepare_contributed()
     mkdir(joinpath(@__DIR__, "src", "examples", "contributed"))  # `src` and `examples` must already exist! Call after example and spinw builds
     contrib_files = readdir(joinpath("contributed-tmp", "contributed-docs", "build"))
     for file in contrib_files
-        cp(joinpath("contributed-tmp", "contributed-docs", "build", file), joinpath("src", "examples", "contributed", file); force=true)
+        cp(joinpath("contributed-tmp", "contributed-docs", "build", file), joinpath(@__DIR__, "src", "examples", "contributed", file); force=true)
     end
     contrib_names = filter(is_markdown, contrib_files)
 
-    return ["examples/contributed/"*name for name in contrib_names]
+    return [joinpath("examples", "contributed", name) for name in contrib_names]
 end
 
 
