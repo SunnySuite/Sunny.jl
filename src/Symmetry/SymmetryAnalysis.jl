@@ -8,22 +8,22 @@ function all_integer(x; symprec)
     return norm(x - round.(x)) < symprec
 end
 
-function is_periodic_copy(cryst::Crystal, r1::Vec3, r2::Vec3)
-    all_integer(r1-r2; cryst.symprec)
+function is_periodic_copy(r1::Vec3, r2::Vec3; symprec)
+    all_integer(r1-r2; symprec)
 end
 
-function is_periodic_copy(cryst::Crystal, b1::BondPos, b2::BondPos)
+function is_periodic_copy(b1::BondPos, b2::BondPos; symprec)
     # Displacements between the two bonds
     D1 = b2.ri - b1.ri
     D2 = b2.rj - b1.rj
     # Round components of D1 to nearest integers
     n = round.(D1, RoundNearest)
     # If both n ≈ D1 and n ≈ D2, then the bonds are equivalent by translation
-    return norm(n - D1) < cryst.symprec && norm(n - D2) < cryst.symprec
+    return norm(n - D1) < symprec && norm(n - D2) < symprec
 end
 
 function position_to_atom(cryst::Crystal, r::Vec3)
-    return findfirst(r′ -> is_periodic_copy(cryst, r, r′), cryst.positions)
+    return findfirst(r′ -> is_periodic_copy(r, r′; cryst.symprec), cryst.positions)
 end
 
 function position_to_atom_and_offset(cryst::Crystal, r::Vec3)
@@ -41,7 +41,7 @@ function symmetries_for_pointgroup_of_atom(cryst::Crystal, i::Int)
     r = cryst.positions[i]
     for s in cryst.symops
         r′ = transform(s, r)
-        if is_periodic_copy(cryst, r, r′)
+        if is_periodic_copy(r, r′; cryst.symprec)
             push!(ret, s)
         end
     end
@@ -56,7 +56,7 @@ function symmetries_between_atoms(cryst::Crystal, i1::Int, i2::Int)
     r1 = cryst.positions[i1]
     r2 = cryst.positions[i2]
     for s in cryst.symops
-        if is_periodic_copy(cryst, r1, transform(s, r2))
+        if is_periodic_copy(r1, transform(s, r2); cryst.symprec)
             push!(ret, s)
         end
     end
@@ -133,9 +133,9 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
     ret = Tuple{SymOp, Bool}[]
     for s in cryst.symops
         b2′ = transform(s, b2)
-        if is_periodic_copy(cryst, b1, b2′)
+        if is_periodic_copy(b1, b2′; cryst.symprec)
             push!(ret, (s, true))
-        elseif is_periodic_copy(cryst, b1, reverse(b2′))
+        elseif is_periodic_copy(b1, reverse(b2′); cryst.symprec)
             push!(ret, (s, false))
         end
     end
