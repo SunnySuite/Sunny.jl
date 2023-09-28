@@ -77,9 +77,8 @@ function prepare_contributed()
     cd("..")
 
     # Copy the contents of the build directory locally
-    mkdir("src/examples")
-    mkdir("src/examples/contributed")
-    contrib_files = readdir(joinpath("contributed-tmp", "contributed-docs", "build"))
+    mkdir(joinpath(@__DIR__, "src", "examples", "contributed"))  # `src` and `examples` must already exist! Call after example and spinw builds
+    contrib_files = readdir(joinpath(@__DIR__, "contributed-tmp", "contributed-docs", "build"))
     for file in contrib_files
         cp(joinpath("contributed-tmp", "contributed-docs", "build", file), joinpath("src", "examples", "contributed", file); force=true)
     end
@@ -88,7 +87,6 @@ function prepare_contributed()
     return ["examples/contributed/"*name for name in contrib_names]
 end
 
-contributed_mds = prepare_contributed()
 
 example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging", "fei2_classical", "ising2d"]
 example_sources = [pkgdir(Sunny, "examples", "$name.jl") for name in example_names]
@@ -97,6 +95,8 @@ example_mds = build_examples(example_sources, "examples")
 spinw_names = ["08_Kagome_AFM", "15_Ba3NbFe3Si2O14"]
 spinw_sources = [pkgdir(Sunny, "examples", "spinw_ports", "$name.jl") for name in spinw_names]
 spinw_mds = build_examples(spinw_sources, joinpath("examples", "spinw"))
+
+contributed_mds = prepare_contributed()
 
 
 # Build docs as HTML, including the `examples/name.md` markdown built above
