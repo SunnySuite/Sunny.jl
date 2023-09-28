@@ -440,7 +440,7 @@ function reshape_crystal(cryst::Crystal, new_cell_shape::Mat3)
     # Lattice vectors of the new unit cell in global coordinates
     new_latvecs = origin.latvecs * new_cell_shape
 
-    # Return original crystal if possible
+    # Return this crystal if possible
     new_latvecs ≈ cryst.latvecs && return cryst
 
     # Symmetry precision needs to be rescaled for the new unit cell. Ideally we
@@ -466,7 +466,7 @@ function reshape_crystal(cryst::Crystal, new_cell_shape::Mat3)
     # Fortunately, it is well protected against mistakes via the check on atom
     # count. Any mistake will yield an assertion error: "Missing atoms in
     # reshaped unit cell".
-    nmax = sum.(eachrow(abs.(inv(B)))) .+ 1
+    nmax = round.(Int, sum.(eachrow(abs.(inv(B))))) .+ 1
 
     new_positions = Vec3[]
     new_types     = String[]
@@ -479,11 +479,10 @@ function reshape_crystal(cryst::Crystal, new_cell_shape::Mat3)
             y = B*x
 
             # Check whether the new position y (in fractional coordinates
-            # associated with `new_latvecs`) is within the new unit cell. Is
-            # each component of y within the range [0,1)? The check
-            # `wrap_to_unit_cell(y) == y` accounts for finite precision ϵ by
-            # wrapping components of `y` to the range [-ϵ,1-ϵ).
-            if wrap_to_unit_cell(y; symprec=new_symprec) ≈ y
+            # associated with `new_latvecs`) is within the new unit cell.
+            # Account for finite symprec ϵ by checking the bounds [-ϵ,1-ϵ). See
+            # related comment in `wrap_to_unit_cell`.
+            if all(-new_symprec .<= y .< 1 - new_symprec)
                 push!(new_positions, y)
                 push!(new_types, cryst.types[i])
                 push!(new_classes, cryst.classes[i])
