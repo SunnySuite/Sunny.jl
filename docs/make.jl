@@ -78,7 +78,7 @@ function prepare_contributed()
 
     # Copy the contents of the build directory locally
     mkdir(joinpath(@__DIR__, "src", "examples", "contributed"))  # `src` and `examples` must already exist! Call after example and spinw builds
-    contrib_files = readdir(joinpath(@__DIR__, "contributed-tmp", "contributed-docs", "build"))
+    contrib_files = readdir(joinpath("contributed-tmp", "contributed-docs", "build"))
     for file in contrib_files
         cp(joinpath("contributed-tmp", "contributed-docs", "build", file), joinpath("src", "examples", "contributed", file); force=true)
     end
