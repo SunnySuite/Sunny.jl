@@ -77,6 +77,7 @@ function prepare_contributed()
     cd("..")
 
     # Copy the contents of the build directory locally
+    mkdir("src/examples")
     mkdir("src/examples/contributed")
     contrib_files = readdir(joinpath("contributed-tmp", "contributed-docs", "build"))
     for file in contrib_files
