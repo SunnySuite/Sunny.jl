@@ -1,19 +1,27 @@
 @testitem "Asymmetric Correlations" begin
 
+    # Create a dummy SampledCorrelations object
     latsize = (1,1,1)
     cryst = Sunny.fcc_primitive_crystal()
     sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
-    sc = dynamical_correlations(sys; Δt = 0.1, ωmax = 10.0, nω=100, observables = [:A => I(2), :B => I(2)])
+    sc = dynamical_correlations(sys; Δt = 0.1, ωmax = 10.0, nω=100, observables = [:A => [1. 0im; 0 1], :B => [1. 0im; 0 1]])
+
+    # Fill the sc.samplebuf with test signals.
+    # The test signals are asymmetrically correlated.
+    # This code replaces Sunny.new_sample!
     ts = range(0,1,length = size(sc.samplebuf,6))
-    #As = cos.(10π .* ts)
-    #Bs = 2 .* sin.(10π .* ts)
     As = exp.(-(ts .- 0.15).^2 ./ (2 * 0.05^2))
     Bs = exp.(-(ts .- 0.35).^2 ./ (2 * 0.1^2))
     sc.samplebuf[1,1,1,1,1,:] .= As
     sc.samplebuf[2,1,1,1,1,:] .= Bs
+
+    # Run the Sunny-internal function which computes the correlations
     Sunny.accum_sample!(sc)
+
+    # Retrieve the correlations in direct time
+    # TODO: The correlations tested here are real--make them complex
     real_data = real(ifft(sc.data,7))
-    real_data .*= 199*199
+    real_data .*= 199*199 # Normalization to match reference
 
     # Reference calculation
     q11 = zeros(199)
