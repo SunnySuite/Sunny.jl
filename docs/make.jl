@@ -3,7 +3,7 @@
 import Literate, Documenter, Git
 using Sunny, GLMakie, WriteVTK # Load packages to enable Documenter references
 
-draft = true # set `true` to disable cell evaluation
+draft = false # set `true` to disable cell evaluation
 
 # Remove existing Documenter `build` directory
 build_path = joinpath(@__DIR__, "build")
@@ -59,6 +59,7 @@ function build_examples(example_sources, destdir)
     end
 end
 
+
 function prepare_contributed()
     function is_markdown(name)
         if split(name, ".")[end] == "md"
@@ -67,8 +68,10 @@ function prepare_contributed()
         false
     end
 
-    # Clone only the build directory from the SunnyContributed repo 
-    mkdir("contributed-tmp")
+    # Perform a sparse checkout of the `build` directory from SunnyContributed. 
+    # This directory contains the markdown files and images generated with 
+    # Literate on the SunnyContributed repo.
+    mkpath("contributed-tmp")
     cd("contributed-tmp")
     run(`$(Git.git()) init`)
     run(`$(Git.git()) remote add origin -f https://github.com/SunnySuite/SunnyContributed.git`)
@@ -76,16 +79,20 @@ function prepare_contributed()
     run(`$(Git.git()) pull origin main`)
     cd("..")
 
-    # Copy the contents of the build directory locally
-    mkdir(joinpath(@__DIR__, "src", "examples", "contributed"))  # `src` and `examples` must already exist! Call after example and spinw builds
+    # Copy the contents of the build directory to a local directory. This will include
+    # both markdown files and png files.
+    mkpath(joinpath(@__DIR__, "src", "examples", "contributed"))  
     contrib_files = readdir(joinpath("contributed-tmp", "contributed-docs", "build"))
     for file in contrib_files
         cp(joinpath("contributed-tmp", "contributed-docs", "build", file), joinpath(@__DIR__, "src", "examples", "contributed", file); force=true)
     end
-    contrib_names = filter(is_markdown, contrib_files)
 
+    # Generate the base names for each contributed markdown file and prepare
+    # paths for Documenter (relative to `src/`)
+    contrib_names = filter(is_markdown, contrib_files)
     return [joinpath("examples", "contributed", name) for name in contrib_names]
 end
+
 
 
 example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging", "fei2_classical", "ising2d"]
@@ -132,6 +139,10 @@ Documenter.makedocs(;
     ),
     draft
 )
+
+# Remove the (sparsely checked out) SunnyContributed git repo. This is only
+# necessary to enable repeated local builds. It has no effect on the CI.
+rm("contributed-tmp"; force=true, recursive=true)
 
 # Attempt to push to gh-pages branch for deployment
 Documenter.deploydocs(
