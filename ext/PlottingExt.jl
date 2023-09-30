@@ -213,6 +213,16 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
 
     ### Plot spins ###
 
+    # Show bounding box of magnetic supercell in gray (this needs to come first
+    # to set a scale for the scene in case there is only one atom).
+    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
+    Makie.linesegments!(ax, cell_wireframe(supervecs); color=:gray, linewidth=rescale*1.5)
+
+    # Bounding box of original crystal unit cell in teal
+    if show_cell
+        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs); color=:teal, linewidth=rescale*1.5)
+    end
+
     # Infer characteristic length scale between sites
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
@@ -261,18 +271,13 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
         Makie.meshscatter!(ax, pts; markersize, color=linecolor, transparency=isghost)
     end
 
-    # Show bounding box of magnetic supercell in gray
-    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    Makie.linesegments!(ax, cell_wireframe(supervecs); color=:gray, linewidth=rescale*1.5)
-
     if show_cell
-        # Show bounding box of original crystal unit cell
-        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs); color=:teal, linewidth=rescale*1.5)
-
-        # Labels for lattice vectors
-        pos = [Makie.Point3f0(p/2) for p in collect(eachcol(orig_crystal(sys).latvecs))]
+        # Labels for lattice vectors. This needs to come last for
+        # `overdraw=true` to work.
+        pos = [(3/4)*Makie.Point3f0(p) for p in collect(eachcol(orig_crystal(sys).latvecs))]
         text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
-        Makie.text!(pos; text, color=:black, fontsize=rescale*16, align=(:center, :center), overdraw=true)
+        Makie.text!(ax, pos; text, color=:black, fontsize=rescale*20, font=:bold, glowwidth=4.0,
+                    glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
     end
 
     return ax
@@ -288,7 +293,6 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1], show_axis=false)
 
-    # Main.@infiltrate
     # TODO: Why can't this move to the bottom?
     orient_camera!(ax, cryst.latvecs, 1; orthographic)
 
@@ -366,7 +370,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
         
         # TODO: Report bug of ÷2 indexing
         inspector_label(plot, index, position) = bond_labels[index ÷ 2]
-        s = Makie.linesegments!(ax, segments; color, linewidth=rescale*3, transparency=true,
+        s = Makie.linesegments!(ax, segments; color, linewidth=rescale*3,
                                 inspectable=true, inspector_label, visible)
         return [s]
     end
@@ -413,7 +417,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     pos = [(3/4)*Makie.Point3f0(p) for p in collect(eachcol(cryst.latvecs))]
     text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
     Makie.text!(ax, pos; text, color=:black, fontsize=rescale*20, font=:bold, glowwidth=4.0,
-                glowcolor=(:white, 0.6), align=(:center, :center))
+                glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
 
     # Add inspector for pop-up information. Putting this last helps with
     # visibility (Makie v0.19)
