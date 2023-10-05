@@ -20,7 +20,7 @@
 
     # Retrieve the correlations in direct time
     # TODO: The correlations tested here are real--make them complex
-    real_data = real(ifft(sc.data,7))
+    real_data = real(FFTW.ifft(sc.data,7))
     real_data .*= 199*199 # Normalization to match reference
 
     # Reference calculation
