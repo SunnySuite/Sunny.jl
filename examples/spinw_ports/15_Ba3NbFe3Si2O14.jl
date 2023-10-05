@@ -1,8 +1,8 @@
 # # Ba₃NbFe₃Si₂O₁₄
 #
-# - Sunny port of the SpinW [tutorial](https://spinw.org/tutorials/15tutorial)
-#   authored by Toth et al.
-# - Goal: Calculate the linear spin wave theory spectrum for Ba₃NbFe₃Si₂O₁₄.
+# This is a Sunny port of [SpinW Tutorial
+# 15](https://spinw.org/tutorials/15tutorial), authored by Toth et al. The goal
+# is to calculate the linear spin wave theory spectrum for Ba₃NbFe₃Si₂O₁₄.
 
 # Load packages 
 
@@ -24,13 +24,12 @@ view_crystal(crystal, 7)
 # Create a [`System`](@ref) with a lattice size of $(1,1,7)$. The magnetic
 # structure of Ba₃NbFe₃Si₂O₁₄ was
 # determined to have the ordering wavevector $𝐐=(0,0,1/7)$ and hence the
-# magnetic unit cell has 7 sites. By passing an explicit `seed`, the system's
-# random number generator will give repeatable results. 
+# magnetic unit cell has 7 sites. 
 
 latsize = (1,1,7)
 S = 5/2
 seed = 5
-sys = System(crystal, latsize, [SpinInfo(1; S, g=2)], :dipole; seed)
+sys = System(crystal, latsize, [SpinInfo(1; S, g=2)], :dipole)
 
 # Set exchange interactions as parametrized in [Loire et al., Phys. Rev. Lett.
 # **106**, 207201 (2011)](http://dx.doi.org/10.1103/PhysRevLett.106.207201)

@@ -1,21 +1,20 @@
 # # Kagome Antiferromagnet
 #
-# - Sunny port of the SpinW [tutorial](https://spinw.org/tutorials/08tutorial)
-#   authored by Bjorn Fak and Sandor Toth.
-# - Goal: Calculate the linear spin wave theory spectrum for the ``\sqrt{3}
-#   \times \sqrt{3}`` order of a Kagome antiferromagnet.
+# This is a Sunny port of [SpinW Tutorial
+# 8](https://spinw.org/tutorials/08tutorial), authored by Bjorn Fak and Sandor
+# Toth. The goal is to calculate the linear spin wave theory spectrum for the
+# ``\sqrt{3} \times \sqrt{3}`` order of a Kagome antiferromagnet.
 
 # Load Packages 
 
 using Sunny, GLMakie
 
-# Build a [`Crystal`](@ref) with P``\overline{3}`` space group and Cr⁺ ions on
+# Build a [`Crystal`](@ref) with ``P\overline{3}`` space group and Cr⁺ ions on
 # each site.
 
-a = b = 6.0 # (Å)
-c = 40.0
-latvecs = lattice_vectors(a, b, c, 90, 90, 120)
-crystal = Crystal(latvecs, [[1/2,0,0]], 147; types=["Cr"])
+a = 1
+latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)
+crystal = Crystal(latvecs, [[1/2,0,0]], 147)
 
 # Build a [`System`](@ref) with antiferrogmanetic nearest neighbor exchange
 # ``J=1``.
@@ -25,14 +24,15 @@ sys = System(crystal, (3,3,1), [SpinInfo(1; S, g=2)], :dipole)
 J = 1.0
 set_exchange!(sys, J, Bond(2,3,[0,0,0]))
 
-# Initialize to the known magnetic structure, which is 120° order.
+# Initialize to an energy minimizing magnetic structure, for which
+# nearest-neighbor spins are at 120° angles.
 
 q = -[1/3, 1/3, 0]
 axis = [0,0,1]
 set_spiral_order_on_sublattice!(sys, 1; q, axis, S0=[cos(0),sin(0),0])
 set_spiral_order_on_sublattice!(sys, 2; q, axis, S0=[cos(0),sin(0),0])
 set_spiral_order_on_sublattice!(sys, 3; q, axis, S0=[cos(2π/3),sin(2π/3),0])
-plot_spins(sys; ghost_radius=30, orthographic=true)
+plot_spins(sys; dims=2)
 
 # Check energy. Each site participates in 4 bonds with energy ``JS^2\cos(2π/3)``.
 # Factor of 1/2 avoids double counting.
@@ -52,7 +52,7 @@ formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
 disp, intensity = intensities_bands(swt, path, formula);
 
 # Plot over a restricted color range from [0,1e-2]. Note that the intensities of
-# the flat band at zero-energy are divergent.
+# the flat band at zero-energy are off-scale.
 
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
