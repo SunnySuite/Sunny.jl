@@ -63,52 +63,62 @@ function numbers_to_colors(xs; colorrange=nothing, colormap=:viridis)
 end
 
 
-function orient_camera!(ax, latvecs, dist; orthographic=false)
-    # Set up camera
-    lookat = latvecs * Vec3(0.5, 0.5, 0.5)
+function orient_camera!(ax, latvecs; ghost_radius, orthographic, dims)
+    # The camera rotates without any fixed axis, and zooming is independent of
+    # cursor position
+    fixed_axis=false
+    zoom_shift_lookat=false
 
-    # This hack seems needed to get good feeling Makie camera rotations
-    eyeposition = lookat - dist * (diagm([1, 1, 0]) * latvecs * Vec3(1, 1, 0))
-    upvector = Vec3(0, 0, 1)
-    @assert norm((lookat-eyeposition) ⋅ upvector) < 1e-12
-
-    projectiontype = orthographic ? Makie.Orthographic : Makie.Perspective
-    # TODO: investigate cam3d_cad! later
-    Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype)
-
-    # TODO: Make this work. It gives weird results when applied to the reshaped
-    # system.
-    #=
-    lookat = latvecs * Vec3(0.5, 0.5, 0.5)
-    eyeposition = lookat - dist * normalize(latvecs * Vec3(-1, -1, -1))
-
-    z = Vec3(0, 0, 1)
-    delta = normalize(lookat - eyeposition)
-    upvector = normalize(z - delta * (delta ⋅ z))
-    @assert norm(delta ⋅ upvector) < 1e-12
-
-    Makie.cam3d_cad!(ax.scene; eyeposition, lookat, upvector)
-    =#
+    a1, a2, a3 = eachcol(latvecs)
+    if dims == 3
+        l0 = max(norm.((a1, a2, a3))..., 1.5ghost_radius)
+        lookat = (a1 + a2 + a3)/2
+        eyeposition = a3/2 - 1.5 * l0 * normalize(a1 + a2)
+        upvector = normalize(a1 × a2)
+        projectiontype = orthographic ? Makie.Orthographic : Makie.Perspective
+        Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, fixed_axis, zoom_shift_lookat, far=10l0)
+    elseif dims == 2
+        l0 = max(norm.((a1, a2))..., 1.5ghost_radius)
+        lookat = (a1 + a2) / 2
+        eyeposition = lookat + 1.5 * l0 * normalize(a1 × a2)
+        upvector = normalize((a1 × a2) × a1)
+        # projectiontype = Makie.Orthographic
+        projectiontype = orthographic ? Makie.Orthographic : Makie.Perspective
+        Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, fixed_axis, zoom_shift_lookat)
+    else
+        error("Unsupported dimension: $dims")
+    end
 end
 
 
-function cell_wireframe(latvecs)
+function cell_wireframe(latvecs, dims)
     vecs = Makie.Point3f0.(eachcol(latvecs))
     ret = Tuple{Makie.Point3f0, Makie.Point3f0}[]
 
     origin = zero(Makie.Point3f0)
 
-    for j in 0:1, k in 0:1
-        shift = j*vecs[2]+k*vecs[3]
-        push!(ret, (origin+shift, vecs[1]+shift))
-    end
-    for i in 0:1, k in 0:1
-        shift = i*vecs[1]+k*vecs[3]
-        push!(ret, (origin+shift, vecs[2]+shift))
-    end
-    for i in 0:1, j in 0:1
-        shift = i*vecs[1]+j*vecs[2]
-        push!(ret, (origin+shift, vecs[3]+shift))
+    if dims == 3
+        for j in 0:1, k in 0:1
+            shift = j*vecs[2]+k*vecs[3]
+            push!(ret, (origin+shift, vecs[1]+shift))
+        end
+        for i in 0:1, k in 0:1
+            shift = i*vecs[1]+k*vecs[3]
+            push!(ret, (origin+shift, vecs[2]+shift))
+        end
+        for i in 0:1, j in 0:1
+            shift = i*vecs[1]+j*vecs[2]
+            push!(ret, (origin+shift, vecs[3]+shift))
+        end
+    elseif dims == 2
+        for j in 0:1
+            shift = j*vecs[2]
+            push!(ret, (origin+shift, vecs[1]+shift))
+        end
+        for i in 0:1
+            shift = i*vecs[1]
+            push!(ret, (origin+shift, vecs[2]+shift))
+        end
     end
     return ret
 end
@@ -180,7 +190,7 @@ end
 
 """
     plot_spins(sys::System; arrowscale=1.0, color=:red, show_cell=true,
-               orthographic=false, ghost_radius=0)
+               orthographic=false, ghost_radius=0, dims=3)
 
 Plot the spin configuration defined by `sys`. Optional parameters include:
 
@@ -190,37 +200,42 @@ Plot the spin configuration defined by `sys`. Optional parameters include:
   - `orthographic`: Use camera with orthographic projection.
   - `ghost_radius`: Show translucent periodic images up to a given distance
     (length units).
+  - `dims`: Spatial dimensions of system (1, 2, or 3).
 """
 function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red, show_cell=true,
-                          orthographic=false, ghost_radius=0, resolution=(768, 512), show_axis=false, rescale=1.0)
+                          orthographic=false, ghost_radius=0, resolution=(768, 512), show_axis=false, rescale=1.0, dims=3)
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)
-    plot_spins!(ax, sys; arrowscale, stemcolor, color, show_cell, orthographic, ghost_radius, rescale)
+    plot_spins!(ax, sys; arrowscale, stemcolor, color, show_cell, orthographic, ghost_radius, rescale, dims)
     return fig
 end
 
 """
     plot_spins!(ax, sys::System; arrowscale=1.0, color=:red,
-                show_cell=true, orthographic=false, ghost_radius=0)
+                show_cell=true, orthographic=false, ghost_radius=0, dims=3)
 
 Like [`plot_spins`](@ref) but will draw into the given Makie Axis, `ax`.
 """
 function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red, show_cell=true,
-                     orthographic=false, ghost_radius=0, rescale=1.0)
-    # TODO: Why can't this move to the bottom?
+                     orthographic=false, ghost_radius=0, rescale=1.0, dims=3)
+    if dims == 2
+        sys.latsize[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
+    elseif dims == 1
+        sys.latsize[[2,3]] == [1,1] || error("System not one-dimensional in (a₁)")
+    end
+
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    orient_camera!(ax, supervecs, 1.0; orthographic)
 
     ### Plot spins ###
 
     # Show bounding box of magnetic supercell in gray (this needs to come first
     # to set a scale for the scene in case there is only one atom).
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    Makie.linesegments!(ax, cell_wireframe(supervecs); color=:gray, linewidth=rescale*1.5)
+    Makie.linesegments!(ax, cell_wireframe(supervecs, dims); color=:gray, linewidth=rescale*1.5)
 
     # Bounding box of original crystal unit cell in teal
     if show_cell
-        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs); color=:teal, linewidth=rescale*1.5)
+        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs, dims); color=:teal, linewidth=rescale*1.5)
     end
 
     # Infer characteristic length scale between sites
@@ -243,7 +258,11 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
 
     # Find all sites within max_dist of the system center
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
-    r0 = [0.5, 0.5, 0.5]
+    if dims == 3
+        r0 = [0.5, 0.5, 0.5]
+    elseif dims == 2
+        r0 = [0.5, 0.5, 0]
+    end
     images = all_images_within_distance(supervecs, rs, [r0]; max_dist=ghost_radius, include_zeros=true)
 
     # Require separate drawing calls with `transparency=true` for ghost sites
@@ -274,11 +293,13 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
     if show_cell
         # Labels for lattice vectors. This needs to come last for
         # `overdraw=true` to work.
-        pos = [(3/4)*Makie.Point3f0(p) for p in collect(eachcol(orig_crystal(sys).latvecs))]
-        text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
+        pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(orig_crystal(sys).latvecs)[1:dims]]
+        text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
         Makie.text!(ax, pos; text, color=:black, fontsize=rescale*20, font=:bold, glowwidth=4.0,
                     glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
     end
+
+    orient_camera!(ax, supervecs; ghost_radius, orthographic, dims)
 
     return ax
 end
@@ -289,16 +310,13 @@ end
 An interactive crystal viewer, with bonds up to `max_dist`.
 """
 function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthographic=false,
-                            spherescale=0.2, resolution=(768, 512), rescale=1.0)
+                            spherescale=0.2, resolution=(768, 512), rescale=1.0, dims=3)
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1], show_axis=false)
 
-    # TODO: Why can't this move to the bottom?
-    orient_camera!(ax, cryst.latvecs, 1; orthographic)
-
     # Show cell volume and label lattice vectors (this needs to come first to
     # set a scale for the scene in case there is only one atom).
-    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs); color=:teal, linewidth=rescale*1.5, inspectable=false)
+    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=rescale*1.5, inspectable=false)
 
     # Draw Cartesian axes
     axissize = (1/3)*minimum(norm.(eachcol(cryst.latvecs)))
@@ -411,17 +429,20 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
 
     fig[1, 2] = layout
 
-
     # Label lattice vectors. Putting this last helps with visibility (Makie
     # v0.19)
-    pos = [(3/4)*Makie.Point3f0(p) for p in collect(eachcol(cryst.latvecs))]
-    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:3]
+    pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(cryst.latvecs)[1:dims]]
+    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
     Makie.text!(ax, pos; text, color=:black, fontsize=rescale*20, font=:bold, glowwidth=4.0,
                 glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
 
     # Add inspector for pop-up information. Putting this last helps with
     # visibility (Makie v0.19)
-    Makie.DataInspector(ax; fontsize)
+    Makie.DataInspector(ax; fontsize, overdraw=true)
+
+    # Orient camera after all objects have been added to scene
+    ghost_radius = maximum(norm.(eachcol(cryst.latvecs)))/2 + max_dist
+    orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims)
 
     return fig
 end
