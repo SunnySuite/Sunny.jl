@@ -26,7 +26,7 @@ end
 
 function stencil_points(sc::SampledCorrelations, q, ::NoInterp)
     Ls = size(sc.samplebuf)[2:4] 
-    m = round.(Int, Ls .* q .+ (1e-9, 1e-9, 1e-9))
+    m = round.(Int, Ls .* q)
 
     k_ref = sc.crystal.recipvecs*q
     k_rounded = sc.crystal.recipvecs*(m ./ Ls) 
@@ -34,9 +34,15 @@ function stencil_points(sc::SampledCorrelations, q, ::NoInterp)
 
     # Local search in absolute space
     m_new = m
-    for offset in ((-1,0,0), (1,0,0), (0,-1,0), (0,1,0), (0,0,-1), (0,0,1))
+    for offset in ((-1,0,0), (1,0,0), (0,-1,0), (0,1,0), (0,0,-1), (0,0,1),
+                   (-1,-1,0), (-1,1,0), (-1,0,-1), (-1,0,1), 
+                   (1,-1,0), (1,1,0), (1,0,-1), (1,0,1),
+                   (0,1,-1), (0,1,1), (0,-1,-1), (0,-1,1),
+                   (-1,-1,-1), (1,1,1), 
+                   (1,-1,-1), (-1,1,-1), (-1,-1,1),
+                   (-1,1,1), (1,-1,1), (1,1,-1))
         m_loc = m .+ offset
-        k_loc = sc.crystal.recipvecs*(m_loc ./ Ls) 
+        k_loc = sc.crystal.recipvecs*(m_loc ./ Ls) .- (1e-8, 1e-8, 1e-8)
         diff_loc = norm(k_ref .- k_loc)
         if diff_loc < diff
             m_new = m_loc
