@@ -27,9 +27,26 @@ end
 function stencil_points(sc::SampledCorrelations, q, ::NoInterp)
     Ls = size(sc.samplebuf)[2:4] 
     m = round.(Int, Ls .* q)
-    im = map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex{3}
 
-    return (m,), (im,)
+    k_ref = sc.crystal.recipvecs*q
+    k_rounded = sc.crystal.recipvecs*(m ./ Ls) 
+    diff = norm(k_ref .- k_rounded)
+
+    # Local search in absolute space
+    m_new = m
+    for offset in ((-1,0,0), (1,0,0), (0,-1,0), (0,1,0), (0,0,-1), (0,0,1))
+        m_loc = m .+ offset
+        k_loc = sc.crystal.recipvecs*(m_loc ./ Ls) 
+        diff_loc = norm(k_ref .- k_loc)
+        if diff_loc < diff
+            m_new = m_loc
+            diff = diff_loc
+        end
+    end
+
+    im = map(i -> mod(m_new[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex{3}
+
+    return (m_new,), (im,)
 end
 
 
