@@ -26,7 +26,7 @@ end
 
 function stencil_points(sc::SampledCorrelations, q, ::NoInterp)
     Ls = size(sc.samplebuf)[2:4] 
-    m = round.(Int, Ls .* q)
+    m = round.(Int, Ls .* q) .+ (1e-9, 1e-9, 1e-9)
 
     k_ref = sc.crystal.recipvecs*q
     k_rounded = sc.crystal.recipvecs*(m ./ Ls) 
