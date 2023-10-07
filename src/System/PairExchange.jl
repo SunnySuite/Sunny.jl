@@ -175,8 +175,6 @@ formed as a polynomial of operators obtained from [`spin_operators_pair`](@ref).
 
 # Examples
 ```julia
-using Sunny, LinearAlgebra
-
 # Add a bilinear and biquadratic exchange
 Si, Sj = spin_operators_pair(sys, bond)
 set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
@@ -209,15 +207,13 @@ the Dzyaloshinskii-Moriya pseudo-vector. The resulting interaction will be
 ``𝐃⋅(𝐒_i×𝐒_j)``.
 
 The optional parameter `biquad` defines the strength ``b`` for scalar
-biquadratic interactions of the form ``b (𝐒_i⋅𝐒_j)²`` For systems restricted
+biquadratic interactions of the form ``b (𝐒_i⋅𝐒_j)²``. For systems restricted
 to dipoles, ``b`` will be automatically renormalized for maximum consistency
 with the more variationally accurate SU(_N_) mode. Set `large_S=true` to work in
 the large-``S`` limit and disable this renormalization.
 
 # Examples
 ```julia
-using Sunny, LinearAlgebra
-
 # An explicit exchange matrix
 J1 = [2 3 0;
      -3 2 0;
