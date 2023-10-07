@@ -29,9 +29,26 @@ function add_exchange_interactions!(sys, _)
 end
 
 function add_quadratic_interactions!(sys, mode)
-    add_exchange_interactions!(sys, mode)
+    if mode == :dipole
+        add_exchange_interactions!(sys, mode)
+    else
+        add_exchange_interactions!(sys, mode)
 
-    # TODO: Include biquadratic in SU(N) mode
+        # This alternative should work, but it is too slow to enable by default.        
+        #=
+        J  = 0.5   # Anti-ferro nearest neighbor
+        K  = 1.0   # Scale of Kitaev term
+        Γ  = 0.2   # Off-diagonal exchange
+        D  = 0.4   # DM interaction
+        J_exch = [J   Γ   -D;
+                  Γ   J   -D;
+                  D   D  J+K]
+
+        bond = Bond(1, 2, [0, 0, 0])
+        Si, Sj = spin_operators_pair(sys, bond)
+        set_pair_coupling!(sys, Si'*J_exch*Sj + 0.01(Si'*Sj)^2, bond)
+        =#
+    end
 end
 
 function add_quartic_interactions!(sys, mode)

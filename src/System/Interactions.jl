@@ -328,7 +328,7 @@ end
 # `cells`.
 function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells) where N
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
-    # anisotropy matrix will be incorporated directly into ℌ.
+    # anisotropy matrix will be incorporated directly into local H matrix.
     if N == 0
         stvexp = ints.onsite :: StevensExpansion
         for cell in cells
@@ -367,34 +367,65 @@ end
 
 # Updates `HZ` in-place to hold `dE/dZ̄`, which is the Schrödinger analog to the
 # quantity `dE/ds`. **Overwrites the first two dipole buffers in `sys`.**
-function set_energy_grad_coherents!(HZ, Z, sys::System{N}) where N
+function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) where N
     @assert N > 0
 
-    # For efficiency, pre-calculate some of the terms associated with dE/ds,
-    # where s is the expected spin associated with Z. Note that dE_ds does _not_
-    # include anything about the onsite coupling, the biquadratic interactions,
-    # or the general pair couplings, which must be handled in a more general
-    # way.
+    fill!(HZ, zero(CVec{N}))
+
+    # Accumulate Zeeman, Ewald interactions, and spin-bilinear exchange
+    # interactions into dE/ds, where s is the expected spin associated with Z.
+    # Note that dE_ds does _not_ include the onsite coupling or biquadratic
+    # couplings, which must be handled differently.
     dE_ds, dipoles = get_dipole_buffers(sys, 2)
     @. dipoles = expected_spin(Z)
     set_energy_grad_dipoles!(dE_ds, dipoles, sys)
 
-    if is_homogeneous(sys)
-        ints = interactions_homog(sys)
-        for site in eachsite(sys)
-            Λ = ints[to_atom(site)].onsite :: HermitianC64
-            HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
+    # Accumulate anisotropies and exchange interactions.
+    for i in 1:natoms(sys.crystal)
+        if is_homogeneous(sys)
+            # Interactions for sublattice i (same for every cell)
+            interactions = sys.interactions_union[i]
+            set_energy_grad_coherents_aux!(HZ, Z, dE_ds, interactions, sys, i, eachcell(sys))
+        else
+            for cell in eachcell(sys)
+                # Interactions for sublattice i and a specific cell
+                interactions = sys.interactions_union[cell, i]
+                set_energy_grad_coherents_aux!(HZ, Z, dE_ds, interactions, sys, i, (cell,))
+            end
         end
-    else
-        ints = interactions_inhomog(sys)
-        for site in eachsite(sys)
-            Λ = ints[site].onsite :: HermitianC64
-            HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
-        end 
     end
 
-    @. dE_ds = dipoles = Vec3(0,0,0)
+    fill!(dE_ds, zero(Vec3))
+    fill!(dipoles, zero(Vec3))
 end
+
+function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_ds::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i, cells) where N
+    for cell in cells
+        # HZ += (Λ + dE/ds S) Z
+        Λ = ints.onsite :: HermitianC64
+        HZ[cell, i] += mul_spin_matrices(Λ, dE_ds[cell, i], Z[cell, i])
+    end
+
+    for pc in ints.pair
+        (; bond, isculled) = pc
+        isculled && break
+
+        for (A, B) in pc.general.data
+            A = SMatrix{N, N}(A)
+            B = SMatrix{N, N}(B)
+            for cellᵢ in cells
+                cellⱼ = offsetc(cellᵢ, bond.n, sys.latsize)
+                Zᵢ = Z[cellᵢ, bond.i]
+                Zⱼ = Z[cellⱼ, bond.j]
+                Ā = real(dot(Zᵢ, A, Zᵢ))
+                B̄ = real(dot(Zⱼ, B, Zⱼ))
+                HZ[cellᵢ, bond.i] += (A * Zᵢ) * B̄
+                HZ[cellⱼ, bond.j] += Ā * (B * Zⱼ)
+            end
+        end
+    end
+end
+
 
 # Internal testing functions
 function energy_grad_dipoles(sys::System{N}) where N
