@@ -34,8 +34,8 @@ function add_quadratic_interactions!(sys, mode)
     else
         add_exchange_interactions!(sys, mode)
 
-        # This alternative should work, but it is too slow to enable by default.        
         #=
+        # This alternative must work, but is too slow to enable by default.
         J  = 0.5   # Anti-ferro nearest neighbor
         K  = 1.0   # Scale of Kitaev term
         Γ  = 0.2   # Off-diagonal exchange
@@ -44,9 +44,8 @@ function add_quadratic_interactions!(sys, mode)
                   Γ   J   -D;
                   D   D  J+K]
 
-        bond = Bond(1, 2, [0, 0, 0])
-        Si, Sj = spin_operators_pair(sys, bond)
-        set_pair_coupling!(sys, Si'*J_exch*Sj + 0.01(Si'*Sj)^2, bond)
+        Si, Sj = spin_operators_pair(sys, 1, 2)
+        set_pair_coupling!(sys, Si'*J_exch*Sj + 0.01(Si'*Sj)^2, Bond(1, 2, [0, 0, 0]))
         =#
     end
 end

@@ -1,5 +1,9 @@
 # Version History
 
+## v0.5.6
+
+* General pair interactions are partially implemented in [`set_pair_coupling!`](@ref). 
+
 ## v0.5.5
 
 * [`reshape_supercell`](@ref) now allows reshaping to multiples of the primitive

@@ -78,9 +78,13 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2) where T
     return ret
 end
 
-# Given two lists of local operators acting on sites i and j individually,
-# return the corresponding local operators that act on the tensor product space.
-function local_quantum_operators(A, B)
+"""
+    to_product_space(A, B)
+
+Given two lists of local operators acting on sites i and j individually, return
+the corresponding local operators that act on the tensor product space.
+"""
+function to_product_space(A, B)
     (isempty(A) || isempty(B)) && error("Nonempty lists required")
 
     @assert allequal(size.(A))

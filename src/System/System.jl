@@ -445,18 +445,3 @@ function get_coherent_buffers(sys::System{N}, numrequested) where N
     end
     return view(sys.coherent_buffers, 1:numrequested)
 end
-
-
-"""
-    spin_operators_pair(sys::System, b::Bond)
-
-Returns a pair of spin dipoles `(Si, Sj)` associated with atoms `b.i` and `b.j`,
-respectively. The components of these return values are operators that act in
-the tensor product space of the two sites, which makes them useful for defining
-interactions as input to [`set_pair_coupling!`](@ref).
-"""
-function spin_operators_pair(sys::System{N}, b::Bond) where N
-    Si = spin_matrices(N=sys.Ns[b.i])
-    Sj = spin_matrices(N=sys.Ns[b.j])
-    return local_quantum_operators(Si, Sj)
-end

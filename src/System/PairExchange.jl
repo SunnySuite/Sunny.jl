@@ -89,7 +89,7 @@ function decompose_general_coupling(op, gen1, gen2; fast)
             @info "Detected scalar biquadratic. Not yet optimized."
         end
     else
-        bilin = 0
+        bilin = 0.0
     end
 
     return bilin, TensorDecomposition(gen1, gen2, svd_tensor_expansion(op, N1, N2))
@@ -112,7 +112,11 @@ function transform_coupling_by_symmetry(cryst, tensordec::TensorDecomposition, s
     Q = R * det(R)
     U1 = unitary_for_rotation(Q, gen1)
     U2 = unitary_for_rotation(Q, gen2)
-    data = [(Hermitian(U1'*A*U1), Hermitian(U2'*B*U2)) for (A, B) in data]
+    # Under the symop, coherents transform as `Z -> U Z`. Then couplings must
+    # transform as `A -> U A U'` so that the expected energy on a bond `⟨A⟩⟨B⟩`
+    # is invariant. By analogy, spin rotates as `S -> R S` and the 3×3 exchange
+    # matrix transforms as `J -> R J Rᵀ` to preserve `Sᵀ J S`.
+    data = [(Hermitian(U1*A*U1'), Hermitian(U2*B*U2')) for (A, B) in data]
     return TensorDecomposition(gen1, gen2, data)
 end
 
@@ -164,19 +168,33 @@ end
 
 
 """
+    spin_operators_pair(sys::System, i::Int, j::Int)
+
+Returns a pair of spin dipoles `(Si, Sj)` associated with atoms `i` and `j`,
+respectively. The components of these return values are operators that act in
+the tensor product space of the two sites, which makes them useful for defining
+interactions as input to [`set_pair_coupling!`](@ref).
+"""
+function spin_operators_pair(sys::System{N}, i::Int, j::Int) where N
+    Si = spin_matrices(N=sys.Ns[i])
+    Sj = spin_matrices(N=sys.Ns[j])
+    return to_product_space(Si, Sj)
+end
+
+"""
     set_pair_coupling!(sys::System, coupling, bond)
 
 Sets an arbitrary `coupling` along `bond`. This coupling will be propagated to
 equivalent bonds in consistency with crystal symmetry. Any previous interactions
 on these bonds will be overwritten. The parameter `bond` has the form `Bond(i,
 j, offset)`, where `i` and `j` are atom indices within the unit cell, and
-`offset` is a displacement in unit cells. The `coupling` will typically be
-formed as a polynomial of operators obtained from [`spin_operators_pair`](@ref).
+`offset` is a displacement in unit cells. The `coupling` may be formed as a
+polynomial of operators obtained from [`spin_operators_pair`](@ref).
 
 # Examples
 ```julia
 # Add a bilinear and biquadratic exchange
-Si, Sj = spin_operators_pair(sys, bond)
+S = spin_operators_pair(sys, bond.i, bond.j)
 set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 ```
 """
