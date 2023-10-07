@@ -42,14 +42,14 @@ function set_interactions_from_origin!(sys::System{N}) where N
         i = map_atom_to_crystal(sys.crystal, new_i, origin.crystal)
         new_ints[new_i].onsite = orig_ints[i].onsite
 
-        new_pair = PairCoupling[]
-        for (; bond, bilin, biquad) in orig_ints[i].pair
-            new_bond = transform_bond(sys.crystal, new_i, origin.crystal, bond)
+        new_pc = PairCoupling[]
+        for pc in orig_ints[i].pair
+            new_bond = transform_bond(sys.crystal, new_i, origin.crystal, pc.bond)
             isculled = bond_parity(new_bond)
-            push!(new_pair, PairCoupling(isculled, new_bond, bilin, biquad))
+            push!(new_pc, PairCoupling(isculled, new_bond, pc.bilin, pc.biquad, pc.general))
         end
-        new_pair = sort!(new_pair, by=c->c.isculled)
-        new_ints[new_i].pair = new_pair
+        new_pc = sort!(new_pc, by=c->c.isculled)
+        new_ints[new_i].pair = new_pc
     end
 end
 

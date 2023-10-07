@@ -17,8 +17,8 @@ function warn_coupling_override(str)
 end
 
 
-# Creates a clone of the lists of exchange interactions, which can be mutably
-# updated.
+# Creates a copy of the Vector of PairCouplings. This is useful when cloning a
+# system; mutable updates to one clone should not affect the other.
 function clone_interactions(ints::Interactions)
     (; onsite, pair) = ints
     return Interactions(onsite, copy(pair))
@@ -146,27 +146,36 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
         E_old, _ = energy_and_gradient_for_classical_anisotropy(s₀, stvexp)
         ΔE += E_new - E_old
     else
-        Λ = onsite :: Matrix
+        Λ = onsite :: HermitianC64
         ΔE += real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
     end
 
     # Quadratic exchange matrix
-    for coupling in pair
-        (; bond) = coupling
-        cellⱼ = offsetc(to_cell(site), bond.n, latsize)
-        sⱼ = dipoles[cellⱼ, bond.j]
+    for pc in pair
+        cellⱼ = offsetc(to_cell(site), pc.bond.n, latsize)
+        sⱼ = dipoles[cellⱼ, pc.bond.j]
+        Zⱼ = coherents[cellⱼ, pc.bond.j]
 
         # Bilinear
-        J = coupling.bilin
+        J = pc.bilin
         ΔE += dot(Δs, J, sⱼ)
 
         # Biquadratic
-        if !iszero(coupling.biquad)
-            J = coupling.biquad
+        if !iszero(pc.biquad)
+            J = pc.biquad
             if sys.mode == :dipole
                 ΔE += J * ((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2)
             elseif sys.mode == :SUN
                 error("Biquadratic currently unsupported in SU(N) mode.") 
+            end
+        end
+
+        # General
+        if N > 0
+            for (A, B) in pc.general.data
+                ΔĀ = real(dot(Z, A, Z) - dot(Z₀, A, Z₀))
+                B̄ = real(dot(Zⱼ, B, Zⱼ))
+                ΔE += ΔĀ * B̄
             end
         end
     end
@@ -239,28 +248,39 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbo
             E += energy_and_gradient_for_classical_anisotropy(s, stvexp)[1]
         end
     else            # SU(N) mode
-        Λ = ints.onsite :: Matrix
+        Λ = ints.onsite :: HermitianC64
         for cell in cells
             Z = coherents[cell, i]
             E += real(dot(Z, Λ, Z))
         end
     end
 
-    foreachbond(ints.pair) do coupling, site1, site2
+    foreachbond(ints.pair) do pc, site1, site2
         sᵢ = dipoles[site1]
         sⱼ = dipoles[site2]
 
         # Bilinear
-        J = coupling.bilin
+        J = pc.bilin
         E += dot(sᵢ, J, sⱼ)
 
         # Biquadratic
-        if !iszero(coupling.biquad)
-            J = coupling.biquad
+        if !iszero(pc.biquad)
+            J = pc.biquad
             if sys.mode == :dipole
                 E += J * (sᵢ⋅sⱼ)^2
             elseif sys.mode == :SUN
                 error("Biquadratic currently unsupported in SU(N) mode.")
+            end
+        end
+
+        # General
+        if N > 0
+            Zᵢ = coherents[site1]
+            Zⱼ = coherents[site2]
+            for (A, B) in pc.general.data
+                Ā = real(dot(Zᵢ, A, Zᵢ))
+                B̄ = real(dot(Zⱼ, B, Zⱼ))
+                E += Ā * B̄
             end
         end
     end
@@ -317,18 +337,18 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
         end
     end
 
-    foreachbond(ints.pair) do coupling, site1, site2
+    foreachbond(ints.pair) do pc, site1, site2
         sᵢ = dipoles[site1]
         sⱼ = dipoles[site2]
 
         # Bilinear
-        J = coupling.bilin
+        J = pc.bilin
         ∇E[site1] += J  * sⱼ
         ∇E[site2] += J' * sᵢ
 
         # Biquadratic
-        if !iszero(coupling.biquad)
-            J = coupling.biquad
+        if !iszero(pc.biquad)
+            J = pc.biquad
             if sys.mode == :dipole
                 ∇E[site1] += J * 2sⱼ*(sᵢ⋅sⱼ)
                 ∇E[site2] += J * 2sᵢ*(sᵢ⋅sⱼ)
@@ -356,13 +376,13 @@ function set_energy_grad_coherents!(HZ, Z, sys::System{N}) where N
     if is_homogeneous(sys)
         ints = interactions_homog(sys)
         for site in eachsite(sys)
-            Λ = ints[to_atom(site)].onsite :: Matrix
+            Λ = ints[to_atom(site)].onsite :: HermitianC64
             HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
         end
     else
         ints = interactions_inhomog(sys)
         for site in eachsite(sys)
-            Λ = ints[site].onsite :: Matrix
+            Λ = ints[site].onsite :: HermitianC64
             HZ[site] = mul_spin_matrices(Λ, dE_ds[site], Z[site])
         end 
     end

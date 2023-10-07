@@ -202,7 +202,7 @@ end
 
             # If coherents are present, perform same operation
             if mode == :SUN
-                U = Sunny.unitary_for_rotation(R; N=sys.Ns[1])
+                U = Sunny.unitary_irrep_for_rotation(R; N=sys.Ns[1])
                 sys.coherents .= circshift(sys.coherents, (0,0,0,1))
                 sys.coherents .= [U*z for z in sys.coherents]
             end

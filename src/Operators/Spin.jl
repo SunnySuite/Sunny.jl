@@ -7,17 +7,17 @@ appropriate value of `N` for a given site index.
 """
 function spin_matrices(; N::Int)
     if N == 0
-        return fill(zeros(ComplexF64,0,0), 3)
+        return fill(Hermitian(zeros(ComplexF64,0,0)), 3)
     end
 
-    S = (N-1)/2
+    S = (N-1)/2 + 0im
     j = 1:N-1
-    off = @. sqrt(2(S+1)*j - j*(j+1)) / 2
+    off = @. sqrt(2(S+1)*j - j*(j+1)) / 2 + 0im
 
-    Sx = diagm(1 => off, -1 => off)
-    Sy = diagm(1 => -im*off, -1 => +im*off)
-    Sz = diagm(S .- (0:N-1))
-    return [Sx, Sy, Sz]
+    Sx = Hermitian(diagm(1 => off, -1 => off))
+    Sy = Hermitian(diagm(1 => -im*off, -1 => +im*off))
+    Sz = Hermitian(diagm(S .- (0:N-1)))
+    return SVector(Sx, Sy, Sz)
 end
 
 

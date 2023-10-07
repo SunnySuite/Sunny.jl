@@ -16,25 +16,47 @@ function StevensExpansion(c)
     return StevensExpansion(kmax, c[0], c[2], c[4], c[6])
 end
 
+struct ExchangeCoupling
+end
+
+struct TensorDecomposition
+    # Dimensions of (Aᵢ, Bᵢ) respectively
+    N1 :: Int
+    N2 :: Int
+
+    # Generators of rotations for (Aᵢ, Bᵢ) respectively
+    gen1 :: SVector{3, HermitianC64}
+    gen2 :: SVector{3, HermitianC64}
+
+    # [(A₁, B₁), (A₂, B₂), ...] interpreted as ∑ₖ Aₖ ⊗ Bₖ
+    data :: Vector{Tuple{HermitianC64, HermitianC64}}
+end
+
+function TensorDecomposition(op, gen1, gen2)
+    N1 = size(gen1[1], 1)
+    N2 = size(gen2[1], 1)
+    return TensorDecomposition(N1, N2, gen1, gen2, svd_tensor_expansion(op, N1, N2))
+end
+
 # Pair couplings are counted only once per bond
 struct PairCoupling
     isculled :: Bool # Bond directionality is used to avoid double counting
     bond     :: Bond
 
+    # TODO: Make union!
     # In :dipole mode, these will be renormalized couplings following
     # the procedure in https://arxiv.org/abs/2304.03874
     bilin    :: Union{Float64, Mat3} # Bilinear exchange
     biquad   :: Float64              # Scalar biquadratic
 
     # General pair interactions, only valid in SU(N) mode
-    # general  :: Vector{Tuple{Hermitian{ComplexF64}, Hermitian{ComplexF64}}}
-    # TODO: update clone_interactions(), set_interactions_from_origin!
+    general  :: TensorDecomposition
 end
 
 mutable struct Interactions
     # Onsite coupling is either an N×N Hermitian matrix or possibly renormalized
     # Stevens coefficients, depending on the mode :SUN or :dipole.
-    onsite :: Union{Matrix{ComplexF64}, StevensExpansion}
+    onsite :: Union{HermitianC64, StevensExpansion}
     # Pair couplings for every bond that starts at the given atom
     pair :: Vector{PairCoupling}
 end

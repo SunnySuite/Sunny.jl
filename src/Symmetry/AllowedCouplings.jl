@@ -118,7 +118,7 @@ function symmetry_allowed_couplings_operator(cryst::Crystal, b::BondPos)
     return P
 end
 
-function transform_coupling_by_symmetry(cryst, J, symop, parity)
+function transform_coupling_by_symmetry(cryst, J::Mat3, symop, parity)
     R = cryst.latvecs * symop.R * inv(cryst.latvecs)
     return R * (parity ? J : J') * R'
 end
@@ -127,8 +127,8 @@ end
 function is_coupling_valid(cryst::Crystal, b::BondPos, J)
     J isa Number && return true
     
-    for sym in symmetries_between_bonds(cryst, b, b)
-        J′ = transform_coupling_by_symmetry(cryst, J, sym...)
+    for (symop, parity) in symmetries_between_bonds(cryst, b, b)
+        J′ = transform_coupling_by_symmetry(cryst, J, symop, parity)
         # TODO use symprec to handle case where symmetry is inexact
         if !isapprox(J, J′; atol = 1e-12)
             return false

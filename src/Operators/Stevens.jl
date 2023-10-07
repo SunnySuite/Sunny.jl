@@ -75,9 +75,9 @@ end
 # Construct Stevens operators as polynomials in the spin operators.
 function stevens_matrices(k::Int; N::Int)
     if k >= N
-        return fill(zeros(ComplexF64, N, N), 2k+1)
+        return fill(Hermitian(zeros(ComplexF64, N, N)), 2k+1)
     else
-        return stevens_abstract_polynomials(; J=spin_matrices(; N), k)
+        return Hermitian.(stevens_abstract_polynomials(; J=spin_matrices(; N), k))
     end
 end
 
@@ -134,7 +134,7 @@ end
 const stevens_αinv = map(inv, stevens_α)
 
 
-function matrix_to_stevens_coefficients(A::Matrix{ComplexF64})
+function matrix_to_stevens_coefficients(A::HermitianC64)
     N = size(A,1)
     @assert N == size(A,2)
 
@@ -161,7 +161,7 @@ end
 function rotate_stevens_coefficients(c, R::Mat3)
     N = length(c)
     k = Int((N-1)/2)
-    D = unitary_for_rotation(R; N)
+    D = unitary_irrep_for_rotation(R; N)
     c′ = transpose(stevens_αinv[k]) * D' * transpose(stevens_α[k]) * c
     @assert norm(imag(c′)) < 1e-12
     return real(c′)
@@ -187,12 +187,12 @@ print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
 # Prints: (1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)𝒮⁴
 ```
 """
-function print_stevens_expansion(op::Matrix{ComplexF64})
+function print_stevens_expansion(op::AbstractMatrix)
     op ≈ op' || error("Requires Hermitian operator")
     terms = String[]
 
     # Decompose op into Stevens coefficients
-    c = matrix_to_stevens_coefficients(op)
+    c = matrix_to_stevens_coefficients(hermitianpart(op))
     for k in 1:6
         for (c_km, m) in zip(reverse(c[k]), -k:k)
             abs(c_km) < 1e-12 && continue

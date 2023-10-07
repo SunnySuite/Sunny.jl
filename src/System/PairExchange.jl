@@ -30,7 +30,7 @@ function to_float_or_mat3(J)
 end
 
 # Internal function only
-function push_coupling!(sys, couplings, bond, bilin, biquad, large_S)
+function push_coupling!(sys, couplings, bond, bilin, biquad, large_S, op=zero(TensorDecomposition))
     # Perform renormalization derived in https://arxiv.org/abs/2304.03874
     if sys.mode == :dipole && !large_S
         # Multiplicative average is the correct result for two sites with
@@ -51,11 +51,14 @@ function push_coupling!(sys, couplings, bond, bilin, biquad, large_S)
     filter!(c -> c.bond != bond, couplings)
 
     # If the new coupling is exactly zero, return early
-    iszero(bilin) && iszero(biquad) && return
+    iszero(bilin) && iszero(biquad) && iszero(op) && return
 
     # Otherwise, add the new coupling to the list
     isculled = bond_parity(bond)
-    push!(couplings, PairCoupling(isculled, bond, bilin, biquad))
+    push!(couplings, PairCoupling(isculled, bond, bilin, biquad, op))
+
+    # Sorting after each insertion will introduce quadratic scaling in length of
+    # `couplings`. In typical usage, the `couplings` list will be short.
     sort!(couplings, by=c->c.isculled)
     
     return
@@ -66,10 +69,10 @@ end
 
 Sets a 3×3 spin-exchange matrix `J` along `bond`, yielding a pairwise
 interaction energy ``𝐒_i⋅J 𝐒_j``. This interaction will be propagated to
-equivalent bonds in consistency with crystal symmetry. Any previous exchange
-interactions on these bonds will be overwritten. The parameter `bond` has the
-form `Bond(i, j, offset)`, where `i` and `j` are atom indices within the unit
-cell, and `offset` is a displacement in unit cells.
+equivalent bonds in consistency with crystal symmetry. Any previous interactions
+on these bonds will be overwritten. The parameter `bond` has the form `Bond(i,
+j, offset)`, where `i` and `j` are atom indices within the unit cell, and
+`offset` is a displacement in unit cells.
 
 The parameter `J` may be scalar or matrix-valued. As a convenience, `dmvec(D)`
 can be used to construct the antisymmetric part of the exchange, where `D` is
@@ -132,6 +135,92 @@ function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0, large_S=false) w
         end
     end
 end
+
+function Base.zero(::Type{TensorDecomposition})
+    gen = spin_matrices(; N=0)
+    return TensorDecomposition(0, 0, gen, gen, [])
+end
+
+function Base.iszero(op::TensorDecomposition)
+    # The list `op.data` will be formed by SVD, and empty corresponds to zero.
+    return iszero(length(op.data))
+end
+
+function transform_coupling_by_symmetry(cryst, op::TensorDecomposition, symop, parity)
+    (; N1, N2, gen1, gen2, data) = op
+    if !parity
+        data = [(B, A) for (A, B) in data]
+        N2, N1 = (N1, N2)
+        gen2, gen1 = (gen1, gen2)
+    end
+    R = cryst.latvecs * symop.R * inv(cryst.latvecs)
+    Q = R * det(R)
+    U1 = unitary_for_rotation(Q, gen1)
+    U2 = unitary_for_rotation(Q, gen2)
+    data = [(Hermitian(U1'*A*U1), Hermitian(U2'*B*U2)) for (A, B) in data]
+    return TensorDecomposition(N1, N2, gen1, gen2, data)
+end
+
+function Base.isapprox(op1::Sunny.TensorDecomposition, op2::Sunny.TensorDecomposition; kwargs...)
+    op1′ = sum(kron(A, B) for (A, B) in op1.data)
+    op2′ = sum(kron(A, B) for (A, B) in op2.data)
+    return isapprox(op1′, op2′; kwargs...)
+end
+
+"""
+    set_pair_coupling!(sys::System, coupling, bond)
+
+Sets an arbitrary `coupling` along `bond`. This coupling will be propagated to
+equivalent bonds in consistency with crystal symmetry. Any previous interactions
+on these bonds will be overwritten. The parameter `bond` has the form `Bond(i,
+j, offset)`, where `i` and `j` are atom indices within the unit cell, and
+`offset` is a displacement in unit cells. The `coupling` will typically be
+formed as a polynomial of operators obtained from [`spin_operators_pair`](@ref).
+
+# Examples
+```julia
+using Sunny, LinearAlgebra
+
+# Add a bilinear and biquadratic exchange
+Si, Sj = spin_operators_pair(sys, bond)
+set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
+```
+"""
+function set_pair_coupling!(sys::System{N}, op::Matrix{ComplexF64}, bond) where N
+    is_homogeneous(sys) || error("Use `set_pair_coupling_at!` for an inhomogeneous system.")
+    ints = interactions_homog(sys)
+
+    # If `sys` has been reshaped, then operate first on `sys.origin`, which
+    # contains full symmetry information.
+    if !isnothing(sys.origin)
+        set_pair_coupling!(sys.origin, op, bond)
+        set_interactions_from_origin!(sys)
+        return
+    end
+
+    validate_bond(sys.crystal, bond)
+
+    op = TensorDecomposition(op, spin_operators(sys, bond.i), spin_operators(sys, bond.j))
+    
+    # Verify that coupling is symmetry-consistent
+    if !is_coupling_valid(sys.crystal, bond, op)
+        @error """Symmetry-violating coupling. Use `print_bond(crystal, $bond)` for more information."""
+        error("Interaction violates symmetry.")
+    end
+
+    # Print a warning if an interaction already exists for bond
+    if any(x -> x.bond == bond, ints[bond.i].pair)
+        warn_coupling_override("Overriding coupling for $bond.")
+    end
+
+    for i in 1:natoms(sys.crystal)
+        bonds, ops = all_symmetry_related_couplings_for_atom(sys.crystal, i, bond, op)
+        for (bond′, op′) in zip(bonds, ops)
+            push_coupling!(sys, ints[i].pair, bond′, zero(Mat3), 0, false, op′)
+        end
+    end
+end
+
 
 # Converts two sites to a bond with indices for possibly reshaped unit cell. For
 # internal use only.
