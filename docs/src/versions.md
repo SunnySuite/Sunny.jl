@@ -2,7 +2,7 @@
 
 ## v0.5.6
 
-* General pair interactions are partially implemented in [`set_pair_coupling!`](@ref). 
+* General pair couplings are now supported in [`set_pair_coupling!`](@ref). 
 
 ## v0.5.5
 
