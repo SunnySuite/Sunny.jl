@@ -168,33 +168,21 @@ end
 
 
 """
-    spin_operators_pair(sys::System, i::Int, j::Int)
-
-Returns a pair of spin dipoles `(Si, Sj)` associated with atoms `i` and `j`,
-respectively. The components of these return values are operators that act in
-the tensor product space of the two sites, which makes them useful for defining
-interactions as input to [`set_pair_coupling!`](@ref).
-"""
-function spin_operators_pair(sys::System{N}, i::Int, j::Int) where N
-    Si = spin_matrices(N=sys.Ns[i])
-    Sj = spin_matrices(N=sys.Ns[j])
-    return to_product_space(Si, Sj)
-end
-
-"""
     set_pair_coupling!(sys::System, coupling, bond)
 
 Sets an arbitrary `coupling` along `bond`. This coupling will be propagated to
 equivalent bonds in consistency with crystal symmetry. Any previous interactions
 on these bonds will be overwritten. The parameter `bond` has the form `Bond(i,
 j, offset)`, where `i` and `j` are atom indices within the unit cell, and
-`offset` is a displacement in unit cells. The `coupling` may be formed as a
-polynomial of operators obtained from [`spin_operators_pair`](@ref).
+`offset` is a displacement in unit cells. The `coupling` is a represented as a
+matrix acting in the tensor product space of the two sites, and typically
+originates from [`to_product_space`](@ref).
 
 # Examples
 ```julia
 # Add a bilinear and biquadratic exchange
-S = spin_operators_pair(sys, bond.i, bond.j)
+S = spin_matrices(1/2)
+Si, Sj = to_product_space(S, S)
 set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 ```
 """

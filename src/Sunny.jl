@@ -39,7 +39,7 @@ include("Operators/Stevens.jl")
 include("Operators/TensorOperators.jl")
 include("Operators/Symbolic.jl")
 include("Operators/Observables.jl")
-export spin_matrices, rotate_operator, print_stevens_expansion
+export spin_matrices, to_product_space, rotate_operator, print_stevens_expansion
 
 include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
@@ -65,8 +65,8 @@ include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, Site, eachsite, position_to_site, global_position, magnetic_moment, 
     set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, energy, energy_per_site,
-    spin_operators, stevens_operators, large_S_spin_operators, large_S_stevens_operators, set_onsite_coupling!, 
-    spin_operators_pair, set_pair_coupling!, set_external_field!, set_exchange!, dmvec, enable_dipole_dipole!,
+    spin_operators, stevens_operators, large_S_spin_operators, large_S_stevens_operators,
+    set_onsite_coupling!, set_pair_coupling!, set_external_field!, set_exchange!, dmvec, enable_dipole_dipole!,
     to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
     symmetry_equivalent_bonds, set_exchange_at!, remove_periodicity!
 

@@ -44,8 +44,11 @@ function add_quadratic_interactions!(sys, mode)
                   Γ   J   -D;
                   D   D  J+K]
 
-        Si, Sj = spin_operators_pair(sys, 1, 2)
-        set_pair_coupling!(sys, Si'*J_exch*Sj + 0.01(Si'*Sj)^2, Bond(1, 2, [0, 0, 0]))
+        bond = Bond(1, 2, [0, 0, 0])
+        S1 = spin_matrices(; N=sys.Ns[bond.i])
+        S2 = spin_matrices(; N=sys.Ns[bond.j])
+        Si, Sj = to_product_space(S1, S2)
+        set_pair_coupling!(sys, Si'*J_exch*Sj + 0.01(Si'*Sj)^2, bond)
         =#
     end
 end

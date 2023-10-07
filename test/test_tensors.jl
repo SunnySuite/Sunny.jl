@@ -48,11 +48,12 @@ end
     E = energy(sys)
     dE_dZ = Sunny.energy_grad_coherents(sys)
     
-    Si, Sj = spin_operators_pair(sys, bond.i, bond.j)
+    S = spin_matrices(; N=5)
+    Si, Sj = to_product_space(S, S)
     set_pair_coupling!(sys, Si'*J_exch*Sj, bond; fast=false)
     E′ = energy(sys)
     dE_dZ′ = Sunny.energy_grad_coherents(sys)
     
     @test E ≈ E′
-    @test dE_dZ ≈ dE_dZ′        
+    @test dE_dZ ≈ dE_dZ′
 end
