@@ -33,8 +33,6 @@ const HermitianC64 = Hermitian{ComplexF64, Matrix{ComplexF64}}
 
 @static if VERSION < v"1.10" hermitianpart(A) = Hermitian(A+A')/2 end
 
-include("Util/CartesianIndicesShifted.jl")
-
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
 include("Operators/Stevens.jl")

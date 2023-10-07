@@ -99,7 +99,7 @@ function minimize_energy!(sys::System{N}; maxiters=100, subiters=10, method=Opti
     # Functions to calculate energy and gradient for the state `αs`
     function f(αs)
         optim_set_spins!(sys, αs, ns)
-        return energy(sys) # TODO: `Sunny.energy` seems to allocate and is type-unstable (7/20/2023)
+        return energy(sys)
     end
     function g!(G, αs)
         optim_set_spins!(sys, αs, ns)

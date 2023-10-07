@@ -203,30 +203,29 @@ end
 The total system energy. See also [`energy_per_site`](@ref).
 """
 function energy(sys::System{N}) where N
-    (; crystal, latsize, dipoles, extfield, ewald) = sys
-
     E = 0.0
 
     # Zeeman coupling to external field
     for site in eachsite(sys)
-        E -= sys.units.μB * extfield[site] ⋅ (sys.gs[site] * dipoles[site])
+        E -= sys.units.μB * sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
     end
 
     # Anisotropies and exchange interactions
-    for i in 1:natoms(crystal)
+    for i in 1:natoms(sys.crystal)
         if is_homogeneous(sys)
+            # Interactions for sublattice i (same for every cell)
             interactions = sys.interactions_union[i]
-            E += energy_aux(sys, interactions, i, eachcell(sys), homog_bond_iterator(latsize))
+            E += energy_aux(interactions, sys, i, eachcell(sys))
         else
             for cell in eachcell(sys)
                 interactions = sys.interactions_union[cell, i]
-                E += energy_aux(sys, interactions, i, (cell,), inhomog_bond_iterator(latsize, cell))
+                E += energy_aux(interactions, sys, i, (cell,))
             end
         end
     end
 
     # Long-range dipole-dipole
-    if !isnothing(ewald)
+    if !isnothing(sys.ewald)
         E += ewald_energy(sys)
     end
     
@@ -234,53 +233,56 @@ function energy(sys::System{N}) where N
 end
 
 # Total energy contributed by sublattice `i`, summed over the list of `cells`.
-# The function `foreachbond` enables efficient iteration over neighboring cell
-# pairs (without double counting).
-function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbond) where N
-    (; dipoles, coherents) = sys
+function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
     E = 0.0
 
     # Single-ion anisotropy
     if N == 0       # Dipole mode
         stvexp = ints.onsite :: StevensExpansion
         for cell in cells
-            s = dipoles[cell, i]
+            s = sys.dipoles[cell, i]
             E += energy_and_gradient_for_classical_anisotropy(s, stvexp)[1]
         end
     else            # SU(N) mode
         Λ = ints.onsite :: HermitianC64
         for cell in cells
-            Z = coherents[cell, i]
+            Z = sys.coherents[cell, i]
             E += real(dot(Z, Λ, Z))
         end
     end
 
-    foreachbond(ints.pair) do pc, site1, site2
-        sᵢ = dipoles[site1]
-        sⱼ = dipoles[site2]
+    for pc in ints.pair
+        (; bond, isculled) = pc
+        isculled && break
 
-        # Bilinear
-        J = pc.bilin
-        E += dot(sᵢ, J, sⱼ)
+        for cellᵢ in cells
+            cellⱼ = offsetc(cellᵢ, bond.n, sys.latsize)
+            sᵢ = sys.dipoles[cellᵢ, bond.i]
+            sⱼ = sys.dipoles[cellⱼ, bond.j]
 
-        # Biquadratic
-        if !iszero(pc.biquad)
-            J = pc.biquad
-            if sys.mode == :dipole
-                E += J * (sᵢ⋅sⱼ)^2
-            elseif sys.mode == :SUN
-                error("Biquadratic currently unsupported in SU(N) mode.")
+            # Bilinear
+            J = pc.bilin :: Union{Float64, Mat3}
+            E += dot(sᵢ, J, sⱼ)
+
+            # Biquadratic
+            if !iszero(pc.biquad)
+                J = pc.biquad
+                if sys.mode == :dipole
+                    E += J * (sᵢ⋅sⱼ)^2
+                elseif sys.mode == :SUN
+                    error("Biquadratic currently unsupported in SU(N) mode.")
+                end
             end
-        end
 
-        # General
-        if N > 0
-            Zᵢ = coherents[site1]
-            Zⱼ = coherents[site2]
-            for (A, B) in pc.general.data
-                Ā = real(dot(Zᵢ, A, Zᵢ))
-                B̄ = real(dot(Zⱼ, B, Zⱼ))
-                E += Ā * B̄
+            # General
+            if N > 0
+                Zᵢ = sys.coherents[cellᵢ, bond.i]
+                Zⱼ = sys.coherents[cellⱼ, bond.j]
+                for (A, B) in pc.general.data
+                    Ā = real(dot(Zᵢ, A, Zᵢ))
+                    B̄ = real(dot(Zⱼ, B, Zⱼ))
+                    E += Ā * B̄
+                end
             end
         end
     end
@@ -288,45 +290,43 @@ function energy_aux(sys::System{N}, ints::Interactions, i::Int, cells, foreachbo
     return E
 end
 
+
 # Updates ∇E in-place to hold energy gradient, dE/ds, for each spin. In the case
 # of :SUN mode, s is interpreted as expected spin, and dE/ds only includes
 # contributions from Zeeman coupling, bilinear exchange, and long-range
 # dipole-dipole. Excluded terms include onsite coupling, and general pair
 # coupling (biquadratic and beyond).
 function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N}) where N
-    (; crystal, latsize, extfield, ewald) = sys
-
     fill!(∇E, zero(Vec3))
 
     # Zeeman coupling
     for site in eachsite(sys)
-        ∇E[site] -= sys.units.μB * (sys.gs[site]' * extfield[site])
+        ∇E[site] -= sys.units.μB * (sys.gs[site]' * sys.extfield[site])
     end
 
     # Anisotropies and exchange interactions
-    for i in 1:natoms(crystal)
+    for i in 1:natoms(sys.crystal)
         if is_homogeneous(sys)
-            # Interaction is the same at every cell
+            # Interactions for sublattice i (same for every cell)
             interactions = sys.interactions_union[i]
-            set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, eachcell(sys), homog_bond_iterator(latsize))
+            set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, eachcell(sys))
         else
             for cell in eachcell(sys)
-                # There is a different interaction at every cell
-                interactions = sys.interactions_union[cell,i]
-                set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, (cell,), inhomog_bond_iterator(latsize, cell))
+                # Interactions for sublattice i and a specific cell
+                interactions = sys.interactions_union[cell, i]
+                set_energy_grad_dipoles_aux!(∇E, dipoles, interactions, sys, i, (cell,))
             end
         end
     end
 
-    if !isnothing(ewald)
+    if !isnothing(sys.ewald)
         accum_ewald_grad!(∇E, dipoles, sys)
     end
 end
 
 # Calculate the energy gradient `∇E' for the sublattice `i' at all elements of
-# `cells`. The function `foreachbond` enables efficient iteration over
-# neighboring cell pairs (without double counting).
-function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells, foreachbond) where N
+# `cells`.
+function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells) where N
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into ℌ.
     if N == 0
@@ -337,23 +337,29 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
         end
     end
 
-    foreachbond(ints.pair) do pc, site1, site2
-        sᵢ = dipoles[site1]
-        sⱼ = dipoles[site2]
+    for pc in ints.pair
+        (; bond, isculled) = pc
+        isculled && break
 
-        # Bilinear
-        J = pc.bilin
-        ∇E[site1] += J  * sⱼ
-        ∇E[site2] += J' * sᵢ
+        for cellᵢ in cells
+            cellⱼ = offsetc(cellᵢ, bond.n, sys.latsize)
+            sᵢ = dipoles[cellᵢ, bond.i]
+            sⱼ = dipoles[cellⱼ, bond.j]
 
-        # Biquadratic
-        if !iszero(pc.biquad)
-            J = pc.biquad
-            if sys.mode == :dipole
-                ∇E[site1] += J * 2sⱼ*(sᵢ⋅sⱼ)
-                ∇E[site2] += J * 2sᵢ*(sᵢ⋅sⱼ)
-            elseif sys.mode == :SUN
-                error("Biquadratic currently unsupported in SU(N) mode.")
+            # Bilinear
+            J = pc.bilin
+            ∇E[cellᵢ, bond.i] += J  * sⱼ
+            ∇E[cellⱼ, bond.j] += J' * sᵢ
+
+            # Biquadratic
+            if !iszero(pc.biquad)
+                J = pc.biquad
+                if sys.mode == :dipole
+                    ∇E[cellᵢ, bond.i] += J * 2sⱼ*(sᵢ⋅sⱼ)
+                    ∇E[cellⱼ, bond.j] += J * 2sᵢ*(sᵢ⋅sⱼ)
+                elseif sys.mode == :SUN
+                    error("Biquadratic currently unsupported in SU(N) mode.")
+                end
             end
         end
     end
@@ -420,35 +426,4 @@ end
         :(+($(out_i...)))
     end
     return :(CVec{$N}($(out...)))
-end
-
-
-# Produces a function that iterates over a list interactions for a given cell
-function inhomog_bond_iterator(latsize, cell)
-    return function foreachbond(f, pcs)
-        for pc in pcs
-            # Early return to avoid double-counting a bond
-            pc.isculled && break
-
-            # Neighboring cell may wrap the system
-            cell′ = offsetc(cell, pc.bond.n, latsize)
-            f(pc, CartesianIndex(cell, pc.bond.i), CartesianIndex(cell′, pc.bond.j))
-        end
-    end
-end
-
-# Produces a function that iterates over a list of interactions, involving all
-# pairs of cells in a homogeneous system
-function homog_bond_iterator(latsize)
-    return function foreachbond(f, pcs)
-        for pc in pcs
-            # Early return to avoid double-counting a bond
-            pc.isculled && break
-
-            # Iterate over all cells and periodically shifted neighbors
-            for (ci, cj) in zip(CartesianIndices(latsize), CartesianIndicesShifted(latsize, Tuple(pc.bond.n)))
-                f(pc, CartesianIndex(ci, pc.bond.i), CartesianIndex(cj, pc.bond.j))
-            end
-        end
-    end
 end
