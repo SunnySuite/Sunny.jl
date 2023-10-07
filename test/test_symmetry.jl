@@ -53,11 +53,10 @@
 
     # Calculate interaction table
     ref_bonds = reference_bonds(cryst, 2.)
-    b = ref_bonds[2]
-    basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
-    J = basis' * randn(length(basis))
-    (bs, Js) = Sunny.all_symmetry_related_couplings_for_atom(cryst, b.i, b, J)
-    @test length(Js) == Sunny.coordination_number(cryst, b.i, b)
+    bond = ref_bonds[2]
+    basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, bond)
+    bs = Sunny.all_symmetry_related_bonds_for_atom(cryst, bond.i, bond)
+    @test length(bs) == Sunny.coordination_number(cryst, bond.i, bond)
 
 
     ### Triangular lattice, primitive unit cell
