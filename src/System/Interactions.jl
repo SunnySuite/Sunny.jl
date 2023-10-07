@@ -260,6 +260,13 @@ function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
             sᵢ = sys.dipoles[cellᵢ, bond.i]
             sⱼ = sys.dipoles[cellⱼ, bond.j]
 
+            # Scalar
+            if N > 0
+                E += pc.scalar * sys.κs[cellᵢ, bond.i] * sys.κs[cellⱼ, bond.j]
+            else
+                E += pc.scalar
+            end
+
             # Bilinear
             J = pc.bilin :: Union{Float64, Mat3}
             E += dot(sᵢ, J, sⱼ)

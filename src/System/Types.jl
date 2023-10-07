@@ -30,9 +30,9 @@ struct PairCoupling
     isculled :: Bool # Bond directionality is used to avoid double counting
     bond     :: Bond
 
-    # TODO: Make union!
-    # In :dipole mode, these will be renormalized couplings following
-    # the procedure in https://arxiv.org/abs/2304.03874
+    # In :dipole mode, biquad couplings will be renormalized following the
+    # procedure in https://arxiv.org/abs/2304.03874
+    scalar   :: Float64              # Constant shift
     bilin    :: Union{Float64, Mat3} # Bilinear exchange
     biquad   :: Float64              # Scalar biquadratic
 

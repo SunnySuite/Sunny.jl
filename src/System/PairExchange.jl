@@ -50,7 +50,7 @@ function renormalize_biquad(sys, bond, bilin, biquad)
 end
 
 # Internal function only
-function push_coupling!(couplings, bond, bilin, biquad, tensordec)
+function push_coupling!(couplings, bond::Bond, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Float64, tensordec::TensorDecomposition)
     # Remove previous coupling on this bond
     filter!(c -> c.bond != bond, couplings)
 
@@ -59,7 +59,7 @@ function push_coupling!(couplings, bond, bilin, biquad, tensordec)
 
     # Otherwise, add the new coupling to the list
     isculled = bond_parity(bond)
-    push!(couplings, PairCoupling(isculled, bond, bilin, biquad, tensordec))
+    push!(couplings, PairCoupling(isculled, bond, scalar, bilin, biquad, tensordec))
 
     # Sorting after each insertion will introduce quadratic scaling in length of
     # `couplings`. In typical usage, the `couplings` list will be short.
@@ -74,6 +74,11 @@ function decompose_general_coupling(op, gen1, gen2; fast)
     N2 = size(gen2[1], 1)
 
     if fast
+        # Remove scalar part
+        scalar = real(tr(op))
+        op = op - (scalar/size(op, 1))*I
+
+        # Remove bilinear part
         bilin = zeros(3, 3)
         for α in 1:3, β in 1:3
             v = kron(gen1[α], gen2[β])
@@ -84,15 +89,16 @@ function decompose_general_coupling(op, gen1, gen2; fast)
         end
         bilin = Mat3(bilin)
 
+        # TODO: Remove biquadratic part
         u = sum(kron(gen1[α], gen2[α]) for α in 1:3)
         if norm(op) > 1e-12 && normalize(op) ≈ normalize(u^2 + u/2)
             @info "Detected scalar biquadratic. Not yet optimized."
         end
     else
-        bilin = 0.0
+        scalar = bilin = 0.0
     end
 
-    return bilin, TensorDecomposition(gen1, gen2, svd_tensor_expansion(op, N1, N2))
+    return scalar, bilin, TensorDecomposition(gen1, gen2, svd_tensor_expansion(op, N1, N2))
 end
 
 function Base.zero(::Type{TensorDecomposition})
@@ -127,11 +133,11 @@ function Base.isapprox(op1::TensorDecomposition, op2::TensorDecomposition; kwarg
     return isapprox(op1′, op2′; kwargs...)
 end
 
-function set_pair_coupling_aux!(sys::System, bilin::Union{Float64, Mat3}, biquad::Float64, tensordec::TensorDecomposition, bond::Bond)
+function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Float64, tensordec::TensorDecomposition, bond::Bond)
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
     if !isnothing(sys.origin)
-        set_pair_coupling_aux!(sys.origin, bilin, biquad, tensordec, bond)
+        set_pair_coupling_aux!(sys.origin, scalar, bilin, biquad, tensordec, bond)
         set_interactions_from_origin!(sys)
         return
     end
@@ -161,7 +167,7 @@ function set_pair_coupling_aux!(sys::System, bilin::Union{Float64, Mat3}, biquad
         for bond′ in all_symmetry_related_bonds_for_atom(sys.crystal, i, bond)
             bilin′ = transform_coupling_for_bonds(sys.crystal, bond′, bond, bilin)
             tensordec′ = transform_coupling_for_bonds(sys.crystal, bond′, bond, tensordec)
-            push_coupling!(ints[i].pair, bond′, bilin′, biquad, tensordec′)
+            push_coupling!(ints[i].pair, bond′, scalar, bilin′, biquad, tensordec′)
         end
     end
 end
@@ -191,10 +197,10 @@ function set_pair_coupling!(sys::System{N}, tensordec::Matrix{ComplexF64}, bond;
 
     gen1 = spin_operators(sys, bond.i)
     gen2 = spin_operators(sys, bond.j)
-    bilin, tensordec = decompose_general_coupling(tensordec, gen1, gen2; fast)
+    scalar, bilin, tensordec = decompose_general_coupling(tensordec, gen1, gen2; fast)
     biquad = 0.0
 
-    set_pair_coupling_aux!(sys, bilin, biquad, tensordec, bond)
+    set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond)
 end
 
 """
@@ -237,7 +243,7 @@ function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0, large_S=false) w
     if sys.mode == :dipole && !large_S
         bilin, biquad = renormalize_biquad(sys, bond, bilin, biquad)
     end
-    set_pair_coupling_aux!(sys, bilin, Float64(biquad), zero(TensorDecomposition), bond)
+    set_pair_coupling_aux!(sys, 0.0, bilin, Float64(biquad), zero(TensorDecomposition), bond)
 end
 
 
@@ -312,8 +318,8 @@ function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad=0,
         bilin, biquad = renormalize_biquad(sys, bond, bilin, biquad)
     end
 
-    push_coupling!(ints[site1].pair, bond, bilin, biquad, zero(TensorDecomposition))
-    push_coupling!(ints[site2].pair, reverse(bond), bilin', biquad', zero(TensorDecomposition))
+    push_coupling!(ints[site1].pair, bond, 0.0, bilin, Float64(biquad), zero(TensorDecomposition))
+    push_coupling!(ints[site2].pair, reverse(bond), 0.0, bilin', Float64(biquad), zero(TensorDecomposition))
 
     return
 end

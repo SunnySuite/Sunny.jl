@@ -46,7 +46,7 @@ function set_interactions_from_origin!(sys::System{N}) where N
         for pc in orig_ints[i].pair
             new_bond = transform_bond(sys.crystal, new_i, origin.crystal, pc.bond)
             isculled = bond_parity(new_bond)
-            push!(new_pc, PairCoupling(isculled, new_bond, pc.bilin, pc.biquad, pc.general))
+            push!(new_pc, PairCoupling(isculled, new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
         end
         new_pc = sort!(new_pc, by=c->c.isculled)
         new_ints[new_i].pair = new_pc
