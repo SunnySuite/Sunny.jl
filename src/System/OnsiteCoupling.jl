@@ -1,13 +1,14 @@
-function onsite_coupling(sys, site, matrep::Matrix{ComplexF64})
+function onsite_coupling(sys, site, matrep::AbstractMatrix)
     N = sys.Ns[site]
     size(matrep) == (N, N) || error("Invalid matrix size.")
+    matrep ≈ matrep' || error("Requires Hermitian operator")
 
     if sys.mode == :SUN
-        return matrep
+        return Hermitian(matrep)
     elseif sys.mode == :dipole
         S = sys.κs[site]
         λ = anisotropy_renormalization(S)
-        c = matrix_to_stevens_coefficients(matrep)
+        c = matrix_to_stevens_coefficients(hermitianpart(matrep))
         return StevensExpansion(λ .* c)
     end
 end
@@ -41,7 +42,7 @@ function empty_anisotropy(mode, N)
         c = map(k -> zeros(2k+1), OffsetArray(0:6, 0:6))
         return StevensExpansion(c)
     elseif mode == :SUN
-        return zeros(ComplexF64, N, N)
+        return Hermitian(zeros(ComplexF64, N, N))
     end
 end
 
@@ -91,7 +92,7 @@ function Base.getindex(this::StevensMatrices, k::Int, q::Int)
     k > 6  && error("Stevens operators 𝒪[k,q] currently require k <= 6.")
     !(-k <= q <= k) && error("Stevens operators 𝒪[k,q] require -k <= q <= k.")
     if k == 0
-        return Matrix{ComplexF64}(I, this.N, this.N)
+        return HermitianC64(I, this.N, this.N)
     else
         # Stevens operators are stored in descending order: k, k-1, ... -k.
         return stevens_matrices(k; this.N)[k - q + 1]

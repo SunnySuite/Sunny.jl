@@ -610,6 +610,20 @@ end
 
 #= Definitions of common crystals =#
 
+function square_crystal(; a=1.0, c=10a)
+    latvecs = lattice_vectors(a, a, c, 90, 90, 90)
+    positions = [[0, 0, 0]]
+    cryst = Crystal(latvecs, positions)
+    return cryst
+end
+
+function triangular_crystal(; a=1.0, c=10a)
+    latvecs = lattice_vectors(a, a, c, 90, 90, 120)
+    positions = [[0, 0, 0]]
+    cryst = Crystal(latvecs, positions)
+    return cryst
+end
+
 function kagome_crystal(; a=1.0, c=10a)
     latvecs = lattice_vectors(a, a, c, 90, 90, 120)
     positions = [[0, 0, 0], [0.5, 0, 0], [0, 0.5, 0]]

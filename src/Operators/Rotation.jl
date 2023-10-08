@@ -68,24 +68,51 @@ function random_orthogonal(rng, N::Int; special=false)
     return special ? O*det(O) : O
 end
 
-function unitary_for_rotation(R::Mat3; N::Int)
+# Unitary for a rotation matrix built from abstract generators.
+function unitary_for_rotation(R::Mat3, gen)
     !(R'*R ≈ I)   && error("Not an orthogonal matrix, R = $R.")
     !(det(R) ≈ 1) && error("Matrix includes a reflection, R = $R.")
-    S = spin_matrices(; N)
     n, θ = matrix_to_axis_angle(R)
-    return exp(-im*θ*(n'*S))
+    return exp(-im*θ*(n'*gen))
 end
 
+# Unitary for a rotation matrix in the N-dimensional irrep of SU(2).
+function unitary_irrep_for_rotation(R::Mat3; N::Int)
+    gen = spin_matrices(; N)
+    unitary_for_rotation(R, gen)
+end
+
+# Unitary for a rotation matrix in the (N1⊗N2⊗...)-dimensional irrep of SU(2).
+function unitary_tensor_for_rotation(R::Mat3; Ns)
+    Us = [unitary_irrep_for_rotation(R; N) for N in Ns]
+    if length(Ns) == 1
+        return Us[1]
+    elseif length(Ns) == 2
+        return kron(Us[1], Us[2])
+    else
+        error("Tensor products currently accept only two operators")
+    end
+end
+
+# TODO: Replace this with a function that takes generators.
 """
     rotate_operator(A, R)
 
 Rotates the local quantum operator `A` according to the ``3×3`` rotation matrix
 `R`.
 """
-function rotate_operator(A::Matrix, R) # TODO: Arbitrary generators of rotation
+function rotate_operator(A::HermitianC64, R)
     isempty(A) && return A
     R = convert(Mat3, R)
     N = size(A, 1)
-    U = unitary_for_rotation(R; N)
+    U = unitary_irrep_for_rotation(R; N)
+    return Hermitian(U'*A*U)
+end
+
+
+# Given an operator A in a tensor product representation labeled by (N1, N2,
+# ...), perform a physical rotation by the matrix R .
+function rotate_tensor_operator(A::Matrix, R; Ns)
+    U = unitary_tensor_for_rotation(R; Ns)
     return U'*A*U
 end

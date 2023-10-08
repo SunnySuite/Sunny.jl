@@ -121,16 +121,15 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
 end
 
 function fast_isapprox(x, y; atol)
-    sqTol = atol^2
     acc = 0.
     for i in eachindex(x)
         diff = x[i] - y[i]
         acc += real(dot(diff,diff))
-        if acc > sqTol
+        if acc > atol^2
             return false
         end
     end
-    return true
+    return !isnan(acc)
 end
 
 
@@ -173,10 +172,10 @@ end
 
 
 # Implicit Midpoint Method applied to the nonlinear Schrödinger dynamics, as
-# proposed in Phys. Rev. B 106, 054423 (2022). Integrates dZ/dt = - i ℌ(Z) Z one
+# proposed in Phys. Rev. B 106, 054423 (2022). Integrates dZ/dt = - i H(Z) Z one
 # timestep Z → Z′ via the implicit equation
 #
-#   (Z′-Z)/Δt = - i ℌ(Z̄) Z, where Z̄ = (Z+Z′)/2
+#   (Z′-Z)/Δt = - i H(Z̄) Z, where Z̄ = (Z+Z′)/2
 #
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     (; atol) = integrator
