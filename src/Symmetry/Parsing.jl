@@ -151,13 +151,13 @@ function Crystal(filename::AbstractString; symprec=nothing)
 
     spacegroup = if !isnothing(hm_symbol)
         if !isnothing(groupnum)
-            "HM symbol '$hm_symbol' ($groupnum)"
+            "'$hm_symbol' ($groupnum)"
         else
-            "HM symbol '$hm_symbol'"
+            "'$hm_symbol'"
         end
     else
         if !isnothing(groupnum)
-            "Spacegroup number $groupnum"
+            "($groupnum)"
         else
             ""
         end

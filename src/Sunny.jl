@@ -7,7 +7,7 @@ import OffsetArrays: OffsetArray, OffsetMatrix, Origin
 import SpecialFunctions: erfc
 import FFTW
 import DynamicPolynomials as DP
-import Printf: @printf, @sprintf
+import Printf: Printf, @printf, @sprintf
 import Random: Random, randn!
 import DataStructures: SortedDict, OrderedDict
 import Optim
