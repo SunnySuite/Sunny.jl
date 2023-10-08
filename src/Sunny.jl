@@ -29,9 +29,9 @@ import Random: randstring, RandomDevice
 const Vec3 = SVector{3, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
 const CVec{N} = SVector{N, ComplexF64}
+const HermitianC64 = Hermitian{ComplexF64, Matrix{ComplexF64}}
 
-
-include("Util/CartesianIndicesShifted.jl")
+@static if VERSION < v"1.10" hermitianpart(A) = Hermitian(A+A')/2 end
 
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
@@ -39,7 +39,7 @@ include("Operators/Stevens.jl")
 include("Operators/TensorOperators.jl")
 include("Operators/Symbolic.jl")
 include("Operators/Observables.jl")
-export spin_matrices, rotate_operator, print_stevens_expansion
+export spin_matrices, to_product_space, rotate_operator, print_stevens_expansion
 
 include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
@@ -66,9 +66,9 @@ include("System/Interactions.jl")
 export SpinInfo, System, Site, eachsite, position_to_site, global_position, magnetic_moment, 
     set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, energy, energy_per_site,
     spin_operators, stevens_operators, large_S_spin_operators, large_S_stevens_operators,
-    set_external_field!, set_onsite_coupling!, set_exchange!, dmvec, enable_dipole_dipole!,
-    to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
-    symmetry_equivalent_bonds, set_exchange_at!, remove_periodicity!
+    set_onsite_coupling!, set_pair_coupling!, set_exchange!, dmvec, enable_dipole_dipole!, set_external_field!,
+    to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!, set_exchange_at!,
+    symmetry_equivalent_bonds, remove_periodicity!
 
 include("MagneticOrdering.jl")
 export print_wrapped_intensities, suggest_magnetic_supercell, set_spiral_order!, set_spiral_order_on_sublattice!

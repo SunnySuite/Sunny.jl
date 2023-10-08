@@ -42,7 +42,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
 
         # The Wigner D matrix, whose action on a spherical tensor corresponds to
         # the 3x3 rotation Q (see more below).
-        return unitary_for_rotation(Q; N=2k+1)
+        return unitary_irrep_for_rotation(Q; N=2k+1)
     end
     
     # A general operator in the spin-k representation can be decomposed in the
@@ -63,7 +63,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     # c′ satisfying c′ᵀ T′ = c T. Recall c′ᵀ T′ = (c′ᵀ D*) T = (D† c′)ᵀ T. The
     # constraint becomes D† c′ = c. Since D is unitary, we have c′ = D c. We
     # apply this transformation to each column c of C.
-    D = unitary_for_rotation(R; N=2k+1)
+    D = unitary_irrep_for_rotation(R; N=2k+1)
     C = D * C
 
     # Find an orthonormal basis for the columns of A, discarding linearly

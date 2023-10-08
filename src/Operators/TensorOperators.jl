@@ -1,16 +1,17 @@
-# Produces a matrix representation of a tensor product of operators, C = A⊗B.
-# Like built-in `kron` but with permutation. Returns C_{acbd} = A_{ab} B_{cd}.
-function kron_operator(A::AbstractMatrix, B::AbstractMatrix)
-    TS = promote_type(eltype(A), eltype(B))
-    C = zeros(TS, size(A,1), size(B,1), size(A,2), size(B,2))
-    for ci in CartesianIndices(C)
-        a, c, b, d = Tuple(ci)
-        C[ci] = A[a,b] * B[c,d]
-    end
-    return reshape(C, size(A,1)*size(B,1), size(A,2)*size(B,2))
+# Defined so that `reverse_kron(A⊗B) == B⊗A`.
+# 
+# To understand the implementation, note that:
+# - `A_ij B_kl = (A⊗B)_kilj`
+# - `(A⊗B)_ijkl = A_jl B_ik`
+function reverse_kron(C, N1, N2)
+    @assert length(C) == N2*N1*N2*N1
+    C = reshape(C, N2, N1, N2, N1)
+    C = permutedims(C, (2, 1, 4, 3))
+    return reshape(C, N1*N2, N1*N2)
 end
 
-
+# Return list of groups of indices. Within each group, the indexed values of `S`
+# are approximately equal. Assumes S is sorted.
 function degeneracy_groups(S, tol)
     acc = UnitRange{Int}[]
     isempty(S) && return acc
@@ -33,10 +34,10 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2) where T
     tol = 1e-12
 
     @assert size(D, 1) == size(D, 2) == N1*N2
-    D̃ = permutedims(reshape(D, N1, N2, N1, N2), (1,3,2,4))
+    D̃ = permutedims(reshape(D, N2, N1, N2, N1), (2,4,1,3))
     D̃ = reshape(D̃, N1*N1, N2*N2)
     (; S, U, V) = svd(D̃)
-    ret = []
+    ret = Tuple{HermitianC64, HermitianC64}[]
 
     # Rotate columns of U and V within each degenerate subspace so that all
     # columns (when reshaped) are Hermitian matrices
@@ -45,7 +46,7 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2) where T
         
         U_sub = view(U, :, range)
         n = length(range)
-        Q = zeros(n, n)
+        Q = zeros(ComplexF64, n, n)
         for k in 1:n, k′ in 1:n
             uk  = reshape(view(U_sub, :, k), N1, N1)
             uk′ = reshape(view(U_sub, :, k′), N1, N1)
@@ -69,15 +70,16 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2) where T
             # Check factors are really Hermitian
             @assert norm(u - u') < tol
             @assert norm(v - v') < tol
-            u = Hermitian(u+u')/2
-            v = Hermitian(v+v')/2
+            u = hermitianpart(u)
+            v = hermitianpart(v)
             push!(ret, (σ*u, conj(v)))
         end
     end
     return ret
 end
 
-function local_quantum_operators(A, B)
+
+function to_product_space_orig(A, B)
     (isempty(A) || isempty(B)) && error("Nonempty lists required")
 
     @assert allequal(size.(A))
@@ -88,39 +90,31 @@ function local_quantum_operators(A, B)
 
     I1 = Ref(Matrix(I, N1, N1))
     I2 = Ref(Matrix(I, N2, N2))
-    return (kron_operator.(A, I2), kron_operator.(I1, B))
+    return (kron.(A, I2), kron.(I1, B))
 end
 
+"""
+    to_product_space(A, B, Cs...)
 
-#=
+Given lists of operators acting on local Hilbert spaces individually, return the
+corresponding operators that act on the tensor product space. In typical usage,
+the inputs will represent local physical observables and the outputs will be
+used to define quantum couplings.
+"""
+function to_product_space(A, B, Cs...)
+    lists = [A, B, Cs...]
 
-# Returns the spin operators for two sites, with Hilbert space dimensions N₁ and
-# N₂, respectively.
-function spin_pair(N1, N2)
-    S1 = spin_matrices(N=N1)
-    S2 = spin_matrices(N=N2)
-    return local_quantum_operators(S1, S2)
+    Ns = map(enumerate(lists)) do (i, list)
+        isempty(list) && error("Empty operator list in argument $i.")
+        allequal(size.(list)) || error("Unequal sized operators in argument $i.")
+        return size(first(list), 1)
+    end
+
+    return map(enumerate(lists)) do (i, list)
+        I1 = I(prod(Ns[begin:i-1]))
+        I2 = I(prod(Ns[i+1:end]))
+        return map(list) do op
+            kron(I1, op, I2)
+        end
+    end
 end
-
-N1 = 3
-N2 = 3
-
-# Check Kronecker product of operators
-A1 = randn(N1,N1)
-A2 = randn(N1,N1)
-B1 = randn(N2,N2)
-B2 = randn(N2,N2)
-@assert kron_operator(A1, B1) * kron_operator(A2, B2) ≈ kron_operator(A1*A2, B1*B2)
-
-# Check SVD decomposition
-S1, S2 = spin_pair(N1, N2)
-B = (S1' * S2)^2                                # biquadratic interaction
-D = svd_tensor_expansion(B, N1, N2)             # a sum of 9 tensor products
-@assert sum(kron_operator(d...) for d in D) ≈ B # consistency check
-
-
-B = S1' * S2
-D = svd_tensor_expansion(B, N1, N2)             # a sum of 9 tensor products
-@assert sum(kron_operator(d...) for d in D) ≈ B
-
-=#

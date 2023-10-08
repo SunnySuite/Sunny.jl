@@ -445,10 +445,3 @@ function get_coherent_buffers(sys::System{N}, numrequested) where N
     end
     return view(sys.coherent_buffers, 1:numrequested)
 end
-
-
-function spin_operators_pair(sys::System{N}, b::Bond) where N
-    Si = spin_matrices(N=sys.Ns[b.i])
-    Sj = spin_matrices(N=sys.Ns[b.j])
-    return local_quantum_operators(Si, Sj)
-end

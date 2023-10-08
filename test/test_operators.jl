@@ -147,9 +147,7 @@ end
     # Test decomposition of a random Hermitian matrix into Stevens coefficients
     let
         N = 7 # big enough to yield contributions at k=6
-        A = randn(ComplexF64, N, N)
-        A = A + A'
-
+        A = Hermitian(randn(ComplexF64, N, N))
         c = Sunny.matrix_to_stevens_coefficients(A)
 
         acc = zeros(ComplexF64, N, N)
@@ -186,8 +184,7 @@ end
 
     # Test that Stevens coefficients rotate properly
     let 
-        A = randn(ComplexF64, N, N)
-        A = A + A'
+        A = Hermitian(randn(ComplexF64, N, N))
         c = Sunny.matrix_to_stevens_coefficients(A)
 
         # Rotate coefficients directly
