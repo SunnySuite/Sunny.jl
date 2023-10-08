@@ -78,35 +78,39 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     return ret
 end
 
-function Base.show(io::IO, sys::System{N}) where N
-    modename = if sys.mode==:SUN
-        "SU($N)"
-    elseif sys.mode==:dipole
-        "Dipole"
+function mode_to_str(sys::System{N}) where N
+    if sys.mode == :SUN
+        return "[SU($N)]"
+    elseif sys.mode == :dipole
+        return "[Dipole mode]"
+    elseif sys.mode == :dipole_large_S
+        return "[Dipole mode, large-S]"
     else
         error()
-    end
-    print(io,"System{$modename}[$(sys.latsize)×$(natoms(sys.crystal))]")
-    if !isnothing(sys.origin)
-        shape = number_to_math_string.(cell_shape(sys))
-        print_formatted_matrix(shape; prefix="Reshaped cell: ", io)
     end
 end
 
+function lattice_to_str(sys::System)
+    lat_str = isnothing(sys.origin) ? "Lattice" : "Reshaped lattice"
+    return lat_str * " ($(join(sys.latsize, "×")))×$(natoms(sys.crystal))"
+end
+
+function energy_to_str(sys::System)
+    return "Energy per site "*number_to_math_string(energy_per_site(sys))
+end
+
+function Base.show(io::IO, sys::System{N}) where N
+    print(io, "System($(mode_to_str(sys)), $(lattice_to_str(sys)), $(energy_to_str(sys)))")
+end
+
 function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
-    modename = if sys.mode==:SUN
-        "SU($N)"
-    elseif sys.mode==:dipole
-        "Dipole mode"
-    else
-        error()
-    end
-    printstyled(io, "System [$modename]\n"; bold=true, color=:underline)
-    println(io, "Lattice: $(sys.latsize)×$(natoms(sys.crystal))")
+    printstyled(io, "System $(mode_to_str(sys))\n"; bold=true, color=:underline)
+    println(io, lattice_to_str(sys))
     if !isnothing(sys.origin)
         shape = number_to_math_string.(cell_shape(sys))
-        print_formatted_matrix(shape; prefix="Reshaped cell: ", io)
+        print_formatted_matrix(shape; prefix="Reshaped cell ", io)
     end
+    println(io, energy_to_str(sys))
 end
 
 # Per Julia developers, `deepcopy` is memory unsafe, especially in conjunction

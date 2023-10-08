@@ -150,7 +150,7 @@ cell_volume(cryst::Crystal) = abs(det(cryst.latvecs))
 function spacegroup_name(hall_number::Int)
     # String representation of space group
     sgt = Spglib.get_spacegroup_type(hall_number)
-    return "HM symbol '$(sgt.international)' ($(sgt.number))"
+    return "'$(sgt.international)' ($(sgt.number))"
 end
 
 
@@ -551,10 +551,14 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     return ret
 end
 
+function Base.show(io::IO, cryst::Crystal)
+    spg = isempty(cryst.spacegroup) ? "" : "$(cryst.spacegroup), "
+    println(io, "Crystal($(spg)$(natoms(cryst)) atoms)")
+end
 
 function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
     printstyled(io, "Crystal\n"; bold=true, color=:underline)
-    println(io, cryst.spacegroup)
+    println(io, "Spacegroup $(cryst.spacegroup)")
 
     if is_standard_form(cryst.latvecs)
         (a, b, c, α, β, γ) = lattice_params(cryst.latvecs)
@@ -577,6 +581,9 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
             multiplicity = cryst.sitesyms[i].multiplicity
             wyckoff = cryst.sitesyms[i].wyckoff
             push!(descr, "Wyckoff $multiplicity$wyckoff (point group '$symbol')")
+        end
+        if isempty(descr)
+            push!(descr, "Class $c")
         end
         println(io, join(descr, ", "), ":")
 

@@ -6,7 +6,8 @@ function number_to_simple_string(x::T; digits, atol=1e-12) where T <: Real
     if is_approx_integer(x; atol)
         return string(round(Int, x))
     else
-        return string(round(x; digits))
+        fmt = Printf.Format("%.$(digits)g")
+        return Printf.format(fmt, x)
     end
 end
 
