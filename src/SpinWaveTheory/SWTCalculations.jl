@@ -568,7 +568,7 @@ function Base.show(io::IO, ::BandStructure{N,T}) where {N,T}
     print(io,"BandStructure{$N bands with $T-valued intensity}")
 end
 
-map(f, bs::BandStructure) = BandStructure(bs.dispersion, map(f,bs.intensity))
+Base.map(f, bs::BandStructure) = BandStructure(bs.dispersion, map(f,bs.intensity))
 
 struct SpinWaveIntensityFormula{T}
     string_formula :: String
@@ -636,7 +636,7 @@ The integral of a properly normalized kernel function over all `Δω` is one.
 """
 function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
                            #kT = 0.,
-                           return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast=false,
+                           return_type=ComplexF64, string_formula="f(Q,ω,S{α,β})", mode_fast=false,
                            formfactors=nothing)
     (; sys, data, observables) = swt
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
@@ -778,4 +778,153 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     SpinWaveIntensityFormula{output_type}(string_formula,kernel_edep,calc_intensity)
 end
 
+function get_eigenmodes(swt,q)
+    (; sys, data, observables) = swt
+    nmodes = num_bands(swt)
+
+    Hmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
+    Vmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
+    disp = zeros(Float64, nmodes)
+
+    bogoliubov! = mk_bogoliubov!(nmodes)
+
+    q_reshaped = to_reshaped_rlu(swt.sys, Vec3(q))
+
+    if sys.mode == :SUN
+        swt_hamiltonian_SUN!(swt, q_reshaped, Hmat)
+    elseif sys.mode == :dipole
+        error("Dipole mode not supported")
+    end
+    #println("Original Hamiltonian:")
+    H0 = copy(Hmat)
+    #display(H0)
+    #display(eigen(H0))
+
+    bogoliubov!(disp, Vmat, Hmat, swt.energy_tol, true)
+
+    # Now, Vmat contains the information about the eigenmodes as columns.
+    # The way this works is that the first [nmodes] columns describe the
+    # [nmodes] many boson deletion operators, as linear combinations of both
+    # the original boson deletion operators (top half of column) and the original boson
+    # creation operators (bottom half of column).
+    #
+    # [[The second half of the columns contain the boson creation operators in a similar
+    # format, but in reverse order, e.g. it goes [b1,b2,b†2,b†1]. But the creation operators
+    # are not needed because they can be inferred from the deletion operators. The fact
+    # that they can be inferred is equivalent to the dagger operation being preserved
+    # by the bogoliubov transform V]]
+    #
+    # The operators within each half-column come in blocks.
+    # The length of the block corresponds to the boson flavor index, which runs
+    # from 2 to N (where N is as in SU(N)). The #1 is the 'ground state' boson which
+    # was condensed away.
+    #
+    # There is one such (2:N) block for each atom in the magnetic unit cell
+
+    Nm = natoms(sys.crystal) # Number of atoms in magnetic unit cell
+    N = sys.Ns[1] # The N in SU(N), giving the total number of boson flavors
+    Nf = N - 1 # Number of uncondensed boson flavors
+    @assert nmodes == Nf * Nm
+
+    bases = swt.data.local_quantization_basis
+
+    eigen_mode_displacements = zeros(ComplexF64,N,Nm,nmodes)
+
+    # Only loops over the boson deletion operators
+    for eigen_mode = 1:nmodes
+      # Describes the operator by its coefficients in the linear
+      # combination ∑ᵢ λᵢaᵢ where aᵢ runs over both the deletion and
+      # creation operators for the *original* non-bogoliubov bosons
+      bogoliubov_deletion_operator = Vmat[:,eigen_mode]
+
+      # Now we construct the (real-space, eventually) displacement
+      # associated with each eigenmode
+      for atom = 1:Nm
+        # Skip the first (atom-1) blocks
+        offset = (atom - 1) * Nf
+
+        # Get the combination of original bosons relevant for this atom
+        deletion_operators_on_this_atom = bogoliubov_deletion_operator[offset .+ (1:Nf)]
+        creation_operators_on_this_atom = bogoliubov_deletion_operator[nmodes .+ offset .+ (1:Nf)]
+
+        # Get the local quantization basis at this atom.
+        # This is actually a basis for the *tangent space* of the space
+        # of coherent states, rooted at the ground state coherent state.
+        # The basis is orthogonal, and there is one boson flavor associated
+        # with each basis vector.
+        basis = bases[:,:,atom]
+
+        # The first basis vector in the basis is along the 'ground state'/longitudinal mode
+        # and it got condensed away. There will be no eigenmode displacements in that
+        # direction.
+        uncondensed_basis = basis[:,2:N]
+
+        # Loop over only the uncondensed bosons
+        for original_uncondensed_boson = 2:N
+          # The bosons all got shifted one to the left when we chopped of the
+          # one which was condensed away.
+          boson_ix = original_uncondensed_boson - 1
+
+          this_displacement = uncondensed_basis[:,boson_ix]
+          this_amplitude = deletion_operators_on_this_atom[boson_ix]
+          eigen_mode_displacements[:,atom,eigen_mode] .+= this_displacement .* this_amplitude
+
+          # This says that the basis vectors corresponding to the creation operators
+          # are the complex conjugates of the basis vectors corresponding to the deletion
+          # operators
+          this_conj_displacement = conj.(uncondensed_basis[:,boson_ix])
+          this_conj_amplitude = creation_operators_on_this_atom[boson_ix]
+          eigen_mode_displacements[:,atom,eigen_mode] .+= this_conj_displacement .* this_conj_amplitude
+
+        end
+      end
+    end
+
+
+
+    #println("V matrix:")
+    #display(Vmat)
+    #println("Diagonalized V'HV:")
+    #display(Vmat' * H0 * Vmat)
+    #println("Bases")
+    #display(bases)
+    #=
+    println("Eigenmodes (columns are atoms)")
+    for m = 1:nmodes
+      println()
+      println("Mode #$m with energy $(disp[m])")
+      display(eigen_mode_displacements[:,:,m])
+      #=
+      for i = 1:Nm
+        println("Atom#$i:")
+        display(eigen_mode_displacements[:,i,m])
+        println("Δ[dipole] = ")
+        orig_dipole = expected_spin(sys.coherents[i])
+        eps = 1e-5
+        new_dipole = expected_spin(SVector{2}(sys.coherents[i] .+ eps .* eigen_mode_displacements[:,i,m]))
+        #display(orig_dipole)
+        #display(new_dipole)
+        display((new_dipole .- orig_dipole) ./ eps)
+      end
+      =#
+    end
+    =#
+    #println("Eigenenergies")
+    #display(disp)
+    #=
+    for band = 1:nmodes # Only loops over the first half
+        v = Vmat[:, band]
+        for i = 1:Nm
+            for α = 2:Ns # Loop over non-ground states
+                bDagger = v[(i-1)*(Ns-1)+α-1+nmodes]
+                b = v[(i-1)*(Ns-1)+α-1]
+                #(Obs[α, 1] * v[(i-1)*(Ns-1)+α-1+nmodes] + Obs[1, α] * v[(i-1)*(Ns-1)+α-1])
+            end
+        end
+    end
+    =#
+    println("Nm = $Nm, N = $N, Nf = $Nf, nmodes = $nmodes")
+    #display(sys.coherents)
+    return H0, Vmat, bases, eigen_mode_displacements, disp
+end
 

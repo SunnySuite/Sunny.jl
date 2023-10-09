@@ -621,10 +621,10 @@ end
 
 
 function plot_band_intensities(dispersion, intensity)
-  f = Makie.Figure()
-  ax = Makie.Axis(f[1,1]; xlabel = "Momentum", ylabel = "Energy (meV)", xticklabelsvisible = false)
-  plot_band_intensities!(ax,dispersion,intensity)
-  f
+    f = Makie.Figure()
+    ax = Makie.Axis(f[1,1]; xlabel = "Momentum", ylabel = "Energy (meV)", xticklabelsvisible = false)
+    plot_band_intensities!(ax,dispersion,intensity)
+    f
 end
 
 function plot_band_intensities!(ax, dispersion, intensity)
@@ -637,7 +637,14 @@ function plot_band_intensities!(ax, dispersion, intensity)
     nothing
 end
 
-function plot_susceptibility(band_structure::Sunny.BandStructure{NBands,ComplexF64};f = abs, energies = nothing,decay = 0.1) where NBands
+function plot_susceptibility(band_structure;kwargs...)
+    f = Makie.Figure()
+    ax = Makie.Axis(f[1,1]; xlabel = "Energy (meV)", ylabel = "χ(iω)")
+    plot_susceptibility!(ax,band_structure;kwargs...)
+    f
+end
+
+function plot_susceptibility!(ax,band_structure::Sunny.BandStructure{NBands,ComplexF64};part = abs, energies = nothing,decay = 0.1) where NBands
     energies = if isnothing(energies)
         peak_bounds = extrema(band_structure.dispersion)
 
@@ -653,7 +660,7 @@ function plot_susceptibility(band_structure::Sunny.BandStructure{NBands,ComplexF
         energies
     end
     χ = map(s -> Sunny.susceptibility_spectral_function(band_structure,s),decay .+ im .* energies)
-    Makie.lines(energies,f.(χ))
+    Makie.lines!(ax,energies,part.(χ))
 end
 
 
