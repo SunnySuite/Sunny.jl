@@ -158,6 +158,8 @@ function contractor_from_mode(source, mode::Symbol)
         corrs = keys(source.observables.correlations)
         contractor = AllAvailable{length(corrs)}()
         string_formula = "[" * join(map(x -> "S{$(x.I[1]),$(x.I[2])}",corrs),", ") * "]"
+    else
+        error("Unknown mode: $mode. Try one of :trace, :perp, :full, :all_available")
     end
     return contractor, string_formula
 end
