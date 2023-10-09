@@ -637,32 +637,6 @@ function plot_band_intensities!(ax, dispersion, intensity)
     nothing
 end
 
-function plot_susceptibility(band_structure;kwargs...)
-    f = Makie.Figure()
-    ax = Makie.Axis(f[1,1]; xlabel = "Energy (meV)", ylabel = "χ(iω)")
-    plot_susceptibility!(ax,band_structure;kwargs...)
-    f
-end
-
-function plot_susceptibility!(ax,band_structure::Sunny.BandStructure{NBands,ComplexF64};part = abs, energies = nothing,decay = 0.1) where NBands
-    energies = if isnothing(energies)
-        peak_bounds = extrema(band_structure.dispersion)
-
-        autocutoff = 1e-1
-        max_peak = maximum(abs.(band_structure.intensity))
-        # A/x = cutoff
-        # x = A/cutoff
-        x_cut = max_peak / autocutoff
-
-        num_steps_per_HWHM = 16
-        range(peak_bounds[1] - x_cut, peak_bounds[2] + x_cut; step = decay / num_steps_per_HWHM)
-    else
-        energies
-    end
-    χ = map(s -> Sunny.susceptibility_spectral_function(band_structure,s),decay .+ im .* energies)
-    Makie.lines!(ax,energies,part.(χ))
-end
-
 
 # The purpose of __init__() below is to make all the internal functions of
 # PlottingExt accessible to developers of Sunny.
