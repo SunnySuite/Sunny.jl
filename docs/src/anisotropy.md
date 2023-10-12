@@ -1,18 +1,29 @@
-# Single-Ion Anisotropy
+# Interaction Strength Renormalization
 
 A unique feature of Sunny is its support for building classical models where
 each quantum spin is represented as a full $N$-level system, rather than just an
-expected dipole. This formalism enables accurate modeling of quantum spin
-Hamiltonians that include a strong single-ion anisotropy.
+expected dipole. This formalism enables more accurate modeling of quantum spin
+Hamiltonians that include, e.g., a single-ion anisotropy, or a biquadratic
+coupling between sites.
 
-## Defining on-site couplings
+## Local operators
 
 A quantum spin-$S$ state has $N = 2S + 1$ levels. Each local spin operator
 $\hat{S}^{\{x,y,z\}}$ is faithfully represented as an $N×N$ matrix. Access these
-matrices using [`spin_operators`](@ref). For example, in the case of spin-$1/2$,
-this function returns the Pauli matrices divided by 2. The Stevens operators
+matrices using [`spin_matrices`](@ref) for a given label $S$. For example,
+`spin_matrices(1/2)` returns the Pauli matrices divided by 2.
+
+When $S > 1/2$, it is possible to construct multipole moments beyond the
+spin-dipole. For example,
+
+XXX TODO XXX
+```julia
+S = spin_matrices(2)
+```
+
+The Stevens operators
 $\hat{\mathcal{O}}_{k,q}$ are polynomials of the spin operators, and are
-accessed using [`stevens_operators`](@ref). With these building blocks, a
+accessed using [`stevens_matrices`](@ref). With these building blocks, a
 single-ion anisotropy is defined using [`set_onsite_coupling!`](@ref). For
 example:
 
@@ -91,9 +102,9 @@ Although we generally recommend the above renormalization procedure, there are
 circumstances where it is not desirable. Examples include reproducing a
 model-system study, or describing a micromagnetic system for which the
 $S\to\infty$ limit is quantitatively realized. To get symbolic operators in the
-large-$S$ limit, use [`large_S_spin_operators`](@ref) or
-[`large_S_stevens_operators`](@ref). Sunny will not perform any renormalization
-on anisotropy operators constructed through these primitives.
+large-$S$ limit, use [`spin_matrices`](@ref) or [`stevens_matrices`](@ref) with
+the argument `Inf`. Sunny will not perform any renormalization on anisotropy
+operators constructed through these primitives.
 
 Note that Sunny will _also_ renormalize scalar biquadratic exchange interactions
 by default. Disable this renormalization by setting `large_S = true` in the call
@@ -155,9 +166,9 @@ In taking the large-$S$ limit, each dipole operator is replaced by its
 expectation value $\mathbf{s} = \langle \hat{\mathbf{S}} \rangle$, and only
 leading-order terms are retained. The operator $\hat{\mathcal{O}}_{k,q}$ becomes
 a homogeneous polynomial $O_{k,q}(\mathbf{s})$ of order $k$ in the spin
-components. One can see these polynomials using
-[`large_S_stevens_operators`](@ref). Due to the normalization constraint, each
-dipole can be expressed in polar angles, $(\theta, \phi)$. Then the Stevens
-functions $O_{k,q}(\mathbf{s})$ correspond to the spherical harmonic functions
-$Y_l^m(\theta, \phi)$ where $l=k$ and $m=q$, and modulo $k$ and $q$-dependent
-rescaling factors.
+components. One can see these polynomials by constructing
+[`stevens_matrices`](@ref) with the argument `S = Inf`. Due to the normalization
+constraint, each dipole can be expressed in polar angles, $(\theta, \phi)$. Then
+the Stevens functions $O_{k,q}(\mathbf{s})$ correspond to the spherical harmonic
+functions $Y_l^m(\theta, \phi)$ where $l=k$ and $m=q$, and modulo $k$ and
+$q$-dependent rescaling factors.

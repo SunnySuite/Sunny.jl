@@ -514,7 +514,7 @@ function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, 
       else
         quantization_axis
       end
-      S = spin_operators(sys,site[4])
+      S = spin_matrices(spin_irrep_label(sys,site[4]))
       spin_operator = S[1] .* v[1] .+ S[2] .* v[2] .+ S[3] .* v[3]
       basis_rotation = eigvecs(spin_operator;sortby = λ -> -real(λ))
       dir[i] = Makie.Point3f(v...)

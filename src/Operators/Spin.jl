@@ -13,18 +13,33 @@ function spin_matrices_of_dim(; N::Int)
     return SVector(Sx, Sy, Sz)
 end
 
-function spin_matrices(; N::Int)
-    @warn "`spin_matrices(; N)` is deprecated. Use `spin_matrices(S)` instead."
-    spin_matrices_of_dim(; N)
-end
 
 """
     spin_matrices(S)
 
 Returns a triple of ``N×N``` spin matrices, where ``N = 2S+1``. These are the
-generators of SU(2) in the spin-`S` representation. 
+generators of SU(2) in the spin-`S` representation.
+
+If `S == Inf`, then the return values are abstract symbols denoting
+infinite-dimensional matrices that commute. These can be useful for repeating
+historical studies, or modeling micromagnetic systems. A technical discussion
+appears in the Sunny documentation page: [Interaction Strength
+Renormalization](@ref).
+
+# Example
+```julia
+S = spin_matrices(3/2)
+@assert S'*S ≈ (3/2)*(3/2+1)*I
+@assert S[1]*S[2] - S[2]*S[1] ≈ im*S[3]
+
+S = spin_matrices(Inf)
+@assert S[1]*S[2] - S[2]*S[1] == 0
+```
+
+See also [`print_stevens_expansion`](@ref).
 """
 function spin_matrices(S)
+    S == Inf && return spin_vector_symbol
     isinteger(2S+1) || error("Spin `S` must be half-integer.")
     spin_matrices_of_dim(; N=Int(2S+1))
 end

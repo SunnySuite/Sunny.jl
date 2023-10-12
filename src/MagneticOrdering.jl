@@ -68,19 +68,6 @@ function rationalize_simultaneously(xs; tol, maxsize)
 end
 
 
-function suggest_magnetic_supercell(qs, latsize)
-    @warn "The `latsize` argument to `suggest_magnetic_supercell` is deprecated and unneeded."
-    @assert length(latsize) == 3
-    foreach(qs) do q
-        numers = round.(Int, q .* latsize)
-        if norm(numers - q .* latsize) > 1e-12
-            error("Wavevector $q is incommensurate with lattice size $latsize")
-        end
-    end
-    suggest_magnetic_supercell_aux(qs, latsize)
-end
-
-
 """
     suggest_magnetic_supercell(qs; tol=1e-12, maxsize=100)
 

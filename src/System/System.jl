@@ -6,18 +6,17 @@ Construct a `System` of spins for a given [`Crystal`](@ref) symmetry. The
 direction. The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which
 determine the magnitude ``S`` and ``g``-tensor of each spin.
 
-The two possible options for `mode` are `:SUN` and `:dipole`. In the former,
-each spin-``S`` degree of freedom is described as an SU(_N_) coherent state,
-i.e. a quantum superposition of ``N = 2S + 1`` levels. This approach can be
-important, e.g., to capture multipolar spin fluctuations when there is a strong
-single-ion anisotropy, or to explicitly resolve spin-orbit coupling. 
+The two primary options for `mode` are `:SUN` and `:dipole`. In the former, each
+spin-``S`` degree of freedom is described as an SU(_N_) coherent state, i.e. a
+quantum superposition of ``N = 2S + 1`` levels. This formalism can be useful to
+capture multipolar spin fluctuations or local entanglement effects. 
 
 Mode `:dipole` projects the SU(_N_) dynamics onto the restricted space of pure
 dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
 dynamics, but single-ion anisotropy and biquadratic exchange interactions will
-be renormalized to improve accuracy. It is possible to disable this
-renormalization by working with operators in the "large-``S``" limit. For
-details, see the documentation page: [Single-Ion Anisotropy](@ref).
+be renormalized to improve accuracy. To disable this renormalization, use the
+mode `:dipole_large_S` which applies the ``S → ∞`` classical limit. For details,
+see the documentation page: [Interaction Strength Renormalization](@ref).
 
 The default units system of (meV, Å, tesla) can be overridden by with the
 `units` parameter; see [`Units`](@ref). 
@@ -29,8 +28,14 @@ All spins are initially polarized in the ``z``-direction.
 """
 function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
                 units=Units.meV, seed=nothing)
-    if !(mode == :SUN || mode == :dipole)
-        error("Mode must be `:SUN` or `:dipole`.")
+    if !in(mode, (:SUN, :dipole, :dipole_large_S))
+        error("Mode must be `:SUN`, `:dipole`, or `:dipole_large_S`.")
+    end
+
+    rcs_theory = true
+    if mode == :dipole_large_S
+        mode = :dipole
+        rcs_theory = false
     end
 
     # The lattice vectors of `crystal` must be conventional (`crystal` cannot be
@@ -44,6 +49,8 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     infos = propagate_site_info(crystal, infos)
     Ss = [si.S for si in infos]
     gs = [si.g for si in infos]
+
+    # TODO: Label SU(2) rep instead
     Ns = @. Int(2Ss+1)
 
     if mode == :SUN
@@ -72,7 +79,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = System(nothing, mode, crystal, latsize, Ns, κs, gs, interactions, ewald,
+    ret = System(nothing, mode, rcs_theory, crystal, latsize, Ns, κs, gs, interactions, ewald,
                  extfield, dipoles, coherents, dipole_buffers, coherent_buffers, units, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
@@ -124,7 +131,7 @@ Base.deepcopy(_::System) = error("Use `clone_system` instead of `deepcopy`.")
 # It is intended to be thread-safe to use the original and the copied systems,
 # without any restrictions, but see caveats in `clone_ewald()`.
 function clone_system(sys::System{N}) where N
-    (; origin, mode, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, units, rng) = sys
+    (; origin, mode, rcs_theory, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, units, rng) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
     ewald_clone  = isnothing(ewald)  ? nothing : clone_ewald(ewald)
@@ -137,7 +144,7 @@ function clone_system(sys::System{N}) where N
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
-    System(origin_clone, mode, crystal, latsize, Ns, copy(κs), copy(gs),
+    System(origin_clone, mode, rcs_theory, crystal, latsize, Ns, copy(κs), copy(gs),
            interactions_clone, ewald_clone, copy(extfield), copy(dipoles), copy(coherents),
            empty_dipole_buffers, empty_coherent_buffers, units, copy(rng))
 end
@@ -174,6 +181,21 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 
 # An iterator over all unit cells using CartesianIndices
 @inline eachcell(sys::System) = CartesianIndices(sys.latsize)
+
+"""
+    spin_irrep_label(sys::System, i::Int)
+
+If atom `i` or site `site` carries a single spin-``S`` moment, then returns
+``S``. Otherwise, throws an error.
+"""
+function spin_irrep_label(sys::System, i::Int)
+    if sys.mode == :dipole && sys.rcs_theory == false
+        return Inf
+    else
+        return (sys.Ns[i]-1)/2
+    end
+end
+
 
 """
     eachsite(sys::System)

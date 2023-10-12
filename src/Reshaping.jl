@@ -82,8 +82,8 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
 
         new_ints = interactions_homog(origin)
 
-        new_sys = System(nothing, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
-                    new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
+        new_sys = System(nothing, origin.mode, origin.rcs_theory, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
+            new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
     else
         new_cryst = reshape_crystal(origin.crystal, new_cell_shape)
 
@@ -100,8 +100,8 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
 
         new_ints = empty_interactions(origin.mode, new_na, N)
 
-        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
-                    new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
+        new_sys = System(origin, origin.mode, origin.rcs_theory, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
+            new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
 
         set_interactions_from_origin!(new_sys)
     end

@@ -12,9 +12,12 @@
     A,B,C,D = 2.6, -1.3, 0.2, -5.7
     set_exchange!(sys, [A D D; D B C; D C B], Bond(4, 4, [1, 1, 0]))#; biquad = 0.3)
 
-    O = stevens_operators(sys, 3)
-    c1,c2,c3 = 2.6, -1.3, 0.2, -5.7
-    set_onsite_coupling!(sys, c1 * (O[2,-2] - 2O[2,-1] - 2O[2,1]) + c2 * (-7O[4,-3] + 2O[4,-2]+O[4,-1]+O[4,1]+7O[4,3]) + c3 * (O[4,0]+5O[4,4]), 3)
+    O = stevens_matrices(spin_irrep_label(sys, 3))
+    c1, c2, c3 = 2.6, -1.3, 0.2, -5.7
+    Λ = c1 * (O[2,-2] - 2O[2,-1] - 2O[2,1]) +
+        c2 * (-7O[4,-3] + 2O[4,-2] + O[4,-1] + O[4,1] + 7O[4,3]) +
+        c3 * (O[4,0] + 5O[4,4])
+    set_onsite_coupling!(sys, Λ, 3)
 
     A = [1 3 1; -1 1 0; 0 0 1]
     sys = reshape_supercell(sys, A)
@@ -96,8 +99,7 @@ end
     sys = System(cryst, (1, 1, 1), infos, :SUN; seed=0)
     set_exchange!(sys, J,  Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(1, 1, [0, 0, 1]))
-    S = spin_operators(sys, 1)
-    set_onsite_coupling!(sys, D * S[3]^2, 1)
+    set_onsite_coupling!(sys, S -> D * S[3]^2, 1)
 
     # Reshape to sheared supercell and minimize energy
     A = [1 1 1; -1 1 0; 0 0 1]
@@ -152,9 +154,7 @@ end
     function compute(mode)
         sys = System(fcc, dims, infos, mode)
         set_exchange!(sys, J₁, Bond(1, 2, [0, 0, 0]))
-        S = spin_operators(sys, 1)
-        Λ = D * (S[1]^4 + S[2]^4 + S[3]^4)
-        set_onsite_coupling!(sys, Λ, 1)
+        set_onsite_coupling!(sys, S -> D * (S[1]^4 + S[2]^4 + S[3]^4), 1)
         set_dipole!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
         set_dipole!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
         set_dipole!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
@@ -227,8 +227,7 @@ end
         dims = (2, 2, 1)
         sys = System(cryst, dims, [SpinInfo(1; S, g=1)], :dipole; units=Units.theory)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
-        Sz = spin_operators(sys,1)[3]
-        set_onsite_coupling!(sys, D*Sz^2, 1)
+        set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         set_external_field!(sys, [0, 0, h])
 
         # Numerical
@@ -276,9 +275,8 @@ end
     M = normalize(rand(3))
     θ, ϕ = Sunny.dipole_to_angles(M)
 
-    s_mat = Sunny.spin_matrices(N=2S+1)
-    
-    s̃ᶻ = M' * spin_operators(sys_dip,1)
+    s_mat = spin_matrices(S)
+    s̃ᶻ = M' * s_mat
     
     U_mat = exp(-1im * ϕ * s_mat[3]) * exp(-1im * θ * s_mat[2])
     hws = zeros(2S+1)
@@ -396,8 +394,7 @@ end
     set_exchange!(sys, J₃, Bond(1, 1, [2,0,0]))
 
     D = 0.066*J₁
-    S = spin_operators(sys, 1)
-    set_onsite_coupling!(sys, D*S[3]^2, 1)
+    set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 
     h = 2.0*J₃
     set_external_field!(sys, [0, 0, h])

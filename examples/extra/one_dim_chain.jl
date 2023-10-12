@@ -50,7 +50,7 @@ set_exchange!(spin_one_chain,J_groundtruth,nearest_neighbor_left)
 
 # Configure the symmetry-breaking easy-axis term:
 D_groundtruth = 10.
-Sz = spin_operators(spin_one_chain, 1)[3]
+Sz = spin_matrices(1)[3]
 set_onsite_coupling!(spin_one_chain, -D_groundtruth*Sz^2, 1)
 
 # With the ground-truth hamiltonian in place, we use Sunny's classical dynamics
@@ -194,9 +194,6 @@ langevin = Langevin(Δt; kT, λ);
 
 nearest_neighbor_right = Bond(1,1,(1,0,0))
 nearest_neighbor_left = Bond(1,1,(-1,0,0))
-
-Sz = spin_operators(spin_one_chain, 1)[3]
-
 
 # After this setup work is done *once*, we create a function `forward_problem(J_trial,D_trial)`
 # which will compute the Linear Spin Wave Theoretic spectrum at the trial values of the

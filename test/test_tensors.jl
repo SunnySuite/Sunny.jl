@@ -1,8 +1,8 @@
 
 @testitem "Tensors basic" begin
     Ni, Nj = (3, 4)
-    Si0 = spin_matrices(N=Ni)
-    Sj0 = spin_matrices(N=Nj)
+    Si0 = spin_matrices((Ni-1)/2)
+    Sj0 = spin_matrices((Nj-1)/2)
     Si, Sj = Sunny.to_product_space(Si0, Sj0)
 
     # Basic properties of Kronecker product
@@ -32,7 +32,8 @@ end
 
 @testitem "General interactions" begin
     cryst = Sunny.diamond_crystal()
-    sys = System(cryst, (2, 2, 2), [SpinInfo(1; S=2, g=2)], :SUN)
+    S0 = 2
+    sys = System(cryst, (2, 2, 2), [SpinInfo(1; S=S0, g=2)], :SUN)
     randomize_spins!(sys)
     
     J = 0.5
@@ -48,8 +49,7 @@ end
     E = energy(sys)
     dE_dZ = Sunny.energy_grad_coherents(sys)
     
-    S = spin_matrices(; N=5)
-    Si, Sj = to_product_space(S, S)
+    Si, Sj = to_product_space(spin_matrices.([S0,S0])...)
     set_pair_coupling!(sys, Si'*J_exch*Sj, bond; fast=false)
     E′ = energy(sys)
     dE_dZ′ = Sunny.energy_grad_coherents(sys)

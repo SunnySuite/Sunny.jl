@@ -102,8 +102,8 @@ end
     for k in (2, 4, 6)
         sys1 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole)
         sys2 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole)
-        O = stevens_operators(sys1, 1)
-        O′ = large_S_stevens_operators    
+        O = stevens_matrices(S)
+        O′ = stevens_matrices(Inf)
         c = randn(2k+1)
         set_onsite_coupling!(sys1, sum(c[k-q+1]*O[k, q] for q in -k:k), 1)
         set_onsite_coupling!(sys2, sum(c[k-q+1]*O′[k, q] for q in -k:k), 1)

@@ -67,6 +67,8 @@ end
 mutable struct System{N}
     const origin           :: Union{Nothing, System{N}}
     const mode             :: Symbol
+    const rcs_theory       :: Bool                      # Renormalization of interactions
+
     const crystal          :: Crystal
     const latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
 

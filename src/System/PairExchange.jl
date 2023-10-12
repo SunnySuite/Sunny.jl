@@ -192,16 +192,25 @@ Si, Sj = to_product_space(S, S)
 set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 ```
 """
-function set_pair_coupling!(sys::System{N}, tensordec::Matrix{ComplexF64}, bond; fast=true) where N
+function set_pair_coupling!(sys::System{N}, op, bond; fast=true) where N
     is_homogeneous(sys) || error("Use `set_pair_coupling_at!` for an inhomogeneous system.")
 
-    gen1 = spin_operators(sys, bond.i)
-    gen2 = spin_operators(sys, bond.j)
-    scalar, bilin, tensordec = decompose_general_coupling(tensordec, gen1, gen2; fast)
+    gen1 = spin_matrices(spin_irrep_label(sys, bond.i))
+    gen2 = spin_matrices(spin_irrep_label(sys, bond.j))
+    scalar, bilin, tensordec = decompose_general_coupling(op, gen1, gen2; fast)
     biquad = 0.0
 
     set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond)
 end
+
+function set_pair_coupling!(sys::System{N}, fn::Function, bond) where N
+    S1 = spin_irrep_label(sys, bond.i)
+    S2 = spin_irrep_label(sys, bond.j)
+    Si, Sj = to_product_space(spin_matrices.([S1, S2])...)
+    op = fn(Si, Sj) :: AbstractMatrix
+    set_pair_coupling!(sys, op, bond)
+end
+
 
 """
     set_exchange!(sys::System, J, bond::Bond; biquad=0, large_S=false)

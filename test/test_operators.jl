@@ -4,7 +4,7 @@
     ### Verify 𝔰𝔲(2) irreps
     for N = 2:5
         S₀ = (N-1)/2
-        S = spin_matrices(; N)
+        S = spin_matrices(S₀)
 
         for i in 1:3, j in 1:3
             # Test commutation relations
@@ -32,7 +32,7 @@
         Λ = randn(ComplexF64, N, N)
         B = randn(Sunny.Vec3)
         Z = randn(Sunny.CVec{N})
-        @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*spin_matrices(; N)) * Z
+        @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*spin_matrices((N-1)/2)) * Z
     end    
 end
 
@@ -94,7 +94,7 @@ end
 
     # Check transformation properties of spherical tensors
     for N in 2:7
-        S = spin_matrices(; N)
+        S = spin_matrices((N-1)/2)
         Sp = S[1] + im*S[2]
         Sm = S[1] - im*S[2]
         
@@ -103,7 +103,7 @@ end
             T = spherical_tensors(k; N)
 
             # Generators of rotations in the spin-k representation
-            K = spin_matrices(N=2k+1)
+            K = spin_matrices(k)
 
             # The selected basis is q ∈ [|k⟩, |k-1⟩, ... |-k⟩]. This function
             # converts from a q value to a 1-based index.
@@ -130,7 +130,7 @@ end
     # Check mapping between spherical tensors and Stevens operators
     for N in 2:7
         for k in 1:N-1
-            O = Sunny.stevens_matrices(k; N)
+            O = Sunny.stevens_matrices_of_dim(k; N)
             T = spherical_tensors(k; N)
 
             # Check that Stevens operators are proper linear combination of
@@ -153,7 +153,7 @@ end
         acc = zeros(ComplexF64, N, N)
         acc += (tr(A)/N) * I
         for k in 1:6
-            acc += c[k]' * Sunny.stevens_matrices(k; N)
+            acc += c[k]' * Sunny.stevens_matrices_of_dim(k; N)
         end
         @test acc ≈ A
     end
@@ -166,6 +166,7 @@ end
     rng = Random.Xoshiro(0)
     R = Sunny.Mat3(Sunny.random_orthogonal(rng, 3; special=true))
     N = 7
+    S₀ = (N-1)/2
 
     # Test axis-angle decomposition
     let
@@ -178,7 +179,7 @@ end
 
     # Test that spin matrices rotate as vectors
     let
-        S = spin_matrices(; N)
+        S = spin_matrices(S₀)
         @test R * S ≈ rotate_operator.(S, Ref(R))
     end
 
@@ -238,30 +239,30 @@ end
 @testitem "Symbolics" begin
     import IOCapture, OffsetArrays
 
-    @test repr(large_S_stevens_operators[3,1]) == "-𝒮ˣ³ - 𝒮ʸ²𝒮ˣ + 4𝒮ᶻ²𝒮ˣ"
+    @test repr(stevens_matrices(Inf)[3,1]) == "-𝒮ˣ³ - 𝒮ʸ²𝒮ˣ + 4𝒮ᶻ²𝒮ˣ"
 
     capt = IOCapture.capture() do
-        𝒪 = large_S_stevens_operators
-        𝒮 = large_S_spin_operators
+        𝒪 = stevens_matrices(Inf)
+        𝒮 = spin_matrices(Inf)
         Sunny.pretty_print_operator((1/4)𝒪[4,4] + (1/20)𝒪[4,0] + (3/5)*(𝒮'*𝒮)^2)
     end
     @test capt.output == "𝒮ˣ⁴ + 𝒮ʸ⁴ + 𝒮ᶻ⁴\n"
 
     capt = IOCapture.capture() do
-        𝒮 = large_S_spin_operators
+        𝒮 = spin_matrices(Inf)
         print_stevens_expansion(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
     end
     @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)𝒮⁴\n"
 
     capt = IOCapture.capture() do
-        S = spin_matrices(N=5)
+        S = spin_matrices(2)
         print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
     end
     @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + 102/5\n"
 
     # Test Stevens coefficients extraction
-    S = large_S_spin_operators
-    O = large_S_stevens_operators
+    S = spin_matrices(Inf)
+    O = stevens_matrices(Inf)
     S_mag = π
     p = S'*S * O[4, 2]
     c = Sunny.operator_to_stevens_coefficients(p, S_mag)
