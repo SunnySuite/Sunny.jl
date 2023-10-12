@@ -100,13 +100,13 @@ end
     λ = Sunny.anisotropy_renormalization(S)
     
     for k in (2, 4, 6)
-        sys1 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole)
-        sys2 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole)
-        O = stevens_matrices(S)
-        O′ = stevens_matrices(Inf)
         c = randn(2k+1)
-        set_onsite_coupling!(sys1, sum(c[k-q+1]*O[k, q] for q in -k:k), 1)
-        set_onsite_coupling!(sys2, sum(c[k-q+1]*O′[k, q] for q in -k:k), 1)
-        @test energy(sys1) ≈ λ[k] * energy(sys2)
+        E1, E2 = map([:dipole, :dipole_large_S]) do mode
+            sys = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], mode)
+            O = stevens_matrices(spin_irrep_label(sys, 1))
+            set_onsite_coupling!(sys, sum(c[k-q+1]*O[k, q] for q in -k:k), 1)
+            return energy(sys)
+        end
+        @test E1 ≈ λ[k] * E2
     end    
 end

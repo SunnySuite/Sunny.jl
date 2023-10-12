@@ -32,12 +32,6 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
         error("Mode must be `:SUN`, `:dipole`, or `:dipole_large_S`.")
     end
 
-    rcs_theory = true
-    if mode == :dipole_large_S
-        mode = :dipole
-        rcs_theory = false
-    end
-
     # The lattice vectors of `crystal` must be conventional (`crystal` cannot be
     # reshaped).
     if !isnothing(crystal.origin)
@@ -57,8 +51,8 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
         allequal(Ns) || error("Currently all spins S must be equal in SU(N) mode.")
         N = first(Ns)
         κs = fill(1.0, na)
-    elseif mode == :dipole
-        N = 0 # acts as marker for :dipole
+    elseif mode in (:dipole, :dipole_large_S)
+        N = 0 # marker for :dipole mode
         κs = copy(Ss)
     end
 
@@ -79,7 +73,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = System(nothing, mode, rcs_theory, crystal, latsize, Ns, κs, gs, interactions, ewald,
+    ret = System(nothing, mode, crystal, latsize, Ns, κs, gs, interactions, ewald,
                  extfield, dipoles, coherents, dipole_buffers, coherent_buffers, units, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
@@ -131,7 +125,7 @@ Base.deepcopy(_::System) = error("Use `clone_system` instead of `deepcopy`.")
 # It is intended to be thread-safe to use the original and the copied systems,
 # without any restrictions, but see caveats in `clone_ewald()`.
 function clone_system(sys::System{N}) where N
-    (; origin, mode, rcs_theory, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, units, rng) = sys
+    (; origin, mode, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, units, rng) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
     ewald_clone  = isnothing(ewald)  ? nothing : clone_ewald(ewald)
@@ -144,7 +138,7 @@ function clone_system(sys::System{N}) where N
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
-    System(origin_clone, mode, rcs_theory, crystal, latsize, Ns, copy(κs), copy(gs),
+    System(origin_clone, mode, crystal, latsize, Ns, copy(κs), copy(gs),
            interactions_clone, ewald_clone, copy(extfield), copy(dipoles), copy(coherents),
            empty_dipole_buffers, empty_coherent_buffers, units, copy(rng))
 end
@@ -189,9 +183,10 @@ If atom `i` or site `site` carries a single spin-``S`` moment, then returns
 ``S``. Otherwise, throws an error.
 """
 function spin_irrep_label(sys::System, i::Int)
-    if sys.mode == :dipole && sys.rcs_theory == false
+    if sys.mode == :dipole_large_S
         return Inf
     else
+        @assert sys.mode in (:dipole, :SUN)
         return (sys.Ns[i]-1)/2
     end
 end

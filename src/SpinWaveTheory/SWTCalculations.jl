@@ -500,7 +500,8 @@ function dispersion(swt::SpinWaveTheory, qs)
         q_reshaped = to_reshaped_rlu(swt.sys, q)
         if sys.mode == :SUN
             swt_hamiltonian_SUN!(swt, q_reshaped, ℋ)
-        elseif sys.mode == :dipole
+        else
+            @assert sys.mode in (:dipole, :dipole_large_S)
             swt_hamiltonian_dipole!(swt, q_reshaped, ℋ)
         end
         bogoliubov!(view(disp,:,iq), Vbuf, ℋ, energy_tol)
@@ -679,7 +680,8 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
 
         if sys.mode == :SUN
             swt_hamiltonian_SUN!(swt, q_reshaped, Hmat)
-        elseif sys.mode == :dipole
+        else
+            @assert sys.mode in (:dipole, :dipole_large_S)
             swt_hamiltonian_dipole!(swt, q_reshaped, Hmat)
         end
         bogoliubov!(disp, Vmat, Hmat, swt.energy_tol, mode_fast)
@@ -713,7 +715,8 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                     corrs[i] = Avec[α] * conj(Avec[β])
                 end
                 corrs
-            elseif sys.mode == :dipole
+            else
+                @assert sys.mode in (:dipole, :dipole_large_S)
                 Avec = zeros(ComplexF64, 3)
                 (; R_mat) = data
                 for i = 1:Nm

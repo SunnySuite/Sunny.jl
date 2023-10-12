@@ -163,9 +163,9 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
         # Biquadratic
         if !iszero(pc.biquad)
             J = pc.biquad
-            if sys.mode == :dipole
+            if sys.mode in (:dipole, :dipole_large_S)
                 ΔE += J * ((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2)
-            elseif sys.mode == :SUN
+            else
                 error("Biquadratic currently unsupported in SU(N) mode.") 
             end
         end
@@ -274,9 +274,9 @@ function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
             # Biquadratic
             if !iszero(pc.biquad)
                 J = pc.biquad
-                if sys.mode == :dipole
+                if sys.mode in (:dipole, :dipole_large_S)
                     E += J * (sᵢ⋅sⱼ)^2
-                elseif sys.mode == :SUN
+                else
                     error("Biquadratic currently unsupported in SU(N) mode.")
                 end
             end
@@ -361,10 +361,10 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
             # Biquadratic
             if !iszero(pc.biquad)
                 J = pc.biquad
-                if sys.mode == :dipole
+                if sys.mode in (:dipole, :dipole_large_S)
                     ∇E[cellᵢ, bond.i] += J * 2sⱼ*(sᵢ⋅sⱼ)
                     ∇E[cellⱼ, bond.j] += J * 2sᵢ*(sᵢ⋅sⱼ)
-                elseif sys.mode == :SUN
+                else
                     error("Biquadratic currently unsupported in SU(N) mode.")
                 end
             end

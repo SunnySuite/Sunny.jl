@@ -10,11 +10,16 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
         λ = anisotropy_renormalization(S)
         c = matrix_to_stevens_coefficients(hermitianpart(matrep))
         return StevensExpansion(λ .* c)
+    elseif sys.mode == :dipole_large_S
+        error("System with mode `:dipole_large_S` requires a symbolic operator.")
     end
 end
 
 function onsite_coupling(sys, site, p::DP.AbstractPolynomialLike)
-    sys.mode == :dipole || error("Cannot take 'large-S limit' in :SUN mode.")
+    if sys.mode != :dipole_large_S
+        error("Symbolic operator only valid for system with mode `:dipole_large_S`.")
+    end
+
     S = sys.κs[site]
     c = operator_to_stevens_coefficients(p, S)
 
@@ -38,7 +43,7 @@ function anisotropy_renormalization(S)
 end
 
 function empty_anisotropy(mode, N)
-    if mode == :dipole
+    if mode == :dipole || mode == :dipole_large_S
         c = map(k -> zeros(2k+1), OffsetArray(0:6, 0:6))
         return StevensExpansion(c)
     elseif mode == :SUN
