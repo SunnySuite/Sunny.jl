@@ -102,7 +102,7 @@ function decompose_general_coupling(op, gen1, gen2; fast)
 end
 
 function Base.zero(::Type{TensorDecomposition})
-    gen = spin_matrices(; N=0)
+    gen = spin_matrices_of_dim(; N=0)
     return TensorDecomposition(gen, gen, [])
 end
 

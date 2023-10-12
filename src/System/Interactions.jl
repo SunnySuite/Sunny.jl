@@ -449,7 +449,7 @@ end
 
 # Returns (Λ + (dE/ds)⋅S) Z
 @generated function mul_spin_matrices(Λ, dE_ds::Sunny.Vec3, Z::Sunny.CVec{N}) where N
-    S = spin_matrices(; N)
+    S = spin_matrices_of_dim(; N)
     out = map(1:N) do i
         out_i = map(1:N) do j
             terms = Any[:(Λ[$i,$j])]

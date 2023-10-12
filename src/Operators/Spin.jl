@@ -1,11 +1,4 @@
-"""
-    spin_matrices(; N)
-
-Constructs the three spin operators, i.e. the generators of SU(2), in the
-`N`-dimensional irrep. See also [`spin_operators`](@ref), which determines the
-appropriate value of `N` for a given site index.
-"""
-function spin_matrices(; N::Int)
+function spin_matrices_of_dim(; N::Int)
     if N == 0
         return fill(Hermitian(zeros(ComplexF64,0,0)), 3)
     end
@@ -20,10 +13,26 @@ function spin_matrices(; N::Int)
     return SVector(Sx, Sy, Sz)
 end
 
+function spin_matrices(; N::Int)
+    @warn "`spin_matrices(; N)` is deprecated. Use `spin_matrices(S)` instead."
+    spin_matrices_of_dim(; N)
+end
+
+"""
+    spin_matrices(S)
+
+Returns a triple of ``N×N``` spin matrices, where ``N = 2S+1``. These are the
+generators of SU(2) in the spin-`S` representation. 
+"""
+function spin_matrices(S)
+    isinteger(2S+1) || error("Spin `S` must be half-integer.")
+    spin_matrices_of_dim(; N=Int(2S+1))
+end
+
 
 # Returns ⟨Z|Sᵅ|Z⟩
 @generated function expected_spin(Z::CVec{N}) where N
-    S = spin_matrices(; N)
+    S = spin_matrices_of_dim(; N)
     elems_x = SVector{N-1}(diag(S[1], 1))
     elems_z = SVector{N}(diag(S[3], 0))
     lo_ind = SVector{N-1}(1:N-1)
@@ -45,7 +54,7 @@ end
 # http://www.emis.de/journals/SIGMA/2014/084/
 ket_from_dipole(_::Vec3, ::Val{0}) :: CVec{0} = zero(CVec{0})
 function ket_from_dipole(dip::Vec3, ::Val{N}) :: CVec{N} where N
-    S = spin_matrices(; N)
+    S = spin_matrices_of_dim(; N)
     λs, vs = eigen(dip' * S)
     return CVec{N}(vs[:, argmax(real.(λs))])
 end

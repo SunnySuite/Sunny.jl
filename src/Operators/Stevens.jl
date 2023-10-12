@@ -77,7 +77,7 @@ function stevens_matrices(k::Int; N::Int)
     if k >= N
         return fill(Hermitian(zeros(ComplexF64, N, N)), 2k+1)
     else
-        return Hermitian.(stevens_abstract_polynomials(; J=spin_matrices(; N), k))
+        return Hermitian.(stevens_abstract_polynomials(; J=spin_matrices_of_dim(; N), k))
     end
 end
 

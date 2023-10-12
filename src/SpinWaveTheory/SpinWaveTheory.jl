@@ -103,7 +103,7 @@ function swt_data_sun(sys::System{N},obs) where N
     S = (N-1)/2
     n_magnetic_atoms = natoms(sys.crystal)
 
-    dipole_operators = spin_matrices(; N)
+    dipole_operators = spin_matrices_of_dim(; N)
     Sx, Sy, Sz = dipole_operators
 
     # we support the biquad interactions now in the :dipole mode

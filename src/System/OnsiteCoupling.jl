@@ -121,8 +121,8 @@ can be used in [`set_onsite_coupling!`](@ref) to define a single-ion anisotropy.
 
 See also [`print_stevens_expansion`](@ref).
 """
-spin_operators(sys::System{N}, i::Int) where N = spin_matrices(N=sys.Ns[i])
-spin_operators(sys::System{N}, site::Site) where N = spin_matrices(N=sys.Ns[to_atom(site)])
+spin_operators(sys::System{N}, i::Int) where N = spin_matrices_of_dim(N=sys.Ns[i])
+spin_operators(sys::System{N}, site::Site) where N = spin_matrices_of_dim(N=sys.Ns[to_atom(site)])
 
 """
     const large_S_spin_operators
