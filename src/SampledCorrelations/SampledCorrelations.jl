@@ -155,7 +155,7 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
     variance = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
     # Normalize FFT according to physical convention
-    normalizationFactor = 1/(nω * √(prod(sys.latsize))) # Note nω not 2nω due to zeroing
+    normalizationFactor = 1/(2nω * √(prod(sys.latsize)))
     fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6))
 
     # Other initialization

@@ -84,6 +84,7 @@ function accum_sample!(sc::SampledCorrelations)
     (; data, variance, observables, samplebuf, nsamples, fft!) = sc
     natoms = size(samplebuf)[5]
 
+    # Same as samplebuf, but the second half of the data (in time) is zeroed out
     sourcebuf = copy(samplebuf)
     sourcebuf[:,:,:,:,:,(1+size(samplebuf,6)÷2):end] .= 0
 
@@ -102,8 +103,19 @@ function accum_sample!(sc::SampledCorrelations)
         sample_α = @view samplebuf[α,:,:,:,i,:]
         sample_β = @view sourcebuf[β,:,:,:,j,:]
 
+        # These two lines throw out the backward-time correlations.
+        # We call these trash because they are incorrectly computed
+        # here (the backward-time computation assumes that samplebuf
+        # is time periodic when it isn't).
+        #
+        # The forward-time correlations are correctly computed.
         correlation_plus_trash = FFTW.ifft(sample_α .* conj.(sample_β),4)
         correlation = FFTW.fft(correlation_plus_trash[:,:,:,1:size(data,7)],4)
+
+        # This factor of two comes from the modified FFT convolution theorem
+        # that we are using. The modification is because we only use *half*
+        # of the FFT-computed convolution (the other half is trash).
+        correlation .*= 2
 
         databuf  = @view data[c,i,j,:,:,:,:]
 

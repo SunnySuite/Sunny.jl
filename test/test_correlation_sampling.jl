@@ -1,4 +1,5 @@
 @testitem "Asymmetric Correlations" begin
+    using FFTW
 
     # Create a dummy SampledCorrelations object
     latsize = (1,1,1)
@@ -9,7 +10,7 @@
     # Fill the sc.samplebuf with test signals.
     # The test signals are asymmetrically correlated.
     # This code replaces Sunny.new_sample!
-    ts = range(0,1,length = size(sc.samplebuf,6))
+    ts = range(0,1,length = size(sc.samplebuf,6)+1)[1:end-1]
     As = exp.(-(ts .- 0.15).^2 ./ (2 * 0.05^2))
     Bs = exp.(-(ts .- 0.35).^2 ./ (2 * 0.1^2))
     sc.samplebuf[1,1,1,1,1,:] .= As
@@ -21,19 +22,20 @@
     # Retrieve the correlations in direct time
     # TODO: The correlations tested here are real--make them complex
     real_data = real(FFTW.ifft(sc.data,7))
-    real_data .*= 199*199 # Normalization to match reference
+    real_data .*= 199 # Normalization to match reference
 
     # Reference calculation
     q11 = zeros(199)
     q12 = zeros(199)
     q21 = zeros(199)
     q22 = zeros(199)
+    dt = ts[2] - ts[1]
     for t = 0:198
         for tau = 0:198
-            q11[1+t] += As[1+(t+tau)] * As[1+(tau)]
-            q12[1+t] += As[1+(t+tau)] * Bs[1+(tau)]
-            q21[1+t] += Bs[1+(t+tau)] * As[1+(tau)]
-            q22[1+t] += Bs[1+(t+tau)] * Bs[1+(tau)]
+            q11[1+t] += As[1+(t+tau)] * As[1+(tau)] * dt
+            q12[1+t] += As[1+(t+tau)] * Bs[1+(tau)] * dt
+            q21[1+t] += Bs[1+(t+tau)] * As[1+(tau)] * dt
+            q22[1+t] += Bs[1+(t+tau)] * Bs[1+(tau)] * dt
         end
     end
 

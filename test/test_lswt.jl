@@ -57,7 +57,8 @@
 
     @test isapprox(disps,disps_golden;atol = 1e-8)
     @test_broken isapprox(disps,disps_golden;atol = 1e-12)
-    @test isapprox(is,is_golden;atol = 1e-12)
+    # `is_golden' is unilateral, and `is' uses :perp to become bilateral
+    @test isapprox(is,is_golden .* 2;atol = 1e-12)
 
     # Test every component using :full. To limit size of "golden" data, restrict
     # to one arbitrary k-vector, and round to 10 digits of accuracy.
