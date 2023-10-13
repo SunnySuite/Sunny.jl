@@ -87,7 +87,8 @@
       is_flat[m + (k-1) * 6,1,1,l] = is[k,1,1,l][m]
     end
 
-    @test isapprox(is_flat,is_golden;atol = 1e-12)
+    # is_golden is bilateral
+    @test isapprox(is_flat .* 2,is_golden;atol = 1e-12)
     @test all(counts .== 1.)
 
     is, counts = intensities_binned(sc, params, formula; integrated_kernel = integrated_lorentzian(0.5))
@@ -98,7 +99,8 @@
       is_flat[m + (k-1) * 6,1,1,l] = is[k,1,1,l][m]
     end
 
-    @test isapprox(is_flat,is_golden;atol = 1e-12)
+    # is_golden is bilateral
+    @test isapprox(is_flat .* 2,is_golden;atol = 1e-12)
     @test all(counts .== counts_golden)
 
     # Test all components using :full
@@ -107,7 +109,8 @@
 
     is2_golden = ComplexF64[0.20692326628022634 + 0.0im -0.1729875452235063 - 0.08960830762607443im -0.1321381427681472 + 0.27533711824849455im; -0.1729875452235063 + 0.08960830762607443im 0.18342229117272907 + 0.0im -0.008767695763007954 - 0.28740396674625im; -0.1321381427681472 - 0.27533711824849455im -0.008767695763007954 + 0.28740396674625im 0.4507517165000102 + 0.0im]
 
-    @test isapprox(is[2],is2_golden;atol = 1e-12)
+    # is_golden is bilateral
+    @test isapprox(is[2] .* 2,is2_golden;atol = 1e-12)
     @test all(counts .== 1.)
 
     # TODO: Test AABB
