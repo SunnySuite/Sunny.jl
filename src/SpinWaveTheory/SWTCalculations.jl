@@ -4,9 +4,9 @@
 
 @inline δ(x, y) = (x==y)
 # The "metric" of scalar biquad interaction. Here we are using the following identity:
-# (𝐒ᵢ⋅𝐒ⱼ)² = -(𝐒ᵢ⋅𝐒ⱼ)/2 + ∑ₐ (OᵢᵃOⱼᵃ)/2, a=4,…,8, 
+# (𝐒ᵢ⋅𝐒ⱼ)² + (𝐒ᵢ⋅𝐒ⱼ)/2 = ∑ₐ (OᵢᵃOⱼᵃ)/2, a=4,…,8, 
 # where the definition of Oᵢᵃ is given in Appendix B of *Phys. Rev. B 104, 104409*
-const biquad_metric = 1/2 * diagm([-1, -1, -1, 1, 1, 1, 1, 1])
+const biquad_metric = 1/2 * diagm([0, 0, 0, 1, 1, 1, 1, 1])
 
 
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
@@ -146,8 +146,8 @@ function swt_hamiltonian_SUN!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Matri
 
             ### Biquadratic exchange
 
-            J = coupling.biquad
-            
+            (coupling.biquad isa Number) || error("General biquadratic interactions not yet implemented in LSWT.")
+            J = coupling.biquad::Float64
 
             Ti_11 = view(sun_basis_i, 1, 1, :)
             Tj_11 = view(sun_basis_j, 1, 1, :)
@@ -313,9 +313,11 @@ function swt_hamiltonian_dipole!(swt::SpinWaveTheory, q_reshaped::Vec3, Hmat::Ma
 
             ### Biquadratic exchange
 
-            J = coupling.biquad
-            # ⟨Ω₂, Ω₁|(𝐒₁⋅𝐒₂)^2|Ω₁, Ω₂⟩ = (1-1/S+1/(4S^2)) (Ω₁⋅Ω₂)^2 - 1/2 Ω₁⋅Ω₂ + const.
-            # The biquadratic part including the biquadratic scaling factor.
+            (coupling.biquad isa Number) || error("General biquadratic interactions not yet implemented in LSWT.")
+            J = coupling.biquad::Float64
+
+            # ⟨Ω₂, Ω₁|[(𝐒₁⋅𝐒₂)^2 + 𝐒₁⋅𝐒₂/2]|Ω₁, Ω₂⟩ = (Ω₁⋅Ω₂)^2
+            # The biquadratic part
             Ri = R_mat[sub_i]
             Rj = R_mat[sub_j]
             Rʳ = Ri' * Rj

@@ -1,8 +1,9 @@
-# # Ba₃NbFe₃Si₂O₁₄
+# # Tutorial 15 - Ba₃NbFe₃Si₂O₁₄
 #
 # This is a Sunny port of [SpinW Tutorial
-# 15](https://spinw.org/tutorials/15tutorial), authored by Toth et al. The goal
-# is to calculate the linear spin wave theory spectrum for Ba₃NbFe₃Si₂O₁₄.
+# 15](https://spinw.org/tutorials/15tutorial), originally authored by Sandor
+# Toth. The goal is to calculate the linear spin wave theory spectrum for
+# Ba₃NbFe₃Si₂O₁₄.
 
 # Load packages 
 

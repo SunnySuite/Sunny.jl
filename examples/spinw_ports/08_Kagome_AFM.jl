@@ -1,16 +1,15 @@
-# # Kagome Antiferromagnet
+# # Tutorial 8 - Kagome Antiferromagnet
 #
 # This is a Sunny port of [SpinW Tutorial
-# 8](https://spinw.org/tutorials/08tutorial), authored by Bjorn Fak and Sandor
-# Toth. The goal is to calculate the linear spin wave theory spectrum for the
-# ``\sqrt{3} \times \sqrt{3}`` order of a Kagome antiferromagnet.
+# 8](https://spinw.org/tutorials/08tutorial), originally authored by Bjorn Fak
+# and Sandor Toth. The goal is to calculate the linear spin wave theory spectrum
+# for the ``\sqrt{3} \times \sqrt{3}`` order of a Kagome antiferromagnet.
 
 # Load Packages 
 
 using Sunny, GLMakie
 
-# Build a [`Crystal`](@ref) with ``P\overline{3}`` space group and Cr⁺ ions on
-# each site.
+# Build a [`Crystal`](@ref) with ``P\overline{3}`` space group,
 
 a = 1
 latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)

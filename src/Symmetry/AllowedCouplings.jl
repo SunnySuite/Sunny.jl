@@ -118,9 +118,26 @@ function symmetry_allowed_couplings_operator(cryst::Crystal, b::BondPos)
     return P
 end
 
-function transform_coupling_by_symmetry(cryst, J::Mat3, symop, parity)
-    R = cryst.latvecs * symop.R * inv(cryst.latvecs)
+function transform_coupling_by_symmetry(J::Mat3, R::Mat3, parity)
     return R * (parity ? J : J') * R'
+end
+
+function transform_coupling_by_symmetry(biquad::Mat5, R::Mat3, parity)
+    k = 2
+    D = unitary_irrep_for_rotation(R; N=2k+1)
+
+    # Spherical tensors rotate as `T -> D* T`, involving the complex conjugate
+    # of the Wigner-D matrix defined above. Stevens operators are `𝒪 = α T`.
+    # Therefore Stevens operators rotate as `𝒪 -> α D* α⁻¹ 𝒪`. The coupling
+    # `𝒪† biquad 𝒪` is an invariant, so we impose the transformation rule
+    # `biquad -> V† biquad V`, where
+    #
+    #    V = (α D* α⁻¹)⁻¹ = α Dᵀ α⁻¹
+    #
+    # See also `transform_spherical_to_stevens_coefficients`.
+
+    V = stevens_α[k] * transpose(D) * stevens_αinv[k]
+    return V' * (parity ? biquad : biquad') * V
 end
 
 # Check whether a coupling matrix J is consistent with symmetries of a bond
@@ -128,7 +145,8 @@ function is_coupling_valid(cryst::Crystal, b::BondPos, J)
     J isa Number && return true
     
     for (symop, parity) in symmetries_between_bonds(cryst, b, b)
-        J′ = transform_coupling_by_symmetry(cryst, J, symop, parity)
+        R = cryst.latvecs * symop.R * inv(cryst.latvecs)
+        J′ = transform_coupling_by_symmetry(J, R*det(R), parity)
         # TODO use symprec to handle case where symmetry is inexact
         if !isapprox(J, J′; atol = 1e-12)
             return false
@@ -267,6 +285,8 @@ function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
 
     syms = symmetries_between_bonds(cryst, BondPos(cryst, b), BondPos(cryst, b_ref))
     isempty(syms) && error("Bonds $b and $b_ref are not symmetry equivalent.")
-    return transform_coupling_by_symmetry(cryst, J_ref, first(syms)...)
+    symop, parity = first(syms)
+    R = cryst.latvecs * symop.R * inv(cryst.latvecs)
+    return transform_coupling_by_symmetry(J_ref, R*det(R), parity)
 end
 

@@ -198,6 +198,25 @@ end
         @test c′1 ≈ c′2
     end
 
+    # Test rotation of 5×5 matrix of quadrupole-quadrupole interactions
+    let
+        R = Sunny.Mat3(Sunny.random_orthogonal(rng, 3; special=true))
+        A = randn(5, 5)
+        
+        N = 3
+        O = Sunny.stevens_matrices_of_dim(2; N)
+        Oi, Oj = to_product_space(O, O)
+        
+        O′ = Sunny.rotate_operator.(O, Ref(R))
+        Oi′, Oj′ = to_product_space(O′, O′)
+        
+        A′ = Sunny.transform_coupling_by_symmetry(Sunny.Mat5(A), R, true)
+        @test Oi′' * A′ * Oj′ ≈ Oi' * A * Oj
+        
+        A″ = Sunny.transform_coupling_by_symmetry(Sunny.Mat5(A), R, false)
+        @test Oj′' * A″ * Oi′ ≈ Oi' * A * Oj
+    end
+
     # Test evaluation of the classical Stevens functions (i.e. spherical
     # harmonics) and their gradients
     let 

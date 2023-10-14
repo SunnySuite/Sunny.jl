@@ -44,6 +44,29 @@ function spin_matrices(S)
     spin_matrices_of_dim(; N=Int(2S+1))
 end
 
+# The Stevens quadrupoles, O[2, q=2...-2]
+function quadrupoles(S::T) where T
+    𝒮ˣ, 𝒮ʸ, 𝒮ᶻ = S
+    return SVector{5, T}(
+        𝒮ˣ^2 - 𝒮ʸ^2,
+        𝒮ᶻ*𝒮ˣ,
+        -𝒮ˣ^2 - 𝒮ʸ^2 + 2*𝒮ᶻ^2,
+        𝒮ᶻ*𝒮ʸ,
+        2*𝒮ʸ*𝒮ˣ,
+    )
+end
+
+# Gradient of Stevens quadrupoles with respect to spin components
+function grad_quadrupoles(S::Vec3)
+    𝒮ˣ, 𝒮ʸ, 𝒮ᶻ = S
+    return SVector{5, Vec3}(
+        Vec3(2𝒮ˣ, -2𝒮ʸ, 0),    # ∇ (𝒮ˣ^2 - 𝒮ʸ^2)
+        Vec3(𝒮ᶻ, 0, 𝒮ˣ),       # ∇ (𝒮ᶻ*𝒮ˣ)
+        Vec3(-2𝒮ˣ, -2𝒮ʸ, 2𝒮ᶻ), # ∇ (-𝒮ˣ^2 - 𝒮ʸ^2 + 2*𝒮ᶻ^2)
+        Vec3(0, 𝒮ᶻ, 𝒮ʸ),       # ∇ (𝒮ᶻ*𝒮ʸ)
+        Vec3(2𝒮ʸ, 2𝒮ˣ, 0),     # ∇ (2*𝒮ʸ*𝒮ˣ)
+    )
+end
 
 # Returns ⟨Z|Sᵅ|Z⟩
 @generated function expected_spin(Z::CVec{N}) where N
@@ -62,6 +85,12 @@ end
         Vec3(nx, ny, nz)
     end
 end
+
+# Returns ⟨Z|Qᵅ|Z⟩ where Q = O[2, q=2...-2] are Stevens quadrupoles
+function expected_quadrupole(Z::CVec{N}) where N
+    return Vec5(real(Z'*Q*Z) for Q in stevens_matrices_of_dim(2; N))
+end
+
 
 # Find a ket (up to an irrelevant phase) that corresponds to a pure dipole.
 # TODO, we can do this faster by using the exponential map of spin operators,
@@ -86,3 +115,32 @@ function flip_ket(Z::CVec{N}) where N
     return reverse(parity .* conj(Z))
 end
 
+
+# Returns (Λ + dE/d⟨S⟩ ⋅ S) Z
+@generated function mul_spin_matrices(Λ, dE_dS::Vec3, Z::CVec{N}) where N
+    S = spin_matrices_of_dim(; N)
+    out = map(1:N) do i
+        out_i = map(1:N) do j
+            terms = Any[:(Λ[$i,$j])]
+            for α = 1:3
+                S_αij = S[α][i,j]
+                if !iszero(S_αij)
+                    push!(terms, :(dE_dS[$α] * $S_αij))
+                end
+            end
+            :(+($(terms...)) * Z[$j])
+        end
+        :(+($(out_i...)))
+    end
+    return :(CVec{$N}($(out...)))
+end
+
+# Returns (dE/d⟨Q⟩ ⋅ Q) Z, where Q = O[2, q=2...-2] are Stevens quadrupoles
+function mul_quadrupole_matrices(dE_dQ::Vec5, Z::CVec{N}) where N
+    Q = stevens_matrices_of_dim(2; N)
+    acc = zero(CVec{N})
+    for i in 1:5
+        acc += dE_dQ[i] * (Q[i] * Z)
+    end
+    return acc
+end

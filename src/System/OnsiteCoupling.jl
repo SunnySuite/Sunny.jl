@@ -92,8 +92,8 @@ end
     set_onsite_coupling!(sys::System, op, i::Int)
 
 Set the single-ion anisotropy for the `i`th atom of every unit cell, as well as
-all symmetry-equivalent atoms. The local operator `op` will may be constructed
-as an abstract function of the local spin operators, as a polynomial of
+all symmetry-equivalent atoms. The operator `op` may be provided as an abstract
+function of the local spin operators, as a polynomial of
 [`spin_matrices`](@ref), or as a linear combination of
 [`stevens_matrices`](@ref).
 
