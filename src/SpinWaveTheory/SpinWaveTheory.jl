@@ -43,15 +43,6 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Flo
         error("SpinWaveTheory does not yet support long-range dipole-dipole interactions.")
     end
 
-    # DD TODO: Delete this
-    for int in sys.interactions_union
-        for pc in int.pair
-            if !isempty(pc.general.data)
-                @warn "You're trying your luck with these general interactions..."
-            end
-        end
-    end
-
     # Reshape into single unit cell. A clone will always be performed, even if
     # no reshaping happens.
     cellsize_mag = cell_shape(sys) * diagm(SVector(sys.latsize))

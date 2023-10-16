@@ -727,7 +727,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
 
     # Preallocation
     H = zeros(ComplexF64, 2*nmodes, 2*nmodes)
-    Vmat = zeros(ComplexF64, 2*nmodes, 2*nmodes)
+    V = zeros(ComplexF64, 2*nmodes, 2*nmodes)
     Avec_pref = zeros(ComplexF64, Nm)
     disp = zeros(Float64, nmodes)
     intensity = zeros(return_type, nmodes)
@@ -780,7 +780,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             @assert sys.mode in (:dipole, :dipole_large_S)
             swt_hamiltonian_dipole!(H, swt, q_reshaped)
         end
-        bogoliubov!(disp, Vmat, H, swt.energy_tol, mode_fast)
+        bogoliubov!(disp, V, H, swt.energy_tol, mode_fast)
 
         for i = 1:Nm
             @assert Nm == natoms(sys.crystal)
@@ -793,7 +793,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
 
         # Fill `intensity` array
         for band = 1:nmodes
-            v = Vmat[:, band]
+            v = V[:, band]
             corrs = if sys.mode == :SUN
                 Avec = zeros(ComplexF64, num_observables(observables))
                 (; observable_operators) = data
