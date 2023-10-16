@@ -377,12 +377,19 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
             # Biquadratic for dipole mode only (SU(N) handled differently)
             if sys.mode in (:dipole, :dipole_large_S)
                 if !iszero(pc.biquad)
+                    Qᵢ = quadrupole(sᵢ)
+                    Qⱼ = quadrupole(sⱼ)
+                    ∇Qᵢ = grad_quadrupole(sᵢ)
+                    ∇Qⱼ = grad_quadrupole(sⱼ)
+
+                    # In matrix case, energy is `Qᵢ' * biquad * Qⱼ`, and we are
+                    # taking gradient with respect to either sᵢ or sⱼ.
                     if pc.biquad isa Float64
-                        ∇E[cellᵢ, bond.i] += pc.biquad * dot(grad_quadrupole(sᵢ), (scalar_biquad_metric .* quadrupole(sⱼ)))'
-                        ∇E[cellⱼ, bond.j] += pc.biquad * dot(quadrupole(sᵢ), (scalar_biquad_metric .* grad_quadrupole(sⱼ)))
+                        ∇E[cellᵢ, bond.i] += pc.biquad * (Qⱼ .* scalar_biquad_metric)' * ∇Qᵢ
+                        ∇E[cellⱼ, bond.j] += pc.biquad * (Qᵢ .* scalar_biquad_metric)' * ∇Qⱼ
                     else
-                        ∇E[cellᵢ, bond.i] += dot(grad_quadrupole(sᵢ), pc.biquad, quadrupole(sⱼ))'
-                        ∇E[cellⱼ, bond.j] += dot(quadrupole(sᵢ), pc.biquad, grad_quadrupole(sⱼ))
+                        ∇E[cellᵢ, bond.i] += (Qⱼ' * pc.biquad') * ∇Qᵢ
+                        ∇E[cellⱼ, bond.j] += (Qᵢ' * pc.biquad)  * ∇Qⱼ
                     end
                 end
             end

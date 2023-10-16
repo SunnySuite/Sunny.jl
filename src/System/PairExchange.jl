@@ -288,6 +288,7 @@ function set_exchange!(sys::System{N}, J, bond::Bond; biquad=nothing, large_S=no
         @warn "The `biquad` argument to `set_exchange!` will soon be removed! Use `set_pair_coupling!` instead."
         !isnothing(large_S) && @error "The `large_S` argument is no longer supported. Instead construct system with mode `dipole_large_S`."
         set_pair_coupling!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, bond)
+        return
     end
 
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
@@ -387,6 +388,7 @@ function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad=no
         @warn "The `biquad` argument to `set_exchange_at!` will soon be removed! Use `set_pair_coupling_at!` instead."
         !isnothing(large_S) && @error "The `large_S` argument is no longer supported. Instead construct system with mode `dipole_large_S`."
         set_pair_coupling_at!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, site1, site2; offset)
+        return
     end
 
     set_pair_coupling_at_aux!(sys, 0.0, J, 0.0, zero(TensorDecomposition), site1, site2, offset)
