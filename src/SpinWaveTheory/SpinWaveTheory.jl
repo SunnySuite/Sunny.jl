@@ -9,9 +9,13 @@ end
 
 struct SWTDataSUN
     dipole_operators :: Array{ComplexF64, 4}
-    onsite_operator :: Array{ComplexF64, 3}  # Single-ion anisotropy
     quadrupole_operators :: Array{ComplexF64, 4}
+    onsite_operator :: Array{ComplexF64, 3}  # Single-ion anisotropy
+    external_field_operator :: Array{ComplexF64, 2}
+    general_pair_operators :: Vector{Tuple{Tuple{HermitianC64, HermitianC64}, Bond}}
     observable_operators :: Array{ComplexF64, 4}
+    sun_basis_i :: Array{ComplexF64, 3}  # Buffers to avoid allocation in Hamiltonian construction
+    sun_basis_j :: Array{ComplexF64, 3} 
 end
 
 """
@@ -39,10 +43,11 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Flo
         error("SpinWaveTheory does not yet support long-range dipole-dipole interactions.")
     end
 
+    # DD TODO: Delete this
     for int in sys.interactions_union
         for pc in int.pair
             if !isempty(pc.general.data)
-                error("SpinWaveTheory does not yet support general pair interactions.")
+                @warn "You're trying your luck with these general interactions..."
             end
         end
     end
@@ -97,25 +102,44 @@ function to_reshaped_rlu(sys::System{N}, q) where N
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
+# DD TODO: Replace with corresponding Stevens' operators
+# Generate the particular basis of the nematic operators listed in Appendix B of
+# *Phys. Rev. B 104, 104409*
+function quadrupoles_from_spin_matrices(S_matrices)
+    N = size(S_matrices[1], 1)
+    S = (N-1)/2
+    Sx, Sy, Sz = S_matrices
+
+    Qs = Vector{Matrix{ComplexF64}}(undef, 5)
+    Qs[1] = -(Sx * Sz + Sz * Sx)
+    Qs[2] = -(Sy * Sz + Sz * Sy)
+    Qs[3] = Sx * Sx - Sy * Sy
+    Qs[4] = Sx * Sy + Sy * Sx
+    Qs[5] = √3 * Sz * Sz - 1/√3 * S * (S+1) * I
+
+    return Qs
+end
+
 # Compute SU(N) generators in the local reference frame (for :SUN mode). DD:
 # Redo this using existing operator rotation facilities.
 function swt_data_sun(sys::System{N},obs) where N
-    S = (N-1)/2
     n_magnetic_atoms = natoms(sys.crystal)
 
     dipole_operators = spin_matrices_of_dim(; N)
-    Sx, Sy, Sz = dipole_operators
+    quadrupole_operators = quadrupoles_from_spin_matrices(dipole_operators) # Replace with Stevens
 
-    # we support the biquad interactions now in the :dipole mode
-    # we choose a particular basis of the nematic operators listed in Appendix B of *Phys. Rev. B 104, 104409*
-    quadrupole_operators = Vector{Matrix{ComplexF64}}(undef, 5)
-    quadrupole_operators[1] = -(Sx * Sz + Sz * Sx)
-    quadrupole_operators[2] = -(Sy * Sz + Sz * Sy)
-    quadrupole_operators[3] = Sx * Sx - Sy * Sy
-    quadrupole_operators[4] = Sx * Sy + Sy * Sx
-    quadrupole_operators[5] = √3 * Sz * Sz - 1/√3 * S * (S+1) * I
+    # Rotate dipole and quadrupoles into local reference frames
+    local_quantization_bases = [Matrix{ComplexF64}(undef, N, N) for _ in 1:n_magnetic_atoms]
 
-    local_quantization_basis = Matrix{ComplexF64}(undef, N, N)
+    for atom in 1:n_magnetic_atoms
+        # First axis of local quantization basis is along the 
+        # ground-state polarization axis
+        local_quantization_bases[atom][:, 1] = sys.coherents[1,1,1,atom]
+        
+        # Remaining axes are arbitrary but mutually orthogonal
+        # and orthogonal to the first axis
+        local_quantization_bases[atom][:, 2:N] = nullspace(local_quantization_bases[atom][:,1]') 
+    end
 
     dipole_operators_localized = Array{ComplexF64, 4}(undef, N, N, 3, n_magnetic_atoms)
     onsite_operator_localized = Array{ComplexF64, 3}(undef, N, N, n_magnetic_atoms)
@@ -123,27 +147,45 @@ function swt_data_sun(sys::System{N},obs) where N
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
     for atom = 1:n_magnetic_atoms
-        # First axis of local quantization basis is along the 
-        # ground-state polarization axis
-        local_quantization_basis[:, 1] = sys.coherents[1, 1, 1, atom]
-        
-        # Remaining axes are arbitrary but mutually orthogonal
-        # and orthogonal to the first axis
-        local_quantization_basis[:, 2:N] = nullspace(local_quantization_basis[:, 1]')
+        U = local_quantization_bases[atom]
         
         for μ = 1:3
-            dipole_operators_localized[:, :, μ, atom] = Hermitian(local_quantization_basis' * dipole_operators[μ] * local_quantization_basis)
+            dipole_operators_localized[:, :, μ, atom] = Hermitian(U' * dipole_operators[μ] * U)
         end
         for ν = 1:5
-            quadrupole_operators_localized[:, :, ν, atom] = Hermitian(local_quantization_basis' * quadrupole_operators[ν] * local_quantization_basis)
+            quadrupole_operators_localized[:, :, ν, atom] = Hermitian(U' * quadrupole_operators[ν] * U)
         end
-        onsite_operator_localized[:, :, atom] = Hermitian(local_quantization_basis' * sys.interactions_union[atom].onsite * local_quantization_basis)
+        onsite_operator_localized[:, :, atom] = Hermitian(U' * sys.interactions_union[atom].onsite * U)
         for k = 1:num_observables(obs)
-            observables_localized[:, :, k, atom] = Hermitian(local_quantization_basis' * convert(Matrix,obs.observables[k]) * local_quantization_basis)
+            observables_localized[:, :, k, atom] = Hermitian(U' * convert(Matrix,obs.observables[k]) * U)
         end
     end
 
-    return SWTDataSUN(dipole_operators_localized, onsite_operator_localized, quadrupole_operators_localized, observables_localized)
+    general_pair_operators_localized = Tuple{Tuple{HermitianC64, HermitianC64}, Bond}[]
+
+    for int in sys.interactions_union
+        for pc in int.pair
+            (; isculled, bond, general) = pc
+            isculled && continue 
+            atomi, atomj = bond.i, bond.j
+            Ui, Uj = local_quantization_bases[atomi], local_quantization_bases[atomj] 
+            for (A, B) in general.data
+                A′, B′ = Hermitian.((Ui' * A * Ui, Uj' * B * Uj)) 
+                push!(general_pair_operators_localized, ((A′, B′), bond))
+            end
+        end
+    end
+
+    return SWTDataSUN(
+        dipole_operators_localized, 
+        quadrupole_operators_localized, 
+        onsite_operator_localized,
+        zeros(ComplexF64, N, N),            # External field buffer
+        general_pair_operators_localized,
+        observables_localized,
+        zeros(ComplexF64, N, N, 8),         # Buffers for local SU(N) basis
+        zeros(ComplexF64, N, N, 8),
+    )
 end
 
 # Compute Stevens coefficients in the local reference frame

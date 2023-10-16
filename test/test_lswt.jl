@@ -442,3 +442,36 @@ end
     @test isapprox(calc_disp, disp_ref; atol=1e-6)
     @test isapprox(calc_int, int_ref; atol=1e-7)
 end
+
+@testitem "Generalized interaction consistency" begin
+    using LinearAlgebra
+
+    dims = (2, 1, 1)
+    cryst = Crystal(I(3), [[0,0,0]]) 
+
+    sys_fast = System(cryst, dims, [SpinInfo(1; S=1, g=1)], :SUN)
+    sys_slow = System(cryst, dims, [SpinInfo(1; S=1, g=1)], :SUN)
+
+    J = -1.0
+    S = spin_matrices(; N=3)
+    S1, S2 = Sunny.to_product_space(S, S)
+    exchange = J*(S1'*S2)
+    set_pair_coupling!(sys_fast, exchange, Bond(1,1,[1,0,0]); extract_parts=true)
+    set_pair_coupling!(sys_slow, exchange, Bond(1,1,[1,0,0]); extract_parts=false)
+
+    # Note for our ferromagnet, system will be initialized in the ground state
+    swt_fast = SpinWaveTheory(sys_fast)
+    swt_slow = SpinWaveTheory(sys_slow)
+
+    Nm = Sunny.natoms(swt_slow.sys.crystal)
+    N = swt_slow.sys.Ns[1]
+    Nf = N - 1
+    L = Nf * Nm
+    H_slow = zeros(ComplexF64, 2L, 2L)
+    H_fast = zeros(ComplexF64, 2L, 2L)
+
+    Sunny.swt_hamiltonian_SUN!(H_slow, swt_slow, Sunny.Vec3([0.5, 0, 0]))
+    Sunny.swt_hamiltonian_SUN!(H_fast, swt_fast, Sunny.Vec3([0.5, 0, 0]))
+
+    @time H_slow ≈ H_fast
+end
