@@ -32,8 +32,7 @@ end
 
 @testitem "General interactions" begin
     cryst = Sunny.diamond_crystal()
-    S0 = 2
-    sys = System(cryst, (2, 2, 2), [SpinInfo(1; S=S0, g=2)], :SUN)
+    sys = System(cryst, (2, 2, 2), [SpinInfo(1; S=2, g=2)], :SUN)
     randomize_spins!(sys)
     
     J = 0.5
@@ -49,11 +48,21 @@ end
     E = energy(sys)
     dE_dZ = Sunny.energy_grad_coherents(sys)
     
-    Si, Sj = to_product_space(spin_matrices.([S0,S0])...)
-    set_pair_coupling!(sys, Si'*J_exch*Sj, bond; fast=false)
+    set_pair_coupling!(sys, (Si, Sj) -> Si'*J_exch*Sj, bond; extract_parts=false)
     E′ = energy(sys)
     dE_dZ′ = Sunny.energy_grad_coherents(sys)
     
+    @test E ≈ E′
+    @test dE_dZ ≈ dE_dZ′
+
+    set_pair_coupling!(sys, (Si, Sj) -> (Si'*Sj)^2, bond)
+    E = energy_per_site(sys)
+    dE_dZ = Sunny.energy_grad_coherents(sys)
+
+    set_pair_coupling!(sys, (Si, Sj) -> (Si'*Sj)^2, bond; extract_parts=false)
+    E′ = energy_per_site(sys)
+    dE_dZ′ = Sunny.energy_grad_coherents(sys)
+
     @test E ≈ E′
     @test dE_dZ ≈ dE_dZ′
 end

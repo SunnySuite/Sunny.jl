@@ -34,6 +34,8 @@ function add_quadratic_interactions!(sys, mode)
         @assert mode == :SUN
         add_exchange_interactions!(sys, mode)
 
+        # KB-TODO reenable soon
+        #=
         # This alternative must work, but is too slow to enable by default.
         J  = 0.5   # Anti-ferro nearest neighbor
         K  = 1.0   # Scale of Kitaev term
@@ -45,6 +47,7 @@ function add_quadratic_interactions!(sys, mode)
 
         bond = Bond(1, 2, [0, 0, 0])
         set_pair_coupling!(sys, (Si, Sj) -> Si'*J_exch*Sj + 0.01(Si'*Sj)^2, bond)
+        =#
     end
 end
 

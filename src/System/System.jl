@@ -165,7 +165,6 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 @inline to_cartesian(i::CartesianIndex{N}) where N = i
 @inline to_cartesian(i::NTuple{N, Int})    where N = CartesianIndex(i)
 
-# kbtodo: offsetcell ?
 # Offset a `cell` by `ncells`
 @inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(mod1.(Tuple(cell) .+ Tuple(ncells), latsize))
 

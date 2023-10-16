@@ -68,17 +68,18 @@ function proportionality_factor(A, B; atol=1e-12)
     end
 end
 
-function decompose_general_coupling(op, N1, N2; fast)
+function decompose_general_coupling(op, N1, N2; extract_parts)
     @assert size(op) == (N1*N2, N1*N2)
 
-    if fast
-        # Remove scalar part
-        scalar = real(tr(op))
-        op = op - (scalar/size(op, 1))*I
+    gen1 = spin_matrices_of_dim(; N=N1)
+    gen2 = spin_matrices_of_dim(; N=N2)
 
+    # Remove scalar part
+    scalar = real(tr(op) / size(op, 1))
+    op = op - scalar*I
+    
+    if extract_parts
         # Remove bilinear part
-        gen1 = spin_matrices_of_dim(; N=N1)
-        gen2 = spin_matrices_of_dim(; N=N2)
         bilin = zeros(3, 3)
         for α in 1:3, β in 1:3
             v = kron(gen1[α], gen2[β])
@@ -104,7 +105,7 @@ function decompose_general_coupling(op, N1, N2; fast)
         end
         biquad = proportionality_factor(Mat5(biquad), diagm(scalar_biquad_metric))
     else
-        scalar = bilin = biquad = 0.0
+        bilin = biquad = 0.0
     end
 
     return scalar, bilin, biquad, TensorDecomposition(gen1, gen2, svd_tensor_expansion(op, N1, N2))
@@ -113,6 +114,18 @@ end
 function Base.zero(::Type{TensorDecomposition})
     gen = spin_matrices_of_dim(; N=0)
     return TensorDecomposition(gen, gen, [])
+end
+
+function Base.isapprox(op1::TensorDecomposition, op2::TensorDecomposition; kwargs...)
+    isempty(op1.data) == isempty(op2.data) && return true
+    op1′ = sum(kron(A, B) for (A, B) in op1.data)
+    op2′ = sum(kron(A, B) for (A, B) in op2.data)
+    return isapprox(op1′, op2′; kwargs...)
+end
+
+function Base.reverse(tensordec::TensorDecomposition)
+    (; gen1, gen2, data) = tensordec
+    return TensorDecomposition(gen2, gen1, [(B, A) for (A, B) in data])
 end
 
 function transform_coupling_by_symmetry(tensordec::TensorDecomposition, R, parity)
@@ -133,13 +146,6 @@ function transform_coupling_by_symmetry(tensordec::TensorDecomposition, R, parit
     return TensorDecomposition(gen1, gen2, data)
 end
 
-
-function Base.isapprox(op1::TensorDecomposition, op2::TensorDecomposition; kwargs...)
-    isempty(op1.data) == isempty(op2.data) && return true
-    op1′ = sum(kron(A, B) for (A, B) in op1.data)
-    op2′ = sum(kron(A, B) for (A, B) in op2.data)
-    return isapprox(op1′, op2′; kwargs...)
-end
 
 function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition, bond::Bond)
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
@@ -168,6 +174,18 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
     ints = interactions_homog(sys)
     if any(x -> x.bond == bond, ints[bond.i].pair)
         warn_coupling_override("Overriding coupling for $bond.")
+    end
+    
+    # General interactions require SU(N) mode
+    if !isempty(tensordec.data)
+        sys.mode == :SUN || error("Interactions beyond biquadratic not supported in dipole mode.")
+    end
+
+    # Renormalize biquadratic interactions
+    if sys.mode == :dipole
+        S1 = spin_irrep_label(sys, bond.i)
+        S2 = spin_irrep_label(sys, bond.j)
+        biquad *= (1 - 1/2S1) * (1 - 1/2S2)
     end
 
     # Propagate all couplings by symmetry
@@ -206,25 +224,30 @@ set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 
 See also [`spin_matrices`](@ref), [`to_product_space`](@ref).
 """
-function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; fast=true) where N
+function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_parts=true) where N
     is_homogeneous(sys) || error("Use `set_pair_coupling_at!` for an inhomogeneous system.")
 
     if sys.mode == :dipole_large_S
-        error("System with mode `:dipole_large_S` requires a symbolic operator.")
+        error("Symbolic operators required for mode `:dipole_large_S`.")
     end
 
     N1 = Int(2spin_irrep_label(sys, bond.i)+1)
     N2 = Int(2spin_irrep_label(sys, bond.j)+1)
-    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; fast)
+    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; extract_parts)
+
     set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond)
     return
 end
 
-function set_pair_coupling!(sys::System{N}, fn::Function, bond) where N
+function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=true) where N
+    if sys.mode == :dipole_large_S
+        error("General couplings not yet supported for mode `:dipole_large_S`.")
+    end
+
     S1 = spin_irrep_label(sys, bond.i)
     S2 = spin_irrep_label(sys, bond.j)
     Si, Sj = to_product_space(spin_matrices.([S1, S2])...)
-    set_pair_coupling!(sys, fn(Si, Sj), bond)
+    set_pair_coupling!(sys, fn(Si, Sj), bond; extract_parts)
     return
 end
 
@@ -322,6 +345,18 @@ function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Fl
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
 
+    # General interactions require SU(N) mode
+    if !isempty(tensordec.data)
+        sys.mode == :SUN || error("Interactions beyond biquadratic not supported in dipole mode.")
+    end
+
+    # Renormalize biquadratic interactions
+    if sys.mode == :dipole
+        S1 = spin_irrep_label(sys, to_atom(site1))
+        S2 = spin_irrep_label(sys, to_atom(site2))
+        biquad *= (1 - 1/2S1) * (1 - 1/2S2)
+    end
+
     site1 = to_cartesian(site1)
     site2 = to_cartesian(site2)
     bond = sites_to_internal_bond(sys, site1, site2, offset)
@@ -354,7 +389,7 @@ function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad=no
         set_pair_coupling_at!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, site1, site2; offset)
     end
 
-    set_pair_coupling_at_aux!(sys, 0.0, bilin, 0.0, zero(TensorDecomposition), site1, site2, offset)
+    set_pair_coupling_at_aux!(sys, 0.0, J, 0.0, zero(TensorDecomposition), site1, site2, offset)
     return
 end
 
@@ -376,14 +411,23 @@ due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
 `offset` vector, in multiples of unit cells.
 """
 function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, site2::Site; offset=nothing) where N
+    if sys.mode == :dipole_large_S
+        error("Symbolic operators required for mode `:dipole_large_S`.")
+    end
+
     N1 = Int(2spin_irrep_label(sys, to_atom(site1))+1)
     N2 = Int(2spin_irrep_label(sys, to_atom(site2))+1)
-    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; fast)
+    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; extract_parts=true)
+
     set_pair_coupling_at_aux!(sys, scalar, bilin, biquad, tensordec, site1, site2, offset)
     return
 end
 
 function set_pair_coupling_at!(sys::System{N}, fn::Function, site1::Site, site2::Site; offset=nothing) where N
+    if sys.mode == :dipole_large_S
+        error("General couplings not yet supported for mode `:dipole_large_S`.")
+    end
+
     S1 = spin_irrep_label(sys, to_atom(site1))
     S2 = spin_irrep_label(sys, to_atom(site2))
     Si, Sj = to_product_space(spin_matrices.([S1, S2])...)

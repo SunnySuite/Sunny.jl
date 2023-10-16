@@ -137,7 +137,9 @@ function transform_coupling_by_symmetry(biquad::Mat5, R::Mat3, parity)
     # See also `transform_spherical_to_stevens_coefficients`.
 
     V = stevens_α[k] * transpose(D) * stevens_αinv[k]
-    return V' * (parity ? biquad : biquad') * V
+    ret = V' * (parity ? biquad : biquad') * V
+    @assert norm(imag(ret)) < 1e-12
+    return Mat5(real(ret))
 end
 
 # Check whether a coupling matrix J is consistent with symmetries of a bond

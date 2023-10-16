@@ -45,7 +45,7 @@ end
 fill_colors(c, sz) = fill(c, sz)
 
 
-# TODO: See if we can reuse Makie internal functions, e.g. `numbers_to_colors`,
+# Similar to Makie internal function `numbers_to_colors`,
 # https://github.com/MakieOrg/Makie.jl/blob/ac02141c4c87dbf71d06b301f6dc18f5719e6d05/src/colorsampler.jl#L154-L177
 """
     numbers_to_colors(x; colorrange=nothing, colormap=:viridis)
@@ -495,8 +495,7 @@ function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, 
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1])
 
-    # Hack to get the `one_dim_chain.jl` examples working. TODO: make
-    # `orient_camera!` work better.
+    # TODO: use `orient_camera!` at bottom of file instead.
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
     lookat = sum(eachcol(supervecs)/2)
     eyeposition = lookat - [0, 1, 0]

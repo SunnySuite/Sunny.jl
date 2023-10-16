@@ -45,7 +45,7 @@ struct PairCoupling
     # If `biquad` is a scalar, then it will denote a multiple the rotationally
     # invariant biquadratic coupling, `diagm(scalar_biquad_metric)`. In :dipole
     # mode, biquad couplings stored here will include a renormalization factor,
-    # (1-1/2S)^2, as derived in https://arxiv.org/abs/2304.03874.
+    # (1-1/2S₁)(1-1/2S₂), as derived in https://arxiv.org/abs/2304.03874.
     scalar   :: Float64              # Constant shift
     bilin    :: Union{Float64, Mat3} # Bilinear
     biquad   :: Union{Float64, Mat5} # Biquadratic

@@ -45,9 +45,9 @@ function spin_matrices(S)
 end
 
 # The Stevens quadrupoles, O[2, q=2...-2]
-function quadrupoles(S::T) where T
+function quadrupole(S::Vec3)
     𝒮ˣ, 𝒮ʸ, 𝒮ᶻ = S
-    return SVector{5, T}(
+    return Vec5(
         𝒮ˣ^2 - 𝒮ʸ^2,
         𝒮ᶻ*𝒮ˣ,
         -𝒮ˣ^2 - 𝒮ʸ^2 + 2*𝒮ᶻ^2,
@@ -57,7 +57,7 @@ function quadrupoles(S::T) where T
 end
 
 # Gradient of Stevens quadrupoles with respect to spin components
-function grad_quadrupoles(S::Vec3)
+function grad_quadrupole(S::Vec3)
     𝒮ˣ, 𝒮ʸ, 𝒮ᶻ = S
     return SVector{5, Vec3}(
         Vec3(2𝒮ˣ, -2𝒮ʸ, 0),    # ∇ (𝒮ˣ^2 - 𝒮ʸ^2)
