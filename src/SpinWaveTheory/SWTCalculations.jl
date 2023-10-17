@@ -8,18 +8,6 @@
 # where the definition of Oᵢᵃ is given in Appendix B of *Phys. Rev. B 104, 104409*
 const biquad_metric = 1/2 * diagm([0, 0, 0, 1, 1, 1, 1, 1])
 
-# Calculates 𝐁⋅𝐒 and writes it to field_operator. 𝐒 is given in the local
-# basis.
-function set_swt_external_field!(field_operator, swt, site)
-    (; sys, data) = swt
-    (; dipole_operators) = data
-    (; extfield, gs, units) = sys
-
-    effB = units.μB * (gs[1, 1, 1, site]' * extfield[1, 1, 1, site])
-    site_tS = view(dipole_operators, :, :, :, site)
-    @. @views field_operator = - effB[1] * site_tS[:, :, 1] - effB[2] * site_tS[:, :, 2] - effB[3] * site_tS[:, :, 3]
-end
-
 # Construct portion of Hamiltonian due to onsite terms (single-site anisotropy
 # or external field).
 function swt_onsite_coupling!(H, swt, op, site)
@@ -27,9 +15,9 @@ function swt_onsite_coupling!(H, swt, op, site)
 
     N = sys.Ns[1] 
     nflavors = N - 1 
-    nmodes = nflavors * natoms(sys.crystal)   
-    H11 = view(H, 1:nmodes, 1:nmodes)
-    H22 = view(H, nmodes+1:2nmodes, nmodes+1:2nmodes)
+    L = nflavors * natoms(sys.crystal)   
+    H11 = view(H, 1:L, 1:L)
+    H22 = view(H, L+1:2L, L+1:2L)
 
     for m = 2:N
         for n = 2:N
@@ -52,10 +40,10 @@ function swt_bilinear!(H, swt, coupling, q, Ti_buf, Tj_buf)
 
     N = sys.Ns[1] 
     nflavors = N - 1 
-    nmodes = nflavors * natoms(sys.crystal)   
-    H11 = view(H, 1:nmodes, 1:nmodes)
-    H12 = view(H, 1:nmodes, nmodes+1:2nmodes)
-    H22 = view(H, nmodes+1:2nmodes, nmodes+1:2nmodes)
+    L = nflavors * natoms(sys.crystal)   
+    H11 = view(H, 1:L, 1:L)
+    H12 = view(H, 1:L, L+1:2L)
+    H22 = view(H, L+1:2L, L+1:2L)
     Si_mn = view(Ti_buf, 1:3)
     Sj_mn = view(Tj_buf, 1:3)
 
@@ -129,10 +117,10 @@ function swt_biquadratic!(H, swt, coupling, q, Ti_mn, Tj_mn)
     J = biquad
     N = sys.Ns[1] 
     nflavors = N - 1 
-    nmodes = nflavors * natoms(sys.crystal)   
-    H11 = view(H, 1:nmodes, 1:nmodes)
-    H12 = view(H, 1:nmodes, nmodes+1:2nmodes)
-    H22 = view(H, nmodes+1:2nmodes, nmodes+1:2nmodes)
+    L = nflavors * natoms(sys.crystal)   
+    H11 = view(H, 1:L, 1:L)
+    H12 = view(H, 1:L, L+1:2L)
+    H22 = view(H, L+1:2L, L+1:2L)
     sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
     phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
 
@@ -192,10 +180,10 @@ function swt_general_couplings!(H, swt, q_reshaped)
     (; general_pair_operators) = data
     N = sys.Ns[1] 
     nflavors = N - 1 
-    nmodes = nflavors * natoms(sys.crystal)   
-    H11 = view(H, 1:nmodes, 1:nmodes)
-    H12 = view(H, 1:nmodes, nmodes+1:2nmodes)
-    H22 = view(H, nmodes+1:2nmodes, nmodes+1:2nmodes)
+    L = nflavors * natoms(sys.crystal)   
+    H11 = view(H, 1:L, 1:L)
+    H12 = view(H, 1:L, L+1:2L)
+    H22 = view(H, L+1:2L, L+1:2L)
 
     for general_pair in general_pair_operators
         ((A, B), bond) = general_pair
@@ -294,14 +282,15 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     H .= 0
 
     # Add single-site terms
-    for matom = 1:natoms(sys.crystal)
+    for atom = 1:natoms(sys.crystal)
         # Add single-ion anisotropy
-        site_aniso = view(onsite_operator, :, :, matom)
-        swt_onsite_coupling!(H, swt, site_aniso, matom)
+        site_aniso = view(onsite_operator, :, :, atom)
+        swt_onsite_coupling!(H, swt, site_aniso, atom)
 
         # Add external field
-        set_swt_external_field!(external_field_operator, swt, matom)
-        swt_onsite_coupling!(H, swt, external_field_operator, matom)
+        # set_swt_external_field!(external_field_operator, swt, atom)
+        site_field = view(external_field_operator, :, :, atom)
+        swt_onsite_coupling!(H, swt, site_field, atom)
     end
 
     # Add pair interactions that use explicit bases

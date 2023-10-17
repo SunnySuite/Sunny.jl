@@ -10,8 +10,8 @@ end
 struct SWTDataSUN
     dipole_operators :: Array{ComplexF64, 4}
     quadrupole_operators :: Array{ComplexF64, 4}
-    onsite_operator :: Array{ComplexF64, 3}  # Single-ion anisotropy
-    external_field_operator :: Array{ComplexF64, 2}
+    onsite_operator :: Array{ComplexF64, 3}          # Single-ion anisotropy
+    external_field_operator :: Array{ComplexF64, 3}  # Zeeman
     general_pair_operators :: Vector{Tuple{Tuple{HermitianC64, HermitianC64}, Bond}}
     observable_operators :: Array{ComplexF64, 4}
     sun_basis_i :: Array{ComplexF64, 3}  # Buffers to avoid allocation in Hamiltonian construction
@@ -113,7 +113,7 @@ end
 
 # Compute SU(N) generators in the local reference frame (for :SUN mode). DD:
 # Redo this using existing operator rotation facilities.
-function swt_data_sun(sys::System{N},obs) where N
+function swt_data_sun(sys::System{N}, obs) where N
     n_magnetic_atoms = natoms(sys.crystal)
 
     dipole_operators = spin_matrices_of_dim(; N)
@@ -137,7 +137,8 @@ function swt_data_sun(sys::System{N},obs) where N
     quadrupole_operators_localized = zeros(ComplexF64, N, N, 5, n_magnetic_atoms)
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
-    for atom = 1:n_magnetic_atoms
+    # Rotate SU(N) bases and observables
+    for atom in 1:n_magnetic_atoms
         U = local_quantization_bases[atom]
         
         for μ = 1:3
@@ -152,8 +153,17 @@ function swt_data_sun(sys::System{N},obs) where N
         end
     end
 
-    general_pair_operators_localized = Tuple{Tuple{HermitianC64, HermitianC64}, Bond}[]
+    # Calculate magnetic field on each site using rotated basis
+    (; extfield, gs, units) = sys
+    external_field_operator = zeros(ComplexF64, N, N, n_magnetic_atoms) 
+    for atom in 1:n_magnetic_atoms
+        B = units.μB * (gs[1, 1, 1, atom]' * extfield[1, 1, 1, atom])
+        Ss = view(dipole_operators_localized, :, :, :, atom)
+        @. external_field_operator[:, :, atom] = -B[1]*Ss[:, :, 1] - B[2]*Ss[:, :, 2] - B[3]*Ss[:,:,3]
+    end
 
+    # Rotate operators from tensor decompositions of generalized interactions
+    general_pair_operators_localized = Tuple{Tuple{HermitianC64, HermitianC64}, Bond}[]
     for int in sys.interactions_union
         for pc in int.pair
             (; isculled, bond, general) = pc
@@ -171,7 +181,7 @@ function swt_data_sun(sys::System{N},obs) where N
         dipole_operators_localized, 
         quadrupole_operators_localized, 
         onsite_operator_localized,
-        zeros(ComplexF64, N, N),            # External field buffer
+        external_field_operator,
         general_pair_operators_localized,
         observables_localized,
         zeros(ComplexF64, N, N, 8),         # Buffers for local SU(N) basis
