@@ -7,9 +7,6 @@
         L = 2
         sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=2)], mode)
 
-        # KB-TODO: Reenable these after optimizing expected_quadrupole and mul_quadrupole_matrices
-
-        #=
         @test_opt energy(sys)
         
         sampler = LocalSampler(kT=0.2, propose=propose_flip)
@@ -24,7 +21,6 @@
 
         integrator = ImplicitMidpoint(0.01)
         @test_opt step!(sys, integrator)
-        =#
     end
 
     test(:dipole)

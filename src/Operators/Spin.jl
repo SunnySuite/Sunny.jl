@@ -100,7 +100,7 @@ end
         end
         push!(qs, :(real(+($(terms...)))))
     end
-    return :(Sunny.Vec5($(qs...)))
+    return :(Vec5($(qs...)))
 end
 
 

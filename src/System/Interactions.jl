@@ -170,9 +170,9 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
                 Qⱼ = expected_quadrupole(Zⱼ)
             end
             if pc.biquad isa Float64
-                ΔE += pc.biquad * dot(ΔQ, scalar_biquad_metric .* Qⱼ)
+                ΔE += pc.biquad::Float64 * dot(ΔQ, scalar_biquad_metric .* Qⱼ)
             else
-                ΔE += dot(ΔQ, pc.biquad, Qⱼ)
+                ΔE += dot(ΔQ, pc.biquad::Mat5, Qⱼ)
             end
         end
 
@@ -291,9 +291,9 @@ function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
                     Qⱼ = expected_quadrupole(Zⱼ)
                 end
                 if pc.biquad isa Float64
-                    E += pc.biquad * dot(Qᵢ, scalar_biquad_metric .* Qⱼ)
+                    E += pc.biquad::Float64 * dot(Qᵢ, scalar_biquad_metric .* Qⱼ)
                 else
-                    E += dot(Qᵢ, pc.biquad, Qⱼ)
+                    E += dot(Qᵢ, pc.biquad::Mat5, Qⱼ)
                 end
             end
 
@@ -385,11 +385,13 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
                     # In matrix case, energy is `Qᵢ' * biquad * Qⱼ`, and we are
                     # taking gradient with respect to either sᵢ or sⱼ.
                     if pc.biquad isa Float64
-                        ∇E[cellᵢ, bond.i] += pc.biquad * (Qⱼ .* scalar_biquad_metric)' * ∇Qᵢ
-                        ∇E[cellⱼ, bond.j] += pc.biquad * (Qᵢ .* scalar_biquad_metric)' * ∇Qⱼ
+                        J = pc.biquad::Float64
+                        ∇E[cellᵢ, bond.i] += J * (Qⱼ .* scalar_biquad_metric)' * ∇Qᵢ
+                        ∇E[cellⱼ, bond.j] += J * (Qᵢ .* scalar_biquad_metric)' * ∇Qⱼ
                     else
-                        ∇E[cellᵢ, bond.i] += (Qⱼ' * pc.biquad') * ∇Qᵢ
-                        ∇E[cellⱼ, bond.j] += (Qᵢ' * pc.biquad)  * ∇Qⱼ
+                        J = pc.biquad::Mat5
+                        ∇E[cellᵢ, bond.i] += (Qⱼ' * J') * ∇Qᵢ
+                        ∇E[cellⱼ, bond.j] += (Qᵢ' * J)  * ∇Qⱼ
                     end
                 end
             end
@@ -450,9 +452,11 @@ function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_ds::Array{V
                 Qᵢ = expected_quadrupole(Zᵢ)
                 Qⱼ = expected_quadrupole(Zⱼ)
                 if pc.biquad isa Float64
+                    J = pc.biquad::Float64
                     dE_dQᵢ = pc.biquad * (scalar_biquad_metric .* Qⱼ)
                     dE_dQⱼ = pc.biquad * (scalar_biquad_metric .* Qᵢ)
                 else
+                    J = pc.biquad::Mat5
                     dE_dQᵢ = pc.biquad * Qⱼ
                     dE_dQⱼ = pc.biquad' * Qᵢ
                 end
