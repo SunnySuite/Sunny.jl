@@ -1,7 +1,6 @@
 ###########################################################################
 # Below takes Sunny to construct `SpinWave` for LSWT calculations.  #
 ###########################################################################
-
 struct SWTDataDipole
     R_mat  :: Vector{Mat3}             # SO(3) rotation to align the quantization axis
     c_coef :: Vector{StevensExpansion} # Stevens operator coefficents

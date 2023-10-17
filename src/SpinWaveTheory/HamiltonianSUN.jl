@@ -209,23 +209,77 @@ function swt_general_couplings!(H, swt, q)
     end
 end
 
+# Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
+function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
+    (; sys, data) = swt
+    (; onsite_operator, external_field_operator) = data
 
-# Modified from LinearAlgebra.jl to not perform any conjugation
-function dot_no_conj(x,A,y)
-    (axes(x)..., axes(y)...) == axes(A) || throw(DimensionMismatch())
-    T = typeof(dot(first(x), first(A), first(y)))
-    s = zero(T)
-    i₁ = first(eachindex(x))
-    x₁ = first(x)
-    @inbounds for j in eachindex(y)
-        yj = y[j]
-        if !iszero(yj)
-            temp = zero(A[i₁,j] * x₁)
-            @simd for i in eachindex(x)
-                temp += A[i,j] * x[i]
+    N = sys.Ns[1]                         # Dimension of SU(N) coherent states
+    nflavors = N - 1                      # Number of local boson flavors
+    L  = nflavors * natoms(sys.crystal)   # Number of quasiparticle bands
+    @assert size(H) == (2L, 2L)
+
+    # Clear the Hamiltonian
+    H .= 0
+
+    # Add single-site terms
+    for atom = 1:natoms(sys.crystal)
+        # Add single-ion anisotropy
+        site_aniso = view(onsite_operator, :, :, atom)
+        swt_onsite_coupling!(H, swt, site_aniso, atom)
+
+        # Add external field
+        site_field = view(external_field_operator, :, :, atom)
+        swt_onsite_coupling!(H, swt, site_field, atom)
+    end
+
+    # Add pair interactions that use explicit bases
+    for ints in sys.interactions_union
+        for coupling in ints.pair
+            (; isculled) = coupling
+            isculled && break
+
+            if !all(iszero, coupling.bilin)
+                swt_bilinear!(H, swt, coupling, q_reshaped)
             end
-            s += temp * yj
+
+            if !all(iszero, coupling.biquad)
+                swt_biquadratic!(H, swt, coupling, q_reshaped)
+            end
         end
     end
-    return s
+
+    # Add generalized pair interactions
+    swt_general_couplings!(H, swt, q_reshaped)
+            
+    # N.B.: H22
+    # ============
+    # The relation between H11 and H22 is:
+    # 
+    #     H22(q) = transpose(H11(-k))
+    #
+    # so H22 can be constructed in parallel with H11 by adding
+    # the same term to each matrix, but with indices backwards on H22,
+    # and with exp(iqr) conjugated for H22:
+
+    # Infer H21 by H=H'
+    # H12 = view(H,1:L,L+1:2L)
+    # H21 = view(H, L+1:2L, 1:L)
+    # H21 .= H12'
+    set_H21!(H)
+    
+    # Ensure that H is hermitian up to round-off errors 
+    if hermiticity_norm(H) > 1e-12 
+        println("norm(H-H')= ", norm(H-H'))
+        throw("H is not hermitian!")
+    end
+    
+    # Make H exactly hermitian for Cholesky decomposition.
+    make_hermitian!(H)
+
+    # Add constant offset for Cholesky decomposition.
+    for i = 1:2L
+        H[i,i] += swt.energy_ϵ
+    end    
 end
+

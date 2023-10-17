@@ -32,3 +32,23 @@ function hermiticity_norm(H)
     end
     return accum
 end
+
+# Modified from LinearAlgebra.jl to not perform any conjugation
+function dot_no_conj(x,A,y)
+    (axes(x)..., axes(y)...) == axes(A) || throw(DimensionMismatch())
+    T = typeof(dot(first(x), first(A), first(y)))
+    s = zero(T)
+    i₁ = first(eachindex(x))
+    x₁ = first(x)
+    @inbounds for j in eachindex(y)
+        yj = y[j]
+        if !iszero(yj)
+            temp = zero(A[i₁,j] * x₁)
+            @simd for i in eachindex(x)
+                temp += A[i,j] * x[i]
+            end
+            s += temp * yj
+        end
+    end
+    return s
+end
