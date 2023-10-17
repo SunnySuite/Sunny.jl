@@ -136,11 +136,20 @@ end
 end
 
 # Returns (dE/d⟨Q⟩ ⋅ Q) Z, where Q = O[2, q=2...-2] are Stevens quadrupoles
-function mul_quadrupole_matrices(dE_dQ::Vec5, Z::CVec{N}) where N
+@generated function mul_quadrupole_matrices(dE_dQ::Vec5, Z::CVec{N}) where N
     Q = stevens_matrices_of_dim(2; N)
-    acc = zero(CVec{N})
-    for i in 1:5
-        acc += dE_dQ[i] * (Q[i] * Z)
+    out = map(1:N) do i
+        out_i = map(1:N) do j
+            terms = Any[:(0)]
+            for α = 1:5
+                Q_αij = Q[α][i,j]
+                if !iszero(Q_αij)
+                    push!(terms, :(dE_dQ[$α] * $Q_αij))
+                end
+            end
+            :(+($(terms...)) * Z[$j])
+        end
+        :(+($(out_i...)))
     end
-    return acc
+    return :(CVec{$N}($(out...)))
 end

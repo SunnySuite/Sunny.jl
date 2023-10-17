@@ -27,13 +27,21 @@
         @test Sunny.flip_ket(Z) ≈ exp(-im*π*S[2]) * conj(Z)
     end
 
-    # Test action of apply_spin_matrices!(B, Z)
+    # Test action of mul_spin_matrices(B, Z)
     for N = 4:6
         Λ = randn(ComplexF64, N, N)
         B = randn(Sunny.Vec3)
         Z = randn(Sunny.CVec{N})
         @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*spin_matrices((N-1)/2)) * Z
     end    
+
+    # Test action of mul_quadrupole_matrices(dE_dQ, Z)
+    for N = 4:6
+        dE_dQ = randn(Sunny.Vec5)
+        Z = randn(Sunny.CVec{N})
+        @test Sunny.mul_quadrupole_matrices(dE_dQ, Z) ≈ (dE_dQ' * Sunny.stevens_matrices_of_dim(2; N)) * Z
+    end
+
 end
 
 
