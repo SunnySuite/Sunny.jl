@@ -32,7 +32,7 @@ end
 
 # Construct portion of Hamiltonian due to bilinear exchange terms (spin
 # operators only).
-function swt_bilinear!(H, swt, coupling, q, Ti_buf, Tj_buf)
+function swt_bilinear!(H, swt, coupling, q)
     (; data, sys) = swt
     (; dipole_operators) = data
     (; bilin, bond) = coupling
@@ -44,8 +44,10 @@ function swt_bilinear!(H, swt, coupling, q, Ti_buf, Tj_buf)
     H11 = view(H, 1:L, 1:L)
     H12 = view(H, 1:L, L+1:2L)
     H22 = view(H, L+1:2L, L+1:2L)
-    Si_mn = view(Ti_buf, 1:3)
-    Sj_mn = view(Tj_buf, 1:3)
+    # Si_mn = view(Ti_buf, 1:3)
+    # Sj_mn = view(Tj_buf, 1:3)
+    Si_mn = zero(MVector{3, ComplexF64}) 
+    Sj_mn = zero(MVector{3, ComplexF64})
 
     J = Mat3(bilin*I)  
     
@@ -104,7 +106,7 @@ end
 
 # Construct portion of Hamiltonian due to biquadratic exchange (uses explicit
 # basis).
-function swt_biquadratic!(H, swt, coupling, q, Ti_mn, Tj_mn)
+function swt_biquadratic!(H, swt, coupling, q)
     (; sys, data) = swt
     (; bond, biquad) = coupling
     (; dipole_operators, quadrupole_operators, sun_basis_i, sun_basis_j) = data
@@ -123,6 +125,8 @@ function swt_biquadratic!(H, swt, coupling, q, Ti_mn, Tj_mn)
     H22 = view(H, L+1:2L, L+1:2L)
     sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
     phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
+    Ti_mn = zero(MVector{8, ComplexF64})
+    Tj_mn = zero(MVector{8, ComplexF64})
 
     Ti_11 = view(sun_basis_i, 1, 1, :)
     Tj_11 = view(sun_basis_j, 1, 1, :)
@@ -272,12 +276,6 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     L  = nflavors * natoms(sys.crystal)   # Number of quasiparticle bands
     @assert size(H) == (2L, 2L)
 
-    # Scratch-work buffers for specific matrix entries
-    # across all 8 basis matrices. This allows us to 
-    # mutate as needed without clobbering the original matrix.    
-    buf1 = zeros(ComplexF64, 8)
-    buf2 = zeros(ComplexF64, 8)
-
     # Clear the Hamiltonian
     H .= 0
 
@@ -299,11 +297,11 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             isculled && break
 
             if !all(iszero, coupling.bilin)
-                swt_bilinear!(H, swt, coupling, q_reshaped, buf1, buf2)
+                swt_bilinear!(H, swt, coupling, q_reshaped)
             end
 
             if !all(iszero, coupling.biquad)
-                swt_biquadratic!(H, swt, coupling, q_reshaped, buf1, buf2)
+                swt_biquadratic!(H, swt, coupling, q_reshaped)
             end
         end
     end
