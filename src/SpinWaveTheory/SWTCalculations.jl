@@ -175,7 +175,7 @@ function swt_biquadratic!(H, swt, coupling, q, Ti_mn, Tj_mn)
 end
 
 # Add generalized couplings to Hamiltonian.
-function swt_general_couplings!(H, swt, q_reshaped)
+function swt_general_couplings!(H, swt, q)
     (; sys, data) = swt
     (; general_pair_operators) = data
     N = sys.Ns[1] 
@@ -187,7 +187,7 @@ function swt_general_couplings!(H, swt, q_reshaped)
 
     for general_pair in general_pair_operators
         ((A, B), bond) = general_pair
-        phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+        phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
         sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
 
         A_11 = A[1,1]
@@ -288,7 +288,6 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         swt_onsite_coupling!(H, swt, site_aniso, atom)
 
         # Add external field
-        # set_swt_external_field!(external_field_operator, swt, atom)
         site_field = view(external_field_operator, :, :, atom)
         swt_onsite_coupling!(H, swt, site_field, atom)
     end
@@ -299,8 +298,13 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             (; isculled) = coupling
             isculled && break
 
-            swt_bilinear!(H, swt, coupling, q_reshaped, buf1, buf2)
-            swt_biquadratic!(H, swt, coupling, q_reshaped, buf1, buf2)
+            if !all(iszero, coupling.bilin)
+                swt_bilinear!(H, swt, coupling, q_reshaped, buf1, buf2)
+            end
+
+            if !all(iszero, coupling.biquad)
+                swt_biquadratic!(H, swt, coupling, q_reshaped, buf1, buf2)
+            end
         end
     end
 
@@ -322,8 +326,8 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     H21 = view(H, L+1:2L, 1:L)
     H21 .= H12'
     
-    # H must be hermitian up to round-off errors
-    if norm(H-H') > 1e-12
+    # H must be hermitian up to round-off errors 
+    if norm(H-H') > 1e-12   # Allocates
         println("norm(H-H')= ", norm(H-H'))
         throw("H is not hermitian!")
     end
