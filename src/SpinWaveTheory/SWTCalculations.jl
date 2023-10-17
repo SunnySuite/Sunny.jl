@@ -260,6 +260,35 @@ function dot_no_conj(x,A,y)
     return s
 end
 
+# Set submatrix H21 to H12' without allocating
+function set_H21!(H)
+    L = round(Int, size(H, 1)/2)
+    H12 = view(H, 1:L,L+1:2L)
+    H21 = view(H, L+1:2L, 1:L)
+    for i in CartesianIndices(H21)
+        i, j = i.I
+        H21[i,j] = conj(H12[j,i])
+    end
+end
+
+# Set H to (H + H')/2 without allocating
+function make_hermitian!(H)
+    for i in CartesianIndices(H)
+        i, j = i.I
+        H[i,j], H[j,i] = (H[i,j] + conj(H[j,i]))/2, (H[j,i] + conj(H[i,j]))/2
+    end
+end
+
+# Calculating norm(H - H') without allocating
+function hermiticity_norm(H)
+    accum = 0.0
+    for i in CartesianIndices(H) 
+        i, j = i.I
+        accum += abs(H[i,j] - conj(H[j,i]))
+    end
+    return accum
+end
+
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
@@ -319,49 +348,21 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # H21 .= H12'
     set_H21!(H)
     
-    # H must be hermitian up to round-off errors 
+    # Ensure that H is hermitian up to round-off errors 
     if hermiticity_norm(H) > 1e-12 
         println("norm(H-H')= ", norm(H-H'))
         throw("H is not hermitian!")
     end
     
-    # make H exactly hermitian for cholesky decomposition.
+    # Make H exactly hermitian for Cholesky decomposition.
     make_hermitian!(H)
 
-    # add tiny part to the diagonal elements for cholesky decomposition.
+    # Add constant offset for Cholesky decomposition.
     for i = 1:2L
         H[i,i] += swt.energy_ϵ
     end    
 end
 
-# Set submatrix H21 to H12' without allocating
-function set_H21!(H)
-    L = round(Int, size(H, 1)/2)
-    H12 = view(H, 1:L,L+1:2L)
-    H21 = view(H, L+1:2L, 1:L)
-    for i in CartesianIndices(H21)
-        i, j = i.I
-        H21[i,j] = conj(H12[j,i])
-    end
-end
-
-# Set H to (H + H')/2 without allocating
-function make_hermitian!(H)
-    for i in CartesianIndices(H)
-        i, j = i.I
-        H[i,j], H[j,i] = (H[i,j] + conj(H[j,i]))/2, (H[j,i] + conj(H[i,j]))/2
-    end
-end
-
-# Calculating norm(H - H') without allocating
-function hermiticity_norm(H)
-    accum = 0.0
-    for i in CartesianIndices(H) 
-        i, j = i.I
-        accum += abs(H[i,j] - conj(H[j,i]))
-    end
-    return accum
-end
 
 # Set the dynamical quadratic Hamiltonian matrix in dipole mode. 
 function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
@@ -470,13 +471,13 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     end
 
     # H must be hermitian up to round-off errors
-    if norm(H-H') > 1e-12
+    if hermiticity_norm(H) > 1e-12
         println("norm(H-H')= ", norm(H-H'))
         throw("H is not hermitian!")
     end
     
     # make H exactly hermitian for cholesky decomposition.
-    H[:, :] = (H + H') / 2
+    make_hermitian!(H) 
 
     # add tiny part to the diagonal elements for cholesky decomposition.
     for i = 1:2L
