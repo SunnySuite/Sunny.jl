@@ -48,7 +48,7 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Flo
     # Rotate local operators to quantization axis
     if sys.mode == :SUN
         obs = parse_observables(N; observables, correlations)
-        data = swt_data_sun(sys,obs)
+        data = swt_data_sun(sys, obs)
     else
         if !isnothing(observables) || !isnothing(correlations)
             error("Only the default spin operators are supported in dipole mode")
