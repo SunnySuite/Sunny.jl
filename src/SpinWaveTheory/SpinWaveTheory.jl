@@ -91,24 +91,6 @@ function to_reshaped_rlu(sys::System{N}, q) where N
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
-# DD TODO: Replace with corresponding Stevens' operators
-# Generate the particular basis of the nematic operators listed in Appendix B of
-# *Phys. Rev. B 104, 104409*
-function quadrupoles_from_spin_matrices(S_matrices)
-    N = size(S_matrices[1], 1)
-    S = (N-1)/2
-    Sx, Sy, Sz = S_matrices
-
-    Qs = Vector{Matrix{ComplexF64}}(undef, 5)
-    Qs[1] = -(Sx * Sz + Sz * Sx)
-    Qs[2] = -(Sy * Sz + Sz * Sy)
-    Qs[3] = Sx * Sx - Sy * Sy
-    Qs[4] = Sx * Sy + Sy * Sx
-    Qs[5] = √3 * Sz * Sz - 1/√3 * S * (S+1) * I
-
-    return Qs
-end
-
 # Compute SU(N) generators in the local reference frame (for :SUN mode). DD:
 # Redo this using existing operator rotation facilities.
 function swt_data_sun(sys::System{N}, obs) where N
