@@ -3,9 +3,8 @@
 ###########################################################################
 
 @inline δ(x, y) = (x==y)
-# The "metric" of scalar biquad interaction. Here we are using the following identity:
-# (𝐒ᵢ⋅𝐒ⱼ)² + (𝐒ᵢ⋅𝐒ⱼ)/2 = ∑ₐ (OᵢᵃOⱼᵃ)/2, a=4,…,8, 
-# where the definition of Oᵢᵃ is given in Appendix B of *Phys. Rev. B 104, 104409*
+# Metric for scalar biquadratic interaction when quadrupole operators are the
+# Stevens operators 𝒪[2,q]
 const scalar_biquad_metric_mat = diagm(Vec5(1/2, 2, 1/6, 2, 1/2))
 
 # Construct portion of Hamiltonian due to onsite terms (single-site anisotropy
@@ -105,14 +104,10 @@ end
 function swt_biquadratic!(H, swt, coupling, q)
     (; sys, data) = swt
     (; bond, biquad) = coupling
-    (; dipole_operators, quadrupole_operators, sun_basis_i, sun_basis_j) = data
+    (; quadrupole_operators) = data
 
     # Collect the dipole and quadrupole operators to form the SU(N) basis (at each site)
-    sun_basis_i[:, :, 1:3] .= view(dipole_operators,:, :, 1:3, bond.i)
-    sun_basis_j[:, :, 1:3] .= view(dipole_operators,:, :, 1:3, bond.j)
-    sun_basis_i[:, :, 4:8] .= view(quadrupole_operators,:, :, 1:5, bond.i)
-    sun_basis_j[:, :, 4:8] .= view(quadrupole_operators,:, :, 1:5, bond.j)
-    J = biquad
+    metric = isa(biquad, Float64) ? biquad * scalar_biquad_metric_mat : biquad
     N = sys.Ns[1] 
     nflavors = N - 1 
     L = nflavors * natoms(sys.crystal)   
@@ -122,50 +117,50 @@ function swt_biquadratic!(H, swt, coupling, q)
     sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
     phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
 
-    Ti_11 = view(sun_basis_i, 1, 1, 4:8)
-    Tj_11 = view(sun_basis_j, 1, 1, 4:8)
+    Ti_11 = view(quadrupole_operators, 1, 1, 1:5, bond.i)
+    Tj_11 = view(quadrupole_operators, 1, 1, 1:5, bond.j)
     for m = 2:N
         mM1 = m - 1
         
-        Ti_m1 = view(sun_basis_i, m, 1, 4:8)
-        Ti_1m = view(sun_basis_i, 1, m, 4:8)
+        Ti_m1 = view(quadrupole_operators, m, 1, 1:5, bond.i)
+        Ti_1m = view(quadrupole_operators, 1, m, 1:5, bond.i)
         
         for n = 2:N
             nM1 = n - 1
             
-            Ti_mn = CVec{5}(view(sun_basis_i, m, n, 4:8))
-            Tj_mn = CVec{5}(view(sun_basis_j, m, n, 4:8))
+            Ti_mn = CVec{5}(view(quadrupole_operators, m, n, 1:5, bond.i))
+            Tj_mn = CVec{5}(view(quadrupole_operators, m, n, 1:5, bond.j))
             
             if δ(m, n)
                 Ti_mn -= Ti_11
                 Tj_mn -= Tj_11
             end
             
-            Tj_n1 = view(sun_basis_j, n, 1, 4:8)
-            Tj_1n = view(sun_basis_j, 1, n, 4:8)
+            Tj_n1 = view(quadrupole_operators, n, 1, 1:5, bond.j)
+            Tj_1n = view(quadrupole_operators, 1, n, 1:5, bond.j)
             
             ix_im = sub_i_M1*nflavors+mM1
             ix_in = sub_i_M1*nflavors+nM1
             ix_jm = sub_j_M1*nflavors+mM1
             ix_jn = sub_j_M1*nflavors+nM1
 
-            c = 0.5 * J * dot_no_conj(Ti_mn, scalar_biquad_metric2, Tj_11)
+            c = 0.5 *  dot_no_conj(Ti_mn, metric, Tj_11)
             H11[ix_im, ix_in] += c
             H22[ix_in, ix_im] += c
 
-            c = 0.5 * J * dot_no_conj(Ti_11, scalar_biquad_metric2, Tj_mn)
+            c = 0.5 * dot_no_conj(Ti_11, metric, Tj_mn)
             H11[ix_jm, ix_jn] += c
             H22[ix_jn, ix_jm] += c
 
-            c = 0.5 * J * dot_no_conj(Ti_m1, scalar_biquad_metric2, Tj_1n)
+            c = 0.5 * dot_no_conj(Ti_m1, metric, Tj_1n)
             H11[ix_im, ix_jn] += c * phase
             H22[ix_jn, ix_im] += c * conj(phase)
 
-            c = 0.5 * J * dot_no_conj(Ti_1m, scalar_biquad_metric2, Tj_n1)
+            c = 0.5 * dot_no_conj(Ti_1m, metric, Tj_n1)
             H11[ix_jn, ix_im] += c * conj(phase)
             H22[ix_im, ix_jn] += c * phase
             
-            c = 0.5 * J * dot_no_conj(Ti_m1, scalar_biquad_metric2, Tj_n1)
+            c = 0.5 * dot_no_conj(Ti_m1, metric, Tj_n1)
             H12[ix_im, ix_jn] += c * phase
             H12[ix_jn, ix_im] += c * conj(phase)
         end

@@ -14,8 +14,6 @@ struct SWTDataSUN
     external_field_operator :: Array{ComplexF64, 3}  # Zeeman
     general_pair_operators :: Vector{Tuple{Tuple{HermitianC64, HermitianC64}, Bond}}
     observable_operators :: Array{ComplexF64, 4}
-    sun_basis_i :: Array{ComplexF64, 3}  # Buffers to avoid allocation in Hamiltonian construction
-    sun_basis_j :: Array{ComplexF64, 3} 
 end
 
 """
@@ -185,8 +183,6 @@ function swt_data_sun(sys::System{N}, obs) where N
         external_field_operator,
         general_pair_operators_localized,
         observables_localized,
-        zeros(ComplexF64, N, N, 8),         # Buffers for local SU(N) basis
-        zeros(ComplexF64, N, N, 8),
     )
 end
 
