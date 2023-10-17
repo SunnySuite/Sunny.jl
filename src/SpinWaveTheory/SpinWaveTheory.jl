@@ -91,13 +91,11 @@ function to_reshaped_rlu(sys::System{N}, q) where N
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
-# Compute SU(N) generators in the local reference frame (for :SUN mode). DD:
-# Redo this using existing operator rotation facilities.
+# Compute SU(N) generators in the local reference frame (for :SUN mode).
 function swt_data_sun(sys::System{N}, obs) where N
     n_magnetic_atoms = natoms(sys.crystal)
 
     dipole_operators = spin_matrices_of_dim(; N)
-    # quadrupole_operators = quadrupoles_from_spin_matrices(dipole_operators) # Replace with Stevens
     quadrupole_operators = stevens_matrices_of_dim(2; N)
 
     # Rotate dipole and quadrupoles into local reference frames
@@ -113,8 +111,8 @@ function swt_data_sun(sys::System{N}, obs) where N
         local_quantization_bases[atom][:, 2:N] = nullspace(local_quantization_bases[atom][:,1]') 
     end
 
-    dipole_operators_localized = Array{ComplexF64, 4}(undef, N, N, 3, n_magnetic_atoms)
-    onsite_operator_localized = Array{ComplexF64, 3}(undef, N, N, n_magnetic_atoms)
+    dipole_operators_localized = zeros(ComplexF64, N, N, 3, n_magnetic_atoms)
+    onsite_operator_localized = zeros(ComplexF64, N, N, n_magnetic_atoms)
     quadrupole_operators_localized = zeros(ComplexF64, N, N, 5, n_magnetic_atoms)
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
@@ -139,8 +137,8 @@ function swt_data_sun(sys::System{N}, obs) where N
     external_field_operator = zeros(ComplexF64, N, N, n_magnetic_atoms) 
     for atom in 1:n_magnetic_atoms
         B = units.μB * (gs[1, 1, 1, atom]' * extfield[1, 1, 1, atom])
-        Ss = view(dipole_operators_localized, :, :, :, atom)
-        @. external_field_operator[:, :, atom] = -B[1]*Ss[:, :, 1] - B[2]*Ss[:, :, 2] - B[3]*Ss[:,:,3]
+        S = view(dipole_operators_localized, :, :, :, atom)
+        @. external_field_operator[:, :, atom] = -B[1]*S[:, :, 1] - B[2]*S[:, :, 2] - B[3]*S[:,:,3]
     end
 
     # Rotate operators from tensor decompositions of generalized interactions

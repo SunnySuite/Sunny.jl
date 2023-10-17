@@ -87,7 +87,10 @@ include("FormFactor.jl")
 export FormFactor
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
-include("SpinWaveTheory/SWTCalculations.jl")
+include("SpinWaveTheory/Util.jl")
+include("SpinWaveTheory/HamiltonianDipole.jl")
+include("SpinWaveTheory/HamiltonianSUN.jl")
+include("SpinWaveTheory/DispersionAndIntensities.jl")
 include("SpinWaveTheory/Lanczos.jl")
 export SpinWaveTheory, dispersion, dssf, delta_function_kernel
 
