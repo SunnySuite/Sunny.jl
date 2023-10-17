@@ -44,10 +44,6 @@ function swt_bilinear!(H, swt, coupling, q)
     H11 = view(H, 1:L, 1:L)
     H12 = view(H, 1:L, L+1:2L)
     H22 = view(H, L+1:2L, L+1:2L)
-    # Si_mn = view(Ti_buf, 1:3)
-    # Sj_mn = view(Tj_buf, 1:3)
-    Si_mn = zero(MVector{3, ComplexF64}) 
-    Sj_mn = zero(MVector{3, ComplexF64})
 
     J = Mat3(bilin*I)  
     
@@ -65,12 +61,12 @@ function swt_bilinear!(H, swt, coupling, q)
         for n = 2:N
             nM1 = n - 1
             
-            Si_mn .= view(dipole_operators, m, n, :, bond.i)
-            Sj_mn .= view(dipole_operators, m, n, :, bond.j)
+            Si_mn = CVec{3}(view(dipole_operators, m, n, :, bond.i))
+            Sj_mn = CVec{3}(view(dipole_operators, m, n, :, bond.j))
             
             if δ(m, n)
-                Si_mn .-= Si_11
-                Sj_mn .-= Sj_11
+                Si_mn -= Si_11
+                Sj_mn -= Sj_11
             end
             
             Sj_n1 = view(dipole_operators, n, 1, :, bond.j)
@@ -125,8 +121,6 @@ function swt_biquadratic!(H, swt, coupling, q)
     H22 = view(H, L+1:2L, L+1:2L)
     sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
     phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
-    Ti_mn = zero(MVector{8, ComplexF64})
-    Tj_mn = zero(MVector{8, ComplexF64})
 
     Ti_11 = view(sun_basis_i, 1, 1, :)
     Tj_11 = view(sun_basis_j, 1, 1, :)
@@ -139,12 +133,12 @@ function swt_biquadratic!(H, swt, coupling, q)
         for n = 2:N
             nM1 = n - 1
             
-            Ti_mn .= @view sun_basis_i[m, n, :]
-            Tj_mn .= @view sun_basis_j[m, n, :]
+            Ti_mn = CVec{8}(view(sun_basis_i, m, n, :))
+            Tj_mn = CVec{8}(view(sun_basis_j, m, n, :))
             
             if δ(m, n)
-                Ti_mn .-= Ti_11
-                Tj_mn .-= Tj_11
+                Ti_mn -= Ti_11
+                Tj_mn -= Tj_11
             end
             
             Tj_n1 = view(sun_basis_j, n, 1, :)
@@ -320,25 +314,54 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # and with exp(iqr) conjugated for H22:
 
     # Infer H21 by H=H'
-    H12 = view(H,1:L,L+1:2L)
-    H21 = view(H, L+1:2L, 1:L)
-    H21 .= H12'
+    # H12 = view(H,1:L,L+1:2L)
+    # H21 = view(H, L+1:2L, 1:L)
+    # H21 .= H12'
+    set_H21!(H)
     
     # H must be hermitian up to round-off errors 
-    if norm(H-H') > 1e-12   # Allocates
+    if hermiticity_norm(H) > 1e-12 
         println("norm(H-H')= ", norm(H-H'))
         throw("H is not hermitian!")
     end
     
     # make H exactly hermitian for cholesky decomposition.
-    @. H = 0.5 * (H + H')
+    make_hermitian!(H)
 
     # add tiny part to the diagonal elements for cholesky decomposition.
-    for i = 1:2*L
-        H[i, i] += swt.energy_ϵ
+    for i = 1:2L
+        H[i,i] += swt.energy_ϵ
     end    
 end
 
+# Set submatrix H21 to H12' without allocating
+function set_H21!(H)
+    L = round(Int, size(H, 1)/2)
+    H12 = view(H, 1:L,L+1:2L)
+    H21 = view(H, L+1:2L, 1:L)
+    for i in CartesianIndices(H21)
+        i, j = i.I
+        H21[i,j] = conj(H12[j,i])
+    end
+end
+
+# Set H to (H + H')/2 without allocating
+function make_hermitian!(H)
+    for i in CartesianIndices(H)
+        i, j = i.I
+        H[i,j], H[j,i] = (H[i,j] + conj(H[j,i]))/2, (H[j,i] + conj(H[i,j]))/2
+    end
+end
+
+# Calculating norm(H - H') without allocating
+function hermiticity_norm(H)
+    accum = 0.0
+    for i in CartesianIndices(H) 
+        i, j = i.I
+        accum += abs(H[i,j] - conj(H[j,i]))
+    end
+    return accum
+end
 
 # Set the dynamical quadratic Hamiltonian matrix in dipole mode. 
 function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
