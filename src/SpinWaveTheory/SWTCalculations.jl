@@ -188,57 +188,41 @@ function swt_general_couplings!(H, swt, q)
         phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
         sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
 
-        A_11 = A[1,1]
-        B_11 = B[1,1]
-        
         for m = 2:N
             mM1 = m - 1
-            
-            A_m1 = A[m,1]
-            A_1m = A[1,m]
+            im = (sub_i_M1 * nflavors) + mM1
+            jm = (sub_j_M1 * nflavors) + mM1
 
             for n = 2:N
                 nM1 = n - 1
                 
-                A_mn = A[m,n]
-                B_mn = B[m,n]
+                in = (sub_i_M1 * nflavors) + nM1
+                jn = (sub_j_M1 * nflavors) + nM1
+
+                c = 0.5 * (A[m,n] - δ(m, n)*A[1,1])*B[1,1]
+                H11[im, in] += c
+                H22[in, im] += c
+
+                c = 0.5 * A[1,1] * (B[m,n] - δ(m, n)*B[1,1]) 
+                H11[jm, jn] += c
+                H22[jn, jm] += c
+
+                c = 0.5 * A[m,1] * B[1,n] 
+                H11[im, jn] += c * phase
+                H22[jn, im] += c * conj(phase)
+
+                c = 0.5 * A[1,m] * B[n,1] 
+                H11[jn, im] += c * conj(phase)
+                H22[im, jn] += c * phase
                 
-                if δ(m, n)
-                    A_mn -= A_11
-                    B_mn -= B_11
-                end
-                
-                B_n1 = B[n,1]
-                B_1n = B[1,n]
-
-                ix_im = sub_i_M1*nflavors+mM1
-                ix_in = sub_i_M1*nflavors+nM1
-                ix_jm = sub_j_M1*nflavors+mM1
-                ix_jn = sub_j_M1*nflavors+nM1
-
-                c = 0.5 * A_mn * B_11
-                H11[ix_im, ix_in] += c
-                H22[ix_in, ix_im] += c
-
-                c = 0.5 * A_11 * B_mn
-                H11[ix_jm, ix_jn] += c
-                H22[ix_jn, ix_jm] += c
-
-                c = 0.5 * A_m1 * B_1n
-                H11[ix_im, ix_jn] += c * phase
-                H22[ix_jn, ix_im] += c * conj(phase)
-
-                c = 0.5 * A_1m * B_n1
-                H11[ix_jn, ix_im] += c * conj(phase)
-                H22[ix_im, ix_jn] += c * phase
-                
-                c = 0.5 * A_m1 * B_n1
-                H12[ix_im, ix_jn] += c * phase
-                H12[ix_jn, ix_im] += c * conj(phase)
+                c = 0.5 * A[m,1] * B[n,1]
+                H12[im, jn] += c * phase
+                H12[jn, im] += c * conj(phase)
             end
         end
     end
 end
+
 
 # Modified from LinearAlgebra.jl to not perform any conjugation
 function dot_no_conj(x,A,y)
