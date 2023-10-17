@@ -117,7 +117,8 @@ function swt_data_sun(sys::System{N}, obs) where N
     n_magnetic_atoms = natoms(sys.crystal)
 
     dipole_operators = spin_matrices_of_dim(; N)
-    quadrupole_operators = quadrupoles_from_spin_matrices(dipole_operators) # Replace with Stevens
+    # quadrupole_operators = quadrupoles_from_spin_matrices(dipole_operators) # Replace with Stevens
+    quadrupole_operators = stevens_matrices_of_dim(2; N)
 
     # Rotate dipole and quadrupoles into local reference frames
     local_quantization_bases = [Matrix{ComplexF64}(undef, N, N) for _ in 1:n_magnetic_atoms]

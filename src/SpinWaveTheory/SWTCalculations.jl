@@ -6,7 +6,7 @@
 # The "metric" of scalar biquad interaction. Here we are using the following identity:
 # (𝐒ᵢ⋅𝐒ⱼ)² + (𝐒ᵢ⋅𝐒ⱼ)/2 = ∑ₐ (OᵢᵃOⱼᵃ)/2, a=4,…,8, 
 # where the definition of Oᵢᵃ is given in Appendix B of *Phys. Rev. B 104, 104409*
-const biquad_metric = 1/2 * diagm([0, 0, 0, 1, 1, 1, 1, 1])
+const scalar_biquad_metric_mat = diagm(Vec5(1/2, 2, 1/6, 2, 1/2))
 
 # Construct portion of Hamiltonian due to onsite terms (single-site anisotropy
 # or external field).
@@ -122,50 +122,50 @@ function swt_biquadratic!(H, swt, coupling, q)
     sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
     phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
 
-    Ti_11 = view(sun_basis_i, 1, 1, :)
-    Tj_11 = view(sun_basis_j, 1, 1, :)
+    Ti_11 = view(sun_basis_i, 1, 1, 4:8)
+    Tj_11 = view(sun_basis_j, 1, 1, 4:8)
     for m = 2:N
         mM1 = m - 1
         
-        Ti_m1 = view(sun_basis_i, m, 1, :)
-        Ti_1m = view(sun_basis_i, 1, m, :)
+        Ti_m1 = view(sun_basis_i, m, 1, 4:8)
+        Ti_1m = view(sun_basis_i, 1, m, 4:8)
         
         for n = 2:N
             nM1 = n - 1
             
-            Ti_mn = CVec{8}(view(sun_basis_i, m, n, :))
-            Tj_mn = CVec{8}(view(sun_basis_j, m, n, :))
+            Ti_mn = CVec{5}(view(sun_basis_i, m, n, 4:8))
+            Tj_mn = CVec{5}(view(sun_basis_j, m, n, 4:8))
             
             if δ(m, n)
                 Ti_mn -= Ti_11
                 Tj_mn -= Tj_11
             end
             
-            Tj_n1 = view(sun_basis_j, n, 1, :)
-            Tj_1n = view(sun_basis_j, 1, n, :)
+            Tj_n1 = view(sun_basis_j, n, 1, 4:8)
+            Tj_1n = view(sun_basis_j, 1, n, 4:8)
             
             ix_im = sub_i_M1*nflavors+mM1
             ix_in = sub_i_M1*nflavors+nM1
             ix_jm = sub_j_M1*nflavors+mM1
             ix_jn = sub_j_M1*nflavors+nM1
 
-            c = 0.5 * J * dot_no_conj(Ti_mn, biquad_metric, Tj_11)
+            c = 0.5 * J * dot_no_conj(Ti_mn, scalar_biquad_metric2, Tj_11)
             H11[ix_im, ix_in] += c
             H22[ix_in, ix_im] += c
 
-            c = 0.5 * J * dot_no_conj(Ti_11, biquad_metric, Tj_mn)
+            c = 0.5 * J * dot_no_conj(Ti_11, scalar_biquad_metric2, Tj_mn)
             H11[ix_jm, ix_jn] += c
             H22[ix_jn, ix_jm] += c
 
-            c = 0.5 * J * dot_no_conj(Ti_m1, biquad_metric, Tj_1n)
+            c = 0.5 * J * dot_no_conj(Ti_m1, scalar_biquad_metric2, Tj_1n)
             H11[ix_im, ix_jn] += c * phase
             H22[ix_jn, ix_im] += c * conj(phase)
 
-            c = 0.5 * J * dot_no_conj(Ti_1m, biquad_metric, Tj_n1)
+            c = 0.5 * J * dot_no_conj(Ti_1m, scalar_biquad_metric2, Tj_n1)
             H11[ix_jn, ix_im] += c * conj(phase)
             H22[ix_im, ix_jn] += c * phase
             
-            c = 0.5 * J * dot_no_conj(Ti_m1, biquad_metric, Tj_n1)
+            c = 0.5 * J * dot_no_conj(Ti_m1, scalar_biquad_metric2, Tj_n1)
             H12[ix_im, ix_jn] += c * phase
             H12[ix_jn, ix_im] += c * conj(phase)
         end
