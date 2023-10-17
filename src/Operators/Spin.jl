@@ -87,8 +87,20 @@ end
 end
 
 # Returns ⟨Z|Qᵅ|Z⟩ where Q = O[2, q=2...-2] are Stevens quadrupoles
-function expected_quadrupole(Z::CVec{N}) where N
-    return Vec5(real(Z'*Q*Z) for Q in stevens_matrices_of_dim(2; N))
+@generated function expected_quadrupole(Z::CVec{N}) where N
+    Q = stevens_matrices_of_dim(2; N)
+    qs = Any[]
+    for α in 1:5
+        terms = Any[]
+        for j in 1:N, i in 1:N
+            Qαij = Q[α][i,j]
+            if !iszero(Qαij)
+                push!(terms, :(conj(Z[$i]) * $Qαij * Z[$j]))
+            end
+        end
+        push!(qs, :(real(+($(terms...)))))
+    end
+    return :(Sunny.Vec5($(qs...)))
 end
 
 

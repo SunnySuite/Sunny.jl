@@ -34,6 +34,15 @@
         Z = randn(Sunny.CVec{N})
         @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*spin_matrices((N-1)/2)) * Z
     end    
+end
+
+@testitem "Quadrupole operators" begin
+    # Test expected_quadrupole generated function
+    for N = 4:6
+        Z = randn(Sunny.CVec{N})
+        Qs = Sunny.stevens_matrices_of_dim(2; N)
+        @test Sunny.expected_quadrupole(Z) ≈ Sunny.Vec5(real(Z'*Q*Z) for Q in Qs)
+    end
 
     # Test action of mul_quadrupole_matrices(dE_dQ, Z)
     for N = 4:6
@@ -41,7 +50,6 @@
         Z = randn(Sunny.CVec{N})
         @test Sunny.mul_quadrupole_matrices(dE_dQ, Z) ≈ (dE_dQ' * Sunny.stevens_matrices_of_dim(2; N)) * Z
     end
-
 end
 
 
