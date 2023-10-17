@@ -11,7 +11,7 @@ interaction strength renormalization that maximizes accuracy.
 ## Local operators
 
 A quantum spin-$S$ state has $N = 2S + 1$ levels. Each local spin operator
-$\hat{\mathcal{S}}^{\{x,y,z\}}$ is faithfully represented as an $N×N$ matrix.
+$\hat{S}^{\{x,y,z\}}$ is faithfully represented as an $N×N$ matrix.
 These matrices can be accessed using [`spin_matrices`](@ref) for a given label
 $S$. For example, the Pauli matrices are associated with $S = 1/2$.
 
@@ -69,27 +69,28 @@ $\langle \hat{\mathcal H}_{\mathrm{local}} \rangle$ must somehow be approximated
 as a function of the expected dipole $\mathbf{s}$.
 
 One possibility is to formally take the $S \to \infty$ limit, whereby each spin
-operator $\hat{\mathcal{S}}$ is replaced by its expectation value $\mathbf{s}$.
+operator $\hat{\mathbf{S}}$ is replaced by its expectation value $\mathbf{s}$.
 Correspondingly, each Stevens operator $\hat{\mathcal{O}}_{k,q}$ is replaced by
 the Stevens _function_ $\mathcal{O}_{k,q}(\mathbf{s})$, which is a polynomial of
 the expected dipole $\mathbf{s}$ rather than of the spin operators
-$\hat{\mathcal{S}}$.
+$\hat{\mathbf{S}}$.
 
 In a real magnetic compound, however, the spin magnitude $S$ may not be large,
-and to achieve a better approximation one should avoid the large-$S$ limit. The
-strategy is to begin with the full dynamics of SU(_N_) coherent states, and then
-constrain it to the space of pure dipole states $|\mathbf{s}\rangle$. The latter
-are defined such that expectation values,
+and a better approximation should avoid the large-$S$ limit. For this, one can
+begin with the full dynamics of SU(_N_) coherent states, and then constrain it
+to the space of pure dipole states $|\mathbf{s}\rangle$. The latter are defined
+such that expectation values,
 ```math
-\langle \mathbf{s}| \hat{\mathcal{S}^\alpha} | \mathbf{s}\rangle = s^\alpha,
+\langle \mathbf{s}| \hat{\mathbf{S}} | \mathbf{s}\rangle = \mathbf{s},
 ```
-yield the maximum expected dipole magnitude, $|\mathbf{s}| = S$.
+have magnitude $|\mathbf{s}| = S$, which is maximal.
 
 For pure dipole states, it can be demonstrated that
 ```math
-\langle \mathbf{s}| \hat{\mathcal{O}^\alpha} | \mathbf{s}\rangle = c_k \mathcal{O}_{k,q}(\mathbf{s}),
+\langle \mathbf{s}| \hat{\mathcal{O}} | \mathbf{s}\rangle = c_k \mathcal{O}_{k,q}(\mathbf{s}).
 ```
-where the Stevens functions on the right are scaled by the factors,
+
+The right-hand side involves a renormalization of the Stevens functions, where
 
 ```math
 \begin{align*}
@@ -110,9 +111,8 @@ _renormalized_ expected energy,
 H_{\mathrm{renormalized}}(\mathbf{s}) = \sum_{k, q} c_k A_{k,q} \mathcal{O}_{k,q}(\mathbf{s}).
 ```
 
-Through these renormalization factors $c_k$, **Sunny avoids the large-$S$
-assumption, and gives a more variationally accurate result than traditional
-codes**.
+Through this renormalization, **Sunny avoids the large-$S$ assumption, and gives
+a more variationally accurate result than traditional codes**.
 
 Renormalization also applies to the coupling between different sites. In Sunny,
 couplings will often be expressed as a polynomial of spin operators using
