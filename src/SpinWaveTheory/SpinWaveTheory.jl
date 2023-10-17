@@ -110,9 +110,9 @@ function swt_data_sun(sys::System{N}, obs) where N
         local_quantization_bases[atom][:, 2:N] = nullspace(local_quantization_bases[atom][:,1]') 
     end
 
-    dipole_operators_localized = zeros(ComplexF64, N, N, 3, n_magnetic_atoms)
+    dipole_operators_localized = zeros(ComplexF64, 3, N, N, n_magnetic_atoms)
     onsite_operator_localized = zeros(ComplexF64, N, N, n_magnetic_atoms)
-    quadrupole_operators_localized = zeros(ComplexF64, N, N, 5, n_magnetic_atoms)
+    quadrupole_operators_localized = zeros(ComplexF64, 5, N, N, n_magnetic_atoms)
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
     # Rotate SU(N) bases and observables
@@ -120,10 +120,10 @@ function swt_data_sun(sys::System{N}, obs) where N
         U = local_quantization_bases[atom]
         
         for μ = 1:3
-            dipole_operators_localized[:, :, μ, atom] = Hermitian(U' * dipole_operators[μ] * U)
+            dipole_operators_localized[μ, :, :, atom] = Hermitian(U' * dipole_operators[μ] * U)
         end
         for ν = 1:5
-            quadrupole_operators_localized[:, :, ν, atom] = Hermitian(U' * quadrupole_operators[ν] * U)
+            quadrupole_operators_localized[ν, :, :, atom] = Hermitian(U' * quadrupole_operators[ν] * U)
         end
         onsite_operator_localized[:, :, atom] = Hermitian(U' * sys.interactions_union[atom].onsite * U)
         for k = 1:num_observables(obs)
@@ -137,7 +137,7 @@ function swt_data_sun(sys::System{N}, obs) where N
     for atom in 1:n_magnetic_atoms
         B = units.μB * (gs[1, 1, 1, atom]' * extfield[1, 1, 1, atom])
         S = view(dipole_operators_localized, :, :, :, atom)
-        @. external_field_operator[:, :, atom] = -B[1]*S[:, :, 1] - B[2]*S[:, :, 2] - B[3]*S[:,:,3]
+        @. external_field_operator[:, :, atom] = -B[1]*S[1, :, :] - B[2]*S[2, :, :] - B[3]*S[3, :, :]
     end
 
     # Rotate operators from tensor decompositions of generalized interactions
