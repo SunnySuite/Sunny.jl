@@ -71,30 +71,30 @@ function swt_bilinear!(H, swt, coupling, q)
             Sj_n1 = view(dipole_operators, n, 1, :, bond.j)
             Sj_1n = view(dipole_operators, 1, n, :, bond.j)
 
-            ix_im = sub_i_M1*nflavors+mM1
-            ix_in = sub_i_M1*nflavors+nM1
-            ix_jm = sub_j_M1*nflavors+mM1
-            ix_jn = sub_j_M1*nflavors+nM1
+            im = sub_i_M1*nflavors+mM1
+            in = sub_i_M1*nflavors+nM1
+            jm = sub_j_M1*nflavors+mM1
+            jn = sub_j_M1*nflavors+nM1
 
             c = 0.5 * dot_no_conj(Si_mn, J, Sj_11)
-            H11[ix_im, ix_in] += c
-            H22[ix_in, ix_im] += c
+            H11[im, in] += c
+            H22[in, im] += c
 
             c = 0.5 * dot_no_conj(Si_11, J, Sj_mn)
-            H11[ix_jm, ix_jn] += c
-            H22[ix_jn, ix_jm] += c
+            H11[jm, jn] += c
+            H22[jn, jm] += c
 
             c = 0.5 * dot_no_conj(Si_m1, J, Sj_1n)
-            H11[ix_im, ix_jn] += c * phase
-            H22[ix_jn, ix_im] += c * conj(phase)
+            H11[im, jn] += c * phase
+            H22[jn, im] += c * conj(phase)
 
             c = 0.5 * dot_no_conj(Si_1m, J, Sj_n1)
-            H11[ix_jn, ix_im] += c * conj(phase)
-            H22[ix_im, ix_jn] += c * phase
+            H11[jn, im] += c * conj(phase)
+            H22[im, jn] += c * phase
             
             c = 0.5 * dot_no_conj(Si_m1, J, Sj_n1)
-            H12[ix_im, ix_jn] += c * phase
-            H12[ix_jn, ix_im] += c * conj(phase)
+            H12[im, jn] += c * phase
+            H12[jn, im] += c * conj(phase)
         end
     end
 end
