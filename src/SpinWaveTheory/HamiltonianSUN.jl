@@ -27,6 +27,7 @@ function swt_bilinear!(H, swt, coupling, q)
     (; dipole_operators) = data
     (; bilin, bond) = coupling
 
+    # Get views of Hamiltonian submatrices
     N = sys.Ns[1] 
     nflavors = N - 1 
     L = nflavors * natoms(sys.crystal)   
@@ -34,13 +35,15 @@ function swt_bilinear!(H, swt, coupling, q)
     H12 = view(H, 1:L, L+1:2L)
     H22 = view(H, L+1:2L, L+1:2L)
 
-    phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
-    J = Mat3(bilin*I)  
-
+    # Pull out local dipole operators on the given bond
     Si = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.i))
     Sj = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.j))
+
+    phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
+    J = Mat3(bilin*I)  
     
     sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
+
     for m = 2:N
         mM1 = m - 1
         i_m = sub_i_M1*nflavors+mM1
@@ -80,7 +83,7 @@ function swt_biquadratic!(H, swt, coupling, q)
     (; bond, biquad) = coupling
     (; quadrupole_operators) = data
 
-    # Collect the dipole and quadrupole operators to form the SU(N) basis (at each site)
+    # Get views of Hamiltonian submatrices
     N = sys.Ns[1] 
     nflavors = N - 1 
     L = nflavors * natoms(sys.crystal)   
@@ -88,13 +91,15 @@ function swt_biquadratic!(H, swt, coupling, q)
     H12 = view(H, 1:L, L+1:2L)
     H22 = view(H, L+1:2L, L+1:2L)
 
-    phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
-    J = isa(biquad, Float64) ? biquad * scalar_biquad_metric_mat : biquad
-
+    # Pull out local quadrupole operators on the given bond 
     Ti = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.i))
     Tj = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.j))
 
+    phase = exp(2π*im * dot(q, bond.n)) 
+    J = isa(biquad, Float64) ? biquad * scalar_biquad_metric_mat : biquad
+
     sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
+
     for m = 2:N
         mM1 = m - 1
         i_m = sub_i_M1*nflavors+mM1
@@ -131,6 +136,8 @@ end
 function swt_general_couplings!(H, swt, q)
     (; sys, data) = swt
     (; general_pair_operators) = data
+
+    # Get views of Hamiltonian submatrices
     N = sys.Ns[1] 
     nflavors = N - 1 
     L = nflavors * natoms(sys.crystal)   
@@ -140,39 +147,38 @@ function swt_general_couplings!(H, swt, q)
 
     for general_pair in general_pair_operators
         ((A, B), bond) = general_pair
-        phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
-        sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
+        phase = exp(2π*im * dot(q, bond.n)) 
 
+        sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
         for m = 2:N
             mM1 = m - 1
-            im = (sub_i_M1 * nflavors) + mM1
-            jm = (sub_j_M1 * nflavors) + mM1
+            i_m = (sub_i_M1 * nflavors) + mM1
+            j_m = (sub_j_M1 * nflavors) + mM1
 
             for n = 2:N
                 nM1 = n - 1
-                
-                in = (sub_i_M1 * nflavors) + nM1
-                jn = (sub_j_M1 * nflavors) + nM1
+                i_n = (sub_i_M1 * nflavors) + nM1
+                j_n = (sub_j_M1 * nflavors) + nM1
 
                 c = 0.5 * (A[m,n] - δ(m, n)*A[1,1])*B[1,1]
-                H11[im, in] += c
-                H22[in, im] += c
+                H11[i_m, i_n] += c
+                H22[i_n, i_m] += c
 
                 c = 0.5 * A[1,1] * (B[m,n] - δ(m, n)*B[1,1]) 
-                H11[jm, jn] += c
-                H22[jn, jm] += c
+                H11[j_m, j_n] += c
+                H22[j_n, j_m] += c
 
                 c = 0.5 * A[m,1] * B[1,n] 
-                H11[im, jn] += c * phase
-                H22[jn, im] += c * conj(phase)
+                H11[i_m, j_n] += c * phase
+                H22[j_n, i_m] += c * conj(phase)
 
                 c = 0.5 * A[1,m] * B[n,1] 
-                H11[jn, im] += c * conj(phase)
-                H22[im, jn] += c * phase
+                H11[j_n, i_m] += c * conj(phase)
+                H22[i_m, j_n] += c * phase
                 
                 c = 0.5 * A[m,1] * B[n,1]
-                H12[im, jn] += c * phase
-                H12[jn, im] += c * conj(phase)
+                H12[i_m, j_n] += c * phase
+                H12[j_n, i_m] += c * conj(phase)
             end
         end
     end
