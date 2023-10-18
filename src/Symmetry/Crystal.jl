@@ -564,8 +564,7 @@ function Base.show(io::IO, ::MIME"text/plain", cryst::Crystal)
         (a, b, c, α, β, γ) = lattice_params(cryst.latvecs)
         @printf io "Lattice params a=%.4g, b=%.4g, c=%.4g, α=%.4g°, β=%.4g°, γ=%.4g°\n" a b c α β γ
     else
-        elems = [number_to_simple_string(x; digits=4) for x in cryst.latvecs]
-        print_formatted_matrix(elems; prefix="Lattice vectors: ", io)
+        println(io, formatted_matrix(number_to_math_string.(cryst.latvecs); prefix="Lattice vectors: "))
     end
 
     @printf io "Cell volume %.4g\n" cell_volume(cryst)

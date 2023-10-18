@@ -189,7 +189,7 @@ end
         α = -0.4π
         J = 1.0
         JL, JQ = J * cos(α), J * sin(α) / S^2
-        set_exchange!(sys, JL, Bond(1, 1, [1, 0, 0]); biquad=JQ)
+        set_pair_coupling!(sys, (Si, Sj) -> Si'*JL*Sj + JQ*(Si'*Sj)^2, Bond(1, 1, [1, 0, 0]))
 
         # Initialize Néel order
         sys = reshape_supercell(sys, [1 1 1; -1 1 0; 0 0 1])

@@ -34,19 +34,18 @@ function add_quadratic_interactions!(sys, mode)
         @assert mode == :SUN
         add_exchange_interactions!(sys, mode)
 
-        # KB-TODO reenable soon
         #=
-        # This alternative must work, but is too slow to enable by default.
-        J  = 0.5   # Anti-ferro nearest neighbor
-        K  = 1.0   # Scale of Kitaev term
-        Γ  = 0.2   # Off-diagonal exchange
-        D  = 0.4   # DM interaction
-        J_exch = [J   Γ   -D;
-                  Γ   J   -D;
-                  D   D  J+K]
-
-        bond = Bond(1, 2, [0, 0, 0])
-        set_pair_coupling!(sys, (Si, Sj) -> Si'*J_exch*Sj + 0.01(Si'*Sj)^2, bond)
+        # This is a bit slower, but must also work
+        S = spin_irrep_label(sys, 1)
+        O = stevens_matrices(S)
+        Q = [O[2,q] for q in 2:-1:-2]
+        Qi, Qj = to_product_space(Q, Q)
+        biquad = [1.2  0   0  0    0
+                    0  1   0  0    0
+                    0  0 1.1  0 -1.4
+                    0  0   0  1    0
+                    0  0 1.4  0  1.3]
+        set_pair_coupling!(sys, 0.01(Qi'*biquad*Qj), Bond(1, 1, [0, 0, 1]))
         =#
     end
 end
@@ -58,9 +57,12 @@ function add_quartic_interactions!(sys, mode)
         O = stevens_matrices(spin_irrep_label(sys, i))
         set_onsite_coupling!(sys, 0.2*((1/20)O[4,0] + (1/4)O[4,4]), i)
 
-        # TODO: Reenable
-        # # Biquadratic interactions in large-S mode also have quartic scaling.
-        # set_exchange!(sys, 0.0, Bond(1, 3, [0, 0, 0]); biquad=0.2, large_S=true)
+        # Bilinear interactions in quadrupoles also have quartic scaling.
+        O = stevens_matrices(spin_irrep_label(sys, 1))
+        Q = [O[2,q] for q in 2:-1:-2]
+        Qi, Qj = to_product_space(Q, Q)
+        # KB-TODO BUGGED!
+        # set_pair_coupling!(sys, 0.1 * Qi[3] * Qj[3], Bond(1, 1, [0, 0, 1]))
     end
 end
 

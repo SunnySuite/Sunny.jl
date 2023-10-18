@@ -109,7 +109,7 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     println(io, lattice_to_str(sys))
     if !isnothing(sys.origin)
         shape = number_to_math_string.(cell_shape(sys))
-        print_formatted_matrix(shape; prefix="Reshaped cell ", io)
+        println(io, formatted_matrix(shape; prefix="Reshaped cell "))
     end
     println(io, energy_to_str(sys))
 end

@@ -161,8 +161,13 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
 
     # Verify that couplings are symmetry-consistent
     if !is_coupling_valid(sys.crystal, bond, bilin)
-        effective = isempty(tensordec.data) ? "" : " effective"
-        @error """Symmetry-violating$effective exchange $bilin.
+        @error """Symmetry-violating bilinear exchange $bilin.
+                  Use `print_bond(crystal, $bond)` for more information."""
+    end
+    if !is_coupling_valid(sys.crystal, bond, biquad)
+        biquad_str = formatted_matrix(number_to_math_string.(biquad); prefix="  ")
+        @error """Symmetry-violating biquadratic exchange (written in Stevens basis)
+                  $biquad_str
                   Use `print_bond(crystal, $bond)` for more information."""
     end
     if !is_coupling_valid(sys.crystal, bond, tensordec)

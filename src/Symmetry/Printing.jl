@@ -111,16 +111,16 @@ function basis_for_exchange_on_bond(cryst::Crystal, b::Bond; b_ref)
     return basis
 end
 
-function print_formatted_matrix(elemstrs; prefix, io=stdout)
+function formatted_matrix(elemstrs::AbstractMatrix{String}; prefix)
+    ncols = size(elemstrs, 2)
     max_col_len = [maximum(length.(col)) for col in eachcol(elemstrs)]
-    max_col_len = repeat(max_col_len', 3)
+    max_col_len = repeat(max_col_len', ncols)
     padded_elems = repeat.(' ', max_col_len .- length.(elemstrs)) .* elemstrs
 
-    spacing = repeat(' ', length(prefix) + 1)
-    println(io, """$prefix[$(join(padded_elems[1,:], " "))
-                   $spacing$(join(padded_elems[2,:], " "))
-                   $spacing$(join(padded_elems[3,:], " "))]""")
+    spacing = "\n"*repeat(' ', length(prefix) + 1)
+    return "$prefix["*join(join.(eachrow(padded_elems), " "), spacing)*"]"
 end
+
 
 """
     print_bond(cryst::Crystal, bond::Bond; b_ref::Bond)
@@ -159,7 +159,7 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
 
         basis = basis_for_exchange_on_bond(cryst, b; b_ref)
         basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-        print_formatted_matrix(basis_strs; prefix="Allowed exchange matrix:", io)
+        println(io, formatted_matrix(basis_strs; prefix="Allowed exchange matrix:"))
 
         antisym_basis_idxs = findall(J -> J ≈ -J', basis)
         if !isempty(antisym_basis_idxs)
@@ -207,7 +207,7 @@ function print_suggested_frame(cryst::Crystal, i::Int)
 
     R_strs = [number_to_math_string(x; digits=14, atol=1e-12) for x in R]
 
-    print_formatted_matrix(R_strs; prefix="R = ", io=stdout)
+    println(formatted_matrix(R_strs; prefix="R = "))
 end
 
 
@@ -241,7 +241,7 @@ function print_site(cryst, i; R=Mat3(I), ks=[2,4,6], io=stdout)
     # get a nicer basis.
     basis = [R * b * R' for b in basis]
     basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-    print_formatted_matrix(basis_strs; prefix="Allowed g-tensor: ", io)
+    println(io, formatted_matrix(basis_strs; prefix="Allowed g-tensor: "))
 
     print_allowed_anisotropy(cryst, i; R, atol, digits, ks, io)
 end
@@ -307,6 +307,6 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
     if R != I
         println(io)
         println(io, "Modified reference frame! Transform using `rotate_operator(op; R)` where")
-        print_formatted_matrix(number_to_math_string.(R); prefix="R = ", io)
+        println(io, formatted_matrix(number_to_math_string.(R); prefix="R = "))
     end
 end

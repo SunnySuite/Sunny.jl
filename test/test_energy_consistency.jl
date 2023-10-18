@@ -27,9 +27,7 @@
             @test energy(sys2) ≈ energy(sys)
             set_vacancy_at!(sys2, (1,1,1,1))
             set_exchange_at!(sys2, 0.5, (1,1,1,1), (2,1,1,2); offset=(1, 0, 0))
-            if mode != :SUN # KB-TODO
-               set_exchange_at!(sys2, 0.0, (3,2,1,2), (3,1,1,3); biquad=0.7, offset=(0,-1,0))
-            end
+            set_pair_coupling_at!(sys2, (Si, Sj) -> 0.7*(Si'*Sj)^2, (3,2,1,2), (3,1,1,3); offset=(0,-1,0))
 
             set_onsite_coupling_at!(sys2, S -> 0.4*(S[1]^4+S[2]^4+S[3]^4), (2,2,2,4))
             return sys2
