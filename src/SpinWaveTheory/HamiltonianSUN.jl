@@ -20,6 +20,8 @@ function swt_onsite_coupling!(H, swt, op, site)
     end
 end
 
+# Construct portion of Hamiltonian due to pair couplings (bilinear interactions
+# in spins or quadrupoles)
 function swt_pair_coupling!(H, swt, phase, metric, bond, Ti, Tj)
     # Get views of Hamiltonian submatrices
     N = swt.sys.Ns[1] 
@@ -64,6 +66,9 @@ end
 
 
 # Add generalized couplings to Hamiltonian.
+
+# DD TODO: Reorganize data for general_pair_operators so can eliminate this
+# function.
 function swt_general_couplings!(H, swt, q)
     (; sys, data) = swt
     (; general_pair_operators) = data
@@ -143,24 +148,27 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # Add pair interactions that use explicit bases
     for ints in sys.interactions_union
         for coupling in ints.pair
-            (; isculled, bond, bilin, biquad) = coupling
+            # Extract information common to bond
+            (; isculled, bond, bilin, biquad, general) = coupling
             isculled && break
             phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
+            # Add bilinear interactions
             if !all(iszero, bilin)
                 Si = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.i))
                 Sj = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.j))
-                metric = Mat3(bilin*I)  
+                J = Mat3(bilin*I)  
 
-                swt_pair_coupling!(H, swt, phase, metric, bond, Si, Sj)
+                swt_pair_coupling!(H, swt, phase, J, bond, Si, Sj)
             end
 
+            # Add biquadratic interactions
             if !all(iszero, biquad)
                 Qi = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.i))
                 Qj = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.j))
-                metric =  isa(biquad, Float64) ? biquad * scalar_biquad_metric_mat : biquad
+                J =  isa(biquad, Float64) ? biquad * scalar_biquad_metric_mat : biquad
 
-                swt_pair_coupling!(H, swt, phase, metric, bond, Qi, Qj)
+                swt_pair_coupling!(H, swt, phase, J, bond, Qi, Qj)
             end
         end
     end

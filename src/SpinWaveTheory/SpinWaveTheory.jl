@@ -7,12 +7,12 @@ struct SWTDataDipole
 end
 
 struct SWTDataSUN
-    dipole_operators :: Array{ComplexF64, 4}
-    quadrupole_operators :: Array{ComplexF64, 4}
-    onsite_operator :: Array{ComplexF64, 3}          # Single-ion anisotropy
-    external_field_operator :: Array{ComplexF64, 3}  # Zeeman
-    general_pair_operators :: Vector{Tuple{Tuple{HermitianC64, HermitianC64}, Bond}}
-    observable_operators :: Array{ComplexF64, 4}
+    dipole_operators        :: Array{ComplexF64, 4}
+    quadrupole_operators    :: Array{ComplexF64, 4}
+    onsite_operator         :: Array{ComplexF64, 3}  
+    external_field_operator :: Array{ComplexF64, 3}
+    general_pair_operators  :: Vector{Tuple{Tuple{HermitianC64, HermitianC64}, Bond}}
+    observable_operators    :: Array{ComplexF64, 4}
 end
 
 """
