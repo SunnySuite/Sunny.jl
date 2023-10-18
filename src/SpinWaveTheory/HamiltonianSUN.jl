@@ -20,30 +20,16 @@ function swt_onsite_coupling!(H, swt, op, site)
     end
 end
 
-# Construct portion of Hamiltonian due to bilinear exchange terms (spin
-# operators only).
-function swt_bilinear!(H, swt, coupling, q)
-    (; data, sys) = swt
-    (; dipole_operators) = data
-    (; bilin, bond) = coupling
-
+function swt_pair_coupling!(H, swt, phase, metric, bond, Ti, Tj)
     # Get views of Hamiltonian submatrices
-    N = sys.Ns[1] 
+    N = swt.sys.Ns[1] 
     nflavors = N - 1 
-    L = nflavors * natoms(sys.crystal)   
+    L = nflavors * natoms(swt.sys.crystal)   
     H11 = view(H, 1:L, 1:L)
     H12 = view(H, 1:L, L+1:2L)
     H22 = view(H, L+1:2L, L+1:2L)
 
-    # Pull out local dipole operators on the given bond
-    Si = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.i))
-    Sj = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.j))
-
-    phase = exp(2π*im * dot(q, bond.n)) # Phase associated with periodic wrapping
-    J = Mat3(bilin*I)  
-    
     sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
-
     for m = 2:N
         mM1 = m - 1
         i_m = sub_i_M1*nflavors+mM1
@@ -53,84 +39,29 @@ function swt_bilinear!(H, swt, coupling, q)
             i_n = sub_i_M1*nflavors+nM1
             j_n = sub_j_M1*nflavors+nM1
 
-            c = 0.5 * dot_no_conj(Si[m,n] - δ(m,n)*Si[1,1], J, Sj[1,1])
+            c = 0.5 * dot_no_conj(Ti[m,n] - δ(m,n)*Ti[1,1], metric, Tj[1,1])
             H11[i_m, i_n] += c
             H22[i_n, i_m] += c
 
-            c = 0.5 * dot_no_conj(Si[1,1], J, Sj[m,n] - δ(m,n)*Sj[1,1])
+            c = 0.5 * dot_no_conj(Ti[1,1], metric, Tj[m,n] - δ(m,n)*Tj[1,1])
             H11[j_m, j_n] += c
             H22[j_n, j_m] += c
 
-            c = 0.5 * dot_no_conj(Si[m,1], J, Sj[1,n])
+            c = 0.5 * dot_no_conj(Ti[m,1], metric, Tj[1,n])
             H11[i_m, j_n] += c * phase
             H22[j_n, i_m] += c * conj(phase)
 
-            c = 0.5 * dot_no_conj(Si[1,m], J, Sj[n,1])
+            c = 0.5 * dot_no_conj(Ti[1,m], metric, Tj[n,1])
             H11[j_n, i_m] += c * conj(phase)
             H22[i_m, j_n] += c * phase
             
-            c = 0.5 * dot_no_conj(Si[m,1], J, Sj[n,1])
+            c = 0.5 * dot_no_conj(Ti[m,1], metric, Tj[n,1])
             H12[i_m, j_n] += c * phase
             H12[j_n, i_m] += c * conj(phase)
         end
     end
 end
 
-# Construct portion of Hamiltonian due to biquadratic exchange (uses explicit
-# basis).
-function swt_biquadratic!(H, swt, coupling, q)
-    (; sys, data) = swt
-    (; bond, biquad) = coupling
-    (; quadrupole_operators) = data
-
-    # Get views of Hamiltonian submatrices
-    N = sys.Ns[1] 
-    nflavors = N - 1 
-    L = nflavors * natoms(sys.crystal)   
-    H11 = view(H, 1:L, 1:L)
-    H12 = view(H, 1:L, L+1:2L)
-    H22 = view(H, L+1:2L, L+1:2L)
-
-    # Pull out local quadrupole operators on the given bond 
-    Ti = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.i))
-    Tj = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.j))
-
-    phase = exp(2π*im * dot(q, bond.n)) 
-    J = isa(biquad, Float64) ? biquad * scalar_biquad_metric_mat : biquad
-
-    sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
-
-    for m = 2:N
-        mM1 = m - 1
-        i_m = sub_i_M1*nflavors+mM1
-        j_m = sub_j_M1*nflavors+mM1
-        for n = 2:N
-            nM1 = n - 1
-            i_n = sub_i_M1*nflavors+nM1
-            j_n = sub_j_M1*nflavors+nM1
-
-            c = 0.5 *  dot_no_conj(Ti[m,n] - δ(m,n)*Ti[1,1], J, Tj[1,1])
-            H11[i_m, i_n] += c
-            H22[i_n, i_m] += c
-
-            c = 0.5 * dot_no_conj(Ti[1,1], J, Tj[m,n] - δ(m,n)*Tj[1,1])
-            H11[j_m, j_n] += c
-            H22[j_n, j_m] += c
-
-            c = 0.5 * dot_no_conj(Ti[m,1], J, Tj[1,n])
-            H11[i_m, j_n] += c * phase
-            H22[j_n, i_m] += c * conj(phase)
-
-            c = 0.5 * dot_no_conj(Ti[1,m], J, Tj[n,1])
-            H11[j_n, i_m] += c * conj(phase)
-            H22[i_m, j_n] += c * phase
-            
-            c = 0.5 * dot_no_conj(Ti[m,1], J, Tj[n,1])
-            H12[i_m, j_n] += c * phase
-            H12[j_n, i_m] += c * conj(phase)
-        end
-    end
-end
 
 # Add generalized couplings to Hamiltonian.
 function swt_general_couplings!(H, swt, q)
@@ -188,6 +119,7 @@ end
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
     (; onsite_operator, external_field_operator) = data
+    (; dipole_operators, quadrupole_operators) = data
 
     N = sys.Ns[1]                         # Dimension of SU(N) coherent states
     nflavors = N - 1                      # Number of local boson flavors
@@ -211,15 +143,24 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # Add pair interactions that use explicit bases
     for ints in sys.interactions_union
         for coupling in ints.pair
-            (; isculled) = coupling
+            (; isculled, bond, bilin, biquad) = coupling
             isculled && break
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
-            if !all(iszero, coupling.bilin)
-                swt_bilinear!(H, swt, coupling, q_reshaped)
+            if !all(iszero, bilin)
+                Si = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.i))
+                Sj = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.j))
+                metric = Mat3(bilin*I)  
+
+                swt_pair_coupling!(H, swt, phase, metric, bond, Si, Sj)
             end
 
-            if !all(iszero, coupling.biquad)
-                swt_biquadratic!(H, swt, coupling, q_reshaped)
+            if !all(iszero, biquad)
+                Qi = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.i))
+                Qj = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.j))
+                metric =  isa(biquad, Float64) ? biquad * scalar_biquad_metric_mat : biquad
+
+                swt_pair_coupling!(H, swt, phase, metric, bond, Qi, Qj)
             end
         end
     end
