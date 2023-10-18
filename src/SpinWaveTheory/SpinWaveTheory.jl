@@ -116,9 +116,9 @@ function swt_data_sun(sys::System{N}, obs) where N
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
     # Rotate SU(N) bases and observables and store in dense array. Note that the
-    # first index is the component index. As a result, (Sx_i, Sy_i, Sz_i) are
-    # stored contiguously. This is the natural order for constructing the spin
-    # wave Hamiltonian.
+    # first index is the component index. As a result, (Sˣᵢⱼ, Sʸᵢⱼ, Sᶻᵢⱼ) is
+    # stored contiguously for each matrix element ij. This is the natural order
+    # for constructing the spin wave Hamiltonian.
     for atom in 1:n_magnetic_atoms
         U = local_quantization_bases[atom]
         for μ = 1:3
