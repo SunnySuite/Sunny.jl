@@ -75,11 +75,11 @@ the Stevens _function_ $\mathcal{O}_{k,q}(\mathbf{s})$, which is a polynomial of
 the expected dipole $\mathbf{s}$ rather than of the spin operators
 $\hat{\mathbf{S}}$.
 
-In a real magnetic compound, however, the spin magnitude $S$ may not be large,
-and a better approximation should avoid the large-$S$ limit. For this, one can
-begin with the full dynamics of SU(_N_) coherent states, and then constrain it
-to the space of pure dipole states $|\mathbf{s}\rangle$. The latter are defined
-such that expectation values,
+In a real magnetic compound, however, the spin magnitude $S$ is not necessarily
+large, and a better approximation should avoid the large-$S$ limit. For this,
+one can begin with the full dynamics of SU(_N_) coherent states, and then
+constrain it to the space of pure dipole states $|\mathbf{s}\rangle$. The latter
+are defined such that expectation values,
 ```math
 \langle \mathbf{s}| \hat{\mathbf{S}} | \mathbf{s}\rangle = \mathbf{s},
 ```
@@ -104,27 +104,28 @@ c_6 &= 1-\frac{15}{2}S^{-1}+\frac{85}{4}S^{-2}-\frac{225}{8}S^{-3}+\frac{137}{8}
 \end{align*}
 ```
 
-Collecting results, the SU(_N_) dynamics constrained to the space of dipoles
-reduces to the usual Landau-Lifshitz dynamics, but now involving the
-_renormalized_ expected energy,
+Constrained to the space of dipoles, the expected local energy becomes
 ```math
-H_{\mathrm{renormalized}}(\mathbf{s}) = \sum_{k, q} c_k A_{k,q} \mathcal{O}_{k,q}(\mathbf{s}).
+E_{\mathrm{local}}(\mathbf{s}) = \langle \mathbf{s}| \hat{\mathcal H}_{\mathrm{local}} | \mathbf{s}\rangle = \sum_{k, q} c_k A_{k,q} \mathcal{O}_{k,q}(\mathbf{s}).
 ```
 
-Through this renormalization, **Sunny avoids the large-$S$ assumption, and gives
-a more variationally accurate result than traditional codes**.
+It can be shown that SU(_N_) dynamics reduces to the usual Landau-Lifshitz
+dynamics of dipoles, but involving $E_{\mathrm{local}}(\mathbf{s})$ as the
+classical Hamiltonian. Through this renormalization of the Stevens operators,
+**Sunny avoids the large-$S$ assumption, and gives a more variationally accurate
+result**. Traditional codes, by contrast, would use $c_k = 1$ instead.
 
 Renormalization also applies to the coupling between different sites. In Sunny,
 couplings will often be expressed as a polynomial of spin operators using
 [`set_pair_coupling!`](@ref), but any such coupling can be decomposed as sum of
 tensor products of Stevens operators. Without loss of generality, consider a
-single coupling between two Stevens operators $\hat{\mathcal{H}}_\mathrm{biquad}
-= \hat{\mathcal{O}}_{k,q} \otimes \hat{\mathcal{O}}_{k',q'}$ along a bond
-connecting sites $i$ and $j$. Upon constraining to pure dipole states
-$|\mathbf{s}_i\rangle$ and $|\mathbf{s}_j\rangle$, the expected energy takes the
-form $c_k c_k' \mathcal{O}_{k,q}(\mathbf{s}_i)
-\mathcal{O}_{k',q'}(\mathbf{s}_j)$, which now involves a product of renormalized
-Stevens functions. 
+single coupling between two Stevens operators
+$\hat{\mathcal{H}}_\mathrm{coupling} = \hat{\mathcal{O}}_{k,q} \otimes
+\hat{\mathcal{O}}_{k',q'}$ along a bond connecting sites $i$ and $j$. Upon
+constraining to pure dipole states $|\mathbf{s}_i\rangle$ and
+$|\mathbf{s}_j\rangle$, the expected energy takes the form $E_\mathrm{coupling}
+= c_k c_k' \mathcal{O}_{k,q}(\mathbf{s}_i) \mathcal{O}_{k',q'}(\mathbf{s}_j)$,
+which now involves a product of renormalized Stevens functions. 
 
 ## How and when to disable renormalization?
 
