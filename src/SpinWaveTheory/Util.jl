@@ -53,7 +53,7 @@ function dot_no_conj(x, A, y)
     return s
 end
 
-# Constant "metric"
+# Scalar "metric"
 function dot_no_conj(x, A::Float64, y)
     s = zero(eltype(x))
     axes(x) == axes(y) || throw(DimensionMismatch())
@@ -65,10 +65,10 @@ end
 
 # Diagonal "metric"
 function dot_no_conj(x, A::SVector{N, Float64}, y) where N
-    s = eltype(x)
-    axes(x) == axes(y)  == A || throw(DimensionMismatch())
+    s = zero(eltype(x))
+    axes(x) == axes(y)  == axes(A) || throw(DimensionMismatch())
     for j in eachindex(x)
-        s += A[j]*x[i]*y[j]
+        s += A[j]*x[j]*y[j]
     end
     return s
 end

@@ -19,11 +19,14 @@ function swt_onsite_coupling!(H, op, swt, atom)
     end
 end
 
-# Adds any interaction of the form,
+# Adds any bilinear interaction of the form,
 #
-# J_{ij}^{αβ} T_i^α T_j^β
+# J_{ij}^{αβ} T_i^α T_j^β,
 #
-# to the spin wave Hamiltonian H. TODO: Complete description.
+# to the spin wave Hamiltonian H. The data of Ti and Tj must be arranged
+# such that for each individual matrix element, Ti[m,n], one is returned
+# *vector* indexed by α. E.g., if Ti corresponds to the spin operators, then
+# Ti[m,n] returns a vector [Sx[m,n], Sy[m,n], Sz[m,n]]].
 function swt_pair_coupling!(H, J, Ti, Tj, swt, phase, bond)
     sys = swt.sys
     N = sys.Ns[1] 
@@ -35,7 +38,7 @@ function swt_pair_coupling!(H, J, Ti, Tj, swt, phase, bond)
 
     sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
     for m = 2:N
-        mM1 = m - 1
+        mM1 = m - 1 
         i_m = sub_i_M1*nflavors+mM1
         j_m = sub_j_M1*nflavors+mM1
         for n = 2:N
@@ -72,10 +75,10 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     (; sys, data) = swt
     (; onsite_operator, dipole_operators, quadrupole_operators) = data
 
-    N = sys.Ns[1]                         # Dimension of SU(N) coherent states
-    nflavors = N - 1                      # Number of local boson flavors
-    L  = nflavors * natoms(sys.crystal)   # Number of quasiparticle bands
-    @assert size(H) == (2L, 2L)
+    N = sys.Ns[1]                       # Dimension of SU(N) coherent states
+    nflavors = N - 1                    # Number of local boson flavors
+    L = nflavors * natoms(sys.crystal)  # Number of quasiparticle bands
+    @assert size(H) == (2L, 2L) "Dimension of Hamiltonian buffer incompatible with system information"
 
     # Clear the Hamiltonian
     H .= 0
@@ -92,43 +95,46 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             # Extract information common to bond
             (; isculled, bond, bilin, biquad) = coupling
             isculled && break
-            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Small savings for calculating this outside of swt_pair_coupling!
 
-            # Add bilinear interactions
+            # Add bilinear interactions.
             if !all(iszero, bilin)
+                Jij = bilin
                 Si = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.i))
                 Sj = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.j))
-                # J = Mat3(bilin*I)  
 
-                swt_pair_coupling!(H, bilin, Si, Sj, swt, phase, bond)
+                swt_pair_coupling!(H, Jij, Si, Sj, swt, phase, bond)
             end
 
-            # Add biquadratic interactions
+            # Add biquadratic interactions. If scalar, use scalar_biquad_metric.
             if !all(iszero, biquad)
+                Jij =  isa(biquad, Float64) ? biquad * scalar_biquad_metric : biquad
                 Qi = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.i))
                 Qj = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.j))
-                J =  isa(biquad, Float64) ? biquad * scalar_biquad_metric : biquad
 
-                swt_pair_coupling!(H, J, Qi, Qj, swt, phase, bond)
+                swt_pair_coupling!(H, Jij, Qi, Qj, swt, phase, bond)
             end
         end
     end
 
-    # Add generalized pair interactions
+    # Add generalized pair interactions -- ordered by bond so can't iterate
+    # through original interactions as was done for bilinear and biquadratic
+    # interactions.
     for (bond, operator_pair) in data.bond_operator_pairs 
         phase = exp(2π*im * dot(q_reshaped, bond.n))
-        veclen = size(operator_pair, 1) 
-        A = reinterpret(reshape, CVec{veclen}, view(operator_pair, :, :, :, 1))
-        B = reinterpret(reshape, CVec{veclen}, view(operator_pair, :, :, :, 2))
-        J = I(veclen)
+        for i in axes(operator_pair, 1)
+            J = 1.0
+            A = view(operator_pair, i, :, :, 1)
+            B = view(operator_pair, i, :, :, 2)
 
-        swt_pair_coupling!(H, 1.0, A, B, swt, phase, bond)
+            swt_pair_coupling!(H, J, A, B, swt, phase, bond)
+        end
     end
             
-    # Infer H21 by H=H'
+    # Infer H21 by H=H'.
     set_H21!(H)
     
-    # Ensure that H is hermitian up to round-off errors 
+    # Ensure that H is hermitian up to round-off errors.
     if hermiticity_norm(H) > 1e-12 
         println("norm(H-H')= ", norm(H-H'))
         throw("H is not hermitian!")
@@ -142,4 +148,3 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         H[i,i] += swt.energy_ϵ
     end    
 end
-

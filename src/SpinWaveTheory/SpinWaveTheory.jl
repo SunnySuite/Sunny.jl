@@ -74,7 +74,7 @@ function num_bands(swt::SpinWaveTheory)
 end
 
 
-# Convert 3-vector from the Cartesian frame to the spherical frame
+# Convert 3-vector from the Cartesian frame to the spherical frame.
 function dipole_to_angles(dipoles)
     r = norm(dipoles)
     @assert r > 1e-7
@@ -89,16 +89,12 @@ function to_reshaped_rlu(sys::System{N}, q) where N
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
-# Compute SU(N) generators in the local reference frame (for :SUN mode).
+# Prepare local operators and observables for SU(N) spin wave calculation by
+# rotating these into the local reference frame determined by the ground state.
 function swt_data_sun(sys::System{N}, obs) where N
+    # Calculate transformation matrices into local reference frames
     n_magnetic_atoms = natoms(sys.crystal)
-
-    dipole_operators = spin_matrices_of_dim(; N)
-    quadrupole_operators = stevens_matrices_of_dim(2; N)
-
-    # Rotate dipole and quadrupoles into local reference frames
     local_quantization_bases = [Matrix{ComplexF64}(undef, N, N) for _ in 1:n_magnetic_atoms]
-
     for atom in 1:n_magnetic_atoms
         # First axis of local quantization basis is along the 
         # ground-state polarization axis
@@ -109,15 +105,18 @@ function swt_data_sun(sys::System{N}, obs) where N
         local_quantization_bases[atom][:, 2:N] = nullspace(local_quantization_bases[atom][:,1]') 
     end
 
+    # Preallocate buffers for rotate operators and observables.
     dipole_operators_localized = zeros(ComplexF64, 3, N, N, n_magnetic_atoms)
     onsite_operator_localized = zeros(ComplexF64, N, N, n_magnetic_atoms)
     quadrupole_operators_localized = zeros(ComplexF64, 5, N, N, n_magnetic_atoms)
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
     # Rotate SU(N) bases and observables and store in dense array. Note that the
-    # first index is the component index. As a result, (Sˣᵢⱼ, Sʸᵢⱼ, Sᶻᵢⱼ) is
-    # stored contiguously for each matrix element ij. This is the natural order
-    # for constructing the spin wave Hamiltonian.
+    # first index is the component index. As a result, (Sˣᵢ[m,n], Sʸᵢ[m,n], Sᶻᵢ[m,n]) is
+    # stored contiguously for each matrix element mn. This is the natural order
+    # for the current way of constructing the spin wave Hamiltonian.
+    dipole_operators = spin_matrices_of_dim(; N)
+    quadrupole_operators = stevens_matrices_of_dim(2; N)
     for atom in 1:n_magnetic_atoms
         U = local_quantization_bases[atom]
         for μ = 1:3
@@ -153,9 +152,8 @@ function swt_data_sun(sys::System{N}, obs) where N
             nops = length(general.data)
             bond_operators = zeros(ComplexF64, nops, N, N, 2)
             for (n, (A, B)) in enumerate(general.data)
-                A′, B′ = Hermitian.((Ui' * A * Ui, Uj' * B * Uj)) 
-                bond_operators[n,:,:,1] = A′
-                bond_operators[n,:,:,2] = B′
+                bond_operators[n,:,:,1] = Ui' * A * Ui 
+                bond_operators[n,:,:,2] = Uj' * B * Uj 
             end
             push!(bond_operator_pairs_localized, (bond, bond_operators))
         end
@@ -169,6 +167,7 @@ function swt_data_sun(sys::System{N}, obs) where N
         observables_localized,
     )
 end
+
 
 # Compute Stevens coefficients in the local reference frame
 function swt_data_dipole(sys::System{0})
