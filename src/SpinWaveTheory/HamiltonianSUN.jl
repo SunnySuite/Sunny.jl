@@ -66,7 +66,6 @@ end
 
 
 # Add generalized couplings to Hamiltonian.
-
 # DD TODO: Reorganize data for general_pair_operators so can eliminate this
 # function.
 function swt_general_couplings!(H, swt, q)
@@ -123,8 +122,7 @@ end
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
-    (; onsite_operator, external_field_operator) = data
-    (; dipole_operators, quadrupole_operators) = data
+    (; onsite_operator, dipole_operators, quadrupole_operators) = data
 
     N = sys.Ns[1]                         # Dimension of SU(N) coherent states
     nflavors = N - 1                      # Number of local boson flavors
@@ -134,15 +132,10 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # Clear the Hamiltonian
     H .= 0
 
-    # Add single-site terms
+    # Add single-site terms (single-site anisotropy and external field)
     for atom = 1:natoms(sys.crystal)
-        # Add single-ion anisotropy
         site_aniso = view(onsite_operator, :, :, atom)
         swt_onsite_coupling!(H, swt, site_aniso, atom)
-
-        # Add external field
-        site_field = view(external_field_operator, :, :, atom)
-        swt_onsite_coupling!(H, swt, site_field, atom)
     end
 
     # Add pair interactions that use explicit bases
@@ -176,20 +169,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # Add generalized pair interactions
     swt_general_couplings!(H, swt, q_reshaped)
             
-    # N.B.: H22
-    # ============
-    # The relation between H11 and H22 is:
-    # 
-    #     H22(q) = transpose(H11(-k))
-    #
-    # so H22 can be constructed in parallel with H11 by adding
-    # the same term to each matrix, but with indices backwards on H22,
-    # and with exp(iqr) conjugated for H22:
-
     # Infer H21 by H=H'
-    # H12 = view(H,1:L,L+1:2L)
-    # H21 = view(H, L+1:2L, 1:L)
-    # H21 .= H12'
     set_H21!(H)
     
     # Ensure that H is hermitian up to round-off errors 
