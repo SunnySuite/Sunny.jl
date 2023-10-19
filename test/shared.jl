@@ -61,8 +61,12 @@ function add_quartic_interactions!(sys, mode)
         O = stevens_matrices(spin_irrep_label(sys, 1))
         Q = [O[2,q] for q in 2:-1:-2]
         Qi, Qj = to_product_space(Q, Q)
-        # KB-TODO BUGGED!
-        # set_pair_coupling!(sys, 0.1 * Qi[3] * Qj[3], Bond(1, 1, [0, 0, 1]))
+        biquad = [1.2  0   0  0    0
+                    0  1   0  0    0
+                    0  0 1.1  0 -1.4
+                    0  0   0  1    0
+                    0  0 1.4  0  1.3]
+        set_pair_coupling!(sys, 0.1*(Qi'*biquad*Qj), Bond(1, 1, [0, 0, 1]))
     end
 end
 
