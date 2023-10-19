@@ -34,7 +34,7 @@ function hermiticity_norm(H)
 end
 
 # Modified from LinearAlgebra.jl to not perform any conjugation
-function dot_no_conj(x,A,y)
+function dot_no_conj(x, A, y)
     (axes(x)..., axes(y)...) == axes(A) || throw(DimensionMismatch())
     T = typeof(dot(first(x), first(A), first(y)))
     s = zero(T)
@@ -49,6 +49,26 @@ function dot_no_conj(x,A,y)
             end
             s += temp * yj
         end
+    end
+    return s
+end
+
+# Constant "metric"
+function dot_no_conj(x, A::Float64, y)
+    s = zero(eltype(x))
+    axes(x) == axes(y) || throw(DimensionMismatch())
+    for j in eachindex(x)
+        s += x[j]*y[j]
+    end
+    return A*s
+end
+
+# Diagonal "metric"
+function dot_no_conj(x, A::SVector{N, Float64}, y) where N
+    s = eltype(x)
+    axes(x) == axes(y)  == A || throw(DimensionMismatch())
+    for j in eachindex(x)
+        s += A[j]*x[i]*y[j]
     end
     return s
 end
