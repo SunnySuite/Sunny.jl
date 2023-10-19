@@ -137,7 +137,7 @@ mode `:dipole_large_S`. Symbolic operators in the large-$S$ limit can be
 constructed by passing `Inf` to either [`spin_matrices`](@ref) or
 [`stevens_matrices`](@ref).
 
-## Stevens operators
+## Stevens operators as polynomials
 
 The Stevens operators $\hat{\mathcal{O}}_{k,q}$ are defined as polynomials of
 angular momentum operators $\hat{S}_{\{x,y,z\}}$ in some spin-$S$ representation.
@@ -197,6 +197,16 @@ Computer-generated tables of Stevens operators with $k > 6$ are available from
 [C. Rudowicz and C. Y. Chung, J. Phys.: Condens. Matter 16, 5825
 (2004)](https://doi.org/10.1088/0953-8984/16/32/018), but these typically do not
 appear in magnetic simulations.
+
+Some special cases are:
+```math
+(\hat{\mathcal{O}}_{1,1}, \hat{\mathcal{O}}_{1,0}, \hat{\mathcal{O}}_{1,-1}) = (\hat{S}_{x}, \hat{S}_{z}, \hat{S}_{y})
+```
+
+and
+```math
+(\hat{\mathcal{O}}_{2,2}, \dots, \hat{\mathcal{O}}_{2,-2}) = \left(\hat{S}_x^2 - \hat{S}_y^2, \frac{\hat{S}_x \hat{S}_z + \hat{S}_z \hat{S}_x}{2}, 3\hat{S}_z^2-X, \frac{\hat{S}_y \hat{S}_z + \hat{S}_z \hat{S}_y}{2}, \hat{S}_x \hat{S}_y + \hat{S}_y \hat{S}_x\right)
+```
 
 For each $k$ value, the set of operators $\hat{\mathcal{O}}_{k,q'}$ for $q' =
 -k, \dots, k$ form an irreducible representation of the group of rotations O(3).
