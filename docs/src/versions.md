@@ -3,10 +3,10 @@
 ## v0.5.6
 
 * General pair couplings are now supported in [`set_pair_coupling!`](@ref) and
-  [`set_pair_coupling_at!`]. Consequently, the option `biquad` to
-  [`set_exchange!`] has been deprecated. `:SUN` supports interactions of any
-  order, but `:dipole` mode is currently limited to bilinear and biquadratic
-  coupling of the spin.
+  [`set_pair_coupling_at!`]. `:SUN` supports interactions of any order, but
+  `:dipole` mode is limited to bilinear and biquadratic coupling of the spin.
+* Deprecate the option `biquad` to [`set_exchange!`]. Use instead
+  `set_pair_coupling!`, which generalizes beyond the scalar biquadratic.
 * Deprecate `spin_operators`, `stevens_operators`, `large_S_spin_operators` and
   `large_S_stevens_operators`. Use instead [`spin_matrices`](@ref) and
   [`stevens_matrices`](@ref), which require a specific spin-``S`` label. To
