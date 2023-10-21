@@ -68,24 +68,27 @@ H}_{\mathrm{local}}$ as an $N×N$ matrix. In `:dipole` mode, the expected energy
 $\langle \hat{\mathcal H}_{\mathrm{local}} \rangle$ must somehow be approximated
 as a function of the expected dipole $\mathbf{s}$.
 
-One possibility is to formally take the $S \to \infty$ limit, whereby each spin
-operator $\hat{\mathbf{S}}$ is replaced by its expectation value $\mathbf{s}$.
-Correspondingly, each Stevens operator $\hat{\mathcal{O}}_{k,q}$ is replaced by
-the Stevens _function_ $\mathcal{O}_{k,q}(\mathbf{s})$, which is a polynomial of
-the expected dipole $\mathbf{s}$ rather than of the spin operators
-$\hat{\mathbf{S}}$.
+One approach is to formally take $S \to \infty$, and this yields the traditional
+classical limit of a spin system. In this, limit spin operators commute, and
+expectation values of polynomials become polynomials of expectation values. For
+example, $\langle \hat{S}^\alpha \hat{S}^\beta\rangle \to \langle \hat{S}^\alpha
+\rangle \langle \hat{S}^\beta\rangle$, because any corrections are damped by the
+factor $S^{-1} \to 0$. The expectation of a Stevens operator $\langle
+\hat{\mathcal{O}}_{k,q} \rangle$ becomes a Stevens function
+$\mathcal{O}_{k,q}(\mathbf{s})$, i.e., a polynomial of expected dipole
+$\mathbf{s} = \langle \hat{\mathbf{S}} \rangle$.
 
 In a real magnetic compound, however, the spin magnitude $S$ is not necessarily
-large, and a better approximation should avoid the large-$S$ limit. For this,
-one can begin with the full dynamics of SU(_N_) coherent states, and then
-constrain it to the space of pure dipole states $|\mathbf{s}\rangle$. The latter
-are defined such that expectation values,
+large. To obtain a better approximation, one should avoid the assumption $S \to
+\infty$. Our approach is to start with the full dynamics of SU(_N_) coherent
+states, and then constrain it to the space of pure dipole states
+$|\mathbf{s}\rangle$. The latter are defined such that expectation values,
 ```math
 \langle \mathbf{s}| \hat{\mathbf{S}} | \mathbf{s}\rangle = \mathbf{s},
 ```
 have magnitude $|\mathbf{s}| = S$, which is maximal.
 
-For pure dipole states, it can be demonstrated that
+For pure dipole states, expectations can be computed exactly,
 ```math
 \langle \mathbf{s}| \hat{\mathcal{O}} | \mathbf{s}\rangle = c_k \mathcal{O}_{k,q}(\mathbf{s}).
 ```
@@ -111,9 +114,8 @@ E_{\mathrm{local}}(\mathbf{s}) = \langle \mathbf{s}| \hat{\mathcal H}_{\mathrm{l
 
 It can be shown that SU(_N_) dynamics reduces to the usual Landau-Lifshitz
 dynamics of dipoles, but involving $E_{\mathrm{local}}(\mathbf{s})$ as the
-classical Hamiltonian. Through this renormalization of the Stevens operators,
-**Sunny avoids the large-$S$ assumption, and gives a more variationally accurate
-result**. Traditional codes, by contrast, would use $c_k = 1$ instead.
+classical Hamiltonian. Through the renormalization factors $c_k$, _Sunny avoids
+the large-$S$ assumption, and gives a more accurate result_.
 
 Renormalization also applies to the coupling between different sites. In Sunny,
 couplings will often be expressed as a polynomial of spin operators using
@@ -127,7 +129,7 @@ $|\mathbf{s}_j\rangle$, the expected energy takes the form $E_\mathrm{coupling}
 = c_k c_k' \mathcal{O}_{k,q}(\mathbf{s}_i) \mathcal{O}_{k',q'}(\mathbf{s}_j)$,
 which now involves a product of renormalized Stevens functions. 
 
-## How and when to disable renormalization?
+## Use `:dipole_large_S` mode to disable renormalization
 
 Although we generally recommend the above renormalization procedure, there are
 circumstances where it is not desirable. Examples include reproducing a
@@ -138,7 +140,7 @@ mode `:dipole_large_S`. Symbolic operators in the large-$S$ limit can be
 constructed by passing `Inf` to either [`spin_matrices`](@ref) or
 [`stevens_matrices`](@ref).
 
-## Stevens operators as polynomials
+## Definition of Stevens operators
 
 The Stevens operators $\hat{\mathcal{O}}_{k,q}$ are defined as polynomials of
 angular momentum operators $\hat{S}_{\{x,y,z\}}$ in some spin-$S$ representation.
@@ -199,14 +201,14 @@ Computer-generated tables of Stevens operators with $k > 6$ are available from
 (2004)](https://doi.org/10.1088/0953-8984/16/32/018), but these typically do not
 appear in magnetic simulations.
 
-Some special cases are:
+The case $k=1$ gives the dipole operators,
 ```math
-(\hat{\mathcal{O}}_{1,1}, \hat{\mathcal{O}}_{1,0}, \hat{\mathcal{O}}_{1,-1}) = (\hat{S}_{x}, \hat{S}_{z}, \hat{S}_{y})
+(\hat{\mathcal{O}}_{1,1}, \hat{\mathcal{O}}_{1,0}, \hat{\mathcal{O}}_{1,-1}) = (\hat{S}_{x}, \hat{S}_{z}, \hat{S}_{y}).
 ```
 
-and
+The case $k=2$ gives the quadrupole operators,
 ```math
-(\hat{\mathcal{O}}_{2,2}, \dots, \hat{\mathcal{O}}_{2,-2}) = \left(\hat{S}_x^2 - \hat{S}_y^2, \frac{\hat{S}_x \hat{S}_z + \hat{S}_z \hat{S}_x}{2}, 3\hat{S}_z^2-X, \frac{\hat{S}_y \hat{S}_z + \hat{S}_z \hat{S}_y}{2}, \hat{S}_x \hat{S}_y + \hat{S}_y \hat{S}_x\right)
+(\hat{\mathcal{O}}_{2,2}, \dots, \hat{\mathcal{O}}_{2,-2}) = \left(\hat{S}_x^2 - \hat{S}_y^2, \frac{\hat{S}_x \hat{S}_z + \hat{S}_z \hat{S}_x}{2}, 2\hat{S}_z^2-\hat{S}_x^2-\hat{S}_y^2, \frac{\hat{S}_y \hat{S}_z + \hat{S}_z \hat{S}_y}{2}, \hat{S}_x \hat{S}_y + \hat{S}_y \hat{S}_x\right).
 ```
 
 For each $k$ value, the set of operators $\hat{\mathcal{O}}_{k,q'}$ for $q' =
