@@ -12,7 +12,7 @@
     A,B,C,D = 2.6, -1.3, 0.2, -5.7
     set_exchange!(sys, [A D D; D B C; D C B], Bond(4, 4, [1, 1, 0]))#; biquad = 0.3)
 
-    O = stevens_matrices(spin_irrep_label(sys, 3))
+    O = stevens_matrices(spin_label(sys, 3))
     c1, c2, c3 = 2.6, -1.3, 0.2, -5.7
     Λ = c1 * (O[2,-2] - 2O[2,-1] - 2O[2,1]) +
         c2 * (-7O[4,-3] + 2O[4,-2] + O[4,-1] + O[4,1] + 7O[4,3]) +

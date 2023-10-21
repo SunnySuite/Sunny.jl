@@ -6,7 +6,7 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
     if sys.mode == :SUN
         return Hermitian(matrep)
     elseif sys.mode == :dipole
-        S = spin_irrep_label(sys, to_atom(site))
+        S = spin_label(sys, to_atom(site))
         λ = anisotropy_renormalization(S)
         c = matrix_to_stevens_coefficients(hermitianpart(matrep))
         return StevensExpansion(λ .* c)
@@ -107,7 +107,7 @@ set_onsite_coupling!(sys, S -> -D*S[3]^3, i)
 set_onsite_coupling!(sys, S -> 20*(S[1]^4 + S[2]^4 + S[3]^4), i)
 
 # An equivalent expression of this quartic anisotropy, up to a constant shift
-O = stevens_matrices(spin_irrep_label(sys, i))
+O = stevens_matrices(spin_label(sys, i))
 set_onsite_coupling!(sys, O[4,0] + 5*O[4,4], i)
 ```
 """
@@ -157,7 +157,7 @@ function set_onsite_coupling!(sys::System, op, i::Int)
 end
 
 function set_onsite_coupling!(sys::System, fn::Function, i::Int)
-    S = spin_matrices(spin_irrep_label(sys, i))
+    S = spin_matrices(spin_label(sys, i))
     set_onsite_coupling!(sys, fn(S), i)
 end
 
@@ -179,7 +179,7 @@ function set_onsite_coupling_at!(sys::System, op, site::Site)
 end
 
 function set_onsite_coupling_at!(sys::System, fn::Function, site::Site)
-    S = spin_matrices(spin_irrep_label(sys, to_atom(site)))
+    S = spin_matrices(spin_label(sys, to_atom(site)))
     set_onsite_coupling_at!(sys, fn(S), site)
 end
 

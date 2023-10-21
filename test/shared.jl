@@ -36,7 +36,7 @@ function add_quadratic_interactions!(sys, mode)
 
         #=
         # This is a bit slower, but must also work
-        S = spin_irrep_label(sys, 1)
+        S = spin_label(sys, 1)
         O = stevens_matrices(S)
         Q = [O[2,q] for q in 2:-1:-2]
         Qi, Qj = to_product_space(Q, Q)
@@ -54,11 +54,11 @@ function add_quartic_interactions!(sys, mode)
     if mode in (:dipole, :dipole_large_S)
         # Stevens operators O[4,q] are quartic in dipoles
         i = 3
-        O = stevens_matrices(spin_irrep_label(sys, i))
+        O = stevens_matrices(spin_label(sys, i))
         set_onsite_coupling!(sys, 0.2*((1/20)O[4,0] + (1/4)O[4,4]), i)
 
         # Bilinear interactions in quadrupoles also have quartic scaling.
-        O = stevens_matrices(spin_irrep_label(sys, 1))
+        O = stevens_matrices(spin_label(sys, 1))
         Q = [O[2,q] for q in 2:-1:-2]
         Qi, Qj = to_product_space(Q, Q)
         biquad = [1.2  0   0  0    0

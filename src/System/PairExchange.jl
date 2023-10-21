@@ -188,8 +188,8 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
 
     # Renormalize biquadratic interactions
     if sys.mode == :dipole
-        S1 = spin_irrep_label(sys, bond.i)
-        S2 = spin_irrep_label(sys, bond.j)
+        S1 = spin_label(sys, bond.i)
+        S2 = spin_label(sys, bond.j)
         biquad *= (1 - 1/2S1) * (1 - 1/2S2)
     end
 
@@ -236,8 +236,8 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_pa
         error("Symbolic operators required for mode `:dipole_large_S`.")
     end
 
-    N1 = Int(2spin_irrep_label(sys, bond.i)+1)
-    N2 = Int(2spin_irrep_label(sys, bond.j)+1)
+    N1 = Int(2spin_label(sys, bond.i)+1)
+    N2 = Int(2spin_label(sys, bond.j)+1)
     scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; extract_parts)
 
     set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond)
@@ -249,8 +249,8 @@ function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=tr
         error("General couplings not yet supported for mode `:dipole_large_S`.")
     end
 
-    S1 = spin_irrep_label(sys, bond.i)
-    S2 = spin_irrep_label(sys, bond.j)
+    S1 = spin_label(sys, bond.i)
+    S2 = spin_label(sys, bond.j)
     Si, Sj = to_product_space(spin_matrices.([S1, S2])...)
     set_pair_coupling!(sys, fn(Si, Sj), bond; extract_parts)
     return
@@ -358,8 +358,8 @@ function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Fl
 
     # Renormalize biquadratic interactions
     if sys.mode == :dipole
-        S1 = spin_irrep_label(sys, to_atom(site1))
-        S2 = spin_irrep_label(sys, to_atom(site2))
+        S1 = spin_label(sys, to_atom(site1))
+        S2 = spin_label(sys, to_atom(site2))
         biquad *= (1 - 1/2S1) * (1 - 1/2S2)
     end
 
@@ -422,8 +422,8 @@ function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, 
         error("Symbolic operators required for mode `:dipole_large_S`.")
     end
 
-    N1 = Int(2spin_irrep_label(sys, to_atom(site1))+1)
-    N2 = Int(2spin_irrep_label(sys, to_atom(site2))+1)
+    N1 = Int(2spin_label(sys, to_atom(site1))+1)
+    N2 = Int(2spin_label(sys, to_atom(site2))+1)
     scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; extract_parts=true)
 
     set_pair_coupling_at_aux!(sys, scalar, bilin, biquad, tensordec, site1, site2, offset)
@@ -435,8 +435,8 @@ function set_pair_coupling_at!(sys::System{N}, fn::Function, site1::Site, site2:
         error("General couplings not yet supported for mode `:dipole_large_S`.")
     end
 
-    S1 = spin_irrep_label(sys, to_atom(site1))
-    S2 = spin_irrep_label(sys, to_atom(site2))
+    S1 = spin_label(sys, to_atom(site1))
+    S2 = spin_label(sys, to_atom(site2))
     Si, Sj = to_product_space(spin_matrices.([S1, S2])...)
     set_pair_coupling_at!(sys, fn(Si, Sj), site1, site2; offset)
     return

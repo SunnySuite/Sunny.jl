@@ -10,7 +10,7 @@
 * Deprecate `spin_operators`, `stevens_operators`, `large_S_spin_operators` and
   `large_S_stevens_operators`. Use instead [`spin_matrices`](@ref) and
   [`stevens_matrices`](@ref), which require a specific spin-``S`` label. To
-  infer this, one can use [`spin_irrep_label`](@ref).
+  infer this, one can use [`spin_label`](@ref).
 * To perform a calculation with dipoles in the large-$S$ limit, use the new mode
   `:dipole_large_S` when constructing a [`System`](@ref).
 

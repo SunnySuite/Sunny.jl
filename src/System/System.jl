@@ -176,12 +176,12 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 @inline eachcell(sys::System) = CartesianIndices(sys.latsize)
 
 """
-    spin_irrep_label(sys::System, i::Int)
+    spin_label(sys::System, i::Int)
 
-If atom `i` or site `site` carries a single spin-``S`` moment, then returns
-``S``. Otherwise, throws an error.
+If atom `i` carries a single spin-``S`` moment, then returns the half-integer
+label ``S``. Otherwise, throws an error.
 """
-function spin_irrep_label(sys::System, i::Int)
+function spin_label(sys::System, i::Int)
     if sys.mode == :dipole_large_S
         return Inf
     else

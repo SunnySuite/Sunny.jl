@@ -103,7 +103,7 @@ end
         c = randn(2k+1)
         E1, E2 = map([:dipole, :dipole_large_S]) do mode
             sys = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], mode)
-            O = stevens_matrices(spin_irrep_label(sys, 1))
+            O = stevens_matrices(spin_label(sys, 1))
             set_onsite_coupling!(sys, sum(c[k-q+1]*O[k, q] for q in -k:k), 1)
             return energy(sys)
         end

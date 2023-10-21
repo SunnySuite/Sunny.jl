@@ -36,7 +36,7 @@
         sys = System(cryst, (L,1,1), [SpinInfo(1, S=2, g=2)], :SUN; seed)
         randomize_spins!(sys)
 
-        S = spin_matrices(spin_irrep_label(sys, 1))
+        S = spin_matrices(spin_label(sys, 1))
         R = Sunny.random_orthogonal(sys.rng, 3; special=true)
         Λ = Sunny.rotate_operator(D*(S[3]^2-(1/5)*S[3]^4), R)
         set_onsite_coupling!(sys, Λ, 1)
