@@ -20,7 +20,7 @@ end
         cryst = Crystal(lattice_vectors(1,1,2,90,90,90), [[0,0,0]])
         sys = System(cryst, dims, [SpinInfo(1; S, g=2)], mode; seed) 
         set_exchange!(sys, -1, Bond(1,1,[1,0,0]))
-        set_onsite_coupling!(sys, -spin_operators(sys, 1)[3]^2, 1)
+        set_onsite_coupling!(sys, S -> -S[3]^2, 1)
         sys
     end
 
@@ -61,7 +61,7 @@ end
         cryst = Crystal(lattice_vectors(1,1,2,90,90,90), [[0,0,0]])
         sys = System(cryst, dims, [SpinInfo(1; S, g=2)], mode; seed) 
         set_exchange!(sys, -1, Bond(1,1,[1,0,0]))
-        set_onsite_coupling!(sys, -spin_operators(sys, 1)[3]^2, 1)
+        set_onsite_coupling!(sys, S -> -S[3]^2, 1)
         enable_dipole_dipole!(sys)
         sys
     end

@@ -27,11 +27,24 @@ import Inflate: inflate_gzip
 import Random: randstring, RandomDevice
 
 const Vec3 = SVector{3, Float64}
+const Vec5 = SVector{5, Float64}
 const Mat3 = SMatrix{3, 3, Float64, 9}
+const Mat5 = SMatrix{5, 5, Float64, 25}
 const CVec{N} = SVector{N, ComplexF64}
 const HermitianC64 = Hermitian{ComplexF64, Matrix{ComplexF64}}
 
-@static if VERSION < v"1.10" hermitianpart(A) = Hermitian(A+A')/2 end
+@static if VERSION < v"1.10"
+    hermitianpart(A) = Hermitian(A+A')/2
+
+    function hermitianpart!(A, uplo::Symbol=:U)
+        for i in CartesianIndices(A)
+            i, j = i.I
+            A[i,j] = (A[i,j] + conj(A[j,i]))/2
+            A[j,i] = conj(A[i,j])
+        end
+        return Hermitian(A, uplo)
+    end
+end
 
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
@@ -39,7 +52,7 @@ include("Operators/Stevens.jl")
 include("Operators/TensorOperators.jl")
 include("Operators/Symbolic.jl")
 include("Operators/Observables.jl")
-export spin_matrices, to_product_space, rotate_operator, print_stevens_expansion
+export spin_matrices, stevens_matrices, to_product_space, rotate_operator, print_stevens_expansion
 
 include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
@@ -64,11 +77,10 @@ include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
 export SpinInfo, System, Site, eachsite, position_to_site, global_position, magnetic_moment, 
-    set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, energy, energy_per_site,
-    spin_operators, stevens_operators, large_S_spin_operators, large_S_stevens_operators,
+    set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, energy, energy_per_site, spin_label,
     set_onsite_coupling!, set_pair_coupling!, set_exchange!, dmvec, enable_dipole_dipole!, set_external_field!,
     to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!, set_exchange_at!,
-    symmetry_equivalent_bonds, remove_periodicity!
+    set_pair_coupling_at!, symmetry_equivalent_bonds, remove_periodicity!
 
 include("MagneticOrdering.jl")
 export print_wrapped_intensities, suggest_magnetic_supercell, set_spiral_order!, set_spiral_order_on_sublattice!
@@ -86,7 +98,10 @@ include("FormFactor.jl")
 export FormFactor
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
-include("SpinWaveTheory/SWTCalculations.jl")
+include("SpinWaveTheory/Util.jl")
+include("SpinWaveTheory/HamiltonianDipole.jl")
+include("SpinWaveTheory/HamiltonianSUN.jl")
+include("SpinWaveTheory/DispersionAndIntensities.jl")
 include("SpinWaveTheory/Lanczos.jl")
 export SpinWaveTheory, dispersion, dssf, delta_function_kernel
 
@@ -129,15 +144,12 @@ include("MonteCarlo/WangLandau.jl")
 include("MonteCarlo/ParallelWangLandau.jl")
 export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
 
+include("deprecated.jl")
+
 ### ext/PlottingExt.jl, dependent on Makie
 function plot_spins end
 function view_crystal end
 export plot_spins, view_crystal
-
-# TODO: Delete in Sunny 0.6
-"""This function is deprecated and does nothing."""
-offline_viewers() = @warn "This function is deprecated and does nothing."
-export offline_viewers
 
 ### ext/ExportVTKExt.jl, dependent on WriteVTK
 function export_vtk end

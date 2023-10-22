@@ -10,8 +10,8 @@ function Sunny.export_vtk(filename,sys; coordinates = :physical, log_scale = fal
     if !ispath(filename)
         mkdir(filename)
     end
-    # In SU(N) mode: sys.dipole is the *expected value* of dipole moment
-    dipole_data_name = sys.mode == :dipole ? "dipole" : "expectation_value_dipole"
+    # In SU(N) mode, `sys.dipoles` are expectation values
+    dipole_data_name = sys.mode == :SUN ? "expectation_value_dipole" : "dipole"
 
     Ni, Nj, Nk = sys.latsize
     latvecs = if coordinates == :physical

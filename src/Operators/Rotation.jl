@@ -78,7 +78,7 @@ end
 
 # Unitary for a rotation matrix in the N-dimensional irrep of SU(2).
 function unitary_irrep_for_rotation(R::Mat3; N::Int)
-    gen = spin_matrices(; N)
+    gen = spin_matrices_of_dim(; N)
     unitary_for_rotation(R, gen)
 end
 

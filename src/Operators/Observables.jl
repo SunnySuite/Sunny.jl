@@ -42,7 +42,7 @@ function parse_observables(N; observables, correlations)
             # SQTODO: Make this use the more optimized expected_spin function
             # Doing this will also, by necessity, allow users to make the same
             # type of optimization for their vector-valued observables.
-            observables = LinearMap{ComplexF64}.(spin_matrices(;N))
+            observables = LinearMap{ComplexF64}.(spin_matrices_of_dim(; N))
         end
     else
         # If it was given as a list, preserve the user's preferred

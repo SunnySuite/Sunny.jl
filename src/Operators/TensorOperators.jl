@@ -67,9 +67,13 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2) where T
         if abs(σ) > tol
             u = reshape(U[:, k], N1, N1)
             v = reshape(V[:, k], N2, N2)
-            # Check factors are really Hermitian
-            @assert norm(u - u') < tol
-            @assert norm(v - v') < tol
+            # Check factors are really Hermitian up to empirical tolerance. It
+            # seems that numerical error can creep into the SVD when singular
+            # values are near each other.
+            hermit_dev = max(norm(u - u'), norm(v - v'))
+            if hermit_dev > 1e-9
+                @warn "Detected non-Hermiticity in SVD of order $hermit_dev"
+            end
             u = hermitianpart(u)
             v = hermitianpart(v)
             push!(ret, (σ*u, conj(v)))

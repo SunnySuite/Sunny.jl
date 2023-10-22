@@ -59,11 +59,10 @@ set_exchange!(sys, ex2, Bond(1, 1, [1, 2, 0]))
 h = 15.5
 field = set_external_field!(sys, [0.0 0.0 h])
 
-# and finally the single-ion anisotropy,
+# and finally an easy-plane single-ion anisotropy,
 
 D = 19.0
-Sz = spin_operators(sys, 1)[3]
-set_onsite_coupling!(sys, D*Sz^2, 1)
+set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 
 # Initialize system to an infinite temperature (fully randomized) initial
 # condition.

@@ -6,18 +6,17 @@ Construct a `System` of spins for a given [`Crystal`](@ref) symmetry. The
 direction. The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which
 determine the magnitude ``S`` and ``g``-tensor of each spin.
 
-The two possible options for `mode` are `:SUN` and `:dipole`. In the former,
-each spin-``S`` degree of freedom is described as an SU(_N_) coherent state,
-i.e. a quantum superposition of ``N = 2S + 1`` levels. This approach can be
-important, e.g., to capture multipolar spin fluctuations when there is a strong
-single-ion anisotropy, or to explicitly resolve spin-orbit coupling. 
+The two primary options for `mode` are `:SUN` and `:dipole`. In the former, each
+spin-``S`` degree of freedom is described as an SU(_N_) coherent state, i.e. a
+quantum superposition of ``N = 2S + 1`` levels. This formalism can be useful to
+capture multipolar spin fluctuations or local entanglement effects. 
 
 Mode `:dipole` projects the SU(_N_) dynamics onto the restricted space of pure
 dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
 dynamics, but single-ion anisotropy and biquadratic exchange interactions will
-be renormalized to improve accuracy. It is possible to disable this
-renormalization by working with operators in the "large-``S``" limit. For
-details, see the documentation page: [Single-Ion Anisotropy](@ref).
+be renormalized to improve accuracy. To disable this renormalization, use the
+mode `:dipole_large_S` which applies the ``S → ∞`` classical limit. For details,
+see the documentation page: [Interaction Strength Renormalization](@ref).
 
 The default units system of (meV, Å, tesla) can be overridden by with the
 `units` parameter; see [`Units`](@ref). 
@@ -29,8 +28,8 @@ All spins are initially polarized in the ``z``-direction.
 """
 function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
                 units=Units.meV, seed=nothing)
-    if !(mode == :SUN || mode == :dipole)
-        error("Mode must be `:SUN` or `:dipole`.")
+    if !in(mode, (:SUN, :dipole, :dipole_large_S))
+        error("Mode must be `:SUN`, `:dipole`, or `:dipole_large_S`.")
     end
 
     # The lattice vectors of `crystal` must be conventional (`crystal` cannot be
@@ -44,14 +43,16 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     infos = propagate_site_info(crystal, infos)
     Ss = [si.S for si in infos]
     gs = [si.g for si in infos]
+
+    # TODO: Label SU(2) rep instead
     Ns = @. Int(2Ss+1)
 
     if mode == :SUN
         allequal(Ns) || error("Currently all spins S must be equal in SU(N) mode.")
         N = first(Ns)
         κs = fill(1.0, na)
-    elseif mode == :dipole
-        N = 0 # acts as marker for :dipole
+    elseif mode in (:dipole, :dipole_large_S)
+        N = 0 # marker for :dipole mode
         κs = copy(Ss)
     end
 
@@ -108,7 +109,7 @@ function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     println(io, lattice_to_str(sys))
     if !isnothing(sys.origin)
         shape = number_to_math_string.(cell_shape(sys))
-        print_formatted_matrix(shape; prefix="Reshaped cell ", io)
+        println(io, formatted_matrix(shape; prefix="Reshaped cell "))
     end
     println(io, energy_to_str(sys))
 end
@@ -164,7 +165,6 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 @inline to_cartesian(i::CartesianIndex{N}) where N = i
 @inline to_cartesian(i::NTuple{N, Int})    where N = CartesianIndex(i)
 
-# kbtodo: offsetcell ?
 # Offset a `cell` by `ncells`
 @inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(mod1.(Tuple(cell) .+ Tuple(ncells), latsize))
 
@@ -174,6 +174,22 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 
 # An iterator over all unit cells using CartesianIndices
 @inline eachcell(sys::System) = CartesianIndices(sys.latsize)
+
+"""
+    spin_label(sys::System, i::Int)
+
+If atom `i` carries a single spin-``S`` moment, then returns the half-integer
+label ``S``. Otherwise, throws an error.
+"""
+function spin_label(sys::System, i::Int)
+    if sys.mode == :dipole_large_S
+        return Inf
+    else
+        @assert sys.mode in (:dipole, :SUN)
+        return (sys.Ns[i]-1)/2
+    end
+end
+
 
 """
     eachsite(sys::System)

@@ -1,8 +1,8 @@
 
 @testitem "Tensors basic" begin
     Ni, Nj = (3, 4)
-    Si0 = spin_matrices(N=Ni)
-    Sj0 = spin_matrices(N=Nj)
+    Si0 = spin_matrices((Ni-1)/2)
+    Sj0 = spin_matrices((Nj-1)/2)
     Si, Sj = Sunny.to_product_space(Si0, Sj0)
 
     # Basic properties of Kronecker product
@@ -48,12 +48,21 @@ end
     E = energy(sys)
     dE_dZ = Sunny.energy_grad_coherents(sys)
     
-    S = spin_matrices(; N=5)
-    Si, Sj = to_product_space(S, S)
-    set_pair_coupling!(sys, Si'*J_exch*Sj, bond; fast=false)
+    set_pair_coupling!(sys, (Si, Sj) -> Si'*J_exch*Sj, bond; extract_parts=false)
     E′ = energy(sys)
     dE_dZ′ = Sunny.energy_grad_coherents(sys)
     
+    @test E ≈ E′
+    @test dE_dZ ≈ dE_dZ′
+
+    set_pair_coupling!(sys, (Si, Sj) -> (Si'*Sj)^2, bond)
+    E = energy_per_site(sys)
+    dE_dZ = Sunny.energy_grad_coherents(sys)
+
+    set_pair_coupling!(sys, (Si, Sj) -> (Si'*Sj)^2, bond; extract_parts=false)
+    E′ = energy_per_site(sys)
+    dE_dZ′ = Sunny.energy_grad_coherents(sys)
+
     @test E ≈ E′
     @test dE_dZ ≈ dE_dZ′
 end
