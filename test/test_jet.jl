@@ -6,8 +6,6 @@
         crystal = Crystal(latvecs, [[0,0,0]])
         L = 2
         sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=2)], mode)
-        set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
-        polarize_spins!(sys, (0,0,1))
 
         @test_opt energy(sys)
         

@@ -26,7 +26,7 @@
     # Test sum rule with custom observables 
     sys = simple_model_sc(; mode=:SUN)
     thermalize_simple_model!(sys; kT=0.1)
-    S = spin_matrices(N=2)
+    S = spin_matrices(1/2)
     observables = Dict(:Sx => S[1], :Sy => S[2], :Sz => S[3])
     sc = dynamical_correlations(sys; nω=100, ωmax=10.0, Δt=0.1, apply_g=false, observables)
     add_sample!(sc, sys)

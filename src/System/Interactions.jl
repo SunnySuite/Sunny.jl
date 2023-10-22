@@ -150,7 +150,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
         ΔE += real(dot(Z, Λ, Z) - dot(Z₀, Λ, Z₀))
     end
 
-    # Quadratic exchange matrix
+    # Pair coupling
     for pc in pair
         cellⱼ = offsetc(to_cell(site), pc.bond.n, latsize)
         sⱼ = dipoles[cellⱼ, pc.bond.j]
@@ -162,16 +162,22 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
 
         # Biquadratic
         if !iszero(pc.biquad)
-            J = pc.biquad
-            if sys.mode == :dipole
-                ΔE += J * ((s⋅sⱼ)^2 - (s₀⋅sⱼ)^2)
-            elseif sys.mode == :SUN
-                error("Biquadratic currently unsupported in SU(N) mode.") 
+            if sys.mode in (:dipole, :dipole_large_S)
+                ΔQ = quadrupole(s) - quadrupole(s₀)
+                Qⱼ = quadrupole(sⱼ)
+            else
+                ΔQ = expected_quadrupole(Z) - expected_quadrupole(Z₀)
+                Qⱼ = expected_quadrupole(Zⱼ)
+            end
+            if pc.biquad isa Float64
+                ΔE += pc.biquad::Float64 * dot(ΔQ, scalar_biquad_metric .* Qⱼ)
+            else
+                ΔE += dot(ΔQ, pc.biquad::Mat5, Qⱼ)
             end
         end
 
         # General
-        if N > 0
+        if sys.mode == :SUN
             for (A, B) in pc.general.data
                 ΔĀ = real(dot(Z, A, Z) - dot(Z₀, A, Z₀))
                 B̄ = real(dot(Zⱼ, B, Zⱼ))
@@ -261,7 +267,9 @@ function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
             sⱼ = sys.dipoles[cellⱼ, bond.j]
 
             # Scalar
-            if N > 0
+            if sys.mode == :SUN
+                # The scalar originates as a product of two expectation values,
+                # which should rescale as κᵢ and κⱼ.
                 E += pc.scalar * sys.κs[cellᵢ, bond.i] * sys.κs[cellⱼ, bond.j]
             else
                 E += pc.scalar
@@ -273,16 +281,24 @@ function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
 
             # Biquadratic
             if !iszero(pc.biquad)
-                J = pc.biquad
-                if sys.mode == :dipole
-                    E += J * (sᵢ⋅sⱼ)^2
-                elseif sys.mode == :SUN
-                    error("Biquadratic currently unsupported in SU(N) mode.")
+                if sys.mode in (:dipole, :dipole_large_S)
+                    Qᵢ = quadrupole(sᵢ)
+                    Qⱼ = quadrupole(sⱼ)
+                else
+                    Zᵢ = sys.coherents[cellᵢ, bond.i]
+                    Zⱼ = sys.coherents[cellⱼ, bond.j]
+                    Qᵢ = expected_quadrupole(Zᵢ)
+                    Qⱼ = expected_quadrupole(Zⱼ)
+                end
+                if pc.biquad isa Float64
+                    E += pc.biquad::Float64 * dot(Qᵢ, scalar_biquad_metric .* Qⱼ)
+                else
+                    E += dot(Qᵢ, pc.biquad::Mat5, Qⱼ)
                 end
             end
 
             # General
-            if N > 0
+            if sys.mode == :SUN
                 Zᵢ = sys.coherents[cellᵢ, bond.i]
                 Zⱼ = sys.coherents[cellⱼ, bond.j]
                 for (A, B) in pc.general.data
@@ -336,7 +352,7 @@ end
 function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells) where N
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into local H matrix.
-    if N == 0
+    if sys.mode in (:dipole, :dipole_large_S)
         stvexp = ints.onsite :: StevensExpansion
         for cell in cells
             s = dipoles[cell, i]
@@ -358,14 +374,25 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
             ∇E[cellᵢ, bond.i] += J  * sⱼ
             ∇E[cellⱼ, bond.j] += J' * sᵢ
 
-            # Biquadratic
-            if !iszero(pc.biquad)
-                J = pc.biquad
-                if sys.mode == :dipole
-                    ∇E[cellᵢ, bond.i] += J * 2sⱼ*(sᵢ⋅sⱼ)
-                    ∇E[cellⱼ, bond.j] += J * 2sᵢ*(sᵢ⋅sⱼ)
-                elseif sys.mode == :SUN
-                    error("Biquadratic currently unsupported in SU(N) mode.")
+            # Biquadratic for dipole mode only (SU(N) handled differently)
+            if sys.mode in (:dipole, :dipole_large_S)
+                if !iszero(pc.biquad)
+                    Qᵢ = quadrupole(sᵢ)
+                    Qⱼ = quadrupole(sⱼ)
+                    ∇Qᵢ = grad_quadrupole(sᵢ)
+                    ∇Qⱼ = grad_quadrupole(sⱼ)
+
+                    # In matrix case, energy is `Qᵢ' * biquad * Qⱼ`, and we are
+                    # taking gradient with respect to either sᵢ or sⱼ.
+                    if pc.biquad isa Float64
+                        J = pc.biquad::Float64
+                        ∇E[cellᵢ, bond.i] += J * (Qⱼ .* scalar_biquad_metric)' * ∇Qᵢ
+                        ∇E[cellⱼ, bond.j] += J * (Qᵢ .* scalar_biquad_metric)' * ∇Qⱼ
+                    else
+                        J = pc.biquad::Mat5
+                        ∇E[cellᵢ, bond.i] += (Qⱼ' * J') * ∇Qᵢ
+                        ∇E[cellⱼ, bond.j] += (Qᵢ' * J)  * ∇Qⱼ
+                    end
                 end
             end
         end
@@ -381,13 +408,13 @@ function set_energy_grad_coherents!(HZ, Z::Array{CVec{N}, 4}, sys::System{N}) wh
 
     # Accumulate Zeeman, Ewald interactions, and spin-bilinear exchange
     # interactions into dE/ds, where s is the expected spin associated with Z.
-    # Note that dE_ds does _not_ include the onsite coupling or biquadratic
-    # couplings, which must be handled differently.
+    # Note that dE_ds does _not_ include the onsite, biquadratic, or general
+    # pair couplings, which must be handled differently.
     dE_ds, dipoles = get_dipole_buffers(sys, 2)
     @. dipoles = expected_spin(Z)
     set_energy_grad_dipoles!(dE_ds, dipoles, sys)
 
-    # Accumulate anisotropies and exchange interactions.
+    # Accumulate onsite and pair couplings
     for i in 1:natoms(sys.crystal)
         if is_homogeneous(sys)
             # Interactions for sublattice i (same for every cell)
@@ -417,6 +444,27 @@ function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_ds::Array{V
         (; bond, isculled) = pc
         isculled && break
 
+        if !iszero(pc.biquad)
+            for cellᵢ in cells
+                cellⱼ = offsetc(cellᵢ, bond.n, sys.latsize)
+                Zᵢ = Z[cellᵢ, bond.i]
+                Zⱼ = Z[cellⱼ, bond.j]
+                Qᵢ = expected_quadrupole(Zᵢ)
+                Qⱼ = expected_quadrupole(Zⱼ)
+                if pc.biquad isa Float64
+                    J = pc.biquad::Float64
+                    dE_dQᵢ = pc.biquad * (scalar_biquad_metric .* Qⱼ)
+                    dE_dQⱼ = pc.biquad * (scalar_biquad_metric .* Qᵢ)
+                else
+                    J = pc.biquad::Mat5
+                    dE_dQᵢ = pc.biquad * Qⱼ
+                    dE_dQⱼ = pc.biquad' * Qᵢ
+                end
+                HZ[cellᵢ, bond.i] += mul_quadrupole_matrices(dE_dQᵢ, Zᵢ)
+                HZ[cellⱼ, bond.j] += mul_quadrupole_matrices(dE_dQⱼ, Zⱼ)
+            end
+        end
+
         for (A, B) in pc.general.data
             A = SMatrix{N, N}(A)
             B = SMatrix{N, N}(B)
@@ -444,24 +492,4 @@ function energy_grad_coherents(sys::System{N}) where N
     ∇E = zero(sys.coherents)
     set_energy_grad_coherents!(∇E, sys.coherents, sys)
     return ∇E
-end
-
-
-# Returns (Λ + (dE/ds)⋅S) Z
-@generated function mul_spin_matrices(Λ, dE_ds::Sunny.Vec3, Z::Sunny.CVec{N}) where N
-    S = spin_matrices(; N)
-    out = map(1:N) do i
-        out_i = map(1:N) do j
-            terms = Any[:(Λ[$i,$j])]
-            for α = 1:3
-                S_αij = S[α][i,j]
-                if !iszero(S_αij)
-                    push!(terms, :(dE_ds[$α] * $S_αij))
-                end
-            end
-            :(+($(terms...)) * Z[$j])
-        end
-        :(+($(out_i...)))
-    end
-    return :(CVec{$N}($(out...)))
 end

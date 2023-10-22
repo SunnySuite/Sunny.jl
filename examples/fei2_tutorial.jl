@@ -160,17 +160,13 @@ set_exchange!(sys, [J′2apm 0.0    0.0;
                     0.0    J′2apm 0.0;
                     0.0    0.0    J′2azz], Bond(1,1,[1,2,1]))
 
-# The function [`set_onsite_coupling!`](@ref) assigns a single-ion anisotropy
-# operator. It can be constructed, e.g., from the matrices given by
-# [`spin_operators`](@ref) or [`stevens_operators`](@ref). Here we construct an
-# easy-axis anisotropy along the direction $\hat{z}$.
+# The function [`set_onsite_coupling!`](@ref) assigns a single-ion anisotropy.
+# The argument can be constructed using [`spin_matrices`](@ref) or
+# [`stevens_matrices`](@ref). Here we use Julia's anonymous function syntax to
+# assign an easy-axis anisotropy along the direction $\hat{z}$.
 
 D = 2.165
-S = spin_operators(sys, 1)
-set_onsite_coupling!(sys, -D*S[3]^2, 1)
-
-# Any anisotropy operator can be converted to a linear combination of Stevens
-# operators with [`print_stevens_expansion`](@ref).
+set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 
 # # Calculating structure factor intensities
 

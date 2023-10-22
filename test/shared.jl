@@ -12,8 +12,7 @@ function add_linear_interactions!(sys, mode)
     set_external_field!(sys, (0.0, 1.0, 1.0))
     if mode == :SUN
         # Kets scale as z → √κ z, so ⟨Λ⟩ → κ ⟨Λ⟩ is linear in κ
-        S = spin_operators(sys, 1)
-        set_onsite_coupling!(sys, 0.2*(S[1]^4+S[2]^4+S[3]^4), 1)
+        set_onsite_coupling!(sys, S -> 0.2*(S[1]^4+S[2]^4+S[3]^4), 1)
     end
 end
 
@@ -29,41 +28,45 @@ function add_exchange_interactions!(sys, _)
 end
 
 function add_quadratic_interactions!(sys, mode)
-    if mode == :dipole
+    if mode in (:dipole, :dipole_large_S)
         add_exchange_interactions!(sys, mode)
     else
+        @assert mode == :SUN
         add_exchange_interactions!(sys, mode)
 
         #=
-        # This alternative must work, but is too slow to enable by default.
-        J  = 0.5   # Anti-ferro nearest neighbor
-        K  = 1.0   # Scale of Kitaev term
-        Γ  = 0.2   # Off-diagonal exchange
-        D  = 0.4   # DM interaction
-        J_exch = [J   Γ   -D;
-                  Γ   J   -D;
-                  D   D  J+K]
-
-        bond = Bond(1, 2, [0, 0, 0])
-        S1 = spin_matrices(; N=sys.Ns[bond.i])
-        S2 = spin_matrices(; N=sys.Ns[bond.j])
-        Si, Sj = to_product_space(S1, S2)
-        set_pair_coupling!(sys, Si'*J_exch*Sj + 0.01(Si'*Sj)^2, bond)
+        # This is a bit slower, but must also work
+        S = spin_label(sys, 1)
+        O = stevens_matrices(S)
+        Q = [O[2,q] for q in 2:-1:-2]
+        Qi, Qj = to_product_space(Q, Q)
+        biquad = [1.2  0   0  0    0
+                    0  1   0  0    0
+                    0  0 1.1  0 -1.4
+                    0  0   0  1    0
+                    0  0 1.4  0  1.3]
+        set_pair_coupling!(sys, 0.01(Qi'*biquad*Qj), Bond(1, 1, [0, 0, 1]))
         =#
     end
 end
 
 function add_quartic_interactions!(sys, mode)
-    if mode == :dipole
-        # Stevens operators O[4,q] are quartic in dipoles, yielding quartic
-        # scaling in κ. We can write something equivalent as a symbolic spin
-        # polynomial. The large-S limit makes it easy to ensure that the spin
-        # polynomials are homogeneous in S.
-        S = large_S_spin_operators
-        set_onsite_coupling!(sys, 0.2 * (S[1]^4 + S[2]^4 + S[3]^4), 3)
+    if mode in (:dipole, :dipole_large_S)
+        # Stevens operators O[4,q] are quartic in dipoles
+        i = 3
+        O = stevens_matrices(spin_label(sys, i))
+        set_onsite_coupling!(sys, 0.2*((1/20)O[4,0] + (1/4)O[4,4]), i)
 
-        # Biquadratic interactions in large-S mode also have quartic scaling.
-        set_exchange!(sys, 0.0, Bond(1, 3, [0, 0, 0]); biquad=0.2, large_S=true)
+        # Bilinear interactions in quadrupoles also have quartic scaling.
+        O = stevens_matrices(spin_label(sys, 1))
+        Q = [O[2,q] for q in 2:-1:-2]
+        Qi, Qj = to_product_space(Q, Q)
+        biquad = [1.2  0   0  0    0
+                    0  1   0  0    0
+                    0  0 1.1  0 -1.4
+                    0  0   0  1    0
+                    0  0 1.4  0  1.3]
+        set_pair_coupling!(sys, 0.1*(Qi'*biquad*Qj), Bond(1, 1, [0, 0, 1]))
     end
 end
 

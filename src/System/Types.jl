@@ -25,16 +25,30 @@ struct TensorDecomposition
     data :: Vector{Tuple{HermitianC64, HermitianC64}}
 end
 
+# Coefficients for the scalar biquadratic `(Si'*Sj)^2 + (Si'*Sj)/2 - const.` in
+# the basis of Stevens quadrupoles O_{2,q}. These numbers derive from the
+# non-uniform normalization convention of the Stevens quadrupoles:
+#=
+    O = stevens_matrices(S)  # arbitrary spin-S
+    c = (1/6)norm(O[2,0])^2
+    [c / norm(O[2,q])^2 for q in 2:-1:-2] ≈ [1/2, 2, 1/6, 2, 1/2]
+=#
+const scalar_biquad_metric = Vec5(1/2, 2, 1/6, 2, 1/2)
+
 # Pair couplings are counted only once per bond
 struct PairCoupling
     isculled :: Bool # Bond directionality is used to avoid double counting
     bond     :: Bond
 
-    # In :dipole mode, biquad couplings will be renormalized following the
-    # procedure in https://arxiv.org/abs/2304.03874
+    # `bilin` indicates a bilinear coupling of dipoles, S'*bilin*S. `biquad`
+    # indicates a coupling of Stevens operators O_{2,q} biquad[q,q'] O_{2,q'}.
+    # If `biquad` is a scalar, then it will denote a multiple the rotationally
+    # invariant biquadratic coupling, `diagm(scalar_biquad_metric)`. In :dipole
+    # mode, biquad couplings stored here will include a renormalization factor,
+    # (1-1/2S₁)(1-1/2S₂), as derived in https://arxiv.org/abs/2304.03874.
     scalar   :: Float64              # Constant shift
-    bilin    :: Union{Float64, Mat3} # Bilinear exchange
-    biquad   :: Float64              # Scalar biquadratic
+    bilin    :: Union{Float64, Mat3} # Bilinear
+    biquad   :: Union{Float64, Mat5} # Biquadratic
 
     # General pair interactions, only valid in SU(N) mode
     general  :: TensorDecomposition
@@ -66,7 +80,8 @@ end
 
 mutable struct System{N}
     const origin           :: Union{Nothing, System{N}}
-    const mode             :: Symbol
+    const mode             :: Symbol                    # :SUN, :dipole, or :dipole_large_S
+
     const crystal          :: Crystal
     const latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
 

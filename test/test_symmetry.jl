@@ -149,11 +149,11 @@ end
     
     # Test some inferred anisotropy matrices
     let
-        N = 7
+        S = 3
         k = 6
         i = 1
         cryst = Sunny.diamond_crystal()
-        O = Sunny.StevensMatrices(N)
+        O = stevens_matrices(S)
 
         # print_site(cryst, i)
         Λ = O[6,0]-21O[6,4]
@@ -186,7 +186,7 @@ end
 
             # Most general allowed anisotropy for this crystal
             c = randn(9)
-            O = stevens_operators(sys, 1)
+            O = stevens_matrices(spin_label(sys, 1))
             Λ = sum(c .* [O[2,0], O[2,2], O[4,0], O[4,2], O[4,4], O[6,0], O[6,2], O[6,4], O[6,6]])
             set_onsite_coupling!(sys, Λ, 1)
 
@@ -329,7 +329,7 @@ end
     randomize_spins!(sys0)
 
     i = 1
-    O = stevens_operators(sys0, i)
+    O = stevens_matrices(spin_label(sys0, i))
     Λ = randn()*(O[2,0]+3O[2,2]) +
         randn()*(O[4,0]-5O[4,2]) + randn()*(O[4,0]+5O[4,4]) +
         randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,0]+(105/16)O[6,2]+(231/16)O[6,6])

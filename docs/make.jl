@@ -84,7 +84,7 @@ Documenter.makedocs(;
         ],
         "Modeling Guides" => [
             "structure-factor.md",
-            "anisotropy.md",    
+            "renormalization.md",
         ],
         "library.md",
         "versions.md",

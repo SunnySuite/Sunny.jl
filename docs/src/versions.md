@@ -2,7 +2,17 @@
 
 ## v0.5.6
 
-* General pair couplings are now supported in [`set_pair_coupling!`](@ref). 
+* General pair couplings are now supported in [`set_pair_coupling!`](@ref) and
+  [`set_pair_coupling_at!`]. `:SUN` supports interactions of any order, but
+  `:dipole` mode is limited to bilinear and biquadratic coupling of the spin.
+* Deprecate the option `biquad` to [`set_exchange!`]. Use instead
+  `set_pair_coupling!`, which generalizes beyond the scalar biquadratic.
+* Deprecate `spin_operators`, `stevens_operators`, `large_S_spin_operators` and
+  `large_S_stevens_operators`. Use instead [`spin_matrices`](@ref) and
+  [`stevens_matrices`](@ref), which require a specific spin-``S`` label. To
+  infer this, one can use [`spin_label`](@ref).
+* To perform a calculation with dipoles in the large-$S$ limit, use the new mode
+  `:dipole_large_S` when constructing a [`System`](@ref).
 
 ## v0.5.5
 
@@ -35,7 +45,7 @@
 
 # v0.5.3
 
-* Add [`large_S_spin_operators`](@ref) and [`large_S_stevens_operators`](@ref)
+* Add `large_S_spin_operators` and `large_S_stevens_operators`
   to support single-ion anisotropies in dipole mode without renormalization. Set
   `large_S=true` in [`set_exchange!`](@ref) to avoid renormalization of
   biquadratics.
@@ -79,10 +89,10 @@ Require Julia 1.9.
 Replace `set_anisotropy!` with a new function [`set_onsite_coupling!`](@ref)
 (and similarly [`set_onsite_coupling_at!`](@ref)). The latter expects an
 explicit matrix representation for the local Hamiltonian. This can be
-constructed, e.g., as a linear combination of [`stevens_operators`](@ref), or as
-a polynomial of [`spin_operators`](@ref). To understand the mapping between
-these two, the new function [`print_stevens_expansion`](@ref) acts on an
-arbitrary local operator.
+constructed, e.g., as a linear combination of `stevens_operators`, or as a
+polynomial of `spin_operators`. To understand the mapping between these two, the
+new function [`print_stevens_expansion`](@ref) acts on an arbitrary local
+operator.
 
 Remove `set_biquadratic!`. Instead, use an optional keyword argument `biquad` to
 [`set_exchange!`](@ref).
