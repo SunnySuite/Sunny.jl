@@ -287,7 +287,7 @@ end
 
     set_onsite_coupling!(sys_dip, aniso, 1)
     
-    s̃ᶻ = M' * spin_operators(sys_SUN,1)
+    s̃ᶻ = M' * spin_matrices(S)
     aniso = Ds[1]*s̃ᶻ^2 + Ds[2]*s̃ᶻ^4 + Ds[3]*s̃ᶻ^6
     set_onsite_coupling!(sys_SUN, aniso, 1)
 

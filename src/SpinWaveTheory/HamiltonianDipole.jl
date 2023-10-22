@@ -115,7 +115,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     end
     
     # make H exactly hermitian for cholesky decomposition.
-    make_hermitian!(H) 
+    hermitianpart!(H) 
 
     # add tiny part to the diagonal elements for cholesky decomposition.
     for i = 1:2L

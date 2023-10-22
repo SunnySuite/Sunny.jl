@@ -33,7 +33,18 @@ const Mat5 = SMatrix{5, 5, Float64, 25}
 const CVec{N} = SVector{N, ComplexF64}
 const HermitianC64 = Hermitian{ComplexF64, Matrix{ComplexF64}}
 
-@static if VERSION < v"1.10" hermitianpart(A) = Hermitian(A+A')/2 end
+@static if VERSION < v"1.10"
+    hermitianpart(A) = Hermitian(A+A')/2
+
+    function hermitianpart!(A, uplo::Symbol=:U)
+        for i in CartesianIndices(A)
+            i, j = i.I
+            A[i,j] = (A[i,j] + conj(A[j,i]))/2
+            A[j,i] = conj(A[i,j])
+        end
+        return Hermitian(A, uplo)
+    end
+end
 
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")

@@ -15,14 +15,6 @@ function set_H21!(H)
     end
 end
 
-# Set H to (H + H')/2 without allocating
-function make_hermitian!(H)
-    for i in CartesianIndices(H)
-        i, j = i.I
-        H[i,j], H[j,i] = (H[i,j] + conj(H[j,i]))/2, (H[j,i] + conj(H[i,j]))/2
-    end
-end
-
 # Calculating norm(H - H') without allocating
 function hermiticity_norm(H)
     accum = 0.0

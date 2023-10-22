@@ -116,7 +116,7 @@ function dispersion(swt::SpinWaveTheory, qs)
 
     ℋ = zeros(ComplexF64, 2nmodes, 2nmodes)
     Vbuf = zeros(ComplexF64, 2nmodes, 2nmodes)
-    disp = zeros(Float64, nmodes, length(qs)) 
+    disp = zeros(Float64, nmodes, length(qs))
     bogoliubov! = mk_bogoliubov!(nmodes)
 
     for (iq, q) in enumerate(qs)
