@@ -17,7 +17,7 @@ end
 """
     spin_matrices(S)
 
-Returns a triple of ``N×N``` spin matrices, where ``N = 2S+1``. These are the
+Returns a triple of ``N×N`` spin matrices, where ``N = 2S+1``. These are the
 generators of SU(2) in the spin-`S` representation.
 
 If `S == Inf`, then the return values are abstract symbols denoting

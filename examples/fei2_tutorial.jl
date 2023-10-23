@@ -287,7 +287,7 @@ ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, x
 ylims!(ax, 0.0, 7.5)
 xlims!(ax, 1, size(disp, 1))
 colorrange = extrema(intensity)
-for i in axes(disp)[2]
+for i in axes(disp, 2)
     lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=intensity[:,i], colorrange)
 end
 fig

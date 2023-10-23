@@ -347,7 +347,7 @@ params = SIMULATED_EXPERIMENT_HISTOGRAM_PARAMS
 path = [[q,0,0] for q in bcs[1]]
 disp, intensity = intensities_bands(swt, path, intensity_formula(swt,:perp, kernel = delta_function_kernel))
 
-for i in axes(disp)[2]
+for i in axes(disp, 2)
     lines!(ax, bcs[1], disp[:,i]; color=intensity[:,i], colormap = :turbo,linewidth = 5,colorrange = (0.,1.))
 end
 Colorbar(f[1,2],colormap = :turbo, limits = (0.,1.))

@@ -1,72 +1,46 @@
-# Bogoliubov transformation that diagonalizes a bosonic Hamiltonian. See Colpa
-# JH. *Diagonalization of the quadratic boson hamiltonian* Physica A:
-# Statistical Mechanics and its Applications, 1978 Sep 1;93(3-4):327-53.
-function mk_bogoliubov!(L)
-    Σ = Diagonal(diagm([ones(ComplexF64, L); -ones(ComplexF64, L)]))
-    buf = UpperTriangular(zeros(ComplexF64,2L,2L))
+# Bogoliubov transformation that diagonalizes a quadratic bosonic Hamiltonian,
+# allowing for anomalous terms. The general procedure derives from Colpa,
+# Physica A, 93A, 327-353 (1978).
+function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
+    L = div(size(H, 1), 2)
+    @assert size(V) == size(H) == (2L, 2L)
 
-    function bogoliubov!(disp, V, H, energy_tol, mode_fast::Bool = false)
-        @assert size(H, 1) == size(H, 2) "H is not a square matrix"
-        @assert size(H, 1) % 2 == 0 "dimension of H is not even"
-        @assert size(H, 1) ÷ 2 == L "dimension of H doesn't match $L"
-        @assert length(disp) == L "length of dispersion doesn't match $L"
-
-        if (!mode_fast)
-            eigval_check = eigen(Σ * H).values
-            @assert all(<(energy_tol), abs.(imag(eigval_check))) "Matrix contains complex eigenvalues with imaginary part larger than `energy_tol`= "*string(energy_tol)*"(`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
-
-            eigval_check = eigen(H).values
-            @assert all(>(1e-12), real(eigval_check)) "Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)"
-        end
-  
-        K = if mode_fast
-          cholesky!(H).U # Clobbers H
-        else
-          K = cholesky(H).U
-          @assert norm(K' * K - H) < 1e-12 "Cholesky fails"
-          K
-        end
-
-        # Compute eigenvalues of KΣK', sorted in descending order by real part
-        eigval, U = if mode_fast
-          mul!(buf,K,Σ)
-          mul!(V,buf,K')
-          # Hermitian only views the upper triangular, so no need
-          # to explicitly symmetrize here
-          T = Hermitian(V)
-          eigen!(T;sortby = λ -> -real(λ)) # Clobbers
-        else
-          T = K * Σ * K'
-          eigen(Hermitian(T + T') / 2;sortby = λ -> -real(λ))
-        end
-
-        @assert mode_fast || norm(U * U' - I) < 1e-10 "Orthonormality fails"
-
-        for i = 1:2*L
-            if (i ≤ L && eigval[i] < 0.0) || (i > L && eigval[i] > 0.0)
-                error("Matrix not positive definite (`sw_fields.coherent_states` not a classical ground state of the Hamiltonian)")
-            end
-            pref = i ≤ L ? √(eigval[i]) : √(-eigval[i])
-            view(U,:,i) .*= pref
-        end
-
-        V .= U
-        ldiv!(K,V)
-
-        if (!mode_fast)
-            E_check = V' * H * V
-            [E_check[i, i] -= eigval[i] for i = 1:L]
-            [E_check[i, i] += eigval[i] for i = L+1:2*L]
-            @assert all(<(1e-8), abs.(E_check)) "Eigenvectors check fails (Bogoliubov matrix `V` are not normalized!)"
-            @assert all(<(1e-6), abs.(V' * Σ * V - Σ)) "Para-renormalization check fails (Boson commutatition relations not preserved after the Bogoliubov transformation!)"
-        end
-
-        # The linear spin-wave dispersion in descending order.
-        for i in 1:L
-            disp[i] = 2eigval[i]
-        end
-        return
+    # Initialize V to the para-unitary identity Ĩ = diagm([ones(L), -ones(L)])
+    V .= 0
+    for i in 1:L
+        V[i, i] = 1
+        V[i+L, i+L] = -1
     end
+
+    # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of V.
+    # Eigenvalues are sorted such that quasi-particle energies will appear in
+    # descending order.
+    λ, V0 = eigen!(Hermitian(V), Hermitian(H); sortby = x -> -1/real(x))
+
+    # Note that V0 and V refer to the same data.
+    @assert V0 === V
+
+    # Normalize columns of V so that para-unitarity holds, V† Ĩ V = Ĩ.
+    for j in axes(V, 2)
+        c = 1 / sqrt(abs(λ[j]))
+        view(V, :, j) .*= c
+    end
+
+    # Inverse of λ gives eigenvalues of Ĩ H. We only care about the first L
+    # eigenvalues, which are positive. A factor of 2 is needed to get the
+    # physical quasiparticle energies.
+    disp = resize!(λ, L)
+    @. disp = 2 / disp
+
+    # These properties hold mathematically. Note that the data in H has been
+    # overwritten by eigen!, so H0 should refer to an original copy of H.
+    #=
+    Ĩ = Diagonal([ones(L); -ones(L)])
+    @assert V' * Ĩ * V ≈ Ĩ
+    @assert diag(V' * H0 * V) ≈ [disp/2; reverse(disp)/2]
+    =#
+
+    return disp
 end
 
 
@@ -108,26 +82,30 @@ index, corresponding to mode, is added to these. Each entry of the array is an
 energy.
 """
 function dispersion(swt::SpinWaveTheory, qs)
-    (; sys, energy_tol) = swt
+    (; sys) = swt
     
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     nmodes  = Nf * Nm
 
-    ℋ = zeros(ComplexF64, 2nmodes, 2nmodes)
-    Vbuf = zeros(ComplexF64, 2nmodes, 2nmodes)
+    H = zeros(ComplexF64, 2nmodes, 2nmodes)
+    V = zeros(ComplexF64, 2nmodes, 2nmodes)
     disp = zeros(Float64, nmodes, length(qs))
-    bogoliubov! = mk_bogoliubov!(nmodes)
 
     for (iq, q) in enumerate(qs)
         q_reshaped = to_reshaped_rlu(swt.sys, q)
         if sys.mode == :SUN
-            swt_hamiltonian_SUN!(ℋ, swt, q_reshaped)
+            swt_hamiltonian_SUN!(H, swt, q_reshaped)
         else
             @assert sys.mode in (:dipole, :dipole_large_S)
-            swt_hamiltonian_dipole!(ℋ, swt, q_reshaped)
+            swt_hamiltonian_dipole!(H, swt, q_reshaped)
         end
-        bogoliubov!(view(disp,:,iq), Vbuf, ℋ, energy_tol)
+
+        try
+            view(disp, :, iq) .= bogoliubov!(V, H)
+        catch e
+            error("Instability at wavevector q = $q")
+        end
     end
 
     return reshape_dispersions(disp)
@@ -256,9 +234,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     H = zeros(ComplexF64, 2*nmodes, 2*nmodes)
     V = zeros(ComplexF64, 2*nmodes, 2*nmodes)
     Avec_pref = zeros(ComplexF64, Nm)
-    disp = zeros(Float64, nmodes)
     intensity = zeros(return_type, nmodes)
-    bogoliubov! = mk_bogoliubov!(nmodes)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
@@ -307,7 +283,12 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             @assert sys.mode in (:dipole, :dipole_large_S)
             swt_hamiltonian_dipole!(H, swt, q_reshaped)
         end
-        bogoliubov!(disp, V, H, swt.energy_tol, mode_fast)
+
+        disp = try
+            bogoliubov!(V, H)
+        catch e
+            error("Instability at wavevector q = $q")
+        end
 
         for i = 1:Nm
             @assert Nm == natoms(sys.crystal)

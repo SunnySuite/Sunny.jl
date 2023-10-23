@@ -15,26 +15,24 @@ struct SWTDataSUN
 end
 
 """
-    SpinWaveTheory(sys, energy_ϵ::Float64=1e-8, energy_tol=1e-6)
+    SpinWaveTheory(sys, energy_ϵ::Float64=1e-8)
 
 Constructs an object to perform linear spin wave theory. Use it with
 [`dispersion`](@ref) and [`dssf`](@ref) functions.
 
 The optional parameter `energy_ϵ` adds a small positive shift to the diagonal of
 the dynamical matrix ``D`` to avoid numerical issues with zero-energy
-quasi-particle modes. The optional parameter `energy_tol` relaxes the check on
-the imaginary part of the eigenvalues.
+quasi-particle modes.
 """
 struct SpinWaveTheory
     sys        :: System
     data       :: Union{SWTDataDipole, SWTDataSUN}
-    energy_ϵ   :: Float64          # Energy shift applied to dynamical matrix prior to Bogoliubov transformation
-    energy_tol :: Float64          # Energy tolerance for maximal imaginary part of quasiparticle energies
+    energy_ϵ   :: Float64
 
     observables :: ObservableInfo
 end
 
-function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Float64=1e-6, observables=nothing, correlations=nothing) where N
+function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing) where N
     if !isnothing(sys.ewald)
         error("SpinWaveTheory does not yet support long-range dipole-dipole interactions.")
     end
@@ -56,7 +54,7 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, energy_tol::Flo
         data = swt_data_dipole(sys)
     end
 
-    return SpinWaveTheory(sys, data, energy_ϵ, energy_tol, obs)
+    return SpinWaveTheory(sys, data, energy_ϵ, obs)
 end
 
 

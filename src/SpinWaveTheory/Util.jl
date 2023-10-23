@@ -1,8 +1,5 @@
 @inline δ(x, y) = (x==y)
 
-# Metric for scalar biquadratic interaction when quadrupole operators are the
-# Stevens operators 𝒪[2,q]
-const scalar_biquad_metric_mat = diagm(Vec5(1/2, 2, 1/6, 2, 1/2))
 
 # Set submatrix H21 to H12' without allocating
 function set_H21!(H)
@@ -17,12 +14,11 @@ end
 
 # Calculating norm(H - H') without allocating
 function hermiticity_norm(H)
-    accum = 0.0
-    for i in CartesianIndices(H) 
-        i, j = i.I
-        accum += abs(H[i,j] - conj(H[j,i]))
+    acc = 0.0
+    for idx in CartesianIndices(H) 
+        acc += abs2(H[idx] - H'[idx])
     end
-    return accum
+    return sqrt(acc)
 end
 
 # Modified from LinearAlgebra.jl to not perform any conjugation

@@ -109,15 +109,12 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     end
 
     # H must be hermitian up to round-off errors
-    if hermiticity_norm(H) > 1e-12
-        println("norm(H-H')= ", norm(H-H'))
-        throw("H is not hermitian!")
-    end
+    @assert hermiticity_norm(H) < 1e-12
     
-    # make H exactly hermitian for cholesky decomposition.
+    # Make H exactly hermitian
     hermitianpart!(H) 
 
-    # add tiny part to the diagonal elements for cholesky decomposition.
+    # Add small constant shift for positive-definiteness
     for i = 1:2L
         H[i, i] += swt.energy_ϵ
     end
