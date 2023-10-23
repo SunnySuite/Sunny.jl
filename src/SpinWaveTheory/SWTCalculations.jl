@@ -750,10 +750,16 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             end
 
             # The meaning of the (A,B) correlation at this point is
-            # that the fourier transform, normalized as
+            # that the (bilateral) fourier transform, normalized as
             #   ∫±∞ exp(-iωt) <A(t) B> dt
             # of the correlation <A(t) B> has a term:
             #   2π * corrs[corr_ix_AB] * δ(disp[band] - ω)
+            #
+            # The factor of 2 (which is not included in `corrs') is
+            # incorporated later by the `unilateral_to_bilateral = true'
+            # kwarg to DipoleFactor(...), FullTensor(...), etc. The
+            # factor of π is due to the width of the Lorentzian, and
+            # Sunny currently does not incorporate this factor.
             intensity[band] = f(q_absolute, disp[band], corrs[corr_ix])
         end
 
