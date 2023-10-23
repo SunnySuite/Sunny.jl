@@ -56,7 +56,7 @@ disp, intensity = intensities_bands(swt, path, formula);
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
 ylims!(ax, -1e-1, 2.3)
-for i in axes(disp)[2]
+for i in axes(disp, 2)
     lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=intensity[:,i], colorrange=(0,1e-2))
 end
 fig

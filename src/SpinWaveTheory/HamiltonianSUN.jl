@@ -78,7 +78,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     N = sys.Ns[1]                       # Dimension of SU(N) coherent states
     nflavors = N - 1                    # Number of local boson flavors
     L = nflavors * natoms(sys.crystal)  # Number of quasiparticle bands
-    @assert size(H) == (2L, 2L) "Dimension of Hamiltonian buffer incompatible with system information"
+    @assert size(H) == (2L, 2L)
 
     # Clear the Hamiltonian
     H .= 0
@@ -135,15 +135,12 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     set_H21!(H)
 
     # Ensure that H is hermitian up to round-off errors.
-    if hermiticity_norm(H) > 1e-12 
-        println("norm(H-H')= ", norm(H-H'))
-        throw("H is not hermitian!")
-    end
+    @assert hermiticity_norm(H) < 1e-12
 
-    # Make H exactly hermitian for Cholesky decomposition.
+    # Make H exactly hermitian
     hermitianpart!(H)
 
-    # Add constant offset for Cholesky decomposition.
+    # Add small constant shift for positive-definiteness
     for i in 1:2L
         H[i,i] += swt.energy_ϵ
     end

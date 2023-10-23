@@ -454,7 +454,7 @@ end
         cryst = Crystal(I(3), [[0,0,0]]) 
         sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], :SUN)
         J = -1.0
-        S = spin_matrices(; N=3)
+        S = spin_matrices(1)
         S1, S2 = Sunny.to_product_space(S, S)
         exchange = J*(S1'*S2)
         set_pair_coupling!(sys, exchange, Bond(1,1,[1,0,0]); extract_parts)
@@ -498,7 +498,7 @@ end
 
     # Set up dimer model and observables (0 and π channels manually specified)
     sys, cryst = dimer_model(; J=1.0, J′=0.2, h=0.0, dims=(2,1,1), fast=false) 
-    S = spin_matrices(; N=2)
+    S = spin_matrices(1/2)
     S1, S2 = Sunny.to_product_space(S, S)
     observables = [
         1/√2*(S1[1] - S2[1]),

@@ -216,8 +216,8 @@ end
 
 Returns a generator of Stevens operators in the spin-`S` representation. The
 return value `O` can be indexed as `O[k,q]`, where ``0 ≤ k ≤ 6`` labels an irrep
-of SO(3) and ``q = -k, …, k``. This will produce an ``N×N`` matrix where ``N =
-2S + 1``. Linear combinations of Stevens operators can be used as a "physical
+of SO(3) and ``-k ≤ q ≤ k``. This will produce an ``N×N`` matrix where ``N = 2S
++ 1``. Linear combinations of Stevens operators can be used as a "physical
 basis" for decomposing local observables. To see this decomposition, use
 [`print_stevens_expansion`](@ref).
 
