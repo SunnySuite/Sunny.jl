@@ -18,7 +18,6 @@ Note that `ks` is an array of wave vectors of arbitrary dimension. Each element
 """
 function intensities_broadened(swt::SpinWaveTheory, ks, ωvals, formula)
     ks = Vec3.(ks)
-    nmodes = num_bands(swt)
     num_ω = length(ωvals)
 
     return_type = typeof(formula).parameters[1]
@@ -170,3 +169,5 @@ function intensities_bin_multisample(swt::SpinWaveTheory, hist_params::BinningPa
     end
     is, counts
 end
+
+

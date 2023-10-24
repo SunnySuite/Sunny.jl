@@ -202,11 +202,10 @@ Plot the spin configuration defined by `sys`. Optional parameters include:
     (length units).
   - `dims`: Spatial dimensions of system (1, 2, or 3).
 """
-function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red, show_cell=true,
-                          orthographic=false, ghost_radius=0, resolution=(768, 512), show_axis=false, rescale=1.0, dims=3)
+function Sunny.plot_spins(sys::System; resolution=(768, 512), show_axis=false, kwargs...)
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)
-    plot_spins!(ax, sys; arrowscale, stemcolor, color, show_cell, orthographic, ghost_radius, rescale, dims)
+    plot_spins!(ax, sys; kwargs...)
     return fig
 end
 
@@ -217,7 +216,7 @@ end
 Like [`plot_spins`](@ref) but will draw into the given Makie Axis, `ax`.
 """
 function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red, show_cell=true,
-                     orthographic=false, ghost_radius=0, rescale=1.0, dims=3)
+                     orthographic=false, ghost_radius=0, rescale=1.0, dims=3, spin_data = Makie.Observable(sys.dipoles))
     if dims == 2
         sys.latsize[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
     elseif dims == 1
@@ -268,7 +267,7 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
     # Require separate drawing calls with `transparency=true` for ghost sites
     for (isghost, alpha) in ((false, 1.0), (true, 0.08))
         pts = Makie.Point3f0[]
-        vecs = Makie.Vec3f0[]
+        vecs = Makie.Observable(Makie.Vec3f0[])
         arrowcolor = Tuple{eltype(color0), Float64}[]
         for site in eachindex(images)
             vec = (lengthscale / S0) * sys.dipoles[site]
@@ -278,11 +277,26 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
                 iszero(n) == isghost && continue
                 pt = supervecs * (rs[site] + n)
                 push!(pts, Makie.Point3f0(pt))
-                push!(vecs, Makie.Vec3f0(vec))
+                push!(vecs[], Makie.Vec3f0(vec))
                 push!(arrowcolor, (color0[site], alpha))
             end
         end
-        shifted_pts = pts - arrow_fractional_shift * vecs
+
+        Makie.on(spin_data, update = true) do dipoles
+          ix = 1
+          for site in eachindex(images)
+            vec = (lengthscale / S0) * dipoles[site]
+            for n in images[site]
+              iszero(n) == isghost && continue
+              vecs[][ix] = Makie.Vec3f0(vec)
+              ix += 1
+            end
+          end
+          notify(vecs)
+        end
+
+        shifted_pts = map(vs -> pts - arrow_fractional_shift * vs, vecs)
+
         linecolor = @something (stemcolor, alpha) arrowcolor
         Makie.arrows!(ax, shifted_pts, vecs; arrowsize, linewidth, linecolor, arrowcolor, transparency=isghost)
 
@@ -303,6 +317,7 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
 
     return ax
 end
+
 
 """
     view_crystal(crystal::Crystal, max_dist::Real; show_axis=true, orthographic=false)
@@ -545,6 +560,24 @@ function scatter_bin_centers!(ax,params;axes)
         push!(ys,yy)
     end
     Makie.scatter!(ax,xs,ys,marker='x',markersize=10,color = :black)
+end
+
+
+function plot_band_intensities(dispersion, intensity)
+    f = Makie.Figure()
+    ax = Makie.Axis(f[1,1]; xlabel = "Momentum", ylabel = "Energy (meV)", xticklabelsvisible = false)
+    plot_band_intensities!(ax,dispersion,intensity)
+    f
+end
+
+function plot_band_intensities!(ax, dispersion, intensity)
+    Makie.ylims!(ax, min(0.0,minimum(dispersion)), maximum(dispersion))
+    Makie.xlims!(ax, 1, size(dispersion, 1))
+    colorrange = extrema(intensity)
+    for i in axes(dispersion)[2]
+        Makie.lines!(ax, 1:length(dispersion[:,i]), dispersion[:,i]; color=intensity[:,i], colorrange)
+    end
+    nothing
 end
 
 
