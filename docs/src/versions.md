@@ -99,11 +99,12 @@ operator.
 Remove `set_biquadratic!`. Instead, use an optional keyword argument `biquad` to
 [`set_exchange!`](@ref).
 
-Rename `DynamicStructureFactor` to [`dynamical_correlations`](@ref).
-Similarly, replace `InstantStructureFactor` with [`instant_correlations`](@ref).
-The return type has been renamed [`SampledCorrelations`](@ref) to emphasize that
-the object may be holding thermodynamic samples, which are collected using
-[`add_sample!`](@ref).
+Rename `DynamicStructureFactor` to [`dynamical_correlations`](@ref). Similarly,
+replace `InstantStructureFactor` with [`instant_correlations`](@ref). The return
+type has been renamed [`SampledCorrelations`](@ref) to emphasize that the object
+may be holding thermodynamic samples, which are collected using
+[`add_sample!`](@ref). Upon construction, the `SampledCorrelations` object will
+be empty (no initial sample).
 
 Remove `intensities` function. Instead, use one of
 [`intensities_interpolated`](@ref) or [`intensities_binned`](@ref). These will
