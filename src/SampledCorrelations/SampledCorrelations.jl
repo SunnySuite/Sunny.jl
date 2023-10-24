@@ -89,19 +89,14 @@ end
     dynamical_correlations(sys::System; Δt, nω, ωmax, 
         process_trajectory=:none, observables=nothing, correlations=nothing) 
 
-Creates a `SampledCorrelations` for calculating and storing ``𝒮(𝐪,ω)`` data.
-This information will be obtained by running dynamical spin simulations on
-equilibrium snapshots and measuring pair-correlations. The ``𝒮(𝐪,ω)`` data can
-be retrieved by calling [`intensities_interpolated`](@ref). Alternatively,
+Creates an empty `SampledCorrelations` object for calculating and storing
+dynamical structure factor intensities ``𝒮(𝐪,ω)``. Call [`add_sample!`](@ref)
+to accumulate data for the given configuration of a spin system. Internally,
+this will run a dynamical trajectory and measure time correlations. The
+``𝒮(𝐪,ω)`` data can be retrieved by calling
+[`intensities_interpolated`](@ref). Alternatively,
 [`instant_intensities_interpolated`](@ref) will integrate out ``ω`` to obtain
 ``𝒮(𝐪)``, optionally applying classical-to-quantum correction factors.
-        
-The `SampleCorrelations` that is returned will contain no correlation data.
-Samples are generated and accumulated by calling [`add_sample!`](@ref)`(sc,
-sys)` where `sc` is a `SampleCorrelations` and `sys` is an appropriately
-equilibrated `System`. Note that the `sys` should be thermalized before each
-call of `add_sample!` such that the spin configuration in the system represents
-a new (fully decorrelated) sample.
 
 Three keywords are required to specify the dynamics used for the trajectory
 calculation.
@@ -113,11 +108,6 @@ calculation.
 - `nω`: The number of energy bins to calculated between 0 and `ωmax`.
 
 Additional keyword options are the following:
-- `process_trajectory`: Specifies a function that will be applied to the sample
-    trajectory before correlation analysis. Current options are `:none` and
-    `:symmetrize`. The latter will symmetrize the trajectory in time, which can
-    be useful for removing Fourier artifacts that arise when calculating the
-    correlations.
 - `observables`: Allows the user to specify custom observables. The
     `observables` must be given as a list of complex `N×N` matrices or
     `LinearMap`s. It's recommended to name each observable, for example:
@@ -184,31 +174,22 @@ end
 """
     instant_correlations(sys::System; process_trajectory=:none, observables=nothing, correlations=nothing) 
 
-Creates a `SampledCorrelations` object for calculating and storing instantaneous
-structure factor intensities ``𝒮(𝐪)``. This data will be calculated from the
-spin-spin correlations of equilibrium snapshots, absent any dynamical
-information. ``𝒮(𝐪)`` data can be retrieved by calling
-[`instant_intensities_interpolated`](@ref).
+Creates an empty `SampledCorrelations` object for calculating and storing
+instantaneous structure factor intensities ``𝒮(𝐪)``. Call
+[`add_sample!`](@ref) to accumulate data for the given configuration of a spin
+system. Call [`instant_intensities_interpolated`](@ref) to retrieve averaged
+``𝒮(𝐪)`` data.
 
 _Important note_: When dealing with continuous (non-Ising) spins, consider
-creating using [`dynamical_correlations`](@ref) instead of 
+creating using [`dynamical_correlations`](@ref) instead of
 `instant_correlations`. The former will provide full ``𝒮(𝐪,ω)`` data, from
 which ``𝒮(𝐪)`` can be obtained by integrating out ``ω``. During this
 integration step, Sunny can incorporate temperature- and ``ω``-dependent
 classical-to-quantum correction factors to produce more accurate ``𝒮(𝐪)``
 estimates. See [`instant_intensities_interpolated`](@ref) for more information.
 
-Prior to calling `instant_correlations`, ensure that `sys` represents a good
-equilibrium sample. Additional sample data may be accumulated by calling
-[`add_sample!`](@ref)`(sc, sys)` with newly equilibrated `sys` configurations.
-
 The following optional keywords are available:
 
-- `process_trajectory`: Specifies a function that will be applied to the sample
-    trajectory before correlation analysis. Current options are `:none` and
-    `:symmetrize`. The latter will symmetrize the trajectory in time, which can
-    be useful for removing Fourier artifacts that arise when calculating the
-    correlations.
 - `observables`: Allows the user to specify custom observables. The
     `observables` must be given as a list of complex `N×N` matrices or
     `LinearMap`s. It's recommended to name each observable, for example:
