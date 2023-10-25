@@ -1,3 +1,59 @@
+@testitem "Sum rule" begin
+    # Using the identity:
+    #   ∫±∞ exp(-iab) da = 2πδ(b)
+    # we find that the usual bilateral LSWT correlations
+    # should satisfy the following sum rule:
+    #   S(ω) = ∫±∞ exp(-iωt) <B(t) A(0)> dt 
+    #   ∫±∞ S(ω) dω = 2π <B(0) A(0)>
+    #
+    # For A = A†, the unilateral LSWT is simply half of
+    # the bilateral ones, so the sum rule is instead:
+    #   ∫±∞ S_unilateral(ω) dω = π <B(0) A(0)>
+    #
+    cryst = Sunny.cubic_crystal()
+    sys = System(cryst, (1,1,1),[SpinInfo(1,S=3/2,g=2)],:SUN)
+    set_external_field!(sys,[0,0,100])
+    polarize_spins!(sys,[0,0,1])
+    swt = SpinWaveTheory(sys)
+
+    # Compute the 2π <B(0) A(0)> RHS of the sum rule
+    Z = sys.coherents[1,1,1,1]
+    Sx,Sy,Sz = spin_matrices(3/2)
+    rhs_x = Z' * Sx * Sx * Z # <Sx(0) Sx(0)>
+    rhs_y = Z' * Sy * Sy * Z # <Sy(0) Sy(0)>
+    rhs_z = Z' * Sz * Sz * Z # <Sz(0) Sz(0)>
+    zero_time_correlation = rhs_x + rhs_y + rhs_z # Tr <Sα(0) Sβ(0)>
+    rhs_bilateral = 2π * zero_time_correlation
+    rhs_bilateral_transverse = 2π * (rhs_x + rhs_y)
+
+    # For debugging:
+    #formula = intensity_formula(swt,:all_available;kernel = delta_function_kernel)
+
+    # Unilateral sum rule
+    unilateral_trace = Sunny.Trace(swt.observables;unilateral_to_bilateral = false)
+    unilateral_formula = intensity_formula(swt,unilateral_trace;kernel = delta_function_kernel)
+    _, unilateral_intensities = intensities_bands(swt,[[0,0,0]],unilateral_formula)
+    lhs_unilateral = sum(unilateral_intensities)
+    # Sam N.B.: This is the `missing factor π' due to the width of the Lorentzian.
+    # On this line, the intensities are being interpreted as giving `Aᵢ' in the formula
+    #   Aᵢ * π * δ(ω-ωᵢ)
+    @test lhs_unilateral ≈ (1/π) * rhs_bilateral_transverse/2
+    # Omitting the π is not allowed!
+    @test_broken lhs_unilateral ≈ rhs_bilateral_transverse/2
+
+    # Bilateral sum rule
+    bilateral_formula = intensity_formula(swt,:trace;kernel = delta_function_kernel)
+    _, bilateral_intensities = intensities_bands(swt,[[0,0,0]],bilateral_formula)
+    lhs_bilateral = sum(bilateral_intensities)
+    # Same factor π as above
+    @test lhs_bilateral ≈ (1/π) * rhs_bilateral_transverse
+    @test_broken lhs_bilateral ≈ rhs_bilateral_transverse
+
+    # Sunny does not yet include the (lower order in S!)
+    # longitudinal contribution!
+    @test_broken lhs_bilateral ≈ (1/π) * rhs_bilateral
+end
+
 @testitem "Kitchen Sink" begin
     cryst = Sunny.pyrochlore_primitive_crystal()
     infos = [SpinInfo(1, S=5/2, g=7.2)]
