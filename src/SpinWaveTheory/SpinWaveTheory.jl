@@ -12,7 +12,7 @@ struct SWTDataSUN
     onsite_operator       :: Array{ComplexF64, 3}  
     bond_operator_pairs   :: Vector{Tuple{Bond, Array{ComplexF64, 4}}}
     observable_operators  :: Array{ComplexF64, 4}
-    local_quantization_basis :: Array{ComplexF64,3}
+    local_unitary         :: Array{ComplexF64,3} # Aligns quantization axis on each site
 end
 
 """
@@ -94,9 +94,9 @@ function swt_data_sun(sys::System{N}, obs) where N
     # Calculate transformation matrices into local reference frames
     n_magnetic_atoms = natoms(sys.crystal)
 
-    local_quantization_basis = Array{ComplexF64}(undef, N, N, n_magnetic_atoms)
+    local_unitary = Array{ComplexF64}(undef, N, N, n_magnetic_atoms)
     for atom in 1:n_magnetic_atoms
-        basis = view(local_quantization_basis,:,:,atom)
+        basis = view(local_unitary, :, :, atom)
         # First axis of local quantization basis is along the 
         # ground-state polarization axis
         basis[:, 1] .= sys.coherents[1, 1, 1, atom]
@@ -119,7 +119,7 @@ function swt_data_sun(sys::System{N}, obs) where N
     dipole_operators = spin_matrices_of_dim(; N)
     quadrupole_operators = stevens_matrices_of_dim(2; N)
     for atom in 1:n_magnetic_atoms
-        U = view(local_quantization_basis,:,:,atom)
+        U = view(local_unitary, :, :,atom)
         for μ = 1:3
             dipole_operators_localized[μ, :, :, atom] = Hermitian(U' * dipole_operators[μ] * U)
         end
@@ -149,7 +149,7 @@ function swt_data_sun(sys::System{N}, obs) where N
             (; isculled, bond, general) = pc
             (isculled || length(general.data) == 0) && continue 
 
-            Ui, Uj = local_quantization_basis[:,:,bond.i], local_quantization_basis[:,:,bond.j] 
+            Ui, Uj = local_unitary[:,:,bond.i], local_unitary[:,:,bond.j] 
             nops = length(general.data)
             bond_operators = zeros(ComplexF64, nops, N, N, 2)
             for (n, (A, B)) in enumerate(general.data)
@@ -166,7 +166,7 @@ function swt_data_sun(sys::System{N}, obs) where N
         onsite_operator_localized,
         bond_operator_pairs_localized,
         observables_localized,
-        local_quantization_basis
+        local_unitary
     )
 end
 
