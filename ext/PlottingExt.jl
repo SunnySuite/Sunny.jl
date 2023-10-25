@@ -35,15 +35,6 @@ const seaborn_muted = [
 
 getindex_cyclic(a, i) = a[mod1(i, length(a))] 
 
-function fill_colors(c::AbstractArray, sz)
-    size(c) == sz || error("Colors array must have size $sz.")
-    if eltype(c) <: Number
-        c = numbers_to_colors(c)
-    end
-    return c
-end
-fill_colors(c, sz) = fill(c, sz)
-
 
 # Similar to Makie internal function `numbers_to_colors`,
 # https://github.com/MakieOrg/Makie.jl/blob/ac02141c4c87dbf71d06b301f6dc18f5719e6d05/src/colorsampler.jl#L154-L177
@@ -189,18 +180,24 @@ end
 
 
 """
-    plot_spins(sys::System; arrowscale=1.0, color=:red, show_cell=true,
-               orthographic=false, ghost_radius=0, dims=3)
+    plot_spins(sys::System; arrowscale=1.0, color=:red, colormap=:viridis, colorrange=nothing,
+               show_cell=true, orthographic=false, ghost_radius=0, dims=3, dipoles=sys.dipoles)
 
 Plot the spin configuration defined by `sys`. Optional parameters include:
 
   - `arrowscale`: Scale all arrows by dimensionless factor.
-  - `color`: Arrow color. May be a numeric value per site in system.
+  - `color`: Arrow colors. May be symbolic, numeric, or a function that maps
+    from site index to a numeric value. If scalar, will be shared among all
+    sites.
+  - `colormap`, `colorrange`: Used to populate colors from numbers following
+    Makie conventions.
   - `show_cell`: Show original crystallographic unit cell.
   - `orthographic`: Use camera with orthographic projection.
   - `ghost_radius`: Show translucent periodic images up to a given distance
     (length units).
   - `dims`: Spatial dimensions of system (1, 2, or 3).
+  - `dipoles`: The dipoles to draw. For animations, can be wrapped in
+    `Makie.Observable`.
 """
 function Sunny.plot_spins(sys::System; resolution=(768, 512), show_axis=false, kwargs...)
     fig = Makie.Figure(; resolution)
@@ -210,13 +207,14 @@ function Sunny.plot_spins(sys::System; resolution=(768, 512), show_axis=false, k
 end
 
 """
-    plot_spins!(ax, sys::System; arrowscale=1.0, color=:red,
-                show_cell=true, orthographic=false, ghost_radius=0, dims=3)
+    plot_spins!(ax, sys::System; arrowscale=1.0, color=:red, colormap=:viridis, colorrange=nothing,
+                show_cell=true, orthographic=false, ghost_radius=0, dims=3, dipoles=sys.dipoles)
 
 Like [`plot_spins`](@ref) but will draw into the given Makie Axis, `ax`.
 """
-function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red, show_cell=true,
-                     orthographic=false, ghost_radius=0, rescale=1.0, dims=3, spin_data = Makie.Observable(sys.dipoles))
+function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red,
+                     colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
+                     ghost_radius=0, rescale=1.0, dims=3, dipoles=Makie.Observable(sys.dipoles))
     if dims == 2
         sys.latsize[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
     elseif dims == 1
@@ -224,8 +222,6 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
     end
 
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-
-    ### Plot spins ###
 
     # Show bounding box of magnetic supercell in gray (this needs to come first
     # to set a scale for the scene in case there is only one atom).
@@ -251,11 +247,8 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
     lengthscale = 0.6a0
     markersize = 0.8linewidth
     arrow_fractional_shift = 0.6
-   
-    # Make sure colors are indexable by site
-    color0 = fill_colors(color, size(sys.dipoles))
 
-    # Find all sites within max_dist of the system center
+    # Find all sites within `max_dist` of the system center
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
     if dims == 3
         r0 = [0.5, 0.5, 0.5]
@@ -264,41 +257,71 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
     end
     images = all_images_within_distance(supervecs, rs, [r0]; max_dist=ghost_radius, include_zeros=true)
 
-    # Require separate drawing calls with `transparency=true` for ghost sites
-    for (isghost, alpha) in ((false, 1.0), (true, 0.08))
-        pts = Makie.Point3f0[]
+    # If given a single color, fill it to an array
+    if !(color isa Union{Function, AbstractArray})
+        color = fill(color, size(dipoles[]))
+    end
+    # Determine a fixed range for color values (if numeric)
+    if isnothing(colorrange)
+        if color isa Function
+            colorrange = extrema(color.(eachindex(dipoles[])))
+        elseif color isa AbstractArray{<: Number}
+            colorrange = extrema(color)
+        end
+    end
+    # Precalculate color gradient and type
+    colorgrad = Makie.cgrad(colormap)
+    colortype = color isa Union{Function, AbstractArray{<: Number}} ? typeof(colorgrad[0.0]) : eltype(color)
+
+    # Create graphical objects associated with the dipole data. These
+    # Observables will be automatically updated on changes to `dipoles`.
+    function mk_observables(; isghost, alpha)
         vecs = Makie.Observable(Makie.Vec3f0[])
-        arrowcolor = Tuple{eltype(color0), Float64}[]
-        for site in eachindex(images)
-            vec = (lengthscale / S0) * sys.dipoles[site]
-            # Loop over all periodic images of site within radius
-            for n in images[site]
-                # If drawing ghosts, require !iszero(n), and vice versa
-                iszero(n) == isghost && continue
-                pt = supervecs * (rs[site] + n)
-                push!(pts, Makie.Point3f0(pt))
-                push!(vecs[], Makie.Vec3f0(vec))
-                push!(arrowcolor, (color0[site], alpha))
+        pts = Makie.Observable(Makie.Point3f0[])
+        pts_shifted = Makie.Observable(Makie.Point3f0[])
+        arrowcolor = Makie.Observable(Tuple{colortype, Float64}[])
+        Makie.on(dipoles, update=true) do dipole_data
+            if size(dipole_data) != size(sys.dipoles)
+                error("Size $(size(dipole_data)) of `dipoles` disagrees with size $(size(sys.dipoles)) of system.")
             end
-        end
+            empty!.((vecs[], pts[], pts_shifted[], arrowcolor[]))
 
-        Makie.on(spin_data, update = true) do dipoles
-          ix = 1
-          for site in eachindex(images)
-            vec = (lengthscale / S0) * dipoles[site]
-            for n in images[site]
-              iszero(n) == isghost && continue
-              vecs[][ix] = Makie.Vec3f0(vec)
-              ix += 1
+            for site in eachindex(images)
+                v = (lengthscale / S0) * vec(dipole_data[site])
+
+                if color isa AbstractArray{<: Number}
+                    (cmin, cmax) = colorrange
+                    c = colorgrad[(color[site] - cmin) / (cmax - cmin)]
+                elseif color isa Function
+                    (cmin, cmax) = colorrange
+                    c = colorgrad[(color(site) - cmin) / (cmax - cmin)]
+                else
+                    c = color[site]
+                end
+
+                for n in images[site]
+                    iszero(n) == isghost && continue
+                    pt = supervecs * (rs[site] + n)
+                    pt_shifted = pt - arrow_fractional_shift * v
+                    push!(vecs[], Makie.Vec3f0(v))
+                    push!(pts[], Makie.Point3f0(pt))
+                    push!(pts_shifted[], Makie.Point3f0(pt_shifted))
+                    push!(arrowcolor[], (c, alpha))
+                end
             end
-          end
-          notify(vecs)
+            # A single notification is enough to trigger redraw
+            notify.((vecs, pts, pts_shifted, arrowcolor))
         end
+        return (; isghost, alpha, vecs, pts, pts_shifted, arrowcolor)
+    end
+    core_observables  = mk_observables(; isghost=false, alpha=1.0)
+    ghost_observables = mk_observables(; isghost=true, alpha=0.08)
 
-        shifted_pts = map(vs -> pts - arrow_fractional_shift * vs, vecs)
-
-        linecolor = @something (stemcolor, alpha) arrowcolor
-        Makie.arrows!(ax, shifted_pts, vecs; arrowsize, linewidth, linecolor, arrowcolor, transparency=isghost)
+    # Draw "core" and "ghost" sites. Enable `transparency` for the latter.
+    for obs in (core_observables, ghost_observables)
+        (; isghost, alpha, vecs, pts, pts_shifted, arrowcolor) = obs
+        linecolor = (stemcolor, alpha)
+        Makie.arrows!(ax, pts_shifted, vecs; arrowsize, linewidth, linecolor, arrowcolor, transparency=isghost)
 
         # Small sphere inside arrow to mark atom position
         Makie.meshscatter!(ax, pts; markersize, color=linecolor, transparency=isghost)
@@ -560,24 +583,6 @@ function scatter_bin_centers!(ax,params;axes)
         push!(ys,yy)
     end
     Makie.scatter!(ax,xs,ys,marker='x',markersize=10,color = :black)
-end
-
-
-function plot_band_intensities(dispersion, intensity)
-    f = Makie.Figure()
-    ax = Makie.Axis(f[1,1]; xlabel = "Momentum", ylabel = "Energy (meV)", xticklabelsvisible = false)
-    plot_band_intensities!(ax,dispersion,intensity)
-    f
-end
-
-function plot_band_intensities!(ax, dispersion, intensity)
-    Makie.ylims!(ax, min(0.0,minimum(dispersion)), maximum(dispersion))
-    Makie.xlims!(ax, 1, size(dispersion, 1))
-    colorrange = extrema(intensity)
-    for i in axes(dispersion)[2]
-        Makie.lines!(ax, 1:length(dispersion[:,i]), dispersion[:,i]; color=intensity[:,i], colorrange)
-    end
-    nothing
 end
 
 
