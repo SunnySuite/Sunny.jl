@@ -108,6 +108,7 @@ function load_nxs(filename)
 
                 if i <= 3 # This is long_name contains a covector
                     covectors[i,:] .= parse_long_name(long_name)
+                    covectors[i,:] .= transpose(pinv(covectors[i,:]))
                 end
             end
 
