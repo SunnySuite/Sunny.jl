@@ -376,10 +376,18 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             return BandStructure{nmodes,return_type}(disp, intensity)
         else
             # Smooth kernel --> Intensity as a function of ω (or a list of ωs)
+            is = Vector{return_type}(undef,10)
+            scratch = Matrix{return_type}(undef,10,length(disp))
             return function(ω)
-                is = Vector{return_type}(undef,length(ω))
-                is .= sum(intensity' .* kernel_edep.(disp',ω .- disp'),dims=2)
-                is
+                if length(ω) > length(is)
+                  is = Vector{return_type}(undef,length(ω))
+                  scratch = Matrix{return_type}(undef,length(ω),length(disp))
+                end
+                scratch .= ω .- disp'
+                scratch .= kernel_edep.(disp',scratch)
+                scratch .= intensity' .* scratch
+                is .= sum(scratch,dims=2)
+                view(is,1:length(ω))
             end
         end
     end
