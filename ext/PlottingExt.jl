@@ -179,16 +179,28 @@ function characteristic_length_between_atoms(cryst::Crystal)
 end
 
 
-"""
-    plot_spins(sys::System; arrowscale=1.0, color=:red, colormap=:viridis, colorrange=nothing,
-               show_cell=true, orthographic=false, ghost_radius=0, dims=3, dipoles=sys.dipoles)
+# Wrapper over `FigureLike` to support both `show` and `notify`.
+struct NotifiableFigure
+    notifier :: Makie.Observable{Nothing}
+    figure :: Makie.FigureLike
+end
+Base.showable(mime::MIME, fig::NotifiableFigure) = showable(mime, fig.figure)
+Base.show(io::IO, ::MIME"text/plain", fig::NotifiableFigure) = print(io, "(Notifiable) " * repr(fig.figure))
+Base.show(io::IO, m::MIME, fig::NotifiableFigure) = show(io, m, fig.figure)
+Base.notify(fig::NotifiableFigure) = notify(fig.notifier)
 
-Plot the spin configuration defined by `sys`. Optional parameters include:
+"""
+    plot_spins(sys::System; arrowscale=1.0, color=:red, colorfn=nothing,
+               colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
+               ghost_radius=0, dims=3
+
+Plot the spin configuration defined by `sys`. Optional parameters are:
 
   - `arrowscale`: Scale all arrows by dimensionless factor.
-  - `color`: Arrow colors. May be symbolic, numeric, or a function that maps
-    from site index to a numeric value. If scalar, will be shared among all
-    sites.
+  - `color`: Arrow colors. May be symbolic or numeric. If scalar, will be shared
+    among all sites.
+  - `colorfn`: Function that dynamically maps from a site index to a numeric
+    color value. Useful for animations.
   - `colormap`, `colorrange`: Used to populate colors from numbers following
     Makie conventions.
   - `show_cell`: Show original crystallographic unit cell.
@@ -196,25 +208,48 @@ Plot the spin configuration defined by `sys`. Optional parameters include:
   - `ghost_radius`: Show translucent periodic images up to a given distance
     (length units).
   - `dims`: Spatial dimensions of system (1, 2, or 3).
-  - `dipoles`: The dipoles to draw. For animations, can be wrapped in
-    `Makie.Observable`.
+
+Calling `notify` on the return value will animate the figure.
 """
 function Sunny.plot_spins(sys::System; resolution=(768, 512), show_axis=false, kwargs...)
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)
-    plot_spins!(ax, sys; kwargs...)
-    return fig
+    notifier = Makie.Observable(nothing)
+    plot_spins!(ax, sys; notifier, kwargs...)
+    return NotifiableFigure(notifier, fig)
 end
 
-"""
-    plot_spins!(ax, sys::System; arrowscale=1.0, color=:red, colormap=:viridis, colorrange=nothing,
-                show_cell=true, orthographic=false, ghost_radius=0, dims=3, dipoles=sys.dipoles)
+# Analogous to internal Makie function `numbers_to_colors`
+function numbers_to_colors!(out::AbstractArray{Makie.RGBAf}, in::AbstractArray{<: Number}, colormap, colorrange)
+    @assert size(out) == size(in)
+    if isnothing(colorrange) || colorrange[1] >= colorrange[2] - 1e-8
+        out .= first(colormap)
+    else
+        cmin, cmax = colorrange
+        len = length(colormap)
+        for i in eachindex(out)
+            # If `cmin ≤ in[i] ≤ cmax` then `0.5 ≤ x ≤ len+0.5`
+            x = (in[i] - cmin) / (cmax - cmin) * len + 0.5
+            # Round to integer and clip to range [1, len]
+            j = max(min(round(Int, x), len), 1)
+            out[i] = colormap[j]
+        end
+    end
+    return out
+end
+
+set_alpha(c, alpha) = return Makie.RGBAf(Makie.RGBf(c), alpha)
+
+#=
+    plot_spins!(ax, sys::System; arrowscale=1.0, color=:red, colorfn=nothing,
+                colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
+                ghost_radius=0, dims=3)
 
 Like [`plot_spins`](@ref) but will draw into the given Makie Axis, `ax`.
-"""
-function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red,
-                     colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
-                     ghost_radius=0, rescale=1.0, dims=3, dipoles=Makie.Observable(sys.dipoles))
+=#
+function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrowscale=1.0, stemcolor=:lightgray, color=:red,
+                     colorfn=nothing, colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
+                     ghost_radius=0, rescale=1.0, dims=3)
     if dims == 2
         sys.latsize[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
     elseif dims == 1
@@ -257,48 +292,51 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
     end
     images = all_images_within_distance(supervecs, rs, [r0]; max_dist=ghost_radius, include_zeros=true)
 
-    # If given a single color, fill it to an array
-    if !(color isa Union{Function, AbstractArray})
-        color = fill(color, size(dipoles[]))
-    end
-    # Determine a fixed range for color values (if numeric)
-    if isnothing(colorrange)
-        if color isa Function
-            colorrange = extrema(color.(eachindex(dipoles[])))
-        elseif color isa AbstractArray{<: Number}
-            colorrange = extrema(color)
-        end
-    end
-    # Precalculate color gradient and type
-    colorgrad = Makie.cgrad(colormap)
-    colortype = color isa Union{Function, AbstractArray{<: Number}} ? typeof(colorgrad[0.0]) : eltype(color)
+    for isghost in (false, true)
+        alpha = isghost ? 0.08 : 1.0
 
-    # Create graphical objects associated with the dipole data. These
-    # Observables will be automatically updated on changes to `dipoles`.
-    function mk_observables(; isghost, alpha)
+        # Every call to RGBf constructor allocates, so pre-calculate color
+        # arrays to speed animations
+        cmap_with_alpha = set_alpha.(Makie.to_colormap(colormap), Ref(alpha))
+        numeric_colors = zeros(size(sys.dipoles))
+        rgba_colors = zeros(Makie.RGBAf, size(sys.dipoles))
+
+        if isnothing(colorfn)
+            # In this case, we can precompute the fixed `rgba_colors` array
+            # according to `color`
+            if color isa AbstractArray
+                @assert size(color) == size(sys.dipoles)
+                if eltype(color) <: Number
+                    dyncolorrange = @something colorrange extrema(color)
+                    numbers_to_colors!(rgba_colors, color, cmap_with_alpha, dyncolorrange)
+                else
+                    rgba_colors = set_alpha.(Makie.to_color.(color), Ref(alpha))
+                end
+            else
+                c = set_alpha(Makie.to_color(color), alpha)
+                rgba_colors = fill(c, size(sys.dipoles))
+            end
+        end
+
+        # These observables will be reanimated upon calling `notify(notifier)`.
         vecs = Makie.Observable(Makie.Vec3f0[])
         pts = Makie.Observable(Makie.Point3f0[])
         pts_shifted = Makie.Observable(Makie.Point3f0[])
-        arrowcolor = Makie.Observable(Tuple{colortype, Float64}[])
-        Makie.on(dipoles, update=true) do dipole_data
-            if size(dipole_data) != size(sys.dipoles)
-                error("Size $(size(dipole_data)) of `dipoles` disagrees with size $(size(sys.dipoles)) of system.")
-            end
+        arrowcolor = Makie.Observable(Makie.RGBAf[])
+
+        Makie.on(notifier, update=true) do _
+            @assert size(sys.dipoles) == size(images)
             empty!.((vecs[], pts[], pts_shifted[], arrowcolor[]))
 
-            for site in eachindex(images)
-                v = (lengthscale / S0) * vec(dipole_data[site])
-
-                if color isa AbstractArray{<: Number}
-                    (cmin, cmax) = colorrange
-                    c = colorgrad[(color[site] - cmin) / (cmax - cmin)]
-                elseif color isa Function
-                    (cmin, cmax) = colorrange
-                    c = colorgrad[(color(site) - cmin) / (cmax - cmin)]
-                else
-                    c = color[site]
-                end
-
+            # Dynamically adapt `rgba_colors` according to `colorfn`
+            if !isnothing(colorfn)
+                numeric_colors .= colorfn.(CartesianIndices(sys.dipoles))
+                dyncolorrange = @something colorrange extrema(numeric_colors)
+                numbers_to_colors!(rgba_colors, numeric_colors, cmap_with_alpha, dyncolorrange)
+            end
+            
+            for site in CartesianIndices(images)
+                v = (lengthscale / S0) * vec(sys.dipoles[site])
                 for n in images[site]
                     iszero(n) == isghost && continue
                     pt = supervecs * (rs[site] + n)
@@ -306,20 +344,14 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
                     push!(vecs[], Makie.Vec3f0(v))
                     push!(pts[], Makie.Point3f0(pt))
                     push!(pts_shifted[], Makie.Point3f0(pt_shifted))
-                    push!(arrowcolor[], (c, alpha))
+                    push!(arrowcolor[], rgba_colors[site])
                 end
             end
-            # A single notification is enough to trigger redraw
+            # Trigger Makie redraw
             notify.((vecs, pts, pts_shifted, arrowcolor))
         end
-        return (; isghost, alpha, vecs, pts, pts_shifted, arrowcolor)
-    end
-    core_observables  = mk_observables(; isghost=false, alpha=1.0)
-    ghost_observables = mk_observables(; isghost=true, alpha=0.08)
 
-    # Draw "core" and "ghost" sites. Enable `transparency` for the latter.
-    for obs in (core_observables, ghost_observables)
-        (; isghost, alpha, vecs, pts, pts_shifted, arrowcolor) = obs
+        # Draw arrows
         linecolor = (stemcolor, alpha)
         Makie.arrows!(ax, pts_shifted, vecs; arrowsize, linewidth, linecolor, arrowcolor, transparency=isghost)
 
