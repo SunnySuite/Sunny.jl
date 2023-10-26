@@ -35,15 +35,6 @@ const seaborn_muted = [
 
 getindex_cyclic(a, i) = a[mod1(i, length(a))] 
 
-function fill_colors(c::AbstractArray, sz)
-    size(c) == sz || error("Colors array must have size $sz.")
-    if eltype(c) <: Number
-        c = numbers_to_colors(c)
-    end
-    return c
-end
-fill_colors(c, sz) = fill(c, sz)
-
 
 # Similar to Makie internal function `numbers_to_colors`,
 # https://github.com/MakieOrg/Makie.jl/blob/ac02141c4c87dbf71d06b301f6dc18f5719e6d05/src/colorsampler.jl#L154-L177
@@ -188,36 +179,77 @@ function characteristic_length_between_atoms(cryst::Crystal)
 end
 
 
-"""
-    plot_spins(sys::System; arrowscale=1.0, color=:red, show_cell=true,
-               orthographic=false, ghost_radius=0, dims=3)
+# Wrapper over `FigureLike` to support both `show` and `notify`.
+struct NotifiableFigure
+    notifier :: Makie.Observable{Nothing}
+    figure :: Makie.FigureLike
+end
+Base.showable(mime::MIME, fig::NotifiableFigure) = showable(mime, fig.figure)
+Base.show(io::IO, ::MIME"text/plain", fig::NotifiableFigure) = print(io, "(Notifiable) " * repr(fig.figure))
+Base.show(io::IO, m::MIME, fig::NotifiableFigure) = show(io, m, fig.figure)
+Base.notify(fig::NotifiableFigure) = notify(fig.notifier)
 
-Plot the spin configuration defined by `sys`. Optional parameters include:
+"""
+    plot_spins(sys::System; arrowscale=1.0, color=:red, colorfn=nothing,
+               colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
+               ghost_radius=0, dims=3
+
+Plot the spin configuration defined by `sys`. Optional parameters are:
 
   - `arrowscale`: Scale all arrows by dimensionless factor.
-  - `color`: Arrow color. May be a numeric value per site in system.
+  - `color`: Arrow colors. May be symbolic or numeric. If scalar, will be shared
+    among all sites.
+  - `colorfn`: Function that dynamically maps from a site index to a numeric
+    color value. Useful for animations.
+  - `colormap`, `colorrange`: Used to populate colors from numbers following
+    Makie conventions.
   - `show_cell`: Show original crystallographic unit cell.
   - `orthographic`: Use camera with orthographic projection.
   - `ghost_radius`: Show translucent periodic images up to a given distance
     (length units).
   - `dims`: Spatial dimensions of system (1, 2, or 3).
+
+Calling `notify` on the return value will animate the figure.
 """
-function Sunny.plot_spins(sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red, show_cell=true,
-                          orthographic=false, ghost_radius=0, resolution=(768, 512), show_axis=false, rescale=1.0, dims=3)
+function Sunny.plot_spins(sys::System; resolution=(768, 512), show_axis=false, kwargs...)
     fig = Makie.Figure(; resolution)
     ax = Makie.LScene(fig[1, 1]; show_axis)
-    plot_spins!(ax, sys; arrowscale, stemcolor, color, show_cell, orthographic, ghost_radius, rescale, dims)
-    return fig
+    notifier = Makie.Observable(nothing)
+    plot_spins!(ax, sys; notifier, kwargs...)
+    return NotifiableFigure(notifier, fig)
 end
 
-"""
-    plot_spins!(ax, sys::System; arrowscale=1.0, color=:red,
-                show_cell=true, orthographic=false, ghost_radius=0, dims=3)
+# Analogous to internal Makie function `numbers_to_colors`
+function numbers_to_colors!(out::AbstractArray{Makie.RGBAf}, in::AbstractArray{<: Number}, colormap, colorrange)
+    @assert size(out) == size(in)
+    if isnothing(colorrange) || colorrange[1] >= colorrange[2] - 1e-8
+        out .= first(colormap)
+    else
+        cmin, cmax = colorrange
+        len = length(colormap)
+        for i in eachindex(out)
+            # If `cmin ≤ in[i] ≤ cmax` then `0.5 ≤ x ≤ len+0.5`
+            x = (in[i] - cmin) / (cmax - cmin) * len + 0.5
+            # Round to integer and clip to range [1, len]
+            j = max(min(round(Int, x), len), 1)
+            out[i] = colormap[j]
+        end
+    end
+    return out
+end
+
+set_alpha(c, alpha) = return Makie.RGBAf(Makie.RGBf(c), alpha)
+
+#=
+    plot_spins!(ax, sys::System; arrowscale=1.0, color=:red, colorfn=nothing,
+                colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
+                ghost_radius=0, dims=3)
 
 Like [`plot_spins`](@ref) but will draw into the given Makie Axis, `ax`.
-"""
-function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, color=:red, show_cell=true,
-                     orthographic=false, ghost_radius=0, rescale=1.0, dims=3)
+=#
+function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrowscale=1.0, stemcolor=:lightgray, color=:red,
+                     colorfn=nothing, colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
+                     ghost_radius=0, rescale=1.0, dims=3)
     if dims == 2
         sys.latsize[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
     elseif dims == 1
@@ -225,8 +257,6 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
     end
 
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-
-    ### Plot spins ###
 
     # Show bounding box of magnetic supercell in gray (this needs to come first
     # to set a scale for the scene in case there is only one atom).
@@ -252,11 +282,8 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
     lengthscale = 0.6a0
     markersize = 0.8linewidth
     arrow_fractional_shift = 0.6
-   
-    # Make sure colors are indexable by site
-    color0 = fill_colors(color, size(sys.dipoles))
 
-    # Find all sites within max_dist of the system center
+    # Find all sites within `max_dist` of the system center
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
     if dims == 3
         r0 = [0.5, 0.5, 0.5]
@@ -265,26 +292,68 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
     end
     images = all_images_within_distance(supervecs, rs, [r0]; max_dist=ghost_radius, include_zeros=true)
 
-    # Require separate drawing calls with `transparency=true` for ghost sites
-    for (isghost, alpha) in ((false, 1.0), (true, 0.08))
-        pts = Makie.Point3f0[]
-        vecs = Makie.Vec3f0[]
-        arrowcolor = Tuple{eltype(color0), Float64}[]
-        for site in eachindex(images)
-            vec = (lengthscale / S0) * sys.dipoles[site]
-            # Loop over all periodic images of site within radius
-            for n in images[site]
-                # If drawing ghosts, require !iszero(n), and vice versa
-                iszero(n) == isghost && continue
-                pt = supervecs * (rs[site] + n)
-                push!(pts, Makie.Point3f0(pt))
-                push!(vecs, Makie.Vec3f0(vec))
-                push!(arrowcolor, (color0[site], alpha))
+    for isghost in (false, true)
+        alpha = isghost ? 0.08 : 1.0
+
+        # Every call to RGBf constructor allocates, so pre-calculate color
+        # arrays to speed animations
+        cmap_with_alpha = set_alpha.(Makie.to_colormap(colormap), Ref(alpha))
+        numeric_colors = zeros(size(sys.dipoles))
+        rgba_colors = zeros(Makie.RGBAf, size(sys.dipoles))
+
+        if isnothing(colorfn)
+            # In this case, we can precompute the fixed `rgba_colors` array
+            # according to `color`
+            if color isa AbstractArray
+                @assert size(color) == size(sys.dipoles)
+                if eltype(color) <: Number
+                    dyncolorrange = @something colorrange extrema(color)
+                    numbers_to_colors!(rgba_colors, color, cmap_with_alpha, dyncolorrange)
+                else
+                    rgba_colors = set_alpha.(Makie.to_color.(color), Ref(alpha))
+                end
+            else
+                c = set_alpha(Makie.to_color(color), alpha)
+                rgba_colors = fill(c, size(sys.dipoles))
             end
         end
-        shifted_pts = pts - arrow_fractional_shift * vecs
-        linecolor = @something (stemcolor, alpha) arrowcolor
-        Makie.arrows!(ax, shifted_pts, vecs; arrowsize, linewidth, linecolor, arrowcolor, transparency=isghost)
+
+        # These observables will be reanimated upon calling `notify(notifier)`.
+        vecs = Makie.Observable(Makie.Vec3f0[])
+        pts = Makie.Observable(Makie.Point3f0[])
+        pts_shifted = Makie.Observable(Makie.Point3f0[])
+        arrowcolor = Makie.Observable(Makie.RGBAf[])
+
+        Makie.on(notifier, update=true) do _
+            @assert size(sys.dipoles) == size(images)
+            empty!.((vecs[], pts[], pts_shifted[], arrowcolor[]))
+
+            # Dynamically adapt `rgba_colors` according to `colorfn`
+            if !isnothing(colorfn)
+                numeric_colors .= colorfn.(CartesianIndices(sys.dipoles))
+                dyncolorrange = @something colorrange extrema(numeric_colors)
+                numbers_to_colors!(rgba_colors, numeric_colors, cmap_with_alpha, dyncolorrange)
+            end
+            
+            for site in CartesianIndices(images)
+                v = (lengthscale / S0) * vec(sys.dipoles[site])
+                for n in images[site]
+                    iszero(n) == isghost && continue
+                    pt = supervecs * (rs[site] + n)
+                    pt_shifted = pt - arrow_fractional_shift * v
+                    push!(vecs[], Makie.Vec3f0(v))
+                    push!(pts[], Makie.Point3f0(pt))
+                    push!(pts_shifted[], Makie.Point3f0(pt_shifted))
+                    push!(arrowcolor[], rgba_colors[site])
+                end
+            end
+            # Trigger Makie redraw
+            notify.((vecs, pts, pts_shifted, arrowcolor))
+        end
+
+        # Draw arrows
+        linecolor = (stemcolor, alpha)
+        Makie.arrows!(ax, pts_shifted, vecs; arrowsize, linewidth, linecolor, arrowcolor, transparency=isghost)
 
         # Small sphere inside arrow to mark atom position
         Makie.meshscatter!(ax, pts; markersize, color=linecolor, transparency=isghost)
@@ -303,6 +372,7 @@ function plot_spins!(ax, sys::System; arrowscale=1.0, stemcolor=:lightgray, colo
 
     return ax
 end
+
 
 """
     view_crystal(crystal::Crystal, max_dist::Real; show_axis=true, orthographic=false)

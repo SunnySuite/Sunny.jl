@@ -2,6 +2,9 @@
 
 ## v0.5.6
 
+* Animated spin dynamics is now possible. Call `notify` on the result of
+  [`plot_spins`](@ref) to trigger redrawing of the frame. The argument `colorfn`
+  to `plot_spins` supports animation of colors.
 * General pair couplings are now supported in [`set_pair_coupling!`](@ref) and
   [`set_pair_coupling_at!`](@ref). `:SUN` supports interactions of any order,
   but `:dipole` mode is limited to bilinear and biquadratic coupling of the
