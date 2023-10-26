@@ -168,8 +168,6 @@ function intensities_bin_multisample(swt::SpinWaveTheory, hist_params::BinningPa
                 intensity_as_function_of_ω = formula.calc_intensity(swt,q)
                 energy_lower_edges = bin_edges[4][1:end-1]
                 for (i,energy_sample) in enumerate(energy_msaa_strategy)
-                    energy_sample
-                    bin_edges[4]
                     ω_this_sample = energy_lower_edges .+ hist_params.binwidth[4] .* energy_sample
                     view(is,ci,:) .+= intensity_as_function_of_ω(ω_this_sample)
                 end
