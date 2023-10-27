@@ -80,26 +80,26 @@ function no_processing(::SampledCorrelations)
     nothing
 end
 
-function accum_sample!(sc::SampledCorrelations)
+function accum_sample!(sc::SampledCorrelations;alg = :no_window)
     (; data, variance, observables, samplebuf, nsamples, fft!) = sc
     natoms = size(samplebuf,5)
 
     time_2T = size(samplebuf,6)
-    longest_correlation_delay = div(time_2T,4,RoundDown)
-    left_zero_ix = 1:longest_correlation_delay
-    right_zero_ix = (time_2T - longest_correlation_delay + 1):time_2T
-    middle_index = div(time_2T,2,RoundUp)
-    #central_ix = (longest_correlation_delay + 1):(time_2T - longest_correlation_delay)
-    #
-    rearrange_ix = [(1:longest_correlation_delay+1) ; right_zero_ix]
+    time_T = time_2T÷2
+    #longest_correlation_delay = div(time_2T,4,RoundDown)
+    left_zero_ix = 1:time_T
+    right_zero_ix = (time_T + 1):time_2T
 
     # Same as samplebuf, but the second half of the data (in time) is zeroed out
-    sourcebuf = copy(samplebuf)
-    sourcebuf[:,:,:,:,:,left_zero_ix] .= 0
-    sourcebuf[:,:,:,:,:,right_zero_ix] .= 0
+    left_zero_buffer = copy(samplebuf)
+    left_zero_buffer[:,:,:,:,:,left_zero_ix] .= 0
+
+    right_zero_buffer = copy(samplebuf)
+    right_zero_buffer[:,:,:,:,:,right_zero_ix] .= 0
 
     fft! * samplebuf # Apply pre-planned and pre-normalized FFT
-    fft! * sourcebuf
+    fft! * left_zero_buffer
+    fft! * right_zero_buffer
     count = nsamples[1] += 1
 
     # Note that iterating over the `correlations` (a SortedDict) causes
@@ -110,24 +110,29 @@ function accum_sample!(sc::SampledCorrelations)
         α, β = ci.I
 
         # Convention is: S{α,β} means <α(t)> <β(0)>, i.e. α is delayed
-        sample_α = @view samplebuf[α,:,:,:,i,:]
-        sample_β = @view sourcebuf[β,:,:,:,j,:]
+        traj_α = @view samplebuf[α,:,:,:,i,:]
+        traj_β = @view samplebuf[β,:,:,:,j,:]
 
-        # These two lines throw out the backward-time correlations.
-        # We call these trash because they are incorrectly computed
-        # here (the backward-time computation assumes that samplebuf
-        # is time periodic when it isn't).
-        #
-        # The forward-time correlations are correctly computed.
-        trash_plus = FFTW.ifft(sample_α .* conj.(sample_β),4)[:,:,:,rearrange_ix]
-        trash_plus .*= reshape(cos.(range(0,π,length = size(trash_plus,4))).^2,(1,1,1,size(trash_plus,4)))
+        rzb_β = @view right_zero_buffer[β,:,:,:,j,:]
+        lzb_α = @view left_zero_buffer[α,:,:,:,j,:]
+
+        # These are two (non-independent) estimators of the <α(t) β(0)> correlation for t ∈ [0,T]
+        rzb_contribution = FFTW.ifft(traj_α .* conj.(rzb_β),4)
+        lzb_contribution = FFTW.ifft(lzb_α .* conj.(traj_β),4)
+        correlation = (rzb_contribution + lzb_contribution) ./ 2
+
+        # The second half of the correlation includes wraparound values; set it to zero.
+        # Keeping the zeros here facilitates the symmetrization later.
+        correlation[:,:,:,right_zero_ix] .= 0
+
+        if alg == :window
+          correlation .*= reshape(cos.(range(0,π,length = time_2T)).^2,(1,1,1,time_2T))
+        end
+
+        FFTW.fft!(correlation,4)
 
         # Remove overlapping highest frequency (only required if window doesn't already set this to zero)
         #trash_plus[:,:,:,longest_correlation_delay + 1] .= 0
-
-        correlation = FFTW.fft(trash_plus,4)
-
-        #correlation .*= reshape(sin.(range(0,π,length=size(correlation,4))).^2, [1,1,1,size(correlation,4)])
 
         # This factor of two comes from the modified FFT convolution theorem
         # that we are using. The modification is because we only use *half*
@@ -185,7 +190,7 @@ separately prior to calling `add_sample!`. Alternatively, the initial spin
 configuration may be copied into a new `System` and this new `System` can be
 passed to `add_sample!`.
 """
-function add_sample!(sc::SampledCorrelations, sys::System; processtraj! = no_processing) 
+function add_sample!(sc::SampledCorrelations, sys::System; alg = :no_window, processtraj! = no_processing) 
     @time new_sample!(sc, sys; processtraj!)
-    @time accum_sample!(sc)
+    @time accum_sample!(sc;alg)
 end
