@@ -188,6 +188,7 @@ Base.showable(mime::MIME, fig::NotifiableFigure) = showable(mime, fig.figure)
 Base.show(io::IO, ::MIME"text/plain", fig::NotifiableFigure) = print(io, "(Notifiable) " * repr(fig.figure))
 Base.show(io::IO, m::MIME, fig::NotifiableFigure) = show(io, m, fig.figure)
 Base.notify(fig::NotifiableFigure) = notify(fig.notifier)
+Makie.record(func, nf::NotifiableFigure, path, iter; kwargs...) = Makie.record(func, nf.figure, path, iter; kwargs...)
 
 """
     plot_spins(sys::System; arrowscale=1.0, color=:red, colorfn=nothing,
@@ -349,6 +350,7 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
             end
             # Trigger Makie redraw
             notify.((vecs, pts, pts_shifted, arrowcolor))
+            # isnothing(color) || notify(arrowcolor)
         end
 
         # Draw arrows
