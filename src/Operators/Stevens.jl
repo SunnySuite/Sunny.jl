@@ -152,19 +152,25 @@ function matrix_to_stevens_coefficients(A::HermitianC64)
 end
 
 # Spherical tensors T_q rotate as T_q -> D*_{q,q′} T_q′, where D = exp(-i θ n⋅S)
-# in dimension 2k+1 irrep. The Stevens operators 𝒪_q are linearly related to
-# T_q via 𝒪 = α T, and therefore rotate as 𝒪 -> α conj(D) α⁻¹ 𝒪.
-#
-# Consider now an operator expansion 𝒜 = cᵀ 𝒪. This operator rotates as 𝒜 ->
-# cᵀ α conj(D) α⁻¹ 𝒪 = c′ᵀ 𝒪. The rotated Stevens coefficients must therefore
-# satisfy c′ = α⁻ᵀ D† αᵀ c.
+# in dimension 2k+1 irrep, for axis-angle (n, θ). The Stevens operators 𝒪_q are
+# linearly related to T_q via 𝒪 = α T, and therefore rotate as 𝒪 -> V 𝒪,
+# where V = α conj(D) α⁻¹.
+function operator_for_stevens_rotation(k, R)
+    D = unitary_irrep_for_rotation(R; N=2k+1)
+    V = stevens_α[k] * conj(D) * stevens_αinv[k]
+    @assert norm(imag(V)) < 1e-12
+    return real(V)
+end
+
+# Let c denote coefficients of an operator expansion 𝒜 = c† 𝒪. Under the
+# rotation R, Stevens operators transform as 𝒪 → V 𝒪. Alternatively, we can
+# treat the Stevens operators as fixed, provided the coefficients transform as
+# c† → c† V, or c → V† c.
 function rotate_stevens_coefficients(c, R::Mat3)
     N = length(c)
     k = Int((N-1)/2)
-    D = unitary_irrep_for_rotation(R; N)
-    c′ = transpose(stevens_αinv[k]) * D' * transpose(stevens_α[k]) * c
-    @assert norm(imag(c′)) < 1e-12
-    return real(c′)
+    V = operator_for_stevens_rotation(k, R)
+    return V' * c
 end
 
 
