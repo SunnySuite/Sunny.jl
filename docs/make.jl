@@ -1,6 +1,6 @@
 # julia --project=@. make.jl
 
-import Literate, Documenter
+import Literate, Documenter, Git
 using Sunny, GLMakie, WriteVTK # Load packages to enable Documenter references
 
 draft = false # set `true` to disable cell evaluation
@@ -59,6 +59,42 @@ function build_examples(example_sources, destdir)
     end
 end
 
+
+function prepare_contributed()
+    function is_markdown(name)
+        if split(name, ".")[end] == "md"
+            return true
+        end
+        false
+    end
+
+    # Perform a sparse checkout of the `build` directory from SunnyContributed. 
+    # This directory contains the markdown files and images generated with 
+    # Literate on the SunnyContributed repo.
+    mkpath("contributed-tmp")
+    cd("contributed-tmp")
+    run(`$(Git.git()) init`)
+    run(`$(Git.git()) remote add origin -f https://github.com/SunnySuite/SunnyContributed.git`)
+    write(".git/info/sparse-checkout", "contributed-docs/build")
+    run(`$(Git.git()) pull origin main`)
+    cd("..")
+
+    # Copy the contents of the build directory to a local directory. This will include
+    # both markdown files and png files.
+    mkpath(joinpath(@__DIR__, "src", "examples", "contributed"))  
+    contrib_files = readdir(joinpath("contributed-tmp", "contributed-docs", "build"))
+    for file in contrib_files
+        cp(joinpath("contributed-tmp", "contributed-docs", "build", file), joinpath(@__DIR__, "src", "examples", "contributed", file); force=true)
+    end
+
+    # Generate the base names for each contributed markdown file and prepare
+    # paths for Documenter (relative to `src/`)
+    contrib_names = filter(is_markdown, contrib_files)
+    return [joinpath("examples", "contributed", name) for name in contrib_names]
+end
+
+
+
 example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging", "fei2_classical", "ising2d"]
 example_sources = [pkgdir(Sunny, "examples", "$name.jl") for name in example_names]
 example_mds = build_examples(example_sources, "examples")
@@ -66,6 +102,8 @@ example_mds = build_examples(example_sources, "examples")
 spinw_names = ["08_Kagome_AFM", "15_Ba3NbFe3Si2O14"]
 spinw_sources = [pkgdir(Sunny, "examples", "spinw_ports", "$name.jl") for name in spinw_names]
 spinw_mds = build_examples(spinw_sources, joinpath("examples", "spinw"))
+
+contributed_mds = prepare_contributed()
 
 
 # Build docs as HTML, including the `examples/name.md` markdown built above
@@ -77,6 +115,7 @@ Documenter.makedocs(;
         "Examples" => [
             example_mds...,
             "SpinW ports" => spinw_mds,
+            "Contributed" => contributed_mds,
             "Advanced" => [
                 "parallelism.md",                        
                 "writevtk.md",
@@ -100,6 +139,10 @@ Documenter.makedocs(;
     ),
     draft
 )
+
+# Remove the (sparsely checked out) SunnyContributed git repo. This is only
+# necessary to enable repeated local builds. It has no effect on the CI.
+rm("contributed-tmp"; force=true, recursive=true)
 
 # Attempt to push to gh-pages branch for deployment
 Documenter.deploydocs(
