@@ -60,3 +60,18 @@ function dot_no_conj(x, A::SVector{N, Float64}, y) where N
     end
     return s
 end
+
+function transform_coupling_for_general_biquad(biquad::Mat5, Ri::Mat3, Rj::Mat3)
+    k = 2
+
+    # Notice that in our implementation of (renormalized) :dipole mode for the LSWT, we have the convention that S = RS̃. As a result, we should pass R' below.
+    Di = unitary_irrep_for_rotation(Ri'; N=2k+1)
+    Dj = unitary_irrep_for_rotation(Rj'; N=2k+1)
+
+    Vi = stevens_α[k] * transpose(Di) * stevens_αinv[k]
+    Vj = stevens_α[k] * transpose(Dj) * stevens_αinv[k]
+
+    ret = Vi' * biquad * Vj
+    @assert norm(imag(ret)) < 1e-12
+    return Mat5(real(ret))
+end
