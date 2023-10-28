@@ -10,7 +10,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
     N = sys.Ns[1]            # Dimension of SU(N) coherent states
     S = (N-1)/2              # Spin magnitude
-    L  = natoms(sys.crystal) # Number of quasiparticle bands
+    L = natoms(sys.crystal)  # Number of quasiparticle bands
 
     @assert size(H) == (2L, 2L)
 
@@ -32,70 +32,68 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             (; isculled, bond) = coupling
             isculled && break
 
-            J = Mat3(coupling.bilin*I)
-            sub_i, sub_j = bond.i, bond.j
-            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            if !iszero(coupling.bilin)
+                J = Mat3(coupling.bilin*I)
+                sub_i, sub_j = bond.i, bond.j
+                phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
-            R_mat_i = R_mat[sub_i]
-            R_mat_j = R_mat[sub_j]
-            Rij = S * (R_mat_i' * J * R_mat_j)
+                # Transform couplings according to the local quantization basis
+                R_mat_i = R_mat[sub_i]
+                R_mat_j = R_mat[sub_j]
+                Rij = S * (R_mat_i' * J * R_mat_j)
 
-            P = 0.25 * (Rij[1, 1] - Rij[2, 2] - im*Rij[1, 2] - im*Rij[2, 1])
-            Q = 0.25 * (Rij[1, 1] + Rij[2, 2] - im*Rij[1, 2] + im*Rij[2, 1])
+                P = 0.25 * (Rij[1, 1] - Rij[2, 2] - im*Rij[1, 2] - im*Rij[2, 1])
+                Q = 0.25 * (Rij[1, 1] + Rij[2, 2] - im*Rij[1, 2] + im*Rij[2, 1])
 
-            H[sub_i, sub_j] += Q  * phase
-            H[sub_j, sub_i] += conj(Q) * conj(phase)
-            H[sub_i+L, sub_j+L] += conj(Q) * phase
-            H[sub_j+L, sub_i+L] += Q  * conj(phase)
+                H[sub_i, sub_j] += Q  * phase
+                H[sub_j, sub_i] += conj(Q) * conj(phase)
+                H[sub_i+L, sub_j+L] += conj(Q) * phase
+                H[sub_j+L, sub_i+L] += Q  * conj(phase)
 
-            H[sub_i+L, sub_j] += P * phase
-            H[sub_j+L, sub_i] += P * conj(phase)
-            H[sub_i, sub_j+L] += conj(P) * phase
-            H[sub_j, sub_i+L] += conj(P) * conj(phase)
+                H[sub_i+L, sub_j] += P * phase
+                H[sub_j+L, sub_i] += P * conj(phase)
+                H[sub_i, sub_j+L] += conj(P) * phase
+                H[sub_j, sub_i+L] += conj(P) * conj(phase)
 
-            H[sub_i, sub_i] -= 0.5 * Rij[3, 3]
-            H[sub_j, sub_j] -= 0.5 * Rij[3, 3]
-            H[sub_i+L, sub_i+L] -= 0.5 * Rij[3, 3]
-            H[sub_j+L, sub_j+L] -= 0.5 * Rij[3, 3]
+                H[sub_i, sub_i] -= 0.5 * Rij[3, 3]
+                H[sub_j, sub_j] -= 0.5 * Rij[3, 3]
+                H[sub_i+L, sub_i+L] -= 0.5 * Rij[3, 3]
+                H[sub_j+L, sub_j+L] -= 0.5 * Rij[3, 3]
+            end
 
             ### Biquadratic exchange
 
-            (coupling.biquad isa Number) || error("General biquadratic interactions not yet implemented in LSWT.")
-            J = coupling.biquad::Float64
+            if !iszero(coupling.biquad)
+                J = coupling.biquad
+                J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
 
-            # ⟨Ω₂, Ω₁|[(𝐒₁⋅𝐒₂)^2 + 𝐒₁⋅𝐒₂/2]|Ω₁, Ω₂⟩ = (Ω₁⋅Ω₂)^2
-            # The biquadratic part
-            Ri = R_mat[sub_i]
-            Rj = R_mat[sub_j]
-            Rʳ = Ri' * Rj
-            C0 = Rʳ[3, 3]*S^2
-            C1 = S*√S/2*(Rʳ[1, 3] + im*Rʳ[2, 3])
-            C2 = S*√S/2*(Rʳ[3, 1] + im*Rʳ[3, 2])
-            A11 = -Rʳ[3, 3]*S
-            A22 = -Rʳ[3, 3]*S
-            A21 = S/2*(Rʳ[1, 1] - im*Rʳ[1, 2] - im*Rʳ[2, 1] + Rʳ[2, 2])
-            A12 = S/2*(Rʳ[1, 1] + im*Rʳ[1, 2] + im*Rʳ[2, 1] + Rʳ[2, 2])
-            B21 = S/4*(Rʳ[1, 1] + im*Rʳ[1, 2] + im*Rʳ[2, 1] - Rʳ[2, 2])
-            B12 = B21
+                # Transform couplings according to the local quantization basis
+                Vi = operator_for_stevens_rotation(2, R_mat_i)
+                Vj = operator_for_stevens_rotation(2, R_mat_j)
+                J = S^3 * Mat5(Vi' * J * Vj)
+            
+                H[sub_i, sub_i] += -6J[3, 3]
+                H[sub_j, sub_j] += -6J[3, 3]
+                H[sub_i+L, sub_i+L] += -6J[3, 3]
+                H[sub_j+L, sub_j+L] += -6J[3, 3]
+                H[sub_i+L, sub_i] += 12*(J[1, 3] - 1im*J[5, 3])
+                H[sub_i, sub_i+L] += 12*(J[1, 3] + 1im*J[5, 3])
+                H[sub_j+L, sub_j] += 12*(J[3, 1] - 1im*J[3, 5])
+                H[sub_j, sub_j+L] += 12*(J[3, 1] + 1im*J[3, 5])
 
-            H[sub_i, sub_i] += J* (C0*A11 + C1*conj(C1))
-            H[sub_j, sub_j] += J* (C0*A22 + C2*conj(C2))
-            H[sub_i, sub_j] += J* ((C0*A12 + C1*conj(C2)) * phase)
-            H[sub_j, sub_i] += J* ((C0*A21 + C2*conj(C1)) * conj(phase))
-            H[sub_i+L, sub_i+L] += J* (C0*A11 + C1*conj(C1))
-            H[sub_j+L, sub_j+L] += J* (C0*A22 + C2*conj(C2))
-            H[sub_j+L, sub_i+L] += J* ((C0*A12 + C1*conj(C2)) * conj(phase))
-            H[sub_i+L, sub_j+L] += J* ((C0*A21 + C2*conj(C1)) * phase)
+                P = 0.25 * (-J[4, 4]+J[2, 2] - 1im*( J[4, 2]+J[2, 4]))
+                Q = 0.25 * ( J[4, 4]+J[2, 2] - 1im*(-J[4, 2]+J[2, 4]))
 
-            H[sub_i, sub_i+L] += J* (C1*conj(C1))
-            H[sub_j, sub_j+L] += J* (C2*conj(C2))
-            H[sub_i+L, sub_i] += J* (C1*conj(C1))
-            H[sub_j+L, sub_j] += J* (C2*conj(C2))
+                H[sub_i, sub_j] += Q * phase
+                H[sub_j, sub_i] += conj(Q) * conj(phase)
+                H[sub_i+L, sub_j+L] += conj(Q) * phase
+                H[sub_j+L, sub_i+L] += Q  * conj(phase)
 
-            H[sub_i, sub_j+L] += J* ((2C0*B12 + C1*C2) * phase)
-            H[sub_j, sub_i+L] += J* ((2C0*B21 + C2*C1) * conj(phase))
-            H[sub_i+L, sub_j] += J* (conj(2C0*B12 + C1*C2) * phase)
-            H[sub_j+L, sub_i] += J* (conj(2C0*B21 + C2*C1) * conj(phase))
+                H[sub_i+L, sub_j] += P * phase
+                H[sub_j+L, sub_i] += P * conj(phase)
+                H[sub_i, sub_j+L] += conj(P) * phase
+                H[sub_j, sub_i+L] += conj(P) * conj(phase)
+            end
         end
     end
 

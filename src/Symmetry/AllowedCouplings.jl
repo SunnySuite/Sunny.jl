@@ -123,23 +123,14 @@ function transform_coupling_by_symmetry(J::Mat3, R::Mat3, parity)
 end
 
 function transform_coupling_by_symmetry(biquad::Mat5, R::Mat3, parity)
+    # Under a rotation R, Stevens operators transform as 𝒪 → V 𝒪. To maintain
+    # `𝒪† biquad 𝒪` as an invariant, the coupling coefficients must transform
+    # as `biquad -> inv(V)† biquad inv(V)`. As an optimization, note that
+    # `inv(V(R)) = V(inv(R)) = V(R†)`.
     k = 2
-    D = unitary_irrep_for_rotation(R; N=2k+1)
-
-    # Spherical tensors rotate as `T -> D* T`, involving the complex conjugate
-    # of the Wigner-D matrix defined above. Stevens operators are `𝒪 = α T`.
-    # Therefore Stevens operators rotate as `𝒪 -> α D* α⁻¹ 𝒪`. The coupling
-    # `𝒪† biquad 𝒪` is an invariant, so we impose the transformation rule
-    # `biquad -> V† biquad V`, where
-    #
-    #    V = (α D* α⁻¹)⁻¹ = α Dᵀ α⁻¹
-    #
-    # See also `transform_spherical_to_stevens_coefficients`.
-
-    V = stevens_α[k] * transpose(D) * stevens_αinv[k]
-    ret = V' * (parity ? biquad : biquad') * V
-    @assert norm(imag(ret)) < 1e-12
-    return Mat5(real(ret))
+    inv_V = operator_for_stevens_rotation(k, R')
+    ret = inv_V' * (parity ? biquad : biquad') * inv_V
+    return Mat5(ret)
 end
 
 # Check whether a coupling matrix J is consistent with symmetries of a bond

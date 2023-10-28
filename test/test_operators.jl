@@ -199,6 +199,14 @@ end
         @test R * S ≈ rotate_operator.(S, Ref(R))
     end
 
+    # Test that Stevens quadrupoles rotate correctly
+    let 
+        O = stevens_matrices(S₀)
+        Q = [O[2, q] for q in 2:-1:-2]
+        V = Sunny.operator_for_stevens_rotation(2, R)
+        @test V * Q ≈ rotate_operator.(Q, Ref(R))
+    end
+
     # Test that Stevens coefficients rotate properly
     let 
         A = Hermitian(randn(ComplexF64, N, N))
