@@ -127,6 +127,8 @@ function accum_sample!(sc::SampledCorrelations;alg = :no_window)
 
         if alg == :window
           correlation .*= reshape(cos.(range(0,π,length = time_2T)).^2,(1,1,1,time_2T))
+        elseif alg == :chop
+          correlation[:,:,:,1] .= 0
         end
 
         FFTW.fft!(correlation,4)
@@ -190,6 +192,6 @@ configuration may be copied into a new `System` and this new `System` can be
 passed to `add_sample!`.
 """
 function add_sample!(sc::SampledCorrelations, sys::System; alg = :no_window, processtraj! = no_processing) 
-    @time new_sample!(sc, sys; processtraj!)
-    @time accum_sample!(sc;alg)
+    new_sample!(sc, sys; processtraj!)
+    accum_sample!(sc;alg)
 end
