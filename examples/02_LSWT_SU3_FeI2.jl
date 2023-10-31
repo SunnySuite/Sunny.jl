@@ -1,4 +1,4 @@
-# # Case Study: FeI₂
+# # Multi-flavor spin wave simulations of FeI₂
 # 
 # FeI₂ is an effective spin-1 material with strong single-ion anisotropy.
 # Quadrupolar fluctuations give rise to a single-ion bound state that cannot be
@@ -363,15 +363,15 @@ disp, is = dssf(swt, path);
 # The full SU(_N_) coherent state dynamics, with appropriate quantum correction
 # factors, can be useful to model finite temperature scattering data. In
 # particular, it captures certain anharmonic effects due to thermal
-# fluctuations. This is the subject of our [FeI₂ at Finite Temperature](@ref)
-# tutorial.
+# fluctuations. This is the subject of our [Generalized spin dynamics of FeI₂ at
+# finite _T_](@ref) tutorial.
 #
 # The classical dynamics is also a good starting point to study non-equilibrium
 # phenomena. Empirical noise and damping terms can be used to model [coupling to
 # a thermal bath](https://arxiv.org/abs/2209.01265). This yields a Langevin
-# dynamics of SU(_N_) coherent states. Our [CP² Skyrmion Quench](@ref)
-# tutorial shows how this dynamics gives rise to the formation of novel
-# topological defects in a temperature quench.
+# dynamics of SU(_N_) coherent states. Our [Dynamical quench into CP² skyrmion
+# liquid](@ref) tutorial shows how this dynamics gives rise to the formation of
+# novel topological defects in a temperature quench.
 # 
 # Relative to LSWT calculations, it can take much more time to estimate
 # $\mathcal{S}(𝐪,ω)$ intensities using classical dynamics simulation. See the

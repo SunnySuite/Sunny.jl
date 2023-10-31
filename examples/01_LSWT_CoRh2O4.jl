@@ -1,4 +1,4 @@
-# # Powder Averaged CoRh₂O₄
+# # Spin wave simulations of CoRh₂O₄
 #
 # This tutorial illustrates the calculation of the powder-averaged structure
 # factor by performing an orientational average. We consider a simple model of
@@ -31,7 +31,6 @@ view_crystal(cryst, 8.0)
 # results.
 
 latsize = (2, 2, 2)
-seed = 0
 S = 3/2
 J = 7.5413*meV_per_K # (~ 0.65 meV)
 sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], :dipole; seed=0)

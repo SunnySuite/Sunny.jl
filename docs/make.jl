@@ -13,9 +13,15 @@ notebooks_path = joinpath(build_path, "assets", "notebooks")
 scripts_path = joinpath(build_path, "assets", "scripts")
 mkpath.([notebooks_path, scripts_path])
 
+ismarkdown(name) = splitext(name)[2] == ".md"
+isjulia(name) = splitext(name)[2] == ".jl"
+
 
 function build_examples(example_sources, destdir)
     assetsdir = joinpath(fill("..", length(splitpath(destdir)))..., "assets")
+
+    destpath = joinpath(@__DIR__, "src", destdir)
+    isdir(destpath) && rm(destpath; recursive=true)
 
     # Transform each Literate source file to Markdown for subsequent processing by
     # Documenter.
@@ -33,8 +39,7 @@ function build_examples(example_sources, destdir)
             """ * str
         end
         # Write to `src/$destpath/$name.md`
-        dest = joinpath(@__DIR__, "src", destdir)
-        Literate.markdown(source, dest; preprocess, credit=false)
+        Literate.markdown(source, destpath; preprocess, credit=false)
     end
 
     # Create Jupyter notebooks and Julia script for each Literate example. These
@@ -59,15 +64,7 @@ function build_examples(example_sources, destdir)
     end
 end
 
-
 function prepare_contributed()
-    function is_markdown(name)
-        if split(name, ".")[end] == "md"
-            return true
-        end
-        false
-    end
-
     # Perform a sparse checkout of the `build` directory from SunnyContributed. 
     # This directory contains the markdown files and images generated with 
     # Literate on the SunnyContributed repo.
@@ -89,18 +86,20 @@ function prepare_contributed()
 
     # Generate the base names for each contributed markdown file and prepare
     # paths for Documenter (relative to `src/`)
-    contrib_names = filter(is_markdown, contrib_files)
+    contrib_names = filter(ismarkdown, contrib_files)
     return [joinpath("examples", "contributed", name) for name in contrib_names]
+
+    # Remove the (sparsely checked out) SunnyContributed git repo. This is only
+    # necessary to enable repeated local builds. It has no effect on the CI.
+    rm("contributed-tmp"; force=true, recursive=true)
 end
 
-
-
-example_names = ["fei2_tutorial", "out_of_equilibrium", "powder_averaging", "fei2_classical", "ising2d"]
-example_sources = [pkgdir(Sunny, "examples", "$name.jl") for name in example_names]
+example_sources = filter(isjulia, readdir(abspath(pkgdir(Sunny, "examples")), join=true))
+example_names = [splitext(basename(src))[1] for src in example_sources]
 example_mds = build_examples(example_sources, "examples")
 
-spinw_names = ["08_Kagome_AFM", "15_Ba3NbFe3Si2O14"]
-spinw_sources = [pkgdir(Sunny, "examples", "spinw_ports", "$name.jl") for name in spinw_names]
+spinw_sources = filter(isjulia, readdir(abspath(pkgdir(Sunny, "examples", "spinw_tutorials")), join=true))
+spinw_names = [splitext(basename(src))[1] for src in spinw_sources]
 spinw_mds = build_examples(spinw_sources, joinpath("examples", "spinw"))
 
 contributed_mds = prepare_contributed()
@@ -114,7 +113,7 @@ Documenter.makedocs(;
         "index.md",
         "Examples" => [
             example_mds...,
-            "SpinW ports" => spinw_mds,
+            "SpinW tutorials" => spinw_mds,
             "Contributed" => contributed_mds,
             "Advanced" => [
                 "parallelism.md",                        
@@ -139,10 +138,6 @@ Documenter.makedocs(;
     ),
     draft
 )
-
-# Remove the (sparsely checked out) SunnyContributed git repo. This is only
-# necessary to enable repeated local builds. It has no effect on the CI.
-rm("contributed-tmp"; force=true, recursive=true)
 
 # Attempt to push to gh-pages branch for deployment
 Documenter.deploydocs(
