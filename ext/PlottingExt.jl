@@ -67,18 +67,18 @@ function orient_camera!(ax, latvecs; ghost_radius, orthographic, dims)
         eyeposition = a3/2 - 1.5 * l0 * normalize(a1 + a2)
         upvector = normalize(a1 × a2)
         projectiontype = orthographic ? Makie.Orthographic : Makie.Perspective
-        Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, fixed_axis, zoom_shift_lookat, far=10l0)
     elseif dims == 2
         l0 = max(norm.((a1, a2))..., 1.5ghost_radius)
         lookat = (a1 + a2) / 2
         eyeposition = lookat + 1.5 * l0 * normalize(a1 × a2)
         upvector = normalize((a1 × a2) × a1)
-        # projectiontype = Makie.Orthographic
+        # projectiontype = Makie.Orthographic # TODO: Enable this after fixing aspect ratio bug 
         projectiontype = orthographic ? Makie.Orthographic : Makie.Perspective
-        Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, fixed_axis, zoom_shift_lookat)
     else
         error("Unsupported dimension: $dims")
     end
+    Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, fixed_axis,
+                 zoom_shift_lookat, clipping_mode=:static, near=0.1l0, far=10l0)
 end
 
 
