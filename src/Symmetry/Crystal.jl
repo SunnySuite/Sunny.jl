@@ -165,11 +165,13 @@ function sort_sites!(cryst::Crystal)
         ri = cryst.positions[i]
         rj = cryst.positions[j]
         for k = 3:-1:1
-            if !isapprox(ri[k], rj[k], atol=cryst.symprec)
+            if !isapprox(ri[k], rj[k], atol=10cryst.symprec)
                 return ri[k] < rj[k]
             end
         end
-        error("Positions $i and $j cannot be distinguished.")
+        str1, str2 = fractional_vec3_to_string.((ri, rj))
+        error("""Detected two very close atoms ($str1 and $str2).
+                 If positions inferred from spacegroup, try increasing `symprec` parameter to `Crystal`.""")
     end
     perm = sort(eachindex(cryst.positions), lt=less_than)
     cryst.positions .= cryst.positions[perm]
@@ -271,7 +273,7 @@ function crystal_from_symbol(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
                 # cell, according to the Hall number.
                 is_latvecs_valid = cell in [Sunny.rhombohedral, Sunny.hexagonal]
                 if !is_latvecs_valid
-                    error("Symbol $symbol requires a rhomobohedral or hexagonal cell, but found $cell.")
+                    error("Symbol $symbol requires a rhombohedral or hexagonal cell, but found $cell.")
                 end
                 is_compatible = cell in allowed_cells
             else
