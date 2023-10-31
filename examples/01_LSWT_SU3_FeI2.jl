@@ -1,4 +1,4 @@
-# # 0. Multi-flavor spin wave simulations of FeI₂
+# # 1. Sunny showcase: Multi-flavor spin wave simulations of FeI₂
 # 
 # FeI₂ is an effective spin-1 material with strong single-ion anisotropy.
 # Quadrupolar fluctuations give rise to a single-ion bound state that cannot be

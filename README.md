@@ -13,7 +13,7 @@
 
 Sunny is a Julia package for modeling atomic-scale magnetism using classical spin dynamics with quantum corrections. It provides powerful tools to estimate dynamical structure factor intensities, $\mathcal{S}(𝐪,ω)$, enabling quantitative comparison with experimental scattering data, e.g., neutrons or x-rays.
 
-A unique feature of Sunny is its treatment of spins as [SU(_N_) coherent states](https://doi.org/10.48550/arXiv.2106.14125). Each quantum spin-_S_ state is a superposition of $N=2S+1$ levels, and evolves under unitary, SU(_N_) transformations. Through neglect of entanglement, the formalism allows to generalize the Landau-Lifshitz dynamics of spin dipoles to a dynamics of spin multipoles. The theory becomes especially useful for modeling materials with strong single-ion anisotropy effects (see our [FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/00_LSWT_SU3_FeI2.html)). In the future, the theory could also be used to model explicit spin-orbit coupling, or 'units' of locally entangled spins.
+A unique feature of Sunny is its treatment of spins as [SU(_N_) coherent states](https://doi.org/10.48550/arXiv.2106.14125). Each quantum spin-_S_ state is a superposition of $N=2S+1$ levels, and evolves under unitary, SU(_N_) transformations. Through neglect of entanglement, the formalism allows to generalize the Landau-Lifshitz dynamics of spin dipoles to a dynamics of spin multipoles. The theory becomes especially useful for modeling materials with strong single-ion anisotropy effects (see our [FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/01_LSWT_SU3_FeI2.html)). In the future, the theory could also be used to model explicit spin-orbit coupling, or 'units' of locally entangled spins.
 
 At low-temperatures, Sunny supports the usual linear spin wave theory for spin dipoles, and its ['multi-boson' generalization](https://doi.org/10.48550/arXiv.1307.7731). At finite temperatures, the full classical dynamics (with quantum correction factors) may be preferable to capture strongly nonlinear effects. The [coupling of SU(_N_) spins to a thermal bath](https://doi.org/10.48550/arXiv.2209.01265) also makes possible the study of various non-equilibrium dynamics, e.g., thermal transport, pump-probe experiments, and spin-glass relaxation.
 
@@ -22,7 +22,7 @@ Sunny provides a number of tools to facilitate the specification and solution of
 
 ## Try it out!
 
-A good starting point is our **[FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/00_LSWT_SU3_FeI2.html)**. This compound includes effective spin-1 moments with strong easy-axis anisotropy, and exemplifies the power of simulating SU(3) coherent states.
+A good starting point is our **[FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/01_LSWT_SU3_FeI2.html)**. This compound includes effective spin-1 moments with strong easy-axis anisotropy, and exemplifies the power of simulating SU(3) coherent states.
 <!-- 
 In addition to the examples in the official [documentation](https://sunnysuite.github.io/Sunny.jl/dev/), a number of tutorials are available as Jupyter notebooks at the [SunnyTutorials](https://github.com/SunnySuite/SunnyTutorials/tree/main/Tutorials) repo.  -->
 

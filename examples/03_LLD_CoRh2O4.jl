@@ -1,10 +1,10 @@
-# # 2. Landau-Lifshitz dynamics of CoRh₂O₄ at finite *T*
+# # 3. Landau-Lifshitz dynamics of CoRh₂O₄ at finite *T*
 
 using Sunny, GLMakie, Statistics
 
 # ### System construction
 
-# Construct the system as in the previous [CoRh₂O₄ tutorial](@ref "1. Spin wave
+# Construct the system as in the previous [CoRh₂O₄ tutorial](@ref "2. Spin wave
 # simulations of CoRh₂O₄"). After optimization, the system will be in an
 # unfrustrated antiferromagnetic ground state.
 

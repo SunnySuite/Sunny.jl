@@ -1,4 +1,4 @@
-# # 1. Spin wave simulations of CoRh₂O₄
+# # 2. Spin wave simulations of CoRh₂O₄
 #
 # This tutorial illustrates the calculation of the powder-averaged structure
 # factor by performing an orientational average. We consider a simple model of
