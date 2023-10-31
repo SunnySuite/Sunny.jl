@@ -1,4 +1,4 @@
-# # 2. Landau-Lifshitz dynamics of CoRh₂O₄ at finite _T_
+# # 2. Landau-Lifshitz dynamics of CoRh₂O₄ at finite *T*
 
 using Sunny, GLMakie, Statistics
 

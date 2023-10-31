@@ -69,7 +69,7 @@ FeI2 = Crystal(latvecs, positions; types)
 
 cryst = subcrystal(FeI2, "Fe")
 
-# Observe that `cryst` retains the spacegroup symmetry of the full FeI₂ crystal.
+# Importantly, `cryst` retains the spacegroup symmetry of the full FeI₂ crystal.
 # This information will be used, for example, to propagate exchange interactions
 # between symmetry-equivalent bonds.
 #
