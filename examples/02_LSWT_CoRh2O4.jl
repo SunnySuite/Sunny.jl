@@ -1,9 +1,9 @@
 # # 2. Spin wave simulations of CoRh₂O₄
 #
-# This tutorial illustrates the calculation of the powder-averaged structure
-# factor by performing an orientational average. We consider a simple model of
-# the diamond-cubic crystal CoRh₂O₄, with parameters extracted from [Ge et al.,
-# Phys. Rev. B 96, 064413](https://doi.org/10.1103/PhysRevB.96.064413).
+# This tutorial illustrates the conventional spin wave theory of dipoles. We
+# consider a simple model of the diamond-cubic crystal CoRh₂O₄, with parameters
+# extracted from [Ge et al., Phys. Rev. B 96,
+# 064413](https://doi.org/10.1103/PhysRevB.96.064413).
 
 using Sunny, GLMakie
 
@@ -23,14 +23,14 @@ cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
 
 view_crystal(cryst, 8.0)
 
-# Construct a [`System`](@ref) with an antiferromagnetic nearest neighbor
-# interaction `J`. Because the diamond crystal is bipartite, the ground state
-# will have unfrustrated Néel order. Selecting `latsize=(1,1,1)` is sufficient
-# because the ground state is periodic over each cubic unit cell. By passing an
-# explicit `seed`, the system's random number generator will give repeatable
-# results.
+# Construct a [`System`](@ref) with quantum spin ``S=3/2`` constrained to the
+# space of dipoles. Including an antiferromagnetic nearest neighbor interaction
+# `J` will favor Néel order. To optimize this magnetic structure, it is
+# sufficient to employ a magnetic lattice consisting of a single crystal unit
+# cell, `latsize=(1,1,1)`. Passing an explicit random number `seed` will ensure
+# repeatable results.
 
-latsize = (2, 2, 2)
+latsize = (1, 1, 1)
 S = 3/2
 J = 7.5413*meV_per_K # (~ 0.65 meV)
 sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], :dipole; seed=0)
@@ -82,7 +82,7 @@ formula = intensity_formula(swt, :perp; kernel, formfactors)
 # [`intensities_broadened`](@ref) function collects intensities along this path
 # for the given set of energy values.
 
-qpoints = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [0.5, 0.5, 0.0], [0.0, 0.0, 0.0]]
+qpoints = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path, xticks = reciprocal_space_path(cryst, qpoints, 50)
 energies = collect(0:0.01:6)
 is = intensities_broadened(swt, path, energies, formula)
