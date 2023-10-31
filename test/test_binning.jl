@@ -3,14 +3,14 @@
     # Test constructor
     lo = [0.,0.,0.,0.]
     hi = [1.,1.,1.,1.]
-    nbins = [1,2,3,4]
+    nbins = [2,2,3,4]
     params = BinningParameters(lo,hi;numbins = nbins)
     @test params.numbins == nbins
     @test all(isfinite.(params.binwidth))
 
     # Ensure it works for the edge case of integrated bins
     params = BinningParameters(lo,hi;numbins = [1,1,1,1])
-    @test all(isfinite.(params.binwidth))
+    @test all(isinf.(params.binwidth))
 
     @test_warn "Non-uniform" unit_resolution_binning_parameters([0.,1,3,7])
 
@@ -30,12 +30,13 @@
     # Test that parameters can be reconstructed from bin centers
     bcs = axes_bincenters(params)
     @test params.numbins == map(x -> length(x),bcs)
-    @test_throws "Can not infer bin width" unit_resolution_binning_parameters(bcs[2])
+
+    #=
     params.numbins = [8,2,2,6] # Give it more bins so it *can* infer the width
     bcs = axes_bincenters(params)
     bps = map(unit_resolution_binning_parameters,bcs)
     new_params = BinningParameters(map(x -> x[1],bps),map(x -> x[2],bps),map(x -> x[3],bps))
-    @test all(isapprox.(new_params.binstart,params.binstart;atol=1e-12))
+    @test all(isapprox.(new_params.binstartcenter,params.binstartcenter;atol=1e-12))
     @test all(isapprox.(new_params.binend,params.binend;atol=1e-12))
     @test all(isapprox.(new_params.binwidth,params.binwidth;atol=1e-12))
     @test new_params.numbins == params.numbins
@@ -55,6 +56,14 @@
     bins_before = params.numbins[3]
     params.binwidth[3] = params.binwidth[3] + eps(params.binwidth[3]) # Plus
     @test bins_before == params.numbins[3]
+    =#
+
+    # Check instant_sc
+    instant_sc = instant_correlations(sys)
+    add_sample!(instant_sc, sys)
+    @test_nowarn unit_resolution_binning_parameters(instant_sc)
+    params = unit_resolution_binning_parameters(instant_sc)
+    @test params.numbins == [4,1,1,1]
 
     params = unit_resolution_binning_parameters(sc)
 

@@ -1,7 +1,7 @@
 
 """
-    BinningParameters(binstart,binend,binwidth;covectors = I(4))
-    BinningParameters(binstart,binend;numbins,covectors = I(4))
+    BinningParameters(binstartcenter,binend,binwidth;covectors = I(4))
+    BinningParameters(binstartcenter,binend;numbins,covectors = I(4))
 
 Describes a 4D parallelepided histogram in a format compatible with experimental Inelasitic Neutron Scattering data.
 See [`generate_mantid_script_from_binning_parameters`](@ref) to convert [`BinningParameters`](@ref) to a format understandable by the [Mantid software](https://www.mantidproject.org/), or [`load_nxs`](@ref) to load [`BinningParameters`](@ref) from a Mantid `.nxs` file.
@@ -12,7 +12,7 @@ Since the default `covectors` matrix is the identity matrix, the default axes ar
 `(qx,qy,qz,ω)` in absolute units.
 
 The convention for the binning scheme is that:
-- The left edge of the first bin starts at `binstart`
+- The first bin is centered at `binstartcenter`
 - The bin width is `binwidth`
 - The last bin contains `binend`
 - There are no "partial bins;" the last bin may contain values greater than `binend`. C.f. [`count_bins`](@ref).
@@ -20,10 +20,10 @@ The convention for the binning scheme is that:
 A `value` can be binned by computing its bin index:
 
     coords = covectors * value
-    bin_ix = 1 .+ floor.(Int64,(coords .- binstart) ./ binwidth)
+    bin_ix = 1 .+ floor.(Int64,0.5 + (coords .- binstartcenter) ./ binwidth)
 """
 mutable struct BinningParameters
-    binstart::MVector{4,Float64}
+    binstartcenter::MVector{4,Float64}
     binend::MVector{4,Float64}
     binwidth::MVector{4,Float64}
     covectors::MMatrix{4,4,Float64}
@@ -60,38 +60,42 @@ function Base.show(io::IO, ::MIME"text/plain", params::BinningParameters)
     end
 end
 
-Base.copy(p::BinningParameters) = BinningParameters(copy(p.binstart),copy(p.binend),copy(p.binwidth),copy(p.covectors))
+Base.copy(p::BinningParameters) = BinningParameters(copy(p.binstartcenter),copy(p.binend),copy(p.binwidth),copy(p.covectors))
 
 # Support numbins as a (virtual) property, even though only the binwidth is stored
-Base.getproperty(params::BinningParameters, sym::Symbol) = sym == :numbins ? count_bins(params.binstart,params.binend,params.binwidth) : getfield(params,sym)
+Base.getproperty(params::BinningParameters, sym::Symbol) = sym == :numbins ? count_bins(params.binstartcenter,params.binend,params.binwidth) : getfield(params,sym)
 
+#=
 function Base.setproperty!(params::BinningParameters, sym::Symbol, numbins)
     if sym == :numbins
         # *Ensure* that the last bin contains params.binend
-        params.binwidth .= (params.binend .- params.binstart) ./ (numbins .- 0.5)
+        bes = axes_binedges(params)
+        x0s = map(x -> x[1],bes)
+        params.binwidth .= (params.binend .- x0s) ./ (numbins .- 0.5)
     else
         setfield!(params,sym,numbins)
     end
 end
+=#
 
 """
-    count_bins(binstart,binend,binwidth)
+    count_bins(binstartcenter,binend,binwidth)
 
-Returns the number of bins in the binning scheme implied by `binstart`, `binend`, and `binwidth`.
+Returns the number of bins in the binning scheme implied by `binstartcenter`, `binend`, and `binwidth`.
 To count the bins in a [`BinningParameters`](@ref), use `params.numbins`.
 
 This function defines how partial bins are handled, so it should be used preferentially over
 computing the number of bins manually.
 """
-count_bins(bin_start,bin_end,bin_width) = ceil.(Int64,(bin_end .- bin_start) ./ bin_width)
+count_bins(bin_start_center,bin_end,bin_width) = ceil.(Int64,0.5 .+ (bin_end .- bin_start_center) ./ bin_width)
 
-function BinningParameters(binstart,binend,binwidth;covectors = [1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1])
-    return BinningParameters(binstart,binend,binwidth,covectors)
+function BinningParameters(binstartcenter,binend,binwidth;covectors = [1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1])
+    return BinningParameters(binstartcenter,binend,binwidth,covectors)
 end
 
-function BinningParameters(binstart,binend;numbins,kwargs...)
-    params = BinningParameters(binstart,binend,[0.,0,0,0];kwargs...)
-    params.numbins = numbins # Use the setproperty to do it correctly
+function BinningParameters(binstartcenter,binend;numbins,kwargs...)
+    binwidth = (binend .- binstartcenter) ./ (numbins .- 1)
+    params = BinningParameters(binstartcenter,binend,binwidth;kwargs...)
     params
 end
 
@@ -114,7 +118,6 @@ end
 
 # Find an axis-aligned bounding box containing the histogram
 function binning_parameters_aabb(params)
-    (; binstart, binend, covectors) = params
     bin_edges = axes_binedges(params)
     first_edges = map(x -> x[1],bin_edges)
     last_edges = map(x -> x[end],bin_edges)
@@ -125,7 +128,7 @@ function binning_parameters_aabb(params)
         for k = 1:4 # The four axes
             this_corner[k] = bin_edges[k,1 + (j >> (k-1) & 1)]
         end
-        q_corners[:,j] = covectors \ this_corner
+        q_corners[:,j] = params.covectors \ this_corner
     end
     lower_aabb_q = minimum(q_corners,dims=2)[1:3]
     upper_aabb_q = maximum(q_corners,dims=2)[1:3]
@@ -174,15 +177,13 @@ This is the finest possible binning without creating bins with zero scattering v
 
 This function can be used without reference to a [`SampledCorrelations`](@ref) using an alternate syntax to manually specify the bin centers for the energy axis and the lattice size:
 
-    unit_resolution_binning_parameters(ω_bincenters,latsize,[reciprocal lattice vectors])
-
-The last argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or a [`Crystal`](@ref).
+    unit_resolution_binning_parameters(ω_bincenters,latsize)
 
 Lastly, binning parameters for a single axis may be specifed by their bin centers:
 
-    (binstart,binend,binwidth) = unit_resolution_binning_parameters(bincenters::Vector{Float64})
+    (binstartcenter,binend,binwidth) = unit_resolution_binning_parameters(bincenters::Vector{Float64})
 """
-function unit_resolution_binning_parameters(ωvals,latsize,args...)
+function unit_resolution_binning_parameters(ωvals,latsize)
     numbins = (latsize...,length(ωvals))
     # Bin centers should be at Sunny scattering vectors
     maxQ = 1 .- (1 ./ numbins)
@@ -192,36 +193,45 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...)
     total_size = max_val .- min_val
 
     binwidth = total_size ./ (numbins .- 1)
-    binstart = (0.,0.,0.,minimum(ωvals)) .- (binwidth ./ 2)
+    binstartcenter = (0.,0.,0.,minimum(ωvals))
     binend = (maxQ[1],maxQ[2],maxQ[3],maximum(ωvals)) # bin end is well inside of last bin
 
-    params = BinningParameters(binstart,binend,binwidth)
+    params = BinningParameters(binstartcenter,binend,binwidth)
 
     # Special case for when there is only one bin in a direction
     for i = 1:4
         if numbins[i] == 1
-            params.binwidth[i] = 1.
-            params.binstart[i] = min_val[i] - (params.binwidth[i] ./ 2)
+            params.binwidth[i] = Inf
+            params.binstartcenter[i] = min_val[i]
             params.binend[i] = min_val[i]
         end
     end
     params
 end
 
-unit_resolution_binning_parameters(sc::SampledCorrelations; kwargs...) = unit_resolution_binning_parameters(available_energies_including_zero(sc),sc.latsize,sc;kwargs...)
+function unit_resolution_binning_parameters(sc::SampledCorrelations)
+    params = unit_resolution_binning_parameters(available_energies_without_nan(sc),sc.latsize)
+
+    # Spatial periodicity of lattice
+    for i = 1:3
+        if isinf(params.binwidth[i])
+            params.binwidth[i] = 1.
+        end
+    end
+    params
+end
 
 function unit_resolution_binning_parameters(ωvals::AbstractVector{Float64})
     if !all(abs.(diff(diff(ωvals))) .< 1e-12)
       @warn "Non-uniform bins will be re-spaced into uniform bins"
     end
-    if length(ωvals) == 1
-      error("Can not infer bin width given only one bin center")
-    end
+
     ωbinwidth = (maximum(ωvals) - minimum(ωvals)) / (length(ωvals) - 1)
-    ωstart = minimum(ωvals) - ωbinwidth / 2
+    ωbinwidth = isnan(ωbinwidth) ? Inf : ωbinwidth
+    ωstartcenter = minimum(ωvals)
     ωend = maximum(ωvals)
 
-    return ωstart, ωend, ωbinwidth
+    return ωstartcenter, ωend, ωbinwidth
 end
 
 """
@@ -273,16 +283,16 @@ function slice_2D_binning_parameters(ωvals::Vector{Float64},cut_from_q,cut_to_q
     ωstart, ωend, ωbinwidth = unit_resolution_binning_parameters(ωvals)
     xstart, xend, xbinwidth = unit_resolution_binning_parameters(range(start_x,end_x,length = cut_bins))
 
-    binstart = [xstart,transverse_center - cut_width/2,cotransverse_center - cut_height/2,ωstart]
-    binend = [xend,transverse_center,cotransverse_center,ωend]
+    binstartcenter = [xstart,transverse_center,cotransverse_center,ωstart]
+    binend = [xend,transverse_center + cut_width/2,cotransverse_center + cut_height/2,ωend]
     numbins = [cut_bins,1,1,length(ωvals)]
     covectors = [cut_covector... 0; transverse_covector... 0; cotransverse_covector... 0; 0 0 0 1]
 
-    BinningParameters(binstart,binend;numbins = numbins, covectors = covectors)
+    BinningParameters(binstartcenter,binend;numbins = numbins, covectors = covectors)
 end
 
 function slice_2D_binning_parameters(sc::SampledCorrelations,cut_from_q,cut_to_q,args...;kwargs...)
-    slice_2D_binning_parameters(available_energies_including_zero(sc),cut_from_q,cut_to_q,args...;kwargs...)
+    slice_2D_binning_parameters(available_energies_without_nan(sc),cut_from_q,cut_to_q,args...;kwargs...)
 end
 
 """
@@ -292,30 +302,36 @@ Returns tick marks which label the bins of the histogram described by [`BinningP
 
 The following alternative syntax can be used to compute bin centers for a single axis:
 
-    axes_bincenters(binstart,binend,binwidth)
+    axes_bincenters(binstartcenter,binend,binwidth)
 """
-function axes_bincenters(binstart,binend,binwidth)
-    bincenters = Vector{AbstractRange{Float64}}(undef,0)
-    for k = 1:length(binstart)
-        first_center = binstart[k] .+ binwidth[k] ./ 2
-        nbin = count_bins(binstart[k],binend[k],binwidth[k])
-        push!(bincenters,range(first_center,step = binwidth[k],length = nbin))
+function axes_bincenters(binstartcenter,binend,binwidth)
+    bincenters = Vector{Vector{Float64}}(undef,0)
+    for k = 1:length(binstartcenter)
+        if isinf(binwidth[k])
+            push!(bincenters,[binstartcenter[k]])
+        else
+            first_center = binstartcenter[k]
+            nbin = count_bins(binstartcenter[k],binend[k],binwidth[k])
+            push!(bincenters,collect(range(first_center,step = binwidth[k],length = nbin)))
+        end
     end
     bincenters
 end
-axes_bincenters(params::BinningParameters) = axes_bincenters(params.binstart,params.binend,params.binwidth)
+axes_bincenters(params::BinningParameters) = axes_bincenters(params.binstartcenter,params.binend,params.binwidth)
 
-function axes_binedges(binstart,binend,binwidth)
-    binedges = Vector{AbstractRange{Float64}}(undef,0)
-    for k = 1:length(binstart)
-        nbin = count_bins(binstart[k],binend[k],binwidth[k])
-        push!(binedges,range(binstart[k],step = binwidth[k],length = nbin + 1))
+function axes_binedges(binstartcenter,binend,binwidth)
+    binedges = Vector{Vector{Float64}}(undef,0)
+    for k = 1:length(binstartcenter)
+        if isinf(binwidth[k])
+            push!(binedges,[-Inf,Inf])
+        else
+            nbin = count_bins(binstartcenter[k],binend[k],binwidth[k])
+            push!(binedges,collect(range(binstartcenter[k] - binwidth[k]/2,step = binwidth[k],length = nbin + 1)))
+        end
     end
     binedges
 end
-axes_binedges(params::BinningParameters) = axes_binedges(params.binstart,params.binend,params.binwidth)
-
-
+axes_binedges(params::BinningParameters) = axes_binedges(params.binstartcenter,params.binend,params.binwidth)
 
 """
     reciprocal_space_path_bins(sc,qs,density,args...;kwargs...)
@@ -353,7 +369,7 @@ function reciprocal_space_path_bins(ωvals,qs,density,args...;kwargs...)
     end
     return params, markers, ranges
 end
-reciprocal_space_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;kwargs...) = reciprocal_space_path_bins(available_energies_including_zero(sc), qs, density,args...;kwargs...)
+reciprocal_space_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;kwargs...) = reciprocal_space_path_bins(available_energies_without_nan(sc), qs, density,args...;kwargs...)
 
 
 """
@@ -378,11 +394,11 @@ Currently, energy broadening is only supported if the [`BinningParameters`](@ref
 function intensities_binned(sc::SampledCorrelations, params::BinningParameters, formula::ClassicalIntensityFormula;
     integrated_kernel = nothing,
 )
-    (; binwidth, binstart, binend, covectors, numbins) = params
+    (; binwidth, binstartcenter, binend, covectors, numbins) = params
     return_type = typeof(formula).parameters[1]
     output_intensities = zeros(return_type,numbins...)
     output_counts = zeros(Float64,numbins...)
-    ωvals = available_energies_including_zero(sc)
+    ωvals = available_energies_without_nan(sc)
 
     # Find an axis-aligned bounding box containing the histogram.
     # The AABB needs to be in r.l.u for the (possibly reshaped) crystal
@@ -419,8 +435,8 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
             for iωother = 1:numbins[4]
                 ci_other = CartesianIndex(xyzBin[1],xyzBin[2],xyzBin[3],iωother)
                 # Start and end points of the target bin
-                a = binstart[4] + (iωother - 1) * binwidth[4]
-                b = binstart[4] + iωother * binwidth[4]
+                a = binstartcenter[4] + (iωother - 1.5) * binwidth[4]
+                b = binstartcenter[4] + (iωother - 0.5) * binwidth[4]
 
                 # P(ω picked up in bin [a,b]) = ∫ₐᵇ Kernel(ω' - ω) dω'
                 fraction_in_bin[iω][iωother] = integrated_kernel_edep(ω,b - ω) - integrated_kernel_edep(ω,a - ω)
@@ -439,7 +455,7 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
                 # Figure out which bin this goes in
                 v[4] = ω
                 mul!(coords,covectors,v)
-                xyztBin .= 1 .+ floor.(Int64,(coords .- binstart) ./ binwidth)
+                xyztBin .= 1 .+ floor.(Int64,0.5 .+ (coords .- binstartcenter) ./ binwidth)
 
                 # Check this bin is within the 4D histogram bounds
                 if all(xyztBin .<= numbins) && all(xyztBin .>= 1)
@@ -457,7 +473,7 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
                     # If we are energy-broadening, then scattering vectors outside the histogram
                     # in the energy direction need to be considered
                     mul!(view(coords,1:3),view(covectors,1:3,1:3), view(v,1:3))
-                    xyzBin .= 1 .+ floor.(Int64,(view(coords,1:3) .- view(binstart,1:3)) ./ view(binwidth,1:3))
+                    xyzBin .= 1 .+ floor.(Int64, 0.5 .+ (view(coords,1:3) .- view(binstartcenter,1:3)) ./ view(binwidth,1:3))
                     if all(xyzBin .<= view(numbins,1:3)) &&  all(xyzBin .>= 1)
 
                         # Calculate source scattering vector intensity only once
@@ -478,7 +494,13 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
     return output_intensities, output_counts
 end
 
-function available_energies_including_zero(x)
+"""
+Returns a list of energies ω usable as bin centers in a histogram.
+
+In the case of insatnt_correlations, where ω has been integrated out, ω=0 is arbitrarily
+selected to be the bin center.
+"""
+function available_energies_without_nan(x::SampledCorrelations)
     ωs = available_energies(x)
     # Special case due to NaN definition of instant_correlations
     (length(ωs) == 1 && isnan(ωs[1])) ? [0.] : ωs
