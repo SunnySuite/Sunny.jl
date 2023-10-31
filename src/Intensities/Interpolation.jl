@@ -148,13 +148,13 @@ function intensities_interpolated(sc::SampledCorrelations, qs, formula::Classica
     intensities = zeros(return_type, size(qs)..., nω)
     
     # Call type-stable version of the function
-    intensities_interpolated!(intensities, sc, qs, ωvals, interp, formula, stencil_info, return_type)
+    intensities_interpolated!(intensities, sc, qs, ωvals, interp, formula, stencil_info, Val(return_type))
 
     return intensities
 end
 
 
-function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targets::Array, ωvals, interp::InterpolationScheme{NInterp}, formula, stencil_info, T) where {NInterp}
+function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targets::Array, ωvals, interp::InterpolationScheme{NInterp}, formula, stencil_info, ::Val{T}) where {NInterp, T}
     li_intensities = LinearIndices(intensities)
     ci_targets = CartesianIndices(q_targets)
 
