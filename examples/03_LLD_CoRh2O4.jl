@@ -33,7 +33,7 @@ sys = resize_supercell(sys, (10, 10, 10))
 
 Δt = 0.05/abs(J*S)   # Time step
 λ  = 0.1             # Dimensionless damping time-scale
-kT = 10 * meV_per_K  # 10K, a temperature below ordering
+kT = 16 * meV_per_K  # 16K, a temperature slightly below ordering
 langevin = Langevin(Δt; λ, kT);
 
 # Because the magnetic order has been initialized correctly, relatively few
@@ -46,7 +46,7 @@ for _ in 1:1000
 end
 plot(energies, color=:blue, figure=(resolution=(600,300),), axis=(xlabel="Time steps", ylabel="Energy (meV)"))
 
-# At this low temperature, the equilibrium configuration maintains Néel order.
+# Thermal fluctuations are apparent in the spin configuration.
 
 S_ref = sys.dipoles[1,1,1,1]
 plot_spins(sys; color=[s'*S_ref for s in sys.dipoles])
@@ -92,11 +92,11 @@ formfactors = [FormFactor("Co2")]
 instant_formula = intensity_formula(sc, :perp; formfactors)
 iq = instant_intensities_interpolated(sc, qs, instant_formula);
 
-# Plot the resulting intensity data ``I(𝐪)``. The color scale is clipped to 10%
+# Plot the resulting intensity data ``I(𝐪)``. The color scale is clipped to 50%
 # of the maximum intensity.
 
 heatmap(q1s, q2s, iq;
-    colorrange = (0, maximum(iq)/10),
+    colorrange = (0, maximum(iq)/2),
     axis = (
         xlabel="Momentum Transfer Qx (r.l.u)", xlabelsize=16, 
         ylabel="Momentum Transfer Qy (r.l.u)", ylabelsize=16, 
@@ -154,7 +154,7 @@ iqwc = broaden_energy(sc, iqw, (ω, ω₀) -> lorentzian(ω-ω₀, η));
 
 ωs = available_energies(sc)
 heatmap(1:size(iqwc, 1), ωs, iqwc;
-    colorrange = (0, maximum(iqwc)/10_000.0),
+    colorrange = (0, maximum(iqwc)/50),
     axis = (;
         xlabel="Momentum Transfer (r.l.u)",
         ylabel="Energy Transfer (meV)", 
@@ -164,7 +164,7 @@ heatmap(1:size(iqwc, 1), ωs, iqwc;
     )
 )
 
-# Projection into a powder-averaged neutron scattering intensity
+# ### Powder averaged intensity
 
 # Define spherical shells in reciprocal space via their radii, in absolute units
 # of 1/Å. For each shell, calculate and average the intensities at 100
@@ -187,5 +187,5 @@ heatmap(radii, ωs, output;
         ylabel="Energy Transfer (meV)", 
         aspect = 1.4,
     ),
-    colorrange = (0, 40.0)
+    colorrange = (0, 20.0)
 )
