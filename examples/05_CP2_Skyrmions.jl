@@ -1,4 +1,4 @@
-# # Dynamical quench into CP² skyrmion liquid
+# # 5. Dynamical quench into CP² skyrmion liquid
 #
 # This example demonstrates Sunny's ability to simulate the out-of-equilibrium
 # dynamics of generalized spin systems. We will implement the model Hamiltonian

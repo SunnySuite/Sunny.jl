@@ -1,12 +1,12 @@
-# # Landau-Lifshitz dynamics of CoRh₂O₄ at finite _T_
+# # 2. Landau-Lifshitz dynamics of CoRh₂O₄ at finite _T_
 
 using Sunny, GLMakie, Statistics
 
 # ### System construction
 
-# Construct the system as in the tutorial, [Spin wave simulations of
-# CoRh₂O₄](@ref). After optimization, it finds an unfrustrated antiferromagnetic
-# order.
+# Construct the system as in the previous [CoRh₂O₄ tutorial](@ref "1. Spin wave
+# simulations of CoRh₂O₄"). After optimization, the system will be in an
+# unfrustrated antiferromagnetic ground state.
 
 a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)

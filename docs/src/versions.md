@@ -229,7 +229,7 @@ An external field can be applied to a single site with
 ### Structure factor rewrite
 
 The calculation of structure factors has been completely rewritten. For the new
-interface, see the [Generalized spin dynamics of FeI₂ at finite _T_](@ref) page.
+interface see the documentation tutorials.
 
 
 ### Various

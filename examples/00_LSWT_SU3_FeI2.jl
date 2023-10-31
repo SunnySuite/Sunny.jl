@@ -1,4 +1,4 @@
-# # Multi-flavor spin wave simulations of FeI₂
+# # 0. Multi-flavor spin wave simulations of FeI₂
 # 
 # FeI₂ is an effective spin-1 material with strong single-ion anisotropy.
 # Quadrupolar fluctuations give rise to a single-ion bound state that cannot be
@@ -36,8 +36,8 @@
 # guide. Sunny requires Julia 1.9 or later.
 #
 # From the Julia prompt, load `Sunny`. For plotting, one can choose either
-# `GLMakie` (a pop-up window) or `WGLMakie` (inline plots for a Jupyter notebook
-# or VSCode).
+# `GLMakie` (a pop-up window) or `WGLMakie` (inline plots for a Jupyter
+# notebook).
 
 using Sunny, GLMakie
 
@@ -363,18 +363,12 @@ disp, is = dssf(swt, path);
 # The full SU(_N_) coherent state dynamics, with appropriate quantum correction
 # factors, can be useful to model finite temperature scattering data. In
 # particular, it captures certain anharmonic effects due to thermal
-# fluctuations. This is the subject of our [Generalized spin dynamics of FeI₂ at
-# finite _T_](@ref) tutorial.
+# fluctuations. See our [generalized spin dynamics tutorial](@ref "3.
+# Generalized spin dynamics of FeI₂ at finite *T*").
 #
 # The classical dynamics is also a good starting point to study non-equilibrium
 # phenomena. Empirical noise and damping terms can be used to model [coupling to
 # a thermal bath](https://arxiv.org/abs/2209.01265). This yields a Langevin
-# dynamics of SU(_N_) coherent states. Our [Dynamical quench into CP² skyrmion
-# liquid](@ref) tutorial shows how this dynamics gives rise to the formation of
-# novel topological defects in a temperature quench.
-# 
-# Relative to LSWT calculations, it can take much more time to estimate
-# $\mathcal{S}(𝐪,ω)$ intensities using classical dynamics simulation. See the
-# [SunnyTutorials
-# notebooks](https://nbviewer.org/github/SunnySuite/SunnyTutorials/tree/main/Tutorials/)
-# for examples of "production-scale" simulations.
+# dynamics of SU(_N_) coherent states. Our [dynamical SU(_N_) quench](@ref "5.
+# Dynamical quench into CP² skyrmion liquid") tutorial illustrates how a
+# temperature quench can give rise to novel liquid phase of CP² skyrmions.
