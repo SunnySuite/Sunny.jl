@@ -2,9 +2,9 @@
 
 using Sunny, LinearAlgebra, GLMakie
 
-# In the [previous FeI₂ tutorial](@ref "1. Sunny showcase: Multi-flavor spin
-# wave simulations of FeI₂"), we used multi-flavor spin wave theory to calculate
-# the dynamical structure factor. Here, we perform a similar calculation using
+# In the [previous FeI₂ tutorial](@ref "1. Multi-flavor spin wave simulations of
+# FeI₂ (Showcase)"), we used multi-flavor spin wave theory to calculate the
+# dynamical structure factor. Here, we perform a similar calculation using
 # classical spin dynamics at finite temperature. Because we are interested in
 # the coupled dynamics of spin dipoles and quadrupoles, we employ a [classical
 # dynamics of SU(3) coherent states](https://arxiv.org/abs/2209.01265) that
