@@ -165,13 +165,14 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 @inline to_cartesian(i::CartesianIndex{N}) where N = i
 @inline to_cartesian(i::NTuple{N, Int})    where N = CartesianIndex(i)
 
-# Like mod1(x, L), but short-circuits early in the common case.
+# Like mod1(x, L), but short-circuits early in the common case. See
+# https://github.com/SunnySuite/Sunny.jl/pull/184 for discussion.
 @inline function altmod1(x::Int, L::Int)
     1 <= x <= L ? x : mod1(x, L)
 end
 
 # Offset a `cell` by `ncells`
-@inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(altmod1.(Tuple(cell) .+ Tuple(ncells), latsize))
+@inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(mod1.(Tuple(cell) .+ Tuple(ncells), latsize))
 
 # Split a site `site` into its cell and sublattice parts
 @inline to_cell(site) = CartesianIndex((site[1],site[2],site[3]))
