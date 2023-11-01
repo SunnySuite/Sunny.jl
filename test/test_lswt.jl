@@ -278,7 +278,7 @@ end
     s_mat = spin_matrices(S)
     s̃ᶻ = M' * s_mat
     
-    U_mat = exp(-1im * ϕ * s_mat[3]) * exp(-1im * θ * s_mat[2])
+    U_mat = exp(-im * ϕ * s_mat[3]) * exp(-im * θ * s_mat[2])
     hws = zeros(2S+1)
     hws[1] = 1.0
     Z = U_mat * hws
