@@ -1,4 +1,4 @@
-# # Tutorial 15 - Ba₃NbFe₃Si₂O₁₄
+# # SW15 - Ba₃NbFe₃Si₂O₁₄
 #
 # This is a Sunny port of [SpinW Tutorial
 # 15](https://spinw.org/tutorials/15tutorial), originally authored by Sandor

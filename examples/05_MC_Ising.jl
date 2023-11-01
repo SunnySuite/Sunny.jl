@@ -1,4 +1,4 @@
-# # Classical Ising model
+# # 5. Monte Carlo sampling of the Ising model
 # 
 # This tutorial illustrates simulation of the classical 2D Ising model.
 

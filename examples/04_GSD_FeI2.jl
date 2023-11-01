@@ -1,11 +1,12 @@
-# # FeI₂ at Finite Temperature
+# # 4. Generalized spin dynamics of FeI₂ at finite *T*
 
 using Sunny, LinearAlgebra, GLMakie
 
-# In our previous [Case Study: FeI₂](@ref), we used linear spin wave theory
-# (LSWT) to calculate the dynamical structure factor. Here, we perform a similar
-# calculation using classical spin dynamics. Because we are interested in the
-# coupled dynamics of spin dipoles and quadrupoles, we employ a [classical
+# In the [previous FeI₂ tutorial](@ref "1. Multi-flavor spin wave simulations of
+# FeI₂ (Showcase)"), we used multi-flavor spin wave theory to calculate the
+# dynamical structure factor. Here, we perform a similar calculation using
+# classical spin dynamics at finite temperature. Because we are interested in
+# the coupled dynamics of spin dipoles and quadrupoles, we employ a [classical
 # dynamics of SU(3) coherent states](https://arxiv.org/abs/2209.01265) that
 # generalizes the Landau-Lifshitz equation.
 #
