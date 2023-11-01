@@ -26,17 +26,30 @@ function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
         view(V, :, j) .*= c
     end
 
+    # Disable test for speed
+    #=
+    Ĩ = Diagonal([ones(L); -ones(L)])
+    @assert V' * Ĩ * V ≈ Ĩ
+    =#
+
+    # Verify that half the eigenvalues are positive and the other half are
+    # negative. The positive eigenvalues are quasiparticle energies for the
+    # wavevector q that defines the dynamical matrix H(q). The absolute value of
+    # the negative eigenvalues would be quasiparticle energies for H(-q), which
+    # we are not considering in the present context.
+    @assert all(>(0), view(λ, 1:L)) && all(<(0), view(λ, L+1:2L))
+    
     # Inverse of λ gives eigenvalues of Ĩ H. We only care about the first L
     # eigenvalues, which are positive. A factor of 2 is needed to get the
     # physical quasiparticle energies.
     disp = resize!(λ, L)
     @. disp = 2 / disp
 
-    # These properties hold mathematically. Note that the data in H has been
-    # overwritten by eigen!, so H0 should refer to an original copy of H.
+    # In the special case that H(q) = H(-q) (i.e., a magnetic ordering with
+    # reflection symmetry), the eigenvalues come in pairs. Note that the data in
+    # H has been overwritten by eigen!, so H0 should refer to an original copy
+    # of H.
     #=
-    Ĩ = Diagonal([ones(L); -ones(L)])
-    @assert V' * Ĩ * V ≈ Ĩ
     @assert diag(V' * H0 * V) ≈ [disp/2; reverse(disp)/2]
     =#
 
