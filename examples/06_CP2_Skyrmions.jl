@@ -1,4 +1,4 @@
-# # CP² Skyrmion Quench 
+# # 6. Dynamical quench into CP² skyrmion liquid
 #
 # This example demonstrates Sunny's ability to simulate the out-of-equilibrium
 # dynamics of generalized spin systems. We will implement the model Hamiltonian
@@ -108,9 +108,9 @@ end
 # function `plot_triangular_plaquettes` is not part of the core Sunny package,
 # but rather something you could define yourself. We are using the definition in
 # `plotting2d.jl` from the Sunny [`examples/extra`
-# directory](https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra).
+# directory](https://github.com/SunnySuite/Sunny.jl/tree/main/examples/extra/Plotting).
 
-include(pkgdir(Sunny, "examples", "extra", "plotting2d.jl"))
+include(pkgdir(Sunny, "examples", "extra", "Plotting", "plotting2d.jl"))
 
 function sun_berry_curvature(z₁, z₂, z₃)
     z₁, z₂, z₃ = normalize.((z₁, z₂, z₃))

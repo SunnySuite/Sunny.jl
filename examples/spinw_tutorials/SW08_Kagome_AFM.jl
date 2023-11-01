@@ -1,4 +1,4 @@
-# # Tutorial 8 - Kagome Antiferromagnet
+# # SW8 - Kagome Antiferromagnet
 #
 # This is a Sunny port of [SpinW Tutorial
 # 8](https://spinw.org/tutorials/08tutorial), originally authored by Bjorn Fak
