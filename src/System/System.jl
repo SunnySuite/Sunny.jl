@@ -451,6 +451,25 @@ function polarize_spins!(sys::System{N}, dir) where N
     end
 end
 
+"""
+    set_spin_rescaling!(sys, κ)
+
+Renormalize all expected magnetic moments (e.g., dipoles) by `κ`.
+"""
+function set_spin_rescaling!(sys::System{0}, κ)
+    sys.κs .= κ
+    for site in eachsite(sys)
+        set_dipole!(sys, sys.dipoles[site], site)
+    end
+end
+
+function set_spin_rescaling!(sys::System{N}, κ) where N
+    sys.κs .= κ
+    for site in eachsite(sys)
+        set_coherent!(sys, sys.coherents[site], site)
+    end
+end
+
 
 function get_dipole_buffers(sys::System{N}, numrequested) where N
     numexisting = length(sys.dipole_buffers)
