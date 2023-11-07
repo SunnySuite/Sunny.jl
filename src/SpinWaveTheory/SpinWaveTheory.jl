@@ -52,7 +52,7 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=not
             error("Only the default spin operators are supported in dipole mode")
         end
         obs = parse_observables(N; observables, correlations=nothing)
-        data = swt_data_dipole(sys)
+        data = swt_data_dipole!(sys)    # NOTE: Mutates interactions_union inside sys
     end
 
     return SpinWaveTheory(sys, data, energy_ϵ, obs)
@@ -172,7 +172,7 @@ end
 
 
 # Compute Stevens coefficients in the local reference frame
-function swt_data_dipole(sys::System{0})
+function swt_data_dipole!(sys::System{0})
     N = sys.Ns[1]
     S = (N-1)/2
     L = natoms(sys.crystal)  # Number of bands
@@ -186,7 +186,7 @@ function swt_data_dipole(sys::System{0})
         # will project out bosons that correspond to multipolar fluctuations,
         # therefore we use the explicit matrix to get rid of any ambiguity.
         
-        # As a unitary, U = exp(-i ϕ Sz) exp(-i θ Sy)
+        # As a unitary, U = exp(-i ϕ Sz) exp(-i θ Sy).
         θ, ϕ = dipole_to_angles(sys.dipoles[1,1,1,atom])
         R = SA[-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
                 cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
@@ -203,14 +203,14 @@ function swt_data_dipole(sys::System{0})
         push!(Vs, V)
     end
 
-    # Precompute transformed exchange matrices and store in internal sys.
+    # Precompute transformed exchange matrices and store in sys.interactions_union (mutation).
     for ints in sys.interactions_union
         for coupling in ints.pair
             (; isculled, bond) = coupling
             isculled && break
             i, j = bond.i, bond.j
 
-            if !iszero(coupling.bilin)  # Leave zero if already 0
+            if !iszero(coupling.bilin)  # Leave zero if already zero
                 J = Mat3(coupling.bilin*I)
                 coupling.bilin = S * (Rs[i]' * J * Rs[j]) 
             end
@@ -223,9 +223,10 @@ function swt_data_dipole(sys::System{0})
         end
     end
 
-    # Precompute onsite Hamiltonian
+    # Precompute onsite Hamiltonian.
     H = zeros(ComplexF64, 2L, 2L)
     (; extfield, gs, units) = sys
+
     for i in 1:L
 
         # Zeeman term 
