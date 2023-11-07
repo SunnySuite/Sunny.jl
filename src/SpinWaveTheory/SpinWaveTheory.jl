@@ -52,7 +52,7 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=not
             error("Only the default spin operators are supported in dipole mode")
         end
         obs = parse_observables(N; observables, correlations=nothing)
-        data = swt_data_dipole!(sys)    # NOTE: Mutates interactions_union inside sys
+        data = swt_data_dipole!(sys)
     end
 
     return SpinWaveTheory(sys, data, energy_ϵ, obs)
@@ -202,22 +202,24 @@ function swt_data_dipole!(sys::System{0})
         push!(Vs, V)
     end
 
-    # Precompute transformed exchange matrices and store in sys.interactions_union (mutation).
-    for ints in sys.interactions_union
-        for coupling in ints.pair
-            (; isculled, bond) = coupling
+    # Precompute transformed exchange matrices and store in sys.interactions_union.
+    for (n, ints) in enumerate(sys.interactions_union)
+        for (c, coupling) in enumerate(ints.pair)
+            (; isculled, bond, scalar, bilin, biquad, general) = coupling
             isculled && break
             i, j = bond.i, bond.j
 
             if !iszero(coupling.bilin)  # Leave zero if already zero
                 J = Mat3(coupling.bilin*I)
-                coupling.bilin = S * (Rs[i]' * J * Rs[j]) 
+                bilin = S * (Rs[i]' * J * Rs[j]) 
+                sys.interactions_union[n].pair[c] = PairCoupling(isculled, bond, scalar, bilin, biquad, general)
             end
 
             if !iszero(coupling.biquad)
                 J = coupling.biquad
                 J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
-                coupling.biquad = S^3 * Mat5(Vs[i]' * J * Vs[j]) 
+                biquad = S^3 * Mat5(Vs[i]' * J * Vs[j]) 
+                sys.interactions_union[n].pair[c] = PairCoupling(isculled, bond, scalar, bilin, biquad, general)
             end
         end
     end

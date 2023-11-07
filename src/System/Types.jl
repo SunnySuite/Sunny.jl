@@ -36,7 +36,7 @@ end
 const scalar_biquad_metric = Vec5(1/2, 2, 1/6, 2, 1/2)
 
 # Pair couplings are counted only once per bond
-mutable struct PairCoupling
+struct PairCoupling
     isculled :: Bool # Bond directionality is used to avoid double counting
     bond     :: Bond
 
