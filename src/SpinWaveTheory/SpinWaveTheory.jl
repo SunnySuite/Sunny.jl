@@ -2,8 +2,9 @@
 # Below takes Sunny to construct `SpinWave` for LSWT calculations.  #
 ###########################################################################
 struct SWTDataDipole
-    R_mat  :: Vector{Mat3}             # SO(3) rotation to align the quantization axis
-    c_coef :: Vector{StevensExpansion} # Stevens operator coefficents
+    R_mat             :: Vector{Mat3}             # SO(3) rotation to align the quantization axis
+    c_coef            :: Vector{StevensExpansion} # Stevens operator coefficents
+    stevens_rotations :: Vector{Mat5}             # Rotation operators for biquadratic interactions
 end
 
 struct SWTDataSUN
@@ -175,23 +176,29 @@ end
 function swt_data_dipole(sys::System{0})
     cs = StevensExpansion[]
     Rs = Mat3[]
+    stevens_rotations = Mat5[]
 
     for atom in 1:natoms(sys.crystal)
         # SO(3) rotation that aligns the quantization axis. Important: since we
         # will project out bosons that correspond to multipolar fluctuations,
         # therefore we use the explicit matrix to get rid of any ambiguity.
-        #
+        
         # As a unitary, U = exp(-i ϕ Sz) exp(-i θ Sy)
         θ, ϕ = dipole_to_angles(sys.dipoles[1,1,1,atom])
         R = SA[-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
                 cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
                 0.0     sin(θ)        cos(θ)]
+
         # Rotated Stevens expansion
         c = rotate_operator(sys.interactions_union[atom].onsite, R)
 
+        # Precalculate operators for rotating Stevens functions 
+        V = operator_for_stevens_rotation(2, R)
+
         push!(Rs, R)
         push!(cs, c)
+        push!(stevens_rotations, V)
     end
 
-    return SWTDataDipole(Rs, cs)
+    return SWTDataDipole(Rs, cs, stevens_rotations)
 end

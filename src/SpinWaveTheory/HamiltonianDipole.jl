@@ -5,7 +5,7 @@
 # Set the dynamical quadratic Hamiltonian matrix in dipole mode. 
 function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
-    (; R_mat, c_coef) = data
+    (; R_mat, c_coef, stevens_rotations) = data
     H .= 0.0
 
     N = sys.Ns[1]            # Dimension of SU(N) coherent states
@@ -24,10 +24,9 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     end
 
     # pairexchange interactions
-    for i in 1:L
-        ints = sys.interactions_union[i]
+    for ints in sys.interactions_union
 
-        # Quadratic exchange
+        # Bilinear exchange
         for coupling in ints.pair
             (; isculled, bond) = coupling
             isculled && break
@@ -61,15 +60,14 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
                 H[j+L, j+L] -= 0.5 * Rij[3, 3]
             end
 
-            ### Biquadratic exchange
-
+            # Biquadratic exchange
             if !iszero(coupling.biquad)
                 J = coupling.biquad
                 J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
 
                 # Transform couplings according to the local quantization basis
-                Vi = operator_for_stevens_rotation(2, R_mat_i)
-                Vj = operator_for_stevens_rotation(2, R_mat_j)
+                Vi = stevens_rotations[i] 
+                Vj = stevens_rotations[j] 
                 J = S^3 * Mat5(Vi' * J * Vj)
             
                 H[i, i] += -6J[3, 3]
