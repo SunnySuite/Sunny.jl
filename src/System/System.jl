@@ -457,8 +457,8 @@ end
 Renormalize all expected magnetic moments (e.g., dipoles) by `κ`.
 """
 function set_spin_rescaling!(sys::System{0}, κ)
-    sys.κs .= κ
     for site in eachsite(sys)
+        sys.κs[site] = κ * (sys.Ns[2]-1)/2
         set_dipole!(sys, sys.dipoles[site], site)
     end
 end
