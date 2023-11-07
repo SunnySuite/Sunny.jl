@@ -4,7 +4,6 @@
 struct SWTDataDipole
     R_mat             :: Vector{Mat3}             # SO(3) rotation to align the quantization axis
     c_coef            :: Vector{StevensExpansion} # Stevens operator coefficents
-    stevens_rotations :: Vector{Mat5}             # Rotation operators for biquadratic interactions
 end
 
 struct SWTDataSUN
@@ -176,7 +175,9 @@ end
 function swt_data_dipole(sys::System{0})
     cs = StevensExpansion[]
     Rs = Mat3[]
-    stevens_rotations = Mat5[]
+    Vs = Mat5[]
+    N = sys.Ns[1]
+    S = (N-1)/2
 
     for atom in 1:natoms(sys.crystal)
         # SO(3) rotation that aligns the quantization axis. Important: since we
@@ -189,16 +190,36 @@ function swt_data_dipole(sys::System{0})
                 cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
                 0.0     sin(θ)        cos(θ)]
 
-        # Rotated Stevens expansion
+        # Rotated Stevens expansion.
         c = rotate_operator(sys.interactions_union[atom].onsite, R)
 
-        # Precalculate operators for rotating Stevens functions 
+        # Precalculate operators for rotating Stevens coefficients.
         V = operator_for_stevens_rotation(2, R)
 
         push!(Rs, R)
         push!(cs, c)
-        push!(stevens_rotations, V)
+        push!(Vs, V)
     end
 
-    return SWTDataDipole(Rs, cs, stevens_rotations)
+    # Precompute transformed exchange matrices and store in internal sys.
+    for ints in sys.interactions_union
+        for coupling in ints.pair
+            (; isculled, bond) = coupling
+            isculled && break
+            i, j = bond.i, bond.j
+
+            if !iszero(coupling.bilin)  # Leave zero if already 0
+                J = Mat3(coupling.bilin*I)
+                coupling.bilin = S * (Rs[i]' * J * Rs[j]) 
+            end
+
+            if !iszero(coupling.biquad)
+                J = coupling.biquad
+                J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
+                coupling.biquad = S^3 * Mat5(Vs[i]' * J * Vs[j]) 
+            end
+        end
+    end
+
+    return SWTDataDipole(Rs, cs)
 end

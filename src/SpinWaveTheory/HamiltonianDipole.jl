@@ -5,7 +5,7 @@
 # Set the dynamical quadratic Hamiltonian matrix in dipole mode. 
 function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
-    (; R_mat, c_coef, stevens_rotations) = data
+    (; R_mat, c_coef) = data
     H .= 0.0
 
     N = sys.Ns[1]            # Dimension of SU(N) coherent states
@@ -30,21 +30,16 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         for coupling in ints.pair
             (; isculled, bond) = coupling
             isculled && break
+            i, j = bond.i, bond.j
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
 
             if !iszero(coupling.bilin)
-                J = Mat3(coupling.bilin*I)
-                i, j = bond.i, bond.j
-                phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+                J = coupling.bilin  # This is Rij in previous notation (transformed exchange matrix)
 
-                # Transform couplings according to the local quantization basis
-                R_mat_i = R_mat[i]
-                R_mat_j = R_mat[j]
-                Rij = S * (R_mat_i' * J * R_mat_j)
+                P = 0.25 * (J[1, 1] - J[2, 2] - im*J[1, 2] - im*J[2, 1])
+                Q = 0.25 * (J[1, 1] + J[2, 2] - im*J[1, 2] + im*J[2, 1])
 
-                P = 0.25 * (Rij[1, 1] - Rij[2, 2] - im*Rij[1, 2] - im*Rij[2, 1])
-                Q = 0.25 * (Rij[1, 1] + Rij[2, 2] - im*Rij[1, 2] + im*Rij[2, 1])
-
-                H[i, j]     += Q  * phase
+                H[i, j]     += Q * phase
                 H[j, i]     += conj(Q) * conj(phase)
                 H[i+L, j+L] += conj(Q) * phase
                 H[j+L, i+L] += Q  * conj(phase)
@@ -54,21 +49,15 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
                 H[i, j+L] += conj(P) * phase
                 H[j, i+L] += conj(P) * conj(phase)
 
-                H[i, i]     -= 0.5 * Rij[3, 3]
-                H[j, j]     -= 0.5 * Rij[3, 3]
-                H[i+L, i+L] -= 0.5 * Rij[3, 3]
-                H[j+L, j+L] -= 0.5 * Rij[3, 3]
+                H[i, i]     -= 0.5 * J[3, 3]
+                H[j, j]     -= 0.5 * J[3, 3]
+                H[i+L, i+L] -= 0.5 * J[3, 3]
+                H[j+L, j+L] -= 0.5 * J[3, 3]
             end
 
             # Biquadratic exchange
             if !iszero(coupling.biquad)
-                J = coupling.biquad
-                J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
-
-                # Transform couplings according to the local quantization basis
-                Vi = stevens_rotations[i] 
-                Vj = stevens_rotations[j] 
-                J = S^3 * Mat5(Vi' * J * Vj)
+                J = coupling.biquad  # Transformed quadrupole exchange matrix
             
                 H[i, i] += -6J[3, 3]
                 H[j, j] += -6J[3, 3]
