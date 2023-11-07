@@ -2,17 +2,17 @@
 # Below takes Sunny to construct `SpinWave` for LSWT calculations.  #
 ###########################################################################
 struct SWTDataDipole
-    R_mat  :: Vector{Mat3}             # SO(3) rotation to align the quantization axis
-    c_coef :: Vector{StevensExpansion} # Stevens operator coefficents
+    local_rotations       :: Vector{Mat3}
+    stevens_coefs         :: Vector{StevensExpansion}
 end
 
 struct SWTDataSUN
     dipole_operators      :: Array{ComplexF64, 4}
     quadrupole_operators  :: Array{ComplexF64, 4}
-    onsite_operator       :: Array{ComplexF64, 3}  
+    onsite_operator       :: Array{ComplexF64, 3}
     bond_operator_pairs   :: Vector{Tuple{Bond, Array{ComplexF64, 4}}}
     observable_operators  :: Array{ComplexF64, 4}
-    local_unitary         :: Array{ComplexF64,3} # Aligns quantization axis on each site
+    local_unitary         :: Array{ComplexF64, 3} # Aligns quantization axis on each site
 end
 
 """
@@ -52,7 +52,7 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=not
             error("Only the default spin operators are supported in dipole mode")
         end
         obs = parse_observables(N; observables, correlations=nothing)
-        data = swt_data_dipole(sys)
+        data = swt_data_dipole!(sys)
     end
 
     return SpinWaveTheory(sys, data, energy_ϵ, obs)
@@ -172,25 +172,58 @@ end
 
 
 # Compute Stevens coefficients in the local reference frame
-function swt_data_dipole(sys::System{0})
+function swt_data_dipole!(sys::System{0})
+    N = sys.Ns[1]
+    S = (N-1)/2
+
     cs = StevensExpansion[]
     Rs = Mat3[]
+    Vs = Mat5[]
 
     for atom in 1:natoms(sys.crystal)
         # SO(3) rotation that aligns the quantization axis. Important: since we
         # will project out bosons that correspond to multipolar fluctuations,
         # therefore we use the explicit matrix to get rid of any ambiguity.
-        #
-        # As a unitary, U = exp(-i ϕ Sz) exp(-i θ Sy)
+        
+        # As a unitary, U = exp(-i ϕ Sz) exp(-i θ Sy).
         θ, ϕ = dipole_to_angles(sys.dipoles[1,1,1,atom])
         R = SA[-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
                 cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
                 0.0     sin(θ)        cos(θ)]
-        # Rotated Stevens expansion
+
+        # Rotated Stevens expansion.
         c = rotate_operator(sys.interactions_union[atom].onsite, R)
+
+        # Precalculate operators for rotating Stevens coefficients.
+        V = operator_for_stevens_rotation(2, R)
 
         push!(Rs, R)
         push!(cs, c)
+        push!(Vs, V)
+    end
+
+    # Precompute transformed exchange matrices and store in sys.interactions_union.
+    for ints in sys.interactions_union
+        for c in eachindex(ints.pair)
+            (; isculled, bond, scalar, bilin, biquad, general) = ints.pair[c]
+            isculled && break
+            i, j = bond.i, bond.j
+
+            if !iszero(bilin)  # Leave zero if already zero
+                J = Mat3(bilin*I)
+                bilin = S * (Rs[i]' * J * Rs[j]) 
+            end
+
+            if !iszero(biquad)
+                J = biquad
+                J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
+                biquad = S^3 * Mat5(Vs[i]' * J * Vs[j]) 
+            end
+
+            @assert isempty(general.data)
+
+            ints.pair[c] = PairCoupling(isculled, bond, scalar, bilin, biquad, general)
+        end
     end
 
     return SWTDataDipole(Rs, cs)
