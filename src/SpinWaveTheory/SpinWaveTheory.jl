@@ -173,11 +173,13 @@ end
 
 # Compute Stevens coefficients in the local reference frame
 function swt_data_dipole(sys::System{0})
+    N = sys.Ns[1]
+    S = (N-1)/2
+    L = natoms(sys.crystal)  # Number of bands
+
     cs = StevensExpansion[]
     Rs = Mat3[]
     Vs = Mat5[]
-    N = sys.Ns[1]
-    S = (N-1)/2
 
     for atom in 1:natoms(sys.crystal)
         # SO(3) rotation that aligns the quantization axis. Important: since we
@@ -222,7 +224,6 @@ function swt_data_dipole(sys::System{0})
     end
 
     # Precompute onsite Hamiltonian
-    L = natoms(sys.crystal)
     H = zeros(ComplexF64, 2L, 2L)
     (; extfield, gs, units) = sys
     for i in 1:L
