@@ -1,29 +1,15 @@
-###########################################################################
-# Below are the implementations of the SU(N) linear spin-wave calculations #
-###########################################################################
-
 # Set the dynamical quadratic Hamiltonian matrix in dipole mode. 
 function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
-    (; R_mat, c_coef) = data
-    H .= 0.0
+    (; onsite_hamiltonian) = data
 
-    N = sys.Ns[1]            # Dimension of SU(N) coherent states
-    S = (N-1)/2              # Spin magnitude
     L = natoms(sys.crystal)  # Number of quasiparticle bands
-
     @assert size(H) == (2L, 2L)
 
-    # Zeeman contributions
-    (; extfield, gs, units) = sys
-    for i in 1:L
-        effB = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i])
-        res = dot(effB, R_mat[i][:, 3]) / 2
-        H[i, i]     += res
-        H[i+L, i+L] += res
-    end
+    # Initialize Hamiltonian with onsite contributions (Zeeman and single-ion)
+    H .= onsite_hamiltonian
 
-    # pairexchange interactions
+    # Add pairwise terms 
     for ints in sys.interactions_union
 
         # Bilinear exchange
@@ -82,15 +68,6 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
                 H[j, i+L] += conj(P) * conj(phase)
             end
         end
-    end
-
-    # single-ion anisotropy
-    for i in 1:L
-        (; c2, c4, c6) = c_coef[i]
-        H[i, i]     += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H[i+L, i+L] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H[i, i+L]   += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
-        H[i+L, i]   +=  im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
     end
 
     # H must be hermitian up to round-off errors
