@@ -2,8 +2,8 @@
 # Below takes Sunny to construct `SpinWave` for LSWT calculations.  #
 ###########################################################################
 struct SWTDataDipole
-    local_rotations     :: Vector{Mat3}
-    onsite_hamiltonian  :: Array{ComplexF64, 2} 
+    local_rotations  :: Vector{Mat3}
+    stevens_coefs    :: Vector{StevensExpansion}
 end
 
 struct SWTDataSUN
@@ -175,7 +175,6 @@ end
 function swt_data_dipole!(sys::System{0})
     N = sys.Ns[1]
     S = (N-1)/2
-    L = natoms(sys.crystal)  # Number of bands
 
     cs = StevensExpansion[]
     Rs = Mat3[]
@@ -223,25 +222,5 @@ function swt_data_dipole!(sys::System{0})
         end
     end
 
-    # Precompute onsite Hamiltonian.
-    H = zeros(ComplexF64, 2L, 2L)
-    (; extfield, gs, units) = sys
-
-    for i in 1:L
-
-        # Zeeman term 
-        B = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i]) 
-        B′ = dot(B, Rs[i][:, 3]) / 2 
-        H[i, i]     += B′
-        H[i+L, i+L] += B′
-
-        # Single-ion anisotropy
-        (; c2, c4, c6) = cs[i]
-        H[i, i]     += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H[i+L, i+L] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H[i, i+L]   += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
-        H[i+L, i]   +=  im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
-    end
-
-    return SWTDataDipole(Rs, H)
+    return SWTDataDipole(Rs, cs)
 end

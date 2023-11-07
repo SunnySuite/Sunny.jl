@@ -1,13 +1,24 @@
 # Set the dynamical quadratic Hamiltonian matrix in dipole mode. 
 function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
-    (; onsite_hamiltonian) = data
+    (; local_rotations, stevens_coefs) = data
 
-    L = natoms(sys.crystal)  # Number of quasiparticle bands
+    N = swt.sys.Ns[1]
+    S = (N-1)/2
+    L = num_bands(swt) 
     @assert size(H) == (2L, 2L)
 
-    # Initialize Hamiltonian with onsite contributions (Zeeman and single-ion)
-    H .= onsite_hamiltonian
+    # Initialize Hamiltonian buffer 
+    H .= 0.0 
+
+    # Add Zeeman term
+    (; extfield, gs, units) = sys
+    for i in 1:L
+        B = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i]) 
+        B′ = dot(B, local_rotations[i][:, 3]) / 2 
+        H[i, i]     += B′
+        H[i+L, i+L] += B′
+    end
 
     # Add pairwise terms 
     for ints in sys.interactions_union
@@ -68,6 +79,15 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
                 H[j, i+L] += conj(P) * conj(phase)
             end
         end
+    end
+
+    # Add single-ion anisotropy
+    for i in 1:L
+        (; c2, c4, c6) = stevens_coefs[i]
+        H[i, i]     += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
+        H[i+L, i+L] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
+        H[i, i+L]   += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        H[i+L, i]   +=  im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
     end
 
     # H must be hermitian up to round-off errors
