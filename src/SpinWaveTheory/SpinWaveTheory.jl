@@ -2,17 +2,17 @@
 # Below takes Sunny to construct `SpinWave` for LSWT calculations.  #
 ###########################################################################
 struct SWTDataDipole
-    local_rotations  :: Vector{Mat3}
-    stevens_coefs    :: Vector{StevensExpansion}
+    local_rotations       :: Vector{Mat3}
+    stevens_coefs         :: Vector{StevensExpansion}
 end
 
 struct SWTDataSUN
     dipole_operators      :: Array{ComplexF64, 4}
     quadrupole_operators  :: Array{ComplexF64, 4}
-    onsite_operator       :: Array{ComplexF64, 3}  
+    onsite_operator       :: Array{ComplexF64, 3}
     bond_operator_pairs   :: Vector{Tuple{Bond, Array{ComplexF64, 4}}}
     observable_operators  :: Array{ComplexF64, 4}
-    local_unitary         :: Array{ComplexF64,3} # Aligns quantization axis on each site
+    local_unitary         :: Array{ComplexF64, 3} # Aligns quantization axis on each site
 end
 
 """
@@ -203,24 +203,26 @@ function swt_data_dipole!(sys::System{0})
     end
 
     # Precompute transformed exchange matrices and store in sys.interactions_union.
-    for (n, ints) in enumerate(sys.interactions_union)
-        for (c, coupling) in enumerate(ints.pair)
-            (; isculled, bond, scalar, bilin, biquad, general) = coupling
+    for ints in sys.interactions_union
+        for c in eachindex(ints.pair)
+            (; isculled, bond, scalar, bilin, biquad, general) = ints.pair[c]
             isculled && break
             i, j = bond.i, bond.j
 
-            if !iszero(coupling.bilin)  # Leave zero if already zero
-                J = Mat3(coupling.bilin*I)
+            if !iszero(bilin)  # Leave zero if already zero
+                J = Mat3(bilin*I)
                 bilin = S * (Rs[i]' * J * Rs[j]) 
-                sys.interactions_union[n].pair[c] = PairCoupling(isculled, bond, scalar, bilin, biquad, general)
             end
 
-            if !iszero(coupling.biquad)
-                J = coupling.biquad
+            if !iszero(biquad)
+                J = biquad
                 J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
                 biquad = S^3 * Mat5(Vs[i]' * J * Vs[j]) 
-                sys.interactions_union[n].pair[c] = PairCoupling(isculled, bond, scalar, bilin, biquad, general)
             end
+
+            @assert isempty(general.data)
+
+            ints.pair[c] = PairCoupling(isculled, bond, scalar, bilin, biquad, general)
         end
     end
 
