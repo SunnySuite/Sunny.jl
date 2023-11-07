@@ -335,16 +335,16 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             else
                 @assert sys.mode in (:dipole, :dipole_large_S)
                 Avec = zeros(ComplexF64, 3)
-                (; R_mat) = data
+                R = data.local_rotations
                 for i = 1:Nm
                     Vtmp = [v[i+nmodes] + v[i], im * (v[i+nmodes] - v[i]), 0.0]
-                    Avec += Avec_pref[i] * sqrt_halfS * (R_mat[i] * Vtmp)
+                    Avec += Avec_pref[i] * sqrt_halfS * (R[i] * Vtmp)
                 end
 
                 @assert observables.observable_ixs[:Sx] == 1
                 @assert observables.observable_ixs[:Sy] == 2
                 @assert observables.observable_ixs[:Sz] == 3
-                corrs = Vector{ComplexF64}(undef,num_correlations(observables))
+                corrs = Vector{ComplexF64}(undef, num_correlations(observables))
                 for (ci,i) in observables.correlations
                     (α,β) = ci.I
                     corrs[i] = Avec[α] * conj(Avec[β])
