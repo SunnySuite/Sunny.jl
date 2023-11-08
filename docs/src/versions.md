@@ -1,14 +1,18 @@
 # Version History
 
 ## v0.5.6
+(Nov 8, 2023)
 
-* Animated spin dynamics is now possible. Call `notify` on the result of
-  [`plot_spins`](@ref) to trigger redrawing of the frame. The argument `colorfn`
-  to `plot_spins` supports animation of colors.
+This release initiates some **major enhancements** to the user interface in support
+of generalized SU(_N_) spin models. See [this documentation
+page](https://sunnysuite.github.io/Sunny.jl/dev/renormalization.html) for an
+illustration of the new features. Most existing Sunny 0.5 models will continue
+to work with deprecation warnings, but these will become hard errors Sunny v0.6.
+
 * General pair couplings are now supported in [`set_pair_coupling!`](@ref) and
-  [`set_pair_coupling_at!`](@ref). `:SUN` supports interactions of any order,
-  but `:dipole` mode is limited to bilinear and biquadratic coupling of the
-  spin.
+  [`set_pair_coupling_at!`](@ref). `:SUN` mode supports interactions of any
+  order, but `:dipole` mode is limited to bilinear and biquadratic coupling of
+  the spin.
 * To perform a calculation with dipoles in the large-$S$ limit, use the new mode
   `:dipole_large_S` when constructing a [`System`](@ref).
 * Deprecate the option `biquad` to [`set_exchange!`](@ref). Use instead
@@ -18,8 +22,17 @@
   [`stevens_matrices`](@ref), which require a specific spin-``S`` label. To
   infer this, one can use [`spin_label`](@ref).
 * Remove unused option `energy_tol` in [`SpinWaveTheory`](@ref).
+* Animated spin dynamics is now possible. Call `notify` on the result of
+  [`plot_spins`](@ref) to trigger redrawing of the frame. The argument `colorfn`
+  to `plot_spins` supports animation of colors. See [example usage for a
+  Heisenberg
+  ferromagnetic.](https://github.com/SunnySuite/Sunny.jl/blob/main/examples/extra/heisenberg_animation.jl)
+* Add [`set_spin_rescaling!`](@ref) feature, which supports improved spectral
+  measurements at finite-$T$. This follows the method proposed in [Dahlbom et
+  al., [arXiv:2310.19905]](https://arxiv.org/abs/2310.19905).
 
 ## v0.5.5
+(Sept 29, 2023)
 
 * [`reshape_supercell`](@ref) now allows reshaping to multiples of the primitive
   unit cell, which can speed up certain calculations. This is illustrated in the
@@ -30,7 +43,8 @@
 * Various bug fixes. In particular, an `intensity_formula` with `:full` will now
   uniformly calculate a `3x3` matrix of complex numbers.
 
-# v0.5.4
+## v0.5.4
+(Sept 11, 2023)
 
 * Various enhancements to [`view_crystal`](@ref). Atoms are now labeled by
   index, and bonds support interactive inspection (GLMakie only). Font sizes
@@ -48,7 +62,8 @@
   anisotropy operators.
 * Fix `export_vtk` functionality.
 
-# v0.5.3
+## v0.5.3
+(Sept 8, 2023)
 
 * Add `large_S_spin_operators` and `large_S_stevens_operators`
   to support single-ion anisotropies in dipole mode without renormalization. Set
@@ -59,18 +74,21 @@
 * [`SpinWaveTheory`](@ref) will (currently) error if provided a system with
   [`enable_dipole_dipole!`](@ref).
 
-# v0.5.2
+## v0.5.2
+(Aug 30, 2023)
 
 * Form factors for 5d transition ions.
 * Download links for notebooks and scripts on each doc example
 * Various bug fixes.
 
-# v0.5.1
+## v0.5.1
+(Aug 23, 2023)
 
 * Fix binning edge cases.
 * [`plot_spins`](@ref) accepts resolution argument.
 
-# v0.5.0
+## v0.5.0
+(Aug 21, 2023)
 
 **New features**.
 
@@ -134,7 +152,8 @@ The constructor [`FormFactor`](@ref) no longer accepts an atom index. Instead,
 the form factors are associated with site-symmetry classes in order of
 appearance.
 
-# v0.4.3
+## v0.4.3
+(Jun 23, 2023)
 
 **Experimental** support for linear [`SpinWaveTheory`](@ref), implemented in
 SU(_N_) mode. This module may evolve rapidly.
@@ -154,7 +173,8 @@ dimensions.
 Rename `StaticStructureFactor` to `InstantStructureFactor`.
 
 
-# v0.4.2
+## v0.4.2
+(Feb 27, 2023)
 
 Introduce [`LocalSampler`](@ref), a framework for MCMC sampling with local spin
 updates.
@@ -171,7 +191,8 @@ Remove all uses of
 [`Base.deepcopy`](https://docs.julialang.org/en/v1/base/base/#Base.deepcopy)
 which [resolves crashes](https://github.com/SunnySuite/Sunny.jl/issues/65).
 
-# v0.4.1
+## v0.4.1
+(Feb 13, 2023)
 
 The function [`to_inhomogeneous`](@ref) creates a system that supports
 inhomogeneous interactions, which can be set using [`set_exchange_at!`](@ref),
@@ -180,7 +201,8 @@ etc.
 `set_biquadratic!` replaces `set_exchange_with_biquadratic!`.
 
 
-# v0.4.0
+## v0.4.0
+(Feb 10, 2023)
 
 This update includes many breaking changes, and is missing some features of
 0.3.0.
