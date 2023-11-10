@@ -115,7 +115,7 @@ The function is intended to be specified using `do` notation. For example, this 
 
 If your custom formula returns a type other than `Float64`, use the `return_type` keyword argument to flag this.
 """
-function intensity_formula(f::Function,sc::SampledCorrelations,required_correlations; kwargs...)
+function intensity_formula(f::Function,sc,required_correlations; kwargs...)
     # SQTODO: This corr_ix may contain repeated correlations if the user does a silly
     # thing like [(:Sx,:Sy),(:Sy,:Sx)], and this can technically be optimized so it's
     # not computed twice
