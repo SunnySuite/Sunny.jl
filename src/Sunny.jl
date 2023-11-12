@@ -146,13 +146,21 @@ export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSample
 
 include("deprecated.jl")
 
+isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
+
 ### ext/PlottingExt.jl, dependent on Makie
-function plot_spins end
-function view_crystal end
+function plot_spins(args...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie or GLMakie to enable plotting")
+end
+function view_crystal(args...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie or GLMakie to enable plotting")
+end
 export plot_spins, view_crystal
 
 ### ext/ExportVTKExt.jl, dependent on WriteVTK
-function export_vtk end
+function export_vtk(args...)
+    error(isloaded("WriteVTK") ? "Invalid method call" : "Import WriteVTK to enable exporting")
+end
 export export_vtk
 
 end
