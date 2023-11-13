@@ -172,7 +172,7 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 end
 
 # Offset a `cell` by `ncells`
-@inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(mod1.(Tuple(cell) .+ Tuple(ncells), latsize))
+@inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(altmod1.(Tuple(cell) .+ Tuple(ncells), latsize))
 
 # Split a site `site` into its cell and sublattice parts
 @inline to_cell(site) = CartesianIndex((site[1],site[2],site[3]))
