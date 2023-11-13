@@ -857,7 +857,6 @@ function scatter_bin_centers!(ax,params;axes)
     Makie.scatter!(ax,xs,ys,marker='x',markersize=10,color = :black)
 end
 
-
 function __init__()
     # Make the `PlottingExt` module accessible via `Sunny.Plotting` rather than
     # the more verbose syntax `Base.get_extension(Sunny, :PlottingExt)`.
