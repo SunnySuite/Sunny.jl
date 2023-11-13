@@ -8,6 +8,8 @@ periodicity of a requested supercell. The columns of the ``3×3`` integer matrix
 original crystal lattice vectors.
 """
 function reshape_supercell(sys::System{N}, shape) where N
+    is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
+
     orig = orig_crystal(sys)
 
     supervecs = orig.latvecs * shape
@@ -32,19 +34,35 @@ function reshape_supercell(sys::System{N}, shape) where N
 end
 
 
-# Transfer homogeneous interactions from `sys.origin` to reshaped `sys`
-function set_interactions_from_origin!(sys::System{N}) where N
-    origin = sys.origin
-    new_ints  = interactions_homog(sys)
-    orig_ints = interactions_homog(origin)
+# Transfer homogeneous interactions from `orig` to reshaped `sys`.
+#
+# Frequently `orig` will refer to `sys.origin`, associated with the original
+# crystal, which will make symmetry analysis available. In this case, the
+# process to set a new interaction is to first modify `sys.origin`, and then to
+# call this function.
+function set_interactions_from_origin!(sys::System{N}, orig::System{N}) where N
+    new_ints = interactions_homog(sys)
 
     for new_i in 1:natoms(sys.crystal)
-        i = map_atom_to_crystal(sys.crystal, new_i, origin.crystal)
-        new_ints[new_i].onsite = orig_ints[i].onsite
+        # Find `src` interaction either through an atom index or a site index
+        if is_homogeneous(orig)
+            i = map_atom_to_orig_crystal(sys.crystal, new_i, orig.crystal)
+        else
+            # Use case here is to prepare for a LSWT calculation by building an
+            # equivalent system with a single unit cell
+            @assert sys.latsize == (1,1,1)
+            @assert natoms(sys.crystal) == prod(orig.latsize) * natoms(orig.crystal)
+            i = map_atom_to_orig_system(sys.crystal, new_i, orig)
+        end
+        orig_int = orig.interactions_union[i]
 
+        # Copy onsite couplings
+        new_ints[new_i].onsite = orig_int.onsite
+
+        # Copy pair couplings
         new_pc = PairCoupling[]
-        for pc in orig_ints[i].pair
-            new_bond = transform_bond(sys.crystal, new_i, origin.crystal, pc.bond)
+        for pc in orig_int.pair
+            new_bond = transform_bond(sys.crystal, new_i, orig_crystal(orig), pc.bond)
             isculled = bond_parity(new_bond)
             push!(new_pc, PairCoupling(isculled, new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
         end
@@ -55,7 +73,6 @@ end
 
 
 function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_shape::Mat3) where N
-    is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
 
     # `origin` describes the unit cell of the original system. For sequential
     # reshapings, `sys.origin` keeps its original meaning. Make a deep copy so
@@ -63,10 +80,9 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
     # previous system won't affect this one.
     origin = clone_system(isnothing(sys.origin) ? sys : sys.origin)
 
-    # If `new_cell_shape == I`, we can effectively restore the unit cell of
-    # `origin`. Otherwise, we will need to reshape the crystal, map the
-    # interactions, and keep a reference to the original system.
-    if new_cell_shape ≈ I
+    # If `new_cell_shape == I`, we can reuse unit cell of `origin`. Still need
+    # to reallocate various fields because `new_latsize` may have changed.
+    if new_cell_shape ≈ I && is_homogeneous(origin)
         new_cryst = origin.crystal
 
         new_na               = natoms(new_cryst)
@@ -76,14 +92,18 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
         new_extfield         = zeros(Vec3, new_latsize..., new_na)
         new_dipoles          = zeros(Vec3, new_latsize..., new_na)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_na)
-
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
 
+        # Can reuse existing interactions
         new_ints = interactions_homog(origin)
+        new_ewald = nothing
 
-        new_sys = System(nothing, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
-            new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
+        new_sys = System(nothing, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, new_ewald,
+                         new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
+
+    # Otherwise, we will need to reshape the crystal, map the interactions, and
+    # keep a reference to the original system.
     else
         new_cryst = reshape_crystal(origin.crystal, new_cell_shape)
 
@@ -94,16 +114,18 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
         new_extfield         = zeros(Vec3, new_latsize..., new_na)
         new_dipoles          = zeros(Vec3, new_latsize..., new_na)
         new_coherents        = zeros(CVec{N}, new_latsize..., new_na)
-
         new_dipole_buffers   = Array{Vec3, 4}[]
         new_coherent_buffers = Array{CVec{N}, 4}[]
 
-        new_ints = empty_interactions(origin.mode, new_na, N)
+        # Begin with empty interactions
+        new_ints             = empty_interactions(origin.mode, new_na, N)
+        new_ewald            = nothing
 
-        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, nothing,
+        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, new_ewald,
             new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
 
-        set_interactions_from_origin!(new_sys)
+        # Fill in interactions
+        set_interactions_from_origin!(new_sys, origin)
     end
 
     # Copy per-site quantities
@@ -117,13 +139,15 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
         new_sys.coherents[new_site] = sys.coherents[site]
     end
 
-    # Restore dipole-dipole interactions if present
+    # Restore dipole-dipole interactions if present. This involves pre-computing
+    # an interaction matrix that depends on `new_latsize`.
     if !isnothing(sys.ewald)
         enable_dipole_dipole!(new_sys)
     end
 
     return new_sys
 end
+
 
 # Shape of a possibly reshaped unit cell, given in multiples of the original
 # unit cell.
@@ -158,7 +182,9 @@ times in each dimension, specified by the tuple `counts`.
 See also [`reshape_supercell`](@ref).
 """
 function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
-    @assert all(>=(1), counts)
+    is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
+    all(>=(1), counts) || error("Require at least one count in each direction.")
+
     # Scale each column by `counts` and reshape
     return reshape_supercell_aux(sys, counts .* sys.latsize, cell_shape(sys))
 end

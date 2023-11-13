@@ -152,7 +152,7 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
     # contains full symmetry information.
     if !isnothing(sys.origin)
         set_pair_coupling_aux!(sys.origin, scalar, bilin, biquad, tensordec, bond)
-        set_interactions_from_origin!(sys)
+        set_interactions_from_origin!(sys, sys.origin)
         return
     end
 
