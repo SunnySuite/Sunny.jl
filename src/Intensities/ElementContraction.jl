@@ -120,12 +120,6 @@ end
 function contract(dipole_elements, k::Vec3, dipoleinfo::DipoleFactor)
     Sab = reshape(dipole_elements,3,3)
 
-    #display(Sab)
-    #println("[CS] part:")
-    #display(Sab + Sab')
-    #println("[-CS] part:")
-    #display(Sab - Sab')
-
     # If Sab is the *unilateral (Laplace) transform* of the time-domin
     # correlations, then we are *not* gaurunteed conjugate-symmetry of the matrix,
     # so we need to explicitly symmterize it now to ensure that the result
