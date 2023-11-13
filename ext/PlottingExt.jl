@@ -619,25 +619,6 @@ function scatter_bin_centers!(ax,params;axes)
     Makie.scatter!(ax,xs,ys,marker='x',markersize=10,color = :black)
 end
 
-
-function plot_band_intensities(dispersion, intensity)
-    f = Makie.Figure()
-    ax = Makie.Axis(f[1,1]; xlabel = "Momentum", ylabel = "Energy (meV)", xticklabelsvisible = false)
-    plot_band_intensities!(ax,dispersion,intensity)
-    f
-end
-
-function plot_band_intensities!(ax, dispersion, intensity)
-    Makie.ylims!(ax, min(0.0,minimum(dispersion)), 7.5)
-    Makie.xlims!(ax, 1, size(dispersion, 1))
-    colorrange = extrema(intensity)
-    for i in axes(dispersion)[2]
-        Makie.lines!(ax, 1:length(dispersion[:,i]), dispersion[:,i]; color=intensity[:,i], colorrange)
-    end
-    nothing
-end
-
-
 # The purpose of __init__() below is to make all the internal functions of
 # PlottingExt accessible to developers of Sunny.
 #

@@ -84,21 +84,22 @@ function accum_sample!(sc::SampledCorrelations;alg = :no_window)
     (; data, variance, observables, samplebuf, nsamples, fft!) = sc
     natoms = size(samplebuf,5)
 
-    time_2T = size(samplebuf,6)
-    time_T = time_2T÷2
-    #longest_correlation_delay = div(time_2T,4,RoundDown)
+    time_T = size(samplebuf,6)
+    time_2T = 2time_T
     left_zero_ix = 1:time_T
     right_zero_ix = (time_T + 1):time_2T
 
-    # Same as samplebuf, but the second half of the data (in time) is zeroed out
-    left_zero_buffer = copy(samplebuf)
-    left_zero_buffer[:,:,:,:,:,left_zero_ix] .= 0
-
-    right_zero_buffer = copy(samplebuf)
+    # Zero-padded extension of the samplebuf
+    right_zero_buffer = zeros(ComplexF64,size(samplebuf)[1:5]...,time_2T)
+    right_zero_buffer[:,:,:,:,:,left_zero_ix] .= samplebuf
     right_zero_buffer[:,:,:,:,:,right_zero_ix] .= 0
 
-    fft! * samplebuf # Apply pre-planned and pre-normalized FFT
-    fft! * left_zero_buffer
+    # Number of terms contributing to each auto-correlation sum due to zero-padding
+    statistical_power = reshape(time_T .- abs.(FFTW.fftfreq(time_2T,time_2T)),1,1,1,time_2T)
+    statistical_power[statistical_power .== 0] .= Inf
+
+    #fft! * samplebuf # Apply pre-planned and pre-normalized FFT
+    #fft! * left_zero_buffer
     fft! * right_zero_buffer
     count = nsamples[1] += 1
 
@@ -110,20 +111,16 @@ function accum_sample!(sc::SampledCorrelations;alg = :no_window)
         α, β = ci.I
 
         # Convention is: S{α,β} means <α(t)> <β(0)>, i.e. α is delayed
-        traj_α = @view samplebuf[α,:,:,:,i,:]
-        traj_β = @view samplebuf[β,:,:,:,j,:]
+        traj_α = @view right_zero_buffer[α,:,:,:,i,:]
+        traj_β = @view right_zero_buffer[β,:,:,:,j,:]
 
-        rzb_β = @view right_zero_buffer[β,:,:,:,j,:]
-        lzb_α = @view left_zero_buffer[α,:,:,:,j,:]
+        # FFT-accelerated cross correlation. Since both signals are zero-padded
+        # in real time, all parts of the result contain meaningful correlations.
+        correlation = FFTW.ifft(traj_α .* conj.(traj_β),4)
 
-        # These are two (non-independent) estimators of the <α(t) β(0)> correlation for t ∈ [0,T]
-        rzb_contribution = FFTW.ifft(traj_α .* conj.(rzb_β),4)
-        lzb_contribution = FFTW.ifft(lzb_α .* conj.(traj_β),4)
-        correlation = (rzb_contribution + lzb_contribution) ./ 2
+        correlation .*= 2 # Cancels the factor of two in the denominator of ifft
 
-        # The second half of the correlation includes wraparound values; set it to zero.
-        # Keeping the zeros here facilitates the symmetrization later.
-        correlation[:,:,:,right_zero_ix] .= 0
+        correlation ./= statistical_power # Sam N.B.: I have this commented out locally
 
         if alg == :window
           correlation .*= reshape(cos.(range(0,π,length = time_2T)).^2,(1,1,1,time_2T))
@@ -134,14 +131,9 @@ function accum_sample!(sc::SampledCorrelations;alg = :no_window)
         FFTW.fft!(correlation,4)
 
         # Remove overlapping highest frequency (only required if window doesn't already set this to zero)
-        #trash_plus[:,:,:,longest_correlation_delay + 1] .= 0
+        #correlation[:,:,:,longest_correlation_delay + 1] .= 0
 
-        # This factor of two comes from the modified FFT convolution theorem
-        # that we are using. The modification is because we only use *half*
-        # of the FFT-computed convolution (the other half is trash).
-        correlation .*= 2
-
-        databuf  = @view data[c,i,j,:,:,:,:]
+        databuf = @view data[c,i,j,:,:,:,:]
 
         if isnothing(variance)
             for k in eachindex(databuf)

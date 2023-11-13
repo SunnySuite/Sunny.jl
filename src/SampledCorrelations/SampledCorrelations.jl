@@ -150,13 +150,16 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
 
     # Preallocation
     na = natoms(sys.crystal)
-    samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, 2nω)
+    samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, nω)
     data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., 2nω)
     variance = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
-    # Normalize FFT according to physical convention
-    normalizationFactor = 1/(2nω * √(prod(sys.latsize)))
-    fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6))
+    # Specially Normalized FFT.
+    # This is designed so that when it enters ifft(fft * fft) later (in squared fashion)
+    # it will provide the extra 1/N needed to implement the cross correlation.
+    normalizationFactor = 1/(√(2nω * prod(sys.latsize)))
+    ex_rzb = zeros(ComplexF64,size(samplebuf)[1:5]...,2nω)
+    fft! = normalizationFactor * FFTW.plan_fft!(ex_rzb, (2,3,4,6))
 
     # Other initialization
     nsamples = Int64[0]
