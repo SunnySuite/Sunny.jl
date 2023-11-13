@@ -187,6 +187,7 @@ end
 Base.showable(mime::MIME, fig::NotifiableFigure) = showable(mime, fig.figure)
 Base.show(io::IO, ::MIME"text/plain", fig::NotifiableFigure) = print(io, "(Notifiable) " * repr(fig.figure))
 Base.show(io::IO, m::MIME, fig::NotifiableFigure) = show(io, m, fig.figure)
+Base.display(fig::NotifiableFigure; kwargs...) = display(fig.figure; kwargs...)
 Base.notify(fig::NotifiableFigure) = notify(fig.notifier)
 Makie.record(func, nf::NotifiableFigure, path, iter; kwargs...) = Makie.record(func, nf.figure, path, iter; kwargs...)
 
