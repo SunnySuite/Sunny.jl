@@ -40,7 +40,7 @@ end
 # crystal, which will make symmetry analysis available. In this case, the
 # process to set a new interaction is to first modify `sys.origin`, and then to
 # call this function.
-function set_interactions_from_origin!(sys::System{N}, src::System{N}) where N
+function transfer_interactions!(sys::System{N}, src::System{N}) where N
     new_ints = interactions_homog(sys)
 
     for new_i in 1:natoms(sys.crystal)
@@ -62,7 +62,7 @@ function set_interactions_from_origin!(sys::System{N}, src::System{N}) where N
         # Copy pair couplings
         new_pc = PairCoupling[]
         for pc in src_int.pair
-            new_bond = transform_bond(sys.crystal, new_i, orig_crystal(src), pc.bond)
+            new_bond = transform_bond(sys.crystal, new_i, src.crystal, pc.bond)
             isculled = bond_parity(new_bond)
             push!(new_pc, PairCoupling(isculled, new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
         end
@@ -73,62 +73,33 @@ end
 
 
 function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_shape::Mat3) where N
+    # Reshape the crystal
+    new_cryst            = reshape_crystal(orig_crystal(sys), new_cell_shape)
+    new_na               = natoms(new_cryst)
 
-    # `origin` refers to a system with the original unit cell. For sequential
-    # reshapings, `sys.origin` keeps its original meaning. Make a deep copy so
-    # that the new system fully owns `origin`, and mutable updates to the
-    # previous system won't affect this one.
-    origin = clone_system(isnothing(sys.origin) ? sys : sys.origin)
+    # Allocate data for new system, but with an empty list of interactions
+    new_Ns               = zeros(Int, new_latsize..., new_na)
+    new_κs               = zeros(Float64, new_latsize..., new_na)
+    new_gs               = zeros(Mat3, new_latsize..., new_na)
+    new_ints             = empty_interactions(sys.mode, new_na, N)
+    new_ewald            = nothing
+    new_extfield         = zeros(Vec3, new_latsize..., new_na)
+    new_dipoles          = zeros(Vec3, new_latsize..., new_na)
+    new_coherents        = zeros(CVec{N}, new_latsize..., new_na)
+    new_dipole_buffers   = Array{Vec3, 4}[]
+    new_coherent_buffers = Array{CVec{N}, 4}[]
 
-    # If `new_cell_shape == I`, we can reuse unit cell of `origin`. Still need
-    # to reallocate various fields because `new_latsize` may have changed.
-    if new_cell_shape ≈ I && is_homogeneous(sys)
-        new_cryst = origin.crystal
+    # Preserve origin for repeated reshapings. In other words, ensure that
+    # new_sys.origin === sys.origin
+    orig_sys = @something sys.origin sys
 
-        new_na               = natoms(new_cryst)
-        new_Ns               = zeros(Int, new_latsize..., new_na)
-        new_κs               = zeros(Float64, new_latsize..., new_na)
-        new_gs               = zeros(Mat3, new_latsize..., new_na)
-        new_extfield         = zeros(Vec3, new_latsize..., new_na)
-        new_dipoles          = zeros(Vec3, new_latsize..., new_na)
-        new_coherents        = zeros(CVec{N}, new_latsize..., new_na)
-        new_dipole_buffers   = Array{Vec3, 4}[]
-        new_coherent_buffers = Array{CVec{N}, 4}[]
+    new_sys = System(orig_sys, sys.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, new_ewald,
+        new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, sys.units, copy(sys.rng))
 
-        # Can reuse existing interactions
-        new_ints = interactions_homog(origin)
-        new_ewald = nothing
-
-        new_sys = System(nothing, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, new_ewald,
-                         new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
-
-    # Otherwise, we will need to reshape the crystal, map the interactions, and
-    # keep a reference to the original system.
-    else
-        new_cryst = reshape_crystal(origin.crystal, new_cell_shape)
-
-        new_na               = natoms(new_cryst)
-        new_Ns               = zeros(Int, new_latsize..., new_na)
-        new_κs               = zeros(Float64, new_latsize..., new_na)
-        new_gs               = zeros(Mat3, new_latsize..., new_na)
-        new_extfield         = zeros(Vec3, new_latsize..., new_na)
-        new_dipoles          = zeros(Vec3, new_latsize..., new_na)
-        new_coherents        = zeros(CVec{N}, new_latsize..., new_na)
-        new_dipole_buffers   = Array{Vec3, 4}[]
-        new_coherent_buffers = Array{CVec{N}, 4}[]
-
-        # Begin with empty interactions
-        new_ints             = empty_interactions(origin.mode, new_na, N)
-        new_ewald            = nothing
-
-        new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, new_ewald,
-            new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
-
-        # Fill in interactions. In the case of an inhomogeneous system, the
-        # interactions in `sys` have detached from `orig`, so we use the latest
-        # ones.
-        set_interactions_from_origin!(new_sys, is_homogeneous(sys) ? origin : sys)
-    end
+    # Transfer interactions. In the case of an inhomogeneous system, the
+    # interactions in `sys` have detached from `orig`, so we use the latest
+    # ones.
+    transfer_interactions!(new_sys, sys)
 
     # Copy per-site quantities
     for new_site in eachsite(new_sys)
