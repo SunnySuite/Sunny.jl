@@ -34,8 +34,8 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
 
     # The lattice vectors of `crystal` must be conventional (`crystal` cannot be
     # reshaped).
-    if !isnothing(crystal.origin)
-        @assert crystal.latvecs == crystal.origin.latvecs
+    if !isnothing(crystal.root)
+        @assert crystal.latvecs == crystal.root.latvecs
     end
     
     na = natoms(crystal)
@@ -232,8 +232,9 @@ magnetic_moment(sys::System, site) = sys.units.μB * sys.gs[site] * sys.dipoles[
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
 
-# The original crystal for a system. It is guaranteed to be un-reshaped, and its
-# lattice vectors define the "conventional" unit cell.
+# The crystal originally used to construct a system. It is guaranteed to be
+# un-reshaped, and its lattice vectors define the "conventional" unit cell. It
+# may, however, be a subcrystal of `orig_crystal(sys).root`.
 orig_crystal(sys) = something(sys.origin, sys).crystal
 
 # Position of a site in fractional coordinates of the original crystal

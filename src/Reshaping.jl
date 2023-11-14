@@ -11,26 +11,18 @@ function reshape_supercell(sys::System{N}, shape) where N
     is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
 
     orig = orig_crystal(sys)
+    check_shape_commensurate(orig, shape)
 
-    supervecs = orig.latvecs * shape
-    check_latvecs_commensurate(orig, supervecs)
-
-    # Convert `shape` to multiples of primitive lattice vectors
-    if !isnothing(orig.prim_latvecs)
-        prim_shape = orig.prim_latvecs \ supervecs
-        prim_shape′ = round.(Int, prim_shape)
-        @assert prim_shape′ ≈ prim_shape
-        new_latsize = NTuple{3, Int}(gcd.(eachcol(prim_shape′)))
-    else
-        shape′ = round.(Int, shape)
-        @assert shape′ ≈ shape
-        new_latsize = NTuple{3, Int}(gcd.(eachcol(shape′)))
-    end
+    primvecs = @something orig.prim_latvecs orig.latvecs
+    prim_shape = primvecs \ orig.latvecs * shape
+    prim_shape′ = round.(Int, prim_shape)
+    @assert prim_shape′ ≈ prim_shape
 
     # Unit cell for new system, in units of original unit cell.
-    new_cell_shape = Mat3(shape * diagm(collect(inv.(new_latsize))))
+    enlarged_latsize = NTuple{3, Int}(gcd.(eachcol(prim_shape′)))
+    reduced_shape = Mat3(shape * diagm(collect(inv.(enlarged_latsize))))
 
-    return reshape_supercell_aux(sys, new_latsize, new_cell_shape)
+    return reshape_supercell_aux(sys, enlarged_latsize, reduced_shape)
 end
 
 
@@ -155,7 +147,6 @@ times in each dimension, specified by the tuple `counts`.
 See also [`reshape_supercell`](@ref).
 """
 function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
-    is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
     all(>=(1), counts) || error("Require at least one count in each direction.")
 
     # Scale each column by `counts` and reshape

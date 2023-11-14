@@ -69,7 +69,7 @@ cryst = Crystal(latvecs, positions, 227; setting="1")
 See also [`lattice_vectors`](@ref).
 """
 struct Crystal
-    origin         :: Union{Nothing, Crystal}              # Origin crystal (invariant under `subcrystal` and reshaping)
+    root           :: Union{Nothing, Crystal}              # Root crystal (invariant under `subcrystal` and reshaping)
     latvecs        :: Mat3                                 # Lattice vectors as columns
     prim_latvecs   :: Mat3                                 # Primitive lattice vectors
     recipvecs      :: Mat3                                 # Reciprocal lattice vectors (conventional)
@@ -408,39 +408,41 @@ inputs to [`reshape_supercell`](@ref).
 ```
 """
 function primitive_cell_shape(cryst::Crystal)
-    origin = @something cryst.origin cryst
-    if isnothing(origin.prim_latvecs)
+    root = @something cryst.root cryst
+    if isnothing(root.prim_latvecs)
         error("Primitive lattice vectors not available.")
     end
-    return origin.latvecs \ origin.prim_latvecs
+    return root.latvecs \ root.prim_latvecs
 end
 
 
-function check_latvecs_commensurate(origin, new_latvecs)
-    # Work in multiples of the primitive lattice vectors, if they exist.
-    prim_latvecs = @something origin.prim_latvecs origin.latvecs
-    cell_shape = prim_latvecs \ new_latvecs
+function check_shape_commensurate(cryst, shape)
+    root = @something cryst.root cryst
+    if !isnothing(root.prim_latvecs)
+        shape = root.prim_latvecs \ root.latvecs * shape
+    end
 
     # Each of these components must be integer
-    if !(round.(cell_shape) ≈ cell_shape)
-        if issomething(origin.prim_latvecs)
-            error("Cell shape must be integer multiples of primitive lattice vectors. Calculated $cell_shape.")
+    if !(round.(shape) ≈ shape)
+        if !isnothing(root.prim_latvecs)
+            error("Cell shape must be integer multiples of primitive lattice vectors. Calculated $shape.")
         else
-            error("Cell shape must be a 3×3 matrix of integers. Received $cell_shape.")
+            error("Cell shape must be a 3×3 matrix of integers. Received $shape.")
         end
     end
 end
 
-function reshape_crystal(cryst::Crystal, new_cell_shape::Mat3)
-    # Find the original crystal (unreshaped, prior to subcrystal calls, etc.).
-    # The field `origin.latvecs` gives meaning to the "fractional" coordinate
-    # system of `new_cell_shape`. Note that `cryst` may be formed as a
-    # subcrystal of `origin`. For reshaping purposes, therefore, we must use
-    # `cryst.positions` and not `origin.positions`, etc.
-    origin = @something cryst.origin cryst
+function reshape_crystal(cryst::Crystal, new_shape::Mat3)
+    # Check that desired lattice vectors are commensurate with root cell
+    check_shape_commensurate(cryst, new_shape)
+
+    # The `root.latvecs` defines the fractional coordinate system, but note that
+    # `cryst` may be formed as a subcrystal of `root`. For reshaping purposes,
+    # therefore, we must use `cryst.positions` and not `root.positions`, etc.
+    root = @something cryst.root cryst
 
     # Lattice vectors of the new unit cell in global coordinates
-    new_latvecs = origin.latvecs * new_cell_shape
+    new_latvecs = root.latvecs * new_shape
 
     # Return this crystal if possible
     new_latvecs ≈ cryst.latvecs && return cryst
@@ -448,10 +450,7 @@ function reshape_crystal(cryst::Crystal, new_cell_shape::Mat3)
     # Symmetry precision needs to be rescaled for the new unit cell. Ideally we
     # would have three separate rescalings (one per lattice vector), but we're
     # forced to pick just one. Scale according to volume change.
-    new_symprec = origin.symprec / cbrt(abs(det(new_cell_shape)))
-
-    # Check that desired lattice vectors are commensurate with origin cell
-    check_latvecs_commensurate(origin, new_latvecs)
+    new_symprec = root.symprec / cbrt(abs(det(new_shape)))
 
     # This matrix defines a mapping from fractional coordinates `x` in `cryst`
     # to fractional coordinates `y` in the new unit cell.
@@ -503,8 +502,8 @@ function reshape_crystal(cryst::Crystal, new_cell_shape::Mat3)
     # lost with the resizing procedure.
     new_symops = SymOp[]
 
-    return Crystal(origin, new_latvecs, origin.prim_latvecs, new_recipvecs, new_positions, new_types, new_classes,
-                   new_sitesyms, new_symops, origin.spacegroup, new_symprec)
+    return Crystal(root, new_latvecs, root.prim_latvecs, new_recipvecs, new_positions, new_types, new_classes,
+                   new_sitesyms, new_symops, root.spacegroup, new_symprec)
 end
 
 
@@ -531,7 +530,7 @@ function subcrystal(cryst::Crystal, types::Vararg{String, N}) where N
 end
 
 function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
-    origin = @something cryst.origin cryst
+    root = @something cryst.root cryst
     for c in classes
         if !(c in cryst.classes)
             error("Class '$c' is not present in crystal.")
@@ -548,7 +547,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
         @info "Atoms have been renumbered in subcrystal."
     end
 
-    ret = Crystal(origin, cryst.latvecs, cryst.prim_latvecs, cryst.recipvecs, new_positions, new_types,
+    ret = Crystal(root, cryst.latvecs, cryst.prim_latvecs, cryst.recipvecs, new_positions, new_types,
                   new_classes, new_sitesyms, cryst.symops, cryst.spacegroup, cryst.symprec)
     return ret
 end
