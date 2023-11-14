@@ -279,14 +279,14 @@ function site_to_atom(sys::System{N}, site) where N
 end
 
 # Maps atom `i` in `cryst` to the corresponding atom in `orig_cryst`
-function map_atom_to_orig_crystal(cryst::Crystal, i, orig_cryst::Crystal)
+function map_atom_to_other_crystal(cryst::Crystal, i, orig_cryst::Crystal)
     global_r = cryst.latvecs * cryst.positions[i]
     orig_r = orig_cryst.latvecs \ global_r
     return position_to_atom(orig_cryst, orig_r)
 end
 
 # Maps atom `i` in `cryst` to the corresponding site in `orig_sys`
-function map_atom_to_orig_system(cryst::Crystal, i, orig_sys::System)
+function map_atom_to_other_system(cryst::Crystal, i, orig_sys::System)
     global_r = cryst.latvecs * cryst.positions[i]
     orig_r = orig_crystal(orig_sys).latvecs \ global_r
     return position_to_site(orig_sys, orig_r)
@@ -331,7 +331,7 @@ function symmetry_equivalent_bonds(sys::System, bond::Bond)
 
     for new_i in 1:natoms(sys.crystal)
         # atom index in original crystal
-        i = map_atom_to_orig_crystal(sys.crystal, new_i, orig_crystal(sys))
+        i = map_atom_to_other_crystal(sys.crystal, new_i, orig_crystal(sys))
 
         # loop over symmetry equivalent bonds in original crystal
         for bond′ in all_symmetry_related_bonds_for_atom(orig_crystal(sys), i, bond)

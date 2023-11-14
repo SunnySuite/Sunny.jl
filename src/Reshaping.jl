@@ -34,35 +34,35 @@ function reshape_supercell(sys::System{N}, shape) where N
 end
 
 
-# Transfer homogeneous interactions from `orig` to reshaped `sys`.
+# Transfer interactions from `src` to reshaped `sys`.
 #
-# Frequently `orig` will refer to `sys.origin`, associated with the original
+# Frequently `src` will refer to `sys.origin`, associated with the original
 # crystal, which will make symmetry analysis available. In this case, the
 # process to set a new interaction is to first modify `sys.origin`, and then to
 # call this function.
-function set_interactions_from_origin!(sys::System{N}, orig::System{N}) where N
+function set_interactions_from_origin!(sys::System{N}, src::System{N}) where N
     new_ints = interactions_homog(sys)
 
     for new_i in 1:natoms(sys.crystal)
         # Find `src` interaction either through an atom index or a site index
-        if is_homogeneous(orig)
-            i = map_atom_to_orig_crystal(sys.crystal, new_i, orig.crystal)
+        if is_homogeneous(src)
+            i = map_atom_to_other_crystal(sys.crystal, new_i, src.crystal)
         else
             # Use case here is to prepare for a LSWT calculation by building an
             # equivalent system with a single unit cell
             @assert sys.latsize == (1,1,1)
-            @assert natoms(sys.crystal) == prod(orig.latsize) * natoms(orig.crystal)
-            i = map_atom_to_orig_system(sys.crystal, new_i, orig)
+            @assert sys.crystal.latvecs ≈ src.crystal.latvecs * diagm(Vec3(src.latsize))
+            i = map_atom_to_other_system(sys.crystal, new_i, src)
         end
-        orig_int = orig.interactions_union[i]
+        src_int = src.interactions_union[i]
 
         # Copy onsite couplings
-        new_ints[new_i].onsite = orig_int.onsite
+        new_ints[new_i].onsite = src_int.onsite
 
         # Copy pair couplings
         new_pc = PairCoupling[]
-        for pc in orig_int.pair
-            new_bond = transform_bond(sys.crystal, new_i, orig_crystal(orig), pc.bond)
+        for pc in src_int.pair
+            new_bond = transform_bond(sys.crystal, new_i, orig_crystal(src), pc.bond)
             isculled = bond_parity(new_bond)
             push!(new_pc, PairCoupling(isculled, new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
         end
@@ -74,7 +74,7 @@ end
 
 function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_shape::Mat3) where N
 
-    # `origin` describes the unit cell of the original system. For sequential
+    # `origin` refers to a system with the original unit cell. For sequential
     # reshapings, `sys.origin` keeps its original meaning. Make a deep copy so
     # that the new system fully owns `origin`, and mutable updates to the
     # previous system won't affect this one.
@@ -82,7 +82,7 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
 
     # If `new_cell_shape == I`, we can reuse unit cell of `origin`. Still need
     # to reallocate various fields because `new_latsize` may have changed.
-    if new_cell_shape ≈ I && is_homogeneous(origin)
+    if new_cell_shape ≈ I && is_homogeneous(sys)
         new_cryst = origin.crystal
 
         new_na               = natoms(new_cryst)
@@ -124,8 +124,10 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
         new_sys = System(origin, origin.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, new_ewald,
             new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, origin.units, copy(sys.rng))
 
-        # Fill in interactions
-        set_interactions_from_origin!(new_sys, origin)
+        # Fill in interactions. In the case of an inhomogeneous system, the
+        # interactions in `sys` have detached from `orig`, so we use the latest
+        # ones.
+        set_interactions_from_origin!(new_sys, is_homogeneous(sys) ? origin : sys)
     end
 
     # Copy per-site quantities
