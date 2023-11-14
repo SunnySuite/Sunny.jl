@@ -40,10 +40,6 @@ function transfer_interactions!(sys::System{N}, src::System{N}) where N
         if is_homogeneous(src)
             i = map_atom_to_other_crystal(sys.crystal, new_i, src.crystal)
         else
-            # Use case here is to prepare for a LSWT calculation by building an
-            # equivalent system with a single unit cell
-            @assert sys.latsize == (1,1,1)
-            @assert sys.crystal.latvecs ≈ src.crystal.latvecs * diagm(Vec3(src.latsize))
             i = map_atom_to_other_system(sys.crystal, new_i, src)
         end
         src_int = src.interactions_union[i]
