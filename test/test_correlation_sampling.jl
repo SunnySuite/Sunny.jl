@@ -11,11 +11,12 @@
     # The test signals are asymmetrically correlated.
     # This code replaces Sunny.new_sample!
     time_T = size(sc.samplebuf,6)
-    ts = range(0,1,length = time_T+1)[1:end-1]
+    time_2T = 2time_T - 1
+    ts = range(0,1,length = time_2T+1)[1:end-1]
     As = exp.(-(ts .- 0.15).^2 ./ (2 * 0.05^2))
-    Bs = exp.(-(ts .- 0.35).^2 ./ (2 * 0.1^2))
-    sc.samplebuf[1,1,1,1,1,:] .= As
-    sc.samplebuf[2,1,1,1,1,:] .= Bs
+    Bs = exp.(-(ts .- 0.25).^2 ./ (2 * 0.02^2))
+    sc.samplebuf[1,1,1,1,1,:] .= As[1:time_T]
+    sc.samplebuf[2,1,1,1,1,:] .= Bs[1:time_T]
 
     # Run the Sunny-internal function which computes the correlations
     Sunny.accum_sample!(sc)
@@ -25,13 +26,13 @@
     real_data = real(FFTW.ifft(sc.data,7))
 
     # Reference calculation
-    q11 = zeros(time_T÷2)
-    q12 = zeros(time_T÷2)
-    q21 = zeros(time_T÷2)
-    q22 = zeros(time_T÷2)
+    q11 = zeros(time_T+1)
+    q12 = zeros(time_T+1)
+    q21 = zeros(time_T+1)
+    q22 = zeros(time_T+1)
     dt = ts[2] - ts[1]
-    for t = 0:((time_T÷2) - 1)
-        for tau = 0:((time_T÷2) - 1)
+    for t = 0:time_T
+        for tau = 0:(time_T-2)
             q11[1+t] += As[1+(t+tau)] * As[1+(tau)] * dt
             q12[1+t] += As[1+(t+tau)] * Bs[1+(tau)] * dt
             q21[1+t] += Bs[1+(t+tau)] * As[1+(tau)] * dt
@@ -39,10 +40,11 @@
         end
     end
 
-    @test isapprox(q11,real_data[sc.observables.correlations[CartesianIndex(1,1)],1,1,1,1,1,1:(time_T÷2)];atol = 1e-8)
-    @test isapprox(q12,real_data[sc.observables.correlations[CartesianIndex(1,2)],1,1,1,1,1,1:(time_T÷2)];atol = 1e-8)
-    @test isapprox(q21,real_data[sc.observables.correlations[CartesianIndex(2,1)],1,1,1,1,1,1:(time_T÷2)];atol = 1e-8)
-    @test isapprox(q22,real_data[sc.observables.correlations[CartesianIndex(2,2)],1,1,1,1,1,1:(time_T÷2)];atol = 1e-8)
+    # Compare to the positive-time part of the Sunny-computed correlations 1:(time_T + 1)
+    @test isapprox(q11,real_data[sc.observables.correlations[CartesianIndex(1,1)],1,1,1,1,1,1:(time_T+1)];atol = 1e-8)
+    @test isapprox(q12,real_data[sc.observables.correlations[CartesianIndex(1,2)],1,1,1,1,1,1:(time_T+1)];atol = 1e-8)
+    @test isapprox(q21,real_data[sc.observables.correlations[CartesianIndex(2,1)],1,1,1,1,1,1:(time_T+1)];atol = 1e-8)
+    @test isapprox(q22,real_data[sc.observables.correlations[CartesianIndex(2,2)],1,1,1,1,1,1:(time_T+1)];atol = 1e-8)
 end
 
 @testitem "Correlation sampling" begin
