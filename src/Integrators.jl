@@ -19,11 +19,12 @@ mutable struct Langevin
     Δt  :: Float64
     λ   :: Float64
     kT  :: Float64
+
+    function Langevin(Δt; λ, kT)
+        Δt <= 0 && error("Select positive Δt")
+        return new(Δt, λ, kT)
+    end    
 end
-
-Langevin(Δt; λ, kT) = Langevin(Δt, λ, kT)
-
-Base.copy(dyn::Langevin) = Langevin(dyn.Δt, dyn.λ, dyn.kT)
 
 """
     ImplicitMidpoint(Δt::Float64; atol=1e-12) where N
@@ -39,10 +40,12 @@ periods of simulation time.
 mutable struct ImplicitMidpoint
     Δt   :: Float64
     atol :: Float64
+
+    function ImplicitMidpoint(Δt; atol=1e-12)
+        Δt <= 0 && error("Select positive Δt")
+        return new(Δt, atol)
+    end    
 end
-
-ImplicitMidpoint(Δt; atol=1e-12) = ImplicitMidpoint(Δt, atol)
-
 
 
 ################################################################################
