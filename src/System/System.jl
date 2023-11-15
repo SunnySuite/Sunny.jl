@@ -34,8 +34,8 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
 
     # The lattice vectors of `crystal` must be conventional (`crystal` cannot be
     # reshaped).
-    if !isnothing(crystal.origin)
-        @assert crystal.latvecs == crystal.origin.latvecs
+    if !isnothing(crystal.root)
+        @assert crystal.latvecs == crystal.root.latvecs
     end
     
     na = natoms(crystal)
@@ -232,8 +232,9 @@ magnetic_moment(sys::System, site) = sys.units.μB * sys.gs[site] * sys.dipoles[
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
 
-# The original crystal for a system. It is guaranteed to be un-reshaped, and its
-# lattice vectors define the "conventional" unit cell.
+# The crystal originally used to construct a system. It is guaranteed to be
+# un-reshaped, and its lattice vectors define the "conventional" unit cell. It
+# may, however, be a subcrystal of `orig_crystal(sys).root`.
 orig_crystal(sys) = something(sys.origin, sys).crystal
 
 # Position of a site in fractional coordinates of the original crystal
@@ -279,11 +280,19 @@ function site_to_atom(sys::System{N}, site) where N
 end
 
 # Maps atom `i` in `cryst` to the corresponding atom in `orig_cryst`
-function map_atom_to_crystal(cryst, i, orig_cryst)
-    r = cryst.positions[i]
-    orig_r = orig_cryst.latvecs \ cryst.latvecs * r
+function map_atom_to_other_crystal(cryst::Crystal, i, orig_cryst::Crystal)
+    global_r = cryst.latvecs * cryst.positions[i]
+    orig_r = orig_cryst.latvecs \ global_r
     return position_to_atom(orig_cryst, orig_r)
 end
+
+# Maps atom `i` in `cryst` to the corresponding site in `orig_sys`
+function map_atom_to_other_system(cryst::Crystal, i, orig_sys::System)
+    global_r = cryst.latvecs * cryst.positions[i]
+    orig_r = orig_crystal(orig_sys).latvecs \ global_r
+    return position_to_site(orig_sys, orig_r)
+end
+
 
 # Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
 # `new_cryst`. The new bond will begin at atom `new_i`.
@@ -323,7 +332,7 @@ function symmetry_equivalent_bonds(sys::System, bond::Bond)
 
     for new_i in 1:natoms(sys.crystal)
         # atom index in original crystal
-        i = map_atom_to_crystal(sys.crystal, new_i, orig_crystal(sys))
+        i = map_atom_to_other_crystal(sys.crystal, new_i, orig_crystal(sys))
 
         # loop over symmetry equivalent bonds in original crystal
         for bond′ in all_symmetry_related_bonds_for_atom(orig_crystal(sys), i, bond)

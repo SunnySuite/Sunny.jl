@@ -119,7 +119,7 @@ function set_onsite_coupling!(sys::System, op, i::Int)
     # contains full symmetry information.
     if !isnothing(sys.origin)
         set_onsite_coupling!(sys.origin, op, i)
-        set_interactions_from_origin!(sys)
+        transfer_interactions!(sys, sys.origin)
         return
     end
 
