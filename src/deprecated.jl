@@ -17,3 +17,8 @@ end
 
 Base.@deprecate suggest_magnetic_supercell(qs, latsize) suggest_magnetic_supercell(qs)
 Base.@deprecate offline_viewers() ()
+
+function Base.copy(dyn::Langevin)
+    @warn "Base.copy(dyn::Langevin) will soon be removed! Use `Langevin(dyn.Δt; dyn.λ, dyn.kT)` instead."
+    Langevin(dyn.Δt; dyn.λ, dyn.kT)
+end
