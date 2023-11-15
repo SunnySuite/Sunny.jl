@@ -40,7 +40,7 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=not
 
     # Reshape into single unit cell. A clone will always be performed, even if
     # no reshaping happens.
-    cellsize_mag = cell_shape(sys) * diagm(SVector(sys.latsize))
+    cellsize_mag = cell_shape(sys) * diagm(Vec3(sys.latsize))
     sys = reshape_supercell_aux(sys, (1,1,1), cellsize_mag)
 
     # Rotate local operators to quantization axis
