@@ -21,7 +21,10 @@ mutable struct Langevin
     kT  :: Float64
 end
 
-Langevin(Δt; λ, kT) = Langevin(Δt, λ, kT)
+function Langevin(Δt; λ, kT)
+    Δt <= 0 && error("Select positive Δt")
+    return Langevin(Δt, λ, kT)
+end
 
 Base.copy(dyn::Langevin) = Langevin(dyn.Δt, dyn.λ, dyn.kT)
 
@@ -41,7 +44,10 @@ mutable struct ImplicitMidpoint
     atol :: Float64
 end
 
-ImplicitMidpoint(Δt; atol=1e-12) = ImplicitMidpoint(Δt, atol)
+function ImplicitMidpoint(Δt; atol=1e-12)
+    Δt <= 0 && error("Select positive Δt")
+    return ImplicitMidpoint(Δt, atol)
+end
 
 
 
