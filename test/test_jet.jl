@@ -16,7 +16,7 @@
         sampler = LocalSampler(kT=0.2; propose)
         @test_opt step!(sys, sampler)
 
-        langevin = Langevin(0.01, kT=0.2, λ=0.1)
+        langevin = Langevin(0.01; kT=0.2, λ=0.1)
         @test_opt step!(sys, langevin)
 
         integrator = ImplicitMidpoint(0.01)
@@ -48,7 +48,7 @@ end
         step!(sys, sampler)
         @test 0 == @allocated step!(sys, sampler)
 
-        langevin = Langevin(0.01, kT=0.2, λ=0.1)
+        langevin = Langevin(0.01; kT=0.2, λ=0.1)
         step!(sys, langevin)
         @test 0 == @allocated step!(sys, langevin)
 
