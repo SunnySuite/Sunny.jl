@@ -159,7 +159,7 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
 
         basis = basis_for_exchange_on_bond(cryst, b; b_ref)
         basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
-        println(io, formatted_matrix(basis_strs; prefix="Allowed exchange matrix:"))
+        println(io, formatted_matrix(basis_strs; prefix="Allowed exchange matrix: "))
 
         antisym_basis_idxs = findall(J -> J ≈ -J', basis)
         if !isempty(antisym_basis_idxs)

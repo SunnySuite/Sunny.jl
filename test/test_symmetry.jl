@@ -239,39 +239,39 @@ end
         Sunny.Bond(1, 2, [0, 0, 0])
         Distance 0.35355339059327, coordination 6
         Connects [0, 0, 0] to [1/4, 1/4, 0]
-        Allowed exchange matrix:[A C -D
-                                 C A -D
-                                 D D  B]
+        Allowed exchange matrix: [A C -D
+                                  C A -D
+                                  D D  B]
         Allowed DM vector: [-D D 0]
         
         Sunny.Bond(3, 5, [0, 0, 0])
         Distance 0.61237243569579, coordination 12
         Connects [1/2, 1/2, 0] to [1/4, 0, 1/4]
-        Allowed exchange matrix:[  A  C-E  D-F
-                                 C+E    B -C+E
-                                 D+F -C-E    A]
+        Allowed exchange matrix: [  A  C-E  D-F
+                                  C+E    B -C+E
+                                  D+F -C-E    A]
         Allowed DM vector: [E F -E]
         
         Sunny.Bond(1, 3, [-1, 0, 0])
         Distance 0.70710678118655, coordination 6
         Connects [0, 0, 0] to [-1/2, 1/2, 0]
-        Allowed exchange matrix:[A D C
-                                 D A C
-                                 C C B]
+        Allowed exchange matrix: [A D C
+                                  D A C
+                                  C C B]
         
         Sunny.Bond(1, 3, [0, 0, 0])
         Distance 0.70710678118655, coordination 6
         Connects [0, 0, 0] to [1/2, 1/2, 0]
-        Allowed exchange matrix:[A D C
-                                 D A C
-                                 C C B]
+        Allowed exchange matrix: [A D C
+                                  D A C
+                                  C C B]
         
         Sunny.Bond(1, 2, [-1, 0, 0])
         Distance 0.79056941504209, coordination 12
         Connects [0, 0, 0] to [-3/4, 1/4, 0]
-        Allowed exchange matrix:[A  D -F
-                                 D  B  E
-                                 F -E  C]
+        Allowed exchange matrix: [A  D -F
+                                  D  B  E
+                                  F -E  C]
         Allowed DM vector: [E F 0]
 
         """

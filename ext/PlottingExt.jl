@@ -444,12 +444,11 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
             end            
         end
 
-        # Capture results of `print_bond` for each b′
+        # String for each bond b′. Like print_bond(b′), but shorter.
         bond_labels = map(bonds) do b′
             basis = Sunny.basis_for_exchange_on_bond(cryst, b′; b_ref=b)
             basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=12, atol=1e-12)
-            rows = map(row -> join(row, "   "), eachrow(basis_strs))
-            J_matrix_str = "[" * join(rows, ";\n") * "]"
+            J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J: ")
             return "$b′\n$J_matrix_str"
         end
 
@@ -511,7 +510,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
 
     # Add inspector for pop-up information. Putting this last helps with
     # visibility (Makie v0.19)
-    Makie.DataInspector(ax; fontsize, overdraw=true)
+    Makie.DataInspector(ax; fontsize, font=pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf"))
 
     # Orient camera after all objects have been added to scene
     ghost_radius = maximum(norm.(eachcol(cryst.latvecs)))/2 + max_dist
