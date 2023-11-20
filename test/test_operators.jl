@@ -280,6 +280,7 @@ end
 end
 
 @testitem "Symbolics" begin
+    using LinearAlgebra
     import IOCapture, OffsetArrays
 
     @test repr(stevens_matrices(Inf)[3,1]) == "-𝒮ˣ³ - 𝒮ʸ²𝒮ˣ + 4𝒮ᶻ²𝒮ˣ"
@@ -294,14 +295,18 @@ end
     capt = IOCapture.capture() do
         𝒮 = spin_matrices(Inf)
         print_stevens_expansion(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
+        print_stevens_expansion(0*𝒮[1])
+        print_stevens_expansion(0*𝒮[1]+3)
     end
-    @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)𝒮⁴\n"
+    @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)𝒮⁴\n0\n3\n"
 
     capt = IOCapture.capture() do
         S = spin_matrices(2)
         print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
+        print_stevens_expansion(0*S[1])
+        print_stevens_expansion(0*S[1]+3*I)
     end
-    @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + 102/5\n"
+    @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + 102/5\n0\n3\n"
 
     # Test Stevens coefficients extraction
     S = spin_matrices(Inf)

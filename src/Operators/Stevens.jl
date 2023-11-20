@@ -209,10 +209,15 @@ function print_stevens_expansion(op::AbstractMatrix)
     # Handle linear shift specially
     abs(only(c[0])) > 1e-12 && push!(terms, number_to_math_string(only(c[0])))
 
+    # Return early if no terms
+    isempty(terms) && return println("0")
+
     # Concatenate with plus signs
     str = join(terms, " + ")
-    # Remove redundant plus signs and print
+
+    # Remove redundant plus signs
     str = replace(str, "+ -" => "- ")
+
     println(str)
 end
 

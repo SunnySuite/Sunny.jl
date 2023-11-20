@@ -106,18 +106,27 @@ end
 function pretty_print_operator(p::DP.AbstractPolynomialLike)
     # Iterator over coefficients and monomials
     terms = zip(DP.coefficients(p), DP.monomials(p))
+
     # Keep only terms with non-vanishing coefficients
     terms = Iterators.filter(x -> abs(x[1]) > 1e-12, terms)
-    # Pretty-print each term
+
+    # Return early if no terms
+    isempty(terms) && return println("0")
+
+    # Convert each term to pretty string
     terms = map(terms) do (c, m)
         isone(m) ? number_to_math_string(c) : coefficient_to_math_string(c) * repr(m)
     end
+
     # Concatenate with plus signs
     str = join(terms, " + ")
-    # Remove redundant plus signs and print
+
+    # Remove redundant plus signs
     str = replace(str, "+ -" => "- ")
+
     println(str)
 end
+
 function pretty_print_operator(p::Number)
     println(number_to_math_string(p))
 end
