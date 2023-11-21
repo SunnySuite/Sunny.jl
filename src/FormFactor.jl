@@ -62,28 +62,30 @@ ERROR: Disambiguate form factor according to electronic configuration:
     "Ir0c" -- 6s²5d⁷
 ```
 
-The form factor is approximated as
+In the dipolar approximation (small momentum transfer |𝐪|) the form factor is
 
-``F(s) = ⟨j_0(s)⟩ + \\frac{2-g}{g} ⟨j_2(s)⟩ s^2``,
+``F(s) = ⟨j_0(s)⟩ + \\frac{2-g}{g} ⟨j_2(s)⟩``,
 
-involving the Landé ``g``-factor. The ``⟨j_l(s)⟩`` are radial integrals
-associated with the ``l``th Bessel function of the magnetic dipole, where ``s =
-|k|/4π``, and ``|k|`` is the magnitude of momentum transfer. 
+involving the Landé ``g``-factor. The ``⟨j_l(s)⟩`` are radial averages for the
+``l``th spherical Bessel function of the magnetic dipole, where ``s = |𝐪|/4π``.
+More details are provided in Ref. [1].
 
-The radial integrals have been calculated using Hartree-Fock for transition
-metals, or Dirac-Fock for the rare earths and actinide series [1--3]. Sunny uses
-approximate fits as a sum of Gaussians,
+The ``⟨j_l(s)⟩`` can be approximated as a sum of Gaussians,
 
 ```math
 ⟨j_0(s)⟩ = A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E \\
-⟨j_l(s)⟩ = (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2
+⟨j_2(s)⟩ = (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2
 ```
+
+For 3d, 4d, rare earth, and actinide ions, Sunny uses the revised tables of P.
+J. Brown, as documented in the McPhase package [2]. For 5d ions, Sunny uses the
+tables of Kobayashi, Nagao, Ito [3].
 
 References:
 
- 1. https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html 
- 2. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form Factors
-    (2003)
+ 1. P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form
+    Factors (2003)
+ 2. https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html 
  3. K. Kobayashi, T. Nagao, M. Ito, Acta Cryst. A, 67 pp 473–480 (2011)
 """
 function FormFactor(ion::String; g_lande=2)
@@ -124,9 +126,9 @@ function compute_form_factor(form_factor::FormFactor, k2_absolute::Float64)
     if g == 2
         return compute_gaussian_expansion(j0, s2)
     else
-        form1 = compute_gaussian_expansion(j0, s2)
-        form2 = compute_gaussian_expansion(j2, s2)
-        return ((2-g)/g) * form2 * s2 + form1
+        J0 = compute_gaussian_expansion(j0, s2)
+        J2 = compute_gaussian_expansion(j2, s2) * s2
+        return J0 + ((2-g)/g) * J2
     end
 end
 
