@@ -73,7 +73,7 @@ More details are provided in Ref. [1].
 The ``⟨j_l(s)⟩`` can be approximated as a sum of Gaussians,
 
 ```math
-⟨j_0(s)⟩ = A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E \\
+⟨j_0(s)⟩ = A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E \\\\
 ⟨j_2(s)⟩ = (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2
 ```
 
@@ -85,7 +85,7 @@ References:
 
  1. P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form
     Factors (2003)
- 2. https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html 
+ 2. [McPhase documentation](https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html)
  3. K. Kobayashi, T. Nagao, M. Ito, Acta Cryst. A, 67 pp 473–480 (2011)
 """
 function FormFactor(ion::String; g_lande=2)
