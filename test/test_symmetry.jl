@@ -166,7 +166,10 @@ end
         @test Sunny.is_anisotropy_valid(cryst, i, Λ′)
 
         latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
-        cryst = Crystal(latvecs, [[0., 0., 0.]])
+
+        warnstr = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`"
+        cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])
+    
         # print_site(cryst, i)
         Λ = randn()*(O[6,0]-21O[6,4]) + randn()*(O[6,2]+(16/5)*O[6,4]+(11/5)*O[6,6])
         @test Sunny.is_anisotropy_valid(cryst, i, Λ)
@@ -321,8 +324,8 @@ end
 
 @testitem "Renormalization" begin
     latvecs = lattice_vectors(1.0, 1.1, 1.0, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0., 0., 0.]])
-    
+    warnstr = "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`"
+    cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])    
     
     # Dipole system with renormalized anisotropy
     sys0 = System(cryst, (1,1,1), [SpinInfo(1, S=3, g=2)], :dipole)

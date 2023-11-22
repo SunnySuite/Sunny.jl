@@ -1,5 +1,14 @@
 @testitem "Kitchen Sink" begin
-    cryst = Sunny.pyrochlore_primitive_crystal()
+    # Pyrochlore with nonstandard, primitive lattice vectors
+    latvecs = [[1, 1, 0] [1, 0, 1] [0, 1, 1]] / 2
+    positions = [
+        [5, 5, 1]/8,
+        [5, 1, 5]/8,
+        [1, 5, 5]/8,
+        [5, 5, 5]/8,
+    ]
+    cryst = @test_warn "Lattice vectors are not right-handed." Crystal(latvecs, positions)
+
     infos = [SpinInfo(1, S=5/2, g=7.2)]
     sys = System(cryst, (1, 1, 1), infos, :SUN; seed=0)
 
