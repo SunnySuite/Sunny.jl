@@ -83,9 +83,9 @@ tables of Kobayashi, Nagao, Ito [3].
 
 References:
 
- 1. P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form
-    Factors (2003)
- 2. [McPhase
+ 1. [P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form
+    Factors (2003)](https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html)
+ 2. Coefficient tables in [McPhase
     documentation](https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html)
  3. K. Kobayashi, T. Nagao, M. Ito, Acta Cryst. A, 67 pp 473–480 (2011)
 """
