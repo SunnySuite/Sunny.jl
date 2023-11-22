@@ -1,5 +1,10 @@
 # Version History
 
+## v0.5.7
+(upcoming)
+
+* Updated form factor coefficients, now including `Mn5`.
+
 ## v0.5.6
 (Nov 8, 2023)
 

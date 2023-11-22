@@ -30,8 +30,8 @@ end
     FormFactor(ion::String; g_lande=2)
 
 The magnetic form factor for a given magnetic ion and charge state. When passed
-to an [`intensity_formula`](@ref), determines a ``|𝐪|``-dependent scaling of
-the structure factor.
+to an [`intensity_formula`](@ref), it rescales structure factor intensities
+based on the magnitude of the scattering vector, ``|𝐪|``.
 
 The parameter `ion` must be one of the following strings:
 
@@ -39,7 +39,7 @@ The parameter `ion` must be one of the following strings:
 Am2, Am3, Am4, Am5, Am6, Am7, Au1, Au2, Au3, Au4, Au5, Ce2, Co0, Co1, Co2, Co3,
 Co4, Cr0, Cr1, Cr2, Cr3, Cr4, Cu0, Cu1, Cu2, Cu3, Cu4, Dy2, Dy3, Er2, Er3, Eu2,
 Eu3, Fe0, Fe1, Fe2, Fe3, Fe4, Gd2, Gd3, Hf2, Hf3, Ho2, Ho3, Ir0a, Ir0b, Ir0c,
-Ir1a, Ir1b, Ir2, Ir3, Ir4, Ir5, Ir6, Mn0, Mn1, Mn2, Mn3, Mn4, Mo0, Mo1, Nb0,
+Ir1a, Ir1b, Ir2, Ir3, Ir4, Ir5, Ir6, Mn0, Mn1, Mn2, Mn3, Mn4, Mn5, Mo0, Mo1, Nb0,
 Nb1, Nd2, Nd3, Ni0, Ni1, Ni2, Ni3, Ni4, Np3, Np4, Np5, Np6, Os0a, Os0b, Os0c,
 Os1a, Os1b, Os2, Os3, Os4, Os5, Os6, Os7, Pd0, Pd1, Pr3, Pt1, Pt2, Pt3, Pt4,
 Pt5, Pt6, Pu3, Pu4, Pu5, Pu6, Re0a, Re0b, Re0c, Re1a, Re1b, Re2, Re3, Re4, Re5,
@@ -62,28 +62,31 @@ ERROR: Disambiguate form factor according to electronic configuration:
     "Ir0c" -- 6s²5d⁷
 ```
 
-The form factor is approximated as
+In the dipolar approximation (small ``|𝐪|``) the form factor is
 
-``F(s) = ⟨j_0(s)⟩ + \\frac{2-g}{g} ⟨j_2(s)⟩ s^2``,
+``F(s) = ⟨j_0(s)⟩ + \\frac{2-g}{g} ⟨j_2(s)⟩``,
 
-involving the Landé ``g``-factor. The ``⟨j_l(s)⟩`` are radial integrals
-associated with the ``l``th Bessel function of the magnetic dipole, where ``s =
-|k|/4π``, and ``|k|`` is the magnitude of momentum transfer. 
+involving ``s = |𝐪|/4π`` and the Landé ``g``-factor. The ``⟨j_l(s)⟩`` are
+radial averages of the ``l``th spherical Bessel function of the magnetic dipole.
+More details are provided in Ref. [1].
 
-The radial integrals have been calculated using Hartree-Fock for transition
-metals, or Dirac-Fock for the rare earths and actinide series [1--3]. Sunny uses
-approximate fits as a sum of Gaussians,
+The ``⟨j_l(s)⟩`` can be approximated as a sum of Gaussians,
 
 ```math
-⟨j_0(s)⟩ = A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E \\
-⟨j_l(s)⟩ = (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2
+⟨j_0(s)⟩ = A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E \\\\
+⟨j_2(s)⟩ = (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2
 ```
+
+For 3d, 4d, rare earth, and actinide ions, Sunny uses the revised tables of P.
+J. Brown, as documented in the McPhase package [2]. For 5d ions, Sunny uses the
+tables of Kobayashi, Nagao, Ito [3].
 
 References:
 
- 1. https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html
- 2. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form Factors
-    (2003)
+ 1. [P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form
+    Factors (2003)](https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html)
+ 2. Coefficient tables in [McPhase
+    documentation](https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html)
  3. K. Kobayashi, T. Nagao, M. Ito, Acta Cryst. A, 67 pp 473–480 (2011)
 """
 function FormFactor(ion::String; g_lande=2)
@@ -124,9 +127,9 @@ function compute_form_factor(form_factor::FormFactor, k2_absolute::Float64)
     if g == 2
         return compute_gaussian_expansion(j0, s2)
     else
-        form1 = compute_gaussian_expansion(j0, s2)
-        form2 = compute_gaussian_expansion(j2, s2)
-        return ((2-g)/g) * form2 * s2 + form1
+        J0 = compute_gaussian_expansion(j0, s2)
+        J2 = compute_gaussian_expansion(j2, s2) * s2
+        return J0 + ((2-g)/g) * J2
     end
 end
 
@@ -154,7 +157,7 @@ const radial_integral_coefficients = Dict(
     "Ti1" => ([0.5093, 36.7033, 0.5032, 10.3713, -0.0263, 0.3106, 0, 0, 0.0116],  [6.1567, 27.2754, 2.6833, 8.9827, 0.4070, 3.0524, 0, 0, 0.0011], ""),
     "Ti2" => ([0.5091, 24.9763, 0.5162, 8.7569, -0.0281, 0.9160, 0, 0, 0.0015],   [4.3107, 18.3484, 2.0960, 6.7970, 0.2984, 2.5476, 0, 0, 0.0007], ""),
     "Ti3" => ([0.3571, 22.8413, 0.6688, 8.9306, -0.0354, 0.4833, 0, 0, 0.0099],   [3.3717, 14.4441, 1.8258, 5.7126, 0.2470, 2.2654, 0, 0, 0.0005], ""),
-    "V0" =>  ([0.4086, 28.8109, 0.6077, 8.5437, -0.0295, 0.2768, 0, 0, 0.0123],   [3.8099, 21.3471, 2.3295, 7.4089, 0.4333, 2.6324, 0, 0, 0.0015], ""),
+    "V0" =>  ([0.4086, 28.8109, 0.6077, 8.5437, -0.0295, 0.2768, 0, 0, 0.0123],   [3.7600, 21.8313, 2.4026, 7.5458, 0.4464, 2.6628, 0, 0, 0.0017], ""),
     "V1" =>  ([0.4444, 32.6479, 0.5683, 9.0971, -0.2285, 0.0218, 0, 0, 0.2150],   [4.7474, 23.3226, 2.3609, 7.8082, 0.4105, 2.7063, 0, 0, 0.0014], ""),
     "V2" =>  ([0.4085, 23.8526, 0.6091, 8.2456, -0.1676, 0.0415, 0, 0, 0.1496],   [3.4386, 16.5303, 1.9638, 6.1415, 0.2997, 2.2669, 0, 0, 0.0009], ""),
     "V3" =>  ([0.3598, 19.3364, 0.6632, 7.6172, -0.3064, 0.0296, 0, 0, 0.2835],   [2.3005, 14.6821, 2.0364, 6.1304, 0.4099, 2.3815, 0, 0, 0.0014], ""),
@@ -169,6 +172,7 @@ const radial_integral_coefficients = Dict(
     "Mn2" => ([0.4220, 17.6840, 0.5948, 6.0050, 0.0043, -0.6090, 0, 0, -0.0219],  [2.0515, 15.5561, 1.8841, 6.0625, 0.4787, 2.2323, 0, 0, 0.0027], ""),
     "Mn3" => ([0.4198, 14.2829, 0.6054, 5.4689, 0.9241, -0.0088, 0, 0, -0.9498],  [1.2427, 14.9966, 1.9567, 6.1181, 0.5732, 2.2577, 0, 0, 0.0031], ""),
     "Mn4" => ([0.3760, 12.5661, 0.6602, 5.1329, -0.0372, 0.5630, 0, 0, 0.0011],   [0.7879, 13.8857, 1.8717, 5.7433, 0.5981, 2.1818, 0, 0, 0.0034], ""),
+    "Mn5" => ([0.2924, 11.6655, 0.7405, 5.0741, -1.7883, 0.0059, 0, 0, 1.7557],   [-0.2394, 10.7309, -0.1190, 6.5989, 0.3505, 1.4912, 0, 0, 0.0078], ""),
     "Fe0" => ([0.0706, 35.0085, 0.3589, 15.3583, 0.5819, 5.5606, 0, 0, -0.0114],  [1.9405, 18.4733, 1.9566, 6.3234, 0.5166, 2.1607, 0, 0, 0.0036], ""),
     "Fe1" => ([0.1251, 34.9633, 0.3629, 15.5144, 0.5223, 5.5914, 0, 0, -0.0105],  [2.6290, 18.6598, 1.8704, 6.3313, 0.4690, 2.1628, 0, 0, 0.0031], ""),
     "Fe2" => ([0.0263, 34.9597, 0.3668, 15.9435, 0.6188, 5.5935, 0, 0, -0.0119],  [1.6490, 16.5593, 1.9064, 6.1325, 0.5206, 2.1370, 0, 0, 0.0035], ""),
@@ -182,7 +186,7 @@ const radial_integral_coefficients = Dict(
     "Ni0" => ([-0.0172, 35.7392, 0.3174, 14.2689, 0.7136, 4.5661, 0, 0, -0.0143], [1.0302, 12.2521, 1.4669, 4.7453, 0.4521, 1.7437, 0, 0, 0.0036], ""),
     "Ni1" => ([0.0705, 35.8561, 0.3984, 13.8042, 0.5427, 4.3965, 0, 0, -0.0118],  [2.1040, 14.8655, 1.4302, 5.0714, 0.4031, 1.7784, 0, 0, 0.0034], ""),
     "Ni2" => ([0.0163, 35.8826, 0.3916, 13.2233, 0.6052, 4.3388, 0, 0, -0.0133],  [1.7080, 11.0160, 1.2147, 4.1031, 0.3150, 1.5334, 0, 0, 0.0018], ""),
-    "Ni3" => ([-0.0134, 35.8677, 0.2678, 12.3326, 0.7614, 4.2369, 0, 0, -0.0162], [1.1612, 7.7000, 1.0027, 3.2628, 0.2719, 1.3780, 0, 0, 0.0025], ""),
+    "Ni3" => ([0.0012, 34.9998, 0.3468, 11.9874, 0.6667, 4.2518, 0, 0, -0.0148],  [1.4683, 8.6713, 1.1068, 3.2574, 0.1794, 1.1058, 0, 0,-0.0023], ""),
     "Ni4" => ([-0.0090, 35.8614, 0.2776, 11.7904, 0.7474, 4.2011, 0, 0, -0.0163], [1.1612, 7.7000, 1.0027, 3.2628, 0.2719, 1.3780, 0, 0, 0.0025], ""),
     "Cu0" => ([0.0909, 34.9838, 0.4088, 11.4432, 0.5128, 3.8248, 0, 0, -0.0124],  [1.9182, 14.4904, 1.3329, 4.7301, 0.3842, 1.6394, 0, 0, 0.0035], ""),
     "Cu1" => ([0.0749, 34.9656, 0.4147, 11.7642, 0.5238, 3.8497, 0, 0, -0.0127],  [1.8814, 13.4333, 1.2809, 4.5446, 0.3646, 1.6022, 0, 0, 0.0033], ""),
