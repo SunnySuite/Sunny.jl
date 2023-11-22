@@ -30,8 +30,8 @@ end
     FormFactor(ion::String; g_lande=2)
 
 The magnetic form factor for a given magnetic ion and charge state. When passed
-to an [`intensity_formula`](@ref), determines a ``|𝐪|``-dependent scaling of
-the structure factor.
+to an [`intensity_formula`](@ref), it rescales structure factor intensities
+based on the magnitude of the scattering vector, ``|𝐪|``.
 
 The parameter `ion` must be one of the following strings:
 
@@ -62,12 +62,12 @@ ERROR: Disambiguate form factor according to electronic configuration:
     "Ir0c" -- 6s²5d⁷
 ```
 
-In the dipolar approximation (small momentum transfer |𝐪|) the form factor is
+In the dipolar approximation (small ``|𝐪|``) the form factor is
 
 ``F(s) = ⟨j_0(s)⟩ + \\frac{2-g}{g} ⟨j_2(s)⟩``,
 
-involving the Landé ``g``-factor. The ``⟨j_l(s)⟩`` are radial averages for the
-``l``th spherical Bessel function of the magnetic dipole, where ``s = |𝐪|/4π``.
+involving ``s = |𝐪|/4π`` and the Landé ``g``-factor. The ``⟨j_l(s)⟩`` are
+radial averages of the ``l``th spherical Bessel function of the magnetic dipole.
 More details are provided in Ref. [1].
 
 The ``⟨j_l(s)⟩`` can be approximated as a sum of Gaussians,
@@ -85,7 +85,8 @@ References:
 
  1. P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form
     Factors (2003)
- 2. [McPhase documentation](https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html)
+ 2. [McPhase
+    documentation](https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html)
  3. K. Kobayashi, T. Nagao, M. Ito, Acta Cryst. A, 67 pp 473–480 (2011)
 """
 function FormFactor(ion::String; g_lande=2)
