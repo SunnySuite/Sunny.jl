@@ -213,8 +213,8 @@ Plot the spin configuration defined by `sys`. Optional parameters are:
 
 Calling `notify` on the return value will animate the figure.
 """
-function Sunny.plot_spins(sys::System; resolution=(768, 512), show_axis=false, kwargs...)
-    fig = Makie.Figure(; resolution)
+function Sunny.plot_spins(sys::System; size=(768, 512), show_axis=false, kwargs...)
+    fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1]; show_axis)
     notifier = Makie.Observable(nothing)
     plot_spins!(ax, sys; notifier, kwargs...)
@@ -383,8 +383,8 @@ end
 An interactive crystal viewer, with bonds up to `max_dist`.
 """
 function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthographic=false,
-                            spherescale=0.2, resolution=(768, 512), rescale=1.0, dims=3)
-    fig = Makie.Figure(; resolution)
+                            spherescale=0.2, size=(768, 512), rescale=1.0, dims=3)
+    fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1], show_axis=false)
 
     # Show cell volume and label lattice vectors (this needs to come first to
@@ -548,7 +548,7 @@ function draw_level!(ax,n_level,level,center,radius,dir,z; arrows = true, linewi
     end
 end
 
-function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, use_arrows = true, resolution=(768, 512)) where N
+function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, use_arrows = true, size=(768, 512)) where N
 
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
@@ -564,7 +564,7 @@ function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, 
 
     n_level = length(sys.coherents[1])
 
-    fig = Makie.Figure(; resolution)
+    fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1])
 
     # TODO: use `orient_camera!` at bottom of file instead.

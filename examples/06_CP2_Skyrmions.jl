@@ -120,7 +120,7 @@ function sun_berry_curvature(z₁, z₂, z₃)
     return angle(n₁ * n₂ * n₃)
 end
 
-plot_triangular_plaquettes(sun_berry_curvature, frames; resolution=(1800,600),
+plot_triangular_plaquettes(sun_berry_curvature, frames; size=(600,200),
     offset_spacing=10, texts = ["\tt = "*string(τ) for τ in τs], text_offset = (0.0, 6.0)
 )
 

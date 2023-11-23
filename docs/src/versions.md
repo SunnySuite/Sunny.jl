@@ -8,6 +8,7 @@
   tutorial.
 * Remove internal functions `*_primitive_crystal`. Instead, it is recommended to
   use the conventional unit cell, and later call [`reshape_supercell`](@ref).
+* Require Makie 0.20.
 
 ## v0.5.6
 (Nov 8, 2023)

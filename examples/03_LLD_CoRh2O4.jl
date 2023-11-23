@@ -44,7 +44,7 @@ for _ in 1:1000
     step!(sys, langevin)
     push!(energies, energy_per_site(sys))
 end
-plot(energies, color=:blue, figure=(resolution=(600,300),), axis=(xlabel="Time steps", ylabel="Energy (meV)"))
+plot(energies, color=:blue, figure=(size=(600,300),), axis=(xlabel="Time steps", ylabel="Energy (meV)"))
 
 # Thermal fluctuations are apparent in the spin configuration.
 

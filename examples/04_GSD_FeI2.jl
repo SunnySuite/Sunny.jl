@@ -389,7 +389,7 @@ params.binstart[2], params.binend[2] = -2 * sqrt(3/4), 2 * sqrt(3/4)
 ## Re-compute in the new coordinate system
 is, counts = intensities_binned(sc,params,new_formula)
 
-fig = Figure(; resolution=(1200,500))#hide
+fig = Figure(; size=(600,250))#hide
 ax_right = Axis(fig[1,3];#hide
     title="ω≈$(round(target_ω, digits=2)) meV with Δω=0.3 meV (Binned)", aspect=true,#hide
     xlabel = "[H, -1/2H, 0]"#hide
