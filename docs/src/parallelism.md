@@ -21,52 +21,43 @@ calculation of a dynamical trajectory. The correlations of the trajectory are
 calculated and accumulated into a running average of the ``𝒮(𝐪,ω)``. This
 sequence is repeated to generate additional samples.
 
-To illustrate, we'll set up a a simple model: a spin-1 antiferromagnet on an FCC
+To illustrate, we'll set up a a simple model: a spin-1 antiferromagnet on a BCC
 crystal. 
 
 ```julia
 using Sunny, GLMakie
 
-function make_system(cryst; J, dims, seed=nothing)
-    sys = System(cryst, dims, [SpinInfo(1, S=1, g=2)], :dipole; seed)
-    set_exchange!(sys, J, Bond(1,1,[1,0,0]))
+function make_system(; seed=nothing)
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    positions = [[0, 0, 0]/2, [1, 1, 1]/2]
+    cryst = Crystal(latvecs, positions)
+    sys = System(cryst, (10, 10, 2), [SpinInfo(1, S=1, g=2)], :dipole; seed)
+    set_exchange!(sys, 1.0, Bond(1,1,[1,0,0]))
     return sys
 end
 
-J = 1.0 # meV 
-cryst = Sunny.fcc_primitive_crystal()
-sys = make_system(cryst; J, dims=(10,10,2))
-```
-To thermalize and generate equilibrium samples, we'll need a [`Langevin`](@ref)
-integrator. 
-
-```julia
-kT = 0.5    # meV
-Δt = 0.05/J
-integrator = Langevin(Δt; kT, λ=0.1)
-```
-Finally, call [`dynamical_correlations`](@ref) to configure a `SampledCorrelations`.
-
-```julia
-sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0)
+sys = make_system()
 ```
 
-The serial calculation can now be performed as follows:
+A serial calculation of [`dynamical_correlations`](@ref) involving the
+[`Langevin`](@ref) sampling method can now be performed as follows:
 
 ```julia
-nsamples = 10
-
 # Thermalize the system
-for _ in 1:5000  # Sufficient number of steps to thermalize
+Δt = 0.05
+integrator = Langevin(Δt; kT=0.5, λ=0.1)
+for _ in 1:5000
     step!(sys, integrator)
 end
 
-for _ in 1:nsamples
-    # Generate new sample by running Langevin dynamics
-    for _ in 1:1000  # Sufficient number of steps to decorrelate
+# Accumulator for S(q,ω) samples
+sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0)
+
+# Collect 10 samples
+for _ in 1:10
+    for _ in 1:1000
         step!(sys, integrator)
     end
-    # Add the sample to the correlation data
     add_sample!(sc, sys)
 end
 ```
@@ -78,14 +69,8 @@ This will take a second or two on a modern workstation, resulting in a single
 ## Multithreading approach
 To use threads in Julia, you must launch your Julia environment appropriately.
 
- - From the **command line**, launch Julia with `julia --threads=N`, where `N` is the number of threads. If you don't know how many threads you'd like, you can let Julia decide with `--threads=auto`.
-
-- **Jupyter notebook** users will need to to set up a multithreaded Julia kernel and restart into this kernel. The kernel can be created inside Julia with the following:
-```
-    using IJulia
-    IJulia.installkernel("Julia Multithreaded",
-        env=Dict("JULIA_NUM_THREADS" => "auto"))
-```
+- From the **command line**, launch Julia with `julia --threads=auto`. With this option, Julia will automatically use an optimal number of threads.
+- **Jupyter notebook** users will need to to set up a multithreaded Julia kernel and restart into this kernel. The kernel can be created inside Julia with the command `IJulia.installkernel("Julia Multithreaded", env=Dict("JULIA_NUM_THREADS" => "auto"))`.
 - **VSCode** users should open their settings and search for `Julia: Additional Args`. There will be link called `Edit in settings.json`. Click on this, add `"--threads=auto"` to the list `julia.additionalArgs`, and start a new REPL.
 
 Before going further, make sure that `Threads.nthreads()` returns a number greater than 1.
@@ -96,7 +81,7 @@ preallocate a number of systems and correlations.
 
 ```julia
 npar = Threads.nthreads()
-systems = [make_system(cryst; J, dims=(10,10,2), seed=i) for i in 1:npar]
+systems = [make_system(; seed=id) for id in 1:npar]
 scs = [dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0) for _ in 1:npar]
 ```
 
@@ -114,11 +99,11 @@ with each thread acting on a unique `System` and `SampledCorrelations`.
 
 ```julia
 Threads.@threads for id in 1:npar
-    integrator = Langevin(Δt; kT, λ=0.1)
+    integrator = Langevin(Δt; kT=0.5, λ=0.1)
     for _ in 1:5000
         step!(systems[id], integrator)
     end
-    for _ in 1:nsamples
+    for _ in 1:10
         for _ in 1:1000
             step!(systems[id], integrator)
         end
@@ -130,7 +115,7 @@ end
 You may find this takes a little bit longer than the serial example, but, at the
 end of it, you will have generated `npar` correlation objects, each with 10
 samples. We can merge these into a summary `SampledCorrelations` with `10*npar`
-samples with `merge_correlations`:
+samples with [`merge_correlations`](@ref):
 
 ```julia
 sc = merge_correlations(scs)
@@ -160,14 +145,17 @@ addprocs(ncores)
 ```
 
 You can think of each process as a separate computer running a fresh Julia
-environment, so we'll need to import Sunny and define our function in each of
-these environments. This is easily achieved with the `@everywhere` macro.
+environment, so we'll need to import Sunny and define functions in each of these
+environments. This is easily achieved with the `@everywhere` macro.
 ```julia
 @everywhere using Sunny
 
-@everywhere function make_system(cryst; J, dims, seed=nothing)
-    sys = System(cryst, dims, [SpinInfo(1, S=1, g=2)], :dipole; seed)
-    set_exchange!(sys, J, Bond(1,1,[1,0,0]))
+@everywhere function make_system(; seed=nothing)
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    positions = [[0, 0, 0]/2, [1, 1, 1]/2]
+    cryst = Crystal(latvecs, positions)
+    sys = System(cryst, (10, 10, 2), [SpinInfo(1, S=1, g=2)], :dipole; seed)
+    set_exchange!(sys, 1.0, Bond(1,1,[1,0,0]))
     return sys
 end
 ```
@@ -190,15 +178,15 @@ the parallel computations are collected into list of `SampledCorrelations`
 called `scs`.
 
 ```julia
-scs = pmap(1:ncores) do seed
-    sys = make_system(Sunny.fcc_primitive_crystal(); J=1.0, dims=(10,10,2), seed)
+scs = pmap(1:ncores) do id
+    sys = make_system(; seed=id)
     sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0)
-    integrator = Langevin(Δt; kT, λ=0.1)
+    integrator = Langevin(0.05; kT=0.5, λ=0.1)
 
-    for _ in 1:5000      # Thermalize
+    for _ in 1:5000
         step!(sys, integrator)
     end
-    for _ in 1:nsamples 
+    for _ in 1:10
         for _ in 1:1000 
             step!(sys, integrator)
         end

@@ -53,17 +53,17 @@ minimize_energy!(sys)
 s0 = sys.dipoles[1,1,1,1]
 plot_spins(sys; color=[s'*s0 for s in sys.dipoles])
 
-# For numerical efficiency, it will be helpful to work with the smallest
-# possible magnetic supercell. Here, it is the primitive unit cell, which
-# contains just two sites. The variable `shape` below defines the primitive
-# lattice vectors `cryst.prim_latvecs` in units of the conventional lattice
-# vectors. This result is used as input to [`reshape_supercell`](@ref). The
-# energy per site remains the same, which verifies that the magnetic supercell
-# is valid.
-
-shape = cryst.latvecs \ cryst.prim_latvecs
+# For numerical efficiency, it is helpful to work with the smallest possible
+# magnetic supercell; in this case, it is the primitive cell. The columns of the
+# 3×3 `shape` matrix define the lattice vectors of the primitive cell as
+# multiples of the conventional, cubic lattice vectors. After transforming the
+# system with [`reshape_supercell`](@ref), the energy per site remains the same.
+shape = [0 1 1;
+         1 0 1;
+         1 1 0] / 2
 sys_prim = reshape_supercell(sys, shape)
 @assert energy_per_site(sys_prim) ≈ -2J*S^2
+plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 
 # Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and an
 # [`intensity_formula`](@ref). The mode `:perp` contracts with a dipole factor
