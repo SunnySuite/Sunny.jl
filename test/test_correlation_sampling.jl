@@ -3,7 +3,12 @@
     function simple_model_sc(; mode, seed=111)
         latsize = (4,4,4)
         J = 1.0
-        cryst = Sunny.fcc_primitive_crystal()
+
+        # FCC with nonstandard, primitive lattice vectors
+        latvecs = [[1, 1, 0] [0, 1, 1] [1, 0, 1]] / 2
+        positions = [[0, 0, 0]]
+        cryst = Crystal(latvecs, positions)
+
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
         sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], mode; seed)

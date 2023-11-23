@@ -656,29 +656,17 @@ end
 function fcc_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     positions = [[0, 0, 0]/2,
-                  [1, 1, 0]/2,
-                  [1, 0, 1]/2,
-                  [0, 1, 1]/2]
+                 [1, 1, 0]/2,
+                 [1, 0, 1]/2,
+                 [0, 1, 1]/2]
     cryst = Crystal(latvecs, positions)
     sort_sites!(cryst)
     return cryst
 end
 
-function fcc_primitive_crystal(; a=1.0)
-    latvecs = [1 1 0; 0 1 1; 1 0 1]' * a/2
-    positions = [[0, 0, 0]]
-    return Crystal(latvecs, positions)
-end
-
 function bcc_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     positions = [[0, 0, 0]/2, [1, 1, 1]/2]
-    return Crystal(latvecs, positions)
-end
-
-function bcc_primitive_crystal(; a=1.0)
-    latvecs = [1 1 -1; 1 -1 1; -1 1 1]' * a/2
-    positions = [[0, 0, 0]]
     return Crystal(latvecs, positions)
 end
 
@@ -699,31 +687,9 @@ function diamond_crystal(; a=1.0)
     return cryst
 end
 
-function diamond_primitive_crystal(; a=1.0)
-    latvecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
-    positions = [
-        [0, 0, 0]/4,
-        [1, 1, 1]/4,
-    ]
-    return Crystal(latvecs, positions)
-end
-
 function pyrochlore_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
     return Crystal(latvecs, [[0, 0, 0]], 227, setting="2")
-end
-
-function pyrochlore_primitive_crystal(; a=1.0)
-    latvecs = [1 1 0; 1 0 1; 0 1 1]' * a/2
-    positions = [
-        [5, 5, 5]/8,
-        [1, 5, 5]/8,
-        [5, 5, 1]/8,
-        [5, 1, 5]/8
-    ]
-    cryst = Crystal(latvecs, positions)
-    sort_sites!(cryst)
-    return cryst
 end
 
 function hyperkagome_crystal(; a=1.0)
