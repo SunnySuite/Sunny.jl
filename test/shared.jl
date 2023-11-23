@@ -70,6 +70,14 @@ function add_quartic_interactions!(sys, mode)
     end
 end
 
+function diamond_model(; J, dims = (3,3,3), kwargs...)
+    crystal = Sunny.diamond_crystal()
+    S = 3/2
+    sys = System(crystal, dims, [SpinInfo(1; S, g=2)], :dipole; kwargs...)
+    set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
+    randomize_spins!(sys)
+    return sys
+end
 
 # Levi-Civita symbol
 ϵ = [(i-j)*(j-k)*(k-i)/2 for i=1:3, j=1:3, k=1:3]

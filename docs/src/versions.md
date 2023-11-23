@@ -3,7 +3,9 @@
 ## v0.5.7
 (upcoming)
 
-* Updated form factor coefficients, now including `Mn5`.
+* Update form factor coefficients, which now include `Mn5`.
+* Fix [`merge_correlations`](@ref) and the [Parallelizing Calculations](@ref)
+  tutorial.
 * Remove internal functions `*_primitive_crystal`. Instead, it is recommended to
   use the conventional unit cell, and later call [`reshape_supercell`](@ref).
 

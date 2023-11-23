@@ -12,7 +12,7 @@ struct SampledCorrelations{N}
     crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
     origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
     Δω             :: Float64                              # Energy step size (could make this a virtual property)  
-    observables   :: ObservableInfo
+    observables    :: ObservableInfo
 
     # Specs for sample generation and accumulation
     samplebuf    :: Array{ComplexF64, 6}   # New sample buffer
@@ -58,9 +58,9 @@ function clone_correlations(sc::SampledCorrelations{N}) where N
     normalization_factor = 1/(nω * √(prod(dims)))
     fft! = normalization_factor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
     variance = isnothing(sc.variance) ? nothing : copy(sc.variance)
-    return SampledCorrelations{N}(copy(sc.data), variance, deepcopy(sc.crystal), deepcopy(sc.origin_crystal), sc.Δω,
-        deepcopy(sc.observables), deepcopy(sc.observable_ixs), deepcopy(sc.correlations), 
-        copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.Δt, copy(sc.nsamples), sc.processtraj!)
+    return SampledCorrelations{N}(copy(sc.data), variance, sc.crystal, sc.origin_crystal, sc.Δω,
+        deepcopy(sc.observables), copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.Δt,
+        copy(sc.nsamples), sc.processtraj!)
 end
 
 
@@ -72,14 +72,16 @@ Accumulate a list of `SampledCorrelations` into a single, summary
 """
 function merge_correlations(scs::Vector{SampledCorrelations{N}}) where N
     sc_merged = clone_correlations(scs[1])
+    μ = zero(sc_merged.data)
     for sc in scs[2:end]
         n = sc_merged.nsamples[1] 
         m = sc.nsamples[1]
-        @. sc_merged.data = ((n)/(n+m))*sc_merged.data + ((m)/(n+m))*sc.data
+        @. μ = (n/(n+m))*sc_merged.data + (m/(n+m))*sc.data
         if !isnothing(sc_merged.variance)
-            @. sc_merged.variance = ((n-1)/(n+m-1))*sc_merged.variance + ((m-1)/(n+m-1))*sc.variance +
-                n*m*real((sc_merged.data - sc.data)*conj(sc_merged.data - sc.data))/((n+m)*(n+m-1))
+            @. sc_merged.variance = (n/(n+m))*(sc_merged.variance + abs(μ - sc_merged.data)^2) + 
+                                    (m/(n+m))*(sc.variance + abs(μ - sc.data)^2)
         end
+        sc_merged.data .= μ
         sc_merged.nsamples[1] += m
     end
     sc_merged

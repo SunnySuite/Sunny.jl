@@ -97,17 +97,58 @@
     @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
 end
 
+@testitem "Merge correlations" begin
+    include("shared.jl")
+
+    function set_dipoles!(sys, dipoles)
+        for site in Sunny.eachsite(sys)
+            Sunny.set_dipole!(sys, dipoles[site], site)
+        end
+    end
+
+    # Set up a system.
+    seed = 101
+    J = Sunny.meV_per_K * 7.5413 
+    sys = diamond_model(; J, seed, dims=(3, 3, 3))
+
+    # Set up Langevin sampler.
+    Δt_langevin = 0.07 
+    kT = Sunny.meV_per_K * 2. # Units of meV
+    λ  = 0.1
+    langevin = Langevin(Δt_langevin; kT, λ)
+
+    # Collect two equilibrium samples.
+    ics = []
+    for _ in 1:2
+        for _ in 1:4_000
+            step!(sys, langevin)
+        end
+        push!(ics, copy(sys.dipoles))
+    end
+
+    # Add both samples to a SampledCorrelations.
+    sc_ref = dynamical_correlations(sys; nω=25, ωmax=5.5, Δt=2Δt_langevin, calculate_errors=true)
+    for ic in ics
+        set_dipoles!(sys, ic)
+        add_sample!(sc_ref, sys)
+    end
+
+    # Now add same samples individually to two different SampledCorrelations.
+    scs = map(ics) do ic
+        sc = dynamical_correlations(sys; nω=25, ωmax=5.5, Δt=2Δt_langevin, calculate_errors=true)
+        set_dipoles!(sys, ic)
+        add_sample!(sc, sys)
+        sc
+    end
+
+    # Merge correlations and check if result equal to running calculation.
+    sc_new = merge_correlations(scs)
+    @test sc_ref.data ≈ sc_new.data
+    @test sc_ref.variance ≈ sc_new.variance
+end
 
 @testitem "Sampled correlations reference" begin
-
-    function diamond_model(; J, dims = (3,3,3), kwargs...)
-        crystal = Sunny.diamond_crystal()
-        S = 3/2
-        sys = System(crystal, dims, [SpinInfo(1; S, g=2)], :dipole; kwargs...)
-        set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
-        randomize_spins!(sys)
-        return sys
-    end
+    include("shared.jl")
 
     seed = 101
     J = Sunny.meV_per_K * 7.5413 
