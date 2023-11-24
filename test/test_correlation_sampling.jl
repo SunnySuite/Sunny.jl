@@ -117,11 +117,13 @@ end
     add_sample!(sc0, Sunny.clone_system(sys))
     add_sample!(sc1, Sunny.clone_system(sys))
 
-    for _ in 1:4_000
-        step!(sys, langevin)
+    for _ in 1:2
+        for _ in 1:4_000
+            step!(sys, langevin)
+        end
+        add_sample!(sc0, Sunny.clone_system(sys))
+        add_sample!(sc2, Sunny.clone_system(sys))
     end
-    add_sample!(sc0, Sunny.clone_system(sys))
-    add_sample!(sc2, Sunny.clone_system(sys))
 
     # Merge correlations and check if result equal to running calculation.
     sc_merged = merge_correlations([sc1, sc2])
