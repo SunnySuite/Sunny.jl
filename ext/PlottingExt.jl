@@ -356,10 +356,10 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
 
         # Draw arrows
         linecolor = (stemcolor, alpha)
-        Makie.arrows!(ax, pts_shifted, vecs; arrowsize, linewidth, linecolor, arrowcolor, diffuse=1.3, transparency=isghost)
+        Makie.arrows!(ax, pts_shifted, vecs; arrowsize, linewidth, linecolor, arrowcolor, diffuse=1.15, transparency=isghost)
 
         # Small sphere inside arrow to mark atom position
-        Makie.meshscatter!(ax, pts; markersize, color=linecolor, diffuse=1.3, transparency=isghost)
+        Makie.meshscatter!(ax, pts; markersize, color=linecolor, diffuse=1.15, transparency=isghost)
     end
 
     if show_cell
@@ -395,7 +395,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     axissize = (1/3)*minimum(norm.(eachcol(cryst.latvecs)))
     axisdirs = axissize * Makie.Point3f0.([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
     axes = Makie.arrows!(ax, Makie.Point3f0.(fill([0,0,0], 3)), axisdirs, arrowsize=0.5axissize, linewidth=0.15axissize,
-                         color=[:red, :orange, :yellow], diffuse=1.3, inspectable=false, visible=show_axis)
+                         color=[:red, :orange, :yellow], diffuse=1.15, inspectable=false, visible=show_axis)
 
     # Map atom classes to indices that run from 1..nclasses
     unique_classes = unique(cryst.classes)
@@ -416,7 +416,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
             push!(pts, cryst.latvecs * (cryst.positions[i] + n))
             push!(color, getindex_cyclic(seaborn_muted, class_indices[i]))
         end
-        Makie.meshscatter!(ax, pts; markersize, color, alpha, diffuse=1.3, inspectable=false, transparency=isghost)
+        Makie.meshscatter!(ax, pts; markersize, color, alpha, diffuse=1.15, inspectable=false, transparency=isghost)
 
         # Atom indices
         if !isghost
