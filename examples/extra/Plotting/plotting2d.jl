@@ -116,7 +116,7 @@ function plot_triangular_plaquettes(f, frames;
         end
         poly!(ax, pgons; color, colormap, colorrange)
         if !isnothing(texts)
-            text!(ax, v₀[1] - text_offset[1], v₀[2] - text_offset[2]; text=texts[i], fontsize=16)
+            text!(ax, v₀[1] - text_offset[1], v₀[2] - text_offset[2]; text=texts[i], fontsize=14)
         end
     end
     return fig
