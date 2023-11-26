@@ -5,7 +5,7 @@
 </div>
 <p>
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliahub.com/docs/General/Sunny/stable)
+<!-- [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://sunnysuite.github.io/Sunny.jl/stable) -->
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
 [![Build Status](https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
