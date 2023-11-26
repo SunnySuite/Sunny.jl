@@ -213,8 +213,8 @@ Plot the spin configuration defined by `sys`. Optional parameters are:
 
 Calling `notify` on the return value will animate the figure.
 """
-function Sunny.plot_spins(sys::System; resolution=(768, 512), show_axis=false, kwargs...)
-    fig = Makie.Figure(; resolution)
+function Sunny.plot_spins(sys::System; size=(768, 512), show_axis=false, kwargs...)
+    fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1]; show_axis)
     notifier = Makie.Observable(nothing)
     plot_spins!(ax, sys; notifier, kwargs...)
@@ -251,7 +251,7 @@ Like [`plot_spins`](@ref) but will draw into the given Makie Axis, `ax`.
 =#
 function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrowscale=1.0, stemcolor=:lightgray, color=:red,
                      colorfn=nothing, colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
-                     ghost_radius=0, rescale=1.0, dims=3)
+                     ghost_radius=0, dims=3)
     if dims == 2
         sys.latsize[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
     elseif dims == 1
@@ -263,11 +263,11 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
     # Show bounding box of magnetic supercell in gray (this needs to come first
     # to set a scale for the scene in case there is only one atom).
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    Makie.linesegments!(ax, cell_wireframe(supervecs, dims); color=:gray, linewidth=rescale*1.5)
+    Makie.linesegments!(ax, cell_wireframe(supervecs, dims); color=:gray, linewidth=1.5)
 
     # Bounding box of original crystal unit cell in teal
     if show_cell
-        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs, dims); color=:teal, linewidth=rescale*1.5)
+        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs, dims); color=:teal, linewidth=1.5)
     end
 
     # Infer characteristic length scale between sites
@@ -356,10 +356,10 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
 
         # Draw arrows
         linecolor = (stemcolor, alpha)
-        Makie.arrows!(ax, pts_shifted, vecs; arrowsize, linewidth, linecolor, arrowcolor, transparency=isghost)
+        Makie.arrows!(ax, pts_shifted, vecs; arrowsize, linewidth, linecolor, arrowcolor, diffuse=1.15, transparency=isghost)
 
         # Small sphere inside arrow to mark atom position
-        Makie.meshscatter!(ax, pts; markersize, color=linecolor, transparency=isghost)
+        Makie.meshscatter!(ax, pts; markersize, color=linecolor, diffuse=1.15, transparency=isghost)
     end
 
     if show_cell
@@ -367,7 +367,7 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
         # `overdraw=true` to work.
         pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(orig_crystal(sys).latvecs)[1:dims]]
         text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
-        Makie.text!(ax, pos; text, color=:black, fontsize=rescale*20, font=:bold, glowwidth=4.0,
+        Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
                     glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
     end
 
@@ -383,18 +383,19 @@ end
 An interactive crystal viewer, with bonds up to `max_dist`.
 """
 function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthographic=false,
-                            spherescale=0.2, resolution=(768, 512), rescale=1.0, dims=3)
-    fig = Makie.Figure(; resolution)
+                            spherescale=0.2, size=(768, 512), dims=3)
+    fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1], show_axis=false)
 
     # Show cell volume and label lattice vectors (this needs to come first to
     # set a scale for the scene in case there is only one atom).
-    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=rescale*1.5, inspectable=false)
+    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
 
     # Draw Cartesian axes
     axissize = (1/3)*minimum(norm.(eachcol(cryst.latvecs)))
-    axes = Makie.arrows!(ax, Makie.Point3f0.(fill([0,0,0], 3)), axissize*Makie.Point3f0.([[1, 0, 0], [0, 1, 0], [0, 0, 1]]),
-                         arrowsize=0.5axissize, linewidth=0.15axissize, color=[:red, :orange, :yellow], inspectable=false, visible=show_axis)
+    axisdirs = axissize * Makie.Point3f0.([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    axes = Makie.arrows!(ax, Makie.Point3f0.(fill([0,0,0], 3)), axisdirs, arrowsize=0.5axissize, linewidth=0.15axissize,
+                         color=[:red, :orange, :yellow], diffuse=1.15, inspectable=false, visible=show_axis)
 
     # Map atom classes to indices that run from 1..nclasses
     unique_classes = unique(cryst.classes)
@@ -415,12 +416,12 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
             push!(pts, cryst.latvecs * (cryst.positions[i] + n))
             push!(color, getindex_cyclic(seaborn_muted, class_indices[i]))
         end
-        Makie.meshscatter!(ax, pts; markersize, color, alpha, inspectable=false, transparency=isghost)
+        Makie.meshscatter!(ax, pts; markersize, color, alpha, diffuse=1.15, inspectable=false, transparency=isghost)
 
         # Atom indices
         if !isghost
             text = repr.(eachindex(pts))
-            atom_labels = Makie.text!(ax, pts; text, color=:white, fontsize=rescale*14, align=(:center, :center),
+            atom_labels = Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center),
                                       overdraw=true, visible=true)
         end
     end
@@ -460,7 +461,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
         
         # TODO: Report bug of ÷2 indexing
         inspector_label(plot, index, position) = bond_labels[index ÷ 2]
-        s = Makie.linesegments!(ax, segments; color, linewidth=rescale*3,
+        s = Makie.linesegments!(ax, segments; color, linewidth=3,
                                 inspectable=true, inspector_label, visible)
         return [s]
     end
@@ -468,7 +469,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     layout = Makie.GridLayout(; tellheight=false, valign=:top)
 
     # Toggle on/off Cartesian axes
-    fontsize = rescale*16
+    fontsize = 16
     toggle_cnt = 0
     axes_toggle = Makie.Toggle(fig; active=axes.visible[], buttoncolor=:gray)
     Makie.connect!(axes.visible, axes_toggle.active)
@@ -505,7 +506,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     # v0.19)
     pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(cryst.latvecs)[1:dims]]
     text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
-    Makie.text!(ax, pos; text, color=:black, fontsize=rescale*20, font=:bold, glowwidth=4.0,
+    Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
                 glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
 
     # Add inspector for pop-up information. Putting this last helps with
@@ -548,7 +549,7 @@ function draw_level!(ax,n_level,level,center,radius,dir,z; arrows = true, linewi
     end
 end
 
-function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, use_arrows = true, resolution=(768, 512)) where N
+function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, use_arrows = true, size=(768, 512)) where N
 
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
 
@@ -564,7 +565,7 @@ function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, 
 
     n_level = length(sys.coherents[1])
 
-    fig = Makie.Figure(; resolution)
+    fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1])
 
     # TODO: use `orient_camera!` at bottom of file instead.

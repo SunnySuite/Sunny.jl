@@ -5,6 +5,9 @@ using Sunny, GLMakie, WriteVTK # Load packages to enable Documenter references
 
 isdraft = false # set `true` to disable cell evaluation
 
+# Generate high resolution GLMakie images (two pixels per size "unit")
+Makie.set_theme!(; GLMakie=(; px_per_unit=2))
+
 # Remove existing Documenter `build` directory
 build_path = joinpath(@__DIR__, "build")
 isdir(build_path) && rm(build_path; recursive=true)
