@@ -552,6 +552,9 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     return ret
 end
 
+# Avoids ambiguity error
+subcrystal(cryst::Crystal) = cryst
+
 function Base.show(io::IO, cryst::Crystal)
     spg = isempty(cryst.spacegroup) ? "" : "$(cryst.spacegroup), "
     println(io, "Crystal($(spg)$(natoms(cryst)) atoms)")

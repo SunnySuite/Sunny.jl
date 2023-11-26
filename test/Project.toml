@@ -1,4 +1,5 @@
 [deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 Ewalder = "2efd4204-53b6-4d30-8cf4-11a055f037eb"
 FiniteDifferences = "26cc04aa-876d-5657-8c51-4c34ba976000"
 IOCapture = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
