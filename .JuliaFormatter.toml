@@ -1,0 +1,10 @@
+style = "blue"
+import_to_using = false
+whitespace_ops_in_indices = false
+normalize_line_endings = "unix"
+# align_assignment = true
+# align_struct_field = true
+align_conditional = true
+align_pair_arrow = true
+align_matrix = true
+ignore = ["docs"]
