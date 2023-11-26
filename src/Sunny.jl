@@ -12,19 +12,12 @@ import Random: Random, randn!
 import DataStructures: SortedDict, OrderedDict
 import Optim
 import JLD2
-import CodecZlib # Required for reading compressed HDF
 
 # Specific to Symmetry/
 import FilePathsBase: Path
 import CrystalInfoFramework as CIF
 import Spglib
 import RowEchelon: rref!
-
-# Specific to SunnyGfx
-import JSON
-import Colors: distinguishable_colors, RGB, Colors
-import Inflate: inflate_gzip
-import Random: randstring, RandomDevice
 
 const Vec3 = SVector{3, Float64}
 const Vec5 = SVector{5, Float64}
