@@ -8,6 +8,9 @@
   tutorial.
 * Remove internal functions `*_primitive_crystal`. Instead, it is recommended to
   use the conventional unit cell, and later call [`reshape_supercell`](@ref).
+* Require Makie 0.20. An important new feature is resolution-independent scaling
+  of font sizes. New figures expect `size` instead of `resolution`, and no
+  longer accept `rescale`.
 
 ## v0.5.6
 (Nov 8, 2023)
