@@ -1,12 +1,14 @@
-# julia --project=@. make.jl
-
-import Literate, Documenter, Git
-using Sunny, GLMakie, WriteVTK # Load packages to enable Documenter references
+# To build docs, execute `julia --project=@. make.jl`. The JuliaHub build
+# environment additionally uses `--compiled-modules=no`.
 
 isdraft = false # set `true` to disable cell evaluation
 
-# Generate high resolution GLMakie images (two pixels per size "unit")
-Makie.set_theme!(; GLMakie=(; px_per_unit=2))
+import Literate, Documenter, Git
+using Sunny # Load `export`s into namespace to define API
+import GLMakie, WriteVTK # Enable package extensions
+
+# Generate high resolution GLMakie images (two pixels per "size unit")
+GLMakie.set_theme!(; GLMakie=(px_per_unit=2,))
 
 # Remove existing Documenter `build` directory
 build_path = joinpath(@__DIR__, "build")
