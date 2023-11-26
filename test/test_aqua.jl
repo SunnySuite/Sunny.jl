@@ -1,6 +1,5 @@
 
 @testitem "Aqua" begin
-    # Run all Aqua tests except ambiguities
     import Aqua
     Aqua.test_all(Sunny; ambiguities=false)
 

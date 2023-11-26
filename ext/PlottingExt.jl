@@ -5,32 +5,31 @@ import Sunny: Vec3, orig_crystal, natoms # Private functions
 
 using LinearAlgebra
 import Makie
-import Colors: RGB
 
 const seaborn_bright = [
-    RGB{Float64}(0.00784313725490196,0.24313725490196078,1.0),
-    RGB{Float64}(1.0,0.48627450980392156,0.0),
-    RGB{Float64}(0.10196078431372549,0.788235294117647,0.2196078431372549),
-    RGB{Float64}(0.9098039215686274,0.0,0.043137254901960784),
-    RGB{Float64}(0.5450980392156862,0.16862745098039217,0.8862745098039215),
-    RGB{Float64}(0.6235294117647059,0.2823529411764706,0.0),
-    RGB{Float64}(0.9450980392156862,0.2980392156862745,0.7568627450980392),
-    RGB{Float64}(0.6392156862745098,0.6392156862745098,0.6392156862745098),
-    RGB{Float64}(1.0,0.7686274509803922,0.0),
-    RGB{Float64}(0.0,0.8431372549019608,1.0),
+    Makie.RGBf(0.00784313725490196,0.24313725490196078,1.0),
+    Makie.RGBf(1.0,0.48627450980392156,0.0),
+    Makie.RGBf(0.10196078431372549,0.788235294117647,0.2196078431372549),
+    Makie.RGBf(0.9098039215686274,0.0,0.043137254901960784),
+    Makie.RGBf(0.5450980392156862,0.16862745098039217,0.8862745098039215),
+    Makie.RGBf(0.6235294117647059,0.2823529411764706,0.0),
+    Makie.RGBf(0.9450980392156862,0.2980392156862745,0.7568627450980392),
+    Makie.RGBf(0.6392156862745098,0.6392156862745098,0.6392156862745098),
+    Makie.RGBf(1.0,0.7686274509803922,0.0),
+    Makie.RGBf(0.0,0.8431372549019608,1.0),
 ]
 
 const seaborn_muted = [
-    RGB{Float64}(0.2823529411764706,0.47058823529411764,0.8156862745098039),
-    RGB{Float64}(0.9333333333333333,0.5215686274509804,0.2901960784313726),
-    RGB{Float64}(0.41568627450980394,0.8,0.39215686274509803),
-    RGB{Float64}(0.8392156862745098,0.37254901960784315,0.37254901960784315),
-    RGB{Float64}(0.5843137254901961,0.4235294117647059,0.7058823529411765),
-    RGB{Float64}(0.5490196078431373,0.3803921568627451,0.23529411764705882),
-    RGB{Float64}(0.8627450980392157,0.49411764705882355,0.7529411764705882),
-    RGB{Float64}(0.4745098039215686,0.4745098039215686,0.4745098039215686),
-    RGB{Float64}(0.8352941176470589,0.7333333333333333,0.403921568627451),
-    RGB{Float64}(0.5098039215686274,0.7764705882352941,0.8862745098039215),
+    Makie.RGBf(0.2823529411764706,0.47058823529411764,0.8156862745098039),
+    Makie.RGBf(0.9333333333333333,0.5215686274509804,0.2901960784313726),
+    Makie.RGBf(0.41568627450980394,0.8,0.39215686274509803),
+    Makie.RGBf(0.8392156862745098,0.37254901960784315,0.37254901960784315),
+    Makie.RGBf(0.5843137254901961,0.4235294117647059,0.7058823529411765),
+    Makie.RGBf(0.5490196078431373,0.3803921568627451,0.23529411764705882),
+    Makie.RGBf(0.8627450980392157,0.49411764705882355,0.7529411764705882),
+    Makie.RGBf(0.4745098039215686,0.4745098039215686,0.4745098039215686),
+    Makie.RGBf(0.8352941176470589,0.7333333333333333,0.403921568627451),
+    Makie.RGBf(0.5098039215686274,0.7764705882352941,0.8862745098039215),
 ]
 
 getindex_cyclic(a, i) = a[mod1(i, length(a))] 
@@ -408,7 +407,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     atom_labels = nothing
     for (isghost, alpha) in ((true, 0.15), (false, 1.0))
         pts = Makie.Point3f0[]
-        color = RGB{Float64}[]
+        color = Makie.RGBf[]
         for i in eachindex(images), n in images[i]
             # If drawing ghosts, require !iszero(n), and vice versa
             iszero(n) == isghost && continue
@@ -474,9 +473,9 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     Makie.connect!(axes.visible, axes_toggle.active)
     axes_labels = Makie.GridLayout()
     axes_labels[1, 1] = Makie.Label(fig, "Show"; fontsize)
-    axes_labels[1, 2] = Makie.Label(fig, "x"; color=RGB(0.90, 0.0, 0.0), font=:bold, fontsize)
-    axes_labels[1, 3] = Makie.Label(fig, "y"; color=RGB(0.90, 0.5, 0.0), font=:bold, fontsize)
-    axes_labels[1, 4] = Makie.Label(fig, "z"; color=RGB(0.90, 0.85, 0.0), font=:bold, fontsize)
+    axes_labels[1, 2] = Makie.Label(fig, "x"; color=Makie.RGBf(0.90, 0.0, 0.0), font=:bold, fontsize)
+    axes_labels[1, 3] = Makie.Label(fig, "y"; color=Makie.RGBf(0.90, 0.5, 0.0), font=:bold, fontsize)
+    axes_labels[1, 4] = Makie.Label(fig, "z"; color=Makie.RGBf(0.90, 0.85, 0.0), font=:bold, fontsize)
     layout[toggle_cnt+=1, 1:2] = [axes_toggle, axes_labels]
 
     # Toggle on/off atom indices
@@ -523,7 +522,7 @@ end
 function draw_level!(ax,n_level,level,center,radius,dir,z; arrows = true, linewidth, lengthscale, arrowsize)
     if level == n_level || level == 1
         top_level = level == n_level
-        col = map(x -> Makie.Colors.HSVA(rad2deg(angle(x[level])),1,1,abs2(x[level])),z)
+        col = map(x -> Makie.HSVA(rad2deg(angle(x[level])),1,1,abs2(x[level])),z)
         if arrows
           Makie.arrows!(ax,center,(top_level ? radius : -radius) .* dir,color = col; linewidth, arrowsize)
         else
@@ -543,7 +542,7 @@ function draw_level!(ax,n_level,level,center,radius,dir,z; arrows = true, linewi
             for j = eachindex(theta)
                 pts[j] = center[i] .+ sin(phi) .* radius .* (cos(theta[j]) .* codir1 .+ sin(theta[j]) .* codir2) .+ radius .* (m/l) .* dir[i]
             end
-            Makie.lines!(pts,color = Makie.Colors.HSVA(rad2deg(angle(z[i][level])),1,1,abs2(z[i][level])); linewidth)
+            Makie.lines!(pts,color = Makie.HSVA(rad2deg(angle(z[i][level])),1,1,abs2(z[i][level])); linewidth)
         end
     end
 end
