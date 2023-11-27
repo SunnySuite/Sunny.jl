@@ -199,8 +199,7 @@ function crystal_from_inferred_symmetry(
     # Print a warning if non-conventional lattice vectors are detected.
     try
         cell_type(latvecs)
-    catch
-        (e)
+    catch e
         @warn e.msg
     end
 
