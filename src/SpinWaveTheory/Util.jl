@@ -1,21 +1,20 @@
-@inline δ(x, y) = (x==y)
-
+@inline δ(x, y) = (x == y)
 
 # Set submatrix H21 to H12' without allocating
 function set_H21!(H)
-    L = round(Int, size(H, 1)/2)
-    H12 = view(H, 1:L,L+1:2L)
+    L = round(Int, size(H, 1) / 2)
+    H12 = view(H, 1:L, L+1:2L)
     H21 = view(H, L+1:2L, 1:L)
     for i in CartesianIndices(H21)
         i, j = i.I
-        H21[i,j] = conj(H12[j,i])
+        H21[i, j] = conj(H12[j, i])
     end
 end
 
 # Calculating norm(H - H') without allocating
 function hermiticity_norm(H)
     acc = 0.0
-    for idx in CartesianIndices(H) 
+    for idx in CartesianIndices(H)
         acc += abs2(H[idx] - H'[idx])
     end
     return sqrt(acc)
@@ -31,9 +30,9 @@ function dot_no_conj(x, A, y)
     @inbounds for j in eachindex(y)
         yj = y[j]
         if !iszero(yj)
-            temp = zero(A[i₁,j] * x₁)
+            temp = zero(A[i₁, j] * x₁)
             @simd for i in eachindex(x)
-                temp += A[i,j] * x[i]
+                temp += A[i, j] * x[i]
             end
             s += temp * yj
         end
@@ -46,17 +45,17 @@ function dot_no_conj(x, A::Float64, y)
     s = zero(eltype(x))
     axes(x) == axes(y) || throw(DimensionMismatch())
     for j in eachindex(x)
-        s += x[j]*y[j]
+        s += x[j] * y[j]
     end
-    return A*s
+    return A * s
 end
 
 # Diagonal "metric"
-function dot_no_conj(x, A::SVector{N, Float64}, y) where N
+function dot_no_conj(x, A::SVector{N,Float64}, y) where {N}
     s = zero(eltype(x))
-    axes(x) == axes(y)  == axes(A) || throw(DimensionMismatch())
+    axes(x) == axes(y) == axes(A) || throw(DimensionMismatch())
     for j in eachindex(x)
-        s += A[j]*x[j]*y[j]
+        s += A[j] * x[j] * y[j]
     end
     return s
 end

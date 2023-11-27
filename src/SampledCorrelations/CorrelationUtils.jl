@@ -4,15 +4,18 @@
 Returns all wave vectors for which `sc` contains exact values. `bsize` specifies
 the number of Brillouin zones to be included.
 """
-function available_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
+function available_wave_vectors(sc::SampledCorrelations; bzsize=(1, 1, 1))
     Ls = size(sc.samplebuf)[2:4]  # If we had a sys, would use latsize
     offsets = map(L -> isodd(L) ? 1 : 0, Ls)
     up = Ls .* bzsize
     hi = map(L -> L - div(L, 2), up) .- offsets
     lo = map(L -> 1 - div(L, 2), up) .- offsets
     qs = zeros(Vec3, up...)
-    for (k, lz) in enumerate(lo[3]:hi[3]), (j, ly) in enumerate(lo[2]:hi[2]), (i, lx) in enumerate(lo[1]:hi[1])
-        qs[i,j,k] = Vec3(lx/Ls[1], ly/Ls[2], lz/Ls[3])
+    for (k, lz) in enumerate(lo[3]:hi[3]),
+        (j, ly) in enumerate(lo[2]:hi[2]),
+        (i, lx) in enumerate(lo[1]:hi[1])
+
+        qs[i, j, k] = Vec3(lx / Ls[1], ly / Ls[2], lz / Ls[3])
 
         # If the crystal has been reshaped, convert all wavevectors from RLU in the
         # the reshaped crystal to RLU in the original crystal
@@ -39,7 +42,7 @@ function available_energies(sc::SampledCorrelations; negative_energies=false)
     nω = size(sc.data, 7)
     hω = div(nω, 2) + 1
     ωvals = collect(0:(nω-1)) .* Δω
-    for i ∈ hω+1:nω
+    for i in hω+1:nω
         ωvals[i] -= 2ωvals[hω]
     end
     return negative_energies ? ωvals : ωvals[1:hω]

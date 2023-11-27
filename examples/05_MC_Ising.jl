@@ -8,8 +8,8 @@ using Sunny, GLMakie
 # create an orthogonal unit cell where the $z$-spacing is distinct from the $x$
 # and $y$ spacing.
 a = 1
-latvecs = lattice_vectors(a,a,10a,90,90,90)
-crystal = Crystal(latvecs, [[0,0,0]])
+latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
+crystal = Crystal(latvecs, [[0, 0, 0]])
 
 # Create a [`System`](@ref) of spins with linear size `L` in the $x$ and $y$
 # directions, and only one layer in the $z$ direction. The option `:dipole`
@@ -23,23 +23,25 @@ crystal = Crystal(latvecs, [[0,0,0]])
 # between the spin dipole $𝐬$ and an external field $𝐁$ has the dimensionless
 # form $-𝐁⋅𝐬$.
 L = 128
-sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=1)], :dipole, units=Units.theory, seed=0)
-polarize_spins!(sys, (0,0,1))
+sys = System(
+    crystal, (L, L, 1), [SpinInfo(1; S=1, g=1)], :dipole; units=Units.theory, seed=0
+)
+polarize_spins!(sys, (0, 0, 1))
 
 # Use [`set_exchange!`](@ref) to include a ferromagnetic Heisenberg interaction
 # along nearest-neighbor bonds. The [`Bond`](@ref) below connects two spins
 # displaced by one lattice constant in the $x$-direction. This interaction will
 # be propagated to all nearest-neighbors bonds in the system, consistent with
 # the symmetries of the square lattice.
-set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
+set_exchange!(sys, -1.0, Bond(1, 1, (1, 0, 0)))
 
 # If an external field is desired, it can be set using
 # [`set_external_field!`](@ref).
 B = 0
-set_external_field!(sys, (0,0,B))
+set_external_field!(sys, (0, 0, B))
 
 # The critical temperature for the Ising model is known analytically.
-Tc = 2/log(1+√2)
+Tc = 2 / log(1 + √2)
 
 # Use a [`LocalSampler`](@ref) to perform `nsweeps` Monte Carlo sweeps. A sweep
 # consists of, on average, one trial update per spin in the system. Each
@@ -47,10 +49,10 @@ Tc = 2/log(1+√2)
 # probability. As its name suggests, the [`propose_flip`](@ref) function will
 # only propose pure spin flips, $𝐬 \rightarrow -𝐬$.
 nsweeps = 4000
-sampler = LocalSampler(kT=Tc, propose=propose_flip)
+sampler = LocalSampler(; kT=Tc, propose=propose_flip)
 for i in 1:nsweeps
     step!(sys, sampler)
 end
 
 # Plot the Ising spins by extracting the $z$-component of the dipoles
-heatmap(reshape([s.z for s in sys.dipoles], (L,L)))
+heatmap(reshape([s.z for s in sys.dipoles], (L, L)))

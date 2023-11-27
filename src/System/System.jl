@@ -26,8 +26,14 @@ generation.
 
 All spins are initially polarized in the ``z``-direction.
 """
-function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
-                units=Units.meV, seed=nothing)
+function System(
+    crystal::Crystal,
+    latsize::NTuple{3,Int},
+    infos::Vector{SpinInfo},
+    mode::Symbol;
+    units=Units.meV,
+    seed=nothing,
+)
     if !in(mode, (:SUN, :dipole, :dipole_large_S))
         error("Mode must be `:SUN`, `:dipole`, or `:dipole_large_S`.")
     end
@@ -37,7 +43,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     if !isnothing(crystal.root)
         @assert crystal.latvecs == crystal.root.latvecs
     end
-    
+
     na = natoms(crystal)
 
     infos = propagate_site_info(crystal, infos)
@@ -45,7 +51,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     gs = [si.g for si in infos]
 
     # TODO: Label SU(2) rep instead
-    Ns = @. Int(2Ss+1)
+    Ns = @. Int(2Ss + 1)
 
     if mode == :SUN
         allequal(Ns) || error("Currently all spins S must be equal in SU(N) mode.")
@@ -69,17 +75,33 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     extfield = zeros(Vec3, latsize..., na)
     dipoles = fill(zero(Vec3), latsize..., na)
     coherents = fill(zero(CVec{N}), latsize..., na)
-    dipole_buffers = Array{Vec3, 4}[]
-    coherent_buffers = Array{CVec{N}, 4}[]
+    dipole_buffers = Array{Vec3,4}[]
+    coherent_buffers = Array{CVec{N},4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = System(nothing, mode, crystal, latsize, Ns, κs, gs, interactions, ewald,
-                 extfield, dipoles, coherents, dipole_buffers, coherent_buffers, units, rng)
-    polarize_spins!(ret, (0,0,1))
+    ret = System(
+        nothing,
+        mode,
+        crystal,
+        latsize,
+        Ns,
+        κs,
+        gs,
+        interactions,
+        ewald,
+        extfield,
+        dipoles,
+        coherents,
+        dipole_buffers,
+        coherent_buffers,
+        units,
+        rng,
+    )
+    polarize_spins!(ret, (0, 0, 1))
     return ret
 end
 
-function mode_to_str(sys::System{N}) where N
+function mode_to_str(sys::System{N}) where {N}
     if sys.mode == :SUN
         return "[SU($N)]"
     elseif sys.mode == :dipole
@@ -97,21 +119,23 @@ function lattice_to_str(sys::System)
 end
 
 function energy_to_str(sys::System)
-    return "Energy per site "*number_to_math_string(energy_per_site(sys))
+    return "Energy per site " * number_to_math_string(energy_per_site(sys))
 end
 
-function Base.show(io::IO, sys::System{N}) where N
-    print(io, "System($(mode_to_str(sys)), $(lattice_to_str(sys)), $(energy_to_str(sys)))")
+function Base.show(io::IO, sys::System{N}) where {N}
+    return print(
+        io, "System($(mode_to_str(sys)), $(lattice_to_str(sys)), $(energy_to_str(sys)))"
+    )
 end
 
-function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
+function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where {N}
     printstyled(io, "System $(mode_to_str(sys))\n"; bold=true, color=:underline)
     println(io, lattice_to_str(sys))
     if !isnothing(sys.origin)
         shape = number_to_math_string.(cell_shape(sys))
         println(io, formatted_matrix(shape; prefix="Reshaped cell "))
     end
-    println(io, energy_to_str(sys))
+    return println(io, energy_to_str(sys))
 end
 
 # Per Julia developers, `deepcopy` is memory unsafe, especially in conjunction
@@ -124,25 +148,54 @@ Base.deepcopy(_::System) = error("Use `clone_system` instead of `deepcopy`.")
 # Creates a clone of the system where all the mutable internal data is copied.
 # It is intended to be thread-safe to use the original and the copied systems,
 # without any restrictions, but see caveats in `clone_ewald()`.
-function clone_system(sys::System{N}) where N
-    (; origin, mode, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, units, rng) = sys
+function clone_system(sys::System{N}) where {N}
+    (;
+        origin,
+        mode,
+        crystal,
+        latsize,
+        Ns,
+        gs,
+        κs,
+        extfield,
+        interactions_union,
+        ewald,
+        dipoles,
+        coherents,
+        units,
+        rng,
+    ) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
-    ewald_clone  = isnothing(ewald)  ? nothing : clone_ewald(ewald)
+    ewald_clone = isnothing(ewald) ? nothing : clone_ewald(ewald)
 
     # Dynamically dispatch to the correct `map` function for either homogeneous
     # (Vector) or inhomogeneous interactions (4D Array)
     interactions_clone = map(clone_interactions, interactions_union)
-    
+
     # Empty buffers are required for thread safety.
-    empty_dipole_buffers = Array{Vec3, 4}[]
-    empty_coherent_buffers = Array{CVec{N}, 4}[]
+    empty_dipole_buffers = Array{Vec3,4}[]
+    empty_coherent_buffers = Array{CVec{N},4}[]
 
-    System(origin_clone, mode, crystal, latsize, Ns, copy(κs), copy(gs),
-           interactions_clone, ewald_clone, copy(extfield), copy(dipoles), copy(coherents),
-           empty_dipole_buffers, empty_coherent_buffers, units, copy(rng))
+    return System(
+        origin_clone,
+        mode,
+        crystal,
+        latsize,
+        Ns,
+        copy(κs),
+        copy(gs),
+        interactions_clone,
+        ewald_clone,
+        copy(extfield),
+        copy(dipoles),
+        copy(coherents),
+        empty_dipole_buffers,
+        empty_coherent_buffers,
+        units,
+        copy(rng),
+    )
 end
-
 
 """
     (cell1, cell2, cell3, i) :: Site
@@ -160,22 +213,23 @@ case, it is convenient to construct the `Site` using [`position_to_site`](@ref),
 which always takes a position in fractional coordinates of the original lattice
 vectors.
 """
-const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
+const Site = Union{NTuple{4,Int},CartesianIndex{4}}
 
-@inline to_cartesian(i::CartesianIndex{N}) where N = i
-@inline to_cartesian(i::NTuple{N, Int})    where N = CartesianIndex(i)
+@inline to_cartesian(i::CartesianIndex{N}) where {N} = i
+@inline to_cartesian(i::NTuple{N,Int}) where {N} = CartesianIndex(i)
 
 # Like mod1(x, L), but short-circuits early in the common case. See
 # https://github.com/SunnySuite/Sunny.jl/pull/184 for discussion.
 @inline function altmod1(x::Int, L::Int)
-    1 <= x <= L ? x : mod1(x, L)
+    return 1 <= x <= L ? x : mod1(x, L)
 end
 
 # Offset a `cell` by `ncells`
-@inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(altmod1.(Tuple(cell) .+ Tuple(ncells), latsize))
+@inline offsetc(cell::CartesianIndex{3}, ncells, latsize) =
+    CartesianIndex(altmod1.(Tuple(cell) .+ Tuple(ncells), latsize))
 
 # Split a site `site` into its cell and sublattice parts
-@inline to_cell(site) = CartesianIndex((site[1],site[2],site[3]))
+@inline to_cell(site) = CartesianIndex((site[1], site[2], site[3]))
 @inline to_atom(site) = site[4]
 
 # An iterator over all unit cells using CartesianIndices
@@ -192,10 +246,9 @@ function spin_label(sys::System, i::Int)
         return Inf
     else
         @assert sys.mode in (:dipole, :SUN)
-        return (sys.Ns[i]-1)/2
+        return (sys.Ns[i] - 1) / 2
     end
 end
-
 
 """
     eachsite(sys::System)
@@ -217,7 +270,7 @@ pos = [global_position(sys, site) for site in eachsite(sys)]
 ```
 """
 function global_position(sys::System, site)
-    r = sys.crystal.positions[site[4]] + Vec3(site[1]-1, site[2]-1, site[3]-1)
+    r = sys.crystal.positions[site[4]] + Vec3(site[1] - 1, site[2] - 1, site[3] - 1)
     return sys.crystal.latvecs * r
 end
 
@@ -266,14 +319,13 @@ function position_to_site(sys::System, r)
     r = Vec3(r)
     new_r = sys.crystal.latvecs \ orig_crystal(sys).latvecs * r
     i, offset = position_to_atom_and_offset(sys.crystal, new_r)
-    cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
+    cell = @. mod1(offset + 1, sys.latsize) # 1-based indexing with periodicity
     return to_cartesian((cell..., i))
 end
 
-
 # Given a [`Site`](@ref)s for a possibly reshaped system, return the
 # corresponding atom index for the original (unreshaped) crystal.
-function site_to_atom(sys::System{N}, site) where N
+function site_to_atom(sys::System{N}, site) where {N}
     site = to_cartesian(site)
     r = position(sys, site)
     return position_to_atom(orig_crystal(sys), r)
@@ -293,7 +345,6 @@ function map_atom_to_other_system(cryst::Crystal, i, orig_sys::System)
     return position_to_site(orig_sys, orig_r)
 end
 
-
 # Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
 # `new_cryst`. The new bond will begin at atom `new_i`.
 function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bond)
@@ -309,7 +360,6 @@ function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bo
     new_j, new_n = position_to_atom_and_offset(new_cryst, new_rj)
     return Bond(new_i, new_j, new_n)
 end
-
 
 """
     symmetry_equivalent_bonds(sys::System, bond::Bond)
@@ -328,7 +378,7 @@ end
 ```
 """
 function symmetry_equivalent_bonds(sys::System, bond::Bond)
-    ret = Tuple{Site, Site, SVector{3, Int}}[]
+    ret = Tuple{Site,Site,SVector{3,Int}}[]
 
     for new_i in 1:natoms(sys.crystal)
         # atom index in original crystal
@@ -353,23 +403,22 @@ function symmetry_equivalent_bonds(sys::System, bond::Bond)
     return ret
 end
 
-
 struct SpinState{N}
     s::Vec3
     Z::CVec{N}
 end
 
 # Returns √κ * normalize(Z)
-@inline function normalize_ket(Z::CVec{N}, κ) where N
-    return iszero(κ) ? zero(CVec{N}) : Z/sqrt(dot(Z,Z)/κ)
+@inline function normalize_ket(Z::CVec{N}, κ) where {N}
+    return iszero(κ) ? zero(CVec{N}) : Z / sqrt(dot(Z, Z) / κ)
 end
 
 # Returns κ * normalize(s)
 @inline function normalize_dipole(s::Vec3, κ)
-    return iszero(κ) ? zero(Vec3) : κ*normalize(s)
+    return iszero(κ) ? zero(Vec3) : κ * normalize(s)
 end
 
-@inline function coherent_state(sys::System{N}, site, Z) where N
+@inline function coherent_state(sys::System{N}, site, Z) where {N}
     Z = normalize_ket(CVec{N}(Z), sys.κs[site])
     s = expected_spin(Z)
     return SpinState(s, Z)
@@ -380,11 +429,11 @@ end
     Z = CVec{0}()
     return SpinState(s, Z)
 end
-@inline function dipolar_state(sys::System{N}, site, dir) where N
+@inline function dipolar_state(sys::System{N}, site, dir) where {N}
     return coherent_state(sys, site, ket_from_dipole(Vec3(dir), Val(N)))
 end
 
-@inline function flip(spin::SpinState{N}) where N
+@inline function flip(spin::SpinState{N}) where {N}
     return SpinState(-spin.s, flip_ket(spin.Z))
 end
 
@@ -392,20 +441,20 @@ end
     s = normalize_dipole(randn(sys.rng, Vec3), sys.κs[site])
     return SpinState(s, CVec{0}())
 end
-@inline function randspin(sys::System{N}, site) where N
+@inline function randspin(sys::System{N}, site) where {N}
     Z = normalize_ket(randn(sys.rng, CVec{N}), sys.κs[site])
     s = expected_spin(Z)
     return SpinState(s, Z)
 end
 
-@inline function getspin(sys::System{N}, site) where N
+@inline function getspin(sys::System{N}, site) where {N}
     return SpinState(sys.dipoles[site], sys.coherents[site])
 end
 
-@inline function setspin!(sys::System{N}, spin::SpinState{N}, site) where N
+@inline function setspin!(sys::System{N}, spin::SpinState{N}, site) where {N}
     sys.dipoles[site] = spin.s
     sys.coherents[site] = spin.Z
-    return
+    return nothing
 end
 
 """
@@ -413,12 +462,11 @@ end
 
 Randomizes all spins under appropriate the uniform distribution.
 """
-function randomize_spins!(sys::System{N}) where N
+function randomize_spins!(sys::System{N}) where {N}
     for site in eachsite(sys)
         setspin!(sys, randspin(sys, site), site)
     end
 end
-
 
 """
     set_coherent!(sys::System, Z, site::Site)
@@ -432,21 +480,20 @@ state fully polarized along the ``ẑ``-direction, and subsequent components
 represent states with decreasing angular momentum along this axis (``m = S, S-1,
 …, -S``).
 """
-function set_coherent!(sys::System{N}, Z, site) where N
+function set_coherent!(sys::System{N}, Z, site) where {N}
     length(Z) != N && error("Length of coherent state does not match system.")
-    iszero(N)      && error("Cannot set zero-length coherent state.")
-    setspin!(sys, coherent_state(sys, site, Z), to_cartesian(site))
+    iszero(N) && error("Cannot set zero-length coherent state.")
+    return setspin!(sys, coherent_state(sys, site, Z), to_cartesian(site))
 end
-
 
 """
     set_dipole!(sys::System, dir, site::Site)
 
 Polarize the spin at a [`Site`](@ref) along the direction `dir`.
 """
-function set_dipole!(sys::System{N}, dir, site) where N
+function set_dipole!(sys::System{N}, dir, site) where {N}
     site = to_cartesian(site)
-    setspin!(sys, dipolar_state(sys, site, dir), site)
+    return setspin!(sys, dipolar_state(sys, site, dir), site)
 end
 
 """
@@ -454,7 +501,7 @@ end
 
 Polarize all spins in the system along the direction `dir`.
 """
-function polarize_spins!(sys::System{N}, dir) where N
+function polarize_spins!(sys::System{N}, dir) where {N}
     for site in eachsite(sys)
         set_dipole!(sys, dir, site)
     end
@@ -467,20 +514,19 @@ Renormalize all expected magnetic moments (e.g., dipoles) by `κ`.
 """
 function set_spin_rescaling!(sys::System{0}, κ)
     for site in eachsite(sys)
-        sys.κs[site] = κ * (sys.Ns[2]-1)/2
+        sys.κs[site] = κ * (sys.Ns[2] - 1) / 2
         set_dipole!(sys, sys.dipoles[site], site)
     end
 end
 
-function set_spin_rescaling!(sys::System{N}, κ) where N
+function set_spin_rescaling!(sys::System{N}, κ) where {N}
     sys.κs .= κ
     for site in eachsite(sys)
         set_coherent!(sys, sys.coherents[site], site)
     end
 end
 
-
-function get_dipole_buffers(sys::System{N}, numrequested) where N
+function get_dipole_buffers(sys::System{N}, numrequested) where {N}
     numexisting = length(sys.dipole_buffers)
     if numexisting < numrequested
         for _ in 1:(numrequested-numexisting)
@@ -490,7 +536,7 @@ function get_dipole_buffers(sys::System{N}, numrequested) where N
     return view(sys.dipole_buffers, 1:numrequested)
 end
 
-function get_coherent_buffers(sys::System{N}, numrequested) where N
+function get_coherent_buffers(sys::System{N}, numrequested) where {N}
     numexisting = length(sys.coherent_buffers)
     if numexisting < numrequested
         for _ in 1:(numrequested-numexisting)

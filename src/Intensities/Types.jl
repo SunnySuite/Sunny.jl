@@ -1,2 +1,1 @@
 abstract type IntensityFormula end
-

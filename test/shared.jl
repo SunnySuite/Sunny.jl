@@ -12,19 +12,21 @@ function add_linear_interactions!(sys, mode)
     set_external_field!(sys, (0.0, 1.0, 1.0))
     if mode == :SUN
         # Kets scale as z → √κ z, so ⟨Λ⟩ → κ ⟨Λ⟩ is linear in κ
-        set_onsite_coupling!(sys, S -> 0.2*(S[1]^4+S[2]^4+S[3]^4), 1)
+        set_onsite_coupling!(sys, S -> 0.2 * (S[1]^4 + S[2]^4 + S[3]^4), 1)
     end
 end
 
 function add_exchange_interactions!(sys, _)
-    J  = 0.5   # Anti-ferro nearest neighbor
-    K  = 1.0   # Scale of Kitaev term
-    Γ  = 0.2   # Off-diagonal exchange
-    D  = 0.4   # DM interaction
-    J_exch = [J   Γ   -D;
-              Γ   J   -D;
-              D   D  J+K]
-    set_exchange!(sys, J_exch, Bond(1, 2, [0, 0, 0]))
+    J = 0.5   # Anti-ferro nearest neighbor
+    K = 1.0   # Scale of Kitaev term
+    Γ = 0.2   # Off-diagonal exchange
+    D = 0.4   # DM interaction
+    J_exch = [
+        J   Γ   -D
+        Γ   J   -D
+        D   D  J+K
+    ]
+    return set_exchange!(sys, J_exch, Bond(1, 2, [0, 0, 0]))
 end
 
 function add_quadratic_interactions!(sys, mode)
@@ -55,23 +57,25 @@ function add_quartic_interactions!(sys, mode)
         # Stevens operators O[4,q] are quartic in dipoles
         i = 3
         O = stevens_matrices(spin_label(sys, i))
-        set_onsite_coupling!(sys, 0.2*((1/20)O[4,0] + (1/4)O[4,4]), i)
+        set_onsite_coupling!(sys, 0.2 * ((1 / 20)O[4, 0] + (1 / 4)O[4, 4]), i)
 
         # Bilinear interactions in quadrupoles also have quartic scaling.
         O = stevens_matrices(spin_label(sys, 1))
-        Q = [O[2,q] for q in 2:-1:-2]
+        Q = [O[2, q] for q in 2:-1:-2]
         Qi, Qj = to_product_space(Q, Q)
-        biquad = [1.2  0   0  0    0
-                    0  1   0  0    0
-                    0  0 1.1  0 -1.4
-                    0  0   0  1    0
-                    0  0 1.4  0  1.3]
-        set_pair_coupling!(sys, 0.1*(Qi'*biquad*Qj), Bond(1, 1, [0, 0, 1]))
+        biquad = [
+            1.2  0   0  0    0
+              0  1   0  0    0
+              0  0 1.1  0 -1.4
+              0  0   0  1    0
+              0  0 1.4  0  1.3
+        ]
+        set_pair_coupling!(sys, 0.1 * (Qi' * biquad * Qj), Bond(1, 1, [0, 0, 1]))
     end
 end
 
 # Levi-Civita symbol
-ϵ = [(i-j)*(j-k)*(k-i)/2 for i=1:3, j=1:3, k=1:3]
+ϵ = [(i - j) * (j - k) * (k - i) / 2 for i in 1:3, j in 1:3, k in 1:3]
 
 # Kronecker delta
-δ(i,j) = (i==j) ? 1 : 0
+δ(i, j) = (i == j) ? 1 : 0

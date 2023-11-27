@@ -7,7 +7,7 @@ Compute the lattice parameters ``(a, b, c, α, β, γ)`` for the three lattice
 vectors provided as columns of `latvecs`. The inverse mapping is
 [`lattice_vectors`](@ref).
 """
-function lattice_params(latvecs::Mat3) :: NTuple{6, Float64}
+function lattice_params(latvecs::Mat3)::NTuple{6,Float64}
     v1, v2, v3 = eachcol(latvecs)
     a, b, c = norm(v1), norm(v2), norm(v3)
     acosd_clipped(x) = acosd(min(max(x, -1), 1))
@@ -25,7 +25,7 @@ correspond to the conventional unit cell defined by the lattice constants ``(a,
 b, c)`` and the angles ``(α, β, γ)`` in degrees. The inverse mapping is
 [`lattice_params`](@ref).
 """
-function lattice_vectors(a, b, c, α, β, γ) :: Mat3
+function lattice_vectors(a, b, c, α, β, γ)::Mat3
     @assert all(0 < x < 180 for x in (α, β, γ))
 
     sγ, cγ = sind(γ), cosd(γ)
@@ -61,11 +61,11 @@ function is_compatible_monoclinic_cell(latvecs, hall_number)
     choice = Spglib.get_spacegroup_type(hall_number).choice
     x = first(replace(choice, "-" => ""))
     if x == 'a'
-        return β≈90 && γ≈90
+        return β ≈ 90 && γ ≈ 90
     elseif x == 'b'
-        return α≈90 && γ≈90
+        return α ≈ 90 && γ ≈ 90
     elseif x == 'c'
-        return α≈90 && β≈90
+        return α ≈ 90 && β ≈ 90
     else
         error()
     end
@@ -117,19 +117,23 @@ function cell_type(latvecs::Mat3)
         if a ≈ b
             return tetragonal
         elseif b ≈ c || c ≈ a
-            error("Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`.")
+            error(
+                "Found a nonconventional tetragonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 90)`.",
+            )
         else
             return orthorhombic
         end
     end
 
     if (a ≈ b && α ≈ β ≈ 90 && (γ ≈ 60 || γ ≈ 120)) ||
-       (b ≈ c && β ≈ γ ≈ 90 && (α ≈ 60 || α ≈ 120)) ||
-       (c ≈ a && γ ≈ α ≈ 90 && (β ≈ 60 || β ≈ 120))
+        (b ≈ c && β ≈ γ ≈ 90 && (α ≈ 60 || α ≈ 120)) ||
+        (c ≈ a && γ ≈ α ≈ 90 && (β ≈ 60 || β ≈ 120))
         if γ ≈ 120
             return hexagonal
         else
-            error("Found a nonconventional hexagonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 120)`.")
+            error(
+                "Found a nonconventional hexagonal unit cell. Consider using `lattice_vectors(a, a, c, 90, 90, 120)`.",
+            )
         end
     end
 
@@ -137,7 +141,7 @@ function cell_type(latvecs::Mat3)
     if α ≈ β ≈ 90 || β ≈ γ ≈ 90 || α ≈ γ ≈ 90
         return monoclinic
     end
-    
+
     return triclinic
 end
 

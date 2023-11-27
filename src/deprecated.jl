@@ -1,6 +1,6 @@
 Base.@deprecate spin_matrices(; N::Int) let
     @warn "`spin_matrices(; N)` will soon be removed! Use `spin_matrices((N-1)/2)` instead."
-    spin_matrices((N-1)/2)
+    spin_matrices((N - 1) / 2)
 end
 
 Base.@deprecate_binding large_S_spin_operators spin_matrices(Inf)
@@ -20,5 +20,5 @@ Base.@deprecate offline_viewers() ()
 
 function Base.copy(dyn::Langevin)
     @warn "Base.copy(dyn::Langevin) will soon be removed! Use `Langevin(dyn.Δt; dyn.λ, dyn.kT)` instead."
-    Langevin(dyn.Δt; dyn.λ, dyn.kT)
+    return Langevin(dyn.Δt; dyn.λ, dyn.kT)
 end

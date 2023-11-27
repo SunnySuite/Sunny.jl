@@ -19,21 +19,21 @@ import CrystalInfoFramework as CIF
 import Spglib
 import RowEchelon: rref!
 
-const Vec3 = SVector{3, Float64}
-const Vec5 = SVector{5, Float64}
-const Mat3 = SMatrix{3, 3, Float64, 9}
-const Mat5 = SMatrix{5, 5, Float64, 25}
-const CVec{N} = SVector{N, ComplexF64}
-const HermitianC64 = Hermitian{ComplexF64, Matrix{ComplexF64}}
+const Vec3 = SVector{3,Float64}
+const Vec5 = SVector{5,Float64}
+const Mat3 = SMatrix{3,3,Float64,9}
+const Mat5 = SMatrix{5,5,Float64,25}
+const CVec{N} = SVector{N,ComplexF64}
+const HermitianC64 = Hermitian{ComplexF64,Matrix{ComplexF64}}
 
 @static if VERSION < v"1.10"
-    hermitianpart(A) = Hermitian(A+A')/2
+    hermitianpart(A) = Hermitian(A + A') / 2
 
     function hermitianpart!(A, uplo::Symbol=:U)
         for i in CartesianIndices(A)
             i, j = i.I
-            A[i,j] = (A[i,j] + conj(A[j,i]))/2
-            A[j,i] = conj(A[i,j])
+            A[i, j] = (A[i, j] + conj(A[j, i])) / 2
+            A[j, i] = conj(A[i, j])
         end
         return Hermitian(A, uplo)
     end
@@ -45,7 +45,8 @@ include("Operators/Stevens.jl")
 include("Operators/TensorOperators.jl")
 include("Operators/Symbolic.jl")
 include("Operators/Observables.jl")
-export spin_matrices, stevens_matrices, to_product_space, rotate_operator, print_stevens_expansion
+export spin_matrices,
+    stevens_matrices, to_product_space, rotate_operator, print_stevens_expansion
 
 include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
@@ -56,8 +57,17 @@ include("Symmetry/AllowedCouplings.jl")
 include("Symmetry/AllowedAnisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
-export Crystal, subcrystal, lattice_vectors, lattice_params, primitive_cell_shape, Bond,
-    reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame
+export Crystal,
+    subcrystal,
+    lattice_vectors,
+    lattice_params,
+    primitive_cell_shape,
+    Bond,
+    reference_bonds,
+    print_site,
+    print_bond,
+    print_symmetry_table,
+    print_suggested_frame
 
 include("Units.jl")
 export meV_per_K, Units
@@ -69,14 +79,39 @@ include("System/PairExchange.jl")
 include("System/OnsiteCoupling.jl")
 include("System/Ewald.jl")
 include("System/Interactions.jl")
-export SpinInfo, System, Site, eachsite, position_to_site, global_position, magnetic_moment, 
-    set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, set_spin_rescaling!, energy, energy_per_site,
-    spin_label, set_onsite_coupling!, set_pair_coupling!, set_exchange!, dmvec, enable_dipole_dipole!,
-    set_external_field!, to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
-    set_exchange_at!, set_pair_coupling_at!, symmetry_equivalent_bonds, remove_periodicity!
+export SpinInfo,
+    System,
+    Site,
+    eachsite,
+    position_to_site,
+    global_position,
+    magnetic_moment,
+    set_coherent!,
+    set_dipole!,
+    polarize_spins!,
+    randomize_spins!,
+    set_spin_rescaling!,
+    energy,
+    energy_per_site,
+    spin_label,
+    set_onsite_coupling!,
+    set_pair_coupling!,
+    set_exchange!,
+    dmvec,
+    enable_dipole_dipole!,
+    set_external_field!,
+    to_inhomogeneous,
+    set_external_field_at!,
+    set_vacancy_at!,
+    set_onsite_coupling_at!,
+    set_exchange_at!,
+    set_pair_coupling_at!,
+    symmetry_equivalent_bonds,
+    remove_periodicity!
 
 include("MagneticOrdering.jl")
-export print_wrapped_intensities, suggest_magnetic_supercell, set_spiral_order!, set_spiral_order_on_sublattice!
+export print_wrapped_intensities,
+    suggest_magnetic_supercell, set_spiral_order!, set_spiral_order_on_sublattice!
 
 include("Reshaping.jl")
 export reshape_supercell, resize_supercell, repeat_periodically
@@ -85,7 +120,7 @@ include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!
 
 include("Optimization.jl")
-export minimize_energy! 
+export minimize_energy!
 
 include("FormFactor.jl")
 export FormFactor
@@ -104,20 +139,32 @@ include("SampledCorrelations/CorrelationSampling.jl")
 include("SampledCorrelations/BasisReduction.jl")
 include("Intensities/Types.jl")
 include("SampledCorrelations/DataRetrieval.jl")
-export SampledCorrelations, dynamical_correlations, instant_correlations, add_sample!,
-    broaden_energy, lorentzian, available_wave_vectors, available_energies, merge_correlations,
-    intensity_formula, integrated_lorentzian
+export SampledCorrelations,
+    dynamical_correlations,
+    instant_correlations,
+    add_sample!,
+    broaden_energy,
+    lorentzian,
+    available_wave_vectors,
+    available_energies,
+    merge_correlations,
+    intensity_formula,
+    integrated_lorentzian
 
 include("Intensities/ElementContraction.jl")
 
 include("Intensities/Interpolation.jl")
-export intensities_interpolated, instant_intensities_interpolated, rotation_in_rlu,
-    reciprocal_space_path
+export intensities_interpolated,
+    instant_intensities_interpolated, rotation_in_rlu, reciprocal_space_path
 
 include("Intensities/Binning.jl")
-export intensities_binned, BinningParameters, count_bins, integrate_axes!,
-    unit_resolution_binning_parameters, 
-    slice_2D_binning_parameters, axes_bincenters,
+export intensities_binned,
+    BinningParameters,
+    count_bins,
+    integrate_axes!,
+    unit_resolution_binning_parameters,
+    slice_2D_binning_parameters,
+    axes_bincenters,
     reciprocal_space_path_bins
 
 include("Intensities/LinearSpinWaveIntensities.jl")
@@ -143,16 +190,30 @@ isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 
 ### ext/PlottingExt.jl, dependent on Makie
 function plot_spins(args...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie or GLMakie to enable plotting")
+    return error(
+        if isloaded("Makie")
+            "Invalid method call"
+        else
+            "Import GLMakie or GLMakie to enable plotting"
+        end,
+    )
 end
 function view_crystal(args...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie or GLMakie to enable plotting")
+    return error(
+        if isloaded("Makie")
+            "Invalid method call"
+        else
+            "Import GLMakie or GLMakie to enable plotting"
+        end,
+    )
 end
 export plot_spins, view_crystal
 
 ### ext/ExportVTKExt.jl, dependent on WriteVTK
 function export_vtk(args...)
-    error(isloaded("WriteVTK") ? "Invalid method call" : "Import WriteVTK to enable exporting")
+    return error(
+        isloaded("WriteVTK") ? "Invalid method call" : "Import WriteVTK to enable exporting"
+    )
 end
 export export_vtk
 

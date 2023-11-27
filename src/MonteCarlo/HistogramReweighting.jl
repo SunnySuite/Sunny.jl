@@ -1,4 +1,4 @@
-const Histogram = BinnedArray{Float64, Float64}
+const Histogram = BinnedArray{Float64,Float64}
 
 # get natural log of density of states, g(E), from multiple histogram reweighting
 # iteratively solve WHAM (weighted histogram analysis method) equation:
@@ -11,7 +11,7 @@ const Histogram = BinnedArray{Float64, Float64}
 #
 function WHAM(E_hists::Vector{Histogram}, kT_sched::Vector{Float64}; n_iters::Int64=1000)
     # sum up all histograms -- assume equal number of samples in each histogram
-    H_total = Histogram(bin_size=E_hists[1].bin_size)
+    H_total = Histogram(; bin_size=E_hists[1].bin_size)
     for H in E_hists
         for (E, n) in get_pairs(H)
             H_total[E] += n
@@ -22,7 +22,7 @@ function WHAM(E_hists::Vector{Histogram}, kT_sched::Vector{Float64}; n_iters::In
 
     energies = get_keys(H_total)
     ln_Z = zeros(Float64, n_hists)
-    ln_g = log.(get_vals(H_total) ./ n_total) 
+    ln_g = log.(get_vals(H_total) ./ n_total)
     ln_W = zeros(Float64, length(energies))
 
     # iteratively solve WHAM equation
@@ -37,7 +37,7 @@ function WHAM(E_hists::Vector{Histogram}, kT_sched::Vector{Float64}; n_iters::In
 
             for (j, kT) in enumerate(kT_sched)
                 (j == id_max) && continue
-                ln_W[i] += log(1 + exp(-E/kT - ln_Z[j] - ln_W[i]))
+                ln_W[i] += log(1 + exp(-E / kT - ln_Z[j] - ln_W[i]))
             end
         end
         # update log density of states
@@ -50,7 +50,7 @@ function WHAM(E_hists::Vector{Histogram}, kT_sched::Vector{Float64}; n_iters::In
 
             for (i, E) in enumerate(energies)
                 (i == id_max) && continue
-                ln_Z[j] += log(1 + exp(ln_g[i] - E/kT - ln_Z[j]))
+                ln_Z[j] += log(1 + exp(ln_g[i] - E / kT - ln_Z[j]))
             end
         end
     end
@@ -59,7 +59,12 @@ function WHAM(E_hists::Vector{Histogram}, kT_sched::Vector{Float64}; n_iters::In
 end
 
 # given a density of states and energies, calculate ensemble average of observable Q for range of temperatures
-function ensemble_average(energies::Vector{Float64}, ln_g::Vector{Float64}, Q::Vector{Float64}, kT_sched::Vector{Float64})
+function ensemble_average(
+    energies::Vector{Float64},
+    ln_g::Vector{Float64},
+    Q::Vector{Float64},
+    kT_sched::Vector{Float64},
+)
     # temporarily shift values for working in log space
     Q_min = minimum(Q)
     shift = (Q_min < 1) ? (1 - Q_min) : 0
@@ -70,17 +75,16 @@ function ensemble_average(energies::Vector{Float64}, ln_g::Vector{Float64}, Q::V
     # calculate ensemble average -- use log-sum-exp trick
     for (i, kT) in enumerate(kT_sched)
         id_max = argmax(ln_g .- energies ./ kT)
-        ln_Z[i] = ln_g[id_max] - energies[id_max]/kT
+        ln_Z[i] = ln_g[id_max] - energies[id_max] / kT
         ln_Q[i] = log(Q[id_max] + shift) + ln_Z[i]
 
         for (j, E) in enumerate(energies)
             (j == id_max) && continue
-            ln_Z[i] += log( 1 + exp(ln_g[j] - E/kT - ln_Z[i]) )
-            ln_Q[i] += log( 1 + (Q[j] + shift) * exp(ln_g[j] - E/kT - ln_Q[i]) )
+            ln_Z[i] += log(1 + exp(ln_g[j] - E / kT - ln_Z[i]))
+            ln_Q[i] += log(1 + (Q[j] + shift) * exp(ln_g[j] - E / kT - ln_Q[i]))
         end
     end
     ln_Q .-= ln_Z
 
     return (exp.(ln_Q) .- shift)
 end
-

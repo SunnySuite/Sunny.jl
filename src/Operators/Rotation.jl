@@ -3,9 +3,11 @@ function axis_angle_to_matrix(n, θ)
     x, y, z = normalize(n)
     s, c = sincos(θ)
     t = 1 - c
-    return SA[t*x*x+c    t*x*y-z*s  t*x*z+y*s
-              t*x*y+z*s  t*y*y+c    t*y*z-x*s
-              t*x*z-y*s  t*y*z+x*s  t*z*z+c]
+    return SA[
+        t*x*x+c    t*x*y-z*s  t*x*z+y*s
+        t*x*y+z*s  t*y*y+c    t*y*z-x*s
+        t*x*z-y*s  t*y*z+x*s  t*z*z+c
+    ]
 end
 
 function matrix_to_axis_angle(R::Mat3)
@@ -43,7 +45,7 @@ function matrix_to_axis_angle(R::Mat3)
 
     if θ < 1e-12
         # Axis is ill-defined for the identity matrix, but we don't want NaNs
-        n = SA[0., 0., 0.]
+        n = SA[0.0, 0.0, 0.0]
     else
         # Standard conversion from a unit quaternion q to an axis-angle
         n = SA[q[1], q[2], q[3]] / sqrt(1 - q[4]^2)
@@ -63,23 +65,23 @@ function random_orthogonal(rng, N::Int; special=false)
     # More efficient methods are discussed here:
     # https://doi.org/10.1137/0908055
     # https://arxiv.org/abs/math-ph/0609050
-    (; U, V) = svd(randn(rng, Float64, N,N))
-    O = U*V'
-    return special ? O*det(O) : O
+    (; U, V) = svd(randn(rng, Float64, N, N))
+    O = U * V'
+    return special ? O * det(O) : O
 end
 
 # Unitary for a rotation matrix built from abstract generators.
 function unitary_for_rotation(R::Mat3, gen)
-    !(R'*R ≈ I)   && error("Not an orthogonal matrix, R = $R.")
+    !(R' * R ≈ I) && error("Not an orthogonal matrix, R = $R.")
     !(det(R) ≈ 1) && error("Matrix includes a reflection, R = $R.")
     n, θ = matrix_to_axis_angle(R)
-    return exp(-im*θ*(n'*gen))
+    return exp(-im * θ * (n' * gen))
 end
 
 # Unitary for a rotation matrix in the N-dimensional irrep of SU(2).
 function unitary_irrep_for_rotation(R::Mat3; N::Int)
     gen = spin_matrices_of_dim(; N)
-    unitary_for_rotation(R, gen)
+    return unitary_for_rotation(R, gen)
 end
 
 # Unitary for a rotation matrix in the (N1⊗N2⊗...)-dimensional irrep of SU(2).
@@ -106,13 +108,12 @@ function rotate_operator(A::HermitianC64, R)
     R = convert(Mat3, R)
     N = size(A, 1)
     U = unitary_irrep_for_rotation(R; N)
-    return Hermitian(U'*A*U)
+    return Hermitian(U' * A * U)
 end
-
 
 # Given an operator A in a tensor product representation labeled by (N1, N2,
 # ...), perform a physical rotation by the matrix R .
 function rotate_tensor_operator(A::Matrix, R; Ns)
     U = unitary_tensor_for_rotation(R; Ns)
-    return U'*A*U
+    return U' * A * U
 end

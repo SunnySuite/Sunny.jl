@@ -4,10 +4,10 @@
 # - `A_ij B_kl = (A⊗B)_kilj`
 # - `(A⊗B)_ijkl = A_jl B_ik`
 function reverse_kron(C, N1, N2)
-    @assert length(C) == N2*N1*N2*N1
+    @assert length(C) == N2 * N1 * N2 * N1
     C = reshape(C, N2, N1, N2, N1)
     C = permutedims(C, (2, 1, 4, 3))
-    return reshape(C, N1*N2, N1*N2)
+    return reshape(C, N1 * N2, N1 * N2)
 end
 
 # Return list of groups of indices. Within each group, the indexed values of `S`
@@ -17,7 +17,7 @@ function degeneracy_groups(S, tol)
     isempty(S) && return acc
 
     j0 = 1
-    for j = 2:lastindex(S)
+    for j in 2:lastindex(S)
         if abs(S[j0] - S[j]) > tol
             push!(acc, j0:(j-1))
             j0 = j
@@ -30,38 +30,38 @@ end
 
 # Use SVD to find the decomposition D = ∑ₖ Aₖ ⊗ Bₖ, where Aₖ is N₁×N₁ and Bₖ is
 # N₂×N₂. Returns the list of matrices [(A₁, B₁), (A₂, B₂), ...].
-function svd_tensor_expansion(D::Matrix{T}, N1, N2) where T
+function svd_tensor_expansion(D::Matrix{T}, N1, N2) where {T}
     tol = 1e-12
 
-    @assert size(D, 1) == size(D, 2) == N1*N2
-    D̃ = permutedims(reshape(D, N2, N1, N2, N1), (2,4,1,3))
-    D̃ = reshape(D̃, N1*N1, N2*N2)
+    @assert size(D, 1) == size(D, 2) == N1 * N2
+    D̃ = permutedims(reshape(D, N2, N1, N2, N1), (2, 4, 1, 3))
+    D̃ = reshape(D̃, N1 * N1, N2 * N2)
     (; S, U, V) = svd(D̃)
-    ret = Tuple{HermitianC64, HermitianC64}[]
+    ret = Tuple{HermitianC64,HermitianC64}[]
 
     # Rotate columns of U and V within each degenerate subspace so that all
     # columns (when reshaped) are Hermitian matrices
     for range in degeneracy_groups(S, tol)
         abs(S[first(range)]) < tol && break
-        
+
         U_sub = view(U, :, range)
         n = length(range)
         Q = zeros(ComplexF64, n, n)
         for k in 1:n, k′ in 1:n
-            uk  = reshape(view(U_sub, :, k), N1, N1)
+            uk = reshape(view(U_sub, :, k), N1, N1)
             uk′ = reshape(view(U_sub, :, k′), N1, N1)
             Q[k, k′] = conj(tr(uk * uk′))
         end
-        
+
         R = sqrt(Q)
-        @assert norm(R*R' - I) < 1e-12
+        @assert norm(R * R' - I) < 1e-12
 
         @views U[:, range] = U[:, range] * R
         @views V[:, range] = V[:, range] * R
     end
 
     # Check that rotation was valid
-    @assert U*diagm(S)*V' ≈ D̃
+    @assert U * diagm(S) * V' ≈ D̃
 
     for (k, σ) in enumerate(S)
         if abs(σ) > tol
@@ -76,12 +76,11 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2) where T
             end
             u = hermitianpart(u)
             v = hermitianpart(v)
-            push!(ret, (σ*u, conj(v)))
+            push!(ret, (σ * u, conj(v)))
         end
     end
     return ret
 end
-
 
 function to_product_space_orig(A, B)
     (isempty(A) || isempty(B)) && error("Nonempty lists required")

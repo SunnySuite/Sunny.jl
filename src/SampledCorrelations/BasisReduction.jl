@@ -1,13 +1,15 @@
-function phase_averaged_elements(data, q_absolute::Vec3, crystal::Crystal, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
+function phase_averaged_elements(
+    data, q_absolute::Vec3, crystal::Crystal, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}
+) where {NCorr,NAtoms}
     elems = zero(MVector{NCorr,ComplexF64})
 
     # Form factor
-    ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute), NAtoms)
+    ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute ⋅ q_absolute), NAtoms)
 
     # Overall phase factor for each site
     q = crystal.recipvecs \ q_absolute
     r = crystal.positions
-    prefactor = ntuple(i -> ffs[i] * exp(- 2π*im * (q ⋅ r[i])), NAtoms)
+    prefactor = ntuple(i -> ffs[i] * exp(-2π * im * (q ⋅ r[i])), NAtoms)
 
     for j in 1:NAtoms, i in 1:NAtoms
         elems .+= (prefactor[i] * conj(prefactor[j])) .* view(data, :, i, j)
@@ -25,13 +27,15 @@ end
 # variances from all the sites that contribute. Revisit this. This is currently
 # not used, but would be employed in a parallel intensities-like pipeline for
 # error propagation.
-function error_basis_reduction(data, q_absolute::Vec3, _::Crystal, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
+function error_basis_reduction(
+    data, q_absolute::Vec3, _::Crystal, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}
+) where {NCorr,NAtoms}
     elems = zero(MVector{NCorr,ComplexF64})
-    ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute), NAtoms)
+    ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute ⋅ q_absolute), NAtoms)
 
     for j in 1:NAtoms, i in 1:NAtoms
         elems .+= ffs[i] .* ffs[j] .* view(data, :, i, j)
     end
 
-    return SVector{NCorr,Float64}(elems / (NAtoms*NAtoms))
+    return SVector{NCorr,Float64}(elems / (NAtoms * NAtoms))
 end

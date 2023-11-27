@@ -7,16 +7,16 @@ is an integer multiple of 1/2 and gives the spin angular momentum in units of ħ
 produces a magnetic moment ``g s`` in units of the Bohr magneton.
 """
 struct SpinInfo
-    atom   :: Int     # Index of atom in unit cell
-    S      :: Float64 # Spin magnitude in units of ħ
-    g      :: Mat3    # Spin g-tensor
+    atom::Int     # Index of atom in unit cell
+    S::Float64 # Spin magnitude in units of ħ
+    g::Mat3    # Spin g-tensor
 
     function SpinInfo(atom::Int; S, g)
         if !isinteger(2S)
             error("Spin $S for atom $atom is not a multiple of 1/2")
         end
-        g = typeof(g) <: Number ? Mat3(I*g) : Mat3(g)
-        new(atom, S, g)
+        g = typeof(g) <: Number ? Mat3(I * g) : Mat3(g)
+        return new(atom, S, g)
     end
 end
 
@@ -26,8 +26,10 @@ end
 function propagate_site_info(cryst::Crystal, infos::Vector{SpinInfo})
     # Verify that all g tensors are consistent with the the site symmetries
     for info in infos
-        if !is_coupling_valid(cryst, Bond(info.atom, info.atom, (0,0,0)), info.g)
-            error("g-tensor $(info.g) is inconsistent with the site symmetry of atom $(info.atom).")
+        if !is_coupling_valid(cryst, Bond(info.atom, info.atom, (0, 0, 0)), info.g)
+            error(
+                "g-tensor $(info.g) is inconsistent with the site symmetry of atom $(info.atom).",
+            )
         end
     end
 
@@ -37,7 +39,9 @@ function propagate_site_info(cryst::Crystal, infos::Vector{SpinInfo})
     return map(enumerate(atom_to_ref_atom)) do (a, a′)
         info = infos[findfirst(==(a′), ref_atoms)]
         S = info.S
-        g = transform_coupling_for_bonds(cryst, Bond(a,a,(0,0,0)), Bond(a′,a′,(0,0,0)), info.g)
+        g = transform_coupling_for_bonds(
+            cryst, Bond(a, a, (0, 0, 0)), Bond(a′, a′, (0, 0, 0)), info.g
+        )
         SpinInfo(a; S, g)
     end
 end

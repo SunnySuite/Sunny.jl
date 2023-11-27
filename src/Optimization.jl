@@ -4,10 +4,10 @@
 # normalized. When `α=0`, the output is `u=n`, and when `|α|→ ∞` the output is
 # `u=-n`. In all cases, `|u|=1`.
 function stereographic_projection(α, n)
-    @assert n'*n ≈ 1
-    v = α - n*(n'*α)              # project out component parallel to `n`
-    v² = real(v'*v)
-    u = (2v + (1-v²)*n) / (1+v²)  # stereographic projection
+    @assert n' * n ≈ 1
+    v = α - n * (n' * α)              # project out component parallel to `n`
+    v² = real(v' * v)
+    u = (2v + (1 - v²) * n) / (1 + v²)  # stereographic projection
     return u
 end
 
@@ -30,16 +30,15 @@ end
 #   x̄ du/dα = x̄ du/dv P
 #
 @inline function vjp_stereographic_projection(x, α, n)
-    v = α - n*(n'*α)
-    v² = real(v'*v)
-    b = (1-v²)/2
-    c = 2/(1+v²)
+    v = α - n * (n' * α)
+    v² = real(v' * v)
+    b = (1 - v²) / 2
+    c = 2 / (1 + v²)
     # Perform dot products first to avoid constructing outer-product
-    x̄_dudv = c*x' - c * (x' * ((1+c*b)*n + c*v)) * v'
+    x̄_dudv = c * x' - c * (x' * ((1 + c * b) * n + c * v)) * v'
     # Apply projection P=1-nn̄ on right
     return x̄_dudv - (x̄_dudv * n) * n'
 end
-
 
 # function variance(αs)
 #     ncomponents = length(αs) * length(first(αs))
@@ -53,7 +52,7 @@ function optim_set_spins!(sys::System{0}, αs, ns)
         set_dipole!(sys, s, site)
     end
 end
-function optim_set_spins!(sys::System{N}, αs, ns) where N
+function optim_set_spins!(sys::System{N}, αs, ns) where {N}
     αs = reinterpret(reshape, CVec{N}, αs)
     for site in eachsite(sys)
         Z = stereographic_projection(αs[site], ns[site])
@@ -67,13 +66,12 @@ function optim_set_gradient!(G, sys::System{0}, αs, ns)
     @. G *= norm(sys.dipoles)                                # G = dE/ds * ds/du = dE/du
     @. G = adjoint(vjp_stereographic_projection(G, αs, ns))  # G = dE/du du/dα = dE/dα
 end
-function optim_set_gradient!(G, sys::System{N}, αs, ns) where N
+function optim_set_gradient!(G, sys::System{N}, αs, ns) where {N}
     (αs, G) = reinterpret.(reshape, CVec{N}, (αs, G))
     set_energy_grad_coherents!(G, sys.coherents, sys)        # G = dE/dZ
     @. G *= norm(sys.coherents)                              # G = dE/dZ * dZ/du = dE/du
     @. G = adjoint(vjp_stereographic_projection(G, αs, ns))  # G = dE/du du/dα = dE/dα
 end
-
 
 """
     minimize_energy!(sys::System{N}; maxiters=100, subiters=20,
@@ -84,7 +82,9 @@ Optimizes the spin configuration in `sys` to minimize energy. A total of
 iterations. The remaining `kwargs` will be forwarded to the `optimize` method of
 the Optim.jl package.
 """
-function minimize_energy!(sys::System{N}; maxiters=100, subiters=10, method=Optim.ConjugateGradient(), kwargs...) where N
+function minimize_energy!(
+    sys::System{N}; maxiters=100, subiters=10, method=Optim.ConjugateGradient(), kwargs...
+) where {N}
     # Allocate buffers for optimization:
     #   - Each `ns[site]` defines a direction for stereographic projection.
     #   - Each `αs[:,site]` will be optimized in the space orthogonal to `ns[site]`.
@@ -103,17 +103,17 @@ function minimize_energy!(sys::System{N}; maxiters=100, subiters=10, method=Opti
     end
     function g!(G, αs)
         optim_set_spins!(sys, αs, ns)
-        optim_set_gradient!(G, sys, αs, ns)
+        return optim_set_gradient!(G, sys, αs, ns)
     end
 
     # Perform optimization, resetting parameterization of coherent states as necessary
     options = Optim.Options(; iterations=subiters, kwargs...)
 
-    for iter in 1 : div(maxiters, subiters, RoundUp)
+    for iter in 1:div(maxiters, subiters, RoundUp)
         output = Optim.optimize(f, g!, αs, method, options)
 
         if Optim.converged(output)
-            cnt = (iter-1)*subiters + output.iterations
+            cnt = (iter - 1) * subiters + output.iterations
             return cnt
         end
 

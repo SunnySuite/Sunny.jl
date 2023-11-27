@@ -8,14 +8,12 @@ function colspace(A; atol::Float64)
     return copy(SVD.U[:, indices])
 end
 
-
 # Calculate coefficients b that satisfy `bᵀ 𝒪 = cᵀ T`, where 𝒪 are the Stevens
 # operators, and T are the spherical harmonics. Using `𝒪 = α T`, we must solve
 # bᵀ α = cᵀ, or b = α⁻ᵀ c.
 function transform_spherical_to_stevens_coefficients(k, c)
     return transpose(stevens_αinv[k]) * c
 end
-
 
 function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R::Mat3)
     # The symmetry operations for the point group at atom i. Each one encodes a
@@ -42,9 +40,9 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
 
         # The Wigner D matrix, whose action on a spherical tensor corresponds to
         # the 3x3 rotation Q (see more below).
-        return unitary_irrep_for_rotation(Q; N=2k+1)
+        return unitary_irrep_for_rotation(Q; N=2k + 1)
     end
-    
+
     # A general operator in the spin-k representation can be decomposed in the
     # basis of spherical tensors, 𝒜 = ∑_q c_q T_kq, for some coefficients c_q.
     # Spherical tensors transform as T_kq → D^{*}_qq′ T_kq′. Alternatively, we
@@ -63,7 +61,7 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     # c′ satisfying c′ᵀ T′ = c T. Recall c′ᵀ T′ = (c′ᵀ D*) T = (D† c′)ᵀ T. The
     # constraint becomes D† c′ = c. Since D is unitary, we have c′ = D c. We
     # apply this transformation to each column c of C.
-    D = unitary_irrep_for_rotation(R; N=2k+1)
+    D = unitary_irrep_for_rotation(R; N=2k + 1)
     C = D * C
 
     # Find an orthonormal basis for the columns of A, discarding linearly
@@ -79,7 +77,9 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
     return C
 end
 
-function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int, R::Mat3)
+function stevens_basis_for_symmetry_allowed_anisotropies(
+    cryst::Crystal, i::Int; k::Int, R::Mat3
+)
     # Each column of C represents a coefficient vector c that can be contracted
     # with spherical tensors T to realize an allowed anisotropy, Λ = cᵀ T.
     C = basis_for_symmetry_allowed_anisotropies(cryst, i; k, R)
@@ -88,8 +88,8 @@ function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int;
     B = [transform_spherical_to_stevens_coefficients(k, c) for c in eachcol(C)]
 
     # Concatenate columns into single matrix
-    B = reduce(hcat, B; init=zeros(ComplexF64, 2k+1,0))
-    
+    B = reduce(hcat, B; init=zeros(ComplexF64, 2k + 1, 0))
+
     # Find linear combination of columns that sparsifies B
     B = sparsify_columns(B; atol=1e-12)
 
@@ -100,11 +100,10 @@ function stevens_basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int;
     return B
 end
 
-
 # Subject to change. Users should call print_suggested_frame() instead
 function suggest_frame_for_atom(cryst::Crystal, i::Int)
     # Collect list of symmetry axes along with their counts
-    axes_counts = Tuple{Vec3, Int}[]
+    axes_counts = Tuple{Vec3,Int}[]
     symops = symmetries_for_pointgroup_of_atom(cryst, i)
     for s in symops
         # Not interested in the identity, nor pure inversions
@@ -125,12 +124,12 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
 
         # Collect all unique axes, along with their counts. We compare against
         # the director n*n' to be insensitive to sign, n → -n.
-        i = findfirst(x -> x[1]*x[1]' ≈ n*n', axes_counts)
+        i = findfirst(x -> x[1] * x[1]' ≈ n * n', axes_counts)
         if isnothing(i)
             push!(axes_counts, (n, 1))
         else
             (n′, cnt) = axes_counts[i]
-            axes_counts[i] = (n′, cnt+1)
+            axes_counts[i] = (n′, cnt + 1)
         end
     end
 
@@ -147,32 +146,32 @@ function suggest_frame_for_atom(cryst::Crystal, i::Int)
         # Choose according to aesthetic heuristics
         return argmin(candidates) do n
             # Standard axis (x, y, or z) is preferred
-            n ≈ Vec3(0,0,1) && return 0
-            n ≈ Vec3(1,0,0) && return 1
-            n ≈ Vec3(0,1,0) && return 2
-        
+            n ≈ Vec3(0, 0, 1) && return 0
+            n ≈ Vec3(1, 0, 0) && return 1
+            n ≈ Vec3(0, 1, 0) && return 2
+
             # Look for [1,1,1] axis
-            n ≈ Vec3(1,1,1)/√3 && return 3
-        
+            n ≈ Vec3(1, 1, 1) / √3 && return 3
+
             # Look for [±1,±1,±1] axis
-            abs.(n) ≈ Vec3(1,1,1)/√3 && return 4
-        
+            abs.(n) ≈ Vec3(1, 1, 1) / √3 && return 4
+
             # Try to minimize the number of zeros, thus preferring axes in the
             # (x,y) plane, etc.
             return 10 * count(n_i -> abs(n_i) > 1e-12, n)
         end
     end
-    
+
     z_dir = select_axis(axes_counts)
 
     # Collect all symmetry axes orthogonal to the primary axis, along with their
     # counts
-    orthogonal_axes_counts = filter(x -> abs(x[1]⋅z_dir) < 1e-12, axes_counts)
+    orthogonal_axes_counts = filter(x -> abs(x[1] ⋅ z_dir) < 1e-12, axes_counts)
 
     if isempty(orthogonal_axes_counts)
         @info "Could not find a symmetry axis orthogonal to $(fractional_vec3_to_string(z_dir))."
-        x_dir = (z_dir ≈ Vec3(1,0,0)) ? Vec3(0,0,1) : Vec3(1,0,0)
-        x_dir = normalize(x_dir - (x_dir⋅z_dir)*z_dir)
+        x_dir = (z_dir ≈ Vec3(1, 0, 0)) ? Vec3(0, 0, 1) : Vec3(1, 0, 0)
+        x_dir = normalize(x_dir - (x_dir ⋅ z_dir) * z_dir)
     else
         x_dir = select_axis(orthogonal_axes_counts)
     end

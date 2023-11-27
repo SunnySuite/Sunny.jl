@@ -26,7 +26,7 @@ using Sunny, GLMakie
 # implementing the [`Crystal`](@ref).
 
 lat_vecs = lattice_vectors(1.0, 1.0, 2.0, 90, 90, 120)
-basis_vecs = [[0,0,0]]
+basis_vecs = [[0, 0, 0]]
 cryst = Crystal(lat_vecs, basis_vecs)
 
 # The crystal is then used to create a spin [`System`](@ref). All parameters in
@@ -35,22 +35,26 @@ cryst = Crystal(lat_vecs, basis_vecs)
 
 L = 40
 dims = (L, L, 1)
-sys = System(cryst, dims, [SpinInfo(1, S=1, g=1)], :SUN; seed=101, units=Units.theory)
+sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], :SUN; seed=101, units=Units.theory)
 
 # We proceed to implement each term of the Hamiltonian, selecting our parameters
 # so that the system occupies a region of the phase diagram that supports
 # skyrmions. The exchange interactions are set as follows.
 
 J1 = -1           # Nearest-neighbor ferromagnetic
-J2 = (2.0/(1+√5)) # Tune competing exchange to set skyrmion scale length
+J2 = (2.0 / (1 + √5)) # Tune competing exchange to set skyrmion scale length
 Δ = 2.6           # Exchange anisotropy
 
-ex1 = J1 * [1 0 0;
-            0 1 0;
-            0 0 Δ]
-ex2 = J2 * [1 0 0;
-            0 1 0;
-            0 0 Δ]
+ex1 = J1 * [
+    1 0 0
+    0 1 0
+    0 0 Δ
+]
+ex2 = J2 * [
+    1 0 0
+    0 1 0
+    0 0 Δ
+]
 set_exchange!(sys, ex1, Bond(1, 1, [1, 0, 0]))
 set_exchange!(sys, ex2, Bond(1, 1, [1, 2, 0]))
 
@@ -62,7 +66,7 @@ field = set_external_field!(sys, [0, 0, h])
 # and finally an easy-plane single-ion anisotropy,
 
 D = 19.0
-set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
+set_onsite_coupling!(sys, S -> D * S[3]^2, 1)
 
 # Initialize system to an infinite temperature (fully randomized) initial
 # condition.
@@ -80,10 +84,10 @@ randomize_spins!(sys)
 # Selecting `kT = 0` in the Langevin dynamics will effective disable the noise
 # term. Then the parameter `λ` effectively determines the damping time-scale.
 
-Δt = 0.2/D  # Integration time step (inverse meV). Typically this will be
-            ## inversely proportional to the largest energy scale in the
-            ## system. We can use a fairly large time-step here because
-            ## accuracy isn't critical.
+Δt = 0.2 / D  # Integration time step (inverse meV). Typically this will be
+## inversely proportional to the largest energy scale in the
+## system. We can use a fairly large time-step here because
+## accuracy isn't critical.
 kT = 0      # Target equilibrium temperature (meV)
 λ = 0.1     # Magnitude of coupling to thermal bath (dimensionless)
 integrator = Langevin(Δt; kT, λ)
@@ -96,7 +100,7 @@ integrator = Langevin(Δt; kT, λ)
 frames = []         # Empty array to store snapshots
 for i in eachindex(τs)
     dur = i == 1 ? τs[1] : τs[i] - τs[i-1] # Determine the length of time to simulate 
-    numsteps = round(Int, dur/Δt)
+    numsteps = round(Int, dur / Δt)
     for _ in 1:numsteps                    # Perform the integration
         step!(sys, integrator)
     end
@@ -120,8 +124,13 @@ function sun_berry_curvature(z₁, z₂, z₃)
     return angle(n₁ * n₂ * n₃)
 end
 
-plot_triangular_plaquettes(sun_berry_curvature, frames; size=(600,200),
-    offset_spacing=10, texts=["\tt = "*string(τ) for τ in τs], text_offset=(0, 6)
+plot_triangular_plaquettes(
+    sun_berry_curvature,
+    frames;
+    size=(600, 200),
+    offset_spacing=10,
+    texts=["\tt = " * string(τ) for τ in τs],
+    text_offset=(0, 6),
 )
 
 # The times are given in $\hbar/|J_1|$. The white

@@ -21,17 +21,19 @@ function intensities_broadened(swt::SpinWaveTheory, ks, ωvals, formula)
     num_ω = length(ωvals)
 
     return_type = typeof(formula).parameters[1]
-    if return_type <: BandStructure 
+    if return_type <: BandStructure
         # This only happens if the user sets `kernel = delta_function_kernel`
-        error("intensities_broadened: Can't compute broadened intensities without a finite-width kernel.\nTry: intensity_formula(...; kernel = lorentzian(0.05))")
+        error(
+            "intensities_broadened: Can't compute broadened intensities without a finite-width kernel.\nTry: intensity_formula(...; kernel = lorentzian(0.05))",
+        )
     end
 
     is = zeros(return_type, size(ks)..., num_ω)
 
     # Compute the intensity at each (k,ω) pair
     for kidx in CartesianIndices(ks)
-        intensity_as_function_of_ω = formula.calc_intensity(swt,ks[kidx])
-        is[kidx,:] .= intensity_as_function_of_ω(ωvals)
+        intensity_as_function_of_ω = formula.calc_intensity(swt, ks[kidx])
+        is[kidx, :] .= intensity_as_function_of_ω(ωvals)
     end
 
     return is
@@ -56,7 +58,9 @@ function intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFo
     if !isnothing(formula.kernel)
         # This is only triggered if the user has explicitly specified a formula with e.g. kT
         # corrections applied, but has not disabled the broadening kernel.
-        error("intensities_bands: Can't compute band intensities if a broadening kernel is applied.\nTry intensity_formula(...; kernel = delta_function_kernel)")
+        error(
+            "intensities_bands: Can't compute band intensities if a broadening kernel is applied.\nTry intensity_formula(...; kernel = delta_function_kernel)",
+        )
     end
 
     ks = Vec3.(ks)
@@ -65,14 +69,14 @@ function intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFo
     # Get the type parameter from the BandStructure
     return_type = typeof(formula).parameters[1].parameters[2]
 
-    band_dispersions = zeros(Float64,length(ks),nmodes)
-    band_intensities = zeros(return_type,length(ks),nmodes)
+    band_dispersions = zeros(Float64, length(ks), nmodes)
+    band_intensities = zeros(return_type, length(ks), nmodes)
     for kidx in CartesianIndices(ks)
         band_structure = formula.calc_intensity(swt, ks[kidx])
 
         # Place the BandStructure at each point into its location in the array
-        band_dispersions[kidx,:] .= band_structure.dispersion
-        band_intensities[kidx,:] .= band_structure.intensity
+        band_dispersions[kidx, :] .= band_structure.dispersion
+        band_intensities[kidx, :] .= band_structure.intensity
     end
     return band_dispersions, band_intensities
 end
@@ -90,18 +94,19 @@ Note that this method only calculates the intensity at the bin centers--it doesn
 integrate over the bins in any way. The output will be the same shape as if it were
 histogrammed data.
 """
-function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, formula::SpinWaveIntensityFormula)
-    if any(params.covectors[1:3,4] .!= 0.) || any(params.covectors[4,1:3] .!= 0.)
-      error("Complicated binning parameters not supported by intensities_bin_centers")
+function intensities_bin_centers(
+    swt::SpinWaveTheory, params::BinningParameters, formula::SpinWaveIntensityFormula
+)
+    if any(params.covectors[1:3, 4] .!= 0.0) || any(params.covectors[4, 1:3] .!= 0.0)
+        error("Complicated binning parameters not supported by intensities_bin_centers")
     end
 
     bin_centers = axes_bincenters(params)
 
-
     # coords = covectors * (q,ω)
-    coords_to_q = inv(params.covectors[1:3,1:3])
+    coords_to_q = inv(params.covectors[1:3, 1:3])
 
-    is = zeros(Float64,params.numbins...)
+    is = zeros(Float64, params.numbins...)
 
     # Loop over qs
     for ci in CartesianIndices(params.numbins.data[1:3])
@@ -109,28 +114,35 @@ function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters,
         y_center = bin_centers[2][ci[2]]
         z_center = bin_centers[3][ci[3]]
 
-        q = SVector{3}(coords_to_q * [x_center;y_center;z_center])
+        q = SVector{3}(coords_to_q * [x_center; y_center; z_center])
         ωvals = bin_centers[4]
 
-        intensity_as_function_of_ω = formula.calc_intensity(swt,q)
-        is[ci,:] .= intensity_as_function_of_ω(ωvals)
+        intensity_as_function_of_ω = formula.calc_intensity(swt, q)
+        is[ci, :] .= intensity_as_function_of_ω(ωvals)
     end
-    is
+    return is
 end
 
-function intensities_bin_multisample(swt::SpinWaveTheory, hist_params::BinningParameters, msaa_strategy, energy_msaa_strategy, formula::SpinWaveIntensityFormula)
-    if any(hist_params.covectors[1:3,4] .!= 0.) || any(hist_params.covectors[4,1:3] .!= 0.)
-      error("Complicated binning parameters not supported by intensities_bin_centers")
+function intensities_bin_multisample(
+    swt::SpinWaveTheory,
+    hist_params::BinningParameters,
+    msaa_strategy,
+    energy_msaa_strategy,
+    formula::SpinWaveIntensityFormula,
+)
+    if any(hist_params.covectors[1:3, 4] .!= 0.0) ||
+        any(hist_params.covectors[4, 1:3] .!= 0.0)
+        error("Complicated binning parameters not supported by intensities_bin_centers")
     end
 
     bin_edges = axes_binedges(hist_params)
-    bin_diagonal_vector = reshape(hist_params.binwidth[1:3],3,1)
+    bin_diagonal_vector = reshape(hist_params.binwidth[1:3], 3, 1)
 
     # coords = hist_covectors * (q,ω)
-    coords_to_q = inv(hist_params.covectors[1:3,1:3])
+    coords_to_q = inv(hist_params.covectors[1:3, 1:3])
 
-    is = zeros(Float64,hist_params.numbins...)
-    counts = zeros(Float64,hist_params.numbins...)
+    is = zeros(Float64, hist_params.numbins...)
+    counts = zeros(Float64, hist_params.numbins...)
 
     # Visits each bin in hist_params
     for ci in CartesianIndices(hist_params.numbins.data[1:3])
@@ -139,35 +151,40 @@ function intensities_bin_multisample(swt::SpinWaveTheory, hist_params::BinningPa
         z_lower = bin_edges[3][ci[3]]
 
         for msaa_location in msaa_strategy
-            coords_xyz = [x_lower;y_lower;z_lower] .+ bin_diagonal_vector .* msaa_location
+            coords_xyz = [x_lower; y_lower; z_lower] .+ bin_diagonal_vector .* msaa_location
             q = SVector{3}(coords_to_q * coords_xyz)
 
             if isnothing(formula.kernel) # Need to handle BandStructure
                 if !isempty(energy_msaa_strategy)
                     error("Attempted to multisample in energy with delta function kernel")
                 end
-                band_structure = formula.calc_intensity(swt,q)
-                energy_bins = 1 .+ floor.(Int64,(band_structure.dispersion .- hist_params.binstart[4]) ./ hist_params.binwidth[4])
-                for (i,bin_i) in enumerate(energy_bins)
+                band_structure = formula.calc_intensity(swt, q)
+                energy_bins =
+                    1 .+
+                    floor.(
+                        Int64,
+                        (band_structure.dispersion .- hist_params.binstart[4]) ./
+                        hist_params.binwidth[4],
+                    )
+                for (i, bin_i) in enumerate(energy_bins)
                     if 1 <= bin_i <= hist_params.numbins[4]
-                        is[ci,bin_i] += band_structure.intensity[i]
-                        counts[ci,bin_i] += 1
+                        is[ci, bin_i] += band_structure.intensity[i]
+                        counts[ci, bin_i] += 1
                     end
                 end
             else # Broadening is done by the formula
-                intensity_as_function_of_ω = formula.calc_intensity(swt,q)
+                intensity_as_function_of_ω = formula.calc_intensity(swt, q)
                 energy_lower_edges = bin_edges[4][1:end-1]
-                for (i,energy_sample) in enumerate(energy_msaa_strategy)
+                for (i, energy_sample) in enumerate(energy_msaa_strategy)
                     energy_sample
                     bin_edges[4]
-                    ω_this_sample = energy_lower_edges .+ hist_params.binwidth[4] .* energy_sample
-                    view(is,ci,:) .+= intensity_as_function_of_ω(ω_this_sample)
+                    ω_this_sample =
+                        energy_lower_edges .+ hist_params.binwidth[4] .* energy_sample
+                    view(is, ci, :) .+= intensity_as_function_of_ω(ω_this_sample)
                 end
-                view(counts,ci,:) .+= length(energy_msaa_strategy)
+                view(counts, ci, :) .+= length(energy_msaa_strategy)
             end
         end
     end
-    is, counts
+    return is, counts
 end
-
-
