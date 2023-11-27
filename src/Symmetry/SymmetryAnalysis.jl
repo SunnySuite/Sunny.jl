@@ -1,7 +1,7 @@
 # Wrap each coordinate of position r into the range [0,1). To account for finite
 # precision, wrap 1-ϵ to -ϵ, where ϵ=symprec is a tolerance parameter.
 function wrap_to_unit_cell(r::Vec3; symprec)
-    return @. mod(r+symprec, 1) - symprec
+    return @. mod(r + symprec, 1) - symprec
 end
 
 function all_integer(x; symprec)
@@ -9,7 +9,7 @@ function all_integer(x; symprec)
 end
 
 function is_periodic_copy(r1::Vec3, r2::Vec3; symprec)
-    all_integer(r1-r2; symprec)
+    return all_integer(r1 - r2; symprec)
 end
 
 function is_periodic_copy(b1::BondPos, b2::BondPos; symprec)
@@ -29,11 +29,10 @@ end
 function position_to_atom_and_offset(cryst::Crystal, r::Vec3)
     i = position_to_atom(cryst, r)::Int
     # See comment in wrap_to_unit_cell() regarding shift by symprec
-    offset = @. round(Int, r+cryst.symprec, RoundDown)
-    @assert isapprox(cryst.positions[i]+offset, r; atol=cryst.symprec)
+    offset = @. round(Int, r + cryst.symprec, RoundDown)
+    @assert isapprox(cryst.positions[i] + offset, r; atol=cryst.symprec)
     return (i, offset)
 end
-
 
 # Generate list of SymOps for the pointgroup of atom i
 function symmetries_for_pointgroup_of_atom(cryst::Crystal, i::Int)
@@ -48,7 +47,6 @@ function symmetries_for_pointgroup_of_atom(cryst::Crystal, i::Int)
     return ret
 end
 
-
 # General a list of all symmetries that transform i2 into i1. (Convention for
 # definition of `s` is consistent with symmetries_between_bonds())
 function symmetries_between_atoms(cryst::Crystal, i1::Int, i2::Int)
@@ -62,7 +60,6 @@ function symmetries_between_atoms(cryst::Crystal, i1::Int, i2::Int)
     end
     return ret
 end
-
 
 # The list of atoms symmetry-equivalent to i_ref
 function all_symmetry_related_atoms(cryst::Crystal, i_ref::Int)
@@ -81,19 +78,18 @@ function all_symmetry_related_atoms(cryst::Crystal, i_ref::Int)
     return ret
 end
 
-
 # For each atom in the unit cell of `cryst`, return the corresponding element of
 # `ref_atom` that is symmetry equivalent. Print a helpful error message if two
 # reference atoms are symmetry equivalent, or if a reference atom is missing. 
 function propagate_reference_atoms(cryst::Crystal, ref_atoms::Vector{Int})
     # Sort infos by site equivalence class
-    ref_atoms = sort(ref_atoms; by = (a -> cryst.classes[a]))
+    ref_atoms = sort(ref_atoms; by=(a -> cryst.classes[a]))
     ref_classes = cryst.classes[ref_atoms]
 
     # Verify that none of the atoms belong to the same class
-    for i = 1:length(ref_atoms)-1
-        a1, a2 = ref_atoms[[i,i+1]]
-        c1, c2 = ref_classes[[i,i+1]]
+    for i in 1:length(ref_atoms)-1
+        a1, a2 = ref_atoms[[i, i + 1]]
+        c1, c2 = ref_classes[[i, i + 1]]
         if c1 == c2
             error("Atoms $a1 and $a2 are symmetry equivalent.")
         end
@@ -115,7 +111,6 @@ function propagate_reference_atoms(cryst::Crystal, ref_atoms::Vector{Int})
     end
 end
 
-
 # Generate list of all symmetries that transform b2 into b1, along with parity
 function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
     # Fail early if two bonds describe different real-space distances
@@ -125,12 +120,12 @@ function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
         ℓ = minimum(norm, eachcol(cryst.latvecs))
         d1 = global_distance(cryst, b1) / ℓ
         d2 = global_distance(cryst, b2) / ℓ
-        if abs(d1-d2) > cryst.symprec
-            return Tuple{SymOp, Bool}[]
+        if abs(d1 - d2) > cryst.symprec
+            return Tuple{SymOp,Bool}[]
         end
     end
 
-    ret = Tuple{SymOp, Bool}[]
+    ret = Tuple{SymOp,Bool}[]
     for s in cryst.symops
         b2′ = transform(s, b2)
         if is_periodic_copy(b1, b2′; cryst.symprec)
@@ -162,7 +157,9 @@ function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
     # box_lengths[i] represents the perpendicular distance between two parallel
     # boundary planes spanned by lattice vectors a_j and a_k (where indices j
     # and k differ from i)
-    box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(cryst.latvecs), eachcol(cryst.recipvecs))]
+    box_lengths = [
+        a ⋅ b / norm(b) for (a, b) in zip(eachcol(cryst.latvecs), eachcol(cryst.recipvecs))
+    ]
     n_max = round.(Int, max_dist ./ box_lengths, RoundUp)
 
     bonds = Bond[]
@@ -172,7 +169,7 @@ function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
         for n2 in -n_max[2]:n_max[2]
             for n3 in -n_max[3]:n_max[3]
                 n = SVector(n1, n2, n3)
-                
+
                 # loop over all atoms within neighboring cell
                 for j in eachindex(cryst.positions)
                     b = Bond(i, j, n)
@@ -186,7 +183,6 @@ function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
 
     return bonds
 end
-
 
 # Calculate score for a bond. Lower would be preferred.
 function score_bond(cryst::Crystal, b::Bond)
@@ -208,7 +204,7 @@ end
 
 # Indices of the unique elements in `a`, ordered by their first appearance.
 function unique_indices(a)
-    map(x->x[1], unique(x->x[2], enumerate(a)))
+    return map(x -> x[1], unique(x -> x[2], enumerate(a)))
 end
 
 """    reference_bonds(cryst::Crystal, max_dist)
@@ -229,7 +225,7 @@ function reference_bonds(cryst::Crystal, max_dist::Float64; min_dist=0.0)
     end
 
     # Sort by distance
-    sort!(ref_bonds, by=b->global_distance(cryst, b))
+    sort!(ref_bonds; by=b -> global_distance(cryst, b))
 
     # Replace each canonical bond by the "best" equivalent bond
     return map(ref_bonds) do rb
@@ -239,7 +235,9 @@ function reference_bonds(cryst::Crystal, max_dist::Float64; min_dist=0.0)
         return argmin(b -> score_bond(cryst, b), equiv_bonds)
     end
 end
-reference_bonds(cryst::Crystal, max_dist) = reference_bonds(cryst, convert(Float64, max_dist))
+function reference_bonds(cryst::Crystal, max_dist)
+    return reference_bonds(cryst, convert(Float64, max_dist))
+end
 
 """
     all_symmetry_related_bonds_for_atom(cryst::Crystal, i::Int, b::Bond)
@@ -269,7 +267,7 @@ function all_symmetry_related_bonds(cryst::Crystal, b_ref::Bond)
     for i in eachindex(cryst.positions)
         append!(bs, all_symmetry_related_bonds_for_atom(cryst, i, b_ref))
     end
-    bs
+    return bs
 end
 
 """    coordination_number(cryst::Crystal, i::Int, b::Bond)

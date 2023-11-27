@@ -15,7 +15,7 @@ Function to propose pure spin flip updates in the context of a
 [`LocalSampler`](@ref). Dipoles are flipped as ``𝐬 → -𝐬``. SU(_N_) coherent
 states are flipped using the time-reversal operator.
 """
-propose_flip(sys::System{N}, site) where N = flip(getspin(sys, site))
+propose_flip(sys::System{N}, site) where {N} = flip(getspin(sys, site))
 
 """
     propose_delta(magnitude)
@@ -37,12 +37,12 @@ In the limit of very large `magnitude`, this function coincides with
 For use with [`LocalSampler`](@ref).
 """
 function propose_delta(magnitude)
-    function ret(sys::System{N}, site) where N
+    function ret(sys::System{N}, site) where {N}
         κ = sys.κs[site]
         if N == 0
             s = sys.dipoles[site] + magnitude * κ * randn(sys.rng, Vec3)
             s = normalize_dipole(s, κ)
-            return SpinState(s, CVec{0}())        
+            return SpinState(s, CVec{0}())
         else
             Z = sys.coherents[site] + magnitude * sqrt(κ) * randn(sys.rng, CVec{N})
             Z = normalize_ket(Z, κ)
@@ -74,16 +74,16 @@ macro mix_proposals(terms...)
     return quote
         let
             # Calculative cumulative probabilities for use in branching
-            weights = SVector{$nterms, Float64}($(terms[1,:]...))
+            weights = SVector{$nterms,Float64}($(terms[1, :]...))
             probs = weights / sum(weights)
             cumprobs = accumulate(+, probs)
             @assert cumprobs[end] ≈ 1.0
 
             # Storing the functions in a tuple preserves type information to avoid
             # dynamic dispatch.
-            fns = ($(terms[2,:]...),)
+            fns = ($(terms[2, :]...),)
 
-            function ret(sys::System{N}, site) where N
+            function ret(sys::System{N}, site) where {N}
                 r = rand(sys.rng)
 
                 $([:(r < cumprobs[$i] && return fns[$i](sys, site)) for i in 1:nterms-1]...)
@@ -119,23 +119,23 @@ preferred for simulating continuous spins, especially in the presence of
 long-range dipole-dipole interactions (cf. [`enable_dipole_dipole!`](@ref)).
 """
 mutable struct LocalSampler{F}
-    kT      :: Float64   # Temperature
-    nsweeps :: Float64   # Number of MCMC sweeps per `step!`
-    propose :: F         # Function: (System, Site) -> SpinState
-    ΔE      :: Float64   # Cumulative energy change
-    Δs      :: Vec3      # Cumulative net dipole change
+    kT::Float64   # Temperature
+    nsweeps::Float64   # Number of MCMC sweeps per `step!`
+    propose::F         # Function: (System, Site) -> SpinState
+    ΔE::Float64   # Cumulative energy change
+    Δs::Vec3      # Cumulative net dipole change
 
     function LocalSampler(; kT, nsweeps=1.0, propose=propose_uniform)
-        new{typeof(propose)}(kT, nsweeps, propose, 0.0, zero(Vec3))
+        return new{typeof(propose)}(kT, nsweeps, propose, 0.0, zero(Vec3))
     end
 end
 
-function Base.copy(sampler::LocalSampler{F}) where F
-    LocalSampler(; sampler.kT, sampler.nsweeps, sampler.propose)
+function Base.copy(sampler::LocalSampler{F}) where {F}
+    return LocalSampler(; sampler.kT, sampler.nsweeps, sampler.propose)
 end
 
-function step!(sys::System{N}, sampler::LocalSampler) where N
-    niters = round(Int, sampler.nsweeps*length(sys.dipoles), RoundUp)
+function step!(sys::System{N}, sampler::LocalSampler) where {N}
+    niters = round(Int, sampler.nsweeps * length(sys.dipoles), RoundUp)
     for _ in 1:niters
         site = rand(sys.rng, eachsite(sys))
         state = sampler.propose(sys, site)
@@ -145,9 +145,9 @@ function step!(sys::System{N}, sampler::LocalSampler) where N
         if iszero(sampler.kT)
             accept = ΔE <= 0
         else
-            accept = rand(sys.rng) <= exp(-ΔE/sampler.kT)
+            accept = rand(sys.rng) <= exp(-ΔE / sampler.kT)
         end
-        
+
         if accept
             sampler.ΔE += ΔE
             sampler.Δs += state.s - sys.dipoles[site]

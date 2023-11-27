@@ -15,15 +15,15 @@ Because this function does not incorporate phase information in its averaging
 over sublattices, the printed weights are not directly comparable with
 experiment. For that purpose, use [`instant_correlations`](@ref) instead.
 """
-function print_wrapped_intensities(sys::System{N}; nmax=10) where N
+function print_wrapped_intensities(sys::System{N}; nmax=10) where {N}
     isnothing(sys.origin) || error("Cannot perform this analysis on reshaped system.")
 
     s = reinterpret(reshape, Float64, sys.dipoles)
     V = prod(sys.latsize) # number of spins in sublattice
-    cell_dims = (2,3,4)
+    cell_dims = (2, 3, 4)
     sk = FFTW.fft(s, cell_dims) / √V
     Sk = real.(conj.(sk) .* sk)
-    dims = (1,5) # sum over spin index and atom (sublattice) index
+    dims = (1, 5) # sum over spin index and atom (sublattice) index
     # In Julia 1.9 this becomes: sum(eachslice(dat; dims)))
     Sk = dropdims(sum(Sk; dims); dims)
     @assert sum(Sk) ≈ norm(sys.dipoles)^2
@@ -34,22 +34,22 @@ function print_wrapped_intensities(sys::System{N}; nmax=10) where N
     println("Dominant wavevectors for spin sublattices:\n")
     for (i, m) in enumerate(CartesianIndices(sys.latsize)[p])
         q = (Tuple(m) .- 1) ./ sys.latsize
-        q = [qi > 1/2 ? qi-1 : qi for qi in q]
+        q = [qi > 1 / 2 ? qi - 1 : qi for qi in q]
 
         qstr = fractional_vec3_to_string(q)
-        
+
         if weight[m] < 0.01
             break
         end
 
         wstr = @sprintf "%6.2f" weight[m]
         nspaces = 20
-        spacing = " " ^ max(0, nspaces - length(qstr))
+        spacing = " "^max(0, nspaces - length(qstr))
         print("    $qstr $spacing $wstr%")
         println(i == 1 ? " weight" : "")
 
         if i > nmax
-            spacing = " " ^ (nspaces-1)
+            spacing = " "^(nspaces - 1)
             println("    ... $spacing ...")
             break
         end
@@ -57,16 +57,17 @@ function print_wrapped_intensities(sys::System{N}; nmax=10) where N
 end
 
 function rationalize_simultaneously(xs; tol, maxsize)
-    for denom = 1:maxsize
+    for denom in 1:maxsize
         numers = @. round(Int, xs * denom)
         errs = @. xs - numers / denom
         if all(e -> abs(e) < tol, errs)
             return numers, denom
         end
     end
-    error("Wavevectors are incommensurate for lattice sizes less than $maxsize. Try increasing `tol` parameter.")
+    return error(
+        "Wavevectors are incommensurate for lattice sizes less than $maxsize. Try increasing `tol` parameter.",
+    )
 end
-
 
 """
     suggest_magnetic_supercell(qs; tol=1e-12, maxsize=100)
@@ -116,7 +117,7 @@ function suggest_magnetic_supercell(qs; tol=1e-12, maxsize=100)
         @info "Using adapted q values: " * join(fractional_vec3_to_string.(new_qs), ", ")
     end
 
-    suggest_magnetic_supercell_aux(new_qs, denoms)
+    return suggest_magnetic_supercell_aux(new_qs, denoms)
 end
 
 function suggest_magnetic_supercell_aux(qs, denoms)
@@ -127,8 +128,11 @@ function suggest_magnetic_supercell_aux(qs, denoms)
 
     # All possible periodic offsets, sorted by length
     nmax = div.(denoms, 2)
-    ns = [[n1, n2, n3] for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2], n3 in -nmax[3]:nmax[3]][:]
-    sort!(ns, by=n->n'*n)
+    ns = [
+        [n1, n2, n3] for n1 in -nmax[1]:nmax[1], n2 in -nmax[2]:nmax[2],
+        n3 in -nmax[3]:nmax[3]
+    ][:]
+    sort!(ns; by=n -> n' * n)
 
     # Remove zero vector
     @assert iszero(ns[1])
@@ -136,13 +140,13 @@ function suggest_magnetic_supercell_aux(qs, denoms)
 
     # Filter out elements of ns that are not consistent with q ∈ qs
     for q in qs
-        ns = filter(ns) do n            
+        ns = filter(ns) do n
             # Proposed offset is `r = nᵅ aᵅ` in lattice vectors `aᵅ`. Wave
             # vector is `k = qᵝ bᵝ` in reciprocal vectors `bᵝ`. Using
             # orthogonality property `aᵅ⋅bᵝ = 2πδᵅᵝ`, it follows `r⋅k = 2π n⋅q`.
             # The integer offsets `n` are allowed if `n⋅q` is exactly integer,
             # which confirms periodicity, `exp(-i r⋅k) = 1`.
-            is_approx_integer(n⋅q; atol=1e-12)
+            is_approx_integer(n ⋅ q; atol=1e-12)
         end
     end
 
@@ -161,16 +165,16 @@ function suggest_magnetic_supercell_aux(qs, denoms)
         c1 = (normalize(A1) × normalize(A2)) ⋅ normalize(A3)
         # To split ties, maximize alignment with Cartesian system
         c2 = normalize(A1)[1] + normalize(A2)[2] + normalize(A3)[3]
-        V <= 0 ? Inf : V - 1e-3*c1 - 1e-6c2
+        return V <= 0 ? Inf : V - 1e-3 * c1 - 1e-6c2
     end
 
     # Find three vectors that span a nonzero volume which is hopefully small.
     # This will be our initial guess for the supercell.
     i1 = 1
     A1 = ns[i1]
-    i2 = findfirst(n -> !iszero(n×A1), ns[i1+1:end])::Int
+    i2 = findfirst(n -> !iszero(n × A1), ns[i1+1:end])::Int
     A2 = ns[i1+i2]
-    i3 = findfirst(n -> !iszero(n⋅(A1×A2)), ns[i1+i2+1:end])::Int
+    i3 = findfirst(n -> !iszero(n ⋅ (A1 × A2)), ns[i1+i2+1:end])::Int
     A3 = ns[i1+i2+i3]
     best_A = [A1 A2 A3]
     best_score = score(best_A)
@@ -196,9 +200,17 @@ function suggest_magnetic_supercell_aux(qs, denoms)
 
         # try all possible rotations
         (A1, A2, A3) = eachcol(best_A)
-        for A in ([A1 -A3 A2], [A1 -A2 -A3], [A1 A3 -A2], # x-axis
-                  [A3 A2 -A1], [-A1 A2 -A3], [-A3 A2 A1], # y-axis
-                  [-A2 A1 A3], [-A1 -A2 A3], [A2 -A1 A3]) # z-axis
+        for A in (
+            [A1 -A3 A2],
+            [A1 -A2 -A3],
+            [A1 A3 -A2], # x-axis
+            [A3 A2 -A1],
+            [-A1 A2 -A3],
+            [-A3 A2 A1], # y-axis
+            [-A2 A1 A3],
+            [-A1 -A2 A3],
+            [A2 -A1 A3],
+        ) # z-axis
             if best_score > score(A)
                 best_score = score(A)
                 best_A = A
@@ -220,20 +232,19 @@ function suggest_magnetic_supercell_aux(qs, denoms)
     # end
 
     qstrs = join(map(fractional_vec3_to_string, qs), ", ")
-    println("""Suggested magnetic supercell in multiples of lattice vectors:
-               
-                   $(repr(best_A))
-               
-               for wavevectors [$qstrs].""")
+    return println("""Suggested magnetic supercell in multiples of lattice vectors:
+                      
+                          $(repr(best_A))
+                      
+                      for wavevectors [$qstrs].""")
 end
-
 
 function check_commensurate(sys, q)
     q_reshaped = sys.crystal.recipvecs \ orig_crystal(sys).recipvecs * q
     commensurate = true
-    for i = 1:3
+    for i in 1:3
         denom = denominator(rationalize(q_reshaped[i]))
-        commensurate = commensurate && iszero(mod(denom, sys.latsize[i]))            
+        commensurate = commensurate && iszero(mod(denom, sys.latsize[i]))
     end
     if !commensurate
         @warn "Wavevector $(fractional_vec3_to_string(q)) is incommensurate with system."
@@ -272,7 +283,6 @@ function set_spiral_order!(sys; q, axis, S0)
         set_dipole!(sys, axis_angle_to_matrix(axis, θ) * S0, site)
     end
 end
-
 
 """
     set_spiral_order_on_sublattice!(sys, i; q, axis, S0)

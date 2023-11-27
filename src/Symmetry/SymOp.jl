@@ -2,8 +2,8 @@
 # rotation and a translation, which act in fractional coordinates (i.e., in
 # units of the lattice vectors).
 struct SymOp
-    R :: Mat3
-    T :: Vec3
+    R::Mat3
+    T::Vec3
 end
 
 function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
@@ -11,7 +11,7 @@ function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
     digits = 2
     for i in 1:3
         terms = []
-        for (Rij, a) in zip(s.R[i,:], ["x", "y", "z"])
+        for (Rij, a) in zip(s.R[i, :], ["x", "y", "z"])
             if abs(Rij) > atol
                 push!(terms, coefficient_to_math_string(Rij; atol, digits) * a)
             end
@@ -37,5 +37,5 @@ function Base.isapprox(s1::SymOp, s2::SymOp; atol)
 end
 
 function transform(s::SymOp, r::Vec3)
-    return s.R*r + s.T
+    return s.R * r + s.T
 end

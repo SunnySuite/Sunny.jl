@@ -67,23 +67,19 @@
 # The allowable J values correspond to the eigenvectors of P with eigenvalue 1.
 # An orthogonal basis for this space can again be calculated with an SVD.
 
-
 # A 9x9 matrix that, when applied to a flattened 3x3 matrix (viewed as a
 # 9-dimensional vector), generates the transposed 3x3 matrix in flattened form.
 const transpose_op_3x3 = [
     1 0 0  0 0 0  0 0 0
     0 0 0  1 0 0  0 0 0
     0 0 0  0 0 0  1 0 0
-
     0 1 0  0 0 0  0 0 0
     0 0 0  0 1 0  0 0 0
     0 0 0  0 0 0  0 1 0
-
     0 0 1  0 0 0  0 0 0
     0 0 0  0 0 1  0 0 0
     0 0 0  0 0 0  0 0 1
 ]
-
 
 # Returns a projection operator P that maps to zero any symmetry-unallowed
 # coupling matrix J. The space spanned by the eigenvectors of P with eigenvalue
@@ -103,7 +99,6 @@ function projector_for_symop(cryst::Crystal, s::SymOp, parity::Bool)
     P = v * v'
     return P
 end
-
 
 # Return an operator P that implicitly gives the space of symmetry allowed
 # coupling matrices for bond b. Specifically, x is an allowed coupling if and
@@ -136,12 +131,12 @@ end
 # Check whether a coupling matrix J is consistent with symmetries of a bond
 function is_coupling_valid(cryst::Crystal, b::BondPos, J)
     J isa Number && return true
-    
+
     for (symop, parity) in symmetries_between_bonds(cryst, b, b)
         R = cryst.latvecs * symop.R * inv(cryst.latvecs)
-        J′ = transform_coupling_by_symmetry(J, R*det(R), parity)
+        J′ = transform_coupling_by_symmetry(J, R * det(R), parity)
         # TODO use symprec to handle case where symmetry is inexact
-        if !isapprox(J, J′; atol = 1e-12)
+        if !isapprox(J, J′; atol=1e-12)
             return false
         end
     end
@@ -152,47 +147,56 @@ function is_coupling_valid(cryst::Crystal, b::Bond, J)
     return is_coupling_valid(cryst, BondPos(cryst, b), J)
 end
 
-
 # Orthonormal basis of 3x3 symmetric matrices
 const sym_basis = begin
-    b = [diagm([1, 0, 0]),
-         diagm([0, 1, 0]),
-         diagm([0, 0, 1]),
-         [0 1 0
-          1 0 0
-          0 0 0]/√2,
-         [0 0 1
-          0 0 0
-          1 0 0]/√2,
-         [0 0 0
-          0 0 1
-          0 1 0]/√2,]
+    b = [
+        diagm([1, 0, 0]),
+        diagm([0, 1, 0]),
+        diagm([0, 0, 1]),
+        [
+            0 1 0
+            1 0 0
+            0 0 0
+        ] / √2,
+        [
+            0 0 1
+            0 0 0
+            1 0 0
+        ] / √2,
+        [
+            0 0 0
+            0 0 1
+            0 1 0
+        ] / √2,
+    ]
     hcat(reshape.(b, 9)...)
 end
 
 # Orthonormal basis of 3x3 antisymmetric matrices
 const asym_basis = begin
-    b = [[ 0  1  0
-          -1  0  0
-           0  0  0]/√2,
-         [ 0  0 -1
-           0  0  0
-           1  0  0]/√2,
-         [ 0  0  0
-           0  0  1
-           0 -1  0]/√2]
+    b = [[
+         0  1  0
+        -1  0  0
+         0  0  0
+    ] / √2, [
+        0  0 -1
+        0  0  0
+        1  0  0
+    ] / √2, [
+        0  0  0
+        0  0  1
+        0 -1  0
+    ] / √2]
     hcat(reshape.(b, 9)...)
 end
 
 @assert sym_basis * sym_basis' + asym_basis * asym_basis' ≈ I
 
-
 # Linearly combine the columns of A to make them sparser. Specifically, find
 # reduced row echelon form, but in column space.
-function sparsify_columns(A::Matrix{T}; atol=1e-12) where T
+function sparsify_columns(A::Matrix{T}; atol=1e-12) where {T}
     return Matrix{T}(rref!(copy(A'), atol)')
 end
-
 
 const basis_elements_by_priority = [1, 5, 9, 8, 3, 4]
 
@@ -214,7 +218,7 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondPos)
     # = Jᵀ` decomposes into purely symmetric/antisymmetric solutions. Therefore
     # we can pick a basis that separates into symmetric and antisymmetric parts.
     # We will do so by decomposing P. By construction, P = P_sym+P_asym.
-    P_sym  = P *  sym_basis *  sym_basis'
+    P_sym = P * sym_basis * sym_basis'
     P_asym = P * asym_basis * asym_basis'
 
     acc_sym = Vector{Float64}[]
@@ -223,32 +227,32 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondPos)
     # If any "reference" basis vectors are eigenvalues of P_sym with eigenvalue
     # 1, use them as outputs, and remove them from P_sym
     for x in eachcol(sym_basis)
-        if isapprox(P_sym*x, x; atol)
+        if isapprox(P_sym * x, x; atol)
             push!(acc_sym, x)
-            P_sym = P_sym * (I - x*x')
+            P_sym = P_sym * (I - x * x')
         end
     end
     # Same for P_asym
     for x in eachcol(asym_basis)
-        if isapprox(P_asym*x, x; atol)
+        if isapprox(P_asym * x, x; atol)
             push!(acc_asym, x)
-            P_asym = P_asym * (I - x*x')
+            P_asym = P_asym * (I - x * x')
         end
     end
-    
+
     # Search for eigenvectors of P_sym with eigenvalue 1. These provide an
     # orthonormal basis for symmetric couplings.
-    v = nullspace(P_sym-I; atol)
+    v = nullspace(P_sym - I; atol)
     v = sparsify_columns(v; atol)
     append!(acc_sym, eachcol(v))
     # Same for P_asym
-    v = nullspace(P_asym-I; atol)
+    v = nullspace(P_asym - I; atol)
     v = sparsify_columns(v; atol)
     append!(acc_asym, eachcol(v))
 
     # Sort basis elements according to the indices where the nonzero elements
     # first appear
-    sort!(acc_sym;  by=score_basis_matrix)
+    sort!(acc_sym; by=score_basis_matrix)
     sort!(acc_asym; by=score_basis_matrix)
 
     acc = [acc_sym; acc_asym]
@@ -256,12 +260,12 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondPos)
         # Normalize each basis vector so that its maximum component is 1. The
         # shift by atol avoids unnecessary sign change in the case where the
         # maximum magnitude values of x appear symmetrically as ±c for some c.
-        _, i = findmax(abs.(x.+atol))
+        _, i = findmax(abs.(x .+ atol))
         x = x / x[i]
 
         # Reinterpret as 3x3 matrix
         x = Mat3(reshape(x, 3, 3))
-        
+
         # Double check that x indeed satifies the necessary symmetries
         @assert is_coupling_valid(cryst, b, x)
 
@@ -280,6 +284,5 @@ function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
     isempty(syms) && error("Bonds $b and $b_ref are not symmetry equivalent.")
     symop, parity = first(syms)
     R = cryst.latvecs * symop.R * inv(cryst.latvecs)
-    return transform_coupling_by_symmetry(J_ref, R*det(R), parity)
+    return transform_coupling_by_symmetry(J_ref, R * det(R), parity)
 end
-

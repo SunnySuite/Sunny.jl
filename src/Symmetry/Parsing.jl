@@ -1,12 +1,11 @@
 # Functions for parsing Crystals / SymOps from text / .cif files
 
 # Strips trailing uncertainty values from a String, then parses as a Float
-function parse_cif_float(str::String) :: Float64
+function parse_cif_float(str::String)::Float64
     i = findfirst('(', str)
     str = isnothing(i) ? str : str[1:i-1]
     return parse(Float64, str)
 end
-
 
 function parse_number_or_fraction(s)
     # Parse a number or fraction
@@ -15,14 +14,13 @@ function parse_number_or_fraction(s)
         return parse(Float64, s)
     elseif cnt == 1
         n, d = parse.(Float64, split(s, '/'))
-        return n/d
+        return n / d
     else
         error("Cannot parse '$s' as a number.")
     end
 end
 
-
-function parse_op(str::AbstractString) :: SymOp
+function parse_op(str::AbstractString)::SymOp
     D = 3
     R = zeros(D, D)
     T = zeros(D)
@@ -39,7 +37,7 @@ function parse_op(str::AbstractString) :: SymOp
         s = replace(s, "-" => "+-")
 
         # Each term t describes the numerical value for one element of R or T
-        for t in split(s, '+', keepempty=false)
+        for t in split(s, '+'; keepempty=false)
             j = findfirst(last(t), "xyz")
             if isnothing(j)
                 T[i] += parse_number_or_fraction(t)
@@ -99,12 +97,16 @@ function Crystal(filename::AbstractString; symprec=nothing)
     # Try to infer symprec from coordinate strings
     # TODO: Use uncertainty information if available from .cif
     if isnothing(symprec)
-        strs = vcat(geo_table[:, "_atom_site_fract_x"], geo_table[:, "_atom_site_fract_y"], geo_table[:, "_atom_site_fract_z"])
+        strs = vcat(
+            geo_table[:, "_atom_site_fract_x"],
+            geo_table[:, "_atom_site_fract_y"],
+            geo_table[:, "_atom_site_fract_z"],
+        )
         elems = vcat(xs, ys, zs)
         # guess fractional errors by assuming each elem is a fraction with simple denominator (2, 3, or 4)
         errs = map(elems) do x
             c = 12
-            return abs(rem(x*c, 1, RoundNearest)) / c
+            return abs(rem(x * c, 1, RoundNearest)) / c
         end
         (err, i) = findmax(errs)
         if err < 1e-12
@@ -118,7 +120,9 @@ function Crystal(filename::AbstractString; symprec=nothing)
             @info """Precision parameter is unspecified, but coordinate string '$s' seems to have error $err_str.
                      Setting symprec=$symprec_str."""
         else
-            error("Cannot infer precision. Please provide an explicit `symprec` parameter to load '$filename'")
+            error(
+                "Cannot infer precision. Please provide an explicit `symprec` parameter to load '$filename'",
+            )
         end
     end
 
@@ -165,7 +169,9 @@ function Crystal(filename::AbstractString; symprec=nothing)
 
     if !isnothing(symmetries)
         # Use explicitly provided symmetries
-        return crystal_from_symops(latvecs, unique_atoms, types, symmetries, spacegroup; symprec)
+        return crystal_from_symops(
+            latvecs, unique_atoms, types, symmetries, spacegroup; symprec
+        )
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
         return Crystal(latvecs, unique_atoms, hall_symbol; types, symprec)

@@ -55,9 +55,9 @@ a = b = 4.05012  # Lattice constants for triangular lattice
 c = 6.75214      # Spacing in the z-direction
 
 latvecs = lattice_vectors(a, b, c, 90, 90, 120) # A 3x3 matrix of lattice vectors that
-                                                ## define the conventional unit cell
-positions = [[0, 0, 0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]  # Positions of atoms in fractions
-                                                           ## of lattice vectors
+## define the conventional unit cell
+positions = [[0, 0, 0], [1 / 3, 2 / 3, 1 / 4], [2 / 3, 1 / 3, 3 / 4]]  # Positions of atoms in fractions
+## of lattice vectors
 types = ["Fe", "I", "I"]
 FeI2 = Crystal(latvecs, positions; types)
 
@@ -107,7 +107,7 @@ print_symmetry_table(cryst, 8.0)
 # In constructing a spin [`System`](@ref), we must provide several additional
 # details about the spins.
 
-sys = System(cryst, (4, 4, 4), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
+sys = System(cryst, (4, 4, 4), [SpinInfo(1; S=1, g=2)], :SUN; seed=2)
 
 # This system includes $4×4×4$ unit cells, i.e. 64 Fe atoms, each with spin $S=1$
 # and a $g$-factor of 2. Quantum mechanically, spin $S=1$ involves a
@@ -121,44 +121,80 @@ sys = System(cryst, (4, 4, 4), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
 # in the unit cell. The FeI₂ interactions below follow [Bai et
 # al](https://doi.org/10.1038/s41567-020-01110-1).
 
-J1pm   = -0.236 
+J1pm = -0.236
 J1pmpm = -0.161
-J1zpm  = -0.261
-J2pm   = 0.026
-J3pm   = 0.166
-J′0pm  = 0.037
-J′1pm  = 0.013
+J1zpm = -0.261
+J2pm = 0.026
+J3pm = 0.166
+J′0pm = 0.037
+J′1pm = 0.013
 J′2apm = 0.068
 
-J1zz   = -0.236
-J2zz   = 0.113
-J3zz   = 0.211
-J′0zz  = -0.036
-J′1zz  = 0.051
+J1zz = -0.236
+J2zz = 0.113
+J3zz = 0.211
+J′0zz = -0.036
+J′1zz = 0.051
 J′2azz = 0.073
 
-J1xx = J1pm + J1pmpm 
+J1xx = J1pm + J1pmpm
 J1yy = J1pm - J1pmpm
 J1yz = J1zpm
 
-set_exchange!(sys, [J1xx   0.0    0.0;
-                    0.0    J1yy   J1yz;
-                    0.0    J1yz   J1zz], Bond(1,1,[1,0,0]))
-set_exchange!(sys, [J2pm   0.0    0.0;
-                    0.0    J2pm   0.0;
-                    0.0    0.0    J2zz], Bond(1,1,[1,2,0]))
-set_exchange!(sys, [J3pm   0.0    0.0;
-                    0.0    J3pm   0.0;
-                    0.0    0.0    J3zz], Bond(1,1,[2,0,0]))
-set_exchange!(sys, [J′0pm  0.0    0.0;
-                    0.0    J′0pm  0.0;
-                    0.0    0.0    J′0zz], Bond(1,1,[0,0,1]))
-set_exchange!(sys, [J′1pm  0.0    0.0;
-                    0.0    J′1pm  0.0;
-                    0.0    0.0    J′1zz], Bond(1,1,[1,0,1]))
-set_exchange!(sys, [J′2apm 0.0    0.0;
-                    0.0    J′2apm 0.0;
-                    0.0    0.0    J′2azz], Bond(1,1,[1,2,1]))
+set_exchange!(
+    sys,
+    [
+        J1xx   0.0    0.0
+        0.0    J1yy   J1yz
+        0.0    J1yz   J1zz
+    ],
+    Bond(1, 1, [1, 0, 0]),
+)
+set_exchange!(
+    sys,
+    [
+        J2pm   0.0    0.0
+        0.0    J2pm   0.0
+        0.0    0.0    J2zz
+    ],
+    Bond(1, 1, [1, 2, 0]),
+)
+set_exchange!(
+    sys,
+    [
+        J3pm   0.0    0.0
+        0.0    J3pm   0.0
+        0.0    0.0    J3zz
+    ],
+    Bond(1, 1, [2, 0, 0]),
+)
+set_exchange!(
+    sys,
+    [
+        J′0pm  0.0    0.0
+        0.0    J′0pm  0.0
+        0.0    0.0    J′0zz
+    ],
+    Bond(1, 1, [0, 0, 1]),
+)
+set_exchange!(
+    sys,
+    [
+        J′1pm  0.0    0.0
+        0.0    J′1pm  0.0
+        0.0    0.0    J′1zz
+    ],
+    Bond(1, 1, [1, 0, 1]),
+)
+set_exchange!(
+    sys,
+    [
+        J′2apm 0.0    0.0
+        0.0    J′2apm 0.0
+        0.0    0.0    J′2azz
+    ],
+    Bond(1, 1, [1, 2, 1]),
+)
 
 # The function [`set_onsite_coupling!`](@ref) assigns a single-ion anisotropy.
 # The argument can be constructed using [`spin_matrices`](@ref) or
@@ -166,7 +202,7 @@ set_exchange!(sys, [J′2apm 0.0    0.0;
 # assign an easy-axis anisotropy along the direction $\hat{z}$.
 
 D = 2.165
-set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
+set_onsite_coupling!(sys, S -> -D * S[3]^2, 1)
 
 # # Calculating structure factor intensities
 
@@ -226,7 +262,7 @@ print_wrapped_intensities(sys)
 # wavevectors, $Q = [0, -1/4, 1/4]$. Sunny suggests a corresponding magnetic
 # supercell in units of the crystal lattice vectors.
 
-suggest_magnetic_supercell([[0, -1/4, 1/4]])
+suggest_magnetic_supercell([[0, -1 / 4, 1 / 4]])
 
 # The system returned by [`reshape_supercell`](@ref) is smaller, and is sheared
 # relative to the original system. This makes it much easier to find the global
@@ -252,7 +288,7 @@ swt = SpinWaveTheory(sys_min)
 # Select a sequence of wavevectors that will define a piecewise linear
 # interpolation in reciprocal lattice units (RLU).
 
-q_points = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]];
+q_points = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1 / 2, 0, 0], [0, 1, 0], [0, 0, 0]];
 
 # The function [`reciprocal_space_path`](@ref) will linearly sample a `path`
 # between the provided $q$-points with a given `density`. The `xticks` return
@@ -283,12 +319,18 @@ disp, intensity = intensities_bands(swt, path, formula);
 # These can be plotted in GLMakie.
 
 fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
+ax = Axis(
+    fig[1, 1];
+    xlabel="Momentum (r.l.u.)",
+    ylabel="Energy (meV)",
+    xticks,
+    xticklabelrotation=π / 6,
+)
 ylims!(ax, 0.0, 7.5)
 xlims!(ax, 1, size(disp, 1))
 colorrange = extrema(intensity)
 for i in axes(disp, 2)
-    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=intensity[:,i], colorrange)
+    lines!(ax, 1:length(disp[:, i]), disp[:, i]; color=intensity[:, i], colorrange)
 end
 fig
 
@@ -314,13 +356,19 @@ is1 = intensities_broadened(swt, path, energies, broadened_formula);
 # [`rotation_in_rlu`](@ref) to average the intensities over all three possible
 # orientations.
 
-R = rotation_in_rlu(cryst, [0, 0, 1], 2π/3)
-is2 = intensities_broadened(swt, [R*q for q in path], energies, broadened_formula)
-is3 = intensities_broadened(swt, [R*R*q for q in path], energies, broadened_formula)
+R = rotation_in_rlu(cryst, [0, 0, 1], 2π / 3)
+is2 = intensities_broadened(swt, [R * q for q in path], energies, broadened_formula)
+is3 = intensities_broadened(swt, [R * R * q for q in path], energies, broadened_formula)
 is_averaged = (is1 + is2 + is3) / 3
 
 fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
+ax = Axis(
+    fig[1, 1];
+    xlabel="Momentum (r.l.u.)",
+    ylabel="Energy (meV)",
+    xticks,
+    xticklabelrotation=π / 6,
+)
 heatmap!(ax, 1:size(is_averaged, 1), energies, is_averaged)
 fig
 

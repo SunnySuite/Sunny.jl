@@ -5,9 +5,9 @@ Represents a bond between atom indices `i` and `j`. `n` is a vector of three int
 specifying unit cell displacement in terms of lattice vectors.
 """
 struct Bond
-    i :: Int
-    j :: Int
-    n :: SVector{3, Int}
+    i::Int
+    j::Int
+    n::SVector{3,Int}
 end
 
 # A bond expressed as two positions in fractional coordinates
@@ -21,12 +21,12 @@ function Bond(cryst::Crystal, b::BondPos)
     j = position_to_atom(cryst, b.rj)::Int
     ri = cryst.positions[i]
     rj = cryst.positions[j]
-    n = round.(Int, (b.rj-b.ri) - (rj-ri))
+    n = round.(Int, (b.rj - b.ri) - (rj - ri))
     return Bond(i, j, n)
 end
 
 function BondPos(cryst::Crystal, b::Bond)
-    return BondPos(cryst.positions[b.i], cryst.positions[b.j]+b.n)
+    return BondPos(cryst.positions[b.i], cryst.positions[b.j] + b.n)
 end
 
 # The displacement vector ``𝐫_j - 𝐫_i`` in global coordinates between atoms

@@ -1,3 +1,4 @@
+#=
 struct KPMIntensityFormula{T}
     P :: Int64
     kT :: Float64
@@ -40,5 +41,4 @@ function intensity_formula_kpm(f::Function,swt::SpinWaveTheory,corr_ix::Abstract
     end
     KPMIntensityFormula{return_type}(P,kT,σ,broadening,kernel,string_formula,formula)
 end
-
-
+=#

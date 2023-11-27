@@ -2,53 +2,53 @@ abstract type InterpolationScheme{NumInterp} end
 struct NoInterp <: InterpolationScheme{1} end
 struct LinearInterp <: InterpolationScheme{8} end
 
-
-function interpolated_intensity(::SampledCorrelations, _, stencil_intensities, ::NoInterp) 
+function interpolated_intensity(::SampledCorrelations, _, stencil_intensities, ::NoInterp)
     return only(stencil_intensities)
 end
 
 # N.B.: This interpolation is only valid when all three entries of m_target are in [0,1]
-function interpolated_intensity(::SampledCorrelations, m_target, stencil_intensities, ::LinearInterp) 
+function interpolated_intensity(
+    ::SampledCorrelations, m_target, stencil_intensities, ::LinearInterp
+)
     c000, c100, c010, c110, c001, c101, c011, c111 = stencil_intensities
 
     xd, yd, zd = m_target
 
-    c00 = c000*(1-xd) + c100*xd
-    c01 = c001*(1-xd) + c101*xd
-    c10 = c010*(1-xd) + c110*xd
-    c11 = c011*(1-xd) + c111*xd
+    c00 = c000 * (1 - xd) + c100 * xd
+    c01 = c001 * (1 - xd) + c101 * xd
+    c10 = c010 * (1 - xd) + c110 * xd
+    c11 = c011 * (1 - xd) + c111 * xd
 
-    c0 = c00*(1-yd) + c10*yd
-    c1 = c01*(1-yd) + c11*yd
+    c0 = c00 * (1 - yd) + c10 * yd
+    c1 = c01 * (1 - yd) + c11 * yd
 
-    return c0*(1-zd) + c1*zd
+    return c0 * (1 - zd) + c1 * zd
 end
 
 function stencil_points(sc::SampledCorrelations, q, ::NoInterp)
-    Ls = size(sc.samplebuf)[2:4] 
+    Ls = size(sc.samplebuf)[2:4]
     m = round.(Int, Ls .* q)
-    im = map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex{3}
+    im = CartesianIndex{3}(map(i -> mod(m[i], Ls[i]) + 1, (1, 2, 3)))
 
     return (m,), (im,)
 end
 
-
 function stencil_points(sc::SampledCorrelations, q, ::LinearInterp)
-    Ls = size(sc.samplebuf)[2:4] 
-    base = map(x -> floor(Int64, x), Ls .* q) 
+    Ls = size(sc.samplebuf)[2:4]
+    base = map(x -> floor(Int64, x), Ls .* q)
     offsets = (
         (0, 0, 0),
         (1, 0, 0),
-        (0, 1, 0), 
-        (1, 1, 0), 
+        (0, 1, 0),
+        (1, 1, 0),
         (0, 0, 1),
-        (1, 0, 1), 
+        (1, 0, 1),
         (0, 1, 1),
-        (1, 1, 1)
+        (1, 1, 1),
     )
-    ms = map(x -> x .+ base, offsets) 
+    ms = map(x -> x .+ base, offsets)
     ims = map(ms) do m
-        map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)) |> CartesianIndex{3}
+        CartesianIndex{3}(map(i -> mod(m[i], Ls[i]) + 1, (1, 2, 3)))
     end
     return ms, ims
 end
@@ -60,29 +60,32 @@ end
 # function analyzes repetitions in advance and prunes them out. This is
 # ugly, but the speedup when tested on a few simple, realistic examples was
 # 3-5x.
-function pruned_stencil_info(sc::SampledCorrelations, qs, interp::InterpolationScheme{N}) where N
+function pruned_stencil_info(
+    sc::SampledCorrelations, qs, interp::InterpolationScheme{N}
+) where {N}
     # Count the number of contiguous regions with unchanging values. If all
     # values are unique, returns the length of q_info. Note comparison is on m
     # values rather than index values and the m values are the first element of
     # the a tuple, that is, we're checking x[1] == y[1] in the map.
     m_info = map(q -> stencil_points(sc, q, interp), qs)
-    numregions = sum(map((x,y) -> x[1] == y[1] ? 0 : 1, m_info[1:end-1], m_info[2:end])) + 1
-    
+    numregions =
+        sum(map((x, y) -> x[1] == y[1] ? 0 : 1, m_info[1:end-1], m_info[2:end])) + 1
+
     # Remove repeated stencil points and count number of instances of each
     ms_ref, idcs_ref = stencil_points(sc, qs[1], interp)
-    ms_all  = fill(ntuple(x->zero(Vec3), N), numregions)
-    ms_all[1] = ms_ref 
-    idcs_all = fill(ntuple(x->CartesianIndex((-1,-1,-1)), N), numregions)
-    idcs_all[1] = idcs_ref 
+    ms_all = fill(ntuple(x -> zero(Vec3), N), numregions)
+    ms_all[1] = ms_ref
+    idcs_all = fill(ntuple(x -> CartesianIndex((-1, -1, -1)), N), numregions)
+    idcs_all[1] = idcs_ref
     counts = zeros(Int64, numregions)
     c = counts[1] = 1
-    for q in qs[2:end] 
+    for q in qs[2:end]
         ms, idcs = stencil_points(sc, q, interp)
         if ms != ms_ref
-            ms_ref = ms 
+            ms_ref = ms
             c += 1
-            ms_all[c] =  ms
-            idcs_all[c] = idcs 
+            ms_all[c] = ms
+            idcs_all[c] = idcs
         end
         counts[c] += 1
     end
@@ -95,7 +98,6 @@ function pruned_stencil_info(sc::SampledCorrelations, qs, interp::InterpolationS
 
     return (; ks_all, idcs_all, counts)
 end
-
 
 """
     intensities_interpolated(sc::SampledCorrelations, qs, formula:ClassicalIntensityFormula; interpolation=nothing, negative_energies=false)
@@ -114,10 +116,13 @@ i.e., multiples of the reciprocal lattice vectors.
 - `negative_energies`: If set to `true`, Sunny will return the periodic
     extension of the energy axis. Most users will not want this.
 """
-function intensities_interpolated(sc::SampledCorrelations, qs, formula::ClassicalIntensityFormula;
-    interpolation = :round,
-    negative_energies = false,
-    instantaneous_warning = true
+function intensities_interpolated(
+    sc::SampledCorrelations,
+    qs,
+    formula::ClassicalIntensityFormula;
+    interpolation=:round,
+    negative_energies=false,
+    instantaneous_warning=true,
 )
     # If the crystal has been reshaped, convert all wavevectors from RLU in the
     # original crystal to RLU in the reshaped crystal
@@ -128,7 +133,9 @@ function intensities_interpolated(sc::SampledCorrelations, qs, formula::Classica
 
     # Make sure it's a dynamical structure factor 
     if instantaneous_warning && size(sc.data, 7) == 1
-        error("`intensities_interpolated` given a SampledCorrelations with no dynamical information. Call `instant_intensities_interpolated` to retrieve instantaneous (static) structure factor data.")
+        error(
+            "`intensities_interpolated` given a SampledCorrelations with no dynamical information. Call `instant_intensities_interpolated` to retrieve instantaneous (static) structure factor data.",
+        )
     end
 
     # Set up interpolation scheme
@@ -140,40 +147,54 @@ function intensities_interpolated(sc::SampledCorrelations, qs, formula::Classica
 
     # Precompute index information and preallocate
     ωvals = available_energies(sc; negative_energies)
-    nω = length(ωvals) 
-    stencil_info = pruned_stencil_info(sc, qs, interp) 
+    nω = length(ωvals)
+    stencil_info = pruned_stencil_info(sc, qs, interp)
 
     # Pre-allocate the output array based on the return type of the formula
     return_type = typeof(formula).parameters[1]
     intensities = zeros(return_type, size(qs)..., nω)
-    
+
     # Call type-stable version of the function
-    intensities_interpolated!(intensities, sc, qs, ωvals, interp, formula, stencil_info, Val(return_type))
+    intensities_interpolated!(
+        intensities, sc, qs, ωvals, interp, formula, stencil_info, Val(return_type)
+    )
 
     return intensities
 end
 
-
-function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targets::Array, ωvals, interp::InterpolationScheme{NInterp}, formula, stencil_info, ::Val{T}) where {NInterp, T}
+function intensities_interpolated!(
+    intensities,
+    sc::SampledCorrelations,
+    q_targets::Array,
+    ωvals,
+    interp::InterpolationScheme{NInterp},
+    formula,
+    stencil_info,
+    ::Val{T},
+) where {NInterp,T}
     li_intensities = LinearIndices(intensities)
     ci_targets = CartesianIndices(q_targets)
 
     # Compute the location of each q_target within its cell in R.L.U.
     # (which is an axis-aligned unit cube) with coordinates given as
     # the fractional distance along each side of the cube.
-    m_targets = [mod.(sc.latsize .* q_target,1) for q_target in q_targets]
+    m_targets = [mod.(sc.latsize .* q_target, 1) for q_target in q_targets]
 
-    (; ks_all, idcs_all, counts) = stencil_info 
+    (; ks_all, idcs_all, counts) = stencil_info
     for iω in eachindex(ωvals)
         iq = 0
         for (ks, idcs, numrepeats) in zip(ks_all, idcs_all, counts)
             # The closure `formula.calc_intensity` is defined in
             # intensity_formula(f, ::SampledCorrelations, ...)
-            local_intensities = SVector{NInterp, T}(formula.calc_intensity(sc, ks[n], idcs[n], iω) for n in 1:NInterp)
+            local_intensities = SVector{NInterp,T}(
+                formula.calc_intensity(sc, ks[n], idcs[n], iω) for n in 1:NInterp
+            )
             for _ in 1:numrepeats
                 iq += 1
                 idx = li_intensities[CartesianIndex(ci_targets[iq], iω)]
-                intensities[idx] = interpolated_intensity(sc, m_targets[iq], local_intensities, interp) 
+                intensities[idx] = interpolated_intensity(
+                    sc, m_targets[iq], local_intensities, interp
+                )
             end
         end
     end
@@ -192,10 +213,9 @@ function instant_intensities_interpolated(sc::SampledCorrelations, qs, formula; 
     datadims = size(qs)
     ndims = length(datadims)
     vals = intensities_interpolated(sc, qs, formula; instantaneous_warning=false, kwargs...)
-    static_vals = sum(vals, dims=(ndims+1,))
+    static_vals = sum(vals; dims=(ndims + 1,))
     return reshape(static_vals, datadims)
 end
-
 
 """
     rotation_in_rlu(cryst::Crystal, axis, angle)
@@ -205,9 +225,8 @@ Returns a ``3×3`` matrix that rotates wavevectors in reciprocal lattice units
 arbitrary magnitude), and the angle is in radians.
 """
 function rotation_in_rlu(cryst::Crystal, axis, angle)
-    inv(cryst.recipvecs) * axis_angle_to_matrix(axis, angle) * cryst.recipvecs
+    return inv(cryst.recipvecs) * axis_angle_to_matrix(axis, angle) * cryst.recipvecs
 end
-
 
 """
     reciprocal_space_path(cryst::Crystal, qs, density)
@@ -232,15 +251,15 @@ function reciprocal_space_path(cryst::Crystal, qs, density)
     path = Vec3[]
     markers = Int[]
     for i in 1:length(qs)-1
-        push!(markers, length(path)+1)
+        push!(markers, length(path) + 1)
         q1, q2 = qs[i], qs[i+1]
         dist = norm(cryst.recipvecs * (q1 - q2))
-        npoints = round(Int, dist*density)
+        npoints = round(Int, dist * density)
         for n in 1:npoints
-            push!(path, (1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints)
+            push!(path, (1 - (n - 1) / npoints) * q1 + (n - 1) * q2 / npoints)
         end
     end
-    push!(markers, length(path)+1)
+    push!(markers, length(path) + 1)
     push!(path, qs[end])
 
     labels = map(qs) do q

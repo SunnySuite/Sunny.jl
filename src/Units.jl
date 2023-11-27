@@ -25,12 +25,9 @@ system, `Units.meV`, employs (meV, Å, tesla). Select alternatively
 See also [`meV_per_K`](@ref)
 """
 const Units = (;
-    meV = PhysicalConsts(;
-        μ0 = 201.33545383470705041,   # T^2 Å^3 / meV
-        μB = 0.057883818060738013331, # meV / T
+    meV=PhysicalConsts(;
+        μ0=201.33545383470705041,   # T^2 Å^3 / meV
+        μB=0.057883818060738013331, # meV / T
     ),
-    theory = PhysicalConsts(;
-        μ0 = 1.0,
-        μB = 1.0,
-    ),
+    theory=PhysicalConsts(; μ0=1.0, μB=1.0),
 )

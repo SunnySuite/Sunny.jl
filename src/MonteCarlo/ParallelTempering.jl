@@ -1,5 +1,5 @@
 # vanilla parallel tempering using Julia multithreading
-mutable struct ParallelTempering{N, SMP}
+mutable struct ParallelTempering{N,SMP}
     n_replicas::Int64
     # temperatures
     kT_sched::Vector{Float64}
@@ -15,12 +15,14 @@ mutable struct ParallelTempering{N, SMP}
     n_exch::Vector{Int64}
 end
 
-function ParallelTempering(system::System{N}, sampler::SMP, kT_sched::Vector{Float64}) where {N, SMP}
+function ParallelTempering(
+    system::System{N}, sampler::SMP, kT_sched::Vector{Float64}
+) where {N,SMP}
     n_replicas = length(kT_sched)
 
     samplers = SMP[copy(sampler) for _ in 1:n_replicas]
     setproperty!.(samplers, :kT, kT_sched)
- 
+
     systems = [clone_system(system) for _ in 1:n_replicas]
     system_ids = collect(1:n_replicas)
 
@@ -33,25 +35,41 @@ function ParallelTempering(system::System{N}, sampler::SMP, kT_sched::Vector{Flo
         end
     end
 
-    return ParallelTempering(n_replicas, kT_sched, samplers, systems, system_ids, zeros(Int64, n_replicas), zeros(Int64, n_replicas))
+    return ParallelTempering(
+        n_replicas,
+        kT_sched,
+        samplers,
+        systems,
+        system_ids,
+        zeros(Int64, n_replicas),
+        zeros(Int64, n_replicas),
+    )
 end
 
 # attempt a replica exchange
 function replica_exchange!(PT::ParallelTempering, exch_start::Int64)
     # let one replica in the pair handle the exchange
-    @Threads.threads for rank in exch_start : 2 : PT.n_replicas-1
-        id₁, id₂ = rank, rank+1 
+    Threads.@threads for rank in exch_start:2:PT.n_replicas-1
+        id₁, id₂ = rank, rank + 1
 
-        E₁ = (PT.samplers[1] isa LocalSampler) ? PT.samplers[id₁].ΔE : energy(PT.systems[PT.system_ids[id₁]])
-        E₂ = (PT.samplers[1] isa LocalSampler) ? PT.samplers[id₂].ΔE : energy(PT.systems[PT.system_ids[id₂]])
+        E₁ = if (PT.samplers[1] isa LocalSampler)
+            PT.samplers[id₁].ΔE
+        else
+            energy(PT.systems[PT.system_ids[id₁]])
+        end
+        E₂ = if (PT.samplers[1] isa LocalSampler)
+            PT.samplers[id₂].ΔE
+        else
+            energy(PT.systems[PT.system_ids[id₂]])
+        end
 
         # action for current thread and its action under exchange
-        S₁  = E₁ / PT.samplers[id₁].kT
+        S₁ = E₁ / PT.samplers[id₁].kT
         S₁′ = E₂ / PT.samplers[id₁].kT
         ΔS₁ = S₁ - S₁′
 
         # action for partner thread and its action under exchange
-        S₂  = E₂ / PT.samplers[id₂].kT
+        S₂ = E₂ / PT.samplers[id₂].kT
         S₂′ = E₁ / PT.samplers[id₂].kT
         ΔS₂ = S₂ - S₂′
 
@@ -62,8 +80,10 @@ function replica_exchange!(PT::ParallelTempering, exch_start::Int64)
             PT.system_ids[id₁], PT.system_ids[id₂] = PT.system_ids[id₂], PT.system_ids[id₁]
 
             if PT.samplers[1] isa LocalSampler
-                PT.samplers[id₁].ΔE, PT.samplers[id₂].ΔE = PT.samplers[id₂].ΔE, PT.samplers[id₁].ΔE
-                PT.samplers[id₁].Δs, PT.samplers[id₂].Δs = PT.samplers[id₂].Δs, PT.samplers[id₁].Δs
+                PT.samplers[id₁].ΔE, PT.samplers[id₂].ΔE = PT.samplers[id₂].ΔE,
+                PT.samplers[id₁].ΔE
+                PT.samplers[id₁].Δs, PT.samplers[id₂].Δs = PT.samplers[id₂].Δs,
+                PT.samplers[id₁].Δs
             end
 
             PT.n_accept[id₁] += 1
@@ -83,13 +103,13 @@ function step_ensemble!(PT::ParallelTempering, nsteps::Int64, exch_interval::Int
     # start PT simulation
     for i in 1:n_exch
         # sample the systems at each kT in parallel
-        @Threads.threads for rank in 1:PT.n_replicas
+        Threads.@threads for rank in 1:PT.n_replicas
             for _ in 1:exch_interval
                 step!(PT.systems[PT.system_ids[rank]], PT.samplers[rank])
             end
         end
 
         # attempt a replica exchange - alternate exchange direction
-        replica_exchange!(PT, (i%2)+1)
+        replica_exchange!(PT, (i % 2) + 1)
     end
 end

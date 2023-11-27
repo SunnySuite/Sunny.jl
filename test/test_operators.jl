@@ -1,21 +1,21 @@
 @testitem "Spin operators" begin
     include("shared.jl")
-    
+
     ### Verify 𝔰𝔲(2) irreps
-    for N = 2:5
-        S₀ = (N-1)/2
+    for N in 2:5
+        S₀ = (N - 1) / 2
         S = spin_matrices(S₀)
 
         for i in 1:3, j in 1:3
             # Test commutation relations
-            @test S[i]*S[j] - S[j]*S[i] ≈ im * sum(ϵ[i,j,k]*S[k] for k=1:3)
+            @test S[i] * S[j] - S[j] * S[i] ≈ im * sum(ϵ[i, j, k] * S[k] for k in 1:3)
 
             # Test orthonormality
-            @test tr(S[i]*S[j]) ≈ (2/3)*S₀*(S₀+1/2)*(S₀+1)*δ(i,j)
+            @test tr(S[i] * S[j]) ≈ (2 / 3) * S₀ * (S₀ + 1 / 2) * (S₀ + 1) * δ(i, j)
         end
 
         # Test magnitude
-        @test sum(S[i]^2 for i=1:3) ≈ S₀*(S₀+1)*I
+        @test sum(S[i]^2 for i in 1:3) ≈ S₀ * (S₀ + 1) * I
 
         # Test dipole -> ket -> dipole round trip
         n = S₀ * normalize(randn(Sunny.Vec3))
@@ -24,34 +24,34 @@
 
         # Test time reversal operator
         Z = randn(Sunny.CVec{N})
-        @test Sunny.flip_ket(Z) ≈ exp(-im*π*S[2]) * conj(Z)
+        @test Sunny.flip_ket(Z) ≈ exp(-im * π * S[2]) * conj(Z)
     end
 
     # Test action of mul_spin_matrices(B, Z)
-    for N = 4:6
+    for N in 4:6
         Λ = randn(ComplexF64, N, N)
         B = randn(Sunny.Vec3)
         Z = randn(Sunny.CVec{N})
-        @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B'*spin_matrices((N-1)/2)) * Z
-    end    
+        @test Sunny.mul_spin_matrices(Λ, B, Z) ≈ (Λ + B' * spin_matrices((N - 1) / 2)) * Z
+    end
 end
 
 @testitem "Quadrupole operators" begin
     # Test expected_quadrupole generated function
-    for N = 4:6
+    for N in 4:6
         Z = randn(Sunny.CVec{N})
         Qs = Sunny.stevens_matrices_of_dim(2; N)
-        @test Sunny.expected_quadrupole(Z) ≈ Sunny.Vec5(real(Z'*Q*Z) for Q in Qs)
+        @test Sunny.expected_quadrupole(Z) ≈ Sunny.Vec5(real(Z' * Q * Z) for Q in Qs)
     end
 
     # Test action of mul_quadrupole_matrices(dE_dQ, Z)
-    for N = 4:6
+    for N in 4:6
         dE_dQ = randn(Sunny.Vec5)
         Z = randn(Sunny.CVec{N})
-        @test Sunny.mul_quadrupole_matrices(dE_dQ, Z) ≈ (dE_dQ' * Sunny.stevens_matrices_of_dim(2; N)) * Z
+        @test Sunny.mul_quadrupole_matrices(dE_dQ, Z) ≈
+            (dE_dQ' * Sunny.stevens_matrices_of_dim(2; N)) * Z
     end
 end
-
 
 @testitem "Stevens operators" begin
     include("shared.jl")
@@ -59,14 +59,14 @@ end
 
     # Spherical tensors satisfying `norm(T) = √tr T† T = 1` (currently unused).
     function spherical_tensors_normalized(k; N)
-        S = (N-1)/2
+        S = (N - 1) / 2
         ret = Matrix{Float64}[]
         for q in k:-1:-k
             T = zeros(Float64, N, N)
-            for i = 1:N, i′ = 1:N
-                m  = S - i + 1
-                m′ = S - i′+ 1
-                T[i, i′] = clebschgordan(S, m′, k, q, S, m) * sqrt((2k+1)/N)
+            for i in 1:N, i′ in 1:N
+                m = S - i + 1
+                m′ = S - i′ + 1
+                T[i, i′] = clebschgordan(S, m′, k, q, S, m) * sqrt((2k + 1) / N)
             end
             push!(ret, T)
         end
@@ -75,18 +75,18 @@ end
 
     # KS/BCS spherical tensors T(k,q) as N×N matrices
     function spherical_tensors(k; N)
-        j = (N-1)/2
+        j = (N - 1) / 2
         ret = Matrix{Float64}[]
         for q in k:-1:-k
             Tq = zeros(Float64, N, N)
             for i′ in 1:N, i in 1:N
-                m′ = j - i′+ 1
-                m  = j - i + 1
+                m′ = j - i′ + 1
+                m = j - i + 1
 
                 # By the Wigner-Eckhardt theorem, the spherical tensor T must have
                 # this m and m′ dependence. An overall (j, k)-dependent rescaling
                 # factor is arbitrary, however.
-                Tq[i′, i] = (-1)^(j-m′) * wigner3j(j, k, j, -m′, q, m)
+                Tq[i′, i] = (-1)^(j - m′) * wigner3j(j, k, j, -m′, q, m)
             end
 
             # Below we will apply two rescaling factors obtained from Rudowicz and
@@ -94,7 +94,7 @@ end
 
             # With this rescaling factor, we get the Buckmaster and Smith & Thornley
             # (BST) operator
-            Tq .*= 2.0^(-k) * sqrt(factorial((N-1)+k+1) / factorial((N-1)-k))
+            Tq .*= 2.0^(-k) * sqrt(factorial((N - 1) + k + 1) / factorial((N - 1) - k))
 
             # With this additional rescaling factor, we get the Koster and Statz
             # (1959) and Buckmaster et al (1972) operator (KS/BCS)
@@ -106,14 +106,14 @@ end
     end
 
     # Lie bracket, aka matrix commutator
-    bracket(A, B) = A*B - B*A
+    bracket(A, B) = A * B - B * A
 
     # Check transformation properties of spherical tensors
     for N in 2:7
-        S = spin_matrices((N-1)/2)
-        Sp = S[1] + im*S[2]
-        Sm = S[1] - im*S[2]
-        
+        S = spin_matrices((N - 1) / 2)
+        Sp = S[1] + im * S[2]
+        Sm = S[1] - im * S[2]
+
         for k in 0:N-1
             # Spherical tensors acting on N-dimensional Hilbert space
             T = spherical_tensors(k; N)
@@ -123,7 +123,7 @@ end
 
             # The selected basis is q ∈ [|k⟩, |k-1⟩, ... |-k⟩]. This function
             # converts from a q value to a 1-based index.
-            idx(q) = k-q+1
+            idx(q) = k - q + 1
 
             # A random axis-angle
             θ = randn(3)
@@ -134,11 +134,13 @@ end
             for q in -k:k
                 # Racah's commutation relations
                 @test bracket(S[3], T[idx(q)]) ≈ q * T[idx(q)]
-                q < +k && @test bracket(Sp, T[idx(q)]) ≈ sqrt((k-q)*(k+q+1)) * T[idx(q+1)]
-                q > -k && @test bracket(Sm, T[idx(q)]) ≈ sqrt((k+q)*(k-q+1)) * T[idx(q-1)]
+                q < +k && @test bracket(Sp, T[idx(q)]) ≈
+                    sqrt((k - q) * (k + q + 1)) * T[idx(q + 1)]
+                q > -k && @test bracket(Sm, T[idx(q)]) ≈
+                    sqrt((k + q) * (k - q + 1)) * T[idx(q - 1)]
 
                 # Wigner D matrix encodes rotation
-                @test U' * T[idx(q)] * U ≈ (conj(D) * T)[idx(q)]
+                @test U' * T[idx(q)] * U ≈ (conj(D)*T)[idx(q)]
             end
         end
     end
@@ -152,11 +154,11 @@ end
             # Check that Stevens operators are proper linear combination of
             # spherical tensors
             @test O ≈ Sunny.stevens_α[k] * T
-    
+
             # Check conversion of coefficients
-            c = randn(2k+1)
+            c = randn(2k + 1)
             b = Sunny.transform_spherical_to_stevens_coefficients(k, c)
-            @test transpose(c)*T ≈ transpose(b)*O
+            @test transpose(c) * T ≈ transpose(b) * O
         end
     end
 
@@ -167,7 +169,7 @@ end
         c = Sunny.matrix_to_stevens_coefficients(A)
 
         acc = zeros(ComplexF64, N, N)
-        acc += (tr(A)/N) * I
+        acc += (tr(A) / N) * I
         for k in 1:6
             acc += c[k]' * Sunny.stevens_matrices_of_dim(k; N)
         end
@@ -175,21 +177,20 @@ end
     end
 end
 
-
 @testitem "Rotations" begin
     include("shared.jl")
 
     rng = Random.Xoshiro(0)
     R = Sunny.Mat3(Sunny.random_orthogonal(rng, 3; special=true))
     N = 7
-    S₀ = (N-1)/2
+    S₀ = (N - 1) / 2
 
     # Test axis-angle decomposition
     let
         (n, θ) = Sunny.matrix_to_axis_angle(R)
         @test 1 + 2cos(θ) ≈ tr(R)
         @test norm(n) ≈ 1
-        @test R*n ≈ n
+        @test R * n ≈ n
         @test R ≈ Sunny.axis_angle_to_matrix(n, θ)
     end
 
@@ -200,7 +201,7 @@ end
     end
 
     # Test that Stevens quadrupoles rotate correctly
-    let 
+    let
         O = stevens_matrices(S₀)
         Q = [O[2, q] for q in 2:-1:-2]
         V = Sunny.operator_for_stevens_rotation(2, R)
@@ -208,7 +209,7 @@ end
     end
 
     # Test that Stevens coefficients rotate properly
-    let 
+    let
         A = Hermitian(randn(ComplexF64, N, N))
         c = Sunny.matrix_to_stevens_coefficients(A)
 
@@ -226,35 +227,35 @@ end
     let
         R = Sunny.Mat3(Sunny.random_orthogonal(rng, 3; special=true))
         A = randn(5, 5)
-        
+
         N = 3
         O = Sunny.stevens_matrices_of_dim(2; N)
         Oi, Oj = to_product_space(O, O)
-        
+
         O′ = Sunny.rotate_operator.(O, Ref(R))
         Oi′, Oj′ = to_product_space(O′, O′)
-        
+
         A′ = Sunny.transform_coupling_by_symmetry(Sunny.Mat5(A), R, true)
         @test Oi′' * A′ * Oj′ ≈ Oi' * A * Oj
-        
+
         A″ = Sunny.transform_coupling_by_symmetry(Sunny.Mat5(A), R, false)
         @test Oj′' * A″ * Oi′ ≈ Oi' * A * Oj
     end
 
     # Test evaluation of the classical Stevens functions (i.e. spherical
     # harmonics) and their gradients
-    let 
+    let
         using LinearAlgebra, FiniteDifferences, OffsetArrays
 
         # Random dipole and Stevens coefficients
         s = normalize(randn(Sunny.Vec3))
         c = map(OffsetArrays.OffsetArray(0:6, 0:6)) do k
-            iseven(k) ? randn(2k+1) : zero(2k+1)
+            iseven(k) ? randn(2k + 1) : zero(2k + 1)
         end
         stvexp = Sunny.StevensExpansion(c)
 
         # Rotate dipole and Stevens coefficients
-        s′ = R*s
+        s′ = R * s
         stvexp′ = Sunny.rotate_operator(stvexp, R)
 
         # Verify that the energy is the same regardless of which is rotated
@@ -273,8 +274,8 @@ end
         # gradE will be used to drive spin dynamics, for which |S| is constant,
         # and the component of gradE parallel to S will be projected out anyway.
         # Therefore we only need agreement in the components perpendicular to S.
-        gradE1 -= (gradE1⋅s)*s
-        gradE2 -= (gradE2⋅s)*s
+        gradE1 -= (gradE1 ⋅ s) * s
+        gradE2 -= (gradE2 ⋅ s) * s
         @test gradE1 ≈ gradE2
     end
 end
@@ -283,28 +284,28 @@ end
     using LinearAlgebra
     import IOCapture, OffsetArrays
 
-    @test repr(stevens_matrices(Inf)[3,1]) == "-𝒮ˣ³ - 𝒮ʸ²𝒮ˣ + 4𝒮ᶻ²𝒮ˣ"
+    @test repr(stevens_matrices(Inf)[3, 1]) == "-𝒮ˣ³ - 𝒮ʸ²𝒮ˣ + 4𝒮ᶻ²𝒮ˣ"
 
     capt = IOCapture.capture() do
         𝒪 = stevens_matrices(Inf)
         𝒮 = spin_matrices(Inf)
-        Sunny.pretty_print_operator((1/4)𝒪[4,4] + (1/20)𝒪[4,0] + (3/5)*(𝒮'*𝒮)^2)
+        Sunny.pretty_print_operator((1 / 4)𝒪[4, 4] + (1 / 20)𝒪[4, 0] + (3 / 5) * (𝒮' * 𝒮)^2)
     end
     @test capt.output == "𝒮ˣ⁴ + 𝒮ʸ⁴ + 𝒮ᶻ⁴\n"
 
     capt = IOCapture.capture() do
         𝒮 = spin_matrices(Inf)
         print_stevens_expansion(𝒮[1]^4 + 𝒮[2]^4 + 𝒮[3]^4)
-        print_stevens_expansion(0*𝒮[1])
-        print_stevens_expansion(0*𝒮[1]+3)
+        print_stevens_expansion(0 * 𝒮[1])
+        print_stevens_expansion(0 * 𝒮[1] + 3)
     end
     @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + (3/5)𝒮⁴\n0\n3\n"
 
     capt = IOCapture.capture() do
         S = spin_matrices(2)
         print_stevens_expansion(S[1]^4 + S[2]^4 + S[3]^4)
-        print_stevens_expansion(0*S[1])
-        print_stevens_expansion(0*S[1]+3*I)
+        print_stevens_expansion(0 * S[1])
+        print_stevens_expansion(0 * S[1] + 3 * I)
     end
     @test capt.output == "(1/20)𝒪₄₀ + (1/4)𝒪₄₄ + 102/5\n0\n3\n"
 
@@ -312,16 +313,16 @@ end
     S = spin_matrices(Inf)
     O = stevens_matrices(Inf)
     S_mag = π
-    p = S'*S * O[4, 2]
+    p = S' * S * O[4, 2]
     c = Sunny.operator_to_stevens_coefficients(p, S_mag)
     @test iszero(c[1]) && iszero(c[2]) && iszero(c[3]) && iszero(c[5]) && iszero(c[6])
     @test c[4] ≈ [0.0, 0.0, S_mag^2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     # Test round trip Stevens -> spin -> Stevens
     c_ref = map(OffsetArrays.OffsetArray(0:6, 0:6)) do k
-        randn(2k+1)
+        randn(2k + 1)
     end
-    p = sum(c_ref[k]'*Sunny.stevens_symbols[k] for k in 0:6)
+    p = sum(c_ref[k]' * Sunny.stevens_symbols[k] for k in 0:6)
     p = Sunny.expand_as_spin_polynomial(p)
     c = Sunny.operator_to_stevens_coefficients(p, 1.0)
     @test c ≈ c_ref

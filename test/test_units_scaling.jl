@@ -8,7 +8,7 @@
 
     crystal = Sunny.diamond_crystal()
     latsize = (4, 4, 4)
-    infos = [SpinInfo(1, S=1, g=2)]
+    infos = [SpinInfo(1; S=1, g=2)]
 
     units = [Sunny.Units.meV, Sunny.Units.theory]
 
@@ -18,7 +18,8 @@
             set_external_field!(sys, randn(sys.rng, Sunny.Vec3))
         elseif test == :exchange
             add_exchange_interactions!(sys, false)
-        else test == :dipdip
+        else
+            test == :dipdip
             enable_dipole_dipole!(sys)
         end
         randomize_spins!(sys)
@@ -36,7 +37,6 @@
 
     validate_exchanges_scaling()
 
-
     # Zeeman energies/forces should scale linearly with μB, invariant to μ0
     function validate_zeeman_scaling()
         E1, ∇E1 = collect_energy_and_grad(:zeeman, units[1])
@@ -48,7 +48,6 @@
 
     validate_zeeman_scaling()
 
-
     # Dipole-dipole interactions should scale linearly with μ0, and
     # quadratically with μB
     function validate_dipole_scaling()
@@ -56,13 +55,12 @@
         E2, ∇E2 = collect_energy_and_grad(:dipdip, units[2])
 
         (; μB, μ0) = units[1]
-        c1 = μ0*μB^2
+        c1 = μ0 * μB^2
         (; μB, μ0) = units[2]
-        c2 = μ0*μB^2
+        c2 = μ0 * μB^2
         @test E1 / c1 ≈ E2 / c2
         @test ∇E1 / c1 ≈ ∇E2 / c2
     end
 
     validate_dipole_scaling()
-
 end

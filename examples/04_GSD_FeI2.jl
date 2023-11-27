@@ -41,36 +41,36 @@ using Sunny, LinearAlgebra, GLMakie
 a = b = 4.05012#hide 
 c = 6.75214#hide
 latvecs = lattice_vectors(a, b, c, 90, 90, 120)#hide
-positions = [[0,0,0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]#hide
+positions = [[0, 0, 0], [1 / 3, 2 / 3, 1 / 4], [2 / 3, 1 / 3, 3 / 4]]#hide
 types = ["Fe", "I", "I"]#hide
 FeI2 = Crystal(latvecs, positions; types)#hide
 cryst = subcrystal(FeI2, "Fe")#hide
-sys = System(cryst, (4,4,4), [SpinInfo(1,S=1,g=2)], :SUN, seed=2)#hide
-J1pm   = -0.236#hide
+sys = System(cryst, (4, 4, 4), [SpinInfo(1; S=1, g=2)], :SUN; seed=2)#hide
+J1pm = -0.236#hide
 J1pmpm = -0.161#hide
-J1zpm  = -0.261#hide 
-J2pm   = 0.026#hide
-J3pm   = 0.166#hide
-J′0pm  = 0.037#hide
-J′1pm  = 0.013#hide
+J1zpm = -0.261#hide 
+J2pm = 0.026#hide
+J3pm = 0.166#hide
+J′0pm = 0.037#hide
+J′1pm = 0.013#hide
 J′2apm = 0.068#hide
-J1zz   = -0.236#hide
-J2zz   = 0.113#hide
-J3zz   = 0.211#hide
-J′0zz  = -0.036#hide
-J′1zz  = 0.051#hide
+J1zz = -0.236#hide
+J2zz = 0.113#hide
+J3zz = 0.211#hide
+J′0zz = -0.036#hide
+J′1zz = 0.051#hide
 J′2azz = 0.073#hide
 J1xx = J1pm + J1pmpm#hide 
 J1yy = J1pm - J1pmpm#hide
 J1yz = J1zpm#hide
-set_exchange!(sys, [J1xx 0.0 0.0; 0.0 J1yy J1yz; 0.0 J1yz J1zz], Bond(1,1,[1,0,0]))#hide
-set_exchange!(sys, [J2pm 0.0 0.0; 0.0 J2pm 0.0; 0.0 0.0 J2zz], Bond(1,1,[1,2,0]))#hide
-set_exchange!(sys, [J3pm 0.0 0.0; 0.0 J3pm 0.0; 0.0 0.0 J3zz], Bond(1,1,[2,0,0]))#hide
-set_exchange!(sys, [J′0pm 0.0 0.0; 0.0 J′0pm 0.0; 0.0 0.0 J′0zz], Bond(1,1,[0,0,1]))#hide
-set_exchange!(sys, [J′1pm 0.0 0.0; 0.0 J′1pm 0.0; 0.0 0.0 J′1zz], Bond(1,1,[1,0,1]))#hide
-set_exchange!(sys, [J′2apm 0.0 0.0; 0.0 J′2apm 0.0; 0.0 0.0 J′2azz], Bond(1,1,[1,2,1]))#hide
+set_exchange!(sys, [J1xx 0.0 0.0; 0.0 J1yy J1yz; 0.0 J1yz J1zz], Bond(1, 1, [1, 0, 0]))#hide
+set_exchange!(sys, [J2pm 0.0 0.0; 0.0 J2pm 0.0; 0.0 0.0 J2zz], Bond(1, 1, [1, 2, 0]))#hide
+set_exchange!(sys, [J3pm 0.0 0.0; 0.0 J3pm 0.0; 0.0 0.0 J3zz], Bond(1, 1, [2, 0, 0]))#hide
+set_exchange!(sys, [J′0pm 0.0 0.0; 0.0 J′0pm 0.0; 0.0 0.0 J′0zz], Bond(1, 1, [0, 0, 1]))#hide
+set_exchange!(sys, [J′1pm 0.0 0.0; 0.0 J′1pm 0.0; 0.0 0.0 J′1zz], Bond(1, 1, [1, 0, 1]))#hide
+set_exchange!(sys, [J′2apm 0.0 0.0; 0.0 J′2apm 0.0; 0.0 0.0 J′2azz], Bond(1, 1, [1, 2, 1]))#hide
 D = 2.165#hide
-set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)#hide
+set_onsite_coupling!(sys, S -> -D * S[3]^2, 1)#hide
 sys
 
 # ## Finding a ground state
@@ -82,13 +82,13 @@ sys
 # phenomenological damping parameter $λ$ that sets the coupling to the thermal
 # bath.
 
-Δt = 0.05/D    # Should be inversely proportional to the largest energy scale
-               ## in the system. For FeI2, this is the easy-axis anisotropy,
-               ## `D = 2.165` (meV). The prefactor 0.05 is relatively small,
-               ## and achieves high accuracy.
+Δt = 0.05 / D    # Should be inversely proportional to the largest energy scale
+## in the system. For FeI2, this is the easy-axis anisotropy,
+## `D = 2.165` (meV). The prefactor 0.05 is relatively small,
+## and achieves high accuracy.
 kT = 0.2       # Temperature of the thermal bath (meV).
 λ = 0.1        # This value is typically good for Monte Carlo sampling,
-               ## independent of system details.
+## independent of system details.
 
 langevin = Langevin(Δt; kT, λ);
 
@@ -118,7 +118,7 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 # function [`resize_supercell`](@ref) takes new dimensions as multiples of the
 # unit cell lattice vectors.
 
-sys_large = resize_supercell(sys, (16,16,4)) # 16x16x4 copies of the original unit cell
+sys_large = resize_supercell(sys, (16, 16, 4)) # 16x16x4 copies of the original unit cell
 plot_spins(sys_large; color=[s[3] for s in sys_large.dipoles])
 
 # Now we will re-thermalize the system to a configuration just above the
@@ -187,11 +187,11 @@ formula = intensity_formula(sc, :trace; kT)
 # at (0,0,0) and (π,π,π) using this method:
 
 qs = [[0, 0, 0], [0.5, 0.5, 0.5]]
-is = intensities_interpolated(sc, qs, formula; interpolation = :round)
+is = intensities_interpolated(sc, qs, formula; interpolation=:round)
 
 ωs = available_energies(sc)
-fig = lines(ωs, is[1,:]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
-lines!(ωs, is[2,:]; label="(π,π,π)")
+fig = lines(ωs, is[1, :]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
+lines!(ωs, is[2, :]; label="(π,π,π)")
 axislegend()
 fig
 
@@ -203,8 +203,8 @@ fig
 # accurate formulas. Here, we apply [`FormFactor`](@ref) corrections appropriate
 # for `Fe2` magnetic ions, and a dipole polarization correction `:perp`.
 
-formfactors = [FormFactor("Fe2"; g_lande=3/2)]
-new_formula = intensity_formula(sc, :perp; kT, formfactors = formfactors)
+formfactors = [FormFactor("Fe2"; g_lande=3 / 2)]
+new_formula = intensity_formula(sc, :perp; kT, formfactors=formfactors)
 
 # Frequently, one wants to extract energy intensities along lines that connect
 # special wave vectors--a so-called "spaghetti plot". The function
@@ -214,12 +214,14 @@ new_formula = intensity_formula(sc, :perp; kT, formfactors = formfactors)
 # `q2` is given by `dist*density` where `dist = norm(cryst.recipvecs * (q1 -
 # q2))` is measured in the global frame. 
 
-points = [[0,   0, 0],  # List of wave vectors that define a path
-          [1,   0, 0],
-          [0,   1, 0],
-          [1/2, 0, 0],
-          [0,   1, 0],
-          [0,   0, 0]] 
+points = [
+    [0, 0, 0],  # List of wave vectors that define a path
+    [1, 0, 0],
+    [0, 1, 0],
+    [1 / 2, 0, 0],
+    [0, 1, 0],
+    [0, 0, 0],
+]
 density = 40
 path, xticks = reciprocal_space_path(cryst, points, density);
 
@@ -229,11 +231,14 @@ path, xticks = reciprocal_space_path(cryst, points, density);
 # points, the intensity on the path can be calculated by interpolating between these
 # discrete points:
 
-is_interpolated = intensities_interpolated(sc, path, new_formula;
-    interpolation = :linear,       # Interpolate between available wave vectors
+is_interpolated = intensities_interpolated(
+    sc,
+    path,
+    new_formula;
+    interpolation=:linear,       # Interpolate between available wave vectors
 );
 ## Add artificial broadening
-is_interpolated_broadened = broaden_energy(sc, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.05));
+is_interpolated_broadened = broaden_energy(sc, is, (ω, ω₀) -> lorentzian(ω - ω₀, 0.05));
 
 # The second approach to handle the discreteness of the data is to bin the intensity
 # at the discrete points into the bins of a histogram.
@@ -242,37 +247,38 @@ is_interpolated_broadened = broaden_energy(sc, is, (ω, ω₀)->lorentzian(ω-ω
 
 cut_width = 0.3
 density = 15
-paramsList, markers, ranges = reciprocal_space_path_bins(sc,points,density,cut_width);
+paramsList, markers, ranges = reciprocal_space_path_bins(sc, points, density, cut_width);
 
 # Then, the intensity data is computed using [`intensities_binned`](@ref) for each sub-histogram:
 
 total_bins = ranges[end][end]
 energy_bins = paramsList[1].numbins[4]
-is_binned = zeros(Float64,total_bins,energy_bins)
+is_binned = zeros(Float64, total_bins, energy_bins)
 integrated_kernel = integrated_lorentzian(0.05) # Lorentzian broadening
 for k in eachindex(paramsList)
-    bin_data, counts = intensities_binned(sc,paramsList[k], new_formula;
-        integrated_kernel = integrated_kernel
+    bin_data, counts = intensities_binned(
+        sc, paramsList[k], new_formula; integrated_kernel=integrated_kernel
     )
-    is_binned[ranges[k],:] = bin_data[:,1,1,:] ./ counts[:,1,1,:]
+    is_binned[ranges[k], :] = bin_data[:, 1, 1, :] ./ counts[:, 1, 1, :]
 end
 
 # The graph produced by interpolating (top) is similar to the one produced by binning (bottom):
 
 fig = Figure()
-ax_top = Axis(fig[1,1],ylabel = "meV",xticklabelrotation=π/8,xticklabelsize=12;xticks)
-ax_bottom = Axis(fig[2,1],ylabel = "meV",xticks = (markers, string.(points)),xticklabelrotation=π/8,xticklabelsize=12)
-
-heatmap!(ax_top,1:size(is_interpolated,1), ωs, is_interpolated;
-    colorrange=(0.0,0.07),
+ax_top = Axis(fig[1, 1]; ylabel="meV", xticklabelrotation=π / 8, xticklabelsize=12, xticks)
+ax_bottom = Axis(
+    fig[2, 1];
+    ylabel="meV",
+    xticks=(markers, string.(points)),
+    xticklabelrotation=π / 8,
+    xticklabelsize=12,
 )
 
-heatmap!(ax_bottom,1:size(is_binned,1), ωs, is_binned;
-    colorrange=(0.0,0.05),
-)
+heatmap!(ax_top, 1:size(is_interpolated, 1), ωs, is_interpolated; colorrange=(0.0, 0.07))
+
+heatmap!(ax_bottom, 1:size(is_binned, 1), ωs, is_binned; colorrange=(0.0, 0.05))
 
 fig
-
 
 # Note that we have clipped the colors in order to make the higher-energy
 # excitations more visible.
@@ -295,11 +301,11 @@ params.binstart[1:2] .= -1 # Expand plot range slightly
 
 ## Set energy integration range
 omega_width = 0.3
-params.binstart[4] = target_ω - (omega_width/2)
+params.binstart[4] = target_ω - (omega_width / 2)
 params.binend[4] = target_ω # `binend` should be inside (e.g. at the center) of the range
 params.binwidth[4] = omega_width
 
-integrate_axes!(params, axes = 3) # Integrate out z direction entirely
+integrate_axes!(params; axes=3) # Integrate out z direction entirely
 
 params
 
@@ -307,27 +313,61 @@ params
 # Since these plots are in reciprocal space, direct lattice vectors are represented
 # as covectors (i.e. coordinate grids) instead of as arrows.
 
-is, counts = intensities_binned(sc,params,new_formula)
+is, counts = intensities_binned(sc, params, new_formula)
 
 fig = Figure()
-ax = Axis(fig[1,1];
-    title="Δω=0.3 meV (Binned)", aspect=true,
-    xlabel = "[H, 0, 0]",
-    ylabel = "[0, K, 0]"
+ax = Axis(
+    fig[1, 1];
+    title="Δω=0.3 meV (Binned)",
+    aspect=true,
+    xlabel="[H, 0, 0]",
+    ylabel="[0, K, 0]",
 )
 bcs = axes_bincenters(params)
-hm = heatmap!(ax,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])
-function add_lines!(ax,params)#hide
-  bes = Sunny.axes_binedges(params)#hide
-  hrange = range(-2,2,length=17)#hide
-  linesegments!(ax,[(Point2f(params.covectors[1,1:3] ⋅ [h,-10,0],params.covectors[2,1:3] ⋅ [h,-10,0]),Point2f(params.covectors[1,1:3] ⋅ [h,10,0],params.covectors[2,1:3] ⋅ [h,10,0])) for h = hrange],linestyle=:dash,color=:black)#hide
-  krange = range(-2,2,length=17)#hide
-  linesegments!(ax,[(Point2f(params.covectors[1,1:3] ⋅ [-10,k,0],params.covectors[2,1:3] ⋅ [-10,k,0]),Point2f(params.covectors[1,1:3] ⋅ [10,k,0],params.covectors[2,1:3] ⋅ [10,k,0])) for k = krange],linestyle=:dash,color=:black)#hide
-  xlims!(ax,bes[1][1],bes[1][end])#hide
-  ylims!(ax,bes[2][1],bes[2][end])#hide
+hm = heatmap!(ax, bcs[1], bcs[2], is[:, :, 1, 1] ./ counts[:, :, 1, 1])
+function add_lines!(ax, params)#hide
+    bes = Sunny.axes_binedges(params)#hide
+    hrange = range(-2, 2; length=17)#hide
+    linesegments!(
+        ax,
+        [
+            (
+                Point2f(
+                    params.covectors[1, 1:3] ⋅ [h, -10, 0],
+                    params.covectors[2, 1:3] ⋅ [h, -10, 0],
+                ),
+                Point2f(
+                    params.covectors[1, 1:3] ⋅ [h, 10, 0],
+                    params.covectors[2, 1:3] ⋅ [h, 10, 0],
+                ),
+            ) for h in hrange
+        ];
+        linestyle=:dash,
+        color=:black,
+    )#hide
+    krange = range(-2, 2; length=17)#hide
+    linesegments!(
+        ax,
+        [
+            (
+                Point2f(
+                    params.covectors[1, 1:3] ⋅ [-10, k, 0],
+                    params.covectors[2, 1:3] ⋅ [-10, k, 0],
+                ),
+                Point2f(
+                    params.covectors[1, 1:3] ⋅ [10, k, 0],
+                    params.covectors[2, 1:3] ⋅ [10, k, 0],
+                ),
+            ) for k in krange
+        ];
+        linestyle=:dash,
+        color=:black,
+    )#hide
+    xlims!(ax, bes[1][1], bes[1][end])#hide
+    return ylims!(ax, bes[2][1], bes[2][end])#hide
 end#hide
-add_lines!(ax,params)
-Colorbar(fig[1,2], hm);
+add_lines!(ax, params)
+Colorbar(fig[1, 2], hm);
 fig
 
 # In the above plot, the dashed-line (direct) lattice vectors are clearly orthogonal.
@@ -352,23 +392,53 @@ metric = latvecs' * I(3) * latvecs
 # the metric and solve all of the problems just mentioned). The canonical choice is to use
 # the combination ``\frac{1}{2}a + b`` of lattice vectors (equiv. ``a^* - \frac{1}{2}b^*``), which is orthogonal to ``a``:
 
-(latvecs * [1/2,1,0]) ⋅ (latvecs * [1,0,0]) == 0
+(latvecs * [1 / 2, 1, 0]) ⋅ (latvecs * [1, 0, 0]) == 0
 
 # This new vector ``\frac{1}{2}a+b`` is visibly orthogonal to ``a`` in real space:
 
 f = Figure()#hide
-ax = Axis(f[1,1])#hide
-arrows!(ax,[Point2f(0,0),Point2f(latvecs[1:2,1] ./ 2)],[Vec2f(latvecs[1:2,1] ./ 2), Vec2f(latvecs[1:2,2])],arrowcolor = :blue,arrowsize = 30.,linewidth = 5.,linecolor = :blue)#hide
-arrows!(ax,[Point2f(0,0)],[Vec2f(latvecs[1:2,:] * [1/2,1,0])],arrowcolor = :red,arrowsize = 30.,linewidth = 5.,linecolor = :red, linestyle = :dash)#hide
-scatter!(ax,[Point2f(latvecs[1:2,:] * [a,b,0]) for a in -1:1, b in -1:1][:],color = :black)#hide
-annotations!(ax,["0","0+b","0+a", "a/2", "b"],[Point2f(0,-0.3),Point2f(latvecs[1:2,2]) .- Vec2f(0,0.3),Point2f(latvecs[1:2,1]) .- Vec2f(0,0.3),Point2f(latvecs[1:2,1] ./ 4) .- Vec2f(0,0.3),Point2f(latvecs[1:2,1] ./ 2) .+ Vec2f(latvecs[1:2,2] ./ 2) .+ Vec2f(0.3,0.3)],color=[:black,:black,:black,:blue,:blue])#hide
+ax = Axis(f[1, 1])#hide
+arrows!(
+    ax,
+    [Point2f(0, 0), Point2f(latvecs[1:2, 1] ./ 2)],
+    [Vec2f(latvecs[1:2, 1] ./ 2), Vec2f(latvecs[1:2, 2])];
+    arrowcolor=:blue,
+    arrowsize=30.0,
+    linewidth=5.0,
+    linecolor=:blue,
+)#hide
+arrows!(
+    ax,
+    [Point2f(0, 0)],
+    [Vec2f(latvecs[1:2, :] * [1 / 2, 1, 0])];
+    arrowcolor=:red,
+    arrowsize=30.0,
+    linewidth=5.0,
+    linecolor=:red,
+    linestyle=:dash,
+)#hide
+scatter!(
+    ax, [Point2f(latvecs[1:2, :] * [a, b, 0]) for a in -1:1, b in -1:1][:]; color=:black
+)#hide
+annotations!(
+    ax,
+    ["0", "0+b", "0+a", "a/2", "b"],
+    [
+        Point2f(0, -0.3),
+        Point2f(latvecs[1:2, 2]) .- Vec2f(0, 0.3),
+        Point2f(latvecs[1:2, 1]) .- Vec2f(0, 0.3),
+        Point2f(latvecs[1:2, 1] ./ 4) .- Vec2f(0, 0.3),
+        Point2f(latvecs[1:2, 1] ./ 2) .+ Vec2f(latvecs[1:2, 2] ./ 2) .+ Vec2f(0.3, 0.3),
+    ];
+    color=[:black, :black, :black, :blue, :blue],
+)#hide
 f#hide
 
 # To use "projection onto the new vector" as a histogram axis, only a single change is needed to the binning parameters.
 # The second covector (previously ``b``) must be swapped out for ``\frac{1}{2}a + b`` (recall that reciprocal space covectors, such
 # as those used in [`BinningParameters`](@ref) correspond to direct space vectors).
 
-params.covectors[2,1:3] = [1/2,1,0] # [1/2,1,0] times [a;b;c] is (a/2 + b)
+params.covectors[2, 1:3] = [1 / 2, 1, 0] # [1/2,1,0] times [a;b;c] is (a/2 + b)
 params#hide
 
 # The second axis of the histogram now agrees with what is conventionally labelled as `[H,-H/2,0]`.
@@ -384,21 +454,22 @@ params.binstart[1], params.binend[1] = -2, 2
 
 ## Adjust vertical axis bounds to account for
 ## length of a/2 + b
-params.binstart[2], params.binend[2] = -2 * sqrt(3/4), 2 * sqrt(3/4)
+params.binstart[2], params.binend[2] = -2 * sqrt(3 / 4), 2 * sqrt(3 / 4)
 
 ## Re-compute in the new coordinate system
-is, counts = intensities_binned(sc,params,new_formula)
+is, counts = intensities_binned(sc, params, new_formula)
 
-fig = Figure(; size=(600,250))#hide
-ax_right = Axis(fig[1,3];#hide
-    title="ω≈$(round(target_ω, digits=2)) meV with Δω=0.3 meV (Binned)", aspect=true,#hide
-    xlabel = "[H, -1/2H, 0]"#hide
+fig = Figure(; size=(600, 250))#hide
+ax_right = Axis(
+    fig[1, 3];#hide
+    title="ω≈$(round(target_ω, digits=2)) meV with Δω=0.3 meV (Binned)",
+    aspect=true,#hide
+    xlabel="[H, -1/2H, 0]",#hide
 )#hide
 bcs = axes_bincenters(params)#hide
-hm_right = heatmap!(ax_right,bcs[1],bcs[2],is[:,:,1,1] ./ counts[:,:,1,1])#hide
-add_lines!(ax_right,params)
-Colorbar(fig[1,4], hm_right);#hide
-
+hm_right = heatmap!(ax_right, bcs[1], bcs[2], is[:, :, 1, 1] ./ counts[:, :, 1, 1])#hide
+add_lines!(ax_right, params)
+Colorbar(fig[1, 4], hm_right);#hide
 
 # For comparison purposes, we will make the same plot using
 # [`intensities_interpolated`](@ref) to emulate zero-width bins.
@@ -410,14 +481,16 @@ Colorbar(fig[1,4], hm_right);#hide
 # Finally, we'll convert these back into the original RLU system for input into Sunny. 
 
 ## New basis matrix
-A = [1    0 0
-     -1/2 1 0
-     0    0 1] 
+A = [
+    1    0 0
+    -1/2 1 0
+    0    0 1
+]
 
 ## Define our grid of wave vectors
 npoints = 60
 as = range(-2, 2, npoints)
-bs = range(-3/√3, 3/√3, npoints)
+bs = range(-3 / √3, 3 / √3, npoints)
 qs_ortho = [[a, b, 0] for a in as, b in bs]
 
 ## Convert to original RLU system for input to Sunny
@@ -426,13 +499,16 @@ qs = [A * q for q in qs_ortho]
 ## Use interpolation to get intensities
 is = intensities_interpolated(sc, qs, new_formula; interpolation=:linear)
 
-ax_left = Axis(fig[1,2];#hide
-    title="ω≈$(round(ωs[ωidx], digits=2)) meV (Interpolated)", aspect=true,#hide
-    xlabel = "[H, -1/2H, 0]", ylabel = "[0, K, 0]"#hide
+ax_left = Axis(
+    fig[1, 2];#hide
+    title="ω≈$(round(ωs[ωidx], digits=2)) meV (Interpolated)",
+    aspect=true,#hide
+    xlabel="[H, -1/2H, 0]",
+    ylabel="[0, K, 0]",#hide
 )#hide
-hm_left = heatmap!(ax_left, as, bs, is[:,:,ωidx])#hide
-add_lines!(ax_left,params)
-Colorbar(fig[1,1], hm_left);#hide
+hm_left = heatmap!(ax_left, as, bs, is[:, :, ωidx])#hide
+add_lines!(ax_left, params)
+Colorbar(fig[1, 1], hm_left);#hide
 fig
 
 # Now, not only are the dashed-line lattice vectors no longer misleadingly orthogonal,
@@ -445,15 +521,18 @@ metric = (latvecs * inv(A'))' * I(3) * (latvecs * inv(A'))
 # [`instant_intensities_interpolated`](@ref). Here we'll reuse the grid of wave
 # vectors we generated above.
 
-is_static = instant_intensities_interpolated(sc, qs, new_formula; interpolation = :linear)
+is_static = instant_intensities_interpolated(sc, qs, new_formula; interpolation=:linear)
 
-hm = heatmap(as, bs, is_static; 
+hm = heatmap(
+    as,
+    bs,
+    is_static;
     axis=(
-        title="Instantaneous Structure Factor", 
-        xlabel = "[H, -1/2H, 0]",
-        ylabel = "[0, K, 0]",
-        aspect=true
-    )
+        title="Instantaneous Structure Factor",
+        xlabel="[H, -1/2H, 0]",
+        ylabel="[0, K, 0]",
+        aspect=true,
+    ),
 )
-Colorbar(hm.figure[1,2], hm.plot)
+Colorbar(hm.figure[1, 2], hm.plot)
 hm

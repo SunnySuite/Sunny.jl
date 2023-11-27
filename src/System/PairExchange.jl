@@ -4,7 +4,7 @@ function validate_bond(cryst::Crystal, bond::Bond)
         error("Bond must connect different atoms.")
     end
     (1 <= bond.i <= natoms(cryst)) || error("Atom index $(bond.i) is out of range.")
-    (1 <= bond.j <= natoms(cryst)) || error("Atom index $(bond.j) is out of range.")
+    return (1 <= bond.j <= natoms(cryst)) || error("Atom index $(bond.j) is out of range.")
 end
 
 # Partition every nonzero bound into one of two sets
@@ -26,17 +26,23 @@ function to_float_or_mat3(J)
     else
         J = Mat3(J)
     end
-    return J::Union{Float64, Mat3}
+    return J::Union{Float64,Mat3}
 end
 
-
 # Internal function only
-function push_coupling!(couplings, bond::Bond, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition)
+function push_coupling!(
+    couplings,
+    bond::Bond,
+    scalar::Float64,
+    bilin::Union{Float64,Mat3},
+    biquad::Union{Float64,Mat5},
+    tensordec::TensorDecomposition,
+)
     # Remove previous coupling on this bond
     filter!(c -> c.bond != bond, couplings)
 
     # If the new coupling is exactly zero, return early
-    iszero(bilin) && iszero(biquad) && isempty(tensordec.data) && return
+    iszero(bilin) && iszero(biquad) && isempty(tensordec.data) && return nothing
 
     # Otherwise, add the new coupling to the list
     isculled = bond_parity(bond)
@@ -44,14 +50,14 @@ function push_coupling!(couplings, bond::Bond, scalar::Float64, bilin::Union{Flo
 
     # Sorting after each insertion will introduce quadratic scaling in length of
     # `couplings`. In typical usage, the `couplings` list will be short.
-    sort!(couplings, by=c->c.isculled)
-    
-    return
+    sort!(couplings; by=c -> c.isculled)
+
+    return nothing
 end
 
 function allapproxequal(a; kwargs...)
     mean = sum(a; init=0.0) / length(a)
-    all(x -> isapprox(mean, x), a)
+    return all(x -> isapprox(mean, x), a)
 end
 
 # If A ≈ α B, then return the scalar α. Otherwise, return A.
@@ -60,24 +66,24 @@ function proportionality_factor(A, B; atol=1e-12)
     maxA = maximum(abs.(A))
     maxB = maximum(abs.(B))
     if isapprox(A / maxA, B / maxB; atol)
-        return maxA/maxB
+        return maxA / maxB
     elseif isapprox(A / maxA, -B / maxB; atol)
-        return -maxA/maxB
+        return -maxA / maxB
     else
         return A
     end
 end
 
 function decompose_general_coupling(op, N1, N2; extract_parts)
-    @assert size(op) == (N1*N2, N1*N2)
+    @assert size(op) == (N1 * N2, N1 * N2)
 
     gen1 = spin_matrices_of_dim(; N=N1)
     gen2 = spin_matrices_of_dim(; N=N2)
 
     # Remove scalar part
     scalar = real(tr(op) / size(op, 1))
-    op = op - scalar*I
-    
+    op = op - scalar * I
+
     if extract_parts
         # Remove bilinear part
         bilin = zeros(3, 3)
@@ -108,7 +114,9 @@ function decompose_general_coupling(op, N1, N2; extract_parts)
         bilin = biquad = 0.0
     end
 
-    return scalar, bilin, biquad, TensorDecomposition(gen1, gen2, svd_tensor_expansion(op, N1, N2))
+    return scalar,
+    bilin, biquad,
+    TensorDecomposition(gen1, gen2, svd_tensor_expansion(op, N1, N2))
 end
 
 function Base.zero(::Type{TensorDecomposition})
@@ -142,18 +150,24 @@ function transform_coupling_by_symmetry(tensordec::TensorDecomposition, R, parit
     # transform as `A -> U A U'` so that the expected energy on a bond `⟨A⟩⟨B⟩`
     # is invariant. By analogy, spin rotates as `S -> R S` and the 3×3 exchange
     # matrix transforms as `J -> R J Rᵀ` to preserve `Sᵀ J S`.
-    data = [(Hermitian(U1*A*U1'), Hermitian(U2*B*U2')) for (A, B) in data]
+    data = [(Hermitian(U1 * A * U1'), Hermitian(U2 * B * U2')) for (A, B) in data]
     return TensorDecomposition(gen1, gen2, data)
 end
 
-
-function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition, bond::Bond)
+function set_pair_coupling_aux!(
+    sys::System,
+    scalar::Float64,
+    bilin::Union{Float64,Mat3},
+    biquad::Union{Float64,Mat5},
+    tensordec::TensorDecomposition,
+    bond::Bond,
+)
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
     if !isnothing(sys.origin)
         set_pair_coupling_aux!(sys.origin, scalar, bilin, biquad, tensordec, bond)
         transfer_interactions!(sys, sys.origin)
-        return
+        return nothing
     end
 
     # Simple checks on bond indices
@@ -180,17 +194,18 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
     if any(x -> x.bond == bond, ints[bond.i].pair)
         warn_coupling_override("Overriding coupling for $bond.")
     end
-    
+
     # General interactions require SU(N) mode
     if !isempty(tensordec.data)
-        sys.mode == :SUN || error("Interactions beyond biquadratic not supported in dipole mode.")
+        sys.mode == :SUN ||
+            error("Interactions beyond biquadratic not supported in dipole mode.")
     end
 
     # Renormalize biquadratic interactions
     if sys.mode == :dipole
         S1 = spin_label(sys, bond.i)
         S2 = spin_label(sys, bond.j)
-        biquad *= (1 - 1/2S1) * (1 - 1/2S2)
+        biquad *= (1 - 1 / 2S1) * (1 - 1 / 2S2)
     end
 
     # Propagate all couplings by symmetry
@@ -203,7 +218,6 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
         end
     end
 end
-
 
 """
     set_pair_coupling!(sys::System, op, bond)
@@ -229,22 +243,26 @@ set_pair_coupling!(sys, Si'*J1*Sj + (Si'*J2*Sj)^2, bond)
 
 See also [`spin_matrices`](@ref), [`to_product_space`](@ref).
 """
-function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_parts=true) where N
+function set_pair_coupling!(
+    sys::System{N}, op::AbstractMatrix, bond; extract_parts=true
+) where {N}
     is_homogeneous(sys) || error("Use `set_pair_coupling_at!` for an inhomogeneous system.")
 
     if sys.mode == :dipole_large_S
         error("Symbolic operators required for mode `:dipole_large_S`.")
     end
 
-    N1 = Int(2spin_label(sys, bond.i)+1)
-    N2 = Int(2spin_label(sys, bond.j)+1)
+    N1 = Int(2spin_label(sys, bond.i) + 1)
+    N2 = Int(2spin_label(sys, bond.j) + 1)
     scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; extract_parts)
 
     set_pair_coupling_aux!(sys, scalar, bilin, biquad, tensordec, bond)
-    return
+    return nothing
 end
 
-function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=true) where N
+function set_pair_coupling!(
+    sys::System{N}, fn::Function, bond; extract_parts=true
+) where {N}
     if sys.mode == :dipole_large_S
         error("General couplings not yet supported for mode `:dipole_large_S`.")
     end
@@ -253,9 +271,8 @@ function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=tr
     S2 = spin_label(sys, bond.j)
     Si, Sj = to_product_space(spin_matrices.([S1, S2])...)
     set_pair_coupling!(sys, fn(Si, Sj), bond; extract_parts)
-    return
+    return nothing
 end
-
 
 """
     set_exchange!(sys::System, J, bond::Bond)
@@ -288,23 +305,27 @@ J2 = 2*I + dmvec([0,0,3])
 set_exchange!(sys, J2, bond)
 ```
 """
-function set_exchange!(sys::System{N}, J, bond::Bond; biquad=nothing, large_S=nothing) where N
+function set_exchange!(
+    sys::System{N}, J, bond::Bond; biquad=nothing, large_S=nothing
+) where {N}
     if !isnothing(biquad)
         @warn "The `biquad` argument to `set_exchange!` will soon be removed! Use `set_pair_coupling!` instead."
-        !isnothing(large_S) && @error "The `large_S` argument is no longer supported. Instead construct system with mode `dipole_large_S`."
-        set_pair_coupling!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, bond)
-        return
+        !isnothing(large_S) &&
+            @error "The `large_S` argument is no longer supported. Instead construct system with mode `dipole_large_S`."
+        set_pair_coupling!(sys, (Si, Sj) -> Si' * J * Sj + biquad * (Si' * Sj)^2, bond)
+        return nothing
     end
 
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
     bilin = to_float_or_mat3(J)
-    set_pair_coupling_aux!(sys, 0.0, bilin, 0.0, zero(TensorDecomposition), bond)
+    return set_pair_coupling_aux!(sys, 0.0, bilin, 0.0, zero(TensorDecomposition), bond)
 end
-
 
 # Converts two sites to a bond with indices for possibly reshaped unit cell. For
 # internal use only.
-function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2::CartesianIndex{4}, n_ref) where N
+function sites_to_internal_bond(
+    sys::System{N}, site1::CartesianIndex{4}, site2::CartesianIndex{4}, n_ref
+) where {N}
     (; crystal, latsize) = sys
 
     n0 = Tuple(to_cell(site2)) .- Tuple(to_cell(site1))
@@ -321,9 +342,9 @@ function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2:
             error("Incompatible displacement specified")
         end
     end
-    
+
     # Otherwise, search over all possible wrappings of the bond
-    ns = view([n0 .+ latsize .* (i,j,k) for i in -1:1, j in -1:1, k in -1:1], :)
+    ns = view([n0 .+ latsize .* (i, j, k) for i in -1:1, j in -1:1, k in -1:1], :)
     bonds = map(ns) do n
         Bond(to_atom(site1), to_atom(site2), n)
     end
@@ -346,21 +367,30 @@ function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2:
     end
 end
 
-
-function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition, site1::Site, site2::Site, offset)
+function set_pair_coupling_at_aux!(
+    sys::System,
+    scalar::Float64,
+    bilin::Union{Float64,Mat3},
+    biquad::Union{Float64,Mat5},
+    tensordec::TensorDecomposition,
+    site1::Site,
+    site2::Site,
+    offset,
+)
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
     ints = interactions_inhomog(sys)
 
     # General interactions require SU(N) mode
     if !isempty(tensordec.data)
-        sys.mode == :SUN || error("Interactions beyond biquadratic not supported in dipole mode.")
+        sys.mode == :SUN ||
+            error("Interactions beyond biquadratic not supported in dipole mode.")
     end
 
     # Renormalize biquadratic interactions
     if sys.mode == :dipole
         S1 = spin_label(sys, to_atom(site1))
         S2 = spin_label(sys, to_atom(site2))
-        biquad *= (1 - 1/2S1) * (1 - 1/2S2)
+        biquad *= (1 - 1 / 2S1) * (1 - 1 / 2S2)
     end
 
     site1 = to_cartesian(site1)
@@ -368,7 +398,9 @@ function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Fl
     bond = sites_to_internal_bond(sys, site1, site2, offset)
 
     push_coupling!(ints[site1].pair, bond, scalar, bilin, biquad, tensordec)
-    push_coupling!(ints[site2].pair, reverse(bond), scalar, bilin', biquad', reverse(tensordec))
+    return push_coupling!(
+        ints[site2].pair, reverse(bond), scalar, bilin', biquad', reverse(tensordec)
+    )
 end
 
 """
@@ -388,16 +420,29 @@ For more general interactions, such as biquadratic, use
 
 See also [`set_exchange!`](@ref).
 """
-function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad=nothing, large_S=nothing, offset=nothing) where N
+function set_exchange_at!(
+    sys::System{N},
+    J,
+    site1::Site,
+    site2::Site;
+    biquad=nothing,
+    large_S=nothing,
+    offset=nothing,
+) where {N}
     if !isnothing(biquad)
         @warn "The `biquad` argument to `set_exchange_at!` will soon be removed! Use `set_pair_coupling_at!` instead."
-        !isnothing(large_S) && @error "The `large_S` argument is no longer supported. Instead construct system with mode `dipole_large_S`."
-        set_pair_coupling_at!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, site1, site2; offset)
-        return
+        !isnothing(large_S) &&
+            @error "The `large_S` argument is no longer supported. Instead construct system with mode `dipole_large_S`."
+        set_pair_coupling_at!(
+            sys, (Si, Sj) -> Si' * J * Sj + biquad * (Si' * Sj)^2, site1, site2; offset
+        )
+        return nothing
     end
 
-    set_pair_coupling_at_aux!(sys, 0.0, J, 0.0, zero(TensorDecomposition), site1, site2, offset)
-    return
+    set_pair_coupling_at_aux!(
+        sys, 0.0, J, 0.0, zero(TensorDecomposition), site1, site2, offset
+    )
+    return nothing
 end
 
 """
@@ -417,20 +462,26 @@ If the system is relatively small, the direction of the bond can be ambiguous
 due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
 `offset` vector, in multiples of unit cells.
 """
-function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, site2::Site; offset=nothing) where N
+function set_pair_coupling_at!(
+    sys::System{N}, op::AbstractMatrix, site1::Site, site2::Site; offset=nothing
+) where {N}
     if sys.mode == :dipole_large_S
         error("Symbolic operators required for mode `:dipole_large_S`.")
     end
 
-    N1 = Int(2spin_label(sys, to_atom(site1))+1)
-    N2 = Int(2spin_label(sys, to_atom(site2))+1)
-    scalar, bilin, biquad, tensordec = decompose_general_coupling(op, N1, N2; extract_parts=true)
+    N1 = Int(2spin_label(sys, to_atom(site1)) + 1)
+    N2 = Int(2spin_label(sys, to_atom(site2)) + 1)
+    scalar, bilin, biquad, tensordec = decompose_general_coupling(
+        op, N1, N2; extract_parts=true
+    )
 
     set_pair_coupling_at_aux!(sys, scalar, bilin, biquad, tensordec, site1, site2, offset)
-    return
+    return nothing
 end
 
-function set_pair_coupling_at!(sys::System{N}, fn::Function, site1::Site, site2::Site; offset=nothing) where N
+function set_pair_coupling_at!(
+    sys::System{N}, fn::Function, site1::Site, site2::Site; offset=nothing
+) where {N}
     if sys.mode == :dipole_large_S
         error("General couplings not yet supported for mode `:dipole_large_S`.")
     end
@@ -439,9 +490,8 @@ function set_pair_coupling_at!(sys::System{N}, fn::Function, site1::Site, site2:
     S2 = spin_label(sys, to_atom(site2))
     Si, Sj = to_product_space(spin_matrices.([S1, S2])...)
     set_pair_coupling_at!(sys, fn(Si, Sj), site1, site2; offset)
-    return
+    return nothing
 end
-
 
 """
     remove_periodicity!(sys::System, dims)
@@ -456,7 +506,7 @@ system must support inhomogeneous interactions via [`to_inhomogeneous`](@ref).
 remove_periodicity!(sys::System, (true, false, true))
 ```
 """
-function remove_periodicity!(sys::System{N}, dims) where N
+function remove_periodicity!(sys::System{N}, dims) where {N}
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
 
     for site in eachsite(sys)
@@ -470,7 +520,6 @@ function remove_periodicity!(sys::System{N}, dims) where N
         end
     end
 end
-
 
 """
     dmvec(D)
@@ -487,7 +536,9 @@ Useful in the context of [`set_exchange!`](@ref).
 """
 function dmvec(D)
     D = Vec3(D)
-    return SA[  0.0  D[3] -D[2]
-              -D[3]   0.0  D[1]
-               D[2] -D[1]   0.0 ]
+    return SA[
+          0.0  D[3] -D[2]
+        -D[3]   0.0  D[1]
+         D[2] -D[1]   0.0
+    ]
 end

@@ -7,11 +7,10 @@ of `A`. `extend` specifies how much to shift the upper and lower bounds as a
 percentage of the total scale of the estimated eigenvalues.
 """
 function eigbounds(A, niters; extend=0.0)
-    lo, hi = lanczos(A, niters) |> eigvals |> xs -> (first(xs), last(xs))
-    slack = extend*(hi-lo)
-    return lo-slack, hi+slack
+    lo, hi = (xs -> (first(xs), last(xs)))(eigvals(lanczos(A, niters)))
+    slack = extend * (hi - lo)
+    return lo - slack, hi + slack
 end
-
 
 """
     lanczos(A, niters)
@@ -25,7 +24,7 @@ function lanczos(A, niters)
     N = size(A, 1)
 
     αs = zeros(Float64, niters)    # Main diagonal 
-    βs = zeros(Float64, niters-1)  # Off diagonal
+    βs = zeros(Float64, niters - 1)  # Off diagonal
     buf = zeros(ComplexF64, N, 3)  # Vector buffer -- don't technically need 3 columns, but more legible this way 
 
     lanczos_aux!(αs, βs, buf, A, niters)  # Call non-allocating internal Lanczos function
@@ -33,25 +32,24 @@ function lanczos(A, niters)
     return SymTridiagonal(αs, βs)
 end
 
-
 function lanczos_aux!(αs, βs, buf, A, niters)
-    v, vprev, w = view(buf,:,1), view(buf,:,2), view(buf,:,3)
+    v, vprev, w = view(buf, :, 1), view(buf, :, 2), view(buf, :, 3)
 
     @label initialize_lanczos
     randn!(v)
     normalize!(v)
     mul!(w, A, v)
-    αs[1] = real(w⋅v)
-    @. w = w - αs[1]*v
+    αs[1] = real(w ⋅ v)
+    @. w = w - αs[1] * v
 
     for j in 2:niters
         v, vprev = vprev, v
         βs[j-1] = norm(w)
         (abs(βs[j-1]) < 1e-12) && (@goto initialize_lanczos)
-        @. v = w/βs[j-1]
+        @. v = w / βs[j-1]
         mul!(w, A, v)
-        αs[j] = real(w⋅v)
-        @. w = w - αs[j]*v - βs[j-1]*vprev
+        αs[j] = real(w ⋅ v)
+        @. w = w - αs[j] * v - βs[j-1] * vprev
     end
 
     return nothing
