@@ -11,13 +11,16 @@ function Base.show(io::IO, ::MIME"text/plain", obs::ObservableInfo)
     observable_names = Dict(value => key for (key, value) in obs.observable_ixs)
 
     for i in 1:length(obs.observables)
-        print(io, if i == 1
-            "╔ "
-        elseif i == length(obs.observables)
-            "╚ "
-        else
-            "║ "
-        end)
+        print(
+            io,
+            if i == 1
+                "╔ "
+            elseif i == length(obs.observables)
+                "╚ "
+            else
+                "║ "
+            end,
+        )
         for j in 1:length(obs.observables)
             if i > j
                 print(io, "⋅ ")

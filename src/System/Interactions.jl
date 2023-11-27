@@ -14,7 +14,7 @@ function warn_coupling_override(str)
     OverrideWarningCnt < OverrideWarningMax && @info str
     OverrideWarningCnt += 1
     return OverrideWarningCnt == OverrideWarningMax &&
-        @info "Suppressing future override notifications."
+           @info "Suppressing future override notifications."
 end
 
 # Creates a copy of the Vector of PairCouplings. This is useful when cloning a
