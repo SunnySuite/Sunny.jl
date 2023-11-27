@@ -182,7 +182,7 @@ end
 
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
     # Print a warning if non-conventional lattice vectors are detected.
-    try cell_type(latvecs) catch(e) @warn e.msg end
+    try cell_type(latvecs) catch e @warn e.msg end
 
     for i in 1:length(positions)
         for j in i+1:length(positions)
