@@ -1,7 +1,10 @@
 # Version History
 
-## v0.5.7
+## v0.5.8
 (upcoming)
+
+## v0.5.7
+(Nov 26, 2023)
 
 * Update form factor coefficients, which now include `Mn5`.
 * Fix [`merge_correlations`](@ref) and the [Parallelizing Calculations](@ref)
