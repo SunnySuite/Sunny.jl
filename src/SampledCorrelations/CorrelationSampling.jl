@@ -80,7 +80,7 @@ function no_processing(::SampledCorrelations)
     nothing
 end
 
-function accum_sample!(sc::SampledCorrelations;alg = :no_window)
+function accum_sample!(sc::SampledCorrelations;alg = :no_window,max_lag_frac = Inf)
     (; data, variance, observables, samplebuf, nsamples, fft!) = sc
     natoms = size(samplebuf,5)
 
@@ -95,11 +95,11 @@ function accum_sample!(sc::SampledCorrelations;alg = :no_window)
     right_zero_buffer[:,:,:,:,:,right_zero_ix] .= 0
 
     # Number of terms contributing to each auto-correlation sum due to zero-padding
-    statistical_power = reshape(time_T .- abs.(FFTW.fftfreq(time_2T,time_2T)),1,1,1,time_2T)
+    time_lag = abs.(FFTW.fftfreq(time_2T,time_2T))
+    time_lag_frac = time_lag ./ time_T
+    statistical_power = reshape(time_T .- time_lag,1,1,1,time_2T)
     statistical_power[statistical_power .== 0] .= Inf
 
-    #fft! * samplebuf # Apply pre-planned and pre-normalized FFT
-    #fft! * left_zero_buffer
     fft! * right_zero_buffer
     count = nsamples[1] += 1
 
@@ -120,7 +120,9 @@ function accum_sample!(sc::SampledCorrelations;alg = :no_window)
 
         correlation .*= 2 # Cancels the factor of two in the denominator of ifft
 
-        #correlation ./= statistical_power # Sam N.B.: I have this commented out locally
+        correlation ./= statistical_power # Divide by number of terms actually contributing to the sum
+
+        correlation[:,:,:,time_lag_frac .> max_lag_frac] .= 0
 
         if alg == :window
           correlation .*= reshape(cos.(range(0,π,length = time_2T)).^2,(1,1,1,time_2T))
@@ -184,7 +186,7 @@ separately prior to calling `add_sample!`. Alternatively, the initial spin
 configuration may be copied into a new `System` and this new `System` can be
 passed to `add_sample!`.
 """
-function add_sample!(sc::SampledCorrelations, sys::System; alg = :no_window, processtraj! = no_processing) 
+function add_sample!(sc::SampledCorrelations, sys::System; alg = :no_window, max_lag_frac = Inf, processtraj! = no_processing) 
     new_sample!(sc, sys; processtraj!)
-    accum_sample!(sc;alg)
+    accum_sample!(sc;alg,max_lag_frac)
 end
