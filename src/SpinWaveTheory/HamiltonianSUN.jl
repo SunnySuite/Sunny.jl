@@ -119,7 +119,104 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     end
 end
 
+function add_onsite_coupling_SUN!(y, x, op, swt, atom)
+    sys = swt.sys
+    N = sys.Ns[1] 
+    nflavors = N - 1 
+    L = nflavors * natoms(sys.crystal)   
 
-function hamiltonian_multiply_SUN!(out, in, swt, q_reshaped)
+    x1, x2 = view(x, 1:L), view(x, L+1:2L)
+    y1, y2 = view(y, 1:L), view(y, L+1:2L)
+    x1 = reshape(x1, nflavors, natoms(sys.crystal))
+    x2 = reshape(x2, nflavors, natoms(sys.crystal))
+    y1 = reshape(y1, nflavors, natoms(sys.crystal))
+    y2 = reshape(y2, nflavors, natoms(sys.crystal))
 
+
+    for m in 2:N
+        for n in 2:N
+            c = 0.5 * (op[m, n] - δ(m, n) * op[1, 1])
+            y1[m-1, atom] += c * x1[n-1, atom]
+            y2[n-1, atom] += c * x2[m-1, atom]
+        end
+    end
+end
+
+function add_pair_coupling_SUN!(x, y, J, Ti, Tj, swt, phase, bond)
+    (; i, j) = bond
+    sys = swt.sys
+    N = sys.Ns[1] 
+    nflavors = N - 1 
+    L = nflavors * natoms(sys.crystal)   
+
+    x1, x2 = view(x, 1:L), view(x, L+1:2L)
+    y1, y2 = view(y, 1:L), view(y, L+1:2L)
+    x1 = reshape(x1, nflavors, natoms(sys.crystal))
+    x2 = reshape(x2, nflavors, natoms(sys.crystal))
+    y1 = reshape(y1, nflavors, natoms(sys.crystal))
+    y2 = reshape(y2, nflavors, natoms(sys.crystal))
+
+    for m in 2:N
+        for n in 2:N
+            c = 0.5 * dot_no_conj(Ti[m,n] - δ(m,n)*Ti[1,1], J, Tj[1,1])
+            y1[m-1, i] += c * x1[n-1, i] 
+            y2[n-1, i] += c * x2[m-1, i]
+
+            c = 0.5 * dot_no_conj(Ti[1,1], J, Tj[m,n] - δ(m,n)*Tj[1,1])
+            y1[m-1, j] += c * x1[n-1, j]
+            y2[n-1, j] += c * x2[m-1, j]
+
+            c = 0.5 * dot_no_conj(Ti[m,1], J, Tj[1,n])
+            y1[m-1, i] += c * phase * x1[n-1, j]
+            y2[n-1, j] += c * conj(phase) * x2[m-1, i]
+
+            c = 0.5 * dot_no_conj(Ti[1,m], J, Tj[n,1])
+            y1[n-1, j] += c * conj(phase) * x1[m-1, i]
+            y2[m-1, i] += c * phase * x2[n-1, j]
+            
+            c = 0.5 * dot_no_conj(Ti[m,1], J, Tj[n,1])
+            y1[m-1, i] += c * phase * x2[n-1, j]
+            y1[n-1, j] += c * conj(phase) * x2[m-1, i]
+            y2[m-1, i] += conj(c * phase) * x1[n-1, j]
+            y2[n-1, j] += conj(c * conj(phase)) * x1[m-1, i]
+        end
+    end
+end
+
+
+
+function hamiltonian_multiply_SUN!(y, x, swt, q_reshaped)
+    (; sys, data) = swt
+    (; zeeman_operators) = data
+
+    # Add single-site terms (single-site anisotropy and external field)
+    # Couple percent speedup if this is removed and accumulated into onsite term
+    # (not pursuing for now to maintain parallelism with dipole mode). 
+    for atom in 1:natoms(sys.crystal)
+        zeeman = view(zeeman_operators, :, :, atom)
+        add_onsite_coupling_SUN!(y, x, zeeman, swt, atom)
+    end
+
+    # Add pair interactions that use explicit bases
+    for (atom, int) in enumerate(sys.interactions_union)
+
+        # Set the onsite term
+        add_onsite_coupling_SUN!(y, x, int.onsite, swt, atom)
+
+        for coupling in int.pair
+            # Extract information common to bond
+            (; isculled, bond) = coupling
+            isculled && break
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Small savings for calculating this outside of swt_pair_coupling!
+
+            for (A, B) in coupling.general.data 
+                add_pair_coupling_SUN!(x, y, 1.0, A, B, swt, phase, bond)
+            end
+        end
+    end
+
+    # # Add small constant shift for positive-definiteness
+    @. y += swt.energy_ϵ * x
+
+    nothing
 end
