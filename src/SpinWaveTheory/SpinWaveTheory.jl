@@ -136,11 +136,11 @@ function swt_data_sun(sys::System{N}, obs) where N
         basis = view(local_unitaries, :, :, atom)
         # First axis of local quantization basis is along the 
         # ground-state polarization axis
-        basis[:, 1] .= sys.coherents[1, 1, 1, atom]
+        basis[:, N] .= sys.coherents[1, 1, 1, atom]
         
         # Remaining axes are arbitrary but mutually orthogonal
         # and orthogonal to the first axis
-        basis[:, 2:N] .= nullspace(basis[:, 1]')
+        basis[:, 1:N-1] .= nullspace(basis[:, N]')
     end
 
     # Preallocate buffers for rotate operators and observables.

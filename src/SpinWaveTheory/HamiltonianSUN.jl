@@ -10,11 +10,11 @@ function swt_onsite_coupling!(H, op, swt, atom)
     H11 = reshape(view(H, 1:L, 1:L), newdims)
     H22 = reshape(view(H, L+1:2L, L+1:2L), newdims)
 
-    for m in 2:N
-        for n in 2:N
-            c = 0.5 * (op[m, n] - δ(m, n) * op[1, 1])
-            H11[m-1, atom, n-1, atom] += c
-            H22[n-1, atom, m-1, atom] += c
+    for m in 1:N-1
+        for n in 1:N-1
+            c = 0.5 * (op[m, n] - δ(m, n) * op[N, N])
+            H11[m, atom, n, atom] += c
+            H22[n, atom, m, atom] += c
         end
     end
 end
@@ -39,27 +39,27 @@ function swt_pair_coupling!(H, J, Ti, Tj, swt, phase, bond)
     H12 = reshape(view(H, 1:L, L+1:2L), newdims)
     H22 = reshape(view(H, L+1:2L, L+1:2L), newdims)
 
-    for m in 2:N
-        for n in 2:N
-            c = 0.5 * dot_no_conj(Ti[m,n] - δ(m,n)*Ti[1,1], J, Tj[1,1])
-            H11[m-1, i, n-1, i] += c
-            H22[n-1, i, m-1, i] += c
+    for m in 1:N-1
+        for n in 1:N-1
+            c = 0.5 * dot_no_conj(Ti[m,n] - δ(m,n)*Ti[N,N], J, Tj[N,N])
+            H11[m, i, n, i] += c
+            H22[n, i, m, i] += c
 
-            c = 0.5 * dot_no_conj(Ti[1,1], J, Tj[m,n] - δ(m,n)*Tj[1,1])
-            H11[m-1, j, n-1, j] += c
-            H22[n-1, j, m-1, j] += c
+            c = 0.5 * dot_no_conj(Ti[N,N], J, Tj[m,n] - δ(m,n)*Tj[N,N])
+            H11[m, j, n, j] += c
+            H22[n, j, m, j] += c
 
-            c = 0.5 * dot_no_conj(Ti[m,1], J, Tj[1,n])
-            H11[m-1, i, n-1, j] += c * phase
-            H22[n-1, j, m-1, i] += c * conj(phase)
+            c = 0.5 * dot_no_conj(Ti[m,N], J, Tj[N,n])
+            H11[m, i, n, j] += c * phase
+            H22[n, j, m, i] += c * conj(phase)
 
-            c = 0.5 * dot_no_conj(Ti[1,m], J, Tj[n,1])
-            H11[n-1, j, m-1, i] += c * conj(phase)
-            H22[m-1, i, n-1, j] += c * phase
+            c = 0.5 * dot_no_conj(Ti[N,m], J, Tj[n,N])
+            H11[n, j, m, i] += c * conj(phase)
+            H22[m, i, n, j] += c * phase
             
-            c = 0.5 * dot_no_conj(Ti[m,1], J, Tj[n,1])
-            H12[m-1, i, n-1, j] += c * phase
-            H12[n-1, j, m-1, i] += c * conj(phase)
+            c = 0.5 * dot_no_conj(Ti[m,N], J, Tj[n,N])
+            H12[m, i, n, j] += c * phase
+            H12[n, j, m, i] += c * conj(phase)
         end
     end
 end
@@ -133,11 +133,11 @@ function add_onsite_coupling_SUN!(y, x, op, swt, atom)
     y2 = reshape(y2, nflavors, natoms(sys.crystal))
 
 
-    for m in 2:N
-        for n in 2:N
-            c = 0.5 * (op[m, n] - δ(m, n) * op[1, 1])
-            y1[m-1, atom] += c * x1[n-1, atom]
-            y2[n-1, atom] += c * x2[m-1, atom]
+    for m in 1:N-1
+        for n in 1:N-1
+            c = 0.5 * (op[m, n] - δ(m, n) * op[N, N])
+            y1[m, atom] += c * x1[n, atom]
+            y2[n, atom] += c * x2[m, atom]
         end
     end
 end
@@ -156,29 +156,29 @@ function add_pair_coupling_SUN!(x, y, J, Ti, Tj, swt, phase, bond)
     y1 = reshape(y1, nflavors, natoms(sys.crystal))
     y2 = reshape(y2, nflavors, natoms(sys.crystal))
 
-    for m in 2:N
-        for n in 2:N
-            c = 0.5 * dot_no_conj(Ti[m,n] - δ(m,n)*Ti[1,1], J, Tj[1,1])
-            y1[m-1, i] += c * x1[n-1, i] 
-            y2[n-1, i] += c * x2[m-1, i]
+    for m in 1:N-1
+        for n in 1:N-1
+            c = 0.5 * dot_no_conj(Ti[m,n] - δ(m,n)*Ti[N,N], J, Tj[N,N])
+            y1[m, i] += c * x1[n, i] 
+            y2[n, i] += c * x2[m, i]
 
-            c = 0.5 * dot_no_conj(Ti[1,1], J, Tj[m,n] - δ(m,n)*Tj[1,1])
-            y1[m-1, j] += c * x1[n-1, j]
-            y2[n-1, j] += c * x2[m-1, j]
+            c = 0.5 * dot_no_conj(Ti[N,N], J, Tj[m,n] - δ(m,n)*Tj[N,N])
+            y1[m, j] += c * x1[n, j]
+            y2[n, j] += c * x2[m, j]
 
-            c = 0.5 * dot_no_conj(Ti[m,1], J, Tj[1,n])
-            y1[m-1, i] += c * phase * x1[n-1, j]
-            y2[n-1, j] += c * conj(phase) * x2[m-1, i]
+            c = 0.5 * dot_no_conj(Ti[m,N], J, Tj[N,n])
+            y1[m, i] += c * phase * x1[n, j]
+            y2[n, j] += c * conj(phase) * x2[m, i]
 
-            c = 0.5 * dot_no_conj(Ti[1,m], J, Tj[n,1])
-            y1[n-1, j] += c * conj(phase) * x1[m-1, i]
-            y2[m-1, i] += c * phase * x2[n-1, j]
+            c = 0.5 * dot_no_conj(Ti[N,m], J, Tj[n,N])
+            y1[n, j] += c * conj(phase) * x1[m, i]
+            y2[m, i] += c * phase * x2[n, j]
             
-            c = 0.5 * dot_no_conj(Ti[m,1], J, Tj[n,1])
-            y1[m-1, i] += c * phase * x2[n-1, j]
-            y1[n-1, j] += c * conj(phase) * x2[m-1, i]
-            y2[m-1, i] += conj(c * phase) * x1[n-1, j]
-            y2[n-1, j] += conj(c * conj(phase)) * x1[m-1, i]
+            c = 0.5 * dot_no_conj(Ti[m,N], J, Tj[n,N])
+            y1[m, i] += c * phase * x2[n, j]
+            y1[n, j] += c * conj(phase) * x2[m, i]
+            y2[m, i] += conj(c * phase) * x1[n, j]
+            y2[n, j] += conj(c * conj(phase)) * x1[m, i]
         end
     end
 end

@@ -485,6 +485,47 @@ end
     @test H_conventional ≈ H_generalized
 end
 
+@testitem "Equivalence of dense and sparse Hamiltonian constructions" begin
+    using LinearAlgebra
+
+    function onehot(i, n)
+        out = zeros(n)
+        out[i] = 1.0
+        return out
+    end
+
+
+    # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
+    dims = (8, 1, 1)
+    cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]]) 
+    mode = :SUN
+    sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], mode)
+
+    S = spin_matrices(; N=3)
+    S1, S2 = Sunny.to_product_space(S, S)
+    set_pair_coupling!(sys, -S1'*S2, Bond(1,1,[1,0,0]); extract_parts=true)
+    set_onsite_coupling!(sys, S[3]^2, 1)
+    set_external_field!(sys, [0,0,0.1])
+
+    randomize_spins!(sys)
+    minimize_energy!(sys; maxiters=10_000)
+    swt = SpinWaveTheory(sys)
+
+    # Construct Hamiltonian (for some q) in the usual way 
+    N = swt.sys.Ns[1]
+    L = (N-1) * Sunny.natoms(swt.sys.crystal)
+    H1 = zeros(ComplexF64, 2L, 2L)
+    q = Sunny.Vec3([0.5,0,0])
+    Sunny.swt_hamiltonian_SUN!(H1, swt, q)
+
+    # Construct Hamiltonian from sparse matrix-vector multiplies
+    H2 = zeros(ComplexF64, 2L, 2L)
+    for i in 1:2L
+        Sunny.hamiltonian_multiply_SUN!(view(H2, :, i), onehot(i, 2L), swt, q)
+    end
+
+    @test isapprox(H1, H2; atol=1e-12)
+end
 @testitem "Spin ladder intensities reference test" begin
     using LinearAlgebra
 
