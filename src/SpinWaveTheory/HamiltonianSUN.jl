@@ -73,7 +73,7 @@ end
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
-    (; onsite_operator, dipole_operators, quadrupole_operators) = data
+    (; zeeman_operators) = data
 
     N = sys.Ns[1]                       # Dimension of SU(N) coherent states
     nflavors = N - 1                    # Number of local boson flavors
@@ -84,50 +84,27 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     H .= 0
 
     # Add single-site terms (single-site anisotropy and external field)
+    # Probably move into anisotropy during construction?
     for atom in 1:natoms(sys.crystal)
-        site_aniso = view(onsite_operator, :, :, atom)
-        swt_onsite_coupling!(H, site_aniso, swt, atom)
+        zeeman = view(zeeman_operators, :, :, atom)
+        swt_onsite_coupling!(H, zeeman, swt, atom)
     end
 
     # Add pair interactions that use explicit bases
-    for ints in sys.interactions_union
-        for coupling in ints.pair
+    for (atom, int) in enumerate(sys.interactions_union)
+
+        # Set the onsite term
+        swt_onsite_coupling!(H, int.onsite, swt, atom)
+
+        for coupling in int.pair
             # Extract information common to bond
-            (; isculled, bond, bilin, biquad) = coupling
+            (; isculled, bond) = coupling
             isculled && break
             phase = exp(2π*im * dot(q_reshaped, bond.n)) # Small savings for calculating this outside of swt_pair_coupling!
 
-            # Add bilinear interactions.
-            if !iszero(bilin)
-                Jij = bilin :: Union{Float64, Mat3}
-                Si = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.i))
-                Sj = reinterpret(reshape, Sunny.CVec{3}, view(dipole_operators, :, :, :, bond.j))
-
-                swt_pair_coupling!(H, Jij, Si, Sj, swt, phase, bond)
+            for (A, B) in coupling.general.data 
+                swt_pair_coupling!(H, 1.0, A, B, swt, phase, bond)
             end
-
-            # Add biquadratic interactions. If scalar, use scalar_biquad_metric.
-            if !iszero(biquad)
-                Jij = (isa(biquad, Float64) ? biquad * scalar_biquad_metric : biquad) :: Union{Vec5, Mat5}
-                Qi = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.i))
-                Qj = reinterpret(reshape, Sunny.CVec{5}, view(quadrupole_operators, :, :, :, bond.j))
-
-                swt_pair_coupling!(H, Jij, Qi, Qj, swt, phase, bond)
-            end
-        end
-    end
-
-    # Add generalized pair interactions -- ordered by bond so can't iterate
-    # through original interactions as was done for bilinear and biquadratic
-    # interactions.
-    for (bond, operator_pair) in data.bond_operator_pairs 
-        phase = exp(2π*im * dot(q_reshaped, bond.n))
-        for i in axes(operator_pair, 1)
-            J = 1.0
-            A = view(operator_pair, i, :, :, 1)
-            B = view(operator_pair, i, :, :, 2)
-
-            swt_pair_coupling!(H, J, A, B, swt, phase, bond)
         end
     end
 
