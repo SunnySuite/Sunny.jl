@@ -5,16 +5,16 @@ function swt_onsite_coupling!(H, op, swt, atom)
     N = sys.Ns[1] 
     nflavors = N - 1 
     L = nflavors * natoms(sys.crystal)   
-    H11 = view(H, 1:L, 1:L)
-    H22 = view(H, L+1:2L, L+1:2L)
+    newdims = (nflavors, natoms(sys.crystal), nflavors, natoms(sys.crystal))
+
+    H11 = reshape(view(H, 1:L, 1:L), newdims)
+    H22 = reshape(view(H, L+1:2L, L+1:2L), newdims)
 
     for m in 2:N
         for n in 2:N
-            m_idx = (atom-1)*nflavors+m-1
-            n_idx = (atom-1)*nflavors+n-1
             c = 0.5 * (op[m, n] - δ(m, n) * op[1, 1])
-            H11[m_idx, n_idx] += c
-            H22[n_idx, m_idx] += c
+            H11[m-1, atom, n-1, atom] += c
+            H22[n-1, atom, m-1, atom] += c
         end
     end
 end
@@ -28,43 +28,38 @@ end
 # *vector* indexed by α. E.g., if Ti corresponds to the spin operators, then
 # Ti[m,n] returns a vector [Sx[m,n], Sy[m,n], Sz[m,n]]].
 function swt_pair_coupling!(H, J, Ti, Tj, swt, phase, bond)
+    (; i, j) = bond
     sys = swt.sys
     N = sys.Ns[1] 
     nflavors = N - 1 
     L = nflavors * natoms(sys.crystal)   
-    H11 = view(H, 1:L, 1:L)
-    H12 = view(H, 1:L, L+1:2L)
-    H22 = view(H, L+1:2L, L+1:2L)
+    newdims = (nflavors, natoms(sys.crystal), nflavors, natoms(sys.crystal))
 
-    sub_i_M1, sub_j_M1 = bond.i - 1, bond.j - 1
+    H11 = reshape(view(H, 1:L, 1:L), newdims)
+    H12 = reshape(view(H, 1:L, L+1:2L), newdims)
+    H22 = reshape(view(H, L+1:2L, L+1:2L), newdims)
+
     for m in 2:N
-        mM1 = m - 1 
-        i_m = sub_i_M1*nflavors+mM1
-        j_m = sub_j_M1*nflavors+mM1
         for n in 2:N
-            nM1 = n - 1
-            i_n = sub_i_M1*nflavors+nM1
-            j_n = sub_j_M1*nflavors+nM1
-
             c = 0.5 * dot_no_conj(Ti[m,n] - δ(m,n)*Ti[1,1], J, Tj[1,1])
-            H11[i_m, i_n] += c
-            H22[i_n, i_m] += c
+            H11[m-1, i, n-1, i] += c
+            H22[n-1, i, m-1, i] += c
 
             c = 0.5 * dot_no_conj(Ti[1,1], J, Tj[m,n] - δ(m,n)*Tj[1,1])
-            H11[j_m, j_n] += c
-            H22[j_n, j_m] += c
+            H11[m-1, j, n-1, j] += c
+            H22[n-1, j, m-1, j] += c
 
             c = 0.5 * dot_no_conj(Ti[m,1], J, Tj[1,n])
-            H11[i_m, j_n] += c * phase
-            H22[j_n, i_m] += c * conj(phase)
+            H11[m-1, i, n-1, j] += c * phase
+            H22[n-1, j, m-1, i] += c * conj(phase)
 
             c = 0.5 * dot_no_conj(Ti[1,m], J, Tj[n,1])
-            H11[j_n, i_m] += c * conj(phase)
-            H22[i_m, j_n] += c * phase
+            H11[n-1, j, m-1, i] += c * conj(phase)
+            H22[m-1, i, n-1, j] += c * phase
             
             c = 0.5 * dot_no_conj(Ti[m,1], J, Tj[n,1])
-            H12[i_m, j_n] += c * phase
-            H12[j_n, i_m] += c * conj(phase)
+            H12[m-1, i, n-1, j] += c * phase
+            H12[n-1, j, m-1, i] += c * conj(phase)
         end
     end
 end
@@ -84,7 +79,8 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     H .= 0
 
     # Add single-site terms (single-site anisotropy and external field)
-    # Probably move into anisotropy during construction?
+    # Couple percent speedup if this is removed and accumulated into onsite term
+    # (not pursuing for now to maintain parallelism with dipole mode). 
     for atom in 1:natoms(sys.crystal)
         zeeman = view(zeeman_operators, :, :, atom)
         swt_onsite_coupling!(H, zeeman, swt, atom)
@@ -121,4 +117,9 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     for i in 1:2L
         H[i,i] += swt.energy_ϵ
     end
+end
+
+
+function hamiltonian_multiply_SUN!(out, in, swt, q_reshaped)
+
 end

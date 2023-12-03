@@ -159,10 +159,10 @@ function swt_data_sun(sys::System{N}, obs) where N
     # frames and accumulate into onsite_operator_localized.
     (; extfield, gs, units) = sys
     for atom in 1:n_magnetic_atoms
-        # N1 = sys.Ns[:, :, :, atom]
+        N1 = sys.Ns[1, 1, 1, atom]
         B = units.μB * (gs[1, 1, 1, atom]' * extfield[1, 1, 1, atom])
         U = view(local_unitaries, :, :, atom) 
-        Sx, Sy, Sz = map(Sa -> U' * Sa * U, spin_matrices_of_dim(; N))
+        Sx, Sy, Sz = map(Sa -> U' * Sa * U, spin_matrices_of_dim(; N=N1))
         @. zeeman_operators_localized[:, :, atom] -= B[1]*Sx + B[2]*Sy + B[3]*Sz
     end
 
@@ -172,10 +172,11 @@ function swt_data_sun(sys::System{N}, obs) where N
         atom = idx.I[end]   # Get index for unit cell, regardless of type of interactions_union
         int = sys.interactions_union[idx]
 
-        # Rotate onsite anisotropy (NB: could add in Zeeman here, but that might be confusing)
+        # Rotate onsite anisotropy (NB: could add Zeeman term into onsite, but
+        # that might be confusing for maintenance/debugging and the performance
+        # gains are minimal)
         U = local_unitaries[:, :, atom]
-        onsite_new = Hermitian(U' * int.onsite * U)
-        int.onsite = onsite_new 
+        int.onsite = Hermitian(U' * int.onsite * U) 
 
         # Transform pair couplings into tensor decomposition and rotate
         pair_new = PairCoupling[]
