@@ -45,23 +45,23 @@ function swt_pair_coupling!(H, J, Ti, Tj, swt, phase, bond)
 
     for m in 1:N-1
         for n in 1:N-1
-            c = 0.5 * dot_no_conj(Ti[m,n] - δ(m,n)*Ti[N,N], J, Tj[N,N])
+            c = 0.5 * (Ti[m,n] - δ(m,n)*Ti[N,N]) * (Tj[N,N])
             H11[m, i, n, i] += c
             H22[n, i, m, i] += c
 
-            c = 0.5 * dot_no_conj(Ti[N,N], J, Tj[m,n] - δ(m,n)*Tj[N,N])
+            c = 0.5 * Ti[N,N] * (Tj[m,n] - δ(m,n)*Tj[N,N])
             H11[m, j, n, j] += c
             H22[n, j, m, j] += c
 
-            c = 0.5 * dot_no_conj(Ti[m,N], J, Tj[N,n])
+            c = 0.5 * Ti[m,N] * Tj[N,n]
             H11[m, i, n, j] += c * phase
             H22[n, j, m, i] += c * conj(phase)
 
-            c = 0.5 * dot_no_conj(Ti[N,m], J, Tj[n,N])
+            c = 0.5 * Ti[N,m] * Tj[n,N]
             H11[n, j, m, i] += c * conj(phase)
             H22[m, i, n, j] += c * phase
             
-            c = 0.5 * dot_no_conj(Ti[m,N], J, Tj[n,N])
+            c = 0.5 * Ti[m,N] * Tj[n,N]
             H12[m, i, n, j] += c * phase
             H12[n, j, m, i] += c * conj(phase)
         end
@@ -127,7 +127,7 @@ end
 ################################################################################
 # Functions for calculating H*v instead of dense H
 ################################################################################
-function multiply_onsite_coupling_SUN!(y, x, op, swt, atom)
+function multiply_by_onsite_coupling_SUN!(y, x, op, swt, atom)
     sys = swt.sys
     N = sys.Ns[1] 
     nflavors = N - 1 
@@ -144,7 +144,7 @@ function multiply_onsite_coupling_SUN!(y, x, op, swt, atom)
     end
 end
 
-function multiply_pair_coupling_SUN!(x, y, J, Ti, Tj, swt, phase, bond)
+function multiply_by_pair_coupling_SUN!(x, y, J, Ti, Tj, swt, phase, bond)
     (; i, j) = bond
     sys = swt.sys
     N = sys.Ns[1] 
@@ -155,23 +155,23 @@ function multiply_pair_coupling_SUN!(x, y, J, Ti, Tj, swt, phase, bond)
 
     for m in 1:N-1
         for n in 1:N-1
-            c = 0.5 * dot_no_conj(Ti[m,n] - δ(m,n)*Ti[N,N], J, Tj[N,N])
+            c = 0.5 * (Ti[m,n] - δ(m,n)*Ti[N,N]) * Tj[N,N]
             y[m, i, 1] += c * x[n, i, 1] 
             y[n, i, 2] += c * x[m, i, 2]
 
-            c = 0.5 * dot_no_conj(Ti[N,N], J, Tj[m,n] - δ(m,n)*Tj[N,N])
+            c = 0.5 * Ti[N,N] * (Tj[m,n] - δ(m,n)*Tj[N,N])
             y[m, j, 1] += c * x[n, j, 1]
             y[n, j, 2] += c * x[m, j, 2]
 
-            c = 0.5 * dot_no_conj(Ti[m,N], J, Tj[N,n])
+            c = 0.5 * Ti[m,N] * Tj[N,n]
             y[m, i, 1] += c * phase * x[n, j, 1]
             y[n, j, 2] += c * conj(phase) * x[m, i, 2]
 
-            c = 0.5 * dot_no_conj(Ti[N,m], J, Tj[n,N])
+            c = 0.5 * Ti[N,m] * Tj[n,N]
             y[n, j, 1] += c * conj(phase) * x[m, i, 1]
             y[m, i, 2] += c * phase * x[n, j, 2]
             
-            c = 0.5 * dot_no_conj(Ti[m,N], J, Tj[n,N])
+            c = 0.5 * Ti[m,N] * Tj[n,N]
             y[m, i, 1] += c * phase * x[n, j, 2]
             y[n, j, 1] += c * conj(phase) * x[m, i, 2]
             y[m, i, 2] += conj(c * phase) * x[n, j, 1]
@@ -179,8 +179,6 @@ function multiply_pair_coupling_SUN!(x, y, J, Ti, Tj, swt, phase, bond)
         end
     end
 end
-
-
 
 function multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped)
     (; sys, data) = swt
@@ -191,14 +189,14 @@ function multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped)
     # (not pursuing for now to maintain parallelism with dipole mode). 
     for atom in 1:natoms(sys.crystal)
         zeeman = view(zeeman_operators, :, :, atom)
-        multiply_onsite_coupling_SUN!(y, x, zeeman, swt, atom)
+        multiply_by_onsite_coupling_SUN!(y, x, zeeman, swt, atom)
     end
 
     # Add pair interactions that use explicit bases
     for (atom, int) in enumerate(sys.interactions_union)
 
         # Set the onsite term
-        multiply_onsite_coupling_SUN!(y, x, int.onsite, swt, atom)
+        multiply_by_onsite_coupling_SUN!(y, x, int.onsite, swt, atom)
 
         for coupling in int.pair
             # Extract information common to bond
@@ -207,7 +205,7 @@ function multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped)
             phase = exp(2π*im * dot(q_reshaped, bond.n)) 
 
             for (A, B) in coupling.general.data 
-                multiply_pair_coupling_SUN!(x, y, 1.0, A, B, swt, phase, bond)
+                multiply_by_pair_coupling_SUN!(x, y, 1.0, A, B, swt, phase, bond)
             end
         end
     end

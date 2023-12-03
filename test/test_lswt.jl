@@ -521,7 +521,7 @@ end
     # Construct Hamiltonian from sparse matrix-vector multiplies
     H2 = zeros(ComplexF64, 2L, 2L)
     for i in 1:2L
-        Sunny.hamiltonian_multiply_SUN!(view(H2, :, i), onehot(i, 2L), swt, q)
+        Sunny.multiply_by_hamiltonian_SUN!(view(H2, :, i), onehot(i, 2L), swt, q)
     end
 
     @test isapprox(H1, H2; atol=1e-12)
