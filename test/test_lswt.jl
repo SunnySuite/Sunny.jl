@@ -486,7 +486,7 @@ end
 end
 
 @testitem "Equivalence of dense and sparse Hamiltonian constructions" begin
-    using LinearAlgebra
+    import LinearAlgebra: diagm
 
     function onehot(i, n)
         out = zeros(n)
@@ -494,12 +494,10 @@ end
         return out
     end
 
-
     # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
     dims = (8, 1, 1)
     cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]]) 
-    mode = :SUN
-    sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], mode)
+    sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], :SUN)
 
     S = spin_matrices(; N=3)
     S1, S2 = Sunny.to_product_space(S, S)

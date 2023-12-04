@@ -31,7 +31,7 @@ end
 # such that for each individual matrix element, Ti[m,n], one is returned
 # *vector* indexed by α. E.g., if Ti corresponds to the spin operators, then
 # Ti[m,n] returns a vector [Sx[m,n], Sy[m,n], Sz[m,n]]].
-function swt_pair_coupling!(H, J, Ti, Tj, swt, phase, bond)
+function swt_pair_coupling!(H, Ti, Tj, swt, phase, bond)
     (; i, j) = bond
     sys = swt.sys
     N = sys.Ns[1] 
@@ -82,6 +82,9 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # Clear the Hamiltonian
     H .= 0
 
+    # Precompute phase information
+    ϕx, ϕy, ϕz = map(x -> exp(2π*im*x), q_reshaped)
+
     # Add single-site terms (single-site anisotropy and external field)
     # Couple percent speedup if this is removed and accumulated into onsite term
     # (not pursuing for now to maintain parallelism with dipole mode). 
@@ -100,10 +103,11 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             # Extract information common to bond
             (; isculled, bond) = coupling
             isculled && break
-            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Small savings for calculating this outside of swt_pair_coupling!
+            n = bond.n
+            phase = ϕx^n[1] * ϕy^n[2] * ϕz^n[3]
 
             for (A, B) in coupling.general.data 
-                swt_pair_coupling!(H, 1.0, A, B, swt, phase, bond)
+                swt_pair_coupling!(H, A, B, swt, phase, bond)
             end
         end
     end
@@ -175,7 +179,7 @@ function multiply_by_pair_coupling_SUN!(x, y, J, Ti, Tj, swt, phase, bond)
             y[m, i, 1] += c * phase * x[n, j, 2]
             y[n, j, 1] += c * conj(phase) * x[m, i, 2]
             y[m, i, 2] += conj(c * phase) * x[n, j, 1]
-            y[n, j, 2] += conj(c * conj(phase)) * x[m, i, 1]
+            y[n, j, 2] += conj(c) *phase * x[m, i, 1]
         end
     end
 end
@@ -183,6 +187,9 @@ end
 function multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped)
     (; sys, data) = swt
     (; zeeman_operators) = data
+
+    # Precompute phase information
+    ϕx, ϕy, ϕz = map(x -> exp(2π*im*x), q_reshaped)
 
     # Add single-site terms (single-site anisotropy and external field)
     # Couple percent speedup if this is removed and accumulated into onsite term
@@ -202,7 +209,8 @@ function multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped)
             # Extract information common to bond
             (; isculled, bond) = coupling
             isculled && break
-            phase = exp(2π*im * dot(q_reshaped, bond.n)) 
+            n = bond.n
+            phase = ϕx^n[1] * ϕy^n[2] * ϕz^n[3]
 
             for (A, B) in coupling.general.data 
                 multiply_by_pair_coupling_SUN!(x, y, 1.0, A, B, swt, phase, bond)
