@@ -172,20 +172,24 @@ function swt_data_sun(sys::System{N}, obs) where N
         atom = idx.I[end]   # Get index for unit cell, regardless of type of interactions_union
         int = sys.interactions_union[idx]
 
-        # Rotate onsite anisotropy (NB: could add Zeeman term into onsite, but
+        # Rotate onsite anisotropy. (NB: could add Zeeman term into onsite, but
         # that might be confusing for maintenance/debugging and the performance
-        # gains are minimal)
+        # gains are minimal.)
         U = local_unitaries[:, :, atom]
         int.onsite = Hermitian(U' * int.onsite * U) 
 
-        # Transform pair couplings into tensor decomposition and rotate
+        # Transform pair couplings into tensor decomposition and rotate.
         pair_new = PairCoupling[]
         for pc in int.pair
+            # Convert PairCoupling to a purely general (tensor decomposed) interaction.
+            pc_general = as_general_pair_coupling(pc, sys)
+
+            # Rotate tensor decomposition into local frame.
             bond = pc.bond
             Ui, Uj = view(local_unitaries, :, :, bond.i), view(local_unitaries, :, :, bond.j)
-            pc_new = as_general_pair_coupling(pc, sys) |> pc ->
-                     rotate_general_coupling_into_local_frame(pc, Ui, Uj)
-            push!(pair_new, pc_new)
+            pc_rotated = rotate_general_coupling_into_local_frame(pc_general, Ui, Uj)
+
+            push!(pair_new, pc_rotated)
         end
         int.pair = pair_new
     end
