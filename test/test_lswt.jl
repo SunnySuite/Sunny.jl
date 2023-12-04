@@ -495,35 +495,56 @@ end
     end
 
     # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
-    dims = (8, 1, 1)
-    cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]]) 
-    sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], :SUN)
+    function simple_swt(mode)
+        dims = (8, 1, 1)
+        cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]]) 
+        sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], mode)
 
-    S = spin_matrices(; N=3)
-    S1, S2 = Sunny.to_product_space(S, S)
-    set_pair_coupling!(sys, -S1'*S2, Bond(1,1,[1,0,0]); extract_parts=true)
-    set_onsite_coupling!(sys, S[3]^2, 1)
-    set_external_field!(sys, [0,0,0.1])
+        S = spin_matrices(; N=3)
+        S1, S2 = Sunny.to_product_space(S, S)
+        set_pair_coupling!(sys, -S1'*S2, Bond(1,1,[1,0,0]); extract_parts=true)
+        set_onsite_coupling!(sys, S[3]^2, 1)
+        set_external_field!(sys, [0,0,0.1])
 
-    randomize_spins!(sys)
-    minimize_energy!(sys; maxiters=10_000)
-    swt = SpinWaveTheory(sys)
+        randomize_spins!(sys)
+        minimize_energy!(sys; maxiters=1_000)
 
-    # Construct Hamiltonian (for some q) in the usual way 
+        return SpinWaveTheory(sys)
+    end
+
+
+    # Construct dipole Hamiltonian standard way
+    swt = simple_swt(:dipole)
+    H1 = zeros(ComplexF64, 16, 16)
+    q = Sunny.Vec3([0.5,0,0])
+    Sunny.swt_hamiltonian_dipole!(H1, swt, q)
+
+    # Construct dipole Hamiltonian from sparse matrix-vector multiplies
+    H2 = zero(H1)
+    L = Sunny.natoms(swt.sys.crystal)
+    for i in 1:2L
+        Sunny.multiply_by_hamiltonian_dipole!(view(H2, :, i), onehot(i, 2L), swt, q)
+    end
+
+    @test isapprox(H1, H2; atol=1e-12)
+
+
+    # Construct SU(N) Hamiltonian standard way
+    swt = simple_swt(:SUN)
     N = swt.sys.Ns[1]
     L = (N-1) * Sunny.natoms(swt.sys.crystal)
     H1 = zeros(ComplexF64, 2L, 2L)
-    q = Sunny.Vec3([0.5,0,0])
     Sunny.swt_hamiltonian_SUN!(H1, swt, q)
 
-    # Construct Hamiltonian from sparse matrix-vector multiplies
-    H2 = zeros(ComplexF64, 2L, 2L)
+    # Construct SU(N) Hamiltonian from sparse matrix-vector multiplies
+    H2 = zero(H1)
     for i in 1:2L
         Sunny.multiply_by_hamiltonian_SUN!(view(H2, :, i), onehot(i, 2L), swt, q)
     end
 
     @test isapprox(H1, H2; atol=1e-12)
 end
+
 @testitem "Spin ladder intensities reference test" begin
     using LinearAlgebra
 

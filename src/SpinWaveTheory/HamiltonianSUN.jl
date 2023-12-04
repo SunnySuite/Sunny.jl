@@ -1,7 +1,3 @@
-################################################################################
-# Dense Hamtilonian construction
-################################################################################
-
 # Construct portion of Hamiltonian due to onsite terms (single-site anisotropy
 # or external field).
 function swt_onsite_coupling!(H, op, swt, atom)
@@ -128,9 +124,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
 end
 
 
-################################################################################
-# Functions for calculating H*v instead of dense H
-################################################################################
+
 function multiply_by_onsite_coupling_SUN!(y, x, op, swt, atom)
     sys = swt.sys
     N = sys.Ns[1] 
