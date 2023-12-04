@@ -237,8 +237,8 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                            return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast=false,
                            formfactors=nothing)
     (; sys, data, observables) = swt
-    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    S = (Ns-1) / 2
+    Nm, N = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
+    S = (N-1) / 2
     nmodes = num_bands(swt)
     sqrt_Nm_inv = 1.0 / √Nm
     sqrt_halfS  = √(S/2)
@@ -314,15 +314,15 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
 
         # Fill `intensity` array
         for band = 1:nmodes
-            v = V[:, band]
             corrs = if sys.mode == :SUN
+                v = reshape(view(V, :, band), N-1, Nm, 2)
                 Avec = zeros(ComplexF64, num_observables(observables))
                 (; observable_operators) = data
                 for i = 1:Nm
                     for μ = 1:num_observables(observables)
                         @views O = observable_operators[:, :, μ, i]
-                        for α = 2:Ns
-                            Avec[μ] += Avec_pref[i] * (O[α, 1] * v[(i-1)*(Ns-1)+α-1+nmodes] + O[1, α] * v[(i-1)*(Ns-1)+α-1])
+                        for α = 1:N-1
+                            Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
                         end
                     end
                 end
@@ -333,11 +333,12 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                 end
                 corrs
             else
+                v = reshape(view(V, :, band), Nm, 2)
                 @assert sys.mode in (:dipole, :dipole_large_S)
                 Avec = zeros(ComplexF64, 3)
                 R = data.local_rotations
                 for i = 1:Nm
-                    Vtmp = [v[i+nmodes] + v[i], im * (v[i+nmodes] - v[i]), 0.0]
+                    Vtmp = [v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
                     Avec += Avec_pref[i] * sqrt_halfS * (R[i] * Vtmp)
                 end
 
@@ -345,8 +346,8 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                 @assert observables.observable_ixs[:Sy] == 2
                 @assert observables.observable_ixs[:Sz] == 3
                 corrs = Vector{ComplexF64}(undef, num_correlations(observables))
-                for (ci,i) in observables.correlations
-                    (α,β) = ci.I
+                for (ci, i) in observables.correlations
+                    (α, β) = ci.I
                     corrs[i] = Avec[α] * conj(Avec[β])
                 end
                 corrs
@@ -367,11 +368,11 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             # Smooth kernel --> Intensity as a function of ω (or a list of ωs)
             return function(ω)
                 is = Vector{return_type}(undef,length(ω))
-                is .= sum(intensity' .* kernel_edep.(disp',ω .- disp'),dims=2)
+                is .= sum(intensity' .* kernel_edep.(disp', ω .- disp'),dims=2)
                 is
             end
         end
     end
     output_type = isnothing(kernel) ? BandStructure{nmodes,return_type} : return_type
-    SpinWaveIntensityFormula{output_type}(string_formula,kernel_edep,calc_intensity)
+    SpinWaveIntensityFormula{output_type}(string_formula, kernel_edep, calc_intensity)
 end

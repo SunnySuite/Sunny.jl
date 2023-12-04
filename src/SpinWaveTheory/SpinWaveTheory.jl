@@ -1,18 +1,12 @@
-###########################################################################
-# Below takes Sunny to construct `SpinWave` for LSWT calculations.  #
-###########################################################################
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}
     stevens_coefs         :: Vector{StevensExpansion}
 end
 
 struct SWTDataSUN
-    dipole_operators      :: Array{ComplexF64, 4}
-    quadrupole_operators  :: Array{ComplexF64, 4}
-    onsite_operator       :: Array{ComplexF64, 3}
-    bond_operator_pairs   :: Vector{Tuple{Bond, Array{ComplexF64, 4}}}
-    observable_operators  :: Array{ComplexF64, 4}
-    local_unitary         :: Array{ComplexF64, 3} # Aligns quantization axis on each site
+    local_unitaries       :: Array{ComplexF64, 3}  # Aligns to quantization axis on each site
+    zeeman_operators      :: Array{ComplexF64, 3}  # Consider constructing on the fly, as for dipole mode
+    observable_operators  :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
 end
 
 """
@@ -26,11 +20,10 @@ the dynamical matrix ``D`` to avoid numerical issues with zero-energy
 quasi-particle modes.
 """
 struct SpinWaveTheory
-    sys        :: System
-    data       :: Union{SWTDataDipole, SWTDataSUN}
-    energy_ϵ   :: Float64
-
-    observables :: ObservableInfo
+    sys          :: System
+    data         :: Union{SWTDataDipole, SWTDataSUN}
+    energy_ϵ     :: Float64
+    observables  :: ObservableInfo
 end
 
 function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing) where N
@@ -88,45 +81,75 @@ function to_reshaped_rlu(sys::System{N}, q) where N
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
+# Take PairCoupling `pc` and use it to make a new, equivalent PairCoupling that
+# contains all information about the interaction in the `general` (tensor
+# decomposition) field.
+function as_general_pair_coupling(pc, sys)
+    (; isculled, bond, scalar, bilin, biquad, general) = pc
+    N1 = sys.Ns[1, 1, 1, bond.i]
+    N2 = sys.Ns[1, 1, 1, bond.j]
+
+    accum = zeros(ComplexF64, N1*N2, N1*N2)
+
+    # Add scalar part
+    accum += scalar * I
+
+    # Add bilinear part
+    S1, S2 = to_product_space(spin_matrices((N1-1)/2), spin_matrices((N2-1)/2))
+    J = bilin isa Float64 ? bilin*I(3) : bilin
+    accum += S1' * J * S2
+
+    # Add biquadratic part
+    K = biquad isa Float64 ? diagm(biquad * Sunny.scalar_biquad_metric) : biquad
+    O1, O2 = to_product_space(stevens_matrices_of_dim(2; N=N1), stevens_matrices_of_dim(2; N=N2))
+    accum += O1' * K * O2
+
+    # Add general part
+    for (A, B) in general.data
+        accum += kron(A, B) 
+    end
+
+    # Generate new interaction with extract_parts=false 
+    scalar, bilin, biquad, general = decompose_general_coupling(accum, N1, N2; extract_parts=false)
+
+    return PairCoupling(isculled, bond, scalar, bilin, biquad, general)
+end
+
+function rotate_general_coupling_into_local_frame(pc, U1, U2)
+    (; isculled, bond, scalar, bilin, biquad, general) = pc
+    data_new = Tuple{HermitianC64, HermitianC64}[]
+    for (A, B) in general.data
+        push!(data_new, (Hermitian(U1'*A*U1), Hermitian(U2'*B*U2)))
+    end
+    td = TensorDecomposition(general.gen1, general.gen2, data_new)
+    return PairCoupling(isculled, bond, scalar, bilin, biquad, td)
+end
+
 # Prepare local operators and observables for SU(N) spin wave calculation by
 # rotating these into the local reference frame determined by the ground state.
 function swt_data_sun(sys::System{N}, obs) where N
     # Calculate transformation matrices into local reference frames
     n_magnetic_atoms = natoms(sys.crystal)
 
-    local_unitary = Array{ComplexF64}(undef, N, N, n_magnetic_atoms)
+    local_unitaries = Array{ComplexF64}(undef, N, N, n_magnetic_atoms)
     for atom in 1:n_magnetic_atoms
-        basis = view(local_unitary, :, :, atom)
+        basis = view(local_unitaries, :, :, atom)
         # First axis of local quantization basis is along the 
         # ground-state polarization axis
-        basis[:, 1] .= sys.coherents[1, 1, 1, atom]
+        basis[:, N] .= sys.coherents[1, 1, 1, atom]
         
         # Remaining axes are arbitrary but mutually orthogonal
         # and orthogonal to the first axis
-        basis[:, 2:N] .= nullspace(basis[:, 1]')
+        basis[:, 1:N-1] .= nullspace(basis[:, N]')
     end
 
     # Preallocate buffers for rotate operators and observables.
-    dipole_operators_localized = zeros(ComplexF64, 3, N, N, n_magnetic_atoms)
-    onsite_operator_localized = zeros(ComplexF64, N, N, n_magnetic_atoms)
-    quadrupole_operators_localized = zeros(ComplexF64, 5, N, N, n_magnetic_atoms)
+    zeeman_operators_localized = zeros(ComplexF64, N, N, n_magnetic_atoms)
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
-    # Rotate SU(N) bases and observables and store in dense array. Note that the
-    # first index is the component index. As a result, (Sˣᵢ[m,n], Sʸᵢ[m,n], Sᶻᵢ[m,n]) is
-    # stored contiguously for each matrix element mn. This is the natural order
-    # for the current way of constructing the spin wave Hamiltonian.
-    dipole_operators = spin_matrices_of_dim(; N)
-    quadrupole_operators = stevens_matrices_of_dim(2; N)
+    # Rotate observables into local reference frames and store (for intensities calculations).
     for atom in 1:n_magnetic_atoms
-        U = view(local_unitary, :, :,atom)
-        for μ = 1:3
-            dipole_operators_localized[μ, :, :, atom] = Hermitian(U' * dipole_operators[μ] * U)
-        end
-        for ν = 1:5
-            quadrupole_operators_localized[ν, :, :, atom] = Hermitian(U' * quadrupole_operators[ν] * U)
-        end
-        onsite_operator_localized[:, :, atom] = Hermitian(U' * sys.interactions_union[atom].onsite * U)
+        U = view(local_unitaries, :, :,atom)
         for k = 1:num_observables(obs)
             observables_localized[:, :, k, atom] = Hermitian(U' * convert(Matrix,obs.observables[k]) * U)
         end
@@ -136,37 +159,45 @@ function swt_data_sun(sys::System{N}, obs) where N
     # frames and accumulate into onsite_operator_localized.
     (; extfield, gs, units) = sys
     for atom in 1:n_magnetic_atoms
+        N1 = sys.Ns[1, 1, 1, atom]
         B = units.μB * (gs[1, 1, 1, atom]' * extfield[1, 1, 1, atom])
-        S = view(dipole_operators_localized, :, :, :, atom)
-        @. onsite_operator_localized[:, :, atom] -= B[1]*S[1, :, :] + B[2]*S[2, :, :] + B[3]*S[3, :, :]
+        U = view(local_unitaries, :, :, atom) 
+        Sx, Sy, Sz = map(Sa -> U' * Sa * U, spin_matrices_of_dim(; N=N1))
+        @. zeeman_operators_localized[:, :, atom] -= B[1]*Sx + B[2]*Sy + B[3]*Sz
     end
 
-    # Rotate operators generated by the tensor decomposition of generalized
-    # interactions.
-    bond_operator_pairs_localized = Tuple{Bond, Array{ComplexF64, 4}}[]
-    for int in sys.interactions_union
-        for pc in int.pair
-            (; isculled, bond, general) = pc
-            (isculled || length(general.data) == 0) && continue 
+    # Transform interactions inside the system into local reference frames,
+    # and transform pair interactions into tensor decompositions.
+    for idx in CartesianIndices(sys.interactions_union)
+        atom = idx.I[end]   # Get index for unit cell, regardless of type of interactions_union
+        int = sys.interactions_union[idx]
 
-            Ui, Uj = local_unitary[:,:,bond.i], local_unitary[:,:,bond.j] 
-            nops = length(general.data)
-            bond_operators = zeros(ComplexF64, nops, N, N, 2)
-            for (n, (A, B)) in enumerate(general.data)
-                bond_operators[n,:,:,1] = Ui' * A * Ui 
-                bond_operators[n,:,:,2] = Uj' * B * Uj 
-            end
-            push!(bond_operator_pairs_localized, (bond, bond_operators))
+        # Rotate onsite anisotropy. (NB: could add Zeeman term into onsite, but
+        # that might be confusing for maintenance/debugging and the performance
+        # gains are minimal.)
+        U = local_unitaries[:, :, atom]
+        int.onsite = Hermitian(U' * int.onsite * U) 
+
+        # Transform pair couplings into tensor decomposition and rotate.
+        pair_new = PairCoupling[]
+        for pc in int.pair
+            # Convert PairCoupling to a purely general (tensor decomposed) interaction.
+            pc_general = as_general_pair_coupling(pc, sys)
+
+            # Rotate tensor decomposition into local frame.
+            bond = pc.bond
+            Ui, Uj = view(local_unitaries, :, :, bond.i), view(local_unitaries, :, :, bond.j)
+            pc_rotated = rotate_general_coupling_into_local_frame(pc_general, Ui, Uj)
+
+            push!(pair_new, pc_rotated)
         end
+        int.pair = pair_new
     end
 
     return SWTDataSUN(
-        dipole_operators_localized, 
-        quadrupole_operators_localized, 
-        onsite_operator_localized,
-        bond_operator_pairs_localized,
-        observables_localized,
-        local_unitary
+        local_unitaries,
+        zeeman_operators_localized,
+        observables_localized
     )
 end
 
