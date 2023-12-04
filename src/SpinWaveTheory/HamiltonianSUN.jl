@@ -73,9 +73,6 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # Clear the Hamiltonian
     H .= 0
 
-    # Precompute phase information
-    ϕx, ϕy, ϕz = map(x -> exp(2π*im*x), q_reshaped)
-
     # Add single-site terms (single-site anisotropy and external field)
     # Couple percent speedup if this is removed and accumulated into onsite term
     # (not pursuing for now to maintain parallelism with dipole mode). 
@@ -94,9 +91,8 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             # Extract information common to bond
             (; isculled, bond) = coupling
             isculled && break
-            n = bond.n
-            phase = ϕx^n[1] * ϕy^n[2] * ϕz^n[3]
 
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
             for (A, B) in coupling.general.data 
                 swt_pair_coupling!(H, A, B, swt, phase, bond)
             end
@@ -140,7 +136,7 @@ end
 
 # Calculate y = H_{pair}*x, where H_{pair} is the portion of the quadratic
 # Hamiltonian matrix (dynamical matrix) due to pair-wise interactions.
-function multiply_by_pair_coupling_SUN!(x, y, J, Ti, Tj, swt, phase, bond)
+function multiply_by_pair_coupling_SUN!(y, x, Ti, Tj, swt, phase, bond)
     (; i, j) = bond
     sys = swt.sys
     N = sys.Ns[1] 
@@ -180,9 +176,7 @@ end
 function multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped)
     (; sys, data) = swt
     (; zeeman_operators) = data
-
-    # Precompute phase information
-    ϕx, ϕy, ϕz = map(x -> exp(2π*im*x), q_reshaped)
+    y .= 0
 
     # Add single-site terms (single-site anisotropy and external field)
     # Couple percent speedup if this is removed and accumulated into onsite term
@@ -202,11 +196,10 @@ function multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped)
             # Extract information common to bond
             (; isculled, bond) = coupling
             isculled && break
-            n = bond.n
-            phase = ϕx^n[1] * ϕy^n[2] * ϕz^n[3]
 
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
             for (A, B) in coupling.general.data 
-                multiply_by_pair_coupling_SUN!(x, y, 1.0, A, B, swt, phase, bond)
+                multiply_by_pair_coupling_SUN!(y, x, A, B, swt, phase, bond)
             end
         end
     end

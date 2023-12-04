@@ -314,15 +314,15 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
 
         # Fill `intensity` array
         for band = 1:nmodes
-            v = V[:, band]
             corrs = if sys.mode == :SUN
+                v = reshape(view(V, :, band), (N-1), Nm, 2)
                 Avec = zeros(ComplexF64, num_observables(observables))
                 (; observable_operators) = data
                 for i = 1:Nm
                     for μ = 1:num_observables(observables)
                         @views O = observable_operators[:, :, μ, i]
                         for α = 1:N-1
-                            Avec[μ] += Avec_pref[i] * (O[α, N] * v[(i-1)*(N-1)+α+nmodes] + O[N, α] * v[(i-1)*(N-1)+α])
+                            Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
                         end
                     end
                 end
@@ -333,11 +333,12 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                 end
                 corrs
             else
+                v = reshape(view(V, :, band), Nm, 2)
                 @assert sys.mode in (:dipole, :dipole_large_S)
                 Avec = zeros(ComplexF64, 3)
                 R = data.local_rotations
                 for i = 1:Nm
-                    Vtmp = [v[i+nmodes] + v[i], im * (v[i+nmodes] - v[i]), 0.0]
+                    Vtmp = [v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
                     Avec += Avec_pref[i] * sqrt_halfS * (R[i] * Vtmp)
                 end
 

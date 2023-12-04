@@ -179,7 +179,8 @@ end
     end
 
     reference = [1.1743243223274487, 1.229979802236658, 1.048056653379038]
-    @test compute(:SUN) ≈ compute(:dipole) ≈ reference
+    @test compute(:SUN) ≈ reference
+    @test compute(:dipole) ≈ reference
 end
 
 

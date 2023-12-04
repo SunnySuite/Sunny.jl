@@ -118,6 +118,7 @@ function multiply_by_hamiltonian_dipole!(y, x, swt::SpinWaveTheory, q_reshaped::
 
     x = reshape(x, natoms(sys.crystal), 2)
     y = reshape(y, natoms(sys.crystal), 2)
+    y .= 0
 
     # Add Zeeman term
     (; extfield, gs, units) = sys
