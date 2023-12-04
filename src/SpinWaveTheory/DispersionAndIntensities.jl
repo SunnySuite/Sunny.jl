@@ -315,7 +315,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
         # Fill `intensity` array
         for band = 1:nmodes
             corrs = if sys.mode == :SUN
-                v = reshape(view(V, :, band), (N-1), Nm, 2)
+                v = reshape(view(V, :, band), N-1, Nm, 2)
                 Avec = zeros(ComplexF64, num_observables(observables))
                 (; observable_operators) = data
                 for i = 1:Nm
