@@ -179,7 +179,8 @@ end
     end
 
     reference = [1.1743243223274487, 1.229979802236658, 1.048056653379038]
-    @test compute(:SUN) ≈ compute(:dipole) ≈ reference
+    @test compute(:SUN) ≈ reference
+    @test compute(:dipole) ≈ reference
 end
 
 
@@ -483,6 +484,66 @@ end
     H_generalized = make_fm_lswt_hamiltonian(k; extract_parts=false)
 
     @test H_conventional ≈ H_generalized
+end
+
+@testitem "Equivalence of dense and sparse Hamiltonian constructions" begin
+    import LinearAlgebra: diagm
+
+    function onehot(i, n)
+        out = zeros(n)
+        out[i] = 1.0
+        return out
+    end
+
+    # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
+    function simple_swt(mode)
+        dims = (8, 1, 1)
+        cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]]) 
+        sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], mode)
+
+        S = spin_matrices(; N=3)
+        S1, S2 = Sunny.to_product_space(S, S)
+        set_pair_coupling!(sys, -S1'*S2, Bond(1,1,[1,0,0]); extract_parts=true)
+        set_onsite_coupling!(sys, S[3]^2, 1)
+        set_external_field!(sys, [0,0,0.1])
+
+        randomize_spins!(sys)
+        minimize_energy!(sys; maxiters=1_000)
+
+        return SpinWaveTheory(sys)
+    end
+
+
+    # Construct dipole Hamiltonian standard way
+    swt = simple_swt(:dipole)
+    H1 = zeros(ComplexF64, 16, 16)
+    q = Sunny.Vec3([0.5,0,0])
+    Sunny.swt_hamiltonian_dipole!(H1, swt, q)
+
+    # Construct dipole Hamiltonian from sparse matrix-vector multiplies
+    H2 = zero(H1)
+    L = Sunny.natoms(swt.sys.crystal)
+    for i in 1:2L
+        Sunny.multiply_by_hamiltonian_dipole!(view(H2, :, i), onehot(i, 2L), swt, q)
+    end
+
+    @test isapprox(H1, H2; atol=1e-12)
+
+
+    # Construct SU(N) Hamiltonian standard way
+    swt = simple_swt(:SUN)
+    N = swt.sys.Ns[1]
+    L = (N-1) * Sunny.natoms(swt.sys.crystal)
+    H1 = zeros(ComplexF64, 2L, 2L)
+    Sunny.swt_hamiltonian_SUN!(H1, swt, q)
+
+    # Construct SU(N) Hamiltonian from sparse matrix-vector multiplies
+    H2 = zero(H1)
+    for i in 1:2L
+        Sunny.multiply_by_hamiltonian_SUN!(view(H2, :, i), onehot(i, 2L), swt, q)
+    end
+
+    @test isapprox(H1, H2; atol=1e-12)
 end
 
 @testitem "Spin ladder intensities reference test" begin
