@@ -363,12 +363,12 @@ disp, is = dssf(swt, path);
 # The full SU(_N_) coherent state dynamics, with appropriate quantum correction
 # factors, can be useful to model finite temperature scattering data. In
 # particular, it captures certain anharmonic effects due to thermal
-# fluctuations. See our [generalized spin dynamics tutorial](@ref "3.
+# fluctuations. See our [generalized spin dynamics tutorial](@ref "4.
 # Generalized spin dynamics of FeI₂ at finite *T*").
 #
 # The classical dynamics is also a good starting point to study non-equilibrium
 # phenomena. Empirical noise and damping terms can be used to model [coupling to
 # a thermal bath](https://arxiv.org/abs/2209.01265). This yields a Langevin
-# dynamics of SU(_N_) coherent states. Our [dynamical SU(_N_) quench](@ref "5.
+# dynamics of SU(_N_) coherent states. Our [dynamical SU(_N_) quench](@ref "6.
 # Dynamical quench into CP² skyrmion liquid") tutorial illustrates how a
 # temperature quench can give rise to novel liquid phase of CP² skyrmions.
