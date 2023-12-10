@@ -60,7 +60,7 @@ function intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFo
     end
 
     ks = Vec3.(ks)
-    nmodes = num_bands(swt)
+    nmodes = nbands(swt)
 
     # Get the type parameter from the BandStructure
     return_type = typeof(formula).parameters[1].parameters[2]

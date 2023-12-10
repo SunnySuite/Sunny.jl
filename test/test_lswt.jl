@@ -524,7 +524,7 @@ end
     H2 = zero(H1)
     L = Sunny.natoms(swt.sys.crystal)
     for i in 1:2L
-        Sunny.multiply_by_hamiltonian_dipole!(view(H2, :, i), onehot(i, 2L), swt, q)
+        H2[:, i] = Sunny.multiply_by_hamiltonian_dipole(onehot(i, 2L), swt, [q])
     end
 
     @test isapprox(H1, H2; atol=1e-12)
