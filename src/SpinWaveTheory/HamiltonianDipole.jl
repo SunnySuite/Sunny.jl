@@ -108,6 +108,7 @@ end
 
 
 # Calculate y = H*x, where H is the quadratic Hamiltonian matrix (dynamical matrix).
+# Delete this before mergining. For benchmarking.
 function multiply_by_hamiltonian_dipole_ref!(y, x, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
     (; local_rotations, stevens_coefs) = data
@@ -116,18 +117,16 @@ function multiply_by_hamiltonian_dipole_ref!(y, x, swt::SpinWaveTheory, q_reshap
     S = (N-1)/2
     L = nbands(swt)
 
-    x = reshape(x, natoms(sys.crystal), 2)
-    y = reshape(y, natoms(sys.crystal), 2)
     y .= 0
 
-    # Add Zeeman term
+    # Add Zeeman term (can be precalculated)
     (; extfield, gs, units) = sys
     for i in 1:L
         B = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i]) 
         B′ = dot(B, local_rotations[i][:, 3]) / 2 
 
-        y[i, 1] += B′ * x[i, 1]
-        y[i, 2] += B′ * x[i, 2]
+        y[i] += B′ * x[i]
+        y[i+L] += B′ * x[i+L]
     end
 
     # Add pairwise terms 
@@ -146,49 +145,49 @@ function multiply_by_hamiltonian_dipole_ref!(y, x, swt::SpinWaveTheory, q_reshap
                 P = 0.25 * (J[1, 1] - J[2, 2] - im*J[1, 2] - im*J[2, 1])
                 Q = 0.25 * (J[1, 1] + J[2, 2] - im*J[1, 2] + im*J[2, 1])
 
-                y[i, 1] += Q * phase * x[j, 1]
-                y[j, 1] += conj(Q) * conj(phase) * x[i, 1]
-                y[i, 2] += conj(Q) * phase * x[j, 2]
-                y[j, 2] += Q * conj(phase) * x[i, 2]
+                y[i] += Q * phase * x[j]
+                y[j] += conj(Q) * conj(phase) * x[i]
+                y[i+L] += conj(Q) * phase * x[j+L]
+                y[j+L] += Q * conj(phase) * x[i+L]
 
-                y[i, 2] += P * phase * x[j, 1]
-                y[j, 2] += P * conj(phase) * x[i, 1]
-                y[i, 1] += conj(P) * phase * x[j, 2]
-                y[j, 1] += conj(P) * conj(phase) * x[i, 2]
+                y[i+L] += P * phase * x[j]
+                y[j+L] += P * conj(phase) * x[i]
+                y[i] += conj(P) * phase * x[j+L]
+                y[j] += conj(P) * conj(phase) * x[i+L]
 
-                y[i, 1] -= 0.5 * J[3, 3] * x[i, 1]
-                y[j, 1] -= 0.5 * J[3, 3] * x[j, 1]
-                y[i, 2] -= 0.5 * J[3, 3] * x[i, 2]
-                y[j, 2] -= 0.5 * J[3, 3] * x[j, 2]
+                y[i] -= 0.5 * J[3, 3] * x[i]
+                y[j] -= 0.5 * J[3, 3] * x[j]
+                y[i+L] -= 0.5 * J[3, 3] * x[i+L]
+                y[j+L] -= 0.5 * J[3, 3] * x[j+L]
             end
 
             # Biquadratic exchange
             if !iszero(coupling.biquad)
                 J = coupling.biquad  # Transformed quadrupole exchange matrix
             
-                y[i, 1] += -6J[3, 3] * x[i, 1]
-                y[j, 1] += -6J[3, 3] * x[j, 1]
+                y[i] += -6J[3, 3] * x[i]
+                y[j] += -6J[3, 3] * x[j]
 
-                y[i, 2] += -6J[3, 3] * x[i, 2]
-                y[j, 2] += -6J[3, 3] * x[j, 2]
+                y[i+L] += -6J[3, 3] * x[i+L]
+                y[j+L] += -6J[3, 3] * x[j+L]
 
-                y[i, 2] += 12*(J[1, 3] - im*J[5, 3]) * x[i, 1]
-                y[i, 1] += 12*(J[1, 3] + im*J[5, 3]) * x[i, 2]
-                y[j, 2] += 12*(J[3, 1] - im*J[3, 5]) * x[j, 1]
-                y[j, 1] += 12*(J[3, 1] + im*J[3, 5]) * x[j, 2]
+                y[i+L] += 12*(J[1, 3] - im*J[5, 3]) * x[i]
+                y[i] += 12*(J[1, 3] + im*J[5, 3]) * x[i+L]
+                y[j+L] += 12*(J[3, 1] - im*J[3, 5]) * x[j]
+                y[j] += 12*(J[3, 1] + im*J[3, 5]) * x[j+L]
 
                 P = 0.25 * (-J[4, 4]+J[2, 2] - im*( J[4, 2]+J[2, 4]))
                 Q = 0.25 * ( J[4, 4]+J[2, 2] - im*(-J[4, 2]+J[2, 4]))
 
-                y[i, 1] += Q * phase * x[j, 1]
-                y[j, 1] += conj(Q) * conj(phase) * x[i, 1]
-                y[i, 2] += conj(Q) * phase * x[j, 2]
-                y[j, 2] += Q * conj(phase) * x[i, 2]
+                y[i] += Q * phase * x[j]
+                y[j] += conj(Q) * conj(phase) * x[i]
+                y[i+L] += conj(Q) * phase * x[j+L]
+                y[j+L] += Q * conj(phase) * x[i+L]
 
-                y[i, 2] += P * phase * x[j, 1]
-                y[j, 2] += P * conj(phase) * x[i, 1]
-                y[i, 1] += conj(P) * phase * x[j, 2]
-                y[j, 1] += conj(P) * conj(phase) * x[i, 2]
+                y[i+L] += P * phase * x[j]
+                y[j+L] += P * conj(phase) * x[i]
+                y[i] += conj(P) * phase * x[j+L]
+                y[j] += conj(P) * conj(phase) * x[i+L]
             end
         end
     end
@@ -196,10 +195,10 @@ function multiply_by_hamiltonian_dipole_ref!(y, x, swt::SpinWaveTheory, q_reshap
     # Add single-ion anisotropy
     for i in 1:L
         (; c2, c4, c6) = stevens_coefs[i]
-        y[i, 1] += (-3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]) * x[i, 1]
-        y[i, 2] += (-3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]) * x[i, 2]
-        y[i, 1] += (-im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])) * x[i, 2]
-        y[i, 2] += (im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])) * x[i, 1]
+        y[i] += (-3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]) * x[i]
+        y[i+L] += (-3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]) * x[i+L]
+        y[i] += (-im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])) * x[i+L]
+        y[i+L] += (im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])) * x[i]
     end
 
     # Add small constant shift for positive-definiteness
@@ -208,14 +207,135 @@ function multiply_by_hamiltonian_dipole_ref!(y, x, swt::SpinWaveTheory, q_reshap
     nothing
 end
 
-function multiply_by_hamiltonian_dipole(x, swt::SpinWaveTheory, qs_reshaped::Vector{Vec3})
-    ys = zeros(ComplexF64, length(qs_reshaped), length(x))
+function multiply_by_hamiltonian_dipole(x, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
+    ys = zeros(ComplexF64, (size(qs_reshaped)..., length(x)))
     phasebuf = zeros(ComplexF64, length(qs_reshaped))
-    multiply_by_hamiltonian_dipole_aux!(ys, x, phasebuf, swt, qs_reshaped)
-    return ys
+
+    # Precompute e^{2πq_α} components
+    qphase = map(qs_reshaped) do q  
+        (exp(2π*im*q[1]), exp(2π*im*q[2]), exp(2π*im*q[3]))
+    end
+
+    multiply_by_hamiltonian_dipole_aux!(reshape(ys, (length(qs_reshaped), length(x))), x, phasebuf, qphase, swt, qs_reshaped)
+
+    return ys 
 end
 
-function multiply_by_hamiltonian_dipole_aux!(ys, x, phase, swt::SpinWaveTheory, qs_reshaped)
+function multiply_by_hamiltonian_dipole_aux!(y::Array{ComplexF64, 2}, x::Vector{ComplexF64}, phase::Vector{ComplexF64}, qphase, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
+    (; sys, data) = swt
+    (; local_rotations, stevens_coefs) = data
+
+    N = swt.sys.Ns[1]
+    S = (N-1)/2
+    L = natoms(sys.crystal) 
+
+    nq = length(qs_reshaped)
+    y .= 0
+    x = Base.ReshapedArray(x, (L, 2), ())
+    y = Base.ReshapedArray(y, (nq, L, 2), ())
+
+    # Add single-site terms, both Zeeman and single-ion anisotropy.
+    # These entries are q-independent and could be precomputed. 
+    (; extfield, gs, units) = sys
+    for i in 1:L
+        (; c2, c4, c6) = stevens_coefs[i]
+
+        coef1 = -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
+        coef2 = -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
+        coef3 = -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        coef4 = im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+
+        B = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i]) 
+        B′ = dot(B, local_rotations[i][:, 3]) / 2 
+
+        # Seems to be no benefit to breaking this into two loops acting on different final indices.
+        for q in 1:nq
+            y[q, i, 1] += (B′ + coef1) * x[i, 1] + coef3 * x[i, 2]
+            y[q, i, 2] += (B′ + coef2) * x[i, 2] + coef4 * x[i, 1]
+        end
+    end
+
+    # Add pairwise terms 
+    for ints in sys.interactions_union
+
+        # Bilinear exchange
+        for coupling in ints.pair
+            (; isculled, bond) = coupling
+            isculled && break
+            i, j = bond.i, bond.j
+
+            # map!(q -> exp(2π*im*dot(q, bond.n)), phase, qs_reshaped)
+            n1, n2, n3 = bond.n
+            map!(qp -> (qp[1]^n1)*(qp[2]^n2)*(qp[3]^n3), phase, qphase)
+
+            if !iszero(coupling.bilin)
+                J = coupling.bilin  # This is Rij in previous notation (transformed exchange matrix)
+
+                P = 0.25 * (J[1, 1] - J[2, 2] - im*J[1, 2] - im*J[2, 1])
+                Q = 0.25 * (J[1, 1] + J[2, 2] - im*J[1, 2] + im*J[2, 1])
+
+                for q in 1:nq
+                    y[q, i, 1] += Q * phase[q] * x[j, 1]
+                    y[q, j, 1] += conj(Q) * conj(phase[q]) * x[i, 1]
+                    y[q, i, 2] += conj(Q) * phase[q] * x[j, 2]
+                    y[q, j, 2] += Q * conj(phase[q]) * x[i, 2]
+
+                    y[q, i, 2] += P * phase[q] * x[j, 1]
+                    y[q, j, 2] += P * conj(phase[q]) * x[i, 1]
+                    y[q, i, 1] += conj(P) * phase[q] * x[j, 2]
+                    y[q, j, 1] += conj(P) * conj(phase[q]) * x[i, 2]
+
+                    y[q, i, 1] -= 0.5 * J[3, 3] * x[i, 1]
+                    y[q, j, 1] -= 0.5 * J[3, 3] * x[j, 1]
+                    y[q, i, 2] -= 0.5 * J[3, 3] * x[i, 2]
+                    y[q, j, 2] -= 0.5 * J[3, 3] * x[j, 2]
+                end
+            end
+
+            # Biquadratic exchange
+            if !iszero(coupling.biquad)
+                J = coupling.biquad  # Transformed quadrupole exchange matrix
+                for q in 1:nq
+                    y[q, i, 1] += -6J[3, 3] * x[i, 1]
+                    y[q, j, 1] += -6J[3, 3] * x[j, 1]
+
+                    y[q, i, 2] += -6J[3, 3] * x[i, 2]
+                    y[q, j, 2] += -6J[3, 3] * x[j, 2]
+
+                    y[q, i, 2] += 12*(J[1, 3] - im*J[5, 3]) * x[i, 1]
+                    y[q, i, 1] += 12*(J[1, 3] + im*J[5, 3]) * x[i, 2]
+                    y[q, j, 2] += 12*(J[3, 1] - im*J[3, 5]) * x[j, 1]
+                    y[q, j, 1] += 12*(J[3, 1] + im*J[3, 5]) * x[j, 2]
+
+                    P = 0.25 * (-J[4, 4]+J[2, 2] - im*( J[4, 2]+J[2, 4]))
+                    Q = 0.25 * ( J[4, 4]+J[2, 2] - im*(-J[4, 2]+J[2, 4]))
+
+                    y[q, i, 1] += Q * phase[q] * x[j, 1]
+                    y[q, j, 1] += conj(Q) * conj(phase[q]) * x[i, 1]
+                    y[q, i, 2] += conj(Q) * phase[q] * x[j, 2]
+                    y[q, j, 2] += Q * conj(phase[q]) * x[i, 2]
+
+                    y[q, i, 2] += P * phase[q] * x[j, 1]
+                    y[q, j, 2] += P * conj(phase[q]) * x[i, 1]
+                    y[q, i, 1] += conj(P) * phase[q] * x[j, 2]
+                    y[q, j, 1] += conj(P) * conj(phase[q]) * x[i, 2]
+                end
+            end
+        end
+    end
+
+    # Add small constant shift for positive-definiteness. (Note explicit indexing seems to perform better.)
+    for n in 1:2, m in 1:natoms(sys.crystal)
+        e = swt.energy_ϵ * x[m,n]
+        for q in 1:nq
+            y[q,m,n] += e 
+        end
+    end
+
+    nothing
+end
+
+function multiply_by_hamiltonian_dipole_aux2!(y, x, phase, swt::SpinWaveTheory, qs_reshaped)
     (; sys, data) = swt
     (; local_rotations, stevens_coefs) = data
 
@@ -224,10 +344,7 @@ function multiply_by_hamiltonian_dipole_aux!(ys, x, phase, swt::SpinWaveTheory, 
     L = nbands(swt)
 
     nq = length(qs_reshaped)
-    # These reshapes are allocating...
-    x = reshape(x, natoms(sys.crystal), 2)
-    ys = reshape(ys, nq, natoms(sys.crystal), 2)
-    ys .= 0
+    y .= 0
 
     # Add single-site terms, both Zeeman and single-ion anisotropy
     (; extfield, gs, units) = sys
@@ -244,8 +361,8 @@ function multiply_by_hamiltonian_dipole_aux!(ys, x, phase, swt::SpinWaveTheory, 
 
         # Seems to be no benefit to breaking this into two loops acting on different final indices.
         for q in 1:nq
-            ys[q, i, 1] += (B′ + coef1) * x[i, 1] + coef3 * x[i, 2]
-            ys[q, i, 2] += (B′ + coef2) * x[i, 2] + coef4 * x[i, 1]
+            y[q, i] += (B′ + coef1) * x[i] + coef3 * x[i+L]
+            y[q, i+L] += (B′ + coef2) * x[i+L] + coef4 * x[i]
         end
     end
 
@@ -267,20 +384,20 @@ function multiply_by_hamiltonian_dipole_aux!(ys, x, phase, swt::SpinWaveTheory, 
                 Q = 0.25 * (J[1, 1] + J[2, 2] - im*J[1, 2] + im*J[2, 1])
 
                 for q in 1:nq
-                    ys[q, i, 1] += Q * phase[q] * x[j, 1]
-                    ys[q, j, 1] += conj(Q) * conj(phase[q]) * x[i, 1]
-                    ys[q, i, 2] += conj(Q) * phase[q] * x[j, 2]
-                    ys[q, j, 2] += Q * conj(phase[q]) * x[i, 2]
+                    y[q, i] += Q * phase[q] * x[j]
+                    y[q, j] += conj(Q) * conj(phase[q]) * x[i]
+                    y[q, i+L] += conj(Q) * phase[q] * x[j+L]
+                    y[q, j+L] += Q * conj(phase[q]) * x[i+L]
 
-                    ys[q, i, 2] += P * phase[q] * x[j, 1]
-                    ys[q, j, 2] += P * conj(phase[q]) * x[i, 1]
-                    ys[q, i, 1] += conj(P) * phase[q] * x[j, 2]
-                    ys[q, j, 1] += conj(P) * conj(phase[q]) * x[i, 2]
+                    y[q, i+L] += P * phase[q] * x[j]
+                    y[q, j+L] += P * conj(phase[q]) * x[i]
+                    y[q, i] += conj(P) * phase[q] * x[j+L]
+                    y[q, j] += conj(P) * conj(phase[q]) * x[i+L]
 
-                    ys[q, i, 1] -= 0.5 * J[3, 3] * x[i, 1]
-                    ys[q, j, 1] -= 0.5 * J[3, 3] * x[j, 1]
-                    ys[q, i, 2] -= 0.5 * J[3, 3] * x[i, 2]
-                    ys[q, j, 2] -= 0.5 * J[3, 3] * x[j, 2]
+                    y[q, i] -= 0.5 * J[3, 3] * x[i]
+                    y[q, j] -= 0.5 * J[3, 3] * x[j]
+                    y[q, i+L] -= 0.5 * J[3, 3] * x[i+L]
+                    y[q, j+L] -= 0.5 * J[3, 3] * x[j+L]
                 end
             end
 
@@ -288,39 +405,39 @@ function multiply_by_hamiltonian_dipole_aux!(ys, x, phase, swt::SpinWaveTheory, 
             if !iszero(coupling.biquad)
                 J = coupling.biquad  # Transformed quadrupole exchange matrix
                 for q in 1:nq
-                    ys[q, i, 1] += -6J[3, 3] * x[i, 1]
-                    ys[q, j, 1] += -6J[3, 3] * x[j, 1]
+                    y[q, i] += -6J[3, 3] * x[i]
+                    y[q, j] += -6J[3, 3] * x[j]
 
-                    ys[q, i, 2] += -6J[3, 3] * x[i, 2]
-                    ys[q, j, 2] += -6J[3, 3] * x[j, 2]
+                    y[q, i+L] += -6J[3, 3] * x[i+L]
+                    y[q, j+L] += -6J[3, 3] * x[j+L]
 
-                    ys[q, i, 2] += 12*(J[1, 3] - im*J[5, 3]) * x[i, 1]
-                    ys[q, i, 1] += 12*(J[1, 3] + im*J[5, 3]) * x[i, 2]
-                    ys[q, j, 2] += 12*(J[3, 1] - im*J[3, 5]) * x[j, 1]
-                    ys[q, j, 1] += 12*(J[3, 1] + im*J[3, 5]) * x[j, 2]
+                    y[q, i+L] += 12*(J[1, 3] - im*J[5, 3]) * x[i]
+                    y[q, i] += 12*(J[1, 3] + im*J[5, 3]) * x[i+L]
+                    y[q, j+L] += 12*(J[3, 1] - im*J[3, 5]) * x[j]
+                    y[q, j] += 12*(J[3, 1] + im*J[3, 5]) * x[j+L]
 
                     P = 0.25 * (-J[4, 4]+J[2, 2] - im*( J[4, 2]+J[2, 4]))
                     Q = 0.25 * ( J[4, 4]+J[2, 2] - im*(-J[4, 2]+J[2, 4]))
 
-                    ys[q, i, 1] += Q * phase[q] * x[j, 1]
-                    ys[q, j, 1] += conj(Q) * conj(phase[q]) * x[i, 1]
-                    ys[q, i, 2] += conj(Q) * phase[q] * x[j, 2]
-                    ys[q, j, 2] += Q * conj(phase[q]) * x[i, 2]
+                    y[q, i] += Q * phase[q] * x[j]
+                    y[q, j] += conj(Q) * conj(phase[q]) * x[i]
+                    y[q, i+L] += conj(Q) * phase[q] * x[j+L]
+                    y[q, j+L] += Q * conj(phase[q]) * x[i+L]
 
-                    ys[q, i, 2] += P * phase[q] * x[j, 1]
-                    ys[q, j, 2] += P * conj(phase[q]) * x[i, 1]
-                    ys[q, i, 1] += conj(P) * phase[q] * x[j, 2]
-                    ys[q, j, 1] += conj(P) * conj(phase[q]) * x[i, 2]
+                    y[q, i+L] += P * phase[q] * x[j]
+                    y[q, j+L] += P * conj(phase[q]) * x[i]
+                    y[q, i] += conj(P) * phase[q] * x[j+L]
+                    y[q, j] += conj(P) * conj(phase[q]) * x[i+L]
                 end
             end
         end
     end
 
     # Add small constant shift for positive-definiteness. (Note explicit indexing seems to perform better.)
-    for n in 1:2, m in 1:natoms(sys.crystal)
-        e = swt.energy_ϵ * x[m,n]
+    for m in 1:L
         for q in 1:nq
-            ys[q,m,n] += e 
+            y[q, m]   += swt.energy_ϵ * x[m]
+            y[q, m+L] += swt.energy_ϵ * x[m+L]
         end
     end
 
