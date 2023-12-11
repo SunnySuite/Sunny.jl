@@ -490,7 +490,7 @@ end
     import LinearAlgebra: diagm
 
     function onehot(i, n)
-        out = zeros(n)
+        out = zeros(ComplexF64, n)
         out[i] = 1.0
         return out
     end
@@ -540,7 +540,7 @@ end
     # Construct SU(N) Hamiltonian from sparse matrix-vector multiplies
     H2 = zero(H1)
     for i in 1:2L
-        Sunny.multiply_by_hamiltonian_SUN!(view(H2, :, i), onehot(i, 2L), swt, q)
+        H2[:, i] = Sunny.multiply_by_hamiltonian_SUN(onehot(i, 2L), swt, [q])
     end
 
     @test isapprox(H1, H2; atol=1e-12)

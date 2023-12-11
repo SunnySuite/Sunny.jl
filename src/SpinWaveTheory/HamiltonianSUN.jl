@@ -114,10 +114,12 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     end
 end
 
-
+################################################################################
+# Old matrix-vector implementation. (Delete before merge -- for benching)
+################################################################################
 # Calculate y = H_{onsite}*x, where H_{onsite} is the portion of the quadratic
 # Hamiltonian matrix (dynamical matrix) due to onsite terms (other than Zeeman).
-function multiply_by_onsite_coupling_SUN!(y, x, op, swt, atom)
+function multiply_by_onsite_coupling_SUN_ref!(y, x, op, swt, atom)
     sys = swt.sys
     N = sys.Ns[1] 
     nflavors = N - 1 
@@ -136,7 +138,7 @@ end
 
 # Calculate y = H_{pair}*x, where H_{pair} is the portion of the quadratic
 # Hamiltonian matrix (dynamical matrix) due to pair-wise interactions.
-function multiply_by_pair_coupling_SUN!(y, x, Ti, Tj, swt, phase, bond)
+function multiply_by_pair_coupling_SUN_ref!(y, x, Ti, Tj, swt, phase, bond)
     (; i, j) = bond
     sys = swt.sys
     N = sys.Ns[1] 
@@ -173,7 +175,130 @@ function multiply_by_pair_coupling_SUN!(y, x, Ti, Tj, swt, phase, bond)
 end
 
 # Calculate y = H*x, where H is the quadratic Hamiltonian matrix (dynamical matrix).
-function multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped)
+function multiply_by_hamiltonian_SUN_ref!(y, x, swt, q_reshaped)
+    (; sys, data) = swt
+    (; zeeman_operators) = data
+    y .= 0
+
+    # Add single-site terms (single-site anisotropy and external field)
+    # Couple percent speedup if this is removed and accumulated into onsite term
+    # (not pursuing for now to maintain parallelism with dipole mode). 
+    for atom in 1:natoms(sys.crystal)
+        zeeman = view(zeeman_operators, :, :, atom)
+        multiply_by_onsite_coupling_SUN_ref!(y, x, zeeman, swt, atom)
+    end
+
+    # Add pair interactions that use explicit bases
+    for (atom, int) in enumerate(sys.interactions_union)
+
+        # Set the onsite term
+        multiply_by_onsite_coupling_SUN_ref!(y, x, int.onsite, swt, atom)
+
+        for coupling in int.pair
+            # Extract information common to bond
+            (; isculled, bond) = coupling
+            isculled && break
+
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            for (A, B) in coupling.general.data 
+                multiply_by_pair_coupling_SUN_ref!(y, x, A, B, swt, phase, bond)
+            end
+        end
+    end
+
+    # # Add small constant shift for positive-definiteness
+    @. y += swt.energy_ϵ * x
+
+    nothing
+end
+
+
+################################################################################
+# Matrix-vector multiply
+################################################################################
+
+# Calculate y = H_{onsite}*x, where H_{onsite} is the portion of the quadratic
+# Hamiltonian matrix (dynamical matrix) due to onsite terms (other than Zeeman).
+function multiply_by_onsite_coupling_SUN!(y, x, op, swt, atom)
+    sys = swt.sys
+    N = sys.Ns[1] 
+    nflavors = N - 1 
+
+    nq = size(y, 1)
+    x = Base.ReshapedArray(x, (nflavors, natoms(sys.crystal), 2), ())
+    y = Base.ReshapedArray(y, (nq, nflavors, natoms(sys.crystal), 2), ())
+
+    for m in 1:N-1
+        for n in 1:N-1
+            c = 0.5 * (op[m, n] - δ(m, n) * op[N, N])
+            for q in axes(y, 1)
+                y[q, m, atom, 1] += c * x[n, atom, 1]
+                y[q, n, atom, 2] += c * x[m, atom, 2]
+            end
+        end
+    end
+end
+
+# Calculate y = H_{pair}*x, where H_{pair} is the portion of the quadratic
+# Hamiltonian matrix (dynamical matrix) due to pair-wise interactions.
+function multiply_by_pair_coupling_SUN!(y, x, Ti, Tj, swt, phase, bond)
+    (; i, j) = bond
+    sys = swt.sys
+    N = sys.Ns[1] 
+    nflavors = N - 1 
+
+    nq = size(y, 1)
+    x = Base.ReshapedArray(x, (nflavors, natoms(sys.crystal), 2), ())
+    y = Base.ReshapedArray(y, (nq, nflavors, natoms(sys.crystal), 2), ())
+
+    for m in 1:N-1
+        for n in 1:N-1
+            c1 = 0.5 * (Ti[m,n] - δ(m,n)*Ti[N,N]) * Tj[N,N]
+            c2 = 0.5 * Ti[N,N] * (Tj[m,n] - δ(m,n)*Tj[N,N])
+            c3 = 0.5 * Ti[m,N] * Tj[N,n]
+            c4 = 0.5 * Ti[N,m] * Tj[n,N]
+            c5 = 0.5 * Ti[m,N] * Tj[n,N]
+
+            for q in axes(y, 1)
+                y[q, m, i, 1] += c1 * x[n, i, 1] 
+                y[q, n, i, 2] += c1 * x[m, i, 2]
+
+                y[q, m, j, 1] += c2 * x[n, j, 1]
+                y[q, n, j, 2] += c2 * x[m, j, 2]
+
+                y[q, m, i, 1] += c3 * phase[q] * x[n, j, 1]
+                y[q, n, j, 2] += c3 * conj(phase[q]) * x[m, i, 2]
+
+                y[q, n, j, 1] += c4 * conj(phase[q]) * x[m, i, 1]
+                y[q, m, i, 2] += c4 * phase[q] * x[n, j, 2]
+                
+                y[q, m, i, 1] += c5 * phase[q] * x[n, j, 2]
+                y[q, n, j, 1] += c5 * conj(phase[q]) * x[m, i, 2]
+                y[q, m, i, 2] += conj(c5 * phase[q]) * x[n, j, 1]
+                y[q, n, j, 2] += conj(c5) * phase[q] * x[m, i, 1]
+            end
+        end
+    end
+end
+
+function multiply_by_hamiltonian_SUN(x, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
+    # Preallocate buffers
+    y = zeros(ComplexF64, (size(qs_reshaped)..., length(x)))
+    phasebuf = zeros(ComplexF64, length(qs_reshaped))
+
+    # Precompute e^{2πq_α} components
+    qphase = map(qs_reshaped) do q  
+        (exp(2π*im*q[1]), exp(2π*im*q[2]), exp(2π*im*q[3]))
+    end
+
+    # Perform batched matrix-vector multiply
+    multiply_by_hamiltonian_SUN_aux!(reshape(y, (length(qs_reshaped), length(x))), x, phasebuf, qphase, swt)
+
+    return y 
+end
+
+# Calculate y = H*x, where H is the quadratic Hamiltonian matrix (dynamical matrix).
+function multiply_by_hamiltonian_SUN_aux!(y, x, phasebuf, qphase, swt)
     (; sys, data) = swt
     (; zeeman_operators) = data
     y .= 0
@@ -197,15 +322,22 @@ function multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped)
             (; isculled, bond) = coupling
             isculled && break
 
-            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            # phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            n1, n2, n3 = bond.n
+            map!(qp -> (qp[1]^n1)*(qp[2]^n2)*(qp[3]^n3), phasebuf, qphase)
             for (A, B) in coupling.general.data 
-                multiply_by_pair_coupling_SUN!(y, x, A, B, swt, phase, bond)
+                multiply_by_pair_coupling_SUN!(y, x, A, B, swt, phasebuf, bond)
             end
         end
     end
 
-    # # Add small constant shift for positive-definiteness
-    @. y += swt.energy_ϵ * x
+    # Add small constant shift for positive-definiteness
+    for i in axes(y, 2)
+        e = swt.energy_ϵ * x[i]
+        for q in axes(y, 1)
+            y[q, i] += e 
+        end
+    end
 
     nothing
 end
