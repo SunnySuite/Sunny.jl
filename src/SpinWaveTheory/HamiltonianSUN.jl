@@ -124,8 +124,8 @@ function multiply_by_onsite_coupling_SUN_ref!(y, x, op, swt, atom)
     N = sys.Ns[1] 
     nflavors = N - 1 
 
-    x = reshape(x, nflavors, natoms(sys.crystal), 2)
-    y = reshape(y, nflavors, natoms(sys.crystal), 2)
+    x = Base.ReshapedArray(x, (nflavors, natoms(sys.crystal), 2), ())
+    y = Base.ReshapedArray(y, (nflavors, natoms(sys.crystal), 2), ())
 
     for m in 1:N-1
         for n in 1:N-1
@@ -144,8 +144,8 @@ function multiply_by_pair_coupling_SUN_ref!(y, x, Ti, Tj, swt, phase, bond)
     N = sys.Ns[1] 
     nflavors = N - 1 
 
-    x = reshape(x, nflavors, natoms(sys.crystal), 2)
-    y = reshape(y, nflavors, natoms(sys.crystal), 2)
+    x = Base.ReshapedArray(x, (nflavors, natoms(sys.crystal), 2), ())
+    y = Base.ReshapedArray(y, (nflavors, natoms(sys.crystal), 2), ())
 
     for m in 1:N-1
         for n in 1:N-1
