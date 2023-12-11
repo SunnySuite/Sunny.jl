@@ -225,15 +225,15 @@ function multiply_by_onsite_coupling_SUN!(y, x, op, swt, atom)
     nflavors = N - 1 
 
     nq = size(y, 1)
-    x = Base.ReshapedArray(x, (nflavors, natoms(sys.crystal), 2), ())
+    x = Base.ReshapedArray(x, (nq, nflavors, natoms(sys.crystal), 2), ())
     y = Base.ReshapedArray(y, (nq, nflavors, natoms(sys.crystal), 2), ())
 
     for m in 1:N-1
         for n in 1:N-1
             c = 0.5 * (op[m, n] - δ(m, n) * op[N, N])
             for q in axes(y, 1)
-                y[q, m, atom, 1] += c * x[n, atom, 1]
-                y[q, n, atom, 2] += c * x[m, atom, 2]
+                y[q, m, atom, 1] += c * x[q, n, atom, 1]
+                y[q, n, atom, 2] += c * x[q, m, atom, 2]
             end
         end
     end
@@ -248,7 +248,7 @@ function multiply_by_pair_coupling_SUN!(y, x, Ti, Tj, swt, phase, bond)
     nflavors = N - 1 
 
     nq = size(y, 1)
-    x = Base.ReshapedArray(x, (nflavors, natoms(sys.crystal), 2), ())
+    x = Base.ReshapedArray(x, (nq, nflavors, natoms(sys.crystal), 2), ())
     y = Base.ReshapedArray(y, (nq, nflavors, natoms(sys.crystal), 2), ())
 
     for m in 1:N-1
@@ -260,30 +260,30 @@ function multiply_by_pair_coupling_SUN!(y, x, Ti, Tj, swt, phase, bond)
             c5 = 0.5 * Ti[m,N] * Tj[n,N]
 
             for q in axes(y, 1)
-                y[q, m, i, 1] += c1 * x[n, i, 1] 
-                y[q, n, i, 2] += c1 * x[m, i, 2]
+                y[q, m, i, 1] += c1 * x[q, n, i, 1] 
+                y[q, n, i, 2] += c1 * x[q, m, i, 2]
 
-                y[q, m, j, 1] += c2 * x[n, j, 1]
-                y[q, n, j, 2] += c2 * x[m, j, 2]
+                y[q, m, j, 1] += c2 * x[q, n, j, 1]
+                y[q, n, j, 2] += c2 * x[q, m, j, 2]
 
-                y[q, m, i, 1] += c3 * phase[q] * x[n, j, 1]
-                y[q, n, j, 2] += c3 * conj(phase[q]) * x[m, i, 2]
+                y[q, m, i, 1] += c3 * phase[q] * x[q, n, j, 1]
+                y[q, n, j, 2] += c3 * conj(phase[q]) * x[q, m, i, 2]
 
-                y[q, n, j, 1] += c4 * conj(phase[q]) * x[m, i, 1]
-                y[q, m, i, 2] += c4 * phase[q] * x[n, j, 2]
+                y[q, n, j, 1] += c4 * conj(phase[q]) * x[q, m, i, 1]
+                y[q, m, i, 2] += c4 * phase[q] * x[q, n, j, 2]
                 
-                y[q, m, i, 1] += c5 * phase[q] * x[n, j, 2]
-                y[q, n, j, 1] += c5 * conj(phase[q]) * x[m, i, 2]
-                y[q, m, i, 2] += conj(c5 * phase[q]) * x[n, j, 1]
-                y[q, n, j, 2] += conj(c5) * phase[q] * x[m, i, 1]
+                y[q, m, i, 1] += c5 * phase[q] * x[q, n, j, 2]
+                y[q, n, j, 1] += c5 * conj(phase[q]) * x[q, m, i, 2]
+                y[q, m, i, 2] += conj(c5 * phase[q]) * x[q, n, j, 1]
+                y[q, n, j, 2] += conj(c5) * phase[q] * x[q, m, i, 1]
             end
         end
     end
 end
 
-function multiply_by_hamiltonian_SUN(x, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
+function multiply_by_hamiltonian_SUN(x::Array{ComplexF64, 2}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
     # Preallocate buffers
-    y = zeros(ComplexF64, (size(qs_reshaped)..., length(x)))
+    y = zeros(ComplexF64, (size(qs_reshaped)..., size(x, 2)))
     phasebuf = zeros(ComplexF64, length(qs_reshaped))
 
     # Precompute e^{2πq_α} components
@@ -332,12 +332,7 @@ function multiply_by_hamiltonian_SUN_aux!(y, x, phasebuf, qphase, swt)
     end
 
     # Add small constant shift for positive-definiteness
-    for i in axes(y, 2)
-        e = swt.energy_ϵ * x[i]
-        for q in axes(y, 1)
-            y[q, i] += e 
-        end
-    end
+    @. y += swt.energy_ϵ * x
 
     nothing
 end

@@ -209,7 +209,7 @@ end
 
 function multiply_by_hamiltonian_dipole(x::Array{ComplexF64, 2}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
     # Preallocate buffers
-    y = zeros(ComplexF64, (size(qs_reshaped)..., length(x)))
+    y = zeros(ComplexF64, (size(qs_reshaped)..., size(x, 2)))
     phasebuf = zeros(ComplexF64, length(qs_reshaped))
 
     # Precompute e^{2πq_α} components
@@ -223,7 +223,8 @@ function multiply_by_hamiltonian_dipole(x::Array{ComplexF64, 2}, swt::SpinWaveTh
     return y 
 end
 
-function multiply_by_hamiltonian_dipole_aux!(y::Array{ComplexF64, 2}, x::Array{ComplexF64, 2}, phasebuf::Vector{ComplexF64}, qphase, swt::SpinWaveTheory)
+# function multiply_by_hamiltonian_dipole_aux!(y::Array{ComplexF64, 2}, x::Array{ComplexF64, 2}, phasebuf::Vector{ComplexF64}, qphase, swt::SpinWaveTheory)
+function multiply_by_hamiltonian_dipole_aux!(y, x, phasebuf, qphase, swt)
     (; sys, data) = swt
     (; stevens_coefs, local_rotations) = data
 
@@ -278,62 +279,109 @@ function multiply_by_hamiltonian_dipole_aux!(y::Array{ComplexF64, 2}, x::Array{C
                 P = 0.25 * (J[1, 1] - J[2, 2] - im*J[1, 2] - im*J[2, 1])
                 Q = 0.25 * (J[1, 1] + J[2, 2] - im*J[1, 2] + im*J[2, 1])
 
-                for q in 1:nq
-                    y[q, i, 1] += Q * phasebuf[q] * x[q, j, 1]
-                    y[q, j, 1] += conj(Q) * conj(phasebuf[q]) * x[q, i, 1]
-                    y[q, i, 2] += conj(Q) * phasebuf[q] * x[q, j, 2]
-                    y[q, j, 2] += Q * conj(phasebuf[q]) * x[q, i, 2]
-
-                    y[q, i, 2] += P * phasebuf[q] * x[q, j, 1]
-                    y[q, j, 2] += P * conj(phasebuf[q]) * x[q, i, 1]
-                    y[q, i, 1] += conj(P) * phasebuf[q] * x[q, j, 2]
-                    y[q, j, 1] += conj(P) * conj(phasebuf[q]) * x[q, i, 2]
-
-                    y[q, i, 1] -= 0.5 * J[3, 3] * x[q, i, 1]
-                    y[q, j, 1] -= 0.5 * J[3, 3] * x[q, j, 1]
-                    y[q, i, 2] -= 0.5 * J[3, 3] * x[q, i, 2]
-                    y[q, j, 2] -= 0.5 * J[3, 3] * x[q, j, 2]
+                @inbounds begin
+                    for q in axes(y, 1) 
+                        y[q, i, 1] += Q * phasebuf[q] * x[q, j, 1]
+                        y[q, i, 1] += conj(P) * phasebuf[q] * x[q, j, 2]
+                        y[q, i, 1] -= 0.5 * J[3, 3] * x[q, i, 1]
+                    end
+                    for q in axes(y, 1) 
+                        y[q, i, 2] += conj(Q) * phasebuf[q] * x[q, j, 2]
+                        y[q, i, 2] += P * phasebuf[q] * x[q, j, 1]
+                        y[q, i, 2] -= 0.5 * J[3, 3] * x[q, i, 2]
+                    end
+                    for q in axes(y, 1) 
+                        y[q, j, 1] += conj(P) * conj(phasebuf[q]) * x[q, i, 2]
+                        y[q, j, 1] += conj(Q) * conj(phasebuf[q]) * x[q, i, 1]
+                        y[q, j, 1] -= 0.5 * J[3, 3] * x[q, j, 1]
+                    end
+                    for q in axes(y, 1) 
+                        y[q, j, 2] += Q * conj(phasebuf[q]) * x[q, i, 2]
+                        y[q, j, 2] += P * conj(phasebuf[q]) * x[q, i, 1]
+                        y[q, j, 2] -= 0.5 * J[3, 3] * x[q, j, 2]
+                    end
                 end
+
+                # for q in axes(y, 1) 
+                #     y[q, i, 1] += Q * phasebuf[q] * x[q, j, 1]
+                #     y[q, j, 1] += conj(Q) * conj(phasebuf[q]) * x[q, i, 1]
+                #     y[q, i, 2] += conj(Q) * phasebuf[q] * x[q, j, 2]
+                #     y[q, j, 2] += Q * conj(phasebuf[q]) * x[q, i, 2]
+
+                #     y[q, i, 2] += P * phasebuf[q] * x[q, j, 1]
+                #     y[q, j, 2] += P * conj(phasebuf[q]) * x[q, i, 1]
+                #     y[q, i, 1] += conj(P) * phasebuf[q] * x[q, j, 2]
+                #     y[q, j, 1] += conj(P) * conj(phasebuf[q]) * x[q, i, 2]
+
+                #     y[q, i, 1] -= 0.5 * J[3, 3] * x[q, i, 1]
+                #     y[q, j, 1] -= 0.5 * J[3, 3] * x[q, j, 1]
+                #     y[q, i, 2] -= 0.5 * J[3, 3] * x[q, i, 2]
+                #     y[q, j, 2] -= 0.5 * J[3, 3] * x[q, j, 2]
+                # end
             end
 
             # Biquadratic exchange
             if !iszero(coupling.biquad)
                 J = coupling.biquad  # Transformed quadrupole exchange matrix
-                for q in 1:nq
+
+                P = 0.25 * (-J[4, 4]+J[2, 2] - im*( J[4, 2]+J[2, 4]))
+                Q = 0.25 * ( J[4, 4]+J[2, 2] - im*(-J[4, 2]+J[2, 4]))
+
+                @inbounds for q in 1:nq
                     y[q, i, 1] += -6J[3, 3] * x[q, i, 1]
-                    y[q, j, 1] += -6J[3, 3] * x[q, j, 1]
-
-                    y[q, i, 2] += -6J[3, 3] * x[q, i, 2]
-                    y[q, j, 2] += -6J[3, 3] * x[q, j, 2]
-
-                    y[q, i, 2] += 12*(J[1, 3] - im*J[5, 3]) * x[q, i, 1]
                     y[q, i, 1] += 12*(J[1, 3] + im*J[5, 3]) * x[q, i, 2]
-                    y[q, j, 2] += 12*(J[3, 1] - im*J[3, 5]) * x[q, j, 1]
-                    y[q, j, 1] += 12*(J[3, 1] + im*J[3, 5]) * x[q, j, 2]
-
-                    P = 0.25 * (-J[4, 4]+J[2, 2] - im*( J[4, 2]+J[2, 4]))
-                    Q = 0.25 * ( J[4, 4]+J[2, 2] - im*(-J[4, 2]+J[2, 4]))
-
                     y[q, i, 1] += Q * phasebuf[q] * x[q, j, 1]
-                    y[q, j, 1] += conj(Q) * conj(phasebuf[q]) * x[q, i, 1]
-                    y[q, i, 2] += conj(Q) * phasebuf[q] * x[q, j, 2]
-                    y[q, j, 2] += Q * conj(phasebuf[q]) * x[q, i, 2]
-
-                    y[q, i, 2] += P * phasebuf[q] * x[q, j, 1]
-                    y[q, j, 2] += P * conj(phasebuf[q]) * x[q, i, 1]
                     y[q, i, 1] += conj(P) * phasebuf[q] * x[q, j, 2]
+                end
+                @inbounds for q in 1:nq
+                    y[q, i, 2] += -6J[3, 3] * x[q, i, 2]
+                    y[q, i, 2] += 12*(J[1, 3] - im*J[5, 3]) * x[q, i, 1]
+                    y[q, i, 2] += conj(Q) * phasebuf[q] * x[q, j, 2]
+                    y[q, i, 2] += P * phasebuf[q] * x[q, j, 1]
+                end
+                @inbounds for q in 1:nq
+                    y[q, j, 1] += -6J[3, 3] * x[q, j, 1]
+                    y[q, j, 1] += 12*(J[3, 1] + im*J[3, 5]) * x[q, j, 2]
+                    y[q, j, 1] += conj(Q) * conj(phasebuf[q]) * x[q, i, 1]
                     y[q, j, 1] += conj(P) * conj(phasebuf[q]) * x[q, i, 2]
                 end
+                @inbounds for q in 1:nq
+                    y[q, j, 2] += -6J[3, 3] * x[q, j, 2]
+                    y[q, j, 2] += 12*(J[3, 1] - im*J[3, 5]) * x[q, j, 1]
+                    y[q, j, 2] += Q * conj(phasebuf[q]) * x[q, i, 2]
+                    y[q, j, 2] += P * conj(phasebuf[q]) * x[q, i, 1]
+                end
+
+                # P = 0.25 * (-J[4, 4]+J[2, 2] - im*( J[4, 2]+J[2, 4]))
+                # Q = 0.25 * ( J[4, 4]+J[2, 2] - im*(-J[4, 2]+J[2, 4]))
+                # for q in 1:nq
+                #     y[q, i, 1] += -6J[3, 3] * x[q, i, 1]
+                #     y[q, j, 1] += -6J[3, 3] * x[q, j, 1]
+
+                #     y[q, i, 2] += -6J[3, 3] * x[q, i, 2]
+                #     y[q, j, 2] += -6J[3, 3] * x[q, j, 2]
+
+                #     y[q, i, 2] += 12*(J[1, 3] - im*J[5, 3]) * x[q, i, 1]
+                #     y[q, i, 1] += 12*(J[1, 3] + im*J[5, 3]) * x[q, i, 2]
+                #     y[q, j, 2] += 12*(J[3, 1] - im*J[3, 5]) * x[q, j, 1]
+                #     y[q, j, 1] += 12*(J[3, 1] + im*J[3, 5]) * x[q, j, 2]
+
+                #     y[q, i, 1] += Q * phasebuf[q] * x[q, j, 1]
+                #     y[q, j, 1] += conj(Q) * conj(phasebuf[q]) * x[q, i, 1]
+                #     y[q, i, 2] += conj(Q) * phasebuf[q] * x[q, j, 2]
+                #     y[q, j, 2] += Q * conj(phasebuf[q]) * x[q, i, 2]
+
+                #     y[q, i, 2] += P * phasebuf[q] * x[q, j, 1]
+                #     y[q, j, 2] += P * conj(phasebuf[q]) * x[q, i, 1]
+                #     y[q, i, 1] += conj(P) * phasebuf[q] * x[q, j, 2]
+                #     y[q, j, 1] += conj(P) * conj(phasebuf[q]) * x[q, i, 2]
+                # end
             end
         end
     end
 
-    # Add small constant shift for positive-definiteness. (Note explicit indexing seems to perform better.)
-    for n in 1:2, m in 1:natoms(sys.crystal)
-        for q in 1:nq
-            y[q,m,n] += swt.energy_ϵ * x[q, m, n]
-        end
-    end
+    # Add small constant shift for positive-definiteness. 
+    @. y += swt.energy_ϵ * x
 
     nothing
 end

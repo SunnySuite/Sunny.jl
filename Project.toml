@@ -21,6 +21,7 @@ RowEchelon = "af85af4c-bcd5-5d23-b03a-a909639aa875"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 Spglib = "f761d5c5-86db-4880-b97f-9680a7cccfb5"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+StructArrays = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 
 [weakdeps]
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"

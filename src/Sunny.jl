@@ -12,6 +12,7 @@ import Random: Random, randn!
 import DataStructures: SortedDict, OrderedDict
 import Optim
 import JLD2
+import LoopVectorization as LV
 
 # Specific to Symmetry/
 import FilePathsBase: Path
