@@ -487,11 +487,11 @@ end
 end
 
 @testitem "Equivalence of dense and sparse Hamiltonian constructions" begin
-    import LinearAlgebra: diagm
+    import LinearAlgebra: diagm, I
 
     function onehot(i, n)
-        out = zeros(ComplexF64, n)
-        out[i] = 1.0
+        out = zeros(ComplexF64, 1, n)
+        out[1, i] = 1.0
         return out
     end
 
