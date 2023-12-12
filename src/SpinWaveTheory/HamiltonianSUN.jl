@@ -193,7 +193,7 @@ function multiply_by_hamiltonian_SUN(x::Array{ComplexF64, 2}, swt::SpinWaveTheor
     end
 
     # Perform batched matrix-vector multiply
-    multiply_by_hamiltonian_SUN_aux!(reshape(y, (length(qs_reshaped), length(x))), x, phasebuf, qphase, swt)
+    multiply_by_hamiltonian_SUN_aux!(reshape(y, (length(qs_reshaped), size(x, 2))), x, phasebuf, qphase, swt)
 
     return y 
 end
