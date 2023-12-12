@@ -114,112 +114,6 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     end
 end
 
-################################################################################
-# Old matrix-vector implementation. (Delete before merge -- for benching)
-################################################################################
-# Calculate y = H_{onsite}*x, where H_{onsite} is the portion of the quadratic
-# Hamiltonian matrix (dynamical matrix) due to onsite terms (other than Zeeman).
-function multiply_by_onsite_coupling_SUN_ref!(y, x, op, swt, atom)
-    sys = swt.sys
-    N = sys.Ns[1] 
-    nflavors = N - 1 
-
-    # x = Base.ReshapedArray(x, (nflavors, natoms(sys.crystal), 2), ())
-    # y = Base.ReshapedArray(y, (nflavors, natoms(sys.crystal), 2), ())
-    x = reshape(x, (nflavors, natoms(sys.crystal), 2))
-    y = reshape(y, (nflavors, natoms(sys.crystal), 2))
-
-    for m in 1:N-1
-        for n in 1:N-1
-            c = 0.5 * (op[m, n] - δ(m, n) * op[N, N])
-            y[m, atom, 1] += c * x[n, atom, 1]
-            y[n, atom, 2] += c * x[m, atom, 2]
-        end
-    end
-end
-
-# Calculate y = H_{pair}*x, where H_{pair} is the portion of the quadratic
-# Hamiltonian matrix (dynamical matrix) due to pair-wise interactions.
-function multiply_by_pair_coupling_SUN_ref!(y, x, Ti, Tj, swt, phase, bond)
-    (; i, j) = bond
-    sys = swt.sys
-    N = sys.Ns[1] 
-    nflavors = N - 1 
-
-    # x = Base.ReshapedArray(x, (nflavors, natoms(sys.crystal), 2), ())
-    # y = Base.ReshapedArray(y, (nflavors, natoms(sys.crystal), 2), ())
-    x = reshape(x, (nflavors, natoms(sys.crystal), 2))
-    y = reshape(y, (nflavors, natoms(sys.crystal), 2))
-
-    for m in 1:N-1
-        for n in 1:N-1
-            c = 0.5 * (Ti[m,n] - δ(m,n)*Ti[N,N]) * Tj[N,N]
-            y[m, i, 1] += c * x[n, i, 1] 
-            y[n, i, 2] += c * x[m, i, 2]
-
-            c = 0.5 * Ti[N,N] * (Tj[m,n] - δ(m,n)*Tj[N,N])
-            y[m, j, 1] += c * x[n, j, 1]
-            y[n, j, 2] += c * x[m, j, 2]
-
-            c = 0.5 * Ti[m,N] * Tj[N,n]
-            y[m, i, 1] += c * phase * x[n, j, 1]
-            y[n, j, 2] += c * conj(phase) * x[m, i, 2]
-
-            c = 0.5 * Ti[N,m] * Tj[n,N]
-            y[n, j, 1] += c * conj(phase) * x[m, i, 1]
-            y[m, i, 2] += c * phase * x[n, j, 2]
-            
-            c = 0.5 * Ti[m,N] * Tj[n,N]
-            y[m, i, 1] += c * phase * x[n, j, 2]
-            y[n, j, 1] += c * conj(phase) * x[m, i, 2]
-            y[m, i, 2] += conj(c * phase) * x[n, j, 1]
-            y[n, j, 2] += conj(c) *phase * x[m, i, 1]
-        end
-    end
-end
-
-# Calculate y = H*x, where H is the quadratic Hamiltonian matrix (dynamical matrix).
-function multiply_by_hamiltonian_SUN_ref!(y, x, swt, q_reshaped)
-    (; sys, data) = swt
-    (; zeeman_operators) = data
-    y .= 0
-
-    # Add single-site terms (single-site anisotropy and external field)
-    # Couple percent speedup if this is removed and accumulated into onsite term
-    # (not pursuing for now to maintain parallelism with dipole mode). 
-    for atom in 1:natoms(sys.crystal)
-        zeeman = view(zeeman_operators, :, :, atom)
-        multiply_by_onsite_coupling_SUN_ref!(y, x, zeeman, swt, atom)
-    end
-
-    # Add pair interactions that use explicit bases
-    for (atom, int) in enumerate(sys.interactions_union)
-
-        # Set the onsite term
-        multiply_by_onsite_coupling_SUN_ref!(y, x, int.onsite, swt, atom)
-
-        for coupling in int.pair
-            # Extract information common to bond
-            (; isculled, bond) = coupling
-            isculled && break
-
-            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
-            for (A, B) in coupling.general.data 
-                multiply_by_pair_coupling_SUN_ref!(y, x, A, B, swt, phase, bond)
-            end
-        end
-    end
-
-    # # Add small constant shift for positive-definiteness
-    @. y += swt.energy_ϵ * x
-
-    nothing
-end
-
-
-################################################################################
-# Matrix-vector multiply
-################################################################################
 
 # Calculate y = H_{onsite}*x, where H_{onsite} is the portion of the quadratic
 # Hamiltonian matrix (dynamical matrix) due to onsite terms (other than Zeeman).
@@ -235,7 +129,7 @@ function multiply_by_onsite_coupling_SUN!(y, x, op, swt, atom)
     for m in 1:N-1
         for n in 1:N-1
             c = 0.5 * (op[m, n] - δ(m, n) * op[N, N])
-            for q in axes(y, 1)
+            @inbounds for q in 1:nq
                 y[q, m, atom, 1] += c * x[q, n, atom, 1]
                 y[q, n, atom, 2] += c * x[q, m, atom, 2]
             end
@@ -263,7 +157,7 @@ function multiply_by_pair_coupling_SUN!(y, x, Ti, Tj, swt, phase, bond)
             c4 = 0.5 * Ti[N,m] * Tj[n,N]
             c5 = 0.5 * Ti[m,N] * Tj[n,N]
 
-            for q in axes(y, 1)
+            @inbounds for q in axes(y, 1)
                 y[q, m, i, 1] += c1 * x[q, n, i, 1] 
                 y[q, n, i, 2] += c1 * x[q, m, i, 2]
 
@@ -285,6 +179,9 @@ function multiply_by_pair_coupling_SUN!(y, x, Ti, Tj, swt, phase, bond)
     end
 end
 
+# Calculate y = H*x, where H is the quadratic Hamiltonian matrix (dynamical
+# matrix). Note that x is assumed to be a 2D array with first index
+# corresponding to q. 
 function multiply_by_hamiltonian_SUN(x::Array{ComplexF64, 2}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
     # Preallocate buffers
     y = zeros(ComplexF64, (size(qs_reshaped)..., size(x, 2)))
@@ -301,7 +198,6 @@ function multiply_by_hamiltonian_SUN(x::Array{ComplexF64, 2}, swt::SpinWaveTheor
     return y 
 end
 
-# Calculate y = H*x, where H is the quadratic Hamiltonian matrix (dynamical matrix).
 function multiply_by_hamiltonian_SUN_aux!(y, x, phasebuf, qphase, swt)
     (; sys, data) = swt
     (; zeeman_operators) = data
@@ -336,7 +232,7 @@ function multiply_by_hamiltonian_SUN_aux!(y, x, phasebuf, qphase, swt)
     end
 
     # Add small constant shift for positive-definiteness
-    @. y += swt.energy_ϵ * x
+    @inbounds @. y += swt.energy_ϵ * x
 
     nothing
 end
