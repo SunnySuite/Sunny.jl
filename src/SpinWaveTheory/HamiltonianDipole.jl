@@ -109,7 +109,9 @@ end
 # Calculate H*x for many qs simultaneously.
 function multiply_by_hamiltonian_dipole(x::Array{ComplexF64, 2}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
     # Preallocate buffers.
-    y = zeros(ComplexF64, (size(qs_reshaped)..., size(x, 2)))
+    L = nbands(swt)
+    @assert size(x, 2) == 2L
+    y = zeros(ComplexF64, (size(qs_reshaped)..., 2L))
     phasebuf = zeros(ComplexF64, length(qs_reshaped))
 
     # Precompute e^{2πq_α} components.
@@ -118,7 +120,7 @@ function multiply_by_hamiltonian_dipole(x::Array{ComplexF64, 2}, swt::SpinWaveTh
     end
 
     # Perform batched matrix-vector multiply.
-    multiply_by_hamiltonian_dipole_aux!(reshape(y, (length(qs_reshaped), size(x, 2))), x, phasebuf, qphase, swt)
+    multiply_by_hamiltonian_dipole_aux!(reshape(y, (length(qs_reshaped), 2L)), x, phasebuf, qphase, swt)
 
     return y 
 end
