@@ -42,8 +42,7 @@ function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
     # Inverse of λ gives eigenvalues of Ĩ H. We only care about the first L
     # eigenvalues, which are positive. A factor of 2 is needed to get the
     # physical quasiparticle energies.
-    #disp = resize!(λ, L)
-    disp = λ
+    disp = resize!(λ, L)
     @. disp = 2 / disp
 
     # In the special case that H(q) = H(-q) (i.e., a magnetic ordering with
@@ -104,7 +103,7 @@ function dispersion(swt::SpinWaveTheory, qs)
 
     H = zeros(ComplexF64, 2nmodes, 2nmodes)
     V = zeros(ComplexF64, 2nmodes, 2nmodes)
-    disp = zeros(Float64, 2nmodes, length(qs))
+    disp = zeros(Float64, nmodes, length(qs))
 
     for (iq, q) in enumerate(qs)
         q_reshaped = to_reshaped_rlu(swt.sys, q)
@@ -154,8 +153,8 @@ function dssf(swt::SpinWaveTheory, qs)
     qs = Vec3.(qs)
     nmodes = nbands(swt)
 
-    disp = zeros(Float64, 2nmodes, size(qs)...)
-    Sαβs = zeros(ComplexF64, 3, 3, 2nmodes, size(qs)...) 
+    disp = zeros(Float64, nmodes, size(qs)...)
+    Sαβs = zeros(ComplexF64, 3, 3, nmodes, size(qs)...) 
 
     # dssf(...) doesn't do any contraction, temperature correction, etc.
     # It simply returns the full Sαβ correlation matrix
@@ -165,7 +164,7 @@ function dssf(swt::SpinWaveTheory, qs)
     for qidx in CartesianIndices(qs)
         q = qs[qidx]
         band_structure = formula.calc_intensity(swt,q)
-        for band = 1:(2nmodes)
+        for band = 1:nmodes
             disp[band,qidx] = band_structure.dispersion[band]
             Sαβs[:,:,band,qidx] .= band_structure.intensity[band]
         end
@@ -248,7 +247,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     H = zeros(ComplexF64, 2*nmodes, 2*nmodes)
     V = zeros(ComplexF64, 2*nmodes, 2*nmodes)
     Avec_pref = zeros(ComplexF64, Nm)
-    intensity = zeros(return_type, 2nmodes)
+    intensity = zeros(return_type, nmodes)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
@@ -364,7 +363,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
 
             # If there is no specified kernel, we are done: just return the
             # BandStructure
-            return BandStructure{2*nmodes,return_type}(disp, intensity)
+            return BandStructure{nmodes,return_type}(disp, intensity)
         else
             # Smooth kernel --> Intensity as a function of ω (or a list of ωs)
             return function(ω)
