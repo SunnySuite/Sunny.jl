@@ -65,8 +65,8 @@ function intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFo
     # Get the type parameter from the BandStructure
     return_type = typeof(formula).parameters[1].parameters[2]
 
-    band_dispersions = zeros(Float64,length(ks),nmodes)
-    band_intensities = zeros(return_type,length(ks),nmodes)
+    band_dispersions = zeros(Float64,length(ks),2nmodes)
+    band_intensities = zeros(return_type,length(ks),2nmodes)
     for kidx in CartesianIndices(ks)
         band_structure = formula.calc_intensity(swt, ks[kidx])
 
