@@ -81,6 +81,51 @@ function lanczos_QH_aux!(αs, βs, buf, A, niters)
 end
 
 
+# Matrix free implementation of QH Lanczos on Hamiltonian
+function eigbounds_MF(swt,q_reshaped, niters; extend=0.5)
+    lo, hi = lanczos_MF(swt,q_reshaped, niters) |> eigvals |> xs -> (first(xs), last(xs))
+    slack = extend*(hi-lo)
+    return lo-slack, hi+slack
+end
+
+
+function lanczos_MF(swt,q_reshaped, niters)
+    nmodes=Sunny.num_bands(swt)
+    αs = zeros(Float64, niters)    # Main diagonal 
+    βs = zeros(Float64, niters-1)  # Off diagonal
+    buf = zeros(ComplexF64, 2nmodes, 3)  # Vector buffer -- don't technically need 3 columns, but more legible this way
+    lanczos_QH_MF_aux!(αs, βs, buf, swt ,q_reshaped, niters)
+    return SymTridiagonal(αs, βs)
+end
+
+function lanczos_QH_MF_aux!(αs, βs, buf, swt ,q_reshaped, niters)
+    multiply_by_hamiltonian!(y, x) = (swt.sys.mode == :SUN) ? multiply_by_hamiltonian_SUN!(y,x, swt, q_reshaped) : multiply_by_hamiltonian_dipole!(y, x, swt, q_reshaped)
+    v, vprev, w = view(buf,:,1), view(buf,:,2), view(buf,:,3)
+    randn!(vprev)
+    mat_size=num_bands(swt)
+    Ĩ = diagm([ones(mat_size); -ones(mat_size)])
+    multiply_by_hamiltonian!(w,vprev) 
+    w = mul!(w,Ĩ,1w)
+    b0 = sqrt(Ĩ_dot_3(vprev, w,mat_size))
+    vprev = vprev/b0
+    w = w/b0
+    αs[1] = Ĩ_dot_3(w, w,mat_size)
+    @. w = w - αs[1]*vprev
+    for j in 2:niters
+        @. v = w
+        multiply_by_hamiltonian!(w,v) 
+        mul!(w,Ĩ,1w)
+        βs[j-1] = sqrt(Ĩ_dot_3(v, w,mat_size)) # maybe v?
+        iszero(βs[j-1]) && return
+        @. v = v/βs[j-1]
+        @. w = w/βs[j-1]
+        αs[j] = Ĩ_dot_3(w, w,mat_size)
+        @. w = w - αs[j]*v - βs[j-1]*vprev
+        v, vprev = vprev, v
+    end
+    return nothing
+end
+
 
 
 function lanczos_legacy(A, niters)
