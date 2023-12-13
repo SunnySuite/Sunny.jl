@@ -101,7 +101,7 @@ include("SpinWaveTheory/DispersionAndIntensities.jl")
 include("SpinWaveTheory/Lanczos.jl")
 include("SpinWaveTheory/Chebyshev.jl")
 include("SpinWaveTheory/KPM.jl")
-export SpinWaveTheory, dispersion, intensities, dssf, kpm_dssf, kpm_intensities
+export SpinWaveTheory, dispersion, dssf, kpm_dssf, kpm_intensities
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
