@@ -19,12 +19,6 @@ import CrystalInfoFramework as CIF
 import Spglib
 import RowEchelon: rref!
 
-# Specific to SunnyGfx
-import JSON
-import Colors: distinguishable_colors, RGB, Colors
-import Inflate: inflate_gzip
-import Random: randstring, RandomDevice
-
 # Specific to KPM
 import SparseArrays: spzeros, sparse, spdiagm
 
