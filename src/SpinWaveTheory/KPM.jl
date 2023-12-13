@@ -272,9 +272,6 @@ function intensity_formula_kpm(f,swt::SpinWaveTheory,corr_ix::AbstractVector{Int
     sqrt_Nm_inv = 1.0 / √Nm #define prefactors
     S = (Ns-1) / 2
     sqrt_halfS  = √(S/2) #define prefactors   
-    sqrt_Nm_inv = 1.0 / √Nm #define prefactors
-    S = (Ns-1) / 2
-    sqrt_halfS  = √(S/2) #define prefactors   
     Ĩ = spdiagm([ones(nmodes); -ones(nmodes)]) 
     n_iters = 50
     Avec_pref = zeros(ComplexF64, Nm) # initialize array of some prefactors   
@@ -285,7 +282,7 @@ function intensity_formula_kpm(f,swt::SpinWaveTheory,corr_ix::AbstractVector{Int
         q_absolute = swt.sys.crystal.recipvecs * q_reshaped
         u = zeros(ComplexF64,3,2*nmodes)
         multiply_by_hamiltonian!(y, x) = (swt.sys.mode == :SUN) ? multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped) : multiply_by_hamiltonian_dipole!(y, x, swt, q_reshaped)
-        lo,hi = Sunny.eigbounds_MF(swt,q_reshaped,n_iters; extend=0.25) # calculate bounds
+        lo,hi = Sunny.eigbounds_MF(swt,q_reshaped,n_iters; extend=0.5) # calculate bounds
         γ=max(abs(lo),abs(hi)) # select upper bound (combine with the preceeding line later)
         # u(q) calculation
         for site = 1:Nm
