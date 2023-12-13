@@ -487,11 +487,11 @@ end
 end
 
 @testitem "Equivalence of dense and sparse Hamiltonian constructions" begin
-    import LinearAlgebra: diagm
+    import LinearAlgebra: diagm, I
 
     function onehot(i, n)
-        out = zeros(n)
-        out[i] = 1.0
+        out = zeros(ComplexF64, 1, n)
+        out[1, i] = 1.0
         return out
     end
 
@@ -524,7 +524,7 @@ end
     H2 = zero(H1)
     L = Sunny.natoms(swt.sys.crystal)
     for i in 1:2L
-        Sunny.multiply_by_hamiltonian_dipole!(view(H2, :, i), onehot(i, 2L), swt, q)
+        H2[:, i] = Sunny.multiply_by_hamiltonian_dipole(onehot(i, 2L), swt, [q])
     end
 
     @test isapprox(H1, H2; atol=1e-12)
@@ -540,7 +540,7 @@ end
     # Construct SU(N) Hamiltonian from sparse matrix-vector multiplies
     H2 = zero(H1)
     for i in 1:2L
-        Sunny.multiply_by_hamiltonian_SUN!(view(H2, :, i), onehot(i, 2L), swt, q)
+        H2[:, i] = Sunny.multiply_by_hamiltonian_SUN(onehot(i, 2L), swt, [q])
     end
 
     @test isapprox(H1, H2; atol=1e-12)

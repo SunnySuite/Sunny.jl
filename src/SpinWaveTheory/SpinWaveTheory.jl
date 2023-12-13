@@ -59,7 +59,7 @@ function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
     println(io, "Atoms in magnetic supercell: $(natoms(swt.sys.crystal))")
 end
 
-function num_bands(swt::SpinWaveTheory)
+function nbands(swt::SpinWaveTheory)
     (; sys) = swt
     nflavors = sys.mode == :SUN ? sys.Ns[1]-1 : 1
     return nflavors * natoms(sys.crystal)

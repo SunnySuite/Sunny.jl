@@ -151,7 +151,7 @@ tensor (3×3 matrix) corresponding to the indices ``α`` and ``β``.
 """
 function dssf(swt::SpinWaveTheory, qs)
     qs = Vec3.(qs)
-    nmodes = num_bands(swt)
+    nmodes = nbands(swt)
 
     disp = zeros(Float64, nmodes, size(qs)...)
     Sαβs = zeros(ComplexF64, 3, 3, nmodes, size(qs)...) 
@@ -239,7 +239,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
     (; sys, data, observables) = swt
     Nm, N = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     S = (N-1) / 2
-    nmodes = num_bands(swt)
+    nmodes = nbands(swt)
     sqrt_Nm_inv = 1.0 / √Nm
     sqrt_halfS  = √(S/2)
 
