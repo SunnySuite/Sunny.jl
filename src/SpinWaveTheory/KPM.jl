@@ -360,3 +360,45 @@ function intensity_formula_kpm(f,swt::SpinWaveTheory,corr_ix::AbstractVector{Int
     end
     KPMIntensityFormula{return_type}(P,kT,σ,broadening,kernel,string_formula,calc_intensity)
 end
+
+#=
+function Itilde!(α, n)
+    view(α, n+1:2n) .*= -1
+end
+
+function Run_Recurrence_fast(swt,q_reshaped,γ,u,nmodes,chebyshev_moments,M)
+    α0 = zeros(ComplexF64,2*nmodes)
+    α1 = zeros(ComplexF64,2*nmodes)
+    α2 = zeros(ComplexF64,2*nmodes)
+
+    chebyshev_moments .= 0
+    for β=1:3
+        # α0 = ̃I u
+        α0 .= view(u, β, :)
+        Itilde!(α0, nmodes)
+
+        # α1 = ̃I A α0
+        Sunny.multiply_by_hamiltonian_dipole!(α1,α0,swt,q_reshaped)
+        @. α1 = α1 * (2/γ)
+        Itilde!(α1, nmodes)
+
+        for α=1:3
+            chebyshev_moments[α,β,0] = dot(view(u, α,:), α0)
+            chebyshev_moments[α,β,1] = dot(view(u, α,:), α1)
+        end
+        
+        for m=2:M-1
+            # α2 = ̃2 I A α1 - α0
+            Sunny.multiply_by_hamiltonian_dipole!(α2,α1,swt,q_reshaped) 
+            @. α2 = α2 * (2/γ)
+            Itilde!(α2, nmodes)
+            @. α2 = 2*α2 - α0
+
+            for α=1:3
+                chebyshev_moments[α,β,m] = dot(view(u, α,:),α2)
+            end
+            (α1, α0, α2) = (α2, α1, α0)
+        end
+    end
+end
+=#
