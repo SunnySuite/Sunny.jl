@@ -65,9 +65,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     (; sys, data) = swt
     (; zeeman_operators) = data
 
-    N = sys.Ns[1]                       # Dimension of SU(N) coherent states
-    nflavors = N - 1                    # Number of local boson flavors
-    L = nflavors * natoms(sys.crystal)  # Number of quasiparticle bands
+    L = nbands(swt)    # Number of quasiparticle bands
     @assert size(H) == (2L, 2L)
 
     # Clear the Hamiltonian
@@ -184,7 +182,9 @@ end
 # corresponding to q. 
 function multiply_by_hamiltonian_SUN(x::Array{ComplexF64, 2}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3})
     # Preallocate buffers
-    y = zeros(ComplexF64, (size(qs_reshaped)..., size(x, 2)))
+    L = nbands(swt)
+    @assert size(x, 2) == 2L
+    y = zeros(ComplexF64, (size(qs_reshaped)..., 2L))
     phasebuf = zeros(ComplexF64, length(qs_reshaped))
 
     # Precompute e^{2πq_α} components
@@ -193,7 +193,7 @@ function multiply_by_hamiltonian_SUN(x::Array{ComplexF64, 2}, swt::SpinWaveTheor
     end
 
     # Perform batched matrix-vector multiply
-    multiply_by_hamiltonian_SUN_aux!(reshape(y, (length(qs_reshaped), size(x, 2))), x, phasebuf, qphase, swt)
+    multiply_by_hamiltonian_SUN_aux!(reshape(y, (length(qs_reshaped), 2L)), x, phasebuf, qphase, swt)
 
     return y 
 end
