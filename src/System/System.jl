@@ -408,6 +408,18 @@ end
     return
 end
 
+function validate_normalization(sys::System{0})
+    for (s, κ) in zip(sys.dipoles, sys.κs)
+        norm(s) ≈ κ || error("Detected non-normalized dipole. Consider using `set_dipole!` to automatically normalize.")
+    end
+end
+
+function validate_normalization(sys::System{N}) where N
+    for (Z, κ) in zip(sys.coherents, sys.κs)
+        norm(Z) ≈ √κ || error("Detected non-normalized coherent state. Consider using `set_coherent!` to automatically normalize.")
+    end
+end
+
 """
     randomize_spins!(sys::System)
 
@@ -433,9 +445,10 @@ represent states with decreasing angular momentum along this axis (``m = S, S-1,
 …, -S``).
 """
 function set_coherent!(sys::System{N}, Z, site) where N
+    site = to_cartesian(site)
     length(Z) != N && error("Length of coherent state does not match system.")
     iszero(N)      && error("Cannot set zero-length coherent state.")
-    setspin!(sys, coherent_state(sys, site, Z), to_cartesian(site))
+    setspin!(sys, coherent_state(sys, site, Z), site)
 end
 
 
