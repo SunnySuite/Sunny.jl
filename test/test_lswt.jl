@@ -501,7 +501,7 @@ end
         cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]]) 
         sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], mode)
 
-        S = spin_matrices(; N=3)
+        S = spin_matrices(1)
         S1, S2 = Sunny.to_product_space(S, S)
         set_pair_coupling!(sys, -S1'*S2, Bond(1,1,[1,0,0]); extract_parts=true)
         set_onsite_coupling!(sys, S[3]^2, 1)
