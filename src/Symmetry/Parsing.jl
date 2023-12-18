@@ -65,7 +65,7 @@ function parse_op(str::AbstractString) :: SymOp
 end
 
 # Reads the crystal from a `.cif` file located at the path `filename`.
-function Crystal(filename::AbstractString; symprec=nothing)
+function Crystal(filename::AbstractString; symprec=nothing, infer_symmetries=false)
     cif = CIF.Cif(Path(filename))
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
@@ -82,8 +82,9 @@ function Crystal(filename::AbstractString; symprec=nothing)
     xs = parse_cif_float.(geo_table[:, "_atom_site_fract_x"])
     ys = parse_cif_float.(geo_table[:, "_atom_site_fract_y"])
     zs = parse_cif_float.(geo_table[:, "_atom_site_fract_z"])
-    unique_atoms = Vec3.(zip(xs, ys, zs))
+    positions = Vec3.(zip(xs, ys, zs))
 
+    species = String.(geo_table[:, "_atom_site_type_symbol"])
     types = String.(geo_table[:, "_atom_site_label"])
 
     multiplicities = nothing
@@ -99,14 +100,13 @@ function Crystal(filename::AbstractString; symprec=nothing)
     # Try to infer symprec from coordinate strings
     # TODO: Use uncertainty information if available from .cif
     if isnothing(symprec)
-        strs = vcat(geo_table[:, "_atom_site_fract_x"], geo_table[:, "_atom_site_fract_y"], geo_table[:, "_atom_site_fract_z"])
         elems = vcat(xs, ys, zs)
         # guess fractional errors by assuming each elem is a fraction with simple denominator (2, 3, or 4)
         errs = map(elems) do x
             c = 12
             return abs(rem(x*c, 1, RoundNearest)) / c
         end
-        (err, i) = findmax(errs)
+        (err, _) = findmax(errs)
         if err < 1e-12
             @info """Precision parameter is unspecified, but all coordinates seem to be simple fractions.
                      Setting symprec=1e-12."""
@@ -163,17 +163,19 @@ function Crystal(filename::AbstractString; symprec=nothing)
         end
     end
 
-    if !isnothing(symmetries)
+    if infer_symmetries
+        return Crystal(latvecs, positions; types=species, symprec)
+    elseif !isnothing(symmetries)
         # Use explicitly provided symmetries
-        return crystal_from_symops(latvecs, unique_atoms, types, symmetries, spacegroup; symprec)
+        return crystal_from_symops(latvecs, positions, types, symmetries, spacegroup; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
-        return Crystal(latvecs, unique_atoms, hall_symbol; types, symprec)
+        return Crystal(latvecs, positions, hall_symbol; types, symprec)
     elseif !isnothing(groupnum)
         # Use symmetries for international group number
-        return Crystal(latvecs, unique_atoms, groupnum; types, symprec)
+        return Crystal(latvecs, positions, groupnum; types, symprec)
     else
         # Infer the symmetries automatically
-        return Crystal(latvecs, unique_atoms; types, symprec)
+        return Crystal(latvecs, positions; types, symprec)
     end
 end
