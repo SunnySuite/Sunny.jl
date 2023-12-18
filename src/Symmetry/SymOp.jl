@@ -17,7 +17,7 @@ function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
             end
         end
         Ti = s.T[i]
-        if Ti != 0
+        if abs(Ti) > atol
             push!(terms, number_to_math_string(Ti; atol, digits))
         end
         terms_str = if isempty(terms)
