@@ -1,6 +1,9 @@
 <div align="center">
     <a href="https://github.com/SunnySuite/Sunny.jl/">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/sunny_logo.jpg" alt="Sunny.jl" width="350px">    
+        <picture>
+            <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/sunny_logo-dark.svg">
+            <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/sunny_logo.svg" alt="Sunny.jl" width="350px">
+        </picture>
     </a>
 </div>
 <p>
