@@ -65,7 +65,7 @@ function parse_op(str::AbstractString) :: SymOp
 end
 
 # Reads the crystal from a `.cif` file located at the path `filename`.
-function Crystal(filename::AbstractString; symprec=nothing, infer_symmetries=false)
+function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=false)
     cif = CIF.Cif(Path(filename))
     # For now, assumes there is only one data collection per .cif
     cif = cif[first(keys(cif))]
@@ -84,8 +84,16 @@ function Crystal(filename::AbstractString; symprec=nothing, infer_symmetries=fal
     zs = parse_cif_float.(geo_table[:, "_atom_site_fract_z"])
     positions = Vec3.(zip(xs, ys, zs))
 
-    species = String.(geo_table[:, "_atom_site_type_symbol"])
-    types = String.(geo_table[:, "_atom_site_label"])
+    types = nothing
+    if "_atom_site_type_symbol" in keys(cif)
+        types = String.(geo_table[:, "_atom_site_type_symbol"])
+    end
+
+    if "_atom_site_label" in keys(cif)
+        labels = String.(geo_table[:, "_atom_site_label"])
+    else
+        labels = types
+    end
 
     multiplicities = nothing
     if "_atom_site_symmetry_multiplicity" in names(geo_table)
@@ -163,19 +171,23 @@ function Crystal(filename::AbstractString; symprec=nothing, infer_symmetries=fal
         end
     end
 
-    if infer_symmetries
-        return Crystal(latvecs, positions; types=species, symprec)
+    if override_symmetry
+        # Ignore all symmetry data in the CIF. The use of atom `types` (not site
+        # `labels`) is necessary to allow merging of distinct labels into a
+        # single symmetry-equivalent site.
+        return Crystal(latvecs, positions; types, symprec)
     elseif !isnothing(symmetries)
         # Use explicitly provided symmetries
-        return crystal_from_symops(latvecs, positions, types, symmetries, spacegroup; symprec)
+        return crystal_from_symops(latvecs, positions, labels, symmetries, spacegroup; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
-        return Crystal(latvecs, positions, hall_symbol; types, symprec)
+        return Crystal(latvecs, positions, hall_symbol; labels, symprec)
     elseif !isnothing(groupnum)
         # Use symmetries for international group number
-        return Crystal(latvecs, positions, groupnum; types, symprec)
+        return Crystal(latvecs, positions, groupnum; labels, symprec)
     else
-        # Infer the symmetries automatically
-        return Crystal(latvecs, positions; types, symprec)
+        # Infer the symmetries automatically, trusting that distinct CIF labels
+        # correspond to symmetry-inequivalent sites.
+        return Crystal(latvecs, positions; labels, symprec)
     end
 end
