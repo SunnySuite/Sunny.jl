@@ -34,31 +34,29 @@ const seaborn_muted = [
 
 getindex_cyclic(a, i) = a[mod1(i, length(a))] 
 
-
-# Similar to Makie internal function `numbers_to_colors`,
-# https://github.com/MakieOrg/Makie.jl/blob/ac02141c4c87dbf71d06b301f6dc18f5719e6d05/src/colorsampler.jl#L154-L177
-"""
-    numbers_to_colors(x; colorrange=nothing, colormap=:viridis)
-
-Converts each number in `x` to a color according to a given `colormap`. The data
-in `x` will be scaled according to `colorrange`, which defaults to the min and
-max values of `x`. This function mirrors the color conventions of Makie [1].
-
-[1] https://docs.makie.org/stable/documentation/colors/.
-"""
-function numbers_to_colors(xs; colorrange=nothing, colormap=:viridis)
-    (cmin, cmax) = @something colorrange extrema(xs)
-    colors = Makie.cgrad(colormap)
-    return [colors[(x - cmin) / (cmax - cmin)] for x in xs]
+# Analogous to internal Makie function `numbers_to_colors`
+function numbers_to_colors!(out::AbstractArray{Makie.RGBAf}, in::AbstractArray{<: Number}, colormap, colorrange)
+    @assert size(out) == size(in)
+    if isnothing(colorrange) || colorrange[1] >= colorrange[2] - 1e-8
+        out .= first(colormap)
+    else
+        cmin, cmax = colorrange
+        len = length(colormap)
+        for i in eachindex(out)
+            # If `cmin ≤ in[i] ≤ cmax` then `0.5 ≤ x ≤ len+0.5`
+            x = (in[i] - cmin) / (cmax - cmin) * len + 0.5
+            # Round to integer and clip to range [1, len]
+            j = max(min(round(Int, x), len), 1)
+            out[i] = colormap[j]
+        end
+    end
+    return out
 end
+
+set_alpha(c, alpha) = return Makie.RGBAf(Makie.RGBf(c), alpha)
 
 
 function orient_camera!(ax, latvecs; ghost_radius, orthographic, dims)
-    # The camera rotates without any fixed axis, and zooming is independent of
-    # cursor position
-    fixed_axis=false
-    zoom_shift_lookat=false
-
     a1, a2, a3 = eachcol(latvecs)
     if dims == 3
         l0 = max(norm.((a1, a2, a3))..., 1.5ghost_radius)
@@ -76,10 +74,42 @@ function orient_camera!(ax, latvecs; ghost_radius, orthographic, dims)
     else
         error("Unsupported dimension: $dims")
     end
-    Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, fixed_axis,
+
+    # Keep `lookat` fixed, independent of new objects and zoom
+    center = false
+    zoom_shift_lookat = false
+
+    # Rotate in any direction -- SO(3) symmetric
+    fixed_axis = false
+    
+    Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, center, fixed_axis,
                  zoom_shift_lookat, clipping_mode=:static, near=0.1l0, far=10l0)
 end
 
+function add_cartesian_axes_inset(fig, lscene; left=0, right=150, bottom=0, top=150)
+    ax = Makie.LScene(fig, bbox=Makie.BBox(left, right, bottom, top), show_axis=false)
+
+    # Draw arrows at origin
+    pts = [Makie.Point3f0(0, 0, 0), Makie.Point3f0(0, 0, 0), Makie.Point3f0(0, 0, 0)]
+    vecs = [Makie.Point3f0(1, 0, 0), Makie.Point3f0(0, 1, 0), Makie.Point3f0(0, 0, 1)]
+    Makie.arrows!(ax, pts, 0.8*vecs; color=[:red, :orange, :yellow], arrowsize=0.3, inspectable=false)
+
+    # Draw labels
+    for (pos, text) in zip(1.2vecs, ["x", "y", "z"])
+        Makie.text!(ax, pos; text, color=:black, fontsize=16, font=:bold, glowwidth=4.0,
+            glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
+    end
+
+    # Update `ax` camera on any changes to `lscene` camera
+    cam = lscene.scene.camera_controls
+    Makie.onany(cam.eyeposition, cam.lookat, cam.upvector; update=true) do cam_eye, cam_lookat, cam_upvector
+        eye = 4normalize(cam_eye - cam_lookat)
+        lookat = Makie.Point3f0(0, 0, 0)
+        Makie.update_cam!(ax.scene, eye, lookat, cam_upvector)
+    end
+
+    return ax
+end
 
 function cell_wireframe(latvecs, dims)
     vecs = Makie.Point3f0.(eachcol(latvecs))
@@ -219,27 +249,6 @@ function Sunny.plot_spins(sys::System; size=(768, 512), show_axis=false, kwargs.
     plot_spins!(ax, sys; notifier, kwargs...)
     return NotifiableFigure(notifier, fig)
 end
-
-# Analogous to internal Makie function `numbers_to_colors`
-function numbers_to_colors!(out::AbstractArray{Makie.RGBAf}, in::AbstractArray{<: Number}, colormap, colorrange)
-    @assert size(out) == size(in)
-    if isnothing(colorrange) || colorrange[1] >= colorrange[2] - 1e-8
-        out .= first(colormap)
-    else
-        cmin, cmax = colorrange
-        len = length(colormap)
-        for i in eachindex(out)
-            # If `cmin ≤ in[i] ≤ cmax` then `0.5 ≤ x ≤ len+0.5`
-            x = (in[i] - cmin) / (cmax - cmin) * len + 0.5
-            # Round to integer and clip to range [1, len]
-            j = max(min(round(Int, x), len), 1)
-            out[i] = colormap[j]
-        end
-    end
-    return out
-end
-
-set_alpha(c, alpha) = return Makie.RGBAf(Makie.RGBf(c), alpha)
 
 #=
     plot_spins!(ax, sys::System; arrowscale=1.0, color=:red, colorfn=nothing,
@@ -390,12 +399,6 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     # set a scale for the scene in case there is only one atom).
     Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
 
-    # Draw Cartesian axes
-    axissize = (1/3)*minimum(norm.(eachcol(cryst.latvecs)))
-    axisdirs = axissize * Makie.Point3f0.([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-    axes = Makie.arrows!(ax, Makie.Point3f0.(fill([0,0,0], 3)), axisdirs, arrowsize=0.5axissize, linewidth=0.15axissize,
-                         color=[:red, :orange, :yellow], diffuse=1.15, inspectable=false, visible=show_axis)
-
     # Map atom classes to indices that run from 1..nclasses
     unique_classes = unique(cryst.classes)
     class_indices = [findfirst(==(c), unique_classes) for c in cryst.classes]
@@ -466,18 +469,8 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     end
 
     layout = Makie.GridLayout(; tellheight=false, valign=:top)
-
-    # Toggle on/off Cartesian axes
     fontsize = 16
     toggle_cnt = 0
-    axes_toggle = Makie.Toggle(fig; active=axes.visible[], buttoncolor=:gray)
-    Makie.connect!(axes.visible, axes_toggle.active)
-    axes_labels = Makie.GridLayout()
-    axes_labels[1, 1] = Makie.Label(fig, "Show"; fontsize)
-    axes_labels[1, 2] = Makie.Label(fig, "x"; color=Makie.RGBf(0.90, 0.0, 0.0), font=:bold, fontsize)
-    axes_labels[1, 3] = Makie.Label(fig, "y"; color=Makie.RGBf(0.90, 0.5, 0.0), font=:bold, fontsize)
-    axes_labels[1, 4] = Makie.Label(fig, "z"; color=Makie.RGBf(0.90, 0.85, 0.0), font=:bold, fontsize)
-    layout[toggle_cnt+=1, 1:2] = [axes_toggle, axes_labels]
 
     # Toggle on/off atom indices
     atom_labels_toggle = Makie.Toggle(fig; active=true, buttoncolor=:gray)
@@ -515,6 +508,9 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     # Orient camera after all objects have been added to scene
     ghost_radius = maximum(norm.(eachcol(cryst.latvecs)))/2 + max_dist
     orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims)
+
+    # Show Cartesian axes, with link to main camera
+    add_cartesian_axes_inset(fig, ax)
 
     return fig
 end
