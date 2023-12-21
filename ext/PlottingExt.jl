@@ -61,29 +61,34 @@ function orient_camera!(ax, latvecs; ghost_radius, orthographic, dims)
     if dims == 3
         l0 = max(norm.((a1, a2, a3))..., 1.5ghost_radius)
         lookat = (a1 + a2 + a3)/2
-        eyeposition = a3/2 - 1.5 * l0 * normalize(a1 + a2)
+        camshift = l0 * normalize(a1 + a2)
         upvector = normalize(a1 × a2)
-        projectiontype = orthographic ? Makie.Orthographic : Makie.Perspective
     elseif dims == 2
         l0 = max(norm.((a1, a2))..., 1.5ghost_radius)
         lookat = (a1 + a2) / 2
-        eyeposition = lookat + 1.5 * l0 * normalize(a1 × a2)
+        camshift = -l0 * normalize(a1 × a2)
         upvector = normalize((a1 × a2) × a1)
-        # projectiontype = Makie.Orthographic # TODO: Enable this after fixing aspect ratio bug 
-        projectiontype = orthographic ? Makie.Orthographic : Makie.Perspective
     else
         error("Unsupported dimension: $dims")
     end
 
-    # Keep `lookat` fixed, independent of new objects and zoom
-    center = false
-    zoom_shift_lookat = false
+    if orthographic
+        eyeposition = lookat - camshift
+        projectiontype = Makie.Orthographic
+    else
+        eyeposition = lookat - 2.5 * camshift
+        projectiontype = Makie.Perspective
+    end
 
-    # Rotate in any direction -- SO(3) symmetric
+    # Do not automatically "recenter" when adding objects
+    center = false
+    # No rotations on zoom
+    zoom_shift_lookat = false
+    # Mouse-drag rotations are SO(3) symmetric
     fixed_axis = false
-    
+
     Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, center, fixed_axis,
-                 zoom_shift_lookat, clipping_mode=:static, near=0.1l0, far=10l0)
+                 zoom_shift_lookat, clipping_mode=:view_relative, near=0.01, far=100)
 end
 
 function add_cartesian_axes_inset(fig, lscene; left=0, right=150, bottom=0, top=150)
@@ -505,8 +510,9 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     # visibility (Makie v0.19)
     Makie.DataInspector(ax; fontsize, font=pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf"))
 
-    # Orient camera after all objects have been added to scene
-    ghost_radius = maximum(norm.(eachcol(cryst.latvecs)))/2 + max_dist
+    # To determine camera zoom, make ghost_radius slightly larger than max_dist
+    # for Bravais lattice case, where atoms tend to be very off-centered
+    ghost_radius = max_dist + 0.5ℓ0
     orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims)
 
     # Show Cartesian axes, with link to main camera
