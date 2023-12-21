@@ -56,15 +56,15 @@ end
 set_alpha(c, alpha) = return Makie.RGBAf(Makie.RGBf(c), alpha)
 
 
-function orient_camera!(ax, latvecs; ghost_radius, orthographic, dims)
+function orient_camera!(ax, latvecs; camdist, orthographic, dims)
     a1, a2, a3 = eachcol(latvecs)
     if dims == 3
-        l0 = max(norm.((a1, a2, a3))..., 1.5ghost_radius)
+        l0 = max(norm.((a1, a2, a3))..., camdist)
         lookat = (a1 + a2 + a3)/2
         camshift = l0 * normalize(a1 + a2)
         upvector = normalize(a1 × a2)
     elseif dims == 2
-        l0 = max(norm.((a1, a2))..., 1.5ghost_radius)
+        l0 = max(norm.((a1, a2))..., camdist)
         lookat = (a1 + a2) / 2
         camshift = -l0 * normalize(a1 × a2)
         upvector = normalize((a1 × a2) × a1)
@@ -91,7 +91,7 @@ function orient_camera!(ax, latvecs; ghost_radius, orthographic, dims)
                  zoom_shift_lookat, clipping_mode=:view_relative, near=0.01, far=100)
 end
 
-function add_cartesian_axes_inset(fig, lscene; left=0, right=150, bottom=0, top=150)
+function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150)
     ax = Makie.LScene(fig, bbox=Makie.BBox(left, right, bottom, top), show_axis=false)
 
     # Draw arrows at origin
@@ -228,7 +228,7 @@ Makie.record(func, nf::NotifiableFigure, path, iter; kwargs...) = Makie.record(f
 """
     plot_spins(sys::System; arrowscale=1.0, color=:red, colorfn=nothing,
                colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
-               ghost_radius=0, dims=3
+               ghost_radius=0, dims=3, compass=true)
 
 Plot the spin configuration defined by `sys`. Optional parameters are:
 
@@ -240,18 +240,20 @@ Plot the spin configuration defined by `sys`. Optional parameters are:
   - `colormap`, `colorrange`: Used to populate colors from numbers following
     Makie conventions.
   - `show_cell`: Show original crystallographic unit cell.
-  - `orthographic`: Use camera with orthographic projection.
+  - `orthographic`: Use orthographic camera perspective.
   - `ghost_radius`: Show translucent periodic images up to a given distance
     (length units).
   - `dims`: Spatial dimensions of system (1, 2, or 3).
+  - `compass`: If true, draw Cartesian axes in bottom left.
 
 Calling `notify` on the return value will animate the figure.
 """
-function Sunny.plot_spins(sys::System; size=(768, 512), show_axis=false, kwargs...)
+function Sunny.plot_spins(sys::System; size=(768, 512), compass=true, kwargs...)
     fig = Makie.Figure(; size)
-    ax = Makie.LScene(fig[1, 1]; show_axis)
+    ax = Makie.LScene(fig[1, 1]; show_axis=false)
     notifier = Makie.Observable(nothing)
     plot_spins!(ax, sys; notifier, kwargs...)
+    compass && add_cartesian_compass(fig, ax)
     return NotifiableFigure(notifier, fig)
 end
 
@@ -384,19 +386,26 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
                     glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
     end
 
-    orient_camera!(ax, supervecs; ghost_radius, orthographic, dims)
+    camdist = max(1.5ghost_radius, 2.25ℓ0)
+    orient_camera!(ax, supervecs; camdist, orthographic, dims)
 
     return ax
 end
 
 
 """
-    view_crystal(crystal::Crystal, max_dist::Real; show_axis=true, orthographic=false)
+    view_crystal(crystal::Crystal, max_dist::Real; orthographic=false, dims=3, compass=true)
 
-An interactive crystal viewer, with bonds up to `max_dist`.
+An interactive crystal viewer.
+
+ - `max_dist`: Include bonds up to a given cutoff distance.
+ - `orthographic`: Use orthographic camera perspective.
+ - `dims`: Spatial dimensions of system (1, 2, or 3).
+ - `compass`: If true, draw Cartesian axes in bottom left.
+
 """
-function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthographic=false,
-                            spherescale=0.2, size=(768, 512), dims=3)
+function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
+                            spherescale=0.2, size=(768, 512), dims=3, compass=true)
     fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1], show_axis=false)
 
@@ -510,13 +519,13 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; show_axis=true, orthograph
     # visibility (Makie v0.19)
     Makie.DataInspector(ax; fontsize, font=pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf"))
 
-    # To determine camera zoom, make ghost_radius slightly larger than max_dist
-    # for Bravais lattice case, where atoms tend to be very off-centered
-    ghost_radius = max_dist + 0.5ℓ0
-    orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims)
+    # The shift by interatomic distance ℓ0 helps in the Bravais lattice case,
+    # where atoms tend to be very off-centered
+    camdist = 1.5max_dist + 0.75ℓ0
+    orient_camera!(ax, cryst.latvecs; camdist, orthographic, dims)
 
     # Show Cartesian axes, with link to main camera
-    add_cartesian_axes_inset(fig, ax)
+    compass && add_cartesian_compass(fig, ax)
 
     return fig
 end
