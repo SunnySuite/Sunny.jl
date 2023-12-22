@@ -117,27 +117,51 @@ end
 set_alpha(c, alpha) = return Makie.RGBAf(Makie.RGBf(c), alpha)
 
 
-function orient_camera!(ax, latvecs; camdist, orthographic, dims)
-    a1, a2, a3 = eachcol(latvecs)
+
+function cell_center(dims)
     if dims == 3
-        l0 = max(norm.((a1, a2, a3))..., camdist)
+        return [1, 1, 1] / 2
+    elseif dims == 2
+        return [1, 1, 0] / 2
+    else
+        error("Unsupported `dims=$dims`.")
+    end
+end
+
+function cell_diameter(latvecs, dims)
+    (a1, a2, a3) = eachcol(latvecs)
+    if dims == 3
+        return max(norm(a1+a2+a3), norm(a1+a2-a3), norm(a1-a2+a3), norm(a1-a2-a3))
+    elseif dims == 2
+        return max(norm(a1+a2), norm(a1-a2))
+    else
+        error("Unsupported `dims=$dims`.")
+    end
+end
+
+
+function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, dims)
+    a1, a2, a3 = eachcol(latvecs)
+
+    if dims == 3
         lookat = (a1 + a2 + a3)/2
-        camshift = l0 * normalize(a1 + a2)
+        camshiftdir = normalize(a1 + a2)
         upvector = normalize(a1 × a2)
     elseif dims == 2
-        l0 = max(norm.((a1, a2))..., camdist)
         lookat = (a1 + a2) / 2
-        camshift = -l0 * normalize(a1 × a2)
+        camshiftdir = -normalize(a1 × a2)
         upvector = normalize((a1 × a2) × a1)
     else
         error("Unsupported dimension: $dims")
     end
 
+    # Shift by ℓ0 zooms out slightly more for smaller unit cells
+    camdist = 0.9max(cell_diameter(latvecs, dims)/2, ghost_radius) + 0.6ℓ0
     if orthographic
-        eyeposition = lookat - camshift
+        eyeposition = lookat - camdist * camshiftdir
         projectiontype = Makie.Orthographic
     else
-        eyeposition = lookat - 2.5 * camshift
+        eyeposition = lookat - 2.5 * camdist * camshiftdir
         projectiontype = Makie.Perspective
     end
 
@@ -363,12 +387,7 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
 
     # Find all sites within `max_dist` of the system center
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
-    if dims == 3
-        r0 = [0.5, 0.5, 0.5]
-    elseif dims == 2
-        r0 = [0.5, 0.5, 0]
-    end
-    images = all_images_within_distance(supervecs, rs, [r0]; max_dist=ghost_radius, include_zeros=true)
+    images = all_images_within_distance(supervecs, rs, [cell_center(dims)]; max_dist=ghost_radius, include_zeros=true)
 
     for isghost in (false, true)
         alpha = isghost ? 0.08 : 1.0
@@ -447,8 +466,7 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
                     glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
     end
 
-    camdist = max(1.5ghost_radius, 2.25ℓ0)
-    orient_camera!(ax, supervecs; camdist, orthographic, dims)
+    orient_camera!(ax, supervecs; ghost_radius, ℓ0, orthographic, dims)
 
     return ax
 end
@@ -457,18 +475,26 @@ end
 """
     view_crystal(crystal::Crystal, max_dist::Real; orthographic=false, dims=3, compass=true)
 
-An interactive crystal viewer.
+Launch an interactive crystal viewer.
 
  - `max_dist`: Include bonds up to a given cutoff distance.
  - `orthographic`: Use orthographic camera perspective.
  - `dims`: Spatial dimensions of system (1, 2, or 3).
  - `compass`: If true, draw Cartesian axes in bottom left.
-
 """
 function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
                             spherescale=0.2, size=(768, 512), dims=3, compass=true)
     fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1], show_axis=false)
+
+    # Distance to show periodic images. Lower bound includes all cell corners.
+    ghost_radius = max(max_dist, cell_diameter(cryst.latvecs, dims)/2)
+
+    # Get up to 10 reference bonds, without self bonds
+    refbonds = filter(reference_bonds(cryst, ghost_radius)) do b
+        return !(b.i == b.j && iszero(b.n))
+    end
+    refbonds = first(refbonds, 10)
 
     # Show cell volume and label lattice vectors (this needs to come first to
     # set a scale for the scene in case there is only one atom).
@@ -480,8 +506,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
     # Show atoms
     ℓ0 = characteristic_length_between_atoms(cryst)
     markersize = spherescale * ℓ0
-    max_dist = max(max_dist, ℓ0 + 1e-6)
-    images = all_images_within_distance(cryst.latvecs, cryst.positions, cryst.positions; max_dist, include_zeros=true)
+    images = all_images_within_distance(cryst.latvecs, cryst.positions, [cell_center(dims)]; max_dist=ghost_radius, include_zeros=true)
     atom_labels = nothing
     for (isghost, alpha) in ((true, 0.15), (false, 1.0))
         pts = Makie.Point3f0[]
@@ -501,12 +526,6 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
                                       overdraw=true, visible=true)
         end
     end
-
-    # Get up to 10 reference bonds, without self bonds
-    refbonds = filter(reference_bonds(cryst, max_dist)) do b
-        return !(b.i == b.j && iszero(b.n))
-    end
-    refbonds = first(refbonds, 10)
 
     function all_segments_for_bond(b, color, visible)
         # Prune bonds
@@ -579,10 +598,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
     # visibility (Makie v0.19)
     Makie.DataInspector(ax; fontsize, font=pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf"))
 
-    # The shift by interatomic distance ℓ0 helps in the Bravais lattice case,
-    # where atoms tend to be very off-centered
-    camdist = 1.5max_dist + 0.75ℓ0
-    orient_camera!(ax, cryst.latvecs; camdist, orthographic, dims)
+    orient_camera!(ax, cryst.latvecs; ghost_radius, ℓ0, orthographic, dims)
 
     # Show Cartesian axes, with link to main camera
     compass && add_cartesian_compass(fig, ax)
