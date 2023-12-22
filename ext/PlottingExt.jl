@@ -156,7 +156,7 @@ function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, dims)
     end
 
     # Shift by ℓ0 zooms out slightly more for smaller unit cells
-    camdist = 0.9max(cell_diameter(latvecs, dims)/2, ghost_radius) + 0.6ℓ0
+    camdist = 0.9max(cell_diameter(latvecs, dims)/2, ghost_radius) + 1.0ℓ0
     if orthographic
         eyeposition = lookat - camdist * camshiftdir
         projectiontype = Makie.Orthographic
