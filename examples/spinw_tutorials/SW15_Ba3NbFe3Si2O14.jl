@@ -16,11 +16,11 @@ using Sunny, GLMakie
 a = b = 8.539 # (Å)
 c = 5.2414
 latvecs = lattice_vectors(a, b, c, 90, 90, 120)
-types = ["Fe","Nb","Ba","Si","O","O","O"]
-positions = [[0.24964,0,0.5],[0,0,0],[0.56598,0,0],[2/3,1/3,0.5220],[2/3,1/3,0.2162],[0.5259,0.7024,0.3536],[0.7840,0.9002,0.7760]]
+types = ["Fe", "Nb", "Ba", "Si", "O", "O", "O"]
+positions = [[0.24964,0,0.5], [0,0,0], [0.56598,0,0], [2/3,1/3,0.5220], [2/3,1/3,0.2162], [0.5259,0.7024,0.3536], [0.7840,0.9002,0.7760]]
 langasite = Crystal(latvecs, positions, 150; types)
-crystal = subcrystal(langasite, "Fe")
-view_crystal(crystal, 7)
+cryst = subcrystal(langasite, "Fe")
+view_crystal(cryst)
 
 # Create a [`System`](@ref) with a lattice size of $(1,1,7)$. The magnetic
 # structure of Ba₃NbFe₃Si₂O₁₄ was
@@ -30,7 +30,7 @@ view_crystal(crystal, 7)
 latsize = (1,1,7)
 S = 5/2
 seed = 5
-sys = System(crystal, latsize, [SpinInfo(1; S, g=2)], :dipole)
+sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], :dipole)
 
 # Set exchange interactions as parametrized in [Loire et al., Phys. Rev. Lett.
 # **106**, 207201 (2011)](http://dx.doi.org/10.1103/PhysRevLett.106.207201)
@@ -82,7 +82,7 @@ plot_spins(sys; color=[s[1] for s in sys.dipoles])
 
 points_rlu = [[0,1,-1],[0,1,-1+1],[0,1,-1+2],[0,1,-1+3]];
 density = 100
-path, xticks = reciprocal_space_path(crystal, points_rlu, density);
+path, xticks = reciprocal_space_path(cryst, points_rlu, density);
 
 # Calculate broadened intensities
 

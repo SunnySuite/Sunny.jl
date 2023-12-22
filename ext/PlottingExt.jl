@@ -297,6 +297,28 @@ function characteristic_length_between_atoms(cryst::Crystal)
     return min(ℓ0, ℓ)
 end
 
+# Like `reference_bonds` but supply a number of bonds
+function find_reference_bonds(cryst, nbonds, dims)
+    # Calculate heuristic maximum distance
+    min_a = minimum(norm.(eachcol(cryst.latvecs)))
+    nclasses = length(unique(cryst.classes))
+    max_dist = 2 * min_a * (nbonds / (nclasses*natoms(cryst)))^(1/dims)
+
+    # Find bonds up to distance, without self-bonds
+    refbonds = filter(reference_bonds(cryst, max_dist)) do b
+        return !(b.i == b.j && iszero(b.n))
+    end
+    
+    # Verify max_dist heuristic
+    if length(refbonds) > 10nbonds
+        display(cryst)
+        println("Found $(length(refbonds)) bonds using max_dist of $max_dist")
+        error("Bad bond lookup. Please report this to developers.")
+    end
+
+    return first(refbonds, nbonds)
+end
+
 
 # Wrapper over `FigureLike` to support both `show` and `notify`.
 struct NotifiableFigure
@@ -326,8 +348,7 @@ Plot the spin configuration defined by `sys`. Optional parameters are:
     Makie conventions.
   - `show_cell`: Show original crystallographic unit cell.
   - `orthographic`: Use orthographic camera perspective.
-  - `ghost_radius`: Show translucent periodic images up to a given distance
-    (length units).
+  - `ghost_radius`: Show periodic images up to a given distance (length units).
   - `dims`: Spatial dimensions of system (1, 2, or 3).
   - `compass`: If true, draw Cartesian axes in bottom left.
 
@@ -472,29 +493,59 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
 end
 
 
+
+function propagate_reference_bond_for_cell(cryst, b)
+    return filter(Sunny.all_symmetry_related_bonds(cryst, b)) do b
+        if iszero(collect(b.n))
+            # Bonds within the unit cell must not be self bonds, and must not be
+            # duplicated.
+            return b.i != b.j && Sunny.bond_parity(b)
+        else
+            # Bonds between two unit cells can always be include
+            return true
+        end
+    end
+end
+
+
+function Sunny.view_crystal(cryst::Crystal, max_dist::Number)
+    @warn "view_crystal(cryst, max_dist) will soon be removed! Use `view_crystal(cryst)` instead. See also optional `ghost_radius` argument."
+    Sunny.view_crystal(cryst; ghost_radius=max_dist)
+end
+
 """
-    view_crystal(crystal::Crystal, max_dist::Real; orthographic=false, dims=3, compass=true)
+    view_crystal(crystal::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true)
 
 Launch an interactive crystal viewer.
 
- - `max_dist`: Include bonds up to a given cutoff distance.
+ - `refbonds`: By default, calculate up to 10 reference bonds using the
+   `reference_bonds` function. An explicit list of reference bonds may also be
+   provided.
  - `orthographic`: Use orthographic camera perspective.
+ - `ghost_radius`: Show periodic images up to a given distance. Defaults to the
+   cell size.
  - `dims`: Spatial dimensions of system (1, 2, or 3).
  - `compass`: If true, draw Cartesian axes in bottom left.
 """
-function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
-                            spherescale=0.2, size=(768, 512), dims=3, compass=true)
+function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true,
+                            spherescale=0.2, size=(768, 512))
     fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1], show_axis=false)
 
-    # Distance to show periodic images. Lower bound includes all cell corners.
-    ghost_radius = max(max_dist, cell_diameter(cryst.latvecs, dims)/2)
-
-    # Get up to 10 reference bonds, without self bonds
-    refbonds = filter(reference_bonds(cryst, ghost_radius)) do b
-        return !(b.i == b.j && iszero(b.n))
+    # Distance to show periodic images
+    if isnothing(ghost_radius)
+        ghost_radius = cell_diameter(cryst.latvecs, dims)/2
     end
-    refbonds = first(refbonds, 10)
+    
+    # Get fixed number of reference bonds
+    if refbonds isa Number
+        @assert isinteger(refbonds)
+        custombonds = false
+        refbonds = find_reference_bonds(cryst, Int(refbonds), dims)
+    else
+        custombonds = true
+        @assert refbonds isa AbstractArray{Bond}
+    end
 
     # Show cell volume and label lattice vectors (this needs to come first to
     # set a scale for the scene in case there is only one atom).
@@ -527,25 +578,19 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
         end
     end
 
-    function all_segments_for_bond(b, color, visible)
-        # Prune bonds
-        bonds = filter(Sunny.all_symmetry_related_bonds(cryst, b)) do b
-            if iszero(collect(b.n))
-                # Bonds within the unit cell must not be self bonds, and must not be
-                # duplicated.
-                return b.i != b.j && Sunny.bond_parity(b)
-            else
-                # Bonds between two unit cells can always be include
-                return true
-            end            
-        end
-
+    function bonds_to_segments(b_ref, bonds; color, alpha, linewidth, visible)
         # String for each bond b′. Like print_bond(b′), but shorter.
-        bond_labels = map(bonds) do b′
-            basis = Sunny.basis_for_exchange_on_bond(cryst, b′; b_ref=b)
-            basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=12, atol=1e-12)
+        bond_labels = map(bonds) do b
+            dist = Sunny.global_distance(cryst, b)
+            dist_str = Sunny.number_to_simple_string(dist; digits=4, atol=1e-12)
+            basis = Sunny.basis_for_exchange_on_bond(cryst, b; b_ref=something(b_ref, b))
+            basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4, atol=1e-12)
             J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J: ")
-            return "$b′\n$J_matrix_str"
+            return """
+                $b
+                Distance $dist_str
+                $J_matrix_str
+                """
         end
 
         # Map each bond to line segments in global coordinates
@@ -555,37 +600,39 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
         end
         
         # TODO: Report bug of ÷2 indexing
-        inspector_label(plot, index, position) = bond_labels[index ÷ 2]
-        s = Makie.linesegments!(ax, segments; color, linewidth=3,
+        inspector_label(_plot, index, _position) = bond_labels[index ÷ 2]
+        s = Makie.linesegments!(ax, segments; color, alpha, linewidth,
                                 inspectable=true, inspector_label, visible)
         return [s]
     end
 
-    layout = Makie.GridLayout(; tellheight=false, valign=:top)
+    toggle_grid = Makie.GridLayout(; tellheight=false, valign=:top)
+    fig[1, 2] = toggle_grid
     fontsize = 16
     toggle_cnt = 0
 
-    # Toggle on/off atom indices
-    atom_labels_toggle = Makie.Toggle(fig; active=true, buttoncolor=:gray)
-    Makie.connect!(atom_labels.visible, atom_labels_toggle.active)
-    layout[toggle_cnt+=1, 1:2] = [atom_labels_toggle, Makie.Label(fig, "Show atom indices"; fontsize, halign=:left)]
+    # Toggle on/off atom reference bonds
+    bond_colors = [getindex_cyclic(seaborn_bright, i) for i in eachindex(refbonds)]
+    active = custombonds
+    toggle = Makie.Toggle(fig; active, buttoncolor=:gray)
+    observables = bonds_to_segments(nothing, refbonds; color=bond_colors, alpha=0.5, linewidth=6, visible=active)
+    for o in observables
+        Makie.connect!(o.visible, toggle.active)
+    end
+    toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Reference bonds"; fontsize, halign=:left)]
     
     # Toggle on/off bonds
-    for (i, b) in enumerate(refbonds)
-        color = getindex_cyclic(seaborn_bright, i)
+    for (i, (b, color)) in enumerate(zip(refbonds, bond_colors))
         active = (i == 1)
         toggle = Makie.Toggle(fig; active, framecolor_active=color, buttoncolor=:gray)
-        observables = all_segments_for_bond(b, color, active)
+        bonds = propagate_reference_bond_for_cell(cryst, b)
+        observables = bonds_to_segments(b, bonds; color, alpha=1.0, linewidth=3, visible=active)
         for o in observables
             Makie.connect!(o.visible, toggle.active)
         end
-        # Equivalent:
-        # Makie.on(x -> segments.visible[] = x, toggle.active; update=true)
-
-        layout[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, repr(b); fontsize, halign=:left)]
+        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, repr(b); fontsize, halign=:left)]
     end
 
-    fig[1, 2] = layout
 
     # Label lattice vectors. Putting this last helps with visibility (Makie
     # v0.19)
