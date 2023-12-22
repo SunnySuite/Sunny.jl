@@ -568,7 +568,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
     # Toggle on/off atom indices
     atom_labels_toggle = Makie.Toggle(fig; active=true, buttoncolor=:gray)
     Makie.connect!(atom_labels.visible, atom_labels_toggle.active)
-    layout[toggle_cnt+=1, 1:2] = [atom_labels_toggle, Makie.Label(fig, "Show atom indices"; fontsize)]
+    layout[toggle_cnt+=1, 1:2] = [atom_labels_toggle, Makie.Label(fig, "Show atom indices"; fontsize, halign=:left)]
     
     # Toggle on/off bonds
     for (i, b) in enumerate(refbonds)
@@ -582,7 +582,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
         # Equivalent:
         # Makie.on(x -> segments.visible[] = x, toggle.active; update=true)
 
-        layout[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, repr(b); fontsize)]
+        layout[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, repr(b); fontsize, halign=:left)]
     end
 
     fig[1, 2] = layout
