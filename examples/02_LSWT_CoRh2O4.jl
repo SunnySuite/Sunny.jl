@@ -21,7 +21,7 @@ cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
 # In a running Julia environment, the crystal can be viewed interactively using
 # [`view_crystal`](@ref).
 
-view_crystal(cryst, 8.0)
+view_crystal(cryst)
 
 # Construct a [`System`](@ref) with quantum spin ``S=3/2`` constrained to the
 # space of dipoles. Including an antiferromagnetic nearest neighbor interaction

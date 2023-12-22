@@ -76,7 +76,7 @@ cryst = subcrystal(FeI2, "Fe")
 # In a running Julia environment, the crystal can be viewed interactively using
 # [`view_crystal`](@ref).
 
-view_crystal(cryst, 8.0)
+view_crystal(cryst)
 
 # ## Symmetry analysis
 #

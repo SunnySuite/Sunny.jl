@@ -22,3 +22,5 @@ function Base.copy(dyn::Langevin)
     @warn "Base.copy(dyn::Langevin) will soon be removed! Use `Langevin(dyn.Δt; dyn.λ, dyn.kT)` instead."
     Langevin(dyn.Δt; dyn.λ, dyn.kT)
 end
+
+# view_crystal(cryst, max_dist)
