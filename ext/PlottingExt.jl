@@ -508,7 +508,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist; orthographic=false,
     markersize = spherescale * ℓ0
     images = all_images_within_distance(cryst.latvecs, cryst.positions, [cell_center(dims)]; max_dist=ghost_radius, include_zeros=true)
     atom_labels = nothing
-    for (isghost, alpha) in ((true, 0.15), (false, 1.0))
+    for (isghost, alpha) in ((true, 0.08), (false, 1.0))
         pts = Makie.Point3f0[]
         color = Makie.RGBf[]
         for i in eachindex(images), n in images[i]
