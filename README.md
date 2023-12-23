@@ -6,7 +6,7 @@
         </picture>
     </a>
 </div>
-<p>
+<br>
 
 <!-- [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://sunnysuite.github.io/Sunny.jl/stable) -->
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
@@ -58,15 +58,37 @@ Codes like [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https:/
 
 If you're using Sunny, we'd like to interact with you. Please join our **[Slack community](https://join.slack.com/t/sunny-users/shared_invite/zt-1otxwwko6-LzPtp7Fazkjx2XEqfgKqtA)** and say hello. If you find an unexpected behavior in Sunny, you can also  [file an issue](https://github.com/SunnySuite/Sunny.jl/issues). If you write a paper using Sunny, please add it to our [Literature Wiki](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
+<br>
 <div>
     <a href="https://www.lanl.gov">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/lanl.png" alt="LANL" width="250px">
-    </a>
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/lanl-dark.svg">
+        <img src="assets/lanl-light.svg" alt="LANL" height="38px">
+    </picture>
+    </a> &nbsp;&nbsp;
     <a href="https://www.utk.edu">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/utk.png" alt="U. Tennessee" width="250px">
-    </a>
-    <a href="https://www.gatech.edu/">
-    <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/gatech.png" alt="Georgia Tech." width="250px">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/utk-dark.svg">
+        <img src="assets/utk-light.svg" alt="UTK" height="38px">
+    </picture>
+    </a> &nbsp;&nbsp;
+    <a href="https://www.gatech.edu">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/gatech-dark.svg">
+        <img src="assets/gatech-light.svg" alt="GATech" height="38px">
+    </picture>
+    </a> &nbsp;
+    <a href="https://www.ornl.gov/">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/ornl-dark.svg">
+        <img src="assets/ornl-light.svg" alt="ORNL" height="38px">
+    </picture>
+    </a> &nbsp;&nbsp;
+    <a href="https://www.lsu.edu/">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/lsu-dark.svg">
+        <img src="assets/lsu-light.svg" alt="LSU" height="38px">
+    </picture>
     </a>
 </div>
 
