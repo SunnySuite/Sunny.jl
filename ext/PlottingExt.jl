@@ -189,6 +189,14 @@ function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150
         Makie.text!(ax, pos; text, color=:black, fontsize=16, font=:bold, glowwidth=4.0,
             glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
     end
+    
+    # The intention is that the parent scene fully controls the camera, and
+    # ideally the compass "inset" wouldn't receive any events at all. However,
+    # there is a GLMakie bug where events do go to the inset when the figure is
+    # first created, and the window in the background. As a workaround, set all
+    # speeds to zero to disable rotation, translation, and zooming of compass.
+    # TODO: File bug using https://github.com/SunnySuite/Sunny.jl/issues/147.
+    Makie.cam3d!(ax.scene; mouse_rotationspeed=0, mouse_translationspeed=0, mouse_zoomspeed=0)
 
     # Update `ax` camera on any changes to `lscene` camera
     cam = lscene.scene.camera_controls
