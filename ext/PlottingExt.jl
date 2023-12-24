@@ -619,10 +619,14 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
     fontsize = 16
     toggle_cnt = 0
 
-    # Toggle on/off atom reference bonds
     bond_colors = [getindex_cyclic(seaborn_bright, i) for i in eachindex(refbonds)]
+    buttoncolor = Makie.RGB(0.2, 0.2, 0.2)
+    framecolor_active = Makie.RGB(0.7, 0.7, 0.7)
+    framecolor_inactive = Makie.RGB(0.9, 0.9, 0.9)
+
+    # Toggle on/off atom reference bonds
     active = custombonds
-    toggle = Makie.Toggle(fig; active, buttoncolor=:gray)
+    toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
     observables = bonds_to_segments(nothing, refbonds; color=bond_colors, alpha=0.5, linewidth=6, visible=active)
     for o in observables
         Makie.connect!(o.visible, toggle.active)
@@ -632,7 +636,9 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
     # Toggle on/off bonds
     for (i, (b, color)) in enumerate(zip(refbonds, bond_colors))
         active = (i == 1)
-        toggle = Makie.Toggle(fig; active, framecolor_active=color, buttoncolor=:gray)
+        framecolor_active = Makie.alphacolor(color, 0.7)
+        framecolor_inactive = Makie.alphacolor(color, 0.15)
+        toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
         bonds = propagate_reference_bond_for_cell(cryst, b)
         observables = bonds_to_segments(b, bonds; color, alpha=1.0, linewidth=3, visible=active)
         for o in observables
