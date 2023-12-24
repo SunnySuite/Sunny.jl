@@ -1,7 +1,13 @@
 # Version History
 
 ## v0.5.8
-(upcoming)
+(Upcoming)
+
+* Various improvements to [`view_crystal`](@ref). A distance parameter is no
+  longer expected. Cartesian axes now appear as "compass" in bottom-left. Custom
+  list of reference bonds can be passed. Toggle to view non-magnetic atoms in
+  root crystal. Atoms now colored using [CPK/JMol
+  conventions](https://en.wikipedia.org/wiki/CPK_coloring).
 
 ## v0.5.7
 (Nov 26, 2023)

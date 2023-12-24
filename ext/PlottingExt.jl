@@ -243,37 +243,41 @@ end
 
 
 # TODO: We could rewrite `all_bonds_for_atom` to use this function.
-function all_images_within_distance(latvecs, rs, r0s; min_dist=0, max_dist, include_zeros=false)
+function all_images_within_distance(latvecs, rs, center; min_dist=0, max_dist)
     # box_lengths[i] represents the perpendicular distance between two parallel
     # boundary planes spanned by lattice vectors a_j and a_k (where indices j
     # and k differ from i)
     box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(latvecs), eachrow(inv(latvecs)))]
     n_max = round.(Int, max_dist ./ box_lengths, RoundUp)
 
-    # optionally initialize to include all (0,0,0) images
-    images = include_zeros ? [[zero(Vec3)] for _ in rs] : [Vec3[] for _ in rs]
+    # return value `images` will be a list of integer offsets `ns`. For each
+    # site position `r ∈ rs` and offset `n ∈ ns`, the distance `latvecs * (r + n
+    # - center)` will be within bounds `(min_dist, max_dist)`.
+    images = [Vec3[] for _ in rs]
 
-    # loop over all center points
-    for r0 in r0s
-        # loop over each atom in primary cell or system
-        for (ns, r) in zip(images, rs)
-            # loop over image cells or systems
-            for n1 in -n_max[1]:n_max[1]
-                for n2 in -n_max[2]:n_max[2]
-                    for n3 in -n_max[3]:n_max[3]
-                        # track list of periodic offsets where the atom image is
-                        # within distance bounds
-                        n = Vec3(n1, n2, n3)
-                        dist = norm(latvecs * (r + n - r0))
-                        if min_dist <= dist <= max_dist && !(n in ns)
-                            push!(ns, n)
-                        end
-                    end
-                end
+    # loop over each provided position `r ∈ rs`, and accumulate into
+    # corresponding cell `ns` of `images`
+    for (ns, r) in zip(images, rs)
+        # loop over image cells or systems
+        for n1 in -n_max[1]:n_max[1], n2 in -n_max[2]:n_max[2], n3 in -n_max[3]:n_max[3]
+            # track list of periodic offsets where the atom image is within
+            # distance bounds
+            n = Vec3(n1, n2, n3)
+            dist = norm(latvecs * (r + n - center))
+            if min_dist <= dist <= max_dist && !(n in ns)
+                push!(ns, n)
             end
         end
     end
 
+    return images
+end
+
+function all_ghost_images_within_distance(latvecs, rs, center; max_dist)
+    images = all_images_within_distance(latvecs, rs, center; max_dist)
+    for ns in images
+        filter!(!iszero, ns)
+    end
     return images
 end
 
@@ -327,6 +331,45 @@ function find_reference_bonds(cryst, nbonds, dims)
     return first(refbonds, nbonds)
 end
 
+function propagate_reference_bond_for_cell(cryst, b)
+    return filter(Sunny.all_symmetry_related_bonds(cryst, b)) do b
+        if iszero(collect(b.n))
+            # Bonds within the unit cell must not be self bonds, and must not be
+            # duplicated.
+            return b.i != b.j && Sunny.bond_parity(b)
+        else
+            # Bonds between two unit cells can always be include
+            return true
+        end
+    end
+end
+
+# Return true if `type` doesn't uniquely identify the site equivalence class
+function is_type_degenerate(cryst, i)
+    typ = cryst.types[i]
+    same_typ = findall(==(typ), cryst.types)
+    return !allequal(cryst.classes[same_typ])
+end
+
+# Construct atom labels for use in DataInspector
+function label_atoms(cryst; ismagnetic)
+    return map(1:natoms(cryst)) do i
+        typ = cryst.types[i]
+        rstr = Sunny.fractional_vec3_to_string(cryst.positions[i])
+        ret = []
+
+        if ismagnetic && is_type_degenerate(cryst, i)
+            c = cryst.classes[i]
+            push!(ret, isempty(typ) ? "Class $c at $rstr" : "'$typ' (class $c) at $rstr")
+        else
+            push!(ret, isempty(typ) ? "Position $rstr" : "'$typ' at $rstr")
+        end
+        if ismagnetic
+            # TODO
+        end
+        join(ret, "\n")
+    end
+end
 
 # Wrapper over `FigureLike` to support both `show` and `notify`.
 struct NotifiableFigure
@@ -414,12 +457,17 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
     markersize = 0.8linewidth
     arrow_fractional_shift = 0.6
 
-    # Find all sites within `max_dist` of the system center
+    # Positions in fractional coordinates of supercell vectors
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
-    images = all_images_within_distance(supervecs, rs, [cell_center(dims)]; max_dist=ghost_radius, include_zeros=true)
 
     for isghost in (false, true)
-        alpha = isghost ? 0.08 : 1.0
+        if isghost
+            alpha = 0.08
+            images = all_ghost_images_within_distance(supervecs, rs, cell_center(dims); max_dist=ghost_radius)
+        else
+            alpha = 1.0
+            images = [[zero(Vec3)] for _ in rs]
+        end
 
         # Every call to RGBf constructor allocates, so pre-calculate color
         # arrays to speed animations
@@ -464,7 +512,6 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
             for site in CartesianIndices(images)
                 v = (lengthscale / S0) * vec(sys.dipoles[site])
                 for n in images[site]
-                    iszero(n) == isghost && continue
                     pt = supervecs * (rs[site] + n)
                     pt_shifted = pt - arrow_fractional_shift * v
                     push!(vecs[], Makie.Vec3f0(v))
@@ -498,21 +545,6 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
     orient_camera!(ax, supervecs; ghost_radius, ℓ0, orthographic, dims)
 
     return ax
-end
-
-
-
-function propagate_reference_bond_for_cell(cryst, b)
-    return filter(Sunny.all_symmetry_related_bonds(cryst, b)) do b
-        if iszero(collect(b.n))
-            # Bonds within the unit cell must not be self bonds, and must not be
-            # duplicated.
-            return b.i != b.j && Sunny.bond_parity(b)
-        else
-            # Bonds between two unit cells can always be include
-            return true
-        end
-    end
 end
 
 
@@ -564,41 +596,48 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
 
     # Show atoms
     ℓ0 = characteristic_length_between_atoms(something(cryst.root, cryst))
-    function atoms_to_observables(positions, classes; label_atoms)
+    function atoms_to_observables(positions, classes; labels, ismagnetic)
         observables = []
-        images = all_images_within_distance(cryst.latvecs, positions, [cell_center(dims)]; max_dist=ghost_radius, include_zeros=true)
-        for (isghost, alpha) in ((true, 0.08), (false, 1.0))
-            pts = Makie.Point3f0[]
-            color = Makie.RGBf[]
-            for i in eachindex(images), n in images[i]
-                # If drawing ghosts, require !iszero(n), and vice versa
-                iszero(n) == isghost && continue
-                push!(pts, cryst.latvecs * (positions[i] + n))
-                push!(color, class_colors[classes[i]])
-            end
-            markersize = (label_atoms ? 0.2 : 0.1) * ℓ0
-            push!(observables, Makie.meshscatter!(ax, pts; markersize, color, alpha, diffuse=1.15, inspectable=false, transparency=isghost))
+        markersize = (ismagnetic ? 0.2 : 0.1) * ℓ0
+
+        # Draw ghost atoms
+        images = all_ghost_images_within_distance(cryst.latvecs, positions, cell_center(dims); max_dist=ghost_radius)
+        pts = Makie.Point3f0[]
+        color = Makie.RGBf[]
+        for (ns, r, c) in zip(images, positions, classes), n in ns
+            push!(pts, cryst.latvecs * (r + n))
+            push!(color, class_colors[c])
+        end
+        push!(observables, Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, inspectable=false, alpha=0.08, transparency=true))
+
+        # Draw real atoms
+        pts = [cryst.latvecs * r for r in positions]
+        color = [class_colors[c] for c in classes]
+        inspector_label(_plot, index, _position) = labels[index]
+        push!(observables, Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, inspectable=true, inspector_label))
     
-            # Optional labels for atom indices
-            if label_atoms && !isghost
-                text = repr.(eachindex(pts))
-                push!(observables, Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), overdraw=true))
-            end
+        # Label real atoms by index, if magnetic
+        if ismagnetic
+            text = repr.(eachindex(pts))
+            push!(observables, Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), overdraw=true))
         end
 
         return observables
     end
 
     # Draw magnetic ions from (sub)crystal
-    atoms_to_observables(cryst.positions, cryst.classes; label_atoms=true)
+    labels = label_atoms(cryst; ismagnetic=true)
+    atoms_to_observables(cryst.positions, cryst.classes; labels, ismagnetic=true)
 
     # Draw non-magnetic ions from root crystal
     if !isnothing(cryst.root)
-        toggle = Makie.Toggle(fig; active=true, buttoncolor, framecolor_inactive, framecolor_active)
-
         # Draw all atoms in cryst.root that are not present in cryst
-        i = findall(!in(cryst.classes), cryst.root.classes)
-        observables = atoms_to_observables(cryst.root.positions[i], cryst.root.classes[i]; label_atoms=false)
+        is = findall(!in(cryst.classes), cryst.root.classes)
+        labels = label_atoms(cryst.root; ismagnetic=false)[is]
+        observables = atoms_to_observables(cryst.root.positions[is], cryst.root.classes[is]; labels, ismagnetic=false)
+
+        # Control visibility by toggle
+        toggle = Makie.Toggle(fig; active=true, buttoncolor, framecolor_inactive, framecolor_active)
         for o in observables
             Makie.connect!(o.visible, toggle.active)
         end
@@ -677,7 +716,7 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
 
     # Add inspector for pop-up information. Putting this last helps with
     # visibility (Makie v0.19)
-    Makie.DataInspector(ax; fontsize, font=pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf"))
+    Makie.DataInspector(ax; indicator_color=:gray, fontsize, font=pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf"))
 
     ℓ0 = characteristic_length_between_atoms(cryst)
     orient_camera!(ax, cryst.latvecs; ghost_radius, ℓ0, orthographic, dims)
