@@ -535,58 +535,77 @@ Launch an interactive crystal viewer.
  - `dims`: Spatial dimensions of system (1, 2, or 3).
  - `compass`: If true, draw Cartesian axes in bottom left.
 """
-function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true,
-                            spherescale=0.2, size=(768, 512))
+function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
     fig = Makie.Figure(; size)
+
+    # Main scene
     ax = Makie.LScene(fig[1, 1], show_axis=false)
 
-    # Distance to show periodic images
-    if isnothing(ghost_radius)
-        ghost_radius = cell_diameter(cryst.latvecs, dims)/2
-    end
-    
-    # Get fixed number of reference bonds
-    if refbonds isa Number
-        @assert isinteger(refbonds)
-        custombonds = false
-        refbonds = find_reference_bonds(cryst, Int(refbonds), dims)
-    else
-        custombonds = true
-        @assert refbonds isa AbstractArray{Bond}
-    end
+    # Set up grid of toggles
+    toggle_grid = Makie.GridLayout(; tellheight=false, valign=:top)
+    fig[1, 2] = toggle_grid
+    fontsize = 16
+    toggle_cnt = 0
+    buttoncolor = Makie.RGB(0.2, 0.2, 0.2)
+    framecolor_active = Makie.RGB(0.7, 0.7, 0.7)
+    framecolor_inactive = Makie.RGB(0.9, 0.9, 0.9)
 
-    # Show cell volume and label lattice vectors (this needs to come first to
-    # set a scale for the scene in case there is only one atom).
+    # Show cell volume and label lattice vectors (sets a scale for the scene in
+    # case there is only one atom).
     Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
 
     # Dict that maps atom class to color
     class_colors = build_class_colors(cryst)
 
-    # Show atoms
-    ℓ0 = characteristic_length_between_atoms(cryst)
-    markersize = spherescale * ℓ0
-    images = all_images_within_distance(cryst.latvecs, cryst.positions, [cell_center(dims)]; max_dist=ghost_radius, include_zeros=true)
-    atom_labels = nothing
-    for (isghost, alpha) in ((true, 0.08), (false, 1.0))
-        pts = Makie.Point3f0[]
-        color = Makie.RGBf[]
-        for i in eachindex(images), n in images[i]
-            # If drawing ghosts, require !iszero(n), and vice versa
-            iszero(n) == isghost && continue
-            push!(pts, cryst.latvecs * (cryst.positions[i] + n))
-            push!(color, class_colors[cryst.classes[i]])
-        end
-        Makie.meshscatter!(ax, pts; markersize, color, alpha, diffuse=1.15, inspectable=false, transparency=isghost)
-
-        # Atom indices
-        if !isghost
-            text = repr.(eachindex(pts))
-            atom_labels = Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center),
-                                      overdraw=true, visible=true)
-        end
+    # Distance to show periodic images
+    if isnothing(ghost_radius)
+        ghost_radius = cell_diameter(cryst.latvecs, dims)/2
     end
 
-    function bonds_to_segments(b_ref, bonds; color, alpha, linewidth, visible)
+    # Show atoms
+    ℓ0 = characteristic_length_between_atoms(something(cryst.root, cryst))
+    function atoms_to_observables(positions, classes; label_atoms)
+        observables = []
+        images = all_images_within_distance(cryst.latvecs, positions, [cell_center(dims)]; max_dist=ghost_radius, include_zeros=true)
+        for (isghost, alpha) in ((true, 0.08), (false, 1.0))
+            pts = Makie.Point3f0[]
+            color = Makie.RGBf[]
+            for i in eachindex(images), n in images[i]
+                # If drawing ghosts, require !iszero(n), and vice versa
+                iszero(n) == isghost && continue
+                push!(pts, cryst.latvecs * (positions[i] + n))
+                push!(color, class_colors[classes[i]])
+            end
+            markersize = (label_atoms ? 0.2 : 0.1) * ℓ0
+            push!(observables, Makie.meshscatter!(ax, pts; markersize, color, alpha, diffuse=1.15, inspectable=false, transparency=isghost))
+    
+            # Optional labels for atom indices
+            if label_atoms && !isghost
+                text = repr.(eachindex(pts))
+                push!(observables, Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), overdraw=true))
+            end
+        end
+
+        return observables
+    end
+
+    # Draw magnetic ions from (sub)crystal
+    atoms_to_observables(cryst.positions, cryst.classes; label_atoms=true)
+
+    # Draw non-magnetic ions from root crystal
+    if !isnothing(cryst.root)
+        toggle = Makie.Toggle(fig; active=true, buttoncolor, framecolor_inactive, framecolor_active)
+
+        # Draw all atoms in cryst.root that are not present in cryst
+        i = findall(!in(cryst.classes), cryst.root.classes)
+        observables = atoms_to_observables(cryst.root.positions[i], cryst.root.classes[i]; label_atoms=false)
+        for o in observables
+            Makie.connect!(o.visible, toggle.active)
+        end
+        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Full crystal"; fontsize, halign=:left)]
+    end
+
+    function bonds_to_segments(b_ref, bonds; color, alpha, linewidth)
         # String for each bond b′. Like print_bond(b′), but shorter.
         bond_labels = map(bonds) do b
             dist = Sunny.global_distance(cryst, b)
@@ -610,43 +629,44 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
         # TODO: Report bug of ÷2 indexing
         inspector_label(_plot, index, _position) = bond_labels[index ÷ 2]
         s = Makie.linesegments!(ax, segments; color, alpha, linewidth,
-                                inspectable=true, inspector_label, visible)
+                                inspectable=true, inspector_label)
         return [s]
     end
 
-    toggle_grid = Makie.GridLayout(; tellheight=false, valign=:top)
-    fig[1, 2] = toggle_grid
-    fontsize = 16
-    toggle_cnt = 0
-
-    bond_colors = [getindex_cyclic(seaborn_bright, i) for i in eachindex(refbonds)]
-    buttoncolor = Makie.RGB(0.2, 0.2, 0.2)
-    framecolor_active = Makie.RGB(0.7, 0.7, 0.7)
-    framecolor_inactive = Makie.RGB(0.9, 0.9, 0.9)
-
+    # Use provided reference bonds or find from symmetry analysis
+    if refbonds isa Number
+        @assert isinteger(refbonds)
+        custombonds = false
+        refbonds = find_reference_bonds(cryst, Int(refbonds), dims)
+    elseif refbonds isa AbstractArray{Bond}
+        custombonds = true
+    else
+        error("Parameter `refbonds` must be an integer or a `Bond` list.")
+    end
+    
     # Toggle on/off atom reference bonds
+    bond_colors = [getindex_cyclic(seaborn_bright, i) for i in eachindex(refbonds)]
     active = custombonds
     toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
-    observables = bonds_to_segments(nothing, refbonds; color=bond_colors, alpha=0.5, linewidth=6, visible=active)
+    observables = bonds_to_segments(nothing, refbonds; color=bond_colors, alpha=0.5, linewidth=6)
     for o in observables
         Makie.connect!(o.visible, toggle.active)
     end
     toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Reference bonds"; fontsize, halign=:left)]
     
-    # Toggle on/off bonds
+    # Toggle on/off bonds within each class
     for (i, (b, color)) in enumerate(zip(refbonds, bond_colors))
         active = (i == 1)
         framecolor_active = Makie.alphacolor(color, 0.7)
         framecolor_inactive = Makie.alphacolor(color, 0.15)
         toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
         bonds = propagate_reference_bond_for_cell(cryst, b)
-        observables = bonds_to_segments(b, bonds; color, alpha=1.0, linewidth=3, visible=active)
+        observables = bonds_to_segments(b, bonds; color, alpha=1.0, linewidth=3)
         for o in observables
             Makie.connect!(o.visible, toggle.active)
         end
         toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, repr(b); fontsize, halign=:left)]
     end
-
 
     # Label lattice vectors. Putting this last helps with visibility (Makie
     # v0.19)
@@ -659,6 +679,7 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
     # visibility (Makie v0.19)
     Makie.DataInspector(ax; fontsize, font=pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf"))
 
+    ℓ0 = characteristic_length_between_atoms(cryst)
     orient_camera!(ax, cryst.latvecs; ghost_radius, ℓ0, orthographic, dims)
 
     # Show Cartesian axes, with link to main camera
