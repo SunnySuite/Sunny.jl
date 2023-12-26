@@ -323,9 +323,7 @@ function find_reference_bonds(cryst, nbonds, dims)
     
     # Verify max_dist heuristic
     if length(refbonds) > 10nbonds
-        display(cryst)
-        println("Found $(length(refbonds)) bonds using max_dist of $max_dist")
-        error("Bad bond lookup. Please report this to developers.")
+        @warn "Found $(length(refbonds)) bonds using max_dist of $max_dist"
     end
 
     return first(refbonds, nbonds)
