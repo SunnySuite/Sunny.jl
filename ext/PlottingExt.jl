@@ -5,6 +5,8 @@ import Sunny: Vec3, orig_crystal, natoms
 using LinearAlgebra
 import Makie
 
+const monofont = pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf")
+
 getindex_cyclic(a, i) = a[mod1(i, length(a))] 
 
 const seaborn_bright = [
@@ -663,8 +665,8 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
             Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
         end
         
-        # TODO: Report bug of ÷2 indexing
-        inspector_label(_plot, index, _position) = bond_labels[index ÷ 2]
+        # Bug of ÷2 indexing: https://github.com/MakieOrg/Makie.jl/issues/3503
+        inspector_label(_plot, index, _position) = bond_labels[div(index, 2, RoundUp)]
         s = Makie.linesegments!(ax, segments; color, alpha, linewidth,
                                 inspectable=true, inspector_label)
         return [s]
@@ -714,7 +716,7 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
 
     # Add inspector for pop-up information. Putting this last helps with
     # visibility (Makie v0.19)
-    Makie.DataInspector(ax; indicator_color=:gray, fontsize, font=pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf"))
+    Makie.DataInspector(ax; indicator_color=:gray, fontsize, font=monofont)
 
     ℓ0 = characteristic_length_between_atoms(cryst)
     orient_camera!(ax, cryst.latvecs; ghost_radius, ℓ0, orthographic, dims)
