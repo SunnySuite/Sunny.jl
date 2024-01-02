@@ -3,7 +3,7 @@
 
 isdraft = false # set `true` to disable cell evaluation
 
-import Literate, Documenter, Git
+import Literate, Documenter, Git, CodecZlib, Tar, Downloads
 using Sunny # Load `export`s into namespace to define API
 import GLMakie, WriteVTK # Enable package extensions
 
@@ -76,19 +76,19 @@ function prepare_contributed()
     # we just `git pull` instead for speed?
     isdir("contributed-tmp") && rm("contributed-tmp"; recursive=true, force=true)
     mkpath("contributed-tmp")
-    cd("contributed-tmp")
-    run(`$(Git.git()) init`)
-    run(`$(Git.git()) remote add origin -f https://github.com/SunnySuite/SunnyContributed.git`)
-    write(".git/info/sparse-checkout", "contributed-docs/build")
-    run(`$(Git.git()) pull origin main`)
-    cd("..")
+    # cd("contributed-tmp")
+    build_data = Downloads.download("https://github.com/SunnySuite/SunnyContributed/raw/main/contributed-docs/build.tar.gz", "build.tar.gz")
+    tar_gz = open(build_data)
+    tar = CodecZlib.GzipDecompressorStream(tar_gz)
+    Tar.extract(tar, "./contributed-tmp")
+    close(tar)
 
     # Copy the contents of the build directory to a local directory. This will include
     # both markdown files and png files.
     mkpath(joinpath(@__DIR__, "src", "examples", "contributed"))  
-    contrib_files = readdir(joinpath("contributed-tmp", "contributed-docs", "build"))
+    contrib_files = readdir(joinpath("contributed-tmp"))
     for file in contrib_files
-        cp(joinpath("contributed-tmp", "contributed-docs", "build", file), joinpath(@__DIR__, "src", "examples", "contributed", file); force=true)
+        cp(joinpath("contributed-tmp", file), joinpath(@__DIR__, "src", "examples", "contributed", file); force=true)
     end
 
     # Generate the base names for each contributed markdown file and prepare
