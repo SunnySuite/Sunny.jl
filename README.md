@@ -5,12 +5,21 @@
             <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/assets/sunny_logo.svg" alt="Sunny.jl" width="350px">
         </picture>
     </a>
+    <br><br>
+    <table>
+    <tr>
+        <td>
+            <b>Documentation:</b>&nbsp;&nbsp;
+            <!-- <a href="https://sunnysuite.github.io/Sunny.jl/stable"><img src="https://img.shields.io/badge/docs-stable-blue.svg" alt="Docs-stable"></a>&nbsp;&nbsp; -->
+            <a href="https://sunnysuite.github.io/Sunny.jl/dev"><img src="https://img.shields.io/badge/docs-dev-blue.svg" alt="Docs-dev"></a>
+        </td>
+        <td>
+            <b>Build status:</b>&nbsp;&nbsp;
+            <a href="https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml?query=branch%3Amain"><img src="https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml/badge.svg?branch=main" alt="CI"></a>
+        </td>
+    </tr>
+    </table>
 </div>
-<br>
-
-<!-- [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://sunnysuite.github.io/Sunny.jl/stable) -->
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://sunnysuite.github.io/Sunny.jl/dev)
-[![Build Status](https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/SunnySuite/Sunny.jl/actions/workflows/CI.yml?query=branch%3Amain)
 
 ## Overview
 
