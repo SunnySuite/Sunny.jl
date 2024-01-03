@@ -70,20 +70,16 @@ function build_examples(example_sources, destdir)
 end
 
 function prepare_contributed()
-    # Download tarball from SunnyContributed containing markdown files and png
-    # files from contriuted doc build.
+    # Download tarball from SunnyContributed. This contains the markdown files
+    # and png files from the SunnyContributed doc build.
     build_data = Downloads.download("https://github.com/SunnySuite/SunnyContributed/raw/main/contributed-docs/build.tar.gz", "build.tar.gz")
     tar_gz = open(build_data)
     tar = CodecZlib.GzipDecompressorStream(tar_gz)
-    Tar.extract(tar, "./contributed-tmp")
+    dest = joinpath(@__DIR__, "src", "examples", "contributed")
+    Tar.extract(tar, dest)
+    contrib_files = readdir(dest)
     close(tar)
-
-    # Copy the contents of the build directory to a local directory.
-    mkpath(joinpath(@__DIR__, "src", "examples", "contributed"))  
-    contrib_files = readdir(joinpath("contributed-tmp"))
-    for file in contrib_files
-        cp(joinpath("contributed-tmp", file), joinpath(@__DIR__, "src", "examples", "contributed", file); force=true)
-    end
+    rm("build.tar.gz")
 
     # Generate the base names for each contributed markdown file and prepare
     # paths for Documenter (relative to `src/`)
