@@ -3,7 +3,7 @@
 
 isdraft = false # set `true` to disable cell evaluation
 
-import Literate, Documenter, Git
+import Literate, Documenter, CodecZlib, Tar, Downloads
 using Sunny # Load `export`s into namespace to define API
 import GLMakie, WriteVTK # Enable package extensions
 
@@ -70,30 +70,21 @@ function build_examples(example_sources, destdir)
 end
 
 function prepare_contributed()
-    # Perform a sparse checkout of the `build` directory from SunnyContributed.
-    # This directory contains the markdown files and images generated with
-    # Literate on the SunnyContributed repo. TODO: If directory exists, should
-    # we just `git pull` instead for speed?
-    isdir("contributed-tmp") && rm("contributed-tmp"; recursive=true, force=true)
-    mkpath("contributed-tmp")
-    cd("contributed-tmp")
-    run(`$(Git.git()) init`)
-    run(`$(Git.git()) remote add origin -f https://github.com/SunnySuite/SunnyContributed.git`)
-    write(".git/info/sparse-checkout", "contributed-docs/build")
-    run(`$(Git.git()) pull origin main`)
-    cd("..")
+    # Download tarball from SunnyContributed. This contains the markdown files
+    # and png files from the SunnyContributed doc build.
+    src_url = "https://github.com/SunnySuite/SunnyContributed/raw/main/contributed-docs/build.tar.gz"
+    dest_path = joinpath(@__DIR__, "src", "examples", "contributed")
 
-    # Copy the contents of the build directory to a local directory. This will include
-    # both markdown files and png files.
-    mkpath(joinpath(@__DIR__, "src", "examples", "contributed"))  
-    contrib_files = readdir(joinpath("contributed-tmp", "contributed-docs", "build"))
-    for file in contrib_files
-        cp(joinpath("contributed-tmp", "contributed-docs", "build", file), joinpath(@__DIR__, "src", "examples", "contributed", file); force=true)
-    end
+    @info "Downloading $src_url"
+    tgz_path = Downloads.download(src_url)
+    tar = CodecZlib.GzipDecompressorStream(open(tgz_path))
+    Tar.extract(tar, dest_path)
+    close(tar)
+    rm(tgz_path)
 
     # Generate the base names for each contributed markdown file and prepare
     # paths for Documenter (relative to `src/`)
-    contrib_names = filter(ismarkdown, contrib_files)
+    contrib_names = filter(ismarkdown, readdir(dest_path))
     return [joinpath("examples", "contributed", name) for name in contrib_names]
 end
 
