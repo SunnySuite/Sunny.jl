@@ -26,13 +26,17 @@ sys = resize_supercell(sys, (10, 10, 10))
 @assert energy_per_site(sys) ≈ -2J*S^2
 
 # Use the stochastic Landau-Lifshitz dynamics to thermalize system into
-# equilibrium at finite temperature. This is a [`Langevin`](@ref) equation,
-# which includes damping and noise terms. The strength of the noise term is
-# automatically fixed according to the damping time scale `λ` and the target
-# temperature, according to a fluctuation-dissipation theorem.
+# equilibrium at finite temperature via a [`Langevin`](@ref) integrator. The
+# timestep ``Δt`` controls integration accuracy. In `:dipole` mode, it should be
+# inversely proportional to the largest effective field in the system. For
+# CoRh₂O₄, this is the antiferromagnetic exchange ``J`` times the spin magnitude
+# ``S=3/2``. The dimensionless parameter ``λ`` determines the magnitude of
+# Langevin noise and damping terms. A reasonable choice is `λ = 0.2`. The
+# temperature `kT` is linked to the magnitude of the Langevin noise term via a
+# fluctuation-dissipation theorem.
 
-Δt = 0.05/abs(J*S)   # Time step
-λ  = 0.1             # Dimensionless damping time-scale
+Δt = 0.05/abs(J*S)   # Integration timestep
+λ  = 0.2             # Dimensionless damping time-scale
 kT = 16 * meV_per_K  # 16K, a temperature slightly below ordering
 langevin = Langevin(Δt; λ, kT);
 

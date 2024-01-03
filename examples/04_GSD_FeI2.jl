@@ -4,18 +4,17 @@ using Sunny, LinearAlgebra, GLMakie
 
 # In the [previous FeI₂ tutorial](@ref "1. Multi-flavor spin wave simulations of
 # FeI₂ (Showcase)"), we used multi-flavor spin wave theory to calculate the
-# dynamical structure factor. Here, we perform a similar calculation using
-# classical spin dynamics at finite temperature. Because we are interested in
-# the coupled dynamics of spin dipoles and quadrupoles, we employ a [classical
-# dynamics of SU(3) coherent states](https://arxiv.org/abs/2209.01265) that
-# generalizes the Landau-Lifshitz equation.
+# dynamical structure factor. Here, we perform a similar calculation using a
+# [generalized classical spin dynamics](https://arxiv.org/abs/2209.01265) that
+# captures the coupled dynamics of spin dipoles and quadrupoles for
+# configurations sampled at finite temperature.
 #
-# Compared to LSWT, simulations using classical dynamics are much slower, and
-# are limited in $k$-space resolution. However, they make it is possible to
-# capture nonlinear effects associated with finite temperature fluctuations.
-# Classical dynamics are also appealing for studying out-of-equilibrium systems
-# (e.g., relaxation of spin glasses), or systems with quenched inhomogeneities
-# that require large simulation volumes.
+# Compared to spin wave theory, simulations using classical dynamics will be
+# slower and limited in $k$-space resolution. However, they make it is possible
+# to study [temperature driven phase
+# transitions](https://arxiv.org/abs/2310.19905). They may also be used to study
+# out-of-equilibrium systems (e.g., relaxation of spin glasses), or systems with
+# quenched inhomogeneities that require large simulation volumes.
 #
 # In this tutorial, we show how to study the finite temperature dynamics of FeI₂
 # using the classical approach. It is important to stress that the estimation of
@@ -29,14 +28,14 @@ using Sunny, LinearAlgebra, GLMakie
 #
 # As an overview, we will:
 #
-# 1. Identify the ground state
+# 1. Identify the ground state.
 # 2. Measure correlation data describing the excitations around that ground
-#    state
-# 3. Use the correlation data to compute scattering intensities
+#    state.
+# 3. Use the correlation data to compute scattering intensities.
 #
-# As the implementation of the FeI₂ model is already covered in detail in the
-# LSWT tutorial, we will not repeat it below. Instead, we will assume that you
-# already have defined a `sys` in the same way with lattice dimensions $4×4×4$. 
+# To begin, please follow our [previous tutorial](@ref "1. Multi-flavor spin
+# wave simulations of FeI₂ (Showcase)") to initialize a FeI₂ `sys` with lattice
+# dimensions $4×4×4$. 
 
 a = b = 4.05012#hide 
 c = 6.75214#hide
@@ -75,21 +74,22 @@ sys
 
 # ## Finding a ground state
 
-# Sunny uses the [Langevin dynamics of SU(_N_) coherent
-# states](https://arxiv.org/abs/2209.01265) to sample spin configurations
-# from the thermal equlibrium. One first constructs a
-# [`Langevin`](@ref) integrator. This requires a time step, temperature, and a
-# phenomenological damping parameter $λ$ that sets the coupling to the thermal
-# bath.
+# Sunny introduces a [Langevin dynamics of SU(_N_) coherent
+# states](https://arxiv.org/abs/2209.01265), which can be used to sample spin
+# configurations from the thermal equlibrium.
+#
+# The [`Langevin`](@ref) integrator requires several parameters. The timestep
+# ``Δt`` controls integration accuracy. In `:SUN` mode, it should be inversely
+# proportional to the largest energy scale in the system. For FeI₂, this is the
+# easy-axis anisotropy energy scale, ``D S^2``. The dimensionless parameter
+# ``λ`` determines the magnitude of Langevin noise and damping terms. A
+# reasonable choice is `λ = 0.2`. The temperature `kT` is linked to the
+# magnitude of the noise via a fluctuation-dissipation theorem.
 
-Δt = 0.05/D    # Should be inversely proportional to the largest energy scale
-               ## in the system. For FeI2, this is the easy-axis anisotropy,
-               ## `D = 2.165` (meV). The prefactor 0.05 is relatively small,
-               ## and achieves high accuracy.
-kT = 0.2       # Temperature of the thermal bath (meV).
-λ = 0.1        # This value is typically good for Monte Carlo sampling,
-               ## independent of system details.
-
+S = 1
+Δt = 0.05/abs(D*S^2)  # Integration timestep
+λ  = 0.2              # Dimensionless damping time-scale
+kT = 0.2              # Temperature in meV
 langevin = Langevin(Δt; kT, λ);
 
 # Langevin dynamics can be used to search for a magnetically ordered state. For
@@ -133,13 +133,13 @@ end
 
 # The next step is to collect correlation data ``S^{\alpha\beta}``. This will
 # involve sampling spin configurations from thermal equilibrium, and then
-# integrating the [Hamiltonian dynamics of SU(_N_) coherent
-# states](https://arxiv.org/abs/2204.07563) to collect Fourier-space information
-# about normal modes. Quantization of these modes yields the magnons, and the
-# associated dynamical spin-spin correlations can be compared with neutron
-# scattering intensities ``S^{\alpha\beta}(q,\omega)``. Because this a
-# real-space calculation, data is only available for discrete ``q`` modes (the
-# resolution scales like inverse system size).
+# integrating [an energy-conserving generalized classical spin
+# dynamics](https://arxiv.org/abs/2204.07563) to collect Fourier-space
+# information about normal modes. Quantization of these modes yields the
+# magnons, and the associated dynamical spin-spin correlations can be compared
+# with neutron scattering intensities ``S^{\alpha\beta}(q,\omega)``. Because
+# this a real-space calculation, data is only available for discrete ``q`` modes
+# (the resolution scales like inverse system size).
 #
 # To store the correlation data, we initialize a `SampledCorrelations` object by
 # calling [`dynamical_correlations`](@ref). It requires three keyword arguments:
