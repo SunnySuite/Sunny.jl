@@ -72,18 +72,18 @@ end
 function prepare_contributed()
     # Download tarball from SunnyContributed. This contains the markdown files
     # and png files from the SunnyContributed doc build.
-    build_data = Downloads.download("https://github.com/SunnySuite/SunnyContributed/raw/main/contributed-docs/build.tar.gz", "build.tar.gz")
+    build_data = "build.tar.gz"
+    Downloads.download("https://github.com/SunnySuite/SunnyContributed/raw/main/contributed-docs/build.tar.gz", build_data)
     tar_gz = open(build_data)
     tar = CodecZlib.GzipDecompressorStream(tar_gz)
     dest = joinpath(@__DIR__, "src", "examples", "contributed")
     Tar.extract(tar, dest)
-    contrib_files = readdir(dest)
     close(tar)
-    rm("build.tar.gz")
+    rm(build_data)
 
     # Generate the base names for each contributed markdown file and prepare
     # paths for Documenter (relative to `src/`)
-    contrib_names = filter(ismarkdown, contrib_files)
+    contrib_names = filter(ismarkdown, readdir(dest))
     return [joinpath("examples", "contributed", name) for name in contrib_names]
 end
 
