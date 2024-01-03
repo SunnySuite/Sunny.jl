@@ -1,19 +1,52 @@
 """
     Langevin(Δt::Float64; λ::Float64, kT::Float64)
 
-Spin dynamics with coupling to a Langevin thermostat, which includes damping and
-noise terms. One call to the [`step!`](@ref) function will advance a
-[`System`](@ref) by `Δt` units of time.
+Spin dynamics with damping and noise terms that model coupling to an implicit
+thermal bath, of strength `λ`. One call to the [`step!`](@ref) function will
+advance a [`System`](@ref) by `Δt` units of time. Can be used to sample from the
+Boltzmann distribution at temperature `kT`. An alternative approach to sampling
+states from thermal equilibrium is [`LocalSampler`](@ref), which proposes local
+Monte Carlo moves. For example, use `LocalSampler` to sample Ising-like spins.
 
-Assuming ergodicity, the Langevin dynamics will sample from thermal equilibrium
-for the target temperature `kT`. The empirical parameter `λ` determines the
-strength of the coupling to the thermal bath. In other words, `1/λ` is the
-decorrelation time-scale. If ``λ = 0``, then the spin dynamics coincides with
-[`ImplicitMidpoint`](@ref).
+Setting `λ = 0` disables coupling to the thermal bath, yielding an
+energy-conserving spin dynamics. The `Langevin` integrator uses an explicit
+numerical integrator that allows energy drift. Alternatively, the
+[`ImplicitMidpoint`](@ref) method can be used, which is more expensive but
+prevents energy drift through exact conservation of the symplectic 2-form.
 
-An alternative approach to sampling is [`LocalSampler`](@ref), which may be
-preferred when the allowed spin values become effective discrete (e.g. Ising
-spins).
+If the [`System`](@ref) has `mode = :dipole`, then the dynamics is the
+stochastic Landau-Lifshitz equation,
+```math
+    d𝐬/dt = -𝐬 × (ξ - 𝐁 + λ 𝐬 × 𝐁),
+```
+where ``𝐁 = -dE/d𝐬`` is the effective field felt by the expected spin dipole
+``𝐬`` and the empirical parameter ``λ`` determines the magnitude of damping.
+The components of ``ξ`` are Gaussian white noise, with magnitude ``√(2 k_B T
+λ)`` set by a fluctuation-dissipation theorem.
+
+If the `System` has `mode = :SUN`, then this dynamics generalizes [1] to a
+stochastic nonlinear Schrödinger equation for SU(_N_) coherent states ``𝐙``,
+```math
+    d𝐙/dt = -i P [ζ + (1 - i λ̃) ℋ 𝐙].
+```
+Here, ``P`` projects onto the space orthogonal to ``𝐙``, and ``ζ`` denotes
+complex Gaussian white noise with magnitude ``√(2 k_B T λ̃)``. The
+local-Hamiltonian ``ℋ`` embeds the energy gradient into the 𝔰𝔲(_N_) Lie
+algebra, and generates evolution of spin dipoles, quadrupoles, etc.
+
+When applied to SU(2) coherent states, this generalized dynamics reduces exactly
+to the stochastic Landau-Lifshitz equation. The mapping is as follows.
+Normalized coherent states ``𝐙`` map to dipole expectation values ``𝐬 = 𝐙^{†}
+Ŝ 𝐙``, where spin operators ``Ŝ`` are a spin-``|𝐬|`` representation of
+SU(2). The local effective Hamiltonian ``ℋ = -𝐁 ⋅ Ŝ`` generates rotation of
+the dipole in analogy to the vector cross product ``S × 𝐁``. The coupling to
+the thermal bath maps as ``λ̃ = |𝐬| λ``. Note, however, that the `Langevin`
+constructor interprets its `λ` argument as either ``λ`` or ``λ̃``, for modes
+`:dipole` or `:SUN`, respectively.
+
+References:
+
+1. [D. Dahlbom et al., Phys. Rev. B 106, 235154 (2022)](https://arxiv.org/abs/2209.01265).
 """
 mutable struct Langevin
     Δt  :: Float64
@@ -29,13 +62,19 @@ end
 """
     ImplicitMidpoint(Δt::Float64; atol=1e-12) where N
 
-Energy-conserving spin dynamics. One call to the [`step!`](@ref) function will
-advance a [`System`](@ref) by `Δt` units of time.
+Energy-conserving spin dynamics -- either the Landau-Lifshitz equation, or its
+generalization to SU(_N_) coherent states [1]. One call to the [`step!`](@ref)
+function will advance a [`System`](@ref) by `Δt` units of time.
 
-Uses the spherical midpoint integration scheme for dipole systems and the
-Schrödinger midpoint integration scheme for SU(_N_) spin systems. Both
-integration schemes are symplectic, and therefore avoid energy drift over long
-periods of simulation time.
+Corresponds to the [`Langevin`](@ref) dynamics in the absence of coupling to the
+thermal bath (``λ = 0``). Here, however, Sunny uses a more expensive
+implicit-midpoint integration scheme that is exactly symplectic [2]. This
+approach eliminates energy drift over long simulation trajectories.
+
+References:
+
+1. [H. Zhang and C. D. Batista, Phys. Rev. B 104, 104409 (2021)](https://arxiv.org/abs/2106.14125).
+2. [D. Dahlbom et al, Phys. Rev. B 106, 054423 (2022)](https://arxiv.org/abs/2204.07563).
 """
 mutable struct ImplicitMidpoint
     Δt   :: Float64
