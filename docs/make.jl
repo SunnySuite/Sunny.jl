@@ -3,7 +3,7 @@
 
 isdraft = false # set `true` to disable cell evaluation
 
-import Literate, Documenter, Git, CodecZlib, Tar, Downloads
+import Literate, Documenter, CodecZlib, Tar, Downloads
 using Sunny # Load `export`s into namespace to define API
 import GLMakie, WriteVTK # Enable package extensions
 
@@ -70,21 +70,15 @@ function build_examples(example_sources, destdir)
 end
 
 function prepare_contributed()
-    # Perform a sparse checkout of the `build` directory from SunnyContributed.
-    # This directory contains the markdown files and images generated with
-    # Literate on the SunnyContributed repo. TODO: If directory exists, should
-    # we just `git pull` instead for speed?
-    isdir("contributed-tmp") && rm("contributed-tmp"; recursive=true, force=true)
-    mkpath("contributed-tmp")
-    # cd("contributed-tmp")
+    # Download tarball from SunnyContributed containing markdown files and png
+    # files from contriuted doc build.
     build_data = Downloads.download("https://github.com/SunnySuite/SunnyContributed/raw/main/contributed-docs/build.tar.gz", "build.tar.gz")
     tar_gz = open(build_data)
     tar = CodecZlib.GzipDecompressorStream(tar_gz)
     Tar.extract(tar, "./contributed-tmp")
     close(tar)
 
-    # Copy the contents of the build directory to a local directory. This will include
-    # both markdown files and png files.
+    # Copy the contents of the build directory to a local directory.
     mkpath(joinpath(@__DIR__, "src", "examples", "contributed"))  
     contrib_files = readdir(joinpath("contributed-tmp"))
     for file in contrib_files
