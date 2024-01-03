@@ -81,7 +81,7 @@ function no_processing(::SampledCorrelations)
 end
 
 function accum_sample!(sc::SampledCorrelations)
-    (; data, variance, observables, samplebuf, nsamples, fft!) = sc
+    (; data, M, observables, samplebuf, nsamples, fft!) = sc
     natoms = size(samplebuf)[5]
 
     fft! * samplebuf # Apply pre-planned and pre-normalized FFT
@@ -98,7 +98,7 @@ function accum_sample!(sc::SampledCorrelations)
         sample_β = @view samplebuf[β,:,:,:,j,:]
         databuf  = @view data[c,i,j,:,:,:,:]
 
-        if isnothing(variance)
+        if isnothing(M)
             for k in eachindex(databuf)
                 # Store the diff for one complex number on the stack.
                 diff = sample_α[k] * conj(sample_β[k]) - databuf[k]
@@ -106,8 +106,8 @@ function accum_sample!(sc::SampledCorrelations)
                 # Accumulate into running average
                 databuf[k] += diff * (1/count)
             end
-        else 
-            varbuf = @view variance[c,i,j,:,:,:,:]
+        else
+            Mbuf = @view M[c,i,j,:,:,:,:]
             for k in eachindex(databuf)
                 # Store old (complex) mean on stack.
                 μ_old = databuf[k]
@@ -121,8 +121,7 @@ function accum_sample!(sc::SampledCorrelations)
                 # Note that the first term of `diff` is real by construction
                 # (despite appearances), but `real` is explicitly called to
                 # avoid automatic typecasting errors caused by roundoff.
-                diff = real((conj(matrixelem) - conj(μ_old))*(matrixelem - μ)) - varbuf[k]
-                varbuf[k] += diff * (1/count)
+                Mbuf[k] += real((matrixelem - μ_old)*conj(matrixelem - μ))
             end
         end
     end
