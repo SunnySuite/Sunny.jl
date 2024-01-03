@@ -239,7 +239,7 @@ end
             c₂*(-7𝒪[4,-3]-2𝒪[4,-2]+𝒪[4,-1]+𝒪[4,1]+7𝒪[4,3]) + c₃*(𝒪[4,0]+5𝒪[4,4]) +
             c₄*(-11𝒪[6,-6]-8𝒪[6,-3]+𝒪[6,-2]-8𝒪[6,-1]-8𝒪[6,1]+8𝒪[6,3]) + c₅*(𝒪[6,0]-21𝒪[6,4]) + c₆*((9/5)𝒪[6,-6]+(24/5)𝒪[6,-5]+𝒪[6,-2]+(8/5)𝒪[6,-1]+(8/5)𝒪[6,1]+(24/5)𝒪[6,5])
         
-        Sunny.Bond(1, 2, [0, 0, 0])
+        Bond(1, 2, [0, 0, 0])
         Distance 0.35355339059327, coordination 6
         Connects [0, 0, 0] to [1/4, 1/4, 0]
         Allowed exchange matrix: [A C -D
@@ -247,7 +247,7 @@ end
                                   D D  B]
         Allowed DM vector: [-D D 0]
         
-        Sunny.Bond(3, 5, [0, 0, 0])
+        Bond(3, 5, [0, 0, 0])
         Distance 0.61237243569579, coordination 12
         Connects [1/2, 1/2, 0] to [1/4, 0, 1/4]
         Allowed exchange matrix: [  A  C-E  D-F
@@ -255,21 +255,21 @@ end
                                   D+F -C-E    A]
         Allowed DM vector: [E F -E]
         
-        Sunny.Bond(1, 3, [-1, 0, 0])
+        Bond(1, 3, [-1, 0, 0])
         Distance 0.70710678118655, coordination 6
         Connects [0, 0, 0] to [-1/2, 1/2, 0]
         Allowed exchange matrix: [A D C
                                   D A C
                                   C C B]
         
-        Sunny.Bond(1, 3, [0, 0, 0])
+        Bond(1, 3, [0, 0, 0])
         Distance 0.70710678118655, coordination 6
         Connects [0, 0, 0] to [1/2, 1/2, 0]
         Allowed exchange matrix: [A D C
                                   D A C
                                   C C B]
         
-        Sunny.Bond(1, 2, [-1, 0, 0])
+        Bond(1, 2, [-1, 0, 0])
         Distance 0.79056941504209, coordination 12
         Connects [0, 0, 0] to [-3/4, 1/4, 0]
         Allowed exchange matrix: [A  D -F

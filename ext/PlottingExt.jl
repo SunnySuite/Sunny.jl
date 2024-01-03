@@ -704,7 +704,8 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
         for o in observables
             Makie.connect!(o.visible, toggle.active)
         end
-        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, repr(b); fontsize, halign=:left)]
+        bondstr = "Bond($(b.i), $(b.j), $(b.n))"
+        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, bondstr; fontsize, halign=:left)]
     end
 
     # Label lattice vectors. Putting this last helps with visibility (Makie
