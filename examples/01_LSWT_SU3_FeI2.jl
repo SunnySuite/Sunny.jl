@@ -35,9 +35,7 @@
 # Julia](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)
 # guide. Sunny requires Julia 1.9 or later.
 #
-# From the Julia prompt, load `Sunny`. For plotting, one can choose either
-# `GLMakie` (a pop-up window) or `WGLMakie` (inline plots for a Jupyter
-# notebook).
+# From the Julia prompt, load `Sunny` and `GLMakie` for 3D graphics.
 
 using Sunny, GLMakie
 

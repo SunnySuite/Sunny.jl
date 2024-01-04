@@ -1,11 +1,11 @@
 # Version History
 
 ## v0.5.8
-(Upcoming)
+(Jan 4, 2024)
 
 * Many bugs in the WGLMakie backend have become apparent, and are being tracked
-  at https://github.com/SunnySuite/Sunny.jl/issues/211. Emit a warning if
-  WGLMakie is detected, suggesting that `using GLMakie` is preferred.
+  at [Issue #211](https://github.com/SunnySuite/Sunny.jl/issues/211). Emit a
+  warning if WGLMakie is detected, suggesting that GLMakie is preferred.
 * Various improvements to [`view_crystal`](@ref). A distance parameter is no
   longer expected. Cartesian axes now appear as "compass" in bottom-left. Custom
   list of reference bonds can be passed. Toggle to view non-magnetic atoms in
