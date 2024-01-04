@@ -128,7 +128,7 @@ end
     # Merge correlations and check if result equal to running calculation.
     sc_merged = merge_correlations([sc1, sc2])
     @test sc0.data ≈ sc_merged.data
-    @test sc0.M[1] ≈ sc_merged.M[1]
+    @test sc0.M ≈ sc_merged.M
 end
 
 @testitem "Sampled correlations reference" begin
