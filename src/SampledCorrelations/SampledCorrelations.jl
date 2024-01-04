@@ -8,7 +8,7 @@ initialized by calling either [`dynamical_correlations`](@ref) or
 struct SampledCorrelations{N}
     # 𝒮^{αβ}(q,ω) data and metadata
     data           :: Array{ComplexF64, 7}                 # Raw SF data for 1st BZ (numcorrelations × natoms × natoms × latsize × energy)
-    variance       :: Union{Nothing, Array{Float64, 7}}    # Running variance calculation for Welford's algorithm 
+    M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
     crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
     origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
     Δω             :: Float64                              # Energy step size (could make this a virtual property)  
@@ -57,8 +57,8 @@ function clone_correlations(sc::SampledCorrelations{N}) where N
     nω = size(sc.data, 7)
     normalization_factor = 1/(nω * √(prod(dims)))
     fft! = normalization_factor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
-    variance = isnothing(sc.variance) ? nothing : copy(sc.variance)
-    return SampledCorrelations{N}(copy(sc.data), variance, sc.crystal, sc.origin_crystal, sc.Δω,
+    M = isnothing(sc.M) ? nothing : copy(sc.M)
+    return SampledCorrelations{N}(copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
         deepcopy(sc.observables), copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.Δt,
         copy(sc.nsamples), sc.processtraj!)
 end
@@ -77,9 +77,8 @@ function merge_correlations(scs::Vector{SampledCorrelations{N}}) where N
         n = sc_merged.nsamples[1] 
         m = sc.nsamples[1]
         @. μ = (n/(n+m))*sc_merged.data + (m/(n+m))*sc.data
-        if !isnothing(sc_merged.variance)
-            @. sc_merged.variance = (n/(n+m))*(sc_merged.variance + abs(μ - sc_merged.data)^2) + 
-                                    (m/(n+m))*(sc.variance + abs(μ - sc.data)^2)
+        if !isnothing(sc_merged.M)
+            @. sc_merged.M = (sc_merged.M + n*abs(μ - sc_merged.data)^2) + (sc.M + m*abs(μ - sc.data)^2)
         end
         sc_merged.data .= μ
         sc_merged.nsamples[1] += m
@@ -154,7 +153,7 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
     na = natoms(sys.crystal)
     samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, nω) 
     data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., nω)
-    variance = calculate_errors ? zeros(Float64, size(data)...) : nothing
+    M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
     # Normalize FFT according to physical convention
     normalizationFactor = 1/(nω * √(prod(sys.latsize)))
@@ -165,7 +164,7 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
 
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
-    sc = SampledCorrelations{N}(data, variance, sys.crystal, origin_crystal, Δω, observables,
+    sc = SampledCorrelations{N}(data, M, sys.crystal, origin_crystal, Δω, observables,
                                 samplebuf, fft!, measperiod, apply_g, Δt, nsamples, processtraj!)
 
     return sc
