@@ -51,8 +51,14 @@ function build_examples(example_sources, destdir)
     # will be stored in the `assets/` directory of the hosted docs.
     for source in example_sources
         function preprocess(str)
-            # Notebooks use WGLMakie instead of GLMakie
-            str = replace(str, r"^using(.*?)GLMakie"m => s"using\1WGLMakie")
+            # Ideally, notebooks would use WGLMakie instead of GLMakie, but
+            # there are currently too many bugs to enable by default:
+            # https://github.com/SunnySuite/Sunny.jl/issues/211
+            if false
+                str = replace(str, r"^using(.*?)GLMakie"m => s"using\1WGLMakie")
+            else
+                str
+            end
         end
         # Build notebooks
         Literate.notebook(source, notebooks_path; preprocess, execute=false, credit=false)
