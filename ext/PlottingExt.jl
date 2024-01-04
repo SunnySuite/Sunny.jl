@@ -5,7 +5,33 @@ import Sunny: Vec3, orig_crystal, natoms
 using LinearAlgebra
 import Makie
 
-const monofont = pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf")
+
+let warned = false
+    global warn_wglmakie() = begin
+        if !warned && string(Makie.current_backend()) == "WGLMakie"
+            @info """
+            Support for the WGLMakie backend is considered experimental. Consider
+            `using GLMakie` from a fresh Julia session for a more reliable experience.
+            
+            WGLMakie compatibility is being tracked at:
+                https://github.com/SunnySuite/Sunny.jl/issues/211
+            
+            """
+        end
+        warned = true
+    end
+end
+
+function monofont()
+    if string(Makie.current_backend()) == "WGLMakie"
+        # WGLMakie does not have yet support font loading, see
+        # https://github.com/MakieOrg/Makie.jl/issues/3516.
+        (; )
+    else
+        (; font = pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf"))
+    end
+end
+
 
 getindex_cyclic(a, i) = a[mod1(i, length(a))] 
 
@@ -424,6 +450,8 @@ Like [`plot_spins`](@ref) but will draw into the given Makie Axis, `ax`.
 function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrowscale=1.0, stemcolor=:lightgray, color=:red,
                      colorfn=nothing, colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
                      ghost_radius=0, dims=3)
+    warn_wglmakie()
+    
     if dims == 2
         sys.latsize[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
     elseif dims == 1
@@ -568,6 +596,8 @@ Launch an interactive crystal viewer.
  - `compass`: If true, draw Cartesian axes in bottom left.
 """
 function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
+    warn_wglmakie()
+
     fig = Makie.Figure(; size)
 
     # Main scene
@@ -717,7 +747,7 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
 
     # Add inspector for pop-up information. Putting this last helps with
     # visibility (Makie v0.19)
-    Makie.DataInspector(ax; indicator_color=:gray, fontsize, font=monofont)
+    Makie.DataInspector(ax; indicator_color=:gray, fontsize, monofont()...)
 
     ℓ0 = characteristic_length_between_atoms(cryst)
     orient_camera!(ax, cryst.latvecs; ghost_radius, ℓ0, orthographic, dims)
@@ -829,25 +859,13 @@ function scatter_bin_centers!(ax,params;axes)
 end
 
 
-# The purpose of __init__() below is to make all the internal functions of
-# PlottingExt accessible to developers of Sunny.
-#
-# The standard and recommended use of Julia package extensions is to add methods
-# to existing functions.
-# https://pkgdocs.julialang.org/v1/creating-packages/#Conditional-loading-of-code-in-packages-(Extensions).
-# For public exports, we create a function stub in Sunny.jl using the syntax
-# `function f end`. Then the implementation is provided in this extension module
-# as `function Sunny.f() ... end`.
-#
-# For non-public functions, however, it is undesirable fill Sunny.jl with stubs
-# that will be irrelevant to most users. Access to such internal functions will
-# instead be provided through the global variable `Sunny.Plotting`, which is set
-# below. Note that `@__MODULE__` references the current extension module, here
-# `PlottingExt`.
-#
-# Without the global variable `Sunny.Plotting`, one would need to use something
-# like `Base.get_extension(Sunny, :PlottingExt)` to find the extension module.
 function __init__()
+    # Make the `PlottingExt` module accessible via `Sunny.Plotting` rather than
+    # the more verbose syntax `Base.get_extension(Sunny, :PlottingExt)`.
+    #
+    # For public exports, we create a stub in Sunny.jl, `function f end`, with
+    # implementation in this extension module: `function Sunny.f() ... end`.
+    # https://pkgdocs.julialang.org/v1/creating-packages/#Conditional-loading-of-code-in-packages-(Extensions).
     Sunny.Plotting = @__MODULE__
 end
 
