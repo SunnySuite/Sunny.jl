@@ -33,14 +33,10 @@ output of `intensities`. Set `negative_energies` to true to retrieve all ω
 values.
 """
 function available_energies(sc::SampledCorrelations; negative_energies=false)
-    Δω = sc.Δω
-    isnan(Δω) && (return NaN)
+    isnan(sc.Δω) && (return NaN)
 
     nω = size(sc.data, 7)
     hω = div(nω, 2) + 1
-    ωvals = collect(0:(nω-1)) .* Δω
-    for i ∈ hω+1:nω
-        ωvals[i] -= 2ωvals[hω]
-    end
+    ωvals = FFTW.fftfreq(nω, nω * sc.Δω)
     return negative_energies ? ωvals : ωvals[1:hω]
 end
