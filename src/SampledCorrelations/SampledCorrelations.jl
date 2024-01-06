@@ -105,7 +105,9 @@ calculation.
 - `Δt`: The time step used for calculating the trajectory from which dynamic
     spin-spin correlations are calculated. The trajectories are calculated with
     an [`ImplicitMidpoint`](@ref) integrator.
-- `ωmax`: The maximum energy, ``ω``, that will be resolved.
+- `ωmax`: The maximum energy, ``ω``, that will be resolved. Note that allowed
+    values of `ωmax` are constrained by the given `Δt`, so Sunny will choose the
+    smallest possible value that is no smaller than the specified `ωmax`.
 - `nω`: The number of energy bins to calculated between 0 and `ωmax`.
 
 Additional keyword options are the following:
@@ -131,7 +133,7 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
     if nω != 1
         @assert π/Δt > ωmax "Desired `ωmax` not possible with specified `Δt`. Choose smaller `Δt` value."
         measperiod = floor(Int, π/(Δt * ωmax))
-        nω = 2nω-1  # Ensure there are nω _non-negative_ energies
+        nω = 2nω-1  # Ensure there are nω _non-negative_ energies. Question: performance benefit for removing `-1`, or are modern FFT algorithms largely unaffected?
         Δω = 2π / (Δt*measperiod*nω)
     else
         measperiod = 1
