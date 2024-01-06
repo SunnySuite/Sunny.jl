@@ -133,7 +133,7 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
     if nω != 1
         @assert π/Δt > ωmax "Desired `ωmax` not possible with specified `Δt`. Choose smaller `Δt` value."
         measperiod = floor(Int, π/(Δt * ωmax))
-        nω = 2nω-1  # Ensure there are nω _non-negative_ energies. Question: performance benefit for removing `-1`, or are modern FFT algorithms largely unaffected?
+        nω = 2nω-1  # Ensure there are nω _non-negative_ energies.
         Δω = 2π / (Δt*measperiod*nω)
     else
         measperiod = 1
