@@ -66,15 +66,6 @@ function nbands(swt::SpinWaveTheory)
 end
 
 
-# Convert 3-vector from the Cartesian frame to the spherical frame.
-function dipole_to_angles(dipoles)
-    r = norm(dipoles)
-    @assert r > 1e-7
-    θ = acos(dipoles[3] / r)
-    ϕ = atan(dipoles[2], dipoles[1])
-    return θ, ϕ
-end
-
 # Given q in reciprocal lattice units (RLU) for the original crystal, return a
 # q_reshaped in RLU for the possibly-reshaped crystal.
 function to_reshaped_rlu(sys::System{N}, q) where N
@@ -212,15 +203,31 @@ function swt_data_dipole!(sys::System{0})
     Vs = Mat5[]
 
     for atom in 1:natoms(sys.crystal)
-        # SO(3) rotation that aligns the quantization axis. Important: since we
-        # will project out bosons that correspond to multipolar fluctuations,
-        # therefore we use the explicit matrix to get rid of any ambiguity.
-        
-        # As a unitary, U = exp(-i ϕ Sz) exp(-i θ Sy).
-        θ, ϕ = dipole_to_angles(sys.dipoles[1,1,1,atom])
+        # Direction n of dipole will define rotation R that aligns the
+        # quantization axis. Rotations about the axis of n should define a U(1)
+        # gauge invariance?
+        n = normalize(sys.dipoles[1,1,1,atom])
+
+        # Build `R = exp(-i ϕ Sᶻ) exp(-i θ Sʸ)`, with `R * [0, 0, 1] = n`. This
+        # specific choice of gauge seems to be important.
+        θ = acos(n[3])       # polar angle
+        ϕ = atan(n[2], n[1]) # azimuthal
         R = SA[-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
                 cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
                 0.0     sin(θ)        cos(θ)]
+
+        # Alternatively, one could try building some other SO(3) rotation R
+        # satisfying `R * [0, 0, 1] = n`. Doing this will cause tests to fail.
+        # The error seems to be an interaction between the exchange part and the
+        # single-ion anisotropy part (removing either term restores U(1) gauge
+        # invariance). TODO: Understand why this doesn't work!
+        #=
+        R = zeros(3, 3)
+        R[:, 3] .= n
+        R[:, 1:2] .= nullspace(n')
+        R = Mat3(R * det(R))
+        @assert R'*R ≈ I
+        =#
 
         # Rotated Stevens expansion.
         c = rotate_operator(sys.interactions_union[atom].onsite, R)
