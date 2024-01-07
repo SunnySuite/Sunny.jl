@@ -305,7 +305,7 @@ function print_allowed_anisotropy(cryst::Crystal, i::Int; R::Mat3, atol, digits,
 
     if R != I
         println(io)
-        println(io, "Modified reference frame! Transform using `rotate_operator(op; R)` where")
+        println(io, "Modified reference frame! Transform using `rotate_operator(op, R)` where")
         println(io, formatted_matrix(number_to_math_string.(R); prefix="R = "))
     end
 end
