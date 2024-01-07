@@ -283,8 +283,8 @@ end
     h  = rand()
     # Random magnetic moment
     M = normalize(rand(3))
-    θ, ϕ = Sunny.dipole_to_angles(M)
-
+    θ = acos(M[3])
+    ϕ = atan(M[2], M[1])
     s_mat = spin_matrices(S)
     s̃ᶻ = M' * s_mat
     
