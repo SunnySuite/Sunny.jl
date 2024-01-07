@@ -149,6 +149,11 @@ end
     
     # Test some inferred anisotropy matrices
     let
+        # This test should also work for S = Inf, but there is a false negative
+        # within second call to `is_anisotropy_valid`. TODO: Create minimized
+        # test for `isapprox` bug and report to DynamicPolynomials repo. Cf.
+        # https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/created_by/kbarros
+
         S = 3
         k = 6
         i = 1
@@ -303,7 +308,7 @@ end
             c₂*𝒪[4,-3] + c₃*𝒪[4,0] +
             c₄*𝒪[6,-3] + c₅*𝒪[6,0] + c₆*𝒪[6,6]
         
-        Modified reference frame! Transform using `rotate_operator(op; R)` where
+        Modified reference frame! Transform using `rotate_operator(op, R)` where
         R = [1/√2      0  1/√2
              1/√6 -√2/√3 -1/√6
              1/√3   1/√3 -1/√3]

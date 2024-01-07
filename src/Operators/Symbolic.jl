@@ -102,6 +102,10 @@ function operator_to_stevens_coefficients(p::DP.AbstractPolynomialLike, S)
     end
 end
 
+function rotate_operator(p, R)
+    𝒮′ = R * [𝒮ˣ, 𝒮ʸ, 𝒮ᶻ]
+    DP.subs(p, 𝒮ˣ => 𝒮′[1], 𝒮ʸ => 𝒮′[2], 𝒮ᶻ => 𝒮′[3])
+end
 
 function pretty_print_operator(p::DP.AbstractPolynomialLike)
     # Iterator over coefficients and monomials

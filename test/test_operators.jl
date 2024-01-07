@@ -181,8 +181,6 @@ end
 
     rng = Random.Xoshiro(0)
     R = Sunny.Mat3(Sunny.random_orthogonal(rng, 3; special=true))
-    N = 7
-    S₀ = (N-1)/2
 
     # Test axis-angle decomposition
     let
@@ -195,20 +193,38 @@ end
 
     # Test that spin matrices rotate as vectors
     let
-        S = spin_matrices(S₀)
-        @test R * S ≈ rotate_operator.(S, Ref(R))
+        for S₀ in (3, Inf)
+            S = spin_matrices(S₀)
+            for α in 1:3
+                @test (R * S)[α] ≈ rotate_operator(S[α], R)
+            end
+        end
     end
 
     # Test that Stevens quadrupoles rotate correctly
-    let 
-        O = stevens_matrices(S₀)
-        Q = [O[2, q] for q in 2:-1:-2]
-        V = Sunny.operator_for_stevens_rotation(2, R)
-        @test V * Q ≈ rotate_operator.(Q, Ref(R))
+    let
+        for S₀ in (3, Inf)
+            O = stevens_matrices(S₀)
+            
+            # Cannot use [O[2, q] for q in 2:-1:-2] because:
+            # https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/149
+            Q = [O[2, 2], O[2, 1], O[2, 0], O[2, -1], O[2, -2]]
+
+            V = Sunny.operator_for_stevens_rotation(2, R)
+            A = V * Q
+            A′ = rotate_operator.(Q, Ref(R))
+
+            # Cannot use A ≈ A′ because:
+            # https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/148
+            for (Aq, Aq′) in zip(A, A′)
+                @test Aq ≈ Aq′
+            end
+        end
     end
 
     # Test that Stevens coefficients rotate properly
-    let 
+    let
+        N = 7
         A = Hermitian(randn(ComplexF64, N, N))
         c = Sunny.matrix_to_stevens_coefficients(A)
 
