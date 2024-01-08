@@ -494,3 +494,46 @@ function energy_grad_coherents(sys::System{N}) where N
     set_energy_grad_coherents!(∇E, sys.coherents, sys)
     return ∇E
 end
+
+
+# Check that the interactions of `sys` is invariant under the axis-angle of
+# rotation (n, θ)
+function check_rotational_symmetry(sys::System{N}; n, θ) where N
+    # TODO: Employ absolute tolerance `atol` for all `isapprox` checks below.
+    # This will better handle comparisons with zero. This will require special
+    # implementation for isapprox(::StevensExpansion, ::StevensExpansion).
+
+    # An arbitrary small rotation about axis n
+    R = axis_angle_to_matrix(n, θ)
+
+    # The 5×5 matrix V rotates the vector of quadratic Stevens operators
+    # [O[2,2], ... O[2,-2]] by R
+    V = operator_for_stevens_rotation(2, R)
+
+    # External field must be aligned with n
+    for h in sys.extfield
+        @assert h⋅n ≈ norm(h) "Field not aligned with rotation axis"
+    end
+
+    # Interactions must be invariant under rotation
+    for (; onsite, pair) in sys.interactions_union
+        onsite′ = rotate_operator(onsite, R)
+        @assert onsite ≈ onsite′ "Onsite coupling not invariant under rotation"
+
+        for (; bilin, biquad, general) in pair
+            if !(bilin isa Number)
+                bilin′ = R' * bilin * R
+                @assert bilin ≈ bilin′ "Exchange not invariant under rotation"
+            end
+
+            if !(biquad isa Number)
+                biquad′ = Mat5(V' * biquad * V)
+                @assert biquad ≈ biquad′ "Biquadratic exchange not invariant under rotation"
+            end
+
+            genop  = sum(kron(A, B) for (A, B) in general.data)
+            genop′ = sum(kron(rotate_operator(A, R), rotate_operator(B, R)) for (A, B) in general.data)
+            @assert genop ≈ genop′ "General exchange not invariant under rotation"
+        end
+    end
+end
