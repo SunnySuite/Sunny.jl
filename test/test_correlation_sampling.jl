@@ -108,6 +108,7 @@ end
     # To get the time-domain correlations from S(q,w), do FFTW.ifft (which includes a 1/N).
     # As a shortcut to get just the equal-time correlations, we evaluate the ifft manually at t=0.
     equal_time_correlations_from_Sqw(Sqw) = sum(Sqw,dims=4) ./ size(Sqw,4)
+    norm(v) = sqrt(v[1]^2 + v[2]^2 + v[3]^2)
     expected_sum_rule = prod(sys.latsize) * norm(sys.dipoles[1])^2 # NS^2 classical sum rule
     @test isapprox(sum(equal_time_correlations_from_Sqw(Sqw)), expected_sum_rule; atol=1e-12)
 
