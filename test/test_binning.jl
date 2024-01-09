@@ -71,10 +71,7 @@
     is_golden = [4.475593277383433 0 0; 17.95271052224501 0 0; 51.13888001854976 0 0; 45.72331040682036 0 0]
     counts_golden = [3.0 3.0 3.0; 15.0 15.0 15.0; 28.0 28.0 28.0; 39.0 39.0 39.0]
     @test isapprox(is,size(sc.data,7) .* is_golden ./ Sunny.natoms(sc.crystal);atol = 1e-12)
-
-    # This is broken because broadening between ±ω is now allowed!
-    # (it was incorrectly not allowed before)
-    @test_broken isapprox(counts,counts_golden;atol = 1e-12)
+    @test isapprox(counts,counts_golden;atol = 1e-12)
 
     # Test a custom formula returning arbitrarily ordered correlations
     import StaticArrays # Required in order to support zero(return_type)
@@ -102,7 +99,10 @@
     end
 
     @test isapprox(is_flat,size(sc.data,7) .* is_golden ./ Sunny.natoms(sc.crystal);atol = 1e-12)
-    @test all(counts .== counts_golden)
+
+    # This is broken because broadening between ±ω is now allowed!
+    # (it was incorrectly not allowed before)
+    @test_broken all(counts .== counts_golden)
 
     # Test all components using :full
     formula = intensity_formula(sc, :full; kT = 4.7, formfactors = [FormFactor("Fe2")])
