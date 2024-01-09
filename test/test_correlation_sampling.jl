@@ -1,3 +1,20 @@
+@testitem "Available Energies Dirac Identity" begin
+     # Create a dummy SampledCorrelations object
+    latsize = (1,1,1)
+    cryst = Sunny.fcc_primitive_crystal()
+    sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
+    dt = 0.1
+    sc = dynamical_correlations(sys; Δt = dt, ωmax = 10.0, nω=100)
+
+    ωs = available_energies(sc;negative_energies=true)
+    dts = 0:(dt * sc.measperiod):3
+    vals = sum(exp.(im .* ωs .* dts'),dims = 1)[:]
+
+    # Verify it made a delta function
+    @test vals[1] ≈ length(ωs)
+    @test all(isapprox.(0,vals[2:end];atol = 1e-12))
+end
+
 @testitem "Asymmetric Correlations" begin
     using FFTW
 
@@ -13,38 +30,44 @@
     time_T = size(sc.samplebuf,6)
     time_2T = 2time_T - 1
     ts = range(0,1,length = time_2T+1)[1:end-1]
-    As = exp.(-(ts .- 0.15).^2 ./ (2 * 0.05^2))
-    Bs = exp.(-(ts .- 0.25).^2 ./ (2 * 0.02^2))
-    sc.samplebuf[1,1,1,1,1,:] .= As[1:time_T]
-    sc.samplebuf[2,1,1,1,1,:] .= Bs[1:time_T]
+    As = exp.(-(ts .- 0.15).^2 ./ (2 * 0.05^2))[1:time_T]
+    Bs = exp.(-(ts .- 0.25).^2 ./ (2 * 0.02^2))[1:time_T]
+    sc.samplebuf[1,1,1,1,1,:] .= As
+    sc.samplebuf[2,1,1,1,1,:] .= Bs
 
     # Run the Sunny-internal function which computes the correlations
     Sunny.accum_sample!(sc)
 
-    # Retrieve the correlations in direct time
+    # Retrieve the correlations in direct time.
+    # The sc.data is normalized such that FFTW.ifft (which includes
+    # a factor of 1/size(sc.data,7)) will give the correct time-domain correlations.
     # TODO: The correlations tested here are real--make them complex
     real_data = real(FFTW.ifft(sc.data,7))
 
     # Reference calculation
-    q11 = zeros(time_T+1)
-    q12 = zeros(time_T+1)
-    q21 = zeros(time_T+1)
-    q22 = zeros(time_T+1)
-    dt = ts[2] - ts[1]
-    for t = 0:time_T
-        for tau = 0:(time_T-2)
-            q11[1+t] += As[1+(t+tau)] * As[1+(tau)] * dt
-            q12[1+t] += As[1+(t+tau)] * Bs[1+(tau)] * dt
-            q21[1+t] += Bs[1+(t+tau)] * As[1+(tau)] * dt
-            q22[1+t] += Bs[1+(t+tau)] * Bs[1+(tau)] * dt
+    q11 = zeros(time_2T)
+    q12 = zeros(time_2T)
+    q21 = zeros(time_2T)
+    q22 = zeros(time_2T)
+    offsets = Int64.(fftfreq(time_2T,time_2T))
+    for i = eachindex(offsets)
+        # Uses all available data
+        offset = offsets[i]
+        valid_starting_times = max(1,1-offset):min(time_T,time_T - offset)
+        n = length(valid_starting_times)
+        for tau = valid_starting_times
+            q11[i] += As[offset+tau] * As[tau] / n
+            q12[i] += As[offset+tau] * Bs[tau] / n
+            q21[i] += Bs[offset+tau] * As[tau] / n
+            q22[i] += Bs[offset+tau] * Bs[tau] / n
         end
     end
 
-    # Compare to the positive-time part of the Sunny-computed correlations 1:(time_T + 1)
-    @test isapprox(q11,real_data[sc.observables.correlations[CartesianIndex(1,1)],1,1,1,1,1,1:(time_T+1)];atol = 1e-8)
-    @test isapprox(q12,real_data[sc.observables.correlations[CartesianIndex(1,2)],1,1,1,1,1,1:(time_T+1)];atol = 1e-8)
-    @test isapprox(q21,real_data[sc.observables.correlations[CartesianIndex(2,1)],1,1,1,1,1,1:(time_T+1)];atol = 1e-8)
-    @test isapprox(q22,real_data[sc.observables.correlations[CartesianIndex(2,2)],1,1,1,1,1,1:(time_T+1)];atol = 1e-8)
+    # Compare to both positive and negative time correlations
+    @test isapprox(q11,real_data[sc.observables.correlations[CartesianIndex(1,1)],1,1,1,1,1,:];atol = 1e-8)
+    @test isapprox(q12,real_data[sc.observables.correlations[CartesianIndex(1,2)],1,1,1,1,1,:];atol = 1e-8)
+    @test isapprox(q21,real_data[sc.observables.correlations[CartesianIndex(2,1)],1,1,1,1,1,:];atol = 1e-8)
+    @test isapprox(q22,real_data[sc.observables.correlations[CartesianIndex(2,2)],1,1,1,1,1,:];atol = 1e-8)
 end
 
 @testitem "Correlation sampling" begin
@@ -81,9 +104,12 @@ end
     add_sample!(sc, sys)
     qgrid = available_wave_vectors(sc)
     formula = intensity_formula(sc,:trace)
-    vals = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
-    total_intensity_trace = sum(vals)
-    @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
+    Sqw = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
+    # To get the time-domain correlations from S(q,w), do FFTW.ifft (which includes a 1/N).
+    # As a shortcut to get just the equal-time correlations, we evaluate the ifft manually at t=0.
+    equal_time_correlations_from_Sqw(Sqw) = sum(Sqw,dims=4) ./ size(Sqw,4)
+    expected_sum_rule = prod(sys.latsize) * norm(sys.dipoles[1])^2 # NS^2 classical sum rule
+    @test isapprox(sum(equal_time_correlations_from_Sqw(Sqw)), expected_sum_rule; atol=1e-12)
 
 
     # Test sum rule with default observables in dipole mode 
@@ -92,9 +118,10 @@ end
     sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0, apply_g=false)
     add_sample!(sc, sys)
     trace_formula = intensity_formula(sc,:trace)
-    vals = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
-    total_intensity_trace = sum(vals)
-    @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
+    Sqw = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
+    total_intensity_trace = sum(Sqw)
+    expected_sum_rule = prod(sys.latsize) * norm(sys.dipoles[1])^2 # NS^2 classical sum rule
+    @test isapprox(sum(equal_time_correlations_from_Sqw(Sqw)), expected_sum_rule; atol=1e-12)
 
 
     # Test perp reduces intensity

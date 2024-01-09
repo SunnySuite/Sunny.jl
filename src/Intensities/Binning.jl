@@ -208,7 +208,7 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...)
     params
 end
 
-unit_resolution_binning_parameters(sc::SampledCorrelations; kwargs...) = unit_resolution_binning_parameters(available_energies_including_zero(sc),sc.latsize,sc;kwargs...)
+unit_resolution_binning_parameters(sc::SampledCorrelations; negative_energies = false, kwargs...) = unit_resolution_binning_parameters(available_energies_including_zero(sc;negative_energies),sc.latsize,sc;kwargs...)
 
 function unit_resolution_binning_parameters(ωvals::AbstractVector{Float64})
     if !all(abs.(diff(diff(ωvals))) .< 1e-12)
@@ -382,7 +382,7 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
     return_type = typeof(formula).parameters[1]
     output_intensities = zeros(return_type,numbins...)
     output_counts = zeros(Float64,numbins...)
-    ωvals = available_energies_including_zero(sc)
+    ωvals = available_energies_including_zero(sc;negative_energies=true)
 
     # Find an axis-aligned bounding box containing the histogram.
     # The AABB needs to be in r.l.u for the (possibly reshaped) crystal
@@ -478,8 +478,8 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
     return output_intensities, output_counts
 end
 
-function available_energies_including_zero(x)
-    ωs = available_energies(x)
+function available_energies_including_zero(x;kwargs...)
+    ωs = available_energies(x;kwargs...)
     # Special case due to NaN definition of instant_correlations
     (length(ωs) == 1 && isnan(ωs[1])) ? [0.] : ωs
 end
