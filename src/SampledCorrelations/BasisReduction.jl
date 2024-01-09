@@ -11,11 +11,13 @@ function phase_averaged_elements(data, q_absolute::Vec3, crystal::Crystal, ff_at
 
     for j in 1:NAtoms, i in 1:NAtoms
         #pref = prefactor[i] * conj(prefactor[j])
-        phase = exp(-2π*im * (q ⋅ (r[i] - r[j])))
-        elems .+= phase .* ffs[i] .* ffs[j] .* view(data, :, i, j)
+        phase = exp(-2π*im * (q ⋅ (r[i] - r[j]))) * ffs[i] * ffs[j]
+        for k in eachindex(elems)
+            elems[k] += phase * data[k,i,j]
+        end
     end
 
-    return SVector{NCorr,ComplexF64}(elems)
+    return SVector{NCorr,ComplexF64}(elems ./ NAtoms)
 end
 
 # Weighted average over variances to propagate error. This is essentially a
