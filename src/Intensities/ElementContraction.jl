@@ -186,17 +186,25 @@ required_correlations(::AllAvailable{NCorr}) where NCorr = 1:NCorr
 ################################################################################
 Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 
-function contractor_from_mode(source, mode::Symbol)
+# SampledCorrelations already provides the (bilateral) Fourier transform
+contractor_from_mode(sc::SampledCorrelations, mode::Symbol) = contractor_from_mode(sc, mode; unilateral_to_bilateral = false)
+
+# SpinWaveTheory provides the more informative (unilateral) Laplace transform,
+# but this needs to be glued together to recover the Fourier transform
+contractor_from_mode(swt::SpinWaveTheory, mode::Symbol) = contractor_from_mode(sc, mode; unilateral_to_bilateral = true)
+
+function contractor_from_mode(source, mode::Symbol; unilateral_to_bilateral)
     if mode == :trace
-        contractor = Trace(source.observables; unilateral_to_bilateral = true)
+        contractor = Trace(source.observables; unilateral_to_bilateral)
         string_formula = "Tr S′\n\n with S′ = S + S†"
     elseif mode == :perp
-        contractor = DipoleFactor(source.observables; unilateral_to_bilateral = true)
+        contractor = DipoleFactor(source.observables; unilateral_to_bilateral)
         string_formula = "∑_ij (I - Q⊗Q){i,j} S′{i,j}\n\n(i,j = Sx,Sy,Sz) and with S′ = S + S†"
     elseif mode == :full
-        contractor = FullTensor(source.observables; unilateral_to_bilateral = true)
+        contractor = FullTensor(source.observables; unilateral_to_bilateral)
         string_formula = "S′{α,β}\n\n with S′ = S + S†"
     elseif mode == :all_available
+        # TODO: This doesn't depend on unilateral_to_bilateral, but it should
         corrs = source.observables.correlations
         corr_names = Dict(value => key for (key, value) in corrs)
         contractor = AllAvailable{length(corrs)}()
