@@ -381,12 +381,12 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             scratch = Matrix{return_type}(undef,10,length(disp))
             return function(ω)
                 if length(ω) > length(is)
-                  is = Vector{return_type}(undef,length(ω))
-                  scratch = Matrix{return_type}(undef,length(ω),length(disp))
+                    is = Vector{return_type}(undef,length(ω))
+                    scratch = Matrix{return_type}(undef,length(ω),length(disp))
                 end
-                scratch .= ω .- disp'
-                scratch .= kernel_edep.(disp',scratch)
-                scratch .= intensity' .* scratch
+                for i = 1:length(ω), j = 1:length(disp)
+                    scratch[i,j] = intensity[j] * kernel_edep(disp[j],ω[i] - disp[j])
+                end
                 is .= sum(scratch,dims=2)
                 view(is,1:length(ω))
             end
