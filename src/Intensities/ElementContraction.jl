@@ -191,7 +191,7 @@ contractor_from_mode(sc::SampledCorrelations, mode::Symbol) = contractor_from_mo
 
 # SpinWaveTheory provides the more informative (unilateral) Laplace transform,
 # but this needs to be glued together to recover the Fourier transform
-contractor_from_mode(swt::SpinWaveTheory, mode::Symbol) = contractor_from_mode(sc, mode; unilateral_to_bilateral = true)
+contractor_from_mode(swt::SpinWaveTheory, mode::Symbol) = contractor_from_mode(swt, mode; unilateral_to_bilateral = true)
 
 function contractor_from_mode(source, mode::Symbol; unilateral_to_bilateral)
     if mode == :trace
