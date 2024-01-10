@@ -187,3 +187,15 @@ function intensity_formula(sc::SampledCorrelations, contractor::Contraction{T}; 
         intensity = contract(correlations, k, contractor)
     end
 end
+
+function intensity_formula_kpm(swt::SpinWaveTheory, mode::Symbol; kwargs...)
+    contractor, string_formula = contractor_from_mode(swt, mode)
+    intensity_formula_kpm(swt, contractor; string_formula, kwargs...)
+end
+
+function intensity_formula_kpm(swt::SpinWaveTheory, contractor::Contraction{T}; kwargs...) where T
+    intensity_formula_kpm(swt,required_correlations(contractor); return_type = T,kwargs...) do k,correlations
+        intensity = contract(correlations, k, contractor)
+    end
+end
+

@@ -82,17 +82,71 @@ end
 
 
 @testitem "Lanczos Bounds" begin
-    using LinearAlgebra, Random
-
-    Random.seed!(100)
-    A = randn(ComplexF64, 500, 500)
-    A = 0.5(A' + A)
-    lo, hi = Sunny.eigbounds(A, 20)
-    vals = eigvals(A)
-
+    using LinearAlgebra
+    n=10
+    A = rand(ComplexF64,n,n)
+    A = 0.5(A+A')
+    B = rand(ComplexF64,n,n)
+    B = 0.5(B+transpose(B))
+    D = [A B; conj(B) conj(A)]
+    ϵ = minimum(eigvals(D))
+    D = D-(ϵ-0.1)*I(2n)
+    Ĩ = diagm([ones(n); -ones(n)])
+    niters=40
+    H = Ĩ*D
+    lo, hi = Sunny.eigbounds(H, niters; extend=0.)
+    vals = eigvals(H)
     @test (abs(lo/vals[1] - 1) < 0.025) && (abs(hi/vals[end] - 1) < 0.025)
 end
 
+@testitem "Chebyshev Approximations" begin
+    using LinearAlgebra
+
+    function cheb_coefs_manual(M, Mq, func, bounds)
+        function cheb_array!(out, x)
+            len = length(out)
+            @assert len > 2
+            out[0], out[1] = 1.0, x
+            for m = 2:len-1
+                out[m] = 2x*out[m-1] - out[m-2]
+            end
+            return nothing
+        end
+
+        @assert Mq > M
+        out = Sunny.OffsetArray(zeros(M), 0:M-1)  # To avoid bringing OffsetArrays into testing environment
+        fp  = Sunny.OffsetArray(zeros(M), 0:M-1)
+        T   = Sunny.OffsetArray(zeros(M), 0:M-1)
+        for i in 0:Mq-1
+            x_i = cos((i+0.5)π/Mq)
+            f_i = func(Sunny.unscale(x_i, bounds))
+            cheb_array!(T, x_i)
+            @. fp += f_i * T
+        end
+        for m in 0:M-1
+            out[m] = (iszero(m) ? 1.0 : 2.0 ) * fp[m] / Mq
+        end
+        return out
+    end
+
+    # Set up test function
+    bounds = (-1, 1)
+    σ = 0.1
+    func(x) = (1/√(2π*σ^2))*exp(-0.5*(x/σ)^2)
+
+    # Check coefficients from Sunny function match manual calculation
+    M = 100 
+    Mq = 400
+    coefs = Sunny.cheb_coefs(M, Mq, func, bounds)
+    coefs_ref = cheb_coefs_manual(M, Mq, func, bounds)
+    @test norm(coefs - coefs_ref) < 1e-12
+
+    # Check resulting approximation sufficiently close to ground truth
+    xs = -0.9:0.1:0.9
+    ref = func.(xs)
+    rec = map(x -> Sunny.cheb_eval(x, bounds, coefs), xs)
+    @test norm(rec - ref) < 1e-12
+end
 
 @testitem "Single Ion" begin
     # Tetragonal crystal
