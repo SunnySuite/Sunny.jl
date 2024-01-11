@@ -132,7 +132,6 @@ Documenter.makedocs(;
         # relative URL paths `./assets/*` for embedded HTML. See:
         # https://github.com/JuliaDocs/Documenter.jl/issues/423#issuecomment-1733869224.
         prettyurls = false,
-        ansicolor = true,
         size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
         size_threshold      = 300*2024, # 300KB
     ),
