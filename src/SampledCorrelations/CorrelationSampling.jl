@@ -81,7 +81,7 @@ function no_processing(::SampledCorrelations)
 end
 
 function accum_sample!(sc::SampledCorrelations;alg = :no_window,max_lag_frac = Inf)
-    (; data, variance, observables, samplebuf, nsamples, fft!) = sc
+    (; data, M, observables, samplebuf, nsamples, fft!) = sc
     natoms = size(samplebuf,5)
 
     time_T = size(samplebuf,6)
