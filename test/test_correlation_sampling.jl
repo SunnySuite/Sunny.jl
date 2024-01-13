@@ -1,7 +1,7 @@
 @testitem "Available Energies Dirac Identity" begin
      # Create a dummy SampledCorrelations object
     latsize = (1,1,1)
-    cryst = Sunny.fcc_primitive_crystal()
+    cryst = Sunny.cubic_crystal()
     sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
     dt = 0.1
     sc = dynamical_correlations(sys; Δt = dt, ωmax = 10.0, nω=100)
@@ -20,7 +20,7 @@ end
 
     # Create a dummy SampledCorrelations object
     latsize = (1,1,1)
-    cryst = Sunny.fcc_primitive_crystal()
+    cryst = Sunny.cubic_crystal()
     sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
     sc = dynamical_correlations(sys; Δt = 0.1, ωmax = 10.0, nω=100, observables = [:A => [1. 0im; 0 1], :B => [1. 0im; 0 1]])
 
