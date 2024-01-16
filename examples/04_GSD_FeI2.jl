@@ -98,7 +98,7 @@ langevin = Langevin(; λ, kT)
 # configuration will also work reasonably well.
 
 suggest_timestep(sys, langevin; tol=1e-2)
-langevin.Δt = 0.027
+langevin.Δt = 0.027;
 
 # Sample spin configurations using Langevin dynamics. We have carefully selected
 # a temperature of 0.2 eV that is below the ordering temperature, but large
@@ -146,7 +146,7 @@ end
 # With this increase in temperature, the suggested timestep has increased slightly.
 
 suggest_timestep(sys_large, langevin; tol=1e-2)
-langevin.Δt = 0.040
+langevin.Δt = 0.040;
 
 # The next step is to collect correlation data ``S^{\alpha\beta}``. This will
 # involve sampling spin configurations from thermal equilibrium, and then

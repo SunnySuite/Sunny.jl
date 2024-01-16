@@ -39,7 +39,7 @@ langevin = Langevin(; λ, kT)
 # configuration will also work reasonably well.
 
 suggest_timestep(sys, langevin; tol=1e-2)
-langevin.Δt = 0.025
+langevin.Δt = 0.025;
 
 # Now run a dynamical trajectory to sample spin configurations. Keep track of
 # the energy per site at each time step.
@@ -55,7 +55,7 @@ end
 # simulations faster.
 
 suggest_timestep(sys, langevin; tol=1e-2)
-langevin.Δt = 0.042
+langevin.Δt = 0.042;
 
 # The energy per site has converged, which suggests that the system has reached
 # thermal equilibrium.
