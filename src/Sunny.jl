@@ -39,8 +39,6 @@ const HermitianC64 = Hermitian{ComplexF64, Matrix{ComplexF64}}
     end
 end
 
-include("OnlineStatistics.jl")
-
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
 include("Operators/Stevens.jl")

@@ -108,7 +108,7 @@ formfactors = [FormFactor("Co2")]
 instant_formula = intensity_formula(sc, :perp; formfactors)
 iq = instant_intensities_interpolated(sc, qs, instant_formula);
 
-# Plot the resulting intensity data ``𝒮(𝐪)``. The color scale is clipped to 50%
+# Plot the resulting intensity data ``I(𝐪)``. The color scale is clipped to 50%
 # of the maximum intensity.
 
 heatmap(q1s, q2s, iq;
