@@ -74,8 +74,9 @@ sys
 
 # ## Finding a ground state
 
-# As previously observed, direct energy minimization is susceptible to trapping
-# in a local energy minimum.
+# As [previously observed](@ref "1. Multi-flavor spin wave simulations of FeI₂
+# (Showcase)"), direct energy minimization is susceptible to trapping in a local
+# energy minimum.
 
 randomize_spins!(sys)
 minimize_energy!(sys)
@@ -89,31 +90,29 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 λ  = 0.2  # Dimensionless damping time-scale
 kT = 0.2  # Temperature in meV
+langevin = Langevin(; λ, kT)
 
-# Use [`suggest_timestep`](@ref) to obtain a reasonable integration timestep. It
-# is important that the system has already been initialized to a low-energy
-# configuration. Usually `tol=1e-2` is good tolerance to numerical error.
+# Use [`suggest_timestep`](@ref) to select an integration timestep for the given
+# error tolerance, e.g. `tol=1e-2`. The spin configuration in `sys` should
+# ideally be relaxed into thermal equilibrium, but the current, energy-minimized
+# configuration will also work reasonably well.
 
-suggest_timestep(sys; tol=1e-2, λ, kT)
+suggest_timestep(sys, langevin; tol=1e-2)
+langevin.Δt = 0.027
 
-# This information is sufficient to define the Langevin integrator.
-
-Δt = 0.027
-langevin = Langevin(Δt; kT, λ);
-
-# Langevin dynamics can be used to search for a magnetically ordered state. This
-# works well because the temperature `kT = 0.2` has been carefully selected. It
-# is below the ordering temperature, but large enough that the dynamical
-# trajectory can overcome local energy barriers and annihilate defects.
+# Sample spin configurations using Langevin dynamics. We have carefully selected
+# a temperature of 0.2 eV that is below the ordering temperature, but large
+# enough to that the dynamics can overcome local energy barriers and annihilate
+# defects.
 
 for _ in 1:10_000
     step!(sys, langevin)
 end
 
-# Calling [`check_timestep`](@ref) shows that thermalization has not
+# Calling [`suggest_timestep`](@ref) shows that thermalization has not
 # substantially altered the suggested `Δt`.
 
-check_timestep(sys, langevin; tol=1e-2)
+suggest_timestep(sys, langevin; tol=1e-2)
 
 # Although thermal fluctuations are present, the correct antiferromagnetic order
 # (2 up, 2 down) has been found.
@@ -146,7 +145,7 @@ end
 
 # With this increase in temperature, the suggested timestep has increased slightly.
 
-check_timestep(sys_large, langevin; tol=1e-2)
+suggest_timestep(sys_large, langevin; tol=1e-2)
 langevin.Δt = 0.040
 
 # The next step is to collect correlation data ``S^{\alpha\beta}``. This will

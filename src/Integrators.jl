@@ -6,11 +6,12 @@ thermal bath, of strength `λ`. One call to the [`step!`](@ref) function will
 advance a [`System`](@ref) by `Δt` units of time. Can be used to sample from the
 Boltzmann distribution at temperature `kT`. An alternative approach to sampling
 states from thermal equilibrium is [`LocalSampler`](@ref), which proposes local
-Monte Carlo moves. For example, use `LocalSampler` to sample Ising-like spins.
+Monte Carlo moves. For example, use `LocalSampler` instead of `Langevin` to
+sample Ising-like spins.
 
 Setting `λ = 0` disables coupling to the thermal bath, yielding an
 energy-conserving spin dynamics. The `Langevin` integrator uses an explicit
-numerical integrator that allows energy drift. Alternatively, the
+numerical integrator which cannot prevent energy drift. Alternatively, the
 [`ImplicitMidpoint`](@ref) method can be used, which is more expensive but
 prevents energy drift through exact conservation of the symplectic 2-form.
 
@@ -46,7 +47,8 @@ constructor interprets its `λ` argument as either ``λ`` or ``λ̃``, for modes
 
 References:
 
-1. [D. Dahlbom et al., Phys. Rev. B 106, 235154 (2022)](https://arxiv.org/abs/2209.01265).
+1. [D. Dahlbom et al., Phys. Rev. B 106, 235154
+   (2022)](https://arxiv.org/abs/2209.01265).
 """
 mutable struct Langevin
     Δt  :: Float64
@@ -58,6 +60,8 @@ mutable struct Langevin
         return new(Δt, λ, kT)
     end
 end
+Langevin(; λ, kT) = Langevin(NaN; λ, kT)
+
 
 """
     ImplicitMidpoint(Δt::Float64; atol=1e-12) where N
@@ -73,8 +77,10 @@ approach eliminates energy drift over long simulation trajectories.
 
 References:
 
-1. [H. Zhang and C. D. Batista, Phys. Rev. B 104, 104409 (2021)](https://arxiv.org/abs/2106.14125).
-2. [D. Dahlbom et al, Phys. Rev. B 106, 054423 (2022)](https://arxiv.org/abs/2204.07563).
+1. [H. Zhang and C. D. Batista, Phys. Rev. B 104, 104409
+   (2021)](https://arxiv.org/abs/2106.14125).
+2. [D. Dahlbom et al, Phys. Rev. B 106, 054423
+   (2022)](https://arxiv.org/abs/2204.07563).
 """
 mutable struct ImplicitMidpoint
     Δt   :: Float64
@@ -85,42 +91,47 @@ mutable struct ImplicitMidpoint
         return new(Δt, atol)
     end    
 end
+ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
+
+function check_timestep_available(integrator)
+    isnan(integrator.Δt) && error("Set integration timestep `Δt`.")
+end
 
 """
-    suggest_timestep(sys; tol, λ=0, kT=0)
+    suggest_timestep(sys, integrator; tol)
 
 Suggests a timestep for the numerical integration of spin dynamics according to
-a given error tolerance `tol`. The suggested ``Δt`` will be inversely
-proportional to the magnitude of the effective field ``|dE/d𝐬|`` arising from
-the current spin configuration in `sys`. The recommended timestep ``Δt`` scales
-like `√tol`, which is appropriate for numerical integration schemes that are
-second-order accurate.
+a given error tolerance `tol`. The `integrator` should be [`Langevin`](@ref) or
+[`ImplicitMidpoint`](@ref). The suggested ``Δt`` will be inversely proportional
+to the magnitude of the effective field ``|dE/d𝐬|`` arising from the current
+spin configuration in `sys`. The recommended timestep ``Δt`` scales like `√tol`,
+which assumes second-order accuracy of the integrator.
 
 The system `sys` should be initialized to an equilibrium spin configuration for
 the target temperature. Alternatively, a reasonably timestep estimate can be
 obtained from any low-energy spin configuration. For this, one can use
 [`randomize_spins!`](@ref) and then [`minimize_energy!`](@ref).
 
-The optional parameters ``λ`` and ``kT`` will tighten the timestep bound by
-accounting for [`Langevin`](@ref) coupling to a thermal bath. If the damping
-magnitude ``λ`` is order 1 or larger, it will effectively rescale the suggested
-timestep by ``1/λ``. The target temperature ``kT`` controls the magnitude of the
-noise term, and is treated as an additional energy scale for purposes of
-estimating ``Δt``.
-
-When the dynamics includes a noise term, quantifying numerical error becomes
+If `integrator` is of type [`Langevin`](@ref), then the damping magnitude ``λ``
+and target temperature ``kT`` will tighten the timestep bound. If ``λ`` exceeds
+1, it will rescale the suggested timestep by an approximate the factor ``1/λ``.
+If ``kT`` is the largest energy scale, then the suggested timestep will scale
+like ``1/λkT``. Quantification of numerical error for stochastic dynamics is
 subtle. The stochastic Heun integration scheme is weakly convergent of order-1,
 such that errors in the estimates of averaged observables may scale like ``Δt``.
 This implies that the `tol` argument may actually scale like the _square_ of the
-true numerical error, and should be adjusted accordingly.
+true numerical error, and should be selected with this in mind.
 """
-function suggest_timestep(sys::System{N}; tol, λ=0, kT=0) where N
-    Δt_bound = suggest_timestep_aux(sys; tol, λ, kT)
-    Δt_str, tol_str = number_to_simple_string.((Δt_bound, tol); digits=4)
-    println("Suggested timestep Δt ≲ $Δt_str for tol = $tol_str at the given spin configuration.")
+function suggest_timestep(sys::System{N}, integrator::Langevin; tol) where N
+    (; Δt, λ, kT) = integrator
+    suggest_timestep_aux(sys; tol, Δt, λ, kT)
+end
+function suggest_timestep(sys::System{N}, integrator::ImplicitMidpoint; tol) where N
+    (; Δt) = integrator
+    suggest_timestep_aux(sys; tol, Δt, λ=0, kT=0)
 end
 
-function suggest_timestep_aux(sys::System{N}; tol, λ=0, kT=0) where N
+function suggest_timestep_aux(sys::System{N}; tol, Δt, λ, kT) where N
     acc = 0.0
     if N == 0
         ∇Es, = get_dipole_buffers(sys, 1)
@@ -170,28 +181,22 @@ function suggest_timestep_aux(sys::System{N}; tol, λ=0, kT=0) where N
 
     c1 = 1.0
     c2 = 1.0
-    return sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
-end
+    Δt_bound = sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
 
-"""
-    check_timestep(sys, integrator; tol)
+    # Print suggestion
+    bound_str, tol_str = number_to_simple_string.((Δt_bound, tol); digits=4)
+    print("Consider Δt ≈ $bound_str for this spin configuration at tol = $tol_str.")
 
-Compares the the timestep in `integrator` to that of [`suggest_timestep`](@ref),
-and prints an informative message.
-"""
-function check_timestep(sys::System{N}, langevin::Langevin; tol) where N
-    (; Δt, λ, kT) = langevin
-
-    Δt_bound = suggest_timestep_aux(sys; tol, λ, kT)
-    Δtstr, boundstr = number_to_simple_string.((Δt, Δt_bound); digits=4)
-
-    print("Current Δt = $Δtstr vs suggested Δt = $(boundstr).")
-    if Δt <= Δt_bound/2
-        println("\nTimestep looks small! Increasing it will make the simulation faster.")
-    elseif Δt >= 2Δt_bound
-        println("\nWARNING: Timestep looks large! Decreasing it will improve accuracy.")
-    else
-        println(" Agreement seems reasonable.")
+    # Compare with existing Δt if present
+    if !isnan(Δt)
+        Δt_str = number_to_simple_string(Δt; digits=4)
+        if Δt <= Δt_bound/2
+            println("\nCurrent value Δt = $Δt_str seems small! Increasing it will make the simulation faster.")
+        elseif Δt >= 2Δt_bound
+            println("\nCurrent value Δt = $Δt_str seems LARGE! Decreasing it will improve accuracy.")
+        else
+            println(" Current value is Δt = $Δt_str.")
+        end
     end
 end
 
@@ -214,6 +219,8 @@ such as [`LocalSampler`](@ref).
 function step! end
 
 function step!(sys::System{0}, integrator::Langevin)
+    check_timestep_available(integrator)
+
     (∇E, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
     (; kT, λ, Δt) = integrator
     s = sys.dipoles
@@ -242,6 +249,8 @@ end
 #   (s′ - s)/Δt = 2(s̄ - s)/Δt = - ŝ × B,
 # where B = -∂E/∂ŝ.
 function step!(sys::System{0}, integrator::ImplicitMidpoint)
+    check_timestep_available(integrator)
+
     s = sys.dipoles
     (; Δt, atol) = integrator
 
@@ -294,6 +303,8 @@ end
 end
 
 function step!(sys::System{N}, integrator::Langevin) where N
+    check_timestep_available(integrator)
+
     (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
     Z = sys.coherents
 
@@ -333,6 +344,8 @@ end
 #   (Z′-Z)/Δt = - i H(Z̄) Z, where Z̄ = (Z+Z′)/2
 #
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
+    check_timestep_available(integrator)
+
     (; atol) = integrator
     (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
     Z = sys.coherents

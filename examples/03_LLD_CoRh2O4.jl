@@ -31,18 +31,15 @@ sys = resize_supercell(sys, (10, 10, 10))
 
 λ  = 0.2             # Magnitude of damping (dimensionless)
 kT = 16 * meV_per_K  # 16K, a temperature slightly below ordering
+langevin = Langevin(; λ, kT)
 
-# Use [`suggest_timestep`](@ref) to obtain a reasonable integration timestep.
-# The spin configuration in `sys` should ideally be equilibrated for the target
-# temperature `kT`, but the current, energy-minimized configuration will also
-# work reasonably well. Usually `tol=1e-2` is good tolerance to numerical error.
+# Use [`suggest_timestep`](@ref) to select an integration timestep for the given
+# error tolerance, e.g. `tol=1e-2`. The spin configuration in `sys` should
+# ideally be relaxed into thermal equilibrium, but the current, energy-minimized
+# configuration will also work reasonably well.
 
-suggest_timestep(sys; tol=1e-2, λ, kT)
-
-# We now have all data needed to construct a Langevin integrator.
-
-Δt = 0.025
-langevin = Langevin(Δt; λ, kT);
+suggest_timestep(sys, langevin; tol=1e-2)
+langevin.Δt = 0.025
 
 # Now run a dynamical trajectory to sample spin configurations. Keep track of
 # the energy per site at each time step.
@@ -53,10 +50,11 @@ for _ in 1:1000
     push!(energies, energy_per_site(sys))
 end
 
-# Calling [`check_timestep`](@ref) indicates that our choice of `Δt` was a
-# little smaller than necessary; increasing it will improve efficiency.
+# Now that the spin configuration has relaxed, we can learn that `Δt` was a
+# little smaller than necessary; increasing it will make the remaining
+# simulations faster.
 
-check_timestep(sys, langevin; tol=1e-2)
+suggest_timestep(sys, langevin; tol=1e-2)
 langevin.Δt = 0.042
 
 # The energy per site has converged, which suggests that the system has reached
