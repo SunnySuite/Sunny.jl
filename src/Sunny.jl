@@ -82,7 +82,7 @@ include("Reshaping.jl")
 export reshape_supercell, resize_supercell, repeat_periodically
 
 include("Integrators.jl")
-export Langevin, ImplicitMidpoint, step!
+export Langevin, ImplicitMidpoint, step!, suggest_timestep
 
 include("Optimization.jl")
 export minimize_energy! 

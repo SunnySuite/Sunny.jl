@@ -74,41 +74,53 @@ sys
 
 # ## Finding a ground state
 
-# Sunny introduces a [Langevin dynamics of SU(_N_) coherent
-# states](https://arxiv.org/abs/2209.01265), which can be used to sample spin
-# configurations from the thermal equlibrium.
-#
-# The [`Langevin`](@ref) integrator requires several parameters. The timestep
-# ``Δt`` controls integration accuracy. In `:SUN` mode, it should be inversely
-# proportional to the largest energy scale in the system. For FeI₂, this is the
-# easy-axis anisotropy energy scale, ``D S^2``. The dimensionless parameter
-# ``λ`` determines the magnitude of Langevin noise and damping terms. A
-# reasonable choice is `λ = 0.2`. The temperature `kT` is linked to the
-# magnitude of the noise via a fluctuation-dissipation theorem.
-
-S = 1
-Δt = 0.05/abs(D*S^2)  # Integration timestep
-λ  = 0.2              # Dimensionless damping time-scale
-kT = 0.2              # Temperature in meV
-langevin = Langevin(Δt; kT, λ);
-
-# Langevin dynamics can be used to search for a magnetically ordered state. For
-# this, the temperature `kT` must be below the ordering temperature, but large
-# enough that the dynamical sampling procedure can overcome local energy
-# barriers and eliminate defects.
+# As [previously observed](@ref "1. Multi-flavor spin wave simulations of FeI₂
+# (Showcase)"), direct energy minimization is susceptible to trapping in a local
+# energy minimum.
 
 randomize_spins!(sys)
-for _ in 1:20_000
+minimize_energy!(sys)
+plot_spins(sys; color=[s[3] for s in sys.dipoles])
+
+# Alternatively, one can search for the ordered state by sampling spin
+# configurations from thermal equilibrium. Sunny supports this via a
+# [`Langevin`](@ref) dynamics of SU(_N_) coherent states. This dynamics involves
+# a damping term of strength `λ` and a noise term determined by the target
+# temperature `kT`.
+
+λ  = 0.2  # Dimensionless damping time-scale
+kT = 0.2  # Temperature in meV
+langevin = Langevin(; λ, kT)
+
+# Use [`suggest_timestep`](@ref) to select an integration timestep for the given
+# error tolerance, e.g. `tol=1e-2`. The spin configuration in `sys` should
+# ideally be relaxed into thermal equilibrium, but the current, energy-minimized
+# configuration will also work reasonably well.
+
+suggest_timestep(sys, langevin; tol=1e-2)
+langevin.Δt = 0.027;
+
+# Sample spin configurations using Langevin dynamics. We have carefully selected
+# a temperature of 0.2 eV that is below the ordering temperature, but large
+# enough to that the dynamics can overcome local energy barriers and annihilate
+# defects.
+
+for _ in 1:10_000
     step!(sys, langevin)
 end
 
+# Calling [`suggest_timestep`](@ref) shows that thermalization has not
+# substantially altered the suggested `Δt`.
+
+suggest_timestep(sys, langevin; tol=1e-2)
+
 # Although thermal fluctuations are present, the correct antiferromagnetic order
-# (2 up, 2 down) is apparent.
+# (2 up, 2 down) has been found.
 
 plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
-# For other systems, it can be much harder to find the magnetic ordering in an
-# unbiased way, and more complicated sampling procedures may be necessary.
+# For other phases, it can be much harder to find thermal equilibrium, and more
+# complicated sampling procedures may be necessary.
 
 # ## Calculating Thermal-Averaged Correlations $\langle S^{\alpha\beta}(𝐪,ω)\rangle$
 #
@@ -131,6 +143,11 @@ for _ in 1:10_000
     step!(sys_large, langevin)
 end
 
+# With this increase in temperature, the suggested timestep has increased slightly.
+
+suggest_timestep(sys_large, langevin; tol=1e-2)
+langevin.Δt = 0.040;
+
 # The next step is to collect correlation data ``S^{\alpha\beta}``. This will
 # involve sampling spin configurations from thermal equilibrium, and then
 # integrating [an energy-conserving generalized classical spin
@@ -141,18 +158,21 @@ end
 # this a real-space calculation, data is only available for discrete ``q`` modes
 # (the resolution scales like inverse system size).
 #
-# To store the correlation data, we initialize a `SampledCorrelations` object by
-# calling [`dynamical_correlations`](@ref). It requires three keyword arguments:
-# an integration step size, a target number of ωs to retain, and a maximum
-# energy ω to resolve. For the time step, twice the value used for the Langevin
-# integrator is usually a good choice.
+# The function [`dynamical_correlations`](@ref) creates an object to store
+# sampled correlations. The integration timestep `Δt` used for measuring
+# dynamical correlations can be somewhat larger than that used by the Langevin
+# dynamics. We must also specify `nω` and `ωmax`, which determine the
+# frequencies over which intensity data will be collected.
 
-sc = dynamical_correlations(sys_large; Δt=2Δt, nω=120, ωmax=7.5)
+Δt = 2*langevin.Δt
+ωmax = 7.5  # Maximum energy to resolve (meV)
+nω = 120    # Number of energies to resolve
+sc = dynamical_correlations(sys_large; Δt, nω, ωmax)
 
 # The function [`add_sample!`](@ref) will collect data by running a dynamical
 # trajectory starting from the current system configuration. 
 
-add_sample!(sc, sys_large)        # Accumulate the sample into `sc`
+add_sample!(sc, sys_large)
 
 # To collect additional data, it is required to re-sample the spin configuration
 # from the thermal distribution. For efficiency, the dynamics should be run long
@@ -162,7 +182,7 @@ for _ in 1:2
     for _ in 1:1000               # Enough steps to decorrelate spins
         step!(sys_large, langevin)
     end
-    add_sample!(sc, sys_large)    # Accumulate the sample into `sc`
+    add_sample!(sc, sys_large)
 end
 
 # Now, `sc` has more samples included:
@@ -195,9 +215,9 @@ lines!(ωs, is[2,:]; label="(π,π,π)")
 axislegend()
 fig
 
-# The resolution in energy can be improved by increasing `nω` (and decreasing `Δt`),
-# and the general accuracy can be improved by collecting additional samples from the thermal
-# equilibrium.
+# The resolution in energy can be improved by increasing `nω`, and the
+# statistical accuracy can be improved by collecting additional samples from the
+# thermal equilibrium.
 #
 # For real calculations, one often wants to apply further corrections and more
 # accurate formulas. Here, we apply [`FormFactor`](@ref) corrections appropriate

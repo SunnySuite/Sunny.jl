@@ -3,6 +3,8 @@
 ## v0.5.9
 (In development)
 
+* New function [`suggest_timestep`](@ref) to assist in performing accurate and
+  efficient simulation of spin dynamics.
 
 ## v0.5.8
 (Jan 4, 2024)
