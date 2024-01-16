@@ -531,9 +531,11 @@ function check_rotational_symmetry(sys::System{N}; n, θ) where N
                 @assert biquad ≈ biquad′ "Biquadratic exchange not invariant under rotation"
             end
 
-            genop  = sum(kron(A, B) for (A, B) in general.data)
-            genop′ = sum(kron(rotate_operator(A, R), rotate_operator(B, R)) for (A, B) in general.data)
-            @assert genop ≈ genop′ "General exchange not invariant under rotation"
+            if !isempty(general.data)
+                genop  = sum(kron(A, B) for (A, B) in general.data)
+                genop′ = sum(kron(rotate_operator(A, R), rotate_operator(B, R)) for (A, B) in general.data)
+                @assert genop ≈ genop′ "General exchange not invariant under rotation"
+            end
         end
     end
 end

@@ -1,5 +1,27 @@
+# Returns that smallest rotation matrix R such that `R u = v` where u and v are
+# the normalized input vectors. If `u = v` then `R = I` and if `u = -v` then R
+# is a rotation by π about an arbitrary axis perpendicular to u and v.
+function rotation_between_vectors(u, v)
+    u, v = normalize.((u, v))
+    axis = u × v
+    θ = acos(max(min(u ⋅ v, 1), -1))
+
+    if iszero(norm(axis))
+        # Need to find an arbitrary axis that is orthogonal to u and v. First,
+        # find a normalized vector w such that w⋅u ≠ ±1.
+        _, i = findmin(abs.(u))
+        w = eachcol(Mat3(I))[i]
+        axis = normalize(w × u)
+    end
+
+    R = axis_angle_to_matrix(axis, θ)
+    @assert R * u ≈ v
+    return R
+end
+
 # Magnitude of axis n is ignored. Angle θ in radians.
 function axis_angle_to_matrix(n, θ)
+    @assert !iszero(norm(n))
     x, y, z = normalize(n)
     s, c = sincos(θ)
     t = 1 - c
