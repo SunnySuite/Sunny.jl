@@ -53,13 +53,9 @@ mutable struct Langevin
     λ   :: Float64
     kT  :: Float64
 
-    # Averages the square of the dynamical drift term for use in
-    # `check_timestep`.
-    drift_squared :: OnlineStatistics{Float64}
-
     function Langevin(Δt; λ, kT)
         Δt <= 0 && error("Select positive Δt")
-        return new(Δt, λ, kT, OnlineStatistics{Float64}())
+        return new(Δt, λ, kT)
     end
 end
 
@@ -84,92 +80,119 @@ mutable struct ImplicitMidpoint
     Δt   :: Float64
     atol :: Float64
 
-    # Averages the square of the dynamical drift term for use in
-    # `check_timestep`.
-    drift_squared :: OnlineStatistics{Float64}
-
     function ImplicitMidpoint(Δt; atol=1e-12)
         Δt <= 0 && error("Select positive Δt")
-        return new(Δt, atol, OnlineStatistics{Float64}())
+        return new(Δt, atol)
     end    
 end
 
+"""
+    suggest_timestep(sys; tol, λ=0, kT=0)
 
-function reset_statistics(integrator::Union{Langevin, ImplicitMidpoint})
-    integrator.drift_squared = OnlineStatistics{Float64}()
+Suggests a timestep for the numerical integration of spin dynamics according to
+a given error tolerance `tol`. The suggested ``Δt`` will be inversely
+proportional to the magnitude of the effective field ``|dE/d𝐬|`` arising from
+the current spin configuration in `sys`. The recommended timestep ``Δt`` scales
+like `√tol`, which is appropriate for numerical integration schemes that are
+second-order accurate.
+
+The system `sys` should be initialized to an equilibrium spin configuration for
+the target temperature. Alternatively, a reasonably timestep estimate can be
+obtained from any low-energy spin configuration. For this, one can use
+[`randomize_spins!`](@ref) and then [`minimize_energy!`](@ref).
+
+The optional parameters ``λ`` and ``kT`` will tighten the timestep bound by
+accounting for [`Langevin`](@ref) coupling to a thermal bath. If the damping
+magnitude ``λ`` is order 1 or larger, it will effectively rescale the suggested
+timestep by ``1/λ``. The target temperature ``kT`` controls the magnitude of the
+noise term, and is treated as an additional energy scale for purposes of
+estimating ``Δt``.
+
+When the dynamics includes a noise term, quantifying numerical error becomes
+subtle. The stochastic Heun integration scheme is weakly convergent of order-1,
+such that errors in the estimates of averaged observables may scale like ``Δt``.
+This implies that the `tol` argument may actually scale like the _square_ of the
+true numerical error, and should be adjusted accordingly.
+"""
+function suggest_timestep(sys::System{N}; tol, λ=0, kT=0) where N
+    Δt_bound = suggest_timestep_aux(sys; tol, λ, kT)
+    Δt_str, tol_str = number_to_simple_string.((Δt_bound, tol); digits=4)
+    println("Suggested timestep Δt ≲ $Δt_str for tol = $tol_str at the given spin configuration.")
 end
 
-"""
-    check_timestep(integrator; tol)
-
-Prints a suggested timestep scale for the relative error tolerance `tol`, based
-on statistics collected from previous time integration. A reasonable tolerance
-might be of order `tol = 1e-2`, but should be selected on a case-by-case basis.
-Note that `tol` is interpreted as the error for the deterministic part of a
-single integration timestep, which scales like `Δt²`. Because the stochastic
-Heun integration scheme is weakly convergent of order-1, errors in the estimates
-of averaged observables may instead scale like ` √tol ~ Δt`. It is the
-responsibility of the user to choose `tol` accordingly.
-
-The suggested timestep will be inversely proportional to the largest energy
-scale that plays a role in the dynamics. If there is a strong Langvin coupling
-``λ`` to the thermal bath, it will effectively rescale the energy scale.
-
-Timestep statistics stored in `integrator` will be reset after calling this
-function.
-"""
-function check_timestep(langevin::Langevin; tol, reset=true)
-    (; Δt, λ, kT) = langevin
-
-    drift_magnitude = sqrt(mean(langevin.drift_squared))
-    if isnan(drift_magnitude)
-        error("Run trajectory first to collect statistics")
+function suggest_timestep_aux(sys::System{N}; tol, λ=0, kT=0) where N
+    acc = 0.0
+    if N == 0
+        ∇Es, = get_dipole_buffers(sys, 1)
+        set_energy_grad_dipoles!(∇Es, sys.dipoles, sys)
+        for (κ, ∇E) in zip(sys.κs, ∇Es)
+            # In dipole mode, the spin magnitude `κ = |s|` scales the effective
+            # damping rate.
+            acc += (1 + (κ*λ)^2) * norm(∇E)^2
+        end
+    else
+        ∇Es, = get_coherent_buffers(sys, 1)
+        set_energy_grad_coherents!(∇Es, sys.coherents, sys)
+        for ∇E in ∇Es
+            acc += (1 + λ^2) * norm(∇E)^2
+        end
     end
 
-    # Heun integration is second-order accurate, so the local error from each
-    # deterministic timestep scales as dθ². Angular displacement per timestep dθ
-    # scales like dt |drift|, yielding err1 ~ (dt |drift|)^2
+    # `drift_rms` gives the root-mean-squared of the drift term for one
+    # integration timestep of the Langevin dynamics. It is associated with the
+    # angular velocity dθ/dt where dθ ~ dS/|S| or dZ/|Z| for :dipole or :SUN
+    # mode, respectively. In calculating `drift_rms`, it is important to use the
+    # energy gradient |∇E| directly, rather than projecting out the component of
+    # ∇E aligned with the spin. Without projection, one obtains direct
+    # information about the frequency of oscillation. Consider, e.g., a spin
+    # approximately aligned with an external field: the precession frequency is
+    # given by |∇E| = |B|.
+    drift_rms = sqrt(acc/length(eachsite(sys)))
+
+    # In a second-order integrator, the local error from each deterministic
+    # timestep scales as dθ². Angular displacement per timestep dθ scales like
+    # dt drift_rms, yielding err1 ~ (dt drift_rms)^2
     #
-    # The "relevant" error introduced by thermal noise should be quantified in
-    # terms of the effect on statistical observables. To avoid subtleties in
-    # defining this error, we instead naïvely assume it continues to be second
-    # order in `dt`. To determine the proportionality constant, consider the
-    # high-T limit, where each spin undergoes Brownian motion. Here, the
-    # diffusion constant D ~ λ kT sets an inverse time-scale. This implies err2
-    # ~ (dt λ kT)².
+    # Quantifying the "error" introduced by thermal noise is subtle. E.g., for
+    # weak convergence, we should consider the effect on statistical
+    # observables. We avoid all subtleties by naïvely assuming this error
+    # continues to be second order in `dt`. To determine the proportionality
+    # constant, consider the high-T limit, where each spin undergoes Brownian
+    # motion. Here, the diffusion constant D ~ λ kT sets an inverse time-scale.
+    # This implies err2 ~ (dt λ kT)².
     #
     # The total error (err1 + err2) should be less than the target tolerance.
     # After some algebra, this implies,
     #
-    # dt ≲ sqrt(tol / (c₁² |drift|² + c₂² λ² kT²))
+    # dt ≲ sqrt(tol / (c₁² drift_rms² + c₂² λ² kT²))
     #
     # for some empirical constants c₁ and c₂.
 
     c1 = 1.0
     c2 = 1.0
-    Δt_bound = sqrt(tol / ((c1*drift_magnitude)^2 + (c2*λ*kT)^2))
+    return sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
+end
 
-    if Δt_bound/2 < Δt < 2Δt_bound
-        opinion = "reasonable."
-    elseif Δt_bound/5 < Δt < 5Δt_bound
-        opinion = "_marginal_."
-    elseif Δt <= Δt_bound/5
-        opinion = "SMALL!"
-    elseif Δt >= 5Δt_bound
-        opinion = "LARGE!"
+"""
+    check_timestep(sys, integrator; tol)
+
+Compares the the timestep in `integrator` to that of [`suggest_timestep`](@ref),
+and prints an informative message.
+"""
+function check_timestep(sys::System{N}, langevin::Langevin; tol) where N
+    (; Δt, λ, kT) = langevin
+
+    Δt_bound = suggest_timestep_aux(sys; tol, λ, kT)
+    Δtstr, boundstr = number_to_simple_string.((Δt, Δt_bound); digits=4)
+
+    print("Current Δt = $Δtstr vs suggested Δt = $(boundstr).")
+    if Δt <= Δt_bound/2
+        println("\nTimestep looks small! Increasing it will make the simulation faster.")
+    elseif Δt >= 2Δt_bound
+        println("\nWARNING: Timestep looks large! Decreasing it will improve accuracy.")
+    else
+        println(" Agreement seems reasonable.")
     end
-
-    λkTstr, tolstr, Δtstr, boundstr = number_to_simple_string.((λ*kT, tol, Δt, Δt_bound); digits=4)
-
-    println("Suggest Δt ~ $boundstr for tol = $tolstr.")
-    println("Current Δt = $Δtstr is $opinion")
-    if c2*λ*kT > c1*drift_magnitude
-        println("Thermal noise contributes significantly, with λ*kT = $λkTstr.")
-    end
-
-    reset && reset_statistics(langevin)
-
-    return
 end
 
 
@@ -208,17 +231,6 @@ function step!(sys::System{0}, integrator::Langevin)
     set_energy_grad_dipoles!(∇E, s₁, sys)
     @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, -∇E, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
     @. s = normalize_dipole(s, sys.κs)
-
-    # Collect statistics about the magnitude of the drift term squared. For the
-    # energy-conserving part, it is important to use |∇E|² rather than |s×∇E|²,
-    # because the former gives direct information about the frequency of
-    # oscillation, while the latter may artificially vanish (consider, e.g., a
-    # spin nearly aligned with an external field).
-    for i in eachsite(sys)
-        s0 = sys.κs[i] # == norm(s[i])
-        ∇E² = ∇E[i]' * ∇E[i]
-        accum!(integrator.drift_squared, (1 + (s0*λ)^2) * ∇E²)
-    end
 
     return
 end
@@ -299,13 +311,6 @@ function step!(sys::System{N}, integrator::Langevin) where N
 
     # Coordinate dipole data
     @. sys.dipoles = expected_spin(Z)
-
-    # Collect statistics about the magnitude of the drift term squared. Here,
-    # |HZ|² plays the role of |∇E|² in the dipole case.
-    for i in eachsite(sys)
-        HZ² = HZ[i]' * HZ[i]
-        accum!(integrator.drift_squared, (1 + integrator.λ^2) * HZ²)
-    end
 
     return
 end
