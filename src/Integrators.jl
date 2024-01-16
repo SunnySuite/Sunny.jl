@@ -201,6 +201,19 @@ function suggest_timestep_aux(sys::System{N}; tol, Δt, λ, kT) where N
 end
 
 
+function Base.show(io::IO, integrator::Langevin)
+    (; Δt, λ, kT) = integrator
+    Δt = isnan(integrator.Δt) ? "<missing>" : repr(Δt)
+    println(io, "Langevin($Δt; λ=$λ, kT=$kT)")
+end
+
+function Base.show(io::IO, integrator::ImplicitMidpoint)
+    (; Δt, atol) = integrator
+    Δt = isnan(integrator.Δt) ? "<missing>" : repr(Δt)
+    println(io, "ImplicitMidpoint($Δt; atol=$atol)")
+end
+
+
 ################################################################################
 # Dipole integration
 ################################################################################
