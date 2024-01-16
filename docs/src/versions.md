@@ -3,6 +3,8 @@
 ## v0.5.9
 (In development)
 
+* New function [`check_timestep`](@ref) to verify accuracy of spin dynamics
+  integration.
 
 ## v0.5.8
 (Jan 4, 2024)

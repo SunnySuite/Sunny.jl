@@ -50,6 +50,11 @@ for _ in 1:1000
 end
 plot(energies, color=:blue, figure=(size=(600,300),), axis=(xlabel="Time steps", ylabel="Energy (meV)"))
 
+# After running a Langevin trajectory, it is a good practice to call
+# [`check_timestep`](@ref).
+
+check_timestep(langevin; tol=1e-2)
+
 # Thermal fluctuations are apparent in the spin configuration.
 
 S_ref = sys.dipoles[1,1,1,1]

@@ -102,6 +102,11 @@ for _ in 1:20_000
     step!(sys, langevin)
 end
 
+# After running a Langevin trajectory, it is a good practice to call
+# [`check_timestep`](@ref).
+
+check_timestep(langevin; tol=1e-2)
+
 # Although thermal fluctuations are present, the correct antiferromagnetic order
 # (2 up, 2 down) is apparent.
 
@@ -130,6 +135,8 @@ langevin.kT = kT
 for _ in 1:10_000
     step!(sys_large, langevin)
 end
+
+check_timestep(langevin; tol=1e-2)
 
 # The next step is to collect correlation data ``S^{\alpha\beta}``. This will
 # involve sampling spin configurations from thermal equilibrium, and then
