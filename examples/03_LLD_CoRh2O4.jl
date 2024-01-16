@@ -25,30 +25,42 @@ minimize_energy!(sys)
 sys = resize_supercell(sys, (10, 10, 10))
 @assert energy_per_site(sys) ≈ -2J*S^2
 
-# Use the stochastic Landau-Lifshitz dynamics to thermalize system into
-# equilibrium at finite temperature via a [`Langevin`](@ref) integrator. The
-# timestep ``Δt`` controls integration accuracy. In `:dipole` mode, it should be
-# inversely proportional to the largest effective field in the system. For
-# CoRh₂O₄, this is the antiferromagnetic exchange ``J`` times the spin magnitude
-# ``S=3/2``. The dimensionless parameter ``λ`` determines the magnitude of
-# Langevin noise and damping terms. A reasonable choice is `λ = 0.2`. The
-# temperature `kT` is linked to the magnitude of the Langevin noise term via a
-# fluctuation-dissipation theorem.
+# We will be using a [`Langevin`](@ref) spin dynamics to thermalize the system.
+# This involves a damping term of strength `λ` and a noise term determined by
+# the target temperature `kT`.
 
-Δt = 0.05/abs(J*S)   # Integration timestep
-λ  = 0.2             # Dimensionless damping time-scale
+λ  = 0.2             # Magnitude of damping (dimensionless)
 kT = 16 * meV_per_K  # 16K, a temperature slightly below ordering
-langevin = Langevin(Δt; λ, kT);
+langevin = Langevin(; λ, kT)
 
-# Because the magnetic order has been initialized correctly, relatively few
-# additional Langevin time-steps are required to reach thermal equilibrium.
+# Use [`suggest_timestep`](@ref) to select an integration timestep for the given
+# error tolerance, e.g. `tol=1e-2`. The spin configuration in `sys` should
+# ideally be relaxed into thermal equilibrium, but the current, energy-minimized
+# configuration will also work reasonably well.
+
+suggest_timestep(sys, langevin; tol=1e-2)
+langevin.Δt = 0.025;
+
+# Now run a dynamical trajectory to sample spin configurations. Keep track of
+# the energy per site at each time step.
 
 energies = [energy_per_site(sys)]
 for _ in 1:1000
     step!(sys, langevin)
     push!(energies, energy_per_site(sys))
 end
-plot(energies, color=:blue, figure=(size=(600,300),), axis=(xlabel="Time steps", ylabel="Energy (meV)"))
+
+# Now that the spin configuration has relaxed, we can learn that `Δt` was a
+# little smaller than necessary; increasing it will make the remaining
+# simulations faster.
+
+suggest_timestep(sys, langevin; tol=1e-2)
+langevin.Δt = 0.042;
+
+# The energy per site has converged, which suggests that the system has reached
+# thermal equilibrium.
+
+plot(energies, color=:blue, figure=(size=(600,300),), axis=(xlabel="Timesteps", ylabel="Energy (meV)"))
 
 # Thermal fluctuations are apparent in the spin configuration.
 
@@ -58,8 +70,8 @@ plot_spins(sys; color=[s'*S_ref for s in sys.dipoles])
 # ### Instantaneous structure factor
 
 # To visualize the instantaneous (equal-time) structure factor, create an object
-# [`instant_correlations`](@ref) and use [`add_sample!`](@ref) to accumulated
-# data for the equilibrated spin configuration.
+# [`instant_correlations`](@ref). Use [`add_sample!`](@ref) to accumulate data
+# for each equilibrated spin configuration.
 
 sc = instant_correlations(sys)
 add_sample!(sc, sys)    # Accumulate the newly sampled structure factor into `sf`
@@ -112,18 +124,21 @@ heatmap(q1s, q2s, iq;
 # ### Dynamical structure factor
 
 # To collect statistics for the dynamical structure factor intensities
-# ``I(𝐪,ω)`` at finite temperature, use [`dynamical_correlations`](@ref). Now,
-# each call to `add_sample!` will run a classical spin dynamics trajectory.
-# Longer-time trajectories will be required to achieve greater energy
-# resolution, as controlled by `nω`. Here, we pick a moderate number of
-# energies, `nω = 50`, which will make the simulation run quickly.
+# ``I(𝐪,ω)`` at finite temperature, use [`dynamical_correlations`](@ref). The
+# integration timestep `Δt` used for measuring dynamical correlations can be
+# somewhat larger than that used by the Langevin dynamics. We must also specify
+# `nω` and `ωmax`, which determine the frequencies over which intensity data
+# will be collected.
 
-ωmax = 6.0  # Maximum  energy to resolve (meV)
+Δt = 2*langevin.Δt
+ωmax = 6.0  # Maximum energy to resolve (meV)
 nω = 50     # Number of energies to resolve
 sc = dynamical_correlations(sys; Δt, nω, ωmax, process_trajectory=:symmetrize)
 
-# Each sample requires running a full dynamical trajectory to measure
-# correlations, so we here restrict to 5 samples.
+# Use Langevin dynamics to sample spin configurations from thermal equilibrium.
+# For each sample, use [`add_sample!`](@ref) to run a classical spin dynamics
+# trajectory and measure dynamical correlations. Here we average over just 5
+# samples, but this number could be increased for better statistics.
 
 for _ in 1:5
     for _ in 1:100
@@ -132,7 +147,7 @@ for _ in 1:5
     add_sample!(sc, sys)
 end
 
-# Define points that define a piecewise-linear path through reciprocal space,
+# Select points that define a piecewise-linear path through reciprocal space,
 # and a sampling density.
 
 points = [[3/4, 3/4,   0],
