@@ -26,7 +26,7 @@ struct SpinWaveTheory
     observables  :: ObservableInfo
 end
 
-function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing) where N
+function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing, arbitrary_U1=false) where N
     if !isnothing(sys.ewald)
         error("SpinWaveTheory does not yet support long-range dipole-dipole interactions.")
     end
@@ -45,7 +45,7 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=not
             error("Only the default spin operators are supported in dipole mode")
         end
         obs = parse_observables(N; observables, correlations=nothing)
-        data = swt_data_dipole!(sys)
+        data = swt_data_dipole!(sys, arbitrary_U1)
     end
 
     return SpinWaveTheory(sys, data, energy_ϵ, obs)
@@ -194,7 +194,7 @@ end
 
 
 # Compute Stevens coefficients in the local reference frame
-function swt_data_dipole!(sys::System{0})
+function swt_data_dipole!(sys::System{0}, arbitrary_U1)
     N = sys.Ns[1]
     S = (N-1)/2
 
@@ -214,7 +214,17 @@ function swt_data_dipole!(sys::System{0})
         ϕ = atan(n[2], n[1]) # azimuthal
         R = SA[-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
                 cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
-                0.0     sin(θ)        cos(θ)]
+                0.0            sin(θ)        cos(θ)]
+
+        # For debugging https://github.com/SunnySuite/Sunny.jl/issues/216
+        if arbitrary_U1
+            ϕ = 0.53
+            R *= SA[
+                -sin(ϕ) -cos(ϕ)     0;
+                 cos(ϕ) -sin(ϕ)     0;
+                 0.0          0     1
+            ]
+        end
 
         # Alternatively, one could try building some other SO(3) rotation R
         # satisfying `R * [0, 0, 1] = n`. Doing this will cause tests to fail.
