@@ -212,19 +212,14 @@ function swt_data_dipole!(sys::System{0}, arbitrary_U1)
         # specific choice of gauge seems to be important.
         θ = acos(n[3])       # polar angle
         ϕ = atan(n[2], n[1]) # azimuthal
-        R = SA[-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
-                cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
-                0.0            sin(θ)        cos(θ)]
+        R1 = axis_angle_to_matrix([0, 0, 1], ϕ)
+        R2 = axis_angle_to_matrix([0, 1, 0], θ)
+        R = R1 * R2
+        @assert R * [0, 0, 1] ≈ n
 
-        # For debugging https://github.com/SunnySuite/Sunny.jl/issues/216
-        if arbitrary_U1
-            ϕ = 0.53
-            R *= SA[
-                -sin(ϕ) -cos(ϕ)     0;
-                 cos(ϕ) -sin(ϕ)     0;
-                 0.0          0     1
-            ]
-        end
+        # φ = randn() # 0.53
+        # R3 = Sunny.axis_angle_to_matrix([0, 0, 1], φ)
+        # R = R * R3
 
         # Alternatively, one could try building some other SO(3) rotation R
         # satisfying `R * [0, 0, 1] = n`. Doing this will cause tests to fail.
