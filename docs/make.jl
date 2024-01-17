@@ -18,9 +18,6 @@ notebooks_path = joinpath(build_path, "assets", "notebooks")
 scripts_path = joinpath(build_path, "assets", "scripts")
 mkpath.([notebooks_path, scripts_path])
 
-ismarkdown(name) = splitext(name)[2] == ".md"
-isjulia(name) = splitext(name)[2] == ".jl"
-
 
 function build_examples(example_sources, destdir)
     assetsdir = joinpath(fill("..", length(splitpath(destdir)))..., "assets")
@@ -90,15 +87,15 @@ function prepare_contributed()
 
     # Generate the base names for each contributed markdown file and prepare
     # paths for Documenter (relative to `src/`)
-    contrib_names = filter(ismarkdown, readdir(dest_path))
+    contrib_names = filter(endswith(".md"), readdir(dest_path))
     return [joinpath("examples", "contributed", name) for name in contrib_names]
 end
 
-example_sources = filter(isjulia, readdir(abspath(pkgdir(Sunny, "examples")), join=true))
+example_sources = filter(endswith(".jl"), readdir(pkgdir(Sunny, "examples"), join=true))
 example_names = [splitext(basename(src))[1] for src in example_sources]
 example_mds = build_examples(example_sources, "examples")
 
-spinw_sources = filter(isjulia, readdir(abspath(pkgdir(Sunny, "examples", "spinw_tutorials")), join=true))
+spinw_sources = filter(endswith(".jl"), readdir(pkgdir(Sunny, "examples", "spinw_tutorials"), join=true))
 spinw_names = [splitext(basename(src))[1] for src in spinw_sources]
 spinw_mds = build_examples(spinw_sources, joinpath("examples", "spinw"))
 
