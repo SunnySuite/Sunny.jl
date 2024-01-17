@@ -9,6 +9,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     @assert size(H) == (2L, 2L)
 
     # Initialize Hamiltonian buffer 
+    # Note that H11 for b†b, H22 for bb†, H12 for b†b†, and H21 for bb
     H .= 0.0 
     H11 = view(H, 1:L, 1:L)
     H12 = view(H, 1:L, L+1:2L)
@@ -90,8 +91,8 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         (; c2, c4, c6) = stevens_coefs[i]
         H11[i, i] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
         H22[i, i] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H12[i, i] += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
-        H21[i, i] +=  im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        H21[i, i] += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        H12[i, i] +=  im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
     end
 
     # H must be hermitian up to round-off errors

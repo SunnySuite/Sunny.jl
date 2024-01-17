@@ -26,7 +26,7 @@ struct SpinWaveTheory
     observables  :: ObservableInfo
 end
 
-function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing, arbitrary_U1=false) where N
+function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing) where N
     if !isnothing(sys.ewald)
         error("SpinWaveTheory does not yet support long-range dipole-dipole interactions.")
     end
@@ -45,7 +45,7 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=not
             error("Only the default spin operators are supported in dipole mode")
         end
         obs = parse_observables(N; observables, correlations=nothing)
-        data = swt_data_dipole!(sys, arbitrary_U1)
+        data = swt_data_dipole!(sys)
     end
 
     return SpinWaveTheory(sys, data, energy_ϵ, obs)
@@ -194,7 +194,7 @@ end
 
 
 # Compute Stevens coefficients in the local reference frame
-function swt_data_dipole!(sys::System{0}, arbitrary_U1)
+function swt_data_dipole!(sys::System{0})
     N = sys.Ns[1]
     S = (N-1)/2
 
@@ -216,10 +216,6 @@ function swt_data_dipole!(sys::System{0}, arbitrary_U1)
         R2 = axis_angle_to_matrix([0, 1, 0], θ)
         R = R1 * R2
         @assert R * [0, 0, 1] ≈ n
-
-        # φ = randn() # 0.53
-        # R3 = Sunny.axis_angle_to_matrix([0, 0, 1], φ)
-        # R = R * R3
 
         # Alternatively, one could try building some other SO(3) rotation R
         # satisfying `R * [0, 0, 1] = n`. Doing this will cause tests to fail.
