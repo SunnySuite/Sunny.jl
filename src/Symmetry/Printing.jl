@@ -186,10 +186,10 @@ a maximum bond distance of `max_dist`. Equivalent to calling `print_bond(cryst,
 b)` for every bond `b` in `reference_bonds(cryst, max_dist)`, where
 `Bond(i, i, [0,0,0])` refers to a single site `i`.
 """
-function print_symmetry_table(cryst::Crystal, max_dist)
+function print_symmetry_table(cryst::Crystal, max_dist; io=stdout)
     validate_crystal(cryst)
     for b in reference_bonds(cryst, max_dist)
-        print_bond(cryst, b; b_ref=b)
+        print_bond(cryst, b; b_ref=b, io)
     end
 end
 
