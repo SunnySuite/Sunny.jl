@@ -48,8 +48,8 @@ function trajectory!(buf, sys, Δt, nsnaps, ops; measperiod = 1, apply_g = true)
     return nothing
 end
 
-function new_sample!(sc::SampledCorrelations, sys::System; processtraj! = no_processing)
-    (; Δt, samplebuf, measperiod, apply_g, observables) = sc
+function new_sample!(sc::SampledCorrelations, sys::System)
+    (; Δt, samplebuf, measperiod, apply_g, observables, processtraj!) = sc
     nsnaps = size(samplebuf, 6)
     @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `SampledCorrelations`"
 
@@ -64,11 +64,10 @@ end
 # Fourier transform
 function symmetrize!(sc::SampledCorrelations)
     (; samplebuf) = sc
-    nsteps = floor(Int, size(samplebuf, 6)/2)
-    for t in 1:nsteps
-        for idx in CartesianIndices(size(samplebuf)[1:5])
-            samplebuf[idx, t] = samplebuf[idx, nsteps-t+1] = 0.5*(samplebuf[idx, t] + samplebuf[idx, nsteps-t+1])
-        end
+    nsteps = size(samplebuf, 6)
+    mid = floor(Int, nsteps/2)
+    for t in 1:mid, idx in CartesianIndices(size(samplebuf)[1:5])
+        samplebuf[idx, t] = samplebuf[idx, nsteps-t+1] = 0.5*(samplebuf[idx, t] + samplebuf[idx, nsteps-t+1])
     end
 end
 
@@ -149,7 +148,7 @@ separately prior to calling `add_sample!`. Alternatively, the initial spin
 configuration may be copied into a new `System` and this new `System` can be
 passed to `add_sample!`.
 """
-function add_sample!(sc::SampledCorrelations, sys::System; processtraj! = no_processing) 
-    new_sample!(sc, sys; processtraj!)
+function add_sample!(sc::SampledCorrelations, sys::System) 
+    new_sample!(sc, sys)
     accum_sample!(sc)
 end
