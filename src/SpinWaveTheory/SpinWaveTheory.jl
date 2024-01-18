@@ -211,8 +211,11 @@ function swt_data_dipole!(sys::System{0})
         R = rotation_between_vectors([0, 0, 1], n)
         @assert R * [0, 0, 1] ≈ n
 
-        # Rotation about the quantization axis is a U(1) gauge symmetry
-        R = R * axis_angle_to_matrix([0, 0, 1], randn())
+        # Rotation about the quantization axis is a U(1) gauge symmetry. The
+        # angle θ below, for each atom, is arbitrary. We include this rotation
+        # as an extra check of correctness.
+        θ = 0.1 * atom
+        R = R * axis_angle_to_matrix([0, 0, 1], θ)
 
         # Rotated Stevens expansion.
         c = rotate_operator(sys.interactions_union[atom].onsite, R)
