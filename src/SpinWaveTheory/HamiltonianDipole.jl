@@ -89,10 +89,12 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     # Add single-ion anisotropy
     for i in 1:L
         (; c2, c4, c6) = stevens_coefs[i]
-        H11[i, i] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H22[i, i] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H21[i, i] += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
-        H12[i, i] +=  im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        A1 = -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
+        A2 = im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        H11[i, i] += A1
+        H22[i, i] += A1
+        H12[i, i] += A2
+        H21[i, i] += conj(A2)
     end
 
     # H must be hermitian up to round-off errors
@@ -145,9 +147,8 @@ function multiply_by_hamiltonian_dipole_aux!(y, x, phasebuf, qphase, swt)
     (; units, extfield, gs) = sys
     for i in 1:L
         (; c2, c4, c6) = stevens_coefs[i]
-
         A1 = -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        A2 =  im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        A2 = im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
 
         B = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i]) 
         B′ = dot(B, view(local_rotations[i], :, 3)) / 2 
