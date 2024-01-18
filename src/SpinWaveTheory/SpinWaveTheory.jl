@@ -204,30 +204,18 @@ function swt_data_dipole!(sys::System{0})
 
     for atom in 1:natoms(sys.crystal)
         # Direction n of dipole will define rotation R that aligns the
-        # quantization axis. Rotations about the axis of n should define a U(1)
-        # gauge invariance?
+        # quantization axis.
         n = normalize(sys.dipoles[1,1,1,atom])
 
-        # Build `R = exp(-i ϕ Sᶻ) exp(-i θ Sʸ)`, with `R * [0, 0, 1] = n`. This
-        # specific choice of gauge seems to be important.
-        θ = acos(n[3])       # polar angle
-        ϕ = atan(n[2], n[1]) # azimuthal
-        R = SA[-sin(ϕ) -cos(ϕ)*cos(θ) cos(ϕ)*sin(θ);
-                cos(ϕ) -sin(ϕ)*cos(θ) sin(ϕ)*sin(θ);
-                0.0     sin(θ)        cos(θ)]
+        # Build matrix that rotates from z to n.
+        R = rotation_between_vectors([0, 0, 1], n)
+        @assert R * [0, 0, 1] ≈ n
 
-        # Alternatively, one could try building some other SO(3) rotation R
-        # satisfying `R * [0, 0, 1] = n`. Doing this will cause tests to fail.
-        # The error seems to be an interaction between the exchange part and the
-        # single-ion anisotropy part (removing either term restores U(1) gauge
-        # invariance). TODO: Understand why this doesn't work!
-        #=
-        R = zeros(3, 3)
-        R[:, 3] .= n
-        R[:, 1:2] .= nullspace(n')
-        R = Mat3(R * det(R))
-        @assert R'*R ≈ I
-        =#
+        # Rotation about the quantization axis is a U(1) gauge symmetry. The
+        # angle θ below, for each atom, is arbitrary. We include this rotation
+        # as an extra check of correctness.
+        θ = 0.1 * atom
+        R = R * axis_angle_to_matrix([0, 0, 1], θ)
 
         # Rotated Stevens expansion.
         c = rotate_operator(sys.interactions_union[atom].onsite, R)
