@@ -2,12 +2,12 @@ function phase_averaged_elements(data, q_absolute::Vec3, crystal::Crystal, ff_at
     elems = zero(MVector{NCorr,ComplexF64})
 
     # Form factor
-    ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute), NAtoms)
+    ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute), Val{NAtoms}())
 
     # Overall phase factor for each site
     q = crystal.recipvecs \ q_absolute
     r = crystal.positions
-    prefactor = ntuple(i -> ffs[i] * exp(- 2π*im * (q ⋅ r[i])), NAtoms)
+    prefactor = ntuple(i -> ffs[i] * exp(- 2π*im * (q ⋅ r[i])), Val{NAtoms}())
 
     for j in 1:NAtoms, i in 1:NAtoms
         elems .+= (prefactor[i] * conj(prefactor[j])) .* view(data, :, i, j)
