@@ -199,7 +199,7 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
         if d.n_std_atoms < length(positions)
             (a, b, c, α, β, γ) = number_to_math_string.(lattice_params(d.std_lattice); digits=8)
             latstr = "lattice_vectors($a, $b, $c, $α, $β, $γ)"
-            error("""Received $(length(positions)) atoms, but symmetry-inferred unit cell has only $(d.n_std_atoms). Break the site symmetry with `types = ["A", "B", ...]` or select a smaller cell with `$latstr`.""")
+            error("""Received $(length(positions)) atoms but inferred unit cell has only $(d.n_std_atoms). Break site symmetry with types = ["A", "B", ...] or build smaller cell with $latstr.""")
         end
     end
 
@@ -253,7 +253,7 @@ function crystal_from_hall_number(latvecs::Mat3, positions::Vector{Vec3}, types:
 end
 
 function crystal_from_symbol(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symbol::String; setting=nothing, symprec=1e-5)
-    hall_numbers = Int[]
+    sgts = Spglib.SpacegroupType[]
     crysts = Crystal[]
 
     n_hall_numbers = 530
@@ -293,34 +293,34 @@ function crystal_from_symbol(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
 
             if is_compatible
                 cryst = crystal_from_hall_number(latvecs, positions, types, hall_number; symprec)
-                push!(hall_numbers, hall_number)
+                push!(sgts, sgt)
                 push!(crysts, cryst)
             end
         end
     end
 
-    if length(crysts) == 0
-        error("Could not find symbol '$symbol' in database.")
-    elseif length(crysts) == 1
-        return first(crysts)
-    else
-        if !isnothing(setting)
-            i = findfirst(hall_numbers) do hall_number
-                sgt = Spglib.get_spacegroup_type(hall_number)
-                setting == sgt.choice
-            end
-            if isnothing(i)
-                error("The symbol '$symbol' is ambiguous, and the specified setting '$setting' is not valid.")
+    if isempty(crysts)
+        error("Cannot find spacegroup '$symbol' in database.")
+    elseif !isnothing(setting)
+        setting = string(setting)
+        choices = [sgt.choice for sgt in sgts]
+        i = findfirst(==(setting), choices)
+        if !isnothing(i)
+            return crysts[i]
+        else
+            if choices == [""]
+                error("Spacegroup '$symbol' does not accept a setting.")
             else
-                return crysts[i]
+                error("Spacegroup '$symbol' requires setting to be one of $choices.")
             end
         end
-
+    elseif length(crysts) == 1
+        return only(crysts)
+    else
         # TODO: Make this @warn
         println("The spacegroup '$symbol' allows for multiple settings!")
         println("Returning a list of the possible crystals:")
-        for (i, (hall_number, c)) in enumerate(zip(hall_numbers, crysts))
-            sgt = Spglib.get_spacegroup_type(hall_number)
+        for (i, (sgt, c)) in enumerate(zip(sgts, crysts))
             hm_symbol = sgt.international
             choice = sgt.choice
             n_atoms = length(c.positions)
