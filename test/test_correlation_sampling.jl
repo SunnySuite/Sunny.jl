@@ -1,7 +1,8 @@
 @testitem "Correlation sampling" begin
+    using LinearAlgebra
 
-    function simple_model_sc(; mode, seed=111)
-        latsize = (4,4,4)
+    function simple_model_fcc(; mode, seed=111)
+        latsize = (4, 4, 4)
         J = 1.0
 
         # FCC with nonstandard, primitive lattice vectors
@@ -29,7 +30,7 @@
     
 
     # Test sum rule with custom observables 
-    sys = simple_model_sc(; mode=:SUN)
+    sys = simple_model_fcc(; mode=:SUN)
     thermalize_simple_model!(sys; kT=0.1)
     S = spin_matrices(1/2)
     observables = Dict(:Sx => S[1], :Sy => S[2], :Sz => S[3])
@@ -41,9 +42,8 @@
     total_intensity_trace = sum(vals)
     @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
 
-
     # Test sum rule with default observables in dipole mode 
-    sys = simple_model_sc(; mode=:dipole)
+    sys = simple_model_fcc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
     sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0, apply_g=false)
     add_sample!(sc, sys)
@@ -88,7 +88,7 @@
     @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-12)  # Order of summation can lead to very small discrepancies
 
     # Test instant intensities working
-    sys = simple_model_sc(; mode=:dipole)
+    sys = simple_model_fcc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
     ic = instant_correlations(sys; apply_g=false)
     add_sample!(ic, sys)

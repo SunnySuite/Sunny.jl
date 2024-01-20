@@ -43,26 +43,21 @@ file or from the full specification of the unit cell.
 # Read a Crystal from a .cif file
 Crystal("filename.cif")
 
-# Build an FCC crystal using the primitive unit cell. The spacegroup number
-# 225 is inferred.
-latvecs = [1 1 0;
-            1 0 1;
-            0 1 1] / 2
-positions = [[0, 0, 0]]
+# Build a BCC crystal in the conventional cubic unit cell by specifying both
+# atoms. The spacegroup 229 is inferred.
+latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+positions = [[0, 0, 0], [1/2, 1/2, 1/2]]
 Crystal(latvecs, positions)
 
-# Build a CsCl crystal (two cubic sublattices). By providing distinct type
-# strings, the spacegroup number 221 is inferred.
-latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-positions = [[0,0,0], [0.5,0.5,0.5]]
+# Build a CsCl crystal (two simple cubic sublattices). Because of the distinct
+# atom types, the spacegroup number 221 is now inferred.
 types = ["Na", "Cl"]
 cryst = Crystal(latvecs, positions; types)
 
-# Build a diamond cubic crystal from its spacegroup number 227. This
-# spacegroup has two possible settings ("1" or "2"), which determine an
-# overall unit cell translation.
-latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-positions = [[1, 1, 1] / 4]
+# Build a diamond cubic crystal from its spacegroup number 227 and a single
+# atom position. This spacegroup has two possible settings ("1" or "2"), which
+# determine an overall unit cell translation.
+positions = [[1/4, 1/4, 1/4]]
 cryst = Crystal(latvecs, positions, 227; setting="1")
 ```
 
@@ -180,7 +175,7 @@ function sort_sites!(cryst::Crystal)
 end
 
 
-function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5)
+function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5, check_cell=true)
     # Print a warning if non-conventional lattice vectors are detected.
     try cell_type(latvecs) catch e @warn e.msg end
 
@@ -199,6 +194,15 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
 
     cell = Spglib.Cell(latvecs, positions, types)
     d = Spglib.get_dataset(cell, symprec)
+
+    if check_cell
+        if d.n_std_atoms < length(positions)
+            (a, b, c, α, β, γ) = number_to_math_string.(lattice_params(d.std_lattice); digits=8)
+            latstr = "lattice_vectors($a, $b, $c, $α, $β, $γ)"
+            error("""Received $(length(positions)) atoms, but symmetry-inferred unit cell has only $(d.n_std_atoms). Break the site symmetry with `types = ["A", "B", ...]` or select a smaller cell with `$latstr`.""")
+        end
+    end
+
     classes = d.crystallographic_orbits
     # classes = d.equivalent_atoms
     symops = SymOp.(d.rotations, d.translations)
@@ -358,8 +362,13 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     # Atoms are sorted by contiguous equivalence classes: 1, 2, ..., n
     @assert unique(classes) == 1:maximum(classes)
 
-    # Ask Spglib to infer the spacegroup for the given positions and types
-    inferred = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec)
+    # Unfortunately, don't currently have a table with site symmetry information
+    # (cf. https://github.com/SunnySuite/Sunny.jl/issues/44). As a workaround,
+    # ask Spglib to infer symmetry information for the full cell, and if the
+    # inferred symops match the provided ones, we can get the Wyckoff
+    # information this way. TODO: Copy full spglib Wyckoff table into Sunny:
+    # https://github.com/spglib/spglib/blob/develop/src/sitesym_database.c.
+    inferred = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
 
     # Compare the inferred symops to the provided ones
     is_subgroup = all(symops) do s

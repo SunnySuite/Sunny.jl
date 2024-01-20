@@ -1,5 +1,5 @@
 @testitem "Crystal Construction" begin
-    include("shared.jl")
+    using IOCapture
 
     cell_type(cryst::Crystal) = Sunny.cell_type(cryst.latvecs)
     lattice_params(cryst::Crystal) = Sunny.lattice_params(cryst.latvecs)
@@ -37,8 +37,6 @@
 
     @test dist1 ≈ dist2 ≈ dist3 ≈ dist4
 
-
-
     ### FCC lattice, primitive vs. standard unit cell
 
     latvecs = [1 1 0; 0 1 1; 1 0 1]' / 2
@@ -57,7 +55,6 @@
     basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, bond)
     bs = Sunny.all_symmetry_related_bonds_for_atom(cryst, bond.i, bond)
     @test length(bs) == Sunny.coordination_number(cryst, bond.i, bond)
-
 
     ### Triangular lattice, primitive unit cell
 
@@ -80,7 +77,6 @@
     @test Sunny.cell_volume(cryst) ≈ c * √3 / 2 
     @test all(lattice_params(cryst) .≈ (1., 1., c, 90., 90., 120.))
 
-
     ### Arbitrary monoclinic
 
     mono_lat_params = (6, 7, 8, 90, 90, 40)
@@ -91,7 +87,6 @@
     @test cell_type(cryst) == Sunny.monoclinic
     @test Sunny.natoms(cryst) == 4
     @test all(lattice_params(cryst) .≈ mono_lat_params)
-
 
     ### Arbitrary trigonal
 
@@ -104,7 +99,6 @@
     @test Sunny.natoms(cryst2) == 3
     cryst3 = Crystal(latvecs, positions, 147) # spacegroup number
     @test cell_type(cryst1) == cell_type(cryst2) == cell_type(cryst3) == Sunny.hexagonal
-
 
     ### Arbitrary triclinic
 
@@ -140,7 +134,7 @@
     @test length(capt.value) == 6
     cryst = Crystal(latvecs, positions, 62; types, symprec=1e-4, setting="-cba")
     @test count(==(1), cryst.classes) == 4
-    @test count(==(2), cryst.classes) == 4    
+    @test count(==(2), cryst.classes) == 4
 end
 
 

@@ -123,7 +123,7 @@ function intensities_interpolated(sc::SampledCorrelations, qs, formula::Classica
     # original crystal to RLU in the reshaped crystal
     if !isnothing(sc.origin_crystal)
         convert = sc.crystal.recipvecs \ sc.origin_crystal.recipvecs
-        qs = [convert * q for q in qs]
+        qs = [convert * Vec3(q) for q in qs]
     end
 
     # Make sure it's a dynamical structure factor 
