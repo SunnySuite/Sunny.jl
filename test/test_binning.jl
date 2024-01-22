@@ -36,7 +36,7 @@
     expected_sum = (1/2)^2 * size(sc.data,7) * prod(sys.latsize)
     # This sum rule should hold for each sublattice, independently, and only
     # need to be taken over a single BZ (which is what sc.data contains) to hold:
-    @test diag(sub_lat_sum_rules) ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
+    @test [sub_lat_sum_rules[i,i] for i = 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
 
     formula = intensity_formula(sc,:trace)
     # The polyatomic sum rule demands going out 4 BZ's for the diamond crystal
