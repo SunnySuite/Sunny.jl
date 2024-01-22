@@ -83,30 +83,16 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2) where T
 end
 
 
-function to_product_space_orig(A, B)
-    (isempty(A) || isempty(B)) && error("Nonempty lists required")
-
-    @assert allequal(size.(A))
-    @assert allequal(size.(B))
-
-    N1 = size(first(A), 1)
-    N2 = size(first(B), 1)
-
-    I1 = Ref(Matrix(I, N1, N1))
-    I2 = Ref(Matrix(I, N2, N2))
-    return (kron.(A, I2), kron.(I1, B))
-end
-
 """
-    to_product_space(A, B, Cs...)
+    to_product_space(A, B, ...)
 
 Given lists of operators acting on local Hilbert spaces individually, return the
 corresponding operators that act on the tensor product space. In typical usage,
 the inputs will represent local physical observables and the outputs will be
 used to define quantum couplings.
 """
-function to_product_space(A, B, Cs...)
-    lists = [A, B, Cs...]
+function to_product_space(A, B, rest...)
+    lists = [A, B, rest...]
 
     Ns = map(enumerate(lists)) do (i, list)
         isempty(list) && error("Empty operator list in argument $i.")
