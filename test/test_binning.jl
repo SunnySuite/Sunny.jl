@@ -18,9 +18,44 @@
     randomize_spins!(sys)
     sc = dynamical_correlations(sys;Δt = 1.,nω=3,ωmax = 1.)
     add_sample!(sc, sys)
+
     @test_nowarn unit_resolution_binning_parameters(sc)
     params = unit_resolution_binning_parameters(sc)
     @test params.numbins == [4,1,1,3]
+   
+    # Polyatomic sum rule!
+    sum_rule_ixs = Sunny.Trace(sc.observables).indices
+    sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:],dims = [1,4,5,6,7])[1,:,:,1,1,1,1]
+    # SU(N) sum rule for S = 1/2:
+    # ⟨∑ᵢSᵢ²⟩ = 3/4 on every site, but because we're classical, we
+    # instead compute ∑ᵢ⟨Sᵢ⟩² = (1/2)^2 = 1/4 since the ⟨Sᵢ⟩ form a vector with
+    # length (1/2). This is the equal-space-and-time correlation value.
+    #
+    # Then, because sc.data comes in units of [correlation]/BZ/fs, we need to multiply
+    # by the number of (positive-and-negative frequency bins) × (bins in BZ):
+    expected_sum = (1/2)^2 * size(sc.data,7) * prod(sys.latsize)
+    # This sum rule should hold for each sublattice, independently, and only
+    # need to be taken over a single BZ (which is what sc.data contains) to hold:
+    @test diag(sub_lat_sum_rules) ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
+
+    formula = intensity_formula(sc,:trace)
+    # The polyatomic sum rule demands going out 4 BZ's for the diamond crystal
+    # since there is an atom at relative position [1/4, 1/4, 1/4]. It also
+    # requires integrating over the full sampling frequency range, in this
+    # case by going over both positive and negative energies.
+    params_pasr = unit_resolution_binning_parameters(sc;negative_energies = true)
+    params_pasr.binstart[1:3] .= -params_pasr.binwidth[1:3] ./ 2
+    params_pasr.binend[1:3] .+= 3
+    # This should result in spanning exactly 4x4x4 BZ's
+    nbzs = (params_pasr.binwidth .* params_pasr.numbins)[1:3]
+    @test nbzs ≈ [4.0,4.0,4.0]
+    # This tests that `negative_energies = true` spans exactly one sampling frequency
+    nfs = params_pasr.binwidth[4] * params_pasr.numbins[4] / (sc.Δω * size(sc.data,7))
+    @test nfs ≈ 1
+    is, counts = intensities_binned(sc,params_pasr,formula)
+    expected_multi_BZ_sum = (1/2)^2 * prod(nbzs) * nfs
+    @test sum(is ./ counts) ≈ expected_multi_BZ_sum
+
 
     # Ensure insensitivity to small changes in bin size
     params.binwidth[2] = 1.
