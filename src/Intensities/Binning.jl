@@ -475,7 +475,24 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
             end
         end
     end
-    return output_intensities, output_counts
+
+    # output_intensities is in units of S²/BZ/fs, and includes the sum
+    # of `output_counts`-many individual scattering vector intensities.
+    # To give the value integrated over the bin, we need to multiply by
+    # the binwidth, Δω×ΠᵢΔqᵢ. But Δq/BZ = 1/N, where N is the number of
+    # bins covering one BZ, which is itself equal to the latsize.
+    #
+    # To find the number of bins covering one BZ, we first compute the volume of the BZ
+    # in histogram label space: it is det(covectors[1:3,1:3]). Next, we compute the volume
+    # of one bin in label space: it is prod(binwidth[1:3]).
+    # Then, N = det(covectors[1:3,1:3])/prod(binwidth[1:3]).
+    #
+    # For the time axis, Δω/fs = 1/N, where N is the number of frequency bins
+    # 
+    # So the division by N here makes it so the result has units of
+    # raw S² (to be summed over M-many BZs to recover M-times the sum rule)
+    N_bins_in_BZ = numbins[4] * det(covectors[1:3,1:3]) / prod(binwidth[1:3])
+    return output_intensities ./ N_bins_in_BZ, output_counts
 end
 
 function available_energies_including_zero(x;kwargs...)
