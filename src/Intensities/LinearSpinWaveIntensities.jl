@@ -87,8 +87,6 @@ function intensities_band_structure(swt::SpinWaveTheory, ks, formula::SpinWaveIn
     map(k -> formula.calc_intensity(swt,Vec3(k)),ks)
 end
 
-
-
 """
     intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, formula)
 
