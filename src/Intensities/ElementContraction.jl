@@ -20,6 +20,7 @@ end
 
 struct FullTensor{NCorr,NSquare,NObs,NObs2} <: Contraction{SMatrix{NObs, NObs, ComplexF64, NObs2}}
     indices :: SVector{NSquare, Int64}
+    unilateral_to_bilateral :: Bool
 end
 
 struct AllAvailable{NCorr} <: Contraction{SVector{NCorr, ComplexF64}}
@@ -77,14 +78,14 @@ function Element(obs::ObservableInfo, pair::Tuple{Symbol,Symbol})
     Element(only(lookup_correlations(obs,[pair]; err_msg = pair -> "Missing correlation $(pair), which was requested.")))
 end
 
-function FullTensor(obs::ObservableInfo)
+function FullTensor(obs::ObservableInfo; unilateral_to_bilateral = true)
     n_obs = num_observables(obs)
     tensor_elements = Matrix{Tuple{Symbol,Symbol}}(undef,n_obs,n_obs)
     for (ki,i) = obs.observable_ixs, (kj,j) = obs.observable_ixs
       tensor_elements[i,j] = (ki,kj) # Required to put matrix in correct order
     end
     indices = lookup_correlations(obs, collect(tensor_elements); err_msg = αβ -> "Missing correlation $(αβ). All correlations are required to return the full tensor.")
-    FullTensor{num_correlations(obs),length(indices),n_obs,n_obs*n_obs}(indices)
+    FullTensor{num_correlations(obs),length(indices),n_obs,n_obs*n_obs}(indices, unilateral_to_bilateral)
 end
 
 ################################################################################
@@ -109,6 +110,7 @@ end
 # usually on order 1e-17 and is due to roundoff in phase_averaged_elements.
 function contract(diagonal_elements, _, traceinfo::Trace)
     if traceinfo.unilateral_to_bilateral
+        # Factor of 2 due to Laplace -> Fourier transform glueing
         2 * sum(real(diagonal_elements))
     else
         sum(real(diagonal_elements))
@@ -116,12 +118,6 @@ function contract(diagonal_elements, _, traceinfo::Trace)
 end
 
 function contract(dipole_elements, k::Vec3, dipoleinfo::DipoleFactor)
-    dip_factor = polarization_matrix(k)
-
-    # Note, can just take the real part since:
-    #   (1) diagonal elements are real by construction, and 
-    #   (2) pairs of off diagonal contributions have the form x*conj(y) + conj(x)*y = 2real(x*conj(y)).
-
     Sab = reshape(dipole_elements,3,3)
 
     #display(Sab)
@@ -151,6 +147,7 @@ function contract(dipole_elements, k::Vec3, dipoleinfo::DipoleFactor)
     # Since dip_factor is symmteric, and Sab is (now) guaranteed
     # to be conjugate-symmetric, dipole_intensity is real up to
     # machine precision
+    dip_factor = polarization_matrix(k)
     dipole_intensity = sum(dip_factor .* Sab)
 
     # This assertation catches the case where the user set
@@ -167,7 +164,11 @@ end
 contract(specific_element, _, ::Element) = only(specific_element)
 
 function contract(all_elems, _, full::FullTensor{NCorr,NSquare,NObs,NObs2}) where {NCorr, NSquare,NObs,NObs2}
-    reshape(all_elems,NObs,NObs)
+    Sab = reshape(all_elems,NObs,NObs)
+    if full.unilateral_to_bilateral
+        Sab = Sab + Sab'
+    end
+    Sab
 end
 
 function contract(all_elems, _, ::AllAvailable{NCorr}) where NCorr
@@ -194,13 +195,13 @@ Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 function contractor_from_mode(source, mode::Symbol)
     if mode == :trace
         contractor = Trace(source.observables; unilateral_to_bilateral = true)
-        string_formula = "Tr S′\n\n with S′ = S + S′"
+        string_formula = "Tr S′\n\n with S′ = S + S†"
     elseif mode == :perp
         contractor = DipoleFactor(source.observables; unilateral_to_bilateral = true)
         string_formula = "∑_ij (I - Q⊗Q){i,j} S′{i,j}\n\n(i,j = Sx,Sy,Sz) and with S′ = S + S†"
     elseif mode == :full
-        contractor = FullTensor(source.observables)
-        string_formula = "S{α,β}"
+        contractor = FullTensor(source.observables; unilateral_to_bilateral = true)
+        string_formula = "S′{α,β}\n\n with S′ = S + S†"
     elseif mode == :all_available
         corrs = keys(source.observables.correlations)
         contractor = AllAvailable{length(corrs)}()

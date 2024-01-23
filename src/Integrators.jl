@@ -266,6 +266,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
 
     s = sys.dipoles
     (; Δt, atol) = integrator
+	isnan(Δt) && return
 
     (∇E, s̄, ŝ, s̄′) = get_dipole_buffers(sys, 4)
     
