@@ -120,8 +120,6 @@ function accum_sample!(sc::SampledCorrelations;alg = :no_window,max_lag_frac = I
         # in real time, all parts of the result contain meaningful correlations.
         correlation = FFTW.ifft(traj_α .* conj.(traj_β),4)
 
-        correlation .*= 2 # Cancels the factor of two in the denominator of ifft
-
         correlation ./= statistical_power # Divide by number of terms actually contributing to the sum
 
         correlation[:,:,:,time_lag_frac .> max_lag_frac] .= 0
