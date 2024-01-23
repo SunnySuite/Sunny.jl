@@ -155,7 +155,7 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
     na = natoms(sys.crystal)
     samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, (nω÷2) + 1)
     data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., nω)
-    variance = calculate_errors ? zeros(Float64, size(data)...) : nothing
+    M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
     # Specially Normalized FFT.
     # This is designed so that when it enters ifft(fft * fft) later (in squared fashion)
