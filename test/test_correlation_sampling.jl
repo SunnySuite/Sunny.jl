@@ -1,3 +1,40 @@
+@testitem "Asymmetric Correlations" begin
+
+    latsize = (1,1,1)
+    cryst = Sunny.fcc_primitive_crystal()
+    sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
+    sc = dynamical_correlations(sys; Δt = 0.1, ωmax = 10.0, nω=100, observables = [:A => I(2), :B => I(2)])
+    ts = range(0,1,length = size(sc.samplebuf,6))
+    #As = cos.(10π .* ts)
+    #Bs = 2 .* sin.(10π .* ts)
+    As = exp.(-(ts .- 0.15).^2 ./ (2 * 0.05^2))
+    Bs = exp.(-(ts .- 0.35).^2 ./ (2 * 0.1^2))
+    sc.samplebuf[1,1,1,1,1,:] .= As
+    sc.samplebuf[2,1,1,1,1,:] .= Bs
+    Sunny.accum_sample!(sc)
+    real_data = real(ifft(sc.data,7))
+    real_data .*= 199*199
+
+    # Reference calculation
+    q11 = zeros(199)
+    q12 = zeros(199)
+    q21 = zeros(199)
+    q22 = zeros(199)
+    for t = 0:198
+        for tau = 0:198
+            q11[1+t] += As[1+(t+tau)] * As[1+(tau)]
+            q12[1+t] += As[1+(t+tau)] * Bs[1+(tau)]
+            q21[1+t] += Bs[1+(t+tau)] * As[1+(tau)]
+            q22[1+t] += Bs[1+(t+tau)] * Bs[1+(tau)]
+        end
+    end
+
+    @test isapprox(q11,real_data[sc.observables.correlations[CartesianIndex(1,1)],1,1,1,1,1,:];atol = 1e-8)
+    @test isapprox(q12,real_data[sc.observables.correlations[CartesianIndex(1,2)],1,1,1,1,1,:];atol = 1e-8)
+    @test isapprox(q21,real_data[sc.observables.correlations[CartesianIndex(2,1)],1,1,1,1,1,:];atol = 1e-8)
+    @test isapprox(q22,real_data[sc.observables.correlations[CartesianIndex(2,2)],1,1,1,1,1,:];atol = 1e-8)
+end
+
 @testitem "Correlation sampling" begin
     using LinearAlgebra
 
