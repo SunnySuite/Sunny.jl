@@ -87,7 +87,7 @@ function accum_sample!(sc::SampledCorrelations;alg = :no_window)
     natoms = size(samplebuf,5)
 
     time_T = size(samplebuf,6)
-    time_2T = 2time_T
+    time_2T = 2time_T - 1
     left_zero_ix = 1:time_T
     right_zero_ix = (time_T + 1):time_2T
 
@@ -122,7 +122,7 @@ function accum_sample!(sc::SampledCorrelations;alg = :no_window)
 
         correlation .*= 2 # Cancels the factor of two in the denominator of ifft
 
-        correlation ./= statistical_power # Sam N.B.: I have this commented out locally
+        #correlation ./= statistical_power # Sam N.B.: I have this commented out locally
 
         if alg == :window
           correlation .*= reshape(cos.(range(0,π,length = time_2T)).^2,(1,1,1,time_2T))
