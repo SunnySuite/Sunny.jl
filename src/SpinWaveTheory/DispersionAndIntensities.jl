@@ -179,6 +179,12 @@ struct BandStructure{N,T}
   intensity :: SVector{N,T}
 end
 
+function Base.show(io::IO, ::BandStructure{N,T}) where {N,T}
+    print(io,"BandStructure{$N bands with $T-valued intensity}")
+end
+
+Base.map(f, bs::BandStructure) = BandStructure(bs.dispersion, map(f,bs.intensity))
+
 struct SpinWaveIntensityFormula{T}
     string_formula :: String
     kernel :: Union{Nothing,Function}
@@ -353,6 +359,11 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                 corrs
             end
 
+            # The meaning of the (A,B) correlation at this point is
+            # that the fourier transform, normalized as
+            #   ∫±∞ exp(-iωt) <A(t) B> dt
+            # of the correlation <A(t) B> has a term:
+            #   2π * corrs[corr_ix_AB] * δ(disp[band] - ω)
             intensity[band] = f(q_absolute, disp[band], corrs[corr_ix])
         end
 
