@@ -83,12 +83,22 @@ function no_processing(::SampledCorrelations)
 end
 
 function accum_sample!(sc::SampledCorrelations)
-    (; data, M, observables, samplebuf, nsamples, fft!) = sc
-    natoms = size(samplebuf)[5]
+    (; data, variance, observables, samplebuf, nsamples, fft!) = sc
+    natoms = size(samplebuf,5)
+
+    time_2T = size(samplebuf,6)
+    longest_correlation_delay = div(time_2T,4,RoundDown)
+    left_zero_ix = 1:longest_correlation_delay
+    right_zero_ix = (time_2T - longest_correlation_delay + 1):time_2T
+    middle_index = div(time_2T,2,RoundUp)
+    #central_ix = (longest_correlation_delay + 1):(time_2T - longest_correlation_delay)
+    #
+    rearrange_ix = [(1:longest_correlation_delay+1) ; right_zero_ix]
 
     # Same as samplebuf, but the second half of the data (in time) is zeroed out
     sourcebuf = copy(samplebuf)
-    sourcebuf[:,:,:,:,:,(1+size(samplebuf,6)÷2):end] .= 0
+    sourcebuf[:,:,:,:,:,left_zero_ix] .= 0
+    sourcebuf[:,:,:,:,:,right_zero_ix] .= 0
 
     fft! * samplebuf # Apply pre-planned and pre-normalized FFT
     fft! * sourcebuf
@@ -111,8 +121,15 @@ function accum_sample!(sc::SampledCorrelations)
         # is time periodic when it isn't).
         #
         # The forward-time correlations are correctly computed.
-        correlation_plus_trash = FFTW.ifft(sample_α .* conj.(sample_β),4)
-        correlation = FFTW.fft(correlation_plus_trash[:,:,:,1:size(data,7)],4)
+        trash_plus = FFTW.ifft(sample_α .* conj.(sample_β),4)[:,:,:,rearrange_ix]
+        trash_plus .*= reshape(cos.(range(0,π,length = size(trash_plus,4))).^2,(1,1,1,size(trash_plus,4)))
+
+        # Remove overlapping highest frequency (only required if window doesn't already set this to zero)
+        #trash_plus[:,:,:,longest_correlation_delay + 1] .= 0
+
+        correlation = FFTW.fft(trash_plus,4)
+
+        #correlation .*= reshape(sin.(range(0,π,length=size(correlation,4))).^2, [1,1,1,size(correlation,4)])
 
         # This factor of two comes from the modified FFT convolution theorem
         # that we are using. The modification is because we only use *half*
@@ -169,7 +186,7 @@ separately prior to calling `add_sample!`. Alternatively, the initial spin
 configuration may be copied into a new `System` and this new `System` can be
 passed to `add_sample!`.
 """
-function add_sample!(sc::SampledCorrelations, sys::System) 
-    new_sample!(sc, sys)
-    accum_sample!(sc)
+function add_sample!(sc::SampledCorrelations, sys::System; processtraj! = no_processing) 
+    @time new_sample!(sc, sys; processtraj!)
+    @time accum_sample!(sc)
 end
