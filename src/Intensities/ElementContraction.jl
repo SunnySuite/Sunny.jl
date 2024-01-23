@@ -5,10 +5,13 @@ abstract type Contraction{T} end  # T determines type value returned by the cont
 
 struct Trace{N} <: Contraction{Float64}
     indices :: SVector{N, Int64}
+    unilateral_to_bilateral :: Bool
 end
 
 struct DipoleFactor <: Contraction{Float64}
-    indices :: SVector{6,Int64}
+    indices :: SVector{9,Int64}
+    # Should we apply the unilateral-to-bilateral S → S + S' symmetrization?
+    unilateral_to_bilateral :: Bool
 end
 
 struct Element <: Contraction{ComplexF64}
@@ -26,7 +29,7 @@ end
 ################################################################################
 # Constructors
 ################################################################################
-function Trace(obs::ObservableInfo)
+function Trace(obs::ObservableInfo;unilateral_to_bilateral = true)
     # Collect all indices for matrix elements 𝒮^αβ where α=β
     indices = Int64[]
     for (ki,i) = obs.observable_ixs
@@ -52,11 +55,10 @@ function Trace(obs::ObservableInfo)
     =#
 
     indices = sort(indices)
-    Trace(SVector{length(indices), Int64}(indices))
+    Trace(SVector{length(indices), Int64}(indices),unilateral_to_bilateral)
 end
 
-# Warning: This dipole factor assumes Sαβ symmetric (i.e. it assumes equilibrium)
-function DipoleFactor(obs::ObservableInfo; spin_components = [:Sx,:Sy,:Sz])
+function DipoleFactor(obs::ObservableInfo; unilateral_to_bilateral = true, spin_components = [:Sx,:Sy,:Sz])
     # Ensure that the observables themselves are present
     for si in spin_components
         if !haskey(obs.observable_ixs,si)
@@ -66,9 +68,9 @@ function DipoleFactor(obs::ObservableInfo; spin_components = [:Sx,:Sy,:Sz])
 
     # Ensure that the required correlations are also present
     sx,sy,sz = spin_components
-    dipole_correlations = [(sx,sx),(sx,sy),(sy,sy),(sx,sz),(sy,sz),(sz,sz)]
+    dipole_correlations = [(sx,sx),(sy,sx),(sz,sx),(sx,sy),(sy,sy),(sz,sy),(sx,sz),(sy,sz),(sz,sz)]
     indices = lookup_correlations(obs,dipole_correlations; err_msg = αβ -> "Missing correlation $(αβ), which is required to compute the depolarization correction.")
-    DipoleFactor(indices)
+    DipoleFactor(indices, unilateral_to_bilateral)
 end
 
 function Element(obs::ObservableInfo, pair::Tuple{Symbol,Symbol})
@@ -95,12 +97,23 @@ end
 
 ################################################################################
 # Contraction methods
+#
+# The first argument to `contract' is the correlations which were requested
+# by required_correlations. In particular, for DipoleFactor and FullTensor,
+# these correlations are already sorted in the desired order, so all that needs to
+# be done is the actual calculation (no re-ordering)
 ################################################################################
 
 
 # Diagonal elements should be real only. Finite imaginary component is 
 # usually on order 1e-17 and is due to roundoff in phase_averaged_elements.
-contract(diagonal_elements, _, ::Trace) = sum(real(diagonal_elements))
+function contract(diagonal_elements, _, traceinfo::Trace)
+    if traceinfo.unilateral_to_bilateral
+        2 * sum(real(diagonal_elements))
+    else
+        sum(real(diagonal_elements))
+    end
+end
 
 function contract(dipole_elements, k::Vec3, dipoleinfo::DipoleFactor)
     dip_factor = polarization_matrix(k)
@@ -109,33 +122,67 @@ function contract(dipole_elements, k::Vec3, dipoleinfo::DipoleFactor)
     #   (1) diagonal elements are real by construction, and 
     #   (2) pairs of off diagonal contributions have the form x*conj(y) + conj(x)*y = 2real(x*conj(y)).
 
-    # The index order here is fixed (for speed) by a unit test in test/test_contraction.jl
-    return  dip_factor[1,1]*real(dipole_elements[1]) +
-           2dip_factor[1,2]*real(dipole_elements[2]) +
-            dip_factor[2,2]*real(dipole_elements[3]) +
-           2dip_factor[1,3]*real(dipole_elements[4]) + 
-           2dip_factor[2,3]*real(dipole_elements[5]) + 
-            dip_factor[3,3]*real(dipole_elements[6])
+    Sab = reshape(dipole_elements,3,3)
+
+    #display(Sab)
+    #println("[CS] part:")
+    #display(Sab + Sab')
+    #println("[-CS] part:")
+    #display(Sab - Sab')
+
+    # If Sab is the *unilateral (Laplace) transform* of the time-domin
+    # correlations, then we are *not* gaurunteed conjugate-symmetry of the matrix,
+    # so we need to explicitly symmterize it now to ensure that the result
+    # of contracting with the dipole factor is real. This symmetrization corresponds
+    # to glueing together the two halves of the unilateral transform to recover
+    # the *bilateral (Fourier) transform* of the time-domain correlations.
+    # Because of this glueing, there is no factor 1/2 needed.
+    #
+    # Warning: This procedure assumes real observables, A = A†, since
+    # the correct symmterization is over simultaneous
+    #   (1) complex conjugation
+    #   (2) transpose (= swap observables)
+    #   (3) dagger each observable
+    # but we only perform steps (1) and (2).
+    if dipoleinfo.unilateral_to_bilateral
+        Sab = Sab + Sab'
+    end
+
+    # Since dip_factor is symmteric, and Sab is (now) guaranteed
+    # to be conjugate-symmetric, dipole_intensity is real up to
+    # machine precision
+    dipole_intensity = sum(dip_factor .* Sab)
+
+    # This assertation catches the case where the user set
+    # `unilateral_to_bilateral = false' even though their data
+    # is unilateral. In this case, their Sab is not conjugate-symmetric,
+    # and we didn't conjugate-symmetrize it, so dipole_intensity is
+    # errantly complex
+    @assert abs(imag(dipole_intensity)) < 1e-12
+
+    return real(dipole_intensity)
 end
 
 
 contract(specific_element, _, ::Element) = only(specific_element)
 
 function contract(all_elems, _, full::FullTensor{NCorr,NSquare,NObs,NObs2}) where {NCorr, NSquare,NObs,NObs2}
-    reshape(all_elems[full.indices],NObs,NObs)
+    reshape(all_elems,NObs,NObs)
 end
 
 function contract(all_elems, _, ::AllAvailable{NCorr}) where NCorr
     all_elems
 end
 
-################################################################################
-# Contraction utils
-################################################################################
+# The required_correlations specifies which correlations
+# (as numbered according to the *values* of the ObservableInfo.correlations map)
+# are needed for the calculation, and what order they should be retrieved in.
+# This is particularly important for the DipoleFactor and FullTensor,
+# which retreive the correlations in a specific order.
 required_correlations(traceinfo::Trace) = traceinfo.indices
 required_correlations(dipoleinfo::DipoleFactor) = dipoleinfo.indices
 required_correlations(eleminfo::Element) = [eleminfo.index]
-required_correlations(::FullTensor{NCorr}) where NCorr = 1:NCorr
+required_correlations(fullinfo::FullTensor{NCorr}) where NCorr = fullinfo.indices
 required_correlations(::AllAvailable{NCorr}) where NCorr = 1:NCorr
 
 
@@ -146,11 +193,11 @@ Base.zeros(::Contraction{T}, dims...) where T = zeros(T, dims...)
 
 function contractor_from_mode(source, mode::Symbol)
     if mode == :trace
-        contractor = Trace(source.observables)
-        string_formula = "Tr S"
+        contractor = Trace(source.observables; unilateral_to_bilateral = true)
+        string_formula = "Tr S′\n\n with S′ = S + S′"
     elseif mode == :perp
-        contractor = DipoleFactor(source.observables)
-        string_formula = "∑_ij (I - Q⊗Q){i,j} S{i,j}\n\n(i,j = Sx,Sy,Sz) and assuming S = S†"
+        contractor = DipoleFactor(source.observables; unilateral_to_bilateral = true)
+        string_formula = "∑_ij (I - Q⊗Q){i,j} S′{i,j}\n\n(i,j = Sx,Sy,Sz) and with S′ = S + S†"
     elseif mode == :full
         contractor = FullTensor(source.observables)
         string_formula = "S{α,β}"
