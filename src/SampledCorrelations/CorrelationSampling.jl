@@ -125,7 +125,7 @@ function accum_sample!(sc::SampledCorrelations;alg = :no_window,max_lag_frac = I
         correlation[:,:,:,time_lag_frac .> max_lag_frac] .= 0
 
         if alg == :window
-          correlation .*= reshape(cos.(range(0,π,length = time_2T)).^2,(1,1,1,time_2T))
+          correlation .*= reshape(cos.(range(0,π,length = time_2T+1)[1:time_2T]).^2,(1,1,1,time_2T))
         elseif alg == :chop
           correlation[:,:,:,1] .= 0
         end
