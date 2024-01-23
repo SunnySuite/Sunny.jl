@@ -77,6 +77,18 @@ function intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFo
     return band_dispersions, band_intensities
 end
 
+function intensities_band_structure(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFormula)
+    if !isnothing(formula.kernel)
+        # This is only triggered if the user has explicitly specified a formula with e.g. kT
+        # corrections applied, but has not disabled the broadening kernel.
+        error("intensities_bands: Can't compute band intensities if a broadening kernel is applied.\nTry intensity_formula(...; kernel = delta_function_kernel)")
+    end
+
+    map(k -> formula.calc_intensity(swt,Vec3(k)),ks)
+end
+
+
+
 """
     intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, formula)
 
