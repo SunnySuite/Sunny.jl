@@ -162,7 +162,7 @@ end
     # Test static from dynamic intensities working
     static_vals = instant_intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
     total_intensity_static = sum(static_vals)
-    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-12)  # Order of summation can lead to very small discrepancies
+    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-9)  # Order of summation can lead to very small discrepancies
 
     # Test instant intensities working
     sys = simple_model_fcc(; mode=:dipole)
