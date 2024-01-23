@@ -1,14 +1,14 @@
 # Utilities for working with Bravais lattices
 
 """
-    lattice_params(latvecs::Mat3)
+    lattice_params(latvecs)
 
 Compute the lattice parameters ``(a, b, c, α, β, γ)`` for the three lattice
 vectors provided as columns of `latvecs`. The inverse mapping is
 [`lattice_vectors`](@ref).
 """
-function lattice_params(latvecs::Mat3) :: NTuple{6, Float64}
-    v1, v2, v3 = eachcol(latvecs)
+function lattice_params(latvecs) :: NTuple{6, Float64}
+    v1, v2, v3 = eachcol(Mat3(latvecs))
     a, b, c = norm(v1), norm(v2), norm(v3)
     acosd_clipped(x) = acosd(min(max(x, -1), 1))
     α = acosd_clipped((v2 ⋅ v3) / (b * c))

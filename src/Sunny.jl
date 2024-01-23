@@ -82,7 +82,7 @@ include("Reshaping.jl")
 export reshape_supercell, resize_supercell, repeat_periodically
 
 include("Integrators.jl")
-export Langevin, ImplicitMidpoint, step!
+export Langevin, ImplicitMidpoint, step!, suggest_timestep
 
 include("Optimization.jl")
 export minimize_energy! 
@@ -155,5 +155,15 @@ function export_vtk(args...)
     error(isloaded("WriteVTK") ? "Invalid method call" : "Import WriteVTK to enable exporting")
 end
 export export_vtk
+
+# Precompile some workloads
+using PrecompileTools
+@setup_workload begin
+    @compile_workload begin
+        latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+        cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
+        print_symmetry_table(cryst, 0.8; io=devnull)
+    end
+end
 
 end

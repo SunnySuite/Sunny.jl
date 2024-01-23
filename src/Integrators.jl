@@ -6,11 +6,12 @@ thermal bath, of strength `λ`. One call to the [`step!`](@ref) function will
 advance a [`System`](@ref) by `Δt` units of time. Can be used to sample from the
 Boltzmann distribution at temperature `kT`. An alternative approach to sampling
 states from thermal equilibrium is [`LocalSampler`](@ref), which proposes local
-Monte Carlo moves. For example, use `LocalSampler` to sample Ising-like spins.
+Monte Carlo moves. For example, use `LocalSampler` instead of `Langevin` to
+sample Ising-like spins.
 
 Setting `λ = 0` disables coupling to the thermal bath, yielding an
 energy-conserving spin dynamics. The `Langevin` integrator uses an explicit
-numerical integrator that allows energy drift. Alternatively, the
+numerical integrator which cannot prevent energy drift. Alternatively, the
 [`ImplicitMidpoint`](@ref) method can be used, which is more expensive but
 prevents energy drift through exact conservation of the symplectic 2-form.
 
@@ -46,7 +47,8 @@ constructor interprets its `λ` argument as either ``λ`` or ``λ̃``, for modes
 
 References:
 
-1. [D. Dahlbom et al., Phys. Rev. B 106, 235154 (2022)](https://arxiv.org/abs/2209.01265).
+1. [D. Dahlbom et al., Phys. Rev. B 106, 235154
+   (2022)](https://arxiv.org/abs/2209.01265).
 """
 mutable struct Langevin
     Δt  :: Float64
@@ -56,8 +58,10 @@ mutable struct Langevin
     function Langevin(Δt; λ, kT)
         Δt <= 0 && error("Select positive Δt")
         return new(Δt, λ, kT)
-    end    
+    end
 end
+Langevin(; λ, kT) = Langevin(NaN; λ, kT)
+
 
 """
     ImplicitMidpoint(Δt::Float64; atol=1e-12) where N
@@ -73,8 +77,10 @@ approach eliminates energy drift over long simulation trajectories.
 
 References:
 
-1. [H. Zhang and C. D. Batista, Phys. Rev. B 104, 104409 (2021)](https://arxiv.org/abs/2106.14125).
-2. [D. Dahlbom et al, Phys. Rev. B 106, 054423 (2022)](https://arxiv.org/abs/2204.07563).
+1. [H. Zhang and C. D. Batista, Phys. Rev. B 104, 104409
+   (2021)](https://arxiv.org/abs/2106.14125).
+2. [D. Dahlbom et al, Phys. Rev. B 106, 054423
+   (2022)](https://arxiv.org/abs/2204.07563).
 """
 mutable struct ImplicitMidpoint
     Δt   :: Float64
@@ -84,6 +90,127 @@ mutable struct ImplicitMidpoint
         Δt <= 0 && error("Select positive Δt")
         return new(Δt, atol)
     end    
+end
+ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
+
+function check_timestep_available(integrator)
+    isnan(integrator.Δt) && error("Set integration timestep `Δt`.")
+end
+
+"""
+    suggest_timestep(sys, integrator; tol)
+
+Suggests a timestep for the numerical integration of spin dynamics according to
+a given error tolerance `tol`. The `integrator` should be [`Langevin`](@ref) or
+[`ImplicitMidpoint`](@ref). The suggested ``Δt`` will be inversely proportional
+to the magnitude of the effective field ``|dE/d𝐬|`` arising from the current
+spin configuration in `sys`. The recommended timestep ``Δt`` scales like `√tol`,
+which assumes second-order accuracy of the integrator.
+
+The system `sys` should be initialized to an equilibrium spin configuration for
+the target temperature. Alternatively, a reasonably timestep estimate can be
+obtained from any low-energy spin configuration. For this, one can use
+[`randomize_spins!`](@ref) and then [`minimize_energy!`](@ref).
+
+If `integrator` is of type [`Langevin`](@ref), then the damping magnitude ``λ``
+and target temperature ``kT`` will tighten the timestep bound. If ``λ`` exceeds
+1, it will rescale the suggested timestep by an approximate the factor ``1/λ``.
+If ``kT`` is the largest energy scale, then the suggested timestep will scale
+like ``1/λkT``. Quantification of numerical error for stochastic dynamics is
+subtle. The stochastic Heun integration scheme is weakly convergent of order-1,
+such that errors in the estimates of averaged observables may scale like ``Δt``.
+This implies that the `tol` argument may actually scale like the _square_ of the
+true numerical error, and should be selected with this in mind.
+"""
+function suggest_timestep(sys::System{N}, integrator::Langevin; tol) where N
+    (; Δt, λ, kT) = integrator
+    suggest_timestep_aux(sys; tol, Δt, λ, kT)
+end
+function suggest_timestep(sys::System{N}, integrator::ImplicitMidpoint; tol) where N
+    (; Δt) = integrator
+    suggest_timestep_aux(sys; tol, Δt, λ=0, kT=0)
+end
+
+function suggest_timestep_aux(sys::System{N}; tol, Δt, λ, kT) where N
+    acc = 0.0
+    if N == 0
+        ∇Es, = get_dipole_buffers(sys, 1)
+        set_energy_grad_dipoles!(∇Es, sys.dipoles, sys)
+        for (κ, ∇E) in zip(sys.κs, ∇Es)
+            # In dipole mode, the spin magnitude `κ = |s|` scales the effective
+            # damping rate.
+            acc += (1 + (κ*λ)^2) * norm(∇E)^2
+        end
+    else
+        ∇Es, = get_coherent_buffers(sys, 1)
+        set_energy_grad_coherents!(∇Es, sys.coherents, sys)
+        for ∇E in ∇Es
+            acc += (1 + λ^2) * norm(∇E)^2
+        end
+    end
+
+    # `drift_rms` gives the root-mean-squared of the drift term for one
+    # integration timestep of the Langevin dynamics. It is associated with the
+    # angular velocity dθ/dt where dθ ~ dS/|S| or dZ/|Z| for :dipole or :SUN
+    # mode, respectively. In calculating `drift_rms`, it is important to use the
+    # energy gradient |∇E| directly, rather than projecting out the component of
+    # ∇E aligned with the spin. Without projection, one obtains direct
+    # information about the frequency of oscillation. Consider, e.g., a spin
+    # approximately aligned with an external field: the precession frequency is
+    # given by |∇E| = |B|.
+    drift_rms = sqrt(acc/length(eachsite(sys)))
+
+    # In a second-order integrator, the local error from each deterministic
+    # timestep scales as dθ². Angular displacement per timestep dθ scales like
+    # dt drift_rms, yielding err1 ~ (dt drift_rms)^2
+    #
+    # Quantifying the "error" introduced by thermal noise is subtle. E.g., for
+    # weak convergence, we should consider the effect on statistical
+    # observables. We avoid all subtleties by naïvely assuming this error
+    # continues to be second order in `dt`. To determine the proportionality
+    # constant, consider the high-T limit, where each spin undergoes Brownian
+    # motion. Here, the diffusion constant D ~ λ kT sets an inverse time-scale.
+    # This implies err2 ~ (dt λ kT)².
+    #
+    # The total error (err1 + err2) should be less than the target tolerance.
+    # After some algebra, this implies,
+    #
+    # dt ≲ sqrt(tol / (c₁² drift_rms² + c₂² λ² kT²))
+    #
+    # for some empirical constants c₁ and c₂.
+
+    c1 = 1.0
+    c2 = 1.0
+    Δt_bound = sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
+
+    # Print suggestion
+    bound_str, tol_str = number_to_simple_string.((Δt_bound, tol); digits=4)
+    print("Consider Δt ≈ $bound_str for this spin configuration at tol = $tol_str.")
+
+    # Compare with existing Δt if present
+    if !isnan(Δt)
+        Δt_str = number_to_simple_string(Δt; digits=4)
+        if Δt <= Δt_bound/2
+            println("\nCurrent value Δt = $Δt_str seems small! Increasing it will make the simulation faster.")
+        elseif Δt >= 2Δt_bound
+            println("\nCurrent value Δt = $Δt_str seems LARGE! Decreasing it will improve accuracy.")
+        else
+            println(" Current value is Δt = $Δt_str.")
+        end
+    end
+end
+
+
+function Base.show(io::IO, integrator::Langevin)
+    (; Δt, λ, kT) = integrator
+    Δt = isnan(integrator.Δt) ? "<missing>" : repr(Δt)
+    println(io, "Langevin($Δt; λ=$λ, kT=$kT)")
+end
+
+function Base.show(io::IO, integrator::ImplicitMidpoint)
+    (; Δt, atol) = integrator
+    Δt = isnan(integrator.Δt) ? "<missing>" : repr(Δt)
+    println(io, "ImplicitMidpoint($Δt; atol=$atol)")
 end
 
 
@@ -105,6 +232,8 @@ such as [`LocalSampler`](@ref).
 function step! end
 
 function step!(sys::System{0}, integrator::Langevin)
+    check_timestep_available(integrator)
+
     (∇E, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
     (; kT, λ, Δt) = integrator
     s = sys.dipoles
@@ -122,7 +251,8 @@ function step!(sys::System{0}, integrator::Langevin)
     set_energy_grad_dipoles!(∇E, s₁, sys)
     @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, -∇E, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
     @. s = normalize_dipole(s, sys.κs)
-    nothing
+
+    return
 end
 
 # The spherical midpoint method, Phys. Rev. E 89, 061301(R) (2014)
@@ -132,6 +262,8 @@ end
 #   (s′ - s)/Δt = 2(s̄ - s)/Δt = - ŝ × B,
 # where B = -∂E/∂ŝ.
 function step!(sys::System{0}, integrator::ImplicitMidpoint)
+    check_timestep_available(integrator)
+
     s = sys.dipoles
     (; Δt, atol) = integrator
     isnan(Δt) && return
@@ -179,11 +311,14 @@ end
 ################################################################################
 # SU(N) integration
 ################################################################################
-@inline function proj(a::T, Z::T)  where T <: CVec
-    (a - ((Z' * a) * Z))  
+
+@inline function proj(a::T, Z::T) where T <: CVec
+    a - Z * ((Z' * a) / (Z' * Z))
 end
 
 function step!(sys::System{N}, integrator::Langevin) where N
+    check_timestep_available(integrator)
+
     (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
     Z = sys.coherents
 
@@ -201,6 +336,8 @@ function step!(sys::System{N}, integrator::Langevin) where N
 
     # Coordinate dipole data
     @. sys.dipoles = expected_spin(Z)
+
+    return
 end
 
 function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
@@ -221,6 +358,8 @@ end
 #   (Z′-Z)/Δt = - i H(Z̄) Z, where Z̄ = (Z+Z′)/2
 #
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
+    check_timestep_available(integrator)
+
     (; atol) = integrator
     (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
     Z = sys.coherents

@@ -9,6 +9,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     @assert size(H) == (2L, 2L)
 
     # Initialize Hamiltonian buffer 
+    # Note that H11 for b†b, H22 for bb†, H12 for b†b†, and H21 for bb
     H .= 0.0 
     H11 = view(H, 1:L, 1:L)
     H12 = view(H, 1:L, L+1:2L)
@@ -88,10 +89,12 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     # Add single-ion anisotropy
     for i in 1:L
         (; c2, c4, c6) = stevens_coefs[i]
-        H11[i, i] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H22[i, i] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        H12[i, i] += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
-        H21[i, i] +=  im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        A1 = -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
+        A2 = im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        H11[i, i] += A1
+        H22[i, i] += A1
+        H12[i, i] += A2
+        H21[i, i] += conj(A2)
     end
 
     # H must be hermitian up to round-off errors
@@ -144,11 +147,8 @@ function multiply_by_hamiltonian_dipole_aux!(y, x, phasebuf, qphase, swt)
     (; units, extfield, gs) = sys
     for i in 1:L
         (; c2, c4, c6) = stevens_coefs[i]
-
-        coef1 = -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        coef2 = -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
-        coef3 = -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
-        coef4 = im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
+        A1 = -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
+        A2 = im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
 
         B = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i]) 
         B′ = dot(B, view(local_rotations[i], :, 3)) / 2 
@@ -157,8 +157,8 @@ function multiply_by_hamiltonian_dipole_aux!(y, x, phasebuf, qphase, swt)
         # different final indices, presumably because memory access patterns for
         # x and y cannot be simultaneously optimized.
         @inbounds for q in 1:nq
-            y[q, i, 1] += (B′ + coef1) * x[q, i, 1] + coef3 * x[q, i, 2]
-            y[q, i, 2] += (B′ + coef2) * x[q, i, 2] + coef4 * x[q, i, 1]
+            y[q, i, 1] += (B′ + A1) * x[q, i, 1] + A2       * x[q, i, 2]
+            y[q, i, 2] += (B′ + A1) * x[q, i, 2] + conj(A2) * x[q, i, 1]
         end
     end
 

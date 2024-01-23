@@ -1,5 +1,14 @@
 # Version History
 
+## v0.5.9
+(In development)
+
+* New function [`suggest_timestep`](@ref) to assist in performing accurate and
+  efficient simulation of spin dynamics.
+* Significantly speed up [`dynamical_correlations`](@ref) for crystals with many
+  atoms in the unit cell [Issue
+  #204](https://github.com/SunnySuite/Sunny.jl/issues/204).
+
 ## v0.5.8
 (Jan 4, 2024)
 
