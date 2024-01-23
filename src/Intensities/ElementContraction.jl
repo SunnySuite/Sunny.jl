@@ -203,9 +203,10 @@ function contractor_from_mode(source, mode::Symbol)
         contractor = FullTensor(source.observables; unilateral_to_bilateral = true)
         string_formula = "S′{α,β}\n\n with S′ = S + S†"
     elseif mode == :all_available
-        corrs = keys(source.observables.correlations)
+        corrs = source.observables.correlations
+        corr_names = Dict(value => key for (key, value) in corrs)
         contractor = AllAvailable{length(corrs)}()
-        string_formula = "[" * join(map(x -> "S{$(x.I[1]),$(x.I[2])}",corrs),", ") * "]"
+        string_formula = "[" * join(map(i -> "S{$(corr_names[i].I[1]),$(corr_names[i].I[2])}",1:length(corrs)),", ") * "]"
     else
         error("Unknown mode: $mode. Try one of :trace, :perp, :full, :all_available")
     end
