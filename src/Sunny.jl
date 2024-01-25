@@ -26,6 +26,17 @@ const Mat5 = SMatrix{5, 5, Float64, 25}
 const CVec{N} = SVector{N, ComplexF64}
 const HermitianC64 = Hermitian{ComplexF64, Matrix{ComplexF64}}
 
+# Calculates norm(a - b)^2 without allocating
+diffnorm2(a::Number, b::Number) = abs2(a - b)
+function diffnorm2(a, b)
+    @assert size(a) == size(b) "Non-matching dimensions"
+    acc = 0.0
+    for i in eachindex(a)
+        acc += abs2(a[i] - b[i])
+    end
+    return acc
+end
+
 @static if VERSION < v"1.10"
     hermitianpart(A) = Hermitian(A+A')/2
 
@@ -91,7 +102,6 @@ include("FormFactor.jl")
 export FormFactor
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
-include("SpinWaveTheory/Util.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
 include("SpinWaveTheory/HamiltonianSUN.jl")
 include("SpinWaveTheory/DispersionAndIntensities.jl")

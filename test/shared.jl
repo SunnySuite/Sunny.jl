@@ -69,9 +69,3 @@ function add_quartic_interactions!(sys, mode)
         set_pair_coupling!(sys, 0.1*(Qi'*biquad*Qj), Bond(1, 1, [0, 0, 1]))
     end
 end
-
-# Levi-Civita symbol
-ϵ = [(i-j)*(j-k)*(k-i)/2 for i=1:3, j=1:3, k=1:3]
-
-# Kronecker delta
-δ(i,j) = (i==j) ? 1 : 0

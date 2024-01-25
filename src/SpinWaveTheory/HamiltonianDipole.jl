@@ -98,7 +98,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     end
 
     # H must be hermitian up to round-off errors
-    @assert hermiticity_norm(H) < 1e-12
+    @assert diffnorm2(H, H') < 1e-12
     
     # Make H exactly hermitian
     hermitianpart!(H) 

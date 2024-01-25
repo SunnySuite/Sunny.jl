@@ -1,6 +1,9 @@
 @testitem "Spin operators" begin
-    include("shared.jl")
-    
+    using LinearAlgebra
+
+    # Levi-Civita symbol
+    ϵ = [(i-j)*(j-k)*(k-i)/2 for i=1:3, j=1:3, k=1:3]
+
     ### Verify 𝔰𝔲(2) irreps
     for N = 2:5
         S₀ = (N-1)/2
@@ -11,7 +14,7 @@
             @test S[i]*S[j] - S[j]*S[i] ≈ im * sum(ϵ[i,j,k]*S[k] for k=1:3)
 
             # Test orthonormality
-            @test tr(S[i]*S[j]) ≈ (2/3)*S₀*(S₀+1/2)*(S₀+1)*δ(i,j)
+            @test tr(S[i]*S[j]) ≈ (2/3)*S₀*(S₀+1/2)*(S₀+1) * (i==j)
         end
 
         # Test magnitude

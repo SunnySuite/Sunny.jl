@@ -1,3 +1,5 @@
+@inline δ(x, y) = (x==y)
+
 # Construct portion of Hamiltonian due to onsite terms (single-site anisotropy
 # or external field).
 function swt_onsite_coupling!(H, op, swt, atom)
@@ -32,6 +34,7 @@ function swt_pair_coupling!(H, Ai, Bj, swt, phase, bond)
 
     H11 = reshape(view(H, 1:L, 1:L), newdims)
     H12 = reshape(view(H, 1:L, L+1:2L), newdims)
+    H21 = reshape(view(H, L+1:2L, 1:L), newdims)
     H22 = reshape(view(H, L+1:2L, L+1:2L), newdims)
 
     for m in 1:N-1
@@ -55,6 +58,8 @@ function swt_pair_coupling!(H, Ai, Bj, swt, phase, bond)
             c = 0.5 * Ai[m,N] * Bj[n,N]
             H12[m, i, n, j] += c * phase
             H12[n, j, m, i] += c * conj(phase)
+            H21[n, j, m, i] += conj(c) * conj(phase)
+            H21[m, i, n, j] += conj(c) * phase
         end
     end
 end
@@ -97,11 +102,8 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         end
     end
 
-    # Infer H21 by H=H'.
-    set_H21!(H)
-
-    # Ensure that H is hermitian up to round-off errors.
-    @assert hermiticity_norm(H) < 1e-12
+    # H must be hermitian up to round-off errors
+    @assert diffnorm2(H, H') < 1e-12
 
     # Make H exactly hermitian
     hermitianpart!(H)
