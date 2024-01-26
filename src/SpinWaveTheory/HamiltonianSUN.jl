@@ -68,21 +68,12 @@ end
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
-    (; zeeman_operators) = data
 
     L = nbands(swt)    # Number of quasiparticle bands
     @assert size(H) == (2L, 2L)
 
     # Clear the Hamiltonian
     H .= 0
-
-    # Add single-site terms (single-site anisotropy and external field)
-    # Couple percent speedup if this is removed and accumulated into onsite term
-    # (not pursuing for now to maintain parallelism with dipole mode). 
-    for atom in 1:natoms(sys.crystal)
-        zeeman = view(zeeman_operators, :, :, atom)
-        swt_onsite_coupling!(H, zeeman, swt, atom)
-    end
 
     # Add pair interactions that use explicit bases
     for (atom, int) in enumerate(sys.interactions_union)
@@ -201,17 +192,8 @@ function multiply_by_hamiltonian_SUN(x::Array{ComplexF64, 2}, swt::SpinWaveTheor
 end
 
 function multiply_by_hamiltonian_SUN_aux!(y, x, phasebuf, qphase, swt)
-    (; sys, data) = swt
-    (; zeeman_operators) = data
+    (; sys) = swt
     y .= 0
-
-    # Add single-site terms (single-site anisotropy and external field)
-    # Couple percent speedup if this is removed and accumulated into onsite term
-    # (not pursuing for now to maintain parallelism with dipole mode). 
-    for atom in 1:natoms(sys.crystal)
-        zeeman = view(zeeman_operators, :, :, atom)
-        multiply_by_onsite_coupling_SUN!(y, x, zeeman, swt, atom)
-    end
 
     # Add pair interactions that use explicit bases
     for (atom, int) in enumerate(sys.interactions_union)
