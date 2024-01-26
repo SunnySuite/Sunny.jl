@@ -76,8 +76,8 @@ end
 # decomposition) field.
 function as_general_pair_coupling(pc, sys)
     (; isculled, bond, scalar, bilin, biquad, general) = pc
-    N1 = sys.Ns[1, 1, 1, bond.i]
-    N2 = sys.Ns[1, 1, 1, bond.j]
+    N1 = sys.Ns[bond.i]
+    N2 = sys.Ns[bond.j]
 
     accum = zeros(ComplexF64, N1*N2, N1*N2)
 
@@ -107,9 +107,8 @@ end
 
 function rotate_general_coupling_into_local_frame(pc, U1, U2)
     (; isculled, bond, scalar, bilin, biquad, general) = pc
-    data_new = Tuple{HermitianC64, HermitianC64}[]
-    for (A, B) in general.data
-        push!(data_new, (Hermitian(U1'*A*U1), Hermitian(U2'*B*U2)))
+    data_new = map(general.data) do (A, B)
+        (Hermitian(U1'*A*U1), Hermitian(U2'*B*U2))
     end
     td = TensorDecomposition(general.gen1, general.gen2, data_new)
     return PairCoupling(isculled, bond, scalar, bilin, biquad, td)
@@ -121,42 +120,35 @@ function swt_data_sun(sys::System{N}, obs) where N
     # Calculate transformation matrices into local reference frames
     n_magnetic_atoms = natoms(sys.crystal)
 
-    local_unitaries = Array{ComplexF64}(undef, N, N, n_magnetic_atoms)
-    for atom in 1:n_magnetic_atoms
-        basis = view(local_unitaries, :, :, atom)
-        # First axis of local quantization basis is along the 
-        # ground-state polarization axis
-        basis[:, N] .= sys.coherents[1, 1, 1, atom]
-        
-        # Remaining axes are arbitrary but mutually orthogonal
-        # and orthogonal to the first axis
-        basis[:, 1:N-1] .= nullspace(basis[:, N]')
-    end
-
-    # Preallocate buffers for rotate operators and observables.
+    # Preallocate buffers for local unitaries and observables.
+    local_unitaries = zeros(ComplexF64, N, N, n_magnetic_atoms)
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
-    # Rotate observables into local reference frames and store (for intensities calculations).
     for atom in 1:n_magnetic_atoms
-        U = view(local_unitaries, :, :,atom)
-        for k = 1:num_observables(obs)
-            observables_localized[:, :, k, atom] = Hermitian(U' * convert(Matrix,obs.observables[k]) * U)
-        end
+        # Create unitary that rotates [0, ..., 0, 1] into ground state direction
+        # Z that defines quantization axis
+        Z = sys.coherents[atom]
+        view(local_unitaries, :, N, atom)     .= Z
+        view(local_unitaries, :, 1:N-1, atom) .= nullspace(Z')
     end
 
-    # Transform interactions inside the system into local reference frames,
-    # and transform pair interactions into tensor decompositions.
-    for idx in CartesianIndices(sys.interactions_union) # TODO: eachindex
-        atom = idx.I[end]   # Get index for unit cell, regardless of type of interactions_union
-        int = sys.interactions_union[idx]
+    for atom in 1:n_magnetic_atoms
+        U = view(local_unitaries, :, :, atom)
+
+        # Rotate observables into local reference frames
+        for k = 1:num_observables(obs)
+            observables_localized[:, :, k, atom] = Hermitian(U' * convert(Matrix, obs.observables[k]) * U)
+        end        
+
+        # Rotate interactions into local reference frames
+        int = sys.interactions_union[atom]
 
         # Accumulate Zeeman terms into OnsiteCoupling
         S = spin_matrices_of_dim(; N)
-        B = sys.units.μB * (sys.gs[idx]' * sys.extfield[idx])
+        B = sys.units.μB * (sys.gs[atom]' * sys.extfield[atom])
         int.onsite -= B' * S
 
         # Rotate onsite anisotropy
-        U = local_unitaries[:, :, atom]
         int.onsite = Hermitian(U' * int.onsite * U) 
 
         # Transform pair couplings into tensor decomposition and rotate.
@@ -167,8 +159,9 @@ function swt_data_sun(sys::System{N}, obs) where N
 
             # Rotate tensor decomposition into local frame.
             bond = pc.bond
-            Ui, Uj = view(local_unitaries, :, :, bond.i), view(local_unitaries, :, :, bond.j)
-            pc_rotated = rotate_general_coupling_into_local_frame(pc_general, Ui, Uj)
+            @assert bond.i == atom
+            U′ = view(local_unitaries, :, :, bond.j)
+            pc_rotated = rotate_general_coupling_into_local_frame(pc_general, U, U′)
 
             push!(pair_new, pc_rotated)
         end
@@ -221,7 +214,6 @@ function swt_data_dipole!(sys::System{0})
     for ints in sys.interactions_union
         for c in eachindex(ints.pair)
             (; isculled, bond, scalar, bilin, biquad, general) = ints.pair[c]
-            isculled && break
             i, j = bond.i, bond.j
 
             if !iszero(bilin)  # Leave zero if already zero
@@ -232,7 +224,7 @@ function swt_data_dipole!(sys::System{0})
             if !iszero(biquad)
                 J = biquad
                 J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
-                biquad = S^3 * Mat5(Vs[i]' * J * Vs[j]) 
+                biquad = S^3 * (Vs[i]' * J * Vs[j])
             end
 
             @assert isempty(general.data)
