@@ -5,7 +5,6 @@ end
 
 struct SWTDataSUN
     local_unitaries       :: Array{ComplexF64, 3}  # Aligns to quantization axis on each site
-    zeeman_operators      :: Array{ComplexF64, 3}  # Consider constructing on the fly, as for dipole mode
     observable_operators  :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
 end
 
@@ -135,7 +134,6 @@ function swt_data_sun(sys::System{N}, obs) where N
     end
 
     # Preallocate buffers for rotate operators and observables.
-    zeeman_operators_localized = zeros(ComplexF64, N, N, n_magnetic_atoms)
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
     # Rotate observables into local reference frames and store (for intensities calculations).
@@ -146,26 +144,18 @@ function swt_data_sun(sys::System{N}, obs) where N
         end
     end
 
-    # Calculate external magnetic field operator on each site using the local
-    # frames and accumulate into onsite_operator_localized.
-    (; extfield, gs, units) = sys
-    for atom in 1:n_magnetic_atoms
-        N1 = sys.Ns[1, 1, 1, atom]
-        B = units.μB * (gs[1, 1, 1, atom]' * extfield[1, 1, 1, atom])
-        U = view(local_unitaries, :, :, atom) 
-        Sx, Sy, Sz = map(Sa -> U' * Sa * U, spin_matrices_of_dim(; N=N1))
-        @. zeeman_operators_localized[:, :, atom] -= B[1]*Sx + B[2]*Sy + B[3]*Sz
-    end
-
     # Transform interactions inside the system into local reference frames,
     # and transform pair interactions into tensor decompositions.
-    for idx in CartesianIndices(sys.interactions_union)
+    for idx in CartesianIndices(sys.interactions_union) # TODO: eachindex
         atom = idx.I[end]   # Get index for unit cell, regardless of type of interactions_union
         int = sys.interactions_union[idx]
 
-        # Rotate onsite anisotropy. (NB: could add Zeeman term into onsite, but
-        # that might be confusing for maintenance/debugging and the performance
-        # gains are minimal.)
+        # Accumulate Zeeman terms into OnsiteCoupling
+        S = spin_matrices_of_dim(; N)
+        B = sys.units.μB * (sys.gs[idx]' * sys.extfield[idx])
+        int.onsite -= B' * S
+
+        # Rotate onsite anisotropy
         U = local_unitaries[:, :, atom]
         int.onsite = Hermitian(U' * int.onsite * U) 
 
@@ -187,7 +177,6 @@ function swt_data_sun(sys::System{N}, obs) where N
 
     return SWTDataSUN(
         local_unitaries,
-        zeeman_operators_localized,
         observables_localized
     )
 end
