@@ -56,7 +56,11 @@ mutable struct Langevin
     kT  :: Float64
 
     function Langevin(Δt; λ, kT)
-        Δt <= 0 && error("Select positive Δt")
+        Δt <= 0   && error("Select positive Δt")
+        kT < 0    && error("Select nonnegative kT")
+        λ < 0     && error("Select positive damping λ")
+        iszero(λ) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
+        λ < 0.1   && @info "Langevin currently uses Heun integration, which loses statistical accuracy at small λ"
         return new(Δt, λ, kT)
     end
 end
