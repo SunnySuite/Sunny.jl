@@ -19,36 +19,7 @@ import CrystalInfoFramework as CIF
 import Spglib
 import RowEchelon: rref!
 
-const Vec3 = SVector{3, Float64}
-const Vec5 = SVector{5, Float64}
-const Mat3 = SMatrix{3, 3, Float64, 9}
-const Mat5 = SMatrix{5, 5, Float64, 25}
-const CVec{N} = SVector{N, ComplexF64}
-const HermitianC64 = Hermitian{ComplexF64, Matrix{ComplexF64}}
-
-# Calculates norm(a - b)^2 without allocating
-diffnorm2(a::Number, b::Number) = abs2(a - b)
-function diffnorm2(a, b)
-    @assert size(a) == size(b) "Non-matching dimensions"
-    acc = 0.0
-    for i in eachindex(a)
-        acc += abs2(a[i] - b[i])
-    end
-    return acc
-end
-
-@static if VERSION < v"1.10"
-    hermitianpart(A) = Hermitian(A+A')/2
-
-    function hermitianpart!(A, uplo::Symbol=:U)
-        for i in CartesianIndices(A)
-            i, j = i.I
-            A[i,j] = (A[i,j] + conj(A[j,i]))/2
-            A[j,i] = conj(A[i,j])
-        end
-        return Hermitian(A, uplo)
-    end
-end
+include("MathBasics.jl")
 
 include("Operators/Spin.jl")
 include("Operators/Rotation.jl")
