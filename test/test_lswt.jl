@@ -589,3 +589,99 @@ end
 
     @test is ≈ is_ref
 end
+
+@testitem "LSWT correction to classical energy" begin
+    J = 1
+    S = 1
+    δE_afm1_ref = 0.488056/(2S) * (-2*J*S^2)
+
+    # The results are taken from Phys. Rev. B 102, 220405(R) (2020) for the AFM1
+    # phase on the FCC lattice
+    function correction(mode)
+        a = 1
+        latvecs = lattice_vectors(a, a, a, 90, 90, 90)
+        positions = [[0, 0, 0]]
+        fcc = Crystal(latvecs, positions, 225)
+        sys_afm1 = System(fcc, (1, 1, 1), [SpinInfo(1, S=S, g=1)], mode, units=Units.theory)
+        set_exchange!(sys_afm1, J, Bond(1, 2, [0, 0, 0]))
+        set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 0, 0)))
+        set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 1/2, 0)))
+        set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 0, 1/2)))
+        set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 1/2, 1/2)))
+        swt_afm1 = SpinWaveTheory(sys_afm1)
+        # Calculate at low accuracy for faster testing
+        δE_afm1 = Sunny.energy_per_site_lswt_correction(swt_afm1; atol=5e-4)
+        return isapprox(δE_afm1_ref, δE_afm1; atol=1e-3)
+    end
+
+    for mode in (:dipole, :SUN)
+        @test correction(mode)
+    end
+end
+
+@testitem "LSWT correction to the ordered moments (S maximized)" begin
+    # Test example 1: The magnetization is maximized to `S`. Reference result
+    # comes from Phys. Rev. B 79, 144416 (2009) Eq. (45) for the 120° order on
+    # the triangular lattice.
+    J = 1
+    S = 1/2
+    a = 1
+    δS_ref = -0.261302
+
+    function δS_triangular(mode)
+        latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)
+        cryst = Crystal(latvecs, [[0, 0, 0]])
+        sys = System(cryst, (3, 3, 1), [SpinInfo(1, S=S, g=2)], mode)
+        set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
+        set_spiral_order!(sys; q=[2/3, -1/3, 0], axis=[0, 0, 1], S0=[0, 1, 0])
+        swt = SpinWaveTheory(sys)
+        # Calculate first 3 digits for faster testing
+        δS = Sunny.magnetization_lswt_correction(swt; atol=1e-3)[1]
+
+        return isapprox(δS_ref, δS, atol=1e-3)
+    end
+
+    for mode in (:dipole, :SUN)
+        @test δS_triangular(mode)
+    end
+end
+
+@testitem "LSWT correction to the ordered moments (S not maximized)" begin
+    using LinearAlgebra
+    # Test example 2: The magnetization is smaller than `S` due to easy-plane
+    # single-ion anisotropy The results are derived in the Supplemental
+    # Information (Note 12) of Nature Comm. 12.1 (2021): 5331.
+    a = b = 8.3193
+    c = 5.3348
+    lat_vecs = lattice_vectors(a, b, c, 90, 90, 90)
+    types = ["Fe"]
+    positions = [[0, 0, 0]]
+    cryst = Crystal(lat_vecs, positions, 113; types)
+
+    S = 1
+    J₁  = 0.266
+    J₁′ = 0.1J₁
+    Δ = Δ′ = 1/3
+    D = 1.42
+    gab, gcc = 2.18, 1.93
+    g = diagm([gab, gab, gcc])
+    x = 1/2 - D/(8*(2J₁+J₁′))
+
+    sys = System(cryst, (1, 1, 2), [SpinInfo(1; S, g)], :SUN, seed=0)
+    set_exchange!(sys, diagm([J₁, J₁, J₁*Δ]),  Bond(1, 2, [0, 0, 0]))
+    set_exchange!(sys, diagm([J₁′, J₁′, J₁′*Δ′]), Bond(1, 1, [0, 0, 1]))
+    set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
+
+    randomize_spins!(sys)
+    minimize_energy!(sys; maxiters=1000)
+    sys_swt = reshape_supercell(sys, diagm([1,1,2]))
+    minimize_energy!(sys_swt)
+    swt = SpinWaveTheory(sys_swt)
+
+    δS = Sunny.magnetization_lswt_correction(swt; atol=1e-2)[1]
+
+    M_cl  = 2*√((1-x)*x)
+    # Paper reported M_ref = 2.79, but actual result is closer to 2.78
+    M_ref = 2.78
+    @test isapprox(M_ref, (M_cl+δS)*√3*gab, atol=1e-2)
+end
