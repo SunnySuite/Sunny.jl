@@ -210,9 +210,7 @@ end
             Ps_analytical = discretize_P(boundaries, kT) 
 
             # RMS error between empirical distribution and discretized analytical distribution
-            rms = sqrt(sum( (Ps .- Ps_analytical) .^ 2))
-
-            @test rms < 0.05
+            @test isapprox(Ps, Ps_analytical, atol=0.05)
         end
     end
 
