@@ -636,7 +636,8 @@ end
         set_spiral_order!(sys; q=[2/3, -1/3, 0], axis=[0, 0, 1], S0=[0, 1, 0])
         swt = SpinWaveTheory(sys)
         # Calculate first 3 digits for faster testing
-        δS = Sunny.magnetization_lswt_correction(swt, 1; atol=1e-3)
+        δS = Sunny.magnetization_lswt_correction(swt; atol=1e-3)[1]
+
         return isapprox(δS_ref, δS, atol=1e-3)
     end
 
@@ -677,10 +678,10 @@ end
     minimize_energy!(sys_swt)
     swt = SpinWaveTheory(sys_swt)
 
-    res = Sunny.magnetization_lswt_correction(swt, 1; atol=1e-2)
+    δS = Sunny.magnetization_lswt_correction(swt; atol=1e-2)[1]
 
     M_cl  = 2*√((1-x)*x)
     # Paper reported M_ref = 2.79, but actual result is closer to 2.78
     M_ref = 2.78
-    @test isapprox(M_ref, (M_cl+res)*√3*gab, atol=1e-2)
+    @test isapprox(M_ref, (M_cl+δS)*√3*gab, atol=1e-2)
 end
