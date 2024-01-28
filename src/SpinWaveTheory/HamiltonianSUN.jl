@@ -1,12 +1,10 @@
-@inline δ(x, y) = (x==y)
-
 # Construct portion of Hamiltonian due to onsite terms (single-site anisotropy
 # or external field).
 function swt_onsite_coupling!(H, op, swt, atom)
     sys = swt.sys
-    N = sys.Ns[1] 
-    nflavors = N - 1 
-    L = nflavors * natoms(sys.crystal)   
+    N = sys.Ns[1]
+    nflavors = N - 1
+    L = nflavors * natoms(sys.crystal)
     newdims = (nflavors, natoms(sys.crystal), nflavors, natoms(sys.crystal))
 
     H11 = reshape(view(H, 1:L, 1:L), newdims)
