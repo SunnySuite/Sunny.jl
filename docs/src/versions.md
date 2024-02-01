@@ -8,6 +8,7 @@
 * Significantly speed up [`dynamical_correlations`](@ref) for crystals with many
   atoms in the unit cell [Issue
   #204](https://github.com/SunnySuite/Sunny.jl/issues/204).
+* Bug fixes for spin wave calculations and symmetry analysis.
 
 ## v0.5.8
 (Jan 4, 2024)

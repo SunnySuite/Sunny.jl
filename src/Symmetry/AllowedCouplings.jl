@@ -140,8 +140,13 @@ function is_coupling_valid(cryst::Crystal, b::BondPos, J)
     for (symop, parity) in symmetries_between_bonds(cryst, b, b)
         R = cryst.latvecs * symop.R * inv(cryst.latvecs)
         J′ = transform_coupling_by_symmetry(J, R*det(R), parity)
-        # TODO use symprec to handle case where symmetry is inexact
-        if !isapprox(J, J′; atol = 1e-12)
+        # For non-conventional unit cells, the rotation matrices R produced by
+        # spglib might only be accurate to about 11 digits. If an ambiguous
+        # situation is detected, throw an informative error.
+        if !isapprox(J, J′; rtol=1e-10)
+            if isapprox(J, J′; rtol=1e-8)
+                error("Detected a very close but inexact symmetry. This may indicate an internal error.")
+            end
             return false
         end
     end
