@@ -35,43 +35,43 @@ function Base.show(io::IO, ::MIME"text/plain", obs::ObservableInfo)
     printstyled(io,"")
 end
 
-function multiply_by_g_factor!(sys,obs)
-    g = sys.gs
-
+function magnetization_observables(g,N)
+    dipoles(single_g,N) = if N == 0
+        dipole_component(i) = FunctionMap{Float64}(s -> (single_g*s)[i],1,3)
+        dipole_component.([1,2,3])
+    else
+        LinearMap{ComplexF64}.(single_g * spin_matrices_of_dim(; N))
+    end
     # Easy/common case
     if allequal(g)
-        for k = 1:num_observables(obs)
-            obs.observables[k] = obs.observables[k] * g[1]
+        dipoles(g[1],N)
+    else
+        gS = [Array{LinearMap,4}(undef,size(g)) for i = 1:3]
+        for site = eachindex(g)
+            gS_this_site = dipoles(g[site],N)
+            for i = 1:3
+                gS[i][site] = gS_this_site[i]
+            end
         end
-        return
-    end
-
-    for k = 1:num_observables(obs)
-        gA = Array{LinearMap,4}(undef,size(g))
-        for site = eachsite(sys)
-            A0 = observable_at_site(obs.observables[k],site)
-            gA[site] = A0 * g[site]
-        end
-        obs.observables[k] = gA
+        gS
     end
 end
 
+spin_observables(N) = magnetization_observables([I(3)],N)
+
 # TODO: Add/unify docs about allowed list of observables. See comment here:
 # https://github.com/SunnySuite/Sunny.jl/pull/167#issuecomment-1724751213
-function parse_observables(N; observables, correlations)
+function parse_observables(N; observables, correlations, g)
     # Set up correlation functions (which matrix elements αβ to save from 𝒮^{αβ})
     if isnothing(observables)
         # Default observables are spin x,y,z
         # projections (SU(N) mode) or components (dipole mode)
         observable_ixs = Dict(:Sx => 1,:Sy => 2,:Sz => 3)
-        if N == 0
-            dipole_component(i) = FunctionMap{Float64}(s -> s[i],1,3)
-            observables = dipole_component.([1,2,3])
+
+        observables = if isnothing(g)
+            spin_observables(N)
         else
-            # SQTODO: Make this use the more optimized expected_spin function
-            # Doing this will also, by necessity, allow users to make the same
-            # type of optimization for their vector-valued observables.
-            observables = LinearMap{ComplexF64}.(spin_matrices_of_dim(; N))
+            magnetization_observables(g,N)
         end
     else
         # If it was given as a list, preserve the user's preferred
@@ -82,7 +82,7 @@ function parse_observables(N; observables, correlations)
             if !isempty(observables) && observables[1] isa Pair
                 observables = OrderedDict(observables)
             else
-                dict = OrderedDict{Symbol,LinearMap}()
+                dict = OrderedDict{Symbol,ObservableOperator}()
                 for i = eachindex(observables)
                     dict[Symbol('A' + i - 1)] = observables[i]
                 end
@@ -93,7 +93,7 @@ function parse_observables(N; observables, correlations)
         # If observables were provided as (:name => matrix) pairs,
         # reformat them to (:name => idx) and matrices[idx]
         observable_ixs = Dict{Symbol,Int64}()
-        matrices = Vector{LinearMap}(undef,length(observables))
+        matrices = Vector{ObservableOperator}(undef,length(observables))
         for (i,name) in enumerate(keys(observables))
             next_available_ix = length(observable_ixs) + 1
             if haskey(observable_ixs,name)
@@ -104,6 +104,8 @@ function parse_observables(N; observables, correlations)
             # Convert dense matrices to LinearMap
             if observables[name] isa Matrix
                 matrices[i] = LinearMap(observables[name])
+            elseif observables[name] isa Array{Matrix,4}
+                matrices[i] = LinearMap.(observables[name])
             else
                 matrices[i] = observables[name]
             end

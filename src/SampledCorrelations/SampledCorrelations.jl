@@ -127,10 +127,8 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
                                 apply_g=true, observables=nothing, correlations=nothing,
                                 calculate_errors=false, process_trajectory=:none) where N
 
-    observables = parse_observables(N; observables, correlations)
-    if apply_g
-        multiply_by_g_factor!(sys,observables)
-    end
+    observables = parse_observables(N; observables, correlations, g = apply_g ? sys.gs : nothing)
+
     # Determine trajectory measurement parameters
     nω = Int64(nω)
     if nω != 1
