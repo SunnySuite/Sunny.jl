@@ -1,7 +1,15 @@
 
+# An observable is either an operator, or a field of operators.
+# If it's a field of operators, then it's defined with reference
+# to some System that users of this type are responsible for keeping track of.
+ObservableOperator = Union{LinearMap, Array{LinearMap,4}}
+
+observable_at_site(op::LinearMap,site) = op
+observable_at_site(op::Array{LinearMap,4},site) = op[site]
+
 struct ObservableInfo
     # Correlation info (αβ indices of S^{αβ}(q,ω))
-    observables    :: Vector{LinearMap}  # Operators corresponding to observables
+    observables    :: Vector{ObservableOperator}  # Operators corresponding to observables
     observable_ixs :: Dict{Symbol,Int64} # User-defined observable names
     correlations   :: SortedDict{CartesianIndex{2}, Int64}  # (α, β) to save from S^{αβ}(q, ω)
 end
@@ -25,6 +33,27 @@ function Base.show(io::IO, ::MIME"text/plain", obs::ObservableInfo)
         println(io)
     end
     printstyled(io,"")
+end
+
+function multiply_by_g_factor!(sys,obs)
+    g = sys.gs
+
+    # Easy/common case
+    if allequal(g)
+        for k = 1:num_observables(obs)
+            obs.observables[k] = obs.observables[k] * g[1]
+        end
+        return
+    end
+
+    for k = 1:num_observables(obs)
+        gA = Array{LinearMap,4}(undef,size(g))
+        for site = eachsite(sys)
+            A0 = observable_at_site(obs.observables[k],site)
+            gA[site] = A0 * g[site]
+        end
+        obs.observables[k] = gA
+    end
 end
 
 # TODO: Add/unify docs about allowed list of observables. See comment here:

@@ -1,22 +1,19 @@
-function observable_values!(buf, sys::System{N}, ops; apply_g = true) where N
+function observable_values!(buf, sys::System{N}, ops) where N
     if N == 0
-        for site in eachsite(sys), (i, op) in enumerate(ops)
-            dipole = sys.dipoles[site]
-            if apply_g
-              dipole = sys.gs[site] * dipole
+        for (i, op) in enumerate(ops)
+            for site in eachsite(sys)
+                A = observable_at_site(op,site)
+                dipole = sys.dipoles[site]
+                buf[i,site] = A * dipole
             end
-            buf[i,site] = op * dipole
         end
     else
         Zs = sys.coherents
-        #num_ops =  size(ops′, 3)
-        #ops = reinterpret(SMatrix{N, N, ComplexF64, N*N}, reshape(ops′, N*N, num_ops))
-
-        # SQTODO: This allocates :(
         for (i, op) in enumerate(ops)
-          matrix_operator = convert(Matrix{ComplexF64},op)
             for site in eachsite(sys)
-                buf[i,site] = dot(Zs[site], matrix_operator, Zs[site])
+                A = observable_at_site(op,site)
+                #matrix_operator = convert(Matrix{ComplexF64},A)
+                buf[i,site] = dot(Zs[site], A, Zs[site])
             end
         end
     end
@@ -33,27 +30,27 @@ function trajectory(sys::System{N}, Δt, nsnaps, ops; kwargs...) where N
     return traj_buf
 end
 
-function trajectory!(buf, sys, Δt, nsnaps, ops; measperiod = 1, apply_g = true)
+function trajectory!(buf, sys, Δt, nsnaps, ops; measperiod = 1)
     @assert length(ops) == size(buf, 1)
     integrator = ImplicitMidpoint(Δt)
 
-    observable_values!(@view(buf[:,:,:,:,:,1]), sys, ops; apply_g)
+    observable_values!(@view(buf[:,:,:,:,:,1]), sys, ops)
     for n in 2:nsnaps
         for _ in 1:measperiod
             step!(sys, integrator)
         end
-        observable_values!(@view(buf[:,:,:,:,:,n]), sys, ops; apply_g)
+        observable_values!(@view(buf[:,:,:,:,:,n]), sys, ops)
     end
 
     return nothing
 end
 
 function new_sample!(sc::SampledCorrelations, sys::System)
-    (; Δt, samplebuf, measperiod, apply_g, observables, processtraj!) = sc
+    (; Δt, samplebuf, measperiod, observables, processtraj!) = sc
     nsnaps = size(samplebuf, 6)
     @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `SampledCorrelations`"
 
-    trajectory!(samplebuf, sys, Δt, nsnaps, observables.observables; measperiod, apply_g)
+    trajectory!(samplebuf, sys, Δt, nsnaps, observables.observables; measperiod)
     processtraj!(sc)
 
     return nothing

@@ -25,7 +25,7 @@ struct SpinWaveTheory
     observables  :: ObservableInfo
 end
 
-function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing) where N
+function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing, apply_g = true) where N
     if !isnothing(sys.ewald)
         error("SpinWaveTheory does not yet support long-range dipole-dipole interactions.")
     end
@@ -45,6 +45,10 @@ function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=not
         end
         obs = parse_observables(N; observables, correlations=nothing)
         data = swt_data_dipole!(sys)
+    end
+
+    if apply_g
+        multiply_by_g_factor!(sys,obs)
     end
 
     return SpinWaveTheory(sys, data, energy_ϵ, obs)
@@ -137,7 +141,8 @@ function swt_data_sun(sys::System{N}, obs) where N
 
         # Rotate observables into local reference frames
         for k = 1:num_observables(obs)
-            observables_localized[:, :, k, atom] = Hermitian(U' * convert(Matrix, obs.observables[k]) * U)
+            A = observable_at_site(obs.observables[k],CartesianIndex(1,1,1,atom))
+            observables_localized[:, :, k, atom] = Hermitian(U' * convert(Matrix, A) * U)
         end        
 
         # Rotate interactions into local reference frames
