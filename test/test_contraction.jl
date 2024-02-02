@@ -1,6 +1,6 @@
 @testitem "Dipole Factor Ordering" begin
     using LinearAlgebra
-    obs = Sunny.parse_observables(3; observables=nothing, correlations=nothing)
+    obs = Sunny.parse_observables(3; observables=nothing, correlations=nothing, g = nothing)
     dipoleinfo = Sunny.DipoleFactor(obs)
     fake_intensities = [1. 3 5; 0 7 11; 0 0 13]
     # This is the order expected by contract(...)

@@ -83,8 +83,17 @@ function parse_observables(N; observables, correlations, g)
                 observables = OrderedDict(observables)
             else
                 dict = OrderedDict{Symbol,ObservableOperator}()
+
                 for i = eachindex(observables)
-                    dict[Symbol('A' + i - 1)] = observables[i]
+                    # Convert dense matrices to LinearMap
+                    lm = if observables[i] isa AbstractMatrix
+                        LinearMap(observables[i])
+                    elseif observables[i] isa Array{AbstractMatrix,4}
+                        LinearMap.(observables[i])
+                    else
+                        observables[i]
+                    end
+                    dict[Symbol('A' + i - 1)] = lm
                 end
                 observables = dict
             end
@@ -102,9 +111,9 @@ function parse_observables(N; observables, correlations, g)
             observable_ixs[name] = next_available_ix
 
             # Convert dense matrices to LinearMap
-            if observables[name] isa Matrix
+            if observables[name] isa AbstractMatrix
                 matrices[i] = LinearMap(observables[name])
-            elseif observables[name] isa Array{Matrix,4}
+            elseif observables[name] isa Array{AbstractMatrix,4}
                 matrices[i] = LinearMap.(observables[name])
             else
                 matrices[i] = observables[name]
