@@ -125,8 +125,8 @@ Documenter.makedocs(;
         "versions.md",
     ],
     format = Documenter.HTML(;
-        # Using `get(ENV, "CI", nothing) == "true"` instead would break the
-        # relative URL paths `./assets/*` for embedded HTML. See:
+        # Using `prettyurls = get(ENV, "CI", nothing) == "true"` instead would
+        # break the relative URL paths `./assets/*` for embedded HTML. See:
         # https://github.com/JuliaDocs/Documenter.jl/issues/423#issuecomment-1733869224.
         prettyurls = false,
         size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
