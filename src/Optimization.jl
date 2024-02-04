@@ -76,7 +76,7 @@ end
 
 
 """
-    minimize_energy!(sys::System{N}; maxiters=100, subiters=20,
+    minimize_energy!(sys::System{N}; maxiters=100, subiters=10,
                      method=Optim.ConjugateGradient(), kwargs...) where N
 
 Optimizes the spin configuration in `sys` to minimize energy. A total of
