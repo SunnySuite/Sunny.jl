@@ -12,7 +12,6 @@ function observable_values!(buf, sys::System{N}, ops) where N
         for (i, op) in enumerate(ops)
             for site in eachsite(sys)
                 A = observable_at_site(op,site)
-                #matrix_operator = convert(Matrix{ComplexF64},A)
                 buf[i,site] = dot(Zs[site], A, Zs[site])
             end
         end

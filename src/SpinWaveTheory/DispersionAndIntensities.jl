@@ -334,17 +334,28 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                 corrs
             else
                 v = reshape(view(V, :, band), Nm, 2)
+                (; observable_operators) = data
                 @assert sys.mode in (:dipole, :dipole_large_S)
-                Avec = zeros(ComplexF64, 3)
-                R = data.local_rotations
+                Avec = zeros(ComplexF64, num_observables(observables))
                 for i = 1:Nm
-                    Vtmp = [v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
-                    Avec += Avec_pref[i] * sqrt_halfS * (R[i] * Vtmp)
+                    for μ = 1:num_observables(observables)
+                        # This is the Avec of the two transverse and one longitudinal directions
+                        # in the local frame. (In the local frame, z is longitudinal, and we
+                        # are computing the transverse part only, so the last entry is zero)
+                        displacement_local_frame = [v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
+
+                        # This code would rotate into the global frame.
+                        # But the observables have already been put in the local frame, so
+                        # we don't need to do this.
+                        #
+                        # (; local_rotations) = data
+                        # displacement_global_frame = local_rotations[i] * displacement_local_frame
+
+                        @views O_local_frame = observable_operators[:,:,μ,i]
+                        Avec[μ] += Avec_pref[i] * sqrt_halfS * (O_local_frame * displacement_local_frame)[1]
+                    end
                 end
 
-                @assert observables.observable_ixs[:Sx] == 1
-                @assert observables.observable_ixs[:Sy] == 2
-                @assert observables.observable_ixs[:Sz] == 3
                 corrs = Vector{ComplexF64}(undef, num_correlations(observables))
                 for (ci, i) in observables.correlations
                     (α, β) = ci.I

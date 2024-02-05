@@ -183,8 +183,7 @@ end
     reference = [1.1743243223274487, 1.229979802236658, 1.048056653379038]
     @test compute(:SUN) / g_factor^2 ≈ reference
 
-    # FIXME: Dipole-mode spin wave theory ignores the provided observables!
-    @test_broken compute(:dipole) / g_factor^2 ≈ reference
+    @test compute(:dipole) / g_factor^2 ≈ reference
 end
 
 
@@ -370,7 +369,8 @@ end
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
     crystal = Crystal(latvecs, [[0.24964,0,0.5]], 150)
     latsize = (1,1,7)
-    sys = System(crystal, latsize, [SpinInfo(1; S=5/2, g=2)], :dipole; seed=5)
+    g_factor = 2
+    sys = System(crystal, latsize, [SpinInfo(1; S=5/2, g=g_factor)], :dipole; seed=5)
     set_exchange!(sys, 0.85,  Bond(3, 2, [1,1,0]))   # J1
     set_exchange!(sys, 0.24,  Bond(1, 3, [0,0,0]))   # J2
     set_exchange!(sys, 0.053, Bond(2, 3, [-1,-1,1])) # J3
@@ -392,7 +392,8 @@ end
     @test isapprox(disp[:], reverse(SpinW_energies); atol=1e-3)
     
     intensities_reshaped = reinterpret(reshape, ComplexF64, intensities)[:]
-    @test isapprox(SpinW_intensities/Sunny.natoms(crystal), intensities_reshaped; atol=1e-7)    
+    # SpinW doesn't include the g factor! (it computes spin-spin, not magnetization-magnetization correlations)
+    @test isapprox(g_factor^2 * SpinW_intensities/Sunny.natoms(crystal), intensities_reshaped; atol=1e-7)    
 end
 
 
