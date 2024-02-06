@@ -97,7 +97,11 @@ function lattice_to_str(sys::System)
 end
 
 function energy_to_str(sys::System)
-    return "Energy per site "*number_to_math_string(energy_per_site(sys))
+    try
+        "Energy per site "*number_to_math_string(energy_per_site(sys))
+    catch e
+        "Unknown energy per site: $(e.msg)"
+    end
 end
 
 function Base.show(io::IO, sys::System{N}) where N
