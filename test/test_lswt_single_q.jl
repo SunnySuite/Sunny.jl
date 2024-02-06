@@ -13,30 +13,20 @@
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         set_external_field!(sys, [0, 0, h])
 
-        n = [0.,0.,1]
-        Sunny.check_rotational_symmetry(sys; n, θ=0.01)
+        k = Sunny.optimize_luttinger_tisza_exchange(sys)
+        @test k ≈ [0.5, 0.5, 0]
 
-        randomize_spins!(sys)
-        xmin = [-1e-6 -1e-6 -1e-6 -1e-6 -1e-6] # Minimum value of x
-        xmax = [2π 2π 1 1 1]  # Maximum value of x
-        x0 = [.55 2.5 0.5 0.5 0.]  # Initial value of x
-        k = Sunny.optimagstr(x -> Sunny.gm_spherical3d!(sys,n,x), xmin, xmax, x0)
-        # @test k ≈ [0.5, 0.5, 0.5]
-
-        # Alternatively, set manually
-        #=
-        c₂ = 1 - 1/(2S)
-        θ = acos(h / (2S*(4J+D*c₂)))
-        sys.dipoles[1]= [sin(θ), 0, cos(θ)]
-        k = [0.5,0.5,0]
-        =#
+        axis = [0, 0, 1]
+        Sunny.minimize_energy_spiral!(sys, k, axis)
+        c₂ = 1 - 1/2S
+        @test only(sys.dipoles)[3] ≈ h / (8J + 2D*c₂)
 
         swt = SpinWaveTheory(sys)
-        formula = Sunny.intensity_formula_SingleQ(swt, k, n, :perp; kernel=delta_function_kernel)
+        formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=delta_function_kernel)
         disp, _ = Sunny.intensities_bands_SingleQ(swt, [q], formula)
         ϵq_num = disp[1,1]
 
-        #  Analytical
+        # Analytical
         c₂ = 1 - 1/(2S)
         θ = acos(h / (2S*(4J+c₂*D)))
         Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
@@ -54,24 +44,20 @@ end
     a = b = 8.539
     c = 5.2414
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
-    crystal = Crystal(latvecs, [[0.24964,0,0.5]], 150)
-    latsize = (1,1,1)
-    sys = System(crystal, latsize, [SpinInfo(1; S=5/2, g=2)], :dipole; seed=5)
+    crystal = Crystal(latvecs, [[0.24964, 0, 0.5]], 150)
+    sys = System(crystal, (1,1,1), [SpinInfo(1; S=5/2, g=2)], :dipole; seed=5)
     set_exchange!(sys, 0.85,  Bond(3, 2, [1,1,0]))   # J1
     set_exchange!(sys, 0.24,  Bond(1, 3, [0,0,0]))   # J2
     set_exchange!(sys, 0.053, Bond(2, 3, [-1,-1,1])) # J3
     set_exchange!(sys, 0.017, Bond(1, 1, [0,0,1]))   # J4
     set_exchange!(sys, 0.24,  Bond(3, 2, [1,1,1]))   # J5
     
-    n = [0.,0.,1]
-    randomize_spins!(sys)
-    xmin = [-1e-6 -1e-6 -1e-6 -1e-6 -1e-6 -1e-6] # Minimum value of x
-    xmax = [2π 2π 2π 1e-6 1e-6 1]  # Maximum value of x
-    x0 = [3.2 0.4 3.2 0. 0. 0.3]  # Initial value of x
-    k = Sunny.optimagstr(x -> Sunny.gm_planar!(sys, n, x), xmin, xmax, x0)
+    k = Sunny.optimize_luttinger_tisza_exchange(sys)
+    axis = [0, 0, 1]
+    Sunny.minimize_energy_spiral!(sys, k, axis)
 
     swt = SpinWaveTheory(sys)
-    formula = Sunny.intensity_formula_SingleQ(swt,k,n, :perp; kernel=delta_function_kernel)
+    formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=delta_function_kernel)
     q = [0.41568,0.56382,0.76414]
     disp, intensity = Sunny.intensities_bands_SingleQ(swt, [q], formula);
     SpinW_energies = [2.6267,3.8202,3.9422,2.8767,3.9095,4.4605,3.31724,4.0113,4.7564]

@@ -1,51 +1,3 @@
-function cartesian(n) # create two vectors perpendicular to n.
-    z = [0,0,1]
-    y = [0,1,0]
-    c = cross(n,z)
-    if norm(c) < 1e-8
-        vy = cross(n,y)
-    else
-        vy = c
-    end
-    vy = normalize(vy)
-    vz = normalize(cross(n,vy))
-    return([vy,vz])
-end
-
-
-# planar
-
-function gm_planar!(sys::System, n, x)
-    k = x[end-2:end]
-    u,v = cartesian(n);
-    nspin = length(x) - 3
-    phi = x[1:nspin]
-    for i in 1:nspin
-        if length(sys.Ns) != nspin
-            error("Error:The magnetic atoms are not correct")
-        end
-        sys.dipoles[i] = (u * cos(phi[i]) + v * sin(phi[i])) * sys.κs[i];
-    end
-    E = spiral_energy(sys,k,n)
-    return E
-end
-
-function gm_spherical3d!(sys::System, n, x)
-    nspin = Int64((length(x)-3)/2)
-    k = x[end-2:end]
-    MTheta  = x[(1:nspin) .* 2 .- 1]
-    MPhi    = x[(1:nspin) .* 2]
-	R = Sunny.rotation_between_vectors(n, [0, 0, 1])
-    for i in 1:nspin
-        if length(MTheta)!=length(sys.Ns)
-            error("gm_spherical3d:NumberOfMoments','The number of fitting parameters doesn''t produce the right number of moments!")
-        end
-        sys.dipoles[i] = R * [sin(MTheta[i])*cos(MPhi[i]); sin(MTheta[i])*sin(MPhi[i]); cos(MTheta[i])] * sys.κs[i]
-    end
-    E = spiral_energy(sys,k,n)
-    return E
-end
-
 # The idealized exchange energy for a spiral order of momentum k, ignoring local
 # normalization constraints.
 function luttinger_tisza_exchange(sys::System, k; ϵ=0)
@@ -119,15 +71,15 @@ function optimize_luttinger_tisza_exchange(sys::System; L=20)
     P = sortperm(Es)
     # Take 10 k values with lowest energy
     ks = ks[first(P, 10)]
-    println(ks)
     # Locally optimize them
     ks = [optimize_luttinger_tisza_exchange(sys, k) for k in ks]
     # Return the k value with smallest energy
-    return findmin(k -> luttinger_tisza_exchange(sys, k), ks)[1]
+    _, i = findmin(k -> luttinger_tisza_exchange(sys, k), ks)
+    return ks[i]
 end
 
 
-function spiral_energy(sys::System, k, axis)
+function spiral_energy(sys::System, k, axis; exchange_only=false)
     @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
     @assert sys.latsize == (1, 1, 1) "System must have only a single cell"
 
@@ -154,15 +106,89 @@ function spiral_energy(sys::System, k, axis)
             @assert iszero(biquad) "Biquadratic interactions not supported"
         end
 
-        # Onsite coupling
-        E += energy_and_gradient_for_classical_anisotropy(Si, onsite)[1]
+        if !exchange_only
+            # Onsite coupling
+            E += energy_and_gradient_for_classical_anisotropy(Si, onsite)[1]
 
-        # Zeeman coupling
-        E -= sys.extfield[i]' * magnetic_moment(sys, i)
+            # Zeeman coupling
+            E -= sys.extfield[i]' * magnetic_moment(sys, i)
+        end
     end
 
     return E
 end
+
+function minimize_energy_spiral!(sys, k, axis; maxiters=1000, nrestarts=100)
+    @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
+    @assert sys.latsize == (1, 1, 1) "System must have only a single cell"
+    nspin = natoms(sys.crystal)
+
+    # TODO: Commonly k will be aligned with a reciprocal lattice vector. In this
+    # case, θ could be selected as 2π|k|, which may be a weaker constraint.
+    check_rotational_symmetry(sys; axis, θ=0.01)
+    
+    # Rotation that maps spins into "local" frame: R * axis = [0, 0, 1]
+	R = rotation_between_vectors(axis, [0, 0, 1])
+
+    # Polar and azimuthal angle in local frame
+    ϕs = Float64[]
+    θs = Float64[]
+    for s in sys.dipoles
+        s′ = R * s
+        push!(ϕs, atan(s′[2], s′[1]))
+        push!(θs, angle_between_vectors(s′, Vec3(0, 0, 1)))
+    end
+    angles = [ϕs; θs]
+
+    function fill_dipoles_from_angles(angles)
+        # The first nspin angles are azimuthal angles ϕ. If additional angles
+        # exist, then these are polar angles θ. Otherwise, all polar angles are
+        # set to θ = π/2 (no canting).
+        @assert length(angles) in (nspin, 2nspin)
+        for i in 1:nspin
+            ϕ = angles[i]
+            θ = (length(angles) == 2nspin) ? angles[nspin + i] : π/2
+            sinϕ, cosϕ = sincos(ϕ)
+            sinθ, cosθ = sincos(θ)
+            S = Vec3(sinθ*cosϕ, sinθ*sinϕ, cosθ)
+            sys.dipoles[i] = sys.κs[i] * (R' * S)
+        end
+    end
+
+    # Optimization options
+    options = Optim.Options(; iterations=maxiters)
+
+    # First optimize to exchange interactions only. Success will be verified by
+    # convergence to Luttinger-Tisza energy. To overcome trapping in a local
+    # minimum, allow for multiple "restarts", with random initial angles.
+    iters = 0
+    while true
+        res = Optim.optimize(angles, Optim.ConjugateGradient(), options) do angles
+            fill_dipoles_from_angles(angles)
+            spiral_energy(sys, k, axis; exchange_only=true)
+        end
+
+        Optim.converged(res) || error("Optimization failed to converge within $iterations iterations.")
+        Optim.minimum(res) ≈ luttinger_tisza_exchange(sys, k) && break
+
+        iters += 1
+        iters > nrestarts && error("Failed to reach optimal exchange energy; spirality assumption may be incorrect.")
+        
+        @. angles[1:nspin] = 2π*rand(sys.rng)        # ϕ
+        @. angles[nspin+1:2nspin] = π*rand(sys.rng) # θ
+    end
+
+    # Now optimize to the full system energy
+    angles = Optim.minimizer(res)
+    res = Optim.optimize(angles, Optim.ConjugateGradient(), options) do angles
+        fill_dipoles_from_angles(angles)
+        spiral_energy(sys, k, axis)
+    end
+
+    @assert Optim.converged(res)
+    return Optim.minimum(res)
+end
+
 
 function optimagstr(f::Function, xmin, xmax, x0; maxiters=1000) # optimizing function to get minimum energy and propagation factor.
     results = Optim.optimize(f, xmin, xmax, x0, Optim.Fminbox(Optim.BFGS()), Optim.Options(iterations=maxiters))
@@ -187,7 +213,7 @@ end
 ## Dispersion and intensities
 
 
-function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped, n::Vector{Float64}, k::Vector{Float64})
+function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped, n, k)
     (; sys, data) = swt
     (; local_rotations, stevens_coefs) = data
     N = swt.sys.Ns[1]
@@ -354,12 +380,12 @@ Sunny has several built-in formulas that can be selected by setting `contraction
 - `:perp`, which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
 - `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
 """
-function intensity_formula_SingleQ(swt::SpinWaveTheory, k::Vector{Float64}, n::Vector{Float64}, mode::Symbol; kwargs...)
+function intensity_formula_SingleQ(swt::SpinWaveTheory, k, n, mode::Symbol; kwargs...)
     contractor, string_formula = Sunny.contractor_from_mode(swt, mode)
     intensity_formula_SingleQ(swt, k, n,  contractor; string_formula, kwargs...)
 end
 
-function intensity_formula_SingleQ(swt::SpinWaveTheory, k::Vector{Float64}, n::Vector{Float64}, contractor::Sunny.Contraction{T}; kwargs...) where T
+function intensity_formula_SingleQ(swt::SpinWaveTheory, k, n, contractor::Sunny.Contraction{T}; kwargs...) where T
     intensity_formula_SingleQ(swt, k, n, Sunny.required_correlations(contractor); return_type = T,kwargs...) do ks,ωs,correlations
         intensity = Sunny.contract(correlations, ks, contractor)
     end
@@ -387,21 +413,21 @@ or a function of both the energy transfer `ω` and of `Δω`, e.g.:
 The integral of a properly normalized kernel function over all `Δω` is one.
 """
 
-function intensity_formula_SingleQ(f::Function,swt::SpinWaveTheory,k::Vector{Float64},n::Vector{Float64},corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
+function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
                            return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", 
                            formfactors=nothing)
     (; sys, data, observables) = swt
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    nmodes = Sunny.nbands(swt) # k, k+Q, k-Q
+    L = Sunny.nbands(swt) # k, k+Q, k-Q
 
 
-    H = zeros(ComplexF64, 2*nmodes, 2*nmodes)
-    T = zeros(ComplexF64, 2*nmodes, 2*nmodes,3)
-    tmp = zeros(ComplexF64, 2*nmodes, 2*nmodes)
+    H = zeros(ComplexF64, 2L, 2L)
+    T = zeros(ComplexF64, 2L, 2L, 3)
+    tmp = zeros(ComplexF64, 2L, 2L)
 
-    disp = zeros(Float64, nmodes, 3)
-    intensity = zeros(return_type, nmodes,3)
-    S = zeros(ComplexF64,3,3,nmodes,3)
+    disp = zeros(Float64, L, 3)
+    intensity = zeros(return_type, L,3)
+    S = zeros(ComplexF64,3,3,L,3)
 
     FF = zeros(ComplexF64, Nm)
     #intensity = zeros(return_type, nmodes,3)
@@ -482,12 +508,12 @@ function intensity_formula_SingleQ(f::Function,swt::SpinWaveTheory,k::Vector{Flo
         end
        
         R = data.local_rotations
-        Y = zeros(ComplexF64,nmodes,nmodes,3,3)
-        Z = zeros(ComplexF64,nmodes,nmodes,3,3)
-        V = zeros(ComplexF64,nmodes,nmodes,3,3)
-        W = zeros(ComplexF64,nmodes,nmodes,3,3)
+        Y = zeros(ComplexF64,L,L,3,3)
+        Z = zeros(ComplexF64,L,L,3,3)
+        V = zeros(ComplexF64,L,L,3,3)
+        W = zeros(ComplexF64,L,L,3,3)
             for α in 1:3, β in 1:3
-                for i in 1:nmodes, j in 1:nmodes
+                for i in 1:L, j in 1:L
                     si = (sys.Ns[i]-1)/2
                     sj = (sys.Ns[j]-1)/2
                     R_i = R[i]
@@ -506,7 +532,7 @@ function intensity_formula_SingleQ(f::Function,swt::SpinWaveTheory,k::Vector{Flo
         YZVW = [[Y Z];[V W]]
 
         for branch = 1:3
-            for band = 1:nmodes
+            for band = 1:L
                 
                 corrs = if sys.mode == :SUN
                     error("SingleQ calculation for SUN is not yet implemented")
@@ -526,14 +552,14 @@ function intensity_formula_SingleQ(f::Function,swt::SpinWaveTheory,k::Vector{Flo
         
         avg = (S -> 1/2 * (S .- nx * S * nx .+ (R2 - I) * S * R2 .+ R2 * S * (R2 -I) .+ R2 * S * R2))
         
-        for band = 1:nmodes
+        for band = 1:L
             S[:,:,band,1] = avg(S[:,:,band,1]) * conj(R1)
             S[:,:,band,2] = avg(S[:,:,band,2]) * R2
             S[:,:,band,3] = avg(S[:,:,band,3]) * R1
         end
         
         for branch = 1:3
-            for band = 1:nmodes
+            for band = 1:L
                 
                 @assert observables.observable_ixs[:Sx] == 1
                 @assert observables.observable_ixs[:Sy] == 2
@@ -559,14 +585,14 @@ function intensity_formula_SingleQ(f::Function,swt::SpinWaveTheory,k::Vector{Flo
 
             # If there is no specified kernel, we are done: just return the
             # BandStructure
-            return Sunny.BandStructure{3*nmodes,return_type}(disp,intensity)
+            return Sunny.BandStructure{3*L,return_type}(disp,intensity)
 
         else
             # Smooth kernel --> Intensity as a function of ω (or a list of ωs)
             return function(ω)
-                is = Array{return_type}(undef,length(ω),nmodes,3)
+                is = Array{return_type}(undef,length(ω),L,3)
                 for branch = 1:3
-                    for band = 1:nmodes
+                    for band = 1:L
                         is[:,band,branch] = intensity[band,branch]' .* kernel_edep.(disp[band,branch]', ω .- disp[band,branch]')
                     end 
                 end
@@ -574,7 +600,7 @@ function intensity_formula_SingleQ(f::Function,swt::SpinWaveTheory,k::Vector{Flo
             end
         end
     end
-    output_type = isnothing(kernel) ? Sunny.BandStructure{nmodes,return_type} : return_type
+    output_type = isnothing(kernel) ? Sunny.BandStructure{L,return_type} : return_type
     DipoleSingleQSpinWaveIntensityFormula{output_type}(n,k,string_formula,kernel_edep,calc_intensity)
 end
 
