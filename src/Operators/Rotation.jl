@@ -1,10 +1,21 @@
+# Calculates the angle θ = acos(u⋅v/|u||v|), which is between 0 and π. Retains
+# high accuracy even when u and v are nearly collinear.
+function angle_between_vectors(u, v)
+    # Do not need to normalize u and v individually because their norms will
+    # cancel inside the ratio |u×v|/(u⋅v).
+    u, v = Vec3.((u, v))
+    sinθ = norm(u × v)
+    cosθ = u ⋅ v
+    return atan(sinθ, cosθ)
+end
+
 # Returns that smallest rotation matrix R such that `R u = v` where u and v are
 # the normalized input vectors. If `u = v` then `R = I` and if `u = -v` then R
 # is a rotation by π about an arbitrary axis perpendicular to u and v.
 function rotation_between_vectors(u, v)
     u, v = normalize.((u, v))
     axis = u × v
-    θ = acos(max(min(u ⋅ v, 1), -1))
+    θ = angle_between_vectors(u, v)
 
     if iszero(norm(axis))
         # Need to find an arbitrary axis that is orthogonal to u and v. First,
