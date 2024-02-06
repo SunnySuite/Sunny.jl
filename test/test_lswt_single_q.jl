@@ -16,12 +16,23 @@
         n = [0.,0.,1]
         Sunny.check_rotational_symmetry(sys; n, θ=0.01)
 
+        randomize_spins!(sys)
+        xmin = [-1e-6 -1e-6 -1e-6 -1e-6 -1e-6] # Minimum value of x
+        xmax = [2π 2π 1 1 1]  # Maximum value of x
+        x0 = [.55 2.5 0.5 0.5 0.]  # Initial value of x
+        k = Sunny.optimagstr(x -> Sunny.gm_spherical3d!(sys,n,x), xmin, xmax, x0)
+        # @test k ≈ [0.5, 0.5, 0.5]
+
+        # Alternatively, set manually
+        #=
         c₂ = 1 - 1/(2S)
         θ = acos(h / (2S*(4J+D*c₂)))
         sys.dipoles[1]= [sin(θ), 0, cos(θ)]
         k = [0.5,0.5,0]
+        =#
+
         swt = SpinWaveTheory(sys)
-        formula = Sunny.intensity_formula_SingleQ(swt,k,n, :perp; kernel=delta_function_kernel)
+        formula = Sunny.intensity_formula_SingleQ(swt, k, n, :perp; kernel=delta_function_kernel)
         disp, _ = Sunny.intensities_bands_SingleQ(swt, [q], formula)
         ϵq_num = disp[1,1]
 
@@ -33,6 +44,7 @@
 
         @test ϵq_num ≈ ϵq_ana
     end
+
     test_canted_afm(1)
     test_canted_afm(2)
 end
