@@ -77,6 +77,16 @@ function intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFo
     return band_dispersions, band_intensities
 end
 
+function intensities_band_structure(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFormula)
+    if !isnothing(formula.kernel)
+        # This is only triggered if the user has explicitly specified a formula with e.g. kT
+        # corrections applied, but has not disabled the broadening kernel.
+        error("intensities_bands: Can't compute band intensities if a broadening kernel is applied.\nTry intensity_formula(...; kernel = delta_function_kernel)")
+    end
+
+    map(k -> formula.calc_intensity(swt,Vec3(k)),ks)
+end
+
 """
     intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, formula)
 
@@ -158,8 +168,6 @@ function intensities_bin_multisample(swt::SpinWaveTheory, hist_params::BinningPa
                 intensity_as_function_of_ω = formula.calc_intensity(swt,q)
                 energy_lower_edges = bin_edges[4][1:end-1]
                 for (i,energy_sample) in enumerate(energy_msaa_strategy)
-                    energy_sample
-                    bin_edges[4]
                     ω_this_sample = energy_lower_edges .+ hist_params.binwidth[4] .* energy_sample
                     view(is,ci,:) .+= intensity_as_function_of_ω(ω_this_sample)
                 end

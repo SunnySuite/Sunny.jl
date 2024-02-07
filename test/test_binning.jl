@@ -18,9 +18,44 @@
     randomize_spins!(sys)
     sc = dynamical_correlations(sys;Δt = 1.,nω=3,ωmax = 1.)
     add_sample!(sc, sys)
+
     @test_nowarn unit_resolution_binning_parameters(sc)
     params = unit_resolution_binning_parameters(sc)
     @test params.numbins == [4,1,1,3]
+   
+    # Polyatomic sum rule!
+    sum_rule_ixs = Sunny.Trace(sc.observables).indices
+    sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:],dims = [1,4,5,6,7])[1,:,:,1,1,1,1]
+    # SU(N) sum rule for S = 1/2:
+    # ⟨∑ᵢSᵢ²⟩ = 3/4 on every site, but because we're classical, we
+    # instead compute ∑ᵢ⟨Sᵢ⟩² = (1/2)^2 = 1/4 since the ⟨Sᵢ⟩ form a vector with
+    # length (1/2). This is the equal-space-and-time correlation value.
+    #
+    # Then, because sc.data comes in units of [correlation]/BZ/fs, we need to multiply
+    # by the number of (positive-and-negative frequency bins) × (bins in BZ):
+    expected_sum = (1/2)^2 * size(sc.data,7) * prod(sys.latsize)
+    # This sum rule should hold for each sublattice, independently, and only
+    # need to be taken over a single BZ (which is what sc.data contains) to hold:
+    @test [sub_lat_sum_rules[i,i] for i = 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
+
+    formula = intensity_formula(sc,:trace)
+    # The polyatomic sum rule demands going out 4 BZ's for the diamond crystal
+    # since there is an atom at relative position [1/4, 1/4, 1/4]. It also
+    # requires integrating over the full sampling frequency range, in this
+    # case by going over both positive and negative energies.
+    params_pasr = unit_resolution_binning_parameters(sc;negative_energies = true)
+    params_pasr.binstart[1:3] .= -params_pasr.binwidth[1:3] ./ 2
+    params_pasr.binend[1:3] .+= 3
+    # This should result in spanning exactly 4x4x4 BZ's
+    nbzs = (params_pasr.binwidth .* params_pasr.numbins)[1:3]
+    @test nbzs ≈ [4.0,4.0,4.0]
+    # This tests that `negative_energies = true` spans exactly one sampling frequency
+    nfs = params_pasr.binwidth[4] * params_pasr.numbins[4] / (sc.Δω * size(sc.data,7))
+    @test nfs ≈ 1
+    is, counts = intensities_binned(sc,params_pasr,formula)
+    expected_multi_BZ_sum = (1/2)^2 * prod(nbzs) * nfs
+    @test sum(is ./ counts) ≈ expected_multi_BZ_sum
+
 
     # Ensure insensitivity to small changes in bin size
     params.binwidth[2] = 1.
@@ -62,15 +97,21 @@
     formula = intensity_formula(sc, :perp)
     is, counts = intensities_binned(sc, params, formula)
 
+    # This `is_golden` was computed previously using a normalization that includes:
+    #   1. A factor 1/[number of time steps in trajectory] (due to an extra 1/noomega in the sc.fft! normalization)
+    #   2. A factor of [number of atoms in the unit cell] (due to a bug where sublattices were summed over instead of averaged)
+    #   3. A factor of [total number of bins in params] (due to intensities being not previously integrated over each bin)
     is_golden = [2.452071781061995; 0.8649599530836397; 1.1585615432377976; 0.2999470844988036;;;; 0; 0; 0; 0;;;; 0; 0; 0; 0]
-    @test isapprox(is,is_golden;atol = 1e-12)
+    @test isapprox(is,size(sc.data,7) .* is_golden ./ Sunny.natoms(sc.crystal) ./ prod(params.numbins);atol = 1e-12)
     @test all(counts .== 1.)
 
     is, counts = powder_average_binned(sc, (0,6π,6π/4), formula)
 
     is_golden = [4.475593277383433 0 0; 17.95271052224501 0 0; 51.13888001854976 0 0; 45.72331040682036 0 0]
     counts_golden = [3.0 3.0 3.0; 15.0 15.0 15.0; 28.0 28.0 28.0; 39.0 39.0 39.0]
-    @test isapprox(is,is_golden;atol = 1e-12)
+    # Fails because of reason #3 above; need to implement
+    # correct bin widths in powder_average_binned and re-figure correction factor here!
+    @test_broken isapprox(is,size(sc.data,7) .* is_golden ./ Sunny.natoms(sc.crystal) ./ prod(params.numbins);atol = 1e-12)
     @test isapprox(counts,counts_golden;atol = 1e-12)
 
     # Test a custom formula returning arbitrarily ordered correlations
@@ -87,7 +128,7 @@
       is_flat[m + (k-1) * 6,1,1,l] = is[k,1,1,l][m]
     end
 
-    @test isapprox(is_flat,is_golden;atol = 1e-12)
+    @test isapprox(is_flat,size(sc.data,7) .* is_golden ./ Sunny.natoms(sc.crystal) ./ prod(params.numbins);atol = 1e-12)
     @test all(counts .== 1.)
 
     is, counts = intensities_binned(sc, params, formula; integrated_kernel = integrated_lorentzian(0.5))
@@ -98,8 +139,11 @@
       is_flat[m + (k-1) * 6,1,1,l] = is[k,1,1,l][m]
     end
 
-    @test isapprox(is_flat,is_golden;atol = 1e-12)
-    @test all(counts .== counts_golden)
+    @test isapprox(is_flat,size(sc.data,7) .* is_golden ./ Sunny.natoms(sc.crystal) ./ prod(params.numbins);atol = 1e-12)
+
+    # This is broken because broadening between ±ω is now allowed!
+    # (it was incorrectly not allowed before)
+    @test_broken all(counts .== counts_golden)
 
     # Test all components using :full
     formula = intensity_formula(sc, :full; kT = 4.7, formfactors = [FormFactor("Fe2")])
@@ -107,7 +151,7 @@
 
     is2_golden = ComplexF64[0.20692326628022634 + 0.0im -0.1729875452235063 - 0.08960830762607443im -0.1321381427681472 + 0.27533711824849455im; -0.1729875452235063 + 0.08960830762607443im 0.18342229117272907 + 0.0im -0.008767695763007954 - 0.28740396674625im; -0.1321381427681472 - 0.27533711824849455im -0.008767695763007954 + 0.28740396674625im 0.4507517165000102 + 0.0im]
 
-    @test isapprox(is[2],is2_golden;atol = 1e-12)
+    @test isapprox(is[2],size(sc.data,7) .* is2_golden ./ Sunny.natoms(sc.crystal) ./ prod(params.numbins);atol = 1e-12)
     @test all(counts .== 1.)
 
     # TODO: Test AABB

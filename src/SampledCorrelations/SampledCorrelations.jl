@@ -55,7 +55,7 @@ Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(
 function clone_correlations(sc::SampledCorrelations{N}) where N
     dims = size(sc.data)[2:4]
     nω = size(sc.data, 7)
-    normalization_factor = 1/(nω * √(prod(dims)))
+    normalization_factor = 1/√(prod(dims))
     fft! = normalization_factor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations{N}(copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
@@ -153,13 +153,17 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
 
     # Preallocation
     na = natoms(sys.crystal)
-    samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, nω) 
+    samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, (nω÷2) + 1)
     data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., nω)
     M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
-    # Normalize FFT according to physical convention
-    normalizationFactor = 1/(nω * √(prod(sys.latsize)))
-    fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6))
+    # Specially Normalized FFT.
+    # This is designed so that when it enters ifft(fft * fft) later (in squared fashion)
+    # it will result in the 1/prod(sys.latsize) factor needed to average over the
+    # prod(sys.latsize)-many independent estimates of the correlation
+    normalizationFactor = 1/sqrt(prod(sys.latsize))
+    ex_rzb = zeros(ComplexF64,size(samplebuf)[1:5]...,nω)
+    fft! = normalizationFactor * FFTW.plan_fft!(ex_rzb, (2,3,4,6))
 
     # Other initialization
     nsamples = Int64[0]

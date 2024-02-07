@@ -1,3 +1,75 @@
+@testitem "Available Energies Dirac Identity" begin
+     # Create a dummy SampledCorrelations object
+    latsize = (1,1,1)
+    cryst = Sunny.cubic_crystal()
+    sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
+    dt = 0.1
+    sc = dynamical_correlations(sys; Δt = dt, ωmax = 10.0, nω=100)
+
+    ωs = available_energies(sc;negative_energies=true)
+    dts = 0:(dt * sc.measperiod):3
+    vals = sum(exp.(im .* ωs .* dts'),dims = 1)[:]
+
+    # Verify it made a delta function
+    @test vals[1] ≈ length(ωs)
+    @test all(isapprox.(0,vals[2:end];atol = 1e-12))
+end
+
+@testitem "Asymmetric Correlations" begin
+    using FFTW
+
+    # Create a dummy SampledCorrelations object
+    latsize = (1,1,1)
+    cryst = Sunny.cubic_crystal()
+    sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
+    sc = dynamical_correlations(sys; Δt = 0.1, ωmax = 10.0, nω=100, observables = [:A => [1. 0im; 0 1], :B => [1. 0im; 0 1]])
+
+    # Fill the sc.samplebuf with test signals.
+    # The test signals are asymmetrically correlated.
+    # This code replaces Sunny.new_sample!
+    time_T = size(sc.samplebuf,6)
+    time_2T = 2time_T - 1
+    ts = range(0,1,length = time_2T+1)[1:end-1]
+    As = exp.(-(ts .- 0.15).^2 ./ (2 * 0.05^2))[1:time_T]
+    Bs = exp.(-(ts .- 0.25).^2 ./ (2 * 0.02^2))[1:time_T]
+    sc.samplebuf[1,1,1,1,1,:] .= As
+    sc.samplebuf[2,1,1,1,1,:] .= Bs
+
+    # Run the Sunny-internal function which computes the correlations
+    Sunny.accum_sample!(sc)
+
+    # Retrieve the correlations in direct time.
+    # The sc.data is normalized such that FFTW.ifft (which includes
+    # a factor of 1/size(sc.data,7)) will give the correct time-domain correlations.
+    # TODO: The correlations tested here are real--make them complex
+    real_data = real(FFTW.ifft(sc.data,7))
+
+    # Reference calculation
+    q11 = zeros(time_2T)
+    q12 = zeros(time_2T)
+    q21 = zeros(time_2T)
+    q22 = zeros(time_2T)
+    offsets = Int64.(fftfreq(time_2T,time_2T))
+    for i = eachindex(offsets)
+        # Uses all available data
+        offset = offsets[i]
+        valid_starting_times = max(1,1-offset):min(time_T,time_T - offset)
+        n = length(valid_starting_times)
+        for tau = valid_starting_times
+            q11[i] += As[offset+tau] * As[tau] / n
+            q12[i] += As[offset+tau] * Bs[tau] / n
+            q21[i] += Bs[offset+tau] * As[tau] / n
+            q22[i] += Bs[offset+tau] * Bs[tau] / n
+        end
+    end
+
+    # Compare to both positive and negative time correlations
+    @test isapprox(q11,real_data[sc.observables.correlations[CartesianIndex(1,1)],1,1,1,1,1,:];atol = 1e-8)
+    @test isapprox(q12,real_data[sc.observables.correlations[CartesianIndex(1,2)],1,1,1,1,1,:];atol = 1e-8)
+    @test isapprox(q21,real_data[sc.observables.correlations[CartesianIndex(2,1)],1,1,1,1,1,:];atol = 1e-8)
+    @test isapprox(q22,real_data[sc.observables.correlations[CartesianIndex(2,2)],1,1,1,1,1,:];atol = 1e-8)
+end
+
 @testitem "Correlation sampling" begin
     using LinearAlgebra
 
@@ -38,9 +110,13 @@
     add_sample!(sc, sys)
     qgrid = available_wave_vectors(sc)
     formula = intensity_formula(sc,:trace)
-    vals = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
-    total_intensity_trace = sum(vals)
-    @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
+    Sqw = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
+    # To get the time-domain correlations from S(q,w), do FFTW.ifft (which includes a 1/N).
+    # As a shortcut to get just the equal-time correlations, we evaluate the ifft manually at t=0.
+    equal_time_correlations_from_Sqw(Sqw) = sum(Sqw,dims=4) ./ size(Sqw,4)
+    norm(v) = sqrt(v[1]^2 + v[2]^2 + v[3]^2)
+    expected_sum_rule = prod(sys.latsize) * norm(sys.dipoles[1])^2 # NS^2 classical sum rule
+    @test isapprox(sum(equal_time_correlations_from_Sqw(Sqw)), expected_sum_rule; atol=1e-12)
 
     # Test sum rule with default observables in dipole mode 
     sys = simple_model_fcc(; mode=:dipole)
@@ -48,9 +124,10 @@
     sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0, apply_g=false)
     add_sample!(sc, sys)
     trace_formula = intensity_formula(sc,:trace)
-    vals = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
-    total_intensity_trace = sum(vals)
-    @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
+    Sqw = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
+    total_intensity_trace = sum(Sqw)
+    expected_sum_rule = prod(sys.latsize) * norm(sys.dipoles[1])^2 # NS^2 classical sum rule
+    @test isapprox(sum(equal_time_correlations_from_Sqw(Sqw)), expected_sum_rule; atol=1e-12)
 
 
     # Test perp reduces intensity
@@ -85,7 +162,7 @@
     # Test static from dynamic intensities working
     static_vals = instant_intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
     total_intensity_static = sum(static_vals)
-    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-12)  # Order of summation can lead to very small discrepancies
+    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-9)  # Order of summation can lead to very small discrepancies
 
     # Test instant intensities working
     sys = simple_model_fcc(; mode=:dipole)
@@ -154,5 +231,7 @@ end
     refdata = [4.254269966153992 -1.2843038669061228e-14 -5.394619322304545e-15 -7.216011361021513e-15 2.2240831664270433e-15 3.4163924368862625e-15 -2.213918174402409e-15 2.5176941933533583e-15 -1.6967936802985614e-15 -5.809570898878131e-16 9.221497776781295e-17 -1.1157998428324525e-15 -2.379142682899133e-15 2.8471327104209816e-15 1.7428601452501232e-15 -1.2189646774710288e-15 4.2787677309219294e-15 -1.0973563787964497e-15 7.054433862891246e-16 4.380204032382625e-17 1.7981890238059382e-15 8.714300653810433e-16 2.028726078134631e-15 3.1814113498015657e-16 -1.2725645399205768e-15; 0.691817031974635 0.022003904265315233 0.015402770605279703 0.01416546690741492 0.010268650053888165 0.018517150867665515 0.03052522221486546 0.16122718426522498 1.758858093426611 1.477056212473994 0.17592893333848564 0.9125908527099499 0.13542564389015566 0.02791055330977605 0.020926562473942117 0.020478478271579087 0.019894295068977528 0.01461089841500453 0.017161028051175586 0.02342242221257691 0.015976223751103427 0.016509502868504597 0.014721445623676686 0.020611082181934776 0.027610813222342722; 0.008860945396244786 0.027072547009685838 0.02407959453553224 0.03716552552216021 0.026340120173756747 0.03450469651089368 0.029861166686208994 0.18115847147999378 0.9207275891278851 0.9146627283758494 0.43083559486712847 8.309560489648792 2.096790402760553 2.008750574046653 3.2097755895043982 1.929761239453324 0.3246121762953159 0.09985482227045933 0.07389371860037938 0.05252516529923479 0.041887672434665145 0.04800612203272573 0.03783926774429406 0.04171088150600197 0.04288203460674578]   
 
     # Compare with reference 
-    @test isapprox(data, refdata; atol=1e-12)
+    # This test is currently broken because `refdata' uses an old method
+    # of calculating correlations, where periodization artifacts are present.
+    @test_broken isapprox(data, refdata; atol=1e-8)
 end

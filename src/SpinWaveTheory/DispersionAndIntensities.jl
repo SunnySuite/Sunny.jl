@@ -179,6 +179,12 @@ struct BandStructure{N,T}
   intensity :: SVector{N,T}
 end
 
+function Base.show(io::IO, ::BandStructure{N,T}) where {N,T}
+    print(io,"BandStructure{$N bands with $T-valued intensity}")
+end
+
+Base.map(f, bs::BandStructure) = BandStructure(bs.dispersion, map(f,bs.intensity))
+
 struct SpinWaveIntensityFormula{T}
     string_formula :: String
     kernel :: Union{Nothing,Function}
@@ -353,6 +359,11 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                 corrs
             end
 
+            # The meaning of the (A,B) correlation at this point is
+            # that the fourier transform, normalized as
+            #   ∫±∞ exp(-iωt) <A(t) B> dt
+            # of the correlation <A(t) B> has a term:
+            #   2π * corrs[corr_ix_AB] * δ(disp[band] - ω)
             intensity[band] = f(q_absolute, disp[band], corrs[corr_ix])
         end
 
@@ -366,10 +377,18 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             return BandStructure{nmodes,return_type}(disp, intensity)
         else
             # Smooth kernel --> Intensity as a function of ω (or a list of ωs)
+            is = Vector{return_type}(undef,10)
+            scratch = Matrix{return_type}(undef,10,length(disp))
             return function(ω)
-                is = Vector{return_type}(undef,length(ω))
-                is .= sum(intensity' .* kernel_edep.(disp', ω .- disp'),dims=2)
-                is
+                if length(ω) > length(is)
+                    is = Vector{return_type}(undef,length(ω))
+                    scratch = Matrix{return_type}(undef,length(ω),length(disp))
+                end
+                for i = 1:length(ω), j = 1:length(disp)
+                    scratch[i,j] = intensity[j] * kernel_edep(disp[j],ω[i] - disp[j])
+                end
+                is .= sum(scratch,dims=2)
+                view(is,1:length(ω))
             end
         end
     end

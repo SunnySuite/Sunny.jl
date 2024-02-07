@@ -82,11 +82,27 @@ function no_processing(::SampledCorrelations)
     nothing
 end
 
-function accum_sample!(sc::SampledCorrelations)
+function accum_sample!(sc::SampledCorrelations;alg = :no_window,max_lag_frac = Inf)
     (; data, M, observables, samplebuf, nsamples, fft!) = sc
-    natoms = size(samplebuf)[5]
+    natoms = size(samplebuf,5)
 
-    fft! * samplebuf # Apply pre-planned and pre-normalized FFT
+    time_T = size(samplebuf,6)
+    time_2T = 2time_T - 1
+    left_zero_ix = 1:time_T
+    right_zero_ix = (time_T + 1):time_2T
+
+    # Zero-padded extension of the samplebuf
+    right_zero_buffer = zeros(ComplexF64,size(samplebuf)[1:5]...,time_2T)
+    right_zero_buffer[:,:,:,:,:,left_zero_ix] .= samplebuf
+    right_zero_buffer[:,:,:,:,:,right_zero_ix] .= 0
+
+    # Number of terms contributing to each auto-correlation sum due to zero-padding
+    time_lag = abs.(FFTW.fftfreq(time_2T,time_2T))
+    time_lag_frac = time_lag ./ time_T
+    statistical_power = reshape(time_T .- time_lag,1,1,1,time_2T)
+    statistical_power[statistical_power .== 0] .= Inf
+
+    fft! * right_zero_buffer
     count = nsamples[1] += 1
 
     # Note that iterating over the `correlations` (a SortedDict) causes
@@ -96,14 +112,35 @@ function accum_sample!(sc::SampledCorrelations)
     for j in 1:natoms, i in 1:natoms, (ci, c) in observables.correlations  
         α, β = ci.I
 
-        sample_α = @view samplebuf[α,:,:,:,i,:]
-        sample_β = @view samplebuf[β,:,:,:,j,:]
-        databuf  = @view data[c,i,j,:,:,:,:]
+        # Convention is: S{α,β} means <α(t)> <β(0)>, i.e. α is delayed
+        traj_α = @view right_zero_buffer[α,:,:,:,i,:]
+        traj_β = @view right_zero_buffer[β,:,:,:,j,:]
+
+        # FFT-accelerated cross correlation. Since both signals are zero-padded
+        # in real time, all parts of the result contain meaningful correlations.
+        correlation = FFTW.ifft(traj_α .* conj.(traj_β),4)
+
+        correlation ./= statistical_power # Divide by number of terms actually contributing to the sum
+
+        correlation[:,:,:,time_lag_frac .> max_lag_frac] .= 0
+
+        if alg == :window
+          correlation .*= reshape(cos.(range(0,π,length = time_2T+1)[1:time_2T]).^2,(1,1,1,time_2T))
+        elseif alg == :chop
+          correlation[:,:,:,1] .= 0
+        end
+
+        FFTW.fft!(correlation,4)
+
+        # Remove overlapping highest frequency (only required if window doesn't already set this to zero)
+        #correlation[:,:,:,longest_correlation_delay + 1] .= 0
+
+        databuf = @view data[c,i,j,:,:,:,:]
 
         if isnothing(M)
             for k in eachindex(databuf)
                 # Store the diff for one complex number on the stack.
-                diff = sample_α[k] * conj(sample_β[k]) - databuf[k]
+                diff = correlation[k] - databuf[k]
 
                 # Accumulate into running average
                 databuf[k] += diff * (1/count)
@@ -115,7 +152,7 @@ function accum_sample!(sc::SampledCorrelations)
                 μ_old = databuf[k]
 
                 # Update running mean.
-                matrixelem = sample_α[k] * conj(sample_β[k])
+                matrixelem = correlation[k]
                 databuf[k] += (matrixelem - databuf[k]) * (1/count)
                 μ = databuf[k]
 
