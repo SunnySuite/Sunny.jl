@@ -154,7 +154,7 @@ function kpm_dssf(swt::SpinWaveTheory, qs,ωlist,P::Int64,kT,σ,broadening; kern
         # calculate u(q)
         if sys.mode == :SUN
             for site=1:Nm
-                @views tS_μ = data.dipole_operators[:, :, :, site]*Avec_pref[site] 
+                @views tS_μ = data.observable_operators[:, :, :, site]*Avec_pref[site] 
                 for μ=1:3
                     for j=2:N
                         u[μ,(j-1)+(site-1)*(N-1) ]=tS_μ[j,1,μ] 
@@ -294,7 +294,7 @@ function intensity_formula_kpm(f,swt::SpinWaveTheory,corr_ix::AbstractVector{Int
         # calculate u(q)
         if sys.mode == :SUN
             for site=1:Nm
-                @views tS_μ = data.dipole_operators[:, :, :, site]*Avec_pref[site] 
+                @views tS_μ = data.observable_operators[:, :, :, site]*Avec_pref[site] 
                 for μ=1:3
                     for j=2:N
                         u[μ,(j-1)+(site-1)*(N-1) ]=tS_μ[j,1,μ]
