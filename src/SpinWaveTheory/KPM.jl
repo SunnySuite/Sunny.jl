@@ -186,7 +186,7 @@ function kpm_dssf(swt::SpinWaveTheory, qs,ωlist,P::Int64,kT,σ,broadening; kern
             end
             for m=2:P-1
                 αnew = zeros(ComplexF64,2*nmodes) 
-                multiply_by_hamiltonian!(αnew,a1)
+                multiply_by_hamiltonian!(αnew,α1)
                 mul!(αnew,Ĩ,2αnew/γ)
                 @. αnew = 2*αnew - α0
                 for α=1:3

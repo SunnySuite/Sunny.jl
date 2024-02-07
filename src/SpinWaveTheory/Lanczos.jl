@@ -105,7 +105,7 @@ function lanczos_QH_MF_aux!(αs, βs, buf, swt ,q_reshaped, niters)
     mat_size=num_bands(swt)
     Ĩ = diagm([ones(mat_size); -ones(mat_size)])
     multiply_by_hamiltonian!(w,vprev) 
-    w = mul!(w,Ĩ,1w)
+    mul!(w,Ĩ,1w)
     b0 = sqrt(Ĩ_dot_3(vprev, w,mat_size))
     vprev = vprev/b0
     w = w/b0
