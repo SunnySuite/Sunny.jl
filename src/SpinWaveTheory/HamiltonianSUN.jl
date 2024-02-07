@@ -236,3 +236,43 @@ function multiply_by_hamiltonian_SUN_aux!(y, x, phasebuf, qphase, swt)
 
     nothing
 end
+
+# This is a stopgap measure to avoid unnecessary reshaping. Revisit on merge.
+
+# Calculate y = H*x, where H is the quadratic Hamiltonian matrix (dynamical matrix).
+function multiply_by_hamiltonian_SUN!(y, x, swt, q_reshaped)
+    (; sys, data) = swt
+    (; zeeman_operators) = data
+    y .= 0
+
+    # Add single-site terms (single-site anisotropy and external field)
+    # Couple percent speedup if this is removed and accumulated into onsite term
+    # (not pursuing for now to maintain parallelism with dipole mode). 
+    for atom in 1:natoms(sys.crystal)
+        zeeman = view(zeeman_operators, :, :, atom)
+        multiply_by_onsite_coupling_SUN!(y, x, zeeman, swt, atom)
+    end
+
+    # Add pair interactions that use explicit bases
+    for (atom, int) in enumerate(sys.interactions_union)
+
+        # Set the onsite term
+        multiply_by_onsite_coupling_SUN!(y, x, int.onsite, swt, atom)
+
+        for coupling in int.pair
+            # Extract information common to bond
+            (; isculled, bond) = coupling
+            isculled && break
+
+            phase = exp(2π*im * dot(q_reshaped, bond.n)) # Phase associated with periodic wrapping
+            for (A, B) in coupling.general.data 
+                multiply_by_pair_coupling_SUN!(y, x, A, B, swt, phase, bond)
+            end
+        end
+    end
+
+    # # Add small constant shift for positive-definiteness
+    @. y += swt.energy_ϵ * x
+
+    nothing
+end

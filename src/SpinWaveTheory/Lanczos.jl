@@ -90,7 +90,7 @@ end
 
 
 function lanczos_MF(swt,q_reshaped, niters)
-    nmodes=Sunny.num_bands(swt)
+    nmodes=Sunny.nbands(swt)
     αs = zeros(Float64, niters)    # Main diagonal 
     βs = zeros(Float64, niters-1)  # Off diagonal
     buf = zeros(ComplexF64, 2nmodes, 3)  # Vector buffer -- don't technically need 3 columns, but more legible this way
@@ -102,7 +102,7 @@ function lanczos_QH_MF_aux!(αs, βs, buf, swt ,q_reshaped, niters)
     multiply_by_hamiltonian!(y, x) = (swt.sys.mode == :SUN) ? multiply_by_hamiltonian_SUN!(y,x, swt, q_reshaped) : multiply_by_hamiltonian_dipole!(y, x, swt, q_reshaped)
     v, vprev, w = view(buf,:,1), view(buf,:,2), view(buf,:,3)
     randn!(vprev)
-    mat_size=num_bands(swt)
+    mat_size=nbands(swt)
     Ĩ = diagm([ones(mat_size); -ones(mat_size)])
     multiply_by_hamiltonian!(w,vprev) 
     mul!(w,Ĩ,1w)
