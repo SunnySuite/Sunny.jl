@@ -97,7 +97,11 @@ function lattice_to_str(sys::System)
 end
 
 function energy_to_str(sys::System)
-    return "Energy per site "*number_to_math_string(energy_per_site(sys))
+    if is_valid_normalization(sys)
+        "Energy per site "*number_to_math_string(energy_per_site(sys))
+    else
+        "[Incorrectly normalized spin state!]"
+    end
 end
 
 function Base.show(io::IO, sys::System{N}) where N
@@ -408,16 +412,19 @@ end
     return
 end
 
-function validate_normalization(sys::System{0})
-    for (s, κ) in zip(sys.dipoles, sys.κs)
-        norm(s) ≈ κ || error("Detected non-normalized dipole. Consider using `set_dipole!` to automatically normalize.")
+function is_valid_normalization(sys::System{0})
+    all(zip(sys.dipoles, sys.κs)) do (s, κ)
+        norm2(s) ≈ κ^2
+    end
+end
+function is_valid_normalization(sys::System{N}) where N
+    all(zip(sys.coherents, sys.κs)) do (Z, κ)
+        norm2(Z) ≈ κ
     end
 end
 
-function validate_normalization(sys::System{N}) where N
-    for (Z, κ) in zip(sys.coherents, sys.κs)
-        norm(Z) ≈ √κ || error("Detected non-normalized coherent state. Consider using `set_coherent!` to automatically normalize.")
-    end
+function validate_normalization(sys::System)
+    is_valid_normalization(sys) || error("Detected non-normalized spin state.")
 end
 
 """
