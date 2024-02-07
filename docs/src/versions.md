@@ -3,12 +3,24 @@
 ## v0.5.9
 (In development)
 
+* **Correctness fix**: An `intensity_formula` now defaults to providing
+  dynamical correlations of magnetic moments, as is needed for simulating the
+  neutron scattering cross section. This behavior is now unified across modes
+  (`:dipole` and `:SUN`) and across calculation methods (classical dynamics vs
+  spin wave theory). Set `apply_g = false` to measure correlations of spin
+  angular momentum instead. [Issue
+  #236](https://github.com/SunnySuite/Sunny.jl/issues/236).
+* **[In Progress]** The simulated intensity will now scale linearly with
+  magnetic cell size, in a consistent way. This behavior deviates from SpinW,
+  which divides the intensity by the number of atoms in the unit cell. [Issue
+  #235](https://github.com/SunnySuite/Sunny.jl/issues/235).
 * New function [`suggest_timestep`](@ref) to assist in performing accurate and
-  efficient simulation of spin dynamics.
+  efficient simulation of spin dynamics. [Issue
+  #149](https://github.com/SunnySuite/Sunny.jl/issues/149).
 * Significantly speed up [`dynamical_correlations`](@ref) for crystals with many
-  atoms in the unit cell [Issue
+  atoms in the unit cell. [Issue
   #204](https://github.com/SunnySuite/Sunny.jl/issues/204).
-* Bug fixes for spin wave calculations and symmetry analysis.
+
 
 ## v0.5.8
 (Jan 4, 2024)
