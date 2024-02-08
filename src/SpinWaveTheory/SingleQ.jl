@@ -56,7 +56,7 @@ function optimize_luttinger_tisza_exchange(sys::System, k)
     if Optim.converged(res)
         k = Optim.minimizer(res)
         # Wrap components to [0, 1)
-        k = wrap_to_unit_cell(Vec3(k); symprec=1e-10)
+        k = wrap_to_unit_cell(Vec3(k); symprec=1e-7)
         return k
     else
         error("Momentum optimization failed to converge within $iterations iterations.")
@@ -169,10 +169,15 @@ function minimize_energy_spiral!(sys, k, axis; maxiters=1000, nrestarts=100)
         end
 
         Optim.converged(res) || error("Optimization failed to converge within $iterations iterations.")
-        Optim.minimum(res) ≈ luttinger_tisza_exchange(sys, k) && break
+        E_spiral = Optim.minimum(res)
+        E_lt = luttinger_tisza_exchange(sys, k)
+        E_spiral ≈ E_lt && break
 
         iters += 1
-        iters > nrestarts && error("Failed to reach optimal exchange energy; spirality assumption may be incorrect.")
+        if iters > nrestarts
+            @error "Spiral exchange energy $E_spiral exceeds L.T. exchange energy $E_lt, which suggests instability."
+            break
+        end
         
         @. angles[1:nspin] = 2π*rand(sys.rng)        # ϕ
         @. angles[nspin+1:2nspin] = π*rand(sys.rng) # θ
