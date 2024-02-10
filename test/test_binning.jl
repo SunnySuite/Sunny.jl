@@ -63,7 +63,10 @@
     is, counts = intensities_binned(sc, params, formula)
 
     # This `is_golden` was computed previously using a normalization that includes:
+    #   1. A factor of [natoms] (due to change in normalization to give mean correlation)
+    #   2. A factor of [size(sc.data,7)] (due to a previous bug where this factor was included)
     #   3. A factor of [total number of bins in params] (due to intensities being not previously integrated over each bin)
+    #   4. Was missing the g factor previously
     is_golden = [2.452071781061995; 0.8649599530836397; 1.1585615432377976; 0.2999470844988036;;;; 0; 0; 0; 0;;;; 0; 0; 0; 0]
     g_factor = 2
     @test isapprox(is/ g_factor^2,size(sc.data,7) * is_golden ./ Sunny.natoms(sc.crystal) ./ prod(params.numbins);atol = 1e-12)
