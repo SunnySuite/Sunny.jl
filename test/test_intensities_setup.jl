@@ -35,8 +35,7 @@ end
 
         # Compute magnetization correlation "by hand", averaging over sites
         mag_corr = sum([sys.gs[i] * sys.dipoles[i] * (sys.gs[j] * sys.dipoles[j])' for i = 1:2, j = 1:2]) / Sunny.natoms(cryst)
-        @test_broken isapprox(corr_mat, mag_corr) # Sunny bug: classical intensity off by natoms factor
-        @test isapprox(corr_mat / Sunny.natoms(cryst), mag_corr)
+        @test isapprox(corr_mat, mag_corr)
 
         # Spin wave theory only gives the "transverse part" which is difficult to calculate.
         # So we compare spin correlations vs magnetization correlations externally.
