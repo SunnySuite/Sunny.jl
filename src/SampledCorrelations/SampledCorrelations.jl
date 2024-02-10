@@ -56,7 +56,7 @@ function clone_correlations(sc::SampledCorrelations{N}) where N
     dims = size(sc.data)[2:4]
     nω = size(sc.data, 7)
     normalizationFactor = 1/(√(nω * prod(dims)))
-    fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
+    fft! = normalizationFactor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations{N}(copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
         deepcopy(sc.observables), copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.Δt,
