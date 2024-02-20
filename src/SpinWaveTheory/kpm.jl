@@ -17,14 +17,13 @@ function Base.show(io::IO, ::MIME"text/plain", formula::KPMIntensityFormula{T}) 
 
     formula_lines = split(formula.string_formula,'\n')
 
-    intensity_equals = "  Intensity(Q,ω) = <Apply KPM Method> "
     println(io,"At any (Q,ω), with S = ...:")
     println(io)
-    println(io,intensity_equals,formula_lines[1])
-    for i = 2:length(formula_lines)
-        precursor = repeat(' ', textwidth(intensity_equals))
-        println(io,precursor,formula_lines[i])
-    end
+
+    intensity_equals = "  Intensity(Q,ω) = <Apply KPM Method> "
+    spacing = repeat(' ', textwidth(intensity_equals))
+    println(io, intensity_equals, join(formula_lines, "\n" * spacing))
+
     println(io,"P = $(formula.P), kT = $(formula.kT), σ = $(formula.σ)")
 end
 

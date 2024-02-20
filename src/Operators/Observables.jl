@@ -173,7 +173,7 @@ end
 
 function all_observable_names(obs::ObservableInfo)
     observable_names = Dict(value => key for (key, value) in obs.observable_ixs)
-    [observable_names[i] for i in 1:length(observable_names)]
+    values(observable_names)
 end
 
 num_correlations(obs::ObservableInfo) = length(obs.correlations)
