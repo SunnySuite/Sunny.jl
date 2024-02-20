@@ -14,15 +14,13 @@ function Base.show(io::IO, ::MIME"text/plain", formula::ClassicalIntensityFormul
 
     formula_lines = split(formula.string_formula,'\n')
 
+    println(io, "At discrete scattering modes S = S[ix_q,ix_ω], use:")
+    println(io)
+    print(io, "  Intensity[ix_q,ix_ω] = ")
+
     intensity_equals = "  Intensity[ix_q,ix_ω] = "
-    println(io,"At discrete scattering modes S = S[ix_q,ix_ω], use:")
-    println(io)
-    println(io,intensity_equals,formula_lines[1])
-    for i = 2:length(formula_lines)
-        precursor = repeat(' ', textwidth(intensity_equals))
-        println(io,precursor,formula_lines[i])
-    end
-    println(io)
+    spacing = repeat(' ', textwidth(intensity_equals))
+    println(io, intensity_equals, join(formula_lines, "\n" * spacing))
 
     if isnothing(formula.formfactors)
         printstyled(io, "No form factors specified\n";color=:yellow)

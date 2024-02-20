@@ -43,3 +43,7 @@ end
         return Hermitian(A, uplo)
     end
 end
+
+# Avoid linter false positives per
+# https://github.com/julia-vscode/julia-vscode/issues/1497
+kron(a...) = Base.kron(a...)

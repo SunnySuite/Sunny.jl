@@ -296,7 +296,7 @@ The following alternative syntax can be used to compute bin centers for a single
 """
 function axes_bincenters(binstart,binend,binwidth)
     bincenters = Vector{AbstractRange{Float64}}(undef,0)
-    for k = 1:length(binstart)
+    for k = eachindex(binstart)
         first_center = binstart[k] .+ binwidth[k] ./ 2
         nbin = count_bins(binstart[k],binend[k],binwidth[k])
         push!(bincenters,range(first_center,step = binwidth[k],length = nbin))
@@ -307,7 +307,7 @@ axes_bincenters(params::BinningParameters) = axes_bincenters(params.binstart,par
 
 function axes_binedges(binstart,binend,binwidth)
     binedges = Vector{AbstractRange{Float64}}(undef,0)
-    for k = 1:length(binstart)
+    for k = eachindex(binstart)
         nbin = count_bins(binstart[k],binend[k],binwidth[k])
         push!(binedges,range(binstart[k],step = binwidth[k],length = nbin + 1))
     end
