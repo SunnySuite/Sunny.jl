@@ -44,19 +44,19 @@
         return sys
     end
 
-    function thermalize!(sys, langevin, dur)
-        Δt = langevin.Δt
+    function thermalize!(sys, integrator, dur)
+        Δt = integrator.Δt
         numsteps = round(Int, dur/Δt)
         for _ in 1:numsteps
-            step!(sys, langevin)
+            step!(sys, integrator)
         end
     end
 
-    function calc_mean_energy(sys, langevin, dur)
-        numsteps = round(Int, dur/langevin.Δt)
+    function calc_mean_energy(sys, integrator, dur)
+        numsteps = round(Int, dur/integrator.Δt)
         Es = zeros(numsteps)
         for i in 1:numsteps
-            step!(sys, langevin)
+            step!(sys, integrator)
             Es[i] = energy_per_site(sys)
         end
         sum(Es)/length(Es) 
@@ -72,14 +72,17 @@
         collect_dur = 100.0
 
         sys = su3_anisotropy_model(; D, L, seed=0)
-        langevin = Langevin(Δt; kT=0, λ)
+        heun = Langevin(Δt; kT=0, λ)
+        midpoint = ImplicitMidpoint(Δt; kT=0, λ)
 
-        for kT in kTs
-            langevin.kT = kT
-            thermalize!(sys, langevin, thermalize_dur)
-            E = calc_mean_energy(sys, langevin, collect_dur)
-            E_ref = su3_mean_energy(kT, D)
-            @test isapprox(E, E_ref; rtol=0.1)
+        for integrator in [heun, midpoint]
+            for kT in kTs
+                integrator.kT = kT
+                thermalize!(sys, integrator, thermalize_dur)
+                E = calc_mean_energy(sys, integrator, collect_dur)
+                E_ref = su3_mean_energy(kT, D)
+                @test isapprox(E, E_ref; rtol=0.1)
+            end
         end
     end
 
@@ -96,14 +99,17 @@
         collect_dur = 200.0
 
         sys = su5_anisotropy_model(; D, L, seed=0)
-        langevin = Langevin(Δt; kT=0, λ)
+        heun = Langevin(Δt; kT=0, λ)
+        midpoint = ImplicitMidpoint(Δt; kT=0, λ)
 
-        for kT ∈ kTs
-            langevin.kT = kT
-            thermalize!(sys, langevin, thermalize_dur)
-            E = calc_mean_energy(sys, langevin, collect_dur)
-            E_ref = su5_mean_energy(kT, D)
-            @test isapprox(E, E_ref; rtol=0.1)
+        for integrator in [heun, midpoint]
+            for kT ∈ kTs
+                integrator.kT = kT
+                thermalize!(sys, integrator, thermalize_dur)
+                E = calc_mean_energy(sys, integrator, collect_dur)
+                E_ref = su5_mean_energy(kT, D)
+                @test isapprox(E, E_ref; rtol=0.1)
+            end
         end
     end
 
