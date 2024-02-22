@@ -249,6 +249,15 @@ end
     end
 end
 
+function rhs_sun!(ΔZ, Z, ξ, HZ, integrator)
+    (; kT, λ, Δt) = integrator
+
+    @. ΔZ = - Δt*(im+λ)*HZ + ξ
+    if any(!iszero, (kT, λ))
+        @. ΔZ = proj(ΔZ, Z)
+    end
+end
+
 
 """
     step!(sys::System, dynamics)
@@ -259,6 +268,8 @@ may be a continuous spin dynamics, such as [`Langevin`](@ref) or
 such as [`LocalSampler`](@ref).
 """
 function step! end
+
+# Heun integration with normalization
 
 function step!(sys::System{0}, integrator::Langevin)
     check_timestep_available(integrator)
@@ -281,6 +292,47 @@ function step!(sys::System{0}, integrator::Langevin)
     @. s = normalize_dipole(s + (Δs₁+Δs₂)/2, sys.κs)
 
     return
+end
+
+function step!(sys::System{N}, integrator::Langevin) where N
+    check_timestep_available(integrator)
+
+    (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
+    (; Δt, kT, λ) = integrator
+    Z = sys.coherents
+
+    randn!(sys.rng, ξ)
+    @. ξ *= -im*√(2*Δt*kT*λ)
+
+    # Prediction
+    set_energy_grad_coherents!(HZ, Z, sys)
+    rhs_sun!(ΔZ₁, Z, ξ, HZ, integrator)
+    @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
+
+    # Correction
+    set_energy_grad_coherents!(HZ, Z′, sys)
+    rhs_sun!(ΔZ₂, Z′, ξ, HZ, integrator)
+    @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
+
+    # Coordinate dipole data
+    @. sys.dipoles = expected_spin(Z)
+
+    return
+end
+
+
+# Variants of the implicit midpoint method
+
+function fast_isapprox(x, y; atol)
+    acc = 0.
+    for i in eachindex(x)
+        diff = x[i] - y[i]
+        acc += real(dot(diff,diff))
+        if acc > atol^2
+            return false
+        end
+    end
+    return !isnan(acc)
 end
 
 # The spherical midpoint method, Phys. Rev. E 89, 061301(R) (2014)
@@ -329,65 +381,6 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
     end
 
     error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
-end
-
-
-function fast_isapprox(x, y; atol)
-    acc = 0.
-    for i in eachindex(x)
-        diff = x[i] - y[i]
-        acc += real(dot(diff,diff))
-        if acc > atol^2
-            return false
-        end
-    end
-    return !isnan(acc)
-end
-
-
-################################################################################
-# SU(N) integration
-################################################################################
-
-# Project `a` onto space perpendicular to `Z`
-@inline function proj(a::T, Z::T) where T <: CVec
-    a - Z * ((Z' * a) / (Z' * Z))
-end
-
-function rhs_sun!(ΔZ, Z, ξ, HZ, integrator)
-    (; kT, λ, Δt) = integrator
-
-    @. ΔZ = - Δt*(im+λ)*HZ + ξ
-    if any(!iszero, (kT, λ))
-        @. ΔZ = proj(ΔZ, Z)
-    end
-end
-
-
-function step!(sys::System{N}, integrator::Langevin) where N
-    check_timestep_available(integrator)
-
-    (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
-    (; Δt, kT, λ) = integrator
-    Z = sys.coherents
-
-    randn!(sys.rng, ξ)
-    @. ξ *= -im*√(2*Δt*kT*λ)
-
-    # Prediction
-    set_energy_grad_coherents!(HZ, Z, sys)
-    rhs_sun!(ΔZ₁, Z, ξ, HZ, integrator)
-    @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
-
-    # Correction
-    set_energy_grad_coherents!(HZ, Z′, sys)
-    rhs_sun!(ΔZ₂, Z′, ξ, HZ, integrator)
-    @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
-
-    # Coordinate dipole data
-    @. sys.dipoles = expected_spin(Z)
-
-    return
 end
 
 
