@@ -78,10 +78,10 @@ arbitrarily long simulation trajectories.
 
 Damping and noise terms may be included through the optional `λ` and `kT`
 parameters. In this case, the spin dynamics will coincide with that of
-[`Langevin`](@ref), and samples from the classical Boltzmann distribution as
-derived in Ref. [2]. Relative to the Heun integration method, the implicit
-midpoint method has a larger numerical cost, but can achieve much better
-statistical accuracy, especially in the limit of small damping strength ``λ``.
+[`Langevin`](@ref), and samples the classical Boltzmann distribution [2].
+Relative to the Heun integration method, the implicit midpoint method has a
+larger numerical cost, but can achieve much better statistical accuracy,
+especially in the limit of small damping strength ``λ``.
 
 References:
 
@@ -136,16 +136,11 @@ such that errors in the estimates of averaged observables may scale like ``Δt``
 This implies that the `tol` argument may actually scale like the _square_ of the
 true numerical error, and should be selected with this in mind.
 """
-function suggest_timestep(sys::System{N}, integrator::Langevin; tol) where N
+function suggest_timestep(sys::System{N}, integrator::Union{Langevin, ImplicitMidpoint}; tol) where N
     (; Δt, λ, kT) = integrator
     suggest_timestep_aux(sys; tol, Δt, λ, kT)
-end
-function suggest_timestep(sys::System{N}, integrator::ImplicitMidpoint; tol) where N
-    (; Δt) = integrator
-    suggest_timestep_aux(sys; tol, Δt, λ=0, kT=0)
-end
 
-function suggest_timestep_aux(sys::System{N}; tol, Δt, λ, kT) where N
+    # Accumulate statistics regarding Var[∇E]
     acc = 0.0
     if N == 0
         ∇Es, = get_dipole_buffers(sys, 1)
@@ -241,8 +236,8 @@ end
 
 
 @inline function rhs_dipole!(Δs, s, ξ, ∇E, integrator)
-    (; Δt, λ, kT) = integrator
-    if iszero(λ) && iszero(kT)
+    (; Δt, λ) = integrator
+    if iszero(λ)
         @. Δs = -s × (- Δt*∇E)
     else
         @. Δs = -s × (- Δt*∇E + ξ - Δt*λ*(s × ∇E))
@@ -250,11 +245,22 @@ end
 end
 
 function rhs_sun!(ΔZ, Z, ξ, HZ, integrator)
-    (; kT, λ, Δt) = integrator
+    (; λ, Δt) = integrator
 
-    @. ΔZ = - Δt*(im+λ)*HZ + ξ
-    if !iszero(λ) || !iszero(kT)
-        @. ΔZ = proj(ΔZ, Z)
+    if iszero(λ)
+        @. ΔZ = - im*Δt*HZ
+    else
+        @. ΔZ = - proj(Δt*(im+λ)*HZ + ξ, Z)
+    end
+end
+
+function fill_noise!(rng, ξ, integrator)
+    (; Δt, λ, kT, λ) = integrator
+    if iszero(λ) || iszero(kT)
+        fill!(ξ, zero(eltype(ξ)))
+    else
+        randn!(rng, ξ)
+        ξ .*= √(2Δt*λ*kT)
     end
 end
 
@@ -275,11 +281,9 @@ function step!(sys::System{0}, integrator::Langevin)
     check_timestep_available(integrator)
 
     (s′, Δs₁, Δs₂, ξ, ∇E) = get_dipole_buffers(sys, 5)
-    (; Δt, kT, λ) = integrator
     s = sys.dipoles
 
-    randn!(sys.rng, ξ)
-    ξ .*= √(2Δt*λ*kT)
+    fill_noise!(sys.rng, ξ, integrator)
 
     # Euler prediction step
     set_energy_grad_dipoles!(∇E, s, sys)
@@ -298,11 +302,9 @@ function step!(sys::System{N}, integrator::Langevin) where N
     check_timestep_available(integrator)
 
     (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
-    (; Δt, kT, λ) = integrator
     Z = sys.coherents
 
-    randn!(sys.rng, ξ)
-    @. ξ *= -im*√(2*Δt*kT*λ)
+    fill_noise!(sys.rng, ξ, integrator)
 
     # Euler prediction step
     set_energy_grad_coherents!(HZ, Z, sys)
@@ -345,17 +347,11 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
     check_timestep_available(integrator)
 
     s = sys.dipoles
-    (; λ, kT, Δt, atol) = integrator
-    atol *= √length(s)
+    atol = integrator.atol * √length(s)
 
     (Δs, ŝ, s′, s″, ξ, ∇E) = get_dipole_buffers(sys, 6)
 
-    if iszero(kT)
-        fill!(ξ, zero(Vec3))
-    else
-        randn!(sys.rng, ξ)
-        ξ .*= √(2Δt*λ*kT)
-    end
+    fill_noise!(sys.rng, ξ, integrator)
     
     @. s′ = s
     @. s″ = s
@@ -394,16 +390,10 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     check_timestep_available(integrator)
 
     Z = sys.coherents
-    (; λ, kT, Δt, atol) = integrator
-    atol *= √length(Z)
+    atol = integrator.atol * √length(Z)
     
     (ΔZ, Z̄, Z′, Z″, ξ, HZ) = get_coherent_buffers(sys, 6)
-    if iszero(kT)
-        fill!(ξ, zero(CVec{N}))
-    else
-        randn!(sys.rng, ξ)
-        @. ξ *= -im*√(2*Δt*kT*λ)
-    end
+    fill_noise!(sys.rng, ξ, integrator)
 
     @. Z′ = Z 
     @. Z″ = Z 
