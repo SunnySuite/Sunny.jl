@@ -197,6 +197,11 @@ function suggest_timestep_aux(sys::System{N}; tol, Δt, λ, kT) where N
     c2 = 1.0
     Δt_bound = sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
 
+    if iszero(drift_rms)
+        println("Cannot suggest a timestep without an energy scale!")
+        return
+    end
+
     # Print suggestion
     bound_str, tol_str = number_to_simple_string.((Δt_bound, tol); digits=4)
     print("Consider Δt ≈ $bound_str for this spin configuration at tol = $tol_str.")
@@ -211,6 +216,8 @@ function suggest_timestep_aux(sys::System{N}; tol, Δt, λ, kT) where N
         else
             println(" Current value is Δt = $Δt_str.")
         end
+    else
+        println()
     end
 end
 
@@ -232,8 +239,16 @@ end
 # Dipole integration
 ################################################################################
 
-@inline rhs_dipole(s, B) = -s × B
-@inline rhs_dipole(s, B, λ) = -s × (B + λ * (s × B))
+
+@inline function rhs_dipole!(Δs, s, ξ, ∇E, integrator)
+    (; Δt, λ, kT) = integrator
+    if iszero(λ) && iszero(kT)
+        @. Δs = -s × (- Δt*∇E)
+    else
+        @. Δs = -s × (- Δt*∇E + ξ - Δt*λ*(s × ∇E))
+    end
+end
+
 
 """
     step!(sys::System, dynamics)
@@ -248,23 +263,22 @@ function step! end
 function step!(sys::System{0}, integrator::Langevin)
     check_timestep_available(integrator)
 
-    (∇E, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
-    (; kT, λ, Δt) = integrator
+    (s′, Δs₁, Δs₂, ξ, ∇E) = get_dipole_buffers(sys, 5)
+    (; Δt, kT, λ) = integrator
     s = sys.dipoles
 
     randn!(sys.rng, ξ)
-    ξ .*= √(2λ*kT)
+    ξ .*= √(2Δt*λ*kT)
 
     # Euler step
     set_energy_grad_dipoles!(∇E, s, sys)
-    @. f₁ = rhs_dipole(s, -∇E, λ)
-    @. r₁ = rhs_dipole(s, ξ)   # note absence of λ argument -- noise only appears once in rhs.
-    @. s₁ = s + Δt * f₁ + √Δt * r₁
+    rhs_dipole!(Δs₁, s, ξ, ∇E, integrator)
+    @. s′ = normalize_dipole(s + Δs₁, sys.κs)
 
     # Corrector step
-    set_energy_grad_dipoles!(∇E, s₁, sys)
-    @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, -∇E, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
-    @. s = normalize_dipole(s, sys.κs)
+    set_energy_grad_dipoles!(∇E, s′, sys)    
+    rhs_dipole!(Δs₂, s′, ξ, ∇E, integrator)
+    @. s = normalize_dipole(s + (Δs₁+Δs₂)/2, sys.κs)
 
     return
 end
@@ -275,72 +289,46 @@ end
 #   ŝ = s̄ / |s̄|
 #   (s′ - s)/Δt = 2(s̄ - s)/Δt = - ŝ × B,
 # where B = -∂E/∂ŝ.
-function step!(sys::System{0}, integrator::ImplicitMidpoint)
+function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
     check_timestep_available(integrator)
 
     s = sys.dipoles
     (; λ, kT, Δt, atol) = integrator
+    atol *= √length(s)
 
-    (∇E, s̄, ŝ, s̄′, ξ) = get_dipole_buffers(sys, 5)
+    (Δs, ŝ, s′, s″, ξ, ∇E) = get_dipole_buffers(sys, 6)
 
-    if iszero(λ)
-        # Initial guess for midpoint
-        @. s̄ = s
-
-        max_iters = 100
-        for _ in 1:max_iters
-            # Integration step for current best guess of midpoint s̄. Produces
-            # improved midpoint estimator s̄′.
-            @. ŝ = normalize_dipole(s̄, sys.κs)
-            set_energy_grad_dipoles!(∇E, ŝ, sys)
-            @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, -∇E)
-
-            # If converged, then we can return
-            if fast_isapprox(s̄, s̄′,atol=atol* √length(s̄))
-                # Normalization here should not be necessary in principle, but it
-                # could be useful in practice for finite `atol`.
-                @. s = normalize_dipole(2*s̄′ - s, sys.κs)
-                return
-            end
-
-            @. s̄ = s̄′
-        end
-
-        error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
+    if iszero(kT)
+        fill!(ξ, zero(Vec3))
     else
-        if kT > 0
-            randn!(sys.rng, ξ)
-            noise_prefactor = √(2λ*kT*Δt)
-        end
-        
-        # Initial guess for midpoint
-        @. s̄ = s
+        randn!(sys.rng, ξ)
+        ξ .*= √(2Δt*λ*kT)
+    end
+    
+    @. s′ = s
+    @. s″ = s
 
-        max_iters = 100
-        for _ in 1:max_iters
-            # Integration step for current best guess of midpoint s̄. Produces
-            # improved midpoint estimator s̄′.
-            @. ŝ = normalize_dipole(s̄, sys.κs)
-            set_energy_grad_dipoles!(∇E, ŝ, sys)
-            @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, -∇E, λ)
-            if kT > 0
-                @. s̄′ += 0.5 * noise_prefactor * rhs_dipole(ŝ, ξ)
-            end
+    for _ in 1:max_iters
+        # Current guess for midpoint ŝ
+        @. ŝ = normalize_dipole((s + s′)/2, sys.κs)
 
-            # If converged, then we can return
-            if fast_isapprox(s̄, s̄′,atol=atol* √length(s̄))
-                # Normalization here should not be necessary in principle, but it
-                # could be useful in practice for finite `atol`.
-                @. s = normalize_dipole(2*s̄′ - s, sys.κs)
-                return
-            end
+        set_energy_grad_dipoles!(∇E, ŝ, sys)
+        rhs_dipole!(Δs, ŝ, ξ, ∇E, integrator)
 
-            @. s̄ = s̄′
+        @. s″ = s + Δs
+
+        # If converged, then we can return
+        if fast_isapprox(s′, s″; atol)
+            # Normalization here should not be necessary in principle, but it
+            # could be useful in practice for finite `atol`.
+            @. s = normalize_dipole(s″, sys.κs)
+            return
         end
 
-        error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
+        s′, s″ = s″, s′
     end
 
+    error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
 end
 
 
@@ -361,30 +349,17 @@ end
 # SU(N) integration
 ################################################################################
 
+# Project `a` onto space perpendicular to `Z`
 @inline function proj(a::T, Z::T) where T <: CVec
     a - Z * ((Z' * a) / (Z' * Z))
 end
 
-function rhs_langevin!(ΔZ, Z, ξ, HZ, integrator, sys::System{N}) where N
+function rhs_sun!(ΔZ, Z, ξ, HZ, integrator)
     (; kT, λ, Δt) = integrator
-    if kT > 0
-        noise_prefactor = -im*√(2*Δt*kT*λ)
-        for site in eachsite(sys)
-            ΔZ′ = - Δt*(im+λ)*HZ[site] + noise_prefactor*ξ[site] 
-            ΔZ[site] = proj(ΔZ′, Z[site])
-        end
-    else
-        for site in eachsite(sys)
-            ΔZ′ = - Δt*(im+λ)*HZ[site] 
-            ΔZ[site] = proj(ΔZ′, Z[site])
-        end
-    end
-end
 
-function rhs!(ΔZ, HZ, integrator, sys::System{N}) where N
-    (; Δt) = integrator
-    for site in eachsite(sys)
-        ΔZ[site] = - Δt*im*HZ[site]
+    @. ΔZ = - Δt*(im+λ)*HZ + ξ
+    if any(!iszero, (kT, λ))
+        @. ΔZ = proj(ΔZ, Z)
     end
 end
 
@@ -393,18 +368,20 @@ function step!(sys::System{N}, integrator::Langevin) where N
     check_timestep_available(integrator)
 
     (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
+    (; Δt, kT, λ) = integrator
     Z = sys.coherents
 
     randn!(sys.rng, ξ)
+    @. ξ *= -im*√(2*Δt*kT*λ)
 
     # Prediction
     set_energy_grad_coherents!(HZ, Z, sys)
-    rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
+    rhs_sun!(ΔZ₁, Z, ξ, HZ, integrator)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction
     set_energy_grad_coherents!(HZ, Z′, sys)
-    rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
+    rhs_sun!(ΔZ₂, Z′, ξ, HZ, integrator)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
     # Coordinate dipole data
@@ -423,57 +400,37 @@ end
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     check_timestep_available(integrator)
 
-    (; kT, λ, atol) = integrator
     Z = sys.coherents
+    (; λ, kT, Δt, atol) = integrator
+    atol *= √length(Z)
     
-    if iszero(λ) 
-        (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
-
-        @. Z′ = Z 
-        @. Z″ = Z 
-
-        for _ in 1:max_iters
-            @. Z̄ = (Z + Z′)/2
-
-            set_energy_grad_coherents!(HZ, Z̄, sys)
-            rhs!(ΔZ, HZ, integrator, sys)
-
-            @. Z″ = Z + ΔZ
-
-            if fast_isapprox(Z′, Z″, atol=atol*√length(Z′))
-                @. Z = normalize_ket(Z″, sys.κs)
-                @. sys.dipoles = expected_spin(Z)
-                return
-            end
-
-            Z′, Z″ = Z″, Z′
-        end
-
-        error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
+    (ΔZ, Z̄, Z′, Z″, ξ, HZ) = get_coherent_buffers(sys, 6)
+    if iszero(kT)
+        fill!(ξ, zero(CVec{N}))
     else
-        (ΔZ, Z̄, Z′, Z″, ξ, HZ) = get_coherent_buffers(sys, 6)
-        !iszero(kT) && randn!(sys.rng, ξ)
+        randn!(sys.rng, ξ)
+        @. ξ *= -im*√(2*Δt*kT*λ)
+    end
 
-        @. Z′ = Z 
-        @. Z″ = Z 
+    @. Z′ = Z 
+    @. Z″ = Z 
 
-        for _ in 1:max_iters
-            @. Z̄ = (Z + Z′)/2
+    for _ in 1:max_iters
+        @. Z̄ = (Z + Z′)/2
 
-            set_energy_grad_coherents!(HZ, Z̄, sys)
-            rhs_langevin!(ΔZ, Z̄, ξ, HZ, integrator, sys)
+        set_energy_grad_coherents!(HZ, Z̄, sys)
+        rhs_sun!(ΔZ, Z̄, ξ, HZ, integrator)
 
-            @. Z″ = Z + ΔZ
+        @. Z″ = Z + ΔZ
 
-            if fast_isapprox(Z′, Z″, atol=atol*√length(Z′))
-                @. Z = normalize_ket(Z″, sys.κs)
-                @. sys.dipoles = expected_spin(Z)
-                return
-            end
-
-            Z′, Z″ = Z″, Z′
+        if fast_isapprox(Z′, Z″; atol)
+            @. Z = normalize_ket(Z″, sys.κs)
+            @. sys.dipoles = expected_spin(Z)
+            return
         end
 
-        error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
+        Z′, Z″ = Z″, Z′
     end
+
+    error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
 end
