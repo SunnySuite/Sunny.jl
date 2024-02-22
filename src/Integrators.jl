@@ -103,6 +103,7 @@ mutable struct ImplicitMidpoint
         Δt <= 0 && error("Select positive Δt")
         kT < 0  && error("Select nonnegative kT")
         λ < 0   && error("Select nonnegative damping λ")
+        (kT > 0 && iszero(λ)) && error("Select positive λ for positive kT")
         return new(Δt, λ, kT, atol)
     end    
 end
@@ -285,7 +286,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
 
     (∇E, s̄, ŝ, s̄′, ξ) = get_dipole_buffers(sys, 5)
 
-    if iszero(λ) && iszero(kT)
+    if iszero(λ)
         # Initial guess for midpoint
         @. s̄ = s
 
@@ -428,7 +429,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     (; kT, λ, atol) = integrator
     Z = sys.coherents
     
-    if iszero(kT) && iszero(λ) 
+    if iszero(λ) 
         (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
 
         @. Z′ = Z 
