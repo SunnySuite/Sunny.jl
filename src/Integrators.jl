@@ -377,13 +377,17 @@ end
 
 function rhs_langevin!(ΔZ, Z, ξ, HZ, integrator, sys::System{N}) where N
     (; kT, λ, Δt) = integrator
-    noise_prefactor = -im*√(2*Δt*kT*λ)
-    for site in eachsite(sys)
-        ΔZ′ = - Δt*(im+λ)*HZ[site] + noise_prefactor*ξ[site] 
-        # if kT > 0
-        #     ΔZ′ += noise_prefactor*ξ[site] 
-        # end
-        ΔZ[site] = proj(ΔZ′, Z[site])
+    if kT > 0
+        noise_prefactor = -im*√(2*Δt*kT*λ)
+        for site in eachsite(sys)
+            ΔZ′ = - Δt*(im+λ)*HZ[site] + noise_prefactor*ξ[site] 
+            ΔZ[site] = proj(ΔZ′, Z[site])
+        end
+    else
+        for site in eachsite(sys)
+            ΔZ′ = - Δt*(im+λ)*HZ[site] 
+            ΔZ[site] = proj(ΔZ′, Z[site])
+        end
     end
 end
 
@@ -429,33 +433,59 @@ end
 function step!(sys::System{N}, integrator::ImplicitMidpointLangevin; max_iters=100) where N
     check_timestep_available(integrator)
 
-    (; kT, atol) = integrator
-    (ΔZ, Z̄, Z′, Z″, ξ, HZ) = get_coherent_buffers(sys, 6)
+    (; kT, λ, atol) = integrator
     Z = sys.coherents
     
-    !iszero(kT) && randn!(sys.rng, ξ)
+    if iszero(kT) && iszero(λ) 
+        (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
 
-    @. Z′ = Z 
-    @. Z″ = Z 
+        @. Z′ = Z 
+        @. Z″ = Z 
 
-    for _ in 1:max_iters
-        @. Z̄ = (Z + Z′)/2
+        for _ in 1:max_iters
+            @. Z̄ = (Z + Z′)/2
 
-        set_energy_grad_coherents!(HZ, Z̄, sys)
-        rhs_langevin!(ΔZ, Z̄, ξ, HZ, integrator, sys)
+            set_energy_grad_coherents!(HZ, Z̄, sys)
+            rhs!(ΔZ, HZ, integrator, sys)
 
-        @. Z″ = Z + ΔZ
+            @. Z″ = Z + ΔZ
 
-        if fast_isapprox(Z′, Z″, atol=atol*√length(Z′))
-            @. Z = normalize_ket(Z″, sys.κs)
-            @. sys.dipoles = expected_spin(Z)
-            return
+            if fast_isapprox(Z′, Z″, atol=atol*√length(Z′))
+                @. Z = normalize_ket(Z″, sys.κs)
+                @. sys.dipoles = expected_spin(Z)
+                return
+            end
+
+            Z′, Z″ = Z″, Z′
         end
 
-        Z′, Z″ = Z″, Z′
-    end
+        error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
+    else
+        (ΔZ, Z̄, Z′, Z″, ξ, HZ) = get_coherent_buffers(sys, 6)
+        !iszero(kT) && randn!(sys.rng, ξ)
 
-    error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
+        @. Z′ = Z 
+        @. Z″ = Z 
+
+        for _ in 1:max_iters
+            @. Z̄ = (Z + Z′)/2
+
+            set_energy_grad_coherents!(HZ, Z̄, sys)
+            rhs_langevin!(ΔZ, Z̄, ξ, HZ, integrator, sys)
+
+            @. Z″ = Z + ΔZ
+
+            if fast_isapprox(Z′, Z″, atol=atol*√length(Z′))
+                @. Z = normalize_ket(Z″, sys.κs)
+                @. sys.dipoles = expected_spin(Z)
+                return
+            end
+
+            Z′, Z″ = Z″, Z′
+        end
+
+        error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
+    end
 end
 
 
