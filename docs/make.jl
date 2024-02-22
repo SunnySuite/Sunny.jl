@@ -72,22 +72,27 @@ function build_examples(example_sources, destdir)
 end
 
 function prepare_contributed()
-    # Download tarball from SunnyContributed. This contains the markdown files
-    # and png files from the SunnyContributed doc build.
-    src_url = "https://github.com/SunnySuite/SunnyContributed/raw/main/contributed-docs/build.tar.gz"
-    dest_path = joinpath(@__DIR__, "src", "examples", "contributed")
+    try
+        # Download tarball from SunnyContributed. This contains the markdown files
+        # and png files from the SunnyContributed doc build.
+        src_url = "https://github.com/SunnySuite/SunnyContributed/raw/main/contributed-docs/build.tar.gz"
+        dest_path = joinpath(@__DIR__, "src", "examples", "contributed")
 
-    @info "Downloading $src_url"
-    tgz_path = Downloads.download(src_url)
-    tar = CodecZlib.GzipDecompressorStream(open(tgz_path))
-    Tar.extract(tar, dest_path)
-    close(tar)
-    rm(tgz_path)
+        @info "Downloading $src_url"
+        tgz_path = Downloads.download(src_url)
+        tar = CodecZlib.GzipDecompressorStream(open(tgz_path))
+        Tar.extract(tar, dest_path)
+        close(tar)
+        rm(tgz_path)
 
-    # Generate the base names for each contributed markdown file and prepare
-    # paths for Documenter (relative to `src/`)
-    contrib_names = filter(endswith(".md"), readdir(dest_path))
-    return [joinpath("examples", "contributed", name) for name in contrib_names]
+        # Generate the base names for each contributed markdown file and prepare
+        # paths for Documenter (relative to `src/`)
+        contrib_names = filter(endswith(".md"), readdir(dest_path))
+        return [joinpath("examples", "contributed", name) for name in contrib_names]
+    catch _
+        @warn "Could not download contributed docs."
+        return String[]
+    end
 end
 
 example_sources = filter(endswith(".jl"), readdir(pkgdir(Sunny, "examples"), join=true))
