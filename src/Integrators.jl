@@ -253,7 +253,7 @@ function rhs_sun!(ΔZ, Z, ξ, HZ, integrator)
     (; kT, λ, Δt) = integrator
 
     @. ΔZ = - Δt*(im+λ)*HZ + ξ
-    if any(!iszero, (kT, λ))
+    if !iszero(λ) || !iszero(kT)
         @. ΔZ = proj(ΔZ, Z)
     end
 end
