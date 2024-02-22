@@ -281,12 +281,12 @@ function step!(sys::System{0}, integrator::Langevin)
     randn!(sys.rng, ξ)
     ξ .*= √(2Δt*λ*kT)
 
-    # Euler step
+    # Euler prediction step
     set_energy_grad_dipoles!(∇E, s, sys)
     rhs_dipole!(Δs₁, s, ξ, ∇E, integrator)
     @. s′ = normalize_dipole(s + Δs₁, sys.κs)
 
-    # Corrector step
+    # Correction step
     set_energy_grad_dipoles!(∇E, s′, sys)    
     rhs_dipole!(Δs₂, s′, ξ, ∇E, integrator)
     @. s = normalize_dipole(s + (Δs₁+Δs₂)/2, sys.κs)
@@ -304,12 +304,12 @@ function step!(sys::System{N}, integrator::Langevin) where N
     randn!(sys.rng, ξ)
     @. ξ *= -im*√(2*Δt*kT*λ)
 
-    # Prediction
+    # Euler prediction step
     set_energy_grad_coherents!(HZ, Z, sys)
     rhs_sun!(ΔZ₁, Z, ξ, HZ, integrator)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
-    # Correction
+    # Correction step
     set_energy_grad_coherents!(HZ, Z′, sys)
     rhs_sun!(ΔZ₂, Z′, ξ, HZ, integrator)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
