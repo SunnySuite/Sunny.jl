@@ -73,7 +73,7 @@
 
         sys = su3_anisotropy_model(; D, L, seed=0)
         heun = Langevin(Δt; kT=0, λ)
-        midpoint = ImplicitMidpoint(Δt; kT=0, λ)
+        midpoint = Sunny.ImplicitMidpointLangevin(Δt; kT=0, λ)
 
         for integrator in [heun, midpoint]
             for kT in kTs
@@ -100,7 +100,7 @@
 
         sys = su5_anisotropy_model(; D, L, seed=0)
         heun = Langevin(Δt; kT=0, λ)
-        midpoint = ImplicitMidpoint(Δt; kT=0, λ)
+        midpoint = Sunny.ImplicitMidpointLangevin(Δt; kT=0, λ)
 
         for integrator in [heun, midpoint]
             for kT ∈ kTs
@@ -191,7 +191,7 @@ end
             kT = 0.1
             Δt = 0.02
             heun = Langevin(Δt; kT, λ)
-            midpoint = ImplicitMidpoint(Δt; kT, λ)
+            midpoint = Sunny.ImplicitMidpointLangevin(Δt; kT, λ)
 
             n_equilib = 1000
             n_samples = 2000

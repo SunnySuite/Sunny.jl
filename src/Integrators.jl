@@ -86,17 +86,28 @@ References:
 2. [D. Dahlbom et al, Phys. Rev. B 106, 054423
    (2022)](https://arxiv.org/abs/2204.07563).
 """
-mutable struct ImplicitMidpoint
+mutable struct ImplicitMidpointLangevin
     Δt   :: Float64
     λ   :: Float64
     kT  :: Float64
     atol :: Float64
 
-    function ImplicitMidpoint(Δt; λ=0, kT=0, atol=1e-12)
+    function ImplicitMidpointLangevin(Δt; λ=0, kT=0, atol=1e-12)
         Δt <= 0 && error("Select positive Δt")
         kT < 0  && error("Select nonnegative kT")
         λ < 0   && error("Select nonnegative damping λ")
         return new(Δt, λ, kT, atol)
+    end    
+end
+ImplicitMidpointLangevin(; atol) = ImplicitMidpointLangevin(NaN; atol)
+
+mutable struct ImplicitMidpoint
+    Δt   :: Float64
+    atol :: Float64
+
+    function ImplicitMidpoint(Δt; atol=1e-12)
+        Δt <= 0 && error("Select positive Δt")
+        return new(Δt, atol)
     end    
 end
 ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
@@ -269,7 +280,7 @@ end
 #   ŝ = s̄ / |s̄|
 #   (s′ - s)/Δt = 2(s̄ - s)/Δt = - ŝ × B,
 # where B = -∂E/∂ŝ.
-function step!(sys::System{0}, integrator::ImplicitMidpoint)
+function step!(sys::System{0}, integrator::ImplicitMidpointLangevin)
     check_timestep_available(integrator)
 
     s = sys.dipoles
@@ -278,7 +289,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
     (∇E, s̄, ŝ, s̄′, ξ) = get_dipole_buffers(sys, 5)
 
     !iszero(kT) && randn!(sys.rng, ξ)
-    ξ .*= √(2λ*kT)
+    noise_prefactor = √(2λ*kT*Δt)
     
     # Initial guess for midpoint
     @. s̄ = s
@@ -289,7 +300,10 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         # improved midpoint estimator s̄′.
         @. ŝ = normalize_dipole(s̄, sys.κs)
         set_energy_grad_dipoles!(∇E, ŝ, sys)
-        @. s̄′ = s + 0.5 * (Δt * rhs_dipole(ŝ, -∇E, λ) + √Δt * rhs_dipole(ŝ, ξ))
+        @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, -∇E, λ)
+        if kT > 0
+            @. s̄′ += 0.5 * noise_prefactor * rhs_dipole(ŝ, ξ)
+        end
 
         # If converged, then we can return
         if fast_isapprox(s̄, s̄′,atol=atol* √length(s̄))
@@ -304,6 +318,40 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
 
     error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
 end
+
+function step!(sys::System{0}, integrator::ImplicitMidpoint)
+    check_timestep_available(integrator)
+
+    s = sys.dipoles
+    (; Δt, atol) = integrator
+
+    (∇E, s̄, ŝ, s̄′) = get_dipole_buffers(sys, 4)
+
+    # Initial guess for midpoint
+    @. s̄ = s
+
+    max_iters = 100
+    for _ in 1:max_iters
+        # Integration step for current best guess of midpoint s̄. Produces
+        # improved midpoint estimator s̄′.
+        @. ŝ = normalize_dipole(s̄, sys.κs)
+        set_energy_grad_dipoles!(∇E, ŝ, sys)
+        @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, -∇E) 
+
+        # If converged, then we can return
+        if fast_isapprox(s̄, s̄′,atol=atol* √length(s̄))
+            # Normalization here should not be necessary in principle, but it
+            # could be useful in practice for finite `atol`.
+            @. s = normalize_dipole(2*s̄′ - s, sys.κs)
+            return
+        end
+
+        @. s̄ = s̄′
+    end
+
+    error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
+end
+
 
 function fast_isapprox(x, y; atol)
     acc = 0.
@@ -326,11 +374,22 @@ end
     a - Z * ((Z' * a) / (Z' * Z))
 end
 
-function rhs!(ΔZ, Z, ξ, HZ, integrator, sys::System{N}) where N
+function rhs_langevin!(ΔZ, Z, ξ, HZ, integrator, sys::System{N}) where N
     (; kT, λ, Δt) = integrator
+    noise_prefactor = -im*√(2*Δt*kT*λ)
     for site in eachsite(sys)
-        ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ[site]
+        ΔZ′ = - Δt*(im+λ)*HZ[site]
+        if kT > 0
+            ΔZ′ += noise_prefactor*ξ[site] 
+        end
         ΔZ[site] = proj(ΔZ′, Z[site])
+    end
+end
+
+function rhs!(ΔZ, HZ, integrator, sys::System{N}) where N
+    (; Δt) = integrator
+    for site in eachsite(sys)
+        ΔZ[site] = - Δt*im*HZ[site]
     end
 end
 
@@ -345,12 +404,12 @@ function step!(sys::System{N}, integrator::Langevin) where N
 
     # Prediction
     set_energy_grad_coherents!(HZ, Z, sys)
-    rhs!(ΔZ₁, Z, ξ, HZ, integrator, sys)
+    rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction
     set_energy_grad_coherents!(HZ, Z′, sys)
-    rhs!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
+    rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
     # Coordinate dipole data
@@ -366,7 +425,7 @@ end
 #
 #   (Z′-Z)/Δt = - i H(Z̄) Z, where Z̄ = (Z+Z′)/2
 #
-function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
+function step!(sys::System{N}, integrator::ImplicitMidpointLangevin; max_iters=100) where N
     check_timestep_available(integrator)
 
     (; kT, atol) = integrator
@@ -382,7 +441,38 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
         @. Z̄ = (Z + Z′)/2
 
         set_energy_grad_coherents!(HZ, Z̄, sys)
-        rhs!(ΔZ, Z̄, ξ, HZ, integrator, sys)
+        rhs_langevin!(ΔZ, Z̄, ξ, HZ, integrator, sys)
+
+        @. Z″ = Z + ΔZ
+
+        if fast_isapprox(Z′, Z″, atol=atol*√length(Z′))
+            @. Z = normalize_ket(Z″, sys.κs)
+            @. sys.dipoles = expected_spin(Z)
+            return
+        end
+
+        Z′, Z″ = Z″, Z′
+    end
+
+    error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
+end
+
+
+function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
+    check_timestep_available(integrator)
+
+    (; atol) = integrator
+    (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
+    Z = sys.coherents
+    
+    @. Z′ = Z 
+    @. Z″ = Z 
+
+    for _ in 1:max_iters
+        @. Z̄ = (Z + Z′)/2
+
+        set_energy_grad_coherents!(HZ, Z̄, sys)
+        rhs!(ΔZ, HZ, integrator, sys)
 
         @. Z″ = Z + ΔZ
 
