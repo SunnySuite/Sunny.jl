@@ -287,7 +287,7 @@ function step!(sys::System{0}, integrator::Langevin)
     @. s′ = normalize_dipole(s + Δs₁, sys.κs)
 
     # Correction step
-    set_energy_grad_dipoles!(∇E, s′, sys)    
+    set_energy_grad_dipoles!(∇E, s′, sys)
     rhs_dipole!(Δs₂, s′, ξ, ∇E, integrator)
     @. s = normalize_dipole(s + (Δs₁+Δs₂)/2, sys.κs)
 
