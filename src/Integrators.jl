@@ -94,8 +94,8 @@ mutable struct ImplicitMidpoint
 
     function ImplicitMidpoint(Δt; λ=0, kT=0, atol=1e-12)
         Δt <= 0 && error("Select positive Δt")
-        kT < 0    && error("Select nonnegative kT")
-        λ < 0     && error("Select nonnegative damping λ")
+        kT < 0  && error("Select nonnegative kT")
+        λ < 0   && error("Select nonnegative damping λ")
         return new(Δt, λ, kT, atol)
     end    
 end
@@ -326,8 +326,7 @@ end
     a - Z * ((Z' * a) / (Z' * Z))
 end
 
-function rhs!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
-                       HZ::Array{CVec{N}, 4}, integrator, sys::System{N}) where N
+function rhs!(ΔZ, Z, ξ, HZ, integrator, sys::System{N}) where N
     (; kT, λ, Δt) = integrator
     for site in eachsite(sys)
         ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ[site]
