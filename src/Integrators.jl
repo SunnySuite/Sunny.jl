@@ -277,10 +277,8 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
 
     (∇E, s̄, ŝ, s̄′, ξ) = get_dipole_buffers(sys, 5)
 
-    if !iszero(λ)
-        randn!(sys.rng, ξ)
-        ξ .*= √(2λ*kT)
-    end
+    !iszero(kT) && randn!(sys.rng, ξ)
+    ξ .*= √(2λ*kT)
     
     # Initial guess for midpoint
     @. s̄ = s
@@ -291,7 +289,7 @@ function step!(sys::System{0}, integrator::ImplicitMidpoint)
         # improved midpoint estimator s̄′.
         @. ŝ = normalize_dipole(s̄, sys.κs)
         set_energy_grad_dipoles!(∇E, ŝ, sys)
-        @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, -∇E, λ)
+        @. s̄′ = s + 0.5 * (Δt * rhs_dipole(ŝ, -∇E, λ) + √Δt * rhs_dipole(ŝ, ξ))
 
         # If converged, then we can return
         if fast_isapprox(s̄, s̄′,atol=atol* √length(s̄))
@@ -372,11 +370,11 @@ end
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     check_timestep_available(integrator)
 
-    (; λ, atol) = integrator
+    (; kT, atol) = integrator
     (ΔZ, Z̄, Z′, Z″, ξ, HZ) = get_coherent_buffers(sys, 6)
     Z = sys.coherents
     
-    !iszero(λ) && randn!(sys.rng, ξ)
+    !iszero(kT) && randn!(sys.rng, ξ)
 
     @. Z′ = Z 
     @. Z″ = Z 

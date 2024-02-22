@@ -190,33 +190,37 @@ end
             λ = 0.1
             kT = 0.1
             Δt = 0.02
-            langevin = Langevin(Δt; kT, λ)
+            heun = Langevin(Δt; kT, λ)
+            midpoint = ImplicitMidpoint(Δt; kT, λ)
 
             n_equilib = 1000
             n_samples = 2000
             n_decorr = 500
 
-            # Initialize the Langevin sampler and thermalize the system
-            for _ in 1:n_equilib
-                step!(sys, langevin)
-            end
+            for integrator in [heun, midpoint]
 
-            # Collect samples of energy
-            Es = Float64[]
-            for _ in 1:n_samples
-                for _ in 1:n_decorr
-                    step!(sys, langevin)
+                # Initialize the Langevin sampler and thermalize the system
+                for _ in 1:n_equilib
+                    step!(sys, integrator)
                 end
-                push!(Es, energy(sys))
+
+                # Collect samples of energy
+                Es = Float64[]
+                for _ in 1:n_samples
+                    for _ in 1:n_decorr
+                        step!(sys, integrator)
+                    end
+                    push!(Es, energy(sys))
+                end
+
+                # Generate empirical distribution and discretize analytical distribution
+                n_bins = 10
+                (; Ps, boundaries) = empirical_distribution(Es, n_bins)
+                Ps_analytical = discretize_P(boundaries, kT) 
+
+                # RMS error between empirical distribution and discretized analytical distribution
+                @test isapprox(Ps, Ps_analytical, atol=0.05)
             end
-
-            # Generate empirical distribution and discretize analytical distribution
-            n_bins = 10
-            (; Ps, boundaries) = empirical_distribution(Es, n_bins)
-            Ps_analytical = discretize_P(boundaries, kT) 
-
-            # RMS error between empirical distribution and discretized analytical distribution
-            @test isapprox(Ps, Ps_analytical, atol=0.05)
         end
     end
 
