@@ -1,13 +1,13 @@
 """
     Langevin(Δt::Float64; λ::Float64, kT::Float64)
 
-Spin dynamics with damping and noise terms that model coupling to an implicit
-thermal bath, of strength `λ`. One call to the [`step!`](@ref) function will
-advance a [`System`](@ref) by `Δt` units of time. Can be used to sample from the
-Boltzmann distribution at temperature `kT`. An alternative approach to sampling
-states from thermal equilibrium is [`LocalSampler`](@ref), which proposes local
-Monte Carlo moves. For example, use `LocalSampler` instead of `Langevin` to
-sample Ising-like spins.
+An integrator for Langevin spin dynamics using the explicit Heun method. The
+parameter ``λ`` controls the coupling to an implicit thermal bath. One call to
+the [`step!`](@ref) function will advance a [`System`](@ref) by `Δt` units of
+time. Can be used to sample from the Boltzmann distribution at temperature `kT`.
+An alternative approach to sampling states from thermal equilibrium is
+[`LocalSampler`](@ref), which proposes local Monte Carlo moves. For example, use
+`LocalSampler` instead of `Langevin` to sample Ising-like spins.
 
 Setting `λ = 0` disables coupling to the thermal bath, yielding an
 energy-conserving spin dynamics. The `Langevin` integrator uses an explicit
@@ -60,7 +60,7 @@ mutable struct Langevin
         kT < 0    && error("Select nonnegative kT")
         λ < 0     && error("Select positive damping λ")
         iszero(λ) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
-        λ < 0.1   && @info "Langevin currently uses Heun integration, which loses statistical accuracy at small λ"
+        λ < 0.1   && @info "For small λ values, the ImplicitMidpoint integrator will be more accurate"
         return new(Δt, λ, kT)
     end
 end
@@ -70,21 +70,18 @@ Langevin(; λ, kT) = Langevin(NaN; λ, kT)
 """
     ImplicitMidpoint(Δt::Float64; λ=0, kT=0, atol=1e-12) where N
 
-Spin dynamics according to the Landau-Lifshitz equation or its generalization to
-SU(_N_) coherent states [1]. One call to the [`step!`](@ref) function will
-advance a [`System`](@ref) by `Δt` units of time.
+The implicit midpoint method for integrating the Landau-Lifshitz spin dynamics
+or its generalization to SU(_N_) coherent states [1]. One call to the
+[`step!`](@ref) function will advance a [`System`](@ref) by `Δt` units of time.
+This integration scheme is exactly symplectic and eliminates energy drift over
+arbitrarily long simulation trajectories.
 
-The dynamics corresponds to that of [`Langevin`](@ref). Here, however, Sunny
-uses a more expensive implicit-midpoint integration scheme that is exactly
-symplectic [2]. When both damping and coupling to a thermal bath are disabled by
-setting `λ=0`, this approach eliminates energy drift over long simulation
-trajectories.
-
-Damping and coupling to a thermal bath may be included by setting `λ` to a
-nonnegative value. In this case, the more expensive integration scheme may
-result in better statistics with larger stepsizes `Δt` relative to the results
-obtained with [`Langevin`](@ref).
-
+Damping and noise terms may be included through the optional `λ` and `kT`
+parameters. In this case, the spin dynamics will coincide with that of
+[`Langevin`](@ref), and samples from the classical Boltzmann distribution as
+derived in Ref. [2]. Relative to the Heun integration method, the implicit
+midpoint method has a larger numerical cost, but can achieve much better
+statistical accuracy, especially in the limit of small damping strength ``λ``.
 
 References:
 
