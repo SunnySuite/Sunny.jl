@@ -86,6 +86,17 @@ References:
 2. [D. Dahlbom et al, Phys. Rev. B 106, 054423
    (2022)](https://arxiv.org/abs/2204.07563).
 """
+mutable struct ImplicitMidpoint
+    Δt   :: Float64
+    atol :: Float64
+
+    function ImplicitMidpoint(Δt; atol=1e-12)
+        Δt <= 0 && error("Select positive Δt")
+        return new(Δt, atol)
+    end    
+end
+ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
+
 mutable struct ImplicitMidpointLangevin
     Δt   :: Float64
     λ   :: Float64
@@ -101,16 +112,6 @@ mutable struct ImplicitMidpointLangevin
 end
 ImplicitMidpointLangevin(; atol) = ImplicitMidpointLangevin(NaN; atol)
 
-mutable struct ImplicitMidpoint
-    Δt   :: Float64
-    atol :: Float64
-
-    function ImplicitMidpoint(Δt; atol=1e-12)
-        Δt <= 0 && error("Select positive Δt")
-        return new(Δt, atol)
-    end    
-end
-ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
 
 function check_timestep_available(integrator)
     isnan(integrator.Δt) && error("Set integration timestep `Δt`.")
@@ -378,10 +379,10 @@ function rhs_langevin!(ΔZ, Z, ξ, HZ, integrator, sys::System{N}) where N
     (; kT, λ, Δt) = integrator
     noise_prefactor = -im*√(2*Δt*kT*λ)
     for site in eachsite(sys)
-        ΔZ′ = - Δt*(im+λ)*HZ[site]
-        if kT > 0
-            ΔZ′ += noise_prefactor*ξ[site] 
-        end
+        ΔZ′ = - Δt*(im+λ)*HZ[site] + noise_prefactor*ξ[site] 
+        # if kT > 0
+        #     ΔZ′ += noise_prefactor*ξ[site] 
+        # end
         ΔZ[site] = proj(ΔZ′, Z[site])
     end
 end
