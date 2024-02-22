@@ -88,11 +88,15 @@ References:
 """
 mutable struct ImplicitMidpoint
     Δt   :: Float64
+    λ   :: Float64
+    kT  :: Float64
     atol :: Float64
 
-    function ImplicitMidpoint(Δt; atol=1e-12)
+    function ImplicitMidpoint(Δt; λ=0, kT=0, atol=1e-12)
         Δt <= 0 && error("Select positive Δt")
-        return new(Δt, atol)
+        kT < 0    && error("Select nonnegative kT")
+        λ < 0     && error("Select nonnegative damping λ")
+        return new(Δt, λ, kT, atol)
     end    
 end
 ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
@@ -319,6 +323,16 @@ end
     a - Z * ((Z' * a) / (Z' * Z))
 end
 
+function rhs!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
+                       HZ::Array{CVec{N}, 4}, integrator, sys::System{N}) where N
+    (; kT, λ, Δt) = integrator
+    for site in eachsite(sys)
+        ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ[site]
+        ΔZ[site] = proj(ΔZ′, Z[site])
+    end
+end
+
+
 function step!(sys::System{N}, integrator::Langevin) where N
     check_timestep_available(integrator)
 
@@ -329,12 +343,12 @@ function step!(sys::System{N}, integrator::Langevin) where N
 
     # Prediction
     set_energy_grad_coherents!(HZ, Z, sys)
-    rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
+    rhs!(ΔZ₁, Z, ξ, HZ, integrator, sys)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction
     set_energy_grad_coherents!(HZ, Z′, sys)
-    rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
+    rhs!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
     # Coordinate dipole data
@@ -342,16 +356,6 @@ function step!(sys::System{N}, integrator::Langevin) where N
 
     return
 end
-
-function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
-                       HZ::Array{CVec{N}, 4}, integrator::Langevin, sys::System{N}) where N
-    (; kT, λ, Δt) = integrator
-    for site in eachsite(sys)
-        ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ[site]
-        ΔZ[site] = proj(ΔZ′, Z[site])
-    end
-end
-
 
 
 # Implicit Midpoint Method applied to the nonlinear Schrödinger dynamics, as
@@ -363,9 +367,11 @@ end
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     check_timestep_available(integrator)
 
-    (; atol) = integrator
-    (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
+    (; λ, atol) = integrator
+    (ΔZ, Z̄, Z′, Z″, ξ, HZ) = get_coherent_buffers(sys, 6)
     Z = sys.coherents
+    
+    !iszero(λ) && randn!(sys.rng, ξ)
 
     @. Z′ = Z 
     @. Z″ = Z 
@@ -374,7 +380,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
         @. Z̄ = (Z + Z′)/2
 
         set_energy_grad_coherents!(HZ, Z̄, sys)
-        rhs_ll!(ΔZ, HZ, integrator, sys)
+        rhs!(ΔZ, Z̄, ξ, HZ, integrator, sys)
 
         @. Z″ = Z + ΔZ
 
@@ -388,11 +394,4 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     end
 
     error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
-end
-
-function rhs_ll!(ΔZ, HZ, integrator, sys)
-    (; Δt) = integrator
-    for site in eachsite(sys)
-        ΔZ[site] = - Δt*im*HZ[site]
-    end
 end
