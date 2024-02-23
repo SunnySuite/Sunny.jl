@@ -138,7 +138,6 @@ true numerical error, and should be selected with this in mind.
 """
 function suggest_timestep(sys::System{N}, integrator::Union{Langevin, ImplicitMidpoint}; tol) where N
     (; Δt, λ, kT) = integrator
-    suggest_timestep_aux(sys; tol, Δt, λ, kT)
 
     # Accumulate statistics regarding Var[∇E]
     acc = 0.0
