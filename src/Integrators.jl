@@ -137,7 +137,30 @@ This implies that the `tol` argument may actually scale like the _square_ of the
 true numerical error, and should be selected with this in mind.
 """
 function suggest_timestep(sys::System{N}, integrator::Union{Langevin, ImplicitMidpoint}; tol) where N
-    (; Δt, λ, kT) = integrator
+    (; Δt) = integrator
+    Δt_bound = suggest_timestep_aux(sys, integrator; tol)
+
+    # Print suggestion
+    bound_str, tol_str = number_to_simple_string.((Δt_bound, tol); digits=4)
+    print("Consider Δt ≈ $bound_str for this spin configuration at tol = $tol_str.")
+
+    # Compare with existing Δt if present
+    if !isnan(Δt)
+        Δt_str = number_to_simple_string(Δt; digits=4)
+        if Δt <= Δt_bound/2
+            println("\nCurrent value Δt = $Δt_str seems small! Increasing it will make the simulation faster.")
+        elseif Δt >= 2Δt_bound
+            println("\nCurrent value Δt = $Δt_str seems LARGE! Decreasing it will improve accuracy.")
+        else
+            println(" Current value is Δt = $Δt_str.")
+        end
+    else
+        println()
+    end
+end
+
+function suggest_timestep_aux(sys::System{N}, integrator; tol) where N
+    (; λ, kT) = integrator
 
     # Accumulate statistics regarding Var[∇E]
     acc = 0.0
@@ -167,6 +190,9 @@ function suggest_timestep(sys::System{N}, integrator::Union{Langevin, ImplicitMi
     # approximately aligned with an external field: the precession frequency is
     # given by |∇E| = |B|.
     drift_rms = sqrt(acc/length(eachsite(sys)))
+    if iszero(drift_rms)
+        error("Cannot suggest a timestep without an energy scale!")
+    end
 
     # In a second-order integrator, the local error from each deterministic
     # timestep scales as dθ². Angular displacement per timestep dθ scales like
@@ -186,33 +212,10 @@ function suggest_timestep(sys::System{N}, integrator::Union{Langevin, ImplicitMi
     # dt ≲ sqrt(tol / (c₁² drift_rms² + c₂² λ² kT²))
     #
     # for some empirical constants c₁ and c₂.
-
     c1 = 1.0
     c2 = 1.0
     Δt_bound = sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
-
-    if iszero(drift_rms)
-        println("Cannot suggest a timestep without an energy scale!")
-        return
-    end
-
-    # Print suggestion
-    bound_str, tol_str = number_to_simple_string.((Δt_bound, tol); digits=4)
-    print("Consider Δt ≈ $bound_str for this spin configuration at tol = $tol_str.")
-
-    # Compare with existing Δt if present
-    if !isnan(Δt)
-        Δt_str = number_to_simple_string(Δt; digits=4)
-        if Δt <= Δt_bound/2
-            println("\nCurrent value Δt = $Δt_str seems small! Increasing it will make the simulation faster.")
-        elseif Δt >= 2Δt_bound
-            println("\nCurrent value Δt = $Δt_str seems LARGE! Decreasing it will improve accuracy.")
-        else
-            println(" Current value is Δt = $Δt_str.")
-        end
-    else
-        println()
-    end
+    return Δt_bound
 end
 
 
