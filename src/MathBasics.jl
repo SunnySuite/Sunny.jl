@@ -44,6 +44,9 @@ end
     end
 end
 
+# Project `v` onto space perpendicular to `n`
+@inline proj(v, n) = v - n * ((n' * v) / norm2(n))
+
 # Avoid linter false positives per
 # https://github.com/julia-vscode/julia-vscode/issues/1497
 kron(a...) = Base.kron(a...)
