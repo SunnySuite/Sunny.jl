@@ -1,13 +1,13 @@
 """
     Langevin(Δt::Float64; λ::Float64, kT::Float64)
 
-Spin dynamics with damping and noise terms that model coupling to an implicit
-thermal bath, of strength `λ`. One call to the [`step!`](@ref) function will
-advance a [`System`](@ref) by `Δt` units of time. Can be used to sample from the
-Boltzmann distribution at temperature `kT`. An alternative approach to sampling
-states from thermal equilibrium is [`LocalSampler`](@ref), which proposes local
-Monte Carlo moves. For example, use `LocalSampler` instead of `Langevin` to
-sample Ising-like spins.
+An integrator for Langevin spin dynamics using the explicit Heun method. The
+parameter ``λ`` controls the coupling to an implicit thermal bath. One call to
+the [`step!`](@ref) function will advance a [`System`](@ref) by `Δt` units of
+time. Can be used to sample from the Boltzmann distribution at temperature `kT`.
+An alternative approach to sampling states from thermal equilibrium is
+[`LocalSampler`](@ref), which proposes local Monte Carlo moves. For example, use
+`LocalSampler` instead of `Langevin` to sample Ising-like spins.
 
 Setting `λ = 0` disables coupling to the thermal bath, yielding an
 energy-conserving spin dynamics. The `Langevin` integrator uses an explicit
@@ -60,7 +60,7 @@ mutable struct Langevin
         kT < 0    && error("Select nonnegative kT")
         λ < 0     && error("Select positive damping λ")
         iszero(λ) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
-        λ < 0.1   && @info "Langevin currently uses Heun integration, which loses statistical accuracy at small λ"
+        λ < 0.1   && @info "For small λ values, the ImplicitMidpoint integrator will be more accurate"
         return new(Δt, λ, kT)
     end
 end
@@ -68,16 +68,20 @@ Langevin(; λ, kT) = Langevin(NaN; λ, kT)
 
 
 """
-    ImplicitMidpoint(Δt::Float64; atol=1e-12) where N
+    ImplicitMidpoint(Δt::Float64; λ=0, kT=0, atol=1e-12) where N
 
-Energy-conserving spin dynamics -- either the Landau-Lifshitz equation, or its
-generalization to SU(_N_) coherent states [1]. One call to the [`step!`](@ref)
-function will advance a [`System`](@ref) by `Δt` units of time.
+The implicit midpoint method for integrating the Landau-Lifshitz spin dynamics
+or its generalization to SU(_N_) coherent states [1]. One call to the
+[`step!`](@ref) function will advance a [`System`](@ref) by `Δt` units of time.
+This integration scheme is exactly symplectic and eliminates energy drift over
+arbitrarily long simulation trajectories.
 
-Corresponds to the [`Langevin`](@ref) dynamics in the absence of coupling to the
-thermal bath (``λ = 0``). Here, however, Sunny uses a more expensive
-implicit-midpoint integration scheme that is exactly symplectic [2]. This
-approach eliminates energy drift over long simulation trajectories.
+Damping and noise terms may be included through the optional `λ` and `kT`
+parameters. In this case, the spin dynamics will coincide with that of
+[`Langevin`](@ref), and samples the classical Boltzmann distribution [2].
+Relative to the Heun integration method, the implicit midpoint method has a
+larger numerical cost, but can achieve much better statistical accuracy,
+especially in the limit of small damping strength ``λ``.
 
 References:
 
@@ -88,14 +92,20 @@ References:
 """
 mutable struct ImplicitMidpoint
     Δt   :: Float64
+    λ    :: Float64
+    kT   :: Float64
     atol :: Float64
 
-    function ImplicitMidpoint(Δt; atol=1e-12)
+    function ImplicitMidpoint(Δt; λ=0, kT=0, atol=1e-12)
         Δt <= 0 && error("Select positive Δt")
-        return new(Δt, atol)
+        kT < 0  && error("Select nonnegative kT")
+        λ < 0   && error("Select nonnegative damping λ")
+        (kT > 0 && iszero(λ)) && error("Select positive λ for positive kT")
+        return new(Δt, λ, kT, atol)
     end    
 end
 ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
+
 
 function check_timestep_available(integrator)
     isnan(integrator.Δt) && error("Set integration timestep `Δt`.")
@@ -126,16 +136,33 @@ such that errors in the estimates of averaged observables may scale like ``Δt``
 This implies that the `tol` argument may actually scale like the _square_ of the
 true numerical error, and should be selected with this in mind.
 """
-function suggest_timestep(sys::System{N}, integrator::Langevin; tol) where N
-    (; Δt, λ, kT) = integrator
-    suggest_timestep_aux(sys; tol, Δt, λ, kT)
-end
-function suggest_timestep(sys::System{N}, integrator::ImplicitMidpoint; tol) where N
+function suggest_timestep(sys::System{N}, integrator::Union{Langevin, ImplicitMidpoint}; tol) where N
     (; Δt) = integrator
-    suggest_timestep_aux(sys; tol, Δt, λ=0, kT=0)
+    Δt_bound = suggest_timestep_aux(sys, integrator; tol)
+
+    # Print suggestion
+    bound_str, tol_str = number_to_simple_string.((Δt_bound, tol); digits=4)
+    print("Consider Δt ≈ $bound_str for this spin configuration at tol = $tol_str.")
+
+    # Compare with existing Δt if present
+    if !isnan(Δt)
+        Δt_str = number_to_simple_string(Δt; digits=4)
+        if Δt <= Δt_bound/2
+            println("\nCurrent value Δt = $Δt_str seems small! Increasing it will make the simulation faster.")
+        elseif Δt >= 2Δt_bound
+            println("\nCurrent value Δt = $Δt_str seems LARGE! Decreasing it will improve accuracy.")
+        else
+            println(" Current value is Δt = $Δt_str.")
+        end
+    else
+        println()
+    end
 end
 
-function suggest_timestep_aux(sys::System{N}; tol, Δt, λ, kT) where N
+function suggest_timestep_aux(sys::System{N}, integrator; tol) where N
+    (; λ, kT) = integrator
+
+    # Accumulate statistics regarding Var[∇E]
     acc = 0.0
     if N == 0
         ∇Es, = get_dipole_buffers(sys, 1)
@@ -163,6 +190,9 @@ function suggest_timestep_aux(sys::System{N}; tol, Δt, λ, kT) where N
     # approximately aligned with an external field: the precession frequency is
     # given by |∇E| = |B|.
     drift_rms = sqrt(acc/length(eachsite(sys)))
+    if iszero(drift_rms)
+        error("Cannot suggest a timestep without an energy scale!")
+    end
 
     # In a second-order integrator, the local error from each deterministic
     # timestep scales as dθ². Angular displacement per timestep dθ scales like
@@ -182,26 +212,10 @@ function suggest_timestep_aux(sys::System{N}; tol, Δt, λ, kT) where N
     # dt ≲ sqrt(tol / (c₁² drift_rms² + c₂² λ² kT²))
     #
     # for some empirical constants c₁ and c₂.
-
     c1 = 1.0
     c2 = 1.0
     Δt_bound = sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
-
-    # Print suggestion
-    bound_str, tol_str = number_to_simple_string.((Δt_bound, tol); digits=4)
-    print("Consider Δt ≈ $bound_str for this spin configuration at tol = $tol_str.")
-
-    # Compare with existing Δt if present
-    if !isnan(Δt)
-        Δt_str = number_to_simple_string(Δt; digits=4)
-        if Δt <= Δt_bound/2
-            println("\nCurrent value Δt = $Δt_str seems small! Increasing it will make the simulation faster.")
-        elseif Δt >= 2Δt_bound
-            println("\nCurrent value Δt = $Δt_str seems LARGE! Decreasing it will improve accuracy.")
-        else
-            println(" Current value is Δt = $Δt_str.")
-        end
-    end
+    return Δt_bound
 end
 
 
@@ -222,8 +236,36 @@ end
 # Dipole integration
 ################################################################################
 
-@inline rhs_dipole(s, B) = -s × B
-@inline rhs_dipole(s, B, λ) = -s × (B + λ * (s × B))
+
+@inline function rhs_dipole!(Δs, s, ξ, ∇E, integrator)
+    (; Δt, λ) = integrator
+    if iszero(λ)
+        @. Δs = -s × (- Δt*∇E)
+    else
+        @. Δs = -s × (- Δt*∇E + ξ - Δt*λ*(s × ∇E))
+    end
+end
+
+function rhs_sun!(ΔZ, Z, ξ, HZ, integrator)
+    (; λ, Δt) = integrator
+
+    if iszero(λ)
+        @. ΔZ = - im*Δt*HZ
+    else
+        @. ΔZ = - proj(Δt*(im+λ)*HZ + ξ, Z)
+    end
+end
+
+function fill_noise!(rng, ξ, integrator)
+    (; Δt, λ, kT, λ) = integrator
+    if iszero(λ) || iszero(kT)
+        fill!(ξ, zero(eltype(ξ)))
+    else
+        randn!(rng, ξ)
+        ξ .*= √(2Δt*λ*kT)
+    end
+end
+
 
 """
     step!(sys::System, dynamics)
@@ -235,68 +277,55 @@ such as [`LocalSampler`](@ref).
 """
 function step! end
 
+# Heun integration with normalization
+
 function step!(sys::System{0}, integrator::Langevin)
     check_timestep_available(integrator)
 
-    (∇E, s₁, f₁, r₁, ξ) = get_dipole_buffers(sys, 5)
-    (; kT, λ, Δt) = integrator
+    (s′, Δs₁, Δs₂, ξ, ∇E) = get_dipole_buffers(sys, 5)
     s = sys.dipoles
 
-    randn!(sys.rng, ξ)
-    ξ .*= √(2λ*kT)
+    fill_noise!(sys.rng, ξ, integrator)
 
-    # Euler step
+    # Euler prediction step
     set_energy_grad_dipoles!(∇E, s, sys)
-    @. f₁ = rhs_dipole(s, -∇E, λ)
-    @. r₁ = rhs_dipole(s, ξ)   # note absence of λ argument -- noise only appears once in rhs.
-    @. s₁ = s + Δt * f₁ + √Δt * r₁
+    rhs_dipole!(Δs₁, s, ξ, ∇E, integrator)
+    @. s′ = normalize_dipole(s + Δs₁, sys.κs)
 
-    # Corrector step
-    set_energy_grad_dipoles!(∇E, s₁, sys)
-    @. s = s + 0.5 * Δt * (f₁ + rhs_dipole(s₁, -∇E, λ)) + 0.5 * √Δt * (r₁ + rhs_dipole(s₁, ξ))
-    @. s = normalize_dipole(s, sys.κs)
+    # Correction step
+    set_energy_grad_dipoles!(∇E, s′, sys)
+    rhs_dipole!(Δs₂, s′, ξ, ∇E, integrator)
+    @. s = normalize_dipole(s + (Δs₁+Δs₂)/2, sys.κs)
 
     return
 end
 
-# The spherical midpoint method, Phys. Rev. E 89, 061301(R) (2014)
-# Integrates ds/dt = s × ∂E/∂s one timestep s → s′ via implicit equations
-#   s̄ = (s′ + s) / 2
-#   ŝ = s̄ / |s̄|
-#   (s′ - s)/Δt = 2(s̄ - s)/Δt = - ŝ × B,
-# where B = -∂E/∂ŝ.
-function step!(sys::System{0}, integrator::ImplicitMidpoint)
+function step!(sys::System{N}, integrator::Langevin) where N
     check_timestep_available(integrator)
 
-    s = sys.dipoles
-    (; Δt, atol) = integrator
+    (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
+    Z = sys.coherents
 
-    (∇E, s̄, ŝ, s̄′) = get_dipole_buffers(sys, 4)
-    
-    # Initial guess for midpoint
-    @. s̄ = s
+    fill_noise!(sys.rng, ξ, integrator)
 
-    max_iters = 100
-    for _ in 1:max_iters
-        # Integration step for current best guess of midpoint s̄. Produces
-        # improved midpoint estimator s̄′.
-        @. ŝ = normalize_dipole(s̄, sys.κs)
-        set_energy_grad_dipoles!(∇E, ŝ, sys)
-        @. s̄′ = s + 0.5 * Δt * rhs_dipole(ŝ, -∇E)
+    # Euler prediction step
+    set_energy_grad_coherents!(HZ, Z, sys)
+    rhs_sun!(ΔZ₁, Z, ξ, HZ, integrator)
+    @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
-        # If converged, then we can return
-        if fast_isapprox(s̄, s̄′,atol=atol* √length(s̄))
-            # Normalization here should not be necessary in principle, but it
-            # could be useful in practice for finite `atol`.
-            @. s = normalize_dipole(2*s̄′ - s, sys.κs)
-            return
-        end
+    # Correction step
+    set_energy_grad_coherents!(HZ, Z′, sys)
+    rhs_sun!(ΔZ₂, Z′, ξ, HZ, integrator)
+    @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
-        @. s̄ = s̄′
-    end
+    # Coordinate dipole data
+    @. sys.dipoles = expected_spin(Z)
 
-    error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
+    return
 end
+
+
+# Variants of the implicit midpoint method
 
 function fast_isapprox(x, y; atol)
     acc = 0.
@@ -310,48 +339,47 @@ function fast_isapprox(x, y; atol)
     return !isnan(acc)
 end
 
-
-################################################################################
-# SU(N) integration
-################################################################################
-
-@inline function proj(a::T, Z::T) where T <: CVec
-    a - Z * ((Z' * a) / (Z' * Z))
-end
-
-function step!(sys::System{N}, integrator::Langevin) where N
+# The spherical midpoint method, Phys. Rev. E 89, 061301(R) (2014)
+# Integrates ds/dt = s × ∂E/∂s one timestep s → s′ via implicit equations
+#   s̄ = (s′ + s) / 2
+#   ŝ = s̄ / |s̄|
+#   (s′ - s)/Δt = 2(s̄ - s)/Δt = - ŝ × B,
+# where B = -∂E/∂ŝ.
+function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
     check_timestep_available(integrator)
 
-    (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
-    Z = sys.coherents
+    s = sys.dipoles
+    atol = integrator.atol * √length(s)
 
-    randn!(sys.rng, ξ)
+    (Δs, ŝ, s′, s″, ξ, ∇E) = get_dipole_buffers(sys, 6)
 
-    # Prediction
-    set_energy_grad_coherents!(HZ, Z, sys)
-    rhs_langevin!(ΔZ₁, Z, ξ, HZ, integrator, sys)
-    @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
+    fill_noise!(sys.rng, ξ, integrator)
+    
+    @. s′ = s
+    @. s″ = s
 
-    # Correction
-    set_energy_grad_coherents!(HZ, Z′, sys)
-    rhs_langevin!(ΔZ₂, Z′, ξ, HZ, integrator, sys)
-    @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
+    for _ in 1:max_iters
+        # Current guess for midpoint ŝ
+        @. ŝ = normalize_dipole((s + s′)/2, sys.κs)
 
-    # Coordinate dipole data
-    @. sys.dipoles = expected_spin(Z)
+        set_energy_grad_dipoles!(∇E, ŝ, sys)
+        rhs_dipole!(Δs, ŝ, ξ, ∇E, integrator)
 
-    return
-end
+        @. s″ = s + Δs
 
-function rhs_langevin!(ΔZ::Array{CVec{N}, 4}, Z::Array{CVec{N}, 4}, ξ::Array{CVec{N}, 4},
-                       HZ::Array{CVec{N}, 4}, integrator::Langevin, sys::System{N}) where N
-    (; kT, λ, Δt) = integrator
-    for site in eachsite(sys)
-        ΔZ′ = -im*√(2*Δt*kT*λ)*ξ[site] - Δt*(im+λ)*HZ[site]
-        ΔZ[site] = proj(ΔZ′, Z[site])
+        # If converged, then we can return
+        if fast_isapprox(s′, s″; atol)
+            # Normalization here should not be necessary in principle, but it
+            # could be useful in practice for finite `atol`.
+            @. s = normalize_dipole(s″, sys.κs)
+            return
+        end
+
+        s′, s″ = s″, s′
     end
-end
 
+    error("Spherical midpoint method failed to converge to tolerance $atol after $max_iters iterations.")
+end
 
 
 # Implicit Midpoint Method applied to the nonlinear Schrödinger dynamics, as
@@ -363,9 +391,11 @@ end
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     check_timestep_available(integrator)
 
-    (; atol) = integrator
-    (ΔZ, Z̄, Z′, Z″, HZ) = get_coherent_buffers(sys, 5)
     Z = sys.coherents
+    atol = integrator.atol * √length(Z)
+    
+    (ΔZ, Z̄, Z′, Z″, ξ, HZ) = get_coherent_buffers(sys, 6)
+    fill_noise!(sys.rng, ξ, integrator)
 
     @. Z′ = Z 
     @. Z″ = Z 
@@ -374,11 +404,11 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
         @. Z̄ = (Z + Z′)/2
 
         set_energy_grad_coherents!(HZ, Z̄, sys)
-        rhs_ll!(ΔZ, HZ, integrator, sys)
+        rhs_sun!(ΔZ, Z̄, ξ, HZ, integrator)
 
         @. Z″ = Z + ΔZ
 
-        if fast_isapprox(Z′, Z″, atol=atol*√length(Z′))
+        if fast_isapprox(Z′, Z″; atol)
             @. Z = normalize_ket(Z″, sys.κs)
             @. sys.dipoles = expected_spin(Z)
             return
@@ -388,11 +418,4 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     end
 
     error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
-end
-
-function rhs_ll!(ΔZ, HZ, integrator, sys)
-    (; Δt) = integrator
-    for site in eachsite(sys)
-        ΔZ[site] = - Δt*im*HZ[site]
-    end
 end

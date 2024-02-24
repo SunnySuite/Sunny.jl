@@ -44,19 +44,19 @@
         return sys
     end
 
-    function thermalize!(sys, langevin, dur)
-        Δt = langevin.Δt
+    function thermalize!(sys, integrator, dur)
+        Δt = integrator.Δt
         numsteps = round(Int, dur/Δt)
         for _ in 1:numsteps
-            step!(sys, langevin)
+            step!(sys, integrator)
         end
     end
 
-    function calc_mean_energy(sys, langevin, dur)
-        numsteps = round(Int, dur/langevin.Δt)
+    function calc_mean_energy(sys, integrator, dur)
+        numsteps = round(Int, dur/integrator.Δt)
         Es = zeros(numsteps)
         for i in 1:numsteps
-            step!(sys, langevin)
+            step!(sys, integrator)
             Es[i] = energy_per_site(sys)
         end
         sum(Es)/length(Es) 
@@ -72,14 +72,17 @@
         collect_dur = 100.0
 
         sys = su3_anisotropy_model(; D, L, seed=0)
-        langevin = Langevin(Δt; kT=0, λ)
+        heun = Langevin(Δt; kT=0, λ)
+        midpoint = Sunny.ImplicitMidpoint(Δt; kT=0, λ)
 
-        for kT in kTs
-            langevin.kT = kT
-            thermalize!(sys, langevin, thermalize_dur)
-            E = calc_mean_energy(sys, langevin, collect_dur)
-            E_ref = su3_mean_energy(kT, D)
-            @test isapprox(E, E_ref; rtol=0.1)
+        for integrator in [heun, midpoint]
+            for kT in kTs
+                integrator.kT = kT
+                thermalize!(sys, integrator, thermalize_dur)
+                E = calc_mean_energy(sys, integrator, collect_dur)
+                E_ref = su3_mean_energy(kT, D)
+                @test isapprox(E, E_ref; rtol=0.1)
+            end
         end
     end
 
@@ -96,14 +99,17 @@
         collect_dur = 200.0
 
         sys = su5_anisotropy_model(; D, L, seed=0)
-        langevin = Langevin(Δt; kT=0, λ)
+        heun = Langevin(Δt; kT=0, λ)
+        midpoint = Sunny.ImplicitMidpoint(Δt; kT=0, λ)
 
-        for kT ∈ kTs
-            langevin.kT = kT
-            thermalize!(sys, langevin, thermalize_dur)
-            E = calc_mean_energy(sys, langevin, collect_dur)
-            E_ref = su5_mean_energy(kT, D)
-            @test isapprox(E, E_ref; rtol=0.1)
+        for integrator in [heun, midpoint]
+            for kT ∈ kTs
+                integrator.kT = kT
+                thermalize!(sys, integrator, thermalize_dur)
+                E = calc_mean_energy(sys, integrator, collect_dur)
+                E_ref = su5_mean_energy(kT, D)
+                @test isapprox(E, E_ref; rtol=0.1)
+            end
         end
     end
 
@@ -184,33 +190,37 @@ end
             λ = 0.1
             kT = 0.1
             Δt = 0.02
-            langevin = Langevin(Δt; kT, λ)
+            heun = Langevin(Δt; kT, λ)
+            midpoint = Sunny.ImplicitMidpoint(Δt; kT, λ)
 
             n_equilib = 1000
             n_samples = 2000
             n_decorr = 500
 
-            # Initialize the Langevin sampler and thermalize the system
-            for _ in 1:n_equilib
-                step!(sys, langevin)
-            end
+            for integrator in [heun, midpoint]
 
-            # Collect samples of energy
-            Es = Float64[]
-            for _ in 1:n_samples
-                for _ in 1:n_decorr
-                    step!(sys, langevin)
+                # Initialize the Langevin sampler and thermalize the system
+                for _ in 1:n_equilib
+                    step!(sys, integrator)
                 end
-                push!(Es, energy(sys))
+
+                # Collect samples of energy
+                Es = Float64[]
+                for _ in 1:n_samples
+                    for _ in 1:n_decorr
+                        step!(sys, integrator)
+                    end
+                    push!(Es, energy(sys))
+                end
+
+                # Generate empirical distribution and discretize analytical distribution
+                n_bins = 10
+                (; Ps, boundaries) = empirical_distribution(Es, n_bins)
+                Ps_analytical = discretize_P(boundaries, kT) 
+
+                # RMS error between empirical distribution and discretized analytical distribution
+                @test isapprox(Ps, Ps_analytical, atol=0.05)
             end
-
-            # Generate empirical distribution and discretize analytical distribution
-            n_bins = 10
-            (; Ps, boundaries) = empirical_distribution(Es, n_bins)
-            Ps_analytical = discretize_P(boundaries, kT) 
-
-            # RMS error between empirical distribution and discretized analytical distribution
-            @test isapprox(Ps, Ps_analytical, atol=0.05)
         end
     end
 
