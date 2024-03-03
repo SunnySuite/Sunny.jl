@@ -16,3 +16,12 @@
         Aqua.test_persistent_tasks(Sunny)
     =#
 end
+
+@testitem "ExplicitImports" begin
+    import ExplicitImports, LinearAlgebra
+    try        
+        ExplicitImports.check_no_implicit_imports(Sunny; skip=(mod, Base, Core, LinearAlgebra))
+    catch _
+        @test false
+    end
+end
