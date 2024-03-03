@@ -550,7 +550,7 @@ function subcrystal(cryst::Crystal, classes::Vararg{Int, N}) where N
     new_positions = cryst.positions[atoms]
     new_types = cryst.types[atoms]
     new_classes = cryst.classes[atoms]
-    new_sitesyms = cryst.sitesyms[atoms]
+    new_sitesyms = isnothing(cryst.sitesyms) ? nothing : cryst.sitesyms[atoms]
 
     if atoms != 1:maximum(atoms)
         @info "Atoms have been renumbered in subcrystal."
