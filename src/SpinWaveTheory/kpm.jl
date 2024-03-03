@@ -27,7 +27,7 @@ function Base.show(io::IO, ::MIME"text/plain", formula::KPMIntensityFormula{T}) 
     println(io,"P = $(formula.P), kT = $(formula.kT), σ = $(formula.σ)")
 end
 
-
+#=
 function intensity_formula_kpm(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; P =, return_type = Float64, string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])")
 
     error("KPM not yet implemented")
@@ -39,5 +39,4 @@ function intensity_formula_kpm(f::Function,swt::SpinWaveTheory,corr_ix::Abstract
     end
     KPMIntensityFormula{return_type}(P,kT,σ,broadening,kernel,string_formula,formula)
 end
-
-
+=#

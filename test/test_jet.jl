@@ -27,8 +27,9 @@
     test(:SUN)
 end
 
-# In the future this should be a static analysis, but for now we can explicitly
-# run the functions. See https://github.com/aviatesk/JET.jl/issues/286
+# Cannot make this a static analysis (e.g. AllocCheck.jl) because there may be
+# allocations when building error messages. The runtime checks below avoid these
+# error paths.
 @testitem "Memory allocations" begin
     function test(mode)
         latvecs = lattice_vectors(1,1,2,90,90,90)
@@ -38,23 +39,25 @@ end
         set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
         polarize_spins!(sys, (0,0,1))
 
-        # TODO: Diagonose possible @allocated bug. BenchmarkTools.@btime
-        # suggests that this is actually zero-allocation.
-        energy(sys)
-        @test 16 >= @allocated energy(sys)
+        # Dynamic dispatch on System{N} allocates 16 bytes. Avoid this by
+        # acquiring static type information.
+        sys |> function(sys::System{N}) where N
+            energy(sys)
+            @test iszero(@allocated energy(sys))
 
-        propose = @mix_proposals 0.5 propose_flip 0.5 propose_delta(0.2)
-        sampler = LocalSampler(kT=0.2; propose)
-        step!(sys, sampler)
-        @test 0 == @allocated step!(sys, sampler)
+            propose = @mix_proposals 0.5 propose_flip 0.5 propose_delta(0.2)
+            sampler = LocalSampler(kT=0.2; propose)
+            step!(sys, sampler)
+            @test iszero(@allocated step!(sys, sampler))
 
-        langevin = Langevin(0.01; kT=0.2, λ=0.1)
-        step!(sys, langevin)
-        @test 0 == @allocated step!(sys, langevin)
+            langevin = Langevin(0.01; kT=0.2, λ=0.1)
+            step!(sys, langevin)
+            @test iszero(@allocated step!(sys, langevin))
 
-        integrator = ImplicitMidpoint(0.01)
-        step!(sys, integrator)
-        @test 0 == @allocated step!(sys, integrator)
+            integrator = ImplicitMidpoint(0.01)
+            step!(sys, integrator)
+            @test iszero(@allocated step!(sys, integrator))
+        end
     end
 
     test(:dipole)
