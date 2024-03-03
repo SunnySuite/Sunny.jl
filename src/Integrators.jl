@@ -1,9 +1,9 @@
 """
-    Langevin(Δt::Float64; damping::Float64, kT::Float64)
+    Langevin(dt::Float64; damping::Float64, kT::Float64)
 
 An integrator for Langevin spin dynamics using the explicit Heun method. The
 `damping` parameter controls the coupling to an implicit thermal bath. One call
-to the [`step!`](@ref) function will advance a [`System`](@ref) by `Δt` units of
+to the [`step!`](@ref) function will advance a [`System`](@ref) by `dt` units of
 time. Can be used to sample from the Boltzmann distribution at temperature `kT`.
 An alternative approach to sampling states from thermal equilibrium is
 [`LocalSampler`](@ref), which proposes local Monte Carlo moves. For example, use
@@ -51,25 +51,23 @@ References:
    (2022)](https://arxiv.org/abs/2209.01265).
 """
 mutable struct Langevin
-    Δt      :: Float64
+    dt      :: Float64
     damping :: Float64
     kT      :: Float64
 
-    function Langevin(Δt; λ=nothing, damping=nothing, kT)
+    function Langevin(dt; λ=nothing, damping=nothing, kT)
         if !isnothing(λ)
-            isnothing(damping) || error("Cannot specify both λ and damping")
             @warn "`λ` argument is deprecated! Use `damping` instead."
-            damping = λ
-        else
-            isnothing(damping) && error("`damping` parameter required")
+            damping = @something damping λ
         end
+        isnothing(damping) && error("`damping` parameter required")
 
-        Δt <= 0         && error("Select positive Δt")
+        dt <= 0         && error("Select positive dt")
         kT < 0          && error("Select nonnegative kT")
         damping < 0     && error("Select positive damping")
         iszero(damping) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
         damping < 1e-2  && @info "For small `damping` values, the ImplicitMidpoint integrator will be more accurate"
-        return new(Δt, damping, kT)
+        return new(dt, damping, kT)
     end
 end
 
@@ -80,11 +78,11 @@ end
 
 
 """
-    ImplicitMidpoint(Δt::Float64; damping=0, kT=0, atol=1e-12) where N
+    ImplicitMidpoint(dt::Float64; damping=0, kT=0, atol=1e-12) where N
 
 The implicit midpoint method for integrating the Landau-Lifshitz spin dynamics
 or its generalization to SU(_N_) coherent states [1]. One call to the
-[`step!`](@ref) function will advance a [`System`](@ref) by `Δt` units of time.
+[`step!`](@ref) function will advance a [`System`](@ref) by `dt` units of time.
 This integration scheme is exactly symplectic and eliminates energy drift over
 arbitrarily long simulation trajectories.
 
@@ -103,24 +101,24 @@ References:
    (2022)](https://arxiv.org/abs/2204.07563).
 """
 mutable struct ImplicitMidpoint
-    Δt      :: Float64
+    dt      :: Float64
     damping :: Float64
     kT      :: Float64
     atol    :: Float64
 
-    function ImplicitMidpoint(Δt; damping=0, kT=0, atol=1e-12)
-        Δt <= 0      && error("Select positive Δt")
+    function ImplicitMidpoint(dt; damping=0, kT=0, atol=1e-12)
+        dt <= 0      && error("Select positive dt")
         kT < 0       && error("Select nonnegative kT")
         damping < 0  && error("Select nonnegative damping")
         (kT > 0 && iszero(damping)) && error("Select positive damping for positive kT")
-        return new(Δt, damping, kT, atol)
+        return new(dt, damping, kT, atol)
     end    
 end
 ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
 
 
 function check_timestep_available(integrator)
-    isnan(integrator.Δt) && error("Set integration timestep `Δt`.")
+    isnan(integrator.dt) && error("Set integration timestep `dt`.")
 end
 
 """
@@ -128,9 +126,9 @@ end
 
 Suggests a timestep for the numerical integration of spin dynamics according to
 a given error tolerance `tol`. The `integrator` should be [`Langevin`](@ref) or
-[`ImplicitMidpoint`](@ref). The suggested ``Δt`` will be inversely proportional
+[`ImplicitMidpoint`](@ref). The suggested ``dt`` will be inversely proportional
 to the magnitude of the effective field ``|dE/d𝐬|`` arising from the current
-spin configuration in `sys`. The recommended timestep ``Δt`` scales like `√tol`,
+spin configuration in `sys`. The recommended timestep ``dt`` scales like `√tol`,
 which assumes second-order accuracy of the integrator.
 
 The system `sys` should be initialized to an equilibrium spin configuration for
@@ -144,27 +142,27 @@ approximate the factor ``1/damping``. If `kT` is the largest energy scale, then
 the suggested timestep will scale like `1/(damping*kT)`. Quantification of
 numerical error for stochastic dynamics is subtle. The stochastic Heun
 integration scheme is weakly convergent of order-1, such that errors in the
-estimates of averaged observables may scale like `Δt`. This implies that the
+estimates of averaged observables may scale like `dt`. This implies that the
 `tol` argument may actually scale like the _square_ of the true numerical error,
 and should be selected with this in mind.
 """
 function suggest_timestep(sys::System{N}, integrator::Union{Langevin, ImplicitMidpoint}; tol) where N
-    (; Δt) = integrator
-    Δt_bound = suggest_timestep_aux(sys, integrator; tol)
+    (; dt) = integrator
+    dt_bound = suggest_timestep_aux(sys, integrator; tol)
 
     # Print suggestion
-    bound_str, tol_str = number_to_simple_string.((Δt_bound, tol); digits=4)
-    print("Consider Δt ≈ $bound_str for this spin configuration at tol = $tol_str.")
+    bound_str, tol_str = number_to_simple_string.((dt_bound, tol); digits=4)
+    print("Consider dt ≈ $bound_str for this spin configuration at tol = $tol_str.")
 
-    # Compare with existing Δt if present
-    if !isnan(Δt)
-        Δt_str = number_to_simple_string(Δt; digits=4)
-        if Δt <= Δt_bound/2
-            println("\nCurrent value Δt = $Δt_str seems small! Increasing it will make the simulation faster.")
-        elseif Δt >= 2Δt_bound
-            println("\nCurrent value Δt = $Δt_str seems LARGE! Decreasing it will improve accuracy.")
+    # Compare with existing dt if present
+    if !isnan(dt)
+        dt_str = number_to_simple_string(dt; digits=4)
+        if dt <= dt_bound/2
+            println("\nCurrent value dt = $dt_str seems small! Increasing it will make the simulation faster.")
+        elseif dt >= 2dt_bound
+            println("\nCurrent value dt = $dt_str seems LARGE! Decreasing it will improve accuracy.")
         else
-            println(" Current value is Δt = $Δt_str.")
+            println(" Current value is dt = $dt_str.")
         end
     else
         println()
@@ -227,21 +225,21 @@ function suggest_timestep_aux(sys::System{N}, integrator; tol) where N
     # for some empirical constants c₁ and c₂.
     c1 = 1.0
     c2 = 1.0
-    Δt_bound = sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
-    return Δt_bound
+    dt_bound = sqrt(tol / ((c1*drift_rms)^2 + (c2*λ*kT)^2))
+    return dt_bound
 end
 
 
 function Base.show(io::IO, integrator::Langevin)
-    (; Δt, damping, kT) = integrator
-    Δt = isnan(integrator.Δt) ? "<missing>" : repr(Δt)
-    println(io, "Langevin($Δt; damping=$damping, kT=$kT)")
+    (; dt, damping, kT) = integrator
+    dt = isnan(integrator.dt) ? "<missing>" : repr(dt)
+    println(io, "Langevin($dt; damping=$damping, kT=$kT)")
 end
 
 function Base.show(io::IO, integrator::ImplicitMidpoint)
-    (; Δt, atol) = integrator
-    Δt = isnan(integrator.Δt) ? "<missing>" : repr(Δt)
-    println(io, "ImplicitMidpoint($Δt; atol=$atol)")
+    (; dt, atol) = integrator
+    dt = isnan(integrator.dt) ? "<missing>" : repr(dt)
+    println(io, "ImplicitMidpoint($dt; atol=$atol)")
 end
 
 
@@ -251,36 +249,36 @@ end
 
 
 @inline function rhs_dipole!(Δs, s, ξ, ∇E, integrator)
-    (; Δt, damping) = integrator
+    (; dt, damping) = integrator
     λ = damping
 
     if iszero(λ)
-        @. Δs = -s × (- Δt*∇E)
+        @. Δs = -s × (- dt*∇E)
     else
-        @. Δs = -s × (- Δt*∇E + ξ - Δt*λ*(s × ∇E))
+        @. Δs = -s × (- dt*∇E + ξ - dt*λ*(s × ∇E))
     end
 end
 
 function rhs_sun!(ΔZ, Z, ξ, HZ, integrator)
-    (; damping, Δt) = integrator
+    (; damping, dt) = integrator
     λ = damping
 
     if iszero(λ)
-        @. ΔZ = - im*Δt*HZ
+        @. ΔZ = - im*dt*HZ
     else
-        @. ΔZ = - proj(Δt*(im+λ)*HZ + ξ, Z)
+        @. ΔZ = - proj(dt*(im+λ)*HZ + ξ, Z)
     end
 end
 
 function fill_noise!(rng, ξ, integrator)
-    (; Δt, damping, kT) = integrator
+    (; dt, damping, kT) = integrator
     λ = damping
 
     if iszero(λ) || iszero(kT)
         fill!(ξ, zero(eltype(ξ)))
     else
         randn!(rng, ξ)
-        ξ .*= √(2Δt*λ*kT)
+        ξ .*= √(2dt*λ*kT)
     end
 end
 
@@ -361,7 +359,7 @@ end
 # Integrates ds/dt = s × ∂E/∂s one timestep s → s′ via implicit equations
 #   s̄ = (s′ + s) / 2
 #   ŝ = s̄ / |s̄|
-#   (s′ - s)/Δt = 2(s̄ - s)/Δt = - ŝ × B,
+#   (s′ - s)/dt = 2(s̄ - s)/dt = - ŝ × B,
 # where B = -∂E/∂ŝ.
 function step!(sys::System{0}, integrator::ImplicitMidpoint; max_iters=100)
     check_timestep_available(integrator)
@@ -404,7 +402,7 @@ end
 # proposed in Phys. Rev. B 106, 054423 (2022). Integrates dZ/dt = - i H(Z) Z one
 # timestep Z → Z′ via the implicit equation
 #
-#   (Z′-Z)/Δt = - i H(Z̄) Z, where Z̄ = (Z+Z′)/2
+#   (Z′-Z)/dt = - i H(Z̄) Z, where Z̄ = (Z+Z′)/2
 #
 function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) where N
     check_timestep_available(integrator)

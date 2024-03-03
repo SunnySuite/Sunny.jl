@@ -19,7 +19,7 @@ struct SampledCorrelations{N}
     fft!         :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
     measperiod   :: Int                    # Steps to skip between saving observables (downsampling for dynamical calcs)
     apply_g      :: Bool                   # Whether to apply the g-factor
-    Δt           :: Float64                # Step size for trajectory integration 
+    dt           :: Float64                # Step size for trajectory integration 
     nsamples     :: Array{Int64, 1}        # Number of accumulated samples (array so mutable)
     processtraj! :: Function               # Function to perform post-processing on sample trajectories
 end
@@ -59,7 +59,7 @@ function clone_correlations(sc::SampledCorrelations{N}) where N
     fft! = normalization_factor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations{N}(copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
-        deepcopy(sc.observables), copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.Δt,
+        deepcopy(sc.observables), copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.dt,
         copy(sc.nsamples), sc.processtraj!)
 end
 
@@ -87,7 +87,7 @@ function merge_correlations(scs::Vector{SampledCorrelations{N}}) where N
 end
 
 """
-    dynamical_correlations(sys::System; Δt, nω, ωmax, 
+    dynamical_correlations(sys::System; dt, nω, ωmax, 
         process_trajectory=:none, observables=nothing, correlations=nothing) 
 
 Creates an empty `SampledCorrelations` object for calculating and storing
@@ -102,11 +102,11 @@ this will run a dynamical trajectory and measure time correlations. The
 Three keywords are required to specify the dynamics used for the trajectory
 calculation.
 
-- `Δt`: The time step used for calculating the trajectory from which dynamic
+- `dt`: The time step used for calculating the trajectory from which dynamic
     spin-spin correlations are calculated. The trajectories are calculated with
     an [`ImplicitMidpoint`](@ref) integrator.
 - `ωmax`: The maximum energy, ``ω``, that will be resolved. Note that allowed
-    values of `ωmax` are constrained by the given `Δt`, so Sunny will choose the
+    values of `ωmax` are constrained by the given `dt`, so Sunny will choose the
     smallest possible value that is no smaller than the specified `ωmax`.
 - `nω`: The number of energy bins to calculated between 0 and `ωmax`.
 
@@ -123,22 +123,27 @@ Additional keyword options are the following:
     xy correlations, one would set `correlations=[(:Sx,:Sx), (:Sx,:Sy)]` or
     `correlations=[(1,1),(1,2)]`.
 """
-function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
+function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ωmax,
                                 apply_g=true, observables=nothing, correlations=nothing,
                                 calculate_errors=false, process_trajectory=:none) where N
+    if !isnothing(Δt)
+        @warn "`Δt` argument is deprecated! Use `dt` instead."
+        dt = @something dt Δt
+    end
+    isnothing(dt) && error("`dt` parameter required")
 
     observables = parse_observables(N; observables, correlations, g = apply_g ? sys.gs : nothing)
 
     # Determine trajectory measurement parameters
     nω = Int64(nω)
     if nω != 1
-        @assert π/Δt > ωmax "Desired `ωmax` not possible with specified `Δt`. Choose smaller `Δt` value."
-        measperiod = floor(Int, π/(Δt * ωmax))
+        @assert π/dt > ωmax "Desired `ωmax` not possible with specified `dt`. Choose smaller `dt` value."
+        measperiod = floor(Int, π/(dt * ωmax))
         nω = 2nω-1  # Ensure there are nω _non-negative_ energies.
-        Δω = 2π / (Δt*measperiod*nω)
+        Δω = 2π / (dt*measperiod*nω)
     else
         measperiod = 1
-        Δt = Δω = NaN
+        dt = Δω = NaN
     end
 
     # Set up trajectory processing function (e.g., symmetrize)
@@ -168,7 +173,7 @@ function dynamical_correlations(sys::System{N}; Δt, nω, ωmax,
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
     sc = SampledCorrelations{N}(data, M, sys.crystal, origin_crystal, Δω, observables,
-                                samplebuf, fft!, measperiod, apply_g, Δt, nsamples, processtraj!)
+                                samplebuf, fft!, measperiod, apply_g, dt, nsamples, processtraj!)
 
     return sc
 end
@@ -207,5 +212,5 @@ The following optional keywords are available:
     `correlations=[(1,1),(1,2)]`.
 """
 function instant_correlations(sys::System; kwargs...)
-    dynamical_correlations(sys; Δt=NaN, nω=1, ωmax=NaN, kwargs...)
+    dynamical_correlations(sys; dt=NaN, nω=1, ωmax=NaN, kwargs...)
 end

@@ -45,15 +45,14 @@
     end
 
     function thermalize!(sys, integrator, dur)
-        Δt = integrator.Δt
-        numsteps = round(Int, dur/Δt)
+        numsteps = round(Int, dur/integrator.dt)
         for _ in 1:numsteps
             step!(sys, integrator)
         end
     end
 
     function calc_mean_energy(sys, integrator, dur)
-        numsteps = round(Int, dur/integrator.Δt)
+        numsteps = round(Int, dur/integrator.dt)
         Es = zeros(numsteps)
         for i in 1:numsteps
             step!(sys, integrator)
@@ -66,14 +65,14 @@
         D = 1.0
         L = 20   # number of (non-interacting) sites
         damping = 1.0
-        Δt = 0.01
+        dt = 0.01
         kTs = [0.125, 0.5]
         thermalize_dur = 10.0
         collect_dur = 100.0
 
         sys = su3_anisotropy_model(; D, L, seed=0)
-        heun = Langevin(Δt; damping, kT=0)
-        midpoint = Sunny.ImplicitMidpoint(Δt; damping, kT=0)
+        heun = Langevin(dt; damping, kT=0)
+        midpoint = Sunny.ImplicitMidpoint(dt; damping, kT=0)
 
         for integrator in [heun, midpoint]
             for kT in kTs
@@ -93,14 +92,14 @@
         D = 1.0
         L = 20   # number of (non-interacting) sites
         damping = 0.1
-        Δt = 0.01
+        dt = 0.01
         kTs = [0.125, 0.5]
         thermalize_dur = 10.0
         collect_dur = 200.0
 
         sys = su5_anisotropy_model(; D, L, seed=0)
-        heun = Langevin(Δt; damping, kT=0)
-        midpoint = Sunny.ImplicitMidpoint(Δt; damping, kT=0)
+        heun = Langevin(dt; damping, kT=0)
+        midpoint = Sunny.ImplicitMidpoint(dt; damping, kT=0)
 
         for integrator in [heun, midpoint]
             for kT ∈ kTs
@@ -189,9 +188,9 @@ end
 
             damping = 0.1
             kT = 0.1
-            Δt = 0.02
-            heun = Langevin(Δt; damping, kT)
-            midpoint = Sunny.ImplicitMidpoint(Δt; damping, kT)
+            dt = 0.02
+            heun = Langevin(dt; damping, kT)
+            midpoint = Sunny.ImplicitMidpoint(dt; damping, kT)
 
             n_equilib = 1000
             n_samples = 2000

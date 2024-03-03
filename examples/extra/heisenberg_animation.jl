@@ -12,8 +12,8 @@ randomize_spins!(sys)
 
 fig = plot_spins(sys; colorfn=i->sys.dipoles[i][3], colorrange=(-1, 1), dims=2)
 
-Δt = 0.1/abs(J)
-integrator = Langevin(Δt; damping=0.05, kT=0)
+dt = 0.1/abs(J)
+integrator = Langevin(dt; damping=0.05, kT=0)
 
 # View an animation in real time
 for _ in 1:500

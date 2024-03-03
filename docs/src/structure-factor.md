@@ -69,19 +69,11 @@ $𝒮^{αβ}(𝐪,ω)$, may be created by calling [`dynamical_correlations`](@re
 requires three keyword arguments. These will determine the dynamics used to
 calculate samples and, consequently, the $ω$ information that will be available. 
 
-1. `Δt`: Determines the step size used for simulating the dynamics. A smaller
-   number will require proportionally more calculation time. While a smaller
-   `Δt` will enable the resolution of higher energies, `Δt` is typically
-   selected to ensure numerical stability rather than to maximize the largest
-   $ω$ value. A safe choice is to use the smaller value of `Δt = 0.1/(J* S^2)`
-   or `Δt = 0.1/(D * S)`, where `S` is magnetic moment of the largest local spin
-   (as specified in [`SpinInfo`](@ref)), `J` is the parameter governing the
-   largest bilinear interaction (e.g. exchange), and `D` is the parameter
-   governing the largest single-site term of the Hamiltonian (e.g., anisotropy
-   or Zeeman term).
-2. `ωmax`: Sets the maximum resolved energy. Note that this is not independent
-   of `Δt`. If `ωmax` too large, Sunny will throw an error and ask you to choose
-   a smaller `Δt`. 
+1. `dt`: Determines the step size used for simulating the dynamics. Typically
+   this will be limited by numerical stability. The function
+   [`suggest_timestep`](@ref) can recommend a value.
+2. `ωmax`: Sets the maximum resolved energy. Very large `ωmax` may require
+   smaller `dt`. 
 3. `nω`: Determines the number of energy bins to resolve. A larger number will
    require more calculation time.
 
@@ -95,7 +87,7 @@ calling `add_sample!` on each configuration.
 The outline of typical use case might look like this:
 ```
 # Make a `SampledCorrelations`
-sc = dynamical_correlations(sys; Δt=0.05, ωmax=10.0, nω=100) 
+sc = dynamical_correlations(sys; dt=0.05, ωmax=10.0, nω=100) 
 
 # Add samples
 for _ in 1:nsamples

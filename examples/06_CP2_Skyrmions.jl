@@ -88,7 +88,7 @@ suggest_timestep(sys, integrator; tol=0.025)
 
 # Apply the suggested timestep.
 
-integrator.Δt = 0.01
+integrator.dt = 0.01
 
 # Now run the dynamical quench starting from a randomized configuration. We will
 # record the state of the system at three different times during the quenching
@@ -99,7 +99,7 @@ randomize_spins!(sys)
 frames = []         # Empty array to store snapshots
 for i in eachindex(τs)
     dur = i == 1 ? τs[1] : τs[i] - τs[i-1] # Determine the length of time to simulate 
-    numsteps = round(Int, dur/Δt)
+    numsteps = round(Int, dur/integrator.dt)
     for _ in 1:numsteps                    # Perform the integration
         step!(sys, integrator)
     end
@@ -127,10 +127,9 @@ plot_triangular_plaquettes(sun_berry_curvature, frames; size=(600,200),
     offset_spacing=10, texts=["\tt = "*string(τ) for τ in τs], text_offset=(0, 6)
 )
 
-# The times are given in $\hbar/|J_1|$. The white
-# background corresponds to a quantum paramagnetic state, where the local spin
-# exhibits a strong quadrupole moment and little or no dipole moment. Observe
-# that the process has generated a number of well-formed skyrmions of both
-# positive (red) and negative (blue) charge in addition to a number of other
-# metastable spin configurations. A full-sized version of this figure is
-# available in [Dahlbom et al.](https://doi.org/10.1103/PhysRevB.106.235154).
+# The times are given in $\hbar/|J_1|$. The white background corresponds to a
+# quantum paramagnetic state, where the local spin exhibits a strong quadrupole
+# moment and little or no dipole moment. At late times, there are well-formed
+# skyrmions of positive (red) and negative (blue) charge, and various metastable
+# spin configurations. A full-sized version of this figure is available in
+# [Dahlbom et al.](https://doi.org/10.1103/PhysRevB.106.235154).
