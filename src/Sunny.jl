@@ -126,10 +126,10 @@ isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 
 ### ext/PlottingExt.jl, dependent on Makie
 function plot_spins(args...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie or GLMakie to enable plotting")
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
 end
 function view_crystal(args...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie or GLMakie to enable plotting")
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
 end
 export plot_spins, view_crystal
 
