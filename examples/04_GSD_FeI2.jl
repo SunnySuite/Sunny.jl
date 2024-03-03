@@ -85,12 +85,11 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 # Alternatively, one can search for the ordered state by sampling spin
 # configurations from thermal equilibrium. Sunny supports this via a
 # [`Langevin`](@ref) dynamics of SU(_N_) coherent states. This dynamics involves
-# a damping term of strength `λ` and a noise term determined by the target
-# temperature `kT`.
+# a dimensionless `damping` magnitude and target temperature `kT` for thermal
+# fluctuations.
 
-λ  = 0.2  # Dimensionless damping time-scale
 kT = 0.2  # Temperature in meV
-langevin = Langevin(; λ, kT)
+langevin = Langevin(; damping=0.2, kT)
 
 # Use [`suggest_timestep`](@ref) to select an integration timestep for the given
 # error tolerance, e.g. `tol=1e-2`. The spin configuration in `sys` should

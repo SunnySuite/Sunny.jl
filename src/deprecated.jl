@@ -19,8 +19,8 @@ Base.@deprecate suggest_magnetic_supercell(qs, latsize) suggest_magnetic_superce
 Base.@deprecate offline_viewers() ()
 
 function Base.copy(dyn::Langevin)
-    @warn "Base.copy(dyn::Langevin) will soon be removed! Use `Langevin(dyn.Δt; dyn.λ, dyn.kT)` instead."
-    Langevin(dyn.Δt; dyn.λ, dyn.kT)
+    @warn "Base.copy(dyn::Langevin) will soon be removed! Use `Langevin(dyn.Δt; dyn.damping, dyn.kT)` instead."
+    Langevin(dyn.Δt; dyn.damping, dyn.kT)
 end
 
 # view_crystal(cryst, max_dist)

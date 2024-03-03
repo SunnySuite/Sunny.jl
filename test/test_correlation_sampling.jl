@@ -19,10 +19,9 @@
     end
 
     function thermalize_simple_model!(sys; kT)
-        Δt = 0.05  # Time step for thermalization
-        λ  = 0.1
-        nsteps = 1000  # Number of steps between MC samples
-        langevin = Langevin(Δt; kT, λ)
+        Δt = 0.05
+        nsteps = 1000
+        langevin = Langevin(Δt; damping=0.1, kT)
         for _ in 1:nsteps
             step!(sys, langevin)
         end
@@ -105,7 +104,7 @@ end
 
     # Set up Langevin sampler.
     Δt_langevin = 0.07 
-    langevin = Langevin(Δt_langevin; kT=0.1723, λ=0.1)
+    langevin = Langevin(Δt_langevin; damping=0.1, kT=0.1723)
 
     sc0 = dynamical_correlations(sys; nω=25, ωmax=5.5, Δt=2Δt_langevin, calculate_errors=true)
     sc1 = dynamical_correlations(sys; nω=25, ωmax=5.5, Δt=2Δt_langevin, calculate_errors=true)
@@ -137,9 +136,9 @@ end
     randomize_spins!(sys)
 
     Δt_langevin = 0.07 
+    damping = 0.1
     kT = 0.1723
-    λ  = 0.1
-    langevin = Langevin(Δt_langevin; kT, λ)
+    langevin = Langevin(Δt_langevin; damping, kT)
 
     # Thermalize
     for _ in 1:4000
@@ -149,7 +148,7 @@ end
     sc = dynamical_correlations(sys; nω=10, ωmax=5.5, Δt=2Δt_langevin)
     add_sample!(sc, sys)
     qs = [[0.0, 0.0, 0.0], [0.2, -0.4, 0.1]]
-    data = intensities_interpolated(sc, qs, intensity_formula(sc,:trace; kT); interpolation=:linear)
+    data = intensities_interpolated(sc, qs, intensity_formula(sc, :trace; kT); interpolation=:linear)
     
     refdata = [1.8923137799435257 -1.5731157122871734e-15 -7.618183477999628e-16 2.4258182290582965e-15 2.663555286833582e-15 -2.378171804276773e-15 1.4269030327057308e-15 -1.997664243521173e-15 -4.756343436779901e-16 -1.819301364566135e-15; 0.033223462988952464 0.0565912610212458 0.1616375644454015 4.211237061899472 3.1064676304451533 5.792222570573932 5.536484159910247 0.551596926234539 0.27194613622683184 0.24232982609989023]
 

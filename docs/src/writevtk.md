@@ -36,7 +36,7 @@ set_exchange!(sys, J, Bond(1,1,[0,1,0]))
 
 Δt = 0.01
 kT = 0.5
-langevin = Langevin(Δt; λ=0.5, kT)
+langevin = Langevin(Δt; damping=0.5, kT)
 randomize_spins!(sys)
 for i in 1:10_000 # Long enough to reach equilibrium
     step!(sys, langevin)
@@ -44,11 +44,7 @@ end
 
 ωmax=10.
 
-dsf = dynamical_correlations(sys
-                             ;Δt=Δt
-                             ,nω=48
-                             ,ωmax=ωmax
-                             ,process_trajectory=:symmetrize)
+dsf = dynamical_correlations(sys; Δt, nω=48, ωmax, process_trajectory=:symmetrize)
 
 nsamples = 10
 for _ in 1:nsamples

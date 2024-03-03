@@ -26,12 +26,11 @@ sys = resize_supercell(sys, (10, 10, 10))
 @assert energy_per_site(sys) ≈ -2J*S^2
 
 # We will be using a [`Langevin`](@ref) spin dynamics to thermalize the system.
-# This involves a damping term of strength `λ` and a noise term determined by
-# the target temperature `kT`.
+# This dynamics involves a dimensionless `damping` magnitude and target
+# temperature `kT` for thermal fluctuations.
 
-λ  = 0.2             # Magnitude of damping (dimensionless)
 kT = 16 * meV_per_K  # 16K, a temperature slightly below ordering
-langevin = Langevin(; λ, kT)
+langevin = Langevin(; damping=0.2, kT)
 
 # Use [`suggest_timestep`](@ref) to select an integration timestep for the given
 # error tolerance, e.g. `tol=1e-2`. The spin configuration in `sys` should

@@ -25,7 +25,7 @@ using Sunny, GLMakie
 # field, $h$, and easy-plane single-ion anisotropy, $D > 0$. We begin by
 # implementing the [`Crystal`](@ref).
 
-lat_vecs = lattice_vectors(1.0, 1.0, 2.0, 90, 90, 120)
+lat_vecs = lattice_vectors(1, 1, 10, 90, 90, 120)
 basis_vecs = [[0,0,0]]
 cryst = Crystal(lat_vecs, basis_vecs)
 
@@ -67,31 +67,34 @@ set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 # Initialize system to an infinite temperature (fully randomized) initial
 # condition.
 
+# We will study a temperature quench process using a generalized
+# [`Langevin`](@ref) spin dynamics. In this SU(3) treatment of quantum spin-1,
+# the dynamics include coupled dipoles and quadrupoles. Select a relatively
+# small damping magnitude to overcome local minima, and disable thermal
+# fluctuations.
+
+damping = 0.05
+kT = 0
+
+# The first step is to determine a reasonable integration timestep. To determine
+# this, we can initialize the system to some relatively low-energy
+# configuration. A relatively large error tolerance of 0.025 is OK for this
+# phenomenological study.
+
 randomize_spins!(sys)
+minimize_energy!(sys) # (this optimization does not need to converge)
+integrator = Langevin(; damping, kT)
+suggest_timestep(sys, integrator; tol=0.025)
 
-# We are now ready to simulate the quenching process using a generalized
-# [`Langevin`](@ref) spin dynamics. If we were working with spin dipoles only,
-# then `Langevin` dynamics would be the usual Landau-Lifshitz spin dynamics,
-# augmented with damping and noise terms. In the present study, we are instead
-# working with quantum spin-1 (an ($N=3$)-level system that includes both
-# dipoles and quadrupoles). Here, `Langevin` captures the coupled
-# dipole-quadrupole dynamics using the formalism of SU($N$) coherent states.
-#
-# Selecting `kT = 0` in the Langevin dynamics will effective disable the noise
-# term. Then the parameter `λ` effectively determines the damping time-scale.
+# Apply the suggested timestep.
 
-Δt = 0.2/D  # Integration time step (inverse meV). Typically this will be
-            ## inversely proportional to the largest energy scale in the
-            ## system. We can use a fairly large time-step here because
-            ## accuracy isn't critical.
-kT = 0      # Target equilibrium temperature (meV)
-λ = 0.1     # Magnitude of coupling to thermal bath (dimensionless)
-integrator = Langevin(Δt; kT, λ)
+integrator.Δt = 0.01
 
-# Finally we run the dynamics. We will record the state of the system at three
-# different times during the quenching process by copying the `coherents` field
-# of the `System`.
+# Now run the dynamical quench starting from a randomized configuration. We will
+# record the state of the system at three different times during the quenching
+# process by copying the `coherents` field of the `System`.
 
+randomize_spins!(sys)
 τs = [4, 16, 256]   # Times to record snapshots
 frames = []         # Empty array to store snapshots
 for i in eachindex(τs)

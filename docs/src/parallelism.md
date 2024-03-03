@@ -45,7 +45,7 @@ A serial calculation of [`dynamical_correlations`](@ref) involving the
 ```julia
 # Thermalize the system
 Δt = 0.05
-integrator = Langevin(Δt; kT=0.5, λ=0.1)
+integrator = Langevin(Δt; damping=0.2, kT=0.5)
 for _ in 1:5000
     step!(sys, integrator)
 end
@@ -99,7 +99,7 @@ with each thread acting on a unique `System` and `SampledCorrelations`.
 
 ```julia
 Threads.@threads for id in 1:npar
-    integrator = Langevin(Δt; kT=0.5, λ=0.1)
+    integrator = Langevin(Δt; damping=0.2, kT=0.5)
     for _ in 1:5000
         step!(systems[id], integrator)
     end
@@ -181,7 +181,7 @@ called `scs`.
 scs = pmap(1:ncores) do id
     sys = make_system(; seed=id)
     sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0)
-    integrator = Langevin(0.05; kT=0.5, λ=0.1)
+    integrator = Langevin(0.05; damping=0.2, kT=0.5)
 
     for _ in 1:5000
         step!(sys, integrator)

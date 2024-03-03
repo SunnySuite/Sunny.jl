@@ -33,7 +33,7 @@ end
 
     # Thermalize near ground state
     Δt = 0.05
-    integrator = Langevin(Δt; λ=0.1, kT=0.1)
+    integrator = Langevin(Δt; damping=0.1, kT=0.1)
     for _ in 1:1000
         step!(sys_dip, integrator)
         step!(sys_sun, integrator)

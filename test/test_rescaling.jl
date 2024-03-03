@@ -5,10 +5,10 @@
     # invariant under the dynamics
     let
         cryst = Sunny.diamond_crystal()
+        damping = 0.1
         kT = 0.1
-        λ  = 0.1
         Δt = 0.01
-        integrators = (Langevin(Δt; kT, λ), ImplicitMidpoint(Δt))
+        integrators = (Langevin(Δt; damping, kT), ImplicitMidpoint(Δt; damping, kT))
 
         for integrator in integrators
             for mode in (:SUN, :dipole)

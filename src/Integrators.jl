@@ -1,15 +1,15 @@
 """
-    Langevin(Δt::Float64; λ::Float64, kT::Float64)
+    Langevin(Δt::Float64; damping::Float64, kT::Float64)
 
 An integrator for Langevin spin dynamics using the explicit Heun method. The
-parameter ``λ`` controls the coupling to an implicit thermal bath. One call to
-the [`step!`](@ref) function will advance a [`System`](@ref) by `Δt` units of
+`damping` parameter controls the coupling to an implicit thermal bath. One call
+to the [`step!`](@ref) function will advance a [`System`](@ref) by `Δt` units of
 time. Can be used to sample from the Boltzmann distribution at temperature `kT`.
 An alternative approach to sampling states from thermal equilibrium is
 [`LocalSampler`](@ref), which proposes local Monte Carlo moves. For example, use
 `LocalSampler` instead of `Langevin` to sample Ising-like spins.
 
-Setting `λ = 0` disables coupling to the thermal bath, yielding an
+Setting `damping = 0` disables coupling to the thermal bath, yielding an
 energy-conserving spin dynamics. The `Langevin` integrator uses an explicit
 numerical integrator which cannot prevent energy drift. Alternatively, the
 [`ImplicitMidpoint`](@ref) method can be used, which is more expensive but
@@ -21,9 +21,9 @@ stochastic Landau-Lifshitz equation,
     d𝐬/dt = -𝐬 × (ξ - 𝐁 + λ 𝐬 × 𝐁),
 ```
 where ``𝐁 = -dE/d𝐬`` is the effective field felt by the expected spin dipole
-``𝐬`` and the empirical parameter ``λ`` determines the magnitude of damping.
-The components of ``ξ`` are Gaussian white noise, with magnitude ``√(2 k_B T
-λ)`` set by a fluctuation-dissipation theorem.
+``𝐬``. The components of ``ξ`` are Gaussian white noise, with magnitude ``√(2
+k_B T λ)`` set by a fluctuation-dissipation theorem. The parameter `damping`
+sets the phenomenological coupling ``λ`` to the thermal bath. 
 
 If the `System` has `mode = :SUN`, then this dynamics generalizes [1] to a
 stochastic nonlinear Schrödinger equation for SU(_N_) coherent states ``𝐙``,
@@ -33,17 +33,17 @@ stochastic nonlinear Schrödinger equation for SU(_N_) coherent states ``𝐙``,
 Here, ``P`` projects onto the space orthogonal to ``𝐙``, and ``ζ`` denotes
 complex Gaussian white noise with magnitude ``√(2 k_B T λ̃)``. The
 local-Hamiltonian ``ℋ`` embeds the energy gradient into the 𝔰𝔲(_N_) Lie
-algebra, and generates evolution of spin dipoles, quadrupoles, etc.
+algebra, and generates evolution of spin dipoles, quadrupoles, etc. The
+parameter `damping` here sets ``λ̃``, which is analogous to ``λ`` above.
 
-When applied to SU(2) coherent states, this generalized dynamics reduces exactly
-to the stochastic Landau-Lifshitz equation. The mapping is as follows.
+When applied to SU(2) coherent states, the generalized spin dynamics reduces
+exactly to the stochastic Landau-Lifshitz equation. The mapping is as follows.
 Normalized coherent states ``𝐙`` map to dipole expectation values ``𝐬 = 𝐙^{†}
 Ŝ 𝐙``, where spin operators ``Ŝ`` are a spin-``|𝐬|`` representation of
 SU(2). The local effective Hamiltonian ``ℋ = -𝐁 ⋅ Ŝ`` generates rotation of
 the dipole in analogy to the vector cross product ``S × 𝐁``. The coupling to
-the thermal bath maps as ``λ̃ = |𝐬| λ``. Note, however, that the `Langevin`
-constructor interprets its `λ` argument as either ``λ`` or ``λ̃``, for modes
-`:dipole` or `:SUN`, respectively.
+the thermal bath maps as ``λ̃ = |𝐬| λ``. Note, therefore, that the scaling of
+the `damping` parameter varies subtly between `:dipole` and `:SUN` modes.
 
 References:
 
@@ -51,24 +51,36 @@ References:
    (2022)](https://arxiv.org/abs/2209.01265).
 """
 mutable struct Langevin
-    Δt  :: Float64
-    λ   :: Float64
-    kT  :: Float64
+    Δt      :: Float64
+    damping :: Float64
+    kT      :: Float64
 
-    function Langevin(Δt; λ, kT)
-        Δt <= 0   && error("Select positive Δt")
-        kT < 0    && error("Select nonnegative kT")
-        λ < 0     && error("Select positive damping λ")
-        iszero(λ) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
-        λ < 0.1   && @info "For small λ values, the ImplicitMidpoint integrator will be more accurate"
-        return new(Δt, λ, kT)
+    function Langevin(Δt; λ=nothing, damping=nothing, kT)
+        if !isnothing(λ)
+            isnothing(damping) || error("Cannot specify both λ and damping")
+            @warn "`λ` argument is deprecated! Use `damping` instead."
+            damping = λ
+        else
+            isnothing(damping) && error("`damping` parameter required")
+        end
+
+        Δt <= 0         && error("Select positive Δt")
+        kT < 0          && error("Select nonnegative kT")
+        damping < 0     && error("Select positive damping")
+        iszero(damping) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
+        damping < 1e-2  && @info "For small `damping` values, the ImplicitMidpoint integrator will be more accurate"
+        return new(Δt, damping, kT)
     end
 end
-Langevin(; λ, kT) = Langevin(NaN; λ, kT)
+
+function Langevin(; λ=nothing, damping=nothing, kT)
+    Langevin(NaN; λ, damping, kT)
+end
+
 
 
 """
-    ImplicitMidpoint(Δt::Float64; λ=0, kT=0, atol=1e-12) where N
+    ImplicitMidpoint(Δt::Float64; damping=0, kT=0, atol=1e-12) where N
 
 The implicit midpoint method for integrating the Landau-Lifshitz spin dynamics
 or its generalization to SU(_N_) coherent states [1]. One call to the
@@ -76,12 +88,12 @@ or its generalization to SU(_N_) coherent states [1]. One call to the
 This integration scheme is exactly symplectic and eliminates energy drift over
 arbitrarily long simulation trajectories.
 
-Damping and noise terms may be included through the optional `λ` and `kT`
+Damping and noise terms may be included through the optional `damping` and `kT`
 parameters. In this case, the spin dynamics will coincide with that of
 [`Langevin`](@ref), and samples the classical Boltzmann distribution [2].
 Relative to the Heun integration method, the implicit midpoint method has a
 larger numerical cost, but can achieve much better statistical accuracy,
-especially in the limit of small damping strength ``λ``.
+especially in the limit of small `damping`.
 
 References:
 
@@ -91,17 +103,17 @@ References:
    (2022)](https://arxiv.org/abs/2204.07563).
 """
 mutable struct ImplicitMidpoint
-    Δt   :: Float64
-    λ    :: Float64
-    kT   :: Float64
-    atol :: Float64
+    Δt      :: Float64
+    damping :: Float64
+    kT      :: Float64
+    atol    :: Float64
 
-    function ImplicitMidpoint(Δt; λ=0, kT=0, atol=1e-12)
-        Δt <= 0 && error("Select positive Δt")
-        kT < 0  && error("Select nonnegative kT")
-        λ < 0   && error("Select nonnegative damping λ")
-        (kT > 0 && iszero(λ)) && error("Select positive λ for positive kT")
-        return new(Δt, λ, kT, atol)
+    function ImplicitMidpoint(Δt; damping=0, kT=0, atol=1e-12)
+        Δt <= 0      && error("Select positive Δt")
+        kT < 0       && error("Select nonnegative kT")
+        damping < 0  && error("Select nonnegative damping")
+        (kT > 0 && iszero(damping)) && error("Select positive damping for positive kT")
+        return new(Δt, damping, kT, atol)
     end    
 end
 ImplicitMidpoint(; atol) = ImplicitMidpoint(NaN; atol)
@@ -126,15 +138,15 @@ the target temperature. Alternatively, a reasonably timestep estimate can be
 obtained from any low-energy spin configuration. For this, one can use
 [`randomize_spins!`](@ref) and then [`minimize_energy!`](@ref).
 
-If `integrator` is of type [`Langevin`](@ref), then the damping magnitude ``λ``
-and target temperature ``kT`` will tighten the timestep bound. If ``λ`` exceeds
-1, it will rescale the suggested timestep by an approximate the factor ``1/λ``.
-If ``kT`` is the largest energy scale, then the suggested timestep will scale
-like ``1/λkT``. Quantification of numerical error for stochastic dynamics is
-subtle. The stochastic Heun integration scheme is weakly convergent of order-1,
-such that errors in the estimates of averaged observables may scale like ``Δt``.
-This implies that the `tol` argument may actually scale like the _square_ of the
-true numerical error, and should be selected with this in mind.
+Large `damping` magnitude or target temperature `kT` will tighten the timestep
+bound. If `damping` exceeds 1, it will rescale the suggested timestep by an
+approximate the factor ``1/damping``. If `kT` is the largest energy scale, then
+the suggested timestep will scale like `1/(damping*kT)`. Quantification of
+numerical error for stochastic dynamics is subtle. The stochastic Heun
+integration scheme is weakly convergent of order-1, such that errors in the
+estimates of averaged observables may scale like `Δt`. This implies that the
+`tol` argument may actually scale like the _square_ of the true numerical error,
+and should be selected with this in mind.
 """
 function suggest_timestep(sys::System{N}, integrator::Union{Langevin, ImplicitMidpoint}; tol) where N
     (; Δt) = integrator
@@ -160,7 +172,8 @@ function suggest_timestep(sys::System{N}, integrator::Union{Langevin, ImplicitMi
 end
 
 function suggest_timestep_aux(sys::System{N}, integrator; tol) where N
-    (; λ, kT) = integrator
+    (; damping, kT) = integrator
+    λ = damping
 
     # Accumulate statistics regarding Var[∇E]
     acc = 0.0
@@ -220,9 +233,9 @@ end
 
 
 function Base.show(io::IO, integrator::Langevin)
-    (; Δt, λ, kT) = integrator
+    (; Δt, damping, kT) = integrator
     Δt = isnan(integrator.Δt) ? "<missing>" : repr(Δt)
-    println(io, "Langevin($Δt; λ=$λ, kT=$kT)")
+    println(io, "Langevin($Δt; damping=$damping, kT=$kT)")
 end
 
 function Base.show(io::IO, integrator::ImplicitMidpoint)
@@ -238,7 +251,9 @@ end
 
 
 @inline function rhs_dipole!(Δs, s, ξ, ∇E, integrator)
-    (; Δt, λ) = integrator
+    (; Δt, damping) = integrator
+    λ = damping
+
     if iszero(λ)
         @. Δs = -s × (- Δt*∇E)
     else
@@ -247,7 +262,8 @@ end
 end
 
 function rhs_sun!(ΔZ, Z, ξ, HZ, integrator)
-    (; λ, Δt) = integrator
+    (; damping, Δt) = integrator
+    λ = damping
 
     if iszero(λ)
         @. ΔZ = - im*Δt*HZ
@@ -257,7 +273,9 @@ function rhs_sun!(ΔZ, Z, ξ, HZ, integrator)
 end
 
 function fill_noise!(rng, ξ, integrator)
-    (; Δt, λ, kT, λ) = integrator
+    (; Δt, damping, kT) = integrator
+    λ = damping
+
     if iszero(λ) || iszero(kT)
         fill!(ξ, zero(eltype(ξ)))
     else
