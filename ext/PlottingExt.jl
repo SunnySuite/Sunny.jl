@@ -576,7 +576,7 @@ end
 
 
 function Sunny.view_crystal(cryst::Crystal, max_dist::Number)
-    @warn "view_crystal(cryst, max_dist) will soon be removed! Use `view_crystal(cryst)` instead. See also optional `ghost_radius` argument."
+    @warn "view_crystal(cryst, max_dist) is deprecated! Use `view_crystal(cryst)` instead. See also optional `ghost_radius` argument."
     Sunny.view_crystal(cryst; ghost_radius=max_dist)
 end
 

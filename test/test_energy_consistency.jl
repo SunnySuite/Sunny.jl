@@ -38,10 +38,10 @@
     # Tests that SphericalMidpoint conserves energy to a certain tolerance.
     function test_conservation(sys)
         NITERS = 3_000
-        Δt     = 0.002
+        dt     = 0.002
         energies = Float64[]
 
-        integrator = ImplicitMidpoint(Δt)
+        integrator = ImplicitMidpoint(dt)
         for _ in 1:NITERS
             step!(sys, integrator)
             push!(energies, energy(sys))

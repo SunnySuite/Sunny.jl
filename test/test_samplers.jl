@@ -45,15 +45,14 @@
     end
 
     function thermalize!(sys, integrator, dur)
-        Δt = integrator.Δt
-        numsteps = round(Int, dur/Δt)
+        numsteps = round(Int, dur/integrator.dt)
         for _ in 1:numsteps
             step!(sys, integrator)
         end
     end
 
     function calc_mean_energy(sys, integrator, dur)
-        numsteps = round(Int, dur/integrator.Δt)
+        numsteps = round(Int, dur/integrator.dt)
         Es = zeros(numsteps)
         for i in 1:numsteps
             step!(sys, integrator)
@@ -65,15 +64,15 @@
     function test_su3_anisotropy_energy()
         D = 1.0
         L = 20   # number of (non-interacting) sites
-        λ = 1.0
-        Δt = 0.01
+        damping = 1.0
+        dt = 0.01
         kTs = [0.125, 0.5]
         thermalize_dur = 10.0
         collect_dur = 100.0
 
         sys = su3_anisotropy_model(; D, L, seed=0)
-        heun = Langevin(Δt; kT=0, λ)
-        midpoint = Sunny.ImplicitMidpoint(Δt; kT=0, λ)
+        heun = Langevin(dt; damping, kT=0)
+        midpoint = Sunny.ImplicitMidpoint(dt; damping, kT=0)
 
         for integrator in [heun, midpoint]
             for kT in kTs
@@ -92,15 +91,15 @@
     function test_su5_anisotropy_energy()
         D = 1.0
         L = 20   # number of (non-interacting) sites
-        λ = 0.1
-        Δt = 0.01
+        damping = 0.1
+        dt = 0.01
         kTs = [0.125, 0.5]
         thermalize_dur = 10.0
         collect_dur = 200.0
 
         sys = su5_anisotropy_model(; D, L, seed=0)
-        heun = Langevin(Δt; kT=0, λ)
-        midpoint = Sunny.ImplicitMidpoint(Δt; kT=0, λ)
+        heun = Langevin(dt; damping, kT=0)
+        midpoint = Sunny.ImplicitMidpoint(dt; damping, kT=0)
 
         for integrator in [heun, midpoint]
             for kT ∈ kTs
@@ -187,11 +186,11 @@ end
         for mode in (:SUN, :dipole)
             sys = two_site_spin_chain(; mode, seed=0)
 
-            λ = 0.1
+            damping = 0.1
             kT = 0.1
-            Δt = 0.02
-            heun = Langevin(Δt; kT, λ)
-            midpoint = Sunny.ImplicitMidpoint(Δt; kT, λ)
+            dt = 0.02
+            heun = Langevin(dt; damping, kT)
+            midpoint = Sunny.ImplicitMidpoint(dt; damping, kT)
 
             n_equilib = 1000
             n_samples = 2000

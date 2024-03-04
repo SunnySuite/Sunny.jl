@@ -19,10 +19,9 @@
     end
 
     function thermalize_simple_model!(sys; kT)
-        Δt = 0.05  # Time step for thermalization
-        λ  = 0.1
-        nsteps = 1000  # Number of steps between MC samples
-        langevin = Langevin(Δt; kT, λ)
+        dt = 0.05
+        nsteps = 1000
+        langevin = Langevin(dt; damping=0.1, kT)
         for _ in 1:nsteps
             step!(sys, langevin)
         end
@@ -34,7 +33,7 @@
     thermalize_simple_model!(sys; kT=0.1)
     S = spin_matrices(1/2)
     observables = Dict(:Sx => S[1], :Sy => S[2], :Sz => S[3])
-    sc = dynamical_correlations(sys; nω=100, ωmax=10.0, Δt=0.1, apply_g=false, observables)
+    sc = dynamical_correlations(sys; nω=100, ωmax=10.0, dt=0.1, apply_g=false, observables)
     add_sample!(sc, sys)
     qgrid = available_wave_vectors(sc)
     formula = intensity_formula(sc,:trace)
@@ -45,7 +44,7 @@
     # Test sum rule with default observables in dipole mode 
     sys = simple_model_fcc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
-    sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0, apply_g=false)
+    sc = dynamical_correlations(sys; dt=0.1, nω=100, ωmax=10.0, apply_g=false)
     add_sample!(sc, sys)
     trace_formula = intensity_formula(sc,:trace)
     vals = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
@@ -104,12 +103,12 @@ end
     randomize_spins!(sys)
 
     # Set up Langevin sampler.
-    Δt_langevin = 0.07 
-    langevin = Langevin(Δt_langevin; kT=0.1723, λ=0.1)
+    dt_langevin = 0.07 
+    langevin = Langevin(dt_langevin; damping=0.1, kT=0.1723)
 
-    sc0 = dynamical_correlations(sys; nω=25, ωmax=5.5, Δt=2Δt_langevin, calculate_errors=true)
-    sc1 = dynamical_correlations(sys; nω=25, ωmax=5.5, Δt=2Δt_langevin, calculate_errors=true)
-    sc2 = dynamical_correlations(sys; nω=25, ωmax=5.5, Δt=2Δt_langevin, calculate_errors=true)
+    sc0 = dynamical_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
+    sc1 = dynamical_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
+    sc2 = dynamical_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
 
     for _ in 1:4_000
         step!(sys, langevin)
@@ -136,20 +135,20 @@ end
     set_exchange!(sys, 0.6498, Bond(1, 3, [0,0,0]))
     randomize_spins!(sys)
 
-    Δt_langevin = 0.07 
+    dt_langevin = 0.07 
+    damping = 0.1
     kT = 0.1723
-    λ  = 0.1
-    langevin = Langevin(Δt_langevin; kT, λ)
+    langevin = Langevin(dt_langevin; damping, kT)
 
     # Thermalize
     for _ in 1:4000
         step!(sys, langevin)
     end
 
-    sc = dynamical_correlations(sys; nω=10, ωmax=5.5, Δt=2Δt_langevin)
+    sc = dynamical_correlations(sys; nω=10, ωmax=5.5, dt=2dt_langevin)
     add_sample!(sc, sys)
     qs = [[0.0, 0.0, 0.0], [0.2, -0.4, 0.1]]
-    data = intensities_interpolated(sc, qs, intensity_formula(sc,:trace; kT); interpolation=:linear)
+    data = intensities_interpolated(sc, qs, intensity_formula(sc, :trace; kT); interpolation=:linear)
     
     refdata = [1.8923137799435257 -1.5731157122871734e-15 -7.618183477999628e-16 2.4258182290582965e-15 2.663555286833582e-15 -2.378171804276773e-15 1.4269030327057308e-15 -1.997664243521173e-15 -4.756343436779901e-16 -1.819301364566135e-15; 0.033223462988952464 0.0565912610212458 0.1616375644454015 4.211237061899472 3.1064676304451533 5.792222570573932 5.536484159910247 0.551596926234539 0.27194613622683184 0.24232982609989023]
 

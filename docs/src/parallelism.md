@@ -44,14 +44,14 @@ A serial calculation of [`dynamical_correlations`](@ref) involving the
 
 ```julia
 # Thermalize the system
-Δt = 0.05
-integrator = Langevin(Δt; kT=0.5, λ=0.1)
+dt = 0.05
+integrator = Langevin(dt; damping=0.2, kT=0.5)
 for _ in 1:5000
     step!(sys, integrator)
 end
 
 # Accumulator for S(q,ω) samples
-sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0)
+sc = dynamical_correlations(sys; dt=0.1, nω=100, ωmax=10.0)
 
 # Collect 10 samples
 for _ in 1:10
@@ -82,7 +82,7 @@ preallocate a number of systems and correlations.
 ```julia
 npar = Threads.nthreads()
 systems = [make_system(; seed=id) for id in 1:npar]
-scs = [dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0) for _ in 1:npar]
+scs = [dynamical_correlations(sys; dt=0.1, nω=100, ωmax=10.0) for _ in 1:npar]
 ```
 
 !!! warning "Dealing with memory constraints"
@@ -99,7 +99,7 @@ with each thread acting on a unique `System` and `SampledCorrelations`.
 
 ```julia
 Threads.@threads for id in 1:npar
-    integrator = Langevin(Δt; kT=0.5, λ=0.1)
+    integrator = Langevin(dt; damping=0.2, kT=0.5)
     for _ in 1:5000
         step!(systems[id], integrator)
     end
@@ -180,8 +180,8 @@ called `scs`.
 ```julia
 scs = pmap(1:ncores) do id
     sys = make_system(; seed=id)
-    sc = dynamical_correlations(sys; Δt=0.1, nω=100, ωmax=10.0)
-    integrator = Langevin(0.05; kT=0.5, λ=0.1)
+    sc = dynamical_correlations(sys; dt=0.1, nω=100, ωmax=10.0)
+    integrator = Langevin(0.05; damping=0.2, kT=0.5)
 
     for _ in 1:5000
         step!(sys, integrator)

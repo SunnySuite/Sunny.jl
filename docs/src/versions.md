@@ -10,9 +10,8 @@
   spin wave theory). Set `apply_g = false` to measure correlations of spin
   angular momentum instead. [Issue
   #236](https://github.com/SunnySuite/Sunny.jl/issues/236).
-* **[In Progress]** The simulated intensity will now scale linearly with
-  magnetic cell size, in a consistent way. This behavior deviates from SpinW,
-  which divides the intensity by the number of atoms in the unit cell. [Issue
+* **[In Progress]** The intensity magnitude now scales linearly with magnetic
+  cell size, consistent with SpinW. [Issue
   #235](https://github.com/SunnySuite/Sunny.jl/issues/235).
 * New function [`suggest_timestep`](@ref) to assist in performing accurate and
   efficient simulation of spin dynamics. [Issue
@@ -20,6 +19,8 @@
 * Significantly speed up [`dynamical_correlations`](@ref) for crystals with many
   atoms in the unit cell. [Issue
   #204](https://github.com/SunnySuite/Sunny.jl/issues/204).
+* Unicode keyword arguments are replaced with non-unicode alternatives: `Δt` to
+  `dt`, and `λ` to `damping`.
 
 
 ## v0.5.8
