@@ -85,12 +85,11 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 # Alternatively, one can search for the ordered state by sampling spin
 # configurations from thermal equilibrium. Sunny supports this via a
 # [`Langevin`](@ref) dynamics of SU(_N_) coherent states. This dynamics involves
-# a damping term of strength `λ` and a noise term determined by the target
-# temperature `kT`.
+# a dimensionless `damping` magnitude and target temperature `kT` for thermal
+# fluctuations.
 
-λ  = 0.2  # Dimensionless damping time-scale
 kT = 0.2  # Temperature in meV
-langevin = Langevin(; λ, kT)
+langevin = Langevin(; damping=0.2, kT)
 
 # Use [`suggest_timestep`](@ref) to select an integration timestep for the given
 # error tolerance, e.g. `tol=1e-2`. The spin configuration in `sys` should
@@ -98,7 +97,7 @@ langevin = Langevin(; λ, kT)
 # configuration will also work reasonably well.
 
 suggest_timestep(sys, langevin; tol=1e-2)
-langevin.Δt = 0.027;
+langevin.dt = 0.027;
 
 # Sample spin configurations using Langevin dynamics. We have carefully selected
 # a temperature of 0.2 eV that is below the ordering temperature, but large
@@ -110,7 +109,7 @@ for _ in 1:10_000
 end
 
 # Calling [`suggest_timestep`](@ref) shows that thermalization has not
-# substantially altered the suggested `Δt`.
+# substantially altered the suggested `dt`.
 
 suggest_timestep(sys, langevin; tol=1e-2)
 
@@ -146,7 +145,7 @@ end
 # With this increase in temperature, the suggested timestep has increased slightly.
 
 suggest_timestep(sys_large, langevin; tol=1e-2)
-langevin.Δt = 0.040;
+langevin.dt = 0.040;
 
 # The next step is to collect correlation data ``S^{\alpha\beta}``. This will
 # involve sampling spin configurations from thermal equilibrium, and then
@@ -159,15 +158,15 @@ langevin.Δt = 0.040;
 # (the resolution scales like inverse system size).
 #
 # The function [`dynamical_correlations`](@ref) creates an object to store
-# sampled correlations. The integration timestep `Δt` used for measuring
+# sampled correlations. The integration timestep `dt` used for measuring
 # dynamical correlations can be somewhat larger than that used by the Langevin
 # dynamics. We must also specify `nω` and `ωmax`, which determine the
 # frequencies over which intensity data will be collected.
 
-Δt = 2*langevin.Δt
+dt = 2*langevin.dt
 ωmax = 7.5  # Maximum energy to resolve (meV)
 nω = 120    # Number of energies to resolve
-sc = dynamical_correlations(sys_large; Δt, nω, ωmax)
+sc = dynamical_correlations(sys_large; dt, nω, ωmax)
 
 # The function [`add_sample!`](@ref) will collect data by running a dynamical
 # trajectory starting from the current system configuration. 

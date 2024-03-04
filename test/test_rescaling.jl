@@ -5,10 +5,10 @@
     # invariant under the dynamics
     let
         cryst = Sunny.diamond_crystal()
+        damping = 0.1
         kT = 0.1
-        λ  = 0.1
-        Δt = 0.01
-        integrators = (Langevin(Δt; kT, λ), ImplicitMidpoint(Δt))
+        dt = 0.01
+        integrators = (Langevin(dt; damping, kT), ImplicitMidpoint(dt; damping, kT))
 
         for integrator in integrators
             for mode in (:SUN, :dipole)
@@ -61,13 +61,13 @@
 
     # Check that a scaling of κ corresponds to an appropriate rescaling of dynamical time
     let
-        function gen_trajectory(κ, Δt, adder, mode)
+        function gen_trajectory(κ, dt, adder, mode)
             cryst = Sunny.diamond_crystal()
             sys = System(cryst, (4,3,2), [SpinInfo(1, S=5/2, g=2)], mode; seed=0)
             adder(sys, mode)
             sys.κs .= κ
             randomize_spins!(sys)
-            integrator = ImplicitMidpoint(Δt)
+            integrator = ImplicitMidpoint(dt)
             for _ in 1:100
                 step!(sys, integrator)
             end
@@ -75,18 +75,18 @@
         end
     
         κ = 2.0
-        Δt = 0.005
+        dt = 0.005
         for mode in (:SUN, :dipole)
-            s1 = gen_trajectory(1, Δt, add_linear_interactions!, mode)
-            s2 = gen_trajectory(κ, Δt, add_linear_interactions!, mode)
+            s1 = gen_trajectory(1, dt, add_linear_interactions!, mode)
+            s2 = gen_trajectory(κ, dt, add_linear_interactions!, mode)
             @test s1 ≈ s2/κ
 
-            s1 = gen_trajectory(1, Δt, add_quadratic_interactions!, mode)
-            s2 = gen_trajectory(κ, Δt/κ, add_quadratic_interactions!, mode)
+            s1 = gen_trajectory(1, dt, add_quadratic_interactions!, mode)
+            s2 = gen_trajectory(κ, dt/κ, add_quadratic_interactions!, mode)
             @test s1 ≈ s2/κ
 
-            s1 = gen_trajectory(1, Δt, add_quartic_interactions!, mode)
-            s2 = gen_trajectory(κ, Δt/κ^3, add_quartic_interactions!, mode)
+            s1 = gen_trajectory(1, dt, add_quartic_interactions!, mode)
+            s2 = gen_trajectory(κ, dt/κ^3, add_quartic_interactions!, mode)
             @test s1 ≈ s2/κ
         end
     end
