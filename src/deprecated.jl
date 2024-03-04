@@ -42,5 +42,6 @@ end
 # REMEMBER TO ALSO DELETE:
 
 # view_crystal(cryst, max_dist)
-# Special handling of λ in Langevin constructor
-# Special handling of Δt in dynamical_correlations
+# λ argument in Langevin constructor
+# Δt argument in dynamical_correlations
+# biquad argument in set_exchange! and set_exchange_at!
