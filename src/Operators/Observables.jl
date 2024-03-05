@@ -1,8 +1,12 @@
 
+struct NonLocalObservableOperator
+  localize :: Function # A function of System, returning an ObservableOperator which is *not* a NonLocalObservableOperator
+end
+
 # An observable is either an operator, or a field of operators.
 # If it's a field of operators, then it's defined with reference
 # to some System that users of this type are responsible for keeping track of.
-ObservableOperator = Union{LinearMap, Array{LinearMap,4}}
+ObservableOperator = Union{LinearMap, Array{LinearMap,4}, NonLocalObservableOperator}
 
 observable_at_site(op::LinearMap,site) = op
 observable_at_site(op::Array{LinearMap,4},site) = op[site]
@@ -58,6 +62,8 @@ function magnetization_observables(g,N)
 end
 
 spin_observables(N) = magnetization_observables([I(3)],N)
+
+energy_gradient_dipole_observable(i) = NonLocalObservableOperator(sys -> map(x -> x[i],sys.dipoles .× Sunny.energy_grad_dipoles(sys) .× sys.dipoles ./ norm.(sys.dipoles) .^ 2))
 
 # TODO: Add/unify docs about allowed list of observables. See comment here:
 # https://github.com/SunnySuite/Sunny.jl/pull/167#issuecomment-1724751213

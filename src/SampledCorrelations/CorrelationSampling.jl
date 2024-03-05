@@ -1,18 +1,26 @@
 function observable_values!(buf, sys::System{N}, ops) where N
     if N == 0
         for (i, op) in enumerate(ops)
-            for site in eachsite(sys)
-                A = observable_at_site(op,site)
-                dipole = sys.dipoles[site]
-                buf[i,site] = A * dipole
+            if op isa NonLocalObservableOperator
+                buf[i,:] .= op.localize(sys)
+            else
+                for site in eachsite(sys)
+                    A = observable_at_site(op,site)
+                    dipole = sys.dipoles[site]
+                    buf[i,site] = (A * dipole)[1]
+                end
             end
         end
     else
         Zs = sys.coherents
         for (i, op) in enumerate(ops)
-            for site in eachsite(sys)
-                A = observable_at_site(op,site)
-                buf[i,site] = dot(Zs[site], A, Zs[site])
+            if op isa NonLocalObservableOperator
+                buf[i,:] .= op.localize(sys)
+            else
+                for site in eachsite(sys)
+                    A = observable_at_site(op,site)
+                    buf[i,site] = dot(Zs[site], A, Zs[site])
+                end
             end
         end
     end
