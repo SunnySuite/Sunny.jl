@@ -190,13 +190,13 @@ end
             kT = 0.1
             dt = 0.02
             heun = Langevin(dt; damping, kT)
-            midpoint = Sunny.ImplicitMidpoint(dt; damping, kT)
+            # midpoint = Sunny.ImplicitMidpoint(dt; damping, kT)
 
             n_equilib = 1000
             n_samples = 2000
             n_decorr = 500
 
-            for integrator in [heun, midpoint]
+            for integrator in (heun,)
 
                 # Initialize the Langevin sampler and thermalize the system
                 for _ in 1:n_equilib

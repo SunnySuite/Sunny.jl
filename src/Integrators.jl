@@ -76,16 +76,7 @@ function Langevin(; λ=nothing, damping=nothing, kT)
 end
 
 
-
-"""
-    ImplicitMidpoint(dt::Float64; damping=0, kT=0, atol=1e-12) where N
-
-The implicit midpoint method for integrating the Landau-Lifshitz spin dynamics
-or its generalization to SU(_N_) coherent states [1]. One call to the
-[`step!`](@ref) function will advance a [`System`](@ref) by `dt` units of time.
-This integration scheme is exactly symplectic and eliminates energy drift over
-arbitrarily long simulation trajectories.
-
+#=
 Damping and noise terms may be included through the optional `damping` and `kT`
 parameters. In this case, the spin dynamics will coincide with that of
 [`Langevin`](@ref), and samples the classical Boltzmann distribution [2].
@@ -93,12 +84,23 @@ Relative to the Heun integration method, the implicit midpoint method has a
 larger numerical cost, but can achieve much better statistical accuracy,
 especially in the limit of small `damping`.
 
+2. [D. Dahlbom et al, Phys. Rev. B 106, 054423
+   (2022)](https://arxiv.org/abs/2204.07563).
+=#
+
+"""
+    ImplicitMidpoint(dt::Float64; atol=1e-12) where N
+
+The implicit midpoint method for integrating the Landau-Lifshitz spin dynamics
+or its generalization to SU(_N_) coherent states [1]. One call to the
+[`step!`](@ref) function will advance a [`System`](@ref) by `dt` units of time.
+This integration scheme is exactly symplectic and eliminates energy drift over
+arbitrarily long simulation trajectories.
+
 References:
 
 1. [H. Zhang and C. D. Batista, Phys. Rev. B 104, 104409
    (2021)](https://arxiv.org/abs/2106.14125).
-2. [D. Dahlbom et al, Phys. Rev. B 106, 054423
-   (2022)](https://arxiv.org/abs/2204.07563).
 """
 mutable struct ImplicitMidpoint
     dt      :: Float64
@@ -111,6 +113,13 @@ mutable struct ImplicitMidpoint
         kT < 0       && error("Select nonnegative kT")
         damping < 0  && error("Select nonnegative damping")
         (kT > 0 && iszero(damping)) && error("Select positive damping for positive kT")
+
+        # Noise in the implicit midpoint method can be problematic, because rare
+        # events can lead to very slow convergence. Perhaps it could be made to
+        # work if we clip the sampled noise to a restricted magnitude? For now,
+        # simply disable the feature.
+        iszero(kT) || error("ImplicitMidpoint with a Langevin thermostat is not currently supported.")
+
         return new(dt, damping, kT, atol)
     end    
 end
