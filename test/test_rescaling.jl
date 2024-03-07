@@ -6,9 +6,9 @@
     let
         cryst = Sunny.diamond_crystal()
         damping = 0.1
-        kT = 0.1
         dt = 0.01
-        integrators = (Langevin(dt; damping, kT), ImplicitMidpoint(dt; damping, kT))
+        
+        integrators = (Langevin(dt; damping, kT=0.1), ImplicitMidpoint(dt; damping))
 
         for integrator in integrators
             for mode in (:SUN, :dipole)
