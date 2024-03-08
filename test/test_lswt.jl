@@ -1,4 +1,6 @@
 @testitem "Kitchen Sink" begin
+    using LinearAlgebra
+
     # Pyrochlore with nonstandard, primitive lattice vectors
     latvecs = [[1, 1, 0] [1, 0, 1] [0, 1, 1]] / 2
     positions = [
@@ -44,15 +46,7 @@
     end
 
     # Test that this is a local minimum of energy
-    minimize_energy!(sys)
-    @test isapprox(ground_state[:,1,1,1],sys.coherents[1,1,1,1];atol = 1e-12)
-    @test isapprox(ground_state[:,1,1,2],sys.coherents[1,1,1,2];atol = 1e-12)
-    @test isapprox(ground_state[:,1,1,3],sys.coherents[1,1,1,3];atol = 1e-12)
-    @test isapprox(ground_state[:,1,1,4],sys.coherents[1,1,1,4];atol = 1e-12)
-
-    for j = 1:16
-        sys.coherents[1,1,1,j] = ground_state[:,1,1,j]
-    end
+    @test norm(Sunny.proj.(Sunny.energy_grad_coherents(sys), sys.coherents)) < 1e-7
 
     # Test energies at arbitrary wave vectors
     ks = [[0.24331089495721447, 0.2818361515716459, 0.21954858411037714],[0.18786753153567903, 0.09763312505570143, 0.19017209963665904],[0.6495802672357117, 0.4232687254439188, 0.3224056821009953]]

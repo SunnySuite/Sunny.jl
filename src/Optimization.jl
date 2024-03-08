@@ -76,15 +76,16 @@ end
 
 
 """
-    minimize_energy!(sys::System{N}; maxiters=100, subiters=10,
-                     method=Optim.ConjugateGradient(), kwargs...) where N
+    minimize_energy!(sys::System{N}; maxiters=1000, method=Optim.ConjugateGradient(),
+                     g_tol=1e-10, kwargs...) where N
 
 Optimizes the spin configuration in `sys` to minimize energy. A total of
-`maxiters` iterations will be attempted, with restarts after every `subiters`
-iterations. The remaining `kwargs` will be forwarded to the `optimize` method of
-the Optim.jl package.
+`maxiters` iterations will be attempted. Convergence is reached when the root
+mean squared energy gradient goes below `g_tol`. The remaining `kwargs` will be
+forwarded to the `optimize` method of the Optim.jl package.
 """
-function minimize_energy!(sys::System{N}; maxiters=100, subiters=10, method=Optim.ConjugateGradient(), kwargs...) where N
+function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Optim.ConjugateGradient(),
+                          g_tol=1e-10, kwargs...) where N
     # Allocate buffers for optimization:
     #   - Each `ns[site]` defines a direction for stereographic projection.
     #   - Each `αs[:,site]` will be optimized in the space orthogonal to `ns[site]`.
@@ -106,22 +107,30 @@ function minimize_energy!(sys::System{N}; maxiters=100, subiters=10, method=Opti
         optim_set_gradient!(G, sys, αs, ns)
     end
 
-    # Perform optimization, resetting parameterization of coherent states as necessary
-    options = Optim.Options(; iterations=subiters, kwargs...)
+    # Monitor energy gradient magnitude relative to absolute tolerance `g_tol`.
+    g_res = Inf
 
+    # Repeatedly optimize using a small number (`subiters`) of steps.
+    options = Optim.Options(; iterations=subiters, g_tol, kwargs...)
     for iter in 1 : div(maxiters, subiters, RoundUp)
         output = Optim.optimize(f, g!, αs, method, options)
+        g_res = Optim.g_residual(output)
+        @assert g_tol == Optim.g_tol(output)
 
-        if Optim.converged(output)
+        # Exit if converged
+        if g_res ≤ g_tol
             cnt = (iter-1)*subiters + output.iterations
             return cnt
         end
 
-        # Reset parameterization based on current state
+        # Reset stereographic projection based on current state
         ns .= normalize.(iszero(N) ? sys.dipoles : sys.coherents)
         αs .*= 0
     end
 
-    @warn "Optimization failed to converge within $maxiters iterations."
+    res_str = number_to_simple_string(g_res; digits=2)
+    tol_str = number_to_simple_string(g_tol; digits=2)
+
+    @warn "Optimization failed to converge within $maxiters iterations ($res_str ≰ $tol_str)"
     return -1
 end
