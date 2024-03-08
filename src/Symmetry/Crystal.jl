@@ -196,10 +196,24 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
     d = Spglib.get_dataset(cell, symprec)
 
     if check_cell
-        if d.n_std_atoms < length(positions)
+        ratio = length(positions) / d.n_std_atoms
+        if ratio > 1
+            ratio_str = number_to_simple_string(ratio; digits=4)
             (a, b, c, α, β, γ) = number_to_math_string.(lattice_params(d.std_lattice); digits=8)
             latstr = "lattice_vectors($a, $b, $c, $α, $β, $γ)"
-            error("""Received $(length(positions)) atoms but inferred unit cell has only $(d.n_std_atoms). Break site symmetry with types = ["A", "B", ...] or build smaller cell with $latstr.""")
+            position_str = "["*join(fractional_vec3_to_string.(d.std_positions), ", ")*"]"
+            crystal_build_str = if allequal(d.std_types)
+                "Crystal(latvecs, positions)"
+            else
+                types_str = "["*join(repr.(string.(d.std_types)), ", ")*"]"
+                "types = $types_str\n    Crystal(latvecs, positions; types)"
+            end
+            @warn """There exists another unit cell that is $ratio_str times smaller. Symmetry
+                     information may be incomplete. Consider using the smaller unit cell:
+                         latvecs = $latstr
+                         positions = $position_str
+                         $crystal_build_str
+                     Alternatively, site symmetry can be broken with a `types` argument."""
         end
     end
 
