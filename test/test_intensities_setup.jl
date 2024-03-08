@@ -35,7 +35,8 @@ end
 
         # Compute magnetization correlation "by hand", averaging over sites
         mag_corr = sum([sys.gs[i] * sys.dipoles[i] * (sys.gs[j] * sys.dipoles[j])' for i = 1:2, j = 1:2]) / Sunny.natoms(cryst)
-        @test isapprox(corr_mat, mag_corr)
+        mag_corr_time_natoms = mag_corr * Sunny.natoms(cryst)
+        @test isapprox(corr_mat, mag_corr_time_natoms)
 
         # Spin wave theory only gives the "transverse part" which is difficult to calculate.
         # So we compare spin correlations vs magnetization correlations externally.
@@ -109,7 +110,8 @@ end
     nfs = params_pasr.binwidth[4] * params_pasr.numbins[4] / (sc.Δω * size(sc.data,7))
     @test nfs ≈ 1
     is, counts = intensities_binned(sc,params_pasr,formula)
-    expected_multi_BZ_sum = gS_squared * prod(nbzs) * nfs
-    @test sum(is ./ counts) ≈ expected_multi_BZ_sum
+    expected_multi_BZ_sum = gS_squared * prod(nbzs) * nfs # ⟨S⋅S⟩
+    expected_multi_BZ_sum_times_natoms = expected_multi_BZ_sum * Sunny.natoms(sc.crystal) # Nₐ×⟨S⋅S⟩
+    @test sum(is ./ counts) ≈ expected_multi_BZ_sum_times_natoms
 end
 
