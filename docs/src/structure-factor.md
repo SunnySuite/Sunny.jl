@@ -276,15 +276,15 @@ $C(𝐤, ω)$.
 
 ## Neutron scattering cross section
 
-The magnetic moment of a neutron is $\hat{\boldsymbol{μ}}_n = - 2 γ μ_N
-\hat{𝐒}_n$, where $γ = 1.913…$, $μ_N$ is the nuclear magneton, and $\hat{𝐒}_n$
-is the spin-1/2 angular momentum for the neutron. Neutrons interact with the
-magnetic moments of a material. These have the form $\hat{\boldsymbol{μ}} = -
-μ_B g \hat{𝐒}$, where $μ_B$ is the Bohr magneton and $\hat{𝐒}$ is the
-effective angular momentum. For a pure electron spin, $g = 2.0023…$ is known to
-high precision. For effective spin within a material, however, the appropriate
-$g$ may be any $3×3$ matrix consistent with the point group symmetries of the
-crystal.
+The magnetic moment of a neutron is $\hat{\boldsymbol{μ}}_\mathrm{neutron} = - 2
+γ μ_N \hat{𝐒}_\mathrm{neutron}$, where $γ = 1.913…$, $μ_N$ is the nuclear
+magneton, and $\hat{𝐒}_\mathrm{neutron}$ is spin-1/2 angular momentum. Neutrons
+interact with the magnetic moments of a material. These have the form
+$\hat{\boldsymbol{μ}} = -μ_B g \hat{𝐒}$, where $μ_B$ is the Bohr magneton and
+$\hat{𝐒}$ is the effective angular momentum. For a single electron, $g =
+2.0023…$ is known to high precision. Within a crystal, however, the appropriate
+$g_j$ for each sublattice $j$ may be any $3×3$ matrix consistent with point
+group symmetries.
 
 Each idealized magnetic moment $\hat{\boldsymbol{μ}}_{𝐦,j}$ is, in reality,
 smoothly distributed around the site position $𝐫_{𝐦, j}$. This can be modeled
@@ -302,15 +302,15 @@ where,
 ```math
 \begin{align}
 \hat{𝐌}_{𝐤,j} &≡ \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{\boldsymbol{μ}}_{𝐦,j} f_j(𝐤) \\
-              &= - μ_B g \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{𝐒}_{𝐦,j} f_j(𝐤).
+              &= - μ_B g_j \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{𝐒}_{𝐦,j} f_j(𝐤).
 \end{align}
 ```
 
-In Fourier space, $f_j(𝐤)$ is called the _magnetic form factor_ for sublattice
-$j$. Frequently, it will be approximated as an isotropic function of $k = |𝐤|$.
-Tabulated formula, for various magnetic ions and charge states, are available in
-Sunny via the [`FormFactor`](@ref) function. The idealized case $f_j(𝐤) = 1$
-would describe magnetic moments that are localized as Dirac-$δ$s.
+In Fourier space, $f_j(𝐤)$ is called the _magnetic form factor_. Frequently, it
+will be approximated as an isotropic function of $k = |𝐤|$. Tabulated formula,
+for various magnetic ions and charge states, are available in Sunny via the
+[`FormFactor`](@ref) function. The idealized case $f_j(𝐤) = 1$ would describe
+completely localized magnetic moments.
 
 Neutron scattering intensities are given by the total differential
 cross-section, $d^2 σ(𝐤, ω)/dωdΩ$, where $𝐤 = 𝐤_i - 𝐤_f$ is the momentum
@@ -337,8 +337,8 @@ The structure factor is of central importance to neutron scattering,
 ```
 
 and describes dynamical correlations of magnetic moments. It will differ
-nontrivially from the dynamical spin-spin correlations when $g$ is sublattice
-dependent.
+nontrivially from the spin-spin correlations if the $g_j$-tensor varies with
+sublattice $j$.
 
 ## Calculating the structure factor in Sunny
 
