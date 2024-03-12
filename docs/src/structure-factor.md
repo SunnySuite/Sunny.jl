@@ -68,9 +68,8 @@ and the definition of the thermal average,
 Let $ϵ_μ$ and $|μ⟩$ denote the exact eigenvalues and eigenstates of the
 full Hamiltonian $\hat{H}$. The eigenstates comprise a complete, orthonormal
 basis. The operator trace can be evaluated as a sum over eigenbasis states
-$|ν⟩$. We insert an additional resolution of the identity, $|μ⟩⟨μ| = 1$, with
-implicit summation on the repeated $μ$ index. Then, collecting results and
-applying,
+$|ν⟩$. Insert a resolution of the identity, $|μ⟩⟨μ| = 1$, with implicit
+summation on the repeated $μ$ index. Then, collecting results and applying,
 
 ```math
 \begin{equation}
@@ -116,25 +115,25 @@ $𝐚_{\{1,2,3\}}$. Site positions are
 \end{equation}
 ```
 
-for integers $𝐦 = \{m_1, m_2, m_3\}$. If the crystal is decorated, $δ𝐫_j$
+for integers $𝐦 = \{m_1, m_2, m_3\}$. If the crystal is decorated, then $δ𝐫_j$
 denotes the relative displacement of the Bravais sublattice $j$. 
 
-The field $\hat{A}(𝐫)$ decomposes into discrete contributions $\hat{A}_{𝐦,j}
-δ(𝐫 - 𝐫_{m,j})$ at each lattice point $𝐫_{𝐦,j}$. The Fourier transform
-therefore becomes a discrete sum,
+Let $\hat{A}(𝐫)$ be decomposed into discrete contributions $\hat{A}_{𝐦,j} δ(𝐫
+- 𝐫_{𝐦,j})$ at each lattice point $𝐫_{𝐦,j}$. The Fourier transform becomes a
+discrete sum,
 
 ```math
 \begin{equation}
-\hat{A}_𝐤 = \sum_j \sum_𝐦 e^{i 𝐤⋅𝐫_{𝐦,j}} \hat{A}_{𝐦,j} = \sum_j \hat{A}_{𝐤,j}.
+\hat{A}_𝐤 = \sum_j \sum_𝐦 e^{i 𝐤⋅𝐫_{𝐦,j}} \hat{A}_{𝐦,j} ≡ \sum_j \hat{A}_{𝐤,j}.
 \end{equation}
 ```
 
-The second equality introduces $\hat{A}_{𝐤,j}$, the Fourier transform of
+The second equality above introduces $\hat{A}_{𝐤,j}$, the Fourier transform of
 $\hat{A}_{𝐦,j}$ for _single_ sublattice $j$. It can be written,
 
 ```math
 \begin{equation}
-\hat{A}_{𝐤,j} ≡ e^{i 𝐤⋅δ𝐫_j} \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{A}_{𝐦,j},
+\hat{A}_{𝐤,j} = e^{i 𝐤⋅δ𝐫_j} \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{A}_{𝐦,j},
 \end{equation}
 ```
 
@@ -143,22 +142,23 @@ where $\tilde{𝐤}$ expresses momentum in dimensionless reciprocal lattice unit
 
 ```math
 \begin{equation}
-\tilde{k}_μ ≡ 𝐤 ⋅ 𝐚_μ / 2π.
+𝐤 = \tilde{k}_1 𝐛_1 + \tilde{k}_2 𝐛_2 + \tilde{k}_3 𝐛_3,
 \end{equation}
 ```
 
-Equivalently, $𝐤 = \tilde{k}_1 𝐛_1 + \tilde{k}_2 𝐛_2 + \tilde{k}_3 𝐛_3$,
-where $𝐛_{\{1,2,3\}}$ are the reciprocal lattice vectors.
+where $𝐛_{\{1,2,3\}}$ are the reciprocal lattice vectors. Equivalently,
+$\tilde{k}_μ ≡ 𝐤 ⋅ 𝐚_μ / 2π$.
 
-A dynamical correlation can be formulated for each pair of sublattices,
+It will be convenient to introduce a dynamical correlation for the operators on
+sublattices $i$ and $j$ only,
 
 ```math
 \begin{equation}
-C_{ij}(𝐤,t) ≡ ⟨\hat{B}^†_{𝐤,i}(0) \hat{A}_{𝐤,j}(t)⟩,
+C_{ij}(𝐤,t) ≡ ⟨\hat{B}^†_{𝐤,i}(0) \hat{A}_{𝐤,j}(t)⟩.
 \end{equation}
 ```
 
-yielding,
+By the linearity of expectation values,
 
 ```math
 \begin{equation}
@@ -259,19 +259,15 @@ results verify the above-stated quantum sum rule for the sublattice $j$.
 
 One can also derive a quantum sum rule on the full dynamical correlation $C^{α,
 β}(𝐤, ω)$. Contributions from distinct sublattices $i ≠ j$ introduce a phase
-factor $e^{- i 𝐤⋅(δ𝐫_i - δ𝐫_j)}$ that does not cancel for a single $𝐤$. The
-expected does, however, go to zero when averaging over a large number
-$N_\mathrm{BZ} → ∞$ of Brillouin zones. The final result is,
+factor $e^{- i 𝐤⋅(δ𝐫_i - δ𝐫_j)}$ that cancels when the momentum $𝐤$ is
+averaged over a large number $N_\mathrm{BZ} → ∞$ of Brillouin zones. The final
+result is a sum over contributions $C_{jj}(𝐤, t=0)$ for each sublattice $j$,
 
 ```math
 \begin{equation}
 \frac{1}{N_\mathrm{BZ}} \int_{N_\mathrm{BZ} × \tilde{V}_\mathrm{BZ}} \int_{-∞}^∞ \frac{C^{αα}(𝐤, ω)}{ N_\mathrm{cells}} dω d\tilde{𝐤} = \sum_j S_j (S_j + 1).
 \end{equation}
 ```
-
-Observe that the right-hand side involves a sum over sublattices $j$. This
-implies that more spins in the chemical unit cell will lead to larger values of
-$C(𝐤, ω)$.
 
 ## Neutron scattering cross section
 
@@ -360,6 +356,13 @@ macroscopic sample.
 Sunny also provides a setting `apply_g = false` to calculate dynamical spin-spin
 correlations, $C_{⟨𝐒𝐒⟩}(𝐤, ω) / N_\mathrm{cells}$. This quantity corresponds
 to $𝒮(𝐤, ω) / g^2$ in the special case that $g$ is a uniform scalar.
+
+The choice of chemical unit cell is to some extent arbitrary. The extensive
+structure factor $\mathcal{S}(𝐤, ω)$ has a physical value that is invariant to
+the choice of chemical cell. Note, however, that $𝒮(𝐤, ω)$ is made intensive
+through normalization by $N_\mathrm{cells}$. Its numerical value _is_ dependent
+on the size of the chemical cell (larger chemical cells lead to greater
+intensities reported by Sunny).
 
 ## Estimating stucture factors with classical dynamics
 
