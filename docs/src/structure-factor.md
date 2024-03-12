@@ -118,9 +118,9 @@ $𝐚_{\{1,2,3\}}$. Site positions are
 for integers $𝐦 = \{m_1, m_2, m_3\}$. If the crystal is decorated, then $δ𝐫_j$
 denotes the relative displacement of the Bravais sublattice $j$. 
 
-Let $\hat{A}(𝐫)$ be decomposed into discrete contributions $\hat{A}_{𝐦,j} δ(𝐫
-- 𝐫_{𝐦,j})$ at each lattice point $𝐫_{𝐦,j}$. The Fourier transform becomes a
-discrete sum,
+Let $\hat{A}(𝐫)$ be decomposed into discrete contributions $\hat{A}_{𝐦,j}
+δ(𝐫-𝐫_{𝐦,j})$ at each lattice point $𝐫_{𝐦,j}$. The Fourier transform
+becomes a discrete sum,
 
 ```math
 \begin{equation}
@@ -128,8 +128,8 @@ discrete sum,
 \end{equation}
 ```
 
-The second equality above introduces $\hat{A}_{𝐤,j}$, the Fourier transform of
-$\hat{A}_{𝐦,j}$ for _single_ sublattice $j$. It can be written,
+The second equality above introduces $\hat{A}_{𝐤,j}$ as the Fourier transform
+of $\hat{A}_{𝐦,j}$ for _single_ sublattice $j$. It can also be written,
 
 ```math
 \begin{equation}
@@ -146,7 +146,7 @@ where $\tilde{𝐤}$ expresses momentum in dimensionless reciprocal lattice unit
 \end{equation}
 ```
 
-where $𝐛_{\{1,2,3\}}$ are the reciprocal lattice vectors. Equivalently,
+and $𝐛_{\{1,2,3\}}$ are the reciprocal lattice vectors. Equivalently,
 $\tilde{k}_μ ≡ 𝐤 ⋅ 𝐚_μ / 2π$.
 
 It will be convenient to introduce a dynamical correlation for the operators on
