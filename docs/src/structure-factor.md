@@ -321,7 +321,7 @@ neutron beam is,
 
 ```math
 \begin{equation}
-\frac{d^2 σ(𝐤, ω)}{dω dΩ} \frac{k_i}{k_f} = \left(\frac{γ r_0}{2}\right)^2 \sum_{α,β} \left(δ_{α,β} - \frac{k^α k^β}{k^2}\right) \frac{\mathcal{S}^{αβ}(𝐤, ω)}{μ_B^2}.
+\frac{d^2 σ(𝐤, ω)}{dω dΩ} \left(\frac{k_f}{k_i}\right)^{-1} = \left(\frac{γ r_0}{2}\right)^2 \sum_{α,β} \left(δ_{α,β} - \frac{k^α k^β}{k^2}\right) \frac{\mathcal{S}^{αβ}(𝐤, ω)}{μ_B^2}.
 \end{equation}
 ```
 
