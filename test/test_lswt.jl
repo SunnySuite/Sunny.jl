@@ -278,44 +278,30 @@ end
     # The strengths of single-ion anisotropy (must be negative to favor the dipolar ordering under consideration)
     Ds = -rand(3)
     h  = rand()
-    # Random magnetic moment
     M = normalize(rand(3))
-    θ = acos(M[3])
-    ϕ = atan(M[2], M[1])
-    s_mat = spin_matrices(S)
-    s̃ᶻ = M' * s_mat
-    
-    U_mat = exp(-im * ϕ * s_mat[3]) * exp(-im * θ * s_mat[2])
-    hws = zeros(2S+1)
-    hws[1] = 1.0
-    Z = U_mat * hws
-
-    aniso = Ds[1]*s̃ᶻ^2 + Ds[2]*s̃ᶻ^4 + Ds[3]*s̃ᶻ^6
+    SM = M' * spin_matrices(S)
+    aniso = Ds[1]*SM^2 + Ds[2]*SM^4 + Ds[3]*SM^6
 
     set_onsite_coupling!(sys_dip, aniso, 1)
-    
-    s̃ᶻ = M' * spin_matrices(S)
-    aniso = Ds[1]*s̃ᶻ^2 + Ds[2]*s̃ᶻ^4 + Ds[3]*s̃ᶻ^6
     set_onsite_coupling!(sys_SUN, aniso, 1)
 
     set_external_field!(sys_dip, h*M)
     set_external_field!(sys_SUN, h*M)
 
-    set_dipole!(sys_dip, M, position_to_site(sys_dip, (0, 0, 0)))
-    set_coherent!(sys_SUN, Z, position_to_site(sys_SUN, (0, 0, 0)))
+    set_dipole!(sys_dip, M, (1,1,1,1))
+    set_dipole!(sys_SUN, M, (1,1,1,1))
 
     energy(sys_dip)
     energy(sys_SUN)
 
-    q = rand(3)
-
     swt_dip = SpinWaveTheory(sys_dip)
     swt_SUN = SpinWaveTheory(sys_SUN)
 
+    q = rand(3)
     disp_dip = dispersion(swt_dip, [q])
     disp_SUN = dispersion(swt_SUN, [q])
 
-    @test disp_dip[1] ≈ disp_SUN[end-1]
+    @test only(disp_dip) ≈ disp_SUN[end-1]
 end
 
 
