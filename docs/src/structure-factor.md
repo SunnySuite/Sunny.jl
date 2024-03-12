@@ -37,20 +37,87 @@ Our convention for the Fourier transform from position $𝐫$ to momentum $𝐤$
 For a Hermitian operator $\hat{A}^†(𝐫) = \hat{A}(𝐫)$, it follows that
 $\hat{A}_𝐤^† ≡ (\hat{A}_𝐤)^† = \hat{A}_{-𝐤}$ in momentum space. 
 
-## Discrete sums on the lattice
 
-Our interest will be decorated lattice systems with the site positions,
+## Lehmann representation in frequency space
 
+Dynamical correlations are most conveniently calculated in frequency space. We
+use the convention,
 
 ```math
 \begin{equation}
-𝐫_{𝐦,j} ≡ m_1 𝐚_1 + m_2 𝐚_2 + m_3 𝐚_3 + δ𝐫_j.
+C(𝐤, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-itω} C(𝐤, t) dt.
 \end{equation}
 ```
 
-The three indices $𝐦_{\{1,2,3\}}$ are integer, and the $𝐚_{\{1,2,3\}}$ are
-lattice vectors of the chemical (crystallographic) cell. Each sublattice $j$ is
-offset by an associated displacement vector, $δ𝐫_j$.
+On the right-hand side, substitute the definition of Heisenberg time evolution,
+
+```math
+\begin{equation}
+\hat{A}(t) ≡ e^{i t \hat{H}} \hat{A} e^{-i t \hat{H}},
+\end{equation}
+```
+
+and the definition of the thermal average,
+
+```math
+\begin{equation}
+⟨\hat{O}⟩ ≡ \frac{1}{\mathcal{Z}}\mathrm{tr}\, e^{-β \hat{H}} \hat{O}, \quad \mathcal{Z} ≡ \mathrm{tr}\, e^{-β \hat{H}}.
+\end{equation}
+```
+
+Let $ϵ_μ$ and $|μ⟩$ denote the exact eigenvalues and eigenstates of the
+full Hamiltonian $\hat{H}$. The eigenstates comprise a complete, orthonormal
+basis. The operator trace can be evaluated as a sum over eigenbasis states
+$|ν⟩$. We insert an additional resolution of the identity, $|μ⟩⟨μ| = 1$, with
+implicit summation on the repeated $μ$ index. Then, collecting results and
+applying,
+
+```math
+\begin{equation}
+\int_{-∞}^{∞} e^{-itω} dt = 2πδ(ω),
+\end{equation}
+```
+
+the result is the Lehmann representation of dynamical correlations,
+
+```math
+\begin{equation}
+C(𝐤,ω) = \frac{1}{\mathcal{Z}} e^{-β ϵ_ν} δ(ϵ_μ - ϵ_ν - ω) ⟨ν|\hat{B}^†_𝐤|μ⟩⟨μ|\hat{A}_𝐤 |ν⟩,
+\end{equation}
+```
+
+with implicit summation over eigenbasis indices $μ$ and $ν$. This representation
+is the usual starting point for quantum calculations such as linear spin wave
+theory and its various generalizations.
+
+Using the Lehmann representation, it can be shown that positive and negative
+frequencies are linked through a detailed balance condition,
+
+```math
+\begin{equation}
+C_{⟨BA^†⟩}(𝐤,-ω) = e^{-β ω}  C_{⟨B^†A⟩}(𝐤, ω)^*.
+\end{equation}
+```
+
+This subscript notation indicates that the left-hand side is a correlation of
+Hermitian-conjugated operators. Typically $\hat{A}$ and $\hat{B}$ will be
+Hermitian in real-space, and then detailed balance becomes $C(-𝐤,-ω) = e^{-β ω}
+C(𝐤, ω)^*$.
+
+
+## Discrete sums on the lattice
+
+A chemical (crystallographic) unit cell is associated with three lattice vectors
+$𝐚_{\{1,2,3\}}$. Site positions are
+
+```math
+\begin{equation}
+𝐫_{𝐦,j} ≡ m_1 𝐚_1 + m_2 𝐚_2 + m_3 𝐚_3 + δ𝐫_j,
+\end{equation}
+```
+
+for integers $𝐦 = \{m_1, m_2, m_3\}$. If the crystal is decorated, $δ𝐫_j$
+denotes the relative displacement of the Bravais sublattice $j$. 
 
 The field $\hat{A}(𝐫)$ decomposes into discrete contributions $\hat{A}_{𝐦,j}
 δ(𝐫 - 𝐫_{m,j})$ at each lattice point $𝐫_{𝐦,j}$. The Fourier transform
@@ -107,79 +174,6 @@ C_{ij}(𝐤,t) ≡ ⟨\hat{B}^†_{𝐤,i}(0) \hat{A}_{𝐤,j}(t)⟩.
 \end{equation}
 ```
 
-
-## Lehmann representation in frequency space
-
-Dynamical correlations are most conveniently expressed in frequency-space. Our
-convention for the Fourier transform from time $t$ to frequency $ω$ is,
-
-```math
-\begin{equation}
-C(𝐤, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-itω} C(𝐤, t) dt.
-\end{equation}
-```
-
-The right-hand side decomposes as a double-sum over sublattices,
-
-```math
-\begin{equation}
-C(𝐤, ω) = \sum_{ij} e^{- i 𝐤⋅(δ𝐫_i - δ𝐫_j)} C_{ij}(𝐤,ω).
-\end{equation}
-```
-
-It remains to evaluate $C_{ij}(𝐤,ω)$ as the Fourier transform of
-$C_{ij}(𝐤,t)$. For this, we will use Heisenberg time evolution,
-
-```math
-\begin{equation}
-\hat{A}(t) ≡ e^{i t \hat{H}} \hat{A} e^{-i t \hat{H}},
-\end{equation}
-```
-
-and the definition of the thermal average,
-
-```math
-\begin{equation}
-⟨ … ⟩ = \frac{1}{\mathcal{Z}}\mathrm{tr}\, e^{-β \hat{H}}(\dots), \quad \mathcal{Z} = \mathrm{tr}\, e^{-β \hat{H}}.
-\end{equation}
-```
-
-Let $ϵ_μ$ and $|μ⟩$ denote the exact eigenvalues and eigenstates of the
-full Hamiltonian $\hat{H}$. The eigenstates comprise a complete, orthonormal
-basis. The operator trace can be evaluated as a sum over eigenbasis states
-$|ν⟩$. We insert an additional resolution of the identity, $|μ⟩⟨μ| = 1$, with
-implicit summation on the repeated $μ$ index. Then, collecting results and
-applying,
-
-```math
-\begin{equation}
-\int_{-∞}^{∞} e^{-itω} dt = 2πδ(ω),
-\end{equation}
-```
-
-the result is the Lehmann representation of dynamical correlations,
-
-```math
-\begin{equation}
-C_{ij}(𝐤,ω) = \frac{1}{\mathcal{Z}} e^{-β ϵ_ν} δ(ϵ_μ - ϵ_ν - ω) ⟨ν|\hat{B}^†_{𝐤,i}|μ⟩⟨μ|\hat{A}_{𝐤,j} |ν⟩,
-\end{equation}
-```
-
-with implicit summation over eigenbasis indices $μ$ and $ν$.
-
-Positive and negative frequencies are linked through a detailed balance
-condition,
-
-```math
-\begin{equation}
-C_{⟨BA^†⟩}(𝐤,-ω) = e^{-β ω}  C_{⟨B^†A⟩}(𝐤, ω)^*.
-\end{equation}
-```
-
-The new subscript notation indicates that the left-hand side is a dynamical
-correlation of Hermitian-conjugated operators. Typically $A$ and $B$ will be
-Hermitian in real-space, and then detailed balance states $C(-𝐤,-ω) = e^{-β ω}
-C(𝐤, ω)^*$.
 
 ## Quantum sum rule
 
@@ -302,12 +296,12 @@ group symmetries.
 
 Each idealized magnetic moment $\hat{\boldsymbol{μ}}_{𝐦,j}$ is, in reality,
 smoothly distributed around the site position $𝐫_{𝐦, j}$. This can be modeled
-through convolution with a density function $f_j(𝐫)$. Perform the Fourier
-transform of all magnetic densities to find,
+through convolution with a density function $f_j(𝐫)$. Fourier transform the
+full magnetic density field $𝐌(𝐫)$ to obtain
 
 ```math
 \begin{equation}
-\hat{𝐌}_𝐤 ≡ \sum_j e^{i 𝐤⋅δ𝐫_j} \hat{𝐌}_{𝐤,j}.
+\hat{𝐌}_𝐤 ≡ \sum_j e^{i 𝐤⋅δ𝐫_j} \hat{𝐌}_{𝐤,j},
 \end{equation}
 ```
 
