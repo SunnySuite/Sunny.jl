@@ -277,13 +277,14 @@ $C(𝐤, ω)$.
 ## Neutron scattering cross section
 
 The magnetic moment of a neutron is $\hat{\boldsymbol{μ}}_n = - 2 γ μ_N
-\hat{𝐒}_n$, where $γ = 1.913…$, $μ_N$ is the nuclear magneton, and
-$\hat{𝐒}_n$ is the spin-1/2 angular momentum dipole. Neutrons interact with the
+\hat{𝐒}_n$, where $γ = 1.913…$, $μ_N$ is the nuclear magneton, and $\hat{𝐒}_n$
+is the spin-1/2 angular momentum for the neutron. Neutrons interact with the
 magnetic moments of a material. These have the form $\hat{\boldsymbol{μ}} = -
 μ_B g \hat{𝐒}$, where $μ_B$ is the Bohr magneton and $\hat{𝐒}$ is the
 effective angular momentum. For a pure electron spin, $g = 2.0023…$ is known to
-high precision. Within a material, however, the appropriate $g$ may be any $3×3$
-matrix consistent with the point group symmetries of the crystal.
+high precision. For effective spin within a material, however, the appropriate
+$g$ may be any $3×3$ matrix consistent with the point group symmetries of the
+crystal.
 
 Each idealized magnetic moment $\hat{\boldsymbol{μ}}_{𝐦,j}$ is, in reality,
 smoothly distributed around the site position $𝐫_{𝐦, j}$. This can be modeled
@@ -309,36 +310,35 @@ In Fourier space, $f_j(𝐤)$ is called the _magnetic form factor_ for sublattic
 $j$. Frequently, it will be approximated as an isotropic function of $k = |𝐤|$.
 Tabulated formula, for various magnetic ions and charge states, are available in
 Sunny via the [`FormFactor`](@ref) function. The idealized case $f_j(𝐤) = 1$
-would describe magnetic moments that are localized as a Dirac-$δ$s.
+would describe magnetic moments that are localized as Dirac-$δ$s.
 
-Using Fermi's golden rule, one can derive the total differential cross-section
-of magnetic scattering. Within the dipole approximation, the result for an
-unpolarized neutron beam is,
-
-```math
-\begin{equation}
-\frac{d^2 σ(𝐤, ω)}{dω dΩ} = \frac{k_f}{k_i} \left(\frac{γ r_0}{2}\right)^2 \sum_{α,β} \left(δ_{α,β} - \frac{k^α k^β}{k^2}\right) \frac{\mathcal{S}^{αβ}(𝐤, ω)}{μ_B^2}
-\end{equation}
-```
-
-where $Ω$ denotes the solid angle, $ω$ is the energy transfer to the sample, and
-$𝐤 = 𝐤_i - 𝐤_f$ is the momentum transfer to the sample. The cross section has
-dimensions of area, which arises from the characteristic scattering length, $γ
-r_0 / 2 ≈ 2.694×10^{-5} \mathrm{Å}$, where $r_0$ is the classical electron
-radius.
-
-The cross section above involves dynamical correlations of the magnetic moment
-density. This structure factor is of central importance to neutron scattering,
+Neutron scattering intensities are given by the total differential
+cross-section, $d^2 σ(𝐤, ω)/dωdΩ$, where $𝐤 = 𝐤_i - 𝐤_f$ is the momentum
+transfer to the sample, $ω$ is the energy transfer to the sample, and $Ω$ is the
+solid angle. Experimental intensity data will typically be provided in units of
+$k_f / k_i$. Within the dipole approximation, the result for an unpolarized
+neutron beam is,
 
 ```math
 \begin{equation}
-\mathcal{S}^{αβ}(𝐤, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-itω} ⟨\hat{M}_𝐤^{α†}(0) \hat{M}_𝐤^β(t)⟩ dt.
+\frac{d^2 σ(𝐤, ω)}{dω dΩ} \frac{k_i}{k_f} = \left(\frac{γ r_0}{2}\right)^2 \sum_{α,β} \left(δ_{α,β} - \frac{k^α k^β}{k^2}\right) \frac{\mathcal{S}^{αβ}(𝐤, ω)}{μ_B^2}.
 \end{equation}
 ```
 
-The structure factor differs from the spin-spin dynamical correlations
-$C^{αβ}(𝐤, ω)$ discussed above through inclusion of a $g$-tensor and form
-factor for each sublattice $j$.
+Dimensions of area arise from the characteristic scattering length, $γ r_0 / 2 ≈
+2.694×10^{-5} \mathrm{Å}$, where $r_0$ is the classical electron radius.
+
+The structure factor is of central importance to neutron scattering,
+
+```math
+\begin{equation}
+\mathcal{S}^{αβ}(𝐤, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-itω} ⟨\hat{M}_𝐤^{α†}(0) \hat{M}_𝐤^β(t)⟩ dt,
+\end{equation}
+```
+
+and describes dynamical correlations of magnetic moments. It will differ
+nontrivially from the dynamical spin-spin correlations when $g$ is sublattice
+dependent.
 
 ## Calculating the structure factor in Sunny
 

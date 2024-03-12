@@ -1,27 +1,23 @@
 # Version History
 
 ## v0.5.9
-(In development)
 
-* **Correctness fix**: An `intensity_formula` now defaults to providing
-  dynamical correlations of magnetic moments, as is needed for simulating the
-  neutron scattering cross section. This behavior is now unified across modes
-  (`:dipole` and `:SUN`) and across calculation methods (classical dynamics vs
-  spin wave theory). Set `apply_g = false` to measure correlations of spin
-  angular momentum instead. [Issue
-  #236](https://github.com/SunnySuite/Sunny.jl/issues/236).
-* **[In Progress]** The intensity magnitude now scales linearly with magnetic
-  cell size, consistent with SpinW. [Issue
+* **Correctness fixes**: Structure factor conventions are now uniform across
+  modes and [precisely specified](@ref "Structure Factor Conventions"). The
+  g-tensor is applied by default (disable with `apply_g = false`). The intensity
+  is additive with increasing number of magnetic ions in the chemical cell,
+  consistent with SpinW. [Issue
   #235](https://github.com/SunnySuite/Sunny.jl/issues/235).
 * New function [`suggest_timestep`](@ref) to assist in performing accurate and
-  efficient simulation of spin dynamics. [Issue
+  efficient simulation of classical spin dynamics. [Issue
   #149](https://github.com/SunnySuite/Sunny.jl/issues/149).
 * Significantly speed up [`dynamical_correlations`](@ref) for crystals with many
   atoms in the unit cell. [Issue
   #204](https://github.com/SunnySuite/Sunny.jl/issues/204).
-* Unicode keyword arguments are replaced with non-unicode alternatives: `Δt` to
-  `dt`, and `λ` to `damping`.
-
+* The [`ImplicitMidpoint`](@ref) integrator now supports a Langevin thermostat.
+* Renamings: `dt` replaces `Δt` and `damping` replaces `λ`. This affects
+  [`Langevin`](@ref), [`ImplicitMidpoint`], and [`dynamical_correlations`](@ref)
+  functions.
 
 ## v0.5.8
 (Jan 4, 2024)
