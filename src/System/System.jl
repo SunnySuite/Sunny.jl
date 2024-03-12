@@ -231,7 +231,10 @@ end
 Get the magnetic moment for a [`Site`](@ref). This is the spin dipole multiplied
 by the Bohr magneton and the local g-tensor.
 """
-magnetic_moment(sys::System, site) = sys.units.μB * sys.gs[site] * sys.dipoles[site]
+function magnetic_moment(sys::System, site)
+    site = to_cartesian(site)
+    return sys.units.μB * sys.gs[site] * sys.dipoles[site]
+end
 
 # Total volume of system
 volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
