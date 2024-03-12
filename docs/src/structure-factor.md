@@ -359,7 +359,7 @@ Sunny will calculate the structure factor in dimensionless, intensive units,
 where $N_\mathrm{cells}$ is again the number of chemical cells in the
 macroscopic sample.
 
-In the special case of a scalar $g$-factor, the scaled structure factor
+In the special case of a uniform scalar $g$-factor, the scaled structure factor
 $\mathcal{S}^{αβ}(𝐤, ω) / g^2 μ_B^2$ coincides with the dynamical spin-spin
 correlations, $C^{αβ}(𝐤, ω)$. Apply the setting `apply_g = false` to calculate
 the the intensive spin-spin correlations, $C^{αβ}(𝐤, ω) / N_\mathrm{cells}$.
