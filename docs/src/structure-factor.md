@@ -125,12 +125,21 @@ therefore becomes a discrete sum,
 
 ```math
 \begin{equation}
-\hat{A}_𝐤 = \sum_j \sum_𝐦 e^{i 𝐤⋅𝐫_{𝐦,j}} \hat{A}_{𝐦,j}.
+\hat{A}_𝐤 = \sum_j \sum_𝐦 e^{i 𝐤⋅𝐫_{𝐦,j}} \hat{A}_{𝐦,j} = \sum_j \hat{A}_{𝐤,j}.
 \end{equation}
 ```
 
-It will be convenient to switch variables from physical momentum $𝐤$ to a
-dimensionless wavevector $\tilde{𝐤}$ in reciprocal lattice units (RLU),
+The second equality introduces $\hat{A}_{𝐤,j}$, the Fourier transform of
+$\hat{A}_{𝐦,j}$ for _single_ sublattice $j$. It can be written,
+
+```math
+\begin{equation}
+\hat{A}_{𝐤,j} ≡ e^{i 𝐤⋅δ𝐫_j} \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{A}_{𝐦,j},
+\end{equation}
+```
+
+where $\tilde{𝐤}$ expresses momentum in dimensionless reciprocal lattice units
+(RLU),
 
 ```math
 \begin{equation}
@@ -139,38 +148,21 @@ dimensionless wavevector $\tilde{𝐤}$ in reciprocal lattice units (RLU),
 ```
 
 Equivalently, $𝐤 = \tilde{k}_1 𝐛_1 + \tilde{k}_2 𝐛_2 + \tilde{k}_3 𝐛_3$,
-where $𝐛_{\{1,2,3\}}$ are the reciprocal lattice vectors. Introduce the
-discrete Fourier transform or sublattice $j$,
+where $𝐛_{\{1,2,3\}}$ are the reciprocal lattice vectors.
+
+A dynamical correlation can be formulated for each pair of sublattices,
 
 ```math
 \begin{equation}
-\hat{A}_{𝐤,j} ≡ \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{A}_{𝐦,j}.
+C_{ij}(𝐤,t) ≡ ⟨\hat{B}^†_{𝐤,i}(0) \hat{A}_{𝐤,j}(t)⟩,
 \end{equation}
 ```
 
-Because the components of $𝐦$ are integer, the quantity $\hat{A}_{𝐤,j}$ is
-periodic in each component of $\tilde{𝐤}$ over the domain $[0, 1]$. With this
-notation, the Fourier transform becomes,
+yielding,
 
 ```math
 \begin{equation}
-\hat{A}_𝐤 = \sum_j e^{i 𝐤⋅δ𝐫_j} \hat{A}_{𝐤,j}.
-\end{equation}
-```
-
-The dynamical correlations can now be written as a sum over sublattice pairs,
-
-```math
-\begin{equation}
-C(𝐤, t) = \sum_{ij} e^{- i 𝐤⋅(δ𝐫_i - δ𝐫_j)} C_{ij}(𝐤,t),
-\end{equation}
-```
-
-where
-
-```math
-\begin{equation}
-C_{ij}(𝐤,t) ≡ ⟨\hat{B}^†_{𝐤,i}(0) \hat{A}_{𝐤,j}(t)⟩.
+C(𝐤, t) = \sum_{ij} C_{ij}(𝐤,t).
 \end{equation}
 ```
 
@@ -181,10 +173,9 @@ Integrating over all frequencies $ω$ yields the instant correlation at real-tim
 $t = 0$,
 
 ```math
-\begin{align}
-\int_{-∞}^∞ C(𝐤,ω) dω &= C(𝐤, t=0) \\
-                      &= \sum_{ij} e^{-i 𝐤 (δ𝐫_i - δ𝐫_j)} C_{ij}(𝐤, t=0).
-\end{align}
+\begin{equation}
+\int_{-∞}^∞ C(𝐤,ω) dω = C(𝐤, t=0) = \sum_{ij} C_{ij}(𝐤, t=0).
+\end{equation}
 ```
 
 Here, we will investigate spin-spin correlations. For this, select
@@ -247,12 +238,13 @@ definition,
 
 ```math
 \begin{equation}
-\hat{S}^α_{𝐤,j} ≡ \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{S}^α_{𝐦,j}.
+\hat{S}^α_{𝐤,j} ≡ e^{i 𝐤⋅δ𝐫_j} \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{S}^α_{𝐦,j}.
 \end{equation}
 ```
 
-The $𝐤$-dependence is now entirely in the complex phase. It can be integrated
-out, yielding a Kronecker-$δ$,
+Accounting for complex conjugation, the two phase factors $e^{i 𝐤⋅δ𝐫_j}$
+cancel. The remaining $𝐤$-dependence can be integrated to yield a
+Kronecker-$δ$,
 
 ```math
 \begin{equation}
@@ -260,17 +252,16 @@ out, yielding a Kronecker-$δ$,
 \end{equation}
 ```
 
-There remains a double sum over integers $𝐦$ that label sites within the
-sublattice $j$. This evaluates to $\sum_{𝐦, 𝐦'} δ_{𝐦, 𝐦'} =
-N_\mathrm{cells}$. Note that $⟨\hat{S}_j^α \hat{S}_j^α⟩ = S_j(S_j+1)$ is
-constant, independent of the equilibrium average. Combined, these results verify
-the quantum sum rule for the sublattice $j$.
+Note that $⟨\hat{S}_{𝐦,j}^α \hat{S}_{𝐦,j}^α⟩ = S_j(S_j+1)$ is constant,
+independent of the cell $𝐦$. This leaves a double sum over integers $𝐦$, which
+evaluates to $\sum_{𝐦, 𝐦'} δ_{𝐦, 𝐦'} = N_\mathrm{cells}$. Combined, these
+results verify the above-stated quantum sum rule for the sublattice $j$.
 
 One can also derive a quantum sum rule on the full dynamical correlation $C^{α,
-β}(𝐤, ω)$. The latter is _not_ periodic when $𝐤$ varies between reciprocal
-unit cells, because each contribution from the sublattice pair $(i,j)$ carries a
-phase factor $e^{- i 𝐤⋅(δ𝐫_i - δ𝐫_j)}$. The sum rule, instead, requires
-averaging over a large number $N_\mathrm{BZ} → ∞$ of Brillouin zones,
+β}(𝐤, ω)$. Contributions from distinct sublattices $i ≠ j$ introduce a phase
+factor $e^{- i 𝐤⋅(δ𝐫_i - δ𝐫_j)}$ that does not cancel for a single $𝐤$. The
+expected does, however, go to zero when averaging over a large number
+$N_\mathrm{BZ} → ∞$ of Brillouin zones. The final result is,
 
 ```math
 \begin{equation}
@@ -301,17 +292,16 @@ full magnetic density field $𝐌(𝐫)$ to obtain
 
 ```math
 \begin{equation}
-\hat{𝐌}_𝐤 ≡ \sum_j e^{i 𝐤⋅δ𝐫_j} \hat{𝐌}_{𝐤,j},
+\hat{𝐌}_𝐤 ≡ \sum_j \hat{𝐌}_{𝐤,j},
 \end{equation}
 ```
 
 where,
 
 ```math
-\begin{align}
-\hat{𝐌}_{𝐤,j} &≡ \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{\boldsymbol{μ}}_{𝐦,j} f_j(𝐤) \\
-              &= - μ_B g_j \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{𝐒}_{𝐦,j} f_j(𝐤).
-\end{align}
+\begin{equation}
+\hat{𝐌}_{𝐤,j} ≡ - μ_B e^{i 𝐤⋅δ𝐫_j} g_j \sum_𝐦 e^{i 2π \tilde{𝐤}⋅𝐦} \hat{𝐒}_{𝐦,j} f_j(𝐤).
+\end{equation}
 ```
 
 In Fourier space, $f_j(𝐤)$ is called the _magnetic form factor_. Frequently, it
