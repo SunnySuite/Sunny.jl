@@ -14,7 +14,6 @@
 * Significantly speed up [`dynamical_correlations`](@ref) for crystals with many
   atoms in the unit cell. [Issue
   #204](https://github.com/SunnySuite/Sunny.jl/issues/204).
-* The [`ImplicitMidpoint`](@ref) integrator now supports a Langevin thermostat.
 * Renamings: `dt` replaces `Δt` and `damping` replaces `λ`. This affects
   [`Langevin`](@ref), [`ImplicitMidpoint`], and [`dynamical_correlations`](@ref)
   functions.
