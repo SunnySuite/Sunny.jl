@@ -41,10 +41,9 @@
     
     sys.coherents .= reinterpret(reshape, Sunny.CVec{6}, ground_state)
     minimize_energy!(sys)
-    minimize_energy!(sys) # TODO: tighten convergence
 
     # Verify that this is a local minimum of energy
-    @test norm(Sunny.proj.(Sunny.energy_grad_coherents(sys), sys.coherents)) < 1e-7
+    @test norm(Sunny.proj.(Sunny.energy_grad_coherents(sys), sys.coherents)) < 1e-8
 
     # Test energies at an arbitrary wave vector
     ks = [[0.24331089495721447, 0.2818361515716459, 0.21954858411037714]]
