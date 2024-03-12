@@ -167,6 +167,20 @@ C_{ij}(𝐤,ω) = \frac{1}{\mathcal{Z}} e^{-β ϵ_ν} δ(ϵ_μ - ϵ_ν - ω) ⟨
 
 with implicit summation over eigenbasis indices $μ$ and $ν$.
 
+Positive and negative frequencies are linked through a detailed balance
+condition,
+
+```math
+\begin{equation}
+C_{⟨BA^†⟩}(𝐤,-ω) = e^{-β ω}  C_{⟨B^†A⟩}(𝐤, ω)^*.
+\end{equation}
+```
+
+The new subscript notation indicates that the left-hand side is a dynamical
+correlation of Hermitian-conjugated operators. Typically $A$ and $B$ will be
+Hermitian in real-space, and then detailed balance states $C(-𝐤,-ω) = e^{-β ω}
+C(𝐤, ω)^*$.
+
 ## Quantum sum rule
 
 Integrating over all frequencies $ω$ yields the instant correlation at real-time
@@ -180,8 +194,8 @@ $t = 0$,
 ```
 
 Here, we will investigate spin-spin correlations. For this, select
-$\hat{B}_{𝐤,i} = \hat{S}_{𝐤,i}^{α}$ and $\hat{A}_{𝐤,j} = \hat{S}_{𝐤,j}^{β}$.
-Introduce a superscript notation to keep track of the spin indices,
+$\hat{B}_{𝐤,i} = \hat{𝐒}_{𝐤,i}$ and $A_{𝐤,j} = \hat{𝐒}_{𝐤,j}$,
+such that the dynamical correlations become tensor valued,
 
 ```math
 \begin{equation}
@@ -326,7 +340,7 @@ neutron beam is,
 ```
 
 Dimensions of area arise from the characteristic scattering length, $γ r_0 / 2 ≈
-2.694×10^{-5} \mathrm{Å}$, where $r_0$ is the classical electron radius.
+2.69×10^{-5} \mathrm{Å}$, where $r_0$ is the classical electron radius.
 
 The structure factor is of central importance to neutron scattering,
 
@@ -359,12 +373,9 @@ Sunny will calculate the structure factor in dimensionless, intensive units,
 where $N_\mathrm{cells}$ is again the number of chemical cells in the
 macroscopic sample.
 
-In the special case of a uniform scalar $g$-factor, the scaled structure factor
-$\mathcal{S}^{αβ}(𝐤, ω) / g^2 μ_B^2$ coincides with the dynamical spin-spin
-correlations, $C^{αβ}(𝐤, ω)$. Apply the setting `apply_g = false` to calculate
-the the intensive spin-spin correlations, $C^{αβ}(𝐤, ω) / N_\mathrm{cells}$.
-Again, form factors are optional.
-
+Sunny also provides a setting `apply_g = false` to calculate dynamical spin-spin
+correlations, $C_{⟨𝐒𝐒⟩}(𝐤, ω) / N_\mathrm{cells}$. This quantity corresponds
+to $𝒮(𝐤, ω) / g^2$ in the special case that $g$ is a uniform scalar.
 
 ## Estimating stucture factors with classical dynamics
 
