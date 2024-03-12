@@ -1,7 +1,7 @@
 module PlottingExt
 
 using Sunny
-import Sunny: Vec3, orig_crystal, natoms
+import Sunny: Mat3, Vec3, orig_crystal, natoms
 using LinearAlgebra
 import Makie
 
@@ -222,8 +222,9 @@ function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150
     # there is a GLMakie bug where events do go to the inset when the figure is
     # first created, and the window in the background. As a workaround, set all
     # speeds to zero to disable rotation, translation, and zooming of compass.
-    # TODO: File bug using https://github.com/SunnySuite/Sunny.jl/issues/147.
-    Makie.cam3d!(ax.scene; mouse_rotationspeed=0, mouse_translationspeed=0, mouse_zoomspeed=0)
+    # TODO: File bug using the example set-up code at
+    # https://github.com/SunnySuite/Sunny.jl/issues/147#issuecomment-1866608609
+    Makie.cam3d!(ax.scene; center=false, mouse_rotationspeed=0, mouse_translationspeed=0, mouse_zoomspeed=0)
 
     # Update `ax` camera on any changes to `lscene` camera
     cam = lscene.scene.camera_controls
@@ -356,6 +357,7 @@ function find_reference_bonds(cryst, nbonds, dims)
     return first(refbonds, nbonds)
 end
 
+# Get list of bonds symmetry equivalent to `b` that should be drawn in the cell
 function propagate_reference_bond_for_cell(cryst, b)
     return filter(Sunny.all_symmetry_related_bonds(cryst, b)) do b
         if iszero(collect(b.n))
@@ -367,6 +369,48 @@ function propagate_reference_bond_for_cell(cryst, b)
             return true
         end
     end
+end
+
+# Get the 3×3 exchange matrix for bond `b`
+function exchange_on_bond(interactions, b)
+    isnothing(interactions) && return zero(Sunny.Mat3)
+    pairs = interactions[b.i].pair
+    indices = findall(pc -> pc.bond == b, pairs)
+    isempty(indices) && return zero(Sunny.Mat3)
+    return pairs[only(indices)].bilin * Mat3(I)
+end
+
+# Get largest exchange interaction scale. For symmetric part, this is the
+# largest eigenvalue. For antisymmetric part, this is an empirical rescaling of
+# the norm of the DM vector. (Note that a typical system has small DM vectors
+# relative to the symmetric exchange, and the heuristics for visual size are
+# taking this into account.)
+function exchange_magnitude(interactions)
+    ret = -Inf
+    for int in interactions, pc in int.pair
+        J = pc.bilin * Mat3(I)
+        ev = eigvals(hermitianpart(J))
+        ret = max(ret, maximum(abs.(ev)))
+        ret = max(ret, 5norm(Sunny.extract_dmvec(J)))
+    end
+    return ret
+end
+
+# Return a `markersize` and `rotations` element corresponding to J
+function ellipsoid_for_exchange(J)
+    # Absolute value of eigenvalues control scaling of ellipsoidal axis, with
+    # ellipsoid volume depicting interaction strength.
+    vals, vecs = eigen(hermitianpart(J))
+    vals = abs.(vals)
+    @assert all(vals .<= 1) "Exchange matrix not normalized"
+    scal = Makie.Vec3f(cbrt.(vals))
+
+    # Quaternion that represents a rotation into the principle axes of J
+    axis, angle = Sunny.matrix_to_axis_angle(Sunny.Mat3(vecs))
+    q = iszero(axis) ? Makie.Quaternionf(0,0,0,1) : Makie.qrotation(axis, -angle)
+    @assert norm(q.data) ≈ 1
+
+    return (scal, q)
 end
 
 # Return true if `type` doesn't uniquely identify the site equivalence class
@@ -595,6 +639,17 @@ Launch an interactive crystal viewer.
  - `compass`: If true, draw Cartesian axes in bottom left.
 """
 function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
+    view_crystal_aux(cryst, nothing; refbonds, orthographic, ghost_radius, dims, compass, size)
+end
+
+function Sunny.view_crystal(sys::System; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
+    Sunny.is_homogeneous(sys) || error("Cannot plot interactions for inhomogeneous system.")
+    view_crystal_aux(orig_crystal(sys), Sunny.interactions_homog(sys);
+                     refbonds, orthographic, ghost_radius, dims, compass, size)
+end
+
+    
+function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
     warn_wglmakie()
 
     fig = Makie.Figure(; size)
@@ -610,10 +665,6 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
     buttoncolor = Makie.RGB(0.2, 0.2, 0.2)
     framecolor_active = Makie.RGB(0.7, 0.7, 0.7)
     framecolor_inactive = Makie.RGB(0.9, 0.9, 0.9)
-
-    # Show cell volume and label lattice vectors (sets a scale for the scene in
-    # case there is only one atom).
-    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
 
     # Dict that maps atom class to color
     class_colors = build_class_colors(cryst)
@@ -673,14 +724,23 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
         toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Full crystal"; fontsize, halign=:left)]
     end
 
-    function bonds_to_segments(b_ref, bonds; color, alpha, linewidth)
+    exchange_mag = isnothing(interactions) ? 0.0 : exchange_magnitude(interactions)
+
+    function bonds_to_segments!(b_ref, bonds; color, alpha, linewidth, toggle)
+        
         # String for each bond b′. Like print_bond(b′), but shorter.
         bond_labels = map(bonds) do b
             dist = Sunny.global_distance(cryst, b)
             dist_str = Sunny.number_to_simple_string(dist; digits=4, atol=1e-12)
-            basis = Sunny.basis_for_exchange_on_bond(cryst, b; b_ref=something(b_ref, b))
-            basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4, atol=1e-12)
-            J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J: ")
+            elemstrs = if isnothing(interactions)
+                basis = Sunny.basis_for_exchange_on_bond(cryst, b; b_ref=something(b_ref, b))
+                Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4, atol=1e-12)
+            else
+                J = exchange_on_bond(interactions, b)
+                Sunny.number_to_simple_string.(J; digits=3)
+            end
+            J_matrix_str = Sunny.formatted_matrix(elemstrs; prefix="J: ")
+
             return """
                 $b
                 Distance $dist_str
@@ -693,12 +753,37 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
             (; ri, rj) = Sunny.BondPos(cryst, b)
             Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
         end
-        
         # Bug of ÷2 indexing: https://github.com/MakieOrg/Makie.jl/issues/3503
         inspector_label(_plot, index, _position) = bond_labels[div(index, 2, RoundUp)]
-        s = Makie.linesegments!(ax, segments; color, alpha, linewidth,
+        o = Makie.linesegments!(ax, segments; color, alpha, linewidth,
                                 inspectable=true, inspector_label)
-        return [s]
+        Makie.connect!(o.visible, toggle.active)
+
+        # Draw interactions if data is available
+        if exchange_mag > 0
+            pts = map(segments) do (ri, rj)
+                (ri + rj) / 2
+            end
+
+            # Symmetric exchange
+            exchanges = exchange_on_bond.(Ref(interactions), bonds)
+            ellips = ellipsoid_for_exchange.(exchanges / exchange_mag)
+            markersize = [0.2ℓ0*e[1] for e in ellips]
+            rotations = [e[2] for e in ellips]
+            o = Makie.meshscatter!(pts; color=:white, specular=0.0, markersize, rotations, inspectable=false)
+            Makie.connect!(o.visible, toggle.active)
+
+            # DM vectors
+            dmvecs = Sunny.extract_dmvec.(exchanges)
+            ellipsoid_scales = norm.(markersize)
+            dirs = @. 0.6 * ellipsoid_scales * Makie.Vec3f0(normalize(dmvecs))
+            arrowsize = @. 0.4 * ℓ0 * cbrt(norm(dmvecs) / exchange_mag)
+            linewidth = arrowsize / 3
+            o = Makie.arrows!(ax, pts, dirs; arrowsize, linewidth, diffuse=1.15, linecolor=:white, color=:magenta, specular=0.0, inspectable=false) 
+            Makie.connect!(o.visible, toggle.active)
+        end
+
+        return
     end
 
     # Use provided reference bonds or find from symmetry analysis
@@ -716,10 +801,7 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
     bond_colors = [getindex_cyclic(seaborn_bright, i) for i in eachindex(refbonds)]
     active = custombonds
     toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
-    observables = bonds_to_segments(nothing, refbonds; color=bond_colors, alpha=0.5, linewidth=6)
-    for o in observables
-        Makie.connect!(o.visible, toggle.active)
-    end
+    bonds_to_segments!(nothing, refbonds; color=bond_colors, alpha=0.5, linewidth=6, toggle)
     toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Reference bonds"; fontsize, halign=:left)]
     
     # Toggle on/off bonds within each class
@@ -729,16 +811,15 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
         framecolor_inactive = Makie.alphacolor(color, 0.15)
         toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
         bonds = propagate_reference_bond_for_cell(cryst, b)
-        observables = bonds_to_segments(b, bonds; color, alpha=1.0, linewidth=3)
-        for o in observables
-            Makie.connect!(o.visible, toggle.active)
-        end
+        bonds_to_segments!(b, bonds; color, alpha=1.0, linewidth=3, toggle)
         bondstr = "Bond($(b.i), $(b.j), $(b.n))"
         toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, bondstr; fontsize, halign=:left)]
     end
 
-    # Label lattice vectors. Putting this last helps with visibility (Makie
-    # v0.19)
+    # Show cell volume
+    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
+    
+    # Label lattice vectors. As an overdraw command, this must come last.
     pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(cryst.latvecs)[1:dims]]
     text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
     Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
@@ -748,113 +829,13 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
     # visibility (Makie v0.19)
     Makie.DataInspector(ax; indicator_color=:gray, fontsize, monofont()...)
 
-    ℓ0 = characteristic_length_between_atoms(cryst)
-    orient_camera!(ax, cryst.latvecs; ghost_radius, ℓ0, orthographic, dims)
+    orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims,
+                   ℓ0=characteristic_length_between_atoms(cryst))
 
     # Show Cartesian axes, with link to main camera
     compass && add_cartesian_compass(fig, ax)
 
     return fig
-end
-
-
-function draw_level!(ax,n_level,level,center,radius,dir,z; arrows = true, linewidth, lengthscale, arrowsize)
-    if level == n_level || level == 1
-        top_level = level == n_level
-        col = map(x -> Makie.HSVA(rad2deg(angle(x[level])),1,1,abs2(x[level])),z)
-        if arrows
-          Makie.arrows!(ax,center,(top_level ? radius : -radius) .* dir,color = col; linewidth, arrowsize)
-        else
-          Makie.scatter!(ax,center .+ (top_level ? radius : -radius) .* dir,color = col)
-        end
-    else
-        theta = range(0,2π,length=16)
-        for i in eachindex(center)
-            normal_dir = norm(dir[i] × [0,0,1]) < 1e-4 ? [1,0,0] : [0,0,1]
-
-            codir1 = normalize(dir[i] × normal_dir)
-            codir2 = normalize(codir1 × dir[i])
-            l = (n_level - 1)/2
-            m = (level - 1) - l
-            phi = acos(m/l)
-            pts = Vector{Makie.Point3f}(undef,length(theta))
-            for j = eachindex(theta)
-                pts[j] = center[i] .+ sin(phi) .* radius .* (cos(theta[j]) .* codir1 .+ sin(theta[j]) .* codir2) .+ radius .* (m/l) .* dir[i]
-            end
-            Makie.lines!(pts,color = Makie.HSVA(rad2deg(angle(z[i][level])),1,1,abs2(z[i][level])); linewidth)
-        end
-    end
-end
-
-function plot_coherents(sys::System{N};scale = 1., quantization_axis = nothing, use_arrows = true, size=(768, 512)) where N
-
-    ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
-
-    # Parameters defining arrow shape
-    a0 = scale * ℓ0
-    radius = 0.4a0
-    arrowsize = 0.4a0
-    linewidth = 0.12a0
-    lengthscale = 0.6a0
-    markersize = 0.52a0
-    #arrow_fractional_shift = 0.6
-
-
-    n_level = length(sys.coherents[1])
-
-    fig = Makie.Figure(; size)
-    ax = Makie.LScene(fig[1, 1])
-
-    # TODO: use `orient_camera!` at bottom of file instead.
-    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    lookat = sum(eachcol(supervecs)/2)
-    eyeposition = lookat - [0, 1, 0]
-    Makie.cam3d_cad!(ax.scene; lookat, eyeposition, projectiontype=Makie.Orthographic)
-    
-    centers = [Makie.Point3f(Sunny.global_position(sys,site)) for site in eachsite(sys)][:]
-    Makie.scatter!(ax,centers,color = :black,marker='x';markersize)
-
-    dir = zeros(Makie.Point3f,length(sys.coherents))
-    opacity = sys.coherents[:]
-    for (i,site) in enumerate(eachsite(sys))
-      z = sys.coherents[site]
-      v = if isnothing(quantization_axis)
-        normalize(Sunny.expected_spin(z))
-      else
-        quantization_axis
-      end
-      S = spin_matrices(spin_label(sys,site[4]))
-      spin_operator = S[1] .* v[1] .+ S[2] .* v[2] .+ S[3] .* v[3]
-      basis_rotation = eigvecs(spin_operator;sortby = λ -> -real(λ))
-      dir[i] = Makie.Point3f(v...)
-      opacity[i] = basis_rotation' * z
-    end
-
-    for level = 1:n_level
-        draw_level!(ax,n_level,level,centers,radius,dir,opacity;linewidth,lengthscale,arrowsize, arrows = use_arrows)
-    end
-
-    fig
-end
-
-
-function scatter_bin_centers(params;axes)
-    labels = ["Qx [r.l.u]","Qy [r.l.u.]","Qz [r.l.u.]","E [meV]"]
-    fig = Makie.Figure()
-    ax = Makie.Axis(fig[1,1],xlabel = labels[axes[1]], ylabel = labels[axes[2]])
-    scatter_bin_centers!(ax,params;axes)
-    fig
-end
-
-function scatter_bin_centers!(ax,params;axes)
-    bcs = axes_bincenters(params)
-    xs = Vector{Float64}(undef,0)
-    ys = Vector{Float64}(undef,0)
-    for xx = bcs[axes[1]], yy = bcs[axes[2]]
-        push!(xs,xx)
-        push!(ys,yy)
-    end
-    Makie.scatter!(ax,xs,ys,marker='x',markersize=10,color = :black)
 end
 
 

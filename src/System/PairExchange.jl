@@ -491,3 +491,8 @@ function dmvec(D)
               -D[3]   0.0  D[1]
                D[2] -D[1]   0.0 ]
 end
+
+function extract_dmvec(J)
+    DM = (J - J') / 2
+    return Vec3(DM[2,3], -DM[1,3], DM[1,2])
+end
