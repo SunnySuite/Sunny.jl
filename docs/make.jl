@@ -135,6 +135,12 @@ Documenter.makedocs(;
         prettyurls = false,
         size_threshold_warn = 200*1024, # 200KB -- library.html gets quite large
         size_threshold      = 300*2024, # 300KB
+        mathengine = Documenter.MathJax3(Dict(
+            :tex => Dict(
+                :inlineMath => [["\$","\$"]],
+                :tags => "ams",
+            ),
+        ))
     ),
     draft = isdraft
 )

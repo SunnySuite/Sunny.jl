@@ -151,10 +151,10 @@ tensor (3×3 matrix) corresponding to the indices ``α`` and ``β``.
 """
 function dssf(swt::SpinWaveTheory, qs)
     qs = Vec3.(qs)
-    nmodes = nbands(swt)
+    L = nbands(swt)
 
-    disp = zeros(Float64, nmodes, size(qs)...)
-    Sαβs = zeros(ComplexF64, 3, 3, nmodes, size(qs)...) 
+    disp = zeros(Float64, L, size(qs)...)
+    Sαβs = zeros(ComplexF64, 3, 3, L, size(qs)...) 
 
     # dssf(...) doesn't do any contraction, temperature correction, etc.
     # It simply returns the full Sαβ correlation matrix
@@ -164,7 +164,7 @@ function dssf(swt::SpinWaveTheory, qs)
     for qidx in CartesianIndices(qs)
         q = qs[qidx]
         band_structure = formula.calc_intensity(swt,q)
-        for band = 1:nmodes
+        for band = 1:L
             disp[band,qidx] = band_structure.dispersion[band]
             Sαβs[:,:,band,qidx] .= band_structure.intensity[band]
         end
@@ -233,21 +233,28 @@ or a function of both the energy transfer `ω` and of `Δω`, e.g.:
 
 The integral of a properly normalized kernel function over all `Δω` is one.
 """
-function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
-                           return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", mode_fast=false,
-                           formfactors=nothing)
+function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
+                           return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", formfactors=nothing)
     (; sys, data, observables) = swt
-    Nm, N = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
+    (; observable_operators) = data
+
+    # Number of atoms in magnetic cell
+    Nm = length(sys.dipoles)
+    # Number of chemical cells in magnetic cell
+    Ncells = Nm ÷ natoms(orig_crystal(sys))
+    # Dimension of Hilbert space
+    N = sys.Ns[1]
+    # Quantum spin magnitude
     S = (N-1) / 2
-    nmodes = nbands(swt)
-    sqrt_Nm_inv = 1.0 / √Nm
-    sqrt_halfS  = √(S/2)
+    sqrt_halfS = √(S/2)
+    # Number of quasiparticle modes
+    L = nbands(swt)
 
     # Preallocation
-    H = zeros(ComplexF64, 2*nmodes, 2*nmodes)
-    V = zeros(ComplexF64, 2*nmodes, 2*nmodes)
+    H = zeros(ComplexF64, 2L, 2L)
+    V = zeros(ComplexF64, 2L, 2L)
     Avec_pref = zeros(ComplexF64, Nm)
-    intensity = zeros(return_type, nmodes)
+    intensity = zeros(return_type, L)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
@@ -258,10 +265,10 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
         nothing
     else
         try
-            kernel(0.,0.)
+            kernel(0., 0.)
             kernel
-        catch MethodError
-            (ω,Δω) -> kernel(Δω)
+        catch _
+            (_, Δω) -> kernel(Δω)
         end
     end
 
@@ -299,25 +306,24 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
 
         disp = try
             bogoliubov!(V, H)
-        catch e
+        catch _
             error("Instability at wavevector q = $q")
         end
 
         for i = 1:Nm
             @assert Nm == natoms(sys.crystal)
-            phase = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
-            Avec_pref[i] = sqrt_Nm_inv * phase
-
+            Avec_pref[i] = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
             # TODO: move form factor into `f`, then delete this rescaling
             Avec_pref[i] *= compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
         end
 
+        Avec = zeros(ComplexF64, num_observables(observables))
+        
         # Fill `intensity` array
-        for band = 1:nmodes
-            corrs = if sys.mode == :SUN
+        for band = 1:L
+            fill!(Avec, 0)
+            if sys.mode == :SUN
                 v = reshape(view(V, :, band), N-1, Nm, 2)
-                Avec = zeros(ComplexF64, num_observables(observables))
-                (; observable_operators) = data
                 for i = 1:Nm
                     for μ = 1:num_observables(observables)
                         @views O = observable_operators[:, :, μ, i]
@@ -326,17 +332,9 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                         end
                     end
                 end
-                corrs = Vector{ComplexF64}(undef,num_correlations(observables))
-                for (ci,i) in observables.correlations
-                    (α,β) = ci.I
-                    corrs[i] = Avec[α] * conj(Avec[β])
-                end
-                corrs
             else
-                v = reshape(view(V, :, band), Nm, 2)
-                (; observable_operators) = data
                 @assert sys.mode in (:dipole, :dipole_large_S)
-                Avec = zeros(ComplexF64, num_observables(observables))
+                v = reshape(view(V, :, band), Nm, 2)
                 for i = 1:Nm
                     for μ = 1:num_observables(observables)
                         # This is the Avec of the two transverse and one longitudinal directions
@@ -354,14 +352,13 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
                         @views O_local_frame = observable_operators[:,:,μ,i]
                         Avec[μ] += Avec_pref[i] * sqrt_halfS * (O_local_frame * displacement_local_frame)[1]
                     end
-                end
+                end                
+            end
 
-                corrs = Vector{ComplexF64}(undef, num_correlations(observables))
-                for (ci, i) in observables.correlations
-                    (α, β) = ci.I
-                    corrs[i] = Avec[α] * conj(Avec[β])
-                end
-                corrs
+            corrs = Vector{ComplexF64}(undef, num_correlations(observables))
+            for (ci, i) in observables.correlations
+                (α, β) = ci.I
+                corrs[i] = Avec[α] * conj(Avec[β]) / Ncells
             end
 
             intensity[band] = f(q_absolute, disp[band], corrs[corr_ix])
@@ -374,7 +371,7 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
 
             # If there is no specified kernel, we are done: just return the
             # BandStructure
-            return BandStructure{nmodes,return_type}(disp, intensity)
+            return BandStructure{L,return_type}(disp, intensity)
         else
             # Smooth kernel --> Intensity as a function of ω (or a list of ωs)
             return function(ω)
@@ -384,6 +381,6 @@ function intensity_formula(f::Function,swt::SpinWaveTheory,corr_ix::AbstractVect
             end
         end
     end
-    output_type = isnothing(kernel) ? BandStructure{nmodes,return_type} : return_type
+    output_type = isnothing(kernel) ? BandStructure{L,return_type} : return_type
     SpinWaveIntensityFormula{output_type}(string_formula, kernel_edep, calc_intensity)
 end
