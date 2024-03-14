@@ -61,12 +61,11 @@ mutable struct Langevin
             damping = @something damping λ
         end
         isnothing(damping) && error("`damping` parameter required")
+        iszero(damping) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
 
         dt <= 0         && error("Select positive dt")
         kT < 0          && error("Select nonnegative kT")
-        damping < 0     && error("Select positive damping")
-        iszero(damping) && error("Use ImplicitMidpoint instead for energy-conserving dynamics")
-        damping < 1e-2  && @info "For small `damping` values, the ImplicitMidpoint integrator will be more accurate"
+        damping <= 0    && error("Select positive damping")
         return new(dt, damping, kT)
     end
 end
@@ -112,12 +111,11 @@ mutable struct ImplicitMidpoint
         dt <= 0      && error("Select positive dt")
         kT < 0       && error("Select nonnegative kT")
         damping < 0  && error("Select nonnegative damping")
-        (kT > 0 && iszero(damping)) && error("Select positive damping for positive kT")
 
         # Noise in the implicit midpoint method can be problematic, because rare
-        # events can lead to very slow convergence. Perhaps it could be made to
-        # work if we clip the sampled noise to a restricted magnitude? For now,
-        # simply disable the feature.
+        # events can lead to very slow convergence of the fixed point
+        # iterations. Perhaps it could be made to work if we clip the sampled
+        # noise to a restricted magnitude? For now, simply disable the feature.
         iszero(kT) || error("ImplicitMidpoint with a Langevin thermostat is not currently supported.")
 
         return new(dt, damping, kT, atol)
