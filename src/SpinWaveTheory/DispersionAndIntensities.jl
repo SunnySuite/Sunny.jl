@@ -241,7 +241,7 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVe
     # Number of atoms in magnetic cell
     Nm = length(sys.dipoles)
     # Number of chemical cells in magnetic cell
-    Ncells = Nm ÷ natoms(orig_crystal(sys))
+    Ncells = Nm / natoms(orig_crystal(sys))
     # Dimension of Hilbert space
     N = sys.Ns[1]
     # Quantum spin magnitude

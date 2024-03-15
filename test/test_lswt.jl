@@ -432,6 +432,36 @@ end
     @test isapprox(calc_int, int_ref; atol=1e-7)
 end
 
+@testitem "Invariance to reshaping" begin    
+    # Diamond-cubic with antiferromagnetic exchange
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
+    S = 3/2
+    sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=2)], :dipole; seed=0)
+    set_exchange!(sys, 1.0, Bond(1, 3, [0,0,0]))
+    randomize_spins!(sys)
+    minimize_energy!(sys)
+    @test energy_per_site(sys) ≈ -2S^2
+    
+    # Reshaped system
+    shape = [0 1 1; 1 0 1; 1 1 0] / 2
+    sys_prim = reshape_supercell(sys, shape)
+    @test energy_per_site(sys_prim) ≈ -2S^2
+    
+    # Both systems should produce the same intensities
+    swt1 = SpinWaveTheory(sys_prim)
+    swt2 = SpinWaveTheory(sys)
+    kernel = lorentzian(0.4)
+    formfactors = [FormFactor("Co2")]
+    formula1 = intensity_formula(swt1, :perp; kernel, formfactors)
+    formula2 = intensity_formula(swt2, :perp; kernel, formfactors)
+    q = randn(3)
+    energies = collect(0:0.01:6)
+    is1 = intensities_broadened(swt1, [q], energies, formula1)
+    is2 = intensities_broadened(swt2, [q], energies, formula2)
+    @test is1 ≈ is2        
+end
+
 @testitem "Generalized interaction consistency" begin
     using LinearAlgebra
 
