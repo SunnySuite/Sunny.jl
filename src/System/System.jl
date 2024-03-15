@@ -360,6 +360,40 @@ function symmetry_equivalent_bonds(sys::System, bond::Bond)
     return ret
 end
 
+"""
+    remove_ion_at!(sys::System, site::Site)
+
+Remove all interactions associated with the magnetic ion at `site`. The system
+must support inhomogeneous interactions via [`to_inhomogeneous`](@ref).
+"""
+function remove_ion_at!(sys::System{N}, site) where N
+    is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
+
+    site = to_cartesian(site)
+
+    # Remove onsite coupling
+    ints = interactions_inhomog(sys)
+    ints[site].onsite = empty_anisotropy(sys.mode, N)
+
+    # Remove this site from neighbors' pair lists
+    for (; bond) in ints[site].pair
+        cell′ = offsetc(to_cell(site), bond.n, sys.latsize)
+        pair′ = ints[cell′, bond.j].pair
+        deleteat!(pair′, only(findall(pc′ -> pc′.bond == reverse(bond), pair′)))
+    end
+
+    # Empty pair list from this site
+    empty!(ints[site].pair)
+
+    # Set g=0 to disable Zeeman and dipole-dipole interactions
+    sys.gs[site] = Mat3(0I)
+
+    # Set κ=0 to disable all expectation values
+    sys.κs[site] = 0
+    sys.dipoles[site] = zero(Vec3)
+    sys.coherents[site] = zero(CVec{N})
+end
+
 
 struct SpinState{N}
     s::Vec3
