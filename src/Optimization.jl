@@ -4,6 +4,9 @@
 # normalized. When `α=0`, the output is `u=n`, and when `|α|→ ∞` the output is
 # `u=-n`. In all cases, `|u|=1`.
 function stereographic_projection(α, n)
+    # Detect NaN `n` corresponding to zero spin magnitude
+    (n != n) && return zero(n)
+
     @assert n'*n ≈ 1
     v = α - n*(n'*α)              # project out component parallel to `n`
     v² = real(v'*v)
@@ -30,6 +33,9 @@ end
 #   x̄ du/dα = x̄ du/dv P
 #
 @inline function vjp_stereographic_projection(x, α, n)
+    # Detect NaN `n` corresponding to zero spin magnitude
+    (n != n) && return zero(n)'
+
     v = α - n*(n'*α)
     v² = real(v'*v)
     b = (1-v²)/2
