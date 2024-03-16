@@ -2,7 +2,7 @@ function observable_values!(buf, sys::System{N}, ops) where N
     if N == 0
         for (i, op) in enumerate(ops)
             if op isa NonLocalObservableOperator
-                buf[i,:] .= op.localize(sys)
+                buf[i,:,:,:,:] .= op.localize(sys)
             else
                 for site in eachsite(sys)
                     A = observable_at_site(op,site)
@@ -15,7 +15,7 @@ function observable_values!(buf, sys::System{N}, ops) where N
         Zs = sys.coherents
         for (i, op) in enumerate(ops)
             if op isa NonLocalObservableOperator
-                buf[i,:] .= op.localize(sys)
+                buf[i,:,:,:,:] .= op.localize(sys)
             else
                 for site in eachsite(sys)
                     A = observable_at_site(op,site)
