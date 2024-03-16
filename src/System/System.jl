@@ -229,11 +229,13 @@ end
     magnetic_moment(sys::System, site::Site)
 
 Get the magnetic moment for a [`Site`](@ref). This is the spin dipole multiplied
-by the Bohr magneton and the local g-tensor.
+by the Bohr magneton and the local g-tensor: ``μ ≡ - μ_B g S``.
+
+See also [`Units`](@ref).
 """
 function magnetic_moment(sys::System, site)
     site = to_cartesian(site)
-    return sys.units.μB * sys.gs[site] * sys.dipoles[site]
+    return - sys.units.μB * sys.gs[site] * sys.dipoles[site]
 end
 
 # Total volume of system

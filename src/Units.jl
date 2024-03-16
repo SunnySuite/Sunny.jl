@@ -20,9 +20,10 @@ constants: the vacuum permeability ``μ₀`` and the Bohr magneton ``μ_B``.
 Temperatures are effectively measured in units of energy (``k_B = 1``) and time
 is effectively measured in units of inverse energy (``ħ = 1``). The default unit
 system, `Units.meV`, employs (meV, Å, tesla). Select alternatively
-`Units.theory` for a units system defined so that ``μ₀ = μ_B = 1``.
+`Units.theory` for a units system defined so that ``μ₀ = 1`` and ``μ_B = -1``,
+which produces a Zeeman coupling of ``-g 𝐁⋅𝐒``.
 
-See also [`meV_per_K`](@ref)
+See also [`meV_per_K`](@ref).
 """
 const Units = (;
     meV = PhysicalConsts(;
@@ -31,6 +32,6 @@ const Units = (;
     ),
     theory = PhysicalConsts(;
         μ0 = 1.0,
-        μB = 1.0,
+        μB = -1.0,
     ),
 )
