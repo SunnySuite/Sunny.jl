@@ -396,22 +396,68 @@ function exchange_magnitude(interactions)
     return ret
 end
 
-# Return a `markersize` and `rotations` element corresponding to J
-function ellipsoid_for_exchange(J)
+# Return an axis scaling and quaternion rotation corresponding to J
+function exchange_decomposition(J)
     # Absolute value of eigenvalues control scaling of ellipsoidal axis, with
     # ellipsoid volume depicting interaction strength.
     vals, vecs = eigen(hermitianpart(J))
-    vals = abs.(vals)
-    @assert all(vals .<= 1) "Exchange matrix not normalized"
-    scal = Makie.Vec3f(cbrt.(vals))
 
-    # Quaternion that represents a rotation into the principle axes of J
+    # If vecs includes a reflection, then permute columns
+    if det(vecs) < 0
+        vals = [vals[2], vals[1], vals[3]]
+        vecs = hcat(vecs[:,2], vecs[:,1], vecs[:,3])
+    end
+
+    # Now vecs is a pure rotation
+    @assert vecs'*vecs ≈ I && det(vecs) ≈ 1
+
+    # Quaternion that rotates Cartesian coordinates into principle axes of J.
     axis, angle = Sunny.matrix_to_axis_angle(Sunny.Mat3(vecs))
-    q = iszero(axis) ? Makie.Quaternionf(0,0,0,1) : Makie.qrotation(axis, -angle)
+    q = iszero(axis) ? Makie.Quaternionf(0,0,0,1) : Makie.qrotation(axis, angle)
     @assert norm(q.data) ≈ 1
-
-    return (scal, q)
+    
+    return (vals, q)
 end
+
+function draw_exchange_geometries(ax, toggle, ℓ0, pts, exchanges)
+
+    ### Ellipsoids for symmetric exchanges
+
+    # Scalings/rotations associated with principle axes
+    decomps = exchange_decomposition.(exchanges)            
+    scalings = map(x -> x[1], decomps)
+    rotations = map(x -> x[2], decomps)
+
+    # Adjust scalings for better visualization
+    scalings = map(scalings) do scal
+        # Put lower bound on smallest scaling to aid visualization
+        scalmax = maximum(abs.(scal))
+        scal = map(scal) do x
+            abs(x) < 0.25scalmax ? 0.25scalmax*sign(x) : x
+        end
+        # Enlarge so that the maximum scaling _cubed_ gives magnitude
+        scal *= cbrt(scalmax) / scalmax
+        scal
+    end
+
+    markersize = map(scalings) do scal
+        0.2ℓ0*Makie.Vec3f(abs.(scal))
+    end
+
+    o = Makie.meshscatter!(pts; color=:white, markersize, rotations, specular=0.0, diffuse=1.3, inspectable=false)
+    Makie.connect!(o.visible, toggle.active)
+
+    ### Arrows for DM vectors
+
+    dmvecs = Sunny.extract_dmvec.(exchanges)
+    ellipsoid_scales = norm.(markersize)
+    dirs = @. 0.6 * ellipsoid_scales * Makie.Vec3f0(normalize(dmvecs))
+    arrowsize = @. 0.4 * ℓ0 * cbrt(norm(dmvecs))
+    linewidth = arrowsize / 3
+    o = Makie.arrows!(ax, pts, dirs; arrowsize, linewidth, diffuse=1.15, linecolor=:white, color=:magenta, specular=0.0, inspectable=false) 
+    Makie.connect!(o.visible, toggle.active)
+end
+
 
 # Return true if `type` doesn't uniquely identify the site equivalence class
 function is_type_degenerate(cryst, i)
@@ -759,28 +805,13 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
                                 inspectable=true, inspector_label)
         Makie.connect!(o.visible, toggle.active)
 
-        # Draw interactions if data is available
+        # Draw exchange interactions if data is available
         if exchange_mag > 0
             pts = map(segments) do (ri, rj)
                 (ri + rj) / 2
             end
-
-            # Symmetric exchange
             exchanges = exchange_on_bond.(Ref(interactions), bonds)
-            ellips = ellipsoid_for_exchange.(exchanges / exchange_mag)
-            markersize = [0.2ℓ0*e[1] for e in ellips]
-            rotations = [e[2] for e in ellips]
-            o = Makie.meshscatter!(pts; color=:white, specular=0.0, markersize, rotations, inspectable=false)
-            Makie.connect!(o.visible, toggle.active)
-
-            # DM vectors
-            dmvecs = Sunny.extract_dmvec.(exchanges)
-            ellipsoid_scales = norm.(markersize)
-            dirs = @. 0.6 * ellipsoid_scales * Makie.Vec3f0(normalize(dmvecs))
-            arrowsize = @. 0.4 * ℓ0 * cbrt(norm(dmvecs) / exchange_mag)
-            linewidth = arrowsize / 3
-            o = Makie.arrows!(ax, pts, dirs; arrowsize, linewidth, diffuse=1.15, linecolor=:white, color=:magenta, specular=0.0, inspectable=false) 
-            Makie.connect!(o.visible, toggle.active)
+            draw_exchange_geometries(ax, toggle, ℓ0, pts, exchanges/exchange_mag)
         end
 
         return

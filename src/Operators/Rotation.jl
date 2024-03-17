@@ -42,8 +42,8 @@ function axis_angle_to_matrix(n, θ)
 end
 
 function matrix_to_axis_angle(R::Mat3)
-    # Assertion disabled for performance
-    # @assert R'*R ≈ I && det(R) ≈ 1
+    @assert R'*R ≈ I   "Matrix not orthogonal"
+    @assert det(R) ≈ 1 "Matrix includes reflection"
 
     # Formula derived by Mike Day, Insomniac Games, and posted online as
     # "Converting a Rotation Matrix to a Quaternion".
