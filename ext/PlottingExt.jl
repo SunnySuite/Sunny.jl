@@ -428,33 +428,38 @@ function draw_exchange_geometries(ax, toggle, ℓ0, pts, exchanges)
     scalings = map(x -> x[1], decomps)
     rotations = map(x -> x[2], decomps)
 
-    # Adjust scalings for better visualization
+    # Enlarge scalings so that the maximum scaling _cubed_ denotes magnitude
     scalings = map(scalings) do scal
-        # Put lower bound on smallest scaling to aid visualization
         scalmax = maximum(abs.(scal))
-        scal = map(scal) do x
-            abs(x) < 0.25scalmax ? 0.25scalmax*sign(x) : x
-        end
-        # Enlarge so that the maximum scaling _cubed_ gives magnitude
         scal *= cbrt(scalmax) / scalmax
         scal
     end
 
-    markersize = map(scalings) do scal
-        0.2ℓ0*Makie.Vec3f(abs.(scal))
+    # Draw slightly distorted ellipsoids for ferro (red) and antiferro (blue)
+    # interactions
+    for (sgn, color) in ((-1, Makie.RGBf(0.9, 0.7, 0.7)), (+1, Makie.RGBf(0.9, 0.95, 1.0)))
+        markersize = map(scalings) do scal
+            scalmax = maximum(abs.(scal))
+            sz = map(scal) do x
+                sgnx = sign(iszero(x) ? sum(scal) : x)
+                # Second branch ensures all axes at least scalmax/4
+                max(abs(x) + 0.05 * sgn * tanh(x),
+                    scalmax * (0.25 + 0.01 * sgn * sgnx))
+            end
+            0.2ℓ0*Makie.Vec3f(sz)
+        end
+        o = Makie.meshscatter!(pts; color, markersize, rotations, specular=0.0, diffuse=1.4, inspectable=false)
+        Makie.connect!(o.visible, toggle.active)
     end
-
-    o = Makie.meshscatter!(pts; color=:white, markersize, rotations, specular=0.0, diffuse=1.3, inspectable=false)
-    Makie.connect!(o.visible, toggle.active)
 
     ### Arrows for DM vectors
 
     dmvecs = Sunny.extract_dmvec.(exchanges)
-    ellipsoid_scales = norm.(markersize)
-    dirs = @. 0.6 * ellipsoid_scales * Makie.Vec3f0(normalize(dmvecs))
-    arrowsize = @. 0.4 * ℓ0 * cbrt(norm(dmvecs))
+    ellipsoid_scales = norm.(scalings)
+    dirs = @. 0.4 * ellipsoid_scales * Makie.Vec3f0(normalize(dmvecs))
+    arrowsize = @. 0.35 * ℓ0 * cbrt(norm(dmvecs)) / ellipsoid_scales
     linewidth = arrowsize / 3
-    o = Makie.arrows!(ax, pts, dirs; arrowsize, linewidth, diffuse=1.15, linecolor=:white, color=:magenta, specular=0.0, inspectable=false) 
+    o = Makie.arrows!(ax, pts, dirs; arrowsize, linewidth, diffuse=1.15, color=:magenta, specular=0.0, inspectable=false) 
     Makie.connect!(o.visible, toggle.active)
 end
 
