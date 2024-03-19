@@ -410,12 +410,11 @@ function exchange_decomposition(J)
 
     # Now vecs is a pure rotation
     @assert vecs'*vecs ≈ I && det(vecs) ≈ 1
-
-    # Quaternion that rotates Cartesian coordinates into principle axes of J.
-    axis, angle = Sunny.matrix_to_axis_angle(Sunny.Mat3(vecs))
-    q = iszero(axis) ? Makie.Quaternionf(0,0,0,1) : Makie.qrotation(axis, angle)
-    @assert norm(q.data) ≈ 1
     
+    # Quaternion that rotates Cartesian coordinates into principle axes of J.
+    axis, angle = Sunny.matrix_to_axis_angle(Mat3(vecs))
+    q = iszero(axis) ? Makie.Quaternionf(0,0,0,1) : Makie.qrotation(axis, angle)
+
     return (vals, q)
 end
 
@@ -430,34 +429,56 @@ function draw_exchange_geometries(ax, toggle, ℓ0, pts, exchanges)
 
     # Enlarge scalings so that the maximum scaling _cubed_ denotes magnitude
     scalings = map(scalings) do scal
-        scalmax = maximum(abs.(scal))
-        scal *= cbrt(scalmax) / scalmax
-        scal
+        szmax = maximum(abs.(scal))
+        0.2ℓ0 * cbrt(szmax) * (scal/szmax)
     end
 
-    # Draw slightly distorted ellipsoids for ferro (red) and antiferro (blue)
-    # interactions
-    for (sgn, color) in ((-1, Makie.RGBf(0.9, 0.7, 0.7)), (+1, Makie.RGBf(0.9, 0.95, 1.0)))
-        markersize = map(scalings) do scal
-            scalmax = maximum(abs.(scal))
-            sz = map(scal) do x
-                sgnx = sign(iszero(x) ? sum(scal) : x)
-                # Second branch ensures all axes at least scalmax/4
-                max(abs(x) + 0.05 * sgn * tanh(x),
-                    scalmax * (0.25 + 0.01 * sgn * sgnx))
-            end
-            0.2ℓ0*Makie.Vec3f(sz)
+    markersize = map(scalings) do scal
+        # Make sure ellipsoids don't get flattened to zero
+        szmax = maximum(abs.(scal))
+        Makie.Vec3f([max(abs(x), szmax/4) for x in scal])
+    end
+
+    # Draw ellipsoidal bounding box
+    color = map(scalings) do x
+        y = sum(x) / sum(abs.(x)) # -1 ≤ y ≤ 1
+        c = 0.8
+        d = c+(1-c)*abs(y) # c ≤ d ≤ 1
+        y > 0 ? Makie.RGBf(c, c, d) : Makie.RGBf(d, c, c)
+    end
+    o = Makie.meshscatter!(pts; color, markersize, rotations, specular=0, diffuse=1.5, inspectable=false)
+    Makie.connect!(o.visible, toggle.active)
+
+    # Draw dots using cylinders
+    cylinders = map(eachcol(Sunny.Mat3(I))) do x
+        p = Makie.GeometryBasics.Point(x...)
+        Makie.GeometryBasics.Cylinder(-p, p, 0.2)
+    end
+    for dim in 1:3
+        color = map(scalings) do x
+            x[dim] < 0 ? :red : :blue
         end
-        o = Makie.meshscatter!(pts; color, markersize, rotations, specular=0.0, diffuse=1.4, inspectable=false)
-        Makie.connect!(o.visible, toggle.active)
+
+        # Apply some additional scaling so that all the dots on a given
+        # ellipsoid have a roughly constant linear size
+        rescalings = map(scalings) do x
+            c = sqrt(abs(x[dim]) / maximum(abs.(x)))
+            [dim == 1 ? 1 : c,
+             dim == 2 ? 1 : c,
+             dim == 3 ? 1 : c]
+        end
+        markersize2 = [ms .* rs for (ms, rs) in zip(markersize, rescalings)]
+    
+        o = Makie.meshscatter!(pts; color, markersize=markersize2, rotations, marker=cylinders[dim], inspectable=false)
+        Makie.connect!(o.visible, toggle.active)            
     end
 
     ### Arrows for DM vectors
 
     dmvecs = Sunny.extract_dmvec.(exchanges)
     ellipsoid_scales = norm.(scalings)
-    dirs = @. 0.4 * ellipsoid_scales * Makie.Vec3f0(normalize(dmvecs))
-    arrowsize = @. 0.35 * ℓ0 * cbrt(norm(dmvecs)) / ellipsoid_scales
+    dirs = @. 0.7 * ellipsoid_scales * Makie.Vec3f0(normalize(dmvecs))
+    arrowsize = @. 0.25 * ℓ0 * cbrt(norm(dmvecs)) / ellipsoid_scales
     linewidth = arrowsize / 3
     o = Makie.arrows!(ax, pts, dirs; arrowsize, linewidth, diffuse=1.15, color=:magenta, specular=0.0, inspectable=false) 
     Makie.connect!(o.visible, toggle.active)
