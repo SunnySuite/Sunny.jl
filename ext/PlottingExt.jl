@@ -807,14 +807,27 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
         bond_labels = map(bonds) do b
             dist = Sunny.global_distance(cryst, b)
             dist_str = Sunny.number_to_simple_string(dist; digits=4, atol=1e-12)
-            elemstrs = if isnothing(interactions)
+
+            if isnothing(interactions)
                 basis = Sunny.basis_for_exchange_on_bond(cryst, b; b_ref=something(b_ref, b))
-                Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4, atol=1e-12)
+                basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4, atol=1e-12)
+                J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J:  ")
+                antisym_basis_idxs = findall(J -> J ≈ -J', basis)
+                if !isempty(antisym_basis_idxs)
+                    antisym_basis_strs = Sunny.coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits=4, atol=1e-12)
+                    dmvecstr = join([antisym_basis_strs[2,3], antisym_basis_strs[3,1], antisym_basis_strs[1,2]], ", ")
+                    J_matrix_str *= "\nDM: [$dmvecstr]"
+                end
             else
                 J = exchange_on_bond(interactions, b)
-                Sunny.number_to_simple_string.(J; digits=3)
+                basis_strs = Sunny.number_to_simple_string.(J; digits=3)
+                J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J:  ")
+                if J ≉ J'
+                    dmvec = Sunny.extract_dmvec(J)
+                    dmvecstr = join(Sunny.number_to_simple_string.(dmvec; digits=3), ", ")
+                    J_matrix_str *= "\nDM: [$dmvecstr]"
+                end
             end
-            J_matrix_str = Sunny.formatted_matrix(elemstrs; prefix="J: ")
 
             return """
                 $b

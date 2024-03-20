@@ -483,6 +483,7 @@ Antisymmetric matrix representation of the Dzyaloshinskii-Moriya pseudo-vector,
     D[2] -D[1]   0  ]
 ```
 
+This matrix is closely related to the vector cross product, `dmvec(u)*v ≈ -u×v`.
 Useful in the context of [`set_exchange!`](@ref).
 """
 function dmvec(D)
@@ -494,5 +495,5 @@ end
 
 function extract_dmvec(J)
     DM = (J - J') / 2
-    return Vec3(DM[2,3], -DM[1,3], DM[1,2])
+    return Vec3(DM[2,3], DM[3,1], DM[1,2])
 end
