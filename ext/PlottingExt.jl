@@ -391,7 +391,7 @@ function exchange_magnitude(interactions)
         J = pc.bilin * Mat3(I)
         ev = eigvals(hermitianpart(J))
         ret = max(ret, maximum(abs.(ev)))
-        ret = max(ret, 5norm(Sunny.extract_dmvec(J)))
+        ret = max(ret, 2.5^3 * norm(Sunny.extract_dmvec(J)))
     end
     return ret
 end
@@ -418,12 +418,12 @@ function exchange_decomposition(J)
     return (vals, q)
 end
 
-function draw_exchange_geometries(ax, toggle, ℓ0, pts, exchanges)
+function draw_exchange_geometries(ax, toggle, ℓ0, pts, scaled_exchanges)
 
     ### Ellipsoids for symmetric exchanges
 
     # Scalings/rotations associated with principle axes
-    decomps = exchange_decomposition.(exchanges)            
+    decomps = exchange_decomposition.(scaled_exchanges)            
     scalings = map(x -> x[1], decomps)
     rotations = map(x -> x[2], decomps)
 
@@ -475,12 +475,13 @@ function draw_exchange_geometries(ax, toggle, ℓ0, pts, exchanges)
 
     ### Arrows for DM vectors
 
-    dmvecs = Sunny.extract_dmvec.(exchanges)
-    ellipsoid_scales = norm.(scalings)
-    dirs = @. 0.7 * ellipsoid_scales * Makie.Vec3f0(normalize(dmvecs))
-    arrowsize = @. 0.25 * ℓ0 * cbrt(norm(dmvecs)) / ellipsoid_scales
-    linewidth = arrowsize / 3
-    o = Makie.arrows!(ax, pts, dirs; arrowsize, linewidth, diffuse=1.15, color=:magenta, specular=0.0, inspectable=false) 
+    dmvecs = Sunny.extract_dmvec.(scaled_exchanges)
+    dirs = @. Makie.Vec3f0(normalize(dmvecs))
+    ellipsoid_scales = @. norm(scalings) / √3
+    arrowsize = @. 0.4 * ℓ0 * cbrt(norm(dmvecs)) # size of arrow head
+    lengthscale = @. (1.0 * ellipsoid_scales + 0.2 * arrowsize) # length of arrow tail
+    linewidth = @. arrowsize / 3
+    o = Makie.arrows!(ax, pts, dirs; lengthscale, arrowsize, linewidth, diffuse=1.15, color=:magenta, specular=0.0, inspectable=false) 
     Makie.connect!(o.visible, toggle.active)
 end
 
@@ -746,8 +747,10 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
         ghost_radius = cell_diameter(cryst.latvecs, dims)/2
     end
 
-    # Show atoms
+    # Length scale for objects describing atoms, spins, and interactions.
     ℓ0 = characteristic_length_between_atoms(something(cryst.root, cryst))
+
+    # Show atoms
     function atoms_to_observables(positions, classes; labels, ismagnetic)
         observables = []
         markersize = (ismagnetic ? 0.2 : 0.1) * ℓ0
