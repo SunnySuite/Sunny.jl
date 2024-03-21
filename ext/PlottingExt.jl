@@ -418,7 +418,7 @@ function exchange_decomposition(J)
     return (vals, q)
 end
 
-function draw_exchange_geometries(ax, toggle, ionradius, pts, scaled_exchanges)
+function draw_exchange_geometries(; ax, toggle, ionradius, pts, scaled_exchanges)
 
     ### Ellipsoids for symmetric exchanges
 
@@ -553,7 +553,7 @@ function draw_bonds(; ax, toggle, ionradius, exchange_mag, cryst, interactions, 
             (ri + rj) / 2
         end
         exchanges = exchange_on_bond.(Ref(interactions), bonds)
-        draw_exchange_geometries(ax, toggle, ionradius, pts, exchanges/exchange_mag)
+        draw_exchange_geometries(; ax, toggle, ionradius, pts, scaled_exchanges=exchanges/exchange_mag)
     end
 
     return
@@ -586,6 +586,180 @@ function label_atoms(cryst; ismagnetic)
         join(ret, "\n")
     end
 end
+
+
+function Sunny.view_crystal(cryst::Crystal, max_dist::Number)
+    @warn "view_crystal(cryst, max_dist) is deprecated! Use `view_crystal(cryst)` instead. See also optional `ghost_radius` argument."
+    Sunny.view_crystal(cryst; ghost_radius=max_dist)
+end
+
+"""
+    view_crystal(crystal::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true)
+
+Launch an interactive crystal viewer.
+
+ - `refbonds`: By default, calculate up to 10 reference bonds using the
+   `reference_bonds` function. An explicit list of reference bonds may also be
+   provided.
+ - `orthographic`: Use orthographic camera perspective.
+ - `ghost_radius`: Show periodic images up to a given distance. Defaults to the
+   cell size.
+ - `dims`: Spatial dimensions of system (1, 2, or 3).
+ - `compass`: If true, draw Cartesian axes in bottom left.
+"""
+function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
+    view_crystal_aux(cryst, nothing; refbonds, orthographic, ghost_radius, dims, compass, size)
+end
+
+function Sunny.view_crystal(sys::System; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
+    Sunny.is_homogeneous(sys) || error("Cannot plot interactions for inhomogeneous system.")
+    view_crystal_aux(orig_crystal(sys), Sunny.interactions_homog(sys);
+                     refbonds, orthographic, ghost_radius, dims, compass, size)
+end
+
+    
+function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
+    warn_wglmakie()
+
+    # Use provided reference bonds or find from symmetry analysis
+    if refbonds isa Number
+        @assert isinteger(refbonds)
+        custombonds = false
+        refbonds = find_reference_bonds(cryst, Int(refbonds), dims)
+    elseif refbonds isa AbstractArray{Bond}
+        custombonds = true
+    else
+        error("Parameter `refbonds` must be an integer or a `Bond` list.")
+    end
+
+    fig = Makie.Figure(; size)
+
+    # Main scene
+    ax = Makie.LScene(fig[1, 1], show_axis=false)
+
+    # Set up grid of toggles
+    toggle_grid = Makie.GridLayout(; tellheight=false, valign=:top)
+    fig[1, 2] = toggle_grid
+    fontsize = 16
+    toggle_cnt = 0
+    buttoncolor = Makie.RGB(0.2, 0.2, 0.2)
+    framecolor_active = Makie.RGB(0.7, 0.7, 0.7)
+    framecolor_inactive = Makie.RGB(0.9, 0.9, 0.9)
+
+    # Dict that maps atom class to color
+    class_colors = build_class_colors(cryst)
+
+    # Distance to show periodic images
+    if isnothing(ghost_radius)
+        ghost_radius = cell_diameter(cryst.latvecs, dims)/2
+    end
+
+    # Length scale for objects describing atoms, spins, and interactions
+    ℓ0 = characteristic_length_between_atoms(something(cryst.root, cryst))
+
+    # If there exists a very short bond distance, then appropriately reduce the
+    # length scale
+    ℓ0 = min(ℓ0, 0.8minimum(Sunny.global_distance.(Ref(cryst), refbonds)))
+
+    # Size of magnetic ions
+    ionradius = 0.2ℓ0
+
+    # Show atoms
+    function atoms_to_observables(positions, classes; labels, ismagnetic)
+        observables = []
+        markersize = ionradius * (ismagnetic ? 1 : 1/2)
+
+        # Draw ghost atoms
+        images = all_ghost_images_within_distance(cryst.latvecs, positions, cell_center(dims); max_dist=ghost_radius)
+        pts = Makie.Point3f0[]
+        color = Makie.RGBf[]
+        for (ns, r, c) in zip(images, positions, classes), n in ns
+            push!(pts, cryst.latvecs * (r + n))
+            push!(color, class_colors[c])
+        end
+        push!(observables, Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, inspectable=false, alpha=0.08, transparency=true))
+
+        # Draw real atoms
+        pts = [cryst.latvecs * r for r in positions]
+        color = [class_colors[c] for c in classes]
+        inspector_label(_plot, index, _position) = labels[index]
+        push!(observables, Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, inspectable=true, inspector_label))
+    
+        # Label real atoms by index, if magnetic
+        if ismagnetic
+            text = repr.(eachindex(pts))
+            push!(observables, Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), overdraw=true))
+        end
+
+        return observables
+    end
+
+    # Draw magnetic ions from (sub)crystal
+    labels = label_atoms(cryst; ismagnetic=true)
+    atoms_to_observables(cryst.positions, cryst.classes; labels, ismagnetic=true)
+
+    # Draw non-magnetic ions from root crystal
+    if !isnothing(cryst.root)
+        # Draw all atoms in cryst.root that are not present in cryst
+        is = findall(!in(cryst.classes), cryst.root.classes)
+        labels = label_atoms(cryst.root; ismagnetic=false)[is]
+        observables = atoms_to_observables(cryst.root.positions[is], cryst.root.classes[is]; labels, ismagnetic=false)
+
+        # TODO: Move connect! inside function
+        # Control visibility by toggle
+        toggle = Makie.Toggle(fig; active=true, buttoncolor, framecolor_inactive, framecolor_active)
+        for o in observables
+            Makie.connect!(o.visible, toggle.active)
+        end
+        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Full crystal"; fontsize, halign=:left)]
+    end
+
+    exchange_mag = isnothing(interactions) ? 0.0 : exchange_magnitude(interactions)
+
+    # Toggle on/off atom reference bonds
+    bond_colors = [getindex_cyclic(seaborn_bright, i) for i in eachindex(refbonds)]
+    active = custombonds
+    toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
+    color = set_alpha.(bond_colors, 0.25)
+    draw_bonds(; ax, toggle, ionradius, exchange_mag, cryst, interactions, b_ref=nothing, bonds=refbonds, color)
+    toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Reference bonds"; fontsize, halign=:left)]
+    
+    # Toggle on/off bonds within each class
+    for (i, (b, bond_color)) in enumerate(zip(refbonds, bond_colors))
+        active = (i == 1)
+        framecolor_active = set_alpha(bond_color, 0.7)
+        framecolor_inactive = set_alpha(bond_color, 0.15)
+        toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
+        color = set_alpha(bond_color, 0.25)
+        bonds = propagate_reference_bond_for_cell(cryst, b)
+        draw_bonds(; ax, toggle, ionradius, exchange_mag, cryst, interactions, b_ref=b, bonds, color)
+        bondstr = "Bond($(b.i), $(b.j), $(b.n))"
+        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, bondstr; fontsize, halign=:left)]
+    end
+
+    # Show cell volume
+    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
+    
+    # Label lattice vectors. As an overdraw command, this must come last.
+    pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(cryst.latvecs)[1:dims]]
+    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
+    Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
+                glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
+
+    # Add inspector for pop-up information. Putting this last helps with
+    # visibility (Makie v0.19)
+    Makie.DataInspector(ax; indicator_color=:gray, fontsize, monofont()...)
+
+    orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims,
+                   ℓ0=characteristic_length_between_atoms(cryst))
+
+    # Show Cartesian axes, with link to main camera
+    compass && add_cartesian_compass(fig, ax)
+
+    return fig
+end
+
+
 
 # Wrapper over `FigureLike` to support both `show` and `notify`.
 struct NotifiableFigure
@@ -763,178 +937,6 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
     orient_camera!(ax, supervecs; ghost_radius, ℓ0, orthographic, dims)
 
     return ax
-end
-
-
-function Sunny.view_crystal(cryst::Crystal, max_dist::Number)
-    @warn "view_crystal(cryst, max_dist) is deprecated! Use `view_crystal(cryst)` instead. See also optional `ghost_radius` argument."
-    Sunny.view_crystal(cryst; ghost_radius=max_dist)
-end
-
-"""
-    view_crystal(crystal::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true)
-
-Launch an interactive crystal viewer.
-
- - `refbonds`: By default, calculate up to 10 reference bonds using the
-   `reference_bonds` function. An explicit list of reference bonds may also be
-   provided.
- - `orthographic`: Use orthographic camera perspective.
- - `ghost_radius`: Show periodic images up to a given distance. Defaults to the
-   cell size.
- - `dims`: Spatial dimensions of system (1, 2, or 3).
- - `compass`: If true, draw Cartesian axes in bottom left.
-"""
-function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
-    view_crystal_aux(cryst, nothing; refbonds, orthographic, ghost_radius, dims, compass, size)
-end
-
-function Sunny.view_crystal(sys::System; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
-    Sunny.is_homogeneous(sys) || error("Cannot plot interactions for inhomogeneous system.")
-    view_crystal_aux(orig_crystal(sys), Sunny.interactions_homog(sys);
-                     refbonds, orthographic, ghost_radius, dims, compass, size)
-end
-
-    
-function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
-    warn_wglmakie()
-
-    # Use provided reference bonds or find from symmetry analysis
-    if refbonds isa Number
-        @assert isinteger(refbonds)
-        custombonds = false
-        refbonds = find_reference_bonds(cryst, Int(refbonds), dims)
-    elseif refbonds isa AbstractArray{Bond}
-        custombonds = true
-    else
-        error("Parameter `refbonds` must be an integer or a `Bond` list.")
-    end
-
-    fig = Makie.Figure(; size)
-
-    # Main scene
-    ax = Makie.LScene(fig[1, 1], show_axis=false)
-
-    # Set up grid of toggles
-    toggle_grid = Makie.GridLayout(; tellheight=false, valign=:top)
-    fig[1, 2] = toggle_grid
-    fontsize = 16
-    toggle_cnt = 0
-    buttoncolor = Makie.RGB(0.2, 0.2, 0.2)
-    framecolor_active = Makie.RGB(0.7, 0.7, 0.7)
-    framecolor_inactive = Makie.RGB(0.9, 0.9, 0.9)
-
-    # Dict that maps atom class to color
-    class_colors = build_class_colors(cryst)
-
-    # Distance to show periodic images
-    if isnothing(ghost_radius)
-        ghost_radius = cell_diameter(cryst.latvecs, dims)/2
-    end
-
-    # Length scale for objects describing atoms, spins, and interactions
-    ℓ0 = characteristic_length_between_atoms(something(cryst.root, cryst))
-
-    # If there exists a very short bond distance, then appropriately reduce the
-    # length scale
-    ℓ0 = min(ℓ0, 0.8minimum(Sunny.global_distance.(Ref(cryst), refbonds)))
-
-    # Size of magnetic ions
-    ionradius = 0.2ℓ0
-
-    # Show atoms
-    function atoms_to_observables(positions, classes; labels, ismagnetic)
-        observables = []
-        markersize = ionradius * (ismagnetic ? 1 : 1/2)
-
-        # Draw ghost atoms
-        images = all_ghost_images_within_distance(cryst.latvecs, positions, cell_center(dims); max_dist=ghost_radius)
-        pts = Makie.Point3f0[]
-        color = Makie.RGBf[]
-        for (ns, r, c) in zip(images, positions, classes), n in ns
-            push!(pts, cryst.latvecs * (r + n))
-            push!(color, class_colors[c])
-        end
-        push!(observables, Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, inspectable=false, alpha=0.08, transparency=true))
-
-        # Draw real atoms
-        pts = [cryst.latvecs * r for r in positions]
-        color = [class_colors[c] for c in classes]
-        inspector_label(_plot, index, _position) = labels[index]
-        push!(observables, Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, inspectable=true, inspector_label))
-    
-        # Label real atoms by index, if magnetic
-        if ismagnetic
-            text = repr.(eachindex(pts))
-            push!(observables, Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), overdraw=true))
-        end
-
-        return observables
-    end
-
-    # Draw magnetic ions from (sub)crystal
-    labels = label_atoms(cryst; ismagnetic=true)
-    atoms_to_observables(cryst.positions, cryst.classes; labels, ismagnetic=true)
-
-    # Draw non-magnetic ions from root crystal
-    if !isnothing(cryst.root)
-        # Draw all atoms in cryst.root that are not present in cryst
-        is = findall(!in(cryst.classes), cryst.root.classes)
-        labels = label_atoms(cryst.root; ismagnetic=false)[is]
-        observables = atoms_to_observables(cryst.root.positions[is], cryst.root.classes[is]; labels, ismagnetic=false)
-
-        # TODO: Move connect! inside function
-        # Control visibility by toggle
-        toggle = Makie.Toggle(fig; active=true, buttoncolor, framecolor_inactive, framecolor_active)
-        for o in observables
-            Makie.connect!(o.visible, toggle.active)
-        end
-        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Full crystal"; fontsize, halign=:left)]
-    end
-
-    exchange_mag = isnothing(interactions) ? 0.0 : exchange_magnitude(interactions)
-
-    # Toggle on/off atom reference bonds
-    bond_colors = [getindex_cyclic(seaborn_bright, i) for i in eachindex(refbonds)]
-    active = custombonds
-    toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
-    color = set_alpha.(bond_colors, 0.25)
-    draw_bonds(; ax, toggle, ionradius, exchange_mag, cryst, interactions, b_ref=nothing, bonds=refbonds, color)
-    toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Reference bonds"; fontsize, halign=:left)]
-    
-    # Toggle on/off bonds within each class
-    for (i, (b, bond_color)) in enumerate(zip(refbonds, bond_colors))
-        active = (i == 1)
-        framecolor_active = set_alpha(bond_color, 0.7)
-        framecolor_inactive = set_alpha(bond_color, 0.15)
-        toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
-        color = set_alpha(bond_color, 0.25)
-        bonds = propagate_reference_bond_for_cell(cryst, b)
-        draw_bonds(; ax, toggle, ionradius, exchange_mag, cryst, interactions, b_ref=b, bonds, color)
-        bondstr = "Bond($(b.i), $(b.j), $(b.n))"
-        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, bondstr; fontsize, halign=:left)]
-    end
-
-    # Show cell volume
-    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
-    
-    # Label lattice vectors. As an overdraw command, this must come last.
-    pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(cryst.latvecs)[1:dims]]
-    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
-    Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
-                glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
-
-    # Add inspector for pop-up information. Putting this last helps with
-    # visibility (Makie v0.19)
-    Makie.DataInspector(ax; indicator_color=:gray, fontsize, monofont()...)
-
-    orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims,
-                   ℓ0=characteristic_length_between_atoms(cryst))
-
-    # Show Cartesian axes, with link to main camera
-    compass && add_cartesian_compass(fig, ax)
-
-    return fig
 end
 
 
