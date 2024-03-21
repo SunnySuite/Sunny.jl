@@ -391,7 +391,7 @@ function exchange_magnitude(interactions)
         J = pc.bilin * Mat3(I)
         sym = maximum(abs.(eigvals(hermitianpart(J))))
         dm = norm(Sunny.extract_dmvec(J))
-        ret = max(ret, sym + 4dm)
+        ret = max(ret, sym + 2dm)
     end
     return ret
 end
@@ -473,7 +473,7 @@ function draw_exchange_geometries(ax, toggle, ionradius, pts, scaled_exchanges)
         Makie.connect!(o.visible, toggle.active)            
     end
 
-    ### Arrows for DM vectors. Because they tend to be weaker in magnitude,
+    ### Cones for DM vectors. Because they tend to be weaker in magnitude,
     ### we apply some heuristic amplification to the arrow size.
 
     dmvecs = Sunny.extract_dmvec.(scaled_exchanges)
@@ -482,10 +482,81 @@ function draw_exchange_geometries(ax, toggle, ionradius, pts, scaled_exchanges)
     # [1,1,1]`, yielding a sphere with size `ionradius`.
     ellipsoid_radii = @. ionradius * norm(scalings) / √3
     arrowsize = @. 2ionradius * cbrt(norm(dmvecs)) # size of arrow head
-    lengthscale = @. (ellipsoid_radii + 0.2 * arrowsize) # length of arrow tail
-    linewidth = @. arrowsize / 3
-    o = Makie.arrows!(ax, pts, dirs; lengthscale, arrowsize, linewidth, diffuse=1.15, color=:magenta, specular=0.0, inspectable=false) 
+    dm_pts = @. pts + 1.1ellipsoid_radii * dirs
+    o = Makie.arrows!(ax, dm_pts, dirs; lengthscale=0, arrowsize, diffuse=1.15, color=:magenta, specular=0.0, inspectable=false) 
     Makie.connect!(o.visible, toggle.active)
+end
+
+function draw_bonds(; ax, toggle, ionradius, exchange_mag, cryst, interactions, b_ref, bonds, color)
+        
+    # String for each bond b′. Like print_bond(b′), but shorter.
+    bond_labels = map(bonds) do b
+        dist = Sunny.global_distance(cryst, b)
+        dist_str = Sunny.number_to_simple_string(dist; digits=4, atol=1e-12)
+
+        if isnothing(interactions)
+            basis = Sunny.basis_for_exchange_on_bond(cryst, b; b_ref=something(b_ref, b))
+            basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4, atol=1e-12)
+            J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J:  ")
+            antisym_basis_idxs = findall(J -> J ≈ -J', basis)
+            if !isempty(antisym_basis_idxs)
+                antisym_basis_strs = Sunny.coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits=4, atol=1e-12)
+                dmvecstr = join([antisym_basis_strs[2,3], antisym_basis_strs[3,1], antisym_basis_strs[1,2]], ", ")
+                J_matrix_str *= "\nDM: [$dmvecstr]"
+            end
+        else
+            J = exchange_on_bond(interactions, b)
+            basis_strs = Sunny.number_to_simple_string.(J; digits=3)
+            J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J:  ")
+            if J ≉ J'
+                dmvec = Sunny.extract_dmvec(J)
+                dmvecstr = join(Sunny.number_to_simple_string.(dmvec; digits=3), ", ")
+                J_matrix_str *= "\nDM: [$dmvecstr]"
+            end
+        end
+
+        return """
+            $b
+            Distance $dist_str
+            $J_matrix_str
+            """
+    end
+    # Map each bond to line segments in global coordinates
+    segments = map(bonds) do b
+        (; ri, rj) = Sunny.BondPos(cryst, b)
+        Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
+    end
+
+    isdirected = map(bonds) do b
+        basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
+        any(J -> J ≈ -J', basis)
+        return true
+    end
+
+    inspector_label(_plot, index, _position) = bond_labels[index]
+
+    # Draw arrows on bonds that support DM vectors
+    pts = [ri for (ri, _) in segments[isdirected]]
+    disps = [rj-ri for (ri, rj) in segments[isdirected]]
+    dirs = normalize.(disps)
+    linewidth = ionradius/4
+    arrowlength = 2linewidth
+    arrowsize = Makie.Vec3f(1.6linewidth, 1.6linewidth, arrowlength)
+    lengthscale = norm.(disps) .- (ionradius + arrowlength)
+    o = Makie.arrows!(ax, pts, dirs; lengthscale, arrowsize, color, diffuse=3, linewidth,
+                      transparency=true, inspectable=true, inspector_label)
+    Makie.connect!(o.visible, toggle.active)
+
+    # Draw exchange interactions if data is available
+    if exchange_mag > 0
+        pts = map(segments) do (ri, rj)
+            (ri + rj) / 2
+        end
+        exchanges = exchange_on_bond.(Ref(interactions), bonds)
+        draw_exchange_geometries(ax, toggle, ionradius, pts, exchanges/exchange_mag)
+    end
+
+    return
 end
 
 
@@ -823,83 +894,12 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
 
     exchange_mag = isnothing(interactions) ? 0.0 : exchange_magnitude(interactions)
 
-    function bonds_to_segments!(b_ref, bonds; color, toggle)
-        
-        # String for each bond b′. Like print_bond(b′), but shorter.
-        bond_labels = map(bonds) do b
-            dist = Sunny.global_distance(cryst, b)
-            dist_str = Sunny.number_to_simple_string(dist; digits=4, atol=1e-12)
-
-            if isnothing(interactions)
-                basis = Sunny.basis_for_exchange_on_bond(cryst, b; b_ref=something(b_ref, b))
-                basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4, atol=1e-12)
-                J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J:  ")
-                antisym_basis_idxs = findall(J -> J ≈ -J', basis)
-                if !isempty(antisym_basis_idxs)
-                    antisym_basis_strs = Sunny.coupling_basis_strings(collect(zip('A':'Z', basis))[antisym_basis_idxs]; digits=4, atol=1e-12)
-                    dmvecstr = join([antisym_basis_strs[2,3], antisym_basis_strs[3,1], antisym_basis_strs[1,2]], ", ")
-                    J_matrix_str *= "\nDM: [$dmvecstr]"
-                end
-            else
-                J = exchange_on_bond(interactions, b)
-                basis_strs = Sunny.number_to_simple_string.(J; digits=3)
-                J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J:  ")
-                if J ≉ J'
-                    dmvec = Sunny.extract_dmvec(J)
-                    dmvecstr = join(Sunny.number_to_simple_string.(dmvec; digits=3), ", ")
-                    J_matrix_str *= "\nDM: [$dmvecstr]"
-                end
-            end
-
-            return """
-                $b
-                Distance $dist_str
-                $J_matrix_str
-                """
-        end
-        # Map each bond to line segments in global coordinates
-        segments = map(bonds) do b
-            (; ri, rj) = Sunny.BondPos(cryst, b)
-            Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
-        end
-
-        isdirected = map(bonds) do b
-            basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
-            any(J -> J ≈ -J', basis)
-            return true
-        end
-
-        inspector_label(_plot, index, _position) = bond_labels[index]
-
-        # Draw arrows on bonds that support DM vectors
-        pts = [ri for (ri, _) in segments[isdirected]]
-        disps = [rj-ri for (ri, rj) in segments[isdirected]]
-        dirs = normalize.(disps)
-        arrowsize = 0.1ℓ0
-        linewidth = 0.03ℓ0
-        lengthscale = norm.(disps) .- (ionradius + arrowsize)
-        o = Makie.arrows!(ax, pts, dirs; lengthscale, arrowsize, color, diffuse=3, linewidth,
-                          transparency=true, inspectable=true, inspector_label)
-        Makie.connect!(o.visible, toggle.active)
-
-        # Draw exchange interactions if data is available
-        if exchange_mag > 0
-            pts = map(segments) do (ri, rj)
-                (ri + rj) / 2
-            end
-            exchanges = exchange_on_bond.(Ref(interactions), bonds)
-            draw_exchange_geometries(ax, toggle, ionradius, pts, exchanges/exchange_mag)
-        end
-
-        return
-    end
-    
     # Toggle on/off atom reference bonds
     bond_colors = [getindex_cyclic(seaborn_bright, i) for i in eachindex(refbonds)]
     active = custombonds
     toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
     color = set_alpha.(bond_colors, 0.25)
-    bonds_to_segments!(nothing, refbonds; color, toggle)
+    draw_bonds(; ax, toggle, ionradius, exchange_mag, cryst, interactions, b_ref=nothing, bonds=refbonds, color)
     toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Reference bonds"; fontsize, halign=:left)]
     
     # Toggle on/off bonds within each class
@@ -910,7 +910,7 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
         toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
         color = set_alpha(bond_color, 0.25)
         bonds = propagate_reference_bond_for_cell(cryst, b)
-        bonds_to_segments!(b, bonds; color, toggle)
+        draw_bonds(; ax, toggle, ionradius, exchange_mag, cryst, interactions, b_ref=b, bonds, color)
         bondstr = "Bond($(b.i), $(b.j), $(b.n))"
         toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, bondstr; fontsize, halign=:left)]
     end
