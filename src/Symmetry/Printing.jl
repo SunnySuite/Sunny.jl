@@ -136,7 +136,13 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
             println(io, "Connects '$(cryst.types[b.i])' at $(fractional_vec3_to_string(ri)) to '$(cryst.types[b.j])' at $(fractional_vec3_to_string(rj))")
         end
 
-        basis = basis_for_exchange_on_bond(cryst, b; b_ref)
+        # If `b_ref` is nothing, select it from `reference_bonds`
+        b_ref = @something b_ref begin
+            d = global_distance(cryst, b)
+            ref_bonds = reference_bonds(cryst, d; min_dist=d)
+            only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
+        end
+        basis = basis_for_symmetry_allowed_couplings(cryst, b, b_ref)
         basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
         println(io, formatted_matrix(basis_strs; prefix="Allowed exchange matrix: "))
 

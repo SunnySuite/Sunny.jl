@@ -271,9 +271,6 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondPos)
     end
 end
 
-function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond)
-    return basis_for_symmetry_allowed_couplings(cryst, BondPos(cryst, b))
-end
 
 function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
     J_ref isa Number && return J_ref
@@ -285,24 +282,18 @@ function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
     return transform_coupling_by_symmetry(J_ref, R*det(R), parity)
 end
 
+function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond)
+    return basis_for_symmetry_allowed_couplings(cryst, BondPos(cryst, b))
+end
 
-# Like basis_for_symmetry_allowed_couplings, but requires a reference bond
-function basis_for_exchange_on_bond(cryst::Crystal, b::Bond; b_ref)
-    # If `b_ref` is nothing, select it from reference_bonds()
-    b_ref = @something b_ref begin
-        d = global_distance(cryst, b)
-        ref_bonds = reference_bonds(cryst, d; min_dist=d)
-        only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
-    end
-
-    # Get the coupling basis on reference bond
+function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond, b_ref::Bond)
     basis = basis_for_symmetry_allowed_couplings(cryst, b_ref)
     # Transform coupling basis from `b_ref` to `b`
-    if b != b_ref
-        basis = map(basis) do J_ref
+    if b == b_ref
+        return basis
+    else
+        return map(basis) do J_ref
             transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
         end
     end
-
-    return basis
 end
