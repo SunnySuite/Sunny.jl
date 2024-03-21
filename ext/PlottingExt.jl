@@ -382,16 +382,16 @@ end
 
 # Get largest exchange interaction scale. For symmetric part, this is the
 # largest eigenvalue. For antisymmetric part, this is an empirical rescaling of
-# the norm of the DM vector. (Note that a typical system has small DM vectors
-# relative to the symmetric exchange, and the heuristics for visual size are
-# taking this into account.)
+# the norm of the DM vector. (Note that a typical system has small DM vector
+# magnitude relative to the symmetric exchange, and the heuristics for visual
+# size are taking this into account.)
 function exchange_magnitude(interactions)
     ret = -Inf
     for int in interactions, pc in int.pair
         J = pc.bilin * Mat3(I)
-        ev = eigvals(hermitianpart(J))
-        ret = max(ret, maximum(abs.(ev)))
-        ret = max(ret, 2.5^3 * norm(Sunny.extract_dmvec(J)))
+        sym = maximum(abs.(eigvals(hermitianpart(J))))
+        dm = norm(Sunny.extract_dmvec(J))
+        ret = max(ret, sym + 4dm)
     end
     return ret
 end
@@ -452,7 +452,7 @@ function draw_exchange_geometries(ax, toggle, ℓ0, pts, scaled_exchanges)
     # Draw dots using cylinders
     cylinders = map(eachcol(Sunny.Mat3(I))) do x
         p = Makie.GeometryBasics.Point(x...)
-        Makie.GeometryBasics.Cylinder(-p, p, 0.2)
+        Makie.GeometryBasics.Cylinder(-p, p, 0.3)
     end
     for dim in 1:3
         color = map(scalings) do x
@@ -725,6 +725,17 @@ end
 function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
     warn_wglmakie()
 
+    # Use provided reference bonds or find from symmetry analysis
+    if refbonds isa Number
+        @assert isinteger(refbonds)
+        custombonds = false
+        refbonds = find_reference_bonds(cryst, Int(refbonds), dims)
+    elseif refbonds isa AbstractArray{Bond}
+        custombonds = true
+    else
+        error("Parameter `refbonds` must be an integer or a `Bond` list.")
+    end
+
     fig = Makie.Figure(; size)
 
     # Main scene
@@ -747,8 +758,12 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
         ghost_radius = cell_diameter(cryst.latvecs, dims)/2
     end
 
-    # Length scale for objects describing atoms, spins, and interactions.
+    # Length scale for objects describing atoms, spins, and interactions
     ℓ0 = characteristic_length_between_atoms(something(cryst.root, cryst))
+
+    # If there exists a very short bond distance, then appropriately reduce the
+    # length scale
+    ℓ0 = min(ℓ0, 0.8minimum(Sunny.global_distance.(Ref(cryst), refbonds)))
 
     # Show atoms
     function atoms_to_observables(positions, classes; labels, ismagnetic)
@@ -857,17 +872,6 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
         end
 
         return
-    end
-
-    # Use provided reference bonds or find from symmetry analysis
-    if refbonds isa Number
-        @assert isinteger(refbonds)
-        custombonds = false
-        refbonds = find_reference_bonds(cryst, Int(refbonds), dims)
-    elseif refbonds isa AbstractArray{Bond}
-        custombonds = true
-    else
-        error("Parameter `refbonds` must be an integer or a `Bond` list.")
     end
     
     # Toggle on/off atom reference bonds
