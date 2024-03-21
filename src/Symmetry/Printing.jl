@@ -142,7 +142,7 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
             ref_bonds = reference_bonds(cryst, d; min_dist=d)
             only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
         end
-        basis = basis_for_symmetry_allowed_couplings(cryst, b, b_ref)
+        basis = basis_for_symmetry_allowed_couplings(cryst, b; b_ref)
         basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
         println(io, formatted_matrix(basis_strs; prefix="Allowed exchange matrix: "))
 

@@ -207,7 +207,7 @@ end
 
 # Returns a list of ``3×3`` matrices that form a linear basis for the
 # symmetry-allowed coupling matrices associated with bond `b`.
-function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondPos)
+function basis_for_symmetry_allowed_couplings_aux(cryst::Crystal, b::BondPos)
     # Expected floating point precision for 9x9 matrix operations
     atol = 1e-12
 
@@ -282,12 +282,9 @@ function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
     return transform_coupling_by_symmetry(J_ref, R*det(R), parity)
 end
 
-function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond)
-    return basis_for_symmetry_allowed_couplings(cryst, BondPos(cryst, b))
-end
+function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond; b_ref=b)
+    basis = basis_for_symmetry_allowed_couplings_aux(cryst, BondPos(cryst, b_ref))
 
-function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond, b_ref::Bond)
-    basis = basis_for_symmetry_allowed_couplings(cryst, b_ref)
     # Transform coupling basis from `b_ref` to `b`
     if b == b_ref
         return basis

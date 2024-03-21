@@ -495,7 +495,7 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
         dist_str = Sunny.number_to_simple_string(dist; digits=4, atol=1e-12)
 
         if isnothing(interactions)
-            basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b, b_ref)
+            basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b; b_ref)
             basis_strs = Sunny.coupling_basis_strings(zip('A':'Z', basis); digits=4, atol=1e-12)
             J_matrix_str = Sunny.formatted_matrix(basis_strs; prefix="J:  ")
             antisym_basis_idxs = findall(J -> J ≈ -J', basis)
