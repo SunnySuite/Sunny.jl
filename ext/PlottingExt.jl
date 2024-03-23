@@ -338,7 +338,7 @@ function characteristic_length_between_atoms(cryst::Crystal)
 end
 
 # Like `reference_bonds` but supply a number of bonds
-function find_reference_bonds(cryst, nbonds, dims)
+function reference_bonds_upto(cryst, nbonds, dims)
     # Calculate heuristic maximum distance
     min_a = minimum(norm.(eachcol(cryst.latvecs)))
     nclasses = length(unique(cryst.classes))
@@ -357,19 +357,21 @@ function find_reference_bonds(cryst, nbonds, dims)
     return first(refbonds, nbonds)
 end
 
-# Get list of bonds symmetry equivalent to `b` that should be drawn in the cell
-function propagate_reference_bond_for_cell(cryst, b)
-    return filter(Sunny.all_symmetry_related_bonds(cryst, b)) do b
-        if iszero(collect(b.n))
-            # Bonds within the unit cell must not be self bonds, and must not be
-            # duplicated.
-            return b.i != b.j && Sunny.bond_parity(b)
-        else
-            # Bonds between two unit cells can always be include
-            return true
+function propagate_reference_bond_for_cell(cryst, b_ref)
+    symops = Sunny.canonical_group_order(cryst.symops; atol=cryst.symprec)
+
+    found = map(_ -> Bond[], cryst.positions)
+    for s in symops
+        b = Sunny.transform(cryst, s, b_ref)
+        # If this bond hasn't been found, add it to the list
+        if !(b in found[b.i]) && !(reverse(b) in found[b.j])
+            push!(found[b.i], b)
         end
     end
+
+    return reduce(vcat, found)
 end
+
 
 # Get the 3×3 exchange matrix for bond `b`
 function exchange_on_bond(interactions, b)
@@ -530,7 +532,7 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
     end
 
     # A bond is directed if it allows DM interactions
-    isdirected = map(bonds) do b
+    hasarrowhead = map(bonds) do b
         basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
         any(J -> J ≈ -J', basis)
     end
@@ -542,8 +544,8 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
     linewidth = 0.25ionradius
     arrowwidth = 1.8linewidth
     arrowlength = 2.2arrowwidth
-    arrowsize = isdirected .* Ref(Makie.Vec3f(arrowwidth, arrowwidth, arrowlength))
-    lengthscale = @. norm(disps) - 2ionradius - isdirected*arrowlength
+    arrowsize = hasarrowhead .* Ref(Makie.Vec3f(arrowwidth, arrowwidth, arrowlength))
+    lengthscale = @. norm(disps) - 2ionradius - hasarrowhead*arrowlength
     o = Makie.arrows!(ax, pts, dirs; lengthscale, linewidth, arrowsize, color, diffuse=3,
                       transparency=true, inspectable=true, inspector_label)
     Makie.connect!(o.visible, obs)
@@ -626,7 +628,7 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
     if refbonds isa Number
         @assert isinteger(refbonds)
         custombonds = false
-        refbonds = find_reference_bonds(cryst, Int(refbonds), dims)
+        refbonds = reference_bonds_upto(cryst, Int(refbonds), dims)
     elseif refbonds isa AbstractArray{Bond}
         custombonds = true
     else

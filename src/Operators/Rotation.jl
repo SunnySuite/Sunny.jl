@@ -89,6 +89,20 @@ function matrix_to_axis_angle(R::Mat3)
     return (n, θ)
 end
 
+# Return the closest matrix to R that is exactly orthogonal.
+#
+# This is important when the crystal lattice vectors have numerical error, and
+# spglib produces only approximately orthogonal matrices (up to symprec).  TODO:
+# In the future, use spglib's feature "spg_standardize_cell()". Absent that, we
+# should transform all the symops produces by spglib via:
+#
+# s.R -> inv(latvecs) * to_orthogonal(latvecs * s.R * inv(latvecs)) * latvecs
+function to_orthogonal(R)
+    # https://math.stackexchange.com/q/2215359
+    U, _, V = svd(R)
+    return U * V' ≈ R
+end
+
 # Generate a random, orthogonal NxN matrix under the Haar measure
 function random_orthogonal(rng, N::Int; special=false)
     # This approach is simple and correct as described below:

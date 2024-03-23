@@ -286,35 +286,35 @@ function site_to_atom(sys::System{N}, site) where N
     return position_to_atom(orig_crystal(sys), r)
 end
 
-# Maps atom `i` in `cryst` to the corresponding atom in `orig_cryst`
-function map_atom_to_other_crystal(cryst::Crystal, i, orig_cryst::Crystal)
+# Maps atom `i` in `cryst` to the corresponding atom in `other_cryst`
+function map_atom_to_other_crystal(cryst::Crystal, i, other_cryst::Crystal)
     global_r = cryst.latvecs * cryst.positions[i]
-    orig_r = orig_cryst.latvecs \ global_r
-    return position_to_atom(orig_cryst, orig_r)
+    orig_r = other_cryst.latvecs \ global_r
+    return position_to_atom(other_cryst, orig_r)
 end
 
-# Maps atom `i` in `cryst` to the corresponding site in `orig_sys`
-function map_atom_to_other_system(cryst::Crystal, i, orig_sys::System)
+# Maps atom `i` in `cryst` to the corresponding site in `other_sys`
+function map_atom_to_other_system(cryst::Crystal, i, other_sys::System)
     global_r = cryst.latvecs * cryst.positions[i]
-    orig_r = orig_crystal(orig_sys).latvecs \ global_r
-    return position_to_site(orig_sys, orig_r)
+    other_r = orig_crystal(other_sys).latvecs \ global_r
+    return position_to_site(other_sys, other_r)
 end
 
 
 # Given a `bond` for `cryst`, return a corresponding new bond for the reshaped
-# `new_cryst`. The new bond will begin at atom `new_i`.
-function transform_bond(new_cryst::Crystal, new_i::Int, cryst::Crystal, bond::Bond)
+# `other_cryst`. The new bond will begin at atom `other_i`.
+function map_bond_to_other_crystal(cryst::Crystal, bond::Bond, other_cryst::Crystal, other_i::Int)
     # Positions in new fractional coordinates
-    new_ri = new_cryst.positions[new_i]
-    new_rj = new_ri + new_cryst.latvecs \ global_displacement(cryst, bond)
+    other_ri = other_cryst.positions[other_i]
+    other_rj = other_ri + other_cryst.latvecs \ global_displacement(cryst, bond)
 
     # Verify that new_i (indexed into new_cryst) is consistent with bond.i
     # (indexed into original cryst).
-    @assert bond.i == position_to_atom(cryst, cryst.latvecs \ new_cryst.latvecs * new_ri)
+    @assert bond.i == position_to_atom(cryst, cryst.latvecs \ other_cryst.latvecs * other_ri)
 
     # Construct bond using new indexing system
-    new_j, new_n = position_to_atom_and_offset(new_cryst, new_rj)
-    return Bond(new_i, new_j, new_n)
+    other_j, other_n = position_to_atom_and_offset(other_cryst, other_rj)
+    return Bond(other_i, other_j, other_n)
 end
 
 
@@ -345,7 +345,7 @@ function symmetry_equivalent_bonds(sys::System, bond::Bond)
         for bond′ in all_symmetry_related_bonds_for_atom(orig_crystal(sys), i, bond)
 
             # map to a bond with indexing for new crystal
-            new_bond = transform_bond(sys.crystal, new_i, orig_crystal(sys), bond′)
+            new_bond = map_bond_to_other_crystal(orig_crystal(sys), bond′, sys.crystal, new_i)
 
             # loop over all new crystal cells and push site pairs
             for new_cell_i in eachcell(sys)
