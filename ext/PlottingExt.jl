@@ -491,6 +491,26 @@ end
 
 function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bonds, refbonds, color)
     
+    # Map each bond to line segments in global coordinates
+    segments = map(bonds) do b
+        (; ri, rj) = Sunny.BondPos(cryst, b)
+        Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
+    end
+    
+    # Find indices of "ghost" bonds that periodically wrap system
+    ghosts = findall(b -> !iszero(b.n), bonds)
+
+    # Append ghosts to end of every array
+    bonds = vcat(bonds, bonds[ghosts])
+    refbonds = vcat(refbonds, refbonds[ghosts])
+    color = vcat(color, color[ghosts])
+
+    # Ghost bonds are offset by -n multiples of lattice vectors
+    segments = vcat(segments, map(ghosts) do i
+        offset = - cryst.latvecs * bonds[i].n
+        segments[i] .+ Ref(offset)
+    end)
+
     # String for each bond b′. Like print_bond(b′), but shorter.
     bond_labels = map(zip(bonds, refbonds)) do (b, b_ref)
         dist = Sunny.global_distance(cryst, b)
@@ -525,36 +545,28 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
     end
     inspector_label(_plot, index, _position) = bond_labels[index]
 
-    # Map each bond to line segments in global coordinates
-    segments = map(bonds) do b
-        (; ri, rj) = Sunny.BondPos(cryst, b)
-        Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
-    end
-
-    # A bond is directed if it allows DM interactions
+    # A bond has an arrowhead if it allows DM interactions
     hasarrowhead = map(bonds) do b
         basis = Sunny.basis_for_symmetry_allowed_couplings(cryst, b)
         any(J -> J ≈ -J', basis)
     end
 
-    # Draw bonds with or without arrowheads following isdirected
-    disps = [rj-ri for (ri, rj) in segments]
-    dirs = normalize.(disps)
-    pts = @. getindex.(segments, 1) + ionradius*dirs
+    # Draw cylinders or arrows for each bond
     linewidth = 0.25ionradius
     arrowwidth = 1.8linewidth
     arrowlength = 2.2arrowwidth
+    disps = [rj-ri for (ri, rj) in segments]
+    dirs = normalize.(disps)
+    pts = @. getindex.(segments, 1) + ionradius*dirs
     arrowsize = hasarrowhead .* Ref(Makie.Vec3f(arrowwidth, arrowwidth, arrowlength))
     lengthscale = @. norm(disps) - 2ionradius - hasarrowhead*arrowlength
-    o = Makie.arrows!(ax, pts, dirs; lengthscale, linewidth, arrowsize, color, diffuse=3,
+    o = Makie.arrows!(ax, pts, dirs; arrowsize, lengthscale, linewidth, color, diffuse=3,
                       transparency=true, inspectable=true, inspector_label)
     Makie.connect!(o.visible, obs)
 
     # Draw exchange interactions if data is available
     if exchange_mag > 0
-        pts = map(segments) do (ri, rj)
-            (ri + rj) / 2
-        end
+        pts = [(ri+rj)/2 for (ri, rj) in segments]
         exchanges = exchange_on_bond.(Ref(interactions), bonds)
         draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges=exchanges/exchange_mag)
     end
@@ -728,9 +740,9 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
         framecolor_active = set_alpha(bond_color, 0.7)
         framecolor_inactive = set_alpha(bond_color, 0.15)
         toggle = Makie.Toggle(fig; active, buttoncolor, framecolor_inactive, framecolor_active)
-        color = set_alpha(bond_color, 0.25)
         bonds = propagate_reference_bond_for_cell(cryst, b)
         refbonds = fill(b, length(bonds))
+        color = fill(set_alpha(bond_color, 0.25), length(bonds))
         draw_bonds(; ax, obs=toggle.active, ionradius, exchange_mag, cryst, interactions, bonds, refbonds, color)
         bondstr = "Bond($(b.i), $(b.j), $(b.n))"
         toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, bondstr; fontsize, halign=:left)]
