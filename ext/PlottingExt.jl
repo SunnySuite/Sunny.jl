@@ -358,7 +358,7 @@ function reference_bonds_upto(cryst, nbonds, dims)
 end
 
 function propagate_reference_bond_for_cell(cryst, b_ref)
-    symops = Sunny.canonical_group_order(cryst.symops; atol=cryst.symprec)
+    symops = Sunny.canonical_group_order(cryst.symops)
 
     found = map(_ -> Bond[], cryst.positions)
     for s in symops

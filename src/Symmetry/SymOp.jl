@@ -38,7 +38,7 @@ function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
     end
 end
 
-function Base.isapprox(s1::SymOp, s2::SymOp; atol)
+function Base.isapprox(s1::SymOp, s2::SymOp; atol=1e-8)
     T1, T2 = wrap_to_unit_cell.((s1.T, s2.T); symprec=atol)
     return isapprox(s1.R, s2.R; atol) && isapprox(T1, T2; atol)
 end
@@ -67,12 +67,12 @@ end
 
 # Heuristics to find a canonical order of the group elements
 
-function cycle_group(s::SymOp; atol)
+function cycle_group(s::SymOp)
     ret = [one(SymOp)]
     g = s
 
     cnt = 0
-    while !isapprox(g, one(SymOp); atol)
+    while g ≉ one(SymOp)
         push!(ret, g)
         g *= s
         (cnt += 1) > 100 && error("Could not find convergent cycle")
@@ -83,8 +83,7 @@ end
 
 function rank_symop(s)
     # Favor group elements with long cycles
-    atol = 1e-12
-    x1 = length(cycle_group(s; atol)) / 6
+    x1 = length(cycle_group(s)) / 6
     @assert 1/6 ≤ x1 ≤ 1
 
     # Favor matrices s.R that represent small rotations (close to the identity
@@ -92,49 +91,47 @@ function rank_symop(s)
     # matrices, the extrema are s.R = ±I, yielding x2 = ±1.
     x2 = tr(s.R) / 3
 
-    # Apply some small symmetry breaking to favor a consistent rotation
-    # orientation.
+    # Apply some small symmetry breaking between clockwise and counter-clockwise
+    # z-rotations.
     x3 = s.R[1, 2] - s.R[2, 1]
 
     return x1*1e6 + x2*1e3 + x3
 end
 
-function remove_symops(base, del; atol)
+function remove_symops(base, del)
     return filter(base) do b
-        all(del) do d
-            !isapprox(b, d; atol)
-        end
+        !any(≈(b), del)
     end
 end
 
-function add_symops(base, add; atol)
-    return vcat(base, remove_symops(add, base; atol))
+function add_symops(base, add)
+    return vcat(base, remove_symops(add, base))
 end
 
-function product_ops(F, G; atol)
+function product_ops(F, G)
     acc = SymOp[]
     for f in F
-        acc = add_symops(acc, [f * g for g in G]; atol)
+        acc = add_symops(acc, [f * g for g in G])
     end
     return acc
 end
 
-function canonical_group_order(symops; atol)
+function canonical_group_order(symops)
     new_ops = [one(SymOp)]
-    old_ops = remove_symops(symops, new_ops; atol)
+    old_ops = remove_symops(symops, new_ops)
 
     for _ = 1:100
         s = argmax(s -> rank_symop(s), old_ops)
-        cyc = cycle_group(s; atol)
-        x = product_ops(cyc, new_ops; atol)
-        old_ops = remove_symops(old_ops, x; atol)
-        new_ops = add_symops(new_ops, x; atol)
+        cyc = cycle_group(s)
+        x = product_ops(cyc, new_ops)
+        old_ops = remove_symops(old_ops, x)
+        new_ops = add_symops(new_ops, x)
 
         if isempty(old_ops)
-            @assert length(new_ops) == length(symops) "Decomposition failed, please report this!"
+            length(new_ops) == length(symops) || error("Decomposition failed, symops seem invalid!")
             return new_ops
         end
     end
 
-    @assert false "Decomposition failed, please report this!"
+    error("Decomposition failed, symops seem invalid!")
 end
