@@ -2,17 +2,20 @@
 
 ## v0.5.9
 
-* Enhancements to [`view_crystal`](@ref). If a [`System`](@ref) is supplied, the
-  exchange interactions will be depicted graphically.
 * **Correctness fixes**: Structure factor conventions are now uniform across
   modes and [precisely specified](@ref "Structure Factor Conventions"). The
   g-tensor is applied by default (disable with `apply_g = false`). The intensity
   is additive with increasing number of magnetic ions in the chemical cell,
   consistent with SpinW. [Issue
   #235](https://github.com/SunnySuite/Sunny.jl/issues/235).
+* Enhancements to [`view_crystal`](@ref). If a bond allows a DM interaction, its
+  orientation will be shown visually. If a [`System`](@ref) argument is
+  supplied, its exchange interactions will be shown..
 * New function [`suggest_timestep`](@ref) to assist in performing accurate and
   efficient simulation of classical spin dynamics. [Issue
   #149](https://github.com/SunnySuite/Sunny.jl/issues/149).
+* Scalar biquadratic interactions can again be set in `:dipole_large_S` mode via
+  the keyword argument `biquad` of [`set_exchange!`](@ref).
 * Significantly speed up [`dynamical_correlations`](@ref) for crystals with many
   atoms in the unit cell. [Issue
   #204](https://github.com/SunnySuite/Sunny.jl/issues/204).
