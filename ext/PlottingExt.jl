@@ -203,17 +203,26 @@ function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, dims)
                  zoom_shift_lookat, clipping_mode=:view_relative, near=0.01, far=100)
 end
 
+function register_compass_callbacks(axcompass, lscene)
+    refcam = lscene.scene.camera_controls
+    Makie.onany(refcam.eyeposition, refcam.lookat, refcam.upvector; update=true) do cam_eye, cam_lookat, cam_upvector
+        eye = 4normalize(cam_eye - cam_lookat)
+        lookat = Makie.Point3f0(0, 0, 0)
+        Makie.update_cam!(axcompass.scene, eye, lookat, cam_upvector)
+    end
+end
+
 function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150)
-    ax = Makie.LScene(fig, bbox=Makie.BBox(left, right, bottom, top), show_axis=false)
+    axcompass = Makie.LScene(fig, bbox=Makie.BBox(left, right, bottom, top), show_axis=false)
 
     # Draw arrows at origin
     pts = [Makie.Point3f0(0, 0, 0), Makie.Point3f0(0, 0, 0), Makie.Point3f0(0, 0, 0)]
     vecs = [Makie.Point3f0(1, 0, 0), Makie.Point3f0(0, 1, 0), Makie.Point3f0(0, 0, 1)]
-    Makie.arrows!(ax, pts, 0.8*vecs; color=[:red, :orange, :yellow], arrowsize=0.3, inspectable=false)
+    Makie.arrows!(axcompass, pts, 0.8*vecs; color=[:red, :orange, :yellow], arrowsize=0.3, inspectable=false)
 
     # Draw labels
     for (pos, text) in zip(1.2vecs, ["x", "y", "z"])
-        Makie.text!(ax, pos; text, color=:black, fontsize=16, font=:bold, glowwidth=4.0,
+        Makie.text!(axcompass, pos; text, color=:black, fontsize=16, font=:bold, glowwidth=4.0,
             glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
     end
     
@@ -224,17 +233,12 @@ function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150
     # speeds to zero to disable rotation, translation, and zooming of compass.
     # TODO: File bug using the example set-up code at
     # https://github.com/SunnySuite/Sunny.jl/issues/147#issuecomment-1866608609
-    Makie.cam3d!(ax.scene; center=false, mouse_rotationspeed=0, mouse_translationspeed=0, mouse_zoomspeed=0)
+    Makie.cam3d!(axcompass.scene; center=false, mouse_rotationspeed=0, mouse_translationspeed=0, mouse_zoomspeed=0)
 
-    # Update `ax` camera on any changes to `lscene` camera
-    cam = lscene.scene.camera_controls
-    Makie.onany(cam.eyeposition, cam.lookat, cam.upvector; update=true) do cam_eye, cam_lookat, cam_upvector
-        eye = 4normalize(cam_eye - cam_lookat)
-        lookat = Makie.Point3f0(0, 0, 0)
-        Makie.update_cam!(ax.scene, eye, lookat, cam_upvector)
-    end
+    # Update compass on any changes to `lscene` camera
+    register_compass_callbacks(axcompass, lscene)
 
-    return ax
+    return axcompass
 end
 
 function cell_wireframe(latvecs, dims)
@@ -655,9 +659,13 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
     # Main scene
     ax = Makie.LScene(fig[1, 1], show_axis=false)
 
+    # Set of list of widgets
+    widget_list = Makie.GridLayout(; tellheight=false, valign=:top)
+    fig[1, 2] = widget_list
+    widget_cnt = 0
+
     # Set up grid of toggles
-    toggle_grid = Makie.GridLayout(; tellheight=false, valign=:top)
-    fig[1, 2] = toggle_grid
+    toggle_grid = widget_list[widget_cnt+=1,1] = Makie.GridLayout()
     fontsize = 16
     toggle_cnt = 0
     buttoncolor = Makie.RGB(0.2, 0.2, 0.2)
@@ -751,6 +759,22 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
         toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, bondstr; fontsize, halign=:left)]
     end
 
+    # Show Cartesian axes, with link to main camera
+    if compass
+        axcompass = add_cartesian_compass(fig, ax)
+    end
+
+    # Toggle camera perspective
+    menu = Makie.Menu(fig; options=["Perspective", "Orthographic"], default=(orthographic ? "Orthographic" : "Perspective"), fontsize)
+    button = Makie.Button(fig; label="Reset", fontsize)
+    Makie.onany(button.clicks, menu.selection; update=true) do _, mselect
+        orthographic = mselect == "Orthographic"
+        orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims,
+                       ℓ0=characteristic_length_between_atoms(cryst))
+        compass && register_compass_callbacks(axcompass, ax)
+    end
+    widget_list[widget_cnt+=1, 1] = Makie.hgrid!(menu, button)
+
     # Show cell volume
     Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
     
@@ -760,15 +784,10 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
     Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
                 glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
 
-    # Add inspector for pop-up information. Putting this last helps with
-    # visibility (Makie v0.19)
-    Makie.DataInspector(ax; indicator_color=:gray, fontsize, monofont()...)
-
-    orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims,
-                   ℓ0=characteristic_length_between_atoms(cryst))
-
-    # Show Cartesian axes, with link to main camera
-    compass && add_cartesian_compass(fig, ax)
+    # Add inspector for pop-up information. The depth needs to be almost exactly
+    # 1e4, but not quite, otherwise only a white background will be shown. TODO:
+    # Ask on Makie forums what's going on with this precise number...
+    Makie.DataInspector(ax; indicator_color=:gray, fontsize, monofont()..., depth=(1e4 - 1))
 
     return fig
 end
