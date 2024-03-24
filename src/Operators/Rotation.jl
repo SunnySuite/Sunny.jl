@@ -42,8 +42,8 @@ function axis_angle_to_matrix(n, θ)
 end
 
 function matrix_to_axis_angle(R::Mat3)
-    # Assertion disabled for performance
-    # @assert R'*R ≈ I && det(R) ≈ 1
+    @assert R'*R ≈ I   "Matrix not orthogonal"
+    @assert det(R) ≈ 1 "Matrix includes reflection"
 
     # Formula derived by Mike Day, Insomniac Games, and posted online as
     # "Converting a Rotation Matrix to a Quaternion".
@@ -87,6 +87,18 @@ function matrix_to_axis_angle(R::Mat3)
     n = -n
 
     return (n, θ)
+end
+
+# Return the closest matrix to R that is exactly orthogonal.
+#
+# This might be useful in cases where the crystal lattice vectors have numerical
+# error, and spglib produces only approximately orthogonal matrices (up to
+# symprec).  TODO: In the future, use spglib's feature "spg_standardize_cell()",
+# or write our own.
+function to_orthogonal(R)
+    # https://math.stackexchange.com/q/2215359
+    U, _, V = svd(R)
+    return U * V' ≈ R
 end
 
 # Generate a random, orthogonal NxN matrix under the Haar measure

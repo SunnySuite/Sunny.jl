@@ -205,12 +205,9 @@ function score_basis_matrix(J)
     return findfirst(i -> abs(J[i]) > 1e-12, basis_elements_by_priority)
 end
 
-"""    basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond)
-
-Returns a list of ``3×3`` matrices that form a linear basis for the
-symmetry-allowed coupling matrices associated with bond `b`.
-"""
-function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondPos)
+# Returns a list of ``3×3`` matrices that form a linear basis for the
+# symmetry-allowed coupling matrices associated with bond `b`.
+function basis_for_symmetry_allowed_couplings_aux(cryst::Crystal, b::BondPos)
     # Expected floating point precision for 9x9 matrix operations
     atol = 1e-12
 
@@ -274,9 +271,6 @@ function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::BondPos)
     end
 end
 
-function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond)
-    return basis_for_symmetry_allowed_couplings(cryst, BondPos(cryst, b))
-end
 
 function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
     J_ref isa Number && return J_ref
@@ -288,3 +282,15 @@ function transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
     return transform_coupling_by_symmetry(J_ref, R*det(R), parity)
 end
 
+function basis_for_symmetry_allowed_couplings(cryst::Crystal, b::Bond; b_ref=b)
+    basis = basis_for_symmetry_allowed_couplings_aux(cryst, BondPos(cryst, b_ref))
+
+    # Transform coupling basis from `b_ref` to `b`
+    if b == b_ref
+        return basis
+    else
+        return map(basis) do J_ref
+            transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
+        end
+    end
+end

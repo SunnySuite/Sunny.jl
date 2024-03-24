@@ -6,6 +6,12 @@ struct SymOp
     T :: Vec3
 end
 
+function Base.show(io::IO, s::SymOp)
+    print(io, repr(parse_op), "(\"")
+    show(io, "text/plain", s)
+    print(io, "\")")
+end
+
 function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
     atol = 1e-12
     digits = 2
@@ -33,9 +39,102 @@ function Base.show(io::IO, ::MIME"text/plain", s::SymOp)
 end
 
 function Base.isapprox(s1::SymOp, s2::SymOp; atol)
-    return isapprox(s1.R, s2.R; atol) && isapprox(s1.T, s2.T; atol)
+    T1, T2 = wrap_to_unit_cell.((s1.T, s2.T); symprec=atol)
+    return isapprox(s1.R, s2.R; atol) && isapprox(T1, T2; atol)
 end
 
 function transform(s::SymOp, r::Vec3)
     return s.R*r + s.T
+end
+
+function Base.:*(s1::SymOp, s2::SymOp)
+    SymOp(s1.R * s2.R, s1.T + s1.R * s2.T)
+end
+
+function Base.:^(s::SymOp, n::Int)
+    prod(fill(s, n))
+end
+
+function Base.inv(s::SymOp)
+    Rinv = inv(s.R)
+    SymOp(Rinv, -Rinv*s.T)
+end
+
+function Base.one(::Type{SymOp})
+    SymOp(Mat3(I), zero(Vec3))
+end
+
+
+# Heuristics to find a canonical order of the group elements
+
+function cycle_group(s::SymOp; atol)
+    ret = [one(SymOp)]
+    g = s
+
+    cnt = 0
+    while !isapprox(g, one(SymOp); atol)
+        push!(ret, g)
+        g *= s
+        (cnt += 1) > 100 && error("Could not find convergent cycle")
+    end
+
+    return ret
+end
+
+function rank_symop(s)
+    # Favor group elements with long cycles
+    atol = 1e-12
+    x1 = length(cycle_group(s; atol)) / 6
+    @assert 1/6 ≤ x1 ≤ 1
+
+    # Favor matrices s.R that represent small rotations (close to the identity
+    # matrix). Note that, among all matrices s.R that are similar to orthogonal
+    # matrices, the extrema are s.R = ±I, yielding x2 = ±1.
+    x2 = tr(s.R) / 3
+
+    # Apply some small symmetry breaking to favor a consistent rotation
+    # orientation.
+    x3 = s.R[1, 2] - s.R[2, 1]
+
+    return x1*1e6 + x2*1e3 + x3
+end
+
+function remove_symops(base, del; atol)
+    return filter(base) do b
+        all(del) do d
+            !isapprox(b, d; atol)
+        end
+    end
+end
+
+function add_symops(base, add; atol)
+    return vcat(base, remove_symops(add, base; atol))
+end
+
+function product_ops(F, G; atol)
+    acc = SymOp[]
+    for f in F
+        acc = add_symops(acc, [f * g for g in G]; atol)
+    end
+    return acc
+end
+
+function canonical_group_order(symops; atol)
+    new_ops = [one(SymOp)]
+    old_ops = remove_symops(symops, new_ops; atol)
+
+    for _ = 1:100
+        s = argmax(s -> rank_symop(s), old_ops)
+        cyc = cycle_group(s; atol)
+        x = product_ops(cyc, new_ops; atol)
+        old_ops = remove_symops(old_ops, x; atol)
+        new_ops = add_symops(new_ops, x; atol)
+
+        if isempty(old_ops)
+            @assert length(new_ops) == length(symops) "Decomposition failed, please report this!"
+            return new_ops
+        end
+    end
+
+    @assert false "Decomposition failed, please report this!"
 end
