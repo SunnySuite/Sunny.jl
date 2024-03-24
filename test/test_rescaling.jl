@@ -97,7 +97,7 @@ end
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]], "P1")
     S = 3
-    λ = Sunny.anisotropy_renormalization(S)
+    λ = Sunny.rcs_factors(S)
     
     for k in (2, 4, 6)
         c = randn(2k+1)
@@ -109,4 +109,29 @@ end
         end
         @test E1 ≈ λ[k] * E2
     end    
+end
+
+
+@testitem "Biquadratic renormalization" begin
+    cryst = Sunny.square_crystal()
+
+    S = 3/2
+
+    sys1 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole_large_S, seed=0)
+    sys2 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole, seed=0)
+
+    # Reference scalar biquadratic without renormalization
+    set_exchange!(sys1, 0, Bond(1, 1, [1,0,0]); biquad=1)
+
+    # Set a scalar biquadratic interaction (Si⋅Sj)² of unit magnitude while undoing
+    # the RCS renormalization. Note that the operator `(Si⋅Sj)² + Si⋅Sj/2` is a pure
+    # coupling of quadratic Stevens operators, and gets rescaled by the `rcs`
+    # factor.
+    rcs = Sunny.rcs_factors(S)[2]^2
+    set_pair_coupling!(sys2, (S1, S2) -> ((S1'*S2)^2 + S1'*S2/2)/rcs - S1'*S2/2, Bond(1, 1, [1,0,0]))
+
+    for sys in (sys1, sys2)
+        @test sys1.interactions_union[1].pair[1].bilin ≈ -1/2
+        @test sys2.interactions_union[1].pair[1].biquad ≈ 1
+    end
 end
