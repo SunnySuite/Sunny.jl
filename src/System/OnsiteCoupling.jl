@@ -7,9 +7,8 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
         return Hermitian(matrep)
     elseif sys.mode == :dipole
         S = spin_label(sys, to_atom(site))
-        λ = anisotropy_renormalization(S)
         c = matrix_to_stevens_coefficients(hermitianpart(matrep))
-        return StevensExpansion(λ .* c)
+        return StevensExpansion(rcs_factors(S) .* c)
     elseif sys.mode == :dipole_large_S
         error("System with mode `:dipole_large_S` requires a symbolic operator.")
     end
@@ -31,7 +30,7 @@ end
 
 # k-dependent renormalization of Stevens operators O[k,q] as derived in
 # https://arxiv.org/abs/2304.03874.
-function anisotropy_renormalization(S)
+function rcs_factors(S)
     λ = [1,                                                                  # k=0
          1,                                                                  # k=1
          1 - (1/2)/S,                                                        # k=2

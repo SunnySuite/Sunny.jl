@@ -273,7 +273,10 @@ the Dzyaloshinskii-Moriya pseudo-vector. The resulting interaction will be
 ``𝐃⋅(𝐒_i×𝐒_j)``.
 
 For more general interactions, such as biquadratic, use
-[`set_pair_coupling!`](@ref) instead.
+[`set_pair_coupling!`](@ref) instead. In the special that `sys` has `mode =
+:dipole_large_S`, this function will accept an optional named parameter `biquad`
+yielding scalar biquadratic interactions `(𝐒_i⋅𝐒_j)^2` _without_
+renormalization.
 
 # Examples
 ```julia
@@ -288,17 +291,27 @@ J2 = 2*I + dmvec([0,0,3])
 set_exchange!(sys, J2, bond)
 ```
 """
-function set_exchange!(sys::System{N}, J, bond::Bond; biquad=nothing, large_S=nothing) where N
-    if !isnothing(biquad)
-        @warn "The `biquad` argument to `set_exchange!` is deprecated! Use `set_pair_coupling!` instead."
-        !isnothing(large_S) && @error "The `large_S` argument is no longer supported. Instead construct system with mode `dipole_large_S`."
-        set_pair_coupling!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, bond)
-        return
+function set_exchange!(sys::System{N}, J, bond::Bond; biquad::Number=0.0, large_S=nothing) where N
+    if !isnothing(large_S) 
+        error("The `large_S` argument is no longer supported. Instead construct system with `mode = :dipole_large_S`.")
+    end
+    if !iszero(biquad)
+        if sys.mode != :dipole_large_S
+            @warn "The `biquad` argument to `set_exchange!` is deprecated except for mode `:dipole_large_S`. Use `set_pair_coupling!` instead."
+            set_pair_coupling!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, bond)
+            return
+        end
+        # Reinterpret `biquad (Sᵢ⋅Sⱼ)²` by shifting its bilinear part into the
+        # usual 3×3 exchange J. What remains in `biquad` is a coupling between
+        # quadratic Stevens operators O[2,q] via `scalar_biquad_metric`.
+        biquad = Float64(biquad)
+        J -= (J isa Number) ? biquad/2 : (biquad/2)*I
     end
 
     is_homogeneous(sys) || error("Use `set_exchange_at!` for an inhomogeneous system.")
     bilin = to_float_or_mat3(J)
-    set_pair_coupling_aux!(sys, 0.0, bilin, 0.0, zero(TensorDecomposition), bond)
+    set_pair_coupling_aux!(sys, 0.0, bilin, biquad, zero(TensorDecomposition), bond)
+    return
 end
 
 
@@ -384,19 +397,32 @@ due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
 `offset` vector, in multiples of unit cells.
 
 For more general interactions, such as biquadratic, use
-[`set_pair_coupling_at!`](@ref) instead.
+[`set_pair_coupling_at!`](@ref) instead. In the special that `sys` has `mode =
+:dipole_large_S`, this function will accept an optional named parameter `biquad`
+yielding scalar biquadratic interactions `(𝐒_i⋅𝐒_j)^2` _without_
+renormalization.
 
 See also [`set_exchange!`](@ref).
 """
-function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad=nothing, large_S=nothing, offset=nothing) where N
-    if !isnothing(biquad)
-        @warn "The `biquad` argument to `set_exchange_at!` is deprecated! Use `set_pair_coupling_at!` instead."
-        !isnothing(large_S) && @error "The `large_S` argument is no longer supported. Instead construct system with mode `dipole_large_S`."
-        set_pair_coupling_at!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, site1, site2; offset)
-        return
+function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad::Number=0.0, large_S=nothing, offset=nothing) where N
+    if !isnothing(large_S) 
+        error("The `large_S` argument is no longer supported. Instead construct system with `mode = :dipole_large_S`.")
+    end
+    if !iszero(biquad)
+        if sys.mode != :dipole_large_S
+            @warn "The `biquad` argument to `set_exchange_at!` is deprecated except for mode `:dipole_large_S`. Use `set_pair_coupling_at!` instead."
+            set_pair_coupling_at!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, site1, site2; offset)
+            return
+        end
+        # Reinterpret `biquad (Sᵢ⋅Sⱼ)²` by shifting its bilinear part into the
+        # usual 3×3 exchange J. What remains in `biquad` is a coupling between
+        # quadratic Stevens operators O[2,q] via `scalar_biquad_metric`.
+        biquad = Float64(biquad)
+        J -= (J isa Number) ? biquad/2 : (biquad/2)*I
     end
 
-    set_pair_coupling_at_aux!(sys, 0.0, J, 0.0, zero(TensorDecomposition), site1, site2, offset)
+    bilin = to_float_or_mat3(J)
+    set_pair_coupling_at_aux!(sys, 0.0, bilin, biquad, zero(TensorDecomposition), site1, site2, offset)
     return
 end
 
