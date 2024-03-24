@@ -2,6 +2,8 @@
 
 ## v0.5.9
 
+* Enhancements to [`view_crystal`](@ref). If a [`System`](@ref) is supplied, the
+  exchange interactions will be depicted graphically.
 * **Correctness fixes**: Structure factor conventions are now uniform across
   modes and [precisely specified](@ref "Structure Factor Conventions"). The
   g-tensor is applied by default (disable with `apply_g = false`). The intensity

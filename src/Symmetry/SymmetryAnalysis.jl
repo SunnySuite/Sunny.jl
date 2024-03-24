@@ -144,12 +144,8 @@ end
 
 # Is there a symmetry operation that transforms `b1` into either `b2` or its
 # reverse?
-function is_related_by_symmetry(cryst::Crystal, b1::BondPos, b2::BondPos)
-    return !isempty(symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos))
-end
-
 function is_related_by_symmetry(cryst::Crystal, b1::Bond, b2::Bond)
-    return is_related_by_symmetry(cryst, BondPos(cryst, b1), BondPos(cryst, b2))
+    return !isempty(symmetries_between_bonds(cryst, BondPos(cryst, b1), BondPos(cryst, b2)))
 end
 
 # Returns all bonds in `cryst` for which `bond.i == i`

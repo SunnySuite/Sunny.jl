@@ -91,26 +91,6 @@ function coupling_basis_strings(coup_basis; digits, atol) :: Matrix{String}
     end
 end
 
-function basis_for_exchange_on_bond(cryst::Crystal, b::Bond; b_ref)
-    # If `b_ref` is nothing, select it from reference_bonds()
-    b_ref = @something b_ref begin
-        d = global_distance(cryst, b)
-        ref_bonds = reference_bonds(cryst, d; min_dist=d)
-        only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
-    end
-
-    # Get the coupling basis on reference bond
-    basis = basis_for_symmetry_allowed_couplings(cryst, b_ref)
-    # Transform coupling basis from `b_ref` to `b`
-    if b != b_ref
-        basis = map(basis) do J_ref
-            transform_coupling_for_bonds(cryst, b, b_ref, J_ref)
-        end
-    end
-
-    return basis
-end
-
 function formatted_matrix(elemstrs::AbstractMatrix{String}; prefix)
     ncols = size(elemstrs, 2)
     max_col_len = [maximum(length.(col)) for col in eachcol(elemstrs)]
@@ -156,7 +136,13 @@ function print_bond(cryst::Crystal, b::Bond; b_ref=nothing, io=stdout)
             println(io, "Connects '$(cryst.types[b.i])' at $(fractional_vec3_to_string(ri)) to '$(cryst.types[b.j])' at $(fractional_vec3_to_string(rj))")
         end
 
-        basis = basis_for_exchange_on_bond(cryst, b; b_ref)
+        # If `b_ref` is nothing, select it from `reference_bonds`
+        b_ref = @something b_ref begin
+            d = global_distance(cryst, b)
+            ref_bonds = reference_bonds(cryst, d; min_dist=d)
+            only(filter(b′ -> is_related_by_symmetry(cryst, b, b′), ref_bonds))
+        end
+        basis = basis_for_symmetry_allowed_couplings(cryst, b; b_ref)
         basis_strs = coupling_basis_strings(zip('A':'Z', basis); digits, atol)
         println(io, formatted_matrix(basis_strs; prefix="Allowed exchange matrix: "))
 

@@ -28,11 +28,6 @@ function basis_for_symmetry_allowed_anisotropies(cryst::Crystal, i::Int; k::Int,
         # might or might not include a reflection, i.e., det R = ±1.
         sR = cryst.latvecs * s.R * inv(cryst.latvecs)
 
-        # TODO: If the crystal unit cell is imperfect, then R will only be
-        # orthogonal up to some tolerance cryst.symprec, whereas subsequent symmetry
-        # analysis assumes atol=1e-12. To make R orthogonal up to numerical
-        # precision, we should use spglib's feature "spg_standardize_cell()".
-
         # Unlike position x, spin S = [Sx, Sy, Sz] is a _pseudo_ vector, which
         # means that, under reflection, the output gains an additional minus
         # sign. That is, the orthogonal transformation R applied to spin has the

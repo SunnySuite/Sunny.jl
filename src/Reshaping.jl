@@ -50,7 +50,7 @@ function transfer_interactions!(sys::System{N}, src::System{N}) where N
         # Copy pair couplings
         new_pc = PairCoupling[]
         for pc in src_int.pair
-            new_bond = transform_bond(sys.crystal, new_i, src.crystal, pc.bond)
+            new_bond = map_bond_to_other_crystal(src.crystal, pc.bond, sys.crystal, new_i)
             isculled = bond_parity(new_bond)
             push!(new_pc, PairCoupling(isculled, new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
         end
