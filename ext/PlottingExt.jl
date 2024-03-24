@@ -610,8 +610,11 @@ end
 
 """
     view_crystal(crystal::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true)
+    view_crystal(sys::System; ...)
 
-Launch an interactive crystal viewer.
+Launches a graphical user interface to visualize the [`Crystal`](@ref) unit
+cell. If a [`System`](@ref) is provided, then the 3×3 exchange matrices for each
+bond will be depicted graphically.
 
  - `refbonds`: By default, calculate up to 10 reference bonds using the
    `reference_bonds` function. An explicit list of reference bonds may also be
