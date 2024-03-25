@@ -81,20 +81,21 @@ plot_spins(sys; color=[s[1] for s in sys.dipoles])
 # Define a path in reciprocal space, $[0,1,-1+\xi]$ for $\xi = 0 \dots 3$.
 
 points_rlu = [[0,1,-1],[0,1,-1+1],[0,1,-1+2],[0,1,-1+3]];
-density = 100
+density = 200
 path, xticks = reciprocal_space_path(cryst, points_rlu, density);
 
 # Calculate broadened intensities
 
-swt = SpinWaveTheory(sys)
-γ = 0.15 # width in meV
-broadened_formula = intensity_formula(swt, :perp; kernel=lorentzian(γ))
-energies = collect(0:0.01:6)  # 0 < ω < 6 (meV).
+swt = SpinWaveTheory(sys; energy_ϵ=1e-6)
+fwhm = 0.25 # meV
+σ = fwhm / 2.355
+broadened_formula = intensity_formula(swt, :perp; kernel=x -> exp(-x^2/2σ^2) / √(2π*σ^2))
+energies = collect(0:(σ/4):6)  # 0 < ω < 6 (meV)
 is = intensities_broadened(swt, path, energies, broadened_formula);
 
 # Plot
 
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
-heatmap!(ax, 1:size(is,1), energies, is, colorrange=(0,5))
+heatmap!(ax, 1:size(is,1), energies, is, colormap=:jet, colorrange=(0,150))
 fig
