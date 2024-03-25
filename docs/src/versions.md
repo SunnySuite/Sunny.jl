@@ -1,6 +1,10 @@
 # Version History
 
+## v0.5.10
+(In development)
+
 ## v0.5.9
+(Mar 25, 2024)
 
 * **Correctness fixes**: Structure factor conventions are now uniform across
   modes and [precisely specified](@ref "Structure Factor Conventions"). The
