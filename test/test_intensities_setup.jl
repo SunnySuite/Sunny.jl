@@ -1,3 +1,20 @@
+@testitem "Contractors" begin
+    using LinearAlgebra
+    cryst = Crystal(I(3), [[0.,0,0]], 1)
+    sys = System(cryst, (1,1,1), [SpinInfo(1,S=1,g=2)], :SUN)
+    sc = instant_correlations(sys)
+    @test_nowarn intensity_formula(sc,(:Sx,:Sz))
+    @test_nowarn intensity_formula(sc,:trace)
+    @test_nowarn intensity_formula(sc,:perp)
+    @test_nowarn intensity_formula(sc,:full)
+    swt = SpinWaveTheory(sys)
+    @test_nowarn intensity_formula(swt,(:Sx,:Sz); kernel = delta_function_kernel)
+    @test_nowarn intensity_formula(swt,:trace; kernel = delta_function_kernel)
+    @test_nowarn intensity_formula(swt,:perp; kernel = delta_function_kernel)
+    @test_nowarn intensity_formula(swt,:full; kernel = delta_function_kernel)
+
+end
+
 @testitem "Dipole Factor Ordering" begin
     using LinearAlgebra
     obs = Sunny.parse_observables(3; observables=nothing, correlations=nothing, g=nothing)
