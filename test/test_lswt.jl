@@ -339,7 +339,8 @@ end
 end
 
 
-@testitem "Langasite" begin
+@testitem "SW15-Langasite" begin
+    # Ba3NbFe3Si2O14
     a = b = 8.539
     c = 5.2414
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
