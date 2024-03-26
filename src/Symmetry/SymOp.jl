@@ -120,18 +120,16 @@ function canonical_group_order(symops)
     new_ops = [one(SymOp)]
     old_ops = remove_symops(symops, new_ops)
 
-    for _ = 1:100
+    cnt = 0
+    while !isempty(old_ops)
         s = argmax(s -> rank_symop(s), old_ops)
         cyc = cycle_group(s)
         x = product_ops(cyc, new_ops)
         old_ops = remove_symops(old_ops, x)
         new_ops = add_symops(new_ops, x)
-
-        if isempty(old_ops)
-            length(new_ops) == length(symops) || error("Decomposition failed, symops seem invalid!")
-            return new_ops
-        end
+        (cnt += 1) > 100 && error("Decomposition failed, symops invalid?")
     end
 
-    error("Decomposition failed, symops seem invalid!")
+    length(new_ops) == length(symops) || error("Decomposition failed, symops invalid?")
+    return new_ops
 end
