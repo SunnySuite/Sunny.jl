@@ -192,6 +192,8 @@ function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, dims)
         projectiontype = Makie.Perspective
     end
 
+    # Disable the key that would reset camera
+    reset = false
     # Do not automatically "recenter" when adding objects
     center = false
     # No rotations on zoom
@@ -199,7 +201,7 @@ function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, dims)
     # Mouse-drag rotations are SO(3) symmetric
     fixed_axis = false
 
-    Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, center, fixed_axis,
+    Makie.cam3d!(ax.scene; lookat, eyeposition, upvector, projectiontype, reset, center, fixed_axis,
                  zoom_shift_lookat, clipping_mode=:view_relative, near=0.01, far=100)
 end
 
