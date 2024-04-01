@@ -3,6 +3,9 @@
 ## v0.5.10
 (In development)
 
+* [`view_crystal`](@ref) called on a [`System`](@ref) now optionally shows
+  spin or magnetic dipoles.
+
 ## v0.5.9
 (Mar 25, 2024)
 

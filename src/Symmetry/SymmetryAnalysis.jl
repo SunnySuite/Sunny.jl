@@ -157,7 +157,7 @@ end
 # dist = norm(latvecs * (r + n - pt))
 # @assert min_dist ≤ dist ≤ max_dist
 
-function all_offsets_within_distance(latvecs, rs, pt; min_dist=0, max_dist)
+function all_offsets_within_distance(latvecs, rs, pt; min_dist=0, max_dist, nonzeropart=false)
     # box_lengths[i] represents the perpendicular distance between two parallel
     # boundary planes spanned by lattice vectors a_j and a_k (where indices j
     # and k differ from i)
@@ -170,6 +170,8 @@ function all_offsets_within_distance(latvecs, rs, pt; min_dist=0, max_dist)
     for (i, r) in enumerate(rs)
         for n1 in -n_max[1]:n_max[1], n2 in -n_max[2]:n_max[2], n3 in -n_max[3]:n_max[3]
             n = Vec3(n1, n2, n3)
+            nonzeropart && iszero(n) && continue
+
             dist = norm(latvecs * (r + n - pt))
             if min_dist <= dist <= max_dist
                 push!(idxs, i)
