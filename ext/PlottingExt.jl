@@ -276,41 +276,14 @@ function cell_wireframe(latvecs, dims)
 end
 
 
-# TODO: We could rewrite `all_bonds_for_atom` to use this function.
-function all_images_within_distance(latvecs, rs, center; min_dist=0, max_dist)
-    # box_lengths[i] represents the perpendicular distance between two parallel
-    # boundary planes spanned by lattice vectors a_j and a_k (where indices j
-    # and k differ from i)
-    box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(latvecs), eachrow(inv(latvecs)))]
-    n_max = round.(Int, max_dist ./ box_lengths, RoundUp)
+function all_ghost_images_within_distance(latvecs, rs, pt; max_dist)
+    (idxs, offsets) = Sunny.all_offsets_within_distance(latvecs, rs, pt; max_dist)
 
-    # return value `images` will be a list of integer offsets `ns`. For each
-    # site position `r ∈ rs` and offset `n ∈ ns`, the distance `latvecs * (r + n
-    # - center)` will be within bounds `(min_dist, max_dist)`.
     images = [Vec3[] for _ in rs]
-
-    # loop over each provided position `r ∈ rs`, and accumulate into
-    # corresponding cell `ns` of `images`
-    for (ns, r) in zip(images, rs)
-        # loop over image cells or systems
-        for n1 in -n_max[1]:n_max[1], n2 in -n_max[2]:n_max[2], n3 in -n_max[3]:n_max[3]
-            # track list of periodic offsets where the atom image is within
-            # distance bounds
-            n = Vec3(n1, n2, n3)
-            dist = norm(latvecs * (r + n - center))
-            if min_dist <= dist <= max_dist && !(n in ns)
-                push!(ns, n)
-            end
+    for (j, n) in zip(idxs, offsets)
+        if !iszero(n)
+            push!(images[j], n)
         end
-    end
-
-    return images
-end
-
-function all_ghost_images_within_distance(latvecs, rs, center; max_dist)
-    images = all_images_within_distance(latvecs, rs, center; max_dist)
-    for ns in images
-        filter!(!iszero, ns)
     end
     return images
 end
@@ -602,7 +575,7 @@ function label_atoms(cryst; ismagnetic)
             push!(ret, isempty(typ) ? "Position $rstr" : "'$typ' at $rstr")
         end
         if ismagnetic
-            # TODO
+            # TODO: Show onsite couplings?
         end
         join(ret, "\n")
     end
