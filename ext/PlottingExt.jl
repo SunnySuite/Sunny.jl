@@ -276,19 +276,6 @@ function cell_wireframe(latvecs, dims)
 end
 
 
-function all_ghost_images_within_distance(latvecs, rs, pt; max_dist)
-    (idxs, offsets) = Sunny.all_offsets_within_distance(latvecs, rs, pt; max_dist)
-
-    images = [Vec3[] for _ in rs]
-    for (j, n) in zip(idxs, offsets)
-        if !iszero(n)
-            push!(images[j], n)
-        end
-    end
-    return images
-end
-
-
 function characteristic_length_between_atoms(cryst::Crystal)
     # Detect if atom displacements are on a submanifold (aligned line or plane)
     ps = cryst.positions[1:end-1] .- Ref(cryst.positions[end])
@@ -584,6 +571,100 @@ function label_atoms(cryst; ismagnetic)
     end
 end
 
+function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sys, class_colors, ionradius, dims, ghost_radius)
+    selection = isnothing(dipole_menu) ? Makie.Observable("No dipoles") : dipole_menu.selection
+    show_spin_dipoles = Makie.lift(==("Spin dipoles"), selection)
+    show_magn_dipoles = Makie.lift(==("Magnetic dipoles"), selection)
+    show_atom_spheres = Makie.lift(==("No dipoles"), selection)
+
+    # Draw magnetic and non-magnetic ions
+    for ismagnetic in (false, true)
+        if ismagnetic
+            xtal = cryst
+            relevant_classes = cryst.classes
+        else
+            isnothing(cryst.root) && continue
+            # Relevant classes are those present in cryst.root but not cryst
+            xtal = cryst.root
+            relevant_classes = setdiff(xtal.classes, cryst.classes)
+        end
+
+        for isghost in (false, true)
+            if isghost
+                (idxs, offsets) = Sunny.all_offsets_within_distance(xtal.latvecs, xtal.positions, cell_center(dims); max_dist=ghost_radius, nonzeropart=true)
+                alpha = 0.08
+            else
+                idxs = eachindex(xtal.positions)
+                offsets = [zero(Vec3) for _ in idxs]
+                alpha = 1.0
+            end
+
+            # Reduce idxs and offsets to include only atom indices according to
+            # `relevant_classes`, as set by `ismagnetic`
+            downselect = findall(in(relevant_classes), xtal.classes[idxs])
+            isempty(downselect) && continue
+            idxs = idxs[downselect]
+            offsets = offsets[downselect]
+
+            # Information for drawing atoms in xtal labeled by idxs
+            color = [class_colors[c] for c in xtal.classes[idxs]]
+            rs = xtal.positions[idxs] .+ offsets
+            pts = [xtal.latvecs * r for r in rs]
+
+            # Labels for non-ghost atoms
+            inspector_label = nothing
+            if !isghost
+                labels = label_atoms(xtal; ismagnetic)[idxs]
+                inspector_label = (_plot, index, _position) -> labels[index]
+            end
+            
+            # Show dipoles. Mostly consistent with code in plot_spins.
+            if !isnothing(sys) && ismagnetic
+                sites = Sunny.position_to_site.(Ref(sys), rs)
+                L = length(eachsite(sys))
+                g0 = norm(sys.gs) / sqrt(L * 3)
+                N0 = norm(sys.Ns) / sqrt(L)
+                S0 = (N0 - 1) / 2
+                spin_dipoles = sys.dipoles[sites] / S0
+                magn_dipoles = magnetic_moment.(Ref(sys), sites) / (S0*g0*sys.units.μB)
+                for (dipoles, obs) in [(spin_dipoles, show_spin_dipoles), (magn_dipoles, show_magn_dipoles)]
+                    a0 = 5ionradius
+                    arrowsize = 0.4a0
+                    linewidth = 0.12a0
+                    lengthscale = 0.6a0
+                    markersize = 0.75ionradius
+                    arrow_fractional_shift = 0.6
+
+                    vecs = lengthscale * dipoles
+                    pts_shifted = pts - arrow_fractional_shift * vecs
+
+                    # Draw arrows
+                    linecolor = (:lightgray, alpha)
+                    arrowcolor = (:red, alpha)
+                    o = Makie.arrows!(ax, Makie.Point3f.(pts_shifted), Makie.Vec3f.(vecs); arrowsize, linewidth, linecolor, arrowcolor, diffuse=1.15, transparency=isghost, inspectable=false)
+                    Makie.connect!(o.visible, obs)
+
+                    # Small sphere inside arrow to mark atom position
+                    o = Makie.meshscatter!(ax, pts; markersize, color=[(c, alpha) for c in color], diffuse=1.15, transparency=isghost, inspectable=!isghost, inspector_label)
+                    Makie.connect!(o.visible, obs)
+                end
+            end
+
+            # Show atoms as spheres
+            markersize = ionradius * (ismagnetic ? 1 : 1/2)
+            o = Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, alpha, transparency=isghost, inspectable=!isghost, inspector_label)
+            Makie.connect!(o.visible, ismagnetic ? show_atom_spheres : full_crystal_toggle.active)
+        
+            # White numbers for real, magnetic ions
+            if !isghost && ismagnetic
+                text = repr.(eachindex(pts))
+                o = Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), overdraw=true)
+                !ismagnetic && Makie.connect!(o.visible, full_crystal_toggle.active)
+            end
+        end
+    end
+end
+
 
 function Sunny.view_crystal(cryst::Crystal, max_dist::Number)
     @warn "view_crystal(cryst, max_dist) is deprecated! Use `view_crystal(cryst)` instead. See also optional `ghost_radius` argument."
@@ -611,16 +692,16 @@ function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, gho
     view_crystal_aux(cryst, nothing; refbonds, orthographic, ghost_radius, dims, compass, size)
 end
 
-function Sunny.view_crystal(sys::System; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
+function Sunny.view_crystal(sys::System; refbonds=8, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
     Sunny.is_homogeneous(sys) || error("Cannot plot interactions for inhomogeneous system.")
-    orig_sys = @something sys.origin sys
-    view_crystal_aux(orig_sys.crystal, Sunny.interactions_homog(orig_sys);
+    view_crystal_aux(orig_crystal(sys), sys;
                      refbonds, orthographic, ghost_radius, dims, compass, size)
 end
 
-
-function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
+function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, dims, compass, size)
     warn_wglmakie()
+
+    interactions = isnothing(sys) ? nothing : Sunny.interactions_homog(something(sys.origin, sys))
 
     # Dict that maps atom class to color
     class_colors = build_class_colors(cryst)
@@ -643,8 +724,7 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
 
     refbonds_dists = [Sunny.global_distance(cryst, b) for b in refbonds]
 
-    # Length scale for magnetic ions. Rescales other objects too, like spins and
-    # interactions.
+    # Radius of the magnetic ions. Sets a length scale for other objects too.
     ionradius = let
         # The root crystal may contain non-magnetic ions. If present, these
         # should reduce the characteristic length scale.
@@ -684,6 +764,14 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
     end
     widget_list[widget_cnt+=1, 1] = Makie.hgrid!(menu, button)
 
+    # Controls for dipoles
+    if !isnothing(sys)
+        dipole_menu = Makie.Menu(fig; options=["No dipoles", "Spin dipoles", "Magnetic dipoles"], fontsize)
+        widget_list[widget_cnt+=1, 1] = dipole_menu
+    else
+        dipole_menu = nothing
+    end
+
     # Set up grid of toggles
     toggle_grid = widget_list[widget_cnt+=1,1] = Makie.GridLayout()
     toggle_cnt = 0
@@ -691,50 +779,14 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
     framecolor_active = Makie.RGB(0.7, 0.7, 0.7)
     framecolor_inactive = Makie.RGB(0.9, 0.9, 0.9)
 
-    # Show atoms
-    function draw_atoms(; obs, positions, classes, labels, ismagnetic)
-        markersize = ionradius * (ismagnetic ? 1 : 1/2)
-
-        # Draw ghost atoms
-        images = all_ghost_images_within_distance(cryst.latvecs, positions, cell_center(dims); max_dist=ghost_radius)
-        pts = Makie.Point3f0[]
-        color = Makie.RGBf[]
-        for (ns, r, c) in zip(images, positions, classes), n in ns
-            push!(pts, cryst.latvecs * (r + n))
-            push!(color, class_colors[c])
-        end
-        o = Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, inspectable=false, alpha=0.08, transparency=true)
-        !isnothing(obs) && Makie.connect!(o.visible, obs)
-
-        # Draw real atoms
-        pts = [cryst.latvecs * r for r in positions]
-        color = [class_colors[c] for c in classes]
-        inspector_label(_plot, index, _position) = labels[index]
-        o = Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, inspectable=true, inspector_label)
-        !isnothing(obs) && Makie.connect!(o.visible, obs)
-    
-        # Label real atoms by index, if magnetic
-        if ismagnetic
-            text = repr.(eachindex(pts))
-            o = Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), overdraw=true)
-            !isnothing(obs) && Makie.connect!(o.visible, obs)
-        end
-    end
-
-    # Draw magnetic ions from (sub)crystal
-    labels = label_atoms(cryst; ismagnetic=true)
-    draw_atoms(; obs=nothing, cryst.positions, cryst.classes, labels, ismagnetic=true)
-
-    # Draw non-magnetic ions from root crystal
+    # Toggle for non-magnetic ions
     if !isnothing(cryst.root)
-        # Draw all atoms in cryst.root that are not present in cryst
-        is = findall(!in(cryst.classes), cryst.root.classes)
-        labels = label_atoms(cryst.root; ismagnetic=false)[is]
-
-        toggle = Makie.Toggle(fig; active=true, buttoncolor, framecolor_inactive, framecolor_active)
-        draw_atoms(; obs=toggle.active, positions=cryst.root.positions[is], classes=cryst.root.classes[is], labels, ismagnetic=false)
-        toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, "Full crystal"; fontsize, halign=:left)]
+        full_crystal_toggle = Makie.Toggle(fig; active=true, buttoncolor, framecolor_inactive, framecolor_active)
+        toggle_grid[toggle_cnt+=1, 1:2] = [full_crystal_toggle, Makie.Label(fig, "Full crystal"; fontsize, halign=:left)]
+    else
+        full_crystal_toggle = nothing
     end
+    draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sys, class_colors, ionradius, dims, ghost_radius)
 
     exchange_mag = isnothing(interactions) ? 0.0 : exchange_magnitude(interactions)
 
@@ -873,10 +925,11 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
     for isghost in (false, true)
         if isghost
             alpha = 0.08
-            images = all_ghost_images_within_distance(supervecs, rs, cell_center(dims); max_dist=ghost_radius)
+            (idxs, offsets) = Sunny.all_offsets_within_distance(supervecs, rs, cell_center(dims); max_dist=ghost_radius, nonzeropart=true)
         else
             alpha = 1.0
-            images = [[zero(Vec3)] for _ in rs]
+            idxs = eachindex(rs)
+            offsets = [zero(Vec3) for _ in idxs]
         end
 
         # Every call to RGBf constructor allocates, so pre-calculate color
@@ -909,7 +962,6 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
         arrowcolor = Makie.Observable(Makie.RGBAf[])
 
         Makie.on(notifier, update=true) do _
-            @assert size(sys.dipoles) == size(images)
             empty!.((vecs[], pts[], pts_shifted[], arrowcolor[]))
 
             # Dynamically adapt `rgba_colors` according to `colorfn`
@@ -919,16 +971,14 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
                 numbers_to_colors!(rgba_colors, numeric_colors, cmap_with_alpha, dyncolorrange)
             end
             
-            for site in CartesianIndices(images)
+            for (site, n) in zip(idxs, offsets)
                 v = (lengthscale / S0) * vec(sys.dipoles[site])
-                for n in images[site]
-                    pt = supervecs * (rs[site] + n)
-                    pt_shifted = pt - arrow_fractional_shift * v
-                    push!(vecs[], Makie.Vec3f0(v))
-                    push!(pts[], Makie.Point3f0(pt))
-                    push!(pts_shifted[], Makie.Point3f0(pt_shifted))
-                    push!(arrowcolor[], rgba_colors[site])
-                end
+                pt = supervecs * (rs[site] + n)
+                pt_shifted = pt - arrow_fractional_shift * v
+                push!(vecs[], Makie.Vec3f0(v))
+                push!(pts[], Makie.Point3f0(pt))
+                push!(pts_shifted[], Makie.Point3f0(pt_shifted))
+                push!(arrowcolor[], rgba_colors[site])
             end
             # Trigger Makie redraw
             notify.((vecs, pts, pts_shifted, arrowcolor))
