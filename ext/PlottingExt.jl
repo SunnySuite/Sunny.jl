@@ -182,8 +182,8 @@ function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, dims)
         error("Unsupported dimension: $dims")
     end
 
-    # Shift by ℓ0 zooms out slightly more for smaller unit cells
-    camdist = 0.9max(cell_diameter(latvecs, dims)/2, ghost_radius) + 1.0ℓ0
+    # The extra shift ℓ0 is approximately the nearest-neighbor distance
+    camdist = max(cell_diameter(latvecs, dims)/2 + 0.8ℓ0, ghost_radius)
     if orthographic
         eyeposition = lookat - camdist * camshiftdir
         projectiontype = Makie.Orthographic
@@ -427,7 +427,7 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
         d = c+(1-c)*abs(y) # c ≤ d ≤ 1
         y > 0 ? Makie.RGBf(c, c, d) : Makie.RGBf(d, c, c)
     end
-    o = Makie.meshscatter!(pts; color, markersize, rotations, specular=0, diffuse=1.5, inspectable=false)
+    o = Makie.meshscatter!(ax, pts; color, markersize, rotations, specular=0, diffuse=1.5, inspectable=false)
     Makie.connect!(o.visible, obs)
 
     # Draw dots using cylinders
@@ -450,7 +450,7 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
         end
         markersize2 = [ms .* rs for (ms, rs) in zip(markersize, rescalings)]
     
-        o = Makie.meshscatter!(pts; color, markersize=markersize2, rotations, marker=cylinders[dim], inspectable=false)
+        o = Makie.meshscatter!(ax, pts; color, markersize=markersize2, rotations, marker=cylinders[dim], inspectable=false)
         Makie.connect!(o.visible, obs)            
     end
 
@@ -610,13 +610,22 @@ end
 
 function Sunny.view_crystal(sys::System; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
     Sunny.is_homogeneous(sys) || error("Cannot plot interactions for inhomogeneous system.")
-    view_crystal_aux(orig_crystal(sys), Sunny.interactions_homog(sys);
+    orig_sys = @something sys.origin sys
+    view_crystal_aux(orig_sys.crystal, Sunny.interactions_homog(orig_sys);
                      refbonds, orthographic, ghost_radius, dims, compass, size)
 end
 
-    
+
 function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
     warn_wglmakie()
+
+    # Dict that maps atom class to color
+    class_colors = build_class_colors(cryst)
+
+    # Distance to show periodic images
+    if isnothing(ghost_radius)
+        ghost_radius = cell_diameter(cryst.latvecs, dims)/2
+    end
 
     # Use provided reference bonds or find from symmetry analysis
     if refbonds isa Number
@@ -629,41 +638,55 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
         error("Parameter `refbonds` must be an integer or a `Bond` list.")
     end
 
+    refbonds_dists = [Sunny.global_distance(cryst, b) for b in refbonds]
+
+    # Length scale for magnetic ions. Rescales other objects too, like spins and
+    # interactions.
+    ionradius = let
+        # The root crystal may contain non-magnetic ions. If present, these
+        # should reduce the characteristic length scale.
+        ℓ0 = characteristic_length_between_atoms(something(cryst.root, cryst))
+        # If there exists a very short bond distance, then appropriately reduce the
+        # length scale
+        ℓ0 = min(ℓ0, 0.8minimum(refbonds_dists))
+        # Small enough to fit everything
+        0.2ℓ0
+    end
+
     fig = Makie.Figure(; size)
 
     # Main scene
     ax = Makie.LScene(fig[1, 1], show_axis=false)
 
-    # Set of list of widgets
+    # Show Cartesian axes, with link to main camera
+    if compass
+        axcompass = add_cartesian_compass(fig, ax)
+    end
+
+    # Set of widgets
     widget_list = Makie.GridLayout(; tellheight=false, valign=:top)
     fig[1, 2] = widget_list
     widget_cnt = 0
+    fontsize = 16
+
+    # Controls for camera perspective
+    menu = Makie.Menu(fig; options=["Perspective", "Orthographic"], default=(orthographic ? "Orthographic" : "Perspective"), fontsize)
+    button = Makie.Button(fig; label="Reset", fontsize)
+    Makie.onany(button.clicks, menu.selection; update=true) do _, mselect
+        orthographic = mselect == "Orthographic"
+        # Zoom out a little bit extra according to nn bond distance
+        ℓ0=minimum(refbonds_dists)
+        orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims, ℓ0)
+        compass && register_compass_callbacks(axcompass, ax)
+    end
+    widget_list[widget_cnt+=1, 1] = Makie.hgrid!(menu, button)
 
     # Set up grid of toggles
     toggle_grid = widget_list[widget_cnt+=1,1] = Makie.GridLayout()
-    fontsize = 16
     toggle_cnt = 0
     buttoncolor = Makie.RGB(0.2, 0.2, 0.2)
     framecolor_active = Makie.RGB(0.7, 0.7, 0.7)
     framecolor_inactive = Makie.RGB(0.9, 0.9, 0.9)
-
-    # Dict that maps atom class to color
-    class_colors = build_class_colors(cryst)
-
-    # Distance to show periodic images
-    if isnothing(ghost_radius)
-        ghost_radius = cell_diameter(cryst.latvecs, dims)/2
-    end
-
-    # Length scale for objects describing atoms, spins, and interactions
-    ℓ0 = characteristic_length_between_atoms(something(cryst.root, cryst))
-
-    # If there exists a very short bond distance, then appropriately reduce the
-    # length scale
-    ℓ0 = min(ℓ0, 0.8minimum(Sunny.global_distance.(Ref(cryst), refbonds)))
-
-    # Size of magnetic ions
-    ionradius = 0.2ℓ0
 
     # Show atoms
     function draw_atoms(; obs, positions, classes, labels, ismagnetic)
@@ -733,22 +756,6 @@ function view_crystal_aux(cryst, interactions; refbonds=10, orthographic=false, 
         bondstr = "Bond($(b.i), $(b.j), $(b.n))"
         toggle_grid[toggle_cnt+=1, 1:2] = [toggle, Makie.Label(fig, bondstr; fontsize, halign=:left)]
     end
-
-    # Show Cartesian axes, with link to main camera
-    if compass
-        axcompass = add_cartesian_compass(fig, ax)
-    end
-
-    # Toggle camera perspective
-    menu = Makie.Menu(fig; options=["Perspective", "Orthographic"], default=(orthographic ? "Orthographic" : "Perspective"), fontsize)
-    button = Makie.Button(fig; label="Reset", fontsize)
-    Makie.onany(button.clicks, menu.selection; update=true) do _, mselect
-        orthographic = mselect == "Orthographic"
-        orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims,
-                       ℓ0=characteristic_length_between_atoms(cryst))
-        compass && register_compass_callbacks(axcompass, ax)
-    end
-    widget_list[widget_cnt+=1, 1] = Makie.hgrid!(menu, button)
 
     # Show cell volume
     Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
