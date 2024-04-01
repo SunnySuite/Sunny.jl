@@ -475,20 +475,23 @@ function draw_bonds(; ax, obs, ionradius, exchange_mag, cryst, interactions, bon
         (; ri, rj) = Sunny.BondPos(cryst, b)
         Makie.Point3f0.(Ref(cryst.latvecs) .* (ri, rj))
     end
-    
-    # Find indices of "ghost" bonds that periodically wrap system
-    ghosts = findall(b -> !iszero(b.n), bonds)
 
-    # Append ghosts to end of every array
-    bonds = vcat(bonds, bonds[ghosts])
-    refbonds = vcat(refbonds, refbonds[ghosts])
-    color = vcat(color, color[ghosts])
+    # If the bonds are distinct from the refbonds, then add periodic "ghost" images
+    if bonds !== refbonds
+        # Indices for the bonds which most be repeated
+        ghosts = findall(b -> !iszero(b.n), bonds)
 
-    # Ghost bonds are offset by -n multiples of lattice vectors
-    segments = vcat(segments, map(ghosts) do i
-        offset = - cryst.latvecs * bonds[i].n
-        segments[i] .+ Ref(offset)
-    end)
+        # Concatenate ghosts to the end of arrays
+        bonds = vcat(bonds, bonds[ghosts])
+        refbonds = vcat(refbonds, refbonds[ghosts])
+        color = vcat(color, color[ghosts])
+
+        # Ghost bonds are offset by -n multiples of lattice vectors
+        segments = vcat(segments, map(ghosts) do i
+            offset = - cryst.latvecs * bonds[i].n
+            segments[i] .+ Ref(offset)
+        end)
+    end
 
     # String for each bond b′. Like print_bond(b′), but shorter.
     bond_labels = map(zip(bonds, refbonds)) do (b, b_ref)
