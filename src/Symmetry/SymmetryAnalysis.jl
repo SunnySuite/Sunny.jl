@@ -148,6 +148,39 @@ function is_related_by_symmetry(cryst::Crystal, b1::Bond, b2::Bond)
     return !isempty(symmetries_between_bonds(cryst, BondPos(cryst, b1), BondPos(cryst, b2)))
 end
 
+# Collect a list of all periodic images of the positions `rs` that are within
+# some distance of a given `pt`. The return values `(idxs, offsets)` will be the
+# complete lists of indices and offsets that satisfy,
+# 
+# r = rs[idxs[α]]
+# n = offsets[α]
+# dist = norm(latvecs * (r + n - pt))
+# @assert min_dist ≤ dist ≤ max_dist
+
+function all_offsets_within_distance(latvecs, rs, pt; min_dist=0, max_dist)
+    # box_lengths[i] represents the perpendicular distance between two parallel
+    # boundary planes spanned by lattice vectors a_j and a_k (where indices j
+    # and k differ from i)
+    box_lengths = [a⋅b/norm(b) for (a,b) in zip(eachcol(latvecs), eachrow(inv(latvecs)))]
+    n_max = round.(Int, max_dist ./ box_lengths, RoundUp)
+
+    idxs = Int[]
+    offsets = Vec3[]
+
+    for (i, r) in enumerate(rs)
+        for n1 in -n_max[1]:n_max[1], n2 in -n_max[2]:n_max[2], n3 in -n_max[3]:n_max[3]
+            n = Vec3(n1, n2, n3)
+            dist = norm(latvecs * (r + n - pt))
+            if min_dist <= dist <= max_dist
+                push!(idxs, i)
+                push!(offsets, n)
+            end
+        end
+    end
+
+    return (idxs, offsets)
+end
+
 # Returns all bonds in `cryst` for which `bond.i == i`
 function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
     # be a little generous with the minimum and maximum distances
@@ -155,32 +188,11 @@ function all_bonds_for_atom(cryst::Crystal, i::Int, max_dist; min_dist=0.0)
     max_dist += 4 * cryst.symprec * ℓ
     min_dist -= 4 * cryst.symprec * ℓ
 
-    # box_lengths[i] represents the perpendicular distance between two parallel
-    # boundary planes spanned by lattice vectors a_j and a_k (where indices j
-    # and k differ from i)
-    box_lengths = [a⋅b/norm(b) for (a,b) = zip(eachcol(cryst.latvecs), eachcol(cryst.recipvecs))]
-    n_max = round.(Int, max_dist ./ box_lengths, RoundUp)
+    idxs, offsets = all_offsets_within_distance(cryst.latvecs, cryst.positions, cryst.positions[i]; min_dist, max_dist)
 
-    bonds = Bond[]
-
-    # loop over neighboring cells
-    for n1 in -n_max[1]:n_max[1]
-        for n2 in -n_max[2]:n_max[2]
-            for n3 in -n_max[3]:n_max[3]
-                n = SVector(n1, n2, n3)
-                
-                # loop over all atoms within neighboring cell
-                for j in eachindex(cryst.positions)
-                    b = Bond(i, j, n)
-                    if min_dist <= global_distance(cryst, b) <= max_dist
-                        push!(bonds, b)
-                    end
-                end
-            end
-        end
+    return map(zip(idxs, offsets)) do (j, n)
+        Bond(i, j, n)
     end
-
-    return bonds
 end
 
 
