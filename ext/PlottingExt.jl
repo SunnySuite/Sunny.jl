@@ -21,16 +21,6 @@ let warned = false
     end
 end
 
-function monofont()
-    if string(Makie.current_backend()) == "WGLMakie"
-        # WGLMakie does not have yet support font loading, see
-        # https://github.com/MakieOrg/Makie.jl/issues/3516.
-        (; )
-    else
-        (; font = pkgdir(Sunny, "assets", "fonts", "RobotoMono-Regular.ttf"))
-    end
-end
-
 
 getindex_cyclic(a, i) = a[mod1(i, length(a))] 
 
@@ -607,7 +597,7 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
             offsets = offsets[downselect]
 
             # Information for drawing atoms in xtal labeled by idxs
-            color = [class_colors[c] for c in xtal.classes[idxs]]
+            color = [(class_colors[c], alpha) for c in xtal.classes[idxs]]
             rs = xtal.positions[idxs] .+ offsets
             pts = [xtal.latvecs * r for r in rs]
 
@@ -632,27 +622,27 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
                     arrowsize = 0.4a0
                     linewidth = 0.12a0
                     lengthscale = 0.6a0
-                    markersize = 0.75ionradius
+                    markersize = 0.9ionradius
                     arrow_fractional_shift = 0.6
 
                     vecs = lengthscale * dipoles
                     pts_shifted = pts - arrow_fractional_shift * vecs
 
                     # Draw arrows
-                    linecolor = (:lightgray, alpha)
-                    arrowcolor = (:red, alpha)
+                    linecolor = (:white, alpha)
+                    arrowcolor = (:gray, alpha)
                     o = Makie.arrows!(ax, Makie.Point3f.(pts_shifted), Makie.Vec3f.(vecs); arrowsize, linewidth, linecolor, arrowcolor, diffuse=1.15, transparency=isghost, inspectable=false)
                     Makie.connect!(o.visible, obs)
 
                     # Small sphere inside arrow to mark atom position
-                    o = Makie.meshscatter!(ax, pts; markersize, color=[(c, alpha) for c in color], diffuse=1.15, transparency=isghost, inspectable=!isghost, inspector_label)
+                    o = Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, transparency=isghost, inspectable=!isghost, inspector_label)
                     Makie.connect!(o.visible, obs)
                 end
             end
 
             # Show atoms as spheres
             markersize = ionradius * (ismagnetic ? 1 : 1/2)
-            o = Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, alpha, transparency=isghost, inspectable=!isghost, inspector_label)
+            o = Makie.meshscatter!(ax, pts; markersize, color, diffuse=1.15, transparency=isghost, inspectable=!isghost, inspector_label)
             Makie.connect!(o.visible, ismagnetic ? show_atom_spheres : full_crystal_toggle.active)
         
             # White numbers for real, magnetic ions
@@ -821,10 +811,10 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, dims
     Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
                 glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
 
-    # Add inspector for pop-up information. The depth needs to be almost exactly
-    # 1e4, but not quite, otherwise only a white background will be shown. TODO:
-    # Ask on Makie forums what's going on with this precise number...
-    Makie.DataInspector(ax; indicator_color=:gray, fontsize, monofont()..., depth=(1e4 - 1))
+    # Add inspector for pop-up information. Use a monospaced font provided
+    # available in Makie.jl/assets/fonts/. The depth needs to be almost exactly
+    # 1e4, but not quite, otherwise only a white background will be shown.
+    Makie.DataInspector(ax; indicator_color=:gray, fontsize, font="Deja Vu Sans Mono", depth=(1e4 - 1))
 
     return fig
 end
