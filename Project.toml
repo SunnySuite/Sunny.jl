@@ -24,12 +24,16 @@ Spglib = "f761d5c5-86db-4880-b97f-9680a7cccfb5"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [weakdeps]
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+WGLMakie = "276b4fcb-3e11-5398-bf8b-a0c2d153d008"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [extensions]
 ExportVTKExt = "WriteVTK"
+GLMakiePrecompilesExt = "GLMakie"
 PlottingExt = "Makie"
+WGLMakiePrecompilesExt = "WGLMakie"
 
 [compat]
 CrystalInfoFramework = "0.6.0"
@@ -37,6 +41,7 @@ DataStructures = "0.18.13"
 DynamicPolynomials = "0.5.2"
 FFTW = "1.4.5"
 FilePathsBase = "0.9.18"
+GLMakie = "0.9.10"
 HCubature = "1.5.1"
 JLD2 = "0.4.33"
 LinearAlgebra = "1.9"
@@ -51,5 +56,6 @@ RowEchelon = "0.2.1"
 SpecialFunctions = "2.1.0"
 Spglib = "0.9.4"
 StaticArrays = "1.9.1"
+WGLMakie = "0.9.9"
 WriteVTK = "1.18.0"
 julia = "1.9"

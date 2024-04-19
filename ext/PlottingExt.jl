@@ -997,15 +997,4 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
     return ax
 end
 
-
-function __init__()
-    # Make the `PlottingExt` module accessible via `Sunny.Plotting` rather than
-    # the more verbose syntax `Base.get_extension(Sunny, :PlottingExt)`.
-    #
-    # For public exports, we create a stub in Sunny.jl, `function f end`, with
-    # implementation in this extension module: `function Sunny.f() ... end`.
-    # https://pkgdocs.julialang.org/v1/creating-packages/#Conditional-loading-of-code-in-packages-(Extensions).
-    Sunny.Plotting = @__MODULE__
-end
-
 end
