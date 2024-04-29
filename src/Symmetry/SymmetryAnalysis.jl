@@ -27,7 +27,8 @@ function position_to_atom(cryst::Crystal, r::Vec3)
 end
 
 function position_to_atom_and_offset(cryst::Crystal, r::Vec3)
-    i = position_to_atom(cryst, r)::Int
+    i = position_to_atom(cryst, r)
+    isnothing(i) && error("Position not found in crystal")
     # See comment in wrap_to_unit_cell() regarding shift by symprec
     offset = @. round(Int, r+cryst.symprec, RoundDown)
     @assert isapprox(cryst.positions[i]+offset, r; atol=cryst.symprec)
