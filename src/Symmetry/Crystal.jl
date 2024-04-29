@@ -729,3 +729,9 @@ function hyperkagome_crystal(; a=1.0)
     @assert !isnothing(cryst.sitesyms)
     return cryst
 end
+
+function hcp_crystal(; a=1.0, c=sqrt(8/3)*a)
+    latvecs = lattice_vectors(a, a, c, 90, 90, 120)
+    positions = [(1/3,2/3,1/4), (2/3,1/3,3/4)]
+    return Crystal(latvecs, positions)
+end
