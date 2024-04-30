@@ -114,21 +114,20 @@ end
 
 # Analogous to internal Makie function `numbers_to_colors`
 function numbers_to_colors!(out::AbstractArray{Makie.RGBAf}, in::AbstractArray{<: Number}, colormap, colorrange)
-    @assert size(out) == size(in)
+    @assert length(out) == length(in)
     if isnothing(colorrange) || colorrange[1] >= colorrange[2] - 1e-8
-        out .= first(colormap)
+        fill!(out, first(colormap))
     else
         cmin, cmax = colorrange
         len = length(colormap)
-        for i in eachindex(out)
+        map!(out, in) do c
             # If `cmin ≤ in[i] ≤ cmax` then `0.5 ≤ x ≤ len+0.5`
-            x = (in[i] - cmin) / (cmax - cmin) * len + 0.5
+            x = (c - cmin) / (cmax - cmin) * len + 0.5
             # Round to integer and clip to range [1, len]
-            j = max(min(round(Int, x), len), 1)
-            out[i] = colormap[j]
+            colormap[max(min(round(Int, x), len), 1)]
         end
     end
-    return out
+    return nothing
 end
 
 # Alternatively: Makie.RGBAf(Makie.RGBf(c), alpha)
@@ -932,16 +931,18 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
             # In this case, we can precompute the fixed `rgba_colors` array
             # according to `color`
             if color isa AbstractArray
-                @assert size(color) == size(sys.dipoles)
+                @assert length(color) == length(sys.dipoles)
                 if eltype(color) <: Number
                     dyncolorrange = @something colorrange extrema(color)
                     numbers_to_colors!(rgba_colors, color, cmap_with_alpha, dyncolorrange)
                 else
-                    rgba_colors = set_alpha.(Makie.to_color.(color), Ref(alpha))
+                    map!(rgba_colors, color) do c
+                        set_alpha(Makie.to_color(c), alpha)
+                    end
                 end
             else
                 c = set_alpha(Makie.to_color(color), alpha)
-                rgba_colors = fill(c, size(sys.dipoles))
+                fill!(rgba_colors, c)
             end
         end
 
