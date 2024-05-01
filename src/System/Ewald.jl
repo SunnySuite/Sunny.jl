@@ -237,14 +237,31 @@ function ewald_energy_delta(sys::System{N}, site, s::Vec3) where N
     return Δs⋅∇E + dot(Δμ, ewald.A[1, 1, 1, i, i], Δμ) / 2
 end
 
+"""
+    modify_exchange_with_truncated_dipole_dipole!(sys::System, cutoff)
 
-# Adds dipole-dipole interactions on top of existing exchange interactions.
-function accum_dipole_dipole_locally!(sys::System{N}, cutoff) where N
+This *experimental* function is subject to change.
+
+Like [`enable_dipole_dipole!`](@ref), the purpose of this function is to
+introduce long-range dipole-dipole interactions between magnetic moments.
+Whereas `enable_dipole_dipole!` employs Ewald summation, this function instead
+employs real-space pair couplings, with truncation at some user-specified
+`cutoff` distance. If the cutoff is relatively small, then this function can be
+faster than `enable_dipole_dipole!`, especially for spin wave theory
+calculations.
+
+**Caution**. This function will modify existing bilinear couplings between spins
+by adding dipole-dipole interactions. It must therefore be called _after_ all
+other pair couplings have been specified. Conversely, any calls to
+`set_exchange!`, `set_pair_coupling!`, etc. will irreversibly delete the
+dipole-dipole interactions that have been introduced by this function.
+"""
+function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff) where N
     (; gs) = sys
     (; μB, μ0) = sys.units
 
     if !isnothing(sys.origin)
-        accum_dipole_dipole_locally!(sys.origin, cutoff)
+        modify_exchange_with_truncated_dipole_dipole!(sys.origin, cutoff)
         transfer_interactions!(sys, sys.origin)
         return
     end

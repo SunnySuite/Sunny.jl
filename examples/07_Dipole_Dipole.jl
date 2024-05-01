@@ -45,13 +45,13 @@ xticks = (xticks[1], q_labels)
 swt = SpinWaveTheory(sys_prim)
 disp1 = dispersion(swt, path)
 
-sys_prim′ = Sunny.clone_system(sys_prim)
+sys_prim′ = clone_system(sys_prim)
 enable_dipole_dipole!(sys_prim′)
 swt = SpinWaveTheory(sys_prim′)
 disp2 = dispersion(swt, path);
 
-sys_prim′ = Sunny.clone_system(sys_prim)
-Sunny.accum_dipole_dipole_locally!(sys_prim′, 5.0) # Experimental function
+sys_prim′ = clone_system(sys_prim)
+modify_exchange_with_truncated_dipole_dipole!(sys_prim′, 5.0)
 swt = SpinWaveTheory(sys_prim′)
 disp3 = dispersion(swt, path);
 
