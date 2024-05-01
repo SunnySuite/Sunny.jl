@@ -45,15 +45,21 @@ xticks = (xticks[1], q_labels)
 swt = SpinWaveTheory(sys_prim, energy_ϵ=1e-6)
 disp1 = dispersion(swt, path)
 
-enable_dipole_dipole!(sys_prim)
-swt = SpinWaveTheory(sys_prim, energy_ϵ=1e-6)
+sys_prim′ = Sunny.clone_system(sys_prim)
+enable_dipole_dipole!(sys_prim′)
+swt = SpinWaveTheory(sys_prim′, energy_ϵ=1e-6)
 disp2 = dispersion(swt, path);
+
+sys_prim′ = Sunny.clone_system(sys_prim)
+Sunny.accum_dipole_dipole_locally!(sys_prim′, 5.0)
+swt = SpinWaveTheory(sys_prim′, energy_ϵ=1e-6)
+disp3 = dispersion(swt, path);
 
 # To reproduce Fig. 2 of [Del Maestro and
 # Gingras](https://arxiv.org/abs/cond-mat/0403494), an empirical rescaling of
-# energy was found to be necessary.
+# energy is necessary.
 
-fudge_factor = 1/2 # For purposes of reproducing prior work
+fudge_factor = 1/2 # To reproduce prior work
 
 fig = Figure(size=(900,300))
 
@@ -69,6 +75,10 @@ ylims!(ax, 0.0, 3)
 xlims!(ax, 1, size(disp2, 1))
 for i in axes(disp2, 2)
     lines!(ax, 1:length(disp2[:,i]), fudge_factor*disp2[:,i]/meV_per_K)
+end
+
+for i in axes(disp3, 2)
+    lines!(ax, 1:length(disp3[:,i]), fudge_factor*disp3[:,i]/meV_per_K; color=:gray, linestyle=:dash)
 end
 
 fig
