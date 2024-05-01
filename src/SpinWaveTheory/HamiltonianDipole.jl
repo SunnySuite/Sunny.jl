@@ -106,20 +106,16 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         A = precompute_dipole_ewald_aux(sys.crystal, (1,1,1), units.μ0, q_reshaped, cis, Val{ComplexF64}())
         A = reshape(A, L, L)
 
-        # Loop over all unique sublattice pairs (i < j)
-        for i in 1:L, j in 1:L # i:L
-
-            # DEBUG
-            i == j && continue
-            
+        # Loop over sublattice pairs
+        for i in 1:L, j in 1:L
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
             # energy. Note that μ = -μB g S
             J = μB² * gs[i]' * A[i, j] * gs[j]
-
-            # Account for contributions from both (i, j) and (j, i) 
+            J *= 1/2 # TODO: save factor of two by taking (j in i:L) and using:
             #=
-            if i != j
-                J *= 2
+            # Undo double counting in case where (i == j)
+            if i == j
+                J *= 1/2
             end
             =#
 
@@ -140,6 +136,11 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
                 H21[j, i] += P * conj(phase)
                 H12[i, j] += conj(P) * phase
                 H12[j, i] += conj(P) * conj(phase)
+
+                H11[i, i] -= 0.5 * J[3, 3]
+                H11[j, j] -= 0.5 * J[3, 3]
+                H22[i, i] -= 0.5 * J[3, 3]
+                H22[j, j] -= 0.5 * J[3, 3]
             =#
 
             Q⁻ = 0.25 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
@@ -155,6 +156,11 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             H12[j, i] += conj(P⁻)
             H21[j, i] += P⁺
             H12[i, j] += conj(P⁺)
+
+            H11[i, i] -= 0.5 * J[3, 3]
+            H11[j, j] -= 0.5 * J[3, 3]
+            H22[i, i] -= 0.5 * J[3, 3]
+            H22[j, j] -= 0.5 * J[3, 3]
         end
     end
 
@@ -163,6 +169,9 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     
     # Make H exactly hermitian
     hermitianpart!(H) 
+
+    display(H)
+    println(eigvals(H))
 
     # Add small constant shift for positive-definiteness
     for i in 1:2L
