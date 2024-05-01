@@ -42,17 +42,17 @@ density = 150
 path, xticks = reciprocal_space_path(cryst, q_points, density)
 xticks = (xticks[1], q_labels)
 
-swt = SpinWaveTheory(sys_prim, energy_ϵ=1e-6)
+swt = SpinWaveTheory(sys_prim)
 disp1 = dispersion(swt, path)
 
 sys_prim′ = Sunny.clone_system(sys_prim)
 enable_dipole_dipole!(sys_prim′)
-swt = SpinWaveTheory(sys_prim′, energy_ϵ=1e-6)
+swt = SpinWaveTheory(sys_prim′)
 disp2 = dispersion(swt, path);
 
 sys_prim′ = Sunny.clone_system(sys_prim)
-Sunny.accum_dipole_dipole_locally!(sys_prim′, 5.0)
-swt = SpinWaveTheory(sys_prim′, energy_ϵ=1e-6)
+Sunny.accum_dipole_dipole_locally!(sys_prim′, 5.0) # Experimental function
+swt = SpinWaveTheory(sys_prim′)
 disp3 = dispersion(swt, path);
 
 # To reproduce Fig. 2 of [Del Maestro and
