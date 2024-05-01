@@ -113,7 +113,14 @@ function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, μ0
             m = Vec3(m1, m2, m3)
             k = recipvecs * (m + q_reshaped - round.(q_reshaped))
             k² = k⋅k
-            if 0 < k² <= kmax*kmax
+
+            ϵ² = 1e-16
+            if k² <= ϵ²
+                # Consider including a surface dipole term as in S. W. DeLeeuw,
+                # J. W. Perram, and E. R. Smith, Proc. R. Soc. Lond. A 373,
+                # 27-56 (1980). For a spherical geometry, this term might be:
+                # acc += (μ0/2V) * I₃
+            elseif ϵ² < k² <= kmax*kmax
                 phase = cis(-k⋅Δr)
                 acc += phase * (μ0/V) * (exp(-σ²*k²/2) / k²) * (k⊗k)
             end
