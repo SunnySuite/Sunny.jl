@@ -97,6 +97,67 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         H21[i, i] += conj(A2)
     end
 
+    # Add long-range dipole-dipole
+    if !isnothing(sys.ewald)
+        N = sys.Ns[1]
+        S = (N-1)/2
+        μB² = units.μB^2
+        Rs = local_rotations
+        A = precompute_dipole_ewald_aux(sys.crystal, (1,1,1), units.μ0, q_reshaped, cis, Val{ComplexF64}())
+        A = reshape(A, L, L)
+
+        # Loop over all unique sublattice pairs (i < j)
+        for i in 1:L, j in 1:L # i:L
+
+            # DEBUG
+            i == j && continue
+            
+            # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
+            # energy. Note that μ = -μB g S
+            J = μB² * gs[i]' * A[i, j] * gs[j]
+
+            # Account for contributions from both (i, j) and (j, i) 
+            #=
+            if i != j
+                J *= 2
+            end
+            =#
+
+            # Perform same transformation as appears in usual bilinear exchange.
+            # R denotes rotation from lab frame into global frame.
+            J = S * Rs[i]' * J * Rs[j]
+
+            #=
+                P = 0.25 * (J[1, 1] - J[2, 2] - im*J[1, 2] - im*J[2, 1])
+                Q = 0.25 * (J[1, 1] + J[2, 2] - im*J[1, 2] + im*J[2, 1])
+
+                H11[i, j] += Q * phase
+                H11[j, i] += conj(Q) * conj(phase)
+                H22[i, j] += conj(Q) * phase
+                H22[j, i] += Q  * conj(phase)
+
+                H21[i, j] += P * phase
+                H21[j, i] += P * conj(phase)
+                H12[i, j] += conj(P) * phase
+                H12[j, i] += conj(P) * conj(phase)
+            =#
+
+            Q⁻ = 0.25 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
+            Q⁺ = 0.25 * (J[1, 1] + J[2, 2] + im*(J[1, 2] - J[2, 1]))
+            P⁻ = 0.25 * (J[1, 1] - J[2, 2] - im*(J[1, 2] + J[2, 1]))
+            P⁺ = 0.25 * (J[1, 1] - J[2, 2] + im*(J[1, 2] + J[2, 1]))
+
+            H11[i, j] += Q⁻
+            H11[j, i] += conj(Q⁻)
+            H22[i, j] += Q⁺
+            H22[j, i] += conj(Q⁺)
+            H21[i, j] += P⁻
+            H12[j, i] += conj(P⁻)
+            H21[j, i] += P⁺
+            H12[i, j] += conj(P⁺)
+        end
+    end
+
     # H must be hermitian up to round-off errors
     @assert diffnorm2(H, H') < 1e-12
     

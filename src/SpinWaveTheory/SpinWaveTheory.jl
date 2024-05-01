@@ -27,10 +27,6 @@ struct SpinWaveTheory
 end
 
 function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing, apply_g=true) where N
-    if !isnothing(sys.ewald)
-        error("SpinWaveTheory does not yet support long-range dipole-dipole interactions.")
-    end
-
     # Reshape into single unit cell. A clone will always be performed, even if
     # no reshaping happens.
     cellsize_mag = cell_shape(sys) * diagm(Vec3(sys.latsize))
