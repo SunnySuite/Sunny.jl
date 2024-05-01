@@ -36,13 +36,13 @@ function Base.:+(c1::PairCoupling, c2::PairCoupling)
 
     scalar = c1.scalar + c2.scalar
 
-    bilin = if (typeof(c1.bilin) == typeof(c2.bilin))
+    bilin = if typeof(c1.bilin) == typeof(c2.bilin)
         c1.bilin + c2.bilin
     else
         Mat3(c1.bilin*I + c2.bilin*I)
     end
 
-    biquad = if (typeof(c1.biquad) == typeof(c2.biquad))
+    biquad = if typeof(c1.biquad) == typeof(c2.biquad)
         c1.biquad + c2.biquad
     else
         Mat5(c1.biquad*I + c2.biquad*I)
