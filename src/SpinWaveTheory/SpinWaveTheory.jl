@@ -1,12 +1,13 @@
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}
     stevens_coefs         :: Vector{StevensExpansion}
-    observable_operators  :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
+    observables_localized :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
 end
 
 struct SWTDataSUN
     local_unitaries       :: Array{ComplexF64, 3}  # Aligns to quantization axis on each site
-    observable_operators  :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
+    spins_localized       :: Array{ComplexF64, 4}  # Spins in local frame
+    observables_localized :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
 end
 
 """
@@ -118,6 +119,7 @@ function swt_data_sun(sys::System{N}, obs) where N
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = zeros(ComplexF64, N, N, n_magnetic_atoms)
+    spins_localized = zeros(ComplexF64, N, N, 3, n_magnetic_atoms)
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
     for atom in 1:n_magnetic_atoms
@@ -132,7 +134,12 @@ function swt_data_sun(sys::System{N}, obs) where N
         U = view(local_unitaries, :, :, atom)
 
         # Rotate observables into local reference frames
-        for k = 1:num_observables(obs)
+        S = spin_matrices_of_dim(; N)
+        for k in 1:3
+            spins_localized[:, :, k, atom] = Hermitian(U' * S[k] * U)
+        end
+        
+        for k in 1:num_observables(obs)
             A = observable_at_site(obs.observables[k],CartesianIndex(1,1,1,atom))
             observables_localized[:, :, k, atom] = Hermitian(U' * convert(Matrix, A) * U)
         end
@@ -167,6 +174,7 @@ function swt_data_sun(sys::System{N}, obs) where N
 
     return SWTDataSUN(
         local_unitaries,
+        spins_localized,
         observables_localized
     )
 end

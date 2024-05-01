@@ -1,7 +1,9 @@
 
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
-    (; sys) = swt
+    (; sys, data) = swt
+    (; spins_localized) = data
+    (; gs, units) = sys
 
     N = sys.Ns[1]
     Na = natoms(sys.crystal)
@@ -67,7 +69,53 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     end
 
     if !isnothing(sys.ewald)
-        error("Ewald not yet supported in LSWT for :SUN mode")
+        N = sys.Ns[1]
+        μB² = units.μB^2
+
+        # Interaction matrix for wavevector q
+        A = precompute_dipole_ewald_aux(sys.crystal, (1,1,1), units.μ0, q_reshaped, cis, Val{ComplexF64}())
+        A = reshape(A, Na, Na)
+
+        # Interaction matrix for wavevector (0,0,0)
+        A0 = sys.ewald.A
+        A0 = reshape(A0, Na, Na)
+
+        for i in 1:Na, j in 1:Na
+            # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
+            # energy. A symmetric contribution will appear for the bond reversal
+            # (i, j) → (j, i).  Note that μ = -μB g S.
+            J = μB² * gs[i]' * A[i, j] * gs[j] / 2
+            J0 = μB² * gs[i]' * A0[i, j] * gs[j] / 2
+
+            for α in 1:3, β in 1:3
+                Ai = view(spins_localized, :, :, α, i)
+                Bj = view(spins_localized, :, :, β, j)
+
+                for m in 1:N-1, n in 1:N-1
+                    c = 0.5 * (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
+                    H11[m, i, n, i] += c * J0[α, β]
+                    H22[n, i, m, i] += c * J0[α, β]
+
+                    c = 0.5 * Ai[N,N] * (Bj[m,n] - δ(m,n)*Bj[N,N])
+                    H11[m, j, n, j] += c * J0[α, β]
+                    H22[n, j, m, j] += c * J0[α, β]
+
+                    c = 0.5 * Ai[m,N] * Bj[N,n]
+                    H11[m, i, n, j] += c * J[α, β]
+                    H22[n, j, m, i] += c * conj(J[α, β])
+
+                    c = 0.5 * Ai[N,m] * Bj[n,N]
+                    H11[n, j, m, i] += c * conj(J[α, β])
+                    H22[m, i, n, j] += c * J[α, β]
+
+                    c = 0.5 * Ai[m,N] * Bj[n,N]
+                    H12[m, i, n, j] += c * J[α, β]
+                    H12[n, j, m, i] += c * conj(J[α, β])
+                    H21[n, j, m, i] += conj(c) * conj(J[α, β])
+                    H21[m, i, n, j] += conj(c) * J[α, β]
+                end
+            end
+        end
     end
 
     # H must be hermitian up to round-off errors
