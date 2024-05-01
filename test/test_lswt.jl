@@ -350,6 +350,26 @@ end
         @test disps[:,end] ≈ [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553]
         @test is[:,end] ≈ [1, 1, 201/202, 1]
     end
+
+    begin
+        cryst = Sunny.bcc_crystal()
+        sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :dipole, seed=2)
+        enable_dipole_dipole!(sys)
+        polarize_spins!(sys, (1,2,3)) # arbitrary direction
+        
+        R = hcat([1,1,-1], [-1,1,1], [1,-1,1]) / 2
+        sys_reshape = reshape_supercell(sys, R)
+        @test energy_per_site(sys_reshape) ≈ energy_per_site(sys) ≈ -0.89944235377
+        
+        swt1 = SpinWaveTheory(sys, energy_ϵ=1e-8)
+        swt2 = SpinWaveTheory(sys_reshape, energy_ϵ=1e-8)
+        path = [[0.5, -0.1, 0.3]]
+        disp1 = dispersion(swt1, path)
+        disp2 = dispersion(swt2, path)
+        
+        @test disp1 ≈ [1.3236778213351734 0.9206655419611791]
+        @test disp2 ≈ [0.9206655419611772]        
+    end
 end
 
 
