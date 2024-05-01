@@ -125,14 +125,17 @@ end
 # stack of `clone` functions instead.
 Base.deepcopy(_::System) = error("Use `clone_system` instead of `deepcopy`.")
 
-# Creates a clone of the system where all the mutable internal data is copied.
-# It is intended to be thread-safe to use the original and the copied systems,
-# without any restrictions, but see caveats in `clone_ewald()`.
+"""
+    clone_system(sys::System)
+
+Creates a full clone of the system, such that mutable updates to one copy will
+not affect the other, and thread safety is guaranteed.
+"""
 function clone_system(sys::System{N}) where N
     (; origin, mode, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, units, rng) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
-    ewald_clone  = isnothing(ewald)  ? nothing : clone_ewald(ewald)
+    ewald_clone = nothing # TODO: use clone_ewald(ewald)
 
     # Dynamically dispatch to the correct `map` function for either homogeneous
     # (Vector) or inhomogeneous interactions (4D Array)
@@ -142,9 +145,18 @@ function clone_system(sys::System{N}) where N
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
-    System(origin_clone, mode, crystal, latsize, Ns, copy(κs), copy(gs),
-           interactions_clone, ewald_clone, copy(extfield), copy(dipoles), copy(coherents),
-           empty_dipole_buffers, empty_coherent_buffers, units, copy(rng))
+    ret = System(origin_clone, mode, crystal, latsize, Ns, copy(κs), copy(gs),
+                 interactions_clone, ewald_clone, copy(extfield), copy(dipoles), copy(coherents),
+                 empty_dipole_buffers, empty_coherent_buffers, units, copy(rng))
+
+    if !isnothing(ewald)
+        # At the moment, clone_ewald is unavailable, so instead rebuild the
+        # Ewald data structures from scratch. This might be fixed eventually.
+        # See https://github.com/JuliaMath/FFTW.jl/issues/261.
+        enable_dipole_dipole!(ret)
+    end
+
+    return ret
 end
 
 
