@@ -65,7 +65,7 @@ end
 
 # Set the dynamical quadratic Hamiltonian matrix in SU(N) mode. 
 function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
-    (; sys, data) = swt
+    (; sys) = swt
 
     L = nbands(swt)    # Number of quasiparticle bands
     @assert size(H) == (2L, 2L)
@@ -73,12 +73,11 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
     # Clear the Hamiltonian
     H .= 0
 
-    # Add pair interactions that use explicit bases
     for (atom, int) in enumerate(sys.interactions_union)
-
-        # Set the onsite term
+        # Set the onsite term for atom
         swt_onsite_coupling!(H, int.onsite, swt, atom)
 
+        # Set pair interactions that originate for atom
         for coupling in int.pair
             # Extract information common to bond
             (; isculled, bond) = coupling
@@ -89,6 +88,10 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
                 swt_pair_coupling!(H, A, B, swt, phase, bond)
             end
         end
+    end
+
+    if !isnothing(sys.ewald)
+        error("Ewald not yet supported in LSWT for :SUN mode")
     end
 
     # H must be hermitian up to round-off errors
