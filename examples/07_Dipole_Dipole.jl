@@ -30,7 +30,7 @@ set_dipole!(sys_prim, [-1, +1, 0], position_to_site(sys_prim, [1/4,1/4,0]))
 set_dipole!(sys_prim, [+1, +1, 0], position_to_site(sys_prim, [1/4,0,1/4]))
 set_dipole!(sys_prim, [-1, -1, 0], position_to_site(sys_prim, [0,1/4,1/4]))
 
-plot_spins(sys_prim; ghost_radius=8)
+plot_spins(sys_prim; ghost_radius=8, color=[:red,:blue,:yellow,:purple])
 
 # Calculate dispersions with and without long-range dipole interactions. The
 # high-symmetry k-points are specified with respect to the conventional cubic
@@ -39,7 +39,7 @@ plot_spins(sys_prim; ghost_radius=8)
 q_points = [[0,0,0], [0,1,0], [1,1/2,0], [1/2,1/2,1/2], [3/4,3/4,0], [0,0,0]]
 q_labels = ["Γ","X","W","L","K","Γ"]
 density = 150
-path, xticks = reciprocal_space_path(cryst, q_points, density);
+path, xticks = reciprocal_space_path(cryst, q_points, density)
 xticks = (xticks[1], q_labels)
 
 swt = SpinWaveTheory(sys_prim, energy_ϵ=1e-6)
