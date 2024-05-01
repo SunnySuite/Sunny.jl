@@ -5,6 +5,9 @@
 
 * [`view_crystal`](@ref) called on a [`System`](@ref) now optionally shows
   spin or magnetic dipoles.
+* Interactions for [`enable_dipole_dipole!`](@ref) are now supported in linear
+  spin wave theory, with proper Ewald summation.
+
 
 ## v0.5.9
 (Mar 25, 2024)
