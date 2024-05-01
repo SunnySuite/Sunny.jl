@@ -229,3 +229,32 @@ function ewald_energy_delta(sys::System{N}, site, s::Vec3) where N
     ∇E = ewald_grad_at(sys, site)
     return Δs⋅∇E + dot(Δμ, ewald.A[1, 1, 1, i, i], Δμ) / 2
 end
+
+
+# Adds dipole-dipole interactions on top of existing exchange interactions.
+function accum_dipole_dipole_locally!(sys::System{N}, cutoff) where N
+    (; gs) = sys
+    (; μB, μ0) = sys.units
+
+    if !isnothing(sys.origin)
+        accum_dipole_dipole_locally!(sys.origin, cutoff)
+        transfer_interactions!(sys, sys.origin)
+        return
+    end
+
+    is_homogeneous(sys) || error("Currently requires homogeneous system")
+    ints = interactions_homog(sys)
+
+    for bond in reference_bonds(sys.crystal, cutoff)
+        for i in 1:natoms(sys.crystal)
+            for bond′ in all_symmetry_related_bonds_for_atom(sys.crystal, i, bond)
+                (; j) = bond′
+                r = global_displacement(sys.crystal, bond′)
+                iszero(r) && continue
+                r̂ = normalize(r)
+                bilin = (μ0/4π) * μB^2 * gs[i]' * ((I - 3r̂⊗r̂) / norm(r)^3) * gs[j]
+                push_coupling!(ints[i].pair, bond′, 0.0, Mat3(bilin), 0.0, zero(TensorDecomposition); accum=true)
+            end
+        end
+    end
+end

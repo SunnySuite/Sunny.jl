@@ -30,20 +30,54 @@ function to_float_or_mat3(J)
 end
 
 
+function Base.:+(c1::PairCoupling, c2::PairCoupling)
+    @assert c1.isculled == c2.isculled
+    @assert c1.bond == c2.bond
+
+    scalar = c1.scalar + c2.scalar
+
+    bilin = if (typeof(c1.bilin) == typeof(c2.bilin))
+        c1.bilin + c2.bilin
+    else
+        Mat3(c1.bilin*I + c2.bilin*I)
+    end
+
+    biquad = if (typeof(c1.biquad) == typeof(c2.biquad))
+        c1.biquad + c2.biquad
+    else
+        Mat5(c1.biquad*I + c2.biquad*I)
+    end
+
+    tensordec = c1.general + c2.general
+
+    PairCoupling(c1.isculled, c1.bond, scalar, bilin, biquad, tensordec)
+end
+
 # Internal function only
-function push_coupling!(couplings, bond::Bond, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition)
-    # Remove previous coupling on this bond
-    filter!(c -> c.bond != bond, couplings)
+function push_coupling!(couplings, bond::Bond, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition; accum=false)
+    # Find and remove existing couplings for this bond
+    idxs = findall(c -> c.bond == bond, couplings)
+    existing = couplings[idxs]
+    deleteat!(couplings, idxs)
 
-    # If the new coupling is exactly zero, return early
-    iszero(bilin) && iszero(biquad) && isempty(tensordec.data) && return
+    # If the new coupling is exactly zero, and we're not accumulating, then
+    # return early
+    iszero(bilin) && iszero(biquad) && isempty(tensordec.data) && !accum && return
 
-    # Otherwise, add the new coupling to the list
+    # Create a new PairCoupling
     isculled = bond_parity(bond)
-    push!(couplings, PairCoupling(isculled, bond, scalar, bilin, biquad, tensordec))
+    coupling = PairCoupling(isculled, bond, scalar, bilin, biquad, tensordec)
 
-    # Sorting after each insertion will introduce quadratic scaling in length of
-    # `couplings`. In typical usage, the `couplings` list will be short.
+    # Optionally accumulate to an existing PairCoupling
+    if accum && !isempty(existing)
+        coupling += only(existing)
+    end
+
+    # Add to the list and sort by isculled. Sorting after each insertion will
+    # introduce quadratic scaling in length of `couplings`. If this becomes
+    # slow, we could swap two PairCouplings instead of performing a full sort.
+    isculled = bond_parity(bond)
+    push!(couplings, coupling)
     sort!(couplings, by=c->c.isculled)
     
     return
@@ -114,6 +148,16 @@ end
 function Base.zero(::Type{TensorDecomposition})
     gen = spin_matrices_of_dim(; N=0)
     return TensorDecomposition(gen, gen, [])
+end
+
+function Base.:+(op1::TensorDecomposition, op2::TensorDecomposition)
+    @assert op1.gen1 ≈ op2.gen1
+    @assert op1.gen2 ≈ op2.gen2
+    isempty(op2.data) && return op1
+    total = sum(kron(A, B) for (A, B) in vcat(op1.data, op2.data))
+    N1 = size(op1.gen1, 1)
+    N2 = size(op1.gen2, 1)
+    TensorDecomposition(op1.gen1, op1.gen2, svd_tensor_expansion(total, N1, N2))
 end
 
 function Base.isapprox(op1::TensorDecomposition, op2::TensorDecomposition; kwargs...)
