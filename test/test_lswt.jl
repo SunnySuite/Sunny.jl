@@ -138,9 +138,8 @@ end
     # Crystal
     a = 8.289
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-    types = ["MzR1"]
     positions = [[0, 0, 0]]
-    fcc = Crystal(latvecs, positions, 225; types)
+    fcc = Crystal(latvecs, positions, 225)
 
     S = 5/2
     g = 2
@@ -332,13 +331,25 @@ end
 end
 
 
-#=
-@testitem "Dipole-dipole unimplemented" begin
-    sys = System(Sunny.diamond_crystal(),(1,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN;seed = 0)
+@testitem "Dipole-dipole" begin
+    latvecs = lattice_vectors(10, 10, 1, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0,0,0]])
+    sys = System(cryst, (1,1,1), [SpinInfo(1; S=1, g=1)], :dipole; units=Units.theory)
     enable_dipole_dipole!(sys)
-    @test_throws "SpinWaveTheory does not yet support long-range dipole-dipole interactions." SpinWaveTheory(sys)
+
+    randomize_spins!(sys)
+    minimize_energy!(sys)  # Polarized chain
+    @test energy_per_site(sys) ≈ -0.1913132980155851
+    
+    swt = SpinWaveTheory(sys)
+    formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
+    
+    qpoints = [[0, 0, 0], [0, 0, 1/2], [0, 1/2, 1/2], [0, 0, 0]]
+    disps, is = intensities_bands(swt, qpoints, formula)
+    @test disps ≈ [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553]
+    @test is ≈ [1, 1, 201/202, 1]
 end
-=#
+
 
 @testitem "SW15-Langasite" begin
     # Ba3NbFe3Si2O14
