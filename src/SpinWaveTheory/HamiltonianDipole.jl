@@ -103,51 +103,33 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         S = (N-1)/2
         μB² = units.μB^2
         Rs = local_rotations
+
+        # Interaction matrix for wavevector q
         A = precompute_dipole_ewald_aux(sys.crystal, (1,1,1), units.μ0, q_reshaped, cis, Val{ComplexF64}())
         A = reshape(A, L, L)
+
+        # Interaction matrix for wavevector (0,0,0)
+        A0 = precompute_dipole_ewald(sys.crystal, (1,1,1), units.μ0)
+        A0 = reshape(A0, L, L)
 
         # Loop over sublattice pairs
         for i in 1:L, j in 1:L
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
-            # energy. Note that μ = -μB g S
-            J = μB² * gs[i]' * A[i, j] * gs[j]
-            J *= 1/2 # TODO: save factor of two by taking (j in i:L) and using:
-            #=
-            # Undo double counting in case where (i == j)
-            if i == j
-                J *= 1/2
-            end
-            =#
+            # energy. A symmetric contribution will appear for the bond reversal
+            # (i, j) → (j, i).  Note that μ = -μB g S.
+            J = μB² * gs[i]' * A[i, j] * gs[j] / 2
+            J0 = μB² * gs[i]' * A0[i, j] * gs[j] / 2
 
             # Perform same transformation as appears in usual bilinear exchange.
-            # R denotes rotation from lab frame into global frame.
+            # Rⱼ denotes a rotation from ẑ to the ground state dipole Sⱼ.
             J = S * Rs[i]' * J * Rs[j]
+            J0 = S * Rs[i]' * J0 * Rs[j]
 
-            #=
-                P = 0.25 * (J[1, 1] - J[2, 2] - im*J[1, 2] - im*J[2, 1])
-                Q = 0.25 * (J[1, 1] + J[2, 2] - im*J[1, 2] + im*J[2, 1])
-
-                H11[i, j] += Q * phase
-                H11[j, i] += conj(Q) * conj(phase)
-                H22[i, j] += conj(Q) * phase
-                H22[j, i] += Q  * conj(phase)
-
-                H21[i, j] += P * phase
-                H21[j, i] += P * conj(phase)
-                H12[i, j] += conj(P) * phase
-                H12[j, i] += conj(P) * conj(phase)
-
-                H11[i, i] -= 0.5 * J[3, 3]
-                H11[j, j] -= 0.5 * J[3, 3]
-                H22[i, i] -= 0.5 * J[3, 3]
-                H22[j, j] -= 0.5 * J[3, 3]
-            =#
-
+            # Interactions for Jˣˣ, Jʸʸ, Jˣʸ, and Jʸˣ at wavevector q.
             Q⁻ = 0.25 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
             Q⁺ = 0.25 * (J[1, 1] + J[2, 2] + im*(J[1, 2] - J[2, 1]))
             P⁻ = 0.25 * (J[1, 1] - J[2, 2] - im*(J[1, 2] + J[2, 1]))
             P⁺ = 0.25 * (J[1, 1] - J[2, 2] + im*(J[1, 2] + J[2, 1]))
-
             H11[i, j] += Q⁻
             H11[j, i] += conj(Q⁻)
             H22[i, j] += Q⁺
@@ -157,10 +139,11 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             H21[j, i] += P⁺
             H12[i, j] += conj(P⁺)
 
-            H11[i, i] -= 0.5 * J[3, 3]
-            H11[j, j] -= 0.5 * J[3, 3]
-            H22[i, i] -= 0.5 * J[3, 3]
-            H22[j, j] -= 0.5 * J[3, 3]
+            # Interactions for Jᶻᶻ at wavevector (0,0,0).
+            H11[i, i] -= 0.5 * J0[3, 3]
+            H11[j, j] -= 0.5 * J0[3, 3]
+            H22[i, i] -= 0.5 * J0[3, 3]
+            H22[j, j] -= 0.5 * J0[3, 3]
         end
     end
 
@@ -168,10 +151,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     @assert diffnorm2(H, H') < 1e-12
     
     # Make H exactly hermitian
-    hermitianpart!(H) 
-
-    display(H)
-    println(eigvals(H))
+    hermitianpart!(H)
 
     # Add small constant shift for positive-definiteness
     for i in 1:2L
@@ -304,6 +284,10 @@ function multiply_by_hamiltonian_dipole_aux!(y, x, phasebuf, qphase, swt)
                     y[q, j, 2] += Q * conj(phasebuf[q]) * x[q, i, 2]
                     y[q, j, 2] += P * conj(phasebuf[q]) * x[q, i, 1]
                 end
+            end
+
+            if !isnothing(sys.ewald)
+                error("Ewald not supported")
             end
         end
     end

@@ -131,14 +131,8 @@ function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, μ0
         A[cell, i, j] = acc
     end
 
-    #=
-    for j in 1:na, i in 1:na
-        X = (A[1,1,1, i,j] + A[1,1,1, j,i]')/2
-        A[1,1,1, i,j] = X
-        A[1,1,1, j,i] = X'
-    end
-    =#
-    
+    # TODO: Verify that A[off, i, j] ≈ A[-off, j, i]'
+
     return A
 end
 
