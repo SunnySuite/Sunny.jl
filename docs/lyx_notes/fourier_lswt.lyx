@@ -364,17 +364,38 @@ Fourier-transform of dipole-dipole interactions
 \end_layout
 
 \begin_layout Standard
-The pairwise interaction between two point magnetic dipoles is given by
- the tensor
+Consider two magnetic moment dipoles 
+\begin_inset Formula $\boldsymbol{\mu}_{1}$
+\end_inset
+
+ and 
+\begin_inset Formula $\boldsymbol{\mu}_{2}$
+\end_inset
+
+ separated by a displacement vector 
+\begin_inset Formula $\mathbf{r}$
+\end_inset
+
+.
+ Their pairwise interaction energy is 
+\begin_inset Formula $\boldsymbol{\mu}_{1}\cdot\mathcal{A}(\mathbf{r})\boldsymbol{\mu}_{2}$
+\end_inset
+
+, where
 \begin_inset Formula 
-\begin{align*}
-\mathcal{D}_{\alpha\beta}(\mathbf{R}_{ij\mathbf{n}}) & =-\frac{\mu_{0}}{4\pi}\nabla_{\alpha}\nabla_{\beta}\frac{1}{|\mathbf{R}_{ij\mathbf{n}}|}\\
- & =\frac{\mu_{0}}{4\pi}\left(\delta_{\alpha\beta}\frac{1}{|\mathbf{R}_{ij\mathbf{n}}|^{3}}-3\frac{R_{ij\mathbf{n}}^{\alpha}R_{ij\mathbf{n}}^{\beta}}{|\mathbf{R}_{ij\mathbf{n}}|^{5}}\right).
-\end{align*}
+\begin{align}
+\mathcal{A}_{\alpha\beta}(\mathbf{r}) & =-\frac{\mu_{0}}{4\pi}\nabla_{\alpha}\nabla_{\beta}\frac{1}{|\mathbf{r}|}\nonumber \\
+ & =\frac{\mu_{0}}{4\pi}\left(\delta_{\alpha\beta}\frac{1}{|\mathbf{r}|^{3}}-3\frac{r^{\alpha}r^{\beta}}{|\mathbf{r}|^{5}}\right).
+\end{align}
 
 \end_inset
 
-Note 
+
+\end_layout
+
+\begin_layout Standard
+On the lattice, we will be interested in a discrete set of displacement
+ vectors 
 \begin_inset Formula $\mathbf{R}_{ij\mathbf{n}}=\mathbf{r}_{ij}+\mathbf{r}_{\mathbf{n}}$
 \end_inset
 
@@ -392,17 +413,10 @@ Note
 \end_inset
 
  denote lattice vectors for the magnetic cell.
-\end_layout
-
-\begin_layout Standard
-Fourier transform yields a dipole-dipole equivalent to 
-\begin_inset Formula $J_{(\alpha i)(\beta j)}(\mathbf{q})$
-\end_inset
-
-
+ Fourier transform of the interaction tensor yields, 
 \begin_inset Formula 
 \begin{equation}
-\mathcal{D}_{(\alpha i)(\beta j)}(\mathbf{q})=\sum_{\mathbf{n}}'e^{i2\pi\mathbf{q}\cdot\mathbf{n}}\mathcal{D}_{\alpha\beta}(\mathbf{R}_{ij\mathbf{n}}).\label{eq:dipole_sum}
+\mathcal{A}_{(\alpha i)(\beta j)}(\mathbf{q})=\sum_{\mathbf{n}}'e^{i2\pi\mathbf{q}\cdot\mathbf{n}}\mathcal{A}_{\alpha\beta}(\mathbf{R}_{ij\mathbf{n}}).\label{eq:dipole_sum}
 \end{equation}
 
 \end_inset
@@ -433,6 +447,31 @@ The notation
 \end_layout
 
 \begin_layout Standard
+Magnetic moments are linearly related to spin angular momenta, 
+\begin_inset Formula $\boldsymbol{\mu}=-\mu_{B}g\mathbf{S}$
+\end_inset
+
+.
+ This implies an interaction tensor for spins,
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+J_{ij}(\mathbf{q})=\mu_{B}^{2}g_{i}^{T}\mathcal{A}_{ij}(\mathbf{q})g_{j},\label{eq:dipole_sum-1}
+\end{equation}
+
+\end_inset
+
+with matrix-multiplication acting as contraction on the implicit vector
+ indices 
+\begin_inset Formula $\alpha\beta$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
 Following the standard Ewald procedure, the infinite summation over cells
  
 \begin_inset Formula $\mathbf{n}$
@@ -444,7 +483,7 @@ Following the standard Ewald procedure, the infinite summation over cells
 \begin_layout Standard
 \begin_inset Formula 
 \begin{equation}
-\mathcal{D}_{(\alpha i)(\beta j)}(\mathbf{q})=\mathcal{D}_{(\alpha i)(\beta j)}^{\mathrm{LR}}(\mathbf{q},\lambda)+\mathcal{D}_{(\alpha i)(\beta j)}^{\mathrm{SR}}(\mathbf{q},\lambda)-\mathcal{D}_{(\alpha i)(\beta j)}^{\mathrm{self}}(\lambda).
+\mathcal{A}_{(\alpha i)(\beta j)}(\mathbf{q})=\mathcal{A}_{(\alpha i)(\beta j)}^{\mathrm{LR}}(\mathbf{q},\lambda)+\mathcal{A}_{(\alpha i)(\beta j)}^{\mathrm{SR}}(\mathbf{q},\lambda)-\mathcal{A}_{(\alpha i)(\beta j)}^{\mathrm{self}}(\lambda).
 \end{equation}
 
 \end_inset
@@ -465,7 +504,7 @@ This decomposition introduces an arbitrary parameter
 The interactions at long-range are best handled in Fourier-space,
 \begin_inset Formula 
 \begin{equation}
-\mathcal{D}_{(\alpha i)(\beta j)}^{\mathrm{LR}}(\mathbf{q},\lambda)=\frac{\mu_{0}}{V}\sum_{\mathbf{m}}\mathcal{K}_{\alpha\beta}(\mathbf{k}_{\mathbf{m}+\mathbf{q}})e^{-|\mathbf{k}_{\mathbf{m}+\mathbf{q}}|^{2}/4\lambda^{2}}e^{-i\mathbf{k}_{\mathbf{m}+\mathbf{q}}\cdot\mathbf{r}_{ij}},\label{eq:D_LR}
+\mathcal{A}_{(\alpha i)(\beta j)}^{\mathrm{LR}}(\mathbf{q},\lambda)=\frac{\mu_{0}}{V}\sum_{\mathbf{m}}\mathcal{K}_{\alpha\beta}(\mathbf{k}_{\mathbf{m}+\mathbf{q}})e^{-|\mathbf{k}_{\mathbf{m}+\mathbf{q}}|^{2}/4\lambda^{2}}e^{-i\mathbf{k}_{\mathbf{m}+\mathbf{q}}\cdot\mathbf{r}_{ij}},\label{eq:D_LR}
 \end{equation}
 
 \end_inset
@@ -543,7 +582,7 @@ https://doi.org/10.1088/0953-8984/16/43/r02
 The short-range part of the interactions can be handled directly in real-space,
 \begin_inset Formula 
 \begin{equation}
-\mathcal{D}_{(\alpha i)(\beta j)}^{\mathrm{SR}}(\mathbf{q},\lambda)=\frac{\mu_{0}}{4\pi}\sum_{\mathbf{n}}'\mathcal{U}_{\alpha\beta}(\mathbf{R}_{ij\mathbf{n}},\lambda)e^{i2\pi\mathbf{q}\cdot\mathbf{n}},
+\mathcal{A}_{(\alpha i)(\beta j)}^{\mathrm{SR}}(\mathbf{q},\lambda)=\frac{\mu_{0}}{4\pi}\sum_{\mathbf{n}}'\mathcal{U}_{\alpha\beta}(\mathbf{R}_{ij\mathbf{n}},\lambda)e^{i2\pi\mathbf{q}\cdot\mathbf{n}},
 \end{equation}
 
 \end_inset
@@ -561,7 +600,7 @@ where
 Finally, one must subtract the term,
 \begin_inset Formula 
 \begin{align}
-\mathcal{D}_{(\alpha i)(\beta j)}^{\mathrm{self}}(\lambda) & =-\frac{\mu_{0}}{2\pi}\delta_{ij}\nabla^{\alpha}\nabla^{\beta}\frac{1}{r}\mathrm{erf}\left(\lambda r\right)|_{r\to0}\nonumber \\
+\mathcal{A}_{(\alpha i)(\beta j)}^{\mathrm{self}}(\lambda) & =-\frac{\mu_{0}}{2\pi}\delta_{ij}\nabla^{\alpha}\nabla^{\beta}\frac{1}{r}\mathrm{erf}\left(\lambda r\right)|_{r\to0}\nonumber \\
  & =\mu_{0}\frac{\lambda^{3}}{3\pi^{3/2}}\delta_{ij}\delta_{\alpha\beta}.
 \end{align}
 
