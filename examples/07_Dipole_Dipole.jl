@@ -16,7 +16,7 @@ cryst = Crystal(latvecs, positions, 227, setting="2")
 sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=7/2, g=2)], :dipole, seed=2)
 
 J1 = 0.304 * meV_per_K
-set_exchange!(sys, J1, Bond(1,2,[0,0,0]))
+set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))
 
 # Reshape to the primitive cell with four atoms. To facilitate indexing, the
 # function [`position_to_site`](@ref) accepts positions with respect to the
@@ -25,10 +25,10 @@ set_exchange!(sys, J1, Bond(1,2,[0,0,0]))
 shape = [1/2 1/2 0; 0 1/2 1/2; 1/2 0 1/2]
 sys_prim = reshape_supercell(sys, shape)
 
-set_dipole!(sys_prim, [+1, -1, 0], position_to_site(sys_prim, [0,0,0]))
-set_dipole!(sys_prim, [-1, +1, 0], position_to_site(sys_prim, [1/4,1/4,0]))
-set_dipole!(sys_prim, [+1, +1, 0], position_to_site(sys_prim, [1/4,0,1/4]))
-set_dipole!(sys_prim, [-1, -1, 0], position_to_site(sys_prim, [0,1/4,1/4]))
+set_dipole!(sys_prim, [+1, -1, 0], position_to_site(sys_prim, [0, 0, 0]))
+set_dipole!(sys_prim, [-1, +1, 0], position_to_site(sys_prim, [1/4, 1/4, 0]))
+set_dipole!(sys_prim, [+1, +1, 0], position_to_site(sys_prim, [1/4, 0, 1/4]))
+set_dipole!(sys_prim, [-1, -1, 0], position_to_site(sys_prim, [0, 1/4, 1/4]))
 
 plot_spins(sys_prim; ghost_radius=8, color=[:red,:blue,:yellow,:purple])
 
