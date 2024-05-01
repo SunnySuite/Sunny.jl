@@ -7,14 +7,20 @@
 
 using Sunny, GLMakie
 
-# Create a Pyrochlore lattice from spacegroup 227 in the standard setting.
+# Create a Pyrochlore crystal from spacegroup 227.
+
 latvecs = lattice_vectors(10.19, 10.19, 10.19, 90, 90, 90)
-cryst = Crystal(latvecs, [[0,0,0]], 227, setting="2")
+positions = [[0, 0, 0]]
+cryst = Crystal(latvecs, positions, 227, setting="2")
 
 sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=7/2, g=2)], :dipole, seed=2)
 
 J1 = 0.304 * meV_per_K
 set_exchange!(sys, J1, Bond(1,2,[0,0,0]))
+
+# Reshape to the primitive cell with four atoms. To facilitate indexing, the
+# function [`position_to_site`](@ref) accepts positions with respect to the
+# original (cubic) cell.
 
 shape = [1/2 1/2 0; 0 1/2 1/2; 1/2 0 1/2]
 sys_prim = reshape_supercell(sys, shape)
@@ -24,7 +30,11 @@ set_dipole!(sys_prim, [-1, +1, 0], position_to_site(sys_prim, [1/4,1/4,0]))
 set_dipole!(sys_prim, [+1, +1, 0], position_to_site(sys_prim, [1/4,0,1/4]))
 set_dipole!(sys_prim, [-1, -1, 0], position_to_site(sys_prim, [0,1/4,1/4]))
 
-plot_spins(sys_prim)
+plot_spins(sys_prim; ghost_radius=8)
+
+# Calculate dispersions with and without long-range dipole interactions. The
+# high-symmetry k-points are specified with respect to the conventional cubic
+# cell.
 
 q_points = [[0,0,0], [0,1,0], [1,1/2,0], [1/2,1/2,1/2], [3/4,3/4,0], [0,0,0]]
 q_labels = ["Γ","X","W","L","K","Γ"]
@@ -39,9 +49,9 @@ enable_dipole_dipole!(sys_prim)
 swt = SpinWaveTheory(sys_prim, energy_ϵ=1e-6)
 disp2 = dispersion(swt, path);
 
-# Plot dispersions with and without long-range dipole interactions. To reproduce
-# Fig. 2 of [Del Maestro and Gingras](https://arxiv.org/abs/cond-mat/0403494),
-# an empirical rescaling of energy is necessary.
+# To reproduce Fig. 2 of [Del Maestro and
+# Gingras](https://arxiv.org/abs/cond-mat/0403494), an empirical rescaling of
+# energy was found to be necessary.
 
 fudge_factor = 1/2 # For purposes of reproducing prior work
 
