@@ -26,7 +26,7 @@
     # Same thing, with multiple unit cells
     sys = System(cryst, (2,3,4), infos, :dipole; units=Units.theory)
     enable_dipole_dipole!(sys)
-    @test isapprox(energy(sys), -(1/6)prod(sys.latsize); atol=1e-13)
+    @test isapprox(energy_per_site(sys), -1/6; atol=1e-13)
 
     # Create a random box
     latvecs = lattice_vectors(1.1,0.9,0.8,92,85,95)

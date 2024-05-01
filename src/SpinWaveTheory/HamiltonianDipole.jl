@@ -44,14 +44,13 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             if !iszero(coupling.bilin)
                 J = coupling.bilin  # This is Rij in previous notation (transformed exchange matrix)
 
-                P = 0.25 * (J[1, 1] - J[2, 2] - im*J[1, 2] - im*J[2, 1])
-                Q = 0.25 * (J[1, 1] + J[2, 2] - im*J[1, 2] + im*J[2, 1])
-
+                Q = 0.25 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
                 H11[i, j] += Q * phase
                 H11[j, i] += conj(Q) * conj(phase)
                 H22[i, j] += conj(Q) * phase
                 H22[j, i] += Q  * conj(phase)
 
+                P = 0.25 * (J[1, 1] - J[2, 2] - im*(J[1, 2] + J[2, 1]))
                 H21[i, j] += P * phase
                 H21[j, i] += P * conj(phase)
                 H12[i, j] += conj(P) * phase
@@ -76,14 +75,13 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
                 H21[j, j] += 12*(J[3, 1] - im*J[3, 5])
                 H12[j, j] += 12*(J[3, 1] + im*J[3, 5])
 
-                P = 0.25 * (-J[4, 4]+J[2, 2] - im*( J[4, 2]+J[2, 4]))
                 Q = 0.25 * ( J[4, 4]+J[2, 2] - im*(-J[4, 2]+J[2, 4]))
-
                 H11[i, j] += Q * phase
                 H11[j, i] += conj(Q) * conj(phase)
                 H22[i, j] += conj(Q) * phase
                 H22[j, i] += Q  * conj(phase)
 
+                P = 0.25 * (-J[4, 4]+J[2, 2] - im*( J[4, 2]+J[2, 4]))
                 H21[i, j] += P * phase
                 H21[j, i] += P * conj(phase)
                 H12[i, j] += conj(P) * phase
@@ -110,6 +108,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
         # Loop over sublattice pairs
         for i in 1:L, j in 1:L
+
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
             # energy. A symmetric contribution will appear for the bond reversal
             # (i, j) → (j, i).  Note that μ = -μB g S.
@@ -124,16 +123,17 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             # Interactions for Jˣˣ, Jʸʸ, Jˣʸ, and Jʸˣ at wavevector q.
             Q⁻ = 0.25 * (J[1, 1] + J[2, 2] - im*(J[1, 2] - J[2, 1]))
             Q⁺ = 0.25 * (J[1, 1] + J[2, 2] + im*(J[1, 2] - J[2, 1]))
-            P⁻ = 0.25 * (J[1, 1] - J[2, 2] - im*(J[1, 2] + J[2, 1]))
-            P⁺ = 0.25 * (J[1, 1] - J[2, 2] + im*(J[1, 2] + J[2, 1]))
             H11[i, j] += Q⁻
             H11[j, i] += conj(Q⁻)
             H22[i, j] += Q⁺
             H22[j, i] += conj(Q⁺)
+
+            P⁻ = 0.25 * (J[1, 1] - J[2, 2] - im*(J[1, 2] + J[2, 1]))
+            P⁺ = 0.25 * (J[1, 1] - J[2, 2] + im*(J[1, 2] + J[2, 1]))
             H21[i, j] += P⁻
+            H21[j, i] += conj(P⁺)
+            H12[i, j] += P⁺
             H12[j, i] += conj(P⁻)
-            H21[j, i] += P⁺
-            H12[i, j] += conj(P⁺)
 
             # Interactions for Jᶻᶻ at wavevector (0,0,0).
             H11[i, i] -= 0.5 * J0[3, 3]
