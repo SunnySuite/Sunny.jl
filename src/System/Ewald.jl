@@ -36,11 +36,20 @@ end
 # Tensor product of 3-vectors
 (⊗)(a::Vec3,b::Vec3) = reshape(kron(a,b), 3, 3)
 
-# Precompute the dipole-dipole interaction matrix A and its Fourier transform
-# F[A]
-function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Array{Mat3, 5}
+
+function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int})
+    precompute_dipole_ewald_aux(cryst, latsize, Vec3(0,0,0), cos, Val{Float64}())
+end
+
+# Precompute the dipole-dipole interaction matrix A.  If q_reshaped is zero then
+# all calculated values will be real. For example, `exp(i (q+k)⋅r) → cos(k⋅r)`
+# because the imaginary part cancels in the symmetric sum over ±k. Knowing this,
+# one can replace `cis(x) ≡ exp(i x) = cos(x) + i sin(x)` with just `cos(x)` for
+# efficiency. The parameter `T ∈ {Float64, ComplexF64}` controls the return type
+# in a type-stable way.
+function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, q_reshaped, cis, ::Val{T}) where T
     na = natoms(cryst)
-    A = zeros(Mat3, latsize..., na, na)
+    A = zeros(SMatrix{3, 3, T, 9}, latsize..., na, na)
 
     # Superlattice vectors and reciprocals for the full system volume
     sys_size = diagm(Vec3(latsize))
@@ -51,7 +60,7 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
     I₃ = Mat3(I)
     V = det(latvecs)
     L = cbrt(V)
-    # Roughly balances the real and Fourier space costs
+    # Roughly balances the real and Fourier space costs. Note that σ = 1/(√2 λ)
     σ = L/3
     σ² = σ*σ
     σ³ = σ^3
@@ -70,14 +79,16 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
     # println("nmax $nmax mmax $mmax")
 
     for cell in CartesianIndices(latsize), j in 1:na, i in 1:na
-        acc = zero(Mat3)
+        acc = zero(eltype(A))
         cell_offset = Vec3(cell[1]-1, cell[2]-1, cell[3]-1)
         Δr = cryst.latvecs * (cell_offset + cryst.positions[j] - cryst.positions[i])
-        
+
         #####################################################
         ## Real space part
         for n1 = -nmax[1]:nmax[1], n2 = -nmax[2]:nmax[2], n3 = -nmax[3]:nmax[3]
-            rvec = Δr + latvecs * Vec3(n1, n2, n3)
+            n = Vec3(n1, n2, n3)
+            phase = cis(2π * dot(q_reshaped, n))
+            rvec = Δr + latvecs * n
             r² = rvec⋅rvec
             if 0 < r² <= rmax*rmax
                 r = √r²
@@ -85,20 +96,18 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
                 rhat = rvec/r
                 erfc0 = erfc(r/(√2*σ))
                 gauss0 = √(2/π) * (r/σ) * exp(-r²/2σ²)    
-                acc += (1/2) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
+                acc += (phase/2) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
             end
         end
 
         #####################################################
         ## Fourier space part
         for m1 = -mmax[1]:mmax[1], m2 = -mmax[2]:mmax[2], m3 = -mmax[3]:mmax[3]
-            k = recipvecs * Vec3(m1, m2, m3)
+            m = Vec3(m1, m2, m3)
+            k = recipvecs * (m + q_reshaped)
             k² = k⋅k
             if 0 < k² <= kmax*kmax
-                # Replace exp(-ikr) -> cos(kr). It's valid to drop the imaginary
-                # component because it will cancel in the interaction that exchanges
-                # i ↔ j.
-                acc += (4π/2V) * (exp(-σ²*k²/2) / k²) * (k⊗k) * cos(k⋅Δr)
+                acc += (4π/2V) * (exp(-σ²*k²/2) / k²) * (k⊗k) * cis(k⋅Δr)
             end
         end
 
