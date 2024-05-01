@@ -37,12 +37,13 @@ disp1 = dispersion(swt, path)
 
 enable_dipole_dipole!(sys_prim)
 swt = SpinWaveTheory(sys_prim, energy_ϵ=1e-6)
-disp2 = dispersion(swt, path)
+disp2 = dispersion(swt, path);
 
 # Plot dispersions with and without long-range dipole interactions. To reproduce
 # Fig. 2 of [Del Maestro and Gingras](https://arxiv.org/abs/cond-mat/0403494),
 # an empirical rescaling of energy is necessary.
-fudge_factor = 1/2
+
+fudge_factor = 1/2 # For purposes of reproducing prior work
 
 fig = Figure(size=(900,300))
 
