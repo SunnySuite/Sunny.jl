@@ -94,7 +94,6 @@ function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, μ0
         ## Real space part
         for n1 = -nmax[1]:nmax[1], n2 = -nmax[2]:nmax[2], n3 = -nmax[3]:nmax[3]
             n = Vec3(n1, n2, n3)
-            phase = cis(2π * dot(q_reshaped, n))
             rvec = Δr + latvecs * n
             r² = rvec⋅rvec
             if 0 < r² <= rmax*rmax
@@ -103,6 +102,7 @@ function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, μ0
                 rhat = rvec/r
                 erfc0 = erfc(r/(√2*σ))
                 gauss0 = √(2/π) * (r/σ) * exp(-r²/2σ²)    
+                phase = cis(2π * dot(q_reshaped, n))
                 acc += phase * (μ0/4π) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
             end
         end
@@ -111,10 +111,11 @@ function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, μ0
         ## Fourier space part
         for m1 = -mmax[1]:mmax[1], m2 = -mmax[2]:mmax[2], m3 = -mmax[3]:mmax[3]
             m = Vec3(m1, m2, m3)
-            k = recipvecs * (m + q_reshaped)
+            k = recipvecs * (m + q_reshaped - round.(q_reshaped))
             k² = k⋅k
             if 0 < k² <= kmax*kmax
-                acc += (μ0/V) * (exp(-σ²*k²/2) / k²) * (k⊗k) * cis(k⋅Δr)
+                phase = cis(-k⋅Δr)
+                acc += phase * (μ0/V) * (exp(-σ²*k²/2) / k²) * (k⊗k)
             end
         end
 
