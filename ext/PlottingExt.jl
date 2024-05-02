@@ -881,8 +881,6 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
         sys.latsize[[2,3]] == [1,1] || error("System not one-dimensional in (a₁)")
     end
 
-    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-
     # Show bounding box of magnetic supercell in gray (this needs to come first
     # to set a scale for the scene in case there is only one atom).
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))

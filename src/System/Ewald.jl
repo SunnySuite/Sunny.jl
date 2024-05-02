@@ -2,7 +2,7 @@
 function Ewald(sys::System{N}) where N
     (; crystal, latsize, units) = sys
 
-    A = (units.μ0/4π) * precompute_dipole_ewald(crystal, latsize)
+    A = precompute_dipole_ewald(crystal, latsize, units.μ0)
 
     na = natoms(crystal)
     μ = zeros(Vec3, latsize..., na)
@@ -36,11 +36,27 @@ end
 # Tensor product of 3-vectors
 (⊗)(a::Vec3,b::Vec3) = reshape(kron(a,b), 3, 3)
 
-# Precompute the dipole-dipole interaction matrix A and its Fourier transform
-# F[A]
-function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Array{Mat3, 5}
+
+function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}, μ0)
+    precompute_dipole_ewald_aux(cryst, latsize, μ0, Vec3(0,0,0), cos, Val{Float64}())
+end
+
+# Precompute the pairwise interaction matrix A beween magnetic moments μ. For
+# q_reshaped = 0, this yields the usual Ewald energy, E = μᵢ Aᵢⱼ μⱼ / 2. Nonzero
+# q_reshaped is useful in spin wave theory. Physically, this amounts to a
+# modification of the periodic boundary conditions, such that μ(q) can be
+# incommensurate with the magnetic cell. In all cases, the energy is E = μᵢ(-q)
+# Aᵢⱼ(-q) μⱼ(q) / 2 in Fourier space, where q should be interpreted as a Fourier
+# transform of the cell offset.
+#
+# As an optimization, this function returns real values when q_reshaped is zero.
+# Effectively, one can replace `exp(i (q+k)⋅r) → cos(k⋅r)` because the imaginary
+# part cancels in the symmetric sum over ±k. Specifically, replace `cis(x) ≡
+# exp(i x) = cos(x) + i sin(x)` with just `cos(x)` for efficiency. The parameter
+# `T ∈ {Float64, ComplexF64}` controls the return type in a type-stable way. 
+function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, μ0, q_reshaped, cis, ::Val{T}) where T
     na = natoms(cryst)
-    A = zeros(Mat3, latsize..., na, na)
+    A = zeros(SMatrix{3, 3, T, 9}, latsize..., na, na)
 
     # Superlattice vectors and reciprocals for the full system volume
     sys_size = diagm(Vec3(latsize))
@@ -51,7 +67,7 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
     I₃ = Mat3(I)
     V = det(latvecs)
     L = cbrt(V)
-    # Roughly balances the real and Fourier space costs
+    # Roughly balances the real and Fourier space costs. Note that σ = 1/(√2 λ)
     σ = L/3
     σ² = σ*σ
     σ³ = σ^3
@@ -70,14 +86,15 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
     # println("nmax $nmax mmax $mmax")
 
     for cell in CartesianIndices(latsize), j in 1:na, i in 1:na
-        acc = zero(Mat3)
+        acc = zero(eltype(A))
         cell_offset = Vec3(cell[1]-1, cell[2]-1, cell[3]-1)
         Δr = cryst.latvecs * (cell_offset + cryst.positions[j] - cryst.positions[i])
-        
+
         #####################################################
         ## Real space part
         for n1 = -nmax[1]:nmax[1], n2 = -nmax[2]:nmax[2], n3 = -nmax[3]:nmax[3]
-            rvec = Δr + latvecs * Vec3(n1, n2, n3)
+            n = Vec3(n1, n2, n3)
+            rvec = Δr + latvecs * n
             r² = rvec⋅rvec
             if 0 < r² <= rmax*rmax
                 r = √r²
@@ -85,27 +102,34 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
                 rhat = rvec/r
                 erfc0 = erfc(r/(√2*σ))
                 gauss0 = √(2/π) * (r/σ) * exp(-r²/2σ²)    
-                acc += (1/2) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
+                phase = cis(2π * dot(q_reshaped, n))
+                acc += phase * (μ0/4π) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
             end
         end
 
         #####################################################
         ## Fourier space part
         for m1 = -mmax[1]:mmax[1], m2 = -mmax[2]:mmax[2], m3 = -mmax[3]:mmax[3]
-            k = recipvecs * Vec3(m1, m2, m3)
+            m = Vec3(m1, m2, m3)
+            k = recipvecs * (m + q_reshaped - round.(q_reshaped))
             k² = k⋅k
-            if 0 < k² <= kmax*kmax
-                # Replace exp(-ikr) -> cos(kr). It's valid to drop the imaginary
-                # component because it will cancel in the interaction that exchanges
-                # i ↔ j.
-                acc += (4π/2V) * (exp(-σ²*k²/2) / k²) * (k⊗k) * cos(k⋅Δr)
+
+            ϵ² = 1e-16
+            if k² <= ϵ²
+                # Consider including a surface dipole term as in S. W. DeLeeuw,
+                # J. W. Perram, and E. R. Smith, Proc. R. Soc. Lond. A 373,
+                # 27-56 (1980). For a spherical geometry, this term might be:
+                # acc += (μ0/2V) * I₃
+            elseif ϵ² < k² <= kmax*kmax
+                phase = cis(-k⋅Δr)
+                acc += phase * (μ0/V) * (exp(-σ²*k²/2) / k²) * (k⊗k)
             end
         end
 
         #####################################################
         ## Remove self energies
         if iszero(Δr)
-            acc += - I₃/(3√(2π)*σ³)
+            acc += - μ0*I₃/(3(2π)^(3/2)*σ³)
         end
 
         # For sites site1=(cell1, i) and site2=(cell2, j) offset by an amount
@@ -113,6 +137,8 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}) :: Arra
         # Julia arrays start at one, so we index A using (cell = off .+ 1).
         A[cell, i, j] = acc
     end
+
+    # TODO: Verify that A[off, i, j] ≈ A[-off, j, i]'
 
     return A
 end
@@ -138,15 +164,13 @@ function ewald_energy(sys::System{N}) where N
     else
         @views Fμ[:, 2:end, :, :, :] .*= √2
     end
-    # * The field is a cross correlation, h(r) = - 2 A(Δr) s(r+Δr) = - 2A⋆s, or
-    #   in Fourier space, F[h] = - 2 conj(F[A]) F[s]
-    # * The energy is an inner product, E = - (1/2)s⋅h, or using Parseval's
-    #   theorem, E = - (1/2) conj(F[s]) F[h] / N
-    # * Combined, the result is: E = conj(F[s]) conj(F[A]) F[s] / N
+
+    # In real space, E = μ (A ⋆ μ) / 2. In Fourier space, the convolution
+    # becomes an ordinary product using Parseval's theorem.
     (_, m1, m2, m3, na) = size(Fμ)
     ms = CartesianIndices((m1, m2, m3))
     @inbounds for j in 1:na, i in 1:na, m in ms, α in 1:3, β in 1:3
-        E += real(conj(Fμ[α, m, i]) * conj(FA[α, β, m, i, j]) * Fμ[β, m, j])
+        E += (1/2) * real(conj(Fμ[α, m, i]) * conj(FA[α, β, m, i, j]) * Fμ[β, m, j])
     end
     return E / prod(latsize)
 end
@@ -177,7 +201,7 @@ function accum_ewald_grad!(∇E, dipoles, sys::System{N}) where N
     mul!(ϕr, ift_plan, Fϕ)
     
     for site in eachsite(sys)
-        ∇E[site] += 2 * units.μB * (gs[site]' * ϕ[site])
+        ∇E[site] += units.μB * (gs[site]' * ϕ[site])
     end
 end
 
@@ -188,11 +212,9 @@ function ewald_pairwise_grad_at(sys::System{N}, site1, site2) where N
     cell_offset = mod.(Tuple(to_cell(site2)-to_cell(site1)), latsize)
     cell = CartesianIndex(cell_offset .+ (1,1,1))
 
-    # A prefactor of 2 is always appropriate here. If site1 == site2, it
-    # accounts for the quadratic dependence on the dipole. If site1 != site2, it
-    # accounts for energy contributions from both ordered pairs (site1, site2)
-    # and (site2, site1).
-    return 2 * units.μB^2 * gs[site1]' * ewald.A[cell, to_atom(site1), to_atom(site2)] * gs[site2] * sys.dipoles[site2]
+    # The factor of 1/2 in the energy formula `E = μ (A ⋆ μ) / 2` disappears due
+    # to quadratic appearance of μ = - μB g S.
+    return units.μB^2 * gs[site1]' * ewald.A[cell, to_atom(site1), to_atom(site2)] * gs[site2] * sys.dipoles[site2]
 end
 
 # Calculate the field dE/ds at `site` generated by all `dipoles`.
@@ -212,5 +234,51 @@ function ewald_energy_delta(sys::System{N}, site, s::Vec3) where N
     Δμ = units.μB * (sys.gs[site] * Δs)
     i = to_atom(site)
     ∇E = ewald_grad_at(sys, site)
-    return Δs⋅∇E + dot(Δμ, ewald.A[1, 1, 1, i, i], Δμ)
+    return Δs⋅∇E + dot(Δμ, ewald.A[1, 1, 1, i, i], Δμ) / 2
+end
+
+"""
+    modify_exchange_with_truncated_dipole_dipole!(sys::System, cutoff)
+
+This *experimental* function is subject to change.
+
+Like [`enable_dipole_dipole!`](@ref), the purpose of this function is to
+introduce long-range dipole-dipole interactions between magnetic moments.
+Whereas `enable_dipole_dipole!` employs Ewald summation, this function instead
+employs real-space pair couplings, with truncation at some user-specified
+`cutoff` distance. If the cutoff is relatively small, then this function can be
+faster than `enable_dipole_dipole!`, especially for spin wave theory
+calculations.
+
+**Caution**. This function will modify existing bilinear couplings between spins
+by adding dipole-dipole interactions. It must therefore be called _after_ all
+other pair couplings have been specified. Conversely, any calls to
+`set_exchange!`, `set_pair_coupling!`, etc. will irreversibly delete the
+dipole-dipole interactions that have been introduced by this function.
+"""
+function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff) where N
+    (; gs) = sys
+    (; μB, μ0) = sys.units
+
+    if !isnothing(sys.origin)
+        modify_exchange_with_truncated_dipole_dipole!(sys.origin, cutoff)
+        transfer_interactions!(sys, sys.origin)
+        return
+    end
+
+    is_homogeneous(sys) || error("Currently requires homogeneous system")
+    ints = interactions_homog(sys)
+
+    for bond in reference_bonds(sys.crystal, cutoff)
+        for i in 1:natoms(sys.crystal)
+            for bond′ in all_symmetry_related_bonds_for_atom(sys.crystal, i, bond)
+                (; j) = bond′
+                r = global_displacement(sys.crystal, bond′)
+                iszero(r) && continue
+                r̂ = normalize(r)
+                bilin = (μ0/4π) * μB^2 * gs[i]' * ((I - 3r̂⊗r̂) / norm(r)^3) * gs[j]
+                replace_coupling!(ints[i].pair, PairCoupling(bond′, 0.0, Mat3(bilin), 0.0, zero(TensorDecomposition)); accum=true)
+            end
+        end
+    end
 end

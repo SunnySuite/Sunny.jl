@@ -236,7 +236,7 @@ The integral of a properly normalized kernel function over all `Δω` is one.
 function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
                            return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", formfactors=nothing)
     (; sys, data, observables) = swt
-    (; observable_operators) = data
+    (; observables_localized) = data
 
     # Number of atoms in magnetic cell
     Nm = length(sys.dipoles)
@@ -326,7 +326,7 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVe
                 v = reshape(view(V, :, band), N-1, Nm, 2)
                 for i = 1:Nm
                     for μ = 1:num_observables(observables)
-                        @views O = observable_operators[:, :, μ, i]
+                        @views O = observables_localized[:, :, μ, i]
                         for α = 1:N-1
                             Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
                         end
@@ -349,7 +349,7 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVe
                         # (; local_rotations) = data
                         # displacement_global_frame = local_rotations[i] * displacement_local_frame
 
-                        @views O_local_frame = observable_operators[:,:,μ,i]
+                        @views O_local_frame = observables_localized[:,:,μ,i]
                         Avec[μ] += Avec_pref[i] * sqrt_halfS * (O_local_frame * displacement_local_frame)[1]
                     end
                 end                
