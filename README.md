@@ -50,10 +50,8 @@ Sunny is inspired by SpinW, especially regarding symmetry analysis, model specif
 | [Interaction renormalization for dipoles](https://arxiv.org/abs/2304.03874) | ❌ | ❌ | ✅ |
 | [Multi-flavor spin wave theory](https://arxiv.org/abs/1307.7731) | ✅ | ❌ | ✅ |
 | [Classical SU(_N_) spin dynamics](https://arxiv.org/abs/2209.01265)</u> | ❌ | ❌ | ✅ |
-| Ewald summation for dipole-dipole | ❌ | ❌ | 🟨⁽¹⁾ |
+| Ewald summation for dipole-dipole | ❌ | ❌ | ✅ |
 | Programming language | C++ | Matlab | [Julia](https://julialang.org/) |
-
-_Fine print: (1) Dipole-dipole interactions currently supported in classical dyamics but not LSWT._
 
 The classical SU(_N_) spin dynamics in Sunny generalizes the Landau-Lifshitz equation for $S > 1/2$ quantum spins. Linearizing and quantizing SU(_N_) dynamics yields a generalization of spin wave theory involving multi-flavor bosons.
 

@@ -52,6 +52,10 @@ struct PairCoupling
 
     # General pair interactions, only valid in SU(N) mode
     general  :: TensorDecomposition
+
+    function PairCoupling(bond, scalar, bilin, biquad, general)
+        return new(bond_parity(bond), bond, scalar, bilin, biquad, general)
+    end
 end
 
 mutable struct Interactions

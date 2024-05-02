@@ -51,8 +51,7 @@ function transfer_interactions!(sys::System{N}, src::System{N}) where N
         new_pc = PairCoupling[]
         for pc in src_int.pair
             new_bond = map_bond_to_other_crystal(src.crystal, pc.bond, sys.crystal, new_i)
-            isculled = bond_parity(new_bond)
-            push!(new_pc, PairCoupling(isculled, new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
+            push!(new_pc, PairCoupling(new_bond, pc.scalar, pc.bilin, pc.biquad, pc.general))
         end
         new_pc = sort!(new_pc, by=c->c.isculled)
         new_ints[new_i].pair = new_pc

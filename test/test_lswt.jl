@@ -138,9 +138,8 @@ end
     # Crystal
     a = 8.289
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-    types = ["MzR1"]
     positions = [[0, 0, 0]]
-    fcc = Crystal(latvecs, positions, 225; types)
+    fcc = Crystal(latvecs, positions, 225)
 
     S = 5/2
     g = 2
@@ -332,10 +331,45 @@ end
 end
 
 
-@testitem "Dipole-dipole unimplemented" begin
-    sys = System(Sunny.diamond_crystal(),(1,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN;seed = 0)
-    enable_dipole_dipole!(sys)
-    @test_throws "SpinWaveTheory does not yet support long-range dipole-dipole interactions." SpinWaveTheory(sys)
+@testitem "Dipole-dipole" begin
+    latvecs = lattice_vectors(10, 10, 1, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0,0,0]])
+
+    for mode in (:dipole, :SUN)
+        sys = System(cryst, (1,1,1), [SpinInfo(1; S=1, g=1)], mode; units=Units.theory)
+        enable_dipole_dipole!(sys)
+
+        polarize_spins!(sys, (0,0,1))
+        @test energy_per_site(sys) ≈ -0.1913132980155851
+        
+        swt = SpinWaveTheory(sys)
+        formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
+        
+        qpoints = [[0, 0, 0], [0, 0, 1/2], [0, 1/2, 1/2], [0, 0, 0]]
+        disps, is = intensities_bands(swt, qpoints, formula)
+        @test disps[:,end] ≈ [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553]
+        @test is[:,end] ≈ [1, 1, 201/202, 1]
+    end
+
+    begin
+        cryst = Sunny.bcc_crystal()
+        sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :dipole, seed=2)
+        enable_dipole_dipole!(sys)
+        polarize_spins!(sys, (1,2,3)) # arbitrary direction
+        
+        R = hcat([1,1,-1], [-1,1,1], [1,-1,1]) / 2
+        sys_reshape = reshape_supercell(sys, R)
+        @test energy_per_site(sys_reshape) ≈ energy_per_site(sys) ≈ -0.89944235377
+        
+        swt1 = SpinWaveTheory(sys, energy_ϵ=1e-8)
+        swt2 = SpinWaveTheory(sys_reshape, energy_ϵ=1e-8)
+        path = [[0.5, -0.1, 0.3]]
+        disp1 = dispersion(swt1, path)
+        disp2 = dispersion(swt2, path)
+        
+        @test disp1 ≈ [1.3236778213351734 0.9206655419611791]
+        @test disp2 ≈ [0.9206655419611772]        
+    end
 end
 
 

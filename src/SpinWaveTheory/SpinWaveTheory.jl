@@ -1,12 +1,13 @@
 struct SWTDataDipole
     local_rotations       :: Vector{Mat3}
     stevens_coefs         :: Vector{StevensExpansion}
-    observable_operators  :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
+    observables_localized :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
 end
 
 struct SWTDataSUN
     local_unitaries       :: Array{ComplexF64, 3}  # Aligns to quantization axis on each site
-    observable_operators  :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
+    spins_localized       :: Array{ComplexF64, 4}  # Spins in local frame
+    observables_localized :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
 end
 
 """
@@ -27,10 +28,6 @@ struct SpinWaveTheory
 end
 
 function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing, apply_g=true) where N
-    if !isnothing(sys.ewald)
-        error("SpinWaveTheory does not yet support long-range dipole-dipole interactions.")
-    end
-
     # Reshape into single unit cell. A clone will always be performed, even if
     # no reshaping happens.
     cellsize_mag = cell_shape(sys) * diagm(Vec3(sys.latsize))
@@ -75,7 +72,7 @@ end
 # contains all information about the interaction in the `general` (tensor
 # decomposition) field.
 function as_general_pair_coupling(pc, sys)
-    (; isculled, bond, scalar, bilin, biquad, general) = pc
+    (; bond, scalar, bilin, biquad, general) = pc
     N1 = sys.Ns[bond.i]
     N2 = sys.Ns[bond.j]
 
@@ -102,16 +99,16 @@ function as_general_pair_coupling(pc, sys)
     # Generate new interaction with extract_parts=false 
     scalar, bilin, biquad, general = decompose_general_coupling(accum, N1, N2; extract_parts=false)
 
-    return PairCoupling(isculled, bond, scalar, bilin, biquad, general)
+    return PairCoupling(bond, scalar, bilin, biquad, general)
 end
 
 function rotate_general_coupling_into_local_frame(pc, U1, U2)
-    (; isculled, bond, scalar, bilin, biquad, general) = pc
+    (; bond, scalar, bilin, biquad, general) = pc
     data_new = map(general.data) do (A, B)
         (Hermitian(U1'*A*U1), Hermitian(U2'*B*U2))
     end
     td = TensorDecomposition(general.gen1, general.gen2, data_new)
-    return PairCoupling(isculled, bond, scalar, bilin, biquad, td)
+    return PairCoupling(bond, scalar, bilin, biquad, td)
 end
 
 # Prepare local operators and observables for SU(N) spin wave calculation by
@@ -122,6 +119,7 @@ function swt_data_sun(sys::System{N}, obs) where N
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = zeros(ComplexF64, N, N, n_magnetic_atoms)
+    spins_localized = zeros(ComplexF64, N, N, 3, n_magnetic_atoms)
     observables_localized = zeros(ComplexF64, N, N, num_observables(obs), n_magnetic_atoms)
 
     for atom in 1:n_magnetic_atoms
@@ -136,7 +134,12 @@ function swt_data_sun(sys::System{N}, obs) where N
         U = view(local_unitaries, :, :, atom)
 
         # Rotate observables into local reference frames
-        for k = 1:num_observables(obs)
+        S = spin_matrices_of_dim(; N)
+        for k in 1:3
+            spins_localized[:, :, k, atom] = Hermitian(U' * S[k] * U)
+        end
+        
+        for k in 1:num_observables(obs)
             A = observable_at_site(obs.observables[k],CartesianIndex(1,1,1,atom))
             observables_localized[:, :, k, atom] = Hermitian(U' * convert(Matrix, A) * U)
         end
@@ -171,6 +174,7 @@ function swt_data_sun(sys::System{N}, obs) where N
 
     return SWTDataSUN(
         local_unitaries,
+        spins_localized,
         observables_localized
     )
 end
@@ -239,7 +243,7 @@ function swt_data_dipole(sys::System{0}, obs)
 
             @assert isempty(general.data)
 
-            ints.pair[c] = PairCoupling(isculled, bond, scalar, bilin, biquad, general)
+            ints.pair[c] = PairCoupling(bond, scalar, bilin, biquad, general)
         end
     end
 
