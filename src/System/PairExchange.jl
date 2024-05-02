@@ -51,9 +51,8 @@ function Base.:+(c1::PairCoupling, c2::PairCoupling)
         Mat5(c1.biquad*I + c2.biquad*I)
     end
 
-    tensordec = c1.general + c2.general
-
-    PairCoupling(c1.bond, scalar, bilin, biquad, tensordec)
+    general = c1.general + c2.general
+    PairCoupling(c1.bond, scalar, bilin, biquad, general)
 end
 
 # Internal function only
@@ -147,13 +146,21 @@ function Base.zero(::Type{TensorDecomposition})
 end
 
 function Base.:+(op1::TensorDecomposition, op2::TensorDecomposition)
+    isempty(op2.data) && return op1
+    isempty(op1.data) && return op2
     @assert op1.gen1 ≈ op2.gen1
     @assert op1.gen2 ≈ op2.gen2
-    isempty(op2.data) && return op1
+
+    # We could re-optimize the SVD decomposition as below, but doing this
+    # unnecessarily would cost some floating point precision.
+    return TensorDecomposition(op1.gen1, op1.gen2, vcat(op1.data, op2.data))
+
+    #=
     total = sum(kron(A, B) for (A, B) in vcat(op1.data, op2.data))
     N1 = size(op1.gen1, 1)
     N2 = size(op1.gen2, 1)
-    TensorDecomposition(op1.gen1, op1.gen2, svd_tensor_expansion(total, N1, N2))
+    return TensorDecomposition(op1.gen1, op1.gen2, svd_tensor_expansion(total, N1, N2))
+    =#
 end
 
 function Base.isapprox(op1::TensorDecomposition, op2::TensorDecomposition; kwargs...)
