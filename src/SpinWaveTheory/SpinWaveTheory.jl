@@ -72,7 +72,7 @@ end
 # contains all information about the interaction in the `general` (tensor
 # decomposition) field.
 function as_general_pair_coupling(pc, sys)
-    (; isculled, bond, scalar, bilin, biquad, general) = pc
+    (; bond, scalar, bilin, biquad, general) = pc
     N1 = sys.Ns[bond.i]
     N2 = sys.Ns[bond.j]
 
@@ -99,16 +99,16 @@ function as_general_pair_coupling(pc, sys)
     # Generate new interaction with extract_parts=false 
     scalar, bilin, biquad, general = decompose_general_coupling(accum, N1, N2; extract_parts=false)
 
-    return PairCoupling(isculled, bond, scalar, bilin, biquad, general)
+    return PairCoupling(bond, scalar, bilin, biquad, general)
 end
 
 function rotate_general_coupling_into_local_frame(pc, U1, U2)
-    (; isculled, bond, scalar, bilin, biquad, general) = pc
+    (; bond, scalar, bilin, biquad, general) = pc
     data_new = map(general.data) do (A, B)
         (Hermitian(U1'*A*U1), Hermitian(U2'*B*U2))
     end
     td = TensorDecomposition(general.gen1, general.gen2, data_new)
-    return PairCoupling(isculled, bond, scalar, bilin, biquad, td)
+    return PairCoupling(bond, scalar, bilin, biquad, td)
 end
 
 # Prepare local operators and observables for SU(N) spin wave calculation by
@@ -243,7 +243,7 @@ function swt_data_dipole(sys::System{0}, obs)
 
             @assert isempty(general.data)
 
-            ints.pair[c] = PairCoupling(isculled, bond, scalar, bilin, biquad, general)
+            ints.pair[c] = PairCoupling(bond, scalar, bilin, biquad, general)
         end
     end
 

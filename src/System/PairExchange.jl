@@ -29,6 +29,9 @@ function to_float_or_mat3(J)
     return J::Union{Float64, Mat3}
 end
 
+function Base.iszero(c::PairCoupling)
+    return iszero(c.scalar) && iszero(c.bilin) && iszero(c.biquad) && isempty(c.general.data)
+end
 
 function Base.:+(c1::PairCoupling, c2::PairCoupling)
     @assert c1.isculled == c2.isculled
@@ -50,23 +53,21 @@ function Base.:+(c1::PairCoupling, c2::PairCoupling)
 
     tensordec = c1.general + c2.general
 
-    PairCoupling(c1.isculled, c1.bond, scalar, bilin, biquad, tensordec)
+    PairCoupling(c1.bond, scalar, bilin, biquad, tensordec)
 end
 
 # Internal function only
-function push_coupling!(couplings, bond::Bond, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition; accum=false)
+function replace_coupling!(list, coupling::PairCoupling; accum=false)
+    (; bond) = coupling
+
     # Find and remove existing couplings for this bond
-    idxs = findall(c -> c.bond == bond, couplings)
-    existing = couplings[idxs]
-    deleteat!(couplings, idxs)
+    idxs = findall(c -> c.bond == bond, list)
+    existing = list[idxs]
+    deleteat!(list, idxs)
 
     # If the new coupling is exactly zero, and we're not accumulating, then
     # return early
-    iszero(bilin) && iszero(biquad) && isempty(tensordec.data) && !accum && return
-
-    # Create a new PairCoupling
-    isculled = bond_parity(bond)
-    coupling = PairCoupling(isculled, bond, scalar, bilin, biquad, tensordec)
+    iszero(coupling) && !accum && return
 
     # Optionally accumulate to an existing PairCoupling
     if accum && !isempty(existing)
@@ -76,17 +77,12 @@ function push_coupling!(couplings, bond::Bond, scalar::Float64, bilin::Union{Flo
     # Add to the list and sort by isculled. Sorting after each insertion will
     # introduce quadratic scaling in length of `couplings`. If this becomes
     # slow, we could swap two PairCouplings instead of performing a full sort.
-    isculled = bond_parity(bond)
-    push!(couplings, coupling)
-    sort!(couplings, by=c->c.isculled)
+    push!(list, coupling)
+    sort!(list, by=c->c.isculled)
     
     return
 end
 
-function allapproxequal(a; kwargs...)
-    mean = sum(a; init=0.0) / length(a)
-    all(x -> isapprox(mean, x), a)
-end
 
 # If A ≈ α B, then return the scalar α. Otherwise, return A.
 function proportionality_factor(A, B; atol=1e-12)
@@ -243,7 +239,7 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
             bilin′ = transform_coupling_for_bonds(sys.crystal, bond′, bond, bilin)
             biquad′ = transform_coupling_for_bonds(sys.crystal, bond′, bond, biquad)
             tensordec′ = transform_coupling_for_bonds(sys.crystal, bond′, bond, tensordec)
-            push_coupling!(ints[i].pair, bond′, scalar, bilin′, biquad′, tensordec′)
+            replace_coupling!(ints[i].pair, PairCoupling(bond′, scalar, bilin′, biquad′, tensordec′))
         end
     end
 end
@@ -424,8 +420,8 @@ function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Fl
     site2 = to_cartesian(site2)
     bond = sites_to_internal_bond(sys, site1, site2, offset)
 
-    push_coupling!(ints[site1].pair, bond, scalar, bilin, biquad, tensordec)
-    push_coupling!(ints[site2].pair, reverse(bond), scalar, bilin', biquad', reverse(tensordec))
+    replace_coupling!(ints[site1].pair, PairCoupling(bond, scalar, bilin, biquad, tensordec))
+    replace_coupling!(ints[site2].pair, PairCoupling(reverse(bond), scalar, bilin', biquad', reverse(tensordec)))
 end
 
 """

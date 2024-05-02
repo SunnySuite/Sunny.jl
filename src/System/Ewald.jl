@@ -277,7 +277,7 @@ function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff) w
                 iszero(r) && continue
                 r̂ = normalize(r)
                 bilin = (μ0/4π) * μB^2 * gs[i]' * ((I - 3r̂⊗r̂) / norm(r)^3) * gs[j]
-                push_coupling!(ints[i].pair, bond′, 0.0, Mat3(bilin), 0.0, zero(TensorDecomposition); accum=true)
+                replace_coupling!(ints[i].pair, PairCoupling(bond′, 0.0, Mat3(bilin), 0.0, zero(TensorDecomposition)); accum=true)
             end
         end
     end
