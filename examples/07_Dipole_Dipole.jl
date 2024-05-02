@@ -45,14 +45,14 @@ xticks = (xticks[1], q_labels)
 swt = SpinWaveTheory(sys_prim)
 disp1 = dispersion(swt, path)
 
-sys_prim′ = clone_system(sys_prim)
-enable_dipole_dipole!(sys_prim′)
-swt = SpinWaveTheory(sys_prim′)
-disp2 = dispersion(swt, path);
+sys_prim_dd = clone_system(sys_prim)
+enable_dipole_dipole!(sys_prim_dd)
+swt = SpinWaveTheory(sys_prim_dd)
+disp2 = dispersion(swt, path)
 
-sys_prim′ = clone_system(sys_prim)
-modify_exchange_with_truncated_dipole_dipole!(sys_prim′, 5.0)
-swt = SpinWaveTheory(sys_prim′)
+sys_prim_tdd = clone_system(sys_prim)
+modify_exchange_with_truncated_dipole_dipole!(sys_prim_tdd, 5.0)
+swt = SpinWaveTheory(sys_prim_tdd)
 disp3 = dispersion(swt, path);
 
 # To reproduce Fig. 2 of [Del Maestro and

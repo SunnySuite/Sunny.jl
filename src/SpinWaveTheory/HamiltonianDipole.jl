@@ -101,9 +101,9 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
         A = precompute_dipole_ewald_aux(sys.crystal, (1,1,1), units.μ0, q_reshaped, cis, Val{ComplexF64}())
         A = reshape(A, L, L)
 
-        # Interaction matrix for wavevector (0,0,0)
+        # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
+        # precompute_dipole_ewald(sys.crystal, (1,1,1), units.μ0)
         A0 = sys.ewald.A
-        # @assert A0 ≈ precompute_dipole_ewald(sys.crystal, (1,1,1), units.μ0)
         A0 = reshape(A0, L, L)
 
         # Loop over sublattice pairs
