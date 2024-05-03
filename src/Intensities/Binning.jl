@@ -491,8 +491,8 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
     # 
     # So the division by N here makes it so the result has units of
     # raw S² (to be summed over M-many BZs to recover M-times the sum rule)
-    N_bins_in_BZ = numbins[4] * det(covectors[1:3,1:3]) / prod(binwidth[1:3])
-    return output_intensities ./ N_bins_in_BZ, output_counts
+    N_bins_in_BZ = abs(det(covectors[1:3,1:3])) / prod(binwidth[1:3])
+    return output_intensities ./ N_bins_in_BZ ./ length(ωvals), output_counts
 end
 
 function available_energies_including_zero(x;kwargs...)
