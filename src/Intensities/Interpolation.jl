@@ -181,7 +181,7 @@ function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targe
 end
 
 """
-    instant_intensities_interpolated(sc::SampledCorrelations, qs, formula:ClassicalIntensityFormula; kwargs...)
+    instant_intensities_interpolated(sc::SampledCorrelations, qs, formula::ClassicalIntensityFormula; kwargs...)
 
 Return ``𝒮(𝐪)`` intensities at wave vectors `qs`. The functionality is very
 similar to [`intensities_interpolated`](@ref), except the returned array has dimensions
