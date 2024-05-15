@@ -61,7 +61,7 @@ function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, μ0
     # Superlattice vectors and reciprocals for the full system volume
     sys_size = diagm(Vec3(latsize))
     latvecs = cryst.latvecs * sys_size
-    recipvecs = sys_size \ cryst.recipvecs
+    recipvecs = cryst.recipvecs / sys_size
 
     # Precalculate constants
     I₃ = Mat3(I)

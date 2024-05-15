@@ -9,6 +9,8 @@
   spin wave theory, with proper Ewald summation. For a faster alternative, the
   experimental function [`modify_exchange_with_truncated_dipole_dipole!`](@ref)
   will accept a real-space cutoff.
+* Long-range dipole-dipole was previously broken for systems with multiple
+  cells, but is now fixed.
 
 
 ## v0.5.9
