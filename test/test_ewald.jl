@@ -42,6 +42,10 @@
     enable_dipole_dipole!(sys)
     randomize_spins!(sys)
 
+    # Energy per site is independent of resizing
+    sys2 = resize_supercell(sys, (2, 3, 1))
+    @test isapprox(energy_per_site(sys), energy_per_site(sys2); atol=1e-12)
+
     # Consistency with Ewalder reference calculation
     @test isapprox(energy(sys), ewalder_energy(sys); atol=1e-12)
 
