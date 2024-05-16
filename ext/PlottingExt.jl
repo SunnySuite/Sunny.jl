@@ -346,7 +346,7 @@ function exchange_magnitude(interactions)
     ret = -Inf
     for int in interactions, pc in int.pair
         J = pc.bilin * Mat3(I)
-        sym = maximum(abs.(eigvals(hermitianpart(J))))
+        sym = maximum(abs.(eigvals(Hermitian(J+J')/2)))
         dm = norm(Sunny.extract_dmvec(J))
         ret = max(ret, sym + 2dm)
     end
@@ -357,7 +357,7 @@ end
 function exchange_decomposition(J)
     # Absolute value of eigenvalues control scaling of ellipsoidal axis, with
     # ellipsoid volume depicting interaction strength.
-    vals, vecs = eigen(hermitianpart(J))
+    vals, vecs = eigen(Hermitian(J+J')/2)
 
     # If vecs includes a reflection, then permute columns
     if det(vecs) < 0
