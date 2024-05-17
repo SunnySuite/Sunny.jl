@@ -35,11 +35,12 @@ function gm_spherical3d!(sys::System, n, x)
     k = x[end-2:end]
     MTheta  = x[(1:nspin) .* 2 .- 1]
     MPhi    = x[(1:nspin) .* 2]
+	R = Sunny.rotation_between_vectors(n, [0, 0, 1])
     for i in 1:nspin
         if length(MTheta)!=length(sys.Ns)
             error("gm_spherical3d:NumberOfMoments','The number of fitting parameters doesn''t produce the right number of moments!")
         end
-        sys.dipoles[i] =  [sin(MTheta[i])*cos(MPhi[i]); sin(MTheta[i])*sin(MPhi[i]); cos(MTheta[i])] * sys.κs[i]
+        sys.dipoles[i] = R * [sin(MTheta[i])*cos(MPhi[i]); sin(MTheta[i])*sin(MPhi[i]); cos(MTheta[i])] * sys.κs[i]
     end
     E = spiral_energy(sys,k,n)
     return E
@@ -49,17 +50,16 @@ end
 function spiral_energy(sys::System, k, n)
     E = 0
     L  = Sunny.natoms(sys.crystal)
-    A = n * n'
     for matom = 1:L
         ints = sys.interactions_union[matom]
         for c in ints.pair
-            d = c.bond.n
-            θ = (2*π * dot(k,d))
+            θ = 2π * dot(k, c.bond.n)
             R = [cos(θ)+(n[1]^2)*(1-cos(θ)) n[1]*n[2]*(1-cos(θ))-n[3]*sin(θ) n[1]*n[3]*(1-cos(θ))+n[2]*sin(θ);
                 n[2]*n[1]*(1-cos(θ))+n[3]*sin(θ) cos(θ)+(n[2]^2)*(1-cos(θ)) n[2]*n[3]*(1-cos(θ))-n[1]*sin(θ);
                 n[3]*n[1]*(1-cos(θ))-n[2]*sin(θ) n[2]*n[3]*(1-cos(θ))+n[1]*sin(θ) cos(θ)+(n[3]^2)*(1-cos(θ))]
+            # R = axis_angle_to_matrix(n, θ)
 
-            J = c.bilin *I
+            J = c.bilin * I
             Jij = (J * R + R * J) ./ 2
             sub_i, sub_j = c.bond.i, c.bond.j
             Si = sys.dipoles[sub_i]
