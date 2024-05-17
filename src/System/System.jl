@@ -208,9 +208,8 @@ function spin_label(sys::System, i::Int)
         return Inf
     else
         @assert sys.mode in (:dipole, :SUN)
-        N = unique(sys.Ns[:,:,:,i])
-        length(N) > 1 && error("Spin varies between chemical cells")
-        return (only(N)-1)/2
+        allequal(sys.Ns[:,:,:,i]) || error("Spin varies between chemical cells")
+        return (sys.Ns[1,1,1,i]-1)/2
     end
 end
 
