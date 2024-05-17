@@ -254,25 +254,25 @@ function multiply_by_hamiltonian_dipole!(y::Array{ComplexF64, 2}, x::Array{Compl
 
                 @inbounds for q in 1:Nq
                     Y[q, i, 1] += -6 * Sj2Si * J[3, 3] * X[q, i, 1]
-                    Y[q, i, 1] += 12 * Sj2Si * (J[1, 3] + im*J[5, 3]) * X[q, i, 2]
+                    Y[q, i, 1] += 2 * Sj2Si * (J[1, 3] + im*J[5, 3]) * X[q, i, 2]
                     Y[q, i, 1] += Q * phases[q] * X[q, j, 1]
                     Y[q, i, 1] += conj(P) * phases[q] * X[q, j, 2]
                 end
                 @inbounds for q in 1:Nq
                     Y[q, i, 2] += -6 * Sj2Si * J[3, 3] * X[q, i, 2]
-                    Y[q, i, 2] += 12 * Sj2Si * (J[1, 3] - im*J[5, 3]) * X[q, i, 1]
+                    Y[q, i, 2] += 2 * Sj2Si * (J[1, 3] - im*J[5, 3]) * X[q, i, 1]
                     Y[q, i, 2] += conj(Q) * phases[q] * X[q, j, 2]
                     Y[q, i, 2] += P * phases[q] * X[q, j, 1]
                 end
                 @inbounds for q in 1:Nq
                     Y[q, j, 1] += -6 * Si2Sj * J[3, 3] * X[q, j, 1]
-                    Y[q, j, 1] += 12 * Si2Sj * (J[3, 1] + im*J[3, 5]) * X[q, j, 2]
+                    Y[q, j, 1] += 2 * Si2Sj * (J[3, 1] + im*J[3, 5]) * X[q, j, 2]
                     Y[q, j, 1] += conj(Q) * conj(phases[q]) * X[q, i, 1]
                     Y[q, j, 1] += conj(P) * conj(phases[q]) * X[q, i, 2]
                 end
                 @inbounds for q in 1:Nq
                     Y[q, j, 2] += -6 * Si2Sj * J[3, 3] * X[q, j, 2]
-                    Y[q, j, 2] += 12 * Si2Sj * (J[3, 1] - im*J[3, 5]) * X[q, j, 1]
+                    Y[q, j, 2] += 2 * Si2Sj * (J[3, 1] - im*J[3, 5]) * X[q, j, 1]
                     Y[q, j, 2] += Q * conj(phases[q]) * X[q, i, 2]
                     Y[q, j, 2] += P * conj(phases[q]) * X[q, i, 1]
                 end
