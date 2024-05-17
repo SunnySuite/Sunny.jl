@@ -46,9 +46,8 @@ end
 
 # Starting from an initial guess, return the wavevector k that locally minimizes
 # `luttinger_tisza_exchange`.
-function optimize_luttinger_tisza_exchange(sys::System, k)
-    iterations = 1000
-    options = Optim.Options(; iterations)
+function optimize_luttinger_tisza_exchange(sys::System, k; maxiters=10_000, g_tol=1e-10)
+    options = Optim.Options(; g_tol, iterations=maxiters)
     res = Optim.optimize(k, Optim.ConjugateGradient(), options) do k
         luttinger_tisza_exchange(sys, k; ϵ=1e-8)
     end
@@ -59,7 +58,7 @@ function optimize_luttinger_tisza_exchange(sys::System, k)
         k = wrap_to_unit_cell(Vec3(k); symprec=1e-7)
         return k
     else
-        error("Momentum optimization failed to converge within $iterations iterations.")
+        error("Momentum optimization failed to converge within $maxiters iterations.")
     end
 end
 
@@ -111,14 +110,14 @@ function spiral_energy(sys::System, k, axis; exchange_only=false)
             E += energy_and_gradient_for_classical_anisotropy(Si, onsite)[1]
 
             # Zeeman coupling
-            E -= sys.extfield[i]' * magnetic_moment(sys, i)
+            E -= sys.extfield[1, 1, 1, i]' * magnetic_moment(sys, (1, 1, 1, i))
         end
     end
 
     return E
 end
 
-function minimize_energy_spiral!(sys, k, axis; maxiters=1000, nrestarts=100)
+function minimize_energy_spiral!(sys, axis; maxiters=10_000, g_tol=1e-10, k_guess=zero(Vec3))
     @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
     @assert sys.latsize == (1, 1, 1) "System must have only a single cell"
     nspin = natoms(sys.crystal)
@@ -138,60 +137,41 @@ function minimize_energy_spiral!(sys, k, axis; maxiters=1000, nrestarts=100)
         push!(ϕs, atan(s′[2], s′[1]))
         push!(θs, angle_between_vectors(s′, Vec3(0, 0, 1)))
     end
-    angles = [ϕs; θs]
 
-    function fill_dipoles_from_angles(angles)
-        # The first nspin angles are azimuthal angles ϕ. If additional angles
-        # exist, then these are polar angles θ. Otherwise, all polar angles are
-        # set to θ = π/2 (no canting).
-        @assert length(angles) in (nspin, 2nspin)
+    # Full set of optimization parameters
+    params = [ϕs; θs; k_guess]
+
+    function set_dipoles!(params)
+        ϕ = view(params, 1:nspin)
+        θ = view(params, nspin+1:2nspin)
         for i in 1:nspin
-            ϕ = angles[i]
-            θ = (length(angles) == 2nspin) ? angles[nspin + i] : π/2
-            sinϕ, cosϕ = sincos(ϕ)
-            sinθ, cosθ = sincos(θ)
+            sinϕ, cosϕ = sincos(ϕ[i])
+            sinθ, cosθ = sincos(θ[i])
             S = Vec3(sinθ*cosϕ, sinθ*sinϕ, cosθ)
             sys.dipoles[i] = sys.κs[i] * (R' * S)
         end
     end
 
-    # Optimization options
-    options = Optim.Options(; iterations=maxiters)
-
-    # First optimize to exchange interactions only. Success will be verified by
-    # convergence to Luttinger-Tisza energy. To overcome trapping in a local
-    # minimum, allow for multiple "restarts", with random initial angles.
-    iters = 0
-    while true
-        res = Optim.optimize(angles, Optim.ConjugateGradient(), options) do angles
-            fill_dipoles_from_angles(angles)
-            spiral_energy(sys, k, axis; exchange_only=true)
-        end
-
-        Optim.converged(res) || error("Optimization failed to converge within $iterations iterations.")
-        E_spiral = Optim.minimum(res)
-        E_lt = luttinger_tisza_exchange(sys, k)
-        E_spiral ≈ E_lt && break
-
-        iters += 1
-        if iters > nrestarts
-            @error "Spiral exchange energy $E_spiral exceeds L.T. exchange energy $E_lt, which suggests instability."
-            break
-        end
-        
-        @. angles[1:nspin] = 2π*rand(sys.rng)        # ϕ
-        @. angles[nspin+1:2nspin] = π*rand(sys.rng) # θ
-    end
-
-    # Now optimize to the full system energy
-    angles = Optim.minimizer(res)
-    res = Optim.optimize(angles, Optim.ConjugateGradient(), options) do angles
-        fill_dipoles_from_angles(angles)
+    # Optimize to the full system energy
+    options = Optim.Options(; g_tol, iterations=maxiters)
+    res = Optim.optimize(params, Optim.ConjugateGradient(), options) do params
+        set_dipoles!(params)
+        k = Vec3(params[end-2],params[end-1], params[end])
         spiral_energy(sys, k, axis)
     end
 
-    @assert Optim.converged(res)
-    return Optim.minimum(res)
+    params = Optim.minimizer(res)
+
+    if Optim.g_converged(res)
+        set_dipoles!(params)
+        # For aesthetics, wrap k components 1-ϵ to -ϵ
+        k = Vec3(params[end-2],params[end-1], params[end])
+        return wrap_to_unit_cell(k; symprec=1e-7)
+    else
+        println(res)
+        println(sys.dipoles)
+        error("Optimization failed to converge within $maxiters iterations.")
+    end
 end
 
 
