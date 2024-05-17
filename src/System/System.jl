@@ -208,7 +208,9 @@ function spin_label(sys::System, i::Int)
         return Inf
     else
         @assert sys.mode in (:dipole, :SUN)
-        return (sys.Ns[i]-1)/2
+        N = unique(sys.Ns[:,:,:,i])
+        length(N) > 1 && error("Spin varies between chemical cells")
+        return (only(N)-1)/2
     end
 end
 
@@ -530,13 +532,15 @@ function polarize_spins!(sys::System{N}, dir) where N
 end
 
 """
-    set_spin_rescaling!(sys, κ)
+    set_spin_rescaling!(sys, α)
 
-Renormalize all expected magnetic moments (e.g., dipoles) by `κ`.
+In dipole mode, rescale all spin magnitudes ``S → α S``. In SU(N) mode, rescale
+all SU(N) coherent states ``Z → √α Z`` such that every expectation value
+rescales like ``⟨A⟩ → α ⟨A⟩``.
 """
-function set_spin_rescaling!(sys::System{0}, κ)
+function set_spin_rescaling!(sys::System{0}, α)
     for site in eachsite(sys)
-        sys.κs[site] = κ * (sys.Ns[2]-1)/2
+        sys.κs[site] = α * (sys.Ns[site]-1)/2
         set_dipole!(sys, sys.dipoles[site], site)
     end
 end

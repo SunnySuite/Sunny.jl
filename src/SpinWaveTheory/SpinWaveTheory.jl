@@ -182,15 +182,13 @@ end
 
 # Compute Stevens coefficients in the local reference frame
 function swt_data_dipole(sys::System{0}, obs)
-    N = sys.Ns[1]
-    S = (N-1)/2
-
     cs = StevensExpansion[]
     Rs = Mat3[]
     Vs = Mat5[]
 
     n_magnetic_atoms = natoms(sys.crystal)
     observables_localized = zeros(ComplexF64, 1, 3, num_observables(obs), n_magnetic_atoms)
+    S = [(N-1)/2 for N in sys.Ns]
 
     for atom in 1:n_magnetic_atoms
         # Direction n of dipole will define rotation R that aligns the
@@ -227,18 +225,18 @@ function swt_data_dipole(sys::System{0}, obs)
     # Precompute transformed exchange matrices and store in sys.interactions_union.
     for ints in sys.interactions_union
         for c in eachindex(ints.pair)
-            (; isculled, bond, scalar, bilin, biquad, general) = ints.pair[c]
-            i, j = bond.i, bond.j
+            (; bond, scalar, bilin, biquad, general) = ints.pair[c]
+            (; i, j) = bond
 
             if !iszero(bilin)  # Leave zero if already zero
                 J = Mat3(bilin*I)
-                bilin = S * (Rs[i]' * J * Rs[j]) 
+                bilin = sqrt(S[i]*S[j]) * Rs[i]' * J * Rs[j]
             end
 
             if !iszero(biquad)
                 J = biquad
                 J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
-                biquad = S^3 * (Vs[i]' * J * Vs[j])
+                biquad = sqrt(S[i]*S[j])^3 * Vs[i]' * J * Vs[j]
             end
 
             @assert isempty(general.data)
