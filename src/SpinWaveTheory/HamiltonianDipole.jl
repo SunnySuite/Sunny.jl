@@ -68,29 +68,29 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             # Biquadratic exchange
             if !iszero(coupling.biquad)
                 K = coupling.biquad  # Transformed quadrupole exchange matrix
-                @assert sqrtS[i] ≈ sqrtS[j] "Biquadratic interactions currently require fixed S"
-                FIXME = Sij^3
 
-                H11[i, i] += -6 * FIXME * K[3, 3]
-                H11[j, j] += -6 * FIXME * K[3, 3]
-                H22[i, i] += -6 * FIXME * K[3, 3]
-                H22[j, j] += -6 * FIXME * K[3, 3]
-                H21[i, i] += 2 * FIXME * (K[1, 3] - im*K[5, 3])
-                H12[i, i] += 2 * FIXME * (K[1, 3] + im*K[5, 3])
-                H21[j, j] += 2 * FIXME * (K[3, 1] - im*K[3, 5])
-                H12[j, j] += 2 * FIXME * (K[3, 1] + im*K[3, 5])
+                Sj2Si = Sj^2 * Si
+                Si2Sj = Si^2 * Sj
+                H11[i, i] += -6 * Sj2Si * K[3, 3]
+                H22[i, i] += -6 * Sj2Si * K[3, 3]
+                H11[j, j] += -6 * Si2Sj * K[3, 3]
+                H22[j, j] += -6 * Si2Sj * K[3, 3]
+                H21[i, i] += 2 * Sj2Si * (K[1, 3] - im*K[5, 3])
+                H12[i, i] += 2 * Sj2Si * (K[1, 3] + im*K[5, 3])
+                H21[j, j] += 2 * Si2Sj * (K[3, 1] - im*K[3, 5])
+                H12[j, j] += 2 * Si2Sj * (K[3, 1] + im*K[3, 5])
 
-                Q = 0.25 * FIXME * ( K[4, 4]+K[2, 2] - im*(-K[4, 2]+K[2, 4]))
+                Q = 0.25 * Sij^3 * ( K[4, 4]+K[2, 2] - im*(-K[4, 2]+K[2, 4]))
                 H11[i, j] += Q * phase
-                H11[j, i] += conj(Q) * conj(phase)
+                H11[j, i] += conj(Q * phase)
                 H22[i, j] += conj(Q) * phase
                 H22[j, i] += Q  * conj(phase)
 
-                P = 0.25 * FIXME * (-K[4, 4]+K[2, 2] - im*( K[4, 2]+K[2, 4]))
+                P = 0.25 * Sij^3 * (-K[4, 4]+K[2, 2] - im*( K[4, 2]+K[2, 4]))
                 H21[i, j] += P * phase
+                H12[j, i] += conj(P * phase)
                 H21[j, i] += P * conj(phase)
                 H12[i, j] += conj(P) * phase
-                H12[j, i] += conj(P) * conj(phase)
             end
         end
     end
@@ -247,31 +247,32 @@ function multiply_by_hamiltonian_dipole!(y::Array{ComplexF64, 2}, x::Array{Compl
             if !iszero(coupling.biquad)
                 J = coupling.biquad  # Transformed quadrupole exchange matrix
 
-                FIXME = Sij^3
-                P = 0.25 * FIXME * (-J[4, 4]+J[2, 2] - im*( J[4, 2]+J[2, 4]))
-                Q = 0.25 * FIXME * ( J[4, 4]+J[2, 2] - im*(-J[4, 2]+J[2, 4]))
+                Sj2Si = Sj^2 * Si
+                Si2Sj = Si^2 * Sj
+                Q = 0.25 * Sij^3 * ( J[4, 4]+J[2, 2] - im*(-J[4, 2]+J[2, 4]))
+                P = 0.25 * Sij^3 * (-J[4, 4]+J[2, 2] - im*( J[4, 2]+J[2, 4]))
 
                 @inbounds for q in 1:Nq
-                    Y[q, i, 1] += -6 * FIXME * J[3, 3] * X[q, i, 1]
-                    Y[q, i, 1] += 12 * FIXME * (J[1, 3] + im*J[5, 3]) * X[q, i, 2]
+                    Y[q, i, 1] += -6 * Sj2Si * J[3, 3] * X[q, i, 1]
+                    Y[q, i, 1] += 12 * Sj2Si * (J[1, 3] + im*J[5, 3]) * X[q, i, 2]
                     Y[q, i, 1] += Q * phases[q] * X[q, j, 1]
                     Y[q, i, 1] += conj(P) * phases[q] * X[q, j, 2]
                 end
                 @inbounds for q in 1:Nq
-                    Y[q, i, 2] += -6 * FIXME * J[3, 3] * X[q, i, 2]
-                    Y[q, i, 2] += 12 * FIXME * (J[1, 3] - im*J[5, 3]) * X[q, i, 1]
+                    Y[q, i, 2] += -6 * Sj2Si * J[3, 3] * X[q, i, 2]
+                    Y[q, i, 2] += 12 * Sj2Si * (J[1, 3] - im*J[5, 3]) * X[q, i, 1]
                     Y[q, i, 2] += conj(Q) * phases[q] * X[q, j, 2]
                     Y[q, i, 2] += P * phases[q] * X[q, j, 1]
                 end
                 @inbounds for q in 1:Nq
-                    Y[q, j, 1] += -6 * FIXME * J[3, 3] * X[q, j, 1]
-                    Y[q, j, 1] += 12 * FIXME * (J[3, 1] + im*J[3, 5]) * X[q, j, 2]
+                    Y[q, j, 1] += -6 * Si2Sj * J[3, 3] * X[q, j, 1]
+                    Y[q, j, 1] += 12 * Si2Sj * (J[3, 1] + im*J[3, 5]) * X[q, j, 2]
                     Y[q, j, 1] += conj(Q) * conj(phases[q]) * X[q, i, 1]
                     Y[q, j, 1] += conj(P) * conj(phases[q]) * X[q, i, 2]
                 end
                 @inbounds for q in 1:Nq
-                    Y[q, j, 2] += -6 * FIXME * J[3, 3] * X[q, j, 2]
-                    Y[q, j, 2] += 12 * FIXME * (J[3, 1] - im*J[3, 5]) * X[q, j, 1]
+                    Y[q, j, 2] += -6 * Si2Sj * J[3, 3] * X[q, j, 2]
+                    Y[q, j, 2] += 12 * Si2Sj * (J[3, 1] - im*J[3, 5]) * X[q, j, 1]
                     Y[q, j, 2] += Q * conj(phases[q]) * X[q, i, 2]
                     Y[q, j, 2] += P * conj(phases[q]) * X[q, i, 1]
                 end
