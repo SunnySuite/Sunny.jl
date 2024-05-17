@@ -42,23 +42,36 @@
 end
 
 
-@testitem "Langasite" begin
+@testitem "Langasite" begin    
     a = b = 8.539
     c = 5.2414
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
     crystal = Crystal(latvecs, [[0.24964, 0, 0.5]], 150)
-    sys = System(crystal, (1,1,1), [SpinInfo(1; S=5/2, g=2)], :dipole; seed=5)
+    sys = System(crystal, (1,1,1), [SpinInfo(1; S=5/2, g=2)], :dipole; seed=1)
     set_exchange!(sys, 0.85,  Bond(3, 2, [1,1,0]))   # J1
     set_exchange!(sys, 0.24,  Bond(1, 3, [0,0,0]))   # J2
     set_exchange!(sys, 0.053, Bond(2, 3, [-1,-1,1])) # J3
     set_exchange!(sys, 0.017, Bond(1, 1, [0,0,1]))   # J4
     set_exchange!(sys, 0.24,  Bond(3, 2, [1,1,1]))   # J5
-    
+
+    k_ref = [0, 0, 0.14264604656200577]
+    k_ref_alt = [0, 0, 1 - k_ref[3]]
+
     k = Sunny.optimize_luttinger_tisza_exchange(sys)
-    @test k ≈ [0, 0, 0.14264604656200577]
+    @test k ≈ k_ref
+
     axis = [0, 0, 1]
-    k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=k)
-    @test k ≈ [0, 0, 0.14264604656200577]
+    randomize_spins!(sys)
+    k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
+    @test Sunny.spiral_energy(sys, k, axis) ≈ -16.356697120589477
+
+    # There are two possible chiralities. Select just one.
+    @test k ≈ k_ref || k ≈ k_ref_alt
+    if k ≈ k_ref_alt
+        sys.dipoles[[1,2]] = sys.dipoles[[2,1]]
+        k = k_ref
+    end
+    @test Sunny.spiral_energy(sys, k, axis) ≈ -16.356697120589477
 
     swt = SpinWaveTheory(sys)
     formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=delta_function_kernel)
