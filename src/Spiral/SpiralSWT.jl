@@ -1,22 +1,12 @@
 
-function optimagstr(f::Function, xmin, xmax, x0; maxiters=1000) # optimizing function to get minimum energy and propagation factor.
-    results = Optim.optimize(f, xmin, xmax, x0, Optim.Fminbox(Optim.BFGS()), Optim.Options(iterations=maxiters))
-	println("Ground state Energy(meV) = ", results.minimum)
-	opt = Optim.minimizer(results)
-    k = opt[end-2:end]
-    return k
-end
-
-function construct_uniaxial_anisotropy(; n, c20=0., c40=0., c60=0., S)
-    # Anisotropy operator in frame of `n`
-    O = Sunny.stevens_matrices(S)
+function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., S)
+    # Anisotropy operator in local frame
+    O = stevens_matrices(S)
     op = c20*O[2, 0] + c40*O[4, 0] + c60*O[6, 0]
-    # Anisotropy operator in global frame (rotates n to [0, 0, 1])
-    R = Sunny.rotation_between_vectors(n, [0, 0, 1])
+    # Rotate operator into global frame, defined by axis
+    R = Sunny.rotation_between_vectors(axis, [0, 0, 1])
     return rotate_operator(op, R)
 end
-
-
 
 
 ## Dispersion and intensities
