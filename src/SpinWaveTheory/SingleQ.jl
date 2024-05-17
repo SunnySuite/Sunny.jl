@@ -94,16 +94,17 @@ function spiral_energy(sys::System, k, axis; exchange_only=false, check_symmetry
         for coupling in pair
             (; isculled, bond, bilin, biquad) = coupling
             isculled && break
-
             (; j, n) = bond
+            # R along `axis` for cells displaced by `n`
             θ = 2π * dot(k, n)
             R = axis_angle_to_matrix(axis, θ)
 
-            J = bilin
+            # J is invariant under any `axis` rotations
+            J = Mat3(bilin*I)
+            @assert R'*J*R ≈ J
+
             Sj = sys.dipoles[j]
-            E += Si' * (J * R) * Sj
-            # Note invariance under global rotation R
-            @assert J * R ≈ R * J
+            E += Si' * (J * R) * Sj # == (R * Si)' * (J * R) * (R * Sj)
 
             @assert iszero(biquad) "Biquadratic interactions not supported"
         end
@@ -161,8 +162,9 @@ function minimize_energy_spiral_aux!(sys, axis; maxiters, g_tol, k_guess, allow_
     set_dipoles_from_params!(params)
 
     if Optim.converged(res)
-        # Return optimal k. For aesthetics, wrap components to [1-ϵ, -ϵ)
+        # println(res)
 
+        # Return optimal k. For aesthetics, wrap components to [1-ϵ, -ϵ)
         k = Vec3(params[end-2], params[end-1], params[end])
         return wrap_to_unit_cell(k; symprec=1e-7)
     else

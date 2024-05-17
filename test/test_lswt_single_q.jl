@@ -17,7 +17,9 @@
         @test k ≈ [0.5, 0.5, 0]
 
         axis = [0, 0, 1]
-        Sunny.minimize_energy_spiral!(sys, k, axis)
+        k_guess = randn(3)
+        k = Sunny.minimize_energy_spiral!(sys, axis; k_guess)
+        @test k[1:2] ≈ [0.5, 0.5]
         c₂ = 1 - 1/2S
         @test only(sys.dipoles)[3] ≈ h / (8J + 2D*c₂)
 
@@ -53,8 +55,10 @@ end
     set_exchange!(sys, 0.24,  Bond(3, 2, [1,1,1]))   # J5
     
     k = Sunny.optimize_luttinger_tisza_exchange(sys)
+    @test k ≈ [0, 0, 0.14264604656200577]
     axis = [0, 0, 1]
-    Sunny.minimize_energy_spiral!(sys, k, axis)
+    k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=k)
+    @test k ≈ [0, 0, 0.14264604656200577]
 
     swt = SpinWaveTheory(sys)
     formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=delta_function_kernel)
