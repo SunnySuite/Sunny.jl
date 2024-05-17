@@ -47,53 +47,46 @@ function gm_spherical3d!(sys::System, n, x)
 end
 
 
-function spiral_energy(sys::System, k, n)
-    E = 0
-    L  = Sunny.natoms(sys.crystal)
-    for matom = 1:L
-        ints = sys.interactions_union[matom]
-        for c in ints.pair
-            θ = 2π * dot(k, c.bond.n)
-            R = [cos(θ)+(n[1]^2)*(1-cos(θ)) n[1]*n[2]*(1-cos(θ))-n[3]*sin(θ) n[1]*n[3]*(1-cos(θ))+n[2]*sin(θ);
-                n[2]*n[1]*(1-cos(θ))+n[3]*sin(θ) cos(θ)+(n[2]^2)*(1-cos(θ)) n[2]*n[3]*(1-cos(θ))-n[1]*sin(θ);
-                n[3]*n[1]*(1-cos(θ))-n[2]*sin(θ) n[2]*n[3]*(1-cos(θ))+n[1]*sin(θ) cos(θ)+(n[3]^2)*(1-cos(θ))]
-            # R = axis_angle_to_matrix(n, θ)
+function spiral_energy(sys::System{N}, k, axis) where N
+    @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
+    @assert sys.latsize == (1, 1, 1) "System must have only a single cell"
 
-            J = c.bilin * I
-            Jij = (J * R + R * J) ./ 2
-            sub_i, sub_j = c.bond.i, c.bond.j
-            Si = sys.dipoles[sub_i]
-            Sj = sys.dipoles[sub_j]
-            E += (Si' * Jij * Sj)
+    E = 0
+    for i in 1:natoms(sys.crystal)
+        (; onsite, pair) = sys.interactions_union[i]
+        Si = sys.dipoles[i]
+
+        # Pair coupling
+        for coupling in pair
+            (; isculled, bond, bilin, biquad) = coupling
+            isculled && break
+
+            (; j, n) = bond
+            θ = 2π * dot(k, n)
+            R = axis_angle_to_matrix(axis, θ)
+
+            J = bilin
+            Sj = sys.dipoles[j]
+            E += Si' * (J * R) * Sj
+            # Note invariance under global rotation R
+            @assert J * R ≈ R * J
+
+            @assert iszero(biquad) "Biquadratic interactions not supported"
         end
+
+        # Onsite coupling
+        E += energy_and_gradient_for_classical_anisotropy(Si, onsite)[1]
+
+        # Zeeman coupling
+        E -= sys.extfield[i]' * magnetic_moment(sys, i)
     end
-    E = E/2
-    for i in 1:L
-        if Sunny.is_homogeneous(sys)
-            stvexp = sys.interactions_union[i].onsite
-            for cell in Sunny.eachcell(sys)
-                s = sys.dipoles[cell, i]
-                E += Sunny.energy_and_gradient_for_classical_anisotropy(s, stvexp)[1]
-            end
-        else
-            for cell in Sunny.eachcell(sys)
-                stvexp = sys.interactions_union[cell, i]
-                for cell in (cell,)
-                    s = sys.dipoles[cell, i]
-                    E += Sunny.energy_and_gradient_for_classical_anisotropy(s, stvexp)[1]
-                end
-            end
-        end
-    end
-    for site in Sunny.eachsite(sys)
-        E -= sys.units.μB * sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
-    end
-    return real(E)
+
+    return E
 end
 
-function optimagstr(f::Function, xmin, xmax, x0) # optimizing function to get minimum energy and propagation factor.
-    results = Optim.optimize(f, xmin, xmax, x0, Optim.Fminbox(Optim.BFGS()));
-	println("Ground state Energy(meV) = ", results.minimum);
+function optimagstr(f::Function, xmin, xmax, x0; maxiters=1000) # optimizing function to get minimum energy and propagation factor.
+    results = Optim.optimize(f, xmin, xmax, x0, Optim.Fminbox(Optim.BFGS()), Optim.Options(iterations=maxiters))
+	println("Ground state Energy(meV) = ", results.minimum)
 	opt = Optim.minimizer(results)
     k = opt[end-2:end]
     return k
