@@ -11,12 +11,9 @@ end
 
 ## Dispersion and intensities
 
-
 function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped, axis, k)
     (; sys, data) = swt
     (; local_rotations, stevens_coefs) = data
-    N = swt.sys.Ns[1]
-    S = (N-1)/2
     L = Sunny.nbands(swt) 
     @assert size(H) == (2L, 2L)
     H .= 0.0 
@@ -29,30 +26,30 @@ function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveThe
             θ = (2*π * dot(k,n))
             Rn = axis_angle_to_matrix(axis, θ)
 
+            # Undo rotations that were created in SpinWaveTheory.jl
             Ri = local_rotations[i]
             Rj = local_rotations[j]
-            J = c.bilin
-            J = (Ri * c.bilin * Rj') ./ S
+            J = Ri * c.bilin * Rj'
             
             Jij = (J * Rn + Rn * J) ./ 2
             phase = exp(2π * im * dot(q_reshaped, n))
             
-            si = (sys.Ns[i]-1)/2
-            sj = (sys.Ns[j]-1)/2  
+            Si = (sys.Ns[i]-1)/2
+            Sj = (sys.Ns[j]-1)/2  
 
             ui = Ri[:,1] + im*Ri[:,2]
             uj = Rj[:,1] + im*Rj[:,2]
             vi = Ri[:,3]
             vj = Rj[:,3]
             
-            H[i,j]     += (sqrt(si*sj)/2) * (transpose(ui)) * Jij * conj(uj) * phase
-            H[i+L,j+L] += (sqrt(si*sj)/2) * conj((transpose(ui)) * Jij * conj(uj)) * phase
+            H[i,j]     += (sqrt(Si*Sj)/2) * (transpose(ui)) * Jij * conj(uj) * phase
+            H[i+L,j+L] += (sqrt(Si*Sj)/2) * conj((transpose(ui)) * Jij * conj(uj)) * phase
           
-            H[i,j+L]   += (sqrt(si*sj)/2) * (transpose(ui) * Jij * uj) * phase
-            H[j+L,i]   += (sqrt(si*sj)/2) * conj(transpose(ui) * Jij * uj * phase)
+            H[i,j+L]   += (sqrt(Si*Sj)/2) * (transpose(ui) * Jij * uj) * phase
+            H[j+L,i]   += (sqrt(Si*Sj)/2) * conj(transpose(ui) * Jij * uj * phase)
           
-            H[i,i]     -= sj * transpose(vi) * Jij * vj 
-            H[i+L,i+L] -= sj * transpose(vi) * Jij * vj
+            H[i,i]     -= Sj * transpose(vi) * Jij * vj 
+            H[i+L,i+L] -= Sj * transpose(vi) * Jij * vj
 
             @assert iszero(c.biquad) "Biquadratic interactions not supported"
         end
@@ -71,6 +68,7 @@ function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveThe
     
     # Add onsite couplings
     for i in 1:L
+        S = (sys.Ns[i]-1)/2
         (; c2, c4, c6) = stevens_coefs[i]
         H[i, i]     += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
         H[i+L, i+L] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
@@ -81,8 +79,8 @@ function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveThe
     @assert diffnorm2(H, H') < 1e-12
     Sunny.hermitianpart!(H)
     
-    for i = 1:2L
-        H[i, i] += 1e-9
+    for i in 1:2L
+        H[i, i] += swt.energy_ϵ
     end
 end
 
