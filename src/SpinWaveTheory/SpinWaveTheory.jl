@@ -1,13 +1,14 @@
 struct SWTDataDipole
-    local_rotations       :: Vector{Mat3}
-    stevens_coefs         :: Vector{StevensExpansion}
-    observables_localized :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
+    local_rotations       :: Vector{Mat3}             # Rotations from global to local frame
+    observables_localized :: Array{ComplexF64, 4}     # Observables in local frame
+    stevens_coefs         :: Vector{StevensExpansion} # Rotated onsite coupling as Steven expansion
+    sqrtS                 :: Vector{Float64}          # Square root of spin magnitudes
 end
 
 struct SWTDataSUN
-    local_unitaries       :: Array{ComplexF64, 3}  # Aligns to quantization axis on each site
-    spins_localized       :: Array{ComplexF64, 4}  # Spins in local frame
-    observables_localized :: Array{ComplexF64, 4}  # Observables in local frame (for intensity calcs)
+    local_unitaries       :: Array{ComplexF64, 3}     # Aligns to quantization axis on each site
+    spins_localized       :: Array{ComplexF64, 4}     # Spins in local frame
+    observables_localized :: Array{ComplexF64, 4}     # Observables in local frame
 end
 
 """
@@ -182,9 +183,6 @@ end
 
 # Compute Stevens coefficients in the local reference frame
 function swt_data_dipole(sys::System{0}, obs)
-    N = sys.Ns[1]
-    S = (N-1)/2
-
     cs = StevensExpansion[]
     Rs = Mat3[]
     Vs = Mat5[]
@@ -227,18 +225,18 @@ function swt_data_dipole(sys::System{0}, obs)
     # Precompute transformed exchange matrices and store in sys.interactions_union.
     for ints in sys.interactions_union
         for c in eachindex(ints.pair)
-            (; isculled, bond, scalar, bilin, biquad, general) = ints.pair[c]
-            i, j = bond.i, bond.j
+            (; bond, scalar, bilin, biquad, general) = ints.pair[c]
+            (; i, j) = bond
 
             if !iszero(bilin)  # Leave zero if already zero
                 J = Mat3(bilin*I)
-                bilin = S * (Rs[i]' * J * Rs[j]) 
+                bilin = Rs[i]' * J * Rs[j]
             end
 
             if !iszero(biquad)
                 J = biquad
                 J = Mat5(J isa Number ? J * diagm(scalar_biquad_metric) : J)
-                biquad = S^3 * (Vs[i]' * J * Vs[j])
+                biquad = Vs[i]' * J * Vs[j]
             end
 
             @assert isempty(general.data)
@@ -247,5 +245,6 @@ function swt_data_dipole(sys::System{0}, obs)
         end
     end
 
-    return SWTDataDipole(Rs, cs, observables_localized)
+    sqrtS = [sqrt((N-1)/2) for N in vec(sys.Ns)]
+    return SWTDataDipole(Rs, observables_localized, cs, sqrtS)
 end

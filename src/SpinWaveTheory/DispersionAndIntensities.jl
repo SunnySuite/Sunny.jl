@@ -97,13 +97,10 @@ energy.
 function dispersion(swt::SpinWaveTheory, qs)
     (; sys) = swt
     
-    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    Nf = sys.mode == :SUN ? Ns-1 : 1
-    nmodes  = Nf * Nm
-
-    H = zeros(ComplexF64, 2nmodes, 2nmodes)
-    V = zeros(ComplexF64, 2nmodes, 2nmodes)
-    disp = zeros(Float64, nmodes, length(qs))
+    L = nbands(swt)
+    H = zeros(ComplexF64, 2L, 2L)
+    V = zeros(ComplexF64, 2L, 2L)
+    disp = zeros(Float64, L, length(qs))
 
     for (iq, q) in enumerate(qs)
         q_reshaped = to_reshaped_rlu(swt.sys, q)
@@ -236,17 +233,11 @@ The integral of a properly normalized kernel function over all `Δω` is one.
 function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
                            return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", formfactors=nothing)
     (; sys, data, observables) = swt
-    (; observables_localized) = data
 
     # Number of atoms in magnetic cell
     Nm = length(sys.dipoles)
     # Number of chemical cells in magnetic cell
     Ncells = Nm / natoms(orig_crystal(sys))
-    # Dimension of Hilbert space
-    N = sys.Ns[1]
-    # Quantum spin magnitude
-    S = (N-1) / 2
-    sqrt_halfS = √(S/2)
     # Number of quasiparticle modes
     L = nbands(swt)
 
@@ -323,6 +314,8 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVe
         for band = 1:L
             fill!(Avec, 0)
             if sys.mode == :SUN
+                (; observables_localized) = data::SWTDataSUN
+                N = sys.Ns[1]
                 v = reshape(view(V, :, band), N-1, Nm, 2)
                 for i = 1:Nm
                     for μ = 1:num_observables(observables)
@@ -333,6 +326,7 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVe
                     end
                 end
             else
+                (; observables_localized, sqrtS) = data::SWTDataDipole
                 @assert sys.mode in (:dipole, :dipole_large_S)
                 v = reshape(view(V, :, band), Nm, 2)
                 for i = 1:Nm
@@ -350,9 +344,9 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVe
                         # displacement_global_frame = local_rotations[i] * displacement_local_frame
 
                         @views O_local_frame = observables_localized[:,:,μ,i]
-                        Avec[μ] += Avec_pref[i] * sqrt_halfS * (O_local_frame * displacement_local_frame)[1]
+                        Avec[μ] += Avec_pref[i] * (sqrtS[i]/sqrt(2)) * (O_local_frame * displacement_local_frame)[1]
                     end
-                end                
+                end
             end
 
             corrs = Vector{ComplexF64}(undef, num_correlations(observables))

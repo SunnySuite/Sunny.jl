@@ -194,6 +194,17 @@ function transform_coupling_by_symmetry(tensordec::TensorDecomposition, R, parit
 end
 
 
+function check_allowable_dipole_coupling(tensordec, mode)
+    if !isempty(tensordec.data) && mode in (:dipole, :dipole_large_S)
+        error("""
+        Invalid pair coupling. In dipole mode, the most general allowed form is
+            (Si, Sj) -> Si'*J*Sj + [(Si'*K1*Si)*(Sj'*K2*Sj) + ...]
+        where J is any 3×3 matrix, while K1, K2 must be Hermitian and traceless. 
+        The (...) denote any number of additional biquadratic couplings.
+        """)
+    end
+end
+
 function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float64, Mat3}, biquad::Union{Float64, Mat5}, tensordec::TensorDecomposition, bond::Bond)
     # If `sys` has been reshaped, then operate first on `sys.origin`, which
     # contains full symmetry information.
@@ -229,9 +240,7 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
     end
     
     # General interactions require SU(N) mode
-    if !isempty(tensordec.data)
-        sys.mode == :SUN || error("Interactions beyond biquadratic not supported in dipole mode.")
-    end
+    check_allowable_dipole_coupling(tensordec, sys.mode)
 
     # Renormalize biquadratic interactions
     if sys.mode == :dipole
@@ -278,6 +287,8 @@ See also [`spin_matrices`](@ref), [`to_product_space`](@ref).
 """
 function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_parts=true) where N
     is_homogeneous(sys) || error("Use `set_pair_coupling_at!` for an inhomogeneous system.")
+
+    op ≈ op' || error("Operator is not Hermitian")
 
     if sys.mode == :dipole_large_S
         error("Symbolic operators required for mode `:dipole_large_S`.")
@@ -412,9 +423,7 @@ function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Fl
     ints = interactions_inhomog(sys)
 
     # General interactions require SU(N) mode
-    if !isempty(tensordec.data)
-        sys.mode == :SUN || error("Interactions beyond biquadratic not supported in dipole mode.")
-    end
+    check_allowable_dipole_coupling(tensordec, sys.mode)
 
     # Renormalize biquadratic interactions
     if sys.mode == :dipole
