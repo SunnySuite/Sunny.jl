@@ -512,7 +512,11 @@ function check_rotational_symmetry(sys::System{N}; axis, θ) where N
 
     # External field must be aligned with n
     for h in sys.extfield
-        @assert h⋅axis ≈ norm(h) "Field not aligned with rotation axis"
+        @assert R * h ≈ h "Field not aligned with rotation axis"
+    end
+    for site in eachsite(sys)
+        g = sys.gs[site]
+        @assert g ≈ R' * g * R "g-tensor not invariant under rotation"
     end
 
     # Interactions must be invariant under rotation

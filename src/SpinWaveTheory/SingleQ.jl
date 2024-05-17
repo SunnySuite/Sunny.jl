@@ -78,9 +78,12 @@ function optimize_luttinger_tisza_exchange(sys::System; L=20)
 end
 
 
-function spiral_energy(sys::System, k, axis; exchange_only=false)
+function spiral_energy(sys::System, k, axis; exchange_only=false, check_symmetry=true)
     @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
     @assert sys.latsize == (1, 1, 1) "System must have only a single cell"
+    
+    # Optionally disable symmetry check for speed
+    check_symmetry && check_rotational_symmetry(sys; axis, θ=0.01)
 
     E = 0
     for i in 1:natoms(sys.crystal)
@@ -117,16 +120,10 @@ function spiral_energy(sys::System, k, axis; exchange_only=false)
     return E
 end
 
-function minimize_energy_spiral!(sys, axis; maxiters=10_000, g_tol=1e-10, k_guess=zero(Vec3))
-    @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
-    @assert sys.latsize == (1, 1, 1) "System must have only a single cell"
+function minimize_energy_spiral_aux!(sys, axis; maxiters, g_tol, k_guess, allow_canting)
     nspin = natoms(sys.crystal)
-
-    # TODO: Commonly k will be aligned with a reciprocal lattice vector. In this
-    # case, θ could be selected as 2π|k|, which may be a weaker constraint.
-    check_rotational_symmetry(sys; axis, θ=0.01)
     
-    # Rotation that maps spins into "local" frame: R * axis = [0, 0, 1]
+    # Any rotation that maps spins into "local" frame: R * axis = [0, 0, 1]
 	R = rotation_between_vectors(axis, [0, 0, 1])
 
     # Polar and azimuthal angle in local frame
@@ -141,37 +138,54 @@ function minimize_energy_spiral!(sys, axis; maxiters=10_000, g_tol=1e-10, k_gues
     # Full set of optimization parameters
     params = [ϕs; θs; k_guess]
 
-    function set_dipoles!(params)
+    function set_dipoles_from_params!(params)
         ϕ = view(params, 1:nspin)
         θ = view(params, nspin+1:2nspin)
         for i in 1:nspin
             sinϕ, cosϕ = sincos(ϕ[i])
-            sinθ, cosθ = sincos(θ[i])
-            S = Vec3(sinθ*cosϕ, sinθ*sinϕ, cosθ)
-            sys.dipoles[i] = sys.κs[i] * (R' * S)
+            sinθ, cosθ = allow_canting ? sincos(θ[i]) : (1.0, 0.0)
+            S = R' * Vec3(sinθ*cosϕ, sinθ*sinϕ, cosθ)
+            set_dipole!(sys, S, (1,1,1,i))
         end
     end
 
     # Optimize to the full system energy
     options = Optim.Options(; g_tol, iterations=maxiters)
     res = Optim.optimize(params, Optim.ConjugateGradient(), options) do params
-        set_dipoles!(params)
+        set_dipoles_from_params!(params)
         k = Vec3(params[end-2],params[end-1], params[end])
-        spiral_energy(sys, k, axis)
+        spiral_energy(sys, k, axis; check_symmetry=false)
     end
 
     params = Optim.minimizer(res)
+    set_dipoles_from_params!(params)
 
-    if Optim.g_converged(res)
-        set_dipoles!(params)
-        # For aesthetics, wrap k components 1-ϵ to -ϵ
-        k = Vec3(params[end-2],params[end-1], params[end])
+    if Optim.converged(res)
+        # Return optimal k. For aesthetics, wrap components to [1-ϵ, -ϵ)
+
+        k = Vec3(params[end-2], params[end-1], params[end])
         return wrap_to_unit_cell(k; symprec=1e-7)
     else
         println(res)
-        println(sys.dipoles)
         error("Optimization failed to converge within $maxiters iterations.")
     end
+end
+
+
+function minimize_energy_spiral!(sys, axis; maxiters=10_000, g_tol=1e-10, k_guess=randn(sys.rng, 3))
+    @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
+    @assert sys.latsize == (1, 1, 1) "System must have only a single cell"
+
+    # TODO: Commonly k will be aligned with a reciprocal lattice vector. In this
+    # case, θ could be selected as 2π|k|, which may be a weaker constraint.
+    check_rotational_symmetry(sys; axis, θ=0.01)
+
+    # First perform an optimization step where canting is dissallowed. This
+    # avoids the singularity for polar angles θ = {0, π}, and seems to make
+    # convergence more robust. Alternatively, could use a stereographic project
+    # as in minimize_energy!.
+    k_guess = minimize_energy_spiral_aux!(sys, axis; maxiters, g_tol, k_guess, allow_canting=false)
+    return minimize_energy_spiral_aux!(sys, axis; maxiters, g_tol, k_guess, allow_canting=true)
 end
 
 
@@ -314,7 +328,7 @@ function dispersion_singleQ(swt::SpinWaveTheory,n::Vector{Float64},k::Vector{Flo
         end
     end
 
-    return  disp 
+    return disp 
 end
 
 
