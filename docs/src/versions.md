@@ -3,6 +3,9 @@
 ## v0.5.10
 (In development)
 
+* In dipole mode, fix bugs to support the case that spin-``S`` varies between
+  sites. In SU(``N``) mode, however, there is still no support for varying
+  the Hilbert space dimension ``N`` between sites.
 * [`view_crystal`](@ref) called on a [`System`](@ref) now optionally shows
   spin or magnetic dipoles.
 * Interactions for [`enable_dipole_dipole!`](@ref) are now supported in linear

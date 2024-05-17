@@ -220,21 +220,22 @@ end
     using LinearAlgebra
 
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
-    cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]])
-
-    sys = System(cryst, (1,1,1), [SpinInfo(1; S=1, g=2)], :dipole)
+    cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
+    
+    sys = System(cryst, (1,1,1), [SpinInfo(1; S=1, g=2), SpinInfo(2; S=2, g=2)], :dipole)
     set_pair_coupling!(sys, (S1, S2) -> +(S1'*diagm([2,-1,-1])*S1)*(S2'*diagm([2,-1,-1])*S2), Bond(1, 2, [0,0,0]))
-
-    # Ground state is S1 = [1, 0, 0] and S2 = [0, cosθ, sinθ]
-    randomize_spins!(sys)
-    minimize_energy!(sys)
-    @test energy(sys) ≈ -1/2
-
+    
+    θ = randn()
+    set_dipole!(sys, [1, 0, 0], (1, 1, 1, 1))
+    set_dipole!(sys, [0, cos(θ), sin(θ)], (1, 1, 1, 2))
+    energy(sys)
+    @test energy(sys) ≈ -3
+    
     swt = SpinWaveTheory(sys; apply_g=false)
     formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
     disp, intens = intensities_bands(swt, [[0,0,0]], formula)
-    @test disp[1] ≈ 3/2
-    @test intens[1] ≈ 1
+    @test disp[1] ≈ 9
+    @test intens[1] ≈ 1    
 end
 
 
@@ -489,6 +490,7 @@ end
     @test isapprox(calc_int, int_ref; atol=1e-7)
 end
 
+
 @testitem "Invariance to reshaping" begin    
     # Diamond-cubic with antiferromagnetic exchange
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
@@ -518,6 +520,61 @@ end
     is2 = intensities_broadened(swt2, [q], energies, formula2)
     @test is1 ≈ is2        
 end
+
+
+@testitem "Invariance to spin rotation" begin
+    using LinearAlgebra
+
+    function build_system(R, D1, D2, J, K1, K2, h, g)
+        latvecs = lattice_vectors(1, 1, 1, 92, 93, 94)
+        cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
+        infos = [SpinInfo(1; S=1, g=2), SpinInfo(2; S=2, g=R*g*R')]
+        sys = System(cryst, (1,1,1), infos, :dipole)
+
+        set_onsite_coupling!(sys, S -> S'*R*(D1+D1')*R'*S, 1)
+        set_onsite_coupling!(sys, S -> S'*R*(D2+D2')*R'*S, 2)
+
+        K1 = Sunny.tracelesspart(K1 + K1')
+        K2 = Sunny.tracelesspart(K2 + K2')
+
+        set_pair_coupling!(sys, (S1, S2) -> S1'*R*J*R'*S2 + (S1'*R*K1*R'*S1)*(S2'*R*K2*R'*S2), Bond(1, 2, [0,0,0]))
+        set_external_field!(sys, R*h)
+
+        return sys
+    end
+
+    g = randn(3,3)
+    D1 = randn(3,3)
+    D2 = randn(3,3)
+    J = randn(3,3)
+    K1 = randn(3,3)
+    K2 = randn(3,3)
+    h = randn(3)
+    R1 = Sunny.Mat3(I)
+    R2 = Sunny.axis_angle_to_matrix(randn(3), 0.46)
+    sys1 = build_system(R1, D1, D2, J, K1, K2, h, g)
+    sys2 = build_system(R2, D1, D2, J, K1, K2, h, g)
+
+    randomize_spins!(sys1)
+    minimize_energy!(sys1)
+
+    for site in eachsite(sys1)
+        sys2.dipoles[site] = R2 * R1' * sys1.dipoles[site]
+    end
+    @assert energy_per_site(sys1) ≈ energy_per_site(sys2)
+
+    swt = SpinWaveTheory(sys1)
+    formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
+    res1 = intensities_bands(swt, [[0,0,0]], formula)
+
+    swt = SpinWaveTheory(sys2)
+    formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
+    res2 = intensities_bands(swt, [[0,0,0]], formula)
+
+    @assert res1[1] ≈ res2[1]
+    @assert res1[2] ≈ res2[2]
+end
+
 
 @testitem "Generalized interaction consistency" begin
     using LinearAlgebra
@@ -552,6 +609,7 @@ end
     @test H_conventional ≈ H_generalized
 end
 
+
 @testitem "Equivalence of dense and sparse Hamiltonian constructions" begin
     import LinearAlgebra: diagm
 
@@ -579,7 +637,6 @@ end
         return SpinWaveTheory(sys)
     end
 
-
     # Construct dipole Hamiltonian standard way
     swt = simple_swt(:dipole)
     H1 = zeros(ComplexF64, 16, 16)
@@ -594,7 +651,6 @@ end
     end
 
     @test isapprox(H1, H2; atol=1e-12)
-
 
     # Construct SU(N) Hamiltonian standard way
     swt = simple_swt(:SUN)
@@ -611,6 +667,7 @@ end
 
     @test isapprox(H1, H2; atol=1e-12)
 end
+
 
 @testitem "Spin ladder intensities reference test" begin
     using LinearAlgebra
@@ -656,6 +713,7 @@ end
     @test is ≈ is_ref
 end
 
+
 @testitem "LSWT correction to classical energy" begin
     J = 1
     S = 1
@@ -685,6 +743,7 @@ end
     end
 end
 
+
 @testitem "LSWT correction to the ordered moments (S maximized)" begin
     # Test example 1: The magnetization is maximized to `S`. Reference result
     # comes from Phys. Rev. B 79, 144416 (2009) Eq. (45) for the 120° order on
@@ -711,6 +770,7 @@ end
         @test δS_triangular(mode)
     end
 end
+
 
 @testitem "LSWT correction to the ordered moments (S not maximized)" begin
     using LinearAlgebra
