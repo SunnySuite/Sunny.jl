@@ -30,7 +30,9 @@ function rotation_between_vectors(u, v)
     return R
 end
 
-# Magnitude of axis n is ignored. Angle θ in radians.
+# Magnitude of axis n is ignored. Angle θ in radians. By Rodrigues formula, is
+# equivalently written `I + s K + (1-c) K²`, with `K = [0 -z y; z 0 -x; -y x 0]`
+# involving `s, c = sincos(θ)` and `x, y, z = normalize(n)`.
 function axis_angle_to_matrix(n, θ)
     @assert !iszero(norm(n))
     x, y, z = normalize(n)

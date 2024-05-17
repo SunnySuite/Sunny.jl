@@ -46,6 +46,30 @@ end
     return x̄_dudv - (x̄_dudv * n) * n'
 end
 
+# Returns v such that u = (2v + (1-v²)n)/(1+v²) and v⋅n = 0. Tested on real
+# 3-vectors.
+function inverse_stereographic_projection(u, n)
+    @assert u'*u ≈ 1
+
+    uperp = u - n*(n'*u)
+    uperp² = uperp' * uperp
+    s = sign(u⋅n)
+    if isone(s) && uperp² < 1e-5
+        c = 1/2 + uperp²/8 + uperp²*uperp²/16
+    else
+        c = (1 - s * sqrt(max(1 - uperp², 0))) / uperp²
+    end
+    return c * uperp
+end
+
+#=
+for _ in 1:10
+    n = normalize(randn(3))
+    v = (I - n*n') * randn(3)
+    u = stereographic_projection(v, n)
+    @assert inverse_stereographic_projection(u, n) ≈ v
+end
+=#
 
 # function variance(αs)
 #     ncomponents = length(αs) * length(first(αs))
