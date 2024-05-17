@@ -12,7 +12,7 @@ end
 ## Dispersion and intensities
 
 
-function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped, n, k)
+function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped, axis, k)
     (; sys, data) = swt
     (; local_rotations, stevens_coefs) = data
     N = swt.sys.Ns[1]
@@ -21,54 +21,45 @@ function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveThe
     @assert size(H) == (2L, 2L)
     H .= 0.0 
     
-    #Add pairwise bilinear term
-    for matom = 1:L
-        ints = sys.interactions_union[matom]
-        
+    # Add pairwise bilinear term
+    for ints in sys.interactions_union
+
         for c in ints.pair
-            (; bond) = c
-            d = bond.n
-            θ = (2*π * dot(k,d))
-            R = [cos(θ)+(n[1]^2)*(1-cos(θ)) n[1]*n[2]*(1-cos(θ))-n[3]*sin(θ) n[1]*n[3]*(1-cos(θ))+n[2]*sin(θ);
-                 n[2]*n[1]*(1-cos(θ))+n[3]*sin(θ) cos(θ)+(n[2]^2)*(1-cos(θ)) n[2]*n[3]*(1-cos(θ))-n[1]*sin(θ);
-                 n[3]*n[1]*(1-cos(θ))-n[2]*sin(θ) n[2]*n[3]*(1-cos(θ))+n[1]*sin(θ) cos(θ)+(n[3]^2)*(1-cos(θ))]
-            
-            
-            sub_i, sub_j = bond.i, bond.j
-            local_rotations_i = local_rotations[sub_i]
-            local_rotations_j = local_rotations[sub_j]
+            (; i, j, n) = c.bond
+            θ = (2*π * dot(k,n))
+            Rn = axis_angle_to_matrix(axis, θ)
+
+            Ri = local_rotations[i]
+            Rj = local_rotations[j]
             J = c.bilin
-            J = (local_rotations_i * c.bilin * local_rotations_j') ./S
+            J = (Ri * c.bilin * Rj') ./ S
             
-            Jij = (J * R + R * J) ./ 2
-            phase = exp(2π*im * dot(q_reshaped, d))
+            Jij = (J * Rn + Rn * J) ./ 2
+            phase = exp(2π * im * dot(q_reshaped, n))
             
-           
-            si = (sys.Ns[sub_i]-1)/2
-            sj = (sys.Ns[sub_j]-1)/2  
+            si = (sys.Ns[i]-1)/2
+            sj = (sys.Ns[j]-1)/2  
 
+            ui = Ri[:,1] + im*Ri[:,2]
+            uj = Rj[:,1] + im*Rj[:,2]
+            vi = Ri[:,3]
+            vj = Rj[:,3]
             
+            H[i,j]     += (sqrt(si*sj)/2) * (transpose(ui)) * Jij * conj(uj) * phase
+            H[i+L,j+L] += (sqrt(si*sj)/2) * conj((transpose(ui)) * Jij * conj(uj)) * phase
+          
+            H[i,j+L]   += (sqrt(si*sj)/2) * (transpose(ui) * Jij * uj) * phase
+            H[j+L,i]   += (sqrt(si*sj)/2) * conj(transpose(ui) * Jij * uj * phase)
+          
+            H[i,i]     -= sj * transpose(vi) * Jij * vj 
+            H[i+L,i+L] -= sj * transpose(vi) * Jij * vj
 
-            ui = local_rotations_i[:,1]+im*local_rotations_i[:,2]
-            vi = local_rotations_i[:,3]
-
-            uj = local_rotations_j[:,1]+im*local_rotations_j[:,2]
-        
-            vj = local_rotations_j[:,3]
-            
-            H[sub_i,sub_j] += (sqrt(si*sj)/2) * (transpose(ui)) * Jij * conj(uj) * phase
-            H[sub_i+L,sub_j+L] +=  (sqrt(si*sj)/2) * conj((transpose(ui)) * Jij * conj(uj)) * phase
-          
-            H[sub_i,sub_j+L] += (sqrt(si*sj)/2) * (transpose(ui) * Jij * uj) * phase
-          
-            H[sub_j+L,sub_i] +=  (sqrt(si*sj)/2) * conj(transpose(ui) * Jij * uj * phase)
-          
-            H[sub_i,sub_i] -= sj * transpose(vi) * Jij * vj 
-            H[sub_i+L,sub_i+L] -= sj * transpose(vi) * Jij * vj
+            @assert iszero(c.biquad) "Biquadratic interactions not supported"
         end
     end
 
     H[:,:] = H / 2
+
     # Add Zeeman term
     (; extfield, gs, units) = sys
     for i in 1:L
@@ -78,6 +69,7 @@ function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveThe
         H[i+L, i+L] += conj(B′)
     end
     
+    # Add onsite couplings
     for i in 1:L
         (; c2, c4, c6) = stevens_coefs[i]
         H[i, i]     += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
@@ -86,12 +78,7 @@ function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveThe
         H[i+L, i]   += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
     end
         
-    if norm(H-H') > 1e-12
-        println("norm(H-H')= ", norm(H-H'))
-        throw("H is not hermitian!")
-    else
-    end 
-
+    @assert diffnorm2(H, H') < 1e-12
     Sunny.hermitianpart!(H)
     
     for i = 1:2L
