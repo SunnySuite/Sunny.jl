@@ -176,7 +176,7 @@ end
 end
 
 
-@testitem "Biquadratic interactions" begin
+@testitem "Scalar biquadratic" begin
     # Cubic crystal
     a = 2.0
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
@@ -213,6 +213,28 @@ end
     for mode in (:SUN, :dipole), S in (1, 3/2)
         test_biquad(mode, k, S)
     end
+end
+
+
+@testitem "General biquadratic" begin
+    using LinearAlgebra
+
+    latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]])
+
+    sys = System(cryst, (1,1,1), [SpinInfo(1; S=1, g=2)], :dipole)
+    set_pair_coupling!(sys, (S1, S2) -> +(S1'*diagm([2,-1,-1])*S1)*(S2'*diagm([2,-1,-1])*S2), Bond(1, 2, [0,0,0]))
+
+    # Ground state is S1 = [1, 0, 0] and S2 = [0, cosθ, sinθ]
+    randomize_spins!(sys)
+    minimize_energy!(sys)
+    @test energy(sys) ≈ -1/2
+
+    swt = SpinWaveTheory(sys; apply_g=false)
+    formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
+    disp, intens = intensities_bands(swt, [[0,0,0]], formula)
+    @test disp[1] ≈ 3/2
+    @test intens[1] ≈ 1
 end
 
 
@@ -531,7 +553,7 @@ end
 end
 
 @testitem "Equivalence of dense and sparse Hamiltonian constructions" begin
-    import LinearAlgebra: diagm, I
+    import LinearAlgebra: diagm
 
     function onehot(i, n)
         out = zeros(ComplexF64, 1, n)
@@ -545,10 +567,10 @@ end
         cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]]) 
         sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], mode)
 
-        S = spin_matrices(1)
-        S1, S2 = Sunny.to_product_space(S, S)
-        set_pair_coupling!(sys, -S1'*S2, Bond(1,1,[1,0,0]); extract_parts=true)
-        set_onsite_coupling!(sys, S[3]^2, 1)
+        K1 = diagm([2, -1, -1])
+        K2 = diagm([-1, -1, 2])
+        set_pair_coupling!(sys, (Si, Sj) -> -Si'*Sj + (Si'*K1*Si)*(Sj'*K2*Sj), Bond(1,1,[1,0,0]); extract_parts=true)
+        set_onsite_coupling!(sys, S -> S[3]^2, 1)
         set_external_field!(sys, [0,0,0.1])
 
         randomize_spins!(sys)
