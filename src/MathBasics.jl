@@ -50,3 +50,8 @@ end
 # Avoid linter false positives per
 # https://github.com/julia-vscode/julia-vscode/issues/1497
 kron(a...) = Base.kron(a...)
+
+function tracelesspart(A)
+    @assert allequal(size(A))
+    return A - tr(A) * I / size(A,1)
+end

@@ -11,6 +11,8 @@
   will accept a real-space cutoff.
 * Long-range dipole-dipole was previously broken for systems with multiple
   cells, but is now fixed.
+* General biquadratic interactions (beyond scalar) in dipole mode are fixed in
+  linear spin wave theory.
 
 
 ## v0.5.9

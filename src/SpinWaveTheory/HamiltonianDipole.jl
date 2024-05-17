@@ -70,10 +70,10 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
                 H11[j, j] += -6J[3, 3]
                 H22[i, i] += -6J[3, 3]
                 H22[j, j] += -6J[3, 3]
-                H21[i, i] += 12*(J[1, 3] - im*J[5, 3])
-                H12[i, i] += 12*(J[1, 3] + im*J[5, 3])
-                H21[j, j] += 12*(J[3, 1] - im*J[3, 5])
-                H12[j, j] += 12*(J[3, 1] + im*J[3, 5])
+                H21[i, i] += 2*(J[1, 3] - im*J[5, 3])
+                H12[i, i] += 2*(J[1, 3] + im*J[5, 3])
+                H21[j, j] += 2*(J[3, 1] - im*J[3, 5])
+                H12[j, j] += 2*(J[3, 1] + im*J[3, 5])
 
                 Q = 0.25 * ( J[4, 4]+J[2, 2] - im*(-J[4, 2]+J[2, 4]))
                 H11[i, j] += Q * phase
@@ -247,25 +247,25 @@ function multiply_by_hamiltonian_dipole!(y::Array{ComplexF64, 2}, x::Array{Compl
 
                 @inbounds for q in 1:Nq
                     Y[q, i, 1] += -6J[3, 3] * X[q, i, 1]
-                    Y[q, i, 1] += 12*(J[1, 3] + im*J[5, 3]) * X[q, i, 2]
+                    Y[q, i, 1] += 2*(J[1, 3] + im*J[5, 3]) * X[q, i, 2]
                     Y[q, i, 1] += Q * phases[q] * X[q, j, 1]
                     Y[q, i, 1] += conj(P) * phases[q] * X[q, j, 2]
                 end
                 @inbounds for q in 1:Nq
                     Y[q, i, 2] += -6J[3, 3] * X[q, i, 2]
-                    Y[q, i, 2] += 12*(J[1, 3] - im*J[5, 3]) * X[q, i, 1]
+                    Y[q, i, 2] += 2*(J[1, 3] - im*J[5, 3]) * X[q, i, 1]
                     Y[q, i, 2] += conj(Q) * phases[q] * X[q, j, 2]
                     Y[q, i, 2] += P * phases[q] * X[q, j, 1]
                 end
                 @inbounds for q in 1:Nq
                     Y[q, j, 1] += -6J[3, 3] * X[q, j, 1]
-                    Y[q, j, 1] += 12*(J[3, 1] + im*J[3, 5]) * X[q, j, 2]
+                    Y[q, j, 1] += 2*(J[3, 1] + im*J[3, 5]) * X[q, j, 2]
                     Y[q, j, 1] += conj(Q) * conj(phases[q]) * X[q, i, 1]
                     Y[q, j, 1] += conj(P) * conj(phases[q]) * X[q, i, 2]
                 end
                 @inbounds for q in 1:Nq
                     Y[q, j, 2] += -6J[3, 3] * X[q, j, 2]
-                    Y[q, j, 2] += 12*(J[3, 1] - im*J[3, 5]) * X[q, j, 1]
+                    Y[q, j, 2] += 2*(J[3, 1] - im*J[3, 5]) * X[q, j, 1]
                     Y[q, j, 2] += Q * conj(phases[q]) * X[q, i, 2]
                     Y[q, j, 2] += P * conj(phases[q]) * X[q, i, 1]
                 end
