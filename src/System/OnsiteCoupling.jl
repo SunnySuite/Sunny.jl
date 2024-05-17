@@ -1,7 +1,7 @@
 function onsite_coupling(sys, site, matrep::AbstractMatrix)
     N = sys.Ns[site]
     size(matrep) == (N, N) || error("Invalid matrix size.")
-    matrep ≈ matrep' || error("Requires Hermitian operator")
+    matrep ≈ matrep' || error("Operator is not Hermitian")
 
     if sys.mode == :SUN
         return Hermitian(matrep)
