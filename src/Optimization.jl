@@ -46,13 +46,12 @@ end
     return x̄_dudv - (x̄_dudv * n) * n'
 end
 
-# Returns v such that u = (2v + (1-v²)n)/(1+v²) and v⋅n = 0. Tested on real
-# 3-vectors.
+# Returns v such that u = (2v + (1-v²)n)/(1+v²) and v⋅n = 0
 function inverse_stereographic_projection(u, n)
     @assert u'*u ≈ 1
 
     uperp = u - n*(n'*u)
-    uperp² = uperp' * uperp
+    uperp² = real(uperp' * uperp)
     s = sign(u⋅n)
     if isone(s) && uperp² < 1e-5
         c = 1/2 + uperp²/8 + uperp²*uperp²/16
@@ -61,20 +60,6 @@ function inverse_stereographic_projection(u, n)
     end
     return c * uperp
 end
-
-#=
-for _ in 1:10
-    n = normalize(randn(3))
-    v = (I - n*n') * randn(3)
-    u = stereographic_projection(v, n)
-    @assert inverse_stereographic_projection(u, n) ≈ v
-end
-=#
-
-# function variance(αs)
-#     ncomponents = length(αs) * length(first(αs))
-#     return sum(real(α'*α) for α in αs) / ncomponents
-# end
 
 function optim_set_spins!(sys::System{0}, αs, ns)
     αs = reinterpret(reshape, Vec3, αs)
