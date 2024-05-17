@@ -83,3 +83,59 @@ end
     @test isapprox(disp[:], reverse(SpinW_energies); atol=1e-3)
     @test isapprox(SpinW_intensities/Sunny.natoms(crystal), intensity[:]; atol=1e-3)
 end
+
+
+@testitem "BFMO" begin
+    latvecs = lattice_vectors(5.254, 11.65, 16.15, 90, 90.8, 90)
+    positions = [[1/4, 0.1178, 0], [3/4, 0.8822, 0], [1/4, 0.3822, 1/2], [3/4, 0.6178, 1/2]]
+    cryst = Crystal(latvecs, positions)
+    bond1 = Bond(3, 4, [0, 0, 0])
+    bond2 = Bond(1, 1, [1, 0, 0])
+    bond3 = Bond(3, 4, [1, 0, 0])
+    bond4 = Bond(1, 3, [0, 0, 0])
+    bond5 = Bond(1, 2, [0, 0, 0])
+    bond6 = Bond(1, 3, [1, 0, 0])
+    bond7 = Bond(1, 3, [-1, 0, 0])
+    
+    ka = 0.4413
+    kc = 0.1851
+    k_ref = [ka, 0, kc]
+    k_ref_alt = [1-ka, 0, 1-kc]
+    
+    J1 = 0.4442
+    J3 = 0.07762
+    J4 = -0.00775
+    J5 = 0.00100
+    J7 = -0.00461
+    
+    # Constrain J6 and J2 to make k_ref exact
+    J6 = (sin((-2*ka+kc)*pi)*J7+sin(kc*pi)*J4)/(-sin((2*ka+kc)*pi))
+    J2 = (2*sin((2*ka+kc)*pi)*J6-sin(ka*pi)*(J1+J5)-3*sin(3*ka*pi)*J3-(sin(2*pi*(ka-kc/2+1/2))-sin(2*pi*(-ka+kc/2+1/2)))*J7)/(-2*sin(2*ka*pi))
+    
+    # Exact energy reference
+    E_ref = (-((J1+J5)*cos(pi*ka))+J2*cos(2*pi*ka)-J3*cos(3*pi*ka)+J4*cos(pi*kc)+J6*cos(pi*(2*ka+kc))+J7*cos(pi*(2*ka-kc)))*5/2*(5/2)*4
+    
+    sys = System(cryst, (1,1,1), [SpinInfo(1,S=5/2,g=2)], :dipole, seed=0)
+    set_exchange!(sys, J1, bond1)
+    set_exchange!(sys, J2, bond2)
+    set_exchange!(sys, J3, bond3)
+    set_exchange!(sys, J4, bond4)
+    set_exchange!(sys, J5, bond5)
+    set_exchange!(sys, J6, bond6)
+    set_exchange!(sys, J7, bond7)
+    
+    # Unfortunately, randomizing the initial guess will lead to occasional
+    # optimization failures. TODO: Use ForwardDiff to improve accuracy.
+    k_guess = [0.2, 0.4, 0.8]
+    k = Sunny.optimize_luttinger_tisza_exchange(sys, k_guess)
+    E = Sunny.luttinger_tisza_exchange(sys, k)
+    @test isapprox(E, E_ref; atol=1e-12)
+    @test isapprox(k, k_ref; atol=1e-5) || isapprox(k, k_ref_alt; atol=1e-5)
+    
+    axis = [0, 0, 1]
+    randomize_spins!(sys)
+    k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
+    E = Sunny.luttinger_tisza_exchange(sys, k)
+    @test isapprox(E, E_ref; atol=1e-12)
+    @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)    
+end
