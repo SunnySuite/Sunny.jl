@@ -55,8 +55,8 @@ Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(
 function clone_correlations(sc::SampledCorrelations{N}) where N
     dims = size(sc.data)[2:4]
     nω = size(sc.data, 7)
-    normalization_factor = 1/√(prod(dims))
-    fft! = normalization_factor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
+    normalizationFactor = 1/(√(nω * prod(dims)))
+    fft! = normalizationFactor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations{N}(copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
         deepcopy(sc.observables), copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.dt,
@@ -177,7 +177,7 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     # This is designed so that when it enters ifft(fft * fft) later (in squared fashion)
     # it will result in the 1/N factor needed to average over the
     # N-many independent estimates of the correlation.
-    normalizationFactor = 1/√(prod(sys.latsize))
+    normalizationFactor = 1/(√(nω * prod(sys.latsize)))
     fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6))
 
     # Other initialization

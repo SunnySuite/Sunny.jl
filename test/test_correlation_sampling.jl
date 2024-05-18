@@ -37,9 +37,13 @@
     add_sample!(sc, sys)
     qgrid = available_wave_vectors(sc)
     formula = intensity_formula(sc,:trace)
-    vals = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
-    total_intensity_trace = sum(vals)
-    @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
+    Sqw = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
+    # To get the time-domain correlations from S(q,w), do FFTW.ifft (which includes a 1/N).
+    # As a shortcut to get just the equal-time correlations, we evaluate the ifft manually at t=0.
+    equal_time_correlations_from_Sqw(Sqw) = sum(Sqw,dims=4) ./ size(Sqw,4)
+    norm(v) = sqrt(v[1]^2 + v[2]^2 + v[3]^2)
+    expected_sum_rule = prod(sys.latsize) * norm(sys.dipoles[1])^2 # NS^2 classical sum rule
+    @test isapprox(sum(equal_time_correlations_from_Sqw(Sqw)), expected_sum_rule; atol=1e-12)
 
     # Test sum rule with default observables in dipole mode 
     sys = simple_model_fcc(; mode=:dipole)
@@ -47,9 +51,10 @@
     sc = dynamical_correlations(sys; dt=0.1, nω=100, ωmax=10.0, apply_g=false)
     add_sample!(sc, sys)
     trace_formula = intensity_formula(sc,:trace)
-    vals = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
-    total_intensity_trace = sum(vals)
-    @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
+    Sqw = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
+    total_intensity_trace = sum(Sqw)
+    expected_sum_rule = prod(sys.latsize) * norm(sys.dipoles[1])^2 # NS^2 classical sum rule
+    @test isapprox(sum(equal_time_correlations_from_Sqw(Sqw)), expected_sum_rule; atol=1e-12)
 
 
     # Test perp reduces intensity
@@ -84,7 +89,7 @@
     # Test static from dynamic intensities working
     static_vals = instant_intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
     total_intensity_static = sum(static_vals)
-    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-12)  # Order of summation can lead to very small discrepancies
+    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-9)  # Order of summation can lead to very small discrepancies
 
     # Test instant intensities working
     sys = simple_model_fcc(; mode=:dipole)
@@ -153,5 +158,5 @@ end
     refdata = [1.8923137799435257 -1.5731157122871734e-15 -7.618183477999628e-16 2.4258182290582965e-15 2.663555286833582e-15 -2.378171804276773e-15 1.4269030327057308e-15 -1.997664243521173e-15 -4.756343436779901e-16 -1.819301364566135e-15; 0.033223462988952464 0.0565912610212458 0.1616375644454015 4.211237061899472 3.1064676304451533 5.792222570573932 5.536484159910247 0.551596926234539 0.27194613622683184 0.24232982609989023]
 
     # Compare with reference 
-    @test isapprox(data, refdata; atol=1e-12)
+    @test isapprox(data, size(sc.data,7) * refdata; atol=1e-12)
 end
