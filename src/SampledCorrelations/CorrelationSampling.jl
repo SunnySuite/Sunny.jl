@@ -46,7 +46,12 @@ end
 
 function new_sample!(sc::SampledCorrelations, sys::System)
     (; dt, samplebuf, measperiod, observables, processtraj!) = sc
-    nsnaps = size(samplebuf, 6)
+
+    # Only fill the sample buffer half way; the rest is zero-padding
+    buf_size = size(samplebuf, 6)
+    nsnaps = (buf_size÷2) + 1
+    samplebuf[:,:,:,:,:,(nsnaps+1):end] .= 0
+
     @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `SampledCorrelations`"
 
     trajectory!(samplebuf, sys, dt, nsnaps, observables.observables; measperiod)
@@ -78,11 +83,31 @@ function no_processing(::SampledCorrelations)
     nothing
 end
 
-function accum_sample!(sc::SampledCorrelations)
+function accum_sample!(sc::SampledCorrelations; window)
     (; data, M, observables, samplebuf, nsamples, fft!) = sc
     natoms = size(samplebuf)[5]
 
-    fft! * samplebuf # Apply pre-planned and pre-normalized FFT
+    num_time_offsets = size(samplebuf,6)
+    T = (num_time_offsets÷2) + 1 # Duration that each signal was recorded for
+
+    # Time offsets (in samples) Δt = [0,1,...,(T-1),-(T-1),...,-1] produced by 
+    # the cross-correlation between two length-T signals
+    time_offsets = FFTW.fftfreq(num_time_offsets,num_time_offsets)
+
+    # In samplebuf, the original signal is from 1:T, and the rest
+    # is zero-padding, from (T+1):num_time_offsets.
+    fft! * samplebuf
+
+    # Number of contributions to the DFT sum (non-constant due to zero-padding).
+    # Equivalently, this is the number of estimates of the correlation with
+    # each offset Δt that need to be averaged over.
+    n_contrib = reshape(T .- abs.(time_offsets),1,1,1,num_time_offsets)
+    
+    # As long as `num_time_offsets` is odd, there will be a non-zero number of
+    # contributions, so we don't need this line
+    @assert isodd(num_time_offsets)
+    #n_contrib[n_contrib .== 0] .= Inf
+
     count = nsamples[1] += 1
 
     # Note that iterating over the `correlations` (a SortedDict) causes
@@ -96,10 +121,22 @@ function accum_sample!(sc::SampledCorrelations)
         sample_β = @view samplebuf[β,:,:,:,j,:]
         databuf  = @view data[c,i,j,:,:,:,:]
 
+        corr = FFTW.ifft(sample_α .* conj.(sample_β),4) ./ n_contrib
+
+        if window == :cosine
+          # Apply a cosine windowing to force the correlation at Δt=±(T-1) to be zero
+          # to force periodicity. In terms of the spectrum S(ω), this applys a smoothing
+          # with a characteristic lengthscale of O(1) frequency bins.
+          window_func = cos.(range(0,π,length = num_time_offsets + 1)[1:end-1]).^2
+          corr .*= reshape(window_func,1,1,1,num_time_offsets)
+        end
+
+        corr = FFTW.fft(corr,4)
+
         if isnothing(M)
             for k in eachindex(databuf)
                 # Store the diff for one complex number on the stack.
-                diff = sample_α[k] * conj(sample_β[k]) - databuf[k]
+                diff = corr[k] - databuf[k]
 
                 # Accumulate into running average
                 databuf[k] += diff * (1/count)
@@ -144,7 +181,7 @@ separately prior to calling `add_sample!`. Alternatively, the initial spin
 configuration may be copied into a new `System` and this new `System` can be
 passed to `add_sample!`.
 """
-function add_sample!(sc::SampledCorrelations, sys::System) 
+function add_sample!(sc::SampledCorrelations, sys::System; window = :cosine) 
     new_sample!(sc, sys)
-    accum_sample!(sc)
+    accum_sample!(sc; window)
 end

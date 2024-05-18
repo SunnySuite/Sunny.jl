@@ -55,7 +55,7 @@ Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(
 function clone_correlations(sc::SampledCorrelations{N}) where N
     dims = size(sc.data)[2:4]
     nω = size(sc.data, 7)
-    normalization_factor = 1/(nω * √(prod(dims)))
+    normalization_factor = 1/√(prod(dims))
     fft! = normalization_factor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations{N}(copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
@@ -135,15 +135,21 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     observables = parse_observables(N; observables, correlations, g = apply_g ? sys.gs : nothing)
 
     # Determine trajectory measurement parameters
-    nω = Int64(nω)
-    if nω != 1
-        @assert π/dt > ωmax "Desired `ωmax` not possible with specified `dt`. Choose smaller `dt` value."
-        measperiod = floor(Int, π/(dt * ωmax))
-        nω = 2nω-1  # Ensure there are nω _non-negative_ energies.
-        Δω = 2π / (dt*measperiod*nω)
-    else
+    if isnan(nω) # instant_correlations case
         measperiod = 1
         dt = Δω = NaN
+        n_all_ω = 1 
+    else
+        # Determine how many time steps to skip between saving samples
+        # by skipping the largest number possible while still resolving ωmax
+        @assert π/dt > ωmax "Desired `ωmax` not possible with specified `dt`. Choose smaller `dt` value."
+        measperiod = floor(Int, π/(dt * ωmax))
+
+        # The user specifies the number of _non-negative_ energies
+        n_non_neg_ω = Int64(nω)
+        @assert n_non_neg_ω > 0 "nω must be at least 1"
+        n_all_ω = 2n_non_neg_ω-1
+        Δω = 2π / (dt*measperiod*n_all_ω)
     end
 
     # Set up trajectory processing function (e.g., symmetrize)
@@ -159,12 +165,19 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
 
     # Preallocation
     na = natoms(sys.crystal)
-    samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, nω) 
-    data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., nω)
+
+    # The sample buffer holds n_non_neg_ω measurements, and the rest is a zero buffer
+    samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, n_all_ω)
+
+    # The output data has n_all_ω many (positive and negative and zero) frequencies
+    data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., n_all_ω)
     M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
-    # Normalize FFT according to physical convention
-    normalizationFactor = 1/(nω * √(prod(sys.latsize)))
+    # Specially Normalized FFT.
+    # This is designed so that when it enters ifft(fft * fft) later (in squared fashion)
+    # it will result in the 1/N factor needed to average over the
+    # N-many independent estimates of the correlation.
+    normalizationFactor = 1/√(prod(sys.latsize))
     fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6))
 
     # Other initialization
@@ -212,5 +225,5 @@ The following optional keywords are available:
     `correlations=[(1,1),(1,2)]`.
 """
 function instant_correlations(sys::System; kwargs...)
-    dynamical_correlations(sys; dt=NaN, nω=1, ωmax=NaN, kwargs...)
+    dynamical_correlations(sys; dt=NaN, nω=NaN, ωmax=NaN, kwargs...)
 end
