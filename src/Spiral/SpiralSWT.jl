@@ -51,7 +51,7 @@ function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveThe
             H[i,i]     -= Sj * transpose(vi) * Jij * vj 
             H[i+L,i+L] -= Sj * transpose(vi) * Jij * vj
 
-            @assert iszero(c.biquad) "Biquadratic interactions not supported"
+            iszero(c.biquad) || error("Biquadratic interactions not supported")
         end
     end
 
@@ -75,6 +75,8 @@ function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveThe
         H[i, i+L]   += +im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
         H[i+L, i]   += -im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
     end
+
+    isnothing(sys.ewald) || error("Ewald interactions not yet supported")
         
     @assert diffnorm2(H, H') < 1e-12
     Sunny.hermitianpart!(H)
@@ -106,9 +108,9 @@ function dispersion_singleQ(swt::SpinWaveTheory,n::Vector{Float64},k::Vector{Flo
                 swt_hamiltonian_dipole_singleQ!(H, swt, q_reshaped .+ (branch - 2) .* k, n, k)
             end
             try
-                    view(disp, :, iq,branch) .= Sunny.bogoliubov!(V, H)
+                view(disp, :, iq,branch) .= Sunny.bogoliubov!(V, H)
             catch e
-                    error("Instability at wavevector q = $q")
+                error("Instability at wavevector q = $q")
             end
         end
     end
