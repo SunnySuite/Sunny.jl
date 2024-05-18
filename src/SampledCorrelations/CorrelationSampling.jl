@@ -166,14 +166,19 @@ end
 
 
 """
-    add_sample!(sc::SampledCorrelations, sys::System)
+    add_sample!(sc::SampledCorrelations, sys::System; window=:cosine)
 
 `add_trajectory` uses the spin configuration contained in the `System` to
 generate a correlation data and accumulate it into `sc`. For static structure
 factors, this involves analyzing the spin-spin correlations of the spin
 configuration provided. For a dynamic structure factor, a trajectory is
 calculated using the given spin configuration as an initial condition. The
-spin-spin correlations are then calculating in time and accumulated into `sc`. 
+spin-spin correlations are then calculated in time and accumulated into `sc`. 
+
+To mitigate frequency-aliasing effects caused by the use of finite-length
+trajectories, a cosine window is applied by default along the time axis of each
+trajectory. Setting the `window` keyword to anything other than `:cosine` will
+result in the application of a rectangular window instead.
 
 This function will change the state of `sys` when calculating dynamical
 structure factor data. To preserve the initial state of `sys`, it must be saved
