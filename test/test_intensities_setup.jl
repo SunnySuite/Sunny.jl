@@ -78,7 +78,7 @@ end
     cryst = Sunny.cubic_crystal()
     sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
     dt = 0.1
-    sc = dynamical_correlations(sys; Δt = dt, ωmax = 10.0, nω=100)
+    sc = dynamical_correlations(sys; dt, ωmax=10, nω=100)
 
     ωs = available_energies(sc;negative_energies=true)
     dts = 0:(dt * sc.measperiod):3
@@ -92,7 +92,7 @@ end
 @testitem "Polyatomic sum rule" begin
     sys = System(Sunny.diamond_crystal(),(4,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN,seed=1)
     randomize_spins!(sys)
-    sc = dynamical_correlations(sys;Δt = 1.,nω=3,ωmax = 1.)
+    sc = dynamical_correlations(sys; dt=1, nω=3, ωmax=1)
     add_sample!(sc, sys)
 
     # Polyatomic sum rule!

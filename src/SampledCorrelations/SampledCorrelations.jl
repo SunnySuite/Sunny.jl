@@ -177,7 +177,6 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     # This is designed so that when it enters ifft(fft * fft) later (in squared fashion)
     # it will result in the 1/N factor needed to average over the
     # N-many independent estimates of the correlation.
-    println(nω)
     normalizationFactor = 1/(√(n_all_ω * prod(sys.latsize)))
     fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6))
 
