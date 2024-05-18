@@ -98,6 +98,7 @@ end
     # Polyatomic sum rule!
     sum_rule_ixs = Sunny.Trace(sc.observables).indices
     sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:],dims = [1,4,5,6,7])[1,:,:,1,1,1,1]
+
     # SU(N) sum rule for S = 1/2:
     # ⟨∑ᵢSᵢ²⟩ = 3/4 on every site, but because we're classical, we
     # instead compute ∑ᵢ⟨Sᵢ⟩² = (1/2)^2 = 1/4 since the ⟨Sᵢ⟩ form a vector with
@@ -107,7 +108,7 @@ end
 
     # Then, because sc.data comes in units of [correlation]/BZ/fs, we need to multiply
     # by the number of (positive-and-negative frequency bins) × (bins in BZ):
-    expected_sum = gS_squared * size(sc.data,7) * prod(sys.latsize)
+    expected_sum = gS_squared * prod(sys.latsize)
     # This sum rule should hold for each sublattice, independently, and only
     # need to be taken over a single BZ (which is what sc.data contains) to hold:
     @test [sub_lat_sum_rules[i,i] for i = 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
@@ -120,15 +121,16 @@ end
     params_pasr = unit_resolution_binning_parameters(sc;negative_energies = true)
     params_pasr.binstart[1:3] .= -params_pasr.binwidth[1:3] ./ 2
     params_pasr.binend[1:3] .+= 3
+
     # This should result in spanning exactly 4x4x4 BZ's
     nbzs = (params_pasr.binwidth .* params_pasr.numbins)[1:3]
     @test nbzs ≈ [4.0,4.0,4.0]
+
     # This tests that `negative_energies = true` spans exactly one sampling frequency
     nfs = params_pasr.binwidth[4] * params_pasr.numbins[4] / (sc.Δω * size(sc.data,7))
     @test nfs ≈ 1
     is, counts = intensities_binned(sc,params_pasr,formula)
     expected_multi_BZ_sum = gS_squared * prod(nbzs) * nfs # ⟨S⋅S⟩
     expected_multi_BZ_sum_times_natoms = expected_multi_BZ_sum * Sunny.natoms(sc.crystal) # Nₐ×⟨S⋅S⟩
-    @test sum(is ./ counts) ≈ expected_multi_BZ_sum_times_natoms
+    @test sum(is ./ counts) ≈ expected_multi_BZ_sum_times_natoms / size(sc.data,7)
 end
-
