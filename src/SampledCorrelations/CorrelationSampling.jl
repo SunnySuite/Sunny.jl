@@ -166,7 +166,7 @@ end
 
 
 """
-    add_sample!(sc::SampledCorrelations, sys::System; window=:cosine)
+    add_sample!(sc::SampledCorrelations, sys::System)
 
 `add_trajectory` uses the spin configuration contained in the `System` to
 generate a correlation data and accumulate it into `sc`. For static structure
@@ -175,18 +175,35 @@ configuration provided. For a dynamic structure factor, a trajectory is
 calculated using the given spin configuration as an initial condition. The
 spin-spin correlations are then calculated in time and accumulated into `sc`. 
 
-To mitigate frequency-aliasing effects caused by the use of finite-length
-trajectories, a cosine window is applied by default along the time axis of each
-trajectory. Setting the `window` keyword to anything other than `:cosine` will
-result in the application of a rectangular window instead.
-
 This function will change the state of `sys` when calculating dynamical
 structure factor data. To preserve the initial state of `sys`, it must be saved
 separately prior to calling `add_sample!`. Alternatively, the initial spin
 configuration may be copied into a new `System` and this new `System` can be
 passed to `add_sample!`.
 """
-function add_sample!(sc::SampledCorrelations, sys::System; window = :cosine) 
+function add_sample!(sc::SampledCorrelations, sys::System; window = :cosine)
+    # Sunny now estimates the dynamical structure factor in two steps. First, it
+    # estimates real-time correlations C(t) = ⟨S(t)S(0)⟩ from classical
+    # dynamics. Second, it takes the Fourier transform of C(t) to get the
+    # structure factor in energy space ω. Because time-correlations are
+    # estimated from dynamical trajectories of finite duration T, there is no
+    # data for C(t) when |t| > T. The inverse trajectory length sets a limit on
+    # the energy resolution in the structure factor (dω ≳ 1/T). In practice,
+    # rather than imposing a sharp cutoff on C(t) (a rectangular window), it is
+    # favorable to multiply C(t) by a window function that goes smoothly to zero
+    # as |t| -> T. For concreteness, Sunny selects a cosine window, but any
+    # other smooth window would likely work similarly well in mitigating
+    # artifacts. See https://github.com/SunnySuite/Sunny.jl/pull/246 for more
+    # discussion about the calculation of intensities from classical dynamics. 
+    # 
+    # The `window` parameter to this function is *not* part of Sunny's public
+    # API, and is subject to change at any time. Passing an alternative value
+    # for `window` will replace the smooth cosine window with a rectangular
+    # window (sharp truncation at |t| = T). This experimental feature is
+    # provided so that expert users have the ability to extract real-time
+    # dynamical correlations. In the future, a public API will be designed to
+    # give more direct access to the real-time correlations.
+
     new_sample!(sc, sys)
     accum_sample!(sc; window)
 end
