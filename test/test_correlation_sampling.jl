@@ -38,10 +38,10 @@
     qgrid = available_wave_vectors(sc)
     formula = intensity_formula(sc,:trace)
     Sqw = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
-    # To get the time-domain correlations from S(q,w), do FFTW.ifft (which includes a 1/N).
-    # As a shortcut to get just the equal-time correlations, we evaluate the ifft manually at t=0.
-    norm(v) = sqrt(v[1]^2 + v[2]^2 + v[3]^2)
-    expected_sum_rule = prod(sys.latsize) * norm(sys.dipoles[1])^2 # NS^2 classical sum rule
+    # A simple sum (rather than energy-integral) is possible because a `Δω`
+    # factor is already included in the Sqw intensity data. This convention will
+    # change per https://github.com/SunnySuite/Sunny.jl/issues/264
+    expected_sum_rule = prod(sys.latsize) * Sunny.norm2(sys.dipoles[1]) # NS^2 classical sum rule
     @test isapprox(sum(Sqw), expected_sum_rule; atol=1e-12)
 
     # Test sum rule with default observables in dipole mode 
@@ -52,7 +52,7 @@
     trace_formula = intensity_formula(sc,:trace)
     Sqw = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
     total_intensity_trace = sum(Sqw)
-    expected_sum_rule = prod(sys.latsize) * norm(sys.dipoles[1])^2 # NS^2 classical sum rule
+    expected_sum_rule = prod(sys.latsize) * Sunny.norm2(sys.dipoles[1]) # NS^2 classical sum rule
     @test isapprox(sum(Sqw), expected_sum_rule; atol=1e-12)
 
     # Test perp reduces intensity

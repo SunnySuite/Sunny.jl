@@ -166,11 +166,10 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., n_all_ω)
     M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
-    # Specially Normalized FFT.
-    # This is designed so that when it enters ifft(fft * fft) later (in squared fashion)
-    # it will result in the 1/N factor needed to average over the
-    # N-many independent estimates of the correlation.
-    normalizationFactor = 1/(√(n_all_ω * prod(sys.latsize)))
+    # The normalization is defined so that structure factor estimates of form
+    # ifft(fft * fft) carry an overall scaling factor consistent with this spec:
+    # https://github.com/SunnySuite/Sunny.jl/issues/264 (subject to change).
+    normalizationFactor = 1/√(prod(sys.latsize) * n_all_ω)
     fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6))
 
     # Other initialization

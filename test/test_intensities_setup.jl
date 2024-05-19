@@ -95,7 +95,9 @@ end
     sc = dynamical_correlations(sys; dt=1, nω=3, ωmax=1)
     add_sample!(sc, sys)
 
-    # Polyatomic sum rule!
+    # A simple sum (rather than energy-integral) is possible because a `Δω`
+    # factor is already included in the intensity data. This convention will
+    # change per https://github.com/SunnySuite/Sunny.jl/issues/264
     sum_rule_ixs = Sunny.Trace(sc.observables).indices
     sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:],dims = [1,4,5,6,7])[1,:,:,1,1,1,1]
 
@@ -106,8 +108,6 @@ end
     # need to include the g factor. This is the equal-space-and-time correlation value:
     gS_squared = (2 * 1/2)^2
 
-    # Then, because sc.data comes in units of [correlation]/BZ/fs, we need to multiply
-    # by the number of (positive-and-negative frequency bins) × (bins in BZ):
     expected_sum = gS_squared * prod(sys.latsize)
     # This sum rule should hold for each sublattice, independently, and only
     # need to be taken over a single BZ (which is what sc.data contains) to hold:
