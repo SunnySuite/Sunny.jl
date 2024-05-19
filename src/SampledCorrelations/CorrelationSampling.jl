@@ -60,17 +60,6 @@ function new_sample!(sc::SampledCorrelations, sys::System)
     return nothing
 end
 
-# At the sacrifice of code modularity, this processing step could be effected
-# more efficiently by simply taking the real part of the trajectory after the
-# Fourier transform
-function symmetrize!(sc::SampledCorrelations)
-    (; samplebuf) = sc
-    nsteps = size(samplebuf, 6)
-    mid = floor(Int, nsteps/2)
-    for t in 1:mid, idx in CartesianIndices(size(samplebuf)[1:5])
-        samplebuf[idx, t] = samplebuf[idx, nsteps-t+1] = 0.5*(samplebuf[idx, t] + samplebuf[idx, nsteps-t+1])
-    end
-end
 
 function subtract_mean!(sc::SampledCorrelations)
     (; samplebuf) = sc

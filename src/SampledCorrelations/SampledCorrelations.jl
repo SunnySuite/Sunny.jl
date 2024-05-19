@@ -88,7 +88,7 @@ end
 
 """
     dynamical_correlations(sys::System; dt, nω, ωmax, 
-        process_trajectory=:none, observables=nothing, correlations=nothing) 
+                           observables=nothing, correlations=nothing) 
 
 Creates an empty `SampledCorrelations` object for calculating and storing
 dynamical structure factor intensities ``𝒮(𝐪,ω)``. Call [`add_sample!`](@ref)
@@ -125,12 +125,16 @@ Additional keyword options are the following:
 """
 function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ωmax,
                                 apply_g=true, observables=nothing, correlations=nothing,
-                                calculate_errors=false, process_trajectory=:none) where N
+                                calculate_errors=false, process_trajectory=no_processing) where N
     if !isnothing(Δt)
         @warn "`Δt` argument is deprecated! Use `dt` instead."
         dt = @something dt Δt
     end
     isnothing(dt) && error("`dt` parameter required")
+    if process_trajectory == :symmetrize
+        @warn "`process_trajectory=:symmetrize` is deprecated and will be ignored"
+        process_trajectory = no_processing
+    end
 
     observables = parse_observables(N; observables, correlations, g = apply_g ? sys.gs : nothing)
 
@@ -150,17 +154,6 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
         @assert n_non_neg_ω > 0 "nω must be at least 1"
         n_all_ω = 2n_non_neg_ω-1
         Δω = 2π / (dt*measperiod*n_all_ω)
-    end
-
-    # Set up trajectory processing function (e.g., symmetrize)
-    processtraj! = if process_trajectory == :none 
-        no_processing
-    elseif process_trajectory == :symmetrize
-        symmetrize!
-    elseif process_trajectory == :subtract_mean
-        subtract_mean!
-    else
-        error("Unknown argument for `process_trajectory`")
     end
 
     # Preallocation
@@ -186,7 +179,7 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
     sc = SampledCorrelations{N}(data, M, sys.crystal, origin_crystal, Δω, observables,
-                                samplebuf, fft!, measperiod, apply_g, dt, nsamples, processtraj!)
+                                samplebuf, fft!, measperiod, apply_g, dt, nsamples, process_trajectory)
 
     return sc
 end
