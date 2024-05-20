@@ -132,7 +132,10 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     end
     isnothing(dt) && error("`dt` parameter required")
     if process_trajectory == :symmetrize
-        @warn "`process_trajectory=:symmetrize` is deprecated and will be ignored"
+        @warn """`process_trajectory=:symmetrize` is deprecated and will be ignored.
+                     Without this option, intensities are increased by a factor of two, which
+                     will affect the color scales of plots, etc.
+                 """
         process_trajectory = no_processing
     end
 
