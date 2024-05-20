@@ -3,15 +3,19 @@
 ## v0.5.10
 (In development)
 
-* In dipole mode, fix bugs to support the case that spin-``S`` varies between
-  sites. In SU(``N``) mode, however, there is still no support for varying
-  the Hilbert space dimension ``N`` between sites.
 * [`view_crystal`](@ref) called on a [`System`](@ref) now optionally shows
   spin or magnetic dipoles.
 * Interactions for [`enable_dipole_dipole!`](@ref) are now supported in linear
   spin wave theory, with proper Ewald summation. For a faster alternative, the
   experimental function [`modify_exchange_with_truncated_dipole_dipole!`](@ref)
   will accept a real-space cutoff.
+* Intensities calculated with [`dynamical_correlations`](@ref) now avoid
+  "smearing artifacts" at low-energy (long-timescale) modes. See [PR
+  246](https://github.com/SunnySuite/Sunny.jl/pull/246) for details. This
+  eliminates the need for `process_trajectory=:symmetrize`.
+* In dipole mode, having spin-``S`` vary between sites was previously broken,
+  and is now fixed. In SU(``N``) mode, however, there is still no support for
+  varying the Hilbert space dimension ``N`` between sites.
 * Long-range dipole-dipole was previously broken for systems with multiple
   cells, but is now fixed.
 * General biquadratic interactions (beyond scalar) in dipole mode are fixed in

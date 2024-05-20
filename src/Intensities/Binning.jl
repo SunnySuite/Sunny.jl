@@ -208,7 +208,7 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...)
     params
 end
 
-unit_resolution_binning_parameters(sc::SampledCorrelations; kwargs...) = unit_resolution_binning_parameters(available_energies_including_zero(sc),sc.latsize,sc;kwargs...)
+unit_resolution_binning_parameters(sc::SampledCorrelations; negative_energies=false,kwargs...) = unit_resolution_binning_parameters(available_energies_including_zero(sc;negative_energies),sc.latsize,sc;kwargs...)
 
 function unit_resolution_binning_parameters(ωvals::AbstractVector{Float64})
     if !all(abs.(diff(diff(ωvals))) .< 1e-12)
@@ -382,7 +382,7 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
     return_type = typeof(formula).parameters[1]
     output_intensities = zeros(return_type,numbins...)
     output_counts = zeros(Float64,numbins...)
-    ωvals = available_energies_including_zero(sc)
+    ωvals = available_energies_including_zero(sc;negative_energies=true)
 
     # Find an axis-aligned bounding box containing the histogram.
     # The AABB needs to be in r.l.u for the (possibly reshaped) crystal
@@ -475,11 +475,28 @@ function intensities_binned(sc::SampledCorrelations, params::BinningParameters, 
             end
         end
     end
-    return output_intensities, output_counts
+
+    # `output_intensities` is in units of S²/BZ/fs, and includes the sum
+    # of `output_counts`-many individual scattering intensities.
+    # To give the value integrated over the bin, we need to multiply by
+    # the binwidth, Δω×ΠᵢΔqᵢ. But Δq/BZ = 1/N, where N is the number of
+    # bins covering one BZ, which is itself equal to the latsize.
+    #
+    # To find the number of bins covering one BZ, we first compute the volume of the BZ
+    # in histogram label space: it is det(covectors[1:3,1:3]). Next, we compute the volume
+    # of one bin in label space: it is prod(binwidth[1:3]).
+    # Then, N = det(covectors[1:3,1:3])/prod(binwidth[1:3]).
+    #
+    # For the time axis, Δω/fs = 1/N, where N is the number of frequency bins
+    # 
+    # So the division by N here makes it so the result has units of
+    # raw S² (to be summed over M-many BZs to recover M-times the sum rule)
+    N_bins_in_BZ = abs(det(covectors[1:3,1:3])) / prod(binwidth[1:3])
+    return output_intensities ./ N_bins_in_BZ ./ length(ωvals), output_counts
 end
 
-function available_energies_including_zero(x)
-    ωs = available_energies(x)
+function available_energies_including_zero(x;kwargs...)
+    ωs = available_energies(x;kwargs...)
     # Special case due to NaN definition of instant_correlations
     (length(ωs) == 1 && isnan(ωs[1])) ? [0.] : ωs
 end
