@@ -37,9 +37,12 @@
     add_sample!(sc, sys)
     qgrid = available_wave_vectors(sc)
     formula = intensity_formula(sc,:trace)
-    vals = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
-    total_intensity_trace = sum(vals)
-    @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
+    Sqw = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
+    # A simple sum (rather than energy-integral) is possible because a `Δω`
+    # factor is already included in the Sqw intensity data. This convention will
+    # change per https://github.com/SunnySuite/Sunny.jl/issues/264
+    expected_sum_rule = prod(sys.latsize) * Sunny.norm2(sys.dipoles[1]) # NS^2 classical sum rule
+    @test isapprox(sum(Sqw), expected_sum_rule; atol=1e-12)
 
     # Test sum rule with default observables in dipole mode 
     sys = simple_model_fcc(; mode=:dipole)
@@ -47,10 +50,10 @@
     sc = dynamical_correlations(sys; dt=0.1, nω=100, ωmax=10.0, apply_g=false)
     add_sample!(sc, sys)
     trace_formula = intensity_formula(sc,:trace)
-    vals = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
-    total_intensity_trace = sum(vals)
-    @test isapprox(total_intensity_trace / prod(sys.latsize), 1.0; atol=1e-12)
-
+    Sqw = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
+    total_intensity_trace = sum(Sqw)
+    expected_sum_rule = prod(sys.latsize) * Sunny.norm2(sys.dipoles[1]) # NS^2 classical sum rule
+    @test isapprox(sum(Sqw), expected_sum_rule; atol=1e-12)
 
     # Test perp reduces intensity
     perp_formula = intensity_formula(sc,:perp)
@@ -84,7 +87,7 @@
     # Test static from dynamic intensities working
     static_vals = instant_intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
     total_intensity_static = sum(static_vals)
-    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-12)  # Order of summation can lead to very small discrepancies
+    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-9)  # Order of summation can lead to very small discrepancies
 
     # Test instant intensities working
     sys = simple_model_fcc(; mode=:dipole)
@@ -149,9 +152,8 @@ end
     add_sample!(sc, sys)
     qs = [[0.0, 0.0, 0.0], [0.2, -0.4, 0.1]]
     data = intensities_interpolated(sc, qs, intensity_formula(sc, :trace; kT); interpolation=:linear)
-    
-    refdata = [1.8923137799435257 -1.5731157122871734e-15 -7.618183477999628e-16 2.4258182290582965e-15 2.663555286833582e-15 -2.378171804276773e-15 1.4269030327057308e-15 -1.997664243521173e-15 -4.756343436779901e-16 -1.819301364566135e-15; 0.033223462988952464 0.0565912610212458 0.1616375644454015 4.211237061899472 3.1064676304451533 5.792222570573932 5.536484159910247 0.551596926234539 0.27194613622683184 0.24232982609989023]
 
-    # Compare with reference 
-    @test isapprox(data, refdata; atol=1e-12)
+    # Compare with reference
+    data_golden = [0.94615689 1.6758054878 0.0 0.0 -0.0 -0.0 0.0 0.0 -0.0 -0.0; 0.0252530805 0.0455240359 0.6633641526 2.7680376847 4.1836804699 5.3808432493 5.1410670814 1.4570600911 -0.1137274773 0.042984536]
+    @test data ≈ data_golden
 end

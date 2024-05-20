@@ -35,8 +35,8 @@ values.
 function available_energies(sc::SampledCorrelations; negative_energies=false)
     isnan(sc.Δω) && (return NaN)
 
-    nω = size(sc.data, 7)
-    hω = div(nω, 2) + 1
-    ωvals = FFTW.fftfreq(nω, nω * sc.Δω)
-    return negative_energies ? ωvals : ωvals[1:hω]
+    n_all_ω = size(sc.data, 7)
+    n_non_neg_ω = div(n_all_ω, 2) + 1
+    ωvals = FFTW.fftfreq(n_all_ω, n_all_ω * sc.Δω)
+    return negative_energies ? ωvals : ωvals[1:n_non_neg_ω]
 end

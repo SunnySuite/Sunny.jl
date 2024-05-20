@@ -1,0 +1,697 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Estimating the dynamical structure factor from classical dynamics
+\end_layout
+
+\begin_layout Author
+Kipton Barros, Sam Quinn, David Dahlbom
+\end_layout
+
+\begin_layout Section
+Structure factor from dynamical correlations
+\end_layout
+
+\begin_layout Standard
+Our interest is estimating dynamical expectation values for a classical
+ system with a prescribed dynamics.
+ For concreteness, consider a system of spins 
+\begin_inset Formula $\mathbf{S}$
+\end_inset
+
+ in equilibrium, obeying the Boltzmann distribution, 
+\begin_inset Formula $P[\mathbf{S}]\sim\exp(-\beta H[\mathbf{S}])$
+\end_inset
+
+.
+ To estimate dynamical quantities, we must also introduce a model for the
+ physical time-dynamics.
+ This might be the energy-conserving Landau-Lifshitz (LL) equation, or a
+ Langevin spin dynamics that includes damping and noise terms.
+ The latter can be used to model the effective coupling of spins to a thermal
+ bath.
+\end_layout
+
+\begin_layout Standard
+Let 
+\begin_inset Formula $A(x,t)$
+\end_inset
+
+ and 
+\begin_inset Formula $B(x,t)$
+\end_inset
+
+ denote local observables at position 
+\begin_inset Formula $x$
+\end_inset
+
+ for the time-evolved spin configuration 
+\begin_inset Formula $\mathbf{S}(t)$
+\end_inset
+
+, starting from some initial configuration, 
+\begin_inset Formula $\mathbf{S}(0)=\mathbf{S}_{0}$
+\end_inset
+
+.
+ A dynamical time correlation is then,
+\begin_inset Formula 
+\begin{equation}
+C(x,t)=\langle A(0,0)B(x,t)\rangle,
+\end{equation}
+
+\end_inset
+
+where the bracket denotes an average over initial conditions 
+\begin_inset Formula $\mathbf{S}_{0}$
+\end_inset
+
+ sampled from thermal equilibrium.
+ Time-evolution preserves the Boltzmann distribution (under either LL or
+ Langevin dynamics), so the correlation function is invariant under an arbitrary
+ time shift.
+ The average over equilibrium configurations 
+\begin_inset Formula $\mathbf{S}_{0}$
+\end_inset
+
+ also ensures translation invariance in space.
+ This translation invariances justify averaging over many space-time shifts,
+\begin_inset Formula 
+\begin{equation}
+C(x,t)=\frac{1}{\Omega}\langle\int_{\Omega}A(x',t')B(x'+x,t'+t)dx'dt'\rangle,\label{eq:C_average}
+\end{equation}
+
+\end_inset
+
+where the volume 
+\begin_inset Formula $\Omega$
+\end_inset
+
+ should be sufficiently large such that 
+\begin_inset Quotes eld
+\end_inset
+
+surface effects
+\begin_inset Quotes erd
+\end_inset
+
+ can be ignored.
+\end_layout
+
+\begin_layout Standard
+This integral can be written compactly as a cross correlation,
+\begin_inset Formula 
+\begin{equation}
+C(x,t)=\frac{1}{\Omega}\langle(A\star B)(x,t)\rangle.
+\end{equation}
+
+\end_inset
+
+The convolution theorem allows simplification in Fourier space, 
+\begin_inset Formula 
+\begin{equation}
+\hat{C}(q,\omega)=\frac{1}{\Omega}\langle\hat{A}^{\ast}(q,\omega)\hat{B}(q,\omega)\rangle.
+\end{equation}
+
+\end_inset
+
+For concreteness, we employ the Fourier transformation convention,
+\begin_inset Formula 
+\begin{equation}
+\hat{A}(q,\omega)=\mathcal{F}_{q,\omega}[A]\equiv\int e^{-i(qx+\omega t)}A(x,t).
+\end{equation}
+
+\end_inset
+
+Because the classical observable 
+\begin_inset Formula $A(x,t)$
+\end_inset
+
+ is real, we can also write
+\begin_inset Formula 
+\begin{equation}
+\hat{C}(q,\omega)=\frac{1}{\Omega}\langle\hat{A}(-q,-\omega)\hat{B}(q,\omega)\rangle.\label{eq:structure_factor}
+\end{equation}
+
+\end_inset
+
+This makes contact with the usual notion of 
+\begin_inset Quotes eld
+\end_inset
+
+structure factor
+\begin_inset Quotes erd
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Section
+Estimates of dynamical correlations
+\end_layout
+
+\begin_layout Standard
+In practice, our data 
+\begin_inset Formula $A(x,t)$
+\end_inset
+
+ and 
+\begin_inset Formula $B(x,t)$
+\end_inset
+
+ will be periodic in 
+\begin_inset Formula $x$
+\end_inset
+
+, but will be 
+\emph on
+nonperiodic 
+\emph default
+in 
+\begin_inset Formula $t$
+\end_inset
+
+.
+ If we naively take the FFT of this data to plug into Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:structure_factor"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, we are effectively assuming periodic boundaries in time, and this can
+ lead to aliasing effects due to the discontinuity at the edges of the time
+ interval.
+\end_layout
+
+\begin_layout Standard
+An alternative approach, proposed by Sam, is to treat the real-space correlation
+ function 
+\begin_inset Formula $C(x,t)$
+\end_inset
+
+ as the more fundamental object to be estimated, and only take its Fourier
+ transform at the end of the calculation.
+ This viewpoint is useful because it allows mitigation of artifacts that
+ would otherwise arise when periodically extending time.
+\end_layout
+
+\begin_layout Standard
+Since the data is properly periodic in 
+\begin_inset Formula $x$
+\end_inset
+
+, it is convenient to work in a mixed space where the position variable
+ 
+\begin_inset Formula $x$
+\end_inset
+
+ has been Fourier transformed, but time 
+\begin_inset Formula $t$
+\end_inset
+
+ has not,
+\begin_inset Formula 
+\begin{equation}
+C_{q}(t)\equiv\int dxe^{-iqx}C(x,t).
+\end{equation}
+
+\end_inset
+
+This evaluates to (I think),
+\begin_inset Formula 
+\begin{equation}
+C_{q}(t)=\frac{1}{V}\langle\frac{1}{T}\int A_{q}^{\ast}(t')B_{q}(t'+t)dt'\rangle,
+\end{equation}
+
+\end_inset
+
+where we have decomposed 
+\begin_inset Formula $\Omega$
+\end_inset
+
+ into separate volumes for space 
+\begin_inset Formula $V$
+\end_inset
+
+ and time 
+\begin_inset Formula $T$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+Recall that the remaining integral over 
+\begin_inset Formula $t'$
+\end_inset
+
+ is optional.
+ That is, we could get the same result (in principle) without any time averaging
+,
+\begin_inset Formula 
+\begin{equation}
+C_{q}(t)=\frac{1}{V}\langle A_{q}^{\ast}(t')B_{q}(t'+t)\rangle,\label{eq:C_arbitrary}
+\end{equation}
+
+\end_inset
+
+which is valid for arbitrary reference time 
+\begin_inset Formula $t'$
+\end_inset
+
+.
+ To improve the quality of the statistical estimate, however, it is best
+ to make use of all possible data.
+ Assuming there is trajectory data over the interval 
+\begin_inset Formula $0\leq t<T$
+\end_inset
+
+, we can integrate over all reference times 
+\begin_inset Formula $t'$
+\end_inset
+
+ subject to the restriction that the indexing is within the allowed bounds,
+\begin_inset Formula 
+\begin{equation}
+C_{q}(t)=\frac{1}{V}\frac{\langle\int A_{q}^{\ast}(t')B_{q}(t'+t)P(t,t')dt'\rangle}{\int P(t,t')dt'},\label{eq:C_integral}
+\end{equation}
+
+\end_inset
+
+where
+\begin_inset Formula 
+\begin{equation}
+P(t,t')=\begin{cases}
+1 & (0\leq t'<T\quad\mathrm{and}\quad0\leq t+t'<T)\\
+0 & \mathrm{otherwise}
+\end{cases}.
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+An efficient way to implement the integral of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:C_integral"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ is to define a periodic extension of the data that includes zero-padding
+ of length 
+\begin_inset Formula $T$
+\end_inset
+
+, e.g.,
+\begin_inset Formula 
+\begin{equation}
+\tilde{A}_{q}(t)=\begin{cases}
+A_{q}(s) & (0\leq s<T)\\
+0 & (T\leq s<2T)
+\end{cases},
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $t$
+\end_inset
+
+ can be any real number and
+\begin_inset Formula 
+\begin{equation}
+s=\mathrm{mod}(t,2T).
+\end{equation}
+
+\end_inset
+
+This leads to,
+\begin_inset Formula 
+\begin{equation}
+C_{q}(t)=\frac{1}{V(T-|t|)}\langle\int_{0}^{2T}\tilde{A}_{q}^{\ast}(t')\tilde{B}_{q}(t'+t)dt'\rangle,
+\end{equation}
+
+\end_inset
+
+which is exactly consistent with Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:C_arbitrary"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+The integral can be recognized as a discrete circular cross correlation,
+ 
+\begin_inset Formula 
+\begin{equation}
+C_{q}(t)=\frac{1}{V(T-|t|)}\langle(\tilde{A}_{q}\star\tilde{B}_{q})_{t}\rangle,
+\end{equation}
+
+\end_inset
+
+which can be evaluated efficiently through the fast Fourier transform of
+ the zero-padded data 
+\begin_inset Formula $\tilde{A}_{q}$
+\end_inset
+
+ and 
+\begin_inset Formula $\tilde{B}_{q}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+In a practical implementation, a final procedure might be:
+\end_layout
+
+\begin_layout Enumerate
+Fourier transform the signals 
+\begin_inset Formula $A(x,t)$
+\end_inset
+
+ and 
+\begin_inset Formula $B(x,t)$
+\end_inset
+
+ in space to get 
+\begin_inset Formula $A_{q}(t)$
+\end_inset
+
+ and 
+\begin_inset Formula $B_{q}(t)$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Zero-pad in time to get 
+\begin_inset Formula $\tilde{A}_{q}(t)$
+\end_inset
+
+ and 
+\begin_inset Formula $\tilde{B}_{q}(t)$
+\end_inset
+
+, which effectively doubles the size of this dimension.
+\end_layout
+
+\begin_layout Enumerate
+Use FFTs in time to naively perform a circular cross correlation in the
+ 
+\begin_inset Formula $t$
+\end_inset
+
+ index, for each 
+\begin_inset Formula $q$
+\end_inset
+
+ independently.
+\end_layout
+
+\begin_layout Enumerate
+Apply an overall scaling factor 
+\begin_inset Formula $V^{-1}(T-|t|)^{-1}$
+\end_inset
+
+ to obtain 
+\begin_inset Formula $C_{q}(t)$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+The desired structure factor 
+\begin_inset Formula $\hat{C}(q,\omega)$
+\end_inset
+
+ is related to 
+\begin_inset Formula $C_{q}(t)$
+\end_inset
+
+ by a final Fourier transform in time.
+\end_layout
+
+\begin_layout Section
+Limiting artifacts due to finite trajectory length and equilibrium samples
+\end_layout
+
+\begin_layout Standard
+The above procedure is formally correct, but suffers from two issues at
+ finite trajectory length 
+\begin_inset Formula $T$
+\end_inset
+
+:
+\end_layout
+
+\begin_layout Enumerate
+The 
+\begin_inset Formula $C_{q}(t)$
+\end_inset
+
+ data is available only over the finite range 
+\begin_inset Formula $-T<t<T$
+\end_inset
+
+, whereas the true Fourier transformation requires data over 
+\emph on
+all
+\emph default
+ real time-shifts 
+\begin_inset Formula $t$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+The ensemble average 
+\begin_inset Formula $\langle\cdot\rangle$
+\end_inset
+
+ will be estimated from a finite number of samples, and statistical estimates
+ of 
+\begin_inset Formula $C_{q}(t)$
+\end_inset
+
+ become especially noisy when 
+\begin_inset Formula $t\to\pm T$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+The first issue amounts to an unavoidable introduction of some windowing
+ function which sets 
+\begin_inset Formula $C(t)=0$
+\end_inset
+
+ whenever 
+\begin_inset Formula $|t|>T$
+\end_inset
+
+.
+ Given the unavoidal presence of 
+\emph on
+some
+\emph default
+ window, it is advantageous to select a 
+\emph on
+smooth 
+\emph default
+window which moves continously to zero as 
+\begin_inset Formula $|t|\to T$
+\end_inset
+
+.
+ This empirically resolves the second issue, by damping statistical noise
+ associated with low numbers of samples.
+\end_layout
+
+\begin_layout Standard
+A reasonable choice for the smooth window function might be
+\begin_inset Formula 
+\begin{equation}
+f(t)=\cos^{2}(\pi t/2T).
+\end{equation}
+
+\end_inset
+
+Beyond 
+\begin_inset Formula $|t|>T$
+\end_inset
+
+, we may zero-pad the estimated correlation function some arbitary amount,
+\begin_inset Formula 
+\begin{equation}
+C_{q}(t)\approx\begin{cases}
+\frac{f(t)}{V(T-|t|)}\langle(\tilde{A}_{q}\star\tilde{B}_{q})_{t}\rangle & (-T\leq t<T)\\
+0 & (\textrm{some finite domain})
+\end{cases}.
+\end{equation}
+
+\end_inset
+
+To obtain the structure factor estimate in Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:structure_factor"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+, only the temporal Fourier transform remains to be evaluated,
+\begin_inset Formula 
+\begin{equation}
+\hat{C}(q,\omega)=\int e^{-i\omega t}C_{q}(t)dt.
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In the special case that 
+\begin_inset Formula $t=0$
+\end_inset
+
+, the window function disappears, 
+\begin_inset Formula $f(0)=1$
+\end_inset
+
+, and
+\begin_inset Formula 
+\begin{equation}
+C_{q}(0)=\frac{1}{VT}\int_{0}^{T}A_{q}^{\ast}(t')B_{q}(t')dt'.
+\end{equation}
+
+\end_inset
+
+This ensures that the 
+\begin_inset Quotes eld
+\end_inset
+
+classical sum rule
+\begin_inset Quotes erd
+\end_inset
+
+ will be exactly respected.
+\end_layout
+
+\end_body
+\end_document
