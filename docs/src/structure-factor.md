@@ -399,7 +399,7 @@ consequently, the $ω$ information that will be available.
 2. `nω`: Sets the number of discrete energy values to resolve. The corresponding
    energy resolution is approximately `Δω ≈ ωmax / nω`. To estimate the
    structure factor with resolution `Δω`, Sunny must integrate a classical spin
-   dynamic trajectory over a time-scale of `1 / Δω`. Computational cost
+   dynamic trajectory over a time-scale of order `1 / Δω`. Computational cost
    therefore scales approximately linearly in `nω`.
 3. `dt`: Determines the step size for dynamical time-integration. Larger is more
    efficient, but the choice will be limited by the stability and accuracy
