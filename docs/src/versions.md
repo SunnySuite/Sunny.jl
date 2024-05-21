@@ -3,8 +3,8 @@
 ## v0.5.10
 (In development)
 
-* [`view_crystal`](@ref) called on a [`System`](@ref) now optionally shows
-  spin or magnetic dipoles.
+* [`view_crystal`](@ref) called on a [`System`](@ref) now shows interactions,
+  and optionally the spin or magnetic dipoles.
 * Interactions for [`enable_dipole_dipole!`](@ref) are now supported in linear
   spin wave theory, with proper Ewald summation. For a faster alternative, the
   experimental function [`modify_exchange_with_truncated_dipole_dipole!`](@ref)
@@ -13,13 +13,14 @@
   "smearing artifacts" at low-energy (long-timescale) modes. See [PR
   246](https://github.com/SunnySuite/Sunny.jl/pull/246) for details. This
   eliminates the need for `process_trajectory=:symmetrize`.
-* In dipole mode, having spin-``S`` vary between sites was previously broken,
-  and is now fixed. In SU(``N``) mode, however, there is still no support for
-  varying the Hilbert space dimension ``N`` between sites.
-* Long-range dipole-dipole was previously broken for systems with multiple
-  cells, but is now fixed.
-* General biquadratic interactions (beyond scalar) in dipole mode are fixed in
-  linear spin wave theory.
+* Correctness fix for the case where spin-``S`` varies between sites in
+  dipole-mode. In SU(``N``) mode, however, there is still no support for varying
+  the Hilbert space dimension ``N`` between sites.
+* Correctness fix in long-range dipole-dipole interactions for systems with
+  multiple cells.
+* Correctness fix in general biquadratic interactions (beyond scalar) for spin
+  wave theory in dipole-mode.
+* Correctness fix for reading Mantid `.nxs` files.
 
 
 ## v0.5.9
