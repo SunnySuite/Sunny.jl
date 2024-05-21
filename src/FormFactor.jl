@@ -19,8 +19,15 @@ struct FormFactor
     g :: Float64
 end
 
-const identity_form_factor = let
+function Base.one(::Type{FormFactor})
     j0 = ExpandedBesselIntegral(0, 0, 0, 0, 0, 0, 0, 0, 1)
+    j2 = ExpandedBesselIntegral(0, 0, 0, 0, 0, 0, 0, 0, 0)
+    g = 2
+    FormFactor(j0, j2, "", g)
+end
+
+function Base.zero(::Type{FormFactor})
+    j0 = ExpandedBesselIntegral(0, 0, 0, 0, 0, 0, 0, 0, 0)
     j2 = ExpandedBesselIntegral(0, 0, 0, 0, 0, 0, 0, 0, 0)
     g = 2
     FormFactor(j0, j2, "", g)
@@ -81,6 +88,11 @@ For 3d, 4d, rare earth, and actinide ions, Sunny uses the revised tables of P.
 J. Brown, as documented in the McPhase package [2]. For 5d ions, Sunny uses the
 tables of Kobayashi, Nagao, Ito [3].
 
+Two special, ``𝐪``-independent form factor values are available:
+`one(FormFactor)` and `zero(FormFactor)`. The first idealizes the magnetic ion
+as a perfect point particle, while the second zeros all contributions from the
+magnetic ion.
+
 References:
 
  1. [P. J. Brown, The Neutron Data Booklet, 2nd ed., Sec. 2.5 Magnetic Form
@@ -136,7 +148,7 @@ end
 # Given a form factor for each "symmetry class" of sites, return a form factor
 # for each atom in the crystal.
 function propagate_form_factors_to_atoms(ffs, cryst::Crystal)
-    isnothing(ffs) && return fill(identity_form_factor, natoms(cryst))
+    isnothing(ffs) && return fill(one(FormFactor), natoms(cryst))
     
     ref_classes = unique(cryst.classes)
     if length(ffs) != length(ref_classes)
