@@ -448,9 +448,10 @@ Sets an exchange interaction ``𝐒_i⋅J 𝐒_j` along the single bond connecti
 will be overwritten. The system must support inhomogeneous interactions via
 [`to_inhomogeneous`](@ref).
 
-If the system is relatively small, the direction of the bond can be ambiguous
-due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
-`offset` vector, in multiples of unit cells.
+Use [`symmetry_equivalent_bonds`](@ref) to find `(site1, site2, offset)` values
+that are symmetry equivalent to a given [`Bond`](@ref) in the original system.
+For systems that are relatively small, the `offset` vector (in multiples of unit
+cells) will resolve ambiguities in the periodic wrapping.
 
 For more general interactions, such as biquadratic, use
 [`set_pair_coupling_at!`](@ref) instead. In the special that `sys` has `mode =
@@ -487,17 +488,18 @@ end
 
 Sets an arbitrary coupling along the single bond connecting two [`Site`](@ref)s,
 ignoring crystal symmetry. Any previous coupling on this bond will be
-overwritten. The operator `op` may be provided as an anonymous function that
-accepts two spin dipole operators, or as a matrix that acts in the tensor
-product space of the two sites. The documentation for
-[`set_pair_coupling!`](@ref) provides examples constructing `op`.
-
-The system must support inhomogeneous interactions via
+overwritten. The system must support inhomogeneous interactions via
 [`to_inhomogeneous`](@ref).
 
-If the system is relatively small, the direction of the bond can be ambiguous
-due to possible periodic wrapping. Resolve this ambiguity by passing an explicit
-`offset` vector, in multiples of unit cells.
+Use [`symmetry_equivalent_bonds`](@ref) to find `(site1, site2, offset)` values
+that are symmetry equivalent to a given [`Bond`](@ref) in the original system.
+For systems that are relatively small, the `offset` vector (in multiples of unit
+cells) will resolve ambiguities in the periodic wrapping.
+
+The operator `op` may be provided as an anonymous function that accepts two spin
+dipole operators, or as a matrix that acts in the tensor product space of the
+two sites. The documentation for [`set_pair_coupling!`](@ref) provides examples
+constructing `op`.
 """
 function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, site2::Site; offset=nothing) where N
     if sys.mode == :dipole_large_S
