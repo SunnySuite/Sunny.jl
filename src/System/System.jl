@@ -337,7 +337,8 @@ end
 Given a [`Bond`](@ref) for the original (unreshaped) crystal, return all
 symmetry equivalent bonds in the [`System`](@ref). Each returned bond is
 represented as a pair of [`Site`](@ref)s, which may be used as input to
-[`set_exchange_at!`](@ref). Reverse bonds are not included (no double counting).
+[`set_exchange_at!`](@ref) or [`set_pair_coupling_at!`](@ref). Reverse bonds are
+not included in the iterator (no double counting).
 
 # Example
 ```julia
