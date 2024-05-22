@@ -77,6 +77,35 @@ function intensities_bands(swt::SpinWaveTheory, ks, formula::SpinWaveIntensityFo
     return band_dispersions, band_intensities
 end
 
+function intensities_bands(swt::SpinWaveTheory, ks, formula::DipoleSingleQSpinWaveIntensityFormula)
+    if !isnothing(formula.kernel)
+        # This is only triggered if the user has explicitly specified a formula with e.g. kT
+        # corrections applied, but has not disabled the broadening kernel.
+        error("intensities_bands: Can't compute band intensities if a broadening kernel is applied.\nTry intensity_formula(...; kernel = delta_function_kernel)")
+    end
+
+    ks = Sunny.Vec3.(ks)
+    nmodes = Sunny.nbands(swt)
+
+    # Get the type parameter from the BandStructure
+    return_type = typeof(formula).parameters[1].parameters[2]
+
+    band_dispersions = zeros(Float64,length(ks),3*nmodes)
+    band_intensities = zeros(return_type,length(ks),3*nmodes)
+    #for branch = 1:3
+        for kidx in CartesianIndices(ks)
+            band_structure = formula.calc_intensity(swt, ks[kidx])
+
+            # Place the BandStructure at each point into its location in the array
+            band_dispersions[kidx,:] .= band_structure.dispersion
+            band_intensities[kidx,:] .= band_structure.intensity
+        end
+    #end
+    return band_dispersions, band_intensities
+end
+
+
+
 """
     intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, formula)
 
@@ -90,7 +119,7 @@ Note that this method only calculates the intensity at the bin centers--it doesn
 integrate over the bins in any way. The output will be the same shape as if it were
 histogrammed data.
 """
-function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, formula::SpinWaveIntensityFormula)
+function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters, formula)
     if any(params.covectors[1:3,4] .!= 0.) || any(params.covectors[4,1:3] .!= 0.)
       error("Complicated binning parameters not supported by intensities_bin_centers")
     end
@@ -118,7 +147,7 @@ function intensities_bin_centers(swt::SpinWaveTheory, params::BinningParameters,
     is
 end
 
-function intensities_bin_multisample(swt::SpinWaveTheory, hist_params::BinningParameters, msaa_strategy, energy_msaa_strategy, formula::SpinWaveIntensityFormula)
+function intensities_bin_multisample(swt::SpinWaveTheory, hist_params::BinningParameters, msaa_strategy, energy_msaa_strategy, formula)
     if any(hist_params.covectors[1:3,4] .!= 0.) || any(hist_params.covectors[4,1:3] .!= 0.)
       error("Complicated binning parameters not supported by intensities_bin_centers")
     end
