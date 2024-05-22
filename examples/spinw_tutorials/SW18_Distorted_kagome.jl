@@ -56,10 +56,10 @@ density = 200
 path, xticks = reciprocal_space_path(cryst, q_points, density)
 swt = SpinWaveTheory(sys)
 formula = Sunny.intensity_formula_SingleQ(swt,k,axis, :perp; kernel=delta_function_kernel)
-disp, _ = Sunny.intensities_bands_SingleQ(swt, path, formula);
+disp, _ = intensities_bands(swt, path, formula);
 energies = collect(0:0.01:5.5)
 broadened_formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=lorentzian(fwhm=0.02))
-is = Sunny.intensities_broadened_SingleQ(swt, path, energies, broadened_formula);
+is = intensities_broadened(swt, path, energies, broadened_formula);
 
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", title="Spin wave dispersion: ", xticks)
@@ -77,7 +77,7 @@ output = zeros(Float64, length(radii), length(energies))
 for (i, radius) in enumerate(radii)
     axis = 300
     qs = reciprocal_space_shell(cryst, radius, axis)
-    is1 = Sunny.intensities_broadened_SingleQ(swt, qs, energies, broadened_formula)
+    is1 = intensities_broadened(swt, qs, energies, broadened_formula)
     is2=dropdims(sum(is1[:,:,:,:],dims=[3,4]),dims=(3,4))
     output[i, :] = sum(is2, dims=1) / size(is2, 1)
 end

@@ -387,3 +387,29 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_
     output_type = isnothing(kernel) ? Sunny.BandStructure{L,return_type} : return_type
     DipoleSingleQSpinWaveIntensityFormula{output_type}(n,k,string_formula,kernel_edep,calc_intensity)
 end
+
+function intensities_bands(swt::SpinWaveTheory, ks, formula::DipoleSingleQSpinWaveIntensityFormula)
+    if !isnothing(formula.kernel)
+        # This is only triggered if the user has explicitly specified a formula with e.g. kT
+        # corrections applied, but has not disabled the broadening kernel.
+        error("intensities_bands: Can't compute band intensities if a broadening kernel is applied.\nTry intensity_formula(...; kernel = delta_function_kernel)")
+    end
+
+    ks = Sunny.Vec3.(ks)
+    nmodes = Sunny.nbands(swt)
+
+    # Get the type parameter from the BandStructure
+    return_type = typeof(formula).parameters[1].parameters[2]
+
+    band_dispersions = zeros(Float64,size(ks)...,3*nmodes)
+    band_intensities = zeros(return_type,size(ks)...,3*nmodes)
+    for kidx in CartesianIndices(ks)
+        band_structure = formula.calc_intensity(swt, ks[kidx])
+
+        band_dispersions[kidx,:] .= band_structure.dispersion
+        band_intensities[kidx,:] .= band_structure.intensity
+    end
+    return band_dispersions, band_intensities
+end
+
+
