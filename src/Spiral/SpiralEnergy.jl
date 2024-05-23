@@ -1,16 +1,15 @@
-function spiral_energy(sys::System{0}, k, axis; exchange_only=false, check_symmetry=true)
-    @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
-    @assert sys.latsize == (1, 1, 1) "System must have only a single cell"
+function spiral_energy(sys::System{0}, k, axis)
+    sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")
+    sys.latsize == (1, 1, 1) || error("System must have only a single cell")
 
-    # Optionally disable symmetry check for speed
-    check_symmetry && check_rotational_symmetry(sys; axis, θ=0.01)
+    check_rotational_symmetry(sys; axis, θ=0.01)
 
-    E, _dEdk = spiral_energy_and_gradient!(nothing, sys, k, axis; exchange_only)
+    E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys, k, axis)
     return E
 end
 
 
-function spiral_energy_and_gradient!(dEds, sys::System{0}, k, axis; exchange_only)
+function spiral_energy_and_gradient_aux!(dEds, sys::System{0}, k, axis)
     E = 0
     accum_grad = !isnothing(dEds)
     if accum_grad
@@ -58,18 +57,16 @@ function spiral_energy_and_gradient!(dEds, sys::System{0}, k, axis; exchange_onl
             @assert iszero(biquad) "Biquadratic interactions not supported"
         end
 
-        if !exchange_only
-            # Onsite coupling
-            E_aniso, dEds_aniso = energy_and_gradient_for_classical_anisotropy(Si, onsite)
-            E += E_aniso
+        # Onsite coupling
+        E_aniso, dEds_aniso = energy_and_gradient_for_classical_anisotropy(Si, onsite)
+        E += E_aniso
 
-            # Zeeman coupling
-            E -= sys.extfield[i]' * (sys.units.μB * sys.gs[i] * Si)
+        # Zeeman coupling
+        E -= sys.extfield[i]' * (sys.units.μB * sys.gs[i] * Si)
 
-            if accum_grad
-                dEds[i] += dEds_aniso
-                dEds[i] -= sys.units.μB * sys.gs[i]' * sys.extfield[i]
-            end
+        if accum_grad
+            dEds[i] += dEds_aniso
+            dEds[i] -= sys.units.μB * sys.gs[i]' * sys.extfield[i]
         end
     end
 
@@ -84,7 +81,6 @@ function optim_set_spins_spiral!(sys::System{0}, axis, params)
     end
 end
 
-
 function optim_set_gradient_spiral!(G, sys::System{0}, axis, params)
     params = reinterpret(Vec3, params)
     G = reinterpret(Vec3, G)
@@ -93,7 +89,7 @@ function optim_set_gradient_spiral!(G, sys::System{0}, axis, params)
 
     L = length(sys.dipoles)
     dEds = view(G, 1:L)
-    _E, dEdk = spiral_energy_and_gradient!(dEds, sys, k, axis; exchange_only=false)
+    _E, dEdk = spiral_energy_and_gradient_aux!(dEds, sys, k, axis)
     G[end] = dEdk
 
     for i in 1:L
@@ -102,21 +98,26 @@ function optim_set_gradient_spiral!(G, sys::System{0}, axis, params)
         # dE/dα' = dE/du' * du/dα
         G[i] = vjp_stereographic_projection(dEdu, params[i], axis)
     end
-
-    println("Evaluating gradient at k = $k with G = $(G[end])")
 end
 
 function optim_energy_spiral(sys::System{0}, axis, params)
     params = reinterpret(Vec3, params)
     optim_set_spins_spiral!(sys, axis, params)
     k = params[end]
-    E, _dEdk = spiral_energy_and_gradient!(nothing, sys, k, axis; exchange_only=false)
-    println("Evaluating energy at k = $k with E = $E")
+    E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys, k, axis)
     return E
 end
 
 
-function minimize_energy_spiral_aux!(sys, axis; maxiters, g_tol, k_guess, allow_canting)
+function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
+    sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")
+    sys.latsize == (1, 1, 1) || error("System must have only a single cell")
+    norm([s × axis for s in sys.dipoles]) > 1e-12 || error("Spins cannot be exactly aligned with polarization axis")
+
+    # Note: if k were fixed, we could check θ = 2πkᵅ for each component α, which
+    # is a weaker constraint.
+    check_rotational_symmetry(sys; axis, θ=0.01)
+
     L = natoms(sys.crystal)
     
     params = fill(zero(Vec3), L+1)
@@ -125,26 +126,18 @@ function minimize_energy_spiral_aux!(sys, axis; maxiters, g_tol, k_guess, allow_
     end
     params[end] = k_guess
 
-    # println("Using params ", params)
-
     f(params) = optim_energy_spiral(sys, axis, params)
     g!(G, params) = optim_set_gradient_spiral!(G, sys, axis, params)
 
-    function g(params)
-        G = copy(params)
-        optim_set_gradient_spiral!(G, sys, axis, params)
-        return G
-    end
+    # Minimize f, the energy of a spiral order
+    options = Optim.Options(; iterations=maxiters)
 
-    # αs = range(0, 0.02, length=5)
-    # G = g(params)
-    # xs = [params - α*G for α in αs]
-    # println("Test eval f = $(f(params)) g = $(g(params))")
-    # println("Perturb = $(f.(xs))")
-
-    # Optimize to the full system energy
-    options = Optim.Options(; iterations=maxiters, show_trace=true)
-    res = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), Optim.ConjugateGradient(), options)
+    # LBFGS does not converge to high precision, but ConjugateGradient can fail
+    # to converge: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175.
+    # TODO: Call only ConjugateGradient when issue is fixed.
+    method = Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
+    res0 = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), method, options)
+    res = Optim.optimize(f, g!, Optim.minimizer(res0), Optim.ConjugateGradient(), options)
 
     params = reinterpret(Vec3, Optim.minimizer(res))
     optim_set_spins_spiral!(sys, axis, params)
@@ -158,22 +151,5 @@ function minimize_energy_spiral_aux!(sys, axis; maxiters, g_tol, k_guess, allow_
         println(res)
         error("Optimization failed to converge within $maxiters iterations.")
     end
-end
-
-
-function minimize_energy_spiral!(sys, axis; maxiters=10_000, g_tol=1e-10, k_guess=randn(sys.rng, 3))
-    @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
-    @assert sys.latsize == (1, 1, 1) "System must have only a single cell"
-
-    # TODO: If k were fixed, we could check θ = 2πkᵅ for each component α, which
-    # may be a weaker constraint.
-    check_rotational_symmetry(sys; axis, θ=0.01)
-
-    # First perform an optimization step where canting is dissallowed. This
-    # avoids the singularity for polar angles θ = {0, π}, and seems to make
-    # convergence more robust. Alternatively, could use a stereographic project
-    # as in minimize_energy!.
-    k_guess = minimize_energy_spiral_aux!(sys, axis; maxiters, g_tol, k_guess, allow_canting=false)
-    return minimize_energy_spiral_aux!(sys, axis; maxiters, g_tol, k_guess, allow_canting=true)
 end
 
