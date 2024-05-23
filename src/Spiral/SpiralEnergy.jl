@@ -8,6 +8,9 @@ function spiral_energy(sys::System{0}, k, axis)
     return E
 end
 
+function spiral_energy_per_site(sys::System{0}, k, axis)
+    return spiral_energy(sys, k, axis) / natoms(sys.crystal)
+end
 
 function spiral_energy_and_gradient_aux!(dEds, sys::System{0}, k, axis)
     E = 0
@@ -17,7 +20,14 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}, k, axis)
     end
     dEdk = zero(Vec3)
 
-    for i in 1:natoms(sys.crystal)
+    @assert sys.latsize == (1,1,1)
+    Na = natoms(sys.crystal)
+
+    x, y, z = normalize(axis)
+    K = Sunny.Mat3([0 -z y; z 0 -x; -y x 0])
+    K² = K*K
+
+    for i in 1:Na
         (; onsite, pair) = sys.interactions_union[i]
         Si = sys.dipoles[i]
 
@@ -33,10 +43,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}, k, axis)
             dθdk = 2π*n
 
             # Rotation as a 3×3 matrix
-            x, y, z = normalize(axis)
             s, c = sincos(θ)
-            K = [0 -z y; z 0 -x; -y x 0]
-            K² = K*K
             R = I + s*K + (1-c)*K²
             @assert R ≈ axis_angle_to_matrix(axis, θ)
             dRdθ = c*K + s*K²
@@ -67,6 +74,36 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}, k, axis)
         if accum_grad
             dEds[i] += dEds_aniso
             dEds[i] -= sys.units.μB * sys.gs[i]' * sys.extfield[i]
+        end
+    end
+
+    # See "spiral_energy.lyx" for derivation
+    if !isnothing(sys.ewald)
+        μ = [magnetic_moment(sys, site) for site in eachsite(sys)]
+
+        A0 = sys.ewald.A
+        A0 = reshape(A0, Na, Na)
+
+        Ak = Sunny.precompute_dipole_ewald_with_q(sys.crystal, (1,1,1), sys.units.μ0, k)
+        Ak = reshape(Ak, Na, Na)
+
+        ϵ = 1e-8
+        if norm(k - round.(k)) < ϵ
+            for i in 1:Na, j in 1:Na
+                E += real(μ[i]' * A0[i, j] * μ[j]) / 2
+            end
+        elseif norm(2k - round.(2k)) < ϵ
+            for i in 1:Na, j in 1:Na
+                E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + K²*Ak[i, j]*K²) * μ[j]) / 2
+            end
+        else
+            for i in 1:Na, j in 1:Na
+                E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + (-im*K-K²)*Ak[i, j]*(-im*K-K²)/2) * μ[j]) / 2
+            end
+        end
+
+        if accum_grad
+            error("Cannot yet differentiate through Ewald summation")
         end
     end
 

@@ -1,3 +1,60 @@
+@testitem "Ewald energy" begin
+    using LinearAlgebra
+
+    latvecs = lattice_vectors(5.254,11.65,16.15, 90, 90.8, 90)
+    positions = [[1/4, 0.1178, 0], [3/4, 0.8822, 0],[1/4, 0.3822, 1/2],[3/4, 0.6178, 1/2]]
+    cryst = Crystal(latvecs, positions)
+
+    ################ test special case ###################
+    La = 2
+    Lb = 1
+    Lc = 2
+    k = [1/La, 1/Lb, 1/Lc]
+
+    Na, Nb, Nc = (1, 2, 3)
+    axis = normalize(randn(3))
+
+    # compute ewald energy using J(Q)
+    sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
+    randomize_spins!(sys)
+    enable_dipole_dipole!(sys)
+    E1 = Sunny.spiral_energy_per_site(sys, k, axis)
+
+    # compute ewald energy using supercell
+    sys_large = System(cryst, (La*Na, Lb*Nb, Lc*Nc), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
+    for i in 1:Sunny.natoms(sys.crystal)
+        set_spiral_order_on_sublattice!(sys_large, i; q=k, axis=axis, S0=sys.dipoles[i])
+    end
+    enable_dipole_dipole!(sys_large)
+    E2 = energy_per_site(sys_large)
+
+    @test E1 ≈ E2
+
+    ################ test random case ###################
+    La, Lb, Lc = (2, 3, 4)
+    k = [1/La, 1/Lb, 1/Lc]
+
+    Na, Nb, Nc = (1, 2, 3)
+    axis = normalize(randn(3))
+
+    # compute ewald energy using J(Q)
+    sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
+    randomize_spins!(sys)
+    enable_dipole_dipole!(sys)
+    E1 = Sunny.spiral_energy_per_site(sys, k, axis)
+
+    # compute ewald energy using supercell
+    sys_large = System(cryst, (La*Na, Lb*Nb, Lc*Nc), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
+    for i in 1:Sunny.natoms(sys.crystal)
+        set_spiral_order_on_sublattice!(sys_large, i; q=k, axis=axis, S0=sys.dipoles[i])
+    end
+    enable_dipole_dipole!(sys_large)
+    E2 = energy_per_site(sys_large)
+
+    @test E1 ≈ E2
+end
+
+
 @testitem "Canted AFM" begin
     function test_canted_afm(S)
         J, D, h = 1.0, 0.54, 0.76
