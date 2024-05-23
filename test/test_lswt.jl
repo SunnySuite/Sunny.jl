@@ -249,8 +249,7 @@ end
         cryst = Crystal(latvecs, positions)
         q = [0.12, 0.23, 0.34]
         
-        dims = (2, 2, 1)
-        sys = System(cryst, dims, [SpinInfo(1; S, g=1)], :dipole; units=Units.theory)
+        sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=1)], :dipole; units=Units.theory)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         set_external_field!(sys, [0, 0, h])
