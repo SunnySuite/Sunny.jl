@@ -74,7 +74,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}, k, axis)
 end
 
 # Sets sys.dipoles and returns k, according to data in params
-function optim_unpack_params_spiral!(sys::System{0}, axis, params)
+function unpack_spiral_params!(sys::System{0}, axis, params)
     params = reinterpret(Vec3, params)
     L = length(sys.dipoles)
     for i in 1:L
@@ -84,8 +84,14 @@ function optim_unpack_params_spiral!(sys::System{0}, axis, params)
     return params[end]
 end
 
-function optim_set_gradient_spiral!(G, sys::System{0}, axis, params)
-    k = optim_unpack_params_spiral!(sys, axis, params)
+function spiral_f(sys::System{0}, axis, params)
+    k = unpack_spiral_params!(sys, axis, params)
+    E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys, k, axis)
+    return E
+end
+
+function spiral_g!(G, sys::System{0}, axis, params)
+    k = unpack_spiral_params!(sys, axis, params)
     v = reinterpret(Vec3, params)
     G = reinterpret(Vec3, G)
 
@@ -101,13 +107,6 @@ function optim_set_gradient_spiral!(G, sys::System{0}, axis, params)
         G[i] = vjp_stereographic_projection(dEdu, v[i], axis)
     end
 end
-
-function optim_energy_spiral(sys::System{0}, axis, params)
-    k = optim_unpack_params_spiral!(sys, axis, params)
-    E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys, k, axis)
-    return E
-end
-
 
 function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
     sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")
@@ -126,8 +125,8 @@ function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     end
     params[end] = k_guess
 
-    f(params) = optim_energy_spiral(sys, axis, params)
-    g!(G, params) = optim_set_gradient_spiral!(G, sys, axis, params)
+    f(params) = spiral_f(sys, axis, params)
+    g!(G, params) = spiral_g!(G, sys, axis, params)
 
     # Minimize f, the energy of a spiral order
     options = Optim.Options(; iterations=maxiters)
@@ -139,7 +138,7 @@ function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     res0 = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), method, options)
     res = Optim.optimize(f, g!, Optim.minimizer(res0), Optim.ConjugateGradient(), options)
 
-    k = optim_unpack_params_spiral!(sys, axis, Optim.minimizer(res))
+    k = unpack_spiral_params!(sys, axis, Optim.minimizer(res))
 
     if Optim.converged(res)
         # For aesthetics, wrap k components to [1-ϵ, -ϵ)
