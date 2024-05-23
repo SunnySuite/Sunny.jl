@@ -128,7 +128,7 @@ function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     f(params) = spiral_f(sys, axis, params)
     g!(G, params) = spiral_g!(G, sys, axis, params)
 
-    # Minimize f, the energy of a spiral order
+    # Minimize f, the energy of a spiral
     options = Optim.Options(; iterations=maxiters)
 
     # LBFGS does not converge to high precision, but ConjugateGradient can fail
