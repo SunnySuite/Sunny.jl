@@ -19,6 +19,14 @@ function luttinger_tisza_exchange(sys::System, k; ϵ=0)
         end
     end
 
+    if !isnothing(sys.ewald)
+        A = Sunny.precompute_dipole_ewald_with_q(sys.crystal, (1,1,1), sys.units.μ0, k)
+        A = reshape(A, Na, Na)
+        for i in 1:Na, j in 1:Na
+            J_k[:, i, :, j] += μB² * gs[i]' * A[i, j] * gs[j] / 2
+        end    
+    end
+
     J_k = reshape(J_k, 3*Na, 3*Na)
     @assert diffnorm2(J_k, J_k') < 1e-15
     J_k = hermitianpart(J_k)
