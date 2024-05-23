@@ -73,19 +73,21 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}, k, axis)
     return E, dEdk
 end
 
-function optim_set_spins_spiral!(sys::System{0}, axis, params)
+# Sets sys.dipoles and returns k, according to data in params
+function optim_unpack_params_spiral!(sys::System{0}, axis, params)
+    params = reinterpret(Vec3, params)
     L = length(sys.dipoles)
     for i in 1:L
         u = stereographic_projection(params[i], axis)
         sys.dipoles[i] = sys.κs[i] * u
     end
+    return params[end]
 end
 
 function optim_set_gradient_spiral!(G, sys::System{0}, axis, params)
-    params = reinterpret(Vec3, params)
+    k = optim_unpack_params_spiral!(sys, axis, params)
+    v = reinterpret(Vec3, params)
     G = reinterpret(Vec3, G)
-    optim_set_spins_spiral!(sys, axis, params)
-    k = params[end]
 
     L = length(sys.dipoles)
     dEds = view(G, 1:L)
@@ -95,15 +97,13 @@ function optim_set_gradient_spiral!(G, sys::System{0}, axis, params)
     for i in 1:L
         # dE/du' = dE/ds' * ds/du, where s = |s|*u.
         dEdu = dEds[i] * sys.κs[i]
-        # dE/dα' = dE/du' * du/dα
-        G[i] = vjp_stereographic_projection(dEdu, params[i], axis)
+        # dE/dv' = dE/du' * du/dv
+        G[i] = vjp_stereographic_projection(dEdu, v[i], axis)
     end
 end
 
 function optim_energy_spiral(sys::System{0}, axis, params)
-    params = reinterpret(Vec3, params)
-    optim_set_spins_spiral!(sys, axis, params)
-    k = params[end]
+    k = optim_unpack_params_spiral!(sys, axis, params)
     E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys, k, axis)
     return E
 end
@@ -139,14 +139,11 @@ function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     res0 = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), method, options)
     res = Optim.optimize(f, g!, Optim.minimizer(res0), Optim.ConjugateGradient(), options)
 
-    params = reinterpret(Vec3, Optim.minimizer(res))
-    optim_set_spins_spiral!(sys, axis, params)
+    k = optim_unpack_params_spiral!(sys, axis, Optim.minimizer(res))
 
     if Optim.converged(res)
-        # println(res)
-
-        # Return optimal k. For aesthetics, wrap components to [1-ϵ, -ϵ)
-        return wrap_to_unit_cell(params[end]; symprec=1e-7)
+        # For aesthetics, wrap k components to [1-ϵ, -ϵ)
+        return wrap_to_unit_cell(k; symprec=1e-7)
     else
         println(res)
         error("Optimization failed to converge within $maxiters iterations.")
