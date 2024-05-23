@@ -252,7 +252,7 @@ is_interpolated = intensities_interpolated(sc, path, new_formula;
     interpolation = :linear,       # Interpolate between available wave vectors
 );
 ## Add artificial broadening
-is_interpolated_broadened = broaden_energy(sc, is, (ω, ω₀)->lorentzian(ω-ω₀, 0.05));
+is_interpolated_broadened = broaden_energy(sc, is, (ω, ω₀) -> lorentzian(fwhm=0.1)(ω-ω₀));
 
 # The second approach to handle the discreteness of the data is to bin the intensity
 # at the discrete points into the bins of a histogram.
@@ -268,7 +268,7 @@ paramsList, markers, ranges = reciprocal_space_path_bins(sc,points,density,cut_w
 total_bins = ranges[end][end]
 energy_bins = paramsList[1].numbins[4]
 is_binned = zeros(Float64,total_bins,energy_bins)
-integrated_kernel = integrated_lorentzian(0.05) # Lorentzian broadening
+integrated_kernel = integrated_lorentzian(fwhm=0.1) # Lorentzian broadening
 for k in eachindex(paramsList)
     bin_data, counts = intensities_binned(sc,paramsList[k], new_formula;
         integrated_kernel = integrated_kernel

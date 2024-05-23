@@ -294,8 +294,8 @@ fig
 # helpful to employ an empirical broadening kernel, e.g., a
 # [`lorentzian`](@ref).
 
-γ = 0.15 # width in meV
-broadened_formula = intensity_formula(swt, :perp; kernel=lorentzian(γ))
+fwhm = 0.3 # full width at half maximum (meV)
+broadened_formula = intensity_formula(swt, :perp; kernel=lorentzian(; fwhm))
 
 # The [`intensities_broadened`](@ref) function requires an energy range in
 # addition to the $𝐪$-space path.

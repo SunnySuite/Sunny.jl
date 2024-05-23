@@ -89,8 +89,8 @@ include("SampledCorrelations/BasisReduction.jl")
 include("Intensities/Types.jl")
 include("SampledCorrelations/DataRetrieval.jl")
 export SampledCorrelations, dynamical_correlations, instant_correlations, add_sample!,
-    broaden_energy, lorentzian, available_wave_vectors, available_energies, merge_correlations,
-    intensity_formula, integrated_lorentzian
+    broaden_energy, gaussian, lorentzian, available_wave_vectors, available_energies, merge_correlations,
+    intensity_formula, integrated_gaussian, integrated_lorentzian
 
 include("Intensities/ElementContraction.jl")
 

@@ -136,19 +136,60 @@ function classical_to_quantum(ω, kT::Float64)
 end
 
 """
-    lorentzian(x, η) 
+    gaussian(; {fwhm, σ})
 
-Returns ``η/(π(x^2 + η^2))``.
+Returns the function `exp(-x^2/2σ^2) / √(2π*σ^2)`. Exactly one of `fwhm` or `σ`
+must be specified, where `fwhm = (2.355...) * σ` denotes the full width at half
+maximum.
 """
-lorentzian(x, η) = η/(π*(x^2 + η^2))
-lorentzian(η) = x -> lorentzian(x,η)
+function gaussian(; fwhm=nothing, σ=nothing)
+    if sum(.!isnothing.((fwhm, σ))) != 1
+        error("Exactly one of `fwhm` and `σ` must be specified.")
+    end
+    σ = Float64(@something σ (fwhm/2√(2log(2))))
+    return x -> exp(-x^2/2σ^2) / √(2π*σ^2)
+end
+
 
 """
-    integrated_lorentzian(η) 
+    integrated_gaussian(; {fwhm, σ}) 
 
-Returns ``x \\mapsto atan(x/η)/π`` for use with [`intensities_binned`](@ref).
+Returns the function `erf(x/√2σ)/2`, which is the integral of [`gaussian`](@ref)
+over the range ``[0, x]``. Exactly one of `fwhm` or `σ` must be specified, where
+`fwhm = (2.355...) * σ` denotes the full width at half maximum. Intended for use
+with [`intensities_binned`](@ref).
 """
-integrated_lorentzian(η::Float64) = x -> atan(x/η)/π
+function integrated_gaussian(; fwhm=nothing, σ=nothing)
+    if sum(.!isnothing.((fwhm, σ))) != 1
+        error("Exactly one of `fwhm` and `σ` must be specified.")
+    end
+    σ = Float64(@something σ (fwhm/2√(2log(2))))
+    return x -> erf(x/√2σ)/2
+end
+
+"""
+    lorentzian(; fwhm)
+
+Returns the function `(Γ/2) / (π*(x^2+(Γ/2)^2))` where `Γ = fwhm` is the full
+width at half maximum.
+"""
+function lorentzian(; fwhm)
+    Γ = fwhm
+    return x -> (Γ/2) / (π*(x^2+(Γ/2)^2))
+end
+
+"""
+    integrated_lorentzian(; fwhm) 
+
+Returns the function `atan(2x/Γ)/π`, which is the integral of
+[`lorentzian`](@ref) over the range ``[0, x]``, where `Γ = fwhm` is the full
+width at half maximum. Intended for use with [`intensities_binned`](@ref).
+"""
+function integrated_lorentzian(; fwhm)
+    Γ = fwhm
+    return x -> atan(2x/Γ)/π
+end
+
 
 """
     broaden_energy(sc::SampledCorrelations, vals, kernel::Function; negative_energies=false)
@@ -161,7 +202,7 @@ center frequency of the kernel. Sunny provides [`lorentzian`](@ref)
 for the most common use case:
 
 ```
-newvals = broaden_energy(sc, vals, (ω, ω₀) -> lorentzian(ω-ω₀, 0.2))
+newvals = broaden_energy(sc, vals, (ω, ω₀) -> lorentzian(fwhm=0.2)(ω-ω₀))
 ```
 """
 function broaden_energy(sc::SampledCorrelations, is, kernel::Function; negative_energies=false)
