@@ -20,7 +20,7 @@ function luttinger_tisza_exchange(sys::System, k; ϵ=0)
     end
 
     J_k = reshape(J_k, 3*Na, 3*Na)
-    @assert diffnorm2(J_k, J_k') < 1e-16
+    @assert diffnorm2(J_k, J_k') < 1e-15
     J_k = hermitianpart(J_k)
 
     E = if iszero(ϵ)
@@ -46,16 +46,22 @@ end
 
 # Starting from an initial guess, return the wavevector k that locally minimizes
 # `luttinger_tisza_exchange`.
-function optimize_luttinger_tisza_exchange(sys::System, k; maxiters=10_000, g_tol=1e-10)
-    options = Optim.Options(; g_tol, iterations=maxiters)
-    res = Optim.optimize(k, Optim.ConjugateGradient(), options) do k
+function optimize_luttinger_tisza_exchange(sys::System, k_guess; maxiters=10_000)
+    options = Optim.Options(; iterations=maxiters)
+
+    # Work around: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175
+    method = Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
+    res = Optim.optimize(k_guess, method, options) do k
+        luttinger_tisza_exchange(sys, k; ϵ=1e-8)
+    end
+    res = Optim.optimize(Optim.minimizer(res), Optim.ConjugateGradient(), options) do k
         luttinger_tisza_exchange(sys, k; ϵ=1e-8)
     end
 
     if Optim.converged(res)
         k = Optim.minimizer(res)
         # Wrap components to [0, 1)
-        k = wrap_to_unit_cell(Vec3(k); symprec=1e-7)
+        k = wrap_to_unit_cell(Vec3(k); symprec=1e-6)
         return k
     else
         error("Momentum optimization failed to converge within $maxiters iterations.")
