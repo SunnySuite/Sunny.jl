@@ -72,8 +72,7 @@ plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 # Cobalt(2+) dampens intensities at large ``𝐪``.
 
 swt = SpinWaveTheory(sys_prim)
-η = 0.4 # (meV)
-kernel = lorentzian(η)
+kernel = lorentzian(fwhm=0.8)
 formfactors = [FormFactor("Co2")]
 formula = intensity_formula(swt, :perp; kernel, formfactors)
 

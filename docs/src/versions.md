@@ -10,9 +10,14 @@
   experimental function [`modify_exchange_with_truncated_dipole_dipole!`](@ref)
   will accept a real-space cutoff.
 * Intensities calculated with [`dynamical_correlations`](@ref) now avoid
-  "smearing artifacts" at low-energy (long-timescale) modes. See [PR
+  "bleeding artifacts" at low-energy (long-timescale) modes. See [PR
   246](https://github.com/SunnySuite/Sunny.jl/pull/246) for details. This
   eliminates the need for `process_trajectory=:symmetrize`.
+* When passed to `intensity_formula`, the special value `zero(FormFactor)` can
+  now be used to disable contributions from a given site. For an example, see
+  the ported [SpinW tutorial 19](@ref "SW19 - Different magnetic ions").
+* Broadening kernels [`gaussian`](@ref) and [`lorentzian`](@ref) now expect a
+  full width at half maximum (`fwhm`) keyword argument.
 * Correctness fix for the case where spin-``S`` varies between sites in
   dipole-mode. In SU(``N``) mode, however, there is still no support for varying
   the Hilbert space dimension ``N`` between sites.

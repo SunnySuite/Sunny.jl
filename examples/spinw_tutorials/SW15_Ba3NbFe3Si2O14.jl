@@ -87,11 +87,9 @@ path, xticks = reciprocal_space_path(cryst, points_rlu, density);
 # Calculate broadened intensities
 
 swt = SpinWaveTheory(sys; energy_ϵ=1e-6)
-fwhm = 0.25 # meV
-σ = fwhm / 2.355
-broadened_formula = intensity_formula(swt, :perp; kernel=x -> exp(-x^2/2σ^2) / √(2π*σ^2))
-energies = collect(0:(σ/4):6)  # 0 < ω < 6 (meV)
-is = intensities_broadened(swt, path, energies, broadened_formula);
+broadened_formula = intensity_formula(swt, :perp; kernel=gaussian(fwhm=0.25))
+energies = collect(0:0.05:6)  # 0 < ω < 6 (meV)
+is = intensities_broadened(swt, path, energies, broadened_formula)
 
 # Plot
 

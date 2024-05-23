@@ -39,6 +39,22 @@ function Base.setproperty!(value::Langevin, name::Symbol, x)
 end
 
 
+function lorentzian(x, η)
+    @warn "`lorentzian(x, η)` is deprecated! Use `lorentzian(; fwhm=2η)(x)` instead."
+    return lorentzian(; fwhm=2η)(x)
+end
+
+function lorentzian(η)
+    @warn "`lorentzian(η)` is deprecated! Use `lorentzian(; fwhm=2η)(x)` instead."
+    return lorentzian(; fwhm=2η)
+end
+
+function integrated_lorentzian(η::Float64)
+    @warn "`integrated_lorentzian(η)` is deprecated! Use `integrated_lorentzian(; fwhm=2η)` instead."
+    return integrated_lorentzian(; fwhm=2η)
+end
+
+
 # REMEMBER TO ALSO DELETE:
 
 # view_crystal(cryst, max_dist)
