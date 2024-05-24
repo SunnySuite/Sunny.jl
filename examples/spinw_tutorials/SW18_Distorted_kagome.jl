@@ -8,17 +8,17 @@
 # exhibit helical magnetic order, as described in [G. J. Nilsen, et al., Phys.
 # Rev. B **89**, 140412 (2014)](https://doi.org/10.1103/PhysRevB.89.140412).
 
-using Sunny, GLMakie, Test, LinearAlgebra
+using Sunny, GLMakie
 
-# Build a crystal
+# Build the distorted kagome crystal, with spacegroup 12.
 
 latvecs = lattice_vectors(10.2, 5.94, 7.81, 90, 117.7, 90)
 positions = [[0, 0, 0], [1/4, 1/4, 0]]
-types = ["Cu1","Cu2"]
-cryst = Crystal(latvecs,positions,12;types,setting="b1")
+types = ["Cu1", "Cu2"]
+cryst = Crystal(latvecs, positions, 12; types, setting="b1")
 view_crystal(cryst)
 
-# Define the interactions
+# Define the interactions.
 
 sys = System(cryst,(1,1,1), [SpinInfo(1, S=1/2, g=2), SpinInfo(3, S=1/2, g=2)], :dipole, seed=0)
 J   = -2
@@ -32,32 +32,33 @@ set_exchange!(sys,Ja,Bond(3, 4, [0, 0, 0]))
 set_exchange!(sys,Jab, Bond(1, 2, [0,0,0]))
 set_exchange!(sys,Jip,Bond(3, 4, [0, 0, 1]))
 
-# Optimize the spiral structure
+# Optimize the generalized spiral structure. This will determine the propagation
+# wavevector `k`, as well as spin values within the unit cell. One must provide
+# a fixed `axis` perpendicular to the polarization plane. The qualified notation
+# `Sunny.*` indicates that these functions are not stabilized, and will likely
+# change in a future Sunny release.
 
 axis = [0, 0, 1]
 randomize_spins!(sys)
 k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
 
-# If convergence succeeds, there are two possible results ±k_ref. These each
-# correspond to a different chirality of the magnetic order.
+# If successful, the optimization process will find one two possible
+# wavevectors, ±k_ref, with opposite chiralities.
 
 k_ref = [0.785902495, 0.0, 0.107048756]
 @assert isapprox(k, k_ref; atol=1e-6) || isapprox(k, [1, 0, 1] - k_ref ; atol=1e-6)
 @assert Sunny.spiral_energy_per_site(sys, axis, k) ≈ -0.5869788384 # 3/4 the SpinW result?
 
-
 # Define a path in reciprocal space.
 
 q_points = [[0,0,0], [1,0,0]]
 density = 200
-path, xticks = reciprocal_space_path(cryst, q_points, density);
+path, xticks = reciprocal_space_path(cryst, q_points, density)
 swt = SpinWaveTheory(sys)
 formula = Sunny.intensity_formula_SingleQ(swt,k,axis, :perp; kernel=delta_function_kernel)
-disp, intensity = Sunny.intensities_bands_SingleQ(swt, path, formula);
-
-γ = 0.01
+disp, _ = Sunny.intensities_bands_SingleQ(swt, path, formula);
 energies = collect(0:0.01:5.5)
-broadened_formula = Sunny.intensity_formula_SingleQ(swt,k,axis, :perp; kernel=lorentzian(γ), formfactors=nothing)
+broadened_formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=lorentzian(fwhm=0.02))
 is = Sunny.intensities_broadened_SingleQ(swt, path, energies, broadened_formula);
 
 fig = Figure()
@@ -76,13 +77,13 @@ output = zeros(Float64, length(radii), length(energies))
 for (i, radius) in enumerate(radii)
     axis = 300
     qs = reciprocal_space_shell(cryst, radius, axis)
-    is1 = Sunny.intensities_broadened_SingleQ(swt, qs, energies, broadened_formula);
+    is1 = Sunny.intensities_broadened_SingleQ(swt, qs, energies, broadened_formula)
     is2=dropdims(sum(is1[:,:,:,:],dims=[3,4]),dims=(3,4))
     output[i, :] = sum(is2, dims=1) / size(is2, 1)
 end
 
 fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Q (Å⁻¹)", ylabel="ω (meV)",title="Convoluted powder spectra:")
+ax = Axis(fig[1,1]; xlabel="Q (Å⁻¹)", ylabel="ω (meV)", title="Broadened powder spectra")
 ylims!(ax, 0.0, 5)
-heatmap!(ax, radii, energies, output, colormap=:gnuplot2,colorrange=(0.0,1))
+heatmap!(ax, radii, energies, output, colormap=:gnuplot2, colorrange=(0.0,1))
 fig
