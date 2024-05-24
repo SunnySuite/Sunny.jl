@@ -53,12 +53,13 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}, k, axis)
             @assert R'*J*R ≈ J
 
             # Accumulate energy and derivatives
-            E += Si' * (J * R) * Sj # ≈ (R * Si)' * (J * R) * (R * Sj)
+            E += Si' * J * (R * Sj)
+            @assert Si' * J * (R * Sj) ≈ (R' * Si)' * J * Sj
             if accum_grad
-                dEds[i] += (J * R) * Sj
-                dEds[j] += (J * R)' * Si
+                dEds[i] += J * (R * Sj)
+                dEds[j] += J' * (R' * Si)
             end
-            dEdθ = Si' * (J * dRdθ) * Sj
+            dEdθ = Si' * J * (dRdθ * Sj)
             dEdk += dEdθ * dθdk
 
             @assert iszero(biquad) "Biquadratic interactions not supported"

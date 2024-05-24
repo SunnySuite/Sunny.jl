@@ -86,13 +86,12 @@ function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveThe
     end
 end
 
-function dispersion_singleQ(swt::SpinWaveTheory,n::Vector{Float64},k::Vector{Float64}, qs)
+function dispersion_singleQ(swt::SpinWaveTheory, axis, k, qs)
     (; sys) = swt
     
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     nmodes  = Nf * Nm
-
    
     disp = zeros(Float64, nmodes, length(qs),3)
 
@@ -105,7 +104,7 @@ function dispersion_singleQ(swt::SpinWaveTheory,n::Vector{Float64},k::Vector{Flo
                 error("SingleQ calculation for SUN is not yet implemented")
             else
                 @assert sys.mode in (:dipole, :dipole_large_S)
-                swt_hamiltonian_dipole_singleQ!(H, swt, q_reshaped .+ (branch - 2) .* k, n, k)
+                swt_hamiltonian_dipole_singleQ!(H, swt, q_reshaped .+ (branch - 2) .* k, axis, k)
             end
             try
                 view(disp, :, iq,branch) .= Sunny.bogoliubov!(V, H)
@@ -166,13 +165,13 @@ Sunny has several built-in formulas that can be selected by setting `contraction
 - `:perp`, which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
 - `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
 """
-function intensity_formula_SingleQ(swt::SpinWaveTheory, k, n, mode::Symbol; kwargs...)
+function intensity_formula_SingleQ(swt::SpinWaveTheory, k, axis, mode::Symbol; kwargs...)
     contractor, string_formula = Sunny.contractor_from_mode(swt, mode)
-    intensity_formula_SingleQ(swt, k, n,  contractor; string_formula, kwargs...)
+    intensity_formula_SingleQ(swt, k, axis,  contractor; string_formula, kwargs...)
 end
 
-function intensity_formula_SingleQ(swt::SpinWaveTheory, k, n, contractor::Sunny.Contraction{T}; kwargs...) where T
-    intensity_formula_SingleQ(swt, k, n, Sunny.required_correlations(contractor); return_type = T,kwargs...) do ks,ωs,correlations
+function intensity_formula_SingleQ(swt::SpinWaveTheory, k, axis, contractor::Sunny.Contraction{T}; kwargs...) where T
+    intensity_formula_SingleQ(swt, k, axis, Sunny.required_correlations(contractor); return_type = T,kwargs...) do ks,ωs,correlations
         intensity = Sunny.contract(correlations, ks, contractor)
     end
 end
@@ -199,13 +198,18 @@ or a function of both the energy transfer `ω` and of `Δω`, e.g.:
 The integral of a properly normalized kernel function over all `Δω` is one.
 """
 
-function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
+function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, axis, corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
                            return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", 
                            formfactors=nothing)
     (; sys, data, observables) = swt
-    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
+    Na = length(sys.dipoles) # number of magnetic atoms
     L = Sunny.nbands(swt) # k, k+Q, k-Q
 
+    # Rotation matrices associated with `axis`
+    CMat3 = SMatrix{3, 3, ComplexF64, 9}
+    nx = CMat3([0 -axis[3] axis[2]; axis[3] 0 -axis[1]; -axis[2] axis[1] 0])
+    R2 = CMat3(axis * axis')
+    R1 = (1/2) .* CMat3(I - im .* nx - R2)
 
     H = zeros(ComplexF64, 2L, 2L)
     T = zeros(ComplexF64, 2L, 2L, 3)
@@ -215,7 +219,7 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_
     intensity = zeros(return_type, L,3)
     S = zeros(ComplexF64,3,3,L,3)
 
-    FF = zeros(ComplexF64, Nm)
+    FF = zeros(ComplexF64, Na)
     #intensity = zeros(return_type, nmodes,3)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
@@ -258,9 +262,6 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_
         # `intensities_*` functions defined in LinearSpinWaveIntensities.jl.
         # Separately, the functions calc_intensity for formulas associated with
         # SampledCorrelations will receive `q_absolute` in absolute units.
-        nx = [0 -n[3] n[2];n[3] 0 -n[1];-n[2] n[1] 0]
-        R1 = (1/2) .* (I - im .* nx - n * Transpose(n))
-        R2 = n*Transpose(n)
         
         q_reshaped = Sunny.to_reshaped_rlu(swt.sys, q)
         q_absolute = swt.sys.crystal.recipvecs * q_reshaped 
@@ -271,7 +272,7 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_
             else
                 @assert sys.mode in (:dipole, :dipole_large_S)
                 
-                swt_hamiltonian_dipole_singleQ!(H, swt, q_reshaped + (branch-2)*k, n, k)
+                swt_hamiltonian_dipole_singleQ!(H, swt, q_reshaped + (branch-2)*k, axis, k)
             
                 disp[:,branch] = try
                     Sunny.bogoliubov!(tmp, H)
@@ -283,10 +284,10 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_
             end
         end
 
-        for i = 1:Nm
-            @assert Nm == Sunny.natoms(sys.crystal)
+        for i = 1:Na
+            @assert Na == Sunny.natoms(sys.crystal)
             # TODO: move form factor into `f`, then delete this rescaling
-            if formfactors == nothing
+            if isnothing(formfactors)
                 FF[i] = 1.0
             else
                 FF[i] = Sunny.compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
@@ -298,23 +299,23 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_
         Z = zeros(ComplexF64,L,L,3,3)
         V = zeros(ComplexF64,L,L,3,3)
         W = zeros(ComplexF64,L,L,3,3)
-            for α in 1:3, β in 1:3
-                for i in 1:L, j in 1:L
-                    si = (sys.Ns[i]-1)/2
-                    sj = (sys.Ns[j]-1)/2
-                    R_i = R[i]
-                    R_j = R[j]
-                    ui = R_i[:,1]+im*R_i[:,2]
-                    uj = R_j[:,1]+im*R_j[:,2]
-                    ti = sys.crystal.positions[i]
-                    tj = sys.crystal.positions[j]
-                    phase = exp(2π * im*dot(q_reshaped,(ti-tj)))
-                    Y[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (ui[α] * conj(uj[β])) * (phase)
-                    Z[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (ui[α] * uj[β]) * (phase)
-                    V[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (conj(ui[α]) * conj(uj[β])) * (phase)
-                    W[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (conj(ui[α]) * uj[β]) * (phase)
-                end
-            end 
+        for α in 1:3, β in 1:3
+            for i in 1:L, j in 1:L
+                si = (sys.Ns[i]-1)/2
+                sj = (sys.Ns[j]-1)/2
+                R_i = R[i]
+                R_j = R[j]
+                ui = R_i[:,1]+im*R_i[:,2]
+                uj = R_j[:,1]+im*R_j[:,2]
+                ti = sys.crystal.positions[i]
+                tj = sys.crystal.positions[j]
+                phase = exp(2π * im*dot(q_reshaped,(ti-tj)))
+                Y[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (ui[α] * conj(uj[β])) * (phase)
+                Z[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (ui[α] * uj[β]) * (phase)
+                V[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (conj(ui[α]) * conj(uj[β])) * (phase)
+                W[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (conj(ui[α]) * uj[β]) * (phase)
+            end
+        end 
         YZVW = [[Y Z];[V W]]
 
         for branch = 1:3
@@ -327,21 +328,19 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_
                     for α in 1:3
                         for β in 1:3
                             A = T[:,:,branch]' * YZVW[:,:,α,β] * T[:,:,branch]
-                        
-                            S[α,β,band,branch] = (1/(2*Nm)) * A[band,band] 
-                            
+                            S[α,β,band,branch] = (1/(2*Na)) * A[band,band] 
                         end
                     end
                 end
             end
         end
         
-        avg = (S -> 1/2 * (S .- nx * S * nx .+ (R2 - I) * S * R2 .+ R2 * S * (R2 -I) .+ R2 * S * R2))
+        avg(S) = 1/2 * (S - nx * S * nx + (R2 - I) * S * R2 + R2 * S * (R2 -I) + R2 * S * R2)
         
         for band = 1:L
-            S[:,:,band,1] = avg(S[:,:,band,1]) * conj(R1)
-            S[:,:,band,2] = avg(S[:,:,band,2]) * R2
-            S[:,:,band,3] = avg(S[:,:,band,3]) * R1
+            S[:,:,band,1] = avg(CMat3(S[:,:,band,1])) * conj(R1)
+            S[:,:,band,2] = avg(CMat3(S[:,:,band,2])) * R2
+            S[:,:,band,3] = avg(CMat3(S[:,:,band,3])) * R1
         end
         
         for branch = 1:3
@@ -359,10 +358,8 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_
                 end
                 
                 intensity[band,branch] = f(q_absolute, disp[band,branch], corrs[corr_ix])
-                
             end
         end
-
     
         # Return the result of the diagonalization in an appropriate
         # format based on the kernel provided
@@ -372,7 +369,6 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_
             # If there is no specified kernel, we are done: just return the
             # BandStructure
             return Sunny.BandStructure{3*L,return_type}(disp,intensity)
-
         else
             disp_all = reshape(disp,:)
             intensity_all = reshape(intensity,:)
@@ -385,7 +381,7 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, n, corr_
         end
     end
     output_type = isnothing(kernel) ? Sunny.BandStructure{L,return_type} : return_type
-    DipoleSingleQSpinWaveIntensityFormula{output_type}(n,k,string_formula,kernel_edep,calc_intensity)
+    DipoleSingleQSpinWaveIntensityFormula{output_type}(axis, k, string_formula, kernel_edep, calc_intensity)
 end
 
 function intensities_bands(swt::SpinWaveTheory, ks, formula::DipoleSingleQSpinWaveIntensityFormula)

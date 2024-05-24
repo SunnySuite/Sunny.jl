@@ -26,11 +26,11 @@ Jp  = -1
 Jab = 0.75
 Ja  = -J/.66 - Jab
 Jip = 0.01
-set_exchange!(sys,J,Bond(1, 3, [0, 0, 0]))
-set_exchange!(sys,Jp,Bond(3, 5, [0, 0, 0]))
-set_exchange!(sys,Ja,Bond(3, 4, [0, 0, 0]))
-set_exchange!(sys,Jab, Bond(1, 2, [0,0,0]))
-set_exchange!(sys,Jip,Bond(3, 4, [0, 0, 1]))
+set_exchange!(sys, J,Bond(1, 3, [0, 0, 0]))
+set_exchange!(sys, Jp,Bond(3, 5, [0, 0, 0]))
+set_exchange!(sys, Ja,Bond(3, 4, [0, 0, 0]))
+set_exchange!(sys, Jab, Bond(1, 2, [0, 0, 0]))
+set_exchange!(sys, Jip, Bond(3, 4, [0, 0, 1]))
 
 # Optimize the generalized spiral structure. This will determine the propagation
 # wavevector `k`, as well as spin values within the unit cell. One must provide
@@ -47,7 +47,26 @@ k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
 
 k_ref = [0.785902495, 0.0, 0.107048756]
 @assert isapprox(k, k_ref; atol=1e-6) || isapprox(k, [1, 0, 1] - k_ref ; atol=1e-6)
-@assert Sunny.spiral_energy_per_site(sys, axis, k) ≈ -0.5869788384 # 3/4 the SpinW result?
+@assert Sunny.spiral_energy_per_site(sys, axis, k) ≈ -0.5869788384 # FIXME: This is 3/4 too small!
+
+# Check the energy with a real-space calculation using a large magnetic cell.
+# First, we must determine a lattice size for which k becomes approximately
+# commensurate. 
+
+suggest_magnetic_supercell([k]; tol=1e-3)
+
+# Resize the system and perform a real-space calculation.
+
+new_shape = [14 0 1; 0 1 0; 0 0 2]
+sys2 = reshape_supercell(sys, new_shape)
+randomize_spins!(sys2)
+minimize_energy!(sys2)
+plot_spins(sys2)
+
+# Verify that the energy per site is approximately the same.
+
+energy_per_site(sys2)
+
 
 # Define a path in reciprocal space.
 
@@ -66,7 +85,7 @@ ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", title="Sp
 ylims!(ax, 0, 5)
 xlims!(ax, 1, size(disp, 1))
 for i in axes(disp, 2)
-    lines!(ax, 1:length(disp[:,i]), disp[:,i];color="black",colorrange = (0,0.03))
+    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color="black", colorrange=(0,0.03))
 end
 fig
 
@@ -75,10 +94,10 @@ fig
 radii = 0.01:0.02:3 
 output = zeros(Float64, length(radii), length(energies))
 for (i, radius) in enumerate(radii)
-    axis = 300
-    qs = reciprocal_space_shell(cryst, radius, axis)
+    n = 300
+    qs = reciprocal_space_shell(cryst, radius, n)
     is1 = intensities_broadened(swt, qs, energies, broadened_formula)
-    is2=dropdims(sum(is1[:,:,:,:],dims=[3,4]),dims=(3,4))
+    is2 = dropdims(sum(is1[:,:,:,:], dims=[3,4]), dims=(3,4))
     output[i, :] = sum(is2, dims=1) / size(is2, 1)
 end
 
