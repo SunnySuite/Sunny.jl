@@ -34,17 +34,16 @@ set_exchange!(sys, Jip, Bond(3, 4, [0, 0, 1]))
 
 # Optimize the generalized spiral structure. This will determine the propagation
 # wavevector `k`, as well as spin values within the unit cell. One must provide
-# a fixed `axis` perpendicular to the polarization plane. Because all
-# interactions in this system are rotationally invariant, the `axis` vector is
-# arbitrary. In other cases, a good `axis` will frequently be determined from
-# symmetry considerations. The qualified notation `Sunny.*` indicates that these
-# functions are not stabilized, and will likely change in a future Sunny
-# release.
+# a fixed `axis` perpendicular to the polarization plane. For this system, all
+# interactions are rotationally invariant, and the `axis` vector is arbitrary.
+# In other cases, a good `axis` will frequently be determined from symmetry
+# considerations. The qualified notation `Sunny.*` indicates that these
+# functions are not stabilized, and may change between Sunny releases.
 
 axis = [0, 0, 1]
 randomize_spins!(sys)
 k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
-plot_spins(sys; orthographic=true)
+plot_spins(sys; dims=2)
 
 # If successful, the optimization process will find one two possible
 # wavevectors, ±k_ref, with opposite chiralities.
@@ -79,7 +78,7 @@ swt = SpinWaveTheory(sys)
 formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=delta_function_kernel)
 disp, _ = intensities_bands(swt, path, formula);
 energies = collect(0:0.01:5.5)
-broadened_formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=lorentzian(fwhm=0.02))
+broadened_formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=gaussian(fwhm=0.1))
 is = intensities_broadened(swt, path, energies, broadened_formula);
 
 # Create the plot
@@ -87,9 +86,9 @@ is = intensities_broadened(swt, path, energies, broadened_formula);
 fig = Figure()
 ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", title="Spin wave dispersion: ", xticks)
 ylims!(ax, 0, 5)
-xlims!(ax, 1, size(disp, 1))
-for i in axes(disp, 2)
-    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color="black", colorrange=(0,0.03))
+heatmap!(ax, 1:size(is, 1), energies, is; colorrange=(0.2, 100), colormap=Reverse(:thermal), lowclip=:white)
+for d in eachcol(disp)
+    lines!(ax, d; color=:black)
 end
 fig
 
