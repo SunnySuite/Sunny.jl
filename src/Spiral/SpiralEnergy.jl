@@ -121,13 +121,22 @@ function unpack_spiral_params!(sys::System{0}, axis, params)
     return params[end]
 end
 
-function spiral_f(sys::System{0}, axis, params)
+# Regularizer that blows up (by factor of 10) when |x| → 1. Use x=u⋅axis to
+# favor normalized spins `u` orthogonal to `axis`.
+reg(x) = 1 / (1 - x^2 + 1/10)
+dreg(x) = 2x * reg(x)^2
+
+function spiral_f(sys::System{0}, axis, params, λ)
     k = unpack_spiral_params!(sys, axis, params)
     E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys, k, axis)
+    for s in sys.dipoles
+        u = normalize(s)
+        E += λ * reg(u⋅axis)
+    end
     return E
 end
 
-function spiral_g!(G, sys::System{0}, axis, params)
+function spiral_g!(G, sys::System{0}, axis, params, λ)
     k = unpack_spiral_params!(sys, axis, params)
     v = reinterpret(Vec3, params)
     G = reinterpret(Vec3, G)
@@ -135,17 +144,21 @@ function spiral_g!(G, sys::System{0}, axis, params)
     L = length(sys.dipoles)
     dEds = view(G, 1:L)
     _E, dEdk = spiral_energy_and_gradient_aux!(dEds, sys, k, axis)
-    G[end] = dEdk
 
     for i in 1:L
+        s = sys.dipoles[i]
+        u = normalize(s)
         # dE/du' = dE/ds' * ds/du, where s = |s|*u.
-        dEdu = dEds[i] * sys.κs[i]
+        dEdu = dEds[i] * norm(s) + λ * dreg(u⋅axis) * axis
         # dE/dv' = dE/du' * du/dv
         G[i] = vjp_stereographic_projection(dEdu, v[i], axis)
     end
+    G[end] = dEdk
 end
 
 function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
+    axis = normalize(axis)
+
     sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")
     sys.latsize == (1, 1, 1) || error("System must have only a single cell")
     norm([s × axis for s in sys.dipoles]) > 1e-12 || error("Spins cannot be exactly aligned with polarization axis")
@@ -162,8 +175,9 @@ function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     end
     params[end] = k_guess
 
-    f(params) = spiral_f(sys, axis, params)
-    g!(G, params) = spiral_g!(G, sys, axis, params)
+    local λ::Float64
+    f(params) = spiral_f(sys, axis, params, λ)
+    g!(G, params) = spiral_g!(G, sys, axis, params, λ)
 
     # Minimize f, the energy of a spiral
     options = Optim.Options(; iterations=maxiters)
@@ -172,7 +186,9 @@ function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     # to converge: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175.
     # TODO: Call only ConjugateGradient when issue is fixed.
     method = Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
+    λ = 1 * abs(spiral_energy_per_site(sys, k_guess, axis)) # regularize at some energy scale
     res0 = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), method, options)
+    λ = 0 # disable regularization
     res = Optim.optimize(f, g!, Optim.minimizer(res0), Optim.ConjugateGradient(), options)
 
     k = unpack_spiral_params!(sys, axis, Optim.minimizer(res))

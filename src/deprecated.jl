@@ -45,7 +45,7 @@ function lorentzian(x, η)
 end
 
 function lorentzian(η)
-    @warn "`lorentzian(η)` is deprecated! Use `lorentzian(; fwhm=2η)(x)` instead."
+    @warn "`lorentzian(η)` is deprecated! Use `lorentzian(; fwhm=2η)` instead."
     return lorentzian(; fwhm=2η)
 end
 
