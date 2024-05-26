@@ -49,8 +49,9 @@ plot_spins(sys; dims=2)
 # wavevectors, ±k_ref, with opposite chiralities.
 
 k_ref = [0.785902495, 0.0, 0.107048756]
-@assert isapprox(k, k_ref; atol=1e-6) || isapprox(k, [1, 0, 1] - k_ref ; atol=1e-6)
-@assert Sunny.spiral_energy_per_site(sys, k, axis) ≈ -0.78338383838
+k_ref_alt = [1, 0, 1] - k_ref
+@assert isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
+@assert Sunny.spiral_energy_per_site(sys; k, axis) ≈ -0.78338383838
 
 # Check the energy with a real-space calculation using a large magnetic cell.
 # First, we must determine a lattice size for which k becomes approximately
@@ -68,7 +69,7 @@ randomize_spins!(sys2)
 minimize_energy!(sys2)
 energy_per_site(sys2) # < -0.7834 meV
 
-# Now return to the perfectly incommensurate single-Q order. Define a path in
+# Now return to the perfectly incommensurate single-k order. Define a path in
 # reciprocal space.
 
 q_points = [[0,0,0], [1,0,0]]

@@ -1,18 +1,18 @@
-function spiral_energy(sys::System{0}, k, axis)
+function spiral_energy(sys::System{0}; k, axis)
     sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")
     sys.latsize == (1, 1, 1) || error("System must have only a single cell")
 
     check_rotational_symmetry(sys; axis, θ=0.01)
 
-    E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys, k, axis)
+    E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys; k, axis)
     return E
 end
 
-function spiral_energy_per_site(sys::System{0}, k, axis)
-    return spiral_energy(sys, k, axis) / natoms(sys.crystal)
+function spiral_energy_per_site(sys::System{0}; k, axis)
+    return spiral_energy(sys; k, axis) / natoms(sys.crystal)
 end
 
-function spiral_energy_and_gradient_aux!(dEds, sys::System{0}, k, axis)
+function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
     E = 0
     accum_grad = !isnothing(dEds)
     if accum_grad
@@ -129,7 +129,7 @@ dreg(x) = 2x * reg(x)^2
 
 function spiral_f(sys::System{0}, axis, params, λ)
     k = unpack_spiral_params!(sys, axis, params)
-    E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys, k, axis)
+    E, _dEdk = spiral_energy_and_gradient_aux!(nothing, sys; k, axis)
     for s in sys.dipoles
         u = normalize(s)
         E += λ * reg(u⋅axis)
@@ -144,7 +144,7 @@ function spiral_g!(G, sys::System{0}, axis, params, λ)
 
     L = length(sys.dipoles)
     dEds = view(G, 1:L)
-    _E, dEdk = spiral_energy_and_gradient_aux!(dEds, sys, k, axis)
+    _E, dEdk = spiral_energy_and_gradient_aux!(dEds, sys; k, axis)
 
     for i in 1:L
         s = sys.dipoles[i]
@@ -187,7 +187,7 @@ function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     # to converge: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175.
     # TODO: Call only ConjugateGradient when issue is fixed.
     method = Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
-    λ = 1 * abs(spiral_energy_per_site(sys, k_guess, axis)) # regularize at some energy scale
+    λ = 1 * abs(spiral_energy_per_site(sys; k=k_guess, axis)) # regularize at some energy scale
     res0 = Optim.optimize(f, g!, collect(reinterpret(Float64, params)), method, options)
     λ = 0 # disable regularization
     res = Optim.optimize(f, g!, Optim.minimizer(res0), Optim.ConjugateGradient(), options)
@@ -202,4 +202,3 @@ function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
         error("Optimization failed to converge within $maxiters iterations.")
     end
 end
-

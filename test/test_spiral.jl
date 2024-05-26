@@ -14,16 +14,16 @@
     Na, Nb, Nc = (1, 2, 3)
     axis = normalize(randn(3))
 
-    # compute ewald energy using J(Q)
+    # compute ewald energy using J(k)
     sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
     enable_dipole_dipole!(sys)
-    E1 = Sunny.spiral_energy_per_site(sys, k, axis)
+    E1 = Sunny.spiral_energy_per_site(sys; k, axis)
 
     # compute ewald energy using supercell
     sys_large = System(cryst, (La*Na, Lb*Nb, Lc*Nc), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
     for i in 1:Sunny.natoms(sys.crystal)
-        set_spiral_order_on_sublattice!(sys_large, i; q=k, axis=axis, S0=sys.dipoles[i])
+        set_spiral_order_on_sublattice!(sys_large, i; k, axis, S0=sys.dipoles[i])
     end
     enable_dipole_dipole!(sys_large)
     E2 = energy_per_site(sys_large)
@@ -41,12 +41,12 @@
     sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
     enable_dipole_dipole!(sys)
-    E1 = Sunny.spiral_energy_per_site(sys, k, axis)
+    E1 = Sunny.spiral_energy_per_site(sys; k, axis)
 
     # compute ewald energy using supercell
     sys_large = System(cryst, (La*Na, Lb*Nb, Lc*Nc), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
     for i in 1:Sunny.natoms(sys.crystal)
-        set_spiral_order_on_sublattice!(sys_large, i; q=k, axis=axis, S0=sys.dipoles[i])
+        set_spiral_order_on_sublattice!(sys_large, i; k, axis, S0=sys.dipoles[i])
     end
     enable_dipole_dipole!(sys_large)
     E2 = energy_per_site(sys_large)
@@ -62,7 +62,6 @@ end
         latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
         positions = [[0, 0, 0]]
         cryst = Crystal(latvecs, positions)
-        q = [0.12, 0.23, 0.34]
 
         dims = (1, 1, 1)
         sys = System(cryst, dims, [SpinInfo(1; S, g=1)], :dipole; units=Units.theory)
@@ -70,17 +69,17 @@ end
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         set_external_field!(sys, [0, 0, h])
 
-        k = Sunny.optimize_luttinger_tisza_exchange(sys)
-        @test k ≈ [0.5, 0.5, 0]
+        k = Sunny.optimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
+        @test k[1:2] ≈ [0.5, 0.5]
 
         axis = [0, 0, 1]
-        k_guess = randn(3)
         randomize_spins!(sys)
-        k = Sunny.minimize_energy_spiral!(sys, axis; k_guess)
+        k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
         @test k[1:2] ≈ [0.5, 0.5]
         c₂ = 1 - 1/2S
         @test only(sys.dipoles)[3] ≈ h / (8J + 2D*c₂)
 
+        q = [0.12, 0.23, 0.34]
         swt = SpinWaveTheory(sys)
         formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=delta_function_kernel)
         disp, _ = intensities_bands(swt, [q], formula)
@@ -100,7 +99,8 @@ end
 end
 
 
-@testitem "Langasite" begin    
+@testitem "Langasite" begin
+    using LinearAlgebra
     a = b = 8.539
     c = 5.2414
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
@@ -113,23 +113,23 @@ end
     set_exchange!(sys, 0.24,  Bond(3, 2, [1,1,1]))   # J5
 
     k_ref = [0, 0, 0.14264604656200577]
-    k_ref_alt = [0, 0, 1 - k_ref[3]]
+    k_ref_alt = [0, 0, 1] - k_ref
 
-    k = Sunny.optimize_luttinger_tisza_exchange(sys)
-    @test k ≈ k_ref
+    k = Sunny.optimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
+    @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
 
     axis = [0, 0, 1]
     randomize_spins!(sys)
     k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
-    @test Sunny.spiral_energy(sys, k, axis) ≈ -16.356697120589477
+    @test Sunny.spiral_energy(sys; k, axis) ≈ -16.356697120589477
 
     # There are two possible chiralities. Select just one.
-    @test k ≈ k_ref || k ≈ k_ref_alt
-    if k ≈ k_ref_alt
+    @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
+    if isapprox(k, k_ref_alt; atol=1e-6)
         sys.dipoles[[1,2]] = sys.dipoles[[2,1]]
         k = k_ref
     end
-    @test Sunny.spiral_energy(sys, k, axis) ≈ -16.356697120589477
+    @test Sunny.spiral_energy(sys; k, axis) ≈ -16.356697120589477
 
     swt = SpinWaveTheory(sys)
     formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=delta_function_kernel)
@@ -184,15 +184,15 @@ end
     # Unfortunately, randomizing the initial guess will lead to occasional
     # optimization failures. TODO: Use ForwardDiff to improve accuracy.
     k_guess = [0.2, 0.4, 0.8]
-    k = Sunny.optimize_luttinger_tisza_exchange(sys, k_guess)
-    E = Sunny.luttinger_tisza_exchange(sys, k)
+    k = Sunny.optimize_luttinger_tisza_exchange(sys; k_guess)
+    E = Sunny.luttinger_tisza_exchange(sys; k)
     @test isapprox(E, E_ref; atol=1e-12)
     @test isapprox(k, k_ref; atol=1e-5) || isapprox(k, k_ref_alt; atol=1e-5)
     
     axis = [0, 0, 1]
     randomize_spins!(sys)
     k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
-    E = Sunny.luttinger_tisza_exchange(sys, k)
+    E = Sunny.luttinger_tisza_exchange(sys; k)
     @test isapprox(E, E_ref; atol=1e-12)
     @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)    
 end

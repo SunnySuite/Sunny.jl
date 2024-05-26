@@ -1,6 +1,8 @@
-# The idealized exchange energy for a spiral order of momentum k, ignoring local
-# normalization constraints.
-function luttinger_tisza_exchange(sys::System, k; ϵ=0)
+# Returns the minimum eigenvalue of the Luttinger-Tisza exchange matrix. It is a
+# lower-bound on the exchange energy for magnetic order that has propagation
+# wavevector k between Bravais lattice cells. This analysis ignores local
+# normalization constraints for the spins within the cell.
+function luttinger_tisza_exchange(sys::System; k, ϵ=0)
     @assert sys.mode in (:dipole, :dipole_large_S) "SU(N) mode not supported"
     @assert sys.latsize == (1, 1, 1) "System must have only a single cell"
 
@@ -54,16 +56,16 @@ end
 
 # Starting from an initial guess, return the wavevector k that locally minimizes
 # `luttinger_tisza_exchange`.
-function optimize_luttinger_tisza_exchange(sys::System, k_guess; maxiters=10_000)
+function optimize_luttinger_tisza_exchange(sys::System; k_guess, maxiters=10_000)
     options = Optim.Options(; iterations=maxiters)
 
     # Work around: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175
     method = Optim.LBFGS(; linesearch=Optim.LineSearches.BackTracking(order=2))
     res = Optim.optimize(k_guess, method, options) do k
-        luttinger_tisza_exchange(sys, k; ϵ=1e-8)
+        luttinger_tisza_exchange(sys; k, ϵ=1e-8)
     end
     res = Optim.optimize(Optim.minimizer(res), Optim.ConjugateGradient(), options) do k
-        luttinger_tisza_exchange(sys, k; ϵ=1e-8)
+        luttinger_tisza_exchange(sys; k, ϵ=1e-8)
     end
 
     if Optim.converged(res)
@@ -74,19 +76,4 @@ function optimize_luttinger_tisza_exchange(sys::System, k_guess; maxiters=10_000
     else
         error("Momentum optimization failed to converge within $maxiters iterations.")
     end
-end
-
-# Starting from an L×L×L Fourier-space grid, find a wavevector `k` that locally
-# minimizes `luttinger_tisza_exchange`.
-function optimize_luttinger_tisza_exchange(sys::System; L=20)
-    ks = [[kx, ky, kz]/L for kx in 0:L-1, ky in 0:L-1, kz in 0:L÷2][:]
-    Es = [luttinger_tisza_exchange(sys, k) for k in ks]
-    P = sortperm(Es)
-    # Take 10 k values with lowest energy
-    ks = ks[first(P, 10)]
-    # Locally optimize them
-    ks = [optimize_luttinger_tisza_exchange(sys, k) for k in ks]
-    # Return the k value with smallest energy
-    _, i = findmin(k -> luttinger_tisza_exchange(sys, k), ks)
-    return ks[i]
 end

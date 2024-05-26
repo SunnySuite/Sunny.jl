@@ -411,7 +411,7 @@ end
     
     for i in 1:3
         θ = -2π*(i-1)/3
-        set_spiral_order_on_sublattice!(sys, i; q=[0,0,1/7], axis=[0,0,1], S0=[cos(θ),sin(θ),0])
+        set_spiral_order_on_sublattice!(sys, i; k=[0,0,1/7], axis=[0,0,1], S0=[cos(θ),sin(θ),0])
     end
 
     swt = SpinWaveTheory(sys, apply_g=false)
@@ -757,7 +757,7 @@ end
         cryst = Crystal(latvecs, [[0, 0, 0]])
         sys = System(cryst, (3, 3, 1), [SpinInfo(1, S=S, g=2)], mode)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
-        set_spiral_order!(sys; q=[2/3, -1/3, 0], axis=[0, 0, 1], S0=[0, 1, 0])
+        set_spiral_order!(sys; k=[2/3, -1/3, 0], axis=[0, 0, 1], S0=[0, 1, 0])
         swt = SpinWaveTheory(sys)
         # Calculate first 3 digits for faster testing
         δS = Sunny.magnetization_lswt_correction(swt; atol=1e-3)[1]

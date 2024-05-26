@@ -70,11 +70,11 @@ end
 # wavevector `q`, an axis of rotation for the spins `axis`, and the initial spin
 # `S0` for each sublattice.
 
-q = [0, 0, 1/7]
+k = [0, 0, 1/7]
 axis = [0,0,1]
-set_spiral_order_on_sublattice!(sys, 1; q, axis, S0=[1, 0, 0])
-set_spiral_order_on_sublattice!(sys, 2; q, axis, S0=[-1/2, -sqrt(3)/2, 0])
-set_spiral_order_on_sublattice!(sys, 3; q, axis, S0=[-1/2, +sqrt(3)/2, 0])
+set_spiral_order_on_sublattice!(sys, 1; k, axis, S0=[1, 0, 0])
+set_spiral_order_on_sublattice!(sys, 2; k, axis, S0=[-1/2, -sqrt(3)/2, 0])
+set_spiral_order_on_sublattice!(sys, 3; k, axis, S0=[-1/2, +sqrt(3)/2, 0])
 
 plot_spins(sys; color=[s[1] for s in sys.dipoles])
 

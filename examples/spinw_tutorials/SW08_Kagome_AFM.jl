@@ -26,11 +26,11 @@ set_exchange!(sys, J, Bond(2, 3, [0, 0, 0]))
 # Initialize to an energy minimizing magnetic structure, for which
 # nearest-neighbor spins are at 120° angles.
 
-q = -[1/3, 1/3, 0]
+k = -[1/3, 1/3, 0]
 axis = [0,0,1]
-set_spiral_order_on_sublattice!(sys, 1; q, axis, S0=[cos(0),sin(0),0])
-set_spiral_order_on_sublattice!(sys, 2; q, axis, S0=[cos(0),sin(0),0])
-set_spiral_order_on_sublattice!(sys, 3; q, axis, S0=[cos(2π/3),sin(2π/3),0])
+set_spiral_order_on_sublattice!(sys, 1; k, axis, S0=[cos(0),sin(0),0])
+set_spiral_order_on_sublattice!(sys, 2; k, axis, S0=[cos(0),sin(0),0])
+set_spiral_order_on_sublattice!(sys, 3; k, axis, S0=[cos(2π/3),sin(2π/3),0])
 plot_spins(sys; dims=2)
 
 # Check energy. Each site participates in 4 bonds with energy ``JS^2\cos(2π/3)``.
