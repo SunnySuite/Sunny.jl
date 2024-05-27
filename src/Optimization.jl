@@ -4,10 +4,8 @@
 # normalized. When `α=0`, the output is `u=n`, and when `|α|→ ∞` the output is
 # `u=-n`. In all cases, `|u|=1`.
 function stereographic_projection(α, n)
-    # Detect NaN `n` corresponding to zero spin magnitude
-    (n != n) && return zero(n)
-
     @assert n'*n ≈ 1
+
     v = α - n*(n'*α)              # project out component parallel to `n`
     v² = real(v'*v)
     u = (2v + (1-v²)*n) / (1+v²)  # stereographic projection
@@ -33,8 +31,7 @@ end
 #   x̄ du/dα = x̄ du/dv P
 #
 @inline function vjp_stereographic_projection(x, α, n)
-    # Detect NaN `n` corresponding to zero spin magnitude
-    (n != n) && return zero(n)'
+    @assert n'*n ≈ 1
 
     v = α - n*(n'*α)
     v² = real(v'*v)
@@ -46,11 +43,20 @@ end
     return x̄_dudv - (x̄_dudv * n) * n'
 end
 
+# Returns v such that u = (2v + (1-v²)n)/(1+v²) and v⋅n = 0
+function inverse_stereographic_projection(u, n)
+    @assert u'*u ≈ 1
 
-# function variance(αs)
-#     ncomponents = length(αs) * length(first(αs))
-#     return sum(real(α'*α) for α in αs) / ncomponents
-# end
+    uperp = u - n*(n'*u)
+    uperp² = real(uperp' * uperp)
+    s = sign(u⋅n)
+    if isone(s) && uperp² < 1e-5
+        c = 1/2 + uperp²/8 + uperp²*uperp²/16
+    else
+        c = (1 - s * sqrt(max(1 - uperp², 0))) / uperp²
+    end
+    return c * uperp
+end
 
 function optim_set_spins!(sys::System{0}, αs, ns)
     αs = reinterpret(reshape, Vec3, αs)

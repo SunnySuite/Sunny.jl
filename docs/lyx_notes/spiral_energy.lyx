@@ -1,0 +1,475 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Energy of spiral magnetic order
+\end_layout
+
+\begin_layout Author
+Kipton Barros and Xiaojian Bai
+\end_layout
+
+\begin_layout Standard
+The energy for bilinear spin exchange, per unit cell, is
+\begin_inset Formula 
+\begin{equation}
+E=\frac{1}{2}\sum_{\mathbf{n}}\mathbf{S}_{i\mathbf{n}}^{T}J_{ij(\mathbf{n}'-\mathbf{n})}\mathbf{S}_{j\mathbf{n}'}.
+\end{equation}
+
+\end_inset
+
+This expression assumes that the 
+\begin_inset Formula $3\times3$
+\end_inset
+
+ exchange matrices 
+\begin_inset Formula $J_{ij(\mathbf{n}'-\mathbf{n})}$
+\end_inset
+
+ are invariant up to an overall translation with respect to cell indices
+ 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+.
+ There is implicit contraction on sublattice indices 
+\begin_inset Formula $i$
+\end_inset
+
+ and 
+\begin_inset Formula $j$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+The energy can also be expressed as an integral in Fourier space,
+\begin_inset Formula 
+\begin{equation}
+E=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1)^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{\dagger}(\mathbf{q})J_{ij}^{\ast}(\mathbf{q})\mathbf{S}_{j}(\mathbf{q}).
+\end{equation}
+
+\end_inset
+
+We are using the Fourier transform conventions,
+\begin_inset Formula 
+\begin{align}
+\mathbf{S}_{j}(\mathbf{q}) & =\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}\mathbf{S}_{j\mathbf{n}}\\
+J_{ij}(\mathbf{q}) & =\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}J_{ij\mathbf{n}}.
+\end{align}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Our interest is a spiral magnetic order with propagation wavevector 
+\begin_inset Formula $\mathbf{k}$
+\end_inset
+
+ (RLU) and rotation axis 
+\begin_inset Formula $\hat{\mathbf{a}}$
+\end_inset
+
+.
+ The spin at sublattice 
+\begin_inset Formula $j$
+\end_inset
+
+ and cell 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+ is,
+\begin_inset Formula 
+\begin{equation}
+\mathbf{S}_{j,\mathbf{n}}=R_{\mathbf{n}}\mathbf{S}_{j},
+\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{S}_{j}$
+\end_inset
+
+ denotes an initial spin (cell 
+\begin_inset Formula $\mathbf{n}=\mathbf{0}$
+\end_inset
+
+), and 
+\begin_inset Formula $R_{\mathbf{n}}$
+\end_inset
+
+ is the rotation about 
+\begin_inset Formula $\hat{\mathbf{a}}$
+\end_inset
+
+ with angle 
+\begin_inset Formula 
+\begin{equation}
+\theta=2\pi\mathbf{k}\cdot\mathbf{n}.
+\end{equation}
+
+\end_inset
+
+By the Rodriguez formula, 
+\begin_inset Formula 
+\begin{equation}
+R_{\mathbf{n}}=I+\sin\theta K+(1-\cos\theta)K^{2},
+\end{equation}
+
+\end_inset
+
+which involves the antsymmetric matrix,
+\begin_inset Formula 
+\begin{equation}
+K=\left[\begin{array}{ccc}
+0 & -\hat{a}_{z} & \hat{a}_{y}\\
+\hat{a}_{z} & 0 & -\hat{a}_{x}\\
+-\hat{a}_{y} & \hat{a}_{x} & 0
+\end{array}\right].
+\end{equation}
+
+\end_inset
+
+Combining these results,
+\begin_inset Formula 
+\begin{equation}
+\mathbf{S}_{j}(\mathbf{q})=\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}[I+\sin\theta K+(1-\cos\theta)K^{2}]\mathbf{S}_{j}.
+\end{equation}
+
+\end_inset
+
+Expand
+\begin_inset Formula 
+\begin{equation}
+\mathbf{S}_{j}(\mathbf{q})=\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}\left[I+K^{2}+e^{i\theta}\left(\frac{-iK-K^{2}}{2}\right)+e^{-i\theta}\left(\frac{+iK-K^{2}}{2}\right)\right]\mathbf{S}_{j}.
+\end{equation}
+
+\end_inset
+
+The sum can be evaluated using 
+\begin_inset Formula 
+\[
+\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}=\sum_{\mathbf{m}}\delta(\mathbf{q}+\mathbf{m}),
+\]
+
+\end_inset
+
+which accounts for the periodicity over reciprocal cells, 
+\begin_inset Formula $\mathbf{m}\in\mathbb{Z}^{3}$
+\end_inset
+
+.
+ The result is, 
+\begin_inset Formula 
+\begin{equation}
+\mathbf{S}_{i}(\mathbf{q})=\mathcal{A}_{\mathbf{k}}(\mathbf{q})\mathbf{S}_{i},
+\end{equation}
+
+\end_inset
+
+involving the matrix-valued function,
+\begin_inset Formula 
+\begin{align}
+\mathcal{A}_{\mathbf{k}}(\mathbf{q}) & =\sum_{\mathbf{m}}\Biggl[(I+K^{2})\delta(\mathbf{q}+\mathbf{m})+\left(\frac{-iK-K^{2}}{2}\right)\delta(\mathbf{q}+\mathbf{k}+\mathbf{m})\nonumber \\
+ & \quad\quad\quad+\left(\frac{+iK-K^{2}}{2}\right)\delta(\mathbf{q}-\mathbf{k}+\mathbf{m})\Biggr].\label{eq:calA}
+\end{align}
+
+\end_inset
+
+Observe that 
+\begin_inset Formula $\mathcal{A}_{\mathbf{k}}(\mathbf{q})^{\ast}=\mathcal{A}_{\mathbf{k}}(-\mathbf{q})$
+\end_inset
+
+, which is a consequence of the fact that in direct-space, spins 
+\begin_inset Formula $\mathbf{S}_{i\mathbf{n}}$
+\end_inset
+
+ are real-valued.
+ It follows that 
+\begin_inset Formula $\mathcal{A}_{\mathbf{k}}^{\dagger}(\mathbf{q})=\mathcal{A}_{\mathbf{k}}(\mathbf{q})$
+\end_inset
+
+ because 
+\begin_inset Formula $K$
+\end_inset
+
+ is antisymmetric.
+ The total energy per unit cell can be written in matrix notation:
+\begin_inset Formula 
+\begin{equation}
+E=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1)^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{T}\mathcal{A}_{\mathbf{k}}(\mathbf{q})J_{ij}^{\ast}(\mathbf{q})\mathcal{A}_{\mathbf{k}}(\mathbf{q})\mathbf{S}_{j}.
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Next, we will substitute 
+\begin_inset Formula $\mathcal{A}_{\mathbf{k}}$
+\end_inset
+
+ and expand.
+ There are three special cases to consider.
+ First, if all of the components of 
+\begin_inset Formula $\mathbf{k}$
+\end_inset
+
+ are integer, then all three Dirac-
+\begin_inset Formula $\delta$
+\end_inset
+
+ factors are the same, and 
+\begin_inset Formula 
+\begin{equation}
+\mathcal{A}_{\mathrm{int}}(\mathbf{q})=\sum_{\mathbf{m}}I\,\delta(\mathbf{q}+\mathbf{m}).
+\end{equation}
+
+\end_inset
+
+If the first case does not hold, then we can next check whether all the
+ components of 
+\begin_inset Formula $2\mathbf{k}$
+\end_inset
+
+ are integer, in which case we can use,
+\begin_inset Formula 
+\begin{equation}
+\mathcal{A}_{\textrm{half-int}}(\mathbf{q})=\sum_{\mathbf{m}}\left[(I+K^{2})\delta(\mathbf{q}+\mathbf{m})-K^{2}\delta(\mathbf{q}+\mathbf{k}+\mathbf{m})\right].
+\end{equation}
+
+\end_inset
+
+If both of the above two cases do not hold, we should use the general formula
+ of Eq.
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:calA"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+Using these results, we find three possibilities for the energy per cell.
+ When 
+\begin_inset Formula $\mathbf{k}$
+\end_inset
+
+ components are integer valued, substitution yields,
+\begin_inset Formula 
+\begin{equation}
+E_{\mathrm{int}}=\frac{1}{2N_{\mathrm{cells}}}\sum_{\mathbf{m},\mathbf{m}'}\int_{[0,1)^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{T}\delta(\mathbf{q}+\mathbf{m})J_{ij}^{\ast}(\mathbf{q})\delta(\mathbf{q}+\mathbf{m}')\mathbf{S}_{j}.
+\end{equation}
+
+\end_inset
+
+The integrand is nonzero only when all 
+\begin_inset Formula $\mathbf{q}$
+\end_inset
+
+ components are integer.
+ This selects 
+\begin_inset Formula $\mathbf{q}=(0,0,0)$
+\end_inset
+
+, which fixes 
+\begin_inset Formula $\mathbf{m}=\mathbf{m}'=(0,0,0)$
+\end_inset
+
+, and
+\begin_inset Formula 
+\begin{equation}
+E_{\mathrm{int}}=\frac{\delta(\mathbf{0})}{2N_{\mathrm{cells}}}\mathbf{S}_{i}^{T}J_{ij}(\mathbf{0})\mathbf{S}_{j}.
+\end{equation}
+
+\end_inset
+
+Finally, using,
+\begin_inset Formula 
+\begin{equation}
+\delta(\mathbf{0})=\sum_{\mathbf{n}}e^{2\pi i\mathbf{0}\cdot\mathbf{n}}=N_{\mathrm{cells}},
+\end{equation}
+
+\end_inset
+
+the result simplifies to,
+\begin_inset Formula 
+\begin{equation}
+E_{\mathrm{int}}=\frac{1}{2}\mathbf{S}_{i}^{T}J_{ij}(\mathbf{0})\mathbf{S}_{j},
+\end{equation}
+
+\end_inset
+
+as expected for a system with periodic boundary conditions.
+\end_layout
+
+\begin_layout Standard
+The next case to consider is when all components of 
+\begin_inset Formula $2\mathbf{k}$
+\end_inset
+
+ are integer.
+ A similar expansion produces,
+\begin_inset Formula 
+\begin{align}
+E_{\textrm{half-int}} & =\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{T}\mathcal{A}_{\textrm{half-int}}(\mathbf{q})J_{ij}^{\ast}(\mathbf{q})\mathcal{A}_{\textrm{half-int}}(\mathbf{q})\mathbf{S}_{j}(\mathbf{q})\nonumber \\
+ & =\frac{1}{2}\mathbf{S}_{i}^{T}\left[(I+K^{2})J_{ij}(\mathbf{0})(I+K^{2})+K^{2}J_{ij}(\pm\mathbf{k})K^{2}\right]\mathbf{S}_{j}.
+\end{align}
+
+\end_inset
+
+Note that cross terms have vanished, because 
+\begin_inset Formula $\delta(\mathbf{q}+\mathbf{m})\delta(\mathbf{q}+\mathbf{k}+\mathbf{m}')=0$
+\end_inset
+
+ for the 
+\begin_inset Formula $\mathbf{k}$
+\end_inset
+
+ vectors under consideration (not all integer).
+ The notation 
+\begin_inset Formula $J_{ij}(\pm\mathbf{k})$
+\end_inset
+
+ emphasizes that either choice of sign is equivalent.
+ For example, wavevectors 
+\begin_inset Formula $(1/2,0,0)$
+\end_inset
+
+ and 
+\begin_inset Formula $(-1/2,0,0)$
+\end_inset
+
+ are the same up to an integer shift, which has no effect, since 
+\begin_inset Formula $J_{ij}(\mathbf{q})$
+\end_inset
+
+ inherits the periodicity of the reciprocal lattice.
+\end_layout
+
+\begin_layout Standard
+If 
+\begin_inset Formula $\mathbf{k}$
+\end_inset
+
+ does not satisfy either of the above two special cases, then the expression
+ for the energy per cell is, 
+\begin_inset Formula 
+\begin{align}
+E & =\frac{1}{2}\mathbf{S}_{i}^{T}\Biggl[(I+K^{2})J_{ij}(\mathbf{0})(I+K^{2})\nonumber \\
+ & \quad\quad\quad\quad+\left(\frac{-iK-K^{2}}{2}\right)J_{ij}^{\ast}(-\mathbf{k})\left(\frac{-iK-K^{2}}{2}\right)\nonumber \\
+ & \quad\quad\quad\quad+\left(\frac{+iK-K^{2}}{2}\right)J_{ij}^{\ast}(+\mathbf{k})\left(\frac{+iK-K^{2}}{2}\right)\Biggr]\mathbf{S}_{j}.
+\end{align}
+
+\end_inset
+
+Using 
+\begin_inset Formula $J_{ij}^{\ast}(-\mathbf{k})=J_{ij}(+\mathbf{k})$
+\end_inset
+
+, this can be written compactly as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align}
+E & =\frac{1}{2}\mathbf{S}_{i}^{T}\Biggl[(I+K^{2})J_{ij}(\mathbf{0})(I+K^{2})\nonumber \\
+ & \quad\quad\quad\quad+\frac{1}{2}\mathrm{Re}\left(iK+K^{2}\right)J_{ij}(\mathbf{k})\left(iK+K^{2}\right)\Biggr]\mathbf{S}_{j}.
+\end{align}
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document

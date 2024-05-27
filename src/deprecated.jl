@@ -45,7 +45,7 @@ function lorentzian(x, η)
 end
 
 function lorentzian(η)
-    @warn "`lorentzian(η)` is deprecated! Use `lorentzian(; fwhm=2η)(x)` instead."
+    @warn "`lorentzian(η)` is deprecated! Use `lorentzian(; fwhm=2η)` instead."
     return lorentzian(; fwhm=2η)
 end
 
@@ -61,3 +61,4 @@ end
 # λ argument in Langevin constructor
 # Δt argument in dynamical_correlations
 # large_S and biquad arguments in set_exchange! and set_exchange_at!
+# Argument `q` in set_spiral_order*

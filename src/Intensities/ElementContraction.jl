@@ -75,8 +75,8 @@ end
 function FullTensor(obs::ObservableInfo)
     n_obs = num_observables(obs)
     tensor_elements = Matrix{Tuple{Symbol,Symbol}}(undef,n_obs,n_obs)
-    for (ki,i) = obs.observable_ixs, (kj,j) = obs.observable_ixs
-      tensor_elements[i,j] = (ki,kj) # Required to put matrix in correct order
+    for (qi,i) = obs.observable_ixs, (qj, j) = obs.observable_ixs
+      tensor_elements[i,j] = (qi, qj) # Required to put matrix in correct order
     end
     indices = lookup_correlations(obs, collect(tensor_elements); err_msg = αβ -> "Missing correlation $(αβ). All correlations are required to return the full tensor.")
     FullTensor{num_correlations(obs),length(indices),n_obs,n_obs*n_obs}(indices)
@@ -85,9 +85,9 @@ end
 ################################################################################
 # Contraction helper functions
 ################################################################################
-@inline function polarization_matrix(k::Vec3)
-    k /= norm(k) + 1e-12
-    return SMatrix{3, 3, Float64, 9}(I(3) - k * k')
+@inline function polarization_matrix(q::Vec3)
+    q /= norm(q) + 1e-12
+    return SMatrix{3, 3, Float64, 9}(I(3) - q * q')
 end
 
 ################################################################################
@@ -99,8 +99,8 @@ end
 # usually on order 1e-17 and is due to roundoff in phase_averaged_elements.
 contract(diagonal_elements, _, ::Trace) = sum(real(diagonal_elements))
 
-function contract(dipole_elements, k::Vec3, dipoleinfo::DipoleFactor)
-    dip_factor = polarization_matrix(k)
+function contract(dipole_elements, q::Vec3, dipoleinfo::DipoleFactor)
+    dip_factor = polarization_matrix(q)
 
     # Note, can just take the real part since:
     #   (1) diagonal elements are real by construction, and 
@@ -167,8 +167,8 @@ function intensity_formula(swt::SpinWaveTheory, mode::Symbol; kwargs...)
 end
 
 function intensity_formula(swt::SpinWaveTheory, contractor::Contraction{T}; kwargs...) where T
-    intensity_formula(swt,required_correlations(contractor); return_type = T,kwargs...) do k,ω,correlations
-        intensity = contract(correlations, k, contractor)
+    intensity_formula(swt,required_correlations(contractor); return_type=T, kwargs...) do q, ω, correlations
+        intensity = contract(correlations, q, contractor)
     end
 end
 
@@ -183,7 +183,7 @@ function intensity_formula(sc::SampledCorrelations, mode::Symbol; kwargs...)
 end
 
 function intensity_formula(sc::SampledCorrelations, contractor::Contraction{T}; kwargs...) where T
-    intensity_formula(sc,required_correlations(contractor); return_type = T,kwargs...) do k,ω,correlations
-        intensity = contract(correlations, k, contractor)
+    intensity_formula(sc,required_correlations(contractor); return_type=T, kwargs...) do q, ω, correlations
+        intensity = contract(correlations, q, contractor)
     end
 end

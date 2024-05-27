@@ -496,23 +496,27 @@ function energy_grad_coherents(sys::System{N}) where N
 end
 
 
-# Check that the interactions of `sys` is invariant under the axis-angle of
-# rotation (n, θ)
-function check_rotational_symmetry(sys::System{N}; n, θ) where N
+# Check that the interactions of `sys` are invariant under a rotation about axis
+# by angle θ.
+function check_rotational_symmetry(sys::System{N}; axis, θ) where N
     # TODO: Employ absolute tolerance `atol` for all `isapprox` checks below.
     # This will better handle comparisons with zero. This will require special
     # implementation for isapprox(::StevensExpansion, ::StevensExpansion).
 
-    # An arbitrary small rotation about axis n
-    R = axis_angle_to_matrix(n, θ)
+    # Rotation about axis
+    R = axis_angle_to_matrix(axis, θ)
 
     # The 5×5 matrix V rotates the vector of quadratic Stevens operators
     # [O[2,2], ... O[2,-2]] by R
     V = operator_for_stevens_rotation(2, R)
 
-    # External field must be aligned with n
+    # External field must be aligned with axis
     for h in sys.extfield
-        @assert h⋅n ≈ norm(h) "Field not aligned with rotation axis"
+        @assert R * h ≈ h "Field not aligned with rotation axis"
+    end
+    for site in eachsite(sys)
+        g = sys.gs[site]
+        @assert g ≈ R' * g * R "g-tensor not invariant under rotation"
     end
 
     # Interactions must be invariant under rotation
