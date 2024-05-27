@@ -76,10 +76,10 @@ q_points = [[0,0,0], [1,0,0]]
 density = 200
 path, xticks = reciprocal_space_path(cryst, q_points, density)
 swt = SpinWaveTheory(sys)
-formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=delta_function_kernel)
+formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis, kernel=delta_function_kernel)
 disp, _ = intensities_bands(swt, path, formula);
 energies = collect(0:0.01:5.5)
-broadened_formula = Sunny.intensity_formula_SingleQ(swt, k, axis, :perp; kernel=gaussian(fwhm=0.1))
+broadened_formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis, kernel=gaussian(fwhm=0.1))
 is = intensities_broadened(swt, path, energies, broadened_formula);
 
 # Create the plot

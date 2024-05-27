@@ -11,7 +11,7 @@ end
 
 ## Dispersion and intensities
 
-function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped, axis, k)
+function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped; k, axis)
     (; sys, data) = swt
     (; local_rotations, stevens_coefs) = data
     L = Sunny.nbands(swt) 
@@ -86,7 +86,7 @@ function swt_hamiltonian_dipole_singleQ!(H::Matrix{ComplexF64}, swt::SpinWaveThe
     end
 end
 
-function dispersion_singleQ(swt::SpinWaveTheory, axis, k, qs)
+function dispersion_spiral(swt::SpinWaveTheory, axis; k, qs)
     (; sys) = swt
     
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
@@ -101,10 +101,10 @@ function dispersion_singleQ(swt::SpinWaveTheory, axis, k, qs)
             V = zeros(ComplexF64, 2nmodes, 2nmodes)
             q_reshaped = Sunny.to_reshaped_rlu(swt.sys, q)
             if sys.mode == :SUN
-                error("SingleQ calculation for SUN is not yet implemented")
+                error("Spiral calculation for SUN is not yet implemented")
             else
                 @assert sys.mode in (:dipole, :dipole_large_S)
-                swt_hamiltonian_dipole_singleQ!(H, swt, q_reshaped .+ (branch - 2) .* k, axis, k)
+                swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped .+ (branch - 2) .* k; k, axis)
             end
             try
                 view(disp, :, iq,branch) .= Sunny.bogoliubov!(V, H)
@@ -118,19 +118,17 @@ function dispersion_singleQ(swt::SpinWaveTheory, axis, k, qs)
 end
 
 
-struct DipoleSingleQSpinWaveIntensityFormula{T}
-    n :: Vector{Float64}
-    k :: Vector{Float64}
+struct DipoleSpiralSpinWaveIntensityFormula{T}
     string_formula :: String
     kernel :: Union{Nothing,Function}
     calc_intensity :: Function
 end
 
-function Base.show(io::IO, ::DipoleSingleQSpinWaveIntensityFormula{T}) where T
+function Base.show(io::IO, ::DipoleSpiralSpinWaveIntensityFormula{T}) where T
     print(io,"SpinWaveIntensityFormula{$T}")
 end
 
-function Base.show(io::IO, ::MIME"text/plain", formula::DipoleSingleQSpinWaveIntensityFormula{T}) where T
+function Base.show(io::IO, ::MIME"text/plain", formula::DipoleSpiralSpinWaveIntensityFormula{T}) where T
     printstyled(io, "Quantum Scattering Intensity Formula\n"; bold=true, color=:underline)
 
     formula_lines = split(formula.string_formula, '\n')
@@ -146,48 +144,43 @@ function Base.show(io::IO, ::MIME"text/plain", formula::DipoleSingleQSpinWaveInt
     println(io, intensity_equals, join(formula_lines, separator))
     println(io)
     if isnothing(formula.kernel)
-        println(io,"BandStructure information (ωᵢ and intensity) reported for each band")
+        println(io, "BandStructure information (ωᵢ and intensity) reported for each band")
     else
-        println(io,"Intensity(ω) reported")
+        println(io, "Intensity(ω) reported")
     end
 end
 
-delta_function_kernel = nothing
 
-
-
-"""
-    intensity_formula_SingleQ(swt, contraction_mode::Symbol)
-
-Sunny has several built-in formulas that can be selected by setting `contraction_mode` to one of these values:
-
-- `:trace` (default), which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α 𝒮^{αα}(q,ω)``
-- `:perp`, which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} - q_{α}q_{β}``, returning the unpolarized intensity.
-- `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
-"""
-function intensity_formula_SingleQ(swt::SpinWaveTheory, k, axis, mode::Symbol; kwargs...)
+function intensity_formula_spiral(swt::SpinWaveTheory, mode::Symbol; k, axis, kwargs...)
     contractor, string_formula = Sunny.contractor_from_mode(swt, mode)
-    intensity_formula_SingleQ(swt, k, axis,  contractor; string_formula, kwargs...)
+    intensity_formula_spiral(swt, contractor; k, axis, string_formula, kwargs...)
 end
 
-function intensity_formula_SingleQ(swt::SpinWaveTheory, k, axis, contractor::Sunny.Contraction{T}; kwargs...) where T
-    intensity_formula_SingleQ(swt, k, axis, Sunny.required_correlations(contractor); return_type = T,kwargs...) do ks,ωs,correlations
-        intensity = Sunny.contract(correlations, ks, contractor)
+function intensity_formula_spiral(swt::SpinWaveTheory, contractor::Sunny.Contraction{T}; k, axis, kwargs...) where T
+    intensity_formula_spiral(swt, Sunny.required_correlations(contractor); k, axis, return_type=T, kwargs...) do qs, ωs, correlations
+        intensity = Sunny.contract(correlations, qs, contractor)
     end
 end
 
-
 """
-    formula = intensity_formula_SingleQ(swt::SpinWaveTheory; kernel = ...)
+    intensity_formula_spiral(swt, [contraction_mode]; k, axis)
 
-Establish a formula for computing the scattering intensity by diagonalizing
-the hamiltonian ``H(q)`` using Linear Spin Wave Theory.
+Establish a formula for computing the scattering intensity by diagonalizing the
+hamiltonian ``H(q)`` using Linear Spin Wave Theory.
 
-If `kernel = delta_function_kernel`, then the resulting formula can be used with
+The optional `contraction_mode` argument may be one of:
+- `:trace` (default), which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α
+  𝒮^{αα}(q,ω)``
+- `:perp`, which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} -
+  q_{α}q_{β}``, returning the unpolarized intensity.
+- `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
+
+If `kernel=delta_function_kernel`, then the resulting formula can be used with
 [`intensities_bands`](@ref).
 
-If `kernel` is an energy broadening kernel function, then the resulting formula can be used with [`intensities_broadened`](@ref).
-Energy broadening kernel functions can either be a function of `Δω` only, e.g.:
+If `kernel` is an energy broadening kernel function, then the resulting formula
+can be used with [`intensities_broadened`](@ref). Energy broadening kernel
+functions can either be a function of `Δω` only, e.g.:
 
     kernel = Δω -> ...
 
@@ -197,8 +190,8 @@ or a function of both the energy transfer `ω` and of `Δω`, e.g.:
 
 The integral of a properly normalized kernel function over all `Δω` is one.
 """
-
-function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, axis, corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
+function intensity_formula_spiral(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVector{Int64};
+                           k, axis, kernel::Union{Nothing,Function},
                            return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", 
                            formfactors=nothing)
     (; sys, data, observables) = swt
@@ -268,11 +261,11 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, axis, co
 
         for branch = 1:3   # 3 branch corresponds to K,K+Q and K-Q modes of incommensurate spin structures.
             if sys.mode == :SUN
-                error("SingleQ calculation for SUN is not yet implemented")
+                error("Spiral calculation for SUN is not yet implemented")
             else
                 @assert sys.mode in (:dipole, :dipole_large_S)
                 
-                swt_hamiltonian_dipole_singleQ!(H, swt, q_reshaped + (branch-2)*k, axis, k)
+                swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped + (branch-2)*k; k, axis)
             
                 disp[:,branch] = try
                     Sunny.bogoliubov!(tmp, H)
@@ -318,18 +311,15 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, axis, co
         end 
         YZVW = [[Y Z];[V W]]
 
-        for branch = 1:3
-            for band = 1:L
-                
-                corrs = if sys.mode == :SUN
-                    error("SingleQ calculation for SUN is not yet implemented")
-                else
-                    @assert sys.mode in (:dipole, :dipole_large_S)
-                    for α in 1:3
-                        for β in 1:3
-                            A = T[:,:,branch]' * YZVW[:,:,α,β] * T[:,:,branch]
-                            S[α,β,band,branch] = (1/(2*Na)) * A[band,band] 
-                        end
+        for branch = 1:3, band = 1:L
+            if sys.mode == :SUN
+                error("Spiral calculation for SUN is not yet implemented")
+            else
+                @assert sys.mode in (:dipole, :dipole_large_S)
+                for α in 1:3
+                    for β in 1:3
+                        A = T[:,:,branch]' * YZVW[:,:,α,β] * T[:,:,branch]
+                        S[α,β,band,branch] = (1/(2*Na)) * A[band,band] 
                     end
                 end
             end
@@ -343,22 +333,19 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, axis, co
             S[:,:,band,3] = avg(CMat3(S[:,:,band,3])) * R1
         end
         
-        for branch = 1:3
-            for band = 1:L
-                
-                @assert observables.observable_ixs[:Sx] == 1
-                @assert observables.observable_ixs[:Sy] == 2
-                @assert observables.observable_ixs[:Sz] == 3
+        for branch = 1:3, band = 1:L
+            @assert observables.observable_ixs[:Sx] == 1
+            @assert observables.observable_ixs[:Sy] == 2
+            @assert observables.observable_ixs[:Sz] == 3
 
-                corrs = Vector{ComplexF64}(undef, Sunny.num_correlations(observables))
-                for (ci,i) in observables.correlations
-                    (α,β) = ci.I
+            corrs = Vector{ComplexF64}(undef, Sunny.num_correlations(observables))
+            for (ci,i) in observables.correlations
+                (α,β) = ci.I
 
-                    corrs[i] = S[α,β,band,branch]
-                end
-                
-                intensity[band,branch] = f(q_absolute, disp[band,branch], corrs[corr_ix])
+                corrs[i] = S[α,β,band,branch]
             end
+            
+            intensity[band, branch] = f(q_absolute, disp[band,branch], corrs[corr_ix])
         end
     
         # Return the result of the diagonalization in an appropriate
@@ -381,31 +368,29 @@ function intensity_formula_SingleQ(f::Function, swt::SpinWaveTheory, k, axis, co
         end
     end
     output_type = isnothing(kernel) ? Sunny.BandStructure{L,return_type} : return_type
-    DipoleSingleQSpinWaveIntensityFormula{output_type}(axis, k, string_formula, kernel_edep, calc_intensity)
+    DipoleSpiralSpinWaveIntensityFormula{output_type}(string_formula, kernel_edep, calc_intensity)
 end
 
-function intensities_bands(swt::SpinWaveTheory, ks, formula::DipoleSingleQSpinWaveIntensityFormula)
+function intensities_bands(swt::SpinWaveTheory, qs, formula::DipoleSpiralSpinWaveIntensityFormula)
     if !isnothing(formula.kernel)
         # This is only triggered if the user has explicitly specified a formula with e.g. kT
         # corrections applied, but has not disabled the broadening kernel.
         error("intensities_bands: Can't compute band intensities if a broadening kernel is applied.\nTry intensity_formula(...; kernel = delta_function_kernel)")
     end
 
-    ks = Sunny.Vec3.(ks)
+    qs = Sunny.Vec3.(qs)
     nmodes = Sunny.nbands(swt)
 
     # Get the type parameter from the BandStructure
     return_type = typeof(formula).parameters[1].parameters[2]
 
-    band_dispersions = zeros(Float64,size(ks)...,3*nmodes)
-    band_intensities = zeros(return_type,size(ks)...,3*nmodes)
-    for kidx in CartesianIndices(ks)
-        band_structure = formula.calc_intensity(swt, ks[kidx])
+    band_dispersions = zeros(Float64, size(qs)..., 3*nmodes)
+    band_intensities = zeros(return_type, size(qs)..., 3*nmodes)
+    for qidx in CartesianIndices(qs)
+        band_structure = formula.calc_intensity(swt, qs[qidx])
 
-        band_dispersions[kidx,:] .= band_structure.dispersion
-        band_intensities[kidx,:] .= band_structure.intensity
+        band_dispersions[qidx,:] .= band_structure.dispersion
+        band_intensities[qidx,:] .= band_structure.intensity
     end
     return band_dispersions, band_intensities
 end
-
-
