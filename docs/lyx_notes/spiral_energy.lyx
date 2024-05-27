@@ -76,67 +76,88 @@
 \begin_body
 
 \begin_layout Title
-Energy of single-
-\begin_inset Formula $\mathbf{Q}$
-\end_inset
+Energy of spiral magnetic order
+\end_layout
 
- magnetic order
+\begin_layout Author
+Kipton Barros and Xiaojian Bai
 \end_layout
 
 \begin_layout Standard
-The energy for bilinear spin exchange, per unit cell, can be expressed exactly
- in Fourier space,
+The energy for bilinear spin exchange, per unit cell, is
 \begin_inset Formula 
 \begin{equation}
-E=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1)^{3}}d\mathbf{q}\,S_{i}^{\alpha*}(\mathbf{q})J_{(\alpha i)(\beta j)}(\mathbf{q})S_{j}^{\beta}(\mathbf{q}).
+E=\frac{1}{2}\sum_{\mathbf{n}}\mathbf{S}_{i\mathbf{n}}^{T}J_{ij(\mathbf{n}'-\mathbf{n})}\mathbf{S}_{j\mathbf{n}'}.
 \end{equation}
 
 \end_inset
 
-[Note: In the convention of this note, the complex-conjugate operation appears
- on the left spin.
- Moving it to the right spin corresponds to an inversion 
-\begin_inset Formula $\mathbf{q}\to-\mathbf{q}$
+This expression assumes that the 
+\begin_inset Formula $3\times3$
 \end_inset
 
-]
-\end_layout
-
-\begin_layout Standard
-The Fourier space spin 
-\begin_inset Formula $\mathbf{S}_{i}(\mathbf{q})$
+ exchange matrices 
+\begin_inset Formula $J_{ij(\mathbf{n}'-\mathbf{n})}$
 \end_inset
 
- is defined as a discrete Fourier transform over unit cells 
+ are invariant up to an overall translation with respect to cell indices
+ 
 \begin_inset Formula $\mathbf{n}$
 \end_inset
 
-,
+.
+ There is implicit contraction on sublattice indices 
+\begin_inset Formula $i$
+\end_inset
+
+ and 
+\begin_inset Formula $j$
+\end_inset
+
+.
+ 
+\end_layout
+
+\begin_layout Standard
+The energy can also be expressed as an integral in Fourier space,
 \begin_inset Formula 
 \begin{equation}
-\mathbf{S}_{j}(\mathbf{q})=\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}\mathbf{S}_{j\mathbf{n}}.
+E=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1)^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{\dagger}(\mathbf{q})J_{ij}^{\ast}(\mathbf{q})\mathbf{S}_{j}(\mathbf{q}).
 \end{equation}
 
 \end_inset
 
-Our present interest is a spiral magnetic order with single-
-\begin_inset Formula $\mathbf{Q}$
+We are using the Fourier transform conventions,
+\begin_inset Formula 
+\begin{align}
+\mathbf{S}_{j}(\mathbf{q}) & =\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}\mathbf{S}_{j\mathbf{n}}\\
+J_{ij}(\mathbf{q}) & =\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}J_{ij\mathbf{n}}.
+\end{align}
+
 \end_inset
 
- (RLU) with fixed rotation axis 
+
+\end_layout
+
+\begin_layout Standard
+Our interest is a spiral magnetic order with propagation wavevector 
+\begin_inset Formula $\mathbf{k}$
+\end_inset
+
+ (RLU) and rotation axis 
 \begin_inset Formula $\hat{\mathbf{a}}$
 \end_inset
 
 .
- The spin in an arbitrary cell 
-\begin_inset Formula $\mathbf{n}$
-\end_inset
-
- for sublattice 
+ The spin at sublattice 
 \begin_inset Formula $j$
 \end_inset
 
- is given by,
+ and cell 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+ is,
 \begin_inset Formula 
 \begin{equation}
 \mathbf{S}_{j,\mathbf{n}}=R_{\mathbf{n}}\mathbf{S}_{j},
@@ -156,14 +177,14 @@ where
 \begin_inset Formula $R_{\mathbf{n}}$
 \end_inset
 
- is a rotation about an axis 
+ is the rotation about 
 \begin_inset Formula $\hat{\mathbf{a}}$
 \end_inset
 
  with angle 
 \begin_inset Formula 
 \begin{equation}
-\theta=2\pi\mathbf{Q}\cdot\mathbf{n}.
+\theta=2\pi\mathbf{k}\cdot\mathbf{n}.
 \end{equation}
 
 \end_inset
@@ -220,7 +241,7 @@ which accounts for the periodicity over reciprocal cells,
  The result is, 
 \begin_inset Formula 
 \begin{equation}
-\mathbf{S}_{i}(\mathbf{q})=\mathcal{A}_{\mathbf{Q}}(\mathbf{q})\mathbf{S}_{i},
+\mathbf{S}_{i}(\mathbf{q})=\mathcal{A}_{\mathbf{k}}(\mathbf{q})\mathbf{S}_{i},
 \end{equation}
 
 \end_inset
@@ -228,14 +249,14 @@ which accounts for the periodicity over reciprocal cells,
 involving the matrix-valued function,
 \begin_inset Formula 
 \begin{align}
-\mathcal{A}(\mathbf{q}) & =\sum_{\mathbf{m}}\Biggl[(I+K^{2})\delta(\mathbf{q}+\mathbf{m})+\left(\frac{-iK-K^{2}}{2}\right)\delta(\mathbf{q}+\mathbf{Q}+\mathbf{m})\nonumber \\
- & \quad\quad\quad+\left(\frac{+iK-K^{2}}{2}\right)\delta(\mathbf{q}-\mathbf{Q}+\mathbf{m})\Biggr].\label{eq:calA}
+\mathcal{A}_{\mathbf{k}}(\mathbf{q}) & =\sum_{\mathbf{m}}\Biggl[(I+K^{2})\delta(\mathbf{q}+\mathbf{m})+\left(\frac{-iK-K^{2}}{2}\right)\delta(\mathbf{q}+\mathbf{k}+\mathbf{m})\nonumber \\
+ & \quad\quad\quad+\left(\frac{+iK-K^{2}}{2}\right)\delta(\mathbf{q}-\mathbf{k}+\mathbf{m})\Biggr].\label{eq:calA}
 \end{align}
 
 \end_inset
 
 Observe that 
-\begin_inset Formula $\mathcal{A}(\mathbf{q})^{\ast}=\mathcal{A}(-\mathbf{q})$
+\begin_inset Formula $\mathcal{A}_{\mathbf{k}}(\mathbf{q})^{\ast}=\mathcal{A}_{\mathbf{k}}(-\mathbf{q})$
 \end_inset
 
 , which is a consequence of the fact that in direct-space, spins 
@@ -244,7 +265,7 @@ Observe that
 
  are real-valued.
  It follows that 
-\begin_inset Formula $\mathcal{A}^{\dagger}(\mathbf{q})=\mathcal{A}(\mathbf{q})$
+\begin_inset Formula $\mathcal{A}_{\mathbf{k}}^{\dagger}(\mathbf{q})=\mathcal{A}_{\mathbf{k}}(\mathbf{q})$
 \end_inset
 
  because 
@@ -255,7 +276,7 @@ Observe that
  The total energy per unit cell can be written in matrix notation:
 \begin_inset Formula 
 \begin{equation}
-E_{\mathbf{Q}}=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1)^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{T}\mathcal{A}_{\mathbf{Q}}(\mathbf{q})J_{ij}(\mathbf{q})\mathcal{A}_{\mathbf{Q}}(\mathbf{q})\mathbf{S}_{j}(\mathbf{q}).
+E=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1)^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{T}\mathcal{A}_{\mathbf{k}}(\mathbf{q})J_{ij}^{\ast}(\mathbf{q})\mathcal{A}_{\mathbf{k}}(\mathbf{q})\mathbf{S}_{j}.
 \end{equation}
 
 \end_inset
@@ -265,13 +286,13 @@ E_{\mathbf{Q}}=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1)^{3}}d\mathbf{q}\,\mathbf
 
 \begin_layout Standard
 Next, we will substitute 
-\begin_inset Formula $\mathcal{A}_{\mathbf{Q}}$
+\begin_inset Formula $\mathcal{A}_{\mathbf{k}}$
 \end_inset
 
  and expand.
  There are three special cases to consider.
  First, if all of the components of 
-\begin_inset Formula $\mathbf{Q}$
+\begin_inset Formula $\mathbf{k}$
 \end_inset
 
  are integer, then all three Dirac-
@@ -288,13 +309,13 @@ Next, we will substitute
 
 If the first case does not hold, then we can next check whether all the
  components of 
-\begin_inset Formula $2\mathbf{Q}$
+\begin_inset Formula $2\mathbf{k}$
 \end_inset
 
  are integer, in which case we can use,
 \begin_inset Formula 
 \begin{equation}
-\mathcal{A}_{\textrm{half-int}}(\mathbf{q})=\sum_{\mathbf{m}}\left[(I+K^{2})\delta(\mathbf{q}+\mathbf{m})-K^{2}\delta(\mathbf{q}+\mathbf{Q}+\mathbf{m})\right].
+\mathcal{A}_{\textrm{half-int}}(\mathbf{q})=\sum_{\mathbf{m}}\left[(I+K^{2})\delta(\mathbf{q}+\mathbf{m})-K^{2}\delta(\mathbf{q}+\mathbf{k}+\mathbf{m})\right].
 \end{equation}
 
 \end_inset
@@ -320,13 +341,13 @@ noprefix "false"
 \begin_layout Standard
 Using these results, we find three possibilities for the energy per cell.
  When 
-\begin_inset Formula $\mathbf{Q}$
+\begin_inset Formula $\mathbf{k}$
 \end_inset
 
- are integer valued, substitution yields,
+ components are integer valued, substitution yields,
 \begin_inset Formula 
 \begin{equation}
-E_{\mathrm{int}}=\frac{1}{2N_{\mathrm{cells}}}\sum_{\mathbf{m},\mathbf{m}'}\int_{[0,1)^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{T}\delta(\mathbf{q}+\mathbf{m})J_{ij}(\mathbf{q})\delta(\mathbf{q}+\mathbf{m}')\mathbf{S}_{j}.
+E_{\mathrm{int}}=\frac{1}{2N_{\mathrm{cells}}}\sum_{\mathbf{m},\mathbf{m}'}\int_{[0,1)^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{T}\delta(\mathbf{q}+\mathbf{m})J_{ij}^{\ast}(\mathbf{q})\delta(\mathbf{q}+\mathbf{m}')\mathbf{S}_{j}.
 \end{equation}
 
 \end_inset
@@ -373,30 +394,30 @@ as expected for a system with periodic boundary conditions.
 
 \begin_layout Standard
 The next case to consider is when all components of 
-\begin_inset Formula $2\mathbf{Q}$
+\begin_inset Formula $2\mathbf{k}$
 \end_inset
 
  are integer.
  A similar expansion produces,
 \begin_inset Formula 
 \begin{align}
-E_{\textrm{half-int}} & =\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{T}\mathcal{A}_{\textrm{half-int}}(\mathbf{q})J_{ij}(\mathbf{q})\mathcal{A}_{\textrm{half-int}}(\mathbf{q})\mathbf{S}_{j}(\mathbf{q})\nonumber \\
- & =\frac{1}{2}\mathbf{S}_{i}^{T}\left[(I+K^{2})J_{ij}(\mathbf{0})(I+K^{2})+K^{2}J_{ij}(\pm\mathbf{Q})K^{2}\right]\mathbf{S}_{j}.
+E_{\textrm{half-int}} & =\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,\mathbf{S}_{i}^{T}\mathcal{A}_{\textrm{half-int}}(\mathbf{q})J_{ij}^{\ast}(\mathbf{q})\mathcal{A}_{\textrm{half-int}}(\mathbf{q})\mathbf{S}_{j}(\mathbf{q})\nonumber \\
+ & =\frac{1}{2}\mathbf{S}_{i}^{T}\left[(I+K^{2})J_{ij}(\mathbf{0})(I+K^{2})+K^{2}J_{ij}(\pm\mathbf{k})K^{2}\right]\mathbf{S}_{j}.
 \end{align}
 
 \end_inset
 
 Note that cross terms have vanished, because 
-\begin_inset Formula $\delta(\mathbf{q}+\mathbf{m})\delta(\mathbf{q}+\mathbf{Q}+\mathbf{m}')=0$
+\begin_inset Formula $\delta(\mathbf{q}+\mathbf{m})\delta(\mathbf{q}+\mathbf{k}+\mathbf{m}')=0$
 \end_inset
 
  for the 
-\begin_inset Formula $\mathbf{Q}$
+\begin_inset Formula $\mathbf{k}$
 \end_inset
 
  vectors under consideration (not all integer).
  The notation 
-\begin_inset Formula $J_{ij}(\pm\mathbf{Q})$
+\begin_inset Formula $J_{ij}(\pm\mathbf{k})$
 \end_inset
 
  emphasizes that either choice of sign is equivalent.
@@ -417,7 +438,7 @@ Note that cross terms have vanished, because
 
 \begin_layout Standard
 If 
-\begin_inset Formula $\mathbf{Q}$
+\begin_inset Formula $\mathbf{k}$
 \end_inset
 
  does not satisfy either of the above two special cases, then the expression
@@ -425,27 +446,29 @@ If
 \begin_inset Formula 
 \begin{align}
 E & =\frac{1}{2}\mathbf{S}_{i}^{T}\Biggl[(I+K^{2})J_{ij}(\mathbf{0})(I+K^{2})\nonumber \\
- & \quad\quad\quad\quad+\left(\frac{-iK-K^{2}}{2}\right)J_{ij}(-\mathbf{Q})\left(\frac{-iK-K^{2}}{2}\right)\nonumber \\
- & \quad\quad\quad\quad+\left(\frac{+iK-K^{2}}{2}\right)J_{ij}(+\mathbf{Q})\left(\frac{+iK-K^{2}}{2}\right)\Biggr]\mathbf{S}_{j}.
+ & \quad\quad\quad\quad+\left(\frac{-iK-K^{2}}{2}\right)J_{ij}^{\ast}(-\mathbf{k})\left(\frac{-iK-K^{2}}{2}\right)\nonumber \\
+ & \quad\quad\quad\quad+\left(\frac{+iK-K^{2}}{2}\right)J_{ij}^{\ast}(+\mathbf{k})\left(\frac{+iK-K^{2}}{2}\right)\Biggr]\mathbf{S}_{j}.
 \end{align}
 
 \end_inset
 
-Since 
-\begin_inset Formula $J_{ij}(\mathbf{q})$
+Using 
+\begin_inset Formula $J_{ij}^{\ast}(-\mathbf{k})=J_{ij}(+\mathbf{k})$
 \end_inset
 
- originates as the Fourier transform of a 
-\emph on
-real 
-\emph default
-coupling, we have in general 
-\begin_inset Formula $J_{ij}(-\mathbf{Q})=J_{ij}(+\mathbf{Q})^{\ast}$
+, this can be written compactly as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align}
+E & =\frac{1}{2}\mathbf{S}_{i}^{T}\Biggl[(I+K^{2})J_{ij}(\mathbf{0})(I+K^{2})\nonumber \\
+ & \quad\quad\quad\quad+\frac{1}{2}\mathrm{Re}\left(iK+K^{2}\right)J_{ij}(\mathbf{k})\left(iK+K^{2}\right)\Biggr]\mathbf{S}_{j}.
+\end{align}
+
 \end_inset
 
-.
- This allows to combine the final two terms above into the real part of
- a single term.
+
 \end_layout
 
 \end_body

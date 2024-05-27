@@ -80,63 +80,37 @@ Fourier space exchange interactions for spin wave theory
 \end_layout
 
 \begin_layout Author
-Kipton Barros
+Kipton Barros and Hao Zhang
 \end_layout
 
 \begin_layout Section
-Classical bilinear interactions expressed in Fourier space
+Classical bilinear interactions in Fourier space
+\end_layout
+
+\begin_layout Subsection
+Exchange energy
 \end_layout
 
 \begin_layout Standard
-Exchange energy for one unit cell is a sum over all couplings 
-\begin_inset Formula $c$
+Exchange energy for one unit cell is a sum over cell displacements 
+\begin_inset Formula $\mathbf{n}$
 \end_inset
 
- contained in the interaction list,
+,
 \begin_inset Formula 
 \begin{equation}
-E=\frac{1}{2}\sum_{\mathbf{n}}\sum_{c}\delta_{c=(ij\mathbf{n})}J_{\alpha\beta}^{(c)}S_{\alpha i\mathbf{0}}S_{\beta j\mathbf{n}}.\label{eq:E}
+E=\frac{1}{2}\sum_{\mathbf{n}}S_{\alpha i\mathbf{0}}J_{(\alpha i)(\beta j)\mathbf{n}}S_{\beta j\mathbf{n}}.\label{eq:E}
 \end{equation}
 
 \end_inset
 
-In what follows, there is implicit summation over any repeated, unbound
- indices – this includes spin indices 
-\begin_inset Formula $(\alpha\beta)$
+There is implicit summation over repeated the spin and sublattice indices
+ (
+\begin_inset Formula $\alpha i$
 \end_inset
 
- and sublattice indices 
-\begin_inset Formula $(ij$
-\end_inset
-
-).
- The three indices in 
-\begin_inset Formula $\mathbf{n}$
-\end_inset
-
- denote a cell offset.
- The notation 
-\begin_inset Formula $\delta_{c=(ij\mathbf{n})}$
-\end_inset
-
- is the indicator function – it is one if the 
-\begin_inset Formula $c$
-\end_inset
-
-th coupling is along a bond from atom 
-\begin_inset Formula $i$
-\end_inset
-
- to 
-\begin_inset Formula $j$
-\end_inset
-
-, displaced by 
-\begin_inset Formula $\mathbf{n}$
-\end_inset
-
- unit cells; otherwise, it is zero.
- Given the supercell vectors 
+), which always come together.
+ Given the lattice vectors 
 \begin_inset Formula $\mathbf{A}_{\{1,2,3\}}$
 \end_inset
 
@@ -172,12 +146,21 @@ Define Fourier transforms from cells
 \begin_inset Formula 
 \begin{align}
 S_{\alpha i}(\mathbf{q}) & =\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}S_{\alpha i\mathbf{n}}\\
-J_{(\alpha i),(\beta j)}(\mathbf{q}) & =\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}\sum_{c}\delta_{c=(ij\mathbf{n})}J_{\alpha\beta}^{(c)}.\label{eq:J_q}
+J_{(\alpha i),(\beta j)}(\mathbf{q}) & =\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}J_{(\alpha i),(\beta j)\mathbf{n}}.\label{eq:J_q}
 \end{align}
 
 \end_inset
 
-By construction, 
+
+\color blue
+(Sign conventions following, e.g., Boothroyd 8.59 and 8.53, but note that Toth
+ & Lake use the opposite sign for 
+\begin_inset Formula $J(\mathbf{q})$
+\end_inset
+
+.)
+\color inherit
+ By construction, 
 \begin_inset Formula $S_{\alpha i}(\mathbf{q})$
 \end_inset
 
@@ -192,67 +175,28 @@ N_{\mathrm{cells}}=\sum_{\mathbf{n}}1.
 
 \end_inset
 
-Since 
-\begin_inset Formula $J_{\alpha\beta}^{(c)}$
-\end_inset
-
- is real, taking the complex-conjugate of both sides yields
+Without loss of generality, interactions may be symmetrized on each bond,
+ such that
 \begin_inset Formula 
 \begin{equation}
-J_{(\alpha i),(\beta j)}^{\ast}(\mathbf{q})=J_{(\alpha i),(\beta j)}(-\mathbf{q})=\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}\delta_{c=(ij,-\mathbf{n})}J_{\alpha\beta}^{(c)}.
+J_{(\alpha i)(\beta j)\mathbf{n}}=J_{(\beta j)(\alpha i)(-\mathbf{n})}.
 \end{equation}
 
 \end_inset
 
-Without loss of generality, we can assume the pair interactions 
-\begin_inset Formula $\delta_{c=(ij\mathbf{n})}J_{\alpha\beta}^{(c)}$
-\end_inset
-
- and 
-\begin_inset Formula $\delta_{c=(ji,-\mathbf{n})}J_{\beta\alpha}^{(c)}$
-\end_inset
-
- contribute equal parts to the energy in Eq.
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset CommandInset ref
-LatexCommand eqref
-reference "eq:E"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-.
- This allows to effectively swap indices 
-\begin_inset Formula $(\alpha i)\longleftrightarrow(\beta j)$
-\end_inset
-
- and 
-\series bold
-
-\begin_inset Formula $\mathbf{n}\longleftrightarrow-\mathbf{n}$
-\end_inset
-
-
-\series default
-.
- The result is,
+It follows that in Fourier space,
 \begin_inset Formula 
 \begin{equation}
-J_{(\alpha i),(\beta j)}^{\ast}(\mathbf{q})=J_{(\beta j),(\alpha i)}(\mathbf{q}).\label{eq:J_conj}
+J_{(\alpha i),(\beta j)}^{\ast}(\mathbf{q})=J_{(\beta j),(\alpha i)}(\mathbf{q}).
 \end{equation}
 
 \end_inset
 
-In other words, 
+In words: when 
 \begin_inset Formula $J(\mathbf{q})$
 \end_inset
 
- viewed as a matrix is Hermitian.
+ is viewed as a matrix, it is Hermitian.
 \end_layout
 
 \begin_layout Standard
@@ -263,20 +207,16 @@ We will demonstrate that
  can be equivalently calculated as,
 \begin_inset Formula 
 \begin{equation}
-\mathcal{E}=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,S_{\alpha i}(\mathbf{q})J_{(\alpha i)(\beta j)}(\mathbf{q})S_{\beta j}^{*}(\mathbf{q}),\label{eq:Energy_fourier}
+\mathcal{E}=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,S_{\alpha i}^{\ast}(\mathbf{q})J_{(\alpha i)(\beta j)}^{\ast}(\mathbf{q})S_{\beta j}(\mathbf{q}),\label{eq:Energy_fourier}
 \end{equation}
 
 \end_inset
 
-There is implicit summation over indices 
-\begin_inset Formula $\alpha\beta ij$
-\end_inset
-
- and each component of 
+where component of 
 \begin_inset Formula $\mathbf{q}$
 \end_inset
 
- should be integrated from 0 to 1.
+ is integrated from 0 to 1.
  
 \end_layout
 
@@ -284,7 +224,7 @@ There is implicit summation over indices
 Substitution yields,
 \begin_inset Formula 
 \begin{align}
-\mathcal{E} & =\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,\sum_{\mathbf{n},\mathbf{n}',\mathbf{n}''}e^{i2\pi\mathbf{q}\cdot(\mathbf{n}-\mathbf{n}'+\mathbf{n}'')}S_{\alpha i\mathbf{n}}S_{\beta j\mathbf{n}'}\sum_{c}\delta_{c=(ij\mathbf{n}'')}J_{\alpha\beta}^{(c)},
+\mathcal{E} & =\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,\sum_{\mathbf{n},\mathbf{n}',\mathbf{n}''}e^{i2\pi\mathbf{q}\cdot(-\mathbf{n}-\mathbf{n}'+\mathbf{n}'')}S_{\alpha i\mathbf{n}}J_{(\alpha i),(\beta j)\mathbf{n}'}S_{\beta j\mathbf{n}''},
 \end{align}
 
 \end_inset
@@ -294,69 +234,69 @@ The integral over
 \end_inset
 
  yields a factor of 
-\begin_inset Formula $\delta_{\mathbf{n}-\mathbf{n}'+\mathbf{n}''}$
+\begin_inset Formula $\delta_{\mathbf{n}''-\mathbf{n}-\mathbf{n}'}$
 \end_inset
 
-.
- Replacing 
-\begin_inset Formula $\mathbf{n}'\to\mathbf{n}+\mathbf{n}''$
+, allowing to also evaluate the 
+\begin_inset Formula $\mathbf{n}''$
 \end_inset
 
- results in,
+ summation,
 \begin_inset Formula 
 \begin{equation}
-\mathcal{E}=\frac{1}{2N_{\mathrm{cells}}}\sum_{\mathbf{n},\mathbf{n}''}S_{\alpha i\mathbf{n}}S_{\beta j\mathbf{n}+\mathbf{n}''}\sum_{c}\delta_{c=(ij\mathbf{n}'')}J_{\alpha\beta}^{(c)}.
+\mathcal{E}=\frac{1}{2N_{\mathrm{cells}}}\sum_{\mathbf{n},\mathbf{n}'}S_{\alpha i\mathbf{n}}J_{(\alpha i),(\beta j)\mathbf{n}'}S_{\beta j(\mathbf{n}+\mathbf{n}')}.
 \end{equation}
 
 \end_inset
 
-Since the interactions are the same for every unit cell, the sum over cell
- index 
+Since the interactions are the same for every unit cell, the 
 \begin_inset Formula $\mathbf{n}$
 \end_inset
 
- cancels the denominator 
+ summation cancels the denominator 
 \begin_inset Formula $N_{\mathrm{cells}}$
 \end_inset
 
-, yielding
+, which makes the connection between Fourier- and direct-space representations
+ of the energy, 
 \begin_inset Formula 
 \begin{equation}
-\mathcal{E}=\frac{1}{2}\sum_{\mathbf{n}''}S_{\alpha i\mathbf{0}}S_{\beta j\mathbf{n}''}\sum_{c}\delta_{c=(ij\mathbf{n}'')}J_{\alpha\beta}^{(c)}.
+\mathcal{E}=\frac{1}{2}\sum_{\mathbf{n}'}S_{\alpha i\mathbf{0}}J_{(\alpha i),(\beta j)\mathbf{n}'}S_{\beta j\mathbf{n}'}=E,
 \end{equation}
 
 \end_inset
 
-Upon relabeling 
-\begin_inset Formula $\mathbf{n}''\to\mathbf{n}$
-\end_inset
 
-, and keeping in mind the implicit summation over 
-\begin_inset Formula $\alpha\beta ij$
-\end_inset
+\end_layout
 
- indices, we find 
-\begin_inset Formula $\mathcal{E}=E$
-\end_inset
-
- as expected.
+\begin_layout Subsection
+Luttinger-Tisza
 \end_layout
 
 \begin_layout Standard
-A lower bound on the possible energy is given by the smallest eigenvalue
- of 
+In the Luttinger-Tisza analysis, a lower bound on the possible energy is
+ given by the smallest eigenvalue of 
 \begin_inset Formula $J(\mathbf{q}),$
 \end_inset
 
-viewed as a Hermitian matrix.
+viewed as a Hermitian matrix for tensor indices 
+\begin_inset Formula $(\alpha i)$
+\end_inset
+
+ and 
+\begin_inset Formula $(\beta j$
+\end_inset
+
+).
  The corresponding eigenvector might be used to define the spin field at
  the two momenta 
 \begin_inset Formula $S_{\alpha i}(\mathbf{q})=S_{\alpha i}(-\mathbf{q})^{\ast}$
 \end_inset
 
 , guaranteeing that the inverse Fourier transform is real.
- There is no general guarantee, however, that all the spins in real-space
- have the correct normalization.
+ There is no general guarantee, however, that it is possible to construct
+ locally normalized spins in real-space, consistent with this Fourier-space
+ eigenvector.
 \end_layout
 
 \begin_layout Section
@@ -400,23 +340,18 @@ On the lattice, we will be interested in a discrete set of displacement
 \end_inset
 
 , with 
-\begin_inset Formula $\mathbf{r}_{\mathbf{n}}=\mathbf{A}_{\mu}\mathbf{n}_{\mu}$
-\end_inset
-
- and 
 \begin_inset Formula $\mathbf{r}_{ij}=\mathbf{r}_{j}-\mathbf{r}_{i}$
 \end_inset
 
-.
- Here 
-\begin_inset Formula $\mathbf{A_{\mu}}$
+, and 
+\begin_inset Formula $\mathbf{r}_{\mathbf{n}}$
 \end_inset
 
- denote lattice vectors for the magnetic cell.
+ the displacement between cells, as defined above.
  Fourier transform of the interaction tensor yields, 
 \begin_inset Formula 
 \begin{equation}
-\mathcal{A}_{(\alpha i)(\beta j)}(\mathbf{q})=\sum_{\mathbf{n}}'e^{i2\pi\mathbf{q}\cdot\mathbf{n}}\mathcal{A}_{\alpha\beta}(\mathbf{R}_{ij\mathbf{n}}).\label{eq:dipole_sum}
+\mathcal{A}_{(\alpha i)(\beta j)}(\mathbf{q})=\sum_{\mathbf{n}}'e^{2\pi i\mathbf{q}\cdot\mathbf{n}}\mathcal{A}_{\alpha\beta}(\mathbf{R}_{ij\mathbf{n}}).\label{eq:dipole_sum}
 \end{equation}
 
 \end_inset
@@ -458,7 +393,7 @@ Magnetic moments are linearly related to spin angular momenta,
 \begin_layout Standard
 \begin_inset Formula 
 \begin{equation}
-J_{ij}(\mathbf{q})=\mu_{B}^{2}g_{i}^{T}\mathcal{A}_{ij}(\mathbf{q})g_{j},\label{eq:dipole_sum-1}
+J_{(\alpha i)(\beta j)}(\mathbf{q})=\mu_{B}^{2}g_{i}^{T}\mathcal{A}_{(\alpha i)(\beta j)}(\mathbf{q})g_{j},\label{eq:dipole_sum-1}
 \end{equation}
 
 \end_inset
@@ -562,8 +497,8 @@ noprefix "false"
 \begin_inset Formula $\mathcal{K}_{\alpha\beta}(\mathbf{0})=0$
 \end_inset
 
-, which corresponds to a certain interpretation of the sample surface, and
- corresponding demagnetization field.
+, which corresponds to a certain interpretation of the sample surface and
+ demagnetization field.
  For examples and discussion, see final appendix of 
 \begin_inset Flex URL
 status open
@@ -693,7 +628,7 @@ Using
 Now Fourier transform,
 \begin_inset Formula 
 \begin{equation}
-b_{j,\mathbf{q}}\equiv\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}b_{j,\mathbf{n}},
+b_{j,\mathbf{q}}\equiv\sum_{\mathbf{n}}e^{-2\pi i\mathbf{q}\cdot\mathbf{n}}b_{j,\mathbf{n}},
 \end{equation}
 
 \end_inset
@@ -701,12 +636,17 @@ b_{j,\mathbf{q}}\equiv\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}b_{j,\
 with,
 \begin_inset Formula 
 \begin{equation}
-b_{j,\mathbf{q}}^{\dagger}\equiv(b_{j,\mathbf{q}})^{\dagger}=\sum_{\mathbf{n}}e^{-2\pi i\mathbf{q}\cdot\mathbf{n}}b_{j,\mathbf{n}}^{\dagger}.
+b_{j,\mathbf{q}}^{\dagger}\equiv(b_{j,\mathbf{q}})^{\dagger}=\sum_{\mathbf{n}}e^{+2\pi i\mathbf{q}\cdot\mathbf{n}}b_{j,\mathbf{n}}^{\dagger}.
 \end{equation}
 
 \end_inset
 
-The Fourier transform of spin components,
+
+\color blue
+(Sign conventions follow, e.g., Boothroyd 8.50 and 8.51, and are consistent
+ with Toth & Lake.)
+\color inherit
+ The Fourier transform of spin components,
 \begin_inset Formula 
 \begin{equation}
 \hat{S}_{j,\mathbf{q}}^{\alpha}\equiv\sum_{\mathbf{n}}e^{2\pi i\mathbf{q}\cdot\mathbf{n}}\hat{S}_{j,\mathbf{n}},
@@ -717,22 +657,23 @@ The Fourier transform of spin components,
 is, up to quadratic order,
 \begin_inset Formula 
 \begin{align}
-\hat{S}_{j,\mathbf{q}}^{x} & \approx\frac{\sqrt{2s}}{2}(b_{j,\mathbf{q}}+b_{j,\mathbf{-q}}^{\dagger})\label{eq:Sx_q}\\
-\hat{S}_{j,\mathbf{q}}^{y} & \approx\frac{\sqrt{2s}}{2i}(b_{j,\mathbf{q}}-b_{j,\mathbf{-q}}^{\dagger})\\
-\hat{S}_{j,\mathbf{q}}^{z} & \approx s\delta(\mathbf{q})-\int_{[0,1]^{3}}d\mathbf{q}'\,b_{j,\mathbf{q}'}^{\dagger}b_{j,\mathbf{q}+\mathbf{q}'}.\label{eq:Sz_q}
+\hat{S}_{j,\mathbf{q}}^{x} & \approx\frac{\sqrt{2s}}{2}(b_{j,-\mathbf{q}}+b_{j,\mathbf{q}}^{\dagger})\label{eq:Sx_q}\\
+\hat{S}_{j,\mathbf{q}}^{y} & \approx\frac{\sqrt{2s}}{2i}(b_{j,-\mathbf{q}}-b_{j,\mathbf{q}}^{\dagger})\\
+\hat{S}_{j,\mathbf{q}}^{z} & \approx s\delta(\mathbf{q})-\int_{[0,1]^{3}}d\mathbf{q}'\,b_{j,\mathbf{q}'+\mathbf{q}}^{\dagger}b_{j,\mathbf{q}'}.\label{eq:Sz_q}
 \end{align}
 
 \end_inset
 
-The last equation derives from the 
-\begin_inset Quotes eld
+The last equation is a variant of the convolution theorem, but note the
+ different phase factor conventions in the Fourier transforms of 
+\begin_inset Formula $b_{\mathbf{q}}$
 \end_inset
 
-cross-correlation theorem
-\begin_inset Quotes erd
+ and 
+\begin_inset Formula $\mathbf{S}_{\mathbf{q}}$
 \end_inset
 
- (direct analog of convolution theorem).
+.
 \end_layout
 
 \begin_layout Subsection
@@ -757,7 +698,7 @@ noprefix "false"
  to the quantum setting, the quadratic Hamiltonian becomes
 \begin_inset Formula 
 \begin{equation}
-\mathcal{H}=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,\hat{\mathbf{S}}_{i,\mathbf{q}}^{\dagger}J_{ij,\mathbf{q}}\hat{\mathbf{S}}_{j,\mathbf{q}},
+\mathcal{H}=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,J_{ij,-\mathbf{q}}\hat{\mathbf{S}}_{i,\mathbf{q}}^{\dagger}\hat{\mathbf{S}}_{j,\mathbf{q}},
 \end{equation}
 
 \end_inset
@@ -823,7 +764,7 @@ The rotations
  The quantum Hamiltonian in the local frame has the same form,
 \begin_inset Formula 
 \begin{equation}
-\mathcal{H}=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,\tilde{J}_{ij,\mathbf{q}}^{\alpha\beta}\tilde{S}_{i,\mathbf{q}}^{\alpha\dagger}\tilde{S}_{j,\mathbf{q}}^{\beta}.\label{eq:H_rotated}
+\mathcal{H}=\frac{1}{2N_{\mathrm{cells}}}\int_{[0,1]^{3}}d\mathbf{q}\,\tilde{J}_{ij,-\mathbf{q}}^{\alpha\beta}\tilde{S}_{i,\mathbf{q}}^{\alpha\dagger}\tilde{S}_{j,\mathbf{q}}^{\beta}.\label{eq:H_rotated}
 \end{equation}
 
 \end_inset
@@ -906,7 +847,7 @@ The terms contributing to
 \end_inset
 
  are obtained by expanding 
-\begin_inset Formula $\tilde{S}_{i,\mathbf{q}}^{\alpha\dagger}\tilde{S}_{i,\mathbf{q}}^{\beta\dagger}$
+\begin_inset Formula $\tilde{S}_{i,\mathbf{q}}^{\alpha\dagger}\tilde{S}_{j,\mathbf{q}}^{\beta}$
 \end_inset
 
  for all spin-components 
@@ -925,10 +866,10 @@ The terms contributing to
 Within the oscillating plane,
 \begin_inset Formula 
 \begin{align}
-\tilde{S}_{i,\mathbf{q}}^{x\dagger}\tilde{S}_{j,\mathbf{q}}^{x} & \to\frac{s}{2}(b_{i,\mathbf{q}}^{\dagger}b_{j,\mathbf{q}}+b_{i,-\mathbf{q}}b_{j,-\mathbf{q}}^{\dagger}+b_{i,\mathbf{q}}^{\dagger}b_{j,-\mathbf{q}}^{\dagger}+b_{i,-\mathbf{q}}b_{j,\mathbf{q}})\\
-\tilde{S}_{i,\mathbf{q}}^{y\dagger}\tilde{S}_{j,\mathbf{q}}^{y} & \to\frac{s}{2}(b_{i,\mathbf{q}}^{\dagger}b_{j,\mathbf{q}}+b_{i,-\mathbf{q}}b_{j,-\mathbf{q}}^{\dagger}-b_{i,\mathbf{q}}^{\dagger}b_{j,-\mathbf{q}}^{\dagger}-b_{i,-\mathbf{q}}b_{j,\mathbf{q}})\\
-\tilde{S}_{i,\mathbf{q}}^{x\dagger}\tilde{S}_{j,\mathbf{q}}^{y} & \to\frac{s}{2}(-ib_{i,\mathbf{q}}^{\dagger}b_{j,\mathbf{q}}+ib_{i,-\mathbf{q}}b_{j,-\mathbf{q}}^{\dagger}+ib_{i,\mathbf{q}}^{\dagger}b_{j,-\mathbf{q}}^{\dagger}-ib_{i,-\mathbf{q}}b_{j,\mathbf{q}})\\
-\tilde{S}_{i,\mathbf{q}}^{y\dagger}\tilde{S}_{j,\mathbf{q}}^{x} & \to\frac{s}{2}(+ib_{i,\mathbf{q}}^{\dagger}b_{j,\mathbf{q}}-ib_{i,\mathbf{-q}}b_{j,\mathbf{-q}}^{\dagger}+ib_{i,\mathbf{q}}^{\dagger}b_{j,\mathbf{-q}}^{\dagger}-ib_{i,\mathbf{-q}}b_{j,\mathbf{q}}).
+\tilde{S}_{i,\mathbf{q}}^{x\dagger}\tilde{S}_{j,\mathbf{q}}^{x} & \to\frac{s}{2}(b_{i,-\mathbf{q}}^{\dagger}b_{j,-\mathbf{q}}+b_{i,\mathbf{q}}b_{j,\mathbf{q}}^{\dagger}+b_{i,-\mathbf{q}}^{\dagger}b_{j,\mathbf{q}}^{\dagger}+b_{i,\mathbf{q}}b_{j,-\mathbf{q}})\\
+\tilde{S}_{i,\mathbf{q}}^{y\dagger}\tilde{S}_{j,\mathbf{q}}^{y} & \to\frac{s}{2}(b_{i,-\mathbf{q}}^{\dagger}b_{j,-\mathbf{q}}+b_{i,\mathbf{q}}b_{j,\mathbf{q}}^{\dagger}-b_{i,-\mathbf{q}}^{\dagger}b_{j,\mathbf{q}}^{\dagger}-b_{i,\mathbf{q}}b_{j,-\mathbf{q}})\\
+\tilde{S}_{i,\mathbf{q}}^{x\dagger}\tilde{S}_{j,\mathbf{q}}^{y} & \to\frac{s}{2}(-ib_{i,-\mathbf{q}}^{\dagger}b_{j,-\mathbf{q}}+ib_{i,\mathbf{q}}b_{j,\mathbf{q}}^{\dagger}+ib_{i,-\mathbf{q}}^{\dagger}b_{j,\mathbf{q}}^{\dagger}-ib_{i,\mathbf{q}}b_{j,-\mathbf{q}})\\
+\tilde{S}_{i,\mathbf{q}}^{y\dagger}\tilde{S}_{j,\mathbf{q}}^{x} & \to\frac{s}{2}(+ib_{i,-\mathbf{q}}^{\dagger}b_{j,-\mathbf{q}}-ib_{i,\mathbf{q}}b_{j,\mathbf{q}}^{\dagger}+ib_{i,-\mathbf{q}}^{\dagger}b_{j,\mathbf{q}}^{\dagger}-ib_{i,\mathbf{q}}b_{j,-\mathbf{q}}).
 \end{align}
 
 \end_inset
@@ -967,7 +908,11 @@ noprefix "false"
 
 \end_inset
 
- yields,
+ and inverting the integration variable (
+\begin_inset Formula $\mathbf{q}\to-\mathbf{q}$
+\end_inset
+
+) yields,
 \end_layout
 
 \begin_layout Standard
@@ -1049,72 +994,6 @@ A_{\mathbf{q}} & B_{\mathbf{q}}\\
 B_{\mathbf{q}}^{\dagger} & A_{-\mathbf{q}}
 \end{array}\right).
 \end{equation}
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Comment
-status open
-
-\begin_layout Plain Layout
-Because 
-\begin_inset Formula $J_{q}$
-\end_inset
-
- was obtained by Fourier transformation of 
-\emph on
-real 
-\emph default
-exchange matrices, it follows that 
-\begin_inset Formula $J_{q}^{*}=J_{-q}$
-\end_inset
-
-.
- Also, per Eq.
-\begin_inset space ~
-\end_inset
-
-
-\begin_inset CommandInset ref
-LatexCommand eqref
-reference "eq:J_conj"
-plural "false"
-caps "false"
-noprefix "false"
-
-\end_inset
-
-, it is valid to symmetrize all interaction matrices over the two bond orientiat
-ions 
-\begin_inset Formula $(ij)$
-\end_inset
-
- and 
-\begin_inset Formula $(ji)$
-\end_inset
-
-.
- Without loss of generality, one can assume,
-\begin_inset Formula 
-\begin{equation}
-(J_{q,ij}^{\alpha\beta})^{*}=J_{-q,ij}^{\alpha\beta}=J_{q,ji}^{\beta\alpha}.
-\end{equation}
-
-\end_inset
-
-Spin operators are Hermitian, and this is also satisfied by the expansion,
-\begin_inset Formula 
-\begin{equation}
-\hat{S}_{q,i}^{\alpha\dagger}=\hat{S}_{-q,i}^{\alpha}.
-\end{equation}
-
-\end_inset
-
-
-\end_layout
 
 \end_inset
 
