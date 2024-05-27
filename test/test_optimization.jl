@@ -1,16 +1,27 @@
-@testitem "Optimization gradient" begin
+@testitem "Stereographic projection" begin
     using LinearAlgebra, FiniteDifferences
 
-    N = 10
-    α = randn(Float64, N)
-    n = normalize(randn(Float64, N))
+    # Test gradients (limited to real-valued vectors due to FiniteDifferences)
+    let
+        N = 10
+        α = randn(Float64, N)
+        n = normalize(randn(Float64, N))
 
-    u(α) = Sunny.stereographic_projection(α, n)
+        u(α) = Sunny.stereographic_projection(α, n)
 
-    x = randn(Float64, N)
-    x̄J  = Sunny.vjp_stereographic_projection(x, α, n)
-    x̄J′ = x'*jacobian(central_fdm(5, 1), u, α)[1]
-    @test x̄J ≈ x̄J′
+        x = randn(Float64, N)
+        x̄J  = Sunny.vjp_stereographic_projection(x, α, n)
+        x̄J′ = x'*jacobian(central_fdm(5, 1), u, α)[1]
+        @test x̄J ≈ x̄J′
+    end
+
+    # Test inverse projection
+    for T in (Sunny.Vec3, Sunny.CVec{10})
+        n = normalize(randn(T))
+        v = (I - n*n') * randn(T)
+        u = Sunny.stereographic_projection(v, n)
+        @test Sunny.inverse_stereographic_projection(u, n) ≈ v
+    end
 end
 
 

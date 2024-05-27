@@ -33,10 +33,10 @@ function print_wrapped_intensities(sys::System{N}; nmax=10) where N
 
     println("Dominant wavevectors for spin sublattices:\n")
     for (i, m) in enumerate(CartesianIndices(sys.latsize)[p])
-        q = (Tuple(m) .- 1) ./ sys.latsize
-        q = [qi > 1/2 ? qi-1 : qi for qi in q]
+        k = (Tuple(m) .- 1) ./ sys.latsize
+        k = [ki > 1/2 ? ki-1 : ki for ki in k]
 
-        qstr = fractional_vec3_to_string(q)
+        kstr = fractional_vec3_to_string(k)
         
         if weight[m] < 0.01
             break
@@ -44,8 +44,8 @@ function print_wrapped_intensities(sys::System{N}; nmax=10) where N
 
         wstr = @sprintf "%6.2f" weight[m]
         nspaces = 20
-        spacing = " " ^ max(0, nspaces - length(qstr))
-        print("    $qstr $spacing $wstr%")
+        spacing = " " ^ max(0, nspaces - length(kstr))
+        print("    $kstr $spacing $wstr%")
         println(i == 1 ? " weight" : "")
 
         if i > nmax
@@ -69,10 +69,10 @@ end
 
 
 """
-    suggest_magnetic_supercell(qs; tol=1e-12, maxsize=100)
+    suggest_magnetic_supercell(ks; tol=1e-12, maxsize=100)
 
 Suggests a magnetic supercell, in units of the crystal lattice vectors, that is
-consistent with periodicity of the wavevectors `qs` in RLU. If the wavevectors
+consistent with periodicity of the wavevectors `ks` in RLU. If the wavevectors
 are incommensurate (with respect to the maximum supercell size `maxsize`), one
 can select a larger error tolerance `tol` to find a supercell that is almost
 commensurate.
@@ -84,12 +84,12 @@ Prints a ``3×3`` matrix of integers that is suitable for use in
 
 ```julia
 # A magnetic supercell for a single-Q structure. Will print
-q1 = [0, -1/4, 1/4]
-suggest_magnetic_supercell([q1])       # [1 0 0; 0 2 1; 0 -2 1]
+k1 = [0, -1/4, 1/4]
+suggest_magnetic_supercell([k1])       # [1 0 0; 0 2 1; 0 -2 1]
 
 # A larger magnetic supercell for a double-Q structure
-q2 = [1/4, 0, 1/4]
-suggest_magnetic_supercell([q1, q2])   # [1 2 2; -1 2 -2; -1 2 2]
+k2 = [1/4, 0, 1/4]
+suggest_magnetic_supercell([k1, k2])   # [1 2 2; -1 2 -2; -1 2 2]
 
 # If given incommensurate wavevectors, find an approximate supercell that
 # is exactly commensurate for nearby wavevectors.
@@ -99,31 +99,20 @@ suggest_magnetic_supercell([[0, 0, 1/√5], [0, 0, 1/√7]]; tol=1e-2)
 # approximations `1/√5 ≈ 7/16` and `1/√7 ≈ 3/8`.
 ```
 """
-function suggest_magnetic_supercell(qs; tol=1e-12, maxsize=100)
-    new_qs = zeros(Float64, 3, length(qs))
-    denoms = zeros(Int, 3)
+function suggest_magnetic_supercell(ks; tol=1e-12, maxsize=100)
+    new_ks = zeros(Rational{Int}, 3, length(ks))
 
     for i in 1:3
-        xs = [q[i] for q in qs]
+        xs = [k[i] for k in ks]
         numers, denom = rationalize_simultaneously(xs; tol, maxsize)
-        new_qs[i, :] = numers ./ denom
-        denoms[i] = denom
+        new_ks[i, :] = numers .// denom
     end
 
-    new_qs = eachcol(new_qs)
-
-    if !isapprox(qs, new_qs; atol=1e-12)
-        @info "Using adapted q values: " * join(fractional_vec3_to_string.(new_qs), ", ")
-    end
-
-    suggest_magnetic_supercell_aux(new_qs, denoms)
+    suggest_magnetic_supercell_aux(eachcol(new_ks))
 end
 
-function suggest_magnetic_supercell_aux(qs, denoms)
-    foreach(qs) do q
-        numers = @. round(Int, q * denoms)
-        @assert norm(numers - q .* denoms) < 1e-12
-    end
+function suggest_magnetic_supercell_aux(ks)
+    denoms = denominator.(first(ks))
 
     # All possible periodic offsets, sorted by length
     nmax = div.(denoms, 2)
@@ -134,15 +123,12 @@ function suggest_magnetic_supercell_aux(qs, denoms)
     @assert iszero(ns[1])
     deleteat!(ns, 1)
 
-    # Filter out elements of ns that are not consistent with q ∈ qs
-    for q in qs
+    # Filter out elements of ns that are not consistent with k ∈ ks
+    for k in ks
         ns = filter(ns) do n            
-            # Proposed offset is `r = nᵅ aᵅ` in lattice vectors `aᵅ`. Wave
-            # vector is `k = qᵝ bᵝ` in reciprocal vectors `bᵝ`. Using
-            # orthogonality property `aᵅ⋅bᵝ = 2πδᵅᵝ`, it follows `r⋅k = 2π n⋅q`.
-            # The integer offsets `n` are allowed if `n⋅q` is exactly integer,
-            # which confirms periodicity, `exp(-i r⋅k) = 1`.
-            is_approx_integer(n⋅q; atol=1e-12)
+            # Wave vector `k` in RLU is commensurate if `n⋅k` is integer,
+            # corresponding to the condition `exp(-i 2π n⋅k) = 1`.
+            isinteger(n⋅k)
         end
     end
 
@@ -219,31 +205,43 @@ function suggest_magnetic_supercell_aux(qs, denoms)
     #     end
     # end
 
-    qstrs = join(map(fractional_vec3_to_string, qs), ", ")
-    println("""Suggested magnetic supercell in multiples of lattice vectors:
+    kstrs = join(map(fractional_vec3_to_string, ks), ", ")
+    println("""Possible magnetic supercell in multiples of lattice vectors:
                
                    $(repr(best_A))
                
-               for wavevectors [$qstrs].""")
+               for the rationalized wavevectors:
+               
+                   [$kstrs]""")
 end
 
 
-function check_commensurate(sys, q)
-    q_reshaped = sys.crystal.recipvecs \ orig_crystal(sys).recipvecs * q
+function check_commensurate(sys; k)
+    q_reshaped = sys.crystal.recipvecs \ orig_crystal(sys).recipvecs * k
     commensurate = true
     for i = 1:3
         denom = denominator(rationalize(q_reshaped[i]))
         commensurate = commensurate && iszero(mod(sys.latsize[i], denom))
     end
     if !commensurate
-        @warn "Wavevector $(fractional_vec3_to_string(q)) is incommensurate with system."
+        @warn "Wavevector $(fractional_vec3_to_string(k)) is incommensurate with system."
     end
 end
 
-"""
-    set_spiral_order!(sys; q, axis, S0)
 
-Initializes the system with a spiral order described by the wavevector `q`, an
+function deprecate_small_q(; q, k)
+    if !isnothing(q)
+        @warn "`q` argument is deprecated, use `k` to denote propagation wavevector instead!"
+        k = q
+    end
+    isnothing(k) && error("Must provide wavevector `k` as named argument")
+    return k
+end
+
+"""
+    set_spiral_order!(sys; k, axis, S0)
+
+Initializes the system with a spiral order described by the wavevector `k`, an
 axis of rotation `axis`, and an initial dipole direction `S0` at the real-space
 origin. The wavevector is expected in repicrocal lattice units (RLU), while the
 direction vectors `axis` and `S0` are expected in global Cartesian coordinates.
@@ -253,18 +251,20 @@ direction vectors `axis` and `S0` are expected in global Cartesian coordinates.
 ```julia
 # Spiral order for a wavevector propagating in the direction of the first
 # reciprocal lattice vector (i.e., orthogonal to the lattice vectors ``𝐚_2``
-# and ``𝐚_3``), repeating with a period of 10 lattice constants, and spiraling
+# and ``𝐚_3``), repeating with a period of 3 lattice constants, and spiraling
 # about the ``ẑ``-axis. The spin at the origin will point in the direction
 # ``𝐒_0 = ŷ + ẑ``.  Here, ``(x̂, ŷ, ẑ)`` are the axes of Cartesian coordinate
 # system in the global frame.
-set_spiral_order!(sys; q=[1/10, 0, 0], axis=[0, 0, 1], S0=[0, 1, 1])
+set_spiral_order!(sys; k=[1/3, 0, 0], axis=[0, 0, 1], S0=[0, 1, 1])
 ```
 
 See also [`set_spiral_order_on_sublattice!`](@ref).
 """
-function set_spiral_order!(sys; q, axis, S0)
-    check_commensurate(sys, q)
-    q_absolute = orig_crystal(sys).recipvecs * q
+function set_spiral_order!(sys; q=nothing, k=nothing, axis, S0)
+    k = deprecate_small_q(; q, k)
+
+    check_commensurate(sys; k)
+    q_absolute = orig_crystal(sys).recipvecs * k
 
     for site in eachsite(sys)
         r = global_position(sys, site)
@@ -275,9 +275,9 @@ end
 
 
 """
-    set_spiral_order_on_sublattice!(sys, i; q, axis, S0)
+    set_spiral_order_on_sublattice!(sys, i; k, axis, S0)
 
-Initializes sublattice `i` with a spiral order described by the wavevector `q`,
+Initializes sublattice `i` with a spiral order described by the wavevector `k`,
 an axis of rotation `axis`, and an initial dipole direction `S0`. The phase is
 selected such that the spin at `sys.dipole[1,1,1,i]` will point in the direction
 of `S0`. The wavevector is expected in repicrocal lattice units (RLU), while the
@@ -287,13 +287,15 @@ This function is not available for systems with reshaped unit cells.
 
 See also [`set_spiral_order!`](@ref).
 """
-function set_spiral_order_on_sublattice!(sys, i; q, axis, S0)
+function set_spiral_order_on_sublattice!(sys, i; q=nothing, k=nothing, axis, S0)
+    k = deprecate_small_q(; q, k)
+
     if orig_crystal(sys) != sys.crystal
         error("Cannot operate on a reshaped crystal. Atom indices may have changed.")
     end
 
-    check_commensurate(sys, q)
-    q_absolute = orig_crystal(sys).recipvecs * q
+    check_commensurate(sys; k)
+    q_absolute = orig_crystal(sys).recipvecs * k
 
     r0 = global_position(sys, (1, 1, 1, i))
     for cell in eachcell(sys)

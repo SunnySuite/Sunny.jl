@@ -93,25 +93,24 @@ export SampledCorrelations, dynamical_correlations, instant_correlations, add_sa
     intensity_formula, integrated_gaussian, integrated_lorentzian
 
 include("Intensities/ElementContraction.jl")
-
 include("Intensities/Interpolation.jl")
 export intensities_interpolated, instant_intensities_interpolated, rotation_in_rlu,
     reciprocal_space_path
-
 include("Intensities/Binning.jl")
 export intensities_binned, BinningParameters, count_bins, integrate_axes!,
     unit_resolution_binning_parameters, 
     slice_2D_binning_parameters, axes_bincenters,
     reciprocal_space_path_bins
-
 include("Intensities/LinearSpinWaveIntensities.jl")
 export intensities_broadened, intensities_bands
-
 include("Intensities/PowderAveraging.jl")
 export reciprocal_space_shell, powder_average_binned
-
 include("Intensities/ExperimentData.jl")
 export load_nxs, generate_mantid_script_from_binning_parameters
+
+include("Spiral/LuttingerTisza.jl")
+include("Spiral/SpiralEnergy.jl")
+include("Spiral/SpiralSWT.jl")
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")

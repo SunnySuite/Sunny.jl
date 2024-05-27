@@ -32,7 +32,7 @@
 (Mar 25, 2024)
 
 * **Correctness fixes**: Structure factor conventions are now uniform across
-  modes and [precisely specified](@ref "Structure Factor Conventions"). The
+  modes and [precisely specified](@ref "Structure Factor Calculations"). The
   g-tensor is applied by default (disable with `apply_g = false`). The intensity
   is additive with increasing number of magnetic ions in the chemical cell,
   consistent with SpinW. [Issue
