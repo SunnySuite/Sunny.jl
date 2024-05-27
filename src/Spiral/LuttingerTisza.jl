@@ -56,7 +56,7 @@ end
 
 # Starting from an initial guess, return the wavevector k that locally minimizes
 # `luttinger_tisza_exchange`.
-function optimize_luttinger_tisza_exchange(sys::System; k_guess, maxiters=10_000)
+function minimize_luttinger_tisza_exchange(sys::System; k_guess, maxiters=10_000)
     options = Optim.Options(; iterations=maxiters)
 
     # Work around: https://github.com/JuliaNLSolvers/LineSearches.jl/issues/175

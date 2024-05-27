@@ -69,7 +69,7 @@ end
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         set_external_field!(sys, [0, 0, h])
 
-        k = Sunny.optimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
+        k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
         @test k[1:2] ≈ [0.5, 0.5]
 
         axis = [0, 0, 1]
@@ -115,7 +115,7 @@ end
     k_ref = [0, 0, 0.14264604656200577]
     k_ref_alt = [0, 0, 1] - k_ref
 
-    k = Sunny.optimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
+    k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
     @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
 
     axis = [0, 0, 1]
@@ -184,7 +184,7 @@ end
     # Unfortunately, randomizing the initial guess will lead to occasional
     # optimization failures. TODO: Use ForwardDiff to improve accuracy.
     k_guess = [0.2, 0.4, 0.8]
-    k = Sunny.optimize_luttinger_tisza_exchange(sys; k_guess)
+    k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess)
     E = Sunny.luttinger_tisza_exchange(sys; k)
     @test isapprox(E, E_ref; atol=1e-12)
     @test isapprox(k, k_ref; atol=1e-5) || isapprox(k, k_ref_alt; atol=1e-5)
