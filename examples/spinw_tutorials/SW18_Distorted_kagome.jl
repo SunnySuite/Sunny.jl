@@ -20,7 +20,8 @@ view_crystal(cryst)
 
 # Define the interactions.
 
-sys = System(cryst, (1,1,1), [SpinInfo(1, S=1/2, g=2), SpinInfo(3, S=1/2, g=2)], :dipole, seed=0)
+spininfos = [SpinInfo(1, S=1/2, g=2), SpinInfo(3, S=1/2, g=2)]
+sys = System(cryst, (1,1,1), spininfos, :dipole, seed=0)
 J   = -2
 Jp  = -1
 Jab = 0.75
@@ -79,15 +80,18 @@ swt = SpinWaveTheory(sys)
 formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis, kernel=delta_function_kernel)
 disp, _ = intensities_bands(swt, path, formula);
 energies = collect(0:0.01:5.5)
-broadened_formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis, kernel=gaussian(fwhm=0.1))
+broadened_formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis,
+                                                   kernel=gaussian(fwhm=0.1))
 is = intensities_broadened(swt, path, energies, broadened_formula);
 
 # Create the plot
 
 fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", title="Spin wave dispersion: ", xticks)
+ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)",
+          title="Spin wave dispersion: ", xticks)
 ylims!(ax, 0, 5)
-heatmap!(ax, 1:size(is, 1), energies, is; colorrange=(0.2, 100), colormap=Reverse(:thermal), lowclip=:white)
+heatmap!(ax, 1:size(is, 1), energies, is; colorrange=(0.2, 100),
+         colormap=Reverse(:thermal), lowclip=:white)
 for d in eachcol(disp)
     lines!(ax, d; color=:black)
 end

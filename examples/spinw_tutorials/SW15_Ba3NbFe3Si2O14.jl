@@ -17,7 +17,8 @@ a = b = 8.539 # (Å)
 c = 5.2414
 latvecs = lattice_vectors(a, b, c, 90, 90, 120)
 types = ["Fe", "Nb", "Ba", "Si", "O", "O", "O"]
-positions = [[0.24964,0,0.5], [0,0,0], [0.56598,0,0], [2/3,1/3,0.5220], [2/3,1/3,0.2162], [0.5259,0.7024,0.3536], [0.7840,0.9002,0.7760]]
+positions = [[0.24964,0,0.5], [0,0,0], [0.56598,0,0], [2/3,1/3,0.5220],
+             [2/3,1/3,0.2162], [0.5259,0.7024,0.3536], [0.7840,0.9002,0.7760]]
 langasite = Crystal(latvecs, positions, 150; types)
 cryst = subcrystal(langasite, "Fe")
 view_crystal(cryst)
@@ -89,11 +90,12 @@ path, xticks = reciprocal_space_path(cryst, points_rlu, density);
 swt = SpinWaveTheory(sys; energy_ϵ=1e-6)
 broadened_formula = intensity_formula(swt, :perp; kernel=gaussian(fwhm=0.25))
 energies = collect(0:0.05:6)  # 0 < ω < 6 (meV)
-is = intensities_broadened(swt, path, energies, broadened_formula)
+is = intensities_broadened(swt, path, energies, broadened_formula);
 
 # Plot
 
 fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
+ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)",
+          xticks, xticklabelrotation=π/6)
 heatmap!(ax, 1:size(is,1), energies, is, colormap=:jet, colorrange=(0,150))
 fig

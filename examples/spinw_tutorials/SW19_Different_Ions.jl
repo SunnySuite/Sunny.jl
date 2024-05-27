@@ -41,7 +41,8 @@ path, xticks = reciprocal_space_path(cryst, q_points, 200)
 formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
 disp, intensity = intensities_bands(swt, path, formula)
 fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (RLU)", ylabel="Energy (meV)", title="Spin wave dispersion", xticks)
+ax = Axis(fig[1,1]; xlabel="Momentum (RLU)", ylabel="Energy (meV)",
+          title="Spin wave dispersion", xticks)
 ylims!(ax, 0.0, 4.5)
 xlims!(ax, 1, size(disp, 1))
 lines!(ax, disp[:, 1]; color=vec(sum(intensity[:, 1:2]; dims=2)), colorrange=(0,2))
@@ -57,7 +58,8 @@ function plot_intensities(formfactors, title)
     fig = Figure()
     ax = Axis(fig[1,1]; xlabel="Momentum (RLU)", ylabel="Energy (meV)", title, xticks)
     ylims!(ax, 0.0, 4.5)
-    heatmap!(ax, 1:size(is, 1), energies, is; colorrange=(0.1,50), colormap=Reverse(:thermal), lowclip=:white)
+    heatmap!(ax, 1:size(is, 1), energies, is; colorrange=(0.1,50),
+             colormap=Reverse(:thermal), lowclip=:white)
     for d in eachcol(disp)
         lines!(ax, d; color=:pink)
     end
@@ -66,12 +68,12 @@ end
 
 # Plot full intensity spectrum
 
-plot_intensities([FormFactor("Cu2"), FormFactor("Fe2")], "Full structure factor, tr S(𝐪, ω)")
+plot_intensities([FormFactor("Cu2"), FormFactor("Fe2")], "All correlations")
 
 # Plot Cu-Cu correlations only
 
-plot_intensities([FormFactor("Cu2"), zero(FormFactor)], "Only Cu-Cu correlations, tr S(𝐪, ω)")
+plot_intensities([FormFactor("Cu2"), zero(FormFactor)], "Cu-Cu correlations")
 
 # Fe-Fe correlations only
 
-plot_intensities([zero(FormFactor), FormFactor("Fe2")], "Only Fe-Fe correlations, tr S(𝐪, ω)")
+plot_intensities([zero(FormFactor), FormFactor("Fe2")], "Fe-Fe correlations")
