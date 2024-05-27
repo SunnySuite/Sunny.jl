@@ -41,7 +41,7 @@ function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}, μ0)
     precompute_dipole_ewald_aux(cryst, latsize, μ0, Vec3(0,0,0), cos, Val{Float64}())
 end
 
-function precompute_dipole_ewald_with_q(cryst::Crystal, latsize::NTuple{3,Int}, μ0, q_reshaped)
+function precompute_dipole_ewald_at_wavevector(cryst::Crystal, latsize::NTuple{3,Int}, μ0, q_reshaped)
     precompute_dipole_ewald_aux(cryst, latsize, μ0, q_reshaped, cis, Val{ComplexF64}())
 end
 

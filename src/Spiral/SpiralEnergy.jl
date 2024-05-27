@@ -85,7 +85,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         A0 = sys.ewald.A
         A0 = reshape(A0, Na, Na)
 
-        Ak = Sunny.precompute_dipole_ewald_with_q(sys.crystal, (1,1,1), sys.units.μ0, k)
+        Ak = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), sys.units.μ0, k)
         Ak = reshape(Ak, Na, Na)
 
         ϵ = 1e-8
@@ -99,7 +99,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
             end
         else
             for i in 1:Na, j in 1:Na
-                E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + (-im*K-K²)*Ak[i, j]*(-im*K-K²)/2) * μ[j]) / 2
+                E += real(μ[i]' * ((I+K²)*A0[i, j]*(I+K²) + (im*K+K²)*Ak[i, j]*(im*K+K²)/2) * μ[j]) / 2
             end
         end
 
