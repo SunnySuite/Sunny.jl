@@ -69,7 +69,7 @@ end
 Enables long-range interactions between magnetic moment dipoles,
 
 ```math
-    -(μ_0/4π) ∑_{⟨ij⟩}  [3 (μ_i⋅𝐫̂_{ij})(μ_j⋅𝐫̂_{ij}) - μ_i⋅μ_j] / |𝐫_{ij}|^3
+    -(μ_0/4π) ∑_{⟨ij⟩}  [3 (μ_i⋅𝐫̂_{ij})(μ_j⋅𝐫̂_{ij}) - μ_i⋅μ_j] / r_{ij}^3
 ```
 
 where the sum is over all pairs of spins (singly counted), including periodic
