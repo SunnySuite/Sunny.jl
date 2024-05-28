@@ -1,7 +1,7 @@
 # Version History
 
 ## v0.5.10
-(In development)
+(May 27, 2024)
 
 * [`view_crystal`](@ref) called on a [`System`](@ref) now shows interactions,
   and optionally the spin or magnetic dipoles.
@@ -18,6 +18,8 @@
   the ported [SpinW tutorial 19](@ref "SW19 - Different magnetic ions").
 * Broadening kernels [`gaussian`](@ref) and [`lorentzian`](@ref) now expect a
   full width at half maximum (`fwhm`) keyword argument.
+* Experimental support for calculations on generalized spiral phases. For an
+  example, see the ported [SpinW tutorial 18](@ref "SW18 - Distorted kagome").
 * Correctness fix for the case where spin-``S`` varies between sites in
   dipole-mode. In SU(``N``) mode, however, there is still no support for varying
   the Hilbert space dimension ``N`` between sites.
