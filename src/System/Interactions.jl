@@ -66,7 +66,7 @@ end
 """
     enable_dipole_dipole!(sys::System)
 
-Enables long-range interactions between magnetic moment dipoles,
+Enables long-range interactions between magnetic dipole moments,
 
 ```math
     -(μ_0/4π) ∑_{⟨ij⟩}  [3 (μ_i⋅𝐫̂_{ij})(μ_j⋅𝐫̂_{ij}) - μ_i⋅μ_j] / r_{ij}^3
@@ -74,8 +74,8 @@ Enables long-range interactions between magnetic moment dipoles,
 
 where the sum is over all pairs of spins (singly counted), including periodic
 images, regularized using the Ewald summation convention. See
-[`magnetic_moment`](@ref) for the relationship between magnetic moments ``μ_i``
-and spin dipoles. The vacuum permeability ``μ_0`` is a physical constant
+[`magnetic_moment`](@ref) for the relationship between ``μ_i`` and the spin
+angular momentum. The vacuum permeability ``μ_0`` is a physical constant
 determined by system of [`Units`](@ref).
 """
 function enable_dipole_dipole!(sys::System{N}) where N
@@ -87,8 +87,8 @@ end
     set_external_field!(sys::System, B::Vec3)
 
 Sets the external field ``𝐁`` that couples to all magnetic moments, ``- ∑_i
-𝐁⋅μ_i``. See [`magnetic_moment`](@ref) for the relationship between magnetic
-moments ``μ_i`` and spin dipoles.
+𝐁⋅μ_i``. See [`magnetic_moment`](@ref) for the relationship between ``μ_i`` and
+the spin angular momentum.
 """
 function set_external_field!(sys::System, B)
     for site in eachsite(sys)
@@ -100,9 +100,8 @@ end
     set_external_field_at!(sys::System, B::Vec3, site::Site)
 
 Sets a local field ``𝐁`` that couples to a single magnetic moment, ``-𝐁⋅μ_i``.
-See [`magnetic_moment`](@ref) for the relationship between the magnetic moment
-``μ_i`` and the spin dipole. [`Site`](@ref) includes a unit cell and a
-sublattice index.
+See [`magnetic_moment`](@ref) for the relationship between ``μ_i`` and the spin
+angular momentum. [`Site`](@ref) includes a unit cell and a sublattice index.
 """
 function set_external_field_at!(sys::System, B, site)
     sys.extfield[to_cartesian(site)] = Vec3(B)
