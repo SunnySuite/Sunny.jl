@@ -74,6 +74,9 @@ function Langevin(; λ=nothing, damping=nothing, kT)
     Langevin(NaN; λ, damping, kT)
 end
 
+function Base.copy(dyn::Langevin)
+    Langevin(dyn.dt; dyn.damping, dyn.kT)
+end
 
 #=
 Damping and noise terms may be included through the optional `damping` and `kT`
