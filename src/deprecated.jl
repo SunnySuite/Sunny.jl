@@ -18,11 +18,6 @@ end
 Base.@deprecate suggest_magnetic_supercell(qs, latsize) suggest_magnetic_supercell(qs)
 Base.@deprecate offline_viewers() ()
 
-function Base.copy(dyn::Langevin)
-    @warn "Base.copy(dyn::Langevin) will break in Sunny v0.6! Use `Langevin(dyn.dt; dyn.damping, dyn.kT)` instead."
-    Langevin(dyn.dt; dyn.damping, dyn.kT)
-end
-
 function Base.getproperty(value::Langevin, name::Symbol)
     if name == :Δt
         @warn "`Δt` field is deprecated! Use `dt` instead."
