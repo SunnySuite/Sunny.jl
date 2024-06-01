@@ -382,7 +382,7 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
     # Dimensionless scalings and rotations associated with principle axes
     decomps = exchange_decomposition.(scaled_exchanges)            
     scalings = map(x -> x[1], decomps)
-    rotations = map(x -> x[2], decomps)
+    rotation = map(x -> x[2], decomps)
 
     # Enlarge scalings so that the maximum scaling _cubed_ denotes magnitude
     scalings = map(scalings) do scal
@@ -403,7 +403,7 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
         d = c+(1-c)*abs(y) # c ≤ d ≤ 1
         y > 0 ? Makie.RGBf(c, c, d) : Makie.RGBf(d, c, c)
     end
-    o = Makie.meshscatter!(ax, pts; color, markersize, rotations, specular=0, diffuse=1.5, inspectable=false)
+    o = Makie.meshscatter!(ax, pts; color, markersize, rotation, specular=0, diffuse=1.5, inspectable=false)
     Makie.connect!(o.visible, obs)
 
     # Draw dots using cylinders
@@ -426,7 +426,7 @@ function draw_exchange_geometries(; ax, obs, ionradius, pts, scaled_exchanges)
         end
         markersize2 = [ms .* rs for (ms, rs) in zip(markersize, rescalings)]
     
-        o = Makie.meshscatter!(ax, pts; color, markersize=markersize2, rotations, marker=cylinders[dim], inspectable=false)
+        o = Makie.meshscatter!(ax, pts; color, markersize=markersize2, rotation, marker=cylinders[dim], inspectable=false)
         Makie.connect!(o.visible, obs)            
     end
 
