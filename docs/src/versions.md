@@ -1,5 +1,10 @@
 # Version History
 
+## v0.5.11
+(June 2, 2024)
+
+* Fixes for Makie 0.21.
+
 ## v0.5.10
 (May 27, 2024)
 
