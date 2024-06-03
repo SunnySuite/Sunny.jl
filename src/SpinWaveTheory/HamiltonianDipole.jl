@@ -18,7 +18,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
     for (i, int) in enumerate(sys.interactions_union)
         # Zeeman term
         B = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i]) 
-        B′ = dot(B, local_rotations[i][:, 3]) / 2 
+        B′ = - dot(B, local_rotations[i][:, 3]) / 2
         H11[i, i] += B′
         H22[i, i] += B′
 
@@ -187,7 +187,7 @@ function multiply_by_hamiltonian_dipole!(y::Array{ComplexF64, 2}, x::Array{Compl
         A2 = im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
 
         B = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i]) 
-        B′ = dot(B, view(local_rotations[i], :, 3)) / 2 
+        B′ = - dot(B, view(local_rotations[i], :, 3)) / 2 
 
         # Seems to be no benefit to breaking this into two loops acting on
         # different final indices, presumably because memory access patterns for

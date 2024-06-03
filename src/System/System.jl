@@ -246,20 +246,12 @@ multiplied by the local ``g``-tensor and the Bohr magneton ``μ_B``. The latter
 is a physical constant determined by system of [`Units`](@ref).
 
 ```math
-μ = + μ_B g 𝐒
+μ = - μ_B g 𝐒
 ```
-
-!!! warning "Sign error"
-
-    The above sign is incorrect in the standard convention that the electron spin
-    ``g``-factor is positive. For a pure electron spin, ``μ`` and ``𝐒`` must be
-    anti-aligned. In practice, this sign error can be resolved by effectively
-    reversing any applied magnetic field. The sign of ``μ`` will be fixed in
-    a future Sunny version.
 """
 function magnetic_moment(sys::System, site)
     site = to_cartesian(site)
-    return sys.units.μB * sys.gs[site] * sys.dipoles[site]
+    return - sys.units.μB * sys.gs[site] * sys.dipoles[site]
 end
 
 # Total volume of system
