@@ -244,10 +244,12 @@ function reference_bonds(cryst::Crystal, max_dist::Float64; min_dist=0.0)
 
     # Replace each canonical bond by the "best" equivalent bond
     return map(ref_bonds) do rb
-        # Find full set of symmetry equivalent bonds
-        equiv_bonds = unique([transform(cryst, s, rb) for s in cryst.symops])
+        # Find all symmetry equivalent bonds
+        equiv_bonds = [transform(cryst, s, rb) for s in cryst.symops]
+        # Include also reverse bonds
+        equiv_bonds = vcat(equiv_bonds, reverse.(equiv_bonds))
         # Take the bond with lowest score
-        return argmin(b -> score_bond(cryst, b), equiv_bonds)
+        return argmin(b -> score_bond(cryst, b), unique(equiv_bonds))
     end
 end
 reference_bonds(cryst::Crystal, max_dist) = reference_bonds(cryst, convert(Float64, max_dist))
