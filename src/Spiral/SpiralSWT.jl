@@ -61,7 +61,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
     (; extfield, gs, units) = sys
     for i in 1:L
         B = units.μB * (Transpose(extfield[1, 1, 1, i]) * gs[1, 1, 1, i]) 
-        B′ = (B * local_rotations[i][:, 3]) / 2 
+        B′ = - (B * local_rotations[i][:, 3]) / 2 
         H[i, i]     += B′
         H[i+L, i+L] += conj(B′)
     end

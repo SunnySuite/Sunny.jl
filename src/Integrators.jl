@@ -263,20 +263,20 @@ end
     λ = damping
 
     if iszero(λ)
-        @. Δs = -s × (- dt*∇E)
+        @. Δs = - s × (dt*∇E)
     else
-        @. Δs = -s × (- dt*∇E + ξ - dt*λ*(s × ∇E))
+        @. Δs = - s × (ξ + dt*∇E - dt*λ*(s × ∇E))
     end
 end
 
-function rhs_sun!(ΔZ, Z, ξ, HZ, integrator)
+function rhs_sun!(ΔZ, Z, ζ, HZ, integrator)
     (; damping, dt) = integrator
     λ = damping
 
     if iszero(λ)
         @. ΔZ = - im*dt*HZ
     else
-        @. ΔZ = - proj(dt*(im+λ)*HZ + ξ, Z)
+        @. ΔZ = - proj(ζ + dt*(im+λ)*HZ, Z)
     end
 end
 
@@ -329,19 +329,19 @@ end
 function step!(sys::System{N}, integrator::Langevin) where N
     check_timestep_available(integrator)
 
-    (Z′, ΔZ₁, ΔZ₂, ξ, HZ) = get_coherent_buffers(sys, 5)
+    (Z′, ΔZ₁, ΔZ₂, ζ, HZ) = get_coherent_buffers(sys, 5)
     Z = sys.coherents
 
-    fill_noise!(sys.rng, ξ, integrator)
+    fill_noise!(sys.rng, ζ, integrator)
 
     # Euler prediction step
     set_energy_grad_coherents!(HZ, Z, sys)
-    rhs_sun!(ΔZ₁, Z, ξ, HZ, integrator)
+    rhs_sun!(ΔZ₁, Z, ζ, HZ, integrator)
     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
 
     # Correction step
     set_energy_grad_coherents!(HZ, Z′, sys)
-    rhs_sun!(ΔZ₂, Z′, ξ, HZ, integrator)
+    rhs_sun!(ΔZ₂, Z′, ζ, HZ, integrator)
     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
 
     # Coordinate dipole data
@@ -420,8 +420,8 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
     Z = sys.coherents
     atol = integrator.atol * √length(Z)
     
-    (ΔZ, Z̄, Z′, Z″, ξ, HZ) = get_coherent_buffers(sys, 6)
-    fill_noise!(sys.rng, ξ, integrator)
+    (ΔZ, Z̄, Z′, Z″, ζ, HZ) = get_coherent_buffers(sys, 6)
+    fill_noise!(sys.rng, ζ, integrator)
 
     @. Z′ = Z 
     @. Z″ = Z 
@@ -430,7 +430,7 @@ function step!(sys::System{N}, integrator::ImplicitMidpoint; max_iters=100) wher
         @. Z̄ = (Z + Z′)/2
 
         set_energy_grad_coherents!(HZ, Z̄, sys)
-        rhs_sun!(ΔZ, Z̄, ξ, HZ, integrator)
+        rhs_sun!(ΔZ, Z̄, ζ, HZ, integrator)
 
         @. Z″ = Z + ΔZ
 

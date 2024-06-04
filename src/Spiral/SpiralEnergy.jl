@@ -70,11 +70,11 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         E += E_aniso
 
         # Zeeman coupling
-        E -= sys.extfield[i]' * (sys.units.μB * sys.gs[i] * Si)
+        E += sys.extfield[i]' * (sys.units.μB * sys.gs[i] * Si)
 
         if accum_grad
             dEds[i] += dEds_aniso
-            dEds[i] -= sys.units.μB * sys.gs[i]' * sys.extfield[i]
+            dEds[i] += sys.units.μB * sys.gs[i]' * sys.extfield[i]
         end
     end
 
