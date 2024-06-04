@@ -242,12 +242,17 @@ end
     magnetic_moment(sys::System, site::Site)
 
 Get the magnetic moment for a [`Site`](@ref). This is the spin dipole ``𝐒``
-multiplied by the local ``g``-tensor and the Bohr magneton ``μ_B``. The latter
-is a physical constant determined by system of [`Units`](@ref).
+multiplied by the local ``g``-tensor and the Bohr magneton ``μ_B``.
 
 ```math
-μ = - μ_B g 𝐒
+μ = - μ_B g 𝐒.
 ```
+
+The constant ``μ_B`` depends on the choice of [`Units`](@ref). By default,
+energy is in meV and external field is in tesla, such that ``μ_B = 0.05788…``
+(meV/T). If `Units.theory` is selected instead, the constant ``μ_B = -1``
+effectively aligns magnetic and spin dipoles, which is a common convention when
+specifying theoretical model systems.
 """
 function magnetic_moment(sys::System, site)
     site = to_cartesian(site)
