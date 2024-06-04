@@ -1,5 +1,11 @@
 # Version History
 
+## v0.6.0
+(In progress)
+
+* Fix direction of magnetic moment and direction of time ([PR
+  247](https://github.com/SunnySuite/Sunny.jl/pull/247)).
+
 ## v0.5.11
 (June 2, 2024)
 

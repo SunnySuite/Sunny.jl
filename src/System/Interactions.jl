@@ -139,7 +139,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     ΔE = 0.0
 
     # Zeeman coupling to external field
-    ΔE -= sys.units.μB * dot(extfield[site], sys.gs[site], Δs)
+    ΔE += sys.units.μB * dot(extfield[site], sys.gs[site], Δs)
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
@@ -216,7 +216,7 @@ function energy(sys::System{N}) where N
 
     # Zeeman coupling to external field
     for site in eachsite(sys)
-        E -= sys.units.μB * sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
+        E += sys.units.μB * sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
     end
 
     # Anisotropies and exchange interactions
@@ -327,7 +327,7 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
 
     # Zeeman coupling
     for site in eachsite(sys)
-        ∇E[site] -= sys.units.μB * (sys.gs[site]' * sys.extfield[site])
+        ∇E[site] += sys.units.μB * (sys.gs[site]' * sys.extfield[site])
     end
 
     # Anisotropies and exchange interactions
