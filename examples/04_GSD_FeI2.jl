@@ -287,7 +287,7 @@ heatmap!(ax_top,1:size(is_interpolated,1), ωs, is_interpolated;
 )
 
 heatmap!(ax_bottom,1:size(is_binned,1), ωs, is_binned;
-    colorrange=(0.0, 0.0000015),
+    colorrange=(0.0, 1.5e-6),
 )
 
 fig
