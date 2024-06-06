@@ -16,7 +16,8 @@ struct SampledCorrelations{N}
 
     # Specs for sample generation and accumulation
     samplebuf    :: Array{ComplexF64, 6}   # New sample buffer
-    fft!         :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
+    space_fft!   :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
+    time_fft!    :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
     measperiod   :: Int                    # Steps to skip between saving observables (downsampling for dynamical calcs)
     apply_g      :: Bool                   # Whether to apply the g-factor
     dt           :: Float64                # Step size for trajectory integration 
@@ -55,11 +56,12 @@ Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(
 function clone_correlations(sc::SampledCorrelations{N}) where N
     dims = size(sc.data)[2:4]
     n_all_ω = size(sc.data, 7)
-    normalizationFactor = 1/(√(n_all_ω * prod(dims)))
-    fft! = normalizationFactor * FFTW.plan_fft!(sc.samplebuf, (2,3,4,6)) # Avoid copies/deep copies of C-generated data structures
+    # Avoid copies/deep copies of C-generated data structures
+    space_fft! = 1/√(prod(dims)) * FFTW.plan_fft!(sc.samplebuf, (2,3,4))
+    time_fft! = 1/√(n_all_ω) * FFTW.plan_fft!(sc.samplebuf, 6)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations{N}(copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
-        deepcopy(sc.observables), copy(sc.samplebuf), fft!, sc.measperiod, sc.apply_g, sc.dt,
+        deepcopy(sc.observables), copy(sc.samplebuf), space_fft!, time_fft!, sc.measperiod, sc.apply_g, sc.dt,
         copy(sc.nsamples), sc.processtraj!)
 end
 
@@ -172,8 +174,8 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     # The normalization is defined so that structure factor estimates of form
     # ifft(fft * fft) carry an overall scaling factor consistent with this spec:
     # https://github.com/SunnySuite/Sunny.jl/issues/264 (subject to change).
-    normalizationFactor = 1/√(prod(sys.latsize) * n_all_ω)
-    fft! = normalizationFactor * FFTW.plan_fft!(samplebuf, (2,3,4,6))
+    space_fft! = 1/√(prod(sys.latsize)) * FFTW.plan_fft!(samplebuf, (2,3,4))
+    time_fft! = 1/√(n_all_ω) * FFTW.plan_fft!(samplebuf, 6)
 
     # Other initialization
     nsamples = Int64[0]
@@ -181,7 +183,7 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
     sc = SampledCorrelations{N}(data, M, sys.crystal, origin_crystal, Δω, observables,
-                                samplebuf, fft!, measperiod, apply_g, dt, nsamples, process_trajectory)
+                                samplebuf, space_fft!, time_fft!, measperiod, apply_g, dt, nsamples, process_trajectory)
 
     return sc
 end

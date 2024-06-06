@@ -158,10 +158,10 @@ function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targe
     li_intensities = LinearIndices(intensities)
     ci_targets = CartesianIndices(q_targets)
 
-    # Compute the location of each q_target within its cell in R.L.U.
-    # (which is an axis-aligned unit cube) with coordinates given as
-    # the fractional distance along each side of the cube.
-    m_targets = [mod.(sc.latsize .* q_target,1) for q_target in q_targets]
+    # Compute the location of each q_target within its cell in R.L.U. (which is
+    # an axis-aligned unit cube) with coordinates given as the fractional
+    # distance along each side of the cube.
+    m_targets = [mod.(sc.latsize .* q_target, 1) for q_target in q_targets]
 
     (; ks_all, idcs_all, counts) = stencil_info 
     for iω in eachindex(ωvals)
