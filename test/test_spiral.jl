@@ -199,13 +199,9 @@ end
 
 
 @testitem "Chiral" begin
-    # using Sunny, LinearAlgebra, GLMakie
-
     latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]], "P1")
-
     sys = System(cryst, (1,1,1), [SpinInfo(1,S=1,g=1)], :dipole; units=Units.theory)
-
     D = 1
     B = 10.0
     set_exchange!(sys, dmvec([0, 0, D]), Bond(1, 1, [0, 0, 1]))
