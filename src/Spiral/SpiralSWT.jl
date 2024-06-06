@@ -302,8 +302,7 @@ function intensity_formula_spiral(f::Function, swt::SpinWaveTheory, corr_ix::Abs
                 uj = R_j[:,1]+im*R_j[:,2]
                 ti = sys.crystal.positions[i]
                 tj = sys.crystal.positions[j]
-                # Sign convention of https://github.com/SunnySuite/Sunny.jl/issues/270
-                phase = exp(-2π * im*dot(q_reshaped,(ti-tj)))
+                phase = exp(-2π * im*dot(q_reshaped, tj-ti))
                 Y[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (ui[α] * conj(uj[β])) * (phase)
                 Z[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (ui[α] * uj[β]) * (phase)
                 V[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (conj(ui[α]) * conj(uj[β])) * (phase)

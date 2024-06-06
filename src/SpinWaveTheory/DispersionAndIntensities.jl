@@ -303,8 +303,7 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVe
 
         for i = 1:Nm
             @assert Nm == natoms(sys.crystal)
-            # Sign convention of https://github.com/SunnySuite/Sunny.jl/issues/270
-            Avec_pref[i] = exp(+2π*im * dot(q_reshaped, sys.crystal.positions[i]))
+            Avec_pref[i] = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
             # TODO: move form factor into `f`, then delete this rescaling
             Avec_pref[i] *= compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
         end
