@@ -20,11 +20,10 @@ using Sunny, GLMakie
 latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], "P1")
 
-# Construct a 1D chain system with a Hamiltonian that includes DM and Zeeman
-# coupling terms, ``ℋ = ∑_j D ẑ ⋅ (𝐒_j × 𝐒_{j+1}) - ∑_j 𝐁 ⋅ 𝐌_j``. Note
-# that the [`magnetic_moment`](@ref), defined as ``𝐌_j = - μ_B g 𝐒_j``, is
-# anti-aligned with the spin dipole ``𝐒_j``. Site positions extend in the
-# ``ẑ``-direction with increasing ``j``.
+# Construct a 1D chain system that extends along ``𝐚₃``. The Hamiltonian
+# includes DM and Zeeman coupling terms, ``ℋ = ∑_j D ẑ ⋅ (𝐒_j × 𝐒_{j+1}) -
+# ∑_j 𝐁 ⋅ 𝐌_j``, where ``𝐌_j = - μ_B g 𝐒_j`` is the
+# [`magnetic_moment`](@ref) and ``𝐁 ∝ ẑ``.
 
 sys = System(cryst, (1, 1, 25), [SpinInfo(1; S=1, g=2)], :dipole; seed=0)
 D = 0.1 # meV
@@ -50,8 +49,9 @@ for _ in 1:10_000
     step!(sys, langevin)
 end
 
-# The magnetic moments are polarized in the ``𝐁 ∝ ẑ`` direction. Consequently,
-# the spin dipoles are pointed towards ``-ẑ``.
+# The Zeeman coupling polarizes the magnetic moments in the ``𝐁 ∝ ẑ``
+# direction. The spin dipoles, however, are anti-aligned with the magnetic
+# moments, and therefore point towards ``-ẑ``. This is shown below.
 
 plot_spins(sys)
 
