@@ -318,35 +318,36 @@ end
 """
     set_exchange!(sys::System, J, bond::Bond)
 
-Sets a 3×3 spin-exchange matrix `J` along `bond`, yielding a pairwise
-interaction energy ``𝐒_i⋅J 𝐒_j``. This interaction will be propagated to
-equivalent bonds in consistency with crystal symmetry. Any previous interactions
-on these bonds will be overwritten. The parameter `bond` has the form `Bond(i,
-j, offset)`, where `i` and `j` are atom indices within the unit cell, and
-`offset` is a displacement in unit cells.
+Sets an exchange interaction ``𝐒_i⋅J 𝐒_j`` along the specified `bond`. This
+interaction will be propagated to equivalent bonds in consistency with crystal
+symmetry. Any previous interactions on these bonds will be overwritten. The
+parameter `bond` has the form `Bond(i, j, offset)`, where `i` and `j` are atom
+indices within the unit cell, and `offset` is a displacement in unit cells.
 
-The parameter `J` may be scalar or matrix-valued. As a convenience, `dmvec(D)`
-can be used to construct the antisymmetric part of the exchange, where `D` is
-the Dzyaloshinskii-Moriya pseudo-vector. The resulting interaction will be
-``𝐃⋅(𝐒_i×𝐒_j)``.
+As a convenience, scalar `J` can be used to specify a Heisenberg interaction.
+Also, the function [`dmvec(D)`](@ref dmvec) can be used to construct the
+antisymmetric part of the exchange, where `D` is the Dzyaloshinskii-Moriya
+pseudo-vector. The resulting interaction will be ``𝐃⋅(𝐒_i×𝐒_j)``.
 
 For more general interactions, such as biquadratic, use
-[`set_pair_coupling!`](@ref) instead. In the special that `sys` has `mode =
+[`set_pair_coupling!`](@ref) instead. In the special case that `sys` has `mode =
 :dipole_large_S`, this function will accept an optional named parameter `biquad`
-yielding scalar biquadratic interactions `(𝐒_i⋅𝐒_j)^2` _without_
-renormalization.
+defining the strength of scalar biquadratic interactions `(𝐒_i⋅𝐒_j)^2`. With
+this, [Interaction Strength Renormalization](@ref) is disabled.
 
 # Examples
 ```julia
-# An explicit exchange matrix
-J1 = [2 3 0;
-     -3 2 0;
-      0 0 2]
-set_exchange!(sys, J1, bond)
+using LinearAlgebra
 
-# An equivalent Heisenberg + DM exchange 
-J2 = 2*I + dmvec([0,0,3])
-set_exchange!(sys, J2, bond)
+# Set a Heisenberg and DM interaction: 2Si⋅Sj + D⋅(Si×Sj)
+D = [0, 0, 3]
+set_exchange!(sys, 2I + dmvec(D), bond)
+
+# The same interaction as an explicit exchange matrix
+J = [2 3 0;
+    -3 2 0;
+     0 0 2]
+set_exchange!(sys, J, bond)
 ```
 """
 function set_exchange!(sys::System{N}, J, bond::Bond; biquad::Number=0.0, large_S=nothing) where N
@@ -567,8 +568,8 @@ Antisymmetric matrix representation of the Dzyaloshinskii-Moriya pseudo-vector,
     D[2] -D[1]   0  ]
 ```
 
-This matrix is closely related to the vector cross product, `dmvec(u)*v ≈ -u×v`.
-Useful in the context of [`set_exchange!`](@ref).
+By construction, `Si'*dmvec(D)*Sj ≈ D⋅(Si×Sj)` for any dipoles `Si` and `Sj`.
+This helper function is intended for use with [`set_exchange!`](@ref).
 """
 function dmvec(D)
     D = Vec3(D)
