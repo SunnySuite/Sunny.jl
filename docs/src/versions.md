@@ -5,6 +5,10 @@
 
 * Fix direction of magnetic moment and direction of time ([PR
   247](https://github.com/SunnySuite/Sunny.jl/pull/247)).
+* Fixes for consistency with documented
+  [structure factor conventions](https://sunnysuite.github.io/Sunny.jl/dev/structure-factor.html)
+  ([PR 271](https://github.com/SunnySuite/Sunny.jl/pull/271) and [PR
+  272](https://github.com/SunnySuite/Sunny.jl/pull/272)).
 
 ## v0.5.11
 (June 2, 2024)
