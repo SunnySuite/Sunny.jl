@@ -209,6 +209,7 @@ end
 
     # Above the saturation field, the ground state is fully polarized, with no
     # energy contribution from the DM term.
+    
     randomize_spins!(sys)
     minimize_energy!(sys)
     @test energy_per_site(sys) ≈ -B
