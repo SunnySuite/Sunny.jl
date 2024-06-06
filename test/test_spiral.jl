@@ -133,7 +133,7 @@ end
 
     swt = SpinWaveTheory(sys)
     formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis, kernel=delta_function_kernel)
-    q = [0.41568,0.56382,0.76414]
+    q = -[0.41568,0.56382,0.76414]
     disp, intensity = intensities_bands(swt, [q], formula);
     SpinW_energies = [2.6267,3.8202,3.9422,2.8767,3.9095,4.4605,3.31724,4.0113,4.7564]
     SpinW_intensities = [0.484724856017038, 0.962074686407910, 0.0932786148844105, 0.137966379056292, 0.0196590925454593, 2.37155695274281, 2.21507666401705, 0.118744173882554, 0.0547564956435423]

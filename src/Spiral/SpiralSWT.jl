@@ -246,6 +246,9 @@ function intensity_formula_spiral(f::Function, swt::SpinWaveTheory, corr_ix::Abs
     #   Smooth kernel --> I_of_ω = Intensity as a function of ω
     #
     calc_intensity = function(swt::SpinWaveTheory, q::Sunny.Vec3)
+        # Hack sign per https://github.com/SunnySuite/Sunny.jl/issues/270
+        q *= -1
+        
         # This function, calc_intensity, is an internal function to be stored
         # inside a formula. The unit system for `q` that is passed to
         # formula.calc_intensity is an implementation detail that may vary
