@@ -150,6 +150,9 @@ function intensities_interpolated(sc::SampledCorrelations, qs, formula::Classica
     # Call type-stable version of the function
     intensities_interpolated!(intensities, sc, qs, ωvals, interp, formula, stencil_info, Val(return_type))
 
+    # Make density
+    intensities ./= isnan(sc.Δω) ? 1.0 : sc.Δω
+
     return intensities
 end
 

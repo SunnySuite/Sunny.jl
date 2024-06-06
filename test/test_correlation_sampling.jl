@@ -34,6 +34,7 @@
     S = spin_matrices(1/2)
     observables = Dict(:Sx => S[1], :Sy => S[2], :Sz => S[3])
     sc = dynamical_correlations(sys; nω=100, ωmax=10.0, dt=0.1, apply_g=false, observables)
+    Δω = sc.Δω
     add_sample!(sc, sys)
     qgrid = available_wave_vectors(sc)
     formula = intensity_formula(sc,:trace)
@@ -42,7 +43,7 @@
     # factor is already included in the Sqw intensity data. This convention will
     # change per https://github.com/SunnySuite/Sunny.jl/issues/264
     expected_sum_rule = prod(sys.latsize) * Sunny.norm2(sys.dipoles[1]) # NS^2 classical sum rule
-    @test isapprox(sum(Sqw), expected_sum_rule; atol=1e-12)
+    @test isapprox(sum(Sqw) * Δω, expected_sum_rule; atol=1e-12)
 
     # Test sum rule with default observables in dipole mode 
     sys = simple_model_fcc(; mode=:dipole)
@@ -53,7 +54,7 @@
     Sqw = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
     total_intensity_trace = sum(Sqw)
     expected_sum_rule = prod(sys.latsize) * Sunny.norm2(sys.dipoles[1]) # NS^2 classical sum rule
-    @test isapprox(sum(Sqw), expected_sum_rule; atol=1e-12)
+    @test isapprox(sum(Sqw) * Δω, expected_sum_rule; atol=1e-12)
 
     # Test perp reduces intensity
     perp_formula = intensity_formula(sc,:perp)
@@ -155,6 +156,6 @@ end
     # println(round.(data; digits=10))
 
     # Compare with reference
-    data_golden = [0.9264336057 1.6408721819 -0.0 -0.0 -0.0 -0.0 -0.0 0.0 0.0 0.0; 0.0252093265 0.0430096149 0.6842894708 2.9288686 4.4296891436 5.546520481 5.2442499151 1.4849591286 -0.1196709189 0.0460970304]
+    data_golden = (1/sc.Δω) .* [0.9264336057 1.6408721819 -0.0 -0.0 -0.0 -0.0 -0.0 0.0 0.0 0.0; 0.0252093265 0.0430096149 0.6842894708 2.9288686 4.4296891436 5.546520481 5.2442499151 1.4849591286 -0.1196709189 0.0460970304]
     @test data ≈ data_golden
 end
