@@ -105,7 +105,5 @@ end
     # in the first (highest energy) dispersion band.
     @test all(disp4[:,1] .≈ B + 2D*sin(2π*qs[2][3]))
     @test all(disp4[:,3] .≈ B + 2D*sin(2π*qs[1][3]))
-    @test intens4[:,1] ≈ [0, 1]
-    @test intens4[:,2] == [0, 0]
-    @test intens4[:,3] ≈ [1, 0]
+    @test intens4 ≈ [0 0 1; 1 0 0]
 end
