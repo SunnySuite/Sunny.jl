@@ -150,7 +150,8 @@ function intensities_interpolated(sc::SampledCorrelations, qs, formula::Classica
     # Call type-stable version of the function
     intensities_interpolated!(intensities, sc, qs, ωvals, interp, formula, stencil_info, Val(return_type))
 
-    # Make density
+    # Dynamical structure factor should be a density in energy. If isnan(sc.Δω),
+    # then this is an instantaneous correlation instead.
     intensities ./= isnan(sc.Δω) ? 1.0 : sc.Δω
 
     return intensities
