@@ -5,6 +5,12 @@
 
 * Fix direction of magnetic moment and direction of time ([PR
   247](https://github.com/SunnySuite/Sunny.jl/pull/247)).
+* Fix various sign conventions: direction of magnetic moment, ([Issue
+  190](https://github.com/SunnySuite/Sunny.jl/issues/190)), direction of time in
+  Landau-Lifshitz spin dynamics (resolved in [PR
+  247](https://github.com/SunnySuite/Sunny.jl/pull/247)), and direction of
+  momentum transfer when calculating the structure factor from classical
+  dynamics ([Issue 270](https://github.com/SunnySuite/Sunny.jl/issues/270)).
 
 ## v0.5.11
 (June 2, 2024)

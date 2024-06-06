@@ -150,7 +150,7 @@ end
 
     sc = dynamical_correlations(sys; nω=10, ωmax=5.5, dt=2dt_langevin)
     add_sample!(sc, sys)
-    qs = [[0.0, 0.0, 0.0], [0.2, -0.4, 0.1]]
+    qs = [[0.0, 0.0, 0.0], [-0.2, 0.4, -0.1]]
     data = intensities_interpolated(sc, qs, intensity_formula(sc, :trace; kT); interpolation=:linear)
     # println(round.(data; digits=10))
 

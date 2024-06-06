@@ -345,19 +345,15 @@ Sunny will calculate the structure factor in dimensionless, intensive units,
 
 ```math
 \begin{equation}
-𝒮^{αβ}(𝐪, ω) ≡ \frac{1}{N_\mathrm{cells} μ_B^2} \mathcal{S}^{αβ}(-𝐪, ω),
+𝒮^{αβ}(𝐪, ω) ≡ \frac{1}{N_\mathrm{cells} μ_B^2} \mathcal{S}^{αβ}(𝐪, ω),
 \end{equation}
 ```
 
 where $N_\mathrm{cells}$ is again the number of chemical cells in the
 macroscopic sample.
 
-!!! warning "Direction of momentum transfer"
-    The appearance of ``-𝐪`` above is consistent with SpinW, but this minus sign
-    will likely be removed in a future Sunny version.
-
 Sunny also provides a setting `apply_g = false` to calculate dynamical spin-spin
-correlations, $C_{⟨𝐒𝐒⟩}(-𝐪, ω) / N_\mathrm{cells}$. This quantity corresponds
+correlations, $C_{⟨𝐒𝐒⟩}(𝐪, ω) / N_\mathrm{cells}$. This quantity corresponds
 to $𝒮(𝐪, ω) / g^2$ in the special case that $g$ is a uniform scalar.
 
 The physical structure factor $\mathcal{S}(𝐪, ω)$ is extensive. Its value

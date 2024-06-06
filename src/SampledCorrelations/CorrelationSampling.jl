@@ -73,7 +73,7 @@ function no_processing(::SampledCorrelations)
 end
 
 function accum_sample!(sc::SampledCorrelations; window)
-    (; data, M, observables, samplebuf, nsamples, fft!) = sc
+    (; data, M, observables, samplebuf, nsamples, space_fft!, time_fft!) = sc
     natoms = size(samplebuf)[5]
 
     num_time_offsets = size(samplebuf,6)
@@ -83,9 +83,18 @@ function accum_sample!(sc::SampledCorrelations; window)
     # the cross-correlation between two length-T signals
     time_offsets = FFTW.fftfreq(num_time_offsets,num_time_offsets)
 
+    # Transform A(q) = ∑ exp(iqr) A(r).
+    # This is opposite to the FFTW convention, so we must conjugate
+    # the fft by a complex conjugation to get the correct sign.
+    samplebuf .= conj.(samplebuf)
+    space_fft! * samplebuf
+    samplebuf .= conj.(samplebuf)
+
+    # Transform A(ω) = ∑ exp(-iωt) A(t)
     # In samplebuf, the original signal is from 1:T, and the rest
-    # is zero-padding, from (T+1):num_time_offsets.
-    fft! * samplebuf
+    # is zero-padding, from (T+1):num_time_offsets. This allows a
+    # usual FFT in the time direction, even though the signal isn't periodic.
+    time_fft! * samplebuf
 
     # Number of contributions to the DFT sum (non-constant due to zero-padding).
     # Equivalently, this is the number of estimates of the correlation with
@@ -110,7 +119,10 @@ function accum_sample!(sc::SampledCorrelations; window)
         sample_β = @view samplebuf[β,:,:,:,j,:]
         databuf  = @view data[c,i,j,:,:,:,:]
 
-        corr = FFTW.ifft(sample_α .* conj.(sample_β),4) ./ n_contrib
+        # According to Sunny convention, the correlation is between
+        # α† and β. This conjugation implements both the dagger on the α
+        # as well as the appropriate spacetime offsets of the correlation.
+        corr = FFTW.ifft(conj.(sample_α) .* sample_β,4) ./ n_contrib
 
         if window == :cosine
           # Apply a cosine windowing to force the correlation at Δt=±(T-1) to be zero
@@ -120,7 +132,7 @@ function accum_sample!(sc::SampledCorrelations; window)
           corr .*= reshape(window_func,1,1,1,num_time_offsets)
         end
 
-        corr = FFTW.fft(corr,4)
+        FFTW.fft!(corr,4)
 
         if isnothing(M)
             for k in eachindex(databuf)
