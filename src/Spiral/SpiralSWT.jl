@@ -308,7 +308,7 @@ function intensity_formula_spiral(f::Function, swt::SpinWaveTheory, corr_ix::Abs
                 V[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (conj(ui[α]) * conj(uj[β])) * (phase)
                 W[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (conj(ui[α]) * uj[β]) * (phase)
             end
-        end 
+        end
         YZVW = [[Y Z];[V W]]
 
         for branch = 1:3, band = 1:L
@@ -353,9 +353,10 @@ function intensity_formula_spiral(f::Function, swt::SpinWaveTheory, corr_ix::Abs
         if isnothing(kernel)
             # Delta function kernel --> (eigenvalue,intensity) pairs
 
-            # If there is no specified kernel, we are done: just return the
-            # BandStructure
-            return Sunny.BandStructure{3*L,return_type}(disp,intensity)
+            # If there is no specified kernel, we are done. Sort the bands in
+            # order of decreasing dispersion, and return the BandStructure
+            P = sortperm(vec(disp); rev=true)
+            return Sunny.BandStructure{3*L,return_type}(disp[P], intensity[P])
         else
             disp_all = reshape(disp,:)
             intensity_all = reshape(intensity,:)

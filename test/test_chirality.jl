@@ -81,12 +81,31 @@ end
     @test k[3] ≈ 3/4
     @test Sunny.spiral_energy_per_site(sys3; k, axis) ≈ -5/4
     swt = SpinWaveTheory(sys3)
-    formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis, kernel=delta_function_kernel)
+    formula = Sunny.intensity_formula_spiral(swt, :trace; k, axis, kernel=delta_function_kernel)
     disp3, intens3 = intensities_bands(swt, qs, formula)
-    # TODO: Make the dispersions and intensities match! Some variation of this
-    # should work.
-    #=
-    @assert disp2 ≈ disp3
-    @assert intens2 ≈ intens3
-    =#
+    disp3_ref = [3.0133249314 2.5980762316 0.6479760935
+                 3.0133249314 2.5980762316 0.6479760935]
+    intens3_ref = [0.0292617379 0.4330127014 0.8804147011
+                   0.5292617379 0.4330127014 0.3804147011]
+    @test disp3 ≈ disp3_ref
+    @test intens3 ≈ intens3_ref
+
+    # Finally, test fully polarized state
+
+    B = 10
+    set_external_field!(sys3, [0, 0, B])
+    polarize_spins!(sys3, [0, 0, 1])
+    @test energy_per_site(sys3) ≈ -B
+    swt = SpinWaveTheory(sys3)
+    formula = Sunny.intensity_formula_spiral(swt, :trace; k, axis, kernel=delta_function_kernel)
+    disp4, intens4 = intensities_bands(swt, qs, formula)
+    # For the wavevector, qs[1] == [0,0,-1/2], corresponding to the first row of
+    # disp4 and intens4, all intensity is in the third (lowest energy)
+    # dispersion band. For the wavevector, qs[2] == [0,0,+1/2], all intensity is
+    # in the first (highest energy) dispersion band.
+    @test all(disp4[:,1] .≈ B + 2D*sin(2π*qs[2][3]))
+    @test all(disp4[:,3] .≈ B + 2D*sin(2π*qs[1][3]))
+    @test intens4[:,1] ≈ [0, 1]
+    @test intens4[:,2] == [0, 0]
+    @test intens4[:,3] ≈ [1, 0]
 end
