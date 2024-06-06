@@ -14,9 +14,8 @@ using Sunny, GLMakie
 
 # Selecting the P1 spacegroup will effectively disable all symmetry analysis.
 # This can be a convenient way to avoid symmetry-imposed constraints on the
-# couplings. The disadvantage, however, is that all bonds are treated as
-# inequivalent, and Sunny will therefore not be able to propagate any couplings
-# between bonds.
+# couplings. A disadvantage is that all bonds are treated as inequivalent, and
+# Sunny will therefore not be able to propagate any couplings between bonds.
 
 latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], "P1")
@@ -50,6 +49,10 @@ suggest_timestep(sys, langevin; tol=1e-2)
 for _ in 1:10_000
     step!(sys, langevin)
 end
+
+# The magnetic moments are polarized in the ``𝐁 ∝ ẑ`` direction. Consequently,
+# the spin dipoles are pointed towards ``-ẑ``.
+
 plot_spins(sys)
 
 # Estimate the dynamical structure factor using classical dynamics.
@@ -67,9 +70,9 @@ density = 100
 path, xticks = reciprocal_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], density)
 data = intensities_interpolated(sc, path, intensity_formula(sc, :trace; kT));
 
-# Calculate the same quantity with linear spin wave theory at ``T=0``. Because
-# the ground state is fully polarized, the required magnetic cell is a single
-# chemical unit cell.
+# Calculate the same quantity with linear spin wave theory at ``T = 0``. Because
+# the ground state is fully polarized, the required magnetic cell is a ``1×1×1``
+# grid of chemical unit cells.
 
 sys_small = resize_supercell(sys, (1,1,1))
 minimize_energy!(sys_small)
@@ -78,7 +81,7 @@ formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
 disp_swt, intens_swt = intensities_bands(swt, path, formula);
 
 # This model system has a single magnon band with dispersion ``ϵ(𝐪) = 1 - 0.2
-# \sin(2πq₃)`` and uniform intensity. Both calculation methods reproduce the
+# \sin(2πq₃)`` and uniform intensity. Both calculation methods reproduce this
 # analytical solution. Observe that ``𝐪`` and ``-𝐪`` are inequivalent. The
 # structure factor calculated from classical dynamics additionally shows an
 # elastic peak at ``𝐪 = [0,0,0]``, reflecting the ferromagnetic ground state.
