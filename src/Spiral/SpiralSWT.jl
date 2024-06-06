@@ -246,9 +246,6 @@ function intensity_formula_spiral(f::Function, swt::SpinWaveTheory, corr_ix::Abs
     #   Smooth kernel --> I_of_ω = Intensity as a function of ω
     #
     calc_intensity = function(swt::SpinWaveTheory, q::Sunny.Vec3)
-        # Hack sign per https://github.com/SunnySuite/Sunny.jl/issues/270
-        q *= -1
-        
         # This function, calc_intensity, is an internal function to be stored
         # inside a formula. The unit system for `q` that is passed to
         # formula.calc_intensity is an implementation detail that may vary
@@ -305,7 +302,8 @@ function intensity_formula_spiral(f::Function, swt::SpinWaveTheory, corr_ix::Abs
                 uj = R_j[:,1]+im*R_j[:,2]
                 ti = sys.crystal.positions[i]
                 tj = sys.crystal.positions[j]
-                phase = exp(2π * im*dot(q_reshaped,(ti-tj)))
+                # Sign convention of https://github.com/SunnySuite/Sunny.jl/issues/270
+                phase = exp(-2π * im*dot(q_reshaped,(ti-tj)))
                 Y[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (ui[α] * conj(uj[β])) * (phase)
                 Z[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (ui[α] * uj[β]) * (phase)
                 V[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (conj(ui[α]) * conj(uj[β])) * (phase)

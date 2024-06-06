@@ -276,9 +276,6 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVe
     #   Smooth kernel --> I_of_ω = Intensity as a function of ω
     #
     calc_intensity = function(swt::SpinWaveTheory, q::Vec3)
-        # Hack sign per https://github.com/SunnySuite/Sunny.jl/issues/270
-        q *= -1
-        
         # This function, calc_intensity, is an internal function to be stored
         # inside a formula. The unit system for `q` that is passed to
         # formula.calc_intensity is an implementation detail that may vary
@@ -306,7 +303,8 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVe
 
         for i = 1:Nm
             @assert Nm == natoms(sys.crystal)
-            Avec_pref[i] = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
+            # Sign convention of https://github.com/SunnySuite/Sunny.jl/issues/270
+            Avec_pref[i] = exp(+2π*im * dot(q_reshaped, sys.crystal.positions[i]))
             # TODO: move form factor into `f`, then delete this rescaling
             Avec_pref[i] *= compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
         end
