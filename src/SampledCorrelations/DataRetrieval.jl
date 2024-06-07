@@ -207,13 +207,12 @@ newvals = broaden_energy(sc, vals, (ω, ω₀) -> lorentzian(fwhm=0.2)(ω-ω₀)
 """
 function broaden_energy(sc::SampledCorrelations, is, kernel::Function; negative_energies=false)
     dims = size(is)
-    Δq³ = 1/prod(size(sc.data[4:6]))  # Product of lattice size
     ωvals = available_energies(sc; negative_energies)
     out = zero(is)
     for (ω₀i, ω₀) in enumerate(ωvals)
         for (ωi, ω) in enumerate(ωvals)
             for qi in CartesianIndices(dims[1:end-1])
-                out[qi,ωi] += is[qi,ω₀i]*kernel(ω, ω₀)*sc.Δω*Δq³
+                out[qi,ωi] += is[qi,ω₀i]*kernel(ω, ω₀)*sc.Δω
             end
         end
     end
