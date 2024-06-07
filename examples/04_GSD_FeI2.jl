@@ -223,7 +223,7 @@ fig
 # for `Fe2` magnetic ions, and a dipole polarization correction `:perp`.
 
 formfactors = [FormFactor("Fe2"; g_lande=3/2)]
-new_formula = intensity_formula(sc, :perp; kT, formfactors = formfactors)
+new_formula = intensity_formula(sc, :perp; kT, formfactors)
 
 # Frequently, one wants to extract energy intensities along lines that connect
 # special wave vectors--a so-called "spaghetti plot". The function
@@ -283,11 +283,11 @@ ax_top = Axis(fig[1,1],ylabel = "meV",xticklabelrotation=π/8,xticklabelsize=12;
 ax_bottom = Axis(fig[2,1],ylabel = "meV",xticks = (markers, string.(points)),xticklabelrotation=π/8,xticklabelsize=12)
 
 heatmap!(ax_top,1:size(is_interpolated,1), ωs, is_interpolated;
-    colorrange=(0.0,0.07),
+    colorrange=(0.0, 1.0),
 )
 
 heatmap!(ax_bottom,1:size(is_binned,1), ωs, is_binned;
-    colorrange=(0.0,0.05),
+    colorrange=(0.0, 0.5e-3),
 )
 
 fig

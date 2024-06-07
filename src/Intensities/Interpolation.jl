@@ -177,6 +177,19 @@ function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targe
             end
         end
     end
+
+    # If Δω is nan then this is an "instantaneous" structure factor, and no
+    # processing of the ω axis is needed.
+    if !isnan(sc.Δω)
+        n_all_ω = size(sc.samplebuf,6)
+        # The usual discrete fourier transform (implemented by FFT) produces an
+        # extensive result. Dividing by n_all_ω makes the result intensive
+        # (i.e., intensity scale becomes independent of the number of ω values).
+        # Additionally dividing by Δω produces a density in ω space. Note that
+        # intensities is already a density in q space.
+        intensities ./= (n_all_ω * sc.Δω)
+    end
+
     return intensities
 end
 

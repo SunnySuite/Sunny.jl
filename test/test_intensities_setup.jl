@@ -95,11 +95,16 @@ end
     sc = dynamical_correlations(sys; dt=1, nω=3, ωmax=1)
     add_sample!(sc, sys)
 
-    # A simple sum (rather than energy-integral) is possible because a `Δω`
-    # factor is already included in the intensity data. This convention will
-    # change per https://github.com/SunnySuite/Sunny.jl/issues/264
     sum_rule_ixs = Sunny.Trace(sc.observables).indices
-    sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:],dims = [1,4,5,6,7])[1,:,:,1,1,1,1]
+    sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:], dims=[1,4,5,6,7])[1,:,:,1,1,1,1]
+
+    Δq³ = 1/prod(sys.latsize) # Fraction of a BZ
+    n_all_ω = size(sc.data, 7)
+    # Intensities in sc.data are a density in q, but already integrated over dω
+    # bins, and then scaled by n_all_ω. Therefore, we need the factor below to
+    # convert the previous sum to an integral. (See same logic in
+    # intensities_interpolated function.)
+    sub_lat_sum_rules .*= Δq³ / n_all_ω
 
     # SU(N) sum rule for S = 1/2:
     # ⟨∑ᵢSᵢ²⟩ = 3/4 on every site, but because we're classical, we
@@ -108,10 +113,10 @@ end
     # need to include the g factor. This is the equal-space-and-time correlation value:
     gS_squared = (2 * 1/2)^2
 
-    expected_sum = gS_squared * prod(sys.latsize)
+    expected_sum = gS_squared
     # This sum rule should hold for each sublattice, independently, and only
     # need to be taken over a single BZ (which is what sc.data contains) to hold:
-    @test [sub_lat_sum_rules[i,i] for i = 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
+    @test [sub_lat_sum_rules[i,i] for i in 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
 
     formula = intensity_formula(sc,:trace)
     # The polyatomic sum rule demands going out 4 BZ's for the diamond crystal
@@ -132,5 +137,5 @@ end
     is, counts = intensities_binned(sc,params_pasr,formula)
     expected_multi_BZ_sum = gS_squared * prod(nbzs) * nfs # ⟨S⋅S⟩
     expected_multi_BZ_sum_times_natoms = expected_multi_BZ_sum * Sunny.natoms(sc.crystal) # Nₐ×⟨S⋅S⟩
-    @test sum(is ./ counts) ≈ expected_multi_BZ_sum_times_natoms / size(sc.data,7)
+    @test sum(is) ≈ expected_multi_BZ_sum_times_natoms
 end

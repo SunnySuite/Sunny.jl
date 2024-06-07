@@ -89,6 +89,6 @@ disp_swt, intens_swt = intensities_bands(swt, path, formula);
 fig = Figure()
 ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (r.l.u.)",
           xticks, xticklabelrotation=π/10)
-heatmap!(ax, 1:size(data, 1), available_energies(sc), data;  colorrange=(0.0, 0.8))
+heatmap!(ax, 1:size(data, 1), available_energies(sc), data;  colorrange=(0.0, 50.0))
 lines!(ax, disp_swt[:,1]; color=:magenta, linewidth=2)
 fig

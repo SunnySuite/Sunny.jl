@@ -7,7 +7,7 @@ initialized by calling either [`dynamical_correlations`](@ref) or
 """
 struct SampledCorrelations{N}
     # 𝒮^{αβ}(q,ω) data and metadata
-    data           :: Array{ComplexF64, 7}                 # Raw SF data for 1st BZ (numcorrelations × natoms × natoms × latsize × energy)
+    data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × latsize × nω)
     M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
     crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
     origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
@@ -15,9 +15,12 @@ struct SampledCorrelations{N}
     observables    :: ObservableInfo
 
     # Specs for sample generation and accumulation
-    samplebuf    :: Array{ComplexF64, 6}   # New sample buffer
-    space_fft!   :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
-    time_fft!    :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
+    samplebuf    :: Array{ComplexF64, 6}   # Buffer for observables (nobservables × latsize × natoms × nsnapshots)
+    corrbuf      :: Array{ComplexF64, 4}   # Buffer for correlations (latsize × nω)
+    space_fft!   :: FFTW.AbstractFFTs.Plan # Pre-planned FFT for samplebuf
+    time_fft!    :: FFTW.AbstractFFTs.Plan # Pre-planned FFT for samplebuf
+    corr_fft!    :: FFTW.AbstractFFTs.Plan # Pre-planned FFT for corrbuf
+    corr_ifft!   :: FFTW.AbstractFFTs.Plan
     measperiod   :: Int                    # Steps to skip between saving observables (downsampling for dynamical calcs)
     apply_g      :: Bool                   # Whether to apply the g-factor
     dt           :: Float64                # Step size for trajectory integration 
@@ -55,13 +58,14 @@ Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(
 
 function clone_correlations(sc::SampledCorrelations{N}) where N
     dims = size(sc.data)[2:4]
-    n_all_ω = size(sc.data, 7)
     # Avoid copies/deep copies of C-generated data structures
-    space_fft! = 1/√(prod(dims)) * FFTW.plan_fft!(sc.samplebuf, (2,3,4))
-    time_fft! = 1/√(n_all_ω) * FFTW.plan_fft!(sc.samplebuf, 6)
+    space_fft! = 1/√prod(dims) * FFTW.plan_fft!(sc.samplebuf, (2,3,4))
+    time_fft! = FFTW.plan_fft!(sc.samplebuf, 6)
+    corr_fft! = FFTW.plan_fft!(sc.corrbuf, 4)
+    corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations{N}(copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
-        deepcopy(sc.observables), copy(sc.samplebuf), space_fft!, time_fft!, sc.measperiod, sc.apply_g, sc.dt,
+        deepcopy(sc.observables), copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!, sc.measperiod, sc.apply_g, sc.dt,
         copy(sc.nsamples), sc.processtraj!)
 end
 
@@ -166,16 +170,22 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
 
     # The sample buffer holds n_non_neg_ω measurements, and the rest is a zero buffer
     samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, n_all_ω)
+    corrbuf = zeros(ComplexF64, sys.latsize..., n_all_ω)
 
     # The output data has n_all_ω many (positive and negative and zero) frequencies
     data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., n_all_ω)
     M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
-    # The normalization is defined so that structure factor estimates of form
-    # ifft(fft * fft) carry an overall scaling factor consistent with this spec:
-    # https://github.com/SunnySuite/Sunny.jl/issues/264 (subject to change).
-    space_fft! = 1/√(prod(sys.latsize)) * FFTW.plan_fft!(samplebuf, (2,3,4))
-    time_fft! = 1/√(n_all_ω) * FFTW.plan_fft!(samplebuf, 6)
+    # The normalization is defined so that the prod(sys.latsize)-many estimates
+    # of the structure factor produced by the correlation conj(space_fft!) * space_fft!
+    # are correctly averaged over. The corresponding time-average can't be applied in
+    # the same way because the number of estimates varies with Δt. These conventions
+    # ensure consistency with this spec:
+    # https://sunnysuite.github.io/Sunny.jl/dev/structure-factor.html
+    space_fft! = 1/√prod(sys.latsize) * FFTW.plan_fft!(samplebuf, (2,3,4))
+    time_fft! = FFTW.plan_fft!(samplebuf, 6)
+    corr_fft! = FFTW.plan_fft!(corrbuf, 4)
+    corr_ifft! = FFTW.plan_ifft!(corrbuf, 4)
 
     # Other initialization
     nsamples = Int64[0]
@@ -183,7 +193,7 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
     sc = SampledCorrelations{N}(data, M, sys.crystal, origin_crystal, Δω, observables,
-                                samplebuf, space_fft!, time_fft!, measperiod, apply_g, dt, nsamples, process_trajectory)
+                                samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!, measperiod, apply_g, dt, nsamples, process_trajectory)
 
     return sc
 end

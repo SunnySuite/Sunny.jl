@@ -60,20 +60,12 @@ function new_sample!(sc::SampledCorrelations, sys::System)
     return nothing
 end
 
-
-function subtract_mean!(sc::SampledCorrelations)
-    (; samplebuf) = sc
-    nsteps = size(samplebuf, 6)
-    meanvals = sum(samplebuf, dims=6) ./ nsteps
-    samplebuf .-= meanvals
-end
-
 function no_processing(::SampledCorrelations)
     nothing
 end
 
 function accum_sample!(sc::SampledCorrelations; window)
-    (; data, M, observables, samplebuf, nsamples, space_fft!, time_fft!) = sc
+    (; data, M, observables, samplebuf, corrbuf, nsamples, space_fft!, time_fft!, corr_fft!, corr_ifft!) = sc
     natoms = size(samplebuf)[5]
 
     num_time_offsets = size(samplebuf,6)
@@ -122,22 +114,24 @@ function accum_sample!(sc::SampledCorrelations; window)
         # According to Sunny convention, the correlation is between
         # α† and β. This conjugation implements both the dagger on the α
         # as well as the appropriate spacetime offsets of the correlation.
-        corr = FFTW.ifft(conj.(sample_α) .* sample_β,4) ./ n_contrib
+        @. corrbuf = conj(sample_α) * sample_β
+        corr_ifft! * corrbuf
+        corrbuf ./= n_contrib
 
         if window == :cosine
           # Apply a cosine windowing to force the correlation at Δt=±(T-1) to be zero
           # to force periodicity. In terms of the spectrum S(ω), this applys a smoothing
           # with a characteristic lengthscale of O(1) frequency bins.
           window_func = cos.(range(0,π,length = num_time_offsets + 1)[1:end-1]).^2
-          corr .*= reshape(window_func,1,1,1,num_time_offsets)
+          corrbuf .*= reshape(window_func,1,1,1,num_time_offsets)
         end
 
-        FFTW.fft!(corr,4)
+        corr_fft! * corrbuf
 
         if isnothing(M)
             for k in eachindex(databuf)
                 # Store the diff for one complex number on the stack.
-                diff = corr[k] - databuf[k]
+                diff = corrbuf[k] - databuf[k]
 
                 # Accumulate into running average
                 databuf[k] += diff * (1/count)
@@ -149,15 +143,14 @@ function accum_sample!(sc::SampledCorrelations; window)
                 μ_old = databuf[k]
 
                 # Update running mean.
-                matrixelem = sample_α[k] * conj(sample_β[k])
-                databuf[k] += (matrixelem - databuf[k]) * (1/count)
+                databuf[k] += (corrbuf[k] - databuf[k]) / count
                 μ = databuf[k]
 
                 # Update variance estimate.
                 # Note that the first term of `diff` is real by construction
                 # (despite appearances), but `real` is explicitly called to
                 # avoid automatic typecasting errors caused by roundoff.
-                Mbuf[k] += real((matrixelem - μ_old)*conj(matrixelem - μ))
+                Mbuf[k] += real((corrbuf[k] - μ_old)*conj(corrbuf[k] - μ))
             end
         end
     end
