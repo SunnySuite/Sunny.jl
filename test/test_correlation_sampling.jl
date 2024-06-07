@@ -37,7 +37,7 @@
     Δω = sc.Δω
     add_sample!(sc, sys)
     qgrid = available_wave_vectors(sc)
-    Δq³ = 1/prod(sys.latsize) # Spacing between available wave vectors
+    Δq³ = 1/prod(sys.latsize) # Fraction of a BZ for one cell
     formula = intensity_formula(sc,:trace)
     Sqw = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
     expected_sum_rule = Sunny.norm2(sys.dipoles[1]) # S^2 classical sum rule
@@ -161,6 +161,6 @@ end
     # println(round.(data; digits=10))
 
     # Compare with reference
-    data_golden = (1/sc.Δω) .* [0.9264336057 1.6408721819 -0.0 -0.0 -0.0 -0.0 -0.0 0.0 0.0 0.0; 0.0252093265 0.0430096149 0.6842894708 2.9288686 4.4296891436 5.546520481 5.2442499151 1.4849591286 -0.1196709189 0.0460970304]
+    data_golden = [1.5688306301 2.7786670553 0.0 -0.0 -0.0 -0.0 0.0 0.0 0.0 0.0; 0.0426896901 0.0728328515 1.158781671 4.9597712594 7.5012736668 9.3925254521 8.880657878 2.5146425508 -0.2026517626 0.0780611074]
     @test data ≈ data_golden
 end

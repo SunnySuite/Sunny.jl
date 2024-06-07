@@ -205,5 +205,5 @@ heatmap(radii, ωs, output;
         ylabel="Energy Transfer (meV)", 
         aspect = 1.4,
     ),
-    colorrange = (0, 20.0) 
+    colorrange = (0, 20.0)
 )

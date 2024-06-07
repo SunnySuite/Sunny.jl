@@ -150,15 +150,6 @@ function intensities_interpolated(sc::SampledCorrelations, qs, formula::Classica
     # Call type-stable version of the function
     intensities_interpolated!(intensities, sc, qs, ωvals, interp, formula, stencil_info, Val(return_type))
 
-    # `intensities` is in units of S²/BZ/fs, but we want to convert it to S²/R.L.U./meV.
-    # The conversion factor from BZ→R.L.U. is 1 because one BZ of the Bravais lattice is [0,1]³.
-    if !isnan(sc.Δω)
-      # If there is a frequency axis, we need to convert 1/fs→1/meV.
-      # The conversion factor is:
-      meV_per_fs = 1/(size(sc.samplebuf,6) * sc.Δω)
-      intensities .*= meV_per_fs
-    end
-
     return intensities
 end
 
@@ -186,6 +177,19 @@ function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targe
             end
         end
     end
+
+    # If Δω is nan then this is an "instantaneous" structure factor, and no
+    # processing of the ω axis is needed.
+    if !isnan(sc.Δω)
+        n_all_ω = size(sc.samplebuf,6)
+        # The usual discrete fourier transform (implemented by FFT) produces an
+        # extensive result. Dividing by n_all_ω makes the result intensive
+        # (i.e., intensity scale becomes independent of the number of ω values).
+        # Additionally dividing by Δω produces a density in ω space. Note that
+        # intensities is already a density in q space.
+        intensities ./= (n_all_ω * sc.Δω)
+    end
+
     return intensities
 end
 

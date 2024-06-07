@@ -96,10 +96,15 @@ end
     add_sample!(sc, sys)
 
     sum_rule_ixs = Sunny.Trace(sc.observables).indices
-    sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:],dims = [1,4,5,6,7])[1,:,:,1,1,1,1]
-    # Since sc.data is in units of S²/BZ/fs, each entry is already an estimate of S².
-    # To get the frequency-averaged estimate, we need to divide by the number of estimators:
-    sub_lat_sum_rules ./= prod(size(sc.data)[[4,5,6,7]])
+    sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:], dims=[1,4,5,6,7])[1,:,:,1,1,1,1]
+
+    Δq³ = 1/prod(sys.latsize) # Fraction of a BZ for one cell
+    n_all_ω = size(sc.data, 7)
+    # Intensities in sc.data are a density in q, but already integrated over dω
+    # bins, and then scaled by n_all_ω. Therefore, we need the factor below to
+    # convert the previous sum to an integral. (See same logic in
+    # intensities_interpolated function.)
+    sub_lat_sum_rules .*= Δq³ / n_all_ω
 
     # SU(N) sum rule for S = 1/2:
     # ⟨∑ᵢSᵢ²⟩ = 3/4 on every site, but because we're classical, we
@@ -111,7 +116,7 @@ end
     expected_sum = gS_squared
     # This sum rule should hold for each sublattice, independently, and only
     # need to be taken over a single BZ (which is what sc.data contains) to hold:
-    @test [sub_lat_sum_rules[i,i] for i = 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
+    @test [sub_lat_sum_rules[i,i] for i in 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
 
     formula = intensity_formula(sc,:trace)
     # The polyatomic sum rule demands going out 4 BZ's for the diamond crystal

@@ -7,7 +7,7 @@ initialized by calling either [`dynamical_correlations`](@ref) or
 """
 struct SampledCorrelations{N}
     # 𝒮^{αβ}(q,ω) data and metadata
-    data           :: Array{ComplexF64, 7}                 # Raw SF data for 1st BZ (numcorrelations × natoms × natoms × latsize × energy)
+    data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × latsize × nω)
     M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
     crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
     origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
@@ -15,12 +15,12 @@ struct SampledCorrelations{N}
     observables    :: ObservableInfo
 
     # Specs for sample generation and accumulation
-    samplebuf    :: Array{ComplexF64, 6}   # New sample buffer
-    corrbuf      :: Array{ComplexF64, 4}   # Buffer for real-time correlations 
-    space_fft!   :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
-    time_fft!    :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
-    corr_fft!    :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
-    corr_ifft!   :: FFTW.AbstractFFTs.Plan # Pre-planned FFT
+    samplebuf    :: Array{ComplexF64, 6}   # Buffer for observables (nobservables × latsize × natoms × nsnapshots)
+    corrbuf      :: Array{ComplexF64, 4}   # Buffer for correlations (latsize × nω)
+    space_fft!   :: FFTW.AbstractFFTs.Plan # Pre-planned FFT for samplebuf
+    time_fft!    :: FFTW.AbstractFFTs.Plan # Pre-planned FFT for samplebuf
+    corr_fft!    :: FFTW.AbstractFFTs.Plan # Pre-planned FFT for corrbuf
+    corr_ifft!   :: FFTW.AbstractFFTs.Plan
     measperiod   :: Int                    # Steps to skip between saving observables (downsampling for dynamical calcs)
     apply_g      :: Bool                   # Whether to apply the g-factor
     dt           :: Float64                # Step size for trajectory integration 
@@ -58,9 +58,8 @@ Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(
 
 function clone_correlations(sc::SampledCorrelations{N}) where N
     dims = size(sc.data)[2:4]
-    n_all_ω = size(sc.data, 7)
     # Avoid copies/deep copies of C-generated data structures
-    space_fft! = 1/√(prod(dims)) * FFTW.plan_fft!(sc.samplebuf, (2,3,4))
+    space_fft! = 1/√prod(dims) * FFTW.plan_fft!(sc.samplebuf, (2,3,4))
     time_fft! = FFTW.plan_fft!(sc.samplebuf, 6)
     corr_fft! = FFTW.plan_fft!(sc.corrbuf, 4)
     corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
@@ -183,7 +182,7 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     # the same way because the number of estimates varies with Δt. These conventions
     # ensure consistency with this spec:
     # https://sunnysuite.github.io/Sunny.jl/dev/structure-factor.html
-    space_fft! = 1/√(prod(sys.latsize)) * FFTW.plan_fft!(samplebuf, (2,3,4))
+    space_fft! = 1/√prod(sys.latsize) * FFTW.plan_fft!(samplebuf, (2,3,4))
     time_fft! = FFTW.plan_fft!(samplebuf, 6)
     corr_fft! = FFTW.plan_fft!(corrbuf, 4)
     corr_ifft! = FFTW.plan_ifft!(corrbuf, 4)

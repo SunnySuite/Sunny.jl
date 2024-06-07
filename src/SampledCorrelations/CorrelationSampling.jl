@@ -60,14 +60,6 @@ function new_sample!(sc::SampledCorrelations, sys::System)
     return nothing
 end
 
-
-function subtract_mean!(sc::SampledCorrelations)
-    (; samplebuf) = sc
-    nsteps = size(samplebuf, 6)
-    meanvals = sum(samplebuf, dims=6) ./ nsteps
-    samplebuf .-= meanvals
-end
-
 function no_processing(::SampledCorrelations)
     nothing
 end
