@@ -212,7 +212,7 @@ function broaden_energy(sc::SampledCorrelations, is, kernel::Function; negative_
     for (ω₀i, ω₀) in enumerate(ωvals)
         for (ωi, ω) in enumerate(ωvals)
             for qi in CartesianIndices(dims[1:end-1])
-                out[qi,ωi] += is[qi,ω₀i]*kernel(ω, ω₀)
+                out[qi,ωi] += is[qi,ω₀i]*kernel(ω, ω₀)*sc.Δω
             end
         end
     end
