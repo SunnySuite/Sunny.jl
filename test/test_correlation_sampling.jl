@@ -37,7 +37,7 @@
     Δω = sc.Δω
     add_sample!(sc, sys)
     qgrid = available_wave_vectors(sc)
-    Δq³ = 1/prod(sys.latsize) # Fraction of a BZ for one cell
+    Δq³ = 1/prod(sys.latsize) # Fraction of a BZ
     formula = intensity_formula(sc,:trace)
     Sqw = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
     expected_sum_rule = Sunny.norm2(sys.dipoles[1]) # S^2 classical sum rule

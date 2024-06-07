@@ -98,7 +98,7 @@ end
     sum_rule_ixs = Sunny.Trace(sc.observables).indices
     sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:], dims=[1,4,5,6,7])[1,:,:,1,1,1,1]
 
-    Δq³ = 1/prod(sys.latsize) # Fraction of a BZ for one cell
+    Δq³ = 1/prod(sys.latsize) # Fraction of a BZ
     n_all_ω = size(sc.data, 7)
     # Intensities in sc.data are a density in q, but already integrated over dω
     # bins, and then scaled by n_all_ω. Therefore, we need the factor below to
