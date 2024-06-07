@@ -61,7 +61,7 @@ function clone_correlations(sc::SampledCorrelations{N}) where N
     n_all_ω = size(sc.data, 7)
     # Avoid copies/deep copies of C-generated data structures
     space_fft! = 1/√(prod(dims)) * FFTW.plan_fft!(sc.samplebuf, (2,3,4))
-    time_fft! = 1/√(n_all_ω) * FFTW.plan_fft!(sc.samplebuf, 6)
+    time_fft! = FFTW.plan_fft!(sc.samplebuf, 6)
     corr_fft! = FFTW.plan_fft!(sc.corrbuf, 4)
     corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
@@ -177,11 +177,14 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., n_all_ω)
     M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
-    # The normalization is defined so that structure factor estimates of form
-    # ifft(fft * fft) carry an overall scaling factor consistent with this spec:
-    # https://github.com/SunnySuite/Sunny.jl/issues/264 (subject to change).
+    # The normalization is defined so that the prod(sys.latsize)-many estimates
+    # of the structure factor produced by the correlation conj(space_fft!) * space_fft!
+    # are correctly averaged over. The corresponding time-average can't be applied in
+    # the same way because the number of estimates varies with Δt. These conventions
+    # ensure consistency with this spec:
+    # https://sunnysuite.github.io/Sunny.jl/dev/structure-factor.html
     space_fft! = 1/√(prod(sys.latsize)) * FFTW.plan_fft!(samplebuf, (2,3,4))
-    time_fft! = 1/√(n_all_ω) * FFTW.plan_fft!(samplebuf, 6)
+    time_fft! = FFTW.plan_fft!(samplebuf, 6)
     corr_fft! = FFTW.plan_fft!(corrbuf, 4)
     corr_ifft! = FFTW.plan_ifft!(corrbuf, 4)
 

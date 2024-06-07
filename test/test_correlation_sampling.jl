@@ -37,13 +37,14 @@
     Δω = sc.Δω
     add_sample!(sc, sys)
     qgrid = available_wave_vectors(sc)
+    Δq³ = 1/prod(sys.latsize) # Spacing between available wave vectors
     formula = intensity_formula(sc,:trace)
     Sqw = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
-    # A simple sum (rather than energy-integral) is possible because a `Δω`
-    # factor is already included in the Sqw intensity data. This convention will
-    # change per https://github.com/SunnySuite/Sunny.jl/issues/264
-    expected_sum_rule = prod(sys.latsize) * Sunny.norm2(sys.dipoles[1]) # NS^2 classical sum rule
-    @test isapprox(sum(Sqw) * Δω, expected_sum_rule; atol=1e-12)
+    expected_sum_rule = Sunny.norm2(sys.dipoles[1]) # S^2 classical sum rule
+    @test isapprox(sum(Sqw) * Δq³ * Δω, expected_sum_rule; atol=1e-12)
+    params = unit_resolution_binning_parameters(sc;negative_energies=true)
+    Sqw_integrated, counts = intensities_binned(sc, params, formula)
+    @test isapprox(sum(Sqw_integrated), expected_sum_rule; atol=1e-12)
 
     # Test sum rule with default observables in dipole mode 
     sys = simple_model_fcc(; mode=:dipole)
@@ -53,8 +54,12 @@
     trace_formula = intensity_formula(sc,:trace)
     Sqw = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
     total_intensity_trace = sum(Sqw)
-    expected_sum_rule = prod(sys.latsize) * Sunny.norm2(sys.dipoles[1]) # NS^2 classical sum rule
-    @test isapprox(sum(Sqw) * Δω, expected_sum_rule; atol=1e-12)
+    expected_sum_rule = Sunny.norm2(sys.dipoles[1]) # S^2 classical sum rule
+    @test isapprox(sum(Sqw) * Δq³ * Δω, expected_sum_rule; atol=1e-12)
+    # Test binned version doesn't require ΔqΔω measure
+    params = unit_resolution_binning_parameters(sc;negative_energies=true)
+    Sqw_integrated, counts = intensities_binned(sc, params, trace_formula)
+    @test isapprox(sum(Sqw_integrated), expected_sum_rule; atol=1e-12)
 
     # Test perp reduces intensity
     perp_formula = intensity_formula(sc,:perp)

@@ -150,9 +150,14 @@ function intensities_interpolated(sc::SampledCorrelations, qs, formula::Classica
     # Call type-stable version of the function
     intensities_interpolated!(intensities, sc, qs, ωvals, interp, formula, stencil_info, Val(return_type))
 
-    # Dynamical structure factor should be a density in energy. If isnan(sc.Δω),
-    # then this is an instantaneous correlation instead.
-    intensities ./= isnan(sc.Δω) ? 1.0 : sc.Δω
+    # `intensities` is in units of S²/BZ/fs, but we want to convert it to S²/R.L.U./meV.
+    # The conversion factor from BZ→R.L.U. is 1 because one BZ of the Bravais lattice is [0,1]³.
+    if !isnan(sc.Δω)
+      # If there is a frequency axis, we need to convert 1/fs→1/meV.
+      # The conversion factor is:
+      meV_per_fs = 1/(size(sc.samplebuf,6) * sc.Δω)
+      intensities .*= meV_per_fs
+    end
 
     return intensities
 end
