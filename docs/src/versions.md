@@ -3,12 +3,17 @@
 ## v0.6.0
 (In progress)
 
-* Various correctness fixes. Direction of magnetic moment and direction of time
-  in LL dynamics ([PR 247](https://github.com/SunnySuite/Sunny.jl/pull/247)).
-  Direction of momentum transfer ([PR
-  271](https://github.com/SunnySuite/Sunny.jl/pull/271)). Dynamical structure
-  factor intensity now a proper energy density ([PR
-  272](https://github.com/SunnySuite/Sunny.jl/pull/272)); consequently, color
+* Various correctness fixes. The magnetic moment is now anti-aligned with the
+  spin dipole ([Issue 190](https://github.com/SunnySuite/Sunny.jl/issues/190)),
+  and the wavevector $𝐪$ in structure factor intensities $\mathcal{S}(𝐪,ω)$
+  now consistently represents momentum transfer _to_ the sample ([Issue
+  270](https://github.com/SunnySuite/Sunny.jl/issues/270)). The new [Example
+  8](@ref "8. Momentum transfer conventions") demonstrates a model system where
+  momentum transfers $±𝐪$ are inequivalent.
+* Dynamical structure factor intensities now have a [precisely defined
+  scale](@ref "Conventions for the Sunny-calculated structure factor"),
+  independent of the calculator ([Issue
+  264](https://github.com/SunnySuite/Sunny.jl/issues/264)). Consequently, color
   ranges in plots may need to be rescaled.
 
 ## v0.5.11
@@ -36,9 +41,9 @@
   full width at half maximum (`fwhm`) keyword argument.
 * Experimental support for calculations on generalized spiral phases. For an
   example, see the ported [SpinW tutorial 18](@ref "SW18 - Distorted kagome").
-* Correctness fix for the case where spin-``S`` varies between sites in
-  dipole-mode. In SU(``N``) mode, however, there is still no support for varying
-  the Hilbert space dimension ``N`` between sites.
+* Correctness fix for the case where spin-$S$ varies between sites in
+  dipole-mode. In SU($N$) mode, however, there is still no support for varying
+  the Hilbert space dimension $N$ between sites.
 * Correctness fix in long-range dipole-dipole interactions for systems with
   multiple cells.
 * Correctness fix in general biquadratic interactions (beyond scalar) for spin

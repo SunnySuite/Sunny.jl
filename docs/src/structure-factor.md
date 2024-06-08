@@ -45,7 +45,7 @@ use the convention,
 
 ```math
 \begin{equation}
-C(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-itω} C(𝐪, t) dt.
+C(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} C(𝐪, t) dt.
 \end{equation}
 ```
 
@@ -73,7 +73,7 @@ summation on the repeated $μ$ index. Then, collecting results and applying,
 
 ```math
 \begin{equation}
-\int_{-∞}^{∞} e^{-itω} dt = 2πδ(ω),
+\int_{-∞}^{∞} e^{-iωt} dt = 2πδ(ω),
 \end{equation}
 ```
 
@@ -326,7 +326,7 @@ The structure factor is of central importance to neutron scattering,
 
 ```math
 \begin{equation}
-\mathcal{S}^{αβ}(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-itω} ⟨\hat{M}_𝐪^{α†}(0) \hat{M}_𝐪^β(t)⟩ dt,
+\mathcal{S}^{αβ}(𝐪, ω) ≡ \frac{1}{2π} \int_{-∞}^{∞} e^{-iωt} ⟨\hat{M}_𝐪^{α†}(0) \hat{M}_𝐪^β(t)⟩ dt,
 \end{equation}
 ```
 
