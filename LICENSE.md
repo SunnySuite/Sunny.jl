@@ -1,6 +1,7 @@
 MIT License
 
-Copyright (c) 2021-2022: Cole Miles, Kipton Barros, Matthew Wilson, David Dahlbohm, and other contributors: https://github.com/SunnySuite/Sunny.jl/graphs/contributors
+Copyright (c) 2021-2024: Sunny contributors,
+https://github.com/SunnySuite/Sunny.jl/graphs/contributors
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
