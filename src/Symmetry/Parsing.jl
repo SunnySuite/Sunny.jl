@@ -181,13 +181,13 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         return crystal_from_symops(latvecs, positions, labels, symmetries, spacegroup; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
-        return Crystal(latvecs, positions, hall_symbol; labels, symprec)
+        return Crystal(latvecs, positions, hall_symbol; types=labels, symprec)
     elseif !isnothing(groupnum)
         # Use symmetries for international group number
-        return Crystal(latvecs, positions, groupnum; labels, symprec)
+        return Crystal(latvecs, positions, groupnum; types=labels, symprec)
     else
         # Infer the symmetries automatically, trusting that distinct CIF labels
         # correspond to symmetry-inequivalent sites.
-        return Crystal(latvecs, positions; labels, symprec)
+        return Crystal(latvecs, positions; types=labels, symprec)
     end
 end

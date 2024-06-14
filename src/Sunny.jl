@@ -32,6 +32,7 @@ export spin_matrices, stevens_matrices, to_product_space, rotate_operator, print
 
 include("Symmetry/LatticeUtils.jl")
 include("Symmetry/SymOp.jl")
+include("Symmetry/MSymOp.jl")
 include("Symmetry/Crystal.jl")
 include("Symmetry/Bond.jl")
 include("Symmetry/SymmetryAnalysis.jl")

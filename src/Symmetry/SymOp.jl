@@ -6,8 +6,10 @@ struct SymOp
     T :: Vec3
 end
 
+SymOp(str::AbstractString) = parse_op(str)
+
 function Base.show(io::IO, s::SymOp)
-    print(io, repr(parse_op), "(\"")
+    print(io, repr(SymOp), "(\"")
     show(io, "text/plain", s)
     print(io, "\")")
 end
