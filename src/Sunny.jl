@@ -75,6 +75,8 @@ export minimize_energy!
 include("FormFactor.jl")
 export FormFactor
 
+include("MCIF.jl")
+
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
 include("SpinWaveTheory/HamiltonianSUN.jl")
