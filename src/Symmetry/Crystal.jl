@@ -174,6 +174,13 @@ function sort_sites!(cryst::Crystal)
     cryst.types .= cryst.types[perm]
 end
 
+function conventionalize(cryst::Crystal)
+    (; latvecs, positions, types, symprec) = cryst
+    cell = Spglib.Cell(latvecs, positions, types)
+    d = Spglib.get_dataset(cell, symprec)
+    (; std_lattice, std_positions, std_types) = d
+    return crystal_from_inferred_symmetry(Mat3(std_lattice), std_positions, unique(types)[std_types]; symprec)
+end
 
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5, check_cell=true)
     # Print a warning if non-conventional lattice vectors are detected.
