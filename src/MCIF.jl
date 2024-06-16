@@ -24,11 +24,10 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
                  """)
     end
 
-    sym_header = "_space_group_symop.magn_operation_xyz"
+    sym_header = findfirstval(in(keys(cif)), ("_space_group_symop.magn_operation_xyz", "_space_group_symop_magn_operation.xyz"))
     sym_table = CIF.get_loop(cif, sym_header)
     magn_operations = MSymOp.(sym_table[:, sym_header])
-
-    sym_header = "_space_group_symop.magn_centering_xyz"
+    sym_header = findfirstval(in(keys(cif)), ("_space_group_symop.magn_centering_xyz", "_space_group_symop_magn_centering.xyz"))
     sym_table = CIF.get_loop(cif, sym_header)
     magn_centerings = MSymOp.(sym_table[:, sym_header])
 

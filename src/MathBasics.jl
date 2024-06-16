@@ -55,3 +55,9 @@ function tracelesspart(A)
     @assert allequal(size(A))
     return A - tr(A) * I / size(A,1)
 end
+
+# https://github.com/JuliaLang/julia/issues/44996
+function findfirstval(f, a)
+    i = findfirst(f, a)
+    return isnothing(i) ? nothing : a[i]
+end

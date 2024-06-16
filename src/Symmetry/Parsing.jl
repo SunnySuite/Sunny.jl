@@ -130,11 +130,25 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         end
     end
 
-    symmetries = nothing
-    for sym_header in ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
-        if sym_header in keys(cif)
+    symops = nothing
+    sym_header = findfirstval(in(keys(cif)), ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz"))
+    if !isnothing(sym_header)
+        sym_table = CIF.get_loop(cif, sym_header)
+        symops = parse_op.(sym_table[:, sym_header])
+    end
+
+    # If symop table is missing, attempt to parse magnetic symops
+    if isnothing(symops)
+        sym_header = findfirstval(in(keys(cif)), ("_space_group_symop.magn_operation_xyz", "_space_group_symop_magn_operation.xyz"))
+        if !isnothing(sym_header)
+            println("Using: ", sym_header)
             sym_table = CIF.get_loop(cif, sym_header)
-            symmetries = parse_op.(sym_table[:, sym_header])
+            println("Found: ", sym_table[:, sym_header])
+            operations = MSymOp.(sym_table[:, sym_header])
+            sym_header = findfirstval(in(keys(cif)), ("_space_group_symop.magn_centering_xyz", "_space_group_symop_magn_centering.xyz"))
+            sym_table = CIF.get_loop(cif, sym_header)
+            centerings = MSymOp.(sym_table[:, sym_header])
+            symops = vec([remove_parity(m1*m2) for m1 in operations, m2 in centerings])
         end
     end
 
@@ -171,23 +185,24 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         end
     end
 
-    if override_symmetry
-        # Ignore all symmetry data in the CIF. The use of atom `types` (not site
-        # `labels`) is necessary to allow merging of distinct labels into a
-        # single symmetry-equivalent site.
-        return Crystal(latvecs, positions; types, symprec)
-    elseif !isnothing(symmetries)
+    # If we're overriding symmetry, then distinct labels may need to be merged
+    # into equivalent sites.
+    classes = override_symmetry ? types : labels
+
+    ret = if !isnothing(symops)
         # Use explicitly provided symmetries
-        return crystal_from_symops(latvecs, positions, labels, symmetries, spacegroup; symprec)
+        crystal_from_symops(latvecs, positions, classes, symops, spacegroup; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
-        return Crystal(latvecs, positions, hall_symbol; types=labels, symprec)
+        Crystal(latvecs, positions, hall_symbol; types=classes, symprec)
     elseif !isnothing(groupnum)
         # Use symmetries for international group number
-        return Crystal(latvecs, positions, groupnum; types=labels, symprec)
+        Crystal(latvecs, positions, groupnum; types=classes, symprec)
     else
-        # Infer the symmetries automatically, trusting that distinct CIF labels
-        # correspond to symmetry-inequivalent sites.
-        return Crystal(latvecs, positions; types=labels, symprec)
+        # Infer the symmetries automatically, while allowing `classes` to
+        # distinguish symmetry-inequivalent sites.
+        Crystal(latvecs, positions; types=classes, symprec)
     end
+
+    return override_symmetry ? conventionalize(ret) : ret
 end
