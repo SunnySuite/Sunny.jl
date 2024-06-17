@@ -218,5 +218,5 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         Crystal(latvecs, positions; types=classes, symprec)
     end
 
-    return override_symmetry ? conventionalize(ret) : ret
+    return override_symmetry ? standardize(ret) : ret
 end

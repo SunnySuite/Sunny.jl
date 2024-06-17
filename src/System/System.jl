@@ -267,10 +267,13 @@ volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
 # may, however, be a subcrystal of `orig_crystal(sys).root`.
 orig_crystal(sys) = something(sys.origin, sys).crystal
 
-# Position of a site in fractional coordinates of the original crystal
-function position(sys::System, site)
-    return orig_crystal(sys).latvecs \ global_position(sys, site)
-end
+"""
+    position(sys::System, site::Site)
+
+Position of a [`Site`](@ref) in units of lattice vectors for the original
+crystal.
+"""
+position(sys::System, site) = orig_crystal(sys).latvecs \ global_position(sys, site)
 
 """
     position_to_site(sys::System, r)

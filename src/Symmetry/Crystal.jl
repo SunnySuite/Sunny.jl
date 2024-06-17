@@ -10,11 +10,14 @@ An object describing a crystallographic unit cell and its space group symmetry.
 Constructors are as follows:
 
 
-    Crystal(filename; symprec=1e-5)
+    Crystal(filename; override_symmetry=false, symprec=nothing)
 
-Reads the crystal from a `.cif` file located at the path `filename`.  The
-optional parameter `symprec` controls the precision tolerance for spacegroup
-symmetries.
+Reads the crystal from a `.cif` file located at the path `filename`. If
+`override_symmetry=true`, the spacegroup will be inferred based on atom
+positions and the return value will be a standardized chemical unit cell. For an
+mcif file, the return value is the magnetic supercell, unless
+`override_symmetry=true`. If a precision for spacegroup symmetries cannot be
+inferred from the cif file, it must be specified with `symprec`.
 
     Crystal(latvecs, positions; types=nothing, symprec=1e-5)
 
@@ -174,12 +177,23 @@ function sort_sites!(cryst::Crystal)
     cryst.types .= cryst.types[perm]
 end
 
-function conventionalize(cryst::Crystal)
+"""
+    standardize(cryst::Crystal)
+
+Return the standardized crystal unit cell, with idealization of the lattice
+vectors and site positions. See "definitions and conventions" of the [spglib
+documentation](https://spglib.readthedocs.io/en/stable/) for more information.
+"""
+function standardize(cryst::Crystal)
     (; latvecs, positions, types, symprec) = cryst
     cell = Spglib.Cell(latvecs, positions, types)
     d = Spglib.get_dataset(cell, symprec)
     (; std_lattice, std_positions, std_types) = d
-    return crystal_from_inferred_symmetry(Mat3(std_lattice), std_positions, unique(types)[std_types]; symprec)
+    # Sort atoms to make types contiguous
+    P = sortperm(std_types)
+    new_positions = std_positions[P]
+    new_types = unique(types)[std_types[P]]
+    return crystal_from_inferred_symmetry(Mat3(std_lattice), new_positions, new_types; symprec)
 end
 
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5, check_cell=true)
