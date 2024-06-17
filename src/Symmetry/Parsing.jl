@@ -139,15 +139,22 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
 
     # If symop table is missing, attempt to parse magnetic symops
     if isnothing(symops)
-        sym_header = findfirstval(in(keys(cif)), ("_space_group_symop.magn_operation_xyz", "_space_group_symop_magn_operation.xyz"))
-        if !isnothing(sym_header)
-            println("Using: ", sym_header)
-            sym_table = CIF.get_loop(cif, sym_header)
-            println("Found: ", sym_table[:, sym_header])
-            operations = MSymOp.(sym_table[:, sym_header])
-            sym_header = findfirstval(in(keys(cif)), ("_space_group_symop.magn_centering_xyz", "_space_group_symop_magn_centering.xyz"))
-            sym_table = CIF.get_loop(cif, sym_header)
-            centerings = MSymOp.(sym_table[:, sym_header])
+        oneof(fields...) = findfirstval(in(keys(cif)), fields)
+        # The first entry is the IUCR standard field name. If missing, search for
+        # alternate field names that appear in legacy files.
+        mcif_fields = (;
+            magn_operation_xyz=oneof("_space_group_symop_magn_operation.xyz", "_space_group_symop.magn_operation_xyz"),
+            magn_centering_xyz=oneof("_space_group_symop_magn_centering.xyz", "_space_group_symop.magn_centering_xyz"),
+        )
+        if !isnothing(mcif_fields.magn_operation_xyz)
+            if !override_symmetry
+                @info """Loading crystal as magnetic supercell. Use `override_symmetry=true`
+                         to infer the chemical unit cell and spacegroup from atom positions."""
+            end
+            sym_table = CIF.get_loop(cif, mcif_fields.magn_operation_xyz)
+            operations = MSymOp.(sym_table[:, mcif_fields.magn_operation_xyz])
+            sym_table = CIF.get_loop(cif, mcif_fields.magn_centering_xyz)
+            centerings = MSymOp.(sym_table[:, mcif_fields.magn_centering_xyz])
             symops = vec([remove_parity(m1*m2) for m1 in operations, m2 in centerings])
         end
     end

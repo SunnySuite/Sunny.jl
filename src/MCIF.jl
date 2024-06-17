@@ -24,18 +24,29 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
                  """)
     end
 
-    sym_header = findfirstval(in(keys(cif)), ("_space_group_symop.magn_operation_xyz", "_space_group_symop_magn_operation.xyz"))
-    sym_table = CIF.get_loop(cif, sym_header)
-    magn_operations = MSymOp.(sym_table[:, sym_header])
-    sym_header = findfirstval(in(keys(cif)), ("_space_group_symop.magn_centering_xyz", "_space_group_symop_magn_centering.xyz"))
-    sym_table = CIF.get_loop(cif, sym_header)
-    magn_centerings = MSymOp.(sym_table[:, sym_header])
+    oneof(fields...) = findfirstval(in(keys(cif)), fields)
+    # The first entry is the IUCR standard field name. If missing, search for
+    # alternate field names that appear in legacy files.
+    mcif_fields = (;
+        magn_operation_xyz=oneof("_space_group_symop_magn_operation.xyz", "_space_group_symop.magn_operation_xyz"),
+        magn_centering_xyz=oneof("_space_group_symop_magn_centering.xyz", "_space_group_symop.magn_centering_xyz"),
+        moment_label=oneof("_atom_site_moment.label", "_atom_site_moment_label"),
+        moment_crystalaxis_x=oneof("_atom_site_moment.crystalaxis_x", "_atom_site_moment_crystalaxis_x"),
+        moment_crystalaxis_y=oneof("_atom_site_moment.crystalaxis_y", "_atom_site_moment_crystalaxis_y"),
+        moment_crystalaxis_z=oneof("_atom_site_moment.crystalaxis_z", "_atom_site_moment_crystalaxis_z"),
+    )
 
-    dip_table = CIF.get_loop(cif, "_atom_site_moment_label")
-    labels = String.(dip_table[:, "_atom_site_moment_label"])
-    Mxs = parse_cif_float.(dip_table[:, "_atom_site_moment_crystalaxis_x"])
-    Mys = parse_cif_float.(dip_table[:, "_atom_site_moment_crystalaxis_y"])
-    Mzs = parse_cif_float.(dip_table[:, "_atom_site_moment_crystalaxis_z"])
+    sym_table = CIF.get_loop(cif, mcif_fields.magn_operation_xyz)
+    magn_operations = MSymOp.(sym_table[:, mcif_fields.magn_operation_xyz])
+    sym_table = CIF.get_loop(cif, mcif_fields.magn_centering_xyz)
+    magn_centerings = MSymOp.(sym_table[:, mcif_fields.magn_centering_xyz])
+
+    dip_table = CIF.get_loop(cif, mcif_fields.moment_label)
+    labels = String.(dip_table[:, mcif_fields.moment_label])
+
+    Mxs = parse_cif_float.(dip_table[:, mcif_fields.moment_crystalaxis_x])
+    Mys = parse_cif_float.(dip_table[:, mcif_fields.moment_crystalaxis_y])
+    Mzs = parse_cif_float.(dip_table[:, mcif_fields.moment_crystalaxis_z])
     moments = Vec3.(zip(Mxs, Mys, Mzs))
 
     geom_table = CIF.get_loop(cif, "_atom_site_label")
