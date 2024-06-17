@@ -149,7 +149,7 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         if !isnothing(mcif_fields.magn_operation_xyz)
             if !override_symmetry
                 @info """Loading crystal as magnetic supercell. Use `override_symmetry=true`
-                         to infer the chemical unit cell and spacegroup from atom positions."""
+                         to infer the standard chemical unit cell and parent spacegroup."""
             end
             sym_table = CIF.get_loop(cif, mcif_fields.magn_operation_xyz)
             operations = MSymOp.(sym_table[:, mcif_fields.magn_operation_xyz])
