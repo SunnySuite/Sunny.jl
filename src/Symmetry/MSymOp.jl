@@ -29,5 +29,3 @@ end
 function Base.:*(s1::MSymOp, s2::MSymOp)
     MSymOp(s1.R * s2.R, s1.T + s1.R * s2.T, s1.p*s2.p)
 end
-
-remove_parity(m::MSymOp) = SymOp(m.R, m.T)

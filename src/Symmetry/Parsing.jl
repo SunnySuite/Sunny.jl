@@ -155,7 +155,14 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
             operations = MSymOp.(sym_table[:, mcif_fields.magn_operation_xyz])
             sym_table = CIF.get_loop(cif, mcif_fields.magn_centering_xyz)
             centerings = MSymOp.(sym_table[:, mcif_fields.magn_centering_xyz])
-            symops = vec([remove_parity(m1*m2) for m1 in operations, m2 in centerings])
+            symops = vec([m1*m2 for m1 in operations, m2 in centerings])
+            # In the for comprehension below, we could additionally filter on
+            # `isone(s.p)`. In tests on ZnFe2O4, this modification was needed so
+            # that spglib infers the spacegroup listed in the MCIF (I-42m with
+            # 16 symops rather than P-4m2 with 32 symops). However, we avoid
+            # filtering out symops at this stage to guarantee that all atom
+            # positions are reconstructed in `crystal_from_symops` below.
+            symops = [SymOp(s.R, s.T) for s in symops]
         end
     end
 
