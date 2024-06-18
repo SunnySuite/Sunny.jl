@@ -17,6 +17,8 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
     γ = parse_cif_float(cif["_cell_angle_gamma"][1])
     supervecs = sys.crystal.latvecs .* sys.latsize
     supervecs2 = lattice_vectors(a, b, c, α, β, γ)
+
+    # TODO: Tolerance to permutations (with sign flips) of lattice vectors
     if !isapprox(supervecs, supervecs2; rtol=sys.crystal.symprec)
         error("""Invalid supercell dimensions,
                    System: $supervecs

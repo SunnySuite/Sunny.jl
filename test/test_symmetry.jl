@@ -138,6 +138,23 @@
 end
 
 
+@testitem "Standardize" begin
+    using LinearAlgebra
+
+    function test_standardize(latvecs, r)
+        cryst = Crystal(latvecs, [r])
+        cryst2 = standardize(cryst; idealize=false)
+        @test cryst2.latvecs * cryst2.positions[1] ≈ cryst.latvecs * r
+        cryst3 = standardize(cryst)
+        @test norm(cryst3.positions[1]) < 1e-12    
+    end
+    
+    r = [0.1, 0.2, 0.3]
+    test_standardize([1 0 1; 1 1 0; 0 1 1], r)
+    test_standardize(lattice_vectors(1, 1, 1, 90, 90, 60), r)
+end
+
+
 @testitem "Allowed anisotropy" begin
     using LinearAlgebra
     

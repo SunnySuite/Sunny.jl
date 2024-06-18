@@ -218,5 +218,6 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         Crystal(latvecs, positions; types=classes, symprec)
     end
 
-    return override_symmetry ? standardize(ret) : ret
+    # Don't idealize because `set_dipoles_from_mcif!` needs same positions
+    return override_symmetry ? standardize(ret; idealize=false) : ret
 end
