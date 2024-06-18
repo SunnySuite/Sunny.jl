@@ -58,6 +58,7 @@ end
 @testitem "Canted AFM" begin
     function test_canted_afm(S)
         J, D, h = 1.0, 0.54, 0.76
+        rcs = Sunny.rcs_factors(S)[2]
         a = 1
         latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
         positions = [[0, 0, 0]]
@@ -66,7 +67,7 @@ end
         dims = (1, 1, 1)
         sys = System(cryst, dims, [SpinInfo(1; S, g=1)], :dipole; units=Units.theory)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
-        set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
+        set_onsite_coupling!(sys, S -> (D/rcs)*S[3]^2, 1)
         set_external_field!(sys, [0, 0, h])
 
         k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
@@ -76,8 +77,7 @@ end
         randomize_spins!(sys)
         k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
         @test k[1:2] ≈ [0.5, 0.5]
-        c₂ = 1 - 1/2S
-        @test only(sys.dipoles)[3] ≈ h / (8J + 2D*c₂)
+        @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
 
         q = [0.12, 0.23, 0.34]
         swt = SpinWaveTheory(sys)
@@ -86,10 +86,9 @@ end
         ϵq_num = disp[1,1]
 
         # Analytical
-        c₂ = 1 - 1/(2S)
-        θ = acos(h / (2S*(4J+c₂*D)))
+        θ = acos(h / (2S*(4J+D)))
         Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
-        ϵq_ana = real(√Complex(4J*S*(4J*S+2D*S*c₂*sin(θ)^2) + cos(2θ)*(Jq*S)^2 + 2S*Jq*(4J*S*cos(θ)^2 + c₂*D*S*sin(θ)^2)))
+        ϵq_ana = real(√Complex(4J*S*(4J*S+2D*S*sin(θ)^2) + cos(2θ)*(Jq*S)^2 + 2S*Jq*(4J*S*cos(θ)^2 + D*S*sin(θ)^2)))
 
         @test ϵq_num ≈ ϵq_ana
     end
