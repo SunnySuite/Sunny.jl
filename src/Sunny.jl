@@ -40,7 +40,7 @@ include("Symmetry/AllowedCouplings.jl")
 include("Symmetry/AllowedAnisotropy.jl")
 include("Symmetry/Parsing.jl")
 include("Symmetry/Printing.jl")
-export Crystal, subcrystal, lattice_vectors, lattice_params, primitive_cell_shape, Bond,
+export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primitive_cell_shape, Bond,
     reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame
 
 include("Units.jl")
@@ -74,6 +74,9 @@ export minimize_energy!
 
 include("FormFactor.jl")
 export FormFactor
+
+include("MCIF.jl")
+export set_dipoles_from_mcif!
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")

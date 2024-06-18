@@ -130,11 +130,39 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         end
     end
 
-    symmetries = nothing
-    for sym_header in ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz")
-        if sym_header in keys(cif)
-            sym_table = CIF.get_loop(cif, sym_header)
-            symmetries = parse_op.(sym_table[:, sym_header])
+    symops = nothing
+    sym_header = findfirstval(in(keys(cif)), ("_space_group_symop_operation_xyz", "_symmetry_equiv_pos_as_xyz"))
+    if !isnothing(sym_header)
+        sym_table = CIF.get_loop(cif, sym_header)
+        symops = parse_op.(sym_table[:, sym_header])
+    end
+
+    # If symop table is missing, attempt to parse magnetic symops
+    if isnothing(symops)
+        oneof(fields...) = findfirstval(in(keys(cif)), fields)
+        # The first entry is the IUCR standard field name. If missing, search for
+        # alternate field names that appear in legacy files.
+        mcif_fields = (;
+            magn_operation_xyz=oneof("_space_group_symop_magn_operation.xyz", "_space_group_symop.magn_operation_xyz"),
+            magn_centering_xyz=oneof("_space_group_symop_magn_centering.xyz", "_space_group_symop.magn_centering_xyz"),
+        )
+        if !isnothing(mcif_fields.magn_operation_xyz)
+            if !override_symmetry
+                @info """Loading crystal as magnetic supercell. Use `override_symmetry=true`
+                         to infer the standard chemical unit cell and parent spacegroup."""
+            end
+            sym_table = CIF.get_loop(cif, mcif_fields.magn_operation_xyz)
+            operations = MSymOp.(sym_table[:, mcif_fields.magn_operation_xyz])
+            sym_table = CIF.get_loop(cif, mcif_fields.magn_centering_xyz)
+            centerings = MSymOp.(sym_table[:, mcif_fields.magn_centering_xyz])
+            symops = vec([m1*m2 for m1 in operations, m2 in centerings])
+            # In the for comprehension below, we could additionally filter on
+            # `isone(s.p)`. In tests on ZnFe2O4, this modification was needed so
+            # that spglib infers the spacegroup listed in the mCIF (I-42m with
+            # 16 symops rather than P-4m2 with 32 symops). However, we avoid
+            # filtering out symops at this stage to guarantee that all atom
+            # positions are reconstructed in `crystal_from_symops` below.
+            symops = [SymOp(s.R, s.T) for s in symops]
         end
     end
 
@@ -171,23 +199,25 @@ function Crystal(filename::AbstractString; symprec=nothing, override_symmetry=fa
         end
     end
 
-    if override_symmetry
-        # Ignore all symmetry data in the CIF. The use of atom `types` (not site
-        # `labels`) is necessary to allow merging of distinct labels into a
-        # single symmetry-equivalent site.
-        return Crystal(latvecs, positions; types, symprec)
-    elseif !isnothing(symmetries)
+    # If we're overriding symmetry, then distinct labels may need to be merged
+    # into equivalent sites.
+    classes = override_symmetry ? types : labels
+
+    ret = if !isnothing(symops)
         # Use explicitly provided symmetries
-        return crystal_from_symops(latvecs, positions, labels, symmetries, spacegroup; symprec)
+        crystal_from_symops(latvecs, positions, classes, symops, spacegroup; symprec)
     elseif !isnothing(hall_symbol)
         # Use symmetries for Hall symbol
-        return Crystal(latvecs, positions, hall_symbol; types=labels, symprec)
+        Crystal(latvecs, positions, hall_symbol; types=classes, symprec)
     elseif !isnothing(groupnum)
         # Use symmetries for international group number
-        return Crystal(latvecs, positions, groupnum; types=labels, symprec)
+        Crystal(latvecs, positions, groupnum; types=classes, symprec)
     else
-        # Infer the symmetries automatically, trusting that distinct CIF labels
-        # correspond to symmetry-inequivalent sites.
-        return Crystal(latvecs, positions; types=labels, symprec)
+        # Infer the symmetries automatically, while allowing `classes` to
+        # distinguish symmetry-inequivalent sites.
+        Crystal(latvecs, positions; types=classes, symprec)
     end
+
+    # Don't idealize because `set_dipoles_from_mcif!` needs same positions
+    return override_symmetry ? standardize(ret; idealize=false) : ret
 end
