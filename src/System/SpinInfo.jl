@@ -12,9 +12,8 @@ struct SpinInfo
     g      :: Mat3    # Spin g-tensor
 
     function SpinInfo(atom::Int; S, g)
-        if !isinteger(2S)
-            error("Spin $S for atom $atom is not a multiple of 1/2")
-        end
+        S > 0 || error("Spin S must be positive. Use `subcrystal` to discard non-magnetic ions.")
+        isinteger(2S) || error("Spin S must be an exact multiple of 1/2")
         g = typeof(g) <: Number ? Mat3(I*g) : Mat3(g)
         new(atom, S, g)
     end
