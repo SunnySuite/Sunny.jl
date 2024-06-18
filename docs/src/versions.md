@@ -15,7 +15,7 @@
   independent of the calculator ([Issue
   264](https://github.com/SunnySuite/Sunny.jl/issues/264)). Consequently, color
   ranges in plots may need to be rescaled.
-* [`Crystal`](@ref) can now infer a chemical unit cell from an mcif file.
+* [`Crystal`](@ref) can now infer a chemical unit cell from an mCIF file.
   `System` now supports [`set_dipoles_from_mcif!`](@ref). Through spglib, one
   can now [`standardize`](@ref) any `Crystal`, with an option to idealize site
   positions.

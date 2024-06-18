@@ -1,7 +1,7 @@
 """
     set_dipoles_from_mcif!(sys::System, filename::AbstractString)
 
-Load the magnetic supercell according to an MCIF file. System `sys` must already
+Load the magnetic supercell according to an mCIF file. System `sys` must already
 be resized to the correct supercell dimensions.
 """
 function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
@@ -22,7 +22,7 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
     if !isapprox(supervecs, supervecs2; rtol=sys.crystal.symprec)
         error("""Invalid supercell dimensions,
                    System: $supervecs
-                   MCIF:   $supervecs2
+                   mCIF:   $supervecs2
                  """)
     end
 
@@ -62,7 +62,7 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
     set_dipoles_from_mcif_aux!(sys; positions, moments, magn_operations, magn_centerings)
 end
 
-# The keyword parameters follow the MCIF format. As a consequence, all (x,y,z)
+# The keyword parameters follow the mCIF format. As a consequence, all (x,y,z)
 # components are provided in the coordinate system defined by the lattice
 # vectors of the supercell. Similarly, the symmetry operations act in this
 # coordinate system.
@@ -94,7 +94,7 @@ function set_dipoles_from_mcif_aux!(sys; positions, moments, magn_operations, ma
             site = try 
                 position_to_site(sys, r_new)
             catch _
-                rethrow(ErrorException("MCIF position $r_new is missing in the chemical cell"))
+                rethrow(ErrorException("mCIF position $r_new is missing in the chemical cell"))
             end
 
             # Get spin dipole by inverting the `magnetic_moment` transformation

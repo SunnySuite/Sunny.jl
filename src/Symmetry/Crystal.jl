@@ -14,7 +14,7 @@ Constructors are as follows:
 
 Reads the crystal from a `.cif` file located at the path `filename`. If
 `override_symmetry=true`, the spacegroup will be inferred based on atom
-positions and the returned unit cell may be reduced in size. For an mcif file,
+positions and the returned unit cell may be reduced in size. For an mCIF file,
 the return value is the magnetic supercell, unless `override_symmetry=true`. If
 a precision for spacegroup symmetries cannot be inferred from the cif file, it
 must be specified with `symprec`.

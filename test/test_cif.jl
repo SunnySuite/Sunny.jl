@@ -1,4 +1,4 @@
-@testitem "MCIF" begin
+@testitem "mCIF" begin
     filename = joinpath(@__DIR__, "cifs", "ZnFe2O4_jana.cif")
 
     msg = """Loading crystal as magnetic supercell. Use `override_symmetry=true`
