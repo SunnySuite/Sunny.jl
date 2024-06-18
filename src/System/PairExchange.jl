@@ -242,7 +242,7 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
     # General interactions require SU(N) mode
     check_allowable_dipole_coupling(tensordec, sys.mode)
 
-    # Renormalize biquadratic interactions
+    # Renormalize biquadratic interactions (from rcs_factors with k=2)
     if sys.mode == :dipole
         S1 = spin_label(sys, bond.i)
         S2 = spin_label(sys, bond.j)
@@ -316,7 +316,7 @@ end
 
 
 """
-    set_exchange!(sys::System, J, bond::Bond)
+    set_exchange!(sys::System, J, bond::Bond; biquad=0)
 
 Sets an exchange interaction ``𝐒_i⋅J 𝐒_j`` along the specified `bond`. This
 interaction will be propagated to equivalent bonds in consistency with crystal
@@ -329,11 +329,10 @@ Also, the function [`dmvec(D)`](@ref dmvec) can be used to construct the
 antisymmetric part of the exchange, where `D` is the Dzyaloshinskii-Moriya
 pseudo-vector. The resulting interaction will be ``𝐃⋅(𝐒_i×𝐒_j)``.
 
-For more general interactions, such as biquadratic, use
-[`set_pair_coupling!`](@ref) instead. In the special case that `sys` has `mode =
-:dipole_large_S`, this function will accept an optional named parameter `biquad`
-defining the strength of scalar biquadratic interactions `(𝐒_i⋅𝐒_j)^2`. With
-this, [Interaction Strength Renormalization](@ref) is disabled.
+The optional numeric parameter `biquad` multiplies a scalar biquadratic
+interaction, ``(𝐒_i⋅𝐒_j)^2``, with appropriate [Interaction Strength
+Renormalization](@ref). For more general interactions, use
+[`set_pair_coupling!`](@ref) instead.
 
 # Examples
 ```julia
@@ -350,16 +349,11 @@ J = [2 3 0;
 set_exchange!(sys, J, bond)
 ```
 """
-function set_exchange!(sys::System{N}, J, bond::Bond; biquad::Number=0.0, large_S=nothing) where N
+function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.0, large_S=nothing) where N
     if !isnothing(large_S) 
         error("The `large_S` argument is no longer supported. Instead construct system with `mode = :dipole_large_S`.")
     end
     if !iszero(biquad)
-        if sys.mode != :dipole_large_S
-            @warn "The `biquad` argument to `set_exchange!` is deprecated except for mode `:dipole_large_S`. Use `set_pair_coupling!` instead."
-            set_pair_coupling!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, bond)
-            return
-        end
         # Reinterpret `biquad (Sᵢ⋅Sⱼ)²` by shifting its bilinear part into the
         # usual 3×3 exchange J. What remains in `biquad` is a coupling between
         # quadratic Stevens operators O[2,q] via `scalar_biquad_metric`.
@@ -442,7 +436,7 @@ function set_pair_coupling_at_aux!(sys::System, scalar::Float64, bilin::Union{Fl
 end
 
 """
-    set_exchange_at!(sys::System, J, site1::Site, site2::Site; offset=nothing)
+    set_exchange_at!(sys::System, J, site1::Site, site2::Site; biquad=0, offset=nothing)
 
 Sets an exchange interaction ``𝐒_i⋅J 𝐒_j` along the single bond connecting two
 [`Site`](@ref)s, ignoring crystal symmetry. Any previous coupling on this bond
@@ -454,24 +448,15 @@ that are symmetry equivalent to a given [`Bond`](@ref) in the original system.
 For systems that are relatively small, the `offset` vector (in multiples of unit
 cells) will resolve ambiguities in the periodic wrapping.
 
-For more general interactions, such as biquadratic, use
-[`set_pair_coupling_at!`](@ref) instead. In the special that `sys` has `mode =
-:dipole_large_S`, this function will accept an optional named parameter `biquad`
-yielding scalar biquadratic interactions `(𝐒_i⋅𝐒_j)^2` _without_
-renormalization.
-
-See also [`set_exchange!`](@ref).
+See also [`set_exchange!`](@ref) for more details on specifying `J` and
+`biquad`. For more general couplings, use [`set_pair_coupling_at!`](@ref)
+instead.
 """
 function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad::Number=0.0, large_S=nothing, offset=nothing) where N
     if !isnothing(large_S) 
         error("The `large_S` argument is no longer supported. Instead construct system with `mode = :dipole_large_S`.")
     end
     if !iszero(biquad)
-        if sys.mode != :dipole_large_S
-            @warn "The `biquad` argument to `set_exchange_at!` is deprecated except for mode `:dipole_large_S`. Use `set_pair_coupling_at!` instead."
-            set_pair_coupling_at!(sys, (Si, Sj) -> Si'*J*Sj + biquad*(Si'*Sj)^2, site1, site2; offset)
-            return
-        end
         # Reinterpret `biquad (Sᵢ⋅Sⱼ)²` by shifting its bilinear part into the
         # usual 3×3 exchange J. What remains in `biquad` is a coupling between
         # quadratic Stevens operators O[2,q] via `scalar_biquad_metric`.
