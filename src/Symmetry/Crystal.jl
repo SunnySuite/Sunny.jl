@@ -178,22 +178,21 @@ function sort_sites!(cryst::Crystal)
 end
 
 """
-    standardize(cryst::Crystal)
+    standardize(cryst::Crystal; idealize=false)
 
-Return the standardized crystal unit cell, with idealization of the lattice
-vectors and site positions. See "definitions and conventions" of the [spglib
+Return the symmetry-inferred standardized crystal unit cell. If `idealize=true`,
+then the lattice vectors and site positions will be adapted. See "definitions
+and conventions" of the [spglib
 documentation](https://spglib.readthedocs.io/en/stable/) for more information.
 """
-function standardize(cryst::Crystal)
-    (; latvecs, positions, types, symprec) = cryst
-    cell = Spglib.Cell(latvecs, positions, types)
-    d = Spglib.get_dataset(cell, symprec)
-    (; std_lattice, std_positions, std_types) = d
-    # Sort atoms to make types contiguous
-    P = sortperm(std_types)
-    new_positions = std_positions[P]
-    new_types = unique(types)[std_types[P]]
-    return crystal_from_inferred_symmetry(Mat3(std_lattice), new_positions, new_types; symprec)
+function standardize(cryst::Crystal; idealize=false)
+    # Infer standardized cell
+    (; symprec) = cryst
+    cell = Spglib.Cell(cryst.latvecs, cryst.positions, cryst.types)
+    std_cell = Spglib.standardize_cell(cell, symprec; no_idealize=!idealize)
+    ret = crystal_from_inferred_symmetry(Mat3(std_cell.lattice), Vec3.(std_cell.positions), std_cell.atoms; symprec)
+    sort_sites!(ret)
+    return ret
 end
 
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5, check_cell=true)
@@ -220,21 +219,9 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
         ratio = length(positions) / d.n_std_atoms
         if ratio > 1
             ratio_str = number_to_simple_string(ratio; digits=4)
-            (a, b, c, α, β, γ) = number_to_math_string.(lattice_params(d.std_lattice); digits=8)
-            latstr = "lattice_vectors($a, $b, $c, $α, $β, $γ)"
-            position_str = "["*join(fractional_vec3_to_string.(d.std_positions), ", ")*"]"
-            crystal_build_str = if allequal(d.std_types)
-                "Crystal(latvecs, positions)"
-            else
-                types_str = "["*join(repr.(string.(d.std_types)), ", ")*"]"
-                "types = $types_str\n    Crystal(latvecs, positions; types)"
-            end
-            @warn """There exists another unit cell that is $ratio_str times smaller. Symmetry
-                     information may be incomplete. Consider using the smaller unit cell:
-                         latvecs = $latstr
-                         positions = $position_str
-                         $crystal_build_str
-                     Alternatively, site symmetry can be broken with a `types` argument."""
+            types_str = allunique(types) ? "" : "\nAlternatively, use `types` argument to break site symmetry."
+            @warn """The symmetry-inferred, standardized unit cell is $ratio_str times smaller
+                     than this crystal. Use `standardize` to see the conventional chemical cell.$types_str"""
         end
     end
 
@@ -370,6 +357,14 @@ function crystal_from_symbol(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     end
 end
 
+function symops_subset(symops1, symops2; symprec)
+    return all(symops1) do s
+        any(symops2) do s′
+            isapprox(s, s′; atol=symprec)
+        end
+    end
+end
+
 # Builds a crystal from an explicit set of symmetry operations and a minimal set of positions
 function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
     all_positions = Vec3[]
@@ -406,16 +401,8 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     inferred = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
 
     # Compare the inferred symops to the provided ones
-    is_subgroup = all(symops) do s
-        any(inferred.symops) do s′
-            isapprox(s, s′; atol=symprec)
-        end
-    end
-    is_supergroup = all(inferred.symops) do s
-        any(symops) do s′
-            isapprox(s, s′; atol=symprec)
-        end
-    end
+    is_subgroup = symops_subset(symops, inferred.symops; symprec)
+    is_supergroup = symops_subset(inferred.symops, symops; symprec)
 
     if !is_subgroup
         @warn """User provided symmetry operation could not be inferred by Spglib,
