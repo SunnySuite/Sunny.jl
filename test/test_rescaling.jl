@@ -113,22 +113,27 @@ end
     cryst = Sunny.square_crystal()
 
     S = 3/2
-
     sys1 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole_large_S, seed=0)
     sys2 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole, seed=0)
 
     # Reference scalar biquadratic without renormalization
     set_exchange!(sys1, 0, Bond(1, 1, [1,0,0]); biquad=1)
+    @test sys1.interactions_union[1].pair[1].bilin ≈ -1/2
+    @test sys1.interactions_union[1].pair[1].biquad ≈ 1
 
-    # Set a scalar biquadratic interaction (Si⋅Sj)² of unit magnitude while undoing
-    # the RCS renormalization. Note that the operator `(Si⋅Sj)² + Si⋅Sj/2` is a pure
-    # coupling of quadratic Stevens operators, and gets rescaled by the `rcs`
-    # factor.
+    # Same thing, but with renormalization
     rcs = Sunny.rcs_factors(S)[2]^2
-    set_pair_coupling!(sys2, (S1, S2) -> ((S1'*S2)^2 + S1'*S2/2)/rcs - S1'*S2/2, Bond(1, 1, [1,0,0]))
+    set_exchange!(sys2, 0, Bond(1, 1, [1,0,0]); biquad=1)
+    @test rcs ≈ (1-1/2S)^2
+    @test sys2.interactions_union[1].pair[1].bilin ≈ -1/2
+    @test sys2.interactions_union[1].pair[1].biquad ≈ 1 * rcs
 
-    for sys in (sys1, sys2)
-        @test sys1.interactions_union[1].pair[1].bilin ≈ -1/2
-        @test sys2.interactions_union[1].pair[1].biquad ≈ 1
-    end
+    # Same thing, but with explicit operators. Internally, Sunny decomposes
+    # (S1'*S2)^2 into two parts, and only the first gets rescaled by the `rcs`
+    # factor:
+    #   1. (S1'*S2)^2 + S1'*S2/2 (a pure coupling of Stevens quadrupoles)
+    #   2. -S1'*S2/2             (a Heisenberg shift)
+    set_pair_coupling!(sys2, (S1, S2) -> (S1'*S2)^2, Bond(1, 1, [1,0,0]))
+    @test sys2.interactions_union[1].pair[1].bilin ≈ -1/2
+    @test sys2.interactions_union[1].pair[1].biquad ≈ 1 * rcs
 end
