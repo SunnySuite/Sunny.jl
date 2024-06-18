@@ -55,3 +55,22 @@ function tracelesspart(A)
     @assert allequal(size(A))
     return A - tr(A) * I / size(A,1)
 end
+
+# https://github.com/JuliaLang/julia/issues/44996
+function findfirstval(f, a)
+    i = findfirst(f, a)
+    return isnothing(i) ? nothing : a[i]
+end
+
+# Let F be the matrix with 1's on the antidiagonal. Then AF (or FA) is the
+# matrix A with columns (or rows) reversed. If (Q, R) = AF is the QR
+# decomposition of AF, then (QF, FRF) is the QL decomposition of A.
+function ql_slow(A)
+    AF = reduce(hcat, reverse(eachcol(A)))
+    Q, R = qr(AF)
+    # TODO: Perform these reversals in-place
+    QF = reduce(hcat, reverse(eachcol(collect(Q))))
+    RF = reduce(hcat, reverse(eachcol(collect(R))))
+    FRF = reduce(vcat, reverse(transpose.(eachrow(collect(RF)))))
+    return QF, FRF
+end

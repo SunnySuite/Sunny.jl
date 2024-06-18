@@ -94,9 +94,7 @@ end
 # Return the closest matrix to R that is exactly orthogonal.
 #
 # This might be useful in cases where the crystal lattice vectors have numerical
-# error, and spglib produces only approximately orthogonal matrices (up to
-# symprec).  TODO: In the future, use spglib's feature "spg_standardize_cell()",
-# or write our own.
+# error, leading to inexact symops.  Alternatively one can call `standardize`.
 function to_orthogonal(R)
     # https://math.stackexchange.com/q/2215359
     U, _, V = svd(R)

@@ -10,11 +10,14 @@ An object describing a crystallographic unit cell and its space group symmetry.
 Constructors are as follows:
 
 
-    Crystal(filename; symprec=1e-5)
+    Crystal(filename; override_symmetry=false, symprec=nothing)
 
-Reads the crystal from a `.cif` file located at the path `filename`.  The
-optional parameter `symprec` controls the precision tolerance for spacegroup
-symmetries.
+Reads the crystal from a `.cif` file located at the path `filename`. If
+`override_symmetry=true`, the spacegroup will be inferred based on atom
+positions and the returned unit cell may be reduced in size. For an mCIF file,
+the return value is the magnetic supercell, unless `override_symmetry=true`. If
+a precision for spacegroup symmetries cannot be inferred from the cif file, it
+must be specified with `symprec`.
 
     Crystal(latvecs, positions; types=nothing, symprec=1e-5)
 
@@ -175,6 +178,78 @@ function sort_sites!(cryst::Crystal)
 end
 
 
+# Attempt to find a permutation matrix P (with sign flips) such that latvecs*P
+# has a more standard form.
+function permute_to_standardize_lattice_vectors(latvecs)
+    P = Mat3(I) # Iteratively build permutation matrix
+
+    for ij in eachindex(latvecs)
+        if norm(latvecs[ij]) < 1e-12
+            latvecs[ij] = 0
+        end
+    end
+
+    # Conventionally, a1 should be aligned with x direction
+    a1, a2, a3 = eachcol(latvecs)
+    if iszero(a2[2]) && iszero(a2[3]) && norm(a2) ≈ norm(a1)
+        P = P * [0 1 0; 1 0 0; 0 0 1] # Permute (a1, a2)
+    elseif iszero(a3[2]) && iszero(a3[3]) && norm(a3) ≈ norm(a1)
+        P = P * [0 0 1; 0 1 0; 1 0 0] # Permute (a1, a3)
+    end
+
+    # Conventionally, a2 should be in xy plane
+    _, a2, a3 = eachcol(latvecs * P)
+    if iszero(a3[3]) && norm(a3) ≈ norm(a2)
+        P = P * [1 0 0; 0 0 1; 0 1 0] # Permute (a2, a3)
+    end
+
+    # Flip columns so that the diagonal elements are positive
+    signs = [a < 0 ? -1 : 1 for a in diag(latvecs*P)]
+    P = P * Diagonal(signs)
+
+    # To preserve volume-orientation, we may need to flip one lattice
+    # vector. Pick a2 arbitrarily.
+    @assert det(P) ≈ 1 || det(P) ≈ -1
+    if det(P) ≈ -1
+        P = P * Diagonal([1,-1,1])
+    end
+
+    @assert det(P) ≈ 1
+    @assert P' ≈ inv(P)
+    return P
+end
+
+
+"""
+    standardize(cryst::Crystal; idealize=true)
+
+Return the symmetry-inferred standardized crystal unit cell. If `idealize=true`,
+then the lattice vectors and site positions will be adapted. See "definitions
+and conventions" of the [spglib
+documentation](https://spglib.readthedocs.io/en/stable/) for more information.
+"""
+function standardize(cryst::Crystal; idealize=true)
+    !isnothing(cryst.root) && error("Call this function on root crystal instead")
+
+    (; symprec) = cryst
+    cell = Spglib.Cell(cryst.latvecs, cryst.positions, cryst.types)
+    (; lattice, positions, atoms) = Spglib.standardize_cell(cell, symprec; no_idealize=!idealize)
+
+    if !idealize
+        # Here, spglib can return strange permutations of the lattice vectors.
+        # Attempt to permute lattice vectors back to a standard order (with
+        # sign-flips as needed).
+        P = permute_to_standardize_lattice_vectors(lattice)
+        # These transformations preserve global positions, `lattice * r`
+        lattice = lattice * P
+        positions = [P' * r for r in positions]
+    end
+
+    ret = crystal_from_inferred_symmetry(Mat3(lattice), Vec3.(positions), atoms; symprec)
+    sort_sites!(ret)
+    return ret
+end
+
 function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}; symprec=1e-5, check_cell=true)
     # Print a warning if non-conventional lattice vectors are detected.
     try cell_type(latvecs) catch e @warn e.msg end
@@ -199,21 +274,9 @@ function crystal_from_inferred_symmetry(latvecs::Mat3, positions::Vector{Vec3}, 
         ratio = length(positions) / d.n_std_atoms
         if ratio > 1
             ratio_str = number_to_simple_string(ratio; digits=4)
-            (a, b, c, α, β, γ) = number_to_math_string.(lattice_params(d.std_lattice); digits=8)
-            latstr = "lattice_vectors($a, $b, $c, $α, $β, $γ)"
-            position_str = "["*join(fractional_vec3_to_string.(d.std_positions), ", ")*"]"
-            crystal_build_str = if allequal(d.std_types)
-                "Crystal(latvecs, positions)"
-            else
-                types_str = "["*join(repr.(string.(d.std_types)), ", ")*"]"
-                "types = $types_str\n    Crystal(latvecs, positions; types)"
-            end
-            @warn """There exists another unit cell that is $ratio_str times smaller. Symmetry
-                     information may be incomplete. Consider using the smaller unit cell:
-                         latvecs = $latstr
-                         positions = $position_str
-                         $crystal_build_str
-                     Alternatively, site symmetry can be broken with a `types` argument."""
+            types_str = allunique(types) ? "" : "\nAlternatively, select `types` argument to break site symmetry."
+            @warn """The symmetry-inferred, conventional unit cell is $ratio_str times smaller. Obtain
+                     it with `standardize`.$types_str"""
         end
     end
 
@@ -349,6 +412,14 @@ function crystal_from_symbol(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     end
 end
 
+function symops_subset(symops1, symops2; symprec)
+    return all(symops1) do s
+        any(symops2) do s′
+            isapprox(s, s′; atol=symprec)
+        end
+    end
+end
+
 # Builds a crystal from an explicit set of symmetry operations and a minimal set of positions
 function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vector{String}, symops::Vector{SymOp}, spacegroup::String; symprec=1e-5)
     all_positions = Vec3[]
@@ -385,16 +456,8 @@ function crystal_from_symops(latvecs::Mat3, positions::Vector{Vec3}, types::Vect
     inferred = crystal_from_inferred_symmetry(latvecs, all_positions, all_types; symprec, check_cell=false)
 
     # Compare the inferred symops to the provided ones
-    is_subgroup = all(symops) do s
-        any(inferred.symops) do s′
-            isapprox(s, s′; atol=symprec)
-        end
-    end
-    is_supergroup = all(inferred.symops) do s
-        any(symops) do s′
-            isapprox(s, s′; atol=symprec)
-        end
-    end
+    is_subgroup = symops_subset(symops, inferred.symops; symprec)
+    is_supergroup = symops_subset(inferred.symops, symops; symprec)
 
     if !is_subgroup
         @warn """User provided symmetry operation could not be inferred by Spglib,
@@ -715,7 +778,7 @@ end
 
 function pyrochlore_crystal(; a=1.0)
     latvecs = lattice_vectors(a, a, a, 90, 90, 90)
-    return Crystal(latvecs, [[0, 0, 0]], 227, setting="2")
+    return Crystal(latvecs, [[5/8, 1/8, 1/8]], 227, setting="1")
 end
 
 function hyperkagome_crystal(; a=1.0)
