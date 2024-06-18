@@ -16,7 +16,7 @@ over sublattices, the printed weights are not directly comparable with
 experiment. For that purpose, use [`instant_correlations`](@ref) instead.
 """
 function print_wrapped_intensities(sys::System{N}; nmax=10) where N
-    isnothing(sys.origin) || error("Cannot perform this analysis on reshaped system.")
+    sys.crystal == orig_crystal(sys) || error("Cannot perform this analysis on reshaped system.")
 
     s = reinterpret(reshape, Float64, sys.dipoles)
     V = prod(sys.latsize) # number of spins in sublattice
