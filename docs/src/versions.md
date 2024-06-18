@@ -1,7 +1,7 @@
 # Version History
 
 ## v0.6.0
-(In progress)
+(June 18, 2024)
 
 * Various correctness fixes. The magnetic moment is now anti-aligned with the
   spin dipole ([Issue 190](https://github.com/SunnySuite/Sunny.jl/issues/190)),
