@@ -1,5 +1,8 @@
 # Version History
 
+## v0.6.1
+(In progress)
+
 ## v0.6.0
 (June 18, 2024)
 
