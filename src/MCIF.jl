@@ -20,7 +20,25 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
 
     # TODO: Tolerance to permutations (with sign flips) of lattice vectors
     if !isapprox(supervecs, supervecs2; rtol=sys.crystal.symprec)
-        error("""Invalid supercell dimensions,
+        tol = 0.1 * sys.crystal.symprec # Tolerance might need tuning
+        orig_cryst = orig_crystal(sys)
+
+        primvecs = @something orig_cryst.prim_latvecs orig_cryst.latvecs
+
+        suggestion = if all(isinteger.(rationalize.(primvecs \ supervecs2; tol)))
+            suggested_shape = rationalize.(orig_cryst.latvecs \ supervecs2; tol)
+            suggestion = if isdiag(suggested_shape)
+                sz = fractional_vec3_to_string(diag(suggested_shape))
+                ", consider `resize_supercell(sys, $sz)`"
+            else
+                shp = fractional_mat3_to_string(suggested_shape)
+                ", consider `reshape_supercell(sys, $shp)`"
+            end
+        else
+            " (incompatible even with reshaping)"
+        end
+
+        error("""Invalid supercell dimensions$suggestion
                    System: $supervecs
                    mCIF:   $supervecs2
                  """)
