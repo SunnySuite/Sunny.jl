@@ -249,7 +249,7 @@ function standardize(cryst::Crystal; idealize=true)
         # lattice vectors so that they give the best match to the ones for the
         # non-idealized cell.
         std_lattice = Spglib.standardize_cell(cell, symprec; no_idealize=false).lattice
-        R = closest_orthogonal(lattice / Mat3(std_lattice))
+        R = closest_unitary(lattice / Mat3(std_lattice))
         isapprox(R*std_lattice, lattice; rtol=1e-5) || error("Failed to standardize the cell")
         lattice = R * std_lattice
     end
