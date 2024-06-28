@@ -29,19 +29,17 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
             suggested_shape = rationalize.(orig_cryst.latvecs \ supervecs2; tol)
             suggestion = if isdiag(suggested_shape)
                 sz = fractional_vec3_to_string(diag(suggested_shape))
-                ", consider `resize_supercell(sys, $sz)`"
+                error("Use `resize_supercell(sys, $sz)` to get compatible system")
             else
                 shp = fractional_mat3_to_string(suggested_shape)
-                ", consider `reshape_supercell(sys, $shp)`"
+                error("Use `reshape_supercell(sys, $shp)` to get compatible system")
             end
         else
-            " (incompatible even with reshaping)"
+            error("""System dimensions are incompatible with mCIF cell,
+                         System: $supervecs
+                         mCIF:   $supervecs2
+                     """)
         end
-
-        error("""Invalid supercell dimensions$suggestion
-                   System: $supervecs
-                   mCIF:   $supervecs2
-                 """)
     end
 
     oneof(fields...) = findfirstval(in(keys(cif)), fields)
