@@ -236,18 +236,17 @@ function standardize(cryst::Crystal; idealize=true)
     (; lattice, positions, atoms) = Spglib.standardize_cell(cell, symprec; no_idealize=!idealize)
 
     if !idealize
-        # Here, spglib can return strange permutations of the lattice vectors.
-        # Attempt to permute lattice vectors back to a standard order (with
-        # sign-flips as needed).
+        # In the non-idealized case, spglib can return strange permutations of
+        # the lattice vectors. Attempt to permute lattice vectors back to a
+        # standard order (with sign-flips as needed).
         P = permute_to_standardize_lattice_vectors(lattice)
         # These transformations preserve global positions, `lattice * r`
         lattice = lattice * P
         positions = [P' * r for r in positions]
-        # Empirically, it seems that spglib yields lattice vectors that are only
-        # accurate to about 6 digits. However, spglib can give much higher
-        # accuracy by setting `idealize=true`. Rotate the higher precision
-        # lattice vectors so that they give the best match to the ones for the
-        # non-idealized cell.
+        # The lattice vectors may only be accurate to about 6 digits. However,
+        # spglib produces much higher accuracy with the `idealize=true` option.
+        # Rotate the higher precision lattice vectors so that they give the best
+        # match to the ones for the non-idealized cell.
         std_lattice = Spglib.standardize_cell(cell, symprec; no_idealize=false).lattice
         R = closest_unitary(lattice / Mat3(std_lattice))
         isapprox(R*std_lattice, lattice; rtol=1e-5) || error("Failed to standardize the cell")
