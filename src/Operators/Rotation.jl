@@ -95,10 +95,10 @@ end
 #
 # This might be useful in cases where the crystal lattice vectors have numerical
 # error, leading to inexact symops.  Alternatively one can call `standardize`.
-function to_orthogonal(R)
+function closest_orthogonal(R)
     # https://math.stackexchange.com/q/2215359
     U, _, V = svd(R)
-    return U * V' ≈ R
+    return U * V'
 end
 
 # Generate a random, orthogonal NxN matrix under the Haar measure

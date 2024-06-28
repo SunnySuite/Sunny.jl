@@ -243,6 +243,15 @@ function standardize(cryst::Crystal; idealize=true)
         # These transformations preserve global positions, `lattice * r`
         lattice = lattice * P
         positions = [P' * r for r in positions]
+        # Empirically, it seems that spglib yields lattice vectors that are only
+        # accurate to about 6 digits. However, spglib can give much higher
+        # accuracy by setting `idealize=true`. Rotate the higher precision
+        # lattice vectors so that they give the best match to the ones for the
+        # non-idealized cell.
+        std_lattice = Spglib.standardize_cell(cell, symprec; no_idealize=false).lattice
+        R = closest_orthogonal(lattice / Mat3(std_lattice))
+        isapprox(R*std_lattice, lattice; rtol=1e-5) || error("Failed to standardize the cell")
+        lattice = R * std_lattice
     end
 
     ret = crystal_from_inferred_symmetry(Mat3(lattice), Vec3.(positions), atoms; symprec)
