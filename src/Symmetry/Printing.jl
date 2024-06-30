@@ -46,6 +46,15 @@ function fractional_vec3_to_string(v; digits=4, atol=1e-12)
     return "["*join(v, ", ")*"]"
 end
 
+function fractional_mat3_to_string(m; digits=4, atol=1e-12)
+    rowstrs = map(eachrow(m)) do r
+        r = number_to_math_string.(r; digits, atol, max_denom=12)
+        join(r, " ")
+    end
+    return "["*join(rowstrs, "; ")*"]"
+end
+
+
 # Like number_to_math_string(), but outputs a string that can be prefixed to a
 # variable name.
 function coefficient_to_math_string(x::T; digits=4, atol=1e-12) where T <: Real

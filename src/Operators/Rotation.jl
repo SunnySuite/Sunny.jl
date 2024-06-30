@@ -91,14 +91,11 @@ function matrix_to_axis_angle(R::Mat3)
     return (n, θ)
 end
 
-# Return the closest matrix to R that is exactly orthogonal.
-#
-# This might be useful in cases where the crystal lattice vectors have numerical
-# error, leading to inexact symops.  Alternatively one can call `standardize`.
-function to_orthogonal(R)
+# Return the closest matrix to R that is exactly unitary (or orthogonal).
+function closest_unitary(R)
     # https://math.stackexchange.com/q/2215359
     U, _, V = svd(R)
-    return U * V' ≈ R
+    return U * V'
 end
 
 # Generate a random, orthogonal NxN matrix under the Haar measure
@@ -108,8 +105,7 @@ function random_orthogonal(rng, N::Int; special=false)
     # More efficient methods are discussed here:
     # https://doi.org/10.1137/0908055
     # https://arxiv.org/abs/math-ph/0609050
-    (; U, V) = svd(randn(rng, Float64, N,N))
-    O = U*V'
+    O = closest_unitary(randn(rng, Float64, N,N))
     return special ? O*det(O) : O
 end
 
@@ -118,6 +114,7 @@ function unitary_for_rotation(R::Mat3, gen)
     !(R'*R ≈ I)   && error("Not an orthogonal matrix, R = $R.")
     !(det(R) ≈ 1) && error("Matrix includes a reflection, R = $R.")
     n, θ = matrix_to_axis_angle(R)
+    # Apply closest_unitary here for more accuracy?
     return exp(-im*θ*(n'*gen))
 end
 

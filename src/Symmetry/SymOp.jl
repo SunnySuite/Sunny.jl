@@ -86,7 +86,10 @@ end
 function rank_symop(s)
     # Favor group elements with long cycles
     x1 = length(cycle_group(s)) / 6
-    @assert 1/6 ≤ x1 ≤ 1
+
+    # Symops from pure spacegroups will have cycles of limited length. But for
+    # symops derived from a magnetic spacegroup, the check below may fail:
+    # @assert 1/6 ≤ x1 ≤ 1
 
     # Favor matrices s.R that represent small rotations (close to the identity
     # matrix). Note that, among all matrices s.R that are similar to orthogonal
