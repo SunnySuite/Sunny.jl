@@ -183,11 +183,8 @@ end
 function permute_to_standardize_lattice_vectors(latvecs)
     P = Mat3(I) # Iteratively build permutation matrix
 
-    for ij in eachindex(latvecs)
-        if norm(latvecs[ij]) < 1e-12
-            latvecs[ij] = 0
-        end
-    end
+    # Clip small matrix elements to zero
+    latvecs = [abs(x) < 1e-12 ? 0 : x for x in latvecs]
 
     # Conventionally, a1 should be aligned with x direction
     a1, a2, a3 = eachcol(latvecs)
@@ -234,18 +231,30 @@ function standardize(cryst::Crystal; idealize=true)
     (; symprec) = cryst
     cell = Spglib.Cell(cryst.latvecs, cryst.positions, cryst.types)
     (; lattice, positions, atoms) = Spglib.standardize_cell(cell, symprec; no_idealize=!idealize)
+    positions = Vec3.(positions)
+    lattice = Mat3(lattice)
 
     if !idealize
-        # Here, spglib can return strange permutations of the lattice vectors.
-        # Attempt to permute lattice vectors back to a standard order (with
-        # sign-flips as needed).
+        # These lattice vectors may only be accurate to about 6 digits. However,
+        # spglib produces much higher accuracy with the `idealize=true` option.
+        # Rotate the higher precision lattice vectors so that they give the best
+        # match to the ones for the non-idealized cell.
+        std_lattice = Mat3(Spglib.standardize_cell(cell, symprec; no_idealize=false).lattice)
+        R = closest_unitary(lattice / std_lattice)
+        isapprox(R*std_lattice, lattice; rtol=1e-5) || error("Failed to standardize the cell")
+        lattice = R * std_lattice
+        # In the non-idealized case, the spglib choice of lattice vectors can
+        # sometimes be strange. For example, in a tetrahedral cell, (a1, a2)
+        # might be pointing along (y, -x), whereas (x, y) would be a more
+        # natural choice. Attempt to permute lattice vectors back to a standard
+        # order, with sign-flips as needed.
         P = permute_to_standardize_lattice_vectors(lattice)
         # These transformations preserve global positions, `lattice * r`
         lattice = lattice * P
         positions = [P' * r for r in positions]
     end
 
-    ret = crystal_from_inferred_symmetry(Mat3(lattice), Vec3.(positions), atoms; symprec)
+    ret = crystal_from_inferred_symmetry(lattice, positions, atoms; symprec)
     sort_sites!(ret)
     return ret
 end
