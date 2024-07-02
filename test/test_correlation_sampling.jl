@@ -143,24 +143,14 @@ end
     sys = System(Sunny.diamond_crystal(), (2,3,4), [SpinInfo(1; S=3/2, g=2)], :dipole, seed=101)
     set_exchange!(sys, 0.6498, Bond(1, 3, [0,0,0]))
     randomize_spins!(sys)
-
-    dt_langevin = 0.07 
-    damping = 0.1
-    kT = 0.1723
-    langevin = Langevin(dt_langevin; damping, kT)
-
-    # Thermalize
-    for _ in 1:4000
-        step!(sys, langevin)
-    end
-
-    sc = dynamical_correlations(sys; nω=10, ωmax=5.5, dt=2dt_langevin)
+    
+    sc = dynamical_correlations(sys; nω=10, ωmax=5.5, dt=0.14)
     add_sample!(sc, sys)
     qs = [[0.0, 0.0, 0.0], [-0.2, 0.4, -0.1]]
-    data = intensities_interpolated(sc, qs, intensity_formula(sc, :trace; kT); interpolation=:linear)
+    data = intensities_interpolated(sc, qs, intensity_formula(sc, :trace; kT=0.1723); interpolation=:linear)
     # println(round.(data; digits=10))
 
     # Compare with reference
-    data_golden = [1.5688306301 2.7786670553 0.0 -0.0 -0.0 -0.0 0.0 0.0 0.0 0.0; 0.0426896901 0.0728328515 1.158781671 4.9597712594 7.5012736668 9.3925254521 8.880657878 2.5146425508 -0.2026517626 0.0780611074]
+    data_golden = [52.0366191891 92.1657422033 0.0 -0.0 -0.0 0.0 -0.0 -0.0 -0.0 -0.0; 32.9297460003 86.5770399929 73.5353464564 33.8358366952 20.3323754023 13.7426991056 5.4654945884 1.8418530116 1.1247602598 0.5785036261]
     @test data ≈ data_golden
 end
