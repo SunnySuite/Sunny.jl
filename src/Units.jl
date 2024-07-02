@@ -1,8 +1,7 @@
 """
     meV_per_K = 0.086173332621451774
 
-A physical constant. Useful for converting kelvin into the default energy units,
-meV.
+Boltzmann's constant ``k_B`` in units of meV per kelvin.
 """
 const meV_per_K = 0.086173332621451774
 
@@ -15,15 +14,14 @@ end
     Units.meV
     Units.theory
 
-The unit system is implicitly determined by the definition of two physical
-constants: the vacuum permeability ``μ₀`` and the Bohr magneton ``μ_B``.
-Temperatures are effectively measured in units of energy (``k_B = 1``) and time
-is effectively measured in units of inverse energy (``ħ = 1``). The default unit
-system, `Units.meV`, employs (meV, Å, tesla). Select alternatively
-`Units.theory` for a units system defined so that ``μ₀ = 1`` and ``μ_B = -1``,
-which produces a Zeeman coupling of ``-g 𝐁⋅𝐒``.
+The default units system is `Units.meV`, which employs (meV, Å, tesla). Time is
+measured as an inverse energy, where factors of ``ħ`` are implicit.
 
-See also [`meV_per_K`](@ref).
+An arbitrary unit system can be selected via two physical constants: the Bohr
+magneton ``μ_B`` and the vacuum permeability ``μ₀``. The choice `Units.theory`
+selects ``μ_B = 1``, such that the external magnetic field has energy units.
+
+See also [`meV_per_K`](@ref) to convert between temperature and energy.
 """
 const Units = (;
     meV = PhysicalConsts(;
@@ -31,7 +29,7 @@ const Units = (;
         μB = 0.057883818060738013331, # meV / T
     ),
     theory = PhysicalConsts(;
-        μ0 = 1.0,
-        μB = -1.0,
+        μ0 = NaN, # dipole-dipole interactions are invalid
+        μB = 1.0, # arbitrary energy units
     ),
 )

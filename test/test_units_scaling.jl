@@ -10,7 +10,10 @@
     latsize = (4, 4, 4)
     infos = [SpinInfo(1, S=1, g=2)]
 
-    units = [Sunny.Units.meV, Sunny.Units.theory]
+    units = [
+        Sunny.PhysicalConsts(; μ0=2, μB=3)
+        Sunny.PhysicalConsts(; μ0=1, μB=1)
+    ]
 
     function collect_energy_and_grad(test, units)
         sys = System(crystal, latsize, infos, :dipole; units, seed=0)
@@ -33,9 +36,7 @@
         @test E1 ≈ E2
         @test ∇E1 ≈ ∇E2
     end
-
     validate_exchanges_scaling()
-
 
     # Zeeman energies/forces should scale linearly with μB, invariant to μ0
     function validate_zeeman_scaling()
@@ -45,9 +46,7 @@
         @test E1 / units[1].μB ≈ E2 / units[2].μB
         @test ∇E1 / units[1].μB ≈ ∇E2 / units[2].μB
     end
-
     validate_zeeman_scaling()
-
 
     # Dipole-dipole interactions should scale linearly with μ0, and
     # quadratically with μB
@@ -62,7 +61,5 @@
         @test E1 / c1 ≈ E2 / c2
         @test ∇E1 / c1 ≈ ∇E2 / c2
     end
-
     validate_dipole_scaling()
-
 end

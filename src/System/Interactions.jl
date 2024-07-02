@@ -79,6 +79,7 @@ angular momentum. The vacuum permeability ``μ_0`` is a physical constant
 determined by system of [`Units`](@ref).
 """
 function enable_dipole_dipole!(sys::System{N}) where N
+    isnan(sys.units.μ0) && error("Dipole-dipole interactions incompatible with Units.theory")
     sys.ewald = Ewald(sys)
     return
 end
