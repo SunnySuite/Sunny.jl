@@ -3,6 +3,10 @@
 ## v0.6.1
 (In progress)
 
+* **Breaking changes**: [`magnetic_moment`](@ref) is now reported in units of
+  the Bohr magneton, ``μ_B``. Also, [`Units.theory`](@ref Units) now defines
+  ``μB = 1`` instead of ``-1``.
+
 ## v0.6.0
 (June 18, 2024)
 
