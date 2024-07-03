@@ -22,8 +22,8 @@ cryst = Crystal(latvecs, [[0,0,0]], "P1")
 
 # Construct a 1D chain system that extends along ``𝐚₃``. The Hamiltonian
 # includes DM and Zeeman coupling terms, ``ℋ = ∑_j D ẑ ⋅ (𝐒_j × 𝐒_{j+1}) -
-# ∑_j 𝐁 ⋅ 𝐌_j``, where ``𝐌_j = - μ_B g 𝐒_j`` is the
-# [`magnetic_moment`](@ref) and ``𝐁 ∝ ẑ``.
+# ∑_j 𝐁 ⋅ μ_j``, where ``μ_j = - μ_B g 𝐒_j`` is the [`magnetic_moment`](@ref)
+# and ``𝐁 ∝ ẑ``.
 
 sys = System(cryst, (1, 1, 25), [SpinInfo(1; S=1, g=2)], :dipole; seed=0)
 D = 0.1 # meV

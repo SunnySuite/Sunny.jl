@@ -76,7 +76,7 @@ where the sum is over all pairs of spins (singly counted), including periodic
 images, regularized using the Ewald summation convention. See
 [`magnetic_moment`](@ref) for the relationship between ``μ_i`` and the spin
 angular momentum. The vacuum permeability ``μ_0`` is a physical constant
-determined by system of [`Units`](@ref).
+determined by the system of [`Units`](@ref).
 """
 function enable_dipole_dipole!(sys::System{N}) where N
     isnan(sys.units.μ0) && error("Dipole-dipole interactions incompatible with Units.theory")

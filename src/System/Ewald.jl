@@ -154,7 +154,7 @@ function ewald_energy(sys::System{N}) where N
     even_rft_size = latsize[1] % 2 == 0
 
     for site in eachsite(sys)
-        μ[site] = magnetic_moment(sys, site)
+        μ[site] = sys.units.μB*magnetic_moment(sys, site)
     end
 
     E = 0.0

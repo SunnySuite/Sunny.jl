@@ -114,7 +114,7 @@ function set_dipoles_from_mcif_aux!(sys; positions, moments, magn_operations, ma
             end
 
             # Get spin dipole by inverting the `magnetic_moment` transformation
-            dipole = inv(- sys.units.μB * sys.gs[site]) * μ_new
+            dipole = - sys.gs[site] \ μ_new
             s_prev = sys.dipoles[site]
             set_dipole!(sys, dipole, site)
             s_prev == zero(Vec3) || s_prev ≈ sys.dipoles[site] || error("Conflicting dipoles at site $site")
