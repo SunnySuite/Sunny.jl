@@ -18,12 +18,12 @@ crystal = Crystal(latvecs, [[0,0,0]])
 # [`polarize_spins!`](@ref). Following the Ising convention, we will restrict
 # these spins to the $z$-axis and give them magnitude $S=1$.
 # 
-# By default, Sunny uses physical units, e.g. magnetic field in tesla. Here we
-# specify an alternative [`Units`](@ref) system, so that the Zeeman coupling
-# between the spin dipole $𝐬$ and an external field $𝐁$ has the dimensionless
-# form $-𝐁⋅𝐬$.
+# By default, Sunny expects the magnetic field in tesla. Selecting
+# [`Units.theory`](@ref Units) instead allows for dimensionless units. Following
+# Ising conventions, select $g=-1$ so that the Zeeman coupling between external
+# field $𝐁$ and spin dipole $𝐬$ is $-𝐁⋅𝐬$.
 L = 128
-sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=1)], :dipole, units=Units.theory, seed=0)
+sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=-1)], :dipole, units=Units.theory, seed=0)
 polarize_spins!(sys, (0,0,1))
 
 # Use [`set_exchange!`](@ref) to include a ferromagnetic Heisenberg interaction
