@@ -3,6 +3,11 @@
 ## v0.6.1
 (In progress)
 
+* **Breaking changes**: [`magnetic_moment`](@ref) is now reported in units of
+  the Bohr magneton, ``μ_B``. For model systems where the Zeeman coupling aligns
+  spin dipole with field (e.g., the Ising model convention), create a `SpinInfo`
+  with `g=-1`. ([PR 284](https://github.com/SunnySuite/Sunny.jl/pull/284)).
+
 ## v0.6.0
 (June 18, 2024)
 

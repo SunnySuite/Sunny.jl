@@ -615,7 +615,7 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
                 N0 = norm(sys.Ns) / sqrt(L)
                 S0 = (N0 - 1) / 2
                 spin_dipoles = sys.dipoles[sites] / S0
-                magn_dipoles = magnetic_moment.(Ref(sys), sites) / (S0*g0*sys.units.μB)
+                magn_dipoles = magnetic_moment.(Ref(sys), sites) / (S0*g0)
                 for (dipoles, obs) in [(spin_dipoles, show_spin_dipoles), (magn_dipoles, show_magn_dipoles)]
                     a0 = 5ionradius
                     arrowsize = 0.4a0

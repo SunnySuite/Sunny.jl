@@ -249,7 +249,7 @@ end
         cryst = Crystal(latvecs, positions)
         q = [0.12, 0.23, 0.34]
         
-        sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=1)], :dipole; units=Units.theory)
+        sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=-1)], :dipole; units=Units.theory)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         set_external_field!(sys, [0, 0, h])
@@ -289,8 +289,8 @@ end
 
     dims = (1, 1, 1)
     S = 2
-    sys_dip = System(cryst, dims, [SpinInfo(1; S, g=1)], :dipole; units=Units.theory)
-    sys_SUN = System(cryst, dims, [SpinInfo(1; S, g=1)], :SUN; units=Units.theory)
+    sys_dip = System(cryst, dims, [SpinInfo(1; S, g=-1)], :dipole; units=Units.theory)
+    sys_SUN = System(cryst, dims, [SpinInfo(1; S, g=-1)], :SUN; units=Units.theory)
 
     # The strengths of single-ion anisotropy (must be negative to favor the dipolar ordering under consideration)
     Ds = -rand(3)
@@ -358,18 +358,19 @@ end
     cryst = Crystal(latvecs, [[0,0,0]])
 
     for mode in (:dipole, :SUN)
-        sys = System(cryst, (1,1,1), [SpinInfo(1; S=1, g=1)], mode; units=Units.theory)
+        sys = System(cryst, (1,1,1), [SpinInfo(1; S=1, g=1)], mode)
         enable_dipole_dipole!(sys)
 
         polarize_spins!(sys, (0,0,1))
-        @test energy_per_site(sys) ≈ -0.1913132980155851
+        @test energy_per_site(sys) ≈ -0.1913132980155851 * (sys.units.μ0 * sys.units.μB^2)
         
         swt = SpinWaveTheory(sys)
         formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
         
         qpoints = [[0, 0, 0], [0, 0, 1/2], [0, 1/2, 1/2], [0, 0, 0]]
         disps, is = intensities_bands(swt, qpoints, formula)
-        @test disps[:,end] ≈ [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553]
+        disps_ref = [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553] * (sys.units.μ0 * sys.units.μB^2)
+        @test isapprox(disps[:,end], disps_ref; atol=1e-7)
         @test is[:,end] ≈ [1, 1, 201/202, 1]
     end
 
@@ -432,7 +433,7 @@ end
     tol = 1e-7
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
     cryst = Crystal(latvecs, [[0, 0, 0]])
-    sys = System(cryst, (7,7,1), [SpinInfo(1; S=1, g=1)], :dipole, units=Units.theory, seed=0)
+    sys = System(cryst, (7,7,1), [SpinInfo(1; S=1, g=-1)], :dipole, units=Units.theory, seed=0)
 
     J₁ = -1
     J₃ = 1.6234898018587323
@@ -725,7 +726,7 @@ end
         latvecs = lattice_vectors(a, a, a, 90, 90, 90)
         positions = [[0, 0, 0]]
         fcc = Crystal(latvecs, positions, 225)
-        sys_afm1 = System(fcc, (1, 1, 1), [SpinInfo(1; S, g=1)], mode; units=Units.theory)
+        sys_afm1 = System(fcc, (1, 1, 1), [SpinInfo(1; S, g=1)], mode)
         set_exchange!(sys_afm1, J, Bond(1, 2, [0, 0, 0]))
         set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 0, 0)))
         set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 1/2, 0)))

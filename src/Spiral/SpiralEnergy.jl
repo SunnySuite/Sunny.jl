@@ -80,7 +80,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
 
     # See "spiral_energy.lyx" for derivation
     if !isnothing(sys.ewald)
-        μ = [magnetic_moment(sys, site) for site in eachsite(sys)]
+        μ = [sys.units.μB*magnetic_moment(sys, site) for site in eachsite(sys)]
 
         A0 = sys.ewald.A
         A0 = reshape(A0, Na, Na)
