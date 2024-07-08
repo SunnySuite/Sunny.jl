@@ -49,11 +49,42 @@ function integrated_lorentzian(η::Float64)
     return integrated_lorentzian(; fwhm=2η)
 end
 
+function set_external_field!(sys::System, B)
+    @warn "`set_external_field!(sys, B)` is deprecated! Consider `set_field!(sys, B*units.T)` where `units = Units(:meV)`."
+    set_field!(sys, Vec3(B) * Units(:meV).T)
+end
+
+function set_external_field_at!(sys::System, B, site)
+    @warn "`set_external_field_at!(sys, B, site)` is deprecated! Consider `set_field_at!(sys, B*units.T, site)` where `units = Units(:meV)`."
+    set_field_at!(sys, Vec3(B) * Units(:meV).T, site)
+end
+
+
+"""
+    meV_per_K ≈ 0.08617...
+
+This constant is deprecated! Use `units.K` instead, where `units = Units(:meV)`.
+"""
+const meV_per_K = Units(:meV).K
+
+
+function Base.getproperty(x::Type{Units}, name::Symbol)
+    if name in (:theory, :meV)
+        @warn "Units.$name is deprecated! See `Units` docs for new interface."
+        return nothing
+    end
+    return getfield(x, name)
+end
+
 
 # REMEMBER TO ALSO DELETE:
-
-# view_crystal(cryst, max_dist)
-# λ argument in Langevin constructor
-# Δt argument in dynamical_correlations
-# large_S argument in set_exchange! and set_exchange_at!
-# Argument `q` in set_spiral_order*
+#
+# * view_crystal(cryst, max_dist)
+# * λ argument in Langevin constructor
+# * Δt argument in dynamical_correlations
+# * large_S argument in set_exchange! and set_exchange_at!
+# * Argument q in set_spiral_order*
+# * Argument units to System
+# * Missing μ0_μB² in enable_dipole_dipole! and
+#   modify_exchange_with_truncated_dipole_dipole!
+# * hermitianpart[!] for VERSION < v"1.10"

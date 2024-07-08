@@ -70,22 +70,22 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
         E += E_aniso
 
         # Zeeman coupling
-        E += sys.extfield[i]' * (sys.units.μB * sys.gs[i] * Si)
+        E += sys.extfield[i]' * (sys.gs[i] * Si)
 
         if accum_grad
             dEds[i] += dEds_aniso
-            dEds[i] += sys.units.μB * sys.gs[i]' * sys.extfield[i]
+            dEds[i] += sys.gs[i]' * sys.extfield[i]
         end
     end
 
     # See "spiral_energy.lyx" for derivation
     if !isnothing(sys.ewald)
-        μ = [sys.units.μB*magnetic_moment(sys, site) for site in eachsite(sys)]
+        μ = [magnetic_moment(sys, site) for site in eachsite(sys)]
 
         A0 = sys.ewald.A
         A0 = reshape(A0, Na, Na)
 
-        Ak = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), sys.units.μ0, k)
+        Ak = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), sys.ewald.μ0_μB², k)
         Ak = reshape(Ak, Na, Na)
 
         ϵ = 1e-8

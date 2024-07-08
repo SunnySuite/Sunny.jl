@@ -64,7 +64,7 @@ end
 
 
 """
-    enable_dipole_dipole!(sys::System)
+    enable_dipole_dipole!(sys::System, μ0_μB²)
 
 Enables long-range interactions between magnetic dipole moments,
 
@@ -73,39 +73,69 @@ Enables long-range interactions between magnetic dipole moments,
 ```
 
 where the sum is over all pairs of spins (singly counted), including periodic
-images, regularized using the Ewald summation convention. See
-[`magnetic_moment`](@ref) for the relationship between ``μ_i`` and the spin
-angular momentum. The vacuum permeability ``μ_0`` is a physical constant
-determined by the system of [`Units`](@ref).
+images, regularized using the Ewald summation convention. The
+[`magnetic_moment`](@ref) is defined as ``μ = -g μ_B 𝐒``, where ``𝐒`` is the
+spin angular momentum dipole. The parameter `μ0_μB²` specifies the physical
+constant ``μ_0 μ_B²``, which has dimensions of length³-energy. Obtain this
+constant for a given system of [`Units`](@ref) via its `vacuum_permeability`
+property.
+
+# Example
+
+```julia
+# Valid for a system with lengths in Å and energies in meV
+units = Units(:meV)
+enable_dipole_dipole!(sys, units.vacuum_permeability)
+```
 """
-function enable_dipole_dipole!(sys::System{N}) where N
-    isnan(sys.units.μ0) && error("Dipole-dipole interactions incompatible with Units.theory")
-    sys.ewald = Ewald(sys)
+function enable_dipole_dipole!(sys::System{N}, μ0_μB²=nothing) where N
+    if isnothing(μ0_μB²)
+        @warn "Deprecated syntax! Consider `enable_dipole_dipole!(sys, units.vacuum_permeability)` where `units = Units(:meV)`."
+        μ0_μB² = Units(:meV).vacuum_permeability
+    end
+    sys.ewald = Ewald(sys, μ0_μB²)
     return
 end
 
 """
-    set_external_field!(sys::System, B::Vec3)
+    set_field!(sys::System, B_μB)
 
-Sets the external field ``𝐁`` that couples to all magnetic moments, ``- ∑_i
-𝐁⋅μ_i``. See [`magnetic_moment`](@ref) for the relationship between ``μ_i`` and
-the spin angular momentum.
+Sets the external magnetic field ``𝐁`` scaled by the Bohr magneton ``μ_B``.
+This scaled field has units of energy and couples directly to the dimensionless
+[`magnetic_moment`](@ref). At every site, the Zeeman coupling contributes an
+energy ``+ (𝐁 μ_B) ⋅ (g 𝐒)``, involving the local ``g``-tensor and spin
+angular momentum ``𝐒``. Commonly, ``g ≈ +2`` such that ``𝐒`` is favored to
+anti-align with the applied field ``𝐁``. Note that a given system of
+[`Units`](@ref) will implicitly use the Bohr magneton to convert between field
+and energy dimensions.
+
+# Example
+
+```julia
+# In units of meV, apply a 2 tesla field in the z-direction
+units = Units(:meV)
+set_field!(sys, [0, 0, 2] * units.T)
+```
 """
-function set_external_field!(sys::System, B)
+function set_field!(sys::System, B_μB)
     for site in eachsite(sys)
-        set_external_field_at!(sys, B, site)
+        set_field_at!(sys, B_μB, site)
     end
 end
 
 """
-    set_external_field_at!(sys::System, B::Vec3, site::Site)
+    set_field_at!(sys::System, B_μB, site::Site)
 
-Sets a local field ``𝐁`` that couples to a single magnetic moment, ``-𝐁⋅μ_i``.
-See [`magnetic_moment`](@ref) for the relationship between ``μ_i`` and the spin
-angular momentum. [`Site`](@ref) includes a unit cell and a sublattice index.
+Sets the external magnetic field ``𝐁`` scaled by the Bohr magneton ``μ_B`` for
+a single [`Site`](@ref). This scaled field has units of energy and couples
+directly to the dimensionless [`magnetic_moment`](@ref). Note that a given
+system of [`Units`](@ref) will implicitly use the Bohr magneton to convert
+between field and energy dimensions.
+
+See the documentation of [`set_field!`](@ref) for more information.
 """
-function set_external_field_at!(sys::System, B, site)
-    sys.extfield[to_cartesian(site)] = Vec3(B)
+function set_field_at!(sys::System, B_μB, site)
+    sys.extfield[to_cartesian(site)] = Vec3(B_μB)
 end
 
 """
@@ -140,7 +170,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
     ΔE = 0.0
 
     # Zeeman coupling to external field
-    ΔE += sys.units.μB * dot(extfield[site], sys.gs[site], Δs)
+    ΔE += dot(extfield[site], sys.gs[site], Δs)
 
     # Single-ion anisotropy, dipole or SUN mode
     if N == 0
@@ -217,7 +247,7 @@ function energy(sys::System{N}) where N
 
     # Zeeman coupling to external field
     for site in eachsite(sys)
-        E += sys.units.μB * sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
+        E += sys.extfield[site] ⋅ (sys.gs[site] * sys.dipoles[site])
     end
 
     # Anisotropies and exchange interactions
@@ -328,7 +358,7 @@ function set_energy_grad_dipoles!(∇E, dipoles::Array{Vec3, 4}, sys::System{N})
 
     # Zeeman coupling
     for site in eachsite(sys)
-        ∇E[site] += sys.units.μB * (sys.gs[site]' * sys.extfield[site])
+        ∇E[site] += sys.gs[site]' * sys.extfield[site]
     end
 
     # Anisotropies and exchange interactions

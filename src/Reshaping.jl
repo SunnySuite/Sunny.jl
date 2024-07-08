@@ -81,7 +81,7 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
     orig_sys = @something sys.origin sys
 
     new_sys = System(orig_sys, sys.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, new_ewald,
-        new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, sys.units, copy(sys.rng))
+        new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
 
     # Transfer interactions. In the case of an inhomogeneous system, the
     # interactions in `sys` have detached from `orig`, so we use the latest
@@ -102,7 +102,7 @@ function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_
     # Restore dipole-dipole interactions if present. This involves pre-computing
     # an interaction matrix that depends on `new_latsize`.
     if !isnothing(sys.ewald)
-        enable_dipole_dipole!(new_sys)
+        enable_dipole_dipole!(new_sys, sys.ewald.μ0_μB²)
     end
 
     return new_sys

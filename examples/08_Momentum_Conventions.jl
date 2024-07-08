@@ -27,9 +27,9 @@ cryst = Crystal(latvecs, [[0,0,0]], "P1")
 
 sys = System(cryst, (1, 1, 25), [SpinInfo(1; S=1, g=2)], :dipole; seed=0)
 D = 0.1 # meV
-B = 10D / (sys.units.μB*2) # ~ 8.64T
+B = 5D # ~ 8.64T
 set_exchange!(sys, dmvec([0, 0, D]), Bond(1, 1, [0, 0, 1]))
-set_external_field!(sys, [0, 0, B])
+set_field!(sys, [0, 0, B])
 
 # The large external field fully polarizes the system. Here, the DM coupling
 # contributes nothing, leaving only Zeeman coupling.

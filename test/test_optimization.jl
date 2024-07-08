@@ -73,7 +73,7 @@ end
         sys = System(cryst, dims, [SpinInfo(1; S, g=2)], mode; seed) 
         set_exchange!(sys, -1, Bond(1,1,[1,0,0]))
         set_onsite_coupling!(sys, S -> -S[3]^2, 1)
-        enable_dipole_dipole!(sys)
+        enable_dipole_dipole!(sys, 1.0)
         sys
     end
 

@@ -1,41 +1,39 @@
 @testitem "Spin precession handedness" begin
     using LinearAlgebra
 
-    for units in (Units.meV, Units.theory)
-        crystal = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]])
-        sys_dip = System(crystal, (1, 1, 1), [SpinInfo(1; S=1, g=2)], :dipole; units)
-        sys_sun = System(crystal, (1, 1, 1), [SpinInfo(1; S=1, g=2)], :SUN; units)
-    
-        B = [0, 0, 1] / abs(units.μB)
-        set_external_field!(sys_dip, B)
-        set_external_field!(sys_sun, B)
-    
-        ic = [1/√2, 0, 1/√2]
-        set_dipole!(sys_dip, ic, (1, 1, 1, 1))
-        set_dipole!(sys_sun, ic, (1, 1, 1, 1))
-    
-        integrator = ImplicitMidpoint(0.05)
-        for _ in 1:5
-            step!(sys_dip, integrator)
-            step!(sys_sun, integrator)
-        end
-    
-        dip_is_lefthanded = B ⋅ (ic × magnetic_moment(sys_dip, (1,1,1,1))) < 0
-        sun_is_lefthanded = B ⋅ (ic × magnetic_moment(sys_sun, (1,1,1,1))) < 0
-    
-        @test dip_is_lefthanded == sun_is_lefthanded == true
+    crystal = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]])
+    sys_dip = System(crystal, (1, 1, 1), [SpinInfo(1; S=1, g=2)], :dipole)
+    sys_sun = System(crystal, (1, 1, 1), [SpinInfo(1; S=1, g=2)], :SUN)
+
+    B = [0, 0, 1]
+    set_field!(sys_dip, B)
+    set_field!(sys_sun, B)
+
+    ic = [1/√2, 0, 1/√2]
+    set_dipole!(sys_dip, ic, (1, 1, 1, 1))
+    set_dipole!(sys_sun, ic, (1, 1, 1, 1))
+
+    integrator = ImplicitMidpoint(0.05)
+    for _ in 1:5
+        step!(sys_dip, integrator)
+        step!(sys_sun, integrator)
     end
+
+    dip_is_lefthanded = B ⋅ (ic × magnetic_moment(sys_dip, (1,1,1,1))) < 0
+    sun_is_lefthanded = B ⋅ (ic × magnetic_moment(sys_sun, (1,1,1,1))) < 0
+
+    @test dip_is_lefthanded == sun_is_lefthanded == true
 end
 
 
 @testitem "DM chain" begin
     latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]], "P1")
-    sys = System(cryst, (1,1,1), [SpinInfo(1,S=1,g=-1)], :dipole; units=Units.theory)
+    sys = System(cryst, (1,1,1), [SpinInfo(1,S=1,g=-1)], :dipole)
     D = 1
     B = 10.0
     set_exchange!(sys, dmvec([0, 0, D]), Bond(1, 1, [0, 0, 1]))
-    set_external_field!(sys, [0, 0, B])
+    set_field!(sys, [0, 0, B])
 
     # Above the saturation field, the ground state is fully polarized, with no
     # energy contribution from the DM term.
@@ -57,7 +55,7 @@ end
 
     sys2 = resize_supercell(sys, (1, 1, 4))
     B = 1
-    set_external_field!(sys2, [0, 0, B])
+    set_field!(sys2, [0, 0, B])
     randomize_spins!(sys2)
     minimize_energy!(sys2)
     @test energy_per_site(sys2) ≈ -5/4
@@ -93,7 +91,7 @@ end
     # Finally, test fully polarized state
 
     B = 10
-    set_external_field!(sys3, [0, 0, B])
+    set_field!(sys3, [0, 0, B])
     polarize_spins!(sys3, [0, 0, 1])
     @test energy_per_site(sys3) ≈ -B
     swt = SpinWaveTheory(sys3)

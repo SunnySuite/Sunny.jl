@@ -249,10 +249,10 @@ end
         cryst = Crystal(latvecs, positions)
         q = [0.12, 0.23, 0.34]
         
-        sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=-1)], :dipole; units=Units.theory)
+        sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=-1)], :dipole)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
-        set_external_field!(sys, [0, 0, h])
+        set_field!(sys, [0, 0, h])
 
         # Numerical
         sys_swt_dip = reshape_supercell(sys, [1 -1 0; 1 1 0; 0 0 1])
@@ -289,12 +289,12 @@ end
 
     dims = (1, 1, 1)
     S = 2
-    sys_dip = System(cryst, dims, [SpinInfo(1; S, g=-1)], :dipole; units=Units.theory)
-    sys_SUN = System(cryst, dims, [SpinInfo(1; S, g=-1)], :SUN; units=Units.theory)
+    sys_dip = System(cryst, dims, [SpinInfo(1; S, g=-1)], :dipole)
+    sys_SUN = System(cryst, dims, [SpinInfo(1; S, g=-1)], :SUN)
 
     # The strengths of single-ion anisotropy (must be negative to favor the dipolar ordering under consideration)
     Ds = -rand(3)
-    h  = rand()
+    h  = 0.1*rand()
     M = normalize(rand(3))
     SM = M' * spin_matrices(S)
     aniso = Ds[1]*SM^2 + Ds[2]*SM^4 + Ds[3]*SM^6
@@ -302,8 +302,8 @@ end
     set_onsite_coupling!(sys_dip, aniso, 1)
     set_onsite_coupling!(sys_SUN, aniso, 1)
 
-    set_external_field!(sys_dip, h*M)
-    set_external_field!(sys_SUN, h*M)
+    set_field!(sys_dip, h*M)
+    set_field!(sys_SUN, h*M)
 
     set_dipole!(sys_dip, M, (1,1,1,1))
     set_dipole!(sys_SUN, M, (1,1,1,1))
@@ -359,17 +359,17 @@ end
 
     for mode in (:dipole, :SUN)
         sys = System(cryst, (1,1,1), [SpinInfo(1; S=1, g=1)], mode)
-        enable_dipole_dipole!(sys)
+        enable_dipole_dipole!(sys, 1.0)
 
         polarize_spins!(sys, (0,0,1))
-        @test energy_per_site(sys) ≈ -0.1913132980155851 * (sys.units.μ0 * sys.units.μB^2)
+        @test energy_per_site(sys) ≈ -0.1913132980155851
         
         swt = SpinWaveTheory(sys)
         formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
         
         qpoints = [[0, 0, 0], [0, 0, 1/2], [0, 1/2, 1/2], [0, 0, 0]]
         disps, is = intensities_bands(swt, qpoints, formula)
-        disps_ref = [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553] * (sys.units.μ0 * sys.units.μB^2)
+        disps_ref = [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553]
         @test isapprox(disps[:,end], disps_ref; atol=1e-7)
         @test is[:,end] ≈ [1, 1, 201/202, 1]
     end
@@ -377,7 +377,7 @@ end
     begin
         cryst = Sunny.bcc_crystal()
         sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :dipole, seed=2)
-        enable_dipole_dipole!(sys)
+        enable_dipole_dipole!(sys, Units(:meV).vacuum_permeability)
         polarize_spins!(sys, (1,2,3)) # arbitrary direction
         
         R = hcat([1,1,-1], [-1,1,1], [1,-1,1]) / 2
@@ -433,7 +433,7 @@ end
     tol = 1e-7
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
     cryst = Crystal(latvecs, [[0, 0, 0]])
-    sys = System(cryst, (7,7,1), [SpinInfo(1; S=1, g=-1)], :dipole, units=Units.theory, seed=0)
+    sys = System(cryst, (7,7,1), [SpinInfo(1; S=1, g=-1)], :dipole; seed=0)
 
     J₁ = -1
     J₃ = 1.6234898018587323
@@ -444,7 +444,7 @@ end
     set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 
     h = 2.0*J₃
-    set_external_field!(sys, [0, 0, h])
+    set_field!(sys, [0, 0, h])
     
     dipole_array = zeros(Float64,3,7,7)
     dipole_array[:,:,1]= [0.856769   0.811926  -0.485645   -0.950288   -0.429787  -0.0800935  0.217557;
@@ -538,7 +538,7 @@ end
         K2 = Sunny.tracelesspart(K2 + K2')
 
         set_pair_coupling!(sys, (S1, S2) -> S1'*R*J*R'*S2 + (S1'*R*K1*R'*S1)*(S2'*R*K2*R'*S2), Bond(1, 2, [0,0,0]))
-        set_external_field!(sys, R*h)
+        set_field!(sys, R*h)
 
         return sys
     end
@@ -629,7 +629,7 @@ end
         K2 = diagm([-1, -1, 2])
         set_pair_coupling!(sys, (Si, Sj) -> -Si'*Sj + (Si'*K1*Si)*(Sj'*K2*Sj), Bond(1,1,[1,0,0]); extract_parts=true)
         set_onsite_coupling!(sys, S -> S[3]^2, 1)
-        set_external_field!(sys, [0,0,0.1])
+        set_field!(sys, [0,0,0.1])
 
         randomize_spins!(sys)
         minimize_energy!(sys; maxiters=1_000)
