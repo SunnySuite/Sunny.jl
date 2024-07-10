@@ -34,38 +34,34 @@ function Base.setproperty!(value::Langevin, name::Symbol, x)
 end
 
 
-function lorentzian(x, η)
+Base.@deprecate lorentzian(x, η) let
     @warn "`lorentzian(x, η)` is deprecated! Use `lorentzian(; fwhm=2η)(x)` instead."
     return lorentzian(; fwhm=2η)(x)
 end
 
-function lorentzian(η)
+Base.@deprecate lorentzian(η) let
     @warn "`lorentzian(η)` is deprecated! Use `lorentzian(; fwhm=2η)` instead."
     return lorentzian(; fwhm=2η)
 end
 
-function integrated_lorentzian(η::Float64)
+Base.@deprecate integrated_lorentzian(η::Float64) let
     @warn "`integrated_lorentzian(η)` is deprecated! Use `integrated_lorentzian(; fwhm=2η)` instead."
     return integrated_lorentzian(; fwhm=2η)
 end
 
-function set_external_field!(sys::System, B)
+Base.@deprecate set_external_field!(sys::System, B) let
     @warn "`set_external_field!(sys, B)` is deprecated! Consider `set_field!(sys, B*units.T)` where `units = Units(:meV)`."
     set_field!(sys, Vec3(B) * Units(:meV).T)
 end
 
-function set_external_field_at!(sys::System, B, site)
+Base.@deprecate set_external_field_at!(sys::System, B, site) let
     @warn "`set_external_field_at!(sys, B, site)` is deprecated! Consider `set_field_at!(sys, B*units.T, site)` where `units = Units(:meV)`."
     set_field_at!(sys, Vec3(B) * Units(:meV).T, site)
 end
 
 
-"""
-    meV_per_K ≈ 0.08617...
-
-This constant is deprecated! Use `units.K` instead, where `units = Units(:meV)`.
-"""
-const meV_per_K = Units(:meV).K
+# Consider `units.K` where `units = Units(:meV)`.
+Base.@deprecate_binding meV_per_K Units(:meV).K
 
 
 function Base.getproperty(x::Type{Units}, name::Symbol)

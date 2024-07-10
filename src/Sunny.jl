@@ -44,7 +44,7 @@ export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primit
     reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame
 
 include("Units.jl")
-export meV_per_K, Units
+export Units
 
 include("System/SpinInfo.jl")
 include("System/Types.jl")
@@ -125,7 +125,7 @@ include("MonteCarlo/ParallelWangLandau.jl")
 export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
 
 include("deprecated.jl")
-export set_external_field!, set_external_field_at!
+export set_external_field!, set_external_field_at!, meV_per_K
 
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 

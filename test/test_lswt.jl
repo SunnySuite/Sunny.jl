@@ -141,10 +141,11 @@ end
     positions = [[0, 0, 0]]
     fcc = Crystal(latvecs, positions, 225)
 
+    units = Units(:meV)
     S = 5/2
     g = 2
-    J = 22.06 * meV_per_K
-    K = 0.15  * meV_per_K
+    J = 22.06 * units.K
+    K = 0.15  * units.K
     C = J + K
     J₁ = diagm([J, J, C])
     D = 25/24

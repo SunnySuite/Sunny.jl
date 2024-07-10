@@ -23,7 +23,7 @@ crystal = Crystal(latvecs, [[0,0,0]])
 # Ising conventions, select $g=-1$ so that the Zeeman coupling between external
 # field $𝐁$ and spin dipole $𝐬$ is $-𝐁⋅𝐬$.
 L = 128
-sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=-1)], :dipole, units=Units.theory, seed=0)
+sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=-1)], :dipole, seed=0)
 polarize_spins!(sys, (0,0,1))
 
 # Use [`set_exchange!`](@ref) to include a ferromagnetic Heisenberg interaction
@@ -33,10 +33,9 @@ polarize_spins!(sys, (0,0,1))
 # the symmetries of the square lattice.
 set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
 
-# If an external field is desired, it can be set using
-# [`set_external_field!`](@ref).
+# If an external field is desired, it can be set using [`set_field!`](@ref).
 B = 0
-set_external_field!(sys, (0,0,B))
+set_field!(sys, (0, 0, B))
 
 # The critical temperature for the Ising model is known analytically.
 Tc = 2/log(1+√2)

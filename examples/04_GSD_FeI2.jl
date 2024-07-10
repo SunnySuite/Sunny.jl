@@ -44,6 +44,7 @@ positions = [[0,0,0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]#hide
 types = ["Fe", "I", "I"]#hide
 FeI2 = Crystal(latvecs, positions; types)#hide
 cryst = subcrystal(FeI2, "Fe")#hide
+units = Units(:meV)#hide
 sys = System(cryst, (4,4,4), [SpinInfo(1,S=1,g=2)], :SUN, seed=2)#hide
 J1pm   = -0.236#hide
 J1pmpm = -0.161#hide
@@ -133,10 +134,9 @@ sys_large = resize_supercell(sys, (16,16,4)) # 16x16x4 copies of the original un
 plot_spins(sys_large; color=[s[3] for s in sys_large.dipoles])
 
 # Now we will re-thermalize the system to a configuration just above the
-# ordering temperature. Sunny expects energies in meV by default, so
-# we use `meV_per_K` to convert from kelvin.
+# ordering temperature.
 
-kT = 3.5 * meV_per_K     # 3.5K ≈ 0.30 meV
+kT = 3.5 * units.K # 3.5 K ≈ 0.30 meV
 langevin.kT = kT
 for _ in 1:10_000
     step!(sys_large, langevin)

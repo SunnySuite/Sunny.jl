@@ -335,7 +335,7 @@ The parameter `mode` is one of `:SUN` or `:dipole`.
 ### Setting interactions
 
 Interactions are now added mutably to an existing `System` using the following
-functions: [`set_external_field!`](@ref), [`set_exchange!`](@ref),
+functions: `set_external_field!`, [`set_exchange!`](@ref),
 [`set_onsite_coupling!`](@ref), [`enable_dipole_dipole!`](@ref).
 
 As a convenience, one can use [`dmvec(D)`](@ref) to convert a DM vector to a
@@ -355,8 +355,7 @@ combination of Stevens operators. To see this expansion use
 
 ### Inhomogeneous field
 
-An external field can be applied to a single site with
-[`set_external_field_at!`](@ref). 
+An external field can be applied to a single site with `set_external_field_at!`. 
 
 
 ### Structure factor rewrite
