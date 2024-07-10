@@ -7,6 +7,10 @@
   the Bohr magneton, ``μ_B``. For model systems where the Zeeman coupling aligns
   spin dipole with field (e.g., the Ising model convention), create a `SpinInfo`
   with `g=-1`. ([PR 284](https://github.com/SunnySuite/Sunny.jl/pull/284)).
+* More flexible [`Units`](@ref) system. `set_external_field!` is deprecated in
+  favor of [`set_field!`](@ref), which now expects a field in energy units.
+  [`enable_dipole_dipole!`](@ref) now expects a scale parameter ``μ_0 μ_B^2``
+  that can be obtained from `units.vacuum_permeability`.
 
 ## v0.6.0
 (June 18, 2024)

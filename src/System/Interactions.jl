@@ -76,7 +76,7 @@ where the sum is over all pairs of spins (singly counted), including periodic
 images, regularized using the Ewald summation convention. The
 [`magnetic_moment`](@ref) is defined as ``μ = -g μ_B 𝐒``, where ``𝐒`` is the
 spin angular momentum dipole. The parameter `μ0_μB²` specifies the physical
-constant ``μ_0 μ_B²``, which has dimensions of length³-energy. Obtain this
+constant ``μ_0 μ_B^2``, which has dimensions of length³-energy. Obtain this
 constant for a given system of [`Units`](@ref) via its `vacuum_permeability`
 property.
 
@@ -87,6 +87,8 @@ property.
 units = Units(:meV)
 enable_dipole_dipole!(sys, units.vacuum_permeability)
 ```
+
+See also [`modify_exchange_with_truncated_dipole_dipole!`](@ref).
 """
 function enable_dipole_dipole!(sys::System{N}, μ0_μB²=nothing) where N
     if isnothing(μ0_μB²)
