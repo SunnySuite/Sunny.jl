@@ -2,8 +2,7 @@
 function Ewald(sys::System{N}, μ0_μB²) where N
     (; crystal, latsize) = sys
 
-    # TODO: scale manually
-    A = precompute_dipole_ewald(crystal, latsize, μ0_μB²)
+    A = precompute_dipole_ewald(crystal, latsize) * μ0_μB²
 
     na = natoms(crystal)
     μ = zeros(Vec3, latsize..., na)
@@ -38,15 +37,15 @@ end
 (⊗)(a::Vec3,b::Vec3) = reshape(kron(a,b), 3, 3)
 
 
-function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int}, μ0_μB²)
-    precompute_dipole_ewald_aux(cryst, latsize, μ0_μB², Vec3(0,0,0), cos, Val{Float64}())
+function precompute_dipole_ewald(cryst::Crystal, latsize::NTuple{3,Int})
+    precompute_dipole_ewald_aux(cryst, latsize, Vec3(0,0,0), cos, Val{Float64}())
 end
 
-function precompute_dipole_ewald_at_wavevector(cryst::Crystal, latsize::NTuple{3,Int}, μ0_μB², q_reshaped)
-    precompute_dipole_ewald_aux(cryst, latsize, μ0_μB², q_reshaped, cis, Val{ComplexF64}())
+function precompute_dipole_ewald_at_wavevector(cryst::Crystal, latsize::NTuple{3,Int}, q_reshaped)
+    precompute_dipole_ewald_aux(cryst, latsize, q_reshaped, cis, Val{ComplexF64}())
 end
 
-# Precompute the pairwise interaction matrix A beween magnetic moments μ. For
+# Precompute the pairwise interaction matrix A between magnetic moments μ. For
 # q_reshaped = 0, this yields the usual Ewald energy, E = μᵢ Aᵢⱼ μⱼ / 2. Nonzero
 # q_reshaped is useful in spin wave theory. Physically, this amounts to a
 # modification of the periodic boundary conditions, such that μ(q) can be
@@ -59,7 +58,7 @@ end
 # part cancels in the symmetric sum over ±k. Specifically, replace `cis(x) ≡
 # exp(i x) = cos(x) + i sin(x)` with just `cos(x)` for efficiency. The parameter
 # `T ∈ {Float64, ComplexF64}` controls the return type in a type-stable way. 
-function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, μ0_μB², q_reshaped, cis, ::Val{T}) where T
+function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, q_reshaped, cis, ::Val{T}) where T
     na = natoms(cryst)
     A = zeros(SMatrix{3, 3, T, 9}, latsize..., na, na)
 
@@ -108,7 +107,7 @@ function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, μ0
                 erfc0 = erfc(r/(√2*σ))
                 gauss0 = √(2/π) * (r/σ) * exp(-r²/2σ²)    
                 phase = cis(2π * dot(q_reshaped, n))
-                acc += phase * (μ0_μB²/4π) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
+                acc += phase * (1/4π) * ((I₃/r³) * (erfc0 + gauss0) - (3(rhat⊗rhat)/r³) * (erfc0 + (1+r²/3σ²) * gauss0))
             end
         end
 
@@ -127,14 +126,14 @@ function precompute_dipole_ewald_aux(cryst::Crystal, latsize::NTuple{3,Int}, μ0
                 # acc += (μ0/2V) * I₃
             elseif ϵ² < k² <= kmax*kmax
                 phase = cis(-k⋅Δr)
-                acc += phase * (μ0_μB²/V) * (exp(-σ²*k²/2) / k²) * (k⊗k)
+                acc += phase * (1/V) * (exp(-σ²*k²/2) / k²) * (k⊗k)
             end
         end
 
         #####################################################
         ## Remove self energies
         if iszero(Δr)
-            acc += - μ0_μB²*I₃/(3(2π)^(3/2)*σ³)
+            acc += - I₃/(3(2π)^(3/2)*σ³)
         end
 
         # For sites site1=(cell1, i) and site2=(cell2, j) offset by an amount

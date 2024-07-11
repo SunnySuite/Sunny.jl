@@ -72,7 +72,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
         N = sys.Ns[1]
 
         # Interaction matrix for wavevector q
-        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), sys.ewald.μ0_μB², q_reshaped)
+        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), q_reshaped) * sys.ewald.μ0_μB²
         A = reshape(A, Na, Na)
 
         # Interaction matrix for wavevector (0,0,0)
