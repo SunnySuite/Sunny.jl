@@ -92,6 +92,9 @@ ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (r.l.u.)",
 heatmap!(ax, 1:size(is, 1), energies, is, colormap=:gnuplot2)
 fig
 
+
+Sunny.intensities2(swt, qpoints; formfactors, measure=Sunny.DSSF(sys))
+
 # A powder measurement effectively involves an average over all possible crystal
 # orientations. We use the function [`reciprocal_space_shell`](@ref) to sample
 # `n` wavevectors on a sphere of a given radius (inverse angstroms), and then

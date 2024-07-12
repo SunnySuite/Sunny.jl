@@ -6,53 +6,67 @@
 # struct EnergyDependentBroadening
 # end
 
+# Op is the type of a local observable operator. Either a Vec3 (for :dipole
+# mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
+# mode, in which case op is an N×N matrix).
+struct Measurement{Op, F, Ret}
+    observables :: Array{Op, 5}          # (latsize, natoms, nobs)
+    corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
+    # A function that takes (q::Vec3, elems) and produces a combined result
+    combiner :: F
 
-# * Op: The type of a local observable operator. Either a Vec3 (for :dipole
-#   mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
-#   mode, in which case op is already an N×N matrix).
-# * Scalar: Type of scalar expectation value ⟨Op⟩. Either ComplexF64 or Float64.
-#   The latter retains only the real part.
-# * Ret: Type of the return value after running `contractor`. Must be `isbits`,
-#   but many scalars can be packed into the single return value.
-struct Measurement{Op, Scalar, Ret}
-    observables :: Array{Op, 5} # (na, latsize, nobs)
-    pair_indices :: Vector{NTuple{2, Int}} # (ncorr)
-    # A function that takes (q::Vec3, data::Vector{Scalar}) and produces a
-    # contracted result Ret
-    contractor :: Function
+    function Measurement(observables::Array{Op, 5}, corr_pairs, combiner::F) where {Op, F}
+        # Lift return type of combiner function to type-level
+        Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
+        @assert isbitstype(Ret)
+        return new{Op, F, Ret}(observables, corr_pairs, combiner)
+    end
 end
 
-function DSSF_observables(sys::System{N}; apply_g) where N
-
+function all_dipole_observables(sys::System; apply_g)
+    observables = zeros(Vec3, size(eachsite(sys))..., 3)
+    for site in eachsite(sys)
+        M = apply_g ? -sys.gs[site] : Mat3(I)
+        for α in 1:3
+            observables[site, α] = M[α, :]
+        end
+    end
+    corr_pairs = [(1,1), (1,2), (2,2), (1,3), (2,3), (3,3)]
+    return observables, corr_pairs
 end
 
-function DSSF_observables(sys::System{0}; apply_g)
-
-end
-
-function DSSF(sys::System{N}; apply_g=true)
-    observables, pair_indices = DSSF_observables(sys; apply_g)
-    contractor(_, data) = SA[
+function DSSF(sys::System{N}; apply_g=true) where N
+    observables, corr_pairs = all_dipole_observables(sys; apply_g)
+    combiner(_, data) = SA[
         data[1]       data[2]       data[4]
         conj(data[2]) data[3]       data[5]
         conj(data[4]) conj(data[5]) data[6]
     ]
-    Ret = Hermitian{ComplexF64, SMatrix{3, 3, ComplexF64, 9}}
-    return Measurement{eltype(observables), ComplexF64, Ret}(observables, pair_indices, contractor)
+    return Measurement(observables, corr_pairs, combiner)
 end
 
-function DSSF_trace(sys::System{N}; apply_g=true)
-    observables, pair_indices = DSSF_observables(sys; apply_g)
-    contractor(_, data) = data[1] + data[3] + data[6]
-    return Measurement{eltype(observables), Float64, Float64}(observables, pair_indices, contractor)
+function DSSF_trace(sys::System{N}; apply_g=true) where N
+    observables, corr_pairs = all_dipole_observables(sys; apply_g)
+    data = real.(SVector{6}(data))
+    combiner(_, data) = data[1] + data[3] + data[6]
+    return Measurement(observables, corr_pairs, combiner)
 end
 
-function DSSF_perp(sys::System{N}; apply_g=true)
-    observables, pair_indices = DSSF_observables(sys; apply_g)
-    function contractor(q, data)
-        data[1] + data[3] + data[6]
+function DSSF_perp(sys::System{N}; apply_g=true) where N
+    observables, corr_pairs = all_dipole_observables(sys; apply_g)
+    function combiner(q, data)
+        q2 = norm2(q)
+        data = real.(SVector{6}(data))
+        return data[1] + data[3] + data[6] +
+            - (data[1]*q[1]^2 + data[3]*q[2]^2 + data[6]*q[3]^2) / q2 + 
+            - 2 * (data[2]*q[1]*q[2] + data[4]*q[1]*q[3] + data[5]*q[2]*q[3]) / q2
+        # A = [data[1] data[2] data[4]
+        #      data[2] data[3] data[5]
+        #      data[4] data[5] data[6]]
+        # B = Hermitian(I - q * q' / norm2(q))
+        # return tr(A' * B)
     end
-    return Measurement{eltype(observables), Float64, Float64}(observables, pair_indices, contractor)
+    return Measurement(observables, corr_pairs, combiner)
 end
 
 
@@ -76,66 +90,14 @@ struct BroadenedIntensities{T} <: AbstractIntensities
     data :: Array{T, 3} # (ncorr × nω × nq)
 end
 
-# An function-like object that can be applied to momentum and intensity data (q,
-# dat), and carries its return type statically.
-struct IntensityContractor{T, F}
-    f::F
-end
-(c::IntensityContractor)(q, dat) = c.f(q, dat)
 
-
-const DssfFull = begin
-    f = function(_, dat)
-        @assert length(dat) == 6
-        Hermitian(SA[dat[1]       dat[2]       dat[4]
-                     conj(dat[2]) dat[3]       dat[5]
-                     conj(dat[4]) conj(dat[5]) dat[6]])
-    end
-    HMat3 = Hermitian{ComplexF64, SMatrix{3, 3, ComplexF64, 9}}
-    IntensityContractor{HMat3, typeof(f)}(f)
-end
-
-const DssfTrace = begin
-    f = (q, dat) -> tr(DssfFull(q, dat))
-    IntensityContractor{Float64, typeof(f)}(f)
-end
-
-const DssfPerp = begin
-    f = function(q, dat)
-        if iszero(q)
-            DssfTrace(q, dat)
-        else
-            A = real(DssfFull(q, dat))
-            B = Hermitian(I - q * q' / norm2(q))
-            dot(A, B) # == tr(A' * B)
-        end
-    end
-    IntensityContractor{Float64, typeof(f)}(f)
-end
-
-
-
-function intensities(swt::SpinWaveTheory, qs, formfactors; contractor)
-    contractor = let
-        if isnothing(contractor) || typeof(contractor) == IntensityContractor
-            contractor
-        elseif contractor == :full
-            DssfFull
-        elseif contractor == :trace
-            DssfTrace
-        elseif contractor == :perp
-            DssfPerp
-        else
-            error("Unknown contractor")
-        end
-    end
-    intensities_aux(swt, qs, formfactors, contractor)
-end
-
-function intensities_aux(swt::SpinWaveTheory, qs, formfactors, contractor::Union{Nothing, Contractor{T, F}}) where {T, F}
+# TODO: Move measure into SWT
+function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
+    (; sys) = swt
+    (; data, observables) = swt
 
     # Number of atoms in magnetic cell
-    @assert sys.latsize = (1,1,1)
+    @assert sys.latsize == (1,1,1)
     Na = natoms(sys.crystal)
     # Number of chemical cells in magnetic cell
     Ncells = Na / natoms(orig_crystal(sys))
@@ -143,14 +105,15 @@ function intensities_aux(swt::SpinWaveTheory, qs, formfactors, contractor::Union
     L = nbands(swt)
     # Number of wavevectors
     Nq = length(qs)
-    Ncorr = length(observables.correlations)
 
     # Preallocation
     H = zeros(ComplexF64, 2L, 2L)
     V = zeros(ComplexF64, 2L, 2L)
     Avec_pref = zeros(ComplexF64, Na)
     disp = zeros(Float64, L, Nq)
-    intensity = isnothing(contractor) ? zeros(ComplexF64, Ncorr, L, Nq) : zeros(T, L, Nq)
+    intensity = zeros(Ret, L, Nq)
+    # Temporary storage for pair correlations
+    Ncorr = length(measure.corr_pairs)
     corrbuf = zeros(ComplexF64, Ncorr)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
@@ -179,8 +142,9 @@ function intensities_aux(swt::SpinWaveTheory, qs, formfactors, contractor::Union
             Avec_pref[i] *= compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
         end
 
-        Avec = zeros(ComplexF64, num_observables(observables))
-        
+        nobs = size(measure.observables, 5)
+        Avec = zeros(ComplexF64, nobs)
+
         # Fill `intensity` array
         for band = 1:L
             fill!(Avec, 0)
@@ -189,7 +153,7 @@ function intensities_aux(swt::SpinWaveTheory, qs, formfactors, contractor::Union
                 N = sys.Ns[1]
                 v = reshape(view(V, :, band), N-1, Na, 2)
                 for i in 1:Na
-                    for μ in 1:num_observables(observables)
+                    for μ in 1:nobs
                         @views O = observables_localized[:, :, μ, i]
                         for α in 1:N-1
                             Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
@@ -220,16 +184,14 @@ function intensities_aux(swt::SpinWaveTheory, qs, formfactors, contractor::Union
                 (α, β) = c.I
                 corrbuf[ic] = Avec[α] * conj(Avec[β]) / Ncells
             end
-
-            if isnothing(contractor)
-                intensity[:, band, iq] .= corrbuf
-            else
-                intensity[band, iq] = contractor(q, corrbuf)
-            end
+            intensity[band, iq] = measure.combiner(q_absolute, corrbuf)
         end
     end
 
-    BandIntensities{Float64}(
+    println("got disp=$disp")
+    println("got intensity=$intensity")
+
+    return BandIntensities{Ret}(
         disp, # (nbands × nq)
         [orig_crystal(swt.sys).recipvecs * q for q in qs], # qs_abs
         intensity, # (ncorr × nbands × nq)
