@@ -35,7 +35,7 @@ cryst = Crystal(lat_vecs, basis_vecs)
 
 L = 40
 dims = (L, L, 1)
-sys = System(cryst, dims, [SpinInfo(1, S=1, g=-1)], :SUN; seed=101, units=Units.theory)
+sys = System(cryst, dims, [SpinInfo(1, S=1, g=-1)], :SUN; seed=101)
 
 # We proceed to implement each term of the Hamiltonian, selecting our parameters
 # so that the system occupies a region of the phase diagram that supports
@@ -57,7 +57,7 @@ set_exchange!(sys, ex2, Bond(1, 1, [1, 2, 0]))
 # Next we add the external field,
 
 h = 15.5
-field = set_external_field!(sys, [0, 0, h])
+field = set_field!(sys, [0, 0, h])
 
 # and finally an easy-plane single-ion anisotropy,
 

@@ -44,7 +44,7 @@ export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primit
     reference_bonds, print_site, print_bond, print_symmetry_table, print_suggested_frame
 
 include("Units.jl")
-export meV_per_K, Units
+export Units
 
 include("System/SpinInfo.jl")
 include("System/Types.jl")
@@ -56,7 +56,7 @@ include("System/Interactions.jl")
 export SpinInfo, System, Site, clone_system, eachsite, position_to_site, global_position, magnetic_moment,
     set_coherent!, set_dipole!, polarize_spins!, randomize_spins!, set_spin_rescaling!, energy, energy_per_site,
     spin_label, set_onsite_coupling!, set_pair_coupling!, set_exchange!, dmvec, enable_dipole_dipole!,
-    set_external_field!, to_inhomogeneous, set_external_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
+    set_field!, to_inhomogeneous, set_field_at!, set_vacancy_at!, set_onsite_coupling_at!,
     set_exchange_at!, set_pair_coupling_at!, symmetry_equivalent_bonds, remove_periodicity!,
     modify_exchange_with_truncated_dipole_dipole!
 
@@ -125,6 +125,7 @@ include("MonteCarlo/ParallelWangLandau.jl")
 export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
 
 include("deprecated.jl")
+export set_external_field!, set_external_field_at!, meV_per_K
 
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 

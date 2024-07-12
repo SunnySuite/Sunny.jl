@@ -7,6 +7,10 @@
   the Bohr magneton, ``μ_B``. For model systems where the Zeeman coupling aligns
   spin dipole with field (e.g., the Ising model convention), create a `SpinInfo`
   with `g=-1`. ([PR 284](https://github.com/SunnySuite/Sunny.jl/pull/284)).
+* More flexible [`Units`](@ref) system. `set_external_field!` is deprecated in
+  favor of [`set_field!`](@ref), which now expects a field in energy units.
+  [`enable_dipole_dipole!`](@ref) now expects a scale parameter ``μ_0 μ_B^2``
+  that can be obtained from `units.vacuum_permeability`.
 
 ## v0.6.0
 (June 18, 2024)
@@ -335,7 +339,7 @@ The parameter `mode` is one of `:SUN` or `:dipole`.
 ### Setting interactions
 
 Interactions are now added mutably to an existing `System` using the following
-functions: [`set_external_field!`](@ref), [`set_exchange!`](@ref),
+functions: `set_external_field!`, [`set_exchange!`](@ref),
 [`set_onsite_coupling!`](@ref), [`enable_dipole_dipole!`](@ref).
 
 As a convenience, one can use [`dmvec(D)`](@ref) to convert a DM vector to a
@@ -355,8 +359,7 @@ combination of Stevens operators. To see this expansion use
 
 ### Inhomogeneous field
 
-An external field can be applied to a single site with
-[`set_external_field_at!`](@ref). 
+An external field can be applied to a single site with `set_external_field_at!`. 
 
 
 ### Structure factor rewrite

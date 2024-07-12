@@ -1,10 +1,10 @@
 """
-    System(crystal::Crystal, latsize, infos, mode; units=Units.meV, seed::Int)
+    System(crystal::Crystal, latsize, infos, mode; seed::Int)
 
 Construct a `System` of spins for a given [`Crystal`](@ref) symmetry. The
 `latsize` parameter determines the number of unit cells in each lattice vector
-direction. The `infos` parameter is a list of [`SpinInfo`](@ref) objects, which
-determine the magnitude ``S`` and ``g``-tensor of each spin.
+direction. The `infos` parameter is a list of [`SpinInfo`](@ref) objects, one
+for each symmetry-inequivalent sublattice.
 
 The two primary options for `mode` are `:SUN` and `:dipole`. In the former, each
 spin-``S`` degree of freedom is described as an SU(_N_) coherent state, i.e. a
@@ -18,16 +18,17 @@ be renormalized to improve accuracy. To disable this renormalization, use the
 mode `:dipole_large_S` which applies the ``S → ∞`` classical limit. For details,
 see the documentation page: [Interaction Strength Renormalization](@ref).
 
-The default units system of (meV, Å, tesla) can be overridden by with the
-`units` parameter; see [`Units`](@ref). 
-
 An optional `seed` may be provided to achieve reproducible random number
 generation.
 
 All spins are initially polarized in the ``z``-direction.
 """
 function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
-                units=Units.meV, seed=nothing)
+                seed=nothing, units=nothing)
+    if !isnothing(units)
+        @warn "units argument to System is deprecated and will be ignored!"
+    end
+    
     if !in(mode, (:SUN, :dipole, :dipole_large_S))
         error("Mode must be `:SUN`, `:dipole`, or `:dipole_large_S`.")
     end
@@ -74,7 +75,7 @@ function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
     ret = System(nothing, mode, crystal, latsize, Ns, κs, gs, interactions, ewald,
-                 extfield, dipoles, coherents, dipole_buffers, coherent_buffers, units, rng)
+                 extfield, dipoles, coherents, dipole_buffers, coherent_buffers, rng)
     polarize_spins!(ret, (0,0,1))
     return ret
 end
@@ -132,7 +133,7 @@ Creates a full clone of the system, such that mutable updates to one copy will
 not affect the other, and thread safety is guaranteed.
 """
 function clone_system(sys::System{N}) where N
-    (; origin, mode, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, units, rng) = sys
+    (; origin, mode, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, rng) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
     ewald_clone = nothing # TODO: use clone_ewald(ewald)
@@ -147,13 +148,13 @@ function clone_system(sys::System{N}) where N
 
     ret = System(origin_clone, mode, crystal, latsize, Ns, copy(κs), copy(gs),
                  interactions_clone, ewald_clone, copy(extfield), copy(dipoles), copy(coherents),
-                 empty_dipole_buffers, empty_coherent_buffers, units, copy(rng))
+                 empty_dipole_buffers, empty_coherent_buffers, copy(rng))
 
     if !isnothing(ewald)
         # At the moment, clone_ewald is unavailable, so instead rebuild the
         # Ewald data structures from scratch. This might be fixed eventually.
         # See https://github.com/JuliaMath/FFTW.jl/issues/261.
-        enable_dipole_dipole!(ret)
+        enable_dipole_dipole!(ret, ewald.μ0_μB²)
     end
 
     return ret
@@ -169,7 +170,7 @@ atom within the unit cell).
 
 This object can be used to index `dipoles` and `coherents` fields of a `System`.
 A `Site` is also required to specify inhomogeneous interactions via functions
-such as [`set_external_field_at!`](@ref) or [`set_exchange_at!`](@ref).
+such as [`set_field_at!`](@ref) or [`set_exchange_at!`](@ref).
 
 Note that the definition of a cell may change when a system is reshaped. In this
 case, it is convenient to construct the `Site` using [`position_to_site`](@ref),
@@ -241,9 +242,8 @@ end
 """
     magnetic_moment(sys::System, site::Site)
 
-Returns ``μ/μ_B = - g 𝐒``, the local magnetic moment ``μ`` in units of the Bohr
-magneton ``μ_B``. The spin dipole ``𝐒`` and ``g``-tensor may both be
-[`Site`](@ref) dependent.
+Returns ``- g 𝐒``, the local magnetic moment in units of the Bohr magneton. The
+spin dipole ``𝐒`` and ``g``-tensor may both be [`Site`](@ref) dependent.
 """
 function magnetic_moment(sys::System, site)
     site = to_cartesian(site)
