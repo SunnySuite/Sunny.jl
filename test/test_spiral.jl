@@ -17,7 +17,7 @@
     # compute ewald energy using J(k)
     sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
-    enable_dipole_dipole!(sys)
+    enable_dipole_dipole!(sys, 1.0)
     E1 = Sunny.spiral_energy_per_site(sys; k, axis)
 
     # compute ewald energy using supercell
@@ -25,7 +25,7 @@
     for i in 1:Sunny.natoms(sys.crystal)
         set_spiral_order_on_sublattice!(sys_large, i; k, axis, S0=sys.dipoles[i])
     end
-    enable_dipole_dipole!(sys_large)
+    enable_dipole_dipole!(sys_large, 1.0)
     E2 = energy_per_site(sys_large)
 
     @test E1 ≈ E2
@@ -40,7 +40,7 @@
     # compute ewald energy using J(Q)
     sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
-    enable_dipole_dipole!(sys)
+    enable_dipole_dipole!(sys, 1.0)
     E1 = Sunny.spiral_energy_per_site(sys; k, axis)
 
     # compute ewald energy using supercell
@@ -48,7 +48,7 @@
     for i in 1:Sunny.natoms(sys.crystal)
         set_spiral_order_on_sublattice!(sys_large, i; k, axis, S0=sys.dipoles[i])
     end
-    enable_dipole_dipole!(sys_large)
+    enable_dipole_dipole!(sys_large, 1.0)
     E2 = energy_per_site(sys_large)
 
     @test E1 ≈ E2
@@ -65,10 +65,10 @@ end
         cryst = Crystal(latvecs, positions)
 
         dims = (1, 1, 1)
-        sys = System(cryst, dims, [SpinInfo(1; S, g=-1)], :dipole; units=Units.theory)
+        sys = System(cryst, dims, [SpinInfo(1; S, g=-1)], :dipole)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> (D/rcs)*S[3]^2, 1)
-        set_external_field!(sys, [0, 0, h])
+        set_field!(sys, [0, 0, h])
 
         k = Sunny.minimize_luttinger_tisza_exchange(sys; k_guess=randn(3))
         @test k[1:2] ≈ [0.5, 0.5]

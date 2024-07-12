@@ -8,11 +8,11 @@
         add_linear_interactions!(sys, mode)
         add_quadratic_interactions!(sys, mode)
         add_quartic_interactions!(sys, mode)
-        enable_dipole_dipole!(sys)
+        enable_dipole_dipole!(sys, 0.5)
 
         # Random field
         for site in eachsite(sys)
-            set_external_field_at!(sys, randn(sys.rng, 3), site)
+            set_field_at!(sys, 0.1*randn(sys.rng, 3), site)
         end
         # Random spin rescaling
         rand!(sys.rng, sys.κs)

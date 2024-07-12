@@ -11,6 +11,8 @@ using Sunny, GLMakie, Statistics
 a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
+
+units = Units(:meV)
 latsize = (2, 2, 2)
 S = 3/2
 J = 0.63 # (meV)
@@ -29,7 +31,7 @@ sys = resize_supercell(sys, (10, 10, 10))
 # This dynamics involves a dimensionless `damping` magnitude and target
 # temperature `kT` for thermal fluctuations.
 
-kT = 16 * meV_per_K  # 16K, a temperature slightly below ordering
+kT = 16 * units.K  # 16 K ≈ 1.38 meV, slightly below ordering temperature
 langevin = Langevin(; damping=0.2, kT)
 
 # Use [`suggest_timestep`](@ref) to select an integration timestep for the given

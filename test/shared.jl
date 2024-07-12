@@ -9,7 +9,7 @@ using Random, LinearAlgebra, IOCapture
 # Various possible interactions appropriate to diamond crystal
 
 function add_linear_interactions!(sys, mode)
-    set_external_field!(sys, (0.0, 1.0, 1.0))
+    set_field!(sys, [0.0, 0.2, 0.3])
     if mode == :SUN
         # Kets scale as z → √κ z, so ⟨Λ⟩ → κ ⟨Λ⟩ is linear in κ
         set_onsite_coupling!(sys, S -> 0.2*(S[1]^4+S[2]^4+S[3]^4), 1)

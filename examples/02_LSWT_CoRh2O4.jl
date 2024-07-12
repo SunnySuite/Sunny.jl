@@ -32,7 +32,7 @@ view_crystal(cryst)
 
 latsize = (1, 1, 1)
 S = 3/2
-J = 7.5413*meV_per_K # (~ 0.65 meV)
+J = 0.63 # (meV)
 sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], :dipole; seed=0)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 

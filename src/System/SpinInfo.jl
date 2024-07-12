@@ -4,7 +4,7 @@
 Characterizes the spin at a given `atom` index within the crystal unit cell. `S`
 is an integer multiple of 1/2 and gives the spin angular momentum in units of ħ.
 `g` is the g-factor or tensor, such that an angular momentum dipole ``s``
-produces a magnetic moment ``g s`` in units of the Bohr magneton.
+produces a magnetic moment ``+ g s`` in units of the Bohr magneton.
 """
 struct SpinInfo
     atom   :: Int     # Index of atom in unit cell

@@ -150,7 +150,7 @@ function swt_data_sun(sys::System{N}, obs) where N
 
         # Accumulate Zeeman terms into OnsiteCoupling
         S = spin_matrices_of_dim(; N)
-        B = sys.units.μB * (sys.gs[atom]' * sys.extfield[atom])
+        B = sys.gs[atom]' * sys.extfield[atom]
         int.onsite += B' * S
 
         # Rotate onsite anisotropy

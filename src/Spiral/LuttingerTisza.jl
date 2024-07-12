@@ -22,11 +22,11 @@ function luttinger_tisza_exchange(sys::System; k, ϵ=0)
     end
 
     if !isnothing(sys.ewald)
-        A = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), sys.units.μ0, k)
+        A = Sunny.precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), k) * sys.ewald.μ0_μB²
         A = reshape(A, Na, Na)
         for i in 1:Na, j in 1:Na
-            J_k[:, i, :, j] += μB² * gs[i]' * A[i, j] * gs[j] / 2
-        end    
+            J_k[:, i, :, j] += gs[i]' * A[i, j] * gs[j] / 2
+        end
     end
 
     J_k = reshape(J_k, 3*Na, 3*Na)

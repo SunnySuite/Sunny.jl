@@ -2,7 +2,7 @@
 function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped::Vec3)
     (; sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
-    (; extfield, gs, units) = sys
+    (; extfield, gs) = sys
 
     L = nbands(swt) 
     @assert size(H) == (2L, 2L)
@@ -17,7 +17,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
     for (i, int) in enumerate(sys.interactions_union)
         # Zeeman term
-        B = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i]) 
+        B = gs[1, 1, 1, i]' * extfield[1, 1, 1, i]
         B′ = - dot(B, local_rotations[i][:, 3]) / 2
         H11[i, i] += B′
         H22[i, i] += B′
@@ -97,15 +97,14 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
     # Add long-range dipole-dipole
     if !isnothing(sys.ewald)
-        μB² = units.μB^2
         Rs = local_rotations
 
         # Interaction matrix for wavevector q
-        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), units.μ0, q_reshaped)
+        A = precompute_dipole_ewald_at_wavevector(sys.crystal, (1,1,1), q_reshaped) * sys.ewald.μ0_μB²
         A = reshape(A, L, L)
 
         # Interaction matrix for wavevector (0,0,0). It could be recalculated as:
-        # precompute_dipole_ewald(sys.crystal, (1,1,1), units.μ0)
+        # precompute_dipole_ewald(sys.crystal, (1,1,1)) * sys.ewald.μ0_μB²
         A0 = sys.ewald.A
         A0 = reshape(A0, L, L)
 
@@ -114,8 +113,8 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
             # An ordered pair of magnetic moments contribute (μᵢ A μⱼ)/2 to the
             # energy. A symmetric contribution will appear for the bond reversal
             # (i, j) → (j, i).  Note that μ = -μB g S.
-            J = μB² * gs[i]' * A[i, j] * gs[j] / 2
-            J0 = μB² * gs[i]' * A0[i, j] * gs[j] / 2
+            J = gs[i]' * A[i, j] * gs[j] / 2
+            J0 = gs[i]' * A0[i, j] * gs[j] / 2
 
             # Perform same transformation as appears in usual bilinear exchange.
             # Rⱼ denotes a rotation from ẑ to the ground state dipole Sⱼ.
@@ -179,14 +178,14 @@ function multiply_by_hamiltonian_dipole!(y::Array{ComplexF64, 2}, x::Array{Compl
 
     # Add Zeeman and single-ion anisotropy. These entries are q-independent and
     # could be precomputed.
-    (; units, extfield, gs) = sys
+    (; extfield, gs) = sys
     for i in 1:L
         (; c2, c4, c6) = stevens_coefs[i]
         S = sqrtS[i]^2
         A1 = -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
         A2 = im*(S*c2[5] + 6S^3*c4[7] + 16S^5*c6[9]) + (S*c2[1] + 6S^3*c4[3] + 16S^5*c6[5])
 
-        B = units.μB * (gs[1, 1, 1, i]' * extfield[1, 1, 1, i]) 
+        B = gs[1, 1, 1, i]' * extfield[1, 1, 1, i]
         B′ = - dot(B, view(local_rotations[i], :, 3)) / 2 
 
         # Seems to be no benefit to breaking this into two loops acting on
