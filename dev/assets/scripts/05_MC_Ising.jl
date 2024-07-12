@@ -5,13 +5,13 @@ latvecs = lattice_vectors(a,a,10a,90,90,90)
 crystal = Crystal(latvecs, [[0,0,0]])
 
 L = 128
-sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=-1)], :dipole, units=Units.theory, seed=0)
+sys = System(crystal, (L,L,1), [SpinInfo(1, S=1, g=-1)], :dipole, seed=0)
 polarize_spins!(sys, (0,0,1))
 
 set_exchange!(sys, -1.0, Bond(1,1,(1,0,0)))
 
 B = 0
-set_external_field!(sys, (0,0,B))
+set_field!(sys, (0, 0, B))
 
 Tc = 2/log(1+√2)
 

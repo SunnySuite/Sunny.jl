@@ -3,9 +3,9 @@
 positions = [[0, 0, 0]]
 cryst = Crystal(latvecs, positions, 227, setting=&quot;2&quot;)
 
+units = Units(:meV)
 sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=7/2, g=2)], :dipole, seed=2)
-
-J1 = 0.304 * meV_per_K
+J1 = 0.304 * units.K
 set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))</code></pre><p>Reshape to the primitive cell with four atoms. To facilitate indexing, the function <a href="../library.html#Sunny.position_to_site-Tuple{System, Any}"><code>position_to_site</code></a> accepts positions with respect to the original (cubic) cell.</p><pre><code class="language-julia hljs">shape = [1/2 1/2 0; 0 1/2 1/2; 1/2 0 1/2]
 sys_prim = reshape_supercell(sys, shape)
 
@@ -14,7 +14,7 @@ set_dipole!(sys_prim, [-1, +1, 0], position_to_site(sys_prim, [1/4, 1/4, 0]))
 set_dipole!(sys_prim, [+1, +1, 0], position_to_site(sys_prim, [1/4, 0, 1/4]))
 set_dipole!(sys_prim, [-1, -1, 0], position_to_site(sys_prim, [0, 1/4, 1/4]))
 
-plot_spins(sys_prim; ghost_radius=8, color=[:red,:blue,:yellow,:purple])</code></pre><img src="07_Dipole_Dipole-34ddd12f.png" alt="Example block output"/><p>Calculate dispersions with and without long-range dipole interactions. The high-symmetry k-points are specified with respect to the conventional cubic cell.</p><pre><code class="language-julia hljs">q_points = [[0,0,0], [0,1,0], [1,1/2,0], [1/2,1/2,1/2], [3/4,3/4,0], [0,0,0]]
+plot_spins(sys_prim; ghost_radius=8, color=[:red, :blue, :yellow, :purple])</code></pre><img src="07_Dipole_Dipole-34ddd12f.png" alt="Example block output"/><p>Calculate dispersions with and without long-range dipole interactions. The high-symmetry k-points are specified with respect to the conventional cubic cell.</p><pre><code class="language-julia hljs">q_points = [[0,0,0], [0,1,0], [1,1/2,0], [1/2,1/2,1/2], [3/4,3/4,0], [0,0,0]]
 q_labels = [&quot;Γ&quot;,&quot;X&quot;,&quot;W&quot;,&quot;L&quot;,&quot;K&quot;,&quot;Γ&quot;]
 density = 150
 path, xticks = reciprocal_space_path(cryst, q_points, density)
@@ -31,7 +31,10 @@ disp2 = dispersion(swt, path)
 sys_prim_tdd = clone_system(sys_prim)
 modify_exchange_with_truncated_dipole_dipole!(sys_prim_tdd, 5.0)
 swt = SpinWaveTheory(sys_prim_tdd)
-disp3 = dispersion(swt, path);</code></pre><p>To reproduce Fig. 2 of <a href="https://arxiv.org/abs/cond-mat/0403494">Del Maestro and Gingras</a>, an empirical rescaling of energy is necessary.</p><pre><code class="language-julia hljs">fudge_factor = 1/2 # To reproduce prior work
+disp3 = dispersion(swt, path);</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Deprecated syntax! Consider `enable_dipole_dipole!(sys, units.vacuum_permeability)` where `units = Units(:meV)`.
+<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ Sunny ~/work/Sunny.jl/Sunny.jl/src/System/Interactions.jl:95</span>
+<span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Deprecated syntax! Consider `modify_exchange_with_truncated_dipole_dipole!(sys, cutoff, units.vacuum_permeability)` where `units = Units(:meV)`.
+<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ Sunny ~/work/Sunny.jl/Sunny.jl/src/System/Ewald.jl:264</span></code></pre><p>To reproduce Fig. 2 of <a href="https://arxiv.org/abs/cond-mat/0403494">Del Maestro and Gingras</a>, an empirical rescaling of energy is necessary.</p><pre><code class="language-julia hljs">fudge_factor = 1/2 # To reproduce prior work
 
 fig = Figure(size=(900,300))
 
@@ -39,18 +42,18 @@ ax = Axis(fig[1,1]; xlabel=&quot;&quot;, ylabel=&quot;Energy (K)&quot;, xticks, 
 ylims!(ax, 0, 2)
 xlims!(ax, 1, size(disp1, 1))
 for i in axes(disp1, 2)
-    lines!(ax, 1:length(disp1[:,i]), fudge_factor*disp1[:,i]/meV_per_K)
+    lines!(ax, 1:length(disp1[:,i]), fudge_factor*disp1[:,i]/units.K)
 end
 
 ax = Axis(fig[1,2]; xlabel=&quot;&quot;, ylabel=&quot;Energy (K)&quot;, xticks, xticklabelrotation=0)
 ylims!(ax, 0.0, 3)
 xlims!(ax, 1, size(disp2, 1))
 for i in axes(disp2, 2)
-    lines!(ax, 1:length(disp2[:,i]), fudge_factor*disp2[:,i]/meV_per_K)
+    lines!(ax, 1:length(disp2[:,i]), fudge_factor*disp2[:,i]/units.K)
 end
 
 for i in axes(disp3, 2)
-    lines!(ax, 1:length(disp3[:,i]), fudge_factor*disp3[:,i]/meV_per_K; color=:gray, linestyle=:dash)
+    lines!(ax, 1:length(disp3[:,i]), fudge_factor*disp3[:,i]/units.K; color=:gray, linestyle=:dash)
 end
 
-fig</code></pre><img src="07_Dipole_Dipole-8d07a906.png" alt="Example block output"/></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="06_CP2_Skyrmions.html">« 6. Dynamical quench into CP² skyrmion liquid</a><a class="docs-footer-nextpage" href="08_Momentum_Conventions.html">8. Momentum transfer conventions »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.5.0 on <span class="colophon-date" title="Thursday 4 July 2024 14:57">Thursday 4 July 2024</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+fig</code></pre><img src="07_Dipole_Dipole-8d07a906.png" alt="Example block output"/></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="06_CP2_Skyrmions.html">« 6. Dynamical quench into CP² skyrmion liquid</a><a class="docs-footer-nextpage" href="08_Momentum_Conventions.html">8. Momentum transfer conventions »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.5.0 on <span class="colophon-date" title="Friday 12 July 2024 20:52">Friday 12 July 2024</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

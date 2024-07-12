@@ -6,7 +6,7 @@ cryst = Crystal(lat_vecs, basis_vecs)
 
 L = 40
 dims = (L, L, 1)
-sys = System(cryst, dims, [SpinInfo(1, S=1, g=-1)], :SUN; seed=101, units=Units.theory)
+sys = System(cryst, dims, [SpinInfo(1, S=1, g=-1)], :SUN; seed=101)
 
 J1 = -1           # Nearest-neighbor ferromagnetic
 J2 = (2.0/(1+√5)) # Tune competing exchange to set skyrmion scale length
@@ -22,7 +22,7 @@ set_exchange!(sys, ex1, Bond(1, 1, [1, 0, 0]))
 set_exchange!(sys, ex2, Bond(1, 1, [1, 2, 0]))
 
 h = 15.5
-field = set_external_field!(sys, [0, 0, h])
+field = set_field!(sys, [0, 0, h])
 
 D = 19.0
 set_onsite_coupling!(sys, S -> D*S[3]^2, 1)

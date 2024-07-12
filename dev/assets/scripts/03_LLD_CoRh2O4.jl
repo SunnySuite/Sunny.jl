@@ -3,6 +3,8 @@ using Sunny, GLMakie, Statistics
 a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
+
+units = Units(:meV)
 latsize = (2, 2, 2)
 S = 3/2
 J = 0.63 # (meV)
@@ -14,7 +16,7 @@ minimize_energy!(sys)
 sys = resize_supercell(sys, (10, 10, 10))
 @assert energy_per_site(sys) ≈ -2J*S^2
 
-kT = 16 * meV_per_K  # 16K, a temperature slightly below ordering
+kT = 16 * units.K  # 16 K ≈ 1.38 meV, slightly below ordering temperature
 langevin = Langevin(; damping=0.2, kT)
 
 suggest_timestep(sys, langevin; tol=1e-2)
