@@ -29,10 +29,24 @@ struct SpinWaveTheory
 end
 
 function SpinWaveTheory(sys::System{N}; energy_ϵ::Float64=1e-8, observables=nothing, correlations=nothing, apply_g=true) where N
-    # Reshape into single unit cell. A clone will always be performed, even if
-    # no reshaping happens.
-    cellsize_mag = cell_shape(sys) * diagm(Vec3(sys.latsize))
-    sys = reshape_supercell_aux(sys, (1,1,1), cellsize_mag)
+    # Create single chemical cell that matches the full system size.
+    new_shape = cell_shape(sys) * diagm(Vec3(sys.latsize))
+    new_cryst = reshape_crystal(orig_crystal(sys), new_shape)
+
+    # Sort crystal positions so that their order matches sites in sys. Quadratic
+    # scaling in system size.
+    global_positions = global_position.(Ref(sys), vec(eachsite(sys)))
+    p = map(new_cryst.positions) do r
+        pos = new_cryst.latvecs * r
+        findfirst(global_positions) do refpos
+            isapprox(pos, refpos, atol=new_cryst.symprec)
+        end
+    end
+    @assert allunique(p)
+    permute_sites!(new_cryst, p)
+
+    # Create a new system with latsize (1,1,1). A clone happens in all cases.
+    sys = reshape_supercell_aux(sys, new_cryst, (1,1,1))
 
     # Rotate local operators to quantization axis
     if sys.mode == :SUN

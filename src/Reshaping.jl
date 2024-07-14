@@ -19,10 +19,11 @@ function reshape_supercell(sys::System{N}, shape) where N
     @assert prim_shape′ ≈ prim_shape
 
     # Unit cell for new system, in units of original unit cell.
-    enlarged_latsize = NTuple{3, Int}(gcd.(eachcol(prim_shape′)))
-    reduced_shape = Mat3(shape * diagm(collect(inv.(enlarged_latsize))))
+    new_latsize = NTuple{3, Int}(gcd.(eachcol(prim_shape′)))
+    new_shape = Mat3(shape * diagm(collect(inv.(new_latsize))))
+    new_cryst = reshape_crystal(orig_crystal(sys), new_shape)
 
-    return reshape_supercell_aux(sys, enlarged_latsize, reduced_shape)
+    return reshape_supercell_aux(sys, new_cryst, new_latsize)
 end
 
 
@@ -59,12 +60,9 @@ function transfer_interactions!(sys::System{N}, src::System{N}) where N
 end
 
 
-function reshape_supercell_aux(sys::System{N}, new_latsize::NTuple{3, Int}, new_cell_shape::Mat3) where N
-    # Reshape the crystal
-    new_cryst            = reshape_crystal(orig_crystal(sys), new_cell_shape)
-    new_na               = natoms(new_cryst)
-
+function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_latsize::NTuple{3, Int}) where N
     # Allocate data for new system, but with an empty list of interactions
+    new_na               = natoms(new_cryst)
     new_Ns               = zeros(Int, new_latsize..., new_na)
     new_κs               = zeros(Float64, new_latsize..., new_na)
     new_gs               = zeros(Mat3, new_latsize..., new_na)
@@ -143,7 +141,5 @@ See also [`reshape_supercell`](@ref).
 """
 function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
     all(>=(1), counts) || error("Require at least one count in each direction.")
-
-    # Scale each column by `counts` and reshape
-    return reshape_supercell_aux(sys, counts .* sys.latsize, cell_shape(sys))
+    return reshape_supercell_aux(sys, sys.crystal, counts .* sys.latsize)
 end
