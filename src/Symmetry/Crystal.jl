@@ -152,7 +152,19 @@ function spacegroup_name(hall_number::Int)
 end
 
 
-# Sort the sites according to class and fractional coordinates.
+# Crystal is immutable in its public API. Therefore, this is an internal
+# function should not overload Base.permute!
+function permute_sites!(cryst::Crystal, p)
+    cryst.positions .= cryst.positions[p]
+    cryst.classes .= cryst.classes[p]
+    cryst.types .= cryst.types[p]
+    if !isnothing(cryst.sitesyms)
+        cryst.sitesyms .= cryst.sitesyms[p]
+    end
+end
+
+# Sort the sites according to class and fractional coordinates. This is an
+# internal function.
 function sort_sites!(cryst::Crystal)
     function less_than(i, j)
         ci = cryst.classes[i]
@@ -171,10 +183,8 @@ function sort_sites!(cryst::Crystal)
         error("""Detected two very close atoms ($str1 and $str2).
                  If positions inferred from spacegroup, try increasing `symprec` parameter to `Crystal`.""")
     end
-    perm = sort(eachindex(cryst.positions), lt=less_than)
-    cryst.positions .= cryst.positions[perm]
-    cryst.classes .= cryst.classes[perm]
-    cryst.types .= cryst.types[perm]
+    p = sort(eachindex(cryst.positions), lt=less_than)
+    permute_sites!(cryst, p)
 end
 
 
