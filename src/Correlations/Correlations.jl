@@ -22,9 +22,33 @@ struct Measurement{Op, F, Ret}
     end
 end
 
-function all_dipole_observables(sys::System; apply_g)
+
+function localize_observable(v::Vec3, data::SWTDataDipole, site::Int)
+    R = data.local_rotations[site]
+    return R' * v
+end
+
+function localize_observable(A::HermitianC64, data::SWTDataSUN, site::Int)
+    U = data.local_unitaries[:, :, site]
+    return Hermitian(U' * A * U)
+end
+
+function localize_observables(obs::Array{Op, 5}, data) where {Op}
+    Nsites = prod(size(obs)[1:4])
+    Nobs = size(obs, 5)
+    obs = reshape(obs, (Nsites, Nobs))
+    ret = copy(obs)
+    for α in 1:Nobs, site in 1:Nsites
+        ret[site, α] = localize_observable(obs[site, α], data, site)
+    end
+    return ret
+end
+
+
+function all_dipole_observables(sys::System{0}; apply_g)
     observables = zeros(Vec3, size(eachsite(sys))..., 3)
     for site in eachsite(sys)
+        # Component α of observable is op⋅S = -g[α,β] S[β]
         M = apply_g ? -sys.gs[site] : Mat3(I)
         for α in 1:3
             observables[site, α] = M[α, :]
@@ -33,6 +57,20 @@ function all_dipole_observables(sys::System; apply_g)
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     return observables, corr_pairs
 end
+
+function all_dipole_observables(sys::System{N}; apply_g) where {N}
+    observables = Array{HermitianC64, 5}(undef, size(eachsite(sys))..., 3)
+    for site in eachsite(sys)
+        S = spin_matrices_of_dim(; N=sys.Ns[site])
+        M = apply_g ? -sys.gs[site]*S : S
+        for α in 1:3
+            observables[site, α] = M[α]
+        end
+    end
+    corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
+    return observables, corr_pairs
+end
+
 
 function DSSF(sys::System{N}; apply_g=true) where N
     observables, corr_pairs = all_dipole_observables(sys; apply_g)
@@ -91,7 +129,7 @@ end
 # TODO: Move measure into SWT
 function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     (; sys) = swt
-    (; data, observables) = swt
+    (; data) = swt
 
     # Number of atoms in magnetic cell
     @assert sys.latsize == (1,1,1)
@@ -117,7 +155,7 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
     corrbuf = zeros(ComplexF64, Ncorr)
 
     Nobs = size(measure.observables, 5)
-    obs = reshape(measure.observables, (Na, Nobs))
+    obs_local_frame = localize_observables(measure.observables, swt.data)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
@@ -154,34 +192,26 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
                 (; observables_localized) = data::SWTDataSUN
                 N = sys.Ns[1]
                 v = reshape(view(V, :, band), N-1, Na, 2)
-                for i in 1:Na
-                    for μ in 1:Nobs
-                        @views O = observables_localized[:, :, μ, i]
-                        for α in 1:N-1
-                            Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
-                        end
+                for i in 1:Na, μ in 1:Nobs
+                    @views O = observables_localized[:, :, μ, i]
+                    @assert O ≈ - obs_local_frame[i, μ]
+
+                    for α in 1:N-1
+                        Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
                     end
                 end
             else
-                (; observables_localized, sqrtS) = data::SWTDataDipole
                 @assert sys.mode in (:dipole, :dipole_large_S)
                 v = reshape(view(V, :, band), Na, 2)
                 for i in 1:Na
+                    sqrtS = sqrt(sys.κs[i])
                     for μ in 1:Nobs
-                        O_local_frame = obs[i, μ]' * swt.data.local_rotations[i]
-
                         # This is the Avec of the two transverse and one
                         # longitudinal directions in the local frame. (In the
                         # local frame, z is longitudinal, and we are computing
                         # the transverse part only, so the last entry is zero)
                         displacement_local_frame = SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
-
-                        # Note that O_local_frame has already been right
-                        # multiplied by data.local_rotations[i]
-                        @views O_local_frame2 = observables_localized[:,:,μ,i]
-                        @assert O_local_frame ≈ -O_local_frame2
-
-                        Avec[μ] += Avec_pref[i] * (sqrtS[i]/sqrt(2)) * (O_local_frame * displacement_local_frame)[1]
+                        Avec[μ] += Avec_pref[i] * (sqrtS/sqrt(2)) * (obs_local_frame[i, μ]' * displacement_local_frame)[1]
                     end
                 end
             end
