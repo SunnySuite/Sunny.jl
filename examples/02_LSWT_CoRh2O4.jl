@@ -83,52 +83,24 @@ formula = intensity_formula(swt, :perp; kernel, formfactors)
 # [`intensities_broadened`](@ref) function collects intensities along this path
 # for the given set of energy values.
 
-qpoints = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
-path, xticks = reciprocal_space_path(cryst, qpoints, 50)
-energies = collect(0:0.01:6)
+qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
+path, xticks = reciprocal_space_path(cryst, qs, 50)
+
 # is = intensities_broadened(swt, path, energies, formula)
 disp2, is2 = intensities_bands(swt, path, formula)
 
-
-(; disp, data) = Sunny.intensities2(swt, path; formfactors, measure=Sunny.DSSF_perp(sys_prim))
-data
-data[1:2,1]
-
-
+kernel = Sunny.lorentzian2(fwhm=0.8)
+measure = Sunny.DSSF_perp(sys_prim)
+(; disp, data) = Sunny.intensities2(swt, path; formfactors, measure)
 @assert disp ≈ disp2'
 @assert norm(is2 - data') < 1e-8
 
-is2[:,1]
-data[1,:]
+formula = intensity_formula(swt, :perp; kernel=Sunny.lorentzian(fwhm=0.8), formfactors)
+is3 = intensities_broadened(swt, path, energies, formula)
 
-is3 = intensities_broadened(swt, path, energies, intensity_formula(swt, :perp; kernel=lorentzian(fwhm=0.8), formfactors))
-heatmap(is3)
+broad = Sunny.intensities_broadened2(swt, path, energies; measure, kernel, formfactors)
+@assert norm(is3 - broad.data') < 1e-8
 
-broad = Sunny.intensities_broadened2(swt, energies, path; kernel=Sunny.lorentzian2(fwhm=0.8), formfactors, measure=Sunny.DSSF_perp(sys_prim))
-heatmap(broad.data')
-
-
-norm(is3 - broad.data')
-
-
-kernel=lorentzian(fwhm=0.8)
-measure=Sunny.DSSF_perp(sys_prim)
-qs = path
-bands = Sunny.intensities2(swt, qs; formfactors, measure)
-
-nω = length(energies)
-nq = length(qs)
-data = zeros(Float64, nω, nq)
-
-bands.disp
-
-for iq in eachindex(qs), (ib, b) in enumerate(bands.disp[:,iq]), (iω, ω) in enumerate(energies)
-    data[iω, iq] += kernel(ω - b) * bands.data[ib, iq]
-end
-
-
-
-heatmap(broad.data)
 
 # A powder measurement effectively involves an average over all possible crystal
 # orientations. We use the function [`reciprocal_space_shell`](@ref) to sample
@@ -137,11 +109,11 @@ heatmap(broad.data)
 
 radii = 0.01:0.02:3 # (1/Å)
 output = zeros(Float64, length(radii), length(energies))
-for (i, radius) in enumerate(radii)
+@time for (i, radius) in enumerate(radii)
     n = 300
     qs = reciprocal_space_shell(cryst, radius, n)
-    is = intensities_broadened(swt, qs, energies, formula)
-    output[i, :] = sum(is, dims=1) / size(is, 1)
+    is = Sunny.intensities_broadened2(swt, qs, energies; measure, kernel, formfactors)
+    output[i, :] = sum(is.data, dims=2) / size(is.data, 2)
 end
 
 fig = Figure()
@@ -154,3 +126,13 @@ fig
 # ```@raw html
 # <img width="95%" src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/CoRh2O4_intensity.jpg">
 # ```
+
+output2 = zeros(Float64, length(radii), length(energies))
+@time for (i, radius) in enumerate(radii)
+    n = 300
+    qs = reciprocal_space_shell(cryst, radius, n)
+    is = intensities_broadened(swt, qs, energies, formula)
+    output2[i, :] = sum(is, dims=1) / size(is, 1)
+end
+
+@assert output[50,:] ≈ output2[50,:]
