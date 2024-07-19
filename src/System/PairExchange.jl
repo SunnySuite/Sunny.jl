@@ -219,18 +219,18 @@ function set_pair_coupling_aux!(sys::System, scalar::Float64, bilin::Union{Float
 
     # Verify that couplings are symmetry-consistent
     if !is_coupling_valid(sys.crystal, bond, bilin)
-        @error """Symmetry-violating bilinear exchange $bilin.
-                  Use `print_bond(crystal, $bond)` for more information."""
+        error("""Symmetry-violating bilinear exchange $bilin.
+                 Use `print_bond(crystal, $bond)` for more information.""")
     end
     if !is_coupling_valid(sys.crystal, bond, biquad)
         biquad_str = formatted_matrix(number_to_math_string.(biquad); prefix="  ")
-        @error """Symmetry-violating biquadratic exchange (written in Stevens basis)
-                  $biquad_str
-                  Use `print_bond(crystal, $bond)` for more information."""
+        error("""Symmetry-violating biquadratic exchange (written in Stevens basis)
+                 $biquad_str
+                 Use `print_bond(crystal, $bond)` for more information.""")
     end
     if !is_coupling_valid(sys.crystal, bond, tensordec)
-        @error """Symmetry-violating coupling. Use `print_bond(crystal, $bond)` for more information."""
-        error("Interaction violates symmetry.")
+        error("""Symmetry-violating coupling.
+                 Use `print_bond(crystal, $bond)` for more information.""")
     end
 
     # Print a warning if an interaction already exists for bond
@@ -382,9 +382,8 @@ function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2:
         else
             cell1 = Tuple(to_cell(site1))
             cell2 = Tuple(to_cell(site2))
-            @error """Cells $cell1 and $cell2 are not compatible with the offset
-                      $n_ref for a system with lattice size $latsize."""
-            error("Incompatible displacement specified")
+            error("""Cells $cell1 and $cell2 are not compatible with the offset
+                     $n_ref for a system with lattice size $latsize.""")
         end
     end
     
@@ -406,9 +405,8 @@ function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2:
     else
         n1 = bonds[perm[1]].n
         n2 = bonds[perm[2]].n
-        @error """Cannot find an obvious offset vector. Possibilities include $n1 and $n2.
-                  Try using a bigger system size, or pass an explicit offset vector."""
-        error("Ambiguous offset between sites.")
+        error("""Ambiguous offset vector. Possibilities include $n1 and $n2.
+                 Try using a bigger system size, or pass an explicit offset.""")
     end
 end
 
