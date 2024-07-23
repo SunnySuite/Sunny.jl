@@ -41,15 +41,15 @@ end
     randomize_spins!(sys)
     minimize_energy!(sys)
     @test energy_per_site(sys) ≈ -B
-    qpoints = [[0, 0, -1/2], [0, 0, 1/2]]
-    path, xticks = reciprocal_space_path(cryst, qpoints, 50)
+    qs = [[0, 0, -1/2], [0, 0, 1/2]]
+    path = Sunny.q_space_path(cryst, qs, 0.02)
     swt = SpinWaveTheory(sys)
-    formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
-    disp, intens = intensities_bands(swt, path, formula)
-    disp_ref = [B + 2D*sin(2π*q[3]) for q in path]
-    intens_ref = [1.0 for _ in path]
-    @test disp[:,1] ≈ disp_ref
-    @test intens[:,1] ≈ intens_ref
+    measure = Sunny.DSSF_trace(sys)
+    res = Sunny.intensities_bands2(swt, path; measure)
+    disp_ref = [B + 2D*sin(2π*q[3]) for q in path.qs]
+    intens_ref = [1.0 for _ in path.qs]
+    @test res.disp[1,:] ≈ disp_ref
+    @test res.data[1,:] ≈ intens_ref
 
     # Below the saturation field, the ground state is a canted spiral
 
@@ -60,15 +60,15 @@ end
     minimize_energy!(sys2)
     @test energy_per_site(sys2) ≈ -5/4
     swt = SpinWaveTheory(sys2)
-    formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
+    measure = Sunny.DSSF_trace(sys2)
     qs = [[0,0,-1/3], [0,0,1/3]]
-    disp2, intens2 = intensities_bands(swt, qs, formula)
+    res2 = Sunny.intensities_bands2(swt, qs; measure)
     disp2_ref = [3.0133249314 2.5980762316 1.3228756763 0.6479760935
                  3.0133249314 2.5980762316 1.3228756763 0.6479760935]
     intens2_ref = [0.0292617379 0.4330127014 0.0 0.8804147011
                    0.5292617379 0.4330127014 0.0 0.3804147011]
-    @test disp2 ≈ disp2_ref
-    @test intens2 ≈ intens2_ref
+    @test res2.disp ≈ disp2_ref'
+    @test res2.data ≈ intens2_ref'
 
     # Perform the same calculation with Single-Q functions
 

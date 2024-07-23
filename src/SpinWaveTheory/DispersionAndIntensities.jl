@@ -276,6 +276,8 @@ function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVe
     #   Smooth kernel --> I_of_ω = Intensity as a function of ω
     #
     calc_intensity = function(swt::SpinWaveTheory, q::Vec3)
+        error("nope")
+        
         # This function, calc_intensity, is an internal function to be stored
         # inside a formula. The unit system for `q` that is passed to
         # formula.calc_intensity is an implementation detail that may vary

@@ -315,37 +315,6 @@ end
     @test only(disp_dip) ≈ disp_SUN[end-1]
 end
 
-#=
-@testitem "Intensities interface" begin
-    sys = System(Sunny.diamond_crystal(),(1,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN;seed = 0)
-    randomize_spins!(sys)
-
-    swt = SpinWaveTheory(sys)
-    
-    # Just testing that nothing throws errors
-    # TODO: accuracy check
-    path, _ = reciprocal_space_path(Sunny.diamond_crystal(),[[0.,0.,0.],[0.5,0.5,0.]],50)
-    energies = collect(0:0.1:5)
-
-    # Bands
-    formula = intensity_formula(swt, :perp, kernel=delta_function_kernel)
-    intensities_bands(swt, path, formula)
-    @test_throws "without a finite-width kernel" intensities_broadened(swt,path,energies,formula)
-
-    # Broadened
-    formula = intensity_formula(swt, :perp, kernel=lorentzian(fwhm=0.1))
-    intensities_broadened(swt, path, energies, formula)
-    @test_throws "broadening kernel" intensities_bands(swt,path,formula)
-
-    formula = intensity_formula(swt, :perp, kernel=lorentzian(fwhm=0.1))
-    intensities_broadened(swt, path, energies, formula)
-    @test_throws "broadening kernel" intensities_bands(swt,path,formula)
-
-    # Full
-    formula = intensity_formula(swt, :full, kernel=lorentzian(fwhm=0.1))
-    intensities_broadened(swt, path, energies, formula)
-end
-=#
 
 @testitem "Dipole-dipole" begin
     latvecs = lattice_vectors(10, 10, 1, 90, 90, 90)
