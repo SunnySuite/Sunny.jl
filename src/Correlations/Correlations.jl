@@ -92,11 +92,13 @@ end
 # Op is the type of a local observable operator. Either a Vec3 (for :dipole
 # mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
 # mode, in which case op is an N×N matrix).
-struct Measurement{Op, F, Ret}
+struct Measurement{Op <: Union{Vec3, HermitianC64}, F, Ret}
+    # TODO: Don't PACK?
     observables :: Array{Op, 5}          # (latsize, natoms, nobs)
     corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
     combiner :: F                        # (q::Vec3, obs) -> Ret
 
+    # TODO: Default combiner will be SVector?
     function Measurement(observables::Array{Op, 5}, corr_pairs, combiner::F) where {Op, F}
         # Lift return type of combiner function to type-level
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
@@ -107,33 +109,11 @@ end
 
 Base.eltype(::Measurement{Op, F, Ret}) where {Op, F, Ret} = Ret
 
-function localize_observable(v::Vec3, data::SWTDataDipole, site::Int)
-    R = data.local_rotations[site]
-    return R' * v
-end
-
-function localize_observable(A::HermitianC64, data::SWTDataSUN, site::Int)
-    U = data.local_unitaries[:, :, site]
-    return Hermitian(U' * A * U)
-end
-
-function localize_observables(obs::Array{Op, 5}, data) where {Op}
-    Nsites = prod(size(obs)[1:4])
-    Nobs = size(obs, 5)
-    obs = reshape(obs, (Nsites, Nobs))
-    ret = copy(obs)
-    for α in 1:Nobs, site in 1:Nsites
-        ret[site, α] = localize_observable(obs[site, α], data, site)
-    end
-    return ret
-end
-
-
 function all_dipole_observables(sys::System{0}; apply_g)
     observables = zeros(Vec3, size(eachsite(sys))..., 3)
     for site in eachsite(sys)
         # Component α of observable is op⋅S = -g[α,β] S[β]
-        M = apply_g ? -sys.gs[site] : Mat3(I)
+        M = apply_g ? sys.gs[site] : Mat3(I)  # TODO: Sign
         for α in 1:3
             observables[site, α] = M[α, :]
         end
@@ -146,7 +126,7 @@ function all_dipole_observables(sys::System{N}; apply_g) where {N}
     observables = Array{HermitianC64, 5}(undef, size(eachsite(sys))..., 3)
     for site in eachsite(sys)
         S = spin_matrices_of_dim(; N=sys.Ns[site])
-        M = apply_g ? -sys.gs[site]*S : S
+        M = apply_g ? sys.gs[site]*S : S  # TODO: Sign
         for α in 1:3
             observables[site, α] = M[α]
         end
@@ -226,11 +206,12 @@ function thermal_prefactor(kT, ω)
         return ω >= 0 ? 1 : 0
     else
         @assert kT > 0
-        return abs(1 - exp(-ω/kT))
+        return abs(1 / (1 - exp(-ω/kT)))
     end
 end
 
-function diagonalize_bare_hamiltonian(swt::SpinWaveTheory, H, V, q)
+# TODO: "excitations!" ?
+function calculate_quasiparticles!(V, H, swt::SpinWaveTheory, q)
     (; sys) = swt
     q_global = orig_crystal(sys).recipvecs * q
     q_reshaped = sys.crystal.recipvecs \ q_global
@@ -249,24 +230,58 @@ function diagonalize_bare_hamiltonian(swt::SpinWaveTheory, H, V, q)
     end
 end
 
+# TODO: excitations()
+function dispersion2(swt::SpinWaveTheory, q)
+    L = nbands(swt)
+    V = zeros(ComplexF64, 2L, 2L)
+    H = zeros(ComplexF64, 2L, 2L)
+    return calculate_quasiparticles!(V, H, swt, q)
+end
+
+function localize_observable(v::Vec3, data::SWTDataDipole, site::Int)
+    R = data.local_rotations[site]
+    return R' * v
+end
+
+function localize_observable(A::HermitianC64, data::SWTDataSUN, site::Int)
+    U = data.local_unitaries[:, :, site]
+    return Hermitian(U' * A * U)
+end
+
+function localize_observables(obs::Array{Op, 5}, data) where {Op}
+    Nsites = prod(size(obs)[1:4])
+    Nobs = size(obs, 5)
+    obs = reshape(obs, (Nsites, Nobs))
+    ret = copy(obs)
+    for α in 1:Nobs, site in 1:Nsites
+        ret[site, α] = localize_observable(obs[site, α], data, site)
+    end
+    return ret
+end
+
+# TODO: measure=nothing
 function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     qpts = convert(AbstractQPoints, qpts)
     (; sys) = swt
-    orig_cryst = orig_crystal(sys)
+    cryst = orig_crystal(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.latsize == (1,1,1)
-    Na = natoms(sys.crystal)
+    Na = length(eachsite(sys))
+    if Na != prod(size(measure.observables)[1:4])
+        error("Size mismatch. Check that SpinWaveTheory and Measurement were built from same System.")
+    end
+
     # Number of chemical cells in magnetic cell
-    Ncells = Na / natoms(orig_cryst)
+    Ncells = Na / natoms(cryst)
     # Number of quasiparticle modes
     L = nbands(swt)
     # Number of wavevectors
     Nq = length(qpts.qs)
 
     # Preallocation
-    H = zeros(ComplexF64, 2L, 2L)
     V = zeros(ComplexF64, 2L, 2L)
+    H = zeros(ComplexF64, 2L, 2L)
     Avec_pref = zeros(ComplexF64, Na)
     disp = zeros(Float64, L, Nq)
     intensity = zeros(Ret, L, Nq)
@@ -283,8 +298,8 @@ function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::M
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
     
     for (iq, q) in enumerate(qpts.qs)
-        q_global = orig_cryst.recipvecs * q
-        disp[:, iq] .= diagonalize_bare_hamiltonian(swt, H, V, q)
+        q_global = cryst.recipvecs * q
+        disp[:, iq] .= calculate_quasiparticles!(V, H, swt, q)
 
         for i in 1:Na
             r_global = global_position(sys, (1,1,1,i))
@@ -302,7 +317,7 @@ function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::M
                 v = reshape(view(V, :, band), N-1, Na, 2)
                 for i in 1:Na, μ in 1:Nobs
                     @views O = swt.data.observables_localized[:, :, μ, i]
-                    @assert O ≈ - obs_local_frame[i, μ]
+                    @assert O ≈ obs_local_frame[i, μ]
 
                     for α in 1:N-1
                         Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
@@ -315,7 +330,7 @@ function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::M
                     sqrtS = sqrt(sys.κs[i])
                     for μ in 1:Nobs
                         @views O = swt.data.observables_localized[:, :, μ, i]
-                        @assert O ≈ - obs_local_frame[i, μ]'
+                        # @assert O ≈ - obs_local_frame[i, μ]'
 
                         # This is the Avec of the two transverse and one
                         # longitudinal directions in the local frame. (In the
@@ -334,7 +349,7 @@ function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::M
         end
     end
 
-    return BandIntensities{Ret}(orig_cryst, qpts, disp, intensity)
+    return BandIntensities{Ret}(cryst, qpts, disp, intensity)
 end
 
 
