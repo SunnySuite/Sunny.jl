@@ -260,7 +260,7 @@ function localize_observables(obs::Array{Op, 5}, data) where {Op}
 end
 
 # TODO: measure=nothing
-function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
+function intensities_bands2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     qpts = convert(AbstractQPoints, qpts)
     (; sys) = swt
     cryst = orig_crystal(sys)
@@ -353,13 +353,13 @@ function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::M
 end
 
 
-function intensities_broadened2(swt::SpinWaveTheory, qpts, energies; kernel::B, formfactors=nothing, measure::Measurement) where {B <: AbstractBroadening}
+function intensities2(swt::SpinWaveTheory, qpts, energies; kernel::B, formfactors=nothing, measure::Measurement) where {B <: AbstractBroadening}
     all(energies .>= 0) || error("Energies must be non-negative")
 
     qpts = convert(AbstractQPoints, qpts)
     energies = collect(energies)
     (; qs) = qpts
-    bands = intensities2(swt, qpts; formfactors, measure)
+    bands = intensities_bands2(swt, qpts; formfactors, measure)
 
     nω = length(energies)
     nq = length(qs)

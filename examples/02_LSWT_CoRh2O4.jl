@@ -91,15 +91,15 @@ disp2, is2 = intensities_bands(swt, path, formula)
 
 kernel = Sunny.lorentzian2(fwhm=0.8)
 measure = Sunny.DSSF_perp(sys_prim)
-(; disp, data) = Sunny.intensities2(swt, path; formfactors, measure)
+(; disp, data) = Sunny.intensities_bands2(swt, path; formfactors, measure)
 @assert disp ≈ disp2'
 @assert norm(is2 - data') < 1e-8
 
 formula = intensity_formula(swt, :perp; kernel=Sunny.lorentzian(fwhm=0.8), formfactors)
 is3 = intensities_broadened(swt, path, energies, formula)
 
-broad = Sunny.intensities_broadened2(swt, path, energies; measure, kernel, formfactors)
-@assert norm(is3 - broad.data') < 1e-8
+res = Sunny.intensities2(swt, path, energies; measure, kernel, formfactors)
+@assert norm(is3 - res.data') < 1e-8
 
 
 # A powder measurement effectively involves an average over all possible crystal
@@ -112,8 +112,8 @@ output = zeros(Float64, length(radii), length(energies))
 @time for (i, radius) in enumerate(radii)
     n = 300
     qs = reciprocal_space_shell(cryst, radius, n)
-    is = Sunny.intensities_broadened2(swt, qs, energies; measure, kernel, formfactors)
-    output[i, :] = sum(is.data, dims=2) / size(is.data, 2)
+    res = Sunny.intensities2(swt, qs, energies; measure, kernel, formfactors)
+    output[i, :] = sum(res.data, dims=2) / size(res.data, 2)
 end
 
 fig = Figure()
