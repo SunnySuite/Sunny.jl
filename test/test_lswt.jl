@@ -197,8 +197,8 @@ end
         disp = Sunny.dispersion2(swt, q)
 
         # Analytical result
-        γk = 2 * (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*q[3]))
-        disp_ref = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γk^2)
+        γq = 2 * (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*q[3]))
+        disp_ref = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γq^2)
         
         @test disp[end-1] ≈ disp[end] ≈ disp_ref
     end
@@ -529,34 +529,25 @@ end
 @testitem "Generalized interaction consistency" begin
     using LinearAlgebra
 
-    # Construct LSWT Hamiltonian for Heisenberg ferromagnet at a particular wave
-    # vector k
-    function make_fm_lswt_hamiltonian(k; extract_parts=true)
-        k = Sunny.Vec3(k)
-        dims = (1, 1, 1)
-        cryst = Crystal(I(3), [[0,0,0]]) 
-        sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], :SUN)
-        J = -1.0
-        S = spin_matrices(1)
-        S1, S2 = Sunny.to_product_space(S, S)
-        exchange = J*(S1'*S2)
-        set_pair_coupling!(sys, exchange, Bond(1,1,[1,0,0]); extract_parts)
-
+    function make_lswt_hamiltonian(sys, q)
         swt = SpinWaveTheory(sys)
-        nmodes = (swt.sys.Ns[1] - 1) * Sunny.natoms(swt.sys.crystal)
-        H = zeros(ComplexF64, 2nmodes, 2nmodes)
-        Sunny.swt_hamiltonian_SUN!(H, swt, k)
-
+        L = Sunny.nbands(swt)
+        H = zeros(ComplexF64, 2L, 2L)
+        Sunny.swt_hamiltonian_SUN!(H, swt, Sunny.Vec3(q))
         return H
     end
 
-    # Test whether results are identical when using both conventional approach and
-    # generalized interactions (tensor decomposition)
-    q = [0.23, 0, 0]
-    H_conventional = make_fm_lswt_hamiltonian(q; extract_parts=true)
-    H_generalized = make_fm_lswt_hamiltonian(q; extract_parts=false)
+    sys = System(Sunny.cubic_crystal(), (1, 1, 1), [SpinInfo(1; S=1, g=1)], :SUN)
 
-    @test H_conventional ≈ H_generalized
+    q = [0.23, 0, 0]
+
+    set_pair_coupling!(sys, (Si, Sj) -> -(Si'*Sj), Bond(1,1,[1,0,0]); extract_parts=true)
+    H_conventional = make_lswt_hamiltonian(sys, q)
+
+    set_pair_coupling!(sys, (Si, Sj) -> -(Si'*Sj), Bond(1,1,[1,0,0]); extract_parts=false)
+    H_alternative = make_lswt_hamiltonian(sys, q)
+
+    @test H_conventional ≈ H_alternative
 end
 
 
