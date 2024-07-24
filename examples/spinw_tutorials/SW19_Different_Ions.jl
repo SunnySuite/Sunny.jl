@@ -37,7 +37,7 @@ plot_spins(sys)
 
 swt = SpinWaveTheory(sys)
 qs = [[0,0,0], [1,0,0]]
-path = Sunny.q_space_path(cryst, qs, 5e-3)
+path = Sunny.q_space_path(cryst, qs, 512)
 measure = Sunny.DSSF_perp(sys)
 
 # Plot all correlations

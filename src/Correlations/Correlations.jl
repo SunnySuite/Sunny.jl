@@ -58,39 +58,53 @@ end
 
 
 """
-    q_space_path(cryst::Crystal, qs, Δq)
+    q_space_path(cryst::Crystal, qs, n)
 
-Returns a 1D path in q-space that samples linearly between the provided
-wavevectors `qs`, with approximate displacements Δq between steps. Both
-`qs` and `Δq` must be provided in reciprocal lattice units (RLU) for the
-given crystal.
+Returns a 1D path consisting of `n` wavevectors sampled piecewise-linearly
+between the `qs`, to be provided in reciprocal lattice units (RLU). Consecutive
+samples are spaced uniformly in the global (inverse-length) coordinate system.
 """
-function q_space_path(cryst::Crystal, qs, Δq)
-    @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
+function q_space_path(cryst::Crystal, qs, n)
+    length(qs) >= 2 || error("Include at least two wavevectors in list qs.")
     qs = Vec3.(qs)
+    # Displacement vectors in RLU
+    dqs = qs[begin+1:end] - qs[begin:end-1]
 
-    Δq_absolute = minimum(norm.(eachcol(cryst.recipvecs))) * Δq
+    # Determine ms, the number of points in each segment. First point is placed
+    # at the beginning of segment. Each m scales like dq in absolute units. The
+    # total should be sum(ms) == n-1, anticipating a final point for qs[end].
+    ws = [norm(cryst.recipvecs * dq) for dq in dqs]
+    ms_ideal = (n - 1) .* ws / sum(ws)
+    ms = round.(Int, ms_ideal)
+    delta = sum(ms) - (n - 1)
+    if delta < 0
+        # add points where m < m_ideal
+        idxs = sortperm(ms - ms_ideal; rev=false)[1:abs(delta)]
+        ms[idxs] .+= 1
+    elseif delta > 0
+        # remove points where m > m_ideal
+        idxs = sortperm(ms - ms_ideal; rev=true)[1:abs(delta)]
+        ms[idxs] .-= 1
+    end
+    @assert sum(ms) == n - 1
 
+    # Each segment should have at least one sample point
+    any(iszero, ms) && error("Increase sample points n")
+
+    # Linearly interpolate on each segment
     path = Vec3[]
     markers = Int[]
-    for i in 1:length(qs)-1
-        push!(markers, length(path)+1)
-        q1, q2 = qs[i], qs[i+1]
-        dist = norm(cryst.recipvecs * (q1 - q2))
-        npoints = ceil(Int, dist/Δq_absolute)
-        for n in 1:npoints
-            push!(path, (1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints)
+    for (i, m) in enumerate(ms)
+        push!(markers, 1+length(path))
+        for j in 0:m-1
+            push!(path, qs[i] + (j/m)*dqs[i])
         end
     end
-    push!(markers, length(path)+1)
+    push!(markers, 1+length(path))
     push!(path, qs[end])
 
-    labels = map(qs) do q
-        # "[" * join(number_to_math_string.(q), ",") * "]"
-        fractional_vec3_to_string(q)
-    end
+    labels = fractional_vec3_to_string.(qs)
     xticks = (markers, labels)
-
     return QPath(path, xticks)
 end
 
