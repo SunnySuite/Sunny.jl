@@ -996,4 +996,40 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
     return ax
 end
 
+
+function Sunny.plot_intensities(res::Sunny.BandIntensities{T}; fwhm=nothing, ylims=nothing, title=nothing) where {T <: Number}
+    all(>=(0), res.data) || error("Intensities must be nonnegative")
+    nq = size(res.disp, 2)
+
+    if res.qpts isa Sunny.QPoints || res.qpts isa Sunny.QPath
+        ticks = if res.qpts isa Sunny.QPath
+            (; xticks=res.qpts.xticks, xticklabelrotation=π/6)
+        else
+            (; )
+        end
+
+        mindisp, maxdisp = extrema(res.disp)
+        ylims = @something ylims (min(0, mindisp), 1.2*maxdisp)
+    
+        fig = Makie.Figure()
+        ax = Makie.Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", limits=(nothing, ylims), title, ticks...)
+
+        energies = range(ylims[1], ylims[2], 512)
+        # Broadening width selected according to visible limits
+        fwhm = @something fwhm 0.05*(ylims[2]-ylims[1])
+        broadened = Sunny.broaden(res, energies; kernel=Sunny.gaussian2(; fwhm))
+        colorrange = [0.02, 5] * Sunny.quantile(vec(broadened.data), 0.95)
+        Makie.heatmap!(ax, 1:nq, collect(energies), broadened.data'; colorrange,
+                       colormap=Makie.Reverse(:thermal), lowclip=:white)
+        for i in axes(res.disp, 1)
+            Makie.lines!(ax, res.disp[i,:]; color=:pink)
+        end
+        
+        return fig
+    else
+        error("Cannot plot $(typeof(res.qpts))")
+    end
+end
+
+
 end

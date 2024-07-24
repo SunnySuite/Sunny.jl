@@ -23,6 +23,14 @@ function lorentzian2(; fwhm)
     return Broadening(x -> (Γ/2) / (π*(x^2+(Γ/2)^2)))
 end
 
+function gaussian2(; fwhm=nothing, σ=nothing)
+    if sum(.!isnothing.((fwhm, σ))) != 1
+        error("Either fwhm or σ must be specified.")
+    end
+    σ = Float64(@something σ (fwhm/2√(2log(2))))
+    return Broadening(x -> exp(-x^2/2σ^2) / √(2π*σ^2))
+end
+
 
 #### Q-POINTS WITH OPTIONAL METADATA
 
@@ -353,17 +361,13 @@ function intensities_bands2(swt::SpinWaveTheory, qpts; formfactors=nothing, meas
 end
 
 
-function intensities2(swt::SpinWaveTheory, qpts, energies; kernel::B, formfactors=nothing, measure::Measurement) where {B <: AbstractBroadening}
-    all(energies .>= 0) || error("Energies must be non-negative")
-
-    qpts = convert(AbstractQPoints, qpts)
+function broaden(bands::BandIntensities{Ret}, energies; kernel::B) where {Ret, B}
     energies = collect(energies)
-    (; qs) = qpts
-    bands = intensities_bands2(swt, qpts; formfactors, measure)
+    (; qs) = bands.qpts
 
     nω = length(energies)
     nq = length(qs)
-    data = zeros(eltype(measure), nω, nq)
+    data = zeros(eltype(bands.data), nω, nq)
 
     for iq in eachindex(qs)
         for (ib, b) in enumerate(view(bands.disp, :, iq))
@@ -373,6 +377,11 @@ function intensities2(swt::SpinWaveTheory, qpts, energies; kernel::B, formfactor
         end
     end
 
-    return BroadenedIntensities(bands.crystal, qpts, energies, data)
+    return BroadenedIntensities(bands.crystal, bands.qpts, energies, data)
 end
 
+function intensities2(swt::SpinWaveTheory, qpts, energies::AbstractArray{<: Number}; kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
+    qpts = convert(AbstractQPoints, qpts)
+    res = intensities_bands2(swt, qpts; formfactors, measure)
+    broaden(res, energies; kernel)
+end

@@ -74,3 +74,19 @@ function ql_slow(A)
     FRF = reduce(vcat, reverse(transpose.(eachrow(collect(RF)))))
     return QF, FRF
 end
+
+
+# Re-implementation of some Statistics functions
+
+function mean(itr)
+    sum(itr) / length(itr)
+end
+
+function quantile(itr, p; alpha::Real=1.0, beta::Real=alpha)
+    n = length(itr)
+    m = alpha + p*(1 - alpha - beta)
+    j = floor(Int, n*p + m)
+    γ = n*p + m - j
+    x = sort(itr)
+    return (1-γ)*x[j] + γ*x[j+1]
+end
