@@ -997,8 +997,8 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
 end
 
 
-function Sunny.plot_intensities(res::Sunny.BandIntensities{T}, energy_label::Symbol; fwhm=nothing, ylims=nothing, title=nothing) where {T <: Number}
-    all(>=(0), res.data) || error("Intensities must be nonnegative")
+function Sunny.plot_intensities(res::Sunny.BandIntensities{T}, energy_label::Symbol; fwhm=nothing, ylims=nothing, title="") where {T <: Number}
+    all(>(-1e-12), res.data) || error("Intensities must be nonnegative")
     nq = size(res.disp, 2)
 
     if res.qpts isa Sunny.QPoints || res.qpts isa Sunny.QPath

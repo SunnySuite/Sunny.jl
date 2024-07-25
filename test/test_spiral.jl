@@ -81,9 +81,9 @@ end
 
         q = [0.12, 0.23, 0.34]
         swt = SpinWaveTheory(sys)
-        formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis, kernel=delta_function_kernel)
-        disp, _ = intensities_bands(swt, [q], formula)
-        ϵq_num = disp[1,1]
+        
+        res = Sunny.intensities_bands_spiral(swt, [q], k, axis; measure=Sunny.DSSF_perp(sys; apply_g=false))
+        ϵq_num = res.disp[1,1]
 
         # Analytical
         θ = acos(h / (2S*(4J+D)))
@@ -130,17 +130,15 @@ end
     @test Sunny.spiral_energy(sys; k, axis) ≈ -16.356697120589477
 
     swt = SpinWaveTheory(sys)
-    formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis, kernel=delta_function_kernel)
     q = [0.41568,0.56382,0.76414]
-    disp, intens = intensities_bands(swt, [q], formula)
-    # TODO: why reverse?
-    disp_spinw = reverse([2.6267,3.8202,3.9422,2.8767,3.9095,4.4605,3.31724,4.0113,4.7564])
-    intens_spinw = [0.484724856017038, 0.962074686407910, 0.0932786148844105, 0.137966379056292, 0.0196590925454593, 2.37155695274281, 2.21507666401705, 0.118744173882554, 0.0547564956435423]
-    # Sunny dispersion bands appear in descending order. Sort SpinW calculation
-    # in the same way.
+    res = Sunny.intensities_bands_spiral(swt, [q], k, axis; measure=Sunny.DSSF_perp(sys; apply_g=false))
+
+    disp_spinw = [4.7564, 4.0113, 3.31724, 4.4605, 3.9095, 2.8767, 3.9422, 3.8202, 2.6267]
+    data_spinw = [0.484724856017038, 0.962074686407910, 0.0932786148844105, 0.137966379056292, 0.0196590925454593, 2.37155695274281, 2.21507666401705, 0.118744173882554, 0.0547564956435423]
+    # Sunny dispersion is sorted in descending order
     P = sortperm(disp_spinw; rev=true)
-    @test isapprox(disp[1,:], disp_spinw[P]; atol=1e-3)
-    @test isapprox(intens[1,:], intens_spinw[P]/Sunny.natoms(crystal); atol=1e-3)    
+    @test isapprox(res.disp[:, 1], disp_spinw[P]; atol=1e-3)
+    @test isapprox(res.data[:, 1], data_spinw[P]/Sunny.natoms(crystal); atol=1e-3)
 end
 
 

@@ -70,50 +70,18 @@ randomize_spins!(sys2)
 minimize_energy!(sys2)
 energy_per_site(sys2) # < -0.7834 meV
 
-# Now return to the perfectly incommensurate single-k order. Define a path in
-# reciprocal space.
+# Define a path in q-space
 
-q_points = [[0,0,0], [1,0,0]]
-density = 200
-path, xticks = reciprocal_space_path(cryst, q_points, density)
+qs = [[0,0,0], [1,0,0]]
+path = Sunny.q_space_path(cryst, qs, 512)
+
+# Plot intensities for the incommensurate single-k ordering wavevector.
+
 swt = SpinWaveTheory(sys)
-formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis, kernel=delta_function_kernel)
-disp, _ = intensities_bands(swt, path, formula);
-energies = collect(0:0.01:5.5)
-broadened_formula = Sunny.intensity_formula_spiral(swt, :perp; k, axis,
-                                                   kernel=gaussian(fwhm=0.1))
-is = intensities_broadened(swt, path, energies, broadened_formula);
-
-# Create the plot
-
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)",
-          title="Spin wave dispersion: ", xticks)
-ylims!(ax, 0, 5)
-heatmap!(ax, 1:size(is, 1), energies, is; colorrange=(0.2, 100),
-         colormap=Reverse(:thermal), lowclip=:white)
-for d in eachcol(disp)
-    lines!(ax, d; color=:black)
-end
-fig
+res = Sunny.intensities_bands_spiral(swt, path, k, axis; measure=Sunny.DSSF_perp(sys; apply_g=false))
+plot_intensities(res, :meV)
 
 # The powder average can be calculated as shown below. It is commented out for
 # now because the calculation is a bit slow to run and is yet to be optimized.
 
-if false
-    radii = 0.01:0.02:3 
-    output = zeros(Float64, length(radii), length(energies))
-    for (i, radius) in enumerate(radii)
-        n = 300
-        qs = reciprocal_space_shell(cryst, radius, n)
-        is1 = intensities_broadened(swt, qs, energies, broadened_formula)
-        is2 = dropdims(sum(is1[:,:,:,:], dims=[3,4]), dims=(3,4))
-        output[i, :] = sum(is2, dims=1) / size(is2, 1)
-    end
-
-    fig = Figure()
-    ax = Axis(fig[1,1]; xlabel="Q (Å⁻¹)", ylabel="ω (meV)", title="Broadened powder spectra")
-    ylims!(ax, 0.0, 5)
-    heatmap!(ax, radii, energies, output, colormap=:gnuplot2, colorrange=(0.0,1))
-    fig
-end
+# TODO: Powder average!

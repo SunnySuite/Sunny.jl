@@ -13,8 +13,8 @@ function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
     end
 
     # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of V.
-    # Eigenvalues are sorted such that quasi-particle energies will appear in
-    # descending order.
+    # Eigenvalues are sorted such that positive values appear first, and are in
+    # ascending order.
     λ, V0 = eigen!(Hermitian(V), Hermitian(H); sortby = x -> -1/real(x))
 
     # Note that V0 and V refer to the same data.
@@ -39,9 +39,9 @@ function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
     # we are not considering in the present context.
     @assert all(>(0), view(λ, 1:L)) && all(<(0), view(λ, L+1:2L))
     
-    # Inverse of λ gives eigenvalues of Ĩ H. We only care about the first L
+    # Inverse of λ are eigenvalues of Ĩ H. We only care about the first L
     # eigenvalues, which are positive. A factor of 2 is needed to get the
-    # physical quasiparticle energies.
+    # physical quasiparticle energies. These will be in descending order.
     disp = resize!(λ, L)
     @. disp = 2 / disp
 
