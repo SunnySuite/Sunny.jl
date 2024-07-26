@@ -259,6 +259,6 @@ function swt_data_dipole(sys::System{0}, obs)
         end
     end
 
-    sqrtS = [sqrt((N-1)/2) for N in vec(sys.Ns)]
+    sqrtS = sqrt.(vec(sys.κs))
     return SWTDataDipole(Rs, observables_localized, cs, sqrtS)
 end
