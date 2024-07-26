@@ -63,7 +63,7 @@ shape = [0 1 1;
          1 0 1;
          1 1 0] / 2
 sys_prim = reshape_supercell(sys, shape)
-@assert energy_per_site(sys) ≈ -2J*S^2
+@assert energy_per_site(sys_prim) ≈ -2J*S^2
 plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 
 # Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and an
