@@ -180,9 +180,12 @@ function DSSF_perp(sys::System{N}; apply_g=true) where N
             data[5] data[4] data[2]
             data[3] data[2] data[1]
         ]
-        return tr(dssf) - (q' * dssf * q) / (q2 + 1e-14)
-        # TODO: Check how SpinW regularizes, and consider also "Mourigal limit",
+        tr_dssf = tr(dssf)
+        # "S perp" contraction matrix (1 - q⊗q/q²) appropriate to unpolarized
+        # neutrons. In the limit q → 0, use (1 - q⊗q/q²) → 2/3, which
+        # corresponds to a spherical average over uncorrelated data:
         # https://github.com/SunnySuite/Sunny.jl/pull/131
+        return iszero(q2) ? (2/3)*tr_dssf : tr_dssf - dot(q, dssf, q) / q2
     end
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     return Measurement(observables, corr_pairs, combiner)

@@ -332,7 +332,7 @@ end
         res = Sunny.intensities_bands2(swt, qs; measure=Sunny.DSSF_perp(sys))
         disp_ref = [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553]
         @test isapprox(res.disp[end, :], disp_ref; atol=1e-7)
-        @test res.data[end, :] ≈ [1, 1, 201/202, 1]
+        @test res.data[end, :] ≈ [2/3, 1, 201/202, 2/3]
     end
 
     begin
