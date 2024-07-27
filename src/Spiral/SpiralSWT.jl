@@ -127,6 +127,12 @@ function is_apply_g(swt::SpinWaveTheory, measure::Measurement)
     error("General measurements not supported for spiral calculation")
 end
 
+function check_g_scalar(swt::SpinWaveTheory)
+    for g in swt.sys.gs
+        to_float_or_mat3(g) isa Float64 || error("Anisotropic g-tensor not supported for spiral calculation")
+    end
+end
+
 
 function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     (; sys, data) = swt
@@ -172,8 +178,9 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
     c = zeros(ComplexF64, Na)
 
     # Observables must be the spin operators directly, with possible scaling by
-    # g factor
+    # scalar g-factor
     apply_g = is_apply_g(swt, measure)
+    apply_g && check_g_scalar(swt)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
@@ -192,7 +199,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
         end
 
         for i in 1:Na
-            g = apply_g ? -sys.gs[i] : 1.0
+            g = apply_g ? to_float_or_mat3(sys.gs[i])::Float64 : 1.0
             c[i] = sqrtS[i] * g * compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
