@@ -15,7 +15,7 @@ end
     SpinWaveTheory(sys, energy_ϵ::Float64=1e-8)
 
 Constructs an object to perform linear spin wave theory. Use it with
-[`dispersion`](@ref) and [`dssf`](@ref) functions.
+[`dispersion`](@ref) and [`intensities`](@ref) functions.
 
 The optional parameter `energy_ϵ` adds a small positive shift to the diagonal of
 the dynamical matrix ``D`` to avoid numerical issues with zero-energy
@@ -261,4 +261,63 @@ function swt_data_dipole(sys::System{0}, obs)
 
     sqrtS = sqrt.(vec(sys.κs))
     return SWTDataDipole(Rs, observables_localized, cs, sqrtS)
+end
+
+
+# Bogoliubov transformation that diagonalizes a quadratic bosonic Hamiltonian,
+# allowing for anomalous terms. The general procedure derives from Colpa,
+# Physica A, 93A, 327-353 (1978).
+function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
+    L = div(size(H, 1), 2)
+    @assert size(V) == size(H) == (2L, 2L)
+
+    # Initialize V to the para-unitary identity Ĩ = diagm([ones(L), -ones(L)])
+    V .= 0
+    for i in 1:L
+        V[i, i] = 1
+        V[i+L, i+L] = -1
+    end
+
+    # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of V.
+    # Eigenvalues are sorted such that positive values appear first, and are in
+    # ascending order.
+    λ, V0 = eigen!(Hermitian(V), Hermitian(H); sortby = x -> -1/real(x))
+
+    # Note that V0 and V refer to the same data.
+    @assert V0 === V
+
+    # Normalize columns of V so that para-unitarity holds, V† Ĩ V = Ĩ.
+    for j in axes(V, 2)
+        c = 1 / sqrt(abs(λ[j]))
+        view(V, :, j) .*= c
+    end
+
+    # Disable test for speed
+    #=
+    Ĩ = Diagonal([ones(L); -ones(L)])
+    @assert V' * Ĩ * V ≈ Ĩ
+    =#
+
+    # Verify that half the eigenvalues are positive and the other half are
+    # negative. The positive eigenvalues are quasiparticle energies for the
+    # wavevector q that defines the dynamical matrix H(q). The absolute value of
+    # the negative eigenvalues would be quasiparticle energies for H(-q), which
+    # we are not considering in the present context.
+    @assert all(>(0), view(λ, 1:L)) && all(<(0), view(λ, L+1:2L))
+    
+    # Inverse of λ are eigenvalues of Ĩ H. We only care about the first L
+    # eigenvalues, which are positive. A factor of 2 is needed to get the
+    # physical quasiparticle energies. These will be in descending order.
+    disp = resize!(λ, L)
+    @. disp = 2 / disp
+
+    # In the special case that H(q) = H(-q) (i.e., a magnetic ordering with
+    # reflection symmetry), the eigenvalues come in pairs. Note that the data in
+    # H has been overwritten by eigen!, so H0 should refer to an original copy
+    # of H.
+    #=
+    @assert diag(V' * H0 * V) ≈ [disp/2; reverse(disp)/2]
+    =#
+
+    return disp
 end

@@ -47,7 +47,6 @@ path = q_space_path(cryst, points_rlu, 400)
 # Calculate intensities for each dispersion band
 
 swt = SpinWaveTheory(sys)
-formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
 res = intensities_bands2(swt, path; measure=DSSF_perp(sys))
 
 # The intensities are dominated by a flat band at zero energy transfer. Clip
