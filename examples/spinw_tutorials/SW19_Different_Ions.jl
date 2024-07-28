@@ -46,15 +46,15 @@ measure = DSSF_perp(sys)
 
 fig = Figure(size=(400, 600))
 
-res = intensities_bands2(swt, path; measure)
+res = intensities_bands(swt, path; measure)
 plot_intensities!(fig[1, 1], res; units, axisopts=(; title="All correlations", xlabel="", xticks=[NaN]))
 
 formfactors = [FormFactor("Cu2"), zero(FormFactor)]
-res = intensities_bands2(swt, path; formfactors, measure)
+res = intensities_bands(swt, path; formfactors, measure)
 plot_intensities!(fig[2, 1], res; units, axisopts=(; title="Cu-Cu correlations", xlabel="", xticks=[NaN]))
 
 formfactors = [zero(FormFactor), FormFactor("Fe2")]
-res = intensities_bands2(swt, path; formfactors, measure)
+res = intensities_bands(swt, path; formfactors, measure)
 plot_intensities!(fig[3, 1], res; units, axisopts=(; title="Fe-Fe correlations"))
 
 fig

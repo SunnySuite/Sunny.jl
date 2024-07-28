@@ -85,7 +85,7 @@ include("SpinWaveTheory/HamiltonianSUN.jl")
 include("SpinWaveTheory/Lanczos.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
 export SpinWaveTheory
-export dispersion, intensities, intensities_bands2, intensities_spiral, intensities_bands_spiral, q_space_path, powder_average,
+export dispersion, intensities, intensities_bands, intensities_spiral, intensities_bands_spiral, q_space_path, powder_average,
     DSSF, DSSF_perp, DSSF_trace, lorentzian2, gaussian2, domain_average
 
 include("SampledCorrelations/SampledCorrelations.jl")

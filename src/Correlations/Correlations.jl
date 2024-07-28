@@ -183,7 +183,7 @@ By default, the g-factor or tensor is applied at each site, yielding a
 correlation between magnetic moments. Set `apply_g = false` to measure a true
 spin-spin correlation.
 
-Intended for use with [`intensities`](@ref), [`intensities_bands2`](@ref), and
+Intended for use with [`intensities`](@ref), [`intensities_bands`](@ref), and
 related functions. See also the Sunny documentation on [Structure Factor
 Calculations](@ref) for more details.
 """
@@ -410,7 +410,7 @@ end
 
 Calculate spin wave excitation bands for a set of q-points in reciprocal space. TODO.
 """
-function intensities_bands2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
+function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     qpts = convert(AbstractQPoints, qpts)
     (; sys) = swt
     cryst = orig_crystal(sys)
@@ -506,7 +506,7 @@ end
 Calculate spin wave intensities for a set of q-points in reciprocal space. TODO.
 """
 function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
-    return broaden(intensities_bands2(swt, qpts; formfactors, measure), energies; kernel)
+    return broaden(intensities_bands(swt, qpts; formfactors, measure), energies; kernel)
 end
 
 

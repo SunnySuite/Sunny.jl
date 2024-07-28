@@ -42,17 +42,17 @@ path = q_space_path(cryst, qs, 400; labels)
 
 swt = SpinWaveTheory(sys_prim)
 measure = DSSF_trace(sys_prim)
-res1 = intensities_bands2(swt, path; measure)
+res1 = intensities_bands(swt, path; measure)
 
 sys_prim_dd = clone_system(sys_prim)
 enable_dipole_dipole!(sys_prim_dd, units.vacuum_permeability)
 swt = SpinWaveTheory(sys_prim_dd)
-res2 = intensities_bands2(swt, path; measure)
+res2 = intensities_bands(swt, path; measure)
 
 sys_prim_tdd = clone_system(sys_prim)
 modify_exchange_with_truncated_dipole_dipole!(sys_prim_tdd, 5.0, units.vacuum_permeability)
 swt = SpinWaveTheory(sys_prim_tdd)
-res3 = intensities_bands2(swt, path; measure)
+res3 = intensities_bands(swt, path; measure)
 
 # Create a panel that qualitatively reproduces Fig. 2 of [Del Maestro and
 # Gingras](https://arxiv.org/abs/cond-mat/0403494). That previous work had two

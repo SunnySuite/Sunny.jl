@@ -252,14 +252,14 @@ qs = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
 path = q_space_path(cryst, qs, 500)
 
 # Construct a [`SpinWaveTheory`](@ref) object for the magnetic supercell and
-# calculate scattering intensities with [`intensities_bands2`](@ref). The
+# calculate scattering intensities with [`intensities_bands`](@ref). The
 # measurement [`DSSF_perp`](@ref) will project the dynamical spin structure
 # factor onto the space perpendicular to the momentum transfer ``𝐪``, which is
 # appropriate for an unpolarized neutron beam.
 
 swt = SpinWaveTheory(sys_min)
 measure = DSSF_perp(sys_min)
-res = intensities_bands2(swt, path; measure)
+res = intensities_bands(swt, path; measure)
 plot_intensities(res; units)
 
 # To make comparisons with inelastic neutron scattering (INS) data, one can

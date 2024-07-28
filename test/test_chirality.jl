@@ -45,7 +45,7 @@ end
     path = q_space_path(cryst, qs, 10)
     swt = SpinWaveTheory(sys)
     measure = DSSF_trace(sys)
-    res = intensities_bands2(swt, path; measure)
+    res = intensities_bands(swt, path; measure)
     disp_ref = [B + 2D*sin(2π*q[3]) for q in path.qs]
     intens_ref = [1.0 for _ in path.qs]
     @test res.disp[1,:] ≈ disp_ref
@@ -62,7 +62,7 @@ end
     swt = SpinWaveTheory(sys2)
     measure = DSSF_trace(sys2)
     qs = [[0,0,-1/3], [0,0,1/3]]
-    res2 = intensities_bands2(swt, qs; measure)
+    res2 = intensities_bands(swt, qs; measure)
     disp2_ref = [3.0133249314 2.5980762316 1.3228756763 0.6479760935
                  3.0133249314 2.5980762316 1.3228756763 0.6479760935]
     intens2_ref = [0.0292617379 0.4330127014 0.0 0.8804147011
