@@ -146,6 +146,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactor
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
     @assert sys.mode in (:dipole, :dipole_large_S)
     (; sqrtS) = data
+    R = data.local_rotations
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
@@ -171,9 +172,14 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactor
     R1 = (1/2) .* CMat3(I - im .* nx - R2)
 
     # Preallocation
-    tmp = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
+    T0 = zeros(ComplexF64, 2L, 2L)
     T = zeros(ComplexF64, 2L, 2L, 3)
+    YZVW = zeros(ComplexF64, 2L, 2L, 3, 3) # [[Y Z]; [V W]]
+    Y = view(YZVW, 1:L, 1:L, :, :)
+    Z = view(YZVW, 1:L, L+1:2L, :, :)
+    V = view(YZVW, L+1:2L, 1:L, :, :)
+    W = view(YZVW, L+1:2L, L+1:2L, :, :)
 
     disp = zeros(Float64, 3L, Nq)
     intensity = zeros(Ret, 3L, Nq)
@@ -197,12 +203,12 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactor
             swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped + (branch-2)*k; k, axis)
 
             reshape(disp, L, 3, Nq)[:, branch, iq] = try
-                bogoliubov!(tmp, H)
+                bogoliubov!(T0, H)
             catch _
                 error("Instability at wavevector q = $q")
             end
 
-            T[:, :, branch] = tmp
+            T[:, :, branch] .= T0
         end
 
         for i in 1:Na
@@ -210,27 +216,19 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactor
             c[i] = sqrtS[i] * g * compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
-        R = data.local_rotations
-        Y = zeros(ComplexF64, L, L, 3, 3)
-        Z = zeros(ComplexF64, L, L, 3, 3)
-        V = zeros(ComplexF64, L, L, 3, 3)
-        W = zeros(ComplexF64, L, L, 3, 3)
-        for α in 1:3, β in 1:3
-            for i in 1:L, j in 1:L
-                R_i = R[i]
-                R_j = R[j]
-                ui = R_i[:,1] + im*R_i[:,2]
-                uj = R_j[:,1] + im*R_j[:,2]
-                ti = sys.crystal.positions[i]
-                tj = sys.crystal.positions[j]
-                phase = exp(-2π * im*dot(q_reshaped, tj-ti))
+        for i in 1:L, j in 1:L
+            ui = R[i][:, 1] + im*R[i][:, 2]
+            uj = R[j][:, 1] + im*R[j][:, 2]
+            ti = sys.crystal.positions[i]
+            tj = sys.crystal.positions[j]
+            phase = exp(-2π * im*dot(q_reshaped, tj-ti))
+            for α in 1:3, β in 1:3
                 Y[i, j, α, β] = c[i] * c[j] * (ui[α] * conj(uj[β])) * phase
                 Z[i, j, α, β] = c[i] * c[j] * (ui[α] * uj[β]) * phase
                 V[i, j, α, β] = c[i] * c[j] * (conj(ui[α]) * conj(uj[β])) * phase
                 W[i, j, α, β] = c[i] * c[j] * (conj(ui[α]) * uj[β]) * phase
             end
         end
-        YZVW = [[Y Z]; [V W]]
 
         for branch in 1:3, band in 1:L
             t = view(T, :, band, branch)
