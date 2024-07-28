@@ -1008,8 +1008,24 @@ function get_unit_energy(units, into)
     end
 end
 
+"""
+    plot_intensities!(panel, res::AbstractIntensities; opts...)
 
-function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; sensitivity=0.0025, saturation=0.9, units::Units=nothing, into=nothing, fwhm=nothing, ylims=nothing, title="")
+Mutating variant of [`plot_intensities`](@ref) that allows drawing into a single
+`panel` of a larger grid.
+
+# Example
+
+```julia
+fig = Figure()
+plot_intensities!(fig[1, 1], res1)
+plot_intensities!(fig[2, 1], res1)
+display(fig)
+```
+"""
+function plot_intensities! end
+
+function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; sensitivity=0.0025, saturation=0.9, units=nothing, into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
     all(>(-1e-12), res.data) || error("Intensities must be nonnegative")
 
     unit_energy, ylabel = get_unit_energy(units, into)
@@ -1022,11 +1038,11 @@ function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; sen
         broadened = Sunny.broaden(res, energies; kernel=Sunny.gaussian2(; fwhm))
         colorrange = (sensitivity, 1) .* Statistics.quantile(maximum.(eachcol(broadened.data)), saturation)
     
-        ax = Makie.Axis(scene; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), title, res.qpts.xticks, xticklabelrotation=π/6)
+        ax = Makie.Axis(scene; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), res.qpts.xticks, xticklabelrotation=π/6, axisopts...)
         Makie.heatmap!(ax, axes(res.data, 2), collect(energies / unit_energy), broadened.data'; colorrange,
                        colormap=Makie.Reverse(:thermal), lowclip=:white)
         for i in axes(res.disp, 1)
-            Makie.lines!(ax, res.disp[i,:] / unit_energy; color=:pink)
+            Makie.lines!(ax, res.disp[i,:] / unit_energy; color=:lightskyblue3)
         end
         return ax
     else
@@ -1034,7 +1050,7 @@ function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; sen
     end
 end
 
-function Sunny.plot_intensities!(scene, res::Sunny.BroadenedIntensities{Float64}; colormap=:gnuplot2, colorrange=nothing, saturation=0.9, units::Units=nothing, into=nothing, title="")
+function Sunny.plot_intensities!(scene, res::Sunny.BroadenedIntensities{Float64}; colormap=:gnuplot2, colorrange=nothing, saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
     all(>(-1e-12), res.data) || error("Intensities must be nonnegative")
 
     unit_energy, ylabel = get_unit_energy(units, into)
@@ -1044,7 +1060,7 @@ function Sunny.plot_intensities!(scene, res::Sunny.BroadenedIntensities{Float64}
             colorrange = (0, Statistics.quantile(maximum.(eachcol(res.data)), saturation))
         end
 
-        ax = Makie.Axis(scene; xlabel="Momentum (r.l.u.)", ylabel, title, res.qpts.xticks, xticklabelrotation=π/6)
+        ax = Makie.Axis(scene; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation=π/6, axisopts...)
         Makie.heatmap!(ax, axes(res.data, 2), collect(res.energies/unit_energy), res.data'; colormap, colorrange)
         return ax
     else
@@ -1052,7 +1068,7 @@ function Sunny.plot_intensities!(scene, res::Sunny.BroadenedIntensities{Float64}
     end
 end
 
-function Sunny.plot_intensities!(scene, res::Sunny.PowderIntensities; colormap=:gnuplot2, colorrange=nothing, saturation=0.98, units::Units=nothing, into=nothing, title="")
+function Sunny.plot_intensities!(scene, res::Sunny.PowderIntensities; colormap=:gnuplot2, colorrange=nothing, saturation=0.98, units=nothing, into=nothing, axisopts=Dict())
     all(>(-1e-12), res.data) || error("Intensities must be nonnegative")
 
     unit_energy, ylabel = get_unit_energy(units, into)
@@ -1062,11 +1078,43 @@ function Sunny.plot_intensities!(scene, res::Sunny.PowderIntensities; colormap=:
         colorrange = (0, Statistics.quantile(maximum.(eachcol(res.data)), saturation))
     end
 
-    ax = Makie.Axis(scene; xlabel, ylabel, title)
+    ax = Makie.Axis(scene; xlabel, ylabel, axisopts...)
     Makie.heatmap!(ax, res.radii, collect(res.energies/unit_energy), res.data'; colormap, colorrange)
     return ax
 end
 
+"""
+    plot_intensities(res::BandIntensities; saturation=0.9, sensitivity=0.0025,
+                     units=nothing, into=nothing, fwhm=nothing, ylims=nothing,
+                     axisopts=Dict())
+
+    plot_intensities(res::BroadenedIntensities; colormap=:gnuplot2,
+                     colorrange=nothing, saturation=0.9, units=nothing,
+                     into=nothing, axisopts=Dict())
+
+    plot_intensities(res::Sunny.PowderIntensities; colormap=:gnuplot2,
+                     colorrange=nothing, saturation=0.98, units=nothing,
+                     into=nothing, axisopts=Dict())
+
+Options are the following:
+
+  * `units`: A [`Units`](@ref) instance for labeling axes and performing
+    conversions.
+  * `into`: A symbol for conversion into a new base energy unit (e.g. `:meV`,
+    `:K`, etc.)
+  * `colorrange`: To be passed to `Makie.heatmap`, defining the map from
+    intensities to colors.
+  * `saturation`: If `colorrange` is not explicitly set, this defines the
+    saturation value as a quantile of intensities over all wavevectors.
+  * `sensitivity`: When plotting `BandIntensities`, this defines a lower bound
+    on the visible intensities as a fraction of the saturated intensity value.
+  * `fwhm`: When plotting `BandIntensities`, this overrides the full-width at
+    half-maximum value used for Gaussian broadening.
+  * `ylims`: Limits of the y-axis.
+  * `axisopts`: An additional collection of named arguments that will be passed
+    to the `Makie.Axis` constructor. This allows to override the axis `title`,
+    `xlabel`, `ylabel`, `xticks`, etc. See Makie documentation for details.
+"""
 function Sunny.plot_intensities(res::Sunny.AbstractIntensities; opts...)
     fig = Makie.Figure()
     Sunny.plot_intensities!(fig[1,1], res; opts...)

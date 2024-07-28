@@ -49,6 +49,7 @@ using Sunny, GLMakie
 # be loaded from a `.cif` file. Here, we instead build a crystal by listing all
 # atoms and their types.
 
+units = Units(:meV)
 a = b = 4.05012  # Lattice constants for triangular lattice
 c = 6.75214      # Spacing in the z-direction
 
@@ -241,67 +242,34 @@ plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
 # ## Linear spin wave theory
 #
 # Now that we have found the ground state for a magnetic supercell, we can
-# immediately proceed to perform zero-temperature calculations using linear spin
-# wave theory. We begin by instantiating a `SpinWaveTheory` type using the
-# supercell.
+# perform zero-temperature calculations using linear spin wave theory.
+
+# The function [`q_space_path`](@ref) will linearly sample a path between the
+# provided $q$-points in reciprocal lattice units (RLU). Here, we use a total of
+# 500 wavevectors.
+
+qs = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
+path = q_space_path(cryst, qs, 500)
+
+# Construct a [`SpinWaveTheory`](@ref) object for the magnetic supercell and
+# calculate scattering intensities with [`intensities_bands2`](@ref). The
+# measurement [`DSSF_perp`](@ref) will project the dynamical spin structure
+# factor onto the space perpendicular to the momentum transfer ``𝐪``, which is
+# appropriate for an unpolarized neutron beam.
 
 swt = SpinWaveTheory(sys_min)
+measure = DSSF_perp(sys_min)
+res = intensities_bands2(swt, path; measure)
+plot_intensities(res; units)
 
-# Select a sequence of wavevectors that will define a piecewise linear
-# interpolation in reciprocal lattice units (RLU).
+# To make comparisons with inelastic neutron scattering (INS) data, one can
+# employ empirical broadening. Select [`lorentzian2`](@ref) broadening, with a
+# full-width at half-maximum of 0.3 meV
 
-q_points = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]];
-
-# The function [`reciprocal_space_path`](@ref) will linearly sample a `path`
-# between the provided $q$-points with a given `density`. The `xticks` return
-# value provides labels for use in plotting.
-
-density = 50
-path, xticks = reciprocal_space_path(cryst, q_points, density);
-
-# The [`dispersion`](@ref) function defines the quasiparticle excitation
-# energies $ω_i(𝐪)$ for each point $𝐪$ along the reciprocal space path.
-
-disp = dispersion(swt, path);
-
-# In addition to the band energies $ω_i(𝐪)$, Sunny can calculate the inelastic
-# neutron scattering intensity $I_i(𝐪)$ for each band $i$ according to an
-# [`intensity_formula`](@ref). We choose to apply a polarization correction
-# $(1 - 𝐪⊗𝐪)$ by setting the mode argument to `:perp`. Selecting
-# `delta_function_kernel` specifies that we want the energy and intensity of
-# each band individually.
-
-formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
-
-# The function [`intensities_bands`](@ref) uses linear spin wave theory to
-# calculate both the dispersion and intensity data for the provided path.
-
-disp, intensity = intensities_bands(swt, path, formula);
-
-# These can be plotted in GLMakie.
-
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
-ylims!(ax, 0.0, 7.5)
-xlims!(ax, 1, size(disp, 1))
-colorrange = extrema(intensity)
-for i in axes(disp, 2)
-    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=intensity[:,i], colorrange)
-end
-fig
-
-# To make comparisons with inelastic neutron scattering (INS) data, it is
-# helpful to employ an empirical broadening kernel, e.g., a
-# [`lorentzian`](@ref).
-
-fwhm = 0.3 # full width at half maximum (meV)
-broadened_formula = intensity_formula(swt, :perp; kernel=lorentzian(; fwhm))
-
-# The [`intensities_broadened`](@ref) function requires an energy range in
-# addition to the $𝐪$-space path.
-
-energies = collect(0:0.01:10)  # 0 < ω < 10 (meV).
-is1 = intensities_broadened(swt, path, energies, broadened_formula);
+kernel = lorentzian2(; fwhm=0.3)
+energies = range(0, 10, 300)  # 0 < ω < 10 (meV)
+res = intensities(swt, path; energies, kernel, measure)
+plot_intensities(res; units, colormap=:viridis)
 
 # A real FeI₂ sample will exhibit competing magnetic domains associated with
 # spontaneous symmetry breaking of the 6-fold rotational symmetry of the
@@ -309,18 +277,13 @@ is1 = intensities_broadened(swt, path, energies, broadened_formula);
 # the structure factor, which leaves three distinct domain orientations, which
 # are related by 120° rotations about the $ẑ$-axis. Rather than rotating the
 # spin configuration directly, on can rotate the $𝐪$-space path. Below, we use
-# [`rotation_in_rlu`](@ref) to average the intensities over all three possible
+# [`domain_average`](@ref) to average over the three possible domain
 # orientations.
 
-R = rotation_in_rlu(cryst, [0, 0, 1], 2π/3)
-is2 = intensities_broadened(swt, [R*q for q in path], energies, broadened_formula)
-is3 = intensities_broadened(swt, [R*R*q for q in path], energies, broadened_formula)
-is_averaged = (is1 + is2 + is3) / 3
-
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
-heatmap!(ax, 1:size(is_averaged, 1), energies, is_averaged)
-fig
+res = domain_average(cryst, path; axis=[0, 0, 1], angle=2π/3) do rotated_path
+    intensities(swt, rotated_path; energies, kernel, measure)
+end
+plot_intensities(res; units, colormap=:viridis)
 
 # This result can be directly compared to experimental neutron scattering data
 # from [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)
@@ -340,16 +303,6 @@ fig
 # An interesting exercise is to repeat the same study, but using `mode =
 # :dipole` instead of `:SUN`. That alternative choice would constrain the
 # coherent state dynamics to the space of dipoles only.
-
-# The full dynamical spin structure factor (DSSF) can be retrieved as a $3×3$
-# matrix with the [`dssf`](@ref) function, for a given path of $𝐪$-vectors.
-
-disp, is = dssf(swt, path);
-
-# The first output `disp` is identical to that obtained from `dispersion`. The
-# second output `is` contains a list of $3×3$ matrix of intensities. For
-# example, `is[q,n][2,3]` yields the $(ŷ,ẑ)$ component of the structure factor
-# intensity for `nth` mode at the `q`th wavevector in the `path`.
 
 # ## What's next?
 #

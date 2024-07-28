@@ -13,6 +13,7 @@ using Sunny, GLMakie
 # structure from [Marty et al., Phys. Rev. Lett. **101**, 247201
 # (2008)](http://dx.doi.org/10.1103/PhysRevLett.101.247201).
 
+units = Units(:meV)
 a = b = 8.539 # (Å)
 c = 5.2414
 latvecs = lattice_vectors(a, b, c, 90, 90, 120)
@@ -81,21 +82,13 @@ plot_spins(sys; color=[s[1] for s in sys.dipoles])
 
 # Define a path in reciprocal space, $[0,1,-1+\xi]$ for $\xi = 0 \dots 3$.
 
-points_rlu = [[0,1,-1],[0,1,-1+1],[0,1,-1+2],[0,1,-1+3]];
-density = 200
-path, xticks = reciprocal_space_path(cryst, points_rlu, density);
+qs = [[0, 1, -1], [0, 1, -1+1], [0, 1, -1+2], [0, 1, -1+3]]
+path = q_space_path(cryst, qs, 600)
 
 # Calculate broadened intensities
 
 swt = SpinWaveTheory(sys; energy_ϵ=1e-6)
-broadened_formula = intensity_formula(swt, :perp; kernel=gaussian(fwhm=0.25))
-energies = collect(0:0.05:6)  # 0 < ω < 6 (meV)
-is = intensities_broadened(swt, path, energies, broadened_formula);
-
-# Plot
-
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)",
-          xticks, xticklabelrotation=π/6)
-heatmap!(ax, 1:size(is,1), energies, is, colormap=:jet, colorrange=(0,150))
-fig
+energies = range(0, 6, 400)  # 0 < ω < 6 (meV)
+res = intensities(swt, path; energies, kernel=gaussian2(fwhm=0.25), measure=DSSF_perp(sys))
+axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
+plot_intensities(res; units, axisopts, saturation=0.7, colormap=:jet)

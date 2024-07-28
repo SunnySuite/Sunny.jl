@@ -131,8 +131,8 @@ include("deprecated.jl")
 export set_external_field!, set_external_field_at!, meV_per_K
 
 ## NEW
-export intensities2, intensities_bands2, intensities_spiral, intensities_bands_spiral, q_space_path, powder_average,
-    DSSF, DSSF_perp, DSSF_trace
+export intensities, intensities_bands2, intensities_spiral, intensities_bands_spiral, q_space_path, powder_average,
+    DSSF, DSSF_perp, DSSF_trace, lorentzian2, gaussian2, domain_average
 
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 
@@ -149,7 +149,7 @@ end
 function plot_intensities(args...; opts...)
     error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
 end
-export view_crystal, plot_spins, plot_intensities
+export view_crystal, plot_spins, plot_intensities, plot_intensities!
 
 ### ext/ExportVTKExt.jl, dependent on WriteVTK
 function export_vtk(args...)

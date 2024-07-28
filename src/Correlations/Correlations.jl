@@ -18,11 +18,23 @@ function (b::NonstationaryBroadening)(ω1, ω2)
     b.kernel(ω1, ω2)
 end
 
+"""
+    lorentzian(; fwhm)
+
+Returns the function `(Γ/2) / (π*(x^2+(Γ/2)^2))` where `fwhm = Γ` is the full
+width at half maximum.
+"""
 function lorentzian2(; fwhm)
     Γ = fwhm
     return Broadening(x -> (Γ/2) / (π*(x^2+(Γ/2)^2)))
 end
 
+"""
+    gaussian(; {fwhm, σ})
+
+Returns the function `exp(-x^2/2σ^2) / √(2π*σ^2)`. Either `fwhm` or `σ` must be
+specified, where `fwhm = (2.355...) * σ` is the full width at half maximum.
+"""
 function gaussian2(; fwhm=nothing, σ=nothing)
     if sum(.!isnothing.((fwhm, σ))) != 1
         error("Either fwhm or σ must be specified.")
@@ -169,7 +181,7 @@ By default, the g-factor or tensor is applied at each site, yielding a
 correlation between magnetic moments. Set `apply_g = false` to measure a true
 spin-spin correlation.
 
-Intended for use with [`intensities2`](@ref), [`intensities_bands2`](@ref), and
+Intended for use with [`intensities`](@ref), [`intensities_bands2`](@ref), and
 related functions. See also the Sunny documentation on [Structure Factor
 Calculations](@ref) for more details.
 """
@@ -479,7 +491,7 @@ end
 
 Calculate spin wave intensities for a set of q-points in reciprocal space. TODO.
 """
-function intensities2(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
+function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
     return broaden(intensities_bands2(swt, qpts; formfactors, measure), energies; kernel)
 end
 
@@ -492,7 +504,7 @@ inverse length, and define spherical shells in reciprocal space. Fibonacci
 sampling is selects `n` points on the shell. The sample points for different
 shells are decorrelated through random rotation. A consistent random number
 `seed` will yield reproducible results. The function `f` should accept a list of
-q-points and call [`intensities`](@ref).
+q-points and call a variant of [`intensities`](@ref).
 
 # Example
 ```julia
@@ -518,4 +530,31 @@ function powder_average(f, cryst, radii, n; seed=0)
     end
 
     return PowderIntensities(cryst, radii, energies, data)
+end
+
+
+# TODO: Infer symops instead from magnetic structure?
+"""
+    domain_average(f, cryst, qpts; axis, angle)
+
+Calculate an average intensity for the reciprocal-space points `qpts` under a
+discrete set of rotations. The rotation `axis` is given in global Cartesian
+coordinates, and the `angle` must have the form ``2π/n``, associated with an
+``n``-fold rotational symmetry. The function `f` should accept a list of
+q-points and call a variant of [`intensities`](@ref).
+"""
+function domain_average(f, cryst, qpts; axis, angle)
+    n = round(Int, 2π / angle)
+    (n in (2, 3, 4, 6) && n*angle ≈ 2π) || error("Select angle 2π/n where n ∈ [2, 3, 4, 6]")
+    R = rotation_in_rlu(cryst, axis, 2π/n)::Mat3
+
+    qs_rotated = copy(qpts.qs)
+    res = f(qpts)
+    for _ in 1:n-1
+        qs_rotated .= Ref(R) .* qs_rotated
+        res.data .+= f(qs_rotated).data
+    end
+    res.data ./= n
+
+    return res
 end
