@@ -82,7 +82,7 @@ end
         q = [0.12, 0.23, 0.34]
         swt = SpinWaveTheory(sys)
         
-        res = Sunny.intensities_bands_spiral(swt, [q], k, axis; measure=Sunny.DSSF_perp(sys; apply_g=false))
+        res = intensities_bands_spiral(swt, [q]; k, axis, measure=DSSF_perp(sys; apply_g=false))
         ϵq_num = res.disp[1,1]
 
         # Analytical
@@ -131,7 +131,7 @@ end
 
     swt = SpinWaveTheory(sys)
     q = [0.41568,0.56382,0.76414]
-    res = Sunny.intensities_bands_spiral(swt, [q], k, axis; measure=Sunny.DSSF_perp(sys; apply_g=false))
+    res = intensities_bands_spiral(swt, [q]; k, axis, measure=DSSF_perp(sys; apply_g=false))
 
     disp_spinw = [4.7564, 4.0113, 3.31724, 4.4605, 3.9095, 2.8767, 3.9422, 3.8202, 2.6267]
     data_spinw = [0.484724856017038, 0.962074686407910, 0.0932786148844105, 0.137966379056292, 0.0196590925454593, 2.37155695274281, 2.21507666401705, 0.118744173882554, 0.0547564956435423]

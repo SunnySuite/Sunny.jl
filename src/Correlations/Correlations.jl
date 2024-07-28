@@ -157,8 +157,23 @@ function all_dipole_observables(sys::System{N}; apply_g) where {N}
     return observables
 end
 
+"""
+    DSSF(sys::System; apply_g=true)
 
-function DSSF(sys::System{N}; apply_g=true) where N
+Specify measurement of the dynamical spin structure factor (DSSF) or its
+"instantaneous" variant. The "full" structure factor intensity
+``\\mathcal{S}^{αβ}(𝐪,ω)`` is returned as a 3×3 matrix, with indices ``(α, β)``
+denoting dipole components in Cartesian coordinates.
+
+By default, the g-factor or tensor is applied at each site, yielding a
+correlation between magnetic moments. Set `apply_g = false` to measure a true
+spin-spin correlation.
+
+Intended for use with [`intensities2`](@ref), [`intensities_bands2`](@ref), and
+related functions. See also the Sunny documentation on [Structure Factor
+Calculations](@ref) for more details.
+"""
+function DSSF(sys::System; apply_g=true)
     observables = all_dipole_observables(sys; apply_g)
     combiner(_, data) = SA[
         data[6]       data[5]       data[3]
@@ -169,7 +184,20 @@ function DSSF(sys::System{N}; apply_g=true) where N
     return Measurement(observables, corr_pairs, combiner)
 end
 
-function DSSF_perp(sys::System{N}; apply_g=true) where N
+"""
+    DSSF_perp(sys::System; apply_g=true)
+
+Specify measurement of the dynamical spin structure factor (DSSF). Like
+[`DSSF`](@ref), but contracts the 3×3 structure factor matrix with
+``(I-𝐪⊗𝐪/q²)``, which projects perpendicular to the direction of momentum
+transfer ``𝐪``. The contracted structure factor can be interpreted as a
+scattering intensity for an unpolarized neutron beam, up to constant scaling
+factors. In the singular limit ``𝐪 → 0``, the contraction matrix is replaced by
+its rotational average, ``(2/3) I``.
+
+See also [`DSSF`](@ref).
+"""
+function DSSF_perp(sys::System; apply_g=true)
     observables = all_dipole_observables(sys; apply_g)
     function combiner(q, data)
         q2 = norm2(q)
@@ -181,7 +209,7 @@ function DSSF_perp(sys::System{N}; apply_g=true) where N
             data[3] data[2] data[1]
         ]
         tr_dssf = tr(dssf)
-        # "S perp" contraction matrix (1 - q⊗q/q²) appropriate to unpolarized
+        # "S-perp" contraction matrix (1 - q⊗q/q²) appropriate to unpolarized
         # neutrons. In the limit q → 0, use (1 - q⊗q/q²) → 2/3, which
         # corresponds to a spherical average over uncorrelated data:
         # https://github.com/SunnySuite/Sunny.jl/pull/131
@@ -191,6 +219,15 @@ function DSSF_perp(sys::System{N}; apply_g=true) where N
     return Measurement(observables, corr_pairs, combiner)
 end
 
+"""
+    DSSF_trace(sys::System; apply_g=true)
+
+Specify measurement of the dynamical spin structure factor (DSSF). Like
+[`DSSF`](@ref), but returns only the trace of the 3×3 structure factor matrix.
+This quantity can be useful for checking quantum sum rules.
+
+See also [`DSSF`](@ref).
+"""
 function DSSF_trace(sys::System{N}; apply_g=true) where N
     observables = all_dipole_observables(sys; apply_g)
     combiner(_, data) = real(data[1] + data[2] + data[3])
@@ -225,6 +262,16 @@ struct BroadenedIntensities{T} <: AbstractIntensities
     data :: Array{T, 2} # (nω × nq)
 end
 
+struct PowderIntensities <: AbstractIntensities
+    # Original chemical cell
+    crystal :: Crystal
+    # q magnitudes in inverse length
+    radii :: Vector{Float64}
+    # Regular grid of energies
+    energies :: Vector{Float64}
+    # Convolved intensity data
+    data :: Array{Float64, 2} # (nω × nq)
+end
 
 # Returns |1 + nB(ω)| where nB(ω) = 1 / (exp(βω) - 1) is the Bose function. See
 # also `classical_to_quantum` which additionally "undoes" the classical
@@ -236,6 +283,30 @@ function thermal_prefactor(kT, ω)
         @assert kT > 0
         return abs(1 / (1 - exp(-ω/kT)))
     end
+end
+
+function broaden!(data::AbstractMatrix{Ret}, bands::BandIntensities{Ret}, energies; kernel) where Ret
+    energies = collect(energies)
+
+    nω = length(energies)
+    nq = size(bands.data, 2)
+    (nω, nq) == size(data) || error("Argument data must have size ($nω×$nq)")
+
+    for iq in axes(bands.data, 2)
+        for (ib, b) in enumerate(view(bands.disp, :, iq))
+            for (iω, ω) in enumerate(energies)
+                data[iω, iq] += kernel(b, ω) * bands.data[ib, iq]
+            end
+        end
+    end
+
+    return data
+end
+
+function broaden(bands::BandIntensities, energies; kernel)
+    data = zeros(eltype(bands.data), length(energies), size(bands.data, 2))
+    broaden!(data, bands, energies; kernel)
+    return BroadenedIntensities(bands.crystal, bands.qpts, collect(energies), data)
 end
 
 function calculate_excitations!(V, H, swt::SpinWaveTheory, q)
@@ -285,7 +356,12 @@ function localize_observables(obs::Array{Op, 5}, data) where {Op}
     return ret
 end
 
-# TODO: measure=nothing
+
+"""
+    intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, measure)
+
+Calculate spin wave excitation bands for a set of q-points in reciprocal space. TODO.
+"""
 function intensities_bands2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     qpts = convert(AbstractQPoints, qpts)
     (; sys) = swt
@@ -376,27 +452,48 @@ function intensities_bands2(swt::SpinWaveTheory, qpts; formfactors=nothing, meas
     return BandIntensities{Ret}(cryst, qpts, disp, intensity)
 end
 
+"""
+    intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing, measure)
 
-function broaden(bands::BandIntensities{Ret}, energies; kernel::B) where {Ret, B}
-    energies = collect(energies)
-    (; qs) = bands.qpts
-
-    nω = length(energies)
-    nq = length(qs)
-    data = zeros(eltype(bands.data), nω, nq)
-
-    for iq in eachindex(qs)
-        for (ib, b) in enumerate(view(bands.disp, :, iq))
-            for (iω, ω) in enumerate(energies)
-                data[iω, iq] += kernel(b, ω) * bands.data[ib, iq]
-            end
-        end
-    end
-
-    return BroadenedIntensities(bands.crystal, bands.qpts, energies, data)
+Calculate spin wave intensities for a set of q-points in reciprocal space. TODO.
+"""
+function intensities2(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
+    return broaden(intensities_bands2(swt, qpts; formfactors, measure), energies; kernel)
 end
 
-function intensities2(swt::SpinWaveTheory, qpts, energies::AbstractArray{<: Number}; kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
-    res = intensities_bands2(swt, qpts; formfactors, measure)
-    broaden(res, energies; kernel)
+
+"""
+    powder_average(f, cryst, radii, n; seed=0)
+
+Calculate a powder-average in reciprocal space. The `radii` have units of
+inverse length, and define spherical shells in reciprocal space. Fibonacci
+sampling is selects `n` points on the shell. The sample points for different
+shells are decorrelated through random rotation. A consistent random number
+`seed` will yield reproducible results. The function `f` should accept a list of
+q-points and call [`intensities`](@ref).
+
+# Example
+```julia
+radii = range(0.0, 3.0, 200)
+res = powder_average(cryst, radii, 500) do qs
+    intensities(swt, qs; energies, kernel, measure)
+end
+plot_intensities(res)
+```
+
+See also [`intensities`](@ref).
+"""
+function powder_average(f, cryst, radii, n; seed=0)
+    (; energies) = f([Vec3(0,0,0)])
+    rng = Random.Xoshiro(seed)
+    data = zeros(length(energies), length(radii))
+    qs = reciprocal_space_shell(cryst, 1.0, n)
+    
+    for (i, radius) in enumerate(radii)
+        R = Mat3(random_orthogonal(rng, 3)) * radius
+        res = f(Ref(R) .* qs)
+        data[:, i] = Statistics.mean(res.data; dims=2)
+    end
+
+    return PowderIntensities(cryst, radii, energies, data)
 end

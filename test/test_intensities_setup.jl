@@ -59,12 +59,12 @@ end
         # So we compare spin correlations vs magnetization correlations externally.
         sys_homog_g = System(cryst, (1,1,1), [SpinInfo(1,S=3/2,g=g_factor), SpinInfo(2, S=mode == :SUN ? 3/2 : 1/2, g=g_factor)], mode)
         swt = SpinWaveTheory(sys_homog_g; apply_g=false)
-        measure = Sunny.DSSF(sys_homog_g; apply_g=false)
-        res1 = Sunny.intensities_bands2(swt, [[0,0,0]]; measure)
+        measure = DSSF(sys_homog_g; apply_g=false)
+        res1 = intensities_bands2(swt, [[0,0,0]]; measure)
 
         swt = SpinWaveTheory(sys_homog_g; apply_g=true)
-        measure = Sunny.DSSF(sys_homog_g; apply_g=true)
-        res2 = Sunny.intensities_bands2(swt, [[0,0,0]]; measure)
+        measure = DSSF(sys_homog_g; apply_g=true)
+        res2 = intensities_bands2(swt, [[0,0,0]]; measure)
 
         # TODO: Can the ground truth be calculated explicitly from the sys.dipoles, and inhomogeneous g_factor be used?
         @test isapprox(g_factor * res1.data[1] * g_factor', res2.data[1])
