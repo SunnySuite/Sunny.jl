@@ -28,14 +28,13 @@ D = 19.0
 set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 
 damping = 0.05
-kT = 0
+kT = 0;
 
 randomize_spins!(sys)
-minimize_energy!(sys) # (this optimization does not need to converge)
 integrator = Langevin(; damping, kT)
-suggest_timestep(sys, integrator; tol=0.025)
+suggest_timestep(sys, integrator; tol=0.05)
 
-integrator.dt = 0.01
+integrator.dt = 0.01;
 
 randomize_spins!(sys)
 τs = [4, 16, 256]   # Times to record snapshots
