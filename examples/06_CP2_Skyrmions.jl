@@ -74,21 +74,20 @@ set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 # fluctuations.
 
 damping = 0.05
-kT = 0
+kT = 0;
 
-# The first step is to determine a reasonable integration timestep. To determine
-# this, we can initialize the system to some relatively low-energy
-# configuration. A relatively large error tolerance of 0.025 is OK for this
-# phenomenological study.
+# The first step is to estimate a reasonable integration timestep `dt`. In this
+# case, a random spin configuration gives a tighter bound than does an
+# energy-minimized configuration. A relatively large error tolerance is OK for
+# this phenomenological study.
 
 randomize_spins!(sys)
-minimize_energy!(sys) # (this optimization does not need to converge)
 integrator = Langevin(; damping, kT)
-suggest_timestep(sys, integrator; tol=0.025)
+suggest_timestep(sys, integrator; tol=0.05)
 
 # Apply the suggested timestep.
 
-integrator.dt = 0.01
+integrator.dt = 0.01;
 
 # Now run the dynamical quench starting from a randomized configuration. We will
 # record the state of the system at three different times during the quenching

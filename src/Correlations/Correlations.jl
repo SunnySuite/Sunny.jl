@@ -68,6 +68,15 @@ function Base.convert(::Type{AbstractQPoints}, x::AbstractArray)
     return QPoints(collect(Vec3.(x)))
 end
 
+function Base.show(io::IO, qpts::AbstractQPoints)
+    print(io, string(typeof(qpts)) * " ($(length(qpts.qs)) samples)")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", qpts::QPath)
+    printstyled(io, "QPath ($(length(qpts.qs)) samples)\n"; bold=true, color=:underline)
+    println(io, "  " * join(qpts.xticks[2], " → "))
+end
+
 
 """
     q_space_path(cryst::Crystal, qs, n; labels=nothing)
@@ -286,6 +295,12 @@ struct PowderIntensities <: AbstractIntensities
     # Convolved intensity data
     data :: Array{Float64, 2} # (nω × nq)
 end
+
+function Base.show(io::IO, res::AbstractIntensities)
+    sizestr = join(size(res.data), "×")
+    print(io, string(typeof(res)) * " ($sizestr elements)")
+end
+
 
 # Returns |1 + nB(ω)| where nB(ω) = 1 / (exp(βω) - 1) is the Bose function. See
 # also `classical_to_quantum` which additionally "undoes" the classical
