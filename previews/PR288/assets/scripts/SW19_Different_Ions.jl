@@ -1,0 +1,44 @@
+using Sunny, GLMakie
+
+units = Units(:meV)
+a = 3.0
+b = 8.0
+c = 4.0
+latvecs = lattice_vectors(a, b, c, 90, 90, 90)
+positions = [[0, 0, 0], [0, 1/2, 0]]
+types = ["Cu2", "Fe2"]
+cryst = Crystal(latvecs, positions, 1; types)
+view_crystal(cryst)
+
+J_Cu_Cu = 1.0
+J_Fe_Fe = 1.0
+J_Cu_Fe = -0.1
+sys = System(cryst, (2,1,1), [SpinInfo(1,S=1/2,g=2), SpinInfo(2,S=2,g=2)], :dipole; seed=0)
+set_exchange!(sys, J_Cu_Cu, Bond(1, 1, [-1, 0, 0]))
+set_exchange!(sys, J_Fe_Fe, Bond(2, 2, [-1, 0, 0]))
+set_exchange!(sys, J_Cu_Fe, Bond(2, 1, [0, 1, 0]))
+set_exchange!(sys, J_Cu_Fe, Bond(1, 2, [0, 0, 0]))
+
+randomize_spins!(sys)
+minimize_energy!(sys)
+plot_spins(sys)
+
+swt = SpinWaveTheory(sys)
+qs = [[0,0,0], [1,0,0]]
+path = q_space_path(cryst, qs, 512)
+measure = DSSF_perp(sys)
+
+fig = Figure(size=(400, 600))
+
+res = intensities_bands(swt, path; measure)
+plot_intensities!(fig[1, 1], res; units, axisopts=(; title="All correlations", xlabel="", xticks=[NaN]))
+
+formfactors = [FormFactor("Cu2"), zero(FormFactor)]
+res = intensities_bands(swt, path; formfactors, measure)
+plot_intensities!(fig[2, 1], res; units, axisopts=(; title="Cu-Cu correlations", xlabel="", xticks=[NaN]))
+
+formfactors = [zero(FormFactor), FormFactor("Fe2")]
+res = intensities_bands(swt, path; formfactors, measure)
+plot_intensities!(fig[3, 1], res; units, axisopts=(; title="Fe-Fe correlations"))
+
+fig
