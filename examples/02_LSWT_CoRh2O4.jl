@@ -88,10 +88,11 @@ energies = range(0, 6, 300)
 res = intensities(swt, path; energies, kernel, formfactors, measure)
 plot_intensities(res; units)
 
-# A powder measurement effectively involves an average over all possible crystal
-# orientations. We use the function [`reciprocal_space_shell`](@ref) to sample
-# `n` wavevectors on a sphere of a given radius (inverse angstroms), and then
-# calculate the spherically-averaged intensity.
+# We use [`powder_average`](@ref) to average intensities over all possible
+# crystal orientations. Perform this calculation for 200 momentum magnitudes,
+# ranging from 0 to 3 inverse angstroms. Each ``𝐪``-magnitude defines a
+# spherical shell in reciprocal space. Sample it with `2000` wavevectors of
+# quasi-uniform distribution.
 
 radii = range(0, 3, 200) # (1/Å)
 res = powder_average(cryst, radii, 2000) do qs

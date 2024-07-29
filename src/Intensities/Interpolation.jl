@@ -211,19 +211,6 @@ end
 
 
 """
-    rotation_in_rlu(cryst::Crystal, axis, angle)
-
-Returns a ``3×3`` matrix that rotates wavevectors in reciprocal lattice units
-(RLU). The axis vector is a real-space direction in absolute units (but
-arbitrary magnitude), and the angle is in radians.
-"""
-function rotation_in_rlu(cryst::Crystal, axis, angle)
-    axis = Vec3(axis)
-    inv(cryst.recipvecs) * axis_angle_to_matrix(axis, angle) * cryst.recipvecs
-end
-
-
-"""
     reciprocal_space_path(cryst::Crystal, qs, density)
 
 Returns a pair `(path, xticks)`. The `path` return value is a list of

@@ -513,12 +513,13 @@ end
 """
     powder_average(f, cryst, radii, n; seed=0)
 
-Calculate a powder-average in reciprocal space. The `radii` have units of
-inverse length, and define spherical shells in reciprocal space. Fibonacci
-sampling is selects `n` points on the shell. The sample points for different
-shells are decorrelated through random rotation. A consistent random number
-`seed` will yield reproducible results. The function `f` should accept a list of
-q-points and call a variant of [`intensities`](@ref).
+Calculate a powder-average over structure factor intensities. The `radii` have
+units of inverse length, each defines a spherical shell in reciprocal space. The
+[Fibonacci lattice](https://arxiv.org/abs/1607.04590) yields `n` points on the
+shells, with quasi-uniformity. Sample points on different shells are
+decorrelated through random rotations. A consistent random number `seed` will
+yield reproducible results. The function `f` should accept a list of q-points
+and call a variant of [`intensities`](@ref).
 
 # Example
 ```julia
@@ -528,8 +529,6 @@ res = powder_average(cryst, radii, 500) do qs
 end
 plot_intensities(res)
 ```
-
-See also [`intensities`](@ref).
 """
 function powder_average(f, cryst, radii, n; seed=0)
     (; energies) = f([Vec3(0,0,0)])
@@ -547,28 +546,71 @@ function powder_average(f, cryst, radii, n; seed=0)
 end
 
 
-# TODO: Infer symops instead from magnetic structure?
+
 """
-    domain_average(f, cryst, qpts; axis, angle)
+    rotation_in_rlu(cryst::Crystal, (axis, angle))
+    rotation_in_rlu(cryst::Crystal, R)
+
+Returns a ``3×3`` matrix that rotates wavevectors in reciprocal lattice units
+(RLU), with possible reflection. The input should be a representation of this
+same rotation in global coordinates, i.e., a transformation of reciprocal-space
+wavevectors in units of inverse length.
+"""
+function rotation_in_rlu end
+
+function rotation_in_rlu(cryst::Crystal, (axis, angle))
+    return rotation_in_rlu(cryst, axis_angle_to_matrix(axis, angle))
+end
+
+function rotation_in_rlu(cryst::Crystal, rotation::R) where {R <: AbstractMatrix}
+    return inv(cryst.recipvecs) * Mat3(rotation) * cryst.recipvecs
+end
+
+
+"""
+    domain_average(f, cryst, qpts; rotations, weights=nothing)
 
 Calculate an average intensity for the reciprocal-space points `qpts` under a
-discrete set of rotations. The rotation `axis` is given in global Cartesian
-coordinates, and the `angle` must have the form ``2π/n``, associated with an
-``n``-fold rotational symmetry. The function `f` should accept a list of
-q-points and call a variant of [`intensities`](@ref).
+discrete set of `rotations`. Rotations must be given in global Cartesian
+coordinates, and will be converted via [`rotation_in_rlu`](@ref). Either
+axis-angle or 3×3 rotation matrix representations can be used. An optional list
+of `weights` allows for non-uniform weighting of each rotation. The function `f`
+should accept a list of rotated q-points and call a variant of
+[`intensities`](@ref).
+
+# Example
+
+```julia
+# 0, 120, and 240 degree rotations about the global z-axis
+rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
+weights = [1, 1, 1]
+res = domain_average(cryst, qpts; rotations, weights) do qpts_rotated
+    intensities(swt, qpts_rotated; energies, kernel, measure)
+end
+plot_intensities(res)
+```
 """
-function domain_average(f, cryst, qpts; axis, angle)
-    n = round(Int, 2π / angle)
-    (n in (2, 3, 4, 6) && n*angle ≈ 2π) || error("Select angle 2π/n where n ∈ [2, 3, 4, 6]")
-    R = rotation_in_rlu(cryst, axis, 2π/n)::Mat3
+function domain_average(f, cryst, qpts; rotations, weights=nothing)
+    isempty(rotations) && error("Rotations must be nonempty list")
+    weights = @something weights fill(1, length(rotations))
+    length(rotations) == length(weights) || error("Rotations and weights must be same length")
 
-    qs_rotated = copy(qpts.qs)
+    R0, Rs... = rotation_in_rlu.(Ref(cryst), rotations)
+    w0, ws... = weights
+
+    qpts = convert(AbstractQPoints, qpts)
+    qs0 = copy(qpts.qs)
+
+    qpts.qs .= Ref(R0) .* qs0
     res = f(qpts)
-    for _ in 1:n-1
-        qs_rotated .= Ref(R) .* qs_rotated
-        res.data .+= f(qs_rotated).data
-    end
-    res.data ./= n
+    res.data .*= w0
 
+    for (R, w) in zip(Rs, ws)
+        qpts.qs .= Ref(R) .* qs0
+        res.data .+= w .* f(qpts).data
+    end
+
+    qpts.qs .= qs0
+    res.data ./= sum(weights)
     return res
 end
