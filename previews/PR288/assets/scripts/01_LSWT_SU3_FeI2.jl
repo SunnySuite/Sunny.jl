@@ -85,11 +85,10 @@ res = intensities_bands(swt, path; measure)
 plot_intensities(res; units)
 
 kernel = lorentzian2(; fwhm=0.3)
-energies = range(0, 10, 300)  # 0 < ω < 10 (meV)
-res = intensities(swt, path; energies, kernel, measure)
-plot_intensities(res; units, colormap=:viridis)
+energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 
-res = domain_average(cryst, path; axis=[0, 0, 1], angle=2π/3) do rotated_path
-    intensities(swt, rotated_path; energies, kernel, measure)
+rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
+res = domain_average(cryst, path; rotations) do path_rotated
+    intensities(swt, path_rotated; energies, kernel, measure)
 end
 plot_intensities(res; units, colormap=:viridis)
