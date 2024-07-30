@@ -59,7 +59,7 @@ res3 = intensities_bands(swt, path; measure)
 # errors: The energy scales are too small by a factor of 2 and, in addition,
 # slight corrections are needed for the third dispersion band.
 
-fig = Figure(size=(900,300))
+fig = Figure(size=(768, 300))
 plot_intensities!(fig[1, 1], res1; units)
 ax = plot_intensities!(fig[1, 2], res2; units)
 for c in eachrow(res3.disp)
