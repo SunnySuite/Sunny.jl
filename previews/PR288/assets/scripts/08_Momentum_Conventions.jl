@@ -43,8 +43,8 @@ swt = SpinWaveTheory(sys_small)
 path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
 res = intensities_bands(swt, path; measure=DSSF_trace(sys_small))
 
-fig = Figure(size=(400, 680))
+fig = Figure(size=(768, 300))
 ax = Axis(fig[1, 1]; aspect=1.4, title="Classical dynamics", ylabel="Energy")
-heatmap!(ax, 1:size(data, 1), available_energies(sc), data;  colorrange=(0.0, 50.0))
-plot_intensities!(fig[2, 1], res; axisopts=(; title="Spin wave theory"))
+heatmap!(ax, 1:size(data, 1), available_energies(sc), data; colorrange=(0.0, 50.0))
+ax = plot_intensities!(fig[1, 2], res; axisopts=(; ylabel="", title="Spin wave theory"))
 fig

@@ -37,7 +37,7 @@ modify_exchange_with_truncated_dipole_dipole!(sys_prim_tdd, 5.0, units.vacuum_pe
 swt = SpinWaveTheory(sys_prim_tdd)
 res3 = intensities_bands(swt, path; measure)
 
-fig = Figure(size=(900,300))
+fig = Figure(size=(768, 300))
 plot_intensities!(fig[1, 1], res1; units)
 ax = plot_intensities!(fig[1, 2], res2; units)
 for c in eachrow(res3.disp)
