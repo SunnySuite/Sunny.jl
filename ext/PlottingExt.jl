@@ -1050,13 +1050,13 @@ function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; sen
 end
 
 function Sunny.plot_intensities!(scene, res::Sunny.BroadenedIntensities{Float64}; colormap=:gnuplot2, colorrange=nothing, saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
-    all(>(-1e-12), res.data) || error("Intensities must be nonnegative")
-
     unit_energy, ylabel = get_unit_energy(units, into)
  
     if res.qpts isa Sunny.QPath
         if isnothing(colorrange)
-            colorrange = (0, Statistics.quantile(maximum.(eachcol(res.data)), saturation))
+            lower = min(0, Statistics.quantile(minimum.(eachcol(res.data)), 1-saturation))
+            upper = max(0, Statistics.quantile(maximum.(eachcol(res.data)), saturation))
+            colorrange = (lower, upper)
         end
 
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
@@ -1069,13 +1069,13 @@ function Sunny.plot_intensities!(scene, res::Sunny.BroadenedIntensities{Float64}
 end
 
 function Sunny.plot_intensities!(scene, res::Sunny.PowderIntensities; colormap=:gnuplot2, colorrange=nothing, saturation=0.98, units=nothing, into=nothing, axisopts=Dict())
-    all(>(-1e-12), res.data) || error("Intensities must be nonnegative")
-
     unit_energy, ylabel = get_unit_energy(units, into)
     xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
  
     if isnothing(colorrange)
-        colorrange = (0, Statistics.quantile(maximum.(eachcol(res.data)), saturation))
+        lower = min(0, Statistics.quantile(minimum.(eachcol(res.data)), 1-saturation))
+        upper = max(0, Statistics.quantile(maximum.(eachcol(res.data)), saturation))
+        colorrange = (lower, upper)
     end
 
     ax = Makie.Axis(scene; xlabel, ylabel, axisopts...)
