@@ -221,9 +221,9 @@ function swt_data(sys::System{0}, measure)
     # Operators for rotating Stevens quadrupoles into local frame
     Vs = Mat5.(operator_for_stevens_rotation.(2, Rs))
 
-    # Observables are semantically a 1x3 row vector but stored in transpose
-    # form. To achieve effective right-multiplication by R, we should in
-    # practice left-multiply by R'.
+    # Observable is semantically a 1x3 row vector but stored in transpose
+    # (column) form. To achieve effective right-multiplication by R, we should
+    # in practice left-multiply column vector by R'.
     obs = reshape(measure.observables, Nobs, Na)
     obs_localized = [Rs[i]' * obs[μ, i] for μ in 1:Nobs, i in 1:Na]
 
