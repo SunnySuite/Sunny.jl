@@ -278,14 +278,15 @@ end
 Calculate spin wave excitation bands for a set of q-points in reciprocal space.
 """
 function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
-    qpts = convert(AbstractQPoints, qpts)
     (; sys, measure) = swt
+    isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with an `observe` argument.")
+
+    qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.latsize == (1,1,1)
     Na = length(eachsite(sys))
-
     # Number of chemical cells in magnetic cell
     Ncells = Na / natoms(cryst)
     # Number of quasiparticle modes

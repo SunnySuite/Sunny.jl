@@ -34,8 +34,7 @@ function SpinWaveTheory(sys::System{N}, measure::Union{Nothing, Measurement}; re
         regularization = energy_ϵ
     end
 
-    # TODO: empty measurement
-    measure = @something measure DSSF_perp(sys)
+    measure = @something measure empty_measurement(sys)
     if length(eachsite(sys)) != prod(size(measure.observables)[2:5])
         error("Size mismatch. Check that measure is built using consistent system.")
     end

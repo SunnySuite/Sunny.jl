@@ -19,6 +19,13 @@ end
 Base.eltype(::Measurement{Op, F, Ret}) where {Op, F, Ret} = Ret
 
 
+function empty_measurement(sys)
+    observables = zeros(Vec3, 0, size(eachsite(sys))...)
+    corr_pairs = NTuple{2, Int}[]
+    combiner = (_, _) -> 0.0
+    return Measurement(observables, corr_pairs, combiner)
+end
+
 function all_dipole_observables(sys::System{0}; apply_g)
     observables = zeros(Vec3, 3, size(eachsite(sys))...)
     for site in eachsite(sys)
