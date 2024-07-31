@@ -87,8 +87,8 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
             J0 = gs[i]' * A0[i, j] * gs[j] / 2
 
             for α in 1:3, β in 1:3
-                Ai = view(spins_localized, :, :, α, i)
-                Bj = view(spins_localized, :, :, β, j)
+                Ai = spins_localized[α, i]
+                Bj = spins_localized[β, j]
 
                 for m in 1:N-1, n in 1:N-1
                     c = 0.5 * (Ai[m,n] - δ(m,n)*Ai[N,N]) * (Bj[N,N])
@@ -125,7 +125,7 @@ function swt_hamiltonian_SUN!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_resh
 
     # Add small constant shift for positive-definiteness
     for i in 1:2L
-        H[i,i] += swt.energy_ϵ
+        H[i,i] += swt.regularization
     end
 end
 
@@ -216,7 +216,7 @@ function multiply_by_hamiltonian_SUN!(y::Array{ComplexF64, 2}, x::Array{ComplexF
     end
 
     # Add small constant shift for positive-definiteness
-    @inbounds @. Y += swt.energy_ϵ * X
+    @inbounds @. Y += swt.regularization * X
 
     nothing
 end

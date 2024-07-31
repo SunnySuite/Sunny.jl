@@ -68,7 +68,7 @@ plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 
 # Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref).
 
-swt = SpinWaveTheory(sys_prim)
+swt = SpinWaveTheory(sys_prim, DSSF_perp(sys_prim))
 
 # For the "single crystal" result, we use [`q_space_path`](@ref) to construct a
 # path that connects high-symmetry points in reciprocal space.
@@ -82,10 +82,9 @@ path = q_space_path(cryst, qs, 400)
 # intensities at large ``𝐪``.
 
 kernel = Sunny.lorentzian2(fwhm=0.8)
-measure = DSSF_perp(sys_prim)
 formfactors = [FormFactor("Co2")]
 energies = range(0, 6, 300)
-res = intensities(swt, path; energies, kernel, formfactors, measure)
+res = intensities(swt, path; energies, kernel, formfactors)
 plot_intensities(res; units)
 
 # We use [`powder_average`](@ref) to average intensities over all possible
@@ -96,7 +95,7 @@ plot_intensities(res; units)
 
 radii = range(0, 3, 200) # (1/Å)
 res = powder_average(cryst, radii, 2000) do qs
-    intensities(swt, qs; energies, kernel, formfactors, measure)
+    intensities(swt, qs; energies, kernel, formfactors)
 end
 plot_intensities(res; units)
 

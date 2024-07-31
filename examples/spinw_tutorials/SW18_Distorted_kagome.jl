@@ -79,9 +79,8 @@ path = q_space_path(cryst, qs, 512)
 # Plot intensities for the incommensurate single-k ordering wavevector. Use the
 # original `sys`, consisting of a single chemical cell.
 
-swt = SpinWaveTheory(sys)
-measure = DSSF_perp(sys; apply_g=false)
-res = intensities_bands_spiral(swt, path; k, axis, measure)
+swt = SpinWaveTheory(sys, DSSF_perp(sys; apply_g=false))
+res = intensities_bands_spiral(swt, path; k, axis)
 plot_intensities(res; units)
 
 # Plot the powder-averaged intensities
@@ -90,6 +89,6 @@ radii = range(0, 2, 100) # (1/Å)
 energies = range(0, 6, 200)
 kernel = Sunny.gaussian2(fwhm=0.05)
 res = powder_average(cryst, radii, 200) do qs
-    intensities_spiral(swt, qs; k, axis, energies, kernel, measure)
+    intensities_spiral(swt, qs; k, axis, energies, kernel)
 end
 plot_intensities(res; units)

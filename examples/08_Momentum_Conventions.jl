@@ -76,9 +76,9 @@ data = intensities_interpolated(sc, path, intensity_formula(sc, :trace; kT));
 
 sys_small = resize_supercell(sys, (1,1,1))
 minimize_energy!(sys_small)
-swt = SpinWaveTheory(sys_small)
+swt = SpinWaveTheory(sys_small, DSSF_trace(sys_small))
 path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
-res = intensities_bands(swt, path; measure=DSSF_trace(sys_small))
+res = intensities_bands(swt, path)
 
 # This model system has a single magnon band with dispersion ``ϵ(𝐪) = 1 - D/B
 # \sin(2πq₃)`` and uniform intensity. Both calculation methods reproduce this

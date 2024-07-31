@@ -7,8 +7,6 @@
     @test_nowarn intensity_formula(sc,:trace)
     @test_nowarn intensity_formula(sc,:perp)
     @test_nowarn intensity_formula(sc,:full)
-    swt = SpinWaveTheory(sys)
-
 end
 
 @testitem "Dipole Factor Ordering" begin
@@ -29,15 +27,17 @@ end
 @testitem "Magnetization Observables" begin
     using LinearAlgebra
 
-    g_factor = [0.8 3.2 5.1; -0.3 0.6 -0.1; 1.0 0. 0.]
-    g_factor_2 = [1.8 2.2 -3.1; -0.3 2.6 0.1; 1.0 0. 0.3]
-    cryst = Crystal(I(3), [[0.,0,0],[0.1,0.2,0.3]], 1)
+    positions = [[0.,0,0], [0.1, 0.2, 0.3]]
+    cryst = Crystal(I(3), positions, 1)
+    g1 = [0.8 3.2 5.1; -0.3 0.6 -0.1; 1.0 0. 0.]
+    g2 = [1.8 2.2 -3.1; -0.3 2.6 0.1; 1.0 0. 0.3]    
 
     for mode = [:SUN, :dipole]
-        sys = System(cryst, (1,1,1), [SpinInfo(1,S=3/2, g=g_factor), SpinInfo(2, S=mode == :SUN ? 3/2 : 1/2, g=g_factor_2)], mode)
+        infos = [SpinInfo(1, S=3/2, g=g1), SpinInfo(2, S=(mode == :SUN ? 3/2 : 1/2), g=g2)]
+        sys = System(cryst, (1,1,1), infos, mode)
 
-        set_dipole!(sys,[1,3,2], (1,1,1,1))
-        set_dipole!(sys,[3,4,5], (1,1,1,2))
+        set_dipole!(sys, [1,3,2], (1,1,1,1))
+        set_dipole!(sys, [3,4,5], (1,1,1,2))
 
         # Dipole magnetization observables (classical)
         sc = instant_correlations(sys)
@@ -51,20 +51,18 @@ end
         mag_corr_time_natoms = mag_corr * Sunny.natoms(cryst)
         @test isapprox(corr_mat, mag_corr_time_natoms)
 
-        # Spin wave theory only gives the "transverse part" which is difficult to calculate.
-        # So we compare spin correlations vs magnetization correlations externally.
-        sys_homog_g = System(cryst, (1,1,1), [SpinInfo(1,S=3/2,g=g_factor), SpinInfo(2, S=mode == :SUN ? 3/2 : 1/2, g=g_factor)], mode)
-        swt = SpinWaveTheory(sys_homog_g; apply_g=false)
-        measure = DSSF(sys_homog_g; apply_g=false)
-        res1 = intensities_bands(swt, [[0,0,0]]; measure)
-
-        swt = SpinWaveTheory(sys_homog_g; apply_g=true)
-        measure = DSSF(sys_homog_g; apply_g=true)
-        res2 = intensities_bands(swt, [[0,0,0]]; measure)
-
-        # TODO: Can the ground truth be calculated explicitly from the sys.dipoles, and inhomogeneous g_factor be used?
-        @test isapprox(g_factor * res1.data[1] * g_factor', res2.data[1])
-        @test isapprox(g_factor * res1.data[2] * g_factor', res2.data[2])
+        # For spin wave theory, check that `apply_g=true` is equivalent to
+        # setting `apply_g` and manually contracting spin indices with the
+        # g-tensor. This only works when g is homogeneous. TODO: Test with
+        # inhomogeneous g-tensors.
+        infos_homog = [SpinInfo(1, S=3/2, g=g1), SpinInfo(2, S=(mode == :SUN ? 3/2 : 1/2), g=g1)]
+        sys_homog = System(cryst, (1,1,1), infos_homog, mode)
+        swt = SpinWaveTheory(sys_homog, DSSF(sys_homog; apply_g=false))
+        res1 = intensities_bands(swt, [[0,0,0]])
+        swt = SpinWaveTheory(sys_homog, DSSF(sys_homog; apply_g=true))
+        res2 = intensities_bands(swt, [[0,0,0]])
+        @test isapprox(g1 * res1.data[1] * g1', res2.data[1])
+        @test isapprox(g1 * res1.data[2] * g1', res2.data[2])
     end
 
 end

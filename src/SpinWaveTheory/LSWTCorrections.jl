@@ -61,7 +61,7 @@ function magnetization_lswt_correction_sun(swt::SpinWaveTheory; opts...)
     O = zeros(ComplexF64, N, N, Natoms)
     for i in 1:Natoms
         n = normalize(swt.sys.dipoles[i])
-        U = view(data.local_unitaries, :, :, i)
+        U = data.local_unitaries[i]
         O[:, :, i] += U' * (n' * S) * U
         @assert O[N, N, i] ≈ norm(swt.sys.dipoles[i])
     end
