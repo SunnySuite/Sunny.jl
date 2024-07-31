@@ -82,14 +82,21 @@ export set_dipoles_from_mcif!
 include("CorrelationSpec.jl")
 export ssf_custom, ssf_perp, ssf_trace
 
+include("MeasurementBase.jl")
+q_space_path, lorentzian2, gaussian2, rotation_in_rlu, powder_average, domain_average
+
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
 include("SpinWaveTheory/HamiltonianSUN.jl")
+include("SpinWaveTheory/DispersionAndIntensities.jl")
 include("SpinWaveTheory/Lanczos.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
-export SpinWaveTheory
-export dispersion, intensities, intensities_bands, q_space_path, powder_average,
-    lorentzian2, gaussian2, rotation_in_rlu, domain_average
+export SpinWaveTheory, excitations, dispersion, intensities, intensities_bands
+
+include("Spiral/LuttingerTisza.jl")
+include("Spiral/SpiralEnergy.jl")
+include("Spiral/SpiralSWT.jl")
+export SpiralSpinWaveTheory, spiral_minimize_energy!, spiral_energy, spiral_energy_per_site
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
@@ -114,13 +121,6 @@ include("Intensities/PowderAveraging.jl")
 export reciprocal_space_shell, powder_average_binned
 include("Intensities/ExperimentData.jl")
 export load_nxs, generate_mantid_script_from_binning_parameters
-
-include("Correlations/Correlations.jl")
-
-include("Spiral/LuttingerTisza.jl")
-include("Spiral/SpiralEnergy.jl")
-include("Spiral/SpiralSWT.jl")
-export SpiralSpinWaveTheory, spiral_minimize_energy!, spiral_energy, spiral_energy_per_site
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")
