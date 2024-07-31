@@ -23,7 +23,7 @@ randomize_spins!(sys)
 minimize_energy!(sys)
 plot_spins(sys)
 
-swt = SpinWaveTheory(sys, DSSF_perp(sys))
+swt = SpinWaveTheory(sys; corrspec=ssf_perp(sys))
 qs = [[0,0,0], [1,0,0]]
 path = q_space_path(cryst, qs, 512)
 

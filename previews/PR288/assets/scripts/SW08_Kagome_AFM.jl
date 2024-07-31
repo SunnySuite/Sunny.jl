@@ -22,7 +22,7 @@ points_rlu = [[-1/2, 0, 0], [0, 0, 0], [1/2, 1/2, 0]]
 density = 100
 path = q_space_path(cryst, points_rlu, 400)
 
-swt = SpinWaveTheory(sys, DSSF_perp(sys))
+swt = SpinWaveTheory(sys; corrspec=ssf_perp(sys))
 res = intensities_bands(swt, path)
 
 plot_intensities(res; saturation=0.45)

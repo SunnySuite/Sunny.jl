@@ -50,7 +50,7 @@ plot_spins(sys; color=[s[1] for s in sys.dipoles])
 qs = [[0, 1, -1], [0, 1, -1+1], [0, 1, -1+2], [0, 1, -1+3]]
 path = q_space_path(cryst, qs, 600)
 
-swt = SpinWaveTheory(sys, DSSF_perp(sys))
+swt = SpinWaveTheory(sys; corrspec=ssf_perp(sys))
 energies = range(0, 6, 400)  # 0 < ω < 6 (meV)
 res = intensities(swt, path; energies, kernel=gaussian2(fwhm=0.25))
 axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
