@@ -76,7 +76,7 @@ data = intensities_interpolated(sc, path, intensity_formula(sc, :trace; kT));
 
 sys_small = resize_supercell(sys, (1,1,1))
 minimize_energy!(sys_small)
-swt = SpinWaveTheory(sys_small; corrspec=DSSF_trace(sys_small))
+swt = SpinWaveTheory(sys_small; corrspec=ssf_trace(sys_small))
 path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
 res = intensities_bands(swt, path)
 

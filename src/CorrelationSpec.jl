@@ -53,14 +53,14 @@ end
 
 
 """
-    DSSF_custom(f, sys::System; apply_g=true)
+    ssf_custom(f, sys::System; apply_g=true)
 
 Specify a custom contraction of the spin structure factor. The function `f`
 accepts a wavevector ``𝐪`` and a 3×3 matrix with structure factor intensity
 components ``\\mathcal{S}^{αβ}(𝐪,ω)``. Indices ``(α, β)`` denote dipole
 components in Cartesian coordinates. The return value of `f` can be any number
-or `isbits` type. The related functions [`DSSF_perp`](@ref) and
-[`DSSF_trace`](@ref) predefine specific structure factor contractions. 
+or `isbits` type. The related functions [`ssf_perp`](@ref) and
+[`ssf_trace`](@ref) predefine specific structure factor contractions. 
 
 By default, the g-factor or tensor is applied at each site, such that the
 structure factor components are correlations between the magnetic moment
@@ -74,18 +74,18 @@ Intended for use with [`SpinWaveTheory`](@ref) and instances of
 
 ```julia
 # Measure imaginary part of Sʸᶻ - Sᶻʸ
-corrspec = DSSF_custom(sys) do q, sf
+corrspec = ssf_custom(sys) do q, sf
     imag(sf[2, 3] - sf[3, 2])
 end
 
 # Measure all 3×3 structure factor components Sᵅᵝ
-corrspec = DSSF_custom((q, sf) -> sf, sys)
+corrspec = ssf_custom((q, sf) -> sf, sys)
 ```
 
 See also the Sunny documentation on [Structure Factor Calculations](@ref) for
 more details.
 """
-function DSSF_custom(f, sys::System; apply_g=true)
+function ssf_custom(f, sys::System; apply_g=true)
     observables = all_dipole_observables(sys; apply_g)
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     combiner(q, data) = f(q, SA[
@@ -97,16 +97,16 @@ function DSSF_custom(f, sys::System; apply_g=true)
 end
 
 """
-    DSSF_perp(sys::System; apply_g=true)
+    ssf_perp(sys::System; apply_g=true)
 
 Specify measurement of the dynamical spin structure factor. A variant of
-[`DSSF_custom`](@ref) that contracts the 3×3 structure factor matrix with
+[`ssf_custom`](@ref) that contracts the 3×3 structure factor matrix with
 ``(I-𝐪⊗𝐪/q^2)``. The resulting scalar provides an estimate of unpolarized
 scattering intensity. In the singular limit ``𝐪 → 0``, the contraction matrix
 is replaced by its rotational average, ``(2/3) I``.
 """
-function DSSF_perp(sys::System; apply_g=true)
-    return DSSF_custom(sys; apply_g) do q, sf
+function ssf_perp(sys::System; apply_g=true)
+    return ssf_custom(sys; apply_g) do q, sf
         q2 = norm2(q)
         # Imaginary part vanishes in symmetric contraction
         sf = real(sf)
@@ -119,14 +119,14 @@ function DSSF_perp(sys::System; apply_g=true)
 end
 
 """
-    DSSF_trace(sys::System; apply_g=true)
+    ssf_trace(sys::System; apply_g=true)
 
 Specify measurement of the dynamical spin structure factor. A variant of
-[`DSSF_custom`](@ref) that returns only the trace of the 3×3 structure factor
+[`ssf_custom`](@ref) that returns only the trace of the 3×3 structure factor
 matrix. This quantity can be useful for checking quantum sum rules.
 """
-function DSSF_trace(sys::System{N}; apply_g=true) where N
-    return DSSF_custom(sys; apply_g) do q, sf
+function ssf_trace(sys::System{N}; apply_g=true) where N
+    return ssf_custom(sys; apply_g) do q, sf
         tr(real(sf))
     end
 end

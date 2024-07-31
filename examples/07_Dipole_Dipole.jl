@@ -40,7 +40,7 @@ qs = [[0,0,0], [0,1,0], [1,1/2,0], [1/2,1/2,1/2], [3/4,3/4,0], [0,0,0]]
 labels = ["Γ", "X", "W", "L", "K", "Γ"]
 path = q_space_path(cryst, qs, 400; labels)
 
-corrspec = DSSF_trace(sys_prim)
+corrspec = ssf_trace(sys_prim)
 swt = SpinWaveTheory(sys_prim; corrspec)
 res1 = intensities_bands(swt, path)
 
