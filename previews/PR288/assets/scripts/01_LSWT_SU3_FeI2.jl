@@ -79,9 +79,8 @@ plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
 qs = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
 path = q_space_path(cryst, qs, 500)
 
-swt = SpinWaveTheory(sys_min)
-measure = DSSF_perp(sys_min)
-res = intensities_bands(swt, path; measure)
+swt = SpinWaveTheory(sys_min, DSSF_perp(sys_min))
+res = intensities_bands(swt, path)
 plot_intensities(res; units)
 
 kernel = lorentzian2(; fwhm=0.3)
@@ -89,6 +88,6 @@ energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 
 rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
 res = domain_average(cryst, path; rotations) do path_rotated
-    intensities(swt, path_rotated; energies, kernel, measure)
+    intensities(swt, path_rotated; energies, kernel)
 end
 plot_intensities(res; units, colormap=:viridis)

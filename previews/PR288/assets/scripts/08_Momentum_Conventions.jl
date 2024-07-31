@@ -39,9 +39,9 @@ data = intensities_interpolated(sc, path, intensity_formula(sc, :trace; kT));
 
 sys_small = resize_supercell(sys, (1,1,1))
 minimize_energy!(sys_small)
-swt = SpinWaveTheory(sys_small)
+swt = SpinWaveTheory(sys_small, DSSF_trace(sys_small))
 path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
-res = intensities_bands(swt, path; measure=DSSF_trace(sys_small))
+res = intensities_bands(swt, path)
 
 fig = Figure(size=(768, 300))
 ax = Axis(fig[1, 1]; aspect=1.4, title="Classical dynamics", ylabel="Energy")

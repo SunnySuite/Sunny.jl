@@ -41,15 +41,14 @@ energy_per_site(sys2) # < -0.7834 meV
 qs = [[0,0,0], [1,0,0]]
 path = q_space_path(cryst, qs, 512)
 
-swt = SpinWaveTheory(sys)
-measure = DSSF_perp(sys; apply_g=false)
-res = intensities_bands_spiral(swt, path; k, axis, measure)
+swt = SpinWaveTheory(sys, DSSF_perp(sys; apply_g=false))
+res = intensities_bands_spiral(swt, path; k, axis)
 plot_intensities(res; units)
 
 radii = range(0, 2, 100) # (1/Å)
 energies = range(0, 6, 200)
 kernel = Sunny.gaussian2(fwhm=0.05)
 res = powder_average(cryst, radii, 200) do qs
-    intensities_spiral(swt, qs; k, axis, energies, kernel, measure)
+    intensities_spiral(swt, qs; k, axis, energies, kernel)
 end
 plot_intensities(res; units)
