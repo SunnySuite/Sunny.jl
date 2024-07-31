@@ -57,9 +57,9 @@ end
         # inhomogeneous g-tensors.
         infos_homog = [SpinInfo(1, S=3/2, g=g1), SpinInfo(2, S=(mode == :SUN ? 3/2 : 1/2), g=g1)]
         sys_homog = System(cryst, (1,1,1), infos_homog, mode)
-        swt = SpinWaveTheory(sys_homog, DSSF_matrix(sys_homog; apply_g=false))
+        swt = SpinWaveTheory(sys_homog; corrspec=DSSF_matrix(sys_homog; apply_g=false))
         res1 = intensities_bands(swt, [[0,0,0]])
-        swt = SpinWaveTheory(sys_homog, DSSF_matrix(sys_homog; apply_g=true))
+        swt = SpinWaveTheory(sys_homog; corrspec=DSSF_matrix(sys_homog; apply_g=true))
         res2 = intensities_bands(swt, [[0,0,0]])
         @test isapprox(g1 * res1.data[1] * g1', res2.data[1])
         @test isapprox(g1 * res1.data[2] * g1', res2.data[2])

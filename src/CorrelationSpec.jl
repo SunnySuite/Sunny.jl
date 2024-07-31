@@ -19,7 +19,7 @@ end
 Base.eltype(::CorrelationSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
 
-function empty_measurement(sys)
+function empty_corrspec(sys)
     observables = zeros(Vec3, 0, size(eachsite(sys))...)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0

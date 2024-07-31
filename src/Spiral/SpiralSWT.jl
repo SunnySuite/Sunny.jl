@@ -1,5 +1,5 @@
 """
-    SpiralSpinWaveTheory(sys::System, measure::CorrelationSpec; k, axis, regularization=1e-8)
+    SpiralSpinWaveTheory(sys::System; k, axis, corrspec=nothing, regularization=1e-8)
 
 Analogous to [`SpinWaveTheory`](@ref), but interprets the provided system as
 having a generalized spiral order. This order is described by a single
@@ -18,8 +18,8 @@ struct SpiralSpinWaveTheory
     k :: Vec3
     axis :: Vec3
 
-    function SpiralSpinWaveTheory(sys::System, measure::Union{Nothing, CorrelationSpec}; k, axis, regularization=1e-8)
-        return new(SpinWaveTheory(sys, measure; regularization), k, axis)
+    function SpiralSpinWaveTheory(sys::System; k::AbstractVector, axis::AbstractVector, corrspec::Union{Nothing, CorrelationSpec}=nothing, regularization=1e-8)
+        return new(SpinWaveTheory(sys; corrspec, regularization), k, axis)
     end
 end
 
