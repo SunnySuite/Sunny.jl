@@ -18,7 +18,7 @@
     sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
     enable_dipole_dipole!(sys, 1.0)
-    E1 = Sunny.spiral_energy_per_site(sys; k, axis)
+    E1 = spiral_energy_per_site(sys; k, axis)
 
     # compute ewald energy using supercell
     sys_large = System(cryst, (La*Na, Lb*Nb, Lc*Nc), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
@@ -41,7 +41,7 @@
     sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
     enable_dipole_dipole!(sys, 1.0)
-    E1 = Sunny.spiral_energy_per_site(sys; k, axis)
+    E1 = spiral_energy_per_site(sys; k, axis)
 
     # compute ewald energy using supercell
     sys_large = System(cryst, (La*Na, Lb*Nb, Lc*Nc), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
@@ -75,14 +75,14 @@ end
 
         axis = [0, 0, 1]
         randomize_spins!(sys)
-        k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
+        k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
         @test k[1:2] ≈ [0.5, 0.5]
         @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
 
         q = [0.12, 0.23, 0.34]
-        swt = SpinWaveTheory(sys, DSSF_perp(sys; apply_g=false))
+        swt = SpiralSpinWaveTheory(sys, DSSF_perp(sys; apply_g=false); k, axis)
         
-        res = intensities_bands_spiral(swt, [q]; k, axis)
+        res = intensities_bands(swt, [q])
         ϵq_num = res.disp[1,1]
 
         # Analytical
@@ -118,8 +118,8 @@ end
 
     axis = [0, 0, 1]
     randomize_spins!(sys)
-    k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
-    @test Sunny.spiral_energy(sys; k, axis) ≈ -16.356697120589477
+    k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
+    @test spiral_energy(sys; k, axis) ≈ -16.356697120589477
 
     # There are two possible chiralities. Select just one.
     @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
@@ -127,11 +127,11 @@ end
         sys.dipoles[[1,2]] = sys.dipoles[[2,1]]
         k = k_ref
     end
-    @test Sunny.spiral_energy(sys; k, axis) ≈ -16.356697120589477
+    @test spiral_energy(sys; k, axis) ≈ -16.356697120589477
 
-    swt = SpinWaveTheory(sys, DSSF_perp(sys; apply_g=false))
+    swt = SpiralSpinWaveTheory(sys, DSSF_perp(sys; apply_g=false); k, axis)
     q = [0.41568,0.56382,0.76414]
-    res = intensities_bands_spiral(swt, [q]; k, axis)
+    res = intensities_bands(swt, [q])
 
     disp_spinw = [4.7564, 4.0113, 3.31724, 4.4605, 3.9095, 2.8767, 3.9422, 3.8202, 2.6267]
     data_spinw = [0.484724856017038, 0.962074686407910, 0.0932786148844105, 0.137966379056292, 0.0196590925454593, 2.37155695274281, 2.21507666401705, 0.118744173882554, 0.0547564956435423]
@@ -191,7 +191,7 @@ end
     
     axis = [0, 0, 1]
     randomize_spins!(sys)
-    k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
+    k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
     E = Sunny.luttinger_tisza_exchange(sys; k)
     @test isapprox(E, E_ref; atol=1e-12)
     @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)    

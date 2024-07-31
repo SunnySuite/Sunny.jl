@@ -88,7 +88,7 @@ include("SpinWaveTheory/HamiltonianSUN.jl")
 include("SpinWaveTheory/Lanczos.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
 export SpinWaveTheory
-export dispersion, intensities, intensities_bands, intensities_spiral, intensities_bands_spiral, q_space_path, powder_average,
+export dispersion, intensities, intensities_bands, q_space_path, powder_average,
     lorentzian2, gaussian2, rotation_in_rlu, domain_average
 
 include("SampledCorrelations/SampledCorrelations.jl")
@@ -120,6 +120,7 @@ include("Correlations/Correlations.jl")
 include("Spiral/LuttingerTisza.jl")
 include("Spiral/SpiralEnergy.jl")
 include("Spiral/SpiralSWT.jl")
+export SpiralSpinWaveTheory, spiral_minimize_energy!, spiral_energy, spiral_energy_per_site
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")

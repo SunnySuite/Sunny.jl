@@ -23,7 +23,7 @@ view_crystal(cryst)
 J_Cu_Cu = 1.0
 J_Fe_Fe = 1.0
 J_Cu_Fe = -0.1
-sys = System(cryst, (2,1,1), [SpinInfo(1,S=1/2,g=2), SpinInfo(2,S=2,g=2)], :dipole; seed=0)
+sys = System(cryst, (2,1,1), [SpinInfo(1, S=1/2, g=2), SpinInfo(2, S=2, g=2)], :dipole; seed=0)
 set_exchange!(sys, J_Cu_Cu, Bond(1, 1, [-1, 0, 0]))
 set_exchange!(sys, J_Fe_Fe, Bond(2, 2, [-1, 0, 0]))
 set_exchange!(sys, J_Cu_Fe, Bond(2, 1, [0, 1, 0]))

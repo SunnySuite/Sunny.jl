@@ -12,10 +12,12 @@ struct SWTDataSUN
 end
 
 """
-    SpinWaveTheory(sys; regularization=1e-8)
+    SpinWaveTheory(sys::System, measure::CorrelationSpec; regularization=1e-8)
 
-Constructs an object to perform linear spin wave theory. Use it with
-[`dispersion`](@ref) and [`intensities`](@ref) functions.
+Constructs an object to perform linear spin wave theory. The system must be in
+an energy minimizing configuration. Enables calculation of [`dispersion`](@ref)
+bands. If pair correlations are specified with `measure`, one can also calculate
+[`intensities_bands`](@ref) and broadened [`intensities`](@ref).
 
 The parameter `regularization` adds a small positive shift to the diagonal of
 the dynamical matrix to avoid numerical issues with zero-energy quasi-particle
@@ -28,7 +30,7 @@ struct SpinWaveTheory
     regularization :: Float64
 end
 
-function SpinWaveTheory(sys::System{N}, measure::Union{Nothing, CorrelationSpec}; regularization=1e-8, energy_ϵ=nothing) where N
+function SpinWaveTheory(sys::System, measure::Union{Nothing, CorrelationSpec}; regularization=1e-8, energy_ϵ=nothing)
     if !isnothing(energy_ϵ)
         @warn "Keyword argument energy_ϵ is deprecated! Use `regularization` instead."
         regularization = energy_ϵ
