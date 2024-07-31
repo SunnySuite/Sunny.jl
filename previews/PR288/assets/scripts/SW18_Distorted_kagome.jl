@@ -22,13 +22,13 @@ set_exchange!(sys, Jip, Bond(3, 4, [0, 0, 1]))
 
 axis = [0, 0, 1]
 randomize_spins!(sys)
-k = Sunny.minimize_energy_spiral!(sys, axis; k_guess=randn(3))
+k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
 plot_spins(sys; dims=2)
 
 k_ref = [0.785902495, 0.0, 0.107048756]
 k_ref_alt = [1, 0, 1] - k_ref
 @assert isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)
-@assert Sunny.spiral_energy_per_site(sys; k, axis) ≈ -0.78338383838
+@assert spiral_energy_per_site(sys; k, axis) ≈ -0.78338383838
 
 suggest_magnetic_supercell([k_ref]; tol=1e-3)
 
@@ -41,14 +41,14 @@ energy_per_site(sys2) # < -0.7834 meV
 qs = [[0,0,0], [1,0,0]]
 path = q_space_path(cryst, qs, 512)
 
-swt = SpinWaveTheory(sys, DSSF_perp(sys; apply_g=false))
-res = intensities_bands_spiral(swt, path; k, axis)
+swt = SpiralSpinWaveTheory(sys, DSSF_perp(sys; apply_g=false); k, axis)
+res = intensities_bands(swt, path)
 plot_intensities(res; units)
 
 radii = range(0, 2, 100) # (1/Å)
 energies = range(0, 6, 200)
 kernel = Sunny.gaussian2(fwhm=0.05)
 res = powder_average(cryst, radii, 200) do qs
-    intensities_spiral(swt, qs; k, axis, energies, kernel)
+    intensities(swt, qs; energies, kernel)
 end
 plot_intensities(res; units)
