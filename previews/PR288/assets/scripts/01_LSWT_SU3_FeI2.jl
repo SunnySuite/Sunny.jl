@@ -79,7 +79,7 @@ plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
 qs = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
 path = q_space_path(cryst, qs, 500)
 
-swt = SpinWaveTheory(sys_min; corrspec=ssf_perp(sys_min))
+swt = SpinWaveTheory(sys_min; measure=ssf_perp(sys_min))
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 

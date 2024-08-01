@@ -41,8 +41,8 @@ energy_per_site(sys2) # < -0.7834 meV
 qs = [[0,0,0], [1,0,0]]
 path = q_space_path(cryst, qs, 512)
 
-corrspec = ssf_perp(sys; apply_g=false)
-swt = SpiralSpinWaveTheory(sys; corrspec, k, axis)
+measure = ssf_perp(sys; apply_g=false)
+swt = SpiralSpinWaveTheory(sys; measure, k, axis)
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 

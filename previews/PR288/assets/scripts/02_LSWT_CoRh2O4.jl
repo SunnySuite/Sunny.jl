@@ -28,7 +28,7 @@ sys_prim = reshape_supercell(sys, shape)
 @assert energy_per_site(sys_prim) ≈ -2J*S^2
 plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 
-swt = SpinWaveTheory(sys_prim; corrspec=ssf_perp(sys_prim))
+swt = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
 
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path = q_space_path(cryst, qs, 400)
