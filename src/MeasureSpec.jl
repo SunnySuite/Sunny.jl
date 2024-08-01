@@ -78,14 +78,6 @@ measure = ssf_custom((q, ssf) -> ssf, sys)
 
 # Measure the structure factor trace Sᵅᵅ
 measure = ssf_custom((q, ssf) -> real(sum(ssf)), sys)
-
-# Measure imaginary part of Sʸᶻ - Sᶻʸ in the Blume-Maleev coordinate system
-# for incident momentum [0, 1, 0] in RLU.
-q_i = cryst.recipvecs * [0, 1, 0]
-measure = ssf_custom(sys) do q, ssf
-    (x, y, z) = blume_maleev(q_i, q)
-    imag(y'*ssf*z - z'*ssf*y)
-end
 ```
 
 See also the Sunny documentation on [Structure Factor Calculations](@ref) for
@@ -100,6 +92,44 @@ function ssf_custom(f, sys::System; apply_g=true)
         conj(data[3]) conj(data[2]) data[1]
     ])
     return MeasureSpec(observables, corr_pairs, combiner)
+end
+
+"""
+    ssf_custom_bm(f, sys::System; u, apply_g=true)
+
+Specify measurement of the spin structure factor with a custom contraction
+function `f`. The interface is like [`ssf_custom`](@ref), except here the
+function `f` will receive momentum ``𝐪`` and 3×3 structure factor data
+``\\mathcal{S}^{αβ}(𝐪, ω)`` in the basis of the Blume-Maleev axis system. The
+wavevector `u`, provided in reciprocal lattice units, lies in the scattering
+plane. In global Cartesian coordinates, the three orthonormal BM axes `(e1, e2,
+e3)` are defined as follows:
+
+```julia
+e1 = normalize(q)      # aligned with momentum transfer q
+e3 = normalize(q × u)  # normal to the scattering plane (q, u)
+e2 = normalize(e3 × q) # perpendicular to q and in the scattering plane
+```
+
+# Example
+
+```julia
+# Measure imaginary part of S²³ - S³² in the Blume-Maleev coordinate system.
+# The wavevector u = [0, 0, 1] in RLU may be an incident or final momentum.
+measure = ssf_custom_bm(sys; u=[0, 0, 1]) do q, ssf
+    imag(ssf[2,3] - ssf[3,2])
+end
+```
+"""
+function ssf_custom_bm(f, sys::System; u, apply_g=true)
+    u = orig_crystal(sys).recipvecs * Vec3(u) # to global coordinates
+    return ssf_custom(sys::System; apply_g) do q, ssf
+        e1 = normalize(q)      # parallel to q
+        e3 = normalize(q × u)  # normal to the scattering plane
+        e2 = normalize(e3 × q) # perpendicular to q, in the scattering plane
+        bm = hcat(e1, e2, e3)  # Blume-Maleev axis system
+        f(q' * bm, bm' * ssf * bm)
+    end
 end
 
 """
