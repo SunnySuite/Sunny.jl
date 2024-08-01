@@ -37,7 +37,7 @@ plot_spins(sys)
 
 # Configure spin wave calculation
 
-swt = SpinWaveTheory(sys; corrspec=ssf_perp(sys))
+swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 qs = [[0,0,0], [1,0,0]]
 path = q_space_path(cryst, qs, 512)
 
