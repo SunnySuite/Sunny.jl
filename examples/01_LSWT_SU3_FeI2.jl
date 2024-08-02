@@ -276,7 +276,8 @@ energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 # ``𝐪``-points by 0°, 120°, and 240° angles.
 
 rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
-res = domain_average(cryst, path; rotations) do path_rotated
+weights = [1, 1, 1]
+res = domain_average(cryst, path; rotations, weights) do path_rotated
     intensities(swt, path_rotated; energies, kernel)
 end
 plot_intensities(res; units, colormap=:viridis)
