@@ -140,6 +140,9 @@ isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 function view_crystal(args...)
     error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
 end
+function plot_spins!(args...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+end
 function plot_spins(args...)
     error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
 end

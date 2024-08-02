@@ -1093,26 +1093,23 @@ function Sunny.plot_intensities!(scene, res::Sunny.PowderIntensities; colormap=:
 end
 
 """
-    plot_intensities(res::BandIntensities; saturation=0.9, sensitivity=0.0025,
-                     units=nothing, into=nothing, fwhm=nothing, ylims=nothing,
-                     axisopts=Dict())
+    plot_intensities(res::BandIntensities; saturation=0.9, sensitivity=0.0025, units=nothing, 
+                     into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
 
-    plot_intensities(res::BroadenedIntensities; colormap=:gnuplot2,
-                     colorrange=nothing, saturation=0.9, units=nothing,
-                     into=nothing, axisopts=Dict())
+    plot_intensities(res::BroadenedIntensities; colormap=nothing, colorrange=nothing, 
+                     saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
 
-    plot_intensities(res::Sunny.PowderIntensities; colormap=:gnuplot2,
-                     colorrange=nothing, saturation=0.98, units=nothing,
-                     into=nothing, axisopts=Dict())
+    plot_intensities(res::PowderIntensities; colormap=nothing, colorrange=nothing, 
+                     saturation=0.98, units=nothing, into=nothing, axisopts=Dict())
 
-Options are the following:
+Keyword arguments:
 
   * `units`: A [`Units`](@ref) instance for labeling axes and performing
     conversions.
   * `into`: A symbol for conversion into a new base energy unit (e.g. `:meV`,
     `:K`, etc.)
   * `colorrange`: To be passed to `Makie.heatmap`, defining the map from
-    intensities to colors.
+    intensities values to colors.
   * `saturation`: If `colorrange` is not explicitly set, this defines the
     saturation value as a quantile of intensities over all wavevectors.
   * `sensitivity`: When plotting `BandIntensities`, this defines a lower bound
