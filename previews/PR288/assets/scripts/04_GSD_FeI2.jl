@@ -109,7 +109,7 @@ is_interpolated = intensities_interpolated(sc, path, new_formula;
     interpolation = :linear,       # Interpolate between available wave vectors
 );
 # Add artificial broadening
-is_interpolated_broadened = broaden_energy(sc, is, (ω, ω₀) -> lorentzian(fwhm=0.1)(ω-ω₀));
+is_interpolated_broadened = broaden_energy(sc, is, (ω, ω₀) -> lorentzian06(fwhm=0.1)(ω-ω₀));
 
 cut_width = 0.3
 density = 15

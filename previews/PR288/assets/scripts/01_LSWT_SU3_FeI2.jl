@@ -83,7 +83,7 @@ swt = SpinWaveTheory(sys_min; measure=ssf_perp(sys_min))
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 
-kernel = lorentzian2(; fwhm=0.3)
+kernel = lorentzian(; fwhm=0.3)
 energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 
 rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
