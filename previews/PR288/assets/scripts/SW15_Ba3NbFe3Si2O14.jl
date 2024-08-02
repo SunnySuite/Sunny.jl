@@ -57,7 +57,7 @@ res = intensities(swt, path; energies, kernel=gaussian2(fwhm=0.25))
 axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
 plot_intensities(res; units, axisopts, saturation=0.7, colormap=:jet)
 
-measure = ssf_custom_bm(sys; u=[0, 0, 1]) do q, ssf
+measure = ssf_custom_bm(sys; u=[0, 1, 0], v=[0, 0, 1]) do q, ssf
     imag(ssf[2,3] - ssf[3,2])
 end
 swt = SpinWaveTheory(sys; measure)
