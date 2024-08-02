@@ -87,5 +87,4 @@ end
 # * Argument units to System
 # * Missing μ0_μB² in enable_dipole_dipole! and
 #   modify_exchange_with_truncated_dipole_dipole!
-# * hermitianpart[!] for VERSION < v"1.10"
 # * energy_ϵ argument in SpinWaveTheory
