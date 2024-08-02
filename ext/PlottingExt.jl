@@ -1040,7 +1040,7 @@ function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; sat
         ylims = @something ylims (min(0, mindisp), 1.2*maxdisp)
         energies = range(ylims[1], ylims[2], 512)
         fwhm = @something fwhm 0.02*(ylims[2]-ylims[1])
-        broadened = Sunny.broaden(res; energies, kernel=Sunny.gaussian2(; fwhm))
+        broadened = Sunny.broaden(res; energies, kernel=gaussian(; fwhm))
 
         is_pos, colorrange = colorrange_from_data(; broadened.data, saturation, sensitivity)
         heatmapopts = if is_pos

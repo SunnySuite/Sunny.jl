@@ -88,7 +88,7 @@ plot_intensities(res; units)
 
 radii = range(0, 2, 100) # (1/Å)
 energies = range(0, 6, 200)
-kernel = Sunny.gaussian2(fwhm=0.05)
+kernel = gaussian(fwhm=0.05)
 res = powder_average(cryst, radii, 200) do qs
     intensities(swt, qs; energies, kernel)
 end

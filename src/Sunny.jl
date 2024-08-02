@@ -83,7 +83,7 @@ include("MeasureSpec.jl")
 export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace
 
 include("MeasureHelpers.jl")
-export q_space_path, lorentzian2, gaussian2, rotation_in_rlu, powder_average, domain_average
+export q_space_path, lorentzian, gaussian, rotation_in_rlu, powder_average, domain_average
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
@@ -105,7 +105,7 @@ include("SampledCorrelations/BasisReduction.jl")
 include("Intensities/Types.jl")
 include("SampledCorrelations/DataRetrieval.jl")
 export SampledCorrelations, dynamical_correlations, instant_correlations, add_sample!,
-    broaden_energy, gaussian, lorentzian, available_wave_vectors, available_energies, merge_correlations,
+    broaden_energy, gaussian06, lorentzian06, available_wave_vectors, available_energies, merge_correlations,
     intensity_formula, integrated_gaussian, integrated_lorentzian
 
 include("Intensities/ElementContraction.jl")

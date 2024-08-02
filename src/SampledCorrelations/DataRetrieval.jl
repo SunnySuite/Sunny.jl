@@ -142,7 +142,7 @@ Returns the function `exp(-x^2/2σ^2) / √(2π*σ^2)`. Exactly one of `fwhm` or
 must be specified, where `fwhm = (2.355...) * σ` denotes the full width at half
 maximum.
 """
-function gaussian(; fwhm=nothing, σ=nothing)
+function gaussian06(; fwhm=nothing, σ=nothing)
     if sum(.!isnothing.((fwhm, σ))) != 1
         error("Exactly one of `fwhm` and `σ` must be specified.")
     end
@@ -173,7 +173,7 @@ end
 Returns the function `(Γ/2) / (π*(x^2+(Γ/2)^2))` where `Γ = fwhm` is the full
 width at half maximum.
 """
-function lorentzian(; fwhm)
+function lorentzian06(; fwhm)
     Γ = fwhm
     return x -> (Γ/2) / (π*(x^2+(Γ/2)^2))
 end
@@ -202,7 +202,7 @@ center frequency of the kernel. Sunny provides [`lorentzian`](@ref)
 for the most common use case:
 
 ```
-newvals = broaden_energy(sc, vals, (ω, ω₀) -> lorentzian(fwhm=0.2)(ω-ω₀))
+newvals = broaden_energy(sc, vals, (ω, ω₀) -> lorentzian06(fwhm=0.2)(ω-ω₀))
 ```
 """
 function broaden_energy(sc::SampledCorrelations, is, kernel::Function; negative_energies=false)
