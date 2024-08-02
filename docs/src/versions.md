@@ -1,7 +1,7 @@
 # Version History
 
 ## v0.6.1
-(In progress)
+(August 2, 2024)
 
 * **Breaking changes**: [`magnetic_moment`](@ref) is now reported in units of
   the Bohr magneton, ``μ_B``. For model systems where the Zeeman coupling aligns
