@@ -80,18 +80,15 @@ end
         @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
 
         q = [0.12, 0.23, 0.34]
-        measure = ssf_perp(sys; apply_g=false)
-        swt = SpiralSpinWaveTheory(sys; measure, k, axis)
-        
-        res = intensities_bands(swt, [q])
-        ϵq_num = res.disp[1,1]
+        swt = SpiralSpinWaveTheory(sys; measure=nothing, k, axis)
+        ϵq_num = dispersion(swt, [q])
 
         # Analytical
         θ = acos(h / (2S*(4J+D)))
         Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
         ϵq_ana = real(√Complex(4J*S*(4J*S+2D*S*sin(θ)^2) + cos(2θ)*(Jq*S)^2 + 2S*Jq*(4J*S*cos(θ)^2 + D*S*sin(θ)^2)))
 
-        @test ϵq_num ≈ ϵq_ana
+        @test ϵq_num[begin, 1] ≈ ϵq_ana
     end
 
     test_canted_afm(1)
@@ -141,6 +138,9 @@ end
     P = sortperm(disp_spinw; rev=true)
     @test isapprox(res.disp[:, 1], disp_spinw[P]; atol=1e-3)
     @test isapprox(res.data[:, 1], data_spinw[P]; atol=2e-3)
+
+    disp = dispersion(swt, [q])
+    @test res.disp ≈ disp
 end
 
 
