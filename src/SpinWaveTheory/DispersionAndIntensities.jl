@@ -13,9 +13,10 @@ function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
     end
 
     # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of V.
-    # Eigenvalues are sorted such that positive values appear first, and are in
-    # ascending order.
-    λ, V0 = eigen!(Hermitian(V), Hermitian(H); sortby = x -> -1/real(x))
+    # Eigenvalues are sorted such that positive values appear first, and are
+    # otherwise ascending in absolute value.
+    sortby(x) = (-sign(x), abs(x))
+    λ, V0 = eigen!(Hermitian(V), Hermitian(H); sortby)
 
     # Note that V0 and V refer to the same data.
     @assert V0 === V
@@ -26,34 +27,29 @@ function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
         view(V, :, j) .*= c
     end
 
-    # Disable test for speed
+    # Inverse of λ are eigenvalues of Ĩ H. A factor of 2 yields the physical
+    # quasiparticle energies.
+    energies = λ        # reuse storage
+    @. energies = 2 / λ
+
+    # The first L elements are positive, while the next L energies are negative.
+    # Their absolute values are excitation energies for the wavevectors q and
+    # -q, respectively.
+    @assert all(>(0), view(energies, 1:L)) && all(<(0), view(energies, L+1:2L))
+    
+    # Disable tests below for speed. Note that the data in H has been
+    # overwritten by eigen!, so H0 should refer to an original copy of H.
     #=
     Ĩ = Diagonal([ones(L); -ones(L)])
     @assert V' * Ĩ * V ≈ Ĩ
+    @assert diag(V' * H0 * V) ≈ Ĩ * energies / 2
+    # If H(q) = H(-q) (reflection symmetry), eigenvalues come in pairs
+    if H0[1:L, 1:L] ≈ H0[L+1:2L, L+1:2L]
+        @assert energies[1:L] ≈ -energies[L+1:2L]
+    end
     =#
 
-    # Verify that half the eigenvalues are positive and the other half are
-    # negative. The positive eigenvalues are quasiparticle energies for the
-    # wavevector q that defines the dynamical matrix H(q). The absolute value of
-    # the negative eigenvalues would be quasiparticle energies for H(-q), which
-    # we are not considering in the present context.
-    @assert all(>(0), view(λ, 1:L)) && all(<(0), view(λ, L+1:2L))
-    
-    # Inverse of λ are eigenvalues of Ĩ H. We only care about the first L
-    # eigenvalues, which are positive. A factor of 2 is needed to get the
-    # physical quasiparticle energies. These will be in descending order.
-    disp = resize!(λ, L)
-    @. disp = 2 / disp
-
-    # In the special case that H(q) = H(-q) (i.e., a magnetic ordering with
-    # reflection symmetry), the eigenvalues come in pairs. Note that the data in
-    # H has been overwritten by eigen!, so H0 should refer to an original copy
-    # of H.
-    #=
-    @assert diag(V' * H0 * V) ≈ [disp/2; reverse(disp)/2]
-    =#
-
-    return disp
+    return energies
 end
 
 
@@ -92,17 +88,18 @@ end
 """
     excitations(swt::SpinWaveTheory, q)
 
-Given a single wavevector `q`, returns a pair `(energies, V)`. Elements of
-`energies` are the quasi-particle excitation energies. The columns of `V`, to be
-contracted with the Holstein-Primakoff bosons ``[𝐛^†, b]``, are the
+Given a wavevector `q`, returns a pair `(energies, V)`. The first half of
+`energies` are the quasi-particle excitation energies for `q`. The second half
+are the negated quasiparticle energies for `-q`. The columns of `V`, to be
+contracted with the Holstein-Primakoff bosons ``[𝐛_𝐪, 𝐛_{-𝐪}^†]``, are the
 corresponding eigenvectors of the quadratic spin wave Hamiltonian.
 """
 function excitations(swt::SpinWaveTheory, q)
     L = nbands(swt)
     V = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
-    disp = calculate_excitations!(V, H, swt, q)
-    return (disp, view(V, :, 1:L))
+    energies = calculate_excitations!(V, H, swt, q)
+    return (energies, V)
 end
 
 """
@@ -113,8 +110,9 @@ excitation energies for each band. The return value `ret` is 2D array, and
 should be indexed as `ret[band_index, q_index]`.
 """
 function dispersion(swt::SpinWaveTheory, qpts)
+    L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
-    disp = [excitations(swt, q)[1] for q in qpts.qs]
+    disp = [view(excitations(swt, q)[1], 1:L) for q in qpts.qs]
     return reduce(hcat, disp)
 end
 
@@ -159,7 +157,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
-        disp[:, iq] .= calculate_excitations!(V, H, swt, q)
+        view(disp, :, iq) .= view(calculate_excitations!(V, H, swt, q), 1:L)
 
         for i in 1:Na
             r_global = global_position(sys, (1,1,1,i))
