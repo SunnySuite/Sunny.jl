@@ -224,6 +224,33 @@ end
 
 #### ROTATIONAL AVERAGING
 
+# Sample `n` points on the unit sphere. These are generated from the Fibonacci
+# lattice.
+function sphere_points(n) 
+    golden = (1+√5)/2
+    decimals(x) = x - floor(x)
+    planar_fib_points(N) = [(decimals(i/golden), i/N) for i in 1:N]
+    plane_to_sphere((x, y)) = (2π*x, acos(1-2y))
+    spherical_to_cartesian((θ, ϕ)) = (cos(θ)*sin(ϕ), sin(θ)*sin(ϕ), cos(ϕ))
+
+    return planar_fib_points(n) .|> plane_to_sphere .|> spherical_to_cartesian .|> Vec3
+end
+
+
+"""
+    q_space_shell(cryst::Crystal, radius, n)
+
+Sample `n` on the reciprocal space sphere with a given `radius` (units of
+inverse length). The points are selected deterministically from the [Fibonacci
+lattice](https://arxiv.org/abs/1607.04590), and have quasi-uniform distribution.
+"""
+function q_space_shell(cryst::Crystal, radius, n)
+    n = ceil(Int, n)
+    scale = inv(cryst.recipvecs) * radius
+    return Ref(scale) .* sphere_points(n)
+end
+
+
 """
     powder_average(f, cryst, radii, n; seed=0)
 
@@ -248,7 +275,7 @@ function powder_average(f, cryst, radii, n; seed=0)
     (; energies) = f([Vec3(0,0,0)])
     rng = Random.Xoshiro(seed)
     data = zeros(length(energies), length(radii))
-    qs = reciprocal_space_shell(cryst, 1.0, n)
+    qs = q_space_shell(cryst, 1.0, n)
     
     for (i, radius) in enumerate(radii)
         R = Mat3(random_orthogonal(rng, 3)) * radius
