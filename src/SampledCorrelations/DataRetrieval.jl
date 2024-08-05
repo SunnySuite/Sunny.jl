@@ -10,7 +10,6 @@ function intensities(sc::SampledCorrelations, qpts; measure=nothing, negative_en
     # Type stability for phase_averaged_elements
     IntensitiesType = eltype(measure)
     NInterp = 1 # Generalize this
-    # NCorr = Val(length(corr_ix))
     NCorr = Val(size(sc.data, 1))
     NAtoms = Val(size(sc.data, 2))
 
@@ -29,17 +28,17 @@ function intensities(sc::SampledCorrelations, qpts; measure=nothing, negative_en
     ci_targets = CartesianIndices(q_targets)
     m_targets = [mod.(sc.latsize .* q_target, 1) for q_target in q_targets]
 
-    (; ks_all, idcs_all, counts) = pruned_stencil_info(sc, qpts.qs, interp) 
+    (; qabs_all, idcs_all, counts) = pruned_stencil_info(sc, qpts.qs, interp) 
     local_intensities = zeros(IntensitiesType, NInterp) 
 
     for iω in eachindex(ωvals)
         iq = 0
-        for (ks, idcs, numrepeats) in zip(ks_all, idcs_all, counts)
+        for (qabs, idcs, numrepeats) in zip(qabs_all, idcs_all, counts)
 
             # Pull out nearest intensities that are necessary for any interpolation
             for n in 1:NInterp
-                correlations = phase_averaged_elements(view(sc.data, :, :, :, idcs[n], iω), ks[n], sc.crystal, ff_atoms, NCorr, NAtoms)
-                local_intensities[n] = measure.combiner(ks[n], correlations)
+                correlations = phase_averaged_elements(view(sc.data, :, :, :, idcs[n], iω), qabs[n], sc.crystal, ff_atoms, NCorr, NAtoms)
+                local_intensities[n] = measure.combiner(qabs[n], correlations)
             end
 
             # Perform interpolations 

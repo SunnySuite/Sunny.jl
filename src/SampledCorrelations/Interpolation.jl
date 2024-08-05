@@ -89,10 +89,10 @@ function pruned_stencil_info(sc::SampledCorrelations, qs, interp::InterpolationS
     @assert sum(counts) == length(m_info)
 
     # Calculate corresponding wave vectors in absolute units
-    ks_all = map(ms_all) do ms
+    qabs_all = map(ms_all) do ms
         map(m -> sc.crystal.recipvecs * (m ./ sc.latsize), ms)
     end
 
-    return (; ks_all, idcs_all, counts)
+    return (; qabs_all, idcs_all, counts)
 end
 
