@@ -154,7 +154,7 @@ function intensities_interpolated(sc::SampledCorrelations, qs, formula::Classica
 end
 
 
-function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targets::Array, ωvals, interp::InterpolationScheme{NInterp}, formula, stencil_info, ::Val{T}) where {NInterp, T}
+function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targets::Array, ωvals, interp::InterpolationScheme{NInterp}, combiner, stencil_info, ::Val{T}) where {NInterp, T}
     li_intensities = LinearIndices(intensities)
     ci_targets = CartesianIndices(q_targets)
 
@@ -169,7 +169,7 @@ function intensities_interpolated!(intensities, sc::SampledCorrelations, q_targe
         for (ks, idcs, numrepeats) in zip(ks_all, idcs_all, counts)
             # The closure `formula.calc_intensity` is defined in
             # intensity_formula(f, ::SampledCorrelations, ...)
-            local_intensities = SVector{NInterp, T}(formula.calc_intensity(sc, ks[n], idcs[n], iω) for n in 1:NInterp)
+            local_intensities = SVector{NInterp, T}(combiner(sc, ks[n], idcs[n], iω) for n in 1:NInterp)
             for _ in 1:numrepeats
                 iq += 1
                 idx = li_intensities[CartesianIndex(ci_targets[iq], iω)]

@@ -28,7 +28,7 @@ include("Operators/Rotation.jl")
 include("Operators/Stevens.jl")
 include("Operators/TensorOperators.jl")
 include("Operators/Symbolic.jl")
-include("Operators/Observables.jl")
+# include("Operators/Observables.jl")
 export spin_matrices, stevens_matrices, to_product_space, rotate_operator, print_stevens_expansion
 
 include("Symmetry/LatticeUtils.jl")
@@ -104,23 +104,23 @@ include("SampledCorrelations/CorrelationSampling.jl")
 include("SampledCorrelations/BasisReduction.jl")
 include("Intensities/Types.jl")
 include("SampledCorrelations/DataRetrieval.jl")
-export SampledCorrelations, dynamical_correlations, instant_correlations, add_sample!,
+export SampledCorrelations, dynamic_correlations, instant_correlations, add_sample!,
     broaden_energy, gaussian06, lorentzian06, available_wave_vectors, available_energies, merge_correlations,
     intensity_formula, integrated_gaussian, integrated_lorentzian
 
-include("Intensities/ElementContraction.jl")
+# include("Intensities/ElementContraction.jl")
 include("Intensities/Interpolation.jl")
 export intensities_interpolated, instant_intensities_interpolated,
     reciprocal_space_path
-include("Intensities/Binning.jl")
-export intensities_binned, BinningParameters, count_bins, integrate_axes!,
-    unit_resolution_binning_parameters, 
-    slice_2D_binning_parameters, axes_bincenters,
-    reciprocal_space_path_bins
+# include("Intensities/Binning.jl")
+# export intensities_binned, BinningParameters, count_bins, integrate_axes!,
+#     unit_resolution_binning_parameters, 
+#     slice_2D_binning_parameters, axes_bincenters,
+#     reciprocal_space_path_bins
 include("Intensities/PowderAveraging.jl")
 export reciprocal_space_shell, powder_average_binned
-include("Intensities/ExperimentData.jl")
-export load_nxs, generate_mantid_script_from_binning_parameters
+# include("Intensities/ExperimentData.jl")
+# export load_nxs, generate_mantid_script_from_binning_parameters
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")

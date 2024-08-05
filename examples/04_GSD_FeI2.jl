@@ -157,7 +157,7 @@ langevin.dt = 0.040;
 # this a real-space calculation, data is only available for discrete ``q`` modes
 # (the resolution scales like inverse system size).
 #
-# The function [`dynamical_correlations`](@ref) creates an object to store
+# The function [`dynamic_correlations`](@ref) creates an object to store
 # sampled correlations. The integration timestep `dt` used for measuring
 # dynamical correlations can be somewhat larger than that used by the Langevin
 # dynamics. We must also specify `nω` and `ωmax`, which determine the
@@ -166,7 +166,7 @@ langevin.dt = 0.040;
 dt = 2*langevin.dt
 ωmax = 7.5  # Maximum energy to resolve (meV)
 nω = 120    # Number of energies to resolve
-sc = dynamical_correlations(sys_large; dt, nω, ωmax)
+sc = dynamic_correlations(sys_large; dt, nω, ωmax)
 
 # The function [`add_sample!`](@ref) will collect data by running a dynamical
 # trajectory starting from the current system configuration. 

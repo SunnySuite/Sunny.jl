@@ -2,7 +2,7 @@
     SampledCorrelations
 
 Basic data type for storing sampled correlation data. A `SampleCorrelations` is
-initialized by calling either [`dynamical_correlations`](@ref) or
+initialized by calling either [`dynamic_correlations`](@ref) or
 [`instant_correlations`](@ref).
 """
 struct SampledCorrelations{N}
@@ -12,88 +12,95 @@ struct SampledCorrelations{N}
     crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
     origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
     Δω             :: Float64                              # Energy step size (could make this a virtual property)  
-    observables    :: ObservableInfo
+    measure        :: MeasureSpec                          # Observable, correlation pairs, and combiner
 
-    # Specs for sample generation and accumulation
-    samplebuf    :: Array{ComplexF64, 6}   # Buffer for observables (nobservables × latsize × natoms × nsnapshots)
-    corrbuf      :: Array{ComplexF64, 4}   # Buffer for correlations (latsize × nω)
-    space_fft!   :: FFTW.AbstractFFTs.Plan # Pre-planned FFT for samplebuf
-    time_fft!    :: FFTW.AbstractFFTs.Plan # Pre-planned FFT for samplebuf
-    corr_fft!    :: FFTW.AbstractFFTs.Plan # Pre-planned FFT for corrbuf
-    corr_ifft!   :: FFTW.AbstractFFTs.Plan
-    measperiod   :: Int                    # Steps to skip between saving observables (downsampling for dynamical calcs)
-    apply_g      :: Bool                   # Whether to apply the g-factor
-    dt           :: Float64                # Step size for trajectory integration 
-    nsamples     :: Array{Int64, 1}        # Number of accumulated samples (array so mutable)
-    processtraj! :: Function               # Function to perform post-processing on sample trajectories
+    # Trajectory specs
+    measperiod   :: Int                                    # Steps to skip between saving observables (downsampling for dynamical calcs)
+    dt           :: Float64                                # Step size for trajectory integration 
+    nsamples     :: Array{Int64, 1}                        # Number of accumulated samples (array so mutable)
+
+    # Buffers and precomputed data 
+    samplebuf    :: Array{ComplexF64, 6}                   # Buffer for observables (nobservables × latsize × natoms × nsnapshots)
+    corrbuf      :: Array{ComplexF64, 4}                   # Buffer for correlations (latsize × nω)
+    space_fft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned FFT for samplebuf
+    time_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned FFT for samplebuf
+    corr_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned FFT for corrbuf
+    corr_ifft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned IFFT for corrbuf 
 end
 
-function Base.show(io::IO, sc::SampledCorrelations{N}) where N
+# TODO: Rewrite based on measure
+function Base.show(io::IO, ::SampledCorrelations{N}) where N
     modename = N == 0 ? "Dipole" : "SU($(N))"
-    print(io,"SampledCorrelations{$modename}")
-    print(io,all_observable_names(sc.observables))
+    print(io, "SampledCorrelations{$modename}")
+    # print(io, all_observable_names(sc.observables))
 end
 
-function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations{N}) where N
-    printstyled(io, "SampledCorrelations";bold=true, color=:underline)
-    modename = N == 0 ? "Dipole" : "SU($(N))"
-    print(io," ($(Base.format_bytes(Base.summarysize(sc))))\n")
-    print(io,"[")
-    if size(sc.data)[7] == 1
-        printstyled(io,"S(q)";bold=true)
-    else
-        printstyled(io,"S(q,ω)";bold=true)
-        print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
-    end
-    print(io," | $(sc.nsamples[1]) sample")
-    (sc.nsamples[1] > 1) && print(io,"s")
-    print(io,"]\n")
-    println(io,"Lattice: $(sc.latsize)×$(natoms(sc.crystal))")
-    print(io,"$(num_correlations(sc.observables)) correlations in $modename mode:\n")
+# TODO: Rewrite based on measure
+# function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations{N}) where N
+#     printstyled(io, "SampledCorrelations";bold=true, color=:underline)
+#     modename = N == 0 ? "Dipole" : "SU($(N))"
+#     print(io," ($(Base.format_bytes(Base.summarysize(sc))))\n")
+#     print(io,"[")
+#     if size(sc.data)[7] == 1
+#         printstyled(io,"S(q)";bold=true)
+#     else
+#         printstyled(io,"S(q,ω)";bold=true)
+#         print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
+#     end
+#     print(io," | $(sc.nsamples[1]) sample")
+#     (sc.nsamples[1] > 1) && print(io,"s")
+#     print(io,"]\n")
+#     println(io,"Lattice: $(sc.latsize)×$(natoms(sc.crystal))")
+#     print(io,"$(num_correlations(sc.observables)) correlations in $modename mode:\n")
+# 
+#     show(io,"text/plain",sc.observables)
+# end
 
-    show(io,"text/plain",sc.observables)
-end
+# TODO: Keep this?
+Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(sc.samplebuf)[2:4] : getfield(sc, sym)
 
-Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(sc.samplebuf)[2:4] : getfield(sc,sym)
+# TODO: Revisit after SampledCorrelations struct finalized
+# function clone_correlations(sc::SampledCorrelations{N}) where N
+#     dims = size(sc.data)[2:4]
+#     # Avoid copies/deep copies of C-generated data structures
+#     space_fft! = 1/√prod(dims) * FFTW.plan_fft!(sc.samplebuf, (2,3,4))
+#     time_fft! = FFTW.plan_fft!(sc.samplebuf, 6)
+#     corr_fft! = FFTW.plan_fft!(sc.corrbuf, 4)
+#     corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
+#     M = isnothing(sc.M) ? nothing : copy(sc.M)
+#     return SampledCorrelations{N}(copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
+#         deepcopy(sc.observables), copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!, sc.measperiod, sc.apply_g, sc.dt,
+#         copy(sc.nsamples), sc.processtraj!)
+# end
 
-function clone_correlations(sc::SampledCorrelations{N}) where N
-    dims = size(sc.data)[2:4]
-    # Avoid copies/deep copies of C-generated data structures
-    space_fft! = 1/√prod(dims) * FFTW.plan_fft!(sc.samplebuf, (2,3,4))
-    time_fft! = FFTW.plan_fft!(sc.samplebuf, 6)
-    corr_fft! = FFTW.plan_fft!(sc.corrbuf, 4)
-    corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
-    M = isnothing(sc.M) ? nothing : copy(sc.M)
-    return SampledCorrelations{N}(copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
-        deepcopy(sc.observables), copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!, sc.measperiod, sc.apply_g, sc.dt,
-        copy(sc.nsamples), sc.processtraj!)
-end
+
+# TODO: Uncomment after `clone_correlations` finalized 
+# """
+#     merge_correlations(scs::Vector{SampledCorrelations)
+# 
+# Accumulate a list of `SampledCorrelations` into a single, summary
+# `SampledCorrelations`. Useful for reducing the results of parallel computations.
+# """
+# function merge_correlations(scs::Vector{SampledCorrelations{N}}) where N
+#     sc_merged = clone_correlations(scs[1])
+#     μ = zero(sc_merged.data)
+#     for sc in scs[2:end]
+#         n = sc_merged.nsamples[1] 
+#         m = sc.nsamples[1]
+#         @. μ = (n/(n+m))*sc_merged.data + (m/(n+m))*sc.data
+#         if !isnothing(sc_merged.M)
+#             @. sc_merged.M = (sc_merged.M + n*abs(μ - sc_merged.data)^2) + (sc.M + m*abs(μ - sc.data)^2)
+#         end
+#         sc_merged.data .= μ
+#         sc_merged.nsamples[1] += m
+#     end
+#     sc_merged
+# end
 
 
+# TODO: Update docstring
 """
-    merge_correlations(scs::Vector{SampledCorrelations)
-
-Accumulate a list of `SampledCorrelations` into a single, summary
-`SampledCorrelations`. Useful for reducing the results of parallel computations.
-"""
-function merge_correlations(scs::Vector{SampledCorrelations{N}}) where N
-    sc_merged = clone_correlations(scs[1])
-    μ = zero(sc_merged.data)
-    for sc in scs[2:end]
-        n = sc_merged.nsamples[1] 
-        m = sc.nsamples[1]
-        @. μ = (n/(n+m))*sc_merged.data + (m/(n+m))*sc.data
-        if !isnothing(sc_merged.M)
-            @. sc_merged.M = (sc_merged.M + n*abs(μ - sc_merged.data)^2) + (sc.M + m*abs(μ - sc.data)^2)
-        end
-        sc_merged.data .= μ
-        sc_merged.nsamples[1] += m
-    end
-    sc_merged
-end
-
-"""
-    dynamical_correlations(sys::System; dt, nω, ωmax, 
+    dynamic_correlations(sys::System; dt, nω, ωmax, 
                            observables=nothing, correlations=nothing) 
 
 Creates an empty `SampledCorrelations` object for calculating and storing
@@ -129,51 +136,56 @@ Additional keyword options are the following:
     xy correlations, one would set `correlations=[(:Sx,:Sx), (:Sx,:Sy)]` or
     `correlations=[(1,1),(1,2)]`.
 """
-function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ωmax,
-                                apply_g=true, observables=nothing, correlations=nothing,
-                                calculate_errors=false, process_trajectory=no_processing) where N
-    if !isnothing(Δt)
-        @warn "`Δt` argument is deprecated! Use `dt` instead."
-        dt = @something dt Δt
-    end
-    isnothing(dt) && error("`dt` parameter required")
-    if process_trajectory == :symmetrize
-        @warn """`process_trajectory=:symmetrize` is deprecated and will be ignored.
-                     Without this option, intensities are increased by a factor of two, which
-                     will affect the color scales of plots, etc.
-                 """
-        process_trajectory = no_processing
+
+# Determine a step size and down sampling factor that results in precise
+# satisfaction of user-specified energy values.
+function adjusted_dt_and_downsampling_factor(dt, nω, ωmax)
+    @assert π/dt > ωmax "Desired `ωmax` not possible with specified `dt`. Choose smaller `dt` value."
+
+    # Assume nω is the number of non-negative frequencies and determine total
+    # number of frequency bins.
+    n_all_ω = 2Int64(nω)-1
+
+    # Find downsampling factor for the given `dt` that yields an `ωmax` higher
+    # than or equal to given `ωmax`. Then adjust `dt` down so that specified
+    # `ωmax` is satisfied exactly.
+    Δω = ωmax/nω
+    measperiod = ceil(Int, π/(dt * ωmax))
+    dt_new = 2π/(Δω*measperiod*n_all_ω)
+
+    # Warn the user if `dt` required drastic adjustment, which will slow
+    # simulations.
+    if dt_new/dt < 0.9
+        @warn "To satisify specified energy values, the step size adjusted down by more than 10% from a value of dt=$dt to dt=$dt_new"
     end
 
-    observables = parse_observables(N; observables, correlations, g = apply_g ? sys.gs : nothing)
+    return dt_new, measperiod
+end
 
-    # Determine trajectory measurement parameters
-    if isnan(nω) # instant_correlations case
-        measperiod = 1
-        dt = Δω = NaN
-        n_all_ω = 1 
-    else
-        # Determine how many time steps to skip between saving samples
-        # by skipping the largest number possible while still resolving ωmax
-        @assert π/dt > ωmax "Desired `ωmax` not possible with specified `dt`. Choose smaller `dt` value."
-        measperiod = floor(Int, π/(dt * ωmax))
 
-        # The user specifies the number of _non-negative_ energies
-        n_non_neg_ω = Int64(nω)
-        @assert n_non_neg_ω > 0 "nω must be at least 1"
-        n_all_ω = 2n_non_neg_ω-1
-        Δω = 2π / (dt*measperiod*n_all_ω)
-    end
+function dynamic_correlations(sys::System{N}; dt, energies, measure=nothing, calculate_errors=false) where N
+
+    # TODO: Add conditional for instant correlations case?
+    nω = length(energies)
+    n_all_ω = 2Int(nω) - 1
+    ωmax = energies[end]
+    @assert iszero(energies[1]) && ωmax > 0 "`energies` must be a range from 0 to a positive value."
+    # TODO: Check if provided energies are uniformly spaced?
+    dt, measperiod = adjusted_dt_and_downsampling_factor(dt, nω, ωmax)
+    Δω = ωmax/nω
 
     # Preallocation
     na = natoms(sys.crystal)
 
     # The sample buffer holds n_non_neg_ω measurements, and the rest is a zero buffer
-    samplebuf = zeros(ComplexF64, num_observables(observables), sys.latsize..., na, n_all_ω)
+    measure = isnothing(measure) ? ssf_trace(sys) : measure
+    println(typeof(measure))
+    num_observables(measure)
+    samplebuf = zeros(ComplexF64, num_observables(measure), sys.latsize..., na, n_all_ω)
     corrbuf = zeros(ComplexF64, sys.latsize..., n_all_ω)
 
     # The output data has n_all_ω many (positive and negative and zero) frequencies
-    data = zeros(ComplexF64, num_correlations(observables), na, na, sys.latsize..., n_all_ω)
+    data = zeros(ComplexF64, num_correlations(measure), na, na, sys.latsize..., n_all_ω)
     M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
     # The normalization is defined so that the prod(sys.latsize)-many estimates
@@ -187,13 +199,14 @@ function dynamical_correlations(sys::System{N}; dt=nothing, Δt=nothing, nω, ω
     corr_fft! = FFTW.plan_fft!(corrbuf, 4)
     corr_ifft! = FFTW.plan_ifft!(corrbuf, 4)
 
-    # Other initialization
+    # Initialize nsamples to zero. Make an array so can update dynamically
+    # without making struct mutable.
     nsamples = Int64[0]
 
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
-    sc = SampledCorrelations{N}(data, M, sys.crystal, origin_crystal, Δω, observables,
-                                samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!, measperiod, apply_g, dt, nsamples, process_trajectory)
+    sc = SampledCorrelations{N}(data, M, sys.crystal, origin_crystal, Δω, measure, measperiod, dt, nsamples,
+                                samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 
     return sc
 end
@@ -210,7 +223,7 @@ system. Call [`instant_intensities_interpolated`](@ref) to retrieve averaged
 ``𝒮(𝐪)`` data.
 
 _Important note_: When dealing with continuous (non-Ising) spins, consider
-creating using [`dynamical_correlations`](@ref) instead of
+creating using [`dynamic_correlations`](@ref) instead of
 `instant_correlations`. The former will provide full ``𝒮(𝐪,ω)`` data, from
 which ``𝒮(𝐪)`` can be obtained by integrating out ``ω``. During this
 integration step, Sunny can incorporate temperature- and ``ω``-dependent
@@ -232,5 +245,5 @@ The following optional keywords are available:
     `correlations=[(1,1),(1,2)]`.
 """
 function instant_correlations(sys::System; kwargs...)
-    dynamical_correlations(sys; dt=NaN, nω=NaN, ωmax=NaN, kwargs...)
+    dynamic_correlations(sys; dt=NaN, nω=NaN, ωmax=NaN, kwargs...)
 end

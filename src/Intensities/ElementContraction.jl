@@ -121,7 +121,7 @@ contract(specific_element, _, ::Element) = only(specific_element)
 function contract(all_elems, _, full::FullTensor{NCorr,NSquare,NObs,NObs2}) where {NCorr, NSquare,NObs,NObs2}
     # This Hermitian takes only the upper triangular part of its argument
     # and ensures that Sαβ has exactly the correct symmetry
-    Hermitian(reshape(all_elems[full.indices],NObs,NObs))
+    Hermitian(reshape(all_elems[full.indices], NObs, NObs))
 end
 
 ################################################################################

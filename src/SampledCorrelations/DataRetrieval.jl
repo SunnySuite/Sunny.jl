@@ -122,7 +122,7 @@ function intensity_formula(f::Function,sc,required_correlations; kwargs...)
 end
 
 
-function classical_to_quantum(ω, kT::Float64)
+function classical_to_quantum(ω, kT)
     if kT == Inf
         return 1.0
     end
