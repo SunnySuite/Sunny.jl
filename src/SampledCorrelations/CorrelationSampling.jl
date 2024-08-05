@@ -4,36 +4,24 @@ function observable_values!(buf, sys::System{N}, observables) where N
             for site in eachsite(sys)
                 obs = observables[i, site]
                 dipole = sys.dipoles[site]
-                buf[i,site] = obs ⋅ dipole
+                buf[i, site] = obs ⋅ dipole
             end
         end
     else
         Zs = sys.coherents
-        for (i, op) in enumerate(observables)
+        for i in axes(observables, 1)
             for site in eachsite(sys)
-                A = observable_at_site(op,site)
-                buf[i,site] = dot(Zs[site], A, Zs[site])
+                obs = observables[i, site] 
+                buf[i, site] = dot(Zs[site], obs, Zs[site])
             end
         end
     end
-
     return nothing
 end
-
-# TODO: Delete for good?
-# function trajectory(sys::System{N}, dt, nsnaps, ops; kwargs...) where N
-#     num_ops = length(ops)
-# 
-#     traj_buf = zeros(N == 0 ? Float64 : ComplexF64, num_ops, sys.latsize..., natoms(sys.crystal), nsnaps)
-#     trajectory!(traj_buf, sys, dt, nsnaps, ops; kwargs...)
-# 
-#     return traj_buf
-# end
 
 function trajectory!(buf, sys, dt, nsnaps, observables; measperiod = 1)
     @assert size(observables, 1) == size(buf, 1)
     integrator = ImplicitMidpoint(dt)
-
     observable_values!(@view(buf[:,:,:,:,:,1]), sys, observables)
     for n in 2:nsnaps
         for _ in 1:measperiod
@@ -41,7 +29,6 @@ function trajectory!(buf, sys, dt, nsnaps, observables; measperiod = 1)
         end
         observable_values!(@view(buf[:,:,:,:,:,n]), sys, observables)
     end
-
     return nothing
 end
 
