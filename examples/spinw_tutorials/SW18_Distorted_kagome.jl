@@ -2,11 +2,13 @@
 #
 # This is a Sunny port of [SpinW Tutorial
 # 18](https://spinw.org/tutorials/19tutorial), originally authored by Goran
-# Nilsen and Sandor Toth. This tutorial illustrates Sunny's support for studying
-# incommensurate, single-``Q`` structures. The test system is KCu₃As₂O₇(OD)₃.
-# The Cu ions are arranged in a distorted kagome lattice, and exhibit helical
-# magnetic order, as described in [G. J. Nilsen, et al., Phys. Rev. B **89**,
-# 140412 (2014)](https://doi.org/10.1103/PhysRevB.89.140412).
+# Nilsen and Sandor Toth. This tutorial illustrates spin wave theory for an
+# incommensurate, generalized spiral order ([Toth and Lake, J. Phys.: Condens.
+# Matter **27**, 166002 (2015)](https://arxiv.org/abs/1402.6069)). The test
+# system is KCu₃As₂O₇(OD)₃. The Cu ions are arranged in a distorted kagome
+# lattice, and exhibit helical magnetic order, as described in [G. J. Nilsen, et
+# al., Phys. Rev. B **89**, 140412
+# (2014)](https://doi.org/10.1103/PhysRevB.89.140412).
 
 using Sunny, GLMakie
 
@@ -34,12 +36,12 @@ set_exchange!(sys, Ja, Bond(3, 4, [0, 0, 0]))
 set_exchange!(sys, Jab, Bond(1, 2, [0, 0, 0]))
 set_exchange!(sys, Jip, Bond(3, 4, [0, 0, 1]))
 
-# Optimize the generalized spiral structure. This will determine the propagation
-# wavevector `k`, as well as spin values within the unit cell. One must provide
-# a fixed `axis` perpendicular to the polarization plane. For this system, all
-# interactions are rotationally invariant, and the `axis` vector is arbitrary.
-# In other cases, a good `axis` will frequently be determined from symmetry
-# considerations.
+# Use [`spiral_minimize_energy`](@ref) to optimize the generalized spiral order.
+# This determines the propagation wavevector `k`, and fits the spin values
+# within the unit cell. One must provide a fixed `axis` perpendicular to the
+# polarization plane. For this system, all interactions are rotationally
+# invariant, and the `axis` vector is arbitrary. In other cases, a good `axis`
+# will frequently be determined from symmetry considerations.
 
 axis = [0, 0, 1]
 randomize_spins!(sys)
@@ -47,7 +49,8 @@ k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
 plot_spins(sys; dims=2)
 
 # If successful, the optimization process will find one two possible
-# wavevectors, ±k_ref, with opposite chiralities.
+# wavevectors, ±k_ref, with opposite chiralities. In this system, the
+# [`spiral_energy_per_site`](@ref) is independent of chirality.
 
 k_ref = [0.785902495, 0.0, 0.107048756]
 k_ref_alt = [1, 0, 1] - k_ref

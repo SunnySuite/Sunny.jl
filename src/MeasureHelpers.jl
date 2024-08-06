@@ -244,15 +244,16 @@ end
 plot_intensities(res)
 ```
 """
-function powder_average(f, cryst, radii, n; seed=0)
+function powder_average(f, cryst, radii, n::Int; seed=0)
     (; energies) = f([Vec3(0,0,0)])
     rng = Random.Xoshiro(seed)
     data = zeros(length(energies), length(radii))
-    qs = reciprocal_space_shell(cryst, 1.0, n)
-    
+
+    sphpts = sphere_points(n)
+    to_rlu = inv(cryst.recipvecs)
     for (i, radius) in enumerate(radii)
-        R = Mat3(random_orthogonal(rng, 3)) * radius
-        res = f(Ref(R) .* qs)
+        R = Mat3(random_orthogonal(rng, 3))
+        res = f(Ref(to_rlu * R * radius) .* sphpts)
         data[:, i] = Statistics.mean(res.data; dims=2)
     end
 
