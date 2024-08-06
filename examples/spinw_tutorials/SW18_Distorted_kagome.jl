@@ -36,10 +36,10 @@ set_exchange!(sys, Ja, Bond(3, 4, [0, 0, 0]))
 set_exchange!(sys, Jab, Bond(1, 2, [0, 0, 0]))
 set_exchange!(sys, Jip, Bond(3, 4, [0, 0, 1]))
 
-# Use [`spiral_minimize_energy`](@ref) to optimize the generalized spiral order.
-# This determines the propagation wavevector `k`, and fits the spin values
-# within the unit cell. One must provide a fixed `axis` perpendicular to the
-# polarization plane. For this system, all interactions are rotationally
+# Use [`spiral_minimize_energy!`](@ref) to optimize the generalized spiral
+# order. This determines the propagation wavevector `k`, and fits the spin
+# values within the unit cell. One must provide a fixed `axis` perpendicular to
+# the polarization plane. For this system, all interactions are rotationally
 # invariant, and the `axis` vector is arbitrary. In other cases, a good `axis`
 # will frequently be determined from symmetry considerations.
 
