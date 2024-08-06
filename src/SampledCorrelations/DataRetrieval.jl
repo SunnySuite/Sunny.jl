@@ -1,17 +1,13 @@
-## TODO: Cleanup and docstring
-## TODO: Add proper treatment for negative qs?
-function intensities(sc::SampledCorrelations, qpts; measure=nothing, negative_energies=false, formfactors=nothing, interp=NoInterp())
+function interpolated_energies(sc, data, energies)
+    nqs = size(data)
+end
+
+function intensities(sc::SampledCorrelations, qpts; measure=nothing, negative_energies=false, formfactors=nothing, kT=Inf, interp=NoInterp())
     measure = !isnothing(measure) ? measure : sc.measure # TODO: Add checks to see if override is legit
     qpts = Base.convert(AbstractQPoints, qpts)
-
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
-    # corr_ix = 1:length(measure.corr_pairs)  # This assumes all correlations are kept
-
-    # Type stability for phase_averaged_elements
     IntensitiesType = eltype(measure)
-    NInterp = 1 # Generalize this
-    NCorr = Val(size(sc.data, 1))
-    NAtoms = Val(size(sc.data, 2))
+    crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
 
     # Interpret q points in terms of original crystal. 
     q_targets = if !isnothing(sc.origin_crystal)
@@ -21,23 +17,32 @@ function intensities(sc::SampledCorrelations, qpts; measure=nothing, negative_en
         qpts.qs
     end
 
+    # Preallocation
     ωvals = available_energies(sc; negative_energies)
-    intensities = zeros(IntensitiesType, length(ωvals), length(qpts.qs))
+    intensities = zeros(IntensitiesType, isnan(sc.Δω) ? 1 : length(ωvals), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
+    local_intensities = zeros(IntensitiesType, ninterp(interp)) 
 
+    # Stencil and interpolation precalculation
     li_intensities = LinearIndices(intensities)
     ci_targets = CartesianIndices(q_targets)
     m_targets = [mod.(sc.latsize .* q_target, 1) for q_target in q_targets]
-
     (; qabs_all, idcs_all, counts) = pruned_stencil_info(sc, qpts.qs, interp) 
-    local_intensities = zeros(IntensitiesType, NInterp) 
 
+    # Calculate the interpolated intensities, avoiding repeated calls to phase_averaged_elements.
     for iω in eachindex(ωvals)
         iq = 0
         for (qabs, idcs, numrepeats) in zip(qabs_all, idcs_all, counts)
 
             # Pull out nearest intensities that are necessary for any interpolation
-            for n in 1:NInterp
-                correlations = phase_averaged_elements(view(sc.data, :, :, :, idcs[n], iω), qabs[n], sc.crystal, ff_atoms, NCorr, NAtoms)
+            for n in 1:ninterp(interp)
+                correlations = phase_averaged_elements(
+                    view(sc.data, :, :, :, idcs[n], iω), 
+                    qabs[n], 
+                    sc.crystal, 
+                    ff_atoms, 
+                    Val(size(sc.data, 1)), 
+                    Val(size(sc.data, 2))
+                )
                 local_intensities[n] = measure.combiner(qabs[n], correlations)
             end
 
@@ -50,33 +55,33 @@ function intensities(sc::SampledCorrelations, qpts; measure=nothing, negative_en
         end
     end
 
-    # This converts the time axis to a density. TODO: Why not do this with the
-    # definition of the FFT normalization?
+    # Processing steps that depend on whether instant or dynamic correlations.
     if !isnan(sc.Δω)
+        # Convert time axis to a density.
+        # TODO: Why not do this with the definition of the FFT normalization?
         n_all_ω = size(sc.samplebuf, 6)
         intensities ./= (n_all_ω * sc.Δω)
-    end 
 
-    crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
-    return BroadenedIntensities(crystal, qpts, ωvals, intensities)
+        # Apply classical-to-quantum correspondence factor if temperature given.
+        if kT != Inf
+            c2q = classical_to_quantum.(ωvals, kT)
+            for i in axes(intensities, 2)
+                intensities[:,i] .*= c2q
+            end
+        end
+    else
+        # If temperature is given for a SampledCorrelations with only
+        # instantaneous data, throw an error. 
+        (kT != Inf) && error("Temperature corrections only available with dynamical correlation info. Given `SampledCorrelations` only contains instant correlation data.")
+    end
+
+
+    return if !isnan(sc.Δω)
+        BroadenedIntensities(crystal, qpts, ωvals, intensities)
+    else
+        InstantIntensities(crystal, qpts, intensities)
+    end
 end
-
-## TODO: Uncomment after decision made about instant correlations.
-# """
-#     instant_intensities_interpolated(sc::SampledCorrelations, qs, formula::ClassicalIntensityFormula; kwargs...)
-# 
-# Return ``𝒮(𝐪)`` intensities at wave vectors `qs`. The functionality is very
-# similar to [`intensities_interpolated`](@ref), except the returned array has dimensions
-# identical to `qs`. If called on a `SampledCorrelations` with dynamical information,
-# i.e., ``𝒮(𝐪,ω)``, the ``ω`` information is integrated out.
-# """
-# function instant_intensities_interpolated(sc::SampledCorrelations, qs, formula; kwargs...)
-#     datadims = size(qs)
-#     ndims = length(datadims)
-#     vals = intensities_interpolated(sc, qs, formula; instantaneous_warning=false, kwargs...)
-#     static_vals = sum(vals, dims=(ndims+1,))
-#     return reshape(static_vals, datadims)
-# end
 
 
 function classical_to_quantum(ω, kT)
