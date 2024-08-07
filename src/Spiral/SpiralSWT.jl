@@ -132,7 +132,7 @@ function excitations(sswt::SpiralSpinWaveTheory, q; branch)
     H = zeros(ComplexF64, 2L, 2L)
     T = zeros(ComplexF64, 2L, 2L)
     energies = excitations!(T, H, sswt, q; branch)
-    return (energies, T, H)
+    return (energies, T)
 end
 
 
