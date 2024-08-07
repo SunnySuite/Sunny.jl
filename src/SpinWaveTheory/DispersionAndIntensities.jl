@@ -96,16 +96,8 @@ function excitations!(T, tmp, swt::SpinWaveTheory, q)
     L = nbands(swt)
     size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
 
-    (; sys) = swt
-    q_global = orig_crystal(sys).recipvecs * q
-    q_reshaped = sys.crystal.recipvecs \ q_global
-
-    if sys.mode == :SUN
-        swt_hamiltonian_SUN!(tmp, swt, q_reshaped)
-    else
-        @assert sys.mode in (:dipole, :dipole_large_S)
-        swt_hamiltonian_dipole!(tmp, swt, q_reshaped)
-    end
+    q_reshaped = to_reshaped_rlu(swt.sys, q)
+    dynamical_matrix!(tmp, swt, q_reshaped)
 
     try
         return bogoliubov!(T, tmp)

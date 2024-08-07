@@ -21,21 +21,15 @@ function energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
     H = zeros(ComplexF64, 2L, 2L)
     V = zeros(ComplexF64, 2L, 2L)
 
-    if sys.mode == :SUN
-        hamiltonian_function! = swt_hamiltonian_SUN!
-    else
-        @assert sys.mode in (:dipole, :dipole_large_S)
-        hamiltonian_function! = swt_hamiltonian_dipole!
-    end
-
     # The uniform correction to the classical energy (trace of the (1,1)-block
     # of the spin-wave Hamiltonian)
-    hamiltonian_function!(H, swt, zero(Vec3))
+    dynamical_matrix!(H, swt, zero(Vec3))
     δE₁ = -real(tr(view(H, 1:L, 1:L))) / Natoms
 
-    # Integrate zero-point energy over the first magnetic Brillouin zone 𝐪 ∈ [0, 1]³ (in RLU)
-    δE₂ = hcubature((0,0,0), (1,1,1); opts...) do q
-        hamiltonian_function!(H, swt, q)
+    # Integrate zero-point energy over the first Brillouin zone 𝐪 ∈ [0, 1]³ for
+    # magnetic cell in reshaped RLU
+    δE₂ = hcubature((0,0,0), (1,1,1); opts...) do q_reshaped
+        dynamical_matrix!(H, swt, q_reshaped)
         ωs = bogoliubov!(V, H)
         return sum(view(ωs, 1:L)) / 2Natoms
     end

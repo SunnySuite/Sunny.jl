@@ -88,6 +88,15 @@ function to_reshaped_rlu(sys::System{N}, q) where N
     return sys.crystal.recipvecs \ (orig_crystal(sys).recipvecs * q)
 end
 
+function dynamical_matrix!(H, swt::SpinWaveTheory, q_reshaped)
+    if swt.sys.mode == :SUN
+        swt_hamiltonian_SUN!(H, swt, q_reshaped)
+    else
+        @assert swt.sys.mode in (:dipole, :dipole_large_S)
+        swt_hamiltonian_dipole!(H, swt, q_reshaped)
+    end
+end
+
 # Take PairCoupling `pc` and use it to make a new, equivalent PairCoupling that
 # contains all information about the interaction in the `general` (tensor
 # decomposition) field.
