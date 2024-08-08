@@ -14,8 +14,8 @@ let warned = false
             Support for the WGLMakie backend is experimental. Known issues are
             being tracked at https://github.com/SunnySuite/Sunny.jl/issues/211.
 
-            If you encounter graphics problems, we suggest to restart the Julia
-            session and load GLMakie instead of WGLMakie.
+            If you encounter graphics problems, try restarting the Julia session
+            and load GLMakie instead of WGLMakie.
             """
         end
         warned = true
@@ -215,7 +215,7 @@ function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150
     # Draw labels
     for (pos, text) in zip(1.2vecs, ["x", "y", "z"])
         Makie.text!(axcompass, pos; text, color=:black, fontsize=16, font=:bold, glowwidth=4.0,
-            glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
+            glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
     end
     
     # The intention is that the parent scene fully controls the camera, and
@@ -648,7 +648,7 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
             # White numbers for real, magnetic ions
             if !isghost && ismagnetic
                 text = repr.(eachindex(pts))
-                o = Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), overdraw=true)
+                o = Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), depth_shift=-1f0)
                 !ismagnetic && Makie.connect!(o.visible, full_crystal_toggle.active)
             end
         end
@@ -804,12 +804,10 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, dims
 
     # Show cell volume
     Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
-    
-    # Label lattice vectors. As an overdraw command, this must come last.
     pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(cryst.latvecs)[1:dims]]
     text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
     Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
-                glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
+                glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
 
     # Add inspector for pop-up information. Use a monospaced font provided
     # available in Makie.jl/assets/fonts/. The depth needs to be almost exactly
@@ -894,11 +892,6 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
     # to set a scale for the scene in case there is only one atom).
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
     Makie.linesegments!(ax, cell_wireframe(supervecs, dims); color=:gray, linewidth=1.5)
-
-    # Bounding box of original crystal unit cell in teal
-    if show_cell
-        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs, dims); color=:teal, linewidth=1.5)
-    end
 
     # Infer characteristic length scale between sites
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
@@ -991,13 +984,13 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
         Makie.meshscatter!(ax, pts; markersize, color=linecolor, diffuse=1.15, transparency=isghost)
     end
 
+    # Bounding box of original crystal unit cell in teal
     if show_cell
-        # Labels for lattice vectors. This needs to come last for
-        # `overdraw=true` to work.
+        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs, dims); color=:teal, linewidth=1.5)
         pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(orig_crystal(sys).latvecs)[1:dims]]
         text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
         Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
-                    glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
+                    glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
     end
 
     orient_camera!(ax, supervecs; ghost_radius, ℓ0, orthographic, dims)
