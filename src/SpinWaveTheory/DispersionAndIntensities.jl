@@ -1,380 +1,273 @@
 # Bogoliubov transformation that diagonalizes a quadratic bosonic Hamiltonian,
 # allowing for anomalous terms. The general procedure derives from Colpa,
-# Physica A, 93A, 327-353 (1978).
-function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
+# Physica A, 93A, 327-353 (1978). Overwrites data in H.
+function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
     L = div(size(H, 1), 2)
-    @assert size(V) == size(H) == (2L, 2L)
+    @assert size(T) == size(H) == (2L, 2L)
+    # H0 = copy(H)
 
-    # Initialize V to the para-unitary identity Ĩ = diagm([ones(L), -ones(L)])
-    V .= 0
+    # Initialize T to the para-unitary identity Ĩ = diagm([ones(L), -ones(L)])
+    T .= 0
     for i in 1:L
-        V[i, i] = 1
-        V[i+L, i+L] = -1
+        T[i, i] = 1
+        T[i+L, i+L] = -1
     end
 
-    # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of V.
-    # Eigenvalues are sorted such that quasi-particle energies will appear in
-    # descending order.
-    λ, V0 = eigen!(Hermitian(V), Hermitian(H); sortby = x -> -1/real(x))
+    # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of T.
+    # Eigenvalues are sorted such that positive values appear first, and are
+    # otherwise ascending in absolute value.
+    sortby(x) = (-sign(x), abs(x))
+    λ, T0 = eigen!(Hermitian(T), Hermitian(H); sortby)
 
-    # Note that V0 and V refer to the same data.
-    @assert V0 === V
+    # Note that T0 and T refer to the same data.
+    @assert T0 === T
 
-    # Normalize columns of V so that para-unitarity holds, V† Ĩ V = Ĩ.
-    for j in axes(V, 2)
+    # Normalize columns of T so that para-unitarity holds, T† Ĩ T = Ĩ.
+    for j in axes(T, 2)
         c = 1 / sqrt(abs(λ[j]))
-        view(V, :, j) .*= c
+        view(T, :, j) .*= c
     end
 
-    # Disable test for speed
+    # Inverse of λ are eigenvalues of Ĩ H. A factor of 2 yields the physical
+    # quasiparticle energies.
+    energies = λ        # reuse storage
+    @. energies = 2 / λ
+
+    # The first L elements are positive, while the next L energies are negative.
+    # Their absolute values are excitation energies for the wavevectors q and
+    # -q, respectively.
+    @assert all(>(0), view(energies, 1:L)) && all(<(0), view(energies, L+1:2L))
+
+    # Disable tests below for speed. Note that the data in H has been
+    # overwritten by eigen!, so H0 should refer to an original copy of H.
     #=
     Ĩ = Diagonal([ones(L); -ones(L)])
-    @assert V' * Ĩ * V ≈ Ĩ
+    @assert T' * Ĩ * T ≈ Ĩ
+    @assert diag(T' * H0 * T) ≈ Ĩ * energies / 2
+    # Reflection symmetry H(q) = H(-q) is identified as H11 = conj(H22). In this
+    # case, eigenvalues come in pairs.
+    if H0[1:L, 1:L] ≈ conj(H0[L+1:2L, L+1:2L])
+        @assert energies[1:L] ≈ -energies[L+1:2L]
+    end
     =#
 
-    # Verify that half the eigenvalues are positive and the other half are
-    # negative. The positive eigenvalues are quasiparticle energies for the
-    # wavevector q that defines the dynamical matrix H(q). The absolute value of
-    # the negative eigenvalues would be quasiparticle energies for H(-q), which
-    # we are not considering in the present context.
-    @assert all(>(0), view(λ, 1:L)) && all(<(0), view(λ, L+1:2L))
-    
-    # Inverse of λ gives eigenvalues of Ĩ H. We only care about the first L
-    # eigenvalues, which are positive. A factor of 2 is needed to get the
-    # physical quasiparticle energies.
-    disp = resize!(λ, L)
-    @. disp = 2 / disp
-
-    # In the special case that H(q) = H(-q) (i.e., a magnetic ordering with
-    # reflection symmetry), the eigenvalues come in pairs. Note that the data in
-    # H has been overwritten by eigen!, so H0 should refer to an original copy
-    # of H.
-    #=
-    @assert diag(V' * H0 * V) ≈ [disp/2; reverse(disp)/2]
-    =#
-
-    return disp
+    return energies
 end
 
 
-# DD: These two functions are a stopgap until data is treated differently in
-# main calculations. Also, the final data layout will need to be iterated on. I
-# am thinking the user should always be able to get some array with indices
-# identical to the list of wave vectors. This could be achieved, for example, by
-# having the output be an array with length equal to the number of modes. Each
-# entry would then be an array with dimension equal to the array of wave
-# vectors. The entries of this array would then depend on the request (an an
-# energy, an intensity, an entire tensor stored as an SMatrix, etc.) 
-# The key point is to make it as easy as possible to put the output
-# in correspondence with the input for plotting, further processing, etc.
-function reshape_correlations(corrs)
-    qdims, nmodes = size(corrs)[4:end], size(corrs)[3]  # First two indices are are always tensor indices
-    idxorder = collect(1:ndims(corrs))
-    idxorder[3], idxorder[end] = idxorder[end], idxorder[3]
-    corrs = permutedims(corrs, idxorder)
-    return selectdim(reinterpret(SMatrix{3,3,ComplexF64,9}, reshape(corrs, 9, qdims...,nmodes) ), 1, 1)
+# Returns |1 + nB(ω)| where nB(ω) = 1 / (exp(βω) - 1) is the Bose function. See
+# also `classical_to_quantum` which additionally "undoes" the classical
+# Boltzmann distribution.
+function thermal_prefactor(kT, ω)
+    if iszero(kT)
+        return ω >= 0 ? 1 : 0
+    else
+        @assert kT > 0
+        return abs(1 / (1 - exp(-ω/kT)))
+    end
 end
 
-function reshape_dispersions(disp)
-    idxorder = collect(1:ndims(disp))
-    idxorder[1], idxorder[end] = idxorder[end], idxorder[1]
-    return permutedims(disp, idxorder)
-end
 
 """
-    dispersion(swt::SpinWaveTheory, qs)
+    excitations!(T, tmp, swt::SpinWaveTheory, q)
 
-Computes the spin excitation energy dispersion relations given a
-[`SpinWaveTheory`](@ref) and an array of wave vectors `qs`. Each element ``q``
-of `qs` must be a 3-vector in units of reciprocal lattice units. I.e., ``qᵢ`` is
-given in ``2π/|aᵢ|`` with ``|aᵢ|`` the lattice constant of the original chemical
-lattice.
+Given a wavevector `q`, solves for the matrix `T` representing quasi-particle
+excitations, and returns a list of quasi-particle energies. Both `T` and `tmp`
+must be supplied as ``2L×2L`` complex matrices, where ``L`` is the number of
+bands for a single ``𝐪`` value.
 
-The first indices of the returned array correspond to those of `qs`. A final
-index, corresponding to mode, is added to these. Each entry of the array is an
-energy.
+The columns of `T` are understood to be contracted with the Holstein-Primakoff
+bosons ``[𝐛_𝐪, 𝐛_{-𝐪}^†]``. The first ``L`` columns provide the eigenvectors
+of the quadratic Hamiltonian for the wavevector ``𝐪``. The next ``L`` columns
+of `T` describe eigenvectors for ``-𝐪``. The return value is a vector with
+similar grouping: the first ``L`` values are energies for ``𝐪``, and the next
+``L`` values are the _negation_ of energies for ``-𝐪``.
+
+    excitations!(T, tmp, swt::SpiralSpinWaveTheory, q; branch)
+
+Calculations on a [`SpiralSpinWaveTheory`](@ref) additionally require a `branch`
+index. The possible branches ``(1, 2, 3)`` correspond to scattering processes
+``𝐪 - 𝐤, 𝐪, 𝐪 + 𝐤`` respectively, where ``𝐤`` is the ordering wavevector.
+Each branch will contribute ``L`` excitations, where ``L`` is the number of
+spins in the magnetic cell. This yields a total of ``3L`` excitations for a
+given momentum transfer ``𝐪``.
 """
-function dispersion(swt::SpinWaveTheory, qs)
-    (; sys) = swt
-    
+function excitations!(T, tmp, swt::SpinWaveTheory, q)
     L = nbands(swt)
+    size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
+
+    q_reshaped = to_reshaped_rlu(swt.sys, q)
+    dynamical_matrix!(tmp, swt, q_reshaped)
+
+    try
+        return bogoliubov!(T, tmp)
+    catch _
+        error("Instability at wavevector q = $q")
+    end
+end
+
+"""
+    excitations(swt::SpinWaveTheory, q)
+    excitations(swt::SpiralSpinWaveTheory, q; branch)
+
+Returns a pair `(energies, T)` providing the excitation energies and
+eigenvectors. Prefer [`excitations!`](@ref) for performance, which avoids matrix
+allocations. See the documentation of [`excitations!`](@ref) for more details.
+"""
+function excitations(swt::SpinWaveTheory, q)
+    L = nbands(swt)
+    T = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
-    V = zeros(ComplexF64, 2L, 2L)
-    disp = zeros(Float64, L, length(qs))
-
-    for (iq, q) in enumerate(qs)
-        q_reshaped = to_reshaped_rlu(swt.sys, q)
-        if sys.mode == :SUN
-            swt_hamiltonian_SUN!(H, swt, q_reshaped)
-        else
-            @assert sys.mode in (:dipole, :dipole_large_S)
-            swt_hamiltonian_dipole!(H, swt, q_reshaped)
-        end
-
-        try
-            view(disp, :, iq) .= bogoliubov!(V, H)
-        catch e
-            error("Instability at wavevector q = $q")
-        end
-    end
-
-    return reshape_dispersions(disp)
+    energies = excitations!(T, copy(H), swt, q)
+    return (energies, T)
 end
 
-
 """
-    dssf(swt::SpinWaveTheory, qs)
+    dispersion(swt::SpinWaveTheory, qpts)
 
-Given a [`SpinWaveTheory`](@ref) object, computes the dynamical spin structure
-factor,
-
-```math
-    𝒮^{αβ}(𝐤, ω) = 1/(2πN)∫dt ∑_𝐫 \\exp[i(ωt - 𝐤⋅𝐫)] ⟨S^α(𝐫, t)S^β(0, 0)⟩,
-```
-
-using the result from linear spin-wave theory,
-
-```math
-    𝒮^{αβ}(𝐤, ω) = ∑_n |A_n^{αβ}(𝐤)|^2 δ[ω-ω_n(𝐤)].
-```
-
-`qs` is an array of wave vectors of arbitrary dimension. Each element ``q`` of
-`qs` must be a 3-vector in reciprocal lattice units (RLU), i.e., in the basis of
-reciprocal lattice vectors.
-
-The first indices of the returned array correspond to those of `qs`. A final
-index, corresponding to mode, is added to these. Each entry of this array is a
-tensor (3×3 matrix) corresponding to the indices ``α`` and ``β``.
+Given a list of wavevectors `qpts` in reciprocal lattice units (RLU), returns
+excitation energies for each band. The return value `ret` is 2D array, and
+should be indexed as `ret[band_index, q_index]`.
 """
-function dssf(swt::SpinWaveTheory, qs)
-    qs = Vec3.(qs)
+function dispersion(swt::SpinWaveTheory, qpts)
     L = nbands(swt)
-
-    disp = zeros(Float64, L, size(qs)...)
-    Sαβs = zeros(ComplexF64, 3, 3, L, size(qs)...) 
-
-    # dssf(...) doesn't do any contraction, temperature correction, etc.
-    # It simply returns the full Sαβ correlation matrix
-    formula = intensity_formula(swt, :full; kernel = delta_function_kernel)
-
-    # Calculate DSSF 
-    for qidx in CartesianIndices(qs)
-        q = qs[qidx]
-        band_structure = formula.calc_intensity(swt,q)
-        for band = 1:L
-            disp[band,qidx] = band_structure.dispersion[band]
-            Sαβs[:,:,band,qidx] .= band_structure.intensity[band]
-        end
-    end
-
-    return reshape_dispersions(disp), reshape_correlations(Sαβs) 
-end 
-
-
-struct BandStructure{N,T}
-  dispersion :: SVector{N,Float64}
-  intensity :: SVector{N,T}
+    qpts = convert(AbstractQPoints, qpts)
+    disp = [view(excitations(swt, q)[1], 1:L) for q in qpts.qs]
+    return reduce(hcat, disp)
 end
-
-struct SpinWaveIntensityFormula{T}
-    string_formula :: String
-    kernel :: Union{Nothing,Function}
-    calc_intensity :: Function
-end
-
-function Base.show(io::IO, ::SpinWaveIntensityFormula{T}) where T
-    print(io,"SpinWaveIntensityFormula{$T}")
-end
-
-function Base.show(io::IO, ::MIME"text/plain", formula::SpinWaveIntensityFormula{T}) where T
-    printstyled(io, "Quantum Scattering Intensity Formula\n"; bold=true, color=:underline)
-
-    formula_lines = split(formula.string_formula, '\n')
-
-    if isnothing(formula.kernel)
-        println(io, "At any Q and for each band ωᵢ = εᵢ(Q), with S = S(Q,ωᵢ):\n")
-        intensity_equals = "  Intensity(Q,ω) = ∑ᵢ δ(ω-ωᵢ) "
-    else
-        println(io, "At any (Q,ω), with S = S(Q,ωᵢ):\n")
-        intensity_equals = "  Intensity(Q,ω) = ∑ᵢ Kernel(ω-ωᵢ) "
-    end
-    separator = '\n' * repeat(' ', textwidth(intensity_equals))
-    println(io, intensity_equals, join(formula_lines, separator))
-    println(io)
-    if isnothing(formula.kernel)
-        println(io,"BandStructure information (ωᵢ and intensity) reported for each band")
-    else
-        println(io,"Intensity(ω) reported")
-    end
-end
-
-delta_function_kernel = nothing
 
 """
-    formula = intensity_formula(swt::SpinWaveTheory; kernel = ...)
+    intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
 
-Establish a formula for computing the scattering intensity by diagonalizing
-the hamiltonian ``H(q)`` using Linear Spin Wave Theory.
-
-If `kernel = delta_function_kernel`, then the resulting formula can be used with
-[`intensities_bands`](@ref).
-
-If `kernel` is an energy broadening kernel function, then the resulting formula can be used with [`intensities_broadened`](@ref).
-Energy broadening kernel functions can either be a function of `Δω` only, e.g.:
-
-    kernel = Δω -> ...
-
-or a function of both the energy transfer `ω` and of `Δω`, e.g.:
-
-    kernel = (ω,Δω) -> ...
-
-The integral of a properly normalized kernel function over all `Δω` is one.
+Calculate spin wave excitation bands for a set of q-points in reciprocal space.
+This calculation is analogous [`intensities`](@ref), but does not perform
+broadening of the bands.
 """
-function intensity_formula(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVector{Int64}; kernel::Union{Nothing,Function},
-                           return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", formfactors=nothing)
-    (; sys, data, observables) = swt
+function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
+    (; sys, measure) = swt
+    isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
+
+    qpts = convert(AbstractQPoints, qpts)
+    cryst = orig_crystal(sys)
 
     # Number of atoms in magnetic cell
-    Nm = length(sys.dipoles)
+    @assert sys.latsize == (1,1,1)
+    Na = length(eachsite(sys))
     # Number of chemical cells in magnetic cell
-    Ncells = Nm / natoms(orig_crystal(sys))
+    Ncells = Na / natoms(cryst)
     # Number of quasiparticle modes
     L = nbands(swt)
+    # Number of wavevectors
+    Nq = length(qpts.qs)
 
     # Preallocation
+    T = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
-    V = zeros(ComplexF64, 2L, 2L)
-    Avec_pref = zeros(ComplexF64, Nm)
-    intensity = zeros(return_type, L)
+    Avec_pref = zeros(ComplexF64, Na)
+    disp = zeros(Float64, L, Nq)
+    intensity = zeros(eltype(measure), L, Nq)
+
+    # Temporary storage for pair correlations
+    Ncorr = length(measure.corr_pairs)
+    corrbuf = zeros(ComplexF64, Ncorr)
+
+    Nobs = size(measure.observables, 1)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, swt.sys.crystal)
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
 
-    # Upgrade to 2-argument kernel if needed
-    kernel_edep = if isnothing(kernel)
-        nothing
-    else
-        try
-            kernel(0., 0.)
-            kernel
-        catch _
-            (_, Δω) -> kernel(Δω)
-        end
-    end
+    for (iq, q) in enumerate(qpts.qs)
+        q_global = cryst.recipvecs * q
+        view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
-    # In Spin Wave Theory, the Hamiltonian depends on momentum transfer `q`.
-    # At each `q`, the Hamiltonian is diagonalized one time, and then the
-    # energy eigenvalues can be reused multiple times. To facilitate this,
-    # `I_of_ω = calc_intensity(swt,q)` performs the diagonalization, and returns
-    # the result either as:
-    #
-    #   Delta function kernel --> I_of_ω = (eigenvalue,intensity) pairs
-    #
-    #   OR
-    #
-    #   Smooth kernel --> I_of_ω = Intensity as a function of ω
-    #
-    calc_intensity = function(swt::SpinWaveTheory, q::Vec3)
-        # This function, calc_intensity, is an internal function to be stored
-        # inside a formula. The unit system for `q` that is passed to
-        # formula.calc_intensity is an implementation detail that may vary
-        # according to the "type" of a formula. In the present context, namely
-        # LSWT formulas, `q` is given in RLU for the original crystal. This
-        # convention must be consistent with the usage in various
-        # `intensities_*` functions defined in LinearSpinWaveIntensities.jl.
-        # Separately, the functions calc_intensity for formulas associated with
-        # SampledCorrelations will receive `q_absolute` in absolute units.
-        q_reshaped = to_reshaped_rlu(swt.sys, q)
-        q_absolute = swt.sys.crystal.recipvecs * q_reshaped
-
-        if sys.mode == :SUN
-            swt_hamiltonian_SUN!(H, swt, q_reshaped)
-        else
-            @assert sys.mode in (:dipole, :dipole_large_S)
-            swt_hamiltonian_dipole!(H, swt, q_reshaped)
+        for i in 1:Na
+            r_global = global_position(sys, (1,1,1,i))
+            Avec_pref[i] = exp(- im * dot(q_global, r_global))
+            Avec_pref[i] *= compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
-        disp = try
-            bogoliubov!(V, H)
-        catch _
-            error("Instability at wavevector q = $q")
-        end
+        Avec = zeros(ComplexF64, Nobs)
 
-        for i = 1:Nm
-            @assert Nm == natoms(sys.crystal)
-            Avec_pref[i] = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
-            # TODO: move form factor into `f`, then delete this rescaling
-            Avec_pref[i] *= compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
-        end
-
-        Avec = zeros(ComplexF64, num_observables(observables))
-        
         # Fill `intensity` array
         for band = 1:L
             fill!(Avec, 0)
             if sys.mode == :SUN
-                (; observables_localized) = data::SWTDataSUN
+                data = swt.data::SWTDataSUN
                 N = sys.Ns[1]
-                v = reshape(view(V, :, band), N-1, Nm, 2)
-                for i = 1:Nm
-                    for μ = 1:num_observables(observables)
-                        @views O = observables_localized[:, :, μ, i]
-                        for α = 1:N-1
-                            Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
-                        end
+                t = reshape(view(T, :, band), N-1, Na, 2)
+                for i in 1:Na, μ in 1:Nobs
+                    O = data.observables_localized[μ, i]
+                    for α in 1:N-1
+                        Avec[μ] += Avec_pref[i] * (O[α, N] * t[α, i, 2] + O[N, α] * t[α, i, 1])
                     end
                 end
             else
-                (; observables_localized, sqrtS) = data::SWTDataDipole
                 @assert sys.mode in (:dipole, :dipole_large_S)
-                v = reshape(view(V, :, band), Nm, 2)
-                for i = 1:Nm
-                    for μ = 1:num_observables(observables)
-                        # This is the Avec of the two transverse and one longitudinal directions
-                        # in the local frame. (In the local frame, z is longitudinal, and we
-                        # are computing the transverse part only, so the last entry is zero)
-                        displacement_local_frame = [v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
-
-                        # This code would rotate into the global frame.
-                        # But the observables have already been put in the local frame, so
-                        # we don't need to do this.
-                        #
-                        # (; local_rotations) = data
-                        # displacement_global_frame = local_rotations[i] * displacement_local_frame
-
-                        @views O_local_frame = observables_localized[:,:,μ,i]
-                        Avec[μ] += Avec_pref[i] * (sqrtS[i]/sqrt(2)) * (O_local_frame * displacement_local_frame)[1]
-                    end
+                data = swt.data::SWTDataDipole
+                t = reshape(view(T, :, band), Na, 2)
+                for i in 1:Na, μ in 1:Nobs
+                    O = data.observables_localized[μ, i]
+                    # This is the Avec of the two transverse and one
+                    # longitudinal directions in the local frame. (In the
+                    # local frame, z is longitudinal, and we are computing
+                    # the transverse part only, so the last entry is zero)
+                    displacement_local_frame = SA[t[i, 2] + t[i, 1], im * (t[i, 2] - t[i, 1]), 0.0]
+                    Avec[μ] += Avec_pref[i] * (data.sqrtS[i]/sqrt(2)) * (O' * displacement_local_frame)[1]
                 end
             end
 
-            corrs = Vector{ComplexF64}(undef, num_correlations(observables))
-            for (ci, i) in observables.correlations
-                (α, β) = ci.I
-                corrs[i] = Avec[α] * conj(Avec[β]) / Ncells
+            map!(corrbuf, measure.corr_pairs) do (α, β)
+                Avec[α] * conj(Avec[β]) / Ncells
             end
-
-            intensity[band] = f(q_absolute, disp[band], corrs[corr_ix])
-        end
-
-        # Return the result of the diagonalization in an appropriate
-        # format based on the kernel provided
-        if isnothing(kernel)
-            # Delta function kernel --> (eigenvalue,intensity) pairs
-
-            # If there is no specified kernel, we are done: just return the
-            # BandStructure
-            return BandStructure{L,return_type}(disp, intensity)
-        else
-            # Smooth kernel --> Intensity as a function of ω (or a list of ωs)
-            return function(ω)
-                is = Vector{return_type}(undef,length(ω))
-                is .= sum(intensity' .* kernel_edep.(disp', ω .- disp'),dims=2)
-                is
-            end
+            intensity[band, iq] = thermal_prefactor(kT, disp[band]) * measure.combiner(q_global, corrbuf)
         end
     end
-    output_type = isnothing(kernel) ? BandStructure{L,return_type} : return_type
-    SpinWaveIntensityFormula{output_type}(string_formula, kernel_edep, calc_intensity)
+
+    return BandIntensities(cryst, qpts, disp, intensity)
+end
+
+"""
+    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing, kT=0)
+    intensities!(data, swt::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT=0)
+
+Like [`intensities`](@ref), but makes use of storage space `data` to avoid
+allocation costs.
+"""
+function intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
+    @assert size(data) == (length(energies), size(bands.data, 2))
+    bands = intensities_bands(swt, qpts; formfactors, kT)
+    @assert eltype(bands) == eltype(data)
+    broaden!(data, bands; energies, kernel)
+    return BroadenedIntensities(bands.crystal, bands.qpts, collect(energies), data)
+end
+
+"""
+    intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing, kT=0)
+    intensities(swt::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
+
+Calculate pair correlation intensities for a set of q-points in reciprocal
+space.
+
+Traditional spin wave theory calculations are performed with an instance of
+[`SpinWaveTheory`](@ref). One can alternatively use
+[`SpiralSpinWaveTheory`](@ref) to study generalized spiral orders with a single,
+incommensurate-``𝐤`` ordering wavevector. Another alternative is
+`SpinWaveTheoryKPM`, which may be faster than `SpinWaveTheory` for
+calculations on large magnetic cells (e.g., to study systems with disorder). In
+spin wave theory, a nonzero temperature `kT` will scale intensities by the
+quantum thermal occupation factor ``|1 + n_B(ω)|`` where ``n_B(ω) = 1 / (exp(βω)
+- 1)`` is the Bose function.
+
+Intensities can also be calculated for `SampledCorrelations` associated with
+classical spin dynamics. In this case, thermal broadening will already be
+present, and the line-broadening `kernel` becomes an optional argument. It is
+here necessary to specify `kT`. If `kT` has a numeric value, this will signify
+an intensity correction that undoes the occupation factor for the classical
+Boltzmann distribution, and applies the corresponding quantum thermal occupation
+factor. If `kT = nothing`, then intensities consistent with the classical
+Boltzmann distribution will be returned directly.
+"""
+function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
+    return broaden(intensities_bands(swt, qpts; formfactors, kT); energies, kernel)
 end

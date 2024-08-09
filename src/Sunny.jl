@@ -1,6 +1,7 @@
 module Sunny
 
 using LinearAlgebra
+import Statistics
 import LinearMaps: LinearMap, FunctionMap
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
@@ -78,13 +79,24 @@ export FormFactor
 include("MCIF.jl")
 export set_dipoles_from_mcif!
 
+include("MeasureSpec.jl")
+export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace
+
+include("MeasureHelpers.jl")
+export q_space_path, lorentzian, gaussian, rotation_in_rlu, powder_average, domain_average
+
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
 include("SpinWaveTheory/HamiltonianSUN.jl")
 include("SpinWaveTheory/DispersionAndIntensities.jl")
 include("SpinWaveTheory/Lanczos.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
-export SpinWaveTheory, dispersion, dssf, delta_function_kernel
+export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands
+
+include("Spiral/LuttingerTisza.jl")
+include("Spiral/SpiralEnergy.jl")
+include("Spiral/SpiralSWT.jl")
+export SpiralSpinWaveTheory, spiral_minimize_energy!, spiral_energy, spiral_energy_per_site
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
@@ -93,28 +105,22 @@ include("SampledCorrelations/BasisReduction.jl")
 include("Intensities/Types.jl")
 include("SampledCorrelations/DataRetrieval.jl")
 export SampledCorrelations, dynamical_correlations, instant_correlations, add_sample!,
-    broaden_energy, gaussian, lorentzian, available_wave_vectors, available_energies, merge_correlations,
+    broaden_energy, gaussian06, lorentzian06, available_wave_vectors, available_energies, merge_correlations,
     intensity_formula, integrated_gaussian, integrated_lorentzian
 
 include("Intensities/ElementContraction.jl")
 include("Intensities/Interpolation.jl")
-export intensities_interpolated, instant_intensities_interpolated, rotation_in_rlu,
+export intensities_interpolated, instant_intensities_interpolated,
     reciprocal_space_path
 include("Intensities/Binning.jl")
 export intensities_binned, BinningParameters, count_bins, integrate_axes!,
     unit_resolution_binning_parameters, 
     slice_2D_binning_parameters, axes_bincenters,
     reciprocal_space_path_bins
-include("Intensities/LinearSpinWaveIntensities.jl")
-export intensities_broadened, intensities_bands
 include("Intensities/PowderAveraging.jl")
 export reciprocal_space_shell, powder_average_binned
 include("Intensities/ExperimentData.jl")
 export load_nxs, generate_mantid_script_from_binning_parameters
-
-include("Spiral/LuttingerTisza.jl")
-include("Spiral/SpiralEnergy.jl")
-include("Spiral/SpiralSWT.jl")
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")
@@ -127,16 +133,26 @@ export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSample
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, meV_per_K
 
+
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 
 ### ext/PlottingExt.jl, dependent on Makie
-function plot_spins(args...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
-end
 function view_crystal(args...)
     error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
 end
-export plot_spins, view_crystal
+function plot_spins!(args...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+end
+function plot_spins(args...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+end
+function plot_intensities!(args...; opts...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+end
+function plot_intensities(args...; opts...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+end
+export view_crystal, plot_spins, plot_spins!, plot_intensities, plot_intensities!
 
 ### ext/ExportVTKExt.jl, dependent on WriteVTK
 function export_vtk(args...)

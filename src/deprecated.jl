@@ -34,14 +34,14 @@ function Base.setproperty!(value::Langevin, name::Symbol, x)
 end
 
 
-Base.@deprecate lorentzian(x, η) let
-    @warn "`lorentzian(x, η)` is deprecated! Use `lorentzian(; fwhm=2η)(x)` instead."
-    return lorentzian(; fwhm=2η)(x)
+Base.@deprecate lorentzian06(x, η) let
+    @warn "`lorentzian06(x, η)` is deprecated! Use `lorentzian06(; fwhm=2η)(x)` instead."
+    return lorentzian06(; fwhm=2η)(x)
 end
 
-Base.@deprecate lorentzian(η) let
-    @warn "`lorentzian(η)` is deprecated! Use `lorentzian(; fwhm=2η)` instead."
-    return lorentzian(; fwhm=2η)
+Base.@deprecate lorentzian06(η) let
+    @warn "`lorentzian06(η)` is deprecated! Use `lorentzian06(; fwhm=2η)` instead."
+    return lorentzian06(; fwhm=2η)
 end
 
 Base.@deprecate integrated_lorentzian(η::Float64) let
@@ -59,6 +59,10 @@ Base.@deprecate set_external_field_at!(sys::System, B, site) let
     set_field_at!(sys, Vec3(B) * Units(:meV).T, site)
 end
 
+Base.@deprecate rotation_in_rlu(cryst::Crystal, axis, angle) let
+    @warn "`rotation_in_rlu(sys, axis, angle)` is deprecated! Consider `domain_average` instead."
+    return rotation_in_rlu(cryst, (axis, angle))
+end
 
 # Consider `units.K` where `units = Units(:meV)`.
 Base.@deprecate_binding meV_per_K Units(:meV).K
@@ -83,4 +87,4 @@ end
 # * Argument units to System
 # * Missing μ0_μB² in enable_dipole_dipole! and
 #   modify_exchange_with_truncated_dipole_dipole!
-# * hermitianpart[!] for VERSION < v"1.10"
+# * energy_ϵ argument in SpinWaveTheory
