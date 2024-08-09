@@ -23,11 +23,11 @@ end
 
 
 # Smoothly approximate a Heaviside step function
-function regularization_function(ω,σ)
+function regularization_function(ω, σ)
     if ω < 0 
         return 0.0
     elseif 0 ≤ ω ≤ σ
-        return (4 - (3ω ./σ)) .*(ω.^3/σ.^3)
+        return (4 - (3ω / σ)) * (ω^3 / σ^3)
     else
         return 1.0
     end
