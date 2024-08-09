@@ -38,7 +38,7 @@ end
     q = Sunny.Vec3(0.12, 0.23, 0.34)
     
     S = 1
-    sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=-1)], :dipole)
+    sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=-1.5)], :dipole)
     set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
     set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
     set_field!(sys, [0, 0, h])
@@ -50,7 +50,7 @@ end
     set_dipole!(sys_swt_dip, ( sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (0,0,0)))
     set_dipole!(sys_swt_dip, (-sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (1,0,0)))
     
-    swt_dip = SpinWaveTheory(sys_swt_dip; measure=ssf_perp(sys_swt_dip))
+    swt_dip = SpinWaveTheory(sys_swt_dip; measure=ssf_perp(sys_swt_dip; apply_g=true))
     ϵq_num = dispersion(swt_dip, [q])
     
     energies, T = excitations(swt_dip, q)

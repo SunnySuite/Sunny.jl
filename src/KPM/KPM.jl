@@ -59,14 +59,17 @@ defines the low energy cutoff σ². There is a keyword argument, kernel, which s
  
 function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
     # P is the max Chebyshyev coefficient
-    (; sys, data) = swt
+    (; sys, measure) = swt
     qs = Vec3.(qs)
     Na = length(eachsite(sys))
     L = nbands(swt)
     sqrt_Nm_inv = 1.0 / √Na
     Ĩ = Diagonal([ones(L); -ones(L)]) 
     n_iters = 50
-    Avec_pref = zeros(ComplexF64, Na) # initialize array of some prefactors   
+    Avec_pref = zeros(ComplexF64, Na) # initialize array of some prefactors
+
+    Nobs = size(measure.observables, 1)
+
     chebyshev_moments = OffsetArray(zeros(ComplexF64, 3, 3, length(qs), P), 1:3, 1:3, 1:length(qs), 0:P-1)
     Sαβs = zeros(ComplexF64,3,3,length(qs),length(ωlist))
     for qidx in CartesianIndices(qs)
@@ -88,10 +91,11 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
 
         # calculate u(q)
         if sys.mode == :SUN
+            data = swt.data::SWTDataSUN
             N = sys.Ns[1]
             for i in 1:Na
                 @views tS_μ = Avec_pref[i] * data.observable_operators[:, :, :, i]
-                for μ in 1:3
+                for μ in 1:Nobs
                     for j in 2:N
                         u[μ,(j-1)+(i-1)*(N-1)] = tS_μ[j,1,μ] 
                         u[μ,(N-1)*Na+(j-1)+(i-1)*(N-1)] = tS_μ[1,j,μ]
@@ -100,17 +104,14 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
             end
         else
             @assert sys.mode in (:dipole, :dipole_large_S)
+            data = swt.data::SWTDataDipole
             for i in 1:Na
                 sqrt_halfS = data.sqrtS[i]/sqrt(2)
-                R = data.local_rotations[i]
-                u[1,i]   = R[1,1] + 1im * R[1,2]
-                u[1,i+L] = R[1,1] - 1im * R[1,2]
-                u[2,i]   = R[2,1] + 1im * R[2,2]
-                u[2,i+L] = R[2,1] - 1im * R[2,2]
-                u[3,i]   = R[3,1] + 1im * R[3,2]
-                u[3,i+L] = R[3,1] - 1im * R[3,2]
-                view(u, :, i) .*= Avec_pref[i] * sqrt_halfS
-                view(u, :, i+L) .*= Avec_pref[i] * sqrt_halfS
+                for μ in 1:Nobs
+                    O = data.observables_localized[μ, i]
+                    u[μ, i]   = Avec_pref[i] * sqrt_halfS * (O[1] + 1im * O[2])
+                    u[μ, i+L] = Avec_pref[i] * sqrt_halfS * (O[1] - 1im * O[2])
+                end
             end
         end
 
