@@ -61,62 +61,62 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
     # P is the max Chebyshyev coefficient
     (; sys, data) = swt
     qs = Vec3.(qs)
-    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    Nf = sys.mode == :SUN ? Ns-1 : 1
-    N=Nf+1
-    nmodes = Nf*Nm
-    sqrt_Nm_inv = 1.0 / √Nm
-    S = (Ns-1) / 2
-    sqrt_halfS  = √(S/2)
-    Ĩ = Diagonal([ones(nmodes); -ones(nmodes)]) 
+    Na = length(eachsite(sys))
+    L = nbands(swt)
+    sqrt_Nm_inv = 1.0 / √Na
+    Ĩ = Diagonal([ones(L); -ones(L)]) 
     n_iters = 50
-    Avec_pref = zeros(ComplexF64, Nm) # initialize array of some prefactors   
+    Avec_pref = zeros(ComplexF64, Na) # initialize array of some prefactors   
     chebyshev_moments = OffsetArray(zeros(ComplexF64, 3, 3, length(qs), P), 1:3, 1:3, 1:length(qs), 0:P-1)
     Sαβs = zeros(ComplexF64,3,3,length(qs),length(ωlist))
     for qidx in CartesianIndices(qs)
         q = qs[qidx]
         q_reshaped = to_reshaped_rlu(swt.sys, q)
-        u = zeros(ComplexF64,3,2*nmodes)
+        u = zeros(ComplexF64, 3, 2L)
         lo, hi = eigbounds(swt, q_reshaped, n_iters; extend=0.25) # calculate bounds
          # Upper bound for generalized eigenvalues. Factor of 2 accounts for
          # implicit rescaling of Hamiltonian.
         γ = max(abs(lo), abs(hi))
 
         # u(q) calculation)
-        for site in 1:Nm
+        for i in 1:Na
             # note that d is the chemical coordinates
-            chemical_coor = sys.crystal.positions[site] # find chemical coords
+            chemical_coor = sys.crystal.positions[i] # find chemical coords
             phase = exp(2*im * π  * dot(q_reshaped, chemical_coor)) # calculate phase
-            Avec_pref[site] = sqrt_Nm_inv * phase  # define the prefactor of the tS matrices
+            Avec_pref[i] = sqrt_Nm_inv * phase  # define the prefactor of the tS matrices
         end
 
         # calculate u(q)
         if sys.mode == :SUN
-            for site=1:Nm
-                @views tS_μ = data.observable_operators[:, :, :, site]*Avec_pref[site] 
-                for μ=1:3
-                    for j=2:N
-                        u[μ,(j-1)+(site-1)*(N-1)] = tS_μ[j,1,μ] 
-                        u[μ,(N-1)*Nm+(j-1)+(site-1)*(N-1)] = tS_μ[1,j,μ]
+            N = sys.Ns[1]
+            for i in 1:Na
+                @views tS_μ = Avec_pref[i] * data.observable_operators[:, :, :, i]
+                for μ in 1:3
+                    for j in 2:N
+                        u[μ,(j-1)+(i-1)*(N-1)] = tS_μ[j,1,μ] 
+                        u[μ,(N-1)*Na+(j-1)+(i-1)*(N-1)] = tS_μ[1,j,μ]
                     end
                 end
             end
         else
             @assert sys.mode in (:dipole, :dipole_large_S)
-            for site in 1:Nm
-                R = data.local_rotations[site]
-                u[1,site]= Avec_pref[site] * sqrt_halfS * (R[1,1] + 1im * R[1,2])  
-                u[1,site+nmodes] = Avec_pref[site] * sqrt_halfS * (R[1,1] - 1im * R[1,2])
-                u[2,site]= Avec_pref[site] * sqrt_halfS * (R[2,1] + 1im * R[2,2]) 
-                u[2,site+nmodes] = Avec_pref[site] * sqrt_halfS * (R[2,1] - 1im * R[2,2]) 
-                u[3,site]= Avec_pref[site] * sqrt_halfS * (R[3,1] + 1im * R[3,2]) 
-                u[3,site+nmodes] = Avec_pref[site] * sqrt_halfS * (R[3,1] - 1im * R[3,2]) 
+            for i in 1:Na
+                sqrt_halfS = data.sqrtS[i]/sqrt(2)
+                R = data.local_rotations[i]
+                u[1,i]   = R[1,1] + 1im * R[1,2]
+                u[1,i+L] = R[1,1] - 1im * R[1,2]
+                u[2,i]   = R[2,1] + 1im * R[2,2]
+                u[2,i+L] = R[2,1] - 1im * R[2,2]
+                u[3,i]   = R[3,1] + 1im * R[3,2]
+                u[3,i+L] = R[3,1] - 1im * R[3,2]
+                view(u, :, i) .*= Avec_pref[i] * sqrt_halfS
+                view(u, :, i+L) .*= Avec_pref[i] * sqrt_halfS
             end
         end
 
         for β in 1:3
-            α0 = zeros(ComplexF64,2*nmodes)
-            α1 = zeros(ComplexF64,2*nmodes)
+            α0 = zeros(ComplexF64,2L)
+            α1 = zeros(ComplexF64,2L)
             mul!(α0, Ĩ, u[β,:]) # calculate α0
             multiply_by_hamiltonian!(swt, α1, α0, q_reshaped)
             mul!(α1, Ĩ, α1/γ)
@@ -125,7 +125,7 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
                 chebyshev_moments[α,β,qidx,1] = dot(u[α,:], α1) #removed symmetrization
             end
             for m in 2:P-1
-                αnew = zeros(ComplexF64, 2*nmodes)
+                αnew = zeros(ComplexF64, 2L)
                 multiply_by_hamiltonian!(swt, αnew, α1, q_reshaped)
                 mul!(αnew, Ĩ, αnew/γ)
                 @. αnew = 2*αnew - α0

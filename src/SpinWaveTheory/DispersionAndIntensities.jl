@@ -150,7 +150,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
 
-    # Number of atoms in magnetic cell
+    # Number of (magnetic) atoms in magnetic cell
     @assert sys.latsize == (1,1,1)
     Na = length(eachsite(sys))
     # Number of chemical cells in magnetic cell
@@ -190,7 +190,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
         Avec = zeros(ComplexF64, Nobs)
 
         # Fill `intensity` array
-        for band = 1:L
+        for band in 1:L
             fill!(Avec, 0)
             if sys.mode == :SUN
                 data = swt.data::SWTDataSUN
