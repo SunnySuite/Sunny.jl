@@ -148,7 +148,7 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, broadening;
         lo, hi = Sunny.eigbounds_MF(swt, q_reshaped, n_iters; extend=0.25) # calculate bounds
          # Upper bound for generalized eigenvalues. Factor of 2 accounts for
          # implicit rescaling of Hamiltonian.
-        γ = 2max(abs(lo), abs(hi))
+        γ = max(abs(lo), abs(hi))
 
         # u(q) calculation)
         for site in 1:Nm
@@ -187,7 +187,7 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, broadening;
             α1 = zeros(ComplexF64,2*nmodes)
             mul!(α0, Ĩ, u[β,:]) # calculate α0
             multiply_by_hamiltonian!(swt, α1, α0, q_reshaped)
-            mul!(α1, Ĩ, 2α1/γ)
+            mul!(α1, Ĩ, α1/γ)
             for α in 1:3
                 chebyshev_moments[α,β,qidx,0] = dot(u[α,:], α0) #removed symmetrization
                 chebyshev_moments[α,β,qidx,1] = dot(u[α,:], α1) #removed symmetrization
@@ -195,7 +195,7 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, broadening;
             for m in 2:P-1
                 αnew = zeros(ComplexF64, 2*nmodes)
                 multiply_by_hamiltonian!(swt, αnew, α1, q_reshaped)
-                mul!(αnew, Ĩ, 2αnew/γ)
+                mul!(αnew, Ĩ, αnew/γ)
                 @. αnew = 2*αnew - α0
                 for α in 1:3
                     chebyshev_moments[α, β, qidx, m] = dot(u[α,:], αnew) #removed symmetrization
