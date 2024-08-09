@@ -65,11 +65,9 @@ end
     P = 1000
     kT = 0.01
     σ = 0.05
-    broadening = (ω, x, σ) ->  (1/π) * (σ / ((x - ω)^2 + σ^2))
-    kernel = nothing # "jackson"
-    regularization_style = :cubic
+    broadening = lorentzian(fwhm=2σ)
     
-    res1 = Sunny.kpm_intensities(swt_dip, [q], energies, P, kT, σ, broadening; kernel, regularization_style)
+    res1 = Sunny.kpm_intensities(swt_dip, [q], energies, P, kT, σ, broadening)
     res2 = intensities(swt_dip, [q]; energies, kernel=lorentzian(fwhm=2σ))
     
     @test isapprox(res1[1,:], res2.data[:,1], atol=1e-3)

@@ -1,7 +1,7 @@
 using Sunny, GLMakie, LinearAlgebra
 
 # Make the internal functions public for the purposes of illustration
-import Sunny: cheb_coefs, cheb_eval, jackson_kernel
+import Sunny: cheb_coefs, cheb_eval
 
 # Specify the function we wish to approximate and related parameters
 bose_reg(x, a) = 1/((2cosh(x/a))^a - 1)  # "Regularized" Bose function
@@ -19,11 +19,6 @@ x = 0.2
 y_exact = bose_reg(x, a)
 y_approx = cheb_eval(x, bounds, coefs)
 
-# If we wish to apply the Jackson kernel to the coefficients, this may be passed
-# as an additional argument.
-kernel = jackson_kernel(npolys)
-y_approx = cheb_eval(x, bounds, coefs; kernel)
-
 # Consider now an example of a function not defined on the interval [-1, 1].
 # We'll set the domain of our function to the interval [0, 10].
 bounds = (0.0, 10.0)
@@ -32,7 +27,7 @@ bounds = (0.0, 10.0)
 somefunc(x) = 0.5exp(-0.5((x - 2.0)/0.05)^2) + exp(-0.5((x - 7.0)/0.1)^2)
 
 # Calculate the coefficients
-coefs = cheb_coefs(npolys, nsamps, somefunc, bounds) 
+coefs = cheb_coefs(npolys, nsamps, somefunc, bounds)
 
 # Construct the reference and approximation
 xs_ref = range(bounds[1], bounds[2], 2000)
@@ -61,7 +56,8 @@ begin
     # Calculate the coefficients
     a = 0.05
     bounds = (-1, 1)
-    coefs = cheb_coefs(npolys, nsamps, x -> bose_reg(x, a), bounds)
+    coefs = cheb_coefs(maxN, nsamps, x -> bose_reg(x, a), bounds; jackson_kernel=false)
+    coefs_jackson = cheb_coefs(maxN, nsamps, x -> bose_reg(x, a), bounds; jackson_kernel=true)
 
     # Create reference (evaluate original function on 1000 points)
     xs_ref = range(bounds[1], bounds[2], 1000) 
@@ -69,10 +65,8 @@ begin
 
     # Reconstruct from coefficients, without and with Jackson kernel
     xs_rec = range(bounds[1], bounds[2], 200)  # Points to evaluate reconstruction
-    kernel = jackson_kernel(maxN)  # Coefficient weightings from Jackson kernel
-
     rec = map(x -> cheb_eval(x, bounds, coefs; maxN), xs_rec)
-    jac = map(x -> cheb_eval(x, bounds, coefs; kernel, maxN), xs_rec)
+    jac = map(x -> cheb_eval(x, bounds, coefs_jackson; maxN), xs_rec)
 
     # Plot results
     p = lines(xs_ref, ref; color=(:black, 0.6), label="Reference")
@@ -107,16 +101,13 @@ begin
     # Plot original function and reconstruction in each case
     for (n, (maxN, coefs, a)) in enumerate(zip(numtokeep, stored_coefs, as))
         # Reconstruct functions from saved coefficients -- used saved number of coefficients
-        kernel = jackson_kernel(maxN)
         rec = map( x -> cheb_eval(x, bounds, coefs; maxN), xs_rec)
-        jac = map( x -> cheb_eval(x, bounds, coefs; kernel, maxN), xs_rec)
 
         # Plot
         ax = Axis(fig[2,n]; ylabel = n == 1 ? L"f(x)" : "", xlabel=L"x")
         ref = map(x -> bose_reg(x, a), xs_ref) 
         lines!(ax, xs_ref, ref; color=(:black, 0.6), label="Reference")
         scatter!(ax, xs_rec, rec; marker=:circle, markersize=5.0, color=:orange, label="Reconstruction")
-        scatter!(ax, xs_rec, jac; marker=:cross, markersize=5.0, color=:magenta, label="Reconstruction (Jackson)")
         (n == 3) && Legend(fig[2,4], ax)
     end
 

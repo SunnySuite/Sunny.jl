@@ -36,15 +36,6 @@ function regularization_function(ω,σ)
     end
 end
 
-function srf(ω,σ)
-    if -σ ≤ ω ≤ σ
-        return (3(ω ./σ).^4 .- 2(ω ./σ).^6)
-    else
-        return 1.0
-    end
-end
-
-
 
 """
     get_all_coefficients(M, ωs, broadening, σ, kT,γ)  
@@ -57,64 +48,20 @@ eigenvalue used to rescale the spectrum to lie on the interval [-1,1].
 Regularization is treated using a cubic cutoff function and the negative
 eigenvalues are zeroed out.
 """
-function get_all_coefficients(M, ωs, broadening, σ, kT,γ;η=1.0, regularization_style)
-    f = if regularization_style == :cubic
-      (ω,x) -> regularization_function(γ*x,η*σ) * broadening(ω, x*γ, σ) * (1 + bose_function(kT, x*γ))
-    elseif regularization_style == :tanh
-      (ω,x) -> tanh((γ*x/(η*σ))^2) * broadening(ω, x*γ, σ) * (1 + bose_function(kT, x*γ))
-    elseif regularization_style == :none
-      (ω,x) -> broadening(ω, x*γ, σ) * (1 + bose_function(kT, x*γ))
-    elseif regularization_style == :susceptibility
-      (ω,x) -> broadening(ω, x*γ, σ)
-    elseif regularization_style == :srf
-      (ω,x) -> srf(γ*x,η*σ) * broadening(ω, x*γ, σ) * (1 + bose_function(kT, x*γ))
-    end
+function get_all_coefficients(M, ωs, broadening, σ, kT, γ; η=1.0)
+    f(ω,x) = regularization_function(γ*x,η*σ) * broadening(ω, x*γ) * (1 + bose_function(kT, x*γ))
+
     output = OffsetArray(zeros(M, length(ωs)), 0:M-1, 1:length(ωs))
     for i in eachindex(ωs)
         output[:, i] = cheb_coefs(M, 2M, x -> f(ωs[i], x), (-1, 1))
     end
+
     return output
 end
 
 
 """
-    get_all_coefficients_legacy(M, ωs, broadening, σ, kT,γ)  
-
-Retrieves the Chebyshev coefficients up to index, M for a user-defined
-lineshape. A numerical regularization is applied to treat the divergence of the
-dynamical correlation function at small energy. Here, σ² represents an energy
-cutoff scale which should be related to the energy resolution. γ is the maximum
-eigenvalue used to rescale the spectrum to lie on the interval [-1,1].
-Regularization is treated using a tanh cutoff function and the negative
-eigenvalues are not zeroed out.
-"""
-function get_all_coefficients_legacy(M, ωs, broadening, σ, kT,γ)
-    f(ω, x) = tanh((x/σ)^2) * broadening(ω, x*γ, σ) * (1 + bose_function(kT, x))
-    output = OffsetArray(zeros(M, length(ωs)), 0:M-1, 1:length(ωs))
-    for i in eachindex(ωs)
-        output[:, i] = cheb_coefs(M, 2M, x -> f(ωs[i], x), (-1, 1))
-    end
-    return output
-end
-
-"""
-    apply_kernel(offset_array, kernel, M)
-
-Applies the Jackson kernel (defined in Chebyshev.jl) to an OffsetArray. The
-Jackson kernel damps the coefficients of the Chebyshev expansion to reduce
-"Gibbs oscillations" or "ringing" -- numerical artifacts present due to the
-truncation offset_array the Chebyshev series. It should be noted that employing
-the Jackson kernel comes at a cost to the energy resolution.
-"""
-
-#  
-function apply_kernel(offset_array, kernel, M)
-    kernel === "jackson" ? offset_array .= offset_array .* jackson_kernel(M) : 
-    return offset_array
-end
-
-"""
-    kpm_dssf(swt::SpinWaveTheory, qs,ωlist,P::Int64,kT,σ,broadening; kernel)
+    kpm_dssf(swt::SpinWaveTheory, qs,ωlist,P::Int64,kT,σ,broadening)
 
 Calculated the Dynamical Spin Structure Factor (DSSF) using the Kernel Polynomial Method (KPM). Requires input in the form of a 
 SpinWaveTheory which contains System information and the rotated spin matrices. The calculation is carried out at each wavevectors
@@ -123,7 +70,7 @@ defined function, broadening. kT is required for the calcualation of the bose fu
 defines the low energy cutoff σ². There is a keyword argument, kernel, which speficies a damping kernel. 
 """
  
-function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, broadening; kernel, regularization_style)
+function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
     # P is the max Chebyshyev coefficient
     (; sys, data) = swt
     qs = Vec3.(qs)
@@ -131,11 +78,9 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, broadening;
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N=Nf+1
     nmodes = Nf*Nm
-    M = sys.mode == :SUN ? 1 : (Ns-1) # scaling factor (=1) if in the fundamental representation
-    sqrt_M = √M #define prefactors
-    sqrt_Nm_inv = 1.0 / √Nm #define prefactors
+    sqrt_Nm_inv = 1.0 / √Nm
     S = (Ns-1) / 2
-    sqrt_halfS  = √(S/2) #define prefactors   
+    sqrt_halfS  = √(S/2)
     Ĩ = Diagonal([ones(nmodes); -ones(nmodes)]) 
     n_iters = 50
     Avec_pref = zeros(ComplexF64, Nm) # initialize array of some prefactors   
@@ -203,8 +148,9 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, broadening;
                 (α1, α0) = (αnew, α1)
             end
         end
-        ωdep = get_all_coefficients(P, ωlist, broadening, σ, kT, γ; regularization_style)
-        apply_kernel(ωdep, kernel, P)
+
+        ωdep = get_all_coefficients(P, ωlist, kernel, σ, kT, γ)
+
         for w in eachindex(ωlist)
             for α in 1:3, β in 1:3
                 Sαβs[α, β, qidx, w] = sum(chebyshev_moments[α, β, qidx,:] .*  ωdep[:,w])
@@ -215,7 +161,7 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, broadening;
 end
 
 """
-    kpm_intensities(swt::SpinWaveTheory, qs,ωlist,P::Int64,kT,σ,broadening; kernel)
+    kpm_intensities(swt::SpinWaveTheory, qs, energies, P::Int64, kT, σ, broadening)
 
 Calculated the neutron scattering intensity using the Kernel Polynomial Method (KPM). Calls KPMddsf and so takes the same parameters.
 Requires input in the form of a SpinWaveTheory which contains System information and the rotated spin matrices. The calculation is 
@@ -224,10 +170,10 @@ lineshape is specified by the user-defined function, broadening. kT is required 
 the width of the lineshape and defines the low energy cutoff σ². There is an optional keyword argument, kernel, which speficies a 
 damping kernel. The default is to include no damping.  
 """
-function kpm_intensities(swt::SpinWaveTheory, qs, ωvals,P::Int64,kT,σ,broadening; kernel = nothing,regularization_style)
+function kpm_intensities(swt::SpinWaveTheory, qs, ωvals, P::Int64, kT, σ, kernel)
     (; sys) = swt
     qs = Vec3.(qs)
-    Sαβs = kpm_dssf(swt, qs, ωvals, P, kT, σ, broadening; kernel, regularization_style)
+    Sαβs = kpm_dssf(swt, qs, ωvals, P, kT, σ, kernel)
     num_ω = length(ωvals)
     is = zeros(Float64, size(qs)..., num_ω)
     for qidx in CartesianIndices(qs)
@@ -281,3 +227,32 @@ function Run_Recurrence_fast(swt,q_reshaped,γ,u,nmodes,chebyshev_moments,M)
     end
 end
 =#
+
+
+struct SpinWaveTheoryKPM
+    swt :: SpinWaveTheory
+    P :: Int
+    σ :: Float64
+
+    function SpinWaveTheoryKPM(sys::System; P::Int, σ::Float64, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
+        return new(SpinWaveTheory(sys; measure, regularization), P, σ)
+    end
+end
+
+
+function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0.0)
+    (; swt, P, σ) = swt_kpm
+    qpts = convert(AbstractQPoints, qpts)
+    @assert size(data) == (length(energies), length(qpts.qs))
+    @assert eltype(data) == eltype(swt.measure)
+
+    kpm_intensities(swt, qpts.qs, energies, P, kT, σ, kernel)
+    
+    return BroadenedIntensities(bands.crystal, bands.qpts, collect(energies), data)
+end
+
+function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0.0)
+    qpts = convert(AbstractQPoints, qpts)
+    data = zeros(eltype(swt_kpm.swt.measure), length(energies), length(qpts.qs))
+    return intensities!(data, swt_kpm, qpts; energies, kernel, formfactors, kT)
+end
