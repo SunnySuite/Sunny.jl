@@ -1,105 +1,3 @@
-#=
-function lanczos_aux!(αs, βs, buf, A, niters)
-    v, vprev, w = view(buf,:,1), view(buf,:,2), view(buf,:,3)
-    randn!(vprev)
-    normalize!(vprev)
-    mul!(w, A, vprev)
-    αs[1] = real(w⋅vprev)
-    @. w = w - αs[1]*vprev
-
-    for j in 2:niters
-        βs[j-1] = norm(w)
-        iszero(βs[j-1]) && return
-        @. v = w/βs[j-1]
-        mul!(w, A, v)
-        αs[j] = real(w⋅v)
-        @. w = w - αs[j]*v - βs[j-1]*vprev
-        v, vprev = vprev, v
-    end
-
-    return nothing
-end
-
-function lanczos_legacy(A, niters)
-    @assert ishermitian(A) "Matrix must be Hermitian"
-    N = size(A, 1)
-
-    αs = zeros(Float64, niters)    # Main diagonal 
-    βs = zeros(Float64, niters-1)  # Off diagonal
-    buf = zeros(ComplexF64, N, 3)  # Vector buffer -- don't technically need 3 columns, but more legible this way 
-
-    lanczos_aux!(αs, βs, buf, A, niters)  # Call non-allocating internal Lanczos function
-    return SymTridiagonal(αs, βs)
-end
-=#
-
-####
-
-function lanczos_QH_aux!(αs, βs, buf, A, niters)
-    v, vprev, w = view(buf,:,1), view(buf,:,2), view(buf,:,3)
-    randn!(vprev)
-    L = Int(size(A, 2) / 2)
-    mul!(w, A, vprev)
-    b0 = sqrt(Ĩ_dot_3(vprev, w, L))
-    vprev = vprev/b0
-    w = w/b0
-    αs[1] = Ĩ_dot_3(w, w, L)
-    @. w = w - αs[1]*vprev
-    for j in 2:niters
-        @. v = w
-        mul!(w, A, v)
-        βs[j-1] = sqrt(Ĩ_dot_3(v, w, L)) # maybe v?
-        iszero(βs[j-1]) && return
-        @. v = v/βs[j-1]
-        @. w = w/βs[j-1]
-        αs[j] = Ĩ_dot_3(w, w,L)
-        @. w = w - αs[j]*v - βs[j-1]*vprev
-        v, vprev = vprev, v
-    end
-    return nothing
-end
-
-
-"""
-    lanczos(A, niters)
-
-Takes an `N`x`N`` quasi-Hermitian matrix `A` and returns a real, symmetric,
-tridiagonal matrix `T`. `niters` sets the number of iterations used by the
-Lanczos algorithm.
-
-References:
-- [H. A. van der Vorst, Math. Comp. 39, 559-561 (1982)](https://doi.org/10.1090/s0025-5718-1982-0669648-0).
-- [M. Grüning, A. Marini, X. Gonze, Comput. Mater. Sci. 50, 2148-2156 (2011)](https://doi.org/10.1016/j.commatsci.2011.02.021).
-
-"""
-function lanczos(A, niters)
-    L = Int(size(A, 1)/2)
-    N = 2L
-    Ĩ = Diagonal([ones(L); -ones(L)])
-    @assert Ĩ * A == A' * Ĩ  "Matrix must be quasi-Hermitian"
-    αs = zeros(Float64, niters)    # Main diagonal 
-    βs = zeros(Float64, niters-1)  # Off diagonal
-    buf = zeros(ComplexF64, N, 3)  # Vector buffer -- don't technically need 3 columns, but more legible this way
-    lanczos_QH_aux!(αs, βs, buf, A, niters)  # Call non-allocating internal Lanczos function
-    return SymTridiagonal(αs, βs)
-end
-
-"""
-    eigbounds(A, niters; extend=0.0)
-
-Returns estimates of the extremal eigenvalues of Hermitian matrix `A` using the
-Lanczos algorithm. `niters` should be given a value smaller than the dimension
-of `A`. `extend` specifies how much to shift the upper and lower bounds as a
-percentage of the total scale of the estimated eigenvalues.
-"""
-function eigbounds(A, niters; extend=0.5)
-    lo, hi = lanczos(A, niters) |> eigvals |> xs -> (first(xs), last(xs))
-    slack = extend*(hi-lo)
-    return lo-slack, hi+slack
-end
-
-###
-
 function multiply_by_hamiltonian!(swt, y, x, q_reshaped)
     x = reshape(x, 1, :)
     y = reshape(y, 1, :)
@@ -112,51 +10,81 @@ function multiply_by_hamiltonian!(swt, y, x, q_reshaped)
 end
 
 
-function Ĩ_dot_3(w, v, L)
-    @views real(dot(w[1:L], v[1:L]) - dot(w[L+1:2L], v[L+1:2L]))
+"""
+    parallel_lanczos!(buf1, buf2, buf3; niters, mat_vec_mul!, inner_product!)
+
+Parallelized Lanczos. Takes functions for matrix-vector multiplication and inner
+products. Returns a list of tridiagonal matrices. `niters` sets the number of
+iterations used by the Lanczos algorithm.
+
+References:
+- [H. A. van der Vorst, Math. Comp. 39, 559-561
+  (1982)](https://doi.org/10.1090/s0025-5718-1982-0669648-0).
+- [M. Grüning, A. Marini, X. Gonze, Comput. Mater. Sci. 50, 2148-2156
+  (2011)](https://doi.org/10.1016/j.commatsci.2011.02.021).
+"""
+function parallel_lanczos!(vprev, v, w;  niters, mat_vec_mul!, inner_product)
+    # ...
 end
 
-function lanczos_QH_MF_aux!(αs, βs, buf, swt, q_reshaped, niters)
-    (v, vprev, w) = [view(buf, :, i) for i in 1:3]
-    randn!(vprev)
+
+function lanczos(swt, q_reshaped, niters)
     L = nbands(swt)
-    Ĩ = Diagonal([ones(L); -ones(L)])
-    multiply_by_hamiltonian!(swt, w, vprev, q_reshaped)
-    mul!(w, Ĩ, 1w)
-    b0 = sqrt(Ĩ_dot_3(vprev, w, L))
-    vprev = vprev/b0
-    w = w/b0
-    αs[1] = Ĩ_dot_3(w, w, L)
+
+    function inner_product(w, v)
+        return @views real(dot(w[1:L], v[1:L]) - dot(w[L+1:2L], v[L+1:2L]))
+    end
+
+    function mat_vec_mul!(w, v, q_reshaped)
+        multiply_by_hamiltonian!(swt, w, v, q_reshaped)
+        @views w[L+1:2L] .*= -1
+    end
+
+    αs = zeros(Float64, niters)   # Diagonal part
+    βs = zeros(Float64, niters-1) # Off-diagonal part
+
+    vprev = randn(ComplexF64, 2L)
+    v = zeros(ComplexF64, 2L)
+    w = zeros(ComplexF64, 2L)
+
+    mat_vec_mul!(w, vprev, q_reshaped)
+    b0 = sqrt(inner_product(vprev, w))
+    vprev = vprev / b0
+    w = w / b0
+    αs[1] = inner_product(w, w)
     @. w = w - αs[1]*vprev
     for j in 2:niters
         @. v = w
-        multiply_by_hamiltonian!(swt, w, v, q_reshaped)
-        mul!(w,Ĩ,1w)
-        βs[j-1] = sqrt(Ĩ_dot_3(v, w, L)) # maybe v?
-        iszero(βs[j-1]) && return
-        @. v = v/βs[j-1]
-        @. w = w/βs[j-1]
-        αs[j] = Ĩ_dot_3(w, w, L)
+        mat_vec_mul!(w, v, q_reshaped)
+        βs[j-1] = sqrt(inner_product(v, w)) # maybe v?
+        if abs(βs[j-1]) < 1e-12
+            # TODO: Terminate early if all β are small
+            βs[j-1] = 0
+            @. v = w = 0
+        else
+            @. v = v / βs[j-1]
+            @. w = w / βs[j-1]
+        end
+        αs[j] = inner_product(w, w)
         @. w = w - αs[j]*v - βs[j-1]*vprev
         v, vprev = vprev, v
     end
-    return nothing
-end
 
-function lanczos_MF(swt, q_reshaped, niters)
-    nmodes = Sunny.nbands(swt)
-    αs = zeros(Float64, niters)    # Main diagonal 
-    βs = zeros(Float64, niters-1)  # Off diagonal
-    buf = zeros(ComplexF64, 2nmodes, 3)  # Vector buffer -- don't technically need 3 columns, but more legible this way
-    lanczos_QH_MF_aux!(αs, βs, buf, swt, q_reshaped, niters)
     return SymTridiagonal(αs, βs)
 end
 
 
-# Matrix free implementation of QH Lanczos on Hamiltonian
-function eigbounds_MF(swt, q_reshaped, niters; extend)
-    tridiag = lanczos_MF(swt, Vec3(q_reshaped), niters)
-    lo, hi = extrema(eigvals(tridiag))
+"""
+    eigbounds(A, niters; extend=0.0)
+
+Returns estimates of the extremal eigenvalues of Hermitian matrix `A` using the
+Lanczos algorithm. `niters` should be given a value smaller than the dimension
+of `A`. `extend` specifies how much to shift the upper and lower bounds as a
+percentage of the total scale of the estimated eigenvalues.
+"""
+function eigbounds(swt, q_reshaped, niters; extend)
+    tridiag = lanczos(swt, Vec3(q_reshaped), niters)
+    lo, hi = extrema(eigvals!(tridiag)) # TODO: pass irange=1 and irange=2L
     slack = extend*(hi-lo)
     return lo-slack, hi+slack
 end

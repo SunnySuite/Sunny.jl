@@ -22,8 +22,8 @@
         q = [0.8, 0.6, 0.1]
         res = intensities_bands(swt, [q])
         energies, _ = excitations(swt, q)
-        Sunny.eigbounds_MF(swt, q, 20; extend=0.0)
-        @test all(extrema(energies) .≈ Sunny.eigbounds_MF(swt, q, 30; extend=0.0))
+        Sunny.eigbounds(swt, q, 20; extend=0.0)
+        @test all(extrema(energies) .≈ Sunny.eigbounds(swt, q, 30; extend=0.0))
     end
 
 end
@@ -57,7 +57,7 @@ end
     extrema(energies)
     
     q_reshaped = Sunny.to_reshaped_rlu(sys_swt_dip, q)
-    bounds = Sunny.eigbounds_MF(swt_dip, q_reshaped, 50; extend=0.0)
+    bounds = Sunny.eigbounds(swt_dip, q_reshaped, 50; extend=0.0)
     
     @test all(extrema(energies) .≈ bounds)
     

@@ -126,7 +126,7 @@ defines the low energy cutoff σ². There is a keyword argument, kernel, which s
 function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, broadening; kernel, regularization_style)
     # P is the max Chebyshyev coefficient
     (; sys, data) = swt
-    qs = Sunny.Vec3.(qs)
+    qs = Vec3.(qs)
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     N=Nf+1
@@ -143,9 +143,9 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, broadening;
     Sαβs = zeros(ComplexF64,3,3,length(qs),length(ωlist))
     for qidx in CartesianIndices(qs)
         q = qs[qidx]
-        q_reshaped = Sunny.to_reshaped_rlu(swt.sys, q)
+        q_reshaped = to_reshaped_rlu(swt.sys, q)
         u = zeros(ComplexF64,3,2*nmodes)
-        lo, hi = Sunny.eigbounds_MF(swt, q_reshaped, n_iters; extend=0.25) # calculate bounds
+        lo, hi = eigbounds(swt, q_reshaped, n_iters; extend=0.25) # calculate bounds
          # Upper bound for generalized eigenvalues. Factor of 2 accounts for
          # implicit rescaling of Hamiltonian.
         γ = max(abs(lo), abs(hi))
@@ -226,14 +226,14 @@ damping kernel. The default is to include no damping.
 """
 function kpm_intensities(swt::SpinWaveTheory, qs, ωvals,P::Int64,kT,σ,broadening; kernel = nothing,regularization_style)
     (; sys) = swt
-    qs = Sunny.Vec3.(qs)
+    qs = Vec3.(qs)
     Sαβs = kpm_dssf(swt, qs, ωvals, P, kT, σ, broadening; kernel, regularization_style)
     num_ω = length(ωvals)
     is = zeros(Float64, size(qs)..., num_ω)
     for qidx in CartesianIndices(qs)
-        q_reshaped = Sunny.to_reshaped_rlu(sys, qs[qidx])
+        q_reshaped = to_reshaped_rlu(sys, qs[qidx])
         q_absolute = sys.crystal.recipvecs * q_reshaped
-        polar_mat = Sunny.polarization_matrix(q_absolute)
+        polar_mat = polarization_matrix(q_absolute)
         is[qidx, :] = real(sum(polar_mat .* Sαβs[:,:,qidx,:],dims=(1,2)))
     end
     return is
