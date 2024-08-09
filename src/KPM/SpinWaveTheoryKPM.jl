@@ -16,7 +16,7 @@ struct SpinWaveTheoryKPM
     P :: Int
     σ :: Float64
 
-    function SpinWaveTheoryKPM(sys::System; P::Int, σ::Float64, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
+    function SpinWaveTheoryKPM(sys::System; measure::Union{Nothing, MeasureSpec}, regularization=1e-8, P::Int, σ::Float64)
         return new(SpinWaveTheory(sys; measure, regularization), P, σ)
     end
 end

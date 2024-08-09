@@ -97,9 +97,9 @@ include("Spiral/SpiralEnergy.jl")
 include("Spiral/SpiralSWT.jl")
 export SpiralSpinWaveTheory, spiral_minimize_energy!, spiral_energy, spiral_energy_per_site
 
-include("KPM/KPM.jl")
 include("KPM/Lanczos.jl")
 include("KPM/Chebyshev.jl")
+include("KPM/SpinWaveTheoryKPM.jl")
 export SpinWaveTheoryKPM
 
 include("SampledCorrelations/SampledCorrelations.jl")
