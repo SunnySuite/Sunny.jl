@@ -61,21 +61,22 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
     # P is the max Chebyshyev coefficient
     (; sys, measure) = swt
     qs = Vec3.(qs)
+    Nf = nflavors(swt)
     Na = length(eachsite(sys))
-    L = nbands(swt)
+    L = Nf*Na
     sqrt_Nm_inv = 1.0 / √Na
     Ĩ = Diagonal([ones(L); -ones(L)]) 
     n_iters = 50
     Avec_pref = zeros(ComplexF64, Na) # initialize array of some prefactors
 
     Nobs = size(measure.observables, 1)
+    u = zeros(ComplexF64, Nobs, 2L) # TODO: (Nf, Na, 2, Nobs)
 
     chebyshev_moments = OffsetArray(zeros(ComplexF64, 3, 3, length(qs), P), 1:3, 1:3, 1:length(qs), 0:P-1)
     Sαβs = zeros(ComplexF64,3,3,length(qs),length(ωlist))
     for qidx in CartesianIndices(qs)
         q = qs[qidx]
         q_reshaped = to_reshaped_rlu(swt.sys, q)
-        u = zeros(ComplexF64, 3, 2L)
         lo, hi = eigbounds(swt, q_reshaped, n_iters; extend=0.25) # calculate bounds
          # Upper bound for generalized eigenvalues. Factor of 2 accounts for
          # implicit rescaling of Hamiltonian.
@@ -91,15 +92,16 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
 
         # calculate u(q)
         if sys.mode == :SUN
+            # u0 = reshape(u, Nobs, Nf, Na, 2)
             data = swt.data::SWTDataSUN
             N = sys.Ns[1]
-            for i in 1:Na
-                @views tS_μ = Avec_pref[i] * data.observable_operators[:, :, :, i]
-                for μ in 1:Nobs
-                    for j in 2:N
-                        u[μ,(j-1)+(i-1)*(N-1)] = tS_μ[j,1,μ] 
-                        u[μ,(N-1)*Na+(j-1)+(i-1)*(N-1)] = tS_μ[1,j,μ]
-                    end
+            for i in 1:Na, μ in 1:Nobs
+                @views O = data.observables_localized[μ, i]
+                for α in 1:Nf
+                    u[μ, α + (i-1)*Nf] = Avec_pref[i] * O[α, N] 
+                    u[μ, α + (i-1)*Nf + L] = Avec_pref[i] * O[N, α]
+                    # u0[μ, α, i, 1] = Avec_pref[i] * O[α, N] 
+                    # u0[μ, α, i, 2] = Avec_pref[i] * O[N, α]
                 end
             end
         else
@@ -109,8 +111,8 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
                 sqrt_halfS = data.sqrtS[i]/sqrt(2)
                 for μ in 1:Nobs
                     O = data.observables_localized[μ, i]
-                    u[μ, i]   = Avec_pref[i] * sqrt_halfS * (O[1] + 1im * O[2])
-                    u[μ, i+L] = Avec_pref[i] * sqrt_halfS * (O[1] - 1im * O[2])
+                    u[μ, i]   = Avec_pref[i] * sqrt_halfS * (O[1] + im*O[2])
+                    u[μ, i+L] = Avec_pref[i] * sqrt_halfS * (O[1] - im*O[2])
                 end
             end
         end
@@ -122,8 +124,8 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
             multiply_by_hamiltonian!(swt, α1, α0, q_reshaped)
             mul!(α1, Ĩ, α1/γ)
             for α in 1:3
-                chebyshev_moments[α,β,qidx,0] = dot(u[α,:], α0) #removed symmetrization
-                chebyshev_moments[α,β,qidx,1] = dot(u[α,:], α1) #removed symmetrization
+                chebyshev_moments[α,β,qidx,0] = dot(u[α, :], α0) #removed symmetrization
+                chebyshev_moments[α,β,qidx,1] = dot(u[α, :], α1) #removed symmetrization
             end
             for m in 2:P-1
                 αnew = zeros(ComplexF64, 2L)
@@ -131,7 +133,7 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
                 mul!(αnew, Ĩ, αnew/γ)
                 @. αnew = 2*αnew - α0
                 for α in 1:3
-                    chebyshev_moments[α, β, qidx, m] = dot(u[α,:], αnew) #removed symmetrization
+                    chebyshev_moments[α, β, qidx, m] = dot(u[α, :], αnew) #removed symmetrization
                 end
                 (α1, α0) = (αnew, α1)
             end
@@ -141,7 +143,7 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
 
         for w in eachindex(ωlist)
             for α in 1:3, β in 1:3
-                Sαβs[α, β, qidx, w] = sum(chebyshev_moments[α, β, qidx,:] .*  ωdep[:,w])
+                Sαβs[α, β, qidx, w] = sum(chebyshev_moments[α, β, qidx, :] .*  ωdep[:, w])
             end
         end 
     end

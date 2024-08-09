@@ -75,10 +75,14 @@ function Base.show(io::IO, ::MIME"text/plain", swt::SpinWaveTheory)
     println(io, "  ", natoms(swt.sys.crystal), " atoms")
 end
 
-function nbands(swt::SpinWaveTheory)
+function nflavors(swt::SpinWaveTheory)
     (; sys) = swt
     nflavors = sys.mode == :SUN ? sys.Ns[1]-1 : 1
-    return nflavors * natoms(sys.crystal)
+end
+
+function nbands(swt::SpinWaveTheory)
+    (; sys) = swt
+    return nflavors(swt) * natoms(sys.crystal)
 end
 
 

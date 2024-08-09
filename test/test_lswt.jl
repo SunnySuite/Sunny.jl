@@ -232,17 +232,17 @@ end
         q = [0.12, 0.23, 0.34]
         
         sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=-1)], :dipole)
+        sys = reshape_supercell(sys, [1 -1 0; 1 1 0; 0 0 1])
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         set_field!(sys, [0, 0, h])
 
         # Numerical
-        sys_swt_dip = reshape_supercell(sys, [1 -1 0; 1 1 0; 0 0 1])
         c₂ = 1 - 1/(2S)
         θ = acos(h / (2S*(4J+D*c₂)))
-        set_dipole!(sys_swt_dip, ( sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (0,0,0)))
-        set_dipole!(sys_swt_dip, (-sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (1,0,0)))
-        swt_dip = SpinWaveTheory(sys_swt_dip; measure=nothing)
+        set_dipole!(sys, ( sin(θ), 0, cos(θ)), position_to_site(sys, (0,0,0)))
+        set_dipole!(sys, (-sin(θ), 0, cos(θ)), position_to_site(sys, (1,0,0)))
+        swt_dip = SpinWaveTheory(sys; measure=nothing)
         ϵq_num = dispersion(swt_dip, [q])
 
         # Analytical
