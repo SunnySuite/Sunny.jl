@@ -1,5 +1,5 @@
-@inline scale(x, bounds) = 2(x-bounds[1])/(bounds[2]-bounds[1]) - 1
-@inline unscale(x, bounds) = (x+1)*(bounds[2]-bounds[1])/2 + bounds[1]
+@inline cheb_scale(x, bounds) = 2(x-bounds[1])/(bounds[2]-bounds[1]) - 1
+@inline cheb_unscale(x, bounds) = (x+1)*(bounds[2]-bounds[1])/2 + bounds[1]
 
 
 # Add FFT planned version of following. Can make fully non-allocating version
@@ -17,7 +17,7 @@ function cheb_coefs(N, Nsamp, func, bounds; jackson_kernel=false)
     out = OffsetArray(zeros(N),  0:N-1)
     for i in 0:Nsamp-1
         x_i = cos((i+0.5)π / Nsamp)
-        buf[i] = func(unscale(x_i, bounds))
+        buf[i] = func(cheb_unscale(x_i, bounds))
     end
     FFTW.r2r!(buf.parent, FFTW.REDFT10)
     for n in 0:N-1
@@ -35,20 +35,18 @@ function cheb_coefs(N, Nsamp, func, bounds; jackson_kernel=false)
     return out
 end
 
-function view_cheb_samps(N, Nsamp, func, bounds)
-    @assert Nsamp >= N
-    xx = OffsetArray(zeros(Nsamp), 0:Nsamp-1) 
-    buf = OffsetArray(zeros(Nsamp), 0:Nsamp-1) 
-    out = OffsetArray(zeros(N),  0:N-1)
-    for i in 0:Nsamp-1
-        x_i = cos((i+0.5)π / Nsamp)
-        xx[i] = unscale(x_i, bounds)
-        buf[i] = func(unscale(x_i, bounds))
-    end
-    xx, buf
-end
-
-
+# function view_cheb_samps(N, Nsamp, func, bounds)
+#     @assert Nsamp >= N
+#     xx = OffsetArray(zeros(Nsamp), 0:Nsamp-1) 
+#     buf = OffsetArray(zeros(Nsamp), 0:Nsamp-1) 
+#     out = OffsetArray(zeros(N),  0:N-1)
+#     for i in 0:Nsamp-1
+#         x_i = cos((i+0.5)π / Nsamp)
+#         xx[i] = cheb_unscale(x_i, bounds)
+#         buf[i] = func(cheb_unscale(x_i, bounds))
+#     end
+#     xx, buf
+# end
 
 
 """
@@ -63,7 +61,7 @@ function cheb_eval(x, bounds, coefs::T; maxN = nothing) where T <: OffsetArray
     @assert ncoefs > 2
     maxN = isnothing(maxN) ? ncoefs : maxN
     @assert maxN <= ncoefs
-    return cheb_eval_aux(scale(x, bounds), coefs, maxN)
+    return cheb_eval_aux(cheb_scale(x, bounds), coefs, maxN)
 end
 
 function cheb_eval_aux(x, c, maxN)
