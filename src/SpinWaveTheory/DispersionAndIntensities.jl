@@ -253,7 +253,7 @@ Traditional spin wave theory calculations are performed with an instance of
 [`SpinWaveTheory`](@ref). One can alternatively use
 [`SpiralSpinWaveTheory`](@ref) to study generalized spiral orders with a single,
 incommensurate-``𝐤`` ordering wavevector. Another alternative is
-`SpinWaveTheoryKPM`, which may be faster than `SpinWaveTheory` for
+[`SpinWaveTheoryKPM`](@ref), which may be faster than `SpinWaveTheory` for
 calculations on large magnetic cells (e.g., to study systems with disorder). In
 spin wave theory, a nonzero temperature `kT` will scale intensities by the
 quantum thermal occupation factor ``|1 + n_B(ω)|`` where ``n_B(ω) = 1 / (exp(βω)
