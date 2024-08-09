@@ -8,19 +8,6 @@
 # large unit cells. 
 
 """
-    bose_function(kT, x)
-
-Returns the Bose occupation factor for energy, x, at temperature kT.
-"""
-function bose_function(kT, x) 
-    r =  1 / (exp(x/kT) - 1)
-    if isinf(r)
-      return 0.
-    end
-    return r
-end
-
-"""
     regularization_function(ω,σ)
 
 Returns a regularization factor to apply to the intensity at low energy according to a smooth approximation to a step function
@@ -38,7 +25,7 @@ end
 
 
 """
-    get_all_coefficients(M, ωs, broadening, σ, kT,γ)  
+    get_all_coefficients(M, ωs, broadening, σ, kT, γ)  
 
 Retrieves the Chebyshev coefficients up to index, M for a user-defined
 lineshape. A numerical regularization is applied to treat the divergence of the
@@ -49,11 +36,11 @@ Regularization is treated using a cubic cutoff function and the negative
 eigenvalues are zeroed out.
 """
 function get_all_coefficients(M, ωs, broadening, σ, kT, γ; η=1.0)
-    f(ω,x) = regularization_function(γ*x,η*σ) * broadening(ω, x*γ) * (1 + bose_function(kT, x*γ))
+    f(ϵ, ω) = regularization_function(ϵ, η*σ) * broadening(ϵ, ω) * thermal_prefactor(kT, ϵ)
 
     output = OffsetArray(zeros(M, length(ωs)), 0:M-1, 1:length(ωs))
     for i in eachindex(ωs)
-        output[:, i] = cheb_coefs(M, 2M, x -> f(ωs[i], x), (-1, 1))
+        output[:, i] = cheb_coefs(M, 2M, x -> f(γ*x, ωs[i]), (-1, 1))
     end
 
     return output
