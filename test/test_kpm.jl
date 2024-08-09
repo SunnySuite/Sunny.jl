@@ -63,11 +63,11 @@ end
         swt_kpm = SpinWaveTheoryKPM(sys; measure, P=2000, σ)
 
         energies = range(0, 6, 100)
-        kT = 0.01
+        kT = 0.2
         kernel = lorentzian(fwhm=2σ)
         formfactors = [FormFactor("Fe2")]
 
-        res1 = intensities(swt, [q]; energies, formfactors, kernel) # , kT)
+        res1 = intensities(swt, [q]; energies, formfactors, kernel, kT)
         res2 = intensities(swt_kpm, [q]; energies, formfactors, kernel, kT)
 
         @test isapprox(res1.data, res2.data, atol=1e-3)
