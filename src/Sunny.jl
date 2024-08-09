@@ -100,6 +100,7 @@ export SpiralSpinWaveTheory, spiral_minimize_energy!, spiral_energy, spiral_ener
 include("KPM/KPM.jl")
 include("KPM/Lanczos.jl")
 include("KPM/Chebyshev.jl")
+export SpinWaveTheoryKPM
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")

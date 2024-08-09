@@ -50,22 +50,26 @@ end
         set_dipole!(sys, ( sin(θ), 0, cos(θ)), position_to_site(sys, (0,0,0)))
         set_dipole!(sys, (-sin(θ), 0, cos(θ)), position_to_site(sys, (1,0,0)))
 
-        swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
+        swt = SpinWaveTheory(sys; measure=nothing)
         energies, T = excitations(swt, q)
         extrema(energies)
         q_reshaped = Sunny.to_reshaped_rlu(sys, q)
         bounds = Sunny.eigbounds(swt, q_reshaped, 50; extend=0.0)
-
         @test all(extrema(energies) .≈ bounds)
 
-        energies = collect(range(0, 6, 100))
-        P = 2000
-        kT = 0.01
+        measure = ssf_perp(sys)
         σ = 0.05
-        broadening = lorentzian(fwhm=2σ)
+        swt = SpinWaveTheory(sys; measure)
+        swt_kpm = SpinWaveTheoryKPM(sys; measure, P=2000, σ)
 
-        res1 = Sunny.kpm_dssf(swt, [q], energies, P, kT, σ, broadening)
-        res2 = intensities(swt, [q]; energies, kernel=lorentzian(fwhm=2σ))
+        energies = range(0, 6, 100)
+        kT = 0.01
+        kernel = lorentzian(fwhm=2σ)
+        formfactors = [FormFactor("Fe2")]
+
+        res1 = intensities(swt, [q]; energies, formfactors, kernel) # , kT)
+        res2 = intensities(swt_kpm, [q]; energies, formfactors, kernel, kT)
+
         @test isapprox(res1.data, res2.data, atol=1e-3)
     end
 end

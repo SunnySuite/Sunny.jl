@@ -1,11 +1,26 @@
-# This code will implement the Kernal Polynomial method to approximate the
-# dynamical spin structure factor (DSSF). The method takes advantage of the fact
-# that the DSSF can be written as a matrix function and hence we can avoid
-# diagonalizing the Hamiltonian. Futher, implementing the KPM we do not even
-# need to explicity construct the matrix function, instead we only need to
-# evaluate the application of the function to some vector. For sparce matrices
-# this is efficient making this approximate approach useful in systems with
-# large unit cells. 
+"""
+    SpinWaveTheoryKPM(sys::System; measure, regularization=1e-8, P::Int, σ::Float64)
+
+An alternative to [`SpinWaveTheory`](@ref) that uses the kernel polynomial
+method (KPM) to perform [`intensities`](@ref) calculations. In traditional spin
+wave theory calculations, one would explicitly diagonalize the dynamical matrix,
+with a cost that scales like ``𝒪(V^3)`` in the volume ``V`` of the magnetic
+cell. KPM instead approximates intensities using polynomial expansion of the
+dynamical matrix. The available energy resolution is inversely proportional to
+the polynomial expansion order `P`. The computational cost of KPM scales like
+``𝒪(V P) + 𝒪(P^2)``, which becomes favorable to direct diagonalization for
+large volumes ``V``.
+"""
+struct SpinWaveTheoryKPM
+    swt :: SpinWaveTheory
+    P :: Int
+    σ :: Float64
+
+    function SpinWaveTheoryKPM(sys::System; P::Int, σ::Float64, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
+        return new(SpinWaveTheory(sys; measure, regularization), P, σ)
+    end
+end
+
 
 # Smoothly approximate a Heaviside step function
 function regularization_function(ω,σ)
@@ -61,16 +76,20 @@ function set_moments!(moments, measure, u, α)
     end
 end
 
-function kpm_dssf(swt::SpinWaveTheory, qpts, energies, P::Int64, kT, σ, kernel)
-    qpts = convert(AbstractQPoints, qpts)
-    qs = qpts.qs
 
-    # P is the max Chebyshyev coefficient
+function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0.0)
+    qpts = convert(AbstractQPoints, qpts)
+
+    (; swt, P, σ) = swt_kpm
     (; sys, measure) = swt
     cryst = orig_crystal(sys)
-    qs = Vec3.(qs)
-    Nf = nflavors(swt)
+
+    @assert eltype(data) == eltype(measure)
+    @assert size(data) == (length(energies), length(qpts.qs))
+
     Na = length(eachsite(sys))
+    Ncells = Na / natoms(cryst)
+    Nf = nflavors(swt)
     L = Nf*Na
     n_iters = 50
     Avec_pref = zeros(ComplexF64, Na) # initialize array of some prefactors
@@ -79,15 +98,17 @@ function kpm_dssf(swt::SpinWaveTheory, qpts, energies, P::Int64, kT, σ, kernel)
     Ncorr = length(measure.corr_pairs)
     moments = zeros(ComplexF64, Ncorr, P)
     corrbuf = zeros(ComplexF64, Ncorr)
-    intensity = zeros(eltype(measure), length(energies), length(qs))
 
-    u = zeros(ComplexF64, Nobs, 2L) # TODO: (Nobs, Nf, Na, 2)
+    # Expand formfactors for symmetry classes to formfactors for all atoms in
+    # crystal
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
+
+    u = zeros(ComplexF64, Nobs, 2L)
     α0 = zeros(ComplexF64, Nobs, 2L)
     α1 = zeros(ComplexF64, Nobs, 2L)
     α2 = zeros(ComplexF64, Nobs, 2L)
 
-    for qidx in CartesianIndices(qs)
-        q = qs[qidx]
+    for (iq, q) in enumerate(qpts.qs)
         q_reshaped = to_reshaped_rlu(sys, q)
         q_global = cryst.recipvecs * q
 
@@ -98,27 +119,27 @@ function kpm_dssf(swt::SpinWaveTheory, qpts, energies, P::Int64, kT, σ, kernel)
         # u(q) calculation)
         for i in 1:Na
             r = sys.crystal.positions[i]
-            phase = exp(2π*im * dot(q_reshaped, r))
-            Avec_pref[i] = phase / √Na
+            Avec_pref[i] = exp(2π*im * dot(q_reshaped, r))
+            Avec_pref[i] *= compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
         if sys.mode == :SUN
-            data = swt.data::SWTDataSUN
+            data_sun = swt.data::SWTDataSUN
             N = sys.Ns[1]
             for i in 1:Na, μ in 1:Nobs
-                @views O = data.observables_localized[μ, i]
+                @views O = data_sun.observables_localized[μ, i]
                 for f in 1:Nf
-                    u[μ, f + (i-1)*Nf]     = Avec_pref[i] * O[f, N] # u[μ, f, i, 1]
-                    u[μ, f + (i-1)*Nf + L] = Avec_pref[i] * O[N, f] # u[μ, f, i, 2]
+                    u[μ, f + (i-1)*Nf]     = Avec_pref[i] * O[f, N]
+                    u[μ, f + (i-1)*Nf + L] = Avec_pref[i] * O[N, f]
                 end
             end
         else
             @assert sys.mode in (:dipole, :dipole_large_S)
-            data = swt.data::SWTDataDipole
+            data_dip = swt.data::SWTDataDipole
             for i in 1:Na
-                sqrt_halfS = data.sqrtS[i]/sqrt(2)
+                sqrt_halfS = data_dip.sqrtS[i]/sqrt(2)
                 for μ in 1:Nobs
-                    O = data.observables_localized[μ, i]
+                    O = data_dip.observables_localized[μ, i]
                     u[μ, i]   = Avec_pref[i] * sqrt_halfS * (O[1] + im*O[2])
                     u[μ, i+L] = Avec_pref[i] * sqrt_halfS * (O[1] - im*O[2])
                 end
@@ -143,35 +164,13 @@ function kpm_dssf(swt::SpinWaveTheory, qpts, energies, P::Int64, kT, σ, kernel)
 
         for iω in eachindex(energies)
             for i in 1:Ncorr
-                corrbuf[i] = dot(view(ωdep, :, iω), view(moments, i, :))
+                corrbuf[i] = dot(view(ωdep, :, iω), view(moments, i, :)) / Ncells
             end
-            intensity[iω, qidx] = measure.combiner(q_global, corrbuf)
+            data[iω, iq] = measure.combiner(q_global, corrbuf)
         end
     end
 
-    return BroadenedIntensities(cryst, qpts, energies, intensity)
-end
-
-struct SpinWaveTheoryKPM
-    swt :: SpinWaveTheory
-    P :: Int
-    σ :: Float64
-
-    function SpinWaveTheoryKPM(sys::System; P::Int, σ::Float64, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
-        return new(SpinWaveTheory(sys; measure, regularization), P, σ)
-    end
-end
-
-
-function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0.0)
-    (; swt, P, σ) = swt_kpm
-    qpts = convert(AbstractQPoints, qpts)
-    @assert size(data) == (length(energies), length(qpts.qs))
-    @assert eltype(data) == eltype(swt.measure)
-
-    kpm_intensities(swt, qpts.qs, energies, P, kT, σ, kernel)
-    
-    return BroadenedIntensities(bands.crystal, bands.qpts, collect(energies), data)
+    return BroadenedIntensities(cryst, qpts, collect(energies), data)
 end
 
 function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0.0)
