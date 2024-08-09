@@ -7,12 +7,7 @@
 # this is efficient making this approximate approach useful in systems with
 # large unit cells. 
 
-"""
-    regularization_function(ω,σ)
-
-Returns a regularization factor to apply to the intensity at low energy according to a smooth approximation to a step function
-with width, σ. 
-"""
+# Smoothly approximate a Heaviside step function
 function regularization_function(ω,σ)
     if ω < 0 
         return 0.0
@@ -66,16 +61,6 @@ function set_moments!(moments, measure, u, α)
     end
 end
 
-"""
-    kpm_dssf(swt::SpinWaveTheory, qs,ωlist,P::Int64,kT,σ,broadening)
-
-Calculated the Dynamical Spin Structure Factor (DSSF) using the Kernel Polynomial Method (KPM). Requires input in the form of a 
-SpinWaveTheory which contains System information and the rotated spin matrices. The calculation is carried out at each wavevectors
-in qs for all energies appearing in ωlist. The Chebyshev expansion is taken to P terms and the lineshape is specified by the user-
-defined function, broadening. kT is required for the calcualation of the bose function and σ is the width of the lineshape and 
-defines the low energy cutoff σ². There is a keyword argument, kernel, which speficies a damping kernel. 
-"""
- 
 function kpm_dssf(swt::SpinWaveTheory, qpts, energies, P::Int64, kT, σ, kernel)
     qpts = convert(AbstractQPoints, qpts)
     qs = qpts.qs
@@ -166,75 +151,6 @@ function kpm_dssf(swt::SpinWaveTheory, qpts, energies, P::Int64, kT, σ, kernel)
 
     return BroadenedIntensities(cryst, qpts, energies, intensity)
 end
-
-"""
-    kpm_intensities(swt::SpinWaveTheory, qs, energies, P::Int64, kT, σ, broadening)
-
-Calculated the neutron scattering intensity using the Kernel Polynomial Method (KPM). Calls KPMddsf and so takes the same parameters.
-Requires input in the form of a SpinWaveTheory which contains System information and the rotated spin matrices. The calculation is 
-carried out at each wavevectors in qs for all energies appearing in ωlist. The Chebyshev expansion is taken to P terms and the 
-lineshape is specified by the user-defined function, broadening. kT is required for the calcualation of the bose function and σ is 
-the width of the lineshape and defines the low energy cutoff σ². There is an optional keyword argument, kernel, which speficies a 
-damping kernel. The default is to include no damping.  
-"""
-function kpm_intensities(swt::SpinWaveTheory, qs, ωvals, P::Int64, kT, σ, kernel)
-    (; sys) = swt
-    qs = Vec3.(qs)
-    Sαβs = kpm_dssf(swt, qs, ωvals, P, kT, σ, kernel)
-    num_ω = length(ωvals)
-    is = zeros(Float64, size(qs)..., num_ω)
-    for qidx in CartesianIndices(qs)
-        q_reshaped = to_reshaped_rlu(sys, qs[qidx])
-        q_absolute = sys.crystal.recipvecs * q_reshaped
-        polar_mat = polarization_matrix(q_absolute)
-        is[qidx, :] = real(sum(polar_mat .* Sαβs[:,:,qidx,:],dims=(1,2)))
-    end
-    return is
-end
-
-
-#=
-function Itilde!(α, n)
-    view(α, n+1:2n) .*= -1
-end
-
-function Run_Recurrence_fast(swt,q_reshaped,γ,u,nmodes,chebyshev_moments,M)
-    α0 = zeros(ComplexF64,2*nmodes)
-    α1 = zeros(ComplexF64,2*nmodes)
-    α2 = zeros(ComplexF64,2*nmodes)
-
-    chebyshev_moments .= 0
-    for β=1:3
-        # α0 = ̃I u
-        α0 .= view(u, β, :)
-        Itilde!(α0, nmodes)
-
-        # α1 = ̃I A α0
-        Sunny.multiply_by_hamiltonian_dipole!(α1,α0,swt,q_reshaped)
-        @. α1 = α1 * (2/γ)
-        Itilde!(α1, nmodes)
-
-        for α=1:3
-            chebyshev_moments[α,β,0] = dot(view(u, α,:), α0)
-            chebyshev_moments[α,β,1] = dot(view(u, α,:), α1)
-        end
-        
-        for m=2:M-1
-            # α2 = ̃2 I A α1 - α0
-            Sunny.multiply_by_hamiltonian_dipole!(α2,α1,swt,q_reshaped) 
-            @. α2 = α2 * (2/γ)
-            Itilde!(α2, nmodes)
-            @. α2 = 2*α2 - α0
-
-            for α=1:3
-                chebyshev_moments[α,β,m] = dot(view(u, α,:),α2)
-            end
-            (α1, α0, α2) = (α2, α1, α0)
-        end
-    end
-end
-=#
-
 
 struct SpinWaveTheoryKPM
     swt :: SpinWaveTheory
