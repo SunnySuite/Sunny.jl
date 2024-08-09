@@ -23,8 +23,8 @@ Lanczos algorithm.
 
 function lanczos(A, niters)
     N = size(A, 1)
-    nmodes= Int(N/2)
-    Ĩ = diagm([ones(nmodes); -ones(nmodes)])
+    # nmodes= Int(N/2)
+    # Ĩ = diagm([ones(nmodes); -ones(nmodes)])
     #@assert Ĩ * A == A' * Ĩ  "Matrix must be quasi-Hermitian"
     αs = zeros(Float64, niters)    # Main diagonal 
     βs = zeros(Float64, niters-1)  # Off diagonal
@@ -82,8 +82,9 @@ end
 
 
 # Matrix free implementation of QH Lanczos on Hamiltonian
-function eigbounds_MF(swt,q_reshaped, niters; extend=0.5)
-    lo, hi = lanczos_MF(swt,q_reshaped, niters) |> eigvals |> xs -> (first(xs), last(xs))
+function eigbounds_MF(swt, q_reshaped, niters; extend=0.5)
+    tridiag = lanczos_MF(swt, q_reshaped, niters)
+    lo, hi = extrema(eigvals(tridiag))
     slack = extend*(hi-lo)
     return lo-slack, hi+slack
 end
@@ -98,14 +99,23 @@ function lanczos_MF(swt,q_reshaped, niters)
     return SymTridiagonal(αs, βs)
 end
 
-function lanczos_QH_MF_aux!(αs, βs, buf, swt ,q_reshaped, niters)
-    multiply_by_hamiltonian!(y, x) = (swt.sys.mode == :SUN) ? multiply_by_hamiltonian_SUN!(y,x, swt, q_reshaped) : multiply_by_hamiltonian_dipole!(y, x, swt, q_reshaped)
-    v, vprev, w = view(buf,:,1), view(buf,:,2), view(buf,:,3)
+function multiply_by_hamiltonian!(swt, y, x, q_reshaped)
+    x = reshape(x, 1, :)
+    y = reshape(y, 1, :)
+    if swt.sys.mode == :SUN
+        multiply_by_hamiltonian_SUN!(y, x, swt, [q_reshaped])
+    else
+        multiply_by_hamiltonian_dipole!(y, x, swt, [q_reshaped])
+    end
+end
+
+function lanczos_QH_MF_aux!(αs, βs, buf, swt, q_reshaped, niters)
+    (v, vprev, w) = [view(buf, :, i) for i in 1:3]
     randn!(vprev)
-    mat_size=nbands(swt)
-    Ĩ = diagm([ones(mat_size); -ones(mat_size)])
-    multiply_by_hamiltonian!(w,vprev) 
-    mul!(w,Ĩ,1w)
+    mat_size = nbands(swt)
+    Ĩ = Diagonal([ones(mat_size); -ones(mat_size)])
+    multiply_by_hamiltonian!(swt, w, vprev, q_reshaped)
+    mul!(w, Ĩ, w)
     b0 = sqrt(Ĩ_dot_3(vprev, w,mat_size))
     vprev = vprev/b0
     w = w/b0
@@ -113,7 +123,7 @@ function lanczos_QH_MF_aux!(αs, βs, buf, swt ,q_reshaped, niters)
     @. w = w - αs[1]*vprev
     for j in 2:niters
         @. v = w
-        multiply_by_hamiltonian!(w,v) 
+        multiply_by_hamiltonian!(swt, w, v, q_reshaped)
         mul!(w,Ĩ,1w)
         βs[j-1] = sqrt(Ĩ_dot_3(v, w,mat_size)) # maybe v?
         iszero(βs[j-1]) && return
