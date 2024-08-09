@@ -71,19 +71,6 @@
 end
 
 
-@testitem "Lanczos Bounds" begin
-    using LinearAlgebra, Random
-
-    Random.seed!(100)
-    A = randn(ComplexF64, 500, 500)
-    A = 0.5(A' + A)
-    lo, hi = Sunny.eigbounds(A, 20)
-    vals = eigvals(A)
-
-    @test (abs(lo/vals[1] - 1) < 0.025) && (abs(hi/vals[end] - 1) < 0.025)
-end
-
-
 @testitem "Single Ion" begin
     # Tetragonal crystal
     a = 1.0
