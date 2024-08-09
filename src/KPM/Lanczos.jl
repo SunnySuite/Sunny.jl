@@ -1,14 +1,3 @@
-function multiply_by_hamiltonian!(swt, y, x, q_reshaped)
-    x = reshape(x, 1, :)
-    y = reshape(y, 1, :)
-    if swt.sys.mode == :SUN
-        multiply_by_hamiltonian_SUN!(y, x, swt, [q_reshaped])
-    else
-        multiply_by_hamiltonian_dipole!(y, x, swt, [q_reshaped])
-    end
-    y .*= 2
-end
-
 
 """
     parallel_lanczos!(buf1, buf2, buf3; niters, mat_vec_mul!, inner_product!)
@@ -36,8 +25,8 @@ function lanczos(swt, q_reshaped, niters)
     end
 
     function mat_vec_mul!(w, v, q_reshaped)
-        multiply_by_hamiltonian!(swt, w, v, q_reshaped)
-        @views w[L+1:2L] .*= -1
+        mul_dynamical_matrix!(swt, reshape(w, 1, :), reshape(v, 1, :), [q_reshaped])
+        view(w, L+1:2L) .*= -1
     end
 
     αs = zeros(Float64, niters)   # Diagonal part

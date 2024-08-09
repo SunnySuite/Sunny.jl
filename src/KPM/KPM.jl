@@ -38,7 +38,7 @@ eigenvalues are zeroed out.
 function get_all_coefficients(M, ωs, broadening, σ, kT, γ; η=1.0)
     f(ϵ, ω) = regularization_function(ϵ, η*σ) * broadening(ϵ, ω) * thermal_prefactor(kT, ϵ)
 
-    output = OffsetArray(zeros(M, length(ωs)), 0:M-1, 1:length(ωs))
+    output = zeros(M, length(ωs))
     for i in eachindex(ωs)
         output[:, i] = cheb_coefs(M, 2M, x -> f(γ*x, ωs[i]), (-1, 1))
     end
@@ -46,6 +46,25 @@ function get_all_coefficients(M, ωs, broadening, σ, kT, γ; η=1.0)
     return output
 end
 
+
+function mul_Ĩ!(y, x)
+    L = size(y, 2) ÷ 2
+    view(y, :, 1:L)    .= .+view(x, :, 1:L)
+    view(y, :, L+1:2L) .= .-view(x, :, L+1:2L)
+end
+
+function mul_A!(swt, y, x, qs_reshaped, γ)
+    L = size(y, 2) ÷ 2
+    mul_dynamical_matrix!(swt, y, x, qs_reshaped)
+    view(y, :, 1:L)    .*= +1/γ
+    view(y, :, L+1:2L) .*= -1/γ
+end
+
+function set_moments!(moments, measure, u, α)
+    map!(moments, measure.corr_pairs) do (μ, ν)
+        dot(view(u, μ, :), view(α, ν, :))
+    end
+end
 
 """
     kpm_dssf(swt::SpinWaveTheory, qs,ωlist,P::Int64,kT,σ,broadening)
@@ -57,51 +76,55 @@ defined function, broadening. kT is required for the calcualation of the bose fu
 defines the low energy cutoff σ². There is a keyword argument, kernel, which speficies a damping kernel. 
 """
  
-function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
+function kpm_dssf(swt::SpinWaveTheory, qpts, energies, P::Int64, kT, σ, kernel)
+    qpts = convert(AbstractQPoints, qpts)
+    qs = qpts.qs
+
     # P is the max Chebyshyev coefficient
     (; sys, measure) = swt
+    cryst = orig_crystal(sys)
     qs = Vec3.(qs)
     Nf = nflavors(swt)
     Na = length(eachsite(sys))
     L = Nf*Na
-    sqrt_Nm_inv = 1.0 / √Na
-    Ĩ = Diagonal([ones(L); -ones(L)]) 
     n_iters = 50
     Avec_pref = zeros(ComplexF64, Na) # initialize array of some prefactors
 
     Nobs = size(measure.observables, 1)
-    u = zeros(ComplexF64, Nobs, 2L) # TODO: (Nf, Na, 2, Nobs)
+    Ncorr = length(measure.corr_pairs)
+    moments = zeros(ComplexF64, Ncorr, P)
+    corrbuf = zeros(ComplexF64, Ncorr)
+    intensity = zeros(eltype(measure), length(energies), length(qs))
 
-    chebyshev_moments = OffsetArray(zeros(ComplexF64, 3, 3, length(qs), P), 1:3, 1:3, 1:length(qs), 0:P-1)
-    Sαβs = zeros(ComplexF64,3,3,length(qs),length(ωlist))
+    u = zeros(ComplexF64, Nobs, 2L) # TODO: (Nobs, Nf, Na, 2)
+    α0 = zeros(ComplexF64, Nobs, 2L)
+    α1 = zeros(ComplexF64, Nobs, 2L)
+    α2 = zeros(ComplexF64, Nobs, 2L)
+
     for qidx in CartesianIndices(qs)
         q = qs[qidx]
-        q_reshaped = to_reshaped_rlu(swt.sys, q)
-        lo, hi = eigbounds(swt, q_reshaped, n_iters; extend=0.25) # calculate bounds
-         # Upper bound for generalized eigenvalues. Factor of 2 accounts for
-         # implicit rescaling of Hamiltonian.
+        q_reshaped = to_reshaped_rlu(sys, q)
+        q_global = cryst.recipvecs * q
+
+        # Bound eigenvalue magnitude
+        lo, hi = eigbounds(swt, q_reshaped, n_iters; extend=0.25)
         γ = max(abs(lo), abs(hi))
 
         # u(q) calculation)
         for i in 1:Na
-            # note that d is the chemical coordinates
-            chemical_coor = sys.crystal.positions[i] # find chemical coords
-            phase = exp(2*im * π  * dot(q_reshaped, chemical_coor)) # calculate phase
-            Avec_pref[i] = sqrt_Nm_inv * phase  # define the prefactor of the tS matrices
+            r = sys.crystal.positions[i]
+            phase = exp(2π*im * dot(q_reshaped, r))
+            Avec_pref[i] = phase / √Na
         end
 
-        # calculate u(q)
         if sys.mode == :SUN
-            # u0 = reshape(u, Nobs, Nf, Na, 2)
             data = swt.data::SWTDataSUN
             N = sys.Ns[1]
             for i in 1:Na, μ in 1:Nobs
                 @views O = data.observables_localized[μ, i]
-                for α in 1:Nf
-                    u[μ, α + (i-1)*Nf] = Avec_pref[i] * O[α, N] 
-                    u[μ, α + (i-1)*Nf + L] = Avec_pref[i] * O[N, α]
-                    # u0[μ, α, i, 1] = Avec_pref[i] * O[α, N] 
-                    # u0[μ, α, i, 2] = Avec_pref[i] * O[N, α]
+                for f in 1:Nf
+                    u[μ, f + (i-1)*Nf]     = Avec_pref[i] * O[f, N] # u[μ, f, i, 1]
+                    u[μ, f + (i-1)*Nf + L] = Avec_pref[i] * O[N, f] # u[μ, f, i, 2]
                 end
             end
         else
@@ -116,38 +139,32 @@ function kpm_dssf(swt::SpinWaveTheory, qs, ωlist, P::Int64, kT, σ, kernel)
                 end
             end
         end
+        
+        q_repeated = fill(q_reshaped, Nobs)
+        mul_Ĩ!(α0, u)
+        mul_A!(swt, α1, α0, q_repeated, γ)
+    
+        set_moments!(view(moments, :, 1), measure, u, α0)
+        set_moments!(view(moments, :, 2), measure, u, α1)
 
-        for β in 1:3
-            α0 = zeros(ComplexF64,2L)
-            α1 = zeros(ComplexF64,2L)
-            mul!(α0, Ĩ, u[β,:]) # calculate α0
-            multiply_by_hamiltonian!(swt, α1, α0, q_reshaped)
-            mul!(α1, Ĩ, α1/γ)
-            for α in 1:3
-                chebyshev_moments[α,β,qidx,0] = dot(u[α, :], α0) #removed symmetrization
-                chebyshev_moments[α,β,qidx,1] = dot(u[α, :], α1) #removed symmetrization
-            end
-            for m in 2:P-1
-                αnew = zeros(ComplexF64, 2L)
-                multiply_by_hamiltonian!(swt, αnew, α1, q_reshaped)
-                mul!(αnew, Ĩ, αnew/γ)
-                @. αnew = 2*αnew - α0
-                for α in 1:3
-                    chebyshev_moments[α, β, qidx, m] = dot(u[α, :], αnew) #removed symmetrization
-                end
-                (α1, α0) = (αnew, α1)
-            end
+        for m in 3:P
+            mul_A!(swt, α2, α1, q_repeated, γ)
+            @. α2 = 2*α2 - α0
+            set_moments!(view(moments, :, m), measure, u, α2)
+            (α0, α1, α2) = (α1, α2, α0)
         end
 
-        ωdep = get_all_coefficients(P, ωlist, kernel, σ, kT, γ)
+        ωdep = get_all_coefficients(P, energies, kernel, σ, kT, γ)
 
-        for w in eachindex(ωlist)
-            for α in 1:3, β in 1:3
-                Sαβs[α, β, qidx, w] = sum(chebyshev_moments[α, β, qidx, :] .*  ωdep[:, w])
+        for iω in eachindex(energies)
+            for i in 1:Ncorr
+                corrbuf[i] = dot(view(ωdep, :, iω), view(moments, i, :))
             end
-        end 
+            intensity[iω, qidx] = measure.combiner(q_global, corrbuf)
+        end
     end
-    return Sαβs
+
+    return BroadenedIntensities(cryst, qpts, energies, intensity)
 end
 
 """

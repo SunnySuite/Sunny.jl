@@ -37,39 +37,35 @@ end
     positions = [[0, 0, 0]]
     cryst = Crystal(latvecs, positions)
     q = Sunny.Vec3(0.12, 0.23, 0.34)
-    
+
     for mode in (:dipole, :SUN)
-        sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g)], :SUN)
+        sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g)], mode)
         sys = reshape_supercell(sys, [1 -1 0; 1 1 0; 0 0 1])
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         set_field!(sys, [0, 0, -h/g])
-        
+
         c₂ = 1 - 1/(2S)
         θ = acos(h / (2S*(4J+D*c₂)))
         set_dipole!(sys, ( sin(θ), 0, cos(θ)), position_to_site(sys, (0,0,0)))
         set_dipole!(sys, (-sin(θ), 0, cos(θ)), position_to_site(sys, (1,0,0)))
-        
+
         swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-        ϵq_num = dispersion(swt, [q])
-        
         energies, T = excitations(swt, q)
         extrema(energies)
-        
         q_reshaped = Sunny.to_reshaped_rlu(sys, q)
         bounds = Sunny.eigbounds(swt, q_reshaped, 50; extend=0.0)
-        
+
         @test all(extrema(energies) .≈ bounds)
-        
+
         energies = collect(range(0, 6, 100))
         P = 2000
         kT = 0.01
         σ = 0.05
         broadening = lorentzian(fwhm=2σ)
-        
-        res1 = Sunny.kpm_intensities(swt, [q], energies, P, kT, σ, broadening)
+
+        res1 = Sunny.kpm_dssf(swt, [q], energies, P, kT, σ, broadening)
         res2 = intensities(swt, [q]; energies, kernel=lorentzian(fwhm=2σ))
-        
-        @test isapprox(res1[1,:], res2.data[:,1], atol=1e-3)
+        @test isapprox(res1.data, res2.data, atol=1e-3)
     end
 end

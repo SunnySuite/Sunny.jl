@@ -101,6 +101,17 @@ function dynamical_matrix!(H, swt::SpinWaveTheory, q_reshaped)
     end
 end
 
+function mul_dynamical_matrix!(swt, y, x, qs_reshaped)
+    if swt.sys.mode == :SUN
+        multiply_by_hamiltonian_SUN!(y, x, swt, qs_reshaped)
+    else
+        multiply_by_hamiltonian_dipole!(y, x, swt, qs_reshaped)
+    end
+    # TODO: Incorporate this factor into Hamiltonian itself
+    y .*= 2
+end
+
+
 # Take PairCoupling `pc` and use it to make a new, equivalent PairCoupling that
 # contains all information about the interaction in the `general` (tensor
 # decomposition) field.
