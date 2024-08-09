@@ -137,11 +137,13 @@ function dispersion(swt::SpinWaveTheory, qpts)
 end
 
 """
-    intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
+    intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
 
 Calculate spin wave excitation bands for a set of q-points in reciprocal space.
+This calculation is analogous [`intensities`](@ref), but does not perform
+broadening of the bands.
 """
-function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
+function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
     (; sys, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
 
@@ -218,7 +220,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
             map!(corrbuf, measure.corr_pairs) do (α, β)
                 Avec[α] * conj(Avec[β]) / Ncells
             end
-            intensity[band, iq] = measure.combiner(q_global, corrbuf)
+            intensity[band, iq] = thermal_prefactor(kT, disp[band]) * measure.combiner(q_global, corrbuf)
         end
     end
 
@@ -226,29 +228,46 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
 end
 
 """
-    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
-    intensities!(data, swt::SpiralSpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
-    intensities!(data, swt::SampledCorrelations, qpts; energies=nothing, kernel=nothing, formfactors=nothing)
+    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing, kT=0)
+    intensities!(data, swt::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT=0)
 
 Like [`intensities`](@ref), but makes use of storage space `data` to avoid
 allocation costs.
 """
-function intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
+function intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
     @assert size(data) == (length(energies), size(bands.data, 2))
-    bands = intensities_bands(swt, qpts; formfactors)
+    bands = intensities_bands(swt, qpts; formfactors, kT)
     @assert eltype(bands) == eltype(data)
     broaden!(data, bands; energies, kernel)
     return BroadenedIntensities(bands.crystal, bands.qpts, collect(energies), data)
 end
 
 """
-    intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
-    intensities(swt::SpiralSpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
-    intensities(swt::SampledCorrelations, qpts; energies=nothing, kernel=nothing, formfactors=nothing)
+    intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing, kT=0)
+    intensities(swt::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
 
-Calculate spin wave intensities for a set of q-points in reciprocal space. A
-broadening `kernel` is required for spin wave theory, but optional for `SampledCorrelations`.
+Calculate pair correlation intensities for a set of q-points in reciprocal
+space.
+
+Traditional spin wave theory calculations are performed with an instance of
+[`SpinWaveTheory`](@ref). One can alternatively use
+[`SpiralSpinWaveTheory`](@ref) to study generalized spiral orders with a single,
+incommensurate-``𝐤`` ordering wavevector. Another alternative is
+[`SpinWaveTheoryKPM`](@ref), which may be faster than `SpinWaveTheory` for
+calculations on large magnetic cells (e.g., to study systems with disorder). In
+spin wave theory, a nonzero temperature `kT` will scale intensities by the
+quantum thermal occupation factor ``|1 + n_B(ω)|`` where ``n_B(ω) = 1 / (exp(βω)
+- 1)`` is the Bose function.
+
+Intensities can also be calculated for `SampledCorrelations` associated with
+classical spin dynamics. In this case, thermal broadening will already be
+present, and the line-broadening `kernel` becomes an optional argument. It is
+here necessary to specify `kT`. If `kT` has a numeric value, this will signify
+an intensity correction that undoes the occupation factor for the classical
+Boltzmann distribution, and applies the corresponding quantum thermal occupation
+factor. If `kT = nothing`, then intensities consistent with the classical
+Boltzmann distribution will be returned directly.
 """
-function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
-    return broaden(intensities_bands(swt, qpts; formfactors); energies, kernel)
+function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
+    return broaden(intensities_bands(swt, qpts; formfactors, kT); energies, kernel)
 end
