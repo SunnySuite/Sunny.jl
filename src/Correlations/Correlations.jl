@@ -232,8 +232,7 @@ function thermal_prefactor(kT, ω)
     end
 end
 
-# TODO: "excitations!" ?
-function calculate_quasiparticles!(V, H, swt::SpinWaveTheory, q)
+function calculate_excitations!(V, H, swt::SpinWaveTheory, q)
     (; sys) = swt
     q_global = orig_crystal(sys).recipvecs * q
     q_reshaped = sys.crystal.recipvecs \ q_global
@@ -252,12 +251,11 @@ function calculate_quasiparticles!(V, H, swt::SpinWaveTheory, q)
     end
 end
 
-# TODO: excitations()
 function dispersion2(swt::SpinWaveTheory, q)
     L = nbands(swt)
     V = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
-    return calculate_quasiparticles!(V, H, swt, q)
+    return calculate_excitations!(V, H, swt, q)
 end
 
 function localize_observable(v::Vec3, data::SWTDataDipole, site::Int)
@@ -318,10 +316,10 @@ function intensities_bands2(swt::SpinWaveTheory, qpts; formfactors=nothing, meas
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
-    
+
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
-        disp[:, iq] .= calculate_quasiparticles!(V, H, swt, q)
+        disp[:, iq] .= calculate_excitations!(V, H, swt, q)
 
         for i in 1:Na
             r_global = global_position(sys, (1,1,1,i))
@@ -395,7 +393,6 @@ function broaden(bands::BandIntensities{Ret}, energies; kernel::B) where {Ret, B
 end
 
 function intensities2(swt::SpinWaveTheory, qpts, energies::AbstractArray{<: Number}; kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
-    qpts = convert(AbstractQPoints, qpts)
     res = intensities_bands2(swt, qpts; formfactors, measure)
     broaden(res, energies; kernel)
 end

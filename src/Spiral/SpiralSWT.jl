@@ -4,7 +4,7 @@ function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., S)
     O = stevens_matrices(S)
     op = c20*O[2, 0] + c40*O[4, 0] + c60*O[6, 0]
     # Rotate operator into global frame, defined by axis
-    R = Sunny.rotation_between_vectors(axis, [0, 0, 1])
+    R = rotation_between_vectors(axis, [0, 0, 1])
     return rotate_operator(op, R)
 end
 
@@ -14,7 +14,7 @@ end
 function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped; k, axis)
     (; sys, data) = swt
     (; local_rotations, stevens_coefs) = data
-    L = Sunny.nbands(swt) 
+    L = nbands(swt) 
     @assert size(H) == (2L, 2L)
     H .= 0.0 
     
@@ -78,7 +78,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
     isnothing(sys.ewald) || error("Ewald interactions not yet supported")
         
     @assert diffnorm2(H, H') < 1e-12
-    Sunny.hermitianpart!(H)
+    hermitianpart!(H)
     
     for i in 1:2L
         H[i, i] += swt.energy_ϵ
@@ -98,7 +98,7 @@ function dispersion_spiral(swt::SpinWaveTheory, axis; k, qs)
         for branch = 1:3    # 3 branch corresponds to K,K+Q and K-Q modes of incommensurate spin structures.
             H = zeros(ComplexF64, 2nmodes, 2nmodes)
             V = zeros(ComplexF64, 2nmodes, 2nmodes)
-            q_reshaped = Sunny.to_reshaped_rlu(swt.sys, q)
+            q_reshaped = to_reshaped_rlu(swt.sys, q)
             if sys.mode == :SUN
                 error("Spiral calculation for SUN is not yet implemented")
             else
@@ -106,7 +106,7 @@ function dispersion_spiral(swt::SpinWaveTheory, axis; k, qs)
                 swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped .+ (branch - 2) .* k; k, axis)
             end
             try
-                view(disp, :, iq,branch) .= Sunny.bogoliubov!(V, H)
+                view(disp, :, iq,branch) .= bogoliubov!(V, H)
             catch e
                 error("Instability at wavevector q = $q")
             end
@@ -117,85 +117,27 @@ function dispersion_spiral(swt::SpinWaveTheory, axis; k, qs)
 end
 
 
-struct DipoleSpiralSpinWaveIntensityFormula{T}
-    string_formula :: String
-    kernel :: Union{Nothing,Function}
-    calc_intensity :: Function
-end
+function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
+    (; sys, data) = swt
+    sys.mode == :SUN && error("Spiral calculation for SUN is not yet implemented")
+    @assert sys.mode in (:dipole, :dipole_large_S)
 
-function Base.show(io::IO, ::DipoleSpiralSpinWaveIntensityFormula{T}) where T
-    print(io,"SpinWaveIntensityFormula{$T}")
-end
+    qpts = convert(AbstractQPoints, qpts)
+    cryst = orig_crystal(sys)
 
-function Base.show(io::IO, ::MIME"text/plain", formula::DipoleSpiralSpinWaveIntensityFormula{T}) where T
-    printstyled(io, "Quantum Scattering Intensity Formula\n"; bold=true, color=:underline)
-
-    formula_lines = split(formula.string_formula, '\n')
-
-    if isnothing(formula.kernel)
-        println(io, "At any Q and for each band ωᵢ = εᵢ(Q), with S = S(Q,ωᵢ):\n")
-        intensity_equals = "  Intensity(Q,ω) = ∑ᵢ δ(ω-ωᵢ) "
-    else
-        println(io, "At any (Q,ω), with S = S(Q,ωᵢ):\n")
-        intensity_equals = "  Intensity(Q,ω) = ∑ᵢ Kernel(ω-ωᵢ) "
+    # Number of atoms in magnetic cell
+    @assert sys.latsize == (1,1,1)
+    Na = length(eachsite(sys))
+    if Na != prod(size(measure.observables)[1:4])
+        error("Size mismatch. Check that SpinWaveTheory and Measurement were built from same System.")
     end
-    separator = '\n' * repeat(' ', textwidth(intensity_equals))
-    println(io, intensity_equals, join(formula_lines, separator))
-    println(io)
-    if isnothing(formula.kernel)
-        println(io, "BandStructure information (ωᵢ and intensity) reported for each band")
-    else
-        println(io, "Intensity(ω) reported")
-    end
-end
 
-
-function intensity_formula_spiral(swt::SpinWaveTheory, mode::Symbol; k, axis, kwargs...)
-    contractor, string_formula = Sunny.contractor_from_mode(swt, mode)
-    intensity_formula_spiral(swt, contractor; k, axis, string_formula, kwargs...)
-end
-
-function intensity_formula_spiral(swt::SpinWaveTheory, contractor::Sunny.Contraction{T}; k, axis, kwargs...) where T
-    intensity_formula_spiral(swt, Sunny.required_correlations(contractor); k, axis, return_type=T, kwargs...) do qs, ωs, correlations
-        intensity = Sunny.contract(correlations, qs, contractor)
-    end
-end
-
-"""
-    intensity_formula_spiral(swt, [contraction_mode]; k, axis)
-
-Establish a formula for computing the scattering intensity by diagonalizing the
-hamiltonian ``H(q)`` using Linear Spin Wave Theory.
-
-The optional `contraction_mode` argument may be one of:
-- `:trace` (default), which yields ``\\operatorname{tr} 𝒮(q,ω) = ∑_α
-  𝒮^{αα}(q,ω)``
-- `:perp`, which contracts ``𝒮^{αβ}(q,ω)`` with the dipole factor ``δ_{αβ} -
-  q_{α}q_{β}``, returning the unpolarized intensity.
-- `:full`, which will return all elements ``𝒮^{αβ}(𝐪,ω)`` without contraction.
-
-If `kernel=delta_function_kernel`, then the resulting formula can be used with
-[`intensities_bands`](@ref).
-
-If `kernel` is an energy broadening kernel function, then the resulting formula
-can be used with [`intensities_broadened`](@ref). Energy broadening kernel
-functions can either be a function of `Δω` only, e.g.:
-
-    kernel = Δω -> ...
-
-or a function of both the energy transfer `ω` and of `Δω`, e.g.:
-
-    kernel = (ω,Δω) -> ...
-
-The integral of a properly normalized kernel function over all `Δω` is one.
-"""
-function intensity_formula_spiral(f::Function, swt::SpinWaveTheory, corr_ix::AbstractVector{Int64};
-                           k, axis, kernel::Union{Nothing,Function},
-                           return_type=Float64, string_formula="f(Q,ω,S{α,β}[ix_q,ix_ω])", 
-                           formfactors=nothing)
-    (; sys, data, observables) = swt
-    Na = length(sys.dipoles) # number of magnetic atoms
-    L = Sunny.nbands(swt) # k, k+Q, k-Q
+    # Number of chemical cells in magnetic cell
+    Ncells = Na / natoms(cryst) # TODO check invariance
+    # Number of quasiparticle modes
+    L = nbands(swt)
+    # Number of wavevectors
+    Nq = length(qpts.qs)
 
     # Rotation matrices associated with `axis`
     CMat3 = SMatrix{3, 3, ComplexF64, 9}
@@ -203,194 +145,95 @@ function intensity_formula_spiral(f::Function, swt::SpinWaveTheory, corr_ix::Abs
     R2 = CMat3(axis * axis')
     R1 = (1/2) .* CMat3(I - im .* nx - R2)
 
+    # Preallocation
+    tmp = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
     T = zeros(ComplexF64, 2L, 2L, 3)
-    tmp = zeros(ComplexF64, 2L, 2L)
 
-    disp = zeros(Float64, L, 3)
-    intensity = zeros(return_type, L,3)
-    S = zeros(ComplexF64,3,3,L,3)
-
-    FF = zeros(ComplexF64, Na)
-    #intensity = zeros(return_type, nmodes,3)
+    disp = zeros(Float64, 3L, Nq)
+    intensity = zeros(Ret, 3L, Nq)
+    S = zeros(ComplexF64, 3, 3, L, 3)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
-    ff_atoms = Sunny.propagate_form_factors_to_atoms(formfactors, swt.sys.crystal)
-    
-    # Upgrade to 2-argument kernel if needed
-    kernel_edep = if isnothing(kernel)
-        nothing
-    else
-        try
-            kernel(0.,0.)
-            kernel
-        catch MethodError
-            (ω,Δω) -> kernel(Δω)
-        end
-    end
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
+    FF = zeros(ComplexF64, Na)
 
+    for (iq, q) in enumerate(qpts.qs)
+        q_absolute = cryst.recipvecs * q
+        q_reshaped = sys.crystal.recipvecs \ q_absolute
 
+        for branch in 1:3   # (q, q+k, q-k) modes for ordering wavevector k
+            swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped + (branch-2)*k; k, axis)
 
-    # In Spin Wave Theory, the Hamiltonian depends on momentum transfer `q`.
-    # At each `q`, the Hamiltonian is diagonalized one time, and then the
-    # energy eigenvalues can be reused multiple times. To facilitate this,
-    # `I_of_ω = calc_intensity(swt,q)` performs the diagonalization, and returns
-    # the result either as:
-    #
-    #   Delta function kernel --> I_of_ω = (eigenvalue,intensity) pairs
-    #
-    #   OR
-    #
-    #   Smooth kernel --> I_of_ω = Intensity as a function of ω
-    #
-    calc_intensity = function(swt::SpinWaveTheory, q::Sunny.Vec3)
-        # This function, calc_intensity, is an internal function to be stored
-        # inside a formula. The unit system for `q` that is passed to
-        # formula.calc_intensity is an implementation detail that may vary
-        # according to the "type" of a formula. In the present context, namely
-        # LSWT formulas, `q` is given in RLU for the original crystal. This
-        # convention must be consistent with the usage in various
-        # `intensities_*` functions defined in LinearSpinWaveIntensities.jl.
-        # Separately, the functions calc_intensity for formulas associated with
-        # SampledCorrelations will receive `q_absolute` in absolute units.
-        
-        q_reshaped = Sunny.to_reshaped_rlu(swt.sys, q)
-        q_absolute = swt.sys.crystal.recipvecs * q_reshaped 
-
-        for branch = 1:3   # 3 branch corresponds to K,K+Q and K-Q modes of incommensurate spin structures.
-            if sys.mode == :SUN
-                error("Spiral calculation for SUN is not yet implemented")
-            else
-                @assert sys.mode in (:dipole, :dipole_large_S)
-                
-                swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped + (branch-2)*k; k, axis)
-            
-                disp[:,branch] = try
-                    Sunny.bogoliubov!(tmp, H)
-                catch e
-                    error("Instability at wavevector q = $q")
-                end
-
-                T[:,:,branch] = tmp
+            reshape(disp, L, 3, Nq)[:, branch, iq] = try
+                bogoliubov!(tmp, H)
+            catch _
+                error("Instability at wavevector q = $q")
             end
+
+            T[:, :, branch] = tmp
         end
 
-        for i = 1:Na
-            @assert Na == Sunny.natoms(sys.crystal)
-            # TODO: move form factor into `f`, then delete this rescaling
-            if isnothing(formfactors)
-                FF[i] = 1.0
-            else
-                FF[i] = Sunny.compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
-            end
+        for i in 1:Na
+            FF[i] = compute_form_factor(ff_atoms[i], norm2(q_absolute))
         end
-       
+
         R = data.local_rotations
-        Y = zeros(ComplexF64,L,L,3,3)
-        Z = zeros(ComplexF64,L,L,3,3)
-        V = zeros(ComplexF64,L,L,3,3)
-        W = zeros(ComplexF64,L,L,3,3)
+        Y = zeros(ComplexF64, L, L, 3, 3)
+        Z = zeros(ComplexF64, L, L, 3, 3)
+        V = zeros(ComplexF64, L, L, 3, 3)
+        W = zeros(ComplexF64, L, L, 3, 3)
         for α in 1:3, β in 1:3
             for i in 1:L, j in 1:L
                 si = (sys.Ns[i]-1)/2
                 sj = (sys.Ns[j]-1)/2
                 R_i = R[i]
                 R_j = R[j]
-                ui = R_i[:,1]+im*R_i[:,2]
-                uj = R_j[:,1]+im*R_j[:,2]
+                ui = R_i[:,1] + im*R_i[:,2]
+                uj = R_j[:,1] + im*R_j[:,2]
                 ti = sys.crystal.positions[i]
                 tj = sys.crystal.positions[j]
                 phase = exp(-2π * im*dot(q_reshaped, tj-ti))
-                Y[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (ui[α] * conj(uj[β])) * (phase)
-                Z[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (ui[α] * uj[β]) * (phase)
-                V[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (conj(ui[α]) * conj(uj[β])) * (phase)
-                W[i,j,α,β] = FF[i]*FF[j]*sqrt(si*sj) * (conj(ui[α]) * uj[β]) * (phase)
+                Y[i, j, α, β] = FF[i] * FF[j] * sqrt(si*sj) * (ui[α] * conj(uj[β])) * phase
+                Z[i, j, α, β] = FF[i] * FF[j] * sqrt(si*sj) * (ui[α] * uj[β]) * phase
+                V[i, j, α, β] = FF[i] * FF[j] * sqrt(si*sj) * (conj(ui[α]) * conj(uj[β])) * phase
+                W[i, j, α, β] = FF[i] * FF[j] * sqrt(si*sj) * (conj(ui[α]) * uj[β]) * phase
             end
         end
-        YZVW = [[Y Z];[V W]]
+        YZVW = [[Y Z]; [V W]]
 
-        for branch = 1:3, band = 1:L
-            if sys.mode == :SUN
-                error("Spiral calculation for SUN is not yet implemented")
-            else
-                @assert sys.mode in (:dipole, :dipole_large_S)
-                for α in 1:3
-                    for β in 1:3
-                        A = T[:,:,branch]' * YZVW[:,:,α,β] * T[:,:,branch]
-                        S[α,β,band,branch] = (1/(2*Na)) * A[band,band] 
-                    end
-                end
+        for branch in 1:3, band in 1:L
+            for α in 1:3, β in 1:3
+                A = T[:, :, branch]' * YZVW[:, :, α, β] * T[:, :, branch]
+                S[α, β, band, branch] = (1/2Na) * A[band, band]
             end
         end
-        
-        avg(S) = 1/2 * (S - nx * S * nx + (R2 - I) * S * R2 + R2 * S * (R2 -I) + R2 * S * R2)
-        
+
+        avg(S) = 1/2 * (S - nx * S * nx + (R2-I) * S * R2 + R2 * S * (R2-I) + R2 * S * R2)
+
         for band = 1:L
-            S[:,:,band,1] = avg(CMat3(S[:,:,band,1])) * conj(R1)
-            S[:,:,band,2] = avg(CMat3(S[:,:,band,2])) * R2
-            S[:,:,band,3] = avg(CMat3(S[:,:,band,3])) * R1
+            S[:, :, band, 1] = avg(CMat3(S[:, :, band, 1])) * conj(R1)
+            S[:, :, band, 2] = avg(CMat3(S[:, :, band, 2])) * R2
+            S[:, :, band, 3] = avg(CMat3(S[:, :, band, 3])) * R1
         end
-        
-        for branch = 1:3, band = 1:L
-            @assert observables.observable_ixs[:Sx] == 1
-            @assert observables.observable_ixs[:Sy] == 2
-            @assert observables.observable_ixs[:Sz] == 3
 
-            corrs = Vector{ComplexF64}(undef, Sunny.num_correlations(observables))
-            for (ci,i) in observables.correlations
-                (α,β) = ci.I
+        for branch in 1:3, band in 1:L
+            @assert all(==(Vec3(1, 0, 0)), measure.observables[:, :, :, :, 1])
+            @assert all(==(Vec3(0, 1, 0)), measure.observables[:, :, :, :, 2])
+            @assert all(==(Vec3(0, 0, 1)), measure.observables[:, :, :, :, 3])
 
-                corrs[i] = S[α,β,band,branch]
+            corrbuf = map(measure.corr_pairs) do (α, β)
+                S[α, β, band, branch]
             end
-            
-            intensity[band, branch] = f(q_absolute, disp[band,branch], corrs[corr_ix])
+            reshape(intensity, L, 3, Nq)[band, branch, iq] = measure.combiner(q_absolute, corrbuf)
         end
-    
-        # Return the result of the diagonalization in an appropriate
-        # format based on the kernel provided
-        if isnothing(kernel)
-            # Delta function kernel --> (eigenvalue,intensity) pairs
 
-            # If there is no specified kernel, we are done. Sort the bands in
-            # order of decreasing dispersion, and return the BandStructure
-            P = sortperm(vec(disp); rev=true)
-            return Sunny.BandStructure{3*L,return_type}(disp[P], intensity[P])
-        else
-            disp_all = reshape(disp,:)
-            intensity_all = reshape(intensity,:)
-            # Smooth kernel --> Intensity as a function of ω (or a list of ωs)
-            return function(ω)
-                is = Vector{return_type}(undef,length(ω))
-                is .= sum(intensity_all' .* kernel_edep.(disp_all', ω .- disp_all'),dims=2)
-                is
-            end
-        end
-    end
-    output_type = isnothing(kernel) ? Sunny.BandStructure{L,return_type} : return_type
-    DipoleSpiralSpinWaveIntensityFormula{output_type}(string_formula, kernel_edep, calc_intensity)
-end
-
-function intensities_bands(swt::SpinWaveTheory, qs, formula::DipoleSpiralSpinWaveIntensityFormula)
-    if !isnothing(formula.kernel)
-        # This is only triggered if the user has explicitly specified a formula with e.g. kT
-        # corrections applied, but has not disabled the broadening kernel.
-        error("intensities_bands: Can't compute band intensities if a broadening kernel is applied.\nTry intensity_formula(...; kernel = delta_function_kernel)")
+        # Dispersion in descending order
+        P = sortperm(disp[:, iq]; rev=true)
+        disp[:, iq] .= disp[P, iq]
+        intensity[:, iq] .= intensity[P, iq]
     end
 
-    qs = Sunny.Vec3.(qs)
-    nmodes = Sunny.nbands(swt)
-
-    # Get the type parameter from the BandStructure
-    return_type = typeof(formula).parameters[1].parameters[2]
-
-    band_dispersions = zeros(Float64, size(qs)..., 3*nmodes)
-    band_intensities = zeros(return_type, size(qs)..., 3*nmodes)
-    for qidx in CartesianIndices(qs)
-        band_structure = formula.calc_intensity(swt, qs[qidx])
-
-        band_dispersions[qidx,:] .= band_structure.dispersion
-        band_intensities[qidx,:] .= band_structure.intensity
-    end
-    return band_dispersions, band_intensities
+    return BandIntensities{Ret}(cryst, qpts, disp, intensity)
 end
