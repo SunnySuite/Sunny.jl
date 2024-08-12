@@ -115,6 +115,10 @@ include("MonteCarlo/WangLandau.jl")
 include("MonteCarlo/ParallelWangLandau.jl")
 export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
 
+include("Binning/Binning.jl")
+include("Binning/ExperimentData.jl")
+export BinningParameters, load_nxs, generate_mantid_script_from_binning_parameters
+
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, meV_per_K
 

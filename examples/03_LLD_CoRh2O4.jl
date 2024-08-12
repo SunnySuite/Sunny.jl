@@ -100,20 +100,16 @@ q2s = -10:0.1:10
 qs = Sunny.QPoints([[q1, q2, 0.0] for q1 in q1s, q2 in q2s][:]);
 
 # Plot the instantaneous structure factor for the given ``q``-slice. We employ
-# the appropriate [`FormFactor`](@ref) for Co2⁺. An [`intensity_formula`](@ref)
-# defines how dynamical correlations correspond to the observable structure
-# factor. The function [`instant_intensities_interpolated`](@ref) calculates
-# intensities at the target `qs` by interpolating over the data available at
-# discrete reciprocal-space lattice points.
+# the appropriate [`FormFactor`](@ref) for Co2⁺.
 
 formfactors = [FormFactor("Co2")]
-iq = intensities_instant(sc, qs; formfactors);
+res = intensities_instant(sc, qs; formfactors);
 
 # Plot the resulting intensity data ``I(𝐪)``. The color scale is clipped to 50%
 # of the maximum intensity.
 
-heatmap(q1s, q2s, reshape(iq.data, (201, 201));
-    colorrange = (0, maximum(iq.data)/2),
+heatmap(q1s, q2s, reshape(res.data, (201, 201));
+    colorrange = (0, maximum(res.data)/2),
     axis = (
         xlabel="Momentum Transfer Qx (r.l.u)", xlabelsize=16, 
         ylabel="Momentum Transfer Qy (r.l.u)", ylabelsize=16, 

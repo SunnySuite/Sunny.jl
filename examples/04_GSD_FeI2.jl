@@ -10,8 +10,8 @@ using Sunny, LinearAlgebra, GLMakie
 # configurations sampled at finite temperature.
 #
 # Compared to spin wave theory, simulations using classical dynamics will be
-# slower and limited in $k$-space resolution. However, they make it is possible
-# to study [temperature driven phase
+# slower and limited in ``𝐪``-space resolution. However, they make it is
+# possible to study [temperature driven phase
 # transitions](https://arxiv.org/abs/2310.19905). They may also be used to study
 # out-of-equilibrium systems (e.g., relaxation of spin glasses), or systems with
 # quenched inhomogeneities that require large simulation volumes.
@@ -35,7 +35,7 @@ using Sunny, LinearAlgebra, GLMakie
 #
 # To begin, please follow our [previous tutorial](@ref "1. Multi-flavor spin
 # wave simulations of FeI₂ (Showcase)") to initialize a FeI₂ `sys` with lattice
-# dimensions $4×4×4$. 
+# dimensions ``4×4×4``. 
 
 a = b = 4.05012#hide 
 c = 6.75214#hide
@@ -122,7 +122,7 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 # For other phases, it can be much harder to find thermal equilibrium, and more
 # complicated sampling procedures may be necessary.
 
-# ## Calculating Thermal-Averaged Correlations $\langle S^{\alpha\beta}(𝐪,ω)\rangle$
+# ## Calculating Thermal-Averaged Correlations $⟨S^{αβ}(𝐪,ω)⟩$
 #
 # Our aim is to study the classical spin dynamics for states sampled in thermal
 # equilibrium. To minimize finite size effects, and achieve sufficient momentum
@@ -147,21 +147,21 @@ end
 suggest_timestep(sys_large, langevin; tol=1e-2)
 langevin.dt = 0.040;
 
-# The next step is to collect correlation data ``S^{\alpha\beta}``. This will
-# involve sampling spin configurations from thermal equilibrium, and then
-# integrating [an energy-conserving generalized classical spin
+# The next step is to collect correlation data ``S^{αβ}`` into a
+# [`SampledCorrelations`](@ref) object. This will involve sampling spin
+# configurations from thermal equilibrium, and then integrating [an
+# energy-conserving generalized classical spin
 # dynamics](https://arxiv.org/abs/2204.07563) to collect Fourier-space
 # information about normal modes. Quantization of these modes yields the
 # magnons, and the associated dynamical spin-spin correlations can be compared
-# with neutron scattering intensities ``S^{\alpha\beta}(q,\omega)``. Because
-# this a real-space calculation, data is only available for discrete ``q`` modes
-# (the resolution scales like inverse system size).
+# with neutron scattering intensities ``S^{αβ}(q,ω)``. Because this is a
+# real-space calculation, data is only available for discrete ``q`` modes (the
+# resolution scales like inverse system size).
 #
-# The function [`dynamic_correlations`](@ref) creates an object to store
-# sampled correlations. The integration timestep `dt` used for measuring
-# dynamical correlations can be somewhat larger than that used by the Langevin
-# dynamics. We must also specify `nω` and `ωmax`, which determine the
-# frequencies over which intensity data will be collected.
+# The `SampledCorrelations` object requires specification of an integration
+# timestep `dt`, an energy range for the intensity measurements, and a choice of
+# pair correlation measurement. A rule of thumb is that the `dt` can be twice
+# larger than the Langevin integration timestep.
 
 dt = 2*langevin.dt
 energies = range(0, 7.5, 120)
@@ -173,8 +173,8 @@ sc = SampledCorrelations(sys_large; dt, energies, measure=ssf_perp(sys_large))
 add_sample!(sc, sys_large)
 
 # To collect additional data, it is required to re-sample the spin configuration
-# from the thermal distribution. For efficiency, the dynamics should be run long
-# enough that consecutive samples are uncorrelated.
+# from the thermal distribution. Statistical error is reduced by fully
+# decorrelating the spin configurations between calls to `add_sample!`.
 
 for _ in 1:2
     for _ in 1:1000               # Enough steps to decorrelate spins
@@ -189,37 +189,25 @@ sc
 
 # ## Computing Scattering Intensities
 
-# With the thermally-averaged correlation data ``\langle S^{\alpha\beta}(q,\omega)\rangle``
-# in hand, we now need to specify how to extract a scattering intensity from this information.
-# This is done by calling [`intensities`](@ref).
+# Extract the thermally-averaged correlation data ``⟨S^{αβ}(q,ω)⟩`` for a given
+# set of q-points using [`intensities`](@ref). A classical-to-quantum rescaling
+# of normal mode occupations will be performed according to the temperature
+# `kT`.
 
 qs = Sunny.QPoints([[0, 0, 0], [0.5, 0.5, 0.5]])
-is = intensities(sc, qs; kT, energies) 
+res = intensities(sc, qs; kT, energies) 
 
-ωs = available_energies(sc)
-fig = lines(ωs, is.data[:,1]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
-lines!(ωs, is.data[:,2]; label="(π,π,π)")
+fig = lines(res.energies, res.data[:,1]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
+lines!(res.energies, res.data[:,2]; label="(π,π,π)")
 axislegend()
 fig
 
-# The resolution in energy can be improved by increasing `nω`, and the
-# statistical accuracy can be improved by collecting additional samples from the
-# thermal equilibrium.
+# Significant fluctuations indicate a large stochastic error. This data can be
+# made smooth by iterating over more calls to `add_sample!` iterations.
 #
-# For real calculations, one often wants to apply further corrections. 
-# accurate formulas. Here, we apply [`FormFactor`](@ref) corrections appropriate
-# for `Fe2` magnetic ions, and add dipole polarization correction.
-
-formfactors = [FormFactor("Fe2"; g_lande=3/2)]
-sc.measure = ssf_perp(sys_large)
-
-# Frequently, one wants to extract energy intensities along lines that connect
-# special wave vectors--a so-called "spaghetti plot". The function
-# [`reciprocal_space_path`](@ref) creates an appropriate horizontal axis for
-# this plot by linearly sampling between provided $q$-points with a given
-# sample density. The number of sample points between two wavevectors `q1` and
-# `q2` is given by `dist*density` where `dist = norm(cryst.recipvecs * (q1 -
-# q2))` is measured in the global frame. 
+# Next, we will measure intensities along the [`q_space_path`](@ref) that
+# connects high symmetry points. Here we will also apply a [`FormFactor`](@ref)
+# appropriate to Fe²⁺.
 
 points = [[0,   0, 0],  # List of wave vectors that define a path
           [1,   0, 0],
@@ -228,14 +216,21 @@ points = [[0,   0, 0],  # List of wave vectors that define a path
           [0,   1, 0],
           [0,   0, 0]] 
 qpath = q_space_path(cryst, points, 500)
+formfactors = [FormFactor("Fe2"; g_lande=3/2)]
+res = intensities(sc, qpath; kT, energies, formfactors)
+plot_intensities(res; colormap=:viridis, colorrange=(0.0, 1.0))
 
-# Again using [`intensities_interpolated`](@ref), we can evaluate the intensity
-# at each point on the `path`. Since scattering intensities are only available
-# at a certain discrete ``(Q,\omega)`` points, the intensity on the path are
-# calculated by rounding to the nearest available wave vector.
+# On can also view the intensity along a ``𝐪``-space slice with constant energy.
 
-is = intensities(sc, qpath; kT, energies, formfactors)
-plot_intensities(is; colormap=:viridis, colorrange=(0.0, 1.0))
+grid = q_space_grid(cryst, [1, -1/2, 0], range(-1.5, 1.5, 300), [0, 1, 0], (-1.5, 1.5))
+res = intensities(sc, grid; energies=[3.88], kT)
+plot_intensities(res; colorrange=(0.0, 0.3))
 
-# Note that we have clipped the colors in order to make the higher-energy
-# excitations more visible.
+# Significant ``𝐪``-space discretization is apparent. This is a consequence of
+# the finite system size used to simulate the classical dynamics. The basic
+# intensity data stored inside `SampledCorrelations` is only available on a
+# discrete grid of ``𝐪``-points, with resolution that scales inversely to
+# linear system size. Use [`available_wave_vectors`](@ref) to obtain this grid
+# as a 3D array.
+
+size(available_wave_vectors(sc))

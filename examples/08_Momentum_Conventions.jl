@@ -57,7 +57,7 @@ plot_spins(sys)
 
 # Estimate the dynamical structure factor using classical dynamics.
 
-sc = dynamic_correlations(sys; dt, nω=100, ωmax=15D)
+sc = SampledCorrelations(sys; dt, energies=range(0, 15D, 100), measure=ssf_trace(sys))
 add_sample!(sc, sys)
 nsamples = 100
 for _ in 1:nsamples
@@ -66,9 +66,8 @@ for _ in 1:nsamples
     end
     add_sample!(sc, sys)
 end
-density = 100
-path, xticks = reciprocal_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], density)
-data = intensities_interpolated(sc, path, intensity_formula(sc, :trace; kT));
+path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 300)
+res1 = intensities(sc, path; energies=:available, kT)
 
 # Calculate the same quantity with linear spin wave theory at ``T = 0``. Because
 # the ground state is fully polarized, the required magnetic cell is a ``1×1×1``
@@ -78,7 +77,7 @@ sys_small = resize_supercell(sys, (1,1,1))
 minimize_energy!(sys_small)
 swt = SpinWaveTheory(sys_small; measure=ssf_trace(sys_small))
 path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
-res = intensities_bands(swt, path)
+res2 = intensities_bands(swt, path)
 
 # This model system has a single magnon band with dispersion ``ϵ(𝐪) = 1 - D/B
 # \sin(2πq₃)`` and uniform intensity. Both calculation methods reproduce this
@@ -87,7 +86,6 @@ res = intensities_bands(swt, path)
 # elastic peak at ``𝐪 = [0,0,0]``, reflecting the ferromagnetic ground state.
 
 fig = Figure(size=(768, 300))
-ax = Axis(fig[1, 1]; aspect=1.4, title="Classical dynamics", ylabel="Energy")
-heatmap!(ax, 1:size(data, 1), available_energies(sc), data; colorrange=(0.0, 50.0))
-ax = plot_intensities!(fig[1, 2], res; axisopts=(; ylabel="", title="Spin wave theory"))
+plot_intensities!(fig[1, 1], res1; axisopts=(; ylabel="", title="Classical dynamics"))
+plot_intensities!(fig[1, 2], res2; axisopts=(; ylabel="", title="Spin wave theory"))
 fig

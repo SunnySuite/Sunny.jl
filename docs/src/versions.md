@@ -46,8 +46,8 @@
   spin wave theory, with proper Ewald summation. For a faster alternative, the
   experimental function [`modify_exchange_with_truncated_dipole_dipole!`](@ref)
   will accept a real-space cutoff.
-* Intensities calculated with [`dynamic_correlations`](@ref) now avoid
-  "bleeding artifacts" at low-energy (long-timescale) modes. See [PR
+* Intensities calculated with `dynamic_correlations` now avoid "bleeding
+  artifacts" at low-energy (long-timescale) modes. See [PR
   246](https://github.com/SunnySuite/Sunny.jl/pull/246) for details. This
   eliminates the need for `process_trajectory=:symmetrize`.
 * When passed to `intensity_formula`, the special value `zero(FormFactor)` can
@@ -84,11 +84,11 @@
   #149](https://github.com/SunnySuite/Sunny.jl/issues/149).
 * Scalar biquadratic interactions can again be set in `:dipole_large_S` mode via
   the keyword argument `biquad` of [`set_exchange!`](@ref).
-* Significantly speed up [`dynamic_correlations`](@ref) for crystals with many
-  atoms in the unit cell. [Issue
+* Significantly speed up `dynamic_correlations` for crystals with many atoms in
+  the unit cell. [Issue
   #204](https://github.com/SunnySuite/Sunny.jl/issues/204).
 * Renamings: `dt` replaces `Δt` and `damping` replaces `λ`. This affects
-  [`Langevin`](@ref), [`ImplicitMidpoint`], and [`dynamic_correlations`](@ref)
+  [`Langevin`](@ref), [`ImplicitMidpoint`], and `dynamic_correlations`
   functions.
 
 ## v0.5.8
@@ -175,7 +175,7 @@ to work with deprecation warnings, but these will become hard errors Sunny v0.6.
   single-$Q$ order.
 * Sunny now retains all constant energy shifts that have been introduced by
   anisotropy operators.
-* Fix `export_vtk` functionality.
+* Fix [`export_vtk`](@ref) functionality.
 
 ## v0.5.3
 (Sept 8, 2023)
@@ -217,7 +217,7 @@ Major refactors and enhancements to intensity calculations. This new interface
 allows unification between LSWT and classical spin dynamics calculations. This
 interface allows: Custom observables as local quantum operators, better support
 for linebroadening, and automatic binning to facilitate comparison with
-experimental data. See [`intensity_formula`](@ref) for documentation. Use
+experimental data. See `intensity_formula` for documentation. Use
 [`load_nxs`](@ref) to load experimental neutron scattering data.
 
 **Breaking changes**.
@@ -235,20 +235,20 @@ operator.
 Remove `set_biquadratic!`. Instead, use an optional keyword argument `biquad` to
 [`set_exchange!`](@ref).
 
-Rename `DynamicStructureFactor` to [`dynamic_correlations`](@ref). Similarly,
-replace `InstantStructureFactor` with [`instant_correlations`](@ref). The return
-type has been renamed [`SampledCorrelations`](@ref) to emphasize that the object
-may be holding thermodynamic samples, which are collected using
-[`add_sample!`](@ref). Upon construction, the `SampledCorrelations` object will
-be empty (no initial sample).
+Rename `DynamicStructureFactor` to `dynamic_correlations`. Similarly, replace
+`InstantStructureFactor` with `instant_correlations`. The return type has been
+renamed [`SampledCorrelations`](@ref) to emphasize that the object may be
+holding thermodynamic samples, which are collected using [`add_sample!`](@ref).
+Upon construction, the `SampledCorrelations` object will be empty (no initial
+sample).
 
-Remove `intensities` function. Instead, use one of
-[`intensities_interpolated`](@ref) or [`intensities_binned`](@ref). These will
-require an [`intensity_formula`](@ref), which defines a calculator (e.g., LSWT).
+Remove `intensities` function. Instead, use one of `intensities_interpolated` or
+`intensities_binned`. These will require an `intensity_formula`, which defines a
+calculator (e.g., LSWT).
 
-Rename `connected_path` to [`reciprocal_space_path`](@ref), which now returns an
+Rename `connected_path` to `reciprocal_space_path`, which now returns an
 `xticks` object that can be used in plotting. Replace `spherical_shell` with
-[`reciprocal_space_shell`](@ref) that functions similarly.
+`reciprocal_space_shell` that functions similarly.
 
 Rename `polarize_spin!` to [`set_dipole!`](@ref) for consistency with
 [`set_coherent!`](@ref). The behavior of the former function is unchanged: the

@@ -249,6 +249,21 @@ function gaussian(; fwhm=nothing, σ=nothing)
     return Broadening(x -> exp(-x^2/2σ^2) / √(2π*σ^2))
 end
 
+#=
+function integrated_gaussian(; fwhm=nothing, σ=nothing)
+    if sum(.!isnothing.((fwhm, σ))) != 1
+        error("Exactly one of `fwhm` and `σ` must be specified.")
+    end
+    σ = Float64(@something σ (fwhm/2√(2log(2))))
+    return x -> erf(x/√2σ)/2
+end
+
+function integrated_lorentzian(; fwhm)
+    Γ = fwhm
+    return x -> atan(2x/Γ)/π
+end
+=#
+
 
 function broaden!(data::AbstractMatrix{Ret}, bands::BandIntensities{Ret}; energies, kernel) where Ret
     energies = collect(Float64, energies)

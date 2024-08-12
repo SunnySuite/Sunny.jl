@@ -1009,13 +1009,17 @@ function get_unit_energy(units, into)
     end
 end
 
-function colorrange_from_data(; data, saturation, sensitivity)
-    is_pos = all(>(-1e-12), data)
+function colorrange_from_data(; data, saturation, sensitivity, allpositive)
     datacols = eachcol(data)
     cmax = Statistics.quantile(maximum.(datacols), saturation)
     cmin = Statistics.quantile(minimum.(datacols), 1 - saturation)
-    cabsmax = max(abs(cmax), abs(cmin))
-    return (is_pos, is_pos ? (sensitivity, 1) .* cmax : (-cabsmax, cabsmax))
+
+    if allpositive
+        return (sensitivity, 1) .* cmax
+    else
+        cabsmax = max(abs(cmax), abs(cmin))
+        return (-cabsmax, cabsmax)
+    end
 end
 
 """
@@ -1033,7 +1037,7 @@ plot_intensities!(fig[2, 1], res2)
 display(fig)
 ```
 """
-function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; colormap=nothing, saturation=0.9, sensitivity=0.0025, units=nothing, into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; colormap=nothing, saturation=0.9, sensitivity=0.0025, allpositive=true, units=nothing, into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
     unit_energy, ylabel = get_unit_energy(units, into)
  
     if res.qpts isa Sunny.QPath 
@@ -1043,8 +1047,8 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
         fwhm = @something fwhm 0.02*(ylims[2]-ylims[1])
         broadened = Sunny.broaden(res; energies, kernel=gaussian(; fwhm))
 
-        is_pos, colorrange = colorrange_from_data(; broadened.data, saturation, sensitivity)
-        colormap = @something colormap (is_pos ? Makie.Reverse(:thermal) : :bwr)
+        colorrange = colorrange_from_data(; broadened.data, saturation, sensitivity, allpositive)
+        colormap = @something colormap (allpositive ? Makie.Reverse(:thermal) : :bwr)
 
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), res.qpts.xticks, xticklabelrotation, axisopts...)
@@ -1076,7 +1080,7 @@ function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
 
     labels = map(vs, varstrs[axes]) do v, c
         elems = map(v) do x
-            if iszero(x)
+            if abs(x) < 1e-12
                 "0"
             else
                 Sunny.coefficient_to_math_string(x)*c
@@ -1093,14 +1097,15 @@ function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
 end
 
 
-function Sunny.plot_intensities!(panel, res::Sunny.BroadenedIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.BroadenedIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
     unit_energy, ylabel = get_unit_energy(units, into)
     (; crystal, qpts, data, energies) = res
 
+    colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
+    colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
+    colorrange = @something colorrange colorrange_suggest
+    
     if qpts isa Sunny.QPath
-        is_pos, colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0)
-        colormap = @something colormap (is_pos ? :gnuplot2 : :bwr)
-        colorrange = @something colorrange colorrange_suggest
         xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, qpts.xticks, xticklabelrotation, axisopts...)
         Makie.heatmap!(ax, axes(data, 2), collect(energies/unit_energy), data'; colormap, colorrange)
@@ -1117,8 +1122,6 @@ function Sunny.plot_intensities!(panel, res::Sunny.BroadenedIntensities{Float64}
             (xlabel, ylabel), offset, (xs, ys) = suggest_labels_for_grid(qpts)
             
             ax = Makie.Axis(panel; xlabel, ylabel, aspect, axisopts...)
-            colormap = @something colormap :viridis
-            colorrange = @something colorrange extrema(data)
             Makie.heatmap!(ax, xs, ys, data; colormap, colorrange)
             return ax
         else
@@ -1129,12 +1132,12 @@ function Sunny.plot_intensities!(panel, res::Sunny.BroadenedIntensities{Float64}
     end
 end
 
-function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities; colormap=nothing, colorrange=nothing, saturation=0.98, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities; colormap=nothing, colorrange=nothing, saturation=0.98, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
     unit_energy, ylabel = get_unit_energy(units, into)
     xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
  
-    is_pos, colorrange_suggest = colorrange_from_data(; res.data, saturation, sensitivity=0)
-    colormap = @something colormap (is_pos ? :gnuplot2 : :bwr)
+    colorrange_suggest = colorrange_from_data(; res.data, saturation, sensitivity=0, allpositive)
+    colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
     colorrange = @something colorrange colorrange_suggest
 
     ax = Makie.Axis(panel; xlabel, ylabel, axisopts...)

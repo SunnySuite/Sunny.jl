@@ -138,6 +138,11 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     end
 end
 
+# ```math
+# \frac{\omega}{k_{\rm{B}}T}\left[1 + n_{\rm{B}}\left(\omega/T\right)\right].
+# ```
+# 
+# where $n_{\rm{B}} = \left(e^{\omega/k_{\rm{T}}T}\right - 1)^{-1}$ is the Bose function.
 
 """
     intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT)
@@ -189,6 +194,7 @@ function classical_to_quantum(ω, kT)
 end
 
 
+#=
 """
     broaden_energy(sc::SampledCorrelations, vals, kernel::Function; negative_energies=false)
 
@@ -216,3 +222,4 @@ function broaden_energy(sc::SampledCorrelations, is, kernel::Function; negative_
     end
     return out
 end
+=#

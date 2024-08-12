@@ -192,12 +192,12 @@ minimize_energy!(sys)
 plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 # A different understanding of the magnetic ordering can be obtained by moving
-# to Fourier space. The 'instant' structure factor ``𝒮(𝐪)`` is an experimental
-# observable. To investigate ``𝒮(𝐪)`` as true 3D data, Sunny provides
-# [`instant_correlations`](@ref) and related functions. Here, however, we will
-# use [`print_wrapped_intensities`](@ref), which gives average intensities for
-# the individual Bravais sublattices (in effect, all wavevectors are wrapped to
-# the first Brillouin zone).
+# to Fourier space. The 'instantaneous' structure factor ``𝒮(𝐪)`` is an
+# experimental observable. To investigate ``𝒮(𝐪)`` as true 3D data, Sunny
+# provides [`intensities_instant`](@ref). Here, however, we will use
+# [`print_wrapped_intensities`](@ref), which gives average intensities for the
+# individual Bravais sublattices (in effect, all wavevectors are wrapped to the
+# first Brillouin zone).
 
 print_wrapped_intensities(sys)
 
@@ -282,13 +282,6 @@ res = domain_average(cryst, path; rotations, weights) do path_rotated
 end
 plot_intensities(res; units, colormap=:viridis)
 
-# Use [`q_space_grid`](@ref) to sample q-points on a slice [H, K, 0] in RLU.
-# Calculated and plot intensities for a fixed energy value of 3.88 meV.
-
-grid = q_space_grid(cryst, [1, -1/2, 0], range(-1.5, 1.5, 100), [0, 1, 0], (-1.5, 1.5); orthogonalize=true)
-res = intensities(swt, grid; energies=[3.88], kernel)
-plot_intensities(res)
-
 # This result can be directly compared to experimental neutron scattering data
 # from [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)
 # ```@raw html
@@ -307,7 +300,7 @@ plot_intensities(res)
 # An interesting exercise is to repeat the same study, but using `mode =
 # :dipole` instead of `:SUN`. That alternative choice would constrain the
 # coherent state dynamics to the space of dipoles only.
-
+#
 # ## What's next?
 #
 # The multi-boson linear spin wave theory, applied above, can be understood as

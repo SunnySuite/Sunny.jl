@@ -18,8 +18,8 @@ tutorial](@ref "4. Generalized spin dynamics of FeI₂ at finite *T*"), involves
 thermalizing a spin `System` and then calling [`add_sample!`](@ref).
 `add_sample!` uses the state of the `System` as an initial condition for the
 calculation of a dynamical trajectory. The correlations of the trajectory are
-calculated and accumulated into a running average of the ``𝒮(𝐪,ω)``. This
-sequence is repeated to generate additional samples.
+calculated and accumulated into a running average of the ``\mathcal{S}(𝐪,ω)``.
+This sequence is repeated to generate additional samples.
 
 To illustrate, we'll set up a a simple model: a spin-1 antiferromagnet on a BCC
 crystal. 
@@ -39,7 +39,7 @@ end
 sys = make_system()
 ```
 
-A serial calculation of [`dynamic_correlations`](@ref) involving the
+A serial calculation of [`SampledCorrelations`](@ref) involving the
 [`Langevin`](@ref) sampling method can now be performed as follows:
 
 ```julia
@@ -51,7 +51,9 @@ for _ in 1:5000
 end
 
 # Accumulator for S(q,ω) samples
-sc = dynamic_correlations(sys; dt=0.1, nω=100, ωmax=10.0)
+
+energies = range(0.0, 10.0, 100)
+sc = SampledCorrelations(sys; dt=0.1, energies)
 
 # Collect 10 samples
 for _ in 1:10
@@ -82,7 +84,7 @@ preallocate a number of systems and correlations.
 ```julia
 npar = Threads.nthreads()
 systems = [make_system(; seed=id) for id in 1:npar]
-scs = [dynamic_correlations(sys; dt=0.1, nω=100, ωmax=10.0) for _ in 1:npar]
+scs = [SampledCorrelations(sys; dt=0.1, energies) for _ in 1:npar]
 ```
 
 !!! warning "Dealing with memory constraints"
@@ -180,7 +182,7 @@ called `scs`.
 ```julia
 scs = pmap(1:ncores) do id
     sys = make_system(; seed=id)
-    sc = dynamic_correlations(sys; dt=0.1, nω=100, ωmax=10.0)
+    sc = SampledCorrelations(sys; dt=0.1, energies)
     integrator = Langevin(0.05; damping=0.2, kT=0.5)
 
     for _ in 1:5000
