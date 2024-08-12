@@ -2,7 +2,6 @@ module Sunny
 
 using LinearAlgebra
 import Statistics
-import LinearMaps: LinearMap, FunctionMap
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
 import SpecialFunctions: erfc
@@ -10,7 +9,6 @@ import FFTW
 import DynamicPolynomials as DP
 import Printf: Printf, @printf, @sprintf
 import Random: Random, randn!
-import DataStructures: SortedDict, OrderedDict
 import Optim
 import JLD2
 import HCubature: hcubature

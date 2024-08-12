@@ -83,10 +83,6 @@ function accum_sample!(sc::SampledCorrelations; window)
 
     count = sc.nsamples += 1
 
-    # Note that iterating over the `correlations` (a SortedDict) causes
-    # allocations here. The contents of the loop contains no allocations. There
-    # does not seem to be a big performance penalty associated with these
-    # allocations.
     for j in 1:natoms, i in 1:natoms, (c, (α, β)) in enumerate(measure.corr_pairs)
         # α, β = ci.I
 
