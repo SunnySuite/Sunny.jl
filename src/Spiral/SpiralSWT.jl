@@ -39,7 +39,8 @@ end
 
 ## Dispersion and intensities
 
-function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped; k, axis)
+function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpiralSpinWaveTheory, q_reshaped; branch)
+    (; swt, k, axis) = sswt
     (; sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
     L = nbands(swt)
@@ -60,7 +61,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
             J = Ri * c.bilin * Rj'
 
             Jij = (J * Rn + Rn * J) ./ 2
-            phase = exp(2π * im * dot(q_reshaped, n))
+            phase = exp(2π * im * dot(q_reshaped + (branch-2)*k, n))
 
             Sj = sqrtS[j]^2
             Sij = sqrtS[i] * sqrtS[j]
@@ -113,76 +114,48 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
     end
 end
 
-#=
-function calculate_excitations!(T, H, disp, sswt::SpiralSpinWaveTheory, q)
-    (; swt, k, axis) = sswt
-    (; sys) = swt
+function excitations!(T, H, sswt::SpiralSpinWaveTheory, q; branch)
+    (; sys) = sswt.swt
     q_global = orig_crystal(sys).recipvecs * q
     q_reshaped = sys.crystal.recipvecs \ q_global
 
-    for branch in 1:3   # (q, q+k, q-k) modes for ordering wavevector k
-        swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped + (branch-2)*k; k, axis)
-
-        disp[:, branch] = try
-            bogoliubov!(T0, H)
-        catch _
-            error("Instability at wavevector q = $q")
-        end
-
-        T[:, :, branch] .= T0
+    swt_hamiltonian_dipole_spiral!(H, sswt, q_reshaped; branch)
+    return try
+        bogoliubov!(T, H)
+    catch _
+        error("Instability at wavevector q = $q")
     end
 end
 
-
-function excitations(sswt::SpiralSpinWaveTheory, q)
+function excitations(sswt::SpiralSpinWaveTheory, q; branch)
     L = nbands(sswt.swt)
     H = zeros(ComplexF64, 2L, 2L)
-    T = zeros(ComplexF64, 2L, 2L, 3)
-    disp = zeros(Float64, L, 3)
-
-    calculate_excitations!(T, H, disp, sswt, q)
-
-    # FIXME eigenvecs T
-    return (disp, view(V, :, 1:L))
+    T = zeros(ComplexF64, 2L, 2L)
+    energies = excitations!(T, H, sswt, q; branch)
+    return (energies, T, H)
 end
-=#
+
 
 function dispersion(sswt::SpiralSpinWaveTheory, qpts)
-    (; swt, k, axis) = sswt
-    (; sys) = swt
+    (; swt) = sswt
+    L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
-    (; qs) = qpts
+    nq = length(qpts.qs)
+    disp = zeros(L, 3, nq)
 
-    Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
-    Nf = sys.mode == :SUN ? Ns-1 : 1
-    nmodes  = Nf * Nm
-
-    disp = zeros(Float64, nmodes, length(qs), 3)
-
-    for (iq, q) in enumerate(qs)
-        for branch = 1:3    # 3 branch corresponds to K,K+Q and K-Q modes of incommensurate spin structures.
-            H = zeros(ComplexF64, 2nmodes, 2nmodes)
-            V = zeros(ComplexF64, 2nmodes, 2nmodes)
-            q_reshaped = to_reshaped_rlu(swt.sys, q)
-            if sys.mode == :SUN
-                error("Spiral calculation for SUN is not yet implemented")
-            else
-                @assert sys.mode in (:dipole, :dipole_large_S)
-                swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped .+ (branch - 2) .* k; k, axis)
-            end
-            try
-                view(disp, :, iq, branch) .= view(bogoliubov!(V, H), 1:L)
-            catch e
-                error("Instability at wavevector q = $q")
-            end
+    for (iq, q) in enumerate(qpts.qs)
+        for branch in 1:3
+            view(disp, :, branch, iq) .= view(excitations(sswt, q; branch)[1], 1:L)
         end
     end
 
-    return disp
+    # Concatenate all three branches, and sort in descending order
+    return sort!(reshape(disp, 3L, nq); dims=1, rev=true)
 end
 
-# General measurements are not supported. Observables must be a variant of DSSF
-# with some choice of apply_g. Extract and return this parameter.
+
+# Observables must be dipole moments, with some choice of apply_g. Extract and
+# return this parameter.
 function is_apply_g(swt::SpinWaveTheory, measure::MeasureSpec)
     obs1 = measure.observables
     for apply_g in (true, false)
@@ -192,6 +165,7 @@ function is_apply_g(swt::SpinWaveTheory, measure::MeasureSpec)
     error("General measurements not supported for spiral calculation")
 end
 
+# If apply_g == true, then it must be a scalar
 function check_g_scalar(swt::SpinWaveTheory)
     for g in swt.sys.gs
         to_float_or_mat3(g) isa Float64 || error("Anisotropic g-tensor not supported for spiral calculation")
@@ -200,7 +174,7 @@ end
 
 
 function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing)
-    (; swt, k, axis) = sswt
+    (; swt, axis) = sswt
     (; sys, data, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with an `measure` argument.")
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
@@ -235,9 +209,11 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
     Z = view(YZVW, 1:L, L+1:2L, :, :)
     V = view(YZVW, L+1:2L, 1:L, :, :)
     W = view(YZVW, L+1:2L, L+1:2L, :, :)
-
-    disp = zeros(Float64, 3L, Nq)
-    intensity = zeros(eltype(measure), 3L, Nq)
+    
+    disp = zeros(Float64, L, 3, Nq)
+    intensity = zeros(eltype(measure), L, 3, Nq)
+    disp_flat = reshape(disp, 3L, Nq)
+    intensity_flat = reshape(intensity, 3L, Nq)
     S = zeros(ComplexF64, 3, 3, L, 3)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
@@ -255,16 +231,9 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
         q_reshaped = sys.crystal.recipvecs \ q_global
 
         for branch in 1:3   # (q, q+k, q-k) modes for ordering wavevector k
-            swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped + (branch-2)*k; k, axis)
-
-            energies = try
-                bogoliubov!(T0, H)
-            catch _
-                error("Instability at wavevector q = $q")
-            end
-            reshape(disp, L, 3, Nq)[:, branch, iq] = energies[1:L]
-
-            T[:, :, branch] .= T0
+            energies = excitations!(T0, H, sswt, q; branch)
+            view(disp, :, branch, iq) .= view(energies, 1:L)
+            view(T, :, :, branch) .= T0
         end
 
         for i in 1:Na
@@ -305,16 +274,16 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
             corrbuf = map(measure.corr_pairs) do (α, β)
                 S[α, β, band, branch]
             end
-            reshape(intensity, L, 3, Nq)[band, branch, iq] = measure.combiner(q_global, corrbuf)
+            intensity[band, branch, iq] = measure.combiner(q_global, corrbuf)
         end
 
         # Dispersion in descending order
-        P = sortperm(disp[:, iq]; rev=true)
-        disp[:, iq] .= disp[P, iq]
-        intensity[:, iq] .= intensity[P, iq]
+        P = sortperm(disp_flat[:, iq]; rev=true)
+        view(disp_flat, :, iq) .= disp_flat[P, iq]
+        view(intensity_flat, :, iq) .= intensity_flat[P, iq]
     end
 
-    return BandIntensities(cryst, qpts, disp, intensity)
+    return BandIntensities(cryst, qpts, disp_flat, intensity_flat)
 end
 
 function intensities!(data, sswt::SpiralSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)

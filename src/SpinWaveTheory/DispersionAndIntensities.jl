@@ -1,30 +1,30 @@
 # Bogoliubov transformation that diagonalizes a quadratic bosonic Hamiltonian,
 # allowing for anomalous terms. The general procedure derives from Colpa,
 # Physica A, 93A, 327-353 (1978).
-function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
+function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
     L = div(size(H, 1), 2)
-    @assert size(V) == size(H) == (2L, 2L)
+    @assert size(T) == size(H) == (2L, 2L)
 
-    # Initialize V to the para-unitary identity Ĩ = diagm([ones(L), -ones(L)])
-    V .= 0
+    # Initialize T to the para-unitary identity Ĩ = diagm([ones(L), -ones(L)])
+    T .= 0
     for i in 1:L
-        V[i, i] = 1
-        V[i+L, i+L] = -1
+        T[i, i] = 1
+        T[i+L, i+L] = -1
     end
 
-    # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of V.
+    # Solve generalized eigenvalue problem, Ĩ t = λ H t, for columns t of T.
     # Eigenvalues are sorted such that positive values appear first, and are
     # otherwise ascending in absolute value.
     sortby(x) = (-sign(x), abs(x))
-    λ, V0 = eigen!(Hermitian(V), Hermitian(H); sortby)
+    λ, T0 = eigen!(Hermitian(T), Hermitian(H); sortby)
 
-    # Note that V0 and V refer to the same data.
-    @assert V0 === V
+    # Note that T0 and T refer to the same data.
+    @assert T0 === T
 
-    # Normalize columns of V so that para-unitarity holds, V† Ĩ V = Ĩ.
-    for j in axes(V, 2)
+    # Normalize columns of T so that para-unitarity holds, T† Ĩ T = Ĩ.
+    for j in axes(T, 2)
         c = 1 / sqrt(abs(λ[j]))
-        view(V, :, j) .*= c
+        view(T, :, j) .*= c
     end
 
     # Inverse of λ are eigenvalues of Ĩ H. A factor of 2 yields the physical
@@ -41,8 +41,8 @@ function bogoliubov!(V::Matrix{ComplexF64}, H::Matrix{ComplexF64})
     # overwritten by eigen!, so H0 should refer to an original copy of H.
     #=
     Ĩ = Diagonal([ones(L); -ones(L)])
-    @assert V' * Ĩ * V ≈ Ĩ
-    @assert diag(V' * H0 * V) ≈ Ĩ * energies / 2
+    @assert T' * Ĩ * T ≈ Ĩ
+    @assert diag(T' * H0 * T) ≈ Ĩ * energies / 2
     # If H(q) = H(-q) (reflection symmetry), eigenvalues come in pairs
     if H0[1:L, 1:L] ≈ H0[L+1:2L, L+1:2L]
         @assert energies[1:L] ≈ -energies[L+1:2L]
@@ -66,7 +66,34 @@ function thermal_prefactor(kT, ω)
 end
 
 
-function calculate_excitations!(V, H, swt::SpinWaveTheory, q)
+"""
+    excitations!(T, H, swt::SpinWaveTheory, q)
+
+Given a wavevector `q`, builds the spin wave Hamiltonian `H`, solves for the
+matrix `T` representing quasi-particle excitations, and returns a list of
+quasi-particle energies. Both `T` and `H` must be supplied as ``2L×2L``
+matrices, where ``L`` is the number of bands for a single ``𝐪`` value.
+
+The columns of `T` are understood to be contracted with the Holstein-Primakoff
+bosons ``[𝐛_𝐪, 𝐛_{-𝐪}^†]``. The first ``L`` columns provide the eigenvectors
+of the quadratic Hamiltonian for the wavevector ``𝐪``. The next ``L`` columns
+of `T` describe eigenvectors for ``-𝐪``. The return value is a vector with
+similar grouping: the first ``L`` values are energies for ``𝐪``, and the next
+``L`` values are the _negation_ of energies for ``-𝐪``.
+
+    excitations!(T, H, swt::SpiralSpinWaveTheory, q; branch)
+
+Calculations on a [`SpiralSpinWaveTheory`](@ref) additionally require a `branch`
+index. The possible branches ``(1, 2, 3)`` correspond to scattering processes
+``𝐪 - 𝐤, 𝐪, 𝐪 + 𝐤`` respectively, where ``𝐤`` is the ordering wavevector.
+Each branch will contribute ``L`` excitations, where ``L`` is the number of
+spins in the magnetic cell. This yields a total of ``3L`` excitations for a
+given momentum transfer ``𝐪``.
+"""
+function excitations!(T, H, swt::SpinWaveTheory, q)
+    L = nbands(swt)
+    size(T) == size(H) == (2L, 2L) || error("Arguments T and H must be $(2L)×$(2L) matrices")
+
     (; sys) = swt
     q_global = orig_crystal(sys).recipvecs * q
     q_reshaped = sys.crystal.recipvecs \ q_global
@@ -79,7 +106,7 @@ function calculate_excitations!(V, H, swt::SpinWaveTheory, q)
     end
 
     try
-        return bogoliubov!(V, H)
+        return bogoliubov!(T, H)
     catch _
         error("Instability at wavevector q = $q")
     end
@@ -87,19 +114,20 @@ end
 
 """
     excitations(swt::SpinWaveTheory, q)
+    excitations(swt::SpiralSpinWaveTheory, q; branch)
 
-Given a wavevector `q`, returns a pair `(energies, V)`. The first half of
-`energies` are the quasi-particle excitation energies for `q`. The second half
-are the negated quasiparticle energies for `-q`. The columns of `V`, to be
-contracted with the Holstein-Primakoff bosons ``[𝐛_𝐪, 𝐛_{-𝐪}^†]``, are the
-corresponding eigenvectors of the quadratic spin wave Hamiltonian.
+Returns a triple `(energies, T, H)` providing the excitation energies,
+excitation eigenvectors, and the spin wave Hamiltonian matrix. See the
+documentation of [`excitations!`](@ref) for more details. This convenience
+function allocates space for `T` and `H`, and is therefore less efficient than
+[`excitations!`](@ref).
 """
 function excitations(swt::SpinWaveTheory, q)
     L = nbands(swt)
-    V = zeros(ComplexF64, 2L, 2L)
+    T = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
-    energies = calculate_excitations!(V, H, swt, q)
-    return (energies, V)
+    energies = excitations!(T, H, swt, q)
+    return (energies, T, H)
 end
 
 """
@@ -139,7 +167,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
     Nq = length(qpts.qs)
 
     # Preallocation
-    V = zeros(ComplexF64, 2L, 2L)
+    T = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
     Avec_pref = zeros(ComplexF64, Na)
     disp = zeros(Float64, L, Nq)
@@ -157,7 +185,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
-        view(disp, :, iq) .= view(calculate_excitations!(V, H, swt, q), 1:L)
+        view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
         for i in 1:Na
             r_global = global_position(sys, (1,1,1,i))
@@ -173,24 +201,24 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
             if sys.mode == :SUN
                 data = swt.data::SWTDataSUN
                 N = sys.Ns[1]
-                v = reshape(view(V, :, band), N-1, Na, 2)
+                t = reshape(view(T, :, band), N-1, Na, 2)
                 for i in 1:Na, μ in 1:Nobs
                     O = data.observables_localized[μ, i]
                     for α in 1:N-1
-                        Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
+                        Avec[μ] += Avec_pref[i] * (O[α, N] * t[α, i, 2] + O[N, α] * t[α, i, 1])
                     end
                 end
             else
                 @assert sys.mode in (:dipole, :dipole_large_S)
                 data = swt.data::SWTDataDipole
-                v = reshape(view(V, :, band), Na, 2)
+                t = reshape(view(T, :, band), Na, 2)
                 for i in 1:Na, μ in 1:Nobs
                     O = data.observables_localized[μ, i]
                     # This is the Avec of the two transverse and one
                     # longitudinal directions in the local frame. (In the
                     # local frame, z is longitudinal, and we are computing
                     # the transverse part only, so the last entry is zero)
-                    displacement_local_frame = SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
+                    displacement_local_frame = SA[t[i, 2] + t[i, 1], im * (t[i, 2] - t[i, 1]), 0.0]
                     Avec[μ] += Avec_pref[i] * (data.sqrtS[i]/sqrt(2)) * (O' * displacement_local_frame)[1]
                 end
             end
