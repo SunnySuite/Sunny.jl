@@ -1,12 +1,94 @@
+# Generalize to negative omega values
+function energy_interpolation_info(sc, energies)
+    ωvals = available_energies(sc; negative_energies=false)
+
+    if minimum(energies) < ωs[1] || maximum(energies) > ωvals[end]
+        error("Requested unavailable energies.")
+    end
+
+    ωidcs1 = zeros(length(energies[i_lo:i_hi]))
+    ωidcs2 = zeros(length(energies[i_lo:i_hi]))
+    weights1 = zeros(length(energies[i_lo:i_hi])) 
+    weights2 = zeros(length(energies[i_lo:i_hi])) 
+
+    curr_idx = 1
+    for (i, energy) in enumerate(energies[i_lo:i_hi])
+        while !(ωvals[curr_idx] <= energy <= ωvals[curr_idx+1])
+            curr_idx += 1
+        end
+        ωidcs1[i], ωidcs2[i] = curr_idx, curr_idx+1
+        weights2[i] = (energy - ωvals[curr_idx])/(ωvals[curr_idx+1] - ωvals[curr_idx]) 
+        weights1[i] = 1 - weights2[i]
+    end
+
+    return (ωidcs1, ωidcs2), (weights1, weights2)
+end
+
+function find_idx_of_nearest_fft_energy(ref, val)
+    for i in axes(ref[1:end-1], 1)
+        x1, x2 = ref[i], ref[i+1]
+        if x1 <= val < x2 
+            if abs(x1 - val) < abs(x2 - val)
+                return i
+            else
+                return i+1
+            end
+        end
+    end
+    # Deal with edge case arising due to FFT index ordering
+    if ref[end] <= val < 0.0
+        if abs(ref[end] - val) <= abs(val)
+            return length(ref)
+        else
+            return 1
+        end
+    end
+    error("Value does not lie in bounds of reference list.")
+end
+
+# If the user specifies an energy list, round to the nearest available energies
+# and give the corresponding indices into the raw data. This is fairly
+# inefficient, though the cost is likely trivial next to the rest of the
+# computation. Since this is an edge case (user typically expected to choose
+# :available or :available_with_negative), not spending time on optimization
+# now.
+function rounded_energy_information(sc, energies)
+    ωvals = available_energies(sc; negative_energies = true)
+    energies_sorted = sort(energies)
+    @assert all(x -> x ==true, energies .== energies_sorted) "Specified energies must be an ordered list."
+    @assert minimum(energies) >= minimum(ωvals) && maximum(energies) <= maximum(ωvals) "Specified energies includes values for which there is no available data."
+    ωidcs = map(val -> find_idx_of_nearest_fft_energy(ωvals, val), energies)
+    return ωvals[ωidcs], ωidcs
+end
+
 """
-    intensities(sc::SampledCorrelations, qpts; measure=nothing, energies=nothing, negative_energies=false, formfactors=nothing, kT=Inf, interp=NoInterp())
+    intensities(sc::SampledCorrelations, qpts; kernel=nothing, energies=nothing, formfactors=nothing, kT=Inf)
+
+energies = [:available, :available_with_negative, or list (rounding to nearest available)] 
 """
-function intensities(sc::SampledCorrelations, qpts; measure=nothing, energies=nothing, negative_energies=false, formfactors=nothing, kT=Inf, interp=NoInterp())
-    measure = !isnothing(measure) ? measure : sc.measure # TODO: Add checks to see if override is legit
+function intensities(sc::SampledCorrelations, qpts; kernel=nothing, energies=nothing, formfactors=nothing, kT=Inf)
+    if isnan(sc.Δω) && energies != :available
+        error("`SampledCorrelations` only contains static information. No energy information is available.")
+    end
+
+    (; measure) = sc
+    interp = NoInterp()
     qpts = Base.convert(AbstractQPoints, qpts)
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
     IntensitiesType = eltype(measure)
     crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
+
+    # Determine energy information
+    (ωs, ωidcs) = if energies == :available
+        ωs = available_energies(sc; negative_energies=false)
+        (ωs, axes(ωs, 1))
+    elseif energies == :available_with_negative
+        ωs = available_energies(sc; negative_energies=true)
+        (ωs, axes(ωs, 1))
+    else
+        rounded_energy_information(sc, energies)
+    end
+    
 
     # Interpret q points in terms of original crystal. 
     q_targets = if !isnothing(sc.origin_crystal)
@@ -17,22 +99,23 @@ function intensities(sc::SampledCorrelations, qpts; measure=nothing, energies=no
     end
 
     # Preallocation
-    ωvals = available_energies(sc; negative_energies)
-    intensities = zeros(IntensitiesType, isnan(sc.Δω) ? 1 : length(ωvals), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
+    intensities = zeros(IntensitiesType, isnan(sc.Δω) ? 1 : length(energies), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
     local_intensities = zeros(IntensitiesType, ninterp(interp)) 
 
-    # Stencil and interpolation precalculation
+    # Stencil and interpolation precalculation for q-space
     li_intensities = LinearIndices(intensities)
     ci_targets = CartesianIndices(q_targets)
     m_targets = [mod.(sc.latsize .* q_target, 1) for q_target in q_targets]
     (; qabs_all, idcs_all, counts) = pruned_stencil_info(sc, qpts.qs, interp) 
 
-    # Calculate the interpolated intensities, avoiding repeated calls to phase_averaged_elements.
-    for iω in eachindex(ωvals)
+    # Calculate the interpolated intensities, avoiding repeated calls to
+    # phase_averaged_elements. This is the computational expensive portion.
+    for (n, iω) in enumerate(ωidcs)
         iq = 0
         for (qabs, idcs, numrepeats) in zip(qabs_all, idcs_all, counts)
 
-            # Pull out nearest intensities that are necessary for any interpolation
+            # Pull out nearest intensities formling the "stencil" used for
+            # interpolation.
             for n in 1:ninterp(interp)
                 correlations = phase_averaged_elements(
                     view(sc.data, :, :, :, idcs[n], iω), 
@@ -45,10 +128,11 @@ function intensities(sc::SampledCorrelations, qpts; measure=nothing, energies=no
                 local_intensities[n] = measure.combiner(qabs[n], correlations)
             end
 
-            # Perform interpolations 
+            # Perform interpolations for all requested qs using stencil
+            # intensities.
             for _ in 1:numrepeats
                 iq += 1
-                idx = li_intensities[CartesianIndex(iω, ci_targets[iq])]
+                idx = li_intensities[CartesianIndex(n, ci_targets[iq])]
                 intensities[idx] = interpolated_intensity(sc, m_targets[iq], local_intensities, interp) 
             end
         end
@@ -63,7 +147,7 @@ function intensities(sc::SampledCorrelations, qpts; measure=nothing, energies=no
 
         # Apply classical-to-quantum correspondence factor if temperature given.
         if kT != Inf
-            c2q = classical_to_quantum.(ωvals, kT)
+            c2q = classical_to_quantum.(energies, kT)
             for i in axes(intensities, 2)
                 intensities[:,i] .*= c2q
             end
@@ -75,7 +159,7 @@ function intensities(sc::SampledCorrelations, qpts; measure=nothing, energies=no
     end
 
     return if !isnan(sc.Δω)
-        BroadenedIntensities(crystal, qpts, ωvals, intensities)
+        BroadenedIntensities(crystal, qpts, collect(ωs), intensities)
     else
         InstantIntensities(crystal, qpts, intensities)
     end
