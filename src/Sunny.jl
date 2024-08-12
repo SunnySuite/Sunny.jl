@@ -1,6 +1,7 @@
 module Sunny
 
 using LinearAlgebra
+import Statistics
 import LinearMaps: LinearMap, FunctionMap
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
