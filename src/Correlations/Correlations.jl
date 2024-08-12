@@ -129,7 +129,6 @@ end
 # TODO: Move measure into SWT
 function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     (; sys) = swt
-    (; data) = swt
 
     # Number of atoms in magnetic cell
     @assert sys.latsize == (1,1,1)
@@ -189,11 +188,10 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
         for band = 1:L
             fill!(Avec, 0)
             if sys.mode == :SUN
-                (; observables_localized) = data::SWTDataSUN
                 N = sys.Ns[1]
                 v = reshape(view(V, :, band), N-1, Na, 2)
                 for i in 1:Na, μ in 1:Nobs
-                    @views O = observables_localized[:, :, μ, i]
+                    @views O = swt.data.observables_localized[:, :, μ, i]
                     @assert O ≈ - obs_local_frame[i, μ]
 
                     for α in 1:N-1
@@ -206,6 +204,9 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
                 for i in 1:Na
                     sqrtS = sqrt(sys.κs[i])
                     for μ in 1:Nobs
+                        @views O = swt.data.observables_localized[:, :, μ, i]
+                        @assert O ≈ - obs_local_frame[i, μ]'
+
                         # This is the Avec of the two transverse and one
                         # longitudinal directions in the local frame. (In the
                         # local frame, z is longitudinal, and we are computing
@@ -224,4 +225,9 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
     end
 
     return BandIntensities{Ret}(qs_global, disp, intensity)
+end
+
+
+function intensities_broadened2(swt::SpinWaveTheory, qs, energies::StepRangeLen; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
+
 end
