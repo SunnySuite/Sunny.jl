@@ -152,7 +152,7 @@ end
 function is_apply_g(swt::SpinWaveTheory, measure::MeasureSpec)
     obs1 = measure.observables
     for apply_g in (true, false)
-        obs2 = ssf_trace(swt.sys; apply_g).observables
+        obs2 = all_dipole_observables(swt.sys; apply_g)
         vec(obs1) ≈ vec(obs2) && return apply_g
     end
     error("General measurements not supported for spiral calculation")

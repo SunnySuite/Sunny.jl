@@ -94,19 +94,14 @@ axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
 plot_intensities(res; units, axisopts, saturation=0.7, colormap=:jet)
 
 # Use [`ssf_custom`](@ref) to specify calculation of the imaginary part of the
-# off diagonal structure factor elements ``\mathcal{S}^{y,z}(𝐪, ω) -
-# \mathcal{S}^{z, y}(𝐪, ω)``. Spin components refer to the Blume Maleev
-# polarization axis system for the incident momentum ``[0, 0, 1]`` in RLU. The
-# function [`blume_maleev`](@ref) expects incident momentum ``𝐪_i`` and
-# momentum transfer ``𝐪`` in global coordinates (inverse length), so
-# multiplication by reciprocal lattice vectors is needed.
+# off diagonal structure factor elements ``\mathcal{S}^{2, 3}(𝐪, ω) -
+# \mathcal{S}^{3, 2}(𝐪, ω)``. Indices refer to the Blume-Maleev polarization
+# axis system, constructed such that ``𝐮 = [0, 0, 1]`` is in the scattering
+# plane.
 
-const q_i = cryst.recipvecs * [0, 0, 1]
-measure = ssf_custom(sys) do q, ssf
-    (_, y, z) = blume_maleev(q_i, q)
-    imag(y'*ssf*z - z'*ssf*y)
+measure = ssf_custom_bm(sys; u=[0, 0, 1]) do q, ssf
+    imag(ssf[2,3] - ssf[3,2])
 end
-
 swt = SpinWaveTheory(sys; measure)
 res = intensities(swt, path; energies, kernel=gaussian2(fwhm=0.25))
 axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)

@@ -80,10 +80,10 @@ include("MCIF.jl")
 export set_dipoles_from_mcif!
 
 include("MeasureSpec.jl")
-export ssf_custom, ssf_perp, ssf_trace
+export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace
 
 include("MeasureHelpers.jl")
-export q_space_path, blume_maleev, lorentzian2, gaussian2, rotation_in_rlu, powder_average, domain_average
+export q_space_path, lorentzian2, gaussian2, rotation_in_rlu, powder_average, domain_average
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
