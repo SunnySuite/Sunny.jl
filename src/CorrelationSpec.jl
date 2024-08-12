@@ -1,3 +1,26 @@
+"""
+    blume_maleev(u, v, q)
+
+Given a scattering plane defined by the span of `(u, v)`, and a momentum
+transfer vector `q`, all in global (inverse length) coordinates, return three
+basis vectors `(x, y, z)` that define the Blume Maleev coordinate system. These
+basis vectors are non-orthogonal and have the following properties:
+
+  * `x` is parallel to `q`,
+  * `z` is normal to the scattering plane, i.e., perpendicular to `u` and `v`,
+  * `y` is perpendicular to `q` and within the scattering plane.
+"""
+function blume_maleev(u, v, q)
+    (u, v, q) = Vec3.((u, v, q))
+    # Parallel to q
+    x = normalize(q)
+    # Perpendicular to scattering plane
+    z = normalize(cross(u, v))
+    # Perpendicular to q in the scattering plane,
+    y = normalize(z × q)
+    return (x, y, z)
+end
+
 
 # Op is the type of a local observable operator. Either a Vec3 (for :dipole
 # mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
@@ -56,11 +79,11 @@ end
     ssf_custom(f, sys::System; apply_g=true)
 
 Specify a custom contraction of the spin structure factor. The function `f`
-accepts a wavevector ``𝐪`` and a 3×3 matrix with structure factor intensity
-components ``\\mathcal{S}^{αβ}(𝐪,ω)``. Indices ``(α, β)`` denote dipole
-components in Cartesian coordinates. The return value of `f` can be any number
-or `isbits` type. The related functions [`ssf_perp`](@ref) and
-[`ssf_trace`](@ref) predefine specific structure factor contractions. 
+accepts a wavevector ``𝐪`` in global Cartesian coordinates, and a 3×3 matrix
+with structure factor intensity components ``\\mathcal{S}^{αβ}(𝐪,ω)``. Indices
+``(α, β)`` denote dipole components in global coordinates. The return value of
+`f` can be any number or `isbits` type. The related functions [`ssf_perp`](@ref)
+and [`ssf_trace`](@ref) predefine specific structure factor contractions. 
 
 By default, the g-factor or tensor is applied at each site, such that the
 structure factor components are correlations between the magnetic moment
@@ -73,13 +96,15 @@ Intended for use with [`SpinWaveTheory`](@ref) and instances of
 # Examples
 
 ```julia
-# Measure imaginary part of Sʸᶻ - Sᶻʸ
-corrspec = ssf_custom(sys) do q, sf
-    imag(sf[2, 3] - sf[3, 2])
-end
-
 # Measure all 3×3 structure factor components Sᵅᵝ
 corrspec = ssf_custom((q, sf) -> sf, sys)
+
+# Measure imaginary part of Sʸᶻ - Sᶻʸ in the Blume-Maleev coordinate system
+# for the scattering plane spanned by [0, 1, 0] and [0, 0, 1].
+corrspec = ssf_custom(sys) do q, sf
+    (x, y, z) = blume_maleev([0, 1, 0], [0, 0, 1], q)
+    imag(y'*sf*z - z'*sf*y)
+end
 ```
 
 See also the Sunny documentation on [Structure Factor Calculations](@ref) for
