@@ -84,20 +84,12 @@ measure = DSSF_perp(sys; apply_g=false)
 res = intensities_bands_spiral(swt, path; k, axis, measure)
 plot_intensities(res; units)
 
-
-path = q_space_path(cryst, qs, 5000)
-energies = range(0, 6, 1000)
-kernel = Sunny.gaussian2(fwhm=0.05)
-@time res = intensities_bands_spiral(swt, path; k, axis, measure)
-@time Sunny.broaden(res, energies; kernel)
-
-
-# The powder average can be calculated as shown below.
+# Plot the powder-averaged intensities
 
 radii = range(0, 2, 100) # (1/Å)
 energies = range(0, 6, 200)
 kernel = Sunny.gaussian2(fwhm=0.05)
-@profview res = powder_average(cryst, radii, 500) do qs
+res = powder_average(cryst, radii, 200) do qs
     intensities_spiral(swt, qs; k, axis, energies, kernel, measure)
 end
 plot_intensities(res; units)
