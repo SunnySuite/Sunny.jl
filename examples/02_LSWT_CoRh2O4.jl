@@ -68,7 +68,7 @@ plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 
 # Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref).
 
-swt = SpinWaveTheory(sys_prim; corrspec=DSSF_perp(sys_prim))
+swt = SpinWaveTheory(sys_prim; corrspec=ssf_perp(sys_prim))
 
 # For the "single crystal" result, we use [`q_space_path`](@ref) to construct a
 # path that connects high-symmetry points in reciprocal space.
@@ -77,7 +77,7 @@ qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path = q_space_path(cryst, qs, 400)
 
 # Select [`lorentzian2`](@ref) broadening with a full-width at half-maximum
-# (FWHM) of 0.8 meV. Use [`DSSF_perp`](@ref) to calculate unpolarized scattering
+# (FWHM) of 0.8 meV. Use [`ssf_perp`](@ref) to calculate unpolarized scattering
 # intensities. The isotropic [`FormFactor`](@ref) for Cobalt(2+) dampens
 # intensities at large ``𝐪``.
 

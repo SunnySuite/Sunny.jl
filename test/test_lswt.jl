@@ -48,7 +48,7 @@
 
     # Test energies at an arbitrary wave vector
     qs = [[0.24331089495721447, 0.2818361515716459, 0.21954858411037714]]
-    swt = SpinWaveTheory(sys; corrspec=DSSF_perp(sys))
+    swt = SpinWaveTheory(sys; corrspec=ssf_perp(sys))
 
     res = intensities_bands(swt, qs)
     # println(round.(res.disp; digits=12))
@@ -59,7 +59,7 @@
     @test isapprox(res.data / (natoms * g^2), data_golden'; atol=1e-9)
 
     # Test first 5 output matrices
-    corrspec = DSSF_custom((q, sf) -> sf, sys)
+    corrspec = ssf_custom((q, sf) -> sf, sys)
     swt = SpinWaveTheory(sys; corrspec)
     formfactors=[FormFactor("Fe2")]
     res = intensities_bands(swt, qs; formfactors)
@@ -159,7 +159,7 @@ end
         set_dipole!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
         set_dipole!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
         set_dipole!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
-        swt = SpinWaveTheory(sys; corrspec=DSSF_trace(sys))
+        swt = SpinWaveTheory(sys; corrspec=ssf_trace(sys))
         q = [0.8, 0.6, 0.1]
         res = intensities_bands(swt, [q])
 
@@ -227,7 +227,7 @@ end
     energy(sys)
     @test energy(sys) ≈ -3
     
-    swt = SpinWaveTheory(sys; corrspec=DSSF_trace(sys; apply_g=false))
+    swt = SpinWaveTheory(sys; corrspec=ssf_trace(sys; apply_g=false))
     res = intensities_bands(swt, [[0,0,0]])
     @test res.disp[1] ≈ 9
     @test res.data[1] ≈ 1
@@ -328,7 +328,7 @@ end
         polarize_spins!(sys, (0,0,1))
         @test energy_per_site(sys) ≈ -0.1913132980155851
         
-        swt = SpinWaveTheory(sys; corrspec=DSSF_perp(sys))
+        swt = SpinWaveTheory(sys; corrspec=ssf_perp(sys))
         qs = [[0, 0, 0], [0, 0, 1/2], [0, 1/2, 1/2], [0, 0, 0]]
         res = intensities_bands(swt, qs)
         disp_ref = [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553]
@@ -377,7 +377,7 @@ end
         set_spiral_order_on_sublattice!(sys, i; k=[0,0,1/7], axis=[0,0,1], S0=[cos(θ),sin(θ),0])
     end
 
-    corrspec = DSSF_custom((q, sf) -> sf, sys; apply_g=false)
+    corrspec = ssf_custom((q, sf) -> sf, sys; apply_g=false)
     swt = SpinWaveTheory(sys; corrspec)
     q = [0.41568,0.56382,0.76414]
     res = intensities_bands(swt, [q])
@@ -437,7 +437,7 @@ end
     q2 = [0.2360,0.7492,0.9596]
     q3 = [0.1131,0.7654,0.2810]
     q = [q1,q2,q3]
-    corrspec = DSSF_custom((q, sf) -> sf, sys)
+    corrspec = ssf_custom((q, sf) -> sf, sys)
     swt = SpinWaveTheory(sys; corrspec)
     formfactors = [FormFactor("Cr4")]
     res = intensities_bands(swt, q; formfactors)
@@ -467,8 +467,8 @@ end
     @test energy_per_site(sys_prim) ≈ -2S^2
     
     # Both systems should produce the same intensities
-    swt1 = SpinWaveTheory(sys_prim; corrspec=DSSF_perp(sys_prim))
-    swt2 = SpinWaveTheory(sys; corrspec=DSSF_perp(sys))
+    swt1 = SpinWaveTheory(sys_prim; corrspec=ssf_perp(sys_prim))
+    swt2 = SpinWaveTheory(sys; corrspec=ssf_perp(sys))
     kernel = Sunny.lorentzian2(fwhm=0.8)
     formfactors = [FormFactor("Co2")]
     q = randn(3)
@@ -520,9 +520,9 @@ end
     end
     @assert energy_per_site(sys1) ≈ energy_per_site(sys2)
 
-    swt = SpinWaveTheory(sys1; corrspec=DSSF_trace(sys1))
+    swt = SpinWaveTheory(sys1; corrspec=ssf_trace(sys1))
     res1 = intensities_bands(swt, [[0,0,0]])
-    swt = SpinWaveTheory(sys2; corrspec=DSSF_trace(sys2))
+    swt = SpinWaveTheory(sys2; corrspec=ssf_trace(sys2))
     res2 = intensities_bands(swt, [[0,0,0]])
     @assert res1.data ≈ res2.data
 end

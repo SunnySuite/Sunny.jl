@@ -58,11 +58,11 @@ end
         infos_homog = [SpinInfo(1, S=3/2, g=g1), SpinInfo(2, S=(mode == :SUN ? 3/2 : 1/2), g=g1)]
         sys_homog = System(cryst, (1,1,1), infos_homog, mode)
 
-        corrspec = DSSF_custom((q, sf) -> sf, sys_homog; apply_g=false)
+        corrspec = ssf_custom((q, sf) -> sf, sys_homog; apply_g=false)
         swt = SpinWaveTheory(sys_homog; corrspec)
         res1 = intensities_bands(swt, [[0,0,0]])
 
-        corrspec = DSSF_custom((q, sf) -> sf, sys_homog; apply_g=true)
+        corrspec = ssf_custom((q, sf) -> sf, sys_homog; apply_g=true)
         swt = SpinWaveTheory(sys_homog; corrspec)
         res2 = intensities_bands(swt, [[0,0,0]])
 
