@@ -34,14 +34,14 @@ function Base.setproperty!(value::Langevin, name::Symbol, x)
 end
 
 
-Base.@deprecate lorentzian(x, η) let
-    @warn "`lorentzian(x, η)` is deprecated! Use `lorentzian(; fwhm=2η)(x)` instead."
-    return lorentzian(; fwhm=2η)(x)
+Base.@deprecate lorentzian06(x, η) let
+    @warn "`lorentzian06(x, η)` is deprecated! Use `lorentzian06(; fwhm=2η)(x)` instead."
+    return lorentzian06(; fwhm=2η)(x)
 end
 
-Base.@deprecate lorentzian(η) let
-    @warn "`lorentzian(η)` is deprecated! Use `lorentzian(; fwhm=2η)` instead."
-    return lorentzian(; fwhm=2η)
+Base.@deprecate lorentzian06(η) let
+    @warn "`lorentzian06(η)` is deprecated! Use `lorentzian06(; fwhm=2η)` instead."
+    return lorentzian06(; fwhm=2η)
 end
 
 Base.@deprecate integrated_lorentzian(η::Float64) let

@@ -155,7 +155,7 @@ end
 Returns the function `(Γ/2) / (π*(x^2+(Γ/2)^2))` where `fwhm = Γ` is the full
 width at half maximum.
 """
-function lorentzian2(; fwhm)
+function lorentzian(; fwhm)
     Γ = fwhm
     return Broadening(x -> (Γ/2) / (π*(x^2+(Γ/2)^2)))
 end
@@ -166,7 +166,7 @@ end
 Returns the function `exp(-x^2/2σ^2) / √(2π*σ^2)`. Either `fwhm` or `σ` must be
 specified, where `fwhm = (2.355...) * σ` is the full width at half maximum.
 """
-function gaussian2(; fwhm=nothing, σ=nothing)
+function gaussian(; fwhm=nothing, σ=nothing)
     if sum(.!isnothing.((fwhm, σ))) != 1
         error("Either fwhm or σ must be specified.")
     end

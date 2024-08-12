@@ -168,7 +168,7 @@ path, xticks = reciprocal_space_path(cryst, points, density);
 formula = intensity_formula(sc, :perp; formfactors, kT=langevin.kT)
 fwhm = 0.2
 iqw = intensities_interpolated(sc, path, formula)
-iqwc = broaden_energy(sc, iqw, (ω, ω₀) -> lorentzian(; fwhm)(ω-ω₀));
+iqwc = broaden_energy(sc, iqw, (ω, ω₀) -> lorentzian06(; fwhm)(ω-ω₀));
 
 # Plot the intensity data on a clipped color scale
 
@@ -195,7 +195,7 @@ output = zeros(Float64, length(radii), length(ωs))
 for (i, radius) in enumerate(radii)
     pts = reciprocal_space_shell(sc.crystal, radius, 100)
     is = intensities_interpolated(sc, pts, formula)
-    is = broaden_energy(sc, is, (ω,ω₀) -> lorentzian(; fwhm)(ω-ω₀))
+    is = broaden_energy(sc, is, (ω,ω₀) -> lorentzian06(; fwhm)(ω-ω₀))
     output[i, :] = mean(is , dims=1)[1,:]
 end
 

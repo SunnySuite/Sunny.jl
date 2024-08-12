@@ -76,12 +76,12 @@ swt = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path = q_space_path(cryst, qs, 400)
 
-# Select [`lorentzian2`](@ref) broadening with a full-width at half-maximum
+# Select [`lorentzian`](@ref) broadening with a full-width at half-maximum
 # (FWHM) of 0.8 meV. Use [`ssf_perp`](@ref) to calculate unpolarized scattering
 # intensities. The isotropic [`FormFactor`](@ref) for Cobalt(2+) dampens
 # intensities at large ``𝐪``.
 
-kernel = Sunny.lorentzian2(fwhm=0.8)
+kernel = lorentzian(fwhm=0.8)
 formfactors = [FormFactor("Co2")]
 energies = range(0, 6, 300)
 res = intensities(swt, path; energies, kernel, formfactors)

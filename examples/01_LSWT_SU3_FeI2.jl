@@ -262,11 +262,11 @@ res = intensities_bands(swt, path)
 plot_intensities(res; units)
 
 # To make comparisons with inelastic neutron scattering (INS) data, one can
-# employ empirical broadening. Select [`lorentzian2`](@ref) broadening, with a
+# employ empirical broadening. Select [`lorentzian`](@ref) broadening, with a
 # full-width at half-maximum of 0.3 meV. We will calculate intensities for 300
 # discrete energies between 0 and 10 meV.
 
-kernel = lorentzian2(; fwhm=0.3)
+kernel = lorentzian(; fwhm=0.3)
 energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 
 # A real FeI₂ sample will exhibit spontaneous breaking of its 3-fold rotational
