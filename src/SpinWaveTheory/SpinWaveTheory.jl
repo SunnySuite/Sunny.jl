@@ -12,16 +12,19 @@ struct SWTDataSUN
 end
 
 """
-    SpinWaveTheory(sys::System, measure::CorrelationSpec; regularization=1e-8)
+    SpinWaveTheory(sys::System; corrspec=nothing; regularization=1e-8)
 
 Constructs an object to perform linear spin wave theory. The system must be in
 an energy minimizing configuration. Enables calculation of [`dispersion`](@ref)
-bands. If pair correlations are specified with `measure`, one can also calculate
-[`intensities_bands`](@ref) and broadened [`intensities`](@ref).
+bands. If pair correlations are specified with `correspec`, one can also
+calculate [`intensities_bands`](@ref) and broadened [`intensities`](@ref).
 
-The parameter `regularization` adds a small positive shift to the diagonal of
-the dynamical matrix to avoid numerical issues with zero-energy quasi-particle
-modes.
+The spins in system must be energy-minimized, otherwise the Cholesky step of the
+Bogoliubov diagonalization procedure will fail. The parameter `regularization`
+adds a small positive shift to the diagonal of the dynamical matrix to avoid
+numerical issues with quasi-particle modes of vanishing energy. Physically, this
+shift can be interpreted as application of an inhomogeneous field aligned with
+the magnetic ordering.
 """
 struct SpinWaveTheory
     sys            :: System
@@ -30,14 +33,14 @@ struct SpinWaveTheory
     regularization :: Float64
 end
 
-function SpinWaveTheory(sys::System, measure::Union{Nothing, CorrelationSpec}; regularization=1e-8, energy_ϵ=nothing)
+function SpinWaveTheory(sys::System; corrspec::Union{Nothing, CorrelationSpec}=nothing, regularization=1e-8, energy_ϵ=nothing)
     if !isnothing(energy_ϵ)
         @warn "Keyword argument energy_ϵ is deprecated! Use `regularization` instead."
         regularization = energy_ϵ
     end
 
-    measure = @something measure empty_measurement(sys)
-    if length(eachsite(sys)) != prod(size(measure.observables)[2:5])
+    corrspec = @something corrspec empty_corrspec(sys)
+    if length(eachsite(sys)) != prod(size(corrspec.observables)[2:5])
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
@@ -61,9 +64,9 @@ function SpinWaveTheory(sys::System, measure::Union{Nothing, CorrelationSpec}; r
     sys = reshape_supercell_aux(sys, new_cryst, (1,1,1))
 
     # Rotate local operators to quantization axis
-    data = swt_data(sys, measure)
+    data = swt_data(sys, corrspec)
 
-    return SpinWaveTheory(sys, data, measure, regularization)
+    return SpinWaveTheory(sys, data, corrspec, regularization)
 end
 
 

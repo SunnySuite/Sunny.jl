@@ -257,7 +257,7 @@ path = q_space_path(cryst, qs, 500)
 # factor onto the space perpendicular to the momentum transfer ``𝐪``, which is
 # appropriate for an unpolarized neutron beam.
 
-swt = SpinWaveTheory(sys_min, DSSF_perp(sys_min))
+swt = SpinWaveTheory(sys_min; corrspec=DSSF_perp(sys_min))
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 

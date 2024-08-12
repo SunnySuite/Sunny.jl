@@ -80,7 +80,8 @@ end
         @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
 
         q = [0.12, 0.23, 0.34]
-        swt = SpiralSpinWaveTheory(sys, DSSF_perp(sys; apply_g=false); k, axis)
+        corrspec = DSSF_perp(sys; apply_g=false)
+        swt = SpiralSpinWaveTheory(sys; corrspec, k, axis)
         
         res = intensities_bands(swt, [q])
         ϵq_num = res.disp[1,1]
@@ -129,7 +130,8 @@ end
     end
     @test spiral_energy(sys; k, axis) ≈ -16.356697120589477
 
-    swt = SpiralSpinWaveTheory(sys, DSSF_perp(sys; apply_g=false); k, axis)
+    corrspec = DSSF_perp(sys; apply_g=false)
+    swt = SpiralSpinWaveTheory(sys; corrspec, k, axis)
     q = [0.41568,0.56382,0.76414]
     res = intensities_bands(swt, [q])
 
