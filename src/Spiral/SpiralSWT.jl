@@ -14,8 +14,8 @@ The resulting object can be used to calculate the spin wave
 and [`intensities`](@ref).
 
 The algorithm for this calculation was developed in [Toth and Lake, J. Phys.:
-Condens. Matter **27**, 166002 (2015)](https://arxiv.org/abs/1402.6069), and was
-first implemented in the [SpinW code](https://spinw.org/).
+Condens. Matter **27**, 166002 (2015)](https://arxiv.org/abs/1402.6069) and
+implemented in the [SpinW code](https://spinw.org/).
 """
 struct SpiralSpinWaveTheory
     swt :: SpinWaveTheory
@@ -173,7 +173,7 @@ function check_g_scalar(swt::SpinWaveTheory)
 end
 
 
-function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing)
+function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing) # TODO: branch=nothing
     (; swt, axis) = sswt
     (; sys, data, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with an `measure` argument.")
