@@ -118,9 +118,9 @@ function adjusted_dt_and_downsampling_factor(dt, nω, ωmax)
 
     # Warn the user if `dt` required drastic adjustment, which will slow
     # simulations.
-    if dt_new/dt < 0.9
-        @warn "To satisify specified energy values, the step size adjusted down by more than 10% from a value of dt=$dt to dt=$dt_new"
-    end
+    # if dt_new/dt < 0.9
+    #     @warn "To satisify specified energy values, the step size adjusted down by more than 10% from a value of dt=$dt to dt=$dt_new"
+    # end
 
     return dt_new, measperiod
 end
@@ -166,7 +166,6 @@ function SampledCorrelations(sys::System{N}; measure, energies, dt=NaN, calculat
 
     # The sample buffer holds n_non_neg_ω measurements, and the rest is a zero buffer
     measure = isnothing(measure) ? ssf_trace(sys) : measure
-    println(typeof(measure))
     num_observables(measure)
     samplebuf = zeros(ComplexF64, num_observables(measure), sys.latsize..., na, n_all_ω)
     corrbuf = zeros(ComplexF64, sys.latsize..., n_all_ω)

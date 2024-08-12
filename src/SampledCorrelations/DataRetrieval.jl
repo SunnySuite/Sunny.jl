@@ -151,15 +151,19 @@ whether it contains only static correlations or dynamic correlations. If the
 then `intensities_instant` returns the energy-integrated correlations. If, in
 addition, `kT` is given a numerical value, the dynamic correlations will be
 multiplied by the "classical-to-quantum" correspondence factor before energy
-integration. If `kT` is set to `nothing` (the default behavior), this correction
-will not be applied. Note that temperature-dependent corrections are unavailable
-when the `SampledCorrelations` contains only static information.
+integration:
+
+```math
+βω [1 + n_B(ω)],
+```
+
+where ``n_B(ω) = 1/(exp(βω) - 1)`` is the Bose function and ``β=1/(k_B T)``.
+
+If `kT` is set to `nothing` (the default behavior), this correction will not be
+applied. Note that temperature-dependent corrections are only available when the
+`SampledCorrelations` contains dynamic correlations.
+
 """
-# ```math
-# \frac{\omega}{k_{\rm{B}}T}\left[1 + n_{\rm{B}}\left(\omega/T\right)\right].
-# ```
-# 
-# where $n_{\rm{B}} = \left(e^{\omega/k_{\rm{T}}T}\right - 1)^{-1}$ is the Bose function.
 function intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT=nothing)
     return if isnan(sc.Δω)
         if !isnothing(kT) 
@@ -175,9 +179,6 @@ end
 
 
 function classical_to_quantum(ω, kT)
-    if kT == Inf
-        return 1.0
-    end
     if ω > 0
         ω/(kT*(1 - exp(-ω/kT)))
     elseif iszero(ω)
@@ -185,61 +186,6 @@ function classical_to_quantum(ω, kT)
     else
         -ω*exp(ω/kT)/(kT*(1 - exp(ω/kT)))
     end
-end
-
-"""
-    gaussian(; {fwhm, σ})
-
-Returns the function `exp(-x^2/2σ^2) / √(2π*σ^2)`. Exactly one of `fwhm` or `σ`
-must be specified, where `fwhm = (2.355...) * σ` denotes the full width at half
-maximum.
-"""
-function gaussian06(; fwhm=nothing, σ=nothing)
-    if sum(.!isnothing.((fwhm, σ))) != 1
-        error("Exactly one of `fwhm` and `σ` must be specified.")
-    end
-    σ = Float64(@something σ (fwhm/2√(2log(2))))
-    return x -> exp(-x^2/2σ^2) / √(2π*σ^2)
-end
-
-
-"""
-    integrated_gaussian(; {fwhm, σ}) 
-
-Returns the function `erf(x/√2σ)/2`, which is the integral of [`gaussian`](@ref)
-over the range ``[0, x]``. Exactly one of `fwhm` or `σ` must be specified, where
-`fwhm = (2.355...) * σ` denotes the full width at half maximum. Intended for use
-with [`intensities_binned`](@ref).
-"""
-function integrated_gaussian(; fwhm=nothing, σ=nothing)
-    if sum(.!isnothing.((fwhm, σ))) != 1
-        error("Exactly one of `fwhm` and `σ` must be specified.")
-    end
-    σ = Float64(@something σ (fwhm/2√(2log(2))))
-    return x -> erf(x/√2σ)/2
-end
-
-"""
-    lorentzian(; fwhm)
-
-Returns the function `(Γ/2) / (π*(x^2+(Γ/2)^2))` where `Γ = fwhm` is the full
-width at half maximum.
-"""
-function lorentzian06(; fwhm)
-    Γ = fwhm
-    return x -> (Γ/2) / (π*(x^2+(Γ/2)^2))
-end
-
-"""
-    integrated_lorentzian(; fwhm) 
-
-Returns the function `atan(2x/Γ)/π`, which is the integral of
-[`lorentzian`](@ref) over the range ``[0, x]``, where `Γ = fwhm` is the full
-width at half maximum. Intended for use with [`intensities_binned`](@ref).
-"""
-function integrated_lorentzian(; fwhm)
-    Γ = fwhm
-    return x -> atan(2x/Γ)/π
 end
 
 

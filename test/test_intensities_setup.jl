@@ -48,7 +48,7 @@ end
     latsize = (1,1,1)
     cryst = Sunny.cubic_crystal()
     sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
-    dt = 0.1
+    dt = 0.08
     sc = SampledCorrelations(sys; dt, energies=range(0.0, 10.0, 100), measure=ssf_perp(sys))
 
     ωs = available_energies(sc;negative_energies=true)
@@ -63,7 +63,7 @@ end
 @testitem "Polyatomic sum rule" begin
     sys = System(Sunny.diamond_crystal(),(4,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN,seed=1)
     randomize_spins!(sys)
-    sc = SampledCorrelations(sys; dt=1.0, energies=range(0.0, 1.0, 3), measure=ssf_trace(sys; apply_g=true))
+    sc = SampledCorrelations(sys; dt=0.8, energies=range(0.0, 1.0, 3), measure=ssf_trace(sys; apply_g=true))
     add_sample!(sc, sys)
 
     sum_rule_ixs = [1, 4, 6]  # indices for zz, yy, xx

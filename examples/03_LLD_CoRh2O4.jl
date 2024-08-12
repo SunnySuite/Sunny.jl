@@ -107,7 +107,7 @@ qs = Sunny.QPoints([[q1, q2, 0.0] for q1 in q1s, q2 in q2s][:]);
 # discrete reciprocal-space lattice points.
 
 formfactors = [FormFactor("Co2")]
-iq = intensities_instant(sc, qs);
+iq = intensities_instant(sc, qs; formfactors);
 
 # Plot the resulting intensity data ``I(𝐪)``. The color scale is clipped to 50%
 # of the maximum intensity.
@@ -128,8 +128,7 @@ heatmap(q1s, q2s, reshape(iq.data, (201, 201));
 # ``I(𝐪,ω)`` at finite temperature, use [`SampledCorrelations`](@ref) again,
 # this time providing a list of frequencies to resolve. The integration timestep
 # `dt` used for measuring dynamical correlations can be somewhat larger than
-# that used by the Langevin dynamics. We must also specify `nω` and `ωmax`,
-# which determine the frequencies over which intensity data will be collected.
+# that used by the Langevin dynamics. 
 
 dt = 2*langevin.dt
 energies = range(0, 6, 50)

@@ -32,7 +32,7 @@
     sys = simple_model_fcc(; mode=:SUN)
     thermalize_simple_model!(sys; kT=0.1)
     energies=range(0, 10.0, 100)
-    sc = SampledCorrelations(sys; dt=0.1, energies, measure=ssf_trace(sys; apply_g=false))
+    sc = SampledCorrelations(sys; dt=0.08, energies, measure=ssf_trace(sys; apply_g=false))
     Δω = sc.Δω
     add_sample!(sc, sys)
     qgrid = Sunny.QPoints(available_wave_vectors(sc)[:])
@@ -44,7 +44,7 @@
     # Test classical sum rule in dipole mode 
     sys = simple_model_fcc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
-    sc = SampledCorrelations(sys; dt=0.1, energies, measure=ssf_trace(sys; apply_g=false))
+    sc = SampledCorrelations(sys; dt=0.08, energies, measure=ssf_trace(sys; apply_g=false))
     add_sample!(sc, sys)
     Sqw = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing)
     total_intensity_trace = sum(Sqw.data)
@@ -109,9 +109,9 @@ end
     langevin = Langevin(dt_langevin; damping=0.1, kT=0.1723)
 
     measure = ssf_trace(sys)
-    sc0 = SampledCorrelations(sys; measure, energies=range(0, 5.5, 25), dt=2dt_langevin, calculate_errors=true)
-    sc1 = SampledCorrelations(sys; measure, energies=range(0, 5.5, 25), dt=2dt_langevin, calculate_errors=true)
-    sc2 = SampledCorrelations(sys; measure, energies=range(0, 5.5, 25), dt=2dt_langevin, calculate_errors=true)
+    sc0 = SampledCorrelations(sys; measure, energies=range(0, 5.5, 25), dt=0.12, calculate_errors=true)
+    sc1 = SampledCorrelations(sys; measure, energies=range(0, 5.5, 25), dt=0.12, calculate_errors=true)
+    sc2 = SampledCorrelations(sys; measure, energies=range(0, 5.5, 25), dt=0.12, calculate_errors=true)
 
     for _ in 1:4_000
         step!(sys, langevin)
@@ -138,7 +138,7 @@ end
     set_exchange!(sys, 0.6498, Bond(1, 3, [0,0,0]))
     randomize_spins!(sys)
 
-    sc = SampledCorrelations(sys; energies=range(0.0, 5.5, 10), dt=0.14, measure=ssf_perp(sys))
+    sc = SampledCorrelations(sys; energies=range(0.0, 5.5, 10), dt=0.12, measure=ssf_perp(sys))
     add_sample!(sc, sys)
     qs = Sunny.QPoints([[0.0, 0.0, 0.0], [-0.2, 0.4, -0.1]])
     is = intensities(sc, qs; energies=:available, kT=nothing)
