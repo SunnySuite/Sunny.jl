@@ -86,7 +86,7 @@ energies = range(0, 6, 300)
 kernel = Sunny.lorentzian2(fwhm=0.8)
 measure = DSSF_perp(sys_prim)
 formfactors = [FormFactor("Co2")]
-res = intensities2(swt, path; energies, kernel, formfactors, measure)
+res = intensities(swt, path; energies, kernel, formfactors, measure)
 plot_intensities(res; units)
 
 # A powder measurement effectively involves an average over all possible crystal
@@ -96,7 +96,7 @@ plot_intensities(res; units)
 
 radii = range(0, 3, 200) # (1/Å)
 res = powder_average(cryst, radii, 2000) do qs
-    intensities2(swt, qs; energies, kernel, formfactors, measure)
+    intensities(swt, qs; energies, kernel, formfactors, measure)
 end
 plot_intensities(res; units)
 

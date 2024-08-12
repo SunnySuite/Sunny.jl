@@ -35,26 +35,26 @@ randomize_spins!(sys)
 minimize_energy!(sys)
 plot_spins(sys)
 
-# Plot dispersions colored by total summed intensity for each degenerate band
+# Configure spin wave calculation
 
 swt = SpinWaveTheory(sys)
 qs = [[0,0,0], [1,0,0]]
 path = q_space_path(cryst, qs, 512)
 measure = DSSF_perp(sys)
 
-# Plot all correlations
+# Plot three types of pair correlation intensities
+
+fig = Figure(size=(400, 600))
 
 res = intensities_bands2(swt, path; measure)
-plot_intensities(res; title="All correlations", units)
-
-# Plot Cu-Cu correlations only
+plot_intensities!(fig[1, 1], res; units, axisopts=(; title="All correlations", xlabel="", xticks=[NaN]))
 
 formfactors = [FormFactor("Cu2"), zero(FormFactor)]
 res = intensities_bands2(swt, path; formfactors, measure)
-plot_intensities(res; title="Cu-Cu correlations", units)
-
-# Fe-Fe correlations only
+plot_intensities!(fig[2, 1], res; units, axisopts=(; title="Cu-Cu correlations", xlabel="", xticks=[NaN]))
 
 formfactors = [zero(FormFactor), FormFactor("Fe2")]
 res = intensities_bands2(swt, path; formfactors, measure)
-plot_intensities(res; title="Fe-Fe correlations", units)
+plot_intensities!(fig[3, 1], res; units, axisopts=(; title="Fe-Fe correlations"))
+
+fig

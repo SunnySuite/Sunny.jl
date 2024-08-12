@@ -26,8 +26,8 @@ cryst = Crystal(latvecs, [[0,0,0]], "P1")
 # and ``𝐁 ∝ ẑ``.
 
 sys = System(cryst, (1, 1, 25), [SpinInfo(1; S=1, g=2)], :dipole; seed=0)
-D = 0.1 # meV
-B = 5D # ~ 8.64T
+D = 0.1
+B = 5D
 set_exchange!(sys, dmvec([0, 0, D]), Bond(1, 1, [0, 0, 1]))
 set_field!(sys, [0, 0, B])
 
@@ -77,18 +77,17 @@ data = intensities_interpolated(sc, path, intensity_formula(sc, :trace; kT));
 sys_small = resize_supercell(sys, (1,1,1))
 minimize_energy!(sys_small)
 swt = SpinWaveTheory(sys_small)
-formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
-disp_swt, intens_swt = intensities_bands(swt, path, formula);
+path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
+res = intensities_bands2(swt, path; measure=DSSF_trace(sys_small))
 
-# This model system has a single magnon band with dispersion ``ϵ(𝐪) = 1 - 0.2
+# This model system has a single magnon band with dispersion ``ϵ(𝐪) = 1 - D/B
 # \sin(2πq₃)`` and uniform intensity. Both calculation methods reproduce this
 # analytical solution. Observe that ``𝐪`` and ``-𝐪`` are inequivalent. The
 # structure factor calculated from classical dynamics additionally shows an
 # elastic peak at ``𝐪 = [0,0,0]``, reflecting the ferromagnetic ground state.
 
-fig = Figure()
-ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (r.l.u.)",
-          xticks, xticklabelrotation=π/10)
+fig = Figure(size=(400, 680))
+ax = Axis(fig[1, 1]; aspect=1.4, title="Classical dynamics", ylabel="Energy")
 heatmap!(ax, 1:size(data, 1), available_energies(sc), data;  colorrange=(0.0, 50.0))
-lines!(ax, disp_swt[:,1]; color=:magenta, linewidth=2)
+plot_intensities!(fig[2, 1], res; axisopts=(; title="Spin wave theory"))
 fig

@@ -265,7 +265,7 @@ end
     intensities_spiral(swt::SpinWaveTheory, qpts; k, axis, energies, kernel, formfactors=nothing, measure)
 
 Calculate spin wave intensities for a set of q-points in reciprocal space. Like
-[`intensities2`](@ref), except here the magnetic order is described by a single
+[`intensities`](@ref), except here the magnetic order is described by a single
 propagation wavevector `k` with an associated `axis` of rotation. 
 """
 function intensities_spiral(swt::SpinWaveTheory, qpts; k, axis, energies, kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
