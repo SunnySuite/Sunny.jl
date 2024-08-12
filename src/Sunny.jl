@@ -103,9 +103,9 @@ include("SampledCorrelations/Interpolation.jl")
 include("SampledCorrelations/CorrelationSampling.jl")
 include("SampledCorrelations/BasisReduction.jl")
 include("SampledCorrelations/DataRetrieval.jl")
-export SampledCorrelations, dynamic_correlations, instant_correlations, add_sample!,
-    broaden_energy, gaussian06, lorentzian06, available_wave_vectors, available_energies, merge_correlations,
-    integrated_gaussian, integrated_lorentzian, intensities
+export SampledCorrelations, add_sample!, clone_correlations, merge_correlations,
+    broaden_energy, gaussian06, lorentzian06, available_wave_vectors, available_energies,
+    integrated_gaussian, integrated_lorentzian, intensities_instant
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")

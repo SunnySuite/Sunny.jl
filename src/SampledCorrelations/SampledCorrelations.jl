@@ -1,24 +1,24 @@
-struct SampledCorrelations{N}
+mutable struct SampledCorrelations{N}
     # 𝒮^{αβ}(q,ω) data and metadata
-    data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × latsize × nω)
-    M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
-    crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
-    origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
-    Δω             :: Float64                              # Energy step size (could make this a virtual property)  
-    measure        :: MeasureSpec                          # Observable, correlation pairs, and combiner
+    const data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × latsize × nω)
+    const M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
+    const crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
+    const origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
+    const Δω             :: Float64                              # Energy step size (could make this a virtual property)  
+    measure              :: MeasureSpec                          # Observable, correlation pairs, and combiner
 
     # Trajectory specs
-    measperiod   :: Int                                    # Steps to skip between saving observables (i.e., downsampling factor for trajectories)
-    dt           :: Float64                                # Step size for trajectory integration 
-    nsamples     :: Array{Int64, 1}                        # Number of accumulated samples (single number saved as array for mutability)
+    const measperiod   :: Int                                    # Steps to skip between saving observables (i.e., downsampling factor for trajectories)
+    const dt           :: Float64                                # Step size for trajectory integration 
+    nsamples           :: Int64                                  # Number of accumulated samples (single number saved as array for mutability)
 
     # Buffers and precomputed data 
-    samplebuf    :: Array{ComplexF64, 6}                   # Buffer for observables (nobservables × latsize × natoms × nsnapshots)
-    corrbuf      :: Array{ComplexF64, 4}                   # Buffer for correlations (latsize × nω)
-    space_fft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned lattice FFT for samplebuf
-    time_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for samplebuf
-    corr_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for corrbuf 
-    corr_ifft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned time IFFT for corrbuf 
+    const samplebuf    :: Array{ComplexF64, 6}                   # Buffer for observables (nobservables × latsize × natoms × nsnapshots)
+    const corrbuf      :: Array{ComplexF64, 4}                   # Buffer for correlations (latsize × nω)
+    const space_fft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned lattice FFT for samplebuf
+    const time_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for samplebuf
+    const corr_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for corrbuf 
+    const corr_ifft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned time IFFT for corrbuf 
 end
 
 function Base.show(io::IO, ::SampledCorrelations{N}) where N
@@ -39,14 +39,24 @@ function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations{N}) where
         printstyled(io,"S(q,ω)";bold=true)
         print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
     end
-    print(io," | $(sc.nsamples[1]) sample")
-    (sc.nsamples[1] > 1) && print(io,"s")
+    print(io," | $(sc.nsamples) sample")
+    (sc.nsamples > 1) && print(io,"s")
     print(io,"]\n")
     println(io,"Lattice: $(sc.latsize)×$(natoms(sc.crystal))")
     # TODO: Add correlation info?
 end
 
 Base.getproperty(sc::SampledCorrelations, sym::Symbol) = sym == :latsize ? size(sc.samplebuf)[2:4] : getfield(sc, sym)
+
+function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
+    if sym == :measure
+        @assert sc.measure.observables ≈ val.observables "New MeasureSpec must contain identical observables."
+        @assert all(x -> x == 1, sc.measure.corr_pairs .== val.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
+        setfield!(sc, :measure, val)
+    else
+        setfield!(sc, sym, val)
+    end
+end
 
 function clone_correlations(sc::SampledCorrelations{N}) where N
     dims = size(sc.data)[2:4]
@@ -58,7 +68,7 @@ function clone_correlations(sc::SampledCorrelations{N}) where N
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations{N}(
         copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω, deepcopy(sc.measure), 
-        sc.measperiod, sc.dt, copy(sc.nsamples),
+        sc.measperiod, sc.dt, sc.nsamples,
         copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!
     )
 end
@@ -73,14 +83,14 @@ function merge_correlations(scs::Vector{SampledCorrelations{N}}) where N
     sc_merged = clone_correlations(scs[1])
     μ = zero(sc_merged.data)
     for sc in scs[2:end]
-        n = sc_merged.nsamples[1] 
-        m = sc.nsamples[1]
+        n = sc_merged.nsamples
+        m = sc.nsamples
         @. μ = (n/(n+m))*sc_merged.data + (m/(n+m))*sc.data
         if !isnothing(sc_merged.M)
             @. sc_merged.M = (sc_merged.M + n*abs(μ - sc_merged.data)^2) + (sc.M + m*abs(μ - sc.data)^2)
         end
         sc_merged.data .= μ
-        sc_merged.nsamples[1] += m
+        sc_merged.nsamples += m
     end
     sc_merged
 end
@@ -139,7 +149,8 @@ function SampledCorrelations(sys::System{N}; measure, energies, dt=NaN, calculat
         n_all_ω = 2(Int(nω) - 1)
         ωmax = energies[end]
         @assert iszero(energies[1]) && ωmax > 0 "`energies` must be a range from 0 to a positive value."
-        @assert length(unique(energies[2:end] - energies[1:end-1])) == 1 "`energies` must be uniformly spaced"
+        ΔEs = energies[2:end] - energies[1:end-1]
+        @assert all(x -> x ≈ ΔEs[1], ΔEs) "`energies` must be equally spaced."
         dt, measperiod = adjusted_dt_and_downsampling_factor(dt, nω, ωmax)
         Δω = ωmax/(nω-1)
     end
@@ -171,7 +182,7 @@ function SampledCorrelations(sys::System{N}; measure, energies, dt=NaN, calculat
 
     # Initialize nsamples to zero. Make an array so can update dynamically
     # without making struct mutable.
-    nsamples = Int64[0]
+    nsamples = 0 
 
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal

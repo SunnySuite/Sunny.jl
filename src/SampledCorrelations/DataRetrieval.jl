@@ -46,7 +46,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
 
     (; measure) = sc
     interp = NoInterp()
-    qpts = Base.convert(AbstractQPoints, qpts[:])
+    qpts = Base.convert(AbstractQPoints, qpts)
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
     IntensitiesType = eltype(measure)
     crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal

@@ -355,7 +355,7 @@ function q_space_path_bins(ωvals,qs,density,args...;kwargs...)
 end
 q_space_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;kwargs...) = q_space_path_bins(available_energies_including_zero(sc), qs, density,args...;kwargs...)
 
-function available_energies_including_zero(x;kwargs...)
+function available_energies_including_zero(x; kwargs...)
     ωs = available_energies(x;kwargs...)
     # Special case due to NaN definition of instant_correlations
     (length(ωs) == 1 && isnan(ωs[1])) ? [0.] : ωs

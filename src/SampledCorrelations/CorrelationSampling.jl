@@ -81,7 +81,7 @@ function accum_sample!(sc::SampledCorrelations; window)
     #$ @assert isodd(num_time_offsets)
     n_contrib[n_contrib .== 0] .= Inf
 
-    count = nsamples[1] += 1
+    count = sc.nsamples += 1
 
     # Note that iterating over the `correlations` (a SortedDict) causes
     # allocations here. The contents of the loop contains no allocations. There

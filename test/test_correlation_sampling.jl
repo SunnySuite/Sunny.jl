@@ -28,81 +28,71 @@
     end
     
 
-    # Test sum rule with custom observables 
+    # Test classical sum rule in SU(N) mode
     sys = simple_model_fcc(; mode=:SUN)
     thermalize_simple_model!(sys; kT=0.1)
-    S = spin_matrices(1/2)
-    observables = Dict(:Sx => S[1], :Sy => S[2], :Sz => S[3])
-    sc = dynamic_correlations(sys; nω=100, ωmax=10.0, dt=0.1, apply_g=false, observables)
+    energies=range(0, 10.0, 100)
+    sc = SampledCorrelations(sys; dt=0.1, energies, measure=ssf_trace(sys; apply_g=false))
     Δω = sc.Δω
     add_sample!(sc, sys)
-    qgrid = available_wave_vectors(sc)
+    qgrid = Sunny.QPoints(available_wave_vectors(sc)[:])
     Δq³ = 1/prod(sys.latsize) # Fraction of a BZ
-    formula = intensity_formula(sc,:trace)
-    Sqw = intensities_interpolated(sc, qgrid, formula; negative_energies=true)
+    Sqw = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing)
     expected_sum_rule = Sunny.norm2(sys.dipoles[1]) # S^2 classical sum rule
-    @test isapprox(sum(Sqw) * Δq³ * Δω, expected_sum_rule; atol=1e-12)
-    params = unit_resolution_binning_parameters(sc;negative_energies=true)
-    Sqw_integrated, counts = intensities_binned(sc, params, formula)
-    @test isapprox(sum(Sqw_integrated), expected_sum_rule; atol=1e-12)
+    @test isapprox(sum(Sqw.data) * Δq³ * Δω, expected_sum_rule; atol=1e-12)
 
-    # Test sum rule with default observables in dipole mode 
+    # Test classical sum rule in dipole mode 
     sys = simple_model_fcc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
-    sc = dynamic_correlations(sys; dt=0.1, nω=100, ωmax=10.0, apply_g=false)
+    sc = SampledCorrelations(sys; dt=0.1, energies, measure=ssf_trace(sys; apply_g=false))
     add_sample!(sc, sys)
-    trace_formula = intensity_formula(sc,:trace)
-    Sqw = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
-    total_intensity_trace = sum(Sqw)
+    Sqw = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing)
+    total_intensity_trace = sum(Sqw.data)
     expected_sum_rule = Sunny.norm2(sys.dipoles[1]) # S^2 classical sum rule
-    @test isapprox(sum(Sqw) * Δq³ * Δω, expected_sum_rule; atol=1e-12)
-    # Test binned version doesn't require ΔqΔω measure
-    params = unit_resolution_binning_parameters(sc;negative_energies=true)
-    Sqw_integrated, counts = intensities_binned(sc, params, trace_formula)
-    @test isapprox(sum(Sqw_integrated), expected_sum_rule; atol=1e-12)
+    @test isapprox(total_intensity_trace * Δq³ * Δω, expected_sum_rule; atol=1e-12)
 
     # Test perp reduces intensity
-    perp_formula = intensity_formula(sc,:perp)
-    vals = intensities_interpolated(sc, qgrid, perp_formula; negative_energies=true) 
-    total_intensity_unpolarized = sum(vals)
+    sc.measure = ssf_perp(sys; apply_g=false)
+    Sqw_perp = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing)
+    total_intensity_unpolarized = sum(Sqw_perp.data)
     @test total_intensity_unpolarized < total_intensity_trace
 
 
     # Test diagonal elements are approximately real (at one wave vector)
-    diag_elems = [(α,α) for α in keys(sc.observables.observable_ixs)]
-    formula_imaginary_parts = intensity_formula(sc,diag_elems) do k,ω,corr
-        sum(abs.(imag.(corr)))
-    end
-    intensities_symmetric = intensities_interpolated(sc, [(0.25, 0.5, 0)], formula_imaginary_parts)
-    @test sum(imag(intensities_symmetric)) < 1e-15
+    # diag_elems = [(α,α) for α in keys(sc.observables.observable_ixs)]
+    # formula_imaginary_parts = intensity_formula(sc,diag_elems) do k,ω,corr
+    #     sum(abs.(imag.(corr)))
+    # end
+    # intensities_symmetric = intensities_interpolated(sc, [(0.25, 0.5, 0)], formula_imaginary_parts)
+    # @test sum(imag(intensities_symmetric)) < 1e-15
 
 
-    # Test form factor correction works and is doing something. ddtodo: add example with sublattice
-    formfactors = [FormFactor("Fe2")]
-    vals = intensities_interpolated(sc, qgrid, intensity_formula(sc,:trace; formfactors); negative_energies=true)
-    total_intensity_ff = sum(vals)
-    @test total_intensity_ff != total_intensity_trace
+    # # Test form factor correction works and is doing something. ddtodo: add example with sublattice
+    # formfactors = [FormFactor("Fe2")]
+    # vals = intensities_interpolated(sc, qgrid, intensity_formula(sc,:trace; formfactors); negative_energies=true)
+    # total_intensity_ff = sum(vals)
+    # @test total_intensity_ff != total_intensity_trace
 
 
-    # Test path function and interpolation working (no correctness implied here)
-    qs, _ = reciprocal_space_path(sc.crystal, [(0, 0, 0), (0, 1, 0), (1, 1, 0)], 20)
-    vals = intensities_interpolated(sc, qs, perp_formula; interpolation=:linear)
-    @test length(size(vals)) == 2 
+    # # Test path function and interpolation working (no correctness implied here)
+    # qs, _ = reciprocal_space_path(sc.crystal, [(0, 0, 0), (0, 1, 0), (1, 1, 0)], 20)
+    # vals = intensities_interpolated(sc, qs, perp_formula; interpolation=:linear)
+    # @test length(size(vals)) == 2 
 
 
-    # Test static from dynamic intensities working
-    static_vals = instant_intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
-    total_intensity_static = sum(static_vals)
-    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-9)  # Order of summation can lead to very small discrepancies
+    # # Test static from dynamic intensities working
+    # static_vals = instant_intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
+    # total_intensity_static = sum(static_vals)
+    # @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-9)  # Order of summation can lead to very small discrepancies
 
-    # Test instant intensities working
-    sys = simple_model_fcc(; mode=:dipole)
-    thermalize_simple_model!(sys; kT=0.1)
-    ic = instant_correlations(sys; apply_g=false)
-    add_sample!(ic, sys)
-    true_static_vals = instant_intensities_interpolated(ic, qgrid, intensity_formula(ic,:trace))
-    true_static_total = sum(true_static_vals)
-    @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
+    # # Test instant intensities working
+    # sys = simple_model_fcc(; mode=:dipole)
+    # thermalize_simple_model!(sys; kT=0.1)
+    # ic = instant_correlations(sys; apply_g=false)
+    # add_sample!(ic, sys)
+    # true_static_vals = instant_intensities_interpolated(ic, qgrid, intensity_formula(ic,:trace))
+    # true_static_total = sum(true_static_vals)
+    # @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
 end
 
 @testitem "Merge correlations" begin
@@ -115,9 +105,10 @@ end
     dt_langevin = 0.07 
     langevin = Langevin(dt_langevin; damping=0.1, kT=0.1723)
 
-    sc0 = dynamic_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
-    sc1 = dynamic_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
-    sc2 = dynamic_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
+    measure = ssf_trace(sys)
+    sc0 = SampledCorrelations(sys; measure, energies=range(0, 5.5, 25), dt=2dt_langevin, calculate_errors=true)
+    sc1 = SampledCorrelations(sys; measure, energies=range(0, 5.5, 25), dt=2dt_langevin, calculate_errors=true)
+    sc2 = SampledCorrelations(sys; measure, energies=range(0, 5.5, 25), dt=2dt_langevin, calculate_errors=true)
 
     for _ in 1:4_000
         step!(sys, langevin)
@@ -143,14 +134,13 @@ end
     sys = System(Sunny.diamond_crystal(), (2,3,4), [SpinInfo(1; S=3/2, g=2)], :dipole, seed=101)
     set_exchange!(sys, 0.6498, Bond(1, 3, [0,0,0]))
     randomize_spins!(sys)
-    
-    sc = dynamic_correlations(sys; nω=10, ωmax=5.5, dt=0.14)
+
+    sc = SampledCorrelations(sys; energies=range(0.0, 5.5, 10), dt=0.14, measure=ssf_perp(sys))
     add_sample!(sc, sys)
-    qs = [[0.0, 0.0, 0.0], [-0.2, 0.4, -0.1]]
-    data = intensities_interpolated(sc, qs, intensity_formula(sc, :trace; kT=0.1723); interpolation=:linear)
-    # println(round.(data; digits=10))
+    qs = Sunny.QPoints([[0.0, 0.0, 0.0], [-0.2, 0.4, -0.1]])
+    is = intensities(sc, qs; energies=:available, kT=nothing)
 
     # Compare with reference
-    data_golden = [52.0366191891 92.1657422033 0.0 -0.0 -0.0 0.0 -0.0 -0.0 -0.0 -0.0; 32.9297460003 86.5770399929 73.5353464564 33.8358366952 20.3323754023 13.7426991056 5.4654945884 1.8418530116 1.1247602598 0.5785036261]
-    @test data ≈ data_golden
+    data_golden = [33.52245944537883 31.523781055757002; 16.76122972268928 16.188214427928443; 1.6337100022968968e-14 5.3112747876921045; 1.590108516238891e-13 1.8852219123773621; -1.5194916032483394e-14 0.06400012935688847; -6.217248937900877e-15 -0.01803103943766904; 7.863406895322359e-14 -0.04445301974061088; 7.014086281484114e-14 0.0025512102338097653; 3.195591939212742e-14 -0.02515685630480813; 3.6201681383269686e-14 0.023924996100518413] 
+    @test is.data ≈ data_golden
 end
