@@ -1,28 +1,35 @@
 ## TODO: Cleanup and docstring
-function intensities(sc::SampledCorrelations, qpts; measure, negative_energies=false, formfactors=nothing, interp=NoInterp())
-    measure = !isnothing(measure) ? measure : sc.measure # Add checks to see if override is legit
-    IntensitiesType = eltype(measure)
-    corr_ix = 1:length(measure.corr_pairs)  # This assumes all correlations are kept
-    NInterp = 1 # Generalize this
-    NCorr = Val(length(corr_ix))
-    NAtoms = Val(size(sc.data, 2))
+## TODO: Add proper treatment for negative qs?
+function intensities(sc::SampledCorrelations, qpts; measure=nothing, negative_energies=false, formfactors=nothing, interp=NoInterp())
+    measure = !isnothing(measure) ? measure : sc.measure # TODO: Add checks to see if override is legit
+    qpts = Base.convert(AbstractQPoints, qpts)
+
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
+    # corr_ix = 1:length(measure.corr_pairs)  # This assumes all correlations are kept
+
+    # Type stability for phase_averaged_elements
+    IntensitiesType = eltype(measure)
+    NInterp = 1 # Generalize this
+    # NCorr = Val(length(corr_ix))
+    NCorr = Val(size(sc.data, 1))
+    NAtoms = Val(size(sc.data, 2))
 
     # Interpret q points in terms of original crystal. 
-    if !isnothing(sc.origin_crystal)
+    q_targets = if !isnothing(sc.origin_crystal)
         convert = sc.crystal.recipvecs \ sc.origin_crystal.recipvecs
-        qpts = [convert * Vec3(q) for q in qpts]
+        [convert * Vec3(q) for q in qpts.qs]
+    else
+        qpts.qs
     end
 
     ωvals = available_energies(sc; negative_energies)
-    intensities = zeros(IntensitiesType, size(qpts)..., length(ωvals))
+    intensities = zeros(IntensitiesType, length(ωvals), length(qpts.qs))
 
-    q_targets = qpts
     li_intensities = LinearIndices(intensities)
     ci_targets = CartesianIndices(q_targets)
     m_targets = [mod.(sc.latsize .* q_target, 1) for q_target in q_targets]
 
-    (; ks_all, idcs_all, counts) = pruned_stencil_info(sc, qpts, interp) 
+    (; ks_all, idcs_all, counts) = pruned_stencil_info(sc, qpts.qs, interp) 
     local_intensities = zeros(IntensitiesType, NInterp) 
 
     for iω in eachindex(ωvals)
@@ -31,14 +38,14 @@ function intensities(sc::SampledCorrelations, qpts; measure, negative_energies=f
 
             # Pull out nearest intensities that are necessary for any interpolation
             for n in 1:NInterp
-                correlations = phase_averaged_elements(view(sc.data, corr_ix, :, :, idcs[n], iω), ks[n], sc.crystal, ff_atoms, NCorr, NAtoms)
+                correlations = phase_averaged_elements(view(sc.data, :, :, :, idcs[n], iω), ks[n], sc.crystal, ff_atoms, NCorr, NAtoms)
                 local_intensities[n] = measure.combiner(ks[n], correlations)
             end
 
             # Perform interpolations 
             for _ in 1:numrepeats
                 iq += 1
-                idx = li_intensities[CartesianIndex(ci_targets[iq], iω)]
+                idx = li_intensities[CartesianIndex(iω, ci_targets[iq])]
                 intensities[idx] = interpolated_intensity(sc, m_targets[iq], local_intensities, interp) 
             end
         end
@@ -51,7 +58,8 @@ function intensities(sc::SampledCorrelations, qpts; measure, negative_energies=f
         intensities ./= (n_all_ω * sc.Δω)
     end 
 
-    return intensities
+    crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
+    return BroadenedIntensities(crystal, qpts, ωvals, intensities)
 end
 
 ## TODO: Uncomment after decision made about instant correlations.
