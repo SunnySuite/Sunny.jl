@@ -84,6 +84,31 @@ function q_space_path(cryst::Crystal, qs, n; labels=nothing)
     return QPath(path, xticks)
 end
 
+"""
+    blume_maleev(q_i, q)
+
+Given an incident momentum `q_i` and a momentum transfer vector to the sample
+`q`, this function returns three orthogonal basis vectors `(ex, ey, ez)` that
+define the Blume-Maleev polarization axis system. All input and output vectors
+are given in the global Cartesian system for reciprocal space (inverse length
+units).
+
+The three Blume-Maleev basis vectors are constructed as follows:
+
+```julia
+ex = normalize(q)       # parallel to q
+ez = normalize(q × q_i) # normal to the scattering plane
+ey = normalize(ez × q)  # perpendicular to q, in the scattering plane
+```
+"""
+function blume_maleev(q_i, q)
+    q_i, q = Vec3.((q_i, q))
+    ex = normalize(q)
+    ez = normalize(q × q_i)
+    ey = normalize(ez × q)
+    return (ex, ey, ez)
+end
+
 
 #### INTENSITIES
 
@@ -175,7 +200,7 @@ function gaussian2(; fwhm=nothing, σ=nothing)
 end
 
 
-function broaden!(data::AbstractMatrix{Ret}, bands::BandIntensities{Ret}, energies; kernel) where Ret
+function broaden!(data::AbstractMatrix{Ret}, bands::BandIntensities{Ret}; energies, kernel) where Ret
     energies = collect(energies)
     issorted(energies) || error("energies must be sorted")
 
@@ -215,9 +240,9 @@ function broaden!(data::AbstractMatrix{Ret}, bands::BandIntensities{Ret}, energi
     return data
 end
 
-function broaden(bands::BandIntensities, energies; kernel)
+function broaden(bands::BandIntensities; energies, kernel)
     data = zeros(eltype(bands.data), length(energies), size(bands.data, 2))
-    broaden!(data, bands, energies; kernel)
+    broaden!(data, bands; energies, kernel)
     return BroadenedIntensities(bands.crystal, bands.qpts, collect(energies), data)
 end
 

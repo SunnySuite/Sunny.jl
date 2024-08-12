@@ -68,7 +68,7 @@ plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 
 # Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref).
 
-swt = SpinWaveTheory(sys_prim; corrspec=ssf_perp(sys_prim))
+swt = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
 
 # For the "single crystal" result, we use [`q_space_path`](@ref) to construct a
 # path that connects high-symmetry points in reciprocal space.

@@ -58,12 +58,12 @@ end
         infos_homog = [SpinInfo(1, S=3/2, g=g1), SpinInfo(2, S=(mode == :SUN ? 3/2 : 1/2), g=g1)]
         sys_homog = System(cryst, (1,1,1), infos_homog, mode)
 
-        corrspec = ssf_custom((q, sf) -> sf, sys_homog; apply_g=false)
-        swt = SpinWaveTheory(sys_homog; corrspec)
+        measure = ssf_custom((q, ssf) -> ssf, sys_homog; apply_g=false)
+        swt = SpinWaveTheory(sys_homog; measure)
         res1 = intensities_bands(swt, [[0,0,0]])
 
-        corrspec = ssf_custom((q, sf) -> sf, sys_homog; apply_g=true)
-        swt = SpinWaveTheory(sys_homog; corrspec)
+        measure = ssf_custom((q, ssf) -> ssf, sys_homog; apply_g=true)
+        swt = SpinWaveTheory(sys_homog; measure)
         res2 = intensities_bands(swt, [[0,0,0]])
 
         @test isapprox(g1 * res1.data[1] * g1', res2.data[1])

@@ -79,11 +79,11 @@ export FormFactor
 include("MCIF.jl")
 export set_dipoles_from_mcif!
 
-include("CorrelationSpec.jl")
-export blume_maleev, ssf_custom, ssf_perp, ssf_trace
+include("MeasureSpec.jl")
+export ssf_custom, ssf_perp, ssf_trace
 
-include("MeasurementBase.jl")
-export q_space_path, lorentzian2, gaussian2, rotation_in_rlu, powder_average, domain_average
+include("MeasureHelpers.jl")
+export q_space_path, blume_maleev, lorentzian2, gaussian2, rotation_in_rlu, powder_average, domain_average
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")

@@ -1033,7 +1033,7 @@ function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; sen
         ylims = @something ylims (min(0, mindisp), 1.2*maxdisp)
         energies = range(ylims[1], ylims[2], 512)
         fwhm = @something fwhm 0.02*(ylims[2]-ylims[1])
-        broadened = Sunny.broaden(res, energies; kernel=Sunny.gaussian2(; fwhm))
+        broadened = Sunny.broaden(res; energies, kernel=Sunny.gaussian2(; fwhm))
         colorrange = (sensitivity, 1) .* Statistics.quantile(maximum.(eachcol(broadened.data)), saturation)
 
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0

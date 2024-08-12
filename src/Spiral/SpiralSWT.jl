@@ -1,5 +1,5 @@
 """
-    SpiralSpinWaveTheory(sys::System; k, axis, corrspec=nothing, regularization=1e-8)
+    SpiralSpinWaveTheory(sys::System; k, axis, measure, regularization=1e-8)
 
 Analogous to [`SpinWaveTheory`](@ref), but interprets the provided system as
 having a generalized spiral order. This order is described by a single
@@ -22,8 +22,8 @@ struct SpiralSpinWaveTheory
     k :: Vec3
     axis :: Vec3
 
-    function SpiralSpinWaveTheory(sys::System; k::AbstractVector, axis::AbstractVector, corrspec::Union{Nothing, CorrelationSpec}=nothing, regularization=1e-8)
-        return new(SpinWaveTheory(sys; corrspec, regularization), k, axis)
+    function SpiralSpinWaveTheory(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
+        return new(SpinWaveTheory(sys; measure, regularization), k, axis)
     end
 end
 
@@ -149,7 +149,7 @@ end
 
 # General measurements are not supported. Observables must be a variant of DSSF
 # with some choice of apply_g. Extract and return this parameter.
-function is_apply_g(swt::SpinWaveTheory, measure::CorrelationSpec)
+function is_apply_g(swt::SpinWaveTheory, measure::MeasureSpec)
     obs1 = measure.observables
     for apply_g in (true, false)
         obs2 = ssf_trace(swt.sys; apply_g).observables
@@ -282,6 +282,14 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
     return BandIntensities(cryst, qpts, disp, intensity)
 end
 
+function intensities!(data, sswt::SpiralSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
+    @assert size(data) == (length(energies), size(bands.data, 2))
+    bands = intensities_bands(sswt, qpts; formfactors)
+    @assert eltype(bands) == eltype(data)
+    broaden!(data, bands; energies, kernel)
+    return BroadenedIntensities(bands.crystal, bands.qpts, collect(energies), data)
+end
+
 function intensities(sswt::SpiralSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
-    return broaden(intensities_bands(sswt, qpts; formfactors), energies; kernel)
+    return broaden(intensities_bands(sswt, qpts; formfactors); energies, kernel)
 end

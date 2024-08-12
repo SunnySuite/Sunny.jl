@@ -48,7 +48,7 @@
 
     # Test energies at an arbitrary wave vector
     qs = [[0.24331089495721447, 0.2818361515716459, 0.21954858411037714]]
-    swt = SpinWaveTheory(sys; corrspec=ssf_perp(sys))
+    swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 
     res = intensities_bands(swt, qs)
     # println(round.(res.disp; digits=12))
@@ -59,8 +59,8 @@
     @test isapprox(res.data / (natoms * g^2), data_golden'; atol=1e-9)
 
     # Test first 5 output matrices
-    corrspec = ssf_custom((q, sf) -> sf, sys)
-    swt = SpinWaveTheory(sys; corrspec)
+    measure = ssf_custom((q, ssf) -> ssf, sys)
+    swt = SpinWaveTheory(sys; measure)
     formfactors=[FormFactor("Fe2")]
     res = intensities_bands(swt, qs; formfactors)
     data_flat = reinterpret(ComplexF64, res.data[1:5])
@@ -107,7 +107,7 @@ end
     @test minimize_energy!(sys) > 0
 
     q = rand(Float64, 3)
-    swt = SpinWaveTheory(sys)
+    swt = SpinWaveTheory(sys; measure=nothing)
     ωk_num, _ = excitations(swt, q)
 
     function single_ion_analytical_disp(k)
@@ -159,7 +159,7 @@ end
         set_dipole!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
         set_dipole!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
         set_dipole!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
-        swt = SpinWaveTheory(sys; corrspec=ssf_trace(sys))
+        swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
         q = [0.8, 0.6, 0.1]
         res = intensities_bands(swt, [q])
 
@@ -195,7 +195,7 @@ end
         set_dipole!(sys, (-1, 0, 0), position_to_site(sys, (0, 1, 0)))
 
         # Numerical result
-        swt = SpinWaveTheory(sys)
+        swt = SpinWaveTheory(sys; measure=nothing)
         disp, _ = excitations(swt, q)
 
         # Analytical result
@@ -227,7 +227,7 @@ end
     energy(sys)
     @test energy(sys) ≈ -3
     
-    swt = SpinWaveTheory(sys; corrspec=ssf_trace(sys; apply_g=false))
+    swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
     res = intensities_bands(swt, [[0,0,0]])
     @test res.disp[1] ≈ 9
     @test res.data[1] ≈ 1
@@ -255,7 +255,7 @@ end
         θ = acos(h / (2S*(4J+D*c₂)))
         set_dipole!(sys_swt_dip, ( sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (0,0,0)))
         set_dipole!(sys_swt_dip, (-sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (1,0,0)))
-        swt_dip = SpinWaveTheory(sys_swt_dip)
+        swt_dip = SpinWaveTheory(sys_swt_dip; measure=nothing)
         ϵq_num, _ = excitations(swt_dip, q)
 
         # Analytical
@@ -306,8 +306,8 @@ end
     energy(sys_dip)
     energy(sys_SUN)
 
-    swt_dip = SpinWaveTheory(sys_dip)
-    swt_SUN = SpinWaveTheory(sys_SUN)
+    swt_dip = SpinWaveTheory(sys_dip; measure=nothing)
+    swt_SUN = SpinWaveTheory(sys_SUN; measure=nothing)
 
     q = rand(3)
     disp_dip, _ = excitations(swt_dip, q)
@@ -328,7 +328,7 @@ end
         polarize_spins!(sys, (0,0,1))
         @test energy_per_site(sys) ≈ -0.1913132980155851
         
-        swt = SpinWaveTheory(sys; corrspec=ssf_perp(sys))
+        swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
         qs = [[0, 0, 0], [0, 0, 1/2], [0, 1/2, 1/2], [0, 0, 0]]
         res = intensities_bands(swt, qs)
         disp_ref = [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553]
@@ -346,8 +346,8 @@ end
         sys_reshape = reshape_supercell(sys, R)
         @test energy_per_site(sys_reshape) ≈ energy_per_site(sys) ≈ -0.89944235377
         
-        swt1 = SpinWaveTheory(sys)
-        swt2 = SpinWaveTheory(sys_reshape)
+        swt1 = SpinWaveTheory(sys; measure=nothing)
+        swt2 = SpinWaveTheory(sys_reshape; measure=nothing)
         q = [0.5, -0.1, 0.3]
         disp1, _ = excitations(swt1, q)
         disp2, _ = excitations(swt2, q)
@@ -377,8 +377,8 @@ end
         set_spiral_order_on_sublattice!(sys, i; k=[0,0,1/7], axis=[0,0,1], S0=[cos(θ),sin(θ),0])
     end
 
-    corrspec = ssf_custom((q, sf) -> sf, sys; apply_g=false)
-    swt = SpinWaveTheory(sys; corrspec)
+    measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false)
+    swt = SpinWaveTheory(sys; measure)
     q = [0.41568,0.56382,0.76414]
     res = intensities_bands(swt, [q])
     
@@ -437,8 +437,8 @@ end
     q2 = [0.2360,0.7492,0.9596]
     q3 = [0.1131,0.7654,0.2810]
     q = [q1,q2,q3]
-    corrspec = ssf_custom((q, sf) -> sf, sys)
-    swt = SpinWaveTheory(sys; corrspec)
+    measure = ssf_custom((q, ssf) -> ssf, sys)
+    swt = SpinWaveTheory(sys; measure)
     formfactors = [FormFactor("Cr4")]
     res = intensities_bands(swt, q; formfactors)
     disp_inds = [107, 89, 118, 140, 112, 16, 103, 75, 142, 18]
@@ -467,8 +467,8 @@ end
     @test energy_per_site(sys_prim) ≈ -2S^2
     
     # Both systems should produce the same intensities
-    swt1 = SpinWaveTheory(sys_prim; corrspec=ssf_perp(sys_prim))
-    swt2 = SpinWaveTheory(sys; corrspec=ssf_perp(sys))
+    swt1 = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
+    swt2 = SpinWaveTheory(sys; measure=ssf_perp(sys))
     kernel = Sunny.lorentzian2(fwhm=0.8)
     formfactors = [FormFactor("Co2")]
     q = randn(3)
@@ -520,9 +520,9 @@ end
     end
     @assert energy_per_site(sys1) ≈ energy_per_site(sys2)
 
-    swt = SpinWaveTheory(sys1; corrspec=ssf_trace(sys1))
+    swt = SpinWaveTheory(sys1; measure=ssf_trace(sys1))
     res1 = intensities_bands(swt, [[0,0,0]])
-    swt = SpinWaveTheory(sys2; corrspec=ssf_trace(sys2))
+    swt = SpinWaveTheory(sys2; measure=ssf_trace(sys2))
     res2 = intensities_bands(swt, [[0,0,0]])
     @assert res1.data ≈ res2.data
 end
@@ -532,7 +532,7 @@ end
     using LinearAlgebra
 
     function make_lswt_hamiltonian(sys, q)
-        swt = SpinWaveTheory(sys)
+        swt = SpinWaveTheory(sys; measure=nothing)
         L = Sunny.nbands(swt)
         H = zeros(ComplexF64, 2L, 2L)
         Sunny.swt_hamiltonian_SUN!(H, swt, Sunny.Vec3(q))
@@ -577,7 +577,7 @@ end
         randomize_spins!(sys)
         minimize_energy!(sys; maxiters=1_000)
 
-        return SpinWaveTheory(sys)
+        return SpinWaveTheory(sys; measure=nothing)
     end
 
     # Construct dipole Hamiltonian standard way
@@ -644,12 +644,12 @@ end
     observables = repeat(observables0, 1, size(eachsite(sys))...)
     corr_pairs = [(3,3), (2,2), (1,1)]
     combiner = (_, data) -> real(sum(data))
-    corrspec = Sunny.CorrelationSpec(observables, corr_pairs, combiner)
+    measure = Sunny.MeasureSpec(observables, corr_pairs, combiner)
     
     # Set up SpinWaveTheory
     randomize_spins!(sys)
     minimize_energy!(sys)
-    swt = SpinWaveTheory(sys; corrspec)
+    swt = SpinWaveTheory(sys; measure)
 
     qs = [[0,0,0], [0.5,0,0], [1,0,0]]
     energies = 0:0.1:5
@@ -679,7 +679,7 @@ end
         set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 1/2, 0)))
         set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 0, 1/2)))
         set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 1/2, 1/2)))
-        swt_afm1 = SpinWaveTheory(sys_afm1)
+        swt_afm1 = SpinWaveTheory(sys_afm1; measure=nothing)
         # Calculate at low accuracy for faster testing
         δE_afm1 = Sunny.energy_per_site_lswt_correction(swt_afm1; atol=5e-4)
         return isapprox(δE_afm1_ref, δE_afm1; atol=1e-3)
@@ -706,7 +706,7 @@ end
         sys = System(cryst, (3, 3, 1), [SpinInfo(1, S=S, g=2)], mode)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_spiral_order!(sys; k=[2/3, -1/3, 0], axis=[0, 0, 1], S0=[0, 1, 0])
-        swt = SpinWaveTheory(sys)
+        swt = SpinWaveTheory(sys; measure=nothing)
         # Calculate first 3 digits for faster testing
         δS = Sunny.magnetization_lswt_correction(swt; atol=1e-3)[1]
 
@@ -749,7 +749,7 @@ end
     minimize_energy!(sys; maxiters=1000)
     sys_swt = reshape_supercell(sys, diagm([1,1,2]))
     minimize_energy!(sys_swt)
-    swt = SpinWaveTheory(sys_swt)
+    swt = SpinWaveTheory(sys_swt; measure=nothing)
 
     δS = Sunny.magnetization_lswt_correction(swt; atol=1e-2)[1]
 

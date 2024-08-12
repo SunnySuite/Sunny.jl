@@ -208,11 +208,29 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
 end
 
 """
-    intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
+    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
+    intensities!(data, swt::SpiralSpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
+    intensities!(data, swt::SampledCorrelations, qpts; energies=nothing, kernel=nothing, formfactors=nothing)
 
-Calculate spin wave intensities for a set of q-points in reciprocal space. TODO.
+Like [`intensities`](@ref), but makes use of storage space `data` to avoid
+allocation costs.
 """
-function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
-    return broaden(intensities_bands(swt, qpts; formfactors), energies; kernel)
+function intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
+    @assert size(data) == (length(energies), size(bands.data, 2))
+    bands = intensities_bands(swt, qpts; formfactors)
+    @assert eltype(bands) == eltype(data)
+    broaden!(data, bands; energies, kernel)
+    return BroadenedIntensities(bands.crystal, bands.qpts, collect(energies), data)
 end
 
+"""
+    intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
+    intensities(swt::SpiralSpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
+    intensities(swt::SampledCorrelations, qpts; energies=nothing, kernel=nothing, formfactors=nothing)
+
+Calculate spin wave intensities for a set of q-points in reciprocal space. A
+broadening `kernel` is required for spin wave theory, but optional for `SampledCorrelations`.
+"""
+function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
+    return broaden(intensities_bands(swt, qpts; formfactors); energies, kernel)
+end

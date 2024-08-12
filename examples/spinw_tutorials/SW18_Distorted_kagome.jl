@@ -79,8 +79,8 @@ path = q_space_path(cryst, qs, 512)
 # using [`SpiralSpinWaveTheory`](@ref). It is necessary to provide the original
 # `sys`, consisting of a single chemical cell.
 
-corrspec = ssf_perp(sys; apply_g=false)
-swt = SpiralSpinWaveTheory(sys; corrspec, k, axis)
+measure = ssf_perp(sys; apply_g=false)
+swt = SpiralSpinWaveTheory(sys; measure, k, axis)
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 

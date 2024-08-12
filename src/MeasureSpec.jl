@@ -1,37 +1,13 @@
-"""
-    blume_maleev(u, v, q)
-
-Given a scattering plane defined by the span of `(u, v)`, and a momentum
-transfer vector `q`, all in global (inverse length) coordinates, return three
-basis vectors `(x, y, z)` that define the Blume Maleev coordinate system. These
-basis vectors are non-orthogonal and have the following properties:
-
-  * `x` is parallel to `q`,
-  * `z` is normal to the scattering plane, i.e., perpendicular to `u` and `v`,
-  * `y` is perpendicular to `q` and within the scattering plane.
-"""
-function blume_maleev(u, v, q)
-    (u, v, q) = Vec3.((u, v, q))
-    # Parallel to q
-    x = normalize(q)
-    # Perpendicular to scattering plane
-    z = normalize(cross(u, v))
-    # Perpendicular to q in the scattering plane,
-    y = normalize(z × q)
-    return (x, y, z)
-end
-
-
 # Op is the type of a local observable operator. Either a Vec3 (for :dipole
 # mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
 # mode, in which case op is an N×N matrix).
-struct CorrelationSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
+struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     observables :: Array{Op, 5}          # (nobs × latsize × natoms)
     corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
     combiner :: F                        # (q::Vec3, obs) -> Ret
 
     # TODO: Default combiner will be SVector?
-    function CorrelationSpec(observables::Array{Op, 5}, corr_pairs, combiner::F) where {Op, F}
+    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F) where {Op, F}
         # Lift return type of combiner function to type-level
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         @assert isbitstype(Ret)
@@ -39,14 +15,14 @@ struct CorrelationSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     end
 end
 
-Base.eltype(::CorrelationSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
+Base.eltype(::MeasureSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
 
-function empty_corrspec(sys)
+function empty_measurespec(sys)
     observables = zeros(Vec3, 0, size(eachsite(sys))...)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
-    return CorrelationSpec(observables, corr_pairs, combiner)
+    return MeasureSpec(observables, corr_pairs, combiner)
 end
 
 function all_dipole_observables(sys::System{0}; apply_g)
@@ -78,12 +54,13 @@ end
 """
     ssf_custom(f, sys::System; apply_g=true)
 
-Specify a custom contraction of the spin structure factor. The function `f`
-accepts a wavevector ``𝐪`` in global Cartesian coordinates, and a 3×3 matrix
-with structure factor intensity components ``\\mathcal{S}^{αβ}(𝐪,ω)``. Indices
-``(α, β)`` denote dipole components in global coordinates. The return value of
-`f` can be any number or `isbits` type. The related functions [`ssf_perp`](@ref)
-and [`ssf_trace`](@ref) predefine specific structure factor contractions. 
+Specify measurement of the spin structure factor with a custom contraction
+function `f`. This function accepts a wavevector ``𝐪`` in global Cartesian
+coordinates, and a 3×3 matrix with structure factor intensity components
+``\\mathcal{S}^{αβ}(𝐪,ω)``. Indices ``(α, β)`` denote dipole components in
+global coordinates. The return value of `f` can be any number or `isbits` type.
+With specific choices of `f`, one can obtain measurements such as defined in
+[`ssf_perp`](@ref) and [`ssf_trace`](@ref).
 
 By default, the g-factor or tensor is applied at each site, such that the
 structure factor components are correlations between the magnetic moment
@@ -97,13 +74,17 @@ Intended for use with [`SpinWaveTheory`](@ref) and instances of
 
 ```julia
 # Measure all 3×3 structure factor components Sᵅᵝ
-corrspec = ssf_custom((q, sf) -> sf, sys)
+measure = ssf_custom((q, ssf) -> ssf, sys)
+
+# Measure the structure factor trace Sᵅᵅ
+measure = ssf_custom((q, ssf) -> real(sum(ssf)), sys)
 
 # Measure imaginary part of Sʸᶻ - Sᶻʸ in the Blume-Maleev coordinate system
-# for the scattering plane spanned by [0, 1, 0] and [0, 0, 1].
-corrspec = ssf_custom(sys) do q, sf
-    (x, y, z) = blume_maleev([0, 1, 0], [0, 0, 1], q)
-    imag(y'*sf*z - z'*sf*y)
+# for incident momentum [0, 1, 0] in RLU.
+q_i = cryst.recipvecs * [0, 1, 0]
+measure = ssf_custom(sys) do q, ssf
+    (x, y, z) = blume_maleev(q_i, q)
+    imag(y'*ssf*z - z'*ssf*y)
 end
 ```
 
@@ -118,40 +99,42 @@ function ssf_custom(f, sys::System; apply_g=true)
         conj(data[5]) data[4]       data[2]
         conj(data[3]) conj(data[2]) data[1]
     ])
-    return CorrelationSpec(observables, corr_pairs, combiner)
+    return MeasureSpec(observables, corr_pairs, combiner)
 end
 
 """
     ssf_perp(sys::System; apply_g=true)
 
-Specify measurement of the dynamical spin structure factor. A variant of
-[`ssf_custom`](@ref) that contracts the 3×3 structure factor matrix with
-``(I-𝐪⊗𝐪/q^2)``. The resulting scalar provides an estimate of unpolarized
+Specify measurement of the spin structure factor with contraction by
+``(I-𝐪⊗𝐪/q^2)``. The contracted value provides an estimate of unpolarized
 scattering intensity. In the singular limit ``𝐪 → 0``, the contraction matrix
 is replaced by its rotational average, ``(2/3) I``.
+
+See also [`ssf_trace`](@ref) and [`ssf_custom`](@ref).
 """
 function ssf_perp(sys::System; apply_g=true)
-    return ssf_custom(sys; apply_g) do q, sf
+    return ssf_custom(sys; apply_g) do q, ssf
         q2 = norm2(q)
         # Imaginary part vanishes in symmetric contraction
-        sf = real(sf)
+        ssf = real(ssf)
         # "S-perp" contraction matrix (1 - q⊗q/q²) appropriate to unpolarized
         # neutrons. In the limit q → 0, use (1 - q⊗q/q²) → 2/3, which
         # corresponds to a spherical average over uncorrelated data:
         # https://github.com/SunnySuite/Sunny.jl/pull/131
-        (iszero(q2) ? (2/3)*tr(sf) : tr(sf) - dot(q, sf, q) / q2)
+        (iszero(q2) ? (2/3)*tr(ssf) : tr(ssf) - dot(q, ssf, q) / q2)
     end
 end
 
 """
     ssf_trace(sys::System; apply_g=true)
 
-Specify measurement of the dynamical spin structure factor. A variant of
-[`ssf_custom`](@ref) that returns only the trace of the 3×3 structure factor
-matrix. This quantity can be useful for checking quantum sum rules.
+Specify measurement of the spin structure factor, with trace over spin
+components. This quantity can be useful for checking quantum sum rules.
+
+See also [`ssf_perp`](@ref) and [`ssf_custom`](@ref).
 """
 function ssf_trace(sys::System{N}; apply_g=true) where N
-    return ssf_custom(sys; apply_g) do q, sf
-        tr(real(sf))
+    return ssf_custom(sys; apply_g) do q, ssf
+        tr(real(ssf))
     end
 end
