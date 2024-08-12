@@ -264,24 +264,21 @@ plot_intensities(res; units)
 
 # To make comparisons with inelastic neutron scattering (INS) data, one can
 # employ empirical broadening. Select [`lorentzian2`](@ref) broadening, with a
-# full-width at half-maximum of 0.3 meV
+# full-width at half-maximum of 0.3 meV. We will calculate intensities for 300
+# discrete energies between 0 and 10 meV.
 
 kernel = lorentzian2(; fwhm=0.3)
-energies = range(0, 10, 300)  # 0 < ω < 10 (meV)
-res = intensities(swt, path; energies, kernel, measure)
-plot_intensities(res; units, colormap=:viridis)
+energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 
-# A real FeI₂ sample will exhibit competing magnetic domains associated with
-# spontaneous symmetry breaking of the 6-fold rotational symmetry of the
-# triangular lattice. Note that the wavevectors $𝐪$ and $-𝐪$ are equivalent in
-# the structure factor, which leaves three distinct domain orientations, which
-# are related by 120° rotations about the $ẑ$-axis. Rather than rotating the
-# spin configuration directly, on can rotate the $𝐪$-space path. Below, we use
-# [`domain_average`](@ref) to average over the three possible domain
-# orientations.
+# A real FeI₂ sample will exhibit spontaneous breaking of its 3-fold rotational
+# symmetry about the $ẑ$-axis. We use [`domain_average`](@ref) to effectively
+# average the broadened [`intensities`](@ref) calculations over the three
+# possible domain orientations. In practice, this involves rotating the
+# ``𝐪``-points by 0°, 120°, and 240° angles.
 
-res = domain_average(cryst, path; axis=[0, 0, 1], angle=2π/3) do rotated_path
-    intensities(swt, rotated_path; energies, kernel, measure)
+rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
+res = domain_average(cryst, path; rotations) do path_rotated
+    intensities(swt, path_rotated; energies, kernel, measure)
 end
 plot_intensities(res; units, colormap=:viridis)
 

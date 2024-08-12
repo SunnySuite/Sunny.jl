@@ -59,6 +59,10 @@ Base.@deprecate set_external_field_at!(sys::System, B, site) let
     set_field_at!(sys, Vec3(B) * Units(:meV).T, site)
 end
 
+Base.@deprecate rotation_in_rlu(cryst::Crystal, axis, angle) let
+    @warn "`rotation_in_rlu(sys, axis, angle)` is deprecated! Consider `domain_average` instead."
+    return rotation_in_rlu(cryst, (axis, angle))
+end
 
 # Consider `units.K` where `units = Units(:meV)`.
 Base.@deprecate_binding meV_per_K Units(:meV).K

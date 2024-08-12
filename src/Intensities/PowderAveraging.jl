@@ -12,18 +12,13 @@ function sphere_points(n)
 end
 
 
+# TODO: Rename q_space_shell
 """
     reciprocal_space_shell(cryst::Crystal, radius, n)
 
-Sample `n` points on the reciprocal space sphere with a given `radius` (units of
-inverse length).
-
-# Examples
-
-```julia
-# Sample wavevectors on the sphere at fixed density
-reciprocal_space_shell(cryst, r, 4π*r^2*density)
-```
+Sample `n` on the reciprocal space sphere with a given `radius` (units of
+inverse length). The points are selected deterministically from the [Fibonacci
+lattice](https://arxiv.org/abs/1607.04590), and have quasi-uniform distribution.
 """
 function reciprocal_space_shell(cryst::Crystal, radius, n)
     n = ceil(Int, n)
