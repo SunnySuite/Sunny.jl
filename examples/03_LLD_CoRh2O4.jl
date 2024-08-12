@@ -71,10 +71,11 @@ plot_spins(sys; color=[s'*S_ref for s in sys.dipoles])
 # ### Instantaneous structure factor
 
 # To visualize the instantaneous (equal-time) structure factor, create an object
-# [`instant_correlations`](@ref). Use [`add_sample!`](@ref) to accumulate data
-# for each equilibrated spin configuration.
+# [`SampledCorrelations`](@ref), setting the `energies` keyword to `nothing`.
+# Use [`add_sample!`](@ref) to accumulate data for each equilibrated spin
+# configuration.
 
-sc = instant_correlations(sys)
+sc = SampledCorrelations(sys; energies=nothing, measure=ssf_perp(sys))
 add_sample!(sc, sys)    # Accumulate the newly sampled structure factor into `sf`
 
 # Collect 20 additional decorrelated samples. For each sample, about 100
@@ -96,7 +97,7 @@ end
 
 q1s = -10:0.1:10
 q2s = -10:0.1:10
-qs = [[q1, q2, 0.0] for q1 in q1s, q2 in q2s];
+qs = Sunny.QPoints([[q1, q2, 0.0] for q1 in q1s, q2 in q2s][:]);
 
 # Plot the instantaneous structure factor for the given ``q``-slice. We employ
 # the appropriate [`FormFactor`](@ref) for Co2⁺. An [`intensity_formula`](@ref)
@@ -106,14 +107,13 @@ qs = [[q1, q2, 0.0] for q1 in q1s, q2 in q2s];
 # discrete reciprocal-space lattice points.
 
 formfactors = [FormFactor("Co2")]
-instant_formula = intensity_formula(sc, :perp; formfactors)
-iq = instant_intensities_interpolated(sc, qs, instant_formula);
+iq = intensities_instant(sc, qs);
 
 # Plot the resulting intensity data ``I(𝐪)``. The color scale is clipped to 50%
 # of the maximum intensity.
 
-heatmap(q1s, q2s, iq;
-    colorrange = (0, maximum(iq)/2),
+heatmap(q1s, q2s, reshape(iq.data, (201, 201));
+    colorrange = (0, maximum(iq.data)/2),
     axis = (
         xlabel="Momentum Transfer Qx (r.l.u)", xlabelsize=16, 
         ylabel="Momentum Transfer Qy (r.l.u)", ylabelsize=16, 
@@ -125,16 +125,15 @@ heatmap(q1s, q2s, iq;
 # ### Dynamical structure factor
 
 # To collect statistics for the dynamical structure factor intensities
-# ``I(𝐪,ω)`` at finite temperature, use [`dynamic_correlations`](@ref). The
-# integration timestep `dt` used for measuring dynamical correlations can be
-# somewhat larger than that used by the Langevin dynamics. We must also specify
-# `nω` and `ωmax`, which determine the frequencies over which intensity data
-# will be collected.
+# ``I(𝐪,ω)`` at finite temperature, use [`SampledCorrelations`](@ref) again,
+# this time providing a list of frequencies to resolve. The integration timestep
+# `dt` used for measuring dynamical correlations can be somewhat larger than
+# that used by the Langevin dynamics. We must also specify `nω` and `ωmax`,
+# which determine the frequencies over which intensity data will be collected.
 
 dt = 2*langevin.dt
-ωmax = 6.0  # Maximum energy to resolve (meV)
-nω = 50     # Number of energies to resolve
-sc = dynamic_correlations(sys; dt, nω, ωmax)
+energies = range(0, 6, 50)
+sc = SampledCorrelations(sys; dt, energies, measure=ssf_perp(sys))
 
 # Use Langevin dynamics to sample spin configurations from thermal equilibrium.
 # For each sample, use [`add_sample!`](@ref) to run a classical spin dynamics
@@ -159,30 +158,12 @@ points = [[3/4, 3/4,   0],
           [1/4,   1, 1/4],
           [  0,   1,   0],
           [  0,  -4,   0]]
-density = 50 # (Å)
-path, xticks = reciprocal_space_path(cryst, points, density);
+qpts = q_space_path(cryst, points, 1000)
 
-# Calculate ``I(𝐪, ω)`` intensities along this path with Lorentzian broadening
-# on the scale of 0.1 meV.
+# Calculate ``I(𝐪, ω)`` intensities along this path and plot.
 
-formula = intensity_formula(sc, :perp; formfactors, kT=langevin.kT)
-fwhm = 0.2
-iqw = intensities_interpolated(sc, path, formula)
-iqwc = broaden_energy(sc, iqw, (ω, ω₀) -> lorentzian06(; fwhm)(ω-ω₀));
-
-# Plot the intensity data on a clipped color scale
-
-ωs = available_energies(sc)
-heatmap(1:size(iqwc, 1), ωs, iqwc;
-    colorrange = (0, maximum(iqwc)/50),
-    axis = (;
-        xlabel="Momentum Transfer (r.l.u)",
-        ylabel="Energy Transfer (meV)", 
-        xticks,
-        xticklabelrotation=π/5,
-        aspect = 1.4,
-    )
-)
+iqw = intensities(sc, qpts; energies, kT=langevin.kT)
+plot_intensities(iqw; colorrange = (0, maximum(iqw.data)/50), colormap=:viridis)
 
 # ### Powder averaged intensity
 
@@ -190,22 +171,8 @@ heatmap(1:size(iqwc, 1), ωs, iqwc;
 # of 1/Å. For each shell, calculate and average the intensities at 100
 # ``𝐪``-points, sampled approximately uniformly.
 
-radii = 0:0.05:3.5 # (1/Å)
-output = zeros(Float64, length(radii), length(ωs))
-for (i, radius) in enumerate(radii)
-    pts = reciprocal_space_shell(sc.crystal, radius, 100)
-    is = intensities_interpolated(sc, pts, formula)
-    is = broaden_energy(sc, is, (ω,ω₀) -> lorentzian06(; fwhm)(ω-ω₀))
-    output[i, :] = mean(is , dims=1)[1,:]
+radii = range(0, 3.5, 200) # (1/Å)
+res = powder_average(cryst, radii, 1000) do qs
+    intensities(sc, qs; energies, formfactors, kT=langevin.kT)
 end
-
-# Plot resulting powder-averaged structure factor
-
-heatmap(radii, ωs, output;
-    axis = (
-        xlabel="|Q| (Å⁻¹)",
-        ylabel="Energy Transfer (meV)", 
-        aspect = 1.4,
-    ),
-    colorrange = (0, 20.0)
-)
+plot_intensities(res; colormap=:viridis, colorrange=(0.0, maximum(res.data)/4))

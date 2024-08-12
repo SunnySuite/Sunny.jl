@@ -58,6 +58,11 @@ function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
     end
 end
 
+"""
+    clone_correlations(sc::SampledCorrelations)
+
+Create a copy of a `SampledCorrelations`.
+"""
 function clone_correlations(sc::SampledCorrelations{N}) where N
     dims = size(sc.data)[2:4]
     # Avoid copies/deep copies of C-generated data structures
@@ -128,14 +133,15 @@ Create a `SampledCorrelations` for accumulating samples of spin-spin
 correlations. Requires a measurement to determine which correlation pairs to
 calculate, e.g. `measure=ssf_perp(sys)`.
 
-The stored correlations may either be static (instantaneous), generated from
-sampled spin configurations, or dynamic, generated from time-evolved
-trajectories. To configure a `SampledCorrelations` for static correlations, set
-set `energies=nothing`. To configure a `SampledCorrelations` for dynamic
-correlations, provide an evenly-spaced range of energies starting with 0, e.g.
-`energies=range(0, 3.0, 100)`. Dynamic correlations also require a time step,
+The stored correlations may either be static (instantaneous) or dynamic. In the
+static case, correlations are calculated from fixed classical spin
+configurations, so there is no time (energy) information. To set up a
+`SampledCorrelations` for this type of calculation, pass `energy=nothing`. In
+the dynamic case, spin-spin correlations are calculated from time-evolved
+trajectories. To configure a `SampledCorrelations` for dynamic correlations,
+provide an evenly-spaced range of energies starting from 0, e.g.
+`energies=range(0, 3, 100)`. Dynamic correlations also require a time step,
 `dt`. See [suggest_timestep](@ref) for help selecting an appropriate value.
-
 """
 function SampledCorrelations(sys::System{N}; measure, energies, dt=NaN, calculate_errors=false) where N
 

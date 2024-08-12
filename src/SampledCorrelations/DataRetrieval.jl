@@ -1,7 +1,7 @@
 function find_idx_of_nearest_fft_energy(ref, val)
     for i in axes(ref[1:end-1], 1)
         x1, x2 = ref[i], ref[i+1]
-        if x1 <= val < x2 
+        if x1 <= val <= x2 
             if abs(x1 - val) < abs(x2 - val)
                 return i
             else
@@ -10,7 +10,7 @@ function find_idx_of_nearest_fft_energy(ref, val)
         end
     end
     # Deal with edge case arising due to FFT index ordering
-    if ref[end] <= val < 0.0
+    if ref[end] <= val <= 0.0
         if abs(ref[end] - val) <= abs(val)
             return length(ref)
         else
@@ -145,20 +145,22 @@ end
 Calculate the instant (equal-time) correlations for a set of q-points in
 reciprocal space.
 
-This calculation may be performed on a `SampledCorrelations` regardless of
-whether it contains dynamic correlation information or not. If the
+This calculation may be performed on a [SampledCorrelations](@ref) regardless of
+whether it contains only static correlations or dynamic correlations. If the
 `SampledCorrelation` does contain correlations from time-evolved trajectories,
-the `intensities_instant` returns the energy-integrated correlations. If, in
+then `intensities_instant` returns the energy-integrated correlations. If, in
 addition, `kT` is given a numerical value, the dynamic correlations will be
 multiplied by the "classical-to-quantum" correspondence factor before energy
-integration. If `kT` is set to `nothing`, this correction will not be applied.
+integration. If `kT` is set to `nothing` (the default behavior), this correction
+will not be applied. Note that temperature-dependent corrections are unavailable
+when the `SampledCorrelations` contains only static information.
 """
 # ```math
 # \frac{\omega}{k_{\rm{B}}T}\left[1 + n_{\rm{B}}\left(\omega/T\right)\right].
 # ```
 # 
 # where $n_{\rm{B}} = \left(e^{\omega/k_{\rm{T}}T}\right - 1)^{-1}$ is the Bose function.
-function intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT)
+function intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT=nothing)
     return if isnan(sc.Δω)
         if !isnothing(kT) 
             error("Temperature corrections unavailable if `SampledCorrelations` does not contain dynamic correlations. Do not set `kT` value.")
