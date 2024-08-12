@@ -221,8 +221,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
         for branch in 1:3, band in 1:L
             t = view(T, :, band, branch)
             for α in 1:3, β in 1:3
-                A = dot(t, view(YZVW, :, :, α, β), t)
-                S[α, β, band, branch] = (1/2Na) * A
+                S[α, β, band, branch] = dot(t, view(YZVW, :, :, α, β), t) / 2Ncells
             end
         end
 

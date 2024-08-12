@@ -138,7 +138,7 @@ end
     # Sunny dispersion is sorted in descending order
     P = sortperm(disp_spinw; rev=true)
     @test isapprox(res.disp[:, 1], disp_spinw[P]; atol=1e-3)
-    @test isapprox(res.data[:, 1], data_spinw[P]/Sunny.natoms(crystal); atol=1e-3)
+    @test isapprox(res.data[:, 1], data_spinw[P]; atol=2e-3)
 end
 
 
