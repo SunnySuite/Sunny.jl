@@ -37,7 +37,7 @@ end
     FormFactor(ion::String; g_lande=2)
 
 The magnetic form factor for a given magnetic ion and charge state. When passed
-to an [`intensity_formula`](@ref), it rescales structure factor intensities
+to [`intensities`](@ref), it rescales structure factor intensities
 based on the magnitude of the scattering vector, ``|𝐪|``.
 
 The parameter `ion` must be one of the following strings:
