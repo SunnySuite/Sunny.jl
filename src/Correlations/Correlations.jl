@@ -230,17 +230,35 @@ function thermal_prefactor(kT, ω)
     end
 end
 
+function diagonalize_bare_hamiltonian(swt::SpinWaveTheory, H, V, q)
+    (; sys) = swt
+    q_global = orig_crystal(sys).recipvecs * q
+    q_reshaped = sys.crystal.recipvecs \ q_global
+
+    if sys.mode == :SUN
+        swt_hamiltonian_SUN!(H, swt, q_reshaped)
+    else
+        @assert sys.mode in (:dipole, :dipole_large_S)
+        swt_hamiltonian_dipole!(H, swt, q_reshaped)
+    end
+
+    try
+        return bogoliubov!(V, H)
+    catch _
+        error("Instability at wavevector q = $q")
+    end
+end
 
 function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     qpts = convert(AbstractQPoints, qpts)
     (; sys) = swt
-    cryst = orig_crystal(sys)
+    orig_cryst = orig_crystal(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.latsize == (1,1,1)
     Na = natoms(sys.crystal)
     # Number of chemical cells in magnetic cell
-    Ncells = Na / natoms(cryst)
+    Ncells = Na / natoms(orig_cryst)
     # Number of quasiparticle modes
     L = nbands(swt)
     # Number of wavevectors
@@ -265,24 +283,12 @@ function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::M
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
     
     for (iq, q) in enumerate(qpts.qs)
-        q_global = cryst.recipvecs * q
-        q_reshaped = sys.crystal.recipvecs \ q_global
-
-        if sys.mode == :SUN
-            swt_hamiltonian_SUN!(H, swt, q_reshaped)
-        else
-            @assert sys.mode in (:dipole, :dipole_large_S)
-            swt_hamiltonian_dipole!(H, swt, q_reshaped)
-        end
-
-        try
-            disp[:, iq] .= bogoliubov!(V, H)
-        catch _
-            error("Instability at wavevector q = $q")
-        end
+        q_global = orig_cryst.recipvecs * q
+        disp[:, iq] .= diagonalize_bare_hamiltonian(swt, H, V, q)
 
         for i in 1:Na
-            Avec_pref[i] = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
+            r_global = global_position(sys, (1,1,1,i))
+            Avec_pref[i] = exp(- im * dot(q_global, r_global))
             Avec_pref[i] *= compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
@@ -328,7 +334,7 @@ function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::M
         end
     end
 
-    return BandIntensities{Ret}(cryst, qpts, disp, intensity)
+    return BandIntensities{Ret}(orig_cryst, qpts, disp, intensity)
 end
 
 
