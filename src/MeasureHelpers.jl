@@ -182,7 +182,7 @@ struct InstantIntensities{T} <: AbstractIntensities
     # Wavevectors in RLU
     qpts :: AbstractQPoints
     # Convolved intensity data
-    data :: Array{T, 2} # (nω × nq)
+    data :: Vector{T} # (nq)
 end
 
 struct PowderIntensities <: AbstractIntensities

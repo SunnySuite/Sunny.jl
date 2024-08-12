@@ -99,7 +99,7 @@ function intensities(sc::SampledCorrelations, qpts; kernel=nothing, energies=not
     end
 
     # Preallocation
-    intensities = zeros(IntensitiesType, isnan(sc.Δω) ? 1 : length(energies), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
+    intensities = zeros(IntensitiesType, isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
     local_intensities = zeros(IntensitiesType, ninterp(interp)) 
 
     # Stencil and interpolation precalculation for q-space
@@ -147,7 +147,7 @@ function intensities(sc::SampledCorrelations, qpts; kernel=nothing, energies=not
 
         # Apply classical-to-quantum correspondence factor if temperature given.
         if kT != Inf
-            c2q = classical_to_quantum.(energies, kT)
+            c2q = classical_to_quantum.(ωs, kT)
             for i in axes(intensities, 2)
                 intensities[:,i] .*= c2q
             end
@@ -162,6 +162,24 @@ function intensities(sc::SampledCorrelations, qpts; kernel=nothing, energies=not
         BroadenedIntensities(crystal, qpts, collect(ωs), intensities)
     else
         InstantIntensities(crystal, qpts, intensities)
+    end
+end
+
+"""
+    intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT=Inf)
+
+
+"""
+function intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT=Inf)
+    return if isnan(sc.Δω)
+        if kT != Inf
+            error("Temperature corrections unavailable if `SampledCorrelations` does not contain dynamic correlations. Do not set `kT` value.")
+        end
+        intensities(sc, qpts; kernel, formfactors, kT, energies=:available) # Returns an InstantIntensities
+    else
+        is = intensities(sc, qpts; kernel, formfactors, kT, energies=:available_with_negative) # Returns a BroadenedIntensities
+        data_new = reshape(sum(is.data, dims=(1,)), size(is.data)[2])
+        InstantIntensities(is.crystal, is.qpts, data_new)
     end
 end
 
