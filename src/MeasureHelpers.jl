@@ -87,13 +87,14 @@ function q_space_path(cryst::Crystal, qs, n; labels=nothing)
 end
 
 """
-    q_space_grid(cryst::Crystal, B1, range1, B2, range2; orthogonalize=false)
+    q_space_grid(cryst::Crystal, B1, range1, B2, range2; offset=[0,0,0], orthogonalize=false)
     q_space_grid(cryst::Crystal, B1, range1, B2, range2, B3, range3; orthogonalize=false)
 
 Returns a 2D or 3D grid of q-points with uniform spacing. The volume shape is
-defined by axes ``𝐁_i`` in reciprocal lattice units (RLU). The position of a
-general volume element is ``c_1 𝐁_1 + c_2 𝐁_2 + c_3 𝐁_3`` where each
-coefficient ``c_i`` is an element of the ``i``th range.
+defined by axes ``𝐁_i`` in reciprocal lattice units (RLU). Positions in a 3D
+grid are ``c_1 𝐁_1 + c_2 𝐁_2 + c_3 𝐁_3`` where each coefficient ``c_i`` is an
+element of the ``i``th range. For 2D volumes, an offset ``𝐁_0`` is allowed,
+yielding positions ``𝐁_0 + c_1 𝐁_1 + c_2 𝐁_2``.
 
 The first range parameter, `range1`, must be a regularly spaced list of
 coefficients, e.g., `range1 = range(lo1, hi1, n)`. Subsequent range parameters
@@ -107,7 +108,7 @@ global Cartesian coordinates, set `orthogonalize=true`.
 
 For a 1D grid, use [`q_space_path`](@ref) instead.
 """
-function q_space_grid(cryst::Crystal, B1, range1, B2, range2; orthogonalize=false)
+function q_space_grid(cryst::Crystal, B1, range1, B2, range2; offset=zero(Vec3), orthogonalize=false)
     B1 = cryst.recipvecs * Vec3(B1)
     B2 = cryst.recipvecs * Vec3(B2)
 
@@ -141,11 +142,11 @@ function q_space_grid(cryst::Crystal, B1, range1, B2, range2; orthogonalize=fals
     end
 
     # Convert back to RLU for outputs
-    q0 = cryst.recipvecs \ q0
+    q0 = cryst.recipvecs \ q0 + offset
     Δq1 = cryst.recipvecs \ Δq1
     Δq2 = cryst.recipvecs \ Δq2
 
-    qs = [q0 + Δq1 * c1 + Δq2 * c2 for c1 in range(0, 1, length1), c2 in range(0, 1, length2)]
+    qs = [q0 + c1*Δq1 + c2*Δq2 for c1 in range(0, 1, length1), c2 in range(0, 1, length2)]
     return QGrid{2}(reshape(qs, :), q0, (Δq1, Δq2), (length1, length2))
 end
 
