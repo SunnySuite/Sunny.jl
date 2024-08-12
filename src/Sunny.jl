@@ -83,7 +83,7 @@ include("CorrelationSpec.jl")
 export ssf_custom, ssf_perp, ssf_trace
 
 include("MeasurementBase.jl")
-q_space_path, lorentzian2, gaussian2, rotation_in_rlu, powder_average, domain_average
+export q_space_path, lorentzian2, gaussian2, rotation_in_rlu, powder_average, domain_average
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
