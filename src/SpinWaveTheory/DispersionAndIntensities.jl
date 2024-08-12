@@ -1,9 +1,10 @@
 # Bogoliubov transformation that diagonalizes a quadratic bosonic Hamiltonian,
 # allowing for anomalous terms. The general procedure derives from Colpa,
-# Physica A, 93A, 327-353 (1978).
+# Physica A, 93A, 327-353 (1978). Overwrites data in H.
 function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
     L = div(size(H, 1), 2)
     @assert size(T) == size(H) == (2L, 2L)
+    # H0 = copy(H)
 
     # Initialize T to the para-unitary identity Ĩ = diagm([ones(L), -ones(L)])
     T .= 0
@@ -36,15 +37,16 @@ function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
     # Their absolute values are excitation energies for the wavevectors q and
     # -q, respectively.
     @assert all(>(0), view(energies, 1:L)) && all(<(0), view(energies, L+1:2L))
-    
+
     # Disable tests below for speed. Note that the data in H has been
     # overwritten by eigen!, so H0 should refer to an original copy of H.
     #=
     Ĩ = Diagonal([ones(L); -ones(L)])
     @assert T' * Ĩ * T ≈ Ĩ
     @assert diag(T' * H0 * T) ≈ Ĩ * energies / 2
-    # If H(q) = H(-q) (reflection symmetry), eigenvalues come in pairs
-    if H0[1:L, 1:L] ≈ H0[L+1:2L, L+1:2L]
+    # Reflection symmetry H(q) = H(-q) is identified as H11 = conj(H22). In this
+    # case, eigenvalues come in pairs.
+    if H0[1:L, 1:L] ≈ conj(H0[L+1:2L, L+1:2L])
         @assert energies[1:L] ≈ -energies[L+1:2L]
     end
     =#
@@ -67,12 +69,12 @@ end
 
 
 """
-    excitations!(T, H, swt::SpinWaveTheory, q)
+    excitations!(T, tmp, swt::SpinWaveTheory, q)
 
-Given a wavevector `q`, builds the spin wave Hamiltonian `H`, solves for the
-matrix `T` representing quasi-particle excitations, and returns a list of
-quasi-particle energies. Both `T` and `H` must be supplied as ``2L×2L``
-matrices, where ``L`` is the number of bands for a single ``𝐪`` value.
+Given a wavevector `q`, solves for the matrix `T` representing quasi-particle
+excitations, and returns a list of quasi-particle energies. Both `T` and `tmp`
+must be supplied as ``2L×2L`` complex matrices, where ``L`` is the number of
+bands for a single ``𝐪`` value.
 
 The columns of `T` are understood to be contracted with the Holstein-Primakoff
 bosons ``[𝐛_𝐪, 𝐛_{-𝐪}^†]``. The first ``L`` columns provide the eigenvectors
@@ -81,7 +83,7 @@ of `T` describe eigenvectors for ``-𝐪``. The return value is a vector with
 similar grouping: the first ``L`` values are energies for ``𝐪``, and the next
 ``L`` values are the _negation_ of energies for ``-𝐪``.
 
-    excitations!(T, H, swt::SpiralSpinWaveTheory, q; branch)
+    excitations!(T, tmp, swt::SpiralSpinWaveTheory, q; branch)
 
 Calculations on a [`SpiralSpinWaveTheory`](@ref) additionally require a `branch`
 index. The possible branches ``(1, 2, 3)`` correspond to scattering processes
@@ -90,23 +92,23 @@ Each branch will contribute ``L`` excitations, where ``L`` is the number of
 spins in the magnetic cell. This yields a total of ``3L`` excitations for a
 given momentum transfer ``𝐪``.
 """
-function excitations!(T, H, swt::SpinWaveTheory, q)
+function excitations!(T, tmp, swt::SpinWaveTheory, q)
     L = nbands(swt)
-    size(T) == size(H) == (2L, 2L) || error("Arguments T and H must be $(2L)×$(2L) matrices")
+    size(T) == size(tmp) == (2L, 2L) || error("Arguments T and tmp must be $(2L)×$(2L) matrices")
 
     (; sys) = swt
     q_global = orig_crystal(sys).recipvecs * q
     q_reshaped = sys.crystal.recipvecs \ q_global
 
     if sys.mode == :SUN
-        swt_hamiltonian_SUN!(H, swt, q_reshaped)
+        swt_hamiltonian_SUN!(tmp, swt, q_reshaped)
     else
         @assert sys.mode in (:dipole, :dipole_large_S)
-        swt_hamiltonian_dipole!(H, swt, q_reshaped)
+        swt_hamiltonian_dipole!(tmp, swt, q_reshaped)
     end
 
     try
-        return bogoliubov!(T, H)
+        return bogoliubov!(T, tmp)
     catch _
         error("Instability at wavevector q = $q")
     end
@@ -116,18 +118,16 @@ end
     excitations(swt::SpinWaveTheory, q)
     excitations(swt::SpiralSpinWaveTheory, q; branch)
 
-Returns a triple `(energies, T, H)` providing the excitation energies,
-excitation eigenvectors, and the spin wave Hamiltonian matrix. See the
-documentation of [`excitations!`](@ref) for more details. This convenience
-function allocates space for `T` and `H`, and is therefore less efficient than
-[`excitations!`](@ref).
+Returns a pair `(energies, T)` providing the excitation energies and
+eigenvectors. Prefer [`excitations!`](@ref) for performance, which avoids matrix
+allocations. See the documentation of [`excitations!`](@ref) for more details.
 """
 function excitations(swt::SpinWaveTheory, q)
     L = nbands(swt)
     T = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
-    energies = excitations!(T, H, swt, q)
-    return (energies, T, H)
+    energies = excitations!(T, copy(H), swt, q)
+    return (energies, T)
 end
 
 """
