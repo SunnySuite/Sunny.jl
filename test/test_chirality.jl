@@ -73,11 +73,11 @@ end
     sys3 = resize_supercell(sys2, (1, 1, 1))
     axis = [0, 0, 1]
     randomize_spins!(sys3)
-    k = Sunny.minimize_energy_spiral!(sys3, axis; k_guess=randn(3))
+    k = spiral_minimize_energy!(sys3, axis; k_guess=randn(3))
     @test k[3] ≈ 3/4
-    @test Sunny.spiral_energy_per_site(sys3; k, axis) ≈ -5/4
-    swt = SpinWaveTheory(sys3, DSSF_trace(sys3; apply_g=false))
-    res = intensities_bands_spiral(swt, qs; k, axis)
+    @test spiral_energy_per_site(sys3; k, axis) ≈ -5/4
+    swt = SpiralSpinWaveTheory(sys3, DSSF_trace(sys3; apply_g=false); k, axis)
+    res = intensities_bands(swt, qs)
     disp3_ref = [3.0133249314 2.5980762316 0.6479760935
                  3.0133249314 2.5980762316 0.6479760935]
     intens3_ref = [0.0292617379 0.4330127014 0.8804147011
@@ -91,8 +91,8 @@ end
     set_field!(sys3, [0, 0, B])
     polarize_spins!(sys3, [0, 0, 1])
     @test energy_per_site(sys3) ≈ -B
-    swt = SpinWaveTheory(sys3, DSSF_trace(sys3; apply_g=false))
-    res = intensities_bands_spiral(swt, qs; k, axis)
+    swt = SpiralSpinWaveTheory(sys3, DSSF_trace(sys3; apply_g=false); k, axis)
+    res = intensities_bands(swt, qs)
 
     # For the wavevector, qs[1] == [0,0,-1/2], corresponding to the first row of
     # disp4 and intens4, all intensity is in the third (lowest energy)

@@ -1,3 +1,27 @@
+"""
+    SpiralSpinWaveTheory(sys::System, measure::CorrelationSpec; k, axis, regularization=1e-8)
+
+Analogous to [`SpinWaveTheory`](@ref), but interprets the provided system as
+having a generalized spiral order. This order is described by a single
+propagation wavevector `k`, which may be incommensurate. The `axis` vector
+defines the polarization plane via its surface normal. Typically the spin
+configuration in `sys` and the propagation wavevector `k` will be optimized
+using [`spiral_minimize_energy!`](@ref). In contrast, `axis` will typically be
+determined from symmetry considerations.
+
+The resulting object can be used to calculate the spin wave
+[`dispersion`](@ref), or the structure factor via [`intensities_bands`](@ref)
+and [`intensities`](@ref).
+"""
+struct SpiralSpinWaveTheory
+    swt :: SpinWaveTheory
+    k :: Vec3
+    axis :: Vec3
+
+    function SpiralSpinWaveTheory(sys::System, measure::Union{Nothing, CorrelationSpec}; k, axis, regularization=1e-8)
+        return new(SpinWaveTheory(sys, measure; regularization), k, axis)
+    end
+end
 
 function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., S)
     # Anisotropy operator in local frame
@@ -85,8 +109,11 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
     end
 end
 
-function dispersion_spiral(swt::SpinWaveTheory, axis; k, qs)
+function dispersion(sswt::SpiralSpinWaveTheory, qpts)
+    (; swt, k, axis) = sswt
     (; sys) = swt
+    qpts = convert(AbstractQPoints, qpts)
+    (; qs) = qpts
 
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
@@ -134,14 +161,8 @@ function check_g_scalar(swt::SpinWaveTheory)
 end
 
 
-"""
-    intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing)
-
-Calculate spin wave excitation bands for a set of q-points in reciprocal space.
-Like [`intensities_bands`](@ref), except here the magnetic order is described
-by a single propagation wavevector `k` with an associated `axis` of rotation. 
-"""
-function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing)
+function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing)
+    (; swt, k, axis) = sswt
     (; sys, data, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with an `measure` argument.")
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
@@ -257,13 +278,6 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactor
     return BandIntensities(cryst, qpts, disp, intensity)
 end
 
-"""
-    intensities_spiral(swt::SpinWaveTheory, qpts; k, axis, energies, kernel, formfactors=nothing, measure)
-
-Calculate spin wave intensities for a set of q-points in reciprocal space. Like
-[`intensities`](@ref), except here the magnetic order is described by a single
-propagation wavevector `k` with an associated `axis` of rotation. 
-"""
-function intensities_spiral(swt::SpinWaveTheory, qpts; k, axis, energies, kernel::AbstractBroadening, formfactors=nothing)
-    return broaden(intensities_bands_spiral(swt, qpts; k, axis, formfactors), energies; kernel)
+function intensities(sswt::SpiralSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
+    return broaden(intensities_bands(sswt, qpts; formfactors), energies; kernel)
 end

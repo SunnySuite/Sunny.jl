@@ -83,7 +83,7 @@ end
 
 Specify measurement of the dynamical spin structure factor (DSSF). Like
 [`DSSF`](@ref), but contracts the 3×3 structure factor matrix with
-``(I-𝐪⊗𝐪/q²)``, which projects perpendicular to the direction of momentum
+``(I-𝐪⊗𝐪/q^2)``, which projects perpendicular to the direction of momentum
 transfer ``𝐪``. The contracted structure factor can be interpreted as a
 scattering intensity for an unpolarized neutron beam, up to constant scaling
 factors. In the singular limit ``𝐪 → 0``, the contraction matrix is replaced by
