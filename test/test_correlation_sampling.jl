@@ -59,40 +59,43 @@
 
 
     # Test diagonal elements are approximately real (at one wave vector)
-    # diag_elems = [(α,α) for α in keys(sc.observables.observable_ixs)]
-    # formula_imaginary_parts = intensity_formula(sc,diag_elems) do k,ω,corr
-    #     sum(abs.(imag.(corr)))
-    # end
-    # intensities_symmetric = intensities_interpolated(sc, [(0.25, 0.5, 0)], formula_imaginary_parts)
-    # @test sum(imag(intensities_symmetric)) < 1e-15
+    function ssf_diag_imag(sys::System{N}; apply_g=false) where N
+        return ssf_custom(sys; apply_g) do _, ssf
+            tr(imag(ssf))
+        end
+    end
+    sc.measure = ssf_diag_imag(sys; apply_g=false)
+    is = intensities(sc, Sunny.QPoints([[0.25, 0.5, 0]]); energies=:available, kT=nothing)
+    is.data
+    @test sum(is.data) < 1e-14
 
 
-    # # Test form factor correction works and is doing something. ddtodo: add example with sublattice
-    # formfactors = [FormFactor("Fe2")]
-    # vals = intensities_interpolated(sc, qgrid, intensity_formula(sc,:trace; formfactors); negative_energies=true)
-    # total_intensity_ff = sum(vals)
-    # @test total_intensity_ff != total_intensity_trace
+    # Test form factor correction works and is doing something.
+    formfactors = [FormFactor("Fe2")]
+    sc.measure = ssf_trace(sys; apply_g=false)
+    is = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing, formfactors)
+    total_intensity_ff = sum(is.data)
+    @test total_intensity_ff != total_intensity_trace
 
 
-    # # Test path function and interpolation working (no correctness implied here)
-    # qs, _ = reciprocal_space_path(sc.crystal, [(0, 0, 0), (0, 1, 0), (1, 1, 0)], 20)
-    # vals = intensities_interpolated(sc, qs, perp_formula; interpolation=:linear)
-    # @test length(size(vals)) == 2 
+    # Test static from dynamic intensities working
+    is_static = intensities_instant(sc, qgrid; kT=nothing)
+    total_intensity_static = sum(is_static.data)
+    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-9)  # Order of summation can lead to very small discrepancies
 
+    # Test quantum-to-classical increases intensity
+    is_static_c2q = intensities_instant(sc, qgrid; kT=0.1)
+    total_intensity_static_c2q = sum(is_static_c2q.data)
+    @test total_intensity_static_c2q > total_intensity_static 
 
-    # # Test static from dynamic intensities working
-    # static_vals = instant_intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
-    # total_intensity_static = sum(static_vals)
-    # @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-9)  # Order of summation can lead to very small discrepancies
-
-    # # Test instant intensities working
-    # sys = simple_model_fcc(; mode=:dipole)
-    # thermalize_simple_model!(sys; kT=0.1)
-    # ic = instant_correlations(sys; apply_g=false)
-    # add_sample!(ic, sys)
-    # true_static_vals = instant_intensities_interpolated(ic, qgrid, intensity_formula(ic,:trace))
-    # true_static_total = sum(true_static_vals)
-    # @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
+    # Test instant intensities working
+    sys = simple_model_fcc(; mode=:dipole)
+    thermalize_simple_model!(sys; kT=0.1)
+    ic = SampledCorrelations(sys; measure=ssf_trace(sys; apply_g=false), energies=nothing)
+    add_sample!(ic, sys)
+    true_static_vals = intensities_instant(ic, qgrid; kT=nothing)
+    true_static_total = sum(true_static_vals.data)
+    @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
 end
 
 @testitem "Merge correlations" begin
