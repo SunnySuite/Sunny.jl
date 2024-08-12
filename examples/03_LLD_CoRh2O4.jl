@@ -196,7 +196,7 @@ for (i, radius) in enumerate(radii)
     pts = reciprocal_space_shell(sc.crystal, radius, 100)
     is = intensities_interpolated(sc, pts, formula)
     is = broaden_energy(sc, is, (ω,ω₀) -> lorentzian(; fwhm)(ω-ω₀))
-    output[i, :] = mean(is , dims=1)[1,:]
+    output[i, :] = mean(is, dims=1)[1,:]
 end
 
 # Plot resulting powder-averaged structure factor

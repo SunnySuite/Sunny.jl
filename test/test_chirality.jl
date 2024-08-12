@@ -42,10 +42,10 @@ end
     minimize_energy!(sys)
     @test energy_per_site(sys) ≈ -B
     qs = [[0, 0, -1/2], [0, 0, 1/2]]
-    path = Sunny.q_space_path(cryst, qs, 10)
+    path = q_space_path(cryst, qs, 10)
     swt = SpinWaveTheory(sys)
-    measure = Sunny.DSSF_trace(sys)
-    res = Sunny.intensities_bands2(swt, path; measure)
+    measure = DSSF_trace(sys)
+    res = intensities_bands2(swt, path; measure)
     disp_ref = [B + 2D*sin(2π*q[3]) for q in path.qs]
     intens_ref = [1.0 for _ in path.qs]
     @test res.disp[1,:] ≈ disp_ref
@@ -60,9 +60,9 @@ end
     minimize_energy!(sys2)
     @test energy_per_site(sys2) ≈ -5/4
     swt = SpinWaveTheory(sys2)
-    measure = Sunny.DSSF_trace(sys2)
+    measure = DSSF_trace(sys2)
     qs = [[0,0,-1/3], [0,0,1/3]]
-    res2 = Sunny.intensities_bands2(swt, qs; measure)
+    res2 = intensities_bands2(swt, qs; measure)
     disp2_ref = [3.0133249314 2.5980762316 1.3228756763 0.6479760935
                  3.0133249314 2.5980762316 1.3228756763 0.6479760935]
     intens2_ref = [0.0292617379 0.4330127014 0.0 0.8804147011
@@ -79,7 +79,7 @@ end
     @test k[3] ≈ 3/4
     @test Sunny.spiral_energy_per_site(sys3; k, axis) ≈ -5/4
     swt = SpinWaveTheory(sys3)
-    res = Sunny.intensities_bands_spiral(swt, qs, k, axis; measure=Sunny.DSSF_trace(sys; apply_g=false))
+    res = intensities_bands_spiral(swt, qs; k, axis, measure=DSSF_trace(sys; apply_g=false))
     disp3_ref = [3.0133249314 2.5980762316 0.6479760935
                  3.0133249314 2.5980762316 0.6479760935]
     intens3_ref = [0.0292617379 0.4330127014 0.8804147011
@@ -94,7 +94,7 @@ end
     polarize_spins!(sys3, [0, 0, 1])
     @test energy_per_site(sys3) ≈ -B
     swt = SpinWaveTheory(sys3)
-    res = Sunny.intensities_bands_spiral(swt, qs, k, axis; measure=Sunny.DSSF_trace(sys; apply_g=false))
+    res = intensities_bands_spiral(swt, qs; k, axis, measure=DSSF_trace(sys; apply_g=false))
 
     # For the wavevector, qs[1] == [0,0,-1/2], corresponding to the first row of
     # disp4 and intens4, all intensity is in the third (lowest energy)

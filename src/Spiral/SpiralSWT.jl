@@ -55,7 +55,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
         end
     end
 
-    H[:,:] = H / 2
+    @. H /= 2
 
     # Add Zeeman term
     for i in 1:L
@@ -121,7 +121,7 @@ end
 function is_apply_g(swt::SpinWaveTheory, measure::Measurement)
     obs1 = measure.observables
     for apply_g in (true, false)
-        obs2 = Sunny.DSSF(swt.sys; apply_g).observables
+        obs2 = DSSF(swt.sys; apply_g).observables
         vec(obs1) ≈ vec(obs2) && return apply_g
     end
     error("General measurements not supported for spiral calculation")
@@ -134,7 +134,14 @@ function check_g_scalar(swt::SpinWaveTheory)
 end
 
 
-function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
+"""
+    intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing, measure)
+
+Calculate spin wave excitation bands for a set of q-points in reciprocal space.
+Like [`intensities_bands2`](@ref), except here the magnetic order is described
+by a single propagation wavevector `k` with an associated `axis` of rotation. 
+"""
+function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     (; sys, data) = swt
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
     @assert sys.mode in (:dipole, :dipole_large_S)
@@ -254,4 +261,15 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
     end
 
     return BandIntensities{Ret}(cryst, qpts, disp, intensity)
+end
+
+"""
+    intensities_spiral(swt::SpinWaveTheory, qpts; k, axis, energies, kernel, formfactors=nothing, measure)
+
+Calculate spin wave intensities for a set of q-points in reciprocal space. Like
+[`intensities2`](@ref), except here the magnetic order is described by a single
+propagation wavevector `k` with an associated `axis` of rotation. 
+"""
+function intensities_spiral(swt::SpinWaveTheory, qpts; k, axis, energies, kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
+    return broaden(intensities_bands_spiral(swt, qpts; k, axis, formfactors, measure), energies; kernel)
 end

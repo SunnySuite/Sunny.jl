@@ -74,18 +74,19 @@ plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 
 swt = SpinWaveTheory(sys_prim)
 
-# For the "single crystal" result, we may use [`reciprocal_space_path`](@ref) to
+# For the "single crystal" result, we may use [`q_space_path`](@ref) to
 # construct a path that connects high-symmetry points in reciprocal space. The
 # [`intensities_broadened`](@ref) function collects intensities along this path
 # for the given set of energy values.
 
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
-path = Sunny.q_space_path(cryst, qs, 512)
+path = q_space_path(cryst, qs, 400)
+energies = range(0, 6, 300)
 
 kernel = Sunny.lorentzian2(fwhm=0.8)
-measure = Sunny.DSSF_perp(sys_prim)
+measure = DSSF_perp(sys_prim)
 formfactors = [FormFactor("Co2")]
-res = Sunny.intensities_bands2(swt, path; formfactors, measure)
+res = intensities2(swt, path; energies, kernel, formfactors, measure)
 plot_intensities(res; units)
 
 # A powder measurement effectively involves an average over all possible crystal
@@ -93,34 +94,14 @@ plot_intensities(res; units)
 # `n` wavevectors on a sphere of a given radius (inverse angstroms), and then
 # calculate the spherically-averaged intensity.
 
-radii = 0.01:0.02:3 # (1/Å)
-output = zeros(Float64, length(radii), length(energies))
-@time for (i, radius) in enumerate(radii)
-    n = 300
-    qs = reciprocal_space_shell(cryst, radius, n)
-    res = Sunny.intensities2(swt, qs, energies; measure, kernel, formfactors)
-    output[i, :] = sum(res.data, dims=2) / size(res.data, 2)
+radii = range(0, 3, 200) # (1/Å)
+res = powder_average(cryst, radii, 2000) do qs
+    intensities2(swt, qs; energies, kernel, formfactors, measure)
 end
-
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Q (Å⁻¹)", ylabel="ω (meV)")
-heatmap!(ax, radii, energies, output, colormap=:gnuplot2)
-fig
+plot_intensities(res; units)
 
 # This result can be compared to experimental neutron scattering data
 # from Fig. 5 of [Ge et al.](https://doi.org/10.1103/PhysRevB.96.064413)
 # ```@raw html
 # <img width="95%" src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/CoRh2O4_intensity.jpg">
 # ```
-
-#=
-output2 = zeros(Float64, length(radii), length(energies))
-@time for (i, radius) in enumerate(radii)
-    n = 300
-    qs = reciprocal_space_shell(cryst, radius, n)
-    is = intensities_broadened(swt, qs, energies, formula)
-    output2[i, :] = sum(is, dims=1) / size(is, 1)
-end
-
-@assert output[50,:] ≈ output2[50,:]
-=#

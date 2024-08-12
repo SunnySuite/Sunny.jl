@@ -130,6 +130,10 @@ export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSample
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, meV_per_K
 
+## NEW
+export intensities2, intensities_bands2, intensities_spiral, intensities_bands_spiral, q_space_path, powder_average,
+    DSSF, DSSF_perp, DSSF_trace
+
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 
 ### ext/PlottingExt.jl, dependent on Makie
@@ -139,7 +143,10 @@ end
 function plot_spins(args...)
     error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
 end
-function plot_intensities(args...)
+function plot_intensities!(args...; opts...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+end
+function plot_intensities(args...; opts...)
     error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
 end
 export view_crystal, plot_spins, plot_intensities

@@ -3,6 +3,7 @@ module PlottingExt
 using Sunny
 import Sunny: Mat3, Vec3, orig_crystal, natoms
 using LinearAlgebra
+import Statistics
 import Makie
 
 
@@ -1007,42 +1008,69 @@ function get_unit_energy(units, into)
     end
 end
 
-function Sunny.plot_intensities(res::Sunny.BandIntensities{T}; units::Units=nothing, into=nothing, fwhm=nothing, ylims=nothing, title="") where {T <: Number}
+
+function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; sensitivity=0.0025, saturation=0.9, units::Units=nothing, into=nothing, fwhm=nothing, ylims=nothing, title="")
     all(>(-1e-12), res.data) || error("Intensities must be nonnegative")
-    nq = size(res.disp, 2)
 
     unit_energy, ylabel = get_unit_energy(units, into)
  
-    if res.qpts isa Sunny.QPoints || res.qpts isa Sunny.QPath
-        ticks = if res.qpts isa Sunny.QPath
-            (; xticks=res.qpts.xticks, xticklabelrotation=π/6)
-        else
-            (; )
-        end
-
+    if res.qpts isa Sunny.QPath 
         mindisp, maxdisp = extrema(res.disp)
         ylims = @something ylims (min(0, mindisp), 1.2*maxdisp)
         energies = range(ylims[1], ylims[2], 512)
         fwhm = @something fwhm 0.02*(ylims[2]-ylims[1])
         broadened = Sunny.broaden(res, energies; kernel=Sunny.gaussian2(; fwhm))
-
-        fig = Makie.Figure()
-        ax = Makie.Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), title, ticks...)
-
-        # Broadening width selected according to visible limits
-
-        colorrange = [2.5e-3, 1] * Sunny.quantile(maximum.(eachcol(broadened.data)), 0.90)
-        Makie.heatmap!(ax, 1:nq, collect(energies / unit_energy), broadened.data'; colorrange,
+        colorrange = (sensitivity, 1) .* Statistics.quantile(maximum.(eachcol(broadened.data)), saturation)
+    
+        ax = Makie.Axis(scene; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), title, res.qpts.xticks, xticklabelrotation=π/6)
+        Makie.heatmap!(ax, axes(res.data, 2), collect(energies / unit_energy), broadened.data'; colorrange,
                        colormap=Makie.Reverse(:thermal), lowclip=:white)
         for i in axes(res.disp, 1)
             Makie.lines!(ax, res.disp[i,:] / unit_energy; color=:pink)
         end
-        
-        return fig
+        return ax
     else
-        error("Cannot plot $(typeof(res.qpts))")
+        error("Cannot plot type $(typeof(res.qpts))")
     end
 end
 
+function Sunny.plot_intensities!(scene, res::Sunny.BroadenedIntensities{Float64}; colormap=:gnuplot2, colorrange=nothing, saturation=0.9, units::Units=nothing, into=nothing, title="")
+    all(>(-1e-12), res.data) || error("Intensities must be nonnegative")
+
+    unit_energy, ylabel = get_unit_energy(units, into)
+ 
+    if res.qpts isa Sunny.QPath
+        if isnothing(colorrange)
+            colorrange = (0, Statistics.quantile(maximum.(eachcol(res.data)), saturation))
+        end
+
+        ax = Makie.Axis(scene; xlabel="Momentum (r.l.u.)", ylabel, title, res.qpts.xticks, xticklabelrotation=π/6)
+        Makie.heatmap!(ax, axes(res.data, 2), collect(res.energies/unit_energy), res.data'; colormap, colorrange)
+        return ax
+    else
+        error("Cannot plot type $(typeof(res.qpts))")
+    end
+end
+
+function Sunny.plot_intensities!(scene, res::Sunny.PowderIntensities; colormap=:gnuplot2, colorrange=nothing, saturation=0.98, units::Units=nothing, into=nothing, title="")
+    all(>(-1e-12), res.data) || error("Intensities must be nonnegative")
+
+    unit_energy, ylabel = get_unit_energy(units, into)
+    xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
+ 
+    if isnothing(colorrange)
+        colorrange = (0, Statistics.quantile(maximum.(eachcol(res.data)), saturation))
+    end
+
+    ax = Makie.Axis(scene; xlabel, ylabel, title)
+    Makie.heatmap!(ax, res.radii, collect(res.energies/unit_energy), res.data'; colormap, colorrange)
+    return ax
+end
+
+function Sunny.plot_intensities(res::Sunny.AbstractIntensities; opts...)
+    fig = Makie.Figure()
+    Sunny.plot_intensities!(fig[1,1], res; opts...)
+    return fig
+end
 
 end
