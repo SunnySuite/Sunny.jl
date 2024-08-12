@@ -70,13 +70,15 @@ end
 
 
 """
-    q_space_path(cryst::Crystal, qs, n)
+    q_space_path(cryst::Crystal, qs, n; labels=nothing)
 
 Returns a 1D path consisting of `n` wavevectors sampled piecewise-linearly
-between the `qs`, to be provided in reciprocal lattice units (RLU). Consecutive
-samples are spaced uniformly in the global (inverse-length) coordinate system.
+between the `qs`. Although the `qs` are provided in reciprocal lattice units
+(RLU), consecutive samples are spaced uniformly in the global (inverse-length)
+coordinate system. Optional `labels` can be associated with each special
+q-point, and will be used in plotting functions.
 """
-function q_space_path(cryst::Crystal, qs, n)
+function q_space_path(cryst::Crystal, qs, n; labels=nothing)
     length(qs) >= 2 || error("Include at least two wavevectors in list qs.")
     qs = Vec3.(qs)
     # Displacement vectors in RLU
@@ -115,7 +117,7 @@ function q_space_path(cryst::Crystal, qs, n)
     push!(markers, 1+length(path))
     push!(path, qs[end])
 
-    labels = fractional_vec3_to_string.(qs)
+    labels = @something labels fractional_vec3_to_string.(qs)
     xticks = (markers, labels)
     return QPath(path, xticks)
 end
@@ -362,11 +364,23 @@ function calculate_excitations!(V, H, swt::SpinWaveTheory, q)
     end
 end
 
-function dispersion2(swt::SpinWaveTheory, q)
+function excitations(swt::SpinWaveTheory, q)
     L = nbands(swt)
     V = zeros(ComplexF64, 2L, 2L)
     H = zeros(ComplexF64, 2L, 2L)
     return calculate_excitations!(V, H, swt, q)
+end
+
+"""
+    dispersion(swt::SpinWaveTheory, qpts)
+
+Given a list of wavevectors `qpts` in reciprocal lattice units (RLU), returns
+excitation energies for each band. The return value `ret` is 2D array, and
+should be indexed as `ret[band_index, q_index]`.
+"""
+function dispersion(swt::SpinWaveTheory, qpts)
+    qpts = convert(AbstractQPoints, qpts)
+    return reduce(hcat, excitations.(Ref(swt), qpts.qs))
 end
 
 function localize_observable(v::Vec3, data::SWTDataDipole, site::Int)

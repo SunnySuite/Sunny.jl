@@ -8,10 +8,6 @@
     @test_nowarn intensity_formula(sc,:perp)
     @test_nowarn intensity_formula(sc,:full)
     swt = SpinWaveTheory(sys)
-    @test_nowarn intensity_formula(swt,(:Sx,:Sz); kernel = delta_function_kernel)
-    @test_nowarn intensity_formula(swt,:trace; kernel = delta_function_kernel)
-    @test_nowarn intensity_formula(swt,:perp; kernel = delta_function_kernel)
-    @test_nowarn intensity_formula(swt,:full; kernel = delta_function_kernel)
 
 end
 

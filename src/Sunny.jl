@@ -82,10 +82,11 @@ export set_dipoles_from_mcif!
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
 include("SpinWaveTheory/HamiltonianSUN.jl")
-include("SpinWaveTheory/DispersionAndIntensities.jl")
 include("SpinWaveTheory/Lanczos.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
-export SpinWaveTheory, dispersion, dssf, delta_function_kernel
+export SpinWaveTheory
+export dispersion, intensities, intensities_bands2, intensities_spiral, intensities_bands_spiral, q_space_path, powder_average,
+    DSSF, DSSF_perp, DSSF_trace, lorentzian2, gaussian2, domain_average
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
@@ -106,8 +107,6 @@ export intensities_binned, BinningParameters, count_bins, integrate_axes!,
     unit_resolution_binning_parameters, 
     slice_2D_binning_parameters, axes_bincenters,
     reciprocal_space_path_bins
-include("Intensities/LinearSpinWaveIntensities.jl")
-export intensities_broadened, intensities_bands
 include("Intensities/PowderAveraging.jl")
 export reciprocal_space_shell, powder_average_binned
 include("Intensities/ExperimentData.jl")
@@ -130,9 +129,6 @@ export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSample
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, meV_per_K
 
-## NEW
-export intensities, intensities_bands2, intensities_spiral, intensities_bands_spiral, q_space_path, powder_average,
-    DSSF, DSSF_perp, DSSF_trace, lorentzian2, gaussian2, domain_average
 
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 

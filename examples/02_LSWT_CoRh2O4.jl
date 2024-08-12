@@ -66,26 +66,25 @@ sys_prim = reshape_supercell(sys, shape)
 @assert energy_per_site(sys_prim) ≈ -2J*S^2
 plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 
-# Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and an
-# [`intensity_formula`](@ref). The mode `:perp` contracts with a dipole factor
-# to return the unpolarized intensity. The formula also employs
-# [`lorentzian`](@ref) broadening. The isotropic [`FormFactor`](@ref) for
-# Cobalt(2+) dampens intensities at large ``𝐪``.
+# Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref).
 
 swt = SpinWaveTheory(sys_prim)
 
-# For the "single crystal" result, we may use [`q_space_path`](@ref) to
-# construct a path that connects high-symmetry points in reciprocal space. The
-# [`intensities_broadened`](@ref) function collects intensities along this path
-# for the given set of energy values.
+# For the "single crystal" result, we use [`q_space_path`](@ref) to construct a
+# path that connects high-symmetry points in reciprocal space.
 
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path = q_space_path(cryst, qs, 400)
-energies = range(0, 6, 300)
+
+# Select [`lorentzian2`](@ref) broadening with a full-width at half-maximum
+# (FWHM) of 0.8 meV. Use [`DSSF_perp`](@ref) to calculate unpolarized scattering
+# intensities. The isotropic [`FormFactor`](@ref) for Cobalt(2+) dampens
+# intensities at large ``𝐪``.
 
 kernel = Sunny.lorentzian2(fwhm=0.8)
 measure = DSSF_perp(sys_prim)
 formfactors = [FormFactor("Co2")]
+energies = range(0, 6, 300)
 res = intensities(swt, path; energies, kernel, formfactors, measure)
 plot_intensities(res; units)
 

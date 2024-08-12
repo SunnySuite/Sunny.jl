@@ -106,7 +106,7 @@ end
 
     q = rand(Float64, 3)
     swt = SpinWaveTheory(sys)
-    ωk_num = Sunny.dispersion2(swt, q)
+    ωk_num = Sunny.excitations(swt, q)
 
     function single_ion_analytical_disp(k)
         γkxy = cos(2π*k[1]) + cos(2π*k[2])
@@ -194,7 +194,7 @@ end
 
         # Numerical result
         swt = SpinWaveTheory(sys)
-        disp = Sunny.dispersion2(swt, q)
+        disp = Sunny.excitations(swt, q)
 
         # Analytical result
         γq = 2 * (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*q[3]))
@@ -255,7 +255,7 @@ end
         set_dipole!(sys_swt_dip, ( sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (0,0,0)))
         set_dipole!(sys_swt_dip, (-sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (1,0,0)))
         swt_dip = SpinWaveTheory(sys_swt_dip)
-        ϵq_num = Sunny.dispersion2(swt_dip, q)
+        ϵq_num = Sunny.excitations(swt_dip, q)
 
         # Analytical
         c₂ = 1 - 1/(2S)
@@ -309,8 +309,8 @@ end
     swt_SUN = SpinWaveTheory(sys_SUN)
 
     q = rand(3)
-    disp_dip = Sunny.dispersion2(swt_dip, q)
-    disp_SUN = Sunny.dispersion2(swt_SUN, q)
+    disp_dip = Sunny.excitations(swt_dip, q)
+    disp_SUN = Sunny.excitations(swt_SUN, q)
 
     @test only(disp_dip) ≈ disp_SUN[end-1]
 end
@@ -348,8 +348,8 @@ end
         swt1 = SpinWaveTheory(sys, energy_ϵ=1e-8)
         swt2 = SpinWaveTheory(sys_reshape, energy_ϵ=1e-8)
         q = [0.5, -0.1, 0.3]
-        disp1 = Sunny.dispersion2(swt1, q)
-        disp2 = Sunny.dispersion2(swt2, q)
+        disp1 = Sunny.excitations(swt1, q)
+        disp2 = Sunny.excitations(swt2, q)
         
         @test disp1 ≈ [1.3236778213351734, 0.9206655419611791]
         @test disp2 ≈ [0.9206655419611772]        
