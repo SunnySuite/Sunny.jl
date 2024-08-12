@@ -125,7 +125,7 @@ heatmap(q1s, q2s, iq;
 # ### Dynamical structure factor
 
 # To collect statistics for the dynamical structure factor intensities
-# ``I(𝐪,ω)`` at finite temperature, use [`dynamical_correlations`](@ref). The
+# ``I(𝐪,ω)`` at finite temperature, use [`dynamic_correlations`](@ref). The
 # integration timestep `dt` used for measuring dynamical correlations can be
 # somewhat larger than that used by the Langevin dynamics. We must also specify
 # `nω` and `ωmax`, which determine the frequencies over which intensity data
@@ -134,7 +134,7 @@ heatmap(q1s, q2s, iq;
 dt = 2*langevin.dt
 ωmax = 6.0  # Maximum energy to resolve (meV)
 nω = 50     # Number of energies to resolve
-sc = dynamical_correlations(sys; dt, nω, ωmax)
+sc = dynamic_correlations(sys; dt, nω, ωmax)
 
 # Use Langevin dynamics to sample spin configurations from thermal equilibrium.
 # For each sample, use [`add_sample!`](@ref) to run a classical spin dynamics

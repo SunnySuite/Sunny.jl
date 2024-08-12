@@ -39,7 +39,7 @@ end
 sys = make_system()
 ```
 
-A serial calculation of [`dynamical_correlations`](@ref) involving the
+A serial calculation of [`dynamic_correlations`](@ref) involving the
 [`Langevin`](@ref) sampling method can now be performed as follows:
 
 ```julia
@@ -51,7 +51,7 @@ for _ in 1:5000
 end
 
 # Accumulator for S(q,ω) samples
-sc = dynamical_correlations(sys; dt=0.1, nω=100, ωmax=10.0)
+sc = dynamic_correlations(sys; dt=0.1, nω=100, ωmax=10.0)
 
 # Collect 10 samples
 for _ in 1:10
@@ -82,7 +82,7 @@ preallocate a number of systems and correlations.
 ```julia
 npar = Threads.nthreads()
 systems = [make_system(; seed=id) for id in 1:npar]
-scs = [dynamical_correlations(sys; dt=0.1, nω=100, ωmax=10.0) for _ in 1:npar]
+scs = [dynamic_correlations(sys; dt=0.1, nω=100, ωmax=10.0) for _ in 1:npar]
 ```
 
 !!! warning "Dealing with memory constraints"
@@ -180,7 +180,7 @@ called `scs`.
 ```julia
 scs = pmap(1:ncores) do id
     sys = make_system(; seed=id)
-    sc = dynamical_correlations(sys; dt=0.1, nω=100, ωmax=10.0)
+    sc = dynamic_correlations(sys; dt=0.1, nω=100, ωmax=10.0)
     integrator = Langevin(0.05; damping=0.2, kT=0.5)
 
     for _ in 1:5000

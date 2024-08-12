@@ -44,7 +44,7 @@ end
 
 ωmax=10.
 
-dsf = dynamical_correlations(sys; dt, nω=48, ωmax)
+dsf = dynamic_correlations(sys; dt, nω=48, ωmax)
 
 nsamples = 10
 for _ in 1:nsamples

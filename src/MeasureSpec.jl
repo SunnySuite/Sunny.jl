@@ -17,6 +17,9 @@ end
 
 Base.eltype(::MeasureSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
+# Replicate Sam's observables code for the moment
+num_observables(measure::MeasureSpec) = size(measure.observables, 1)
+num_correlations(measure::MeasureSpec) = length(measure.corr_pairs) 
 
 function empty_measurespec(sys)
     observables = zeros(Vec3, 0, size(eachsite(sys))...)

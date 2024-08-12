@@ -46,7 +46,7 @@
   spin wave theory, with proper Ewald summation. For a faster alternative, the
   experimental function [`modify_exchange_with_truncated_dipole_dipole!`](@ref)
   will accept a real-space cutoff.
-* Intensities calculated with [`dynamical_correlations`](@ref) now avoid
+* Intensities calculated with [`dynamic_correlations`](@ref) now avoid
   "bleeding artifacts" at low-energy (long-timescale) modes. See [PR
   246](https://github.com/SunnySuite/Sunny.jl/pull/246) for details. This
   eliminates the need for `process_trajectory=:symmetrize`.
@@ -84,11 +84,11 @@
   #149](https://github.com/SunnySuite/Sunny.jl/issues/149).
 * Scalar biquadratic interactions can again be set in `:dipole_large_S` mode via
   the keyword argument `biquad` of [`set_exchange!`](@ref).
-* Significantly speed up [`dynamical_correlations`](@ref) for crystals with many
+* Significantly speed up [`dynamic_correlations`](@ref) for crystals with many
   atoms in the unit cell. [Issue
   #204](https://github.com/SunnySuite/Sunny.jl/issues/204).
 * Renamings: `dt` replaces `Δt` and `damping` replaces `λ`. This affects
-  [`Langevin`](@ref), [`ImplicitMidpoint`], and [`dynamical_correlations`](@ref)
+  [`Langevin`](@ref), [`ImplicitMidpoint`], and [`dynamic_correlations`](@ref)
   functions.
 
 ## v0.5.8
@@ -235,7 +235,7 @@ operator.
 Remove `set_biquadratic!`. Instead, use an optional keyword argument `biquad` to
 [`set_exchange!`](@ref).
 
-Rename `DynamicStructureFactor` to [`dynamical_correlations`](@ref). Similarly,
+Rename `DynamicStructureFactor` to [`dynamic_correlations`](@ref). Similarly,
 replace `InstantStructureFactor` with [`instant_correlations`](@ref). The return
 type has been renamed [`SampledCorrelations`](@ref) to emphasize that the object
 may be holding thermodynamic samples, which are collected using

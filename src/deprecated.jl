@@ -81,7 +81,7 @@ end
 #
 # * view_crystal(cryst, max_dist)
 # * λ argument in Langevin constructor
-# * Δt argument in dynamical_correlations
+# * Δt argument in dynamic_correlations
 # * large_S argument in set_exchange! and set_exchange_at!
 # * Argument q in set_spiral_order*
 # * Argument units to System

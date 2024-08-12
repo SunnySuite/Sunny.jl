@@ -385,13 +385,13 @@ trajectories must be initialized to a spin configuration that is sampled from
 the finite-temperature thermal equilibrium. Samples are accumulated into a
 `SampledCorrelations`, from which intensity information may be extracted. The
 user does not typically build their own `SampledCorrelations` but instead
-initializes one by calling either `dynamical_correlations` or
+initializes one by calling either `dynamic_correlations` or
 `instant_correlations`, as described below.
 
 ### Estimating a dynamical structure factor: ``𝒮(𝐪,ω)``
 
 A `SampledCorrelations` object for estimating the dynamical structure factor is
-created by calling [`dynamical_correlations`](@ref). This requires three keyword
+created by calling [`dynamic_correlations`](@ref). This requires three keyword
 arguments. These will determine the dynamics used to calculate samples and,
 consequently, the $ω$ information that will be available. 
 
@@ -409,7 +409,7 @@ consequently, the $ω$ information that will be available.
 
 !!! warning "Intensity scale"
 
-    Intensities calculated with `dynamical_correlations` are currently scaled
+    Intensities calculated with `dynamic_correlations` are currently scaled
     by a prefactor of `Δω ≈ ωmax / nω`, the discretization in energy space.
     This prefactor will be removed in a future Sunny version. See
     [Issue 264](https://github.com/SunnySuite/Sunny.jl/issues/264).
@@ -424,7 +424,7 @@ calling `add_sample!` on each configuration.
 The outline of typical use case might look like this:
 ```
 # Make a `SampledCorrelations`
-sc = dynamical_correlations(sys; dt=0.05, ωmax=10.0, nω=100) 
+sc = dynamic_correlations(sys; dt=0.05, ωmax=10.0, nω=100) 
 
 # Add samples
 for _ in 1:nsamples
@@ -433,7 +433,7 @@ for _ in 1:nsamples
 end
 ```
 The calculation may be configured in a number of ways; see the
-[`dynamical_correlations`](@ref) documentation for a list of all keywords.
+[`dynamic_correlations`](@ref) documentation for a list of all keywords.
 
 ### Estimating an instantaneous ("static") structure factor: ``𝒮(𝐪)``
 
@@ -453,7 +453,7 @@ in the following section.
 
 The basic usage for the instantaneous case is very similar to the dynamic case,
 except one calls [`instant_correlations`](@ref) instead of
-`dynamical_correlations` to configure a `SampledCorrelations`. Note that there
+`dynamic_correlations` to configure a `SampledCorrelations`. Note that there
 are no required keywords as there is no need to specify any dynamics.
 `instant_correlations` will return a `SampledCorrelations` containing no data.
 Samples may be added by calling `add_sample!(sc, sys)`, where `sc` is the
@@ -461,7 +461,7 @@ Samples may be added by calling `add_sample!(sc, sys)`, where `sc` is the
 important to ensure that the spin configuration in the `sys` represents a good
 equilibrium sample, as in the dynamical case. Note, however, that we recommend
 calculating instantaneous correlations at finite temperature calculations by
-using full dynamics (i.e., using `dynamical_correlations`) and then integrating
+using full dynamics (i.e., using `dynamic_correlations`) and then integrating
 out the energy axis. An approach to doing this is described in the next section.
 
 ### Extracting information from sampled correlation data 
@@ -519,6 +519,6 @@ To retrieve intensity data from a instantaneous structure factor, use
 [`instant_intensities_interpolated`](@ref), which accepts similar arguments to
 `intensities_interpolated`. This function may also be used to calculate
 instantaneous information from a dynamical correlation data, i.e. from a
-`SampledCorrelations` created with `dynamical_correlations`. Note that it is
+`SampledCorrelations` created with `dynamic_correlations`. Note that it is
 important to supply a value to `kT` to reap the benefits of this approach over
 simply calculating a static structure factor at the outset. 

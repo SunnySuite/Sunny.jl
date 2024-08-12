@@ -57,7 +57,7 @@ plot_spins(sys)
 
 # Estimate the dynamical structure factor using classical dynamics.
 
-sc = dynamical_correlations(sys; dt, nω=100, ωmax=15D)
+sc = dynamic_correlations(sys; dt, nω=100, ωmax=15D)
 add_sample!(sc, sys)
 nsamples = 100
 for _ in 1:nsamples

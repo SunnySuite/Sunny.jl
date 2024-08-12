@@ -33,7 +33,7 @@
     thermalize_simple_model!(sys; kT=0.1)
     S = spin_matrices(1/2)
     observables = Dict(:Sx => S[1], :Sy => S[2], :Sz => S[3])
-    sc = dynamical_correlations(sys; nω=100, ωmax=10.0, dt=0.1, apply_g=false, observables)
+    sc = dynamic_correlations(sys; nω=100, ωmax=10.0, dt=0.1, apply_g=false, observables)
     Δω = sc.Δω
     add_sample!(sc, sys)
     qgrid = available_wave_vectors(sc)
@@ -49,7 +49,7 @@
     # Test sum rule with default observables in dipole mode 
     sys = simple_model_fcc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
-    sc = dynamical_correlations(sys; dt=0.1, nω=100, ωmax=10.0, apply_g=false)
+    sc = dynamic_correlations(sys; dt=0.1, nω=100, ωmax=10.0, apply_g=false)
     add_sample!(sc, sys)
     trace_formula = intensity_formula(sc,:trace)
     Sqw = intensities_interpolated(sc, qgrid, trace_formula; negative_energies=true)
@@ -115,9 +115,9 @@ end
     dt_langevin = 0.07 
     langevin = Langevin(dt_langevin; damping=0.1, kT=0.1723)
 
-    sc0 = dynamical_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
-    sc1 = dynamical_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
-    sc2 = dynamical_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
+    sc0 = dynamic_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
+    sc1 = dynamic_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
+    sc2 = dynamic_correlations(sys; nω=25, ωmax=5.5, dt=2dt_langevin, calculate_errors=true)
 
     for _ in 1:4_000
         step!(sys, langevin)
@@ -144,7 +144,7 @@ end
     set_exchange!(sys, 0.6498, Bond(1, 3, [0,0,0]))
     randomize_spins!(sys)
     
-    sc = dynamical_correlations(sys; nω=10, ωmax=5.5, dt=0.14)
+    sc = dynamic_correlations(sys; nω=10, ωmax=5.5, dt=0.14)
     add_sample!(sc, sys)
     qs = [[0.0, 0.0, 0.0], [-0.2, 0.4, -0.1]]
     data = intensities_interpolated(sc, qs, intensity_formula(sc, :trace; kT=0.1723); interpolation=:linear)
