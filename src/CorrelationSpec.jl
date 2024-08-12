@@ -52,9 +52,9 @@ function all_dipole_observables(sys::System{N}; apply_g) where {N}
 end
 
 """
-    DSSF(sys::System; apply_g=true)
+    DSSF_matrix(sys::System; apply_g=true)
 
-Specify measurement of the dynamical spin structure factor (DSSF) or its
+Specify measurement of the dynamical spin structure factor or its
 "instantaneous" variant. The "full" structure factor intensity
 ``\\mathcal{S}^{αβ}(𝐪,ω)`` is returned as a 3×3 matrix, with indices ``(α, β)``
 denoting dipole components in Cartesian coordinates.
@@ -67,7 +67,7 @@ Intended for use with [`intensities`](@ref), [`intensities_bands`](@ref), and
 related functions. See also the Sunny documentation on [Structure Factor
 Calculations](@ref) for more details.
 """
-function DSSF(sys::System; apply_g=true)
+function DSSF_matrix(sys::System; apply_g=true)
     observables = all_dipole_observables(sys; apply_g)
     combiner(_, data) = SA[
         data[6]       data[5]       data[3]
@@ -81,15 +81,15 @@ end
 """
     DSSF_perp(sys::System; apply_g=true)
 
-Specify measurement of the dynamical spin structure factor (DSSF). Like
-[`DSSF`](@ref), but contracts the 3×3 structure factor matrix with
+Specify measurement of the dynamical spin structure factor. Like
+[`DSSF_matrix`](@ref), but contracts the 3×3 structure factor matrix with
 ``(I-𝐪⊗𝐪/q^2)``, which projects perpendicular to the direction of momentum
 transfer ``𝐪``. The contracted structure factor can be interpreted as a
 scattering intensity for an unpolarized neutron beam, up to constant scaling
 factors. In the singular limit ``𝐪 → 0``, the contraction matrix is replaced by
 its rotational average, ``(2/3) I``.
 
-See also [`DSSF`](@ref).
+See also [`DSSF_matrix`](@ref).
 """
 function DSSF_perp(sys::System; apply_g=true)
     observables = all_dipole_observables(sys; apply_g)
@@ -116,11 +116,11 @@ end
 """
     DSSF_trace(sys::System; apply_g=true)
 
-Specify measurement of the dynamical spin structure factor (DSSF). Like
-[`DSSF`](@ref), but returns only the trace of the 3×3 structure factor matrix.
-This quantity can be useful for checking quantum sum rules.
+Specify measurement of the dynamical spin structure factor. Like
+[`DSSF_matrix`](@ref), but returns only the trace of the 3×3 structure factor
+matrix. This quantity can be useful for checking quantum sum rules.
 
-See also [`DSSF`](@ref).
+See also [`DSSF_matrix`](@ref).
 """
 function DSSF_trace(sys::System{N}; apply_g=true) where N
     observables = all_dipole_observables(sys; apply_g)
