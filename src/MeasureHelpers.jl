@@ -281,15 +281,14 @@ end
 
 
 """
-    domain_average(f, cryst, qpts; rotations, weights=nothing)
+    domain_average(f, cryst, qpts; rotations, weights)
 
 Calculate an average intensity for the reciprocal-space points `qpts` under a
 discrete set of `rotations`. Rotations must be given in global Cartesian
 coordinates, and will be converted via [`rotation_in_rlu`](@ref). Either
-axis-angle or 3×3 rotation matrix representations can be used. An optional list
-of `weights` allows for non-uniform weighting of each rotation. The function `f`
-should accept a list of rotated q-points and call a variant of
-[`intensities`](@ref).
+axis-angle or 3×3 rotation matrix representations can be used. Each rotation is
+weighted according to the elements in `weights`. The function `f` should accept
+a list of rotated q-points and return an [`intensities`](@ref) calculation.
 
 # Example
 
@@ -303,9 +302,8 @@ end
 plot_intensities(res)
 ```
 """
-function domain_average(f, cryst, qpts; rotations, weights=nothing)
+function domain_average(f, cryst, qpts; rotations, weights)
     isempty(rotations) && error("Rotations must be nonempty list")
-    weights = @something weights fill(1, length(rotations))
     length(rotations) == length(weights) || error("Rotations and weights must be same length")
 
     R0, Rs... = rotation_in_rlu.(Ref(cryst), rotations)
