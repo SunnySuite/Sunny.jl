@@ -641,7 +641,7 @@ end
     observables = repeat(observables0, 1, size(eachsite(sys))...)
     corr_pairs = [(3,3), (2,2), (1,1)]
     combiner = (_, data) -> real(sum(data))
-    measure = Sunny.Measurement(observables, corr_pairs, combiner)
+    measure = Sunny.CorrelationSpec(observables, corr_pairs, combiner)
     
     # Set up SpinWaveTheory
     randomize_spins!(sys)

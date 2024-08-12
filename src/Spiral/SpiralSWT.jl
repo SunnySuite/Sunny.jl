@@ -118,7 +118,7 @@ end
 
 # General measurements are not supported. Observables must be a variant of DSSF
 # with some choice of apply_g. Extract and return this parameter.
-function is_apply_g(swt::SpinWaveTheory, measure::Measurement)
+function is_apply_g(swt::SpinWaveTheory, measure::CorrelationSpec)
     obs1 = measure.observables
     for apply_g in (true, false)
         obs2 = DSSF(swt.sys; apply_g).observables
@@ -143,7 +143,7 @@ by a single propagation wavevector `k` with an associated `axis` of rotation.
 """
 function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing)
     (; sys, data, measure) = swt
-    isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with an `observe` argument.")
+    isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with an `measure` argument.")
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
     @assert sys.mode in (:dipole, :dipole_large_S)
 

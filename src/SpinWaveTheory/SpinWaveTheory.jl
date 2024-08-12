@@ -24,11 +24,11 @@ modes.
 struct SpinWaveTheory
     sys            :: System
     data           :: Union{SWTDataDipole, SWTDataSUN}
-    measure        :: Measurement
+    measure        :: CorrelationSpec
     regularization :: Float64
 end
 
-function SpinWaveTheory(sys::System{N}, measure::Union{Nothing, Measurement}; regularization=1e-8, energy_ϵ=nothing) where N
+function SpinWaveTheory(sys::System{N}, measure::Union{Nothing, CorrelationSpec}; regularization=1e-8, energy_ϵ=nothing) where N
     if !isnothing(energy_ϵ)
         @warn "Keyword argument energy_ϵ is deprecated! Use `regularization` instead."
         regularization = energy_ϵ

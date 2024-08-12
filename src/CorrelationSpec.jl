@@ -2,13 +2,13 @@
 # Op is the type of a local observable operator. Either a Vec3 (for :dipole
 # mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
 # mode, in which case op is an N×N matrix).
-struct Measurement{Op <: Union{Vec3, HermitianC64}, F, Ret}
+struct CorrelationSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     observables :: Array{Op, 5}          # (nobs × latsize × natoms)
     corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
     combiner :: F                        # (q::Vec3, obs) -> Ret
 
     # TODO: Default combiner will be SVector?
-    function Measurement(observables::Array{Op, 5}, corr_pairs, combiner::F) where {Op, F}
+    function CorrelationSpec(observables::Array{Op, 5}, corr_pairs, combiner::F) where {Op, F}
         # Lift return type of combiner function to type-level
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         @assert isbitstype(Ret)
@@ -16,14 +16,14 @@ struct Measurement{Op <: Union{Vec3, HermitianC64}, F, Ret}
     end
 end
 
-Base.eltype(::Measurement{Op, F, Ret}) where {Op, F, Ret} = Ret
+Base.eltype(::CorrelationSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
 
 function empty_measurement(sys)
     observables = zeros(Vec3, 0, size(eachsite(sys))...)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
-    return Measurement(observables, corr_pairs, combiner)
+    return CorrelationSpec(observables, corr_pairs, combiner)
 end
 
 function all_dipole_observables(sys::System{0}; apply_g)
@@ -75,7 +75,7 @@ function DSSF(sys::System; apply_g=true)
         conj(data[3]) conj(data[2]) data[1]
     ]
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
-    return Measurement(observables, corr_pairs, combiner)
+    return CorrelationSpec(observables, corr_pairs, combiner)
 end
 
 """
@@ -110,7 +110,7 @@ function DSSF_perp(sys::System; apply_g=true)
         return iszero(q2) ? (2/3)*tr_dssf : tr_dssf - dot(q, dssf, q) / q2
     end
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
-    return Measurement(observables, corr_pairs, combiner)
+    return CorrelationSpec(observables, corr_pairs, combiner)
 end
 
 """
@@ -126,5 +126,5 @@ function DSSF_trace(sys::System{N}; apply_g=true) where N
     observables = all_dipole_observables(sys; apply_g)
     combiner(_, data) = real(data[1] + data[2] + data[3])
     corr_pairs = [(3,3), (2,2), (1,1)]
-    return Measurement(observables, corr_pairs, combiner)
+    return CorrelationSpec(observables, corr_pairs, combiner)
 end
