@@ -138,7 +138,7 @@ end
     intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing, measure)
 
 Calculate spin wave excitation bands for a set of q-points in reciprocal space.
-Like [`intensities_bands2`](@ref), except here the magnetic order is described
+Like [`intensities_bands`](@ref), except here the magnetic order is described
 by a single propagation wavevector `k` with an associated `axis` of rotation. 
 """
 function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}

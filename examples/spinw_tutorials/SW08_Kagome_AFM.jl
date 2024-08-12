@@ -47,7 +47,7 @@ path = q_space_path(cryst, points_rlu, 400)
 # Calculate intensities for each dispersion band
 
 swt = SpinWaveTheory(sys)
-res = intensities_bands2(swt, path; measure=DSSF_perp(sys))
+res = intensities_bands(swt, path; measure=DSSF_perp(sys))
 
 # The intensities are dominated by a flat band at zero energy transfer. Clip
 # intensities beyond a saturation cutoff of 0.45. This represents the 45th
