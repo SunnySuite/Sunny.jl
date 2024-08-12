@@ -12,8 +12,7 @@
 struct Measurement{Op, F, Ret}
     observables :: Array{Op, 5}          # (latsize, natoms, nobs)
     corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
-    # A function that takes (q::Vec3, elems) and produces a combined result
-    combiner :: F
+    combiner :: F                        # (q::Vec3, obs) -> Ret
 
     function Measurement(observables::Array{Op, 5}, corr_pairs, combiner::F) where {Op, F}
         # Lift return type of combiner function to type-level
@@ -31,24 +30,17 @@ function all_dipole_observables(sys::System; apply_g)
             observables[site, α] = M[α, :]
         end
     end
-    corr_pairs = [(1,1), (1,2), (2,2), (1,3), (2,3), (3,3)]
+    corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     return observables, corr_pairs
 end
 
 function DSSF(sys::System{N}; apply_g=true) where N
     observables, corr_pairs = all_dipole_observables(sys; apply_g)
     combiner(_, data) = SA[
-        data[1]       data[2]       data[4]
-        conj(data[2]) data[3]       data[5]
-        conj(data[4]) conj(data[5]) data[6]
+        data[6]       data[5]       data[3]
+        conj(data[5]) data[4]       data[2]
+        conj(data[3]) conj(data[2]) data[1]
     ]
-    return Measurement(observables, corr_pairs, combiner)
-end
-
-function DSSF_trace(sys::System{N}; apply_g=true) where N
-    observables, corr_pairs = all_dipole_observables(sys; apply_g)
-    data = real.(SVector{6}(data))
-    combiner(_, data) = data[1] + data[3] + data[6]
     return Measurement(observables, corr_pairs, combiner)
 end
 
@@ -56,16 +48,21 @@ function DSSF_perp(sys::System{N}; apply_g=true) where N
     observables, corr_pairs = all_dipole_observables(sys; apply_g)
     function combiner(q, data)
         q2 = norm2(q)
+        # Imaginary part cancels by symmetric contraction
         data = real.(SVector{6}(data))
-        return data[1] + data[3] + data[6] +
-            - (data[1]*q[1]^2 + data[3]*q[2]^2 + data[6]*q[3]^2) / q2 + 
-            - 2 * (data[2]*q[1]*q[2] + data[4]*q[1]*q[3] + data[5]*q[2]*q[3]) / q2
-        # A = [data[1] data[2] data[4]
-        #      data[2] data[3] data[5]
-        #      data[4] data[5] data[6]]
-        # B = Hermitian(I - q * q' / norm2(q))
-        # return tr(A' * B)
+        dssf = SA[
+            data[6] data[5] data[3]
+            data[5] data[4] data[2]
+            data[3] data[2] data[1]
+        ]
+        return tr(dssf) - (q' * dssf * q) / q2
     end
+    return Measurement(observables, corr_pairs, combiner)
+end
+
+function DSSF_trace(sys::System{N}; apply_g=true) where N
+    observables, corr_pairs = all_dipole_observables(sys; apply_g)
+    combiner(_, data) = real(data[1] + data[4] + data[6])
     return Measurement(observables, corr_pairs, combiner)
 end
 
@@ -114,9 +111,13 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
     Avec_pref = zeros(ComplexF64, Na)
     disp = zeros(Float64, L, Nq)
     intensity = zeros(Ret, L, Nq)
+
     # Temporary storage for pair correlations
     Ncorr = length(measure.corr_pairs)
     corrbuf = zeros(ComplexF64, Ncorr)
+
+    Nobs = size(measure.observables, 5)
+    obs = reshape(measure.observables, (Na, Nobs))
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
@@ -144,8 +145,7 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
             Avec_pref[i] *= compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
-        nobs = size(measure.observables, 5)
-        Avec = zeros(ComplexF64, nobs)
+        Avec = zeros(ComplexF64, Nobs)
 
         # Fill `intensity` array
         for band = 1:L
@@ -155,7 +155,7 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
                 N = sys.Ns[1]
                 v = reshape(view(V, :, band), N-1, Na, 2)
                 for i in 1:Na
-                    for μ in 1:nobs
+                    for μ in 1:Nobs
                         @views O = observables_localized[:, :, μ, i]
                         for α in 1:N-1
                             Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
@@ -167,7 +167,9 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
                 @assert sys.mode in (:dipole, :dipole_large_S)
                 v = reshape(view(V, :, band), Na, 2)
                 for i in 1:Na
-                    for μ in 1:num_observables(observables)
+                    for μ in 1:Nobs
+                        O_local_frame = obs[i, μ]' * swt.data.local_rotations[i]
+
                         # This is the Avec of the two transverse and one
                         # longitudinal directions in the local frame. (In the
                         # local frame, z is longitudinal, and we are computing
@@ -176,15 +178,16 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
 
                         # Note that O_local_frame has already been right
                         # multiplied by data.local_rotations[i]
-                        @views O_local_frame = observables_localized[:,:,μ,i]
+                        @views O_local_frame2 = observables_localized[:,:,μ,i]
+                        @assert O_local_frame ≈ -O_local_frame2
+
                         Avec[μ] += Avec_pref[i] * (sqrtS[i]/sqrt(2)) * (O_local_frame * displacement_local_frame)[1]
                     end
                 end
             end
 
-            for (c, ic) in observables.correlations
-                (α, β) = c.I
-                corrbuf[ic] = Avec[α] * conj(Avec[β]) / Ncells
+            for (i, (α, β)) in enumerate(measure.corr_pairs)
+                corrbuf[i] = Avec[α] * conj(Avec[β]) / Ncells
             end
             intensity[band, iq] = measure.combiner(q_global, corrbuf)
         end
