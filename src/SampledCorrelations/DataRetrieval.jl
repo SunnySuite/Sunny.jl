@@ -1,125 +1,75 @@
-struct ClassicalIntensityFormula{T} <: IntensityFormula
-    kT :: Float64
-    formfactors :: Union{Nothing, Vector{FormFactor}}
-    string_formula :: String
-    calc_intensity :: Function
-end
-
-function Base.show(io::IO, formula::ClassicalIntensityFormula{T}) where T
-    print(io,"ClassicalIntensityFormula{$T}")
-end
-
-function Base.show(io::IO, ::MIME"text/plain", formula::ClassicalIntensityFormula{T}) where T
-    printstyled(io, "Classical Scattering Intensity Formula\n";bold=true, color=:underline)
-
-    formula_lines = split(formula.string_formula,'\n')
-
-    println(io, "At discrete scattering modes S = S[ix_q,ix_ω], use:")
-    println(io)
-    print(io, "  Intensity[ix_q,ix_ω] = ")
-
-    intensity_equals = "  Intensity[ix_q,ix_ω] = "
-    spacing = repeat(' ', textwidth(intensity_equals))
-    println(io, intensity_equals, join(formula_lines, "\n" * spacing))
-
-    if isnothing(formula.formfactors)
-        printstyled(io, "No form factors specified\n";color=:yellow)
-    else
-        printstyled(io, "Form factors included in S ✓\n";color=:green)
-    end
-    if formula.kT == Inf
-        printstyled(io, "No temperature correction";color=:yellow)
-        print(io, " (kT = ∞)\n")
-    else
-        printstyled(io, "Temperature corrected (kT = $(formula.kT)) ✓\n";color = :green)
-    end
-    if T != Float64
-        println(io,"Intensity :: $(T)")
-    end
-end
-
-"""
-    formula = intensity_formula(sc::SampledCorrelations)
-
-Establish a formula for computing the intensity of the discrete scattering modes
-`(q,ω)` using the correlation data ``𝒮^{αβ}(q,ω)`` stored in the
-[`SampledCorrelations`](@ref). The `formula` returned from `intensity_formula`
-can be passed to [`intensities_interpolated`](@ref) or
-[`intensities_binned`](@ref).
-
-    intensity_formula(sc,...; kT = Inf, formfactors = ...)
-
-There are keyword arguments providing temperature and form factor corrections:
-
-- `kT`: If a temperature is provided, the intensities will be rescaled by a
-    temperature- and ω-dependent classical-to-quantum factor. `kT` should be
-    specified when making comparisons with spin wave calculations or
-    experimental data. If `kT` is not specified, infinite temperature (no
-    correction) is assumed.
-- `formfactors`: To apply form factor corrections, provide this keyword with a
-    list of `FormFactor`s, one for each symmetry-distinct site in the crystal.
-    The order of `FormFactor`s must correspond to the order of site symmetry
-    classes, e.g., as they appear when printed in `display(crystal)`.
-"""
-function intensity_formula(f::Function, sc::SampledCorrelations, corr_ix::AbstractVector{Int64}; 
-    kT = Inf, 
-    formfactors = nothing, 
-    return_type = Float64, 
-    string_formula = "f(Q,ω,S{α,β}[ix_q,ix_ω])"
-)
-    # If temperature given, ensure it's greater than 0.0
-    if kT != Inf
-        if iszero(kT)
-            error("`kT` must be greater than zero.")
-        end
-        # Only apply c2q factor if have dynamical correlations
-        if isnan(sc.Δω)
-            error("`kT`-dependent corrections not available when using correlation data generated with `instant_correlations`. Do not set `kT` keyword.")
-        end
-    end
-
-    ωs_sc = available_energies(sc;negative_energies = true)
-
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
-    NAtoms = Val(size(sc.data)[2])
+## TODO: Cleanup and docstring
+function intensities(sc::SampledCorrelations, qpts; measure, negative_energies=false, formfactors=nothing, interp=NoInterp())
+    measure = !isnothing(measure) ? measure : sc.measure # Add checks to see if override is legit
+    IntensitiesType = eltype(measure)
+    corr_ix = 1:length(measure.corr_pairs)  # This assumes all correlations are kept
+    NInterp = 1 # Generalize this
     NCorr = Val(length(corr_ix))
+    NAtoms = Val(size(sc.data, 2))
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
 
-    # Intensity is calculated at the discrete (ix_q,ix_ω) modes available to the system.
-    # Additionally, for momentum transfers outside of the first BZ, the norm `q_absolute` of the
-    # momentum transfer may be different than the one inferred from `ix_q`, so it needs
-    # to be provided independently of `ix_q`.
-    calc_intensity = function (sc::SampledCorrelations, q_absolute::Vec3, ix_q::CartesianIndex{3}, ix_ω::Int64)
-        correlations = phase_averaged_elements(view(sc.data, corr_ix, :, :, ix_q, ix_ω), q_absolute, sc.crystal, ff_atoms, NCorr, NAtoms)
-
-        # This is NaN if sc is instant_correlations
-        ω = (typeof(ωs_sc) == Float64 && isnan(ωs_sc)) ? NaN : ωs_sc[ix_ω] 
-
-        return f(q_absolute, ω, correlations) * classical_to_quantum(ω,kT)
-    end
-    ClassicalIntensityFormula{return_type}(kT, formfactors, string_formula, calc_intensity)
-end
-
-"""
-A custom intensity formula can be specifed by providing a function `intensity = f(q,ω,correlations)` and specifying which correlations it requires:
-
-    intensity_formula(f,sc::SampledCorrelations, required_correlations; kwargs...)
-
-The function is intended to be specified using `do` notation. For example, this custom formula sums the off-diagonal correlations:
-
-    required = [(:Sx,:Sy),(:Sy,:Sz),(:Sx,:Sz)]
-    intensity_formula(sc,required,return_type = ComplexF64) do k, ω, off_diagonal_correlations
-        sum(off_diagonal_correlations)
+    # Interpret q points in terms of original crystal. 
+    if !isnothing(sc.origin_crystal)
+        convert = sc.crystal.recipvecs \ sc.origin_crystal.recipvecs
+        qpts = [convert * Vec3(q) for q in qpts]
     end
 
-If your custom formula returns a type other than `Float64`, use the `return_type` keyword argument to flag this.
-"""
-function intensity_formula(f::Function,sc,required_correlations; kwargs...)
-    # SQTODO: This corr_ix may contain repeated correlations if the user does a silly
-    # thing like [(:Sx,:Sy),(:Sy,:Sx)], and this can technically be optimized so it's
-    # not computed twice
-    corr_ix = lookup_correlations(sc.observables,required_correlations)
-    intensity_formula(f,sc,corr_ix;kwargs...)
+    ωvals = available_energies(sc; negative_energies)
+    intensities = zeros(IntensitiesType, size(qpts)..., length(ωvals))
+
+    q_targets = qpts
+    li_intensities = LinearIndices(intensities)
+    ci_targets = CartesianIndices(q_targets)
+    m_targets = [mod.(sc.latsize .* q_target, 1) for q_target in q_targets]
+
+    (; ks_all, idcs_all, counts) = pruned_stencil_info(sc, qpts, interp) 
+    local_intensities = zeros(IntensitiesType, NInterp) 
+
+    for iω in eachindex(ωvals)
+        iq = 0
+        for (ks, idcs, numrepeats) in zip(ks_all, idcs_all, counts)
+
+            # Pull out nearest intensities that are necessary for any interpolation
+            for n in 1:NInterp
+                correlations = phase_averaged_elements(view(sc.data, corr_ix, :, :, idcs[n], iω), ks[n], sc.crystal, ff_atoms, NCorr, NAtoms)
+                local_intensities[n] = measure.combiner(ks[n], correlations)
+            end
+
+            # Perform interpolations 
+            for _ in 1:numrepeats
+                iq += 1
+                idx = li_intensities[CartesianIndex(ci_targets[iq], iω)]
+                intensities[idx] = interpolated_intensity(sc, m_targets[iq], local_intensities, interp) 
+            end
+        end
+    end
+
+    # This converts the time axis to a density. TODO: Why not do this with the
+    # definition of the FFT normalization?
+    if !isnan(sc.Δω)
+        n_all_ω = size(sc.samplebuf, 6)
+        intensities ./= (n_all_ω * sc.Δω)
+    end 
+
+    return intensities
 end
+
+## TODO: Uncomment after decision made about instant correlations.
+# """
+#     instant_intensities_interpolated(sc::SampledCorrelations, qs, formula::ClassicalIntensityFormula; kwargs...)
+# 
+# Return ``𝒮(𝐪)`` intensities at wave vectors `qs`. The functionality is very
+# similar to [`intensities_interpolated`](@ref), except the returned array has dimensions
+# identical to `qs`. If called on a `SampledCorrelations` with dynamical information,
+# i.e., ``𝒮(𝐪,ω)``, the ``ω`` information is integrated out.
+# """
+# function instant_intensities_interpolated(sc::SampledCorrelations, qs, formula; kwargs...)
+#     datadims = size(qs)
+#     ndims = length(datadims)
+#     vals = intensities_interpolated(sc, qs, formula; instantaneous_warning=false, kwargs...)
+#     static_vals = sum(vals, dims=(ndims+1,))
+#     return reshape(static_vals, datadims)
+# end
 
 
 function classical_to_quantum(ω, kT)

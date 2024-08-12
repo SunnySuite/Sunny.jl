@@ -329,7 +329,7 @@ Also returned is a list of marker indices corresponding to the input points, and
 a list of ranges giving the indices of each histogram `x`-axis within a concatenated histogram.
 The `density` parameter is given in samples per reciprocal lattice unit (R.L.U.).
 """
-function reciprocal_space_path_bins(ωvals,qs,density,args...;kwargs...)
+function q_space_path_bins(ωvals,qs,density,args...;kwargs...)
     nPts = length(qs)
     params = []
     markers = []
@@ -353,147 +353,7 @@ function reciprocal_space_path_bins(ωvals,qs,density,args...;kwargs...)
     end
     return params, markers, ranges
 end
-reciprocal_space_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;kwargs...) = reciprocal_space_path_bins(available_energies_including_zero(sc), qs, density,args...;kwargs...)
-
-
-"""
-    intensity, counts = intensities_binned(sc::SampledCorrelations, params::BinningParameters, formula; integrated_kernel)
-
-Given correlation data contained in a [`SampledCorrelations`](@ref) and [`BinningParameters`](@ref) describing the
-shape of a histogram, compute the intensity and normalization for each histogram bin using a given [`intensity_formula`](@ref).
-
-The [`BinningParameters`](@ref) are expected to accept `(q,ω)` in R.L.U. for the (possibly reshaped) crystal associated with `sc`.
-
-This is an alternative to [`intensities_interpolated`](@ref) which bins the scattering intensities into a histogram
-instead of interpolating between them at specified `qs` values. See [`unit_resolution_binning_parameters`](@ref)
-for a reasonable default choice of [`BinningParameters`](@ref) which roughly emulates [`intensities_interpolated`](@ref) with `interpolation = :round`.
-
-If a function `integrated_kernel(Δω)` is passed, it will be used as the CDF of a kernel function for energy broadening.
-For example,
-`integrated_kernel = Δω -> atan(Δω/η)/pi` (c.f. [`integrated_lorentzian`](@ref) implements Lorentzian broadening with parameter `η`.
-Energy-dependent energy broadening can be achieved by providing an `integrated_kernel(ω,Δω)` whose first argument is the energy transfer `ω`.
-
-Currently, energy broadening is only supported if the [`BinningParameters`](@ref) are such that the first three axes are purely spatial and the last (energy) axis is `[0,0,0,1]`.
-"""
-function intensities_binned(sc::SampledCorrelations, params::BinningParameters, formula::ClassicalIntensityFormula;
-    integrated_kernel = nothing,
-)
-    (; binwidth, binstart, binend, covectors, numbins) = params
-    return_type = typeof(formula).parameters[1]
-    output_intensities = zeros(return_type,numbins...)
-    output_counts = zeros(Float64,numbins...)
-    ωvals = available_energies_including_zero(sc;negative_energies=true)
-
-    # Find an axis-aligned bounding box containing the histogram.
-    # The AABB needs to be in r.l.u for the (possibly reshaped) crystal
-    # because that's where we index over the scattering modes.
-    lower_aabb_q, upper_aabb_q = binning_parameters_aabb(params)
-
-    # Round the axis-aligned bounding box *outwards* to lattice sites
-    # SQTODO: are these bounds optimal?
-    Ls = sc.latsize
-    lower_aabb_cell = floor.(Int64,lower_aabb_q .* Ls .+ 1) 
-    upper_aabb_cell = ceil.(Int64,upper_aabb_q .* Ls .+ 1)
-
-    k = MVector{3,Float64}(undef)
-    v = MVector{4,Float64}(undef)
-    q = view(v,1:3)
-    coords = MVector{4,Float64}(undef)
-    xyztBin = MVector{4,Int64}(undef)
-    xyzBin = view(xyztBin,1:3)
-
-    # Pre-compute discrete broadening kernel from continuous one provided
-    if !isnothing(integrated_kernel)
-
-        # Upgrade to 2-argument kernel if needed
-        integrated_kernel_edep = try
-            integrated_kernel(0.,0.)
-            integrated_kernel
-        catch MethodError
-            (ω,Δω) -> integrated_kernel(Δω)
-        end
-
-        fraction_in_bin = Vector{Vector{Float64}}(undef,length(ωvals))
-        for (iω,ω) in enumerate(ωvals)
-            fraction_in_bin[iω] = Vector{Float64}(undef,numbins[4])
-            for iωother = 1:numbins[4]
-                ci_other = CartesianIndex(xyzBin[1],xyzBin[2],xyzBin[3],iωother)
-                # Start and end points of the target bin
-                a = binstart[4] + (iωother - 1) * binwidth[4]
-                b = binstart[4] + iωother * binwidth[4]
-
-                # P(ω picked up in bin [a,b]) = ∫ₐᵇ Kernel(ω' - ω) dω'
-                fraction_in_bin[iω][iωother] = integrated_kernel_edep(ω,b - ω) - integrated_kernel_edep(ω,a - ω)
-            end
-        end
-    end
-
-    # Loop over every scattering vector in the bounding box
-    for cell in CartesianIndices(Tuple(((:).(lower_aabb_cell,upper_aabb_cell))))
-        # Which is the analog of this scattering mode in the first BZ?
-        base_cell = CartesianIndex(mod1.(cell.I,Ls)...)
-        q .= ((cell.I .- 1) ./ Ls) # q is in R.L.U.
-        k .= sc.crystal.recipvecs * q
-        for (iω,ω) in enumerate(ωvals)
-            if isnothing(integrated_kernel) # `Delta-function energy' logic
-                # Figure out which bin this goes in
-                v[4] = ω
-                mul!(coords,covectors,v)
-                xyztBin .= 1 .+ floor.(Int64,(coords .- binstart) ./ binwidth)
-
-                # Check this bin is within the 4D histogram bounds
-                if all(xyztBin .<= numbins) && all(xyztBin .>= 1)
-                    intensity = formula.calc_intensity(sc,SVector{3,Float64}(k),base_cell,iω)
-
-                    ci = CartesianIndex(xyztBin.data)
-                    output_intensities[ci] += intensity
-                    output_counts[ci] += 1
-                end
-            else # `Energy broadening into bins' logic
-                # For now, only support broadening for `simple' energy axes
-                if covectors[4,:] == [0,0,0,1] && norm(covectors[1:3,:] * [0,0,0,1]) == 0
-
-                    # Check this bin is within the *spatial* 3D histogram bounds
-                    # If we are energy-broadening, then scattering vectors outside the histogram
-                    # in the energy direction need to be considered
-                    mul!(view(coords,1:3),view(covectors,1:3,1:3), view(v,1:3))
-                    xyzBin .= 1 .+ floor.(Int64,(view(coords,1:3) .- view(binstart,1:3)) ./ view(binwidth,1:3))
-                    if all(xyzBin .<= view(numbins,1:3)) &&  all(xyzBin .>= 1)
-
-                        # Calculate source scattering vector intensity only once
-                        intensity = formula.calc_intensity(sc,SVector{3,Float64}(k),base_cell,iω)
-
-                        # Broaden from the source scattering vector (k,ω) to
-                        # each target bin ci_other
-                        ci_other = CartesianIndex(xyzBin[1],xyzBin[2],xyzBin[3])
-                        view(output_intensities,ci_other,:) .+= fraction_in_bin[iω] .* Ref(intensity)
-                        view(output_counts,ci_other,:) .+= fraction_in_bin[iω]
-                    end
-                else
-                    error("Energy broadening not yet implemented for histograms with complicated energy axes")
-                end
-            end
-        end
-    end
-
-    # `output_intensities` is in units of S²/BZ/fs, and includes the sum
-    # of `output_counts`-many individual scattering intensities.
-    # To give the value integrated over the bin, we need to multiply by
-    # the binwidth, Δω×ΠᵢΔqᵢ. But Δq/BZ = 1/N, where N is the number of
-    # bins covering one BZ, which is itself equal to the latsize.
-    #
-    # To find the number of bins covering one BZ, we first compute the volume of the BZ
-    # in histogram label space: it is det(covectors[1:3,1:3]). Next, we compute the volume
-    # of one bin in label space: it is prod(binwidth[1:3]).
-    # Then, N = det(covectors[1:3,1:3])/prod(binwidth[1:3]).
-    #
-    # For the time axis, Δω/fs = 1/N, where N is the number of frequency bins
-    # 
-    # So the division by N here makes it so the result has units of
-    # raw S² (to be summed over M-many BZs to recover M-times the sum rule)
-    N_bins_in_BZ = abs(det(covectors[1:3,1:3])) / prod(binwidth[1:3])
-    return output_intensities ./ N_bins_in_BZ ./ length(ωvals), output_counts
-end
+q_space_path_bins(sc::SampledCorrelations, qs::Vector, density,args...;kwargs...) = q_space_path_bins(available_energies_including_zero(sc), qs, density,args...;kwargs...)
 
 function available_energies_including_zero(x;kwargs...)
     ωs = available_energies(x;kwargs...)

@@ -15,17 +15,17 @@ struct SampledCorrelations{N}
     measure        :: MeasureSpec                          # Observable, correlation pairs, and combiner
 
     # Trajectory specs
-    measperiod   :: Int                                    # Steps to skip between saving observables (downsampling for dynamical calcs)
+    measperiod   :: Int                                    # Steps to skip between saving observables (i.e., downsampling factor for trajectories)
     dt           :: Float64                                # Step size for trajectory integration 
-    nsamples     :: Array{Int64, 1}                        # Number of accumulated samples (array so mutable)
+    nsamples     :: Array{Int64, 1}                        # Number of accumulated samples (single number saved as array for mutability)
 
     # Buffers and precomputed data 
     samplebuf    :: Array{ComplexF64, 6}                   # Buffer for observables (nobservables × latsize × natoms × nsnapshots)
     corrbuf      :: Array{ComplexF64, 4}                   # Buffer for correlations (latsize × nω)
-    space_fft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned FFT for samplebuf
-    time_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned FFT for samplebuf
-    corr_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned FFT for corrbuf
-    corr_ifft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned IFFT for corrbuf 
+    space_fft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned lattice FFT for samplebuf
+    time_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for samplebuf
+    corr_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for corrbuf 
+    corr_ifft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned time IFFT for corrbuf 
 end
 
 # TODO: Rewrite based on measure
