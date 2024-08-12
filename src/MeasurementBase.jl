@@ -1,50 +1,4 @@
-#### BROADENING
-
-abstract type AbstractBroadening end
-
-struct Broadening{F <: Function} <: AbstractBroadening
-    kernel :: F  # (ω_transfer - ω_excitation) -> intensity
-end
-
-struct NonstationaryBroadening{F <: Function} <: AbstractBroadening
-    kernel :: F  # (ω_excitation, ω_transfer) -> intensity
-end
-
-function (b::Broadening)(ω1, ω2)
-    b.kernel(ω2 - ω1)
-end
-
-function (b::NonstationaryBroadening)(ω1, ω2)
-    b.kernel(ω1, ω2)
-end
-
-"""
-    lorentzian(; fwhm)
-
-Returns the function `(Γ/2) / (π*(x^2+(Γ/2)^2))` where `fwhm = Γ` is the full
-width at half maximum.
-"""
-function lorentzian2(; fwhm)
-    Γ = fwhm
-    return Broadening(x -> (Γ/2) / (π*(x^2+(Γ/2)^2)))
-end
-
-"""
-    gaussian(; {fwhm, σ})
-
-Returns the function `exp(-x^2/2σ^2) / √(2π*σ^2)`. Either `fwhm` or `σ` must be
-specified, where `fwhm = (2.355...) * σ` is the full width at half maximum.
-"""
-function gaussian2(; fwhm=nothing, σ=nothing)
-    if sum(.!isnothing.((fwhm, σ))) != 1
-        error("Either fwhm or σ must be specified.")
-    end
-    σ = Float64(@something σ (fwhm/2√(2log(2))))
-    return Broadening(x -> exp(-x^2/2σ^2) / √(2π*σ^2))
-end
-
-
-#### Q-POINTS WITH OPTIONAL METADATA
+#### Q-POINTS
 
 abstract type AbstractQPoints end
 
@@ -76,7 +30,6 @@ function Base.show(io::IO, ::MIME"text/plain", qpts::QPath)
     printstyled(io, "QPath ($(length(qpts.qs)) samples)\n"; bold=true, color=:underline)
     println(io, "  " * join(qpts.xticks[2], " → "))
 end
-
 
 """
     q_space_path(cryst::Crystal, qs, n; labels=nothing)
@@ -175,17 +128,52 @@ function Base.show(io::IO, res::AbstractIntensities)
 end
 
 
-# Returns |1 + nB(ω)| where nB(ω) = 1 / (exp(βω) - 1) is the Bose function. See
-# also `classical_to_quantum` which additionally "undoes" the classical
-# Boltzmann distribution.
-function thermal_prefactor(kT, ω)
-    if iszero(kT)
-        return ω >= 0 ? 1 : 0
-    else
-        @assert kT > 0
-        return abs(1 / (1 - exp(-ω/kT)))
-    end
+#### BROADENING
+
+
+abstract type AbstractBroadening end
+
+struct Broadening{F <: Function} <: AbstractBroadening
+    kernel :: F  # (ω_transfer - ω_excitation) -> intensity
 end
+
+struct NonstationaryBroadening{F <: Function} <: AbstractBroadening
+    kernel :: F  # (ω_excitation, ω_transfer) -> intensity
+end
+
+function (b::Broadening)(ω1, ω2)
+    b.kernel(ω2 - ω1)
+end
+
+function (b::NonstationaryBroadening)(ω1, ω2)
+    b.kernel(ω1, ω2)
+end
+
+"""
+    lorentzian(; fwhm)
+
+Returns the function `(Γ/2) / (π*(x^2+(Γ/2)^2))` where `fwhm = Γ` is the full
+width at half maximum.
+"""
+function lorentzian2(; fwhm)
+    Γ = fwhm
+    return Broadening(x -> (Γ/2) / (π*(x^2+(Γ/2)^2)))
+end
+
+"""
+    gaussian(; {fwhm, σ})
+
+Returns the function `exp(-x^2/2σ^2) / √(2π*σ^2)`. Either `fwhm` or `σ` must be
+specified, where `fwhm = (2.355...) * σ` is the full width at half maximum.
+"""
+function gaussian2(; fwhm=nothing, σ=nothing)
+    if sum(.!isnothing.((fwhm, σ))) != 1
+        error("Either fwhm or σ must be specified.")
+    end
+    σ = Float64(@something σ (fwhm/2√(2log(2))))
+    return Broadening(x -> exp(-x^2/2σ^2) / √(2π*σ^2))
+end
+
 
 function broaden!(data::AbstractMatrix{Ret}, bands::BandIntensities{Ret}, energies; kernel) where Ret
     energies = collect(energies)
@@ -233,143 +221,8 @@ function broaden(bands::BandIntensities, energies; kernel)
     return BroadenedIntensities(bands.crystal, bands.qpts, collect(energies), data)
 end
 
-function calculate_excitations!(V, H, swt::SpinWaveTheory, q)
-    (; sys) = swt
-    q_global = orig_crystal(sys).recipvecs * q
-    q_reshaped = sys.crystal.recipvecs \ q_global
 
-    if sys.mode == :SUN
-        swt_hamiltonian_SUN!(H, swt, q_reshaped)
-    else
-        @assert sys.mode in (:dipole, :dipole_large_S)
-        swt_hamiltonian_dipole!(H, swt, q_reshaped)
-    end
-
-    try
-        return bogoliubov!(V, H)
-    catch _
-        error("Instability at wavevector q = $q")
-    end
-end
-
-function excitations(swt::SpinWaveTheory, q)
-    L = nbands(swt)
-    V = zeros(ComplexF64, 2L, 2L)
-    H = zeros(ComplexF64, 2L, 2L)
-    return calculate_excitations!(V, H, swt, q)
-end
-
-"""
-    dispersion(swt::SpinWaveTheory, qpts)
-
-Given a list of wavevectors `qpts` in reciprocal lattice units (RLU), returns
-excitation energies for each band. The return value `ret` is 2D array, and
-should be indexed as `ret[band_index, q_index]`.
-"""
-function dispersion(swt::SpinWaveTheory, qpts)
-    qpts = convert(AbstractQPoints, qpts)
-    return reduce(hcat, excitations.(Ref(swt), qpts.qs))
-end
-
-
-"""
-    intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
-
-Calculate spin wave excitation bands for a set of q-points in reciprocal space.
-"""
-function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
-    (; sys, measure) = swt
-    isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
-
-    qpts = convert(AbstractQPoints, qpts)
-    cryst = orig_crystal(sys)
-
-    # Number of atoms in magnetic cell
-    @assert sys.latsize == (1,1,1)
-    Na = length(eachsite(sys))
-    # Number of chemical cells in magnetic cell
-    Ncells = Na / natoms(cryst)
-    # Number of quasiparticle modes
-    L = nbands(swt)
-    # Number of wavevectors
-    Nq = length(qpts.qs)
-
-    # Preallocation
-    V = zeros(ComplexF64, 2L, 2L)
-    H = zeros(ComplexF64, 2L, 2L)
-    Avec_pref = zeros(ComplexF64, Na)
-    disp = zeros(Float64, L, Nq)
-    intensity = zeros(eltype(measure), L, Nq)
-
-    # Temporary storage for pair correlations
-    Ncorr = length(measure.corr_pairs)
-    corrbuf = zeros(ComplexF64, Ncorr)
-
-    Nobs = size(measure.observables, 1)
-
-    # Expand formfactors for symmetry classes to formfactors for all atoms in
-    # crystal
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
-
-    for (iq, q) in enumerate(qpts.qs)
-        q_global = cryst.recipvecs * q
-        disp[:, iq] .= calculate_excitations!(V, H, swt, q)
-
-        for i in 1:Na
-            r_global = global_position(sys, (1,1,1,i))
-            Avec_pref[i] = exp(- im * dot(q_global, r_global))
-            Avec_pref[i] *= compute_form_factor(ff_atoms[i], norm2(q_global))
-        end
-
-        Avec = zeros(ComplexF64, Nobs)
-
-        # Fill `intensity` array
-        for band = 1:L
-            fill!(Avec, 0)
-            if sys.mode == :SUN
-                data = swt.data::SWTDataSUN
-                N = sys.Ns[1]
-                v = reshape(view(V, :, band), N-1, Na, 2)
-                for i in 1:Na, μ in 1:Nobs
-                    O = data.observables_localized[μ, i]
-                    for α in 1:N-1
-                        Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
-                    end
-                end
-            else
-                @assert sys.mode in (:dipole, :dipole_large_S)
-                data = swt.data::SWTDataDipole
-                v = reshape(view(V, :, band), Na, 2)
-                for i in 1:Na, μ in 1:Nobs
-                    O = data.observables_localized[μ, i]
-                    # This is the Avec of the two transverse and one
-                    # longitudinal directions in the local frame. (In the
-                    # local frame, z is longitudinal, and we are computing
-                    # the transverse part only, so the last entry is zero)
-                    displacement_local_frame = SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
-                    Avec[μ] += Avec_pref[i] * (data.sqrtS[i]/sqrt(2)) * (O' * displacement_local_frame)[1]
-                end
-            end
-
-            map!(corrbuf, measure.corr_pairs) do (α, β)
-                Avec[α] * conj(Avec[β]) / Ncells
-            end
-            intensity[band, iq] = measure.combiner(q_global, corrbuf)
-        end
-    end
-
-    return BandIntensities(cryst, qpts, disp, intensity)
-end
-
-"""
-    intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
-
-Calculate spin wave intensities for a set of q-points in reciprocal space. TODO.
-"""
-function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
-    return broaden(intensities_bands(swt, qpts; formfactors), energies; kernel)
-end
-
+#### ROTATIONAL AVERAGING
 
 """
     powder_average(f, cryst, radii, n; seed=0)
@@ -405,7 +258,6 @@ function powder_average(f, cryst, radii, n; seed=0)
 
     return PowderIntensities(cryst, radii, energies, data)
 end
-
 
 
 """
