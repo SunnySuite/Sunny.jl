@@ -176,6 +176,15 @@ struct BroadenedIntensities{T} <: AbstractIntensities
     data :: Array{T, 2} # (nω × nq)
 end
 
+struct InstantIntensities{T} <: AbstractIntensities
+    # Original chemical cell
+    crystal :: Crystal
+    # Wavevectors in RLU
+    qpts :: AbstractQPoints
+    # Convolved intensity data
+    data :: Array{T, 2} # (nω × nq)
+end
+
 struct PowderIntensities <: AbstractIntensities
     # Original chemical cell
     crystal :: Crystal

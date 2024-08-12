@@ -1,6 +1,8 @@
-abstract type InterpolationScheme{NumInterp} end
+abstract type InterpolationScheme{NInterp} end
 struct NoInterp <: InterpolationScheme{1} end
 struct LinearInterp <: InterpolationScheme{8} end
+
+ninterp(::InterpolationScheme{NInterp}) where {NInterp} = NInterp
 
 
 function interpolated_intensity(::SampledCorrelations, _, stencil_intensities, ::NoInterp) 
