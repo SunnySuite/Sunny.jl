@@ -287,16 +287,38 @@ end
 
 function broaden!(data::AbstractMatrix{Ret}, bands::BandIntensities{Ret}, energies; kernel) where Ret
     energies = collect(energies)
+    issorted(energies) || error("energies must be sorted")
 
     nω = length(energies)
     nq = size(bands.data, 2)
     (nω, nq) == size(data) || error("Argument data must have size ($nω×$nq)")
 
+    cutoff = 1e-12 * Statistics.quantile(norm.(vec(bands.data)), 0.95)
+
     for iq in axes(bands.data, 2)
         for (ib, b) in enumerate(view(bands.disp, :, iq))
+            norm(bands.data[ib, iq]) < cutoff && continue
             for (iω, ω) in enumerate(energies)
                 data[iω, iq] += kernel(b, ω) * bands.data[ib, iq]
             end
+            # If this broadening is a bottleneck, one can terminate when kernel
+            # magnitude is small. This may, however, affect reference data used
+            # in test suite.
+            #=
+                iω0 = searchsortedfirst(energies, b)
+                for iω in iω0:lastindex(energies)
+                    ω = energies[iω]
+                    x = kernel(b, ω) * bands.data[ib, iq]
+                    data[iω, iq] += x
+                    x < cutoff && break
+                end
+                for iω in iω0-1:-1:firstindex(energies)
+                    ω = energies[iω]
+                    x = kernel(b, ω) * bands.data[ib, iq]
+                    data[iω, iq] += x
+                    x < cutoff && break
+                end
+            =#
         end
     end
 
