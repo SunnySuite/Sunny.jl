@@ -80,7 +80,7 @@ include("MCIF.jl")
 export set_dipoles_from_mcif!
 
 include("CorrelationSpec.jl")
-export DSSF_matrix, DSSF_perp, DSSF_trace
+export DSSF_custom, DSSF_perp, DSSF_trace
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")

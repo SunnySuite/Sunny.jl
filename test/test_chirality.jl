@@ -91,7 +91,7 @@ end
     set_field!(sys3, [0, 0, B])
     polarize_spins!(sys3, [0, 0, 1])
     @test energy_per_site(sys3) ≈ -B
-    swt = SpiralSpinWaveTheory(sys3; corrspec=DSSF_trace(sys3; apply_g=false); k, axis)
+    swt = SpiralSpinWaveTheory(sys3; corrspec=DSSF_trace(sys3; apply_g=false), k, axis)
     res = intensities_bands(swt, qs)
 
     # For the wavevector, qs[1] == [0,0,-1/2], corresponding to the first row of

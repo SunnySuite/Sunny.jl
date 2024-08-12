@@ -59,7 +59,8 @@
     @test isapprox(res.data / (natoms * g^2), data_golden'; atol=1e-9)
 
     # Test first 5 output matrices
-    swt = SpinWaveTheory(sys; corrspec=DSSF_matrix(sys))
+    corrspec = DSSF_custom((q, sf) -> sf, sys)
+    swt = SpinWaveTheory(sys; corrspec)
     formfactors=[FormFactor("Fe2")]
     res = intensities_bands(swt, qs; formfactors)
     data_flat = reinterpret(ComplexF64, res.data[1:5])
@@ -376,7 +377,8 @@ end
         set_spiral_order_on_sublattice!(sys, i; k=[0,0,1/7], axis=[0,0,1], S0=[cos(θ),sin(θ),0])
     end
 
-    swt = SpinWaveTheory(sys; corrspec=DSSF_matrix(sys; apply_g=false))
+    corrspec = DSSF_custom((q, sf) -> sf, sys; apply_g=false)
+    swt = SpinWaveTheory(sys; corrspec)
     q = [0.41568,0.56382,0.76414]
     res = intensities_bands(swt, [q])
     
@@ -435,7 +437,8 @@ end
     q2 = [0.2360,0.7492,0.9596]
     q3 = [0.1131,0.7654,0.2810]
     q = [q1,q2,q3]
-    swt = SpinWaveTheory(sys; corrspec=DSSF_matrix(sys))
+    corrspec = DSSF_custom((q, sf) -> sf, sys)
+    swt = SpinWaveTheory(sys; corrspec)
     formfactors = [FormFactor("Cr4")]
     res = intensities_bands(swt, q; formfactors)
     disp_inds = [107, 89, 118, 140, 112, 16, 103, 75, 142, 18]
