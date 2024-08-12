@@ -12,6 +12,7 @@ using Sunny, GLMakie
 
 # Build the distorted kagome crystal, with spacegroup 12.
 
+units = Units(:meV)
 latvecs = lattice_vectors(10.2, 5.94, 7.81, 90, 117.7, 90)
 positions = [[0, 0, 0], [1/4, 1/4, 0]]
 types = ["Cu1", "Cu2"]
@@ -79,9 +80,6 @@ path = Sunny.q_space_path(cryst, qs, 512)
 
 swt = SpinWaveTheory(sys)
 res = Sunny.intensities_bands_spiral(swt, path, k, axis; measure=Sunny.DSSF_perp(sys; apply_g=false))
-plot_intensities(res, :meV)
+plot_intensities(res; units)
 
-# The powder average can be calculated as shown below. It is commented out for
-# now because the calculation is a bit slow to run and is yet to be optimized.
-
-# TODO: Powder average!
+# The powder average can be calculated as shown below. (TODO!)

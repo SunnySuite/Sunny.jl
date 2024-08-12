@@ -160,8 +160,8 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
     FF = zeros(ComplexF64, Na)
 
     for (iq, q) in enumerate(qpts.qs)
-        q_absolute = cryst.recipvecs * q
-        q_reshaped = sys.crystal.recipvecs \ q_absolute
+        q_global = cryst.recipvecs * q
+        q_reshaped = sys.crystal.recipvecs \ q_global
 
         for branch in 1:3   # (q, q+k, q-k) modes for ordering wavevector k
             swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped + (branch-2)*k; k, axis)
@@ -176,7 +176,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
         end
 
         for i in 1:Na
-            FF[i] = compute_form_factor(ff_atoms[i], norm2(q_absolute))
+            FF[i] = compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
         R = data.local_rotations
@@ -226,7 +226,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
             corrbuf = map(measure.corr_pairs) do (α, β)
                 S[α, β, band, branch]
             end
-            reshape(intensity, L, 3, Nq)[band, branch, iq] = measure.combiner(q_absolute, corrbuf)
+            reshape(intensity, L, 3, Nq)[band, branch, iq] = measure.combiner(q_global, corrbuf)
         end
 
         # Dispersion in descending order

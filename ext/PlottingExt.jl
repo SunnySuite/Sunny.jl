@@ -996,11 +996,23 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
     return ax
 end
 
+function get_unit_energy(units, into)
+    if isnothing(units)
+        isnothing(into) || error("units parameter required")
+        return (1.0, "Energy")
+    else
+        sym = @something into units.energy
+        str = Sunny.unit_strs[sym]
+        return (getproperty(units, sym), "Energy ($str)")
+    end
+end
 
-function Sunny.plot_intensities(res::Sunny.BandIntensities{T}, energy_label::Symbol; fwhm=nothing, ylims=nothing, title="") where {T <: Number}
+function Sunny.plot_intensities(res::Sunny.BandIntensities{T}; units::Units=nothing, into=nothing, fwhm=nothing, ylims=nothing, title="") where {T <: Number}
     all(>(-1e-12), res.data) || error("Intensities must be nonnegative")
     nq = size(res.disp, 2)
 
+    unit_energy, ylabel = get_unit_energy(units, into)
+ 
     if res.qpts isa Sunny.QPoints || res.qpts isa Sunny.QPath
         ticks = if res.qpts isa Sunny.QPath
             (; xticks=res.qpts.xticks, xticklabelrotation=π/6)
@@ -1010,19 +1022,20 @@ function Sunny.plot_intensities(res::Sunny.BandIntensities{T}, energy_label::Sym
 
         mindisp, maxdisp = extrema(res.disp)
         ylims = @something ylims (min(0, mindisp), 1.2*maxdisp)
-    
-        fig = Makie.Figure()
-        ax = Makie.Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy ($energy_label)", limits=(nothing, ylims), title, ticks...)
-
         energies = range(ylims[1], ylims[2], 512)
-        # Broadening width selected according to visible limits
         fwhm = @something fwhm 0.02*(ylims[2]-ylims[1])
         broadened = Sunny.broaden(res, energies; kernel=Sunny.gaussian2(; fwhm))
+
+        fig = Makie.Figure()
+        ax = Makie.Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), title, ticks...)
+
+        # Broadening width selected according to visible limits
+
         colorrange = [2.5e-3, 1] * Sunny.quantile(maximum.(eachcol(broadened.data)), 0.90)
-        Makie.heatmap!(ax, 1:nq, collect(energies), broadened.data'; colorrange,
+        Makie.heatmap!(ax, 1:nq, collect(energies / unit_energy), broadened.data'; colorrange,
                        colormap=Makie.Reverse(:thermal), lowclip=:white)
         for i in axes(res.disp, 1)
-            Makie.lines!(ax, res.disp[i,:]; color=:pink)
+            Makie.lines!(ax, res.disp[i,:] / unit_energy; color=:pink)
         end
         
         return fig
