@@ -113,6 +113,40 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
     end
 end
 
+#=
+function calculate_excitations!(T, H, disp, sswt::SpiralSpinWaveTheory, q)
+    (; swt, k, axis) = sswt
+    (; sys) = swt
+    q_global = orig_crystal(sys).recipvecs * q
+    q_reshaped = sys.crystal.recipvecs \ q_global
+
+    for branch in 1:3   # (q, q+k, q-k) modes for ordering wavevector k
+        swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped + (branch-2)*k; k, axis)
+
+        disp[:, branch] = try
+            bogoliubov!(T0, H)
+        catch _
+            error("Instability at wavevector q = $q")
+        end
+
+        T[:, :, branch] .= T0
+    end
+end
+
+
+function excitations(sswt::SpiralSpinWaveTheory, q)
+    L = nbands(sswt.swt)
+    H = zeros(ComplexF64, 2L, 2L)
+    T = zeros(ComplexF64, 2L, 2L, 3)
+    disp = zeros(Float64, L, 3)
+
+    calculate_excitations!(T, H, disp, sswt, q)
+
+    # FIXME eigenvecs T
+    return (disp, view(V, :, 1:L))
+end
+=#
+
 function dispersion(sswt::SpiralSpinWaveTheory, qpts)
     (; swt, k, axis) = sswt
     (; sys) = swt
@@ -123,7 +157,7 @@ function dispersion(sswt::SpiralSpinWaveTheory, qpts)
     Nf = sys.mode == :SUN ? Ns-1 : 1
     nmodes  = Nf * Nm
 
-    disp = zeros(Float64, nmodes, length(qs),3)
+    disp = zeros(Float64, nmodes, length(qs), 3)
 
     for (iq, q) in enumerate(qs)
         for branch = 1:3    # 3 branch corresponds to K,K+Q and K-Q modes of incommensurate spin structures.
@@ -137,7 +171,7 @@ function dispersion(sswt::SpiralSpinWaveTheory, qpts)
                 swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped .+ (branch - 2) .* k; k, axis)
             end
             try
-                view(disp, :, iq,branch) .= bogoliubov!(V, H)
+                view(disp, :, iq, branch) .= view(bogoliubov!(V, H), 1:L)
             catch e
                 error("Instability at wavevector q = $q")
             end
@@ -223,11 +257,12 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
         for branch in 1:3   # (q, q+k, q-k) modes for ordering wavevector k
             swt_hamiltonian_dipole_spiral!(H, swt, q_reshaped + (branch-2)*k; k, axis)
 
-            reshape(disp, L, 3, Nq)[:, branch, iq] = try
+            energies = try
                 bogoliubov!(T0, H)
             catch _
                 error("Instability at wavevector q = $q")
             end
+            reshape(disp, L, 3, Nq)[:, branch, iq] = energies[1:L]
 
             T[:, :, branch] .= T0
         end
@@ -240,9 +275,9 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
         for i in 1:L, j in 1:L
             ui = R[i][:, 1] + im*R[i][:, 2]
             uj = R[j][:, 1] + im*R[j][:, 2]
-            ti = sys.crystal.positions[i]
-            tj = sys.crystal.positions[j]
-            phase = exp(-2π * im*dot(q_reshaped, tj-ti))
+            ri = sys.crystal.positions[i]
+            rj = sys.crystal.positions[j]
+            phase = exp(-2π * im*dot(q_reshaped, rj-ri))
             for α in 1:3, β in 1:3
                 Y[i, j, α, β] = c[i] * c[j] * (ui[α] * conj(uj[β])) * phase
                 Z[i, j, α, β] = c[i] * c[j] * (ui[α] * uj[β]) * phase

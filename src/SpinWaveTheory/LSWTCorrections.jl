@@ -37,7 +37,7 @@ function energy_per_site_lswt_correction(swt::SpinWaveTheory; opts...)
     δE₂ = hcubature((0,0,0), (1,1,1); opts...) do q
         hamiltonian_function!(H, swt, q)
         ωs = bogoliubov!(V, H)
-        return sum(ωs) / 2Natoms
+        return sum(view(ωs, 1:L)) / 2Natoms
     end
 
     # Error bars in δE₂[2] are discarded
