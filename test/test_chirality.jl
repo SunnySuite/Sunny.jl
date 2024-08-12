@@ -42,7 +42,7 @@ end
     minimize_energy!(sys)
     @test energy_per_site(sys) ≈ -B
     qs = [[0, 0, -1/2], [0, 0, 1/2]]
-    path = Sunny.q_space_path(cryst, qs, 0.02)
+    path = Sunny.q_space_path(cryst, qs, 10)
     swt = SpinWaveTheory(sys)
     measure = Sunny.DSSF_trace(sys)
     res = Sunny.intensities_bands2(swt, path; measure)
