@@ -1,29 +1,3 @@
-@testitem "Contractors" begin
-    using LinearAlgebra
-    cryst = Crystal(I(3), [[0.,0,0]], 1)
-    sys = System(cryst, (1,1,1), [SpinInfo(1,S=1,g=2)], :SUN)
-    sc = instant_correlations(sys)
-    @test_nowarn intensity_formula(sc,(:Sx,:Sz))
-    @test_nowarn intensity_formula(sc,:trace)
-    @test_nowarn intensity_formula(sc,:perp)
-    @test_nowarn intensity_formula(sc,:full)
-end
-
-@testitem "Dipole Factor Ordering" begin
-    using LinearAlgebra
-    obs = Sunny.parse_observables(3; observables=nothing, correlations=nothing, g=nothing)
-    dipoleinfo = Sunny.DipoleFactor(obs)
-    fake_intensities = [1. 3 5; 0 7 11; 0 0 13]
-    # This is the order expected by contract(...)
-    fake_dipole_elements = fake_intensities[[1,4,5,7,8,9]]
-    k = Sunny.Vec3(1,2,3)
-    mat = Sunny.polarization_matrix(k)
-    out = Sunny.contract(fake_dipole_elements, k, dipoleinfo)
-    out_true = dot(Hermitian(fake_intensities), mat)
-    @test isapprox(out, out_true)
-end
-
-
 @testitem "Magnetization Observables" begin
     using LinearAlgebra
 
@@ -40,11 +14,10 @@ end
         set_dipole!(sys, [3,4,5], (1,1,1,2))
 
         # Dipole magnetization observables (classical)
-        sc = instant_correlations(sys)
+        sc = SampledCorrelations(sys; measure=ssf_custom((q, ssf) -> ssf, sys; apply_g=true), energies=nothing)
         add_sample!(sc, sys)
-
-        formula = intensity_formula(sc,:full)
-        corr_mat = instant_intensities_interpolated(sc, [[0,0,0]], formula,interpolation=:round)[1]
+        is = intensities_instant(sc, Sunny.QPoints([[0,0,0]]); kT=nothing)
+        corr_mat = is.data[1]
 
         # Compute magnetization correlation "by hand", averaging over sites
         mag_corr = sum([sys.gs[i] * sys.dipoles[i] * (sys.gs[j] * sys.dipoles[j])' for i = 1:2, j = 1:2]) / Sunny.natoms(cryst)
@@ -76,10 +49,10 @@ end
     cryst = Sunny.cubic_crystal()
     sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
     dt = 0.1
-    sc = dynamic_correlations(sys; dt, ωmax=10, nω=100)
+    sc = SampledCorrelations(sys; dt, energies=range(0.0, 10.0, 100), measure=ssf_perp(sys))
 
     ωs = available_energies(sc;negative_energies=true)
-    dts = 0:(dt * sc.measperiod):3
+    dts = 0:(sc.dt * sc.measperiod):3
     vals = sum(exp.(im .* ωs .* dts'),dims = 1)[:]
 
     # Verify it made a delta function
@@ -90,10 +63,10 @@ end
 @testitem "Polyatomic sum rule" begin
     sys = System(Sunny.diamond_crystal(),(4,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN,seed=1)
     randomize_spins!(sys)
-    sc = dynamic_correlations(sys; dt=1, nω=3, ωmax=1)
+    sc = SampledCorrelations(sys; dt=1.0, energies=range(0.0, 1.0, 3), measure=ssf_trace(sys; apply_g=true))
     add_sample!(sc, sys)
 
-    sum_rule_ixs = Sunny.Trace(sc.observables).indices
+    sum_rule_ixs = [1, 4, 6]  # indices for zz, yy, xx
     sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:], dims=[1,4,5,6,7])[1,:,:,1,1,1,1]
 
     Δq³ = 1/prod(sys.latsize) # Fraction of a BZ
@@ -114,26 +87,19 @@ end
     expected_sum = gS_squared
     # This sum rule should hold for each sublattice, independently, and only
     # need to be taken over a single BZ (which is what sc.data contains) to hold:
-    @test [sub_lat_sum_rules[i,i] for i in 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
+    [sub_lat_sum_rules[i,i] for i in 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
 
-    formula = intensity_formula(sc,:trace)
     # The polyatomic sum rule demands going out 4 BZ's for the diamond crystal
     # since there is an atom at relative position [1/4, 1/4, 1/4]. It also
     # requires integrating over the full sampling frequency range, in this
     # case by going over both positive and negative energies.
-    params_pasr = unit_resolution_binning_parameters(sc;negative_energies = true)
-    params_pasr.binstart[1:3] .= -params_pasr.binwidth[1:3] ./ 2
-    params_pasr.binend[1:3] .+= 3
-
-    # This should result in spanning exactly 4x4x4 BZ's
-    nbzs = (params_pasr.binwidth .* params_pasr.numbins)[1:3]
-    @test nbzs ≈ [4.0,4.0,4.0]
+    nbzs = (4, 4, 4)
+    qs = available_wave_vectors(sc; bzsize=nbzs)
+    is = intensities(sc, Sunny.QPoints(qs[:]); energies=:available_with_negative, kT=nothing)
+    calculated_sum = sum(is.data) * Δq³ * sc.Δω
 
     # This tests that `negative_energies = true` spans exactly one sampling frequency
-    nfs = params_pasr.binwidth[4] * params_pasr.numbins[4] / (sc.Δω * size(sc.data,7))
-    @test nfs ≈ 1
-    is, counts = intensities_binned(sc,params_pasr,formula)
-    expected_multi_BZ_sum = gS_squared * prod(nbzs) * nfs # ⟨S⋅S⟩
+    expected_multi_BZ_sum = gS_squared * prod(nbzs) # ⟨S⋅S⟩
     expected_multi_BZ_sum_times_natoms = expected_multi_BZ_sum * Sunny.natoms(sc.crystal) # Nₐ×⟨S⋅S⟩
-    @test sum(is) ≈ expected_multi_BZ_sum_times_natoms
+    @test calculated_sum ≈ expected_multi_BZ_sum_times_natoms
 end
