@@ -1,10 +1,30 @@
-# abstract type Broadening end
+#### BROADENING
 
-# struct OneParamBroadening
-# end
+abstract type AbstractBroadening end
 
-# struct EnergyDependentBroadening
-# end
+struct Broadening{F <: Function} <: AbstractBroadening
+    kernel :: F  # (ω_transfer - ω_excitation) -> intensity
+end
+
+struct NonstationaryBroadening{F <: Function} <: AbstractBroadening
+    kernel :: F  # (ω_excitation, ω_transfer) -> intensity
+end
+
+function (b::Broadening)(ω1, ω2)
+    b.kernel(ω2 - ω1)
+end
+
+function (b::NonstationaryBroadening)(ω1, ω2)
+    b.kernel(ω1, ω2)
+end
+
+function lorentzian2(; fwhm)
+    Γ = fwhm
+    return Broadening(x -> (Γ/2) / (π*(x^2+(Γ/2)^2)))
+end
+
+
+#### MEASUREMENT
 
 # Op is the type of a local observable operator. Either a Vec3 (for :dipole
 # mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
@@ -93,7 +113,9 @@ function DSSF_perp(sys::System{N}; apply_g=true) where N
             data[5] data[4] data[2]
             data[3] data[2] data[1]
         ]
-        return tr(dssf) - (q' * dssf * q) / q2
+        return tr(dssf) - (q' * dssf * q) / (q2 + 1e-14)
+        # TODO: Check how SpinW regularizes, and consider also "Mourigal limit",
+        # https://github.com/SunnySuite/Sunny.jl/pull/131
     end
     return Measurement(observables, corr_pairs, combiner)
 end
@@ -104,6 +126,8 @@ function DSSF_trace(sys::System{N}; apply_g=true) where N
     return Measurement(observables, corr_pairs, combiner)
 end
 
+
+#### INTENSITIES
 
 abstract type AbstractIntensities end
 
@@ -120,13 +144,12 @@ struct BroadenedIntensities{T} <: AbstractIntensities
     # Wavevectors in global (inverse length) units
     qs_global :: Vector{Vec3}
     # Regular grid of energies
-    energies :: AbstractRange
+    energies :: Vector{Float64}
     # Integrated intensity over Δω
     data :: Array{T, 2} # (nω × nq)
 end
 
 
-# TODO: Move measure into SWT
 function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     (; sys) = swt
 
@@ -228,6 +251,21 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
 end
 
 
-function intensities_broadened2(swt::SpinWaveTheory, qs, energies::StepRangeLen; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
+function intensities_broadened2(swt::SpinWaveTheory, energies, qs; kernel::B, formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret, B <: AbstractBroadening}
+    bands = intensities2(swt, qs; formfactors, measure)
 
+    nω = length(energies)
+    nq = length(qs)
+    data = zeros(Ret, nω, nq)
+
+    for iq in eachindex(qs)
+        for (ib, b) in enumerate(view(bands.disp, :, iq))
+            for (iω, ω) in enumerate(energies)
+                data[iω, iq] += kernel(b, ω) * bands.data[ib, iq]
+            end
+        end
+    end
+
+    return BroadenedIntensities(bands.qs_global, collect(energies), data)
 end
+
