@@ -36,44 +36,23 @@ plot_spins(sys)
 # Plot dispersions colored by total summed intensity for each degenerate band
 
 swt = SpinWaveTheory(sys)
-q_points = [[0,0,0], [1,0,0]]
-path, xticks = reciprocal_space_path(cryst, q_points, 200)
-formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
-disp, intensity = intensities_bands(swt, path, formula)
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (RLU)", ylabel="Energy (meV)",
-          title="Spin wave dispersion", xticks)
-ylims!(ax, 0.0, 4.5)
-xlims!(ax, 1, size(disp, 1))
-lines!(ax, disp[:, 1]; color=vec(sum(intensity[:, 1:2]; dims=2)), colorrange=(0,2))
-lines!(ax, disp[:, 3]; color=vec(sum(intensity[:, 3:4]; dims=2)), colorrange=(0,2))
-fig
+qs = [[0,0,0], [1,0,0]]
+path = Sunny.q_space_path(cryst, qs, 5e-3)
+measure = Sunny.DSSF_perp(sys)
 
-# Functions to plot broadened intensities
+# Plot all correlations
 
-function plot_intensities(formfactors, title)
-    formula = intensity_formula(swt, :trace; kernel=gaussian(fwhm=0.2), formfactors)
-    energies = collect(0:0.02:140)
-    is = intensities_broadened(swt, path, energies, formula)
-    fig = Figure()
-    ax = Axis(fig[1,1]; xlabel="Momentum (RLU)", ylabel="Energy (meV)", title, xticks)
-    ylims!(ax, 0.0, 4.5)
-    heatmap!(ax, 1:size(is, 1), energies, is; colorrange=(0.1,50),
-             colormap=Reverse(:thermal), lowclip=:white)
-    for d in eachcol(disp)
-        lines!(ax, d; color=:pink)
-    end
-    fig
-end
-
-# Plot full intensity spectrum
-
-plot_intensities([FormFactor("Cu2"), FormFactor("Fe2")], "All correlations")
+res = Sunny.intensities_bands2(swt, path; measure)
+plot_intensities(res; title="All correlations")
 
 # Plot Cu-Cu correlations only
 
-plot_intensities([FormFactor("Cu2"), zero(FormFactor)], "Cu-Cu correlations")
+formfactors = [FormFactor("Cu2"), zero(FormFactor)]
+res = Sunny.intensities_bands2(swt, path; formfactors, measure)
+plot_intensities(res; title="Cu-Cu correlations")
 
 # Fe-Fe correlations only
 
-plot_intensities([zero(FormFactor), FormFactor("Fe2")], "Fe-Fe correlations")
+formfactors = [zero(FormFactor), FormFactor("Fe2")]
+res = Sunny.intensities_bands2(swt, path; formfactors, measure)
+plot_intensities(res; title="Fe-Fe correlations")
