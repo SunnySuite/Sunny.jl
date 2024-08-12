@@ -73,21 +73,21 @@ end
 abstract type AbstractIntensities end
 
 struct BandIntensities{T} <: AbstractIntensities
+    # Wavevectors in global (inverse length) units
+    qs_global :: Vector{Vec3}
     # Dispersion for each band
     disp :: Array{Float64, 2} # (nbands × nq)
-    # Wavevectors in absolute units
-    qs_abs :: Vector{Vec3}
     # Intensity data as Dirac-magnitudes
-    data :: Array{T, 3} # (ncorr × nbands × nq)
+    data :: Array{T, 2} # (nbands × nq)
 end
 
 struct BroadenedIntensities{T} <: AbstractIntensities
+    # Wavevectors in global (inverse length) units
+    qs_global :: Vector{Vec3}
     # Regular grid of energies
     energies :: AbstractRange
-    # Wavevectors in absolute units
-    qs_abs :: Vector{Vec3}
     # Integrated intensity over Δω
-    data :: Array{T, 3} # (ncorr × nω × nq)
+    data :: Array{T, 2} # (nω × nq)
 end
 
 
@@ -105,6 +105,8 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
     L = nbands(swt)
     # Number of wavevectors
     Nq = length(qs)
+    # Wavevectors in global (inverse length) units
+    qs_global = [orig_crystal(sys).recipvecs * q for q in qs]
 
     # Preallocation
     H = zeros(ComplexF64, 2L, 2L)
@@ -118,11 +120,11 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, swt.sys.crystal)
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
     
-    for (iq, q) in enumerate(qs)
-        q_absolute = orig_crystal(swt.sys).recipvecs * q
-        q_reshaped = swt.sys.crystal.recipvecs \ q
+    for iq in 1:Nq
+        q_global = qs_global[iq]
+        q_reshaped = sys.crystal.recipvecs \ q_global
 
         if sys.mode == :SUN
             swt_hamiltonian_SUN!(H, swt, q_reshaped)
@@ -134,12 +136,12 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
         try
             disp[:, iq] .= bogoliubov!(V, H)
         catch _
-            error("Instability at wavevector q = $q")
+            error("Instability at wavevector q = $(qs[iq])")
         end
 
         for i in 1:Na
             Avec_pref[i] = exp(-2π*im * dot(q_reshaped, sys.crystal.positions[i]))
-            Avec_pref[i] *= compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute)
+            Avec_pref[i] *= compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
         nobs = size(measure.observables, 5)
@@ -184,16 +186,9 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
                 (α, β) = c.I
                 corrbuf[ic] = Avec[α] * conj(Avec[β]) / Ncells
             end
-            intensity[band, iq] = measure.combiner(q_absolute, corrbuf)
+            intensity[band, iq] = measure.combiner(q_global, corrbuf)
         end
     end
 
-    println("got disp=$disp")
-    println("got intensity=$intensity")
-
-    return BandIntensities{Ret}(
-        disp, # (nbands × nq)
-        [orig_crystal(swt.sys).recipvecs * q for q in qs], # qs_abs
-        intensity, # (ncorr × nbands × nq)
-    )
+    return BandIntensities{Ret}(qs_global, disp, intensity)
 end
