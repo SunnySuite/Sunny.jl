@@ -44,17 +44,17 @@ measure = DSSF_perp(sys)
 
 # Plot three types of pair correlation intensities
 
-fig = Figure(size=(400, 600))
+fig = Figure(size=(768,600))
 
 res = intensities_bands(swt, path; measure)
-plot_intensities!(fig[1, 1], res; units, axisopts=(; title="All correlations", xlabel="", xticks=[NaN]))
+plot_intensities!(fig[1, 1], res; units, axisopts=(; title="All correlations"))
 
 formfactors = [FormFactor("Cu2"), zero(FormFactor)]
 res = intensities_bands(swt, path; formfactors, measure)
-plot_intensities!(fig[2, 1], res; units, axisopts=(; title="Cu-Cu correlations", xlabel="", xticks=[NaN]))
+plot_intensities!(fig[1, 2], res; units, axisopts=(; title="Cu-Cu correlations"))
 
 formfactors = [zero(FormFactor), FormFactor("Fe2")]
 res = intensities_bands(swt, path; formfactors, measure)
-plot_intensities!(fig[3, 1], res; units, axisopts=(; title="Fe-Fe correlations"))
+plot_intensities!(fig[2, 2], res; units, axisopts=(; title="Fe-Fe correlations"))
 
 fig

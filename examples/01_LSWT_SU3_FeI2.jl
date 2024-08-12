@@ -84,7 +84,7 @@ view_crystal(cryst)
 
 print_symmetry_table(cryst, 8.0)
 
-# The allowed $g$-tensor is expressed as a 3×3 matrix in the free coefficients
+# The allowed ``g``-tensor is expressed as a 3×3 matrix in the free coefficients
 # `A`, `B`, ... The allowed single-ion anisotropy is expressed as a linear
 # combination of Stevens operators. The latter correspond to polynomials of the
 # spin operators, as we will describe below.
@@ -93,7 +93,7 @@ print_symmetry_table(cryst, 8.0)
 # bonds. The notation `Bond(i, j, n)` indicates a bond between atom indices `i`
 # and `j`, with cell offset `n`. In the general case, it will be necessary to
 # associate atom indices with their positions in the unit cell; these can be
-# viewed with `display(cryst)`. Note that the order of the pair $(i, j)$ is
+# viewed with `display(cryst)`. Note that the order of the pair ``(i, j)`` is
 # significant if the exchange tensor contains antisymmetric
 # Dzyaloshinskii–Moriya (DM) interactions.
 # 
@@ -108,9 +108,9 @@ print_symmetry_table(cryst, 8.0)
 
 sys = System(cryst, (4, 4, 4), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
 
-# This system includes $4×4×4$ unit cells, i.e. 64 Fe atoms, each with spin $S=1$
-# and a $g$-factor of 2. Quantum mechanically, spin $S=1$ involves a
-# superposition of $2S+1=3$ distinct angular momentum states. In `:SUN` mode,
+# This system includes ``4×4×4`` unit cells, i.e. 64 Fe atoms, each with spin
+# ``S=1`` and a ``g``-factor of 2. Quantum mechanically, spin ``S=1`` involves a
+# superposition of ``2S+1=3`` distinct angular momentum states. In `:SUN` mode,
 # this superposition will be modeled explicitly using the formalism of SU(3)
 # coherent states, which captures both dipolar and quadrupolar fluctuations. For
 # the more traditional dipole dynamics, use `:dipole` mode instead.
@@ -162,7 +162,7 @@ set_exchange!(sys, [J′2apm 0.0    0.0;
 # The function [`set_onsite_coupling!`](@ref) assigns a single-ion anisotropy.
 # The argument can be constructed using [`spin_matrices`](@ref) or
 # [`stevens_matrices`](@ref). Here we use Julia's anonymous function syntax to
-# assign an easy-axis anisotropy along the direction $\hat{z}$.
+# assign an easy-axis anisotropy along the direction ``\hat{z}``.
 
 D = 2.165
 set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
@@ -192,8 +192,8 @@ minimize_energy!(sys)
 plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 # A different understanding of the magnetic ordering can be obtained by moving
-# to Fourier space. The 'instant' structure factor $𝒮(𝐪)$ is an experimental
-# observable. To investigate $𝒮(𝐪)$ as true 3D data, Sunny provides
+# to Fourier space. The 'instant' structure factor ``𝒮(𝐪)`` is an experimental
+# observable. To investigate ``𝒮(𝐪)`` as true 3D data, Sunny provides
 # [`instant_correlations`](@ref) and related functions. Here, however, we will
 # use [`print_wrapped_intensities`](@ref), which gives average intensities for
 # the individual Bravais sublattices (in effect, all wavevectors are wrapped to
@@ -202,10 +202,10 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 print_wrapped_intensities(sys)
 
 # The result will likely be approximately consistent with the known zero-field
-# energy-minimizing magnetic structure of FeI₂, which is single-$Q$ (two-up,
+# energy-minimizing magnetic structure of FeI₂, which is single-``Q`` (two-up,
 # two-down antiferromagnetic order). Mathematically, spontaneous symmetry
-# breaking should select one of $±Q = [0, -1/4, 1/4]$, $[1/4, 0, 1/4]$, or
-# $[-1/4,1/4,1/4]$, associated with the three-fold rotational symmetry of the
+# breaking should select one of ``±Q = [0, -1/4, 1/4]``, ``[1/4, 0, 1/4]``, or
+# ``[-1/4,1/4,1/4]``, associated with the three-fold rotational symmetry of the
 # crystal spacegroup. In nature, however, one will frequently encounter
 # competing "domains" associated with the three possible orientations of the
 # ground state.
@@ -220,9 +220,9 @@ print_wrapped_intensities(sys)
 # but that is outside the scope of this tutorial.
 
 # Here, let's break the three-fold symmetry of FeI₂ by hand. Given one or more
-# desired $Q$ modes, Sunny can suggest a magnetic supercell with appropriate
+# desired ``Q`` modes, Sunny can suggest a magnetic supercell with appropriate
 # periodicity. Let's arbitrarily select one of the three possible ordering
-# wavevectors, $Q = [0, -1/4, 1/4]$. Sunny suggests a corresponding magnetic
+# wavevectors, ``Q = [0, -1/4, 1/4]``. Sunny suggests a corresponding magnetic
 # supercell in units of the crystal lattice vectors.
 
 suggest_magnetic_supercell([[0, -1/4, 1/4]])
@@ -245,8 +245,8 @@ plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
 # perform zero-temperature calculations using linear spin wave theory.
 
 # The function [`q_space_path`](@ref) will linearly sample a path between the
-# provided $q$-points in reciprocal lattice units (RLU). Here, we use a total of
-# 500 wavevectors.
+# provided ``q``-points in reciprocal lattice units (RLU). Here, we use a total
+# of 500 wavevectors.
 
 qs = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
 path = q_space_path(cryst, qs, 500)
@@ -271,7 +271,7 @@ kernel = lorentzian2(; fwhm=0.3)
 energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 
 # A real FeI₂ sample will exhibit spontaneous breaking of its 3-fold rotational
-# symmetry about the $ẑ$-axis. We use [`domain_average`](@ref) to effectively
+# symmetry about the ``ẑ``-axis. We use [`domain_average`](@ref) to effectively
 # average the broadened [`intensities`](@ref) calculations over the three
 # possible domain orientations. In practice, this involves rotating the
 # ``𝐪``-points by 0°, 120°, and 240° angles.

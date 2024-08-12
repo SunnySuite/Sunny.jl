@@ -38,8 +38,8 @@ sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], :dipole; seed=0)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 
 # In the ground state, each spin is exactly anti-aligned with its 4
-# nearest-neighbors. Because every bond contributes an energy of $-JS^2$, the
-# energy per site is $-2JS^2$. In this calculation, a factor of 1/2 avoids
+# nearest-neighbors. Because every bond contributes an energy of ``-JS^2``, the
+# energy per site is ``-2JS^2``. In this calculation, a factor of 1/2 avoids
 # double-counting the bonds. Due to lack of frustration, direct energy
 # minimization is successful in finding the ground state.
 

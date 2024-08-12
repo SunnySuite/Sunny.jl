@@ -24,10 +24,9 @@ langasite = Crystal(latvecs, positions, 150; types)
 cryst = subcrystal(langasite, "Fe")
 view_crystal(cryst)
 
-# Create a [`System`](@ref) with a lattice size of $(1,1,7)$. The magnetic
-# structure of Ba₃NbFe₃Si₂O₁₄ was
-# determined to have the ordering wavevector $𝐐=(0,0,1/7)$ and hence the
-# magnetic unit cell has 7 sites. 
+# Create a [`System`](@ref) with a lattice size of ``(1,1,7)``. The magnetic
+# structure of Ba₃NbFe₃Si₂O₁₄ was determined to have the ordering wavevector
+# ``𝐐=(0,0,1/7)`` and hence the magnetic unit cell has 7 sites. 
 
 latsize = (1,1,7)
 S = 5/2
@@ -47,9 +46,9 @@ set_exchange!(sys, J₄, Bond(1, 1, [0,0,1]))
 set_exchange!(sys, J₂, Bond(1, 3, [0,0,0]))
 
 # The final two exchanges define the chirality of the magnetic structure. The
-# crystal chirality, $\epsilon_T$, the chirality of each triangle, $ϵ_D$ and the
-# sense of rotation of the spin helices along $c$, $ϵ_{H}$. The three
-# chiralities are related by $ϵ_T=ϵ_D ϵ_H$. We now assign $J_3$ and $J_5$
+# crystal chirality, ``\epsilon_T``, the chirality of each triangle, ``ϵ_D`` and
+# the sense of rotation of the spin helices along ``c``, ``ϵ_H``. The three
+# chiralities are related by ``ϵ_T=ϵ_D ϵ_H``. We now assign ``J_3`` and ``J_5``
 # according to the crystal chirality.
 
 ϵD = -1
@@ -80,7 +79,7 @@ set_spiral_order_on_sublattice!(sys, 3; k, axis, S0=[-1/2, +sqrt(3)/2, 0])
 
 plot_spins(sys; color=[s[1] for s in sys.dipoles])
 
-# Define a path in reciprocal space, $[0,1,-1+\xi]$ for $\xi = 0 \dots 3$.
+# Define a path in reciprocal space, ``[0,1,-1+ξ]`` for ``ξ = 0 … 3``.
 
 qs = [[0, 1, -1], [0, 1, -1+1], [0, 1, -1+2], [0, 1, -1+3]]
 path = q_space_path(cryst, qs, 600)
