@@ -4,9 +4,6 @@ This page describes the public types and functions exported by Sunny. This docum
 
 ```@index
 ```
-- [`Sunny.plot_spins`](@ref)
-- [`Sunny.view_crystal`](@ref)
-- [`Sunny.export_vtk`](@ref)
 
 ```@autodocs
 Modules = [Sunny]
@@ -20,6 +17,9 @@ The following will be enabled through a package extension if either `GLMakie` or
 
 ```@docs
 plot_spins
+plot_spins!
+plot_intensities
+plot_intensities!
 view_crystal
 ```
 
