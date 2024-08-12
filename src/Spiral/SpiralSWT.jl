@@ -13,16 +13,16 @@ end
 
 function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_reshaped; k, axis)
     (; sys, data) = swt
-    (; local_rotations, stevens_coefs) = data
-    L = nbands(swt) 
+    (; local_rotations, stevens_coefs, sqrtS) = data
+    L = nbands(swt)
     @assert size(H) == (2L, 2L)
-    H .= 0.0 
-    
+    H .= 0.0
+
     # Add pairwise bilinear term
     for ints in sys.interactions_union
 
         for c in ints.pair
-            (; i, j, n) = c.bond
+            (; i, j, n) = c.bond            
             θ = (2*π * dot(k,n))
             Rn = axis_angle_to_matrix(axis, θ)
 
@@ -30,25 +30,25 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
             Ri = local_rotations[i]
             Rj = local_rotations[j]
             J = Ri * c.bilin * Rj'
-            
+
             Jij = (J * Rn + Rn * J) ./ 2
             phase = exp(2π * im * dot(q_reshaped, n))
-            
-            Si = (sys.Ns[i]-1)/2
-            Sj = (sys.Ns[j]-1)/2  
+
+            Sj = sqrtS[j]^2
+            Sij = sqrtS[i] * sqrtS[j]
 
             ui = Ri[:,1] + im*Ri[:,2]
             uj = Rj[:,1] + im*Rj[:,2]
             vi = Ri[:,3]
             vj = Rj[:,3]
-            
-            H[i,j]     += (sqrt(Si*Sj)/2) * (transpose(ui)) * Jij * conj(uj) * phase
-            H[i+L,j+L] += (sqrt(Si*Sj)/2) * conj((transpose(ui)) * Jij * conj(uj)) * phase
-          
-            H[i,j+L]   += (sqrt(Si*Sj)/2) * (transpose(ui) * Jij * uj) * phase
-            H[j+L,i]   += (sqrt(Si*Sj)/2) * conj(transpose(ui) * Jij * uj * phase)
-          
-            H[i,i]     -= Sj * transpose(vi) * Jij * vj 
+
+            H[i,j]     += (Sij/2) * (transpose(ui)) * Jij * conj(uj) * phase
+            H[i+L,j+L] += (Sij/2) * conj((transpose(ui)) * Jij * conj(uj)) * phase
+
+            H[i,j+L]   += (Sij/2) * (transpose(ui) * Jij * uj) * phase
+            H[j+L,i]   += (Sij/2) * conj(transpose(ui) * Jij * uj * phase)
+
+            H[i,i]     -= Sj * transpose(vi) * Jij * vj
             H[i+L,i+L] -= Sj * transpose(vi) * Jij * vj
 
             iszero(c.biquad) || error("Biquadratic interactions not supported")
@@ -60,14 +60,14 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
     # Add Zeeman term
     for i in 1:L
         B = sys.extfield[1, 1, 1, i]' * sys.gs[1, 1, 1, i]
-        B′ = - (B * local_rotations[i][:, 3]) / 2 
+        B′ = - (B * local_rotations[i][:, 3]) / 2
         H[i, i]     += B′
         H[i+L, i+L] += conj(B′)
     end
-    
+
     # Add onsite couplings
     for i in 1:L
-        S = (sys.Ns[i]-1)/2
+        S = sqrtS[i]^2
         (; c2, c4, c6) = stevens_coefs[i]
         H[i, i]     += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
         H[i+L, i+L] += -3S*c2[3] - 40*S^3*c4[5] - 168*S^5*c6[7]
@@ -76,10 +76,10 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
     end
 
     isnothing(sys.ewald) || error("Ewald interactions not yet supported")
-        
+
     @assert diffnorm2(H, H') < 1e-12
     hermitianpart!(H)
-    
+
     for i in 1:2L
         H[i, i] += swt.energy_ϵ
     end
@@ -87,11 +87,11 @@ end
 
 function dispersion_spiral(swt::SpinWaveTheory, axis; k, qs)
     (; sys) = swt
-    
+
     Nm, Ns = length(sys.dipoles), sys.Ns[1] # number of magnetic atoms and dimension of Hilbert space
     Nf = sys.mode == :SUN ? Ns-1 : 1
     nmodes  = Nf * Nm
-   
+
     disp = zeros(Float64, nmodes, length(qs),3)
 
     for (iq, q) in enumerate(qs)
@@ -113,14 +113,15 @@ function dispersion_spiral(swt::SpinWaveTheory, axis; k, qs)
         end
     end
 
-    return disp 
+    return disp
 end
 
 
 function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     (; sys, data) = swt
-    sys.mode == :SUN && error("Spiral calculation for SUN is not yet implemented")
+    sys.mode == :SUN && error("Spiral calculation unavailable for SU(N) mode")
     @assert sys.mode in (:dipole, :dipole_large_S)
+    (; sqrtS) = data
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
@@ -157,7 +158,13 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
-    FF = zeros(ComplexF64, Na)
+    c = zeros(ComplexF64, Na)
+
+    # Observables must be the spin operators directly, with possible scaling by
+    # g factor
+    @assert all(==(Vec3(1, 0, 0)), measure.observables[:, :, :, :, 1])
+    @assert all(==(Vec3(0, 1, 0)), measure.observables[:, :, :, :, 2])
+    @assert all(==(Vec3(0, 0, 1)), measure.observables[:, :, :, :, 3])
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
@@ -176,7 +183,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
         end
 
         for i in 1:Na
-            FF[i] = compute_form_factor(ff_atoms[i], norm2(q_global))
+            c[i] = sqrtS[i] * compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
         R = data.local_rotations
@@ -186,8 +193,6 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
         W = zeros(ComplexF64, L, L, 3, 3)
         for α in 1:3, β in 1:3
             for i in 1:L, j in 1:L
-                si = (sys.Ns[i]-1)/2
-                sj = (sys.Ns[j]-1)/2
                 R_i = R[i]
                 R_j = R[j]
                 ui = R_i[:,1] + im*R_i[:,2]
@@ -195,10 +200,10 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
                 ti = sys.crystal.positions[i]
                 tj = sys.crystal.positions[j]
                 phase = exp(-2π * im*dot(q_reshaped, tj-ti))
-                Y[i, j, α, β] = FF[i] * FF[j] * sqrt(si*sj) * (ui[α] * conj(uj[β])) * phase
-                Z[i, j, α, β] = FF[i] * FF[j] * sqrt(si*sj) * (ui[α] * uj[β]) * phase
-                V[i, j, α, β] = FF[i] * FF[j] * sqrt(si*sj) * (conj(ui[α]) * conj(uj[β])) * phase
-                W[i, j, α, β] = FF[i] * FF[j] * sqrt(si*sj) * (conj(ui[α]) * uj[β]) * phase
+                Y[i, j, α, β] = c[i] * c[j] * (ui[α] * conj(uj[β])) * phase
+                Z[i, j, α, β] = c[i] * c[j] * (ui[α] * uj[β]) * phase
+                V[i, j, α, β] = c[i] * c[j] * (conj(ui[α]) * conj(uj[β])) * phase
+                W[i, j, α, β] = c[i] * c[j] * (conj(ui[α]) * uj[β]) * phase
             end
         end
         YZVW = [[Y Z]; [V W]]
@@ -219,10 +224,6 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
         end
 
         for branch in 1:3, band in 1:L
-            @assert all(==(Vec3(1, 0, 0)), measure.observables[:, :, :, :, 1])
-            @assert all(==(Vec3(0, 1, 0)), measure.observables[:, :, :, :, 2])
-            @assert all(==(Vec3(0, 0, 1)), measure.observables[:, :, :, :, 3])
-
             corrbuf = map(measure.corr_pairs) do (α, β)
                 S[α, β, band, branch]
             end

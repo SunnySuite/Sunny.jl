@@ -345,20 +345,18 @@ function intensities_bands2(swt::SpinWaveTheory, qpts; formfactors=nothing, meas
                 end
             else
                 @assert sys.mode in (:dipole, :dipole_large_S)
+                (; sqrtS) = swt.data
                 v = reshape(view(V, :, band), Na, 2)
-                for i in 1:Na
-                    sqrtS = sqrt(sys.κs[i])
-                    for μ in 1:Nobs
-                        @views O = swt.data.observables_localized[:, :, μ, i]
-                        # @assert O ≈ - obs_local_frame[i, μ]'
+                for i in 1:Na, μ in 1:Nobs
+                    # @views O = swt.data.observables_localized[:, :, μ, i]
+                    # @assert O ≈ - obs_local_frame[i, μ]'
 
-                        # This is the Avec of the two transverse and one
-                        # longitudinal directions in the local frame. (In the
-                        # local frame, z is longitudinal, and we are computing
-                        # the transverse part only, so the last entry is zero)
-                        displacement_local_frame = SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
-                        Avec[μ] += Avec_pref[i] * (sqrtS/sqrt(2)) * (obs_local_frame[i, μ]' * displacement_local_frame)[1]
-                    end
+                    # This is the Avec of the two transverse and one
+                    # longitudinal directions in the local frame. (In the
+                    # local frame, z is longitudinal, and we are computing
+                    # the transverse part only, so the last entry is zero)
+                    displacement_local_frame = SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
+                    Avec[μ] += Avec_pref[i] * (sqrtS[i]/sqrt(2)) * (obs_local_frame[i, μ]' * displacement_local_frame)[1]
                 end
             end
 
