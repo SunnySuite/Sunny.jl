@@ -37,6 +37,7 @@ function available_energies(sc::SampledCorrelations; negative_energies=false)
 
     n_all_ω = size(sc.data, 7)
     n_non_neg_ω = div(n_all_ω, 2) + 1
-    ωvals = FFTW.fftfreq(n_all_ω, n_all_ω * sc.Δω)
+    ωvals = collect(FFTW.fftfreq(n_all_ω, n_all_ω * sc.Δω))
+    ωvals[n_non_neg_ω] *= -1  # Adjust for FFTW convention (which is largest frequency negative)
     return negative_energies ? ωvals : ωvals[1:n_non_neg_ω]
 end

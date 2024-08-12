@@ -99,12 +99,12 @@ function adjusted_dt_and_downsampling_factor(dt, nω, ωmax)
 
     # Assume nω is the number of non-negative frequencies and determine total
     # number of frequency bins.
-    n_all_ω = 2Int64(nω)-1
+    n_all_ω = 2(Int64(nω) - 1)
 
     # Find downsampling factor for the given `dt` that yields an `ωmax` higher
     # than or equal to given `ωmax`. Then adjust `dt` down so that specified
     # `ωmax` is satisfied exactly.
-    Δω = ωmax/nω
+    Δω = ωmax/(nω-1)
     measperiod = ceil(Int, π/(dt * ωmax))
     dt_new = 2π/(Δω*measperiod*n_all_ω)
 
@@ -170,12 +170,12 @@ function SampledCorrelations(sys::System{N}; dt, energies, measure=nothing, calc
         Δω = NaN
     else
         nω = length(energies)
-        n_all_ω = 2Int(nω) - 1
+        n_all_ω = 2(Int(nω) - 1)
         ωmax = energies[end]
         @assert iszero(energies[1]) && ωmax > 0 "`energies` must be a range from 0 to a positive value."
         @assert length(unique(energies[2:end] - energies[1:end-1])) == 1 "`energies` must be uniformly spaced"
         dt, measperiod = adjusted_dt_and_downsampling_factor(dt, nω, ωmax)
-        Δω = ωmax/nω
+        Δω = ωmax/(nω-1)
     end
 
     # Preallocation
