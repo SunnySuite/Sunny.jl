@@ -152,7 +152,7 @@ function swt_hamiltonian_dipole!(H::Matrix{ComplexF64}, swt::SpinWaveTheory, q_r
 
     # Add small constant shift for positive-definiteness
     for i in 1:2L
-        H[i, i] += swt.energy_ϵ
+        H[i, i] += swt.regularization
     end
 end
 
@@ -284,7 +284,7 @@ function multiply_by_hamiltonian_dipole!(y::Array{ComplexF64, 2}, x::Array{Compl
     end
 
     # Add small constant shift for positive-definiteness. 
-    @inbounds @. Y += swt.energy_ϵ * X
+    @inbounds @. Y += swt.regularization * X
 
     nothing
 end

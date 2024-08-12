@@ -257,9 +257,8 @@ path = q_space_path(cryst, qs, 500)
 # factor onto the space perpendicular to the momentum transfer ``𝐪``, which is
 # appropriate for an unpolarized neutron beam.
 
-swt = SpinWaveTheory(sys_min)
-measure = DSSF_perp(sys_min)
-res = intensities_bands(swt, path; measure)
+swt = SpinWaveTheory(sys_min, DSSF_perp(sys_min))
+res = intensities_bands(swt, path)
 plot_intensities(res; units)
 
 # To make comparisons with inelastic neutron scattering (INS) data, one can
@@ -278,7 +277,7 @@ energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 
 rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
 res = domain_average(cryst, path; rotations) do path_rotated
-    intensities(swt, path_rotated; energies, kernel, measure)
+    intensities(swt, path_rotated; energies, kernel)
 end
 plot_intensities(res; units, colormap=:viridis)
 

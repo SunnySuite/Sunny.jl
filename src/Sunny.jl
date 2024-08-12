@@ -79,6 +79,9 @@ export FormFactor
 include("MCIF.jl")
 export set_dipoles_from_mcif!
 
+include("CorrelationSpec.jl")
+export DSSF, DSSF_perp, DSSF_trace
+
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
 include("SpinWaveTheory/HamiltonianSUN.jl")
@@ -86,7 +89,7 @@ include("SpinWaveTheory/Lanczos.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
 export SpinWaveTheory
 export dispersion, intensities, intensities_bands, intensities_spiral, intensities_bands_spiral, q_space_path, powder_average,
-    DSSF, DSSF_perp, DSSF_trace, lorentzian2, gaussian2, rotation_in_rlu, domain_average
+    lorentzian2, gaussian2, rotation_in_rlu, domain_average
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")

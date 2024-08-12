@@ -132,133 +132,6 @@ function q_space_path(cryst::Crystal, qs, n; labels=nothing)
 end
 
 
-#### MEASUREMENT
-
-# Op is the type of a local observable operator. Either a Vec3 (for :dipole
-# mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
-# mode, in which case op is an N×N matrix).
-struct Measurement{Op <: Union{Vec3, HermitianC64}, F, Ret}
-    # TODO: Don't PACK?
-    observables :: Array{Op, 5}          # (latsize, natoms, nobs)
-    corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
-    combiner :: F                        # (q::Vec3, obs) -> Ret
-
-    # TODO: Default combiner will be SVector?
-    function Measurement(observables::Array{Op, 5}, corr_pairs, combiner::F) where {Op, F}
-        # Lift return type of combiner function to type-level
-        Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
-        @assert isbitstype(Ret)
-        return new{Op, F, Ret}(observables, corr_pairs, combiner)
-    end
-end
-
-Base.eltype(::Measurement{Op, F, Ret}) where {Op, F, Ret} = Ret
-
-
-function all_dipole_observables(sys::System{0}; apply_g)
-    observables = zeros(Vec3, size(eachsite(sys))..., 3)
-    for site in eachsite(sys)
-        # Component α of observable is op⋅S = g[α,β] S[β]. Minus sign would
-        # cancel because observables come in pairs.
-        op = apply_g ? sys.gs[site] : Mat3(I)
-        for α in 1:3
-            observables[site, α] = op[α, :]
-        end
-    end
-    return observables
-end
-
-function all_dipole_observables(sys::System{N}; apply_g) where {N}
-    observables = Array{HermitianC64, 5}(undef, size(eachsite(sys))..., 3)
-    for site in eachsite(sys)
-        S = spin_matrices_of_dim(; N=sys.Ns[site])
-        op = apply_g ? sys.gs[site]*S : S
-        for α in 1:3
-            observables[site, α] = op[α]
-        end
-    end
-    return observables
-end
-
-"""
-    DSSF(sys::System; apply_g=true)
-
-Specify measurement of the dynamical spin structure factor (DSSF) or its
-"instantaneous" variant. The "full" structure factor intensity
-``\\mathcal{S}^{αβ}(𝐪,ω)`` is returned as a 3×3 matrix, with indices ``(α, β)``
-denoting dipole components in Cartesian coordinates.
-
-By default, the g-factor or tensor is applied at each site, yielding a
-correlation between magnetic moments. Set `apply_g = false` to measure a true
-spin-spin correlation.
-
-Intended for use with [`intensities`](@ref), [`intensities_bands`](@ref), and
-related functions. See also the Sunny documentation on [Structure Factor
-Calculations](@ref) for more details.
-"""
-function DSSF(sys::System; apply_g=true)
-    observables = all_dipole_observables(sys; apply_g)
-    combiner(_, data) = SA[
-        data[6]       data[5]       data[3]
-        conj(data[5]) data[4]       data[2]
-        conj(data[3]) conj(data[2]) data[1]
-    ]
-    corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
-    return Measurement(observables, corr_pairs, combiner)
-end
-
-"""
-    DSSF_perp(sys::System; apply_g=true)
-
-Specify measurement of the dynamical spin structure factor (DSSF). Like
-[`DSSF`](@ref), but contracts the 3×3 structure factor matrix with
-``(I-𝐪⊗𝐪/q²)``, which projects perpendicular to the direction of momentum
-transfer ``𝐪``. The contracted structure factor can be interpreted as a
-scattering intensity for an unpolarized neutron beam, up to constant scaling
-factors. In the singular limit ``𝐪 → 0``, the contraction matrix is replaced by
-its rotational average, ``(2/3) I``.
-
-See also [`DSSF`](@ref).
-"""
-function DSSF_perp(sys::System; apply_g=true)
-    observables = all_dipole_observables(sys; apply_g)
-    function combiner(q, data)
-        q2 = norm2(q)
-        # Imaginary part cancels by symmetric contraction
-        data = real.(SVector{6}(data))
-        dssf = SA[
-            data[6] data[5] data[3]
-            data[5] data[4] data[2]
-            data[3] data[2] data[1]
-        ]
-        tr_dssf = tr(dssf)
-        # "S-perp" contraction matrix (1 - q⊗q/q²) appropriate to unpolarized
-        # neutrons. In the limit q → 0, use (1 - q⊗q/q²) → 2/3, which
-        # corresponds to a spherical average over uncorrelated data:
-        # https://github.com/SunnySuite/Sunny.jl/pull/131
-        return iszero(q2) ? (2/3)*tr_dssf : tr_dssf - dot(q, dssf, q) / q2
-    end
-    corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
-    return Measurement(observables, corr_pairs, combiner)
-end
-
-"""
-    DSSF_trace(sys::System; apply_g=true)
-
-Specify measurement of the dynamical spin structure factor (DSSF). Like
-[`DSSF`](@ref), but returns only the trace of the 3×3 structure factor matrix.
-This quantity can be useful for checking quantum sum rules.
-
-See also [`DSSF`](@ref).
-"""
-function DSSF_trace(sys::System{N}; apply_g=true) where N
-    observables = all_dipole_observables(sys; apply_g)
-    combiner(_, data) = real(data[1] + data[2] + data[3])
-    corr_pairs = [(3,3), (2,2), (1,1)]
-    return Measurement(observables, corr_pairs, combiner)
-end
-
-
 #### INTENSITIES
 
 abstract type AbstractIntensities end
@@ -398,44 +271,20 @@ function dispersion(swt::SpinWaveTheory, qpts)
     return reduce(hcat, excitations.(Ref(swt), qpts.qs))
 end
 
-function localize_observable(v::Vec3, data::SWTDataDipole, site::Int)
-    R = data.local_rotations[site]
-    return R' * v
-end
-
-function localize_observable(A::HermitianC64, data::SWTDataSUN, site::Int)
-    U = data.local_unitaries[:, :, site]
-    return Hermitian(U' * A * U)
-end
-
-function localize_observables(obs::Array{Op, 5}, data) where {Op}
-    Nsites = prod(size(obs)[1:4])
-    Nobs = size(obs, 5)
-    obs = reshape(obs, (Nsites, Nobs))
-    ret = copy(obs)
-    for α in 1:Nobs, site in 1:Nsites
-        ret[site, α] = localize_observable(obs[site, α], data, site)
-    end
-    return ret
-end
-
 
 """
-    intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, measure)
+    intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
 
-Calculate spin wave excitation bands for a set of q-points in reciprocal space. TODO.
+Calculate spin wave excitation bands for a set of q-points in reciprocal space.
 """
-function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
+function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing)
     qpts = convert(AbstractQPoints, qpts)
-    (; sys) = swt
+    (; sys, measure) = swt
     cryst = orig_crystal(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.latsize == (1,1,1)
     Na = length(eachsite(sys))
-    if Na != prod(size(measure.observables)[1:4])
-        error("Size mismatch. Check that SpinWaveTheory and Measurement were built from same System.")
-    end
 
     # Number of chemical cells in magnetic cell
     Ncells = Na / natoms(cryst)
@@ -449,14 +298,13 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, measu
     H = zeros(ComplexF64, 2L, 2L)
     Avec_pref = zeros(ComplexF64, Na)
     disp = zeros(Float64, L, Nq)
-    intensity = zeros(Ret, L, Nq)
+    intensity = zeros(eltype(measure), L, Nq)
 
     # Temporary storage for pair correlations
     Ncorr = length(measure.corr_pairs)
     corrbuf = zeros(ComplexF64, Ncorr)
 
-    Nobs = size(measure.observables, 5)
-    obs_local_frame = localize_observables(measure.observables, swt.data)
+    Nobs = size(measure.observables, 1)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
     # crystal
@@ -478,30 +326,27 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, measu
         for band = 1:L
             fill!(Avec, 0)
             if sys.mode == :SUN
+                data = swt.data::SWTDataSUN
                 N = sys.Ns[1]
                 v = reshape(view(V, :, band), N-1, Na, 2)
                 for i in 1:Na, μ in 1:Nobs
-                    @views O = swt.data.observables_localized[:, :, μ, i]
-                    @assert O ≈ obs_local_frame[i, μ]
-
+                    O = data.observables_localized[μ, i]
                     for α in 1:N-1
                         Avec[μ] += Avec_pref[i] * (O[α, N] * v[α, i, 2] + O[N, α] * v[α, i, 1])
                     end
                 end
             else
                 @assert sys.mode in (:dipole, :dipole_large_S)
-                (; sqrtS) = swt.data
+                data = swt.data::SWTDataDipole
                 v = reshape(view(V, :, band), Na, 2)
                 for i in 1:Na, μ in 1:Nobs
-                    # @views O = swt.data.observables_localized[:, :, μ, i]
-                    # @assert O ≈ - obs_local_frame[i, μ]'
-
+                    O = data.observables_localized[μ, i]
                     # This is the Avec of the two transverse and one
                     # longitudinal directions in the local frame. (In the
                     # local frame, z is longitudinal, and we are computing
                     # the transverse part only, so the last entry is zero)
                     displacement_local_frame = SA[v[i, 2] + v[i, 1], im * (v[i, 2] - v[i, 1]), 0.0]
-                    Avec[μ] += Avec_pref[i] * (sqrtS[i]/sqrt(2)) * (obs_local_frame[i, μ]' * displacement_local_frame)[1]
+                    Avec[μ] += Avec_pref[i] * (data.sqrtS[i]/sqrt(2)) * (O' * displacement_local_frame)[1]
                 end
             end
 
@@ -512,26 +357,26 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, measu
         end
     end
 
-    return BandIntensities{Ret}(cryst, qpts, disp, intensity)
+    return BandIntensities(cryst, qpts, disp, intensity)
 end
 
 """
-    intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing, measure)
+    intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing)
 
 Calculate spin wave intensities for a set of q-points in reciprocal space. TODO.
 """
-function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
-    return broaden(intensities_bands(swt, qpts; formfactors, measure), energies; kernel)
+function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
+    return broaden(intensities_bands(swt, qpts; formfactors), energies; kernel)
 end
 
 
 """
     powder_average(f, cryst, radii, n; seed=0)
 
-Calculate a powder-average over structure factor intensities. The `radii` have
-units of inverse length, each defines a spherical shell in reciprocal space. The
+Calculate a powder-average over structure factor intensities. The `radii`, with
+units of inverse length, define spherical shells in reciprocal space. The
 [Fibonacci lattice](https://arxiv.org/abs/1607.04590) yields `n` points on the
-shells, with quasi-uniformity. Sample points on different shells are
+sphere, with quasi-uniformity. Sample points on different shells are
 decorrelated through random rotations. A consistent random number `seed` will
 yield reproducible results. The function `f` should accept a list of q-points
 and call a variant of [`intensities`](@ref).
@@ -540,7 +385,7 @@ and call a variant of [`intensities`](@ref).
 ```julia
 radii = range(0.0, 3.0, 200)
 res = powder_average(cryst, radii, 500) do qs
-    intensities(swt, qs; energies, kernel, measure)
+    intensities(swt, qs; energies, kernel)
 end
 plot_intensities(res)
 ```
@@ -599,8 +444,8 @@ should accept a list of rotated q-points and call a variant of
 # 0, 120, and 240 degree rotations about the global z-axis
 rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
 weights = [1, 1, 1]
-res = domain_average(cryst, qpts; rotations, weights) do qpts_rotated
-    intensities(swt, qpts_rotated; energies, kernel, measure)
+res = domain_average(cryst, path; rotations, weights) do path_rotated
+    intensities(swt, path_rotated; energies, kernel)
 end
 plot_intensities(res)
 ```

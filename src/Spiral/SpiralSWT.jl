@@ -81,7 +81,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, swt::SpinWaveTheo
     hermitianpart!(H)
 
     for i in 1:2L
-        H[i, i] += swt.energy_ϵ
+        H[i, i] += swt.regularization
     end
 end
 
@@ -135,14 +135,14 @@ end
 
 
 """
-    intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing, measure)
+    intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing)
 
 Calculate spin wave excitation bands for a set of q-points in reciprocal space.
 Like [`intensities_bands`](@ref), except here the magnetic order is described
 by a single propagation wavevector `k` with an associated `axis` of rotation. 
 """
-function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
-    (; sys, data) = swt
+function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing)
+    (; sys, data, measure) = swt
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
     @assert sys.mode in (:dipole, :dipole_large_S)
     (; sqrtS) = data
@@ -154,7 +154,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactor
     # Number of atoms in magnetic cell
     @assert sys.latsize == (1,1,1)
     Na = length(eachsite(sys))
-    if Na != prod(size(measure.observables)[1:4])
+    if Na != prod(size(measure.observables)[2:5])
         error("Size mismatch. Check that SpinWaveTheory and Measurement were built from same System.")
     end
 
@@ -182,7 +182,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactor
     W = view(YZVW, L+1:2L, L+1:2L, :, :)
 
     disp = zeros(Float64, 3L, Nq)
-    intensity = zeros(Ret, 3L, Nq)
+    intensity = zeros(eltype(measure), 3L, Nq)
     S = zeros(ComplexF64, 3, 3, L, 3)
 
     # Expand formfactors for symmetry classes to formfactors for all atoms in
@@ -258,7 +258,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactor
         intensity[:, iq] .= intensity[P, iq]
     end
 
-    return BandIntensities{Ret}(cryst, qpts, disp, intensity)
+    return BandIntensities(cryst, qpts, disp, intensity)
 end
 
 """
@@ -268,6 +268,6 @@ Calculate spin wave intensities for a set of q-points in reciprocal space. Like
 [`intensities`](@ref), except here the magnetic order is described by a single
 propagation wavevector `k` with an associated `axis` of rotation. 
 """
-function intensities_spiral(swt::SpinWaveTheory, qpts; k, axis, energies, kernel::AbstractBroadening, formfactors=nothing, measure::Measurement)
-    return broaden(intensities_bands_spiral(swt, qpts; k, axis, formfactors, measure), energies; kernel)
+function intensities_spiral(swt::SpinWaveTheory, qpts; k, axis, energies, kernel::AbstractBroadening, formfactors=nothing)
+    return broaden(intensities_bands_spiral(swt, qpts; k, axis, formfactors), energies; kernel)
 end

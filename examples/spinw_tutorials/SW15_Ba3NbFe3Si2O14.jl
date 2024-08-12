@@ -86,8 +86,8 @@ path = q_space_path(cryst, qs, 600)
 
 # Calculate broadened intensities
 
-swt = SpinWaveTheory(sys; energy_ϵ=1e-6)
+swt = SpinWaveTheory(sys, DSSF_perp(sys))
 energies = range(0, 6, 400)  # 0 < ω < 6 (meV)
-res = intensities(swt, path; energies, kernel=gaussian2(fwhm=0.25), measure=DSSF_perp(sys))
+res = intensities(swt, path; energies, kernel=gaussian2(fwhm=0.25))
 axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
 plot_intensities(res; units, axisopts, saturation=0.7, colormap=:jet)
