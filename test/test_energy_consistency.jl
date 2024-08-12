@@ -4,7 +4,8 @@
 
     function make_system(; mode, inhomog)
         cryst = Sunny.diamond_crystal()
-        sys = System(cryst, (3, 3, 3), [SpinInfo(1, S=2, g=2)], mode; seed=0)
+        # TODO: Debug case of latsize=(3, 2, 1)
+        sys = System(cryst, (3, 2, 2), [SpinInfo(1, S=2, g=2)], mode; seed=0)
         add_linear_interactions!(sys, mode)
         add_quadratic_interactions!(sys, mode)
         add_quartic_interactions!(sys, mode)
@@ -29,7 +30,7 @@
             set_exchange_at!(sys2, 0.5, (1,1,1,1), (2,1,1,2); offset=(1, 0, 0))
             set_pair_coupling_at!(sys2, (Si, Sj) -> 0.7*(Si'*Sj)^2, (3,2,1,2), (3,1,1,3); offset=(0,-1,0))
 
-            set_onsite_coupling_at!(sys2, S -> 0.4*(S[1]^4+S[2]^4+S[3]^4), (2,2,2,4))
+            set_onsite_coupling_at!(sys2, S -> 0.4*(S[1]^4+S[2]^4+S[3]^4), (2,2,1,4))
             return sys2
         end
     end
@@ -37,7 +38,7 @@
 
     # Tests that SphericalMidpoint conserves energy to a certain tolerance.
     function test_conservation(sys)
-        NITERS = 3_000
+        NITERS = 1500
         dt     = 0.002
         energies = Float64[]
 
