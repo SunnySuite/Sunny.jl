@@ -105,4 +105,4 @@ end
 swt = SpinWaveTheory(sys; measure)
 res = intensities(swt, path; energies, kernel=gaussian2(fwhm=0.25))
 axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
-plot_intensities(res; units, axisopts, saturation=0.7, colormap=:bwr)
+plot_intensities(res; units, axisopts, saturation=0.7)
