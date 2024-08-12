@@ -1,8 +1,7 @@
-function interpolated_energies(sc, data, energies)
-    nqs = size(data)
-end
-
-function intensities(sc::SampledCorrelations, qpts; measure=nothing, negative_energies=false, formfactors=nothing, kT=Inf, interp=NoInterp())
+"""
+    intensities(sc::SampledCorrelations, qpts; measure=nothing, energies=nothing, negative_energies=false, formfactors=nothing, kT=Inf, interp=NoInterp())
+"""
+function intensities(sc::SampledCorrelations, qpts; measure=nothing, energies=nothing, negative_energies=false, formfactors=nothing, kT=Inf, interp=NoInterp())
     measure = !isnothing(measure) ? measure : sc.measure # TODO: Add checks to see if override is legit
     qpts = Base.convert(AbstractQPoints, qpts)
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
@@ -72,9 +71,8 @@ function intensities(sc::SampledCorrelations, qpts; measure=nothing, negative_en
     else
         # If temperature is given for a SampledCorrelations with only
         # instantaneous data, throw an error. 
-        (kT != Inf) && error("Temperature corrections only available with dynamical correlation info. Given `SampledCorrelations` only contains instant correlation data.")
+        (kT != Inf) && error("Given `SampledCorrelations` only contains instant correlation data. Temperature corrections only available with dynamical correlation info.")
     end
-
 
     return if !isnan(sc.Δω)
         BroadenedIntensities(crystal, qpts, ωvals, intensities)
