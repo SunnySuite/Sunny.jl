@@ -115,11 +115,9 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpiralSpinW
 end
 
 function excitations!(T, H, sswt::SpiralSpinWaveTheory, q; branch)
-    (; sys) = sswt.swt
-    q_global = orig_crystal(sys).recipvecs * q
-    q_reshaped = sys.crystal.recipvecs \ q_global
-
+    q_reshaped = to_reshaped_rlu(sswt.swt.sys, q)
     swt_hamiltonian_dipole_spiral!(H, sswt, q_reshaped; branch)
+
     return try
         bogoliubov!(T, H)
     catch _
