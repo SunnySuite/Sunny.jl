@@ -5,7 +5,7 @@
 # extracted from [Ge et al., Phys. Rev. B 96,
 # 064413](https://doi.org/10.1103/PhysRevB.96.064413).
 
-using Sunny, GLMakie
+using Sunny, GLMakie, LinearAlgebra
 
 # Construct a diamond [`Crystal`](@ref) in the conventional (non-primitive)
 # cubic unit cell. Sunny will populate all eight symmetry-equivalent sites when
@@ -35,6 +35,7 @@ S = 3/2
 J = 0.63 # (meV)
 sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], :dipole; seed=0)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
+set_field!(sys, [0.1, 0.3, 0.2])
 
 # In the ground state, each spin is exactly anti-aligned with its 4
 # nearest-neighbors. Because every bond contributes an energy of $-JS^2$, the
@@ -45,7 +46,7 @@ set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
 
-@assert energy_per_site(sys) ≈ -2J*S^2
+# @assert energy_per_site(sys) ≈ -2J*S^2
 
 # Plotting the spins confirms the expected Néel order. Note that the overall,
 # global rotation of dipoles is arbitrary.
@@ -62,7 +63,7 @@ shape = [0 1 1;
          1 0 1;
          1 1 0] / 2
 sys_prim = reshape_supercell(sys, shape)
-@assert energy_per_site(sys_prim) ≈ -2J*S^2
+@assert energy_per_site(sys_prim) ≈ energy_per_site(sys)
 plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 
 # Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and an
@@ -72,7 +73,8 @@ plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 # Cobalt(2+) dampens intensities at large ``𝐪``.
 
 swt = SpinWaveTheory(sys_prim)
-kernel = lorentzian(fwhm=0.8)
+# kernel = lorentzian(fwhm=0.8)
+kernel = delta_function_kernel
 formfactors = [FormFactor("Co2")]
 formula = intensity_formula(swt, :perp; kernel, formfactors)
 
@@ -83,17 +85,18 @@ formula = intensity_formula(swt, :perp; kernel, formfactors)
 
 qpoints = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path, xticks = reciprocal_space_path(cryst, qpoints, 50)
+path = [[0.1,0.2,0]]
 energies = collect(0:0.01:6)
-is = intensities_broadened(swt, path, energies, formula)
-
-fig = Figure()
-ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (r.l.u.)",
-          xticks, xticklabelrotation=π/10)
-heatmap!(ax, 1:size(is, 1), energies, is, colormap=:gnuplot2)
-fig
+# is = intensities_broadened(swt, path, energies, formula)
+disp2, is2 = intensities_bands(swt, path, formula)
 
 
-Sunny.intensities2(swt, qpoints; formfactors, measure=Sunny.DSSF(sys))
+# Sunny.intensities2(swt, qpoints; formfactors, measure=Sunny.DSSF(sys))
+(; disp, data) = Sunny.intensities2(swt, path; formfactors, measure=Sunny.DSSF_perp(sys_prim))
+
+@assert disp ≈ disp2'
+@assert norm(is2[:] - data[:]) < 1e-10
+norm(is2[:] - data[:])
 
 # A powder measurement effectively involves an average over all possible crystal
 # orientations. We use the function [`reciprocal_space_shell`](@ref) to sample
