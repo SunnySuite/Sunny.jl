@@ -266,7 +266,7 @@ plot_intensities(res; units)
 # full-width at half-maximum of 0.3 meV. We will calculate intensities for 300
 # discrete energies between 0 and 10 meV.
 
-kernel = lorentzian(; fwhm=0.3)
+kernel = lorentzian(fwhm=0.3)
 energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 
 # A real FeI₂ sample will exhibit spontaneous breaking of its 3-fold rotational
@@ -281,6 +281,13 @@ res = domain_average(cryst, path; rotations, weights) do path_rotated
     intensities(swt, path_rotated; energies, kernel)
 end
 plot_intensities(res; units, colormap=:viridis)
+
+# Use [`q_space_grid`](@ref) to sample q-points on a slice [H, K, 0] in RLU.
+# Calculated and plot intensities for a fixed energy value of 3.88 meV.
+
+grid = q_space_grid(cryst, [1, -1/2, 0], range(-1.5, 1.5, 100), [0, 1, 0], (-1.5, 1.5); orthogonalize=true)
+res = intensities(swt, grid; energies=[3.88], kernel)
+plot_intensities(res)
 
 # This result can be directly compared to experimental neutron scattering data
 # from [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)

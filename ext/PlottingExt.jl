@@ -1060,17 +1060,34 @@ end
 
 function Sunny.plot_intensities!(panel, res::Sunny.BroadenedIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
     unit_energy, ylabel = get_unit_energy(units, into)
- 
-    if res.qpts isa Sunny.QPath
-        is_pos, colorrange_suggest = colorrange_from_data(; res.data, saturation, sensitivity=0)
+    (; crystal, qpts, data, energies) = res
+
+    if qpts isa Sunny.QPath
+        is_pos, colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0)
         colormap = @something colormap (is_pos ? :gnuplot2 : :bwr)
         colorrange = @something colorrange colorrange_suggest
-        xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, axisopts...)
-        Makie.heatmap!(ax, axes(res.data, 2), collect(res.energies/unit_energy), res.data'; colormap, colorrange)
+        xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, qpts.xticks, xticklabelrotation, axisopts...)
+        Makie.heatmap!(ax, axes(data, 2), collect(energies/unit_energy), data'; colormap, colorrange)
         return ax
+    elseif qpts isa Sunny.QGrid{2}
+        if isone(length(energies))
+            data = reshape(data, qpts.lengths)
+            B1, B2 = Ref(crystal.recipvecs) .* qpts.Δqs
+            if abs(dot(B1, B2)) > 1e-12
+                error("Cannot yet plot non-orthogonal grid")
+            end
+            aspect = norm(qpts.Δqs[1]) / norm(qpts.Δqs[2])
+            ax = Makie.Axis(panel; xlabel="Axis 1", ylabel="Axis 2", aspect, axisopts...)
+            colormap = @something colormap :viridis
+            colorrange = @something colorrange extrema(data)
+            Makie.heatmap!(ax, data; colormap, colorrange)
+            return ax
+        else
+            error("Cannot plot type $(typeof(qpts))")
+        end
     else
-        error("Cannot plot type $(typeof(res.qpts))")
+        error("Cannot plot type $(typeof(qpts))")
     end
 end
 
