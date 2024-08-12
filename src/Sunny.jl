@@ -116,6 +116,8 @@ include("Spiral/LuttingerTisza.jl")
 include("Spiral/SpiralEnergy.jl")
 include("Spiral/SpiralSWT.jl")
 
+include("Correlations/Correlations.jl")
+
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")
 include("MonteCarlo/ParallelTempering.jl")
