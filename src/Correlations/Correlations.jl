@@ -34,7 +34,7 @@ end
 
 struct QPath <: AbstractQPoints
     qs :: Vector{Vec3}
-    xticks :: Vector{Tuple{Int, String}}
+    xticks :: Tuple{Vector{Int64}, Vector{String}}
 end
 
 struct QGrid{N} <: AbstractQPoints
