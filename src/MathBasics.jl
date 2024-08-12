@@ -83,10 +83,15 @@ function mean(itr)
 end
 
 function quantile(itr, p; alpha::Real=1.0, beta::Real=alpha)
+    0 <= p <= 1 || throw(ArgumentError("input probability out of [0,1] range"))
+    0 <= alpha <= 1 || throw(ArgumentError("alpha parameter out of [0,1] range"))
+    0 <= beta <= 1 || throw(ArgumentError("beta parameter out of [0,1] range"))
+    x = collect(sort(itr))
     n = length(itr)
     m = alpha + p*(1 - alpha - beta)
     j = floor(Int, n*p + m)
     γ = n*p + m - j
-    x = sort(itr)
+    j >= n && return last(x)
+    j < 1 && return first(x)
     return (1-γ)*x[j] + γ*x[j+1]
 end

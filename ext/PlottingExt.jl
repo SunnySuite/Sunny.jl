@@ -997,7 +997,7 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
 end
 
 
-function Sunny.plot_intensities(res::Sunny.BandIntensities{T}; fwhm=nothing, ylims=nothing, title=nothing) where {T <: Number}
+function Sunny.plot_intensities(res::Sunny.BandIntensities{T}, energy_label::Symbol; fwhm=nothing, ylims=nothing, title=nothing) where {T <: Number}
     all(>=(0), res.data) || error("Intensities must be nonnegative")
     nq = size(res.disp, 2)
 
@@ -1012,13 +1012,13 @@ function Sunny.plot_intensities(res::Sunny.BandIntensities{T}; fwhm=nothing, yli
         ylims = @something ylims (min(0, mindisp), 1.2*maxdisp)
     
         fig = Makie.Figure()
-        ax = Makie.Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", limits=(nothing, ylims), title, ticks...)
+        ax = Makie.Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy ($energy_label)", limits=(nothing, ylims), title, ticks...)
 
         energies = range(ylims[1], ylims[2], 512)
         # Broadening width selected according to visible limits
-        fwhm = @something fwhm 0.05*(ylims[2]-ylims[1])
+        fwhm = @something fwhm 0.02*(ylims[2]-ylims[1])
         broadened = Sunny.broaden(res, energies; kernel=Sunny.gaussian2(; fwhm))
-        colorrange = [0.02, 5] * Sunny.quantile(vec(broadened.data), 0.95)
+        colorrange = [2.5e-3, 1] * Sunny.quantile(maximum.(eachcol(broadened.data)), 0.90)
         Makie.heatmap!(ax, 1:nq, collect(energies), broadened.data'; colorrange,
                        colormap=Makie.Reverse(:thermal), lowclip=:white)
         for i in axes(res.disp, 1)
