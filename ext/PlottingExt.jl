@@ -859,19 +859,27 @@ function Sunny.plot_spins(sys::System; size=(768, 512), compass=true, kwargs...)
     fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1]; show_axis=false)
     notifier = Makie.Observable(nothing)
-    plot_spins!(ax, sys; notifier, kwargs...)
+    Sunny.plot_spins!(ax, sys; notifier, kwargs...)
     compass && add_cartesian_compass(fig, ax)
     return NotifiableFigure(notifier, fig)
 end
 
-#=
-    plot_spins!(ax, sys::System; arrowscale=1.0, color=:red, colorfn=nothing,
-                colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
-                ghost_radius=0, dims=3)
+"""
+    plot_spins!(ax, sys::System; opts...)
 
-Like [`plot_spins`](@ref) but will draw into the given Makie Axis, `ax`.
-=#
-function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrowscale=1.0, stemcolor=:lightgray, color=:red,
+Mutating variant of [`plot_spins`](@ref) that allows drawing into a single panel
+of a Makie figure.
+
+# Example
+
+```julia
+fig = Figure()
+plot_spins!(fig[1, 1], sys1)
+plot_spins!(fig[2, 1], sys2)
+display(fig)
+```
+"""
+function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrowscale=1.0, stemcolor=:lightgray, color=:red,
                      colorfn=nothing, colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
                      ghost_radius=0, dims=3)
     warn_wglmakie()
@@ -1021,18 +1029,18 @@ end
     plot_intensities!(panel, res::AbstractIntensities; opts...)
 
 Mutating variant of [`plot_intensities`](@ref) that allows drawing into a single
-`panel` of a larger grid.
+panel of a Makie figure.
 
 # Example
 
 ```julia
 fig = Figure()
 plot_intensities!(fig[1, 1], res1)
-plot_intensities!(fig[2, 1], res1)
+plot_intensities!(fig[2, 1], res2)
 display(fig)
 ```
 """
-function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; saturation=0.9, sensitivity=0.0025, units=nothing, into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; colormap=nothing, saturation=0.9, sensitivity=0.0025, units=nothing, into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
     unit_energy, ylabel = get_unit_energy(units, into)
  
     if res.qpts isa Sunny.QPath 
@@ -1043,15 +1051,11 @@ function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; sat
         broadened = Sunny.broaden(res; energies, kernel=gaussian(; fwhm))
 
         is_pos, colorrange = colorrange_from_data(; broadened.data, saturation, sensitivity)
-        heatmapopts = if is_pos
-            (; colorrange, colormap=Makie.Reverse(:thermal), lowclip=:white)
-        else
-            (; colorrange, colormap=:bwr)
-        end
+        colormap = @something colormap (is_pos ? Makie.Reverse(:thermal) : :bwr)
 
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(scene; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), res.qpts.xticks, xticklabelrotation, axisopts...)
-        Makie.heatmap!(ax, axes(res.data, 2), collect(energies / unit_energy), broadened.data'; heatmapopts...)
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), res.qpts.xticks, xticklabelrotation, axisopts...)
+        Makie.heatmap!(ax, axes(res.data, 2), collect(energies / unit_energy), broadened.data'; colorrange, colormap, lowclip=:white)
         for i in axes(res.disp, 1)
             Makie.lines!(ax, res.disp[i,:] / unit_energy; color=:lightskyblue3)
         end
@@ -1061,7 +1065,7 @@ function Sunny.plot_intensities!(scene, res::Sunny.BandIntensities{Float64}; sat
     end
 end
 
-function Sunny.plot_intensities!(scene, res::Sunny.BroadenedIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.BroadenedIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
     unit_energy, ylabel = get_unit_energy(units, into)
  
     if res.qpts isa Sunny.QPath
@@ -1069,7 +1073,7 @@ function Sunny.plot_intensities!(scene, res::Sunny.BroadenedIntensities{Float64}
         colormap = @something colormap (is_pos ? :gnuplot2 : :bwr)
         colorrange = @something colorrange colorrange_suggest
         xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
-        ax = Makie.Axis(scene; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, axisopts...)
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, res.qpts.xticks, xticklabelrotation, axisopts...)
         Makie.heatmap!(ax, axes(res.data, 2), collect(res.energies/unit_energy), res.data'; colormap, colorrange)
         return ax
     else
@@ -1077,24 +1081,22 @@ function Sunny.plot_intensities!(scene, res::Sunny.BroadenedIntensities{Float64}
     end
 end
 
-function Sunny.plot_intensities!(scene, res::Sunny.PowderIntensities; colormap=:gnuplot2, colorrange=nothing, saturation=0.98, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities; colormap=nothing, colorrange=nothing, saturation=0.98, units=nothing, into=nothing, axisopts=Dict())
     unit_energy, ylabel = get_unit_energy(units, into)
     xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
  
-    if isnothing(colorrange)
-        lower = min(0, Statistics.quantile(minimum.(eachcol(res.data)), 1-saturation))
-        upper = max(0, Statistics.quantile(maximum.(eachcol(res.data)), saturation))
-        colorrange = (lower, upper)
-    end
+    is_pos, colorrange_suggest = colorrange_from_data(; res.data, saturation, sensitivity=0)
+    colormap = @something colormap (is_pos ? :gnuplot2 : :bwr)
+    colorrange = @something colorrange colorrange_suggest
 
-    ax = Makie.Axis(scene; xlabel, ylabel, axisopts...)
+    ax = Makie.Axis(panel; xlabel, ylabel, axisopts...)
     Makie.heatmap!(ax, res.radii, collect(res.energies/unit_energy), res.data'; colormap, colorrange)
     return ax
 end
 
 """
-    plot_intensities(res::BandIntensities; saturation=0.9, sensitivity=0.0025, units=nothing, 
-                     into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
+    plot_intensities(res::BandIntensities; colormap=nothing, saturation=0.9, sensitivity=0.0025,
+                     units=nothing, into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
 
     plot_intensities(res::BroadenedIntensities; colormap=nothing, colorrange=nothing, 
                      saturation=0.9, units=nothing, into=nothing, axisopts=Dict())

@@ -152,7 +152,7 @@ end
 function plot_intensities(args...; opts...)
     error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
 end
-export view_crystal, plot_spins, plot_intensities, plot_intensities!
+export view_crystal, plot_spins, plot_spins!, plot_intensities, plot_intensities!
 
 ### ext/ExportVTKExt.jl, dependent on WriteVTK
 function export_vtk(args...)
