@@ -44,7 +44,9 @@ struct QGrid{N} <: AbstractQPoints
     lengths :: NTuple{N, Int}
 end
 
-Base.convert(::Type{AbstractQPoints}, x::AbstractArray{Vec3}) = QPoints(collect(x))
+function Base.convert(::Type{AbstractQPoints}, x::AbstractArray)
+    return QPoints(collect(Vec3.(x)))
+end
 
 
 """
@@ -216,6 +218,19 @@ struct BroadenedIntensities{T} <: AbstractIntensities
 end
 
 
+# Returns |1 + nB(ω)| where nB(ω) = 1 / (exp(βω) - 1) is the Bose function. See
+# also `classical_to_quantum` which additionally "undoes" the classical
+# Boltzmann distribution.
+function thermal_prefactor(kT, ω)
+    if iszero(kT)
+        return ω >= 0 ? 1 : 0
+    else
+        @assert kT > 0
+        return abs(1 - exp(-ω/kT))
+    end
+end
+
+
 function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     qpts = convert(AbstractQPoints, qpts)
     (; sys) = swt
@@ -318,6 +333,8 @@ end
 
 
 function intensities_broadened2(swt::SpinWaveTheory, qpts, energies; kernel::B, formfactors=nothing, measure::Measurement) where {B <: AbstractBroadening}
+    all(energies .>= 0) || error("Energies must be non-negative")
+
     qpts = convert(AbstractQPoints, qpts)
     energies = collect(energies)
     (; qs) = qpts
