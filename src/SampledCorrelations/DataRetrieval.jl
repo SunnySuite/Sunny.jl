@@ -1,29 +1,3 @@
-# Generalize to negative omega values
-function energy_interpolation_info(sc, energies)
-    ωvals = available_energies(sc; negative_energies=false)
-
-    if minimum(energies) < ωs[1] || maximum(energies) > ωvals[end]
-        error("Requested unavailable energies.")
-    end
-
-    ωidcs1 = zeros(length(energies[i_lo:i_hi]))
-    ωidcs2 = zeros(length(energies[i_lo:i_hi]))
-    weights1 = zeros(length(energies[i_lo:i_hi])) 
-    weights2 = zeros(length(energies[i_lo:i_hi])) 
-
-    curr_idx = 1
-    for (i, energy) in enumerate(energies[i_lo:i_hi])
-        while !(ωvals[curr_idx] <= energy <= ωvals[curr_idx+1])
-            curr_idx += 1
-        end
-        ωidcs1[i], ωidcs2[i] = curr_idx, curr_idx+1
-        weights2[i] = (energy - ωvals[curr_idx])/(ωvals[curr_idx+1] - ωvals[curr_idx]) 
-        weights1[i] = 1 - weights2[i]
-    end
-
-    return (ωidcs1, ωidcs2), (weights1, weights2)
-end
-
 function find_idx_of_nearest_fft_energy(ref, val)
     for i in axes(ref[1:end-1], 1)
         x1, x2 = ref[i], ref[i+1]
@@ -61,19 +35,18 @@ function rounded_energy_information(sc, energies)
     return ωvals[ωidcs], ωidcs
 end
 
-"""
-    intensities(sc::SampledCorrelations, qpts; kernel=nothing, energies=nothing, formfactors=nothing, kT=Inf)
-
-energies = [:available, :available_with_negative, or list (rounding to nearest available)] 
-"""
-function intensities(sc::SampledCorrelations, qpts; kernel=nothing, energies=nothing, formfactors=nothing, kT=Inf)
+# Documented in same location as LSWT `intensities` function.
+function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
     if isnan(sc.Δω) && energies != :available
         error("`SampledCorrelations` only contains static information. No energy information is available.")
+    end
+    if !isnothing(kernel)
+        error("Kernel post-processing not yet available for `SampledCorrelations`.")
     end
 
     (; measure) = sc
     interp = NoInterp()
-    qpts = Base.convert(AbstractQPoints, qpts)
+    qpts = Base.convert(AbstractQPoints, qpts[:])
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
     IntensitiesType = eltype(measure)
     crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
@@ -146,7 +119,7 @@ function intensities(sc::SampledCorrelations, qpts; kernel=nothing, energies=not
         intensities ./= (n_all_ω * sc.Δω)
 
         # Apply classical-to-quantum correspondence factor if temperature given.
-        if kT != Inf
+        if !isnothing(kT) 
             c2q = classical_to_quantum.(ωs, kT)
             for i in axes(intensities, 2)
                 intensities[:,i] .*= c2q
@@ -155,30 +128,45 @@ function intensities(sc::SampledCorrelations, qpts; kernel=nothing, energies=not
     else
         # If temperature is given for a SampledCorrelations with only
         # instantaneous data, throw an error. 
-        (kT != Inf) && error("Given `SampledCorrelations` only contains instant correlation data. Temperature corrections only available with dynamical correlation info.")
+        !isnothing(kT) && error("Given `SampledCorrelations` only contains instant correlation data. Temperature corrections only available with dynamical correlation info.")
     end
 
     return if !isnan(sc.Δω)
         BroadenedIntensities(crystal, qpts, collect(ωs), intensities)
     else
-        InstantIntensities(crystal, qpts, intensities)
+        InstantIntensities(crystal, qpts, reshape(intensities, size(intensities, 2)))
     end
 end
 
-"""
-    intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT=Inf)
-
 
 """
-function intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT=Inf)
+    intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT)
+
+Calculate the instant (equal-time) correlations for a set of q-points in
+reciprocal space.
+
+This calculation may be performed on a `SampledCorrelations` regardless of
+whether it contains dynamic correlation information or not. If the
+`SampledCorrelation` does contain correlations from time-evolved trajectories,
+the `intensities_instant` returns the energy-integrated correlations. If, in
+addition, `kT` is given a numerical value, the dynamic correlations will be
+multiplied by the "classical-to-quantum" correspondence factor before energy
+integration. If `kT` is set to `nothing`, this correction will not be applied.
+"""
+# ```math
+# \frac{\omega}{k_{\rm{B}}T}\left[1 + n_{\rm{B}}\left(\omega/T\right)\right].
+# ```
+# 
+# where $n_{\rm{B}} = \left(e^{\omega/k_{\rm{T}}T}\right - 1)^{-1}$ is the Bose function.
+function intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT)
     return if isnan(sc.Δω)
-        if kT != Inf
+        if !isnothing(kT) 
             error("Temperature corrections unavailable if `SampledCorrelations` does not contain dynamic correlations. Do not set `kT` value.")
         end
         intensities(sc, qpts; kernel, formfactors, kT, energies=:available) # Returns an InstantIntensities
     else
         is = intensities(sc, qpts; kernel, formfactors, kT, energies=:available_with_negative) # Returns a BroadenedIntensities
-        data_new = reshape(sum(is.data, dims=(1,)), size(is.data)[2])
+        data_new = reshape(sum(is.data, dims=(1,)), size(is.data, 2))
         InstantIntensities(is.crystal, is.qpts, data_new)
     end
 end

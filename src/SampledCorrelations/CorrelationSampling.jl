@@ -78,8 +78,8 @@ function accum_sample!(sc::SampledCorrelations; window)
     
     # As long as `num_time_offsets` is odd, there will be a non-zero number of
     # contributions, so we don't need this line
-    @assert isodd(num_time_offsets)
-    #n_contrib[n_contrib .== 0] .= Inf
+    #$ @assert isodd(num_time_offsets)
+    n_contrib[n_contrib .== 0] .= Inf
 
     count = nsamples[1] += 1
 
