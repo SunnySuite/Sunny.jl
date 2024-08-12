@@ -24,6 +24,67 @@ function lorentzian2(; fwhm)
 end
 
 
+#### Q-POINTS WITH OPTIONAL METADATA
+
+abstract type AbstractQPoints end
+
+struct QPoints <: AbstractQPoints
+    qs :: Vector{Vec3}
+end
+
+struct QPath <: AbstractQPoints
+    qs :: Vector{Vec3}
+    xticks :: Vector{Tuple{Int, String}}
+end
+
+struct QGrid{N} <: AbstractQPoints
+    qs :: Vector{Vec3}
+    q0 :: Vec3
+    Δqs :: NTuple{N, Vec3}
+    lengths :: NTuple{N, Int}
+end
+
+Base.convert(::Type{AbstractQPoints}, x::AbstractArray{Vec3}) = QPoints(collect(x))
+
+
+"""
+    q_space_path(cryst::Crystal, qs, Δq)
+
+Returns a 1D path in q-space that samples linearly between the provided
+wavevectors `qs`, with approximate displacements Δq between steps. Both
+`qs` and `Δq` must be provided in reciprocal lattice units (RLU) for the
+given crystal.
+"""
+function q_space_path(cryst::Crystal, qs, Δq)
+    @assert length(qs) >= 2 "The list `qs` should include at least two wavevectors."
+    qs = Vec3.(qs)
+
+    Δq_absolute = minimum(norm.(eachcol(cryst.recipvecs))) * Δq
+
+    path = Vec3[]
+    markers = Int[]
+    for i in 1:length(qs)-1
+        push!(markers, length(path)+1)
+        q1, q2 = qs[i], qs[i+1]
+        dist = norm(cryst.recipvecs * (q1 - q2))
+        npoints = ceil(Int, dist/Δq_absolute)
+        for n in 1:npoints
+            push!(path, (1 - (n-1)/npoints)*q1 + (n-1)*q2/npoints)
+        end
+    end
+    push!(markers, length(path)+1)
+    push!(path, qs[end])
+
+    labels = map(qs) do q
+        # "[" * join(number_to_math_string.(q), ",") * "]"
+        fractional_vec3_to_string(q)
+    end
+    xticks = (markers, labels)
+
+    return QPath(path, xticks)
+end
+
+
 #### MEASUREMENT
 
 # Op is the type of a local observable operator. Either a Vec3 (for :dipole
@@ -42,6 +103,7 @@ struct Measurement{Op, F, Ret}
     end
 end
 
+Base.eltype(::Measurement{Op, F, Ret}) where {Op, F, Ret} = Ret
 
 function localize_observable(v::Vec3, data::SWTDataDipole, site::Int)
     R = data.local_rotations[site]
@@ -132,8 +194,10 @@ end
 abstract type AbstractIntensities end
 
 struct BandIntensities{T} <: AbstractIntensities
-    # Wavevectors in global (inverse length) units
-    qs_global :: Vector{Vec3}
+    # Original chemical cell
+    crystal :: Crystal
+    # Wavevectors in RLU
+    qpts :: AbstractQPoints
     # Dispersion for each band
     disp :: Array{Float64, 2} # (nbands × nq)
     # Intensity data as Dirac-magnitudes
@@ -141,29 +205,31 @@ struct BandIntensities{T} <: AbstractIntensities
 end
 
 struct BroadenedIntensities{T} <: AbstractIntensities
-    # Wavevectors in global (inverse length) units
-    qs_global :: Vector{Vec3}
+    # Original chemical cell
+    crystal :: Crystal
+    # Wavevectors in RLU
+    qpts :: AbstractQPoints
     # Regular grid of energies
     energies :: Vector{Float64}
-    # Integrated intensity over Δω
+    # Convolved intensity data
     data :: Array{T, 2} # (nω × nq)
 end
 
 
-function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
+function intensities2(swt::SpinWaveTheory, qpts; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
+    qpts = convert(AbstractQPoints, qpts)
     (; sys) = swt
+    cryst = orig_crystal(sys)
 
     # Number of atoms in magnetic cell
     @assert sys.latsize == (1,1,1)
     Na = natoms(sys.crystal)
     # Number of chemical cells in magnetic cell
-    Ncells = Na / natoms(orig_crystal(sys))
+    Ncells = Na / natoms(cryst)
     # Number of quasiparticle modes
     L = nbands(swt)
     # Number of wavevectors
-    Nq = length(qs)
-    # Wavevectors in global (inverse length) units
-    qs_global = [orig_crystal(sys).recipvecs * q for q in qs]
+    Nq = length(qpts.qs)
 
     # Preallocation
     H = zeros(ComplexF64, 2L, 2L)
@@ -183,8 +249,8 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
     # crystal
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
     
-    for iq in 1:Nq
-        q_global = qs_global[iq]
+    for (iq, q) in enumerate(qpts.qs)
+        q_global = cryst.recipvecs * q
         q_reshaped = sys.crystal.recipvecs \ q_global
 
         if sys.mode == :SUN
@@ -197,7 +263,7 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
         try
             disp[:, iq] .= bogoliubov!(V, H)
         catch _
-            error("Instability at wavevector q = $(qs[iq])")
+            error("Instability at wavevector q = $q")
         end
 
         for i in 1:Na
@@ -240,23 +306,26 @@ function intensities2(swt::SpinWaveTheory, qs; formfactors=nothing, measure::Mea
                 end
             end
 
-            for (i, (α, β)) in enumerate(measure.corr_pairs)
-                corrbuf[i] = Avec[α] * conj(Avec[β]) / Ncells
+            map!(corrbuf, measure.corr_pairs) do (α, β)
+                Avec[α] * conj(Avec[β]) / Ncells
             end
             intensity[band, iq] = measure.combiner(q_global, corrbuf)
         end
     end
 
-    return BandIntensities{Ret}(qs_global, disp, intensity)
+    return BandIntensities{Ret}(cryst, qpts, disp, intensity)
 end
 
 
-function intensities_broadened2(swt::SpinWaveTheory, energies, qs; kernel::B, formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret, B <: AbstractBroadening}
-    bands = intensities2(swt, qs; formfactors, measure)
+function intensities_broadened2(swt::SpinWaveTheory, qpts, energies; kernel::B, formfactors=nothing, measure::Measurement) where {B <: AbstractBroadening}
+    qpts = convert(AbstractQPoints, qpts)
+    energies = collect(energies)
+    (; qs) = qpts
+    bands = intensities2(swt, qpts; formfactors, measure)
 
     nω = length(energies)
     nq = length(qs)
-    data = zeros(Ret, nω, nq)
+    data = zeros(eltype(measure), nω, nq)
 
     for iq in eachindex(qs)
         for (ib, b) in enumerate(view(bands.disp, :, iq))
@@ -266,6 +335,6 @@ function intensities_broadened2(swt::SpinWaveTheory, energies, qs; kernel::B, fo
         end
     end
 
-    return BroadenedIntensities(bands.qs_global, collect(energies), data)
+    return BroadenedIntensities(bands.crystal, qpts, energies, data)
 end
 
