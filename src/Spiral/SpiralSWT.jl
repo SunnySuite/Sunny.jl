@@ -116,10 +116,21 @@ function dispersion_spiral(swt::SpinWaveTheory, axis; k, qs)
     return disp
 end
 
+# General measurements are not supported. Observables must be a variant of DSSF
+# with some choice of apply_g. Extract and return this parameter.
+function is_apply_g(swt::SpinWaveTheory, measure::Measurement)
+    obs1 = measure.observables
+    for apply_g in (true, false)
+        obs2 = Sunny.DSSF(swt.sys; apply_g).observables
+        vec(obs1) ≈ vec(obs2) && return apply_g
+    end
+    error("General measurements not supported for spiral calculation")
+end
+
 
 function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactors=nothing, measure::Measurement{Op, F, Ret}) where {Op, F, Ret}
     (; sys, data) = swt
-    sys.mode == :SUN && error("Spiral calculation unavailable for SU(N) mode")
+    sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
     @assert sys.mode in (:dipole, :dipole_large_S)
     (; sqrtS) = data
 
@@ -162,9 +173,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
 
     # Observables must be the spin operators directly, with possible scaling by
     # g factor
-    @assert all(==(Vec3(1, 0, 0)), measure.observables[:, :, :, :, 1])
-    @assert all(==(Vec3(0, 1, 0)), measure.observables[:, :, :, :, 2])
-    @assert all(==(Vec3(0, 0, 1)), measure.observables[:, :, :, :, 3])
+    apply_g = is_apply_g(swt, measure)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
@@ -183,7 +192,8 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
         end
 
         for i in 1:Na
-            c[i] = sqrtS[i] * compute_form_factor(ff_atoms[i], norm2(q_global))
+            g = apply_g ? -sys.gs[i] : 1.0
+            c[i] = sqrtS[i] * g * compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
         R = data.local_rotations
@@ -209,18 +219,19 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts, k, axis; formfactor
         YZVW = [[Y Z]; [V W]]
 
         for branch in 1:3, band in 1:L
+            t = view(T, :, band, branch)
             for α in 1:3, β in 1:3
-                A = T[:, :, branch]' * YZVW[:, :, α, β] * T[:, :, branch]
-                S[α, β, band, branch] = (1/2Na) * A[band, band]
+                A = dot(t, view(YZVW, :, :, α, β), t)
+                S[α, β, band, branch] = (1/2Na) * A
             end
         end
 
         avg(S) = 1/2 * (S - nx * S * nx + (R2-I) * S * R2 + R2 * S * (R2-I) + R2 * S * R2)
 
         for band = 1:L
-            S[:, :, band, 1] = avg(CMat3(S[:, :, band, 1])) * conj(R1)
-            S[:, :, band, 2] = avg(CMat3(S[:, :, band, 2])) * R2
-            S[:, :, band, 3] = avg(CMat3(S[:, :, band, 3])) * R1
+            S[:, :, band, 1] .= avg(CMat3(view(S, :, :, band, 1))) * conj(R1)
+            S[:, :, band, 2] .= avg(CMat3(view(S, :, :, band, 2))) * R2
+            S[:, :, band, 3] .= avg(CMat3(view(S, :, :, band, 3))) * R1
         end
 
         for branch in 1:3, band in 1:L

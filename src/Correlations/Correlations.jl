@@ -131,45 +131,46 @@ end
 
 Base.eltype(::Measurement{Op, F, Ret}) where {Op, F, Ret} = Ret
 
+
 function all_dipole_observables(sys::System{0}; apply_g)
     observables = zeros(Vec3, size(eachsite(sys))..., 3)
     for site in eachsite(sys)
-        # Component α of observable is op⋅S = -g[α,β] S[β]
-        M = apply_g ? sys.gs[site] : Mat3(I)  # TODO: Sign
+        # Component α of observable is op⋅S = g[α,β] S[β]. Minus sign would
+        # cancel because observables come in pairs.
+        op = apply_g ? sys.gs[site] : Mat3(I)
         for α in 1:3
-            observables[site, α] = M[α, :]
+            observables[site, α] = op[α, :]
         end
     end
-    corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
-    return observables, corr_pairs
+    return observables
 end
 
 function all_dipole_observables(sys::System{N}; apply_g) where {N}
     observables = Array{HermitianC64, 5}(undef, size(eachsite(sys))..., 3)
     for site in eachsite(sys)
         S = spin_matrices_of_dim(; N=sys.Ns[site])
-        M = apply_g ? sys.gs[site]*S : S  # TODO: Sign
+        op = apply_g ? sys.gs[site]*S : S
         for α in 1:3
-            observables[site, α] = M[α]
+            observables[site, α] = op[α]
         end
     end
-    corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
-    return observables, corr_pairs
+    return observables
 end
 
 
 function DSSF(sys::System{N}; apply_g=true) where N
-    observables, corr_pairs = all_dipole_observables(sys; apply_g)
+    observables = all_dipole_observables(sys; apply_g)
     combiner(_, data) = SA[
         data[6]       data[5]       data[3]
         conj(data[5]) data[4]       data[2]
         conj(data[3]) conj(data[2]) data[1]
     ]
+    corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     return Measurement(observables, corr_pairs, combiner)
 end
 
 function DSSF_perp(sys::System{N}; apply_g=true) where N
-    observables, corr_pairs = all_dipole_observables(sys; apply_g)
+    observables = all_dipole_observables(sys; apply_g)
     function combiner(q, data)
         q2 = norm2(q)
         # Imaginary part cancels by symmetric contraction
@@ -183,12 +184,14 @@ function DSSF_perp(sys::System{N}; apply_g=true) where N
         # TODO: Check how SpinW regularizes, and consider also "Mourigal limit",
         # https://github.com/SunnySuite/Sunny.jl/pull/131
     end
+    corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     return Measurement(observables, corr_pairs, combiner)
 end
 
 function DSSF_trace(sys::System{N}; apply_g=true) where N
-    observables, corr_pairs = all_dipole_observables(sys; apply_g)
-    combiner(_, data) = real(data[1] + data[4] + data[6])
+    observables = all_dipole_observables(sys; apply_g)
+    combiner(_, data) = real(data[1] + data[2] + data[3])
+    corr_pairs = [(3,3), (2,2), (1,1)]
     return Measurement(observables, corr_pairs, combiner)
 end
 
