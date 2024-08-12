@@ -143,21 +143,17 @@ by a single propagation wavevector `k` with an associated `axis` of rotation.
 """
 function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactors=nothing)
     (; sys, data, measure) = swt
+    isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with an `observe` argument.")
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
     @assert sys.mode in (:dipole, :dipole_large_S)
-    (; sqrtS) = data
-    R = data.local_rotations
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
+    R = data.local_rotations
 
     # Number of atoms in magnetic cell
     @assert sys.latsize == (1,1,1)
     Na = length(eachsite(sys))
-    if Na != prod(size(measure.observables)[2:5])
-        error("Size mismatch. Check that SpinWaveTheory and Measurement were built from same System.")
-    end
-
     # Number of chemical cells in magnetic cell
     Ncells = Na / natoms(cryst) # TODO check invariance
     # Number of quasiparticle modes
@@ -213,7 +209,7 @@ function intensities_bands_spiral(swt::SpinWaveTheory, qpts; k, axis, formfactor
 
         for i in 1:Na
             g = apply_g ? to_float_or_mat3(sys.gs[i])::Float64 : 1.0
-            c[i] = sqrtS[i] * g * compute_form_factor(ff_atoms[i], norm2(q_global))
+            c[i] = data.sqrtS[i] * g * compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
         for i in 1:L, j in 1:L
