@@ -157,7 +157,7 @@ qpts = q_space_path(cryst, points, 1000)
 
 # Calculate ``I(𝐪, ω)`` intensities along this path and plot.
 
-res = intensities(sc, qpts; energies, langevin.kT)
+res = intensities(sc, qpts; energies, kT)
 plot_intensities(res; units, saturation=0.85, colormap=:viridis)
 
 # ### Powder averaged intensity
@@ -168,6 +168,6 @@ plot_intensities(res; units, saturation=0.85, colormap=:viridis)
 
 radii = range(0, 3.5, 200) # (1/Å)
 res = powder_average(cryst, radii, 400) do qs
-    intensities(sc, qs; energies, formfactors, kT=langevin.kT)
+    intensities(sc, qs; energies, formfactors, kT)
 end
 plot_intensities(res; units, saturation=0.9, colormap=:viridis)

@@ -132,7 +132,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     end
 
     return if !isnan(sc.Δω)
-        BroadenedIntensities(crystal, qpts, collect(ωs), intensities)
+        Intensities(crystal, qpts, collect(ωs), intensities)
     else
         InstantIntensities(crystal, qpts, reshape(intensities, size(intensities, 2)))
     end
@@ -176,7 +176,7 @@ function intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, form
         end
         intensities(sc, qpts; kernel, formfactors, kT, energies=:available) # Returns an InstantIntensities
     else
-        is = intensities(sc, qpts; kernel, formfactors, kT, energies=:available_with_negative) # Returns a BroadenedIntensities
+        is = intensities(sc, qpts; kernel, formfactors, kT, energies=:available_with_negative) # Returns a Intensities
         data_new = reshape(sum(is.data, dims=(1,)), size(is.data, 2))
         InstantIntensities(is.crystal, is.qpts, data_new)
     end

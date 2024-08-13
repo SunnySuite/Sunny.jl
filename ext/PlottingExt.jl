@@ -1063,18 +1063,18 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
 end
 
 
-function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
+function suggest_labels_for_grid(qpts::Sunny.QGrid{N}) where N
     axes = 1:N # FIXME
     varstrs = ("H", "K", "L")
-    scale = [Δq[a] for (Δq, a) in zip(grid.Δqs, axes)]
+    scale = [Δq[a] for (Δq, a) in zip(qpts.Δqs, axes)]
 
-    vs = grid.Δqs ./ scale
+    vs = qpts.Δqs ./ scale
     V = reduce(hcat, vs)
-    grid_q1 = grid.q0 + sum(grid.Δqs)
-    c0 = V \ grid.q0
+    grid_q1 = qpts.q0 + sum(qpts.Δqs)
+    c0 = V \ qpts.q0
     c1 = V \ grid_q1
-    offset = grid.q0 - V * c0
-    @assert V * c0 + offset ≈ grid.q0
+    offset = qpts.q0 - V * c0
+    @assert V * c0 + offset ≈ qpts.q0
     @assert V * c1 + offset ≈ grid_q1
     @assert !(N == 3 && norm(offset) > 1e-12)
 
@@ -1091,13 +1091,13 @@ function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
 
     offset_label = norm(offset) < 1e-12 ? nothing : Sunny.fractional_vec3_to_string
 
-    coef_range = map(range, c0, c1, grid.lengths)
+    coef_range = map(range, c0, c1, size(qpts.grid))
 
     return labels, offset_label, coef_range
 end
 
 
-function Sunny.plot_intensities!(panel, res::Sunny.BroadenedIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
     unit_energy, ylabel = get_unit_energy(units, into)
     (; crystal, qpts, data, energies) = res
 
@@ -1112,7 +1112,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BroadenedIntensities{Float64}
         return ax
     elseif qpts isa Sunny.QGrid{2}
         if isone(length(energies))
-            data = reshape(data, qpts.lengths)
+            data = reshape(data, size(qpts.grid))
             B1, B2 = Ref(crystal.recipvecs) .* qpts.Δqs
             if abs(dot(B1, B2)) > 1e-12
                 error("Cannot yet plot non-orthogonal grid")
@@ -1132,7 +1132,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.BroadenedIntensities{Float64}
     end
 end
 
-function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities; colormap=nothing, colorrange=nothing, saturation=0.98, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.98, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
     unit_energy, ylabel = get_unit_energy(units, into)
     xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
  
@@ -1149,7 +1149,7 @@ end
     plot_intensities(res::BandIntensities; colormap=nothing, saturation=0.9, sensitivity=0.0025,
                      units=nothing, into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
 
-    plot_intensities(res::BroadenedIntensities; colormap=nothing, colorrange=nothing, 
+    plot_intensities(res::Intensities; colormap=nothing, colorrange=nothing, 
                      saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
 
     plot_intensities(res::PowderIntensities; colormap=nothing, colorrange=nothing, 

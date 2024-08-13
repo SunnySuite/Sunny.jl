@@ -239,7 +239,7 @@ function intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel::Abstrac
     bands = intensities_bands(swt, qpts; formfactors, kT)
     @assert eltype(bands) == eltype(data)
     broaden!(data, bands; energies, kernel)
-    return BroadenedIntensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
+    return Intensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
 end
 
 """

@@ -15,7 +15,7 @@ struct QGrid{N} <: AbstractQPoints
     qs :: Vector{Vec3}
     q0 :: Vec3
     Δqs :: NTuple{N, Vec3}
-    lengths :: NTuple{N, Int}
+    grid :: Array{Vec3, N}
 end
 
 function Base.convert(::Type{AbstractQPoints}, x::AbstractArray)
@@ -23,13 +23,23 @@ function Base.convert(::Type{AbstractQPoints}, x::AbstractArray)
 end
 
 function Base.show(io::IO, qpts::AbstractQPoints)
-    print(io, string(typeof(qpts)) * " ($(length(qpts.qs)) samples)")
+    sz = sizestr(qpts)
+    print(io, string(typeof(qpts)) * " ($sz samples)")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", qpts::QPath)
     printstyled(io, "QPath ($(length(qpts.qs)) samples)\n"; bold=true, color=:underline)
     println(io, "  " * join(qpts.xticks[2], " → "))
 end
+
+function sizestr(qpts::AbstractQPoints)
+    return string(length(qpts.qs))
+end
+
+function sizestr(qpts::QGrid)
+    return "(" * join(size(qpts.grid), "×") * ")"
+end
+
 
 """
     q_space_path(cryst::Crystal, qs, n; labels=nothing)
@@ -146,8 +156,9 @@ function q_space_grid(cryst::Crystal, B1, range1, B2, range2; offset=zero(Vec3),
     Δq1 = cryst.recipvecs \ Δq1
     Δq2 = cryst.recipvecs \ Δq2
 
-    qs = [q0 + c1*Δq1 + c2*Δq2 for c1 in range(0, 1, length1), c2 in range(0, 1, length2)]
-    return QGrid{2}(reshape(qs, :), q0, (Δq1, Δq2), (length1, length2))
+    grid = [q0 + c1*Δq1 + c2*Δq2 for c1 in range(0, 1, length1), c2 in range(0, 1, length2)]
+    qs = reshape(grid, :)
+    return QGrid{2}(qs, q0, (Δq1, Δq2), grid)
 end
 
 
@@ -155,38 +166,38 @@ end
 
 abstract type AbstractIntensities end
 
-struct BandIntensities{T} <: AbstractIntensities
+struct BandIntensities{T, Q <: AbstractQPoints} <: AbstractIntensities
     # Original chemical cell
     crystal :: Crystal
     # Wavevectors in RLU
-    qpts :: AbstractQPoints
+    qpts :: Q
     # Dispersion for each band
     disp :: Array{Float64, 2} # (nbands × nq)
     # Intensity data as Dirac-magnitudes
     data :: Array{T, 2} # (nbands × nq)
 end
 
-struct BroadenedIntensities{T} <: AbstractIntensities
+struct Intensities{T, Q <: AbstractQPoints} <: AbstractIntensities
     # Original chemical cell
     crystal :: Crystal
     # Wavevectors in RLU
-    qpts :: AbstractQPoints
+    qpts :: Q
     # Regular grid of energies
     energies :: Vector{Float64}
     # Convolved intensity data
     data :: Array{T, 2} # (nω × nq)
 end
 
-struct InstantIntensities{T} <: AbstractIntensities
+struct InstantIntensities{T, Q <: AbstractQPoints} <: AbstractIntensities
     # Original chemical cell
     crystal :: Crystal
     # Wavevectors in RLU
-    qpts :: AbstractQPoints
+    qpts :: Q
     # Convolved intensity data
     data :: Vector{T} # (nq)
 end
 
-struct PowderIntensities <: AbstractIntensities
+struct PowderIntensities{T} <: AbstractIntensities
     # Original chemical cell
     crystal :: Crystal
     # q magnitudes in inverse length
@@ -194,13 +205,19 @@ struct PowderIntensities <: AbstractIntensities
     # Regular grid of energies
     energies :: Vector{Float64}
     # Convolved intensity data
-    data :: Array{Float64, 2} # (nω × nq)
+    data :: Array{T, 2} # (nω × nq)
 end
 
 function Base.show(io::IO, res::AbstractIntensities)
-    sizestr = join(size(res.data), "×")
-    print(io, string(typeof(res)) * " ($sizestr elements)")
+    sz = join([size(res.data, 1), sizestr(res.qpts)], "×")
+    print(io, string(typeof(res)) * " ($sz elements)")
 end
+
+function Base.show(io::IO, res::PowderIntensities)
+    sz = join(size(res.data), "×")
+    print(io, string(typeof(res)) * " ($sz elements)")
+end
+
 
 
 #### BROADENING
@@ -308,7 +325,7 @@ end
 function broaden(bands::BandIntensities; energies, kernel)
     data = zeros(eltype(bands.data), length(energies), size(bands.data, 2))
     broaden!(data, bands; energies, kernel)
-    return BroadenedIntensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
+    return Intensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
 end
 
 
@@ -373,7 +390,7 @@ function powder_average(f, cryst, radii, n::Int; seed=0)
         data[:, i] = Statistics.mean(res.data; dims=2)
     end
 
-    return PowderIntensities(cryst, radii, energies, data)
+    return PowderIntensities(cryst, collect(radii), energies, data)
 end
 
 
