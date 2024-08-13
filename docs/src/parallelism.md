@@ -32,7 +32,7 @@ function make_system(; seed=nothing)
     positions = [[0, 0, 0]/2, [1, 1, 1]/2]
     cryst = Crystal(latvecs, positions)
     sys = System(cryst, (10, 10, 2), [SpinInfo(1, S=1, g=2)], :dipole; seed)
-    set_exchange!(sys, 1.0, Bond(1,1,[1,0,0]))
+    set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
     return sys
 end
 
@@ -53,7 +53,8 @@ end
 # Accumulator for S(q,ω) samples
 
 energies = range(0.0, 10.0, 100)
-sc = SampledCorrelations(sys; dt=0.1, energies)
+measure = ssf_perp(sys)
+sc = SampledCorrelations(sys; dt=0.1, energies, measure)
 
 # Collect 10 samples
 for _ in 1:10
@@ -84,7 +85,7 @@ preallocate a number of systems and correlations.
 ```julia
 npar = Threads.nthreads()
 systems = [make_system(; seed=id) for id in 1:npar]
-scs = [SampledCorrelations(sys; dt=0.1, energies) for _ in 1:npar]
+scs = [SampledCorrelations(sys; dt=0.1, energies, measure) for _ in 1:npar]
 ```
 
 !!! warning "Dealing with memory constraints"
@@ -157,7 +158,7 @@ environments. This is easily achieved with the `@everywhere` macro.
     positions = [[0, 0, 0]/2, [1, 1, 1]/2]
     cryst = Crystal(latvecs, positions)
     sys = System(cryst, (10, 10, 2), [SpinInfo(1, S=1, g=2)], :dipole; seed)
-    set_exchange!(sys, 1.0, Bond(1,1,[1,0,0]))
+    set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
     return sys
 end
 ```
@@ -182,7 +183,7 @@ called `scs`.
 ```julia
 scs = pmap(1:ncores) do id
     sys = make_system(; seed=id)
-    sc = SampledCorrelations(sys; dt=0.1, energies)
+    sc = SampledCorrelations(sys; dt=0.1, energies, measure)
     integrator = Langevin(0.05; damping=0.2, kT=0.5)
 
     for _ in 1:5000
