@@ -127,11 +127,11 @@ end
 
 
 """
-    SampledCorrelations(sys::System{N}; measure, energies, dt=NaN, calculate_errors=false) where N
+    SampledCorrelations(sys::System{N}; measure, energies, dt, calculate_errors=false) where N
 
 Create a `SampledCorrelations` for accumulating samples of spin-spin
-correlations. Requires a measurement to determine which correlation pairs to
-calculate, e.g. `measure=ssf_perp(sys)`.
+correlations. Requires a `measure` argument to specify a pair correlation type,
+e.g. [`ssf_perp`](@ref) or related functions.
 
 The stored correlations may either be static (instantaneous) or dynamic. In the
 static case, correlations are calculated from fixed classical spin
@@ -148,15 +148,15 @@ function SampledCorrelations(sys::System{N}; measure, energies, dt=NaN, calculat
     if isnothing(energies)
         n_all_ω = 1
         measperiod = 1
-        dt = NaN
+        dt == NaN || error("Cannot specify dt when energies=nothing")
         Δω = NaN
     else
         nω = length(energies)
         n_all_ω = 2(Int(nω) - 1)
         ωmax = energies[end]
-        @assert iszero(energies[1]) && ωmax > 0 "`energies` must be a range from 0 to a positive value."
+        iszero(energies[1]) && ωmax > 0 || error("`energies` must be a range from 0 to a positive value")
         ΔEs = energies[2:end] - energies[1:end-1]
-        @assert all(x -> x ≈ ΔEs[1], ΔEs) "`energies` must be equally spaced."
+        all(≈(ΔEs[1]), ΔEs) || error("`energies` must be equally spaced.")
         dt, measperiod = adjusted_dt_and_downsampling_factor(dt, nω, ωmax)
         Δω = ωmax/(nω-1)
     end

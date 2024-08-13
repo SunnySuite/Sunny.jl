@@ -88,7 +88,8 @@ include("SpinWaveTheory/HamiltonianSUN.jl")
 include("SpinWaveTheory/DispersionAndIntensities.jl")
 include("SpinWaveTheory/Lanczos.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
-export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands
+export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands,
+    intensities_instant # TODO
 
 include("Spiral/LuttingerTisza.jl")
 include("Spiral/SpiralEnergy.jl")
@@ -101,9 +102,7 @@ include("SampledCorrelations/Interpolation.jl")
 include("SampledCorrelations/CorrelationSampling.jl")
 include("SampledCorrelations/BasisReduction.jl")
 include("SampledCorrelations/DataRetrieval.jl")
-export SampledCorrelations, add_sample!, clone_correlations, merge_correlations,
-    broaden_energy, gaussian06, lorentzian06, available_wave_vectors, available_energies,
-    integrated_gaussian, integrated_lorentzian, intensities_instant
+export SampledCorrelations, add_sample!, clone_correlations, merge_correlations, available_wave_vectors
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")

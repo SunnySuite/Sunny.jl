@@ -76,6 +76,8 @@ function Base.getproperty(x::Type{Units}, name::Symbol)
     return getfield(x, name)
 end
 
+# TODO: Error messages for reciprocal_space_path, instant_correlations, dynamic_correlations.
+
 
 # REMEMBER TO ALSO DELETE:
 #
