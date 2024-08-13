@@ -33,7 +33,7 @@ output of `intensities`. Set `negative_energies` to true to retrieve all ω
 values.
 """
 function available_energies(sc::SampledCorrelations; negative_energies=false)
-    isnan(sc.Δω) && (return NaN)
+    isnan(sc.Δω) && return NaN
 
     n_all_ω = size(sc.data, 7)
     n_non_neg_ω = div(n_all_ω, 2) + 1

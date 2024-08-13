@@ -148,7 +148,7 @@ function SampledCorrelations(sys::System{N}; measure, energies, dt=NaN, calculat
     if isnothing(energies)
         n_all_ω = 1
         measperiod = 1
-        dt == NaN || error("Cannot specify dt when energies=nothing")
+        isnan(dt) || error("Cannot specify dt when energies=nothing")
         Δω = NaN
     else
         nω = length(energies)

@@ -43,21 +43,22 @@
         @test isapprox(g1 * res1.data[2] * g1', res2.data[2])
     end
 end
+
 @testitem "Available Energies Dirac Identity" begin
      # Create a dummy SampledCorrelations object
     latsize = (1,1,1)
     cryst = Sunny.cubic_crystal()
-    sys = System(cryst, latsize, [SpinInfo(1; S = 1/2, g=2)], :SUN; seed = 0)
+    sys = System(cryst, latsize, [SpinInfo(1; S=1/2, g=2)], :SUN; seed = 0)
     dt = 0.08
     sc = SampledCorrelations(sys; dt, energies=range(0.0, 10.0, 100), measure=ssf_perp(sys))
 
-    ωs = available_energies(sc;negative_energies=true)
+    ωs = Sunny.available_energies(sc; negative_energies=true)
     dts = 0:(sc.dt * sc.measperiod):3
-    vals = sum(exp.(im .* ωs .* dts'),dims = 1)[:]
+    vals = sum(exp.(im .* ωs .* dts'), dims=1)[:]
 
     # Verify it made a delta function
     @test vals[1] ≈ length(ωs)
-    @test all(isapprox.(0,vals[2:end];atol = 1e-12))
+    @test all(abs.(vals[2:end]) .< 1e-12)
 end
 
 @testitem "Polyatomic sum rule" begin
