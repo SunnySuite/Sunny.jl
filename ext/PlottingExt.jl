@@ -1063,18 +1063,18 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
 end
 
 
-function suggest_labels_for_grid(qpts::Sunny.QGrid{N}) where N
+function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
     axes = 1:N # FIXME
     varstrs = ("H", "K", "L")
-    scale = [Δq[a] for (Δq, a) in zip(qpts.Δqs, axes)]
+    scale = [Δq[a] for (Δq, a) in zip(grid.Δqs, axes)]
 
-    vs = qpts.Δqs ./ scale
+    vs = grid.Δqs ./ scale
     V = reduce(hcat, vs)
-    grid_q1 = qpts.q0 + sum(qpts.Δqs)
-    c0 = V \ qpts.q0
+    grid_q1 = grid.q0 + sum(grid.Δqs)
+    c0 = V \ grid.q0
     c1 = V \ grid_q1
-    offset = qpts.q0 - V * c0
-    @assert V * c0 + offset ≈ qpts.q0
+    offset = grid.q0 - V * c0
+    @assert V * c0 + offset ≈ grid.q0
     @assert V * c1 + offset ≈ grid_q1
     @assert !(N == 3 && norm(offset) > 1e-12)
 
@@ -1091,7 +1091,7 @@ function suggest_labels_for_grid(qpts::Sunny.QGrid{N}) where N
 
     offset_label = norm(offset) < 1e-12 ? nothing : Sunny.fractional_vec3_to_string
 
-    coef_range = map(range, c0, c1, size(qpts.grid))
+    coef_range = map(range, c0, c1, size(grid.grid))
 
     return labels, offset_label, coef_range
 end
