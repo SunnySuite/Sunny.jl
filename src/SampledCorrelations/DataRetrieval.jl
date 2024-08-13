@@ -61,15 +61,9 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     else
         rounded_energy_information(sc, energies)
     end
-    
 
-    # Interpret q points in terms of original crystal. 
-    q_targets = if !isnothing(sc.origin_crystal)
-        convert = sc.crystal.recipvecs \ sc.origin_crystal.recipvecs
-        [convert * Vec3(q) for q in qpts.qs]
-    else
-        qpts.qs
-    end
+    # q-points in RLU for the reshaped crystal
+    q_targets = to_reshaped_rlu.(Ref(sc), qs)
 
     # Preallocation
     intensities = zeros(IntensitiesType, isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT

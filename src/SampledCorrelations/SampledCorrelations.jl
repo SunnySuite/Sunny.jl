@@ -126,6 +126,11 @@ function adjusted_dt_and_downsampling_factor(dt, nω, ωmax)
 end
 
 
+function to_reshaped_rlu(sc::SampledCorrelations, q)
+    orig_cryst = @something sc.origin_crystal sc.crystal
+    return sc.crystal.recipvecs \ orig_cryst.recipvecs * q
+end
+
 """
     SampledCorrelations(sys::System{N}; measure, energies, dt, calculate_errors=false) where N
 
