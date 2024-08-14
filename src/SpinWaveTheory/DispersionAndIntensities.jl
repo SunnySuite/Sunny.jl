@@ -132,8 +132,11 @@ should be indexed as `ret[band_index, q_index]`.
 function dispersion(swt::SpinWaveTheory, qpts)
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
-    disp = [view(excitations(swt, q)[1], 1:L) for q in qpts.qs]
-    return reduce(hcat, disp)
+    disp = zeros(L, length(qpts.qs))
+    for (iq, q) in enumerate(qpts.qs)
+        view(disp, :, iq) .= view(excitations(swt, q)[1], 1:L)
+    end
+    return reshape(disp, L, size(qpts.qs)...)
 end
 
 """
@@ -224,6 +227,8 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
         end
     end
 
+    disp = reshape(disp, L, size(qpts.qs)...)
+    intensity = reshape(intensity, L, size(qpts.qs)...)
     return BandIntensities(cryst, qpts, disp, intensity)
 end
 
@@ -235,7 +240,7 @@ Like [`intensities`](@ref), but makes use of storage space `data` to avoid
 allocation costs.
 """
 function intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
-    @assert size(data) == (length(energies), size(bands.data, 2))
+    @assert size(data) == (length(energies), size(qpts.qs)...)
     bands = intensities_bands(swt, qpts; formfactors, kT)
     @assert eltype(bands) == eltype(data)
     broaden!(data, bands; energies, kernel)

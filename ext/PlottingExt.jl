@@ -1010,7 +1010,7 @@ function get_unit_energy(units, into)
 end
 
 function colorrange_from_data(; data, saturation, sensitivity, allpositive)
-    datacols = eachcol(data)
+    datacols = eachslice(data; dims=1)
     cmax = Statistics.quantile(maximum.(datacols), saturation)
     cmin = Statistics.quantile(minimum.(datacols), 1 - saturation)
 
@@ -1091,7 +1091,7 @@ function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
 
     offset_label = norm(offset) < 1e-12 ? nothing : Sunny.fractional_vec3_to_string
 
-    coef_range = map(range, c0, c1, size(grid.grid))
+    coef_range = map(range, c0, c1, size(grid.qs))
 
     return labels, offset_label, coef_range
 end
@@ -1112,7 +1112,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
         return ax
     elseif qpts isa Sunny.QGrid{2}
         if isone(length(energies))
-            data = reshape(data, size(qpts.grid))
+            data = reshape(data, size(qpts.qs))
             B1, B2 = Ref(crystal.recipvecs) .* qpts.Δqs
             if abs(dot(B1, B2)) > 1e-12
                 error("Cannot yet plot non-orthogonal grid")

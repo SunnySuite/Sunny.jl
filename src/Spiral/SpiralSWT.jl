@@ -138,9 +138,7 @@ function dispersion(sswt::SpiralSpinWaveTheory, qpts)
     (; swt) = sswt
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
-    nq = length(qpts.qs)
-    disp = zeros(L, 3, nq)
-
+    disp = zeros(L, 3, length(qpts.qs))
     for (iq, q) in enumerate(qpts.qs)
         for branch in 1:3
             view(disp, :, branch, iq) .= view(excitations(sswt, q; branch)[1], 1:L)
@@ -148,7 +146,7 @@ function dispersion(sswt::SpiralSpinWaveTheory, qpts)
     end
 
     # Concatenate all three branches, and sort in descending order
-    return sort!(reshape(disp, 3L, nq); dims=1, rev=true)
+    return sort!(reshape(disp, 3L, size(qpts.qs)...); dims=1, rev=true)
 end
 
 
@@ -174,7 +172,7 @@ end
 function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing) # TODO: branch=nothing
     (; swt, axis) = sswt
     (; sys, data, measure) = swt
-    isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with an `measure` argument.")
+    isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
     @assert sys.mode in (:dipole, :dipole_large_S)
 
@@ -281,11 +279,13 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
         view(intensity_flat, :, iq) .= intensity_flat[P, iq]
     end
 
+    disp_flat = reshape(disp_flat, 3L, size(qpts.qs)...)
+    intensity_flat = reshape(intensity_flat, 3L, size(qpts.qs)...)
     return BandIntensities(cryst, qpts, disp_flat, intensity_flat)
 end
 
 function intensities!(data, sswt::SpiralSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
-    @assert size(data) == (length(energies), size(bands.data, 2))
+    @assert size(data) == (length(energies), size(qpts.qs)...)
     bands = intensities_bands(sswt, qpts; formfactors)
     @assert eltype(bands) == eltype(data)
     broaden!(data, bands; energies, kernel)

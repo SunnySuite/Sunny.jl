@@ -12,10 +12,9 @@ struct QPath <: AbstractQPoints
 end
 
 struct QGrid{N} <: AbstractQPoints
-    qs :: Vector{Vec3}
+    qs :: Array{Vec3, N}
     q0 :: Vec3
     Δqs :: NTuple{N, Vec3}
-    grid :: Array{Vec3, N}
 end
 
 function Base.convert(::Type{AbstractQPoints}, x::AbstractArray)
@@ -37,7 +36,7 @@ function sizestr(qpts::AbstractQPoints)
 end
 
 function sizestr(qpts::QGrid)
-    return "(" * join(size(qpts.grid), "×") * ")"
+    return join(size(qpts.qs), "×")
 end
 
 
@@ -156,9 +155,8 @@ function q_space_grid(cryst::Crystal, B1, range1, B2, range2; offset=zero(Vec3),
     Δq1 = cryst.recipvecs \ Δq1
     Δq2 = cryst.recipvecs \ Δq2
 
-    grid = [q0 + c1*Δq1 + c2*Δq2 for c1 in range(0, 1, length1), c2 in range(0, 1, length2)]
-    qs = reshape(grid, :)
-    return QGrid{2}(qs, q0, (Δq1, Δq2), grid)
+    qs = [q0 + c1*Δq1 + c2*Δq2 for c1 in range(0, 1, length1), c2 in range(0, 1, length2)]
+    return QGrid{2}(qs, q0, (Δq1, Δq2))
 end
 
 
@@ -166,18 +164,18 @@ end
 
 abstract type AbstractIntensities end
 
-struct BandIntensities{T, Q <: AbstractQPoints} <: AbstractIntensities
+struct BandIntensities{T, Q <: AbstractQPoints, D} <: AbstractIntensities
     # Original chemical cell
     crystal :: Crystal
     # Wavevectors in RLU
     qpts :: Q
     # Dispersion for each band
-    disp :: Array{Float64, 2} # (nbands × nq)
+    disp :: Array{Float64, D} # (nbands × nq...)
     # Intensity data as Dirac-magnitudes
-    data :: Array{T, 2} # (nbands × nq)
+    data :: Array{T, D} # (nbands × nq...)
 end
 
-struct Intensities{T, Q <: AbstractQPoints} <: AbstractIntensities
+struct Intensities{T, Q <: AbstractQPoints, D} <: AbstractIntensities
     # Original chemical cell
     crystal :: Crystal
     # Wavevectors in RLU
@@ -185,16 +183,16 @@ struct Intensities{T, Q <: AbstractQPoints} <: AbstractIntensities
     # Regular grid of energies
     energies :: Vector{Float64}
     # Convolved intensity data
-    data :: Array{T, 2} # (nω × nq)
+    data :: Array{T, D} # (nω × nq...)
 end
 
-struct InstantIntensities{T, Q <: AbstractQPoints} <: AbstractIntensities
+struct InstantIntensities{T, Q <: AbstractQPoints, D} <: AbstractIntensities
     # Original chemical cell
     crystal :: Crystal
     # Wavevectors in RLU
     qpts :: Q
     # Convolved intensity data
-    data :: Vector{T} # (nq)
+    data :: Array{T, D} # (nq...)
 end
 
 struct PowderIntensities{T} <: AbstractIntensities
@@ -205,7 +203,7 @@ struct PowderIntensities{T} <: AbstractIntensities
     # Regular grid of energies
     energies :: Vector{Float64}
     # Convolved intensity data
-    data :: Array{T, 2} # (nω × nq)
+    data :: Array{T, 2} # (nω × nradii)
 end
 
 function Base.show(io::IO, res::AbstractIntensities)
@@ -282,17 +280,17 @@ end
 =#
 
 
-function broaden!(data::AbstractMatrix{Ret}, bands::BandIntensities{Ret}; energies, kernel) where Ret
+function broaden!(data::AbstractArray{Ret}, bands::BandIntensities{Ret}; energies, kernel) where Ret
     energies = collect(Float64, energies)
     issorted(energies) || error("energies must be sorted")
 
     nω = length(energies)
-    nq = size(bands.data, 2)
-    (nω, nq) == size(data) || error("Argument data must have size ($nω×$nq)")
+    nq = size(bands.qpts.qs)
+    (nω, nq...) == size(data) || error("Argument data must have size ($nω×$(sizestr(bands.qpts)))")
 
     cutoff = 1e-12 * Statistics.quantile(norm.(vec(bands.data)), 0.95)
 
-    for iq in axes(bands.data, 2)
+    for iq in CartesianIndices(bands.qpts.qs)
         for (ib, b) in enumerate(view(bands.disp, :, iq))
             norm(bands.data[ib, iq]) < cutoff && continue
             for (iω, ω) in enumerate(energies)
@@ -323,7 +321,7 @@ function broaden!(data::AbstractMatrix{Ret}, bands::BandIntensities{Ret}; energi
 end
 
 function broaden(bands::BandIntensities; energies, kernel)
-    data = zeros(eltype(bands.data), length(energies), size(bands.data, 2))
+    data = zeros(eltype(bands.data), length(energies), size(bands.qpts.qs)...)
     broaden!(data, bands; energies, kernel)
     return Intensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
 end

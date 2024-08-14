@@ -47,6 +47,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     (; measure) = sc
     interp = NoInterp()
     qpts = Base.convert(AbstractQPoints, qpts)
+    qs = view(qpts.qs, :)
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
     IntensitiesType = eltype(measure)
     crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
@@ -66,14 +67,15 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     q_targets = to_reshaped_rlu.(Ref(sc), qs)
 
     # Preallocation
-    intensities = zeros(IntensitiesType, isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
+    nω = isnan(sc.Δω) ? 1 : length(ωs)
+    intensities = zeros(IntensitiesType, nω, length(qs)) # N.B.: Inefficient indexing order to mimic LSWT
     local_intensities = zeros(IntensitiesType, ninterp(interp)) 
 
     # Stencil and interpolation precalculation for q-space
     li_intensities = LinearIndices(intensities)
-    ci_targets = CartesianIndices(q_targets)
+    ci_targets = eachindex(q_targets)
     m_targets = [mod.(sc.latsize .* q_target, 1) for q_target in q_targets]
-    (; qabs_all, idcs_all, counts) = pruned_stencil_info(sc, qpts.qs, interp) 
+    (; qabs_all, idcs_all, counts) = pruned_stencil_info(sc, qs, interp) 
 
     # Calculate the interpolated intensities, avoiding repeated calls to
     # phase_averaged_elements. This is the computational expensive portion.
@@ -125,10 +127,11 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
         !isnothing(kT) && error("Given `SampledCorrelations` only contains instant correlation data. Temperature corrections only available with dynamical correlation info.")
     end
 
+    intensities = reshape(intensities, nω, size(qpts.qs)...)
     return if !isnan(sc.Δω)
         Intensities(crystal, qpts, collect(ωs), intensities)
     else
-        InstantIntensities(crystal, qpts, reshape(intensities, size(intensities, 2)))
+        InstantIntensities(crystal, qpts, dropdims(intensities; dims=1))
     end
 end
 
@@ -161,7 +164,6 @@ where ``n_B(ω) = 1/(exp(βω) - 1)`` is the Bose function and ``β=1/(k_B T)``.
 If `kT` is set to `nothing` (the default behavior), this correction will not be
 applied. Note that temperature-dependent corrections are only available when the
 `SampledCorrelations` contains dynamic correlations.
-
 """
 function intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT=nothing)
     return if isnan(sc.Δω)
@@ -170,9 +172,9 @@ function intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, form
         end
         intensities(sc, qpts; kernel, formfactors, kT, energies=:available) # Returns an InstantIntensities
     else
-        is = intensities(sc, qpts; kernel, formfactors, kT, energies=:available_with_negative) # Returns a Intensities
-        data_new = reshape(sum(is.data, dims=(1,)), size(is.data, 2))
-        InstantIntensities(is.crystal, is.qpts, data_new)
+        res = intensities(sc, qpts; kernel, formfactors, kT, energies=:available_with_negative) # Returns a Intensities
+        data_new = dropdims(sum(res.data, dims=1), dims=1)
+        InstantIntensities(res.crystal, res.qpts, data_new)
     end
 end
 
