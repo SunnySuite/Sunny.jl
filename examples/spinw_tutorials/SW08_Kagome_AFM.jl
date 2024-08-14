@@ -49,8 +49,7 @@ path = q_space_path(cryst, points_rlu, 400)
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities_bands(swt, path)
 
-# The intensities are dominated by a flat band at zero energy transfer. Clip
-# intensities beyond a saturation cutoff of 0.45. This represents the 45th
-# percentile of the maximum intensity magnitudes, ranging over q values.
+# The plot shows a very intense flat band at zero energy transfer. In the
+# original SpinW tutorial, this flat band was filtered.
 
-plot_intensities(res; saturation=0.45)
+plot_intensities(res)
