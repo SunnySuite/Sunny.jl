@@ -36,7 +36,7 @@ function rounded_energy_information(sc, energies)
 end
 
 # Documented in same location as LSWT `intensities` function.
-function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
+function intensities_old(sc::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
     if isnan(sc.Δω) && energies != :available
         error("`SampledCorrelations` only contains static information. No energy information is available.")
     end
@@ -75,37 +75,12 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     li_intensities = LinearIndices(intensities)
     ci_targets = eachindex(q_targets)
     m_targets = [mod.(sc.latsize .* q_target, 1) for q_target in q_targets]
-    (; qabs_all, idcs_all, counts) = pruned_stencil_info(sc, qs, interp) 
+    index_info = (; li_intensities, ci_targets, m_targets)
+    stencil_info = pruned_stencil_info(sc, qpts.qs, interp)
+    NCorr  = Val{size(sc.data, 1)}()
+    NAtoms = Val{size(sc.data, 2)}()
 
-    # Calculate the interpolated intensities, avoiding repeated calls to
-    # phase_averaged_elements. This is the computational expensive portion.
-    for (n, iω) in enumerate(ωidcs)
-        iq = 0
-        for (qabs, idcs, numrepeats) in zip(qabs_all, idcs_all, counts)
-
-            # Pull out nearest intensities formling the "stencil" used for
-            # interpolation.
-            for n in 1:ninterp(interp)
-                correlations = phase_averaged_elements(
-                    view(sc.data, :, :, :, idcs[n], iω), 
-                    qabs[n], 
-                    sc.crystal, 
-                    ff_atoms, 
-                    Val(size(sc.data, 1)), 
-                    Val(size(sc.data, 2))
-                )
-                local_intensities[n] = measure.combiner(qabs[n], correlations)
-            end
-
-            # Perform interpolations for all requested qs using stencil
-            # intensities.
-            for _ in 1:numrepeats
-                iq += 1
-                idx = li_intensities[CartesianIndex(n, ci_targets[iq])]
-                intensities[idx] = interpolated_intensity(sc, m_targets[iq], local_intensities, interp) 
-            end
-        end
-    end
+    intensities_interpolated_old!(intensities, local_intensities, sc, measure.combiner, ff_atoms, ωidcs, stencil_info, index_info, interp, NCorr, NAtoms)
 
     # Processing steps that depend on whether instant or dynamic correlations.
     if !isnan(sc.Δω)
@@ -135,11 +110,41 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     end
 end
 
-# ```math
-# \frac{\omega}{k_{\rm{B}}T}\left[1 + n_{\rm{B}}\left(\omega/T\right)\right].
-# ```
-# 
-# where $n_{\rm{B}} = \left(e^{\omega/k_{\rm{T}}T}\right - 1)^{-1}$ is the Bose function.
+function intensities_interpolated_old!(intensities, local_intensities, sc, combiner, ff_atoms, ωidcs, stencil_info, index_info, interp, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
+    (; qabs_all, idcs_all, counts) = stencil_info 
+    (; li_intensities, ci_targets, m_targets) = index_info
+
+    # Calculate the interpolated intensities, avoiding repeated calls to
+    # phase_averaged_elements. This is the computational expensive portion.
+    for (n, iω) in enumerate(ωidcs)
+        iq = 0
+        for (qabs, idcs, numrepeats) in zip(qabs_all, idcs_all, counts)
+
+            # Pull out nearest intensities formling the "stencil" used for
+            # interpolation.
+            for n in 1:ninterp(interp)
+                correlations = phase_averaged_elements(
+                    view(sc.data, :, :, :, idcs[n], iω), 
+                    qabs[n], 
+                    sc.crystal, 
+                    ff_atoms, 
+                    Val(NCorr),
+                    Val(NAtoms)
+                )
+                local_intensities[n] = combiner(qabs[n], correlations)
+            end
+
+            # Perform interpolations for all requested qs using stencil
+            # intensities.
+            for _ in 1:numrepeats
+                iq += 1
+                idx = li_intensities[CartesianIndex(n, ci_targets[iq])]
+                intensities[idx] = interpolate(sc, m_targets[iq], local_intensities, interp) 
+            end
+        end
+    end
+end
+
 
 """
     intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT)
@@ -219,3 +224,120 @@ function broaden_energy(sc::SampledCorrelations, is, kernel::Function; negative_
     return out
 end
 =#
+
+
+
+
+
+
+################################################################################
+function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
+    if isnan(sc.Δω) && energies != :available
+        error("`SampledCorrelations` only contains static information. No energy information is available.")
+    end
+    if !isnothing(kernel)
+        error("Kernel post-processing not yet available for `SampledCorrelations`.")
+    end
+
+    (; measure) = sc
+    interp = NoInterp()
+    qpts = Base.convert(AbstractQPoints, qpts)
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
+    IntensitiesType = eltype(measure)
+    crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
+
+    # Determine energy information
+    (ωs, ωidcs) = if energies == :available
+        ωs = available_energies(sc; negative_energies=false)
+        (ωs, axes(ωs, 1))
+    elseif energies == :available_with_negative
+        ωs = available_energies(sc; negative_energies=true)
+        (ωs, axes(ωs, 1))
+    else
+        rounded_energy_information(sc, energies)
+    end
+    
+
+    # Interpret q points in terms of original crystal. 
+    q_targets = if !isnothing(sc.origin_crystal)
+        convert = sc.crystal.recipvecs \ sc.origin_crystal.recipvecs
+        [convert * Vec3(q) for q in qpts.qs]
+    else
+        qpts.qs
+    end
+
+    # Preallocation
+    intensities = zeros(IntensitiesType, isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
+    local_intensities = zeros(IntensitiesType, ninterp(interp)) 
+
+    # Stencil and interpolation precalculation for q-space
+    stencil_info = pruned_stencil_info(sc, qpts.qs, interp)
+    NCorr  = Val{size(sc.data, 1)}()
+    NAtoms = Val{size(sc.data, 2)}()
+
+    intensities_interpolated!(intensities, local_intensities, sc, measure.combiner, ff_atoms, ωidcs, stencil_info, index_info, interp, NCorr, NAtoms)
+
+    # Processing steps that depend on whether instant or dynamic correlations.
+    if !isnan(sc.Δω)
+        # Convert time axis to a density.
+        # TODO: Why not do this with the definition of the FFT normalization?
+        n_all_ω = size(sc.samplebuf, 6)
+        intensities ./= (n_all_ω * sc.Δω)
+
+        # Apply classical-to-quantum correspondence factor if temperature given.
+        if !isnothing(kT) 
+            c2q = classical_to_quantum.(ωs, kT)
+            for i in axes(intensities, 2)
+                intensities[:,i] .*= c2q
+            end
+        end
+    else
+        # If temperature is given for a SampledCorrelations with only
+        # instantaneous data, throw an error. 
+        !isnothing(kT) && error("Given `SampledCorrelations` only contains instant correlation data. Temperature corrections only available with dynamical correlation info.")
+    end
+
+    return if !isnan(sc.Δω)
+        BroadenedIntensities(crystal, qpts, collect(ωs), intensities)
+    else
+        InstantIntensities(crystal, qpts, reshape(intensities, size(intensities, 2)))
+    end
+end
+
+function intensities_interpolated!(intensities, local_intensities, sc, combiner, ff_atoms, ωidcs, stencil_info, index_info, interp, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
+    (; qabs_all, idcs_all, counts) = stencil_info 
+    (; li_intensities, ci_targets, m_targets) = index_info
+
+    # Calculate the interpolated intensities, avoiding repeated calls to
+    # phase_averaged_elements. This is the computational expensive portion.
+    for (n, iω) in enumerate(ωidcs)
+        iq = 0
+        for (qabs, idcs, numrepeats) in zip(qabs_all, idcs_all, counts)
+
+            # Pull out nearest intensities formling the "stencil" used for
+            # interpolation.
+            for n in 1:ninterp(interp)
+                correlations = phase_averaged_elements(
+                    view(sc.data, :, :, :, idcs[n], iω), 
+                    qabs[n], 
+                    sc.crystal, 
+                    ff_atoms, 
+                    Val(NCorr),
+                    Val(NAtoms)
+                )
+                local_intensities[n] = combiner(qabs[n], correlations)
+            end
+
+            # Perform interpolations for all requested qs using stencil
+            # intensities.
+            for _ in 1:numrepeats
+                iq += 1
+                idx = li_intensities[CartesianIndex(n, ci_targets[iq])]
+                intensities[idx] = interpolate(sc, m_targets[iq], local_intensities, interp) 
+            end
+        end
+    end
+
+
+
+end

@@ -100,7 +100,7 @@ include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
 include("SampledCorrelations/Interpolation.jl")
 include("SampledCorrelations/CorrelationSampling.jl")
-include("SampledCorrelations/BasisReduction.jl")
+include("SampledCorrelations/PhaseAveraging.jl")
 include("SampledCorrelations/DataRetrieval.jl")
 export SampledCorrelations, add_sample!, clone_correlations, merge_correlations, available_wave_vectors
 

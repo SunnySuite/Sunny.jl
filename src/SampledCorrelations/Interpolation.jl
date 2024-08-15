@@ -5,12 +5,12 @@ struct LinearInterp <: InterpolationScheme{8} end
 ninterp(::InterpolationScheme{NInterp}) where {NInterp} = NInterp
 
 
-function interpolated_intensity(::SampledCorrelations, _, stencil_intensities, ::NoInterp) 
+function interpolate(::SampledCorrelations, _, stencil_intensities, ::NoInterp) 
     return only(stencil_intensities)
 end
 
 # N.B.: This interpolation is only valid when all three entries of m_target are in [0,1]
-function interpolated_intensity(::SampledCorrelations, m_target, stencil_intensities, ::LinearInterp) 
+function interpolate(::SampledCorrelations, m_target, stencil_intensities, ::LinearInterp) 
     c000, c100, c010, c110, c001, c101, c011, c111 = stencil_intensities
 
     xd, yd, zd = m_target
@@ -41,10 +41,10 @@ function stencil_points(sc::SampledCorrelations, q, ::LinearInterp)
     offsets = (
         (0, 0, 0),
         (1, 0, 0),
-        (0, 1, 0), 
-        (1, 1, 0), 
+        (0, 1, 0),
+        (1, 1, 0),
         (0, 0, 1),
-        (1, 0, 1), 
+        (1, 0, 1),
         (0, 1, 1),
         (1, 1, 1)
     )
