@@ -44,6 +44,9 @@ export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primit
 include("Units.jl")
 export Units
 
+include("FormFactor.jl")
+export FormFactor
+
 include("System/SpinInfo.jl")
 include("System/Types.jl")
 include("System/System.jl")
@@ -70,17 +73,16 @@ export Langevin, ImplicitMidpoint, step!, suggest_timestep
 include("Optimization.jl")
 export minimize_energy! 
 
-include("FormFactor.jl")
-export FormFactor
-
 include("MCIF.jl")
 export set_dipoles_from_mcif!
 
-include("MeasureSpec.jl")
-export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace
-
-include("MeasureHelpers.jl")
-export q_space_path, q_space_grid, lorentzian, gaussian, rotation_in_rlu, powder_average, domain_average
+include("Measurements/MeasureSpec.jl")
+include("Measurements/QPoints.jl")
+include("Measurements/IntensitiesTypes.jl")
+include("Measurements/Broadening.jl")
+include("Measurements/RotationalAverages.jl")
+export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_grid, lorentzian, gaussian, 
+    powder_average, domain_average
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
