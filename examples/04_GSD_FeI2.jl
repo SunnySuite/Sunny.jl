@@ -220,9 +220,12 @@ formfactors = [FormFactor("Fe2"; g_lande=3/2)]
 res = intensities(sc, qpath; kT, energies, formfactors)
 plot_intensities(res; colormap=:viridis, colorrange=(0.0, 1.0))
 
-# On can also view the intensity along a ``𝐪``-space slice with constant energy.
+# On can also view the intensity along a ``𝐪``-space slice at a fixed energy
+# value.
 
-grid = q_space_grid(cryst, [1, -1/2, 0], range(-1.5, 1.5, 300), [0, 1, 0], (-1.5, 1.5))
+axis1 = [1, -1/2, 0]
+axis2 = [0, 1, 0]
+grid = q_space_grid(cryst, axis1, range(-1.5, 1.5, 300), axis2, (-1.5, 1.5))
 res = intensities(sc, grid; energies=[3.88], kT)
 plot_intensities(res; colorrange=(0.0, 0.3))
 

@@ -1064,22 +1064,13 @@ end
 
 
 function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
-    axes = 1:N # FIXME
+    (; qs, axes, offset) = grid
+
+    varidxs = 1:N # FIXME
     varstrs = ("H", "K", "L")
-    scale = [Δq[a] for (Δq, a) in zip(grid.Δqs, axes)]
 
-    vs = grid.Δqs ./ scale
-    V = reduce(hcat, vs)
-    grid_q1 = grid.q0 + sum(grid.Δqs)
-    c0 = V \ grid.q0
-    c1 = V \ grid_q1
-    offset = grid.q0 - V * c0
-    @assert V * c0 + offset ≈ grid.q0
-    @assert V * c1 + offset ≈ grid_q1
-    @assert !(N == 3 && norm(offset) > 1e-12)
-
-    labels = map(vs, varstrs[axes]) do v, c
-        elems = map(v) do x
+    labels = map(axes, varstrs[varidxs]) do axis, c
+        elems = map(axis) do x
             if abs(x) < 1e-12
                 "0"
             else
@@ -1089,11 +1080,12 @@ function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
         return "[" * join(elems, ", ") * "]"
     end
 
-    offset_label = norm(offset) < 1e-12 ? nothing : Sunny.fractional_vec3_to_string
+    offset_label = norm(offset) < 1e-12 ? nothing : Sunny.fractional_vec3_to_string(offset)
 
-    coef_range = map(range, c0, c1, size(grid.qs))
+    (c0, c1) = Sunny.grid_coefficient_range(grid)
+    ranges = map(range, c0, c1, size(qs))
 
-    return labels, offset_label, coef_range
+    return labels, offset_label, ranges
 end
 
 
@@ -1112,17 +1104,14 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
         return ax
     elseif qpts isa Sunny.QGrid{2}
         if isone(length(energies))
-            data = reshape(data, size(qpts.qs))
-            B1, B2 = Ref(crystal.recipvecs) .* qpts.Δqs
-            if abs(dot(B1, B2)) > 1e-12
-                error("Cannot yet plot non-orthogonal grid")
-            end
-            aspect = norm(qpts.Δqs[1]) / norm(qpts.Δqs[2])
+            e1, e2 = normalize.(Ref(crystal.recipvecs) .* qpts.axes)
+            abs(dot(e1, e2)) < 1e-12 || error("Cannot yet plot non-orthogonal grid")
 
+            aspect = Sunny.grid_aspect_ratio(crystal, qpts)
             (xlabel, ylabel), offset, (xs, ys) = suggest_labels_for_grid(qpts)
             
             ax = Makie.Axis(panel; xlabel, ylabel, aspect, axisopts...)
-            Makie.heatmap!(ax, xs, ys, data; colormap, colorrange)
+            Makie.heatmap!(ax, xs, ys, dropdims(data; dims=1); colormap, colorrange)
             return ax
         else
             error("Cannot plot type $(typeof(qpts))")

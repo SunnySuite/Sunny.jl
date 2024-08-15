@@ -12,8 +12,8 @@ end
 
 struct QGrid{N} <: AbstractQPoints
     qs :: Array{Vec3, N}
-    q0 :: Vec3
-    Δqs :: NTuple{N, Vec3}
+    axes :: NTuple{N, Vec3}
+    offset :: Vec3
 end
 
 function Base.convert(::Type{AbstractQPoints}, x::AbstractArray)
@@ -95,14 +95,19 @@ function q_space_path(cryst::Crystal, qs, n; labels=nothing)
 end
 
 """
-    q_space_grid(cryst::Crystal, B1, range1, B2, range2; offset=[0,0,0], orthogonalize=false)
-    q_space_grid(cryst::Crystal, B1, range1, B2, range2, B3, range3; orthogonalize=false)
+    q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=[0,0,0], orthogonalize=false)
+    q_space_grid(cryst::Crystal, axis1, range1, axis2, range2, axis3, range3; orthogonalize=false)
 
 Returns a 2D or 3D grid of q-points with uniform spacing. The volume shape is
-defined by axes ``𝐁_i`` in reciprocal lattice units (RLU). Positions in a 3D
-grid are ``c_1 𝐁_1 + c_2 𝐁_2 + c_3 𝐁_3`` where each coefficient ``c_i`` is an
-element of the ``i``th range. For 2D volumes, an offset ``𝐁_0`` is allowed,
-yielding positions ``𝐁_0 + c_1 𝐁_1 + c_2 𝐁_2``.
+defined by `(axis1, axis2, ...)` in reciprocal lattice units (RLU). Elements of
+`(range1, range2, ...)` provide coefficients ``c_i`` used to define grid
+positions,
+
+```julia
+    offset + c1 * axis1 + c2 * axis2 + ...
+```
+
+A nonzero `offset` is allowed only in the 2D case. 
 
 The first range parameter, `range1`, must be a regularly spaced list of
 coefficients, e.g., `range1 = range(lo1, hi1, n)`. Subsequent range parameters
@@ -111,23 +116,24 @@ selecting `range2 = (lo2, hi2)`, an appropriate step-size will be inferred to
 provide an approximately uniform sampling density in global Cartesian
 coordinates.
 
-The axes ``𝐁_i`` may be non-orthogonal. To achieve an orthohombic volume in
-global Cartesian coordinates, set `orthogonalize=true`.
+The axes may be non-orthogonal. To extend to an orthohombic volume in global
+Cartesian coordinates, set `orthogonalize=true`.
 
 For a 1D grid, use [`q_space_path`](@ref) instead.
 """
-function q_space_grid(cryst::Crystal, B1, range1, B2, range2; offset=zero(Vec3), orthogonalize=false)
-    B1 = cryst.recipvecs * Vec3(B1)
-    B2 = cryst.recipvecs * Vec3(B2)
+function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(Vec3), orthogonalize=false)
+    # Axes in global coordinates
+    A1 = cryst.recipvecs * Vec3(axis1)
+    A2 = cryst.recipvecs * Vec3(axis2)
 
     # Orthonormalized axes in global coordinates
-    e1 = normalize(B1)
-    e2 = normalize(proj(B2, e1))
+    e1 = normalize(A1)
+    e2 = normalize(proj(A2, e1))
 
     # Grid volume is defined by corner q0 and sides Δq in global coordinates
-    q0 = first(range1) * B1 + first(range2) * B2
-    Δq1 = (last(range1) - first(range1)) * B1
-    Δq2 = (last(range2) - first(range2)) * B2
+    q0 = first(range1) * A1 + first(range2) * A2
+    Δq1 = (last(range1) - first(range1)) * A1
+    Δq2 = (last(range2) - first(range2)) * A2
 
     # Scale lengths as needed to maintain uniform samples
     length1 = length(range1)
@@ -147,13 +153,43 @@ function q_space_grid(cryst::Crystal, B1, range1, B2, range2; offset=zero(Vec3),
         length1 = round(Int, length1 * abs(Δq1′⋅e1) / abs(Δq1⋅e1))
         length2 = round(Int, length2 * abs(Δq2′⋅e2) / abs(Δq2⋅e2))
         (Δq1, Δq2) = (Δq1′, Δq2′)
+
+        # A1 already parallel to e1
+        @assert norm(A1 × e1) < 1e-12
+        # A2 needs to be projected onto e2
+        A2 = e2 * (A2 ⋅ e2)
+        axis2 = cryst.recipvecs \ A2
     end
 
-    # Convert back to RLU for outputs
+    # Convert back to RLU for filling grid
     q0 = cryst.recipvecs \ q0 + offset
     Δq1 = cryst.recipvecs \ Δq1
     Δq2 = cryst.recipvecs \ Δq2
-
     qs = [q0 + c1*Δq1 + c2*Δq2 for c1 in range(0, 1, length1), c2 in range(0, 1, length2)]
-    return QGrid{2}(qs, q0, (Δq1, Δq2))
+
+    return QGrid{2}(qs, (axis1, axis2), offset)
+end
+
+function grid_coefficient_range(grid::QGrid{N}) where N
+    (; qs, axes, offset) = grid
+    q0 = qs[begin]
+    q1 = qs[end]
+    A = reduce(hcat, axes)
+    c0 = A \ (q0 - offset)
+    c1 = A \ (q1 - offset)
+    coefs = Iterators.product(map(range, c0, c1, size(qs))...)
+    for (coef, q) in zip(coefs, qs)
+        isapprox(A * collect(coef) + offset, q; atol=1e-12) || error("Non-uniform or inconsistent grid object")
+    end
+    return (c0, c1)
+end
+
+function grid_aspect_ratio(cryst::Crystal, grid::QGrid{2})
+    # Near and far corners in RLU
+    q0 = grid.qs[begin]
+    q1 = grid.qs[end]
+    # Aspect ratio for global distances
+    Δq_global = cryst.recipvecs * (q1 - q0)
+    e1, e2 = normalize.(Ref(cryst.recipvecs) .* grid.axes)
+    return (Δq_global ⋅ e1) / (Δq_global ⋅ e2)
 end
