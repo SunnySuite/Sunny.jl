@@ -12,7 +12,14 @@ end
 
 struct QGrid{N} <: AbstractQPoints
     qs :: Array{Vec3, N}
+
+    ### Next three fields contain equivalent information:
+    # Directions in RLU aligned with parallelpiped
     axes :: NTuple{N, Vec3}
+    # Low and high coefficient values that scale axes
+    coefs_lo :: Vector{Float64}
+    coefs_hi :: Vector{Float64}
+    # Overall parallelpiped offset in RLU
     offset :: Vec3
 end
 
@@ -123,73 +130,42 @@ For a 1D grid, use [`q_space_path`](@ref) instead.
 """
 function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(Vec3), orthogonalize=false)
     # Axes in global coordinates
-    A1 = cryst.recipvecs * Vec3(axis1)
-    A2 = cryst.recipvecs * Vec3(axis2)
+    A1 = cryst.recipvecs * axis1
+    A2 = cryst.recipvecs * axis2
 
-    # Orthonormalized axes in global coordinates
-    e1 = normalize(A1)
-    e2 = normalize(proj(A2, e1))
+    # Orthogonalize axes in global coordinates, if requested
+    if orthogonalize
+        # Project A2 onto space perpendicular to A1
+        A2 = proj(A2, normalize(A1))
+        # Update RLU representation
+        axis2 = cryst.recipvecs \ A2
+    end
 
-    # Grid volume is defined by corner q0 and sides Δq in global coordinates
-    q0 = first(range1) * A1 + first(range2) * A2
-    Δq1 = (last(range1) - first(range1)) * A1
-    Δq2 = (last(range2) - first(range2)) * A2
+    # Corner-to-corner displacement vector
+    q_lo = first(range1) * axis1 + first(range2) * axis2 + offset
+    q_hi = last(range1) * axis1 + last(range2) * axis2 + offset
+    Δq_global = cryst.recipvecs * (q_hi - q_lo)
 
-    # Scale lengths as needed to maintain uniform samples
+    # Determine lengths yielding a uniform spacing along each axis
     length1 = length(range1)
     length2 = if range2 isa Tuple{Number, Number}
-        round(Int, length1 * abs(Δq2⋅e2) / norm(Δq1))
+        round(Int, length1 * abs(Δq_global⋅normalize(A2) / Δq_global⋅normalize(A1)))
     else
         length(range2)
     end
 
-    # Extend to orthorhombic volume if requested, and appropriately scale
-    # lengths.
-    if orthogonalize
-        diag = Δq1 + Δq2
-        Δq1′ = e1 * (diag ⋅ e1)
-        Δq2′ = e2 * (diag ⋅ e2)
-        @assert Δq1′ + Δq2′ ≈ diag
-        length1 = round(Int, length1 * abs(Δq1′⋅e1) / abs(Δq1⋅e1))
-        length2 = round(Int, length2 * abs(Δq2′⋅e2) / abs(Δq2⋅e2))
-        (Δq1, Δq2) = (Δq1′, Δq2′)
+    axes = hcat(axis1, axis2)
+    coefs_lo = axes \ (q_lo - offset)
+    coefs_hi = axes \ (q_hi - offset)
+    coefs_sz = (length1, length2)
+    coefs = Iterators.product(map(range, coefs_lo, coefs_hi, coefs_sz)...)
+    qs = [axes * collect(c) + offset for c in coefs]
 
-        # A1 already parallel to e1
-        @assert norm(A1 × e1) < 1e-12
-        # A2 needs to be projected onto e2
-        A2 = e2 * (A2 ⋅ e2)
-        axis2 = cryst.recipvecs \ A2
-    end
+    @assert isapprox(qs[begin], q_lo; atol=1e-12)
+    @assert isapprox(qs[end], q_hi; atol=1e-12)
 
-    # Convert back to RLU for filling grid
-    q0 = cryst.recipvecs \ q0 + offset
-    Δq1 = cryst.recipvecs \ Δq1
-    Δq2 = cryst.recipvecs \ Δq2
-    qs = [q0 + c1*Δq1 + c2*Δq2 for c1 in range(0, 1, length1), c2 in range(0, 1, length2)]
+    # Adjustment of axis2 does not affect axis1 range
+    @assert range(coefs_lo[1], coefs_hi[1], coefs_sz[1]) ≈ range1
 
-    return QGrid{2}(qs, (axis1, axis2), offset)
-end
-
-function grid_coefficient_range(grid::QGrid{N}) where N
-    (; qs, axes, offset) = grid
-    q0 = qs[begin]
-    q1 = qs[end]
-    A = reduce(hcat, axes)
-    c0 = A \ (q0 - offset)
-    c1 = A \ (q1 - offset)
-    coefs = Iterators.product(map(range, c0, c1, size(qs))...)
-    for (coef, q) in zip(coefs, qs)
-        isapprox(A * collect(coef) + offset, q; atol=1e-12) || error("Non-uniform or inconsistent grid object")
-    end
-    return (c0, c1)
-end
-
-function grid_aspect_ratio(cryst::Crystal, grid::QGrid{2})
-    # Near and far corners in RLU
-    q0 = grid.qs[begin]
-    q1 = grid.qs[end]
-    # Aspect ratio for global distances
-    Δq_global = cryst.recipvecs * (q1 - q0)
-    e1, e2 = normalize.(Ref(cryst.recipvecs) .* grid.axes)
-    return (Δq_global ⋅ e1) / (Δq_global ⋅ e2)
+    return QGrid{2}(qs, (axis1, axis2), coefs_lo, coefs_hi, offset)
 end

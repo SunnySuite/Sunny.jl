@@ -1062,9 +1062,15 @@ function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; col
     end
 end
 
+function grid_aspect_ratio(cryst::Crystal, grid::Sunny.QGrid{2})
+    # Aspect ratio for global distances
+    Δq_global = cryst.recipvecs * (grid.qs[end] - grid.qs[begin])
+    e1, e2 = normalize.(Ref(cryst.recipvecs) .* grid.axes)
+    return (Δq_global ⋅ e1) / (Δq_global ⋅ e2)
+end
 
 function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
-    (; qs, axes, offset) = grid
+    (; axes, offset) = grid
 
     varidxs = 1:N # FIXME
     varstrs = ("H", "K", "L")
@@ -1080,12 +1086,11 @@ function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
         return "[" * join(elems, ", ") * "]"
     end
 
-    offset_label = norm(offset) < 1e-12 ? nothing : Sunny.fractional_vec3_to_string(offset)
+    if norm(offset) > 1e-12
+        labels[begin] = labels[begin] * " + " * Sunny.fractional_vec3_to_string(offset)
+    end
 
-    (c0, c1) = Sunny.grid_coefficient_range(grid)
-    ranges = map(range, c0, c1, size(qs))
-
-    return labels, offset_label, ranges
+    return labels
 end
 
 
@@ -1107,9 +1112,10 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
             e1, e2 = normalize.(Ref(crystal.recipvecs) .* qpts.axes)
             abs(dot(e1, e2)) < 1e-12 || error("Cannot yet plot non-orthogonal grid")
 
-            aspect = Sunny.grid_aspect_ratio(crystal, qpts)
-            (xlabel, ylabel), offset, (xs, ys) = suggest_labels_for_grid(qpts)
-            
+            aspect = grid_aspect_ratio(crystal, qpts)
+            xlabel, ylabel = suggest_labels_for_grid(qpts)
+            (xs, ys) = map(range, qpts.coefs_lo, qpts.coefs_hi, size(qpts.qs))
+
             ax = Makie.Axis(panel; xlabel, ylabel, aspect, axisopts...)
             Makie.heatmap!(ax, xs, ys, dropdims(data; dims=1); colormap, colorrange)
             return ax
