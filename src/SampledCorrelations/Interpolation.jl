@@ -98,3 +98,11 @@ function pruned_stencil_info(sc::SampledCorrelations, qs, interp::InterpolationS
     return (; qabs_all, idcs_all, counts)
 end
 
+
+function full_stencil_info(sc::SampledCorrelations, qs)
+    pairs = map(q -> stencil_points(sc, q, NoInterp()), qs)
+    ms = [p[1][1] for p in pairs]
+    idcs = [p[2][1] for p in pairs]
+    qabs_rounded = map(m -> sc.crystal.recipvecs * (m ./ sc.latsize), ms)
+    return (; qabs_rounded, idcs)
+end
