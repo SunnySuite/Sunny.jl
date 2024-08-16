@@ -1066,6 +1066,7 @@ function grid_aspect_ratio(cryst::Crystal, grid::Sunny.QGrid{2})
     # Aspect ratio for global distances
     Δq_global = cryst.recipvecs * (grid.qs[end] - grid.qs[begin])
     e1, e2 = normalize.(Ref(cryst.recipvecs) .* grid.axes)
+    abs(dot(e1, e2)) < 1e-12 || error("Cannot yet plot non-orthogonal grid")
     return (Δq_global ⋅ e1) / (Δq_global ⋅ e2)
 end
 
@@ -1095,7 +1096,6 @@ end
 
 
 function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
-    unit_energy, ylabel = get_unit_energy(units, into)
     (; crystal, qpts, data, energies) = res
 
     colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
@@ -1103,27 +1103,43 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
     colorrange = @something colorrange colorrange_suggest
     
     if qpts isa Sunny.QPath
+        unit_energy, ylabel = get_unit_energy(units, into)
         xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
         ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, qpts.xticks, xticklabelrotation, axisopts...)
         Makie.heatmap!(ax, axes(data, 2), collect(energies/unit_energy), data'; colormap, colorrange)
         return ax
     elseif qpts isa Sunny.QGrid{2}
         if isone(length(energies))
-            e1, e2 = normalize.(Ref(crystal.recipvecs) .* qpts.axes)
-            abs(dot(e1, e2)) < 1e-12 || error("Cannot yet plot non-orthogonal grid")
-
             aspect = grid_aspect_ratio(crystal, qpts)
             xlabel, ylabel = suggest_labels_for_grid(qpts)
             (xs, ys) = map(range, qpts.coefs_lo, qpts.coefs_hi, size(qpts.qs))
-
             ax = Makie.Axis(panel; xlabel, ylabel, aspect, axisopts...)
             Makie.heatmap!(ax, xs, ys, dropdims(data; dims=1); colormap, colorrange)
             return ax
         else
-            error("Cannot plot type $(typeof(qpts))")
+            error("Cannot yet plot $(typeof(res))")
         end
     else
-        error("Cannot plot type $(typeof(qpts))")
+        error("Cannot yet plot $(typeof(res))")
+    end
+end
+
+function Sunny.plot_intensities!(panel, res::Sunny.InstantIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+    (; crystal, qpts, data) = res
+
+    colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
+    colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
+    colorrange = @something colorrange colorrange_suggest
+    
+    if qpts isa Sunny.QGrid{2}
+        aspect = grid_aspect_ratio(crystal, qpts)
+        xlabel, ylabel = suggest_labels_for_grid(qpts)
+        (xs, ys) = map(range, qpts.coefs_lo, qpts.coefs_hi, size(qpts.qs))
+        ax = Makie.Axis(panel; xlabel, ylabel, aspect, axisopts...)
+        Makie.heatmap!(ax, xs, ys, data; colormap, colorrange)
+        return ax
+    else
+        error("Cannot yet plot $(typeof(res))")
     end
 end
 

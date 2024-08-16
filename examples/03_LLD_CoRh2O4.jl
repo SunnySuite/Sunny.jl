@@ -89,33 +89,19 @@ for _ in 1:20
     add_sample!(sc, sys)
 end
 
-# Define a slice of momentum space. Wavevectors are specified in reciprocal
-# lattice units (RLU). The notation `q1s in -10:0.1:10` indicates that the first
-# ``q``-component ranges from -10 to 10 in intervals of 0.1. That is, ``q``
-# spans over 20 Brillouin zones. To convert to absolute momentum units, each
-# component of ``q`` would need to be scaled by a reciprocal lattice vector.
+# Use [`q_space_grid`](@ref) to define a slice of momentum space ``[H, K, 0]``,
+# where ``H`` and ``K`` each range from -10 to 10 in RLU. This command produces
+# a 200×200 grid of sample points.
 
-q1s = -10:0.1:10
-q2s = -10:0.1:10
-qs = Sunny.QPoints([[q1, q2, 0.0] for q1 in q1s, q2 in q2s][:]);
+grid = q_space_grid(cryst, [1, 0, 0], range(-10, 10, 200), [0, 1, 0], (-10, 10))
 
-# Plot the instantaneous structure factor for the given ``q``-slice. We employ
-# the appropriate [`FormFactor`](@ref) for Co2⁺.
+# Calculate and plot the instantaneous structure factor on the slice by
+# integrating over all energy values ω. We employ the appropriate
+# [`FormFactor`](@ref) for Co2⁺.
 
 formfactors = [FormFactor("Co2")]
-res = intensities_instant(sc, qs; formfactors);
-
-# Plot the resulting intensity data ``I(𝐪)``. The color scale is clipped to 50%
-# of the maximum intensity.
-
-heatmap(q1s, q2s, reshape(res.data, (201, 201));
-    colorrange = (0, maximum(res.data)/2),
-    axis = (
-        xlabel="Momentum Transfer Qx (r.l.u)", xlabelsize=16, 
-        ylabel="Momentum Transfer Qy (r.l.u)", ylabelsize=16, 
-        aspect=true,
-    )
-)
+res = intensities_instant(sc, grid; formfactors)
+plot_intensities(res)
 
 
 # ### Dynamical structure factor

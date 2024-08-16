@@ -137,6 +137,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
         !isnothing(kT) && error("Given `SampledCorrelations` only contains instant correlation data. Temperature corrections only available with dynamical correlation info.")
     end
 
+    intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
     return if !isnan(sc.Δω)
         Intensities(crystal, qpts, collect(ωs), intensities)
     else
