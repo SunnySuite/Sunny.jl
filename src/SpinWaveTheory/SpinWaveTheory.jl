@@ -11,6 +11,9 @@ struct SWTDataSUN
     spins_localized       :: Array{HermitianC64, 2}     # Spins rotated to local frame (3 × nsites)
 end
 
+# To facilitate sharing some code with SpiralSpinWaveTheory
+abstract type AbstractSpinWaveTheory end
+
 """
     SpinWaveTheory(sys::System; measure, regularization=1e-8)
 
@@ -26,7 +29,7 @@ numerical issues with quasi-particle modes of vanishing energy. Physically, this
 shift can be interpreted as application of an inhomogeneous field aligned with
 the magnetic ordering.
 """
-struct SpinWaveTheory
+struct SpinWaveTheory <: AbstractSpinWaveTheory
     sys            :: System
     data           :: Union{SWTDataDipole, SWTDataSUN}
     measure        :: MeasureSpec

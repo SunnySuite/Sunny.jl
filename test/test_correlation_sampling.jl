@@ -81,7 +81,7 @@
     # Test static from dynamic intensities working
     is_static = intensities_instant(sc, qgrid; kT=nothing)
     total_intensity_static = sum(is_static.data)
-    @test isapprox(total_intensity_static, total_intensity_trace; atol=1e-9)  # Order of summation can lead to very small discrepancies
+    @test isapprox(total_intensity_static, total_intensity_trace * sc.Δω; atol=1e-9)  # Order of summation can lead to very small discrepancies
 
     # Test quantum-to-classical increases intensity
     is_static_c2q = intensities_instant(sc, qgrid; kT=0.1)

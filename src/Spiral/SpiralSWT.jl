@@ -17,7 +17,7 @@ The algorithm for this calculation was developed in [Toth and Lake, J. Phys.:
 Condens. Matter **27**, 166002 (2015)](https://arxiv.org/abs/1402.6069) and
 implemented in the [SpinW code](https://spinw.org/).
 """
-struct SpiralSpinWaveTheory
+struct SpiralSpinWaveTheory <: AbstractSpinWaveTheory
     swt :: SpinWaveTheory
     k :: Vec3
     axis :: Vec3
@@ -282,16 +282,4 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
     disp_flat = reshape(disp_flat, 3L, size(qpts.qs)...)
     intensity_flat = reshape(intensity_flat, 3L, size(qpts.qs)...)
     return BandIntensities(cryst, qpts, disp_flat, intensity_flat)
-end
-
-function intensities!(data, sswt::SpiralSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
-    @assert size(data) == (length(energies), size(qpts.qs)...)
-    bands = intensities_bands(sswt, qpts; formfactors)
-    @assert eltype(bands) == eltype(data)
-    broaden!(data, bands; energies, kernel)
-    return Intensities(bands.crystal, bands.qpts, collect(energies), data)
-end
-
-function intensities(sswt::SpiralSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing)
-    return broaden(intensities_bands(sswt, qpts; formfactors); energies, kernel)
 end

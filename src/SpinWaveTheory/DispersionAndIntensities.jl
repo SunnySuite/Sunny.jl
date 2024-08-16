@@ -239,7 +239,7 @@ end
 Like [`intensities`](@ref), but makes use of storage space `data` to avoid
 allocation costs.
 """
-function intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
+function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
     @assert size(data) == (length(energies), size(qpts.qs)...)
     bands = intensities_bands(swt, qpts; formfactors, kT)
     @assert eltype(bands) == eltype(data)
@@ -258,21 +258,47 @@ Traditional spin wave theory calculations are performed with an instance of
 [`SpinWaveTheory`](@ref). One can alternatively use
 [`SpiralSpinWaveTheory`](@ref) to study generalized spiral orders with a single,
 incommensurate-``𝐤`` ordering wavevector. Another alternative is
-`SpinWaveTheoryKPM`, which may be faster than `SpinWaveTheory` for
-calculations on large magnetic cells (e.g., to study systems with disorder). In
-spin wave theory, a nonzero temperature `kT` will scale intensities by the
-quantum thermal occupation factor ``|1 + n_B(ω)|`` where ``n_B(ω) = 1 / (exp(βω)
-- 1)`` is the Bose function.
+`SpinWaveTheoryKPM`, which may be faster than `SpinWaveTheory` for calculations
+on large magnetic cells (e.g., to study systems with disorder). In spin wave
+theory, a nonzero temperature `kT` will scale intensities by the quantum thermal
+occupation factor ``|1 + n_B(ω)|`` where ``n_B(ω) = 1 / (exp(βω)
+- 1)`` is the Bose function and ``β=1/(k_B T)``.
 
 Intensities can also be calculated for `SampledCorrelations` associated with
 classical spin dynamics. In this case, thermal broadening will already be
 present, and the line-broadening `kernel` becomes an optional argument. It is
 here necessary to specify `kT`. If `kT` has a numeric value, this will signify
-an intensity correction that undoes the occupation factor for the classical
-Boltzmann distribution, and applies the corresponding quantum thermal occupation
-factor. If `kT = nothing`, then intensities consistent with the classical
-Boltzmann distribution will be returned directly.
+an intensity correction ``|βω [1 + n_B(ω)]|`` that undoes the occupation factor
+for the classical Boltzmann distribution, and applies the quantum thermal
+occupation factor. If `kT = nothing`, then intensities consistent with the
+classical Boltzmann distribution will be returned directly.
 """
-function intensities(swt::SpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
+function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
     return broaden(intensities_bands(swt, qpts; formfactors, kT); energies, kernel)
+end
+
+"""
+    intensities_instant(sc::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
+    intensities_instant(sc::SampledCorrelations, qpts; formfactors=nothing, kT)
+
+Calculate the instantaneous (equal-time) correlations for a set of
+``𝐪``-points. This is the integral of ``\\mathcal{S}(𝐪, ω)`` over all energies
+``ω``.
+
+In [`SpinWaveTheory`](@ref) the integral can be realized as a discrete sum over
+bands. In [`SampledCorrelations`](@ref) there is an analogous integral over the
+available energies.
+
+The meaning of `kT` is documented in  [`intensities`](@ref). In the case of a
+`SampledCorrelations`, it will introduce a classical-to-quantum correction
+prefactor, per dynamical mode ``ω``. If `SampledCorrelations` was constructed
+with `energies = nothing`, then the result of `intensities_instant` will be a
+static intensity from the classical Boltzmann distribution. In this case, one
+must select `kT = nothing`, which indicates absence of a dynamical correction
+prefactor.
+"""
+function intensities_instant(swt::AbstractSpinWaveTheory, qpts; formfactors=nothing, kT=0)
+    res = intensities_bands(swt, qpts; formfactors, kT)
+    data_new = dropdims(sum(res.data, dims=1), dims=1)
+    InstantIntensities(res.crystal, res.qpts, data_new)
 end

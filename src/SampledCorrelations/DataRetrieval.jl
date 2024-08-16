@@ -171,39 +171,15 @@ function intensities_rounded!(intensities, data, crystal, measure::MeasureSpec{O
 end
 
 
-"""
-    intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT)
-
-Calculate the instant (equal-time) correlations for a set of q-points in
-reciprocal space.
-
-This calculation may be performed on a [SampledCorrelations](@ref) regardless of
-whether it contains only static correlations or dynamic correlations. If the
-`SampledCorrelation` does contain correlations from time-evolved trajectories,
-then `intensities_instant` returns the energy-integrated correlations. If, in
-addition, `kT` is given a numerical value, the dynamic correlations will be
-multiplied by the "classical-to-quantum" correspondence factor before energy
-integration:
-
-```math
-βω [1 + n_B(ω)],
-```
-
-where ``n_B(ω) = 1/(exp(βω) - 1)`` is the Bose function and ``β=1/(k_B T)``.
-
-If `kT` is set to `nothing` (the default behavior), this correction will not be
-applied. Note that temperature-dependent corrections are only available when the
-`SampledCorrelations` contains dynamic correlations.
-"""
-function intensities_instant(sc::SampledCorrelations, qpts; kernel=nothing, formfactors=nothing, kT=nothing)
+function intensities_instant(sc::SampledCorrelations, qpts; formfactors=nothing, kT)
     return if isnan(sc.Δω)
         if !isnothing(kT) 
-            error("Temperature corrections unavailable if `SampledCorrelations` does not contain dynamic correlations. Do not set `kT` value.")
+            error("kT=nothing is required for a `SampledCorrelations` without dynamics")
         end
-        intensities(sc, qpts; kernel, formfactors, kT, energies=:available) # Returns an InstantIntensities
+        intensities(sc, qpts; formfactors, kT, energies=:available)
     else
-        res = intensities(sc, qpts; kernel, formfactors, kT, energies=:available_with_negative) # Returns a Intensities
-        data_new = dropdims(sum(res.data, dims=1), dims=1)
+        res = intensities(sc, qpts; formfactors, kT, energies=:available_with_negative)
+        data_new = dropdims(sum(res.data, dims=1), dims=1) * sc.Δω
         InstantIntensities(res.crystal, res.qpts, data_new)
     end
 end

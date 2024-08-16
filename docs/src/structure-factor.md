@@ -391,8 +391,9 @@ These will determine the dynamics used to calculate samples and, consequently,
 the $ω$ information that will be available. 
 
 1. `energies`: A uniform range of resolved energies. If `nothing`, then
-   classical dynamics will be avoided and only a static approximation to the
-   instantaneous intensities will be available.
+   classical dynamics will be avoided and only a [static approximation to the
+   instantaneous intensities](@ref "The instantaneous structure factor") will be
+   available.
 2. `dt`: The step size for dynamical time-integration. Larger may reduce
    simulation time, but the choice will be limited by the stability and accuracy
    requirements of the [`ImplicitMidpoint`](@ref) integration method. The
@@ -451,4 +452,17 @@ the classical Boltzmann distribution.
 
 ### The instantaneous structure factor
 
-True instantaneous structure factor intensities are given 
+Use [`intensities_instant`](@ref) to calculate ``\mathcal{S}(𝐪)``, i.e.,
+ correlations that are "instantaneous" in real-time. Mathematically,
+``\mathcal{S}(𝐪)`` denotes an integral of the full dynamical structure factor
+``\mathcal{S}(𝐪, ω)``, taken over all energies ``ω``. In
+[`SpinWaveTheory`](@ref), the energy integral becomes a discrete sum over bands.
+In [`SampledCorrelations`](@ref), a classical-to-quantum correction factor will
+be applied within [`intensities`](@ref) prior to energy integration.
+
+Sunny also supports a mechanism to calculate static correlations without any
+spin dynamics. To collect such statistics, construct `SampledCorrelations` using
+the option `energies = nothing`. In this case, `intensities_instant` will return
+static correlations sampled from the classical Boltzmann distribution. This
+dynamics-free approach is faster, but may miss important quantum mechanical
+features of the structure factors.
