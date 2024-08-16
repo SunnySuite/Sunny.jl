@@ -149,7 +149,7 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(
     # Determine lengths yielding a uniform spacing along each axis
     length1 = length(range1)
     length2 = if range2 isa Tuple{Number, Number}
-        round(Int, length1 * abs(Δq_global⋅normalize(A2) / Δq_global⋅normalize(A1)))
+        round(Int, length1 * abs(Δq_global⋅normalize(A2) / (Δq_global⋅normalize(A1))))
     else
         length(range2)
     end
@@ -158,8 +158,8 @@ function q_space_grid(cryst::Crystal, axis1, range1, axis2, range2; offset=zero(
     coefs_lo = axes \ (q_lo - offset)
     coefs_hi = axes \ (q_hi - offset)
     coefs_sz = (length1, length2)
-    coefs = Iterators.product(map(range, coefs_lo, coefs_hi, coefs_sz)...)
-    qs = [axes * collect(c) + offset for c in coefs]
+    range1, range2 = map(range, coefs_lo, coefs_hi, coefs_sz)
+    qs = [axes * [c1, c2] + offset for c1 in range1, c2 in range2]
 
     @assert isapprox(qs[begin], q_lo; atol=1e-12)
     @assert isapprox(qs[end], q_hi; atol=1e-12)
