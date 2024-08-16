@@ -169,7 +169,7 @@ function check_g_scalar(swt::SpinWaveTheory)
 end
 
 
-function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing) # TODO: branch=nothing
+function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing, kT=0) # TODO: branch=nothing
     (; swt, axis) = sswt
     (; sys, data, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
@@ -270,7 +270,7 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
             corrbuf = map(measure.corr_pairs) do (α, β)
                 S[α, β, band, branch]
             end
-            intensity[band, branch, iq] = measure.combiner(q_global, corrbuf)
+            intensity[band, branch, iq] = thermal_prefactor(kT, disp[band, branch, iq]) * measure.combiner(q_global, corrbuf)
         end
 
         # Dispersion in descending order
