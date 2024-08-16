@@ -166,7 +166,6 @@ plot_intensities(res; units, saturation=0.85, colormap=:viridis)
 # of 1/Å. For each shell, calculate and average the intensities at 100
 # ``𝐪``-points, sampled approximately uniformly.
 
-# 6s -> 3.3s -> 2.3
 radii = range(0, 3.5, 200) # (1/Å)
 res = powder_average(cryst, radii, 350) do qs
     intensities(sc, qs; energies, formfactors, kT)
