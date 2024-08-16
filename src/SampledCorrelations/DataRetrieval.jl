@@ -1,3 +1,51 @@
+# Takes a list of q points, converts into SampledCorrelation.data indices and
+# corresponding exact wave vectors, and eliminates repeated elements.
+function pruned_wave_vector_info(sc::SampledCorrelations, qs)
+
+    # Round to the nearest wavevector and wrapped index
+    Ls = size(sc.samplebuf)[2:4]
+    ms = map(qs) do q 
+        round.(Int, Ls .* q)
+    end
+    idcs = map(ms) do m
+        CartesianIndex{3}(map(i -> mod(m[i], Ls[i])+1, (1, 2, 3)))
+    end
+
+    # Convert to absolute units (for form factors)
+    qabs_rounded = map(m -> sc.crystal.recipvecs * (m ./ sc.latsize), ms)
+
+    # Remove reptitions and take counts
+    start_idcs, counts = start_idcs_and_counts(idcs)
+    qabs = qabs_rounded[start_idcs]
+    idcs = idcs[start_idcs]
+
+    return (; qabs, idcs, counts)
+end
+
+
+# Analyzes the list elems and returns the indices at which new values start
+# (i.e., values not equal to the prior value) and also counts how many times the
+# new value is repeated.
+function start_idcs_and_counts(elems)
+
+    # Find the indices that start (posibly singleton) run of repeated values
+    start_idcs = Int64[1]
+    ref = elems[1]
+    for i in 2:length(elems)
+        if elems[i] != ref
+            push!(start_idcs, i)
+            ref = elems[i]
+        end
+    end
+
+    # Find how long each run of repeated values is
+    counts = start_idcs[2:end] - start_idcs[1:end-1]
+    append!(counts, length(elems) - start_idcs[end] + 1)
+
+    return start_idcs, counts
+end
+
+# Crude slow way to find the energy axis index closest to some given energy.
 function find_idx_of_nearest_fft_energy(ref, val)
     for i in axes(ref[1:end-1], 1)
         x1, x2 = ref[i], ref[i+1]
@@ -20,6 +68,7 @@ function find_idx_of_nearest_fft_energy(ref, val)
     error("Value does not lie in bounds of reference list.")
 end
 
+
 # If the user specifies an energy list, round to the nearest available energies
 # and give the corresponding indices into the raw data. This is fairly
 # inefficient, though the cost is likely trivial next to the rest of the
@@ -35,22 +84,15 @@ function rounded_energy_information(sc, energies)
     return ωvals[ωidcs], ωidcs
 end
 
-# Documented in same location as LSWT `intensities` function.
-function intensities_old(sc::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
+
+# Documented under intensities function for LSWT.
+function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
     if isnan(sc.Δω) && energies != :available
         error("`SampledCorrelations` only contains static information. No energy information is available.")
     end
     if !isnothing(kernel)
         error("Kernel post-processing not yet available for `SampledCorrelations`.")
     end
-
-    (; measure) = sc
-    interp = NoInterp()
-    qpts = Base.convert(AbstractQPoints, qpts)
-    qs = view(qpts.qs, :)
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
-    IntensitiesType = eltype(measure)
-    crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
 
     # Determine energy information
     (ωs, ωidcs) = if energies == :available
@@ -63,26 +105,19 @@ function intensities_old(sc::SampledCorrelations, qpts; energies, kernel=nothing
         rounded_energy_information(sc, energies)
     end
 
-    # q-points in RLU for the reshaped crystal
-    q_targets = to_reshaped_rlu.(Ref(sc), qs)
-
-    # Preallocation
-    nω = isnan(sc.Δω) ? 1 : length(ωs)
-    intensities = zeros(IntensitiesType, nω, length(qs)) # N.B.: Inefficient indexing order to mimic LSWT
-    local_intensities = zeros(IntensitiesType, ninterp(interp)) 
-
-    # Stencil and interpolation precalculation for q-space
-    li_intensities = LinearIndices(intensities)
-    ci_targets = eachindex(q_targets)
-    m_targets = [mod.(sc.latsize .* q_target, 1) for q_target in q_targets]
-    index_info = (; li_intensities, ci_targets, m_targets)
-    stencil_info = pruned_stencil_info(sc, qpts.qs, interp)
+    # Prepare memory and configuration variables for actual calculation
+    qpts = Base.convert(AbstractQPoints, qpts)
+    ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
+    intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
+    stencil_info = pruned_wave_vector_info(sc, qpts.qs)
+    crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
     NCorr  = Val{size(sc.data, 1)}()
     NAtoms = Val{size(sc.data, 2)}()
 
-    intensities_interpolated_old!(intensities, local_intensities, sc, measure.combiner, ff_atoms, ωidcs, stencil_info, index_info, interp, NCorr, NAtoms)
+    # Intensities calculation
+    intensities_rounded!(intensities, sc.data, sc.crystal, sc.measure, ff_atoms, ωidcs, stencil_info, NCorr, NAtoms)
 
-    # Processing steps that depend on whether instant or dynamic correlations.
+    # Post-processing steps that depend on whether instant or dynamic correlations.
     if !isnan(sc.Δω)
         # Convert time axis to a density.
         # TODO: Why not do this with the definition of the FFT normalization?
@@ -102,7 +137,6 @@ function intensities_old(sc::SampledCorrelations, qpts; energies, kernel=nothing
         !isnothing(kT) && error("Given `SampledCorrelations` only contains instant correlation data. Temperature corrections only available with dynamical correlation info.")
     end
 
-    intensities = reshape(intensities, nω, size(qpts.qs)...)
     return if !isnan(sc.Δω)
         Intensities(crystal, qpts, collect(ωs), intensities)
     else
@@ -110,38 +144,28 @@ function intensities_old(sc::SampledCorrelations, qpts; energies, kernel=nothing
     end
 end
 
-function intensities_interpolated_old!(intensities, local_intensities, sc, combiner, ff_atoms, ωidcs, stencil_info, index_info, interp, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
-    (; qabs_all, idcs_all, counts) = stencil_info 
-    (; li_intensities, ci_targets, m_targets) = index_info
+function intensities_rounded!(intensities, data, crystal, measure::MeasureSpec{Op, F, Ret}, ff_atoms, ωidcs, stencil_info, ::Val{NCorr}, ::Val{NAtoms}) where {Op, F, Ret, NCorr, NAtoms}
+    (; qabs, idcs, counts) = stencil_info 
+    qidx = 1
+    for (qabs, idx, count) in zip(qabs, idcs, counts)
+        prefactors = prefactors_for_phase_averaging(qabs, crystal, ff_atoms, Val(NCorr), Val(NAtoms))
 
-    # Calculate the interpolated intensities, avoiding repeated calls to
-    # phase_averaged_elements. This is the computational expensive portion.
-    for (n, iω) in enumerate(ωidcs)
-        iq = 0
-        for (qabs, idcs, numrepeats) in zip(qabs_all, idcs_all, counts)
-
-            # Pull out nearest intensities formling the "stencil" used for
-            # interpolation.
-            for n in 1:ninterp(interp)
-                correlations = phase_averaged_elements(
-                    view(sc.data, :, :, :, idcs[n], iω), 
-                    qabs[n], 
-                    sc.crystal, 
-                    ff_atoms, 
-                    Val(NCorr),
-                    Val(NAtoms)
-                )
-                local_intensities[n] = combiner(qabs[n], correlations)
+        # Perform phase-averaging over all omega
+        for iω in ωidcs
+            elems = zero(MVector{NCorr,ComplexF64})
+            for j in 1:NAtoms, i in 1:NAtoms
+                elems .+= (prefactors[i] * conj(prefactors[j])) .* view(data, :, i, j, idx, iω)
             end
-
-            # Perform interpolations for all requested qs using stencil
-            # intensities.
-            for _ in 1:numrepeats
-                iq += 1
-                idx = li_intensities[CartesianIndex(n, ci_targets[iq])]
-                intensities[idx] = interpolate(sc, m_targets[iq], local_intensities, interp) 
-            end
+            val = measure.combiner(qabs, SVector{NCorr, ComplexF64}(elems))
+            intensities[iω, qidx] = val
         end
+
+        # Copy for repeated q-values
+        for idx in qidx+1:qidx+count-1, iω in ωidcs
+            intensities[iω, idx] = intensities[iω, qidx]
+        end
+
+        qidx += count
     end
 end
 
@@ -226,96 +250,6 @@ end
 =#
 
 
-
-
-
-
-################################################################################
-function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
-    if isnan(sc.Δω) && energies != :available
-        error("`SampledCorrelations` only contains static information. No energy information is available.")
-    end
-    if !isnothing(kernel)
-        error("Kernel post-processing not yet available for `SampledCorrelations`.")
-    end
-
-    (; measure) = sc
-    interp = NoInterp()
-    qpts = Base.convert(AbstractQPoints, qpts)
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
-    IntensitiesType = eltype(measure)
-    crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
-
-    # Determine energy information
-    (ωs, ωidcs) = if energies == :available
-        ωs = available_energies(sc; negative_energies=false)
-        (ωs, axes(ωs, 1))
-    elseif energies == :available_with_negative
-        ωs = available_energies(sc; negative_energies=true)
-        (ωs, axes(ωs, 1))
-    else
-        rounded_energy_information(sc, energies)
-    end
-    
-
-    # Interpret q points in terms of original crystal. 
-    q_targets = if !isnothing(sc.origin_crystal)
-        convert = sc.crystal.recipvecs \ sc.origin_crystal.recipvecs
-        [convert * Vec3(q) for q in qpts.qs]
-    else
-        qpts.qs
-    end
-
-    # Preallocation
-    intensities = zeros(IntensitiesType, isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
-
-    # Stencil and interpolation precalculation for q-space
-    stencil_info = full_stencil_info(sc, qpts.qs)
-    NCorr  = Val{size(sc.data, 1)}()
-    NAtoms = Val{size(sc.data, 2)}()
-
-    intensities_interpolated!(intensities, sc.data, sc.crystal, measure, ff_atoms, ωidcs, stencil_info, NCorr, NAtoms)
-
-    # Processing steps that depend on whether instant or dynamic correlations.
-    if !isnan(sc.Δω)
-        # Convert time axis to a density.
-        # TODO: Why not do this with the definition of the FFT normalization?
-        n_all_ω = size(sc.samplebuf, 6)
-        intensities ./= (n_all_ω * sc.Δω)
-
-        # Apply classical-to-quantum correspondence factor if temperature given.
-        if !isnothing(kT) 
-            c2q = classical_to_quantum.(ωs, kT)
-            for i in axes(intensities, 2)
-                intensities[:,i] .*= c2q
-            end
-        end
-    else
-        # If temperature is given for a SampledCorrelations with only
-        # instantaneous data, throw an error. 
-        !isnothing(kT) && error("Given `SampledCorrelations` only contains instant correlation data. Temperature corrections only available with dynamical correlation info.")
-    end
-
-    return if !isnan(sc.Δω)
-        Intensities(crystal, qpts, collect(ωs), intensities)
-    else
-        InstantIntensities(crystal, qpts, dropdims(intensities; dims=1))
-    end
-end
-
-function intensities_interpolated!(intensities, data, crystal, measure::MeasureSpec{Op, F, Ret}, ff_atoms, ωidcs, stencil_info, ::Val{NCorr}, ::Val{NAtoms}) where {Op, F, Ret, NCorr, NAtoms}
-    (; qabs_rounded, idcs) = stencil_info 
-    for (n, (qabs, idx)) in enumerate(zip(qabs_rounded, idcs))
-        prefactors = prefactors_for_phase_averaging(qabs, crystal, ff_atoms, Val(NCorr), Val(NAtoms))
-        for iω in ωidcs
-            elems = zero(MVector{NCorr,ComplexF64})
-            for j in 1:NAtoms, i in 1:NAtoms
-                elems .+= (prefactors[i] * conj(prefactors[j])) .* view(data, :, i, j, idx, iω)
-            end
-            intensities[iω, n] = measure.combiner(qabs, SVector{NCorr, ComplexF64}(elems))
-        end
-    end
-end
 
 
 

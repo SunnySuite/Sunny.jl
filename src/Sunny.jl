@@ -100,7 +100,6 @@ export SpiralSpinWaveTheory, spiral_minimize_energy!, spiral_energy, spiral_ener
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
-include("SampledCorrelations/Interpolation.jl")
 include("SampledCorrelations/CorrelationSampling.jl")
 include("SampledCorrelations/PhaseAveraging.jl")
 include("SampledCorrelations/DataRetrieval.jl")
