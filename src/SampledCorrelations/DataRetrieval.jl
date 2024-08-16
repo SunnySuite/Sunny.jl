@@ -109,13 +109,13 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     qpts = Base.convert(AbstractQPoints, qpts)
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
-    stencil_info = pruned_wave_vector_info(sc, qpts.qs)
+    q_idx_info = pruned_wave_vector_info(sc, qpts.qs)
     crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
     NCorr  = Val{size(sc.data, 1)}()
     NAtoms = Val{size(sc.data, 2)}()
 
     # Intensities calculation
-    intensities_rounded!(intensities, sc.data, sc.crystal, sc.measure, ff_atoms, ωidcs, stencil_info, NCorr, NAtoms)
+    intensities_rounded!(intensities, sc.data, sc.crystal, sc.measure, ff_atoms, q_idx_info, ωidcs, NCorr, NAtoms)
 
     # Post-processing steps that depend on whether instant or dynamic correlations.
     if !isnan(sc.Δω)
@@ -139,31 +139,31 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
 
     intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
     return if !isnan(sc.Δω)
-        Intensities(crystal, qpts, collect(ωs), intensities)
+        Intensities(crystal, qpts, collect(ωs), reshape(intensities, length(ωs), size(qpts.qs)...))
     else
         InstantIntensities(crystal, qpts, dropdims(intensities; dims=1))
     end
 end
 
-function intensities_rounded!(intensities, data, crystal, measure::MeasureSpec{Op, F, Ret}, ff_atoms, ωidcs, stencil_info, ::Val{NCorr}, ::Val{NAtoms}) where {Op, F, Ret, NCorr, NAtoms}
-    (; qabs, idcs, counts) = stencil_info 
+function intensities_rounded!(intensities, data, crystal, measure::MeasureSpec{Op, F, Ret}, ff_atoms, q_idx_info, ωidcs, ::Val{NCorr}, ::Val{NAtoms}) where {Op, F, Ret, NCorr, NAtoms}
+    (; qabs, idcs, counts) = q_idx_info 
     qidx = 1
     for (qabs, idx, count) in zip(qabs, idcs, counts)
         prefactors = prefactors_for_phase_averaging(qabs, crystal, ff_atoms, Val(NCorr), Val(NAtoms))
 
         # Perform phase-averaging over all omega
-        for iω in ωidcs
+        for (n, iω) in enumerate(ωidcs)
             elems = zero(MVector{NCorr,ComplexF64})
             for j in 1:NAtoms, i in 1:NAtoms
                 elems .+= (prefactors[i] * conj(prefactors[j])) .* view(data, :, i, j, idx, iω)
             end
             val = measure.combiner(qabs, SVector{NCorr, ComplexF64}(elems))
-            intensities[iω, qidx] = val
+            intensities[n, qidx] = val
         end
 
         # Copy for repeated q-values
-        for idx in qidx+1:qidx+count-1, iω in ωidcs
-            intensities[iω, idx] = intensities[iω, qidx]
+        for idx in qidx+1:qidx+count-1, n in axes(ωidcs, 1)
+            intensities[n, idx] = intensities[n, qidx]
         end
 
         qidx += count
