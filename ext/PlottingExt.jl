@@ -1073,7 +1073,10 @@ end
 function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
     (; axes, offset) = grid
 
-    varidxs = 1:N # FIXME
+    varidxs = [findmax(abs.(a))[2] for a in axes]
+    if varidxs[2] == varidxs[1]
+        varidxs[2] = mod1(varidxs[2] + 1, 3)
+    end
     varstrs = ("H", "K", "L")
 
     labels = map(axes, varstrs[varidxs]) do axis, c
