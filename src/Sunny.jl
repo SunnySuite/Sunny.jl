@@ -103,7 +103,8 @@ include("SampledCorrelations/CorrelationUtils.jl")
 include("SampledCorrelations/CorrelationSampling.jl")
 include("SampledCorrelations/PhaseAveraging.jl")
 include("SampledCorrelations/DataRetrieval.jl")
-export SampledCorrelations, add_sample!, clone_correlations, merge_correlations, available_wave_vectors
+export SampledCorrelations, SampledCorrelationsStatic, add_sample!, clone_correlations,
+    merge_correlations
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")
@@ -118,8 +119,8 @@ include("Binning/ExperimentData.jl")
 export BinningParameters, load_nxs, generate_mantid_script_from_binning_parameters
 
 include("deprecated.jl")
-export set_external_field!, set_external_field_at!, meV_per_K
-
+export set_external_field!, set_external_field_at!, meV_per_K,
+    dynamic_correlations, instant_correlations, intensity_formula, reciprocal_space_path
 
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 

@@ -76,7 +76,21 @@ function Base.getproperty(x::Type{Units}, name::Symbol)
     return getfield(x, name)
 end
 
-# TODO: Error messages for reciprocal_space_path, instant_correlations, dynamic_correlations.
+Base.@deprecate dynamic_correlations(sys; opts...) let
+    error("Use SampledCorrelations(...) instead of dynamic_correlations(...)")
+end
+
+Base.@deprecate instant_correlations(sys; opts...) let
+    error("Use SampledCorrelationsStatic(...) instead of instant_correlations(...)")
+end
+
+Base.@deprecate intensity_formula(opts1...; opts2...) let
+    error("Formulas have been removed. Call `intensities` directly.")
+end
+
+Base.@deprecate reciprocal_space_path(cryst::Crystal, qs, density) let
+    error("Use q_space_path instead of reciprocal_space_path")
+end
 
 
 # REMEMBER TO ALSO DELETE:

@@ -168,6 +168,10 @@ function intensities_instant(sc::SampledCorrelations, qpts; formfactors=nothing,
     end
 end
 
+function intensities_instant(sc::SampledCorrelationsStatic, qpts; formfactors=nothing)
+    intensities_instant(sc.parent, qpts; formfactors, kT=nothing)
+end
+
 
 function classical_to_quantum(ω, kT)
     if ω > 0

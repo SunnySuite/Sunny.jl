@@ -91,9 +91,9 @@
     # Test instant intensities working
     sys = simple_model_fcc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
-    ic = SampledCorrelations(sys; measure=ssf_trace(sys; apply_g=false), energies=nothing)
+    ic = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=false))
     add_sample!(ic, sys)
-    true_static_vals = intensities_instant(ic, qgrid; kT=nothing)
+    true_static_vals = intensities_instant(ic, qgrid)
     true_static_total = sum(true_static_vals.data)
     @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
 end

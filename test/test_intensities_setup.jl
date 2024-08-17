@@ -14,9 +14,9 @@
         set_dipole!(sys, [3,4,5], (1,1,1,2))
 
         # Dipole magnetization observables (classical)
-        sc = SampledCorrelations(sys; measure=ssf_custom((q, ssf) -> ssf, sys; apply_g=true), energies=nothing)
+        sc = SampledCorrelationsStatic(sys; measure=ssf_custom((q, ssf) -> ssf, sys; apply_g=true))
         add_sample!(sc, sys)
-        is = intensities_instant(sc, Sunny.QPoints([[0,0,0]]); kT=nothing)
+        is = intensities_instant(sc, Sunny.QPoints([[0,0,0]]))
         corr_mat = is.data[1]
 
         # Compute magnetization correlation "by hand", averaging over sites

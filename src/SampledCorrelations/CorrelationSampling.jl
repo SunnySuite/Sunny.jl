@@ -140,21 +140,19 @@ end
 
 """
     add_sample!(sc::SampledCorrelations, sys::System)
+    add_sample!(sc::SampledCorrelationsStatic, sys::System)
 
-`add_trajectory` uses the spin configuration contained in the `System` to
-generate a correlation data and accumulate it into `sc`. For static structure
-factors, this involves analyzing the spin-spin correlations of the spin
-configuration provided. For a dynamic structure factor, a trajectory is
-calculated using the given spin configuration as an initial condition. The
-spin-spin correlations are then calculated in time and accumulated into `sc`. 
+Measure pair correlation data for the spin configuration in `sys`, and
+accumulate these statistics into `sc`. For a dynamical
+[`SampledCorrelations`](@ref), this involves time-integration of the provided
+spin trajectory, recording correlations in both space and time. Conversely,
+[`SampledCorrelationsStatic`](@ref), will record only spatial correlations for
+the single spin configuration that is provided.
 
-This function will change the state of `sys` when calculating dynamical
-structure factor data. To preserve the initial state of `sys`, it must be saved
-separately prior to calling `add_sample!`. Alternatively, the initial spin
-configuration may be copied into a new `System` and this new `System` can be
-passed to `add_sample!`.
+Time-integration will update the spin configuration of `sys` in-place. To avoid
+this mutation, consider calling [`clone_system`](@ref) prior to `add_sample!`.
 """
-function add_sample!(sc::SampledCorrelations, sys::System; window = :cosine)
+function add_sample!(sc::SampledCorrelations, sys::System; window=:cosine)
     # Sunny now estimates the dynamical structure factor in two steps. First, it
     # estimates real-time correlations C(t) = ⟨S(t)S(0)⟩ from classical
     # dynamics. Second, it takes the Fourier transform of C(t) to get the
@@ -179,4 +177,8 @@ function add_sample!(sc::SampledCorrelations, sys::System; window = :cosine)
 
     new_sample!(sc, sys)
     accum_sample!(sc; window)
+end
+
+function add_sample!(sc::SampledCorrelationsStatic, sys::System; window=:cosine)
+    add_sample!(sc.parent, sys; window)
 end

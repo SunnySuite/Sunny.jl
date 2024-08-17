@@ -68,19 +68,18 @@ plot(energies, color=:blue, figure=(size=(600,300),), axis=(xlabel="Timesteps", 
 S_ref = sys.dipoles[1,1,1,1]
 plot_spins(sys; color=[s'*S_ref for s in sys.dipoles])
 
-# ### Instantaneous structure factor
+# ### Static structure factor for the classical distribution
 
-# To visualize the instantaneous (equal-time) structure factor, create an object
-# [`SampledCorrelations`](@ref), setting the `energies` keyword to `nothing`.
-# Use [`add_sample!`](@ref) to accumulate data for each equilibrated spin
-# configuration.
+# Use [`SampledCorrelationsStatic`](@ref) to estimate spatial correlations for
+# configurations in classical thermal equilibrium. Each call to
+# [`add_sample!`](@ref) will accumulate data for the current spin snapshot.
 
-sc = SampledCorrelations(sys; energies=nothing, measure=ssf_perp(sys))
+sc = SampledCorrelationsStatic(sys; measure=ssf_perp(sys))
 add_sample!(sc, sys)    # Accumulate the newly sampled structure factor into `sf`
 
-# Collect 20 additional decorrelated samples. For each sample, about 100
-# Langevin time-steps is sufficient to collect approximately uncorrelated
-# statistics.
+# Collect 20 additional samples. About 100 Langevin time-steps between
+# measurements is sufficient to approximately decorrelate each sample for the
+# thermal equilibrium.
 
 for _ in 1:20
     for _ in 1:100
@@ -100,26 +99,26 @@ grid = q_space_grid(cryst, [1, 0, 0], range(-10, 10, 200), [0, 1, 0], (-10, 10))
 # [`FormFactor`](@ref) for Co2⁺.
 
 formfactors = [FormFactor("Co2")]
-res = intensities_instant(sc, grid; formfactors, kT=nothing)
+res = intensities_instant(sc, grid; formfactors)
 plot_intensities(res)
 
 
 # ### Dynamical structure factor
 
-# To collect statistics for the dynamical structure factor intensities
-# ``I(𝐪,ω)`` at finite temperature, use [`SampledCorrelations`](@ref) again,
-# this time providing a list of frequencies to resolve. The integration timestep
-# `dt` used for measuring dynamical correlations can be somewhat larger than
-# that used by the Langevin dynamics. 
+# To collect statistics for the _dynamical_ structure factor intensities
+# ``I(𝐪,ω)`` at finite temperature, use instead [`SampledCorrelations`](@ref).
+# It requires a range of `energies` to resolve, which will be associated with
+# frequencies of the classical spin dynamics. The integration timestep `dt` can
+# be somewhat larger than that used by the Langevin dynamics. 
 
 dt = 2*langevin.dt
 energies = range(0, 6, 50)
 sc = SampledCorrelations(sys; dt, energies, measure=ssf_perp(sys))
 
-# Use Langevin dynamics to sample spin configurations from thermal equilibrium.
-# For each sample, use [`add_sample!`](@ref) to run a classical spin dynamics
-# trajectory and measure dynamical correlations. Here we average over just 5
-# samples, but this number could be increased for better statistics.
+# Again use Langevin dynamics to sample spin configurations from thermal
+# equilibrium. For each sample, use [`add_sample!`](@ref) to run a classical
+# spin dynamics trajectory and measure dynamical correlations. Here we average
+# over just 5 samples, but this number could be increased for better statistics.
 
 for _ in 1:5
     for _ in 1:100

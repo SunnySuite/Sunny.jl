@@ -390,10 +390,7 @@ Creating a `SampledCorrelations` requires specifying three keyword arguments.
 These will determine the dynamics used to calculate samples and, consequently,
 the $ω$ information that will be available. 
 
-1. `energies`: A uniform range of resolved energies. If `nothing`, then
-   classical dynamics will be avoided and only a [static approximation to the
-   instantaneous intensities](@ref "The instantaneous structure factor") will be
-   available.
+1. `energies`: A uniform range of resolved energies.
 2. `dt`: The step size for dynamical time-integration. Larger may reduce
    simulation time, but the choice will be limited by the stability and accuracy
    requirements of the [`ImplicitMidpoint`](@ref) integration method. The
@@ -435,9 +432,10 @@ fundamental intensities measurements are only available at a discrete grid of
 wave vectors. In reciprocal lattice units, available grid points are $𝐪 =
 [\frac{n_1}{L_1}, \frac{n_2}{L_2}, \frac{n_3}{L_3}]$, where $n_i$ runs from
 $(\frac{-L_i}{2}+1)$ to $\frac{L_i}{2}$ and $L_i$ is the linear dimension of the
-lattice used in the calculation. Access this grid with
-[`available_wave_vectors`](@ref). By default [`intensities`](@ref) will adjust
-each wavevector $𝐪$ to the nearest available grid point. 
+lattice used in the calculation. (An internal function
+`Sunny.available_wave_vectors` provides access to this grid.) By default
+[`intensities`](@ref) will adjust each wavevector $𝐪$ to the nearest available
+grid point. 
 
 Similarly, the resolution in `energies` is controlled the dynamical trajectory
 length in real-time. Because the dynamical trajectory is not periodic in time,
@@ -461,8 +459,8 @@ In [`SampledCorrelations`](@ref), a classical-to-quantum correction factor will
 be applied within [`intensities`](@ref) prior to energy integration.
 
 Sunny also supports a mechanism to calculate static correlations without any
-spin dynamics. To collect such statistics, construct `SampledCorrelations` using
-the option `energies = nothing`. In this case, `intensities_instant` will return
-static correlations sampled from the classical Boltzmann distribution. This
-dynamics-free approach is faster, but may miss important quantum mechanical
+spin dynamics. To collect such statistics, construct a
+`SampledCorrelationsStatic` object. In this case, `intensities_instant` will
+return static correlations sampled from the classical Boltzmann distribution.
+This dynamics-free approach is faster, but may miss important quantum mechanical
 features of the structure factors.

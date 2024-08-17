@@ -231,7 +231,7 @@ plot_intensities(res; colorrange=(0.0, 0.3))
 # the finite system size used to simulate the classical dynamics. The basic
 # intensity data stored inside `SampledCorrelations` is only available on a
 # discrete grid of ``𝐪``-points, with resolution that scales inversely to
-# linear system size. Use [`available_wave_vectors`](@ref) to obtain this grid
-# as a 3D array.
+# linear system size. Sunny has an internal function to investigate this grid as
+# a 3D array (subject to change):
 
-size(available_wave_vectors(sc))
+size(Sunny.available_wave_vectors(sc))
