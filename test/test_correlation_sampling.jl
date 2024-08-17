@@ -35,7 +35,7 @@
     sc = SampledCorrelations(sys; dt=0.08, energies, measure=ssf_trace(sys; apply_g=false))
     Δω = sc.Δω
     add_sample!(sc, sys)
-    qgrid = Sunny.QPoints(available_wave_vectors(sc)[:])
+    qgrid = Sunny.QPoints(Sunny.available_wave_vectors(sc)[:])
     Δq³ = 1/prod(sys.latsize) # Fraction of a BZ
     Sqw = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing)
     expected_sum_rule = Sunny.norm2(sys.dipoles[1]) # S^2 classical sum rule
