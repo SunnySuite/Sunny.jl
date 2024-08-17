@@ -14,36 +14,20 @@ function pruned_wave_vector_info(sc::SampledCorrelations, qs)
     # Convert to absolute units (for form factors)
     qabs_rounded = map(m -> sc.crystal.recipvecs * (m ./ sc.latsize), ms)
 
-    # Remove reptitions and take counts
-    start_idcs, counts = start_idcs_and_counts(idcs)
-    qabs = qabs_rounded[start_idcs]
-    idcs = idcs[start_idcs]
+    # List of "starting" pointers i where idcs[i-1] != idcs[i]
+    starts = findall(i -> i == 1 || idcs[i-1] != idcs[i], eachindex(idcs))
+
+    # Length of each run of repeated values
+    counts = starts[2:end] - starts[1:end-1]
+    append!(counts, length(idcs) - starts[end] + 1)
+
+    # Remove contiguous repetitions
+    qabs = qabs_rounded[starts]
+    idcs = idcs[starts]
 
     return (; qabs, idcs, counts)
 end
 
-
-# Analyzes the list elems and returns the indices at which new values start
-# (i.e., values not equal to the prior value) and also counts how many times the
-# new value is repeated.
-function start_idcs_and_counts(elems)
-
-    # Find the indices that start (posibly singleton) run of repeated values
-    start_idcs = Int64[1]
-    ref = elems[1]
-    for i in 2:length(elems)
-        if elems[i] != ref
-            push!(start_idcs, i)
-            ref = elems[i]
-        end
-    end
-
-    # Find how long each run of repeated values is
-    counts = start_idcs[2:end] - start_idcs[1:end-1]
-    append!(counts, length(elems) - start_idcs[end] + 1)
-
-    return start_idcs, counts
-end
 
 # Crude slow way to find the energy axis index closest to some given energy.
 function find_idx_of_nearest_fft_energy(ref, val)
