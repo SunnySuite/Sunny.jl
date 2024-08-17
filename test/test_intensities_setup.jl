@@ -95,7 +95,7 @@ end
     # requires integrating over the full sampling frequency range, in this
     # case by going over both positive and negative energies.
     nbzs = (4, 4, 4)
-    qs = available_wave_vectors(sc; bzsize=nbzs)
+    qs = Sunny.available_wave_vectors(sc; bzsize=nbzs)
     is = intensities(sc, Sunny.QPoints(qs[:]); energies=:available_with_negative, kT=nothing)
     calculated_sum = sum(is.data) * Δq³ * sc.Δω
 
