@@ -1,4 +1,4 @@
-mutable struct SampledCorrelations{N}
+mutable struct SampledCorrelations
     # 𝒮^{αβ}(q,ω) data and metadata
     const data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × latsize × nω)
     const M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
@@ -21,16 +21,13 @@ mutable struct SampledCorrelations{N}
     const corr_ifft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned time IFFT for corrbuf 
 end
 
-function Base.show(io::IO, ::SampledCorrelations{N}) where N
-    modename = N == 0 ? "Dipole" : "SU($(N))"
-    print(io, "SampledCorrelations{$modename}")
+function Base.show(io::IO, ::SampledCorrelations)
+    print(io, "SampledCorrelations")
     # TODO: Add correlation info?
 end
 
-function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations{N}) where N
-    modename = N == 0 ? "Dipole" : "SU($(N))"
-    printstyled(io, "SampledCorrelations";bold=true, color=:underline)
-    print(io, "{$modename}")
+function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
+    printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
     print(io," ($(Base.format_bytes(Base.summarysize(sc))))\n")
     print(io,"[")
     if size(sc.data)[7] == 1
@@ -63,7 +60,7 @@ end
 
 Create a copy of a `SampledCorrelations`.
 """
-function clone_correlations(sc::SampledCorrelations{N}) where N
+function clone_correlations(sc::SampledCorrelations)
     dims = size(sc.data)[2:4]
     # Avoid copies/deep copies of C-generated data structures
     space_fft! = 1/√prod(dims) * FFTW.plan_fft!(sc.samplebuf, (2,3,4))
@@ -71,7 +68,7 @@ function clone_correlations(sc::SampledCorrelations{N}) where N
     corr_fft! = FFTW.plan_fft!(sc.corrbuf, 4)
     corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
-    return SampledCorrelations{N}(
+    return SampledCorrelations(
         copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω, deepcopy(sc.measure), 
         sc.measperiod, sc.dt, sc.nsamples,
         copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!
@@ -84,7 +81,7 @@ end
 Accumulate a list of `SampledCorrelations` into a single, summary
 `SampledCorrelations`. Useful for reducing the results of parallel computations.
 """
-function merge_correlations(scs::Vector{SampledCorrelations{N}}) where N
+function merge_correlations(scs::Vector{SampledCorrelations})
     sc_merged = clone_correlations(scs[1])
     μ = zero(sc_merged.data)
     for sc in scs[2:end]
@@ -132,7 +129,7 @@ function to_reshaped_rlu(sc::SampledCorrelations, q)
 end
 
 """
-    SampledCorrelations(sys::System{N}; measure, energies, dt, calculate_errors=false) where N
+    SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false)
 
 Create a `SampledCorrelations` for accumulating samples of spin-spin
 correlations. Requires a `measure` argument to specify a pair correlation type,
@@ -148,7 +145,7 @@ provide an evenly-spaced range of energies starting from 0, e.g.
 `energies=range(0, 3, 100)`. Dynamic correlations also require a time step,
 `dt`. See [suggest_timestep](@ref) for help selecting an appropriate value.
 """
-function SampledCorrelations(sys::System{N}; measure, energies, dt=NaN, calculate_errors=false) where N
+function SampledCorrelations(sys::System; measure, energies, dt=NaN, calculate_errors=false)
 
     if isnothing(energies)
         n_all_ω = 1
@@ -196,8 +193,8 @@ function SampledCorrelations(sys::System{N}; measure, energies, dt=NaN, calculat
 
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
-    sc = SampledCorrelations{N}(data, M, sys.crystal, origin_crystal, Δω, measure, measperiod, dt, nsamples,
-                                samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
+    sc = SampledCorrelations(data, M, sys.crystal, origin_crystal, Δω, measure, measperiod, dt, nsamples,
+                             samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 
     return sc
 end
