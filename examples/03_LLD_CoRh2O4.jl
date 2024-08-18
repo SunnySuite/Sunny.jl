@@ -155,4 +155,4 @@ radii = range(0, 3.5, 200) # (1/Å)
 res = powder_average(cryst, radii, 350) do qs
     intensities(sc, qs; energies, formfactors, kT)
 end
-plot_intensities(res; units, saturation=0.9, colormap=:viridis)
+plot_intensities(res; units, colormap=:viridis)

@@ -1147,7 +1147,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.InstantIntensities{Float64}; 
     end
 end
 
-function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.98, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
     unit_energy, ylabel = get_unit_energy(units, into)
     xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
  
@@ -1161,23 +1161,24 @@ function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; c
 end
 
 """
-    plot_intensities(res::BandIntensities; colormap=nothing, saturation=0.9, sensitivity=0.0025,
-                     units=nothing, into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
+    plot_intensities(res::BandIntensities; colormap=nothing, allpositive=true, saturation=0.9,
+                     sensitivity=0.0025, fwhm=nothing, ylims=nothing, units=nothing, into=nothing, 
+                     axisopts=Dict())
 
-    plot_intensities(res::Intensities; colormap=nothing, colorrange=nothing, 
+    plot_intensities(res::Intensities; colormap=nothing, colorrange=nothing, allpositive=true, 
                      saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
 
-    plot_intensities(res::PowderIntensities; colormap=nothing, colorrange=nothing, 
-                     saturation=0.98, units=nothing, into=nothing, axisopts=Dict())
+    plot_intensities(res::PowderIntensities; colormap=nothing, colorrange=nothing, allpositive=true, 
+                     saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
 
 Keyword arguments:
 
-  * `units`: A [`Units`](@ref) instance for labeling axes and performing
-    conversions.
-  * `into`: A symbol for conversion into a new base energy unit (e.g. `:meV`,
-    `:K`, etc.)
-  * `colorrange`: To be passed to `Makie.heatmap`, defining the map from
-    intensities values to colors.
+  * `colormap` and `colorange`: Optionally override the default mapping from
+    intensity values to colors. If specified, these parameters will be passed
+    directly to `Makie.heatmap`.
+  * `allpositive`: Should intensities be all positive, apart from numerical
+    error? If true, the default colors will clip below zero intensity. If false,
+    the default colors will be symmetric about zero intensity.
   * `saturation`: If `colorrange` is not explicitly set, this defines the
     saturation value as a quantile of intensities over all wavevectors.
   * `sensitivity`: When plotting `BandIntensities`, this defines a lower bound
@@ -1185,6 +1186,10 @@ Keyword arguments:
   * `fwhm`: When plotting `BandIntensities`, this overrides the full-width at
     half-maximum value used for Gaussian broadening.
   * `ylims`: Limits of the y-axis.
+  * `units`: A [`Units`](@ref) instance for labeling axes and performing
+    conversions.
+  * `into`: A symbol for conversion into a new base energy unit (e.g. `:meV`,
+    `:K`, etc.)
   * `axisopts`: An additional collection of named arguments that will be passed
     to the `Makie.Axis` constructor. This allows to override the axis `title`,
     `xlabel`, `ylabel`, `xticks`, etc. See Makie documentation for details.
