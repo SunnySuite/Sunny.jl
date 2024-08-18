@@ -6,13 +6,16 @@
 This **major release** introduces various breaking changes.
 
 * The interface for calculating intensities has been revised with the goal of
-unifying functionality across backends. The functions
+  unifying functionality across backends. The functions
 [`intensities_bands`](@ref), [`intensities`](@ref), and
 [`intensities_instant`](@ref) no longer expect a "formula", and instead take
 keyword arguments directly. Pair correlations are now specified using
-[`ssf_perp`](@ref) and related functions.
+[`ssf_perp`](@ref) and related functions. The constructors
+[`SampledCorrelations`](@ref) and [`SampledCorrelationsStatic`](@ref) replace
+`dynamic_correlations` and `static_correlations`, respectively.
 * New function [`plot_intensities`](@ref) enables convenient plotting for many
-  types of intensities plots. Mutating variant [`plot_intensities!`](@ref) facilities multi-panel plots.
+  types of intensities plots. Mutating variant [`plot_intensities!`](@ref)
+  facilities multi-panel plots.
 * One should now specify a range of ``𝐪``-points with [`q_space_path`](@ref) or
   [`q_space_grid`](@ref).
 * [`SpiralSpinWaveTheory`](@ref) is now available to perform calculations on
@@ -22,11 +25,15 @@ keyword arguments directly. Pair correlations are now specified using
 * Binning features have been removed. Some functionality may be added back in a
   future release.
 
-<!--
+**Planned changes**
+
 * Use `Moment` instead of `SpinInfo`.
-* Use [`resize_supercell](@ref) instead of passing dimensions to [`System`](@ref) constructor.
-* `SpinWaveTheoryKPM` implements a [new algorithm](https://arxiv.org/abs/2312.08349) to enable intensities calculations at a computational cost that scales linearly in system size.
--->
+* Use [`resize_supercell](@ref) instead of passing dimensions to
+  [`System`](@ref) constructor.
+* `SpinWaveTheoryKPM` implements a [new
+  algorithm](https://arxiv.org/abs/2312.08349) to enable intensities
+  calculations at a computational cost that scales linearly in system size.
+
 
 ## v0.6.1
 (August 2, 2024)
