@@ -1,19 +1,21 @@
 abstract type AbstractBroadening end
 
 struct Broadening{F <: Function} <: AbstractBroadening
-    kernel :: F  # (ω_transfer - ω_excitation) -> intensity
+    # ϵ is the intrinsic excitation energy, ω is the nominal energy transfer in
+    # measured intensities I(q, ω).
+    kernel :: F  # (ω - ϵ) -> intensity
 end
 
 struct NonstationaryBroadening{F <: Function} <: AbstractBroadening
-    kernel :: F  # (ω_excitation, ω_transfer) -> intensity
+    kernel :: F  # (ϵ, ω) -> intensity
 end
 
-function (b::Broadening)(ω1, ω2)
-    b.kernel(ω2 - ω1)
+function (b::Broadening)(ϵ, ω)
+    b.kernel(ω - ϵ)
 end
 
-function (b::NonstationaryBroadening)(ω1, ω2)
-    b.kernel(ω1, ω2)
+function (b::NonstationaryBroadening)(ϵ, ω)
+    b.kernel(ϵ, ω)
 end
 
 """

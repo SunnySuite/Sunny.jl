@@ -110,7 +110,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
 
         # Apply classical-to-quantum correspondence factor if temperature given.
         if !isnothing(kT) 
-            c2q = classical_to_quantum.(ωs, kT)
+            c2q = classical_to_quantum.(ωs; kT)
             for i in axes(intensities, 2)
                 intensities[:,i] .*= c2q
             end
@@ -173,7 +173,7 @@ function intensities_instant(sc::SampledCorrelationsStatic, qpts; formfactors=no
 end
 
 
-function classical_to_quantum(ω, kT)
+function classical_to_quantum(ω; kT)
     if ω > 0
         ω/(kT*(1 - exp(-ω/kT)))
     elseif iszero(ω)

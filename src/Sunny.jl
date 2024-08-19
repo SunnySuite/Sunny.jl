@@ -4,6 +4,7 @@ using LinearAlgebra
 import Statistics
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
+import ElasticArrays: ElasticArray, resize!
 import SpecialFunctions: erfc
 import FFTW
 import DynamicPolynomials as DP
@@ -88,7 +89,6 @@ include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
 include("SpinWaveTheory/HamiltonianSUN.jl")
 include("SpinWaveTheory/DispersionAndIntensities.jl")
-include("SpinWaveTheory/Lanczos.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
 export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands,
     intensities_instant # TODO
@@ -97,6 +97,11 @@ include("Spiral/LuttingerTisza.jl")
 include("Spiral/SpiralEnergy.jl")
 include("Spiral/SpiralSWT.jl")
 export SpiralSpinWaveTheory, spiral_minimize_energy!, spiral_energy, spiral_energy_per_site
+
+include("KPM/Lanczos.jl")
+include("KPM/Chebyshev.jl")
+include("KPM/SpinWaveTheoryKPM.jl")
+export SpinWaveTheoryKPM
 
 include("SampledCorrelations/SampledCorrelations.jl")
 include("SampledCorrelations/CorrelationUtils.jl")
