@@ -163,7 +163,7 @@ function multiply_by_hamiltonian_dipole(x::AbstractMatrix{ComplexF64}, swt::Spin
     return y
 end
 
-function multiply_by_hamiltonian_dipole!(y::Array{ComplexF64, 2}, x::Array{ComplexF64, 2}, swt::SpinWaveTheory, qs_reshaped::Array{Vec3};
+function multiply_by_hamiltonian_dipole!(y::AbstractMatrix{ComplexF64}, x::AbstractMatrix{ComplexF64}, swt::SpinWaveTheory, qs_reshaped::Vector{Vec3};
                                          phases=zeros(ComplexF64, size(qs_reshaped)))
     (; sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
