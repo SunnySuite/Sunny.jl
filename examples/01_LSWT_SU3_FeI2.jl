@@ -49,7 +49,7 @@ using Sunny, GLMakie
 # be loaded from a `.cif` file. Here, we instead build a crystal by listing all
 # atoms and their types.
 
-units = Units(:meV)
+units = Units(:meV, :angstrom)
 a = b = 4.05012  # Lattice constants for triangular lattice
 c = 6.75214      # Spacing in the z-direction
 

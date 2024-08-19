@@ -13,7 +13,7 @@ using Sunny, GLMakie
 # structure from [Marty et al., Phys. Rev. Lett. **101**, 247201
 # (2008)](http://dx.doi.org/10.1103/PhysRevLett.101.247201).
 
-units = Units(:meV)
+units = Units(:meV, :angstrom)
 a = b = 8.539 # (Å)
 c = 5.2414
 latvecs = lattice_vectors(a, b, c, 90, 90, 120)
