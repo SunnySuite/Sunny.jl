@@ -47,29 +47,27 @@
     @test norm(Sunny.proj.(Sunny.energy_grad_coherents(sys), sys.coherents)) < 1e-8
 
     # Test energies at an arbitrary wave vector
-    ks = [[0.24331089495721447, 0.2818361515716459, 0.21954858411037714]]
-    swt = SpinWaveTheory(sys)
+    qs = [[0.24331089495721447, 0.2818361515716459, 0.21954858411037714]]
+    swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 
-    formula = intensity_formula(swt, :perp, kernel=delta_function_kernel)
-    disps, is = intensities_bands(swt, ks, formula)
-
-    # println(round.(disps; digits=12))
-    # println(round.(is / (natoms * g^2); digits=12))
+    res = intensities_bands(swt, qs)
+    # println(round.(res.disp; digits=12))
+    # println(round.(res.data / (natoms * g^2); digits=12))
     disps_golden = [1394.440092589898 1393.728009961772 1393.008551261241 1392.919524984054 1279.23991907861 1279.094568482213 1278.22451852538 1277.691761492894 1194.366336265056 1193.750083635324 1191.583519669771 1189.794451350786 1131.422439597908 1131.202770084574 1065.242927860663 1065.095892456642 1026.649340932941 1024.028348568104 1022.830406309672 1020.767349649408 945.202397540707 944.795817861582 835.545028404179 832.001588705254 827.939501419137 827.307586957877 821.216582176438 820.430993577092 820.294548786087 818.594571008014 810.207001100209 808.553158283705 766.524411081004 766.516102760229 766.513825862473 766.508655568197 758.579854177684 754.683765895715 750.572578901226 750.471006262524 665.954573018229 662.421047663209 651.46556256004 651.417940134413 581.258189162714 568.105209810117 559.053702306466 558.493005833015 552.043762746846 550.131096080954 539.733572957862 530.698033203026 499.661483520139 494.928560833195 435.233706072008 427.70227707436 408.128705863823 399.856401759966 370.069343073402 369.845327696313 365.049514250289 363.639416679443 354.648012601512 346.609483937092 341.98916517756 339.373361078069 318.363717394716 276.219249213429 263.1610538422 257.409506256945 230.539454204132 229.778324183075 203.971681289205 197.504237163938 193.879371544746 189.866421885131 189.815806977935 167.944134441876 154.923566511974 146.21953885867]
-    is_golden = [9.6662565e-5 0.0 0.001807884262 0.0 0.002166250472 0.0 0.003835132693 0.0 0.0 0.013550066967 0.018327409336 0.0 0.001319003523 0.0 0.0 0.006677115951 0.0 0.015583193495 0.028006929969 0.0 0.007782414773 0.0 0.028892276057 0.0 0.0 0.009748743725 0.0 0.007788123595 0.007278285719 0.0 0.0 0.00116773942 0.000190731866 0.000235139044 0.0 0.0 0.002193317995 0.0 0.008315770402 0.0 0.016520647062 0.0 0.0 0.014989172648 0.08363192972 0.001902190356 0.0 0.0 0.0 0.017111545439 0.007341641476 0.0 0.0 0.151419922476 0.094666992635 0.0 0.214639628105 0.0 0.0 0.072514184691 0.087279329707 0.0 0.0 0.23891458934 0.0 0.401546184942 0.0 0.050427766439 0.04544662783 0.0 0.0 0.078427781361 0.192350495231 0.0 0.002594420277 0.0 0.037800182163 0.081921558936 0.0 0.0]
+    data_golden = [9.6662565e-5 0.0 0.001807884262 0.0 0.002166250472 0.0 0.003835132693 0.0 0.0 0.013550066967 0.018327409336 0.0 0.001319003523 0.0 0.0 0.006677115951 0.0 0.015583193495 0.028006929969 0.0 0.007782414773 0.0 0.028892276057 0.0 0.0 0.009748743725 0.0 0.007788123595 0.007278285719 0.0 0.0 0.00116773942 0.000190731866 0.000235139044 0.0 0.0 0.002193317995 0.0 0.008315770402 0.0 0.016520647062 0.0 0.0 0.014989172648 0.08363192972 0.001902190356 0.0 0.0 0.0 0.017111545439 0.007341641476 0.0 0.0 0.151419922476 0.094666992635 0.0 0.214639628105 0.0 0.0 0.072514184691 0.087279329707 0.0 0.0 0.23891458934 0.0 0.401546184942 0.0 0.050427766439 0.04544662783 0.0 0.0 0.078427781361 0.192350495231 0.0 0.002594420277 0.0 0.037800182163 0.081921558936 0.0 0.0]
+    @test isapprox(res.disp, disps_golden'; atol=1e-9)
+    @test isapprox(res.data / (natoms * g^2), data_golden'; atol=1e-9)
 
-    @test isapprox(disps, disps_golden; atol=1e-9)
-    @test isapprox(is / (natoms * g^2), is_golden; atol=1e-9)
-
-    # Test first 50 components of :full
-    formula = intensity_formula(swt, :full, kernel=delta_function_kernel, formfactors=[FormFactor("Fe2")])
-    _, is_full = intensities_bands(swt, ks, formula)
-    is_full_flattened = reinterpret(reshape, ComplexF64, is_full)[1:50]
-
-    # println(round.(is_full_flattened / (natoms * g^2); digits=12))
-    is_full_golden = ComplexF64[0.000768755803 + 0.0im, 0.000453313199 - 4.8935388e-5im, 0.000468535469 + 8.5812792e-5im, 0.000453313199 + 4.8935388e-5im, 0.000270420761 + 0.0im, 0.000270819458 + 8.0426107e-5im, 0.000468535469 - 8.5812792e-5im, 0.000270819458 - 8.0426107e-5im, 0.000295138352 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.00021794048 + 0.0im, -0.000114399504 - 0.000211293781im, -0.000126018935 + 0.000199895685im, -0.000114399504 + 0.000211293781im, 0.000264899428 + 0.0im, -0.000127650501 - 0.000227103219im, -0.000126018935 - 0.000199895685im, -0.000127650501 + 0.000227103219im, 0.000256212416 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, 7.5017149e-5 + 0.0im, 0.000206625047 + 0.000158601355im, 0.000240055384 - 0.000110167141im, 0.000206625047 - 0.000158601355im, 0.000904437193 + 0.0im, 0.000428286033 - 0.000810966567im, 0.000240055384 + 0.000110167141im, 0.000428286033 + 0.000810966567im, 0.000929965845 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, -0.0 - 0.0im, 0.0 + 0.0im, 0.0 + 0.0im]
+    # Test first 5 output matrices
+    measure = ssf_custom((q, ssf) -> ssf, sys)
+    swt = SpinWaveTheory(sys; measure)
+    formfactors=[FormFactor("Fe2")]
+    res = intensities_bands(swt, qs; formfactors)
+    data_flat = reinterpret(ComplexF64, res.data[1:5])
+    # println(round.(data_flat / (natoms * g^2); digits=12))
+    data_golden = ComplexF64[0.000768755803 + 0.0im, 0.000453313199 - 4.8935387e-5im, 0.000468535469 + 8.5812793e-5im, 0.000453313199 + 4.8935387e-5im, 0.00027042076 + 0.0im, 0.000270819458 + 8.0426107e-5im, 0.000468535469 - 8.5812793e-5im, 0.000270819458 - 8.0426107e-5im, 0.000295138353 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.00021794048 + 0.0im, -0.000114399503 - 0.000211293782im, -0.000126018935 + 0.000199895684im, -0.000114399503 + 0.000211293782im, 0.000264899429 + 0.0im, -0.000127650501 - 0.000227103219im, -0.000126018935 - 0.000199895684im, -0.000127650501 + 0.000227103219im, 0.000256212415 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, 7.5017149e-5 + 0.0im, 0.000206625046 + 0.000158601356im, 0.000240055385 - 0.00011016714im, 0.000206625046 - 0.000158601356im, 0.000904437194 + 0.0im, 0.000428286033 - 0.000810966567im, 0.000240055385 + 0.00011016714im, 0.000428286033 + 0.000810966567im, 0.000929965845 + 0.0im]
     
-    @test isapprox(is_full_flattened / (natoms * g^2), is_full_golden; atol=1e-9)
+    @test isapprox(data_flat / (natoms * g^2), data_golden; atol=1e-9)
 end
 
 
@@ -108,9 +106,9 @@ end
     randomize_spins!(sys)
     @test minimize_energy!(sys) > 0
 
-    k = rand(Float64, 3)
-    swt = SpinWaveTheory(sys)
-    ωk_num = dispersion(swt, [k])[1, :]
+    q = rand(Float64, 3)
+    swt = SpinWaveTheory(sys; measure=nothing)
+    ωk_num = dispersion(swt, [q])
 
     function single_ion_analytical_disp(k)
         γkxy = cos(2π*k[1]) + cos(2π*k[2])
@@ -124,8 +122,8 @@ end
         ωk₋ = √(Ak₋^2-Bk₋^2)
         return ωk₊, ωk₋
     end
-    ωk1, ωk2 = single_ion_analytical_disp(k)
-    ωk3, ωk4 = single_ion_analytical_disp(k + [0.5, 0.5, 0.5])
+    ωk1, ωk2 = single_ion_analytical_disp(q)
+    ωk3, ωk4 = single_ion_analytical_disp(q + [0.5, 0.5, 0.5])
     ωk_ref = sort([ωk1, ωk2, ωk3, ωk4]; rev=true)
 
     @test ωk_num ≈ ωk_ref
@@ -161,14 +159,11 @@ end
         set_dipole!(sys, (1, -1, -1), position_to_site(sys, (1/2, 1/2, 0)))
         set_dipole!(sys, (-1, -1, 1), position_to_site(sys, (1/2, 0, 1/2)))
         set_dipole!(sys, (-1, 1, -1), position_to_site(sys, (0, 1/2, 1/2)))
-        swt = SpinWaveTheory(sys)
-        k = [0.8, 0.6, 0.1]
-        _, Sαβs =  Sunny.dssf(swt, [k])
+        swt = SpinWaveTheory(sys; measure=ssf_trace(sys))
+        q = [0.8, 0.6, 0.1]
+        res = intensities_bands(swt, [q])
 
-        sunny_trace = [real(tr(Sαβs[1,a])) for a in axes(Sαβs)[2]]
-        sunny_trace = filter(x -> abs(x) > 1e-12, sunny_trace)
-
-        return sunny_trace
+        return filter(>(1e-12), abs.(res.data))
     end
 
     reference = [18.78918915723918, 19.679676835786527, 16.76890645406461]
@@ -184,7 +179,7 @@ end
     positions = [[0, 0, 0]]
     cryst = Crystal(latvecs, positions)
     
-    function test_biquad(mode, k, S)
+    function test_biquad(mode, q, S)
         # System
         dims = (2, 2, 2)
         infos = [SpinInfo(1; S, g=2)]
@@ -200,19 +195,19 @@ end
         set_dipole!(sys, (-1, 0, 0), position_to_site(sys, (0, 1, 0)))
 
         # Numerical result
-        swt = SpinWaveTheory(sys)
-        disp = dispersion(swt, [k])
+        swt = SpinWaveTheory(sys; measure=nothing)
+        disp = dispersion(swt, [q])
 
         # Analytical result
-        γk = 2 * (cos(2π*k[1]) + cos(2π*k[2]) + cos(2π*k[3]))
-        disp_ref = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γk^2)
+        γq = 2 * (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*q[3]))
+        disp_ref = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γq^2)
         
         @test disp[end-1] ≈ disp[end] ≈ disp_ref
     end
 
-    k = [0.12, 0.23, 0.34]
+    q = [0.12, 0.23, 0.34]
     for mode in (:SUN, :dipole), S in (1, 3/2)
-        test_biquad(mode, k, S)
+        test_biquad(mode, q, S)
     end
 end
 
@@ -232,11 +227,10 @@ end
     energy(sys)
     @test energy(sys) ≈ -3
     
-    swt = SpinWaveTheory(sys; apply_g=false)
-    formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
-    disp, intens = intensities_bands(swt, [[0,0,0]], formula)
-    @test disp[1] ≈ 9
-    @test intens[1] ≈ 1    
+    swt = SpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false))
+    res = intensities_bands(swt, [[0,0,0]])
+    @test res.disp[1] ≈ 9
+    @test res.data[1] ≈ 1
 end
 
 
@@ -261,8 +255,8 @@ end
         θ = acos(h / (2S*(4J+D*c₂)))
         set_dipole!(sys_swt_dip, ( sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (0,0,0)))
         set_dipole!(sys_swt_dip, (-sin(θ), 0, cos(θ)), position_to_site(sys_swt_dip, (1,0,0)))
-        swt_dip = SpinWaveTheory(sys_swt_dip)
-        ϵq_num = dispersion(swt_dip, [q])[1,:]
+        swt_dip = SpinWaveTheory(sys_swt_dip; measure=nothing)
+        ϵq_num = dispersion(swt_dip, [q])
 
         # Analytical
         c₂ = 1 - 1/(2S)
@@ -312,45 +306,14 @@ end
     energy(sys_dip)
     energy(sys_SUN)
 
-    swt_dip = SpinWaveTheory(sys_dip)
-    swt_SUN = SpinWaveTheory(sys_SUN)
+    swt_dip = SpinWaveTheory(sys_dip; measure=nothing)
+    swt_SUN = SpinWaveTheory(sys_SUN; measure=nothing)
 
     q = rand(3)
     disp_dip = dispersion(swt_dip, [q])
     disp_SUN = dispersion(swt_SUN, [q])
 
     @test only(disp_dip) ≈ disp_SUN[end-1]
-end
-
-
-@testitem "Intensities interface" begin
-    sys = System(Sunny.diamond_crystal(),(1,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN;seed = 0)
-    randomize_spins!(sys)
-
-    swt = SpinWaveTheory(sys)
-    
-    # Just testing that nothing throws errors
-    # TODO: accuracy check
-    path, _ = reciprocal_space_path(Sunny.diamond_crystal(),[[0.,0.,0.],[0.5,0.5,0.]],50)
-    energies = collect(0:0.1:5)
-
-    # Bands
-    formula = intensity_formula(swt, :perp, kernel=delta_function_kernel)
-    intensities_bands(swt, path, formula)
-    @test_throws "without a finite-width kernel" intensities_broadened(swt,path,energies,formula)
-
-    # Broadened
-    formula = intensity_formula(swt, :perp, kernel=lorentzian(fwhm=0.1))
-    intensities_broadened(swt, path, energies, formula)
-    @test_throws "broadening kernel" intensities_bands(swt,path,formula)
-
-    formula = intensity_formula(swt, :perp, kernel=lorentzian(fwhm=0.1))
-    intensities_broadened(swt, path, energies, formula)
-    @test_throws "broadening kernel" intensities_bands(swt,path,formula)
-
-    # Full
-    formula = intensity_formula(swt, :full, kernel=lorentzian(fwhm=0.1))
-    intensities_broadened(swt, path, energies, formula)
 end
 
 
@@ -365,14 +328,12 @@ end
         polarize_spins!(sys, (0,0,1))
         @test energy_per_site(sys) ≈ -0.1913132980155851
         
-        swt = SpinWaveTheory(sys)
-        formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
-        
-        qpoints = [[0, 0, 0], [0, 0, 1/2], [0, 1/2, 1/2], [0, 0, 0]]
-        disps, is = intensities_bands(swt, qpoints, formula)
-        disps_ref = [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553]
-        @test isapprox(disps[:,end], disps_ref; atol=1e-7)
-        @test is[:,end] ≈ [1, 1, 201/202, 1]
+        swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
+        qs = [[0, 0, 0], [0, 0, 1/2], [0, 1/2, 1/2], [0, 0, 0]]
+        res = intensities_bands(swt, qs)
+        disp_ref = [0.5689399140467553, 0.23914164251944922, 0.23914164251948083, 0.5689399140467553]
+        @test isapprox(res.disp[end, :], disp_ref; atol=1e-7)
+        @test res.data[end, :] ≈ [2/3, 1, 201/202, 2/3]
     end
 
     begin
@@ -385,13 +346,13 @@ end
         sys_reshape = reshape_supercell(sys, R)
         @test energy_per_site(sys_reshape) ≈ energy_per_site(sys) ≈ -0.89944235377
         
-        swt1 = SpinWaveTheory(sys, energy_ϵ=1e-8)
-        swt2 = SpinWaveTheory(sys_reshape, energy_ϵ=1e-8)
-        path = [[0.5, -0.1, 0.3]]
-        disp1 = dispersion(swt1, path)
-        disp2 = dispersion(swt2, path)
+        swt1 = SpinWaveTheory(sys; measure=nothing)
+        swt2 = SpinWaveTheory(sys_reshape; measure=nothing)
+        q = [0.5, -0.1, 0.3]
+        disp1 = dispersion(swt1, [q])
+        disp2 = dispersion(swt2, [q])
         
-        @test disp1 ≈ [1.3236778213351734 0.9206655419611791]
+        @test disp1 ≈ [1.3236778213351734, 0.9206655419611791]
         @test disp2 ≈ [0.9206655419611772]        
     end
 end
@@ -416,17 +377,16 @@ end
         set_spiral_order_on_sublattice!(sys, i; k=[0,0,1/7], axis=[0,0,1], S0=[cos(θ),sin(θ),0])
     end
 
-    swt = SpinWaveTheory(sys, apply_g=false)
-    formula = intensity_formula(swt, :full; kernel=delta_function_kernel)
+    measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false)
+    swt = SpinWaveTheory(sys; measure)
     q = [0.41568,0.56382,0.76414]
-    disp, intensities = intensities_bands(swt, [q], formula)
+    res = intensities_bands(swt, [q])
+    
     SpinW_energies = [2.6267,2.6541,2.8177,2.8767,3.2458,3.3172,3.4727,3.7767,3.8202,3.8284,3.8749,3.9095,3.9422,3.9730,4.0113,4.0794,4.2785,4.4605,4.6736,4.7564,4.7865]
     SpinW_intensities = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0.2999830079, -0.2999830079im, 0,0.2999830079im, 0.2999830079, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.3591387785, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5954018134, -0.5954018134im, 0,0.5954018134im, 0.5954018134, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.3708506016,1.3708506016im, 0, -1.3708506016im, 1.3708506016, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0511743697, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0734875342, 0.0 + 0.0734875342im, 0, 0.0 - 0.0734875342im, 0.0734875342, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0577275935, -0.0577275935im, 0,0.0577275935im, 0.0577275935, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6.1733740706, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0338873034,0.0338873034im, 0, -0.0338873034im, 0.0338873034, 0, 0, 0, 0]
-    
-    @test isapprox(disp[:], reverse(SpinW_energies); atol=1e-3)
-    
-    intensities_reshaped = reinterpret(reshape, ComplexF64, intensities)[:]
-    @test isapprox(SpinW_intensities, intensities_reshaped; atol=1e-7)
+
+    @test isapprox(res.disp, reverse(SpinW_energies); atol=1e-3)
+    @test isapprox(reinterpret(ComplexF64, res.data), SpinW_intensities; atol=1e-7)
 end
 
 
@@ -477,18 +437,16 @@ end
     q2 = [0.2360,0.7492,0.9596]
     q3 = [0.1131,0.7654,0.2810]
     q = [q1,q2,q3]
-    swt = SpinWaveTheory(sys);
+    measure = ssf_custom((q, ssf) -> ssf, sys)
+    swt = SpinWaveTheory(sys; measure)
     formfactors = [FormFactor("Cr4")]
-    formula = intensity_formula(swt, :full; kernel=delta_function_kernel, formfactors)
-    disp, intensities = intensities_bands(swt, q, formula)
-    disp_inds = [27, 119, 60, 126, 42, 46, 15, 77, 132, 52]
-    int_inds = [25, 147, 99, 121, 43, 140, 142, 21, 93, 49]
-    calc_disp = disp[disp_inds]
-    calc_int = intensities[int_inds]
+    res = intensities_bands(swt, q; formfactors)
+    disp_inds = [107, 89, 118, 140, 112, 16, 103, 75, 142, 18]
+    int_inds = [9, 147, 131, 41, 15, 96, 48, 105, 129, 17]
     disp_ref = [8.464621970889235,2.965829202488746,6.539681848582543,2.524276472373584,7.536305768861917,7.21157510322424,9.267100207705882,5.603801899767303,2.2012141464553636,6.933800585478572]
     int_ref = [[1.2252940671236579e-5 + 0.0im 2.274979028773366e-5 - 2.9311941591805888e-6im 1.653212548779866e-5 + 1.1781816967947205e-5im; 2.274979028773366e-5 + 2.9311941591805888e-6im 4.294029257562512e-5 + 0.0im 2.7876377103396445e-5 + 2.582994102312879e-5im; 1.653212548779866e-5 - 1.1781816967947205e-5im 2.7876377103396445e-5 - 2.582994102312879e-5im 3.363456946935e-5 + 0.0im], [0.0023849068155162296 + 0.0im 0.00012123326788175223 + 0.0005597432044950685im 2.9024438353305692e-5 + 0.0019488022511109527im; 0.00012123326788175223 - 0.0005597432044950685im 0.00013753575531155366 + 0.0im 0.0004588638588955403 + 9.225242336242961e-5im; 2.9024438353305692e-5 - 0.0019488022511109527im 0.0004588638588955403 - 9.225242336242961e-5im 0.0015927970884407876 + 0.0im], [3.343948808906739e-5 + 0.0im -0.00020469198105989745 - 4.273264350562476e-5im 0.00014834426130997533 + 1.9072039037346926e-5im; -0.00020469198105989745 + 4.273264350562476e-5im 0.0013075823952430512 + 0.0im -0.0009324269345411454 + 7.282554609603465e-5im; 0.00014834426130997533 - 1.9072039037346926e-5im -0.0009324269345411454 - 7.282554609603465e-5im 0.0006689624696724299 + 0.0im], [0.000371215929258512 + 0.0im 0.00015333075423969357 + 0.0003656727495761781im -0.0005009238108982899 + 0.0003075677944476983im; 0.00015333075423969357 - 0.0003656727495761781im 0.0004235456174856762 + 0.0im 9.606844029120137e-5 + 0.0006204846586781491im; -0.0005009238108982899 - 0.0003075677944476983im 9.606844029120137e-5 - 0.0006204846586781491im 0.0009307860608149384 + 0.0im], [2.9077299015972345e-6 + 0.0im 7.621667422789561e-6 + 2.799505642406002e-6im -2.266990384026427e-6 - 2.148518183351213e-6im; 7.621667422789561e-6 - 2.799505642406002e-6im 2.2673029606106315e-5 + 0.0im -8.010728755108931e-6 - 3.4490269087400155e-6im; -2.266990384026427e-6 + 2.148518183351213e-6im -8.010728755108931e-6 + 3.4490269087400155e-6im 3.3549800413375375e-6 + 0.0im], [4.79789862126743e-5 + 0.0im -2.0507170782740867e-5 - 1.8427040499771927e-5im 1.1851577631841944e-7 + 3.659464580060244e-5im; -2.0507170782740867e-5 + 1.8427040499771927e-5im 1.5842349642893138e-5 + 0.0im -1.4105371891520816e-5 - 1.5595760044615497e-5im; 1.1851577631841944e-7 - 3.659464580060244e-5im -1.4105371891520816e-5 + 1.5595760044615497e-5im 2.7911847518508492e-5 + 0.0im], [0.004511188103971374 + 0.0im -0.0013855170428121722 - 0.003178210621811203im 0.0012245622270242976 + 0.0004875348349735645im; -0.0013855170428121722 + 0.003178210621811203im 0.0026646373317783553 + 0.0im -0.0007195754536780329 + 0.0007129893012763896im; 0.0012245622270242976 - 0.0004875348349735645im -0.0007195754536780329 - 0.0007129893012763896im 0.0003850965251566534 + 0.0im], [1.1287527510791432e-5 + 0.0im 9.784635886704085e-6 + 4.074063598919808e-5im 1.177917483079537e-5 + 1.7619012333705406e-5im; 9.784635886704085e-6 - 4.074063598919808e-5im 0.00015552905794128413 + 0.0im 7.380400215595438e-5 - 2.7242055744441945e-5im; 1.177917483079537e-5 - 1.7619012333705406e-5im 7.380400215595438e-5 + 2.7242055744441945e-5im 3.979423792148188e-5 + 0.0im], [9.457308666169535e-5 + 0.0im -1.7915569710789528e-6 + 2.743855511588096e-5im 2.3814745247182995e-5 - 0.00010529497917934995im; -1.7915569710789528e-6 - 2.743855511588096e-5im 7.994705575514363e-6 + 0.0im -3.100044278968906e-5 - 4.914720059098736e-6im; 2.3814745247182995e-5 + 0.00010529497917934995im -3.100044278968906e-5 + 4.914720059098736e-6im 0.00012322929432616498 + 0.0im], [2.4114075174233513e-6 + 0.0im -2.4607194255187506e-6 - 1.9339332806224738e-6im 2.7253619853740792e-6 + 6.205353429165704e-7im; -2.4607194255187506e-6 + 1.9339332806224738e-6im 4.062041755385664e-6 + 0.0im -3.278759427148752e-6 + 1.5524978029108779e-6im; 2.7253619853740792e-6 - 6.205353429165704e-7im -3.278759427148752e-6 - 1.5524978029108779e-6im 3.2398762990830975e-6 + 0.0im]]
-    @test isapprox(calc_disp, disp_ref; atol=1e-6)
-    @test isapprox(calc_int, int_ref; atol=1e-7)
+    @test isapprox(res.disp[disp_inds], disp_ref; atol=1e-6)
+    @test isapprox(res.data[int_inds], int_ref; atol=1e-7)
 end
 
 
@@ -509,17 +467,15 @@ end
     @test energy_per_site(sys_prim) ≈ -2S^2
     
     # Both systems should produce the same intensities
-    swt1 = SpinWaveTheory(sys_prim)
-    swt2 = SpinWaveTheory(sys)
+    swt1 = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
+    swt2 = SpinWaveTheory(sys; measure=ssf_perp(sys))
     kernel = lorentzian(fwhm=0.8)
     formfactors = [FormFactor("Co2")]
-    formula1 = intensity_formula(swt1, :perp; kernel, formfactors)
-    formula2 = intensity_formula(swt2, :perp; kernel, formfactors)
     q = randn(3)
-    energies = collect(0:0.01:6)
-    is1 = intensities_broadened(swt1, [q], energies, formula1)
-    is2 = intensities_broadened(swt2, [q], energies, formula2)
-    @test is1 ≈ is2        
+    energies = 0:0.01:6
+    res1 = intensities(swt1, [q]; energies, kernel, formfactors)
+    res2 = intensities(swt2, [q]; energies, kernel, formfactors)
+    @test res1.data ≈ res2.data
 end
 
 
@@ -564,50 +520,36 @@ end
     end
     @assert energy_per_site(sys1) ≈ energy_per_site(sys2)
 
-    swt = SpinWaveTheory(sys1)
-    formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
-    res1 = intensities_bands(swt, [[0,0,0]], formula)
-
-    swt = SpinWaveTheory(sys2)
-    formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
-    res2 = intensities_bands(swt, [[0,0,0]], formula)
-
-    @assert res1[1] ≈ res2[1]
-    @assert res1[2] ≈ res2[2]
+    swt = SpinWaveTheory(sys1; measure=ssf_trace(sys1))
+    res1 = intensities_bands(swt, [[0,0,0]])
+    swt = SpinWaveTheory(sys2; measure=ssf_trace(sys2))
+    res2 = intensities_bands(swt, [[0,0,0]])
+    @assert res1.data ≈ res2.data
 end
 
 
 @testitem "Generalized interaction consistency" begin
     using LinearAlgebra
 
-    # Construct LSWT Hamiltonian for Heisenberg ferromagnet at a particular wave
-    # vector k
-    function make_fm_lswt_hamiltonian(k; extract_parts=true)
-        k = Sunny.Vec3(k)
-        dims = (1, 1, 1)
-        cryst = Crystal(I(3), [[0,0,0]]) 
-        sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], :SUN)
-        J = -1.0
-        S = spin_matrices(1)
-        S1, S2 = Sunny.to_product_space(S, S)
-        exchange = J*(S1'*S2)
-        set_pair_coupling!(sys, exchange, Bond(1,1,[1,0,0]); extract_parts)
-
-        swt = SpinWaveTheory(sys)
-        nmodes = (swt.sys.Ns[1] - 1) * Sunny.natoms(swt.sys.crystal)
-        H = zeros(ComplexF64, 2nmodes, 2nmodes)
-        Sunny.swt_hamiltonian_SUN!(H, swt, k)
-
+    function make_lswt_hamiltonian(sys, q)
+        swt = SpinWaveTheory(sys; measure=nothing)
+        L = Sunny.nbands(swt)
+        H = zeros(ComplexF64, 2L, 2L)
+        Sunny.swt_hamiltonian_SUN!(H, swt, Sunny.Vec3(q))
         return H
     end
 
-    # Test whether results are identical when using both conventional approach and
-    # generalized interactions (tensor decomposition)
-    k = [0.23, 0, 0]
-    H_conventional = make_fm_lswt_hamiltonian(k; extract_parts=true)
-    H_generalized = make_fm_lswt_hamiltonian(k; extract_parts=false)
+    sys = System(Sunny.cubic_crystal(), (1, 1, 1), [SpinInfo(1; S=1, g=1)], :SUN)
 
-    @test H_conventional ≈ H_generalized
+    q = [0.23, 0, 0]
+
+    set_pair_coupling!(sys, (Si, Sj) -> -(Si'*Sj), Bond(1,1,[1,0,0]); extract_parts=true)
+    H_conventional = make_lswt_hamiltonian(sys, q)
+
+    set_pair_coupling!(sys, (Si, Sj) -> -(Si'*Sj), Bond(1,1,[1,0,0]); extract_parts=false)
+    H_alternative = make_lswt_hamiltonian(sys, q)
+
+    @test H_conventional ≈ H_alternative
 end
 
 
@@ -635,7 +577,7 @@ end
         randomize_spins!(sys)
         minimize_energy!(sys; maxiters=1_000)
 
-        return SpinWaveTheory(sys)
+        return SpinWaveTheory(sys; measure=nothing)
     end
 
     # Construct dipole Hamiltonian standard way
@@ -694,24 +636,28 @@ end
     sys, cryst = dimer_model(; J=1.0, J′=0.2, h=0.0, dims=(2,1,1), fast=false) 
     S = spin_matrices(1/2)
     S1, S2 = Sunny.to_product_space(S, S)
-    observables = [
+    observables0 = Hermitian.([
         1/√2*(S1[1] - S2[1]),
         1/√2*(S1[2] - S2[2]),
         1/√2*(S1[3] - S2[3]),
-    ]
-
+    ])
+    observables = repeat(observables0, 1, size(eachsite(sys))...)
+    corr_pairs = [(3,3), (2,2), (1,1)]
+    combiner = (_, data) -> real(sum(data))
+    measure = Sunny.MeasureSpec(observables, corr_pairs, combiner)
+    
     # Set up SpinWaveTheory
     randomize_spins!(sys)
     minimize_energy!(sys)
-    swt = SpinWaveTheory(sys; observables)
+    swt = SpinWaveTheory(sys; measure)
 
     qs = [[0,0,0], [0.5,0,0], [1,0,0]]
-    broadened_formula = intensity_formula(swt, :trace; kernel=lorentzian(fwhm=0.3))
-    energies = collect(0:0.1:5)
-    is = intensities_broadened(swt, qs, energies, broadened_formula);
-    is_ref = [0.042551643530614226 0.05061618774203612 0.06118972834822155 0.07541981401191966 0.09518339306332815 0.12371078181463013 0.1669136576105103 0.23644634156679015 0.3574143016120729 0.589319004913063 1.0795750388213625 2.0570916947398903 2.6569442073245604 1.6749367428248116 0.8709898932656854 0.4927038808971025 0.30849624153704924 0.20903618563778026 0.1502266820186879 0.11286975075833217 0.08777050885259896 0.07013929292833648 0.057300827672198455 0.047672208009393216 0.04027090049655778 0.0344619791000266 0.02982086993597283 0.02605519995256082 0.022958441606058772 0.020381422739929135 0.01821426297223774 0.016374601990583864 0.014799738769001156 0.013441266708211906 0.01226133976759786 0.01123002734145714 0.010323410070056573 0.009522188815697288 0.008810654796662341 0.008175917662895354 0.007607320304517221 0.007095990541228231 0.006634494316422953 0.006216564975067639 0.005836890143659928 0.00549094262866035 0.005174845247781923 0.0048852620341421574 0.004619310095626147 0.004374487768740016 0.00414861571474443; 0.14853118271457438 0.19360218524421224 0.2621797495216911 0.3732135013522173 0.5678610986270936 0.944407657666259 1.7450675448755357 3.2945578443571577 3.9947874291087895 2.418790606759786 1.2612861617795654 0.7201697967624341 0.45442367736983386 0.30970051154679945 0.22353509755861065 0.1685055354270234 0.1313752454162916 0.10520387618639207 0.0860938574888819 0.0717287252840356 0.060665219355115055 0.05196772774655005 0.045008912709399315 0.03935576182418519 0.03470177881993486 0.030825189142763776 0.027562374631854493 0.024790523018178495 0.02241601889071837 0.020366506674885078 0.018585357752204528 0.017027745220739847 0.015657814448345492 0.014446613655329999 0.013370560099471452 0.01241028925551664 0.011549781566933818 0.010775692876605122 0.010076836041215703 0.009443775967574439 0.008868510590520351 0.008344217576743833 0.007865051732026552 0.007425981842385972 0.007022658419610481 0.006651305841367626 0.006308633878300496 0.005991764727412878 0.005698172523177506 0.0054256329470820505 0.005172181054614204; 0.042551643530614205 0.0506161877420361 0.06118972834822153 0.07541981401191963 0.0951833930633281 0.12371078181463005 0.16691365761051016 0.23644634156678992 0.3574143016120724 0.5893190049130621 1.0795750388213603 2.0570916947398867 2.656944207324563 1.6749367428248163 0.8709898932656877 0.4927038808971036 0.30849624153704985 0.20903618563778062 0.15022668201868813 0.1128697507583323 0.08777050885259907 0.07013929292833657 0.05730082767219852 0.04767220800939327 0.04027090049655782 0.03446197910002663 0.02982086993597286 0.026055199952560844 0.02295844160605879 0.020381422739929156 0.018214262972237757 0.016374601990583878 0.014799738769001168 0.013441266708211913 0.01226133976759787 0.011230027341457147 0.010323410070056582 0.009522188815697295 0.008810654796662348 0.00817591766289536 0.007607320304517226 0.007095990541228234 0.006634494316422957 0.006216564975067644 0.005836890143659932 0.005490942628660353 0.005174845247781927 0.00488526203414216 0.00461931009562615 0.0043744877687400185 0.0041486157147444325]
+    energies = 0:0.1:5
+    kernel = lorentzian(fwhm=0.3)
+    res = intensities(swt, qs; energies, kernel)
+    data_ref = [0.042551643530614226 0.05061618774203612 0.06118972834822155 0.07541981401191966 0.09518339306332815 0.12371078181463013 0.1669136576105103 0.23644634156679015 0.3574143016120729 0.589319004913063 1.0795750388213625 2.0570916947398903 2.6569442073245604 1.6749367428248116 0.8709898932656854 0.4927038808971025 0.30849624153704924 0.20903618563778026 0.1502266820186879 0.11286975075833217 0.08777050885259896 0.07013929292833648 0.057300827672198455 0.047672208009393216 0.04027090049655778 0.0344619791000266 0.02982086993597283 0.02605519995256082 0.022958441606058772 0.020381422739929135 0.01821426297223774 0.016374601990583864 0.014799738769001156 0.013441266708211906 0.01226133976759786 0.01123002734145714 0.010323410070056573 0.009522188815697288 0.008810654796662341 0.008175917662895354 0.007607320304517221 0.007095990541228231 0.006634494316422953 0.006216564975067639 0.005836890143659928 0.00549094262866035 0.005174845247781923 0.0048852620341421574 0.004619310095626147 0.004374487768740016 0.00414861571474443; 0.14853118271457438 0.19360218524421224 0.2621797495216911 0.3732135013522173 0.5678610986270936 0.944407657666259 1.7450675448755357 3.2945578443571577 3.9947874291087895 2.418790606759786 1.2612861617795654 0.7201697967624341 0.45442367736983386 0.30970051154679945 0.22353509755861065 0.1685055354270234 0.1313752454162916 0.10520387618639207 0.0860938574888819 0.0717287252840356 0.060665219355115055 0.05196772774655005 0.045008912709399315 0.03935576182418519 0.03470177881993486 0.030825189142763776 0.027562374631854493 0.024790523018178495 0.02241601889071837 0.020366506674885078 0.018585357752204528 0.017027745220739847 0.015657814448345492 0.014446613655329999 0.013370560099471452 0.01241028925551664 0.011549781566933818 0.010775692876605122 0.010076836041215703 0.009443775967574439 0.008868510590520351 0.008344217576743833 0.007865051732026552 0.007425981842385972 0.007022658419610481 0.006651305841367626 0.006308633878300496 0.005991764727412878 0.005698172523177506 0.0054256329470820505 0.005172181054614204; 0.042551643530614205 0.0506161877420361 0.06118972834822153 0.07541981401191963 0.0951833930633281 0.12371078181463005 0.16691365761051016 0.23644634156678992 0.3574143016120724 0.5893190049130621 1.0795750388213603 2.0570916947398867 2.656944207324563 1.6749367428248163 0.8709898932656877 0.4927038808971036 0.30849624153704985 0.20903618563778062 0.15022668201868813 0.1128697507583323 0.08777050885259907 0.07013929292833657 0.05730082767219852 0.04767220800939327 0.04027090049655782 0.03446197910002663 0.02982086993597286 0.026055199952560844 0.02295844160605879 0.020381422739929156 0.018214262972237757 0.016374601990583878 0.014799738769001168 0.013441266708211913 0.01226133976759787 0.011230027341457147 0.010323410070056582 0.009522188815697295 0.008810654796662348 0.00817591766289536 0.007607320304517226 0.007095990541228234 0.006634494316422957 0.006216564975067644 0.005836890143659932 0.005490942628660353 0.005174845247781927 0.00488526203414216 0.00461931009562615 0.0043744877687400185 0.0041486157147444325]
 
-    @test is ≈ is_ref
+    @test res.data ≈ data_ref'
 end
 
 
@@ -733,7 +679,7 @@ end
         set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 1/2, 0)))
         set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 0, 1/2)))
         set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 1/2, 1/2)))
-        swt_afm1 = SpinWaveTheory(sys_afm1)
+        swt_afm1 = SpinWaveTheory(sys_afm1; measure=nothing)
         # Calculate at low accuracy for faster testing
         δE_afm1 = Sunny.energy_per_site_lswt_correction(swt_afm1; atol=5e-4)
         return isapprox(δE_afm1_ref, δE_afm1; atol=1e-3)
@@ -760,7 +706,7 @@ end
         sys = System(cryst, (3, 3, 1), [SpinInfo(1, S=S, g=2)], mode)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_spiral_order!(sys; k=[2/3, -1/3, 0], axis=[0, 0, 1], S0=[0, 1, 0])
-        swt = SpinWaveTheory(sys)
+        swt = SpinWaveTheory(sys; measure=nothing)
         # Calculate first 3 digits for faster testing
         δS = Sunny.magnetization_lswt_correction(swt; atol=1e-3)[1]
 
@@ -803,7 +749,7 @@ end
     minimize_energy!(sys; maxiters=1000)
     sys_swt = reshape_supercell(sys, diagm([1,1,2]))
     minimize_energy!(sys_swt)
-    swt = SpinWaveTheory(sys_swt)
+    swt = SpinWaveTheory(sys_swt; measure=nothing)
 
     δS = Sunny.magnetization_lswt_correction(swt; atol=1e-2)[1]
 

@@ -22,6 +22,5 @@ function accum!(o::OnlineStatistics{T}, x) where T
     o
 end
 
-# If Statistics becomes in scope, define methods Statistics.{mean, var} instead
-mean(o::OnlineStatistics) = o.μ
-var(o::OnlineStatistics; corrected=true) = corrected ? o.M/(o.n-1) : o.M/o.n
+Statistics.mean(o::OnlineStatistics) = o.μ
+Statistics.var(o::OnlineStatistics; corrected=true) = corrected ? o.M/(o.n-1) : o.M/o.n

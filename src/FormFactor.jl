@@ -37,7 +37,7 @@ end
     FormFactor(ion::String; g_lande=2)
 
 The magnetic form factor for a given magnetic ion and charge state. When passed
-to an [`intensity_formula`](@ref), it rescales structure factor intensities
+to [`intensities`](@ref), it rescales structure factor intensities
 based on the magnitude of the scattering vector, ``|𝐪|``.
 
 The parameter `ion` must be one of the following strings:
@@ -129,13 +129,13 @@ function compute_gaussian_expansion(j::ExpandedBesselIntegral, s2)
     return A*exp(-a*s2) + B*exp(-b*s2) + C*exp(-c*s2) + D*exp(-d*s2) + E
 end
 
-function compute_form_factor(form_factor::FormFactor, k2_absolute::Float64)
+function compute_form_factor(form_factor::FormFactor, q2_absolute::Float64)
     (; j0, j2, g) = form_factor
 
     # Return early if this is the identity form factor
     (j0.A == j0.B == j0.C == j0.D == 0) && (j0.E == 1) && (g == 2) && return 1.0
 
-    s2 = k2_absolute / (4π)^2
+    s2 = q2_absolute / (4π)^2
     if g == 2
         return compute_gaussian_expansion(j0, s2)
     else

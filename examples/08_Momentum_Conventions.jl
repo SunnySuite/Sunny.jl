@@ -26,8 +26,8 @@ cryst = Crystal(latvecs, [[0,0,0]], "P1")
 # and ``𝐁 ∝ ẑ``.
 
 sys = System(cryst, (1, 1, 25), [SpinInfo(1; S=1, g=2)], :dipole; seed=0)
-D = 0.1 # meV
-B = 5D # ~ 8.64T
+D = 0.1
+B = 5D
 set_exchange!(sys, dmvec([0, 0, D]), Bond(1, 1, [0, 0, 1]))
 set_field!(sys, [0, 0, B])
 
@@ -57,7 +57,7 @@ plot_spins(sys)
 
 # Estimate the dynamical structure factor using classical dynamics.
 
-sc = dynamical_correlations(sys; dt, nω=100, ωmax=15D)
+sc = SampledCorrelations(sys; dt, energies=range(0, 15D, 100), measure=ssf_trace(sys))
 add_sample!(sc, sys)
 nsamples = 100
 for _ in 1:nsamples
@@ -66,9 +66,8 @@ for _ in 1:nsamples
     end
     add_sample!(sc, sys)
 end
-density = 100
-path, xticks = reciprocal_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], density)
-data = intensities_interpolated(sc, path, intensity_formula(sc, :trace; kT));
+path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 300)
+res1 = intensities(sc, path; energies=:available, kT)
 
 # Calculate the same quantity with linear spin wave theory at ``T = 0``. Because
 # the ground state is fully polarized, the required magnetic cell is a ``1×1×1``
@@ -76,19 +75,17 @@ data = intensities_interpolated(sc, path, intensity_formula(sc, :trace; kT));
 
 sys_small = resize_supercell(sys, (1,1,1))
 minimize_energy!(sys_small)
-swt = SpinWaveTheory(sys_small)
-formula = intensity_formula(swt, :trace; kernel=delta_function_kernel)
-disp_swt, intens_swt = intensities_bands(swt, path, formula);
+swt = SpinWaveTheory(sys_small; measure=ssf_trace(sys_small))
+path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
+res2 = intensities_bands(swt, path)
 
-# This model system has a single magnon band with dispersion ``ϵ(𝐪) = 1 - 0.2
+# This model system has a single magnon band with dispersion ``ϵ(𝐪) = 1 - D/B
 # \sin(2πq₃)`` and uniform intensity. Both calculation methods reproduce this
 # analytical solution. Observe that ``𝐪`` and ``-𝐪`` are inequivalent. The
 # structure factor calculated from classical dynamics additionally shows an
 # elastic peak at ``𝐪 = [0,0,0]``, reflecting the ferromagnetic ground state.
 
-fig = Figure()
-ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (r.l.u.)",
-          xticks, xticklabelrotation=π/10)
-heatmap!(ax, 1:size(data, 1), available_energies(sc), data;  colorrange=(0.0, 50.0))
-lines!(ax, disp_swt[:,1]; color=:magenta, linewidth=2)
+fig = Figure(size=(768, 300))
+plot_intensities!(fig[1, 1], res1; axisopts=(; ylabel="", title="Classical dynamics"))
+plot_intensities!(fig[1, 2], res2; axisopts=(; ylabel="", title="Spin wave theory"))
 fig

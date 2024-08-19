@@ -112,7 +112,7 @@ function load_nxs(filename; field="signal")
         binwidth = Vector{Float64}(undef,4)
         binstart = Vector{Float64}(undef,4)
         binend = Vector{Float64}(undef,4)
-        covectors = zeros(Float64,4,4)
+        covectors = zeros(4, 4)
         spatial_covector_ixs = [0,0,0]
         std = x -> sqrt(sum((x .- sum(x) ./ length(x)).^2))
         for (i,name) in enumerate(axes_names)
@@ -170,10 +170,8 @@ end
 function quick_view_nxs(filename,keep_ax)
     integration_axes = setdiff(1:4,keep_ax)
     params, signal = load_nxs(filename)
-    integrate_axes!(params,axes = integration_axes)
-    int_signal = dropdims(sum(signal,dims = integration_axes);dims = Tuple(integration_axes))
+    integrate_axes!(params, axes=integration_axes)
+    int_signal = dropdims(sum(signal, dims=integration_axes); dims=Tuple(integration_axes))
     bcs = axes_bincenters(params)
-    (bcs[keep_ax[1]],bcs[keep_ax[2]],int_signal)
+    (bcs[keep_ax[1]], bcs[keep_ax[2]], int_signal)
 end
-
-

@@ -22,16 +22,16 @@ using Sunny, GLMakie
 # contains competing ferromagnetic nearest-neightbor and antiferromagnetic
 # next-nearest-neighbor exchange terms on a triangular lattice. Both exchanges
 # exhibit anisotropy on the z-term. Additionally, there is an external magnetic
-# field, $h$, and easy-plane single-ion anisotropy, $D > 0$. We begin by
+# field, ``h``, and easy-plane single-ion anisotropy, ``D > 0``. We begin by
 # implementing the [`Crystal`](@ref).
 
 lat_vecs = lattice_vectors(1, 1, 10, 90, 90, 120)
 basis_vecs = [[0,0,0]]
 cryst = Crystal(lat_vecs, basis_vecs)
 
-# Create a spin [`System`](@ref) containing $L×L$ cells. Selecting
-# [`Units.theory`](@ref Units) with $g=-1$ provides a dimensionless Zeeman
-# coupling of the form $-𝐁⋅𝐬$.
+# Create a spin [`System`](@ref) containing ``L×L`` cells. Selecting
+# [`Units.theory`](@ref Units) with ``g=-1`` provides a dimensionless Zeeman
+# coupling of the form ``-𝐁⋅𝐬``.
 
 L = 40
 dims = (L, L, 1)
@@ -74,21 +74,20 @@ set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 # fluctuations.
 
 damping = 0.05
-kT = 0
+kT = 0;
 
-# The first step is to determine a reasonable integration timestep. To determine
-# this, we can initialize the system to some relatively low-energy
-# configuration. A relatively large error tolerance of 0.025 is OK for this
-# phenomenological study.
+# The first step is to estimate a reasonable integration timestep `dt`. In this
+# case, a random spin configuration gives a tighter bound than does an
+# energy-minimized configuration. A relatively large error tolerance is OK for
+# this phenomenological study.
 
 randomize_spins!(sys)
-minimize_energy!(sys) # (this optimization does not need to converge)
 integrator = Langevin(; damping, kT)
-suggest_timestep(sys, integrator; tol=0.025)
+suggest_timestep(sys, integrator; tol=0.05)
 
 # Apply the suggested timestep.
 
-integrator.dt = 0.01
+integrator.dt = 0.01;
 
 # Now run the dynamical quench starting from a randomized configuration. We will
 # record the state of the system at three different times during the quenching
@@ -127,7 +126,7 @@ plot_triangular_plaquettes(sun_berry_curvature, frames; size=(600,200),
     offset_spacing=10, texts=["\tt = "*string(τ) for τ in τs], text_offset=(0, 6)
 )
 
-# The times are given in $\hbar/|J_1|$. The white background corresponds to a
+# The times are given in ``\hbar/|J_1|``. The white background corresponds to a
 # quantum paramagnetic state, where the local spin exhibits a strong quadrupole
 # moment and little or no dipole moment. At late times, there are well-formed
 # skyrmions of positive (red) and negative (blue) charge, and various metastable
