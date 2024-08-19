@@ -97,7 +97,7 @@ radii = range(0, 3, 200) # (1/Å)
 res = powder_average(cryst, radii, 2000) do qs
     intensities(swt, qs; energies, kernel, formfactors)
 end
-plot_intensities(res; units, saturation=0.98)
+plot_intensities(res; units, saturation=1.0)
 
 # This result can be compared to experimental neutron scattering data
 # from Fig. 5 of [Ge et al.](https://doi.org/10.1103/PhysRevB.96.064413)
