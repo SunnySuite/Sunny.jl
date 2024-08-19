@@ -11,7 +11,7 @@ using Sunny, GLMakie
 
 # Build a [`Crystal`](@ref) with ``P\overline{3}`` space group,
 
-a = 1
+a = 1.0
 latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)
 cryst = Crystal(latvecs, [[1/2,0,0]], 147)
 
@@ -42,22 +42,14 @@ plot_spins(sys; dims=2)
 
 points_rlu = [[-1/2, 0, 0], [0, 0, 0], [1/2, 1/2, 0]]
 density = 100
-path, xticks = reciprocal_space_path(cryst, points_rlu, density);
+path = q_space_path(cryst, points_rlu, 400)
 
-# Calculate discrete intensities
+# Calculate intensities for each dispersion band
 
-swt = SpinWaveTheory(sys)
-formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
-disp, intensity = intensities_bands(swt, path, formula);
+swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
+res = intensities_bands(swt, path)
 
-# Plot over a restricted color range from [0,1e-2]. Note that the intensities of
-# the flat band at zero-energy are off-scale.
+# The plot shows a very intense flat band at zero energy transfer. In the
+# original SpinW tutorial, this flat band was filtered.
 
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)",
-          xticks, xticklabelrotation=π/6)
-ylims!(ax, -1e-1, 2.3)
-for i in axes(disp, 2)
-    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=intensity[:,i], colorrange=(0,1e-2))
-end
-fig
+plot_intensities(res)

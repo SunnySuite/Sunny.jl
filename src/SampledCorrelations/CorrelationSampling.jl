@@ -1,51 +1,39 @@
-function observable_values!(buf, sys::System{N}, ops) where N
+function observable_values!(buf, sys::System{N}, observables) where N
     if N == 0
-        for (i, op) in enumerate(ops)
+        for i in axes(observables, 1)
             for site in eachsite(sys)
-                A = observable_at_site(op,site)
+                obs = observables[i, site]
                 dipole = sys.dipoles[site]
-                buf[i,site] = A * dipole
+                buf[i, site] = obs ⋅ dipole
             end
         end
     else
         Zs = sys.coherents
-        for (i, op) in enumerate(ops)
+        for i in axes(observables, 1)
             for site in eachsite(sys)
-                A = observable_at_site(op,site)
-                buf[i,site] = dot(Zs[site], A, Zs[site])
+                obs = observables[i, site] 
+                buf[i, site] = dot(Zs[site], obs, Zs[site])
             end
         end
     end
-
     return nothing
 end
 
-function trajectory(sys::System{N}, dt, nsnaps, ops; kwargs...) where N
-    num_ops = length(ops)
-
-    traj_buf = zeros(N == 0 ? Float64 : ComplexF64, num_ops, sys.latsize..., natoms(sys.crystal), nsnaps)
-    trajectory!(traj_buf, sys, dt, nsnaps, ops; kwargs...)
-
-    return traj_buf
-end
-
-function trajectory!(buf, sys, dt, nsnaps, ops; measperiod = 1)
-    @assert length(ops) == size(buf, 1)
+function trajectory!(buf, sys, dt, nsnaps, observables; measperiod = 1)
+    @assert size(observables, 1) == size(buf, 1)
     integrator = ImplicitMidpoint(dt)
-
-    observable_values!(@view(buf[:,:,:,:,:,1]), sys, ops)
+    observable_values!(@view(buf[:,:,:,:,:,1]), sys, observables)
     for n in 2:nsnaps
         for _ in 1:measperiod
             step!(sys, integrator)
         end
-        observable_values!(@view(buf[:,:,:,:,:,n]), sys, ops)
+        observable_values!(@view(buf[:,:,:,:,:,n]), sys, observables)
     end
-
     return nothing
 end
 
 function new_sample!(sc::SampledCorrelations, sys::System)
-    (; dt, samplebuf, measperiod, observables, processtraj!) = sc
+    (; dt, samplebuf, measperiod, measure) = sc
 
     # Only fill the sample buffer half way; the rest is zero-padding
     buf_size = size(samplebuf, 6)
@@ -54,21 +42,16 @@ function new_sample!(sc::SampledCorrelations, sys::System)
 
     @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `SampledCorrelations`"
 
-    trajectory!(samplebuf, sys, dt, nsnaps, observables.observables; measperiod)
-    processtraj!(sc)
+    trajectory!(samplebuf, sys, dt, nsnaps, measure.observables; measperiod)
 
     return nothing
 end
 
-function no_processing(::SampledCorrelations)
-    nothing
-end
-
 function accum_sample!(sc::SampledCorrelations; window)
-    (; data, M, observables, samplebuf, corrbuf, nsamples, space_fft!, time_fft!, corr_fft!, corr_ifft!) = sc
+    (; data, M, measure, samplebuf, corrbuf, nsamples, space_fft!, time_fft!, corr_fft!, corr_ifft!) = sc
     natoms = size(samplebuf)[5]
 
-    num_time_offsets = size(samplebuf,6)
+    num_time_offsets = size(samplebuf, 6)
     T = (num_time_offsets÷2) + 1 # Duration that each signal was recorded for
 
     # Time offsets (in samples) Δt = [0,1,...,(T-1),-(T-1),...,-1] produced by 
@@ -91,21 +74,17 @@ function accum_sample!(sc::SampledCorrelations; window)
     # Number of contributions to the DFT sum (non-constant due to zero-padding).
     # Equivalently, this is the number of estimates of the correlation with
     # each offset Δt that need to be averaged over.
-    n_contrib = reshape(T .- abs.(time_offsets),1,1,1,num_time_offsets)
+    n_contrib = reshape(T .- abs.(time_offsets), 1, 1, 1, num_time_offsets)
     
     # As long as `num_time_offsets` is odd, there will be a non-zero number of
     # contributions, so we don't need this line
-    @assert isodd(num_time_offsets)
-    #n_contrib[n_contrib .== 0] .= Inf
+    #$ @assert isodd(num_time_offsets)
+    n_contrib[n_contrib .== 0] .= Inf
 
-    count = nsamples[1] += 1
+    count = sc.nsamples += 1
 
-    # Note that iterating over the `correlations` (a SortedDict) causes
-    # allocations here. The contents of the loop contains no allocations. There
-    # does not seem to be a big performance penalty associated with these
-    # allocations.
-    for j in 1:natoms, i in 1:natoms, (ci, c) in observables.correlations  
-        α, β = ci.I
+    for j in 1:natoms, i in 1:natoms, (c, (α, β)) in enumerate(measure.corr_pairs)
+        # α, β = ci.I
 
         sample_α = @view samplebuf[α,:,:,:,i,:]
         sample_β = @view samplebuf[β,:,:,:,j,:]
@@ -161,21 +140,19 @@ end
 
 """
     add_sample!(sc::SampledCorrelations, sys::System)
+    add_sample!(sc::SampledCorrelationsStatic, sys::System)
 
-`add_trajectory` uses the spin configuration contained in the `System` to
-generate a correlation data and accumulate it into `sc`. For static structure
-factors, this involves analyzing the spin-spin correlations of the spin
-configuration provided. For a dynamic structure factor, a trajectory is
-calculated using the given spin configuration as an initial condition. The
-spin-spin correlations are then calculated in time and accumulated into `sc`. 
+Measure pair correlation data for the spin configuration in `sys`, and
+accumulate these statistics into `sc`. For a dynamical
+[`SampledCorrelations`](@ref), this involves time-integration of the provided
+spin trajectory, recording correlations in both space and time. Conversely,
+[`SampledCorrelationsStatic`](@ref), will record only spatial correlations for
+the single spin configuration that is provided.
 
-This function will change the state of `sys` when calculating dynamical
-structure factor data. To preserve the initial state of `sys`, it must be saved
-separately prior to calling `add_sample!`. Alternatively, the initial spin
-configuration may be copied into a new `System` and this new `System` can be
-passed to `add_sample!`.
+Time-integration will update the spin configuration of `sys` in-place. To avoid
+this mutation, consider calling [`clone_system`](@ref) prior to `add_sample!`.
 """
-function add_sample!(sc::SampledCorrelations, sys::System; window = :cosine)
+function add_sample!(sc::SampledCorrelations, sys::System; window=:cosine)
     # Sunny now estimates the dynamical structure factor in two steps. First, it
     # estimates real-time correlations C(t) = ⟨S(t)S(0)⟩ from classical
     # dynamics. Second, it takes the Fourier transform of C(t) to get the
@@ -200,4 +177,8 @@ function add_sample!(sc::SampledCorrelations, sys::System; window = :cosine)
 
     new_sample!(sc, sys)
     accum_sample!(sc; window)
+end
+
+function add_sample!(sc::SampledCorrelationsStatic, sys::System; window=:cosine)
+    add_sample!(sc.parent, sys; window)
 end

@@ -31,19 +31,6 @@ function diffnorm2(a, b)
     return acc
 end
 
-@static if VERSION < v"1.10"
-    hermitianpart(A) = Hermitian(A+A')/2
-
-    function hermitianpart!(A, uplo::Symbol=:U)
-        for i in CartesianIndices(A)
-            i, j = i.I
-            A[i,j] = (A[i,j] + conj(A[j,i]))/2
-            A[j,i] = conj(A[i,j])
-        end
-        return Hermitian(A, uplo)
-    end
-end
-
 # Project `v` onto space perpendicular to `n`
 @inline proj(v, n) = v - n * ((n' * v) / norm2(n))
 

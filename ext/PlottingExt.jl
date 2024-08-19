@@ -3,6 +3,7 @@ module PlottingExt
 using Sunny
 import Sunny: Mat3, Vec3, orig_crystal, natoms
 using LinearAlgebra
+import Statistics
 import Makie
 
 
@@ -13,8 +14,8 @@ let warned = false
             Support for the WGLMakie backend is experimental. Known issues are
             being tracked at https://github.com/SunnySuite/Sunny.jl/issues/211.
 
-            If you encounter graphics problems, we suggest to restart the Julia
-            session and load GLMakie instead of WGLMakie.
+            If you encounter graphics problems, try restarting the Julia session
+            and load GLMakie instead of WGLMakie.
             """
         end
         warned = true
@@ -214,7 +215,7 @@ function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150
     # Draw labels
     for (pos, text) in zip(1.2vecs, ["x", "y", "z"])
         Makie.text!(axcompass, pos; text, color=:black, fontsize=16, font=:bold, glowwidth=4.0,
-            glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
+            glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
     end
     
     # The intention is that the parent scene fully controls the camera, and
@@ -647,7 +648,7 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
             # White numbers for real, magnetic ions
             if !isghost && ismagnetic
                 text = repr.(eachindex(pts))
-                o = Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), overdraw=true)
+                o = Makie.text!(ax, pts; text, color=:white, fontsize=16, align=(:center, :center), depth_shift=-1f0)
                 !ismagnetic && Makie.connect!(o.visible, full_crystal_toggle.active)
             end
         end
@@ -803,12 +804,10 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, dims
 
     # Show cell volume
     Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
-    
-    # Label lattice vectors. As an overdraw command, this must come last.
     pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(cryst.latvecs)[1:dims]]
     text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
     Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
-                glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
+                glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
 
     # Add inspector for pop-up information. Use a monospaced font provided
     # available in Makie.jl/assets/fonts/. The depth needs to be almost exactly
@@ -858,19 +857,27 @@ function Sunny.plot_spins(sys::System; size=(768, 512), compass=true, kwargs...)
     fig = Makie.Figure(; size)
     ax = Makie.LScene(fig[1, 1]; show_axis=false)
     notifier = Makie.Observable(nothing)
-    plot_spins!(ax, sys; notifier, kwargs...)
+    Sunny.plot_spins!(ax, sys; notifier, kwargs...)
     compass && add_cartesian_compass(fig, ax)
     return NotifiableFigure(notifier, fig)
 end
 
-#=
-    plot_spins!(ax, sys::System; arrowscale=1.0, color=:red, colorfn=nothing,
-                colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
-                ghost_radius=0, dims=3)
+"""
+    plot_spins!(ax, sys::System; opts...)
 
-Like [`plot_spins`](@ref) but will draw into the given Makie Axis, `ax`.
-=#
-function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrowscale=1.0, stemcolor=:lightgray, color=:red,
+Mutating variant of [`plot_spins`](@ref) that allows drawing into a single panel
+of a Makie figure.
+
+# Example
+
+```julia
+fig = Figure()
+plot_spins!(fig[1, 1], sys1)
+plot_spins!(fig[2, 1], sys2)
+display(fig)
+```
+"""
+function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrowscale=1.0, stemcolor=:lightgray, color=:red,
                      colorfn=nothing, colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
                      ghost_radius=0, dims=3)
     warn_wglmakie()
@@ -885,11 +892,6 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
     # to set a scale for the scene in case there is only one atom).
     supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
     Makie.linesegments!(ax, cell_wireframe(supervecs, dims); color=:gray, linewidth=1.5)
-
-    # Bounding box of original crystal unit cell in teal
-    if show_cell
-        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs, dims); color=:teal, linewidth=1.5)
-    end
 
     # Infer characteristic length scale between sites
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
@@ -982,18 +984,220 @@ function plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrows
         Makie.meshscatter!(ax, pts; markersize, color=linecolor, diffuse=1.15, transparency=isghost)
     end
 
+    # Bounding box of original crystal unit cell in teal
     if show_cell
-        # Labels for lattice vectors. This needs to come last for
-        # `overdraw=true` to work.
+        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs, dims); color=:teal, linewidth=1.5)
         pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(orig_crystal(sys).latvecs)[1:dims]]
         text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
         Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
-                    glowcolor=(:white, 0.6), align=(:center, :center), overdraw=true)
+                    glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
     end
 
     orient_camera!(ax, supervecs; ghost_radius, ℓ0, orthographic, dims)
 
     return ax
+end
+
+function get_unit_energy(units, into)
+    if isnothing(units)
+        isnothing(into) || error("units parameter required")
+        return (1.0, "Energy")
+    else
+        sym = @something into units.energy
+        str = Sunny.unit_strs[sym]
+        return (getproperty(units, sym), "Energy ($str)")
+    end
+end
+
+function colorrange_from_data(; data, saturation, sensitivity, allpositive)
+    datacols = eachslice(data; dims=1)
+    cmax = Statistics.quantile(maximum.(datacols), saturation)
+    cmin = Statistics.quantile(minimum.(datacols), 1 - saturation)
+
+    if allpositive
+        return (sensitivity, 1) .* cmax
+    else
+        cabsmax = max(abs(cmax), abs(cmin))
+        return (-cabsmax, cabsmax)
+    end
+end
+
+"""
+    plot_intensities!(panel, res::AbstractIntensities; opts...)
+
+Mutating variant of [`plot_intensities`](@ref) that allows drawing into a single
+panel of a Makie figure.
+
+# Example
+
+```julia
+fig = Figure()
+plot_intensities!(fig[1, 1], res1)
+plot_intensities!(fig[2, 1], res2)
+display(fig)
+```
+"""
+function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; colormap=nothing, saturation=0.9, sensitivity=0.0025, allpositive=true, units=nothing, into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
+    unit_energy, ylabel = get_unit_energy(units, into)
+ 
+    if res.qpts isa Sunny.QPath 
+        mindisp, maxdisp = extrema(res.disp)
+        ylims = @something ylims (min(0, mindisp), 1.2*maxdisp)
+        energies = range(ylims[1], ylims[2], 512)
+        fwhm = @something fwhm 0.02*(ylims[2]-ylims[1])
+        broadened = Sunny.broaden(res; energies, kernel=gaussian(; fwhm))
+
+        colorrange = colorrange_from_data(; broadened.data, saturation, sensitivity, allpositive)
+        colormap = @something colormap (allpositive ? Makie.Reverse(:thermal) : :bwr)
+
+        xticklabelrotation = maximum(length.(res.qpts.xticks[2])) > 3 ? π/6 : 0.0
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, limits=(nothing, ylims ./ unit_energy), res.qpts.xticks, xticklabelrotation, axisopts...)
+        Makie.heatmap!(ax, axes(res.data, 2), collect(energies / unit_energy), broadened.data'; colorrange, colormap, lowclip=:white)
+        for i in axes(res.disp, 1)
+            Makie.lines!(ax, res.disp[i,:] / unit_energy; color=:lightskyblue3)
+        end
+        return ax
+    else
+        error("Cannot plot type $(typeof(res.qpts))")
+    end
+end
+
+function grid_aspect_ratio(cryst::Crystal, grid::Sunny.QGrid{2})
+    # Aspect ratio for global distances
+    Δq_global = cryst.recipvecs * (grid.qs[end] - grid.qs[begin])
+    e1, e2 = normalize.(Ref(cryst.recipvecs) .* grid.axes)
+    abs(dot(e1, e2)) < 1e-12 || error("Cannot yet plot non-orthogonal grid")
+    return (Δq_global ⋅ e1) / (Δq_global ⋅ e2)
+end
+
+function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
+    (; axes, offset) = grid
+
+    varidxs = [findmax(abs.(a))[2] for a in axes]
+    if varidxs[2] == varidxs[1]
+        varidxs[2] = mod1(varidxs[2] + 1, 3)
+    end
+    varstrs = ("H", "K", "L")
+
+    labels = map(axes, varstrs[varidxs]) do axis, c
+        elems = map(axis) do x
+            if abs(x) < 1e-12
+                "0"
+            else
+                Sunny.coefficient_to_math_string(x)*c
+            end
+        end
+        return "[" * join(elems, ", ") * "]"
+    end
+
+    if norm(offset) > 1e-12
+        label1 = labels[begin] * " + " * Sunny.fractional_vec3_to_string(offset)
+        labels = (label1, labels[2:end]...)
+    end
+
+    return labels
+end
+
+
+function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+    (; crystal, qpts, data, energies) = res
+
+    colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
+    colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
+    colorrange = @something colorrange colorrange_suggest
+    
+    if qpts isa Sunny.QPath
+        unit_energy, ylabel = get_unit_energy(units, into)
+        xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel, qpts.xticks, xticklabelrotation, axisopts...)
+        Makie.heatmap!(ax, axes(data, 2), collect(energies/unit_energy), data'; colormap, colorrange)
+        return ax
+    elseif qpts isa Sunny.QGrid{2}
+        if isone(length(energies))
+            aspect = grid_aspect_ratio(crystal, qpts)
+            xlabel, ylabel = suggest_labels_for_grid(qpts)
+            (xs, ys) = map(range, qpts.coefs_lo, qpts.coefs_hi, size(qpts.qs))
+            ax = Makie.Axis(panel; xlabel, ylabel, aspect, axisopts...)
+            Makie.heatmap!(ax, xs, ys, dropdims(data; dims=1); colormap, colorrange)
+            return ax
+        else
+            error("Cannot yet plot $(typeof(res))")
+        end
+    else
+        error("Cannot yet plot $(typeof(res))")
+    end
+end
+
+function Sunny.plot_intensities!(panel, res::Sunny.InstantIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+    (; crystal, qpts, data) = res
+
+    colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
+    colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
+    colorrange = @something colorrange colorrange_suggest
+    
+    if qpts isa Sunny.QGrid{2}
+        aspect = grid_aspect_ratio(crystal, qpts)
+        xlabel, ylabel = suggest_labels_for_grid(qpts)
+        (xs, ys) = map(range, qpts.coefs_lo, qpts.coefs_hi, size(qpts.qs))
+        ax = Makie.Axis(panel; xlabel, ylabel, aspect, axisopts...)
+        Makie.heatmap!(ax, xs, ys, data; colormap, colorrange)
+        return ax
+    else
+        error("Cannot yet plot $(typeof(res))")
+    end
+end
+
+function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+    unit_energy, ylabel = get_unit_energy(units, into)
+    xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
+ 
+    colorrange_suggest = colorrange_from_data(; res.data, saturation, sensitivity=0, allpositive)
+    colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
+    colorrange = @something colorrange colorrange_suggest
+
+    ax = Makie.Axis(panel; xlabel, ylabel, axisopts...)
+    Makie.heatmap!(ax, res.radii, collect(res.energies/unit_energy), res.data'; colormap, colorrange)
+    return ax
+end
+
+"""
+    plot_intensities(res::BandIntensities; colormap=nothing, allpositive=true, saturation=0.9,
+                     sensitivity=0.0025, fwhm=nothing, ylims=nothing, units=nothing, into=nothing, 
+                     axisopts=Dict())
+
+    plot_intensities(res::Intensities; colormap=nothing, colorrange=nothing, allpositive=true, 
+                     saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
+
+    plot_intensities(res::PowderIntensities; colormap=nothing, colorrange=nothing, allpositive=true, 
+                     saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
+
+Keyword arguments:
+
+  * `colormap` and `colorange`: Optionally override the default mapping from
+    intensity values to colors. If specified, these parameters will be passed
+    directly to `Makie.heatmap`.
+  * `allpositive`: Should intensities be all positive, apart from numerical
+    error? If true, the default colors will clip below zero intensity. If false,
+    the default colors will be symmetric about zero intensity.
+  * `saturation`: If `colorrange` is not explicitly set, this defines the
+    saturation value as a quantile of intensities over all wavevectors.
+  * `sensitivity`: When plotting `BandIntensities`, this defines a lower bound
+    on the visible intensities as a fraction of the saturated intensity value.
+  * `fwhm`: When plotting `BandIntensities`, this overrides the full-width at
+    half-maximum value used for Gaussian broadening.
+  * `ylims`: Limits of the y-axis.
+  * `units`: A [`Units`](@ref) instance for labeling axes and performing
+    conversions.
+  * `into`: A symbol for conversion into a new base energy unit (e.g. `:meV`,
+    `:K`, etc.)
+  * `axisopts`: An additional collection of named arguments that will be passed
+    to the `Makie.Axis` constructor. This allows to override the axis `title`,
+    `xlabel`, `ylabel`, `xticks`, etc. See Makie documentation for details.
+"""
+function Sunny.plot_intensities(res::Sunny.AbstractIntensities; opts...)
+    fig = Makie.Figure()
+    Sunny.plot_intensities!(fig[1,1], res; opts...)
+    return fig
 end
 
 end

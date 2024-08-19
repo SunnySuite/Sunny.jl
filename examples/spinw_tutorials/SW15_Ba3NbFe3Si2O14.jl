@@ -13,6 +13,7 @@ using Sunny, GLMakie
 # structure from [Marty et al., Phys. Rev. Lett. **101**, 247201
 # (2008)](http://dx.doi.org/10.1103/PhysRevLett.101.247201).
 
+units = Units(:meV)
 a = b = 8.539 # (Å)
 c = 5.2414
 latvecs = lattice_vectors(a, b, c, 90, 90, 120)
@@ -23,10 +24,9 @@ langasite = Crystal(latvecs, positions, 150; types)
 cryst = subcrystal(langasite, "Fe")
 view_crystal(cryst)
 
-# Create a [`System`](@ref) with a lattice size of $(1,1,7)$. The magnetic
-# structure of Ba₃NbFe₃Si₂O₁₄ was
-# determined to have the ordering wavevector $𝐐=(0,0,1/7)$ and hence the
-# magnetic unit cell has 7 sites. 
+# Create a [`System`](@ref) with a lattice size of ``(1,1,7)``. The magnetic
+# structure of Ba₃NbFe₃Si₂O₁₄ was determined to have the ordering wavevector
+# ``𝐐=(0,0,1/7)`` and hence the magnetic unit cell has 7 sites. 
 
 latsize = (1,1,7)
 S = 5/2
@@ -46,9 +46,9 @@ set_exchange!(sys, J₄, Bond(1, 1, [0,0,1]))
 set_exchange!(sys, J₂, Bond(1, 3, [0,0,0]))
 
 # The final two exchanges define the chirality of the magnetic structure. The
-# crystal chirality, $\epsilon_T$, the chirality of each triangle, $ϵ_D$ and the
-# sense of rotation of the spin helices along $c$, $ϵ_{H}$. The three
-# chiralities are related by $ϵ_T=ϵ_D ϵ_H$. We now assign $J_3$ and $J_5$
+# crystal chirality, ``\epsilon_T``, the chirality of each triangle, ``ϵ_D`` and
+# the sense of rotation of the spin helices along ``c``, ``ϵ_H``. The three
+# chiralities are related by ``ϵ_T=ϵ_D ϵ_H``. We now assign ``J_3`` and ``J_5``
 # according to the crystal chirality.
 
 ϵD = -1
@@ -79,23 +79,30 @@ set_spiral_order_on_sublattice!(sys, 3; k, axis, S0=[-1/2, +sqrt(3)/2, 0])
 
 plot_spins(sys; color=[s[1] for s in sys.dipoles])
 
-# Define a path in reciprocal space, $[0,1,-1+\xi]$ for $\xi = 0 \dots 3$.
+# Define a path in reciprocal space, ``[0,1,-1+ξ]`` for ``ξ = 0 … 3``.
 
-points_rlu = [[0,1,-1],[0,1,-1+1],[0,1,-1+2],[0,1,-1+3]];
-density = 200
-path, xticks = reciprocal_space_path(cryst, points_rlu, density);
+qs = [[0, 1, -1], [0, 1, -1+1], [0, 1, -1+2], [0, 1, -1+3]]
+path = q_space_path(cryst, qs, 600)
 
-# Calculate broadened intensities
+# Calculate broadened intensities for unpolarized scattering.
 
-swt = SpinWaveTheory(sys; energy_ϵ=1e-6)
-broadened_formula = intensity_formula(swt, :perp; kernel=gaussian(fwhm=0.25))
-energies = collect(0:0.05:6)  # 0 < ω < 6 (meV)
-is = intensities_broadened(swt, path, energies, broadened_formula);
+measure = ssf_perp(sys)
+swt = SpinWaveTheory(sys; measure)
+energies = range(0, 6, 400)  # 0 < ω < 6 (meV)
+res = intensities(swt, path; energies, kernel=gaussian(fwhm=0.25))
+axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
+plot_intensities(res; units, axisopts, saturation=0.7, colormap=:jet)
 
-# Plot
-
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)",
-          xticks, xticklabelrotation=π/6)
-heatmap!(ax, 1:size(is,1), energies, is, colormap=:jet, colorrange=(0,150))
-fig
+# Use [`ssf_custom_bm`](@ref) to calculate the imaginary part of
+# ``\mathcal{S}^{2, 3}(𝐪, ω) - \mathcal{S}^{3, 2}(𝐪, ω)``. In polarized
+# neutron scattering, it is conventional to express the 3×3 structure factor
+# matrix ``\mathcal{S}^{α, β}(𝐪, ω)`` in the Blume-Maleev polarization axis
+# system. Specify the scattering plane ``[0, K, L]`` via the spanning vectors
+# ``𝐮 = [0, 1, 0]`` and ``𝐯 = [0, 0, 1]``.
+measure = ssf_custom_bm(sys; u=[0, 1, 0], v=[0, 0, 1]) do q, ssf
+    imag(ssf[2,3] - ssf[3,2])
+end
+swt = SpinWaveTheory(sys; measure)
+res = intensities(swt, path; energies, kernel=gaussian(fwhm=0.25))
+axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
+plot_intensities(res; units, axisopts, saturation=0.8, allpositive=false)

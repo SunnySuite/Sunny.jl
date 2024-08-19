@@ -103,7 +103,7 @@ spinw_sources = filter(endswith(".jl"), readdir(pkgdir(Sunny, "examples", "spinw
 spinw_names = [splitext(basename(src))[1] for src in spinw_sources]
 spinw_mds = build_examples(spinw_sources, joinpath("examples", "spinw"))
 
-contributed_mds = isdraft ? [] : prepare_contributed()
+# contributed_mds = isdraft ? [] : prepare_contributed()
 
 
 # Build docs as HTML, including the `examples/name.md` markdown built above
@@ -115,10 +115,10 @@ Documenter.makedocs(;
         "Examples" => [
             example_mds...,
             "SpinW tutorials" => spinw_mds,
-            "Contributed" => contributed_mds,
+            # "Contributed" => contributed_mds,
             "Advanced" => [
                 "parallelism.md",                        
-                "writevtk.md",
+                # "writevtk.md",
             ],
         ],
         "Modeling Guides" => [

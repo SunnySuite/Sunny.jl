@@ -49,6 +49,7 @@ using Sunny, GLMakie
 # be loaded from a `.cif` file. Here, we instead build a crystal by listing all
 # atoms and their types.
 
+units = Units(:meV)
 a = b = 4.05012  # Lattice constants for triangular lattice
 c = 6.75214      # Spacing in the z-direction
 
@@ -83,7 +84,7 @@ view_crystal(cryst)
 
 print_symmetry_table(cryst, 8.0)
 
-# The allowed $g$-tensor is expressed as a 3×3 matrix in the free coefficients
+# The allowed ``g``-tensor is expressed as a 3×3 matrix in the free coefficients
 # `A`, `B`, ... The allowed single-ion anisotropy is expressed as a linear
 # combination of Stevens operators. The latter correspond to polynomials of the
 # spin operators, as we will describe below.
@@ -92,7 +93,7 @@ print_symmetry_table(cryst, 8.0)
 # bonds. The notation `Bond(i, j, n)` indicates a bond between atom indices `i`
 # and `j`, with cell offset `n`. In the general case, it will be necessary to
 # associate atom indices with their positions in the unit cell; these can be
-# viewed with `display(cryst)`. Note that the order of the pair $(i, j)$ is
+# viewed with `display(cryst)`. Note that the order of the pair ``(i, j)`` is
 # significant if the exchange tensor contains antisymmetric
 # Dzyaloshinskii–Moriya (DM) interactions.
 # 
@@ -107,9 +108,9 @@ print_symmetry_table(cryst, 8.0)
 
 sys = System(cryst, (4, 4, 4), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
 
-# This system includes $4×4×4$ unit cells, i.e. 64 Fe atoms, each with spin $S=1$
-# and a $g$-factor of 2. Quantum mechanically, spin $S=1$ involves a
-# superposition of $2S+1=3$ distinct angular momentum states. In `:SUN` mode,
+# This system includes ``4×4×4`` unit cells, i.e. 64 Fe atoms, each with spin
+# ``S=1`` and a ``g``-factor of 2. Quantum mechanically, spin ``S=1`` involves a
+# superposition of ``2S+1=3`` distinct angular momentum states. In `:SUN` mode,
 # this superposition will be modeled explicitly using the formalism of SU(3)
 # coherent states, which captures both dipolar and quadrupolar fluctuations. For
 # the more traditional dipole dynamics, use `:dipole` mode instead.
@@ -161,7 +162,7 @@ set_exchange!(sys, [J′2apm 0.0    0.0;
 # The function [`set_onsite_coupling!`](@ref) assigns a single-ion anisotropy.
 # The argument can be constructed using [`spin_matrices`](@ref) or
 # [`stevens_matrices`](@ref). Here we use Julia's anonymous function syntax to
-# assign an easy-axis anisotropy along the direction $\hat{z}$.
+# assign an easy-axis anisotropy along the direction ``\hat{z}``.
 
 D = 2.165
 set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
@@ -191,20 +192,20 @@ minimize_energy!(sys)
 plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 # A different understanding of the magnetic ordering can be obtained by moving
-# to Fourier space. The 'instant' structure factor $𝒮(𝐪)$ is an experimental
-# observable. To investigate $𝒮(𝐪)$ as true 3D data, Sunny provides
-# [`instant_correlations`](@ref) and related functions. Here, however, we will
-# use [`print_wrapped_intensities`](@ref), which gives average intensities for
-# the individual Bravais sublattices (in effect, all wavevectors are wrapped to
-# the first Brillouin zone).
+# to Fourier space. The 'instantaneous' structure factor ``𝒮(𝐪)`` is an
+# experimental observable. To investigate ``𝒮(𝐪)`` as true 3D data, Sunny
+# provides [`intensities_instant`](@ref). Here, however, we will use
+# [`print_wrapped_intensities`](@ref), which gives average intensities for the
+# individual Bravais sublattices (in effect, all wavevectors are wrapped to the
+# first Brillouin zone).
 
 print_wrapped_intensities(sys)
 
 # The result will likely be approximately consistent with the known zero-field
-# energy-minimizing magnetic structure of FeI₂, which is single-$Q$ (two-up,
+# energy-minimizing magnetic structure of FeI₂, which is single-``Q`` (two-up,
 # two-down antiferromagnetic order). Mathematically, spontaneous symmetry
-# breaking should select one of $±Q = [0, -1/4, 1/4]$, $[1/4, 0, 1/4]$, or
-# $[-1/4,1/4,1/4]$, associated with the three-fold rotational symmetry of the
+# breaking should select one of ``±Q = [0, -1/4, 1/4]``, ``[1/4, 0, 1/4]``, or
+# ``[-1/4,1/4,1/4]``, associated with the three-fold rotational symmetry of the
 # crystal spacegroup. In nature, however, one will frequently encounter
 # competing "domains" associated with the three possible orientations of the
 # ground state.
@@ -219,9 +220,9 @@ print_wrapped_intensities(sys)
 # but that is outside the scope of this tutorial.
 
 # Here, let's break the three-fold symmetry of FeI₂ by hand. Given one or more
-# desired $Q$ modes, Sunny can suggest a magnetic supercell with appropriate
+# desired ``Q`` modes, Sunny can suggest a magnetic supercell with appropriate
 # periodicity. Let's arbitrarily select one of the three possible ordering
-# wavevectors, $Q = [0, -1/4, 1/4]$. Sunny suggests a corresponding magnetic
+# wavevectors, ``Q = [0, -1/4, 1/4]``. Sunny suggests a corresponding magnetic
 # supercell in units of the crystal lattice vectors.
 
 suggest_magnetic_supercell([[0, -1/4, 1/4]])
@@ -241,86 +242,45 @@ plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
 # ## Linear spin wave theory
 #
 # Now that we have found the ground state for a magnetic supercell, we can
-# immediately proceed to perform zero-temperature calculations using linear spin
-# wave theory. We begin by instantiating a `SpinWaveTheory` type using the
-# supercell.
+# perform zero-temperature calculations using linear spin wave theory.
 
-swt = SpinWaveTheory(sys_min)
+# The function [`q_space_path`](@ref) will linearly sample a path between the
+# provided ``q``-points in reciprocal lattice units (RLU). Here, we use a total
+# of 500 wavevectors.
 
-# Select a sequence of wavevectors that will define a piecewise linear
-# interpolation in reciprocal lattice units (RLU).
+qs = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
+path = q_space_path(cryst, qs, 500)
 
-q_points = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]];
+# Construct a [`SpinWaveTheory`](@ref) object for the magnetic supercell and
+# calculate scattering intensities with [`intensities_bands`](@ref). The
+# measurement [`ssf_perp`](@ref) will project the dynamical spin structure
+# factor onto the space perpendicular to the momentum transfer ``𝐪``, which is
+# appropriate for an unpolarized neutron beam.
 
-# The function [`reciprocal_space_path`](@ref) will linearly sample a `path`
-# between the provided $q$-points with a given `density`. The `xticks` return
-# value provides labels for use in plotting.
+swt = SpinWaveTheory(sys_min; measure=ssf_perp(sys_min))
+res = intensities_bands(swt, path)
+plot_intensities(res; units)
 
-density = 50
-path, xticks = reciprocal_space_path(cryst, q_points, density);
+# To make comparisons with inelastic neutron scattering (INS) data, one can
+# employ empirical broadening. Select [`lorentzian`](@ref) broadening, with a
+# full-width at half-maximum of 0.3 meV. We will calculate intensities for 300
+# discrete energies between 0 and 10 meV.
 
-# The [`dispersion`](@ref) function defines the quasiparticle excitation
-# energies $ω_i(𝐪)$ for each point $𝐪$ along the reciprocal space path.
+kernel = lorentzian(fwhm=0.3)
+energies = range(0, 10, 300);  # 0 < ω < 10 (meV)
 
-disp = dispersion(swt, path);
+# A real FeI₂ sample will exhibit spontaneous breaking of its 3-fold rotational
+# symmetry about the ``ẑ``-axis. We use [`domain_average`](@ref) to effectively
+# average the broadened [`intensities`](@ref) calculations over the three
+# possible domain orientations. In practice, this involves rotating the
+# ``𝐪``-points by 0°, 120°, and 240° angles.
 
-# In addition to the band energies $ω_i(𝐪)$, Sunny can calculate the inelastic
-# neutron scattering intensity $I_i(𝐪)$ for each band $i$ according to an
-# [`intensity_formula`](@ref). We choose to apply a polarization correction
-# $(1 - 𝐪⊗𝐪)$ by setting the mode argument to `:perp`. Selecting
-# `delta_function_kernel` specifies that we want the energy and intensity of
-# each band individually.
-
-formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
-
-# The function [`intensities_bands`](@ref) uses linear spin wave theory to
-# calculate both the dispersion and intensity data for the provided path.
-
-disp, intensity = intensities_bands(swt, path, formula);
-
-# These can be plotted in GLMakie.
-
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
-ylims!(ax, 0.0, 7.5)
-xlims!(ax, 1, size(disp, 1))
-colorrange = extrema(intensity)
-for i in axes(disp, 2)
-    lines!(ax, 1:length(disp[:,i]), disp[:,i]; color=intensity[:,i], colorrange)
+rotations = [([0,0,1], n*(2π/3)) for n in 0:2]
+weights = [1, 1, 1]
+res = domain_average(cryst, path; rotations, weights) do path_rotated
+    intensities(swt, path_rotated; energies, kernel)
 end
-fig
-
-# To make comparisons with inelastic neutron scattering (INS) data, it is
-# helpful to employ an empirical broadening kernel, e.g., a
-# [`lorentzian`](@ref).
-
-fwhm = 0.3 # full width at half maximum (meV)
-broadened_formula = intensity_formula(swt, :perp; kernel=lorentzian(; fwhm))
-
-# The [`intensities_broadened`](@ref) function requires an energy range in
-# addition to the $𝐪$-space path.
-
-energies = collect(0:0.01:10)  # 0 < ω < 10 (meV).
-is1 = intensities_broadened(swt, path, energies, broadened_formula);
-
-# A real FeI₂ sample will exhibit competing magnetic domains associated with
-# spontaneous symmetry breaking of the 6-fold rotational symmetry of the
-# triangular lattice. Note that the wavevectors $𝐪$ and $-𝐪$ are equivalent in
-# the structure factor, which leaves three distinct domain orientations, which
-# are related by 120° rotations about the $ẑ$-axis. Rather than rotating the
-# spin configuration directly, on can rotate the $𝐪$-space path. Below, we use
-# [`rotation_in_rlu`](@ref) to average the intensities over all three possible
-# orientations.
-
-R = rotation_in_rlu(cryst, [0, 0, 1], 2π/3)
-is2 = intensities_broadened(swt, [R*q for q in path], energies, broadened_formula)
-is3 = intensities_broadened(swt, [R*R*q for q in path], energies, broadened_formula)
-is_averaged = (is1 + is2 + is3) / 3
-
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (r.l.u.)", ylabel="Energy (meV)", xticks, xticklabelrotation=π/6)
-heatmap!(ax, 1:size(is_averaged, 1), energies, is_averaged)
-fig
+plot_intensities(res; units, colormap=:viridis)
 
 # This result can be directly compared to experimental neutron scattering data
 # from [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)
@@ -340,17 +300,7 @@ fig
 # An interesting exercise is to repeat the same study, but using `mode =
 # :dipole` instead of `:SUN`. That alternative choice would constrain the
 # coherent state dynamics to the space of dipoles only.
-
-# The full dynamical spin structure factor (DSSF) can be retrieved as a $3×3$
-# matrix with the [`dssf`](@ref) function, for a given path of $𝐪$-vectors.
-
-disp, is = dssf(swt, path);
-
-# The first output `disp` is identical to that obtained from `dispersion`. The
-# second output `is` contains a list of $3×3$ matrix of intensities. For
-# example, `is[q,n][2,3]` yields the $(ŷ,ẑ)$ component of the structure factor
-# intensity for `nth` mode at the `q`th wavevector in the `path`.
-
+#
 # ## What's next?
 #
 # The multi-boson linear spin wave theory, applied above, can be understood as

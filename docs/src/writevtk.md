@@ -1,9 +1,10 @@
 # ParaView Rendering
 
-The 4D correlation data produced by Sunny is too high-dimensional to visualize directly.
-This page describes how to export *3D slices* of correlation data from Sunny to the
-Visual ToolKit (VTK) format, which is compatible with the [ParaView](https://www.paraview.org/) visualization software.
-ParaView supports volumetric rendering:
+The 4D correlation data produced by Sunny is too high-dimensional to visualize
+directly. This page describes how to export *3D slices* of correlation data from
+Sunny to the Visual ToolKit (VTK) format, which is compatible with the
+[ParaView](https://www.paraview.org/) visualization software. ParaView supports
+volumetric rendering:
 
 ```@raw html
 <img src="./assets/paraviewrender.jpg" style="margin: 30px; " width="400">
@@ -11,10 +12,10 @@ ParaView supports volumetric rendering:
 
 ## Simulation data
 
-First, generate some correlation data in Sunny.
-We will use a 2D lattice, since the correlation data ``S(Q_x,Q_y,\omega)`` is 
-3D and can be exported in its entirety.
-The following code sets up the system, thermalizes it, and records the correlation data in a `SampledCorrelations` called `dsf`.
+First, generate some correlation data in Sunny. We will use a 2D lattice, since
+the correlation data ``S(Q_x,Q_y,\omega)`` is 3D and can be exported in its
+entirety. The following code sets up the system, thermalizes it, and records the
+correlation data in a `SampledCorrelations` called `dsf`.
 
 ```julia
 using Sunny
@@ -43,8 +44,7 @@ for i in 1:10_000 # Long enough to reach equilibrium
 end 
 
 ωmax=10.
-
-dsf = dynamical_correlations(sys; dt, nω=48, ωmax)
+dsf = SampledCorrelations(sys; dt, energies=range(0, ωmax, 48))
 
 nsamples = 10
 for _ in 1:nsamples
@@ -86,10 +86,11 @@ Doing this changes the last axis of the histogram to fit in [0,1]:
 ⊡    49 bins from -0.011 to +1.013 along [+0.10 dE] (Δ = 0.213)
 ```
 
-Now that our histogram is a cube, we compute the intensity in the histogram bins using the usual [`intensities_binned`](@ref):
+Now that our histogram is a cube, we compute the intensity in the histogram bins
+using the usual `intensities_binned`:
 
 ```julia
-formula = intensity_formula(dsf,:trace)
+formula = intensity_formula(dsf, :trace)
 signal, counts = intensities_binned(dsf, params; formula)
 intensity = signal ./ counts
 ```

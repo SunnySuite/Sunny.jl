@@ -16,6 +16,18 @@ function phase_averaged_elements(data, q_absolute::Vec3, crystal::Crystal, ff_at
     return SVector{NCorr,ComplexF64}(elems)
 end
 
+function prefactors_for_phase_averaging(q_absolute::Vec3, crystal::Crystal, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
+    # Form factor
+    ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute), Val{NAtoms}())
+
+    # Overall phase factor for each site
+    q = crystal.recipvecs \ q_absolute
+    r = crystal.positions
+    prefactor = ntuple(i -> ffs[i] * exp(- 2π*im * (q ⋅ r[i])), Val{NAtoms}())
+
+    return prefactor 
+end
+
 # Weighted average over variances to propagate error. This is essentially a
 # "random phase" approximation, i.e., assumes the interference effects from
 # phase averaging will average out. The weighting in the average comes from the

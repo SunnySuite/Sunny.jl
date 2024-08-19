@@ -43,7 +43,7 @@ function Sunny.export_vtk(filename,sys; coordinates = :physical, log_scale = fal
     ic = instant_correlations(sys)
     add_sample!(ic, sys)
     params = unit_resolution_binning_parameters(ic)
-    formula = intensity_formula(ic,:trace)
+    formula = intensity_formula(ic, :trace)
 
     # Counts is always just one because of unit_resolution
     signal, _ = intensities_binned(ic,params; formula)
@@ -59,12 +59,12 @@ end
 """
     export_vtk(filename,params::BinningParameters,data)
 
-Export a VTK-compatible file to `filename` (do not include file
-extension when specifying the file name) which contains the `data` as VTK Cell Data on
-a grid parameterized by `params`.
+Export a VTK-compatible file to `filename` (do not include file extension when
+specifying the file name) which contains the `data` as VTK Cell Data on a grid
+parameterized by `params`.
 
-At least one axis of the [`BinningParameters`](@ref) must be integrated over, since VTK
-does not support 4D data. See [`integrate_axes!`](@ref).
+At least one axis of the [`BinningParameters`](@ref) must be integrated over,
+since VTK does not support 4D data. See `integrate_axes!`.
 """
 function Sunny.export_vtk(filename,params::BinningParameters,data;dims_kept = nothing)
     # Storing the bin *edges* as the grid in the VTK file

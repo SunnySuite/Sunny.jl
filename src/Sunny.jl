@@ -1,7 +1,7 @@
 module Sunny
 
 using LinearAlgebra
-import LinearMaps: LinearMap, FunctionMap
+import Statistics
 import StaticArrays: SVector, SMatrix, SArray, MVector, MMatrix, SA, @SVector
 import OffsetArrays: OffsetArray, OffsetMatrix, Origin
 import SpecialFunctions: erfc
@@ -9,7 +9,6 @@ import FFTW
 import DynamicPolynomials as DP
 import Printf: Printf, @printf, @sprintf
 import Random: Random, randn!
-import DataStructures: SortedDict, OrderedDict
 import Optim
 import JLD2
 import HCubature: hcubature
@@ -27,7 +26,6 @@ include("Operators/Rotation.jl")
 include("Operators/Stevens.jl")
 include("Operators/TensorOperators.jl")
 include("Operators/Symbolic.jl")
-include("Operators/Observables.jl")
 export spin_matrices, stevens_matrices, to_product_space, rotate_operator, print_stevens_expansion
 
 include("Symmetry/LatticeUtils.jl")
@@ -45,6 +43,9 @@ export Crystal, subcrystal, standardize, lattice_vectors, lattice_params, primit
 
 include("Units.jl")
 export Units
+
+include("FormFactor.jl")
+export FormFactor
 
 include("System/SpinInfo.jl")
 include("System/Types.jl")
@@ -72,11 +73,16 @@ export Langevin, ImplicitMidpoint, step!, suggest_timestep
 include("Optimization.jl")
 export minimize_energy! 
 
-include("FormFactor.jl")
-export FormFactor
-
 include("MCIF.jl")
 export set_dipoles_from_mcif!
+
+include("Measurements/MeasureSpec.jl")
+include("Measurements/QPoints.jl")
+include("Measurements/IntensitiesTypes.jl")
+include("Measurements/Broadening.jl")
+include("Measurements/RotationalAverages.jl")
+export ssf_custom, ssf_custom_bm, ssf_perp, ssf_trace, q_space_path, q_space_grid, lorentzian, gaussian, 
+    powder_average, domain_average
 
 include("SpinWaveTheory/SpinWaveTheory.jl")
 include("SpinWaveTheory/HamiltonianDipole.jl")
@@ -84,37 +90,21 @@ include("SpinWaveTheory/HamiltonianSUN.jl")
 include("SpinWaveTheory/DispersionAndIntensities.jl")
 include("SpinWaveTheory/Lanczos.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
-export SpinWaveTheory, dispersion, dssf, delta_function_kernel
-
-include("SampledCorrelations/SampledCorrelations.jl")
-include("SampledCorrelations/CorrelationUtils.jl")
-include("SampledCorrelations/CorrelationSampling.jl")
-include("SampledCorrelations/BasisReduction.jl")
-include("Intensities/Types.jl")
-include("SampledCorrelations/DataRetrieval.jl")
-export SampledCorrelations, dynamical_correlations, instant_correlations, add_sample!,
-    broaden_energy, gaussian, lorentzian, available_wave_vectors, available_energies, merge_correlations,
-    intensity_formula, integrated_gaussian, integrated_lorentzian
-
-include("Intensities/ElementContraction.jl")
-include("Intensities/Interpolation.jl")
-export intensities_interpolated, instant_intensities_interpolated, rotation_in_rlu,
-    reciprocal_space_path
-include("Intensities/Binning.jl")
-export intensities_binned, BinningParameters, count_bins, integrate_axes!,
-    unit_resolution_binning_parameters, 
-    slice_2D_binning_parameters, axes_bincenters,
-    reciprocal_space_path_bins
-include("Intensities/LinearSpinWaveIntensities.jl")
-export intensities_broadened, intensities_bands
-include("Intensities/PowderAveraging.jl")
-export reciprocal_space_shell, powder_average_binned
-include("Intensities/ExperimentData.jl")
-export load_nxs, generate_mantid_script_from_binning_parameters
+export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands,
+    intensities_instant # TODO
 
 include("Spiral/LuttingerTisza.jl")
 include("Spiral/SpiralEnergy.jl")
 include("Spiral/SpiralSWT.jl")
+export SpiralSpinWaveTheory, spiral_minimize_energy!, spiral_energy, spiral_energy_per_site
+
+include("SampledCorrelations/SampledCorrelations.jl")
+include("SampledCorrelations/CorrelationUtils.jl")
+include("SampledCorrelations/CorrelationSampling.jl")
+include("SampledCorrelations/PhaseAveraging.jl")
+include("SampledCorrelations/DataRetrieval.jl")
+export SampledCorrelations, SampledCorrelationsStatic, add_sample!, clone_correlations,
+    merge_correlations
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")
@@ -124,19 +114,33 @@ include("MonteCarlo/WangLandau.jl")
 include("MonteCarlo/ParallelWangLandau.jl")
 export propose_uniform, propose_flip, propose_delta, @mix_proposals, LocalSampler
 
+include("Binning/Binning.jl")
+include("Binning/ExperimentData.jl")
+export BinningParameters, load_nxs, generate_mantid_script_from_binning_parameters
+
 include("deprecated.jl")
-export set_external_field!, set_external_field_at!, meV_per_K
+export set_external_field!, set_external_field_at!, meV_per_K,
+    dynamic_correlations, instant_correlations, intensity_formula, reciprocal_space_path
 
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 
 ### ext/PlottingExt.jl, dependent on Makie
-function plot_spins(args...)
-    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
-end
 function view_crystal(args...)
     error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
 end
-export plot_spins, view_crystal
+function plot_spins!(args...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+end
+function plot_spins(args...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+end
+function plot_intensities!(args...; opts...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+end
+function plot_intensities(args...; opts...)
+    error(isloaded("Makie") ? "Invalid method call" : "Import GLMakie to enable plotting")
+end
+export view_crystal, plot_spins, plot_spins!, plot_intensities, plot_intensities!
 
 ### ext/ExportVTKExt.jl, dependent on WriteVTK
 function export_vtk(args...)

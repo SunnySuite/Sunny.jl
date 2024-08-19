@@ -8,6 +8,8 @@
 using Sunny, GLMakie
 
 # Build a crystal with Cu²⁺ and Fe²⁺ ions
+
+units = Units(:meV)
 a = 3.0
 b = 8.0
 c = 4.0
@@ -21,7 +23,7 @@ view_crystal(cryst)
 J_Cu_Cu = 1.0
 J_Fe_Fe = 1.0
 J_Cu_Fe = -0.1
-sys = System(cryst, (2,1,1), [SpinInfo(1,S=1/2,g=2), SpinInfo(2,S=2,g=2)], :dipole; seed=0)
+sys = System(cryst, (2,1,1), [SpinInfo(1, S=1/2, g=2), SpinInfo(2, S=2, g=2)], :dipole; seed=0)
 set_exchange!(sys, J_Cu_Cu, Bond(1, 1, [-1, 0, 0]))
 set_exchange!(sys, J_Fe_Fe, Bond(2, 2, [-1, 0, 0]))
 set_exchange!(sys, J_Cu_Fe, Bond(2, 1, [0, 1, 0]))
@@ -33,47 +35,25 @@ randomize_spins!(sys)
 minimize_energy!(sys)
 plot_spins(sys)
 
-# Plot dispersions colored by total summed intensity for each degenerate band
+# Configure spin wave calculation
 
-swt = SpinWaveTheory(sys)
-q_points = [[0,0,0], [1,0,0]]
-path, xticks = reciprocal_space_path(cryst, q_points, 200)
-formula = intensity_formula(swt, :perp; kernel=delta_function_kernel)
-disp, intensity = intensities_bands(swt, path, formula)
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Momentum (RLU)", ylabel="Energy (meV)",
-          title="Spin wave dispersion", xticks)
-ylims!(ax, 0.0, 4.5)
-xlims!(ax, 1, size(disp, 1))
-lines!(ax, disp[:, 1]; color=vec(sum(intensity[:, 1:2]; dims=2)), colorrange=(0,2))
-lines!(ax, disp[:, 3]; color=vec(sum(intensity[:, 3:4]; dims=2)), colorrange=(0,2))
+swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
+qs = [[0,0,0], [1,0,0]]
+path = q_space_path(cryst, qs, 512)
+
+# Plot three types of pair correlation intensities
+
+fig = Figure(size=(768,600))
+
+res = intensities_bands(swt, path)
+plot_intensities!(fig[1, 1], res; units, axisopts=(; title="All correlations"))
+
+formfactors = [FormFactor("Cu2"), zero(FormFactor)]
+res = intensities_bands(swt, path; formfactors)
+plot_intensities!(fig[1, 2], res; units, axisopts=(; title="Cu-Cu correlations"))
+
+formfactors = [zero(FormFactor), FormFactor("Fe2")]
+res = intensities_bands(swt, path; formfactors)
+plot_intensities!(fig[2, 2], res; units, axisopts=(; title="Fe-Fe correlations"))
+
 fig
-
-# Functions to plot broadened intensities
-
-function plot_intensities(formfactors, title)
-    formula = intensity_formula(swt, :trace; kernel=gaussian(fwhm=0.2), formfactors)
-    energies = collect(0:0.02:140)
-    is = intensities_broadened(swt, path, energies, formula)
-    fig = Figure()
-    ax = Axis(fig[1,1]; xlabel="Momentum (RLU)", ylabel="Energy (meV)", title, xticks)
-    ylims!(ax, 0.0, 4.5)
-    heatmap!(ax, 1:size(is, 1), energies, is; colorrange=(0.1,50),
-             colormap=Reverse(:thermal), lowclip=:white)
-    for d in eachcol(disp)
-        lines!(ax, d; color=:pink)
-    end
-    fig
-end
-
-# Plot full intensity spectrum
-
-plot_intensities([FormFactor("Cu2"), FormFactor("Fe2")], "All correlations")
-
-# Plot Cu-Cu correlations only
-
-plot_intensities([FormFactor("Cu2"), zero(FormFactor)], "Cu-Cu correlations")
-
-# Fe-Fe correlations only
-
-plot_intensities([zero(FormFactor), FormFactor("Fe2")], "Fe-Fe correlations")

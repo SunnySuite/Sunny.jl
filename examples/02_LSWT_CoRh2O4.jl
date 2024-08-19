@@ -14,6 +14,7 @@ using Sunny, GLMakie
 # unit cell, and it is necessary to disambiguate through the `setting` keyword
 # argument. (On your own: what happens if `setting` is omitted?)
 
+units = Units(:meV)
 a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
@@ -37,8 +38,8 @@ sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], :dipole; seed=0)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 
 # In the ground state, each spin is exactly anti-aligned with its 4
-# nearest-neighbors. Because every bond contributes an energy of $-JS^2$, the
-# energy per site is $-2JS^2$. In this calculation, a factor of 1/2 avoids
+# nearest-neighbors. Because every bond contributes an energy of ``-JS^2``, the
+# energy per site is ``-2JS^2``. In this calculation, a factor of 1/2 avoids
 # double-counting the bonds. Due to lack of frustration, direct energy
 # minimization is successful in finding the ground state.
 
@@ -65,51 +66,38 @@ sys_prim = reshape_supercell(sys, shape)
 @assert energy_per_site(sys_prim) ≈ -2J*S^2
 plot_spins(sys_prim; color=[s'*s0 for s in sys_prim.dipoles])
 
-# Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref) and an
-# [`intensity_formula`](@ref). The mode `:perp` contracts with a dipole factor
-# to return the unpolarized intensity. The formula also employs
-# [`lorentzian`](@ref) broadening. The isotropic [`FormFactor`](@ref) for
-# Cobalt(2+) dampens intensities at large ``𝐪``.
+# Now estimate ``𝒮(𝐪,ω)`` with [`SpinWaveTheory`](@ref).
 
-swt = SpinWaveTheory(sys_prim)
+swt = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
+
+# For the "single crystal" result, we use [`q_space_path`](@ref) to construct a
+# path that connects high-symmetry points in reciprocal space.
+
+qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
+path = q_space_path(cryst, qs, 400)
+
+# Select [`lorentzian`](@ref) broadening with a full-width at half-maximum
+# (FWHM) of 0.8 meV. Use [`ssf_perp`](@ref) to calculate unpolarized scattering
+# intensities. The isotropic [`FormFactor`](@ref) for Cobalt(2+) dampens
+# intensities at large ``𝐪``.
+
 kernel = lorentzian(fwhm=0.8)
 formfactors = [FormFactor("Co2")]
-formula = intensity_formula(swt, :perp; kernel, formfactors)
+energies = range(0, 6, 300)
+res = intensities(swt, path; energies, kernel, formfactors)
+plot_intensities(res; units)
 
-# For the "single crystal" result, we may use [`reciprocal_space_path`](@ref) to
-# construct a path that connects high-symmetry points in reciprocal space. The
-# [`intensities_broadened`](@ref) function collects intensities along this path
-# for the given set of energy values.
+# We use [`powder_average`](@ref) to average intensities over all possible
+# crystal orientations. Perform this calculation for 200 momentum magnitudes,
+# ranging from 0 to 3 inverse angstroms. Each ``𝐪``-magnitude defines a
+# spherical shell in reciprocal space. Sample it with `2000` wavevectors of
+# quasi-uniform distribution.
 
-qpoints = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
-path, xticks = reciprocal_space_path(cryst, qpoints, 50)
-energies = collect(0:0.01:6)
-is = intensities_broadened(swt, path, energies, formula)
-
-fig = Figure()
-ax = Axis(fig[1,1]; aspect=1.4, ylabel="ω (meV)", xlabel="𝐪 (r.l.u.)",
-          xticks, xticklabelrotation=π/10)
-heatmap!(ax, 1:size(is, 1), energies, is, colormap=:gnuplot2)
-fig
-
-# A powder measurement effectively involves an average over all possible crystal
-# orientations. We use the function [`reciprocal_space_shell`](@ref) to sample
-# `n` wavevectors on a sphere of a given radius (inverse angstroms), and then
-# calculate the spherically-averaged intensity.
-
-radii = 0.01:0.02:3 # (1/Å)
-output = zeros(Float64, length(radii), length(energies))
-for (i, radius) in enumerate(radii)
-    n = 300
-    qs = reciprocal_space_shell(cryst, radius, n)
-    is = intensities_broadened(swt, qs, energies, formula)
-    output[i, :] = sum(is, dims=1) / size(is, 1)
+radii = range(0, 3, 200) # (1/Å)
+res = powder_average(cryst, radii, 2000) do qs
+    intensities(swt, qs; energies, kernel, formfactors)
 end
-
-fig = Figure()
-ax = Axis(fig[1,1]; xlabel="Q (Å⁻¹)", ylabel="ω (meV)")
-heatmap!(ax, radii, energies, output, colormap=:gnuplot2)
-fig
+plot_intensities(res; units, saturation=0.98)
 
 # This result can be compared to experimental neutron scattering data
 # from Fig. 5 of [Ge et al.](https://doi.org/10.1103/PhysRevB.96.064413)

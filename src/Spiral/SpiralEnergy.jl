@@ -157,7 +157,16 @@ function spiral_g!(G, sys::System{0}, axis, params, λ)
     G[end] = dEdk
 end
 
-function minimize_energy_spiral!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
+"""
+    spiral_minimize_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
+
+Finds a generalized spiral order with minimum energy. This involves optimization
+of the spin configuration in `sys`, and the propagation wavevector ``𝐤``, which
+will be returned. The `axis` vector is normal to the polarization plane, and
+will usually be determined by symmetry configurations. The initial `k_guess`
+will be random, unless otherwise provided.
+"""
+function spiral_minimize_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
     axis = normalize(axis)
 
     sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")

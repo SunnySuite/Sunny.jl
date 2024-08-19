@@ -5,6 +5,11 @@ Function to propose a uniformly random spin update in the context of a
 [`LocalSampler`](@ref). In `:dipole` mode, the result is a random three-vector
 with appropriate normalization. In `:SUN` mode, the result is a random SU(_N_)
 coherent state with appropriate normalization.
+
+For low-temperature Monte Carlo simulations, uniform spin proposals can be very
+inefficient due to a high probability of rejection in the Metropolis
+accept/reject step. Consider also [`Langevin`](@ref) sampling, which is
+rejection free.
 """
 const propose_uniform = randspin
 
@@ -34,7 +39,7 @@ state.
 In the limit of very large `magnitude`, this function coincides with
 [`propose_uniform`](@ref).
 
-For use with [`LocalSampler`](@ref).
+Consider also [`Langevin`](@ref) sampling, which is rejection free.
 """
 function propose_delta(magnitude)
     function ret(sys::System{N}, site) where N
@@ -106,17 +111,20 @@ performs, on average, one trial update per spin.
 Assuming ergodicity, the `LocalSampler` will sample from thermal equilibrium for
 the target temperature `kT`. 
 
-The trial spin updates are sampled using the `propose` function. Built-in
-options include [`propose_uniform`](@ref), [`propose_flip`](@ref), and
-[`propose_delta`](@ref). Multiple proposals can be mixed with the macro
-[`@mix_proposals`](@ref).
+The trial spin updates are sampled using the `propose` function. Options include
+[`propose_uniform`](@ref), [`propose_flip`](@ref), and [`propose_delta`](@ref).
+Multiple proposals can be mixed with the macro [`@mix_proposals`](@ref).
 
 The returned object stores fields `ΔE` and `Δs`, which represent the cumulative
 change to the net energy and dipole, respectively.
 
-An alternative approach to sampling is [`Langevin`](@ref), which may be
-preferred for simulating continuous spins, especially in the presence of
-long-range dipole-dipole interactions (cf. [`enable_dipole_dipole!`](@ref)).
+!!! warning "Efficiency considerations
+
+    A [`Langevin`](@ref) sampler is frequently much more efficient than a
+    `LocalSampler` for simulating Heisenberg-like spins that vary continuously. A
+    `LocalSampler` is appropriate in the special case that the spin states are
+    effectively discrete. E.g., [`propose_flip`](@ref) is very helpful simulating
+    Ising-like spins that arise due to a strong easy-axis anisotropy.
 """
 mutable struct LocalSampler{F}
     kT      :: Float64   # Temperature
