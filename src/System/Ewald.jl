@@ -261,8 +261,8 @@ than `enable_dipole_dipole!`.
 """
 function modify_exchange_with_truncated_dipole_dipole!(sys::System{N}, cutoff, μ0_μB²=nothing) where N
     if isnothing(μ0_μB²)
-        @warn "Deprecated syntax! Consider `modify_exchange_with_truncated_dipole_dipole!(sys, cutoff, units.vacuum_permeability)` where `units = Units(:meV)`."
-        μ0_μB² = Units(:meV).vacuum_permeability
+        @warn "Deprecated syntax! Consider `modify_exchange_with_truncated_dipole_dipole!(sys, cutoff, units.vacuum_permeability)` where `units = Units(:meV, :angstrom)`."
+        μ0_μB² = Units(:meV, :angstrom).vacuum_permeability
     end
 
     if !isnothing(sys.origin)
