@@ -44,7 +44,7 @@ positions = [[0,0,0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]#hide
 types = ["Fe", "I", "I"]#hide
 FeI2 = Crystal(latvecs, positions; types)#hide
 cryst = subcrystal(FeI2, "Fe")#hide
-units = Units(:meV)#hide
+units = Units(:meV, :angstrom)#hide
 sys = System(cryst, (4,4,4), [SpinInfo(1,S=1,g=2)], :SUN, seed=2)#hide
 J1pm   = -0.236#hide
 J1pmpm = -0.161#hide
