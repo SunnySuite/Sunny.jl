@@ -28,7 +28,7 @@ view_crystal(cryst)
 # parametrized in [Loire et al., Phys. Rev. Lett. **106**, 207201
 # (2011)](http://dx.doi.org/10.1103/PhysRevLett.106.207201).
 
-sys = System(cryst, (1, 1, 1), [SpinInfo(1; S=5/2, g=2)], :dipole)
+sys = System(cryst, (1, 1, 1), [SpinInfo(1; S=5/2, g=2)], :dipole; seed=0)
 J₁ = 0.85
 J₂ = 0.24
 J₃ = 0.053
@@ -58,17 +58,15 @@ else
     throw("Provide a valid chirality")
 end
 
-# This compound has a spiral order with approximate propagation wavevector ``𝐤
-# ≈ [0, 0, 1/7]``. Find this order with [`spiral_minimize_energy!`](@ref).
+# This compound is known to have a spiral order with approximate propagation
+# wavevector ``𝐤 ≈ [0, 0, 1/7]``. Search for this magnetic order with
+# [`spiral_minimize_energy!`](@ref). Due to reflection symmetry, one of two
+# possible propagation wavevectors may appear, ``𝐤 = ± [0, 0, 0.1426...]``.
+# Note that ``k_z = 0.1426...`` is very close to ``1/7 = 0.1428...``.
 
 axis = [0, 0, 1]
 randomize_spins!(sys)
 k = spiral_minimize_energy!(sys, axis)
-
-# Due to reflection symmetry, there are two possible directions for ``±𝐤``.
-# Note that ``k_z = 0.1426...`` is very close to ``1/7 = 0.1428...``.
-k_ref = [0, 0, 0.1426460465]
-@assert k ≈ k_ref || k ≈ [0, 0, 1] - k_ref
 
 # We can visualize the full magnetic cell using [`repeat_periodically_as_spiral`](@ref),
 # which includes 7 rotated copies of the chemical cell.
