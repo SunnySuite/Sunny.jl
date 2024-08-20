@@ -126,7 +126,7 @@ end
     positions = [[0, 0, 0]]
     fcc = Crystal(latvecs, positions, 225)
 
-    units = Units(:meV)
+    units = Units(:meV, :angstrom)
     S = 5/2
     g = 2
     J = 22.06 * units.K
@@ -326,7 +326,7 @@ end
     begin
         cryst = Sunny.bcc_crystal()
         sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :dipole, seed=2)
-        enable_dipole_dipole!(sys, Units(:meV).vacuum_permeability)
+        enable_dipole_dipole!(sys, Units(:meV, :angstrom).vacuum_permeability)
         polarize_spins!(sys, (1,2,3)) # arbitrary direction
         
         R = hcat([1,1,-1], [-1,1,1], [1,-1,1]) / 2

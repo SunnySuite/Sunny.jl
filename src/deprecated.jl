@@ -50,13 +50,13 @@ Base.@deprecate integrated_lorentzian(η::Float64) let
 end
 
 Base.@deprecate set_external_field!(sys::System, B) let
-    @warn "`set_external_field!(sys, B)` is deprecated! Consider `set_field!(sys, B*units.T)` where `units = Units(:meV)`."
-    set_field!(sys, Vec3(B) * Units(:meV).T)
+    @warn "`set_external_field!(sys, B)` is deprecated! Consider `set_field!(sys, B*units.T)` where `units = Units(:meV, :angstrom)`."
+    set_field!(sys, Vec3(B) * Units(:meV, :angstrom).T)
 end
 
 Base.@deprecate set_external_field_at!(sys::System, B, site) let
-    @warn "`set_external_field_at!(sys, B, site)` is deprecated! Consider `set_field_at!(sys, B*units.T, site)` where `units = Units(:meV)`."
-    set_field_at!(sys, Vec3(B) * Units(:meV).T, site)
+    @warn "`set_external_field_at!(sys, B, site)` is deprecated! Consider `set_field_at!(sys, B*units.T, site)` where `units = Units(:meV, :angstrom)`."
+    set_field_at!(sys, Vec3(B) * Units(:meV, :angstrom).T, site)
 end
 
 Base.@deprecate rotation_in_rlu(cryst::Crystal, axis, angle) let
@@ -64,8 +64,8 @@ Base.@deprecate rotation_in_rlu(cryst::Crystal, axis, angle) let
     return rotation_in_rlu(cryst, (axis, angle))
 end
 
-# Consider `units.K` where `units = Units(:meV)`.
-Base.@deprecate_binding meV_per_K Units(:meV).K
+# Consider `units.K` where `units = Units(:meV, :angstrom)`.
+Base.@deprecate_binding meV_per_K Units(:meV, :angstrom).K
 
 
 function Base.getproperty(x::Type{Units}, name::Symbol)

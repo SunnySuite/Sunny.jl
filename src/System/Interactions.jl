@@ -83,8 +83,7 @@ property.
 # Example
 
 ```julia
-# Valid for a system with lengths in Å and energies in meV
-units = Units(:meV)
+units = Units(:meV, :angstrom)
 enable_dipole_dipole!(sys, units.vacuum_permeability)
 ```
 
@@ -92,8 +91,8 @@ See also [`modify_exchange_with_truncated_dipole_dipole!`](@ref).
 """
 function enable_dipole_dipole!(sys::System{N}, μ0_μB²=nothing) where N
     if isnothing(μ0_μB²)
-        @warn "Deprecated syntax! Consider `enable_dipole_dipole!(sys, units.vacuum_permeability)` where `units = Units(:meV)`."
-        μ0_μB² = Units(:meV).vacuum_permeability
+        @warn "Deprecated syntax! Consider `enable_dipole_dipole!(sys, units.vacuum_permeability)` where `units = Units(:meV, :angstrom)`."
+        μ0_μB² = Units(:meV, :angstrom).vacuum_permeability
     end
     sys.ewald = Ewald(sys, μ0_μB²)
     return
@@ -115,7 +114,7 @@ and energy dimensions.
 
 ```julia
 # In units of meV, apply a 2 tesla field in the z-direction
-units = Units(:meV)
+units = Units(:meV, :angstrom)
 set_field!(sys, [0, 0, 2] * units.T)
 ```
 """
