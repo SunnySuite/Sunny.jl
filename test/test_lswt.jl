@@ -351,18 +351,19 @@ end
     c = 5.2414
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
     crystal = Crystal(latvecs, [[0.24964,0,0.5]], 150)
-    latsize = (1,1,7)
-    sys = System(crystal, latsize, [SpinInfo(1; S=5/2, g=2)], :dipole; seed=5)
+    sys = System(crystal, (1,1,1), [SpinInfo(1; S=5/2, g=2)], :dipole; seed=5)
     set_exchange!(sys, 0.85,  Bond(3, 2, [1,1,0]))   # J1
     set_exchange!(sys, 0.24,  Bond(1, 3, [0,0,0]))   # J2
     set_exchange!(sys, 0.053, Bond(2, 3, [-1,-1,1])) # J3
     set_exchange!(sys, 0.017, Bond(1, 1, [0,0,1]))   # J4
     set_exchange!(sys, 0.24,  Bond(3, 2, [1,1,1]))   # J5
-    
+
     for i in 1:3
         θ = -2π*(i-1)/3
-        set_spiral_order_on_sublattice!(sys, i; k=[0,0,1/7], axis=[0,0,1], S0=[cos(θ),sin(θ),0])
+        set_dipole!(sys, [cos(θ),sin(θ),0], (1,1,1,i))
     end
+
+    sys = repeat_periodically_as_spiral(sys, (1, 1, 7); k=[0,0,1/7], axis=[0,0,1])
 
     measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false)
     swt = SpinWaveTheory(sys; measure)

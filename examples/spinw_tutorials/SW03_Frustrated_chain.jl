@@ -26,9 +26,9 @@ J2 = +2 * abs(J1)
 set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))
 set_exchange!(sys, J2, Bond(1, 1, [2, 0, 0]))
 
-# Assuming a spiral order, optimize the ordering wavevector ``𝐤`` starting from
-# a random initial guess. Because all interactions are isotropic in spin space,
-# the polarization `axis` is arbitrary.
+# Assuming a spiral order, optimize the propagation wavevector ``𝐤`` starting
+# from a random initial guess. Because all interactions are isotropic in spin
+# space, the polarization `axis` is arbitrary.
 
 axis = [0, 0, 1]
 randomize_spins!(sys)

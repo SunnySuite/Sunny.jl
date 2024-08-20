@@ -7,7 +7,7 @@ periodicity of a requested supercell. The columns of the ``3×3`` integer matrix
 `shape` represent the supercell lattice vectors measured in units of the
 original crystal lattice vectors.
 """
-function reshape_supercell(sys::System{N}, shape) where N
+function reshape_supercell(sys::System, shape)
     is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
 
     orig = orig_crystal(sys)
@@ -33,7 +33,7 @@ end
 # crystal, which will make symmetry analysis available. In this case, the
 # process to set a new interaction is to first modify `sys.origin`, and then to
 # call this function.
-function transfer_interactions!(sys::System{N}, src::System{N}) where N
+function transfer_interactions!(sys::System, src::System)
     new_ints = interactions_homog(sys)
 
     for new_i in 1:natoms(sys.crystal)
@@ -114,7 +114,7 @@ function cell_shape(sys)
 end
 
 """
-    resize_supercell(sys::System{N}, latsize::NTuple{3,Int}) where N
+    resize_supercell(sys::System, latsize::NTuple{3, Int})
 
 Creates a [`System`](@ref) with a given number of conventional unit cells in
 each lattice vector direction. Interactions and other settings will be inherited
@@ -127,19 +127,73 @@ reshape_supercell(sys, [latsize[1] 0 0; 0 latsize[2] 0; 0 0 latsize[3]])
 
 See also [`reshape_supercell`](@ref).
 """
-function resize_supercell(sys::System{N}, latsize::NTuple{3,Int}) where N
+function resize_supercell(sys::System, latsize::NTuple{3,Int})
     return reshape_supercell(sys, diagm(collect(latsize)))
 end
 
 """
-    repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
+    repeat_periodically(sys::System, counts::NTuple{3, Int})
 
 Creates a [`System`](@ref) identical to `sys` but repeated a given number of
 times in each dimension, specified by the tuple `counts`.
 
-See also [`reshape_supercell`](@ref).
+See also [`reshape_supercell`](@ref) and [`repeat_periodically_as_spiral`](@ref).
 """
-function repeat_periodically(sys::System{N}, counts::NTuple{3,Int}) where N
+function repeat_periodically(sys::System, counts::NTuple{3,Int})
     all(>=(1), counts) || error("Require at least one count in each direction.")
     return reshape_supercell_aux(sys, sys.crystal, counts .* sys.latsize)
+end
+
+"""
+    repeat_periodically_as_spiral(sys::System, counts::NTuple{3, Int}; k, axis)
+
+Repeats the magnetic cell of [`System`](@ref) a number of times in each
+dimension according to the specified `counts`. Spins in each system image will
+be rotated according to the propagation wavevector `k` (in RLU), and the
+rotation `axis` (in global Cartesian coordinates). The behavior coincides with
+[`repeat_periodically`](@ref) in the special case of `k = [0, 0, 0]`
+
+See also [`spiral_minimize_energy!`](@ref) to find an energy-minimizing
+wavevector `k` and spin dipole configuration.
+
+# Example
+```julia
+k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
+repeat_periodically_as_spiral(sys, counts; k, axis)
+```
+"""
+function repeat_periodically_as_spiral(sys::System, counts::NTuple{3,Int}; k, axis)
+    sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")
+
+    new_sys = repeat_periodically(sys, counts)
+
+    # Propagation wavevector in global coordinates
+    k_global = orig_crystal(sys).recipvecs * k
+
+    # Lattice vectors for sys, the magnetic cell 
+    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
+
+    # Original positions units of supervecs (components between 0 and 1)
+    rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
+
+    # Tighted symprec suitable for scaled positions
+    symprec = sys.crystal.symprec / minimum(sys.latsize)
+
+    # Copy per-site quantities
+    for new_site in eachsite(new_sys)
+        # Positions of new_sys in units of supervecs
+        new_r = supervecs \ global_position(new_sys, new_site)
+
+        # Find index into original sys corresponding to a periodic copy of new_r
+        site = findfirst(r -> is_periodic_copy(new_r, r; symprec), rs)
+
+        # Offset of periodic image in global coordinates
+        offset = supervecs * (new_r - rs[site])
+        
+        # Rotate original dipole of sys to new_sys
+        R = axis_angle_to_matrix(axis, k_global ⋅ offset)
+        set_dipole!(new_sys, R * sys.dipoles[site], new_site)
+    end
+
+    return new_sys
 end

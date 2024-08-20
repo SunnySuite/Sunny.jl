@@ -161,10 +161,17 @@ function is_apply_g(swt::SpinWaveTheory, measure::MeasureSpec)
     error("General measurements not supported for spiral calculation")
 end
 
-# If apply_g == true, then it must be a scalar
-function check_g_scalar(swt::SpinWaveTheory)
-    for g in swt.sys.gs
-        to_float_or_mat3(g) isa Float64 || error("Anisotropic g-tensor not supported for spiral calculation")
+function gs_as_scalar(swt::SpinWaveTheory, measure::MeasureSpec)
+    return if is_apply_g(swt, measure)
+        map(swt.sys.gs) do g
+            g = to_float_or_mat3(g; atol=1e-12)
+            g isa Float64 || error("Anisotropic g-tensor not supported for spiral calculation")
+            g
+        end
+    else
+        map(swt.sys.gs) do _
+            1.0
+        end
     end
 end
 
@@ -217,24 +224,21 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
     c = zeros(ComplexF64, Na)
 
-    # Observables must be the spin operators directly, with possible scaling by
-    # scalar g-factor
-    apply_g = is_apply_g(swt, measure)
-    apply_g && check_g_scalar(swt)
+    # If g-tensors are included in observables, they must be scalar. Precompute.
+    gs = gs_as_scalar(swt, measure)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
         q_reshaped = sys.crystal.recipvecs \ q_global
 
-        for branch in 1:3   # (q, q+k, q-k) modes for ordering wavevector k
+        for branch in 1:3   # (q, q+k, q-k) modes for propagation wavevector k
             energies = excitations!(T0, H, sswt, q; branch)
             view(disp, :, branch, iq) .= view(energies, 1:L)
             view(T, :, :, branch) .= T0
         end
 
         for i in 1:Na
-            g = apply_g ? to_float_or_mat3(sys.gs[i])::Float64 : 1.0
-            c[i] = data.sqrtS[i] * g * compute_form_factor(ff_atoms[i], norm2(q_global))
+            c[i] = data.sqrtS[i] * gs[i] * compute_form_factor(ff_atoms[i], norm2(q_global))
         end
 
         for i in 1:L, j in 1:L
