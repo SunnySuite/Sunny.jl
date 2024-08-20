@@ -9,7 +9,7 @@ using Sunny, GLMakie
 
 # Build a crystal with Cu²⁺ and Fe²⁺ ions
 
-units = Units(:meV)
+units = Units(:meV, :angstrom)
 a = 3.0
 b = 8.0
 c = 4.0

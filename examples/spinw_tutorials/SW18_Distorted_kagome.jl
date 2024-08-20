@@ -1,7 +1,7 @@
 # # SW18 - Distorted kagome
 #
 # This is a Sunny port of [SpinW Tutorial
-# 18](https://spinw.org/tutorials/19tutorial), originally authored by Goran
+# 18](https://spinw.org/tutorials/18tutorial), originally authored by Goran
 # Nilsen and Sandor Toth. This tutorial illustrates spin wave theory for an
 # incommensurate, generalized spiral order ([Toth and Lake, J. Phys.: Condens.
 # Matter **27**, 166002 (2015)](https://arxiv.org/abs/1402.6069)). The test
@@ -14,7 +14,7 @@ using Sunny, GLMakie
 
 # Build the distorted kagome crystal, with spacegroup 12.
 
-units = Units(:meV)
+units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(10.2, 5.94, 7.81, 90, 117.7, 90)
 positions = [[0, 0, 0], [1/4, 1/4, 0]]
 types = ["Cu1", "Cu2"]

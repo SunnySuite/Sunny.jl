@@ -12,7 +12,7 @@ a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
 
-units = Units(:meV)
+units = Units(:meV, :angstrom)
 latsize = (2, 2, 2)
 S = 3/2
 J = 0.63 # (meV)

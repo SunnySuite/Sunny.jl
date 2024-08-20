@@ -14,7 +14,7 @@ using Sunny, GLMakie
 # unit cell, and it is necessary to disambiguate through the `setting` keyword
 # argument. (On your own: what happens if `setting` is omitted?)
 
-units = Units(:meV)
+units = Units(:meV, :angstrom)
 a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
@@ -97,7 +97,7 @@ radii = range(0, 3, 200) # (1/Å)
 res = powder_average(cryst, radii, 2000) do qs
     intensities(swt, qs; energies, kernel, formfactors)
 end
-plot_intensities(res; units, saturation=0.98)
+plot_intensities(res; units, saturation=1.0)
 
 # This result can be compared to experimental neutron scattering data
 # from Fig. 5 of [Ge et al.](https://doi.org/10.1103/PhysRevB.96.064413)
