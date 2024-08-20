@@ -238,38 +238,3 @@ function deprecate_small_q(; q, k)
     return k
 end
 
-"""
-    set_spiral_order!(sys; k, axis, S0)
-
-Initializes the system with a spiral order described by the wavevector `k`, an
-axis of rotation `axis`, and an initial dipole direction `S0` at the real-space
-origin. The wavevector is expected in repicrocal lattice units (RLU), while the
-direction vectors `axis` and `S0` are expected in global Cartesian coordinates.
-
-# Example
-
-```julia
-# Spiral order for a wavevector propagating in the direction of the first
-# reciprocal lattice vector (i.e., orthogonal to the lattice vectors ``𝐚_2``
-# and ``𝐚_3``), repeating with a period of 3 lattice constants, and spiraling
-# about the ``ẑ``-axis. The spin at the origin will point in the direction
-# ``𝐒_0 = ŷ + ẑ``.  Here, ``(x̂, ŷ, ẑ)`` are the axes of Cartesian coordinate
-# system in the global frame.
-set_spiral_order!(sys; k=[1/3, 0, 0], axis=[0, 0, 1], S0=[0, 1, 1])
-```
-
-See also [`repeat_periodically_as_spiral`](@ref).
-"""
-function set_spiral_order!(sys; q=nothing, k=nothing, axis, S0)
-    k = deprecate_small_q(; q, k)
-
-    check_commensurate(sys; k)
-    k_global = orig_crystal(sys).recipvecs * k
-
-    for site in eachsite(sys)
-        r = global_position(sys, site)
-        θ = k_global ⋅ r
-        set_dipole!(sys, axis_angle_to_matrix(axis, θ) * S0, site)
-    end
-end
-

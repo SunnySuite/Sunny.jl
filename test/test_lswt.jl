@@ -691,9 +691,10 @@ end
     function δS_triangular(mode)
         latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)
         cryst = Crystal(latvecs, [[0, 0, 0]])
-        sys = System(cryst, (3, 3, 1), [SpinInfo(1, S=S, g=2)], mode)
+        sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=S, g=2)], mode)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
-        set_spiral_order!(sys; k=[2/3, -1/3, 0], axis=[0, 0, 1], S0=[0, 1, 0])
+        polarize_spins!(sys, [0, 1, 0])
+        sys = repeat_periodically_as_spiral(sys, (3, 3, 1); k=[2/3, -1/3, 0], axis=[0, 0, 1])
         swt = SpinWaveTheory(sys; measure=nothing)
         # Calculate first 3 digits for faster testing
         δS = Sunny.magnetization_lswt_correction(swt; atol=1e-3)[1]

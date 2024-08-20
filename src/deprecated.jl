@@ -89,12 +89,17 @@ Base.@deprecate intensity_formula(opts1...; opts2...) let
 end
 
 Base.@deprecate reciprocal_space_path(cryst::Crystal, qs, density) let
-    error("Use q_space_path instead of reciprocal_space_path")
+    error("Use q_space_path(...) instead of reciprocal_space_path(...)")
 end
 
 Base.@deprecate set_spiral_order_on_sublattice!(sys, i; q=nothing, k=nothing, axis, S0) let
-    error("Use repeat_periodically_as_spiral instead of set_spiral_order_on_sublattice!")
+    error("Use repeat_periodically_as_spiral(...) instead of set_spiral_order_on_sublattice!(...)")
 end
+
+Base.@deprecate set_spiral_order!(sys; q=nothing, k=nothing, axis, S0) let
+    error("Use repeat_periodically_as_spiral(...) instead of set_spiral_order!(...)")
+end
+
 
 
 # REMEMBER TO ALSO DELETE:

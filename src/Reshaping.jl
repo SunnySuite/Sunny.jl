@@ -163,8 +163,6 @@ repeat_periodically_as_spiral(sys, counts; k, axis)
 ```
 """
 function repeat_periodically_as_spiral(sys::System, counts::NTuple{3,Int}; k, axis)
-    sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")
-
     new_sys = repeat_periodically(sys, counts)
 
     # Propagation wavevector in global coordinates
@@ -189,10 +187,17 @@ function repeat_periodically_as_spiral(sys::System, counts::NTuple{3,Int}; k, ax
 
         # Offset of periodic image in global coordinates
         offset = supervecs * (new_r - rs[site])
-        
-        # Rotate original dipole of sys to new_sys
         R = axis_angle_to_matrix(axis, k_global ⋅ offset)
-        set_dipole!(new_sys, R * sys.dipoles[site], new_site)
+
+        # Rotate original spin of sys to new_sys
+        if sys.mode == :SUN
+            U = unitary_irrep_for_rotation(R; N=sys.Ns[site])
+            Z = sys.coherents[site]
+            set_coherent!(new_sys, U * Z, new_site)
+        else
+            s = sys.dipoles[site]
+            set_dipole!(new_sys, R * s, new_site)
+        end
     end
 
     return new_sys

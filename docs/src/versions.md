@@ -19,8 +19,8 @@ This **major release** introduces several breaking changes:
   [`q_space_grid`](@ref).
 * [`SpiralSpinWaveTheory`](@ref) is available to perform calculations on
   generalized spiral structures, which may be incommensurate.
-* [`repeat_periodically_as_spiral`](@ref) replaces `set_spiral_order_on_sublattice!` and is
-  more general.
+* [`repeat_periodically_as_spiral`](@ref) replaces
+  `set_spiral_order_on_sublattice!` and `set_spiral_order!`.
 * New convenience functions [`powder_average`](@ref) and
   [`domain_average`](@ref), which wrap [`intensities`](@ref).
 * Binning features have been removed. Some functionality may be added back in a
@@ -206,9 +206,8 @@ to work with deprecation warnings, but these will become hard errors Sunny v0.6.
   passed to [`reshape_supercell`](@ref). The new tolerance parameter `tol`
   allows `suggest_magnetic_supercell` to approximate incommensurate wavevectors
   with nearby commensurate ones.
-* New functions [`set_spiral_order!`](@ref) and
-  `set_spiral_order_on_sublattice!` can be used to initialize a spiral,
-  single-$Q$ order.
+* New functions `set_spiral_order!` and `set_spiral_order_on_sublattice!` can be
+  used to initialize a spiral, single-$Q$ order.
 * Sunny now retains all constant energy shifts that have been introduced by
   anisotropy operators.
 * Fix [`export_vtk`](@ref) functionality.

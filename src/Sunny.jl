@@ -63,7 +63,7 @@ export SpinInfo, System, Site, clone_system, eachsite, position_to_site, global_
     modify_exchange_with_truncated_dipole_dipole!
 
 include("MagneticOrdering.jl")
-export print_wrapped_intensities, suggest_magnetic_supercell, set_spiral_order!
+export print_wrapped_intensities, suggest_magnetic_supercell
 
 include("Reshaping.jl")
 export reshape_supercell, resize_supercell, repeat_periodically, repeat_periodically_as_spiral
@@ -126,7 +126,7 @@ export BinningParameters, load_nxs, generate_mantid_script_from_binning_paramete
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, meV_per_K,
     dynamic_correlations, instant_correlations, intensity_formula, reciprocal_space_path,
-    set_spiral_order_on_sublattice!
+    set_spiral_order_on_sublattice!, set_spiral_order!
 
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 
