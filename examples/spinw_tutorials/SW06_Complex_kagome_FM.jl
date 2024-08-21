@@ -53,7 +53,8 @@ path = q_space_path(cryst, qs, 400)
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 
-# Calculate and plot the powder averaged spectrum
+# Calculate and plot the powder averaged spectrum. Select an empirical
+# `colorrange` that brings the lower-intensity features into focus.
 
 radii = range(0, 2.5, 200)
 energies = range(0, 6.5, 200)
@@ -61,4 +62,4 @@ kernel = gaussian(fwhm=0.02)
 res = powder_average(cryst, radii, 1000) do qs
     intensities(swt, qs; energies, kernel)
 end
-plot_intensities(res; units, saturation=0.85)
+plot_intensities(res; units, colorrange=(0,10))
