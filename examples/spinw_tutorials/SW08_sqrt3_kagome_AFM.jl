@@ -18,18 +18,17 @@ view_crystal(cryst; dims=2)
 
 # Construct a spin system with nearest neighbor antiferromagnetic exchange.
 
-sys = System(cryst, (3, 3, 1), [SpinInfo(1; S=1, g=2)], :dipole)
+sys = System(cryst, (1, 1, 1), [SpinInfo(1; S=1, g=2)], :dipole)
 J = 1.0
 set_exchange!(sys, J, Bond(2, 3, [0, 0, 0]))
 
 # Initialize to an energy minimizing magnetic structure, for which
 # nearest-neighbor spins are at 120° angles.
 
-k = -[1/3, 1/3, 0]
-axis = [0,0,1]
-set_spiral_order_on_sublattice!(sys, 1; k, axis, S0=[cos(0),sin(0),0])
-set_spiral_order_on_sublattice!(sys, 2; k, axis, S0=[cos(0),sin(0),0])
-set_spiral_order_on_sublattice!(sys, 3; k, axis, S0=[cos(2π/3),sin(2π/3),0])
+set_dipole!(sys, [cos(0),sin(0),0], (1, 1, 1, 1))
+set_dipole!(sys, [cos(0),sin(0),0], (1, 1, 1, 2))
+set_dipole!(sys, [cos(2π/3),sin(2π/3),0], (1, 1, 1, 3))
+sys = repeat_periodically_as_spiral(sys, (3, 3, 1); k=[-1/3,-1/3,0], axis=[0,0,1])
 plot_spins(sys; dims=2)
 
 # Check energy. Each site participates in 4 bonds with energy ``J\cos(2π/3)``.

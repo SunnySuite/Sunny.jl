@@ -1,6 +1,24 @@
+"""
+    spiral_energy(sys::System; k, axis)
+
+Returns the energy of a generalized spiral phase associated with the propagation
+wavevector `k` (in reciprocal lattice units, RLU) and an `axis` vector that is
+normal to the polarization plane (in global Cartesian coordinates).
+
+When ``𝐤`` is incommensurate, this calculation can be viewed as creating an
+infinite number of periodic copies of `sys`. The spins on each periodic copy are
+rotated about the `axis` vector, with the angle ``θ = 2π 𝐤⋅𝐫``, where `𝐫`
+denotes the displacement vector between periodic copies of `sys` in multiples of
+the lattice vectors of the chemical cell.
+
+The return value is the energy associated with one periodic copy of `sys`. The
+special case ``𝐤 = 0`` yields result is identical to [`energy`](@ref).
+
+See also [`spiral_minimize_energy!`](@ref) and [`repeat_periodically_as_spiral`](@ref).
+"""
 function spiral_energy(sys::System{0}; k, axis)
     sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")
-    sys.latsize == (1, 1, 1) || error("System must have only a single cell")
+    sys.latsize == (1, 1, 1) || error("System must consist of a single chemical cell")
 
     check_rotational_symmetry(sys; axis, θ=0.01)
 
@@ -8,8 +26,14 @@ function spiral_energy(sys::System{0}; k, axis)
     return E
 end
 
+"""
+    spiral_energy_per_site(sys::System; k, axis)
+
+The [`spiral_energy`](@ref) divided by the number of sites in `sys`. The special
+case ``𝐤 = 0`` yields a result identical to [`energy_per_site`](@ref).
+"""
 function spiral_energy_per_site(sys::System{0}; k, axis)
-    return spiral_energy(sys; k, axis) / natoms(sys.crystal)
+    return spiral_energy(sys; k, axis) / length(eachsite(sys))
 end
 
 function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
@@ -160,11 +184,16 @@ end
 """
     spiral_minimize_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
 
-Finds a generalized spiral order with minimum energy. This involves optimization
-of the spin configuration in `sys`, and the propagation wavevector ``𝐤``, which
-will be returned. The `axis` vector is normal to the polarization plane, and
-will usually be determined by symmetry configurations. The initial `k_guess`
-will be random, unless otherwise provided.
+Finds a generalized spiral order that minimizes the [`spiral_energy`](@ref).
+This involves optimization of the spin configuration in `sys`, and the
+propagation wavevector ``𝐤``, which will be returned in reciprocal lattice
+units (RLU). The `axis` vector normal to the polarization plane should be
+provided in global Cartesian coordinates, and will usually be determined by
+symmetry configurations. The initial `k_guess` will be random, unless otherwise
+provided.
+
+See also [`suggest_magnetic_supercell`](@ref) to find a system shape that is
+approximately commensurate with the returned propagation wavevector ``𝐤``.
 """
 function spiral_minimize_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
     axis = normalize(axis)

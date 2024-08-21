@@ -21,10 +21,7 @@
     E1 = spiral_energy_per_site(sys; k, axis)
 
     # compute ewald energy using supercell
-    sys_large = System(cryst, (La*Na, Lb*Nb, Lc*Nc), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
-    for i in 1:Sunny.natoms(sys.crystal)
-        set_spiral_order_on_sublattice!(sys_large, i; k, axis, S0=sys.dipoles[i])
-    end
+    sys_large = repeat_periodically_as_spiral(sys, (La*Na, Lb*Nb, Lc*Nc); k, axis)
     enable_dipole_dipole!(sys_large, 1.0)
     E2 = energy_per_site(sys_large)
 
@@ -43,11 +40,7 @@
     enable_dipole_dipole!(sys, 1.0)
     E1 = spiral_energy_per_site(sys; k, axis)
 
-    # compute ewald energy using supercell
-    sys_large = System(cryst, (La*Na, Lb*Nb, Lc*Nc), [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
-    for i in 1:Sunny.natoms(sys.crystal)
-        set_spiral_order_on_sublattice!(sys_large, i; k, axis, S0=sys.dipoles[i])
-    end
+    sys_large = repeat_periodically_as_spiral(sys, (La*Na, Lb*Nb, Lc*Nc); k, axis)
     enable_dipole_dipole!(sys_large, 1.0)
     E2 = energy_per_site(sys_large)
 
