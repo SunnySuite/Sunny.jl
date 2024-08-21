@@ -86,7 +86,7 @@ swt = SpiralSpinWaveTheory(sys; measure, k, axis)
 # space
 
 qs = [[0, 1, -1], [0, 1, -1+1], [0, 1, -1+2], [0, 1, -1+3]]
-path = q_space_path(cryst, qs, 600)
+path = q_space_path(cryst, qs, 400)
 energies = range(0, 6, 400)
 res = intensities(swt, path; energies, kernel=gaussian(fwhm=0.25))
 axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)

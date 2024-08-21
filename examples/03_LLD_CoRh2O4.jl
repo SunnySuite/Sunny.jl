@@ -130,15 +130,15 @@ end
 # Select points that define a piecewise-linear path through reciprocal space,
 # and a sampling density.
 
-points = [[3/4, 3/4,   0],
-          [  0,   0,   0],
-          [  0, 1/2, 1/2],
-          [1/2,   1,   0],
-          [  0,   1,   0],
-          [1/4,   1, 1/4],
-          [  0,   1,   0],
-          [  0,  -4,   0]]
-qpts = q_space_path(cryst, points, 1000)
+qs = [[3/4, 3/4,   0],
+      [  0,   0,   0],
+      [  0, 1/2, 1/2],
+      [1/2,   1,   0],
+      [  0,   1,   0],
+      [1/4,   1, 1/4],
+      [  0,   1,   0],
+      [  0,  -4,   0]]
+qpts = q_space_path(cryst, qs, 1000)
 
 # Calculate ``I(𝐪, ω)`` intensities along this path and plot.
 
