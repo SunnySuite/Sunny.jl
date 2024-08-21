@@ -2,13 +2,14 @@
 #
 # This is a Sunny port of [SpinW Tutorial
 # 18](https://spinw.org/tutorials/18tutorial), originally authored by Goran
-# Nilsen and Sandor Toth. This tutorial illustrates spin wave theory for an
-# incommensurate, generalized spiral order ([Toth and Lake, J. Phys.: Condens.
-# Matter **27**, 166002 (2015)](https://arxiv.org/abs/1402.6069)). The test
-# system is KCu₃As₂O₇(OD)₃. The Cu ions are arranged in a distorted kagome
-# lattice, and exhibit helical magnetic order, as described in [G. J. Nilsen, et
-# al., Phys. Rev. B **89**, 140412
-# (2014)](https://doi.org/10.1103/PhysRevB.89.140412).
+# Nilsen and Sandor Toth. This tutorial illustrates spin wave calculations for
+# KCu₃As₂O₇(OD)₃. The Cu ions are arranged in a distorted kagome lattice, and
+# exhibit an incommensurate helical magnetic order, as described in [G. J.
+# Nilsen, et al., Phys. Rev. B **89**, 140412
+# (2014)](https://doi.org/10.1103/PhysRevB.89.140412). The model follows [Toth
+# and Lake, J. Phys.: Condens. Matter **27**, 166002
+# (2015)](https://arxiv.org/abs/1402.6069).
+
 
 using Sunny, GLMakie
 
@@ -48,7 +49,7 @@ randomize_spins!(sys)
 k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
 plot_spins(sys; dims=2)
 
-# If successful, the optimization process will find one two possible
+# If successful, the optimization process will find one two propagation
 # wavevectors, ±k_ref, with opposite chiralities. In this system, the
 # [`spiral_energy_per_site`](@ref) is independent of chirality.
 
@@ -78,9 +79,9 @@ energy_per_site(sys2) # < -0.7834 meV
 qs = [[0,0,0], [1,0,0]]
 path = q_space_path(cryst, qs, 512)
 
-# Calculate intensities for the incommensurate single-k ordering wavevector
-# using [`SpiralSpinWaveTheory`](@ref). It is necessary to provide the original
-# `sys`, consisting of a single chemical cell.
+# Calculate intensities for the incommensurate spiral phase using
+# [`SpiralSpinWaveTheory`](@ref). It is necessary to provide the original `sys`,
+# consisting of a single chemical cell.
 
 measure = ssf_perp(sys; apply_g=false)
 swt = SpiralSpinWaveTheory(sys; measure, k, axis)

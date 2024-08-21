@@ -89,8 +89,17 @@ Base.@deprecate intensity_formula(opts1...; opts2...) let
 end
 
 Base.@deprecate reciprocal_space_path(cryst::Crystal, qs, density) let
-    error("Use q_space_path instead of reciprocal_space_path")
+    error("Use q_space_path(...) instead of reciprocal_space_path(...)")
 end
+
+Base.@deprecate set_spiral_order_on_sublattice!(sys, i; q=nothing, k=nothing, axis, S0) let
+    error("Use repeat_periodically_as_spiral(...) instead of set_spiral_order_on_sublattice!(...)")
+end
+
+Base.@deprecate set_spiral_order!(sys; q=nothing, k=nothing, axis, S0) let
+    error("Use repeat_periodically_as_spiral(...) instead of set_spiral_order!(...)")
+end
+
 
 
 # REMEMBER TO ALSO DELETE:
@@ -99,7 +108,7 @@ end
 # * λ argument in Langevin constructor
 # * Δt argument in dynamic_correlations
 # * large_S argument in set_exchange! and set_exchange_at!
-# * Argument q in set_spiral_order*
+# * Argument q in set_spiral_order
 # * Argument units to System
 # * Missing μ0_μB² in enable_dipole_dipole! and
 #   modify_exchange_with_truncated_dipole_dipole!

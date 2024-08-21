@@ -26,9 +26,9 @@ J2 = +2 * abs(J1)
 set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))
 set_exchange!(sys, J2, Bond(1, 1, [2, 0, 0]))
 
-# Assuming a spiral order, optimize the ordering wavevector ``𝐤`` starting from
-# a random initial guess. Because all interactions are isotropic in spin space,
-# the polarization `axis` is arbitrary.
+# Assuming a spiral order, optimize the propagation wavevector ``𝐤`` starting
+# from a random initial guess. Because all interactions are isotropic in spin
+# space, the polarization `axis` is arbitrary.
 
 axis = [0, 0, 1]
 randomize_spins!(sys)
@@ -43,10 +43,9 @@ k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
 @assert spiral_energy_per_site(sys; k, axis) ≈ -33/16 * abs(J1)
 
 # To view part of the incommensurate spiral spin structure, one can construct an
-# enlarged system.
+# enlarged system with [`repeat_periodically_as_spiral`](@ref).
 
-sys_enlarged = resize_supercell(sys, (8, 1, 1))
-set_spiral_order!(sys_enlarged; k, axis, S0=[1, 0, 0])
+sys_enlarged = repeat_periodically_as_spiral(sys, (8, 1, 1); k, axis)
 plot_spins(sys_enlarged; dims=2)
 
 # Use [`SpiralSpinWaveTheory`](@ref) on the original `sys` to calculate the

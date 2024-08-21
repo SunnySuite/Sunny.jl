@@ -20,8 +20,8 @@ end
 # could hypothetically be important to preserve symmetry breaking effects. For
 # example, a user might select J=diagm([a,a,a+ϵ]) for infinitesimal ϵ to favor
 # the z direction.
-function to_float_or_mat3(J)
-    if J isa Number || J == J[1] * I
+function to_float_or_mat3(J; atol=0.0)
+    if J isa Number || isapprox(J, J[1] * I; atol)
         J = Float64(first(J))
     else
         J = Mat3(J)
