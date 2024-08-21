@@ -218,7 +218,7 @@ points = [[0,   0, 0],  # List of wave vectors that define a path
 qpath = q_space_path(cryst, points, 500)
 formfactors = [FormFactor("Fe2"; g_lande=3/2)]
 res = intensities(sc, qpath; kT, energies, formfactors)
-plot_intensities(res; colormap=:viridis, colorrange=(0.0, 1.0))
+plot_intensities(res; colorrange=(0.0, 1.0))
 
 # On can also view the intensity along a ``𝐪``-space slice at a fixed energy
 # value.
