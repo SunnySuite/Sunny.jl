@@ -68,11 +68,12 @@ function rounded_energy_information(sc, energies)
     return ωvals[ωidcs], ωidcs
 end
 
+contains_dynamic_correlations(sc) = !isnan(sc.Δω)
 
 # Documented under intensities function for LSWT.
 function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
-    if isnan(sc.Δω) && energies != :available
-        error("`SampledCorrelations` only contains static information. No energy information is available.")
+    if contains_dynamic_correlations(sc) && !isnothing(kT) && iszero(kT)
+        error("Temperature corrections are unavailable for `kT=0`. Choose a finite temperature or set `kT=nothing` to disable.")
     end
     if !isnothing(kernel)
         error("Kernel post-processing not yet available for `SampledCorrelations`.")
@@ -94,17 +95,16 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
     q_idx_info = pruned_wave_vector_info(sc, qpts.qs)
-    crystal = !isnothing(sc.origin_crystal) ? sc.origin_crystal : sc.crystal
+    crystal = @something sc.origin_crystal sc.crystal
     NCorr  = Val{size(sc.data, 1)}()
     NAtoms = Val{size(sc.data, 2)}()
 
     # Intensities calculation
     intensities_rounded!(intensities, sc.data, sc.crystal, sc.measure, ff_atoms, q_idx_info, ωidcs, NCorr, NAtoms)
 
-    # Post-processing steps that depend on whether instant or dynamic correlations.
-    if !isnan(sc.Δω)
+    # Post-processing steps for dynamical correlations 
+    if contains_dynamic_correlations(sc) 
         # Convert time axis to a density.
-        # TODO: Why not do this with the definition of the FFT normalization?
         n_all_ω = size(sc.samplebuf, 6)
         intensities ./= (n_all_ω * sc.Δω)
 
@@ -115,15 +115,12 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
                 intensities[:,i] .*= c2q
             end
         end
-    else
-        # If temperature is given for a SampledCorrelations with only
-        # instantaneous data, throw an error. 
-        !isnothing(kT) && error("Given `SampledCorrelations` only contains instant correlation data. Temperature corrections only available with dynamical correlation info.")
     end
 
     intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
-    return if !isnan(sc.Δω)
-        Intensities(crystal, qpts, collect(ωs), reshape(intensities, length(ωs), size(qpts.qs)...))
+
+    return if contains_dynamic_correlations(sc) 
+        Intensities(crystal, qpts, collect(ωs), intensities)
     else
         InstantIntensities(crystal, qpts, dropdims(intensities; dims=1))
     end
