@@ -1010,9 +1010,8 @@ function get_unit_energy(units, into)
 end
 
 function colorrange_from_data(; data, saturation, sensitivity, allpositive)
-    datacols = eachslice(data; dims=1)
-    cmax = Statistics.quantile(maximum.(datacols), saturation)
-    cmin = Statistics.quantile(minimum.(datacols), 1 - saturation)
+    cmax = Statistics.quantile(vec(maximum(data; dims=1)), saturation)
+    cmin = Statistics.quantile(vec(minimum(data; dims=1)), 1 - saturation)
 
     if allpositive
         return (sensitivity, 1) .* cmax
@@ -1131,7 +1130,7 @@ end
 function Sunny.plot_intensities!(panel, res::Sunny.InstantIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
     (; crystal, qpts, data) = res
 
-    colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
+    colorrange_suggest = colorrange_from_data(; data=reshape(data, 1, size(data)...), saturation, sensitivity=0, allpositive)
     colormap = @something colormap (allpositive ? :gnuplot2 : :bwr)
     colorrange = @something colorrange colorrange_suggest
     
@@ -1141,6 +1140,13 @@ function Sunny.plot_intensities!(panel, res::Sunny.InstantIntensities{Float64}; 
         (xs, ys) = map(range, qpts.coefs_lo, qpts.coefs_hi, size(qpts.qs))
         ax = Makie.Axis(panel; xlabel, ylabel, aspect, axisopts...)
         Makie.heatmap!(ax, xs, ys, data; colormap, colorrange)
+        return ax
+    elseif qpts isa Sunny.QPath
+        xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
+        ax = Makie.Axis(panel; xlabel="Momentum (r.l.u.)", ylabel="Intensity", qpts.xticks, xticklabelrotation, axisopts...)
+        Makie.lines!(ax, data)
+        println("colorrange ", colorrange)
+        Makie.ylims!(ax, colorrange)
         return ax
     else
         error("Cannot yet plot $(typeof(res))")

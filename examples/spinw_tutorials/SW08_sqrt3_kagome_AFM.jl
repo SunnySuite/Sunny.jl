@@ -56,8 +56,9 @@ res = intensities_bands(swt, path)
 plot_intensities!(fig[1, 2], res; units, axisopts=(; title="Spiral method"))
 
 # Calculate and plot the powder averaged spectrum. Continuing to use the "spiral
-# method", this calculation executes in about two seconds. To enhance the lower
-# intensity features, saturate the color scale at the 80th percentile intensity.
+# method", this calculation executes in about two seconds. Because the
+# intensities are dominated by a flat band at zero energy transfer, select an
+# empirical `colorrange` that brings the lower-intensity features into focus.
 
 radii = range(0, 2.5, 200)
 energies = range(0, 3, 200)
@@ -65,4 +66,4 @@ kernel = gaussian(fwhm=0.05)
 res = powder_average(cryst, radii, 200) do qs
     intensities(swt, qs; energies, kernel)
 end
-plot_intensities(res; units, saturation=0.8)
+plot_intensities(res; units, colorrange=(0,20))
