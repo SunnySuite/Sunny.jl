@@ -25,10 +25,11 @@ view_crystal(cryst)
 # **79**, 092413 (2009)](https://doi.org/10.1103/PhysRevB.79.092413). The
 # corrected anisotropy values are taken from the thesis of T. Jensen. The mode
 # `:dipole_large_S` avoids a [classical-to-quantum rescaling factor](@ref
-# "Interaction Strength Renormalization") of anisotropy strengths.
+# "Interaction Strength Renormalization") of anisotropy strengths, as needed for
+# consistency with the original fits.
 
 S = 3/2
-sys = System(cryst, (1,1,1), [SpinInfo(1, S=3/2, g=2)], :dipole_large_S)
+sys = System(cryst, (1,1,1), [SpinInfo(1, S=1, g=2)], :dipole_large_S)
 Jbc =  1.036
 Jb  =  0.6701
 Jc  = -0.0469
