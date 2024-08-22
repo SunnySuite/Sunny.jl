@@ -53,17 +53,17 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 # Calculate the spectrum along path [ξ, 1, 0]
 
-swt = SpinWaveTheory(sys; measure=ssf_perp(sys; apply_g=false))
+swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 qs = [[0, 1, 0], [2, 1, 0]]
 path = q_space_path(cryst, qs, 400)
 res = intensities_bands(swt, path)
 fig = Figure(size=(768, 300))
 plot_intensities!(fig[1, 1], res; units);
 
-# Plotting intensity curves for individual bands needs code that is customized
-# to each situation. Here we filter out zero intensity "ghost" modes by sorting
-# the data along dimension 1 (band energy) according to the condition "is
-# intensity nonzero". Call the [Makie `lines!`
+# Plotting intensity curves for individual bands needs code customized to the
+# situation. Here we filter out zero intensity "ghost" modes by sorting the data
+# along dimension 1 (band energy) according to the condition "is intensity
+# nonzero". Call the [Makie `lines!`
 # function](https://docs.makie.org/stable/reference/plots/lines) to make a
 # custom plot.
 

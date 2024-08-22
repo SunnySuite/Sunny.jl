@@ -47,8 +47,10 @@ set_exchange!(sys, Jab, Bond(2, 2, [0, 1, 0]))
 set_onsite_coupling!(sys, S -> -K1*S[1]^2, 1)
 set_onsite_coupling!(sys, S -> -K1*S[1]^2, 2)
 
-# When using spacegroup P1, it is a good idea to interactively check whether all
-# intended interactions are present.
+# When using spacegroup P1, there is no symmetry-propagation of interactions
+# because all bonds are considered inequivalent. It is therefore a good idea to
+# check in the [`view_crystal`](@ref) GUI whether all the intended interactions
+# are really present.
 
 view_crystal(sys)
 
@@ -58,8 +60,9 @@ randomize_spins!(sys)
 minimize_energy!(sys)
 plot_spins(sys)
 
-# Plot spin wave dispersion along a path
+# Plot the spin wave spectrum along a path
 
+swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 qs = [[0.75, 0.75, 0], [0.5, 0.5, 0], [0.5, 0.5, 1]]
 path = q_space_path(cryst, qs, 400)
 res = intensities_bands(swt, path)
