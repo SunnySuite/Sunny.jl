@@ -209,13 +209,13 @@ fig
 # connects high symmetry points. Here we will also apply a [`FormFactor`](@ref)
 # appropriate to Fe²⁺.
 
-points = [[0,   0, 0],  # List of wave vectors that define a path
-          [1,   0, 0],
-          [0,   1, 0],
-          [1/2, 0, 0],
-          [0,   1, 0],
-          [0,   0, 0]] 
-qpath = q_space_path(cryst, points, 500)
+qs = [[0,   0, 0],  # List of wave vectors that define a path
+      [1,   0, 0],
+      [0,   1, 0],
+      [1/2, 0, 0],
+      [0,   1, 0],
+      [0,   0, 0]] 
+qpath = q_space_path(cryst, qs, 500)
 formfactors = [FormFactor("Fe2"; g_lande=3/2)]
 res = intensities(sc, qpath; kT, energies, formfactors)
 plot_intensities(res; colorrange=(0.0, 1.0))
