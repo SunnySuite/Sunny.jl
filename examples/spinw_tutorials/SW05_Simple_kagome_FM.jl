@@ -49,13 +49,14 @@ plot_spins(sys; dims=2)
 # Calculate and plot intensities for a path through ``𝐪``-space.
 
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-q_points = [[-1/2, 0, 0], [0, 0, 0], [1/2, 1/2, 0]]
-path = q_space_path(cryst, q_points, 400)
+qs = [[-1/2, 0, 0], [0, 0, 0], [1/2, 1/2, 0]]
+path = q_space_path(cryst, qs, 400)
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 
 # Calculate and plot the powder average with two different magnitudes of
-# Gaussian line-broadening.
+# Gaussian line-broadening. Pick an explicit colorrange so that the two color
+# scales are consistent.
 
 radii = range(0, 2.5, 200)
 energies = range(0, 6.5, 200)
@@ -67,6 +68,6 @@ res2 = powder_average(cryst, radii, 1000) do qs
 end
 
 fig = Figure(size=(768, 800))
-plot_intensities!(fig[1, 1], res1; units, saturation=0.7)
-plot_intensities!(fig[2, 1], res2; units, saturation=0.7)
+plot_intensities!(fig[1, 1], res1; units, colorrange=(0,10))
+plot_intensities!(fig[2, 1], res2; units, colorrange=(0,10))
 fig

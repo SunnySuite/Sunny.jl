@@ -31,7 +31,7 @@ plot_spins(sys)
 # Calculate and plot intensities for a path through ``𝐪``-space.
 
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
-q_points = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
-path = q_space_path(cryst, q_points, 400);
+qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
+path = q_space_path(cryst, qs, 400);
 res = intensities_bands(swt, path)
 plot_intensities(res; units)

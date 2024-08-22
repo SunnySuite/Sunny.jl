@@ -100,7 +100,7 @@ grid = q_space_grid(cryst, [1, 0, 0], range(-10, 10, 200), [0, 1, 0], (-10, 10))
 
 formfactors = [FormFactor("Co2")]
 res = intensities_instant(sc, grid; formfactors)
-plot_intensities(res)
+plot_intensities(res; saturation=0.995)
 
 
 # ### Dynamical structure factor
@@ -130,15 +130,15 @@ end
 # Select points that define a piecewise-linear path through reciprocal space,
 # and a sampling density.
 
-points = [[3/4, 3/4,   0],
-          [  0,   0,   0],
-          [  0, 1/2, 1/2],
-          [1/2,   1,   0],
-          [  0,   1,   0],
-          [1/4,   1, 1/4],
-          [  0,   1,   0],
-          [  0,  -4,   0]]
-qpts = q_space_path(cryst, points, 1000)
+qs = [[3/4, 3/4,   0],
+      [  0,   0,   0],
+      [  0, 1/2, 1/2],
+      [1/2,   1,   0],
+      [  0,   1,   0],
+      [1/4,   1, 1/4],
+      [  0,   1,   0],
+      [  0,  -4,   0]]
+qpts = q_space_path(cryst, qs, 1000)
 
 # Calculate ``I(𝐪, ω)`` intensities along this path and plot.
 
