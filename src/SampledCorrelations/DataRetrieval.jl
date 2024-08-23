@@ -162,7 +162,7 @@ function intensities_static(sc::SampledCorrelations, qpts; bounds = (-Inf, Inf),
     end
     energies = sort(ωs[ωidcs])
     res = intensities(sc, qpts; formfactors, kT, energies)
-    data_new = dropdims(sum(selectdim(res.data, 1, :), dims=1), dims=1) * sc.Δω
+    data_new = dropdims(sum(res.data, dims=1), dims=1) * sc.Δω
     StaticIntensities(res.crystal, res.qpts, data_new)
 end
 
