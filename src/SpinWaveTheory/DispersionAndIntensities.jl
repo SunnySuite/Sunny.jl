@@ -141,12 +141,13 @@ end
     intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
 
 Calculate spin wave excitation bands for a set of q-points in reciprocal space.
-This calculation is analogous [`intensities`](@ref), but does not perform
-broadening of the bands.
+This calculation is analogous to [`intensities`](@ref), but does not perform
+line broadening of the bands.
 """
-function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
+function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0, with_negative=false)
     (; sys, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
+    with_negative && error("Option `with_negative=true` not yet supported.")
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)
@@ -249,7 +250,7 @@ end
     intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing, kT=0)
     intensities(swt::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
 
-Calculate pair correlation intensities for a set of q-points in reciprocal
+Calculates pair correlation intensities for a set of ``𝐪``-points in reciprocal
 space.
 
 Traditional spin wave theory calculations are performed with an instance of
@@ -277,24 +278,33 @@ function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::Abstra
 end
 
 """
-    intensities_instant(sc::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
-    intensities_instant(sc::SampledCorrelations, qpts; formfactors=nothing, kT)
-    intensities_instant(sc::SampledCorrelationsStatic, qpts; formfactors=nothing)
+    intensities_static(sc::SpinWaveTheory, qpts; bounds=(-Inf, Inf), formfactors=nothing, kT=0)
+    intensities_static(sc::SampledCorrelations, qpts; bounds=(-Inf, Inf), formfactors=nothing, kT)
+    intensities_static(sc::SampledCorrelationsStatic, qpts; formfactors=nothing)
 
-Calculate the instantaneous (equal-time) correlations for a set of
-``𝐪``-points. This is the integral of ``\\mathcal{S}(𝐪, ω)`` over all energies
-``ω``.
+Like [`intensities`](@ref), but integrates the dynamical correlations
+``\\mathcal{S}(𝐪, ω)`` over a range of energies ``ω``. By default, the
+integration `bounds` are ``(-∞, ∞)``, yielding the instantaneous (equal-time)
+correlations.
 
-In [`SpinWaveTheory`](@ref) the integral can be realized as a discrete sum over
-bands. In [`SampledCorrelations`](@ref) there is an analogous integral over the
-available energies.
+In [`SpinWaveTheory`](@ref) the integral will be realized as a sum over discrete
+bands. A [`SampledCorrelations`](@ref) object will have a finite grid of
+available `energies`, which will constrain the domain of integration. A
+[`SampledCorrelationsStatic`](@ref) object stores no dynamical data; here, the
+return value represents instantaneous correlations for the _classical_ Boltzmann
+distribution.
 
 The parameter `kT` can be used to account for the quantum thermal occupation of
 excitations at finite temperature. For details, see the documentation in
 [`intensities`](@ref).
 """
-function intensities_instant(swt::AbstractSpinWaveTheory, qpts; formfactors=nothing, kT=0)
-    res = intensities_bands(swt, qpts; formfactors, kT)
-    data_new = dropdims(sum(res.data, dims=1), dims=1)
-    InstantIntensities(res.crystal, res.qpts, data_new)
+function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), formfactors=nothing, kT=0)
+    res = intensities_bands(swt, qpts; formfactors, kT)  # TODO: with_negative=true
+    data_reduced = zeros(eltype(res.data), size(res.data)[2:end])
+    for ib in axes(res.data, 1), iq in CartesianIndices(data_reduced)
+        if bounds[1] <= res.disp[ib, iq] < bounds[2]
+            data_reduced[iq] += res.data[ib, iq]
+        end
+    end
+    StaticIntensities(res.crystal, res.qpts, data_reduced)
 end

@@ -7,7 +7,7 @@ This **major release** introduces several breaking changes:
 
 * The interface for calculating intensities has been revised to unify
   functionality across backends. The functions [`intensities_bands`](@ref),
-  [`intensities`](@ref), and [`intensities_instant`](@ref) no longer expect a
+  [`intensities`](@ref), and [`intensities_static`](@ref) no longer expect a
   "formula", and instead take keyword arguments directly. Pair correlations are
   now specified using [`ssf_perp`](@ref) and related functions. The constructors
   [`SampledCorrelations`](@ref) and [`SampledCorrelationsStatic`](@ref) replace

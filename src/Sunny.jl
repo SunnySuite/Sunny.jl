@@ -91,7 +91,7 @@ include("SpinWaveTheory/HamiltonianSUN.jl")
 include("SpinWaveTheory/DispersionAndIntensities.jl")
 include("SpinWaveTheory/LSWTCorrections.jl")
 export SpinWaveTheory, excitations, excitations!, dispersion, intensities, intensities_bands,
-    intensities_instant # TODO
+    intensities_static
 
 include("Spiral/LuttingerTisza.jl")
 include("Spiral/SpiralEnergy.jl")

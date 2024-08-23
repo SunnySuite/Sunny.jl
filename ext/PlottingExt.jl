@@ -1127,7 +1127,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
     end
 end
 
-function Sunny.plot_intensities!(panel, res::Sunny.InstantIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
     (; crystal, qpts, data) = res
 
     colorrange_suggest = colorrange_from_data(; data=reshape(data, 1, size(data)...), saturation, sensitivity=0, allpositive)

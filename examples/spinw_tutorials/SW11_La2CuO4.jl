@@ -51,5 +51,5 @@ plot_intensities(res; units)
 
 # Plot instantaneous itensities, integrated over ω.
 
-res = intensities_instant(swt, path)
+res = intensities_static(swt, path)
 plot_intensities(res; colorrange=(0,20), units)

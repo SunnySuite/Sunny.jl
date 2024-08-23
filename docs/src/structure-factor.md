@@ -450,7 +450,7 @@ the classical Boltzmann distribution.
 
 ### The instantaneous structure factor
 
-Use [`intensities_instant`](@ref) to calculate ``\mathcal{S}(𝐪)``, i.e.,
+Use [`intensities_static`](@ref) to calculate ``\mathcal{S}(𝐪)``, i.e.,
  correlations that are "instantaneous" in real-time. Mathematically,
 ``\mathcal{S}(𝐪)`` denotes an integral of the full dynamical structure factor
 ``\mathcal{S}(𝐪, ω)``, taken over all energies ``ω``. In
@@ -460,7 +460,7 @@ be applied within [`intensities`](@ref) prior to energy integration.
 
 Sunny also supports a mechanism to calculate static correlations without any
 spin dynamics. To collect such statistics, construct a
-`SampledCorrelationsStatic` object. In this case, `intensities_instant` will
+`SampledCorrelationsStatic` object. In this case, `intensities_static` will
 return static correlations sampled from the classical Boltzmann distribution.
-This dynamics-free approach is faster, but may miss important quantum mechanical
-features of the structure factors.
+This dynamics-free approach is faster, but may miss important features that
+derive from the quantum mechanical excitation spectrum.

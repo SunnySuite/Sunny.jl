@@ -79,12 +79,12 @@
 
 
     # Test static from dynamic intensities working
-    is_static = intensities_instant(sc, qgrid; kT=nothing)
+    is_static = intensities_static(sc, qgrid; kT=nothing)
     total_intensity_static = sum(is_static.data)
     @test isapprox(total_intensity_static, total_intensity_trace * sc.Δω; atol=1e-9)  # Order of summation can lead to very small discrepancies
 
     # Test quantum-to-classical increases intensity
-    is_static_c2q = intensities_instant(sc, qgrid; kT=0.1)
+    is_static_c2q = intensities_static(sc, qgrid; kT=0.1)
     total_intensity_static_c2q = sum(is_static_c2q.data)
     @test total_intensity_static_c2q > total_intensity_static 
 
@@ -93,7 +93,7 @@
     thermalize_simple_model!(sys; kT=0.1)
     ic = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=false))
     add_sample!(ic, sys)
-    true_static_vals = intensities_instant(ic, qgrid)
+    true_static_vals = intensities_static(ic, qgrid)
     true_static_total = sum(true_static_vals.data)
     @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
 end

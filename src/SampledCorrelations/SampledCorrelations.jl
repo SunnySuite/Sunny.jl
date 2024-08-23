@@ -124,7 +124,7 @@ equilibrium. A classical spin dynamics trajectory will be simulated of
 sufficient length to achieve the target energy resolution. The resulting data
 can can then be extracted as pair-correlation [`intensities`](@ref) with
 appropriate classical-to-quantum correction factors. See also
-[`intensities_instant`](@ref), which integrates over the available energy range.
+[`intensities_static`](@ref), which integrates over energy.
 """
 function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false)
     if isnothing(energies)
@@ -182,13 +182,13 @@ end
 """
     SampledCorrelationsStatic(sys::System; measure)
 
-An object to accumulate samples of static pair correlations. Similar to
+An object to accumulate samples of static pair correlations. It is similar to
 [`SampledCorrelations`](@ref), but no time-integration will be performed on
-calls to [`add_sample!`](@ref). As a result, dynamical [`intensities`](@ref)
-data will be unavailable for `SampledCorrelationsStatic`. Furthermore,
-[`intensities_instant`](@ref) data is associated with the classical Boltzmann
-distribution, and misses classical-to-quantum corrections that can be captured
-by `SampledCorrelations`.
+calls to [`add_sample!`](@ref). The resulting object can be used with
+[`intensities_static`](@ref) to calculate statistics from the classical
+Boltzmann distribution. Dynamical [`intensities`](@ref) data, however, will be
+unavailable. Similarly, classical-to-quantum corrections that rely on the
+excitation spectrum cannot be performed.
 """
 struct SampledCorrelationsStatic
     parent :: SampledCorrelations
