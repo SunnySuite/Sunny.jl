@@ -61,18 +61,19 @@ res = intensities_bands(swt, path)
 fig = Figure(size=(768, 300))
 plot_intensities!(fig[1, 1], res; units);
 
-# Plotting intensity curves for individual bands needs code customized to the
-# situation. Here we filter out zero intensity "ghost" modes by sorting the data
-# along dimension 1 (band energy) according to the condition "is intensity
-# nonzero". Call the [Makie `lines!`
+# There are two physical bands with nonvanishing intensity. To extract these
+# intensity curves, we must filter out the additional bands with zero intensity.
+# One way is to sort the data along dimension 1 (the band index) with the
+# comparison operator "is intensity less than ``10^{-12}``". Doing so moves the
+# physical bands to the end of the array axis. Call the [Makie `lines!`
 # function](https://docs.makie.org/stable/reference/plots/lines) to make a
 # custom plot.
 
-data_sorted = sort(res.data; dims=1, by=x->abs(x)>1e-12)
+data_sorted = sort(res.data; dims=1, by= >(1e-12))
 ax = Axis(fig[1, 2], xlabel="Momentum (r.l.u.)", ylabel="Intensity",
           xticks=res.qpts.xticks, xticklabelrotation=π/6)
-lines!(ax, data_sorted[4, :]; label="Band 2")
-lines!(ax, data_sorted[3, :]; label="Band 1")
+lines!(ax, data_sorted[end, :]; label="Lower band")
+lines!(ax, data_sorted[end-1, :]; label="Upper band")
 axislegend(ax)
 fig
 
@@ -87,7 +88,7 @@ plot_intensities!(fig[1, 1], res; units)
 data_sorted = sort(res.data; dims=1, by=x->abs(x)>1e-12)
 ax = Axis(fig[1, 2], xlabel="Momentum (r.l.u.)", ylabel="Intensity",
           xticks=res.qpts.xticks, xticklabelrotation=π/6)
-lines!(ax, data_sorted[4, :]; label="Band 2")
-lines!(ax, data_sorted[3, :]; label="Band 1")
+lines!(ax, data_sorted[end, :]; label="Lower band")
+lines!(ax, data_sorted[end-1, :]; label="Upper band")
 axislegend(ax)
 fig
