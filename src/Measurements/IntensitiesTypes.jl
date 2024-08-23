@@ -22,7 +22,7 @@ struct Intensities{T, Q <: AbstractQPoints, D} <: AbstractIntensities
     data :: Array{T, D} # (nω × nq...)
 end
 
-struct InstantIntensities{T, Q <: AbstractQPoints, D} <: AbstractIntensities
+struct StaticIntensities{T, Q <: AbstractQPoints, D} <: AbstractIntensities
     # Original chemical cell
     crystal :: Crystal
     # Wavevectors in RLU

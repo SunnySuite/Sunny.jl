@@ -99,7 +99,7 @@ grid = q_space_grid(cryst, [1, 0, 0], range(-10, 10, 200), [0, 1, 0], (-10, 10))
 # [`FormFactor`](@ref) for Co2⁺.
 
 formfactors = [FormFactor("Co2")]
-res = intensities_instant(sc, grid; formfactors)
+res = intensities_static(sc, grid; formfactors)
 plot_intensities(res; saturation=0.995)
 
 
@@ -142,7 +142,7 @@ qpts = q_space_path(cryst, qs, 500)
 
 # Calculate ``I(𝐪, ω)`` intensities along this path and plot.
 
-res = intensities(sc, qpts; energies, kT)
+res = intensities(sc, qpts; energies, formfactors, kT)
 plot_intensities(res; units, saturation=0.85, colormap=:viridis)
 
 # ### Powder averaged intensity

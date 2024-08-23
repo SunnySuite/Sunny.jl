@@ -194,7 +194,7 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 # A different understanding of the magnetic ordering can be obtained by moving
 # to Fourier space. The 'instantaneous' structure factor ``𝒮(𝐪)`` is an
 # experimental observable. To investigate ``𝒮(𝐪)`` as true 3D data, Sunny
-# provides [`intensities_instant`](@ref). Here, however, we will use
+# provides [`SampledCorrelationsStatic`](@ref). Here, however, we will use
 # [`print_wrapped_intensities`](@ref), which gives average intensities for the
 # individual Bravais sublattices (in effect, all wavevectors are wrapped to the
 # first Brillouin zone).
