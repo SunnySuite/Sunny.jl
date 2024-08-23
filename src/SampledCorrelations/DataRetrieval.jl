@@ -72,8 +72,8 @@ contains_dynamic_correlations(sc) = !isnan(sc.Δω)
 
 # Documented under intensities function for LSWT.
 function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
-    if contains_dynamic_correlations(sc) && !isnothing(kT) && iszero(kT)
-        error("Temperature corrections are unavailable for `kT=0`. Choose a finite temperature or set `kT=nothing` to disable.")
+    if !isnothing(kT) && kT <= 0
+        error("Positive `kT` required for classical-to-quantum corrections, or set `kT=nothing` to disable.")
     end
     if !isnothing(kernel)
         error("Kernel post-processing not yet available for `SampledCorrelations`.")
@@ -108,17 +108,19 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
         n_all_ω = size(sc.samplebuf, 6)
         intensities ./= (n_all_ω * sc.Δω)
 
-        # Apply classical-to-quantum correspondence factor if temperature given.
-        if !isnothing(kT) 
-            c2q = classical_to_quantum.(ωs; kT)
+        # Apply classical-to-quantum correspondence factor for finite kT
+        if !isnothing(kT)
+            # Equivalent to abs(ω/kT) * thermal_prefactor(ω; kT)
+            c2q = [iszero(ω) ? 1 : abs((ω/kT) / (1 - exp(-ω/kT))) for ω in ωs]
             for i in axes(intensities, 2)
-                intensities[:,i] .*= c2q
+                intensities[:, i] .*= c2q
             end
         end
     end
 
     intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
 
+    # TODO: Refactor this logic so that return value is uniform.
     return if contains_dynamic_correlations(sc) 
         Intensities(crystal, qpts, collect(ωs), intensities)
     else
@@ -153,31 +155,14 @@ end
 
 
 function intensities_instant(sc::SampledCorrelations, qpts; formfactors=nothing, kT)
-    return if isnan(sc.Δω)
-        if !isnothing(kT) 
-            error("kT=nothing is required for a `SampledCorrelations` without dynamics")
-        end
-        intensities(sc, qpts; formfactors, kT, energies=:available)
-    else
-        res = intensities(sc, qpts; formfactors, kT, energies=:available_with_negative)
-        data_new = dropdims(sum(res.data, dims=1), dims=1) * sc.Δω
-        InstantIntensities(res.crystal, res.qpts, data_new)
-    end
+    res = intensities(sc, qpts; formfactors, kT, energies=:available_with_negative)
+    data_new = dropdims(sum(res.data, dims=1), dims=1) * sc.Δω
+    InstantIntensities(res.crystal, res.qpts, data_new)
 end
 
 function intensities_instant(sc::SampledCorrelationsStatic, qpts; formfactors=nothing)
-    intensities_instant(sc.parent, qpts; formfactors, kT=nothing)
-end
-
-
-function classical_to_quantum(ω; kT)
-    if ω > 0
-        ω/(kT*(1 - exp(-ω/kT)))
-    elseif iszero(ω)
-        1.0
-    else
-        -ω*exp(ω/kT)/(kT*(1 - exp(ω/kT)))
-    end
+    # Contrary to the name, this will actually return an InstantIntensities
+    intensities(sc.parent, qpts; formfactors, kT=nothing, energies=:available)
 end
 
 
