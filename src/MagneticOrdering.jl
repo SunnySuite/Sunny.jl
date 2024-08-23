@@ -13,7 +13,7 @@ this function will typically be used as input to
 
 Because this function does not incorporate phase information in its averaging
 over sublattices, the printed weights are not directly comparable with
-experiment. For that purpose, use [`intensities_instant`](@ref) instead.
+experiment. For that purpose, use [`SampledCorrelationsStatic`](@ref) instead.
 """
 function print_wrapped_intensities(sys::System{N}; nmax=10) where N
     sys.crystal == orig_crystal(sys) || error("Cannot perform this analysis on reshaped system.")

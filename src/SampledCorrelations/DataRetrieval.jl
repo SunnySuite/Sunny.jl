@@ -124,7 +124,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     return if contains_dynamic_correlations(sc) 
         Intensities(crystal, qpts, collect(ωs), intensities)
     else
-        InstantIntensities(crystal, qpts, dropdims(intensities; dims=1))
+        StaticIntensities(crystal, qpts, dropdims(intensities; dims=1))
     end
 end
 
@@ -154,14 +154,14 @@ function intensities_rounded!(intensities, data, crystal, measure::MeasureSpec{O
 end
 
 
-function intensities_instant(sc::SampledCorrelations, qpts; formfactors=nothing, kT)
+function intensities_static(sc::SampledCorrelations, qpts; formfactors=nothing, kT)
     res = intensities(sc, qpts; formfactors, kT, energies=:available_with_negative)
     data_new = dropdims(sum(res.data, dims=1), dims=1) * sc.Δω
-    InstantIntensities(res.crystal, res.qpts, data_new)
+    StaticIntensities(res.crystal, res.qpts, data_new)
 end
 
-function intensities_instant(sc::SampledCorrelationsStatic, qpts; formfactors=nothing)
-    # Contrary to the name, this will actually return an InstantIntensities
+function intensities_static(sc::SampledCorrelationsStatic, qpts; formfactors=nothing)
+    # Contrary to the name, this will actually return an StaticIntensities
     intensities(sc.parent, qpts; formfactors, kT=nothing, energies=:available)
 end
 

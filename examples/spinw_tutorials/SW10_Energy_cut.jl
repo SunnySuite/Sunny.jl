@@ -37,18 +37,8 @@ swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities(swt, grid; energies=[3.75], kernel=gaussian(fwhm=0.2))
 plot_intensities(res; units)
 
-# Sunny does not include Horace integration. For now, one can write custom code
-# to manually integrate intensity bands between 3.5 and 4 meV.
+# Integrate intensities between 3.5 and 4 meV using [`intensities_static`](@ref)
+# with the `bounds` option.
 
-res = intensities_bands(swt, grid)
-summed_intensity = zeros(size(res.disp)[2:3])
-for ci in CartesianIndices(res.disp)
-    if 3.5 < res.disp[ci] < 4.0
-        summed_intensity[ci[2], ci[3]] += res.data[ci]
-    end
-end
-
-# To make the plot look nice, for now we use a private function internal to
-# Sunny.
-
-plot_intensities(Sunny.InstantIntensities(cryst, grid, summed_intensity))
+res = intensities_static(swt, grid; bounds=(3.5, 4.0))
+plot_intensities(res; units)
