@@ -23,9 +23,9 @@ positions = [[0, 0, 0], [0, 0, 1/2]]
 types = ["V", "V"]
 cryst = Crystal(latvecs, positions, 1; types)
 
-# Create a system with exchange parameters taken from [C. Ulrich, et al. PRL
-# **91**, 257202 (2003)](https://doi.org/10.1103/PhysRevLett.91.257202). Use the
-# mode `:dipole_large_S` to avoid a [classical-to-quantum rescaling factor](@ref
+# Create a system following the model of [C. Ulrich, et al. PRL **91**, 257202
+# (2003)](https://doi.org/10.1103/PhysRevLett.91.257202). The mode
+# `:dipole_large_S` avoids a [classical-to-quantum rescaling factor](@ref
 # "Interaction Strength Renormalization") of anisotropy strengths, as needed for
 # consistency with the original fits.
 
@@ -48,9 +48,9 @@ set_onsite_coupling!(sys, S -> -K1*S[1]^2, 1)
 set_onsite_coupling!(sys, S -> -K1*S[1]^2, 2)
 
 # When using spacegroup P1, there is no symmetry-propagation of interactions
-# because all bonds are considered inequivalent. It is therefore a good idea to
-# launch the [`view_crystal`](@ref) GUI with `sys`, activate all toggles, and
-# check whether all the intended interactions are present.
+# because all bonds are considered inequivalent. One can visualize the
+# interactions in the system by clicking the toggles in the
+# [`view_crystal`](@ref) GUI.
 
 view_crystal(sys)
 
