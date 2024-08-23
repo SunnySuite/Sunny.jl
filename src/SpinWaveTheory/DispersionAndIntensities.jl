@@ -55,12 +55,10 @@ function bogoliubov!(T::Matrix{ComplexF64}, H::Matrix{ComplexF64})
 end
 
 
-# Returns |1 + nB(ω)| where nB(ω) = 1 / (exp(βω) - 1) is the Bose function. See
-# also `classical_to_quantum` which additionally "undoes" the classical
-# Boltzmann distribution.
+# Returns |1 + nB(ω)| where nB(ω) = 1 / (exp(βω) - 1) is the Bose function.
 function thermal_prefactor(ω; kT)
     if iszero(kT)
-        return ω >= 0 ? 1 : 0
+        return iszero(ω) ? 1/2 : (ω > 0 ? 1 : 0)
     else
         @assert kT > 0
         return abs(1 / (1 - exp(-ω/kT)))
