@@ -38,7 +38,7 @@ plot_spins(sys_prim; ghost_radius=8, color=[:red, :blue, :yellow, :purple])
 
 qs = [[0,0,0], [0,1,0], [1,1/2,0], [1/2,1/2,1/2], [3/4,3/4,0], [0,0,0]]
 labels = ["Γ", "X", "W", "L", "K", "Γ"]
-path = q_space_path(cryst, qs, 400; labels)
+path = q_space_path(cryst, qs, 500; labels)
 
 measure = ssf_trace(sys_prim)
 swt = SpinWaveTheory(sys_prim; measure)

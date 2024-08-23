@@ -39,7 +39,7 @@ plot_spins(sys)
 
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 qs = [[0,0,0], [1,0,0]]
-path = q_space_path(cryst, qs, 512)
+path = q_space_path(cryst, qs, 400)
 
 # Plot three types of pair correlation intensities
 
