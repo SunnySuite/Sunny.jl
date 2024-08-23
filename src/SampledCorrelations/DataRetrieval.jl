@@ -156,7 +156,7 @@ end
 
 function intensities_static(sc::SampledCorrelations, qpts; bounds = (-Inf, Inf), formfactors=nothing, kT)
     ωs = available_energies(sc; negative_energies=true)
-    ωidcs = findall(x -> bounds[1] <= x <= bounds[2], ωs)
+    ωidcs = findall(x -> bounds[1] <= x < bounds[2], ωs)
     if iszero(length(ωidcs))
         error("No information available within specified energy `bounds`. Try a larger interval.")
     end
