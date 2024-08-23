@@ -66,7 +66,7 @@ for _ in 1:nsamples
     end
     add_sample!(sc, sys)
 end
-path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 300)
+path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
 res1 = intensities(sc, path; energies=:available, kT)
 
 # Calculate the same quantity with linear spin wave theory at ``T = 0``. Because
@@ -76,7 +76,6 @@ res1 = intensities(sc, path; energies=:available, kT)
 sys_small = resize_supercell(sys, (1,1,1))
 minimize_energy!(sys_small)
 swt = SpinWaveTheory(sys_small; measure=ssf_trace(sys_small))
-path = q_space_path(cryst, [[0,0,-1/2], [0,0,+1/2]], 400)
 res2 = intensities_bands(swt, path)
 
 # This model system has a single magnon band with dispersion ``ϵ(𝐪) = 1 - D/B

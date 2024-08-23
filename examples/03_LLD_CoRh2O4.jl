@@ -138,7 +138,7 @@ qs = [[3/4, 3/4,   0],
       [1/4,   1, 1/4],
       [  0,   1,   0],
       [  0,  -4,   0]]
-qpts = q_space_path(cryst, qs, 1000)
+qpts = q_space_path(cryst, qs, 500)
 
 # Calculate ``I(𝐪, ω)`` intensities along this path and plot.
 

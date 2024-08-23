@@ -77,7 +77,7 @@ energy_per_site(sys2) # < -0.7834 meV
 # Define a path in q-space
 
 qs = [[0,0,0], [1,0,0]]
-path = q_space_path(cryst, qs, 512)
+path = q_space_path(cryst, qs, 400)
 
 # Calculate intensities for the incommensurate spiral phase using
 # [`SpiralSpinWaveTheory`](@ref). It is necessary to provide the original `sys`,
@@ -93,7 +93,7 @@ plot_intensities(res; units)
 radii = range(0, 2, 100) # (1/Å)
 energies = range(0, 6, 200)
 kernel = gaussian(fwhm=0.05)
-res = powder_average(cryst, radii, 200) do qs
+res = powder_average(cryst, radii, 400) do qs
     intensities(swt, qs; energies, kernel)
 end
 plot_intensities(res; units)

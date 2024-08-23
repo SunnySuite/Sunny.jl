@@ -2,7 +2,7 @@
 # # SW11 - La₂CuO₄
 #
 # This is a Sunny port of [SpinW Tutorial
-# 11](https://spinw.org/tutorials/15tutorial), originally authored by Sandor
+# 11](https://spinw.org/tutorials/11tutorial), originally authored by Sandor
 # Toth. It calculates the spin wave spectrum of La₂CuO₄.
 
 # Load packages 
@@ -14,7 +14,9 @@ using Sunny, GLMakie
 
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(1, 1, 10, 90, 90, 90)
-cryst = Crystal(latvecs, [[0, 0, 0]])
+positions = [[0, 0, 0]]
+types = ["Cu"]
+cryst = Crystal(latvecs, positions; types)
 view_crystal(cryst; dims=2)
 
 # Build a spin system using the exchange parameters from [R. Coldea, Phys. Rev.
@@ -45,9 +47,9 @@ energies = range(0, 320, 400)
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
 res = intensities(swt, path; energies, kernel=gaussian(fwhm=35))
 res.energies .*= 1.18
-plot_intensities(res)
+plot_intensities(res; units)
 
 # Plot instantaneous itensities, integrated over ω.
 
 res = intensities_instant(swt, path)
-plot_intensities(res; colorrange=(0,20))
+plot_intensities(res; colorrange=(0,20), units)

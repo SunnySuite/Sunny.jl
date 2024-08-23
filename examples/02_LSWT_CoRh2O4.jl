@@ -74,7 +74,7 @@ swt = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
 # path that connects high-symmetry points in reciprocal space.
 
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
-path = q_space_path(cryst, qs, 400)
+path = q_space_path(cryst, qs, 500)
 
 # Select [`lorentzian`](@ref) broadening with a full-width at half-maximum
 # (FWHM) of 0.8 meV. Use [`ssf_perp`](@ref) to calculate unpolarized scattering
