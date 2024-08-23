@@ -154,9 +154,15 @@ function intensities_rounded!(intensities, data, crystal, measure::MeasureSpec{O
 end
 
 
-function intensities_static(sc::SampledCorrelations, qpts; formfactors=nothing, kT)
-    res = intensities(sc, qpts; formfactors, kT, energies=:available_with_negative)
-    data_new = dropdims(sum(res.data, dims=1), dims=1) * sc.Δω
+function intensities_static(sc::SampledCorrelations, qpts; bounds = (-Inf, Inf), formfactors=nothing, kT)
+    ωs = available_energies(sc; negative_energies=true)
+    ωidcs = findall(x -> bounds[1] <= x <= bounds[2], ωs)
+    if iszero(length(ωidcs))
+        error("No information available within specified energy `bounds`. Try a larger interval.")
+    end
+    energies = sort(ωs[ωidcs])
+    res = intensities(sc, qpts; formfactors, kT, energies)
+    data_new = dropdims(sum(selectdim(res.data, 1, :), dims=1), dims=1) * sc.Δω
     StaticIntensities(res.crystal, res.qpts, data_new)
 end
 
