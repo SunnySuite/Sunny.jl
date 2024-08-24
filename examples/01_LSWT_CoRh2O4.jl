@@ -40,8 +40,8 @@ units = Units(:meV, :angstrom);
 # angles are 90°. With this information, [`lattice_vectors`](@ref) constructs a
 # 3×3 matrix `latvecs`. Columns of `latvecs` define the lattice vectors ``(𝐚_1,
 # 𝐚_2, 𝐚_3)`` in the global Cartesian coordinate system. Conversely, columns
-# of `inv(latvecs)` define the global Cartesian axes ``(𝐱, 𝐲, 𝐳)`` in
-# components of the lattice vectors.
+# of `inv(latvecs)` define the global Cartesian axes ``(\hat{x}, \hat{y},
+# \hat{z})`` in components of the lattice vectors.
 
 a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
@@ -89,7 +89,7 @@ view_crystal(sys)
 # To search for the ground state, call [`randomize_spins!`](@ref) and
 # [`minimize_energy!`](@ref) in sequence. For this problem, optimization
 # converges rapidly to the expected Néel order. See this with
-# [`plot_spins`](@ref), where spins are colored according to their
+# [`plot_spins`](@ref), where spins are colored according to their global
 # ``z``-component.
 
 randomize_spins!(sys)

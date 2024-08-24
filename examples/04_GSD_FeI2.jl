@@ -62,7 +62,7 @@ set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 # To study thermal fluctuations in real-space, use a large system size with
 # 16×16×4 copies of the chemical cell.
 
-sys_large = resize_supercell(sys, (16,16,4))
+sys_large = resize_supercell(sys, (16, 16, 4))
 
 # Previously, we used [`minimize_energy!`](@ref) to find a local energy minimum.
 # Here, we will instead use [`Langevin`](@ref) dynamics to relax the system into
