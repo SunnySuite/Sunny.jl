@@ -1,17 +1,17 @@
 # # 4. Generalized spin dynamics of FeI₂ at finite *T*
 
-# In the [previous FeI₂ tutorial](@ref "3. Multi-flavor spin wave simulations of
-# FeI₂"), we used multi-flavor spin wave theory to calculate the dynamical spin
-# structure factor. Here, we perform an analogous calculation at finite
-# temperature, via a [classical dynamics of SU(_N_) coherent
-# states](https://arxiv.org/abs/2209.01265).
+# The [previous FeI₂ tutorial](@ref "3. Multi-flavor spin wave simulations of
+# FeI₂") used multi-flavor spin wave theory to calculate the dynamical spin
+# structure factor. Here we perform an analogous calculation at finite
+# temperature using the [classical dynamics of SU(_N_) coherent
+# states](https://doi.org/10.1103/PhysRevB.106.054423).
 #
 # Compared to spin wave theory, classical spin dynamics in real-space is
-# typically much slower, and limited in ``𝐪``-space resolution. However, such
-# models enable thermal fluctuations, allow for [highly non-equilibrium
-# processes](https://doi.org/10.1103/PhysRevB.106.235154) and can be used to map
-# out the [finite temperature phase
-# diagrams](https://doi.org/10.1103/PhysRevB.109.014427).
+# typically much slower, and is limited in ``𝐪``-space resolution. The
+# approach, however, allows for thermal fluctuations, can be used to explore
+# [finite temperature phases](https://doi.org/10.1103/PhysRevB.109.014427), and
+# enables the study of [highly non-equilibrium
+# processes](https://doi.org/10.1103/PhysRevB.106.235154).
 #
 # The structure of this tutorial largely follows our [previous study of CoRh₂O₄
 # at finite *T*](@ref "2. Landau-Lifshitz dynamics of CoRh₂O₄ at finite *T*").
@@ -30,7 +30,7 @@ c = 6.75214
 latvecs = lattice_vectors(a, b, c, 90, 90, 120)
 cryst = Crystal(latvecs, [[0,0,0]], 164; types=["Fe"])
 
-sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :SUN, seed=0)
+sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :SUN)
 J1pm   = -0.236
 J1pmpm = -0.161
 J1zpm  = -0.261

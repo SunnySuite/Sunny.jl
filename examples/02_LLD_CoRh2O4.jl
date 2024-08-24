@@ -20,7 +20,7 @@ a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
 
-sys = System(cryst, (1,1,1), [SpinInfo(1; S=3/2, g=2)], :dipole; seed=0)
+sys = System(cryst, (1,1,1), [SpinInfo(1; S=3/2, g=2)], :dipole)
 J = 0.63 # (meV)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 randomize_spins!(sys)
