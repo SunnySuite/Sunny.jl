@@ -161,8 +161,8 @@ fig
 # connects high symmetry points. Here we will also apply a [`FormFactor`](@ref)
 # appropriate to Fe²⁺. Because this is a real-space calculation, data is only
 # available for discrete ``𝐪`` modes, with resolution that scales inversely to
-# linear system size. Intensities at ``ω = 0`` dominate the intensity scale, so
-# we select an explicit color range empirically.
+# linear system size. Intensities at ``ω = 0`` dominate, so to enhance
+# visibility, we restrict the color range empirically.
 
 qs = [[0,   0, 0],  # List of wave vectors that define a path
       [1,   0, 0],
