@@ -13,7 +13,7 @@ crystal = Crystal(latvecs, [[0,0,0]])
 
 # Create a [`System`](@ref) of spins with linear size `L` in the ``x`` and ``y``
 # directions, and only one layer in the ``z`` direction. The option `:dipole`
-# means that the system will store Heisenberg spins, as opposed to SU(``N``)
+# means that the system will store Heisenberg spins, as opposed to SU(_N_)
 # coherent states. Polarize the initial spin configuration using
 # [`polarize_spins!`](@ref). Following the Ising convention, we will restrict
 # these spins to the ``z``-axis and give them magnitude ``S=1``.
