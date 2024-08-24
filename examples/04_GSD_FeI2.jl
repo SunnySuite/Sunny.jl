@@ -81,15 +81,15 @@ minimize_energy!(sys_large; maxiters=10)
 suggest_timestep(sys_large, langevin; tol=1e-2)
 langevin.dt = 0.03;
 
-# Run a Langevin trajectory for 10,000 time-steps and plot the spins. An ordered
-# phase is apparent.
+# Run a Langevin trajectory for 10,000 time-steps and plot the spins. At this
+# angle, it is difficult to discern the magnetic order.
 
 for _ in 1:10_000
     step!(sys_large, langevin)
 end
 plot_spins(sys_large; color=[s[3] for s in sys_large.dipoles])
 
-# The spiral magnetic order can also be verified by calling
+# The two-up, two-down spiral order can be verified by calling
 # [`print_wrapped_intensities`](@ref). A single propagation wavevector ``±𝐤``
 # provides most of the static intensity in ``\mathcal{S}(𝐪)``. A smaller amount
 # of intensity is spread among many other wavevectors due to thermal
@@ -146,20 +146,21 @@ for _ in 1:2
 end
 
 # Measure intensities along a path connecting high-symmetry ``𝐪``-points,
-# specified in reciprocal lattice units (RLU). A classical-to-quantum rescaling
-# of normal mode occupations will be performed according to the temperature
-# `kT`. The large statistical noise could be reduced by averaging over more
-# thermal samples.
+# specified in reciprocal lattice units (RLU). Incorporate the
+# [`FormFactor`](@ref) appropriate to Fe²⁺. A classical-to-quantum rescaling of
+# normal mode occupations will be performed according to the temperature `kT`.
+# The large statistical noise could be reduced by averaging over more thermal
+# samples.
 
-res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; langevin.kT, energies) 
+formfactors = [FormFactor("Fe2"; g_lande=3/2)]
+res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; energies, formfactors, langevin.kT)
 fig = lines(res.energies, res.data[:, 1]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
 lines!(res.energies, res.data[:, 2]; label="(π,π,π)")
 axislegend()
 fig
 
-# Next, we will measure intensities along the [`q_space_path`](@ref) that
-# connects high symmetry points. Here we will also apply a [`FormFactor`](@ref)
-# appropriate to Fe²⁺. Because this is a real-space calculation, data is only
+# Next, we will measure intensities along a [`q_space_path`](@ref) that connects
+# high symmetry points. Because this is a real-space calculation, data is only
 # available for discrete ``𝐪`` modes, with resolution that scales inversely to
 # linear system size. Intensities at ``ω = 0`` dominate, so to enhance
 # visibility, we restrict the color range empirically.
@@ -171,13 +172,13 @@ qs = [[0,   0, 0],  # List of wave vectors that define a path
       [0,   1, 0],
       [0,   0, 0]] 
 qpath = q_space_path(cryst, qs, 500)
-formfactors = [FormFactor("Fe2"; g_lande=3/2)]
-res = intensities(sc, qpath; langevin.kT, energies, formfactors)
+res = intensities(sc, qpath; energies, formfactors, langevin.kT)
 plot_intensities(res; colorrange=(0.0, 1.0))
 
-# On can also view the intensity along a ``𝐪``-space slice at a fixed energy
-# value.
+# One can also view the intensity along a [`q_space_grid`](@ref) for a fixed
+# energy value. Alternatively, use [`intensities_static`](@ref) to integrate
+# over all available energies.
 
 grid = q_space_grid(cryst, [1, 0, 0], range(-1.5, 1.5, 300), [0, 1, 0], (-1.5, 1.5); orthogonalize=true)
-res = intensities(sc, grid; energies=[3.88], langevin.kT)
+res = intensities(sc, grid; energies=[3.88], formfactors, langevin.kT)
 plot_intensities(res)
