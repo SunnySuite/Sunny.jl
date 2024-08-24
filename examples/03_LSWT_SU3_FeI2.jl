@@ -141,7 +141,7 @@ set_exchange!(sys, [J′2apm 0.0    0.0;
 D = 2.165 # (meV)
 set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 
-# ### Finding the magnetic ground state
+# ### Finding the ground state
 
 # This model has been carefully designed so that energy minimization produces
 # the physically correct magnetic ordering. Using [`set_dipole!`](@ref), this
@@ -197,7 +197,7 @@ randomize_spins!(sys_min)
 minimize_energy!(sys_min);
 plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
 
-# ### Linear spin wave theory
+# ### Spin wave theory
 #
 # Now that the system has been relaxed to an energy minimized ground state, we
 # can calculate the spin wave spectrum. Because we are working with a system of

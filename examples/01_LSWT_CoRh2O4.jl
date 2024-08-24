@@ -25,13 +25,12 @@ using Sunny, GLMakie
 
 # ### Units
 
-# Sunny is internally agnostic to the system of units, but application code will
-# sometimes need physical constants via the [`Units`](@ref) object. Select meV
-# as the default energy scale and angstrom as the default length scale.
+# The [`Units`](@ref) object defines physical constants for conversions. Select
+# meV as the default energy scale and angstrom as the default length scale.
 
 units = Units(:meV, :angstrom);
 
-# ### The crystallographic cell
+# ### Crystal cell
 #
 # A crystallographic cell may be loaded from a `.cif` file, or can be specified
 # from atom positions and types.
@@ -60,7 +59,7 @@ cryst = Crystal(latvecs, positions, 227; types=["Co"], setting="1")
 
 view_crystal(cryst)
 
-# ### Defining the spin model
+# ### Spin system
 
 # A [`System`](@ref) will define the spin model. This requires
 # [`SpinInfo`](@ref) information for one representative atom per
@@ -85,7 +84,7 @@ J = +0.63 # (meV)
 set_exchange!(sys, J, Bond(1, 3, [0, 0, 0]))
 view_crystal(sys)
 
-# ### Optimizing the spin configuration
+# ### Optimizing spins
 
 # To search for the ground state, call [`randomize_spins!`](@ref) and
 # [`minimize_energy!`](@ref) in sequence. For this problem, optimization

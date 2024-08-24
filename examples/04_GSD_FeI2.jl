@@ -57,7 +57,7 @@ set_exchange!(sys, [J′2apm 0.0 0.0; 0.0 J′2apm 0.0; 0.0 0.0 J′2azz], Bond(
 D = 2.165
 set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 
-# ### Relaxing to thermal equilibrium
+# ### Thermalization
 
 # To study thermal fluctuations in real-space, use a large system size with
 # 16×16×4 copies of the chemical cell.
@@ -105,7 +105,7 @@ suggest_timestep(sys_large, langevin; tol=1e-2)
 # ### Structure factor in the paramagnetic phase
 
 # Now we will re-thermalize the system to a temperature of 3.5 K ≈ 0.30 meV,
-# which is within the para-magnetic phase.
+# which is in the paramagnetic phase.
 
 langevin.kT = 3.5 * units.K
 for _ in 1:10_000
