@@ -140,9 +140,8 @@ function minimize_energy!(sys::System{N}; maxiters=1000, subiters=10, method=Opt
         αs .*= 0
     end
 
-    res_str = number_to_simple_string(g_res; digits=2)
-    tol_str = number_to_simple_string(g_tol; digits=2)
-
-    @warn "Optimization failed to converge within $maxiters iterations ($res_str ≰ $tol_str)"
+    # res_str = number_to_simple_string(g_res; digits=2)
+    # tol_str = number_to_simple_string(g_tol; digits=2)
+    # @warn "Optimization failed to converge within $maxiters iterations ($res_str ≰ $tol_str)"
     return -1
 end
