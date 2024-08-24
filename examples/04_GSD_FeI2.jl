@@ -15,9 +15,9 @@
 #
 # The structure of this tutorial largely follows our [previous study of CoRh₂O₄
 # at finite *T*](@ref "2. Landau-Lifshitz dynamics of CoRh₂O₄ at finite *T*").
-# In practice, to switch from a dynamics of spin dipoles to a generalized
-# dynamics of SU(3) coherent states, the user simply switches from `:dipole`
-# mode to `:SUN` mode in the [`System`](@ref) constructor.
+# The main difference is that CoRh₂O₄ can be well described with `:dipole` mode,
+# whereas FeI₂ has a strong easy-axis anisotropy that introduces a single-ion
+# bound state and necessitates the use of `:SUN` mode.
 #
 # Construct the FeI₂ system as described in the [previous tutorial](@ref "3.
 # Multi-flavor spin wave simulations of FeI₂").
