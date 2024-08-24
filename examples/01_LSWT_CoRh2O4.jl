@@ -9,9 +9,9 @@
 # 
 # Sunny is implemented in Julia, which allows for interactive development (like
 # Python or Matlab) while also providing high numerical efficiency (like C++ or
-# Fortran). New Julia users should begin with our [getting started
-# guide](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia).
-# Sunny requires Julia 1.10 or later.
+# Fortran). New Julia users should begin with our **[Getting
+# Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)**
+# guide. Sunny requires Julia 1.10 or later.
 #
 # From the Julia prompt, load both `Sunny` and `GLMakie`. The latter is needed
 # for graphics.
