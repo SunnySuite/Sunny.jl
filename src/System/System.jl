@@ -21,7 +21,7 @@ see the documentation page: [Interaction Strength Renormalization](@ref).
 An optional `seed` may be provided to achieve reproducible random number
 generation.
 
-All spins are initially polarized in the ``z``-direction.
+All spins are initially polarized in the global ``z``-direction.
 """
 function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
                 seed=nothing, units=nothing)
@@ -93,8 +93,7 @@ function mode_to_str(sys::System{N}) where N
 end
 
 function lattice_to_str(sys::System)
-    lat_str = isnothing(sys.origin) ? "Lattice" : "Reshaped lattice"
-    return lat_str * " ($(join(sys.latsize, "×")))×$(natoms(sys.crystal))"
+    return "Lattice (" * join(sys.latsize, "×") * ")×" * string(natoms(sys.crystal))
 end
 
 function energy_to_str(sys::System)
@@ -112,7 +111,7 @@ end
 function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     printstyled(io, "System $(mode_to_str(sys))\n"; bold=true, color=:underline)
     println(io, lattice_to_str(sys))
-    if !isnothing(sys.origin)
+    if !isnothing(sys.origin) && cell_shape(sys) != cell_shape(sys.origin)
         shape = number_to_math_string.(cell_shape(sys))
         println(io, formatted_matrix(shape; prefix="Reshaped cell "))
     end
