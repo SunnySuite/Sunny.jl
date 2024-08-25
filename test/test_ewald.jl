@@ -17,7 +17,7 @@
     latvecs = lattice_vectors(1,1,1,90,90,90)
     positions = [[0,0,0]]
     cryst = Crystal(latvecs, positions)
-    infos = [SpinInfo(1, S=1, g=1)]
+    infos = [1 => Moment(S=1, g=1)]
     sys = System(cryst, infos, :dipole)
     enable_dipole_dipole!(sys, 1.0)
     @test ewalder_energy(sys) ≈ -1/6
@@ -34,9 +34,9 @@
     cryst = Crystal(latvecs, positions)
     Random.seed!(0) # Don't have sys.rng yet
     infos = [
-        SpinInfo(1, S=1, g=rand(3,3)),
-        SpinInfo(2, S=3/2, g=rand(3,3)),
-        SpinInfo(3, S=2, g=rand(3,3)),
+        1 => Moment(S=1, g=rand(3,3)),
+        2 => Moment(S=3/2, g=rand(3,3)),
+        3 => Moment(S=2, g=rand(3,3)),
     ]
     sys = System(cryst, infos, :dipole)
     enable_dipole_dipole!(sys, 1.0)

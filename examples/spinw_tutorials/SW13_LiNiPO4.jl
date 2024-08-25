@@ -29,7 +29,7 @@ view_crystal(cryst)
 # consistency with the original fits.
 
 S = 3/2
-sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole_large_S)
+sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole_large_S)
 Jbc =  1.036
 Jb  =  0.6701
 Jc  = -0.0469

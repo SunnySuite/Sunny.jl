@@ -11,7 +11,7 @@
     D = 25/24
 
     for mode in (:dipole, :SUN)
-        sys = System(fcc, [SpinInfo(1; S, g)], mode)
+        sys = System(fcc, [1 => Moment(; S, g)], mode)
         set_exchange!(sys, J₁, Bond(1, 2, [0, 0, 0]))
         set_onsite_coupling!(sys, S -> D * (S[1]^4 + S[2]^4 + S[3]^4), 1)
         set_dipole!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
@@ -39,7 +39,7 @@ end
     q = Sunny.Vec3(0.12, 0.23, 0.34)
 
     for mode in (:dipole, :SUN)
-        sys = System(cryst, [SpinInfo(1; S, g)], mode)
+        sys = System(cryst, [1 => Moment(; S, g)], mode)
         sys = reshape_supercell(sys, [1 -1 0; 1 1 0; 0 0 1])
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)

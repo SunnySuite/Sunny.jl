@@ -12,9 +12,8 @@
     cryst = @test_warn "Lattice vectors are not right-handed." Crystal(latvecs, positions)
     natoms = Sunny.natoms(cryst)
 
-    g = 7.2 # For comparison with previous test data
-    infos = [SpinInfo(1; S=5/2, g)]
-    sys = System(cryst, infos, :SUN; seed=0)
+    moments = [1 => Moment(S=5/2, g=7.2)]
+    sys = System(cryst, moments, :SUN; seed=0)
 
     A,B,C,D = 2.6, -1.3, 0.2, -5.7
     set_exchange!(sys, [A C -D; C A D; D -D B], Bond(1, 2, [0, 0, 0]))
@@ -48,26 +47,26 @@
 
     # Test energies at an arbitrary wave vector
     qs = [[0.24331089495721447, 0.2818361515716459, 0.21954858411037714]]
-    swt = SpinWaveTheory(sys; measure=ssf_perp(sys))
+    swt = SpinWaveTheory(sys; measure=ssf_perp(sys; apply_g=false))
 
     res = intensities_bands(swt, qs)
     # println(round.(res.disp; digits=12))
-    # println(round.(res.data / (natoms * g^2); digits=12))
+    # println(round.(res.data; digits=12))
     disps_golden = [1394.440092589898 1393.728009961772 1393.008551261241 1392.919524984054 1279.23991907861 1279.094568482213 1278.22451852538 1277.691761492894 1194.366336265056 1193.750083635324 1191.583519669771 1189.794451350786 1131.422439597908 1131.202770084574 1065.242927860663 1065.095892456642 1026.649340932941 1024.028348568104 1022.830406309672 1020.767349649408 945.202397540707 944.795817861582 835.545028404179 832.001588705254 827.939501419137 827.307586957877 821.216582176438 820.430993577092 820.294548786087 818.594571008014 810.207001100209 808.553158283705 766.524411081004 766.516102760229 766.513825862473 766.508655568197 758.579854177684 754.683765895715 750.572578901226 750.471006262524 665.954573018229 662.421047663209 651.46556256004 651.417940134413 581.258189162714 568.105209810117 559.053702306466 558.493005833015 552.043762746846 550.131096080954 539.733572957862 530.698033203026 499.661483520139 494.928560833195 435.233706072008 427.70227707436 408.128705863823 399.856401759966 370.069343073402 369.845327696313 365.049514250289 363.639416679443 354.648012601512 346.609483937092 341.98916517756 339.373361078069 318.363717394716 276.219249213429 263.1610538422 257.409506256945 230.539454204132 229.778324183075 203.971681289205 197.504237163938 193.879371544746 189.866421885131 189.815806977935 167.944134441876 154.923566511974 146.21953885867]
-    data_golden = [9.6662565e-5 0.0 0.001807884262 0.0 0.002166250472 0.0 0.003835132693 0.0 0.0 0.013550066967 0.018327409336 0.0 0.001319003523 0.0 0.0 0.006677115951 0.0 0.015583193495 0.028006929969 0.0 0.007782414773 0.0 0.028892276057 0.0 0.0 0.009748743725 0.0 0.007788123595 0.007278285719 0.0 0.0 0.00116773942 0.000190731866 0.000235139044 0.0 0.0 0.002193317995 0.0 0.008315770402 0.0 0.016520647062 0.0 0.0 0.014989172648 0.08363192972 0.001902190356 0.0 0.0 0.0 0.017111545439 0.007341641476 0.0 0.0 0.151419922476 0.094666992635 0.0 0.214639628105 0.0 0.0 0.072514184691 0.087279329707 0.0 0.0 0.23891458934 0.0 0.401546184942 0.0 0.050427766439 0.04544662783 0.0 0.0 0.078427781361 0.192350495231 0.0 0.002594420277 0.0 0.037800182163 0.081921558936 0.0 0.0]
+    data_golden = natoms * [9.6662565e-5 0.0 0.001807884262 0.0 0.002166250472 0.0 0.003835132693 0.0 0.0 0.013550066967 0.018327409336 0.0 0.001319003523 0.0 0.0 0.006677115951 0.0 0.015583193495 0.028006929969 0.0 0.007782414773 0.0 0.028892276057 0.0 0.0 0.009748743725 0.0 0.007788123595 0.007278285719 0.0 0.0 0.00116773942 0.000190731866 0.000235139044 0.0 0.0 0.002193317995 0.0 0.008315770402 0.0 0.016520647062 0.0 0.0 0.014989172648 0.08363192972 0.001902190356 0.0 0.0 0.0 0.017111545439 0.007341641476 0.0 0.0 0.151419922476 0.094666992635 0.0 0.214639628105 0.0 0.0 0.072514184691 0.087279329707 0.0 0.0 0.23891458934 0.0 0.401546184942 0.0 0.050427766439 0.04544662783 0.0 0.0 0.078427781361 0.192350495231 0.0 0.002594420277 0.0 0.037800182163 0.081921558936 0.0 0.0]
     @test isapprox(res.disp, disps_golden'; atol=1e-9)
-    @test isapprox(res.data / (natoms * g^2), data_golden'; atol=1e-9)
+    @test isapprox(res.data, data_golden'; atol=1e-9)
 
     # Test first 5 output matrices
-    measure = ssf_custom((q, ssf) -> ssf, sys)
+    measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false)
     swt = SpinWaveTheory(sys; measure)
     formfactors=[FormFactor("Fe2")]
     res = intensities_bands(swt, qs; formfactors)
     data_flat = reinterpret(ComplexF64, res.data[1:5])
-    # println(round.(data_flat / (natoms * g^2); digits=12))
-    data_golden = ComplexF64[0.000768755803 + 0.0im, 0.000453313199 - 4.8935387e-5im, 0.000468535469 + 8.5812793e-5im, 0.000453313199 + 4.8935387e-5im, 0.00027042076 + 0.0im, 0.000270819458 + 8.0426107e-5im, 0.000468535469 - 8.5812793e-5im, 0.000270819458 - 8.0426107e-5im, 0.000295138353 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.00021794048 + 0.0im, -0.000114399503 - 0.000211293782im, -0.000126018935 + 0.000199895684im, -0.000114399503 + 0.000211293782im, 0.000264899429 + 0.0im, -0.000127650501 - 0.000227103219im, -0.000126018935 - 0.000199895684im, -0.000127650501 + 0.000227103219im, 0.000256212415 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, 7.5017149e-5 + 0.0im, 0.000206625046 + 0.000158601356im, 0.000240055385 - 0.00011016714im, 0.000206625046 - 0.000158601356im, 0.000904437194 + 0.0im, 0.000428286033 - 0.000810966567im, 0.000240055385 + 0.00011016714im, 0.000428286033 + 0.000810966567im, 0.000929965845 + 0.0im]
+    # println(round.(data_flat; digits=12))
+    data_golden = natoms * ComplexF64[0.000768755803 + 0.0im, 0.000453313199 - 4.8935387e-5im, 0.000468535469 + 8.5812793e-5im, 0.000453313199 + 4.8935387e-5im, 0.00027042076 + 0.0im, 0.000270819458 + 8.0426107e-5im, 0.000468535469 - 8.5812793e-5im, 0.000270819458 - 8.0426107e-5im, 0.000295138353 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.00021794048 + 0.0im, -0.000114399503 - 0.000211293782im, -0.000126018935 + 0.000199895684im, -0.000114399503 + 0.000211293782im, 0.000264899429 + 0.0im, -0.000127650501 - 0.000227103219im, -0.000126018935 - 0.000199895684im, -0.000127650501 + 0.000227103219im, 0.000256212415 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, 7.5017149e-5 + 0.0im, 0.000206625046 + 0.000158601356im, 0.000240055385 - 0.00011016714im, 0.000206625046 - 0.000158601356im, 0.000904437194 + 0.0im, 0.000428286033 - 0.000810966567im, 0.000240055385 + 0.00011016714im, 0.000428286033 + 0.000810966567im, 0.000929965845 + 0.0im]
     
-    @test isapprox(data_flat / (natoms * g^2), data_golden; atol=1e-9)
+    @test isapprox(data_flat, data_golden; atol=1e-9)
 end
 
 
@@ -81,8 +80,8 @@ end
 
     # System
     J, J′, D = 1.0, 0.1, 5.0
-    infos = [SpinInfo(1, S=1, g=2)]
-    sys = System(cryst, infos, :SUN; seed=0)
+    moments = [1 => Moment(S=1, g=2)]
+    sys = System(cryst, moments, :SUN; seed=0)
     set_exchange!(sys, J,  Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(1, 1, [0, 0, 1]))
     set_onsite_coupling!(sys, S -> D * S[3]^2, 1)
@@ -135,10 +134,10 @@ end
     J₁ = diagm([J, J, C])
     D = 25/24
 
-    infos = [SpinInfo(1; S, g)]
+    moments = [1 => Moment(; S, g)]
 
     function compute(mode)
-        sys = System(fcc, infos, mode)
+        sys = System(fcc, moments, mode)
         set_exchange!(sys, J₁, Bond(1, 2, [0, 0, 0]))
         set_onsite_coupling!(sys, S -> D * (S[1]^4 + S[2]^4 + S[3]^4), 1)
         set_dipole!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
@@ -167,7 +166,7 @@ end
     
     function test_biquad(mode, q, S)
         # System
-        infos = [SpinInfo(1; S, g=2)]
+        infos = [1 => Moment(; S, g=2)]
         sys = System(cryst, infos, mode; dims=(2, 2, 2))
         α = -0.4π
         J = 1.0
@@ -203,7 +202,7 @@ end
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
     
-    sys = System(cryst, [SpinInfo(1; S=1, g=2), SpinInfo(2; S=2, g=2)], :dipole)
+    sys = System(cryst, [1 => Moment(S=1, g=2), 2 => Moment(S=2, g=2)], :dipole)
     set_pair_coupling!(sys, (S1, S2) -> +(S1'*diagm([2,-1,-1])*S1)*(S2'*diagm([2,-1,-1])*S2), Bond(1, 2, [0,0,0]))
     
     θ = randn()
@@ -229,7 +228,7 @@ end
         cryst = Crystal(latvecs, positions)
         q = [0.12, 0.23, 0.34]
         
-        sys = System(cryst, [SpinInfo(1; S, g=-1)], :dipole)
+        sys = System(cryst, [1 => Moment(; S, g=-1)], :dipole)
         sys = reshape_supercell(sys, [1 -1 0; 1 1 0; 0 0 1])
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
@@ -268,8 +267,8 @@ end
     cryst = Crystal(latvecs, positions, 1)
 
     S = 2
-    sys_dip = System(cryst, [SpinInfo(1; S, g=-1)], :dipole)
-    sys_SUN = System(cryst, [SpinInfo(1; S, g=-1)], :SUN)
+    sys_dip = System(cryst, [1 => Moment(; S, g=-1)], :dipole)
+    sys_SUN = System(cryst, [1 => Moment(; S, g=-1)], :SUN)
 
     # The strengths of single-ion anisotropy (must be negative to favor the dipolar ordering under consideration)
     Ds = -rand(3)
@@ -306,7 +305,7 @@ end
     cryst = Crystal(latvecs, [[0,0,0]])
 
     for mode in (:dipole, :SUN)
-        sys = System(cryst, [SpinInfo(1; S=1, g=1)], mode)
+        sys = System(cryst, [1 => Moment(S=1, g=1)], mode)
         enable_dipole_dipole!(sys, 1.0)
 
         polarize_spins!(sys, (0,0,1))
@@ -322,7 +321,7 @@ end
 
     begin
         cryst = Sunny.bcc_crystal()
-        sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole, seed=2)
+        sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole, seed=2)
         enable_dipole_dipole!(sys, Units(:meV, :angstrom).vacuum_permeability)
         polarize_spins!(sys, (1,2,3)) # arbitrary direction
         
@@ -348,7 +347,7 @@ end
     c = 5.2414
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
     crystal = Crystal(latvecs, [[0.24964,0,0.5]], 150)
-    sys = System(crystal, [SpinInfo(1; S=5/2, g=2)], :dipole; seed=5)
+    sys = System(crystal, [1 => Moment(S=5/2, g=2)], :dipole; seed=5)
     set_exchange!(sys, 0.85,  Bond(3, 2, [1,1,0]))   # J1
     set_exchange!(sys, 0.24,  Bond(1, 3, [0,0,0]))   # J2
     set_exchange!(sys, 0.053, Bond(2, 3, [-1,-1,1])) # J3
@@ -379,7 +378,7 @@ end
     tol = 1e-7
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
     cryst = Crystal(latvecs, [[0, 0, 0]])
-    sys = System(cryst, [SpinInfo(1; S=1, g=-1)], :dipole; dims=(7, 7, 1), seed=0)
+    sys = System(cryst, [1 => Moment(S=1, g=-1)], :dipole; dims=(7, 7, 1), seed=0)
 
     J₁ = -1
     J₃ = 1.6234898018587323
@@ -440,7 +439,7 @@ end
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
     S = 3/2
-    sys = System(cryst, [SpinInfo(1; S, g=2)], :dipole; seed=0)
+    sys = System(cryst, [1 => Moment(; S, g=2)], :dipole; seed=0)
     set_exchange!(sys, 1.0, Bond(1, 3, [0,0,0]))
     randomize_spins!(sys)
     minimize_energy!(sys)
@@ -470,7 +469,7 @@ end
     function build_system(R, D1, D2, J, K1, K2, h, g)
         latvecs = lattice_vectors(1, 1, 1, 92, 93, 94)
         cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
-        infos = [SpinInfo(1; S=1, g=2), SpinInfo(2; S=2, g=R*g*R')]
+        infos = [1 => Moment(S=1, g=2), 2 => Moment(S=2, g=R*g*R')]
         sys = System(cryst, infos, :dipole)
 
         set_onsite_coupling!(sys, S -> S'*R*(D1+D1')*R'*S, 1)
@@ -524,7 +523,7 @@ end
         return H
     end
 
-    sys = System(Sunny.cubic_crystal(), [SpinInfo(1; S=1, g=1)], :SUN)
+    sys = System(Sunny.cubic_crystal(), [1 => Moment(; S=1, g=1)], :SUN)
 
     q = [0.23, 0, 0]
 
@@ -550,7 +549,7 @@ end
     # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
     function simple_swt(mode)
         cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]], "P1")
-        sys = System(cryst, [SpinInfo(1; S=1, g=1)], mode; dims=(8, 1, 1))
+        sys = System(cryst, [1 => Moment(; S=1, g=1)], mode; dims=(8, 1, 1))
 
         K1 = diagm([2, -1, -1])
         K2 = diagm([-1, -1, 2])
@@ -601,7 +600,7 @@ end
 
     function dimer_model(; J=1.0, J′=0.0, h=0.0, dims=(2,1,1), fast=false)
         cryst = Crystal(I(3), [[0,0,0]], 1) 
-        sys = System(cryst, [SpinInfo(1; S=3/2, g=1)], :SUN; dims)
+        sys = System(cryst, [1 => Moment(; S=3/2, g=1)], :SUN; dims)
 
         S = spin_matrices(1/2)
         S1, S2 = Sunny.to_product_space(S, S)
@@ -657,7 +656,7 @@ end
         latvecs = lattice_vectors(a, a, a, 90, 90, 90)
         positions = [[0, 0, 0]]
         fcc = Crystal(latvecs, positions, 225)
-        sys_afm1 = System(fcc, [SpinInfo(1; S, g=1)], mode)
+        sys_afm1 = System(fcc, [1 => Moment(; S, g=1)], mode)
         set_exchange!(sys_afm1, J, Bond(1, 2, [0, 0, 0]))
         set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 0, 0)))
         set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 1/2, 0)))
@@ -687,7 +686,7 @@ end
     function δS_triangular(mode)
         latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)
         cryst = Crystal(latvecs, [[0, 0, 0]])
-        sys = System(cryst, [SpinInfo(1, S=S, g=2)], mode)
+        sys = System(cryst, [1 => Moment(S=S, g=2)], mode)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         polarize_spins!(sys, [0, 1, 0])
         sys = repeat_periodically_as_spiral(sys, (3, 3, 1); k=[2/3, -1/3, 0], axis=[0, 0, 1])
@@ -725,7 +724,7 @@ end
     g = diagm([gab, gab, gcc])
     x = 1/2 - D/(8*(2J₁+J₁′))
 
-    sys = System(cryst, [SpinInfo(1; S, g)], :SUN; dims=(1, 1, 2), seed=0)
+    sys = System(cryst, [1 => Moment(; S, g)], :SUN; dims=(1, 1, 2), seed=0)
     set_exchange!(sys, diagm([J₁, J₁, J₁*Δ]),  Bond(1, 2, [0, 0, 0]))
     set_exchange!(sys, diagm([J₁′, J₁′, J₁′*Δ′]), Bond(1, 1, [0, 0, 1]))
     set_onsite_coupling!(sys, S -> D*S[3]^2, 1)

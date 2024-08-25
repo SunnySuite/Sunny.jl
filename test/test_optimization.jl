@@ -29,7 +29,7 @@ end
     # H = -∑Sᵢ⋅Sⱼ - ∑(Sᵢᶻ)² on 2D square lattice (z-polarized ground state)
     function simple_sys(; dims=(4,4,1), mode, seed, S)
         cryst = Crystal(lattice_vectors(1,1,2,90,90,90), [[0,0,0]])
-        sys = System(cryst, [SpinInfo(1; S, g=2)], mode; dims, seed) 
+        sys = System(cryst, [1 => Moment(; S, g=2)], mode; dims, seed) 
         set_exchange!(sys, -1, Bond(1,1,[1,0,0]))
         set_onsite_coupling!(sys, S -> -S[3]^2, 1)
         sys
@@ -70,7 +70,7 @@ end
     # Make sure optimization works on system with dipole-dipole
     function simple_sys(; dims=(4,4,1), mode, seed, S)
         cryst = Crystal(lattice_vectors(1,1,2,90,90,90), [[0,0,0]])
-        sys = System(cryst, [SpinInfo(1; S, g=2)], mode; dims, seed)
+        sys = System(cryst, [1 => Moment(; S, g=2)], mode; dims, seed)
         set_exchange!(sys, -1, Bond(1,1,[1,0,0]))
         set_onsite_coupling!(sys, S -> -S[3]^2, 1)
         enable_dipole_dipole!(sys, 1.0)

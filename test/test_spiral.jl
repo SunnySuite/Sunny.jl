@@ -15,7 +15,7 @@
     axis = normalize(randn(3))
 
     # compute ewald energy using J(k)
-    sys = System(cryst, [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
+    sys = System(cryst, [1 => Moment(S=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
     enable_dipole_dipole!(sys, 1.0)
     E1 = spiral_energy_per_site(sys; k, axis)
@@ -35,7 +35,7 @@
     axis = normalize(randn(3))
 
     # compute ewald energy using J(Q)
-    sys = System(cryst, [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
+    sys = System(cryst, [1 => Moment(S=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
     enable_dipole_dipole!(sys, 1.0)
     E1 = spiral_energy_per_site(sys; k, axis)
@@ -57,7 +57,7 @@ end
         positions = [[0, 0, 0]]
         cryst = Crystal(latvecs, positions)
 
-        sys = System(cryst, [SpinInfo(1; S, g=-1)], :dipole)
+        sys = System(cryst, [1 => Moment(; S, g=-1)], :dipole)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> (D/rcs)*S[3]^2, 1)
         set_field!(sys, [0, 0, h])
@@ -93,7 +93,7 @@ end
     c = 5.2414
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
     crystal = Crystal(latvecs, [[0.24964, 0, 0.5]], 150)
-    sys = System(crystal, [SpinInfo(1; S=5/2, g=2)], :dipole; seed=1)
+    sys = System(crystal, [1 => Moment(; S=5/2, g=2)], :dipole; seed=1)
     set_exchange!(sys, 0.85,  Bond(3, 2, [1,1,0]))   # J1
     set_exchange!(sys, 0.24,  Bond(1, 3, [0,0,0]))   # J2
     set_exchange!(sys, 0.053, Bond(2, 3, [-1,-1,1])) # J3
@@ -166,7 +166,7 @@ end
     # Exact energy reference
     E_ref = (-((J1+J5)*cos(pi*ka))+J2*cos(2*pi*ka)-J3*cos(3*pi*ka)+J4*cos(pi*kc)+J6*cos(pi*(2*ka+kc))+J7*cos(pi*(2*ka-kc)))*5/2*(5/2)*4
     
-    sys = System(cryst, [SpinInfo(1,S=5/2,g=2)], :dipole, seed=0)
+    sys = System(cryst, [1 => Moment(S=5/2, g=2)], :dipole, seed=0)
     set_exchange!(sys, J1, bond1)
     set_exchange!(sys, J2, bond2)
     set_exchange!(sys, J3, bond3)

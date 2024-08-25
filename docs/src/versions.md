@@ -292,8 +292,8 @@ Rename `reshape_geometry` to [`reshape_supercell`](@ref), which is the
 fundamental reshaping function. Rename `resize_periodically` to
 [`resize_supercell`](@ref).
 
-The constructor [`SpinInfo`](@ref) now requires a $g$-factor or tensor as a
-named argument.
+The constructor `SpinInfo` now requires a $g$-factor or tensor as a named
+argument.
 
 The constructor [`FormFactor`](@ref) no longer accepts an atom index. Instead,
 the form factors are associated with site-symmetry classes in order of
@@ -362,8 +362,8 @@ Rename `SpinSystem` to [`System`](@ref). Its constructor now has the form,
 System(crystal, dims, infos, mode)
 ```
 
-The parameter `infos` is now a list of [`SpinInfo`](@ref) objects. Each defines
-spin angular momentum $S = \frac{1}{2}, 1, \frac{3}{2}, …$, and an optional
+The parameter `infos` is now a list of `SpinInfo` objects. Each defines spin
+angular momentum $S = \frac{1}{2}, 1, \frac{3}{2}, …$, and an optional
 $g$-factor or tensor.
 
 The parameter `mode` is one of `:SUN` or `:dipole`.

@@ -61,15 +61,14 @@ view_crystal(cryst)
 
 # ### Spin system
 
-# A [`System`](@ref) will define the spin model. This requires
-# [`SpinInfo`](@ref) information for one representative atom per
-# symmetry-distinct site. The cobalt atoms have quantum spin ``S = 3/2``. The
-# ``g``-factor defines the magnetic moment ``μ = g 𝐒`` in units of the Bohr
-# magneton. The option `:dipole` indicates a traditional model type, for which
-# quantum spin is modeled as a dipole expectation value.
+# A [`System`](@ref) will define the spin model. This requires [`Moment`](@ref)
+# information for one representative atom per symmetry-distinct site. The cobalt
+# atoms carry quantum spin ``S = 3/2``, with a ``g``-factor of 2. The option
+# `:dipole` indicates a traditional model type, for which quantum spin is
+# modeled as a dipole expectation value.
 
 S = 3/2
-sys = System(cryst, [SpinInfo(1; S, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(; S, g=2)], :dipole)
 
 # Previous work demonstrated that inelastic neutron scattering data for CoRh₂O₄
 # is well described with a single antiferromagnetic nearest neighbor exchange,

@@ -100,7 +100,7 @@ Base.@deprecate set_spiral_order!(sys; q=nothing, k=nothing, axis, S0) let
     error("Use repeat_periodically_as_spiral(...) instead of set_spiral_order!(...)")
 end
 
-Base.@deprecate System(crystal::Crystal, dims::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol; seed=nothing, units=nothing) let
+Base.@deprecate System(crystal::Crystal, dims::NTuple{3,Int}, infos, mode::Symbol; seed=nothing, units=nothing) let
     @warn "Deprecation warning! `dims` is now a keyword argument, e.g., System(...; dims=$dims)"
     return System(crystal, infos, mode; dims, seed, units)
 end

@@ -34,7 +34,7 @@ view_crystal(cryst; ndims=2)
 
 # Construct a spin system with nearest-neighbor ferromagnetic interactions.
 
-sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole)
 J = -1.0
 set_exchange!(sys, J, Bond(2, 3, [0, 0, 0]))
 

@@ -22,7 +22,7 @@ view_crystal(cryst; ndims=2)
 # magnetic order with 120° rotation between the three sublattices. The overall
 # global rotation in spin-space is arbitrary.
 
-sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole)
 J1 = 1.0
 J2 = 0.11
 set_exchange!(sys, J1, Bond(2, 3, [0, 0, 0]))

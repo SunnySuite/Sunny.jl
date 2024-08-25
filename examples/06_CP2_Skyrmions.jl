@@ -34,7 +34,7 @@ cryst = Crystal(lat_vecs, basis_vecs)
 # coupling of the form ``-𝐁⋅𝐬``.
 
 L = 40
-sys = System(cryst, [SpinInfo(1, S=1, g=-1)], :SUN; dims=(L, L, 1))
+sys = System(cryst, [1 => Moment(S=1, g=-1)], :SUN; dims=(L, L, 1))
 
 # We proceed to implement each term of the Hamiltonian, selecting our parameters
 # so that the system occupies a region of the phase diagram that supports

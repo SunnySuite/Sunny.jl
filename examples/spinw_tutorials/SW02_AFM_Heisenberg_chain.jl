@@ -20,7 +20,7 @@ view_crystal(cryst; ndims=2, ghost_radius=8)
 # Unlike in the previous tutorial, here the magnetic cell should include 2×1×1
 # chemical cells to support antiferromagnetic (Néel) order along the chain.
 
-sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; dims=(2, 1, 1))
+sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole; dims=(2, 1, 1))
 
 # Set a nearest neighbor interaction of ``J = +1`` meV along the chain, and find
 # the energy-minimizing Néel order. As before, a global rotation in spin-space
