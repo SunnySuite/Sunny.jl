@@ -105,6 +105,11 @@ Base.@deprecate System(crystal::Crystal, dims::NTuple{3,Int}, infos::Vector{Spin
     return System(crystal, infos, mode; dims, seed, units)
 end
 
+Base.@deprecate SpinInfo(i; S, g) let
+    @warn "SpinInfo(i; S, g) is deprecated! Use `i => Moment(; S, g)` instead."
+    i => Moment(; S, g)
+end
+
 # REMEMBER TO ALSO DELETE:
 #
 # * view_crystal(cryst, max_dist)

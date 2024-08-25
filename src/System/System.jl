@@ -1,11 +1,16 @@
 """
-    System(crystal::Crystal, infos, mode; dims=(1, 1, 1), seed=nothing)
+    System(crystal::Crystal, moments, mode; dims=(1, 1, 1), seed=nothing)
 
 A spin system is constructed from the [`Crystal`](@ref) unit cell, a
-specification of the [`SpinInfo`](@ref) for each symmetry-distinct site, and a
-calculation `mode`. Interactions can be added to the system using, e.g.,
+specification of the spin `moments` symmetry-distinct sites, and a calculation
+`mode`. Interactions can be added to the system using, e.g.,
 [`set_exchange!`](@ref). The default supercell dimensions are 1×1×1 chemical
 cells, but this can be changed with `dims`.
+
+Spin `moments` should be given as a list of pairs, `[i => Moment(...), j =>
+Moment(...)]`, where `i, j, ...` are a complete set of symmetry-distinct atoms.
+Each [`Moment`](@ref) contains spin, ``g``-factor, and optionally form factor
+information.
 
 The two primary options for `mode` are `:SUN` and `:dipole`. In the former, each
 spin-``S`` degree of freedom is described as an SU(_N_) coherent state, i.e. a
@@ -24,7 +29,7 @@ enable reproducible calculations.
 
 All spins are initially polarized in the global ``z``-direction.
 """
-function System(crystal::Crystal, infos::Vector{SpinInfo}, mode::Symbol;
+function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symbol;
                 dims::NTuple{3,Int}=(1, 1, 1), seed::Union{Int,Nothing}=nothing, units=nothing)
     if !isnothing(units)
         @warn "units argument to System is deprecated and will be ignored!"
@@ -42,9 +47,9 @@ function System(crystal::Crystal, infos::Vector{SpinInfo}, mode::Symbol;
     
     na = natoms(crystal)
 
-    infos = propagate_site_info(crystal, infos)
-    Ss = [si.S for si in infos]
-    gs = [si.g for si in infos]
+    moments = propagate_site_info(crystal, moments)
+    Ss = [m.S for m in moments]
+    gs = [m.g for m in moments]
 
     # TODO: Label SU(2) rep instead
     Ns = @. Int(2Ss+1)
