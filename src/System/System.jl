@@ -1,11 +1,11 @@
 """
-    System(crystal::Crystal, infos, mode; latsize=(1, 1, 1), seed=nothing)
+    System(crystal::Crystal, infos, mode; dims=(1, 1, 1), seed=nothing)
 
 A spin system is constructed from the [`Crystal`](@ref) unit cell, a
 specification of the [`SpinInfo`](@ref) for each symmetry-distinct site, and a
 calculation `mode`. Interactions can be added to the system using, e.g.,
-[`set_exchange!`](@ref). The default lattice size is one chemical cell in each
-direction, but this can be changed with `latsize`.
+[`set_exchange!`](@ref). The default supercell dimensions are 1×1×1 chemical
+cells, but this can be changed with `dims`.
 
 The two primary options for `mode` are `:SUN` and `:dipole`. In the former, each
 spin-``S`` degree of freedom is described as an SU(_N_) coherent state, i.e. a
@@ -25,7 +25,7 @@ enable reproducible calculations.
 All spins are initially polarized in the global ``z``-direction.
 """
 function System(crystal::Crystal, infos::Vector{SpinInfo}, mode::Symbol;
-                latsize::NTuple{3,Int}=(1, 1, 1), seed::Union{Int,Nothing}=nothing, units=nothing)
+                dims::NTuple{3,Int}=(1, 1, 1), seed::Union{Int,Nothing}=nothing, units=nothing)
     if !isnothing(units)
         @warn "units argument to System is deprecated and will be ignored!"
     end
@@ -75,7 +75,7 @@ function System(crystal::Crystal, infos::Vector{SpinInfo}, mode::Symbol;
     ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, interactions, ewald,
                  extfield, dipoles, coherents, dipole_buffers, coherent_buffers, rng)
     polarize_spins!(ret, (0,0,1))
-    return latsize == (1, 1, 1) ? ret : repeat_periodically(ret, latsize)
+    return dims == (1, 1, 1) ? ret : repeat_periodically(ret, dims)
 end
 
 function mode_to_str(sys::System{N}) where N
@@ -90,8 +90,8 @@ function mode_to_str(sys::System{N}) where N
     end
 end
 
-function lattice_to_str(sys::System)
-    return "Lattice (" * join(sys.latsize, "×") * ")×" * string(natoms(sys.crystal))
+function supercell_to_str(dims, cryst)
+    return "Supercell (" * join(dims, "×") * ")×" * string(natoms(cryst))
 end
 
 function energy_to_str(sys::System)
@@ -103,12 +103,12 @@ function energy_to_str(sys::System)
 end
 
 function Base.show(io::IO, sys::System{N}) where N
-    print(io, "System($(mode_to_str(sys)), $(lattice_to_str(sys)), $(energy_to_str(sys)))")
+    print(io, "System($(mode_to_str(sys)), $(supercell_to_str(sys.dims, sys.crystal)), $(energy_to_str(sys)))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sys::System{N}) where N
     printstyled(io, "System $(mode_to_str(sys))\n"; bold=true, color=:underline)
-    println(io, lattice_to_str(sys))
+    println(io, supercell_to_str(sys.dims, sys.crystal))
     if !isnothing(sys.origin) && cell_shape(sys) != cell_shape(sys.origin)
         shape = number_to_math_string.(cell_shape(sys))
         println(io, formatted_matrix(shape; prefix="Reshaped cell "))
@@ -130,7 +130,7 @@ Creates a full clone of the system, such that mutable updates to one copy will
 not affect the other, and thread safety is guaranteed.
 """
 function clone_system(sys::System{N}) where N
-    (; origin, mode, crystal, latsize, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, rng) = sys
+    (; origin, mode, crystal, dims, Ns, gs, κs, extfield, interactions_union, ewald, dipoles, coherents, rng) = sys
 
     origin_clone = isnothing(origin) ? nothing : clone_system(origin)
     ewald_clone = nothing # TODO: use clone_ewald(ewald)
@@ -143,7 +143,7 @@ function clone_system(sys::System{N}) where N
     empty_dipole_buffers = Array{Vec3, 4}[]
     empty_coherent_buffers = Array{CVec{N}, 4}[]
 
-    ret = System(origin_clone, mode, crystal, latsize, Ns, copy(κs), copy(gs),
+    ret = System(origin_clone, mode, crystal, dims, Ns, copy(κs), copy(gs),
                  interactions_clone, ewald_clone, copy(extfield), copy(dipoles), copy(coherents),
                  empty_dipole_buffers, empty_coherent_buffers, copy(rng))
 
@@ -162,8 +162,8 @@ end
     (cell1, cell2, cell3, i) :: Site
 
 Four indices identifying a single site in a [`System`](@ref). The first three
-indices select the lattice cell and the last selects the sublattice (i.e., the
-atom within the unit cell).
+indices select the unit cell and the last index selects the sublattice, i.e.,
+the ``i``th atom within the unit cell.
 
 This object can be used to index `dipoles` and `coherents` fields of a `System`.
 A `Site` is also required to specify inhomogeneous interactions via functions
@@ -186,14 +186,14 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 end
 
 # Offset a `cell` by `ncells`
-@inline offsetc(cell::CartesianIndex{3}, ncells, latsize) = CartesianIndex(altmod1.(Tuple(cell) .+ Tuple(ncells), latsize))
+@inline offsetc(cell::CartesianIndex{3}, ncells, dims) = CartesianIndex(altmod1.(Tuple(cell) .+ Tuple(ncells), dims))
 
 # Split a site `site` into its cell and sublattice parts
 @inline to_cell(site) = CartesianIndex((site[1],site[2],site[3]))
 @inline to_atom(site) = site[4]
 
 # An iterator over all unit cells using CartesianIndices
-@inline eachcell(sys::System) = CartesianIndices(sys.latsize)
+@inline eachcell(sys::System) = CartesianIndices(sys.dims)
 
 """
     spin_label(sys::System, i::Int)
@@ -248,7 +248,7 @@ function magnetic_moment(sys::System, site)
 end
 
 # Total volume of system
-volume(sys::System) = cell_volume(sys.crystal) * prod(sys.latsize)
+volume(sys::System) = cell_volume(sys.crystal) * prod(sys.dims)
 
 # The crystal originally used to construct a system. It is guaranteed to be
 # un-reshaped, and its lattice vectors define the "conventional" unit cell. It
@@ -287,7 +287,7 @@ function position_to_site(sys::System, r)
     r = Vec3(r)
     new_r = sys.crystal.latvecs \ orig_crystal(sys).latvecs * r
     i, offset = position_to_atom_and_offset(sys.crystal, new_r)
-    cell = @. mod1(offset+1, sys.latsize) # 1-based indexing with periodicity
+    cell = @. mod1(offset+1, sys.dims) # 1-based indexing with periodicity
     return to_cartesian((cell..., i))
 end
 
@@ -364,7 +364,7 @@ function symmetry_equivalent_bonds(sys::System, bond::Bond)
 
             # loop over all new crystal cells and push site pairs
             for new_cell_i in eachcell(sys)
-                new_cell_j = offsetc(new_cell_i, new_bond.n, sys.latsize)
+                new_cell_j = offsetc(new_cell_i, new_bond.n, sys.dims)
                 site_i = (Tuple(new_cell_i)..., new_bond.i)
                 site_j = (Tuple(new_cell_j)..., new_bond.j)
                 site_i < site_j && push!(ret, (site_i, site_j, new_bond.n))
@@ -392,7 +392,7 @@ function remove_ion_at!(sys::System{N}, site) where N
 
     # Remove this site from neighbors' pair lists
     for (; bond) in ints[site].pair
-        cell′ = offsetc(to_cell(site), bond.n, sys.latsize)
+        cell′ = offsetc(to_cell(site), bond.n, sys.dims)
         pair′ = ints[cell′, bond.j].pair
         deleteat!(pair′, only(findall(pc′ -> pc′.bond == reverse(bond), pair′)))
     end

@@ -2,7 +2,7 @@
 # mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
 # mode, in which case op is an N×N matrix).
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
-    observables :: Array{Op, 5}          # (nobs × latsize × natoms)
+    observables :: Array{Op, 5}          # (nobs × sys_dims × natoms)
     corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
     combiner :: F                        # (q::Vec3, obs) -> Ret
 

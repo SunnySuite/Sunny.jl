@@ -9,7 +9,8 @@
 
 using Sunny, GLMakie
 
-# Define the chemical cell for the 2D square lattice.
+# To model the 2D square lattice, create an elongated tetragonal cell with one
+# atom.
 
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(3.0, 3.0, 6.0, 90, 90, 90) 
@@ -20,7 +21,7 @@ view_crystal(cryst; ndims=2)
 # next-nearest-neighbor (FM) interactions. The Néel magnetic order requires a
 # supercell of 2×2 chemical cells.
 
-sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; latsize=(2, 2, 1))
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; dims=(2, 2, 1))
 J1 = 1.0
 J2 = -0.1
 set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))

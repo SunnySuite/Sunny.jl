@@ -12,7 +12,7 @@
 
         for integrator in integrators
             for mode in (:SUN, :dipole)
-                sys = System(cryst, [SpinInfo(1, S=3/2, g=2)], mode; latsize=(2, 2, 2), seed=0)
+                sys = System(cryst, [SpinInfo(1, S=3/2, g=2)], mode; dims=(2, 2, 2), seed=0)
                 randn!(sys.κs)
                 add_linear_interactions!(sys, mode)
                 add_quadratic_interactions!(sys, mode)
@@ -32,7 +32,7 @@
     # Check that each energy term rescales properly with κ
     let
         function gen_energy(κ, adder, mode)
-            sys = System(cryst, [SpinInfo(1, S=3/2, g=2)], mode; latsize=(2, 2, 2), seed=0)
+            sys = System(cryst, [SpinInfo(1, S=3/2, g=2)], mode; dims=(2, 2, 2), seed=0)
             # κ must be set before anisotropy operators are added, otherwise we
             # will lose information about how to rescale the Stevens expansion.
             sys.κs .= κ
@@ -61,7 +61,7 @@
     # Check that a scaling of κ corresponds to an appropriate rescaling of dynamical time
     let
         function gen_trajectory(κ, dt, adder, mode)
-            sys = System(cryst, [SpinInfo(1, S=3/2, g=2)], mode; latsize=(2, 2, 2), seed=0)
+            sys = System(cryst, [SpinInfo(1, S=3/2, g=2)], mode; dims=(2, 2, 2), seed=0)
             adder(sys, mode)
             sys.κs .= κ
             randomize_spins!(sys)

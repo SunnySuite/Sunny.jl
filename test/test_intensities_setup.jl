@@ -46,9 +46,8 @@ end
 
 @testitem "Available Energies Dirac Identity" begin
      # Create a dummy SampledCorrelations object
-    latsize = (1,1,1)
     cryst = Sunny.cubic_crystal()
-    sys = System(cryst, [SpinInfo(1; S=1/2, g=2)], :SUN; latsize, seed=0)
+    sys = System(cryst, [SpinInfo(1; S=1/2, g=2)], :SUN; seed=0)
     dt = 0.08
     sc = SampledCorrelations(sys; dt, energies=range(0.0, 10.0, 100), measure=ssf_perp(sys))
 
@@ -62,7 +61,7 @@ end
 end
 
 @testitem "Polyatomic sum rule" begin
-    sys = System(Sunny.diamond_crystal(), [SpinInfo(1, S=1/2, g=2)], :SUN; latsize=(4, 1, 1), seed=1)
+    sys = System(Sunny.diamond_crystal(), [SpinInfo(1, S=1/2, g=2)], :SUN; dims=(4, 1, 1), seed=1)
     randomize_spins!(sys)
     sc = SampledCorrelations(sys; dt=0.8, energies=range(0.0, 1.0, 3), measure=ssf_trace(sys; apply_g=true))
     add_sample!(sc, sys)
@@ -70,7 +69,7 @@ end
     sum_rule_ixs = [1, 4, 6]  # indices for zz, yy, xx
     sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:], dims=[1,4,5,6,7])[1,:,:,1,1,1,1]
 
-    Δq³ = 1/prod(sys.latsize) # Fraction of a BZ
+    Δq³ = 1/prod(sys.dims) # Fraction of a BZ
     n_all_ω = size(sc.data, 7)
     # Intensities in sc.data are a density in q, but already integrated over dω
     # bins, and then scaled by n_all_ω. Therefore, we need the factor below to

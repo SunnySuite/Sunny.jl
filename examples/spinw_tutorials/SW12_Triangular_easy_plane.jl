@@ -19,7 +19,7 @@ cryst = Crystal(latvecs, [[0, 0, 0]])
 
 S = 3/2
 J1 = +1.0
-sys = System(cryst, [SpinInfo(1; S, g=2)], :dipole; latsize=(3, 3, 1))
+sys = System(cryst, [SpinInfo(1; S, g=2)], :dipole; dims=(3, 3, 1))
 set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))
 
 # Set an easy-axis anisotropy operator ``+D S_z^2`` using

@@ -5,12 +5,12 @@
              to infer the standard chemical unit cell and parent spacegroup."""
     cryst1 = @test_logs (:info, msg) Crystal(filename; symprec=1e-2)
     cryst1 = subcrystal(cryst1, "Fe_1", "Fe_4")
-    sys1 = System(cryst1, [SpinInfo(1, S=3/2, g=-2), SpinInfo(17, S=3/2, g=-2)], :dipole; latsize=(1, 1, 1), seed=0)
+    sys1 = System(cryst1, [SpinInfo(1, S=3/2, g=-2), SpinInfo(17, S=3/2, g=-2)], :dipole; dims=(1, 1, 1), seed=0)
     set_dipoles_from_mcif!(sys1, filename)
     
     cryst2 = Crystal(filename; override_symmetry=true, symprec=1e-2)
     cryst2 = subcrystal(cryst2, "Fe")
-    sys2 = System(cryst2, [SpinInfo(1, S=3/2, g=-2)], :dipole; latsize=(1, 1, 2), seed=0)
+    sys2 = System(cryst2, [SpinInfo(1, S=3/2, g=-2)], :dipole; dims=(1, 1, 2), seed=0)
     set_dipoles_from_mcif!(sys2, filename)
     
     for site1 in eachsite(sys1)

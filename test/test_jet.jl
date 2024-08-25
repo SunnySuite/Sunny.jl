@@ -5,7 +5,7 @@
         latvecs = lattice_vectors(1,1,2,90,90,90)
         crystal = Crystal(latvecs, [[0,0,0]])
         L = 2
-        sys = System(crystal, [SpinInfo(1, S=1, g=2)], mode; latsize=(L, L, 1))
+        sys = System(crystal, [SpinInfo(1, S=1, g=2)], mode; dims=(L, L, 1))
 
         @test_opt energy(sys)
         
@@ -35,7 +35,7 @@ end
         latvecs = lattice_vectors(1, 1, 2, 90, 90, 90)
         crystal = Crystal(latvecs, [[0, 0, 0]])
         L = 2
-        sys = System(crystal, [SpinInfo(1, S=1, g=2)], mode; latsize=(L, L, 1))
+        sys = System(crystal, [SpinInfo(1, S=1, g=2)], mode; dims=(L, L, 1))
         set_exchange!(sys, -1.0, Bond(1, 1, (1, 0, 0)))
         polarize_spins!(sys, [0, 0, 1])
 

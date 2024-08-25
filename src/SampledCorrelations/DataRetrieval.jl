@@ -12,7 +12,7 @@ function pruned_wave_vector_info(sc::SampledCorrelations, qs)
     end
 
     # Convert to absolute units (for form factors)
-    qabs_rounded = map(m -> sc.crystal.recipvecs * (m ./ sc.latsize), ms)
+    qabs_rounded = map(m -> sc.crystal.recipvecs * (m ./ sc.sys_dims), ms)
 
     # List of "starting" pointers i where idcs[i-1] != idcs[i]
     starts = findall(i -> i == 1 || idcs[i-1] != idcs[i], eachindex(idcs))

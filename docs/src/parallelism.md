@@ -31,7 +31,7 @@ function make_system(; seed=nothing)
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     positions = [[0, 0, 0]/2, [1, 1, 1]/2]
     cryst = Crystal(latvecs, positions)
-    sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; latsize=(10, 10, 2), seed)
+    sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; dims=(10, 10, 2), seed)
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
     return sys
 end

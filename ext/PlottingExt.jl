@@ -886,14 +886,14 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
     warn_wglmakie()
     
     if ndims == 2
-        sys.latsize[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
+        sys.dims[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
     elseif ndims == 1
-        sys.latsize[[2,3]] == [1,1] || error("System not one-dimensional in (a₁)")
+        sys.dims[[2,3]] == [1,1] || error("System not one-dimensional in (a₁)")
     end
 
     # Show bounding box of magnetic supercell in gray (this needs to come first
     # to set a scale for the scene in case there is only one atom).
-    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
+    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.dims))
     Makie.linesegments!(ax, cell_wireframe(supervecs, ndims); color=:gray, linewidth=1.5)
 
     # Infer characteristic length scale between sites

@@ -362,7 +362,7 @@ This update includes many breaking changes, and is missing some features of
 Rename `SpinSystem` to [`System`](@ref). Its constructor now has the form,
 
 ```julia
-System(crystal, latsize, infos, mode)
+System(crystal, dims, infos, mode)
 ```
 
 The parameter `infos` is now a list of [`SpinInfo`](@ref) objects. Each defines

@@ -4,8 +4,8 @@
 
     function make_system(; mode, inhomog)
         cryst = Sunny.diamond_crystal()
-        # TODO: Debug case of latsize=(3, 2, 1)
-        sys = System(cryst, [SpinInfo(1, S=2, g=2)], mode; latsize=(3, 2, 2), seed=0)
+        # TODO: Debug case of dims=(3, 2, 1)
+        sys = System(cryst, [SpinInfo(1, S=2, g=2)], mode; dims=(3, 2, 2), seed=0)
         add_linear_interactions!(sys, mode)
         add_quadratic_interactions!(sys, mode)
         add_quartic_interactions!(sys, mode)

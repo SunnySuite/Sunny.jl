@@ -19,7 +19,7 @@ cryst = Crystal(latvecs, [[0, 0, 0]])
 # 1.0 meV. Energy minimization yields the expected Néel order on the 2×2
 # magnetic cell.
 
-sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; latsize=(2, 2, 1))
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; dims=(2, 2, 1))
 set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
 randomize_spins!(sys)
 minimize_energy!(sys)

@@ -24,7 +24,7 @@
 
     function su3_anisotropy_model(; L=20, D=1.0, seed)
         cryst = asymmetric_crystal()
-        sys = System(cryst, [SpinInfo(1, S=1, g=2)], :SUN; latsize=(L, 1, 1), seed)
+        sys = System(cryst, [SpinInfo(1, S=1, g=2)], :SUN; dims=(L, 1, 1), seed)
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         randomize_spins!(sys)
 
@@ -33,7 +33,7 @@
 
     function su5_anisotropy_model(; L=20, D=1.0, seed)
         cryst = asymmetric_crystal()
-        sys = System(cryst, [SpinInfo(1, S=2, g=2)], :SUN; latsize=(L, 1, 1), seed)
+        sys = System(cryst, [SpinInfo(1, S=2, g=2)], :SUN; dims=(L, 1, 1), seed)
         randomize_spins!(sys)
 
         S = spin_matrices(spin_label(sys, 1))
@@ -172,7 +172,7 @@ end
         
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
-        sys = to_inhomogeneous(System(cryst, [SpinInfo(1; S, g=2)], mode; latsize=(2, 1, 1), seed))
+        sys = to_inhomogeneous(System(cryst, [SpinInfo(1; S, g=2)], mode; dims=(2, 1, 1), seed))
         sys.κs .= κ
         set_exchange_at!(sys, 1.0, (1,1,1,1), (2,1,1,1); offset=(-1,0,0))
         randomize_spins!(sys)

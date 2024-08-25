@@ -168,7 +168,7 @@ end
     function test_biquad(mode, q, S)
         # System
         infos = [SpinInfo(1; S, g=2)]
-        sys = System(cryst, infos, mode; latsize=(2, 2, 2))
+        sys = System(cryst, infos, mode; dims=(2, 2, 2))
         α = -0.4π
         J = 1.0
         JL, JQ = J * cos(α), J * sin(α) / S^2
@@ -379,7 +379,7 @@ end
     tol = 1e-7
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
     cryst = Crystal(latvecs, [[0, 0, 0]])
-    sys = System(cryst, [SpinInfo(1; S=1, g=-1)], :dipole; latsize=(7, 7, 1), seed=0)
+    sys = System(cryst, [SpinInfo(1; S=1, g=-1)], :dipole; dims=(7, 7, 1), seed=0)
 
     J₁ = -1
     J₃ = 1.6234898018587323
@@ -550,7 +550,7 @@ end
     # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
     function simple_swt(mode)
         cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]], "P1")
-        sys = System(cryst, [SpinInfo(1; S=1, g=1)], mode; latsize=(8, 1, 1))
+        sys = System(cryst, [SpinInfo(1; S=1, g=1)], mode; dims=(8, 1, 1))
 
         K1 = diagm([2, -1, -1])
         K2 = diagm([-1, -1, 2])
@@ -599,9 +599,9 @@ end
 @testitem "Spin ladder intensities reference test" begin
     using LinearAlgebra
 
-    function dimer_model(; J=1.0, J′=0.0, h=0.0, latsize=(2,1,1), fast=false)
+    function dimer_model(; J=1.0, J′=0.0, h=0.0, dims=(2,1,1), fast=false)
         cryst = Crystal(I(3), [[0,0,0]], 1) 
-        sys = System(cryst, [SpinInfo(1; S=3/2, g=1)], :SUN; latsize)
+        sys = System(cryst, [SpinInfo(1; S=3/2, g=1)], :SUN; dims)
 
         S = spin_matrices(1/2)
         S1, S2 = Sunny.to_product_space(S, S)
@@ -617,7 +617,7 @@ end
     end
 
     # Set up dimer model and observables (0 and π channels manually specified)
-    sys, cryst = dimer_model(; J=1.0, J′=0.2, h=0.0, latsize=(2,1,1), fast=false) 
+    sys, cryst = dimer_model(; J=1.0, J′=0.2, h=0.0, dims=(2,1,1), fast=false) 
     S = spin_matrices(1/2)
     S1, S2 = Sunny.to_product_space(S, S)
     observables0 = Hermitian.([
@@ -725,7 +725,7 @@ end
     g = diagm([gab, gab, gcc])
     x = 1/2 - D/(8*(2J₁+J₁′))
 
-    sys = System(cryst, [SpinInfo(1; S, g)], :SUN; latsize=(1, 1, 2), seed=0)
+    sys = System(cryst, [SpinInfo(1; S, g)], :SUN; dims=(1, 1, 2), seed=0)
     set_exchange!(sys, diagm([J₁, J₁, J₁*Δ]),  Bond(1, 2, [0, 0, 0]))
     set_exchange!(sys, diagm([J₁′, J₁′, J₁′*Δ′]), Bond(1, 1, [0, 0, 1]))
     set_onsite_coupling!(sys, S -> D*S[3]^2, 1)

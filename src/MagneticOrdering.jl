@@ -19,7 +19,7 @@ function print_wrapped_intensities(sys::System{N}; nmax=10) where N
     sys.crystal == orig_crystal(sys) || error("Cannot perform this analysis on reshaped system.")
 
     s = reinterpret(reshape, Float64, sys.dipoles)
-    V = prod(sys.latsize) # number of spins in sublattice
+    V = prod(sys.dims) # number of spins in sublattice
     cell_dims = (2,3,4)
     sk = FFTW.fft(s, cell_dims) / √V
     Sk = real.(conj.(sk) .* sk)
@@ -32,8 +32,8 @@ function print_wrapped_intensities(sys::System{N}; nmax=10) where N
     p = sortperm(-weight[:])
 
     println("Dominant wavevectors for spin sublattices:\n")
-    for (i, m) in enumerate(CartesianIndices(sys.latsize)[p])
-        k = (Tuple(m) .- 1) ./ sys.latsize
+    for (i, m) in enumerate(CartesianIndices(sys.dims)[p])
+        k = (Tuple(m) .- 1) ./ sys.dims
         k = [ki > 1/2 ? ki-1 : ki for ki in k]
 
         kstr = fractional_vec3_to_string(k)
@@ -221,7 +221,7 @@ function check_commensurate(sys; k)
     commensurate = true
     for i = 1:3
         denom = denominator(rationalize(q_reshaped[i]))
-        commensurate = commensurate && iszero(mod(sys.latsize[i], denom))
+        commensurate = commensurate && iszero(mod(sys.dims[i], denom))
     end
     if !commensurate
         @warn "Wavevector $(fractional_vec3_to_string(k)) is incommensurate with system."

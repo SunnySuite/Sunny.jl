@@ -4,7 +4,7 @@
 
     function ewalder_energy(sys::System{N}) where N
         # super-lattice vectors
-        latvecs = eachcol(sys.crystal.latvecs) .* sys.latsize
+        latvecs = eachcol(sys.crystal.latvecs) .* sys.dims
         # positions in global coordinates
         pos = [global_position(sys, site) for site in eachsite(sys)][:]
         # magnetic moments
@@ -24,7 +24,7 @@
     @test isapprox(energy(sys), -1/6; atol=1e-13)
 
     # Same thing, with multiple unit cells
-    sys = System(cryst, infos, :dipole; latsize=(2, 3, 4))
+    sys = System(cryst, infos, :dipole; dims=(2, 3, 4))
     enable_dipole_dipole!(sys, 1.0)
     @test isapprox(energy_per_site(sys), -1/6; atol=1e-13)
 

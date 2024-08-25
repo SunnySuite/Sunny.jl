@@ -2,7 +2,7 @@
     using LinearAlgebra
 
     function simple_model_fcc(; mode, seed=111)
-        latsize = (4, 4, 4)
+        dims = (4, 4, 4)
         J = 1.0
 
         # FCC with nonstandard, primitive lattice vectors
@@ -12,7 +12,7 @@
 
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
-        sys = System(cryst, [SpinInfo(1; S, g=2)], mode; latsize, seed)
+        sys = System(cryst, [SpinInfo(1; S, g=2)], mode; dims, seed)
         sys.κs .= κ
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         return sys
@@ -36,7 +36,7 @@
     Δω = sc.Δω
     add_sample!(sc, sys)
     qgrid = Sunny.QPoints(Sunny.available_wave_vectors(sc)[:])
-    Δq³ = 1/prod(sys.latsize) # Fraction of a BZ
+    Δq³ = 1/prod(sys.dims) # Fraction of a BZ
     Sqw = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing)
     expected_sum_rule = Sunny.norm2(sys.dipoles[1]) # S^2 classical sum rule
     @test isapprox(sum(Sqw.data) * Δq³ * Δω, expected_sum_rule; atol=1e-12)
@@ -95,12 +95,12 @@
     add_sample!(ic, sys)
     true_static_vals = intensities_static(ic, qgrid)
     true_static_total = sum(true_static_vals.data)
-    @test isapprox(true_static_total / prod(sys.latsize), 1.0; atol=1e-12)
+    @test isapprox(true_static_total / prod(sys.dims), 1.0; atol=1e-12)
 end
 
 @testitem "Merge correlations" begin
     # Set up a system.
-    sys = System(Sunny.diamond_crystal(), [SpinInfo(1; S=3/2, g=2)], :dipole; latsize=(2, 2, 2), seed=101)
+    sys = System(Sunny.diamond_crystal(), [SpinInfo(1; S=3/2, g=2)], :dipole; dims=(2, 2, 2), seed=101)
     set_exchange!(sys, 0.6498, Bond(1, 3, [0, 0, 0]))
     randomize_spins!(sys)
 
@@ -134,7 +134,7 @@ end
 end
 
 @testitem "Sampled correlations reference" begin
-    sys = System(Sunny.diamond_crystal(), [SpinInfo(1; S=3/2, g=2)], :dipole; latsize=(2, 3, 4), seed=101)
+    sys = System(Sunny.diamond_crystal(), [SpinInfo(1; S=3/2, g=2)], :dipole; dims=(2, 3, 4), seed=101)
     set_exchange!(sys, 0.6498, Bond(1, 3, [0,0,0]))
     randomize_spins!(sys)
 

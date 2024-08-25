@@ -181,7 +181,7 @@ This is the finest possible binning without creating bins with zero scattering v
 
 This function can be used without reference to a [`SampledCorrelations`](@ref) using an alternate syntax to manually specify the bin centers for the energy axis and the lattice size:
 
-    unit_resolution_binning_parameters(ω_bincenters,latsize,[reciprocal lattice vectors])
+    unit_resolution_binning_parameters(ω_bincenters,dims,[reciprocal lattice vectors])
 
 The last argument may be a 3x3 matrix specifying the reciprocal lattice vectors, or a [`Crystal`](@ref).
 
@@ -189,8 +189,8 @@ Lastly, binning parameters for a single axis may be specifed by their bin center
 
     (binstart,binend,binwidth) = unit_resolution_binning_parameters(bincenters::Vector{Float64})
 """
-function unit_resolution_binning_parameters(ωvals,latsize,args...)
-    numbins = (latsize...,length(ωvals))
+function unit_resolution_binning_parameters(ωvals,dims,args...)
+    numbins = (dims...,length(ωvals))
     # Bin centers should be at Sunny scattering vectors
     maxQ = 1 .- (1 ./ numbins)
     
@@ -215,7 +215,7 @@ function unit_resolution_binning_parameters(ωvals,latsize,args...)
     params
 end
 
-unit_resolution_binning_parameters(sc::SampledCorrelations; negative_energies=false,kwargs...) = unit_resolution_binning_parameters(available_energies_including_zero(sc;negative_energies),sc.latsize,sc;kwargs...)
+unit_resolution_binning_parameters(sc::SampledCorrelations; negative_energies=false,kwargs...) = unit_resolution_binning_parameters(available_energies_including_zero(sc;negative_energies),sc.dims,sc;kwargs...)
 
 function unit_resolution_binning_parameters(ωvals::AbstractVector{Float64})
     if !all(abs.(diff(diff(ωvals))) .< 1e-12)
