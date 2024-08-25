@@ -37,8 +37,8 @@ end
     FormFactor(ion::String; g_lande=2)
 
 The magnetic form factor for a given magnetic ion and charge state. When passed
-to [`intensities`](@ref), it rescales structure factor intensities
-based on the magnitude of the scattering vector, ``|𝐪|``.
+to [`intensities`](@ref), it rescales structure factor intensities based on the
+magnitude of the scattering vector, ``|𝐪|``.
 
 The parameter `ion` must be one of the following strings:
 
@@ -71,17 +71,20 @@ ERROR: Disambiguate form factor according to electronic configuration:
 
 In the dipolar approximation (small ``|𝐪|``) the form factor is
 
-``F(s) = ⟨j_0(s)⟩ + \\frac{2-g}{g} ⟨j_2(s)⟩``,
+``F(s) = ⟨j_0(s)⟩ + [(2-g)/g] ⟨j_2(s)⟩``,
 
 involving ``s = |𝐪|/4π`` and the Landé ``g``-factor. The ``⟨j_l(s)⟩`` are
 radial averages of the ``l``th spherical Bessel function of the magnetic dipole.
 More details are provided in Ref. [1].
 
-The ``⟨j_l(s)⟩`` can be approximated as a sum of Gaussians,
+The standard approximation tables involve expansion in Gaussians,
 
 ```math
-⟨j_0(s)⟩ = A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E \\\\
-⟨j_2(s)⟩ = (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2
+⟨j_0(s)⟩ = A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E
+```
+and
+```math
+⟨j_2(s)⟩ = (A e^{-as^2} + B e^{-bs^2} + C e^{-cs^2} + D e^{-ds^2} + E) s^2.
 ```
 
 For 3d, 4d, rare earth, and actinide ions, Sunny uses the revised tables of P.
@@ -99,7 +102,8 @@ References:
     Factors (2003)](https://www.ill.eu/sites/ccsl/ffacts/ffachtml.html)
  2. Coefficient tables in [McPhase
     documentation](https://www2.cpfs.mpg.de/~rotter/homepage_mcphase/manual/node137.html)
- 3. K. Kobayashi, T. Nagao, M. Ito, Acta Cryst. A, 67 pp 473–480 (2011)
+ 3. [K. Kobayashi, T. Nagao, M. Ito, Acta Cryst. A, 67 pp 473–480
+    (2011)](https://doi.org/10.1107/S010876731102633X)
 """
 function FormFactor(ion::String; g_lande=2)
     if !haskey(radial_integral_coefficients, ion)

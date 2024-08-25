@@ -202,7 +202,7 @@ end
         cryst = Crystal(latvecs, positions)
 
         for mode in (:dipole, :SUN)
-            sys = System(cryst, (1,1,1), [SpinInfo(1, S=2, g=2)], mode)
+            sys = System(cryst, [SpinInfo(1, S=2, g=2)], mode)
             randomize_spins!(sys)
 
             # Most general allowed anisotropy for this crystal
@@ -346,7 +346,7 @@ end
     cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])    
     
     # Dipole system with renormalized anisotropy
-    sys0 = System(cryst, (1,1,1), [SpinInfo(1, S=3, g=2)], :dipole)
+    sys0 = System(cryst, [SpinInfo(1, S=3, g=2)], :dipole)
     randomize_spins!(sys0)
 
     i = 1
@@ -358,7 +358,7 @@ end
     E0 = energy(sys0)
     
     # Corresponding SU(N) system
-    sys = System(cryst, (1,1,1), [SpinInfo(1, S=3, g=2)], :SUN)
+    sys = System(cryst, [SpinInfo(1, S=3, g=2)], :SUN)
     for site in eachsite(sys)
         set_dipole!(sys, sys0.dipoles[site], site)
     end

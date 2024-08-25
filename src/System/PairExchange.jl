@@ -371,24 +371,24 @@ end
 # Converts two sites to a bond with indices for possibly reshaped unit cell. For
 # internal use only.
 function sites_to_internal_bond(sys::System{N}, site1::CartesianIndex{4}, site2::CartesianIndex{4}, n_ref) where N
-    (; crystal, latsize) = sys
+    (; crystal, dims) = sys
 
     n0 = Tuple(to_cell(site2)) .- Tuple(to_cell(site1))
 
     # Try to build a bond with the provided offset n_ref
     if !isnothing(n_ref)
-        if all(iszero, mod.(n_ref .- n0, latsize))
+        if all(iszero, mod.(n_ref .- n0, dims))
             return Bond(to_atom(site1), to_atom(site2), n_ref)
         else
             cell1 = Tuple(to_cell(site1))
             cell2 = Tuple(to_cell(site2))
             error("""Cells $cell1 and $cell2 are not compatible with the offset
-                     $n_ref for a system with lattice size $latsize.""")
+                     $n_ref for a system with dimensions $dims.""")
         end
     end
     
     # Otherwise, search over all possible wrappings of the bond
-    ns = view([n0 .+ latsize .* (i,j,k) for i in -1:1, j in -1:1, k in -1:1], :)
+    ns = view([n0 .+ dims .* (i,j,k) for i in -1:1, j in -1:1, k in -1:1], :)
     bonds = map(ns) do n
         Bond(to_atom(site1), to_atom(site2), n)
     end
@@ -512,10 +512,11 @@ end
 
 
 """
-    remove_periodicity!(sys::System, dims)
+    remove_periodicity!(sys::System, flags)
 
-Remove periodic interactions along the dimensions where `dims` is `true`. The
-system must support inhomogeneous interactions via [`to_inhomogeneous`](@ref).
+Remove periodic interactions along each dimension `d` if `flags[d]` is `true`.
+The system must support inhomogeneous interactions via
+[`to_inhomogeneous`](@ref).
 
 # Example
 
@@ -524,7 +525,7 @@ system must support inhomogeneous interactions via [`to_inhomogeneous`](@ref).
 remove_periodicity!(sys::System, (true, false, true))
 ```
 """
-function remove_periodicity!(sys::System{N}, dims) where N
+function remove_periodicity!(sys::System{N}, flags) where N
     is_homogeneous(sys) && error("Use `to_inhomogeneous` first.")
 
     for site in eachsite(sys)
@@ -533,8 +534,8 @@ function remove_periodicity!(sys::System{N}, dims) where N
             offset_cell = Tuple(to_cell(site)) .+ bond.n
 
             # keep bond if it is acceptable along every dimension (either
-            # `!dims` or if each cell component is within bounds)
-            all(@. !dims || 1 <= offset_cell <= sys.latsize)
+            # `!flags` or if each cell component is within bounds)
+            all(@. !flags || 1 <= offset_cell <= sys.dims)
         end
     end
 end

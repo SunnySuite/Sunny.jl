@@ -25,7 +25,7 @@ view_crystal(cryst)
 # Define the interactions.
 
 spininfos = [SpinInfo(1, S=1/2, g=2), SpinInfo(3, S=1/2, g=2)]
-sys = System(cryst, (1,1,1), spininfos, :dipole, seed=0)
+sys = System(cryst, spininfos, :dipole, seed=0)
 J   = -2
 Jp  = -1
 Jab = 0.75
@@ -47,7 +47,7 @@ set_exchange!(sys, Jip, Bond(3, 4, [0, 0, 1]))
 axis = [0, 0, 1]
 randomize_spins!(sys)
 k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
-plot_spins(sys; dims=2)
+plot_spins(sys; ndims=2)
 
 # If successful, the optimization process will find one two propagation
 # wavevectors, ±k_ref, with opposite chiralities. In this system, the

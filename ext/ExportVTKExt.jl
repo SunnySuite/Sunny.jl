@@ -13,7 +13,7 @@ function Sunny.export_vtk(filename,sys; coordinates = :physical, log_scale = fal
     # In SU(N) mode, `sys.dipoles` are expectation values
     dipole_data_name = sys.mode == :SUN ? "expectation_value_dipole" : "dipole"
 
-    Ni, Nj, Nk = sys.latsize
+    Ni, Nj, Nk = sys.dims
     latvecs = if coordinates == :physical
         sys.crystal.latvecs
     elseif coordinates == :lattice

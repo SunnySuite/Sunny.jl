@@ -14,7 +14,7 @@
 
     g = 7.2 # For comparison with previous test data
     infos = [SpinInfo(1; S=5/2, g)]
-    sys = System(cryst, (1, 1, 1), infos, :SUN; seed=0)
+    sys = System(cryst, infos, :SUN; seed=0)
 
     A,B,C,D = 2.6, -1.3, 0.2, -5.7
     set_exchange!(sys, [A C -D; C A D; D -D B], Bond(1, 2, [0, 0, 0]))
@@ -82,7 +82,7 @@ end
     # System
     J, J′, D = 1.0, 0.1, 5.0
     infos = [SpinInfo(1, S=1, g=2)]
-    sys = System(cryst, (1, 1, 1), infos, :SUN; seed=0)
+    sys = System(cryst, infos, :SUN; seed=0)
     set_exchange!(sys, J,  Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(1, 1, [0, 0, 1]))
     set_onsite_coupling!(sys, S -> D * S[3]^2, 1)
@@ -135,11 +135,10 @@ end
     J₁ = diagm([J, J, C])
     D = 25/24
 
-    dims = (1, 1, 1)
     infos = [SpinInfo(1; S, g)]
 
     function compute(mode)
-        sys = System(fcc, dims, infos, mode)
+        sys = System(fcc, infos, mode)
         set_exchange!(sys, J₁, Bond(1, 2, [0, 0, 0]))
         set_onsite_coupling!(sys, S -> D * (S[1]^4 + S[2]^4 + S[3]^4), 1)
         set_dipole!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
@@ -168,9 +167,8 @@ end
     
     function test_biquad(mode, q, S)
         # System
-        dims = (2, 2, 2)
         infos = [SpinInfo(1; S, g=2)]
-        sys = System(cryst, dims, infos, mode)        
+        sys = System(cryst, infos, mode; dims=(2, 2, 2))
         α = -0.4π
         J = 1.0
         JL, JQ = J * cos(α), J * sin(α) / S^2
@@ -205,7 +203,7 @@ end
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
     
-    sys = System(cryst, (1,1,1), [SpinInfo(1; S=1, g=2), SpinInfo(2; S=2, g=2)], :dipole)
+    sys = System(cryst, [SpinInfo(1; S=1, g=2), SpinInfo(2; S=2, g=2)], :dipole)
     set_pair_coupling!(sys, (S1, S2) -> +(S1'*diagm([2,-1,-1])*S1)*(S2'*diagm([2,-1,-1])*S2), Bond(1, 2, [0,0,0]))
     
     θ = randn()
@@ -231,7 +229,7 @@ end
         cryst = Crystal(latvecs, positions)
         q = [0.12, 0.23, 0.34]
         
-        sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=-1)], :dipole)
+        sys = System(cryst, [SpinInfo(1; S, g=-1)], :dipole)
         sys = reshape_supercell(sys, [1 -1 0; 1 1 0; 0 0 1])
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
@@ -269,10 +267,9 @@ end
     # P1 point group for most general single-ion anisotropy
     cryst = Crystal(latvecs, positions, 1)
 
-    dims = (1, 1, 1)
     S = 2
-    sys_dip = System(cryst, dims, [SpinInfo(1; S, g=-1)], :dipole)
-    sys_SUN = System(cryst, dims, [SpinInfo(1; S, g=-1)], :SUN)
+    sys_dip = System(cryst, [SpinInfo(1; S, g=-1)], :dipole)
+    sys_SUN = System(cryst, [SpinInfo(1; S, g=-1)], :SUN)
 
     # The strengths of single-ion anisotropy (must be negative to favor the dipolar ordering under consideration)
     Ds = -rand(3)
@@ -309,7 +306,7 @@ end
     cryst = Crystal(latvecs, [[0,0,0]])
 
     for mode in (:dipole, :SUN)
-        sys = System(cryst, (1,1,1), [SpinInfo(1; S=1, g=1)], mode)
+        sys = System(cryst, [SpinInfo(1; S=1, g=1)], mode)
         enable_dipole_dipole!(sys, 1.0)
 
         polarize_spins!(sys, (0,0,1))
@@ -325,7 +322,7 @@ end
 
     begin
         cryst = Sunny.bcc_crystal()
-        sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :dipole, seed=2)
+        sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole, seed=2)
         enable_dipole_dipole!(sys, Units(:meV, :angstrom).vacuum_permeability)
         polarize_spins!(sys, (1,2,3)) # arbitrary direction
         
@@ -351,7 +348,7 @@ end
     c = 5.2414
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
     crystal = Crystal(latvecs, [[0.24964,0,0.5]], 150)
-    sys = System(crystal, (1,1,1), [SpinInfo(1; S=5/2, g=2)], :dipole; seed=5)
+    sys = System(crystal, [SpinInfo(1; S=5/2, g=2)], :dipole; seed=5)
     set_exchange!(sys, 0.85,  Bond(3, 2, [1,1,0]))   # J1
     set_exchange!(sys, 0.24,  Bond(1, 3, [0,0,0]))   # J2
     set_exchange!(sys, 0.053, Bond(2, 3, [-1,-1,1])) # J3
@@ -382,7 +379,7 @@ end
     tol = 1e-7
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
     cryst = Crystal(latvecs, [[0, 0, 0]])
-    sys = System(cryst, (7,7,1), [SpinInfo(1; S=1, g=-1)], :dipole; seed=0)
+    sys = System(cryst, [SpinInfo(1; S=1, g=-1)], :dipole; dims=(7, 7, 1), seed=0)
 
     J₁ = -1
     J₃ = 1.6234898018587323
@@ -443,7 +440,7 @@ end
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
     S = 3/2
-    sys = System(cryst, (1, 1, 1), [SpinInfo(1; S, g=2)], :dipole; seed=0)
+    sys = System(cryst, [SpinInfo(1; S, g=2)], :dipole; seed=0)
     set_exchange!(sys, 1.0, Bond(1, 3, [0,0,0]))
     randomize_spins!(sys)
     minimize_energy!(sys)
@@ -474,7 +471,7 @@ end
         latvecs = lattice_vectors(1, 1, 1, 92, 93, 94)
         cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
         infos = [SpinInfo(1; S=1, g=2), SpinInfo(2; S=2, g=R*g*R')]
-        sys = System(cryst, (1,1,1), infos, :dipole)
+        sys = System(cryst, infos, :dipole)
 
         set_onsite_coupling!(sys, S -> S'*R*(D1+D1')*R'*S, 1)
         set_onsite_coupling!(sys, S -> S'*R*(D2+D2')*R'*S, 2)
@@ -527,7 +524,7 @@ end
         return H
     end
 
-    sys = System(Sunny.cubic_crystal(), (1, 1, 1), [SpinInfo(1; S=1, g=1)], :SUN)
+    sys = System(Sunny.cubic_crystal(), [SpinInfo(1; S=1, g=1)], :SUN)
 
     q = [0.23, 0, 0]
 
@@ -552,9 +549,8 @@ end
 
     # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
     function simple_swt(mode)
-        dims = (8, 1, 1)
         cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]], "P1")
-        sys = System(cryst, dims, [SpinInfo(1; S=1, g=1)], mode)
+        sys = System(cryst, [SpinInfo(1; S=1, g=1)], mode; dims=(8, 1, 1))
 
         K1 = diagm([2, -1, -1])
         K2 = diagm([-1, -1, 2])
@@ -605,7 +601,7 @@ end
 
     function dimer_model(; J=1.0, J′=0.0, h=0.0, dims=(2,1,1), fast=false)
         cryst = Crystal(I(3), [[0,0,0]], 1) 
-        sys = System(cryst, dims, [SpinInfo(1; S=3/2, g=1)], :SUN)
+        sys = System(cryst, [SpinInfo(1; S=3/2, g=1)], :SUN; dims)
 
         S = spin_matrices(1/2)
         S1, S2 = Sunny.to_product_space(S, S)
@@ -661,7 +657,7 @@ end
         latvecs = lattice_vectors(a, a, a, 90, 90, 90)
         positions = [[0, 0, 0]]
         fcc = Crystal(latvecs, positions, 225)
-        sys_afm1 = System(fcc, (1, 1, 1), [SpinInfo(1; S, g=1)], mode)
+        sys_afm1 = System(fcc, [SpinInfo(1; S, g=1)], mode)
         set_exchange!(sys_afm1, J, Bond(1, 2, [0, 0, 0]))
         set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 0, 0)))
         set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 1/2, 0)))
@@ -691,7 +687,7 @@ end
     function δS_triangular(mode)
         latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)
         cryst = Crystal(latvecs, [[0, 0, 0]])
-        sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=S, g=2)], mode)
+        sys = System(cryst, [SpinInfo(1, S=S, g=2)], mode)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         polarize_spins!(sys, [0, 1, 0])
         sys = repeat_periodically_as_spiral(sys, (3, 3, 1); k=[2/3, -1/3, 0], axis=[0, 0, 1])
@@ -729,16 +725,14 @@ end
     g = diagm([gab, gab, gcc])
     x = 1/2 - D/(8*(2J₁+J₁′))
 
-    sys = System(cryst, (1, 1, 2), [SpinInfo(1; S, g)], :SUN, seed=0)
+    sys = System(cryst, [SpinInfo(1; S, g)], :SUN; dims=(1, 1, 2), seed=0)
     set_exchange!(sys, diagm([J₁, J₁, J₁*Δ]),  Bond(1, 2, [0, 0, 0]))
     set_exchange!(sys, diagm([J₁′, J₁′, J₁′*Δ′]), Bond(1, 1, [0, 0, 1]))
     set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 
     randomize_spins!(sys)
     minimize_energy!(sys; maxiters=1000)
-    sys_swt = reshape_supercell(sys, diagm([1,1,2]))
-    minimize_energy!(sys_swt)
-    swt = SpinWaveTheory(sys_swt; measure=nothing)
+    swt = SpinWaveTheory(sys; measure=nothing)
 
     δS = Sunny.magnetization_lswt_correction(swt; atol=1e-2)[1]
 

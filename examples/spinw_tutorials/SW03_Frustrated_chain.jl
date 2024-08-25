@@ -15,12 +15,12 @@ using Sunny, GLMakie
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(3, 8, 8, 90, 90, 90)
 cryst = Crystal(latvecs, [[0, 0, 0]])
-view_crystal(cryst; dims=2, ghost_radius=8)
+view_crystal(cryst; ndims=2, ghost_radius=8)
 
 # Construct a spin system with competing nearest-neighbor (FM) and
 # next-nearest-neighbor (AFM) interactions.
 
-sys = System(cryst, (1,1,1), [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole)
 J1 = -1
 J2 = +2 * abs(J1)
 set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))
@@ -46,7 +46,7 @@ k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
 # enlarged system with [`repeat_periodically_as_spiral`](@ref).
 
 sys_enlarged = repeat_periodically_as_spiral(sys, (8, 1, 1); k, axis)
-plot_spins(sys_enlarged; dims=2)
+plot_spins(sys_enlarged; ndims=2)
 
 # Use [`SpiralSpinWaveTheory`](@ref) on the original `sys` to calculate the
 # dispersion and intensities for the incommensurate ordering wavevector.

@@ -14,7 +14,7 @@ using Sunny, GLMakie
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(6, 6, 8, 90, 90, 120)
 cryst = Crystal(latvecs, [[1/2, 0, 0]], 147)
-view_crystal(cryst; dims=2)
+view_crystal(cryst; ndims=2)
 
 # Construct a spin system with strongly ferromagnetic nearest-neighbor
 # interactions, and two additional interactions. There are two
@@ -24,7 +24,7 @@ view_crystal(cryst; dims=2)
 # atom 1 to atom 1 that passes through the center of an "empty" hexagon of the
 # kagome lattice.
 
-sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole)
 J1 = -1.0
 J2 = 0.1
 J3a = 0.00
@@ -37,13 +37,13 @@ set_exchange!(sys, J3b, Bond(1, 1, [1, 0, 0]))
 # Interactively visualize the specified interactions. Red (blue) color indicates
 # FM (AFM).
 
-view_crystal(sys; dims=2)
+view_crystal(sys; ndims=2)
 
 # Energy minimization favors ferromagnetic order.
 
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; dims=2)
+plot_spins(sys; ndims=2)
 
 # Calculate and plot intensities for a path through ``𝐪``-space.
 

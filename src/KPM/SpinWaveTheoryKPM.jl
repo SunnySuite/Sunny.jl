@@ -1,6 +1,8 @@
 """
     SpinWaveTheoryKPM(sys::System; measure, resolution, regularization=1e-8)
 
+**Experimental**
+
 An alternative to [`SpinWaveTheory`](@ref) that uses the kernel polynomial
 method (KPM) to perform [`intensities`](@ref) calculations. In traditional spin
 wave theory calculations, one would explicitly diagonalize the dynamical matrix,

@@ -18,7 +18,7 @@ See also [`spiral_minimize_energy!`](@ref) and [`repeat_periodically_as_spiral`]
 """
 function spiral_energy(sys::System{0}; k, axis)
     sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")
-    sys.latsize == (1, 1, 1) || error("System must consist of a single chemical cell")
+    sys.dims == (1, 1, 1) || error("System must have only a single cell")
 
     check_rotational_symmetry(sys; axis, θ=0.01)
 
@@ -44,7 +44,7 @@ function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)
     end
     dEdk = zero(Vec3)
 
-    @assert sys.latsize == (1,1,1)
+    @assert sys.dims == (1,1,1)
     Na = natoms(sys.crystal)
 
     x, y, z = normalize(axis)
@@ -199,7 +199,7 @@ function spiral_minimize_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.r
     axis = normalize(axis)
 
     sys.mode in (:dipole, :dipole_large_S) || error("SU(N) mode not supported")
-    sys.latsize == (1, 1, 1) || error("System must have only a single cell")
+    sys.dims == (1, 1, 1) || error("System must have only a single cell")
     norm([s × axis for s in sys.dipoles]) > 1e-12 || error("Spins cannot be exactly aligned with polarization axis")
 
     # Note: if k were fixed, we could check θ = 2πkᵅ for each component α, which

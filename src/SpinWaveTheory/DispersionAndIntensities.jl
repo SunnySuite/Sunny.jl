@@ -153,7 +153,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0,
     cryst = orig_crystal(sys)
 
     # Number of (magnetic) atoms in magnetic cell
-    @assert sys.latsize == (1,1,1)
+    @assert sys.dims == (1,1,1)
     Na = length(eachsite(sys))
     # Number of chemical cells in magnetic cell
     Ncells = Na / natoms(cryst)

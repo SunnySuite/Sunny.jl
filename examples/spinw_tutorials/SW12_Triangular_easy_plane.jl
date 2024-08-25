@@ -14,11 +14,12 @@ using Sunny, GLMakie
 latvecs = lattice_vectors(3, 3, 4, 90, 90, 120) 
 cryst = Crystal(latvecs, [[0, 0, 0]])
 
-# Build a system with exchange +1 meV along nearest neighbor bonds.
+# Build a system with exchange +1 meV along nearest neighbor bonds. Set the
+# lattice size in anticipation of a magnetic ordering with 3×3 cells.
 
 S = 3/2
 J1 = +1.0
-sys = System(cryst, (3,3,1), [SpinInfo(1; S, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1; S, g=2)], :dipole; dims=(3, 3, 1))
 set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))
 
 # Set an easy-axis anisotropy operator ``+D S_z^2`` using
@@ -37,7 +38,7 @@ D = 0.2 * undo_classical_to_quantum_rescaling
 set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; dims=2)
+plot_spins(sys; ndims=2)
 
 # Plot the spin wave spectrum for a path through ``𝐪``-space.
 

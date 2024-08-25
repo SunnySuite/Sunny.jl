@@ -188,7 +188,7 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
     R = data.local_rotations
 
     # Number of atoms in magnetic cell
-    @assert sys.latsize == (1,1,1)
+    @assert sys.dims == (1,1,1)
     Na = length(eachsite(sys))
     # Number of chemical cells in magnetic cell
     Ncells = Na / natoms(cryst) # TODO check invariance

@@ -25,7 +25,7 @@
 
 Sunny is a Julia package for modeling atomic-scale magnetism using classical spin dynamics with quantum corrections. It provides powerful tools to estimate dynamical structure factor intensities, $\mathcal{S}(𝐪,ω)$, enabling quantitative comparison with experimental scattering data, e.g., neutrons or x-rays.
 
-A unique feature of Sunny is its treatment of spins as [SU(_N_) coherent states](https://arxiv.org/abs/2106.14125). This theory generalizes Landau-Lifshitz spin dynamics to a [nonlinear Schrödinger equation](https://arxiv.org/abs/2204.07563), which retains $N=2S+1$ levels for each quantum spin-_S_ state. The theory is effective for models with strong single-ion anisotropy (see our **[FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/03_LSWT_SU3_FeI2.html)**) and for [localized "units" of strongly entangled spins](https://arxiv.org/abs/2405.16315).  Efficient simulation is enabled by several algorithmic developments as listed on our [publications page](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
+A unique feature of Sunny is its treatment of spins as [SU(_N_) coherent states](https://arxiv.org/abs/2106.14125). This theory generalizes Landau-Lifshitz spin dynamics to a [nonlinear Schrödinger equation](https://arxiv.org/abs/2204.07563), which retains $N=2S+1$ levels for each quantum spin-_S_ state. This generalization is important for models with strong single-ion anisotropy (see our **[FeI₂ tutorial](https://sunnysuite.github.io/Sunny.jl/dev/examples/03_LSWT_SU3_FeI2.html)**) and for [localized "units" of strongly entangled spins](https://arxiv.org/abs/2405.16315).  Efficient simulation is enabled by several algorithmic developments as listed on our [publications page](https://github.com/SunnySuite/Sunny.jl/wiki/Sunny-literature).
 
 At low-temperatures, Sunny supports the usual linear spin wave theory for spin dipoles, and its ['multi-boson' generalization](https://arxiv.org/abs/1307.7731). At finite temperatures, Sunny can calculate the dynamical structure factor using classical spin dynamics with quantum corrections. Langevin coupling to a thermal bath additionally makes possible the study of various non-equilibrium dynamics, e.g., thermal transport, pump-probe experiments, and spin-glass relaxation.
 
@@ -33,7 +33,7 @@ Sunny provides a number of tools to facilitate the specification and solution of
 
 ## Try it out!
 
-New Julia users should begin with our **[Tutorials](https://sunnysuite.github.io/Sunny.jl/dev/examples/01_LSWT_CoRh2O4)**. For traditional linear spin wave theory, see also the **[SpinW ports](https://sunnysuite.github.io/Sunny.jl/dev/examples/spinw/SW01_FM_Heseinberg_chain.html)**.
+[Download Julia](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia) and try the **[Sunny Tutorials](https://sunnysuite.github.io/Sunny.jl/dev/examples/01_LSWT_CoRh2O4)**. For traditional linear spin wave theory, see also the **[SpinW ports](https://sunnysuite.github.io/Sunny.jl/dev/examples/spinw/SW01_FM_Heseinberg_chain.html)**.
 
 Sunny is evolving rapidly. [Version History](https://sunnysuite.github.io/Sunny.jl/dev/versions/) lists the new features and breaking changes. To install a specific version of Sunny, say `v0.x`, use the command `add Sunny@0.x`.
 
@@ -45,11 +45,12 @@ Sunny is inspired by SpinW, especially regarding symmetry analysis, model specif
 | -- | -- | -- | -- |
 | Symmetry-guided modeling | ❌ | ✅ | ✅ |
 | Interactive graphics | ❌ | ✅ | ✅ |
-| General spin-multipole interactions | ✅ | ❌ | ✅ |
-| [Interaction renormalization for dipoles](https://arxiv.org/abs/2304.03874) | ❌ | ❌ | ✅ |
+| [Incommensurate spiral order](https://arxiv.org/abs/1402.6069) | ❌ | ✅ | ✅ |
+| Arbitrary couplings of quantum operators | ✅ | ❌ | ✅ |
+| [Interaction renormalization corrections](https://arxiv.org/abs/2304.03874) | ❌ | ❌ | ✅ |
 | [Multi-flavor spin wave theory](https://arxiv.org/abs/1307.7731) | ✅ | ❌ | ✅ |
-| [Classical SU(_N_) spin dynamics](https://arxiv.org/abs/2209.01265)</u> | ❌ | ❌ | ✅ |
-| Ewald summation for dipole-dipole | ❌ | ❌ | ✅ |
+| [Classical SU(_N_) spin dynamics](https://arxiv.org/abs/2209.01265) | ❌ | ❌ | ✅ |
+| [Ewald summation for dipole-dipole](https://sunnysuite.github.io/Sunny.jl/dev/examples/07_Dipole_Dipole.html) | ❌ | ❌ | ✅ |
 | Programming language | C++ | Matlab | [Julia](https://julialang.org/) |
 
 Codes like [Spirit](https://github.com/spirit-code/spirit) and [Vampire](https://vampire.york.ac.uk/) focus less on capturing quantum effects, but may be better options for the dynamics of classical dipoles, e.g., in the micromagnetics context.

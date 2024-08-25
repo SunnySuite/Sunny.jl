@@ -15,7 +15,7 @@ Base.@deprecate stevens_operators(sys::System, i::Int) let
     stevens_matrices(spin_label(sys, i))
 end
 
-Base.@deprecate suggest_magnetic_supercell(qs, latsize) suggest_magnetic_supercell(qs)
+Base.@deprecate suggest_magnetic_supercell(qs, dims) suggest_magnetic_supercell(qs)
 Base.@deprecate offline_viewers() ()
 
 function Base.getproperty(value::Langevin, name::Symbol)
@@ -100,11 +100,15 @@ Base.@deprecate set_spiral_order!(sys; q=nothing, k=nothing, axis, S0) let
     error("Use repeat_periodically_as_spiral(...) instead of set_spiral_order!(...)")
 end
 
-
+Base.@deprecate System(crystal::Crystal, dims::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol; seed=nothing, units=nothing) let
+    @warn "Deprecation warning! `dims` is now a keyword argument, e.g., System(...; dims=$dims)"
+    return System(crystal, infos, mode; dims, seed, units)
+end
 
 # REMEMBER TO ALSO DELETE:
 #
 # * view_crystal(cryst, max_dist)
+# * dims argument in view_crystal and plot_spins
 # * λ argument in Langevin constructor
 # * Δt argument in dynamic_correlations
 # * large_S argument in set_exchange! and set_exchange_at!
