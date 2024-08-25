@@ -68,9 +68,8 @@ view_crystal(cryst)
 # magneton. The option `:dipole` indicates a traditional model type, for which
 # quantum spin is modeled as a dipole expectation value.
 
-latsize = (1, 1, 1)
 S = 3/2
-sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1; S, g=2)], :dipole)
 
 # Previous work demonstrated that inelastic neutron scattering data for CoRh₂O₄
 # is well described with a single antiferromagnetic nearest neighbor exchange,

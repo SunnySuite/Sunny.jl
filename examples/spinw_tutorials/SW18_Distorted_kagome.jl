@@ -25,7 +25,7 @@ view_crystal(cryst)
 # Define the interactions.
 
 spininfos = [SpinInfo(1, S=1/2, g=2), SpinInfo(3, S=1/2, g=2)]
-sys = System(cryst, (1,1,1), spininfos, :dipole, seed=0)
+sys = System(cryst, spininfos, :dipole, seed=0)
 J   = -2
 Jp  = -1
 Jab = 0.75

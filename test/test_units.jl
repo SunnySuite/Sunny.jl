@@ -1,7 +1,7 @@
 @testitem "Units" begin
     function f(units)
         crystal = Sunny.diamond_crystal(; a=units.angstrom)
-        sys = System(crystal, (4, 4, 4), [SpinInfo(1, S=1, g=2)], :dipole; seed=0)
+        sys = System(crystal, [SpinInfo(1, S=1, g=2)], :dipole; latsize=(4, 4, 4), seed=0)
         randomize_spins!(sys)
         set_exchange!(sys, 2 * units.K, Bond(1, 2, [0,0,0]))
         set_field!(sys, [0, 0, 1] * units.T)

@@ -89,7 +89,7 @@ print_symmetry_table(cryst, 8.0)
 # Selecting an optional random number `seed` will make the calculations exactly
 # reproducible.
 
-sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :SUN, seed=2)
 
 # Set the exchange interactions for FeI₂ following the fits of [Bai et
 # al.](https://doi.org/10.1038/s41567-020-01110-1)
@@ -148,9 +148,9 @@ set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 # magnetic structure can be entered manually. Sunny also provides tools to
 # search for an unknown magnetic order, as we will now demonstrate.
 #
-# To minimize bias in the search, begin with a large system consisting of 4×4×4
-# chemical cells. Randomize all spins (as SU(3) coherent states) and minimize
-# the energy.
+# To minimize bias in the search, use [`resize_supercell`](@ref) to create a
+# relatively large system of 4×4×4 chemical cells. Randomize all spins (as SU(3)
+# coherent states) and minimize the energy.
 
 sys = resize_supercell(sys, (4, 4, 4))
 randomize_spins!(sys)

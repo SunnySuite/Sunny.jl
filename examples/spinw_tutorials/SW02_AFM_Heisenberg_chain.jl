@@ -17,11 +17,10 @@ latvecs = lattice_vectors(3, 8, 8, 90, 90, 90)
 cryst = Crystal(latvecs, [[0, 0, 0]])
 view_crystal(cryst; dims=2, ghost_radius=8)
 
-# Unlike in the previous tutorial, here the magnetic cell includes 2×1×1
-# chemical cells, which will support antiferromagnetic (Néel) order along the
-# chain.
+# Unlike in the previous tutorial, here the magnetic cell should include 2×1×1
+# chemical cells to support antiferromagnetic (Néel) order along the chain.
 
-sys = System(cryst, (2, 1, 1), [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; latsize=(2, 1, 1))
 
 # Set a nearest neighbor interaction of ``J = +1`` meV along the chain, and find
 # the energy-minimizing Néel order. As before, a global rotation in spin-space

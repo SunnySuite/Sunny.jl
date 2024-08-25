@@ -22,7 +22,7 @@ view_crystal(cryst; dims=2)
 # Build a spin system using the exchange parameters from [R. Coldea, Phys. Rev.
 # Lett. **86**, 5377 (2001)](https://doi.org/10.1103/PhysRevLett.86.5377).
 
-sys = System(cryst, (2,2,1), [SpinInfo(1, S=1/2, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1, S=1/2, g=2)], :dipole; latsize=(2, 2, 1))
 J   = 138.3
 Jp  = 2
 Jpp = 2

@@ -18,8 +18,7 @@ crystal = Crystal(latvecs, [[0, 0, 0]])
 # dipole ``𝐬`` is ``-𝐁⋅𝐬``. The initial supercell size is ``L×L``.
 
 L = 128
-sys = System(crystal, (1, 1, 1), [SpinInfo(1, S=1, g=-1)], :dipole, seed=0)
-sys = resize_supercell(sys, (L, L, 1))
+sys = System(crystal, [SpinInfo(1, S=1, g=-1)], :dipole; latsize=(L, L, 1), seed=0)
 polarize_spins!(sys, (0, 0, 1))
 
 # Use [`set_exchange!`](@ref) to include a ferromagnetic Heisenberg interaction

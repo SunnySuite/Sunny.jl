@@ -17,9 +17,10 @@ cryst = Crystal(latvecs, [[0, 0, 0]])
 view_crystal(cryst; dims=2)
 
 # Construct a spin system with competing nearest-neighbor (AFM) and
-# next-nearest-neighbor (FM) interactions.
+# next-nearest-neighbor (FM) interactions. The Néel magnetic order requires a
+# supercell of 2×2 chemical cells.
 
-sys = System(cryst, (2,2,1), [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; latsize=(2, 2, 1))
 J1 = 1.0
 J2 = -0.1
 set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))

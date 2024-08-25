@@ -12,7 +12,7 @@
 
         S = mode==:SUN ? 1/2 : 1
         κ = mode==:SUN ? 2 : 1
-        sys = System(cryst, latsize, [SpinInfo(1; S, g=2)], mode; seed)
+        sys = System(cryst, [SpinInfo(1; S, g=2)], mode; latsize, seed)
         sys.κs .= κ
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         return sys
@@ -100,8 +100,8 @@ end
 
 @testitem "Merge correlations" begin
     # Set up a system.
-    sys = System(Sunny.diamond_crystal(), (2,2,2), [SpinInfo(1; S=3/2, g=2)], :dipole, seed=101)
-    set_exchange!(sys, 0.6498, Bond(1, 3, [0,0,0]))
+    sys = System(Sunny.diamond_crystal(), [SpinInfo(1; S=3/2, g=2)], :dipole; latsize=(2, 2, 2), seed=101)
+    set_exchange!(sys, 0.6498, Bond(1, 3, [0, 0, 0]))
     randomize_spins!(sys)
 
     # Set up Langevin sampler.
@@ -134,7 +134,7 @@ end
 end
 
 @testitem "Sampled correlations reference" begin
-    sys = System(Sunny.diamond_crystal(), (2,3,4), [SpinInfo(1; S=3/2, g=2)], :dipole, seed=101)
+    sys = System(Sunny.diamond_crystal(), [SpinInfo(1; S=3/2, g=2)], :dipole; latsize=(2, 3, 4), seed=101)
     set_exchange!(sys, 0.6498, Bond(1, 3, [0,0,0]))
     randomize_spins!(sys)
 

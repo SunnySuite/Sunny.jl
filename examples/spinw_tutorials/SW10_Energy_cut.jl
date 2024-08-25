@@ -16,9 +16,10 @@ latvecs = lattice_vectors(1.0, 1.0, 3.0, 90, 90, 90)
 cryst = Crystal(latvecs, [[0, 0, 0]])
 
 # Construct a spin system with nearest-neighbor antiferomagnetic interactions of
-# 1.0 meV. Energy minimization yields the expected Néel order.
+# 1.0 meV. Energy minimization yields the expected Néel order on the 2×2
+# magnetic cell.
 
-sys = System(cryst, (2,2,1), [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; latsize=(2, 2, 1))
 set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
@@ -26,8 +27,7 @@ plot_spins(sys; dims=2)
 
 # Define a 2D slice through ``𝐪``-space with [`q_space_grid`](@ref). 
 
-nQ = 201
-grid = q_space_grid(cryst, [1, 0, 0], range(0, 2, nQ), [0, 1, 0], range(0, 2, nQ))
+grid = q_space_grid(cryst, [1, 0, 0], range(0, 2, 201), [0, 1, 0], range(0, 2, 201))
 
 # Calculate and plot a constant energy cut at the precise value of 3.75 meV.
 # Apply a line broadening with a full-width half-max of 0.2 meV to approximately

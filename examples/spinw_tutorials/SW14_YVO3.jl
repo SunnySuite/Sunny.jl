@@ -29,7 +29,7 @@ cryst = Crystal(latvecs, positions, 1; types)
 # "Interaction Strength Renormalization") of anisotropy strengths, as needed for
 # consistency with the original fits.
 
-sys = System(cryst, (2,2,1), [SpinInfo(1, S=1/2, g=2), SpinInfo(2, S=1/2, g=2)], :dipole_large_S)
+sys = System(cryst, [SpinInfo(1, S=1/2, g=2), SpinInfo(2, S=1/2, g=2)], :dipole_large_S; latsize=(2,2,1))
 Jab = 2.6
 Jc  = 3.1
 δ   = 0.35

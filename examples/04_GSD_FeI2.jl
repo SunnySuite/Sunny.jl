@@ -30,7 +30,7 @@ c = 6.75214
 latvecs = lattice_vectors(a, b, c, 90, 90, 120)
 cryst = Crystal(latvecs, [[0,0,0]], 164; types=["Fe"])
 
-sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :SUN)
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :SUN)
 J1pm   = -0.236
 J1pmpm = -0.161
 J1zpm  = -0.261
@@ -62,7 +62,7 @@ set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 # To study thermal fluctuations in real-space, use a large system size with
 # 16×16×4 copies of the chemical cell.
 
-sys_large = resize_supercell(sys, (16, 16, 4))
+sys = resize_supercell(sys, (16, 16, 4))
 
 # Previously, we used [`minimize_energy!`](@ref) to find a local energy minimum.
 # Here, we will instead use [`Langevin`](@ref) dynamics to relax the system into
@@ -76,18 +76,18 @@ langevin = Langevin(; damping=0.2, kT=2.3*units.K)
 # tolerance `tol=1e-2`. Initializing `sys` to some low-energy configuration
 # usually works well.
 
-randomize_spins!(sys_large)
-minimize_energy!(sys_large; maxiters=10)
-suggest_timestep(sys_large, langevin; tol=1e-2)
+randomize_spins!(sys)
+minimize_energy!(sys; maxiters=10)
+suggest_timestep(sys, langevin; tol=1e-2)
 langevin.dt = 0.03;
 
 # Run a Langevin trajectory for 10,000 time-steps and plot the spins. At this
 # angle, it is difficult to discern the magnetic order.
 
 for _ in 1:10_000
-    step!(sys_large, langevin)
+    step!(sys, langevin)
 end
-plot_spins(sys_large; color=[s[3] for s in sys_large.dipoles])
+plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 # The two-up, two-down spiral order can be verified by calling
 # [`print_wrapped_intensities`](@ref). A single propagation wavevector ``±𝐤``
@@ -95,12 +95,12 @@ plot_spins(sys_large; color=[s[3] for s in sys_large.dipoles])
 # of intensity is spread among many other wavevectors due to thermal
 # fluctuations.
 
-print_wrapped_intensities(sys_large)
+print_wrapped_intensities(sys)
 
 # Calling [`suggest_timestep`](@ref) shows that thermalization has not
 # substantially altered the suggested `dt`.
 
-suggest_timestep(sys_large, langevin; tol=1e-2)
+suggest_timestep(sys, langevin; tol=1e-2)
 
 # ### Structure factor in the paramagnetic phase
 
@@ -109,12 +109,12 @@ suggest_timestep(sys_large, langevin; tol=1e-2)
 
 langevin.kT = 3.5 * units.K
 for _ in 1:10_000
-    step!(sys_large, langevin)
+    step!(sys, langevin)
 end
 
 # At this higher temperature, the suggested timestep has increased slightly.
 
-suggest_timestep(sys_large, langevin; tol=1e-2)
+suggest_timestep(sys, langevin; tol=1e-2)
 langevin.dt = 0.040;
 
 # Now collect dynamical spin structure factor data using a
@@ -127,12 +127,12 @@ langevin.dt = 0.040;
 
 dt = 2*langevin.dt
 energies = range(0, 7.5, 120)
-sc = SampledCorrelations(sys_large; dt, energies, measure=ssf_perp(sys_large))
+sc = SampledCorrelations(sys; dt, energies, measure=ssf_perp(sys))
 
 # The function [`add_sample!`](@ref) will collect data by running a dynamical
 # trajectory starting from the current system configuration. 
 
-add_sample!(sc, sys_large)
+add_sample!(sc, sys)
 
 # To collect additional data, it is required to re-sample the spin configuration
 # from the thermal distribution. Statistical error is reduced by fully
@@ -140,9 +140,9 @@ add_sample!(sc, sys_large)
 
 for _ in 1:2
     for _ in 1:1000               # Enough steps to decorrelate spins
-        step!(sys_large, langevin)
+        step!(sys, langevin)
     end
-    add_sample!(sc, sys_large)
+    add_sample!(sc, sys)
 end
 
 # Measure intensities along a path connecting high-symmetry ``𝐪``-points,

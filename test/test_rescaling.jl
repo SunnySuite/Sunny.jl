@@ -12,7 +12,7 @@
 
         for integrator in integrators
             for mode in (:SUN, :dipole)
-                sys = System(cryst, (2,2,2), [SpinInfo(1, S=3/2, g=2)], mode; seed=0)
+                sys = System(cryst, [SpinInfo(1, S=3/2, g=2)], mode; latsize=(2, 2, 2), seed=0)
                 randn!(sys.κs)
                 add_linear_interactions!(sys, mode)
                 add_quadratic_interactions!(sys, mode)
@@ -32,7 +32,7 @@
     # Check that each energy term rescales properly with κ
     let
         function gen_energy(κ, adder, mode)
-            sys = System(cryst, (2,2,2), [SpinInfo(1, S=3/2, g=2)], mode; seed=0)
+            sys = System(cryst, [SpinInfo(1, S=3/2, g=2)], mode; latsize=(2, 2, 2), seed=0)
             # κ must be set before anisotropy operators are added, otherwise we
             # will lose information about how to rescale the Stevens expansion.
             sys.κs .= κ
@@ -61,7 +61,7 @@
     # Check that a scaling of κ corresponds to an appropriate rescaling of dynamical time
     let
         function gen_trajectory(κ, dt, adder, mode)
-            sys = System(cryst, (2,2,2), [SpinInfo(1, S=3/2, g=2)], mode; seed=0)
+            sys = System(cryst, [SpinInfo(1, S=3/2, g=2)], mode; latsize=(2, 2, 2), seed=0)
             adder(sys, mode)
             sys.κs .= κ
             randomize_spins!(sys)
@@ -99,7 +99,7 @@ end
     for k in (2, 4, 6)
         c = randn(2k+1)
         E1, E2 = map([:dipole, :dipole_large_S]) do mode
-            sys = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], mode)
+            sys = System(cryst, [SpinInfo(1; S, g=2)], mode)
             O = stevens_matrices(spin_label(sys, 1))
             set_onsite_coupling!(sys, sum(c[k-q+1]*O[k, q] for q in -k:k), 1)
             return energy(sys)
@@ -113,8 +113,8 @@ end
     cryst = Sunny.square_crystal()
 
     S = 3/2
-    sys1 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole_large_S, seed=0)
-    sys2 = System(cryst, (1,1,1), [SpinInfo(1; S, g=2)], :dipole, seed=0)
+    sys1 = System(cryst, [SpinInfo(1; S, g=2)], :dipole_large_S, seed=0)
+    sys2 = System(cryst, [SpinInfo(1; S, g=2)], :dipole, seed=0)
 
     # Reference scalar biquadratic without renormalization
     set_exchange!(sys1, 0, Bond(1, 1, [1,0,0]); biquad=1)

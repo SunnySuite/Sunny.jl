@@ -34,16 +34,17 @@ view_crystal(cryst; dims=2)
 
 # Construct a spin system with nearest-neighbor ferromagnetic interactions.
 
-sys = System(cryst, (1,1,1), [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole)
 J = -1.0
 set_exchange!(sys, J, Bond(2, 3, [0, 0, 0]))
 
-# Energy minimization yields the expected ferromagnetic order.
+# Energy minimization yields the expected ferromagnetic order. Each site
+# participates in 4 bonds, which contributes energy 4J/2.
 
 randomize_spins!(sys)
 minimize_energy!(sys)
 energy_per_site(sys)
-@assert energy_per_site(sys) ≈ 2J
+@assert energy_per_site(sys) ≈ 4J/2
 plot_spins(sys; dims=2)
 
 # Calculate and plot intensities for a path through ``𝐪``-space.

@@ -100,7 +100,10 @@ Base.@deprecate set_spiral_order!(sys; q=nothing, k=nothing, axis, S0) let
     error("Use repeat_periodically_as_spiral(...) instead of set_spiral_order!(...)")
 end
 
-
+Base.@deprecate System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol; seed=nothing, units=nothing) let
+    @warn "Deprecation warning! `latsize` is now a keyword argument, e.g., System(...; latsize=(1, 1, 1))"
+    return System(crystal, infos, mode; latsize, seed, units)
+end
 
 # REMEMBER TO ALSO DELETE:
 #

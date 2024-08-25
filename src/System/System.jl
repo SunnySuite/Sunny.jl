@@ -1,10 +1,11 @@
 """
-    System(crystal::Crystal, latsize, infos, mode; seed::Int)
+    System(crystal::Crystal, infos, mode; latsize=(1, 1, 1), seed=nothing)
 
-Construct a `System` of spins for a given [`Crystal`](@ref) symmetry. The
-`latsize` parameter determines the number of unit cells in each lattice vector
-direction. The `infos` parameter is a list of [`SpinInfo`](@ref) objects, one
-for each symmetry-inequivalent sublattice.
+A spin system is constructed from the [`Crystal`](@ref) unit cell, a
+specification of the [`SpinInfo`](@ref) for each symmetry-distinct site, and a
+calculation `mode`. Interactions can be added to the system using, e.g.,
+[`set_exchange!`](@ref). The default lattice size is one chemical cell in each
+direction, but this can be changed with `latsize`.
 
 The two primary options for `mode` are `:SUN` and `:dipole`. In the former, each
 spin-``S`` degree of freedom is described as an SU(_N_) coherent state, i.e. a
@@ -18,13 +19,13 @@ be renormalized to improve accuracy. To disable this renormalization, use the
 mode `:dipole_large_S` which applies the ``S → ∞`` classical limit. For details,
 see the documentation page: [Interaction Strength Renormalization](@ref).
 
-An optional `seed` may be provided to achieve reproducible random number
-generation.
+An integer `seed` for the random number generator can optionally be specified to
+enable reproducible calculations.
 
 All spins are initially polarized in the global ``z``-direction.
 """
-function System(crystal::Crystal, latsize::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol;
-                seed=nothing, units=nothing)
+function System(crystal::Crystal, infos::Vector{SpinInfo}, mode::Symbol;
+                latsize::NTuple{3,Int}=(1, 1, 1), seed::Union{Int,Nothing}=nothing, units=nothing)
     if !isnothing(units)
         @warn "units argument to System is deprecated and will be ignored!"
     end

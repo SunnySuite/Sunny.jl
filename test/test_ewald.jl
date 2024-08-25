@@ -18,13 +18,13 @@
     positions = [[0,0,0]]
     cryst = Crystal(latvecs, positions)
     infos = [SpinInfo(1, S=1, g=1)]
-    sys = System(cryst, (1,1,1), infos, :dipole)
+    sys = System(cryst, infos, :dipole)
     enable_dipole_dipole!(sys, 1.0)
     @test ewalder_energy(sys) ≈ -1/6
     @test isapprox(energy(sys), -1/6; atol=1e-13)
 
     # Same thing, with multiple unit cells
-    sys = System(cryst, (2,3,4), infos, :dipole)
+    sys = System(cryst, infos, :dipole; latsize=(2, 3, 4))
     enable_dipole_dipole!(sys, 1.0)
     @test isapprox(energy_per_site(sys), -1/6; atol=1e-13)
 
@@ -38,7 +38,7 @@
         SpinInfo(2, S=3/2, g=rand(3,3)),
         SpinInfo(3, S=2, g=rand(3,3)),
     ]
-    sys = System(cryst, (1,1,1), infos, :dipole)
+    sys = System(cryst, infos, :dipole)
     enable_dipole_dipole!(sys, 1.0)
     randomize_spins!(sys)
 

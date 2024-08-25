@@ -8,7 +8,7 @@
 
     for mode = [:SUN, :dipole]
         infos = [SpinInfo(1, S=3/2, g=g1), SpinInfo(2, S=(mode == :SUN ? 3/2 : 1/2), g=g2)]
-        sys = System(cryst, (1,1,1), infos, mode)
+        sys = System(cryst, infos, mode)
 
         set_dipole!(sys, [1,3,2], (1,1,1,1))
         set_dipole!(sys, [3,4,5], (1,1,1,2))
@@ -29,7 +29,7 @@
         # g-tensor. This only works when g is homogeneous. TODO: Test with
         # inhomogeneous g-tensors.
         infos_homog = [SpinInfo(1, S=3/2, g=g1), SpinInfo(2, S=(mode == :SUN ? 3/2 : 1/2), g=g1)]
-        sys_homog = System(cryst, (1,1,1), infos_homog, mode)
+        sys_homog = System(cryst, infos_homog, mode)
 
         measure = ssf_custom((q, ssf) -> ssf, sys_homog; apply_g=false)
         swt = SpinWaveTheory(sys_homog; measure)
@@ -48,7 +48,7 @@ end
      # Create a dummy SampledCorrelations object
     latsize = (1,1,1)
     cryst = Sunny.cubic_crystal()
-    sys = System(cryst, latsize, [SpinInfo(1; S=1/2, g=2)], :SUN; seed = 0)
+    sys = System(cryst, [SpinInfo(1; S=1/2, g=2)], :SUN; latsize, seed=0)
     dt = 0.08
     sc = SampledCorrelations(sys; dt, energies=range(0.0, 10.0, 100), measure=ssf_perp(sys))
 
@@ -62,7 +62,7 @@ end
 end
 
 @testitem "Polyatomic sum rule" begin
-    sys = System(Sunny.diamond_crystal(),(4,1,1),[SpinInfo(1,S=1/2,g=2)],:SUN,seed=1)
+    sys = System(Sunny.diamond_crystal(), [SpinInfo(1, S=1/2, g=2)], :SUN; latsize=(4, 1, 1), seed=1)
     randomize_spins!(sys)
     sc = SampledCorrelations(sys; dt=0.8, energies=range(0.0, 1.0, 3), measure=ssf_trace(sys; apply_g=true))
     add_sample!(sc, sys)
