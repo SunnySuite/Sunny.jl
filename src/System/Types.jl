@@ -84,7 +84,7 @@ struct Ewald
 end
 
 mutable struct System{N}
-    const origin           :: Union{Nothing, System{N}}
+    const origin           :: Union{Nothing, System{N}} # System for the original chemical cell
     const mode             :: Symbol                    # :SUN, :dipole, or :dipole_large_S
 
     const crystal          :: Crystal

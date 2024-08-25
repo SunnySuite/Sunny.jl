@@ -58,27 +58,24 @@ function System(crystal::Crystal, infos::Vector{SpinInfo}, mode::Symbol;
         κs = copy(Ss)
     end
 
-    # Repeat such that `A[:]` → `A[cell, :]` for every `cell`
-    repeat_to_lattice(A) = permutedims(repeat(A, 1, latsize...), (2, 3, 4, 1))
-
-    Ns = repeat_to_lattice(Ns)
-    κs = repeat_to_lattice(κs)
-    gs = repeat_to_lattice(gs)
+    Ns = reshape(Ns, 1, 1, 1, :)
+    κs = reshape(κs, 1, 1, 1, :)
+    gs = reshape(gs, 1, 1, 1, :)
 
     interactions = empty_interactions(mode, na, N)
     ewald = nothing
 
-    extfield = zeros(Vec3, latsize..., na)
-    dipoles = fill(zero(Vec3), latsize..., na)
-    coherents = fill(zero(CVec{N}), latsize..., na)
+    extfield = zeros(Vec3, 1, 1, 1, na)
+    dipoles = fill(zero(Vec3), 1, 1, 1, na)
+    coherents = fill(zero(CVec{N}), 1, 1, 1, na)
     dipole_buffers = Array{Vec3, 4}[]
     coherent_buffers = Array{CVec{N}, 4}[]
     rng = isnothing(seed) ? Random.Xoshiro() : Random.Xoshiro(seed)
 
-    ret = System(nothing, mode, crystal, latsize, Ns, κs, gs, interactions, ewald,
+    ret = System(nothing, mode, crystal, (1, 1, 1), Ns, κs, gs, interactions, ewald,
                  extfield, dipoles, coherents, dipole_buffers, coherent_buffers, rng)
     polarize_spins!(ret, (0,0,1))
-    return ret
+    return latsize == (1, 1, 1) ? ret : repeat_periodically(ret, latsize)
 end
 
 function mode_to_str(sys::System{N}) where N
