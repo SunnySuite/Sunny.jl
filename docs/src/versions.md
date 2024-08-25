@@ -23,15 +23,12 @@ This **major release** introduces several breaking changes:
   `set_spiral_order_on_sublattice!` and `set_spiral_order!`.
 * New convenience functions [`powder_average`](@ref) and
   [`domain_average`](@ref), which wrap [`intensities`](@ref).
+* [`System`](@ref) now expects supercell dimensions as a `dims` keyword
+  argument. Conversely, use `ndims` in [`view_crystal`](@ref) and
+  [`plot_spins`](@ref) for the number of spatial dimensions.
 * Binning features have been removed. Some functionality may be added back in a
   future release.
-
-**Planned changes**:
-
-* Use `Moment` instead of `SpinInfo`.
-* Use [`resize_supercell`](@ref) instead of passing dimensions to
-  [`System`](@ref) constructor.
-* `SpinWaveTheoryKPM` implements a [new
+* Experimental `SpinWaveTheoryKPM` feature implements a [new
   algorithm](https://arxiv.org/abs/2312.08349) to enable intensities
   calculations at a computational cost that scales linearly in system size.
 
