@@ -15,7 +15,7 @@ function set_dipoles_from_mcif!(sys::System, filename::AbstractString)
     α = parse_cif_float(cif["_cell_angle_alpha"][1])
     β = parse_cif_float(cif["_cell_angle_beta"][1])
     γ = parse_cif_float(cif["_cell_angle_gamma"][1])
-    supervecs = sys.crystal.latvecs .* sys.latsize
+    supervecs = sys.crystal.latvecs .* sys.dims
     supervecs2 = lattice_vectors(a, b, c, α, β, γ)
 
     # TODO: Tolerance to permutations (with sign flips) of lattice vectors
@@ -83,7 +83,7 @@ end
 # vectors of the supercell. Similarly, the symmetry operations act in this
 # coordinate system.
 function set_dipoles_from_mcif_aux!(sys; positions, moments, magn_operations, magn_centerings)
-    supervecs = sys.crystal.latvecs .* sys.latsize
+    supervecs = sys.crystal.latvecs .* sys.dims
     
     # Use the zero vector as a marker for unvisited sites
     fill!(sys.dipoles, zero(Vec3))

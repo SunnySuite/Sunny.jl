@@ -15,13 +15,12 @@ using Sunny, GLMakie
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(3, 8, 8, 90, 90, 90)
 cryst = Crystal(latvecs, [[0, 0, 0]])
-view_crystal(cryst; dims=2, ghost_radius=8)
+view_crystal(cryst; ndims=2, ghost_radius=8)
 
-# Unlike in the previous tutorial, here the magnetic cell includes 2×1×1
-# chemical cells, which will support antiferromagnetic (Néel) order along the
-# chain.
+# Unlike in the previous tutorial, here the magnetic cell should include 2×1×1
+# chemical cells to support antiferromagnetic (Néel) order along the chain.
 
-sys = System(cryst, (2, 1, 1), [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; dims=(2, 1, 1))
 
 # Set a nearest neighbor interaction of ``J = +1`` meV along the chain, and find
 # the energy-minimizing Néel order. As before, a global rotation in spin-space
@@ -31,7 +30,7 @@ J = 1
 set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; dims=2, ghost_radius=8)
+plot_spins(sys; ndims=2, ghost_radius=8)
 
 # Perform a [`SpinWaveTheory`](@ref) calculation for a path between ``[0,0,0]``
 # and ``[1,0,0]`` in RLU.

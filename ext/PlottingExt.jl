@@ -135,45 +135,45 @@ end
 set_alpha(c, alpha) = Makie.coloralpha(c, alpha)
 
 
-function cell_center(dims)
-    if dims == 3
+function cell_center(ndims)
+    if ndims == 3
         return [1, 1, 1] / 2
-    elseif dims == 2
+    elseif ndims == 2
         return [1, 1, 0] / 2
     else
-        error("Unsupported `dims=$dims`.")
+        error("Unsupported `ndims=$ndims`.")
     end
 end
 
-function cell_diameter(latvecs, dims)
+function cell_diameter(latvecs, ndims)
     (a1, a2, a3) = eachcol(latvecs)
-    if dims == 3
+    if ndims == 3
         return max(norm(a1+a2+a3), norm(a1+a2-a3), norm(a1-a2+a3), norm(a1-a2-a3))
-    elseif dims == 2
+    elseif ndims == 2
         return max(norm(a1+a2), norm(a1-a2))
     else
-        error("Unsupported `dims=$dims`.")
+        error("Unsupported `ndims=$ndims`.")
     end
 end
 
 
-function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, dims)
+function orient_camera!(ax, latvecs; ghost_radius, ℓ0, orthographic, ndims)
     a1, a2, a3 = eachcol(latvecs)
 
-    if dims == 3
+    if ndims == 3
         lookat = (a1 + a2 + a3)/2
         camshiftdir = normalize(a1 + a2)
         upvector = normalize(a1 × a2)
-    elseif dims == 2
+    elseif ndims == 2
         lookat = (a1 + a2) / 2
         camshiftdir = -normalize(a1 × a2)
         upvector = normalize((a1 × a2) × a1)
     else
-        error("Unsupported dimension: $dims")
+        error("Unsupported dimension: $ndims")
     end
 
     # The extra shift ℓ0 is approximately the nearest-neighbor distance
-    camdist = max(cell_diameter(latvecs, dims)/2 + 0.8ℓ0, ghost_radius)
+    camdist = max(cell_diameter(latvecs, ndims)/2 + 0.8ℓ0, ghost_radius)
     if orthographic
         eyeposition = lookat - camdist * camshiftdir
         projectiontype = Makie.Orthographic
@@ -233,13 +233,13 @@ function add_cartesian_compass(fig, lscene; left=0, right=150, bottom=0, top=150
     return axcompass
 end
 
-function cell_wireframe(latvecs, dims)
+function cell_wireframe(latvecs, ndims)
     vecs = Makie.Point3f0.(eachcol(latvecs))
     ret = Tuple{Makie.Point3f0, Makie.Point3f0}[]
 
     origin = zero(Makie.Point3f0)
 
-    if dims == 3
+    if ndims == 3
         for j in 0:1, k in 0:1
             shift = j*vecs[2]+k*vecs[3]
             push!(ret, (origin+shift, vecs[1]+shift))
@@ -252,7 +252,7 @@ function cell_wireframe(latvecs, dims)
             shift = i*vecs[1]+j*vecs[2]
             push!(ret, (origin+shift, vecs[3]+shift))
         end
-    elseif dims == 2
+    elseif ndims == 2
         for j in 0:1
             shift = j*vecs[2]
             push!(ret, (origin+shift, vecs[1]+shift))
@@ -294,11 +294,11 @@ function characteristic_length_between_atoms(cryst::Crystal)
 end
 
 # Like `reference_bonds` but supply a number of bonds
-function reference_bonds_upto(cryst, nbonds, dims)
+function reference_bonds_upto(cryst, nbonds, ndims)
     # Calculate heuristic maximum distance
     min_a = minimum(norm.(eachcol(cryst.latvecs)))
     nclasses = length(unique(cryst.classes))
-    max_dist = 2 * min_a * (nbonds / (nclasses*natoms(cryst)))^(1/dims)
+    max_dist = 2 * min_a * (nbonds / (nclasses*natoms(cryst)))^(1/ndims)
 
     # Find bonds up to distance, without self-bonds
     refbonds = filter(reference_bonds(cryst, max_dist)) do b
@@ -561,7 +561,7 @@ function label_atoms(cryst; ismagnetic)
     end
 end
 
-function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sys, class_colors, ionradius, dims, ghost_radius)
+function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sys, class_colors, ionradius, ndims, ghost_radius)
     selection = isnothing(dipole_menu) ? Makie.Observable("No dipoles") : dipole_menu.selection
     show_spin_dipoles = Makie.lift(==("Spin dipoles"), selection)
     show_magn_dipoles = Makie.lift(==("Magnetic dipoles"), selection)
@@ -581,7 +581,7 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
 
         for isghost in (false, true)
             if isghost
-                (idxs, offsets) = Sunny.all_offsets_within_distance(xtal.latvecs, xtal.positions, cell_center(dims); max_dist=ghost_radius, nonzeropart=true)
+                (idxs, offsets) = Sunny.all_offsets_within_distance(xtal.latvecs, xtal.positions, cell_center(ndims); max_dist=ghost_radius, nonzeropart=true)
                 alpha = 0.08
             else
                 idxs = eachindex(xtal.positions)
@@ -662,7 +662,7 @@ function Sunny.view_crystal(cryst::Crystal, max_dist::Number)
 end
 
 """
-    view_crystal(crystal::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true)
+    view_crystal(crystal::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, ndims=3, compass=true)
     view_crystal(sys::System; ...)
 
 Launches a graphical user interface to visualize the [`Crystal`](@ref) unit
@@ -675,20 +675,22 @@ bond will be depicted graphically.
  - `orthographic`: Use orthographic camera perspective.
  - `ghost_radius`: Show periodic images up to a given distance. Defaults to the
    cell size.
- - `dims`: Spatial dimensions of system (1, 2, or 3).
+ - `ndims`: Spatial dimensions of system (1, 2, or 3).
  - `compass`: If true, draw Cartesian axes in bottom left.
 """
-function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
-    view_crystal_aux(cryst, nothing; refbonds, orthographic, ghost_radius, dims, compass, size)
+function Sunny.view_crystal(cryst::Crystal; refbonds=10, orthographic=false, ghost_radius=nothing, ndims=3, compass=true, size=(768, 512), dims=nothing)
+    isnothing(dims) || error("Use notation `ndims=$dims` instead of `dims=$dims`")
+    view_crystal_aux(cryst, nothing; refbonds, orthographic, ghost_radius, ndims, compass, size)
 end
 
-function Sunny.view_crystal(sys::System; refbonds=8, orthographic=false, ghost_radius=nothing, dims=3, compass=true, size=(768, 512))
+function Sunny.view_crystal(sys::System; refbonds=8, orthographic=false, ghost_radius=nothing, ndims=3, compass=true, size=(768, 512), dims=nothing)
+    isnothing(dims) || error("Use notation `ndims=$dims` instead of `dims=$dims`")
     Sunny.is_homogeneous(sys) || error("Cannot plot interactions for inhomogeneous system.")
     view_crystal_aux(orig_crystal(sys), sys;
-                     refbonds, orthographic, ghost_radius, dims, compass, size)
+                     refbonds, orthographic, ghost_radius, ndims, compass, size)
 end
 
-function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, dims, compass, size)
+function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, ndims, compass, size)
     warn_wglmakie()
 
     interactions = isnothing(sys) ? nothing : Sunny.interactions_homog(something(sys.origin, sys))
@@ -698,14 +700,14 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, dims
 
     # Distance to show periodic images
     if isnothing(ghost_radius)
-        ghost_radius = cell_diameter(cryst.latvecs, dims)/2
+        ghost_radius = cell_diameter(cryst.latvecs, ndims)/2
     end
 
     # Use provided reference bonds or find from symmetry analysis
     if refbonds isa Number
         @assert isinteger(refbonds)
         custombonds = false
-        refbonds = reference_bonds_upto(cryst, Int(refbonds), dims)
+        refbonds = reference_bonds_upto(cryst, Int(refbonds), ndims)
     elseif refbonds isa AbstractArray{Bond}
         custombonds = true
     else
@@ -749,7 +751,7 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, dims
         orthographic = mselect == "Orthographic"
         # Zoom out a little bit extra according to nn bond distance
         ℓ0=minimum(refbonds_dists)
-        orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, dims, ℓ0)
+        orient_camera!(ax, cryst.latvecs; ghost_radius, orthographic, ndims, ℓ0)
         compass && register_compass_callbacks(axcompass, ax)
     end
     widget_list[widget_cnt+=1, 1] = Makie.hgrid!(menu, button)
@@ -776,7 +778,7 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, dims
     else
         full_crystal_toggle = nothing
     end
-    draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sys, class_colors, ionradius, dims, ghost_radius)
+    draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sys, class_colors, ionradius, ndims, ghost_radius)
 
     exchange_mag = isnothing(interactions) ? 0.0 : exchange_magnitude(interactions)
 
@@ -803,9 +805,9 @@ function view_crystal_aux(cryst, sys; refbonds, orthographic, ghost_radius, dims
     end
 
     # Show cell volume
-    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, dims); color=:teal, linewidth=1.5, inspectable=false)
-    pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(cryst.latvecs)[1:dims]]
-    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
+    Makie.linesegments!(ax, cell_wireframe(cryst.latvecs, ndims); color=:teal, linewidth=1.5, inspectable=false)
+    pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(cryst.latvecs)[1:ndims]]
+    text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:ndims]
     Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
                 glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
 
@@ -834,7 +836,7 @@ Makie.record(func, nf::NotifiableFigure, path, iter; kwargs...) = Makie.record(f
 """
     plot_spins(sys::System; arrowscale=1.0, color=:red, colorfn=nothing,
                colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
-               ghost_radius=0, dims=3, compass=true)
+               ghost_radius=0, ndims=3, compass=true)
 
 Plot the spin configuration defined by `sys`. Optional parameters are:
 
@@ -848,7 +850,7 @@ Plot the spin configuration defined by `sys`. Optional parameters are:
   - `show_cell`: Show original crystallographic unit cell.
   - `orthographic`: Use orthographic camera perspective.
   - `ghost_radius`: Show periodic images up to a given distance (length units).
-  - `dims`: Spatial dimensions of system (1, 2, or 3).
+  - `ndims`: Spatial dimensions of system (1, 2, or 3).
   - `compass`: If true, draw Cartesian axes in bottom left.
 
 Calling `notify` on the return value will animate the figure.
@@ -879,19 +881,20 @@ display(fig)
 """
 function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), arrowscale=1.0, stemcolor=:lightgray, color=:red,
                      colorfn=nothing, colormap=:viridis, colorrange=nothing, show_cell=true, orthographic=false,
-                     ghost_radius=0, dims=3)
+                     ghost_radius=0, ndims=3, dims=nothing)
+    isnothing(dims) || error("Use notation `ndims=$dims` instead of `dims=$dims`")
     warn_wglmakie()
     
-    if dims == 2
-        sys.latsize[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
-    elseif dims == 1
-        sys.latsize[[2,3]] == [1,1] || error("System not one-dimensional in (a₁)")
+    if ndims == 2
+        sys.dims[3] == 1 || error("System not two-dimensional in (a₁, a₂)")
+    elseif ndims == 1
+        sys.dims[[2,3]] == [1,1] || error("System not one-dimensional in (a₁)")
     end
 
     # Show bounding box of magnetic supercell in gray (this needs to come first
     # to set a scale for the scene in case there is only one atom).
-    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
-    Makie.linesegments!(ax, cell_wireframe(supervecs, dims); color=:gray, linewidth=1.5)
+    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.dims))
+    Makie.linesegments!(ax, cell_wireframe(supervecs, ndims); color=:gray, linewidth=1.5)
 
     # Infer characteristic length scale between sites
     ℓ0 = characteristic_length_between_atoms(orig_crystal(sys))
@@ -914,7 +917,7 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
     for isghost in (false, true)
         if isghost
             alpha = 0.08
-            (idxs, offsets) = Sunny.all_offsets_within_distance(supervecs, rs, cell_center(dims); max_dist=ghost_radius, nonzeropart=true)
+            (idxs, offsets) = Sunny.all_offsets_within_distance(supervecs, rs, cell_center(ndims); max_dist=ghost_radius, nonzeropart=true)
         else
             alpha = 1.0
             idxs = eachindex(rs)
@@ -986,14 +989,14 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
 
     # Bounding box of original crystal unit cell in teal
     if show_cell
-        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs, dims); color=:teal, linewidth=1.5)
-        pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(orig_crystal(sys).latvecs)[1:dims]]
-        text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:dims]
+        Makie.linesegments!(ax, cell_wireframe(orig_crystal(sys).latvecs, ndims); color=:teal, linewidth=1.5)
+        pos = [(3/4)*Makie.Point3f0(p) for p in eachcol(orig_crystal(sys).latvecs)[1:ndims]]
+        text = [Makie.rich("a", Makie.subscript(repr(i))) for i in 1:ndims]
         Makie.text!(ax, pos; text, color=:black, fontsize=20, font=:bold, glowwidth=4.0,
                     glowcolor=(:white, 0.6), align=(:center, :center), depth_shift=-1f0)
     end
 
-    orient_camera!(ax, supervecs; ghost_radius, ℓ0, orthographic, dims)
+    orient_camera!(ax, supervecs; ghost_radius, ℓ0, orthographic, ndims)
 
     return ax
 end

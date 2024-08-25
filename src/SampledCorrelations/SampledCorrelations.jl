@@ -1,6 +1,6 @@
 mutable struct SampledCorrelations
     # 𝒮^{αβ}(q,ω) data and metadata
-    const data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × latsize × nω)
+    const data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × sys_dims × nω)
     const M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
     const crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
     const origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
@@ -13,8 +13,8 @@ mutable struct SampledCorrelations
     nsamples           :: Int64                                  # Number of accumulated samples (single number saved as array for mutability)
 
     # Buffers and precomputed data 
-    const samplebuf    :: Array{ComplexF64, 6}                   # Buffer for observables (nobservables × latsize × natoms × nsnapshots)
-    const corrbuf      :: Array{ComplexF64, 4}                   # Buffer for correlations (latsize × nω)
+    const samplebuf    :: Array{ComplexF64, 6}                   # Buffer for observables (nobservables × sys_dims × natoms × nsnapshots)
+    const corrbuf      :: Array{ComplexF64, 4}                   # Buffer for correlations (sys_dims × nω)
     const space_fft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned lattice FFT for samplebuf
     const time_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for samplebuf
     const corr_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for corrbuf 
@@ -22,7 +22,7 @@ mutable struct SampledCorrelations
 end
 
 function Base.getproperty(sc::SampledCorrelations, sym::Symbol)
-    return sym == :latsize ? size(sc.samplebuf)[2:4] : getfield(sc, sym)
+    return sym == :sys_dims ? size(sc.samplebuf)[2:4] : getfield(sc, sym)
 end
 
 function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
@@ -149,20 +149,20 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     # The sample buffer holds n_non_neg_ω measurements, and the rest is a zero buffer
     measure = isnothing(measure) ? ssf_trace(sys) : measure
     num_observables(measure)
-    samplebuf = zeros(ComplexF64, num_observables(measure), sys.latsize..., na, n_all_ω)
-    corrbuf = zeros(ComplexF64, sys.latsize..., n_all_ω)
+    samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., na, n_all_ω)
+    corrbuf = zeros(ComplexF64, sys.dims..., n_all_ω)
 
     # The output data has n_all_ω many (positive and negative and zero) frequencies
-    data = zeros(ComplexF64, num_correlations(measure), na, na, sys.latsize..., n_all_ω)
+    data = zeros(ComplexF64, num_correlations(measure), na, na, sys.dims..., n_all_ω)
     M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
-    # The normalization is defined so that the prod(sys.latsize)-many estimates
-    # of the structure factor produced by the correlation conj(space_fft!) * space_fft!
-    # are correctly averaged over. The corresponding time-average can't be applied in
-    # the same way because the number of estimates varies with Δt. These conventions
-    # ensure consistency with this spec:
+    # The normalization is defined so that the prod(sys.dims)-many estimates of
+    # the structure factor produced by the correlation conj(space_fft!) *
+    # space_fft! are correctly averaged over. The corresponding time-average
+    # can't be applied in the same way because the number of estimates varies
+    # with Δt. These conventions ensure consistency with this spec:
     # https://sunnysuite.github.io/Sunny.jl/dev/structure-factor.html
-    space_fft! = 1/√prod(sys.latsize) * FFTW.plan_fft!(samplebuf, (2,3,4))
+    space_fft! = 1/√prod(sys.dims) * FFTW.plan_fft!(samplebuf, (2,3,4))
     time_fft!  = FFTW.plan_fft!(samplebuf, 6)
     corr_fft!  = FFTW.plan_fft!(corrbuf, 4)
     corr_ifft! = FFTW.plan_ifft!(corrbuf, 4)
@@ -211,22 +211,22 @@ end
 
 
 function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
-    (; crystal, latsize, nsamples) = sc
+    (; crystal, sys_dims, nsamples) = sc
     printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
     println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
     print(io,"[")
     printstyled(io,"S(q,ω)"; bold=true)
     print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io,"Lattice: $latsize × $(natoms(crystal))")
+    println(io, supercell_to_str(sys_dims, crystal))
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelationsStatic)
-    (; crystal, latsize, nsamples) = sc.parent
+    (; crystal, sys_dims, nsamples) = sc.parent
     printstyled(io, "SampledCorrelationsStatic"; bold=true, color=:underline)
     println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
     print(io,"[")
     printstyled(io,"S(q)"; bold=true)
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io,"Lattice: $latsize × $(natoms(crystal))")
+    println(io, supercell_to_str(sys_dims, crystal))
 end

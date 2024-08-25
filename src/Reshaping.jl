@@ -5,7 +5,13 @@
 Maps an existing [`System`](@ref) to a new one that has the shape and
 periodicity of a requested supercell. The columns of the ``3×3`` integer matrix
 `shape` represent the supercell lattice vectors measured in units of the
-original crystal lattice vectors.
+original crystal lattice vectors. Interactions, spins, and other settings will
+be inherited from `sys`.
+
+In the special case that `shape` is a diagonal matrix, this function coincides
+with [`resize_supercell`](@ref).
+
+See also [`repeat_periodically`](@ref).
 """
 function reshape_supercell(sys::System, shape)
     is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
@@ -19,11 +25,11 @@ function reshape_supercell(sys::System, shape)
     @assert prim_shape′ ≈ prim_shape
 
     # Unit cell for new system, in units of original unit cell.
-    new_latsize = NTuple{3, Int}(gcd.(eachcol(prim_shape′)))
-    new_shape = Mat3(shape * diagm(collect(inv.(new_latsize))))
+    new_dims = NTuple{3, Int}(gcd.(eachcol(prim_shape′)))
+    new_shape = Mat3(shape * diagm(collect(inv.(new_dims))))
     new_cryst = reshape_crystal(orig_crystal(sys), new_shape)
 
-    return reshape_supercell_aux(sys, new_cryst, new_latsize)
+    return reshape_supercell_aux(sys, new_cryst, new_dims)
 end
 
 
@@ -60,17 +66,17 @@ function transfer_interactions!(sys::System, src::System)
 end
 
 
-function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_latsize::NTuple{3, Int}) where N
+function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_dims::NTuple{3, Int}) where N
     # Allocate data for new system, but with an empty list of interactions
     new_na               = natoms(new_cryst)
-    new_Ns               = zeros(Int, new_latsize..., new_na)
-    new_κs               = zeros(Float64, new_latsize..., new_na)
-    new_gs               = zeros(Mat3, new_latsize..., new_na)
+    new_Ns               = zeros(Int, new_dims..., new_na)
+    new_κs               = zeros(Float64, new_dims..., new_na)
+    new_gs               = zeros(Mat3, new_dims..., new_na)
     new_ints             = empty_interactions(sys.mode, new_na, N)
     new_ewald            = nothing
-    new_extfield         = zeros(Vec3, new_latsize..., new_na)
-    new_dipoles          = zeros(Vec3, new_latsize..., new_na)
-    new_coherents        = zeros(CVec{N}, new_latsize..., new_na)
+    new_extfield         = zeros(Vec3, new_dims..., new_na)
+    new_dipoles          = zeros(Vec3, new_dims..., new_na)
+    new_coherents        = zeros(CVec{N}, new_dims..., new_na)
     new_dipole_buffers   = Array{Vec3, 4}[]
     new_coherent_buffers = Array{CVec{N}, 4}[]
 
@@ -78,7 +84,7 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_latsize::
     # new_sys.origin === sys.origin
     orig_sys = @something sys.origin sys
 
-    new_sys = System(orig_sys, sys.mode, new_cryst, new_latsize, new_Ns, new_κs, new_gs, new_ints, new_ewald,
+    new_sys = System(orig_sys, sys.mode, new_cryst, new_dims, new_Ns, new_κs, new_gs, new_ints, new_ewald,
         new_extfield, new_dipoles, new_coherents, new_dipole_buffers, new_coherent_buffers, copy(sys.rng))
 
     # Transfer interactions. In the case of an inhomogeneous system, the
@@ -98,7 +104,7 @@ function reshape_supercell_aux(sys::System{N}, new_cryst::Crystal, new_latsize::
     end
 
     # Restore dipole-dipole interactions if present. This involves pre-computing
-    # an interaction matrix that depends on `new_latsize`.
+    # an interaction matrix that depends on `new_dims`.
     if !isnothing(sys.ewald)
         enable_dipole_dipole!(new_sys, sys.ewald.μ0_μB²)
     end
@@ -114,43 +120,46 @@ function cell_shape(sys)
 end
 
 """
-    resize_supercell(sys::System, latsize::NTuple{3, Int})
+    resize_supercell(sys::System, dims::NTuple{3, Int})
 
 Creates a [`System`](@ref) with a given number of conventional unit cells in
-each lattice vector direction. Interactions and other settings will be inherited
-from `sys`.
+each lattice vector direction. Interactions, spins, and other settings will be
+inherited from `sys`.
 
-Convenience function for:
+Equivalent to:
+
 ```julia
-reshape_supercell(sys, [latsize[1] 0 0; 0 latsize[2] 0; 0 0 latsize[3]])
+reshape_supercell(sys, [dims[1] 0 0; 0 dims[2] 0; 0 0 dims[3]])
 ```
 
-See also [`reshape_supercell`](@ref).
+See also [`reshape_supercell`](@ref) and [`repeat_periodically`](@ref).
 """
-function resize_supercell(sys::System, latsize::NTuple{3,Int})
-    return reshape_supercell(sys, diagm(collect(latsize)))
+function resize_supercell(sys::System, dims::NTuple{3,Int})
+    return reshape_supercell(sys, diagm(Vec3(dims)))
 end
 
 """
     repeat_periodically(sys::System, counts::NTuple{3, Int})
 
 Creates a [`System`](@ref) identical to `sys` but repeated a given number of
-times in each dimension, specified by the tuple `counts`.
+times along each system axis according to the specified `counts`. This is a
+special case of the more general [`reshape_supercell`](@ref).
 
-See also [`reshape_supercell`](@ref) and [`repeat_periodically_as_spiral`](@ref).
+See also [`repeat_periodically_as_spiral`](@ref), which rotates the spins
+between periodic copies.
 """
 function repeat_periodically(sys::System, counts::NTuple{3,Int})
     all(>=(1), counts) || error("Require at least one count in each direction.")
-    return reshape_supercell_aux(sys, sys.crystal, counts .* sys.latsize)
+    return reshape_supercell_aux(sys, sys.crystal, counts .* sys.dims)
 end
 
 """
     repeat_periodically_as_spiral(sys::System, counts::NTuple{3, Int}; k, axis)
 
-Repeats the magnetic cell of [`System`](@ref) a number of times in each
-dimension according to the specified `counts`. Spins in each system image will
-be rotated according to the propagation wavevector `k` (in RLU), and the
-rotation `axis` (in global Cartesian coordinates). The behavior coincides with
+Repeats the magnetic cell of [`System`](@ref) a number of times along each
+system axis according to the specified `counts`. Spins in each system image will
+be rotated according to the propagation wavevector `k` (in RLU) and the rotation
+`axis` (in global Cartesian coordinates). Coincides with
 [`repeat_periodically`](@ref) in the special case of `k = [0, 0, 0]`
 
 See also [`spiral_minimize_energy!`](@ref) to find an energy-minimizing
@@ -169,13 +178,13 @@ function repeat_periodically_as_spiral(sys::System, counts::NTuple{3,Int}; k, ax
     k_global = orig_crystal(sys).recipvecs * k
 
     # Lattice vectors for sys, the magnetic cell 
-    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.latsize))
+    supervecs = sys.crystal.latvecs * diagm(Vec3(sys.dims))
 
     # Original positions units of supervecs (components between 0 and 1)
     rs = [supervecs \ global_position(sys, site) for site in eachsite(sys)]
 
     # Tighted symprec suitable for scaled positions
-    symprec = sys.crystal.symprec / minimum(sys.latsize)
+    symprec = sys.crystal.symprec / minimum(sys.dims)
 
     # Copy per-site quantities
     for new_site in eachsite(new_sys)

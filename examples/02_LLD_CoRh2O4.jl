@@ -20,20 +20,19 @@ a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
 
-sys = System(cryst, (1,1,1), [SpinInfo(1; S=3/2, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1; S=3/2, g=2)], :dipole)
 J = 0.63 # (meV)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
 plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
-# Use [`resize_supercell`](@ref) to build a new system with a lattice of
-# 10×10×10 chemical unit cells. The ground state Néel order is retained.
-# Increasing the system size further would reduce finite-size artifacts, and
-# would increase momentum-space resolution, but would make the simulations
-# slower.
+# Use [`repeat_periodically`](@ref) to extend the system to 10×10×10 chemical
+# unit cells. The ground state Néel order is retained. Increasing the system
+# size further would reduce finite-size artifacts and increase momentum-space
+# resolution, but would also make the simulations slower.
 
-sys = resize_supercell(sys, (10, 10, 10))
+sys = repeat_periodically(sys, (10, 10, 10))
 plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 # ### Langevin dynamics for sampling

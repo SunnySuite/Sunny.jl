@@ -27,7 +27,7 @@ cryst = Crystal(latvecs, positions)
 # 0]` indicates that the bond includes a displacement of ``1 𝐚_1 + 0 𝐚_2 + 0
 # 𝐚_3`` between chemical cells.
 
-view_crystal(cryst; dims=2, ghost_radius=8)
+view_crystal(cryst; ndims=2, ghost_radius=8)
 
 # Sunny will always perform symmetry analysis based on the provided
 # crystallographic information. For example, one can see that there are three
@@ -42,7 +42,7 @@ print_symmetry_table(cryst, 8)
 # traditional spin wave theory, we are modeling quantum spins using only their
 # expected dipole moments.
 
-sys = System(cryst, (1, 1, 1), [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole)
 
 # Set a nearest neighbor exchange interaction of ``J = -1`` meV between
 # neighboring atoms. That is, the total energy along each bond is ``J S_i
@@ -62,7 +62,7 @@ energy_per_site(sys)
 # Because the interaction is Heisenberg (isotropic), the minimization procedure
 # selects an arbitrary direction in spin-space.
 
-plot_spins(sys; dims=2, ghost_radius=8)
+plot_spins(sys; ndims=2, ghost_radius=8)
 
 # Build a [`SpinWaveTheory`](@ref) object to measure the dynamical spin-spin
 # structure factor (SSF). Select [`ssf_perp`](@ref) to project intensities onto

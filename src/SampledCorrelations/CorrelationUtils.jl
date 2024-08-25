@@ -5,7 +5,7 @@ Returns all wave vectors for which `sc` contains exact values. `bsize` specifies
 the number of Brillouin zones to be included.
 """
 function available_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
-    Ls = sc.latsize
+    Ls = sc.sys_dims
     offsets = map(L -> isodd(L) ? 1 : 0, Ls)
     up = Ls .* bzsize
     hi = map(L -> L - div(L, 2), up) .- offsets

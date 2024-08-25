@@ -52,7 +52,7 @@ function to_inhomogeneous(sys::System{N}) where N
 
     ret = clone_system(sys)
     na = natoms(ret.crystal)
-    ret.interactions_union = Array{Interactions}(undef, ret.latsize..., na)
+    ret.interactions_union = Array{Interactions}(undef, ret.dims..., na)
     for i in 1:natoms(ret.crystal)
         for cell in eachcell(ret)
             ret.interactions_union[cell, i] = clone_interactions(ints[i])
@@ -157,7 +157,7 @@ end
 
 function local_energy_change(sys::System{N}, site, state::SpinState) where N
     (; s, Z) = state
-    (; latsize, extfield, dipoles, coherents, ewald) = sys
+    (; dims, extfield, dipoles, coherents, ewald) = sys
 
     if is_homogeneous(sys)
         (; onsite, pair) = interactions_homog(sys)[to_atom(site)]
@@ -186,7 +186,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
 
     # Pair coupling
     for pc in pair
-        cellⱼ = offsetc(to_cell(site), pc.bond.n, latsize)
+        cellⱼ = offsetc(to_cell(site), pc.bond.n, dims)
         sⱼ = dipoles[cellⱼ, pc.bond.j]
         Zⱼ = coherents[cellⱼ, pc.bond.j]
 
@@ -297,7 +297,7 @@ function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
         isculled && break
 
         for cellᵢ in cells
-            cellⱼ = offsetc(cellᵢ, bond.n, sys.latsize)
+            cellⱼ = offsetc(cellᵢ, bond.n, sys.dims)
             sᵢ = sys.dipoles[cellᵢ, bond.i]
             sⱼ = sys.dipoles[cellⱼ, bond.j]
 
@@ -400,7 +400,7 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
         isculled && break
 
         for cellᵢ in cells
-            cellⱼ = offsetc(cellᵢ, bond.n, sys.latsize)
+            cellⱼ = offsetc(cellᵢ, bond.n, sys.dims)
             sᵢ = dipoles[cellᵢ, bond.i]
             sⱼ = dipoles[cellⱼ, bond.j]
 
@@ -481,7 +481,7 @@ function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_ds::Array{V
 
         if !iszero(pc.biquad)
             for cellᵢ in cells
-                cellⱼ = offsetc(cellᵢ, bond.n, sys.latsize)
+                cellⱼ = offsetc(cellᵢ, bond.n, sys.dims)
                 Zᵢ = Z[cellᵢ, bond.i]
                 Zⱼ = Z[cellⱼ, bond.j]
                 Qᵢ = expected_quadrupole(Zᵢ)
@@ -504,7 +504,7 @@ function set_energy_grad_coherents_aux!(HZ, Z::Array{CVec{N}, 4}, dE_ds::Array{V
             A = SMatrix{N, N}(A)
             B = SMatrix{N, N}(B)
             for cellᵢ in cells
-                cellⱼ = offsetc(cellᵢ, bond.n, sys.latsize)
+                cellⱼ = offsetc(cellᵢ, bond.n, sys.dims)
                 Zᵢ = Z[cellᵢ, bond.i]
                 Zⱼ = Z[cellⱼ, bond.j]
                 Ā = real(dot(Zᵢ, A, Zᵢ))

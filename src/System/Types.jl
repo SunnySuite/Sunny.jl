@@ -84,14 +84,14 @@ struct Ewald
 end
 
 mutable struct System{N}
-    const origin           :: Union{Nothing, System{N}}
+    const origin           :: Union{Nothing, System{N}} # System for the original chemical cell
     const mode             :: Symbol                    # :SUN, :dipole, or :dipole_large_S
 
     const crystal          :: Crystal
-    const latsize          :: NTuple{3, Int}            # Size of lattice in unit cells
+    const dims             :: NTuple{3, Int}            # Dimensions of lattice in unit cells
 
     # To facilitate handling of inhomogeneous systems, these are stored for
-    # every cell in the system (latsize × natoms)
+    # every cell in the system (dims × natoms)
     const Ns               :: Array{Int, 4}             # S=(N-1)/2 per atom in unit cell
     const κs               :: Array{Float64, 4}         # Sets either |Z| = √κ or |s| = κ
     const gs               :: Array{Mat3, 4}            # g-tensor per atom in unit cell
@@ -103,7 +103,7 @@ mutable struct System{N}
     # Optional long-range dipole-dipole interactions
     ewald                  :: Union{Ewald, Nothing}
 
-    # Dynamical variables and buffers (latsize × natoms)
+    # Dynamical variables and buffers (dims × natoms)
     const extfield         :: Array{Vec3, 4}            # External B field
     const dipoles          :: Array{Vec3, 4}            # Expected dipoles
     const coherents        :: Array{CVec{N}, 4}         # Coherent states
