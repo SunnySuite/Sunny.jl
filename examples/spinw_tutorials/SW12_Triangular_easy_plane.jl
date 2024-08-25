@@ -38,7 +38,7 @@ D = 0.2 * undo_classical_to_quantum_rescaling
 set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; dims=2)
+plot_spins(sys; ndims=2)
 
 # Plot the spin wave spectrum for a path through ``𝐪``-space.
 

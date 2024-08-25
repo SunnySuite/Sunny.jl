@@ -15,7 +15,7 @@ using Sunny, GLMakie
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(6, 6, 8, 90, 90, 120)
 cryst = Crystal(latvecs, [[1/2, 0, 0]], 147)
-view_crystal(cryst; dims=2)
+view_crystal(cryst; ndims=2)
 
 # Construct a spin system with nearest and next-nearest neighbor
 # antiferromagnetic interactions. Energy minimization determines a ``𝐤 = 0``
@@ -29,7 +29,7 @@ set_exchange!(sys, J1, Bond(2, 3, [0, 0, 0]))
 set_exchange!(sys, J2, Bond(2, 1, [0, 0, 0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; dims=2)
+plot_spins(sys; ndims=2)
 
 # Calculate and plot intensities for a path through ``𝐪``-space.
 

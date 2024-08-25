@@ -30,7 +30,7 @@ cryst2 = Crystal(latvecs, positions)
 
 # View the kagome lattice
 
-view_crystal(cryst; dims=2)
+view_crystal(cryst; ndims=2)
 
 # Construct a spin system with nearest-neighbor ferromagnetic interactions.
 
@@ -45,7 +45,7 @@ randomize_spins!(sys)
 minimize_energy!(sys)
 energy_per_site(sys)
 @assert energy_per_site(sys) ≈ 4J/2
-plot_spins(sys; dims=2)
+plot_spins(sys; ndims=2)
 
 # Calculate and plot intensities for a path through ``𝐪``-space.
 

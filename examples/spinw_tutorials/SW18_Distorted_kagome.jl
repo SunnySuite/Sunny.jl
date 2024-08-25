@@ -47,7 +47,7 @@ set_exchange!(sys, Jip, Bond(3, 4, [0, 0, 1]))
 axis = [0, 0, 1]
 randomize_spins!(sys)
 k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
-plot_spins(sys; dims=2)
+plot_spins(sys; ndims=2)
 
 # If successful, the optimization process will find one two propagation
 # wavevectors, ±k_ref, with opposite chiralities. In this system, the

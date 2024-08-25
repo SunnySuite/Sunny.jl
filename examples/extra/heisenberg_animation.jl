@@ -10,7 +10,7 @@ J = -1.0
 set_exchange!(sys, J, Bond(1, 1, (1, 0, 0)))
 randomize_spins!(sys)
 
-fig = plot_spins(sys; colorfn=i->sys.dipoles[i][3], colorrange=(-1, 1), dims=2)
+fig = plot_spins(sys; colorfn=i->sys.dipoles[i][3], colorrange=(-1, 1), ndims=2)
 
 dt = 0.1/abs(J)
 integrator = Langevin(dt; damping=0.05, kT=0)

@@ -23,7 +23,7 @@ sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; latsize=(2, 2, 1))
 set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; dims=2)
+plot_spins(sys; ndims=2)
 
 # Define a 2D slice through ``𝐪``-space with [`q_space_grid`](@ref). 
 

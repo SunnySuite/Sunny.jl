@@ -17,7 +17,7 @@ latvecs = lattice_vectors(1, 1, 10, 90, 90, 90)
 positions = [[0, 0, 0]]
 types = ["Cu"]
 cryst = Crystal(latvecs, positions; types)
-view_crystal(cryst; dims=2)
+view_crystal(cryst; ndims=2)
 
 # Build a spin system using the exchange parameters from [R. Coldea, Phys. Rev.
 # Lett. **86**, 5377 (2001)](https://doi.org/10.1103/PhysRevLett.86.5377).
@@ -35,7 +35,7 @@ set_exchange!(sys, Jpp, Bond(1, 1, [2, 0, 0]))
 
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; dims=2)
+plot_spins(sys; ndims=2)
 
 # Plot the spin wave spectrum for a path through ``𝐪``-space. Apply a manual
 # "quantum correction" that adjusts energy scale by the factor 1.18.

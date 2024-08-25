@@ -15,7 +15,7 @@ using Sunny, GLMakie
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(3, 8, 8, 90, 90, 90)
 cryst = Crystal(latvecs, [[0, 0, 0]])
-view_crystal(cryst; dims=2, ghost_radius=8)
+view_crystal(cryst; ndims=2, ghost_radius=8)
 
 # Unlike in the previous tutorial, here the magnetic cell should include 2×1×1
 # chemical cells to support antiferromagnetic (Néel) order along the chain.
@@ -30,7 +30,7 @@ J = 1
 set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; dims=2, ghost_radius=8)
+plot_spins(sys; ndims=2, ghost_radius=8)
 
 # Perform a [`SpinWaveTheory`](@ref) calculation for a path between ``[0,0,0]``
 # and ``[1,0,0]`` in RLU.

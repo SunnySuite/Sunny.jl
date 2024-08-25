@@ -108,6 +108,7 @@ end
 # REMEMBER TO ALSO DELETE:
 #
 # * view_crystal(cryst, max_dist)
+# * dims argument in view_crystal and plot_spins
 # * λ argument in Langevin constructor
 # * Δt argument in dynamic_correlations
 # * large_S argument in set_exchange! and set_exchange_at!

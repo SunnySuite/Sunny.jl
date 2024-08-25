@@ -14,7 +14,7 @@ using Sunny, GLMakie
 units = Units(:meV, :angstrom)
 latvecs = lattice_vectors(3.0, 3.0, 6.0, 90, 90, 90) 
 cryst = Crystal(latvecs, [[0, 0, 0]])
-view_crystal(cryst; dims=2)
+view_crystal(cryst; ndims=2)
 
 # Construct a spin system with competing nearest-neighbor (AFM) and
 # next-nearest-neighbor (FM) interactions. The Néel magnetic order requires a
