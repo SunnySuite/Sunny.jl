@@ -5,7 +5,13 @@
 Maps an existing [`System`](@ref) to a new one that has the shape and
 periodicity of a requested supercell. The columns of the ``3×3`` integer matrix
 `shape` represent the supercell lattice vectors measured in units of the
-original crystal lattice vectors.
+original crystal lattice vectors. Interactions, spins, and other settings will
+be inherited from `sys`.
+
+In the special case that `shape` is a diagonal matrix, this function coincides
+with [`resize_supercell`](@ref).
+
+See also [`repeat_periodically`](@ref).
 """
 function reshape_supercell(sys::System, shape)
     is_homogeneous(sys) || error("Cannot reshape system with inhomogeneous interactions.")
@@ -117,27 +123,30 @@ end
     resize_supercell(sys::System, latsize::NTuple{3, Int})
 
 Creates a [`System`](@ref) with a given number of conventional unit cells in
-each lattice vector direction. Interactions and other settings will be inherited
-from `sys`.
+each lattice vector direction. Interactions, spins, and other settings will be
+inherited from `sys`.
 
-Convenience function for:
+Equivalent to:
+
 ```julia
 reshape_supercell(sys, [latsize[1] 0 0; 0 latsize[2] 0; 0 0 latsize[3]])
 ```
 
-See also [`reshape_supercell`](@ref).
+See also [`reshape_supercell`](@ref) and [`repeat_periodically`](@ref).
 """
 function resize_supercell(sys::System, latsize::NTuple{3,Int})
-    return reshape_supercell(sys, diagm(collect(latsize)))
+    return reshape_supercell(sys, diagm(Vec3(latsize)))
 end
 
 """
     repeat_periodically(sys::System, counts::NTuple{3, Int})
 
 Creates a [`System`](@ref) identical to `sys` but repeated a given number of
-times in each dimension, specified by the tuple `counts`.
+times along each system axis according to the specified `counts`. This is a
+special case of the more general [`reshape_supercell`](@ref).
 
-See also [`reshape_supercell`](@ref) and [`repeat_periodically_as_spiral`](@ref).
+See also [`repeat_periodically_as_spiral`](@ref), which rotates the spins
+between periodic copies.
 """
 function repeat_periodically(sys::System, counts::NTuple{3,Int})
     all(>=(1), counts) || error("Require at least one count in each direction.")
@@ -147,10 +156,10 @@ end
 """
     repeat_periodically_as_spiral(sys::System, counts::NTuple{3, Int}; k, axis)
 
-Repeats the magnetic cell of [`System`](@ref) a number of times in each
-dimension according to the specified `counts`. Spins in each system image will
-be rotated according to the propagation wavevector `k` (in RLU), and the
-rotation `axis` (in global Cartesian coordinates). The behavior coincides with
+Repeats the magnetic cell of [`System`](@ref) a number of times along each
+system axis according to the specified `counts`. Spins in each system image will
+be rotated according to the propagation wavevector `k` (in RLU) and the rotation
+`axis` (in global Cartesian coordinates). Coincides with
 [`repeat_periodically`](@ref) in the special case of `k = [0, 0, 0]`
 
 See also [`spiral_minimize_energy!`](@ref) to find an energy-minimizing
