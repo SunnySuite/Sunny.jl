@@ -21,7 +21,7 @@ end
 function stevens_as_spin_polynomials(k::Int)
     𝒪s = stevens_abstract_polynomials(; J=spin_vector_symbol, k)
     return map(𝒪s) do 𝒪
-        # In the large-S limit, only leading order terms contribute, yielding a
+        # In the large-s limit only leading order terms contribute, yielding a
         # homogeneous polynomial of degree k
         𝒪 = sum(t for t in 𝒪 if DP.degree(t) == k)
         # Remaining coefficients must be real integers; make this explicit

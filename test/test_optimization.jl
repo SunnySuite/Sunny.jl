@@ -27,20 +27,20 @@ end
 
 @testitem "Optimization" begin
     # H = -∑Sᵢ⋅Sⱼ - ∑(Sᵢᶻ)² on 2D square lattice (z-polarized ground state)
-    function simple_sys(; dims=(4,4,1), mode, seed, S)
-        cryst = Crystal(lattice_vectors(1,1,2,90,90,90), [[0,0,0]])
-        sys = System(cryst, [1 => Moment(; S, g=2)], mode; dims, seed) 
-        set_exchange!(sys, -1, Bond(1,1,[1,0,0]))
+    function simple_sys(; dims=(4, 4, 1), mode, seed, s)
+        cryst = Crystal(lattice_vectors(1, 1, 2, 90, 90, 90), [[0, 0, 0]])
+        sys = System(cryst, [1 => Moment(; s, g=2)], mode; dims, seed) 
+        set_exchange!(sys, -1, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> -S[3]^2, 1)
         sys
     end
 
-    S = 3/2
-    is_z_polarized(sys) = all(s -> abs(s[3]) ≈ S, sys.dipoles)
+    s = 3/2
+    is_z_polarized(sys) = all(d -> abs(d[3]) ≈ s, sys.dipoles)
 
     seed = 101
-    sys_dip = simple_sys(; mode=:dipole, seed, S)
-    sys_sun = simple_sys(; mode=:SUN, seed, S)
+    sys_dip = simple_sys(; mode=:dipole, seed, s)
+    sys_sun = simple_sys(; mode=:SUN, seed, s)
 
     # Thermalize near ground state
     dt = 0.05
@@ -68,20 +68,20 @@ end
 
 @testitem "Optimization Coverage" begin
     # Make sure optimization works on system with dipole-dipole
-    function simple_sys(; dims=(4,4,1), mode, seed, S)
+    function simple_sys(; dims=(4,4,1), mode, seed, s)
         cryst = Crystal(lattice_vectors(1,1,2,90,90,90), [[0,0,0]])
-        sys = System(cryst, [1 => Moment(; S, g=2)], mode; dims, seed)
+        sys = System(cryst, [1 => Moment(; s, g=2)], mode; dims, seed)
         set_exchange!(sys, -1, Bond(1,1,[1,0,0]))
         set_onsite_coupling!(sys, S -> -S[3]^2, 1)
         enable_dipole_dipole!(sys, 1.0)
         sys
     end
 
-    S = 3/2
+    s = 3/2
 
     seed = 101
-    sys_dip = simple_sys(; mode=:dipole, seed, S)
-    sys_sun = simple_sys(; mode=:SUN, seed, S)
+    sys_dip = simple_sys(; mode=:dipole, seed, s)
+    sys_sun = simple_sys(; mode=:SUN, seed, s)
     randomize_spins!(sys_dip)
     randomize_spins!(sys_sun)
 

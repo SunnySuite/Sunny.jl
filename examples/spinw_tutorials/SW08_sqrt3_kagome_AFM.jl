@@ -18,7 +18,7 @@ view_crystal(cryst; ndims=2)
 
 # Construct a spin system with nearest neighbor antiferromagnetic exchange.
 
-sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
 J = 1.0
 set_exchange!(sys, J, Bond(2, 3, [0, 0, 0]))
 

@@ -24,8 +24,10 @@ This **major release** introduces several breaking changes:
 * New convenience functions [`powder_average`](@ref) and
   [`domain_average`](@ref), which wrap [`intensities`](@ref).
 * [`System`](@ref) now expects supercell dimensions as a `dims` keyword
-  argument. Conversely, use `ndims` in [`view_crystal`](@ref) and
-  [`plot_spins`](@ref) for the number of spatial dimensions.
+  argument. Lower-case `s` now labels quantum spin. For example, use
+  `:dipole_large_s` instead of `:dipole_large_S`.
+* In [`view_crystal`](@ref) and [`plot_spins`](@ref) use `ndims` instead of
+  `dims` for the number of spatial dimensions.
 * Binning features have been removed. Some functionality may be added back in a
   future release.
 * Experimental `SpinWaveTheoryKPM` feature implements a [new

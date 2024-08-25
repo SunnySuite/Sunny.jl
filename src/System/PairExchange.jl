@@ -195,7 +195,7 @@ end
 
 
 function check_allowable_dipole_coupling(tensordec, mode)
-    if !isempty(tensordec.data) && mode in (:dipole, :dipole_large_S)
+    if !isempty(tensordec.data) && mode in (:dipole, :dipole_large_s)
         error("""
         Invalid pair coupling. In dipole mode, the most general allowed form is
             (Si, Sj) -> Si'*J*Sj + [(Si'*K1*Si)*(Sj'*K2*Sj) + ...]
@@ -290,8 +290,8 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_pa
 
     op ≈ op' || error("Operator is not Hermitian")
 
-    if sys.mode == :dipole_large_S
-        error("Symbolic operators required for mode `:dipole_large_S`.")
+    if sys.mode == :dipole_large_s
+        error("Symbolic operators required for mode `:dipole_large_s`.")
     end
 
     N1 = Int(2spin_label(sys, bond.i)+1)
@@ -303,8 +303,8 @@ function set_pair_coupling!(sys::System{N}, op::AbstractMatrix, bond; extract_pa
 end
 
 function set_pair_coupling!(sys::System{N}, fn::Function, bond; extract_parts=true) where N
-    if sys.mode == :dipole_large_S
-        error("General couplings not yet supported for mode `:dipole_large_S`.")
+    if sys.mode == :dipole_large_s
+        error("General couplings not yet supported for mode `:dipole_large_s`.")
     end
 
     S1 = spin_label(sys, bond.i)
@@ -349,10 +349,7 @@ J = [2 3 0;
 set_exchange!(sys, J, bond)
 ```
 """
-function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.0, large_S=nothing) where N
-    if !isnothing(large_S) 
-        error("The `large_S` argument is no longer supported. Instead construct system with `mode = :dipole_large_S`.")
-    end
+function set_exchange!(sys::System{N}, J, bond::Bond; biquad=0.0) where N
     if !iszero(biquad)
         # Reinterpret `biquad (Sᵢ⋅Sⱼ)²` by shifting its bilinear part into the
         # usual 3×3 exchange J. What remains in `biquad` is a coupling between
@@ -450,10 +447,7 @@ See also [`set_exchange!`](@ref) for more details on specifying `J` and
 `biquad`. For more general couplings, use [`set_pair_coupling_at!`](@ref)
 instead.
 """
-function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad::Number=0.0, large_S=nothing, offset=nothing) where N
-    if !isnothing(large_S) 
-        error("The `large_S` argument is no longer supported. Instead construct system with `mode = :dipole_large_S`.")
-    end
+function set_exchange_at!(sys::System{N}, J, site1::Site, site2::Site; biquad::Number=0.0, offset=nothing) where N
     if !iszero(biquad)
         # Reinterpret `biquad (Sᵢ⋅Sⱼ)²` by shifting its bilinear part into the
         # usual 3×3 exchange J. What remains in `biquad` is a coupling between
@@ -486,8 +480,8 @@ two sites. The documentation for [`set_pair_coupling!`](@ref) provides examples
 constructing `op`.
 """
 function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, site2::Site; offset=nothing) where N
-    if sys.mode == :dipole_large_S
-        error("Symbolic operators required for mode `:dipole_large_S`.")
+    if sys.mode == :dipole_large_s
+        error("Symbolic operators required for mode `:dipole_large_s`.")
     end
 
     N1 = Int(2spin_label(sys, to_atom(site1))+1)
@@ -499,8 +493,8 @@ function set_pair_coupling_at!(sys::System{N}, op::AbstractMatrix, site1::Site, 
 end
 
 function set_pair_coupling_at!(sys::System{N}, fn::Function, site1::Site, site2::Site; offset=nothing) where N
-    if sys.mode == :dipole_large_S
-        error("General couplings not yet supported for mode `:dipole_large_S`.")
+    if sys.mode == :dipole_large_s
+        error("General couplings not yet supported for mode `:dipole_large_s`.")
     end
 
     S1 = spin_label(sys, to_atom(site1))

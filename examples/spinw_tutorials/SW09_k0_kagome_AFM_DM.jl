@@ -25,7 +25,7 @@ view_crystal(cryst; ndims=2)
 # 3×3 antisymmetric matrix with nonzero ``(x,y)`` components, defined with
 # respect to the global Cartesian coordinate system.
 
-sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
 J = 1.0*I + dmvec([0, 0, -0.08])
 
 # As in in [Tutorial 7](@ref "SW07 - k=0 kagome antiferromagnet"), energy

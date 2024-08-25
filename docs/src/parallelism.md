@@ -31,7 +31,7 @@ function make_system(; seed=nothing)
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     positions = [[0, 0, 0]/2, [1, 1, 1]/2]
     cryst = Crystal(latvecs, positions)
-    sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole; dims=(10, 10, 2), seed)
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(10, 10, 2), seed)
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
     return sys
 end
@@ -157,7 +157,7 @@ environments. This is easily achieved with the `@everywhere` macro.
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     positions = [[0, 0, 0]/2, [1, 1, 1]/2]
     cryst = Crystal(latvecs, positions)
-    sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole; seed)
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; seed)
     sys = resize_supercell(sys, (10, 10, 2))
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
     return sys

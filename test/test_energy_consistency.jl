@@ -5,7 +5,7 @@
     function make_system(; mode, inhomog)
         cryst = Sunny.diamond_crystal()
         # TODO: Debug case of dims=(3, 2, 1)
-        sys = System(cryst, [1 => Moment(S=2, g=2)], mode; dims=(3, 2, 2), seed=0)
+        sys = System(cryst, [1 => Moment(s=2, g=2)], mode; dims=(3, 2, 2), seed=0)
         add_linear_interactions!(sys, mode)
         add_quadratic_interactions!(sys, mode)
         add_quartic_interactions!(sys, mode)

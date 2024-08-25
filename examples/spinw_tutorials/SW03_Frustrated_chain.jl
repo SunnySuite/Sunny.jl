@@ -20,7 +20,7 @@ view_crystal(cryst; ndims=2, ghost_radius=8)
 # Construct a spin system with competing nearest-neighbor (FM) and
 # next-nearest-neighbor (AFM) interactions.
 
-sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
 J1 = -1
 J2 = +2 * abs(J1)
 set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))

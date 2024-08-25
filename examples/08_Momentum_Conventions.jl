@@ -25,7 +25,7 @@ cryst = Crystal(latvecs, [[0,0,0]], "P1")
 # ∑_j 𝐁 ⋅ μ_j``, where ``μ_j = - μ_B g 𝐒_j`` is the [`magnetic_moment`](@ref)
 # and ``𝐁 ∝ ẑ``.
 
-sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole; dims=(1, 1, 25))
+sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(1, 1, 25))
 D = 0.1
 B = 5D
 set_exchange!(sys, dmvec([0, 0, D]), Bond(1, 1, [0, 0, 1]))

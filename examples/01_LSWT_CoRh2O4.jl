@@ -23,7 +23,7 @@ using Sunny, GLMakie
 # and GLMakie from the [built-in package
 # manager](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia#the-built-in-julia-package-manager).
 
-# ### Units
+# ### Unit system
 
 # The [`Units`](@ref) object defines physical constants for conversions. Select
 # meV as the default energy scale and angstrom as the default length scale.
@@ -63,12 +63,12 @@ view_crystal(cryst)
 
 # A [`System`](@ref) will define the spin model. This requires [`Moment`](@ref)
 # information for one representative atom per symmetry-distinct site. The cobalt
-# atoms carry quantum spin ``S = 3/2``, with a ``g``-factor of 2. The option
+# atoms carry quantum spin ``s = 3/2``, with a ``g``-factor of 2. The option
 # `:dipole` indicates a traditional model type, for which quantum spin is
 # modeled as a dipole expectation value.
 
-S = 3/2
-sys = System(cryst, [1 => Moment(; S, g=2)], :dipole)
+s = 3/2
+sys = System(cryst, [1 => Moment(; s, g=2)], :dipole)
 
 # Previous work demonstrated that inelastic neutron scattering data for CoRh₂O₄
 # is well described with a single antiferromagnetic nearest neighbor exchange,
@@ -95,11 +95,11 @@ minimize_energy!(sys)
 plot_spins(sys; color=[s[3] for s in sys.dipoles])
 
 # The diamond lattice is bipartite, allowing each spin to perfectly anti-align
-# with its 4 nearest-neighbors. Each of these 4 bonds contribute ``-JS^2`` to
+# with its 4 nearest-neighbors. Each of these 4 bonds contribute ``-J s^2`` to
 # the total energy. Two sites participate in each bond, so the energy per site
-# is ``-2JS^2``. Check this by calling [`energy_per_site`](@ref).
+# is ``-2 J s^2``. Check this by calling [`energy_per_site`](@ref).
 
-@assert energy_per_site(sys) ≈ -2J*S^2
+@assert energy_per_site(sys) ≈ -2J*s^2
 
 # ### Reshaping the magnetic cell
 
@@ -114,7 +114,7 @@ shape = [0 1 1;
          1 0 1;
          1 1 0] / 2
 sys_prim = reshape_supercell(sys, shape)
-@assert energy_per_site(sys_prim) ≈ -2J*S^2
+@assert energy_per_site(sys_prim) ≈ -2J*s^2
 
 # Plotting the spins of `sys_prim` shows the primitive cell as a gray wireframe
 # inside the conventional cubic cell.

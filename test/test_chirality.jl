@@ -2,8 +2,8 @@
     using LinearAlgebra
 
     crystal = Crystal(lattice_vectors(1, 1, 1, 90, 90, 90), [[0, 0, 0]])
-    sys_dip = System(crystal, [1 => Moment(S=1, g=2)], :dipole)
-    sys_sun = System(crystal, [1 => Moment(S=1, g=2)], :SUN)
+    sys_dip = System(crystal, [1 => Moment(s=1, g=2)], :dipole)
+    sys_sun = System(crystal, [1 => Moment(s=1, g=2)], :SUN)
 
     B = [0, 0, 1]
     set_field!(sys_dip, B)
@@ -29,7 +29,7 @@ end
 @testitem "DM chain" begin
     latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]], "P1")
-    sys = System(cryst, [1 => Moment(S=1, g=-1)], :dipole)
+    sys = System(cryst, [1 => Moment(s=1, g=-1)], :dipole)
     D = 1
     B = 10.0
     set_exchange!(sys, dmvec([0, 0, D]), Bond(1, 1, [0, 0, 1]))

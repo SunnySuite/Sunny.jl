@@ -115,7 +115,7 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
                 end
             end
         else
-            @assert sys.mode in (:dipole, :dipole_large_S)
+            @assert sys.mode in (:dipole, :dipole_large_s)
             data_dip = swt.data::SWTDataDipole
             for i in 1:Na
                 sqrt_halfS = data_dip.sqrtS[i]/sqrt(2)

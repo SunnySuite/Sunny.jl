@@ -32,7 +32,7 @@ end
 
 @testitem "General interactions" begin
     cryst = Sunny.diamond_crystal()
-    sys = System(cryst, [1 => Moment(; S=2, g=2)], :SUN; dims=(2, 2, 2))
+    sys = System(cryst, [1 => Moment(s=2, g=2)], :SUN; dims=(2, 2, 2))
     randomize_spins!(sys)
     
     J = 0.5

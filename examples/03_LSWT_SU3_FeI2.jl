@@ -89,7 +89,7 @@ print_symmetry_table(cryst, 8.0)
 # Selecting an optional random number `seed` will make the calculations exactly
 # reproducible.
 
-sys = System(cryst, [1 => Moment(S=1, g=2)], :SUN, seed=2)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN, seed=2)
 
 # Set the exchange interactions for FeI₂ following the fits of [Bai et
 # al.](https://doi.org/10.1038/s41567-020-01110-1)

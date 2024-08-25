@@ -7,7 +7,7 @@
     g2 = [1.8 2.2 -3.1; -0.3 2.6 0.1; 1.0 0. 0.3]    
 
     for mode = [:SUN, :dipole]
-        infos = [1 => Moment(S=3/2, g=g1), 2 => Moment(S=(mode == :SUN ? 3/2 : 1/2), g=g2)]
+        infos = [1 => Moment(s=3/2, g=g1), 2 => Moment(s=(mode == :SUN ? 3/2 : 1/2), g=g2)]
         sys = System(cryst, infos, mode)
 
         set_dipole!(sys, [1,3,2], (1,1,1,1))
@@ -28,7 +28,7 @@
         # setting `apply_g` and manually contracting spin indices with the
         # g-tensor. This only works when g is homogeneous. TODO: Test with
         # inhomogeneous g-tensors.
-        infos_homog = [1 => Moment(S=3/2, g=g1), 2 => Moment(S=(mode == :SUN ? 3/2 : 1/2), g=g1)]
+        infos_homog = [1 => Moment(s=3/2, g=g1), 2 => Moment(s=(mode == :SUN ? 3/2 : 1/2), g=g1)]
         sys_homog = System(cryst, infos_homog, mode)
 
         measure = ssf_custom((q, ssf) -> ssf, sys_homog; apply_g=false)
@@ -47,7 +47,7 @@ end
 @testitem "Available Energies Dirac Identity" begin
      # Create a dummy SampledCorrelations object
     cryst = Sunny.cubic_crystal()
-    sys = System(cryst, [1 => Moment(S=1/2, g=2)], :SUN; seed=0)
+    sys = System(cryst, [1 => Moment(s=1/2, g=2)], :SUN; seed=0)
     dt = 0.08
     sc = SampledCorrelations(sys; dt, energies=range(0.0, 10.0, 100), measure=ssf_perp(sys))
 
@@ -61,7 +61,7 @@ end
 end
 
 @testitem "Polyatomic sum rule" begin
-    sys = System(Sunny.diamond_crystal(), [1 => Moment(S=1/2, g=2)], :SUN; dims=(4, 1, 1), seed=1)
+    sys = System(Sunny.diamond_crystal(), [1 => Moment(s=1/2, g=2)], :SUN; dims=(4, 1, 1), seed=1)
     randomize_spins!(sys)
     sc = SampledCorrelations(sys; dt=0.8, energies=range(0.0, 1.0, 3), measure=ssf_trace(sys; apply_g=true))
     add_sample!(sc, sys)

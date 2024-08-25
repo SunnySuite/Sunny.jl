@@ -12,7 +12,7 @@ correlation as an equilibrium expectation value,
 
 ```math
 \begin{equation}
-C(𝐫, t) = \int_V ⟨\hat{B}^\dagger(𝐫₀, 0) \hat{A}(𝐫₀ + 𝐫, t)⟩ d𝐫₀,
+C(𝐫, t) = \int_V ⟨\hat{B}^†(𝐫₀, 0) \hat{A}(𝐫₀ + 𝐫, t)⟩ d𝐫₀,
 \end{equation}
 ```
 
@@ -188,22 +188,22 @@ C_{ij}^{αβ}(𝐪, t=0) = ⟨\hat{S}_{𝐪,i}^{α†} \hat{S}_{𝐪,j}^{β}⟩.
 \end{equation}
 ```
 
-In the quantum spin-$S$ representation, the spin dipole on one site satisfies
+In the quantum spin-$s$ representation, the spin dipole on one site satisfies
 
 ```math
 \begin{equation}
-|\hat{𝐒}|^2 = \hat{S}^α \hat{S}^α = S(S+1),
+|\hat{𝐒}|^2 = \hat{S}^α \hat{S}^α = s(s+1),
 \end{equation}
 ```
 
 with implicit summation on the repeated $α$ index.
 
 Suppose that each site of sublattice $j$ carries quantum spin of magnitude
-$S_j$. Then there is a quantum sum rule of the form,
+$s_j$. Then there is a quantum sum rule of the form,
 
 ```math
 \begin{equation}
-\int_{\tilde{V}_\mathrm{BZ}} \frac{C_{jj}^{αα}(𝐪, t=0)}{N_\mathrm{cells}} d\tilde{𝐪} = S_j (S_j + 1),
+\int_{\tilde{V}_\mathrm{BZ}} \frac{C_{jj}^{αα}(𝐪, t=0)}{N_\mathrm{cells}} d\tilde{𝐪} = s_j (s_j + 1),
 \end{equation}
 ```
 
@@ -252,7 +252,7 @@ Kronecker-$δ$,
 \end{equation}
 ```
 
-Note that $⟨\hat{S}_{𝐦,j}^α \hat{S}_{𝐦,j}^α⟩ = S_j(S_j+1)$ is constant,
+Note that $⟨\hat{S}_{𝐦,j}^α \hat{S}_{𝐦,j}^α⟩ = s_j(s_j+1)$ is constant,
 independent of the cell $𝐦$. This leaves a double sum over integers $𝐦$, which
 evaluates to $\sum_{𝐦, 𝐦'} δ_{𝐦, 𝐦'} = N_\mathrm{cells}$. Combined, these
 results verify the above-stated quantum sum rule for the sublattice $j$.
@@ -265,7 +265,7 @@ result is a sum over contributions $C_{jj}(𝐪, t=0)$ for each sublattice $j$,
 
 ```math
 \begin{equation}
-\frac{1}{N_\mathrm{BZ}} \int_{N_\mathrm{BZ} × \tilde{V}_\mathrm{BZ}} \int_{-∞}^∞ \frac{C^{αα}(𝐪, ω)}{ N_\mathrm{cells}} dω d\tilde{𝐪} = \sum_j S_j (S_j + 1).
+\frac{1}{N_\mathrm{BZ}} \int_{N_\mathrm{BZ} × \tilde{V}_\mathrm{BZ}} \int_{-∞}^∞ \frac{C^{αα}(𝐪, ω)}{ N_\mathrm{cells}} dω d\tilde{𝐪} = \sum_j s_j (s_j + 1).
 \end{equation}
 ```
 
@@ -315,12 +315,13 @@ neutron beam is,
 
 ```math
 \begin{equation}
-\frac{d^2 σ(𝐪, ω)}{dω dΩ} \left(\frac{q_f}{q_i}\right)^{-1} = \left(\frac{γ r_0}{2}\right)^2 \sum_{α,β} \left(δ_{α,β} - \frac{q^α q^β}{q^2}\right) \frac{\mathcal{S}^{αβ}(𝐪, ω)}{μ_B^2}.
+\frac{d^2 σ(𝐪, ω)}{dω dΩ} = \frac{q_f}{q_i} \left(\frac{γ r_0}{2}\right)^2 \sum_{α,β} \left(δ_{α,β} - \frac{q^α q^β}{q^2}\right) \frac{\mathcal{S}^{αβ}(𝐪, ω)}{μ_B^2}.
 \end{equation}
 ```
 
-Dimensions of area arise from the characteristic scattering length, $γ r_0 / 2 ≈
-2.69×10^{-5} \mathrm{Å}$, where $r_0$ is the classical electron radius.
+The prefactor $q_f/q_i$ will be provided experimentally. Dimensions of area
+arise from the characteristic scattering length, $γ r_0 / 2 ≈ 2.69×10^{-5}
+\mathrm{Å}$, where $r_0$ is the classical electron radius.
 
 The structure factor is of central importance to neutron scattering,
 
@@ -341,7 +342,8 @@ settings. Sunny provides tools to facilitate this calculation and to extract
 information from the results. For details, please see our [tutorials](@ref "1.
 Spin wave simulations of CoRh₂O₄") as well as the complete [Library API](@ref).
 
-Sunny will calculate the structure factor in dimensionless, intensive units,
+Through [`ssf_custom`](@ref) and related functions, Sunny will calculate the
+spin structure factor as a 3×3 matrix in dimensionless units,
 
 ```math
 \begin{equation}
@@ -349,34 +351,38 @@ Sunny will calculate the structure factor in dimensionless, intensive units,
 \end{equation}
 ```
 
-where $N_\mathrm{cells}$ is again the number of chemical cells in the
-macroscopic sample.
+This is an intensive quantity because $N_\mathrm{cells}$, the number of chemical
+cells in the macroscopic sample, is extensive. Note that the Sunny-calculated
+intensity will depend on the chemical cell convention: intensity scales linearly
+with chemical cell size.
 
-Sunny also provides a setting `apply_g = false` to calculate dynamical spin-spin
-correlations, $C_{⟨𝐒𝐒⟩}(𝐪, ω) / N_\mathrm{cells}$. This quantity corresponds
-to $𝒮(𝐪, ω) / g^2$ in the special case that $g$ is a uniform scalar.
+Use [`ssf_perp`](@ref) to contract with $δ_{α,β} - q^α q^β/q^2$, i.e., to
+project in the direction perpendicular to momentum transfer $𝐪$.
 
-The physical structure factor $\mathcal{S}(𝐪, ω)$ is extensive. Its value
-depends on sample size, but is invariant to the choice of chemical cell. Note,
-however, that $𝒮(𝐪, ω)$ is made intensive through normalization by
-$N_\mathrm{cells}$. Its numerical value _is_ dependent on the convention for the
-chemical cell; larger chemical cells lead to greater intensities reported by
-Sunny.
+Set `apply_g = false` to calculate the correlation $C_{⟨𝐒𝐒⟩}(𝐪, ω) /
+N_\mathrm{cells}$ between pure spin operators, rather than between magnetic
+moments. In this special case that $g$ is a uniform scalar, this is equivalent
+to $𝒮(𝐪, ω) / g^2$
 
-In most cases, users will calculate the structure factor within linear
-[`SpinWaveTheory`](@ref), whereby magnetic excitations are approximated as
-Holstein-Primakoff bosons. This calculation technique is relatively
-straightforward and efficient. Linear spin wave theory has two primary
-limitations, however. It cannot account for thermal fluctuations beyond the
-harmonic approximation, and it scales poorly in the size of the magnetic cell
-size (e.g., as needed to study systems with chemical disorder). The efficiency
-limitation can be overcome with [recently proposed
-algorithms](https://arxiv.org/abs/2312.08349) that are planned for
-[implementation in Sunny](https://github.com/SunnySuite/Sunny.jl/pull/92).
-However, the study of finite temperature fluctuations requires a calculation
-method that is entirely different from linear spin wave theory.
+## Calculations with spin wave theory
 
-## Estimating stucture factors with classical dynamics
+Calculation of the dynamical structure factor with linear
+[`SpinWaveTheory`](@ref) is relatively straightforward and efficient. In the
+traditional approach, quantum spin operators are expressed as Holstein-Primakoff
+bosons, and dynamical correlations can be calculated to leading order in inverse
+powers of the quantum spin-$s$. Sunny also supports a multi-flavor boson
+generalization of this theory, which can offer more accurate treatment of
+multipolar spin fluctuations. Another feature in Sunny is
+[`SpiralSpinWaveTheory`](@ref), which enables calculations for generalized
+spiral order. Finally, the experimental module [`SpinWaveTheoryKPM`](@ref)
+implements [spin wave calculations using the kernel polynomial
+method](https://arxiv.org/abs/2312.0834). In this approach, the computational
+cost scales linearly in the magnetic cell size. Motivation for studying systems
+with large magnetic cells include systems with long-wavelength structures, or
+systems with quenched chemical disorder.
+
+
+## Calculations with classical spin dynamics
 
 Finite temperature structure factor intensities can be estimated from the
 dynamical correlations of classical spin dynamics (e.g. Landau-Lifshitz, or its
@@ -450,13 +456,13 @@ the classical Boltzmann distribution.
 
 ### The instantaneous structure factor
 
-Use [`intensities_static`](@ref) to calculate ``\mathcal{S}(𝐪)``, i.e.,
+Use [`intensities_static`](@ref) to calculate $\mathcal{S}(𝐪)$, i.e.,
  correlations that are "instantaneous" in real-time. Mathematically,
-``\mathcal{S}(𝐪)`` denotes an integral of the full dynamical structure factor
-``\mathcal{S}(𝐪, ω)``, taken over all energies ``ω``. In
-[`SpinWaveTheory`](@ref), the energy integral becomes a discrete sum over bands.
-In [`SampledCorrelations`](@ref), a classical-to-quantum correction factor will
-be applied within [`intensities`](@ref) prior to energy integration.
+$\mathcal{S}(𝐪)$ denotes an integral of the dynamical structure factor
+$\mathcal{S}(𝐪, ω)$ over all energies $ω$. In [`SpinWaveTheory`](@ref), the
+energy integral becomes a discrete sum over bands. In
+[`SampledCorrelations`](@ref), a classical-to-quantum correction factor will be
+applied within [`intensities`](@ref) prior to energy integration.
 
 Sunny also supports a mechanism to calculate static correlations without any
 spin dynamics. To collect such statistics, construct a

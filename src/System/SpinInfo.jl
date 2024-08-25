@@ -1,25 +1,25 @@
 """
-    Moment(; S, g, ff=nothing)
+    Moment(; s, g, ff=nothing)
 
-Characterizes a effective spin magnetic moment on an atom. Quantum spin-`S` is a
+Characterizes a effective spin magnetic moment on an atom. Quantum spin-`s` is a
 multiple of 1/2 in units of ħ. The `g`-factor or tensor defines the
 [`magnetic_moment`](@ref) ``μ = - g 𝐒`` in units of the Bohr magneton. The
 optional parameter `ff` is a string representation of the [`FormFactor`](@ref).
 
 # Example
 ```julia
-Moment(S=3/2, g=2, ff="Fe2")
+Moment(s=3/2, g=2, ff="Fe2")
 ```
 """
 struct Moment
-    S      :: Float64 # Spin magnitude in units of ħ
-    g      :: Mat3    # Spin g-tensor
+    s :: Float64 # quantum spin
+    g :: Mat3    # g-tensor
 
-    function Moment(; S, g)
-        S > 0 || error("Spin S must be positive. Use `subcrystal` to discard non-magnetic ions.")
-        isinteger(2S) || error("Spin S must be an exact multiple of 1/2")
+    function Moment(; s, g)
+        s > 0 || error("Spin S must be positive. Use `subcrystal` to discard non-magnetic ions.")
+        isinteger(2s) || error("Spin S must be an exact multiple of 1/2")
         g = typeof(g) <: Number ? Mat3(I*g) : Mat3(g)
-        new(S, g)
+        new(s, g)
     end
 end
 
@@ -43,6 +43,6 @@ function propagate_site_info(cryst::Crystal, moments::Vector{Pair{Int, Moment}})
         length(js) > 1 && error("Atoms $(js) are symmetry equivalent.")
         (j, m) = moments[only(js)]
         g = transform_coupling_for_bonds(cryst, Bond(i, i, [0,0,0]), Bond(j, j, [0,0,0]), m.g)
-        Moment(; m.S, g)
+        Moment(; m.s, g)
     end
 end

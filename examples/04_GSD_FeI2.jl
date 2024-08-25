@@ -30,7 +30,7 @@ c = 6.75214
 latvecs = lattice_vectors(a, b, c, 90, 90, 120)
 cryst = Crystal(latvecs, [[0,0,0]], 164; types=["Fe"])
 
-sys = System(cryst, [1 => Moment(S=1, g=2)], :SUN)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN)
 J1pm   = -0.236
 J1pmpm = -0.161
 J1zpm  = -0.261

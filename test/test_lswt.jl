@@ -12,7 +12,7 @@
     cryst = @test_warn "Lattice vectors are not right-handed." Crystal(latvecs, positions)
     natoms = Sunny.natoms(cryst)
 
-    moments = [1 => Moment(S=5/2, g=7.2)]
+    moments = [1 => Moment(s=5/2, g=7.2)]
     sys = System(cryst, moments, :SUN; seed=0)
 
     A,B,C,D = 2.6, -1.3, 0.2, -5.7
@@ -80,7 +80,7 @@ end
 
     # System
     J, J′, D = 1.0, 0.1, 5.0
-    moments = [1 => Moment(S=1, g=2)]
+    moments = [1 => Moment(s=1, g=2)]
     sys = System(cryst, moments, :SUN; seed=0)
     set_exchange!(sys, J,  Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(1, 1, [0, 0, 1]))
@@ -126,15 +126,12 @@ end
     fcc = Crystal(latvecs, positions, 225)
 
     units = Units(:meV, :angstrom)
-    S = 5/2
-    g = 2
+    moments = [1 => Moment(s=5/2, g=2)]
     J = 22.06 * units.K
     K = 0.15  * units.K
     C = J + K
     J₁ = diagm([J, J, C])
     D = 25/24
-
-    moments = [1 => Moment(; S, g)]
 
     function compute(mode)
         sys = System(fcc, moments, mode)
@@ -164,13 +161,13 @@ end
     positions = [[0, 0, 0]]
     cryst = Crystal(latvecs, positions)
     
-    function test_biquad(mode, q, S)
+    function test_biquad(mode, q, s)
         # System
-        infos = [1 => Moment(; S, g=2)]
+        infos = [1 => Moment(; s, g=2)]
         sys = System(cryst, infos, mode; dims=(2, 2, 2))
         α = -0.4π
         J = 1.0
-        JL, JQ = J * cos(α), J * sin(α) / S^2
+        JL, JQ = J * cos(α), J * sin(α) / s^2
         set_pair_coupling!(sys, (Si, Sj) -> Si'*JL*Sj + JQ*(Si'*Sj)^2, Bond(1, 1, [1, 0, 0]))
 
         # Initialize Néel order
@@ -184,14 +181,14 @@ end
 
         # Analytical result
         γq = 2 * (cos(2π*q[1]) + cos(2π*q[2]) + cos(2π*q[3]))
-        disp_ref = J * (S*cos(α) - (2*S-2+1/S) * sin(α)) * √(36 - γq^2)
+        disp_ref = J * (s*cos(α) - (2*s-2+1/s) * sin(α)) * √(36 - γq^2)
         
         @test disp[end-1] ≈ disp[end] ≈ disp_ref
     end
 
     q = [0.12, 0.23, 0.34]
-    for mode in (:SUN, :dipole), S in (1, 3/2)
-        test_biquad(mode, q, S)
+    for mode in (:SUN, :dipole), s in (1, 3/2)
+        test_biquad(mode, q, s)
     end
 end
 
@@ -202,7 +199,7 @@ end
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
     
-    sys = System(cryst, [1 => Moment(S=1, g=2), 2 => Moment(S=2, g=2)], :dipole)
+    sys = System(cryst, [1 => Moment(s=1, g=2), 2 => Moment(s=2, g=2)], :dipole)
     set_pair_coupling!(sys, (S1, S2) -> +(S1'*diagm([2,-1,-1])*S1)*(S2'*diagm([2,-1,-1])*S2), Bond(1, 2, [0,0,0]))
     
     θ = randn()
@@ -220,7 +217,7 @@ end
 
 @testitem "Canted AFM" begin
 
-    function test_canted_afm(S)
+    function test_canted_afm(s)
         J, D, h = 1.0, 0.54, 0.76
         a = 1
         latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
@@ -228,26 +225,24 @@ end
         cryst = Crystal(latvecs, positions)
         q = [0.12, 0.23, 0.34]
         
-        sys = System(cryst, [1 => Moment(; S, g=-1)], :dipole)
+        sys = System(cryst, [1 => Moment(; s, g=-1)], :dipole)
         sys = reshape_supercell(sys, [1 -1 0; 1 1 0; 0 0 1])
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         set_field!(sys, [0, 0, h])
 
         # Numerical
-        c₂ = 1 - 1/(2S)
-        θ = acos(h / (2S*(4J+D*c₂)))
+        c₂ = 1 - 1/2s
+        θ = acos(h / (2s*(4J+D*c₂)))
         set_dipole!(sys, ( sin(θ), 0, cos(θ)), position_to_site(sys, (0,0,0)))
         set_dipole!(sys, (-sin(θ), 0, cos(θ)), position_to_site(sys, (1,0,0)))
         swt_dip = SpinWaveTheory(sys; measure=nothing)
         ϵq_num = dispersion(swt_dip, [q])
 
         # Analytical
-        c₂ = 1 - 1/(2S)
-        θ = acos(h / (2S*(4J+c₂*D)))
         Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
-        ωq₊ = real(√Complex(4J*S*(4J*S+2D*S*c₂*sin(θ)^2) + cos(2θ)*(Jq*S)^2 + 2S*Jq*(4J*S*cos(θ)^2 + c₂*D*S*sin(θ)^2)))
-        ωq₋ = real(√Complex(4J*S*(4J*S+2D*S*c₂*sin(θ)^2) + cos(2θ)*(Jq*S)^2 - 2S*Jq*(4J*S*cos(θ)^2 + c₂*D*S*sin(θ)^2)))
+        ωq₊ = real(√Complex(4J*s*(4J*s+2D*s*c₂*sin(θ)^2) + cos(2θ)*(Jq*s)^2 + 2s*Jq*(4J*s*cos(θ)^2 + c₂*D*s*sin(θ)^2)))
+        ωq₋ = real(√Complex(4J*s*(4J*s+2D*s*c₂*sin(θ)^2) + cos(2θ)*(Jq*s)^2 - 2s*Jq*(4J*s*cos(θ)^2 + c₂*D*s*sin(θ)^2)))
         ϵq_ana = [ωq₊, ωq₋]
 
         ϵq_num ≈ ϵq_ana
@@ -266,15 +261,15 @@ end
     # P1 point group for most general single-ion anisotropy
     cryst = Crystal(latvecs, positions, 1)
 
-    S = 2
-    sys_dip = System(cryst, [1 => Moment(; S, g=-1)], :dipole)
-    sys_SUN = System(cryst, [1 => Moment(; S, g=-1)], :SUN)
+    s = 2
+    sys_dip = System(cryst, [1 => Moment(; s, g=-1)], :dipole)
+    sys_SUN = System(cryst, [1 => Moment(; s, g=-1)], :SUN)
 
     # The strengths of single-ion anisotropy (must be negative to favor the dipolar ordering under consideration)
     Ds = -rand(3)
     h  = 0.1*rand()
     M = normalize(rand(3))
-    SM = M' * spin_matrices(S)
+    SM = M' * spin_matrices(s)
     aniso = Ds[1]*SM^2 + Ds[2]*SM^4 + Ds[3]*SM^6
 
     set_onsite_coupling!(sys_dip, aniso, 1)
@@ -305,7 +300,7 @@ end
     cryst = Crystal(latvecs, [[0,0,0]])
 
     for mode in (:dipole, :SUN)
-        sys = System(cryst, [1 => Moment(S=1, g=1)], mode)
+        sys = System(cryst, [1 => Moment(s=1, g=1)], mode)
         enable_dipole_dipole!(sys, 1.0)
 
         polarize_spins!(sys, (0,0,1))
@@ -321,7 +316,7 @@ end
 
     begin
         cryst = Sunny.bcc_crystal()
-        sys = System(cryst, [1 => Moment(S=1, g=2)], :dipole, seed=2)
+        sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole, seed=2)
         enable_dipole_dipole!(sys, Units(:meV, :angstrom).vacuum_permeability)
         polarize_spins!(sys, (1,2,3)) # arbitrary direction
         
@@ -347,7 +342,7 @@ end
     c = 5.2414
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
     crystal = Crystal(latvecs, [[0.24964,0,0.5]], 150)
-    sys = System(crystal, [1 => Moment(S=5/2, g=2)], :dipole; seed=5)
+    sys = System(crystal, [1 => Moment(s=5/2, g=2)], :dipole; seed=5)
     set_exchange!(sys, 0.85,  Bond(3, 2, [1,1,0]))   # J1
     set_exchange!(sys, 0.24,  Bond(1, 3, [0,0,0]))   # J2
     set_exchange!(sys, 0.053, Bond(2, 3, [-1,-1,1])) # J3
@@ -378,7 +373,7 @@ end
     tol = 1e-7
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
     cryst = Crystal(latvecs, [[0, 0, 0]])
-    sys = System(cryst, [1 => Moment(S=1, g=-1)], :dipole; dims=(7, 7, 1), seed=0)
+    sys = System(cryst, [1 => Moment(s=1, g=-1)], :dipole; dims=(7, 7, 1), seed=0)
 
     J₁ = -1
     J₃ = 1.6234898018587323
@@ -438,17 +433,17 @@ end
     # Diamond-cubic with antiferromagnetic exchange
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
-    S = 3/2
-    sys = System(cryst, [1 => Moment(; S, g=2)], :dipole; seed=0)
+    s = 3/2
+    sys = System(cryst, [1 => Moment(; s, g=2)], :dipole; seed=0)
     set_exchange!(sys, 1.0, Bond(1, 3, [0,0,0]))
     randomize_spins!(sys)
     minimize_energy!(sys)
-    @test energy_per_site(sys) ≈ -2S^2
+    @test energy_per_site(sys) ≈ -2s^2
     
     # Reshaped system
     shape = [0 1 1; 1 0 1; 1 1 0] / 2
     sys_prim = reshape_supercell(sys, shape)
-    @test energy_per_site(sys_prim) ≈ -2S^2
+    @test energy_per_site(sys_prim) ≈ -2s^2
     
     # Both systems should produce the same intensities
     swt1 = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
@@ -469,7 +464,7 @@ end
     function build_system(R, D1, D2, J, K1, K2, h, g)
         latvecs = lattice_vectors(1, 1, 1, 92, 93, 94)
         cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
-        infos = [1 => Moment(S=1, g=2), 2 => Moment(S=2, g=R*g*R')]
+        infos = [1 => Moment(s=1, g=2), 2 => Moment(s=2, g=R*g*R')]
         sys = System(cryst, infos, :dipole)
 
         set_onsite_coupling!(sys, S -> S'*R*(D1+D1')*R'*S, 1)
@@ -523,7 +518,7 @@ end
         return H
     end
 
-    sys = System(Sunny.cubic_crystal(), [1 => Moment(; S=1, g=1)], :SUN)
+    sys = System(Sunny.cubic_crystal(), [1 => Moment(s=1, g=1)], :SUN)
 
     q = [0.23, 0, 0]
 
@@ -549,7 +544,7 @@ end
     # Build System and SpinWaveTheory with exchange, field and single-site anisotropy
     function simple_swt(mode)
         cryst = Crystal(diagm([1, 1, 2.0]), [[0,0,0]], "P1")
-        sys = System(cryst, [1 => Moment(; S=1, g=1)], mode; dims=(8, 1, 1))
+        sys = System(cryst, [1 => Moment(s=1, g=1)], mode; dims=(8, 1, 1))
 
         K1 = diagm([2, -1, -1])
         K2 = diagm([-1, -1, 2])
@@ -600,7 +595,7 @@ end
 
     function dimer_model(; J=1.0, J′=0.0, h=0.0, dims=(2,1,1), fast=false)
         cryst = Crystal(I(3), [[0,0,0]], 1) 
-        sys = System(cryst, [1 => Moment(; S=3/2, g=1)], :SUN; dims)
+        sys = System(cryst, [1 => Moment(s=3/2, g=1)], :SUN; dims)
 
         S = spin_matrices(1/2)
         S1, S2 = Sunny.to_product_space(S, S)
@@ -617,8 +612,8 @@ end
 
     # Set up dimer model and observables (0 and π channels manually specified)
     sys, cryst = dimer_model(; J=1.0, J′=0.2, h=0.0, dims=(2,1,1), fast=false) 
-    S = spin_matrices(1/2)
-    S1, S2 = Sunny.to_product_space(S, S)
+    s = spin_matrices(1/2)
+    S1, S2 = Sunny.to_product_space(s, s)
     observables0 = Hermitian.([
         1/√2*(S1[1] - S2[1]),
         1/√2*(S1[2] - S2[2]),
@@ -646,8 +641,8 @@ end
 
 @testitem "LSWT correction to classical energy" begin
     J = 1
-    S = 1
-    δE_afm1_ref = 0.488056/(2S) * (-2*J*S^2)
+    s = 1
+    δE_afm1_ref = 0.488056/(2s) * (-2*J*s^2)
 
     # The results are taken from Phys. Rev. B 102, 220405(R) (2020) for the AFM1
     # phase on the FCC lattice
@@ -656,7 +651,7 @@ end
         latvecs = lattice_vectors(a, a, a, 90, 90, 90)
         positions = [[0, 0, 0]]
         fcc = Crystal(latvecs, positions, 225)
-        sys_afm1 = System(fcc, [1 => Moment(; S, g=1)], mode)
+        sys_afm1 = System(fcc, [1 => Moment(; s, g=1)], mode)
         set_exchange!(sys_afm1, J, Bond(1, 2, [0, 0, 0]))
         set_dipole!(sys_afm1, (0, 0,  1), position_to_site(sys_afm1, (0, 0, 0)))
         set_dipole!(sys_afm1, (0, 0, -1), position_to_site(sys_afm1, (1/2, 1/2, 0)))
@@ -674,19 +669,19 @@ end
 end
 
 
-@testitem "LSWT correction to the ordered moments (S maximized)" begin
-    # Test example 1: The magnetization is maximized to `S`. Reference result
+@testitem "LSWT correction to the ordered moments (s maximized)" begin
+    # Test example 1: The magnetization is maximized to `s`. Reference result
     # comes from Phys. Rev. B 79, 144416 (2009) Eq. (45) for the 120° order on
     # the triangular lattice.
     J = 1
-    S = 1/2
+    s = 1/2
     a = 1
     δS_ref = -0.261302
 
     function δS_triangular(mode)
         latvecs = lattice_vectors(a, a, 10a, 90, 90, 120)
         cryst = Crystal(latvecs, [[0, 0, 0]])
-        sys = System(cryst, [1 => Moment(S=S, g=2)], mode)
+        sys = System(cryst, [1 => Moment(s=s, g=2)], mode)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         polarize_spins!(sys, [0, 1, 0])
         sys = repeat_periodically_as_spiral(sys, (3, 3, 1); k=[2/3, -1/3, 0], axis=[0, 0, 1])
@@ -703,9 +698,9 @@ end
 end
 
 
-@testitem "LSWT correction to the ordered moments (S not maximized)" begin
+@testitem "LSWT correction to the ordered moments (s not maximized)" begin
     using LinearAlgebra
-    # Test example 2: The magnetization is smaller than `S` due to easy-plane
+    # Test example 2: The magnetization is smaller than `s` due to easy-plane
     # single-ion anisotropy The results are derived in the Supplemental
     # Information (Note 12) of Nature Comm. 12.1 (2021): 5331.
     a = b = 8.3193
@@ -715,7 +710,7 @@ end
     positions = [[0, 0, 0]]
     cryst = Crystal(lat_vecs, positions, 113; types)
 
-    S = 1
+    s = 1
     J₁  = 0.266
     J₁′ = 0.1J₁
     Δ = Δ′ = 1/3
@@ -724,7 +719,7 @@ end
     g = diagm([gab, gab, gcc])
     x = 1/2 - D/(8*(2J₁+J₁′))
 
-    sys = System(cryst, [1 => Moment(; S, g)], :SUN; dims=(1, 1, 2), seed=0)
+    sys = System(cryst, [1 => Moment(; s, g)], :SUN; dims=(1, 1, 2), seed=0)
     set_exchange!(sys, diagm([J₁, J₁, J₁*Δ]),  Bond(1, 2, [0, 0, 0]))
     set_exchange!(sys, diagm([J₁′, J₁′, J₁′*Δ′]), Bond(1, 1, [0, 0, 1]))
     set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
