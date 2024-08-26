@@ -122,8 +122,10 @@ E_{\mathrm{local}}(\boldsymbol{\Omega}) = \langle \boldsymbol{\Omega}| \hat{\mat
 
 It can be shown that SU(_N_) dynamics reduces to the usual Landau-Lifshitz
 dynamics of dipoles, but involving $E_{\mathrm{local}}(\boldsymbol{\Omega})$ as
-the classical Hamiltonian. Through the renormalization factors $c_k$, _Sunny
-avoids the large-$s$ assumption, and gives a more accurate result_.
+the classical Hamiltonian. Through the renormalization factors $c_k$, _Sunny's
+`:dipole` mode incorporates corrections to the traditional large-$s$ expansion,
+enhancing accuracy_.
+
 
 Renormalization also applies to the coupling between different sites. In Sunny,
 couplings will often be expressed as a polynomial of spin operators using
@@ -145,8 +147,8 @@ circumstances where it is not desirable. Examples include reproducing a
 model-system study, or describing a micromagnetic system for which the
 $s\to\infty$ limit is a good approximation. To simulate dipoles without
 interaction strength renormalization, construct a [`System`](@ref) using the
-mode `:dipole_large_s`. Symbolic operators in the large-$s$ limit can be
-constructed by passing `Inf` to either [`spin_matrices`](@ref) or
+mode `:dipole_large_s` instead of `:dipole`. Symbolic operators in the large-$s$
+limit can be constructed by passing `Inf` to either [`spin_matrices`](@ref) or
 [`stevens_matrices`](@ref).
 
 ## Definition of Stevens operators
