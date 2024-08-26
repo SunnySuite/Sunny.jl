@@ -105,7 +105,7 @@ end
             return energy(sys)
         end
         @test E1 ≈ λ[k] * E2
-    end    
+    end
 end
 
 

@@ -9,8 +9,7 @@ cells, but this can be changed with `dims`.
 
 Spin `moments` should be given as a list of pairs, `[i => Moment(...), j =>
 Moment(...)]`, where `i, j, ...` are a complete set of symmetry-distinct atoms.
-Each [`Moment`](@ref) contains spin, ``g``-factor, and optionally form factor
-information.
+Each [`Moment`](@ref) contains spin and ``g``-factor information.
 
 The two primary options for `mode` are `:SUN` and `:dipole`. In the former, each
 spin-``s`` degree of freedom is described as an SU(_N_) coherent state, i.e. a
@@ -22,7 +21,7 @@ dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
 dynamics, but single-ion anisotropy and biquadratic exchange interactions will
 be renormalized to improve accuracy. To disable this renormalization, use the
 mode `:dipole_large_s` which applies the ``s → ∞`` classical limit. For details,
-see the documentation page: [Interaction Strength Renormalization](@ref).
+see the documentation page: [Interaction Renormalization](@ref).
 
 An integer `seed` for the random number generator can optionally be specified to
 enable reproducible calculations.

@@ -83,8 +83,7 @@ measure = ssf_custom((q, ssf) -> ssf, sys)
 measure = ssf_custom((q, ssf) -> real(sum(ssf)), sys)
 ```
 
-See also the Sunny documentation on [Structure Factor Calculations](@ref) for
-more details.
+See also the Sunny documentation on [Structure Factor Conventions](@ref).
 """
 function ssf_custom(f, sys::System; apply_g=true)
     observables = all_dipole_observables(sys; apply_g)

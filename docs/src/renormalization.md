@@ -1,4 +1,4 @@
-# Interaction Strength Renormalization
+# Interaction Renormalization
 
 A unique feature of Sunny is its support for building classical models where
 quantum spin is represented as an $N$-level system, rather than just an expected

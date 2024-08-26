@@ -1,4 +1,4 @@
-# Structure Factor Calculations
+# Structure Factor Conventions
 
 ## Dynamical correlations
 

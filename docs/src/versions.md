@@ -3,7 +3,7 @@
 ## v0.7.0
 (In development)
 
-This **major release** introduces several breaking changes:
+This **major release** introduces breaking interface changes.
 
 * The interface for calculating intensities has been revised to unify
   functionality across backends. The functions [`intensities_bands`](@ref),
@@ -24,8 +24,8 @@ This **major release** introduces several breaking changes:
 * New convenience functions [`powder_average`](@ref) and
   [`domain_average`](@ref), which wrap [`intensities`](@ref).
 * [`System`](@ref) now expects supercell dimensions as a `dims` keyword
-  argument. Lower-case `s` now labels quantum spin. For example, use
-  `:dipole_large_s` instead of `:dipole_large_S`.
+  argument. [`Moment`](@ref) replaces `SpinInfo`. Lower-case `s` now labels
+  quantum spin. For example, use `:dipole_large_s` instead of `:dipole_large_S`.
 * In [`view_crystal`](@ref) and [`plot_spins`](@ref) use `ndims` instead of
   `dims` for the number of spatial dimensions.
 * Binning features have been removed. Some functionality may be added back in a
@@ -106,7 +106,7 @@ This **major release** introduces several breaking changes:
 (Mar 25, 2024)
 
 * **Correctness fixes**: Structure factor conventions are now uniform across
-  modes and [precisely specified](@ref "Structure Factor Calculations"). The
+  modes and [precisely specified](@ref "Structure Factor Conventions"). The
   g-tensor is applied by default (disable with `apply_g = false`). The intensity
   is additive with increasing number of magnetic ions in the chemical cell,
   consistent with SpinW. [Issue

@@ -2,7 +2,7 @@
 #
 # This example illustrates Sunny's conventions for dynamical structure factor
 # intensities, ``\mathcal{S}(𝐪,ω)``, as documented in the page [Structure
-# Factor Calculations](@ref). In the neutron scattering context, the variables
+# Factor Conventions](@ref). In the neutron scattering context, the variables
 # ``𝐪`` and ``ω`` describe momentum and energy transfer _to_ the sample.
 #
 # For systems without inversion-symmetry, the structure factor intensities at

@@ -127,6 +127,9 @@ function FormFactor(ion::String; g_lande=2)
     FormFactor(j0, j2, config, g_lande)
 end
 
+function Base.convert(::Type{FormFactor}, x::String)
+    return FormFactor(x)
+end
 
 function compute_gaussian_expansion(j::ExpandedBesselIntegral, s2)
     (; A, a, B, b, C, c, D, d, E) = j
