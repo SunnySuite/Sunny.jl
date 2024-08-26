@@ -11,6 +11,7 @@ quantitative modeling of experimental scattering data.
 - Generalized spin dynamics using [SU(_N_) coherent
   states](https://arxiv.org/abs/2209.01265).
 - Ability to specify a crystal from a `.cif` file or its spacegroup symmetry.
+  Magnetic structures can be read from `.mcif` files.
 - Interactive visualizations of the 3D crystals and magnetic ordering.
 - Symmetry analysis to classify allowed interaction terms, and to propagate them
   by symmetry.
@@ -24,6 +25,5 @@ quantitative modeling of experimental scattering data.
   nonlinear effects.
 - Long-range dipole-dipole interactions accelerated with the fast Fourier
   transform (FFT).
-- Support for comparison with experimental data: form factor, dipole
-  factor, temperature-dependent classical-to-quantum factors, intensity binning,
-  etc.
+- Support for comparison with experimental data: form factor, dipole factor,
+  temperature-dependent classical-to-quantum factors, etc.

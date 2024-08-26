@@ -24,12 +24,12 @@ view_crystal(cryst)
 # Create a system with exchange parameters taken from [T. Jensen, et al., PRB
 # **79**, 092413 (2009)](https://doi.org/10.1103/PhysRevB.79.092413). The
 # corrected anisotropy values are taken from the thesis of T. Jensen. The mode
-# `:dipole_large_S` avoids a [classical-to-quantum rescaling factor](@ref
+# `:dipole_large_s` avoids a [classical-to-quantum rescaling factor](@ref
 # "Interaction Strength Renormalization") of anisotropy strengths, as needed for
 # consistency with the original fits.
 
 S = 3/2
-sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole_large_S)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole_large_s)
 Jbc =  1.036
 Jb  =  0.6701
 Jc  = -0.0469
@@ -50,7 +50,7 @@ set_onsite_coupling!(sys, S -> Da*S[1]^2 + Db*S[2]^2, 1)
 
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; color=[s[3] for s in sys.dipoles])
+plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # Calculate the spectrum along path [ξ, 1, 0]
 

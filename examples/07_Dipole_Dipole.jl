@@ -14,7 +14,7 @@ latvecs = lattice_vectors(10.19, 10.19, 10.19, 90, 90, 90)
 positions = [[0, 0, 0]]
 cryst = Crystal(latvecs, positions, 227, setting="2")
 
-sys = System(cryst, [SpinInfo(1, S=7/2, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(s=7/2, g=2)], :dipole)
 J1 = 0.304 # (K)
 set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))
 

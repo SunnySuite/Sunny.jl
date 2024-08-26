@@ -42,7 +42,7 @@ print_symmetry_table(cryst, 8)
 # traditional spin wave theory, we are modeling quantum spins using only their
 # expected dipole moments.
 
-sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
 
 # Set a nearest neighbor exchange interaction of ``J = -1`` meV between
 # neighboring atoms. That is, the total energy along each bond is ``J S_i

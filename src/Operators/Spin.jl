@@ -3,24 +3,24 @@ function spin_matrices_of_dim(; N::Int)
         return fill(Hermitian(zeros(ComplexF64,0,0)), 3)
     end
 
-    S = (N-1)/2 + 0im
+    s = (N-1)/2 + 0im
     j = 1:N-1
-    off = @. sqrt(2(S+1)*j - j*(j+1)) / 2 + 0im
+    off = @. sqrt(2(s+1)*j - j*(j+1)) / 2 + 0im
 
     Sx = Hermitian(diagm(1 => off, -1 => off))
     Sy = Hermitian(diagm(1 => -im*off, -1 => +im*off))
-    Sz = Hermitian(diagm(S .- (0:N-1)))
+    Sz = Hermitian(diagm(s .- (0:N-1)))
     return SVector(Sx, Sy, Sz)
 end
 
 
 """
-    spin_matrices(S)
+    spin_matrices(s)
 
-Returns a triple of ``N×N`` spin matrices, where ``N = 2S+1``. These are the
-generators of SU(2) in the spin-`S` representation.
+Returns a triple of ``N×N`` spin matrices, where ``N = 2s+1``. These are the
+generators of SU(2) in the spin-`s` representation.
 
-If `S == Inf`, then the return values are abstract symbols denoting
+If `s == Inf`, then the return values are abstract symbols denoting
 infinite-dimensional matrices that commute. These can be useful for repeating
 historical studies, or modeling micromagnetic systems. A technical discussion
 appears in the Sunny documentation page: [Interaction Strength
@@ -38,10 +38,10 @@ S = spin_matrices(Inf)
 
 See also [`print_stevens_expansion`](@ref).
 """
-function spin_matrices(S)
-    S == Inf && return spin_vector_symbol
-    isinteger(2S+1) || error("Spin `S` must be half-integer.")
-    spin_matrices_of_dim(; N=Int(2S+1))
+function spin_matrices(s)
+    s == Inf && return spin_vector_symbol
+    isinteger(2s+1) || error("Spin `s` must be half-integer.")
+    spin_matrices_of_dim(; N=Int(2s+1))
 end
 
 # The Stevens quadrupoles, O[2, q=2...-2]

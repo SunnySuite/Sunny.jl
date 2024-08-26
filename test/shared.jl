@@ -28,7 +28,7 @@ function add_exchange_interactions!(sys, _)
 end
 
 function add_quadratic_interactions!(sys, mode)
-    if mode in (:dipole, :dipole_large_S)
+    if mode in (:dipole, :dipole_large_s)
         add_exchange_interactions!(sys, mode)
     else
         @assert mode == :SUN
@@ -51,7 +51,7 @@ function add_quadratic_interactions!(sys, mode)
 end
 
 function add_quartic_interactions!(sys, mode)
-    if mode in (:dipole, :dipole_large_S)
+    if mode in (:dipole, :dipole_large_s)
         # Stevens operators O[4,q] are quartic in dipoles
         i = 3
         O = stevens_matrices(spin_label(sys, i))

@@ -100,9 +100,14 @@ Base.@deprecate set_spiral_order!(sys; q=nothing, k=nothing, axis, S0) let
     error("Use repeat_periodically_as_spiral(...) instead of set_spiral_order!(...)")
 end
 
-Base.@deprecate System(crystal::Crystal, dims::NTuple{3,Int}, infos::Vector{SpinInfo}, mode::Symbol; seed=nothing, units=nothing) let
+Base.@deprecate System(crystal::Crystal, dims::NTuple{3,Int}, infos, mode::Symbol; seed=nothing, units=nothing) let
     @warn "Deprecation warning! `dims` is now a keyword argument, e.g., System(...; dims=$dims)"
     return System(crystal, infos, mode; dims, seed, units)
+end
+
+Base.@deprecate SpinInfo(i; S, g) let
+    @warn "SpinInfo(i; S, g) is deprecated! Use `i => Moment(; s, g)` instead."
+    i => Moment(; s=S, g)
 end
 
 # REMEMBER TO ALSO DELETE:
@@ -111,8 +116,6 @@ end
 # * dims argument in view_crystal and plot_spins
 # * λ argument in Langevin constructor
 # * Δt argument in dynamic_correlations
-# * large_S argument in set_exchange! and set_exchange_at!
-# * Argument q in set_spiral_order
 # * Argument units to System
 # * Missing μ0_μB² in enable_dipole_dipole! and
 #   modify_exchange_with_truncated_dipole_dipole!

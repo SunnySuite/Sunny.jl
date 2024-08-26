@@ -26,7 +26,7 @@ types = ["Cu"]
 formfactors = [FormFactor("Cu2")]
 xtal = Crystal(latvecs, positions; types)
 
-sys = System(xtal, [SpinInfo(1, S=1/2, g=2)], :SUN; dims=(12, 12, 1), seed=1)
+sys = System(xtal, [1 => Moment(s=1/2, g=2)], :SUN; dims=(12, 12, 1), seed=1)
 
 J = 10.
 set_exchange!(sys, J, Bond(1,1,[1,0,0]))

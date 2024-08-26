@@ -10,12 +10,12 @@ interaction strength renormalization that maximizes accuracy.
 
 ## Local operators
 
-A quantum spin-$S$ state has $N = 2S + 1$ levels. Each local spin operator
-$\hat{S}^{\{x,y,z\}}$ is faithfully represented as an $N×N$ matrix.
-These matrices can be accessed using [`spin_matrices`](@ref) for a given label
-$S$. For example, the Pauli matrices are associated with $S = 1/2$.
+A quantum spin-$s$ state has $N = 2s + 1$ levels. Each local spin operator
+$\hat{S}^{\{x,y,z\}}$ is faithfully represented as an $N×N$ matrix. These
+matrices can be accessed using [`spin_matrices`](@ref) for a given label $s$.
+For example, the Pauli matrices are associated with $s = 1/2$.
 
-When $S > 1/2$, it is possible to construct multipole moments beyond the
+When $s > 1/2$, it is possible to construct multipole moments beyond the
 spin-dipole. For example,
 
 ```julia
@@ -66,56 +66,65 @@ for some coefficients $A_{k,q}$.
 In `:SUN` mode, Sunny will faithfully represent $\hat{\mathcal
 H}_{\mathrm{local}}$ as an $N×N$ matrix. In `:dipole` mode, the expected energy
 $\langle \hat{\mathcal H}_{\mathrm{local}} \rangle$ must somehow be approximated
-as a function of the expected dipole $\mathbf{s}$.
+using the expected dipole data.
 
-One approach is to formally take $S \to \infty$, and this yields the traditional
-classical limit of a spin system. In this, limit spin operators commute, and
+One approach is to formally take $s \to \infty$, and this yields the traditional
+classical limit of a spin system. In this limit spin operators commute and
 expectation values of polynomials become polynomials of expectation values. For
 example, $\langle \hat{S}^\alpha \hat{S}^\beta\rangle \to \langle \hat{S}^\alpha
 \rangle \langle \hat{S}^\beta\rangle$, because any corrections are damped by the
-factor $S^{-1} \to 0$. The expectation of a Stevens operator $\langle
-\hat{\mathcal{O}}_{k,q} \rangle$ becomes a Stevens function
-$\mathcal{O}_{k,q}(\mathbf{s})$, i.e., a polynomial of expected dipole
-$\mathbf{s} = \langle \hat{\mathbf{S}} \rangle$.
+factor $s^{-1} \to 0$. The expectation of a Stevens operator $\langle
+\hat{\mathcal{O}}_{k,q} \rangle$ would then become a classical Stevens function
+$\mathcal{O}_{k,q}(\langle\hat{\mathbf{S}}\rangle)$, i.e., a polynomial of the
+same form, but now applied to the expected dipole. Classical Stevens functions
+are constructed as homogeneous polynomials of order $k$, because lower-order
+terms would vanish in the limit $s \to \infty$.
 
-In a real magnetic compound, however, the spin magnitude $S$ is not necessarily
-large. To obtain a better approximation, one should avoid the assumption $S \to
-\infty$. Our approach is to start with the full dynamics of SU(_N_) coherent
+In a real magnetic compound, however, the spin magnitude $s$ is not necessarily
+large. To obtain a better approximation, one should avoid the formal limit $s
+\to \infty$. Our approach is to start with the full dynamics of SU(_N_) coherent
 states, and then constrain it to the space of pure dipole states
-$|\mathbf{s}\rangle$. The latter are defined such that expectation values,
+$|\boldsymbol{\Omega}\rangle$. The latter are defined as any states where the
+expected dipole 3-vector,
 ```math
-\langle \mathbf{s}| \hat{\mathbf{S}} | \mathbf{s}\rangle = \mathbf{s},
+\boldsymbol{\Omega} ≡ \langle \boldsymbol{\Omega}| \hat{\mathbf{S}} | \boldsymbol{\Omega}\rangle,
 ```
-have magnitude $|\mathbf{s}| = S$, which is maximal.
+has maximal magnitude $|\boldsymbol{\Omega}| = s$ and
+arbitrary direction.
 
-For pure dipole states, expectations can be computed exactly,
+For a pure dipole state, group theory dictates that expectations of the Stevens
+operators can be expressed as a renormalization of the classical Stevens
+functions,
 ```math
-\langle \mathbf{s}| \hat{\mathcal{O}} | \mathbf{s}\rangle = c_k \mathcal{O}_{k,q}(\mathbf{s}).
+\langle \boldsymbol{\Omega}| \hat{\mathcal{O}}_{k,q} | \boldsymbol{\Omega}\rangle = c_k \mathcal{O}_{k,q}(\boldsymbol{\Omega}).
 ```
 
-The right-hand side involves a renormalization of the Stevens functions, where
+At fixed $k$, the two sides must be proportional because they are both spin-$k$
+irreducible representations of SO(3). The renormalization factors [can be
+calculated explicitly](https://arxiv.org/abs/2304.03874):
 
 ```math
 \begin{align*}
 c_1 &= 1 \\
-c_2 &= 1-\frac{1}{2}S^{-1} \\
-c_3 &= 1-\frac{3}{2}S^{-1}+\frac{1}{2}S^{-2} \\
-c_4 &= 1-3S^{-1}+\frac{11}{4}S^{-2}-\frac{3}{4}S^{-3} \\
-c_5 &= 1-5S^{-1}+\frac{35}{4}S^{-2}-\frac{25}{4}S^{-3}+\frac{3}{2}S^{-4} \\
-c_6 &= 1-\frac{15}{2}S^{-1}+\frac{85}{4}S^{-2}-\frac{225}{8}S^{-3}+\frac{137}{8}S^{-4}-\frac{15}{4}S^{-5} \\
+c_2 &= 1-\frac{1}{2}s^{-1} \\
+c_3 &= 1-\frac{3}{2}s^{-1}+\frac{1}{2}s^{-2} \\
+c_4 &= 1-3s^{-1}+\frac{11}{4}s^{-2}-\frac{3}{4}s^{-3} \\
+c_5 &= 1-5s^{-1}+\frac{35}{4}s^{-2}-\frac{25}{4}s^{-3}+\frac{3}{2}s^{-4} \\
+c_6 &= 1-\frac{15}{2}s^{-1}+\frac{85}{4}s^{-2}-\frac{225}{8}s^{-3}+\frac{137}{8}s^{-4}-\frac{15}{4}s^{-5} \\
 &\vdots
 \end{align*}
 ```
 
 Constrained to the space of dipoles, the expected local energy becomes
 ```math
-E_{\mathrm{local}}(\mathbf{s}) = \langle \mathbf{s}| \hat{\mathcal H}_{\mathrm{local}} | \mathbf{s}\rangle = \sum_{k, q} c_k A_{k,q} \mathcal{O}_{k,q}(\mathbf{s}).
+E_{\mathrm{local}}(\boldsymbol{\Omega}) = \langle \boldsymbol{\Omega}| \hat{\mathcal H}_{\mathrm{local}} | \boldsymbol{\Omega}\rangle = \sum_{k, q} c_k A_{k,q} \mathcal{O}_{k,q}(\boldsymbol{\Omega}).
 ```
 
 It can be shown that SU(_N_) dynamics reduces to the usual Landau-Lifshitz
-dynamics of dipoles, but involving $E_{\mathrm{local}}(\mathbf{s})$ as the
-classical Hamiltonian. Through the renormalization factors $c_k$, _Sunny avoids
-the large-$S$ assumption, and gives a more accurate result_.
+dynamics of dipoles, but involving $E_{\mathrm{local}}(\boldsymbol{\Omega})$ as
+the classical Hamiltonian. The renormalization factors $c_k$ can therefore be
+interpreted as a correction to the traditional large-$s$ classical limit.
+
 
 Renormalization also applies to the coupling between different sites. In Sunny,
 couplings will often be expressed as a polynomial of spin operators using
@@ -124,32 +133,34 @@ tensor products of Stevens operators. Without loss of generality, consider a
 single coupling between two Stevens operators
 $\hat{\mathcal{H}}_\mathrm{coupling} = \hat{\mathcal{O}}_{k,q} \otimes
 \hat{\mathcal{O}}_{k',q'}$ along a bond connecting sites $i$ and $j$. Upon
-constraining to pure dipole states $|\mathbf{s}_i\rangle$ and
-$|\mathbf{s}_j\rangle$, the expected energy takes the form $E_\mathrm{coupling}
-= c_k c_k' \mathcal{O}_{k,q}(\mathbf{s}_i) \mathcal{O}_{k',q'}(\mathbf{s}_j)$,
-which now involves a product of renormalized Stevens functions. 
+constraining to pure dipole states $|\boldsymbol{\Omega}_i\rangle$ and
+$|\boldsymbol{\Omega}_j\rangle$, the expected energy takes the form
+$E_\mathrm{coupling} = c_k c_k' \mathcal{O}_{k,q}(\boldsymbol{\Omega}_i)
+\mathcal{O}_{k',q'}(\boldsymbol{\Omega}_j)$, which now involves a product of
+renormalized Stevens functions. 
 
-## Use `:dipole_large_S` mode to disable renormalization
+## Use `:dipole_large_s` mode to disable renormalization
 
 Although we generally recommend the above renormalization procedure, there are
 circumstances where it is not desirable. Examples include reproducing a
 model-system study, or describing a micromagnetic system for which the
-$S\to\infty$ limit is a good approximation. To simulate dipoles without
+$s\to\infty$ limit is a good approximation. To simulate dipoles without
 interaction strength renormalization, construct a [`System`](@ref) using the
-mode `:dipole_large_S`. Symbolic operators in the large-$S$ limit can be
-constructed by passing `Inf` to either [`spin_matrices`](@ref) or
+mode `:dipole_large_s` instead of `:dipole`. Symbolic operators in the large-$s$
+limit can be constructed by passing `Inf` to either [`spin_matrices`](@ref) or
 [`stevens_matrices`](@ref).
 
 ## Definition of Stevens operators
 
 The Stevens operators $\hat{\mathcal{O}}_{k,q}$ are defined as polynomials of
-angular momentum operators $\hat{S}_{\{x,y,z\}}$ in some spin-$S$ representation.
+angular momentum operators $\hat{S}_{\{x,y,z\}}$ in some spin-$s$
+representation.
 
 Using
 
 ```math
 \begin{align*}
-X &= \mathbf{\hat{S}} \cdot \mathbf{\hat{S}} = S (S+1) \\
+X &= \mathbf{\hat{S}} \cdot \mathbf{\hat{S}} = s (s+1) \\
 \hat{S}_\pm &= \hat{S}_x \pm i \hat{S}_y \\
 \phi_+ &= \frac{1}{4},\quad \phi_- = \frac{1}{4 i},
 \end{align*}
@@ -217,13 +228,14 @@ That is, rotation will transform $\hat{\mathcal{O}}_{k,q}$ into a linear
 combination of $\hat{\mathcal{O}}_{k,q'}$ where $q'$ varies but $k$ remains
 fixed. 
 
-In taking the large-$S$ limit, each dipole operator is replaced by its
-expectation value $\mathbf{s} = \langle \hat{\mathbf{S}} \rangle$, and only
-leading-order terms are retained. The operator $\hat{\mathcal{O}}_{k,q}$ becomes
-a homogeneous polynomial $O_{k,q}(\mathbf{s})$ of order $k$ in the spin
-components. One can see these polynomials by constructing
-[`stevens_matrices`](@ref) with the argument `S = Inf`. Due to the normalization
-constraint, each dipole can be expressed in polar angles, $(\theta, \phi)$. Then
-the Stevens functions $O_{k,q}(\mathbf{s})$ correspond to the spherical harmonic
-functions $Y_l^m(\theta, \phi)$ where $l=k$ and $m=q$; this correspondence is
-valid up to $k$ and $q$-dependent rescaling factors.
+In taking the large-$s$ limit, each dipole operator is replaced by its
+expectation value $\boldsymbol{\Omega} = \langle \hat{\mathbf{S}} \rangle$, and
+only leading-order terms are retained. The operator $\hat{\mathcal{O}}_{k,q}$
+becomes a homogeneous polynomial $O_{k,q}(\boldsymbol{\Omega})$ of order $k$ in
+the spin components $\Omega^\alpha$. One can see these polynomials by
+constructing [`stevens_matrices`](@ref) with the argument `s = Inf`. Due to the
+normalization constraint, each dipole can be expressed in polar angles,
+$(\theta, \phi)$. Then the Stevens functions $O_{k,q}(\boldsymbol{\Omega})$
+correspond to the spherical harmonic functions $Y_l^m(\theta, \phi)$ where $l=k$
+and $m=q$; this correspondence is valid up to $k$ and $q$-dependent rescaling
+factors.

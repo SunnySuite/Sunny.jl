@@ -1,22 +1,27 @@
 """
-    System(crystal::Crystal, infos, mode; dims=(1, 1, 1), seed=nothing)
+    System(crystal::Crystal, moments, mode; dims=(1, 1, 1), seed=nothing)
 
 A spin system is constructed from the [`Crystal`](@ref) unit cell, a
-specification of the [`SpinInfo`](@ref) for each symmetry-distinct site, and a
-calculation `mode`. Interactions can be added to the system using, e.g.,
+specification of the spin `moments` symmetry-distinct sites, and a calculation
+`mode`. Interactions can be added to the system using, e.g.,
 [`set_exchange!`](@ref). The default supercell dimensions are 1×1×1 chemical
 cells, but this can be changed with `dims`.
 
+Spin `moments` should be given as a list of pairs, `[i => Moment(...), j =>
+Moment(...)]`, where `i, j, ...` are a complete set of symmetry-distinct atoms.
+Each [`Moment`](@ref) contains spin, ``g``-factor, and optionally form factor
+information.
+
 The two primary options for `mode` are `:SUN` and `:dipole`. In the former, each
-spin-``S`` degree of freedom is described as an SU(_N_) coherent state, i.e. a
-quantum superposition of ``N = 2S + 1`` levels. This formalism can be useful to
+spin-``s`` degree of freedom is described as an SU(_N_) coherent state, i.e. a
+quantum superposition of ``N = 2s + 1`` levels. This formalism can be useful to
 capture multipolar spin fluctuations or local entanglement effects. 
 
 Mode `:dipole` projects the SU(_N_) dynamics onto the restricted space of pure
 dipoles. In practice this means that Sunny will simulate Landau-Lifshitz
 dynamics, but single-ion anisotropy and biquadratic exchange interactions will
 be renormalized to improve accuracy. To disable this renormalization, use the
-mode `:dipole_large_S` which applies the ``S → ∞`` classical limit. For details,
+mode `:dipole_large_s` which applies the ``s → ∞`` classical limit. For details,
 see the documentation page: [Interaction Strength Renormalization](@ref).
 
 An integer `seed` for the random number generator can optionally be specified to
@@ -24,14 +29,18 @@ enable reproducible calculations.
 
 All spins are initially polarized in the global ``z``-direction.
 """
-function System(crystal::Crystal, infos::Vector{SpinInfo}, mode::Symbol;
+function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symbol;
                 dims::NTuple{3,Int}=(1, 1, 1), seed::Union{Int,Nothing}=nothing, units=nothing)
     if !isnothing(units)
         @warn "units argument to System is deprecated and will be ignored!"
     end
-    
-    if !in(mode, (:SUN, :dipole, :dipole_large_S))
-        error("Mode must be `:SUN`, `:dipole`, or `:dipole_large_S`.")
+    if mode == :dipole_large_S
+        @warn "Deprecation warning! Use :dipole_large_s instead of :dipole_large_S"
+        mode = :dipole_large_s
+    end
+
+    if !in(mode, (:SUN, :dipole, :dipole_large_s))
+        error("Mode must be `:SUN`, `:dipole`, or `:dipole_large_s`.")
     end
 
     # The lattice vectors of `crystal` must be conventional (`crystal` cannot be
@@ -42,9 +51,9 @@ function System(crystal::Crystal, infos::Vector{SpinInfo}, mode::Symbol;
     
     na = natoms(crystal)
 
-    infos = propagate_site_info(crystal, infos)
-    Ss = [si.S for si in infos]
-    gs = [si.g for si in infos]
+    moments = propagate_moments(crystal, moments)
+    Ss = [m.s for m in moments]
+    gs = [m.g for m in moments]
 
     # TODO: Label SU(2) rep instead
     Ns = @. Int(2Ss+1)
@@ -53,7 +62,7 @@ function System(crystal::Crystal, infos::Vector{SpinInfo}, mode::Symbol;
         allequal(Ns) || error("Currently all spins S must be equal in SU(N) mode.")
         N = first(Ns)
         κs = fill(1.0, na)
-    elseif mode in (:dipole, :dipole_large_S)
+    elseif mode in (:dipole, :dipole_large_s)
         N = 0 # marker for :dipole mode
         κs = copy(Ss)
     end
@@ -83,8 +92,8 @@ function mode_to_str(sys::System{N}) where N
         return "[SU($N)]"
     elseif sys.mode == :dipole
         return "[Dipole mode]"
-    elseif sys.mode == :dipole_large_S
-        return "[Dipole mode, large-S]"
+    elseif sys.mode == :dipole_large_s
+        return "[Dipole mode, large-s]"
     else
         error()
     end
@@ -198,11 +207,11 @@ end
 """
     spin_label(sys::System, i::Int)
 
-If atom `i` carries a single spin-``S`` moment, then returns the half-integer
-label ``S``. Otherwise, throws an error.
+If atom `i` carries a single spin-``s`` moment, then returns the half-integer
+label ``s``. Otherwise, throws an error.
 """
 function spin_label(sys::System, i::Int)
-    if sys.mode == :dipole_large_S
+    if sys.mode == :dipole_large_s
         return Inf
     else
         @assert sys.mode in (:dipole, :SUN)
@@ -497,11 +506,11 @@ end
 Set a coherent spin state at a [`Site`](@ref) using the ``N`` complex amplitudes
 in `Z`.
 
-For a standard [`SpinInfo`](@ref), these amplitudes will be interpreted in the
-eigenbasis of ``𝒮̂ᶻ``. That is, `Z[1]` represents the amplitude for the basis
+For a single quantum spin-``s``, these amplitudes will be interpreted in the
+eigenbasis of ``Ŝ^z``. That is, `Z[1]` represents the amplitude for the basis
 state fully polarized along the ``ẑ``-direction, and subsequent components
-represent states with decreasing angular momentum along this axis (``m = S, S-1,
-…, -S``).
+represent states with decreasing angular momentum along this axis (``m = s, s-1,
+…, -s``).
 """
 function set_coherent!(sys::System{N}, Z, site) where N
     site = to_cartesian(site)

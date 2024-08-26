@@ -83,40 +83,6 @@ function all_symmetry_related_atoms(cryst::Crystal, i_ref::Int)
 end
 
 
-# For each atom in the unit cell of `cryst`, return the corresponding element of
-# `ref_atom` that is symmetry equivalent. Print a helpful error message if two
-# reference atoms are symmetry equivalent, or if a reference atom is missing. 
-function propagate_reference_atoms(cryst::Crystal, ref_atoms::Vector{Int})
-    # Sort infos by site equivalence class
-    ref_atoms = sort(ref_atoms; by = (a -> cryst.classes[a]))
-    ref_classes = cryst.classes[ref_atoms]
-
-    # Verify that none of the atoms belong to the same class
-    for i = 1:length(ref_atoms)-1
-        a1, a2 = ref_atoms[[i,i+1]]
-        c1, c2 = ref_classes[[i,i+1]]
-        if c1 == c2
-            error("Atoms $a1 and $a2 are symmetry equivalent.")
-        end
-    end
-    @assert allunique(ref_classes)
-
-    # Verify that every class has been specified
-    missing_classes = setdiff(cryst.classes, ref_classes)
-    if !isempty(missing_classes)
-        c = first(missing_classes)
-        a = findfirst(==(c), cryst.classes)
-        error("Not all sites are specified; consider including atom $a.")
-    end
-    @assert length(ref_atoms) == length(unique(cryst.classes))
-
-    # Return a symmetry-equivalent reference atom for each atom in the unit cell
-    return map(cryst.classes) do c
-        ref_atoms[only(findall(==(c), ref_classes))]
-    end
-end
-
-
 # Generate list of all symmetries that transform b2 into b1, along with parity
 function symmetries_between_bonds(cryst::Crystal, b1::BondPos, b2::BondPos)
     # Fail early if two bonds describe different real-space distances

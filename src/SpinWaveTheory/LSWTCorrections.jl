@@ -96,11 +96,11 @@ end
 """
     magnetization_lswt_correction(swt::SpinWaveTheory; opts...)
 
-Calculates the reduction in the classical magnetization given a
-[`SpinWaveTheory`](@ref) from LSWT for all atoms in the magnetic cell. In the
-case of `:dipole` and `:dipole_large_S` mode, the classical magnetization is
-always maximized to spin size `S`. While in `:SUN` mode, the classical
-magnetization can be smaller than `S` due to anisotropic interactions.
+Calculates the reduction in the classical dipole magnitude for all atoms in the
+magnetic cell. In the case of `:dipole` and `:dipole_large_s` mode, the
+classical dipole magnitude is constrained to spin-`s`. While in `:SUN` mode, the
+classical dipole magnitude can be smaller than `s` due to anisotropic
+interactions.
 
 A keyword argument `rtol`, `atol`, or `maxevals` is required to control the
 accuracy of momentum-space integration. See the HCubature package documentation
@@ -113,7 +113,7 @@ function magnetization_lswt_correction(swt::SpinWaveTheory; opts...)
     if sys.mode == :SUN
         δS = magnetization_lswt_correction_sun(swt; opts...)
     else
-        @assert sys.mode in (:dipole, :dipole_large_S)
+        @assert sys.mode in (:dipole, :dipole_large_s)
         δS = magnetization_lswt_correction_dipole(swt; opts...)
     end
     return δS

@@ -196,7 +196,7 @@ function local_energy_change(sys::System{N}, site, state::SpinState) where N
 
         # Biquadratic
         if !iszero(pc.biquad)
-            if sys.mode in (:dipole, :dipole_large_S)
+            if sys.mode in (:dipole, :dipole_large_s)
                 ΔQ = quadrupole(s) - quadrupole(s₀)
                 Qⱼ = quadrupole(sⱼ)
             else
@@ -316,7 +316,7 @@ function energy_aux(ints::Interactions, sys::System{N}, i::Int, cells) where N
 
             # Biquadratic
             if !iszero(pc.biquad)
-                if sys.mode in (:dipole, :dipole_large_S)
+                if sys.mode in (:dipole, :dipole_large_s)
                     Qᵢ = quadrupole(sᵢ)
                     Qⱼ = quadrupole(sⱼ)
                 else
@@ -387,7 +387,7 @@ end
 function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Interactions, sys::System{N}, i::Int, cells) where N
     # Single-ion anisotropy only contributes in dipole mode. In SU(N) mode, the
     # anisotropy matrix will be incorporated directly into local H matrix.
-    if sys.mode in (:dipole, :dipole_large_S)
+    if sys.mode in (:dipole, :dipole_large_s)
         stvexp = ints.onsite :: StevensExpansion
         for cell in cells
             s = dipoles[cell, i]
@@ -410,7 +410,7 @@ function set_energy_grad_dipoles_aux!(∇E, dipoles::Array{Vec3, 4}, ints::Inter
             ∇E[cellⱼ, bond.j] += J' * sᵢ
 
             # Biquadratic for dipole mode only (SU(N) handled differently)
-            if sys.mode in (:dipole, :dipole_large_S)
+            if sys.mode in (:dipole, :dipole_large_s)
                 if !iszero(pc.biquad)
                     Qᵢ = quadrupole(sᵢ)
                     Qⱼ = quadrupole(sⱼ)

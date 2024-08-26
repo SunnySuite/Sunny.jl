@@ -30,7 +30,7 @@ c = 6.75214
 latvecs = lattice_vectors(a, b, c, 90, 90, 120)
 cryst = Crystal(latvecs, [[0,0,0]], 164; types=["Fe"])
 
-sys = System(cryst, [SpinInfo(1, S=1, g=2)], :SUN)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN)
 J1pm   = -0.236
 J1pmpm = -0.161
 J1zpm  = -0.261
@@ -87,7 +87,7 @@ langevin.dt = 0.03;
 for _ in 1:10_000
     step!(sys, langevin)
 end
-plot_spins(sys; color=[s[3] for s in sys.dipoles])
+plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # The two-up, two-down spiral order can be verified by calling
 # [`print_wrapped_intensities`](@ref). A single propagation wavevector ``±𝐤``

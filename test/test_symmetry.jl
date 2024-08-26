@@ -167,11 +167,11 @@ end
         # test for `isapprox` bug and report to DynamicPolynomials repo. Cf.
         # https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/created_by/kbarros
 
-        S = 3
+        s = 3
         k = 6
         i = 1
         cryst = Sunny.diamond_crystal()
-        O = stevens_matrices(S)
+        O = stevens_matrices(s)
 
         # print_site(cryst, i)
         Λ = O[6,0]-21O[6,4]
@@ -202,7 +202,7 @@ end
         cryst = Crystal(latvecs, positions)
 
         for mode in (:dipole, :SUN)
-            sys = System(cryst, [SpinInfo(1, S=2, g=2)], mode)
+            sys = System(cryst, [1 => Moment(s=2, g=2)], mode)
             randomize_spins!(sys)
 
             # Most general allowed anisotropy for this crystal
@@ -218,7 +218,7 @@ end
             # Rotate spin state correspondingly
             R = Sunny.Mat3([0 1 0; -1 0 0; 0 0 1])
             sys.dipoles .= circshift(sys.dipoles, (0,0,0,1))
-            sys.dipoles .= [R*d for d in sys.dipoles]
+            sys.dipoles .= [R*S for S in sys.dipoles]
 
             # If coherents are present, perform same operation
             if mode == :SUN
@@ -346,7 +346,7 @@ end
     cryst = @test_warn warnstr Crystal(latvecs, [[0, 0, 0]])    
     
     # Dipole system with renormalized anisotropy
-    sys0 = System(cryst, [SpinInfo(1, S=3, g=2)], :dipole)
+    sys0 = System(cryst, [1 => Moment(s=3, g=2)], :dipole)
     randomize_spins!(sys0)
 
     i = 1
@@ -358,7 +358,7 @@ end
     E0 = energy(sys0)
     
     # Corresponding SU(N) system
-    sys = System(cryst, [SpinInfo(1, S=3, g=2)], :SUN)
+    sys = System(cryst, [1 => Moment(s=3, g=2)], :SUN)
     for site in eachsite(sys)
         set_dipole!(sys, sys0.dipoles[site], site)
     end

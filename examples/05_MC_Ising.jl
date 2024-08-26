@@ -16,7 +16,7 @@ crystal = Crystal(latvecs, [[0, 0, 0]])
 # dipole ``𝐬`` is ``-𝐁⋅𝐬``. The system size is 128×128.
 
 L = 128
-sys = System(crystal, [SpinInfo(1, S=1, g=-1)], :dipole; dims=(L, L, 1), seed=0)
+sys = System(crystal, [1 => Moment(s=1, g=-1)], :dipole; dims=(L, L, 1), seed=0)
 polarize_spins!(sys, (0, 0, 1))
 
 # Use [`set_exchange!`](@ref) to include a ferromagnetic Heisenberg interaction
@@ -50,4 +50,4 @@ end
 
 # Plot the Ising spins by extracting the ``z``-component of the dipoles
 
-heatmap(reshape([s[3] for s in sys.dipoles], (L, L)))
+heatmap(reshape([S[3] for S in sys.dipoles], (L, L)))

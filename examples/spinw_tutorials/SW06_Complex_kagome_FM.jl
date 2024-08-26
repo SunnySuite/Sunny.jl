@@ -24,7 +24,7 @@ view_crystal(cryst; ndims=2)
 # atom 1 to atom 1 that passes through the center of an "empty" hexagon of the
 # kagome lattice.
 
-sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
 J1 = -1.0
 J2 = 0.1
 J3a = 0.00

@@ -179,7 +179,7 @@ end
 
 Prints a local Hermitian operator as a linear combination of Stevens operators.
 The operator `op` may be a finite-dimensional matrix or an abstract spin
-polynomial in the large-``S`` limit.
+polynomial in the large-``s`` limit.
 
 # Examples
 
@@ -223,16 +223,16 @@ end
 
 
 """
-    stevens_matrices(S)
+    stevens_matrices(s)
 
-Returns a generator of Stevens operators in the spin-`S` representation. The
+Returns a generator of Stevens operators in the spin-`s` representation. The
 return value `O` can be indexed as `O[k,q]`, where ``0 ≤ k ≤ 6`` labels an irrep
-of SO(3) and ``-k ≤ q ≤ k``. This will produce an ``N×N`` matrix where ``N = 2S
+of SO(3) and ``-k ≤ q ≤ k``. This will produce an ``N×N`` matrix where ``N = 2s
 + 1``. Linear combinations of Stevens operators can be used as a "physical
 basis" for decomposing local observables. To see this decomposition, use
 [`print_stevens_expansion`](@ref).
 
-If `S == Inf`, then symbolic operators will be returned. In this infinite
+If `s == Inf`, then symbolic operators will be returned. In this infinite
 dimensional limit, the Stevens operators become homogeneous polynomials of
 commuting spin operators.
 
@@ -249,18 +249,18 @@ B = S[1]^4 + S[2]^4 + S[3]^4
 See also [`spin_matrices`](@ref) and [Interaction Strength
 Renormalization](@ref).
 """
-function stevens_matrices(S)
-    if isfinite(S) && !isinteger(2S+1)
-        error("Spin `S` must be half-integer or infinite.")
+function stevens_matrices(s)
+    if isfinite(s) && !isinteger(2s+1)
+        error("Spin `s` must be half-integer or infinite.")
     end
-    return StevensMatrices{S}()
+    return StevensMatrices{s}()
 end
 
 # Helper struct to support "index" notation for Stevens operators
-struct StevensMatrices{S} end
+struct StevensMatrices{s} end
 
-function Base.getindex(::StevensMatrices{S}, k::Int, q::Int) where S
-    N = Int(2S+1)
+function Base.getindex(::StevensMatrices{s}, k::Int, q::Int) where s
+    N = Int(2s+1)
     k < 0  && error("Stevens operators 𝒪[k,q] require k >= 0.")
     k > 6  && error("Stevens operators 𝒪[k,q] currently require k <= 6.")
     !(-k <= q <= k) && error("Stevens operators 𝒪[k,q] require -k <= q <= k.")

@@ -15,7 +15,7 @@
     axis = normalize(randn(3))
 
     # compute ewald energy using J(k)
-    sys = System(cryst, [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
+    sys = System(cryst, [1 => Moment(s=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
     enable_dipole_dipole!(sys, 1.0)
     E1 = spiral_energy_per_site(sys; k, axis)
@@ -35,7 +35,7 @@
     axis = normalize(randn(3))
 
     # compute ewald energy using J(Q)
-    sys = System(cryst, [SpinInfo(1, S=1, g=1)], :dipole, seed=0)
+    sys = System(cryst, [1 => Moment(s=1, g=1)], :dipole, seed=0)
     randomize_spins!(sys)
     enable_dipole_dipole!(sys, 1.0)
     E1 = spiral_energy_per_site(sys; k, axis)
@@ -49,15 +49,15 @@ end
 
 
 @testitem "Canted AFM" begin
-    function test_canted_afm(S)
+    function test_canted_afm(; s)
         J, D, h = 1.0, 0.54, 0.76
-        rcs = Sunny.rcs_factors(S)[2]
+        rcs = Sunny.rcs_factors(s)[2]
         a = 1
         latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
         positions = [[0, 0, 0]]
         cryst = Crystal(latvecs, positions)
 
-        sys = System(cryst, [SpinInfo(1; S, g=-1)], :dipole)
+        sys = System(cryst, [1 => Moment(; s, g=-1)], :dipole)
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> (D/rcs)*S[3]^2, 1)
         set_field!(sys, [0, 0, h])
@@ -76,15 +76,15 @@ end
         ϵq_num = dispersion(swt, [q])
 
         # Analytical
-        θ = acos(h / (2S*(4J+D)))
+        θ = acos(h / (2s*(4J+D)))
         Jq = 2J*(cos(2π*q[1])+cos(2π*q[2]))
-        ϵq_ana = real(√Complex(4J*S*(4J*S+2D*S*sin(θ)^2) + cos(2θ)*(Jq*S)^2 + 2S*Jq*(4J*S*cos(θ)^2 + D*S*sin(θ)^2)))
+        ϵq_ana = real(√Complex(4J*s*(4J*s+2D*s*sin(θ)^2) + cos(2θ)*(Jq*s)^2 + 2s*Jq*(4J*s*cos(θ)^2 + D*s*sin(θ)^2)))
 
         @test ϵq_num[begin, 1] ≈ ϵq_ana
     end
 
-    test_canted_afm(1)
-    test_canted_afm(2)
+    test_canted_afm(s=1)
+    test_canted_afm(s=2)
 end
 
 
@@ -93,7 +93,7 @@ end
     c = 5.2414
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
     crystal = Crystal(latvecs, [[0.24964, 0, 0.5]], 150)
-    sys = System(crystal, [SpinInfo(1; S=5/2, g=2)], :dipole; seed=1)
+    sys = System(crystal, [1 => Moment(s=5/2, g=2)], :dipole; seed=1)
     set_exchange!(sys, 0.85,  Bond(3, 2, [1,1,0]))   # J1
     set_exchange!(sys, 0.24,  Bond(1, 3, [0,0,0]))   # J2
     set_exchange!(sys, 0.053, Bond(2, 3, [-1,-1,1])) # J3
@@ -166,7 +166,7 @@ end
     # Exact energy reference
     E_ref = (-((J1+J5)*cos(pi*ka))+J2*cos(2*pi*ka)-J3*cos(3*pi*ka)+J4*cos(pi*kc)+J6*cos(pi*(2*ka+kc))+J7*cos(pi*(2*ka-kc)))*5/2*(5/2)*4
     
-    sys = System(cryst, [SpinInfo(1,S=5/2,g=2)], :dipole, seed=0)
+    sys = System(cryst, [1 => Moment(s=5/2, g=2)], :dipole, seed=0)
     set_exchange!(sys, J1, bond1)
     set_exchange!(sys, J2, bond2)
     set_exchange!(sys, J3, bond3)

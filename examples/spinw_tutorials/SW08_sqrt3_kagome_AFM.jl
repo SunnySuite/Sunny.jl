@@ -18,7 +18,7 @@ view_crystal(cryst; ndims=2)
 
 # Construct a spin system with nearest neighbor antiferromagnetic exchange.
 
-sys = System(cryst, [SpinInfo(1; S=1, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
 J = 1.0
 set_exchange!(sys, J, Bond(2, 3, [0, 0, 0]))
 
@@ -50,10 +50,11 @@ path = q_space_path(cryst, qs, 400)
 fig = Figure(size=(768, 300))
 swt = SpinWaveTheory(sys_enlarged; measure=ssf_perp(sys_enlarged))
 res = intensities_bands(swt, path)
-plot_intensities!(fig[1, 1], res; units, axisopts=(; title="Supercell method"))
+plot_intensities!(fig[1, 1], res; units, saturation=0.5, axisopts=(; title="Supercell method"))
 swt = SpiralSpinWaveTheory(sys; measure=ssf_perp(sys), k, axis)
 res = intensities_bands(swt, path)
-plot_intensities!(fig[1, 2], res; units, axisopts=(; title="Spiral method"))
+plot_intensities!(fig[1, 2], res; units, saturation=0.5, axisopts=(; title="Spiral method"))
+fig
 
 # Calculate and plot the powder averaged spectrum. Continuing to use the "spiral
 # method", this calculation executes in about two seconds. Because the
