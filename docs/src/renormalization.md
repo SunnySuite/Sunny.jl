@@ -69,7 +69,7 @@ $\langle \hat{\mathcal H}_{\mathrm{local}} \rangle$ must somehow be approximated
 using the expected dipole data.
 
 One approach is to formally take $s \to \infty$, and this yields the traditional
-classical limit of a spin system. In this, limit spin operators commute, and
+classical limit of a spin system. In this limit spin operators commute and
 expectation values of polynomials become polynomials of expectation values. For
 example, $\langle \hat{S}^\alpha \hat{S}^\beta\rangle \to \langle \hat{S}^\alpha
 \rangle \langle \hat{S}^\beta\rangle$, because any corrections are damped by the
