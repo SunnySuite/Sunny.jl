@@ -17,9 +17,9 @@ cryst = Crystal(latvecs, [[0, 0, 0]])
 # Build a system with exchange +1 meV along nearest neighbor bonds. Set the
 # lattice size in anticipation of a magnetic ordering with 3×3 cells.
 
-S = 3/2
+s = 3/2
 J1 = +1.0
-sys = System(cryst, [SpinInfo(1; S, g=2)], :dipole; dims=(3, 3, 1))
+sys = System(cryst, [1 => Moment(; s, g=2)], :dipole; dims=(3, 3, 1))
 set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))
 
 # Set an easy-axis anisotropy operator ``+D S_z^2`` using
@@ -28,12 +28,12 @@ set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))
 # classical-to-quantum correction factor, as described in the document
 # [Interaction Strength Renormalization](@ref). The present single-ion
 # anisotropy is quadratic in the spin operators, so the prescription is to
-# rescale the interaction strength as ``D → (1 - 1/2S) D``. For purposes of this
+# rescale the interaction strength as ``D → (1 - 1/2s) D``. For purposes of this
 # tutorial, our aim is to reproduce the SpinW result, which requires to "undo"
 # Sunny's classical-to-quantum rescaling factor. Another way to achieve the same
-# thing is to select system mode `:dipole_large_S` instead of `:dipole`.
+# thing is to select system mode `:dipole_large_s` instead of `:dipole`.
 
-undo_classical_to_quantum_rescaling = 1 / (1 - 1/2S)
+undo_classical_to_quantum_rescaling = 1 / (1 - 1/2s)
 D = 0.2 * undo_classical_to_quantum_rescaling
 set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
 randomize_spins!(sys)

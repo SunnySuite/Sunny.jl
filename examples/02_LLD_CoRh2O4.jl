@@ -20,12 +20,12 @@ a = 8.5031 # (Å)
 latvecs = lattice_vectors(a, a, a, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], 227, setting="1")
 
-sys = System(cryst, [SpinInfo(1; S=3/2, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(s=3/2, g=2)], :dipole)
 J = 0.63 # (meV)
 set_exchange!(sys, J, Bond(1, 3, [0,0,0]))
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; color=[s[3] for s in sys.dipoles])
+plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # Use [`repeat_periodically`](@ref) to extend the system to 10×10×10 chemical
 # unit cells. The ground state Néel order is retained. Increasing the system
@@ -33,7 +33,7 @@ plot_spins(sys; color=[s[3] for s in sys.dipoles])
 # resolution, but would also make the simulations slower.
 
 sys = repeat_periodically(sys, (10, 10, 10))
-plot_spins(sys; color=[s[3] for s in sys.dipoles])
+plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # ### Langevin dynamics for sampling
 
@@ -82,8 +82,8 @@ lines(energies, color=:blue, figure=(size=(600,300),), axis=(xlabel="Timesteps",
 # atom within the cell. Note that Julia arrays use 1-based indexing. Thermal
 # fluctuations are apparent in the plot.
 
-s_ref = sys.dipoles[1,1,1,1]
-plot_spins(sys; color=[s'*s_ref for s in sys.dipoles])
+S0 = sys.dipoles[1,1,1,1]
+plot_spins(sys; color=[S'*S0 for S in sys.dipoles])
 
 # ### Static structure factor
 

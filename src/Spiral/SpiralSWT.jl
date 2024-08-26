@@ -27,9 +27,9 @@ struct SpiralSpinWaveTheory <: AbstractSpinWaveTheory
     end
 end
 
-function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., S)
+function construct_uniaxial_anisotropy(; axis, c20=0., c40=0., c60=0., s)
     # Anisotropy operator in local frame
-    O = stevens_matrices(S)
+    O = stevens_matrices(s)
     op = c20*O[2, 0] + c40*O[4, 0] + c60*O[6, 0]
     # Rotate operator into global frame, defined by axis
     R = rotation_between_vectors(axis, [0, 0, 1])
@@ -181,7 +181,7 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
     (; sys, data, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
     sys.mode == :SUN && error("SU(N) mode not supported for spiral calculation")
-    @assert sys.mode in (:dipole, :dipole_large_S)
+    @assert sys.mode in (:dipole, :dipole_large_s)
 
     qpts = convert(AbstractQPoints, qpts)
     cryst = orig_crystal(sys)

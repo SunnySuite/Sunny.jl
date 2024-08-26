@@ -27,7 +27,7 @@ view_crystal(cryst)
 # parametrized in [Loire et al., Phys. Rev. Lett. **106**, 207201
 # (2011)](http://dx.doi.org/10.1103/PhysRevLett.106.207201).
 
-sys = System(cryst, [SpinInfo(1; S=5/2, g=2)], :dipole; seed=0)
+sys = System(cryst, [1 => Moment(s=5/2, g=2)], :dipole; seed=0)
 J₁ = 0.85
 J₂ = 0.24
 J₃ = 0.053
@@ -71,7 +71,7 @@ k = spiral_minimize_energy!(sys, axis)
 # which includes 7 rotated copies of the chemical cell.
 
 sys_enlarged = repeat_periodically_as_spiral(sys, (1, 1, 7); k, axis)
-plot_spins(sys_enlarged; color=[s[1] for s in sys_enlarged.dipoles])
+plot_spins(sys_enlarged; color=[S[1] for S in sys_enlarged.dipoles])
 
 # One could perform a spin wave calculation using either
 # [`SpinWaveTheory`](@ref) on `sys_enlarged`, or [`SpiralSpinWaveTheory`](@ref)

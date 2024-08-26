@@ -9,21 +9,21 @@ function onsite_coupling(sys, site, matrep::AbstractMatrix)
         S = spin_label(sys, to_atom(site))
         c = matrix_to_stevens_coefficients(hermitianpart(matrep))
         return StevensExpansion(rcs_factors(S) .* c)
-    elseif sys.mode == :dipole_large_S
-        error("System with mode `:dipole_large_S` requires a symbolic operator.")
+    elseif sys.mode == :dipole_large_s
+        error("System with mode `:dipole_large_s` requires a symbolic operator.")
     end
 end
 
 function onsite_coupling(sys, site, p::DP.AbstractPolynomialLike)
-    if sys.mode != :dipole_large_S
-        error("Symbolic operator only valid for system with mode `:dipole_large_S`.")
+    if sys.mode != :dipole_large_s
+        error("Symbolic operator only valid for system with mode `:dipole_large_s`.")
     end
 
     S = sys.κs[site]
     c = operator_to_stevens_coefficients(p, S)
 
     # No renormalization here because symbolic polynomials `p` are associated
-    # with the large-S limit.
+    # with the large-s limit.
     return StevensExpansion(c)
 end
 
@@ -42,7 +42,7 @@ function rcs_factors(S)
 end
 
 function empty_anisotropy(mode, N)
-    if mode == :dipole || mode == :dipole_large_S
+    if mode == :dipole || mode == :dipole_large_s
         c = map(k -> zeros(2k+1), OffsetArray(0:6, 0:6))
         return StevensExpansion(c)
     elseif mode == :SUN
@@ -182,10 +182,10 @@ function set_onsite_coupling_at!(sys::System, fn::Function, site::Site)
 end
 
 
-# Evaluate a given linear combination of Stevens operators in the large-S limit,
-# where each spin operator is replaced by its dipole expectation value. In this
-# limit, each Stevens operator O[ℓ,m](s) becomes a homogeneous polynomial in the
-# spin components sᵅ, and is equal to the spherical Harmonic Yₗᵐ(s) up to an
+# Evaluate a given linear combination of Stevens operators in the large-s limit,
+# where each spin operator is replaced by its dipole expectation value 𝐬. In this
+# limit, each Stevens operator O[ℓ,m](𝐬) becomes a homogeneous polynomial in the
+# spin components sᵅ, and is equal to the spherical Harmonic Yₗᵐ(𝐬) up to an
 # overall (l- and m-dependent) scaling factor. Also return the gradient of the
 # scalar output.
 function energy_and_gradient_for_classical_anisotropy(s::Vec3, stvexp::StevensExpansion)

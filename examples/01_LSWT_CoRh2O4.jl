@@ -25,8 +25,10 @@ using Sunny, GLMakie
 
 # ### Units
 
-# The [`Units`](@ref) object defines physical constants for conversions. Select
-# meV as the default energy scale and angstrom as the default length scale.
+# The [`Units`](@ref Sunny.Units) object selects reference energy and length
+# scales. This is achieved by providing physical constants. For example,
+# `units.K` would provide one kelvin as 0.086 meV, with the Boltzmann constant
+# implicit.
 
 units = Units(:meV, :angstrom);
 
@@ -61,15 +63,14 @@ view_crystal(cryst)
 
 # ### Spin system
 
-# A [`System`](@ref) will define the spin model. This requires
-# [`SpinInfo`](@ref) information for one representative atom per
-# symmetry-distinct site. The cobalt atoms have quantum spin ``S = 3/2``. The
-# ``g``-factor defines the magnetic moment ``μ = g 𝐒`` in units of the Bohr
-# magneton. The option `:dipole` indicates a traditional model type, for which
-# quantum spin is modeled as a dipole expectation value.
+# A [`System`](@ref) will define the spin model. Each cobalt atom carries
+# quantum spin ``s = 3/2``, with a ``g``-factor of 2. Specify this
+# [`Moment`](@ref) data for cobalt atom 1. By symmetry, the same moment data
+# also applies to cobalt atoms 2, 3, ... 7. The option `:dipole` indicates a
+# traditional model type, for which quantum spin is modeled as a dipole
+# expectation value.
 
-S = 3/2
-sys = System(cryst, [SpinInfo(1; S, g=2)], :dipole)
+sys = System(cryst, [1 => Moment(s=3/2, g=2)], :dipole)
 
 # Previous work demonstrated that inelastic neutron scattering data for CoRh₂O₄
 # is well described with a single antiferromagnetic nearest neighbor exchange,
@@ -93,14 +94,14 @@ view_crystal(sys)
 
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; color=[s[3] for s in sys.dipoles])
+plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # The diamond lattice is bipartite, allowing each spin to perfectly anti-align
-# with its 4 nearest-neighbors. Each of these 4 bonds contribute ``-JS^2`` to
+# with its 4 nearest-neighbors. Each of these 4 bonds contribute ``-J s^2`` to
 # the total energy. Two sites participate in each bond, so the energy per site
-# is ``-2JS^2``. Check this by calling [`energy_per_site`](@ref).
+# is ``-2 J s^2``. Check this by calling [`energy_per_site`](@ref).
 
-@assert energy_per_site(sys) ≈ -2J*S^2
+@assert energy_per_site(sys) ≈ -2J*(3/2)^2
 
 # ### Reshaping the magnetic cell
 
@@ -115,12 +116,12 @@ shape = [0 1 1;
          1 0 1;
          1 1 0] / 2
 sys_prim = reshape_supercell(sys, shape)
-@assert energy_per_site(sys_prim) ≈ -2J*S^2
+@assert energy_per_site(sys_prim) ≈ -2J*(3/2)^2
 
 # Plotting the spins of `sys_prim` shows the primitive cell as a gray wireframe
 # inside the conventional cubic cell.
 
-plot_spins(sys_prim; color=[s[3] for s in sys_prim.dipoles])
+plot_spins(sys_prim; color=[S[3] for S in sys_prim.dipoles])
 
 # ### Spin wave theory
 

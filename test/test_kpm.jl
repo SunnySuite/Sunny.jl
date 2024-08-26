@@ -2,7 +2,7 @@
     using LinearAlgebra
 
     fcc = Sunny.fcc_crystal()
-    S = 5/2
+    s = 5/2
     g = 2
     J = 1.9
     K = 0.0129
@@ -11,7 +11,7 @@
     D = 25/24
 
     for mode in (:dipole, :SUN)
-        sys = System(fcc, [SpinInfo(1; S, g)], mode)
+        sys = System(fcc, [1 => Moment(; s, g)], mode)
         set_exchange!(sys, J₁, Bond(1, 2, [0, 0, 0]))
         set_onsite_coupling!(sys, S -> D * (S[1]^4 + S[2]^4 + S[3]^4), 1)
         set_dipole!(sys, (1, 1, 1), position_to_site(sys, (0, 0, 0)))
@@ -31,7 +31,7 @@ end
 
 @testitem "AFM KPM" begin
     J, D, h = 1.0, 0.54, 0.76
-    S, g = 1, -1.5
+    s, g = 1, -1.5
     a = 1
     latvecs = lattice_vectors(a, a, 10a, 90, 90, 90)
     positions = [[0, 0, 0]]
@@ -39,14 +39,14 @@ end
     q = Sunny.Vec3(0.12, 0.23, 0.34)
 
     for mode in (:dipole, :SUN)
-        sys = System(cryst, [SpinInfo(1; S, g)], mode)
+        sys = System(cryst, [1 => Moment(; s, g)], mode)
         sys = reshape_supercell(sys, [1 -1 0; 1 1 0; 0 0 1])
         set_exchange!(sys, J, Bond(1, 1, [1, 0, 0]))
         set_onsite_coupling!(sys, S -> D*S[3]^2, 1)
         set_field!(sys, [0, 0, -h/g])
 
-        c₂ = 1 - 1/(2S)
-        θ = acos(h / (2S*(4J+D*c₂)))
+        c₂ = 1 - 1/(2s)
+        θ = acos(h / (2s*(4J+D*c₂)))
         set_dipole!(sys, ( sin(θ), 0, cos(θ)), position_to_site(sys, (0,0,0)))
         set_dipole!(sys, (-sin(θ), 0, cos(θ)), position_to_site(sys, (1,0,0)))
 

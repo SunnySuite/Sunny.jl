@@ -3,7 +3,7 @@
 
     latvecs = lattice_vectors(1, 1, 1.1, 90, 90, 120)
     cryst = Crystal(latvecs, [[0,0,0]])
-    sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; dims=(4, 6, 2))
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(4, 6, 2))
     set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, 1.2, Bond(1, 1, [0, 0, 1]))
     set_exchange!(sys, diagm([0.2, 0.3, 0.4]), Bond(1, 1, [1, 0, 1]))
@@ -57,7 +57,7 @@ end
 
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 120)
     cryst = Crystal(latvecs, [[0,0,0]])
-    sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; dims=(3, 3, 3))
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(3, 3, 3))
     randomize_spins!(sys)
 
     # Reshape to sheared volume
@@ -77,7 +77,7 @@ end
 @testitem "Interactions after reshaping" begin
     latvecs = lattice_vectors(1, 1, 1, 90, 90, 90)
     cryst = Crystal(latvecs, [[0,0,0]])
-    sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; dims=(3, 3, 3))
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(3, 3, 3))
     randomize_spins!(sys)
     
     # Commensurate shear that is specially designed to preserve the periodicity of
@@ -99,7 +99,7 @@ end
     latvecs = lattice_vectors(1, 1, 10, 90, 90, 120)
     cryst = Crystal(latvecs, [[0,0,0]])
     dims = (6, 6, 2)
-    sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; dims)
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims)
     polarize_spins!(sys, (0,0,1))
 
     J = 1.5
@@ -135,7 +135,7 @@ end
     cryst = Crystal(latvecs, [[0,0,0]])
 
     bond = Bond(1, 1, (1, 0, 0))
-    sys = System(cryst, [SpinInfo(1, S=1, g=2)], :dipole; dims=(3, 3, 3), seed=0)
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(3, 3, 3), seed=0)
     set_exchange!(sys, 1, bond)
     @test energy(sys) == 81
 
@@ -155,7 +155,7 @@ end
     c = 6.75214
     latvecs = lattice_vectors(a, b, c, 90, 90, 120)
     cryst = Crystal(latvecs, [[0,0,0]], 164)
-    sys = System(cryst, [SpinInfo(1,S=1,g=2)], :SUN; dims=(4,4,4), seed=0)
+    sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN; dims=(4, 4, 4), seed=0)
 
     J1pm   = -0.236 
     J1pmpm = -0.161

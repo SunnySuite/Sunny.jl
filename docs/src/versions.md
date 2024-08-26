@@ -24,8 +24,10 @@ This **major release** introduces several breaking changes:
 * New convenience functions [`powder_average`](@ref) and
   [`domain_average`](@ref), which wrap [`intensities`](@ref).
 * [`System`](@ref) now expects supercell dimensions as a `dims` keyword
-  argument. Conversely, use `ndims` in [`view_crystal`](@ref) and
-  [`plot_spins`](@ref) for the number of spatial dimensions.
+  argument. Lower-case `s` now labels quantum spin. For example, use
+  `:dipole_large_s` instead of `:dipole_large_S`.
+* In [`view_crystal`](@ref) and [`plot_spins`](@ref) use `ndims` instead of
+  `dims` for the number of spatial dimensions.
 * Binning features have been removed. Some functionality may be added back in a
   future release.
 * Experimental `SpinWaveTheoryKPM` feature implements a [new
@@ -292,8 +294,8 @@ Rename `reshape_geometry` to [`reshape_supercell`](@ref), which is the
 fundamental reshaping function. Rename `resize_periodically` to
 [`resize_supercell`](@ref).
 
-The constructor [`SpinInfo`](@ref) now requires a $g$-factor or tensor as a
-named argument.
+The constructor `SpinInfo` now requires a $g$-factor or tensor as a named
+argument.
 
 The constructor [`FormFactor`](@ref) no longer accepts an atom index. Instead,
 the form factors are associated with site-symmetry classes in order of
@@ -362,8 +364,8 @@ Rename `SpinSystem` to [`System`](@ref). Its constructor now has the form,
 System(crystal, dims, infos, mode)
 ```
 
-The parameter `infos` is now a list of [`SpinInfo`](@ref) objects. Each defines
-spin angular momentum $S = \frac{1}{2}, 1, \frac{3}{2}, …$, and an optional
+The parameter `infos` is now a list of `SpinInfo` objects. Each defines spin
+angular momentum $S = \frac{1}{2}, 1, \frac{3}{2}, …$, and an optional
 $g$-factor or tensor.
 
 The parameter `mode` is one of `:SUN` or `:dipole`.
