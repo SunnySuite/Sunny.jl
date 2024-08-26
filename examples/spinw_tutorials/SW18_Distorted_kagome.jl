@@ -50,7 +50,7 @@ k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
 plot_spins(sys; ndims=2)
 
 # If successful, the optimization process will find one two propagation
-# wavevectors, ±k_ref, with opposite chiralities. In this system, the
+# wavevectors, `±k_ref`, with opposite chiralities. In this system, the
 # [`spiral_energy_per_site`](@ref) is independent of chirality.
 
 k_ref = [0.785902495, 0.0, 0.107048756]
@@ -72,7 +72,7 @@ new_shape = [14 0 1; 0 1 0; 0 0 2]
 sys2 = reshape_supercell(sys, new_shape)
 randomize_spins!(sys2)
 minimize_energy!(sys2)
-energy_per_site(sys2) # < -0.7834 meV
+energy_per_site(sys2)
 
 # Define a path in q-space
 
