@@ -23,10 +23,11 @@ using Sunny, GLMakie
 # and GLMakie from the [built-in package
 # manager](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia#the-built-in-julia-package-manager).
 
-# ### Unit system
+# ### Units
 
-# The [`Units`](@ref) object defines physical constants for conversions. Select
-# meV as the default energy scale and angstrom as the default length scale.
+# The [`Units`](@ref Sunny.Units) object defines dimensionful physical
+# constants. Access these with meV as the reference energy scale and angstrom as
+# the reference length scale.
 
 units = Units(:meV, :angstrom);
 
@@ -61,11 +62,12 @@ view_crystal(cryst)
 
 # ### Spin system
 
-# A [`System`](@ref) will define the spin model. This requires [`Moment`](@ref)
-# information for one representative atom per symmetry-distinct site. The cobalt
-# atoms carry quantum spin ``s = 3/2``, with a ``g``-factor of 2. The option
-# `:dipole` indicates a traditional model type, for which quantum spin is
-# modeled as a dipole expectation value.
+# A [`System`](@ref) will define the spin model. Each cobalt atom carries
+# quantum spin ``s = 3/2``, with a ``g``-factor of 2. Specify this
+# [`Moment`](@ref) data for cobalt atom 1. By symmetry, the same moment data
+# also applies to cobalt atoms 2, 3, ... 7. The option `:dipole` indicates a
+# traditional model type, for which quantum spin is modeled as a dipole
+# expectation value.
 
 s = 3/2
 sys = System(cryst, [1 => Moment(; s, g=2)], :dipole)
