@@ -84,22 +84,22 @@ In a real magnetic compound, however, the spin magnitude $s$ is not necessarily
 large. To obtain a better approximation, one should avoid the formal limit $s
 \to \infty$. Our approach is to start with the full dynamics of SU(_N_) coherent
 states, and then constrain it to the space of pure dipole states
-$|\boldsymbol{\Omega}\rangle$. The latter are defined such that expectation
-values,
+$|\boldsymbol{\Omega}\rangle$. The latter are defined as any states where the expected dipole 3-vector,
 ```math
-\langle \boldsymbol{\Omega}| \hat{\mathbf{S}} | \boldsymbol{\Omega}\rangle = \boldsymbol{\Omega},
+\boldsymbol{\Omega} ≡ \langle \boldsymbol{\Omega}| \hat{\mathbf{S}} | \boldsymbol{\Omega}\rangle,
 ```
-are constrained to maximal magnitude, $|\boldsymbol{\Omega}| = s$, while direction is
-arbitrary.
+has maximal magnitude $|\boldsymbol{\Omega}| = s$ and
+arbitrary direction.
 
 For a pure dipole state, expectations can be computed exactly,
 ```math
 \langle \boldsymbol{\Omega}| \hat{\mathcal{O}}_{k,q} | \boldsymbol{\Omega}\rangle = c_k \mathcal{O}_{k,q}(\boldsymbol{\Omega}).
 ```
 
-By group theoretic arguments, the right-hand side must involve a renormalization
-of the classical Stevens functions. The renormalization factors [have been
-calculated](https://arxiv.org/abs/2304.03874):
+Because we are working with irreducible representations of SO(3), group theory
+dictates the right-hand side must be a renormalization of the classical Stevens
+functions (equivalently, spherical harmonics). The renormalization factors [have
+been calculated](https://arxiv.org/abs/2304.03874):
 
 ```math
 \begin{align*}
