@@ -66,7 +66,8 @@ for some coefficients $A_{k,q}$.
 In `:SUN` mode, Sunny will faithfully represent $\hat{\mathcal
 H}_{\mathrm{local}}$ as an $N×N$ matrix. In `:dipole` mode, the expected energy
 $\langle \hat{\mathcal H}_{\mathrm{local}} \rangle$ must somehow be approximated
-as a function of the expected dipole $\mathbf{n}$.
+using expected dipole components, $\Omega^\alpha \equiv \langle \hat{S}^\alpha
+\rangle$.
 
 One approach is to formally take $s \to \infty$, and this yields the traditional
 classical limit of a spin system. In this, limit spin operators commute, and
@@ -75,22 +76,23 @@ example, $\langle \hat{S}^\alpha \hat{S}^\beta\rangle \to \langle \hat{S}^\alpha
 \rangle \langle \hat{S}^\beta\rangle$, because any corrections are damped by the
 factor $s^{-1} \to 0$. The expectation of a Stevens operator $\langle
 \hat{\mathcal{O}}_{k,q} \rangle$ becomes a Stevens _function_
-$\mathcal{O}_{k,q}(\mathbf{n})$, i.e., a polynomial of components of the expected dipole
-$\mathbf{n} = \langle \hat{\mathbf{S}} \rangle$.
+$\mathcal{O}_{k,q}(\boldsymbol{\Omega})$, i.e., a homogeneous polynomial in the
+expected dipole components $\Omega^\alpha$.
 
 In a real magnetic compound, however, the spin magnitude $s$ is not necessarily
 large. To obtain a better approximation, one should avoid the assumption $s \to
 \infty$. Our approach is to start with the full dynamics of SU(_N_) coherent
 states, and then constrain it to the space of pure dipole states
-$|\mathbf{n}\rangle$. The latter are defined such that expectation values,
+$|\boldsymbol{\Omega}\rangle$. The latter are defined such that expectation
+values,
 ```math
-\langle \mathbf{n}| \hat{\mathbf{S}} | \mathbf{n}\rangle = \mathbf{n},
+\langle \boldsymbol{\Omega}| \hat{\mathbf{S}} | \boldsymbol{\Omega}\rangle = \boldsymbol{\Omega},
 ```
-have magnitude $|\mathbf{n}| = s$, which is maximal.
+have magnitude $|\boldsymbol{\Omega}| = s$, which is maximal.
 
 For pure dipole states, expectations can be computed exactly,
 ```math
-\langle \mathbf{n}| \hat{\mathcal{O}} | \mathbf{n}\rangle = c_k \mathcal{O}_{k,q}(\mathbf{n}).
+\langle \boldsymbol{\Omega}| \hat{\mathcal{O}} | \boldsymbol{\Omega}\rangle = c_k \mathcal{O}_{k,q}(\boldsymbol{\Omega}).
 ```
 
 The right-hand side involves a renormalization of the Stevens functions, where
@@ -109,13 +111,13 @@ c_6 &= 1-\frac{15}{2}s^{-1}+\frac{85}{4}s^{-2}-\frac{225}{8}s^{-3}+\frac{137}{8}
 
 Constrained to the space of dipoles, the expected local energy becomes
 ```math
-E_{\mathrm{local}}(\mathbf{n}) = \langle \mathbf{n}| \hat{\mathcal H}_{\mathrm{local}} | \mathbf{n}\rangle = \sum_{k, q} c_k A_{k,q} \mathcal{O}_{k,q}(\mathbf{n}).
+E_{\mathrm{local}}(\boldsymbol{\Omega}) = \langle \boldsymbol{\Omega}| \hat{\mathcal H}_{\mathrm{local}} | \boldsymbol{\Omega}\rangle = \sum_{k, q} c_k A_{k,q} \mathcal{O}_{k,q}(\boldsymbol{\Omega}).
 ```
 
 It can be shown that SU(_N_) dynamics reduces to the usual Landau-Lifshitz
-dynamics of dipoles, but involving $E_{\mathrm{local}}(\mathbf{n})$ as the
-classical Hamiltonian. Through the renormalization factors $c_k$, _Sunny avoids
-the large-$s$ assumption, and gives a more accurate result_.
+dynamics of dipoles, but involving $E_{\mathrm{local}}(\boldsymbol{\Omega})$ as
+the classical Hamiltonian. Through the renormalization factors $c_k$, _Sunny
+avoids the large-$s$ assumption, and gives a more accurate result_.
 
 Renormalization also applies to the coupling between different sites. In Sunny,
 couplings will often be expressed as a polynomial of spin operators using
@@ -124,10 +126,11 @@ tensor products of Stevens operators. Without loss of generality, consider a
 single coupling between two Stevens operators
 $\hat{\mathcal{H}}_\mathrm{coupling} = \hat{\mathcal{O}}_{k,q} \otimes
 \hat{\mathcal{O}}_{k',q'}$ along a bond connecting sites $i$ and $j$. Upon
-constraining to pure dipole states $|\mathbf{n}_i\rangle$ and
-$|\mathbf{n}_j\rangle$, the expected energy takes the form $E_\mathrm{coupling}
-= c_k c_k' \mathcal{O}_{k,q}(\mathbf{n}_i) \mathcal{O}_{k',q'}(\mathbf{n}_j)$,
-which now involves a product of renormalized Stevens functions. 
+constraining to pure dipole states $|\boldsymbol{\Omega}_i\rangle$ and
+$|\boldsymbol{\Omega}_j\rangle$, the expected energy takes the form
+$E_\mathrm{coupling} = c_k c_k' \mathcal{O}_{k,q}(\boldsymbol{\Omega}_i)
+\mathcal{O}_{k',q'}(\boldsymbol{\Omega}_j)$, which now involves a product of
+renormalized Stevens functions. 
 
 ## Use `:dipole_large_s` mode to disable renormalization
 
@@ -143,7 +146,8 @@ constructed by passing `Inf` to either [`spin_matrices`](@ref) or
 ## Definition of Stevens operators
 
 The Stevens operators $\hat{\mathcal{O}}_{k,q}$ are defined as polynomials of
-angular momentum operators $\hat{S}_{\{x,y,z\}}$ in some spin-$s$ representation.
+angular momentum operators $\hat{S}_{\{x,y,z\}}$ in some spin-$s$
+representation.
 
 Using
 
@@ -218,12 +222,13 @@ combination of $\hat{\mathcal{O}}_{k,q'}$ where $q'$ varies but $k$ remains
 fixed. 
 
 In taking the large-$s$ limit, each dipole operator is replaced by its
-expectation value $\mathbf{n} = \langle \hat{\mathbf{S}} \rangle$, and only
-leading-order terms are retained. The operator $\hat{\mathcal{O}}_{k,q}$ becomes
-a homogeneous polynomial $O_{k,q}(\mathbf{n})$ of order $k$ in the spin
-components. One can see these polynomials by constructing
-[`stevens_matrices`](@ref) with the argument `s = Inf`. Due to the normalization
-constraint, each dipole can be expressed in polar angles, $(\theta, \phi)$. Then
-the Stevens functions $O_{k,q}(\mathbf{n})$ correspond to the spherical harmonic
-functions $Y_l^m(\theta, \phi)$ where $l=k$ and $m=q$; this correspondence is
-valid up to $k$ and $q$-dependent rescaling factors.
+expectation value $\boldsymbol{\Omega} = \langle \hat{\mathbf{S}} \rangle$, and
+only leading-order terms are retained. The operator $\hat{\mathcal{O}}_{k,q}$
+becomes a homogeneous polynomial $O_{k,q}(\boldsymbol{\Omega})$ of order $k$ in
+the spin components $\Omega^\alpha$. One can see these polynomials by
+constructing [`stevens_matrices`](@ref) with the argument `s = Inf`. Due to the
+normalization constraint, each dipole can be expressed in polar angles,
+$(\theta, \phi)$. Then the Stevens functions $O_{k,q}(\boldsymbol{\Omega})$
+correspond to the spherical harmonic functions $Y_l^m(\theta, \phi)$ where $l=k$
+and $m=q$; this correspondence is valid up to $k$ and $q$-dependent rescaling
+factors.
