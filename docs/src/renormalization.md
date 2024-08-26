@@ -66,8 +66,7 @@ for some coefficients $A_{k,q}$.
 In `:SUN` mode, Sunny will faithfully represent $\hat{\mathcal
 H}_{\mathrm{local}}$ as an $N×N$ matrix. In `:dipole` mode, the expected energy
 $\langle \hat{\mathcal H}_{\mathrm{local}} \rangle$ must somehow be approximated
-using expected dipole components, $\Omega^\alpha \equiv \langle \hat{S}^\alpha
-\rangle$.
+using the expected dipole data.
 
 One approach is to formally take $s \to \infty$, and this yields the traditional
 classical limit of a spin system. In this, limit spin operators commute, and
@@ -75,27 +74,32 @@ expectation values of polynomials become polynomials of expectation values. For
 example, $\langle \hat{S}^\alpha \hat{S}^\beta\rangle \to \langle \hat{S}^\alpha
 \rangle \langle \hat{S}^\beta\rangle$, because any corrections are damped by the
 factor $s^{-1} \to 0$. The expectation of a Stevens operator $\langle
-\hat{\mathcal{O}}_{k,q} \rangle$ becomes a Stevens _function_
-$\mathcal{O}_{k,q}(\boldsymbol{\Omega})$, i.e., a homogeneous polynomial in the
-expected dipole components $\Omega^\alpha$.
+\hat{\mathcal{O}}_{k,q} \rangle$ would then become a classical Stevens function
+$\mathcal{O}_{k,q}(\langle\hat{\mathbf{S}}\rangle)$, i.e., a polynomial of the
+same form, but now applied to the expected dipole. Classical Stevens functions
+are constructed as homogeneous polynomials of order $k$, because lower-order
+terms would vanish in the limit $s \to \infty$.
 
 In a real magnetic compound, however, the spin magnitude $s$ is not necessarily
-large. To obtain a better approximation, one should avoid the assumption $s \to
-\infty$. Our approach is to start with the full dynamics of SU(_N_) coherent
+large. To obtain a better approximation, one should avoid the formal limit $s
+\to \infty$. Our approach is to start with the full dynamics of SU(_N_) coherent
 states, and then constrain it to the space of pure dipole states
 $|\boldsymbol{\Omega}\rangle$. The latter are defined such that expectation
 values,
 ```math
 \langle \boldsymbol{\Omega}| \hat{\mathbf{S}} | \boldsymbol{\Omega}\rangle = \boldsymbol{\Omega},
 ```
-have magnitude $|\boldsymbol{\Omega}| = s$, which is maximal.
+are constrained to maximal magnitude, $|\boldsymbol{\Omega}| = s$, while direction is
+arbitrary.
 
-For pure dipole states, expectations can be computed exactly,
+For a pure dipole state, expectations can be computed exactly,
 ```math
-\langle \boldsymbol{\Omega}| \hat{\mathcal{O}} | \boldsymbol{\Omega}\rangle = c_k \mathcal{O}_{k,q}(\boldsymbol{\Omega}).
+\langle \boldsymbol{\Omega}| \hat{\mathcal{O}}_{k,q} | \boldsymbol{\Omega}\rangle = c_k \mathcal{O}_{k,q}(\boldsymbol{\Omega}).
 ```
 
-The right-hand side involves a renormalization of the Stevens functions, where
+By group theoretic arguments, the right-hand side must involve a renormalization
+of the classical Stevens functions. The renormalization factors [have been
+calculated](https://arxiv.org/abs/2304.03874):
 
 ```math
 \begin{align*}
