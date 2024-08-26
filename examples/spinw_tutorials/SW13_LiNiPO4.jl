@@ -50,7 +50,7 @@ set_onsite_coupling!(sys, S -> Da*S[1]^2 + Db*S[2]^2, 1)
 
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; color=[s[3] for s in sys.dipoles])
+plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # Calculate the spectrum along path [ξ, 1, 0]
 

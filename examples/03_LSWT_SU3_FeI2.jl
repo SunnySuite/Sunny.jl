@@ -161,7 +161,7 @@ minimize_energy!(sys)
 # be checked by visualizing the expected spin dipoles, colored according to
 # their ``z``-components.
 
-plot_spins(sys; color=[s[3] for s in sys.dipoles])
+plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # To better understand the spin configuration, we could inspect the static
 # structure factor ``\mathcal{S}(𝐪)`` in the 3D space of momenta ``𝐪``. For
@@ -195,7 +195,7 @@ suggest_magnetic_supercell([[0, -1/4, 1/4]])
 sys_min = reshape_supercell(sys, [1 0 0; 0 2 1; 0 -2 1])
 randomize_spins!(sys_min)
 minimize_energy!(sys_min);
-plot_spins(sys_min; color=[s[3] for s in sys_min.dipoles], ghost_radius=12)
+plot_spins(sys_min; color=[S[3] for S in sys_min.dipoles], ghost_radius=12)
 
 # ### Spin wave theory
 #

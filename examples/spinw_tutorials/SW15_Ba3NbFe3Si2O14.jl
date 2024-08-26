@@ -71,7 +71,7 @@ k = spiral_minimize_energy!(sys, axis)
 # which includes 7 rotated copies of the chemical cell.
 
 sys_enlarged = repeat_periodically_as_spiral(sys, (1, 1, 7); k, axis)
-plot_spins(sys_enlarged; color=[s[1] for s in sys_enlarged.dipoles])
+plot_spins(sys_enlarged; color=[S[1] for S in sys_enlarged.dipoles])
 
 # One could perform a spin wave calculation using either
 # [`SpinWaveTheory`](@ref) on `sys_enlarged`, or [`SpiralSpinWaveTheory`](@ref)

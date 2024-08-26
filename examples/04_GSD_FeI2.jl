@@ -87,7 +87,7 @@ langevin.dt = 0.03;
 for _ in 1:10_000
     step!(sys, langevin)
 end
-plot_spins(sys; color=[s[3] for s in sys.dipoles])
+plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # The two-up, two-down spiral order can be verified by calling
 # [`print_wrapped_intensities`](@ref). A single propagation wavevector ``±𝐤``

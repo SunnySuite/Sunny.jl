@@ -167,11 +167,11 @@ end
         # test for `isapprox` bug and report to DynamicPolynomials repo. Cf.
         # https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/created_by/kbarros
 
-        S = 3
+        s = 3
         k = 6
         i = 1
         cryst = Sunny.diamond_crystal()
-        O = stevens_matrices(S)
+        O = stevens_matrices(s)
 
         # print_site(cryst, i)
         Λ = O[6,0]-21O[6,4]
@@ -218,7 +218,7 @@ end
             # Rotate spin state correspondingly
             R = Sunny.Mat3([0 1 0; -1 0 0; 0 0 1])
             sys.dipoles .= circshift(sys.dipoles, (0,0,0,1))
-            sys.dipoles .= [R*d for d in sys.dipoles]
+            sys.dipoles .= [R*S for S in sys.dipoles]
 
             # If coherents are present, perform same operation
             if mode == :SUN

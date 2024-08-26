@@ -614,9 +614,9 @@ function draw_atoms_or_dipoles(; ax, full_crystal_toggle, dipole_menu, cryst, sy
                 L = length(eachsite(sys))
                 g0 = norm(sys.gs) / sqrt(L * 3)
                 N0 = norm(sys.Ns) / sqrt(L)
-                S0 = (N0 - 1) / 2
-                spin_dipoles = sys.dipoles[sites] / S0
-                magn_dipoles = magnetic_moment.(Ref(sys), sites) / (S0*g0)
+                s0 = (N0 - 1) / 2
+                spin_dipoles = sys.dipoles[sites] / s0
+                magn_dipoles = magnetic_moment.(Ref(sys), sites) / (s0*g0)
                 for (dipoles, obs) in [(spin_dipoles, show_spin_dipoles), (magn_dipoles, show_magn_dipoles)]
                     a0 = 5ionradius
                     arrowsize = 0.4a0
@@ -901,7 +901,7 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
 
     # Quantum spin-s, averaged over all sites. Will be used to normalize
     # dipoles.
-    S0 = (sum(sys.Ns)/length(sys.Ns) - 1) / 2
+    s0 = (sum(sys.Ns)/length(sys.Ns) - 1) / 2
 
     # Parameters defining arrow shape
     a0 = arrowscale * ℓ0
@@ -966,7 +966,7 @@ function Sunny.plot_spins!(ax, sys::System; notifier=Makie.Observable(nothing), 
             end
             
             for (site, n) in zip(idxs, offsets)
-                v = (lengthscale / S0) * vec(sys.dipoles[site])
+                v = (lengthscale / s0) * vec(sys.dipoles[site])
                 pt = supervecs * (rs[site] + n)
                 pt_shifted = pt - arrow_fractional_shift * v
                 push!(vecs[], Makie.Vec3f0(v))

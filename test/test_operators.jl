@@ -6,22 +6,22 @@
 
     ### Verify 𝔰𝔲(2) irreps
     for N = 2:5
-        S₀ = (N-1)/2
-        S = spin_matrices(S₀)
+        s = (N-1)/2
+        S = spin_matrices(s)
 
         for i in 1:3, j in 1:3
             # Test commutation relations
             @test S[i]*S[j] - S[j]*S[i] ≈ im * sum(ϵ[i,j,k]*S[k] for k=1:3)
 
             # Test orthonormality
-            @test tr(S[i]*S[j]) ≈ (2/3)*S₀*(S₀+1/2)*(S₀+1) * (i==j)
+            @test tr(S[i]*S[j]) ≈ (2/3)*s*(s+1/2)*(s+1) * (i==j)
         end
 
         # Test magnitude
-        @test sum(S[i]^2 for i=1:3) ≈ S₀*(S₀+1)*I
+        @test sum(S[i]^2 for i=1:3) ≈ s*(s+1)*I
 
         # Test dipole -> ket -> dipole round trip
-        n = S₀ * normalize(randn(Sunny.Vec3))
+        n = s * normalize(randn(Sunny.Vec3))
         Z = Sunny.ket_from_dipole(n, Val(N))
         @test Sunny.expected_spin(Z) ≈ n
 
@@ -196,8 +196,8 @@ end
 
     # Test that spin matrices rotate as vectors
     let
-        for S₀ in (3, Inf)
-            S = spin_matrices(S₀)
+        for s in (3, Inf)
+            S = spin_matrices(s)
             for α in 1:3
                 @test (R * S)[α] ≈ rotate_operator(S[α], R)
             end
@@ -206,8 +206,8 @@ end
 
     # Test that Stevens quadrupoles rotate correctly
     let
-        for S₀ in (3, Inf)
-            O = stevens_matrices(S₀)
+        for s in (3, Inf)
+            O = stevens_matrices(s)
             
             # Cannot use [O[2, q] for q in 2:-1:-2] because:
             # https://github.com/JuliaAlgebra/DynamicPolynomials.jl/issues/149

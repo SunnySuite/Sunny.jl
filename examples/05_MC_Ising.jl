@@ -50,4 +50,4 @@ end
 
 # Plot the Ising spins by extracting the ``z``-component of the dipoles
 
-heatmap(reshape([s[3] for s in sys.dipoles], (L, L)))
+heatmap(reshape([S[3] for S in sys.dipoles], (L, L)))

@@ -94,7 +94,7 @@ view_crystal(sys)
 
 randomize_spins!(sys)
 minimize_energy!(sys)
-plot_spins(sys; color=[s[3] for s in sys.dipoles])
+plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # The diamond lattice is bipartite, allowing each spin to perfectly anti-align
 # with its 4 nearest-neighbors. Each of these 4 bonds contribute ``-J s^2`` to
@@ -121,7 +121,7 @@ sys_prim = reshape_supercell(sys, shape)
 # Plotting the spins of `sys_prim` shows the primitive cell as a gray wireframe
 # inside the conventional cubic cell.
 
-plot_spins(sys_prim; color=[s[3] for s in sys_prim.dipoles])
+plot_spins(sys_prim; color=[S[3] for S in sys_prim.dipoles])
 
 # ### Spin wave theory
 
