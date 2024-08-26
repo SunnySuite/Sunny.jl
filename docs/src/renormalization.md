@@ -122,9 +122,8 @@ E_{\mathrm{local}}(\boldsymbol{\Omega}) = \langle \boldsymbol{\Omega}| \hat{\mat
 
 It can be shown that SU(_N_) dynamics reduces to the usual Landau-Lifshitz
 dynamics of dipoles, but involving $E_{\mathrm{local}}(\boldsymbol{\Omega})$ as
-the classical Hamiltonian. Through the renormalization factors $c_k$, _Sunny's
-`:dipole` mode incorporates corrections to the traditional large-$s$ expansion,
-enhancing accuracy_.
+the classical Hamiltonian. The renormalization factors $c_k$ can therefore be
+interpreted as a correction to the traditional large-$s$ classical limit.
 
 
 Renormalization also applies to the coupling between different sites. In Sunny,
