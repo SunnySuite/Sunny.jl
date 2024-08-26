@@ -27,7 +27,7 @@ end
 # Propagates each atom-moment pair to every symmetry-equivalent atom in the
 # crystal. Throws an error if two symmetry-equivalent atoms are provided in
 # `moments`, or if some atoms remain unspecified.
-function propagate_site_info(cryst::Crystal, moments::Vector{Pair{Int, Moment}})
+function propagate_moments(cryst::Crystal, moments::Vector{Pair{Int, Moment}})
     # Verify that all g tensors are consistent with the the site symmetries
     for (i, m) in moments
         if !is_coupling_valid(cryst, Bond(i, i, [0,0,0]), m.g)

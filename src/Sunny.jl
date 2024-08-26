@@ -48,7 +48,7 @@ export Units
 include("FormFactor.jl")
 export FormFactor
 
-include("System/SpinInfo.jl")
+include("System/Moment.jl")
 include("System/Types.jl")
 include("System/System.jl")
 include("System/PairExchange.jl")

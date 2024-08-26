@@ -34,7 +34,6 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     if !isnothing(units)
         @warn "units argument to System is deprecated and will be ignored!"
     end
-
     if mode == :dipole_large_S
         @warn "Deprecation warning! Use :dipole_large_s instead of :dipole_large_S"
         mode = :dipole_large_s
@@ -52,7 +51,7 @@ function System(crystal::Crystal, moments::Vector{Pair{Int, Moment}}, mode::Symb
     
     na = natoms(crystal)
 
-    moments = propagate_site_info(crystal, moments)
+    moments = propagate_moments(crystal, moments)
     Ss = [m.s for m in moments]
     gs = [m.g for m in moments]
 
