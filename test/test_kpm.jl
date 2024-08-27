@@ -57,7 +57,8 @@ end
         bounds = Sunny.eigbounds(swt, q_reshaped, 50; extend=0.0)
         @test all(extrema(energies) .≈ bounds)
 
-        measure = ssf_perp(sys)
+        formfactors = [1 => FormFactor("Fe2")]
+        measure = ssf_perp(sys; formfactors)
         σ = 0.05
         swt = SpinWaveTheory(sys; measure)
         swt_kpm = SpinWaveTheoryKPM(sys; measure, resolution=0.005, screening_factor=10)
@@ -65,10 +66,8 @@ end
         energies = range(0, 6, 100)
         kT = 0.2
         kernel = lorentzian(fwhm=2σ)
-        formfactors = [FormFactor("Fe2")]
-
-        res1 = intensities(swt, [q]; energies, formfactors, kernel, kT)
-        res2 = intensities(swt_kpm, [q]; energies, formfactors, kernel, kT)
+        res1 = intensities(swt, [q]; energies, kernel, kT)
+        res2 = intensities(swt_kpm, [q]; energies, kernel, kT)
 
         @test isapprox(res1.data, res2.data, atol=1e-3)
     end

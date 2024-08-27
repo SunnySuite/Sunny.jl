@@ -36,7 +36,7 @@ function build_examples(example_sources, destdir)
         # which is set up by `Documenter.deploydocs`.
         function preprocess(str)
             """
-            # Download this example as [Jupyter notebook]($assetsdir/notebooks/$name.ipynb) or [Julia script]($assetsdir/scripts/$name.jl).
+            # Download this example as [Julia file]($assetsdir/scripts/$name.jl) or [Jupyter notebook]($assetsdir/notebooks/$name.ipynb).
 
             """ * str
         end
@@ -114,16 +114,14 @@ Documenter.makedocs(;
         "index.md",
         "Examples" => [
             example_mds...,
-            "SpinW tutorials" => spinw_mds,
             # "Contributed" => contributed_mds,
-            "Advanced" => [
-                "parallelism.md",                        
-                # "writevtk.md",
-            ],
+            "SpinW ports" => spinw_mds,
         ],
-        "Modeling Guides" => [
+        "Guides" => [
             "structure-factor.md",
+            "parallelism.md",                        
             "renormalization.md",
+            # "writevtk.md",
         ],
         "library.md",
         "versions.md",

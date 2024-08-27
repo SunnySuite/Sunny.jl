@@ -1,17 +1,24 @@
 # Op is the type of a local observable operator. Either a Vec3 (for :dipole
 # mode, in which case the observable is `op⋅S`) or a HermitianC64 (for :SUN
-# mode, in which case op is an N×N matrix).
+# mode, in which case op is an N×N matrix). `natoms` refers to the reshaped
+# crystal.
 struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     observables :: Array{Op, 5}          # (nobs × sys_dims × natoms)
     corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
     combiner :: F                        # (q::Vec3, obs) -> Ret
+    formfactors :: Array{FormFactor, 2}  # (nobs × natoms)
 
     # TODO: Default combiner will be SVector?
-    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F) where {Op, F}
+    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors) where {Op, F}
         # Lift return type of combiner function to type-level
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         @assert isbitstype(Ret)
-        return new{Op, F, Ret}(observables, corr_pairs, combiner)
+        # Create inner `nobs` dimension, if missing
+        if isone(ndims(formfactors))
+            formfactors = [ff for _ in axes(observables, 1), ff in formfactors]
+        end
+        @assert size(observables)[[1,5]] == size(formfactors)
+        return new{Op, F, Ret}(observables, corr_pairs, combiner, formfactors)
     end
 end
 
@@ -25,7 +32,8 @@ function empty_measurespec(sys)
     observables = zeros(Vec3, 0, size(eachsite(sys))...)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
-    return MeasureSpec(observables, corr_pairs, combiner)
+    formfactors = zeros(FormFactor, 0, natoms(sys.crystal))
+    return MeasureSpec(observables, corr_pairs, combiner, formfactors)
 end
 
 function all_dipole_observables(sys::System{0}; apply_g)
@@ -54,8 +62,41 @@ function all_dipole_observables(sys::System{N}; apply_g) where {N}
 end
 
 
+# Based on logic in `propagate_moments`. Create one FormFactor per atom in
+# reshaped `sys.crystal`. Note that `ffs` refers to original crystal.
+function propagate_form_factors(sys::System, ffs::Vector{Pair{Int, FormFactor}})
+    cryst = orig_crystal(sys)
+    for (i, _) in ffs
+        1 <= i <= natoms(cryst) || error("Atom $i outside the valid range 1:$(natoms(cryst))")
+    end
+
+    # Unzip reference data, with respect to original crystal
+    ref_atoms = [i for (i, _) in ffs]
+    ref_ffs = [convert(FormFactor, ff) for (_, ff) in ffs]
+    ref_classes = cryst.classes[ref_atoms]
+
+    # One form factor for each atom in the original crystal
+    ffs_orig = map(enumerate(cryst.classes)) do (i, c)
+        js = findall(==(c), ref_classes)
+        isempty(js) && error("Not all sites are specified; consider including atom $i.")
+        length(js) > 1 && error("Atoms $(ref_atoms[js]) are symmetry equivalent.")
+        ref_ffs[only(js)]
+    end
+
+    # One form factor for each atom in reshaped sys.crystal
+    return map(sys.crystal.positions) do r
+        r = cryst.latvecs \ sys.crystal.latvecs * r
+        ffs_orig[position_to_atom(cryst, r)]
+    end
+end
+
+function propagate_form_factors(sys::System, _::Nothing)
+    fill(one(FormFactor), natoms(sys.crystal))
+end
+
+
 """
-    ssf_custom(f, sys::System; apply_g=true)
+    ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
 
 Specify measurement of the spin structure factor with a custom contraction
 function `f`. This function accepts a wavevector ``𝐪`` in global Cartesian
@@ -70,6 +111,11 @@ structure factor components are correlations between the magnetic moment
 operators. Set `apply_g = false` to measure correlations between the bare spin
 operators.
 
+The optional `formfactors` comprise a list of pairs `[i1 => FormFactor(...), i2
+=> ...]`, where `i1, i2, ...` are a complete set of symmetry-distinct atoms, and
+each [`FormFactor`](@ref) implements ``𝐪``-space attenuation for the given
+atom.
+
 Intended for use with [`SpinWaveTheory`](@ref) and instances of
 [`SampledCorrelations`](@ref).
 
@@ -83,10 +129,9 @@ measure = ssf_custom((q, ssf) -> ssf, sys)
 measure = ssf_custom((q, ssf) -> real(sum(ssf)), sys)
 ```
 
-See also the Sunny documentation on [Structure Factor Calculations](@ref) for
-more details.
+See also the Sunny documentation on [Structure Factor Conventions](@ref).
 """
-function ssf_custom(f, sys::System; apply_g=true)
+function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
     observables = all_dipole_observables(sys; apply_g)
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     combiner(q, data) = f(q, SA[
@@ -94,11 +139,12 @@ function ssf_custom(f, sys::System; apply_g=true)
         conj(data[5]) data[4]       data[2]
         conj(data[3]) conj(data[2]) data[1]
     ])
-    return MeasureSpec(observables, corr_pairs, combiner)
+    formfactors = propagate_form_factors(sys, formfactors)
+    return MeasureSpec(observables, corr_pairs, combiner, formfactors)
 end
 
 """
-    ssf_custom_bm(f, sys::System; u, v, apply_g=true)
+    ssf_custom_bm(f, sys::System; u, v, apply_g=true, formfactors=nothing)
 
 Specify measurement of the spin structure factor with a custom contraction
 function `f`. The interface is identical to [`ssf_custom`](@ref) except that `f`
@@ -124,12 +170,12 @@ measure = ssf_custom_bm(sys; u=[0, 1, 0], v=[0, 0, 1]) do q, ssf
 end
 ```
 """
-function ssf_custom_bm(f, sys::System; u, v, apply_g=true)
+function ssf_custom_bm(f, sys::System; u, v, apply_g=true, formfactors=nothing)
     u = orig_crystal(sys).recipvecs * u
     v = orig_crystal(sys).recipvecs * v
     e3 = normalize(u × v)
 
-    return ssf_custom(sys::System; apply_g) do q, ssf
+    return ssf_custom(sys::System; apply_g, formfactors) do q, ssf
         if abs(q ⋅ e3) > 1e-12
             error("Momentum transfer q not in scattering plane")
         end
@@ -141,17 +187,25 @@ function ssf_custom_bm(f, sys::System; u, v, apply_g=true)
 end
 
 """
-    ssf_perp(sys::System; apply_g=true)
+    ssf_perp(sys::System; apply_g=true, formfactors=nothing)
 
 Specify measurement of the spin structure factor with contraction by
 ``(I-𝐪⊗𝐪/q^2)``. The contracted value provides an estimate of unpolarized
 scattering intensity. In the singular limit ``𝐪 → 0``, the contraction matrix
 is replaced by its rotational average, ``(2/3) I``.
 
-See also [`ssf_trace`](@ref) and [`ssf_custom`](@ref).
+This function is a special case of [`ssf_custom`](@ref).
+
+# Example
+
+```julia
+# Select Co²⁺ form factor for atom 1 and its symmetry equivalents
+formfactors = [1 => FormFactor("Co2")]
+ssf_perp(sys; formfactors)
+```
 """
-function ssf_perp(sys::System; apply_g=true)
-    return ssf_custom(sys; apply_g) do q, ssf
+function ssf_perp(sys::System; apply_g=true, formfactors=nothing)
+    return ssf_custom(sys; apply_g, formfactors) do q, ssf
         q2 = norm2(q)
         # Imaginary part vanishes in symmetric contraction
         ssf = real(ssf)
@@ -164,15 +218,15 @@ function ssf_perp(sys::System; apply_g=true)
 end
 
 """
-    ssf_trace(sys::System; apply_g=true)
+    ssf_trace(sys::System; apply_g=true, formfactors=nothing)
 
 Specify measurement of the spin structure factor, with trace over spin
 components. This quantity can be useful for checking quantum sum rules.
 
-See also [`ssf_perp`](@ref) and [`ssf_custom`](@ref).
+This function is a special case of [`ssf_custom`](@ref).
 """
-function ssf_trace(sys::System{N}; apply_g=true) where N
-    return ssf_custom(sys; apply_g) do q, ssf
+function ssf_trace(sys::System{N}; apply_g=true, formfactors=nothing) where N
+    return ssf_custom(sys; apply_g, formfactors) do q, ssf
         tr(real(ssf))
     end
 end

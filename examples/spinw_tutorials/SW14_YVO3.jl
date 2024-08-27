@@ -26,7 +26,7 @@ cryst = Crystal(latvecs, positions, 1; types)
 # Create a system following the model of [C. Ulrich, et al. PRL **91**, 257202
 # (2003)](https://doi.org/10.1103/PhysRevLett.91.257202). The mode
 # `:dipole_large_s` avoids a [classical-to-quantum rescaling factor](@ref
-# "Interaction Strength Renormalization") of anisotropy strengths, as needed for
+# "Interaction Renormalization") of anisotropy strengths, as needed for
 # consistency with the original fits.
 
 sys = System(cryst, [1 => Moment(s=1/2, g=2), 2 => Moment(s=1/2, g=2)], :dipole_large_s; dims=(2,2,1))

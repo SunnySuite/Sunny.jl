@@ -71,14 +71,15 @@
 
 
     # Test form factor correction works and is doing something.
-    formfactors = [FormFactor("Fe2")]
-    sc.measure = ssf_trace(sys; apply_g=false)
-    is = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing, formfactors)
+    formfactors = [1 => FormFactor("Fe2")]
+    sc.measure = ssf_trace(sys; apply_g=false, formfactors)
+    is = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing)
     total_intensity_ff = sum(is.data)
     @test total_intensity_ff != total_intensity_trace
 
 
     # Test static from dynamic intensities working
+    sc.measure = ssf_trace(sys; apply_g=false)
     is_static = intensities_static(sc, qgrid; kT=nothing)
     total_intensity_static = sum(is_static.data)
     @test isapprox(total_intensity_static, total_intensity_trace * sc.Δω; atol=1e-9)  # Order of summation can lead to very small discrepancies
@@ -88,7 +89,7 @@
     total_intensity_static_c2q = sum(is_static_c2q.data)
     @test total_intensity_static_c2q > total_intensity_static 
 
-    # Test instant intensities working
+    # Test static intensities working
     sys = simple_model_fcc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
     ic = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=false))

@@ -25,7 +25,7 @@ view_crystal(cryst)
 # **79**, 092413 (2009)](https://doi.org/10.1103/PhysRevB.79.092413). The
 # corrected anisotropy values are taken from the thesis of T. Jensen. The mode
 # `:dipole_large_s` avoids a [classical-to-quantum rescaling factor](@ref
-# "Interaction Strength Renormalization") of anisotropy strengths, as needed for
+# "Interaction Renormalization") of anisotropy strengths, as needed for
 # consistency with the original fits.
 
 S = 3/2

@@ -138,13 +138,13 @@ function dispersion(swt::SpinWaveTheory, qpts)
 end
 
 """
-    intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0)
+    intensities_bands(swt::SpinWaveTheory, qpts; kT=0)
 
 Calculate spin wave excitation bands for a set of q-points in reciprocal space.
 This calculation is analogous to [`intensities`](@ref), but does not perform
 line broadening of the bands.
 """
-function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0, with_negative=false)
+function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     (; sys, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     with_negative && error("Option `with_negative=true` not yet supported.")
@@ -170,14 +170,9 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0,
     intensity = zeros(eltype(measure), L, Nq)
 
     # Temporary storage for pair correlations
+    Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
     corrbuf = zeros(ComplexF64, Ncorr)
-
-    Nobs = size(measure.observables, 1)
-
-    # Expand formfactors for symmetry classes to formfactors for all atoms in
-    # crystal
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
@@ -185,8 +180,9 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0,
 
         for i in 1:Na
             r_global = global_position(sys, (1,1,1,i))
+            ff = get_swt_formfactor(measure, 1, i)
             Avec_pref[i] = exp(- im * dot(q_global, r_global))
-            Avec_pref[i] *= compute_form_factor(ff_atoms[i], norm2(q_global))
+            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
         end
 
         Avec = zeros(ComplexF64, Nobs)
@@ -232,23 +228,23 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0,
 end
 
 """
-    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing, kT=0)
-    intensities!(data, swt::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT=0)
+    intensities!(data, swt::SpinWaveTheory, qpts; energies, kernel, kT=0)
+    intensities!(data, swt::SampledCorrelations, qpts; energies, kernel=nothing, kT=0)
 
 Like [`intensities`](@ref), but makes use of storage space `data` to avoid
 allocation costs.
 """
-function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
+function intensities!(data, swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0)
     @assert size(data) == (length(energies), size(qpts.qs)...)
-    bands = intensities_bands(swt, qpts; formfactors, kT)
+    bands = intensities_bands(swt, qpts; kT)
     @assert eltype(bands) == eltype(data)
     broaden!(data, bands; energies, kernel)
     return Intensities(bands.crystal, bands.qpts, collect(Float64, energies), data)
 end
 
 """
-    intensities(swt::SpinWaveTheory, qpts; energies, kernel, formfactors=nothing, kT=0)
-    intensities(swt::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
+    intensities(swt::SpinWaveTheory, qpts; energies, kernel, kT=0)
+    intensities(swt::SampledCorrelations, qpts; energies, kernel=nothing, kT)
 
 Calculates pair correlation intensities for a set of ``𝐪``-points in reciprocal
 space.
@@ -273,14 +269,14 @@ occupation factor. The special choice `kT = nothing` will suppress the
 classical-to-quantum correction factor, and yield statistics consistent with the
 classical Boltzmann distribution.
 """
-function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0)
-    return broaden(intensities_bands(swt, qpts; formfactors, kT); energies, kernel)
+function intensities(swt::AbstractSpinWaveTheory, qpts; energies, kernel::AbstractBroadening, kT=0)
+    return broaden(intensities_bands(swt, qpts; kT); energies, kernel)
 end
 
 """
-    intensities_static(sc::SpinWaveTheory, qpts; bounds=(-Inf, Inf), formfactors=nothing, kT=0)
-    intensities_static(sc::SampledCorrelations, qpts; bounds=(-Inf, Inf), formfactors=nothing, kT)
-    intensities_static(sc::SampledCorrelationsStatic, qpts; formfactors=nothing)
+    intensities_static(sc::SpinWaveTheory, qpts; bounds=(-Inf, Inf), kT=0)
+    intensities_static(sc::SampledCorrelations, qpts; bounds=(-Inf, Inf), kT)
+    intensities_static(sc::SampledCorrelationsStatic, qpts)
 
 Like [`intensities`](@ref), but integrates the dynamical correlations
 ``\\mathcal{S}(𝐪, ω)`` over a range of energies ``ω``. By default, the
@@ -298,8 +294,8 @@ The parameter `kT` can be used to account for the quantum thermal occupation of
 excitations at finite temperature. For details, see the documentation in
 [`intensities`](@ref).
 """
-function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), formfactors=nothing, kT=0)
-    res = intensities_bands(swt, qpts; formfactors, kT)  # TODO: with_negative=true
+function intensities_static(swt::AbstractSpinWaveTheory, qpts; bounds=(-Inf, Inf), kT=0)
+    res = intensities_bands(swt, qpts; kT)  # TODO: with_negative=true
     data_reduced = zeros(eltype(res.data), size(res.data)[2:end])
     for ib in axes(res.data, 1), iq in CartesianIndices(data_reduced)
         if bounds[1] <= res.disp[ib, iq] < bounds[2]

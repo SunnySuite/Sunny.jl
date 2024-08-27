@@ -58,10 +58,10 @@
     @test isapprox(res.data, data_golden'; atol=1e-9)
 
     # Test first 5 output matrices
-    measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false)
+    formfactors = [1 => FormFactor("Fe2")]
+    measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false, formfactors)
     swt = SpinWaveTheory(sys; measure)
-    formfactors=[FormFactor("Fe2")]
-    res = intensities_bands(swt, qs; formfactors)
+    res = intensities_bands(swt, qs)
     data_flat = reinterpret(ComplexF64, res.data[1:5])
     # println(round.(data_flat; digits=12))
     data_golden = natoms * ComplexF64[0.000768755803 + 0.0im, 0.000453313199 - 4.8935387e-5im, 0.000468535469 + 8.5812793e-5im, 0.000453313199 + 4.8935387e-5im, 0.00027042076 + 0.0im, 0.000270819458 + 8.0426107e-5im, 0.000468535469 - 8.5812793e-5im, 0.000270819458 - 8.0426107e-5im, 0.000295138353 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.0 - 0.0im, 0.0 - 0.0im, 0.0 + 0.0im, 0.00021794048 + 0.0im, -0.000114399503 - 0.000211293782im, -0.000126018935 + 0.000199895684im, -0.000114399503 + 0.000211293782im, 0.000264899429 + 0.0im, -0.000127650501 - 0.000227103219im, -0.000126018935 - 0.000199895684im, -0.000127650501 + 0.000227103219im, 0.000256212415 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, -0.0 - 0.0im, -0.0 - 0.0im, -0.0 + 0.0im, 0.0 + 0.0im, 7.5017149e-5 + 0.0im, 0.000206625046 + 0.000158601356im, 0.000240055385 - 0.00011016714im, 0.000206625046 - 0.000158601356im, 0.000904437194 + 0.0im, 0.000428286033 - 0.000810966567im, 0.000240055385 + 0.00011016714im, 0.000428286033 + 0.000810966567im, 0.000929965845 + 0.0im]
@@ -416,10 +416,10 @@ end
     q2 = [0.2360,0.7492,0.9596]
     q3 = [0.1131,0.7654,0.2810]
     q = [q1,q2,q3]
-    measure = ssf_custom((q, ssf) -> ssf, sys)
+    formfactors = [1 => FormFactor("Cr4")]
+    measure = ssf_custom((q, ssf) -> ssf, sys; formfactors)
     swt = SpinWaveTheory(sys; measure)
-    formfactors = [FormFactor("Cr4")]
-    res = intensities_bands(swt, q; formfactors)
+    res = intensities_bands(swt, q)
     disp_inds = [107, 89, 118, 140, 112, 16, 103, 75, 142, 18]
     int_inds = [9, 147, 131, 41, 15, 96, 48, 105, 129, 17]
     disp_ref = [8.464621970889235,2.965829202488746,6.539681848582543,2.524276472373584,7.536305768861917,7.21157510322424,9.267100207705882,5.603801899767303,2.2012141464553636,6.933800585478572]
@@ -446,14 +446,14 @@ end
     @test energy_per_site(sys_prim) ≈ -2s^2
     
     # Both systems should produce the same intensities
-    swt1 = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
-    swt2 = SpinWaveTheory(sys; measure=ssf_perp(sys))
+    formfactors = [1 => FormFactor("Co2")]
+    swt1 = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim; formfactors))
+    swt2 = SpinWaveTheory(sys; measure=ssf_perp(sys; formfactors))
     kernel = lorentzian(fwhm=0.8)
-    formfactors = [FormFactor("Co2")]
     q = randn(3)
     energies = 0:0.01:6
-    res1 = intensities(swt1, [q]; energies, kernel, formfactors)
-    res2 = intensities(swt2, [q]; energies, kernel, formfactors)
+    res1 = intensities(swt1, [q]; energies, kernel)
+    res2 = intensities(swt2, [q]; energies, kernel)
     @test res1.data ≈ res2.data
 end
 
@@ -622,8 +622,8 @@ end
     observables = repeat(observables0, 1, size(eachsite(sys))...)
     corr_pairs = [(3,3), (2,2), (1,1)]
     combiner = (_, data) -> real(sum(data))
-    measure = Sunny.MeasureSpec(observables, corr_pairs, combiner)
-    
+    measure = Sunny.MeasureSpec(observables, corr_pairs, combiner, [one(FormFactor)])
+
     # Set up SpinWaveTheory
     randomize_spins!(sys)
     minimize_energy!(sys)

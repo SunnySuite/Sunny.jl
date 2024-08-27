@@ -23,8 +23,7 @@ generators of SU(2) in the spin-`s` representation.
 If `s == Inf`, then the return values are abstract symbols denoting
 infinite-dimensional matrices that commute. These can be useful for repeating
 historical studies, or modeling micromagnetic systems. A technical discussion
-appears in the Sunny documentation page: [Interaction Strength
-Renormalization](@ref).
+appears in the Sunny documentation page: [Interaction Renormalization](@ref).
 
 # Example
 ```julia
