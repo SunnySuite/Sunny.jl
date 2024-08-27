@@ -179,6 +179,11 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0,
     # crystal
     ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
 
+    # Repeat formfactors data on dims of sys prior to SWT flattening
+    ffs = propagate_form_factors_for_swt(measure)
+    @assert ff_atoms == ffs[1, :]
+
+
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
@@ -186,7 +191,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; formfactors=nothing, kT=0,
         for i in 1:Na
             r_global = global_position(sys, (1,1,1,i))
             Avec_pref[i] = exp(- im * dot(q_global, r_global))
-            Avec_pref[i] *= compute_form_factor(ff_atoms[i], norm2(q_global))
+            Avec_pref[i] *= compute_form_factor(ffs[1, i], norm2(q_global))
         end
 
         Avec = zeros(ComplexF64, Nobs)

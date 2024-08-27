@@ -71,9 +71,8 @@
 
 
     # Test form factor correction works and is doing something.
-    formfactors = [FormFactor("Fe2")]
-    sc.measure = ssf_trace(sys; apply_g=false)
-    is = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing, formfactors)
+    sc.measure = ssf_trace(sys; apply_g=false, formfactors=[1 => "Fe2"])
+    is = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing, formfactors=[FormFactor("Fe2")])
     total_intensity_ff = sum(is.data)
     @test total_intensity_ff != total_intensity_trace
 

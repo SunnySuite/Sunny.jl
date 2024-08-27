@@ -123,11 +123,13 @@ langevin.dt = 0.040;
 # dynamics for SU(_N_) coherent states](https://arxiv.org/abs/2204.07563).
 # Normal modes appearing in the classical dynamics can be quantized to yield
 # magnetic excitations. The associated structure factor intensities
-# ``S^{αβ}(q,ω)`` can be compared with inelastic neutron scattering data .
+# ``S^{αβ}(q,ω)`` can be compared with inelastic neutron scattering data.
+# Incorporate the [`FormFactor`](@ref) appropriate to Fe²⁺. 
 
 dt = 2*langevin.dt
 energies = range(0, 7.5, 120)
-sc = SampledCorrelations(sys; dt, energies, measure=ssf_perp(sys))
+formfactors = [1 => FormFactor("Fe2"; g_lande=3/2)]
+sc = SampledCorrelations(sys; dt, energies, measure=ssf_perp(sys; formfactors))
 
 # The function [`add_sample!`](@ref) will collect data by running a dynamical
 # trajectory starting from the current system configuration. 
@@ -146,11 +148,10 @@ for _ in 1:2
 end
 
 # Measure intensities along a path connecting high-symmetry ``𝐪``-points,
-# specified in reciprocal lattice units (RLU). Incorporate the
-# [`FormFactor`](@ref) appropriate to Fe²⁺. A classical-to-quantum rescaling of
-# normal mode occupations will be performed according to the temperature `kT`.
-# The large statistical noise could be reduced by averaging over more thermal
-# samples.
+# specified in reciprocal lattice units (RLU). A classical-to-quantum rescaling
+# of normal mode occupations will be performed according to the temperature
+# `kT`. The large statistical noise could be reduced by averaging over more
+# thermal samples.
 
 formfactors = [FormFactor("Fe2"; g_lande=3/2)]
 res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; energies, formfactors, langevin.kT)

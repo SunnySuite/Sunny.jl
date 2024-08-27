@@ -58,7 +58,7 @@
     @test isapprox(res.data, data_golden'; atol=1e-9)
 
     # Test first 5 output matrices
-    measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false)
+    measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false, formfactors=[1 => "Fe2"])
     swt = SpinWaveTheory(sys; measure)
     formfactors=[FormFactor("Fe2")]
     res = intensities_bands(swt, qs; formfactors)
@@ -416,7 +416,7 @@ end
     q2 = [0.2360,0.7492,0.9596]
     q3 = [0.1131,0.7654,0.2810]
     q = [q1,q2,q3]
-    measure = ssf_custom((q, ssf) -> ssf, sys)
+    measure = ssf_custom((q, ssf) -> ssf, sys; formfactors=[1 => "Cr4"])
     swt = SpinWaveTheory(sys; measure)
     formfactors = [FormFactor("Cr4")]
     res = intensities_bands(swt, q; formfactors)
@@ -446,8 +446,9 @@ end
     @test energy_per_site(sys_prim) ≈ -2s^2
     
     # Both systems should produce the same intensities
-    swt1 = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
-    swt2 = SpinWaveTheory(sys; measure=ssf_perp(sys))
+    formfactors = [1 => "Co2"]
+    swt1 = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim; formfactors))
+    swt2 = SpinWaveTheory(sys; measure=ssf_perp(sys; formfactors))
     kernel = lorentzian(fwhm=0.8)
     formfactors = [FormFactor("Co2")]
     q = randn(3)
@@ -622,8 +623,8 @@ end
     observables = repeat(observables0, 1, size(eachsite(sys))...)
     corr_pairs = [(3,3), (2,2), (1,1)]
     combiner = (_, data) -> real(sum(data))
-    measure = Sunny.MeasureSpec(observables, corr_pairs, combiner)
-    
+    measure = Sunny.MeasureSpec(observables, corr_pairs, combiner, [one(FormFactor)])
+
     # Set up SpinWaveTheory
     randomize_spins!(sys)
     minimize_energy!(sys)

@@ -57,7 +57,7 @@ end
         bounds = Sunny.eigbounds(swt, q_reshaped, 50; extend=0.0)
         @test all(extrema(energies) .≈ bounds)
 
-        measure = ssf_perp(sys)
+        measure = ssf_perp(sys; formfactors=[1 => "Fe2"])
         σ = 0.05
         swt = SpinWaveTheory(sys; measure)
         swt_kpm = SpinWaveTheoryKPM(sys; measure, resolution=0.005, screening_factor=10)

@@ -290,3 +290,11 @@ function swt_data(sys::System{0}, measure)
 
     return SWTDataDipole(Rs, obs_localized, cs, sqrtS)
 end
+
+function propagate_form_factors_for_swt(measure)
+    Nobs = size(measure.observables, 1)
+    Ndims = size(measure.observables)[2:4]
+    ffs = reshape(measure.formfactors, Nobs, 1, 1, 1, :)
+    ffs = repeat(ffs, inner=(1, Ndims..., 1))
+    return reshape(ffs, Nobs, :)
+end

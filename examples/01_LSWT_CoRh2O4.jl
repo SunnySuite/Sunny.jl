@@ -131,7 +131,8 @@ plot_spins(sys_prim; color=[S[3] for S in sys_prim.dipoles])
 # perpendicular to the direction of momentum transfer. This measurement is
 # appropriate for unpolarized neutron scattering.
 
-swt = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
+measure = ssf_perp(sys_prim; formfactors=[1 => "Co2"])
+swt = SpinWaveTheory(sys_prim; measure)
 
 # Define a [`q_space_path`](@ref) that connects high-symmetry points in
 # reciprocal space. The ``𝐪``-points are given in reciprocal lattice units

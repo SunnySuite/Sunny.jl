@@ -7,9 +7,9 @@ specification of the spin `moments` symmetry-distinct sites, and a calculation
 [`set_exchange!`](@ref). The default supercell dimensions are 1×1×1 chemical
 cells, but this can be changed with `dims`.
 
-Spin `moments` should be given as a list of pairs, `[i => Moment(...), j =>
-Moment(...)]`, where `i, j, ...` are a complete set of symmetry-distinct atoms.
-Each [`Moment`](@ref) contains spin and ``g``-factor information.
+Spin `moments` comprise a list of pairs, `[i1 => Moment(...), i2 => ...]`, where
+`i1, i2, ...` are a complete set of symmetry-distinct atoms. Each
+[`Moment`](@ref) contains spin and ``g``-factor information.
 
 The two primary options for `mode` are `:SUN` and `:dipole`. In the former, each
 spin-``s`` degree of freedom is described as an SU(_N_) coherent state, i.e. a
