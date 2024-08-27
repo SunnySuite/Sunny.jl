@@ -1,12 +1,12 @@
 """
-    SpiralSpinWaveTheory(sys::System; k, axis, measure, regularization=1e-8)
+    SpinWaveTheorySpiral(sys::System; k, axis, measure, regularization=1e-8)
 
 Analogous to [`SpinWaveTheory`](@ref), but interprets the provided system as
 having a generalized spiral order. This order is described by a single
 propagation wavevector `k`, which may be incommensurate. The `axis` vector
 defines the polarization plane via its surface normal. Typically the spin
 configuration in `sys` and the propagation wavevector `k` will be optimized
-using [`spiral_minimize_energy!`](@ref). In contrast, `axis` will typically be
+using [`minimize_spiral_energy!`](@ref). In contrast, `axis` will typically be
 determined from symmetry considerations.
 
 The resulting object can be used to calculate the spin wave
@@ -17,12 +17,12 @@ The algorithm for this calculation was developed in [Toth and Lake, J. Phys.:
 Condens. Matter **27**, 166002 (2015)](https://arxiv.org/abs/1402.6069) and
 implemented in the [SpinW code](https://spinw.org/).
 """
-struct SpiralSpinWaveTheory <: AbstractSpinWaveTheory
+struct SpinWaveTheorySpiral <: AbstractSpinWaveTheory
     swt :: SpinWaveTheory
     k :: Vec3
     axis :: Vec3
 
-    function SpiralSpinWaveTheory(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
+    function SpinWaveTheorySpiral(sys::System; k::AbstractVector, axis::AbstractVector, measure::Union{Nothing, MeasureSpec}, regularization=1e-8)
         return new(SpinWaveTheory(sys; measure, regularization), k, axis)
     end
 end
@@ -39,7 +39,7 @@ end
 
 ## Dispersion and intensities
 
-function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpiralSpinWaveTheory, q_reshaped; branch)
+function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpinWaveTheorySpiral, q_reshaped; branch)
     (; swt, k, axis) = sswt
     (; sys, data) = swt
     (; local_rotations, stevens_coefs, sqrtS) = data
@@ -114,7 +114,7 @@ function swt_hamiltonian_dipole_spiral!(H::Matrix{ComplexF64}, sswt::SpiralSpinW
     end
 end
 
-function excitations!(T, H, sswt::SpiralSpinWaveTheory, q; branch)
+function excitations!(T, H, sswt::SpinWaveTheorySpiral, q; branch)
     q_reshaped = to_reshaped_rlu(sswt.swt.sys, q)
     swt_hamiltonian_dipole_spiral!(H, sswt, q_reshaped; branch)
 
@@ -125,7 +125,7 @@ function excitations!(T, H, sswt::SpiralSpinWaveTheory, q; branch)
     end
 end
 
-function excitations(sswt::SpiralSpinWaveTheory, q; branch)
+function excitations(sswt::SpinWaveTheorySpiral, q; branch)
     L = nbands(sswt.swt)
     H = zeros(ComplexF64, 2L, 2L)
     T = zeros(ComplexF64, 2L, 2L)
@@ -134,7 +134,7 @@ function excitations(sswt::SpiralSpinWaveTheory, q; branch)
 end
 
 
-function dispersion(sswt::SpiralSpinWaveTheory, qpts)
+function dispersion(sswt::SpinWaveTheorySpiral, qpts)
     (; swt) = sswt
     L = nbands(swt)
     qpts = convert(AbstractQPoints, qpts)
@@ -176,7 +176,7 @@ function gs_as_scalar(swt::SpinWaveTheory, measure::MeasureSpec)
 end
 
 
-function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; kT=0) # TODO: branch=nothing
+function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branch=nothing
     (; swt, axis) = sswt
     (; sys, data, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")

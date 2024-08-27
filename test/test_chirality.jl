@@ -49,9 +49,9 @@ end
     @test res.disp[1,:] ≈ disp_ref
     @test res.data[1,:] ≈ intens_ref
 
-    # Check SpiralSpinWaveTheory
+    # Check SpinWaveTheorySpiral
 
-    swt = SpiralSpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false), k=[0,0,0], axis=[0,0,1])
+    swt = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys; apply_g=false), k=[0,0,0], axis=[0,0,1])
     res = intensities_bands(swt, qs)
     @test res.disp[1, :] ≈ res.disp[2, :] ≈ res.disp[3, :] ≈ [B + 2D*sin(2π*q[3]) for q in qs]
     @test res.data ≈ [1 1; 0 0; 0 0]
@@ -61,15 +61,15 @@ end
     set_field!(sys, [0, 0, 1])
     axis = [0, 0, 1]
     polarize_spins!(sys, [0.5, -0.2, 0.3])
-    k = spiral_minimize_energy!(sys, axis; k_guess=[0.1, 0.2, 0.9])
+    k = minimize_spiral_energy!(sys, axis; k_guess=[0.1, 0.2, 0.9])
     @test k[3] ≈ 3/4
     @test spiral_energy_per_site(sys; k, axis) ≈ -5/4
 
-    # Check SpiralSpinWaveTheory
+    # Check SpinWaveTheorySpiral
 
     qs = [[0,0,-1/3], [0,0,1/3]]
     formfactors = [1 => FormFactor("Fe2")]
-    swt = SpiralSpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false, formfactors), k, axis)
+    swt = SpinWaveTheorySpiral(sys; measure=ssf_trace(sys; apply_g=false, formfactors), k, axis)
     res = intensities_bands(swt, qs)
     disp_ref = [3.0133249314050294 3.013324931405025; 2.598076231555311 2.5980762315553187; 0.6479760935008405 0.6479760935008452]
     intens_ref = [0.017051546888468827 0.3084140583919762; 0.2523273363813809 0.252327336381381; 0.5130396769375238 0.22167716543401594]

@@ -81,9 +81,9 @@ of `T` describe eigenvectors for ``-𝐪``. The return value is a vector with
 similar grouping: the first ``L`` values are energies for ``𝐪``, and the next
 ``L`` values are the _negation_ of energies for ``-𝐪``.
 
-    excitations!(T, tmp, swt::SpiralSpinWaveTheory, q; branch)
+    excitations!(T, tmp, swt::SpinWaveTheorySpiral, q; branch)
 
-Calculations on a [`SpiralSpinWaveTheory`](@ref) additionally require a `branch`
+Calculations on a [`SpinWaveTheorySpiral`](@ref) additionally require a `branch`
 index. The possible branches ``(1, 2, 3)`` correspond to scattering processes
 ``𝐪 - 𝐤, 𝐪, 𝐪 + 𝐤`` respectively, where ``𝐤`` is the ordering wavevector.
 Each branch will contribute ``L`` excitations, where ``L`` is the number of
@@ -106,7 +106,7 @@ end
 
 """
     excitations(swt::SpinWaveTheory, q)
-    excitations(swt::SpiralSpinWaveTheory, q; branch)
+    excitations(swt::SpinWaveTheorySpiral, q; branch)
 
 Returns a pair `(energies, T)` providing the excitation energies and
 eigenvectors. Prefer [`excitations!`](@ref) for performance, which avoids matrix
@@ -251,7 +251,7 @@ space.
 
 Traditional spin wave theory calculations are performed with an instance of
 [`SpinWaveTheory`](@ref). One can alternatively use
-[`SpiralSpinWaveTheory`](@ref) to study generalized spiral orders with a single,
+[`SpinWaveTheorySpiral`](@ref) to study generalized spiral orders with a single,
 incommensurate-``𝐤`` ordering wavevector. Another alternative is
 [`SpinWaveTheoryKPM`](@ref), which may be faster than `SpinWaveTheory` for
 calculations on large magnetic cells (e.g., to study systems with disorder). In

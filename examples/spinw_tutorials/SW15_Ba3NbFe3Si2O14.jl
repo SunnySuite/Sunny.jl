@@ -59,13 +59,13 @@ end
 
 # This compound is known to have a spiral order with approximate propagation
 # wavevector ``𝐤 ≈ [0, 0, 1/7]``. Search for this magnetic order with
-# [`spiral_minimize_energy!`](@ref). Due to reflection symmetry, one of two
+# [`minimize_spiral_energy!`](@ref). Due to reflection symmetry, one of two
 # possible propagation wavevectors may appear, ``𝐤 = ± [0, 0, 0.1426...]``.
 # Note that ``k_z = 0.1426...`` is very close to ``1/7 = 0.1428...``.
 
 axis = [0, 0, 1]
 randomize_spins!(sys)
-k = spiral_minimize_energy!(sys, axis)
+k = minimize_spiral_energy!(sys, axis)
 
 # We can visualize the full magnetic cell using [`repeat_periodically_as_spiral`](@ref),
 # which includes 7 rotated copies of the chemical cell.
@@ -74,12 +74,12 @@ sys_enlarged = repeat_periodically_as_spiral(sys, (1, 1, 7); k, axis)
 plot_spins(sys_enlarged; color=[S[1] for S in sys_enlarged.dipoles])
 
 # One could perform a spin wave calculation using either
-# [`SpinWaveTheory`](@ref) on `sys_enlarged`, or [`SpiralSpinWaveTheory`](@ref)
+# [`SpinWaveTheory`](@ref) on `sys_enlarged`, or [`SpinWaveTheorySpiral`](@ref)
 # on the original `sys`. The latter has some restrictions on the interactions,
 # but allows for our slightly incommensurate wavevector ``𝐤``.
 
 measure = ssf_perp(sys)
-swt = SpiralSpinWaveTheory(sys; measure, k, axis)
+swt = SpinWaveTheorySpiral(sys; measure, k, axis)
 
 # Calculate broadened intensities for a path ``[0, 1, L]`` through reciprocal
 # space
@@ -100,7 +100,7 @@ plot_intensities(res; units, axisopts, saturation=0.7, colormap=:jet)
 measure = ssf_custom_bm(sys; u=[0, 1, 0], v=[0, 0, 1]) do q, ssf
     imag(ssf[2,3] - ssf[3,2])
 end
-swt = SpiralSpinWaveTheory(sys; measure, k, axis)
+swt = SpinWaveTheorySpiral(sys; measure, k, axis)
 res = intensities(swt, path; energies, kernel=gaussian(fwhm=0.25))
 axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
 plot_intensities(res; units, axisopts, saturation=0.8, allpositive=false)

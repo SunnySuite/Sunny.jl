@@ -17,7 +17,7 @@ This **major release** introduces breaking interface changes.
   enables multi-panel plots.
 * One should now specify a range of ``𝐪``-points with [`q_space_path`](@ref) or
   [`q_space_grid`](@ref).
-* [`SpiralSpinWaveTheory`](@ref) is available to perform calculations on
+* [`SpinWaveTheorySpiral`](@ref) is available to perform calculations on
   generalized spiral structures, which may be incommensurate.
 * [`repeat_periodically_as_spiral`](@ref) replaces
   `set_spiral_order_on_sublattice!` and `set_spiral_order!`.

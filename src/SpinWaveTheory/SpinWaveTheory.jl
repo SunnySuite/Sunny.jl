@@ -11,7 +11,7 @@ struct SWTDataSUN
     spins_localized       :: Array{HermitianC64, 2}     # Spins rotated to local frame (3 × nsites)
 end
 
-# To facilitate sharing some code with SpiralSpinWaveTheory
+# To facilitate sharing some code with SpinWaveTheorySpiral
 abstract type AbstractSpinWaveTheory end
 
 """
