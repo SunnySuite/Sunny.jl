@@ -246,8 +246,7 @@ B = S[1]^4 + S[2]^4 + S[3]^4
 @assert A ≈ B
 ```
 
-See also [`spin_matrices`](@ref) and [Interaction Strength
-Renormalization](@ref).
+See also [`spin_matrices`](@ref) and [Interaction Renormalization](@ref).
 """
 function stevens_matrices(s)
     if isfinite(s) && !isinteger(2s+1)

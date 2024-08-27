@@ -71,7 +71,7 @@ end
 contains_dynamic_correlations(sc) = !isnan(sc.Δω)
 
 # Documented under intensities function for LSWT.
-function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, formfactors=nothing, kT)
+function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
     if !isnothing(kT) && kT <= 0
         error("Positive `kT` required for classical-to-quantum corrections, or set `kT=nothing` to disable.")
     end
@@ -92,7 +92,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
 
     # Prepare memory and configuration variables for actual calculation
     qpts = Base.convert(AbstractQPoints, qpts)
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, sc.crystal)
+    ffs = sc.measure.formfactors[1, :] # FIXME
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
     q_idx_info = pruned_wave_vector_info(sc, qpts.qs)
     crystal = @something sc.origin_crystal sc.crystal
@@ -100,7 +100,7 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, fo
     NAtoms = Val{size(sc.data, 2)}()
 
     # Intensities calculation
-    intensities_rounded!(intensities, sc.data, sc.crystal, sc.measure, ff_atoms, q_idx_info, ωidcs, NCorr, NAtoms)
+    intensities_rounded!(intensities, sc.data, sc.crystal, sc.measure, ffs, q_idx_info, ωidcs, NCorr, NAtoms)
 
     # Post-processing steps for dynamical correlations 
     if contains_dynamic_correlations(sc) 
@@ -154,21 +154,20 @@ function intensities_rounded!(intensities, data, crystal, measure::MeasureSpec{O
 end
 
 
-function intensities_static(sc::SampledCorrelations, qpts; bounds = (-Inf, Inf), formfactors=nothing, kT)
+function intensities_static(sc::SampledCorrelations, qpts; bounds = (-Inf, Inf), kT)
     ωs = available_energies(sc; negative_energies=true)
     ωidcs = findall(x -> bounds[1] <= x < bounds[2], ωs)
     if iszero(length(ωidcs))
         error("No information available within specified energy `bounds`. Try a larger interval.")
     end
     energies = sort(ωs[ωidcs])
-    res = intensities(sc, qpts; formfactors, kT, energies)
+    res = intensities(sc, qpts; kT, energies)
     data_new = dropdims(sum(res.data, dims=1), dims=1) * sc.Δω
     StaticIntensities(res.crystal, res.qpts, data_new)
 end
 
-function intensities_static(sc::SampledCorrelationsStatic, qpts; formfactors=nothing)
-    # Contrary to the name, this will actually return an StaticIntensities
-    intensities(sc.parent, qpts; formfactors, kT=nothing, energies=:available)
+function intensities_static(sc::SampledCorrelationsStatic, qpts)
+    intensities(sc.parent, qpts; kT=nothing, energies=:available)
 end
 
 

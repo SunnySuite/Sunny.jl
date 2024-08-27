@@ -26,12 +26,12 @@ set_exchange!(sys, J1, Bond(1, 1, [1, 0, 0]))
 # [`set_onsite_coupling!`](@ref). **Important note**: When introducing a
 # single-ion anisotropy in `:dipole` mode, Sunny will automatically include a
 # classical-to-quantum correction factor, as described in the document
-# [Interaction Strength Renormalization](@ref). The present single-ion
-# anisotropy is quadratic in the spin operators, so the prescription is to
-# rescale the interaction strength as ``D → (1 - 1/2s) D``. For purposes of this
-# tutorial, our aim is to reproduce the SpinW result, which requires to "undo"
-# Sunny's classical-to-quantum rescaling factor. Another way to achieve the same
-# thing is to select system mode `:dipole_large_s` instead of `:dipole`.
+# [Interaction Renormalization](@ref). For an anisotropy operator that is
+# quadratic in the spin operators, Sunny will automatically renormalize the
+# interaction strength as ``D → (1 - 1/2s) D``. We must "undo" Sunny's
+# classical-to-quantum rescaling factor to reproduce the SpinW calculation.
+# Alternatively, renormalization can be disabled by selecting the system mode
+# `:dipole_large_s` instead of `:dipole`.
 
 undo_classical_to_quantum_rescaling = 1 / (1 - 1/2s)
 D = 0.2 * undo_classical_to_quantum_rescaling

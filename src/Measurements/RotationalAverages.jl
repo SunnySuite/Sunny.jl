@@ -34,7 +34,7 @@ units of inverse length, define spherical shells in reciprocal space. The
 sphere, with quasi-uniformity. Sample points on different shells are
 decorrelated through random rotations. A consistent random number `seed` will
 yield reproducible results. The function `f` should accept a list of q-points
-and call a variant of [`intensities`](@ref).
+and call [`intensities`](@ref).
 
 # Example
 ```julia

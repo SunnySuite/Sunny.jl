@@ -127,6 +127,9 @@ function FormFactor(ion::String; g_lande=2)
     FormFactor(j0, j2, config, g_lande)
 end
 
+function Base.convert(::Type{FormFactor}, x::String)
+    return FormFactor(x)
+end
 
 function compute_gaussian_expansion(j::ExpandedBesselIntegral, s2)
     (; A, a, B, b, C, c, D, d, E) = j
@@ -147,20 +150,6 @@ function compute_form_factor(form_factor::FormFactor, q2_absolute::Float64)
         J2 = compute_gaussian_expansion(j2, s2) * s2
         return J0 + ((2-g)/g) * J2
     end
-end
-
-# Given a form factor for each "symmetry class" of sites, return a form factor
-# for each atom in the crystal.
-function propagate_form_factors_to_atoms(ffs, cryst::Crystal)
-    isnothing(ffs) && return fill(one(FormFactor), natoms(cryst))
-    
-    ref_classes = unique(cryst.classes)
-    if length(ffs) != length(ref_classes)
-        error("""Received $(length(ffs)) form factors, but $(length(ref_classes)) are
-                 required, one for each symmetry-distinct site in the crystal.""")
-    end
-
-    return [ffs[findfirst(==(c), ref_classes)] for c in cryst.classes]
 end
 
 

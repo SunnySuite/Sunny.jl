@@ -330,7 +330,7 @@ antisymmetric part of the exchange, where `D` is the Dzyaloshinskii-Moriya
 pseudo-vector. The resulting interaction will be ``𝐃⋅(𝐒_i×𝐒_j)``.
 
 The optional numeric parameter `biquad` multiplies a scalar biquadratic
-interaction, ``(𝐒_i⋅𝐒_j)^2``, with appropriate [Interaction Strength
+interaction, ``(𝐒_i⋅𝐒_j)^2``, with appropriate [Interaction
 Renormalization](@ref). For more general interactions, use
 [`set_pair_coupling!`](@ref) instead.
 

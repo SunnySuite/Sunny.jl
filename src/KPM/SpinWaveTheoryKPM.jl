@@ -60,7 +60,7 @@ function set_moments!(moments, measure, u, α)
 end
 
 
-function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0.0)
+function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0)
     qpts = convert(AbstractQPoints, qpts)
 
     (; swt, resolution, screening_factor) = swt_kpm
@@ -82,10 +82,6 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
     corrbuf = zeros(ComplexF64, Ncorr)
     moments = ElasticArray{ComplexF64}(undef, Ncorr, 0)
 
-    # Expand formfactors for symmetry classes to formfactors for all atoms in
-    # crystal
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
-
     u = zeros(ComplexF64, Nobs, 2L)
     α0 = zeros(ComplexF64, Nobs, 2L)
     α1 = zeros(ComplexF64, Nobs, 2L)
@@ -100,8 +96,9 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
 
         for i in 1:Na
             r = sys.crystal.positions[i]
+            ff = get_swt_formfactor(measure, 1, i)
             Avec_pref[i] = exp(2π*im * dot(q_reshaped, r))
-            Avec_pref[i] *= compute_form_factor(ff_atoms[i], norm2(q_global))
+            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
         end
 
         if sys.mode == :SUN
@@ -169,8 +166,8 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
     return Intensities(cryst, qpts, collect(energies), data)
 end
 
-function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, formfactors=nothing, kT=0.0)
+function intensities(swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::AbstractBroadening, kT=0.0)
     qpts = convert(AbstractQPoints, qpts)
     data = zeros(eltype(swt_kpm.swt.measure), length(energies), length(qpts.qs))
-    return intensities!(data, swt_kpm, qpts; energies, kernel, formfactors, kT)
+    return intensities!(data, swt_kpm, qpts; energies, kernel, kT)
 end

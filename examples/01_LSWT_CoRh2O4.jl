@@ -128,10 +128,18 @@ plot_spins(sys_prim; color=[S[3] for S in sys_prim.dipoles])
 # With this primitive cell, we will perform a [`SpinWaveTheory`](@ref)
 # calculation of the structure factor ``\mathcal{S}(𝐪,ω)``. The measurement
 # [`ssf_perp`](@ref) indicates projection of the spin structure factor
-# perpendicular to the direction of momentum transfer. This measurement is
-# appropriate for unpolarized neutron scattering.
+# ``\mathcal{S}(𝐪,ω)`` perpendicular to the direction of momentum transfer, as
+# appropriate for unpolarized neutron scattering. The isotropic
+# [`FormFactor`](@ref) for Co²⁺ dampens intensities at large ``𝐪``.
 
-swt = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
+formfactors = [1 => FormFactor("Co2")]
+measure = ssf_perp(sys_prim; formfactors)
+swt = SpinWaveTheory(sys_prim; measure)
+
+# Select [`lorentzian`](@ref) broadening with a full-width at half-maximum
+# (FWHM) of 0.8 meV. 
+
+kernel = lorentzian(fwhm=0.8)
 
 # Define a [`q_space_path`](@ref) that connects high-symmetry points in
 # reciprocal space. The ``𝐪``-points are given in reciprocal lattice units
@@ -142,19 +150,12 @@ swt = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim))
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path = q_space_path(cryst, qs, 500)
 
-# Select [`lorentzian`](@ref) broadening with a full-width at half-maximum
-# (FWHM) of 0.8 meV. The isotropic [`FormFactor`](@ref) for Co²⁺ dampens
-# intensities at large ``𝐪``.
-
-kernel = lorentzian(fwhm=0.8)
-formfactors = [FormFactor("Co2")];
-
 # Calculate the single-crystal scattering [`intensities`](@ref)` along the path,
 # for 300 energy points between 0 and 6 meV. Use [`plot_intensities`](@ref) to
 # visualize the result.
 
 energies = range(0, 6, 300)
-res = intensities(swt, path; energies, kernel, formfactors)
+res = intensities(swt, path; energies, kernel)
 plot_intensities(res; units)
 
 # To directly compare with the available experimental data, perform a
@@ -166,7 +167,7 @@ plot_intensities(res; units)
 
 radii = range(0, 3, 200) # (1/Å)
 res = powder_average(cryst, radii, 2000) do qs
-    intensities(swt, qs; energies, kernel, formfactors)
+    intensities(swt, qs; energies, kernel)
 end
 plot_intensities(res; units, saturation=1.0)
 
