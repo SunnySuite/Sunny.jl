@@ -68,24 +68,21 @@ end
     # Check SpiralSpinWaveTheory
 
     qs = [[0,0,-1/3], [0,0,1/3]]
-    swt = SpiralSpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false), k, axis)
+    formfactors = [1 => "Fe2"]
+    swt = SpiralSpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false, formfactors), k, axis)
     res = intensities_bands(swt, qs)
-    disp_ref = [3.0133249314 2.5980762316 0.6479760935
-                 3.0133249314 2.5980762316 0.6479760935]
-    intens_ref = [0.0292617379 0.4330127014 0.8804147011
-                   0.5292617379 0.4330127014 0.3804147011]
-    @test res.disp ≈ disp_ref'
-    @test res.data ≈ intens_ref'
+    disp_ref = [3.0133249314050294 3.013324931405025; 2.598076231555311 2.5980762315553187; 0.6479760935008405 0.6479760935008452]
+    intens_ref = [0.017051546888468827 0.3084140583919762; 0.2523273363813809 0.252327336381381; 0.5130396769375238 0.22167716543401594]
+    @test res.disp ≈ disp_ref
+    @test res.data ≈ intens_ref
 
     # Check supercell equivalent
 
     sys_enlarged = repeat_periodically_as_spiral(sys, (1, 1, 4); k, axis)
-    swt = SpinWaveTheory(sys_enlarged; measure=ssf_trace(sys_enlarged; apply_g=false))
+    swt = SpinWaveTheory(sys_enlarged; measure=ssf_trace(sys_enlarged; apply_g=false, formfactors))
     res = intensities_bands(swt, qs)
-    disp2_ref = [3.0133249314 2.5980762316 1.3228756763 0.6479760935
-                 3.0133249314 2.5980762316 1.3228756763 0.6479760935]
-    intens2_ref = [0.0292617379 0.4330127014 0.0 0.8804147011
-                   0.5292617379 0.4330127014 0.0 0.3804147011]
-    @test res.disp ≈ disp2_ref'
-    @test res.data ≈ intens2_ref'
+    disp2_ref = [3.013324931405024 3.0133249314050277; 2.5980762315553148 2.598076231555316; 1.3228756763031237 1.3228756763031235; 0.647976093500838 0.6479760935008375]
+    intens2_ref = [0.01705154688846884 0.30841405839197655; 0.2523273363813807 0.25232733638138083; 0 0; 0.5130396769375255 0.2216771654340186]
+    @test res.disp ≈ disp2_ref
+    @test res.data ≈ intens2_ref
 end

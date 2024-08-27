@@ -153,8 +153,7 @@ end
 # `kT`. The large statistical noise could be reduced by averaging over more
 # thermal samples.
 
-formfactors = [FormFactor("Fe2"; g_lande=3/2)]
-res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; energies, formfactors, langevin.kT)
+res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; energies, langevin.kT)
 fig = lines(res.energies, res.data[:, 1]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")
 lines!(res.energies, res.data[:, 2]; label="(π,π,π)")
 axislegend()
@@ -173,7 +172,7 @@ qs = [[0,   0, 0],  # List of wave vectors that define a path
       [0,   1, 0],
       [0,   0, 0]] 
 qpath = q_space_path(cryst, qs, 500)
-res = intensities(sc, qpath; energies, formfactors, langevin.kT)
+res = intensities(sc, qpath; energies, langevin.kT)
 plot_intensities(res; colorrange=(0.0, 1.0))
 
 # One can also view the intensity along a [`q_space_grid`](@ref) for a fixed
@@ -181,5 +180,5 @@ plot_intensities(res; colorrange=(0.0, 1.0))
 # over all available energies.
 
 grid = q_space_grid(cryst, [1, 0, 0], range(-1.5, 1.5, 300), [0, 1, 0], (-1.5, 1.5); orthogonalize=true)
-res = intensities(sc, grid; energies=[3.88], formfactors, langevin.kT)
+res = intensities(sc, grid; energies=[3.88], langevin.kT)
 plot_intensities(res)

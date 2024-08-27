@@ -176,7 +176,7 @@ function gs_as_scalar(swt::SpinWaveTheory, measure::MeasureSpec)
 end
 
 
-function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing, kT=0) # TODO: branch=nothing
+function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; kT=0) # TODO: branch=nothing
     (; swt, axis) = sswt
     (; sys, data, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheorySpiral with a `measure` argument.")
@@ -219,9 +219,8 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
     intensity_flat = reshape(intensity, 3L, Nq)
     S = zeros(ComplexF64, 3, 3, L, 3)
 
-    # Expand formfactors for symmetry classes to formfactors for all atoms in
-    # crystal
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, sys.crystal)
+    # Repeat formfactors data on dims of sys prior to SWT flattening
+    ffs = propagate_form_factors_for_swt(measure)
     c = zeros(ComplexF64, Na)
 
     # If g-tensors are included in observables, they must be scalar. Precompute.
@@ -238,7 +237,7 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; formfactors=nothing
         end
 
         for i in 1:Na
-            c[i] = data.sqrtS[i] * gs[i] * compute_form_factor(ff_atoms[i], norm2(q_global))
+            c[i] = data.sqrtS[i] * gs[i] * compute_form_factor(ffs[1, i], norm2(q_global))
         end
 
         for i in 1:L, j in 1:L

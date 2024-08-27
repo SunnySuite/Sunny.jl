@@ -117,8 +117,7 @@ grid = q_space_grid(cryst, [1, 0, 0], range(-10, 10, 200), [0, 1, 0], (-10, 10))
 # saturation point to the maximum intensity value. This is reasonable because we
 # are above the ordering temperature, and do not have sharp Bragg peaks.
 
-formfactors = [FormFactor("Co2")]
-res = intensities_static(sc, grid; formfactors)
+res = intensities_static(sc, grid)
 plot_intensities(res; saturation=1.0)
 
 # ### Dynamical structure factor
@@ -174,6 +173,6 @@ plot_intensities(res; units)
 
 radii = range(0, 3.5, 200) # (1/Å)
 res = powder_average(cryst, radii, 350) do qs
-    intensities(sc, qs; energies, formfactors, langevin.kT)
+    intensities(sc, qs; energies, langevin.kT)
 end
 plot_intensities(res; units)

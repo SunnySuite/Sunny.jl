@@ -121,7 +121,7 @@ operators.
 
 The optional `formfactors` comprise a list of pairs `[i1 => ff1, i2 => ...]`,
 where `i1, i2, ...` are a complete set of symmetry-distinct atoms, and `ff1,
-ff2, ...` convert to [`FormFactor`](@ref)s.
+ff2, ...` are [`FormFactor`](@ref)s or strings that convert to `FormFactor`s.
 
 Intended for use with [`SpinWaveTheory`](@ref) and instances of
 [`SampledCorrelations`](@ref).
