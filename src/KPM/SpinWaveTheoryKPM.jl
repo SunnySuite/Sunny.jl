@@ -82,9 +82,6 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
     corrbuf = zeros(ComplexF64, Ncorr)
     moments = ElasticArray{ComplexF64}(undef, Ncorr, 0)
 
-    # Repeat formfactors data on dims of sys prior to SWT flattening
-    ffs = propagate_form_factors_for_swt(measure)
-
     u = zeros(ComplexF64, Nobs, 2L)
     α0 = zeros(ComplexF64, Nobs, 2L)
     α1 = zeros(ComplexF64, Nobs, 2L)
@@ -99,8 +96,9 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
 
         for i in 1:Na
             r = sys.crystal.positions[i]
+            ff = get_swt_formfactor(measure, 1, i)
             Avec_pref[i] = exp(2π*im * dot(q_reshaped, r))
-            Avec_pref[i] *= compute_form_factor(ffs[1, i], norm2(q_global))
+            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
         end
 
         if sys.mode == :SUN

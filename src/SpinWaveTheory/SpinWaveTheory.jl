@@ -291,10 +291,10 @@ function swt_data(sys::System{0}, measure)
     return SWTDataDipole(Rs, obs_localized, cs, sqrtS)
 end
 
-function propagate_form_factors_for_swt(measure)
-    Nobs = size(measure.observables, 1)
-    Ndims = size(measure.observables)[2:4]
-    ffs = reshape(measure.formfactors, Nobs, 1, 1, 1, :)
-    ffs = repeat(ffs, inner=(1, Ndims..., 1))
-    return reshape(ffs, Nobs, :)
+# i is an "atom" index for the flattened swt.sys. However, `measure` was
+# originally constructed for a system with some crystal containing natoms. Use
+# mod1(i, natoms) to index into measure.formfactors.
+function get_swt_formfactor(measure, μ, i)
+    natoms = size(measure.observables, 5)
+    measure.formfactors[μ, mod1(i, natoms)]
 end

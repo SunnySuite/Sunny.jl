@@ -219,8 +219,7 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; kT=0) # TODO: branc
     intensity_flat = reshape(intensity, 3L, Nq)
     S = zeros(ComplexF64, 3, 3, L, 3)
 
-    # Repeat formfactors data on dims of sys prior to SWT flattening
-    ffs = propagate_form_factors_for_swt(measure)
+    # Like Avec_pref
     c = zeros(ComplexF64, Na)
 
     # If g-tensors are included in observables, they must be scalar. Precompute.
@@ -237,7 +236,8 @@ function intensities_bands(sswt::SpiralSpinWaveTheory, qpts; kT=0) # TODO: branc
         end
 
         for i in 1:Na
-            c[i] = data.sqrtS[i] * gs[i] * compute_form_factor(ffs[1, i], norm2(q_global))
+            ff = get_swt_formfactor(measure, 1, i)
+            c[i] = data.sqrtS[i] * gs[i] * compute_form_factor(ff, norm2(q_global))
         end
 
         for i in 1:L, j in 1:L

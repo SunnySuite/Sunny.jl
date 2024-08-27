@@ -170,13 +170,9 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     intensity = zeros(eltype(measure), L, Nq)
 
     # Temporary storage for pair correlations
+    Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
     corrbuf = zeros(ComplexF64, Ncorr)
-
-    Nobs = size(measure.observables, 1)
-
-    # Repeat formfactors data on dims of sys prior to SWT flattening
-    ffs = propagate_form_factors_for_swt(measure)
 
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
@@ -184,8 +180,9 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
 
         for i in 1:Na
             r_global = global_position(sys, (1,1,1,i))
+            ff = get_swt_formfactor(measure, 1, i)
             Avec_pref[i] = exp(- im * dot(q_global, r_global))
-            Avec_pref[i] *= compute_form_factor(ffs[1, i], norm2(q_global))
+            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
         end
 
         Avec = zeros(ComplexF64, Nobs)
