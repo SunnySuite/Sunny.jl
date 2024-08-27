@@ -372,14 +372,14 @@ quantum spin operators are expressed with Holstein-Primakoff bosons, and
 dynamical correlations are calculated to leading order in inverse powers of the
 quantum spin-$s$. For systems constructed with `mode = :SUN`, Sunny
 automatically switches to a multi-flavor boson variant of spin wave theory,
-which can offer more accurate treatment of multipolar spin fluctuations. Use
-[`SpinWaveTheorySpiral`](@ref) to study generalized spiral phases, which allow
-for an incommensurate propagation wavevector. The experimental module
-[`SpinWaveTheoryKPM`](@ref) implements [spin wave calculations using the kernel
-polynomial method](https://arxiv.org/abs/2312.0834). In the KPM approach, the
-computational cost scales linearly in the magnetic cell size. It can be useful
-for studying systems with large magnetic cells include systems with
-long-wavelength structures, or systems with quenched chemical disorder.
+which captures more single-ion physics. Use [`SpinWaveTheorySpiral`](@ref) to
+study generalized spiral phases, which allow for an incommensurate propagation
+wavevector. The experimental module [`SpinWaveTheoryKPM`](@ref) implements [spin
+wave calculations using the kernel polynomial
+method](https://arxiv.org/abs/2312.0834). In the KPM approach, the computational
+cost scales linearly in the magnetic cell size. It can be useful for studying
+systems with large magnetic cells include systems with long-wavelength
+structures, or systems with quenched chemical disorder.
 
 
 ## Calculations with classical spin dynamics
