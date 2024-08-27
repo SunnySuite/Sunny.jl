@@ -152,20 +152,6 @@ function compute_form_factor(form_factor::FormFactor, q2_absolute::Float64)
     end
 end
 
-# Given a form factor for each "symmetry class" of sites, return a form factor
-# for each atom in the crystal.
-function propagate_form_factors_to_atoms(ffs, cryst::Crystal)
-    isnothing(ffs) && return fill(one(FormFactor), natoms(cryst))
-    
-    ref_classes = unique(cryst.classes)
-    if length(ffs) != length(ref_classes)
-        error("""Received $(length(ffs)) form factors, but $(length(ref_classes)) are
-                 required, one for each symmetry-distinct site in the crystal.""")
-    end
-
-    return [ffs[findfirst(==(c), ref_classes)] for c in cryst.classes]
-end
-
 
 const radial_integral_coefficients = Dict(
     # 3d electrons of transition atoms and ions (P. J. Brown)
