@@ -11,11 +11,9 @@ let warned = false
     global warn_wglmakie() = begin
         if !warned && string(Makie.current_backend()) == "WGLMakie"
             @info """
-            Support for the WGLMakie backend is experimental. Known issues are
-            being tracked at https://github.com/SunnySuite/Sunny.jl/issues/211.
-
-            If you encounter graphics problems, try restarting the Julia session
-            and load GLMakie instead of WGLMakie.
+            Using the WGLMakie graphics backend. If you encounter graphics problems,
+            try restarting the Julia session and load GLMakie instead of WGLMakie.
+            Issue tracker: https://github.com/SunnySuite/Sunny.jl/issues/211.
             """
         end
         warned = true
