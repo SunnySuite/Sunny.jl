@@ -366,20 +366,19 @@ to $𝒮(𝐪, ω) / g^2$
 
 ## Calculations with spin wave theory
 
-Calculation of the dynamical structure factor with linear
-[`SpinWaveTheory`](@ref) is relatively straightforward and efficient. In the
-traditional approach, quantum spin operators are expressed as Holstein-Primakoff
-bosons, and dynamical correlations can be calculated to leading order in inverse
-powers of the quantum spin-$s$. Sunny also supports a multi-flavor boson
-generalization of this theory, which can offer more accurate treatment of
-multipolar spin fluctuations. Another feature in Sunny is
-[`SpiralSpinWaveTheory`](@ref), which enables calculations for generalized
-spiral order. Finally, the experimental module [`SpinWaveTheoryKPM`](@ref)
-implements [spin wave calculations using the kernel polynomial
-method](https://arxiv.org/abs/2312.0834). In this approach, the computational
-cost scales linearly in the magnetic cell size. Motivation for studying systems
-with large magnetic cells include systems with long-wavelength structures, or
-systems with quenched chemical disorder.
+Calculating the dynamical structure factor with linear [`SpinWaveTheory`](@ref)
+is relatively direct. In the traditional approach, quantum spin operators are
+expressed with Holstein-Primakoff bosons, and dynamical correlations are
+calculated to leading order in inverse powers of the quantum spin-$s$. For
+systems constructed with `mode = :SUN`, Sunny automatically switches to a
+multi-flavor boson variant of spin wave theory, which captures more single-ion
+physics. Use [`SpinWaveTheorySpiral`](@ref) to study generalized spiral phases,
+which allow for an incommensurate propagation wavevector. The experimental
+module [`SpinWaveTheoryKPM`](@ref) implements [spin wave calculations using the
+kernel polynomial method](https://arxiv.org/abs/2312.0834). In the KPM approach,
+the computational cost scales linearly in the magnetic cell size. It can be
+useful for studying systems with large magnetic cells include systems with
+long-wavelength structures, or systems with quenched chemical disorder.
 
 
 ## Calculations with classical spin dynamics

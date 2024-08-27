@@ -37,7 +37,7 @@ set_exchange!(sys, Ja, Bond(3, 4, [0, 0, 0]))
 set_exchange!(sys, Jab, Bond(1, 2, [0, 0, 0]))
 set_exchange!(sys, Jip, Bond(3, 4, [0, 0, 1]))
 
-# Use [`spiral_minimize_energy!`](@ref) to optimize the generalized spiral
+# Use [`minimize_spiral_energy!`](@ref) to optimize the generalized spiral
 # order. This determines the propagation wavevector `k`, and fits the spin
 # values within the unit cell. One must provide a fixed `axis` perpendicular to
 # the polarization plane. For this system, all interactions are rotationally
@@ -46,7 +46,7 @@ set_exchange!(sys, Jip, Bond(3, 4, [0, 0, 1]))
 
 axis = [0, 0, 1]
 randomize_spins!(sys)
-k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
+k = minimize_spiral_energy!(sys, axis; k_guess=randn(3))
 plot_spins(sys; ndims=2)
 
 # If successful, the optimization process will find one two propagation
@@ -80,11 +80,11 @@ qs = [[0,0,0], [1,0,0]]
 path = q_space_path(cryst, qs, 400)
 
 # Calculate intensities for the incommensurate spiral phase using
-# [`SpiralSpinWaveTheory`](@ref). It is necessary to provide the original `sys`,
+# [`SpinWaveTheorySpiral`](@ref). It is necessary to provide the original `sys`,
 # consisting of a single chemical cell.
 
 measure = ssf_perp(sys; apply_g=false)
-swt = SpiralSpinWaveTheory(sys; measure, k, axis)
+swt = SpinWaveTheorySpiral(sys; measure, k, axis)
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 
