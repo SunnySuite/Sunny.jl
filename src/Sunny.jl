@@ -95,8 +95,8 @@ export SpinWaveTheory, excitations, excitations!, dispersion, intensities, inten
 
 include("Spiral/LuttingerTisza.jl")
 include("Spiral/SpiralEnergy.jl")
-include("Spiral/SpiralSWT.jl")
-export SpiralSpinWaveTheory, spiral_minimize_energy!, spiral_energy, spiral_energy_per_site
+include("Spiral/SpinWaveTheorySpiral.jl")
+export minimize_spiral_energy!, spiral_energy, spiral_energy_per_site, SpinWaveTheorySpiral
 
 include("KPM/Lanczos.jl")
 include("KPM/Chebyshev.jl")

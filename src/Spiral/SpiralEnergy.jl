@@ -14,7 +14,7 @@ the lattice vectors of the chemical cell.
 The return value is the energy associated with one periodic copy of `sys`. The
 special case ``𝐤 = 0`` yields result is identical to [`energy`](@ref).
 
-See also [`spiral_minimize_energy!`](@ref) and [`repeat_periodically_as_spiral`](@ref).
+See also [`minimize_spiral_energy!`](@ref) and [`repeat_periodically_as_spiral`](@ref).
 """
 function spiral_energy(sys::System{0}; k, axis)
     sys.mode in (:dipole, :dipole_large_s) || error("SU(N) mode not supported")
@@ -182,7 +182,7 @@ function spiral_g!(G, sys::System{0}, axis, params, λ)
 end
 
 """
-    spiral_minimize_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
+    minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
 
 Finds a generalized spiral order that minimizes the [`spiral_energy`](@ref).
 This involves optimization of the spin configuration in `sys`, and the
@@ -195,7 +195,7 @@ provided.
 See also [`suggest_magnetic_supercell`](@ref) to find a system shape that is
 approximately commensurate with the returned propagation wavevector ``𝐤``.
 """
-function spiral_minimize_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
+function minimize_spiral_energy!(sys, axis; maxiters=10_000, k_guess=randn(sys.rng, 3))
     axis = normalize(axis)
 
     sys.mode in (:dipole, :dipole_large_s) || error("SU(N) mode not supported")

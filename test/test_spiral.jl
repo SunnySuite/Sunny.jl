@@ -67,12 +67,12 @@ end
 
         axis = [0, 0, 1]
         randomize_spins!(sys)
-        k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
+        k = minimize_spiral_energy!(sys, axis; k_guess=randn(3))
         @test k[1:2] ≈ [0.5, 0.5]
         @test isapprox(only(sys.dipoles)[3], h / (8J + 2D); atol=1e-6)
 
         q = [0.12, 0.23, 0.34]
-        swt = SpiralSpinWaveTheory(sys; measure=nothing, k, axis)
+        swt = SpinWaveTheorySpiral(sys; measure=nothing, k, axis)
         ϵq_num = dispersion(swt, [q])
 
         # Analytical
@@ -108,7 +108,7 @@ end
 
     axis = [0, 0, 1]
     randomize_spins!(sys)
-    k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
+    k = minimize_spiral_energy!(sys, axis; k_guess=randn(3))
     @test spiral_energy(sys; k, axis) ≈ -16.356697120589477
 
     # There are two possible chiralities. Select just one.
@@ -120,7 +120,7 @@ end
     @test spiral_energy(sys; k, axis) ≈ -16.356697120589477
 
     measure = ssf_perp(sys; apply_g=false)
-    swt = SpiralSpinWaveTheory(sys; measure, k, axis)
+    swt = SpinWaveTheorySpiral(sys; measure, k, axis)
     q = [0.41568,0.56382,0.76414]
     res = intensities_bands(swt, [q])
 
@@ -185,7 +185,7 @@ end
     
     axis = [0, 0, 1]
     randomize_spins!(sys)
-    k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
+    k = minimize_spiral_energy!(sys, axis; k_guess=randn(3))
     E = Sunny.luttinger_tisza_exchange(sys; k)
     @test isapprox(E, E_ref; atol=1e-12)
     @test isapprox(k, k_ref; atol=1e-6) || isapprox(k, k_ref_alt; atol=1e-6)    

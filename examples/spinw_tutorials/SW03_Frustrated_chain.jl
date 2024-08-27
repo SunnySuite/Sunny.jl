@@ -32,7 +32,7 @@ set_exchange!(sys, J2, Bond(1, 1, [2, 0, 0]))
 
 axis = [0, 0, 1]
 randomize_spins!(sys)
-k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
+k = minimize_spiral_energy!(sys, axis; k_guess=randn(3))
 
 # The first component of the order wavevector ``𝐤`` has a unique value up to
 # reflection symmetry, ``𝐤 → -𝐤``. The second and third components of ``𝐤``
@@ -48,10 +48,10 @@ k = spiral_minimize_energy!(sys, axis; k_guess=randn(3))
 sys_enlarged = repeat_periodically_as_spiral(sys, (8, 1, 1); k, axis)
 plot_spins(sys_enlarged; ndims=2)
 
-# Use [`SpiralSpinWaveTheory`](@ref) on the original `sys` to calculate the
+# Use [`SpinWaveTheorySpiral`](@ref) on the original `sys` to calculate the
 # dispersion and intensities for the incommensurate ordering wavevector.
 
-swt = SpiralSpinWaveTheory(sys; measure=ssf_perp(sys), k, axis)
+swt = SpinWaveTheorySpiral(sys; measure=ssf_perp(sys), k, axis)
 qs = [[0,0,0], [1,0,0]]
 path = q_space_path(cryst, qs, 400)
 res = intensities_bands(swt, path)

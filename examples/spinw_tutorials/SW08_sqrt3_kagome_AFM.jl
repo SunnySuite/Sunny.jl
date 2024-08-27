@@ -51,7 +51,7 @@ fig = Figure(size=(768, 300))
 swt = SpinWaveTheory(sys_enlarged; measure=ssf_perp(sys_enlarged))
 res = intensities_bands(swt, path)
 plot_intensities!(fig[1, 1], res; units, saturation=0.5, axisopts=(; title="Supercell method"))
-swt = SpiralSpinWaveTheory(sys; measure=ssf_perp(sys), k, axis)
+swt = SpinWaveTheorySpiral(sys; measure=ssf_perp(sys), k, axis)
 res = intensities_bands(swt, path)
 plot_intensities!(fig[1, 2], res; units, saturation=0.5, axisopts=(; title="Spiral method"))
 fig
