@@ -64,7 +64,7 @@ end
 
 # Based on logic in `propagate_moments`. Create one FormFactor per atom in
 # reshaped `sys.crystal`. Note that `ffs` refers to original crystal.
-function propagate_form_factors(sys::System, ffs::Vector{<: Pair})
+function propagate_form_factors(sys::System, ffs::Vector{Pair{Int, FormFactor}})
     cryst = orig_crystal(sys)
     for (i, _) in ffs
         1 <= i <= natoms(cryst) || error("Atom $i outside the valid range 1:$(natoms(cryst))")
@@ -94,14 +94,6 @@ function propagate_form_factors(sys::System, _::Nothing)
     fill(one(FormFactor), natoms(sys.crystal))
 end
 
-# TODO: DELETE ME
-function propagate_form_factors(sys::System, ffs::Vector{FormFactor})
-    ref_classes = unique(orig_crystal(sys).classes)
-    ref_atoms = findfirst(==(c), ref_classes)
-    @warn "Deprecation warning! Use [i => FormFactor(...), j => ...] with atoms (i, j, ...) = $ref_atoms"
-    return propagate_form_factors(sys, collect(zip(ref_atoms, ffs)))
-end
-
 
 """
     ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
@@ -119,9 +111,10 @@ structure factor components are correlations between the magnetic moment
 operators. Set `apply_g = false` to measure correlations between the bare spin
 operators.
 
-The optional `formfactors` comprise a list of pairs `[i1 => ff1, i2 => ...]`,
-where `i1, i2, ...` are a complete set of symmetry-distinct atoms, and `ff1,
-ff2, ...` are [`FormFactor`](@ref)s or strings that convert to `FormFactor`s.
+The optional `formfactors` comprise a list of pairs `[i1 => FormFactor(...), i2
+=> ...]`, where `i1, i2, ...` are a complete set of symmetry-distinct atoms, and
+each [`FormFactor`](@ref) implements ``𝐪``-space attenuation for the given
+atom.
 
 Intended for use with [`SpinWaveTheory`](@ref) and instances of
 [`SampledCorrelations`](@ref).
@@ -206,8 +199,9 @@ This function is a special case of [`ssf_custom`](@ref).
 # Example
 
 ```julia
-# Select Co²⁺ form factor for atom 1 and all equivalent atoms.
-ssf_perp(sys; formfactors=[1 => "Co2"])
+# Select Co²⁺ form factor for atom 1 and its symmetry equivalents
+formfactors = [1 => FormFactor("Co2")]
+ssf_perp(sys; formfactors)
 ```
 """
 function ssf_perp(sys::System; apply_g=true, formfactors=nothing)

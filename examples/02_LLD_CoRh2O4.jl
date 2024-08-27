@@ -91,7 +91,8 @@ plot_spins(sys; color=[S'*S0 for S in sys.dipoles])
 # configurations in classical thermal equilibrium. Each call to
 # [`add_sample!`](@ref) will accumulate data for the current spin snapshot.
 
-measure = ssf_perp(sys; formfactors=[1 => "Co2"])
+formfactors = [1 => FormFactor("Co2")]
+measure = ssf_perp(sys; formfactors)
 sc = SampledCorrelationsStatic(sys; measure)
 add_sample!(sc, sys)    # Accumulate the newly sampled structure factor into `sf`
 

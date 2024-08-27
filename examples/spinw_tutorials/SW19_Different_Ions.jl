@@ -44,7 +44,7 @@ path = q_space_path(cryst, qs, 400)
 
 fig = Figure(size=(768,600))
 
-formfactors = [1 => "Cu2", 2 => "Fe2"]
+formfactors = [1 => FormFactor("Cu2"), 2 => FormFactor("Fe2")]
 swt = SpinWaveTheory(sys; measure=ssf_perp(sys; formfactors))
 res = intensities_bands(swt, path)
 plot_intensities!(fig[1, 1], res; units, axisopts=(; title="All correlations"))

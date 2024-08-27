@@ -58,7 +58,8 @@
     @test isapprox(res.data, data_golden'; atol=1e-9)
 
     # Test first 5 output matrices
-    measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false, formfactors=[1 => "Fe2"])
+    formfactors = [1 => FormFactor("Fe2")]
+    measure = ssf_custom((q, ssf) -> ssf, sys; apply_g=false, formfactors)
     swt = SpinWaveTheory(sys; measure)
     res = intensities_bands(swt, qs)
     data_flat = reinterpret(ComplexF64, res.data[1:5])
@@ -415,7 +416,8 @@ end
     q2 = [0.2360,0.7492,0.9596]
     q3 = [0.1131,0.7654,0.2810]
     q = [q1,q2,q3]
-    measure = ssf_custom((q, ssf) -> ssf, sys; formfactors=[1 => "Cr4"])
+    formfactors = [1 => FormFactor("Cr4")]
+    measure = ssf_custom((q, ssf) -> ssf, sys; formfactors)
     swt = SpinWaveTheory(sys; measure)
     res = intensities_bands(swt, q)
     disp_inds = [107, 89, 118, 140, 112, 16, 103, 75, 142, 18]
@@ -444,7 +446,7 @@ end
     @test energy_per_site(sys_prim) ≈ -2s^2
     
     # Both systems should produce the same intensities
-    formfactors = [1 => "Co2"]
+    formfactors = [1 => FormFactor("Co2")]
     swt1 = SpinWaveTheory(sys_prim; measure=ssf_perp(sys_prim; formfactors))
     swt2 = SpinWaveTheory(sys; measure=ssf_perp(sys; formfactors))
     kernel = lorentzian(fwhm=0.8)

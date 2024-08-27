@@ -132,7 +132,8 @@ plot_spins(sys_prim; color=[S[3] for S in sys_prim.dipoles])
 # appropriate for unpolarized neutron scattering. The isotropic
 # [`FormFactor`](@ref) for Co²⁺ dampens intensities at large ``𝐪``.
 
-measure = ssf_perp(sys_prim; formfactors=[1 => "Co2"])
+formfactors = [1 => FormFactor("Co2")]
+measure = ssf_perp(sys_prim; formfactors)
 swt = SpinWaveTheory(sys_prim; measure)
 
 # Select [`lorentzian`](@ref) broadening with a full-width at half-maximum

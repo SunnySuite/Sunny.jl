@@ -68,7 +68,7 @@ end
     # Check SpiralSpinWaveTheory
 
     qs = [[0,0,-1/3], [0,0,1/3]]
-    formfactors = [1 => "Fe2"]
+    formfactors = [1 => FormFactor("Fe2")]
     swt = SpiralSpinWaveTheory(sys; measure=ssf_trace(sys; apply_g=false, formfactors), k, axis)
     res = intensities_bands(swt, qs)
     disp_ref = [3.0133249314050294 3.013324931405025; 2.598076231555311 2.5980762315553187; 0.6479760935008405 0.6479760935008452]
