@@ -18,6 +18,14 @@ function (b::NonstationaryBroadening)(ϵ, ω)
     b.kernel(ϵ, ω)
 end
 
+function Base.show(io::IO, ::Broadening)
+    print(io, "Broadening")
+end
+
+function Base.show(io::IO, ::NonstationaryBroadening)
+    print(io, "NonstationaryBroadening")
+end
+
 """
     lorentzian(; fwhm)
 
