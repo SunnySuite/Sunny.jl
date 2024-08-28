@@ -105,12 +105,11 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # ### Reshaping the magnetic cell
 
-# The Néel magnetic order can be concisely described with a magnetic cell that
-# coincides with a primitive unit cell. Reshape to a primitive cell with
-# [`reshape_supercell`](@ref). Columns of the `shape` matrix denote primitive
-# lattice vectors as multiples of the conventional cubic lattice vectors
-# ``(𝐚_1, 𝐚_2, 𝐚_3)``. Alternatively, a primitive cell shape can be obtained
-# as `shape = cryst.latvecs \
+# This Néel order can be captured using a primitive unit cell for the magnetic
+# cell. Build such a system with [`reshape_supercell`](@ref), where columns of
+# the `shape` matrix denote primitive lattice vectors as multiples of the
+# conventional cubic lattice vectors ``(𝐚_1, 𝐚_2, 𝐚_3)``. One could also use
+# `shape = cryst.latvecs \
 # cryst.prim_latvecs`. Verify that the energy per site is unchanged after the
 # reshaping the supercell.
 
