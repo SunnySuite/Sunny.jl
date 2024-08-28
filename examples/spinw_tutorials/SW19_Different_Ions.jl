@@ -60,3 +60,12 @@ res = intensities_bands(swt, path)
 plot_intensities!(fig[2, 2], res; units, axisopts=(; title="Fe-Fe correlations"))
 
 fig
+
+# Calculate quantum corrections ``δS`` to spin magnitude, which arise from the
+# zero-point energy of the spin waves. The outputs are ordered following the
+# [`Site`](@ref) indexing scheme of the system: `(cell1, cell2, cell3,
+# sublattice)`, with left-side indices fastest. The two corrections ``δS ≈
+# -0.137`` and ``δS ≈ -0.578`` apply to the Cu and Fe ions, respectively. The
+# larger correction on Fe is due to the relatively weak interchain coupling.
+
+Sunny.magnetization_lswt_correction_dipole(swt; atol=1e-4)

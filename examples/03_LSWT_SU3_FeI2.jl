@@ -1,8 +1,7 @@
 # # 3. Multi-flavor spin wave simulations of FeI₂
 # 
-# This tutorial illustrates various powerful features in Sunny, including
-# symmetry analysis, energy minimization, and spin wave theory with multi-flavor
-# bosons.
+# This tutorial illustrates various advanced features such as symmetry analysis,
+# energy minimization, and spin wave theory with multi-flavor bosons.
 #
 # Our context will be FeI₂, an effective spin-1 material with strong single-ion
 # anisotropy. Quadrupolar fluctuations give rise to a single-ion bound state
@@ -42,10 +41,10 @@ positions = [[0, 0, 0], [1/3, 2/3, 1/4], [2/3, 1/3, 3/4]]
 types = ["Fe", "I", "I"]
 cryst = Crystal(latvecs, positions; types)
 
-# Observe that Sunny inferred the space group, 'P -3 m 1' (164) and labeled the
-# atoms according to their point group symmetries. Only the Fe atoms are
-# magnetic, so we focus on them with [`subcrystal`](@ref). Importantly, this
-# operation preserves the spacegroup symmetries.
+# Observe that the space group 'P -3 m 1' (164) has been inferred, as well as
+# point group symmetries. Only the Fe atoms are magnetic, so we focus on them
+# with [`subcrystal`](@ref). Importantly, this operation preserves the
+# spacegroup symmetries.
 
 cryst = subcrystal(cryst, "Fe")
 view_crystal(cryst)
@@ -143,14 +142,15 @@ set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 
 # ### Finding the ground state
 
-# This model has been carefully designed so that energy minimization produces
-# the physically correct magnetic ordering. Using [`set_dipole!`](@ref), this
-# magnetic structure can be entered manually. Sunny also provides tools to
-# search for an unknown magnetic order, as we will now demonstrate.
+# These model parameters have already been fitted so that energy minimization
+# yields the physically correct ground state. Knowing this, we could set the
+# magnetic configuration manually by calling [`set_dipole!`](@ref) on each site
+# in the system. Another approach, as we now demonstrate, is to use the built-in
+# optimization tools to search for the ground-state in an automated way.
 #
 # To minimize bias in the search, use [`resize_supercell`](@ref) to create a
-# relatively large system of 4×4×4 chemical cells. Randomize all spins (as SU(3)
-# coherent states) and minimize the energy.
+# relatively large system of 4×4×4 chemical cells. Randomize all spins
+# (represented as SU(3) coherent states) and minimize the energy.
 
 sys = resize_supercell(sys, (4, 4, 4))
 randomize_spins!(sys)
@@ -164,11 +164,12 @@ minimize_energy!(sys)
 plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # To better understand the spin configuration, we could inspect the static
-# structure factor ``\mathcal{S}(𝐪)`` in the 3D space of momenta ``𝐪``. For
-# this, Sunny provides [`SampledCorrelationsStatic`](@ref). Here, however, we
-# will use [`print_wrapped_intensities`](@ref), which gives static intensities
-# averaged over the individual Bravais sublattices (in effect, all ``𝐪``
-# intensities are periodically wrapped to the first Brillouin zone).
+# structure factor ``\mathcal{S}(𝐪)`` in the 3D space of momenta ``𝐪``. The
+# general tool for this analysis is [`SampledCorrelationsStatic`](@ref). For the
+# present purposes, however, it is more convenient to use
+# [`print_wrapped_intensities`](@ref), which reports ``\mathcal{S}(𝐪)`` with
+# periodical wrapping of all commensurate ``𝐪`` wavevectors into the first
+# Brillouin zone.
 
 print_wrapped_intensities(sys)
 
@@ -204,14 +205,14 @@ plot_spins(sys_min; color=[S[3] for S in sys_min.dipoles], ghost_radius=12)
 # SU(3) coherent states, this calculation will require a multi-flavor boson
 # generalization of the usual spin wave theory.
 
+swt = SpinWaveTheory(sys_min; measure=ssf_perp(sys_min))
+
 # Calculate and plot the spectrum along a momentum-space path that connects a
-# sequence of high-symmetry ``𝐪``-points. These Sunny commands are identical to
-# those described in [`our previous CoRh₂O₄ tutorial`](@ref "1. Spin wave
-# simulations of CoRh₂O₄").
+# sequence of high-symmetry ``𝐪``-points. This interface abstracts over the
+# underlying calculator type.
 
 qs = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
 path = q_space_path(cryst, qs, 500)
-swt = SpinWaveTheory(sys_min; measure=ssf_perp(sys_min))
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 

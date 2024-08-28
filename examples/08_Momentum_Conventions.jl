@@ -2,13 +2,14 @@
 #
 # This example illustrates Sunny's conventions for dynamical structure factor
 # intensities, ``\mathcal{S}(𝐪,ω)``, as documented in the page [Structure
-# Factor Conventions](@ref). In the neutron scattering context, the variables
-# ``𝐪`` and ``ω`` describe momentum and energy transfer _to_ the sample.
+# Factor Conventions](@ref). The variables ``𝐪`` and ``ω`` describe momentum
+# and energy transfer _to_ the sample.
 #
 # For systems without inversion-symmetry, the structure factor intensities at
-# ``± 𝐪`` may be inequivalent. To highlight this inequivalence, we will
-# construct a 1D chain with Dzyaloshinskii–Moriya interactions between nearest
-# neighbor bonds, and apply a magnetic field.
+# ``± 𝐪`` may be inequivalent. To highlight this, consider a simple 1D chain
+# that includes only Dzyaloshinskii–Moriya interactions between neighboring
+# sites. Coupling to an external field then breaks time-reversal symmetry,
+# giving rise to an inequivalence of intensities ``\mathcal{S}(±𝐪,ω)``
 
 using Sunny, GLMakie
 
@@ -20,10 +21,10 @@ using Sunny, GLMakie
 latvecs = lattice_vectors(2, 2, 1, 90, 90, 90)
 cryst = Crystal(latvecs, [[0,0,0]], "P1")
 
-# Construct a 1D chain system that extends along ``𝐚₃``. The Hamiltonian
-# includes DM and Zeeman coupling terms, ``ℋ = ∑_j D ẑ ⋅ (𝐒_j × 𝐒_{j+1}) -
-# ∑_j 𝐁 ⋅ μ_j``, where ``μ_j = - μ_B g 𝐒_j`` is the [`magnetic_moment`](@ref)
-# and ``𝐁 ∝ ẑ``.
+# Construct a 1D chain system that extends along the global Cartesian ``ẑ``
+# axis. The Hamiltonian includes DM and Zeeman coupling terms, ``ℋ = ∑_j D ẑ ⋅
+# (𝐒_j × 𝐒_{j+1}) - ∑_j 𝐁 ⋅ μ_j``, where ``μ_j = - g 𝐒_j`` is the
+# [`magnetic_moment`](@ref) and ``𝐁 ∝ ẑ``.
 
 sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole; dims=(1, 1, 25))
 D = 0.1

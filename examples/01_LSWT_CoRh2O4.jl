@@ -75,8 +75,8 @@ sys = System(cryst, [1 => Moment(s=3/2, g=2)], :dipole)
 # Previous work demonstrated that inelastic neutron scattering data for CoRh₂O₄
 # is well described with a single antiferromagnetic nearest neighbor exchange,
 # `J = 0.63` meV. Use [`set_exchange!`](@ref) with the bond that connects atom 1
-# to atom 3, and has zero displacement between chemical cells. Applying the
-# symmetries of spacegroup 227, Sunny will propagate this interaction to the
+# to atom 3, and has zero displacement between chemical cells. Consistent with
+# the symmetries of spacegroup 227, this interaction will be propagated to all
 # other nearest-neighbor bonds. Calling [`view_crystal`](@ref) with `sys` now
 # shows the antiferromagnetic Heisenberg interactions as blue polkadot spheres.
 
@@ -180,8 +180,8 @@ plot_intensities(res; units, saturation=1.0)
 
 # ### What's next?
 #
-# * For more spin wave calculations of this traditional type, one can browse the
-#   [SpinW tutorials ported to Sunny](@ref "SW01 - FM Heisenberg chain").
+# * For more spin wave calculations of this type, browse the [SpinW tutorials
+#   ported to Sunny](@ref "SW01 - FM Heisenberg chain").
 # * Spin wave theory neglects thermal fluctuations of the magnetic order. Our
 #   [next tutorial](@ref "2. Landau-Lifshitz dynamics of CoRh₂O₄ at finite *T*")
 #   demonstrates how to sample spins in thermal equilibrium, and measure
@@ -189,5 +189,5 @@ plot_intensities(res; units, saturation=1.0)
 # * Sunny also offers features that go beyond the dipole approximation of a
 #   quantum spin via the theory of SU(_N_) coherent states. This can be
 #   especially useful for systems with strong single-ion anisotropy, as
-#   demonstrated in our [tutorial on FeI₂](@ref "3. Multi-flavor spin wave
+#   demonstrated in the [FeI₂ tutorial](@ref "3. Multi-flavor spin wave
 #   simulations of FeI₂").

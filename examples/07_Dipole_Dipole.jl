@@ -1,18 +1,21 @@
 # # 7. Long-range dipole interactions
 #
-# This example demonstrates Sunny's ability to incorporate long-range dipole
-# interactions using Ewald summation. The calculation reproduces previous
-# results in  [Del Maestro and Gingras, J. Phys.: Cond. Matter, **16**, 3339
+# This example shows how long-range dipole-dipole interactions can affect a spin
+# wave calculation. These interactions can be included two ways: Ewald summation
+# or real-space space with a distance cutoff. The study follows [Del Maestro and
+# Gingras, J. Phys.: Cond. Matter, **16**, 3339
 # (2004)](https://arxiv.org/abs/cond-mat/0403494).
 
 using Sunny, GLMakie
 
 # Create a Pyrochlore crystal from spacegroup 227.
 
-units = Units(:K)
+units = Units(:K, :angstrom)
 latvecs = lattice_vectors(10.19, 10.19, 10.19, 90, 90, 90)
-positions = [[0, 0, 0]]
-cryst = Crystal(latvecs, positions, 227, setting="2")
+positions = [[1/8, 1/8, 1/8]]
+cryst = Crystal(latvecs, positions, 227, setting="1")
+view_crystal(cryst)
+
 
 sys = System(cryst, [1 => Moment(s=7/2, g=2)], :dipole)
 J1 = 0.304 # (K)
@@ -25,16 +28,16 @@ set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))
 shape = [1/2 1/2 0; 0 1/2 1/2; 1/2 0 1/2]
 sys_prim = reshape_supercell(sys, shape)
 
-set_dipole!(sys_prim, [+1, -1, 0], position_to_site(sys_prim, [0, 0, 0]))
-set_dipole!(sys_prim, [-1, +1, 0], position_to_site(sys_prim, [1/4, 1/4, 0]))
-set_dipole!(sys_prim, [+1, +1, 0], position_to_site(sys_prim, [1/4, 0, 1/4]))
-set_dipole!(sys_prim, [-1, -1, 0], position_to_site(sys_prim, [0, 1/4, 1/4]))
+set_dipole!(sys_prim, [+1, -1, 0], position_to_site(sys_prim, [1/8, 1/8, 1/8]))
+set_dipole!(sys_prim, [-1, +1, 0], position_to_site(sys_prim, [3/8, 3/8, 1/8]))
+set_dipole!(sys_prim, [+1, +1, 0], position_to_site(sys_prim, [3/8, 1/8, 3/8]))
+set_dipole!(sys_prim, [-1, -1, 0], position_to_site(sys_prim, [1/8, 3/8, 3/8]))
 
 plot_spins(sys_prim; ghost_radius=8, color=[:red, :blue, :yellow, :purple])
 
 # Calculate dispersions with and without long-range dipole interactions. The
-# high-symmetry k-points are specified with respect to the conventional cubic
-# cell.
+# high-symmetry ``𝐪``-points are specified with respect to the conventional
+# cubic cell.
 
 qs = [[0,0,0], [0,1,0], [1,1/2,0], [1/2,1/2,1/2], [3/4,3/4,0], [0,0,0]]
 labels = ["Γ", "X", "W", "L", "K", "Γ"]
