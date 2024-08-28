@@ -212,11 +212,13 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
     (; crystal, sys_dims, nsamples) = sc
+    nω = Int(size(sc.data, 7)/2+1)
+    Δω = round(sc.Δω, digits=4)
     printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
     println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
     print(io,"[")
     printstyled(io,"S(q,ω)"; bold=true)
-    print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
+    print(io," | nω = $nω, Δω = $Δω")
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
     println(io, supercell_to_str(sys_dims, crystal))
 end
