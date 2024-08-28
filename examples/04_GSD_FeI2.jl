@@ -149,11 +149,10 @@ for _ in 1:2
     add_sample!(sc, sys)
 end
 
-# Measure intensities along a path connecting high-symmetry ``𝐪``-points,
-# specified in reciprocal lattice units (RLU). A classical-to-quantum rescaling
-# of normal mode occupations will be performed according to the temperature
-# `kT`. The large statistical noise could be reduced by averaging over more
-# thermal samples.
+# Perform an intensity calculation for two special ``𝐪``-points in reciprocal
+# lattice units (RLU). A classical-to-quantum rescaling of normal mode
+# occupations will be performed according to the temperature `kT`. The large
+# statistical noise could be reduced by averaging over more thermal samples.
 
 res = intensities(sc, [[0, 0, 0], [0.5, 0.5, 0.5]]; energies, langevin.kT)
 fig = lines(res.energies, res.data[:, 1]; axis=(xlabel="meV", ylabel="Intensity"), label="(0,0,0)")

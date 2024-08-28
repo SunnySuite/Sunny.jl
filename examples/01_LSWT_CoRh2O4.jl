@@ -105,12 +105,14 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # ### Reshaping the magnetic cell
 
-# The same Néel order can also be described with a magnetic cell that consists
-# of the 2 cobalt atoms in the primitive cell. Columns of the 3×3 `shape` matrix
-# below are the primitive lattice vectors in units of the conventional, cubic
-# lattice vectors ``(𝐚_1, 𝐚_2, 𝐚_3)``. Use [`reshape_supercell`](@ref) to
-# construct a system with this shape, and verify that the energy per site is
-# unchanged.
+# The Néel magnetic order can be concisely described with a magnetic cell that
+# coincides with a primitive unit cell. Reshape the system to this primitive
+# cell using the command [`reshape_supercell`](@ref). Columns of the `shape`
+# matrix denote primitive lattice vectors as multiples of the conventional cubic
+# lattice vectors ``(𝐚_1, 𝐚_2, 𝐚_3)``. Alternatively, a primitive cell shape
+# can be obtained as `shape = cryst.latvecs \
+# cryst.prim_latvecs`. Verify that the energy per site is unchanged after the
+# reshaping the supercell.
 
 shape = [0 1 1;
          1 0 1;
@@ -158,12 +160,13 @@ energies = range(0, 6, 300)
 res = intensities(swt, path; energies, kernel)
 plot_intensities(res; units)
 
-# To directly compare with the available experimental data, perform a
-# [`powder_average`](@ref) over all possible crystal orientations. Consider 200
-# ``𝐪`` magnitudes ranging from 0 to 3 inverse angstroms. Each magnitude
-# defines spherical shell in reciprocal space, to be sampled with `2000`
-# ``𝐪``-points. The calculation completes in just a couple seconds because the
-# magnetic cell size is small.
+# Sometimes experimental data is only available as a powder average, i.e., as an
+# average over all possible crystal orientations. Use [`powder_average`](@ref)
+# to simulate these intensities. Each ``𝐪``-magnitude defines a spherical shell
+# in reciprocal space. Consider 200 radii from 0 to 3 inverse angstroms, and
+# collect `2000` random samples per spherical shell. As configured, this
+# calculation completes in about two seconds. Had we used the conventional cubic
+# cell, the calculation would be about ``4^3`` times slower.
 
 radii = range(0, 3, 200) # (1/Å)
 res = powder_average(cryst, radii, 2000) do qs
