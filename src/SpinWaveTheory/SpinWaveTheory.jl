@@ -291,10 +291,11 @@ function swt_data(sys::System{0}, measure)
     return SWTDataDipole(Rs, obs_localized, cs, sqrtS)
 end
 
-# i is an "atom" index for the flattened swt.sys. However, `measure` was
-# originally constructed for a system with some crystal containing natoms. Use
-# fld1(i, natoms) to index into measure.formfactors.
+# i is a site index for the flattened swt.sys. However, `measure` was originally
+# constructed for a system with nontrivial lattice dims. Use fld1(i, prod(dims))
+# to get a true atom index for the unflattened sys. This is needed to index
+# measure.formfactors.
 function get_swt_formfactor(measure, μ, i)
-    natoms = size(measure.observables, 5)
-    measure.formfactors[μ, fld1(i, natoms)]
+    sys_dims = size(measure.observables)[2:4]
+    measure.formfactors[μ, fld1(i, prod(sys_dims))]
 end
