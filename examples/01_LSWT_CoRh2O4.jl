@@ -13,28 +13,27 @@
 # Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)**
 # guide. Sunny requires Julia 1.10 or later.
 #
-# From the Julia prompt, load both `Sunny` and `GLMakie`. The latter is needed
-# for graphics.
+# From the Julia prompt, load `Sunny` and also `GLMakie` for graphics.
 
 using Sunny, GLMakie
 
-# If these packages are not yet installed, Julia will offer to install them for
-# you. If executing this script gives an error, you may need to `update` Sunny
-# and GLMakie from the [built-in package
+# If these packages are not yet installed, Julia will offer to install them. If
+# executing this tutorial gives an error, you may need to update Sunny and
+# GLMakie from the [built-in package
 # manager](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia#the-built-in-julia-package-manager).
 
 # ### Units
 
 # The [`Units`](@ref Sunny.Units) object selects reference energy and length
 # scales, and uses these to provide physical constants. For example, `units.K`
-# would provide one kelvin as 0.086 meV, with the Boltzmann constant implicit.
+# returns one kelvin as 0.086 meV, where the Boltzmann constant is implicit.
 
 units = Units(:meV, :angstrom);
 
 # ### Crystal cell
 #
-# A crystallographic cell may be loaded from a `.cif` file, or can be specified
-# from atom positions and types.
+# A crystallographic cell may be loaded from a `.cif` file, or specified from
+# atom positions and types.
 #
 # Start by defining the shape of the conventional chemical cell. CoRh₂O₄ has
 # cubic spacegroup 227 (Fd-3m). Its lattice constants are 8.5 Å, and the cell
