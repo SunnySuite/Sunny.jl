@@ -26,9 +26,8 @@ using Sunny, GLMakie
 # ### Units
 
 # The [`Units`](@ref Sunny.Units) object selects reference energy and length
-# scales. This is achieved by providing physical constants. For example,
-# `units.K` would provide one kelvin as 0.086 meV, with the Boltzmann constant
-# implicit.
+# scales, and uses these to provide physical constants. For example, `units.K`
+# would provide one kelvin as 0.086 meV, with the Boltzmann constant implicit.
 
 units = Units(:meV, :angstrom);
 
