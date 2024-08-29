@@ -1,8 +1,8 @@
 # # 1. Spin wave simulations of CoRh₂O₄
 #
 # This tutorial introduces Sunny through its features for performing
-# conventional spin wave theory calculations. For concreteness, we consider the
-# crystal CoRh₂O₄ and reproduce the calculations of [Ge et al., Phys. Rev. B 96,
+# conventional spin wave theory calculations. We consider the crystal CoRh₂O₄
+# and reproduce the calculations of [Ge et al., Phys. Rev. B 96,
 # 064413](https://doi.org/10.1103/PhysRevB.96.064413).
 
 # ### Get Julia and Sunny
@@ -72,13 +72,13 @@ view_crystal(cryst)
 
 sys = System(cryst, [1 => Moment(s=3/2, g=2)], :dipole)
 
-# Previous work demonstrated that inelastic neutron scattering data for CoRh₂O₄
-# is well described with a single antiferromagnetic nearest neighbor exchange,
-# `J = 0.63` meV. Use [`set_exchange!`](@ref) with the bond that connects atom 1
-# to atom 3, and has zero displacement between chemical cells. Consistent with
-# the symmetries of spacegroup 227, this interaction will be propagated to all
-# other nearest-neighbor bonds. Calling [`view_crystal`](@ref) with `sys` now
-# shows the antiferromagnetic Heisenberg interactions as blue polkadot spheres.
+# Ge et al. demonstrated that inelastic neutron scattering data for CoRh₂O₄ is
+# well modeled by antiferromagnetic nearest neighbor exchange, `J = 0.63` meV.
+# Call [`set_exchange!`](@ref) with the bond that connects atom 1 to atom 3, and
+# has zero displacement between chemical cells. Consistent with the symmetries
+# of spacegroup 227, this interaction will be propagated to all other
+# nearest-neighbor bonds. Calling [`view_crystal`](@ref) with `sys` now shows
+# the antiferromagnetic Heisenberg interactions as blue polkadot spheres.
 
 J = +0.63 # (meV)
 set_exchange!(sys, J, Bond(1, 3, [0, 0, 0]))
@@ -105,12 +105,12 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # ### Reshaping the magnetic cell
 
-# This Néel order can be captured using a primitive unit cell for the magnetic
-# cell. Build such a system with [`reshape_supercell`](@ref), where columns of
-# the `shape` matrix denote primitive lattice vectors as multiples of the
-# conventional cubic lattice vectors ``(𝐚_1, 𝐚_2, 𝐚_3)``. One could also use
-# `shape = cryst.latvecs \ cryst.prim_latvecs`. Verify that the energy per site
-# is unchanged after the reshaping the supercell.
+# The most compact magnetic cell for this Néel order is a primitive unit cell.
+# Reduce the magnetic cell size using [`reshape_supercell`](@ref), where columns
+# of the `shape` matrix are primitive lattice vectors as multiples of the
+# conventional cubic lattice vectors ``(𝐚_1, 𝐚_2, 𝐚_3)``. One could
+# alternatively use `shape = cryst.latvecs \ cryst.prim_latvecs`. Verify that
+# the energy per site is unchanged after the reshaping the supercell.
 
 shape = [0 1 1;
          1 0 1;
@@ -118,8 +118,8 @@ shape = [0 1 1;
 sys_prim = reshape_supercell(sys, shape)
 @assert energy_per_site(sys_prim) ≈ -2J*(3/2)^2
 
-# Plotting the spins of `sys_prim` shows the primitive cell as a gray wireframe
-# inside the conventional cubic cell.
+# Plotting `sys_prim` shows the two spins within the primitive cell, as well as
+# the larger conventional cubic cell for context.
 
 plot_spins(sys_prim; color=[S[3] for S in sys_prim.dipoles])
 
@@ -183,10 +183,10 @@ plot_intensities(res; units, saturation=1.0)
 #
 # * For more spin wave calculations of this type, browse the [SpinW tutorials
 #   ported to Sunny](@ref "SW01 - FM Heisenberg chain").
-# * Spin wave theory neglects thermal fluctuations of the magnetic order. Our
-#   [next tutorial](@ref "2. Landau-Lifshitz dynamics of CoRh₂O₄ at finite *T*")
-#   demonstrates how to sample spins in thermal equilibrium, and measure
-#   dynamical correlations from the classical spin dynamics.
+# * Spin wave theory neglects thermal fluctuations of the magnetic order. The
+#   [next CoRh₂O₄ tutorial](@ref "2. Landau-Lifshitz dynamics of CoRh₂O₄ at
+#   finite *T*") demonstrates how to sample spins in thermal equilibrium, and
+#   measure dynamical correlations from the classical spin dynamics.
 # * Sunny also offers features that go beyond the dipole approximation of a
 #   quantum spin via the theory of SU(_N_) coherent states. This can be
 #   especially useful for systems with strong single-ion anisotropy, as
