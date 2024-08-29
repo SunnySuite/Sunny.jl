@@ -109,9 +109,8 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 # cell. Build such a system with [`reshape_supercell`](@ref), where columns of
 # the `shape` matrix denote primitive lattice vectors as multiples of the
 # conventional cubic lattice vectors ``(𝐚_1, 𝐚_2, 𝐚_3)``. One could also use
-# `shape = cryst.latvecs \
-# cryst.prim_latvecs`. Verify that the energy per site is unchanged after the
-# reshaping the supercell.
+# `shape = cryst.latvecs \ cryst.prim_latvecs`. Verify that the energy per site
+# is unchanged after the reshaping the supercell.
 
 shape = [0 1 1;
          1 0 1;
