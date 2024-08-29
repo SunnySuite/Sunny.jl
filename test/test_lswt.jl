@@ -459,13 +459,13 @@ end
 
 
 @testitem "Invariance to spin rotation" begin
-    using LinearAlgebra
+    using LinearAlgebra, Random
 
     function build_system(R, D1, D2, J, K1, K2, h, g)
         latvecs = lattice_vectors(1, 1, 1, 92, 93, 94)
         cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
         infos = [1 => Moment(s=1, g=2), 2 => Moment(s=2, g=R*g*R')]
-        sys = System(cryst, infos, :dipole)
+        sys = System(cryst, infos, :dipole; seed=101)
 
         set_onsite_coupling!(sys, S -> S'*R*(D1+D1')*R'*S, 1)
         set_onsite_coupling!(sys, S -> S'*R*(D2+D2')*R'*S, 2)
@@ -479,13 +479,14 @@ end
         return sys
     end
 
-    g = randn(3,3)
+    Random.seed!(101)
+    g  = randn(3,3)
     D1 = randn(3,3)
     D2 = randn(3,3)
-    J = randn(3,3)
+    J  = randn(3,3)
     K1 = randn(3,3)
     K2 = randn(3,3)
-    h = randn(3)
+    h  = randn(3)
     R1 = Sunny.Mat3(I)
     R2 = Sunny.axis_angle_to_matrix(randn(3), 0.46)
     sys1 = build_system(R1, D1, D2, J, K1, K2, h, g)
