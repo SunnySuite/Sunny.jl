@@ -163,7 +163,7 @@ plot_intensities(res; units)
 # in reciprocal space. Consider 200 radii from 0 to 3 inverse angstroms, and
 # collect `2000` random samples per spherical shell. As configured, this
 # calculation completes in about two seconds. Had we used the conventional cubic
-# cell, the calculation would be about ``4^3`` times slower.
+# cell, the calculation would be an order of magnitude slower.
 
 radii = range(0, 3, 200) # (1/Å)
 res = powder_average(cryst, radii, 2000) do qs
