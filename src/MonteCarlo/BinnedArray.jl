@@ -23,7 +23,7 @@ Base.@kwdef mutable struct BinnedArray{K, V}
     max_key::K = 0
 
     # binning resolution for keys
-    bin_size::Float64 = 1.0
+    bin_size::Float64
 end
 
 # copy constructor
