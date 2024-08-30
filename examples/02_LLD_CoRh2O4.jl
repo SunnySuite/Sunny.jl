@@ -119,7 +119,7 @@ grid = q_space_grid(cryst, [1, 0, 0], range(-10, 10, 200), [0, 1, 0], (-10, 10))
 # are above the ordering temperature, and do not have sharp Bragg peaks.
 
 res = intensities_static(sc, grid)
-plot_intensities(res; saturation=1.0, title="Static Intensities at T = 16K")
+plot_intensities(res; saturation=1.0, title="Static Intensities at T = 16 K")
 
 # ### Dynamical structure factor
 
