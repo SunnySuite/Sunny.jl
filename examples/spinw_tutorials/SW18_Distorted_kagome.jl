@@ -74,17 +74,17 @@ randomize_spins!(sys2)
 minimize_energy!(sys2)
 energy_per_site(sys2)
 
-# Define a path in q-space
-
-qs = [[0,0,0], [1,0,0]]
-path = q_space_path(cryst, qs, 400)
-
-# Calculate intensities for the incommensurate spiral phase using
-# [`SpinWaveTheorySpiral`](@ref). It is necessary to provide the original `sys`,
-# consisting of a single chemical cell.
+# Return to the original system (with a single chemical cell) and construct
+# [`SpinWaveTheorySpiral`](@ref) for calculations on the incommensurate spiral
+# phase.
 
 measure = ssf_perp(sys; apply_g=false)
 swt = SpinWaveTheorySpiral(sys; measure, k, axis)
+
+# Plot intensities for a path through ``𝐪``-space.
+
+qs = [[0,0,0], [1,0,0]]
+path = q_space_path(cryst, qs, 400)
 res = intensities_bands(swt, path)
 plot_intensities(res; units)
 

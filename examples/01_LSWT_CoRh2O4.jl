@@ -1,8 +1,8 @@
 # # 1. Spin wave simulations of CoRh₂O₄
 #
 # This tutorial introduces Sunny through its features for performing
-# conventional spin wave theory calculations. For concreteness, we consider the
-# crystal CoRh₂O₄ and reproduce the calculations of [Ge et al., Phys. Rev. B 96,
+# conventional spin wave theory calculations. We consider the crystal CoRh₂O₄
+# and reproduce the calculations of [Ge et al., Phys. Rev. B 96,
 # 064413](https://doi.org/10.1103/PhysRevB.96.064413).
 
 # ### Get Julia and Sunny
@@ -13,29 +13,28 @@
 # Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)**
 # guide. Sunny requires Julia 1.10 or later.
 #
-# From the Julia prompt, load both `Sunny` and `GLMakie`. The latter is needed
+# From the Julia prompt, load Sunny and also [GLMakie](https://docs.makie.org/)
 # for graphics.
 
 using Sunny, GLMakie
 
-# If these packages are not yet installed, Julia will offer to install them for
-# you. If executing this script gives an error, you may need to `update` Sunny
-# and GLMakie from the [built-in package
+# If these packages are not yet installed, Julia will offer to install them. If
+# executing this tutorial gives an error, you may need to update Sunny and
+# GLMakie from the [built-in package
 # manager](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia#the-built-in-julia-package-manager).
 
 # ### Units
 
 # The [`Units`](@ref Sunny.Units) object selects reference energy and length
-# scales. This is achieved by providing physical constants. For example,
-# `units.K` would provide one kelvin as 0.086 meV, with the Boltzmann constant
-# implicit.
+# scales, and uses these to provide physical constants. For example, `units.K`
+# returns one kelvin as 0.086 meV, where the Boltzmann constant is implicit.
 
 units = Units(:meV, :angstrom);
 
 # ### Crystal cell
 #
-# A crystallographic cell may be loaded from a `.cif` file, or can be specified
-# from atom positions and types.
+# A crystallographic cell may be loaded from a `.cif` file, or specified from
+# atom positions and types.
 #
 # Start by defining the shape of the conventional chemical cell. CoRh₂O₄ has
 # cubic spacegroup 227 (Fd-3m). Its lattice constants are 8.5 Å, and the cell
@@ -72,13 +71,13 @@ view_crystal(cryst)
 
 sys = System(cryst, [1 => Moment(s=3/2, g=2)], :dipole)
 
-# Previous work demonstrated that inelastic neutron scattering data for CoRh₂O₄
-# is well described with a single antiferromagnetic nearest neighbor exchange,
-# `J = 0.63` meV. Use [`set_exchange!`](@ref) with the bond that connects atom 1
-# to atom 3, and has zero displacement between chemical cells. Applying the
-# symmetries of spacegroup 227, Sunny will propagate this interaction to the
-# other nearest-neighbor bonds. Calling [`view_crystal`](@ref) with `sys` now
-# shows the antiferromagnetic Heisenberg interactions as blue polkadot spheres.
+# Ge et al. demonstrated that inelastic neutron scattering data for CoRh₂O₄ is
+# well modeled by antiferromagnetic nearest neighbor exchange, `J = 0.63` meV.
+# Call [`set_exchange!`](@ref) with the bond that connects atom 1 to atom 3, and
+# has zero displacement between chemical cells. Consistent with the symmetries
+# of spacegroup 227, this interaction will be propagated to all other
+# nearest-neighbor bonds. Calling [`view_crystal`](@ref) with `sys` now shows
+# the antiferromagnetic Heisenberg interactions as blue polkadot spheres.
 
 J = +0.63 # (meV)
 set_exchange!(sys, J, Bond(1, 3, [0, 0, 0]))
@@ -105,12 +104,12 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 
 # ### Reshaping the magnetic cell
 
-# The same Néel order can also be described with a magnetic cell that consists
-# of the 2 cobalt atoms in the primitive cell. Columns of the 3×3 `shape` matrix
-# below are the primitive lattice vectors in units of the conventional, cubic
-# lattice vectors ``(𝐚_1, 𝐚_2, 𝐚_3)``. Use [`reshape_supercell`](@ref) to
-# construct a system with this shape, and verify that the energy per site is
-# unchanged.
+# The most compact magnetic cell for this Néel order is a primitive unit cell.
+# Reduce the magnetic cell size using [`reshape_supercell`](@ref), where columns
+# of the `shape` matrix are primitive lattice vectors as multiples of the
+# conventional cubic lattice vectors ``(𝐚_1, 𝐚_2, 𝐚_3)``. One could
+# alternatively use `shape = cryst.latvecs \ cryst.prim_latvecs`. Verify that
+# the energy per site is unchanged after the reshaping the supercell.
 
 shape = [0 1 1;
          1 0 1;
@@ -118,8 +117,8 @@ shape = [0 1 1;
 sys_prim = reshape_supercell(sys, shape)
 @assert energy_per_site(sys_prim) ≈ -2J*(3/2)^2
 
-# Plotting the spins of `sys_prim` shows the primitive cell as a gray wireframe
-# inside the conventional cubic cell.
+# Plotting `sys_prim` shows the two spins within the primitive cell, as well as
+# the larger conventional cubic cell for context.
 
 plot_spins(sys_prim; color=[S[3] for S in sys_prim.dipoles])
 
@@ -150,20 +149,21 @@ kernel = lorentzian(fwhm=0.8)
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path = q_space_path(cryst, qs, 500)
 
-# Calculate the single-crystal scattering [`intensities`](@ref)` along the path,
-# for 300 energy points between 0 and 6 meV. Use [`plot_intensities`](@ref) to
-# visualize the result.
+# Calculate single-crystal scattering [`intensities`](@ref) along this path, for
+# energies between 0 and 6 meV. Use [`plot_intensities`](@ref) to visualize the
+# result.
 
 energies = range(0, 6, 300)
 res = intensities(swt, path; energies, kernel)
 plot_intensities(res; units)
 
-# To directly compare with the available experimental data, perform a
-# [`powder_average`](@ref) over all possible crystal orientations. Consider 200
-# ``𝐪`` magnitudes ranging from 0 to 3 inverse angstroms. Each magnitude
-# defines spherical shell in reciprocal space, to be sampled with `2000`
-# ``𝐪``-points. The calculation completes in just a couple seconds because the
-# magnetic cell size is small.
+# Sometimes experimental data is only available as a powder average, i.e., as an
+# average over all possible crystal orientations. Use [`powder_average`](@ref)
+# to simulate these intensities. Each ``𝐪``-magnitude defines a spherical shell
+# in reciprocal space. Consider 200 radii from 0 to 3 inverse angstroms, and
+# collect `2000` random samples per spherical shell. As configured, this
+# calculation completes in about two seconds. Had we used the conventional cubic
+# cell, the calculation would be an order of magnitude slower.
 
 radii = range(0, 3, 200) # (1/Å)
 res = powder_average(cryst, radii, 2000) do qs
@@ -180,14 +180,14 @@ plot_intensities(res; units, saturation=1.0)
 
 # ### What's next?
 #
-# * For more spin wave calculations of this traditional type, one can browse the
-#   [SpinW tutorials ported to Sunny](@ref "SW01 - FM Heisenberg chain").
-# * Spin wave theory neglects thermal fluctuations of the magnetic order. Our
-#   [next tutorial](@ref "2. Landau-Lifshitz dynamics of CoRh₂O₄ at finite *T*")
-#   demonstrates how to sample spins in thermal equilibrium, and measure
-#   dynamical correlations from the classical spin dynamics.
+# * For more spin wave calculations of this type, browse the [SpinW tutorials
+#   ported to Sunny](@ref "SW01 - FM Heisenberg chain").
+# * Spin wave theory neglects thermal fluctuations of the magnetic order. The
+#   [next CoRh₂O₄ tutorial](@ref "2. Landau-Lifshitz dynamics of CoRh₂O₄ at
+#   finite *T*") demonstrates how to sample spins in thermal equilibrium, and
+#   measure dynamical correlations from the classical spin dynamics.
 # * Sunny also offers features that go beyond the dipole approximation of a
 #   quantum spin via the theory of SU(_N_) coherent states. This can be
 #   especially useful for systems with strong single-ion anisotropy, as
-#   demonstrated in our [tutorial on FeI₂](@ref "3. Multi-flavor spin wave
+#   demonstrated in the [FeI₂ tutorial](@ref "3. Multi-flavor spin wave
 #   simulations of FeI₂").

@@ -36,11 +36,11 @@ view_crystal(cryst; ndims=2, ghost_radius=8)
 
 print_symmetry_table(cryst, 8)
 
-# Use the chemical cell to create a spin [`System`](@ref) with spin S=1 and a
-# magnetic form factor for Cu¹⁺. In this case, it is only necessary to simulate
-# a single chemical cell. The option `:dipole` indicates that, following
-# traditional spin wave theory, we are modeling quantum spins using only their
-# expected dipole moments.
+# Use the chemical cell to create a spin [`System`](@ref) with spin ``s = 1``
+# and a magnetic form factor for Cu¹⁺. In this case, it is only necessary to
+# simulate a single chemical cell. The option `:dipole` indicates that,
+# following traditional spin wave theory, we are modeling quantum spins using
+# only their expected dipole moments.
 
 sys = System(cryst, [1 => Moment(s=1, g=2)], :dipole)
 

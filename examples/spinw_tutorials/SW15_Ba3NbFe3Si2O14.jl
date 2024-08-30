@@ -37,16 +37,10 @@ set_exchange!(sys, J₁, Bond(3, 2, [1,1,0]))
 set_exchange!(sys, J₄, Bond(1, 1, [0,0,1]))
 set_exchange!(sys, J₂, Bond(1, 3, [0,0,0]))
 
-# The final two exchanges define the chirality of the magnetic structure. The
-# crystal chirality, ``\epsilon_T``, the chirality of each triangle, ``ϵ_D`` and
-# the sense of rotation of the spin helices along ``c``, ``ϵ_H``. The three
-# chiralities are related by ``ϵ_T=ϵ_D ϵ_H``. We now assign ``J_3`` and ``J_5``
-# according to the crystal chirality.
+# The final two exchanges are setting according to the desired chirality ``ϵ_T``
+# of the magnetic structure.
 
-ϵD = -1
-ϵH = +1
-ϵT = ϵD * ϵH
-
+ϵT = -1
 if ϵT == -1
     set_exchange!(sys, J₃, Bond(2, 3, [-1,-1,1]))
     set_exchange!(sys, J₅, Bond(3, 2, [1,1,1]))
@@ -54,7 +48,7 @@ elseif ϵT == 1
     set_exchange!(sys, J₅, Bond(2, 3, [-1,-1,1]))
     set_exchange!(sys, J₃, Bond(3, 2, [1,1,1]))
 else
-    throw("Provide a valid chirality")
+    error("Chirality must be ±1")
 end
 
 # This compound is known to have a spiral order with approximate propagation
@@ -88,7 +82,7 @@ qs = [[0, 1, -1], [0, 1, -1+1], [0, 1, -1+2], [0, 1, -1+3]]
 path = q_space_path(cryst, qs, 400)
 energies = range(0, 6, 400)
 res = intensities(swt, path; energies, kernel=gaussian(fwhm=0.25))
-axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
+axisopts = (; title=L"$ϵ_T = %$ϵT$", titlesize=20)
 plot_intensities(res; units, axisopts, saturation=0.7, colormap=:jet)
 
 # Use [`ssf_custom_bm`](@ref) to calculate the imaginary part of
@@ -102,5 +96,5 @@ measure = ssf_custom_bm(sys; u=[0, 1, 0], v=[0, 0, 1]) do q, ssf
 end
 swt = SpinWaveTheorySpiral(sys; measure, k, axis)
 res = intensities(swt, path; energies, kernel=gaussian(fwhm=0.25))
-axisopts = (; title=L"$ϵ_T=-1$, $ϵ_Δ=-1$, $ϵ_H=+1$", titlesize=20)
+axisopts = (; title=L"$ϵ_T = %$ϵT$", titlesize=20)
 plot_intensities(res; units, axisopts, saturation=0.8, allpositive=false)
