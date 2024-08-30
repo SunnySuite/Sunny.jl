@@ -1032,13 +1032,15 @@ panel of a Makie figure.
 
 ```julia
 fig = Figure()
-plot_intensities!(fig[1, 1], res1; axisopts=(; title="Panel 1"))
-plot_intensities!(fig[2, 1], res2; axisopts=(; title="Panel 2"))
+plot_intensities!(fig[1, 1], res1; title="Panel 1")
+plot_intensities!(fig[2, 1], res2; title="Panel 2")
 display(fig)
 ```
 """
-function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; colormap=nothing, saturation=0.9, sensitivity=0.0025, allpositive=true, units=nothing, into=nothing, fwhm=nothing, ylims=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.BandIntensities{Float64}; colormap=nothing, saturation=0.9, sensitivity=0.0025, allpositive=true,
+                                 units=nothing, into=nothing, fwhm=nothing, ylims=nothing, title="", axisopts=NamedTuple())
     unit_energy, ylabel = get_unit_energy(units, into)
+    axisopts = (; title, axisopts...)
  
     if res.qpts isa Sunny.QPath 
         mindisp, maxdisp = extrema(res.disp)
@@ -1099,7 +1101,8 @@ function suggest_labels_for_grid(grid::Sunny.QGrid{N}) where N
 end
 
 
-function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, title="", axisopts=NamedTuple())
+    axisopts = (; title, axisopts...)
     (; crystal, qpts, data, energies) = res
 
     colorrange_suggest = colorrange_from_data(; data, saturation, sensitivity=0, allpositive)
@@ -1130,7 +1133,8 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
     end
 end
 
-function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, title="", axisopts=NamedTuple())
+    axisopts = (; title, axisopts...)
     (; crystal, qpts, data) = res
 
     colorrange_suggest = colorrange_from_data(; data=reshape(data, 1, size(data)...), saturation, sensitivity=0, allpositive)
@@ -1156,7 +1160,8 @@ function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; c
     end
 end
 
-function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, axisopts=Dict())
+function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; colormap=nothing, colorrange=nothing, saturation=0.9, allpositive=true, units=nothing, into=nothing, title="", axisopts=NamedTuple())
+    axisopts = (; title, axisopts...)
     unit_energy, ylabel = get_unit_energy(units, into)
     xlabel = isnothing(units) ? "Momentum " : "Momentum ($(Sunny.unit_strs[units.length])⁻¹)" 
  
@@ -1173,13 +1178,13 @@ end
 """
     plot_intensities(res::BandIntensities; colormap=nothing, allpositive=true, saturation=0.9,
                      sensitivity=0.0025, fwhm=nothing, ylims=nothing, units=nothing, into=nothing, 
-                     axisopts=Dict())
+                     title="", axisopts=NamedTuple())
 
     plot_intensities(res::Intensities; colormap=nothing, colorrange=nothing, allpositive=true, 
-                     saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
+                     saturation=0.9, units=nothing, into=nothing, title="", axisopts=NamedTuple())
 
     plot_intensities(res::PowderIntensities; colormap=nothing, colorrange=nothing, allpositive=true, 
-                     saturation=0.9, units=nothing, into=nothing, axisopts=Dict())
+                     saturation=0.9, units=nothing, into=nothing, title="", axisopts=NamedTuple())
 
 Keyword arguments:
 
@@ -1200,9 +1205,12 @@ Keyword arguments:
     conversions.
   * `into`: A symbol for conversion into a new base energy unit (e.g. `:meV`,
     `:K`, etc.)
+  * `title`: An optional title for the plot.
   * `axisopts`: An additional collection of named arguments that will be passed
-    to the `Makie.Axis` constructor. This allows to override the axis `title`,
-    `xlabel`, `ylabel`, `xticks`, etc. See Makie documentation for details.
+    to the `Makie.Axis` constructor. This allows to override the axis `xlabel`,
+    `ylabel`, `xticks`, etc. See [Makie
+    documentation](https://docs.makie.org/release/reference/blocks/axis#attributes)
+    for details.
 """
 function Sunny.plot_intensities(res::Sunny.AbstractIntensities; opts...)
     fig = Makie.Figure()

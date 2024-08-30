@@ -119,7 +119,7 @@ grid = q_space_grid(cryst, [1, 0, 0], range(-10, 10, 200), [0, 1, 0], (-10, 10))
 # are above the ordering temperature, and do not have sharp Bragg peaks.
 
 res = intensities_static(sc, grid)
-plot_intensities(res; saturation=1.0)
+plot_intensities(res; saturation=1.0, title="Static Intensities at T = 16K")
 
 # ### Dynamical structure factor
 
@@ -164,7 +164,7 @@ path = q_space_path(cryst, qs, 500)
 # Calculate and plot the intensities along this path.
 
 res = intensities(sc, path; energies, langevin.kT)
-plot_intensities(res; units)
+plot_intensities(res; units, title="Intensities at 16 K")
 
 # ### Powder averaged intensity
 
@@ -176,4 +176,4 @@ radii = range(0, 3.5, 200) # (1/Å)
 res = powder_average(cryst, radii, 350) do qs
     intensities(sc, qs; energies, langevin.kT)
 end
-plot_intensities(res; units)
+plot_intensities(res; units, title="Powder Average at 16 K")
