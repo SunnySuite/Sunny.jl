@@ -82,8 +82,7 @@ qs = [[0, 1, -1], [0, 1, -1+1], [0, 1, -1+2], [0, 1, -1+3]]
 path = q_space_path(cryst, qs, 400)
 energies = range(0, 6, 400)
 res = intensities(swt, path; energies, kernel=gaussian(fwhm=0.25))
-axisopts = (; title=L"$ϵ_T = %$ϵT$", titlesize=20)
-plot_intensities(res; units, axisopts, saturation=0.7, colormap=:jet)
+plot_intensities(res; units, saturation=0.7, colormap=:jet, title="Scattering intensities")
 
 # Use [`ssf_custom_bm`](@ref) to calculate the imaginary part of
 # ``\mathcal{S}^{2, 3}(𝐪, ω) - \mathcal{S}^{3, 2}(𝐪, ω)``. In polarized
@@ -96,5 +95,4 @@ measure = ssf_custom_bm(sys; u=[0, 1, 0], v=[0, 0, 1]) do q, ssf
 end
 swt = SpinWaveTheorySpiral(sys; measure, k, axis)
 res = intensities(swt, path; energies, kernel=gaussian(fwhm=0.25))
-axisopts = (; title=L"$ϵ_T = %$ϵT$", titlesize=20)
-plot_intensities(res; units, axisopts, saturation=0.8, allpositive=false)
+plot_intensities(res; units, saturation=0.8, allpositive=false, title="Im[S²³(q, ω) - S³²(q, ω)]")
