@@ -2,13 +2,13 @@
 #
 # This example shows how long-range dipole-dipole interactions can affect a spin
 # wave calculation. These interactions can be included two ways: Ewald summation
-# or real-space space with a distance cutoff. The study follows [Del Maestro and
+# or in real-space with a distance cutoff. The study follows [Del Maestro and
 # Gingras, J. Phys.: Cond. Matter, **16**, 3339
 # (2004)](https://arxiv.org/abs/cond-mat/0403494).
 
 using Sunny, GLMakie
 
-# Create a Pyrochlore crystal from spacegroup 227.
+# Create a pyrochlore crystal from spacegroup 227.
 
 units = Units(:K, :angstrom)
 latvecs = lattice_vectors(10.19, 10.19, 10.19, 90, 90, 90)
@@ -16,14 +16,15 @@ positions = [[1/8, 1/8, 1/8]]
 cryst = Crystal(latvecs, positions, 227, setting="1")
 view_crystal(cryst)
 
+# Create a system with antiferromagnetic nearest neighbor exchange.
 
 sys = System(cryst, [1 => Moment(s=7/2, g=2)], :dipole)
 J1 = 0.304 # (K)
 set_exchange!(sys, J1, Bond(1, 2, [0,0,0]))
 
-# Reshape to the primitive cell with four atoms. To facilitate indexing, the
-# function [`position_to_site`](@ref) accepts positions with respect to the
-# original (cubic) cell.
+# Reshape to the primitive cell, which contains four atoms. To facilitate
+# indexing, the function [`position_to_site`](@ref) accepts positions with
+# respect to the original (cubic) cell.
 
 shape = [1/2 1/2 0; 0 1/2 1/2; 1/2 0 1/2]
 sys_prim = reshape_supercell(sys, shape)
@@ -59,7 +60,7 @@ res3 = intensities_bands(swt, path)
 
 # Create a panel that qualitatively reproduces Fig. 2 of [Del Maestro and
 # Gingras](https://arxiv.org/abs/cond-mat/0403494). That previous work had two
-# errors: The energy scales are too small by a factor of 2 and, in addition,
+# errors: Its energy scale is too small by a factor of 2 and, in addition,
 # slight corrections are needed for the third dispersion band.
 
 fig = Figure(size=(768, 300))
