@@ -83,8 +83,8 @@ minimize_energy!(sys; maxiters=10)
 suggest_timestep(sys, langevin; tol=1e-2)
 langevin.dt = 0.03;
 
-# Run a Langevin trajectory for 10,000 time-steps and plot the spins. At this
-# angle, it is difficult to discern the magnetic order.
+# Run a Langevin trajectory for 10,000 time-steps and plot the spins. The
+# magnetic order is present, but may be difficult to see.
 
 for _ in 1:10_000
     step!(sys, langevin)
@@ -174,12 +174,12 @@ qs = [[0,   0, 0],  # List of wave vectors that define a path
       [0,   0, 0]] 
 qpath = q_space_path(cryst, qs, 500)
 res = intensities(sc, qpath; energies, langevin.kT)
-plot_intensities(res; colorrange=(0.0, 1.0))
+plot_intensities(res; colorrange=(0.0, 1.0), title="Intensities at T = 2.3 K")
 
 # One can also view the intensity along a [`q_space_grid`](@ref) for a fixed
 # energy value. Alternatively, use [`intensities_static`](@ref) to integrate
 # over all available energies.
 
 grid = q_space_grid(cryst, [1, 0, 0], range(-1.5, 1.5, 300), [0, 1, 0], (-1.5, 1.5); orthogonalize=true)
-res = intensities(sc, grid; energies=[3.88], langevin.kT)
-plot_intensities(res)
+res = intensities(sc, grid; energies=[3.5], langevin.kT)
+plot_intensities(res; title="Intensity slice at ω = 3.5 meV")

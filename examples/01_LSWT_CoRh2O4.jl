@@ -155,7 +155,7 @@ path = q_space_path(cryst, qs, 500)
 
 energies = range(0, 6, 300)
 res = intensities(swt, path; energies, kernel)
-plot_intensities(res; units)
+plot_intensities(res; units, title="CoRh₂O₄ LSWT")
 
 # Sometimes experimental data is only available as a powder average, i.e., as an
 # average over all possible crystal orientations. Use [`powder_average`](@ref)
@@ -169,7 +169,7 @@ radii = range(0, 3, 200) # (1/Å)
 res = powder_average(cryst, radii, 2000) do qs
     intensities(swt, qs; energies, kernel)
 end
-plot_intensities(res; units, saturation=1.0)
+plot_intensities(res; units, saturation=1.0, title="CoRh₂O₄ Powder Average")
 
 # This result can be compared to experimental neutron scattering data
 # from Fig. 5 of [Ge et al.](https://doi.org/10.1103/PhysRevB.96.064413)

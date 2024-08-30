@@ -50,10 +50,10 @@ path = q_space_path(cryst, qs, 400)
 fig = Figure(size=(768, 300))
 swt = SpinWaveTheory(sys_enlarged; measure=ssf_perp(sys_enlarged))
 res = intensities_bands(swt, path)
-plot_intensities!(fig[1, 1], res; units, saturation=0.5, axisopts=(; title="Supercell method"))
+plot_intensities!(fig[1, 1], res; units, saturation=0.5,title="Supercell method")
 swt = SpinWaveTheorySpiral(sys; measure=ssf_perp(sys), k, axis)
 res = intensities_bands(swt, path)
-plot_intensities!(fig[1, 2], res; units, saturation=0.5, axisopts=(; title="Spiral method"))
+plot_intensities!(fig[1, 2], res; units, saturation=0.5, title="Spiral method")
 fig
 
 # Calculate and plot the powder averaged spectrum. Continuing to use the "spiral

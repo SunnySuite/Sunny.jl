@@ -214,7 +214,7 @@ swt = SpinWaveTheory(sys_min; measure=ssf_perp(sys_min))
 qs = [[0,0,0], [1,0,0], [0,1,0], [1/2,0,0], [0,1,0], [0,0,0]]
 path = q_space_path(cryst, qs, 500)
 res = intensities_bands(swt, path)
-plot_intensities(res; units)
+plot_intensities(res; units, title="Single Crystal Bands")
 
 # To make direct comparison with inelastic neutron scattering (INS) data, we
 # must account for empirical broadening of the data. Model this using a
@@ -233,7 +233,7 @@ weights = [1, 1, 1]
 res = domain_average(cryst, path; rotations, weights) do path_rotated
     intensities(swt, path_rotated; energies, kernel)
 end
-plot_intensities(res; units, colormap=:viridis)
+plot_intensities(res; units, colormap=:viridis, title="Domain Averaged Intensities")
 
 # This result can be directly compared to experimental neutron scattering data
 # from [Bai et al.](https://doi.org/10.1038/s41567-020-01110-1)
