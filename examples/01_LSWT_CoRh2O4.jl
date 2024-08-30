@@ -13,7 +13,8 @@
 # Started](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia)**
 # guide. Sunny requires Julia 1.10 or later.
 #
-# From the Julia prompt, load `Sunny` and also `GLMakie` for graphics.
+# From the Julia prompt, load Sunny and also [GLMakie](https://docs.makie.org/)
+# for graphics.
 
 using Sunny, GLMakie
 
@@ -148,9 +149,9 @@ kernel = lorentzian(fwhm=0.8)
 qs = [[0, 0, 0], [1/2, 0, 0], [1/2, 1/2, 0], [0, 0, 0]]
 path = q_space_path(cryst, qs, 500)
 
-# Calculate the single-crystal scattering [`intensities`](@ref)` along the path,
-# for 300 energy points between 0 and 6 meV. Use [`plot_intensities`](@ref) to
-# visualize the result.
+# Calculate single-crystal scattering [`intensities`](@ref) along this path, for
+# energies between 0 and 6 meV. Use [`plot_intensities`](@ref) to visualize the
+# result.
 
 energies = range(0, 6, 300)
 res = intensities(swt, path; energies, kernel)
