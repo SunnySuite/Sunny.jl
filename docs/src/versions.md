@@ -1,7 +1,7 @@
 # Version History
 
 ## v0.7.0
-(In development)
+(Aug 30, 2024)
 
 This **major release** introduces breaking interface changes.
 
