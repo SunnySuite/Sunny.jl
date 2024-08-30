@@ -1175,16 +1175,23 @@ function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; c
     return ax
 end
 
+#=
+  * `axisopts`: An additional collection of named arguments that will be passed
+    to the `Makie.Axis` constructor. This allows to override the axis `xlabel`,
+    `ylabel`, `xticks`, etc. See [Makie
+    documentation](https://docs.makie.org/release/reference/blocks/axis#attributes)
+    for details.
+=#
 """
     plot_intensities(res::BandIntensities; colormap=nothing, allpositive=true, saturation=0.9,
                      sensitivity=0.0025, fwhm=nothing, ylims=nothing, units=nothing, into=nothing, 
-                     title="", axisopts=NamedTuple())
+                     title="")
 
     plot_intensities(res::Intensities; colormap=nothing, colorrange=nothing, allpositive=true, 
-                     saturation=0.9, units=nothing, into=nothing, title="", axisopts=NamedTuple())
+                     saturation=0.9, units=nothing, into=nothing, title="")
 
     plot_intensities(res::PowderIntensities; colormap=nothing, colorrange=nothing, allpositive=true, 
-                     saturation=0.9, units=nothing, into=nothing, title="", axisopts=NamedTuple())
+                     saturation=0.9, units=nothing, into=nothing, title="")
 
 Keyword arguments:
 
@@ -1206,11 +1213,6 @@ Keyword arguments:
   * `into`: A symbol for conversion into a new base energy unit (e.g. `:meV`,
     `:K`, etc.)
   * `title`: An optional title for the plot.
-  * `axisopts`: An additional collection of named arguments that will be passed
-    to the `Makie.Axis` constructor. This allows to override the axis `xlabel`,
-    `ylabel`, `xticks`, etc. See [Makie
-    documentation](https://docs.makie.org/release/reference/blocks/axis#attributes)
-    for details.
 """
 function Sunny.plot_intensities(res::Sunny.AbstractIntensities; opts...)
     fig = Makie.Figure()
