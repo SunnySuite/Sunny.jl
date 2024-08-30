@@ -27,7 +27,7 @@ measure_interval = 10
 exch_interval = 5
 
 # Energy histograms for each PT replica
-E_hists = [Sunny.Histogram() for _ in 1:PT.n_replicas]
+E_hists = [Sunny.Histogram(bin_size=1.0) for _ in 1:PT.n_replicas]
 
 # Initial equilibration
 Sunny.step_ensemble!(PT, n_therm, exch_interval)
