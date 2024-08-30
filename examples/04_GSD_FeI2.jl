@@ -181,5 +181,5 @@ plot_intensities(res; colorrange=(0.0, 1.0), title="Intensities at 2.3 K")
 # over all available energies.
 
 grid = q_space_grid(cryst, [1, 0, 0], range(-1.5, 1.5, 300), [0, 1, 0], (-1.5, 1.5); orthogonalize=true)
-res = intensities(sc, grid; energies=[3.88], langevin.kT)
-plot_intensities(res; title="Intensity slice at 3.88 meV")
+res = intensities(sc, grid; energies=[3.5], langevin.kT)
+plot_intensities(res; title="Intensity slice at 3.5 meV")
