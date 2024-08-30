@@ -1,10 +1,7 @@
 using LinearAlgebra
 
 
-#################################################
-# Functions for plotting on triangular plaquettes
-#################################################
-
+## Plotting on triangular plaquettes
 
 function plaquette_idcs(dims::Tuple{Int,Int,Int})
     dx, dy, dz = dims
@@ -47,9 +44,6 @@ function plaquette_map(f::Function, x::Array{T,4}) where T
 end
 
 
-################################################################################
-# Plotting functions
-################################################################################
 function aspect_ratio(x_panel, y_panel, x_offset, y_offset, numrows, numcols;
     adhoc_offset = (0.0, 0.0)
 )

@@ -22,6 +22,17 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     end
 end
 
+function Base.show(io::IO, ::MeasureSpec)
+    print(io, "MeasureSpec")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", m::MeasureSpec)
+    nobs = size(m.observables, 1)
+    ret = eltype(m)
+    println(io, "MeasureSpec [$nobs observables, returns $ret]")
+end
+
+
 Base.eltype(::MeasureSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
 # Replicate Sam's observables code for the moment
