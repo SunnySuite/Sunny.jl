@@ -83,8 +83,8 @@ minimize_energy!(sys; maxiters=10)
 suggest_timestep(sys, langevin; tol=1e-2)
 langevin.dt = 0.03;
 
-# Run a Langevin trajectory for 10,000 time-steps and plot the spins. At this
-# angle, it is difficult to discern the magnetic order.
+# Run a Langevin trajectory for 10,000 time-steps and plot the spins. The
+# magnetic order is present, but may be difficult to see.
 
 for _ in 1:10_000
     step!(sys, langevin)
