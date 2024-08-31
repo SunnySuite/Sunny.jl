@@ -1014,12 +1014,6 @@ function colorrange_from_data(; data, saturation, sensitivity, allpositive)
     cmax = Statistics.quantile(vec(maximum(data; dims=1)), saturation)
     cmin = Statistics.quantile(vec(minimum(data; dims=1)), 1 - saturation)
 
-    # Finite range needed to prevent crash of Makie.Colorbar
-    if cmax == cmin
-        cmax += 1e-12
-        cmin -= 1e-12
-    end
-
     if allpositive
         return (sensitivity, 1) .* cmax
     else
@@ -1120,7 +1114,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
         xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
         ax = Makie.Axis(panel[1, 1]; xlabel="Momentum (r.l.u.)", ylabel, qpts.xticks, xticklabelrotation, axisopts...)
         hm = Makie.heatmap!(ax, axes(data, 2), collect(energies/unit_energy), data'; colormap, colorrange)
-        Makie.Colorbar(panel[1, 2], hm)
+        allequal(colorrange) || Makie.Colorbar(panel[1, 2], hm)
         return ax
     elseif qpts isa Sunny.QGrid{2}
         if isone(length(energies))
@@ -1129,7 +1123,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.Intensities{Float64}; colorma
             (xs, ys) = map(range, qpts.coefs_lo, qpts.coefs_hi, size(qpts.qs))
             ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, aspect, axisopts...)
             hm = Makie.heatmap!(ax, xs, ys, dropdims(data; dims=1); colormap, colorrange)
-            Makie.Colorbar(panel[1, 2], hm)
+            allequal(colorrange) || Makie.Colorbar(panel[1, 2], hm)
             return ax
         else
             error("Cannot yet plot $(typeof(res))")
@@ -1153,7 +1147,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.StaticIntensities{Float64}; c
         (xs, ys) = map(range, qpts.coefs_lo, qpts.coefs_hi, size(qpts.qs))
         ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, aspect, axisopts...)
         hm = Makie.heatmap!(ax, xs, ys, data; colormap, colorrange)
-        Makie.Colorbar(panel[1, 2], hm)
+        allequal(colorrange) || Makie.Colorbar(panel[1, 2], hm)
         return ax
     elseif qpts isa Sunny.QPath
         xticklabelrotation = maximum(length.(qpts.xticks[2])) > 3 ? π/6 : 0.0
@@ -1177,7 +1171,7 @@ function Sunny.plot_intensities!(panel, res::Sunny.PowderIntensities{Float64}; c
 
     ax = Makie.Axis(panel[1, 1]; xlabel, ylabel, axisopts...)
     hm = Makie.heatmap!(ax, res.radii, collect(res.energies/unit_energy), res.data'; colormap, colorrange)
-    Makie.Colorbar(panel[1, 2], hm)
+    allequal(colorrange) || Makie.Colorbar(panel[1, 2], hm)
     return ax
 end
 
