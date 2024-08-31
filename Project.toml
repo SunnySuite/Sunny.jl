@@ -1,7 +1,7 @@
 name = "Sunny"
 uuid = "2b4a2ac8-8f8b-43e8-abf4-3cb0c45e8736"
 authors = ["The Sunny team"]
-version = "0.7.0"
+version = "0.7.1"
 
 [deps]
 CrystalInfoFramework = "6007d9b0-c6b2-11e8-0510-1d10e825f3f1"
@@ -42,7 +42,7 @@ ElasticArrays = "1.2.12"
 FFTW = "1.4.5"
 FilePathsBase = "0.9.18"
 GLMakie = "0.9, 0.10"
-HCubature = "1.5.1"
+HCubature = "1.7.0"
 JLD2 = "0.4.33"
 LinearAlgebra = "1.10"
 Makie = "0.20, 0.21.1"

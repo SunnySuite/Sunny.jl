@@ -1,5 +1,8 @@
 # Version History
 
+## v0.7.1
+(In development)
+
 ## v0.7.0
 (Aug 30, 2024)
 
