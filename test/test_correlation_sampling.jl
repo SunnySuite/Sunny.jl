@@ -35,7 +35,7 @@
     sc = SampledCorrelations(sys; dt=0.08, energies, measure=ssf_trace(sys; apply_g=false))
     Δω = sc.Δω
     add_sample!(sc, sys)
-    qgrid = Sunny.QPoints(Sunny.available_wave_vectors(sc)[:])
+    qgrid = Sunny.available_wave_vectors(sc)[:]
     Δq³ = 1/prod(sys.dims) # Fraction of a BZ
     Sqw = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing)
     expected_sum_rule = Sunny.norm2(sys.dipoles[1]) # S^2 classical sum rule
@@ -65,36 +65,36 @@
         end
     end
     sc.measure = ssf_diag_imag(sys; apply_g=false)
-    is = intensities(sc, Sunny.QPoints([[0.25, 0.5, 0]]); energies=:available, kT=nothing)
-    is.data
-    @test sum(is.data) < 1e-14
+    res = intensities(sc, [[0.25, 0.5, 0]]; energies=:available, kT=nothing)
+    res.data
+    @test sum(res.data) < 1e-14
 
 
     # Test form factor correction works and is doing something.
     formfactors = [1 => FormFactor("Fe2")]
     sc.measure = ssf_trace(sys; apply_g=false, formfactors)
-    is = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing)
-    total_intensity_ff = sum(is.data)
+    res = intensities(sc, qgrid; energies=:available_with_negative, kT=nothing)
+    total_intensity_ff = sum(res.data)
     @test total_intensity_ff != total_intensity_trace
 
 
     # Test static from dynamic intensities working
     sc.measure = ssf_trace(sys; apply_g=false)
-    is_static = intensities_static(sc, qgrid; kT=nothing)
-    total_intensity_static = sum(is_static.data)
+    res_static = intensities_static(sc, qgrid; kT=nothing)
+    total_intensity_static = sum(res_static.data)
     @test isapprox(total_intensity_static, total_intensity_trace * sc.Δω; atol=1e-9)  # Order of summation can lead to very small discrepancies
 
     # Test quantum-to-classical increases intensity
-    is_static_c2q = intensities_static(sc, qgrid; kT=0.1)
-    total_intensity_static_c2q = sum(is_static_c2q.data)
+    res_static_c2q = intensities_static(sc, qgrid; kT=0.1)
+    total_intensity_static_c2q = sum(res_static_c2q.data)
     @test total_intensity_static_c2q > total_intensity_static 
 
     # Test static intensities working
     sys = simple_model_fcc(; mode=:dipole)
     thermalize_simple_model!(sys; kT=0.1)
-    ic = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=false))
-    add_sample!(ic, sys)
-    true_static_vals = intensities_static(ic, qgrid)
+    res = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=false))
+    add_sample!(res, sys)
+    true_static_vals = intensities_static(res, qgrid)
     true_static_total = sum(true_static_vals.data)
     @test isapprox(true_static_total / prod(sys.dims), 1.0; atol=1e-12)
 end
@@ -141,10 +141,10 @@ end
 
     sc = SampledCorrelations(sys; energies=range(0.0, 5.5, 10), dt=0.12, measure=ssf_perp(sys))
     add_sample!(sc, sys)
-    qs = Sunny.QPoints([[0.0, 0.0, 0.0], [-0.2, 0.4, -0.1]])
-    is = intensities(sc, qs; energies=:available, kT=nothing)
+    qs = [[0.0, 0.0, 0.0], [-0.2, 0.4, -0.1]]
+    res = intensities(sc, qs; energies=:available, kT=nothing)
 
     # Compare with reference
     data_golden = [33.52245944537883 31.523781055757002; 16.76122972268928 16.188214427928443; 1.6337100022968968e-14 5.3112747876921045; 1.590108516238891e-13 1.8852219123773621; -1.5194916032483394e-14 0.06400012935688847; -6.217248937900877e-15 -0.01803103943766904; 7.863406895322359e-14 -0.04445301974061088; 7.014086281484114e-14 0.0025512102338097653; 3.195591939212742e-14 -0.02515685630480813; 3.6201681383269686e-14 0.023924996100518413] 
-    @test is.data ≈ data_golden
+    @test res.data ≈ data_golden
 end

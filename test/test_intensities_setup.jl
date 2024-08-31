@@ -7,8 +7,8 @@
     g2 = [1.8 2.2 -3.1; -0.3 2.6 0.1; 1.0 0. 0.3]    
 
     for mode = [:SUN, :dipole]
-        infos = [1 => Moment(s=3/2, g=g1), 2 => Moment(s=(mode == :SUN ? 3/2 : 1/2), g=g2)]
-        sys = System(cryst, infos, mode)
+        moments = [1 => Moment(s=3/2, g=g1), 2 => Moment(s=(mode == :SUN ? 3/2 : 1/2), g=g2)]
+        sys = System(cryst, moments, mode)
 
         set_dipole!(sys, [1,3,2], (1,1,1,1))
         set_dipole!(sys, [3,4,5], (1,1,1,2))
@@ -16,8 +16,8 @@
         # Dipole magnetization observables (classical)
         sc = SampledCorrelationsStatic(sys; measure=ssf_custom((q, ssf) -> ssf, sys; apply_g=true))
         add_sample!(sc, sys)
-        is = intensities_static(sc, Sunny.QPoints([[0,0,0]]))
-        corr_mat = is.data[1]
+        res = intensities_static(sc, [[0,0,0]])
+        corr_mat = res.data[1]
 
         # Compute magnetization correlation "by hand", averaging over sites
         mag_corr = sum([sys.gs[i] * sys.dipoles[i] * (sys.gs[j] * sys.dipoles[j])' for i = 1:2, j = 1:2]) / Sunny.natoms(cryst)
@@ -26,10 +26,10 @@
 
         # For spin wave theory, check that `apply_g=true` is equivalent to
         # setting `apply_g` and manually contracting spin indices with the
-        # g-tensor. This only works when g is homogeneous. TODO: Test with
-        # inhomogeneous g-tensors.
-        infos_homog = [1 => Moment(s=3/2, g=g1), 2 => Moment(s=(mode == :SUN ? 3/2 : 1/2), g=g1)]
-        sys_homog = System(cryst, infos_homog, mode)
+        # g-tensor. This only works when g is equal among sites. TODO: Test with
+        # anisotropic g-tensors.
+        moments_homog = [1 => Moment(s=3/2, g=g1), 2 => Moment(s=(mode == :SUN ? 3/2 : 1/2), g=g1)]
+        sys_homog = System(cryst, moments_homog, mode)
 
         measure = ssf_custom((q, ssf) -> ssf, sys_homog; apply_g=false)
         swt = SpinWaveTheory(sys_homog; measure)
@@ -95,8 +95,8 @@ end
     # case by going over both positive and negative energies.
     nbzs = (4, 4, 4)
     qs = Sunny.available_wave_vectors(sc; bzsize=nbzs)
-    is = intensities(sc, Sunny.QPoints(qs[:]); energies=:available_with_negative, kT=nothing)
-    calculated_sum = sum(is.data) * Δq³ * sc.Δω
+    res = intensities(sc, Sunny.QPoints(qs[:]); energies=:available_with_negative, kT=nothing)
+    calculated_sum = sum(res.data) * Δq³ * sc.Δω
 
     # This tests that `negative_energies = true` spans exactly one sampling frequency
     expected_multi_BZ_sum = gS_squared * prod(nbzs) # ⟨S⋅S⟩
