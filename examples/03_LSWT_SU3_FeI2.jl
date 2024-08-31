@@ -6,10 +6,10 @@
 # Our context will be FeI₂, an effective spin-1 material with strong single-ion
 # anisotropy. Quadrupolar fluctuations give rise to a single-ion bound state
 # that is observable in neutron scattering, and cannot be described by a
-# dipole-only model. This tutorial illustrates how to use the linear spin wave
-# theory of SU(3) coherent states (i.e. 2-flavor bosons) to model the magnetic
-# spectrum of FeI₂. The original study was performed in [Bai et al., Nature
-# Physics 17, 467–472 (2021)](https://doi.org/10.1038/s41567-020-01110-1).
+# dipole-only model. We will use the linear spin wave theory of SU(3) coherent
+# states (i.e. 2-flavor bosons) to model the magnetic spectrum of FeI₂. The
+# original study was performed in [Bai et al., Nature Physics 17, 467–472
+# (2021)](https://doi.org/10.1038/s41567-020-01110-1).
 #
 # ```@raw html
 # <img src="https://raw.githubusercontent.com/SunnySuite/Sunny.jl/main/docs/src/assets/FeI2_crystal.jpg" style="float: left;" width="400">
@@ -43,8 +43,8 @@ cryst = Crystal(latvecs, positions; types)
 
 # Observe that the space group 'P -3 m 1' (164) has been inferred, as well as
 # point group symmetries. Only the Fe atoms are magnetic, so we focus on them
-# with [`subcrystal`](@ref). Importantly, this operation preserves the
-# spacegroup symmetries.
+# with [`subcrystal`](@ref). Importantly, the new crystal retains the symmetry
+# information for spacegroup 164.
 
 cryst = subcrystal(cryst, "Fe")
 view_crystal(cryst)
@@ -74,18 +74,18 @@ print_symmetry_table(cryst, 8.0)
 
 # ### Defining the spin model
 
-# Construct a system [`System`](@ref) with spin-1 and g=2 for the Fe ions.
+# Construct a [`System`](@ref) with spin $s=1$ and $g=2$ for the Fe ions.
 #
-# Recall that a quantum spin-1 state is, in general, a linear combination of
-# basis states ``|m⟩`` with well-defined angular momentum ``m = -1, 0, 1``. FeI₂
-# has a strong easy-axis anisotropy, which stabilizes a single-ion bound state
-# of zero angular momentum, ``|m=0⟩``. Such a bound state is inaccessible to
-# traditional spin wave theory, which works with dipole expectation values of
-# fixed magnitude. This physics can, however, be captured with a theory of
-# SU(_N_) coherent states, where ``N = 2S+1 = 3`` is the number of levels. We
-# will therefore select `:SUN` mode instead of `:dipole` mode.
+# Recall that quantum spin-1 is, in reality, a linear combination of basis
+# states ``|m⟩`` with well-defined angular momentum ``m = -1, 0, 1``. FeI₂ has a
+# strong easy-axis anisotropy, which stabilizes a single-ion bound state of zero
+# angular momentum, ``|m=0⟩``. Such a bound state is inaccessible to traditional
+# spin wave theory, which works with dipole expectation values of fixed
+# magnitude. This physics is, however, well captured with a theory of SU(_N_)
+# coherent states, where ``N = 2S+1 = 3`` is the number of levels. Activate this
+# generalized theory by selecting `:SUN` mode instead of `:dipole` mode.
 # 
-# Selecting an optional random number `seed` will make the calculations exactly
+# An optional random number `seed` will make the calculations exactly
 # reproducible.
 
 sys = System(cryst, [1 => Moment(s=1, g=2)], :SUN, seed=2)
@@ -142,13 +142,13 @@ set_onsite_coupling!(sys, S -> -D*S[3]^2, 1)
 
 # ### Finding the ground state
 
-# These model parameters have already been fitted so that energy minimization
-# yields the physically correct ground state. Knowing this, we could set the
-# magnetic configuration manually by calling [`set_dipole!`](@ref) on each site
-# in the system. Another approach, as we now demonstrate, is to use the built-in
-# optimization tools to search for the ground-state in an automated way.
+# This model has been fitted so that energy minimization yields the physically
+# correct ground state. Knowing this, we could set the magnetic configuration
+# manually by calling [`set_dipole!`](@ref) on each site in the system. Another
+# approach, as we will demonstrate, is to search for the ground-state via
+# [`minimize_energy!`](@ref).
 #
-# To minimize bias in the search, use [`resize_supercell`](@ref) to create a
+# To reduce bias in the search, use [`resize_supercell`](@ref) to create a
 # relatively large system of 4×4×4 chemical cells. Randomize all spins
 # (represented as SU(3) coherent states) and minimize the energy.
 
@@ -168,7 +168,7 @@ plot_spins(sys; color=[S[3] for S in sys.dipoles])
 # general tool for this analysis is [`SampledCorrelationsStatic`](@ref). For the
 # present purposes, however, it is more convenient to use
 # [`print_wrapped_intensities`](@ref), which reports ``\mathcal{S}(𝐪)`` with
-# periodical wrapping of all commensurate ``𝐪`` wavevectors into the first
+# periodic wrapping of all commensurate ``𝐪`` wavevectors into the first
 # Brillouin zone.
 
 print_wrapped_intensities(sys)
