@@ -64,8 +64,8 @@ res3 = intensities_bands(swt, path)
 # slight corrections are needed for the third dispersion band.
 
 fig = Figure(size=(768, 300))
-plot_intensities!(fig[1, 1], res1; units, title="Local Exchange Only")
-ax = plot_intensities!(fig[1, 2], res2; units, title="Local Exchange and Dipole-Dipole")
+plot_intensities!(fig[1, 1], res1; units, title="Without long-range dipole")
+ax = plot_intensities!(fig[1, 2], res2; units, title="With long-range dipole")
 for c in eachrow(res3.disp)
     lines!(ax, eachindex(c), c; linestyle=:dash, color=:black)
 end

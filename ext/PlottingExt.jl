@@ -1014,6 +1014,12 @@ function colorrange_from_data(; data, saturation, sensitivity, allpositive)
     cmax = Statistics.quantile(vec(maximum(data; dims=1)), saturation)
     cmin = Statistics.quantile(vec(minimum(data; dims=1)), 1 - saturation)
 
+    # Finite range needed to prevent crash of Makie.Colorbar
+    if cmax == cmin
+        cmax += 1e-12
+        cmin -= 1e-12
+    end
+
     if allpositive
         return (sensitivity, 1) .* cmax
     else
