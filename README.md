@@ -33,7 +33,7 @@ A unique feature of Sunny is its treatment of spins as [SU(_N_) coherent states]
 
 [Install Sunny](https://github.com/SunnySuite/Sunny.jl/wiki/Getting-started-with-Julia) and try the **[Tutorials](https://sunnysuite.github.io/Sunny.jl/stable/examples/01_LSWT_CoRh2O4)**. For traditional linear spin wave theory, see also the **[SpinW ports](https://sunnysuite.github.io/Sunny.jl/stable/examples/spinw/SW01_FM_Heseinberg_chain.html)**.
 
-See [Version History](https://sunnysuite.github.io/Sunny.jl/dev/versions/) for new features and breaking changes. To install a specific version of Sunny, say `v0.x`, use the command `add Sunny@0.x`.
+See [Version History](https://sunnysuite.github.io/Sunny.jl/dev/versions) for new features and breaking changes. To install a specific version of Sunny, say `v0.x`, use the command `add Sunny@0.x`.
 
 ## Other spin wave codes
 
