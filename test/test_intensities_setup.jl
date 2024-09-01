@@ -70,33 +70,29 @@ end
     randomize_spins!(sys)
     sc = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=true))
     add_sample!(sc, sys)
-
-    Δq³ = 1/prod(sys.dims) # Fraction of a BZ
-
+    
     # For the diamond cubic crystal, reciprocal space is periodic over a distance of
-    # 4 BZs. Include qs out to this distance.
+    # 4 BZs.
     bzsize = (4, 4, 4)
     qs = Sunny.available_wave_vectors(sc.parent; bzsize)
+    Δq³ = 1/(prod(bzsize) * Sunny.ncells(sys)) # Fraction of a BZ
+    
     res = intensities_static(sc, qs[:])
-
-    # Get the intensive sum rule by averaging intensity over the 4³ BZs.
-    sum(res.data) * Δq³ / prod(bzsize) ≈ Sunny.natoms(cryst) * s^2 * g^2
-
+    @test sum(res.data) * Δq³ ≈ Sunny.natoms(cryst) * s^2 * g^2
+    
     # Repeat the same calculation for a primitive cell.
     shape = [0 1 1; 1 0 1; 1 1 0] / 2
     sys_prim = reshape_supercell(sys, shape)
     sys_prim = repeat_periodically(sys_prim, (4, 4, 4))
     sc_prim = SampledCorrelationsStatic(sys_prim; measure=ssf_trace(sys_prim; apply_g=true))
     add_sample!(sc_prim, sys_prim)
-
-    # These are in fact "reshaped" BZs.
+    
     bzsize = (4, 4, 4)
     qs = Sunny.available_wave_vectors(sc_prim.parent; bzsize)
-    Δq³ = 1/prod(sys_prim.dims) # Fraction of a BZ
-
-    nbzs = prod(bzsize) # FIXME
+    Δq³ = 1 / (prod(bzsize) * prod(sys_prim.dims))
+    
     res_prim = intensities_static(sc_prim, qs[:])
-    sum(res_prim.data) * Δq³ / nbzs ≈ Sunny.natoms(cryst) * s^2 * g^2
+    @test 4 * sum(res_prim.data) * Δq³ ≈ Sunny.natoms(cryst) * s^2 * g^2    
 end
 
 @testitem "Polyatomic sum rule" begin
