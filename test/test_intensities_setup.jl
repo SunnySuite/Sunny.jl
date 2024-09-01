@@ -71,8 +71,9 @@ end
     sc = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=true))
     add_sample!(sc, sys)
 
-    # For the diamond cubic crystal, reciprocal space is periodic over a distance of
-    # 4 BZs.
+    # For the diamond cubic crystal, reciprocal space is periodic over a
+    # distance of 4 BZs. Verify that the average intensity matches the expected
+    # sum rule.
     dims = (4, 4, 4)
     qs = Sunny.available_wave_vectors(sc.parent; bzsize=dims)
     res = intensities_static(sc, qs[:])
@@ -87,7 +88,7 @@ end
 
     qs = Sunny.available_wave_vectors(sc_prim.parent; bzsize=dims)
     res_prim = intensities_static(sc_prim, qs[:])
-    @test sum(res_prim.data) / length(qs) ≈ Sunny.natoms(cryst) * s^2 * g^2 / 4 # FIXME!
+    @test sum(res_prim.data) / length(qs) ≈ Sunny.natoms(cryst) * s^2 * g^2
 end
 
 @testitem "Polyatomic sum rule" begin

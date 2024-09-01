@@ -105,6 +105,9 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     # Intensities calculation
     intensities_rounded!(intensities, sc.data, sc.crystal, sc.measure, ffs, q_idx_info, ωidcs, NCorr, NAtoms)
 
+    # Convert to a q-space density in original (not reshaped) RLU.
+    intensities .*= det(sc.crystal.recipvecs) / det(crystal.recipvecs)
+
     # Post-processing steps for dynamical correlations 
     if contains_dynamic_correlations(sc) 
         # Convert time axis to a density.
