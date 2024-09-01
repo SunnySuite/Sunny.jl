@@ -74,8 +74,8 @@ end
     # For the diamond cubic crystal, reciprocal space is periodic over a
     # distance of 4 BZs. Verify that the average intensity matches the expected
     # sum rule.
-    dims = (4, 4, 4)
-    qs = Sunny.available_wave_vectors(sc.parent; bzsize=dims)
+    counts = (4, 4, 4)
+    qs = Sunny.available_wave_vectors(sc.parent; counts)
     res = intensities_static(sc, qs[:])
     @test sum(res.data) / length(qs) ≈ Sunny.natoms(cryst) * s^2 * g^2
 
@@ -86,7 +86,7 @@ end
     sc_prim = SampledCorrelationsStatic(sys_prim; measure=ssf_trace(sys_prim; apply_g=true))
     add_sample!(sc_prim, sys_prim)
 
-    qs = Sunny.available_wave_vectors(sc_prim.parent; bzsize=dims)
+    qs = Sunny.available_wave_vectors(sc_prim.parent; counts)
     res_prim = intensities_static(sc_prim, qs[:])
     @test sum(res_prim.data) / length(qs) ≈ Sunny.natoms(cryst) * s^2 * g^2
 end
@@ -123,13 +123,13 @@ end
     # since there is an atom at relative position [1/4, 1/4, 1/4]. It also
     # requires integrating over the full sampling frequency range, in this
     # case by going over both positive and negative energies.
-    nbzs = (4, 4, 4)
-    qs = Sunny.available_wave_vectors(sc; bzsize=nbzs)
+    counts = (4, 4, 4)
+    qs = Sunny.available_wave_vectors(sc; counts)
     res = intensities(sc, qs[:]; energies=:available_with_negative, kT=nothing)
     calculated_sum = sum(res.data) * Δq³ * sc.Δω
 
     # This tests that `negative_energies = true` spans exactly one sampling frequency
-    expected_multi_BZ_sum = gS_squared * prod(nbzs) # ⟨S⋅S⟩
+    expected_multi_BZ_sum = gS_squared * prod(counts) # ⟨S⋅S⟩
     expected_multi_BZ_sum_times_natoms = expected_multi_BZ_sum * Sunny.natoms(sc.crystal) # Nₐ×⟨S⋅S⟩
     @test calculated_sum ≈ expected_multi_BZ_sum_times_natoms
 end
