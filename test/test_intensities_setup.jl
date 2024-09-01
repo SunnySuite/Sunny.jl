@@ -6,7 +6,7 @@
     positions = [[0.,0,0], [0.1, 0.2, 0.3]]
     cryst = Crystal(I(3), positions, 1)
     g1 = [0.8 3.2 5.1; -0.3 0.6 -0.1; 1.0 0. 0.]
-    g2 = [1.8 2.2 -3.1; -0.3 2.6 0.1; 1.0 0. 0.3]    
+    g2 = [1.8 2.2 -3.1; -0.3 2.6 0.1; 1.0 0. 0.3]
 
     for mode = [:SUN, :dipole]
         moments = [1 => Moment(s=3/2, g=g1), 2 => Moment(s=(mode == :SUN ? 3/2 : 1/2), g=g2)]
@@ -70,29 +70,24 @@ end
     randomize_spins!(sys)
     sc = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=true))
     add_sample!(sc, sys)
-    
+
     # For the diamond cubic crystal, reciprocal space is periodic over a distance of
     # 4 BZs.
-    bzsize = (4, 4, 4)
-    qs = Sunny.available_wave_vectors(sc.parent; bzsize)
-    Δq³ = 1/(prod(bzsize) * Sunny.ncells(sys)) # Fraction of a BZ
-    
+    dims = (4, 4, 4)
+    qs = Sunny.available_wave_vectors(sc.parent; bzsize=dims)
     res = intensities_static(sc, qs[:])
-    @test sum(res.data) * Δq³ ≈ Sunny.natoms(cryst) * s^2 * g^2
-    
+    @test sum(res.data) / length(qs) ≈ Sunny.natoms(cryst) * s^2 * g^2
+
     # Repeat the same calculation for a primitive cell.
     shape = [0 1 1; 1 0 1; 1 1 0] / 2
     sys_prim = reshape_supercell(sys, shape)
     sys_prim = repeat_periodically(sys_prim, (4, 4, 4))
     sc_prim = SampledCorrelationsStatic(sys_prim; measure=ssf_trace(sys_prim; apply_g=true))
     add_sample!(sc_prim, sys_prim)
-    
-    bzsize = (4, 4, 4)
-    qs = Sunny.available_wave_vectors(sc_prim.parent; bzsize)
-    Δq³ = 1 / (prod(bzsize) * prod(sys_prim.dims))
-    
+
+    qs = Sunny.available_wave_vectors(sc_prim.parent; bzsize=dims)
     res_prim = intensities_static(sc_prim, qs[:])
-    @test 4 * sum(res_prim.data) * Δq³ ≈ Sunny.natoms(cryst) * s^2 * g^2    
+    @test sum(res_prim.data) / length(qs) ≈ Sunny.natoms(cryst) * s^2 * g^2 / 4 # FIXME!
 end
 
 @testitem "Polyatomic sum rule" begin
