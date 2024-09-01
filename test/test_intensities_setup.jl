@@ -1,3 +1,5 @@
+# TODO: Optimize performance, perhaps via `unitary_irrep_for_rotation`. Runtime
+# is 1.1s on Sunny 0.7.
 @testitem "Magnetization Observables" begin
     using LinearAlgebra
 
@@ -60,6 +62,43 @@ end
     @test all(abs.(vals[2:end]) .< 1e-12)
 end
 
+@testitem "Sum rule with reshaping" begin
+    s = 1/2
+    g = 2.3
+    cryst = Sunny.diamond_crystal()
+    sys = System(cryst, [1 => Moment(; s, g)], :SUN; dims=(3, 1, 1), seed=1)
+    randomize_spins!(sys)
+    sc = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=true))
+    add_sample!(sc, sys)
+
+    Δq³ = 1/prod(sys.dims) # Fraction of a BZ
+
+    # For the diamond cubic crystal, reciprocal space is periodic over a distance of
+    # 4 BZs. Include qs out to this distance.
+    bzsize = (4, 4, 4)
+    qs = Sunny.available_wave_vectors(sc.parent; bzsize)
+    res = intensities_static(sc, qs[:])
+
+    # Get the intensive sum rule by averaging intensity over the 4³ BZs.
+    sum(res.data) * Δq³ / prod(bzsize) ≈ Sunny.natoms(cryst) * s^2 * g^2
+
+    # Repeat the same calculation for a primitive cell.
+    shape = [0 1 1; 1 0 1; 1 1 0] / 2
+    sys_prim = reshape_supercell(sys, shape)
+    sys_prim = repeat_periodically(sys_prim, (4, 4, 4))
+    sc_prim = SampledCorrelationsStatic(sys_prim; measure=ssf_trace(sys_prim; apply_g=true))
+    add_sample!(sc_prim, sys_prim)
+
+    # These are in fact "reshaped" BZs.
+    bzsize = (4, 4, 4)
+    qs = Sunny.available_wave_vectors(sc_prim.parent; bzsize)
+    Δq³ = 1/prod(sys_prim.dims) # Fraction of a BZ
+
+    nbzs = prod(bzsize) # FIXME
+    res_prim = intensities_static(sc_prim, qs[:])
+    sum(res_prim.data) * Δq³ / nbzs ≈ Sunny.natoms(cryst) * s^2 * g^2
+end
+
 @testitem "Polyatomic sum rule" begin
     sys = System(Sunny.diamond_crystal(), [1 => Moment(s=1/2, g=2)], :SUN; dims=(4, 1, 1), seed=1)
     randomize_spins!(sys)
@@ -73,8 +112,7 @@ end
     n_all_ω = size(sc.data, 7)
     # Intensities in sc.data are a density in q, but already integrated over dω
     # bins, and then scaled by n_all_ω. Therefore, we need the factor below to
-    # convert the previous sum to an integral. (See same logic in
-    # intensities_interpolated function.)
+    # convert the previous sum to an integral.
     sub_lat_sum_rules .*= Δq³ / n_all_ω
 
     # SU(N) sum rule for S = 1/2:
@@ -87,7 +125,7 @@ end
     expected_sum = gS_squared
     # This sum rule should hold for each sublattice, independently, and only
     # need to be taken over a single BZ (which is what sc.data contains) to hold:
-    [sub_lat_sum_rules[i,i] for i in 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(ComplexF64,Sunny.natoms(sc.crystal))
+    [sub_lat_sum_rules[i,i] for i in 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(Sunny.natoms(sc.crystal))
 
     # The polyatomic sum rule demands going out 4 BZ's for the diamond crystal
     # since there is an atom at relative position [1/4, 1/4, 1/4]. It also
@@ -95,7 +133,7 @@ end
     # case by going over both positive and negative energies.
     nbzs = (4, 4, 4)
     qs = Sunny.available_wave_vectors(sc; bzsize=nbzs)
-    res = intensities(sc, Sunny.QPoints(qs[:]); energies=:available_with_negative, kT=nothing)
+    res = intensities(sc, qs[:]; energies=:available_with_negative, kT=nothing)
     calculated_sum = sum(res.data) * Δq³ * sc.Δω
 
     # This tests that `negative_energies = true` spans exactly one sampling frequency

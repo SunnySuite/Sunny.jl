@@ -228,6 +228,19 @@ An iterator over all [`Site`](@ref)s in the system.
 @inline eachsite(sys::System) = CartesianIndices(sys.dipoles)
 
 """
+nsites(sys::System) = length(eachsite(sys))
+"""
+nsites(sys::System) = length(eachsite(sys))
+
+"""
+    ncells(sys::System)
+
+Number of chemical cells in the system using the original crystal.
+"""
+ncells(sys::System) = nsites(sys) / natoms(orig_crystal(sys))
+
+
+"""
     global_position(sys::System, site::Site)
 
 Position of a [`Site`](@ref) in global coordinates.

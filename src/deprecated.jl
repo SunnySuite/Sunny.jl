@@ -110,6 +110,9 @@ Base.@deprecate SpinInfo(i; S, g) let
     i => Moment(; s=S, g)
 end
 
+Base.@deprecate_binding dirac_delta_kernel nothing
+
+
 # REMEMBER TO ALSO DELETE:
 #
 # * view_crystal(cryst, max_dist)
