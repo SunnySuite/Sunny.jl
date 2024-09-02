@@ -71,7 +71,7 @@ export reshape_supercell, resize_supercell, repeat_periodically, repeat_periodic
 include("EntangledUnits/TypesAndAliasing.jl")
 include("EntangledUnits/EntangledUnits.jl")
 include("EntangledUnits/EntangledReshaping.jl")
-export contract_crystal, EntangledSystem, set_expected_dipoles_of_entangled_system!
+# export contract_crystal, EntangledSystem, set_expected_dipoles_of_entangled_system!
 
 include("Integrators.jl")
 export Langevin, ImplicitMidpoint, step!, suggest_timestep
@@ -118,7 +118,7 @@ export SampledCorrelations, SampledCorrelationsStatic, add_sample!, clone_correl
 
 include("EntangledUnits/EntangledSpinWaveTheory.jl")
 include("EntangledUnits/EntangledSampledCorrelations.jl")
-export EntangledSpinWaveTheory, EntangledSampledCorrelations
+# export EntangledSpinWaveTheory, EntangledSampledCorrelations
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")
