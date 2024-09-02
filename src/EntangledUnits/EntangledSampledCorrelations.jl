@@ -9,13 +9,13 @@ function observables_to_product_space(observables, esys)
     (; sys, sys_origin, contraction_info) = esys
     N = length(sys.coherents[1])
     Ns_all = Ns_in_units(sys_origin, contraction_info)
-    # observables_new = Array{eltype(observables), 5}(undef, size(observables, 1), size(sys.coherents)...)
     observables_new = fill(zeros(ComplexF64, N, N), size(observables)) 
     positions = zeros(Vec3, size(observables)[2:end])
+    atom_idcs = zeros(Int64, size(observables)[2:end])
     for site in eachsite(sys_origin)
         atom = site.I[4]
-        println("atom: ", atom)
         positions[site] = sys_origin.crystal.positions[atom]
+        atom_idcs[site] = contraction_info.forward[atom][1]
         for μ in axes(observables, 1)
             obs = observables[μ, site]
             unit, unitsub = contraction_info.forward[atom]
@@ -24,16 +24,16 @@ function observables_to_product_space(observables, esys)
         end
     end
 
-    return (; observables_new, positions)
+    return (; observables_new, positions, atom_idcs)
 end
 
 
 function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calculate_errors=false)
-    (; observables_new, positions) = observables_to_product_space(measure.observables, esys)
-    sc = SampledCorrelations(esys.sys; measure, energies, dt, calculate_errors) 
+    (; observables_new, positions, atom_idcs) = observables_to_product_space(measure.observables, esys)
+    sc = SampledCorrelations(esys.sys; measure, energies, dt, calculate_errors, positions) 
     crystal = esys.sys_origin.crystal
     origin_crystal = orig_crystal(esys.sys_origin)
-    sc_new = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables_new, positions, measure.corr_pairs,
+    sc_new = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables_new, positions, atom_idcs, measure.corr_pairs,
                                  sc.measperiod, sc.dt, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
 
     EntangledSampledCorrelations(sc_new, esys)

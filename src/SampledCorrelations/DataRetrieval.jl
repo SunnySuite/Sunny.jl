@@ -100,7 +100,8 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
     q_idx_info = pruned_wave_vector_info(sc, qs_reshaped)
     crystal = @something sc.origin_crystal sc.crystal
     NCorr  = Val{size(sc.data, 1)}()
-    NPos = Val{size(sc.data, 2)}()
+    # NPos = Val{size(sc.data, 2)}()
+    NPos = Val{length(sc.crystal.positions)}()
 
     # Intensities calculation
     intensities_rounded!(intensities, sc.data, sc.crystal, sc.positions, sc.measure.combiner, ffs, q_idx_info, ωidcs, NCorr, NPos)

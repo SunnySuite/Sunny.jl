@@ -10,6 +10,7 @@ mutable struct SampledCorrelations{Op}
     measure            :: MeasureSpec                            # Storehouse for combiner. Mutable so combiner can be changed.
     const observables  :: Array{Op, 5}                           # (nobs × npos x latsize) -- note change of ordering relative to MeasureSpec.
     const positions    :: Array{Vec3, 4}                         # Position of each operator in fractional coordinates (latsize x npos)
+    const atom_idcs    :: Array{Int64, 4}                        # Atom index corresponding to position of observable.
     const corr_pairs   :: Vector{NTuple{2, Int}}                 # (ncorr)
 
     # Trajectory specs
@@ -55,7 +56,7 @@ function clone_correlations(sc::SampledCorrelations)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations(
         copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
-        deepcopy(sc.measure), copy(sc.observables), copy(sc.positions), copy(sc.corr_pairs),
+        deepcopy(sc.measure), copy(sc.observables), copy(sc.positions), copy(sc.atom_idcs), copy(sc.corr_pairs),
         sc.measperiod, sc.dt, sc.nsamples,
         copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!
     )
@@ -158,6 +159,7 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
         positions
     end
     npos = size(positions, 4) 
+    atom_idcs = map(site -> site.I[4], eachsite(sys))
 
     # The sample buffer holds n_non_neg_ω measurements, and the rest is a zero buffer
     measure = isnothing(measure) ? ssf_trace(sys) : measure
@@ -187,7 +189,7 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
     sc = SampledCorrelations(data, M, sys.crystal, origin_crystal, Δω,
-                             measure, copy(measure.observables), positions, copy(measure.corr_pairs),
+                             measure, copy(measure.observables), positions, atom_idcs, copy(measure.corr_pairs),
                              measperiod, dt, nsamples,
                              samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 
