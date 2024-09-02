@@ -5,13 +5,17 @@ end
 
 # TODO: Write Base.show methods
 
+# Take observables specified in terms
 function observables_to_product_space(observables, esys)
     (; sys, sys_origin, contraction_info) = esys
+
     N = length(sys.coherents[1])
     Ns_all = Ns_in_units(sys_origin, contraction_info)
+
     observables_new = fill(zeros(ComplexF64, N, N), size(observables)) 
     positions = zeros(Vec3, size(observables)[2:end])
     atom_idcs = zeros(Int64, size(observables)[2:end])
+
     for site in eachsite(sys_origin)
         atom = site.I[4]
         positions[site] = sys_origin.crystal.positions[atom]
@@ -28,15 +32,28 @@ function observables_to_product_space(observables, esys)
 end
 
 
+# Configures an ordinary SampledCorrelations for an entangled system. The
+# measure is assumed to correspond to the sites of the original "unentangled"
+# system. 
 function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calculate_errors=false)
+    # Convert observables on different sites to "multiposition" observables in
+    # tensor product spaces. Atom indices is used to coordinate the observable
+    # (now floating in abstract space) with a site of the "contracted" lattice.
+    # This information is necessary to associate the operator with a particular
+    # coherent state of the contracted system.
     (; observables_new, positions, atom_idcs) = observables_to_product_space(measure.observables, esys)
+
+    # Make a sampled correlations for the esys 
     sc = SampledCorrelations(esys.sys; measure, energies, dt, calculate_errors, positions) 
+
+    # Replace relevant fields. Note use of undocumented `positions` keyword.
+    # This can be eliminated if positions are migrated into the MeasureSpec
     crystal = esys.sys_origin.crystal
     origin_crystal = orig_crystal(esys.sys_origin)
     sc_new = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables_new, positions, atom_idcs, measure.corr_pairs,
                                  sc.measperiod, sc.dt, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
 
-    EntangledSampledCorrelations(sc_new, esys)
+    return EntangledSampledCorrelations(sc_new, esys)
 end
 
 
@@ -45,6 +62,62 @@ function step!(esys::EntangledSystem, integrator)
     # Coordinate expected dipoles of subsystem
 end
 
+# function step!(esys::EntangledSystem, integrator::Langevin) 
+#     check_timestep_available(integrator)
+#     sys = esys.sys
+# 
+#     (Z′, ΔZ₁, ΔZ₂, ζ, HZ) = get_coherent_buffers(sys, 5)
+#     Z = sys.coherents
+# 
+#     fill_noise!(sys.rng, ζ, integrator)
+# 
+#     # Euler prediction step
+#     set_energy_grad_coherents!(HZ, Z, sys)
+#     rhs_sun!(ΔZ₁, Z, ζ, HZ, integrator)
+#     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
+# 
+#     # Correction step
+#     set_energy_grad_coherents!(HZ, Z′, sys)
+#     rhs_sun!(ΔZ₂, Z′, ζ, HZ, integrator)
+#     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
+# 
+#     return
+# end
+# 
+# function step!(esys::EntangledSystem, integrator::ImplicitMidpoint; max_iters=100) where N
+#     check_timestep_available(integrator)
+#     sys = esys.sys
+# 
+#     Z = sys.coherents
+#     atol = integrator.atol * √length(Z)
+#     
+#     (ΔZ, Z̄, Z′, Z″, ζ, HZ) = get_coherent_buffers(sys, 6)
+#     fill_noise!(sys.rng, ζ, integrator)
+# 
+#     @. Z′ = Z 
+#     @. Z″ = Z 
+# 
+#     for _ in 1:max_iters
+#         @. Z̄ = (Z + Z′)/2
+# 
+#         set_energy_grad_coherents!(HZ, Z̄, sys)
+#         rhs_sun!(ΔZ, Z̄, ζ, HZ, integrator)
+# 
+#         @. Z″ = Z + ΔZ
+# 
+#         if fast_isapprox(Z′, Z″; atol)
+#             @. Z = normalize_ket(Z″, sys.κs)
+#             return
+#         end
+# 
+#         Z′, Z″ = Z″, Z′
+#     end
+# 
+#     error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
+# end
+
+
+
 function add_sample!(esc::EntangledSampledCorrelations, esys::EntangledSystem; window=:cosine)
     new_sample!(esc.sc, esys.sys)
     accum_sample!(esc.sc; window)
@@ -52,90 +125,15 @@ end
 
 
 
-# function dynamical_correlations(esys::EntangledSystem; kwargs...)
-#     # TODO: Add test to make sure observables are dipoles
-#     sc = dynamical_correlations(esys.sys_origin; observables=nothing, correlations=nothing, force_dipole = true, kwargs...)
-#     EntangledSampledCorrelations(sc, esys)
-# end
-  
-# function instant_correlations(esys::EntangledSystem; kwargs...)
-#     # TODO: Add test to make sure observables are dipoles
-#     dynamical_correlations(esys; dt=NaN, ωmax=NaN, nω=1, kwargs...)
-# end
-
-# available_energies(esc::EntangledSampledCorrelations) = available_energies(esc.sc)
-# available_wave_vectors(esc::EntangledSampledCorrelations) = available_wave_vectors(esc.sc)
-# 
-# function clone_correlations(esc::EntangledSampledCorrelations; kwargs...)
-#     sc = clone_correlations(esc.sc)
-#     EntangledSampledCorrelations(sc, esc.esys)
-# end
-# 
-# function merge_correlations(escs::Vector{EntangledSampledCorrelations}; kwargs...)
-#     sc_merged = merge_correlations([esc.sc for esc in escs])
-#     EntangledSampledCorrelations(sc_merged, escs[1].esys)
-# end
-# 
-# function add_sample!(esc::EntangledSampledCorrelations, esys::EntangledSystem)
-#     new_sample!(esc, esys)
-#     accum_sample!(esc.sc)
-# end
-# 
-# function new_sample!(esc::EntangledSampledCorrelations, esys::EntangledSystem)
-#     sc = esc.sc
-#     (; dt, samplebuf, measperiod, observables, processtraj!) = sc
-#     nsnaps = size(samplebuf, 6)
-#     @assert size(esys.sys_origin.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `SampledCorrelations`"
-# 
-#     trajectory!(samplebuf, esys, dt, nsnaps, observables.observables; measperiod)
-#     processtraj!(sc)
-# 
-#     return nothing
-# end
-# 
-# function step!(esys::EntangledSystem, integrator)
-#     step!(esys.sys, integrator)
-#     set_expected_dipoles_of_entangled_system!(esys.sys_origin.dipoles, esys)
-# end
-# 
-# function trajectory!(buf, esys::EntangledSystem, dt, nsnaps, ops; measperiod = 1)
-#     @assert length(ops) == size(buf, 1)
-#     integrator = ImplicitMidpoint(dt)
-# 
-#     observable_values!(@view(buf[:,:,:,:,:,1]), esys, ops)
-#     for n in 2:nsnaps
-#         for _ in 1:measperiod
-#             step!(esys, integrator)
-#         end
-#         observable_values!(@view(buf[:,:,:,:,:,n]), esys, ops)
-#     end
-# 
-#     return nothing
-# end
-# 
-# function observable_values!(buf, esys::EntangledSystem, ops)
-#     sys = esys.sys_origin
-#     for (i, op) in enumerate(ops)
-#         for site in eachsite(sys)
-#             A = observable_at_site(op, site)
-#             dipole = sys.dipoles[site]
-#             buf[i,site] = A * dipole
-#         end
-#     end
-# 
-#     return nothing
-# end
-# 
-# function intensity_formula(esc::EntangledSampledCorrelations, mode; kwargs...)
-#     intensity_formula(esc.sc, mode; kwargs...)
-# end
-# 
-# function intensities_interpolated(esc::EntangledSampledCorrelations, qs, formula; kwargs...)
-#     intensities_interpolated(esc.sc, qs, formula; kwargs...)
-# end
-# 
-# function instant_intensities_interpolated(esc::EntangledSampledCorrelations, qs, formula; kwargs...)
-#     instant_intensities_interpolated(esc.sc, qs, formula; kwargs...)
-# end
-
-# TODO: Classical intensity formulas
+available_energies(esc::EntangledSampledCorrelations) = available_energies(esc.sc)
+available_wave_vectors(esc::EntangledSampledCorrelations) = available_wave_vectors(esc.sc)
+ 
+function clone_correlations(esc::EntangledSampledCorrelations; kwargs...)
+    sc = clone_correlations(esc.sc)
+    EntangledSampledCorrelations(sc, esc.esys)
+end
+ 
+function merge_correlations(escs::Vector{EntangledSampledCorrelations}; kwargs...)
+    sc_merged = merge_correlations([esc.sc for esc in escs])
+    EntangledSampledCorrelations(sc_merged, escs[1].esys)
+end
