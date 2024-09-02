@@ -8,7 +8,7 @@
 # tuples for specifying the corresponding entanglement of the reshaped system.
 function units_for_reshaped_system(reshaped_sys_origin, esys)
     (; sys_origin) = esys                 
-    units = original_units(esys)
+    units = original_unit_spec(esys)
     new_crystal = reshaped_sys_origin.crystal
     new_atoms = collect(1:natoms(new_crystal))
     new_units = []

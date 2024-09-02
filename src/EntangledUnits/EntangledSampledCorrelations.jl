@@ -83,3 +83,7 @@ function merge_correlations(escs::Vector{EntangledSampledCorrelations}; kwargs..
     sc_merged = merge_correlations([esc.sc for esc in escs])
     EntangledSampledCorrelations(sc_merged, escs[1].esys)
 end
+
+function intensities(esc::EntangledSampledCorrelations, qpts; kwargs...)
+    intensities(esc.sc, qpts; kwargs...)
+end

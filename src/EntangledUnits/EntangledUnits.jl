@@ -115,17 +115,18 @@ end
 
 
 # Pull out original indices of sites in entangled unit
-sites_in_unit(contraction_info, i) = [inverse_data.site for inverse_data in contraction_info.inverse[i]] 
+atoms_in_unit(contraction_info, i) = [inverse_data.site for inverse_data in contraction_info.inverse[i]] 
 
-function original_units(esys::EntangledSystem)
+# Get the list of tuples specifying the units in terms of the uncontracted
+# system.
+function original_unit_spec(esys::EntangledSystem)
     (; sys, contraction_info) = esys
-    return [Tuple(sites_in_unit(contraction_info, unit)) for unit in axes(sys.dipoles, 4)]
+    return [Tuple(atoms_in_unit(contraction_info, unit)) for unit in axes(sys.dipoles, 4)]
 end
 
-# List of all pair-wise bonds in a unit. The resulting bonds are to be
-# interpreted in terms of the original crystal.
+#  Interpreted in terms of the original crystal.
 function bonds_in_unit(contraction_info, i)
-    sites = sites_in_unit(contraction_info, i)
+    sites = atoms_in_unit(contraction_info, i)
     nsites = length(sites)
     bonds = Bond[]
     for i in 1:nsites, j in i+1:nsites
@@ -156,8 +157,8 @@ function accum_pair_coupling_into_bond_operator_in_unit!(op, pc, sys, contracted
     @assert contraction_info.forward[j][1] == contracted_site "Sanity check -- remove later"
     i_unit = contraction_info.forward[i][2]
     j_unit = contraction_info.forward[j][2]
-    Ni = sys.Ns[1, 1, 1, i] 
-    Nj = sys.Ns[1, 1, 1, j] 
+    Ni = sys.Ns[1, 1, 1, i]
+    Nj = sys.Ns[1, 1, 1, j]
 
     # Add scalar part
     op .+= scalar*I_unit
@@ -291,7 +292,7 @@ function entangle_system(sys::System{M}, units) where M
         Ns = Ns_unit[contracted_site]
 
         ## Onsite portion of interaction 
-        relevant_sites = sites_in_unit(contraction_info, contracted_site)
+        relevant_sites = atoms_in_unit(contraction_info, contracted_site)
         unit_operator = zeros(ComplexF64, N, N)
 
         # Zeeman term -- TODO: generalize to inhomogenous case -- here assumes field is applied identically on a per-unit-cell basis
@@ -446,22 +447,20 @@ function entangle_system_new(sys::System{M}, units) where M
     return (; sys_entangled, contraction_info, Ns_unit)
 end
 
-
 function set_expected_dipoles_of_entangled_system!(esys)
-    (; sys, sys_origin, dipole_operators, source_idcs) = esys
-    (; dipoles) = sys_origin
-
-    Zs = sys.coherents
-    for site in eachsite(sys_origin)
-        a, b, c, atom = site.I
-        source_idx = source_idcs[atom]
-        dipoles[site] = Vec3(
-            real(dot(Zs[a, b, c, source_idx], dipole_operators[1, site], Zs[a, b, c, source_idx])),
-            real(dot(Zs[a, b, c, source_idx], dipole_operators[2, site], Zs[a, b, c, source_idx])),
-            real(dot(Zs[a, b, c, source_idx], dipole_operators[3, site], Zs[a, b, c, source_idx]))
-        )
+    for site in eachsite(esys.sys_origin)
+        set_expected_dipole_of_entangled_system!(esys, site)
     end
 end
 
 function set_expected_dipole_of_entangled_system!(esys, site)
+    (; sys, sys_origin, dipole_operators, source_idcs) = esys
+    (; dipoles) = sys_origin
+
+    a, b, c, atom = site.I
+    source_idx = source_idcs[atom]
+    Z = sys.coherents[a, b, c, source_idx]
+    dipoles[site] = ntuple(i -> real(dot(Z, dipole_operators[i, site], Z)), 3)
+
+    nothing
 end

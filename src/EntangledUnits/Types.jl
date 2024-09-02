@@ -74,7 +74,10 @@ set_dipole!(esys::EntangledSystem, dipole, site; kwargs...) = error("Setting dip
 
 function set_coherent!(esys::EntangledSystem, coherent, site; kwargs...) 
     set_coherent!(esys.sys, coherent, site; kwargs...)
-    set_expected_dipole_of_entangled_system!(esys, site)
+    a, b, c, unit = site.I
+    for atom in atoms_in_unit(contraction_info, unit)
+        set_expected_dipole_of_entangled_system!(esys, CartesianIndex(a, b, c, atom))
+    end
 end
 
 eachsite(esys::EntangledSystem) = eachsite(esys.sys) # Not sure that we want this
