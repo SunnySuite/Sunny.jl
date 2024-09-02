@@ -5,30 +5,33 @@ end
 
 # TODO: Write Base.show methods
 
-# Take observables specified in terms
-function observables_to_product_space(observables, esys)
-    (; sys, sys_origin, contraction_info) = esys
-
-    N = length(sys.coherents[1])
-    Ns_all = Ns_in_units(sys_origin, contraction_info)
+# Take observables specified in terms or original system and transform them into
+# a field of observables in the tensor product space, together with mapping
+# information for populating the expectation values of these operators with
+# respect to the entangled system.
+function observables_to_product_space(observables, sys_origin, contraction_info)
+    Ns_per_unit = Ns_in_units(sys_origin, contraction_info)
+    Ns_all = [prod(Ns) for Ns in Ns_per_unit]
+    N = Ns_all[1]
+    @assert all(==(N), Ns_all) "All entangled units must have the same dimension Hilbert space."
 
     observables_new = fill(zeros(ComplexF64, N, N), size(observables)) 
     positions = zeros(Vec3, size(observables)[2:end])
-    atom_idcs = zeros(Int64, size(observables)[2:end])
+    source_idcs = zeros(Int64, size(observables)[2:end])
 
     for site in eachsite(sys_origin)
         atom = site.I[4]
         positions[site] = sys_origin.crystal.positions[atom]
-        atom_idcs[site] = contraction_info.forward[atom][1]
+        source_idcs[site] = contraction_info.forward[atom][1]
         for μ in axes(observables, 1)
             obs = observables[μ, site]
             unit, unitsub = contraction_info.forward[atom]
-            Ns = Ns_all[unit]
+            Ns = Ns_per_unit[unit]
             observables_new[μ, site] = local_op_to_product_space(obs, unitsub, Ns)
         end
     end
 
-    return (; observables_new, positions, atom_idcs)
+    return (; observables_new, positions, source_idcs)
 end
 
 
@@ -41,16 +44,17 @@ function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calcu
     # (now floating in abstract space) with a site of the "contracted" lattice.
     # This information is necessary to associate the operator with a particular
     # coherent state of the contracted system.
-    (; observables_new, positions, atom_idcs) = observables_to_product_space(measure.observables, esys)
+    (; observables_new, positions, source_idcs) = observables_to_product_space(measure.observables, esys.sys_origin, esys.contraction_info)
 
     # Make a sampled correlations for the esys 
     sc = SampledCorrelations(esys.sys; measure, energies, dt, calculate_errors, positions) 
 
-    # Replace relevant fields. Note use of undocumented `positions` keyword.
-    # This can be eliminated if positions are migrated into the MeasureSpec
+    # Replace relevant fields or the Sampled correlations. Note use of
+    # undocumented `positions` keyword. This can be eliminated if positions are
+    # migrated into the MeasureSpec.
     crystal = esys.sys_origin.crystal
     origin_crystal = orig_crystal(esys.sys_origin)
-    sc_new = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables_new, positions, atom_idcs, measure.corr_pairs,
+    sc_new = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables_new, positions, source_idcs, measure.corr_pairs,
                                  sc.measperiod, sc.dt, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
 
     return EntangledSampledCorrelations(sc_new, esys)

@@ -150,7 +150,8 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
         Δω = ωmax/(nω-1)
     end
 
-
+    # Determine the positions of the observables in the MeasureSpec. By default,
+    # these will just be the atom indices. 
     positions = if isnothing(positions)
         map(eachsite(sys)) do site
             sys.crystal.positions[site.I[4]]
@@ -158,10 +159,15 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
     else
         positions
     end
+
+    # Determine the number of positions. For an unentangled system, this will
+    # just be the number of atoms.
     npos = size(positions, 4) 
+
+    # Determine which atom index is used to derive information about a given
+    # physical position. This becomes relevant for entangled units. 
     atom_idcs = map(site -> site.I[4], eachsite(sys))
 
-    # The sample buffer holds n_non_neg_ω measurements, and the rest is a zero buffer
     measure = isnothing(measure) ? ssf_trace(sys) : measure
     num_observables(measure)
     samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., na, n_all_ω)

@@ -447,74 +447,21 @@ function entangle_system_new(sys::System{M}, units) where M
 end
 
 
-# TODO: Make a serious version of this (i.e., optimized) 
-function set_expected_dipoles_of_entangled_system!(dipole_buf, esys::EntangledSystem)
-    (; sys, sys_origin, contraction_info) = esys
-    Ns_unit = Ns_in_units(sys_origin, contraction_info)
-    expectation(op, Z) = real(Z' * op * Z)
+function set_expected_dipoles_of_entangled_system!(esys)
+    (; sys, sys_origin, dipole_operators, source_idcs) = esys
+    (; dipoles) = sys_origin
 
-    for contracted_site in Sunny.eachsite(sys)
-        i, j, k, n = contracted_site.I
-        Ns = Ns_unit[n]
-
-        # This is currently dumb 
-        for (m, (; site)) in enumerate(contraction_info.inverse[n])
-            S = spin_matrices((Ns[m]-1)/2)
-            Sx = local_op_to_product_space(S[1], m, Ns)
-            Sy = local_op_to_product_space(S[2], m, Ns)
-            Sz = local_op_to_product_space(S[3], m, Ns)
-            dipole = Sunny.Vec3(
-                expectation(Sx, sys.coherents[contracted_site]),
-                expectation(Sy, sys.coherents[contracted_site]),
-                expectation(Sz, sys.coherents[contracted_site]),
-            )
-            dipole_buf[i, j, k, site] = dipole
-        end
-    end
-end
-
-# TODO: Make serious version of this as low-level function for above.
-function set_expected_dipole_of_entangled_system!(dipole_buf, esys::EntangledSystem, esite)
-    (; sys, sys_origin, contraction_info) = esys
-    Ns_unit = Ns_in_units(sys_origin, contraction_info)
-    expectation(op, Z) = real(Z' * op * Z)
-
-    i, j, k, n = esite.I
-    Ns = Ns_unit[n]
-
-    for (m, (; site)) in enumerate(contraction_info.inverse[n])
-        S = spin_matrices((Ns[m]-1)/2)
-        Sx = local_op_to_product_space(S[1], m, Ns)
-        Sy = local_op_to_product_space(S[2], m, Ns)
-        Sz = local_op_to_product_space(S[3], m, Ns)
-        dipole = Sunny.Vec3(
-            expectation(Sx, sys.coherents[esite]),
-            expectation(Sy, sys.coherents[esite]),
-            expectation(Sz, sys.coherents[esite]),
+    Zs = sys.coherents
+    for site in eachsite(sys_origin)
+        a, b, c, atom = site.I
+        source_idx = source_idcs[atom]
+        dipoles[site] = Vec3(
+            real(dot(Zs[a, b, c, source_idx], dipole_operators[1, site], Zs[a, b, c, source_idx])),
+            real(dot(Zs[a, b, c, source_idx], dipole_operators[2, site], Zs[a, b, c, source_idx])),
+            real(dot(Zs[a, b, c, source_idx], dipole_operators[3, site], Zs[a, b, c, source_idx]))
         )
-        dipole_buf[i, j, k, site] = dipole
     end
 end
 
-# TODO: Generalize to inhomogenous case
-expectation(op, Z) = real(Z' * op * Z)
-function spin_operators_for_entangled_system(esys)
-    (; sys_origin, contraction_info) = esys
-    Ns_unit = Ns_in_units(sys_origin, contraction_info)
-
-    spin_operators_all = []
-    for atom in 1:natoms(sys_origin.crystal)
-        unit, unit_idx = contraction_info.forward[atom]
-        S = spin_matrices((Ns_unit[unit][unit_idx]-1)/2)
-        Sx = local_op_to_product_space(S[1], unit_idx, Ns_unit[unit])
-        Sy = local_op_to_product_space(S[2], unit_idx, Ns_unit[unit])
-        Sz = local_op_to_product_space(S[3], unit_idx, Ns_unit[unit])
-        push!(spin_operators_all, [Sx, Sy, Sz])
-    end
-
-    return spin_operators_all
-end
-
-function expected_entangled_spin(ops, Z)
-    return Vec3(expectation(op[1], Z), expectation(ops[2], Z), expectation(ops[3], Z))
+function set_expected_dipole_of_entangled_system!(esys, site)
 end

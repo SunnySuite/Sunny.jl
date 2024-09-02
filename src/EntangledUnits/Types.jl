@@ -24,27 +24,47 @@ struct CrystalContractionInfo
 end
 
 struct EntangledSystem
-    sys               :: System                  # System containing entangled units
-    sys_origin        :: System                  # Original "uncontracted" system
-    contraction_info  :: CrystalContractionInfo  # Forward and inverse mapping data for sys <-> sys_origin
+    sys               :: System                             # System containing entangled units
+    sys_origin        :: System                             # Original "uncontracted" system
+    contraction_info  :: CrystalContractionInfo             # Forward and inverse mapping data for sys <-> sys_origin
+
+    dipole_operators  :: Array{Matrix{ComplexF64}, 5}       # An observable field corresponding to dipoles of the original system.
+    source_idcs       :: Array{Int64, 4}                    # Metadata for populating the original dipoles from entangled sites.
 end
 
 function EntangledSystem(sys, units)
     (; sys_entangled, contraction_info) = entangle_system(sys, units)
     sys_origin = clone_system(sys)
-    esys = EntangledSystem(sys_entangled, sys_origin, contraction_info)
-    set_expected_dipoles_of_entangled_system!(sys.dipoles, esys)
+    dipole_operators_origin = all_dipole_observables(sys_origin; apply_g=false) 
+    (; observables_new, source_idcs)  = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
+
+    esys = EntangledSystem(sys_entangled, sys_origin, contraction_info, observables_new, source_idcs)
+    set_expected_dipoles_of_entangled_system!(esys)
     return esys
+end
+
+function Base.show(io::IO, esys::EntangledSystem)
+    print(io, "EntangledSystem($(mode_to_str(esys.sys)), $(lattice_to_str(esys.sys_origin)), $(energy_to_str(esys.sys)))")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", esys::EntangledSystem)
+    printstyled(io, "EntangledSystem $(mode_to_str(esys.sys))\n"; bold=true, color=:underline)
+    println(io, lattice_to_str(esys.sys_origin))
+    if !isnothing(esys.sys_origin.origin)
+        shape = number_to_math_string.(cell_shape(esys.sys_origin))
+        println(io, formatted_matrix(shape; prefix="Reshaped cell "))
+    end
+    println(io, energy_to_str(esys.sys))
 end
 
 function randomize_spins!(esys::EntangledSystem; kwargs...) 
     randomize_spins!(esys.sys; kwargs...)
-    set_expected_dipoles_of_entangled_system!(esys.sys_origin.dipoles, esys)
+    set_expected_dipoles_of_entangled_system!(esys)
 end
 
 function minimize_energy!(esys::EntangledSystem; kwargs...)
     optout = minimize_energy!(esys.sys; kwargs...)
-    set_expected_dipoles_of_entangled_system!(esys.sys_origin.dipoles, esys)
+    set_expected_dipoles_of_entangled_system!(esys)
     return optout
 end
 
@@ -54,7 +74,7 @@ set_dipole!(esys::EntangledSystem, dipole, site; kwargs...) = error("Setting dip
 
 function set_coherent!(esys::EntangledSystem, coherent, site; kwargs...) 
     set_coherent!(esys.sys, coherent, site; kwargs...)
-    set_expected_dipole_of_entangled_system!(esys.sys_origin.dipoles, esys, site)
+    set_expected_dipole_of_entangled_system!(esys, site)
 end
 
 eachsite(esys::EntangledSystem) = eachsite(esys.sys) # Not sure that we want this
