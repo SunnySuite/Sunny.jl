@@ -33,6 +33,7 @@ struct SpinWaveTheory <: AbstractSpinWaveTheory
     sys            :: System
     data           :: Union{SWTDataDipole, SWTDataSUN}
     measure        :: MeasureSpec
+    positions      :: Array{Vec3, 2}
     regularization :: Float64
 end
 
@@ -66,10 +67,13 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     # Create a new system with dims (1,1,1). A clone happens in all cases.
     sys = reshape_supercell_aux(sys, new_cryst, (1,1,1))
 
+    # Transform measure.position information in terms of reshaped system
+    positions = [global_position(sys, (1, 1, 1, i)) for _ in 1:size(measure.observables, 1), i in 1:length(eachsite(sys))]
+
     # Rotate local operators to quantization axis
     data = swt_data(sys, measure)
 
-    return SpinWaveTheory(sys, data, measure, regularization)
+    return SpinWaveTheory(sys, data, measure, positions, regularization)
 end
 
 
@@ -165,6 +169,7 @@ function swt_data(sys::System{N}, measure) where N
     Na = nsites(sys)
     Nobs = size(measure.observables, 1)
     observables = reshape(measure.observables, Nobs, Na)
+    positions = [global_position(sys, (1, 1, 1, i)) for _ in 1:Nobs, i in 1:Na]
 
     # Preallocate buffers for local unitaries and observables.
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, Na)

@@ -145,7 +145,7 @@ This calculation is analogous to [`intensities`](@ref), but does not perform
 line broadening of the bands.
 """
 function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
-    (; sys, measure) = swt
+    (; sys, measure, positions) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     with_negative && error("Option `with_negative=true` not yet supported.")
 
@@ -162,27 +162,28 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
     # Number of wavevectors
     Nq = length(qpts.qs)
 
-    # Preallocation
-    T = zeros(ComplexF64, 2L, 2L)
-    H = zeros(ComplexF64, 2L, 2L)
-    Avec_pref = zeros(ComplexF64, Na)
-    disp = zeros(Float64, L, Nq)
-    intensity = zeros(eltype(measure), L, Nq)
-
     # Temporary storage for pair correlations
     Nobs = size(measure.observables, 1)
     Ncorr = length(measure.corr_pairs)
     corrbuf = zeros(ComplexF64, Ncorr)
 
+    # Preallocation
+    T = zeros(ComplexF64, 2L, 2L)
+    H = zeros(ComplexF64, 2L, 2L)
+    Avec_pref = zeros(ComplexF64, Nobs, Na)
+    disp = zeros(Float64, L, Nq)
+    intensity = zeros(eltype(measure), L, Nq)
+
+
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
-        for i in 1:Na
-            r_global = global_position(sys, (1,1,1,i))
+        for i in 1:Na, μ in 1:Nobs
+            r_global = positions[μ, i]
             ff = get_swt_formfactor(measure, 1, i)
-            Avec_pref[i] = exp(- im * dot(q_global, r_global))
-            Avec_pref[i] *= compute_form_factor(ff, norm2(q_global))
+            Avec_pref[μ, i] = exp(- im * dot(q_global, r_global))
+            Avec_pref[μ, i] *= compute_form_factor(ff, norm2(q_global))
         end
 
         Avec = zeros(ComplexF64, Nobs)
@@ -197,7 +198,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
                 for i in 1:Na, μ in 1:Nobs
                     O = data.observables_localized[μ, i]
                     for α in 1:N-1
-                        Avec[μ] += Avec_pref[i] * (O[α, N] * t[α, i, 2] + O[N, α] * t[α, i, 1])
+                        Avec[μ] += Avec_pref[μ, i] * (O[α, N] * t[α, i, 2] + O[N, α] * t[α, i, 1])
                     end
                 end
             else
@@ -211,7 +212,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
                     # local frame, z is longitudinal, and we are computing
                     # the transverse part only, so the last entry is zero)
                     displacement_local_frame = SA[t[i, 2] + t[i, 1], im * (t[i, 2] - t[i, 1]), 0.0]
-                    Avec[μ] += Avec_pref[i] * (data.sqrtS[i]/sqrt(2)) * (O' * displacement_local_frame)[1]
+                    Avec[μ] += Avec_pref[μ, i] * (data.sqrtS[i]/sqrt(2)) * (O' * displacement_local_frame)[1]
                 end
             end
 
