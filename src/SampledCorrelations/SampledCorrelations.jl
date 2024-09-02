@@ -1,11 +1,16 @@
-mutable struct SampledCorrelations
+mutable struct SampledCorrelations{Op}
     # 𝒮^{αβ}(q,ω) data and metadata
     const data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × sys_dims × nω)
     const M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
     const crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
     const origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above)
-    const Δω             :: Float64                              # Energy step size (could make this a virtual property)  
-    measure              :: MeasureSpec                          # Observable, correlation pairs, and combiner
+    const Δω             :: Float64                              # Energy step size 
+
+    # Observable information
+    measure            :: MeasureSpec                            # Storehouse for combiner. Mutable so combiner can be changed.
+    const observables  :: Array{Op, 5}                           # (nobs × npos x latsize) -- note change of ordering relative to MeasureSpec.
+    const positions    :: Array{Vec3, 4}                         # Position of each operator in fractional coordinates (latsize x npos)
+    const corr_pairs   :: Vector{NTuple{2, Int}}                 # (ncorr)
 
     # Trajectory specs
     const measperiod   :: Int                                    # Steps to skip between saving observables (i.e., downsampling factor for trajectories)
@@ -49,7 +54,8 @@ function clone_correlations(sc::SampledCorrelations)
     corr_ifft! = FFTW.plan_ifft!(sc.corrbuf, 4)
     M = isnothing(sc.M) ? nothing : copy(sc.M)
     return SampledCorrelations(
-        copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω, deepcopy(sc.measure), 
+        copy(sc.data), M, sc.crystal, sc.origin_crystal, sc.Δω,
+        deepcopy(sc.measure), copy(sc.observables), copy(sc.positions), copy(sc.corr_pairs),
         sc.measperiod, sc.dt, sc.nsamples,
         copy(sc.samplebuf), copy(sc.corrbuf), space_fft!, time_fft!, corr_fft!, corr_ifft!
     )
@@ -126,7 +132,7 @@ can can then be extracted as pair-correlation [`intensities`](@ref) with
 appropriate classical-to-quantum correction factors. See also
 [`intensities_static`](@ref), which integrates over energy.
 """
-function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false)
+function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, positions=nothing)
     if isnothing(energies)
         n_all_ω = 1
         measperiod = 1
@@ -143,8 +149,15 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
         Δω = ωmax/(nω-1)
     end
 
-    # Preallocation
-    na = natoms(sys.crystal)
+
+    positions = if isnothing(positions)
+        map(eachsite(sys)) do site
+            sys.crystal.positions[site.I[4]]
+        end
+    else
+        positions
+    end
+    npos = size(positions, 4) 
 
     # The sample buffer holds n_non_neg_ω measurements, and the rest is a zero buffer
     measure = isnothing(measure) ? ssf_trace(sys) : measure
@@ -173,7 +186,9 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
 
     # Make Structure factor and add an initial sample
     origin_crystal = isnothing(sys.origin) ? nothing : sys.origin.crystal
-    sc = SampledCorrelations(data, M, sys.crystal, origin_crystal, Δω, measure, measperiod, dt, nsamples,
+    sc = SampledCorrelations(data, M, sys.crystal, origin_crystal, Δω,
+                             measure, copy(measure.observables), positions, copy(measure.corr_pairs),
+                             measperiod, dt, nsamples,
                              samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 
     return sc

@@ -16,13 +16,13 @@ function phase_averaged_elements(data, q_absolute::Vec3, crystal::Crystal, ff_at
     return SVector{NCorr,ComplexF64}(elems)
 end
 
-function prefactors_for_phase_averaging(q_absolute::Vec3, crystal::Crystal, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
+function prefactors_for_phase_averaging(q_absolute::Vec3, recipvecs, positions, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
     # Form factor
     ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute), Val{NAtoms}())
 
     # Overall phase factor for each site
-    q = crystal.recipvecs \ q_absolute
-    r = crystal.positions
+    q = recipvecs \ q_absolute
+    r = positions
     prefactor = ntuple(i -> ffs[i] * exp(- 2π*im * (q ⋅ r[i])), Val{NAtoms}())
 
     return prefactor 
@@ -38,7 +38,7 @@ end
 # not used, but would be employed in a parallel intensities-like pipeline for
 # error propagation.
 function error_basis_reduction(data, q_absolute::Vec3, _::Crystal, ff_atoms, ::Val{NCorr}, ::Val{NAtoms}) where {NCorr, NAtoms}
-    elems = zero(MVector{NCorr,ComplexF64})
+    elems = zero(MVector{NCorr, ComplexF64})
     ffs = ntuple(i -> compute_form_factor(ff_atoms[i], q_absolute⋅q_absolute), NAtoms)
 
     for j in 1:NAtoms, i in 1:NAtoms

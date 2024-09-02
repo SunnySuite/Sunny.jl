@@ -10,7 +10,7 @@ function observable_values!(buf, sys::System{N}, observables) where N
     else
         Zs = sys.coherents
         for i in axes(observables, 1)
-            for site in eachsite(sys)
+            for site in eachsite(sys) # change this so iterates over npos, where npos may not equal natoms
                 obs = observables[i, site] 
                 buf[i, site] = dot(Zs[site], obs, Zs[site])
             end
@@ -33,7 +33,7 @@ function trajectory!(buf, sys, dt, nsnaps, observables; measperiod = 1)
 end
 
 function new_sample!(sc::SampledCorrelations, sys::System)
-    (; dt, samplebuf, measperiod, measure) = sc
+    (; dt, samplebuf, measperiod, observables) = sc
 
     # Only fill the sample buffer half way; the rest is zero-padding
     buf_size = size(samplebuf, 6)
@@ -42,13 +42,13 @@ function new_sample!(sc::SampledCorrelations, sys::System)
 
     @assert size(sys.dipoles) == size(samplebuf)[2:5] "`System` size not compatible with given `SampledCorrelations`"
 
-    trajectory!(samplebuf, sys, dt, nsnaps, measure.observables; measperiod)
+    trajectory!(samplebuf, sys, dt, nsnaps, observables; measperiod)
 
     return nothing
 end
 
 function accum_sample!(sc::SampledCorrelations; window)
-    (; data, M, measure, samplebuf, corrbuf, nsamples, space_fft!, time_fft!, corr_fft!, corr_ifft!) = sc
+    (; data, M, corr_pairs, samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!) = sc
     natoms = size(samplebuf)[5]
 
     num_time_offsets = size(samplebuf, 6)
@@ -83,7 +83,7 @@ function accum_sample!(sc::SampledCorrelations; window)
 
     count = sc.nsamples += 1
 
-    for j in 1:natoms, i in 1:natoms, (c, (α, β)) in enumerate(measure.corr_pairs)
+    for j in 1:natoms, i in 1:natoms, (c, (α, β)) in enumerate(corr_pairs)
         # α, β = ci.I
 
         sample_α = @view samplebuf[α,:,:,:,i,:]

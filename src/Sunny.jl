@@ -117,8 +117,8 @@ export SampledCorrelations, SampledCorrelationsStatic, add_sample!, clone_correl
     merge_correlations
 
 include("EntangledUnits/EntangledSpinWaveTheory.jl")
-# include("EntangledUnits/EntangledSampledCorrelations.jl")
-export EntangledSpinWaveTheory
+include("EntangledUnits/EntangledSampledCorrelations.jl")
+export EntangledSpinWaveTheory, EntangledSampledCorrelations
 
 include("MonteCarlo/Samplers.jl")
 include("MonteCarlo/BinnedArray.jl")
