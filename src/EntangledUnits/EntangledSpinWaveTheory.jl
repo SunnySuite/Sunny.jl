@@ -221,7 +221,7 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; formfactors=nothi
             map!(corrbuf, measure.corr_pairs) do (α, β)
                 Avec[α] * conj(Avec[β]) / Ncells
             end
-            intensity[band, iq] = thermal_prefactor(kT, disp[band]) * measure.combiner(q_global, corrbuf)
+            intensity[band, iq] = thermal_prefactor(disp[band]; kT) * measure.combiner(q_global, corrbuf)
         end
     end
 
