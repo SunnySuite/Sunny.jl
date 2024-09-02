@@ -31,7 +31,9 @@ end
 function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calculate_errors=false)
     (; observables_new, positions) = observables_to_product_space(measure.observables, esys)
     sc = SampledCorrelations(esys.sys; measure, energies, dt, calculate_errors) 
-    sc_new = SampledCorrelations(sc.data, sc.M, sc.crystal, sc.origin_crystal, sc.Δω, measure, observables_new, positions, measure.corr_pairs,
+    crystal = esys.sys_origin.crystal
+    origin_crystal = orig_crystal(esys.sys_origin)
+    sc_new = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables_new, positions, measure.corr_pairs,
                                  sc.measperiod, sc.dt, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
 
     EntangledSampledCorrelations(sc_new, esys)

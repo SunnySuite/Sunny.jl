@@ -139,7 +139,6 @@ function intensities_rounded!(intensities, data, crystal, positions, combiner, f
     qidx = 1
     for (qabs, idx, count) in zip(qabs, idcs, counts)
         prefactors = prefactors_for_phase_averaging(qabs, recipvecs, @view(positions[idx,:]), ff_atoms, Val(NCorr), Val(NPos))
-        println(prefactors)
 
         # Perform phase-averaging over all omega
         for (n, iω) in enumerate(ωidcs)
