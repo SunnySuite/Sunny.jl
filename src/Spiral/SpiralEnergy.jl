@@ -33,7 +33,7 @@ The [`spiral_energy`](@ref) divided by the number of sites in `sys`. The special
 case ``𝐤 = 0`` yields a result identical to [`energy_per_site`](@ref).
 """
 function spiral_energy_per_site(sys::System{0}; k, axis)
-    return spiral_energy(sys; k, axis) / length(eachsite(sys))
+    return spiral_energy(sys; k, axis) / nsites(sys)
 end
 
 function spiral_energy_and_gradient_aux!(dEds, sys::System{0}; k, axis)

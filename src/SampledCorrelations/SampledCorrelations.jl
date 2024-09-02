@@ -3,7 +3,7 @@ mutable struct SampledCorrelations
     const data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × sys_dims × nω)
     const M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
     const crystal        :: Crystal                              # Crystal for interpretation of q indices in `data`
-    const origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above) -- needed for FormFactor accounting
+    const origin_crystal :: Union{Nothing,Crystal}               # Original user-specified crystal (if different from above)
     const Δω             :: Float64                              # Energy step size (could make this a virtual property)  
     measure              :: MeasureSpec                          # Observable, correlation pairs, and combiner
 

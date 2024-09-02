@@ -126,7 +126,7 @@ export BinningParameters, load_nxs, generate_mantid_script_from_binning_paramete
 include("deprecated.jl")
 export set_external_field!, set_external_field_at!, meV_per_K,
     dynamic_correlations, instant_correlations, intensity_formula, reciprocal_space_path,
-    set_spiral_order_on_sublattice!, set_spiral_order!
+    delta_function_kernel, set_spiral_order_on_sublattice!, set_spiral_order!
 
 isloaded(pkg::String) = any(k -> k.name == pkg, keys(Base.loaded_modules))
 

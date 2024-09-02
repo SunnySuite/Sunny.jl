@@ -85,7 +85,7 @@ Base.@deprecate instant_correlations(sys; opts...) let
 end
 
 Base.@deprecate intensity_formula(opts1...; opts2...) let
-    error("Formulas have been removed. Call `intensities` directly.")
+    error("Formulas have been removed. See revised Sunny docs for new interface.")
 end
 
 Base.@deprecate reciprocal_space_path(cryst::Crystal, qs, density) let
@@ -109,6 +109,9 @@ Base.@deprecate SpinInfo(i; S, g) let
     @warn "SpinInfo(i; S, g) is deprecated! Use `i => Moment(; s, g)` instead."
     i => Moment(; s=S, g)
 end
+
+Base.@deprecate_binding delta_function_kernel nothing
+
 
 # REMEMBER TO ALSO DELETE:
 #

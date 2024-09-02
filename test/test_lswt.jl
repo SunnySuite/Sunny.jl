@@ -163,8 +163,7 @@ end
     
     function test_biquad(mode, q, s)
         # System
-        infos = [1 => Moment(; s, g=2)]
-        sys = System(cryst, infos, mode; dims=(2, 2, 2))
+        sys = System(cryst, [1 => Moment(; s, g=2)], mode; dims=(2, 2, 2))
         α = -0.4π
         J = 1.0
         JL, JQ = J * cos(α), J * sin(α) / s^2
@@ -464,8 +463,8 @@ end
     function build_system(R, D1, D2, J, K1, K2, h, g)
         latvecs = lattice_vectors(1, 1, 1, 92, 93, 94)
         cryst = Crystal(latvecs, [[0,0,0], [0.4,0,0]]; types=["A", "B"])
-        infos = [1 => Moment(s=1, g=2), 2 => Moment(s=2, g=R*g*R')]
-        sys = System(cryst, infos, :dipole; seed=101)
+        moments = [1 => Moment(s=1, g=2), 2 => Moment(s=2, g=R*g*R')]
+        sys = System(cryst, moments, :dipole; seed=101)
 
         set_onsite_coupling!(sys, S -> S'*R*(D1+D1')*R'*S, 1)
         set_onsite_coupling!(sys, S -> S'*R*(D2+D2')*R'*S, 2)

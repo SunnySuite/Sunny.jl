@@ -210,7 +210,7 @@ function suggest_timestep_aux(sys::System{N}, integrator; tol) where N
     # information about the frequency of oscillation. Consider, e.g., a spin
     # approximately aligned with an external field: the precession frequency is
     # given by |∇E| = |B|.
-    drift_rms = sqrt(acc/length(eachsite(sys)))
+    drift_rms = sqrt(acc/nsites(sys))
     if iszero(drift_rms)
         error("Cannot suggest a timestep without an energy scale!")
     end

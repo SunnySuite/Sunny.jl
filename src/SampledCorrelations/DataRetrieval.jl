@@ -70,7 +70,8 @@ end
 
 contains_dynamic_correlations(sc) = !isnan(sc.Δω)
 
-# Documented under intensities function for LSWT.
+# Documented under intensities function for LSWT. TODO: As a hack, this function
+# is also being used as the back-end to intensities_static.
 function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT)
     if !isnothing(kT) && kT <= 0
         error("Positive `kT` required for classical-to-quantum corrections, or set `kT=nothing` to disable.")
@@ -92,15 +93,20 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
 
     # Prepare memory and configuration variables for actual calculation
     qpts = Base.convert(AbstractQPoints, qpts)
+    qs_reshaped = [to_reshaped_rlu(sc, q) for q in qpts.qs]
+
     ffs = sc.measure.formfactors[1, :] # FIXME
     intensities = zeros(eltype(sc.measure), isnan(sc.Δω) ? 1 : length(ωs), length(qpts.qs)) # N.B.: Inefficient indexing order to mimic LSWT
-    q_idx_info = pruned_wave_vector_info(sc, qpts.qs)
+    q_idx_info = pruned_wave_vector_info(sc, qs_reshaped)
     crystal = @something sc.origin_crystal sc.crystal
     NCorr  = Val{size(sc.data, 1)}()
     NAtoms = Val{size(sc.data, 2)}()
 
     # Intensities calculation
     intensities_rounded!(intensities, sc.data, sc.crystal, sc.measure, ffs, q_idx_info, ωidcs, NCorr, NAtoms)
+
+    # Convert to a q-space density in original (not reshaped) RLU.
+    intensities .*= det(sc.crystal.recipvecs) / det(crystal.recipvecs)
 
     # Post-processing steps for dynamical correlations 
     if contains_dynamic_correlations(sc) 
@@ -120,7 +126,6 @@ function intensities(sc::SampledCorrelations, qpts; energies, kernel=nothing, kT
 
     intensities = reshape(intensities, length(ωs), size(qpts.qs)...)
 
-    # TODO: Refactor this logic so that return value is uniform.
     return if contains_dynamic_correlations(sc) 
         Intensities(crystal, qpts, collect(ωs), intensities)
     else
@@ -200,8 +205,5 @@ function broaden_energy(sc::SampledCorrelations, is, kernel::Function; negative_
     return out
 end
 =#
-
-
-
 
 
