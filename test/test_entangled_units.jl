@@ -117,13 +117,6 @@ end
 
     # Calculation dispersion and intensities
     FWHM = 0.295
-    σ = FWHM/2.355
-    kernel = ω -> (1/√(2π*σ^2)*exp(-(ω^2/(2σ^2)))) 
-    # formfactors = [FormFactor("Mn5")] # TODO: Add support for this -- currently does nothing
-    # formula = intensity_formula(swt, :perp; kernel, formfactors)
-    formula = intensity_formula(swt, :perp; kernel)
-    # formula_bands = intensity_formula(swt, :perp; kernel=delta_function_kernel, formfactors)
-    formula_bands = intensity_formula(swt, :perp; kernel=delta_function_kernel)
 
     points = [
         [0.175, 0.175, 1.5],
@@ -132,12 +125,11 @@ end
         [0.0, 0.0, 3],
         [0.0, 0.0, 8],
     ]
-    path, xticks = reciprocal_space_path(crystal, points, 3)
+    qpts = q_space_path(crystal, points, 20)
     energies = range(0.0, 4.0, 10)
 
-    is = intensities_broadened(swt, path, energies, formula)
-    disp, _ = intensities_bands(swt, path, formula_bands)
-
+    is = intensities(swt, qpts; energies; kernel=gaussian(; fwhm=FWHM))
+    is_bands = intensities_bands(swt, qpts)
 
     d0_ref = disp0.(path)
     d0 = disp[:,8]

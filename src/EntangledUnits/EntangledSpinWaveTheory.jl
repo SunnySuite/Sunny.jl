@@ -96,9 +96,6 @@ function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
     local_unitaries = Vector{Matrix{ComplexF64}}(undef, nunits)
     observables_localized = Array{HermitianC64}(undef, atoms_per_unit, nobs, nunits)
     observable_buf = zeros(ComplexF64, N, N)
-    # spins_localized = Array{HermitianC64}(undef, 3, Na) # add if supporting Ewald
-    # local_unitaries = zeros(ComplexF64, N, N, nunits)
-    # observables_localized_all = zeros(ComplexF64, N, N, sites_per_unit, num_observables(obs), nunits)
 
     # Find local unitaries (for units)
     for i in 1:nunits
@@ -116,7 +113,6 @@ function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
                 observables_localized[ui, μ, i] = Hermitian(U' * convert(Matrix, A_prod) * U)
             end
         end
-
     end
 
     # Rotate all observables in each unit into local reference frame.
