@@ -181,10 +181,6 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; formfactors=nothi
 
     Nobs = size(measure.observables, 1)
 
-    # Expand formfactors for symmetry classes to formfactors for all atoms in
-    # crystal
-    ff_atoms = propagate_form_factors_to_atoms(formfactors, swt.crystal_origin)
-
     for (iq, q) in enumerate(qpts.qs)
         q_global = cryst.recipvecs * q
         q_reshaped = cryst.recipvecs \ (crystal_origin.recipvecs * q)
@@ -209,7 +205,8 @@ function intensities_bands(swt::EntangledSpinWaveTheory, qpts; formfactors=nothi
                     fill!(O, 0)
                     for (subsite, inverse_info) in enumerate(inverse_infos)
                         site_original, offset = inverse_info.site, inverse_info.offset
-                        prefactor = exp(-2π*im*(q_reshaped ⋅ offset)) * compute_form_factor(ff_atoms[site_original], norm2(q_global))
+                        ff = get_swt_formfactor(measure, 1, site_original)
+                        prefactor = exp(-2π*im*(q_reshaped ⋅ offset)) * compute_form_factor(ff, norm2(q_global))
                         O += prefactor * data.observables_localized[subsite, μ, i]
                     end
                     for α in 1:N-1
