@@ -16,7 +16,7 @@ can can then be extracted as pair-correlation [`intensities`](@ref) with
 appropriate classical-to-quantum correction factors. See also
 [`intensities_instant`](@ref), which integrates over the available energy range.
 """
-mutable struct SampledCorrelations{Op}
+mutable struct SampledCorrelations
     # 𝒮^{αβ}(q,ω) data and metadata
     const data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × sys_dims × nω)
     const M              :: Union{Nothing, Array{Float64, 7}}    # Running estimate of (nsamples - 1)*σ² (where σ² is the variance of intensities)
@@ -26,7 +26,7 @@ mutable struct SampledCorrelations{Op}
 
     # Observable information
     measure            :: MeasureSpec                            # Storehouse for combiner. Mutable so combiner can be changed.
-    const observables  :: Array{Op, 5}                           # (nobs × npos x latsize) -- note change of ordering relative to MeasureSpec.
+    const observables  # :: Array{Op, 5}                           # (nobs × npos x latsize) -- note change of ordering relative to MeasureSpec.
     const positions    :: Array{Vec3, 4}                         # Position of each operator in fractional coordinates (latsize x npos)
     const atom_idcs    :: Array{Int64, 4}                        # Atom index corresponding to position of observable.
     const corr_pairs   :: Vector{NTuple{2, Int}}                 # (ncorr)
@@ -56,13 +56,13 @@ data will be unavailable for `SampledCorrelationsStatic`. Furthermore,
 distribution, and misses classical-to-quantum corrections that can be captured
 by `SampledCorrelations`.
 """
-struct SampledCorrelationsStatic{Op}
-    parent :: SampledCorrelations{Op}
+struct SampledCorrelationsStatic
+    parent :: SampledCorrelations
+end
 
-    function SampledCorrelationsStatic(sys::System; measure, calculate_errors=false)
-        parent = SampledCorrelations(sys; measure, energies=nothing, dt=NaN, calculate_errors)
-        return new{typeof(parent).parameters[1]}(parent)
-    end
+function SampledCorrelationsStatic(sys::System; measure, calculate_errors=false)
+    parent = SampledCorrelations(sys; measure, energies=nothing, dt=NaN, calculate_errors)
+    return SampledCorrelationsStatic(parent)
 end
 
 
@@ -138,7 +138,7 @@ end
 Accumulate a list of `SampledCorrelations` into a single, summary
 `SampledCorrelations`. Useful for reducing the results of parallel computations.
 """
-function merge_correlations(scs::Vector{SampledCorrelations{Op}}) where {Op}
+function merge_correlations(scs::Vector{SampledCorrelations})
     sc_merged = clone_correlations(scs[1])
     μ = zero(sc_merged.data)
     for sc in scs[2:end]
