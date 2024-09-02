@@ -1,3 +1,6 @@
+################################################################################
+# Crystal contraction 
+################################################################################
 # Data for mapping one site inside a unit back to the site of the original
 # system.
 struct InverseData
@@ -23,25 +26,35 @@ struct CrystalContractionInfo
     inverse :: Vector{Vector{InverseData}}  # List ordered according to contracted crystal sites. Each element is itself a list containing original crystal site indices and corresponding offset information 
 end
 
-struct EntangledSystem
-    sys               :: System                             # System containing entangled units
-    sys_origin        :: System                             # Original "uncontracted" system
-    contraction_info  :: CrystalContractionInfo             # Forward and inverse mapping data for sys <-> sys_origin
 
-    dipole_operators  :: Array{Matrix{ComplexF64}, 5}       # An observable field corresponding to dipoles of the original system.
-    source_idcs       :: Array{Int64, 4}                    # Metadata for populating the original dipoles from entangled sites.
+################################################################################
+# System 
+################################################################################
+struct EntangledSystem
+    sys               :: System                         # System containing entangled units
+    sys_origin        :: System                         # Original "uncontracted" system
+    contraction_info  :: CrystalContractionInfo         # Forward and inverse mapping data for sys <-> sys_origin
+    dipole_operators  :: Array{Matrix{ComplexF64}, 5}   # An observable field corresponding to dipoles of the original system.
+    source_idcs       :: Array{Int64, 4}                # Metadata for populating the original dipoles from entangled sites.
 end
 
 function EntangledSystem(sys, units)
     (; sys_entangled, contraction_info) = entangle_system(sys, units)
     sys_origin = clone_system(sys)
+
     dipole_operators_origin = all_dipole_observables(sys_origin; apply_g=false) 
     (; observables_new, source_idcs)  = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
 
     esys = EntangledSystem(sys_entangled, sys_origin, contraction_info, observables_new, source_idcs)
     set_expected_dipoles_of_entangled_system!(esys)
+
     return esys
 end
+
+
+################################################################################
+# Aliasing 
+################################################################################
 
 function Base.show(io::IO, esys::EntangledSystem)
     print(io, "EntangledSystem($(mode_to_str(esys.sys)), $(lattice_to_str(esys.sys_origin)), $(energy_to_str(esys.sys)))")
@@ -57,8 +70,27 @@ function Base.show(io::IO, ::MIME"text/plain", esys::EntangledSystem)
     println(io, energy_to_str(esys.sys))
 end
 
-function randomize_spins!(esys::EntangledSystem; kwargs...) 
-    randomize_spins!(esys.sys; kwargs...)
+eachsite(esys::EntangledSystem) = eachsite(esys.sys_origin)
+eachunit(esys::EntangledSystem) = eachsite(esys.sys)
+
+energy(esys::EntangledSystem) = energy(esys.sys)
+energy_per_site(esys::EntangledSystem) = energy(esys.sys) / length(eachsite(esys.sys_origin))
+
+set_dipole!(esys::EntangledSystem, dipole, site; kwargs...) = error("Setting dipoles of an EntangledSystem not well defined.") 
+
+# Sets the coherent state of a specified unit. The `site` refers to the
+# contracted lattice (i.e., to a "unit"). The function then updates all dipoles
+# in the uncontracted system that are determined by the coherent state. 
+function set_coherent!(esys::EntangledSystem, coherent, site) 
+    set_coherent!(esys.sys, coherent, site; kwargs...)
+    a, b, c, unit = site.I
+    for atom in atoms_in_unit(contraction_info, unit)
+        set_expected_dipole_of_entangled_system!(esys, CartesianIndex(a, b, c, atom))
+    end
+end
+
+function randomize_spins!(esys::EntangledSystem) 
+    randomize_spins!(esys.sys)
     set_expected_dipoles_of_entangled_system!(esys)
 end
 
@@ -67,23 +99,6 @@ function minimize_energy!(esys::EntangledSystem; kwargs...)
     set_expected_dipoles_of_entangled_system!(esys)
     return optout
 end
-
-energy(esys::EntangledSystem; kwargs...) = energy(esys.sys; kwargs...)
-
-set_dipole!(esys::EntangledSystem, dipole, site; kwargs...) = error("Setting dipoles of an EntangledSystem not well defined.") 
-
-function set_coherent!(esys::EntangledSystem, coherent, site; kwargs...) 
-    set_coherent!(esys.sys, coherent, site; kwargs...)
-    a, b, c, unit = site.I
-    for atom in atoms_in_unit(contraction_info, unit)
-        set_expected_dipole_of_entangled_system!(esys, CartesianIndex(a, b, c, atom))
-    end
-end
-
-eachsite(esys::EntangledSystem) = eachsite(esys.sys) # Not sure that we want this
-
-# TODO: set_external_field!(esys, B)
-
 
 function magnetic_moment(esys::EntangledSystem, site; kwargs...) 
     magnetic_moment(esys.sys_origin, site; kwargs...)

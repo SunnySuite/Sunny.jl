@@ -40,16 +40,17 @@ end
 # system. 
 function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calculate_errors=false)
     # Convert observables on different sites to "multiposition" observables in
-    # tensor product spaces. Atom indices is used to coordinate the observable
-    # (now floating in abstract space) with a site of the "contracted" lattice.
-    # This information is necessary to associate the operator with a particular
-    # coherent state of the contracted system.
+    # tensor product spaces. With entangled units, the position of an operator
+    # cannot be uniquely determined from the `atom` index of a `Site`. Instead,
+    # the position is recorded independently, and the index of the relevant
+    # coherent state (which may now be used for operators corresponding to
+    # multiple positions) is recorded in `source_idcs`.
     (; observables_new, positions, source_idcs) = observables_to_product_space(measure.observables, esys.sys_origin, esys.contraction_info)
 
-    # Make a sampled correlations for the esys 
+    # Make a sampled correlations for the esys.
     sc = SampledCorrelations(esys.sys; measure, energies, dt, calculate_errors, positions) 
 
-    # Replace relevant fields or the Sampled correlations. Note use of
+    # Replace relevant fields or the resulting SampledCorrelations. Note use of
     # undocumented `positions` keyword. This can be eliminated if positions are
     # migrated into the MeasureSpec.
     crystal = esys.sys_origin.crystal
@@ -61,9 +62,11 @@ function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calcu
 end
 
 
+# TODO: Note this simple wrapper makes everythingn work, but is not the most efficient
+# solution. `step!` currently
 function step!(esys::EntangledSystem, integrator)
-    step!(esys.sys, integrator) # Can write reduced version which doesn't set expected dipoles field
-    # Coordinate expected dipoles of subsystem
+    step!(esys.sys, integrator) 
+    set_expected_dipoles_of_entangled_system!(esys)
 end
 
 function add_sample!(esc::EntangledSampledCorrelations, esys::EntangledSystem; window=:cosine)
