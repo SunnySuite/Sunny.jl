@@ -1,20 +1,28 @@
 struct EntangledSampledCorrelations
-    sc::SampledCorrelations
-    esys::EntangledSystem
+    sc::SampledCorrelations  # Parent SampledCorrelations
+    esys::EntangledSystem    # Probably don't need to carry around the whole thing -- defeats spirit of original design for SC
 end
 
 # TODO: Write Base.show methods
 
-function dynamical_correlations(esys::EntangledSystem; kwargs...)
-    # TODO: Add test to make sure observables are dipoles
-    sc = dynamical_correlations(esys.sys_origin; observables=nothing, correlations=nothing, force_dipole = true, kwargs...)
+
+function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calculate_errors=false)
+    sc = SampledCorrelations(esys.sys_origin; measure, energies, dt, calculate_errors) 
     EntangledSampledCorrelations(sc, esys)
 end
 
-function instant_correlations(esys::EntangledSystem; kwargs...)
-    # TODO: Add test to make sure observables are dipoles
-    dynamical_correlations(esys; dt=NaN, ωmax=NaN, nω=1, kwargs...)
-end
+
+
+# function dynamical_correlations(esys::EntangledSystem; kwargs...)
+#     # TODO: Add test to make sure observables are dipoles
+#     sc = dynamical_correlations(esys.sys_origin; observables=nothing, correlations=nothing, force_dipole = true, kwargs...)
+#     EntangledSampledCorrelations(sc, esys)
+# end
+  
+# function instant_correlations(esys::EntangledSystem; kwargs...)
+#     # TODO: Add test to make sure observables are dipoles
+#     dynamical_correlations(esys; dt=NaN, ωmax=NaN, nω=1, kwargs...)
+# end
 
 available_energies(esc::EntangledSampledCorrelations) = available_energies(esc.sc)
 available_wave_vectors(esc::EntangledSampledCorrelations) = available_wave_vectors(esc.sc)
