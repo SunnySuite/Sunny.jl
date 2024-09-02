@@ -62,68 +62,10 @@ function step!(esys::EntangledSystem, integrator)
     # Coordinate expected dipoles of subsystem
 end
 
-# function step!(esys::EntangledSystem, integrator::Langevin) 
-#     check_timestep_available(integrator)
-#     sys = esys.sys
-# 
-#     (Z′, ΔZ₁, ΔZ₂, ζ, HZ) = get_coherent_buffers(sys, 5)
-#     Z = sys.coherents
-# 
-#     fill_noise!(sys.rng, ζ, integrator)
-# 
-#     # Euler prediction step
-#     set_energy_grad_coherents!(HZ, Z, sys)
-#     rhs_sun!(ΔZ₁, Z, ζ, HZ, integrator)
-#     @. Z′ = normalize_ket(Z + ΔZ₁, sys.κs)
-# 
-#     # Correction step
-#     set_energy_grad_coherents!(HZ, Z′, sys)
-#     rhs_sun!(ΔZ₂, Z′, ζ, HZ, integrator)
-#     @. Z = normalize_ket(Z + (ΔZ₁+ΔZ₂)/2, sys.κs)
-# 
-#     return
-# end
-# 
-# function step!(esys::EntangledSystem, integrator::ImplicitMidpoint; max_iters=100) where N
-#     check_timestep_available(integrator)
-#     sys = esys.sys
-# 
-#     Z = sys.coherents
-#     atol = integrator.atol * √length(Z)
-#     
-#     (ΔZ, Z̄, Z′, Z″, ζ, HZ) = get_coherent_buffers(sys, 6)
-#     fill_noise!(sys.rng, ζ, integrator)
-# 
-#     @. Z′ = Z 
-#     @. Z″ = Z 
-# 
-#     for _ in 1:max_iters
-#         @. Z̄ = (Z + Z′)/2
-# 
-#         set_energy_grad_coherents!(HZ, Z̄, sys)
-#         rhs_sun!(ΔZ, Z̄, ζ, HZ, integrator)
-# 
-#         @. Z″ = Z + ΔZ
-# 
-#         if fast_isapprox(Z′, Z″; atol)
-#             @. Z = normalize_ket(Z″, sys.κs)
-#             return
-#         end
-# 
-#         Z′, Z″ = Z″, Z′
-#     end
-# 
-#     error("Schrödinger midpoint method failed to converge in $max_iters iterations.")
-# end
-
-
-
 function add_sample!(esc::EntangledSampledCorrelations, esys::EntangledSystem; window=:cosine)
     new_sample!(esc.sc, esys.sys)
     accum_sample!(esc.sc; window)
 end
-
-
 
 available_energies(esc::EntangledSampledCorrelations) = available_energies(esc.sc)
 available_wave_vectors(esc::EntangledSampledCorrelations) = available_wave_vectors(esc.sc)

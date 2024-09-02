@@ -19,8 +19,6 @@ end
 
 # TODO: Add reshapings tests.
 
-# TODO: Add more complicated interaction tests (e.g., for Ba3Mn2O8).
-
 # TODO: Add test with magnetic unit cell larger than a single unit (i.e. not q=0
 # ordering).
 

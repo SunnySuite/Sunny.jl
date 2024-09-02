@@ -68,7 +68,7 @@ end
 Accumulate a list of `SampledCorrelations` into a single, summary
 `SampledCorrelations`. Useful for reducing the results of parallel computations.
 """
-function merge_correlations(scs::Vector{SampledCorrelations})
+function merge_correlations(scs::Vector{SampledCorrelations{Op}}) where {Op}
     sc_merged = clone_correlations(scs[1])
     μ = zero(sc_merged.data)
     for sc in scs[2:end]
