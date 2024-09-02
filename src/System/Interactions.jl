@@ -234,7 +234,7 @@ end
 The total system [`energy`](@ref) divided by the number of sites.
 """
 function energy_per_site(sys::System{N}) where N
-    return energy(sys) / length(eachsite(sys))
+    return energy(sys) / nsites(sys)
 end
 
 """

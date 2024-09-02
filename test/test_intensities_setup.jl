@@ -66,7 +66,8 @@ end
     s = 1/2
     g = 2.3
     cryst = Sunny.diamond_crystal()
-    sys = System(cryst, [1 => Moment(; s, g)], :SUN; dims=(3, 1, 1), seed=1)
+    dims = (1, 2, 1) # TODO: why not (1,1,1)?
+    sys = System(cryst, [1 => Moment(; s, g)], :SUN; dims)
     randomize_spins!(sys)
     sc = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; apply_g=true))
     add_sample!(sc, sys)
@@ -91,45 +92,52 @@ end
     @test sum(res_prim.data) / length(qs) ≈ Sunny.natoms(cryst) * s^2 * g^2
 end
 
-@testitem "Polyatomic sum rule" begin
-    sys = System(Sunny.diamond_crystal(), [1 => Moment(s=1/2, g=2)], :SUN; dims=(4, 1, 1), seed=1)
+@testitem "Sublattice sum rule" begin
+    latvecs = lattice_vectors(2, 1, 1, 90, 90, 90)
+    cryst = Crystal(latvecs, [[0, 0, 0], [0.5, 0, 0]]; types=["A", "B"])
+    s = 1/2
+    g1 = 2
+    g2 = 2.3
+    dims = (2, 1, 1) # TODO: Why won't (1,1,1) work?
+    sys = System(cryst, [1 => Moment(; s, g=g1), 2 => Moment(; s, g=g2)], :dipole; dims)
     randomize_spins!(sys)
-    sc = SampledCorrelations(sys; dt=0.8, energies=range(0.0, 1.0, 3), measure=ssf_trace(sys; apply_g=true))
+
+    sc = SampledCorrelationsStatic(sys; measure=ssf_trace(sys))
+    qs = Sunny.available_wave_vectors(sc.parent; counts=(2, 1, 1))
+    add_sample!(sc, sys)
+    res = intensities_static(sc, qs[:])
+    @test sum(res.data) / length(qs) ≈ s^2 * (g1^2 + g2^2)
+
+    # Just atoms A
+    formfactors = [1 => one(FormFactor), 2 => zero(FormFactor)]
+    sc = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; formfactors))
+    add_sample!(sc, sys)
+    res = intensities_static(sc, qs[:])
+    @test sum(res.data) / length(qs) ≈ s^2 * g1^2
+
+    # Just atoms B
+    formfactors = [1 => zero(FormFactor), 2 => one(FormFactor)]
+    sc = SampledCorrelationsStatic(sys; measure=ssf_trace(sys; formfactors))
+    add_sample!(sc, sys)
+    res = intensities_static(sc, qs[:])
+    @test sum(res.data) / length(qs) ≈ s^2 * g2^2
+end
+
+@testitem "Dynamic sum rule" begin
+    s = 3/2
+    g = 2.3
+    cryst = Sunny.cubic_crystal()
+    sys = System(cryst, [1 => Moment(; s, g)], :dipole)
+    set_exchange!(sys, 1.0, Bond(1, 1, [1, 0, 0]))
+    randomize_spins!(sys)
+
+    sc = SampledCorrelations(sys; dt=0.1, energies=range(0.0, 1.0, 3), measure=ssf_trace(sys))
     add_sample!(sc, sys)
 
-    sum_rule_ixs = [1, 4, 6]  # indices for zz, yy, xx
-    sub_lat_sum_rules = sum(sc.data[sum_rule_ixs,:,:,:,:,:,:], dims=[1,4,5,6,7])[1,:,:,1,1,1,1]
-
-    Δq³ = 1/prod(sys.dims) # Fraction of a BZ
-    n_all_ω = size(sc.data, 7)
-    # Intensities in sc.data are a density in q, but already integrated over dω
-    # bins, and then scaled by n_all_ω. Therefore, we need the factor below to
-    # convert the previous sum to an integral.
-    sub_lat_sum_rules .*= Δq³ / n_all_ω
-
-    # SU(N) sum rule for S = 1/2:
-    # ⟨∑ᵢSᵢ²⟩ = 3/4 on every site, but because we're classical, we
-    # instead compute ∑ᵢ⟨Sᵢ⟩² = (1/2)^2 = 1/4 since the ⟨Sᵢ⟩ form a vector with
-    # length (1/2). Since the actual observables are the magnetization M = gS, we
-    # need to include the g factor. This is the equal-space-and-time correlation value:
-    gS_squared = (2 * 1/2)^2
-
-    expected_sum = gS_squared
-    # This sum rule should hold for each sublattice, independently, and only
-    # need to be taken over a single BZ (which is what sc.data contains) to hold:
-    [sub_lat_sum_rules[i,i] for i in 1:Sunny.natoms(sc.crystal)] ≈ expected_sum * ones(Sunny.natoms(sc.crystal))
-
-    # The polyatomic sum rule demands going out 4 BZ's for the diamond crystal
-    # since there is an atom at relative position [1/4, 1/4, 1/4]. It also
-    # requires integrating over the full sampling frequency range, in this
-    # case by going over both positive and negative energies.
-    counts = (4, 4, 4)
-    qs = Sunny.available_wave_vectors(sc; counts)
+    qs = Sunny.available_wave_vectors(sc)
     res = intensities(sc, qs[:]; energies=:available_with_negative, kT=nothing)
-    calculated_sum = sum(res.data) * Δq³ * sc.Δω
 
-    # This tests that `negative_energies = true` spans exactly one sampling frequency
-    expected_multi_BZ_sum = gS_squared * prod(counts) # ⟨S⋅S⟩
-    expected_multi_BZ_sum_times_natoms = expected_multi_BZ_sum * Sunny.natoms(sc.crystal) # Nₐ×⟨S⋅S⟩
-    @test calculated_sum ≈ expected_multi_BZ_sum_times_natoms
+    # Integrate over energies to get static intensity, then average over sampled
+    # q values to get sum rule.
+    @test sum(res.data) * sc.Δω / length(qs) ≈ (s*g)^2
 end

@@ -43,7 +43,12 @@ struct PowderIntensities{T} <: AbstractIntensities
 end
 
 function Base.show(io::IO, res::AbstractIntensities)
-    sz = join([size(res.data, 1), sizestr(res.qpts)], "×")
+    sz = string(size(res.data, 1)) * "×" * sizestr(res.qpts)
+    print(io, string(typeof(res)) * " ($sz elements)")
+end
+
+function Base.show(io::IO, res::StaticIntensities)
+    sz = sizestr(res.qpts)
     print(io, string(typeof(res)) * " ($sz elements)")
 end
 

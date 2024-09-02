@@ -194,7 +194,7 @@ const Site = Union{NTuple{4, Int}, CartesianIndex{4}}
 end
 
 # Offset a `cell` by `ncells`
-@inline offsetc(cell::CartesianIndex{3}, ncells, dims) = CartesianIndex(altmod1.(Tuple(cell) .+ Tuple(ncells), dims))
+@inline offsetc(cell::CartesianIndex{3}, delta, dims) = CartesianIndex(altmod1.(Tuple(cell) .+ Tuple(delta), dims))
 
 # Split a site `site` into its cell and sublattice parts
 @inline to_cell(site) = CartesianIndex((site[1],site[2],site[3]))
@@ -232,11 +232,7 @@ nsites(sys::System) = length(eachsite(sys))
 """
 nsites(sys::System) = length(eachsite(sys))
 
-"""
-    ncells(sys::System)
-
-Number of chemical cells in the system using the original crystal.
-"""
+# Number of (original) crystal cells in the system
 ncells(sys::System) = nsites(sys) / natoms(orig_crystal(sys))
 
 
