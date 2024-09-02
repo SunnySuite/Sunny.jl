@@ -118,7 +118,8 @@ function unitary_for_rotation(R::Mat3, gen)
     return exp(-im*θ*(n'*gen))
 end
 
-# Unitary for a rotation matrix in the N-dimensional irrep of SU(2).
+# Unitary for a rotation matrix in the N-dimensional irrep of SU(2). TODO: Use
+# polynomial expansions for speed: http://www.emis.de/journals/SIGMA/2014/084/.
 function unitary_irrep_for_rotation(R::Mat3; N::Int)
     gen = spin_matrices_of_dim(; N)
     unitary_for_rotation(R, gen)

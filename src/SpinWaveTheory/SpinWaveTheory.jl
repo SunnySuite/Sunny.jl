@@ -43,7 +43,7 @@ function SpinWaveTheory(sys::System; measure::Union{Nothing, MeasureSpec}, regul
     end
 
     measure = @something measure empty_measurespec(sys)
-    if length(eachsite(sys)) != prod(size(measure.observables)[2:5])
+    if nsites(sys) != prod(size(measure.observables)[2:5])
         error("Size mismatch. Check that measure is built using consistent system.")
     end
 
@@ -162,7 +162,7 @@ end
 # rotating these into the local reference frame determined by the ground state.
 function swt_data(sys::System{N}, measure) where N
     # Calculate transformation matrices into local reference frames
-    Na = length(eachsite(sys))
+    Na = nsites(sys)
     Nobs = size(measure.observables, 1)
     observables = reshape(measure.observables, Nobs, Na)
 
@@ -228,7 +228,7 @@ end
 
 # Compute Stevens coefficients in the local reference frame
 function swt_data(sys::System{0}, measure)
-    Na = length(eachsite(sys))
+    Na = nsites(sys)
     Nobs = size(measure.observables, 1)
 
     # Operators for rotating vectors into local frame

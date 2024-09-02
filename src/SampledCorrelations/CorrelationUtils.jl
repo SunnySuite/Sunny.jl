@@ -1,13 +1,15 @@
 """
-    available_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
+    available_wave_vectors(sc::SampledCorrelations; counts=(1,1,1))
 
-Returns all wave vectors for which `sc` contains exact values. `bsize` specifies
-the number of Brillouin zones to be included.
+Returns the grid of wave vectors for which `sc` contains exact values.
+Optionally extend by a given number of `counts` along each grid axis. If the
+system was not reshaped, then the number of Brillouin zones included is
+`prod(counts)`.
 """
-function available_wave_vectors(sc::SampledCorrelations; bzsize=(1,1,1))
+function available_wave_vectors(sc::SampledCorrelations; counts=(1,1,1))
     Ls = sc.sys_dims
     offsets = map(L -> isodd(L) ? 1 : 0, Ls)
-    up = Ls .* bzsize
+    up = Ls .* counts
     hi = map(L -> L - div(L, 2), up) .- offsets
     lo = map(L -> 1 - div(L, 2), up) .- offsets
 

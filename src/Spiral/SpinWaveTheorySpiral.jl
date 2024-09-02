@@ -189,9 +189,9 @@ function intensities_bands(sswt::SpinWaveTheorySpiral, qpts; kT=0) # TODO: branc
 
     # Number of atoms in magnetic cell
     @assert sys.dims == (1,1,1)
-    Na = length(eachsite(sys))
+    Na = nsites(sys)
     # Number of chemical cells in magnetic cell
-    Ncells = Na / natoms(cryst) # TODO check invariance
+    Ncells = Na / natoms(cryst)
     # Number of quasiparticle modes
     L = nbands(swt)
     # Number of wavevectors

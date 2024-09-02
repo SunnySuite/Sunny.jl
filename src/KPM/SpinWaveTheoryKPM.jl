@@ -70,7 +70,7 @@ function intensities!(data, swt_kpm::SpinWaveTheoryKPM, qpts; energies, kernel::
     @assert eltype(data) == eltype(measure)
     @assert size(data) == (length(energies), length(qpts.qs))
 
-    Na = length(eachsite(sys))
+    Na = nsites(sys)
     Ncells = Na / natoms(cryst)
     Nf = nflavors(swt)
     L = Nf*Na

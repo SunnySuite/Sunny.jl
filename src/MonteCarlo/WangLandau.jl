@@ -31,8 +31,7 @@ function drive_system_to_energy_bounds!(sys::System{N}, bounds, propose::PR, max
     sampler = LocalSampler(; kT, nsweeps=0.01, propose)
     for _ in 1:max_sweeps
         step!(sys, sampler)
-        nsites = length(eachsite(sys))
-        E = E0 + sampler.ΔE/nsites
+        E = E0 + sampler.ΔE/nsites(sys)
         inbounds(E, bounds) && return
     end
 
@@ -64,17 +63,17 @@ end
 # sample for specified number of sweeps
 function step_ensemble!(WL::WangLandau, nsweeps::Int64)
     (; sys) = WL
-    nsites = length(eachsite(sys))
-    WL.E = energy(sys) / nsites
+    N = nsites(sys)
+    WL.E = energy_per_site(sys)
     @assert inbounds(WL.E, WL.bounds)
 
     # try to fulfill the histogram criterion in set number of MC sweeps
     accepts = 0
-    for _ in 1:nsweeps*nsites
+    for _ in 1:nsweeps*N
         # perform single-spin update and calculate proposal energy
         site = rand(sys.rng, eachsite(sys))
         state = WL.propose(sys, site)
-        E_next = WL.E + local_energy_change(sys, site, state) / nsites
+        E_next = WL.E + local_energy_change(sys, site, state) / N
         
         if inbounds(E_next, WL.bounds)
             iszero(WL.ln_g[E_next]) && add_new!(WL, E_next)
