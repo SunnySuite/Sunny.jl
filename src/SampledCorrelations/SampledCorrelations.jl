@@ -26,7 +26,7 @@ mutable struct SampledCorrelations
 
     # Observable information
     measure            :: MeasureSpec                            # Storehouse for combiner. Mutable so combiner can be changed.
-    const observables  # :: Array{Op, 5}                           # (nobs × npos x latsize) -- note change of ordering relative to MeasureSpec.
+    const observables  # :: Array{Op, 5}                         # (nobs × npos x latsize) -- note change of ordering relative to MeasureSpec. TODO: determine type strategy
     const positions    :: Array{Vec3, 4}                         # Position of each operator in fractional coordinates (latsize x npos)
     const atom_idcs    :: Array{Int64, 4}                        # Atom index corresponding to position of observable.
     const corr_pairs   :: Vector{NTuple{2, Int}}                 # (ncorr)

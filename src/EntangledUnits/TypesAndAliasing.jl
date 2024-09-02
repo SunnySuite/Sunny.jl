@@ -153,8 +153,10 @@ ssf_custom_bm(f, esys::EntangledSystem; kwargs...) = ssf_custom_bm(f, esys.sys_o
 ssf_trace(esys::EntangledSystem; kwargs...) = ssf_trace(esys.sys_origin; kwargs...)
 ssf_perp(esys::EntangledSystem; kwargs...) = ssf_perp(esys.sys_origin; kwargs...)
 
-# TODO: Note this simple wrapper makes everythingn work, but is not the most efficient
-# solution. `step!` currently
+# TODO: Note this simple wrapper makes everything work, but is not the most
+# efficient solution. `step!` currently syncs the dipoles field of the
+# EntangledSystem in a meaninless way. This field is ignored everywhere, but
+# this step represents needless computation.
 function step!(esys::EntangledSystem, integrator)
     step!(esys.sys, integrator) 
     set_expected_dipoles_of_entangled_system!(esys)
