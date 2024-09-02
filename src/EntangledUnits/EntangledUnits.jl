@@ -298,7 +298,7 @@ function entangle_system(sys::System{M}, units) where M
         for site in relevant_sites
             unit_index = contraction_info.forward[site][2]
             S = spin_matrices((Ns[unit_index] - 1)/2)
-            B = sys.units.μB * (sys.gs[1, 1, 1, site]' * sys.extfield[1, 1, 1, site])
+            B = sys.gs[1, 1, 1, site]' * sys.extfield[1, 1, 1, site]
             unit_operator -= local_op_to_product_space(B' * S, unit_index, Ns)
         end
 
