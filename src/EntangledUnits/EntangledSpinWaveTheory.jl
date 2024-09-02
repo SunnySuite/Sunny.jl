@@ -16,7 +16,7 @@ struct EntangledSpinWaveTheory <: AbstractSpinWaveTheory
     Ns_unit          :: Vector{Vector{Int64}}
 end
 
-function EntangledSpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
+function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
     (; sys, sys_origin) = esys
     crystal_origin = orig_crystal(sys_origin)
     if !isnothing(sys.ewald)
@@ -61,7 +61,7 @@ function EntangledSpinWaveTheory(esys::EntangledSystem; measure, regularization=
 end
 
 function Base.show(io::IO, ::MIME"text/plain", swt::EntangledSpinWaveTheory)
-    printstyled(io, "SpinWaveTheory\n"; bold=true, color=:underline)
+    printstyled(io, "EntangledSpinWaveTheory\n"; bold=true, color=:underline)
     println(io, "Entangled units in magnetic supercell: $(natoms(swt.sys.crystal))")
     # Add observable info?
 end

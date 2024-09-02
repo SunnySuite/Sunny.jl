@@ -31,25 +31,91 @@ end
 # System 
 ################################################################################
 struct EntangledSystem
+    # Entangled System, original system, and mapping info between systems
     sys               :: System                         # System containing entangled units
     sys_origin        :: System                         # Original "uncontracted" system
     contraction_info  :: CrystalContractionInfo         # Forward and inverse mapping data for sys <-> sys_origin
+
+    # Observable field for dipoles and mapping information for loops
     dipole_operators  :: Array{Matrix{ComplexF64}, 5}   # An observable field corresponding to dipoles of the original system.
     source_idcs       :: Array{Int64, 4}                # Metadata for populating the original dipoles from entangled sites.
 end
 
 function EntangledSystem(sys, units)
+    # Since external field is stored in the onsite interactions in
+    # EntangledSystems and EntangledSystems are always homogenous (i.e.,
+    # interactions are indexed by atom/unit, not site, external field
+    # information must also be tracked by atom/unit index only.
+    for atom in axes(sys.coherents, 4)
+        @assert allequal(@view sys.gs[:,:,:,atom]) "`EntangledSystem` require g-factors be uniform across unit cells" 
+    end
+    @assert allequal(@view sys.extfield[:,:,:,:]) "`EntangledSystems` requires a uniform applied field." 
+
+    # Generate pair of contracted and uncontracted systems
     (; sys_entangled, contraction_info) = entangle_system(sys, units)
     sys_origin = clone_system(sys)
 
+    # Generate observable field. This observable field has as many entres as the
+    # uncontracted system but contains operators in the local product spaces of
+    # the contracted system. `source_idcs` provides the unit index (of the
+    # contracted system) in terms of the atom index (of the uncontracted
+    # system).
     dipole_operators_origin = all_dipole_observables(sys_origin; apply_g=false) 
     (; observables, source_idcs)  = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
 
     esys = EntangledSystem(sys_entangled, sys_origin, contraction_info, observables, source_idcs)
+
+    # Coordinate sys_entangled and sys_origin
     set_expected_dipoles_of_entangled_system!(esys)
+    set_field!(esys, sys.extfield[1,1,1,1]) # Note external field checked to be uniform
 
     return esys
 end
+
+
+################################################################################
+# Functions operating on EntangledSystems 
+################################################################################
+
+function set_expected_dipoles_of_entangled_system!(esys)
+    for site in eachsite(esys.sys_origin)
+        set_expected_dipole_of_entangled_system!(esys, site)
+    end
+end
+
+function set_expected_dipole_of_entangled_system!(esys, site)
+    (; sys, sys_origin, dipole_operators, source_idcs) = esys
+    (; dipoles) = sys_origin
+
+    a, b, c, atom = site.I
+    source_idx = source_idcs[atom]
+    Z = sys.coherents[a, b, c, source_idx]
+    dipoles[site] = ntuple(i -> real(dot(Z, dipole_operators[i, site], Z)), 3)
+
+    nothing
+end
+
+
+function set_field!(esys::EntangledSystem, B)
+    (; sys, sys_origin, dipole_operators, source_idcs) = esys
+    B_old = sys_origin.extfield[1,1,1,1] 
+    set_field!(sys_origin, B) 
+
+    # Iterate through atom of original system and adjust the onsite operator of
+    # corresponding unit of contracted system.
+    for atom in axes(sys_origin.coherents, 4)
+        unit = source_idcs[1, 1, 1, atom]
+        S = dipole_operators[:, 1, 1, 1, atom]
+        ΔB = sys_origin.gs[1, 1, 1, atom]' * (B - B_old) 
+        sys.interactions_union[unit].onsite -= Hermitian(ΔB' * S)
+    end
+end
+
+function set_field_at!(::EntangledSystem, _, _)
+    error("`EntangledSystem`s do not support inhomogenous external fields. Use `set_field!(sys, B).")
+end
+
+
 
 
 ################################################################################

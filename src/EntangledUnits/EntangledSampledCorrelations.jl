@@ -72,7 +72,6 @@ Base.setproperty!(esc::EntangledSampledCorrelationsStatic, sym::Symbol, val) = s
 function observables_to_product_space(observables, sys_origin, contraction_info)
     Ns_per_unit = Ns_in_units(sys_origin, contraction_info)
     Ns_all = [prod(Ns) for Ns in Ns_per_unit]
-    println(Ns_all)
     N = Ns_all[1]
     @assert all(==(N), Ns_all) "All entangled units must have the same dimension Hilbert space."
 

@@ -11,7 +11,7 @@
     # Check that re-expansion of a contracted crystal matches original crystal
     # in terms of site-ordering and positions.
     for units in units_all
-        contracted_crystal, contraction_info = contract_crystal(crystal, units)
+        contracted_crystal, contraction_info = Sunny.contract_crystal(crystal, units)
         expanded_crystal = Sunny.expand_crystal(contracted_crystal, contraction_info)
         @test expanded_crystal.positions ≈ crystal.positions
     end
@@ -39,8 +39,8 @@ end
     set_exchange!(sys, J′, Bond(1, 1, [1, 0, 0]))
     set_exchange!(sys, J′, Bond(2, 2, [1, 0, 0]))  # Needed because we broke the symmetry equivalence of the two sites
 
-    sys_entangled = EntangledSystem(sys, [(1, 2)])
-    interactions = sys_entangled.sys.interactions_union[1]
+    esys = Sunny.EntangledSystem(sys, [(1, 2)])
+    interactions = esys.sys.interactions_union[1]
 
     # Test on-bond exchange
     onsite_operator = interactions.onsite
@@ -49,8 +49,14 @@ end
     onsite_ref = J * (Sl' * Su)
     @test onsite_operator ≈ onsite_ref
 
+    # Test external field works as expected
+    set_field!(esys, [0, 0, 1])
+    onsite_operator = esys.sys.interactions_union[1].onsite
+    field_offset = -2*(Sl[3] + Su[3]) # 2 for g-factor
+    @test onsite_operator ≈ onsite_ref + field_offset 
+
     # Test inter-bond exchange
-    pc = Sunny.as_general_pair_coupling(interactions.pair[1], sys_entangled.sys)
+    pc = Sunny.as_general_pair_coupling(interactions.pair[1], esys.sys)
     Sl1, Sl2 = to_product_space(Sl, Sl)
     Su1, Su2 = to_product_space(Su, Su)
     bond_operator = zeros(ComplexF64, 16, 16)
