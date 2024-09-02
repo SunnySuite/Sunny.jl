@@ -145,7 +145,7 @@ This calculation is analogous to [`intensities`](@ref), but does not perform
 line broadening of the bands.
 """
 function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
-    (; sys, measure, positions) = swt
+    (; sys, measure) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
     with_negative && error("Option `with_negative=true` not yet supported.")
 
@@ -180,7 +180,7 @@ function intensities_bands(swt::SpinWaveTheory, qpts; kT=0, with_negative=false)
         view(disp, :, iq) .= view(excitations!(T, H, swt, q), 1:L)
 
         for i in 1:Na, μ in 1:Nobs
-            r_global = positions[μ, i]
+            r_global = global_position(sys, (1,1,1,i)) # + offsets[μ,i]  # Offsets will enter here
             ff = get_swt_formfactor(measure, 1, i)
             Avec_pref[μ, i] = exp(- im * dot(q_global, r_global))
             Avec_pref[μ, i] *= compute_form_factor(ff, norm2(q_global))

@@ -77,24 +77,27 @@ end
 
 
 function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
-    (; crystal, latsize, nsamples) = sc
+    (; crystal, nsamples) = sc
+    nω = round(Int, size(sc.data)[7]/2)
+    sys_dims = size(sc.data[4:6])
     printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
     println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
     print(io,"[")
     printstyled(io,"S(q,ω)"; bold=true)
-    print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
+    print(io," | nω = $nω, Δω = $(round(sc.Δω, digits=4))")
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io,"Lattice: $latsize × $(natoms(crystal))")
+    println(io,"Lattice: $sys_dims × $(natoms(crystal))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelationsStatic)
-    (; crystal, latsize, nsamples) = sc.parent
+    (; crystal, nsamples) = sc.parent
+    sys_dims = size(sc.parent.data[4:6])
     printstyled(io, "SampledCorrelationsStatic"; bold=true, color=:underline)
     println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
     print(io,"[")
     printstyled(io,"S(q)"; bold=true)
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io,"Lattice: $latsize × $(natoms(crystal))")
+    println(io,"Lattice: $sys_dims × $(natoms(crystal))")
 end
 
 function Base.getproperty(sc::SampledCorrelations, sym::Symbol)

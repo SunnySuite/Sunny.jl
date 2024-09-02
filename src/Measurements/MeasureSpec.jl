@@ -7,10 +7,10 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
     combiner :: F                        # (q::Vec3, obs) -> Ret
     formfactors :: Array{FormFactor, 2}  # (nobs × natoms)
-    positions :: Array{Vec3, 2}          # (nobs × natoms)
+    offsets :: Array{Vec3, 2}            # (nobs × natoms)
 
     # TODO: Default combiner will be SVector?
-    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors, positions) where {Op, F}
+    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors, offsets) where {Op, F}
         # Lift return type of combiner function to type-level
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         @assert isbitstype(Ret)
@@ -18,11 +18,11 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
         if isone(ndims(formfactors))
             formfactors = [ff for _ in axes(observables, 1), ff in formfactors]
         end
-        if isone(ndims(positions))
-            positions = [position for _ in axes(observables, 1), position in positions]
+        if isone(ndims(offsets))
+            offsets = [offset for _ in axes(observables, 1), offset in offsets]
         end
         @assert size(observables)[[1,5]] == size(formfactors)
-        return new{Op, F, Ret}(observables, corr_pairs, combiner, formfactors, positions)
+        return new{Op, F, Ret}(observables, corr_pairs, combiner, formfactors, offsets)
     end
 end
 
@@ -48,8 +48,8 @@ function empty_measurespec(sys)
     corr_pairs = NTuple{2, Int}[]
     combiner = (_, _) -> 0.0
     formfactors = zeros(FormFactor, 0, natoms(sys.crystal))
-    positions = [global_position(sys, (1, 1, 1, i)) for _ in 0:0, i in 1:natoms(sys.crystal)]
-    return MeasureSpec(observables, corr_pairs, combiner, formfactors, positions)
+    offsets = [Vec3(0,0,0) for _ in 0:0, i in 1:natoms(sys.crystal)]
+    return MeasureSpec(observables, corr_pairs, combiner, formfactors, offsets)
 end
 
 function all_dipole_observables(sys::System{0}; apply_g)
@@ -149,7 +149,7 @@ See also the Sunny documentation on [Structure Factor Conventions](@ref).
 """
 function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
     observables = all_dipole_observables(sys; apply_g)
-    positions = [global_position(sys, (1, 1, 1, i)) for _ in 1:3, i in 1:natoms(sys.crystal)]
+    offsets = [Vec3(0,0,0) for _ in 1:3, _ in 1:natoms(sys.crystal)]
     corr_pairs = [(3,3), (2,3), (1,3), (2,2), (1,2), (1,1)]
     combiner(q, data) = f(q, SA[
         data[6]       data[5]       data[3]
@@ -157,7 +157,7 @@ function ssf_custom(f, sys::System; apply_g=true, formfactors=nothing)
         conj(data[3]) conj(data[2]) data[1]
     ])
     formfactors = propagate_form_factors(sys, formfactors)
-    return MeasureSpec(observables, corr_pairs, combiner, formfactors, positions)
+    return MeasureSpec(observables, corr_pairs, combiner, formfactors, offsets)
 end
 
 """

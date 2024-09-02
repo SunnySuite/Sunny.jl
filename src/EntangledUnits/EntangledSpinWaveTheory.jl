@@ -1,7 +1,6 @@
 struct SWTDataEntangled
     local_unitaries           :: Vector{Matrix{ComplexF64}}   # Aligns to quantization axis on each site
     observables_localized     :: Array{HermitianC64, 3}   # Observables in local frame for each subsite (for intensity calcs)
-    # spins_localized         :: Array{HermitianC64, 2} # Add for support of Ewald
     observable_buf            :: Array{ComplexF64, 2}   # Buffer for use while constructing boson rep of observables 
 end
 
@@ -15,6 +14,7 @@ struct EntangledSpinWaveTheory <: AbstractSpinWaveTheory
     contraction_info :: CrystalContractionInfo
     Ns_unit          :: Vector{Vector{Int64}}
 end
+ 
 
 function SpinWaveTheory(esys::EntangledSystem; measure, regularization=1e-8)
     (; sys, sys_origin) = esys
@@ -150,7 +150,7 @@ function swt_data_entangled(sys, sys_origin, Ns_unit, contraction_info, measure)
 end
 
 
-function intensities_bands(swt::EntangledSpinWaveTheory, qpts; formfactors=nothing, kT=0)
+function intensities_bands(swt::EntangledSpinWaveTheory, qpts; kT=0)
     (; sys, contraction_info, data, measure, crystal_origin) = swt
     isempty(measure.observables) && error("No observables! Construct SpinWaveTheory with a `measure` argument.")
 

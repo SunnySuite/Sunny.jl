@@ -60,21 +60,30 @@ function reshape_supercell(esys::EntangledSystem, shape)
     (; sys, sys_origin) = esys
 
     # Reshape the origin System.
-    new_sys_origin = reshape_supercell(sys_origin, shape)
+    sys_origin_new = reshape_supercell(sys_origin, shape)
 
     # Reshape the the underlying "entangled" System.
-    new_units = units_for_reshaped_system(new_sys_origin, esys)
-    _, contraction_info = contract_crystal(new_sys_origin.crystal, new_units)
-    new_sys = reshape_supercell(sys, shape)
+    units_new = units_for_reshaped_system(sys_origin_new, esys)
+    _, contraction_info = contract_crystal(sys_origin_new.crystal, units_new)
+    sys_new = reshape_supercell(sys, shape)
 
-    # Construct a new EntangledSystem
-    new_esys = EntangledSystem(new_sys, new_sys_origin, contraction_info)
+    # Construct dipole operator field for reshaped EntangledSystem
+    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false) 
+    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
 
-    return new_esys
+    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
 end
 
 function repeat_periodically(esys, counts)
-    sys_new = repeat_periodically(esys.sys, counts)
-    sys_origin_new = repeat_periodically(esys.sys_origin, counts)
-    return EntangledSystem(sys_new, sys_origin_new, esys.contraction_info)
+    (; sys, sys_origin, contraction_info) = esys
+
+    # Repeat both entangled and original system periodically
+    sys_new = repeat_periodically(sys, counts)
+    sys_origin_new = repeat_periodically(sys_origin, counts)
+
+    # Construct dipole operator field for reshaped EntangledSystem
+    dipole_operators_origin = all_dipole_observables(sys_origin_new; apply_g=false) 
+    (; observables, source_idcs) = observables_to_product_space(dipole_operators_origin, sys_origin_new, contraction_info)
+
+    return EntangledSystem(sys_new, sys_origin_new, contraction_info, observables, source_idcs)
 end

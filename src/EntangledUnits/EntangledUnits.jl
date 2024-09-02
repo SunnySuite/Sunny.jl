@@ -331,8 +331,8 @@ function set_expected_dipole_of_entangled_system!(esys, site)
     (; sys, sys_origin, dipole_operators, source_idcs) = esys
     (; dipoles) = sys_origin
 
-    a, b, c, atom = site.I
-    source_idx = source_idcs[atom]
+    a, b, c, _ = site.I
+    source_idx = source_idcs[site]
     Z = sys.coherents[a, b, c, source_idx]
     dipoles[site] = ntuple(i -> real(dot(Z, dipole_operators[i, site], Z)), 3)
 
