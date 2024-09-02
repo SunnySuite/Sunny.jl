@@ -222,11 +222,11 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
 
     measure = isnothing(measure) ? ssf_trace(sys) : measure
     num_observables(measure)
-    samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., na, n_all_ω)
+    samplebuf = zeros(ComplexF64, num_observables(measure), sys.dims..., npos, n_all_ω)
     corrbuf = zeros(ComplexF64, sys.dims..., n_all_ω)
 
     # The output data has n_all_ω many (positive and negative and zero) frequencies
-    data = zeros(ComplexF64, num_correlations(measure), na, na, sys.dims..., n_all_ω)
+    data = zeros(ComplexF64, num_correlations(measure), npos, npos, sys.dims..., n_all_ω)
     M = calculate_errors ? zeros(Float64, size(data)...) : nothing
 
     # The normalization is defined so that the prod(sys.dims)-many estimates of
