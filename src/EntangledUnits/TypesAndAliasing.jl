@@ -41,7 +41,23 @@ struct EntangledSystem
     source_idcs       :: Array{Int64, 4}                # Metadata for populating the original dipoles from entangled sites.
 end
 
-function EntangledSystem(sys, units)
+"""
+    EntangledSystem(sys::System{N}, units)
+
+Create an `EntangledSystem` from an existing `System`. `units` is a list of
+tuples specifying the atoms inside each unit cell that will be grouped into a
+single "entangled unit." All entangled units must lie entirely inside a unit
+cell and cannot span different units cells. Currently this feature is only
+supported for systems that can be viewed as a regular lattice of a single unit
+type (all dimers, all trimers, etc). Sunny will use the SU(_N_) formalism to
+model each one of these units as a distinct Hilbert space in which the full
+quantum mechanical structure is locally preserved.
+
+Interactions must be specified for the original `System`. Sunny will
+automatically reconstruct the appropriate interactions for the
+`EntangledSystem`.
+"""
+function EntangledSystem(sys::System{N}, units) where {N}
     # Since external field is stored in the onsite interactions in
     # EntangledSystems and EntangledSystems are always homogenous (i.e.,
     # interactions are indexed by atom/unit, not site, external field
@@ -70,6 +86,10 @@ function EntangledSystem(sys, units)
     set_field!(esys, sys.extfield[1,1,1,1]) # Note external field checked to be uniform
 
     return esys
+end
+
+function EntangledSystem(::System{0}, _)
+    error("Cannot create an `EntangledSystem` from a `:dipole`-mode `System`.")
 end
 
 
