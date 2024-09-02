@@ -1,3 +1,21 @@
+"""
+    SampledCorrelations(sys::System; measure, energies, dt)
+
+An object to accumulate samples of dynamical pair correlations. The `measure`
+argument specifies a pair correlation type, e.g. [`ssf_perp`](@ref). The
+`energies` must be evenly-spaced and starting from 0, e.g. `energies = range(0,
+3, 100)`. Select the integration time-step `dt` according to accuracy and speed
+considerations. [`suggest_timestep`](@ref) can help in selecting an appropriate
+value.
+
+Dynamical correlations will be accumulated through calls to
+[`add_sample!`](@ref), which expects a spin configuration in thermal
+equilibrium. A classical spin dynamics trajectory will be simulated of
+sufficient length to achieve the target energy resolution. The resulting data
+can can then be extracted as pair-correlation [`intensities`](@ref) with
+appropriate classical-to-quantum correction factors. See also
+[`intensities_instant`](@ref), which integrates over the available energy range.
+"""
 mutable struct SampledCorrelations{Op}
     # 𝒮^{αβ}(q,ω) data and metadata
     const data           :: Array{ComplexF64, 7}                 # Raw SF with sublattice indices (ncorrs × natoms × natoms × sys_dims × nω)
@@ -25,6 +43,58 @@ mutable struct SampledCorrelations{Op}
     const time_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for samplebuf
     const corr_fft!    :: FFTW.AbstractFFTs.Plan                 # Pre-planned time FFT for corrbuf 
     const corr_ifft!   :: FFTW.AbstractFFTs.Plan                 # Pre-planned time IFFT for corrbuf 
+end
+
+"""
+    SampledCorrelationsStatic(sys::System; measure)
+
+An object to accumulate samples of static pair correlations. Similar to
+[`SampledCorrelations`](@ref), but no time-integration will be performed on
+calls to [`add_sample!`](@ref). As a result, dynamical [`intensities`](@ref)
+data will be unavailable for `SampledCorrelationsStatic`. Furthermore,
+[`intensities_instant`](@ref) data is associated with the classical Boltzmann
+distribution, and misses classical-to-quantum corrections that can be captured
+by `SampledCorrelations`.
+"""
+struct SampledCorrelationsStatic
+    parent :: SampledCorrelations
+
+    function SampledCorrelationsStatic(sys::System; measure, calculate_errors=false)
+        parent = SampledCorrelations(sys; measure, energies=nothing, dt=NaN, calculate_errors)
+        return new(parent)
+    end
+end
+
+
+function Base.show(io::IO, ::SampledCorrelations)
+    print(io, "SampledCorrelations")
+    # TODO: Add correlation info?
+end
+
+function Base.show(io::IO, ::SampledCorrelationsStatic)
+    print(io, "SampledCorrelationsStatic")
+end
+
+
+function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
+    (; crystal, latsize, nsamples) = sc
+    printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
+    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
+    print(io,"[")
+    printstyled(io,"S(q,ω)"; bold=true)
+    print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
+    println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
+    println(io,"Lattice: $latsize × $(natoms(crystal))")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelationsStatic)
+    (; crystal, latsize, nsamples) = sc.parent
+    printstyled(io, "SampledCorrelationsStatic"; bold=true, color=:underline)
+    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
+    print(io,"[")
+    printstyled(io,"S(q)"; bold=true)
+    println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
+    println(io,"Lattice: $latsize × $(natoms(crystal))")
 end
 
 function Base.getproperty(sc::SampledCorrelations, sym::Symbol)
@@ -115,24 +185,6 @@ function to_reshaped_rlu(sc::SampledCorrelations, q)
     return sc.crystal.recipvecs \ orig_cryst.recipvecs * q
 end
 
-"""
-    SampledCorrelations(sys::System; measure, energies, dt)
-
-An object to accumulate samples of dynamical pair correlations. The `measure`
-argument specifies a pair correlation type, e.g. [`ssf_perp`](@ref). The
-`energies` must be evenly-spaced and starting from 0, e.g. `energies = range(0,
-3, 100)`. Select the integration time-step `dt` according to accuracy and speed
-considerations. [`suggest_timestep`](@ref) can help in selecting an appropriate
-value.
-
-Dynamical correlations will be accumulated through calls to
-[`add_sample!`](@ref), which expects a spin configuration in thermal
-equilibrium. A classical spin dynamics trajectory will be simulated of
-sufficient length to achieve the target energy resolution. The resulting data
-can can then be extracted as pair-correlation [`intensities`](@ref) with
-appropriate classical-to-quantum correction factors. See also
-[`intensities_static`](@ref), which integrates over energy.
-"""
 function SampledCorrelations(sys::System; measure, energies, dt, calculate_errors=false, positions=nothing)
     if isnothing(energies)
         n_all_ω = 1
@@ -200,58 +252,4 @@ function SampledCorrelations(sys::System; measure, energies, dt, calculate_error
                              samplebuf, corrbuf, space_fft!, time_fft!, corr_fft!, corr_ifft!)
 
     return sc
-end
-
-"""
-    SampledCorrelationsStatic(sys::System; measure)
-
-An object to accumulate samples of static pair correlations. It is similar to
-[`SampledCorrelations`](@ref), but no time-integration will be performed on
-calls to [`add_sample!`](@ref). The resulting object can be used with
-[`intensities_static`](@ref) to calculate statistics from the classical
-Boltzmann distribution. Dynamical [`intensities`](@ref) data, however, will be
-unavailable. Similarly, classical-to-quantum corrections that rely on the
-excitation spectrum cannot be performed.
-"""
-struct SampledCorrelationsStatic
-    parent :: SampledCorrelations
-
-    function SampledCorrelationsStatic(sys::System; measure, calculate_errors=false)
-        parent = SampledCorrelations(sys; measure, energies=nothing, dt=NaN, calculate_errors)
-        return new(parent)
-    end
-end
-
-
-function Base.show(io::IO, ::SampledCorrelations)
-    print(io, "SampledCorrelations")
-    # TODO: Add correlation info?
-end
-
-function Base.show(io::IO, ::SampledCorrelationsStatic)
-    print(io, "SampledCorrelationsStatic")
-end
-
-
-function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelations)
-    (; crystal, sys_dims, nsamples) = sc
-    nω = Int(size(sc.data, 7)/2+1)
-    Δω = round(sc.Δω, digits=4)
-    printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
-    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
-    print(io,"[")
-    printstyled(io,"S(q,ω)"; bold=true)
-    print(io," | nω = $nω, Δω = $Δω")
-    println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io, supercell_to_str(sys_dims, crystal))
-end
-
-function Base.show(io::IO, ::MIME"text/plain", sc::SampledCorrelationsStatic)
-    (; crystal, sys_dims, nsamples) = sc.parent
-    printstyled(io, "SampledCorrelationsStatic"; bold=true, color=:underline)
-    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
-    print(io,"[")
-    printstyled(io,"S(q)"; bold=true)
-    println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io, supercell_to_str(sys_dims, crystal))
 end

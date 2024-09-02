@@ -68,7 +68,7 @@ export print_wrapped_intensities, suggest_magnetic_supercell
 include("Reshaping.jl")
 export reshape_supercell, resize_supercell, repeat_periodically, repeat_periodically_as_spiral
 
-include("EntangledUnits/Types.jl")
+include("EntangledUnits/TypesAndAliasing.jl")
 include("EntangledUnits/EntangledUnits.jl")
 include("EntangledUnits/EntangledReshaping.jl")
 export contract_crystal, EntangledSystem, set_expected_dipoles_of_entangled_system!

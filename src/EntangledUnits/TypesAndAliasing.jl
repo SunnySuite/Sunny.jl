@@ -43,9 +43,9 @@ function EntangledSystem(sys, units)
     sys_origin = clone_system(sys)
 
     dipole_operators_origin = all_dipole_observables(sys_origin; apply_g=false) 
-    (; observables_new, source_idcs)  = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
+    (; observables, source_idcs)  = observables_to_product_space(dipole_operators_origin, sys_origin, contraction_info)
 
-    esys = EntangledSystem(sys_entangled, sys_origin, contraction_info, observables_new, source_idcs)
+    esys = EntangledSystem(sys_entangled, sys_origin, contraction_info, observables, source_idcs)
     set_expected_dipoles_of_entangled_system!(esys)
 
     return esys
@@ -82,9 +82,9 @@ set_dipole!(esys::EntangledSystem, dipole, site; kwargs...) = error("Setting dip
 # contracted lattice (i.e., to a "unit"). The function then updates all dipoles
 # in the uncontracted system that are determined by the coherent state. 
 function set_coherent!(esys::EntangledSystem, coherent, site) 
-    set_coherent!(esys.sys, coherent, site; kwargs...)
+    set_coherent!(esys.sys, coherent, site)
     a, b, c, unit = site.I
-    for atom in atoms_in_unit(contraction_info, unit)
+    for atom in atoms_in_unit(esys.contraction_info, unit)
         set_expected_dipole_of_entangled_system!(esys, CartesianIndex(a, b, c, atom))
     end
 end

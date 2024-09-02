@@ -7,6 +7,54 @@ struct EntangledSampledCorrelationsStatic
     parent :: EntangledSampledCorrelations
 end
 
+function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
+    if sym == :measure
+        @assert sc.measure.observables ≈ val.observables "New MeasureSpec must contain identical observables."
+        @assert all(x -> x == 1, sc.measure.corr_pairs .== val.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
+        setfield!(sc, :measure, val)
+    else
+        setfield!(sc, sym, val)
+    end
+end
+
+function Base.show(io::IO, ::EntangledSampledCorrelations)
+    print(io, "EntangledSampledCorrelations")
+    # TODO: Add correlation info?
+end
+
+function Base.show(io::IO, ::SampledCorrelationsStatic)
+    print(io, "EntangledSampledCorrelationsStatic")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", esc::EntangledSampledCorrelations)
+    (; crystal, latsize, nsamples) = sc
+    printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
+    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
+    print(io,"[")
+    printstyled(io,"S(q,ω)"; bold=true)
+    print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
+    println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
+    println(io,"Lattice: $latsize × $(natoms(crystal))")
+end
+
+Base.show(io::IO, mime::MIME"text/plain", esc::EntangledSampledCorrelations) = Base.show(io, mime, esc.sc)
+Base.show(io::IO, mime::MIME"text/plain", esc::EntangledSampledCorrelationsStatic) = Base.show(io, mime, esc.parent.sc)
+
+function Base.setproperty!(esc::EntangledSampledCorrelations, sym::Symbol, val)
+    if sym == :measure
+        measure = val
+        (; observables) = observables_to_product_space(measure.observables, esc.esys.sys_origin, esc.esys.contraction_info)
+        @assert esc.sc.measure.observables ≈ observables "New MeasureSpec must contain identical observables."
+        @assert all(x -> x == 1, esc.sc.measure.corr_pairs .== measure.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
+        setfield!(esc.sc, :measure, val) # Sets new combiner
+    else
+        setfield!(sc, sym, val)
+    end
+end
+
+Base.setproperty!(esc::EntangledSampledCorrelationsStatic, sym::Symbol, val) = setproperty!(esc.parent, sym, val)
+
+
 # TODO: Write Base.show methods
 
 # Take observables specified in terms or original system and transform them into
@@ -16,6 +64,7 @@ end
 function observables_to_product_space(observables, sys_origin, contraction_info)
     Ns_per_unit = Ns_in_units(sys_origin, contraction_info)
     Ns_all = [prod(Ns) for Ns in Ns_per_unit]
+    println(Ns_all)
     N = Ns_all[1]
     @assert all(==(N), Ns_all) "All entangled units must have the same dimension Hilbert space."
 
@@ -34,8 +83,9 @@ function observables_to_product_space(observables, sys_origin, contraction_info)
             observables_new[μ, site] = local_op_to_product_space(obs, unitsub, Ns)
         end
     end
+    observables = observables_new
 
-    return (; observables_new, positions, source_idcs)
+    return (; observables, positions, source_idcs)
 end
 
 
@@ -49,7 +99,7 @@ function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calcu
     # the position is recorded independently, and the index of the relevant
     # coherent state (which may now be used for operators corresponding to
     # multiple positions) is recorded in `source_idcs`.
-    (; observables_new, positions, source_idcs) = observables_to_product_space(measure.observables, esys.sys_origin, esys.contraction_info)
+    (; observables, positions, source_idcs) = observables_to_product_space(measure.observables, esys.sys_origin, esys.contraction_info)
 
     # Make a sampled correlations for the esys.
     sc = SampledCorrelations(esys.sys; measure, energies, dt, calculate_errors, positions) 
@@ -59,23 +109,23 @@ function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calcu
     # migrated into the MeasureSpec.
     crystal = esys.sys_origin.crystal
     origin_crystal = orig_crystal(esys.sys_origin)
-    sc_new = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables_new, positions, source_idcs, measure.corr_pairs,
+    sc_new = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables, positions, source_idcs, measure.corr_pairs,
                                  sc.measperiod, sc.dt, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
 
     return EntangledSampledCorrelations(sc_new, esys)
 end
 
 function SampledCorrelationsStatic(esys::EntangledSystem; measure, calculate_errors=false)
-    (; observables_new, positions, source_idcs) = observables_to_product_space(measure.observables, esys.sys_origin, esys.contraction_info)
+    (; observables, positions, source_idcs) = observables_to_product_space(measure.observables, esys.sys_origin, esys.contraction_info)
     sc = SampledCorrelations(esys.sys; measure, energies=nothing, dt=NaN, calculate_errors, positions) 
 
     # Replace relevant fields
     crystal = esys.sys_origin.crystal
     origin_crystal = orig_crystal(esys.sys_origin)
-    parent = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables_new, positions, source_idcs, measure.corr_pairs,
+    parent = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables, positions, source_idcs, measure.corr_pairs,
                                  sc.measperiod, sc.dt, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
 
-    return EntangledSampledCorrelationsStatic(parent)
+    return EntangledSampledCorrelationsStatic(EntangledSampledCorrelations(parent, esys))
 end
 
 
@@ -92,7 +142,7 @@ function add_sample!(esc::EntangledSampledCorrelations, esys::EntangledSystem; w
 end
 
 function add_sample!(esc::EntangledSampledCorrelationsStatic, esys::EntangledSystem; window=:cosine)
-    add_sample(esc.parent, esys)
+    add_sample!(esc.parent, esys)
 end
 
 available_energies(esc::EntangledSampledCorrelations) = available_energies(esc.sc)
