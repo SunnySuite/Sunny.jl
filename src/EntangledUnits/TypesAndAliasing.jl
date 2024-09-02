@@ -74,54 +74,8 @@ end
 
 
 ################################################################################
-# Functions operating on EntangledSystems 
-################################################################################
-
-function set_expected_dipoles_of_entangled_system!(esys)
-    for site in eachsite(esys.sys_origin)
-        set_expected_dipole_of_entangled_system!(esys, site)
-    end
-end
-
-function set_expected_dipole_of_entangled_system!(esys, site)
-    (; sys, sys_origin, dipole_operators, source_idcs) = esys
-    (; dipoles) = sys_origin
-
-    a, b, c, atom = site.I
-    source_idx = source_idcs[atom]
-    Z = sys.coherents[a, b, c, source_idx]
-    dipoles[site] = ntuple(i -> real(dot(Z, dipole_operators[i, site], Z)), 3)
-
-    nothing
-end
-
-
-function set_field!(esys::EntangledSystem, B)
-    (; sys, sys_origin, dipole_operators, source_idcs) = esys
-    B_old = sys_origin.extfield[1,1,1,1] 
-    set_field!(sys_origin, B) 
-
-    # Iterate through atom of original system and adjust the onsite operator of
-    # corresponding unit of contracted system.
-    for atom in axes(sys_origin.coherents, 4)
-        unit = source_idcs[1, 1, 1, atom]
-        S = dipole_operators[:, 1, 1, 1, atom]
-        ΔB = sys_origin.gs[1, 1, 1, atom]' * (B - B_old) 
-        sys.interactions_union[unit].onsite -= Hermitian(ΔB' * S)
-    end
-end
-
-function set_field_at!(::EntangledSystem, _, _)
-    error("`EntangledSystem`s do not support inhomogenous external fields. Use `set_field!(sys, B).")
-end
-
-
-
-
-################################################################################
 # Aliasing 
 ################################################################################
-
 function Base.show(io::IO, esys::EntangledSystem)
     print(io, "EntangledSystem($(mode_to_str(esys.sys)), $(lattice_to_str(esys.sys_origin)), $(energy_to_str(esys.sys)))")
 end
@@ -141,6 +95,26 @@ eachunit(esys::EntangledSystem) = eachsite(esys.sys)
 
 energy(esys::EntangledSystem) = energy(esys.sys)
 energy_per_site(esys::EntangledSystem) = energy(esys.sys) / length(eachsite(esys.sys_origin))
+
+function set_field!(esys::EntangledSystem, B)
+    (; sys, sys_origin, dipole_operators, source_idcs) = esys 
+    B_old = sys_origin.extfield[1,1,1,1] 
+    set_field!(sys_origin, B) 
+
+    # Iterate through atom of original system and adjust the onsite operator of
+    # corresponding unit of contracted system.
+    for atom in axes(sys_origin.coherents, 4)
+        unit = source_idcs[1, 1, 1, atom]
+        S = dipole_operators[:, 1, 1, 1, atom]
+        ΔB = sys_origin.gs[1, 1, 1, atom]' * (B - B_old) 
+        sys.interactions_union[unit].onsite -= Hermitian(ΔB' * S)
+    end
+end
+
+function set_field_at!(::EntangledSystem, _, _)
+    error("`EntangledSystem`s do not support inhomogenous external fields. Use `set_field!(sys, B).")
+end
+
 
 set_dipole!(esys::EntangledSystem, dipole, site; kwargs...) = error("Setting dipoles of an EntangledSystem not well defined.") 
 
@@ -173,3 +147,17 @@ end
 function plot_spins(esys::EntangledSystem; kwargs...)
     plot_spins(esys.sys_origin; kwargs...)
 end
+
+ssf_custom(f, esys::EntangledSystem; kwargs...) = ssf_custom(f, esys.sys_origin; kwargs...)
+ssf_custom_bm(f, esys::EntangledSystem; kwargs...) = ssf_custom_bm(f, esys.sys_origin; kwargs...)
+ssf_trace(esys::EntangledSystem; kwargs...) = ssf_trace(esys.sys_origin; kwargs...)
+ssf_perp(esys::EntangledSystem; kwargs...) = ssf_perp(esys.sys_origin; kwargs...)
+
+# TODO: Note this simple wrapper makes everythingn work, but is not the most efficient
+# solution. `step!` currently
+function step!(esys::EntangledSystem, integrator)
+    step!(esys.sys, integrator) 
+    set_expected_dipoles_of_entangled_system!(esys)
+end
+
+suggest_timestep(esys::EntangledSystem, integrator; kwargs...) = suggest_timestep(esys.sys, integrator; kwargs...)

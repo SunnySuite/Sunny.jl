@@ -137,13 +137,6 @@ function SampledCorrelationsStatic(esys::EntangledSystem; measure, calculate_err
 end
 
 
-# TODO: Note this simple wrapper makes everythingn work, but is not the most efficient
-# solution. `step!` currently
-function step!(esys::EntangledSystem, integrator)
-    step!(esys.sys, integrator) 
-    set_expected_dipoles_of_entangled_system!(esys)
-end
-
 function add_sample!(esc::EntangledSampledCorrelations, esys::EntangledSystem; window=:cosine)
     new_sample!(esc.sc, esys.sys)
     accum_sample!(esc.sc; window)

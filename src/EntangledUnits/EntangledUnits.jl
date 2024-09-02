@@ -264,14 +264,6 @@ function entangle_system(sys::System{M}, units) where M
         relevant_sites = atoms_in_unit(contraction_info, contracted_site)
         unit_operator = zeros(ComplexF64, N, N)
 
-        # Zeeman term -- TODO: generalize to inhomogenous case -- here assumes field is applied identically on a per-unit-cell basis
-        # for site in relevant_sites
-        #     unit_index = contraction_info.forward[site][2]
-        #     S = spin_matrices((Ns[unit_index] - 1)/2)
-        #     B = sys.gs[1, 1, 1, site]' * sys.extfield[1, 1, 1, site]
-        #     unit_operator -= local_op_to_product_space(B' * S, unit_index, Ns)
-        # end
-
         # Pair interactions that become within-unit interactions
         original_interactions = sys.interactions_union[relevant_sites] 
         for (site, interaction) in zip(relevant_sites, original_interactions)
@@ -329,4 +321,20 @@ function entangle_system(sys::System{M}, units) where M
 end
 
 
+function set_expected_dipoles_of_entangled_system!(esys)
+    for site in eachsite(esys.sys_origin)
+        set_expected_dipole_of_entangled_system!(esys, site)
+    end
+end
 
+function set_expected_dipole_of_entangled_system!(esys, site)
+    (; sys, sys_origin, dipole_operators, source_idcs) = esys
+    (; dipoles) = sys_origin
+
+    a, b, c, atom = site.I
+    source_idx = source_idcs[atom]
+    Z = sys.coherents[a, b, c, source_idx]
+    dipoles[site] = ntuple(i -> real(dot(Z, dipole_operators[i, site], Z)), 3)
+
+    nothing
+end
