@@ -63,8 +63,6 @@ end
 Base.setproperty!(esc::EntangledSampledCorrelationsStatic, sym::Symbol, val) = setproperty!(esc.parent, sym, val)
 
 
-# TODO: Write Base.show methods
-
 # Take observables specified in terms or original system and transform them into
 # a field of observables in the tensor product space, together with mapping
 # information for populating the expectation values of these operators with
