@@ -30,18 +30,18 @@ end
 function Base.show(io::IO, ::MIME"text/plain", esc::EntangledSampledCorrelations)
     (; crystal, sys_dims, nsamples) = esc.sc
     printstyled(io, "EntangledSampledCorrelations"; bold=true, color=:underline)
-    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
+    println(io," ($(Base.format_bytes(Base.summarysize(esc))))")
     print(io,"[")
     printstyled(io,"S(q,ω)"; bold=true)
-    print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
+    print(io," | nω = $(round(Int, size(esc.sc.data)[7]/2)), Δω = $(round(esc.sc.Δω, digits=4))")
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
     println(io,"Lattice: $sys_dims × $(natoms(crystal))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", esc::EntangledSampledCorrelationsStatic)
-    (; crystal, sys_dims, nsamples) = esc.sc
+    (; crystal, sys_dims, nsamples) = esc.sc.parent
     printstyled(io, "SampledCorrelationsStatic"; bold=true, color=:underline)
-    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
+    println(io," ($(Base.format_bytes(Base.summarysize(esc))))")
     print(io,"[")
     printstyled(io,"S(q)"; bold=true)
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
