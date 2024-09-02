@@ -4,7 +4,8 @@ struct EntangledSampledCorrelations
 end
 
 struct EntangledSampledCorrelationsStatic
-    parent :: EntangledSampledCorrelations
+    sc::SampledCorrelationsStatic  # Parent SampledCorrelations
+    esys::EntangledSystem          # Probably don't need to carry around the whole thing -- defeats spirit of original design for SC
 end
 
 function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
@@ -19,7 +20,6 @@ end
 
 function Base.show(io::IO, ::EntangledSampledCorrelations)
     print(io, "EntangledSampledCorrelations")
-    # TODO: Add correlation info?
 end
 
 function Base.show(io::IO, ::SampledCorrelationsStatic)
@@ -80,7 +80,7 @@ function observables_to_product_space(observables, sys_origin, contraction_info)
             obs = observables[μ, site]
             unit, unitsub = contraction_info.forward[atom]
             Ns = Ns_per_unit[unit]
-            observables_new[μ, site] = local_op_to_product_space(obs, unitsub, Ns)
+            observables_new[μ, site] = HermitianC64(local_op_to_product_space(obs, unitsub, Ns))
         end
     end
     observables = observables_new
@@ -125,7 +125,8 @@ function SampledCorrelationsStatic(esys::EntangledSystem; measure, calculate_err
     parent = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables, positions, source_idcs, measure.corr_pairs,
                                  sc.measperiod, sc.dt, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
 
-    return EntangledSampledCorrelationsStatic(EntangledSampledCorrelations(parent, esys))
+    ssc = SampledCorrelationsStatic{typeof(parent).parameters[1]}(parent)
+    return EntangledSampledCorrelationsStatic(ssc, esys)
 end
 
 
@@ -160,4 +161,12 @@ end
 
 function intensities(esc::EntangledSampledCorrelations, qpts; kwargs...)
     intensities(esc.sc, qpts; kwargs...)
+end
+
+function intensities_static(esc::EntangledSampledCorrelations, qpts; kwargs...)
+    intensities_static(esc.sc, qpts; kwargs...)
+end
+
+function intensities_static(esc::EntangledSampledCorrelationsStatic, qpts; kwargs...)
+    intensities_static(esc.parent, qpts; kwargs...)
 end

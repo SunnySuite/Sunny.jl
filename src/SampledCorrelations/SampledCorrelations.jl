@@ -56,12 +56,12 @@ data will be unavailable for `SampledCorrelationsStatic`. Furthermore,
 distribution, and misses classical-to-quantum corrections that can be captured
 by `SampledCorrelations`.
 """
-struct SampledCorrelationsStatic
-    parent :: SampledCorrelations
+struct SampledCorrelationsStatic{Op}
+    parent :: SampledCorrelations{Op}
 
     function SampledCorrelationsStatic(sys::System; measure, calculate_errors=false)
         parent = SampledCorrelations(sys; measure, energies=nothing, dt=NaN, calculate_errors)
-        return new(parent)
+        return new{typeof(parent).parameters[1]}(parent)
     end
 end
 
