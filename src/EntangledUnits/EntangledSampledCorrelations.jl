@@ -33,7 +33,7 @@ function Base.show(io::IO, ::MIME"text/plain", esc::EntangledSampledCorrelations
     println(io," ($(Base.format_bytes(Base.summarysize(esc))))")
     print(io,"[")
     printstyled(io,"S(q,ω)"; bold=true)
-    print(io," | nω = $(round(Int, size(esc.sc.data)[7]/2)), Δω = $(round(esc.sc.Δω, digits=4))")
+    print(io," | nω = $(round(Int, size(esc.sc.data)[7]/2 + 1)), Δω = $(round(esc.sc.Δω, digits=4))")
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
     println(io,"Lattice: $sys_dims × $(natoms(crystal))")
 end

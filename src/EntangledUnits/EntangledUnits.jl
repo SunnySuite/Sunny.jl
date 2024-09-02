@@ -275,6 +275,65 @@ function entangle_system(::System{0}, _)
     error("Cannot contract a dipole system.")
 end
 
+function set_field!(esys::EntangledSystem, B)
+    # contracted_crystal, contraction_info = contract_crystal(sys.crystal, units)
+    (; contraction_info, sys, sys_origin) = esys
+
+    # Determine Ns for local Hilbert spaces (all must be equal). (TODO: Determine if alternative behavior preferable in mixed case.)
+    Ns_unit = Ns_in_units(sys_origin, contraction_info)
+    Ns_contracted = map(Ns -> prod(Ns), Ns_unit)
+    @assert allequal(Ns_contracted) "After contraction, the dimensions of the local Hilbert spaces on each generalized site must all be equal."
+
+    for (contracted_site, N) in zip(1:natoms(contracted_crystal), Ns_contracted)
+        Ns = Ns_unit[contracted_site]
+
+        ## Onsite portion of interaction 
+        relevant_sites = atoms_in_unit(contraction_info, contracted_site)
+        unit_operator = zeros(ComplexF64, N, N)
+
+        # Zeeman term -- TODO: generalize to inhomogenous case -- here assumes field is applied identically on a per-unit-cell basis
+        for site in relevant_sites
+            unit_index = contraction_info.forward[site][2]
+            S = spin_matrices((Ns[unit_index] - 1)/2)
+            B = sys.gs[1, 1, 1, site]' * sys.extfield[1, 1, 1, site]
+            unit_operator -= local_op_to_product_space(B' * S, unit_index, Ns)
+        end
+
+        # Pair interactions that become within-unit interactions
+        original_interactions = sys.interactions_union[relevant_sites] 
+        for (site, interaction) in zip(relevant_sites, original_interactions)
+            onsite_original = interaction.onsite
+            unit_index = contraction_info.forward[site][2]
+            unit_operator += local_op_to_product_space(onsite_original, unit_index, Ns)
+        end
+
+        # Sort all PairCouplings in couplings that will be within a unit and couplings that will be between units
+        pcs_intra = PairCoupling[] 
+        pcs_inter = PairCoupling[]
+        for interaction in original_interactions, pc in interaction.pair
+            (; bond) = pc
+            if bond_is_in_unit(bond, contraction_info)
+                push!(pcs_intra, pc)
+            else
+                push!(pcs_inter, pc)
+            end
+        end
+
+        # Convert intra-unit PairCouplings to onsite couplings
+        for pc in pcs_intra
+            accum_pair_coupling_into_bond_operator_in_unit!(unit_operator, pc, sys, contracted_site, contraction_info)
+        end
+        set_onsite_coupling!(sys_entangled, unit_operator, contracted_site)
+
+        ## Convert inter-unit PairCouplings into new pair couplings
+        for pc in pcs_inter
+            (; newbond, bond_operator) = pair_coupling_into_bond_operator_between_units(pc, sys, contraction_info)
+            push!(new_pair_data, (newbond, bond_operator))
+        end
+    end
+
+end
+
 function entangle_system(sys::System{M}, units) where M
     # Construct contracted crystal
     contracted_crystal, contraction_info = contract_crystal(sys.crystal, units)
