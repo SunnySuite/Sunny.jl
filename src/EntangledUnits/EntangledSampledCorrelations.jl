@@ -8,7 +8,8 @@ struct EntangledSampledCorrelationsStatic
     esys::EntangledSystem          # Probably don't need to carry around the whole thing -- defeats spirit of original design for SC
 end
 
-function Base.setproperty!(sc::SampledCorrelations, sym::Symbol, val)
+function Base.setproperty!(sc::T, sym::Symbol, val) where {T<:Union{EntangledSampledCorrelations, EntangledSampledCorrelationsStatic}}
+    sc = sc.sc
     if sym == :measure
         @assert sc.measure.observables ≈ val.observables "New MeasureSpec must contain identical observables."
         @assert all(x -> x == 1, sc.measure.corr_pairs .== val.corr_pairs) "New MeasureSpec must contain identical correlation pairs."
@@ -22,23 +23,30 @@ function Base.show(io::IO, ::EntangledSampledCorrelations)
     print(io, "EntangledSampledCorrelations")
 end
 
-function Base.show(io::IO, ::SampledCorrelationsStatic)
+function Base.show(io::IO, ::EntangledSampledCorrelationsStatic)
     print(io, "EntangledSampledCorrelationsStatic")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", esc::EntangledSampledCorrelations)
-    (; crystal, latsize, nsamples) = sc
-    printstyled(io, "SampledCorrelations"; bold=true, color=:underline)
+    (; crystal, sys_dims, nsamples) = esc.sc
+    printstyled(io, "EntangledSampledCorrelations"; bold=true, color=:underline)
     println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
     print(io,"[")
     printstyled(io,"S(q,ω)"; bold=true)
     print(io," | nω = $(round(Int, size(sc.data)[7]/2)), Δω = $(round(sc.Δω, digits=4))")
     println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
-    println(io,"Lattice: $latsize × $(natoms(crystal))")
+    println(io,"Lattice: $sys_dims × $(natoms(crystal))")
 end
 
-Base.show(io::IO, mime::MIME"text/plain", esc::EntangledSampledCorrelations) = Base.show(io, mime, esc.sc)
-Base.show(io::IO, mime::MIME"text/plain", esc::EntangledSampledCorrelationsStatic) = Base.show(io, mime, esc.sc)
+function Base.show(io::IO, ::MIME"text/plain", esc::EntangledSampledCorrelationsStatic)
+    (; crystal, sys_dims, nsamples) = esc.sc
+    printstyled(io, "SampledCorrelationsStatic"; bold=true, color=:underline)
+    println(io," ($(Base.format_bytes(Base.summarysize(sc))))")
+    print(io,"[")
+    printstyled(io,"S(q)"; bold=true)
+    println(io," | $nsamples $(nsamples > 1 ? "samples" : "sample")]")
+    println(io,"Lattice: $sys_dims × $(natoms(crystal))")
+end
 
 function Base.setproperty!(esc::EntangledSampledCorrelations, sym::Symbol, val)
     if sym == :measure

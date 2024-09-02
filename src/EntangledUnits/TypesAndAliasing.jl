@@ -62,7 +62,7 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", esys::EntangledSystem)
     printstyled(io, "EntangledSystem $(mode_to_str(esys.sys))\n"; bold=true, color=:underline)
-    println(io, lattice_to_str(esys.sys_origin))
+    println(io, supercell_to_str(esys.sys_origin.dims, esys.sys_origin.crystal))
     if !isnothing(esys.sys_origin.origin)
         shape = number_to_math_string.(cell_shape(esys.sys_origin))
         println(io, formatted_matrix(shape; prefix="Reshaped cell "))
