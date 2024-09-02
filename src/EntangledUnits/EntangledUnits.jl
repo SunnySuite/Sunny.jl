@@ -98,6 +98,7 @@ function expand_crystal(contracted_crystal, contraction_info)
     Crystal(contracted_crystal.latvecs, expanded_positions)
 end
 
+
 # Returns a list of length equal to the number of "units" in the a contracted
 # crystal. Each list element is itself a list of integers, each of which
 # corresponds to the N of the corresponding site of the original system. The
@@ -124,7 +125,8 @@ function original_unit_spec(esys::EntangledSystem)
     return [Tuple(atoms_in_unit(contraction_info, unit)) for unit in axes(sys.dipoles, 4)]
 end
 
-#  Interpreted in terms of the original crystal.
+
+# Interpreted in terms of the original crystal.
 function bonds_in_unit(contraction_info, i)
     sites = atoms_in_unit(contraction_info, i)
     nsites = length(sites)
@@ -135,11 +137,13 @@ function bonds_in_unit(contraction_info, i)
     return bonds
 end
 
+
 # Checks whether a bond given in terms of the original crystal lies inside a
 # single unit of the contracted system.
 function bond_is_in_unit(bond::Bond, ci::CrystalContractionInfo)
     (ci.forward[bond.i][1] == ci.forward[bond.j][1]) && (bond.n == [0, 0, 0])
 end
+
 
 # Converts what was a pair coupling between two different sites in the original system into a single
 # on-bond operator (an onsite operator in terms of the "units".)

@@ -3,6 +3,10 @@ struct EntangledSampledCorrelations
     esys::EntangledSystem    # Probably don't need to carry around the whole thing -- defeats spirit of original design for SC
 end
 
+struct EntangledSampledCorrelationsStatic
+    parent :: EntangledSampledCorrelations
+end
+
 # TODO: Write Base.show methods
 
 # Take observables specified in terms or original system and transform them into
@@ -61,6 +65,19 @@ function SampledCorrelations(esys::EntangledSystem; measure, energies, dt, calcu
     return EntangledSampledCorrelations(sc_new, esys)
 end
 
+function SampledCorrelationsStatic(esys::EntangledSystem; measure, calculate_errors=false)
+    (; observables_new, positions, source_idcs) = observables_to_product_space(measure.observables, esys.sys_origin, esys.contraction_info)
+    sc = SampledCorrelations(esys.sys; measure, energies=nothing, dt=NaN, calculate_errors, positions) 
+
+    # Replace relevant fields
+    crystal = esys.sys_origin.crystal
+    origin_crystal = orig_crystal(esys.sys_origin)
+    parent = SampledCorrelations(sc.data, sc.M, crystal, origin_crystal, sc.Δω, measure, observables_new, positions, source_idcs, measure.corr_pairs,
+                                 sc.measperiod, sc.dt, sc.nsamples, sc.samplebuf, sc.corrbuf, sc.space_fft!, sc.time_fft!, sc.corr_fft!, sc.corr_ifft!)
+
+    return EntangledSampledCorrelationsStatic(parent)
+end
+
 
 # TODO: Note this simple wrapper makes everythingn work, but is not the most efficient
 # solution. `step!` currently
@@ -72,6 +89,10 @@ end
 function add_sample!(esc::EntangledSampledCorrelations, esys::EntangledSystem; window=:cosine)
     new_sample!(esc.sc, esys.sys)
     accum_sample!(esc.sc; window)
+end
+
+function add_sample!(esc::EntangledSampledCorrelationsStatic, esys::EntangledSystem; window=:cosine)
+    add_sample(esc.parent, esys)
 end
 
 available_energies(esc::EntangledSampledCorrelations) = available_energies(esc.sc)
