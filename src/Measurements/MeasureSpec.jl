@@ -7,9 +7,10 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
     corr_pairs :: Vector{NTuple{2, Int}} # (ncorr)
     combiner :: F                        # (q::Vec3, obs) -> Ret
     formfactors :: Array{FormFactor, 2}  # (nobs × natoms)
+    offsets :: Array{Vec3, 2}            # (nobs × natoms)
 
     # TODO: Default combiner will be SVector?
-    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors) where {Op, F}
+    function MeasureSpec(observables::Array{Op, 5}, corr_pairs, combiner::F, formfactors; offsets=nothing) where {Op, F}
         # Lift return type of combiner function to type-level
         Ret = only(Base.return_types(combiner, (Vec3, Vector{ComplexF64})))
         @assert isbitstype(Ret)
@@ -17,8 +18,11 @@ struct MeasureSpec{Op <: Union{Vec3, HermitianC64}, F, Ret}
         if isone(ndims(formfactors))
             formfactors = [ff for _ in axes(observables, 1), ff in formfactors]
         end
-        @assert size(observables)[[1,5]] == size(formfactors)
-        return new{Op, F, Ret}(observables, corr_pairs, combiner, formfactors)
+        if isnothing(offsets)
+            offsets = zeros(Vec3, size(observables)[[1,5]]...)
+        end
+        @assert size(observables)[[1,5]] == size(formfactors) == size(offsets)
+        return new{Op, F, Ret}(observables, corr_pairs, combiner, formfactors, offsets)
     end
 end
 
@@ -27,7 +31,7 @@ function Base.show(io::IO, ::MeasureSpec)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", m::MeasureSpec)
-    nobs = size(m.observables, 1)
+    nobs = num_observables(m)
     ret = eltype(m)
     println(io, "MeasureSpec [$nobs observables, returns $ret]")
 end
@@ -35,7 +39,6 @@ end
 
 Base.eltype(::MeasureSpec{Op, F, Ret}) where {Op, F, Ret} = Ret
 
-# Replicate Sam's observables code for the moment
 num_observables(measure::MeasureSpec) = size(measure.observables, 1)
 num_correlations(measure::MeasureSpec) = length(measure.corr_pairs) 
 

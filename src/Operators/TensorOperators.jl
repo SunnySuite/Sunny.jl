@@ -82,6 +82,14 @@ function svd_tensor_expansion(D::Matrix{T}, N1, N2) where T
     return ret
 end
 
+# Given a local operator, A, that lives within an entangled unit on local site
+# i, construct I ⊗ … ⊗ I ⊗ A ⊗ I ⊗ … ⊗ I, where A is in the i position.
+function local_op_to_product_space(op, i, Ns)
+    @assert size(op, 1) == Ns[i] "Given operator not consistent with dimension of local Hilbert space"
+    I1 = I(prod(Ns[begin:i-1]))
+    I2 = I(prod(Ns[i+1:end]))
+    return kron(I1, op, I2) 
+end
 
 """
     to_product_space(A, B, ...)
@@ -101,10 +109,8 @@ function to_product_space(A, B, rest...)
     end
 
     return map(enumerate(lists)) do (i, list)
-        I1 = I(prod(Ns[begin:i-1]))
-        I2 = I(prod(Ns[i+1:end]))
         return map(list) do op
-            kron(I1, op, I2)
+            local_op_to_product_space(op, i, Ns)
         end
     end
 end
